@@ -1,8 +1,8 @@
 /**
  * Vertical-slice coverage for the Hub's app-server upgrades: durable
  * sequence-stamped events with cursor replay, queue-backed run admission
- * with an immediate ack, the drain lifecycle, and pending-approval re-issue
- * on (re)subscribe.
+ * with an immediate ack, the drain lifecycle, pending-approval re-issue on
+ * (re)subscribe, and bot-profile injection.
  */
 
 import { mkdtempSync } from "node:fs";
@@ -19,6 +19,11 @@ import type {
 	StartSessionInput,
 	StartSessionResult,
 } from "../../runtime/host/runtime-host";
+import { resolveClineDadProfile } from "../profiles/cline-dad";
+import {
+	HUB_SUPPORT_TOOL_NAME,
+	type HubSupportToolResult,
+} from "../profiles/hub-support-tool";
 import type { HubTransportContext } from "./handlers/context";
 import { HubServerTransport } from "./hub-server-transport";
 
@@ -317,6 +322,108 @@ describe("Hub app-server upgrades", () => {
 				approved: true,
 				reason: undefined,
 			});
+		} finally {
+			await transport.stop();
+		}
+	});
+
+	it("injects the bot profile system prompt into sessions without an explicit one", async () => {
+		const { options, capturedStarts } = createStartedTransportOptions();
+		const transport = new HubServerTransport({
+			...options,
+			botProfile: {
+				id: "test-bot",
+				name: "Test Bot",
+				description: "test",
+				systemPrompt: "# Rule: identity\n\nYou are the test bot.",
+				pluginRoots: [],
+			},
+		} as never);
+		await transport.start();
+		try {
+			await transport.handleCommand({
+				version: "v1",
+				command: "session.create",
+				clientId: "creator",
+				payload: { sessionConfig: { sessionId: "profiled" } },
+			});
+			expect(capturedStarts[0]?.config.systemPrompt).toContain(
+				"You are the test bot.",
+			);
+
+			// An explicit prompt always wins over the profile.
+			await transport.handleCommand({
+				version: "v1",
+				command: "session.create",
+				clientId: "creator",
+				payload: {
+					sessionConfig: { sessionId: "explicit", systemPrompt: "mine" },
+				},
+			});
+			expect(capturedStarts[1]?.config.systemPrompt).toBe("mine");
+
+			const profileReply = await transport.handleCommand({
+				version: "v1",
+				command: "profile.get",
+			});
+			expect(profileReply.ok).toBe(true);
+			expect((profileReply.payload?.profile as { id?: string })?.id).toBe(
+				"test-bot",
+			);
+		} finally {
+			await transport.stop();
+		}
+	});
+
+	it("a Cline Dad hub injects a working cline_hub_support tool into sessions", async () => {
+		const { options } = createStartedTransportOptions();
+		const transport = new HubServerTransport({
+			...options,
+			botProfile: resolveClineDadProfile({ ADMIN_NAME: "Beatrix" }),
+		} as never);
+		await transport.start();
+		try {
+			const ctx = (transport as unknown as { ctx: HubTransportContext }).ctx;
+			const supportTool = ctx.sessionTools?.find(
+				(tool) => tool.name === HUB_SUPPORT_TOOL_NAME,
+			);
+			expect(supportTool).toBeDefined();
+
+			const status = (await supportTool?.execute(
+				{ query: "status" },
+				{} as never,
+			)) as HubSupportToolResult;
+			expect(status.ok).toBe(true);
+			expect(status.result).toMatchObject({ draining: false, idle: true });
+
+			const config = (await supportTool?.execute(
+				{ query: "config" },
+				{} as never,
+			)) as HubSupportToolResult;
+			expect(config.ok).toBe(true);
+			const configResult = config.result as {
+				profile: { id: string };
+				capabilities: string[];
+			};
+			expect(configResult.profile.id).toBe("cline-dad");
+			expect(configResult.capabilities).toContain("run.enqueue");
+			// The support surface never carries the hub auth token.
+			expect(JSON.stringify(config.result)).not.toContain("authToken");
+
+			// Sessions created under Cline Dad inherit its operator prompt.
+			await transport.handleCommand({
+				version: "v1",
+				command: "session.create",
+				clientId: "creator",
+				payload: { sessionConfig: { sessionId: "dad-session" } },
+			});
+			const profiled = await transport.handleCommand({
+				version: "v1",
+				command: "profile.get",
+			});
+			expect((profiled.payload?.profile as { id: string }).id).toBe(
+				"cline-dad",
+			);
 		} finally {
 			await transport.stop();
 		}

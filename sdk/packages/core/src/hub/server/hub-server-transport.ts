@@ -14,12 +14,17 @@ import {
 	CLINE_DEFAULT_MODEL_ID,
 	captureSdkError,
 	createSessionId,
+	HUB_CAPABILITIES,
 	HUB_CLIENT_TOOL_APPROVAL_CAPABILITY,
 } from "@cline/shared";
-import { isChatWorkspacePath } from "@cline/shared/storage";
+import {
+	isChatWorkspacePath,
+	resolveClineDataDir,
+} from "@cline/shared/storage";
 import { CronService } from "../../cron/service/cron-service";
 import { HubScheduleCommandService } from "../../cron/service/schedule-command-service";
 import { HubScheduleService } from "../../cron/service/schedule-service";
+import { loadAgentPluginsFromPathsWithDiagnostics } from "../../extensions/plugin/plugin-loader";
 import { LocalRuntimeHost } from "../../runtime/host/local-runtime-host";
 import type {
 	CommandExecutionRuntimeService,
@@ -43,6 +48,14 @@ import {
 } from "../../tasks";
 import { SessionSource } from "../../types/common";
 import type { CoreSessionEvent } from "../../types/events";
+import {
+	PLAIN_BOT_PROFILE,
+	type ResolvedBotProfile,
+} from "../profiles/bot-profiles";
+import {
+	createHubSupportTool,
+	HUB_SUPPORT_TOOL_NAME,
+} from "../profiles/hub-support-tool";
 import type { HubConnectionAuthority } from "./command-transport";
 import {
 	handleApprovalRespond,
@@ -80,6 +93,7 @@ import {
 import {
 	drainingReply,
 	HubRunExecutor,
+	handleProfileGet,
 	handleRunEnqueue,
 	handleRunList,
 	isDrainRefusedCommand,
@@ -224,6 +238,7 @@ export class HubServerTransport implements NativeHubTransport {
 		Partial<PendingPromptsRuntimeService & CommandExecutionRuntimeService>;
 	private readonly hubId = createSessionId("hub_");
 	private readonly ctx: HubTransportContext;
+	private readonly botProfile: ResolvedBotProfile;
 	/** Durable event log; created on start(), absent in never-started tests. */
 	private eventLog?: HubEventLogStore;
 	private eventLogPruneTimer?: ReturnType<typeof setInterval>;
@@ -241,7 +256,9 @@ export class HubServerTransport implements NativeHubTransport {
 				logger: options.logger,
 				telemetry: options.telemetry,
 			});
+		this.botProfile = options.botProfile ?? PLAIN_BOT_PROFILE;
 		this.ctx = {
+			botProfile: this.botProfile,
 			isDraining: () => this.draining,
 			clients: this.clients,
 			sessionState: this.sessionState,
@@ -562,8 +579,86 @@ export class HubServerTransport implements NativeHubTransport {
 				console.error("[hub] cron service start failed", err);
 			}
 		}
+		await this.startBotProfile();
 		this.startEventLog();
 		this.startRunQueue();
+		this.startHubSupportTool();
+	}
+
+	/**
+	 * Profiles like Cline Dad opt into the hub's read-only self-diagnostic
+	 * tool: with it, sessions can inspect status, config, sessions, runs, and
+	 * redacted logs to unblock themselves instead of failing opaquely.
+	 */
+	private startHubSupportTool(): void {
+		if (this.botProfile.includeHubSupportTool !== true) {
+			return;
+		}
+		if (this.sessionTools.some((tool) => tool.name === HUB_SUPPORT_TOOL_NAME)) {
+			return;
+		}
+		this.sessionTools.push(
+			createHubSupportTool({
+				getStatus: () => this.describeStatus(),
+				describeConfig: () => ({
+					ownerId: this.options.owner?.ownerId,
+					discoveryPath: this.options.owner?.discoveryPath,
+					dataDir: resolveClineDataDir(),
+					workspaceRoot: this.options.workspaceRoot,
+					capabilities: [...HUB_CAPABILITIES],
+					profile: {
+						id: this.botProfile.id,
+						name: this.botProfile.name,
+						description: this.botProfile.description,
+						pluginRoots: [...this.botProfile.pluginRoots],
+					},
+				}),
+				listSessions: async () =>
+					((await this.sessionHost.listSessions()) ?? []) as unknown as Record<
+						string,
+						unknown
+					>[],
+				listRuns: (limit) =>
+					(this.runQueue?.list({ limit }) ?? []).map((run) => ({
+						runId: run.runId,
+						sessionId: run.sessionId,
+						state: run.state,
+						acceptedAt: run.acceptedAt,
+						startedAt: run.startedAt,
+						endedAt: run.endedAt,
+						error: run.error,
+					})),
+			}) as AgentTool,
+		);
+	}
+
+	/**
+	 * Load the bot profile's module plugins as hub-owned session extensions.
+	 * Skill-only plugin roots contribute nothing here (their skills are
+	 * already folded into the profile's system prompt); load failures are
+	 * isolated per root so one bad plugin never takes the Hub down.
+	 */
+	private async startBotProfile(): Promise<void> {
+		if (this.botProfile.pluginRoots.length === 0) {
+			return;
+		}
+		try {
+			const report = await loadAgentPluginsFromPathsWithDiagnostics([
+				...this.botProfile.pluginRoots,
+			]);
+			this.sessionExtensions.push(...report.plugins);
+			for (const failure of report.failures) {
+				logHubMessage("warn", "profile.plugin_load_failed", {
+					profileId: this.botProfile.id,
+					failure,
+				});
+			}
+		} catch (error) {
+			logHubMessage("warn", "profile.plugin_load_failed", {
+				profileId: this.botProfile.id,
+				error,
+			});
+		}
 	}
 
 	private startEventLog(): void {
@@ -810,6 +905,8 @@ export class HubServerTransport implements NativeHubTransport {
 				return this.handleHubDrain(envelope);
 			case "hub.status":
 				return this.handleHubStatus(envelope);
+			case "profile.get":
+				return handleProfileGet(this.ctx, envelope);
 			case "run.abort":
 				return await handleRunAbort(this.ctx, envelope);
 			case "run.proceed_while_running":
@@ -1007,6 +1104,10 @@ export class HubServerTransport implements NativeHubTransport {
 			eventLog: this.eventLog
 				? { lastSequence: this.eventLog.lastSequence() }
 				: undefined,
+			profile: {
+				id: this.botProfile.id,
+				name: this.botProfile.name,
+			},
 			// Idle = safe to stop: nothing executing and nothing accepted-but-unstarted.
 			idle: activeRpcTurns === 0 && (this.runQueue?.countPending() ?? 0) === 0,
 		};

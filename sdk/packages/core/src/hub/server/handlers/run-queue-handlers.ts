@@ -1,6 +1,7 @@
 /**
  * Queue-backed run admission (`run.enqueue`), queue introspection
- * (`run.list`), and drain lifecycle (`hub.drain`, `hub.status`).
+ * (`run.list`), drain lifecycle (`hub.drain`, `hub.status`), and bot profile
+ * introspection (`profile.get`).
  *
  * `run.start` keeps its historical synchronous-reply contract untouched;
  * `run.enqueue` is the additive path with app-server semantics: durable FIFO
@@ -228,5 +229,29 @@ export function handleRunList(
 			endedAt: run.endedAt,
 			error: run.error,
 		})),
+	});
+}
+
+export function handleProfileGet(
+	ctx: HubTransportContext,
+	envelope: HubCommandEnvelope,
+): HubReplyEnvelope {
+	const profile = ctx.botProfile;
+	return okReply(envelope, {
+		profile: profile
+			? {
+					id: profile.id,
+					name: profile.name,
+					description: profile.description,
+					pluginRoots: [...profile.pluginRoots],
+					hasSystemPrompt: profile.systemPrompt.length > 0,
+				}
+			: {
+					id: "cline",
+					name: "Cline",
+					description: "The standard Cline bot profile.",
+					pluginRoots: [],
+					hasSystemPrompt: false,
+				},
 	});
 }

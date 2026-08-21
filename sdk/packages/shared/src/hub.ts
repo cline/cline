@@ -45,6 +45,7 @@ export type HubCapabilityName =
 	| "run.list"
 	| "hub.drain"
 	| "hub.status"
+	| "profile.get"
 	| "stream.replay";
 
 export const HUB_CAPABILITIES: readonly HubCapabilityName[] = [
@@ -75,6 +76,7 @@ export const HUB_CAPABILITIES: readonly HubCapabilityName[] = [
 	"run.list",
 	"hub.drain",
 	"hub.status",
+	"profile.get",
 	"stream.replay",
 ];
 
@@ -534,6 +536,7 @@ export type HubCommandName =
 	| "run.proceed_while_running"
 	| "hub.drain"
 	| "hub.status"
+	| "profile.get"
 	| "approval.request"
 	| "approval.respond"
 	| "capability.request"
