@@ -922,6 +922,10 @@ describe("buildSessionConfig", () => {
 			actModeOpenRouterModelInfo: {
 				name: "Empty Capabilities Model",
 				contextWindow: 16_000,
+				// Required by the store's isModelInfo gate: without a boolean
+				// supportsPromptCache the state snapshot is rejected and the
+				// model never reaches knownModels at all.
+				supportsPromptCache: false,
 				supportsReasoning: true,
 				capabilities: [],
 			},
