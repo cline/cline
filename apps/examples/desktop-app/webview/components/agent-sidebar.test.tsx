@@ -54,12 +54,13 @@ function makeSessionHistory(
 	options: {
 		loadOlderSessions?: ReturnType<typeof vi.fn>;
 		mayHaveMoreSessions?: boolean;
+		hasLoadedHistory?: boolean;
 	} = {},
 ): UseSessionHistoryResult {
 	return {
 		deleteThread: vi.fn(),
 		forkThread: vi.fn(),
-		isLoadingHistory: false,
+		hasLoadedHistory: options.hasLoadedHistory ?? true,
 		isLoadingMore: false,
 		loadOlderSessions: options.loadOlderSessions ?? vi.fn(),
 		loadMoreSessions,
@@ -519,6 +520,56 @@ describe("AgentSidebar session organization", () => {
 		expect(sessionIsVisible("cli session 1")).toBe(true);
 	});
 
+	it("keeps the loading state until the first history response arrives", async () => {
+		await act(async () => {
+			root.render(
+				<SidebarProvider>
+					<AgentSidebar
+						activeSessionId={null}
+						onHome={vi.fn()}
+						onNewThread={vi.fn()}
+						onSettingsSectionChange={vi.fn()}
+						sessionHistory={makeSessionHistory([], vi.fn(), {
+							hasLoadedHistory: false,
+						})}
+						setView={vi.fn()}
+						settingsSection="General"
+						view="chat"
+					/>
+				</SidebarProvider>,
+			);
+		});
+
+		// Before the backend has answered, an empty list means "still loading",
+		// never "no sessions": the definitive copy would read as lost history.
+		expect(container.textContent).toContain("Loading session history...");
+		expect(container.textContent).not.toContain("No sessions found in history");
+	});
+
+	it("shows the empty state only after the backend answered with zero sessions", async () => {
+		await act(async () => {
+			root.render(
+				<SidebarProvider>
+					<AgentSidebar
+						activeSessionId={null}
+						onHome={vi.fn()}
+						onNewThread={vi.fn()}
+						onSettingsSectionChange={vi.fn()}
+						sessionHistory={makeSessionHistory([], vi.fn(), {
+							hasLoadedHistory: true,
+						})}
+						setView={vi.fn()}
+						settingsSection="General"
+						view="chat"
+					/>
+				</SidebarProvider>,
+			);
+		});
+
+		expect(container.textContent).toContain("No sessions found in history");
+		expect(container.textContent).not.toContain("Loading session history...");
+	});
+
 	it("builds the hover overview with branch and secondary metadata last", () => {
 		const thread = {
 			...makeThread("cline", 5),
@@ -704,6 +755,44 @@ describe("AgentSidebar session organization", () => {
 
 		expect(onSettingsSectionChange).toHaveBeenCalledWith("Account");
 		expect(setView).not.toHaveBeenCalled();
+	});
+
+	it("suppresses the settings gear hover state while the Account screen is open", async () => {
+		invoke.mockResolvedValue(signedInUser);
+
+		const renderSidebar = async (settingsSection: "Account" | "General") => {
+			await act(async () => {
+				root.render(
+					<AccountProvider>
+						<SidebarProvider>
+							<AgentSidebar
+								activeSessionId={null}
+								onHome={vi.fn()}
+								onNewThread={vi.fn()}
+								onSettingsSectionChange={vi.fn()}
+								sessionHistory={makeSessionHistory([], vi.fn())}
+								setView={vi.fn()}
+								settingsSection={settingsSection}
+								view="settings"
+							/>
+						</SidebarProvider>
+					</AccountProvider>,
+				);
+			});
+			return vi.waitFor(() => {
+				const button = container.querySelector('[aria-label="Settings"]');
+				expect(button).not.toBeNull();
+				return button as HTMLButtonElement;
+			});
+		};
+
+		const gearOnAccount = await renderSidebar("Account");
+		expect(gearOnAccount.className).toContain("hover:bg-transparent");
+		expect(gearOnAccount.className).not.toContain("bg-surface-hover");
+
+		const gearOnGeneral = await renderSidebar("General");
+		expect(gearOnGeneral.className).not.toContain("hover:bg-transparent");
+		expect(gearOnGeneral.className).toContain("bg-surface-hover");
 	});
 
 	it("shows the desktop app version and connected Hub when the logo is hovered", async () => {

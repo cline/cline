@@ -1,5 +1,5 @@
 import type { FSWatcher } from "node:fs";
-import { existsSync, statSync, watch } from "node:fs";
+import { existsSync, realpathSync, statSync, watch } from "node:fs";
 import { relative } from "node:path";
 import type {
 	AgendaAutomationPolicy,
@@ -924,8 +924,11 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 		let cacheScope = true;
 		try {
 			store.ensureSpecsDir();
-			if (this.watchFiles) {
-				watched.watcher = watch(store.specsDir, (_event, filename) => {
+			const watchRoot = this.watchFiles
+				? this.resolveWatchRoot(store.specsDir)
+				: undefined;
+			if (watchRoot !== undefined) {
+				watched.watcher = watch(watchRoot, (_event, filename) => {
 					if (!filename || !String(filename).endsWith(".task.md")) return;
 					if (watched.timer) clearTimeout(watched.timer);
 					watched.timer = setTimeout(() => {
@@ -1416,6 +1419,27 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 			{ task, ...(run ? { run } : {}) },
 			run?.sessionId ?? task.lastSessionId,
 		);
+	}
+
+	/**
+	 * fs.watch must be handed the fully resolved form of a path: on Windows,
+	 * libuv aborts the entire process (fs-event.c assertion) when the watched
+	 * path contains 8.3 short components such as C:\Users\RUNNER~1, because
+	 * event filenames come back in long form and fail its prefix check. When
+	 * the path cannot be resolved, going without the watcher is safer than
+	 * handing libuv the unresolved path.
+	 */
+	private resolveWatchRoot(specsDir: string): string | undefined {
+		try {
+			return realpathSync.native(specsDir);
+		} catch (error) {
+			this.logError(
+				"agenda task watcher disabled: specs dir could not be resolved",
+				error,
+				{ specsDir },
+			);
+			return undefined;
+		}
 	}
 
 	private logError(
