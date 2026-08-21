@@ -14,12 +14,17 @@ import {
 	CLINE_DEFAULT_MODEL_ID,
 	captureSdkError,
 	createSessionId,
+	HUB_CAPABILITIES,
 	HUB_CLIENT_TOOL_APPROVAL_CAPABILITY,
 } from "@cline/shared";
-import { isChatWorkspacePath } from "@cline/shared/storage";
+import {
+	isChatWorkspacePath,
+	resolveClineDataDir,
+} from "@cline/shared/storage";
 import { CronService } from "../../cron/service/cron-service";
 import { HubScheduleCommandService } from "../../cron/service/schedule-command-service";
 import { HubScheduleService } from "../../cron/service/schedule-service";
+import { loadAgentPluginsFromPathsWithDiagnostics } from "../../extensions/plugin/plugin-loader";
 import { LocalRuntimeHost } from "../../runtime/host/local-runtime-host";
 import type {
 	CommandExecutionRuntimeService,
@@ -43,6 +48,14 @@ import {
 } from "../../tasks";
 import { SessionSource } from "../../types/common";
 import type { CoreSessionEvent } from "../../types/events";
+import {
+	PLAIN_BOT_PROFILE,
+	type ResolvedBotProfile,
+} from "../profiles/bot-profiles";
+import {
+	createHubSupportTool,
+	HUB_SUPPORT_TOOL_NAME,
+} from "../profiles/hub-support-tool";
 import type { HubConnectionAuthority } from "./command-transport";
 import {
 	handleApprovalRespond,
@@ -77,6 +90,14 @@ import {
 	handleSessionHook,
 	handleSessionInput,
 } from "./handlers/run-handlers";
+import {
+	drainingReply,
+	HubRunExecutor,
+	handleProfileGet,
+	handleRunEnqueue,
+	handleRunList,
+	isDrainRefusedCommand,
+} from "./handlers/run-queue-handlers";
 import { projectSessionEvent } from "./handlers/session-event-projector";
 import {
 	handleSessionAttach,
@@ -95,8 +116,10 @@ import {
 	handleSessionUpdateConnection,
 	handleSessionUpdatePendingPrompt,
 } from "./handlers/session-handlers";
+import { HubEventLogStore } from "./hub-event-log";
+import { HubRunQueue } from "./hub-run-queue";
 import { eventNameForScheduleCommand } from "./hub-schedule-events";
-import { logHubBoundaryError } from "./hub-server-logging";
+import { logHubBoundaryError, logHubMessage } from "./hub-server-logging";
 import type { HubWebSocketServerOptions } from "./hub-server-options";
 import type { HubSessionState } from "./hub-session-records";
 import type { NativeHubTransport } from "./native-transport";
@@ -215,6 +238,14 @@ export class HubServerTransport implements NativeHubTransport {
 		Partial<PendingPromptsRuntimeService & CommandExecutionRuntimeService>;
 	private readonly hubId = createSessionId("hub_");
 	private readonly ctx: HubTransportContext;
+	private readonly botProfile: ResolvedBotProfile;
+	/** Durable event log; created on start(), absent in never-started tests. */
+	private eventLog?: HubEventLogStore;
+	private eventLogPruneTimer?: ReturnType<typeof setInterval>;
+	/** Durable run queue + serial per-session executor (run.enqueue). */
+	private runQueue?: HubRunQueue;
+	private runExecutor?: HubRunExecutor;
+	private draining = false;
 
 	constructor(readonly options: HubWebSocketServerOptions) {
 		this.sessionHost =
@@ -225,7 +256,10 @@ export class HubServerTransport implements NativeHubTransport {
 				logger: options.logger,
 				telemetry: options.telemetry,
 			});
+		this.botProfile = options.botProfile ?? PLAIN_BOT_PROFILE;
 		this.ctx = {
+			botProfile: this.botProfile,
+			isDraining: () => this.draining,
 			clients: this.clients,
 			sessionState: this.sessionState,
 			pendingApprovals: this.pendingApprovals,
@@ -545,9 +579,161 @@ export class HubServerTransport implements NativeHubTransport {
 				console.error("[hub] cron service start failed", err);
 			}
 		}
+		await this.startBotProfile();
+		this.startEventLog();
+		this.startRunQueue();
+		this.startHubSupportTool();
+	}
+
+	/**
+	 * Profiles like Cline Dad opt into the hub's read-only self-diagnostic
+	 * tool: with it, sessions can inspect status, config, sessions, runs, and
+	 * redacted logs to unblock themselves instead of failing opaquely.
+	 */
+	private startHubSupportTool(): void {
+		if (this.botProfile.includeHubSupportTool !== true) {
+			return;
+		}
+		if (this.sessionTools.some((tool) => tool.name === HUB_SUPPORT_TOOL_NAME)) {
+			return;
+		}
+		this.sessionTools.push(
+			createHubSupportTool({
+				getStatus: () => this.describeStatus(),
+				describeConfig: () => ({
+					ownerId: this.options.owner?.ownerId,
+					discoveryPath: this.options.owner?.discoveryPath,
+					dataDir: resolveClineDataDir(),
+					workspaceRoot: this.options.workspaceRoot,
+					capabilities: [...HUB_CAPABILITIES],
+					profile: {
+						id: this.botProfile.id,
+						name: this.botProfile.name,
+						description: this.botProfile.description,
+						pluginRoots: [...this.botProfile.pluginRoots],
+					},
+				}),
+				listSessions: async () =>
+					((await this.sessionHost.listSessions()) ?? []) as unknown as Record<
+						string,
+						unknown
+					>[],
+				listRuns: (limit) =>
+					(this.runQueue?.list({ limit }) ?? []).map((run) => ({
+						runId: run.runId,
+						sessionId: run.sessionId,
+						state: run.state,
+						acceptedAt: run.acceptedAt,
+						startedAt: run.startedAt,
+						endedAt: run.endedAt,
+						error: run.error,
+					})),
+			}) as AgentTool,
+		);
+	}
+
+	/**
+	 * Load the bot profile's module plugins as hub-owned session extensions.
+	 * Skill-only plugin roots contribute nothing here (their skills are
+	 * already folded into the profile's system prompt); load failures are
+	 * isolated per root so one bad plugin never takes the Hub down.
+	 */
+	private async startBotProfile(): Promise<void> {
+		if (this.botProfile.pluginRoots.length === 0) {
+			return;
+		}
+		try {
+			const report = await loadAgentPluginsFromPathsWithDiagnostics([
+				...this.botProfile.pluginRoots,
+			]);
+			this.sessionExtensions.push(...report.plugins);
+			for (const failure of report.failures) {
+				logHubMessage("warn", "profile.plugin_load_failed", {
+					profileId: this.botProfile.id,
+					failure,
+				});
+			}
+		} catch (error) {
+			logHubMessage("warn", "profile.plugin_load_failed", {
+				profileId: this.botProfile.id,
+				error,
+			});
+		}
+	}
+
+	private startEventLog(): void {
+		if (this.options.eventLog === false || this.eventLog) {
+			return;
+		}
+		try {
+			const eventLog = new HubEventLogStore({
+				ownerId: this.options.owner?.ownerId,
+				...(this.options.eventLog ?? {}),
+			});
+			eventLog.prune();
+			this.eventLog = eventLog;
+			this.eventLogPruneTimer = setInterval(
+				() => {
+					try {
+						eventLog.prune();
+					} catch {
+						// A failed sweep retries on the next interval.
+					}
+				},
+				60 * 60 * 1000,
+			);
+			this.eventLogPruneTimer.unref?.();
+		} catch (error) {
+			// Degrade to live-only fan-out (the pre-log behavior) rather than
+			// refusing to serve; replay cursors are then best-effort no-ops.
+			logHubMessage("error", "event_log.start_failed", { error });
+		}
+	}
+
+	private startRunQueue(): void {
+		if (this.options.runQueue === false || this.runQueue) {
+			return;
+		}
+		try {
+			this.runQueue = new HubRunQueue({
+				ownerId: this.options.owner?.ownerId,
+				...(this.options.runQueue ?? {}),
+			});
+			this.runExecutor = new HubRunExecutor(this.ctx, this.runQueue);
+			const recovered = this.runQueue.recoverOnStartup();
+			for (const run of recovered.interrupted) {
+				this.publish(
+					buildHubEvent(
+						"run.interrupted",
+						{
+							runId: run.runId,
+							error: run.error,
+							reason: "hub_restart",
+						},
+						run.sessionId,
+					),
+				);
+			}
+			const sessions = new Set(recovered.requeued.map((run) => run.sessionId));
+			for (const sessionId of sessions) {
+				this.runExecutor.pump(sessionId);
+			}
+			if (recovered.interrupted.length > 0 || recovered.requeued.length > 0) {
+				logHubMessage("info", "run.queue.recovered", {
+					interrupted: recovered.interrupted.length,
+					requeued: recovered.requeued.length,
+				});
+			}
+		} catch (error) {
+			logHubMessage("error", "run.queue.start_failed", { error });
+		}
 	}
 
 	async stop(): Promise<void> {
+		if (this.eventLogPruneTimer) {
+			clearInterval(this.eventLogPruneTimer);
+			this.eventLogPruneTimer = undefined;
+		}
 		for (const approvalId of this.pendingApprovals.keys()) {
 			resolvePendingApproval(this.ctx, approvalId, {
 				approved: false,
@@ -569,6 +755,11 @@ export class HubServerTransport implements NativeHubTransport {
 				console.error("[hub] cron service stop failed", err);
 			}
 		}
+		this.eventLog?.close();
+		this.eventLog = undefined;
+		this.runQueue?.close();
+		this.runQueue = undefined;
+		this.runExecutor = undefined;
 	}
 
 	async handleCommand(
@@ -612,6 +803,9 @@ export class HubServerTransport implements NativeHubTransport {
 		envelope: HubCommandEnvelope,
 		authority?: HubConnectionAuthority,
 	): Promise<HubReplyEnvelope> {
+		if (this.draining && isDrainRefusedCommand(envelope.command)) {
+			return drainingReply(envelope);
+		}
 		if (isAgendaTaskCommand(envelope.command)) {
 			return await this.taskCommands.handleCommand(envelope, authority);
 		}
@@ -681,6 +875,38 @@ export class HubServerTransport implements NativeHubTransport {
 			case "run.start":
 			case "session.send_input":
 				return await handleSessionInput(this.ctx, envelope);
+			case "run.enqueue": {
+				if (!this.runQueue || !this.runExecutor) {
+					return {
+						version: envelope.version,
+						requestId: envelope.requestId,
+						ok: false,
+						error: {
+							code: "run_queue_unavailable",
+							message:
+								"This hub has no durable run queue; use run.start instead.",
+						},
+					};
+				}
+				return handleRunEnqueue(
+					this.ctx,
+					envelope,
+					this.runQueue,
+					this.runExecutor,
+				);
+			}
+			case "run.list": {
+				if (!this.runQueue) {
+					return okReply(envelope, { runs: [] });
+				}
+				return handleRunList(envelope, this.runQueue);
+			}
+			case "hub.drain":
+				return this.handleHubDrain(envelope);
+			case "hub.status":
+				return this.handleHubStatus(envelope);
+			case "profile.get":
+				return handleProfileGet(this.ctx, envelope);
 			case "run.abort":
 				return await handleRunAbort(this.ctx, envelope);
 			case "run.proceed_while_running":
@@ -834,6 +1060,83 @@ export class HubServerTransport implements NativeHubTransport {
 		}
 	}
 
+	/**
+	 * Explicit drain: refuse new mutating work while accepted runs finish.
+	 * This is the graceful half of an upgrade — replacement happens at a
+	 * boundary an operator chose, never as an ambush under a live turn.
+	 */
+	private handleHubDrain(envelope: HubCommandEnvelope): HubReplyEnvelope {
+		const requested = envelope.payload?.draining !== false;
+		const reason =
+			typeof envelope.payload?.reason === "string"
+				? envelope.payload.reason
+				: undefined;
+		if (this.draining !== requested) {
+			this.draining = requested;
+			this.publish(
+				buildHubEvent("hub.drain_changed", {
+					draining: this.draining,
+					...(reason ? { reason } : {}),
+				}),
+			);
+			logHubMessage("info", "hub.drain_changed", {
+				draining: this.draining,
+				reason,
+			});
+		}
+		return okReply(envelope, this.describeStatus());
+	}
+
+	private handleHubStatus(envelope: HubCommandEnvelope): HubReplyEnvelope {
+		return okReply(envelope, this.describeStatus());
+	}
+
+	private describeStatus(): Record<string, unknown> {
+		let activeRpcTurns = 0;
+		for (const count of this.activeRpcTurnCountBySession.values()) {
+			activeRpcTurns += count;
+		}
+		return {
+			hubId: this.hubId,
+			draining: this.draining,
+			activeRpcTurns,
+			pendingRuns: this.runQueue?.countPending() ?? 0,
+			eventLog: this.eventLog
+				? { lastSequence: this.eventLog.lastSequence() }
+				: undefined,
+			profile: {
+				id: this.botProfile.id,
+				name: this.botProfile.name,
+			},
+			// Idle = safe to stop: nothing executing and nothing accepted-but-unstarted.
+			idle: activeRpcTurns === 0 && (this.runQueue?.countPending() ?? 0) === 0,
+		};
+	}
+
+	/** Whether the hub is currently draining (exposed for the HTTP status). */
+	isDraining(): boolean {
+		return this.draining;
+	}
+
+	/** Durable events after a cursor — the adapter's replay source. */
+	replayEventsAfter(
+		sinceSequence: number,
+		options: { sessionId?: string; limit: number },
+	): HubEventEnvelope[] {
+		if (!this.eventLog) {
+			return [];
+		}
+		return this.eventLog.listAfter(
+			sinceSequence,
+			{ sessionId: options.sessionId },
+			options.limit,
+		);
+	}
+
+	lastEventSequence(): number {
+		return this.eventLog?.lastSequence() ?? 0;
+	}
+
 	subscribe(
 		clientId: string,
 		listener: (event: HubEventEnvelope) => void,
@@ -894,6 +1197,19 @@ export class HubServerTransport implements NativeHubTransport {
 	}
 
 	private publish(event: HubEventEnvelope): void {
+		// Durability before delivery: append to the event log and fan out the
+		// sequence-stamped envelope, so live listeners and replaying clients
+		// observe identical frames and the cursor is always meaningful.
+		if (this.eventLog) {
+			try {
+				event = this.eventLog.append(event);
+			} catch (error) {
+				logHubBoundaryError(
+					`event log append failed for ${event.event}`,
+					error,
+				);
+			}
+		}
 		for (const entries of this.listeners.values()) {
 			for (const entry of entries) {
 				if (entry.sessionId && entry.sessionId !== event.sessionId) {

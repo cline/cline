@@ -82,6 +82,24 @@ export interface HubTransportContext {
 				SessionUsageRuntimeService &
 				SessionConnectionRuntimeService
 		>;
+	/**
+	 * The bot profile the Hub was started with. Sessions created without an
+	 * explicit system prompt inherit the profile's rendered prompt.
+	 */
+	readonly botProfile?: {
+		readonly id: string;
+		readonly name: string;
+		readonly description: string;
+		readonly systemPrompt: string;
+		readonly pluginRoots: readonly string[];
+	};
+	/**
+	 * While draining, new mutating work (session.create, run.*) is refused
+	 * with the retryable `hub_draining` error so the Hub can be replaced at a
+	 * boundary an operator chose instead of being ambushed mid-turn.
+	 * Optional: absent contexts (test fixtures) are never draining.
+	 */
+	isDraining?(): boolean;
 	publish(event: HubEventEnvelope): void;
 	buildEvent(
 		event: HubEventEnvelope["event"],
