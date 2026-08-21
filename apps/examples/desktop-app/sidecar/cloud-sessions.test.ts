@@ -2782,7 +2782,7 @@ describe("CloudSessionManager", () => {
 		});
 	});
 
-	it("does not confirm a lost duplicate prompt against an earlier delivery", async () => {
+	it("does not confirm a duplicate queued prompt against an earlier delivery", async () => {
 		// Baseline must advance on delivered sends: without it, the first
 		// delivery's occurrence falsely confirms a second, genuinely lost send.
 		const { ctx } = createContext();
@@ -2805,9 +2805,9 @@ describe("CloudSessionManager", () => {
 		hub.failNextSend = true;
 		hub.onFailedSend = () => {};
 
-		await expect(manager.send("ses-outer", "yes")).rejects.toThrow(
-			/please send it again/,
-		);
+		await expect(manager.send("ses-outer", "yes")).rejects.toMatchObject({
+			promptDeliveryUnknown: true,
+		});
 	});
 
 	it("reattaches after a transport failure without retrying the prompt", async () => {

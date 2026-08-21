@@ -2019,7 +2019,7 @@ export class CloudSessionManager {
 					prompt,
 				);
 				if (promptOccurrencesAfterRecovery <= promptOccurrencesBeforeSend) {
-					if (delivery === "queue" && snapshot.prompts === undefined) {
+					if (delivery === "queue") {
 						throw new CloudSessionError(
 							"request_failed",
 							"The connection was interrupted and Cline could not confirm whether this message was queued. Check the cloud session before resending it.",
