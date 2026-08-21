@@ -111,7 +111,7 @@ jobs:
               fi
               ANCESTOR_REF=main
               FEED=desktop-latest
-              PRODUCT="Cline Code"
+              PRODUCT="Cline"
               ;;
             beta)
               if ! printf "%s\n" "$TAG" | grep -Eq '^desktop-v[0-9]+\.[0-9]+\.[0-9]+-beta\.[0-9]+$'; then
@@ -120,7 +120,7 @@ jobs:
               fi
               ANCESTOR_REF=desktop-experimental
               FEED=desktop-beta
-              PRODUCT="Cline Code Beta"
+              PRODUCT="Cline Beta"
               ;;
             *)
               echo "unknown channel: ${CHANNEL}"
@@ -435,7 +435,7 @@ jobs:
           OUT="dist/publish"
           mkdir -p "$OUT"
 
-          # "Cline Code" -> Cline-Code, "Cline Code Beta" -> Cline-Code-Beta
+          # "Cline" -> Cline, "Cline Beta" -> Cline-Beta
           PREFIX="${PRODUCT// /-}"
 
           DMG=$(find "$BUNDLE_DIR/dmg" -name '*.dmg' -print -quit)
@@ -607,14 +607,14 @@ jobs:
           if ! gh release view "$FEED" >/dev/null 2>&1; then
             if [ "$CHANNEL" = "beta" ]; then
               gh release create "$FEED" \
-                --title "Cline Code desktop beta (auto-update feed)" \
+                --title "Cline desktop beta (auto-update feed)" \
                 --notes "Rolling release backing the beta desktop app auto-updater. The latest.json asset points at the newest desktop-vX.Y.Z-beta.N release. Only beta installs poll this feed; stable installs use desktop-latest. Do not delete." \
                 --latest=false \
                 --prerelease \
                 --target "$(git rev-parse HEAD)"
             else
               gh release create "$FEED" \
-                --title "Cline Code desktop (auto-update feed)" \
+                --title "Cline desktop (auto-update feed)" \
                 --notes "Rolling release backing the desktop app auto-updater. The latest.json asset points at the newest desktop-vX.Y.Z release. Do not delete." \
                 --latest=false \
                 --target "$(git rev-parse HEAD)"
@@ -628,7 +628,7 @@ jobs:
           TAG: ${{ needs.validate.outputs.tag }}
           FEED: ${{ needs.validate.outputs.feed }}
         run: |
-          echo "Published Cline Code desktop v${VERSION}"
+          echo "Published Cline desktop v${VERSION}"
           echo "Release: https://github.com/${GITHUB_REPOSITORY}/releases/tag/${TAG}"
           echo "Auto-update feed refreshed: https://github.com/${GITHUB_REPOSITORY}/releases/download/${FEED}/latest.json"
 
@@ -639,12 +639,12 @@ jobs:
           token: ${{ secrets.SLACK_RELEASE_BOT_TOKEN }}
           payload: |
             channel: "C0APVKGGZFC"
-            text: "Cline Code desktop v${{ needs.validate.outputs.version }}${{ needs.validate.outputs.channel == 'beta' && ' (beta)' || '' }}"
+            text: "Cline desktop v${{ needs.validate.outputs.version }}${{ needs.validate.outputs.channel == 'beta' && ' (beta)' || '' }}"
             blocks:
               - type: "section"
                 text:
                   type: "mrkdwn"
-                  text: "Cline Code desktop v${{ needs.validate.outputs.version }}${{ needs.validate.outputs.channel == 'beta' && ' (beta)' || '' }}"
+                  text: "Cline desktop v${{ needs.validate.outputs.version }}${{ needs.validate.outputs.channel == 'beta' && ' (beta)' || '' }}"
               - type: "section"
                 text:
                   type: "mrkdwn"

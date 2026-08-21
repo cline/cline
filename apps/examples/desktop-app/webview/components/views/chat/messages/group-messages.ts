@@ -141,6 +141,19 @@ function lastTimestamp(item: ChatRenderItem): number | undefined {
 	return undefined;
 }
 
+function maxFiniteTimestamp(
+	...values: Array<number | undefined>
+): number | undefined {
+	let max: number | undefined;
+	for (const value of values) {
+		if (value === undefined || !Number.isFinite(value)) continue;
+		if (max === undefined || value > max) {
+			max = value;
+		}
+	}
+	return max;
+}
+
 function firstMessageId(item: ChatRenderItem): string | undefined {
 	if (item.type === "tools") return item.messages[0]?.id;
 	if (item.type === "message") {
@@ -223,9 +236,19 @@ export function collapseCompletedWork(
 			const startTimestamp =
 				runStartTimestamp ?? firstTimestamp(firstCollapsed);
 			const lastCollapsed = collapsed[collapsed.length - 1];
-			const endTimestamp = answer
-				? firstTimestamp(answer)
-				: lastTimestamp(lastCollapsed);
+			// The work span ends where the run's answer begins — anchored on the
+			// answer row's own timestamp, not its earliest attached reasoning
+			// row: canonical history projects a thinking-only message that
+			// issued a tool call as a reasoning row stamped before the tool
+			// executed, and that row rides on the answer's reasoningMessages,
+			// which would exclude the entire tool execution from "Worked for".
+			// Clamping to the last collapsed row keeps a fallback answer bubble
+			// minted with an early synthetic timestamp from shrinking the
+			// duration below the work the run demonstrably performed.
+			const endTimestamp = maxFiniteTimestamp(
+				answer ? lastTimestamp(answer) : undefined,
+				lastTimestamp(lastCollapsed),
+			);
 			const durationMilliseconds =
 				startTimestamp !== undefined &&
 				endTimestamp !== undefined &&

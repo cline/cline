@@ -10,6 +10,15 @@ import { ToolFileDiff } from "../components/agent-chat/tool-diff";
 // error even with every test passing.
 CSSStyleSheet.prototype.replaceSync ??= function replaceSync() {} as never;
 
+// jsdom does not implement ResizeObserver either, which @pierre/diffs
+// constructs on every render; without this each render logs a
+// ReferenceError to stderr.
+globalThis.ResizeObserver ??= class ResizeObserver {
+	observe() {}
+	unobserve() {}
+	disconnect() {}
+} as never;
+
 let container: HTMLDivElement;
 let root: Root;
 

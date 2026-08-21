@@ -14,7 +14,7 @@ import {
 import type { ResolveCronSpecsDirOptions } from "@cline/shared/storage";
 import { CronMaterializer } from "../runner/cron-materializer";
 import { CronRunner } from "../runner/cron-runner";
-import { validateCronPattern } from "../schedule/scheduler";
+import { validateCronPattern, validateTimezone } from "../schedule/scheduler";
 import {
 	type CronRunRecord,
 	type CronSpecRecord,
@@ -92,6 +92,7 @@ export interface ListSchedulesOptions {
 	enabled?: boolean;
 	limit?: number;
 	tags?: string[];
+	workspaceRoot?: string;
 }
 
 export interface ListScheduleExecutionsOptions {
@@ -132,6 +133,7 @@ function specToSchedule(spec: CronSpecRecord): ScheduleRecord {
 			spec.triggerKind === "one_off"
 				? ONE_TIME_SCHEDULE_CRON_PATTERN
 				: (spec.scheduleExpr ?? ""),
+		timezone: spec.triggerKind === "schedule" ? spec.timezone : undefined,
 		prompt: spec.prompt ?? "",
 		workspaceRoot: spec.workspaceRoot ?? "",
 		cwd:
@@ -249,7 +251,12 @@ export class HubScheduleService {
 	}
 
 	public createSchedule(input: HubScheduleCreateInput): ScheduleRecord {
-		this.validateScheduleTiming(input.cronPattern, input.metadata, true);
+		this.validateScheduleTiming(
+			input.cronPattern,
+			input.timezone,
+			input.metadata,
+			true,
+		);
 		if (!input.workspaceRoot?.trim()) {
 			throw new Error("workspaceRoot is required for schedules");
 		}
@@ -279,8 +286,21 @@ export class HubScheduleService {
 				: current.workspaceRoot;
 		const nextEnabled = updates.enabled ?? current.enabled;
 		const currentSchedule = specToSchedule(current);
+		const nextCronPattern = updates.cronPattern ?? currentSchedule.cronPattern;
+		if (
+			nextCronPattern.trim() === ONE_TIME_SCHEDULE_CRON_PATTERN &&
+			typeof updates.timezone === "string" &&
+			updates.timezone.trim()
+		) {
+			throw new Error("timezone is only supported for recurring schedules");
+		}
 		this.validateScheduleTiming(
-			updates.cronPattern ?? currentSchedule.cronPattern,
+			nextCronPattern,
+			nextCronPattern.trim() === ONE_TIME_SCHEDULE_CRON_PATTERN
+				? undefined
+				: updates.timezone === null
+					? undefined
+					: (updates.timezone ?? currentSchedule.timezone),
 			updates.metadata ?? currentSchedule.metadata,
 			nextEnabled,
 		);
@@ -296,12 +316,17 @@ export class HubScheduleService {
 
 	private validateScheduleTiming(
 		cronPattern: string,
+		timezone: string | undefined,
 		metadata: HubScheduleCreateInput["metadata"],
 		requireFutureRunAt: boolean,
 	): void {
 		if (cronPattern.trim() !== ONE_TIME_SCHEDULE_CRON_PATTERN) {
 			validateCronPattern(cronPattern);
+			validateTimezone(timezone);
 			return;
+		}
+		if (timezone?.trim()) {
+			throw new Error("timezone is only supported for recurring schedules");
 		}
 		const runAt = metadata?.[ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY];
 		if (

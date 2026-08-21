@@ -128,7 +128,7 @@ async function main() {
 		void shutdown("code_sidecar_before_exit");
 	});
 
-	const { port } = startServer(ctx, SIDECAR_PORT, shutdown);
+	const { port, approvalToken } = startServer(ctx, SIDECAR_PORT, shutdown);
 	observability.logger.log("Desktop sidecar ready", {
 		port,
 		mode: SIDECAR_MODE,
@@ -152,12 +152,13 @@ async function main() {
 	// A wildcard bind isn't a dialable address; advertise loopback instead.
 	const dialHost = SIDECAR_HOST === "0.0.0.0" ? "127.0.0.1" : SIDECAR_HOST;
 	const endpoint = `http://${dialHost}:${port}`;
-	const wsEndpoint = `ws://${dialHost}:${port}/transport`;
+	const wsEndpoint = new URL(`ws://${dialHost}:${port}/transport`);
+	wsEndpoint.searchParams.set("approval_token", approvalToken);
 	process.stdout.write(
 		`${JSON.stringify({
 			type: "ready",
 			endpoint,
-			wsEndpoint,
+			wsEndpoint: wsEndpoint.toString(),
 			pid: process.pid,
 			mode: SIDECAR_MODE,
 		})}\n`,

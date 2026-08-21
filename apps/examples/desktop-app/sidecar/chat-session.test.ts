@@ -22,6 +22,7 @@ import {
 	shouldUpdateSessionConnection,
 	WORKSPACE_METADATA_PREWARM_TTL_MS,
 } from "./chat-session";
+import { handleCoreSessionEvent } from "./context";
 import type { SidecarContext } from "./types";
 
 describe("resolveDesktopSessionMode", () => {
@@ -640,6 +641,81 @@ describe("session forks", () => {
 		).rejects.toThrow("Wait for all turns in this workspace to finish");
 		expect(restore).not.toHaveBeenCalled();
 		expect(ctx.restoringWorkspacePaths.size).toBe(0);
+	});
+
+	it("allows a workspace restore after a queued turn completes through the event stream", async () => {
+		const sessionId = `queued-turn-session-${Date.now()}`;
+		const dataDir = mkdtempSync(join(tmpdir(), "cline-queued-restore-"));
+		const originalDataDir = process.env.CLINE_SESSION_DATA_DIR;
+		process.env.CLINE_SESSION_DATA_DIR = dataDir;
+		try {
+			const restore = vi.fn(async () => ({
+				sessionId,
+				messages: [{ role: "user", content: "first prompt" }],
+				checkpoint: { ref: "first", createdAt: 1, runCount: 1 },
+			}));
+			const ctx = {
+				liveSessions: new Map([
+					[
+						sessionId,
+						{
+							config: { cwd: "/workspace/project" },
+							messages: [{ role: "user", content: "first prompt" }],
+							promptsInQueue: [],
+							// A drained queued turn is running: no send() RPC owns
+							// this turn's busy flag, only the event stream does.
+							busy: true,
+							startedAt: Date.now(),
+							status: "running",
+						},
+					],
+				]),
+				restoringWorkspacePaths: new Set(),
+				streamIndices: new Map(),
+				wsClients: new Set(),
+				sessionManager: { restore },
+			} as unknown as SidecarContext;
+			const restoreRequest = {
+				action: "restore_checkpoint" as const,
+				sessionId,
+				checkpointRunCount: 1,
+				config: {
+					cwd: "/workspace/project",
+					provider: "cline",
+					model: "test-model",
+				},
+			};
+
+			// While the queued turn is still running the workspace stays locked.
+			await expect(
+				handleChatSessionCommand(ctx, restoreRequest),
+			).rejects.toThrow("Wait for all turns in this workspace to finish");
+			expect(restore).not.toHaveBeenCalled();
+
+			// The queued turn settles through the event stream: the runtime
+			// host reports the session back at idle (there is no send() RPC
+			// response to clear the busy flag for event-settled turns).
+			handleCoreSessionEvent(ctx, {
+				type: "status",
+				payload: { sessionId, status: "idle" },
+			});
+			expect(ctx.liveSessions.get(sessionId)).toMatchObject({
+				busy: false,
+				status: "idle",
+			});
+
+			await expect(
+				handleChatSessionCommand(ctx, restoreRequest),
+			).resolves.toMatchObject({ sessionId });
+			expect(restore).toHaveBeenCalledTimes(1);
+		} finally {
+			if (originalDataDir === undefined) {
+				delete process.env.CLINE_SESSION_DATA_DIR;
+			} else {
+				process.env.CLINE_SESSION_DATA_DIR = originalDataDir;
+			}
+			rmSync(dataDir, { force: true, recursive: true });
+		}
 	});
 
 	it("blocks sends from sibling sessions while their workspace is restored", async () => {
