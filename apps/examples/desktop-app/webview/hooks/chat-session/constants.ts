@@ -13,6 +13,9 @@ export const CHAT_WS_RECONNECT_MAX_DELAY_MS = 3000;
 export const CHAT_WS_REQUEST_TIMEOUT_MS = 120000;
 export const OAUTH_MANAGED_PROVIDERS = new Set([
 	"cline",
+	// ClinePass shares the Cline account OAuth credentials (its auth handler
+	// stores under the "cline" provider), so it never has its own API key.
+	"cline-pass",
 	"oca",
 	"openai-codex",
 ]);

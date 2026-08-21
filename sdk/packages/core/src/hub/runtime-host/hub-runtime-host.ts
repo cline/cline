@@ -195,10 +195,15 @@ function parseToolContext(value: unknown): AgentToolContext {
 			? (value as Record<string, unknown>)
 			: {};
 	return {
+		sessionId:
+			typeof payload.sessionId === "string" ? payload.sessionId : undefined,
 		agentId: typeof payload.agentId === "string" ? payload.agentId : "",
 		conversationId:
 			typeof payload.conversationId === "string" ? payload.conversationId : "",
+		runId: typeof payload.runId === "string" ? payload.runId : undefined,
 		iteration: typeof payload.iteration === "number" ? payload.iteration : 0,
+		toolCallId:
+			typeof payload.toolCallId === "string" ? payload.toolCallId : undefined,
 		metadata:
 			payload.metadata &&
 			typeof payload.metadata === "object" &&
@@ -251,11 +256,14 @@ function buildClientContributionRegistration(
 				executor,
 				capabilityName: `${HUB_TOOL_EXECUTOR_CAPABILITY_PREFIX}${executor}`,
 			},
-			async ({ payload, abortSignal }) => {
+			async ({ payload, abortSignal, progress }) => {
 				const args = Array.isArray(payload.args) ? [...payload.args] : [];
 				const context = {
 					...parseToolContext(payload.context),
 					signal: abortSignal,
+					emitUpdate: (update: unknown) => {
+						progress({ update });
+					},
 				};
 				return { result: await executorFn(...args, context) };
 			},
@@ -1242,6 +1250,20 @@ export class HubRuntimeHost implements RuntimeHost {
 		);
 	}
 
+	async proceedWhileRunning(
+		sessionId: string,
+		toolCallId?: string,
+	): Promise<number> {
+		const reply = await this.client.command(
+			"run.proceed_while_running",
+			{ sessionId, ...(toolCallId ? { toolCallId } : {}) },
+			sessionId,
+		);
+		return typeof reply.payload?.detachedCount === "number"
+			? reply.payload.detachedCount
+			: 0;
+	}
+
 	async stopSession(sessionId: string): Promise<void> {
 		this.sessionCapabilities.delete(sessionId);
 		this.disposeSessionSubscription(sessionId);
@@ -1831,6 +1853,28 @@ export class HubRuntimeHost implements RuntimeHost {
 				});
 				return;
 			}
+			case "tool.updated": {
+				this.events.emit({
+					type: "agent_event",
+					payload: {
+						sessionId,
+						event: {
+							type: "content_update",
+							contentType: "tool",
+							toolCallId:
+								typeof event.payload?.toolCallId === "string"
+									? event.payload.toolCallId
+									: undefined,
+							toolName:
+								typeof event.payload?.toolName === "string"
+									? event.payload.toolName
+									: undefined,
+							update: event.payload?.update,
+						},
+					},
+				});
+				return;
+			}
 			case "tool.finished": {
 				const toolCallId =
 					typeof event.payload?.toolCallId === "string"
@@ -1873,13 +1917,20 @@ export class HubRuntimeHost implements RuntimeHost {
 						payload: { sessionId, snapshot },
 					});
 				}
-				this.events.emit({
-					type: "status",
-					payload: {
-						sessionId,
-						status: session?.status ?? "running",
-					},
-				});
+				// Snapshot-only session.updated events (persistence updates)
+				// carry no session record and can trail a turn's final idle
+				// update. Defaulting them to "running" flipped clients back to
+				// busy after the turn had finished — for queue-drained turns
+				// nothing else owns the busy flag, so it stuck forever (e.g.
+				// the desktop's workspace-restore gate). Report the snapshot's
+				// real status, or nothing when neither source has one.
+				const status = session?.status ?? snapshot?.status;
+				if (status) {
+					this.events.emit({
+						type: "status",
+						payload: { sessionId, status },
+					});
+				}
 				return;
 			}
 			case "session.pending_prompts": {

@@ -5,19 +5,26 @@ import type {
 	HubScheduleServiceOptions,
 } from "../../cron/service/schedule-service";
 import type {
+	CommandExecutionRuntimeService,
 	PendingPromptsRuntimeService,
 	RuntimeHost,
 } from "../../runtime/host/runtime-host";
 import type { CoreSettingsService } from "../../settings";
+import type { AgendaTaskManagerOptions } from "../../tasks";
 import type { HubOwnerContext } from "../discovery";
 
 export interface HubWebSocketServerOptions {
+	/** Workspace authority assigned by the Hub to authenticated clients. */
+	workspaceRoot?: string;
 	host?: string;
 	port?: number;
 	pathname?: string;
 	owner?: HubOwnerContext;
-	sessionHost?: RuntimeHost & Partial<PendingPromptsRuntimeService>;
+	sessionHost?: RuntimeHost &
+		Partial<PendingPromptsRuntimeService & CommandExecutionRuntimeService>;
 	settingsService?: CoreSettingsService;
+	/** File/DB/watcher overrides for the Hub-owned agenda task manager. */
+	taskOptions?: Omit<AgendaTaskManagerOptions, "runtime" | "publish">;
 	runtimeHandlers: HubScheduleRuntimeHandlers;
 	scheduleOptions?: Omit<HubScheduleServiceOptions, "runtimeHandlers">;
 	/**

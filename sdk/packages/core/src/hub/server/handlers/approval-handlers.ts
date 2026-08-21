@@ -15,10 +15,12 @@ function pendingApprovalPayload(
 	approvalId: string,
 	request: ToolApprovalRequest,
 	createdAt: number,
+	agendaTaskId?: string,
 ): Record<string, unknown> {
 	return {
 		approvalId,
 		createdAt,
+		agendaTaskId,
 		sessionId: request.sessionId,
 		agentId: request.agentId,
 		conversationId: request.conversationId,
@@ -44,18 +46,31 @@ export async function requestToolApproval(
 				"Tool approval requires an interactive session, but this session is non-interactive.",
 		};
 	}
+	let session:
+		| Awaited<ReturnType<typeof ctx.sessionHost.getSession>>
+		| undefined;
+	try {
+		session = await ctx.sessionHost.getSession(sessionId);
+	} catch {
+		session = undefined;
+	}
+	const agendaTaskId =
+		typeof session?.metadata?.agendaTaskId === "string"
+			? session.metadata.agendaTaskId
+			: undefined;
 	return await new Promise((resolve) => {
 		const createdAt = Date.now();
 		ctx.pendingApprovals.set(approvalId, {
 			sessionId,
 			request,
 			createdAt,
+			agendaTaskId,
 			resolve,
 		});
 		ctx.publish(
 			ctx.buildEvent(
 				"approval.requested",
-				pendingApprovalPayload(approvalId, request, createdAt),
+				pendingApprovalPayload(approvalId, request, createdAt, agendaTaskId),
 				sessionId,
 			),
 		);
@@ -90,7 +105,12 @@ export function handleApprovalListPending(
 	const approvals = Array.from(ctx.pendingApprovals.entries())
 		.filter(([, pending]) => pending.sessionId === sessionId)
 		.map(([approvalId, pending]) =>
-			pendingApprovalPayload(approvalId, pending.request, pending.createdAt),
+			pendingApprovalPayload(
+				approvalId,
+				pending.request,
+				pending.createdAt,
+				pending.agendaTaskId,
+			),
 		);
 	return okReply(envelope, { approvals });
 }

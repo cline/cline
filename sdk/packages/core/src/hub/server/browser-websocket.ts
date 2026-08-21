@@ -1,3 +1,4 @@
+import { isAbsolute, relative, resolve, sep } from "node:path";
 import type {
 	HubClientRegistration,
 	HubEventEnvelope,
@@ -11,7 +12,10 @@ import {
 	resolveHubCommandTimeoutMs,
 	safeJsonParse,
 } from "@cline/shared";
-import type { HubCommandTransport } from "./command-transport";
+import type {
+	HubCommandTransport,
+	HubConnectionAuthority,
+} from "./command-transport";
 import { logHubMessage } from "./hub-server-logging";
 
 type HubCommandFrame = HubTransportFrame & { kind: "command" };
@@ -52,15 +56,61 @@ function commandErrorReply(
 	};
 }
 
+function registrationAuthority(
+	frame: HubCommandFrame,
+	serverWorkspaceRoot?: string,
+	allowRegisteredWorkspace = false,
+): HubConnectionAuthority {
+	const registration = (frame.envelope.payload ??
+		{}) as unknown as HubClientRegistration;
+	const envelopeClientId = frame.envelope.clientId?.trim();
+	const clientId = registration.clientId?.trim() || envelopeClientId;
+	if (!clientId || (envelopeClientId && clientId !== envelopeClientId)) {
+		throw new Error("Registration clientId must match the command connection");
+	}
+	const requestedRoot = registration.workspaceContext?.workspaceRoot?.trim();
+	const authorizedRoot = allowRegisteredWorkspace
+		? requestedRoot || serverWorkspaceRoot?.trim()
+		: serverWorkspaceRoot?.trim();
+	if (!authorizedRoot) return { clientId };
+	const workspaceRoot = resolve(authorizedRoot);
+	if (
+		!allowRegisteredWorkspace &&
+		requestedRoot &&
+		resolve(requestedRoot) !== workspaceRoot
+	) {
+		throw new Error(
+			"Registration workspace must match the Hub-authorized workspace",
+		);
+	}
+	const cwd = resolve(
+		registration.workspaceContext?.cwd?.trim() || workspaceRoot,
+	);
+	const relativeCwd = relative(workspaceRoot, cwd);
+	if (
+		relativeCwd === ".." ||
+		relativeCwd.startsWith(`..${sep}`) ||
+		isAbsolute(relativeCwd)
+	) {
+		throw new Error("Registration cwd must be inside its workspace");
+	}
+	return { clientId, workspaceContext: { workspaceRoot, cwd } };
+}
+
 export class BrowserWebSocketHubAdapter {
 	constructor(
 		private readonly transport: HubCommandTransport,
 		private readonly telemetry?: ITelemetryService,
+		private readonly workspaceRoot?: string,
 	) {}
 
-	attach(socket: BrowserHubSocketLike): () => void {
+	attach(
+		socket: BrowserHubSocketLike,
+		options: { allowRegisteredWorkspace?: boolean } = {},
+	): () => void {
 		const subscriptions = new Map<string, () => void>();
 		const registeredClientIds = new Set<string>();
+		let authority: HubConnectionAuthority | undefined;
 		let closed = false;
 
 		const sendFrame = (frame: HubTransportFrame): void => {
@@ -86,6 +136,51 @@ export class BrowserWebSocketHubAdapter {
 				const frame = JSON.parse(event.data) as HubTransportFrame;
 				switch (frame.kind) {
 					case "command": {
+						let registration: HubConnectionAuthority | undefined;
+						if (authority && frame.envelope.command === "client.register") {
+							sendFrame({
+								kind: "reply",
+								envelope: commandErrorReply(
+									frame,
+									"client_already_registered",
+									"This connection already owns a registered client.",
+								),
+							});
+							break;
+						}
+						if (
+							authority &&
+							frame.envelope.clientId?.trim() !== authority.clientId
+						) {
+							sendFrame({
+								kind: "reply",
+								envelope: commandErrorReply(
+									frame,
+									"client_authority_mismatch",
+									"Command clientId does not belong to this connection.",
+								),
+							});
+							break;
+						}
+						if (frame.envelope.command === "client.register") {
+							try {
+								registration = registrationAuthority(
+									frame,
+									this.workspaceRoot,
+									options.allowRegisteredWorkspace,
+								);
+							} catch (error) {
+								sendFrame({
+									kind: "reply",
+									envelope: commandErrorReply(
+										frame,
+										"invalid_client_registration",
+										error instanceof Error ? error.message : String(error),
+									),
+								});
+								break;
+							}
+						}
 						const startedAt = performance.now();
 						let settled = false;
 						const context = commandLogContext(frame);
@@ -97,7 +192,10 @@ export class BrowserWebSocketHubAdapter {
 								elapsedMs: Math.round(performance.now() - startedAt),
 							});
 						}, HUB_COMMAND_SLOW_LOG_MS);
-						const commandPromise = this.transport.command(frame.envelope);
+						const commandPromise = this.transport.command(
+							frame.envelope,
+							authority ?? null,
+						);
 						commandPromise.then(
 							(lateReply) => {
 								if (!settled) return;
@@ -186,13 +284,9 @@ export class BrowserWebSocketHubAdapter {
 							});
 						}
 						if (frame.envelope.command === "client.register" && reply.ok) {
-							const registration = (frame.envelope.payload ??
-								{}) as unknown as HubClientRegistration;
-							const clientId =
-								registration.clientId?.trim() ||
-								frame.envelope.clientId?.trim();
-							if (clientId) {
-								registeredClientIds.add(clientId);
+							if (registration) {
+								registeredClientIds.add(registration.clientId);
+								authority = registration;
 							}
 						} else if (
 							frame.envelope.command === "client.unregister" &&
@@ -201,6 +295,7 @@ export class BrowserWebSocketHubAdapter {
 							const clientId = frame.envelope.clientId?.trim();
 							if (clientId) {
 								registeredClientIds.delete(clientId);
+								authority = undefined;
 							}
 						}
 						sendFrame({
