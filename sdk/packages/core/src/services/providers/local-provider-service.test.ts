@@ -186,6 +186,50 @@ describe("models registry parsing", () => {
 		expect(model).not.toHaveProperty("temperature");
 	});
 
+	it("seeds tool calling when capabilities are synthesized purely from boolean flags", async () => {
+		const parsed = parseModelsFile({
+			version: 1,
+			providers: {
+				"boolean-only-provider": {
+					provider: {
+						name: "Boolean Only Provider",
+						baseUrl: "https://boolean-only.example.invalid/v1",
+					},
+					models: {
+						// No explicit capabilities list: the entry only carries the
+						// boolean convenience flag. The synthesized list must include
+						// "tools", otherwise a non-empty list without it reads as an
+						// authoritative denial to modelSupportsToolCalling (#13463).
+						reasoner: {
+							contextWindow: 16000,
+							supportsReasoning: true,
+						},
+						// No flags at all: the capability list must stay absent so the
+						// runtime keeps its fail-open behavior.
+						bare: {
+							contextWindow: 16000,
+						},
+					},
+				},
+			},
+		});
+
+		const entry = parsed.providers["boolean-only-provider"];
+		if (!entry) {
+			throw new Error("expected boolean-only provider entry");
+		}
+
+		registerCustomProvider("boolean-only-provider", entry);
+
+		const models = await LlmsModels.getModelsForProvider(
+			"boolean-only-provider",
+		);
+		expect(models.reasoner?.capabilities).toEqual(
+			expect.arrayContaining(["reasoning", "tools"]),
+		);
+		expect(models.bare).not.toHaveProperty("capabilities");
+	});
+
 	it("skips malformed provider entries while preserving valid providers", () => {
 		expect(
 			parseModelsFile({

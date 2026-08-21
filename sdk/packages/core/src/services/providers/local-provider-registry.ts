@@ -326,6 +326,8 @@ function toStoredModelInfo(
 	model: StoredModelEntry | undefined,
 	fallbackCapabilities?: ModelInfo["capabilities"],
 ): ModelInfo {
+	const hasExplicitCapabilities =
+		model?.capabilities !== undefined || fallbackCapabilities !== undefined;
 	const capabilities = new Set<ModelCapability>(
 		model?.capabilities ?? fallbackCapabilities ?? [],
 	);
@@ -340,6 +342,13 @@ function toStoredModelInfo(
 	if (model?.supportsReasoning !== undefined) {
 		if (model.supportsReasoning) capabilities.add("reasoning");
 		else capabilities.delete("reasoning");
+	}
+	// An unspecified capability list fails open for tool calling
+	// (modelSupportsToolCalling), but a list synthesized purely from the
+	// boolean convenience flags would be treated as authoritative and
+	// silently revoke tools. Preserve the fail-open behavior in that case.
+	if (!hasExplicitCapabilities && capabilities.size > 0) {
+		capabilities.add("tools");
 	}
 
 	const apiFormat = model?.apiFormat;
