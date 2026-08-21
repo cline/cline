@@ -1,5 +1,6 @@
 import type {
 	HubCommandEnvelope,
+	HubCommandInput,
 	HubReplyEnvelope,
 	JsonValue,
 	ToolApprovalRequest,
@@ -917,6 +918,28 @@ export async function handleSessionList(
 	);
 	return okReply(envelope, {
 		sessions,
+	});
+}
+
+export async function handleSessionSearch(
+	ctx: HubTransportContext,
+	envelope: HubCommandEnvelope,
+): Promise<HubReplyEnvelope> {
+	const payload = (envelope.payload ??
+		{}) as unknown as HubCommandInput<"session.search">;
+	if (typeof payload.query !== "string" || !payload.query.trim()) {
+		return errorReply(
+			envelope,
+			"invalid_search_query",
+			"session.search requires a non-empty query",
+		);
+	}
+	return okReply(envelope, {
+		hits: ctx.sessionSearch.search({
+			query: payload.query,
+			limit: payload.limit,
+			workspaceRoot: payload.workspaceRoot,
+		}),
 	});
 }
 

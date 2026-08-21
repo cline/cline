@@ -28,6 +28,7 @@ import type {
 } from "../../runtime/host/runtime-host";
 import { SqliteSessionStore } from "../../services/storage/sqlite-session-store";
 import { withSessionHistoryOriginMetadata } from "../../session/history-origin";
+import { SessionHistorySearchService } from "../../session/search";
 import { CoreSessionService } from "../../session/services/session-service";
 import {
 	type CoreSettingsListInput,
@@ -90,6 +91,7 @@ import {
 	handleSessionPendingPrompts,
 	handleSessionRemovePendingPrompt,
 	handleSessionRestore,
+	handleSessionSearch,
 	handleSessionUpdate,
 	handleSessionUpdateConnection,
 	handleSessionUpdatePendingPrompt,
@@ -209,6 +211,7 @@ export class HubServerTransport implements NativeHubTransport {
 	private readonly sessionTools: AgentTool[] = [];
 	private readonly sessionExtensions: AgentExtension[] = [];
 	private readonly settings: CoreSettingsService;
+	private readonly sessionSearch: SessionHistorySearchService;
 	private readonly cronService?: CronService;
 	private readonly sessionHost: RuntimeHost &
 		Partial<PendingPromptsRuntimeService & CommandExecutionRuntimeService>;
@@ -224,7 +227,13 @@ export class HubServerTransport implements NativeHubTransport {
 				logger: options.logger,
 				telemetry: options.telemetry,
 			});
+		this.sessionSearch = new SessionHistorySearchService(
+			this.sessionHost,
+			options.sessionSearchOptions ??
+				(process.env.NODE_ENV === "test" ? { dbPath: ":memory:" } : {}),
+		);
 		this.ctx = {
+			sessionSearch: this.sessionSearch,
 			clients: this.clients,
 			sessionState: this.sessionState,
 			pendingApprovals: this.pendingApprovals,
@@ -377,6 +386,11 @@ export class HubServerTransport implements NativeHubTransport {
 					},
 				});
 			});
+			if (event.type === "ended") {
+				void this.sessionSearch.refreshNow().catch((error) => {
+					logHubBoundaryError("session search indexing failed", error);
+				});
+			}
 		});
 	}
 
@@ -535,6 +549,7 @@ export class HubServerTransport implements NativeHubTransport {
 	}
 
 	async start(): Promise<void> {
+		this.sessionSearch.start();
 		await this.tasks.start();
 		await this.schedules.start();
 		if (this.cronService) {
@@ -558,6 +573,7 @@ export class HubServerTransport implements NativeHubTransport {
 			() => true,
 			"Hub shutting down before capability request was resolved.",
 		);
+		await this.sessionSearch.dispose();
 		await this.tasks.dispose();
 		await this.sessionHost.dispose("hub_server_stop");
 		await this.schedules.dispose();
@@ -661,6 +677,8 @@ export class HubServerTransport implements NativeHubTransport {
 				return await handleSessionCompactionGet(this.ctx, envelope);
 			case "session.list":
 				return await handleSessionList(this.ctx, envelope);
+			case "session.search":
+				return await handleSessionSearch(this.ctx, envelope);
 			case "session.update":
 				return await handleSessionUpdate(this.ctx, envelope);
 			case "session.update_connection":
