@@ -82,7 +82,11 @@ function sanitizeEntry(raw: unknown): MarketplaceEntry | undefined {
 		description: typeof record.description === "string" ? record.description : undefined,
 		tags: asStringArray(record.tags),
 		author: typeof record.author === "string" ? record.author : undefined,
-		sourceUrl: typeof record.sourceUrl === "string" ? record.sourceUrl : undefined,
+		// The live catalog publishes the repository URL as `repo`; keep `sourceUrl`
+		// as the primary key for backwards compatibility. Enterprise MCP allowlists
+		// match entries by this repository URL (see marketplace-policy.ts).
+		sourceUrl:
+			typeof record.sourceUrl === "string" ? record.sourceUrl : typeof record.repo === "string" ? record.repo : undefined,
 		homepageUrl: typeof record.homepageUrl === "string" ? record.homepageUrl : undefined,
 		install: install
 			? {
