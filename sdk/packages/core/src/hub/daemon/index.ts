@@ -17,6 +17,7 @@ import {
 import {
 	localHubHasNoActiveSessions,
 	rememberRecoverableLocalHubUrl,
+	requestHubDrain,
 	requestHubShutdown,
 	verifyHubConnection,
 } from "../client";
@@ -202,17 +203,41 @@ async function retireDiscoveredHub(
 	if (!shouldAttemptRetire(record.url)) {
 		return false;
 	}
+	// Graceful handover, in order of increasing force: drain (refuse new
+	// work), then an authenticated shutdown, then SIGTERM only as a fallback
+	// and only at a pid we can positively observe alive right now — a recorded
+	// pid may have been recycled by the OS onto an unrelated process.
+	await requestHubDrain(
+		record.url,
+		record.authToken,
+		"retired by newer install",
+	).catch(() => false);
 	await requestHubShutdown(record.url, record.authToken).catch(() => false);
-	if (record.pid) {
+	let retired = await waitForHubToRetire(record.url, HUB_RETIRE_TIMEOUT_MS);
+	if (!retired && record.pid && isPidAlive(record.pid)) {
 		try {
 			process.kill(record.pid, "SIGTERM");
 		} catch {
 			// Best-effort cleanup only. A compatible hub may still start on a fallback port.
 		}
+		retired = await waitForHubToRetire(record.url, HUB_RETIRE_TIMEOUT_MS);
 	}
-	const retired = await waitForHubToRetire(record.url, HUB_RETIRE_TIMEOUT_MS);
-	await clearHubDiscovery(discoveryPath).catch(() => undefined);
+	// Only the successful retirement may clear discovery: clearing the record
+	// of a hub that survived leaves a live daemon undiscoverable, recoverable
+	// only through the expected-URL probe/repair path.
+	if (retired) {
+		await clearHubDiscovery(discoveryPath).catch(() => undefined);
+	}
 	return retired;
+}
+
+function isPidAlive(pid: number): boolean {
+	try {
+		process.kill(pid, 0);
+		return true;
+	} catch (error) {
+		return (error as { code?: string })?.code === "EPERM";
+	}
 }
 
 export type HubRetirementOutcome =

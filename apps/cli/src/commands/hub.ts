@@ -1,8 +1,10 @@
 import {
 	clearHubDiscovery,
 	ensureDetachedHubServer,
+	localHubHasNoActiveSessions,
 	probeHubServer,
 	readHubDiscovery,
+	requestHubDrain,
 	resolveProductionHubOwnerContext,
 	resolveSharedHubOwnerContext,
 	stopLocalHubServerGracefully,
@@ -149,6 +151,88 @@ export function createHubCommand(
 			io.writeln(JSON.stringify({ stopped }));
 		}),
 	);
+
+	hub
+		.command("drain")
+		.description("Refuse new mutating work while accepted runs finish")
+		.option("--reason <text>", "Why the hub is draining")
+		.action(
+			action(async (cmdOptions: { reason?: string }) => {
+				const owner = resolveCliHubOwnerContext();
+				const discovery = await readHubDiscovery(owner.discoveryPath);
+				if (!discovery?.url) {
+					io.writeErr("No hub is running.");
+					fail();
+					return;
+				}
+				const drained = await requestHubDrain(
+					discovery.url,
+					discovery.authToken,
+					cmdOptions.reason ?? "cline hub drain",
+				);
+				io.writeln(JSON.stringify({ draining: drained, url: discovery.url }));
+				if (!drained) {
+					fail();
+				}
+			}),
+		);
+
+	hub
+		.command("upgrade")
+		.description(
+			"Drain, wait for the hub to go idle, stop it, and start a fresh one",
+		)
+		.option(
+			"--wait <seconds>",
+			"How long to wait for the hub to go idle",
+			(value) => Number.parseInt(value, 10),
+			120,
+		)
+		.action(
+			action(async (cmdOptions: { wait: number }) => {
+				const opts = hub.opts<{
+					cwd: string;
+					host?: string;
+					port?: number;
+					pathname?: string;
+				}>();
+				const owner = resolveCliHubOwnerContext();
+				const discovery = await readHubDiscovery(owner.discoveryPath);
+				if (discovery?.url) {
+					await requestHubDrain(
+						discovery.url,
+						discovery.authToken,
+						"cline hub upgrade",
+					).catch(() => false);
+					const deadline = Date.now() + cmdOptions.wait * 1_000;
+					let idle = false;
+					while (Date.now() < deadline) {
+						idle = await localHubHasNoActiveSessions(
+							discovery.url,
+							discovery.authToken,
+						).catch(() => true);
+						if (idle) {
+							break;
+						}
+						await new Promise((resolve) => setTimeout(resolve, 1_000));
+					}
+					if (!idle) {
+						io.writeErr(
+							"Hub is still serving sessions after the wait window; not replacing it. Re-run with a longer --wait, or finish the sessions first.",
+						);
+						fail();
+						return;
+					}
+					await stopHubServer(opts.cwd);
+				}
+				const { url } = await ensureDetachedHubServer(opts.cwd, {
+					host: opts.host,
+					port: opts.port,
+					pathname: opts.pathname,
+				});
+				io.writeln(JSON.stringify({ upgraded: true, url }));
+			}),
+		);
 
 	return hub;
 }

@@ -9,7 +9,11 @@ import {
 } from "@cline/shared";
 import { WebSocketServer } from "ws";
 import corePackage from "../../../package.json";
-import { rememberRecoverableLocalHubUrl, verifyHubConnection } from "../client";
+import {
+	rememberRecoverableLocalHubUrl,
+	requestHubShutdown,
+	verifyHubConnection,
+} from "../client";
 import {
 	clearHubDiscovery,
 	clearHubDiscoveryIfOwned,
@@ -26,6 +30,11 @@ import {
 	writeHubDiscovery,
 } from "../discovery";
 import { resolveDefaultHubPort } from "../discovery/defaults";
+import {
+	HubInstanceLock,
+	isHubLockHeldError,
+	resolveHubInstanceLockPath,
+} from "../discovery/instance-lock";
 import { BrowserWebSocketHubAdapter } from "./browser-websocket";
 import type {
 	EnsuredHubWebSocketServerResult,
@@ -237,6 +246,9 @@ const SHARED_SERVERS = new Map<string, SharedHubServerEntry>();
 const HUB_AUTH_PROTOCOL_PREFIX = "cline-hub-auth.";
 const HUB_SOCKET_HEARTBEAT_INTERVAL_MS = 30_000;
 const HUB_STARTUP_ROLLBACK_TIMEOUT_MS = 2_000;
+/** How long ensure waits for a retiring predecessor's endpoint and lock. */
+const ENSURE_RETIRE_WAIT_MS = 3_000;
+const ENSURE_RETIRE_POLL_MS = 100;
 
 async function settlesWithin(
 	promise: Promise<unknown>,
@@ -343,8 +355,24 @@ export async function startHubWebSocketServer(
 	const buildId = resolveHubBuildId();
 	const buildEpochMs = resolveHubBuildEpochMs();
 	const authToken = createHubAuthToken();
-	const transport = new HubServerTransport(options);
-	await transport.start();
+	// Singleton authority is an OS-backed exclusive lock scoped to the owner
+	// context, acquired before any resource is created. A process that cannot
+	// take it must connect to the running Hub or diagnose — never replace it.
+	// This removes kill-based build arbitration as the ownership mechanism:
+	// two live daemons for one owner are now structurally impossible.
+	const instanceLock = HubInstanceLock.acquire(
+		resolveHubInstanceLockPath(owner.discoveryPath),
+	);
+	let transport: HubServerTransport;
+	try {
+		// The resolved owner context flows into the transport so its durable
+		// stores (event log, run queue) default to owner-scoped files.
+		transport = new HubServerTransport({ ...options, owner });
+		await transport.start();
+	} catch (error) {
+		instanceLock.release();
+		throw error;
+	}
 	const hubId = transport.getHubId();
 	const adapter = new BrowserWebSocketHubAdapter(
 		new NativeHubTransportAdapter(transport),
@@ -425,6 +453,9 @@ export async function startHubWebSocketServer(
 			if (shared?.server === exposedServer) {
 				SHARED_SERVERS.delete(owner.discoveryPath);
 			}
+			// Release singleton ownership last: the successor may take the lock
+			// only once the endpoint, transport, and discovery are all retired.
+			instanceLock.release();
 		});
 		closeHandle = { transportStopped, closed };
 
@@ -463,6 +494,7 @@ export async function startHubWebSocketServer(
 				coreVersion: versionPayload.coreVersion,
 				buildId: versionPayload.buildId,
 				buildEpochMs: versionPayload.buildEpochMs,
+				draining: transport.isDraining(),
 				host,
 				port,
 				url,
@@ -504,6 +536,42 @@ export async function startHubWebSocketServer(
 			return;
 		}
 		const requestUrl = new URL(req.url ?? "/", `http://${host}:${port}`);
+		if (requestUrl.pathname === "/drain" && req.method === "POST") {
+			if (
+				!isValidHubAuthToken(
+					readBearerToken(req.headers.authorization),
+					authToken,
+				)
+			) {
+				res.statusCode = 401;
+				res.end("Unauthorized");
+				return;
+			}
+			const draining = requestUrl.searchParams.get("off") === null;
+			void transport
+				.handleCommand({
+					version: CURRENT_HUB_PROTOCOL_VERSION,
+					command: "hub.drain",
+					payload: {
+						draining,
+						reason:
+							requestUrl.searchParams.get("reason") ??
+							"authenticated HTTP drain request",
+					},
+				})
+				.then(
+					(reply) => {
+						res.statusCode = reply.ok ? 200 : 500;
+						res.setHeader("content-type", "application/json");
+						res.end(JSON.stringify(reply.payload ?? { ok: reply.ok }));
+					},
+					() => {
+						res.statusCode = 500;
+						res.end("Drain failed");
+					},
+				);
+			return;
+		}
 		if (requestUrl.pathname === "/shutdown" && req.method === "POST") {
 			if (
 				!isValidHubAuthToken(
@@ -652,6 +720,7 @@ export async function startHubWebSocketServer(
 			Promise.resolve().then(() => transport.stop()),
 			HUB_STARTUP_ROLLBACK_TIMEOUT_MS,
 		);
+		instanceLock.release();
 		throw error;
 	}
 
@@ -790,6 +859,28 @@ export async function ensureHubWebSocketServer(
 				);
 			}
 
+			// A live hub that cannot be reused must be retired before a
+			// successor can exist: singleton ownership is lock-enforced, so
+			// starting a replacement while it lives would (correctly) fail
+			// with the instance lock held. Ask it to stop and wait it out.
+			if (healthy?.url) {
+				await requestHubShutdown(healthy.url, discovered.authToken).catch(
+					() => false,
+				);
+				const retireDeadline = Date.now() + ENSURE_RETIRE_WAIT_MS;
+				while (Date.now() < retireDeadline) {
+					const stillAlive = await probeHubServer(healthy.url, {
+						authToken: discovered.authToken,
+					}).catch(() => undefined);
+					if (!stillAlive?.url) {
+						break;
+					}
+					await new Promise((resolve) =>
+						setTimeout(resolve, ENSURE_RETIRE_POLL_MS),
+					);
+				}
+			}
+
 			// A discovered endpoint that cannot be authenticated/verified is stale.
 			await clearHubDiscovery(owner.discoveryPath);
 		}
@@ -821,13 +912,24 @@ export async function ensureHubWebSocketServer(
 			}
 		};
 
-		try {
-			return await start(options);
-		} catch (error) {
-			if (!options.allowPortFallback || !isAddressInUseError(error)) {
-				throw error;
+		// The predecessor's lock release trails its HTTP close slightly, so a
+		// lock-held failure inside the wait window retries instead of failing.
+		const lockDeadline = Date.now() + ENSURE_RETIRE_WAIT_MS;
+		for (;;) {
+			try {
+				return await start(options);
+			} catch (error) {
+				if (isHubLockHeldError(error) && Date.now() < lockDeadline) {
+					await new Promise((resolve) =>
+						setTimeout(resolve, ENSURE_RETIRE_POLL_MS),
+					);
+					continue;
+				}
+				if (!options.allowPortFallback || !isAddressInUseError(error)) {
+					throw error;
+				}
+				return await start({ ...options, port: 0 });
 			}
-			return await start({ ...options, port: 0 });
 		}
 	});
 }

@@ -256,14 +256,14 @@ describe("BrowserWebSocketHubAdapter", () => {
 						payload:
 							command === "client.register"
 								? {
-									clientId: "client-1",
-									clientType: "test",
-									transport: "websocket",
-									workspaceContext: {
-										workspaceRoot: "/second-workspace",
-										cwd: "/second-workspace/project",
-									},
-								}
+										clientId: "client-1",
+										clientType: "test",
+										transport: "websocket",
+										workspaceContext: {
+											workspaceRoot: "/second-workspace",
+											cwd: "/second-workspace/project",
+										},
+									}
 								: undefined,
 					},
 				}),

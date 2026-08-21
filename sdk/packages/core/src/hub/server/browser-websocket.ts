@@ -20,6 +20,8 @@ import { logHubMessage } from "./hub-server-logging";
 
 type HubCommandFrame = HubTransportFrame & { kind: "command" };
 
+const HUB_EVENT_REPLAY_PAGE_SIZE = 200;
+
 export interface BrowserHubSocketLike {
 	send(data: string): void;
 	addEventListener(
@@ -309,12 +311,80 @@ export class BrowserWebSocketHubAdapter {
 						if (subscriptions.has(key)) {
 							break;
 						}
+						const sinceSequence =
+							typeof frame.sinceSequence === "number" &&
+							Number.isFinite(frame.sinceSequence) &&
+							frame.sinceSequence >= 0
+								? Math.floor(frame.sinceSequence)
+								: undefined;
+						if (
+							sinceSequence === undefined ||
+							typeof this.transport.replayEventsAfter !== "function"
+						) {
+							// Live-only delivery: the legacy contract, byte-for-byte.
+							const unsubscribe = await this.transport.subscribe(
+								frame.clientId,
+								onEvent,
+								{ sessionId: frame.sessionId },
+							);
+							subscriptions.set(key, unsubscribe);
+							break;
+						}
+						// Replay-then-live: subscribe first and buffer live events while
+						// durable pages stream out, then flush the buffer past the last
+						// replayed sequence — no gap, no duplicates, resumable by cursor.
+						let replayDone = false;
+						let lastDelivered = sinceSequence;
+						const buffered: HubEventEnvelope[] = [];
+						const deliver = (envelope: HubEventEnvelope): void => {
+							if (
+								typeof envelope.sequence === "number" &&
+								envelope.sequence <= lastDelivered
+							) {
+								return;
+							}
+							if (typeof envelope.sequence === "number") {
+								lastDelivered = envelope.sequence;
+							}
+							onEvent(envelope);
+						};
+						const gate = (envelope: HubEventEnvelope): void => {
+							if (!replayDone) {
+								buffered.push(envelope);
+								return;
+							}
+							deliver(envelope);
+						};
 						const unsubscribe = await this.transport.subscribe(
 							frame.clientId,
-							onEvent,
+							gate,
 							{ sessionId: frame.sessionId },
 						);
 						subscriptions.set(key, unsubscribe);
+						try {
+							while (!closed) {
+								const page = this.transport.replayEventsAfter(lastDelivered, {
+									sessionId: frame.sessionId,
+									limit: HUB_EVENT_REPLAY_PAGE_SIZE,
+								});
+								if (page.length === 0) {
+									break;
+								}
+								for (const envelope of page) {
+									deliver(envelope);
+								}
+								// Yield between pages so replay never starves the socket.
+								await new Promise<void>((resolveYield) =>
+									setTimeout(resolveYield, 0),
+								);
+							}
+						} finally {
+							replayDone = true;
+							for (const envelope of buffered) {
+								deliver(envelope);
+							}
+							buffered.length = 0;
+						}
 						break;
 					}
 					case "stream.unsubscribe": {
