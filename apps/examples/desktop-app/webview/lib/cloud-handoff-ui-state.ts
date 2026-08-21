@@ -5,7 +5,6 @@ import type { HandoffProgressPhase, HandoffReceipt } from "@/lib/cloud-handoff";
 export type PendingHandoffPrompt = {
 	content: string;
 	submittedAt: number;
-	baselineMessageIds: string[];
 	images?: ChatMessage["images"];
 };
 
@@ -16,29 +15,16 @@ export type CloudHandoffUiEntry =
 			message?: string;
 			dashboardUrl?: string;
 			pendingPrompt?: PendingHandoffPrompt;
-			retry?: true;
 	  }
 	| {
 			status: "recovery";
 			dashboardUrl: string;
 			retryDraft?: string;
 			retryAttachments?: File[];
-			pendingPrompt?: PendingHandoffPrompt;
-			retry?: true;
 	  }
 	| { status: "recovery_dismissed"; dashboardUrl: string }
-	| {
-			status: "failed";
-			retryDraft?: string;
-			retryAttachments?: File[];
-			pendingPrompt?: PendingHandoffPrompt;
-			retry?: true;
-	  }
-	| {
-			status: "retry_restored";
-			pendingPrompt?: PendingHandoffPrompt;
-			retry?: true;
-	  }
+	| { status: "failed"; retryDraft?: string; retryAttachments?: File[] }
+	| { status: "retry_restored" }
 	| { status: "target_prompt"; pendingPrompt: PendingHandoffPrompt }
 	| {
 			status: "complete";
@@ -64,11 +50,6 @@ export type CloudHandoffUiAction =
 			destination?: "in_app" | "external";
 	  }
 	| {
-			type: "prompt_images";
-			sourceSessionId: string;
-			images: NonNullable<ChatMessage["images"]>;
-	  }
-	| {
 			type: "failed";
 			sourceSessionId: string;
 			exposeRecovery: boolean;
@@ -80,7 +61,7 @@ export type CloudHandoffUiAction =
 			sourceSessionId: string;
 			receipt: HandoffReceipt;
 			externalPresentation: boolean;
-			pendingPrompt: PendingHandoffPrompt | undefined;
+			pendingPrompt?: PendingHandoffPrompt;
 	  }
 	| { type: "external"; sourceSessionId: string }
 	| { type: "prompt_reconciled"; sourceSessionId: string }
@@ -96,10 +77,9 @@ function completeHandoff(
 	sourceSessionId: string,
 	receipt: HandoffReceipt,
 	externalPresentation: boolean,
-	pendingPrompt: PendingHandoffPrompt | undefined,
+	pendingPrompt?: PendingHandoffPrompt,
 ): CloudHandoffUiState {
-	const current = state[sourceSessionId];
-	const next: CloudHandoffUiState = {
+	return {
 		...state,
 		[sourceSessionId]: {
 			status: "complete",
@@ -115,16 +95,6 @@ function completeHandoff(
 				}
 			: {}),
 	};
-	if (
-		current?.status === "complete" &&
-		next[current.receipt.targetSessionId]?.status === "target_prompt" &&
-		(current.receipt.targetSessionId !== receipt.targetSessionId ||
-			externalPresentation ||
-			!pendingPrompt)
-	) {
-		delete next[current.receipt.targetSessionId];
-	}
-	return next;
 }
 
 export function cloudHandoffUiReducer(
@@ -134,10 +104,6 @@ export function cloudHandoffUiReducer(
 	const current = state[action.sourceSessionId];
 	switch (action.type) {
 		case "start": {
-			const retry =
-				current?.status === "failed" ||
-				current?.status === "recovery" ||
-				current?.status === "retry_restored";
 			return {
 				...state,
 				[action.sourceSessionId]: {
@@ -146,26 +112,10 @@ export function cloudHandoffUiReducer(
 					...(action.pendingPrompt
 						? { pendingPrompt: action.pendingPrompt }
 						: {}),
-					...(retry ? { retry: true as const } : {}),
 				},
 			};
 		}
-		case "prompt_images":
-			if (current?.status !== "progress" || !current.pendingPrompt) {
-				return state;
-			}
-			return {
-				...state,
-				[action.sourceSessionId]: {
-					...current,
-					pendingPrompt: {
-						...current.pendingPrompt,
-						images: action.images,
-					},
-				},
-			};
 		case "progress":
-			if (current?.status === "complete") return state;
 			if (
 				action.phase === "complete" &&
 				action.sessionId?.trim() &&
@@ -179,17 +129,10 @@ export function cloudHandoffUiReducer(
 						dashboardUrl: action.dashboardUrl,
 					},
 					action.destination === "external",
-					current?.status === "progress" ||
-						current?.status === "failed" ||
-						current?.status === "recovery" ||
-						current?.status === "retry_restored"
-						? current.retry
-							? undefined
-							: current.pendingPrompt
-						: undefined,
 				);
 			}
 			if (
+				current?.status === "complete" ||
 				current?.status === "failed" ||
 				current?.status === "recovery" ||
 				current?.status === "recovery_dismissed" ||
@@ -208,25 +151,11 @@ export function cloudHandoffUiReducer(
 						(current?.status === "progress" ? current.dashboardUrl : undefined),
 					pendingPrompt:
 						current?.status === "progress" ? current.pendingPrompt : undefined,
-					retry: current?.status === "progress" ? current.retry : undefined,
 				},
 			};
 		case "failed": {
-			if (current?.status === "complete") return state;
 			const dashboardUrl =
 				current?.status === "progress" ? current.dashboardUrl : undefined;
-			const pendingPrompt =
-				current?.status === "progress" ||
-				current?.status === "failed" ||
-				current?.status === "recovery"
-					? current.pendingPrompt
-					: undefined;
-			const retry =
-				current?.status === "progress" ||
-				current?.status === "failed" ||
-				current?.status === "recovery"
-					? current.retry
-					: undefined;
 			if (action.exposeRecovery && dashboardUrl) {
 				return {
 					...state,
@@ -235,8 +164,6 @@ export function cloudHandoffUiReducer(
 						dashboardUrl,
 						retryDraft: action.retryDraft,
 						retryAttachments: action.retryAttachments,
-						...(pendingPrompt ? { pendingPrompt } : {}),
-						...(retry ? { retry } : {}),
 					},
 				};
 			}
@@ -246,8 +173,6 @@ export function cloudHandoffUiReducer(
 					status: "failed",
 					retryDraft: action.retryDraft,
 					retryAttachments: action.retryAttachments,
-					...(pendingPrompt ? { pendingPrompt } : {}),
-					...(retry ? { retry } : {}),
 				},
 			};
 		}
@@ -291,13 +216,7 @@ export function cloudHandoffUiReducer(
 			if (current?.status === "failed") {
 				return {
 					...state,
-					[action.sourceSessionId]: {
-						status: "retry_restored",
-						...(current.pendingPrompt
-							? { pendingPrompt: current.pendingPrompt }
-							: {}),
-						...(current.retry ? { retry: current.retry } : {}),
-					},
+					[action.sourceSessionId]: { status: "retry_restored" },
 				};
 			}
 			if (current?.status === "recovery") {
@@ -306,10 +225,6 @@ export function cloudHandoffUiReducer(
 					[action.sourceSessionId]: {
 						status: "recovery",
 						dashboardUrl: current.dashboardUrl,
-						...(current.pendingPrompt
-							? { pendingPrompt: current.pendingPrompt }
-							: {}),
-						...(current.retry ? { retry: current.retry } : {}),
 					},
 				};
 			}
@@ -319,31 +234,36 @@ export function cloudHandoffUiReducer(
 
 export function appendPendingHandoffPrompt(
 	messages: ChatMessage[],
-	sourceSessionId: string | undefined,
+	sessionId: string | undefined,
 	handoff: CloudHandoffUiEntry | undefined,
 ): ChatMessage[] {
 	if (
-		!sourceSessionId ||
-		(handoff?.status !== "progress" && handoff?.status !== "target_prompt")
+		!sessionId ||
+		(handoff?.status !== "progress" && handoff?.status !== "target_prompt") ||
+		!handoff.pendingPrompt
 	) {
 		return messages;
 	}
 	const prompt = handoff.pendingPrompt;
-	if (!prompt) return messages;
 	if (pendingHandoffPromptCaughtUp(messages, handoff)) return messages;
 
-	const id = `handoff_prompt_${sourceSessionId}_${prompt.submittedAt}`;
+	const message: ChatMessage = {
+		id: `handoff_prompt_${sessionId}_${prompt.submittedAt}`,
+		sessionId,
+		role: "user",
+		content: prompt.content,
+		images: prompt.images,
+		createdAt: prompt.submittedAt,
+		meta: { userRunSpan: 0 },
+	};
+	const insertionIndex = messages.findIndex(
+		(existing) => existing.createdAt >= prompt.submittedAt,
+	);
+	if (insertionIndex < 0) return [...messages, message];
 	return [
-		...messages,
-		{
-			id,
-			sessionId: sourceSessionId,
-			role: "user",
-			content: prompt.content,
-			images: prompt.images,
-			createdAt: prompt.submittedAt,
-			meta: { userRunSpan: 0 },
-		},
+		...messages.slice(0, insertionIndex),
+		message,
+		...messages.slice(insertionIndex),
 	];
 }
 
@@ -352,38 +272,11 @@ export function pendingHandoffPromptCaughtUp(
 	handoff: CloudHandoffUiEntry | undefined,
 ): boolean {
 	if (handoff?.status !== "target_prompt") return false;
-	const baselineIds = new Set(handoff.pendingPrompt.baselineMessageIds);
-	const matchingMessages = matchingHandoffPromptMessages(
-		messages,
-		handoff.pendingPrompt.content,
-	);
-	return (
-		matchingMessages.length > baselineIds.size ||
-		matchingMessages.some(
-			(message) =>
-				!baselineIds.has(message.id) &&
-				message.createdAt >= handoff.pendingPrompt.submittedAt,
-		)
-	);
-}
-
-export function matchingHandoffPromptMessageIds(
-	messages: ChatMessage[],
-	prompt: string,
-): string[] {
-	return matchingHandoffPromptMessages(messages, prompt).map(
-		(message) => message.id,
-	);
-}
-
-function matchingHandoffPromptMessages(
-	messages: ChatMessage[],
-	prompt: string,
-): ChatMessage[] {
-	const expected = formatDisplayUserInput(prompt);
-	return messages.filter(
+	const expected = formatDisplayUserInput(handoff.pendingPrompt.content);
+	return messages.some(
 		(message) =>
 			message.role === "user" &&
+			message.createdAt >= handoff.pendingPrompt.submittedAt &&
 			formatDisplayUserInput(message.content) === expected,
 	);
 }
