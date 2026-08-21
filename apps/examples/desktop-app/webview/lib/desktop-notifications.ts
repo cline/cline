@@ -4,6 +4,10 @@ import {
 	isPermissionGranted,
 	requestPermission,
 } from "@tauri-apps/plugin-notification";
+import {
+	AVATAR_NOTIFICATION_EVENT,
+	AVATAR_TASK_STATUS_EVENT,
+} from "@/lib/avatar";
 import { desktopClient, isTauriAvailable } from "@/lib/desktop-client";
 
 const DESKTOP_NOTIFICATION_SETTINGS_STORAGE_KEY =
@@ -274,7 +278,20 @@ export function watchDesktopNotifications(): () => void {
 	const seenApprovalRequests = new Set<string>();
 	const seenQuestionRequests = new Set<string>();
 	const terminalBySession = new Map<string, TerminalKind>();
+	const runningSessions = new Set<string>();
 	const queuedPromptsBySession = new Map<string, number>();
+
+	const emitAvatarTaskStatus = async (
+		state: "running" | "completed" | "failed" | "idle",
+	) => {
+		if (disposed) return;
+		try {
+			const { emitTo } = await import("@tauri-apps/api/event");
+			await emitTo("avatar-overlay", AVATAR_TASK_STATUS_EVENT, { state });
+		} catch {
+			// The avatar is optional and may not be available during startup.
+		}
+	};
 
 	const ensurePermission = () => {
 		permissionRequest ??= requestDesktopNotificationPermission().finally(() => {
@@ -290,9 +307,19 @@ export function watchDesktopNotifications(): () => void {
 		body: string;
 	}) => {
 		const preference = readDesktopNotificationSettings()[input.eventType];
-		if (!preference.enabled || (await isMainWindowFocused()) || disposed) {
+		if (!preference.enabled || disposed) {
 			return;
 		}
+		try {
+			const { emitTo } = await import("@tauri-apps/api/event");
+			await emitTo("avatar-overlay", AVATAR_NOTIFICATION_EVENT, {
+				title: input.title,
+				body: concise(input.body),
+			});
+		} catch {
+			// The avatar is optional; native notification remains the fallback.
+		}
+		if (await isMainWindowFocused()) return;
 		if ((await ensurePermission()) !== "granted" || disposed) {
 			return;
 		}
@@ -318,7 +345,15 @@ export function watchDesktopNotifications(): () => void {
 		}
 		terminalBySession.set(sessionId, kind);
 		if (kind === "cancelled") {
+			const wasRunning = runningSessions.delete(sessionId);
+			if (wasRunning && runningSessions.size === 0) {
+				void emitAvatarTaskStatus("idle");
+			}
 			return;
+		}
+		runningSessions.delete(sessionId);
+		if (runningSessions.size === 0) {
+			void emitAvatarTaskStatus(kind === "error" ? "failed" : "completed");
 		}
 		if (kind === "completed") {
 			if ((queuedPromptsBySession.get(sessionId) ?? 0) > 0) {
@@ -328,15 +363,15 @@ export function watchDesktopNotifications(): () => void {
 				eventType: "taskCompletion",
 				sessionId,
 				title: "Task completed",
-				body: "Cline finished working and the result is ready.",
+				body: "The response is ready!",
 			});
 			return;
 		}
 		void notify({
 			eventType: "sessionError",
 			sessionId,
-			title: "Task failed",
-			body: detail || "Cline encountered an error while running this task.",
+			title: "Failed",
+			body: detail || "There was an error!",
 		});
 	};
 
@@ -362,6 +397,10 @@ export function watchDesktopNotifications(): () => void {
 				stream === "chat_tool_call_start" ||
 				stream === "chat_text"
 			) {
+				if (!runningSessions.has(sessionId)) {
+					runningSessions.add(sessionId);
+					void emitAvatarTaskStatus("running");
+				}
 				terminalBySession.delete(sessionId);
 				return;
 			}
@@ -377,11 +416,14 @@ export function watchDesktopNotifications(): () => void {
 			const status = asNonEmptyString(record.status).toLowerCase();
 			if (!sessionId || !status) return;
 			if (status === "running" || status === "starting") {
+				const wasRunning = runningSessions.size > 0;
+				runningSessions.add(sessionId);
 				terminalBySession.delete(sessionId);
+				if (!wasRunning) void emitAvatarTaskStatus("running");
 				return;
 			}
 			const kind = terminalKind(status);
-			if (kind && status !== "idle") handleTerminal(sessionId, kind);
+			if (kind) handleTerminal(sessionId, kind);
 		}),
 		desktopClient.subscribe("chat_session_ended", (payload) => {
 			if (!payload || typeof payload !== "object") return;

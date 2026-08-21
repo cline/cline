@@ -327,6 +327,7 @@ export default function Home() {
 	>(null);
 	const selectLocalDraftWhenChatVisibleRef = useRef(false);
 	const [realtimeVoiceOpen, setRealtimeVoiceOpen] = useState(false);
+	const [modeSettingsRequest, setModeSettingsRequest] = useState(0);
 	const [realtimeVoiceTarget, setRealtimeVoiceTarget] =
 		useState<RealtimeVoiceModelTarget | null>(null);
 	const [activeRealtimeBridge, setActiveRealtimeBridge] =
@@ -727,6 +728,10 @@ export default function Home() {
 		},
 		[navigateWith],
 	);
+	const handleOpenModeSettings = useCallback(() => {
+		setModeSettingsRequest((request) => request + 1);
+		handleSettingsSectionChange("Models");
+	}, [handleSettingsSectionChange]);
 	// Standard app shortcuts: Cmd/Ctrl+N for a new session, Cmd/Ctrl+, for
 	// settings — matching the tray menu actions.
 	useEffect(() => {
@@ -920,7 +925,7 @@ export default function Home() {
 											? pinnedRealtimeBridge
 											: activeRealtimeBridge
 									}
-									onConfigure={() => handleSettingsSectionChange("Models")}
+									onConfigure={handleOpenModeSettings}
 									onOpenChange={handleRealtimeOpenChange}
 									open={realtimeVoiceOpen}
 									target={realtimeVoiceTarget}
@@ -1016,6 +1021,7 @@ export default function Home() {
 						{view === "settings" ? (
 							<div className="absolute inset-0 z-30 bg-background text-foreground">
 								<SettingsView
+									modeSettingsRequest={modeSettingsRequest}
 									onNavigateSection={handleSettingsSectionChange}
 									onOpenSession={handleOpenSessionById}
 									section={settingsSection}
