@@ -11,6 +11,32 @@ type LangfuseTelemetryConfig = {
 	secretKey: string;
 };
 
+export type LangfuseTraceAttributes = {
+	userId?: string;
+	sessionId?: string;
+	tags?: string[];
+	metadata?: Record<string, string>;
+	traceName?: string;
+};
+
+/**
+ * Set Langfuse trace-level attributes for the duration of an SDK operation.
+ * Runtime context is useful observation metadata, but Langfuse's Sessions and
+ * Users views are indexed from propagated trace attributes instead.
+ */
+export async function withLangfuseTraceAttributes<T>(
+	enabled: boolean,
+	attributes: LangfuseTraceAttributes,
+	callback: () => T | Promise<T>,
+): Promise<T> {
+	if (!enabled) {
+		return await callback();
+	}
+
+	const { propagateAttributes } = await import("@langfuse/core");
+	return await propagateAttributes(attributes, callback);
+}
+
 const LANGFUSE_DEBUG_ENV = "CLINE_DEBUG_LANGFUSE";
 
 let langfuseTelemetryReady: boolean | undefined;

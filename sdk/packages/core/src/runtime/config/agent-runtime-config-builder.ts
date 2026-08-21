@@ -96,6 +96,7 @@ export function createAgentRuntimeConfig(
 	const toolExecution = resolveToolExecution(agentConfig.maxParallelToolCalls);
 
 	const config: AgentRuntimeConfig = {
+		distinctId: agentConfig.distinctId,
 		sessionId: input.sessionId ?? agentConfig.sessionId,
 		agentId: input.agentId,
 		conversationId: input.conversationId,
