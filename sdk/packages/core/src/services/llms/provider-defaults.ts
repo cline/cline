@@ -643,6 +643,101 @@ async function fetchLiteLlmPrivateModels(
 	);
 }
 
+interface LmStudioModelResponse {
+	id?: string;
+	type?: string;
+	state?: string;
+	max_context_length?: number;
+	loaded_context_length?: number;
+}
+
+function readPositiveInteger(value: unknown): number | undefined {
+	if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+		return Math.floor(value);
+	}
+	return undefined;
+}
+
+/**
+ * Derive LM Studio's native REST models endpoint (`/api/v0/models`) from the
+ * resolved OpenAI-compatible models URL (`.../v1/models`), preserving any
+ * user-configured host/port.
+ */
+function toLmStudioRestModelsUrl(sourceUrl: string): string | undefined {
+	try {
+		const url = new URL(sourceUrl);
+		const basePath = url.pathname
+			.replace(/\/+$/, "")
+			.replace(/\/models$/, "")
+			.replace(/\/v1$/, "");
+		url.pathname = `${basePath}/api/v0/models`;
+		url.search = "";
+		url.hash = "";
+		return url.toString();
+	} catch {
+		return undefined;
+	}
+}
+
+/**
+ * LM Studio's OpenAI-compatible `/v1/models` endpoint only returns model ids,
+ * which leaves the catalog without context-window metadata and forces hosts
+ * onto a hardcoded 128k budget (cline/cline#13457). Its native REST API
+ * reports each model's real context length, so prefer it and fall back to the
+ * id-only listing when the endpoint is unavailable (older LM Studio builds).
+ */
+async function fetchLmStudioPublicModels(
+	sourceUrl: string,
+): Promise<Record<string, ModelInfo>> {
+	const endpoint = toLmStudioRestModelsUrl(sourceUrl);
+	if (!endpoint) {
+		return {};
+	}
+	const response = await fetchWithTimeout(endpoint, { method: "GET" });
+	if (!response.ok) {
+		throw new Error(`LM Studio model refresh failed: HTTP ${response.status}`);
+	}
+	const payload = (await response.json()) as { data?: LmStudioModelResponse[] };
+	const models: Record<string, ModelInfo> = {};
+	for (const model of payload?.data ?? []) {
+		const id = model.id?.trim();
+		if (!id) {
+			continue;
+		}
+		// `loaded_context_length` is the window the server actually enforces
+		// for a loaded model; `max_context_length` is the model's maximum.
+		const contextWindow =
+			readPositiveInteger(model.loaded_context_length) ??
+			readPositiveInteger(model.max_context_length);
+		models[id] = buildModelFromPrivateSource(id, {
+			name: id,
+			contextWindow,
+			supportsImages: model.type === "vlm",
+		});
+	}
+	return models;
+}
+
+async function fetchPublicProviderModels(
+	providerId: string,
+	sourceUrl: string,
+): Promise<Record<string, ModelInfo>> {
+	if (providerId === "lmstudio") {
+		try {
+			const models = await fetchLmStudioPublicModels(sourceUrl);
+			if (Object.keys(models).length > 0) {
+				return models;
+			}
+		} catch {
+			// Fall back to the id-only OpenAI-compatible listing below.
+		}
+	}
+	const modelIds = await fetchModelIdsFromSource(sourceUrl, providerId);
+	return Object.fromEntries(
+		modelIds.map((id) => [id, buildModelFromPrivateSource(id, { name: id })]),
+	);
+}
+
 type PrivateProviderModelFetcher = (
 	config: ProviderConfig,
 	token: string,
@@ -714,14 +809,8 @@ async function getPublicProviderModels(
 		return inFlight;
 	}
 
-	const request = fetchModelIdsFromSource(sourceUrl, providerId)
-		.then((modelIds) => {
-			const data = Object.fromEntries(
-				modelIds.map((id) => [
-					id,
-					buildModelFromPrivateSource(id, { name: id }),
-				]),
-			);
+	const request = fetchPublicProviderModels(providerId, sourceUrl)
+		.then((data) => {
 			PUBLIC_MODELS_CACHE.set(cacheKey, {
 				data,
 				expiresAt: now + cacheTtlMs,
