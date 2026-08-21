@@ -539,6 +539,8 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 		const delegatedAgentConfigProvider = createDelegatedAgentConfigProvider({
 			providerId: config.providerId,
 			modelId: config.modelId,
+			distinctId: input.distinctId,
+			sessionId: config.sessionId,
 			cwd: config.cwd,
 			apiKey: config.apiKey ?? "",
 			baseUrl: config.baseUrl,
