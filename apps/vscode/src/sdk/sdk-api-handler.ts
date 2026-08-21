@@ -15,7 +15,6 @@ import { Logger } from "@shared/services/Logger"
 import type { Mode } from "@shared/storage/types"
 import { reasoningEffortFromThinkingBudget } from "@shared/utils/reasoning-support"
 import { ExtensionRegistryInfo } from "@/registry"
-import { fetch } from "@/shared/net"
 import { buildBedrockProviderConfig } from "./bedrock-config"
 import {
 	type HostClientContext,
@@ -24,6 +23,7 @@ import {
 	resolveClineRequestClientContext,
 	resolveModelId,
 	resolveOllamaProviderConfig,
+	resolveProviderFetch,
 	resolveVertexProviderConfig,
 } from "./cline-session-factory"
 import { toSdkProviderId } from "./model-catalog/sdk-provider-id"
@@ -129,6 +129,7 @@ export function buildSdkProviderConfig(
 		mode === "plan" ? configuration.planModeThinkingBudgetTokens : configuration.actModeThinkingBudgetTokens
 
 	const vertexProviderConfig = providerId === "vertex" ? resolveVertexProviderConfig(configuration) : undefined
+	const sdkProviderId = toSdkProviderId(providerId)
 
 	const sdkProviderId = toSdkProviderId(providerId)
 	const headers = resolveRequestHeaders(sdkProviderId, options?.client)
@@ -141,8 +142,9 @@ export function buildSdkProviderConfig(
 		...(headers ? { headers } : {}),
 		...(vertexProviderConfig ?? {}),
 		// Use the proxy-aware fetch so gateway providers respect corporate proxy
-		// configuration (see .clinerules/network.md).
-		fetch,
+		// configuration (see .clinerules/network.md). Local model servers get a
+		// variant with undici's idle timeouts disabled (cline/cline#13464).
+		fetch: resolveProviderFetch(sdkProviderId),
 		// Bedrock needs its region + structured AWS auth options forwarded to the
 		// SDK gateway. Without these, a pasted Bedrock API key / region is dropped.
 		...(providerId === "bedrock" ? buildBedrockProviderConfig(configuration, mode) : {}),
