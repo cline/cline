@@ -27,7 +27,7 @@ Use `@cline/ui@next` only for deliberate previews. Monorepo consumers use
 
 | Import | Contents | Runtime requirement |
 | --- | --- | --- |
-| `@cline/ui` | Button, icon-button, agent ask-question, approval-card, Aurora, hero-heading, prompt-queue, quick-action, search-combobox, and session-status React primitives | React 18.3 or 19 and Tailwind v4 |
+| `@cline/ui` | Badge, button, icon-button, agent ask-question, approval-card, Aurora, hero-heading, prompt-queue, quick-action, search-combobox, and session-status React primitives | React 18.3 or 19 and Tailwind v4 |
 | `@cline/ui/components.css` | Styles, namespaced Tailwind mappings, and source registration for the root React primitives | Tailwind v4 and theme tokens |
 | `@cline/ui/theme/palette.css` | Cline-owned light/dark solid and alpha color scales | CSS |
 | `@cline/ui/theme/tokens.css` | Light/dark custom properties only | CSS |
@@ -51,6 +51,18 @@ registers package-namespaced mappings and the packaged component sources so
 their utilities are emitted without changing generic host utility names.
 
 `AgentQuickActions` renders prompt shortcuts and reports selection to the host.
+
+`Badge` labels compact metadata and status. It supports `solid`, `surface`, and
+`outline` variants; `neutral`, `accent`, `success`, `warning`, `info`, and
+`destructive` tones; and `xs`, `sm`, and `md` sizes.
+
+```tsx
+import { Badge } from "@cline/ui";
+
+<Badge size="xs" tone="success" variant="surface">
+	Connected
+</Badge>;
+```
 
 `Button` and `IconButton` share `fill`, `surface`, and `ghost` variants across
 accent, neutral, and destructive tones. Both default to `type="button"` so they

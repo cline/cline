@@ -1,7 +1,7 @@
 import { providerOffersModelTool } from "@cline/llms/browser";
+import { Badge } from "@cline/ui";
 import { Minus, Plus, RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
@@ -1073,7 +1073,8 @@ function GeneralSettingsContent({
 					{isBetaVersion(appVersion) ? (
 						<Badge
 							className="shrink-0 uppercase tracking-wide"
-							variant="secondary"
+							tone="neutral"
+							variant="surface"
 						>
 							Beta
 						</Badge>

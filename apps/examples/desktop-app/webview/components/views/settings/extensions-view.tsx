@@ -1,5 +1,6 @@
 "use client";
 
+import { Badge } from "@cline/ui";
 import {
 	Bot,
 	Code,
@@ -15,7 +16,6 @@ import {
 	Zap,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
@@ -309,7 +309,11 @@ function getPathScope(path: string, workspaceRoot: string): ItemScope {
 
 function ScopeBadge({ scope }: { scope: ItemScope }) {
 	return (
-		<Badge variant="outline" className="shrink-0 text-muted-foreground">
+		<Badge
+			className="shrink-0 text-muted-foreground"
+			tone="neutral"
+			variant="outline"
+		>
 			{scope}
 		</Badge>
 	);
@@ -984,11 +988,19 @@ export function CustomizationSectionView({
 						{item.name}
 					</h3>
 					<ScopeBadge scope={item.scope} />
-					<Badge variant="outline" className="shrink-0 text-muted-foreground">
+					<Badge
+						className="shrink-0 text-muted-foreground"
+						tone="neutral"
+						variant="outline"
+					>
 						{item.type}
 					</Badge>
 					{context?.matchedEntries?.length ? (
-						<Badge variant="outline" className="shrink-0 text-muted-foreground">
+						<Badge
+							className="shrink-0 text-muted-foreground"
+							tone="neutral"
+							variant="outline"
+						>
 							Marketplace
 						</Badge>
 					) : null}
@@ -1059,7 +1071,11 @@ export function CustomizationSectionView({
 					</h3>
 					<ScopeBadge scope={scope} />
 					{context?.matchedEntries?.length ? (
-						<Badge variant="outline" className="shrink-0 text-muted-foreground">
+						<Badge
+							className="shrink-0 text-muted-foreground"
+							tone="neutral"
+							variant="outline"
+						>
 							Marketplace
 						</Badge>
 					) : null}
@@ -1094,7 +1110,7 @@ export function CustomizationSectionView({
 							<div className="flex flex-wrap items-center gap-2 py-2 text-xs font-medium text-foreground">
 								<span className="mr-1">Contributions</span>
 								{contributionGroups.map((group) => (
-									<Badge key={group.label} variant="outline">
+									<Badge key={group.label} tone="neutral" variant="outline">
 										{group.label} {group.items.length}
 									</Badge>
 								))}
@@ -1107,7 +1123,7 @@ export function CustomizationSectionView({
 										</p>
 										<div className="flex flex-wrap gap-1">
 											{group.items.map((item) => (
-												<Badge key={item} variant="secondary">
+												<Badge key={item} tone="neutral" variant="surface">
 													{item}
 												</Badge>
 											))}
@@ -1150,11 +1166,19 @@ export function CustomizationSectionView({
 						{server.name}
 					</h3>
 					<ScopeBadge scope="Global" />
-					<Badge variant="outline" className="shrink-0 text-muted-foreground">
+					<Badge
+						className="shrink-0 text-muted-foreground"
+						tone="neutral"
+						variant="outline"
+					>
 						{server.transportType}
 					</Badge>
 					{context?.matchedEntries?.length ? (
-						<Badge variant="outline" className="shrink-0 text-muted-foreground">
+						<Badge
+							className="shrink-0 text-muted-foreground"
+							tone="neutral"
+							variant="outline"
+						>
 							Marketplace
 						</Badge>
 					) : null}

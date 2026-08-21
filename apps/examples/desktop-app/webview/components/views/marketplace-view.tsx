@@ -1,3 +1,4 @@
+import { Badge } from "@cline/ui";
 import {
 	ChevronRight,
 	ExternalLink,
@@ -18,7 +19,6 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
 	Collapsible,
@@ -442,13 +442,13 @@ function MarketplaceEntryCard({
 						{entry.name}
 					</h2>
 					{showFeatured && entry.featured ? (
-						<Badge className="border border-violet-500/20 bg-violet-500/10 text-violet-700 dark:text-violet-300">
+						<Badge tone="accent" variant="surface">
 							<Star className="fill-current" />
 							Featured
 						</Badge>
 					) : null}
 					{sourceLabel ? (
-						<Badge variant="outline" className="shrink-0 text-muted-foreground">
+						<Badge className="shrink-0" variant="outline">
 							{sourceLabel}
 						</Badge>
 					) : null}
@@ -459,11 +459,7 @@ function MarketplaceEntryCard({
 				{showTags && entry.tags.length > 0 ? (
 					<div className="flex flex-wrap gap-1.5">
 						{entry.tags.slice(0, 5).map((tag) => (
-							<Badge
-								key={tag}
-								variant="outline"
-								className="max-w-full text-muted-foreground"
-							>
+							<Badge key={tag} variant="outline" className="max-w-full">
 								<span className="truncate">{tagLabels.get(tag) ?? tag}</span>
 							</Badge>
 						))}

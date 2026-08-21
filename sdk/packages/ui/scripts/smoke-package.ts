@@ -20,6 +20,8 @@ import {
 	AgentHeroHeading,
 	AgentPromptQueue,
 	AgentQuickActions,
+	Badge,
+	badgeVariants,
 	SearchCombobox,
 	SessionStatus,
 } from "@cline/ui";
@@ -58,6 +60,8 @@ if (
 	!AgentPromptQueue ||
 	!SearchCombobox ||
 	!AgentQuickActions ||
+	!Badge ||
+	!badgeVariants ||
 	!SessionStatus ||
 	!Conversation ||
 	!Message ||
@@ -137,8 +141,11 @@ async function verifyTailwindContract(
 	for (const candidate of [
 		"bg-cline-ui-background/95",
 		"border-cline-ui-border/60",
+		"border-cline-ui-primary/30",
 		"text-cline-ui-muted-foreground",
 		"bg-cline-ui-primary/10",
+		"text-cline-ui-primary-emphasis",
+		"bg-cline-ui-success-surface",
 		"max-h-64",
 		"leading-none",
 		"max-h-44",

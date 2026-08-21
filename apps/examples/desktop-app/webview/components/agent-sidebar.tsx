@@ -7,6 +7,7 @@ import type {
 	HubTaskCreateInput,
 } from "@cline/shared";
 import { isChatWorkspacePath } from "@cline/shared/browser";
+import { Badge } from "@cline/ui";
 import {
 	ArrowDownUp,
 	Bot,
@@ -61,7 +62,6 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
 	ContextMenu,
@@ -784,9 +784,10 @@ export function AgentSidebar({
 						</HoverCard>
 						{!isCollapsed && isBetaVersion(appVersion) ? (
 							<Badge
-								className="ml-0.5 px-1.5 py-0 text-[10px] uppercase tracking-wide"
+								className="ml-0.5 uppercase tracking-wide"
+								size="xs"
 								title={`${BETA_PRODUCT_NAME} — beta builds install side by side with the stable app and update from the beta channel`}
-								variant="secondary"
+								variant="surface"
 							>
 								Beta
 							</Badge>
