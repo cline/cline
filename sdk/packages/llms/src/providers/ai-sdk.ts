@@ -627,9 +627,11 @@ function buildAiSdkRuntimeContext(
 			: {}),
 		...(tags && tags.length > 0 ? { tags } : {}),
 		// Keep Cline correlation fields available even when the integration
-		// does not promote them to first-class Langfuse fields.
+		// does not promote them to first-class Langfuse fields. Langfuse-facing
+		// metadata uses taskId; Cline's internal model contract remains
+		// conversationId.
 		...(typeof metadata.conversationId === "string"
-			? { conversationId: metadata.conversationId }
+			? { taskId: metadata.conversationId }
 			: {}),
 		...(typeof metadata.runId === "string" ? { runId: metadata.runId } : {}),
 		...(typeof metadata.iteration === "number"
@@ -2171,7 +2173,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 							userId: true,
 							sessionId: true,
 							tags: true,
-							conversationId: true,
+							taskId: true,
 							runId: true,
 							iteration: true,
 							providerId: true,
