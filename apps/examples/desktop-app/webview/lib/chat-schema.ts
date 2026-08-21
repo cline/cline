@@ -52,12 +52,32 @@ export const ChatMessageImageSchema = z.object({
 
 export const ChatMessageMediaSchema = GeneratedMediaSchema;
 
+/**
+ * Model-native video/audio streamed outside the generate_media tool: the
+ * sidecar persists the file as a session artifact and the message carries a
+ * pointer to it (name only, no inline bytes) for the webview to fetch via
+ * /api/session-artifacts/:sessionId/:artifactName.
+ */
+export const ChatMessageVideoSchema = z.object({
+	id: z.string().min(1),
+	mediaType: z.string().min(1),
+	artifactName: z.string().min(1),
+});
+
+export const ChatMessageAudioSchema = z.object({
+	id: z.string().min(1),
+	mediaType: z.string().min(1),
+	artifactName: z.string().min(1),
+});
+
 export const ChatMessageSchema = z.object({
 	id: z.string().min(1),
 	sessionId: z.string().nullable(),
 	role: ChatMessageRoleSchema,
 	content: z.string(),
 	images: z.array(ChatMessageImageSchema).optional(),
+	videos: z.array(ChatMessageVideoSchema).optional(),
+	audios: z.array(ChatMessageAudioSchema).optional(),
 	media: z.array(ChatMessageMediaSchema).optional(),
 	reasoning: z.string().optional(),
 	reasoningRedacted: z.boolean().optional(),
@@ -116,6 +136,8 @@ export const ChatViewStateSchema = z.object({
 export type ChatSessionConfig = z.infer<typeof ChatSessionConfigSchema>;
 export type ChatSessionStatus = z.infer<typeof ChatSessionStatusSchema>;
 export type ChatMessageImage = z.infer<typeof ChatMessageImageSchema>;
+export type ChatMessageVideo = z.infer<typeof ChatMessageVideoSchema>;
+export type ChatMessageAudio = z.infer<typeof ChatMessageAudioSchema>;
 export type ChatMessageMedia = z.infer<typeof ChatMessageMediaSchema>;
 export type ChatMessage = z.infer<typeof ChatMessageSchema>;
 export type ChatSummary = z.infer<typeof ChatSummarySchema>;

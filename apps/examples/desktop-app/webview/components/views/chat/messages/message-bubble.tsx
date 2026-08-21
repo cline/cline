@@ -1,6 +1,5 @@
 "use client";
 
-import { GeneratedMediaContent } from "@cline/ui";
 import {
 	Message as AgentMessage,
 	type AgentMessageRole,
@@ -24,13 +23,12 @@ import { memo, useEffect, useState } from "react";
 import type {
 	ChatMessage,
 	ChatMessageImage,
-	ChatMessageMedia,
 	ChatMessageVideo,
 } from "@/lib/chat-schema";
 import { cn } from "@/lib/utils";
 import { MemoizedMarkdown } from "../../../ui/markdown";
 import { formatChatMessageContent } from "../message-content";
-import { MessageAudios, MessageVideos } from "./message-media";
+import { MessageAudios, MessageMedia, MessageVideos } from "./message-media";
 import { ReasoningBlock } from "./reasoning-block";
 
 function AssistantImageCarousel({
@@ -129,27 +127,6 @@ function MessageImages({
 						src={`data:${image.mediaType};base64,${image.data}`}
 					/>
 				</button>
-			))}
-		</div>
-	);
-}
-
-function MessageMedia({ media }: { media: ChatMessageMedia[] }) {
-	return (
-		<div className="flex max-w-2xl flex-col gap-2">
-			{media.map((item) => (
-				<GeneratedMediaContent
-					classNames={{
-						image:
-							"max-h-96 max-w-full rounded-lg border border-border bg-muted object-contain",
-						audio: "w-full",
-						video: "max-h-96 max-w-full rounded-lg",
-						file: "text-sm underline",
-						unavailable: "rounded-lg border border-border bg-muted p-3 text-sm",
-					}}
-					key={item.id}
-					media={item}
-				/>
 			))}
 		</div>
 	);

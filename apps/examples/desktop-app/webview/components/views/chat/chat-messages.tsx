@@ -40,7 +40,7 @@ import {
 } from "./messages/group-messages";
 import { ChatImageLightbox } from "./messages/image-lightbox";
 import { MessageBubble } from "./messages/message-bubble";
-import { ChatVideoLightbox } from "./messages/message-media";
+import { ChatVideoLightbox, MessageMedia } from "./messages/message-media";
 import {
 	ToolApprovalPanel,
 	type ToolApprovalRequestItem,
@@ -612,13 +612,20 @@ function ChatMessagesImpl({
 									}
 									if (item.type === "work") {
 										return (
-											<WorkBlock
-												durationMilliseconds={item.durationMilliseconds}
+											<div
+												className="flex flex-col gap-2"
 												key={`work_${item.id}`}
-												toolCallCount={item.toolCallCount}
 											>
-												{item.items.map(renderWorkingRow)}
-											</WorkBlock>
+												<WorkBlock
+													durationMilliseconds={item.durationMilliseconds}
+													toolCallCount={item.toolCallCount}
+												>
+													{item.items.map(renderWorkingRow)}
+												</WorkBlock>
+												{item.media.length > 0 ? (
+													<MessageMedia media={item.media} />
+												) : null}
+											</div>
 										);
 									}
 									const { agentRole, message, reasoningMessages } = item;

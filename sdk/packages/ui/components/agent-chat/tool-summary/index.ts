@@ -281,6 +281,24 @@ function extractErrorText(
 	return capText(extractOutputText(normalized), maxChars);
 }
 
+/**
+ * Pulls the human-written summary sentence out of a generate_media result
+ * (a content-block array of a text block and a media placeholder string),
+ * ignoring the placeholder entirely.
+ */
+function extractGenerateMediaText(result: unknown): string | undefined {
+	const normalized = normalizeValue(result);
+	const blocks = Array.isArray(normalized) ? normalized : [normalized];
+	const text = blocks
+		.map((block) =>
+			isRecord(block) && typeof block.text === "string" ? block.text : "",
+		)
+		.filter(Boolean)
+		.join("\n")
+		.trim();
+	return text || undefined;
+}
+
 function fallbackLabel(kind: ToolKind, toolName: string, inProgress: boolean) {
 	switch (kind) {
 		case "read":
@@ -791,6 +809,23 @@ export function buildToolSummary(
 					: capText(extractOutputText(payload.result), opts.maxOutputChars),
 			};
 		}
+	}
+
+	if (toolName === "generate_media") {
+		// The result is a content-block array: a text summary plus a
+		// `[generated <modality>]` placeholder for each media item (the actual
+		// media renders separately, from the message's own media list). Only
+		// the text block is useful here — the placeholder adds nothing, and
+		// dumping the whole array would show raw JSON instead of a summary.
+		return {
+			...base,
+			outputText: isError
+				? undefined
+				: capText(
+						extractGenerateMediaText(payload.result),
+						opts.maxOutputChars,
+					),
+		};
 	}
 
 	// Unknown/MCP tools: humanized name, plus whatever text the result holds.

@@ -7,6 +7,7 @@ import {
 	AudioPlayerPlayButton,
 	AudioPlayerTimeDisplay,
 	AudioPlayerTimeRange,
+	GeneratedMediaContent,
 } from "@cline/ui";
 import { ChevronLeft, ChevronRight, Loader2, Maximize2, X } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -14,9 +15,39 @@ import { Button } from "@/components/ui/button";
 import type {
 	ChatMessageAudio,
 	ChatMessageImage,
+	ChatMessageMedia,
 	ChatMessageVideo,
 } from "@/lib/chat-schema";
 import { resolveDesktopBackendHttpEndpoint } from "@/lib/desktop-client";
+import { cn } from "@/lib/utils";
+
+/** Shared rendering for a message's generate_media tool-call output. */
+export function MessageMedia({
+	media,
+	className,
+}: {
+	media: ChatMessageMedia[];
+	className?: string;
+}) {
+	return (
+		<div className={cn("flex max-w-2xl flex-col gap-2", className)}>
+			{media.map((item) => (
+				<GeneratedMediaContent
+					classNames={{
+						image:
+							"max-h-96 max-w-full rounded-lg border border-border bg-muted object-contain",
+						audio: "w-full",
+						video: "max-h-96 max-w-full rounded-lg",
+						file: "text-sm underline",
+						unavailable: "rounded-lg border border-border bg-muted p-3 text-sm",
+					}}
+					key={item.id}
+					media={item}
+				/>
+			))}
+		</div>
+	);
+}
 
 export function MessageImages({
 	images,
