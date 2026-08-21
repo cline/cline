@@ -1,5 +1,9 @@
 # Cline SDK Changelog
 
+## 0.0.77
+
+- The `tasks` tool (durable todos and one-time or recurring agent schedules) is now scoped to the clients that can service it. Hosts declare their client type and the core tool catalog resolves availability centrally, so CLI and VS Code sessions no longer register a tool they cannot act on; hub sessions resolve the same way from the requesting client's metadata
+
 ## 0.0.76
 
 - Added model-driven image generation. Models that support it can generate images during a turn, and generated images are persisted in session history and exports

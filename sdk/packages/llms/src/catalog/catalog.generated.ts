@@ -14,7 +14,7 @@ export const GENERATED_PROVIDER_MODELS: {
   version: number
   providers: Record<string, Record<string, ModelInfo>>
 } = {
-  version: 1787278303683,
+  version: 1787286979835,
   providers: {
   "302ai": {
     "claude-opus-4-7": {
@@ -28009,7 +28009,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "qwen3.8-max": {
       "id": "qwen3.8-max",
-      "name": "Qwen3.8-2.4T-A95B",
+      "name": "Qwen3.8-Max",
       "contextWindow": 262144,
       "maxInputTokens": 262144,
       "maxTokens": 262144,
@@ -28592,8 +28592,8 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.76,
-        "output": 3.2,
+        "input": 0.95,
+        "output": 4,
         "cacheRead": 0.19,
         "cacheWrite": 0
       },
@@ -28656,7 +28656,7 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.975,
+        "input": 1.3,
         "output": 4.3,
         "cacheRead": 0.26,
         "cacheWrite": 0
@@ -28789,8 +28789,8 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.165,
-        "output": 0.3575,
+        "input": 0.3,
+        "output": 0.65,
         "cacheRead": 0.06,
         "cacheWrite": 0
       },
@@ -28921,8 +28921,8 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.3025,
-        "output": 1.925,
+        "input": 0.55,
+        "output": 3.5,
         "cacheRead": 0.111,
         "cacheWrite": 0
       },
@@ -28953,8 +28953,8 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.225,
-        "output": 0.9,
+        "input": 0.3,
+        "output": 1.2,
         "cacheRead": 0.06,
         "cacheWrite": 0
       },
@@ -28986,8 +28986,8 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.75,
-        "output": 2.4,
+        "input": 1,
+        "output": 3.2,
         "cacheRead": 0.2,
         "cacheWrite": 0
       },
@@ -29086,8 +29086,8 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.375,
-        "output": 2.025,
+        "input": 0.5,
+        "output": 2.7,
         "cacheRead": 0.203,
         "cacheWrite": 0
       },
@@ -56821,8 +56821,8 @@ export const GENERATED_PROVIDER_MODELS: {
     "liquid/lfm-2.5-2.6b:free": {
       "id": "liquid/lfm-2.5-2.6b:free",
       "name": "LiquidAI: LFM2.5-2.6B (free)",
-      "contextWindow": 128000,
-      "maxInputTokens": 128000,
+      "contextWindow": 65536,
+      "maxInputTokens": 65536,
       "maxTokens": 8192,
       "capabilities": [
         "tools",
@@ -61032,9 +61032,9 @@ export const GENERATED_PROVIDER_MODELS: {
     "minimax/minimax-m2.5": {
       "id": "minimax/minimax-m2.5",
       "name": "MiniMax-M2.5",
-      "contextWindow": 65536,
-      "maxInputTokens": 65536,
-      "maxTokens": 196608,
+      "contextWindow": 198000,
+      "maxInputTokens": 198000,
+      "maxTokens": 32768,
       "capabilities": [
         "tools",
         "reasoning",
@@ -108739,8 +108739,8 @@ export const GENERATED_PROVIDER_MODELS: {
     "liquid/lfm-2.5-2.6b:free": {
       "id": "liquid/lfm-2.5-2.6b:free",
       "name": "LFM2.5-2.6B (free)",
-      "contextWindow": 128000,
-      "maxInputTokens": 128000,
+      "contextWindow": 65536,
+      "maxInputTokens": 65536,
       "maxTokens": 8192,
       "capabilities": [
         "tools",
@@ -113021,7 +113021,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "MiniMax-M2.5",
       "contextWindow": 204800,
       "maxInputTokens": 204800,
-      "maxTokens": 196608,
+      "maxTokens": 32768,
       "capabilities": [
         "tools",
         "reasoning",
@@ -113031,9 +113031,9 @@ export const GENERATED_PROVIDER_MODELS: {
       ],
       "reasoningOptions": [],
       "pricing": {
-        "input": 0.225,
-        "output": 0.9,
-        "cacheRead": 0.06,
+        "input": 0.27,
+        "output": 0.95,
+        "cacheRead": 0.03,
         "cacheWrite": 0
       },
       "releaseDate": "2026-02-12",
