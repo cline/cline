@@ -8,7 +8,7 @@ import {
 const tool = (name: string) => ({ name });
 
 describe("selectSessionTools", () => {
-	it("excludes tasks in yolo mode only", () => {
+	it("excludes tasks in yolo mode and CLI/VS Code sessions", () => {
 		const tools = [tool("read_files"), tool("tasks")];
 
 		expect(selectSessionTools(tools, "act").map(({ name }) => name)).toEqual([
@@ -26,6 +26,15 @@ describe("selectSessionTools", () => {
 		expect(selectSessionTools(tools, "yolo").map(({ name }) => name)).toEqual([
 			"read_files",
 		]);
+		expect(
+			selectSessionTools(tools, "act", "cli").map(({ name }) => name),
+		).toEqual(["read_files"]);
+		expect(
+			selectSessionTools(tools, "act", "cline-cli-zen").map(({ name }) => name),
+		).toEqual(["read_files"]);
+		expect(
+			selectSessionTools(tools, "act", "vscode").map(({ name }) => name),
+		).toEqual(["read_files"]);
 	});
 });
 

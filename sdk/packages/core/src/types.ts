@@ -75,6 +75,7 @@ export {
 export type {
 	BuiltinToolAvailabilityContext,
 	ToolCatalogEntry,
+	ToolClientType,
 } from "./extensions/tools";
 export {
 	getCoreAcpToolNames,
