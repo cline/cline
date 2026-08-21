@@ -5,6 +5,7 @@ import type { ITelemetryService } from "@cline/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	GlobalSettingsSchema,
+	isModelToolEnabledGlobally,
 	isOptInToolEnabledGlobally,
 	readCompactionModeGlobally,
 	readCompactionStrategyGlobally,
@@ -13,11 +14,13 @@ import {
 	readToolAutoApproveGlobally,
 	readTuiThemeGlobally,
 	resolveDisabledToolNames,
+	resolveModelToolSettings,
 	setAutoUpdateEnabledGlobally,
 	setCompactionModeGlobally,
 	setCompactionStrategyGlobally,
 	setDisabledPlugin,
 	setDisabledTools,
+	setModelToolEnabledGlobally,
 	setOptInToolEnabledGlobally,
 	setPlanActModeGlobally,
 	setTelemetryOptOutGlobally,
@@ -219,6 +222,26 @@ describe("global-settings", () => {
 				new Set(["web_search", "generate_media"]),
 			);
 			expect(readGlobalSettings().disabledTools).toBeUndefined();
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	it("keeps the deprecated model-tool setting aliases published in 0.0.77 working", async () => {
+		const root = await mkdtemp(join(tmpdir(), "core-global-settings-"));
+		try {
+			process.env.CLINE_GLOBAL_SETTINGS_PATH = join(
+				root,
+				"global-settings.json",
+			);
+
+			expect(isModelToolEnabledGlobally("web_search")).toBe(false);
+			setModelToolEnabledGlobally("web_search", true);
+			expect(isModelToolEnabledGlobally("web_search")).toBe(true);
+			expect(isOptInToolEnabledGlobally("web_search")).toBe(true);
+			expect(resolveModelToolSettings()).toEqual({
+				web_search: { enabled: true },
+			});
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}

@@ -374,6 +374,15 @@ export function setOptInToolEnabledGlobally(
 	});
 }
 
+/** @deprecated Use `resolveOptInToolSettings` instead. */
+export const resolveModelToolSettings = resolveOptInToolSettings;
+
+/** @deprecated Use `isOptInToolEnabledGlobally` instead. */
+export const isModelToolEnabledGlobally = isOptInToolEnabledGlobally;
+
+/** @deprecated Use `setOptInToolEnabledGlobally` instead. */
+export const setModelToolEnabledGlobally = setOptInToolEnabledGlobally;
+
 export function toggleDisabledTool(toolName: string): boolean {
 	if (isOptInToolName(toolName)) {
 		const wasEnabled = isOptInToolEnabledGlobally(toolName);
