@@ -1,5 +1,21 @@
 # Cline CLI Changelog
 
+## 3.0.56
+
+- Added model-driven image generation. Models that support it can generate images during a turn; images render in the TUI and are included in session exports and ACP sessions
+- Agents can now create and manage scheduled tasks, and `cline schedule` commands work against a remote hub
+- Skill slash commands now load through the skills tool instead of expanding into your message. Resume and history surfaces show the `/command` you typed instead of the whole skill body, and the instructions reach the model once instead of twice. Workflows still expand, as does yolo mode (its preset has no skills tool)
+- Image and voice models are no longer offered in chat model pickers during onboarding, `/models`, and ACP
+- Fixed TUI dialog colors not following live theme changes
+- Fixed the account dialog's selection chevron so it matches the other dialogs
+- Fixed `run_commands` failing with ENOENT when a structured command contained a space
+- PowerShell commands now fail fast on the first error instead of flooding stderr and reporting success
+- Fixed provider-executed tool activity (e.g. tools the Claude Code provider runs itself) being invisible in the transcript
+- Fixed `PreToolUse` hook context never reaching the model, and `PostToolUse` hooks having their output and `cancel` control discarded
+- Fixed Gemini custom base URLs configured as a host root
+- Gateway usage now displays the billed cost
+- Refreshed the model catalog, which adds AMD, Arcee, Echo, Jalapeno, Kosmik, LLM Gateway, RunInfra, and SCNet as providers and updates model lists and per-provider default models across the board
+
 ## 3.0.55
 
 - Auto-updates no longer install while a CLI is attached to the Hub. The update is recorded at startup and installed on exit, once the Hub confirms nothing else is attached, so a background update can no longer swap the package out from under a live session and kill it with `Hub connection closed (code=1006)`. `cline update` still installs immediately and now tells you the update applies on next start
