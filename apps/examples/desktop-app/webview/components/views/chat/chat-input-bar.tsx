@@ -17,7 +17,15 @@ import {
 	SignalZero,
 	X,
 } from "lucide-react";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+	memo,
+	type MouseEvent as ReactMouseEvent,
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import {
 	SpeechInput,
 	type SpeechTranscriptionSource,
@@ -875,6 +883,8 @@ function ChatInputBarImpl({
 		() => resolveEffortIndex(thinking, reasoningEffort),
 		[reasoningEffort, thinking],
 	);
+	const effortProgress =
+		(effortIndex / Math.max(1, EFFORT_LEVELS.length - 1)) * 100;
 	const [modelSettingsOpen, setModelSettingsOpen] = useState(false);
 	const thinkingSliderRef = useRef<HTMLInputElement | null>(null);
 	useEffect(() => {
@@ -1605,152 +1615,121 @@ function ChatInputBarImpl({
 								</Select>
 							</>
 						) : (
-							<>
-								<Popover
-									onOpenChange={setModelSettingsOpen}
-									open={modelSettingsOpen}
-								>
-									<PopoverTrigger asChild>
-										<button
-											aria-label="Model settings"
-											className="flex h-7 max-w-md items-center gap-1 rounded-md px-2 text-[11px] transition-colors hover:bg-accent"
-											type="button"
-										>
-											<span className="truncate text-muted-foreground">
-												{provider}
-											</span>
-											<span className="truncate text-foreground">{model}</span>
-											<ReasoningEffortIcon
-												className="size-3 shrink-0"
-												value={EFFORT_LEVELS[effortIndex]?.value ?? "low"}
-											/>
-										</button>
-									</PopoverTrigger>
-									<PopoverContent
-										align="end"
-										className="w-72 space-y-1 p-2"
-										forceMount
-										hidden={!modelSettingsOpen}
-										inert={!modelSettingsOpen ? true : undefined}
-										onOpenAutoFocus={(event) => {
-											event.preventDefault();
-											requestAnimationFrame(() =>
-												thinkingSliderRef.current?.focus(),
-											);
-										}}
-										side="top"
+							<Popover
+								onOpenChange={setModelSettingsOpen}
+								open={modelSettingsOpen}
+							>
+								<PopoverTrigger asChild>
+									<button
+										aria-label="Model settings"
+										className="flex h-7 max-w-md items-center gap-1 rounded-md px-2 text-[11px] transition-colors hover:bg-accent"
+										type="button"
 									>
-										<ModelSelector
-											allowedProviderIds={
-												executionTarget === "cloud"
-													? CLINE_ONLY_PROVIDER_IDS
-													: undefined
-											}
-											autoCorrectModel={!cloudSettingsLocked}
-											isBusy={isBusy}
-											model={model}
-											onModelChange={onModelChange}
-											onModelSupportsReasoningChange={
-												handleModelSupportsReasoningChange
-											}
-											onProviderChange={onProviderChange}
-											persistSelection={executionTarget !== "cloud"}
-											provider={provider}
-											variant="menu"
+										<span className="truncate text-muted-foreground">
+											{provider}
+										</span>
+										<span className="truncate text-foreground">{model}</span>
+										<ReasoningEffortIcon
+											className="size-3 shrink-0"
+											value={EFFORT_LEVELS[effortIndex]?.value ?? "low"}
 										/>
-										<div className="rounded-md px-2 py-1">
-											<div className="flex items-center justify-between text-xs">
-												<span className="text-[10px] text-muted-foreground">
-													Effort
-												</span>
-												<span className="flex items-center gap-1.5 text-[10px] text-foreground">
-													{effortLabel}
-													<ReasoningEffortIcon
-														className="size-3.5"
-														value={EFFORT_LEVELS[effortIndex]?.value ?? "low"}
-													/>
-												</span>
-											</div>
-											<div className="relative mt-3 h-4">
-												<input
-													aria-label="Effort"
-													aria-valuetext={effortLabel}
-													className="relative z-10 block h-4 w-full cursor-pointer appearance-none rounded-full disabled:cursor-not-allowed disabled:opacity-50"
-													disabled={
-														cloudSettingsLocked ||
-														modelSupportsReasoning !== true
-													}
-													max={EFFORT_LEVELS.length - 1}
-													min={0}
-													onChange={(event) => {
-														const option =
-															EFFORT_LEVELS[Number(event.currentTarget.value)];
-														if (option) handleEffortChange(option.value);
-													}}
-													onKeyDown={(event) => {
-														if (
-															event.key !== "ArrowLeft" &&
-															event.key !== "ArrowRight"
-														)
-															return;
-														event.preventDefault();
-														const direction =
-															event.key === "ArrowRight" ? 1 : -1;
-														const nextIndex = Math.min(
-															EFFORT_LEVELS.length - 1,
-															Math.max(0, effortIndex + direction),
-														);
-														const option = EFFORT_LEVELS[nextIndex];
-														if (option) handleEffortChange(option.value);
-													}}
-													ref={thinkingSliderRef}
-													step={1}
-													type="range"
-													value={effortIndex}
+									</button>
+								</PopoverTrigger>
+								<PopoverContent
+									align="end"
+									className="w-72 space-y-1 p-2"
+									forceMount
+									hidden={!modelSettingsOpen}
+									inert={!modelSettingsOpen ? true : undefined}
+									onOpenAutoFocus={(event) => {
+										event.preventDefault();
+										requestAnimationFrame(() =>
+											thinkingSliderRef.current?.focus(),
+										);
+									}}
+									side="top"
+								>
+									<ModelSelector
+										allowedProviderIds={undefined}
+										autoCorrectModel={!cloudSettingsLocked}
+										isBusy={isBusy}
+										model={model}
+										onModelChange={onModelChange}
+										onModelSupportsReasoningChange={
+											handleModelSupportsReasoningChange
+										}
+										onProviderChange={onProviderChange}
+										persistSelection
+										provider={provider}
+										variant="menu"
+									/>
+									<div className="rounded-md px-2 py-1">
+										<div className="flex items-center justify-between text-xs">
+											<span className="text-[10px] text-muted-foreground">
+												Effort
+											</span>
+											<span className="flex items-center gap-1.5 text-[10px] text-foreground">
+												{effortLabel}
+												<ReasoningEffortIcon
+													className="size-3.5"
+													value={EFFORT_LEVELS[effortIndex]?.value ?? "low"}
 												/>
-												<div
-													aria-hidden="true"
-													className="pointer-events-none absolute left-2.5 right-2.5 top-0 z-20 flex h-4 items-center justify-between"
-													data-slot="thinking-level-markers"
-												>
-													{EFFORT_LEVELS.map((option) => (
-														<span
-															className="size-1 rounded-full bg-zinc-500 opacity-50"
-															key={option.value}
-														/>
-													))}
-												</div>
+											</span>
+										</div>
+										<div className="relative mt-3 h-4">
+											<input
+												aria-label="Effort"
+												aria-valuetext={effortLabel}
+												className="relative z-10 block h-4 w-full cursor-pointer appearance-none rounded-full bg-muted/60 transition-[background] duration-200 ease-out disabled:cursor-not-allowed disabled:opacity-50 [&::-moz-range-thumb]:size-5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-foreground [&::-webkit-slider-thumb]:size-5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-foreground [&::-webkit-slider-thumb]:shadow-sm [&::-webkit-slider-thumb]:transition-transform [&::-webkit-slider-thumb]:duration-150 [&::-webkit-slider-thumb]:ease-out active:[&::-webkit-slider-thumb]:scale-110"
+												disabled={
+													cloudSettingsLocked || modelSupportsReasoning !== true
+												}
+												max={EFFORT_LEVELS.length - 1}
+												min={0}
+												onChange={(event) => {
+													const option =
+														EFFORT_LEVELS[Number(event.currentTarget.value)];
+													if (option) handleEffortChange(option.value);
+												}}
+												onKeyDown={(event) => {
+													if (
+														event.key !== "ArrowLeft" &&
+														event.key !== "ArrowRight"
+													)
+														return;
+													event.preventDefault();
+													const direction = event.key === "ArrowRight" ? 1 : -1;
+													const nextIndex = Math.min(
+														EFFORT_LEVELS.length - 1,
+														Math.max(0, effortIndex + direction),
+													);
+													const option = EFFORT_LEVELS[nextIndex];
+													if (option) handleEffortChange(option.value);
+												}}
+												ref={thinkingSliderRef}
+												step={1}
+												style={{
+													background: `linear-gradient(to right, var(--primary) ${effortProgress}%, var(--muted) ${effortProgress}%)`,
+												}}
+												type="range"
+												value={effortIndex}
+											/>
+											<div
+												aria-hidden="true"
+												className="pointer-events-none absolute left-2.5 right-2.5 top-0 z-20 flex h-4 items-center justify-between"
+												data-slot="thinking-level-markers"
+											>
+												{EFFORT_LEVELS.map((option) => (
+													<span
+														className="size-1 rounded-full bg-zinc-500 opacity-50"
+														key={option.value}
+													/>
+												))}
 											</div>
 										</div>
-									</PopoverContent>
-								</Popover>
-								<Select
-									disabled={modelSupportsReasoning !== true}
-									onValueChange={handleEffortChange}
-									value={EFFORT_LEVELS[effortIndex]?.value ?? "low"}
-								>
-									<SelectTrigger
-										aria-label="Thinking level"
-										className="h-7 gap-1.5 border-0 px-2 text-sm shadow-none"
-										size="sm"
-									>
-										<span className="flex items-center gap-1">
-											{effortLabel}
-											<ReasoningEffortIcon
-												className="size-3"
-												value={EFFORT_LEVELS[effortIndex]?.value ?? "low"}
-											/>
-										</span>
-									</SelectTrigger>
-									<SelectContent>
-										{EFFORT_LEVELS.map((option) => (
-											<SelectItem key={option.value} value={option.value}>
-												{option.label}
-											</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
-							</>
+									</div>
+								</PopoverContent>
+							</Popover>
 						)}
 					</div>
 				</div>
@@ -2258,6 +2237,11 @@ const ModelSelector = memo(function ModelSelector({
 			value={resolvedModel}
 		/>
 	);
+	const openSelectorFromLabel = (event: ReactMouseEvent<HTMLButtonElement>) => {
+		event.currentTarget.parentElement
+			.querySelector<HTMLButtonElement>(".cline-ui-search-combobox__trigger")
+			?.click();
+	};
 	if (variant === "menu") {
 		return (
 			<div className="grid gap-1 text-xs">
@@ -2265,11 +2249,15 @@ const ModelSelector = memo(function ModelSelector({
 					className="rounded-md px-2 py-1.5 transition-colors hover:bg-accent"
 					data-slot="provider-selector-row"
 				>
-					<div className="mb-0.5 text-[10px] text-muted-foreground">
+					<button
+						className="mb-0.5 block w-full text-left text-[10px] text-muted-foreground"
+						onClick={openSelectorFromLabel}
+						type="button"
+					>
 						Provider
-					</div>
+					</button>
 					{renderProviderSelect(
-						"h-6 w-full max-w-none justify-start border-0 bg-transparent !p-0 text-left text-xs text-foreground shadow-none hover:bg-transparent",
+						"h-6 w-full max-w-none justify-start border-0 bg-transparent !p-0 text-left text-xs text-foreground shadow-none [&:hover:not(:disabled)]:!bg-transparent",
 						"left",
 					)}
 				</div>
@@ -2277,9 +2265,15 @@ const ModelSelector = memo(function ModelSelector({
 					className="rounded-md px-2 py-1.5 transition-colors hover:bg-accent"
 					data-slot="model-selector-row"
 				>
-					<div className="mb-0.5 text-[10px] text-muted-foreground">Model</div>
+					<button
+						className="mb-0.5 block w-full text-left text-[10px] text-muted-foreground"
+						onClick={openSelectorFromLabel}
+						type="button"
+					>
+						Model
+					</button>
 					{renderModelSelect(
-						"h-6 w-full max-w-none justify-start border-0 bg-transparent !p-0 text-left text-xs text-foreground shadow-none hover:bg-transparent",
+						"h-6 w-full max-w-none justify-start border-0 bg-transparent !p-0 text-left text-xs text-foreground shadow-none [&:hover:not(:disabled)]:!bg-transparent",
 						false,
 						"left",
 						"start",

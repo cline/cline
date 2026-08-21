@@ -72,7 +72,7 @@ export function buildEnvironmentSelectorModel(
 
 	return {
 		activeKind: localSelected ? "local" : "remote",
-		activeLabel: activeRemote?.label ?? (localSelected ? "Local" : "Remote"),
+		activeLabel: activeRemote?.label ?? (localSelected ? "Local" : "Remote SSH"),
 		local: {
 			id: LOCAL_WORKSPACE_ENVIRONMENT_ID,
 			label: "Local",
@@ -200,8 +200,20 @@ export function EnvironmentSelector({
 				</DropdownMenuItem>
 
 				<DropdownMenuSeparator />
-				<DropdownMenuLabel className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-					Remote
+				<DropdownMenuLabel className="flex items-center justify-between text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+					<span>Remote SSH</span>
+					<button
+						aria-label="Add SSH host"
+						className="-my-1 -mr-1 grid size-6 place-items-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
+						onClick={(event) => {
+							event.preventDefault();
+							setOpen(false);
+							onAddSshHost();
+						}}
+						type="button"
+					>
+						<Plus className="size-4" />
+					</button>
 				</DropdownMenuLabel>
 				{model.remotes.length > 0 ? (
 					model.remotes.map((option) => (
@@ -214,14 +226,7 @@ export function EnvironmentSelector({
 							onSelect={() => void selectEnvironment(option.id)}
 						>
 							<Server />
-							<span className="min-w-0 flex-1">
-								<span className="block truncate">{option.label}</span>
-								{option.destination ? (
-									<span className="block truncate font-mono text-[10px] text-muted-foreground">
-										{option.destination}
-									</span>
-								) : null}
-							</span>
+							<span className="min-w-0 flex-1 truncate">{option.label}</span>
 							{optionStatus(option)}
 							{!cloudSelected && option.selected ? (
 								<Check className="ml-1" />
@@ -255,11 +260,6 @@ export function EnvironmentSelector({
 					) : null}
 				</DropdownMenuItem>
 
-				<DropdownMenuSeparator />
-				<DropdownMenuItem disabled={busy} onSelect={onAddSshHost}>
-					<Plus />
-					<span>Add SSH Host</span>
-				</DropdownMenuItem>
 			</DropdownMenuContent>
 		</DropdownMenu>
 	);

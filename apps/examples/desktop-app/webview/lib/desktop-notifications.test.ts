@@ -7,7 +7,9 @@ type EventHandler = (payload: unknown) => void;
 const mocks = vi.hoisted(() => ({
 	eventHandlers: new Map<string, Set<EventHandler>>(),
 	focused: false,
+	minimized: false,
 	invoke: vi.fn(),
+	emitTo: vi.fn(),
 	isPermissionGranted: vi.fn(),
 	requestPermission: vi.fn(),
 }));
@@ -28,8 +30,11 @@ vi.mock("@/lib/desktop-client", () => ({
 vi.mock("@tauri-apps/api/window", () => ({
 	getCurrentWindow: () => ({
 		isFocused: async () => mocks.focused,
+		isMinimized: async () => mocks.minimized,
 	}),
 }));
+
+vi.mock("@tauri-apps/api/event", () => ({ emitTo: mocks.emitTo }));
 
 vi.mock("@tauri-apps/plugin-notification", () => ({
 	isPermissionGranted: mocks.isPermissionGranted,
@@ -51,7 +56,9 @@ beforeEach(() => {
 	window.localStorage.clear();
 	mocks.eventHandlers.clear();
 	mocks.focused = false;
+	mocks.minimized = false;
 	mocks.invoke.mockReset().mockResolvedValue(undefined);
+	mocks.emitTo.mockReset().mockResolvedValue(undefined);
 	mocks.isPermissionGranted.mockReset().mockResolvedValue(true);
 	mocks.requestPermission.mockReset().mockResolvedValue("granted");
 });
@@ -62,6 +69,63 @@ afterEach(() => {
 });
 
 describe("desktop notifications", () => {
+	it("shows an active task status in the avatar", async () => {
+		mocks.minimized = true;
+		const { watchDesktopNotifications } = await importFresh();
+		const stop = watchDesktopNotifications();
+
+		emit("chat_session_status", {
+			sessionId: "session-minimized",
+			status: "running",
+		});
+		await vi.waitFor(() =>
+			expect(mocks.emitTo).toHaveBeenCalledWith(
+				"avatar-overlay",
+				"avatar-task-status",
+				{ state: "running" },
+			),
+		);
+		stop();
+	});
+
+	it("ignores a stale running snapshot after the turn completes", async () => {
+		const { watchDesktopNotifications } = await importFresh();
+		const stop = watchDesktopNotifications();
+
+		emit("chat_session_status", {
+			sessionId: "session-stale-running",
+			status: "running",
+		});
+		await vi.waitFor(() =>
+			expect(mocks.emitTo).toHaveBeenCalledWith(
+				"avatar-overlay",
+				"avatar-task-status",
+				{ state: "running" },
+			),
+		);
+
+		emit("chat_event", {
+			sessionId: "session-stale-running",
+			stream: "chat_done",
+			chunk: JSON.stringify({ reason: "completed" }),
+		});
+		await vi.waitFor(() =>
+			expect(mocks.emitTo).toHaveBeenCalledWith(
+				"avatar-overlay",
+				"avatar-task-status",
+				{ state: "completed" },
+			),
+		);
+
+		mocks.emitTo.mockClear();
+		emit("chat_session_status", {
+			sessionId: "session-stale-running",
+			status: "running",
+		});
+		await new Promise((resolve) => window.setTimeout(resolve, 0));
+		expect(mocks.emitTo).not.toHaveBeenCalled();
+		stop();
+	});
 	it("notifies once when a background approval remains in state snapshots", async () => {
 		const { watchDesktopNotifications } = await importFresh();
 		const stop = watchDesktopNotifications();
@@ -190,7 +254,7 @@ describe("desktop notifications", () => {
 		expect(mocks.invoke).toHaveBeenCalledWith(
 			"show_session_notification",
 			expect.objectContaining({
-				title: "Task failed",
+				title: "Failed",
 				body: "The provider is unavailable.",
 				sessionId: "session-5",
 			}),

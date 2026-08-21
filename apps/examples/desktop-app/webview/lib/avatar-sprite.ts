@@ -6,6 +6,9 @@ export const AVATAR_DISPLAY_SCALE = 0.75;
 
 export const AVATAR_IDLE_DURATIONS_MS = [280, 110, 110, 140, 140, 320] as const;
 export const AVATAR_WAVE_DURATIONS_MS = [140, 140, 140, 280] as const;
+export const AVATAR_RUNNING_DURATIONS_MS = [
+	140, 140, 140, 140, 140, 140, 140, 140,
+] as const;
 export const AVATAR_JUMP_DURATIONS_MS = [140, 140, 140, 140, 280] as const;
 
 export function avatarFrameBackgroundPosition(

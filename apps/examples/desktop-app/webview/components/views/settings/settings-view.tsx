@@ -123,10 +123,12 @@ export function SettingsView({
 	section,
 	onNavigateSection,
 	onOpenSession,
+	modeSettingsRequest,
 }: {
 	section: SettingsSection;
 	onNavigateSection: (section: SettingsSection) => void;
 	onOpenSession?: (sessionId: string) => void | Promise<void>;
+	modeSettingsRequest?: number;
 }) {
 	const activeNav = section;
 	const [providers, setProviders] = useState<Provider[]>(
@@ -518,6 +520,7 @@ export function SettingsView({
 				providers={providers}
 				realtimeVoice={modeSettings.realtimeVoice}
 				realtimeVoiceSaving={savingModes.realtimeVoice}
+				modeSettingsRequest={modeSettingsRequest}
 				selectedProviderId={selectedProvider.id}
 				variant="panel"
 				voiceInput={modeSettings.voiceInput}
@@ -563,6 +566,7 @@ export function SettingsView({
 			providers={providers}
 			realtimeVoice={modeSettings.realtimeVoice}
 			realtimeVoiceSaving={savingModes.realtimeVoice}
+			modeSettingsRequest={modeSettingsRequest}
 			voiceInput={modeSettings.voiceInput}
 			voiceInputSaving={savingModes.voiceInput}
 			voiceOutput={modeSettings.voiceOutput}

@@ -104,6 +104,21 @@ const provider: Provider = {
 let container: HTMLDivElement;
 let root: Root;
 
+function modeQuery<T extends Element>(selector: string): T | null {
+	const matches = document.querySelectorAll<T>(
+		`[data-slot="mode-providers"] ${selector}`,
+	);
+	return matches[matches.length - 1] ?? null;
+}
+
+async function openModes(): Promise<void> {
+	await act(async () => {
+		[...document.querySelectorAll("button")]
+			.find((button) => button.textContent === "Modes")
+			?.click();
+	});
+}
+
 beforeEach(() => {
 	Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 	container = document.createElement("div");
@@ -118,7 +133,7 @@ afterEach(async () => {
 });
 
 describe("ProviderListContent voice input settings", () => {
-	it("shows model and mode provider sections with a scrollable model list", async () => {
+	it("shows model providers above the mode provider settings", async () => {
 		await act(async () => {
 			root.render(
 				<ProviderListContent
@@ -134,16 +149,23 @@ describe("ProviderListContent voice input settings", () => {
 		});
 
 		expect(container.textContent).toContain("Model Providers");
-		expect(container.textContent).toContain("Mode Providers");
 		expect(container.textContent).toContain("Scroll to view more providers");
+		const modesButton = [...container.querySelectorAll("button")].find(
+			(button) => button.textContent === "Modes",
+		);
+		expect(modesButton).not.toBeUndefined();
+		await act(async () => {
+			modesButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+		});
+		expect(document.body.textContent).toContain("Mode Providers");
 		expect(
 			container.querySelector('[aria-label="Model provider list"]')?.className,
-		).toContain("h-[80vh]");
+		).toContain("min-h-0");
 		expect(
-			container.querySelector('[data-slot="mode-providers"]')?.className,
-		).toContain("h-[80vh]");
+			document.querySelector('[data-slot="mode-providers"]')?.className,
+		).toContain("space-y-6");
 		expect(
-			container.querySelector('[aria-label="Voice input provider"]'),
+			modeQuery('[aria-label="Voice input provider"]'),
 		).not.toBeNull();
 		expect(
 			container.querySelector('[aria-label="Search model providers"]'),
@@ -152,9 +174,9 @@ describe("ProviderListContent voice input settings", () => {
 			container.querySelector('[aria-label="Search providers"]'),
 		).toBeNull();
 		expect(
-			container
+			document
 				.querySelector('[aria-label="Voice input provider"]')
-				?.closest("[class*='col-start-2']"),
+				?.closest('[data-slot="mode-providers"]'),
 		).not.toBeNull();
 		expect(
 			container.querySelector('[aria-label="Toggle model providers"]'),
@@ -162,11 +184,11 @@ describe("ProviderListContent voice input settings", () => {
 		expect(
 			container.querySelector('[aria-label="Toggle mode providers"]'),
 		).toBeNull();
-		expect(
-			[...container.querySelectorAll("button")].find(
-				(button) => button.textContent === "Modes",
-			),
-		).toBeUndefined();
+			expect(
+				[...container.querySelectorAll("button")].find(
+					(button) => button.textContent === "Modes",
+				),
+			).not.toBeUndefined();
 	});
 
 	it("hides mode providers while a model provider is selected", async () => {
@@ -257,10 +279,11 @@ describe("ProviderListContent voice input settings", () => {
 		};
 
 		await render();
-		const providerSelect = container.querySelector<HTMLSelectElement>(
+		await openModes();
+		const providerSelect = modeQuery<HTMLSelectElement>(
 			'[aria-label="Voice input provider"]',
 		);
-		const modelSelect = container.querySelector<HTMLSelectElement>(
+		const modelSelect = modeQuery<HTMLSelectElement>(
 			'[aria-label="Voice input model"]',
 		);
 		expect(providerSelect?.value).toBe("elevenlabs");
@@ -281,9 +304,12 @@ describe("ProviderListContent voice input settings", () => {
 			modelId: "whisper-large-v3",
 		};
 		await render();
-		const groqModelSelect = container.querySelector<HTMLSelectElement>(
-			'[aria-label="Voice input model"]',
-		);
+		await openModes();
+		const groqModelSelect = Array.from(
+			document.querySelectorAll<HTMLSelectElement>(
+				'[aria-label="Voice input model"]',
+			),
+		).find((select) => select.value === "whisper-large-v3");
 		await act(async () => {
 			if (!groqModelSelect) return;
 			groqModelSelect.value = "whisper-large-v3-turbo";
@@ -294,7 +320,7 @@ describe("ProviderListContent voice input settings", () => {
 			modelId: "whisper-large-v3-turbo",
 		});
 
-		const groqProviderSelect = container.querySelector<HTMLSelectElement>(
+		const groqProviderSelect = modeQuery<HTMLSelectElement>(
 			'[aria-label="Voice input provider"]',
 		);
 		await act(async () => {
@@ -326,7 +352,8 @@ describe("ProviderListContent voice input settings", () => {
 		};
 
 		await render();
-		const providerSelect = container.querySelector<HTMLSelectElement>(
+		await openModes();
+		const providerSelect = modeQuery<HTMLSelectElement>(
 			'[aria-label="Voice output provider"]',
 		);
 		await act(async () => {
@@ -344,7 +371,8 @@ describe("ProviderListContent voice input settings", () => {
 			modelId: "eleven_turbo_v2_5",
 		};
 		await render();
-		const voiceInput = container.querySelector<HTMLInputElement>(
+		await openModes();
+		const voiceInput = modeQuery<HTMLInputElement>(
 			'[aria-label="Voice output voice"]',
 		);
 		await act(async () => {
@@ -385,7 +413,8 @@ describe("ProviderListContent voice input settings", () => {
 		};
 
 		await render();
-		const providerSelect = container.querySelector<HTMLSelectElement>(
+		await openModes();
+		const providerSelect = modeQuery<HTMLSelectElement>(
 			'[aria-label="Realtime voice provider"]',
 		);
 		await act(async () => {
@@ -403,13 +432,14 @@ describe("ProviderListContent voice input settings", () => {
 			modelId: "gemini-3.5-live-translate-preview",
 		};
 		await render();
+		await openModes();
 		expect(
-			container.querySelector<HTMLSelectElement>(
+			modeQuery<HTMLSelectElement>(
 				'[aria-label="Realtime voice model"]',
 			)?.value,
 		).toBe("gemini-3.5-live-translate-preview");
 		expect(
-			container.querySelector<HTMLInputElement>(
+			modeQuery<HTMLInputElement>(
 				'[aria-label="Realtime voice name"]',
 			)?.placeholder,
 		).toBe("Provider default");
@@ -635,10 +665,11 @@ describe("ProviderListContent voice input settings", () => {
 		};
 
 		await render();
-		const providerSelect = container.querySelector<HTMLSelectElement>(
+		await openModes();
+		const providerSelect = modeQuery<HTMLSelectElement>(
 			'[aria-label="Voice input provider"]',
 		);
-		const modelSelect = container.querySelector<HTMLSelectElement>(
+		const modelSelect = modeQuery<HTMLSelectElement>(
 			'[aria-label="Voice input model"]',
 		);
 		expect(providerSelect?.value).toBe("elevenlabs");
@@ -659,7 +690,8 @@ describe("ProviderListContent voice input settings", () => {
 			modelId: "whisper-large-v3",
 		};
 		await render();
-		const groqModelSelect = container.querySelector<HTMLSelectElement>(
+		await openModes();
+		const groqModelSelect = modeQuery<HTMLSelectElement>(
 			'[aria-label="Voice input model"]',
 		);
 		await act(async () => {
@@ -672,7 +704,7 @@ describe("ProviderListContent voice input settings", () => {
 			modelId: "whisper-large-v3-turbo",
 		});
 
-		const groqProviderSelect = container.querySelector<HTMLSelectElement>(
+		const groqProviderSelect = modeQuery<HTMLSelectElement>(
 			'[aria-label="Voice input provider"]',
 		);
 		await act(async () => {

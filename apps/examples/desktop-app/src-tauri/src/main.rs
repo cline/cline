@@ -29,8 +29,12 @@ const AVATAR_OVERLAY_WINDOW_LABEL: &str = "avatar-overlay";
 const DEFAULT_AVATAR_ID: &str = "cline-bot";
 const AVATAR_CHANGED_EVENT: &str = "avatar-changed";
 const AVATAR_SHOWN_EVENT: &str = "avatar-shown";
+// The transparent overlay reserves room for the speech bubble above the
+// avatar. Keeping the avatar in the bottom-right preserves its original
+// position while allowing notifications to render without clipping.
+const AVATAR_OVERLAY_WIDTH: f64 = 360.0;
+const AVATAR_OVERLAY_HEIGHT: f64 = 300.0;
 const AVATAR_COLLAPSED_WIDTH: f64 = 144.0;
-const AVATAR_COLLAPSED_HEIGHT: f64 = 156.0;
 const TRAY_ICON_ID: &str = "cline-code";
 const TRAY_OPEN_MENU_ID: &str = "tray-open";
 const TRAY_NEW_SESSION_MENU_ID: &str = "tray-new-session";
@@ -1124,7 +1128,7 @@ fn setup_avatar_overlay(app: &tauri::App) -> tauri::Result<()> {
 
     let overlay = WebviewWindowBuilder::new(app, AVATAR_OVERLAY_WINDOW_LABEL, url)
         .title("Cline Bot")
-        .inner_size(AVATAR_COLLAPSED_WIDTH, AVATAR_COLLAPSED_HEIGHT)
+        .inner_size(AVATAR_OVERLAY_WIDTH, AVATAR_OVERLAY_HEIGHT)
         .resizable(false)
         .decorations(false)
         .transparent(true)
@@ -1137,19 +1141,19 @@ fn setup_avatar_overlay(app: &tauri::App) -> tauri::Result<()> {
         .build()?;
 
     if let Some(main) = app.get_webview_window(MAIN_WINDOW_LABEL) {
-        if let (Ok(main_position), Ok(main_size), Ok(overlay_size)) = (
-            main.outer_position(),
-            main.inner_size(),
-            overlay.outer_size(),
-        ) {
+        if let (Ok(main_position), Ok(main_size)) = (main.outer_position(), main.inner_size()) {
             let scale = main.scale_factor().unwrap_or(1.0);
             let margin = (16.0 * scale).round() as i32;
+            let overlay_width = (AVATAR_OVERLAY_WIDTH * scale).round() as i32;
+            let overlay_height = (AVATAR_OVERLAY_HEIGHT * scale).round() as i32;
+            let collapsed_width = (AVATAR_COLLAPSED_WIDTH * scale).round() as i32;
             let x = main_position.x.saturating_add(margin);
             let y = main_position
                 .y
                 .saturating_add(main_size.height as i32)
-                .saturating_sub(overlay_size.height as i32)
+                .saturating_sub(overlay_height)
                 .saturating_sub(margin);
+            let x = x.saturating_sub(overlay_width.saturating_sub(collapsed_width));
             let _ = overlay.set_position(tauri::PhysicalPosition::new(x, y));
         }
     }

@@ -124,7 +124,7 @@ describe("buildEnvironmentSelectorModel", () => {
 	it("does not mislabel an unloaded remote environment as Local", () => {
 		expect(buildEnvironmentSelectorModel("remote-loading", [])).toMatchObject({
 			activeKind: "remote",
-			activeLabel: "Remote",
+			activeLabel: "Remote SSH",
 			local: { selected: false },
 		});
 	});
@@ -154,9 +154,9 @@ describe("EnvironmentSelector", () => {
 		await pointerDown(trigger());
 		expect(document.body.textContent).toContain("Raspberry Pi");
 		expect(document.body.textContent).toContain("Local");
-		expect(document.body.textContent).toContain("Remote");
+		expect(document.body.textContent).toContain("Remote SSH");
 		expect(document.body.textContent).toContain("Build box");
-		expect(document.body.textContent).toContain(
+		expect(document.body.textContent).not.toContain(
 			"ubuntu@builder.example.com:2200",
 		);
 		expect(document.body.textContent).toContain("Connected");
@@ -172,7 +172,7 @@ describe("EnvironmentSelector", () => {
 		});
 
 		await pointerDown(trigger());
-		await click(menuItemContaining("Add SSH Host"));
+		await click(document.querySelector('[aria-label="Add SSH host"]')!);
 		expect(onAddSshHost).toHaveBeenCalledTimes(1);
 	});
 

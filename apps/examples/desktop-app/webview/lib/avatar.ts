@@ -2,6 +2,17 @@ import { desktopClient } from "@/lib/desktop-client";
 
 export const AVATAR_CHANGED_EVENT = "avatar-changed";
 export const AVATAR_SHOWN_EVENT = "avatar-shown";
+export const AVATAR_NOTIFICATION_EVENT = "avatar-notification";
+export const AVATAR_TASK_STATUS_EVENT = "avatar-task-status";
+
+export type AvatarNotification = {
+	title: string;
+	body: string;
+};
+
+export type AvatarTaskStatus = {
+	state: "running" | "completed" | "failed" | "idle";
+};
 
 export type AvatarOption = {
 	id: string;
