@@ -147,6 +147,8 @@ export class CloudSessionError extends Error {
 		readonly connectUrl?: string,
 		/** HTTP status of the failed request, when one was received. */
 		readonly status?: number,
+		/** A queue send may have reached the runtime even though confirmation failed. */
+		readonly promptDeliveryUnknown = false,
 	) {
 		super(
 			`${CLOUD_ERROR_PREFIX}${JSON.stringify({ code, message: detail, connectUrl })}`,
@@ -2000,7 +2002,16 @@ export class CloudSessionManager {
 						live.busy = false;
 						live.status = "error";
 					}
-					throw recoveryError;
+					if (delivery !== "queue") {
+						throw recoveryError;
+					}
+					throw new CloudSessionError(
+						"request_failed",
+						"The connection was interrupted and Cline could not confirm whether this message was queued. Check the cloud session before resending it.",
+						undefined,
+						undefined,
+						true,
+					);
 				}
 				const promptOccurrencesAfterRecovery = countPromptOccurrences(
 					snapshot.messages,
@@ -2012,6 +2023,9 @@ export class CloudSessionManager {
 						throw new CloudSessionError(
 							"request_failed",
 							"The connection was interrupted and Cline could not confirm whether this message was queued. Check the cloud session before resending it.",
+							undefined,
+							undefined,
+							true,
 						);
 					}
 					throw new CloudSessionError(

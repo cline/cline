@@ -2951,7 +2951,12 @@ describe("CloudSessionManager", () => {
 
 		await expect(
 			manager.send("ses-outer", "Possibly queued", "queue"),
-		).rejects.toThrow(/check the cloud session before resending/i);
+		).rejects.toMatchObject({
+			promptDeliveryUnknown: true,
+			message: expect.stringMatching(
+				/check the cloud session before resending/i,
+			),
+		});
 	});
 
 	it("disposes the Hub connection before deleting the outer session", async () => {

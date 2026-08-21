@@ -2595,6 +2595,7 @@ async function handleHandoffOnce(
 	);
 
 	let warning: string | undefined;
+	let followUpDelivery: "queued" | "unknown" | "failed" | undefined;
 	if (nextCommand) {
 		try {
 			await cloud.send(
@@ -2604,8 +2605,12 @@ async function handleHandoffOnce(
 				prepared.modelId,
 				request.attachments?.userImages,
 			);
+			followUpDelivery = "queued";
 		} catch (error) {
-			warning = `The handoff completed, but the follow-up command was not queued: ${error instanceof Error ? error.message : String(error)}`;
+			const deliveryUnknown =
+				error instanceof CloudSessionError && error.promptDeliveryUnknown;
+			followUpDelivery = deliveryUnknown ? "unknown" : "failed";
+			warning = `The handoff completed, but the follow-up command ${deliveryUnknown ? "could not be confirmed" : "was not queued"}: ${error instanceof Error ? error.message : String(error)}`;
 		}
 	}
 	const destination = "in_app" as const;
@@ -2623,6 +2628,7 @@ async function handleHandoffOnce(
 		innerSessionId,
 		dashboardUrl,
 		destination,
+		...(followUpDelivery ? { followUpDelivery } : {}),
 		...(warning ? { warning } : {}),
 	};
 }

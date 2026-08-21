@@ -43,5 +43,6 @@ export type CloudHandoffResult = {
 	innerSessionId: string;
 	dashboardUrl: string;
 	destination: CloudHandoffDestination;
+	followUpDelivery?: "queued" | "unknown" | "failed";
 	warning?: string;
 };

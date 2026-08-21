@@ -1883,7 +1883,10 @@ function ChatThreadPane({
 				}
 				if (result.warning) {
 					toast({
-						title: "Handoff completed with a warning",
+						title:
+							result.followUpDelivery === "unknown"
+								? "Follow-up delivery is unconfirmed"
+								: "Handoff completed with a warning",
 						description: result.warning,
 					});
 				}
