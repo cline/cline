@@ -24,6 +24,21 @@ export interface MediaGenerationResult {
 	usage?: AgentUsage;
 }
 
+/**
+ * A media generation failure raised after the provider request ran. Carries
+ * any provider-reported usage so callers can still record token and cost
+ * totals for the failed generation.
+ */
+export class MediaGenerationError extends Error {
+	readonly usage?: AgentUsage;
+
+	constructor(message: string, options?: { usage?: AgentUsage }) {
+		super(message);
+		this.name = "MediaGenerationError";
+		this.usage = options?.usage;
+	}
+}
+
 function resolveAbortSignal(
 	config: ProviderConfig,
 	requestSignal: AbortSignal | undefined,
@@ -55,10 +70,14 @@ function toUsage(chunk: ApiStreamUsageChunk): AgentUsage {
 	};
 }
 
-function unsuccessfulDoneError(chunk: ApiStreamDoneChunk): Error {
+function unsuccessfulDoneError(
+	chunk: ApiStreamDoneChunk,
+	usage: AgentUsage | undefined,
+): MediaGenerationError {
 	const detail = chunk.error?.trim() || chunk.incompleteReason?.trim();
-	return new Error(
+	return new MediaGenerationError(
 		detail ? `Media generation failed: ${detail}` : "Media generation failed",
+		{ usage },
 	);
 }
 
@@ -125,7 +144,7 @@ export async function generateMedia(
 				break;
 			case "done":
 				if (!chunk.success) {
-					throw unsuccessfulDoneError(chunk);
+					throw unsuccessfulDoneError(chunk, usage);
 				}
 				break;
 		}
@@ -133,7 +152,10 @@ export async function generateMedia(
 
 	abortSignal?.throwIfAborted();
 	if (media.length === 0) {
-		throw new Error(`Media generation returned no ${request.mediaType} media`);
+		throw new MediaGenerationError(
+			`Media generation returned no ${request.mediaType} media`,
+			{ usage },
+		);
 	}
 	return { media, ...(usage ? { usage } : {}) };
 }

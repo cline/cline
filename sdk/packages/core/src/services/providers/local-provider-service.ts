@@ -24,8 +24,11 @@ import type {
 	TextContent,
 	VoiceInputSelection,
 } from "@cline/shared";
-import { MEDIA_GENERATION_TYPES, modelProducesImages } from "@cline/shared";
-import { PROVIDER_MODE_IDS } from "@cline/shared";
+import {
+	MEDIA_GENERATION_TYPES,
+	modelProducesImages,
+	PROVIDER_MODE_IDS,
+} from "@cline/shared";
 import { createOAuthClientCallbacks } from "../../auth/client";
 import {
 	getProviderAuthHandler,
@@ -155,6 +158,11 @@ export interface GenerateConfiguredMediaRequest {
 	mediaType: "image";
 	prompt: string;
 	abortSignal?: AbortSignal;
+	/**
+	 * Host-provided custom `fetch`, used when the stored provider config does
+	 * not supply one — the same fallback normal provider requests apply.
+	 */
+	fetch?: typeof fetch;
 }
 
 export interface GenerateConfiguredMediaResult {
@@ -1296,8 +1304,13 @@ export async function generateConfiguredMedia(
 		);
 	}
 
+	// Thread a host-provided custom fetch through to the media provider the
+	// same way chat provider requests do: stored provider settings > host.
+	const resolvedFetch = target.providerConfig.fetch ?? request.fetch;
 	const result = await LlmsModels.generateMedia({
-		providerConfig: target.providerConfig,
+		providerConfig: resolvedFetch
+			? { ...target.providerConfig, fetch: resolvedFetch }
+			: target.providerConfig,
 		modelId: target.selection.modelId,
 		prompt: request.prompt,
 		mediaType: request.mediaType,

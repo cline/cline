@@ -454,6 +454,119 @@ describe("prepareLocalRuntimeBootstrap", () => {
 		generateSpy.mockRestore();
 	});
 
+	it("reports provider usage from a failed generation before rethrowing", async () => {
+		const modelId = "bootstrap-test-image-model";
+		registerBootstrapImageModel(modelId);
+		const usage = {
+			inputTokens: 21,
+			outputTokens: 0,
+			cacheReadTokens: 0,
+			cacheWriteTokens: 0,
+			totalCost: 0.04,
+		};
+		const generateSpy = vi
+			.spyOn(LlmsModels, "generateMedia")
+			.mockRejectedValue(
+				new LlmsModels.MediaGenerationError(
+					"Media generation returned no image media",
+					{ usage },
+				),
+			);
+		const { prepareLocalRuntimeBootstrap } = await import(
+			"./local-runtime-bootstrap"
+		);
+		const bootstrap = await prepareLocalRuntimeBootstrap({
+			input: createStartInput(),
+			sessionId: "sess-media-failed-usage",
+			providerSettingsManager: createProviderSettingsManager(undefined, {
+				image: { providerId: "openrouter", modelId },
+			}) as never,
+			defaultTelemetry: undefined,
+			defaultToolPolicies: undefined,
+			onPluginEvent: () => {},
+			onTeamEvent: () => {},
+			createSpawnTool,
+			readSessionMetadata: async () => undefined,
+			writeSessionMetadata: async () => {},
+		});
+		const reportUsage = vi.fn();
+
+		await expect(
+			bootstrap.runtimeBuilderInput.toolExecutors?.generateMedia?.(
+				{ media_type: "image", prompt: "A lighthouse" },
+				{ agentId: "agent-1", iteration: 1, reportUsage },
+			),
+		).rejects.toThrow("Media generation returned no image media");
+
+		expect(reportUsage).toHaveBeenCalledWith(usage);
+		generateSpy.mockRestore();
+	});
+
+	it.each([
+		{
+			label: "threads defaultFetch through the configured media executor",
+			sessionFetch: undefined,
+		},
+		{
+			label:
+				"prefers per-session config fetch over defaultFetch for media generation",
+			sessionFetch: vi.fn() as unknown as typeof fetch,
+		},
+	])("$label", async ({ sessionFetch }) => {
+		const modelId = "bootstrap-test-image-model";
+		registerBootstrapImageModel(modelId);
+		const generateSpy = vi
+			.spyOn(LlmsModels, "generateMedia")
+			.mockResolvedValue({
+				media: [
+					{
+						id: "bootstrap-image",
+						modality: "image",
+						mediaType: "image/png",
+						source: { type: "base64", data: "aGVsbG8=" },
+					},
+				],
+			});
+		const defaultFetch = vi.fn() as unknown as typeof fetch;
+		const input = createStartInput();
+		if (sessionFetch) {
+			(input.config as unknown as { fetch?: typeof fetch }).fetch =
+				sessionFetch;
+		}
+		const { prepareLocalRuntimeBootstrap } = await import(
+			"./local-runtime-bootstrap"
+		);
+		const bootstrap = await prepareLocalRuntimeBootstrap({
+			input,
+			sessionId: "sess-media-fetch",
+			providerSettingsManager: createProviderSettingsManager(undefined, {
+				image: { providerId: "openrouter", modelId },
+			}) as never,
+			defaultTelemetry: undefined,
+			defaultToolPolicies: undefined,
+			defaultFetch,
+			onPluginEvent: () => {},
+			onTeamEvent: () => {},
+			createSpawnTool,
+			readSessionMetadata: async () => undefined,
+			writeSessionMetadata: async () => {},
+		});
+
+		await bootstrap.runtimeBuilderInput.toolExecutors?.generateMedia?.(
+			{ media_type: "image", prompt: "A lighthouse" },
+			{ agentId: "agent-1", iteration: 1 },
+		);
+
+		expect(generateSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				providerConfig: expect.objectContaining({
+					fetch: sessionFetch ?? defaultFetch,
+				}),
+			}),
+		);
+		generateSpy.mockRestore();
+	});
+
 	it("filters globally disabled plugin tools before extension setup", async () => {
 		vi.resetModules();
 		resetModulesAfterEach = true;
