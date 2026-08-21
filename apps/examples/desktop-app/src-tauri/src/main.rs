@@ -1144,15 +1144,16 @@ fn setup_avatar_overlay(app: &tauri::App) -> tauri::Result<()> {
         if let (Ok(main_position), Ok(main_size)) = (main.outer_position(), main.inner_size()) {
             let scale = main.scale_factor().unwrap_or(1.0);
             let margin = (16.0 * scale).round() as i32;
-            let x = main_position
-                .x
-                .saturating_add(margin)
-                .saturating_sub((AVATAR_OVERLAY_WIDTH - AVATAR_COLLAPSED_WIDTH) as i32);
+            let overlay_width = (AVATAR_OVERLAY_WIDTH * scale).round() as i32;
+            let overlay_height = (AVATAR_OVERLAY_HEIGHT * scale).round() as i32;
+            let collapsed_width = (AVATAR_COLLAPSED_WIDTH * scale).round() as i32;
+            let x = main_position.x.saturating_add(margin);
             let y = main_position
                 .y
                 .saturating_add(main_size.height as i32)
-                .saturating_sub(AVATAR_OVERLAY_HEIGHT as i32)
+                .saturating_sub(overlay_height)
                 .saturating_sub(margin);
+            let x = x.saturating_sub(overlay_width.saturating_sub(collapsed_width));
             let _ = overlay.set_position(tauri::PhysicalPosition::new(x, y));
         }
     }

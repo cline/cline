@@ -416,6 +416,10 @@ export function watchDesktopNotifications(): () => void {
 			const status = asNonEmptyString(record.status).toLowerCase();
 			if (!sessionId || !status) return;
 			if (status === "running" || status === "starting") {
+				// A session status snapshot can lag behind the stream and arrive after
+				// chat_done has already settled the current turn. Do not resurrect the
+				// avatar until a new stream event clears this terminal state.
+				if (terminalBySession.has(sessionId)) return;
 				const wasRunning = runningSessions.size > 0;
 				runningSessions.add(sessionId);
 				terminalBySession.delete(sessionId);

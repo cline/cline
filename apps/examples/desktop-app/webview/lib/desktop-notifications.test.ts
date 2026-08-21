@@ -87,6 +87,45 @@ describe("desktop notifications", () => {
 		);
 		stop();
 	});
+
+	it("ignores a stale running snapshot after the turn completes", async () => {
+		const { watchDesktopNotifications } = await importFresh();
+		const stop = watchDesktopNotifications();
+
+		emit("chat_session_status", {
+			sessionId: "session-stale-running",
+			status: "running",
+		});
+		await vi.waitFor(() =>
+			expect(mocks.emitTo).toHaveBeenCalledWith(
+				"avatar-overlay",
+				"avatar-task-status",
+				{ state: "running" },
+			),
+		);
+
+		emit("chat_event", {
+			sessionId: "session-stale-running",
+			stream: "chat_done",
+			chunk: JSON.stringify({ reason: "completed" }),
+		});
+		await vi.waitFor(() =>
+			expect(mocks.emitTo).toHaveBeenCalledWith(
+				"avatar-overlay",
+				"avatar-task-status",
+				{ state: "completed" },
+			),
+		);
+
+		mocks.emitTo.mockClear();
+		emit("chat_session_status", {
+			sessionId: "session-stale-running",
+			status: "running",
+		});
+		await new Promise((resolve) => window.setTimeout(resolve, 0));
+		expect(mocks.emitTo).not.toHaveBeenCalled();
+		stop();
+	});
 	it("notifies once when a background approval remains in state snapshots", async () => {
 		const { watchDesktopNotifications } = await importFresh();
 		const stop = watchDesktopNotifications();
