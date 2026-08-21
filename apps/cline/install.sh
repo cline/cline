@@ -85,11 +85,17 @@ for binary in clinegate cline-sidecar; do
 		exit 74
 	fi
 done
+if [[ ! -f "${temporary_dir}/profiles/cline-dad/profile.json" ]]; then
+	echo "Release archive is missing the bundled Cline Dad profile." >&2
+	exit 74
+fi
 
 mkdir -p "${install_dir}" "${config_dir}" "${data_root}" "${workspace_root}"
 chmod 0700 "${config_dir}"
 install -m 0755 "${temporary_dir}/clinegate" "${install_dir}/clinegate"
 install -m 0755 "${temporary_dir}/cline-sidecar" "${install_dir}/cline-sidecar"
+rm -rf "${config_dir}/profiles"
+cp -R "${temporary_dir}/profiles" "${config_dir}/profiles"
 
 token_file="${config_dir}/access-token"
 if [[ ! -s "${token_file}" ]]; then
@@ -101,7 +107,8 @@ env_file="${config_dir}/service.env"
 cat >"${env_file}" <<EOF
 CLINE_GATEWAY_DATA_ROOT=${data_root}
 CLINE_GATEWAY_NAMESPACE=desktop
-CLINE_GATEWAY_LEAD_PROFILE=cline
+CLINE_GATEWAY_LEAD_PROFILE=cline-dad
+CLINE_GATEWAY_PROFILES_DIR=${config_dir}/profiles
 CLINE_WORKSPACE_ROOT=${workspace_root}
 CLINE_SIDECAR_HOST=127.0.0.1
 CLINE_SIDECAR_PORT=3126
@@ -146,7 +153,8 @@ elif [[ "${platform}" == "darwin" ]]; then
 <key>EnvironmentVariables</key><dict>
 <key>CLINE_GATEWAY_DATA_ROOT</key><string>${data_root}</string>
 <key>CLINE_GATEWAY_NAMESPACE</key><string>desktop</string>
-<key>CLINE_GATEWAY_LEAD_PROFILE</key><string>cline</string>
+<key>CLINE_GATEWAY_LEAD_PROFILE</key><string>cline-dad</string>
+<key>CLINE_GATEWAY_PROFILES_DIR</key><string>${config_dir}/profiles</string>
 <key>CLINE_WORKSPACE_ROOT</key><string>${workspace_root}</string>
 <key>CLINE_SIDECAR_HOST</key><string>127.0.0.1</string>
 <key>CLINE_SIDECAR_PORT</key><string>3126</string>

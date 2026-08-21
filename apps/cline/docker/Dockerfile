@@ -44,6 +44,7 @@ COPY --from=builder /tmp/cline-sidecar /usr/local/bin/cline-sidecar
 COPY --from=builder /tmp/clinegate /usr/local/bin/clinegate
 COPY apps/cline/docker/Caddyfile /etc/caddy/Caddyfile
 COPY apps/cline/docker/entrypoint.sh /usr/local/bin/cline-bots-container
+COPY sdk/packages/gateway/default-agent /opt/cline/profiles
 
 RUN chmod 0755 \
 	/usr/local/bin/caddy \
@@ -53,7 +54,8 @@ RUN chmod 0755 \
 
 ENV CLINE_GATEWAY_DATA_ROOT=/data/gateway \
 	CLINE_GATEWAY_NAMESPACE=desktop \
-	CLINE_GATEWAY_LEAD_PROFILE=cline \
+	CLINE_GATEWAY_LEAD_PROFILE=cline-dad \
+	CLINE_GATEWAY_PROFILES_DIR=/opt/cline/profiles \
 	CLINE_SIDECAR_HOST=127.0.0.1 \
 	CLINE_SIDECAR_PORT=3126 \
 	CLINE_WORKSPACE_ROOT=/workspaces \

@@ -11,7 +11,7 @@ domain=""
 public_ip=""
 local_mode=false
 project_name="cline-bots"
-lead_profile="cline"
+lead_profile="cline-dad"
 force=false
 build=true
 
@@ -37,7 +37,7 @@ Options:
   --domain HOST       Public hostname already resolving to this VM
   --public-ip IP      Build gateway.<hyphenated-ip>.nip.io automatically
   --project NAME      Compose project name (default: cline-bots)
-  --lead-profile NAME cline or cline-dad (default: cline)
+  --lead-profile NAME cline or cline-dad (default: cline-dad)
   --no-build          Start an image that has already been built
   --force             Replace an existing apps/cline/docker/.env
   -h, --help          Show this help

@@ -46,7 +46,8 @@ jobs:
           staging="$(mktemp -d)"
           install -m 0755 "apps/cline/src-tauri/bin/cline-sidecar-${{ matrix.target }}" "${staging}/cline-sidecar"
           install -m 0755 "apps/cline/src-tauri/bin/clinegate-${{ matrix.target }}" "${staging}/clinegate"
-          tar -C "${staging}" -czf "${asset}" cline-sidecar clinegate
+          cp -R "sdk/packages/gateway/default-agent" "${staging}/profiles"
+          tar -C "${staging}" -czf "${asset}" cline-sidecar clinegate profiles
           sha256sum "${asset}" >"${asset}.sha256"
       - uses: actions/upload-artifact@v4
         with:

@@ -68,6 +68,28 @@ struct AppContext {
     workspace_root: String,
 }
 
+const PERSISTENT_SIDECAR_PORT: u16 = 3126;
+
+#[derive(Default)]
+struct PersistentServiceState {
+    install_error: Mutex<Option<String>>,
+}
+
+impl PersistentServiceState {
+    fn set_error(&self, error: Option<String>) {
+        if let Ok(mut guard) = self.install_error.lock() {
+            *guard = error;
+        }
+    }
+
+    fn error(&self) -> Option<String> {
+        self.install_error
+            .lock()
+            .ok()
+            .and_then(|guard| guard.clone())
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct UpdateStatus {
@@ -514,6 +536,247 @@ fn resolve_desktop_backend_binary_path(context: &AppContext) -> Option<PathBuf> 
     }
 
     candidates.into_iter().find(|path| path.exists())
+}
+
+fn resolve_bundled_binary(context: &AppContext, name: &str) -> Option<PathBuf> {
+    let extension = if cfg!(windows) { ".exe" } else { "" };
+    let target_triple = option_env!("TAURI_ENV_TARGET_TRIPLE").unwrap_or("").trim();
+    let mut names = vec![format!("{name}{extension}")];
+    if !target_triple.is_empty() {
+        names.push(format!("{name}-{target_triple}{extension}"));
+    }
+    let current_exe = std::env::current_exe().ok();
+    let mut candidates = Vec::new();
+    for binary_name in names {
+        candidates.push(
+            PathBuf::from(&context.workspace_root)
+                .join("apps/cline/src-tauri/bin")
+                .join(&binary_name),
+        );
+        if let Some(path) = current_exe
+            .as_ref()
+            .and_then(|path| path.parent().map(|parent| parent.join(&binary_name)))
+        {
+            candidates.push(path);
+        }
+        if let Some(path) = current_exe.as_ref().and_then(|path| {
+            path.parent()
+                .and_then(|parent| parent.parent())
+                .map(|parent| parent.join("Resources").join(&binary_name))
+        }) {
+            candidates.push(path);
+        }
+    }
+    candidates.into_iter().find(|path| path.exists())
+}
+
+fn copy_if_changed(source: &Path, destination: &Path) -> Result<bool, String> {
+    let unchanged = fs::metadata(source)
+        .ok()
+        .zip(fs::metadata(destination).ok())
+        .map(|(left, right)| left.len() == right.len())
+        .unwrap_or(false)
+        && fs::read(source).ok() == fs::read(destination).ok();
+    if unchanged {
+        return Ok(false);
+    }
+    fs::copy(source, destination)
+        .map_err(|error| format!("failed to install {}: {error}", destination.display()))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(destination, fs::Permissions::from_mode(0o755)).map_err(|error| {
+            format!(
+                "failed to mark {} executable: {error}",
+                destination.display()
+            )
+        })?;
+    }
+    Ok(true)
+}
+
+fn copy_directory(source: &Path, destination: &Path) -> Result<bool, String> {
+    fs::create_dir_all(destination)
+        .map_err(|error| format!("failed to create {}: {error}", destination.display()))?;
+    let mut changed = false;
+    for entry in fs::read_dir(source)
+        .map_err(|error| format!("failed to read {}: {error}", source.display()))?
+    {
+        let entry = entry.map_err(|error| format!("failed to read profile entry: {error}"))?;
+        let target = destination.join(entry.file_name());
+        if entry.path().is_dir() {
+            changed |= copy_directory(&entry.path(), &target)?;
+        } else {
+            changed |= copy_if_changed(&entry.path(), &target)?;
+        }
+    }
+    Ok(changed)
+}
+
+fn persistent_service_endpoint() -> String {
+    format!("ws://127.0.0.1:{PERSISTENT_SIDECAR_PORT}/")
+}
+
+fn install_bundled_persistent_service(
+    app: &tauri::AppHandle,
+    context: &AppContext,
+) -> Result<(), String> {
+    let app_data = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| format!("failed to resolve app data directory: {error}"))?;
+    let service_root = app_data.join("gate-service");
+    let bin_dir = service_root.join("bin");
+    let profiles = service_root.join("profiles");
+    let home = std::env::var("HOME")
+        .map(PathBuf::from)
+        .map_err(|_| "HOME is not set".to_string())?;
+    let data_root = home.join(".cline/gateway");
+    let workspace_root = home.join("workspaces");
+    for directory in [&bin_dir, &data_root, &workspace_root] {
+        fs::create_dir_all(directory)
+            .map_err(|error| format!("failed to create {}: {error}", directory.display()))?;
+    }
+
+    let sidecar_source = resolve_bundled_binary(context, "cline-sidecar")
+        .ok_or_else(|| "bundled cline-sidecar executable was not found".to_string())?;
+    let gate_source = resolve_bundled_binary(context, "clinegate")
+        .ok_or_else(|| "bundled clinegate executable was not found".to_string())?;
+    let sidecar = bin_dir.join(if cfg!(windows) {
+        "cline-sidecar.exe"
+    } else {
+        "cline-sidecar"
+    });
+    let gate = bin_dir.join(if cfg!(windows) {
+        "clinegate.exe"
+    } else {
+        "clinegate"
+    });
+    let mut changed =
+        copy_if_changed(&sidecar_source, &sidecar)? | copy_if_changed(&gate_source, &gate)?;
+    let bundled_profiles = app
+        .path()
+        .resource_dir()
+        .map_err(|error| format!("failed to resolve bundled resources: {error}"))?
+        .join("profiles");
+    if bundled_profiles.exists() {
+        changed |= copy_directory(&bundled_profiles, &profiles)?;
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let agents = home.join("Library/LaunchAgents");
+        fs::create_dir_all(&agents)
+            .map_err(|error| format!("failed to create LaunchAgents directory: {error}"))?;
+        let plist = agents.join("bot.cline.gate.plist");
+        let log = service_root.join("service.log");
+        let contents = format!(
+            r#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>Label</key><string>bot.cline.gate</string>
+<key>ProgramArguments</key><array><string>{}</string></array>
+<key>WorkingDirectory</key><string>{}</string>
+<key>EnvironmentVariables</key><dict>
+<key>CLINE_GATEWAY_DATA_ROOT</key><string>{}</string>
+<key>CLINE_GATEWAY_NAMESPACE</key><string>desktop</string>
+<key>CLINE_GATEWAY_LEAD_PROFILE</key><string>cline-dad</string>
+<key>CLINE_GATEWAY_PROFILES_DIR</key><string>{}</string>
+<key>CLINE_WORKSPACE_ROOT</key><string>{}</string>
+<key>CLINE_SIDECAR_HOST</key><string>127.0.0.1</string>
+<key>CLINE_SIDECAR_PORT</key><string>{}</string>
+</dict>
+<key>RunAtLoad</key><true/><key>KeepAlive</key><true/>
+<key>StandardOutPath</key><string>{}</string>
+<key>StandardErrorPath</key><string>{}</string>
+</dict></plist>
+"#,
+            sidecar.display(),
+            workspace_root.display(),
+            data_root.display(),
+            profiles.display(),
+            workspace_root.display(),
+            PERSISTENT_SIDECAR_PORT,
+            log.display(),
+            log.display()
+        );
+        let definition_changed =
+            fs::read_to_string(&plist).ok().as_deref() != Some(contents.as_str());
+        if definition_changed {
+            fs::write(&plist, contents)
+                .map_err(|error| format!("failed to write Gate LaunchAgent: {error}"))?;
+        }
+        let uid = String::from_utf8_lossy(
+            &Command::new("id")
+                .arg("-u")
+                .output()
+                .map_err(|error| format!("failed to resolve user id: {error}"))?
+                .stdout,
+        )
+        .trim()
+        .to_string();
+        let domain = format!("gui/{uid}");
+        if changed || definition_changed {
+            let _ = Command::new("launchctl")
+                .args(["bootout", &format!("{domain}/bot.cline.gate")])
+                .status();
+        }
+        let loaded = Command::new("launchctl")
+            .args(["print", &format!("{domain}/bot.cline.gate")])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status();
+        if !matches!(loaded, Ok(status) if status.success()) {
+            let status = Command::new("launchctl")
+                .args(["bootstrap", &domain, plist.to_string_lossy().as_ref()])
+                .status()
+                .map_err(|error| format!("failed to start Gate LaunchAgent: {error}"))?;
+            if !status.success() {
+                return Err(format!("launchctl bootstrap failed with status {status}"));
+            }
+        }
+        return Ok(());
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        let units = home.join(".config/systemd/user");
+        fs::create_dir_all(&units)
+            .map_err(|error| format!("failed to create systemd user directory: {error}"))?;
+        let unit = units.join("cline-gate.service");
+        let contents = format!(
+            "[Unit]\nDescription=Cline Bots bundled Gate\nAfter=network-online.target\n\n[Service]\nType=simple\nWorkingDirectory={}\nEnvironment=CLINE_GATEWAY_DATA_ROOT={}\nEnvironment=CLINE_GATEWAY_NAMESPACE=desktop\nEnvironment=CLINE_GATEWAY_LEAD_PROFILE=cline-dad\nEnvironment=CLINE_GATEWAY_PROFILES_DIR={}\nEnvironment=CLINE_WORKSPACE_ROOT={}\nEnvironment=CLINE_SIDECAR_HOST=127.0.0.1\nEnvironment=CLINE_SIDECAR_PORT={}\nExecStart={}\nRestart=on-failure\nRestartSec=2\n\n[Install]\nWantedBy=default.target\n",
+            workspace_root.display(), data_root.display(), profiles.display(), workspace_root.display(),
+            PERSISTENT_SIDECAR_PORT, sidecar.display()
+        );
+        let definition_changed =
+            fs::read_to_string(&unit).ok().as_deref() != Some(contents.as_str());
+        if definition_changed {
+            fs::write(&unit, contents)
+                .map_err(|error| format!("failed to write Gate systemd unit: {error}"))?;
+        }
+        if changed || definition_changed {
+            let _ = Command::new("systemctl")
+                .args(["--user", "daemon-reload"])
+                .status();
+        }
+        let status = Command::new("systemctl")
+            .args(["--user", "enable", "--now", "cline-gate.service"])
+            .status()
+            .map_err(|error| format!("failed to start Gate systemd service: {error}"))?;
+        if !status.success() {
+            return Err(format!("systemctl enable failed with status {status}"));
+        }
+        if changed {
+            let _ = Command::new("systemctl")
+                .args(["--user", "restart", "cline-gate.service"])
+                .status();
+        }
+        return Ok(());
+    }
+
+    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+    Err("persistent bundled Gate is not supported on this platform yet".to_string())
 }
 
 /// Unlike `resolve_desktop_backend_binary_path`, this checks regardless of
@@ -1358,10 +1621,25 @@ fn normalize_requested_project_path(bot_id: &str, project_path: String) -> Strin
 fn get_desktop_backend_endpoint(
     app: tauri::AppHandle,
     backend_state: State<'_, Arc<DesktopBackendState>>,
+    persistent_service: State<'_, PersistentServiceState>,
     context: State<'_, AppContext>,
     bot_id: String,
     project_path: String,
 ) -> Result<String, String> {
+    if !cfg!(debug_assertions) {
+        if let Some(error) = persistent_service.error() {
+            return Err(format!(
+                "failed to install bundled Cline Gate service: {error}"
+            ));
+        }
+        for _ in 0..150 {
+            if std::net::TcpStream::connect(("127.0.0.1", PERSISTENT_SIDECAR_PORT)).is_ok() {
+                return Ok(persistent_service_endpoint());
+            }
+            thread::sleep(Duration::from_millis(100));
+        }
+        return Err("bundled Cline Gate service did not become ready".to_string());
+    }
     let bot_registry_path = resolve_bot_registry_path(&app)?;
     let bot_registry = read_bot_registry_seeded(&bot_registry_path)?;
     let bot = resolve_backend_bot(&bot_registry, &bot_id)
@@ -1810,6 +2088,7 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(desktop_backend)
+        .manage(PersistentServiceState::default())
         .manage(app_context)
         .manage(Arc::new(UpdateState::default()))
         .manage(DesktopMenuActionState::default())
@@ -1819,6 +2098,12 @@ fn main() {
             setup_tray_icon(app)?;
             let app_context = app.state::<AppContext>().inner().clone();
             let backend_state = app.state::<Arc<DesktopBackendState>>().inner().clone();
+            if !cfg!(debug_assertions) {
+                let service_state = app.state::<PersistentServiceState>();
+                service_state.set_error(
+                    install_bundled_persistent_service(app.handle(), &app_context).err(),
+                );
+            }
             // Unlike the old single-Hub model, nothing spawns here: no
             // project is mounted until the user selects one (via
             // get_desktop_backend_endpoint, gated on assign_project), so a
@@ -1892,10 +2177,12 @@ fn main() {
                 ..
             } => show_main_window(app_handle),
             RunEvent::ExitRequested { .. } | RunEvent::Exit => {
-                app_handle
-                    .state::<Arc<DesktopBackendState>>()
-                    .inner()
-                    .stop_all();
+                if cfg!(debug_assertions) {
+                    app_handle
+                        .state::<Arc<DesktopBackendState>>()
+                        .inner()
+                        .stop_all();
+                }
             }
             _ => {}
         });

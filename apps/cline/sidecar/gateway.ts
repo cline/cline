@@ -8,7 +8,8 @@ import {
 } from "@cline/gateway/client";
 
 const NAMESPACE = process.env.CLINE_GATEWAY_NAMESPACE?.trim() || "desktop";
-const LEAD_PROFILE = process.env.CLINE_GATEWAY_LEAD_PROFILE?.trim() || "cline";
+const LEAD_PROFILE =
+	process.env.CLINE_GATEWAY_LEAD_PROFILE?.trim() || "cline-dad";
 const REQUIRED_GATEWAY_CAPABILITIES = [
 	"sessions.create",
 	"connectors.authorization",

@@ -1,5 +1,24 @@
 # Cline Bots all-in-one container
 
+## One-command local install (no repository checkout)
+
+After the image is published to GHCR:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/abeatrix/cline/bee/gateway-integrated-system/apps/cline/docker/install.sh | bash
+```
+
+The bundled Cline Dad profile is selected by default. To use plain Cline:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/abeatrix/cline/bee/gateway-integrated-system/apps/cline/docker/install.sh | bash -s -- --plain-cline
+```
+
+This pulls `ghcr.io/abeatrix/cline-bots-gateway:latest`, binds Gate only to
+`127.0.0.1:43126`, creates persistent volumes, waits for health, and prints
+and saves the access token. Running it again updates the container while
+preserving state.
+
 This image runs the bundled Cline Gateway, desktop-compatible WebSocket
 sidecar, and Caddy. Caddy obtains and renews TLS certificates automatically.
 Gateway state, access credentials, sessions, and workspaces survive container
@@ -68,7 +87,7 @@ CLINE_GATEWAY_DOMAIN=gateway.35-254-245-28.nip.io
 CLINE_SIDECAR_TRUSTED_ORIGINS=https://cline-gateway-connect.cline-8362.chatgpt.site
 
 # Built-in initial bot profile: cline or cline-dad.
-CLINE_GATEWAY_LEAD_PROFILE=cline
+CLINE_GATEWAY_LEAD_PROFILE=cline-dad
 
 # Public host ports mapped to Caddy inside the container.
 CLINE_HTTP_PORT=80
