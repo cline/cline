@@ -474,6 +474,82 @@ describe("prepareLocalRuntimeBootstrap", () => {
 		});
 	});
 
+	it("rebuilds extensionContext.client from hub-baked request headers", async () => {
+		const { prepareLocalRuntimeBootstrap } = await import(
+			"./local-runtime-bootstrap"
+		);
+
+		const input = createStartInput();
+		const config = input.config as typeof input.config & {
+			headers: Record<string, string>;
+		};
+		config.headers = {
+			"X-CLIENT-TYPE": "cline-cli",
+			"X-CLIENT-VERSION": "3.0.38",
+		};
+
+		const bootstrap = await prepareLocalRuntimeBootstrap({
+			input,
+			sessionId: "sess-hub-client",
+			providerSettingsManager: createProviderSettingsManager() as never,
+			defaultTelemetry: undefined,
+			defaultToolPolicies: undefined,
+			onPluginEvent: () => {},
+			onTeamEvent: () => {},
+			createSpawnTool,
+			readSessionMetadata: async () => undefined,
+			writeSessionMetadata: async () => {},
+		});
+
+		expect(bootstrap.config.extensionContext?.client).toEqual({
+			name: "cline-cli",
+			version: "3.0.38",
+		});
+		expect(bootstrap.providerConfig.headers).toMatchObject({
+			"User-Agent": "Cline/3.0.38",
+			"X-CLIENT-TYPE": "cline-cli",
+			"X-CLIENT-VERSION": "3.0.38",
+		});
+	});
+
+	it("prefers configured extensionContext.client over header-derived identity", async () => {
+		const { prepareLocalRuntimeBootstrap } = await import(
+			"./local-runtime-bootstrap"
+		);
+
+		const input = createStartInput();
+		const config = input.config as typeof input.config & {
+			headers: Record<string, string>;
+		};
+		config.headers = {
+			"X-CLIENT-TYPE": "header-client",
+			"X-CLIENT-VERSION": "0.0.1",
+		};
+
+		const bootstrap = await prepareLocalRuntimeBootstrap({
+			input,
+			localRuntime: {
+				extensionContext: {
+					client: { name: "cline-vscode", version: "9.9.9" },
+				},
+			},
+			sessionId: "sess-local-client",
+			providerSettingsManager: createProviderSettingsManager() as never,
+			defaultTelemetry: undefined,
+			defaultToolPolicies: undefined,
+			onPluginEvent: () => {},
+			onTeamEvent: () => {},
+			createSpawnTool,
+			readSessionMetadata: async () => undefined,
+			writeSessionMetadata: async () => {},
+		});
+
+		expect(bootstrap.config.extensionContext?.client).toEqual({
+			name: "cline-vscode",
+			version: "9.9.9",
+		});
+	});
+
 	it("uses host request headers for Cline providers on core sessions", async () => {
 		const { prepareLocalRuntimeBootstrap } = await import(
 			"./local-runtime-bootstrap"
