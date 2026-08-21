@@ -1371,6 +1371,38 @@ describe("media generation settings", () => {
 		expect(JSON.stringify(result)).not.toContain("openrouter-key");
 	});
 
+	it("threads a host custom fetch into the media generation provider config", async () => {
+		await saveMediaGenerationSettings(manager, "image", {
+			providerId: "openrouter",
+			modelId: "test-image-model",
+		});
+		const generateSpy = vi
+			.spyOn(LlmsModels, "generateMedia")
+			.mockResolvedValue({
+				media: [
+					{
+						id: "generated-1",
+						modality: "image",
+						mediaType: "image/png",
+						source: { type: "base64", data: "aGVsbG8=" },
+					},
+				],
+			});
+		const customFetch = vi.fn() as unknown as typeof fetch;
+
+		await generateConfiguredMedia(manager, {
+			mediaType: "image",
+			prompt: "A tiny lighthouse in a storm",
+			fetch: customFetch,
+		});
+
+		expect(generateSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				providerConfig: expect.objectContaining({ fetch: customFetch }),
+			}),
+		);
+	});
+
 	it("resolves only currently executable stored media targets", async () => {
 		manager.setMediaGenerationSettings({
 			image: {

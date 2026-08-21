@@ -463,6 +463,11 @@ export async function prepareLocalRuntimeBootstrap(
 		providerSettingsManager,
 		"image",
 	);
+	// Thread the host custom fetch through generate_media the same way chat
+	// provider requests thread it: explicit per-session config > host default
+	// (generateConfiguredMedia lets a stored provider-config fetch win first).
+	const mediaGenerationFetch =
+		(config as { fetch?: typeof fetch }).fetch ?? defaultFetch;
 	const configuredGenerateMediaExecutor: GenerateMediaExecutor | undefined =
 		configuredMediaTarget
 			? async (mediaInput, context) => {
@@ -472,6 +477,7 @@ export async function prepareLocalRuntimeBootstrap(
 							mediaType: mediaInput.media_type,
 							prompt: mediaInput.prompt,
 							abortSignal: context.signal,
+							fetch: mediaGenerationFetch,
 						},
 					);
 					if (generated.usage) {
