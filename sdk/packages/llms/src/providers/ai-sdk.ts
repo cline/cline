@@ -669,6 +669,15 @@ function buildAiSdkRuntimeContext(
 		...(typeof metadata.sessionId === "string"
 			? { sessionId: metadata.sessionId }
 			: {}),
+		...(typeof metadata.clientName === "string"
+			? { clientName: metadata.clientName }
+			: {}),
+		...(typeof metadata.clientVersion === "string"
+			? { clientVersion: metadata.clientVersion }
+			: {}),
+		...(typeof metadata.clineCoreVersion === "string"
+			? { clineCoreVersion: metadata.clineCoreVersion }
+			: {}),
 		...(tags && tags.length > 0 ? { tags } : {}),
 		// Keep Cline correlation fields available even when the integration
 		// does not promote them to first-class Langfuse fields.
@@ -2218,6 +2227,9 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 									distinctId: true,
 									userId: true,
 									sessionId: true,
+									clientName: true,
+									clientVersion: true,
+									clineCoreVersion: true,
 									tags: true,
 									conversationId: true,
 									runId: true,
