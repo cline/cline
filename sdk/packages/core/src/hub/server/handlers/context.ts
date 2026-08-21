@@ -30,6 +30,12 @@ import {
 export type PendingApproval = {
 	sessionId: string;
 	resolve: (result: { approved: boolean; reason?: string }) => void;
+	/**
+	 * The `approval.requested` event as originally published. Pending
+	 * approvals survive client disconnects, so a (re)subscribing client is
+	 * re-issued this event instead of being left with a silently parked turn.
+	 */
+	requestedEvent?: HubEventEnvelope;
 };
 
 export type PendingCapabilityRequest = {
