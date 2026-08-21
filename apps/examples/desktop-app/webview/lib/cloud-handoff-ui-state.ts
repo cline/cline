@@ -5,6 +5,7 @@ import type { HandoffProgressPhase, HandoffReceipt } from "@/lib/cloud-handoff";
 export type PendingHandoffPrompt = {
 	content: string;
 	submittedAt: number;
+	baselineOccurrences: number;
 	images?: ChatMessage["images"];
 };
 
@@ -272,11 +273,20 @@ export function pendingHandoffPromptCaughtUp(
 	handoff: CloudHandoffUiEntry | undefined,
 ): boolean {
 	if (handoff?.status !== "target_prompt") return false;
-	const expected = formatDisplayUserInput(handoff.pendingPrompt.content);
-	return messages.some(
+	return (
+		matchingUserPromptCount(messages, handoff.pendingPrompt.content) >
+		handoff.pendingPrompt.baselineOccurrences
+	);
+}
+
+export function matchingUserPromptCount(
+	messages: ChatMessage[],
+	prompt: string,
+): number {
+	const expected = formatDisplayUserInput(prompt);
+	return messages.filter(
 		(message) =>
 			message.role === "user" &&
-			message.createdAt >= handoff.pendingPrompt.submittedAt &&
 			formatDisplayUserInput(message.content) === expected,
-	);
+	).length;
 }

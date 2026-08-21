@@ -187,6 +187,7 @@ describe("cloudHandoffUiReducer", () => {
 		const prompt = {
 			content: "hey cloud what do you see",
 			submittedAt: 100,
+			baselineOccurrences: 1,
 			images: [
 				{
 					id: "handoff-image",
@@ -215,32 +216,40 @@ describe("cloudHandoffUiReducer", () => {
 			content: "I see a robot",
 			createdAt: 120,
 		};
+		const priorPrompt = {
+			id: "prior-user",
+			sessionId: "cloud-1",
+			role: "user" as const,
+			content: prompt.content,
+			createdAt: 50,
+		};
 		const displayed = appendPendingHandoffPrompt(
-			[liveResponse],
+			[priorPrompt, liveResponse],
 			"cloud-1",
 			completed["cloud-1"],
 		);
 		expect(displayed.map((message) => message.role)).toEqual([
 			"user",
+			"user",
 			"assistant",
 		]);
-		expect(displayed[0]).toMatchObject({
+		expect(displayed[1]).toMatchObject({
 			content: prompt.content,
 			images: prompt.images,
 		});
 
 		const canonical = {
-			...displayed[0],
+			...displayed[1],
 			id: "canonical-user",
 			content: `<user_input mode="act">${prompt.content}</user_input>`,
-			createdAt: 110,
+			createdAt: 90,
 		};
 		expect(
 			appendPendingHandoffPrompt(
-				[canonical, liveResponse],
+				[priorPrompt, canonical, liveResponse],
 				"cloud-1",
 				completed["cloud-1"],
 			),
-		).toEqual([canonical, liveResponse]);
+		).toEqual([priorPrompt, canonical, liveResponse]);
 	});
 });

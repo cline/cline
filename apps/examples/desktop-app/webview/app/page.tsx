@@ -83,6 +83,7 @@ import {
 	type CloudHandoffUiAction,
 	type CloudHandoffUiState,
 	cloudHandoffUiReducer,
+	matchingUserPromptCount,
 	type PendingHandoffPrompt,
 	pendingHandoffPromptCaughtUp,
 } from "@/lib/cloud-handoff-ui-state";
@@ -2008,6 +2009,10 @@ function ChatThreadPane({
 					? {
 							content: nextCommand,
 							submittedAt,
+							baselineOccurrences: matchingUserPromptCount(
+								messages,
+								nextCommand,
+							),
 							images: toChatMessageImages(
 								attachments.userImages,
 								`handoff_prompt_${sourceSessionId}`,
@@ -2081,6 +2086,7 @@ function ChatThreadPane({
 			config,
 			historySession?.sessionId,
 			isCloudSession,
+			messages,
 			pendingAttachments,
 			promptsInQueue.length,
 			runHandoff,
