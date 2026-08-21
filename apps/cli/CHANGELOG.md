@@ -2,18 +2,18 @@
 
 ## 3.0.56
 
-- Added model-driven image generation. Models that support it can generate images during a turn; images render in the TUI and are included in session exports and ACP sessions
-- Agents can now create and manage scheduled tasks, and `cline schedule` commands work against a remote hub
-- Skill slash commands now load through the skills tool instead of expanding into your message. Resume and history surfaces show the `/command` you typed instead of the whole skill body, and the instructions reach the model once instead of twice. Workflows still expand, as does yolo mode (its preset has no skills tool)
-- Image and voice models are no longer offered in chat model pickers during onboarding, `/models`, and ACP
-- Fixed TUI dialog colors not following live theme changes
+- Agents can now create and manage durable todos and one-time or recurring schedules through a new `tasks` tool, enabled by default (yolo mode excludes it). Schedules are authorized against the workspace that registered them, and `cline schedule` now registers a workspace client so it keeps working against a remote hub
+- Models that support image generation can now produce media during a turn. The TUI saves each generated file to a temporary path and prints it so you can open it with your usual tools, HTML session exports embed images inline, and ACP clients receive generated images as image content
+- Skill slash commands now load through the skills tool instead of expanding into your message. History and resume show the `/command` you typed instead of the whole skill body, and the instructions reach the model once instead of twice. Workflows still expand, as does zen mode, whose preset has no skills tool
+- Image, voice, and other non-chat models are no longer offered in the onboarding and model pickers or ACP model listings, and are rejected for `--model`
+- Fixed TUI dialog colors not following theme changes live
 - Fixed the account dialog's selection chevron so it matches the other dialogs
-- Fixed `run_commands` failing with ENOENT when a structured command contained a space
-- PowerShell commands now fail fast on the first error instead of flooding stderr and reporting success
-- Fixed provider-executed tool activity (e.g. tools the Claude Code provider runs itself) being invisible in the transcript
-- Fixed `PreToolUse` hook context never reaching the model, and `PostToolUse` hooks having their output and `cancel` control discarded
+- Fixed provider-executed tool activity — every tool the Claude Code provider runs inside its own session — being dropped instead of shown as a tool card
+- Fixed `PreToolUse` hook `contextModification` never reaching the model, and `PostToolUse` hooks running fire-and-forget with their output and `cancel` control discarded
+- Fixed `run_commands` failing with ENOENT when a structured command carried a full command line with no `args`
+- PowerShell commands now fail fast on the first error instead of emitting an error record per enumerated item and still reporting success
 - Fixed Gemini custom base URLs configured as a host root
-- Gateway usage now displays the billed cost
+- Usage now displays the billed gateway cost
 - Refreshed the model catalog, which adds AMD, Arcee, Echo, Jalapeno, Kosmik, LLM Gateway, RunInfra, and SCNet as providers and updates model lists and per-provider default models across the board
 
 ## 3.0.55
