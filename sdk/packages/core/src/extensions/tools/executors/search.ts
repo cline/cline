@@ -8,6 +8,7 @@ import { spawn } from "node:child_process";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import type { AgentToolContext } from "@cline/shared";
+import ignore, { type Ignore } from "ignore";
 import { getFileIndex } from "../../../services/workspace";
 import type { SearchExecutor } from "../types";
 import { MAX_SEARCH_OUTPUT_CHARS } from "./output-limits";
@@ -120,6 +121,54 @@ interface SearchMatch {
 	context: string[];
 }
 
+/**
+ * Workspace ignore files consulted when filtering search results, in ascending
+ * precedence. `.gitignore` is honored by ripgrep itself, but Cline's own
+ * `.clineignore` / `.agentignore` files are not known to ripgrep and are never
+ * honored in the JS fallback, so we load all three and filter both code paths.
+ */
+const WORKSPACE_IGNORE_FILES = [".gitignore", ".clineignore", ".agentignore"];
+
+/**
+ * Build an ignore matcher from the workspace-root ignore files.
+ *
+ * Uses the `ignore` library (the same matcher backing ClineIgnoreController) so
+ * both search paths drop results the user has explicitly excluded, with
+ * gitignore semantics (root-anchored and trailing-slash patterns, `!` negation,
+ * character classes). Returns null when no ignore files are present so callers
+ * can skip filtering entirely.
+ */
+async function loadWorkspaceIgnoreFilter(cwd: string): Promise<Ignore | null> {
+	const patterns: string[] = [];
+	for (const fileName of WORKSPACE_IGNORE_FILES) {
+		try {
+			patterns.push(await fs.readFile(path.join(cwd, fileName), "utf-8"));
+		} catch {
+			// Missing or unreadable ignore file: nothing to load from it.
+		}
+	}
+	if (patterns.length === 0) {
+		return null;
+	}
+	return ignore().add(patterns.join("\n"));
+}
+
+/**
+ * Test a workspace-relative path against the ignore matcher. Paths are
+ * normalized to posix and stripped of any leading "./" because the `ignore`
+ * library rejects absolute paths and leading-slash inputs.
+ */
+function isIgnoredPath(matcher: Ignore | null, relativePath: string): boolean {
+	if (!matcher) {
+		return false;
+	}
+	const normalized = relativePath.replace(/\\/g, "/").replace(/^\.\//, "");
+	if (!normalized || normalized === "." || normalized.startsWith("../")) {
+		return false;
+	}
+	return matcher.ignores(normalized);
+}
+
 let rgAvailable: boolean | null = null;
 
 function checkRipgrepAvailable(): Promise<boolean> {
@@ -167,7 +216,16 @@ function searchWithRipgrep(
 	return new Promise((resolve) => {
 		const child = spawn(
 			"rg",
-			["--json", `--context=${contextLines}`, "--max-count=1", "-i", query],
+			[
+				"--json",
+				// Honor .gitignore even outside a git working tree; ripgrep only
+				// applies gitignore rules inside a git repo by default.
+				"--no-require-git",
+				`--context=${contextLines}`,
+				"--max-count=1",
+				"-i",
+				query,
+			],
 			{
 				cwd,
 				stdio: ["ignore", "pipe", "pipe"],
@@ -332,6 +390,10 @@ export function createSearchExecutor(
 			throw new Error("Search operation aborted");
 		}
 
+		// Load the workspace ignore rules once and apply them to whichever code
+		// path runs, so results from ignored directories never leak through.
+		const ignoreFilter = await loadWorkspaceIgnoreFilter(cwd);
+
 		// Try ripgrep first if available
 		const isRgAvailable = await checkRipgrepAvailable();
 		let rgMatches: SearchMatch[] | null = null;
@@ -347,18 +409,21 @@ export function createSearchExecutor(
 		}
 
 		if (rgMatches) {
+			const visibleMatches = rgMatches.filter(
+				(match) => !isIgnoredPath(ignoreFilter, match.file),
+			);
 			const resultLines: string[] = [
-				`Found ${rgMatches.length} result${rgMatches.length === 1 ? "" : "s"} for pattern: ${query}`,
+				`Found ${visibleMatches.length} result${visibleMatches.length === 1 ? "" : "s"} for pattern: ${query}`,
 				"",
 			];
 
-			for (const match of rgMatches) {
+			for (const match of visibleMatches) {
 				resultLines.push(`${match.file}:${match.line}:${match.column}`);
 				resultLines.push(...match.context);
 				resultLines.push("");
 			}
 
-			if (rgMatches.length >= maxResults) {
+			if (visibleMatches.length >= maxResults) {
 				resultLines.push(
 					`(Showing first ${maxResults} results. Refine your search for more specific results.)`,
 				);
@@ -397,6 +462,10 @@ export function createSearchExecutor(
 					maxDepth,
 				)
 			) {
+				continue;
+			}
+
+			if (isIgnoredPath(ignoreFilter, relativePath)) {
 				continue;
 			}
 
