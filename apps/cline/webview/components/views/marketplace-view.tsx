@@ -687,7 +687,6 @@ export function MarketplaceView({
 				const response =
 					await desktopClient.invoke<MarketplaceInstallStatusResult>(
 						"list_marketplace_installed_entries",
-						{ entries: catalog.entries },
 					);
 				if (
 					!cancelled &&
@@ -975,7 +974,7 @@ export function MarketplaceView({
 		try {
 			const result = await desktopClient.invoke<MarketplaceInstallResult>(
 				"install_marketplace_entry",
-				{ entry },
+				{ id: entry.id, type: entry.type },
 				{ timeoutMs: INSTALL_TIMEOUT_MS },
 			);
 			setEntryState(entry, {
@@ -1006,7 +1005,7 @@ export function MarketplaceView({
 		try {
 			const result = await desktopClient.invoke<MarketplaceInstallResult>(
 				"uninstall_marketplace_entry",
-				{ entry },
+				{ id: entry.id, type: entry.type },
 				{ timeoutMs: INSTALL_TIMEOUT_MS },
 			);
 			setEntryState(entry, {

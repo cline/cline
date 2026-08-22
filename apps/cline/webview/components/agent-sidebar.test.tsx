@@ -15,8 +15,17 @@ import type {
 	UseSessionHistoryResult,
 } from "@/hooks/use-session-history";
 
-const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }));
-vi.mock("@/lib/desktop-client", () => ({ desktopClient: { invoke } }));
+const { invoke, retryConnection, subscribeTransportState } = vi.hoisted(() => ({
+	invoke: vi.fn(),
+	retryConnection: vi.fn(),
+	subscribeTransportState: vi.fn((handler: (state: string) => void) => {
+		handler("connected");
+		return () => undefined;
+	}),
+}));
+vi.mock("@/lib/desktop-client", () => ({
+	desktopClient: { invoke, retryConnection, subscribeTransportState },
+}));
 
 let container: HTMLDivElement;
 let root: Root;
@@ -106,7 +115,13 @@ const signedInUser = {
 beforeEach(() => {
 	Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 	window.localStorage.clear();
+	Object.defineProperty(navigator, "clipboard", {
+		configurable: true,
+		value: { writeText: vi.fn(async () => undefined) },
+	});
 	invoke.mockReset();
+	retryConnection.mockReset();
+	subscribeTransportState.mockClear();
 	invoke.mockRejectedValue(new Error("No Cline account auth token found"));
 	Object.defineProperty(window, "matchMedia", {
 		configurable: true,
@@ -335,7 +350,7 @@ describe("AgentSidebar session organization", () => {
 		expect(loadOlderSessions).toHaveBeenCalledOnce();
 	});
 
-	it("shows the signed-in account and active organization in the footer", async () => {
+	it("keeps the Gateway control visible after account state loads", async () => {
 		invoke.mockResolvedValue(signedInUser);
 
 		await act(async () => {
@@ -344,12 +359,12 @@ describe("AgentSidebar session organization", () => {
 					<SidebarProvider>
 						<AgentSidebar
 							activeSessionId={null}
-						activeBotId="cline"
-						bots={[{ id: "cline", name: "Cline" }]}
-						canCreateBot={true}
-						onCreateBot={vi.fn()}
-						onSwitchBot={vi.fn()}
-								onNewThread={vi.fn()}
+							activeBotId="cline"
+							bots={[{ id: "cline", name: "Cline" }]}
+							canCreateBot={true}
+							onCreateBot={vi.fn()}
+							onSwitchBot={vi.fn()}
+							onNewThread={vi.fn()}
 							onSettingsSectionChange={vi.fn()}
 							sessionHistory={makeSessionHistory([], vi.fn())}
 							setView={vi.fn()}
@@ -361,29 +376,19 @@ describe("AgentSidebar session organization", () => {
 			);
 		});
 
-		await vi.waitFor(() => {
-			expect(container.textContent).toContain("Beatrix");
-			expect(container.textContent).toContain("Cline Bot Inc");
+		const gatewayButton = await vi.waitFor(() => {
+			const button = container.querySelector(
+				'button[aria-label="Gateway unavailable"]',
+			);
+			expect(button).not.toBeNull();
+			return button;
 		});
-		expect(container.textContent).not.toContain("Cline Desktop");
-		expect(container.textContent).not.toContain("Local");
-		const accountButton = container.querySelector(
-			'[aria-label="Account settings"]',
-		);
 		const settingsButton = container.querySelector('[aria-label="Settings"]');
-		expect(accountButton?.parentElement).toBe(settingsButton?.parentElement);
+		expect(gatewayButton?.parentElement).toBe(settingsButton?.parentElement);
 		expect(settingsButton?.textContent).toBe("");
-		const accountName = [
-			...(accountButton?.querySelectorAll("span") ?? []),
-		].find((element) => element.textContent === "Beatrix");
-		const organizationName = [
-			...(accountButton?.querySelectorAll("span") ?? []),
-		].find((element) => element.textContent === "Cline Bot Inc");
-		expect(accountName?.nextElementSibling).toBe(organizationName);
-		expect(accountName?.parentElement?.className).toContain("flex-col");
 	});
 
-	it("opens the Account settings section when the footer account row is clicked", async () => {
+	it("opens Settings from the footer action", async () => {
 		const setView = vi.fn();
 		const onSettingsSectionChange = vi.fn();
 		invoke.mockResolvedValue(signedInUser);
@@ -394,12 +399,12 @@ describe("AgentSidebar session organization", () => {
 					<SidebarProvider>
 						<AgentSidebar
 							activeSessionId={null}
-						activeBotId="cline"
-						bots={[{ id: "cline", name: "Cline" }]}
-						canCreateBot={true}
-						onCreateBot={vi.fn()}
-						onSwitchBot={vi.fn()}
-								onNewThread={vi.fn()}
+							activeBotId="cline"
+							bots={[{ id: "cline", name: "Cline" }]}
+							canCreateBot={true}
+							onCreateBot={vi.fn()}
+							onSwitchBot={vi.fn()}
+							onNewThread={vi.fn()}
 							onSettingsSectionChange={onSettingsSectionChange}
 							sessionHistory={makeSessionHistory([], vi.fn())}
 							setView={setView}
@@ -411,26 +416,30 @@ describe("AgentSidebar session organization", () => {
 			);
 		});
 
-		const accountButton = await vi.waitFor(() => {
-			const button = container.querySelector('[aria-label="Account settings"]');
+		const settingsButton = await vi.waitFor(() => {
+			const button = container.querySelector('[aria-label="Settings"]');
 			expect(button).not.toBeNull();
 			return button;
 		});
-		await click(accountButton as Element);
+		await click(settingsButton as Element);
 
-		expect(onSettingsSectionChange).toHaveBeenCalledWith("Account");
-		expect(setView).not.toHaveBeenCalled();
+		expect(onSettingsSectionChange).not.toHaveBeenCalled();
+		expect(setView).toHaveBeenCalledWith("settings");
 	});
 
-	it("shows the desktop app version and a connected Hub indicator in the sidebar footer", async () => {
+	it("shows the desktop app version and an actionable connected Gateway indicator", async () => {
 		invoke.mockImplementation(async (command: string) => {
 			if (command === "get_process_context") {
 				return {
 					appVersion: "1.2.3",
-					hub: {
+					gateway: {
+						dataDir: "/Users/test/.cline/gateway/desktop",
 						error: null,
+						historyDatabase: "/Users/test/.cline/gateway/desktop/gateway.db",
 						status: "connected",
-						url: "ws://127.0.0.1:25463/hub",
+						namespace: "desktop",
+						webSocketAddress: "ws://127.0.0.1:3126/",
+						webSocketProtocol: "cline-desktop-v1",
 					},
 				};
 			}
@@ -461,29 +470,50 @@ describe("AgentSidebar session organization", () => {
 		});
 
 		await vi.waitFor(() => {
-			expect(document.body.textContent).toContain("Version 1.2.3");
+			expect(document.body.textContent).toContain("v1.2.3");
 		});
 		expect(invoke).toHaveBeenCalledWith("get_process_context");
-		expect(document.body.textContent).not.toContain("ws://127.0.0.1:25463/hub");
-
-		const versionRow = [
-			...container.querySelectorAll<HTMLElement>("div[title]"),
-		].find((candidate) => candidate.textContent === "Version 1.2.3");
-		expect(versionRow?.title).toBe("Cline Hub @25463");
-		expect(versionRow?.querySelector('[aria-hidden="true"]')?.className).toContain(
-			"bg-emerald-500",
+		const statusButton = container.querySelector<HTMLButtonElement>(
+			'button[aria-label="Gateway connected"]',
+		);
+		expect(statusButton).not.toBeNull();
+		expect(
+			statusButton?.querySelector('[aria-hidden="true"]')?.className,
+		).toContain("bg-emerald-500");
+		await click(statusButton as Element);
+		expect(document.body.textContent).toContain("Bundled Gateway v1.2.3");
+		expect(document.body.textContent).not.toContain("Ready in the desktop");
+		expect(document.body.textContent).toContain("ws://127.0.0.1:3126/");
+		expect(document.body.textContent).toContain(
+			"/Users/test/.cline/gateway/desktop/gateway.db",
+		);
+		const checkAgainButton = buttonWithText("Check again", document.body);
+		const popoverSettingsButton = buttonWithText("Settings", document.body);
+		expect(checkAgainButton.className).toContain("w-full");
+		expect(popoverSettingsButton.className).toContain("w-full");
+		expect(checkAgainButton.parentElement).toBe(
+			popoverSettingsButton.parentElement,
+		);
+		expect(checkAgainButton.parentElement?.className).toContain("grid");
+		const copyAddressButton = document.body.querySelector(
+			'[aria-label="Copy Gateway WebSocket address"]',
+		);
+		expect(copyAddressButton).not.toBeNull();
+		await click(copyAddressButton as Element);
+		expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+			"ws://127.0.0.1:3126/",
 		);
 	});
 
-	it("shows a disconnected Hub indicator when process context has no live connection", async () => {
+	it("shows a disconnected Gateway reason and retries from the footer", async () => {
 		invoke.mockImplementation(async (command: string) => {
 			if (command === "get_process_context") {
 				return {
 					appVersion: "1.2.3",
-					hub: {
-						error: "Hub connection closed (code=1006)",
+					gateway: {
+						error: "Gateway connection closed",
 						status: "disconnected",
-						url: "ws://127.0.0.1:25463/hub",
+						namespace: "desktop",
 					},
 				};
 			}
@@ -513,17 +543,21 @@ describe("AgentSidebar session organization", () => {
 			);
 		});
 
-		const versionRow = await vi.waitFor(() => {
-			const row = [
-				...container.querySelectorAll<HTMLElement>("div[title]"),
-			].find((candidate) => candidate.textContent === "Version 1.2.3");
-			expect(row).toBeDefined();
-			return row as HTMLElement;
+		const statusButton = await vi.waitFor(() => {
+			const button = container.querySelector<HTMLButtonElement>(
+				'button[aria-label="Gateway unavailable"]',
+			);
+			expect(button).not.toBeNull();
+			return button as HTMLButtonElement;
 		});
-		expect(versionRow.title).toBe("Hub connection closed (code=1006)");
-		expect(versionRow.querySelector('[aria-hidden="true"]')?.className).not.toContain(
-			"bg-emerald-500",
-		);
+		expect(
+			statusButton.querySelector('[aria-hidden="true"]')?.className,
+		).toContain("bg-destructive");
+		await click(statusButton);
+		expect(document.body.textContent).toContain("Bundled Gateway v1.2.3");
+		expect(document.body.textContent).toContain("Gateway connection closed");
+		await click(buttonWithText("Retry connection", document.body));
+		expect(retryConnection).toHaveBeenCalledOnce();
 	});
 
 	it("hosts back and forward navigation in the draggable sidebar title bar", async () => {
@@ -536,14 +570,14 @@ describe("AgentSidebar session organization", () => {
 					<SidebarProvider>
 						<AgentSidebar
 							activeSessionId={null}
-						activeBotId="cline"
-						bots={[{ id: "cline", name: "Cline" }]}
-						canCreateBot={true}
-						onCreateBot={vi.fn()}
-						onSwitchBot={vi.fn()}
+							activeBotId="cline"
+							bots={[{ id: "cline", name: "Cline" }]}
+							canCreateBot={true}
+							onCreateBot={vi.fn()}
+							onSwitchBot={vi.fn()}
 							canNavigateBack
 							canNavigateForward
-								onNavigateBack={onNavigateBack}
+							onNavigateBack={onNavigateBack}
 							onNavigateForward={onNavigateForward}
 							onNewThread={vi.fn()}
 							onSettingsSectionChange={vi.fn()}
@@ -577,12 +611,12 @@ describe("AgentSidebar session organization", () => {
 					<SidebarProvider>
 						<AgentSidebar
 							activeSessionId={null}
-						activeBotId="cline"
-						bots={[{ id: "cline", name: "Cline" }]}
-						canCreateBot={true}
-						onCreateBot={vi.fn()}
-						onSwitchBot={vi.fn()}
-								onNewThread={onNewThread}
+							activeBotId="cline"
+							bots={[{ id: "cline", name: "Cline" }]}
+							canCreateBot={true}
+							onCreateBot={vi.fn()}
+							onSwitchBot={vi.fn()}
+							onNewThread={onNewThread}
 							onSettingsSectionChange={vi.fn()}
 							sessionHistory={makeSessionHistory([], vi.fn())}
 							setView={vi.fn()}
@@ -612,12 +646,12 @@ describe("AgentSidebar session organization", () => {
 					<SidebarProvider defaultOpen={false}>
 						<AgentSidebar
 							activeSessionId={null}
-						activeBotId="cline"
-						bots={[{ id: "cline", name: "Cline" }]}
-						canCreateBot={true}
-						onCreateBot={vi.fn()}
-						onSwitchBot={vi.fn()}
-								onNewThread={vi.fn()}
+							activeBotId="cline"
+							bots={[{ id: "cline", name: "Cline" }]}
+							canCreateBot={true}
+							onCreateBot={vi.fn()}
+							onSwitchBot={vi.fn()}
+							onNewThread={vi.fn()}
 							onSettingsSectionChange={vi.fn()}
 							sessionHistory={makeSessionHistory([], vi.fn())}
 							setView={vi.fn()}
@@ -645,12 +679,12 @@ describe("AgentSidebar session organization", () => {
 					<SidebarProvider defaultOpen={false}>
 						<AgentSidebar
 							activeSessionId={null}
-						activeBotId="cline"
-						bots={[{ id: "cline", name: "Cline" }]}
-						canCreateBot={true}
-						onCreateBot={vi.fn()}
-						onSwitchBot={vi.fn()}
-								onNewThread={vi.fn()}
+							activeBotId="cline"
+							bots={[{ id: "cline", name: "Cline" }]}
+							canCreateBot={true}
+							onCreateBot={vi.fn()}
+							onSwitchBot={vi.fn()}
+							onNewThread={vi.fn()}
 							onSettingsSectionChange={vi.fn()}
 							sessionHistory={makeSessionHistory([], vi.fn())}
 							setView={vi.fn()}
@@ -683,6 +717,7 @@ describe("AgentSidebar session organization", () => {
 			const button = container.querySelector(`[aria-label="${label}"]`);
 			expect(button?.className).not.toContain("mx-auto");
 		}
+		expect(container.querySelector('[aria-label="Agents"]')).toBeNull();
 		expect(
 			container.querySelector('[aria-label="Expand sidebar"]')?.className,
 		).toContain("mt-auto");
@@ -724,6 +759,6 @@ describe("AgentSidebar session organization", () => {
 		expect(
 			container.querySelector('[aria-label="Settings"]')?.textContent,
 		).toBe("");
-		expect(container.textContent).toContain("Version unavailable");
+		expect(container.textContent).toContain("Gateway");
 	});
 });

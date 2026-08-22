@@ -3,16 +3,11 @@
 	"compilerOptions": {
 		"paths": {
 			"@/*": ["./*"],
-			"@cline/agents": ["../../../sdk/packages/agents/src/index.ts"],
-			"@cline/llms": ["../../../sdk/packages/llms/src/index.ts"],
-			"@cline/shared": ["../../../sdk/packages/shared/src/index.ts"],
-			"@cline/shared/storage": [
-				"../../../sdk/packages/shared/src/storage/index.ts"
+			"@cline/shared/automation": [
+				"../../../sdk/packages/shared/src/automation/index.ts"
 			],
-			"@cline/shared/db": ["../../../sdk/packages/shared/src/db/index.ts"],
-			"@cline/shared/*": [
-				"../../../sdk/packages/shared/src/*",
-				"../../../sdk/packages/shared/src/*/index.ts"
+			"@cline/shared/browser": [
+				"../../../sdk/packages/shared/src/index.browser.ts"
 			]
 		}
 	},

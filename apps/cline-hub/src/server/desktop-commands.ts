@@ -31,6 +31,7 @@ import {
 } from "./connectors";
 import { providerSettingsManager, workspaceRoot } from "./deps";
 import {
+	fetchMarketplaceCatalog,
 	installMarketplaceEntryForDesktopCommand,
 	listMarketplaceInstalledEntries,
 	uninstallLocalPrimitive,
@@ -269,6 +270,9 @@ export async function handleDesktopCommand(
 	}
 	if (command === "list_user_instruction_configs") {
 		return await listUserInstructionConfigs(workspaceRoot);
+	}
+	if (command === "get_marketplace_catalog") {
+		return await fetchMarketplaceCatalog();
 	}
 	if (command === "list_marketplace_installed_entries") {
 		return listMarketplaceInstalledEntries(

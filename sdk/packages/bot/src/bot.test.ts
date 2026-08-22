@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { Bot } from "./bot";
 import {
 	ContractorTaskError,
+	QueuedRunMutationError,
 	RunAdmissionError,
 	WorkspaceImmutableError,
 } from "./errors";
@@ -38,6 +39,30 @@ describe("lazy sessions", () => {
 		expect(ack.acceptedAt).toBeGreaterThan(0);
 		expect(bot.session?.workspace.rootPath).toBe("/repo/a");
 		expect(bot.session?.state).toBe("active");
+	});
+
+	it("opens an independent dedicated session without replacing the canonical session", () => {
+		const { ports, bot } = setup();
+		const canonical = bot.openSession({ rootPath: "/repo/a" });
+		const dedicated = bot.openDedicatedSession({ rootPath: "/repo/a" });
+
+		expect(bot.session).toEqual(canonical);
+		expect(ports.sessions.get(canonical.sessionId)?.state).toBe("active");
+		expect(dedicated.kind).toBe("dedicated");
+		expect(dedicated.sessionId).not.toBe(canonical.sessionId);
+		expect(ports.sessions.get(dedicated.sessionId)?.state).toBe("active");
+	});
+
+	it("deletes only closed, idle sessions and forgets their lane", () => {
+		const { ports, bot } = setup();
+		const session = bot.openDedicatedSession({ rootPath: "/repo/a" });
+		expect(() => bot.deleteSessionById(session.sessionId)).toThrow(
+			"must be closed",
+		);
+		bot.closeSessionById(session.sessionId);
+		expect(bot.deleteSessionById(session.sessionId)).toBe(true);
+		expect(ports.sessions.get(session.sessionId)).toBeUndefined();
+		expect(bot.deleteSessionById(session.sessionId)).toBe(false);
 	});
 
 	it("a closed session admits no further runs", async () => {
@@ -122,6 +147,61 @@ describe("FIFO run admission", () => {
 		await bot.whenIdle();
 		// The cancelled run never reached the engine.
 		expect(ports.engine.handles).toHaveLength(1);
+	});
+
+	it("updates a queued record and its in-memory lane consistently", async () => {
+		const { ports, bot } = setup();
+		const active = bot.submitPrompt("active");
+		const queued = bot.submitPrompt("original");
+
+		const updated = bot.updateQueuedRun(queued.runId, "updated");
+		expect(updated.input).toBe("updated");
+		expect(ports.runs.get(queued.runId)?.input).toBe("updated");
+		expect(() => bot.updateQueuedRun(queued.runId, "   ")).toThrow(
+			QueuedRunMutationError,
+		);
+		expect(() => bot.updateQueuedRun(active.runId, "invalid")).toThrow(
+			QueuedRunMutationError,
+		);
+
+		ports.engine.handles[0].settle({});
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(ports.engine.handles[1].invocation.input).toBe("updated");
+		ports.engine.handles[1].settle({});
+		await bot.whenIdle();
+	});
+
+	it("promotes only into the queued run's own active session lane", async () => {
+		const { ports, bot } = setup();
+		const canonical = bot.submitPrompt("canonical active");
+		const dedicatedSession = bot.openDedicatedSession({ rootPath: "/repo/a" });
+		const dedicatedActive = bot.submitPromptToSession("dedicated active", {
+			sessionId: dedicatedSession.sessionId,
+		});
+		const queued = bot.submitPromptToSession("steer this", {
+			sessionId: dedicatedSession.sessionId,
+		});
+
+		const promoted = bot.promoteQueuedRun(queued.runId);
+		expect(promoted).toEqual({
+			queuedRunId: queued.runId,
+			activeRunId: dedicatedActive.runId,
+			sessionId: dedicatedSession.sessionId,
+		});
+		expect(ports.runs.get(queued.runId)?.state).toBe("aborted");
+		expect(ports.engine.handles[0].invocation.runId).toBe(canonical.runId);
+		expect(ports.engine.handles[0].steers).toEqual([]);
+		expect(ports.engine.handles[1].invocation.runId).toBe(
+			dedicatedActive.runId,
+		);
+		expect(ports.engine.handles[1].steers).toEqual(["steer this"]);
+		expect(() => bot.promoteQueuedRun(queued.runId)).toThrow(
+			QueuedRunMutationError,
+		);
+
+		ports.engine.handles[0].settle({});
+		ports.engine.handles[1].settle({});
+		await bot.whenIdle();
 	});
 });
 

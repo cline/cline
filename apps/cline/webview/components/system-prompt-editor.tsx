@@ -1,34 +1,25 @@
 "use client";
 
-import { Loader2, Upload } from "lucide-react";
+import { Upload } from "lucide-react";
 import { type ChangeEvent, useCallback, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { desktopClient } from "@/lib/desktop-client";
 
 /**
  * Shared between the bot-creation dialog and the Settings "System Prompt"
- * section - same underlying capability in both places (describe the bot,
- * optionally upload a ready-made prompt, or generate one from the
- * description), just wired to different persistence on submit/save.
- * Controlled: the parent owns both text values, so each caller can reset
- * (creation dialog) or load/save (Settings) them independently.
+ * section. Users can edit instructions directly or upload a ready-made text
+ * file; persistence remains owned by the parent dialog/view.
  */
 export function SystemPromptEditor({
-	description,
-	onDescriptionChange,
 	systemPrompt,
 	onSystemPromptChange,
 	disabled,
 }: {
-	description: string;
-	onDescriptionChange: (value: string) => void;
 	systemPrompt: string;
 	onSystemPromptChange: (value: string) => void;
 	disabled?: boolean;
 }) {
-	const [isGenerating, setIsGenerating] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -54,44 +45,8 @@ export function SystemPromptEditor({
 		[onSystemPromptChange],
 	);
 
-	const handleGenerate = useCallback(async () => {
-		const trimmedDescription = description.trim();
-		if (!trimmedDescription) {
-			setError("Describe what this bot should do first.");
-			return;
-		}
-		setIsGenerating(true);
-		setError(null);
-		try {
-			const generated = await desktopClient.invoke<string>(
-				"generate_bot_system_prompt",
-				{ description: trimmedDescription },
-			);
-			onSystemPromptChange(generated);
-		} catch (err) {
-			setError(
-				err instanceof Error
-					? err.message
-					: "Could not generate a system prompt.",
-			);
-		} finally {
-			setIsGenerating(false);
-		}
-	}, [description, onSystemPromptChange]);
-
 	return (
 		<div className="grid gap-3">
-			<div className="grid gap-2">
-				<Label htmlFor="bot-description">What should this bot do?</Label>
-				<Textarea
-					disabled={disabled}
-					id="bot-description"
-					onChange={(event) => onDescriptionChange(event.target.value)}
-					placeholder="e.g. Manages my recipes — suggests meals, tracks ingredients, adjusts serving sizes."
-					rows={2}
-					value={description}
-				/>
-			</div>
 			<div className="flex items-center gap-2">
 				<Button
 					disabled={disabled}
@@ -102,16 +57,6 @@ export function SystemPromptEditor({
 				>
 					<Upload className="size-3.5" />
 					Upload system prompt…
-				</Button>
-				<Button
-					disabled={disabled || isGenerating}
-					onClick={() => void handleGenerate()}
-					size="sm"
-					type="button"
-					variant="outline"
-				>
-					{isGenerating ? <Loader2 className="size-3.5 animate-spin" /> : null}
-					{isGenerating ? "Generating…" : "Generate from description"}
 				</Button>
 				<input
 					accept=".md,.markdown,.txt"
@@ -127,7 +72,7 @@ export function SystemPromptEditor({
 					disabled={disabled}
 					id="bot-system-prompt"
 					onChange={(event) => onSystemPromptChange(event.target.value)}
-					placeholder="Generated or uploaded text appears here — you can also just type your own."
+					placeholder="Write custom instructions here, or upload a Markdown or text file."
 					rows={6}
 					value={systemPrompt}
 				/>

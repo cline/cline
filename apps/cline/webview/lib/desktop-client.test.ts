@@ -6,7 +6,12 @@ import { writeDesktopDebugLog } from "./desktop-client";
 type SentDesktopRequest = {
 	id: string;
 	command: string;
+	args?: Record<string, unknown>;
 };
+
+const tauriInvoke = vi.hoisted(() => vi.fn());
+
+vi.mock("@tauri-apps/api/core", () => ({ invoke: tauriInvoke }));
 
 class FakeWebSocket {
 	static readonly CONNECTING = 0;
@@ -101,6 +106,7 @@ beforeEach(() => {
 	globalThis.WebSocket = FakeWebSocket as unknown as typeof WebSocket;
 	globalThis.fetch = fetchMock as unknown as typeof fetch;
 	fetchMock.mockClear();
+	tauriInvoke.mockReset();
 	(window as unknown as Record<string, unknown>).__SIDECAR_WS_ENDPOINT__ =
 		"ws://127.0.0.1:3126/";
 });
@@ -112,6 +118,44 @@ afterEach(() => {
 	globalThis.WebSocket = originalWebSocket;
 	globalThis.fetch = originalFetch;
 	delete (window as unknown as Record<string, unknown>).__SIDECAR_WS_ENDPOINT__;
+	delete (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__;
+});
+
+describe("DesktopClient native backend scope", () => {
+	it("carries the host-resolved fallback on every chat command", async () => {
+		delete (window as unknown as Record<string, unknown>)
+			.__SIDECAR_WS_ENDPOINT__;
+		(window as unknown as Record<string, unknown>).__TAURI_INTERNALS__ = {};
+		tauriInvoke.mockResolvedValue({
+			endpoint: "ws://127.0.0.1:43126/",
+			botId: "bot_gateway",
+			workspaceRoot: "/safe/bot_gateway/workspaces",
+			workspaceDisposition: "fallback",
+		});
+		const { desktopClient } = await import("./desktop-client");
+		const invocation = desktopClient.invoke("chat_session_command", {
+			request: {
+				action: "start",
+				config: { workspaceRoot: "/stale/unassigned/project" },
+			},
+		});
+
+		await vi.waitFor(() => expect(sockets).toHaveLength(1));
+		const socket = sockets[0];
+		if (!socket) throw new Error("expected the resolved backend socket");
+		expect(socket.url).toBe("ws://127.0.0.1:43126/");
+		socket.open();
+		await vi.waitFor(() => expect(socket.sent).toHaveLength(1));
+		expect(socket.lastRequest().args?.request).toMatchObject({
+			action: "start",
+			desktopScope: {
+				botId: "bot_gateway",
+				workspaceRoot: "/safe/bot_gateway/workspaces",
+			},
+		});
+		socket.respond({ sessionId: "session_safe" });
+		await expect(invocation).resolves.toEqual({ sessionId: "session_safe" });
+	});
 });
 
 describe("DesktopClient command deadlines", () => {
@@ -370,6 +414,28 @@ describe("DesktopClient initial connect retry", () => {
 });
 
 describe("DesktopClient setActiveProject mid-connect", () => {
+	it("manually retries the active backend with a fresh endpoint connection", async () => {
+		const { desktopClient } = await import("./desktop-client");
+		const initialInvocation = desktopClient.invoke("get_process_context");
+		const initialSocket = await connectLatestSocket();
+		initialSocket.respond({ ok: true });
+		await expect(initialInvocation).resolves.toEqual({ ok: true });
+
+		desktopClient.retryConnection();
+		await vi.waitFor(() => expect(sockets).toHaveLength(2));
+		const retrySocket = sockets[1];
+		if (!retrySocket) throw new Error("expected a retry socket");
+		expect(initialSocket.readyState).toBe(FakeWebSocket.CLOSED);
+		retrySocket.open();
+
+		const invocation = desktopClient.invoke("get_process_context");
+		await vi.waitFor(() => expect(retrySocket.sent).toHaveLength(1));
+		retrySocket.respond({ gateway: { status: "connected" } });
+		await expect(invocation).resolves.toEqual({
+			gateway: { status: "connected" },
+		});
+	});
+
 	it("waits for a shared in-flight connection before sending session hydration commands", async () => {
 		const { desktopClient } = await import("./desktop-client");
 		const messagesInvocation = desktopClient.invoke("read_session_messages", {

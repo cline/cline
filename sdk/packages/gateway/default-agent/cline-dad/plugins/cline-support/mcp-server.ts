@@ -1,28 +1,18 @@
-import plugin from "./index";
+import plugin, {
+	type GatewaySupportCommand,
+	type GatewaySupportTool,
+} from "./index";
 
-interface ToolContribution {
-	name: string;
-	description?: string;
-	inputSchema?: unknown;
-	execute(input: unknown, context: unknown): unknown | Promise<unknown>;
-}
-
-interface CommandContribution {
-	name: string;
-	description?: string;
-	handler(input: string): unknown | Promise<unknown>;
-}
-
-const tools = new Map<string, ToolContribution>();
-const commands = new Map<string, CommandContribution>();
+const tools = new Map<string, GatewaySupportTool>();
+const commands = new Map<string, GatewaySupportCommand>();
 const workspaceRoot = process.env.CLINE_WORKSPACE_ROOT ?? process.cwd();
 
 await plugin.setup?.(
 	{
-		registerTool(tool: ToolContribution) {
+		registerTool(tool: GatewaySupportTool) {
 			tools.set(tool.name, tool);
 		},
-		registerCommand(command: CommandContribution) {
+		registerCommand(command: GatewaySupportCommand) {
 			commands.set(command.name, command);
 		},
 		registerRule() {},

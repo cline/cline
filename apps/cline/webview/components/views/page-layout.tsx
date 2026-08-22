@@ -21,7 +21,11 @@ export function PageFrame({
 					className,
 				)}
 			>
-				<div className={cn("max-w-344", contentClassName)}>{children}</div>
+				<div
+					className={cn("cline-page-selectable max-w-344", contentClassName)}
+				>
+					{children}
+				</div>
 			</div>
 		</ScrollArea>
 	);

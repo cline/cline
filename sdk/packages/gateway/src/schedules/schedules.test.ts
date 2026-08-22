@@ -67,6 +67,75 @@ function createHarness(options: { autoComplete?: boolean } = {}) {
 }
 
 describe("schedule triggers", () => {
+	it("updates, pauses, manually triggers, and deletes Gateway-owned schedules", async () => {
+		const { runtime, scheduler, stores, botId, advance, now } = createHarness();
+		const created = runtime.createSchedule("desktop", {
+			botId,
+			name: "daily review",
+			prompt: "review the workspace",
+			at: now() + 60_000,
+			workspaceRoot: "/workspace/project",
+			modelSelection: { providerId: "cline", modelId: "test-model" },
+			mode: "yolo",
+			maxParallel: 1,
+			tags: ["review"],
+		});
+		const updated = runtime.updateSchedule("desktop", {
+			scheduleId: created.scheduleId,
+			expectedRevision: created.revision,
+			name: "weekday review",
+			prompt: "review and summarize",
+			cronPattern: "15 9 * * MON-FRI",
+			metadata: { owner: "desktop" },
+		});
+		expect(updated).toMatchObject({
+			name: "weekday review",
+			prompt: "review and summarize",
+			cronPattern: "15 9 * * MON-FRI",
+			intervalMs: undefined,
+			at: undefined,
+			metadata: { owner: "desktop" },
+			revision: 1,
+		});
+		expect(() =>
+			runtime.updateSchedule("desktop", {
+				scheduleId: created.scheduleId,
+				expectedRevision: 0,
+				name: "stale",
+			}),
+		).toThrow("Schedule revision changed");
+
+		const disabled = runtime.setScheduleEnabled(
+			"desktop",
+			created.scheduleId,
+			false,
+		);
+		expect(disabled.enabled).toBe(false);
+		advance(8 * 24 * 60 * 60 * 1_000);
+		expect(scheduler.tick().materialized).toBe(0);
+
+		const manual = runtime.triggerSchedule("desktop", created.scheduleId);
+		expect(manual.job.state).toBe("pending");
+		expect(scheduler.tick().admitted).toBe(1);
+		const admitted = stores.scheduleJobs.get(manual.job.jobId);
+		expect(admitted?.runId).toBeDefined();
+		const admittedRunId = admitted?.runId;
+		if (admittedRunId) {
+			await waitFor(
+				() => stores.runs.get(admittedRunId)?.state === "completed",
+			);
+		}
+
+		expect(runtime.deleteSchedule("desktop", created.scheduleId)).toEqual({
+			deleted: true,
+		});
+		expect(stores.schedules.get(created.scheduleId)).toBeUndefined();
+		expect(stores.scheduleJobs.report(created.scheduleId)).toEqual([]);
+		expect(runtime.deleteSchedule("desktop", created.scheduleId)).toEqual({
+			deleted: false,
+		});
+	});
+
 	it("a due schedule creates an ordinary run with automation provenance", async () => {
 		const { runtime, scheduler, stores, botId, advance } = createHarness();
 		const schedule = runtime.createSchedule("test", {

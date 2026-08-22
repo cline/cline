@@ -5,7 +5,11 @@ import { DEFAULT_CHAT_CONFIG } from "@/hooks/chat-session/constants";
 import type { ChatSessionCommandResponse } from "@/hooks/chat-session/types";
 import type { BotSummary } from "@/hooks/use-bots";
 import { DEFAULT_BOT_ID } from "@/hooks/use-bots";
-import { desktopClient, tryTauriInvoke } from "@/lib/desktop-client";
+import {
+	type DesktopBackendTarget,
+	desktopClient,
+	tryTauriInvoke,
+} from "@/lib/desktop-client";
 import type { DesktopTransportMessage } from "@/lib/desktop-transport";
 
 /**
@@ -405,16 +409,21 @@ export async function relayMessageBot(
 	}
 	const targetBot = resolved.bot;
 
-	let endpoint: string;
+	let backendTarget: DesktopBackendTarget;
 	try {
-		endpoint = (
-			await tryTauriInvoke<string>("get_desktop_backend_endpoint", {
+		backendTarget = await tryTauriInvoke<DesktopBackendTarget>(
+			"get_desktop_backend_endpoint",
+			{
 				botId: targetBot.id,
 				projectPath: "",
-			})
-		).trim();
-		if (!endpoint) {
-			throw new Error("received an empty endpoint");
+			},
+		);
+		if (
+			!backendTarget.endpoint?.trim() ||
+			!backendTarget.botId?.trim() ||
+			!backendTarget.workspaceRoot?.trim()
+		) {
+			throw new Error("received an invalid backend target");
 		}
 	} catch (error) {
 		return {
@@ -427,7 +436,7 @@ export async function relayMessageBot(
 
 	let socket: WebSocket;
 	try {
-		socket = await connectDesktopSocket(endpoint);
+		socket = await connectDesktopSocket(backendTarget.endpoint.trim());
 	} catch (error) {
 		return {
 			delivered: false,
@@ -438,19 +447,29 @@ export async function relayMessageBot(
 	}
 
 	let sessionId = item.sessionId?.trim();
+	const desktopScope = {
+		botId: backendTarget.botId.trim(),
+		workspaceRoot: backendTarget.workspaceRoot.trim(),
+	};
 	try {
 		if (sessionId) {
 			await sendDesktopCommand(
 				socket,
 				"chat_session_command",
-				{ request: { action: "attach", sessionId } },
+				{ request: { action: "attach", sessionId, desktopScope } },
 				MESSAGE_BOT_SETUP_TIMEOUT_MS,
 			);
 		} else {
 			const started = await sendDesktopCommand<{ sessionId?: string }>(
 				socket,
 				"chat_session_command",
-				{ request: { action: "start", config: { ...DEFAULT_CHAT_CONFIG } } },
+				{
+					request: {
+						action: "start",
+						config: { ...DEFAULT_CHAT_CONFIG, botId: desktopScope.botId },
+						desktopScope,
+					},
+				},
 				MESSAGE_BOT_SETUP_TIMEOUT_MS,
 			);
 			sessionId = started.sessionId?.trim();
@@ -466,6 +485,7 @@ export async function relayMessageBot(
 			prompt: item.message,
 			clientTurnId,
 			delivery: "queue",
+			desktopScope,
 		};
 		if (item.mode === "fire_and_forget") {
 			// Fire-and-forget skips model completion, but "delivered" still means

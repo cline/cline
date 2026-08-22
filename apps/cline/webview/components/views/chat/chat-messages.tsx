@@ -7,7 +7,7 @@ import {
 	ConversationScrollButton,
 	ConversationViewport,
 } from "@cline/ui/components/agent-chat";
-import { Loader2 } from "lucide-react";
+import { Loader2, RefreshCw } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import {
 	AlertDialog,
@@ -19,12 +19,18 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import type {
 	ChatMessage,
 	ChatMessageImage,
 	ChatSessionStatus,
 } from "@/lib/chat-schema";
+import {
+	desktopConnectionCopy,
+	isDesktopConnectionError,
+} from "@/lib/desktop-connection";
+import { isProviderCredentialErrorMessage } from "@/lib/provider-connection";
 import { cn } from "@/lib/utils";
 import { STREAMING_TITLE_CLASS } from "./messages/constants";
 import {
@@ -54,6 +60,7 @@ type ChatMessagesProps = {
 		| "reconnecting"
 		| "connected"
 		| "unavailable";
+	chatTransportError?: string | null;
 	isSessionSwitching?: boolean;
 	messages: ChatMessage[];
 	error: string | null;
@@ -73,6 +80,9 @@ type ChatMessagesProps = {
 		runCount: number,
 	) => void | Promise<void>;
 	onForkSession?: () => void | Promise<void>;
+	onAbort?: () => void | Promise<void>;
+	onOpenModelSettings?: () => void;
+	onRetryConnection?: () => void;
 	onCreateBot: OnCreateBot;
 };
 
@@ -92,6 +102,7 @@ function ChatMessagesImpl({
 	sessionId,
 	status,
 	chatTransportState = "connecting",
+	chatTransportError = null,
 	isSessionSwitching = false,
 	messages,
 	error,
@@ -104,6 +115,9 @@ function ChatMessagesImpl({
 	onRestoreCheckpoint,
 	onEditMessage,
 	onForkSession,
+	onAbort,
+	onOpenModelSettings,
+	onRetryConnection,
 	onCreateBot,
 }: ChatMessagesProps) {
 	const hasMessages = messages.length > 0;
@@ -144,6 +158,29 @@ function ChatMessagesImpl({
 		!lastToolInProgress &&
 		pendingToolApprovals.length === 0 &&
 		pendingAskQuestions.length === 0;
+	const waitingStage =
+		status === "starting"
+			? "submitting"
+			: isAwaitingFirstOutput
+				? "model-output"
+				: null;
+	const isWaitingForAgent = waitingStage !== null;
+	const waitingTimerKey = waitingStage
+		? `${sessionId ?? "new-session"}:${waitingStage}`
+		: null;
+	const [isWaitingLong, setIsWaitingLong] = useState(false);
+	useEffect(() => {
+		setIsWaitingLong(false);
+		if (!waitingTimerKey) return;
+		const timer = window.setTimeout(() => setIsWaitingLong(true), 15_000);
+		return () => window.clearTimeout(timer);
+	}, [waitingTimerKey]);
+	const hasConnectionError = isDesktopConnectionError(error);
+	const hasCredentialError = isProviderCredentialErrorMessage(error);
+	const connectionCopy = desktopConnectionCopy(
+		chatTransportState,
+		status === "starting" || status === "running" || status === "stopping",
+	);
 	const [showSwitchTransition, setShowSwitchTransition] = useState(false);
 	const [toolApprovalActions, setToolApprovalActions] = useState<
 		Record<string, "approving" | "rejecting">
@@ -625,26 +662,104 @@ function ChatMessagesImpl({
 								</div>
 							)
 						) : null}
-						{(status === "starting" || isAwaitingFirstOutput) &&
-						!isSessionSwitching ? (
-							<div className="flex min-h-7 items-center gap-2 py-1 text-sm font-medium text-muted-foreground">
-								<Loader2 className="size-4 animate-spin" />
-								<span className={STREAMING_TITLE_CLASS}>Thinking...</span>
+						{isWaitingForAgent && !isSessionSwitching ? (
+							<div
+								className={cn(
+									"flex min-h-7 items-start gap-2 py-1 text-sm text-muted-foreground",
+									isWaitingLong &&
+										"rounded-lg border border-amber-500/30 bg-amber-500/5 p-3",
+								)}
+							>
+								<Loader2 className="mt-0.5 size-4 shrink-0 animate-spin" />
+								<div className="min-w-0">
+									<span className={cn(STREAMING_TITLE_CLASS, "font-medium")}>
+										{isWaitingLong ? "Still thinking..." : "Thinking..."}
+									</span>
+									{isWaitingLong ? (
+										<>
+											<p className="mt-1 text-xs font-normal text-muted-foreground">
+												{status === "starting"
+													? "The bundled Gateway has not confirmed run admission yet."
+													: "The run is active, but no new model output has arrived."}
+											</p>
+											{onAbort ? (
+												<Button
+													className="mt-2"
+													onClick={() => void onAbort()}
+													size="xs"
+													type="button"
+													variant="outline"
+												>
+													Stop run
+												</Button>
+											) : null}
+										</>
+									) : null}
+								</div>
 							</div>
 						) : null}
 						{chatTransportState !== "connected" && !shouldShowErrorBanner ? (
-							<div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
-								<Loader2 className="h-3.5 w-3.5 animate-spin" />
-								{chatTransportState === "reconnecting"
-									? "Reconnecting chat..."
-									: chatTransportState === "unavailable"
-										? "Chat backend unavailable"
-										: "Connecting chat..."}
+							<div className="mt-4 flex items-start justify-between gap-3 rounded-lg border border-border bg-card p-3 text-sm">
+								<div className="flex min-w-0 items-start gap-2">
+									<Loader2 className="mt-0.5 size-4 shrink-0 animate-spin text-muted-foreground" />
+									<div>
+										<p className="font-medium">{connectionCopy.title}</p>
+										<p className="mt-0.5 text-xs text-muted-foreground">
+											{connectionCopy.description}
+										</p>
+										{chatTransportError ? (
+											<p className="cline-chat-selectable mt-1 break-words font-mono text-xs text-muted-foreground">
+												{chatTransportError}
+											</p>
+										) : null}
+									</div>
+								</div>
+								{onRetryConnection ? (
+									<Button
+										onClick={onRetryConnection}
+										size="xs"
+										type="button"
+										variant="outline"
+									>
+										<RefreshCw className="size-3" />
+										Retry
+									</Button>
+								) : null}
 							</div>
 						) : null}
-						{shouldShowErrorBanner ? (
-							<div className="cline-chat-selectable mt-4 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
-								{error}
+						{shouldShowErrorBanner ||
+						hasConnectionError ||
+						hasCredentialError ? (
+							<div className="cline-chat-selectable mt-4 flex items-start justify-between gap-3 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+								<span>
+									{shouldShowErrorBanner
+										? error
+										: hasConnectionError
+											? "The bundled Gateway connection needs attention."
+											: "Your model connection needs attention."}
+								</span>
+								{hasConnectionError && onRetryConnection ? (
+									<Button
+										className="shrink-0"
+										onClick={onRetryConnection}
+										size="xs"
+										type="button"
+										variant="outline"
+									>
+										<RefreshCw className="size-3" />
+										Retry connection
+									</Button>
+								) : hasCredentialError && onOpenModelSettings ? (
+									<Button
+										className="shrink-0"
+										onClick={onOpenModelSettings}
+										size="xs"
+										type="button"
+										variant="outline"
+									>
+										Open Models
+									</Button>
+								) : null}
 							</div>
 						) : null}
 					</SessionContent>
@@ -703,11 +818,11 @@ function ChatMessagesImpl({
 			>
 				<AlertDialogContent>
 					<AlertDialogHeader>
-						<AlertDialogTitle>Edit and restart from here?</AlertDialogTitle>
+						<AlertDialogTitle>Edit and branch from here?</AlertDialogTitle>
 						<AlertDialogDescription>
-							This creates a new session and restores the workspace to its
-							checkpoint before placing this message in the composer. Workspace
-							and conversation changes after this point will be discarded.
+							This creates a new Gateway session with the conversation history
+							before this message, then places the text in the composer.
+							Workspace files are not rolled back and remain as they are now.
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter>
@@ -726,7 +841,7 @@ function ChatMessagesImpl({
 								}
 							}}
 						>
-							Continue
+							Create branch
 						</AlertDialogAction>
 					</AlertDialogFooter>
 				</AlertDialogContent>

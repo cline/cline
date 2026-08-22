@@ -37,6 +37,14 @@
 			"types": "./dist/gateway/index.d.ts",
 			"import": "./dist/gateway/index.js"
 		},
+		"./agent": {
+			"types": "./dist/agent.d.ts",
+			"import": "./dist/agent.js"
+		},
+		"./connectors": {
+			"types": "./dist/connectors/index.d.ts",
+			"import": "./dist/connectors/index.js"
+		},
 		"./node": {
 			"types": "./dist/node.d.ts",
 			"import": "./dist/node.js"

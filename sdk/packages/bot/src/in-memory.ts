@@ -82,6 +82,10 @@ export class InMemorySessionRepository implements SessionRepository {
 		}
 		this.records.set(record.sessionId, record);
 	}
+
+	delete(sessionId: SessionId): boolean {
+		return this.records.delete(sessionId);
+	}
 }
 
 export class InMemoryRunRepository implements RunRepository {
@@ -99,6 +103,16 @@ export class InMemoryRunRepository implements RunRepository {
 
 	save(record: RunRecord): void {
 		this.records.set(record.runId, record);
+	}
+
+	updateQueuedInput(runId: RunId, input: string): RunRecord {
+		const record = this.records.get(runId);
+		if (!record || record.state !== "queued") {
+			throw new Error(`Run ${runId} is not queued`);
+		}
+		const updated = { ...record, input };
+		this.records.set(runId, updated);
+		return updated;
 	}
 }
 

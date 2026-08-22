@@ -4,6 +4,7 @@
  */
 
 import type { AgentModel, AgentModelEvent } from "@cline/engine";
+import type { AgentMessage, AgentModelRequest } from "@cline/shared";
 import { describe, expect, it } from "vitest";
 import { Bot } from "./bot";
 import { createEngineExecutionPort } from "./engine-adapter";
@@ -58,6 +59,54 @@ function setup(model: AgentModel) {
 }
 
 describe("bot -> engine composition", () => {
+	it("forwards persisted session history into the engine", async () => {
+		const requests: AgentModelRequest[] = [];
+		const model: AgentModel = {
+			stream(request) {
+				requests.push(request);
+				return (async function* () {
+					yield* textTurn("continued");
+				})();
+			},
+		};
+		const history: AgentMessage[] = [
+			{
+				id: "msg_user_1",
+				role: "user",
+				content: [{ type: "text", text: "prior question" }],
+				createdAt: 1,
+			},
+			{
+				id: "msg_assistant_1",
+				role: "assistant",
+				content: [{ type: "text", text: "prior answer" }],
+				createdAt: 2,
+			},
+		];
+		const ids = createSequentialIdSource();
+		const engine = createEngineExecutionPort({
+			model: () => ({ kind: "model", model }),
+		});
+		const handle = engine.start({
+			runId: ids.runId(),
+			sessionId: ids.sessionId(),
+			botId: ids.botId(),
+			input: "continue",
+			workspaceRoot: "/repo/x",
+			initialMessages: history,
+			effectiveConfig: {},
+		});
+
+		await handle.result;
+
+		expect(requests).toHaveLength(1);
+		expect(requests[0].messages.slice(0, 2)).toEqual(history);
+		expect(requests[0].messages.at(-1)).toMatchObject({
+			role: "user",
+			content: [{ type: "text", text: "continue" }],
+		});
+	});
+
 	it("runs a prompt end-to-end through the real engine", async () => {
 		const { ports, bot } = setup(scriptedModel([textTurn("engine says hi")]));
 		const ack = bot.submitPrompt("hello engine", {

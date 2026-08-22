@@ -8,6 +8,7 @@
  * unsupervised child — see `boundaries.test.ts`.
  */
 
+import type { AgentMessage } from "@cline/shared";
 import type {
 	BotId,
 	RunExecutionSnapshot,
@@ -18,6 +19,30 @@ import type {
 } from "@cline/shared/gateway";
 import type { BotConfig, BotRecord } from "./identity";
 import type { TurnOverrides } from "./overrides";
+
+/**
+ * Gateway-resolved MCP resource attached in memory immediately before an
+ * attempt. Secret env/header values are never part of durable bot config.
+ */
+export type EngineMcpServer =
+	| {
+			readonly name: string;
+			readonly transport: {
+				readonly kind: "stdio";
+				readonly command: string;
+				readonly args?: readonly string[];
+				readonly env?: Readonly<Record<string, string>>;
+				readonly cwd?: string;
+			};
+	  }
+	| {
+			readonly name: string;
+			readonly transport: {
+				readonly kind: "http";
+				readonly url: string;
+				readonly headers?: Readonly<Record<string, string>>;
+			};
+	  };
 
 export interface BotClock {
 	now(): number;
@@ -62,6 +87,10 @@ export interface SessionRecord {
 	readonly workspace: WorkspaceRef;
 	readonly state: SessionState;
 	readonly kind?: SessionKind;
+	/** User-authored display title; absent means clients derive one from history. */
+	readonly title?: string;
+	/** Gateway-owned application metadata (favorite flags, fork annotations, etc.). */
+	readonly metadata?: Readonly<Record<string, unknown>>;
 	readonly createdAt: number;
 	readonly revision: number;
 }
@@ -74,6 +103,8 @@ export interface SessionRepository {
 	 * existing session's workspace (`WorkspaceImmutableError`).
 	 */
 	save(record: SessionRecord): void;
+	/** Permanently remove an idle, closed session and its owned history. */
+	delete(sessionId: SessionId): boolean;
 }
 
 export interface RunRecord {
@@ -93,6 +124,8 @@ export interface RunRepository {
 	get(runId: RunId): RunRecord | undefined;
 	listBySession(sessionId: SessionId): readonly RunRecord[];
 	save(record: RunRecord): void;
+	/** Replace the input of a run that is still queued and return the stored row. */
+	updateQueuedInput(runId: RunId, input: string): RunRecord;
 }
 
 // -----------------------------------------------------------------------------
@@ -118,6 +151,8 @@ export interface EngineInvocation {
 	readonly botId: BotId;
 	readonly input: string;
 	readonly workspaceRoot: string;
+	/** Gateway-owned canonical history captured before this run starts. */
+	readonly initialMessages?: readonly AgentMessage[];
 	/** Durable admission source, attached by the Gateway before execution. */
 	readonly source?: "interactive" | "connector" | "automation";
 	/** Bot config with per-turn overrides already applied. */
@@ -125,6 +160,10 @@ export interface EngineInvocation {
 	readonly overrides?: TurnOverrides;
 	/** Gateway-resolved immutable resources for this concrete attempt. */
 	readonly executionSnapshot?: RunExecutionSnapshot;
+	/** Agent Plugin roots from the run's pinned Gateway catalog generation. */
+	readonly pluginRoots?: readonly string[];
+	/** Gateway-owned MCP settings with secrets resolved only in process. */
+	readonly mcpServers?: readonly EngineMcpServer[];
 }
 
 export interface EngineOutcome {

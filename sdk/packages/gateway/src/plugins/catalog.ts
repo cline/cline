@@ -14,7 +14,7 @@
  */
 
 import { readdirSync, realpathSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import type { BotId } from "@cline/shared/gateway";
 import { fingerprintPluginDir, type LoadedPlugin, loadPlugin } from "./loader";
 import type { PluginDiagnostic } from "./manifest";
@@ -95,8 +95,17 @@ const EMPTY_GENERATION: CatalogGenerationSnapshot = Object.freeze({
 	diagnostics: Object.freeze([]) as unknown as readonly CatalogDiagnostic[],
 });
 
+function canonicalRoot(root: string): string {
+	try {
+		return realpathSync(root);
+	} catch {
+		return resolve(root);
+	}
+}
+
 export class PluginCatalog {
 	private sources: readonly PluginSource[];
+	private disabledRoots = new Set<string>();
 	private readonly clock: () => number;
 	private readonly onPublish: (snapshot: CatalogGenerationSnapshot) => void;
 	private readonly held = new Map<number, HeldGeneration>();
@@ -128,6 +137,15 @@ export class PluginCatalog {
 
 	addSource(source: PluginSource): void {
 		this.sources = [...this.sources, source];
+	}
+
+	/**
+	 * Replace the Gateway-owned disabled-root policy. Roots stay on disk so a
+	 * later enable is lossless, but subsequent generations exclude them. The
+	 * caller must invoke `reload()` after changing the policy.
+	 */
+	setDisabledRoots(roots: readonly string[]): void {
+		this.disabledRoots = new Set(roots.map(canonicalRoot));
 	}
 
 	/**
@@ -183,6 +201,9 @@ export class PluginCatalog {
 		try {
 			for (const source of this.sources) {
 				for (const rootDir of listPluginRoots(source.dir)) {
+					if (this.disabledRoots.has(canonicalRoot(rootDir))) {
+						continue;
+					}
 					const scopeKey = pluginScopeKey(source.scope);
 					const previous = previousByRoot.get(`${scopeKey}\u0000${rootDir}`);
 					if (

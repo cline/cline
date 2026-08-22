@@ -23,6 +23,8 @@ export interface McpStdioTransportSpec {
 export interface McpHttpTransportSpec {
 	readonly kind: "http";
 	readonly url: string;
+	/** Resolved only inside the Gateway (never returned through client APIs). */
+	readonly headers?: Readonly<Record<string, string>>;
 }
 
 export type McpTransportSpec = McpStdioTransportSpec | McpHttpTransportSpec;

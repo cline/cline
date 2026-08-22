@@ -312,7 +312,7 @@ export const MessageBubble = memo(function MessageBubble({
 								onClick={() =>
 									void onEditMessage(message.id, displayContent, runCount)
 								}
-								title="Edit message and restart from this point"
+								title="Edit message in a new conversation branch"
 							>
 								{editPending ? (
 									<Loader2 className="h-3.5 w-3.5 animate-spin" />

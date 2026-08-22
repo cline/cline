@@ -45,7 +45,8 @@
 	}
 
 	/* Selectable content surfaces: chat message bodies (incl. markdown and
-	 * code blocks), reasoning/tool panels, and diff text. */
+	 * code blocks), reasoning/tool panels, diff text, and document-like pages. */
+	.cline-page-selectable,
 	.cline-chat-message-content,
 	.cline-markdown,
 	.cline-chat-selectable,

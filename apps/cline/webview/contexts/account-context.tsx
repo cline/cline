@@ -1,6 +1,5 @@
 "use client";
 
-import type { ClineAccountOrganization, ClineAccountUser } from "@/lib/account-types";
 import {
 	createContext,
 	useCallback,
@@ -9,6 +8,10 @@ import {
 	useMemo,
 	useState,
 } from "react";
+import type {
+	ClineAccountOrganization,
+	ClineAccountUser,
+} from "@/lib/account-types";
 import { isClineAccountNotAuthenticatedResult } from "@/lib/cline-account-state";
 import { desktopClient } from "@/lib/desktop-client";
 
@@ -21,7 +24,7 @@ const SIGNED_OUT_ERROR_MARKERS = [
 
 type AccountContextValue = {
 	user: ClineAccountUser | null;
-	organizations: ClineAccountOrganization[];
+	organizations: readonly ClineAccountOrganization[];
 	activeOrganization: ClineAccountOrganization | null;
 	refreshAccount: () => Promise<void>;
 };

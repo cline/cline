@@ -1,10 +1,10 @@
 "use client";
 
 import {
-	CLINE_DEFAULT_MODEL_ID,
 	ONE_TIME_SCHEDULE_CRON_PATTERN,
 	ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY,
-} from "@cline/shared/browser";
+} from "@cline/shared/automation";
+import { CLINE_DEFAULT_MODEL_ID } from "@cline/shared/browser";
 import {
 	CheckCircle2,
 	Circle,
@@ -1094,7 +1094,7 @@ export function RoutineSchedulesContent({
 	return (
 		<PageFrame>
 			<PageHeader
-				description="Scheduled jobs are run through the hub."
+				description="Scheduled jobs are run by the Gateway."
 				title="Schedules"
 				meta={<CommandBadge>cline schedule</CommandBadge>}
 				actions={

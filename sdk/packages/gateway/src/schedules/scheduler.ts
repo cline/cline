@@ -15,6 +15,7 @@ import type { RunAccepted } from "@cline/shared/gateway";
 import { isTerminalRunState } from "@cline/shared/gateway";
 import type { GatewayDatabase } from "../db";
 import type { GatewayStores } from "../stores";
+import { nextCronDueAt } from "./cron";
 import type { ScheduleJobRecord, ScheduleRecord } from "./store";
 
 export interface ScheduleOutcomeNotification {
@@ -125,7 +126,12 @@ export class Scheduler {
 					now,
 				);
 				report.materialized += 1;
-				if (schedule.intervalMs && schedule.intervalMs > 0) {
+				if (schedule.cronPattern) {
+					this.options.stores.schedules.advanceNextDue(
+						schedule.scheduleId,
+						nextCronDueAt(schedule.cronPattern, now),
+					);
+				} else if (schedule.intervalMs && schedule.intervalMs > 0) {
 					// Missed firings coalesce into the one just materialized;
 					// the next due time is always in the future.
 					let next = dueAt + schedule.intervalMs;

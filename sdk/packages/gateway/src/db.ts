@@ -377,6 +377,17 @@ export const GATEWAY_MIGRATIONS: readonly GatewayMigration[] = [
 			`ALTER TABLE schedules ADD COLUMN notify_external_conversation_id TEXT;`,
 		],
 	},
+	{
+		version: 6,
+		name: "session-metadata-and-managed-schedules",
+		statements: [
+			`ALTER TABLE sessions ADD COLUMN title TEXT;`,
+			`ALTER TABLE sessions ADD COLUMN metadata_json TEXT NOT NULL DEFAULT '{}';`,
+			`ALTER TABLE schedules ADD COLUMN cron_pattern TEXT;`,
+			`ALTER TABLE schedules ADD COLUMN details_json TEXT NOT NULL DEFAULT '{}';`,
+			`ALTER TABLE schedules ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0;`,
+		],
+	},
 ];
 
 export class GatewayDatabase {

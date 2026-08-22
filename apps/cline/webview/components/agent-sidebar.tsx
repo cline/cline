@@ -4,12 +4,14 @@ import {
 	Activity,
 	ArrowDownUp,
 	Bot,
+	Check,
 	ChevronDown,
 	ChevronLeft,
 	ChevronRight,
 	CircleUserRound,
 	Clock3,
 	Code,
+	Copy,
 	FileText,
 	Filter,
 	FolderTree,
@@ -20,6 +22,7 @@ import {
 	Plug,
 	Plus,
 	Radio,
+	RefreshCw,
 	ScrollText,
 	Search,
 	Server,
@@ -38,8 +41,8 @@ import {
 	useState,
 } from "react";
 import { AppUpdateIndicator } from "@/components/app-update-indicator";
-import { GatewayUpdateIndicator } from "@/components/gateway-update-indicator";
 import { BotSwitcher } from "@/components/bot-switcher";
+import { GatewayUpdateIndicator } from "@/components/gateway-update-indicator";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -72,6 +75,11 @@ import {
 	HoverCardTrigger,
 } from "@/components/ui/hover-card";
 import { Input } from "@/components/ui/input";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useSidebar } from "@/components/ui/sidebar";
 import { normalizeTitle } from "@/components/utils";
@@ -80,7 +88,6 @@ import {
 	SETTINGS_SECTIONS,
 	type SettingsSection,
 } from "@/components/views/settings/sections";
-import { useAccount } from "@/contexts/account-context";
 import type { BotSummary } from "@/hooks/use-bots";
 import type {
 	SessionThread,
@@ -111,16 +118,24 @@ type SidebarSortMode = "time" | "project";
 type DesktopProcessContext = {
 	appVersion?: unknown;
 	gateway?: {
+		dataDir?: unknown;
 		error?: unknown;
+		historyDatabase?: unknown;
 		status?: unknown;
 		namespace?: unknown;
+		webSocketAddress?: unknown;
+		webSocketProtocol?: unknown;
 	};
 };
 
 type GatewayStatus = {
 	connected: boolean;
+	dataDir: string | null;
 	error: string | null;
+	historyDatabase: string | null;
 	namespace: string | null;
+	webSocketAddress: string | null;
+	webSocketProtocol: string | null;
 };
 
 const SETTINGS_SECTION_ICONS = {
@@ -134,7 +149,6 @@ const SETTINGS_SECTION_ICONS = {
 	MCP: Server,
 	Hooks: Code,
 	Rules: FileText,
-	Agents: Bot,
 	Tools: Wrench,
 	"System Prompt": ScrollText,
 } satisfies Record<SettingsSection, typeof Settings>;
@@ -240,14 +254,6 @@ export function AgentSidebar({
 }) {
 	const { isMobile, setOpen, setOpenMobile, state } = useSidebar();
 	const isCollapsed = !isMobile && state === "collapsed";
-	const { user, activeOrganization } = useAccount();
-	const { displayName, email } = user || {};
-	const username = displayName?.split(" ")?.[0] || email?.split("@")?.[0];
-	const accountName = username?.trim() || "Cline Desktop";
-	const accountScope = user
-		? (activeOrganization?.name ?? "Personal")
-		: undefined;
-	const accountInitial = accountName.charAt(0).toUpperCase();
 	const {
 		deleteThread: deleteHistoryThread,
 		forkThread: forkHistoryThread,
@@ -284,7 +290,11 @@ export function AgentSidebar({
 		Record<string, number>
 	>({});
 	const [appVersion, setAppVersion] = useState<string | null>(null);
-	const [gatewayStatus, setGatewayStatus] = useState<GatewayStatus | null>(null);
+	const [gatewayStatus, setGatewayStatus] = useState<GatewayStatus | null>(
+		null,
+	);
+	const [gatewayPopoverOpen, setGatewayPopoverOpen] = useState(false);
+	const [copiedGatewayAddress, setCopiedGatewayAddress] = useState(false);
 
 	const loadProcessContext = useCallback(async () => {
 		try {
@@ -302,23 +312,62 @@ export function AgentSidebar({
 					: null;
 			setGatewayStatus({
 				connected: context?.gateway?.status === "connected",
+				dataDir:
+					typeof context?.gateway?.dataDir === "string"
+						? context.gateway.dataDir.trim() || null
+						: null,
 				error:
 					typeof context?.gateway?.error === "string"
 						? context.gateway.error.trim() || null
 						: null,
+				historyDatabase:
+					typeof context?.gateway?.historyDatabase === "string"
+						? context.gateway.historyDatabase.trim() || null
+						: null,
 				namespace,
+				webSocketAddress:
+					typeof context?.gateway?.webSocketAddress === "string"
+						? context.gateway.webSocketAddress.trim() || null
+						: null,
+				webSocketProtocol:
+					typeof context?.gateway?.webSocketProtocol === "string"
+						? context.gateway.webSocketProtocol.trim() || null
+						: null,
 			});
 		} catch (error) {
 			setGatewayStatus({
 				connected: false,
+				dataDir: null,
 				error:
 					error instanceof Error
 						? error.message
 						: "Unable to read Gateway status.",
+				historyDatabase: null,
 				namespace: null,
+				webSocketAddress: null,
+				webSocketProtocol: null,
 			});
 		}
 	}, []);
+	const retryGatewayConnection = useCallback(() => {
+		setGatewayStatus((current) => ({
+			connected: false,
+			dataDir: current?.dataDir ?? null,
+			error: null,
+			historyDatabase: current?.historyDatabase ?? null,
+			namespace: current?.namespace ?? null,
+			webSocketAddress: current?.webSocketAddress ?? null,
+			webSocketProtocol: current?.webSocketProtocol ?? null,
+		}));
+		setCopiedGatewayAddress(false);
+		desktopClient.retryConnection();
+	}, []);
+	const copyGatewayAddress = useCallback(async () => {
+		const address = gatewayStatus?.webSocketAddress;
+		if (!address || !navigator.clipboard?.writeText) return;
+		await navigator.clipboard.writeText(address);
+		setCopiedGatewayAddress(true);
+	}, [gatewayStatus?.webSocketAddress]);
 
 	useEffect(
 		() =>
@@ -329,11 +378,13 @@ export function AgentSidebar({
 				}
 				setGatewayStatus((current) => ({
 					connected: false,
+					dataDir: current?.dataDir ?? null,
 					error:
-						state === "unavailable"
-							? desktopClient.getTransportError()
-							: null,
+						state === "unavailable" ? desktopClient.getTransportError() : null,
+					historyDatabase: current?.historyDatabase ?? null,
 					namespace: current?.namespace ?? null,
+					webSocketAddress: current?.webSocketAddress ?? null,
+					webSocketProtocol: current?.webSocketProtocol ?? null,
 				}));
 			}),
 		[loadProcessContext],
@@ -884,27 +935,136 @@ export function AgentSidebar({
 						</Button>
 					) : (
 						<div className="flex min-w-0 items-center justify-between gap-2">
-							<div
-								className="flex min-w-0 px-3 items-center gap-1.5 text-xs text-muted-foreground"
-								title={
-									gatewayStatus?.connected
-										? `Gateway (${gatewayStatus.namespace ?? "desktop"}) connected`
-										: (gatewayStatus?.error ?? "Gateway is not connected.")
-								}
+							<Popover
+								onOpenChange={setGatewayPopoverOpen}
+								open={gatewayPopoverOpen}
 							>
-								<span
-									aria-hidden="true"
-									className={cn(
-										"size-1.5 shrink-0 rounded-full",
-										gatewayStatus?.connected
-											? "bg-emerald-500"
-											: "bg-muted-foreground",
-									)}
-								/>
-								<span className="truncate text-muted-foreground/50">
-									{appVersion ? `v${appVersion}` : null}
-								</span>
-							</div>
+								<PopoverTrigger asChild>
+									<Button
+										aria-label={
+											gatewayStatus?.connected
+												? "Gateway connected"
+												: gatewayStatus
+													? "Gateway unavailable"
+													: "Checking Gateway status"
+										}
+										className="min-w-0 justify-start px-3 text-xs"
+										size="xs"
+										type="button"
+										variant="text"
+									>
+										<span
+											aria-hidden="true"
+											className={cn(
+												"size-1.5 shrink-0 rounded-full",
+												gatewayStatus?.connected
+													? "bg-emerald-500"
+													: gatewayStatus
+														? "bg-destructive"
+														: "animate-pulse bg-amber-500",
+											)}
+										/>
+										<span className="truncate">Gateway</span>
+										{appVersion ? (
+											<span className="truncate text-muted-foreground/50">
+												v{appVersion}
+											</span>
+										) : null}
+									</Button>
+								</PopoverTrigger>
+								<PopoverContent
+									align="start"
+									className="w-96 max-w-[calc(100vw-1rem)]"
+									side="top"
+								>
+									<p className="text-sm font-semibold">
+										{appVersion
+											? `Bundled Gateway v${appVersion}`
+											: "Bundled Gateway"}
+									</p>
+									{!gatewayStatus?.connected ? (
+										<p className="mt-1 text-xs text-muted-foreground">
+											{gatewayStatus
+												? "Chat requires the local Gateway. Retry here; Cline will restart its supervised backend when needed."
+												: "Checking the bundled Gateway..."}
+										</p>
+									) : null}
+									{gatewayStatus?.connected &&
+									gatewayStatus.webSocketAddress ? (
+										<div className="mt-3 rounded-md border border-border bg-muted/40 p-2.5">
+											<p className="text-xs font-medium">
+												Local web app WebSocket
+											</p>
+											<div className="mt-1.5 flex items-center gap-2">
+												<code className="cline-chat-selectable min-w-0 flex-1 break-all text-xs text-muted-foreground">
+													{gatewayStatus.webSocketAddress}
+												</code>
+												<Button
+													aria-label="Copy Gateway WebSocket address"
+													className="size-7 shrink-0"
+													onClick={() => void copyGatewayAddress()}
+													size="icon"
+													type="button"
+													variant="ghost"
+												>
+													{copiedGatewayAddress ? (
+														<Check className="size-3.5" />
+													) : (
+														<Copy className="size-3.5" />
+													)}
+												</Button>
+											</div>
+											<p className="mt-1.5 text-[11px] text-muted-foreground">
+												Use subprotocol{" "}
+												{gatewayStatus.webSocketProtocol ?? "cline-desktop-v1"}{" "}
+												from an allowed local origin.
+											</p>
+										</div>
+									) : null}
+									{gatewayStatus?.historyDatabase ? (
+										<div className="mt-3">
+											<p className="text-xs font-medium">
+												Chat history database
+											</p>
+											<code className="cline-chat-selectable mt-1 block break-all text-xs text-muted-foreground">
+												{gatewayStatus.historyDatabase}
+											</code>
+										</div>
+									) : null}
+									{gatewayStatus?.error ? (
+										<p className="cline-chat-selectable mt-2 break-words font-mono text-xs text-muted-foreground">
+											{gatewayStatus.error}
+										</p>
+									) : null}
+									<div className="mt-3 grid gap-2">
+										<Button
+											className="w-full justify-center"
+											onClick={retryGatewayConnection}
+											size="xs"
+											type="button"
+										>
+											<span aria-hidden="true">
+												<RefreshCw className="size-3" />
+											</span>
+											{gatewayStatus?.connected
+												? "Check again"
+												: "Retry connection"}
+										</Button>
+										<Button
+											className="w-full justify-center"
+											onClick={() => {
+												setGatewayPopoverOpen(false);
+												openSettings();
+											}}
+											size="xs"
+											type="button"
+											variant="outline"
+										>
+											Settings
+										</Button>
+									</div>
+								</PopoverContent>
+							</Popover>
 							<Button
 								aria-label="Settings"
 								className={cn(

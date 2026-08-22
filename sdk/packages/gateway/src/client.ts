@@ -16,9 +16,11 @@ import type { Duplex } from "node:stream";
 import type {
 	BotRecord,
 	RunRecord,
+	SessionKind,
 	SessionRecord,
 	TurnOverrides,
 } from "@cline/bot";
+import type { VoiceInputSelection } from "@cline/shared";
 import type {
 	BotId,
 	BotToolConfiguration,
@@ -31,6 +33,7 @@ import type {
 	GatewayServerRequest,
 	RunAccepted,
 	RunId,
+	ScheduleId,
 	SessionId,
 	ToolDescriptor,
 	ToolProfile,
@@ -46,10 +49,43 @@ import {
 	RunAcceptedSchema,
 } from "@cline/shared/gateway";
 import { WebSocket } from "ws";
+import type {
+	GatewayClineAccountQuery,
+	GatewayClineAccountQueryResult,
+	GatewayClineAccountSwitchResult,
+} from "./cline-account";
 import type { ConnectorRecord } from "./connectors/store";
 import { isLoopbackHost } from "./remote";
 import { createGatewayWebSocketStream } from "./websocket-stream";
 
+export {
+	ONE_TIME_SCHEDULE_CRON_PATTERN,
+	ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY,
+} from "@cline/shared/automation";
+export type {
+	ClineAccountNotAuthenticatedResult,
+	GatewayClineAccountBalance,
+	GatewayClineAccountOrganization,
+	GatewayClineAccountQuery,
+	GatewayClineAccountQueryResult,
+	GatewayClineAccountSwitchResult,
+	GatewayClineAccountUser,
+	GatewayClineOrganizationBalance,
+	GatewayClineOrganizationUsageTransaction,
+	GatewayClinePaymentTransaction,
+	GatewayClineUsageTransaction,
+} from "./cline-account";
+export {
+	CLINE_ACCOUNT_NOT_AUTHENTICATED_CODE,
+	CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT,
+} from "./cline-account";
+export type {
+	AddGatewayProviderInput,
+	ProviderCredentialPresence,
+	ProviderSettingsPatch,
+	PublicProviderSettings,
+	UpdateGatewayProviderModelsInput,
+} from "./provider-settings";
 export {
 	gatewayProviderSettingsPath,
 	listSavedProviderSummaries,
@@ -57,12 +93,53 @@ export {
 } from "./provider-settings";
 
 import type { DiscoveryRecord } from "./discovery";
-import type { SessionSnapshot } from "./runtime";
+import type {
+	GatewayGlobalSettings,
+	GatewayGlobalSettingsPatch,
+} from "./global-settings";
+import type {
+	GatewayManagedExtensionsResponse,
+	GatewayMarketplaceActionResult,
+	GatewayMarketplaceCatalog,
+	GatewayMcpServerInput,
+	GatewayMcpServersResponse,
+	MarketplacePrimitiveType,
+} from "./managed-extensions";
+
+export {
+	MCP_OAUTH_UNAVAILABLE_MESSAGE,
+	MCP_REDACTED_VALUE,
+} from "./managed-extensions";
+
+import type {
+	AddGatewayProviderInput,
+	ProviderSettingsPatch,
+	PublicProviderSettings,
+	UpdateGatewayProviderModelsInput,
+} from "./provider-settings";
+import type {
+	QueuedRunPromotionResult,
+	QueuedRunUpdateResult,
+	ScheduleCreateParams,
+	ScheduleDeleteResult,
+	ScheduleTriggerResult,
+	ScheduleUpdateParams,
+	SessionDeleteResult,
+	SessionForkResult,
+	SessionSnapshot,
+	SessionUpdateParams,
+} from "./runtime";
 import type { ScheduleJobRecord, ScheduleRecord } from "./schedules/store";
 import type {
 	ToolConfigurationScope,
 	VersionedToolConfiguration,
 } from "./tools/store";
+import type {
+	VoiceSettingsResult,
+	VoiceStreamingSession,
+	VoiceTranscriptionInput,
+	VoiceTranscriptionResult,
+} from "./voice";
 
 export class GatewayRequestError extends Error {
 	readonly gatewayError: GatewayError;
@@ -84,6 +161,8 @@ export interface GatewayClientOptions {
 	/** Resume a previously assigned client identity. */
 	clientId?: string;
 	connectTimeoutMs?: number;
+	/** Deadline for an acknowledged Gateway control request. */
+	requestTimeoutMs?: number;
 }
 
 export interface GatewayRemoteClientOptions {
@@ -94,6 +173,8 @@ export interface GatewayRemoteClientOptions {
 	clientVersion?: string;
 	clientId?: string;
 	connectTimeoutMs?: number;
+	/** Deadline for an acknowledged Gateway control request. */
+	requestTimeoutMs?: number;
 	allowInsecure?: boolean;
 	/** Node TLS validation remains enabled unless explicitly disabled for development. */
 	rejectUnauthorized?: boolean;
@@ -107,19 +188,54 @@ export type GatewayServerRequestHandler = (
 // Re-exported so `@cline/gateway/client` consumers never reach into the
 // Gateway's internals for the types the typed surface returns, nor for
 // discovery/path resolution (the supported client-side surface).
-export type { SessionSnapshot } from "./runtime";
+export type {
+	QueuedRunPromotionResult,
+	QueuedRunUpdateResult,
+	ScheduleCreateParams,
+	ScheduleDeleteResult,
+	ScheduleTriggerResult,
+	ScheduleUpdateParams,
+	SessionDeleteResult,
+	SessionForkResult,
+	SessionSnapshot,
+	SessionUpdateParams,
+} from "./runtime";
 export type { RunAttemptRecord, StoredMessage } from "./stores";
-export type { BotRecord, RunRecord, SessionRecord, TurnOverrides };
+export type { BotRecord, RunRecord, SessionKind, SessionRecord, TurnOverrides };
 export type { ConnectorRecord } from "./connectors/store";
 export type { DiscoveryRecord } from "./discovery";
 export type {
+	GatewayGlobalSettings,
+	GatewayGlobalSettingsPatch,
+} from "./global-settings";
+export type {
+	GatewayManagedExtensionsResponse,
+	GatewayManagedPluginView,
+	GatewayManagedSkillView,
+	GatewayMarketplaceActionResult,
+	GatewayMarketplaceCatalog,
+	GatewayMcpServerInput,
+	GatewayMcpServersResponse,
+	GatewayMcpServerView,
+	GatewayMcpTransportType,
+	MarketplacePrimitiveType,
+} from "./managed-extensions";
+export type {
 	ScheduleJobRecord,
+	ScheduleMode,
+	ScheduleModelSelection,
 	ScheduleRecord,
 } from "./schedules/store";
 export type {
 	ToolConfigurationScope,
 	VersionedToolConfiguration,
 } from "./tools/store";
+export type {
+	VoiceSettingsResult,
+	VoiceStreamingSession,
+	VoiceTranscriptionInput,
+	VoiceTranscriptionResult,
+} from "./voice";
 export type {
 	BotToolConfiguration,
 	EffectiveToolPreview,
@@ -230,12 +346,25 @@ export interface StatisticsSummary {
 interface PendingRequest {
 	resolve(value: unknown): void;
 	reject(error: Error): void;
+	timeoutId: ReturnType<typeof setTimeout>;
+}
+
+export const DEFAULT_GATEWAY_REQUEST_TIMEOUT_MS = 30_000;
+const VOICE_GATEWAY_REQUEST_TIMEOUT_MS = 125_000;
+
+function resolveRequestTimeoutMs(value: number | undefined): number {
+	const timeout = value ?? DEFAULT_GATEWAY_REQUEST_TIMEOUT_MS;
+	if (!Number.isFinite(timeout) || timeout <= 0) {
+		throw new Error("Gateway requestTimeoutMs must be a positive number");
+	}
+	return timeout;
 }
 
 export class GatewayClient {
 	readonly hello: GatewayHelloResult;
 
 	private readonly socket: Duplex;
+	private readonly requestTimeoutMs: number;
 	private readonly pending = new Map<string, PendingRequest>();
 	private readonly eventListeners = new Set<GatewayEventListener>();
 	private readonly closeListeners = new Set<() => void>();
@@ -245,9 +374,14 @@ export class GatewayClient {
 	private closed = false;
 	private closeNotified = false;
 
-	private constructor(socket: Duplex, hello: GatewayHelloResult) {
+	private constructor(
+		socket: Duplex,
+		hello: GatewayHelloResult,
+		requestTimeoutMs: number,
+	) {
 		this.socket = socket;
 		this.hello = hello;
+		this.requestTimeoutMs = requestTimeoutMs;
 	}
 
 	/** Connect and complete the mandatory `gateway.hello` handshake. */
@@ -255,18 +389,23 @@ export class GatewayClient {
 		const socket = await connectSocket(options);
 		const transport = new TransportShim(socket);
 		try {
-			const helloResult = await transport.request(GATEWAY_HELLO_METHOD, {
-				protocolVersions: [GATEWAY_PROTOCOL_VERSION],
-				client: {
-					name: options.clientName ?? "gateway-client",
-					version: options.clientVersion ?? "0.0.0",
-					...(options.clientId ? { clientId: options.clientId } : {}),
+			const helloResult = await transport.request(
+				GATEWAY_HELLO_METHOD,
+				{
+					protocolVersions: [GATEWAY_PROTOCOL_VERSION],
+					client: {
+						name: options.clientName ?? "gateway-client",
+						version: options.clientVersion ?? "0.0.0",
+						...(options.clientId ? { clientId: options.clientId } : {}),
+					},
+					auth: options.auth,
 				},
-				auth: options.auth,
-			});
+				options.connectTimeoutMs ?? 5_000,
+			);
 			const client = new GatewayClient(
 				socket,
 				helloResult as GatewayHelloResult,
+				resolveRequestTimeoutMs(options.requestTimeoutMs),
 			);
 			transport.handover(client);
 			return client;
@@ -297,18 +436,23 @@ export class GatewayClient {
 		const socket = await connectWebSocket(url, options);
 		const transport = new TransportShim(socket);
 		try {
-			const helloResult = await transport.request(GATEWAY_HELLO_METHOD, {
-				protocolVersions: [GATEWAY_PROTOCOL_VERSION],
-				client: {
-					name: options.clientName ?? "gateway-remote-client",
-					version: options.clientVersion ?? "0.0.0",
-					...(options.clientId ? { clientId: options.clientId } : {}),
+			const helloResult = await transport.request(
+				GATEWAY_HELLO_METHOD,
+				{
+					protocolVersions: [GATEWAY_PROTOCOL_VERSION],
+					client: {
+						name: options.clientName ?? "gateway-remote-client",
+						version: options.clientVersion ?? "0.0.0",
+						...(options.clientId ? { clientId: options.clientId } : {}),
+					},
+					auth: options.auth,
 				},
-				auth: options.auth,
-			});
+				options.connectTimeoutMs ?? 5_000,
+			);
 			const client = new GatewayClient(
 				socket,
 				helloResult as GatewayHelloResult,
+				resolveRequestTimeoutMs(options.requestTimeoutMs),
 			);
 			transport.handover(client);
 			return client;
@@ -319,7 +463,11 @@ export class GatewayClient {
 	}
 
 	/** Issue a request; mutating methods should go through `mutate`. */
-	request(method: string, params?: Record<string, unknown>): Promise<unknown> {
+	request(
+		method: string,
+		params?: Record<string, unknown>,
+		requestTimeoutMs = this.requestTimeoutMs,
+	): Promise<unknown> {
 		if (this.closed) {
 			return Promise.reject(
 				new GatewayRequestError(
@@ -336,8 +484,32 @@ export class GatewayClient {
 			...(params ? { params } : {}),
 		};
 		return new Promise((resolve, reject) => {
-			this.pending.set(id, { resolve, reject });
-			this.socket.write(`${JSON.stringify(request)}\n`);
+			const timeoutId = setTimeout(() => {
+				const pending = this.pending.get(id);
+				if (!pending) return;
+				this.pending.delete(id);
+				const failure = new GatewayRequestError(
+					createGatewayError(
+						"gateway_unreachable",
+						`Timed out waiting for Gateway method ${method}`,
+						{ retryable: true },
+					),
+				);
+				pending.reject(failure);
+				// A silent control channel is not a healthy connection. Closing it
+				// rejects every other waiter and lets supervised clients reconnect
+				// instead of remaining half-connected indefinitely.
+				this.handleDisconnect();
+				this.socket.destroy();
+			}, requestTimeoutMs);
+			this.pending.set(id, { resolve, reject, timeoutId });
+			try {
+				this.socket.write(`${JSON.stringify(request)}\n`);
+			} catch (error) {
+				clearTimeout(timeoutId);
+				this.pending.delete(id);
+				reject(error instanceof Error ? error : new Error(String(error)));
+			}
 		});
 	}
 
@@ -345,13 +517,14 @@ export class GatewayClient {
 	mutate(
 		method: string,
 		params: Record<string, unknown> = {},
+		requestTimeoutMs?: number,
 	): Promise<unknown> {
 		const withKey = {
 			...params,
 			[IDEMPOTENCY_KEY_PARAM]:
 				params[IDEMPOTENCY_KEY_PARAM] ?? createIdempotencyKey(),
 		};
-		return this.request(method, withKey);
+		return this.request(method, withKey, requestTimeoutMs);
 	}
 
 	subscribe(params: {
@@ -378,6 +551,9 @@ export class GatewayClient {
 
 	getBotSystemPrompt(input: { botId: BotId }): Promise<{
 		content: string | null;
+		bundledContent: string | null;
+		profileRulesContent: string | null;
+		profileId: string | null;
 		revision: number;
 	}> {
 		return this.request("bot.systemPrompt.get", input) as never;
@@ -387,8 +563,193 @@ export class GatewayClient {
 		botId: BotId;
 		content: string;
 		expectedRevision?: number;
-	}): Promise<{ content: string | null; revision: number }> {
+	}): Promise<{
+		content: string | null;
+		bundledContent: string | null;
+		profileRulesContent: string | null;
+		profileId: string | null;
+		revision: number;
+	}> {
 		return this.mutate("bot.systemPrompt.put", input) as never;
+	}
+
+	listProviderCatalog(): Promise<
+		import("@cline/shared").ProviderCatalogResponse
+	> {
+		return this.request("provider.catalog.list", {}) as never;
+	}
+
+	listProviderModels(
+		providerId: string,
+	): Promise<import("@cline/shared").ProviderModelsResponse> {
+		return this.request("provider.models.list", { providerId }) as never;
+	}
+
+	getProviderSettings(providerId: string): Promise<PublicProviderSettings> {
+		return this.request("provider.settings.get", { providerId }) as never;
+	}
+
+	patchProviderSettings(
+		providerId: string,
+		patch: ProviderSettingsPatch,
+	): Promise<PublicProviderSettings> {
+		return this.mutate("provider.settings.patch", {
+			providerId,
+			...patch,
+		}) as never;
+	}
+
+	addProvider(input: AddGatewayProviderInput): Promise<{
+		providerId: string;
+		modelsCount: number;
+		settingsPath: string;
+	}> {
+		return this.mutate("provider.add", { ...input }) as never;
+	}
+
+	updateProviderModels(input: UpdateGatewayProviderModelsInput): Promise<{
+		providerId: string;
+		modelsCount: number;
+	}> {
+		return this.mutate("provider.models.put", { ...input }) as never;
+	}
+
+	loginProviderOAuth(
+		providerId: "cline",
+	): Promise<{ provider: "cline"; configured: true }> {
+		// Device authorization intentionally waits for the user in a browser.
+		return this.mutate(
+			"provider.oauth.login",
+			{ providerId },
+			6 * 60 * 1_000,
+		) as never;
+	}
+
+	cancelProviderOAuth(
+		providerId: "cline",
+	): Promise<{ provider: "cline"; cancelled: boolean }> {
+		return this.mutate("provider.oauth.cancel", { providerId }) as never;
+	}
+
+	queryClineAccount<T extends GatewayClineAccountQuery>(
+		input: T,
+	): Promise<GatewayClineAccountQueryResult<T>> {
+		return this.request("account.cline.query", { ...input }) as never;
+	}
+
+	switchClineAccount(
+		organizationId?: string | null,
+	): Promise<GatewayClineAccountSwitchResult> {
+		return this.mutate("account.cline.switch", {
+			operation: "switchAccount",
+			organizationId,
+		}) as never;
+	}
+
+	getGlobalSettings(): Promise<GatewayGlobalSettings> {
+		return this.request("settings.global.get", {}) as never;
+	}
+
+	patchGlobalSettings(
+		patch: GatewayGlobalSettingsPatch,
+	): Promise<GatewayGlobalSettings> {
+		return this.mutate("settings.global.patch", { ...patch }) as never;
+	}
+
+	setVoiceInput(
+		selection: VoiceInputSelection | undefined,
+	): Promise<VoiceSettingsResult> {
+		return this.mutate("voice.settings.put", {
+			selection: selection ?? null,
+		}) as Promise<VoiceSettingsResult>;
+	}
+
+	createStreamingTranscriptionSession(): Promise<VoiceStreamingSession> {
+		return this.request(
+			"voice.transcription.createSession",
+			{},
+			VOICE_GATEWAY_REQUEST_TIMEOUT_MS,
+		) as Promise<VoiceStreamingSession>;
+	}
+
+	transcribeAudio(
+		input: VoiceTranscriptionInput,
+	): Promise<VoiceTranscriptionResult> {
+		return this.request(
+			"voice.transcription.transcribe",
+			{ ...input },
+			VOICE_GATEWAY_REQUEST_TIMEOUT_MS,
+		) as Promise<VoiceTranscriptionResult>;
+	}
+
+	listMarketplaceInstalled(): Promise<{ installedKeys: readonly string[] }> {
+		return this.request("marketplace.installed.list", {}) as never;
+	}
+
+	getMarketplaceCatalog(): Promise<GatewayMarketplaceCatalog> {
+		return this.request("marketplace.catalog.get", {}) as never;
+	}
+
+	installMarketplace(input: {
+		type: MarketplacePrimitiveType;
+		id: string;
+	}): Promise<GatewayMarketplaceActionResult> {
+		return this.mutate(
+			"marketplace.install",
+			{ ...input },
+			5 * 60 * 1_000,
+		) as never;
+	}
+
+	uninstallMarketplace(input: {
+		type: MarketplacePrimitiveType;
+		id: string;
+	}): Promise<GatewayMarketplaceActionResult> {
+		return this.mutate("marketplace.uninstall", { ...input }) as never;
+	}
+
+	listMcpServers(): Promise<GatewayMcpServersResponse> {
+		return this.request("mcp.servers.list", {}) as never;
+	}
+
+	putMcpServer(
+		input: GatewayMcpServerInput,
+	): Promise<GatewayMcpServersResponse> {
+		return this.mutate("mcp.servers.put", { ...input }) as never;
+	}
+
+	deleteMcpServer(name: string): Promise<GatewayMcpServersResponse> {
+		return this.mutate("mcp.servers.delete", { name }) as never;
+	}
+
+	setMcpServerDisabled(
+		name: string,
+		disabled: boolean,
+	): Promise<GatewayMcpServersResponse> {
+		return this.mutate("mcp.servers.setDisabled", { name, disabled }) as never;
+	}
+
+	listManagedExtensions(): Promise<GatewayManagedExtensionsResponse> {
+		return this.request("plugins.managed.list", {}) as never;
+	}
+
+	setPluginDisabled(
+		path: string,
+		disabled: boolean,
+	): Promise<GatewayManagedExtensionsResponse> {
+		return this.mutate("plugins.managed.setDisabled", {
+			path,
+			disabled,
+		}) as never;
+	}
+
+	uninstallManagedExtension(input: {
+		type: "mcp" | "skill" | "workflow" | "plugin";
+		id?: string;
+		name?: string;
+		path?: string;
+	}): Promise<GatewayMarketplaceActionResult> {
+		return this.mutate("extensions.managed.uninstall", { ...input }) as never;
 	}
 
 	listSessions(
@@ -506,15 +867,73 @@ export class GatewayClient {
 	createSession(input: {
 		botId: BotId;
 		workspaceRoot?: string;
+		kind?: SessionKind;
 		idempotencyKey?: string;
 	}): Promise<SessionRecord> {
 		return this.mutate("session.create", {
 			botId: input.botId,
 			...(input.workspaceRoot ? { workspaceRoot: input.workspaceRoot } : {}),
+			...(input.kind ? { kind: input.kind } : {}),
 			...(input.idempotencyKey
 				? { [IDEMPOTENCY_KEY_PARAM]: input.idempotencyKey }
 				: {}),
 		}) as Promise<SessionRecord>;
+	}
+
+	forkSession(input: {
+		sessionId: SessionId;
+		beforeRunCount?: number;
+		idempotencyKey?: string;
+	}): Promise<SessionForkResult> {
+		return this.mutate("session.fork", {
+			sessionId: input.sessionId,
+			...(input.beforeRunCount === undefined
+				? {}
+				: { beforeRunCount: input.beforeRunCount }),
+			...(input.idempotencyKey
+				? { [IDEMPOTENCY_KEY_PARAM]: input.idempotencyKey }
+				: {}),
+		}) as Promise<SessionForkResult>;
+	}
+
+	updateSession(
+		input: SessionUpdateParams & { idempotencyKey?: string },
+	): Promise<SessionRecord> {
+		return this.mutate("session.update", {
+			sessionId: input.sessionId,
+			...(input.title === undefined ? {} : { title: input.title }),
+			...(input.metadata === undefined ? {} : { metadata: input.metadata }),
+			...(input.expectedRevision === undefined
+				? {}
+				: { expectedRevision: input.expectedRevision }),
+			...(input.idempotencyKey
+				? { [IDEMPOTENCY_KEY_PARAM]: input.idempotencyKey }
+				: {}),
+		}) as Promise<SessionRecord>;
+	}
+
+	closeSession(input: {
+		sessionId: SessionId;
+		idempotencyKey?: string;
+	}): Promise<SessionRecord> {
+		return this.mutate("session.close", {
+			sessionId: input.sessionId,
+			...(input.idempotencyKey
+				? { [IDEMPOTENCY_KEY_PARAM]: input.idempotencyKey }
+				: {}),
+		}) as Promise<SessionRecord>;
+	}
+
+	deleteSession(input: {
+		sessionId: SessionId;
+		idempotencyKey?: string;
+	}): Promise<SessionDeleteResult> {
+		return this.mutate("session.delete", {
+			sessionId: input.sessionId,
+			...(input.idempotencyKey
+				? { [IDEMPOTENCY_KEY_PARAM]: input.idempotencyKey }
+				: {}),
+		}) as Promise<SessionDeleteResult>;
 	}
 
 	steerRun(input: {
@@ -529,6 +948,32 @@ export class GatewayClient {
 				? { [IDEMPOTENCY_KEY_PARAM]: input.idempotencyKey }
 				: {}),
 		}) as Promise<{ merged: boolean }>;
+	}
+
+	updateQueuedRun(input: {
+		runId: RunId;
+		input: string;
+		idempotencyKey?: string;
+	}): Promise<QueuedRunUpdateResult> {
+		return this.mutate("run.updateQueued", {
+			runId: input.runId,
+			input: input.input,
+			...(input.idempotencyKey
+				? { [IDEMPOTENCY_KEY_PARAM]: input.idempotencyKey }
+				: {}),
+		}) as Promise<QueuedRunUpdateResult>;
+	}
+
+	promoteQueuedRun(input: {
+		runId: RunId;
+		idempotencyKey?: string;
+	}): Promise<QueuedRunPromotionResult> {
+		return this.mutate("run.promoteQueued", {
+			runId: input.runId,
+			...(input.idempotencyKey
+				? { [IDEMPOTENCY_KEY_PARAM]: input.idempotencyKey }
+				: {}),
+		}) as Promise<QueuedRunPromotionResult>;
 	}
 
 	interruptRun(input: {
@@ -604,6 +1049,27 @@ export class GatewayClient {
 		}) as Promise<ConnectorRecord>;
 	}
 
+	/** Configure a connector while keeping Gateway secret paths authority-owned. */
+	configureConnector(input: {
+		botId: BotId;
+		kind: "telegram" | "slack";
+		name: string;
+		credential: string;
+		config?: Record<string, unknown>;
+		idempotencyKey?: string;
+	}): Promise<ConnectorRecord> {
+		return this.mutate("connector.configure", {
+			botId: input.botId,
+			kind: input.kind,
+			name: input.name,
+			credential: input.credential,
+			...(input.config ? { config: input.config } : {}),
+			...(input.idempotencyKey
+				? { [IDEMPOTENCY_KEY_PARAM]: input.idempotencyKey }
+				: {}),
+		}) as Promise<ConnectorRecord>;
+	}
+
 	listSchedules(
 		input: { botId?: BotId } = {},
 	): Promise<{ schedules: readonly ScheduleRecord[] }> {
@@ -612,35 +1078,77 @@ export class GatewayClient {
 		}>;
 	}
 
-	/** Create a schedule (exactly one of `intervalMs` / `at`). */
-	createSchedule(input: {
-		botId: BotId;
-		name: string;
-		prompt: string;
-		intervalMs?: number;
-		at?: number;
-		maxAttempts?: number;
+	/** Create a schedule with exactly one interval, one-shot, or cron trigger. */
+	createSchedule(
+		input: ScheduleCreateParams & { idempotencyKey?: string },
+	): Promise<ScheduleRecord> {
+		const { idempotencyKey, ...params } = input;
+		return this.mutate("schedule.create", {
+			...params,
+			...(idempotencyKey ? { [IDEMPOTENCY_KEY_PARAM]: idempotencyKey } : {}),
+		}) as Promise<ScheduleRecord>;
+	}
+
+	updateSchedule(
+		input: ScheduleUpdateParams & { idempotencyKey?: string },
+	): Promise<ScheduleRecord> {
+		const { idempotencyKey, ...params } = input;
+		return this.mutate("schedule.update", {
+			...params,
+			...(idempotencyKey ? { [IDEMPOTENCY_KEY_PARAM]: idempotencyKey } : {}),
+		}) as Promise<ScheduleRecord>;
+	}
+
+	enableSchedule(input: {
+		scheduleId: ScheduleId;
 		idempotencyKey?: string;
 	}): Promise<ScheduleRecord> {
-		return this.mutate("schedule.create", {
-			botId: input.botId,
-			name: input.name,
-			prompt: input.prompt,
-			...(input.intervalMs !== undefined
-				? { intervalMs: input.intervalMs }
-				: {}),
-			...(input.at !== undefined ? { at: input.at } : {}),
-			...(input.maxAttempts !== undefined
-				? { maxAttempts: input.maxAttempts }
-				: {}),
+		return this.mutate("schedule.enable", {
+			scheduleId: input.scheduleId,
 			...(input.idempotencyKey
 				? { [IDEMPOTENCY_KEY_PARAM]: input.idempotencyKey }
 				: {}),
 		}) as Promise<ScheduleRecord>;
 	}
 
+	disableSchedule(input: {
+		scheduleId: ScheduleId;
+		idempotencyKey?: string;
+	}): Promise<ScheduleRecord> {
+		return this.mutate("schedule.disable", {
+			scheduleId: input.scheduleId,
+			...(input.idempotencyKey
+				? { [IDEMPOTENCY_KEY_PARAM]: input.idempotencyKey }
+				: {}),
+		}) as Promise<ScheduleRecord>;
+	}
+
+	triggerSchedule(input: {
+		scheduleId: ScheduleId;
+		idempotencyKey?: string;
+	}): Promise<ScheduleTriggerResult> {
+		return this.mutate("schedule.trigger", {
+			scheduleId: input.scheduleId,
+			...(input.idempotencyKey
+				? { [IDEMPOTENCY_KEY_PARAM]: input.idempotencyKey }
+				: {}),
+		}) as Promise<ScheduleTriggerResult>;
+	}
+
+	deleteSchedule(input: {
+		scheduleId: ScheduleId;
+		idempotencyKey?: string;
+	}): Promise<ScheduleDeleteResult> {
+		return this.mutate("schedule.delete", {
+			scheduleId: input.scheduleId,
+			...(input.idempotencyKey
+				? { [IDEMPOTENCY_KEY_PARAM]: input.idempotencyKey }
+				: {}),
+		}) as Promise<ScheduleDeleteResult>;
+	}
+
 	scheduleReport(input: {
-		scheduleId: string;
+		scheduleId: ScheduleId;
 	}): Promise<{ jobs: readonly ScheduleJobRecord[] }> {
 		return this.request("schedule.report", {
 			scheduleId: input.scheduleId,
@@ -693,6 +1201,11 @@ export class GatewayClient {
 		});
 	}
 
+	/** Answer a server-initiated user question with the selected/free-form text. */
+	resolveQuestion(requestId: string, answer: string): void {
+		this.respondToServerRequest(requestId, answer);
+	}
+
 	onEvent(listener: GatewayEventListener): () => void {
 		this.eventListeners.add(listener);
 		return () => {
@@ -735,6 +1248,7 @@ export class GatewayClient {
 			createGatewayError("gateway_unreachable", "Connection closed locally"),
 		);
 		for (const pending of this.pending.values()) {
+			clearTimeout(pending.timeoutId);
 			pending.reject(failure);
 		}
 		this.pending.clear();
@@ -800,6 +1314,7 @@ export class GatewayClient {
 			),
 		);
 		for (const pending of this.pending.values()) {
+			clearTimeout(pending.timeoutId);
 			pending.reject(failure);
 		}
 		this.pending.clear();
@@ -822,6 +1337,7 @@ export class GatewayClient {
 			return;
 		}
 		this.pending.delete(response.id);
+		clearTimeout(pending.timeoutId);
 		if (response.error) {
 			pending.reject(new GatewayRequestError(response.error));
 			return;
@@ -861,6 +1377,7 @@ class TransportShim {
 	private buffer = "";
 	private pendingResolve: ((value: unknown) => void) | undefined;
 	private pendingReject: ((error: Error) => void) | undefined;
+	private pendingTimeout: ReturnType<typeof setTimeout> | undefined;
 	private client: GatewayClient | undefined;
 
 	constructor(socket: Duplex) {
@@ -868,6 +1385,7 @@ class TransportShim {
 		socket.setEncoding("utf8");
 		socket.on("data", (chunk: string) => this.onData(chunk));
 		socket.on("close", () => {
+			if (this.pendingTimeout) clearTimeout(this.pendingTimeout);
 			this.pendingReject?.(
 				new GatewayRequestError(
 					createGatewayError(
@@ -880,7 +1398,11 @@ class TransportShim {
 		});
 	}
 
-	request(method: string, params: Record<string, unknown>): Promise<unknown> {
+	request(
+		method: string,
+		params: Record<string, unknown>,
+		timeoutMs: number,
+	): Promise<unknown> {
 		const request: GatewayRequest = {
 			version: GATEWAY_PROTOCOL_VERSION,
 			id: "hello_1",
@@ -890,11 +1412,26 @@ class TransportShim {
 		return new Promise((resolve, reject) => {
 			this.pendingResolve = resolve;
 			this.pendingReject = reject;
+			this.pendingTimeout = setTimeout(() => {
+				this.pendingTimeout = undefined;
+				reject(
+					new GatewayRequestError(
+						createGatewayError(
+							"gateway_unreachable",
+							`Timed out waiting for Gateway method ${method}`,
+							{ retryable: true },
+						),
+					),
+				);
+				this.socket.destroy();
+			}, timeoutMs);
 			this.socket.write(`${JSON.stringify(request)}\n`);
 		});
 	}
 
 	handover(client: GatewayClient): void {
+		if (this.pendingTimeout) clearTimeout(this.pendingTimeout);
+		this.pendingTimeout = undefined;
 		this.client = client;
 		if (this.buffer) {
 			client.feed(this.buffer);
@@ -926,9 +1463,13 @@ class TransportShim {
 			return;
 		}
 		if (response.error) {
+			if (this.pendingTimeout) clearTimeout(this.pendingTimeout);
+			this.pendingTimeout = undefined;
 			this.pendingReject?.(new GatewayRequestError(response.error));
 			return;
 		}
+		if (this.pendingTimeout) clearTimeout(this.pendingTimeout);
+		this.pendingTimeout = undefined;
 		this.pendingResolve?.(response.result);
 	}
 }

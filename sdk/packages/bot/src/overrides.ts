@@ -7,6 +7,8 @@
 
 import type { BotConfig } from "./identity";
 
+const SYSTEM_PROMPT_SECTION_BREAK = "\n\n---\n\n";
+
 export interface TurnOverrides {
 	providerId?: string;
 	modelId?: string;
@@ -44,4 +46,23 @@ export function resolveEffectiveConfig(
 		...(overrides?.tools !== undefined ? { tools: overrides.tools } : {}),
 	};
 	return Object.freeze(effective);
+}
+
+/** Resolve the host profile and user-authored prompt into model-facing text. */
+export function resolveBotSystemPrompt(
+	config: Pick<
+		BotConfig,
+		"profileSystemPrompt" | "profileRules" | "systemPrompt"
+	>,
+): string | undefined {
+	const sections = [
+		config.profileSystemPrompt,
+		config.profileRules,
+		config.systemPrompt,
+	]
+		.map((section) => section?.trim())
+		.filter((section): section is string => Boolean(section));
+	return sections.length > 0
+		? sections.join(SYSTEM_PROMPT_SECTION_BREAK)
+		: undefined;
 }

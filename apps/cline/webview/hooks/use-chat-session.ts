@@ -5,7 +5,10 @@ import {
 	serializeAttachments,
 	toChatMessageImages,
 } from "@/hooks/chat-session/attachments";
-import { getInitialChatConfig } from "@/hooks/chat-session/constants";
+import {
+	CHAT_SEND_ADMISSION_TIMEOUT_MS,
+	getInitialChatConfig,
+} from "@/hooks/chat-session/constants";
 import {
 	buildToolPayloadString,
 	extractAssistantTurnDataFromRpcMessages,
@@ -43,6 +46,7 @@ import {
 	isTauriAvailable,
 	PROJECT_SWITCH_ERROR_MESSAGE,
 } from "@/lib/desktop-client";
+import { actionableDesktopError } from "@/lib/desktop-connection";
 import {
 	buildSessionDiffState,
 	EMPTY_DIFF_SUMMARY,
@@ -359,7 +363,7 @@ export function useChatSession() {
 	// Bumped whenever a new turn begins; lets async queue checks detect that
 	// their result is stale because another turn already started.
 	const turnEpochRef = useRef(0);
-	// Epoch at which the current turn reached a terminal status. Hub-projected
+	// Epoch at which the current turn reached a terminal status. Gateway-projected
 	// chat_session_status events are asynchronous and a stale "running" can
 	// trail chat_done; when no new turn has started since the turn settled
 	// (epoch unchanged), such a "running" must not reopen the turn.
@@ -486,10 +490,11 @@ export function useChatSession() {
 			}
 			outstandingOptimisticUserIdsRef.current.clear();
 			rekeyedOptimisticIdByMessageIdRef.current = {};
-			setError(msg);
+			const actionableMessage = actionableDesktopError(msg);
+			setError(actionableMessage);
 			setStatus("error");
 			setMessages((prev) =>
-				sliceMessages([...prev, makeErrorChatMessage(sid, msg)]),
+				sliceMessages([...prev, makeErrorChatMessage(sid, actionableMessage)]),
 			);
 		},
 		[],
@@ -577,7 +582,7 @@ export function useChatSession() {
 			return await desktopClient.invoke<ChatSessionCommandResponse>(
 				"chat_session_command",
 				request,
-				{ timeoutMs: null },
+				{ timeoutMs: CHAT_SEND_ADMISSION_TIMEOUT_MS },
 			);
 		}
 		return await desktopClient.invoke<ChatSessionCommandResponse>(
@@ -852,7 +857,8 @@ export function useChatSession() {
 			// list_assigned_projects in main.rs), not by this un-namespaced
 			// browser selection or the backend's own ambient cwd — trusting
 			// either here can hand a session a directory this bot was never
-			// actually granted (rejected by get_desktop_backend_endpoint). Only
+			// actually granted. Native endpoint resolution would fall back safely,
+			// but there is no reason to reintroduce stale browser state here. Only
 			// the plain web/dev harness (no bot registry) still uses them.
 			const tauri = isTauriAvailable();
 			const rememberedWorkspace = tauri
@@ -1420,7 +1426,11 @@ export function useChatSession() {
 						output: null,
 					}),
 					createdAt: chunkCreatedAt(payload),
-					meta: { toolName, hookEventName: "tool_call_start" },
+					meta: {
+						toolName,
+						toolCallId,
+						hookEventName: "tool_call_start",
+					},
 				});
 				setToolCalls((prev) => prev + 1);
 				return;
@@ -1451,19 +1461,47 @@ export function useChatSession() {
 				delete liveToolMessageIdsRef.current[toolCallId];
 				delete liveToolInputsRef.current[toolCallId];
 			}
-			if (messageId) {
-				// Single setMessages call replaces content + updates meta together.
-				setMessages((prev) =>
-					updateMessageById(prev, messageId, (msg) => ({
+			// A reconnect can hydrate the start from canonical history, so the
+			// in-memory live-id map is not always populated. Match by the durable
+			// toolCallId before falling back to a result-only card.
+			setMessages((prev) => {
+				const hydratedMessageId = toolCallId
+					? prev.findLast(
+							(message) =>
+								message.sessionId === listeningSessionId &&
+								message.role === "tool" &&
+								message.meta?.toolCallId === toolCallId,
+						)?.id
+					: undefined;
+				const targetId = messageId ?? hydratedMessageId;
+				if (targetId) {
+					return updateMessageById(prev, targetId, (msg) => ({
 						...msg,
 						content: toolPayload,
-						meta: { ...msg.meta, toolName, hookEventName: "tool_call_end" },
-					})),
-				);
-				return;
-			}
-			// Ignore unmatched tool end events so stale completions from the
-			// previous turn do not get rendered under a newer streaming turn.
+						meta: {
+							...msg.meta,
+							toolName,
+							...(toolCallId ? { toolCallId } : {}),
+							hookEventName: "tool_call_end",
+						},
+					}));
+				}
+				return sliceMessages([
+					...prev,
+					{
+						id: makeId("tool"),
+						sessionId: listeningSessionId,
+						role: "tool",
+						content: toolPayload,
+						createdAt: chunkCreatedAt(payload),
+						meta: {
+							toolName,
+							...(toolCallId ? { toolCallId } : {}),
+							hookEventName: "tool_call_end",
+						},
+					},
+				]);
+			});
 		},
 		[
 			addMessage,
@@ -1521,7 +1559,7 @@ export function useChatSession() {
 				if (!nextStatus) {
 					return;
 				}
-				// Status events are projected asynchronously from the hub's
+				// Status events are projected asynchronously from the Gateway's
 				// session record and can deliver a stale "running" after the
 				// stream's chat_done already settled the turn. A genuinely new
 				// turn always bumps the epoch (chat_queued_prompt_start) or
@@ -2292,9 +2330,8 @@ export function useChatSession() {
 					? undefined
 					: "Tool call rejected from desktop approval prompt",
 			});
-			setPendingToolApprovals((prev) =>
-				prev.filter((item) => item.requestId !== requestId),
-			);
+			// Keep the card until approval.resolved arrives from the Gateway. The
+			// command response only confirms that the bridge wrote the answer.
 		},
 		[],
 	);
@@ -2315,9 +2352,7 @@ export function useChatSession() {
 				requestId,
 				answer,
 			});
-			setPendingAskQuestions((prev) =>
-				prev.filter((item) => item.requestId !== requestId),
-			);
+			// serverRequest.resolved is the authoritative acknowledgement.
 		},
 		[],
 	);

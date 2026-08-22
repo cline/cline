@@ -38,7 +38,7 @@ type ConnectorSecurityField = NonNullable<
 	ConnectorChannel["security"]
 >["fields"][number];
 // Desktop start/stop is a separate lifecycle API and currently returns only
-// the active/catalog subset of the shared Hub response.
+// the active/catalog subset of the shared connector response.
 type DesktopConnectorChannelsResponse = Pick<
 	ConnectorChannelsResponse,
 	"active" | "available"

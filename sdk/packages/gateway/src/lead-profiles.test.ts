@@ -19,7 +19,7 @@ describe("built-in lead profiles", () => {
 		).toEqual(["cline", "cline-dad"]);
 	});
 
-	it("renders Cline Dad rules and validates every Agent Plugin", () => {
+	it("renders the Cline Dad base prompt and rules and validates every Agent Plugin", () => {
 		const profile = loadLeadProfile(profileFile, {
 			ADMIN_NAME: "Bee",
 			CLINE_HOME: "/opt/cline",
@@ -28,7 +28,8 @@ describe("built-in lead profiles", () => {
 		expect(profile.systemPrompt).toContain("Bee");
 		expect(profile.systemPrompt).not.toContain("{{ADMIN_NAME}}");
 		expect(profile.systemPrompt).toContain("Cline Dad");
-		expect(profile.systemPrompt).toContain("cline_doctor_report");
+		expect(profile.rulesPrompt).toContain("cline_doctor_report");
+		expect(profile.rulesPrompt).toContain("# Rule: identity.md");
 		expect(profile.pluginRoots).toHaveLength(2);
 		for (const root of profile.pluginRoots) {
 			const result = loadPlugin(root);

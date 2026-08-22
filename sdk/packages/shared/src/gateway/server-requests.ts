@@ -52,4 +52,6 @@ export const SERVER_REQUEST_METHODS = {
 	toolApproval: "client.requestToolApproval",
 	question: "client.requestQuestion",
 	credential: "client.requestCredential",
+	/** Ask the initiating desktop host to open a validated external URL. */
+	openExternalUrl: "client.openExternalUrl",
 } as const;

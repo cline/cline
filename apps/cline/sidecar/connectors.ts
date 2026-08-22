@@ -1,9 +1,8 @@
 import {
-	connectorChannelsFromPlatforms,
 	type ConnectorChannelsResponse,
-} from "@cline/shared";
+	connectorChannelsFromPlatforms,
+} from "@cline/shared/connectors";
 import type { BotId, ConnectorId } from "@cline/shared/gateway";
-import { resolveGatewayPaths, writeSecretFile } from "@cline/gateway";
 import type { SidecarContext } from "./types";
 
 type RecordValue = Record<string, unknown>;
@@ -11,7 +10,9 @@ type RecordValue = Record<string, unknown>;
 function strings(value: unknown): Record<string, string> {
 	if (!value || typeof value !== "object" || Array.isArray(value)) return {};
 	return Object.fromEntries(
-		Object.entries(value).filter((entry): entry is [string, string] => typeof entry[1] === "string"),
+		Object.entries(value).filter(
+			(entry): entry is [string, string] => typeof entry[1] === "string",
+		),
 	);
 }
 
@@ -22,14 +23,18 @@ async function defaultBotId(ctx: SidecarContext): Promise<BotId> {
 	return botId;
 }
 
-export async function connectorChannels(ctx: SidecarContext): Promise<ConnectorChannelsResponse> {
+export async function connectorChannels(
+	ctx: SidecarContext,
+): Promise<ConnectorChannelsResponse> {
 	const [listed, status] = await Promise.all([
 		ctx.client.listConnectors(),
 		ctx.client.getStatus(),
 	]);
 	const supported = new Set(["slack", "telegram"]);
 	return {
-		available: connectorChannelsFromPlatforms().filter((channel) => supported.has(channel.id)),
+		available: connectorChannelsFromPlatforms().filter((channel) =>
+			supported.has(channel.id),
+		),
 		active: listed.connectors
 			.filter((connector) => connector.status === "enabled")
 			.map((connector) => ({
@@ -54,35 +59,48 @@ export async function startConnectorChannel(
 	args: RecordValue,
 ): Promise<ConnectorChannelsResponse> {
 	const kind = String(args.channel ?? "");
-	if (kind !== "slack" && kind !== "telegram") throw new Error(`Unsupported Gateway connector: ${kind}`);
+	if (kind !== "slack" && kind !== "telegram")
+		throw new Error(`Unsupported Gateway connector: ${kind}`);
 	const values = strings(args.values);
-	const security = args.security && typeof args.security === "object" ? args.security as RecordValue : {};
+	const security =
+		args.security && typeof args.security === "object"
+			? (args.security as RecordValue)
+			: {};
 	const securityValues = strings(security.values);
 	const botId = await defaultBotId(ctx);
-	const existing = (await ctx.client.listConnectors({ botId })).connectors.find((connector) => connector.kind === kind);
-	if (existing) await ctx.client.mutate("connector.remove", { connectorId: existing.connectorId });
 
-	const secretName = `desktop-${botId}-${kind}`;
-	const credential = kind === "telegram"
-		? values["-k"]?.trim()
-		: JSON.stringify({
-				botToken: values["--bot-token"]?.trim(),
-				appToken: values["--app-token"]?.trim(),
-			});
-	if (!credential || (kind === "slack" && (!values["--bot-token"]?.trim() || !values["--app-token"]?.trim()))) {
-		throw new Error(kind === "telegram" ? "Bot token is required" : "Bot token and app-level token are required");
+	const credential =
+		kind === "telegram"
+			? values["-k"]?.trim()
+			: JSON.stringify({
+					botToken: values["--bot-token"]?.trim(),
+					appToken: values["--app-token"]?.trim(),
+				});
+	if (
+		!credential ||
+		(kind === "slack" &&
+			(!values["--bot-token"]?.trim() || !values["--app-token"]?.trim()))
+	) {
+		throw new Error(
+			kind === "telegram"
+				? "Bot token is required"
+				: "Bot token and app-level token are required",
+		);
 	}
-	writeSecretFile(resolveGatewayPaths({ namespace: process.env.CLINE_GATEWAY_NAMESPACE?.trim() || "desktop" }), secretName, credential);
-	await ctx.client.registerConnector({
+	await ctx.client.configureConnector({
 		botId,
 		kind,
 		name: `${kind}-${botId}`,
-		credentialRef: secretName,
-		config: security.enabled === true
-			? kind === "telegram"
-				? { allowedUserId: securityValues.userId }
-				: { allowedTeamId: securityValues.teamId, allowedUserId: securityValues.userId }
-			: {},
+		credential,
+		config:
+			security.enabled === true
+				? kind === "telegram"
+					? { allowedUserId: securityValues.userId }
+					: {
+							allowedTeamId: securityValues.teamId,
+							allowedUserId: securityValues.userId,
+						}
+				: {},
 	});
 	return connectorChannels(ctx);
 }
@@ -93,7 +111,12 @@ export async function stopConnectorChannel(
 ): Promise<ConnectorChannelsResponse> {
 	const kind = String(args.channel ?? "");
 	const botId = await defaultBotId(ctx);
-	const existing = (await ctx.client.listConnectors({ botId })).connectors.find((connector) => connector.kind === kind);
-	if (existing) await ctx.client.mutate("connector.remove", { connectorId: existing.connectorId as ConnectorId });
+	const existing = (await ctx.client.listConnectors({ botId })).connectors.find(
+		(connector) => connector.kind === kind,
+	);
+	if (existing)
+		await ctx.client.mutate("connector.remove", {
+			connectorId: existing.connectorId as ConnectorId,
+		});
 	return connectorChannels(ctx);
 }

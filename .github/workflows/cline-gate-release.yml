@@ -33,7 +33,10 @@ jobs:
         with:
           bun-version: 1.3.13
       - run: bun install --frozen-lockfile
-      - run: bun run build:sdk
+      - run: bun run build:gateway-stack
+      - name: Verify compiled Gateway lifecycle invocation
+        working-directory: sdk/packages/gateway
+        run: bunx vitest run src/cli-self-invocation.test.ts
       - name: Build native bundle
         working-directory: apps/cline
         env:

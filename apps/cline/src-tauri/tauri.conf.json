@@ -4,7 +4,7 @@
 	"version": "0.1.0-test.2",
 	"identifier": "bot.cline.bots",
 	"build": {
-		"beforeDevCommand": "bun run build:sidecar:bin && bun run dev:web",
+		"beforeDevCommand": "bun run test:architecture && bun run build:ui && bun run dev:web:ui",
 		"devUrl": "http://localhost:3125",
 		"beforeBuildCommand": "bun run build",
 		"frontendDist": "../webview/out"

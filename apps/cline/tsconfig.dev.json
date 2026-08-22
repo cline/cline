@@ -5,26 +5,17 @@
 		"module": "esnext",
 		"paths": {
 			"@/*": ["./*"],
-			"@cline/agents": ["../../sdk/packages/agents/src/index.ts"],
-			"@cline/gateway": ["../../sdk/packages/gateway/src/index.ts"],
 			"@cline/gateway/*": ["../../sdk/packages/gateway/src/*"],
 			"@cline/llms": ["../../sdk/packages/llms/src/index.ts"],
-			"@cline/shared": ["../../sdk/packages/shared/src/index.ts"],
-			"@cline/shared/storage": [
-				"../../sdk/packages/shared/src/storage/index.ts"
+			"@cline/shared/agent": ["../../sdk/packages/shared/src/agent.ts"],
+			"@cline/shared/connectors": [
+				"../../sdk/packages/shared/src/connectors/index.ts"
 			],
-			"@cline/shared/db": ["../../sdk/packages/shared/src/db/index.ts"],
-			"@cline/shared/*": [
-				"../../sdk/packages/shared/src/*",
-				"../../sdk/packages/shared/src/*/index.ts"
+			"@cline/shared/gateway": [
+				"../../sdk/packages/shared/src/gateway/index.ts"
 			]
 		}
 	},
-	"include": [
-		"sidecar/**/*.ts",
-		"scripts/**/*.ts",
-		"global.d.ts",
-		"bun.mts"
-	],
+	"include": ["sidecar/**/*.ts", "scripts/**/*.ts", "global.d.ts", "bun.mts"],
 	"exclude": ["node_modules", "webview"]
 }

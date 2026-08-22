@@ -13,7 +13,7 @@ import type {
 // sidecar/web mode (without Tauri), this module may not exist or the bridge
 // may not be initialised, so we fall back to a hardcoded local WS endpoint.
 // Exported (not just used internally) so callers that need a Tauri command
-// NOT routed through resolveDesktopBackendWsEndpoint's shared endpoint cache
+// NOT routed through resolveDesktopBackendTarget's shared target cache
 // (e.g. resolving a *different*, non-active bot's endpoint for a background
 // relay) can invoke it directly instead of risking corrupting that cache.
 export async function tryTauriInvoke<T>(
@@ -29,20 +29,25 @@ export async function tryTauriInvoke<T>(
 	}
 }
 
+export type DesktopBackendTarget = {
+	endpoint: string;
+	botId: string;
+	workspaceRoot: string;
+	workspaceDisposition: "assigned" | "default" | "fallback" | "unscoped";
+};
+
 /**
- * Resolved once per (bot, project) pair; cached until a different pair is
- * requested. Each assigned project has its own sandboxed backend process
- * (see apps/cline/SANDBOX.md), so switching the active project means
- * resolving — and connecting to — a genuinely different endpoint, not just
- * reusing whatever was cached for the last one.
+ * Resolved once per requested (bot, project) pair; cached until a different
+ * pair is requested. In Tauri, the target includes the native host's
+ * authoritative bot and workspace resolution as well as the endpoint.
  */
-let resolvedEndpointCache: string | null = null;
-let resolvedEndpointCacheKey: string | null = null;
+let resolvedBackendTargetCache: DesktopBackendTarget | null = null;
+let resolvedBackendTargetCacheKey: string | null = null;
 
 /**
  * `null` means "no specific pair requested — reuse whatever's cached."
- * An empty `projectPath` is a real, distinct key (the "no project" entry
- * scoped to just the bot's own data), not the same as "not specified" — a
+ * An empty `projectPath` is a real, distinct key (resolved by the native host
+ * to the bot workspace), not the same as "not specified" — a
  * plain `botId && projectPath` check would treat `projectPath: ""` as
  * missing and either throw or silently reuse a stale, unrelated cache entry.
  */
@@ -54,16 +59,15 @@ function projectCacheKey(botId?: string, projectPath?: string): string | null {
 }
 
 /**
- * Resolve the backend WebSocket endpoint for a given bot+project.
+ * Resolve the backend endpoint and effective native scope for a bot+project.
  *
  * Priority order:
  * 1. `window.__SIDECAR_WS_ENDPOINT__` — injected by the sidecar's HTML scaffold
  *    or an integration test harness.
  * 2. Tauri `get_desktop_backend_endpoint` command — used when running inside
- *    the full Tauri app shell. Requires `botId`/`projectPath` (the project
- *    must already be assigned via `assign_project`) unless a value is
- *    already cached, since resolving a *new* connection always needs to
- *    know which project's pooled process to reach.
+ *    the full Tauri app shell. Requires `botId`/`projectPath` unless a value
+ *    is already cached. The native host accepts an available assigned path
+ *    or falls back to the bot's own workspace before selecting a process.
  * 3. `NEXT_PUBLIC_SIDECAR_WS_ENDPOINT` (inlined at build time), then fallback
  *    to `ws://127.0.0.1:3126/` — the sidecar's default port when
  *    running in plain web/dev mode (`bun run dev:web` starts both processes).
@@ -71,25 +75,30 @@ function projectCacheKey(botId?: string, projectPath?: string): string | null {
  * Callers that don't care which project (e.g. error-telemetry POSTs) can
  * omit both arguments to reuse whatever's already resolved.
  */
-export async function resolveDesktopBackendWsEndpoint(
+export async function resolveDesktopBackendTarget(
 	botId?: string,
 	projectPath?: string,
-): Promise<string> {
+): Promise<DesktopBackendTarget> {
 	const requestedKey = projectCacheKey(botId, projectPath);
 	const browserEndpoint =
 		typeof window !== "undefined"
 			? window.localStorage.getItem("cline.gatewayUi.endpoint")?.trim()
 			: undefined;
 	if (browserEndpoint) {
-		resolvedEndpointCache = browserEndpoint;
-		resolvedEndpointCacheKey = requestedKey;
-		return browserEndpoint;
+		resolvedBackendTargetCache = {
+			endpoint: browserEndpoint,
+			botId: botId ?? "",
+			workspaceRoot: projectPath ?? "",
+			workspaceDisposition: "unscoped",
+		};
+		resolvedBackendTargetCacheKey = requestedKey;
+		return resolvedBackendTargetCache;
 	}
 	if (
-		resolvedEndpointCache &&
-		(!requestedKey || requestedKey === resolvedEndpointCacheKey)
+		resolvedBackendTargetCache &&
+		(!requestedKey || requestedKey === resolvedBackendTargetCacheKey)
 	) {
-		return resolvedEndpointCache;
+		return resolvedBackendTargetCache;
 	}
 
 	// 1. Explicit injection from sidecar or test harness.
@@ -98,41 +107,64 @@ export async function resolveDesktopBackendWsEndpoint(
 			? (window as unknown as Record<string, unknown>).__SIDECAR_WS_ENDPOINT__
 			: undefined;
 	if (typeof injected === "string" && injected.trim()) {
-		resolvedEndpointCache = injected.trim();
-		resolvedEndpointCacheKey = requestedKey;
-		return resolvedEndpointCache;
+		resolvedBackendTargetCache = {
+			endpoint: injected.trim(),
+			botId: botId ?? "",
+			workspaceRoot: projectPath ?? "",
+			workspaceDisposition: "unscoped",
+		};
+		resolvedBackendTargetCacheKey = requestedKey;
+		return resolvedBackendTargetCache;
 	}
 
 	// 2. Tauri command (full desktop app).
 	if (isTauriAvailable()) {
 		if (!botId || projectPath === undefined) {
 			throw new Error(
-				"resolveDesktopBackendWsEndpoint requires a bot id and project path to resolve a new connection",
+				"resolveDesktopBackendTarget requires a bot id and project path to resolve a new connection",
 			);
 		}
-		const endpoint = await tryTauriInvoke<string>(
+		const target = await tryTauriInvoke<DesktopBackendTarget>(
 			"get_desktop_backend_endpoint",
 			{ botId, projectPath },
 		);
-		const trimmed = endpoint.trim();
-		if (trimmed) {
-			resolvedEndpointCache = trimmed;
-			resolvedEndpointCacheKey = requestedKey;
-			return resolvedEndpointCache;
+		if (
+			target &&
+			typeof target.endpoint === "string" &&
+			target.endpoint.trim() &&
+			typeof target.botId === "string" &&
+			target.botId.trim() &&
+			typeof target.workspaceRoot === "string" &&
+			target.workspaceRoot.trim() &&
+			["assigned", "default", "fallback"].includes(target.workspaceDisposition)
+		) {
+			resolvedBackendTargetCache = {
+				...target,
+				endpoint: target.endpoint.trim(),
+				botId: target.botId.trim(),
+				workspaceRoot: target.workspaceRoot.trim(),
+			};
+			resolvedBackendTargetCacheKey = requestedKey;
+			return resolvedBackendTargetCache;
 		}
-		throw new Error("Tauri returned an empty desktop backend endpoint");
+		throw new Error("Tauri returned an invalid desktop backend target");
 	}
 
 	// 3. Env override, then default sidecar port for local dev mode without
 	// the Tauri bridge.
 	const envEndpoint = process.env.NEXT_PUBLIC_SIDECAR_WS_ENDPOINT?.trim();
-	resolvedEndpointCache = envEndpoint || "ws://127.0.0.1:3126/";
-	resolvedEndpointCacheKey = requestedKey;
-	return resolvedEndpointCache;
+	resolvedBackendTargetCache = {
+		endpoint: envEndpoint || "ws://127.0.0.1:3126/",
+		botId: botId ?? "",
+		workspaceRoot: projectPath ?? "",
+		workspaceDisposition: "unscoped",
+	};
+	resolvedBackendTargetCacheKey = requestedKey;
+	return resolvedBackendTargetCache;
 }
 
 export async function resolveDesktopBackendHttpEndpoint(): Promise<string> {
-	const wsEndpoint = await resolveDesktopBackendWsEndpoint();
+	const { endpoint: wsEndpoint } = await resolveDesktopBackendTarget();
 	const endpoint = new URL(wsEndpoint);
 	endpoint.protocol = endpoint.protocol === "wss:" ? "https:" : "http:";
 	endpoint.search = "";
@@ -281,7 +313,6 @@ const NATIVE_COMMANDS = new Set([
 	"assign_project",
 	"sync_gateway_bots",
 	"switch_active_bot_preference",
-	"open_mcp_settings_file",
 	"get_update_status",
 	"restart_to_apply_update",
 	"check_for_update_now",
@@ -312,8 +343,8 @@ class DesktopClient {
 	private transportState: DesktopTransportState = "connecting";
 	private transportError: string | null = null;
 	private hasConnectedOnce = false;
-	private endpoint: string | null = null;
-	// Default to the "no project" entry for the default bot, not null:
+	private backendTarget: DesktopBackendTarget | null = null;
+	// Default to the bot-workspace request for the default bot, not null:
 	// arbitrary components (e.g. AgentSidebar) can issue commands as soon as
 	// they mount, before whichever component owns the active workspace
 	// (ChatThreadPane) has had a chance to call setActiveProject - there's
@@ -410,21 +441,46 @@ class DesktopClient {
 		}
 	}
 
-	private async getBackendEndpoint(
+	private async getBackendTarget(
 		generation: number,
 		botId: string,
 		projectPath: string,
-	): Promise<string> {
-		if (this.endpoint?.trim()) {
-			return this.endpoint;
+	): Promise<DesktopBackendTarget> {
+		if (this.backendTarget) {
+			return this.backendTarget;
 		}
-		const endpoint = await resolveDesktopBackendWsEndpoint(botId, projectPath);
+		const target = await resolveDesktopBackendTarget(botId, projectPath);
 		// Endpoint resolution crosses the native bridge and can take long enough
 		// for another session/project to become active. Never let that stale
-		// continuation install an endpoint for the target we already left.
+		// continuation install a backend target for the project we already left.
 		this.assertCurrentGeneration(generation);
-		this.endpoint = endpoint;
-		return this.endpoint;
+		this.backendTarget = target;
+		return this.backendTarget;
+	}
+
+	private scopedCommandArgs(
+		command: string,
+		args?: Record<string, unknown>,
+	): Record<string, unknown> | undefined {
+		const target = this.backendTarget;
+		if (
+			command !== "chat_session_command" ||
+			!target ||
+			target.workspaceDisposition === "unscoped"
+		) {
+			return args;
+		}
+		const request = isRecord(args?.request) ? args.request : {};
+		return {
+			...args,
+			request: {
+				...request,
+				desktopScope: {
+					botId: target.botId,
+					workspaceRoot: target.workspaceRoot,
+				},
+			},
+		};
 	}
 
 	private takePending(requestId: string): PendingRequest | undefined {
@@ -465,15 +521,28 @@ class DesktopClient {
 	 * apps/cline/SANDBOX.md) with its own endpoint, so switching means
 	 * dropping any existing connection and resolving/connecting fresh —
 	 * never silently continuing to talk to whichever project was active
-	 * before.
+	 * before. `refresh` also invalidates an identical requested pair after its
+	 * native assignment state changes from fallback to allowed.
 	 */
-	setActiveProject(botId: string, projectPath: string): void {
-		if (this.activeBotId === botId && this.activeProjectPath === projectPath) {
+	setActiveProject(
+		botId: string,
+		projectPath: string,
+		options: { refresh?: boolean } = {},
+	): void {
+		if (
+			!options.refresh &&
+			this.activeBotId === botId &&
+			this.activeProjectPath === projectPath
+		) {
 			return;
+		}
+		if (options.refresh) {
+			resolvedBackendTargetCache = null;
+			resolvedBackendTargetCacheKey = null;
 		}
 		this.activeBotId = botId;
 		this.activeProjectPath = projectPath;
-		this.endpoint = null;
+		this.backendTarget = null;
 		this.transportError = null;
 		// Connection history is target-scoped. A socket that opened for the
 		// previous project must not suppress startup retries for this one.
@@ -510,6 +579,15 @@ class DesktopClient {
 		void this.ensureConnected().catch(() => {
 			// The state subscription and the next command surface a current-target
 			// failure. Deliberate switches reject the superseded chain by design.
+		});
+	}
+
+	/** Drop cached endpoint/transport state and immediately resolve the active
+	 * bot/workspace again. Used by visible recovery controls after the native
+	 * sidecar or bundled Gateway has restarted. */
+	retryConnection(): void {
+		this.setActiveProject(this.activeBotId, this.activeProjectPath, {
+			refresh: true,
 		});
 	}
 
@@ -705,13 +783,13 @@ class DesktopClient {
 		const botId = this.activeBotId;
 		const projectPath = this.activeProjectPath;
 		this.connectPromise = (async () => {
-			const endpoint = await this.getBackendEndpoint(
+			const target = await this.getBackendTarget(
 				generation,
 				botId,
 				projectPath,
 			);
 			this.assertCurrentGeneration(generation);
-			await this.connectWithInitialRetry(endpoint, generation);
+			await this.connectWithInitialRetry(target.endpoint, generation);
 		})()
 			.catch((error) => {
 				if (this.connectGeneration !== generation) {
@@ -788,7 +866,7 @@ class DesktopClient {
 			type: "command",
 			id,
 			command,
-			args,
+			args: this.scopedCommandArgs(command, args),
 		};
 
 		return await new Promise<T>((resolve, reject) => {

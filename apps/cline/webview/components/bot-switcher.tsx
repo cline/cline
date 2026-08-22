@@ -109,7 +109,6 @@ export function BotSwitcher({
 		null,
 	);
 	const [newBotIcon, setNewBotIcon] = useState("");
-	const [newBotDescription, setNewBotDescription] = useState("");
 	const [newBotSystemPrompt, setNewBotSystemPrompt] = useState("");
 	const [isCreating, setIsCreating] = useState(false);
 	const [createError, setCreateError] = useState<string | null>(null);
@@ -151,7 +150,6 @@ export function BotSwitcher({
 		setNewBotName("");
 		setNewBotProjectPath(null);
 		setNewBotIcon("");
-		setNewBotDescription("");
 		setNewBotSystemPrompt("");
 		setCreateError(null);
 		setIsCreating(false);
@@ -326,9 +324,7 @@ export function BotSwitcher({
 							</Button>
 						</div>
 						<SystemPromptEditor
-							description={newBotDescription}
 							disabled={isCreating}
-							onDescriptionChange={setNewBotDescription}
 							onSystemPromptChange={setNewBotSystemPrompt}
 							systemPrompt={newBotSystemPrompt}
 						/>

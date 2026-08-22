@@ -3,19 +3,19 @@
 import { runInNewContext } from "node:vm";
 import { afterEach, describe, expect, it } from "vitest";
 import {
-	applyHubAccent,
-	DEFAULT_HUB_ACCENT,
-	DEFAULT_HUB_THEME,
-	HUB_ACCENT_STORAGE_KEY,
-	HUB_THEME_BOOTSTRAP_SCRIPT,
-	HUB_THEME_STORAGE_KEY,
-	isHubAccent,
-	readStoredHubAccent,
-	readStoredHubTheme,
-	readSystemHubTheme,
-	setStoredHubAccent,
-	syncHubAccent,
-	syncHubTheme,
+	APP_ACCENT_STORAGE_KEY,
+	APP_THEME_BOOTSTRAP_SCRIPT,
+	APP_THEME_STORAGE_KEY,
+	applyAppAccent,
+	DEFAULT_APP_ACCENT,
+	DEFAULT_APP_THEME,
+	isAppAccent,
+	readStoredAppAccent,
+	readStoredAppTheme,
+	readSystemAppTheme,
+	setStoredAppAccent,
+	syncAppAccent,
+	syncAppTheme,
 } from "./theme";
 
 afterEach(() => {
@@ -23,7 +23,7 @@ afterEach(() => {
 	delete document.body.dataset.vscodeThemeKind;
 	document.documentElement.classList.remove("dark");
 	delete document.documentElement.dataset.clineAccent;
-	delete document.documentElement.dataset.clineHubTheme;
+	delete document.documentElement.dataset.clineAppTheme;
 	Reflect.deleteProperty(window, "matchMedia");
 });
 
@@ -38,18 +38,18 @@ function setSystemTheme(theme: "light" | "dark" | null): void {
 }
 
 function runThemeBootstrap(): void {
-	runInNewContext(HUB_THEME_BOOTSTRAP_SCRIPT, { document, window });
+	runInNewContext(APP_THEME_BOOTSTRAP_SCRIPT, { document, window });
 }
 
-describe("hub theme", () => {
+describe("app theme", () => {
 	it("applies a saved theme before the system preference", () => {
 		setSystemTheme("light");
-		window.localStorage.setItem(HUB_THEME_STORAGE_KEY, "dark");
+		window.localStorage.setItem(APP_THEME_STORAGE_KEY, "dark");
 
 		runThemeBootstrap();
 
 		expect(document.documentElement.classList.contains("dark")).toBe(true);
-		expect(document.documentElement.dataset.clineHubTheme).toBe("dark");
+		expect(document.documentElement.dataset.clineAppTheme).toBe("dark");
 	});
 
 	it("applies the system preference before the first paint when unsaved", () => {
@@ -58,48 +58,48 @@ describe("hub theme", () => {
 		runThemeBootstrap();
 
 		expect(document.documentElement.classList.contains("dark")).toBe(false);
-		expect(document.documentElement.dataset.clineHubTheme).toBe("light");
+		expect(document.documentElement.dataset.clineAppTheme).toBe("light");
 	});
 
 	it("defaults to dark when no saved or system preference is available", () => {
-		expect(readStoredHubTheme()).toBeNull();
-		expect(readSystemHubTheme()).toBe(DEFAULT_HUB_THEME);
-		expect(syncHubTheme()).toBe("dark");
+		expect(readStoredAppTheme()).toBeNull();
+		expect(readSystemAppTheme()).toBe(DEFAULT_APP_THEME);
+		expect(syncAppTheme()).toBe("dark");
 		expect(document.documentElement.classList.contains("dark")).toBe(true);
 
 		document.documentElement.classList.remove("dark");
-		delete document.documentElement.dataset.clineHubTheme;
+		delete document.documentElement.dataset.clineAppTheme;
 		runThemeBootstrap();
 
 		expect(document.documentElement.classList.contains("dark")).toBe(true);
-		expect(document.documentElement.dataset.clineHubTheme).toBe("dark");
+		expect(document.documentElement.dataset.clineAppTheme).toBe("dark");
 	});
 });
 
-describe("hub accent", () => {
+describe("app accent", () => {
 	it("defaults to violet and validates stored values", () => {
-		expect(readStoredHubAccent()).toBe(DEFAULT_HUB_ACCENT);
-		window.localStorage.setItem(HUB_ACCENT_STORAGE_KEY, "not-a-color");
-		expect(readStoredHubAccent()).toBe(DEFAULT_HUB_ACCENT);
-		expect(isHubAccent("ember")).toBe(true);
-		expect(isHubAccent("magenta")).toBe(false);
+		expect(readStoredAppAccent()).toBe(DEFAULT_APP_ACCENT);
+		window.localStorage.setItem(APP_ACCENT_STORAGE_KEY, "not-a-color");
+		expect(readStoredAppAccent()).toBe(DEFAULT_APP_ACCENT);
+		expect(isAppAccent("ember")).toBe(true);
+		expect(isAppAccent("magenta")).toBe(false);
 	});
 
 	it("round-trips through storage and the html dataset", () => {
-		setStoredHubAccent("graphite");
-		expect(window.localStorage.getItem(HUB_ACCENT_STORAGE_KEY)).toBe(
+		setStoredAppAccent("graphite");
+		expect(window.localStorage.getItem(APP_ACCENT_STORAGE_KEY)).toBe(
 			"graphite",
 		);
 		expect(document.documentElement.dataset.clineAccent).toBe("graphite");
 
-		expect(syncHubAccent()).toBe("graphite");
+		expect(syncAppAccent()).toBe("graphite");
 		expect(document.documentElement.dataset.clineAccent).toBe("graphite");
 	});
 
 	it("clears the dataset attribute for the default accent", () => {
-		applyHubAccent("ember");
+		applyAppAccent("ember");
 		expect(document.documentElement.dataset.clineAccent).toBe("ember");
-		applyHubAccent(DEFAULT_HUB_ACCENT);
+		applyAppAccent(DEFAULT_APP_ACCENT);
 		expect(document.documentElement.dataset.clineAccent).toBeUndefined();
 	});
 });

@@ -9,7 +9,7 @@ COPY sdk ./sdk
 COPY apps ./apps
 
 RUN bun install --frozen-lockfile --ignore-scripts
-RUN bun run build:sdk
+RUN bun run build:gateway-stack
 
 ARG TARGETARCH
 RUN case "${TARGETARCH}" in \
@@ -18,7 +18,7 @@ RUN case "${TARGETARCH}" in \
 		*) echo "Unsupported Docker architecture: ${TARGETARCH}" >&2; exit 64 ;; \
 	esac \
 	&& cd apps/cline \
-	&& TARGET="${target}" bun run scripts/build-sidecar-bin.ts \
+	&& TARGET="${target}" bun run build:sidecar:bin \
 	&& cp "src-tauri/bin/cline-sidecar-${target}" /tmp/cline-sidecar \
 	&& cp "src-tauri/bin/clinegate-${target}" /tmp/clinegate
 

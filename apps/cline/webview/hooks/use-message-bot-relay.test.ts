@@ -155,9 +155,12 @@ beforeEach(() => {
 			{ id: "recipe-bot", name: "Recipe Bot" },
 		],
 	});
-	desktopMocks.tryTauriInvoke.mockResolvedValue(
-		"ws://127.0.0.1:43126/",
-	);
+	desktopMocks.tryTauriInvoke.mockResolvedValue({
+		endpoint: "ws://127.0.0.1:43126/",
+		botId: "recipe-bot",
+		workspaceRoot: "/safe/recipe-bot/workspaces",
+		workspaceDisposition: "default",
+	});
 	sockets.length = 0;
 	requestHandler = () => {};
 	globalThis.WebSocket = FakeWebSocket as unknown as typeof WebSocket;
@@ -172,6 +175,12 @@ describe("message_bot relay", () => {
 	it("reads an immediate reply from the nested chat command result", async () => {
 		respondToStartOr((socket, request) => {
 			expect(actionOf(request)).toBe("send");
+			expect(request.args?.request).toMatchObject({
+				desktopScope: {
+					botId: "recipe-bot",
+					workspaceRoot: "/safe/recipe-bot/workspaces",
+				},
+			});
 			socket.respond(request, {
 				sessionId: "target-session",
 				ok: true,

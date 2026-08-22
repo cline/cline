@@ -17,6 +17,7 @@ import {
 	type EngineModelBinding,
 	type EngineOptions,
 } from "@cline/engine";
+import { resolveBotSystemPrompt } from "./overrides";
 import type { EngineInvocation, EnginePort, EngineRunHandle } from "./ports";
 
 export interface EngineExecutionBindings {
@@ -42,7 +43,8 @@ export function createEngineExecutionPort(
 					sessionId: invocation.sessionId,
 					botId: invocation.botId,
 					input: invocation.input,
-					systemPrompt: invocation.effectiveConfig.systemPrompt,
+					initialMessages: invocation.initialMessages,
+					systemPrompt: resolveBotSystemPrompt(invocation.effectiveConfig),
 					model: bindings.model(invocation),
 					tools: bindings.tools?.(invocation),
 					toolPolicies: invocation.effectiveConfig.toolPolicies,

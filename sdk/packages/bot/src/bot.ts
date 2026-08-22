@@ -15,12 +15,10 @@
  * Sessions come in two kinds (Phase 6):
  * - The CANONICAL session is the bot's own desktop/CLI conversation:
  *   created lazily by `submitPrompt`, reattached across restarts.
- * - DEDICATED sessions isolate external conversations (one per connector
- *   conversation): created by `submitPromptToSession` without a session
- *   id, reused by id afterwards. Dedicated sessions never share context
- *   with the canonical session or with each other — an external user can
- *   never inherit desktop context, and desktop only enters a dedicated
- *   session by explicitly naming its id.
+ * - DEDICATED sessions isolate explicitly addressed conversations. They
+ *   back connector conversations and independent desktop history forks,
+ *   and are reused by id afterwards. Dedicated sessions never implicitly
+ *   share context with the canonical session or with each other.
  *
  * Every session runs on its own lane: its own FIFO queue and its own
  * single active run.
@@ -35,7 +33,9 @@ import {
 } from "@cline/shared/gateway";
 import {
 	ContractorTaskError,
+	QueuedRunMutationError,
 	RunAdmissionError,
+	SessionMutationError,
 	WorkspaceImmutableError,
 } from "./errors";
 import type { BotRecord } from "./identity";
@@ -87,6 +87,12 @@ interface Lane {
 	sessionId: SessionId;
 	readonly queue: QueuedRun[];
 	active?: { runId: RunId; handle: EngineRunHandle };
+}
+
+export interface QueuedRunPromotion {
+	readonly queuedRunId: RunId;
+	readonly activeRunId: RunId;
+	readonly sessionId: SessionId;
 }
 
 export class Bot {
@@ -176,6 +182,21 @@ export class Bot {
 		const session = this.createSession(workspace, "canonical");
 		this.canonicalSessionId = session.sessionId;
 		return session;
+	}
+
+	/**
+	 * Create an independent session without replacing the canonical one.
+	 * Desktop history forks use dedicated sessions so both branches remain
+	 * active and can continue by explicitly addressing their session ids.
+	 */
+	openDedicatedSession(workspace?: WorkspaceRef): SessionRecord {
+		const record = this.requireActiveBot();
+		if (record.identity.role === "contractor") {
+			throw new RunAdmissionError(
+				"Contractors take exactly one task in their canonical session; dedicated sessions are not available",
+			);
+		}
+		return this.createSession(workspace, "dedicated");
 	}
 
 	/**
@@ -299,6 +320,56 @@ export class Bot {
 		return false;
 	}
 
+	/** Update both the durable queued record and its in-memory lane entry. */
+	updateQueuedRun(runId: RunId, input: string): RunRecord {
+		this.requireActiveBot();
+		if (!input.trim()) {
+			throw new QueuedRunMutationError("Queued run input must not be empty");
+		}
+		const { lane, index, entry } = this.requireQueuedEntry(runId);
+		const updated = this.ports.runs.updateQueuedInput(runId, input);
+		lane.queue[index] = { ...entry, input };
+		return updated;
+	}
+
+	/**
+	 * Move a queued prompt into the steering lane of the actual active run
+	 * for the SAME session. The queued run is cancelled only after steering
+	 * accepts the text, so a failed merge never drops the prompt.
+	 */
+	promoteQueuedRun(runId: RunId): QueuedRunPromotion {
+		this.requireActiveBot();
+		const { lane, index, entry, record } = this.requireQueuedEntry(runId);
+		const active = lane.active;
+		if (!active) {
+			throw new QueuedRunMutationError(
+				`Session ${record.sessionId} has no active run to steer`,
+			);
+		}
+		const activeRecord = this.ports.runs.get(active.runId);
+		if (
+			!activeRecord ||
+			activeRecord.state !== "running" ||
+			activeRecord.sessionId !== record.sessionId
+		) {
+			throw new QueuedRunMutationError(
+				`Run ${active.runId} is not the active run for session ${record.sessionId}`,
+			);
+		}
+		if (!active.handle.steer(entry.input)) {
+			throw new QueuedRunMutationError(
+				`Active run ${active.runId} refused queued run ${runId}`,
+			);
+		}
+		lane.queue.splice(index, 1);
+		this.transitionRun(runId, "aborted");
+		return {
+			queuedRunId: runId,
+			activeRunId: active.runId,
+			sessionId: record.sessionId,
+		};
+	}
+
 	/**
 	 * A client connection went away. Deliberately a no-op for runs:
 	 * disconnect never implies abort.
@@ -359,23 +430,53 @@ export class Bot {
 	}
 
 	/** Close any session of this bot by id (dedicated ones included). */
-	closeSessionById(sessionId: SessionId | undefined): void {
+	closeSessionById(
+		sessionId: SessionId | undefined,
+	): SessionRecord | undefined {
 		if (!sessionId) {
-			return;
+			return undefined;
 		}
 		const session = this.ports.sessions.get(sessionId);
-		if (
-			!session ||
-			session.botId !== this.botId ||
-			session.state === "closed"
-		) {
-			return;
+		if (!session || session.botId !== this.botId) {
+			return undefined;
 		}
-		this.ports.sessions.save({
+		if (session.state === "closed") {
+			return session;
+		}
+		const closed: SessionRecord = {
 			...session,
 			state: "closed",
 			revision: session.revision + 1,
-		});
+		};
+		this.ports.sessions.save(closed);
+		return closed;
+	}
+
+	/** Permanently remove a closed session after all of its work settled. */
+	deleteSessionById(sessionId: SessionId): boolean {
+		const session = this.ports.sessions.get(sessionId);
+		if (!session || session.botId !== this.botId) {
+			return false;
+		}
+		if (session.state !== "closed") {
+			throw new SessionMutationError(
+				`Session ${sessionId} must be closed before it can be deleted`,
+			);
+		}
+		const lane = this.lanes.get(sessionId);
+		if (lane?.active || (lane?.queue.length ?? 0) > 0) {
+			throw new SessionMutationError(
+				`Session ${sessionId} still has active or queued runs`,
+			);
+		}
+		const deleted = this.ports.sessions.delete(sessionId);
+		if (deleted) {
+			this.lanes.delete(sessionId);
+			if (this.canonicalSessionId === sessionId) {
+				this.canonicalSessionId = undefined;
+			}
+		}
+		return deleted;
 	}
 
 	/** Close the idle active session and allow the next prompt to create one. */
@@ -466,6 +567,39 @@ export class Bot {
 			}
 		}
 		return undefined;
+	}
+
+	private requireQueuedEntry(runId: RunId): {
+		lane: Lane;
+		index: number;
+		entry: QueuedRun;
+		record: RunRecord;
+	} {
+		const record = this.ports.runs.get(runId);
+		if (!record || record.botId !== this.botId) {
+			throw new QueuedRunMutationError(
+				`Run ${runId} does not belong to bot ${this.botId}`,
+			);
+		}
+		if (record.state !== "queued") {
+			throw new QueuedRunMutationError(
+				`Run ${runId} is ${record.state}; only queued runs can be changed`,
+			);
+		}
+		const lane = this.lanes.get(record.sessionId);
+		const index = lane?.queue.findIndex((entry) => entry.runId === runId) ?? -1;
+		if (!lane || index < 0) {
+			throw new QueuedRunMutationError(
+				`Queued run ${runId} is not admitted in session ${record.sessionId}`,
+			);
+		}
+		const entry = lane.queue[index];
+		if (!entry) {
+			throw new QueuedRunMutationError(
+				`Queued run ${runId} is missing from session ${record.sessionId}`,
+			);
+		}
+		return { lane, index, entry, record };
 	}
 
 	private laneFor(sessionId: SessionId): Lane {

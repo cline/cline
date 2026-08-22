@@ -3,7 +3,8 @@
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 use std::fs;
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, Read, Write};
+use std::net::{Ipv4Addr, SocketAddrV4, TcpStream};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
@@ -58,13 +59,12 @@ impl DesktopMenuActionState {
 
 struct TrayMenuState {
     status: MenuItem<tauri::Wry>,
-    hub_healthy: Mutex<bool>,
+    gateway_healthy: Mutex<bool>,
     running_sessions: MenuItem<tauri::Wry>,
 }
 
 #[derive(Clone)]
 struct AppContext {
-    launch_cwd: String,
     workspace_root: String,
 }
 
@@ -148,27 +148,27 @@ impl UpdateState {
     }
 }
 
-fn tray_status_text(update_status: &UpdateStatus, hub_healthy: bool) -> &'static str {
+fn tray_status_text(update_status: &UpdateStatus, gateway_healthy: bool) -> &'static str {
     match update_status.state.as_str() {
         "checking" => "Status: Checking for Updates",
         "downloading" => "Status: Downloading Update",
         "ready" => "Status: Update Available",
         "error" => "Status: Update Check Failed",
-        _ if hub_healthy => "Status: Healthy",
-        _ => "Status: Hub Disconnected",
+        _ if gateway_healthy => "Status: Healthy",
+        _ => "Status: Gateway Unavailable",
     }
 }
 
 fn refresh_tray_status(app: &tauri::AppHandle, update_state: &UpdateState) {
     let tray_menu = app.state::<TrayMenuState>();
-    let hub_healthy = tray_menu
-        .hub_healthy
+    let gateway_healthy = tray_menu
+        .gateway_healthy
         .lock()
         .map(|healthy| *healthy)
         .unwrap_or(false);
     let _ = tray_menu
         .status
-        .set_text(tray_status_text(&update_state.snapshot(), hub_healthy));
+        .set_text(tray_status_text(&update_state.snapshot(), gateway_healthy));
 }
 
 fn set_update_status(
@@ -240,8 +240,9 @@ async fn run_update_loop(app: tauri::AppHandle, state: Arc<UpdateState>) {
 /// process, scoped to exactly one `(bot_id, project_path)` pair. Its own
 /// sandbox filesystem allowlist is fixed at spawn time to just this project
 /// - see apps/cline/sandbox/launcher.ts - so a distinct `BackendEntry` per
-/// project is what keeps one project's process from ever being handed
-/// another project's path.
+/// effective project is what keeps one project's process from ever being
+/// handed another project's path. Requests for unavailable projects resolve
+/// to the bot's own workspace root before an entry is created.
 ///
 /// Lock order: `process` may be held while acquiring `ws_endpoint`, never
 /// the reverse. Anything that touches both (including stop()) must either
@@ -249,17 +250,15 @@ async fn run_update_loop(app: tauri::AppHandle, state: Arc<UpdateState>) {
 struct BackendEntry {
     bot_id: String,
     project_path: String,
-    host_system_prompt: String,
     ws_endpoint: Mutex<Option<String>>,
     process: Mutex<Option<Child>>,
 }
 
 impl BackendEntry {
-    fn new(bot_id: String, project_path: String, host_system_prompt: String) -> Self {
+    fn new(bot_id: String, project_path: String) -> Self {
         Self {
             bot_id,
             project_path,
-            host_system_prompt,
             ws_endpoint: Mutex::new(None),
             process: Mutex::new(None),
         }
@@ -306,12 +305,11 @@ impl BackendEntry {
     }
 }
 
-/// A pool of `BackendEntry` values, keyed by `(bot_id, project_path)`. An
-/// entry is created the first time a project is requested (via
-/// `get_desktop_backend_endpoint`) - never eagerly, and never for a project
-/// that hasn't gone through `assign_project` - so a project the user hasn't
-/// opened for this bot has no entry, no process, and no filesystem access,
-/// full stop.
+/// A pool of `BackendEntry` values, keyed by `(bot_id, effective_project_path)`.
+/// An entry is created lazily by `get_desktop_backend_endpoint`. An assigned,
+/// available project gets its own entry; every other request deduplicates onto
+/// that bot's `~/.cline/bots/<bot-id>/workspaces` entry, so the unavailable
+/// path never reaches a process key, cwd, or sandbox mount.
 #[derive(Default)]
 struct DesktopBackendState {
     entries: Mutex<HashMap<String, Arc<BackendEntry>>>,
@@ -332,12 +330,7 @@ impl DesktopBackendState {
 
     /// Returns the entry for `(bot_id, project_path)`, creating an empty one
     /// (no process yet) the first time it's requested this run.
-    fn entry_for(
-        &self,
-        bot_id: &str,
-        project_path: &str,
-        host_system_prompt: &str,
-    ) -> Arc<BackendEntry> {
+    fn entry_for(&self, bot_id: &str, project_path: &str) -> Arc<BackendEntry> {
         let key = Self::entry_key(bot_id, project_path);
         let mut entries = self
             .entries
@@ -349,7 +342,6 @@ impl DesktopBackendState {
                 Arc::new(BackendEntry::new(
                     bot_id.to_string(),
                     project_path.to_string(),
-                    host_system_prompt.to_string(),
                 ))
             })
             .clone()
@@ -390,6 +382,36 @@ struct DesktopBackendReadyLine {
     ws_endpoint: Option<String>,
     pid: Option<u64>,
     mode: Option<String>,
+    protocol: Option<String>,
+}
+
+const DESKTOP_GATEWAY_BRIDGE_PROTOCOL: &str = "cline-gateway-bridge-v1";
+
+fn gateway_bridge_endpoint(ready: DesktopBackendReadyLine) -> Option<String> {
+    if ready.line_type != "ready"
+        || ready.mode.as_deref() != Some("gateway")
+        || ready.protocol.as_deref() != Some(DESKTOP_GATEWAY_BRIDGE_PROTOCOL)
+    {
+        return None;
+    }
+    ready.ws_endpoint.or(ready.endpoint)
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DesktopBackendTarget {
+    endpoint: String,
+    bot_id: String,
+    workspace_root: String,
+    workspace_disposition: DesktopWorkspaceDisposition,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
+#[serde(rename_all = "lowercase")]
+enum DesktopWorkspaceDisposition {
+    Assigned,
+    Default,
+    Fallback,
 }
 
 fn resolve_workspace_root(launch_cwd: &str) -> String {
@@ -458,28 +480,17 @@ fn request_desktop_backend_shutdown(endpoint: &str) {
     }
 }
 
-fn resolve_desktop_backend_script_path(context: &AppContext) -> Option<PathBuf> {
-    let launch_cwd = PathBuf::from(&context.launch_cwd);
-    let candidates = [
-        PathBuf::from(&context.workspace_root)
-            .join("apps")
-            .join("examples")
-            .join("desktop-app")
-            .join("sidecar")
-            .join("index.ts"),
-        launch_cwd.join("sidecar").join("index.ts"),
-        launch_cwd
-            .parent()
-            .map(|parent| parent.join("sidecar").join("index.ts"))
-            .unwrap_or_else(|| PathBuf::from("")),
-        launch_cwd
-            .join("apps")
-            .join("examples")
-            .join("desktop-app")
-            .join("sidecar")
-            .join("index.ts"),
-    ];
-    candidates.into_iter().find(|path| path.exists())
+fn desktop_backend_script_path() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("apps/cline/src-tauri must have an app parent")
+        .join("sidecar")
+        .join("index.ts")
+}
+
+fn resolve_desktop_backend_script_path() -> Option<PathBuf> {
+    let path = desktop_backend_script_path();
+    path.exists().then_some(path)
 }
 
 fn desktop_backend_binary_names() -> Vec<String> {
@@ -496,30 +507,14 @@ fn desktop_backend_binary_names() -> Vec<String> {
     ]
 }
 
-fn resolve_desktop_backend_binary_path(context: &AppContext) -> Option<PathBuf> {
+fn resolve_desktop_backend_binary_path(_context: &AppContext) -> Option<PathBuf> {
     if cfg!(debug_assertions) {
         return None;
     }
-    let explicit = std::env::var("CLINE_CODE_SIDECAR_BIN")
-        .ok()
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
-        .map(PathBuf::from);
     let current_exe = std::env::current_exe().ok();
     let mut candidates = Vec::new();
-    if let Some(path) = explicit {
-        candidates.push(path);
-    }
 
     for binary_name in desktop_backend_binary_names() {
-        candidates.push(
-            PathBuf::from(&context.workspace_root)
-                .join("apps")
-                .join("cline")
-                .join("src-tauri")
-                .join("bin")
-                .join(&binary_name),
-        );
         if let Some(path) = current_exe
             .as_ref()
             .and_then(|path| path.parent().map(|parent| parent.join(&binary_name)))
@@ -538,7 +533,7 @@ fn resolve_desktop_backend_binary_path(context: &AppContext) -> Option<PathBuf> 
     candidates.into_iter().find(|path| path.exists())
 }
 
-fn resolve_bundled_binary(context: &AppContext, name: &str) -> Option<PathBuf> {
+fn resolve_bundled_binary(_context: &AppContext, name: &str) -> Option<PathBuf> {
     let extension = if cfg!(windows) { ".exe" } else { "" };
     let target_triple = option_env!("TAURI_ENV_TARGET_TRIPLE").unwrap_or("").trim();
     let mut names = vec![format!("{name}{extension}")];
@@ -548,11 +543,6 @@ fn resolve_bundled_binary(context: &AppContext, name: &str) -> Option<PathBuf> {
     let current_exe = std::env::current_exe().ok();
     let mut candidates = Vec::new();
     for binary_name in names {
-        candidates.push(
-            PathBuf::from(&context.workspace_root)
-                .join("apps/cline/src-tauri/bin")
-                .join(&binary_name),
-        );
         if let Some(path) = current_exe
             .as_ref()
             .and_then(|path| path.parent().map(|parent| parent.join(&binary_name)))
@@ -617,6 +607,105 @@ fn persistent_service_endpoint() -> String {
     format!("ws://127.0.0.1:{PERSISTENT_SIDECAR_PORT}/")
 }
 
+fn installed_gateway_command(
+    gate: &Path,
+    data_root: &Path,
+    profiles: &Path,
+    lifecycle: &str,
+) -> Command {
+    let mut command = Command::new(gate);
+    command
+        .arg(lifecycle)
+        .arg("--data-root")
+        .arg(data_root)
+        .args(["--namespace", "desktop", "--lead-profile", "cline-dad"])
+        .env("CLINE_GATEWAY_DATA_ROOT", data_root)
+        .env("CLINE_GATEWAY_NAMESPACE", "desktop")
+        .env("CLINE_GATEWAY_LEAD_PROFILE", "cline-dad")
+        .env("CLINE_GATEWAY_PROFILES_DIR", profiles)
+        .stdin(Stdio::null());
+    command
+}
+
+fn gateway_command_failure(lifecycle: &str, output: &std::process::Output) -> String {
+    let detail = String::from_utf8_lossy(if output.stderr.is_empty() {
+        &output.stdout
+    } else {
+        &output.stderr
+    });
+    format!(
+        "bundled Gateway {lifecycle} failed with status {}{}",
+        output
+            .status
+            .code()
+            .map_or_else(|| "unknown".to_string(), |code| code.to_string()),
+        if detail.trim().is_empty() {
+            String::new()
+        } else {
+            format!(": {}", detail.trim())
+        }
+    )
+}
+
+/// Reconcile a changed packaged Gateway through its operator lifecycle CLI.
+/// `upgrade` drains and replaces a live authority; `start` recovers a missing
+/// or stale discovery record. Both preserve the single desktop namespace lock.
+fn reconcile_installed_gateway(
+    gate: &Path,
+    data_root: &Path,
+    profiles: &Path,
+) -> Result<(), String> {
+    let status = installed_gateway_command(gate, data_root, profiles, "status")
+        .output()
+        .map_err(|error| format!("failed to inspect bundled Gateway: {error}"))?;
+    let lifecycle = if status.status.success() {
+        "upgrade"
+    } else {
+        match status.status.code() {
+            Some(1 | 2) => "start",
+            _ => return Err(gateway_command_failure("status", &status)),
+        }
+    };
+    let output = installed_gateway_command(gate, data_root, profiles, lifecycle)
+        .output()
+        .map_err(|error| format!("failed to run bundled Gateway {lifecycle}: {error}"))?;
+    if output.status.success() {
+        Ok(())
+    } else {
+        Err(gateway_command_failure(lifecycle, &output))
+    }
+}
+
+fn is_gateway_health_response(response: &str) -> bool {
+    response.starts_with("HTTP/1.1 200")
+        && response.contains("\"ok\":true")
+        && response.contains("\"mode\":\"gateway\"")
+}
+
+/// A raw TCP listener is not enough: a stale legacy sidecar or an unrelated
+/// process can own 3126 and would otherwise be mistaken for the bundled
+/// Gateway bridge. Validate the sidecar's explicit health contract instead.
+fn persistent_service_is_healthy() -> bool {
+    let address = SocketAddrV4::new(Ipv4Addr::LOCALHOST, PERSISTENT_SIDECAR_PORT);
+    let Ok(mut stream) = TcpStream::connect_timeout(&address.into(), Duration::from_millis(100))
+    else {
+        return false;
+    };
+    let _ = stream.set_read_timeout(Some(Duration::from_millis(100)));
+    let _ = stream.set_write_timeout(Some(Duration::from_millis(100)));
+    if stream
+        .write_all(b"GET /health HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n")
+        .is_err()
+    {
+        return false;
+    }
+    let mut response = String::new();
+    if stream.read_to_string(&mut response).is_err() {
+        return false;
+    }
+    is_gateway_health_response(&response)
+}
+
 fn install_bundled_persistent_service(
     app: &tauri::AppHandle,
     context: &AppContext,
@@ -652,15 +741,22 @@ fn install_bundled_persistent_service(
     } else {
         "clinegate"
     });
-    let mut changed =
-        copy_if_changed(&sidecar_source, &sidecar)? | copy_if_changed(&gate_source, &gate)?;
+    let sidecar_changed = copy_if_changed(&sidecar_source, &sidecar)?;
+    let gate_changed = copy_if_changed(&gate_source, &gate)?;
     let bundled_profiles = app
         .path()
         .resource_dir()
         .map_err(|error| format!("failed to resolve bundled resources: {error}"))?
         .join("profiles");
-    if bundled_profiles.exists() {
-        changed |= copy_directory(&bundled_profiles, &profiles)?;
+    let profiles_changed = if bundled_profiles.exists() {
+        copy_directory(&bundled_profiles, &profiles)?
+    } else {
+        false
+    };
+    let gateway_payload_changed = gate_changed || profiles_changed;
+    let changed = sidecar_changed || gateway_payload_changed;
+    if gateway_payload_changed {
+        reconcile_installed_gateway(&gate, &data_root, &profiles)?;
     }
 
     #[cfg(target_os = "macos")]
@@ -820,25 +916,19 @@ fn resolve_sandbox_launcher_path(context: &AppContext) -> Option<PathBuf> {
 /// launcher script are available - the launcher itself decides at runtime
 /// whether the OS actually supports sandboxing (falling back to running the
 /// binary unsandboxed rather than failing to start at all - see
-/// sandbox/launcher.ts). `context.workspace_root`/`context.launch_cwd` are
-/// used only to *locate the app's own installed files* (the compiled
-/// binary, the launcher script) - an unsandboxed, host-side lookup concern,
-/// separate from `project_path`, which is what actually gets mounted into
-/// the sandbox and is never implicitly the monorepo checkout or any other
-/// directory the caller didn't explicitly pass in.
+/// sandbox/launcher.ts). `context.workspace_root` is used only to locate the
+/// app's own sandbox launcher in a development checkout—an unsandboxed,
+/// host-side lookup concern separate from `project_path`, which is what gets
+/// mounted into the sandbox and is never implicitly selected at runtime.
 ///
-/// `project_path` may be empty - that's the "no project" entry, scoped to
-/// only the bot's own data (provider settings, onboarding state), used
-/// before the user has assigned any project yet. The launcher already
-/// treats a falsy workspace-dir argument as "no workspace to allow" (see
-/// sandbox/launcher.ts), so passing `""` naturally grants nothing beyond
-/// the bot's own tree; `current_dir` is left unset in that case rather than
-/// pointed at an empty path.
+/// Endpoint resolution always supplies a concrete effective path: either an
+/// assigned project or the bot's own `workspaces` root. Keeping the empty-path
+/// checks here makes the lower-level launcher defensive for direct test use,
+/// but normal desktop startup never relies on the ambient process cwd.
 fn spawn_desktop_backend_process(
     context: &AppContext,
     bot_id: &str,
     project_path: &str,
-    host_system_prompt: &str,
 ) -> Result<Child, String> {
     if let (Some(binary_path), Some(launcher_path)) = (
         resolve_compiled_sidecar_binary_for_sandbox(context),
@@ -851,7 +941,12 @@ fn spawn_desktop_backend_process(
             .arg(&binary_path)
             .arg(project_path)
             .env("CLINE_BOT_ID", bot_id)
-            .env("CLINE_HOST_SYSTEM_PROMPT", host_system_prompt)
+            .env("CLINE_WORKSPACE_ROOT", project_path)
+            .env("CLINE_DESKTOP_WORKSPACE_LOCKED", "1")
+            // Debug backends are pooled per bot/workspace. Port 0 lets the OS
+            // allocate a distinct loopback port for every sidecar; the ready
+            // line carries the actual endpoint back to the native host.
+            .env("CLINE_SIDECAR_PORT", "0")
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
@@ -870,7 +965,7 @@ fn spawn_desktop_backend_process(
     // launcher escape hatch, not the security-relevant path.
     let mut command = if let Some(binary_path) = resolve_desktop_backend_binary_path(context) {
         Command::new(binary_path)
-    } else if let Some(script_path) = resolve_desktop_backend_script_path(context) {
+    } else if let Some(script_path) = resolve_desktop_backend_script_path() {
         let mut command = Command::new("bun");
         command
             .arg("run")
@@ -878,8 +973,8 @@ fn spawn_desktop_backend_process(
         command
     } else {
         return Err(format!(
-            "desktop backend sidecar not found. checked binary/script under workspace_root={} and launch_cwd={}",
-            context.workspace_root, context.launch_cwd
+            "desktop Gateway bridge not found at {}",
+            desktop_backend_script_path().display()
         ));
     };
     if !project_path.is_empty() {
@@ -888,7 +983,9 @@ fn spawn_desktop_backend_process(
 
     command
         .env("CLINE_BOT_ID", bot_id)
-        .env("CLINE_HOST_SYSTEM_PROMPT", host_system_prompt)
+        .env("CLINE_WORKSPACE_ROOT", project_path)
+        .env("CLINE_DESKTOP_WORKSPACE_LOCKED", "1")
+        .env("CLINE_SIDECAR_PORT", "0")
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -907,7 +1004,6 @@ fn ensure_backend_entry_started(
             context,
             &entry_for_spawn.bot_id,
             &entry_for_spawn.project_path,
-            &entry_for_spawn.host_system_prompt,
         )
     })
 }
@@ -976,11 +1072,9 @@ fn ensure_backend_entry_started_with(
                 continue;
             }
             if let Ok(parsed) = serde_json::from_str::<DesktopBackendReadyLine>(trimmed) {
-                if parsed.line_type == "ready" {
-                    if let Some(endpoint) = parsed.ws_endpoint.or(parsed.endpoint) {
-                        if let Ok(mut endpoint_guard) = entry_for_stdout.ws_endpoint.lock() {
-                            *endpoint_guard = Some(endpoint);
-                        }
+                if let Some(endpoint) = gateway_bridge_endpoint(parsed) {
+                    if let Ok(mut endpoint_guard) = entry_for_stdout.ws_endpoint.lock() {
+                        *endpoint_guard = Some(endpoint);
                     }
                     continue;
                 }
@@ -1020,63 +1114,6 @@ fn ensure_backend_entry_started_with(
 
     *process_guard = Some(child);
     Ok(())
-}
-
-fn resolve_mcp_settings_path() -> Result<PathBuf, String> {
-    if let Ok(value) = std::env::var("CLINE_MCP_SETTINGS_PATH") {
-        let trimmed = value.trim();
-        if !trimmed.is_empty() {
-            return Ok(PathBuf::from(trimmed));
-        }
-    }
-    let home = std::env::var("HOME").map_err(|_| "HOME is not set".to_string())?;
-    Ok(PathBuf::from(home)
-        .join(".cline")
-        .join("data")
-        .join("settings")
-        .join("cline_mcp_settings.json"))
-}
-
-fn open_path_with_default_app(path: &Path) -> Result<(), String> {
-    #[cfg(target_os = "macos")]
-    {
-        let status = Command::new("open")
-            .arg(path)
-            .status()
-            .map_err(|e| format!("failed to open path: {e}"))?;
-        if status.success() {
-            return Ok(());
-        }
-        return Err(format!("open command exited with status {status}"));
-    }
-
-    #[cfg(target_os = "windows")]
-    {
-        let path_arg = path.to_string_lossy().to_string();
-        let status = Command::new("cmd")
-            .args(["/C", "start", "", &path_arg])
-            .status()
-            .map_err(|e| format!("failed to open path: {e}"))?;
-        if status.success() {
-            return Ok(());
-        }
-        return Err(format!("start command exited with status {status}"));
-    }
-
-    #[cfg(all(unix, not(target_os = "macos")))]
-    {
-        let status = Command::new("xdg-open")
-            .arg(path)
-            .status()
-            .map_err(|e| format!("failed to open path: {e}"))?;
-        if status.success() {
-            return Ok(());
-        }
-        return Err(format!("xdg-open command exited with status {status}"));
-    }
-
-    #[allow(unreachable_code)]
-    Err("opening files is not supported on this platform".to_string())
 }
 
 /// A bot's assigned-projects registry: the list of directories this bot
@@ -1197,7 +1234,6 @@ fn assign_project(app: tauri::AppHandle, bot_id: String, path: String) -> Result
     Ok(resolved_string)
 }
 
-const MAX_BOTS: usize = 5;
 // Matches sandbox/bot-config.ts's DEFAULT_BOT_ID - kept in sync manually,
 // since that's TypeScript and this is Rust, exactly like CLINE_BOT_ID
 // threading elsewhere in this file already has to be.
@@ -1311,58 +1347,6 @@ fn resolve_backend_bot<'a>(
         })
 }
 
-/// Derives a filesystem/URL-safe id from a user-typed bot display name:
-/// lowercase, runs of anything that isn't `[a-z0-9]` collapse to a single
-/// `-`, leading/trailing `-` trimmed. Falls back to `"bot"` if that leaves
-/// nothing (e.g. a name that's all emoji/punctuation) - never returns an
-/// empty id. Output is always a subset of what `sanitize_bot_id_for_path`
-/// allows, so passing it through that function afterward (still done
-/// wherever an id becomes a path segment) is always a no-op - the two
-/// compose, they don't disagree.
-fn slugify_bot_name(name: &str) -> String {
-    let mut slug = String::new();
-    let mut last_was_dash = false;
-    for ch in name.trim().to_lowercase().chars() {
-        if ch.is_ascii_alphanumeric() {
-            slug.push(ch);
-            last_was_dash = false;
-        } else if !last_was_dash && !slug.is_empty() {
-            slug.push('-');
-            last_was_dash = true;
-        }
-    }
-    while slug.ends_with('-') {
-        slug.pop();
-    }
-    if slug.is_empty() {
-        "bot".to_string()
-    } else {
-        slug
-    }
-}
-
-/// Appends "-2", "-3", ... until the id doesn't collide with an existing one.
-fn dedupe_bot_id(base: &str, existing_ids: &[String]) -> String {
-    if !existing_ids.iter().any(|id| id == base) {
-        return base.to_string();
-    }
-    let mut n = 2;
-    loop {
-        let candidate = format!("{base}-{n}");
-        if !existing_ids.iter().any(|id| id == &candidate) {
-            return candidate;
-        }
-        n += 1;
-    }
-}
-
-/// One round trip: every bot that exists, plus which one is active.
-#[tauri::command]
-fn get_bots_state(app: tauri::AppHandle) -> Result<BotRegistryState, String> {
-    let path = resolve_bot_registry_path(&app)?;
-    read_bot_registry_seeded(&path)
-}
-
 /// Mirrors Gateway-owned bot identities into the desktop shell's local
 /// preference registry. The Gateway remains authoritative for which bots
 /// exist; this file only retains desktop-only presentation fields and the
@@ -1408,129 +1392,6 @@ fn switch_active_bot_preference(app: tauri::AppHandle, bot_id: String) -> Result
     switch_active_bot(app, bot_id)
 }
 
-/// The bot's own rules directory - bot-owned data living inside
-/// `~/.cline/bots/<bot-id>/`, not the host-owned registries above. A bot's
-/// own sandboxed process already has read/write access to this whole tree,
-/// so writing here from the trusted host process needs no extra security
-/// boundary beyond correct path handling (same reasoning as
-/// `resolve_bot_chat_workspace_path` for the same tree).
-const SYSTEM_PROMPT_FILE_NAME: &str = "system-prompt.md";
-
-fn resolve_bot_system_prompt_path(bot_id: &str) -> Option<PathBuf> {
-    let home = std::env::var("HOME").ok()?;
-    Some(
-        PathBuf::from(home)
-            .join(".cline")
-            .join("bots")
-            .join(sanitize_bot_id_for_path(bot_id))
-            .join("rules")
-            .join(SYSTEM_PROMPT_FILE_NAME),
-    )
-}
-
-fn render_bot_identity_prompt(bot: &BotSummary) -> String {
-    let quoted_name = serde_json::to_string(&bot.name).unwrap_or_else(|_| "\"bot\"".to_string());
-    let platform_distinction = if bot.id == DEFAULT_BOT_ID {
-        String::new()
-    } else {
-        " Cline is the platform and base agent, not your display name.".to_string()
-    };
-    format!(
-        "Your app-assigned name is {quoted_name}. If asked for your name or identity, answer with {quoted_name}.{platform_distinction}"
-    )
-}
-
-/// Reads a bot's system prompt (see `write_bot_system_prompt`) - `None` if
-/// one has never been set.
-#[tauri::command]
-fn read_bot_system_prompt(bot_id: String) -> Result<Option<String>, String> {
-    let path = resolve_bot_system_prompt_path(&bot_id)
-        .ok_or_else(|| "could not resolve home directory".to_string())?;
-    match fs::read_to_string(&path) {
-        Ok(content) => Ok(Some(content)),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
-        Err(e) => Err(format!("failed to read system prompt: {e}")),
-    }
-}
-
-/// Writes a bot's system prompt to its own `rules/system-prompt.md` - a
-/// plain rules file, picked up automatically by the same mechanism that
-/// loads every other rule into the running session's system prompt, so
-/// there's no separate injection path to maintain.
-#[tauri::command]
-fn write_bot_system_prompt(bot_id: String, content: String) -> Result<(), String> {
-    let path = resolve_bot_system_prompt_path(&bot_id)
-        .ok_or_else(|| "could not resolve home directory".to_string())?;
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|e| format!("failed to create rules directory: {e}"))?;
-    }
-    fs::write(&path, content).map_err(|e| format!("failed to write system prompt: {e}"))
-}
-
-/// Creates a new bot identity. `initial_project_path`, if given, is granted
-/// to the NEW bot's own project registry using `assign_project`'s own
-/// validation (canonicalize + is_dir) - called directly, not reimplemented -
-/// and that happens BEFORE the bot is added to the registry, so a bad path
-/// fails the whole creation cleanly rather than leaving a half-created bot.
-///
-/// Unlike `assign_project`'s other callers (switching an *existing* bot's
-/// workspace, where a nonexistent path is almost always a typo worth
-/// rejecting), this path is often naming a folder that doesn't exist yet -
-/// this is the one moment a bot is being set up for a brand-new purpose, and
-/// callers like the agent-proposed bot-creation flow have no way to have
-/// pre-created it first. So a missing directory is created here rather than
-/// treated as an error, and only then handed to `assign_project` (which
-/// still fails normally if, say, the path exists but isn't a directory).
-///
-/// `system_prompt`, if given, is written the same way, before the registry
-/// push - same reasoning, a bad write shouldn't leave a half-created bot.
-#[tauri::command]
-fn create_bot(
-    app: tauri::AppHandle,
-    name: String,
-    initial_project_path: Option<String>,
-    icon: Option<String>,
-    system_prompt: Option<String>,
-) -> Result<BotSummary, String> {
-    let trimmed_name = name.trim().to_string();
-    if trimmed_name.is_empty() {
-        return Err("bot name is required".to_string());
-    }
-
-    let registry_path = resolve_bot_registry_path(&app)?;
-    let mut registry = read_bot_registry_seeded(&registry_path)?;
-    if registry.bots.len() >= MAX_BOTS {
-        return Err(format!("maximum of {MAX_BOTS} bots reached"));
-    }
-
-    let existing_ids: Vec<String> = registry.bots.iter().map(|bot| bot.id.clone()).collect();
-    let id = dedupe_bot_id(&slugify_bot_name(&trimmed_name), &existing_ids);
-
-    if let Some(path) = initial_project_path.filter(|p| !p.trim().is_empty()) {
-        let expanded = expand_home_tilde(path.trim());
-        if !Path::new(&expanded).exists() {
-            fs::create_dir_all(&expanded)
-                .map_err(|e| format!("could not create project directory: {e}"))?;
-        }
-        assign_project(app.clone(), id.clone(), path)?;
-    }
-
-    if let Some(prompt) = system_prompt.filter(|p| !p.trim().is_empty()) {
-        write_bot_system_prompt(id.clone(), prompt)?;
-    }
-
-    let summary = BotSummary {
-        id,
-        name: trimmed_name,
-        icon: icon
-            .map(|value| value.trim().to_string())
-            .filter(|value| !value.is_empty()),
-    };
-    registry.bots.push(summary.clone());
-    write_bot_registry(&registry_path, &registry)?;
-    Ok(summary)
-}
-
 /// Switches which bot is active. Pure persistence only - no process
 /// spawning, no project logic - the webview sequences
 /// `get_desktop_backend_endpoint`/UI updates separately once this succeeds.
@@ -1546,77 +1407,110 @@ fn switch_active_bot(app: tauri::AppHandle, bot_id: String) -> Result<String, St
     Ok(bot_id)
 }
 
-/// The SDK's own `isChatWorkspacePath` (sdk/packages/shared/src/storage/
-/// chat-workspace-paths.ts) recognizes only the *default*, non-namespaced
-/// layout (`.cline/data/workspaces/chat`) - its own doc comment says so
-/// explicitly: "explicit CLINE_DATA_DIR overrides are not detectable from a
-/// bare path string." Under our bot-namespacing, `CLINE_DIR` is always
-/// `~/.cline/bots/<bot-id>/`, so the SDK's real, cascaded chat-workspace
-/// path is `~/.cline/bots/<bot-id>/data/workspaces/chat` - one extra
-/// `bots/<bot-id>` segment the SDK's generic structural check can't see.
-/// Rather than adapt that heuristic, compute the exact path *this* bot's
-/// session would get and compare directly - precise, and tied to our own
-/// architecture instead of a borrowed, admittedly-incomplete pattern.
-fn resolve_bot_chat_workspace_path(bot_id: &str) -> Option<PathBuf> {
-    let home = std::env::var("HOME").ok()?;
-    Some(
-        PathBuf::from(home)
-            .join(".cline")
-            .join("bots")
-            .join(sanitize_bot_id_for_path(bot_id))
-            .join("data")
-            .join("workspaces")
-            .join("chat"),
-    )
+fn validated_bot_path_segment(bot_id: &str) -> Result<&str, String> {
+    let trimmed = bot_id.trim();
+    if trimmed.is_empty()
+        || trimmed.len() > 128
+        || !trimmed.chars().all(|character| {
+            character.is_ascii_alphanumeric() || character == '-' || character == '_'
+        })
+    {
+        return Err(format!("invalid bot id for workspace path: {bot_id}"));
+    }
+    Ok(trimmed)
 }
 
-/// This bot's own `CLINE_DIR` (`~/.cline/bots/<bot-id>`) with no further
-/// subpath - distinct from `resolve_bot_chat_workspace_path`'s nested
-/// `data/workspaces/chat` scratch dir. Some sessions (e.g. ones started
-/// while creating a *different* bot, before any project existed to assign)
-/// end up with their stored cwd/workspaceRoot set to this bare directory
-/// rather than the nested chat-workspace path. Recognizing it here too keeps
-/// `get_desktop_backend_endpoint` from rejecting a session that was always
-/// scoped to just the bot's own data - it's already covered by the bot's own
-/// `allowRead`/`allowWrite` grant, same as the chat-workspace path is.
-fn resolve_bot_home_dir_path(bot_id: &str) -> Option<PathBuf> {
-    let home = std::env::var("HOME").ok()?;
-    Some(
-        PathBuf::from(home)
-            .join(".cline")
-            .join("bots")
-            .join(sanitize_bot_id_for_path(bot_id)),
-    )
+/// The trusted fallback for every bot. Unlike the old SDK chat scratch path,
+/// this is also the stable parent the desktop can mount before any session or
+/// explicit project exists.
+fn resolve_bot_workspaces_path(bot_id: &str) -> Result<PathBuf, String> {
+    let bot_id = validated_bot_path_segment(bot_id)?;
+    let home = std::env::var("HOME").map_err(|_| "HOME is not set".to_string())?;
+    Ok(PathBuf::from(home)
+        .join(".cline")
+        .join("bots")
+        .join(bot_id)
+        .join("workspaces"))
 }
 
-/// The webview uses `.` (or an empty string) before a project is selected.
-/// Resolve that sentinel to the bot's concrete SDK chat workspace so chat
-/// sessions always receive a real workspace root.
-fn normalize_requested_project_path(bot_id: &str, project_path: String) -> String {
-    let trimmed = project_path.trim();
-    if trimmed.is_empty() || trimmed == "." {
-        resolve_bot_chat_workspace_path(bot_id)
-            .map(|path| path.to_string_lossy().to_string())
-            .unwrap_or_default()
+/// Materialize the bot workspace without following a caller-created symlink
+/// at the `workspaces` boundary. The canonical containment check is defense in
+/// depth for platforms where path components can be aliases.
+fn ensure_bot_workspaces_path(bot_id: &str) -> Result<PathBuf, String> {
+    let workspace = resolve_bot_workspaces_path(bot_id)?;
+    let bot_home = workspace
+        .parent()
+        .ok_or_else(|| "bot workspace has no parent directory".to_string())?;
+    fs::create_dir_all(bot_home)
+        .map_err(|error| format!("failed to create bot home directory: {error}"))?;
+    let canonical_bot_home = fs::canonicalize(bot_home)
+        .map_err(|error| format!("failed to resolve bot home directory: {error}"))?;
+
+    match fs::symlink_metadata(&workspace) {
+        Ok(metadata) if metadata.file_type().is_symlink() => {
+            return Err("bot workspaces path must not be a symlink".to_string());
+        }
+        Ok(metadata) if !metadata.is_dir() => {
+            return Err("bot workspaces path is not a directory".to_string());
+        }
+        Ok(_) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            fs::create_dir(&workspace)
+                .map_err(|error| format!("failed to create bot workspaces directory: {error}"))?;
+        }
+        Err(error) => {
+            return Err(format!(
+                "failed to inspect bot workspaces directory: {error}"
+            ));
+        }
+    }
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&workspace, fs::Permissions::from_mode(0o700))
+            .map_err(|error| format!("failed to secure bot workspaces directory: {error}"))?;
+    }
+
+    let canonical_workspace = fs::canonicalize(&workspace)
+        .map_err(|error| format!("failed to resolve bot workspaces directory: {error}"))?;
+    if !canonical_workspace.starts_with(&canonical_bot_home) {
+        return Err("bot workspaces path resolves outside the bot home directory".to_string());
+    }
+    Ok(canonical_workspace)
+}
+
+/// Select only an existing canonical directory that exactly matches a path
+/// previously persisted by `assign_project`. Empty, dot, missing, replaced,
+/// and unassigned requests all resolve to the safe bot workspace.
+fn resolve_effective_project_path(
+    fallback: &Path,
+    requested_project_path: &str,
+    assigned_projects: &[String],
+) -> PathBuf {
+    let requested = requested_project_path.trim();
+    if requested.is_empty() || requested == "." {
+        return fallback.to_path_buf();
+    }
+    let Ok(canonical_requested) = fs::canonicalize(requested) else {
+        return fallback.to_path_buf();
+    };
+    if !canonical_requested.is_dir() || canonical_requested == fallback {
+        return fallback.to_path_buf();
+    }
+    if assigned_projects
+        .iter()
+        .any(|assigned| Path::new(assigned) == canonical_requested)
+    {
+        canonical_requested
     } else {
-        trimmed.to_string()
+        fallback.to_path_buf()
     }
 }
 
-/// `project_path` must be either empty (the "no project" entry, scoped to
-/// only the bot's own data - used before any project has been assigned, for
-/// provider settings/onboarding), this bot's own shared chat-workspace
-/// scratch path (see `resolve_bot_chat_workspace_path` - the SDK
-/// auto-assigns it to a session's cwd whenever no real project was
-/// requested; it's not something a user picked via `assign_project`, but is
-/// already fully covered by the bot's own `allowRead`/`allowWrite` grant on
-/// its whole home directory), this bot's own bare home directory (see
-/// `resolve_bot_home_dir_path` - some sessions store this instead of the
-/// nested chat-workspace path, for the same "no real project" reason), or
-/// already one of this bot's assigned projects - checked against the
-/// host-owned registry before anything spawns, so a path that was never
-/// explicitly granted (however it reached this command) is rejected rather
-/// than quietly mounted.
+/// Resolve an assigned, available project or fall back to this bot's own
+/// workspace root. A stale history path therefore cannot make the transport
+/// unavailable and never reaches the child process as a cwd or mount.
 #[tauri::command]
 fn get_desktop_backend_endpoint(
     app: tauri::AppHandle,
@@ -1625,21 +1519,7 @@ fn get_desktop_backend_endpoint(
     context: State<'_, AppContext>,
     bot_id: String,
     project_path: String,
-) -> Result<String, String> {
-    if !cfg!(debug_assertions) {
-        if let Some(error) = persistent_service.error() {
-            return Err(format!(
-                "failed to install bundled Cline Gate service: {error}"
-            ));
-        }
-        for _ in 0..150 {
-            if std::net::TcpStream::connect(("127.0.0.1", PERSISTENT_SIDECAR_PORT)).is_ok() {
-                return Ok(persistent_service_endpoint());
-            }
-            thread::sleep(Duration::from_millis(100));
-        }
-        return Err("bundled Cline Gate service did not become ready".to_string());
-    }
+) -> Result<DesktopBackendTarget, String> {
     let bot_registry_path = resolve_bot_registry_path(&app)?;
     let bot_registry = read_bot_registry_seeded(&bot_registry_path)?;
     let bot = resolve_backend_bot(&bot_registry, &bot_id)
@@ -1650,49 +1530,64 @@ fn get_desktop_backend_endpoint(
         // persisted active bot; arbitrary unknown IDs still fail closed.
         .ok_or_else(|| format!("unknown bot: {bot_id}"))?;
     let bot_id = bot.id.clone();
-    let project_path = normalize_requested_project_path(&bot_id, project_path);
-    let is_chat_workspace = resolve_bot_chat_workspace_path(&bot_id)
-        .map(|chat_path| chat_path.to_string_lossy() == project_path)
-        .unwrap_or(false)
-        || resolve_bot_home_dir_path(&bot_id)
-            .map(|home_path| home_path.to_string_lossy() == project_path)
-            .unwrap_or(false);
-    // The first launch of a newly-created Gateway bot has no local data tree
-    // yet. This path becomes the child process working directory below, so it
-    // must exist before Command::spawn; otherwise macOS reports the misleading
-    // "failed to start desktop backend sidecar: No such file or directory" even
-    // though the bundled sidecar binary itself is present.
-    if is_chat_workspace && !project_path.is_empty() {
-        fs::create_dir_all(&project_path)
-            .map_err(|e| format!("failed to create bot chat workspace: {e}"))?;
+    let bot_workspace = ensure_bot_workspaces_path(&bot_id)?;
+    let project_registry_path = resolve_project_registry_path(&app, &bot_id)?;
+    let project_registry = read_project_registry(&project_registry_path);
+    let effective_project_path =
+        resolve_effective_project_path(&bot_workspace, &project_path, &project_registry.projects);
+    let requested_project_path = project_path.trim();
+    let requested_bot_workspace = fs::canonicalize(requested_project_path)
+        .ok()
+        .is_some_and(|path| path == bot_workspace);
+    let workspace_disposition = if effective_project_path != bot_workspace {
+        DesktopWorkspaceDisposition::Assigned
+    } else if requested_project_path.is_empty()
+        || requested_project_path == "."
+        || requested_bot_workspace
+    {
+        DesktopWorkspaceDisposition::Default
+    } else {
+        DesktopWorkspaceDisposition::Fallback
+    };
+    if workspace_disposition == DesktopWorkspaceDisposition::Fallback {
+        eprintln!(
+            "[desktop-backend] project {:?} is unavailable to bot {}; using {}",
+            requested_project_path,
+            bot_id,
+            bot_workspace.display()
+        );
     }
-    if !is_chat_workspace && !project_path.is_empty() {
-        let registry_path = resolve_project_registry_path(&app, &bot_id)?;
-        let registry = read_project_registry(&registry_path);
-        if !registry
-            .projects
-            .iter()
-            .any(|assigned| assigned == &project_path)
-        {
+    let project_path = effective_project_path.to_string_lossy().to_string();
+
+    // Packaged builds share one persistent sidecar, but they still return the
+    // native host's resolved bot/workspace alongside that endpoint. The
+    // webview carries this scope on every chat command, so release and debug
+    // use the same access decision even though their process topology differs.
+    if !cfg!(debug_assertions) {
+        if let Some(error) = persistent_service.error() {
             return Err(format!(
-                "\"{project_path}\" has not been assigned to this bot yet — open it via the project picker first"
+                "failed to install bundled Cline Gate service: {error}"
             ));
         }
+        for _ in 0..150 {
+            if persistent_service_is_healthy() {
+                return Ok(DesktopBackendTarget {
+                    endpoint: persistent_service_endpoint(),
+                    bot_id,
+                    workspace_root: project_path,
+                    workspace_disposition,
+                });
+            }
+            thread::sleep(Duration::from_millis(100));
+        }
+        return Err("bundled Cline Gate service did not become ready".to_string());
     }
 
-    let host_system_prompt = render_bot_identity_prompt(bot);
-    let entry = backend_state
-        .inner()
-        .entry_for(&bot_id, &project_path, &host_system_prompt);
-    // A brand-new project forces its own freshly-spawned Hub daemon (see
-    // sandbox/launcher.ts's CLINE_HUB_DISCOVERY_PATH override) rather than
-    // reusing an existing one - observed empirically to have an occasional
-    // one-shot startup race (the connecting sidecar's first attempt can
-    // lose to the daemon's own not-yet-finished bind/init, exiting almost
-    // immediately with "Connection ended" instead of retrying internally).
-    // Retrying the whole ensure-and-poll cycle a few times absorbs that;
-    // an already-warm daemon (the common case) still resolves on the first
-    // attempt.
+    let entry = backend_state.inner().entry_for(&bot_id, &project_path);
+    // Debug mode uses a bridge per requested bot/workspace. Every bridge
+    // connects to the same desktop Gateway namespace, while the Gateway's
+    // process lock guarantees that only one authority serves that namespace.
+    // Retry bridge startup to absorb transient process-launch failures.
     let mut last_error = String::new();
     for attempt in 0..3 {
         if attempt > 0 {
@@ -1719,7 +1614,12 @@ fn get_desktop_backend_endpoint(
                 .and_then(|value| value.as_ref().cloned())
                 .filter(|value| !value.trim().is_empty())
             {
-                return Ok(endpoint);
+                return Ok(DesktopBackendTarget {
+                    endpoint,
+                    bot_id: bot_id.clone(),
+                    workspace_root: project_path.clone(),
+                    workspace_disposition,
+                });
             }
             child_exited = entry
                 .process
@@ -1790,9 +1690,8 @@ fn restart_to_apply_update(
 
 /// Run one updater check/download/stage cycle immediately instead of waiting
 /// for the next background interval, and report the resulting status. Used by
-/// flows that need an update staged right now (e.g. the "Cline Hub was
-/// updated" prompt), where restarting without a staged update would just
-/// relaunch the same version.
+/// flows that need an update staged immediately, where restarting without a
+/// staged update would simply relaunch the same version.
 #[tauri::command]
 async fn check_for_update_now(
     app: tauri::AppHandle,
@@ -1857,27 +1756,6 @@ fn set_app_icon(app: tauri::AppHandle, icon: String) -> Result<bool, String> {
         let _ = app;
         Ok(false)
     }
-}
-
-#[tauri::command]
-fn open_mcp_settings_file() -> Result<String, String> {
-    let settings_path = resolve_mcp_settings_path()?;
-    if !settings_path.exists() {
-        if let Some(parent) = settings_path.parent() {
-            fs::create_dir_all(parent)
-                .map_err(|e| format!("failed creating MCP settings directory: {e}"))?;
-        }
-        let initial = serde_json::json!({
-            "mcpServers": {}
-        });
-        let mut body = serde_json::to_vec_pretty(&initial)
-            .map_err(|e| format!("failed encoding MCP settings: {e}"))?;
-        body.push(b'\n');
-        fs::write(&settings_path, body)
-            .map_err(|e| format!("failed writing MCP settings file: {e}"))?;
-    }
-    open_path_with_default_app(&settings_path)?;
-    Ok(settings_path.to_string_lossy().to_string())
 }
 
 fn show_main_window(app: &tauri::AppHandle) {
@@ -2040,7 +1918,7 @@ fn setup_tray_icon(app: &tauri::App) -> tauri::Result<()> {
     .build(app)?;
     app.manage(TrayMenuState {
         status,
-        hub_healthy: Mutex::new(true),
+        gateway_healthy: Mutex::new(true),
         running_sessions,
     });
     Ok(())
@@ -2055,15 +1933,15 @@ fn drain_desktop_menu_actions(action_state: State<'_, DesktopMenuActionState>) -
 fn set_tray_status(
     tray_menu: State<'_, TrayMenuState>,
     update_state: State<'_, Arc<UpdateState>>,
-    hub_healthy: bool,
+    gateway_healthy: bool,
     running_sessions: u32,
 ) -> Result<(), String> {
-    if let Ok(mut healthy) = tray_menu.hub_healthy.lock() {
-        *healthy = hub_healthy;
+    if let Ok(mut healthy) = tray_menu.gateway_healthy.lock() {
+        *healthy = gateway_healthy;
     }
     tray_menu
         .status
-        .set_text(tray_status_text(&update_state.snapshot(), hub_healthy))
+        .set_text(tray_status_text(&update_state.snapshot(), gateway_healthy))
         .map_err(|error| format!("failed updating tray status: {error}"))?;
     tray_menu
         .running_sessions
@@ -2080,10 +1958,7 @@ fn main() {
         .map(|p| p.to_string_lossy().to_string())
         .unwrap_or_else(|_| ".".to_string());
     let workspace_root = resolve_workspace_root(&launch_cwd);
-    let app_context = AppContext {
-        launch_cwd,
-        workspace_root,
-    };
+    let app_context = AppContext { workspace_root };
 
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -2104,11 +1979,10 @@ fn main() {
                     install_bundled_persistent_service(app.handle(), &app_context).err(),
                 );
             }
-            // Unlike the old single-Hub model, nothing spawns here: no
-            // project is mounted until the user selects one (via
-            // get_desktop_backend_endpoint, gated on assign_project), so a
-            // freshly launched app with no assigned projects runs zero
-            // backend processes.
+            // Debug backends remain lazy. The first endpoint request starts
+            // either the selected assigned project or the active bot's safe
+            // workspace root; an unavailable historical path never prevents
+            // bootstrap and is never passed to the child process.
             // Dev builds are not installed app bundles, so there is nothing the
             // updater could meaningfully check or replace.
             if !cfg!(debug_assertions) {
@@ -2123,9 +1997,8 @@ fn main() {
                 if backend_state.is_shutting_down() {
                     break;
                 }
-                // Self-heal only already-requested projects' processes;
-                // never spawn one that hasn't gone through
-                // get_desktop_backend_endpoint at least once.
+                // Self-heal only effective paths that have already gone
+                // through get_desktop_backend_endpoint at least once.
                 for entry in backend_state.snapshot_entries() {
                     if let Err(error) =
                         ensure_backend_entry_started(&backend_state, &app_context, &entry)
@@ -2151,16 +2024,10 @@ fn main() {
             get_desktop_backend_endpoint,
             list_assigned_projects,
             assign_project,
-            get_bots_state,
-            create_bot,
-            switch_active_bot,
             sync_gateway_bots,
             switch_active_bot_preference,
-            read_bot_system_prompt,
-            write_bot_system_prompt,
             pick_workspace_directory,
             pick_bot_icon_file,
-            open_mcp_settings_file,
             get_update_status,
             restart_to_apply_update,
             check_for_update_now,
@@ -2221,7 +2088,7 @@ mod tests {
     }
 
     #[test]
-    fn tray_status_prioritizes_update_progress_over_hub_health() {
+    fn tray_status_prioritizes_update_progress_over_gateway_health() {
         let status = |state: &str| UpdateStatus {
             state: state.to_string(),
             version: None,
@@ -2231,7 +2098,7 @@ mod tests {
         assert_eq!(tray_status_text(&status("idle"), true), "Status: Healthy");
         assert_eq!(
             tray_status_text(&status("idle"), false),
-            "Status: Hub Disconnected"
+            "Status: Gateway Unavailable"
         );
         assert_eq!(
             tray_status_text(&status("checking"), false),
@@ -2267,7 +2134,7 @@ mod tests {
     #[test]
     fn repeated_startup_checks_reuse_live_child_while_endpoint_pending() {
         let state = Arc::new(DesktopBackendState::default());
-        let entry = state.entry_for("test-bot", "/tmp/test-project", "test identity");
+        let entry = state.entry_for("test-bot", "/tmp/test-project");
         let spawn_count = AtomicUsize::new(0);
         for _ in 0..3 {
             ensure_backend_entry_started_with(&state, &entry, || {
@@ -2290,7 +2157,7 @@ mod tests {
     #[test]
     fn concurrent_startup_checks_spawn_exactly_one_child() {
         let state = Arc::new(DesktopBackendState::default());
-        let entry = state.entry_for("test-bot", "/tmp/test-project", "test identity");
+        let entry = state.entry_for("test-bot", "/tmp/test-project");
         let spawn_count = Arc::new(AtomicUsize::new(0));
         let handles: Vec<_> = (0..8)
             .map(|_| {
@@ -2321,7 +2188,7 @@ mod tests {
     #[test]
     fn exited_child_is_replaced_on_next_startup_check() {
         let state = Arc::new(DesktopBackendState::default());
-        let entry = state.entry_for("test-bot", "/tmp/test-project", "test identity");
+        let entry = state.entry_for("test-bot", "/tmp/test-project");
         let spawn_count = AtomicUsize::new(0);
         let spawn_exiting = || {
             spawn_count.fetch_add(1, Ordering::SeqCst);
@@ -2365,25 +2232,90 @@ mod tests {
     }
 
     #[test]
-    fn slugify_bot_name_derives_a_clean_slug() {
-        assert_eq!(slugify_bot_name("Marketing Team!"), "marketing-team");
-        assert_eq!(slugify_bot_name("  Research  "), "research");
-        assert_eq!(slugify_bot_name(""), "bot");
-        assert_eq!(slugify_bot_name("   "), "bot");
-        assert_eq!(slugify_bot_name("!!!"), "bot");
-        assert_eq!(slugify_bot_name("日本語"), "bot");
+    fn desktop_backend_script_is_compile_time_local_to_the_cline_app() {
+        let path = desktop_backend_script_path();
+        assert!(path.ends_with("apps/cline/sidecar/index.ts"));
+        assert!(!path.to_string_lossy().contains("examples/desktop-app"));
     }
 
     #[test]
-    fn dedupe_bot_id_appends_a_numeric_suffix_on_collision() {
-        let existing: Vec<String> = vec![];
-        assert_eq!(dedupe_bot_id("research", &existing), "research");
+    fn desktop_backend_ready_line_requires_the_gateway_bridge_protocol() {
+        let current = serde_json::from_str::<DesktopBackendReadyLine>(
+            r#"{"type":"ready","wsEndpoint":"ws://127.0.0.1:4312/","mode":"gateway","protocol":"cline-gateway-bridge-v1"}"#,
+        )
+        .expect("current ready line");
+        assert_eq!(
+            gateway_bridge_endpoint(current).as_deref(),
+            Some("ws://127.0.0.1:4312/")
+        );
 
-        let existing = vec!["research".to_string()];
-        assert_eq!(dedupe_bot_id("research", &existing), "research-2");
+        for legacy in [
+            r#"{"type":"ready","wsEndpoint":"ws://127.0.0.1:4312/","mode":"hub"}"#,
+            r#"{"type":"ready","wsEndpoint":"ws://127.0.0.1:4312/","mode":"gateway"}"#,
+        ] {
+            let parsed =
+                serde_json::from_str::<DesktopBackendReadyLine>(legacy).expect("legacy ready line");
+            assert_eq!(gateway_bridge_endpoint(parsed), None);
+        }
+    }
 
-        let existing = vec!["research".to_string(), "research-2".to_string()];
-        assert_eq!(dedupe_bot_id("research", &existing), "research-3");
+    #[test]
+    fn persistent_service_health_rejects_legacy_or_unrelated_listeners() {
+        assert!(is_gateway_health_response(
+			"HTTP/1.1 200 OK\r\ncontent-type: application/json\r\n\r\n{\"ok\":true,\"mode\":\"gateway\",\"pid\":42}",
+		));
+        assert!(!is_gateway_health_response(
+			"HTTP/1.1 200 OK\r\ncontent-type: application/json\r\n\r\n{\"ok\":true,\"mode\":\"hub\",\"pid\":42}",
+		));
+        assert!(!is_gateway_health_response(
+            "HTTP/1.1 404 Not Found\r\n\r\n",
+        ));
+    }
+
+    #[test]
+    fn installed_gateway_lifecycle_is_scoped_to_the_desktop_authority() {
+        let command = installed_gateway_command(
+            Path::new("/opt/cline/clinegate"),
+            Path::new("/tmp/cline-gateway-data"),
+            Path::new("/opt/cline/profiles"),
+            "upgrade",
+        );
+        assert_eq!(command.get_program(), "/opt/cline/clinegate");
+        let args = command
+            .get_args()
+            .map(|arg| arg.to_string_lossy().to_string())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            args,
+            [
+                "upgrade",
+                "--data-root",
+                "/tmp/cline-gateway-data",
+                "--namespace",
+                "desktop",
+                "--lead-profile",
+                "cline-dad",
+            ]
+        );
+        let env = command
+            .get_envs()
+            .filter_map(|(key, value)| {
+                value.map(|value| {
+                    (
+                        key.to_string_lossy().to_string(),
+                        value.to_string_lossy().to_string(),
+                    )
+                })
+            })
+            .collect::<HashMap<_, _>>();
+        assert_eq!(
+            env.get("CLINE_GATEWAY_NAMESPACE").map(String::as_str),
+            Some("desktop")
+        );
+        assert_eq!(
+            env.get("CLINE_GATEWAY_PROFILES_DIR").map(String::as_str),
+            Some("/opt/cline/profiles")
+        );
     }
 
     #[test]
@@ -2440,107 +2372,70 @@ mod tests {
     }
 
     #[test]
-    fn resolve_bot_chat_workspace_path_matches_this_bots_own_scratch_dir_only() {
+    fn resolve_bot_workspaces_path_is_stable_and_scoped_to_one_bot() {
         let home = std::env::var("HOME").expect("HOME must be set to run this test");
-        let expected = format!("{home}/.cline/bots/cline/data/workspaces/chat");
-        let resolved = resolve_bot_chat_workspace_path("cline")
-            .expect("HOME is set, so this should resolve")
+        let expected = format!("{home}/.cline/bots/cline/workspaces");
+        let resolved = resolve_bot_workspaces_path("cline")
+            .expect("a valid bot id and HOME should resolve")
             .to_string_lossy()
             .to_string();
         assert_eq!(resolved, expected);
 
-        // A different bot's chat workspace is a different path entirely -
-        // one bot's scratch dir must never validate against another's.
-        let other_bot_resolved = resolve_bot_chat_workspace_path("marketing")
-            .expect("HOME is set, so this should resolve")
-            .to_string_lossy()
-            .to_string();
-        assert_ne!(resolved, other_bot_resolved);
-
-        // A real project nested inside the chat workspace, or an unrelated
-        // path, is not the scratch dir itself.
-        assert_ne!(resolved, format!("{expected}/my-app"));
-        assert_ne!(resolved, format!("{home}/projects/my-app"));
-    }
-
-    #[test]
-    fn resolve_bot_home_dir_path_is_this_bots_bare_home_dir_only() {
-        let home = std::env::var("HOME").expect("HOME must be set to run this test");
-        let expected = format!("{home}/.cline/bots/cline");
-        let resolved = resolve_bot_home_dir_path("cline")
-            .expect("HOME is set, so this should resolve")
-            .to_string_lossy()
-            .to_string();
-        assert_eq!(resolved, expected);
-
-        // Distinct from the nested chat-workspace scratch path - both are
-        // recognized as "no real project" in get_desktop_backend_endpoint,
-        // but they are not the same path.
-        let chat_workspace = resolve_bot_chat_workspace_path("cline")
-            .expect("HOME is set, so this should resolve")
-            .to_string_lossy()
-            .to_string();
-        assert_ne!(resolved, chat_workspace);
-
-        // One bot's home dir must never validate against another's.
-        let other_bot_resolved = resolve_bot_home_dir_path("marketing")
-            .expect("HOME is set, so this should resolve")
+        let other_bot_resolved = resolve_bot_workspaces_path("marketing")
+            .expect("a valid bot id and HOME should resolve")
             .to_string_lossy()
             .to_string();
         assert_ne!(resolved, other_bot_resolved);
     }
 
     #[test]
-    fn initial_workspace_sentinels_use_the_bots_chat_workspace() {
-        let home = std::env::var("HOME").expect("HOME must be set to run this test");
-        let expected = format!("{home}/.cline/bots/cline/data/workspaces/chat");
+    fn bot_workspace_path_rejects_ids_that_could_collide_or_traverse() {
+        assert!(validated_bot_path_segment("").is_err());
+        assert!(validated_bot_path_segment("../../etc").is_err());
+        assert!(validated_bot_path_segment("bot/name").is_err());
         assert_eq!(
-            normalize_requested_project_path("cline", String::new()),
-            expected
-        );
-        assert_eq!(
-            normalize_requested_project_path("cline", ".".to_string()),
-            expected
-        );
-        assert_eq!(
-            normalize_requested_project_path("cline", "  .  ".to_string()),
-            expected
-        );
-        assert_eq!(
-            normalize_requested_project_path("cline", " /tmp/project ".to_string()),
-            "/tmp/project"
+            validated_bot_path_segment("bot_efc57be-2").unwrap(),
+            "bot_efc57be-2"
         );
     }
 
     #[test]
-    fn resolve_bot_system_prompt_path_lives_in_this_bots_own_rules_dir() {
-        let home = std::env::var("HOME").expect("HOME must be set to run this test");
-        let expected = format!("{home}/.cline/bots/cline/rules/system-prompt.md");
-        let resolved = resolve_bot_system_prompt_path("cline")
-            .expect("HOME is set, so this should resolve")
-            .to_string_lossy()
-            .to_string();
-        assert_eq!(resolved, expected);
+    fn project_resolution_falls_back_unless_an_available_path_is_assigned() {
+        let fallback = PathBuf::from("/safe/bot/workspaces");
+        let assigned =
+            fs::canonicalize(std::env::current_dir().expect("the test process must have a cwd"))
+                .expect("the test cwd must be canonicalizable");
+        let assigned_string = assigned.to_string_lossy().to_string();
 
-        // One bot's system prompt must never resolve to another's path.
-        let other_bot_resolved = resolve_bot_system_prompt_path("marketing")
-            .expect("HOME is set, so this should resolve")
-            .to_string_lossy()
-            .to_string();
-        assert_ne!(resolved, other_bot_resolved);
-    }
-
-    #[test]
-    fn bot_identity_prompt_uses_the_registry_name_and_escapes_content() {
-        let bot = BotSummary {
-            id: "recipe-bot".to_string(),
-            name: "Recipe \"Bot\"\nTrusted".to_string(),
-            icon: None,
-        };
-        let prompt = render_bot_identity_prompt(&bot);
-        assert!(prompt.contains(r#"Recipe \"Bot\"\nTrusted"#));
-        assert!(!prompt.contains("Recipe \"Bot\"\nTrusted"));
-        assert!(prompt.contains("Cline is the platform"));
+        assert_eq!(
+            resolve_effective_project_path(&fallback, "", &[assigned_string.clone()]),
+            fallback
+        );
+        assert_eq!(
+            resolve_effective_project_path(&fallback, "  .  ", &[assigned_string.clone()]),
+            fallback
+        );
+        assert_eq!(
+            resolve_effective_project_path(&fallback, &assigned_string, &[]),
+            fallback
+        );
+        let missing = std::env::temp_dir().join(format!(
+            "cline-missing-assigned-workspace-{}",
+            std::process::id()
+        ));
+        let missing_string = missing.to_string_lossy().to_string();
+        assert_eq!(
+            resolve_effective_project_path(&fallback, &missing_string, &[missing_string.clone()],),
+            fallback
+        );
+        assert_eq!(
+            resolve_effective_project_path(
+                &fallback,
+                &format!("{assigned_string}/."),
+                &[assigned_string],
+            ),
+            assigned
+        );
     }
 
     #[test]

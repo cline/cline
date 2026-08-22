@@ -200,6 +200,10 @@ export class SqliteBotRepository implements BotRepository {
 // -----------------------------------------------------------------------------
 
 function rowToSessionRecord(row: Record<string, unknown>): SessionRecord {
+	const metadata =
+		row.metadata_json == null
+			? undefined
+			: (JSON.parse(String(row.metadata_json)) as Record<string, unknown>);
 	return {
 		sessionId: String(row.session_id) as SessionId,
 		botId: String(row.bot_id) as BotId,
@@ -209,6 +213,11 @@ function rowToSessionRecord(row: Record<string, unknown>): SessionRecord {
 			row.kind === "dedicated"
 				? "dedicated"
 				: ("canonical" as SessionRecord["kind"]),
+		title: row.title == null ? undefined : String(row.title),
+		metadata:
+			metadata && Object.keys(metadata).length > 0
+				? Object.freeze(metadata)
+				: undefined,
 		createdAt: Number(row.created_at),
 		revision: Number(row.revision),
 	};
@@ -254,10 +263,13 @@ export class SqliteSessionRepository implements SessionRepository {
 		this.database.db
 			.prepare(
 				`INSERT INTO sessions (
-					session_id, bot_id, workspace_root, state, kind, created_at, revision
-				) VALUES (?, ?, ?, ?, ?, ?, ?)
+					session_id, bot_id, workspace_root, state, kind, title,
+					metadata_json, created_at, revision
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 				ON CONFLICT(session_id) DO UPDATE SET
 					state = excluded.state,
+					title = excluded.title,
+					metadata_json = excluded.metadata_json,
 					revision = excluded.revision;`,
 			)
 			.run(
@@ -266,9 +278,42 @@ export class SqliteSessionRepository implements SessionRepository {
 				record.workspace.rootPath,
 				record.state,
 				record.kind ?? "canonical",
+				record.title ?? null,
+				JSON.stringify(record.metadata ?? {}),
 				record.createdAt,
 				record.revision,
 			);
+	}
+
+	delete(sessionId: SessionId): boolean {
+		const runIds = this.database.db
+			.prepare("SELECT run_id FROM runs WHERE session_id = ?;")
+			.all(sessionId)
+			.map((row) => String(row.run_id));
+		for (const runId of runIds) {
+			this.database.db
+				.prepare("UPDATE schedule_jobs SET run_id = NULL WHERE run_id = ?;")
+				.run(runId);
+			this.database.db
+				.prepare("DELETE FROM run_attempts WHERE run_id = ?;")
+				.run(runId);
+			this.database.db
+				.prepare("DELETE FROM run_provenance WHERE run_id = ?;")
+				.run(runId);
+		}
+		this.database.db
+			.prepare("DELETE FROM messages WHERE session_id = ?;")
+			.run(sessionId);
+		this.database.db
+			.prepare("DELETE FROM connector_routes WHERE session_id = ?;")
+			.run(sessionId);
+		this.database.db
+			.prepare("DELETE FROM runs WHERE session_id = ?;")
+			.run(sessionId);
+		const result = this.database.db
+			.prepare("DELETE FROM sessions WHERE session_id = ?;")
+			.run(sessionId);
+		return result.changes === 1;
 	}
 }
 
@@ -409,6 +454,24 @@ export class SqliteRunRepository implements RunRepository {
 				record.error?.name ?? null,
 				record.error?.message ?? null,
 			);
+	}
+
+	updateQueuedInput(runId: RunId, input: string): RunRecord {
+		const result = this.database.db
+			.prepare(
+				"UPDATE runs SET input = ? WHERE run_id = ? AND state = 'queued';",
+			)
+			.run(input, runId);
+		if (result.changes !== 1) {
+			throw new Error(`Run ${runId} is not queued`);
+		}
+		const updated = this.get(runId);
+		if (!updated) {
+			throw new Error(
+				`Run ${runId} disappeared after its queued input changed`,
+			);
+		}
+		return updated;
 	}
 }
 

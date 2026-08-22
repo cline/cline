@@ -10,7 +10,7 @@ export type DesktopMenuAction = "new-session" | "open-settings" | AppZoomAction;
 
 type ProcessContext = {
 	runningSessionCount?: unknown;
-	hub?: {
+	gateway?: {
 		status?: unknown;
 	};
 };
@@ -114,7 +114,7 @@ async function refreshDesktopTrayStatus(): Promise<void> {
 
 	try {
 		await desktopClient.invoke("set_tray_status", {
-			hubHealthy: context.hub?.status === "connected",
+			gatewayHealthy: context.gateway?.status === "connected",
 			runningSessions,
 		});
 	} catch {

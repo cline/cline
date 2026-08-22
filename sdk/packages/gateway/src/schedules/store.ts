@@ -27,6 +27,13 @@ export interface ScheduleNotifyTarget {
 	readonly externalConversationId: string;
 }
 
+export type ScheduleMode = "act" | "plan" | "yolo";
+
+export interface ScheduleModelSelection {
+	readonly providerId?: string;
+	readonly modelId?: string;
+}
+
 export interface ScheduleRecord {
 	readonly scheduleId: ScheduleId;
 	readonly botId: BotId;
@@ -36,17 +43,34 @@ export interface ScheduleRecord {
 	readonly intervalMs?: number;
 	/** One-shot trigger (epoch ms). */
 	readonly at?: number;
+	/** Desktop routine cron trigger (`minute hour * * weekdays`). */
+	readonly cronPattern?: string;
 	readonly nextDueAt?: number;
 	readonly enabled: boolean;
 	/** Total run attempts per firing (1 = no retry). */
 	readonly maxAttempts: number;
 	/** When set, firing outcomes notify this connector conversation. */
 	readonly notify?: ScheduleNotifyTarget;
+	readonly metadata?: Readonly<Record<string, unknown>>;
+	readonly modelSelection?: ScheduleModelSelection;
+	readonly mode?: ScheduleMode;
+	readonly workspaceRoot?: string;
+	readonly cwd?: string;
+	readonly systemPrompt?: string;
+	readonly maxIterations?: number;
+	readonly timeoutSeconds?: number;
+	readonly maxParallel: number;
+	readonly tags?: readonly string[];
 	readonly createdAt: number;
+	readonly updatedAt: number;
 	readonly revision: number;
 }
 
 function rowToSchedule(row: Record<string, unknown>): ScheduleRecord {
+	const details =
+		row.details_json == null
+			? {}
+			: (JSON.parse(String(row.details_json)) as Partial<ScheduleRecord>);
 	const hasNotify =
 		row.notify_connector_id !== null &&
 		row.notify_connector_id !== undefined &&
@@ -59,6 +83,8 @@ function rowToSchedule(row: Record<string, unknown>): ScheduleRecord {
 		prompt: String(row.prompt),
 		intervalMs: row.interval_ms === null ? undefined : Number(row.interval_ms),
 		at: row.at === null ? undefined : Number(row.at),
+		cronPattern:
+			row.cron_pattern === null ? undefined : String(row.cron_pattern),
 		nextDueAt: row.next_due_at === null ? undefined : Number(row.next_due_at),
 		enabled: Number(row.enabled) === 1,
 		maxAttempts: Number(row.max_attempts),
@@ -71,7 +97,21 @@ function rowToSchedule(row: Record<string, unknown>): ScheduleRecord {
 					},
 				}
 			: {}),
+		metadata: details.metadata,
+		modelSelection: details.modelSelection,
+		mode: details.mode,
+		workspaceRoot: details.workspaceRoot,
+		cwd: details.cwd,
+		systemPrompt: details.systemPrompt,
+		maxIterations: details.maxIterations,
+		timeoutSeconds: details.timeoutSeconds,
+		maxParallel: details.maxParallel ?? 1,
+		tags: details.tags,
 		createdAt: Number(row.created_at),
+		updatedAt:
+			Number(row.updated_at) > 0
+				? Number(row.updated_at)
+				: Number(row.created_at),
 		revision: Number(row.revision),
 	};
 }
@@ -116,23 +156,39 @@ export class ScheduleStore {
 	}
 
 	save(record: ScheduleRecord): void {
+		const details = {
+			metadata: record.metadata,
+			modelSelection: record.modelSelection,
+			mode: record.mode,
+			workspaceRoot: record.workspaceRoot,
+			cwd: record.cwd,
+			systemPrompt: record.systemPrompt,
+			maxIterations: record.maxIterations,
+			timeoutSeconds: record.timeoutSeconds,
+			maxParallel: record.maxParallel,
+			tags: record.tags,
+		};
 		this.database.db
 			.prepare(
 				`INSERT INTO schedules (
-					schedule_id, bot_id, name, prompt, interval_ms, at,
-					next_due_at, enabled, max_attempts, created_at, revision,
+					schedule_id, bot_id, name, prompt, interval_ms, at, cron_pattern,
+					next_due_at, enabled, max_attempts, created_at, updated_at, revision,
+					details_json,
 					notify_connector_id, notify_external_account_id,
 					notify_external_conversation_id
-				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 				ON CONFLICT(schedule_id) DO UPDATE SET
 					name = excluded.name,
 					prompt = excluded.prompt,
 					interval_ms = excluded.interval_ms,
 					at = excluded.at,
+					cron_pattern = excluded.cron_pattern,
 					next_due_at = excluded.next_due_at,
 					enabled = excluded.enabled,
 					max_attempts = excluded.max_attempts,
+					updated_at = excluded.updated_at,
 					revision = excluded.revision,
+					details_json = excluded.details_json,
 					notify_connector_id = excluded.notify_connector_id,
 					notify_external_account_id = excluded.notify_external_account_id,
 					notify_external_conversation_id = excluded.notify_external_conversation_id;`,
@@ -144,15 +200,25 @@ export class ScheduleStore {
 				record.prompt,
 				record.intervalMs ?? null,
 				record.at ?? null,
+				record.cronPattern ?? null,
 				record.nextDueAt ?? null,
 				record.enabled ? 1 : 0,
 				record.maxAttempts,
 				record.createdAt,
+				record.updatedAt,
 				record.revision,
+				JSON.stringify(details),
 				record.notify?.connectorId ?? null,
 				record.notify?.externalAccountId ?? null,
 				record.notify?.externalConversationId ?? null,
 			);
+	}
+
+	delete(scheduleId: ScheduleId): boolean {
+		const result = this.database.db
+			.prepare("DELETE FROM schedules WHERE schedule_id = ?;")
+			.run(scheduleId);
+		return result.changes === 1;
 	}
 
 	advanceNextDue(scheduleId: ScheduleId, nextDueAt: number | undefined): void {
@@ -222,6 +288,26 @@ export class ScheduleJobStore {
 			.prepare("SELECT * FROM schedule_jobs WHERE job_id = ?;")
 			.get(jobId);
 		return row ? rowToJob(row) : undefined;
+	}
+
+	getByScheduleDue(
+		scheduleId: ScheduleId,
+		dueAt: number,
+	): ScheduleJobRecord | undefined {
+		const row = this.database.db
+			.prepare(
+				"SELECT * FROM schedule_jobs WHERE schedule_id = ? AND due_at = ?;",
+			)
+			.get(scheduleId, dueAt);
+		return row ? rowToJob(row) : undefined;
+	}
+
+	deleteBySchedule(scheduleId: ScheduleId): number {
+		return (
+			this.database.db
+				.prepare("DELETE FROM schedule_jobs WHERE schedule_id = ?;")
+				.run(scheduleId).changes ?? 0
+		);
 	}
 
 	/** Jobs claimable now: pending, or claimed with an expired claim. */

@@ -440,5 +440,5 @@ export type ProviderActionRequest =
 
 export interface ProviderOAuthLoginResponse {
 	provider: string;
-	accessToken: string;
+	configured: true;
 }

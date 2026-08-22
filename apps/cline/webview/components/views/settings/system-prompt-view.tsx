@@ -7,20 +7,28 @@ import { Button } from "@/components/ui/button";
 import { desktopClient } from "@/lib/desktop-client";
 import { PageFrame, PageHeader } from "../page-layout";
 
+type BotSystemPromptDetails = {
+	content: string | null;
+	bundledContent: string | null;
+	profileRulesContent: string | null;
+	profileId: string | null;
+};
+
 /**
- * Per-bot system prompt editor, reusing the same SystemPromptEditor as the
- * bot-creation dialog - here it's pre-loaded from and saved back to the
- * active bot's own rules/system-prompt.md (see main.rs's
- * read_bot_system_prompt/write_bot_system_prompt) instead of being handed
- * off to create_bot at creation time.
+ * The selected host profile supplies a read-only base prompt. This editor
+ * persists only the bot-owned instructions appended after those rules.
  */
 export function SystemPromptSettingsContent({
 	activeBotId,
 }: {
 	activeBotId: string;
 }) {
-	const [description, setDescription] = useState("");
 	const [systemPrompt, setSystemPrompt] = useState("");
+	const [bundledContent, setBundledContent] = useState<string | null>(null);
+	const [profileRulesContent, setProfileRulesContent] = useState<string | null>(
+		null,
+	);
+	const [profileId, setProfileId] = useState<string | null>(null);
 	const [isLoading, setIsLoading] = useState(true);
 	const [loadError, setLoadError] = useState<string | null>(null);
 	const [isSaving, setIsSaving] = useState(false);
@@ -31,15 +39,20 @@ export function SystemPromptSettingsContent({
 		let cancelled = false;
 		setIsLoading(true);
 		setLoadError(null);
-		setDescription("");
+		setBundledContent(null);
+		setProfileRulesContent(null);
+		setProfileId(null);
 		setJustSaved(false);
 		desktopClient
-			.invoke<string | null>("read_bot_system_prompt", {
+			.invoke<BotSystemPromptDetails>("read_bot_system_prompt", {
 				botId: activeBotId,
 			})
-			.then((content) => {
+			.then((details) => {
 				if (cancelled) return;
-				setSystemPrompt(content ?? "");
+				setSystemPrompt(details.content ?? "");
+				setBundledContent(details.bundledContent);
+				setProfileRulesContent(details.profileRulesContent);
+				setProfileId(details.profileId);
 			})
 			.catch((error) => {
 				if (cancelled) return;
@@ -81,7 +94,7 @@ export function SystemPromptSettingsContent({
 	return (
 		<PageFrame>
 			<PageHeader
-				description="Describe what this bot should do, upload a ready-made prompt, or generate one - saved directly to this bot's own rules."
+				description="Applied in order: bundled system prompt, profile rules, then your custom instructions."
 				title="System Prompt"
 			/>
 			<section className="max-w-2xl">
@@ -93,10 +106,41 @@ export function SystemPromptSettingsContent({
 					<p className="text-sm text-destructive">{loadError}</p>
 				) : (
 					<div className="grid gap-4">
+						{bundledContent || profileRulesContent ? (
+							<div className="rounded-lg border border-border bg-card p-4">
+								<p className="text-sm font-medium">
+									Bundled profile: {profileId ?? "default"}
+								</p>
+								<p className="mt-1 text-xs text-muted-foreground">
+									Loaded from default-agent/{profileId ?? "default"}
+									/system-prompt.md and rules/*.md. These files are managed by
+									the app.
+								</p>
+								{bundledContent ? (
+									<details className="mt-3 text-sm">
+										<summary className="cursor-pointer text-muted-foreground">
+											View bundled system prompt
+										</summary>
+										<pre className="cline-page-selectable mt-3 max-h-80 overflow-auto whitespace-pre-wrap rounded-md bg-muted p-3 font-mono text-xs">
+											{bundledContent}
+										</pre>
+									</details>
+								) : null}
+								{profileRulesContent ? (
+									<details className="mt-3 text-sm">
+										<summary className="cursor-pointer text-muted-foreground">
+											View profile rules and bundled skill guidance
+										</summary>
+										<pre className="cline-page-selectable mt-3 max-h-80 overflow-auto whitespace-pre-wrap rounded-md bg-muted p-3 font-mono text-xs">
+											{profileRulesContent}
+										</pre>
+									</details>
+								) : null}
+							</div>
+						) : null}
+						<p className="text-sm font-medium">Custom instructions</p>
 						<SystemPromptEditor
-							description={description}
 							disabled={isSaving}
-							onDescriptionChange={setDescription}
 							onSystemPromptChange={(value) => {
 								setSystemPrompt(value);
 								setJustSaved(false);

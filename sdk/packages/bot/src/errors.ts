@@ -7,6 +7,8 @@
 
 export type BotDomainErrorCode =
 	| "run_admission_rejected"
+	| "queued_run_mutation_rejected"
+	| "session_mutation_rejected"
 	| "role_immutable"
 	| "delegation_not_allowed"
 	| "workspace_immutable"
@@ -29,6 +31,20 @@ export class RunAdmissionError extends BotDomainError {
 	constructor(message: string) {
 		super("run_admission_rejected", message);
 		this.name = "RunAdmissionError";
+	}
+}
+
+export class QueuedRunMutationError extends BotDomainError {
+	constructor(message: string) {
+		super("queued_run_mutation_rejected", message);
+		this.name = "QueuedRunMutationError";
+	}
+}
+
+export class SessionMutationError extends BotDomainError {
+	constructor(message: string) {
+		super("session_mutation_rejected", message);
+		this.name = "SessionMutationError";
 	}
 }
 

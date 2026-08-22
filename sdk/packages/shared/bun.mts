@@ -1,4 +1,6 @@
 /// <reference types="@types/bun" />
+import { rmSync } from "node:fs";
+
 export {};
 
 type BuildMode = "package" | "bundle" | "dev";
@@ -10,6 +12,8 @@ const shouldEmitTypes = buildMode === "package";
 const sourcemap = Bun.env.CLINE_SOURCEMAPS === "1" ? "linked" : "none";
 // minify: true keeps identifier mangling active even when sourcemaps are enabled.
 const minify = Bun.env.CLINE_SOURCEMAPS !== "1";
+
+rmSync("./dist", { force: true, recursive: true });
 
 const runBuild = async (
 	name: string,
@@ -35,7 +39,9 @@ const runBuild = async (
 await runBuild("node", {
 	entrypoints: [
 		"./src/index.ts",
+		"./src/agent.ts",
 		"./src/automation/index.ts",
+		"./src/connectors/index.ts",
 		"./src/db/index.ts",
 		"./src/gateway/index.ts",
 		"./src/node.ts",
@@ -43,6 +49,7 @@ await runBuild("node", {
 		"./src/storage/index.ts",
 	],
 	outdir: "./dist",
+	root: "./src",
 	target: "node",
 	minify,
 	sourcemap,
@@ -51,6 +58,7 @@ await runBuild("node", {
 await runBuild("browser", {
 	entrypoints: ["./src/index.browser.ts"],
 	outdir: "./dist",
+	root: "./src",
 	target: "browser",
 	minify,
 	sourcemap,

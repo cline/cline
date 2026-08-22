@@ -28,6 +28,30 @@ export type {
 } from "./client";
 export { GatewayClient, GatewayRequestError } from "./client";
 export type {
+	ClineAccountNotAuthenticatedResult,
+	GatewayClineAccountPort,
+	GatewayClineAccountQuery,
+	GatewayClineAccountQueryResult,
+	GatewayClineAccountServiceOptions,
+	GatewayClineAccountSwitch,
+	GatewayClineAccountSwitchResult,
+} from "./cline-account";
+export {
+	CLINE_ACCOUNT_NOT_AUTHENTICATED_CODE,
+	CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT,
+	GatewayClineAccountService,
+} from "./cline-account";
+export type {
+	GatewayClineOAuthCredentials,
+	GatewayClineOAuthLoginInput,
+	GatewayClineOAuthPort,
+	GatewayClineOAuthServiceOptions,
+} from "./cline-oauth";
+export {
+	GatewayClineOAuthError,
+	GatewayClineOAuthService,
+} from "./cline-oauth";
+export type {
 	ConnectorAdapter,
 	ConnectorAdapterContext,
 	ConnectorCredentialCheck,
@@ -125,6 +149,11 @@ export {
 	ModelNotConfiguredError,
 	resolveProviderModel,
 } from "./engine-binding";
+export type {
+	GatewayGlobalSettings,
+	GatewayGlobalSettingsPatch,
+} from "./global-settings";
+export { GatewayGlobalSettingsStore } from "./global-settings";
 export type { GatewayIdentityInfo, HelloNegotiation } from "./hello";
 export {
 	negotiateHello,
@@ -135,20 +164,42 @@ export {
 	IdempotencyLedger,
 	stableStringify,
 } from "./idempotency-ledger";
-export { GatewayLock, GatewayLockHeldError } from "./lock";
 export type {
 	LeadProfileSummary,
 	LeadProfileTemplateValues,
 	ResolvedLeadProfile,
 } from "./lead-profiles";
 export {
-	listLeadProfiles,
 	bundledLeadProfileFile,
+	listLeadProfiles,
 	loadBundledLeadProfile,
 	loadLeadProfile,
 	PLAIN_LEAD_PROFILE,
 	PLAIN_LEAD_PROFILE_ID,
 } from "./lead-profiles";
+export { GatewayLock, GatewayLockHeldError } from "./lock";
+export type {
+	GatewayExtensionStoreOptions,
+	GatewayManagedExtensionsResponse,
+	GatewayManagedPluginView,
+	GatewayManagedSkillView,
+	GatewayMarketplaceActionResult,
+	GatewayMarketplaceCatalog,
+	GatewayMarketplaceEntry,
+	GatewayMcpServerInput,
+	GatewayMcpServersResponse,
+	GatewayMcpServerView,
+	GatewayMcpTransportType,
+	MarketplaceCatalogLoader,
+	MarketplacePackageMaterializer,
+	MarketplacePrimitiveType,
+} from "./managed-extensions";
+export {
+	GatewayExtensionError,
+	GatewayExtensionStore,
+	MCP_OAUTH_UNAVAILABLE_MESSAGE,
+	MCP_REDACTED_VALUE,
+} from "./managed-extensions";
 export type {
 	McpHttpTransportSpec,
 	McpServerDefinition,
@@ -177,7 +228,9 @@ export type {
 	McpTransportFactory,
 } from "./mcp/transport";
 export {
+	createMcpTransportFactory,
 	createStdioTransportFactory,
+	HttpMcpTransport,
 	StdioMcpTransport,
 } from "./mcp/transport";
 export type { McpToolPolicy } from "./mcp/views";
@@ -251,12 +304,17 @@ export type {
 export { PluginStateStore } from "./plugins/state-store";
 export { RunProvenanceStore } from "./provenance-store";
 export type {
-	GatewayRemoteAddress,
-	GatewayRemoteOptions,
-	GatewayTlsOptions,
-} from "./remote";
-export { isLoopbackHost, validateRemoteOptions } from "./remote";
+	AddGatewayProviderInput,
+	ProviderCredentialPresence,
+	ProviderSettingsPatch,
+	PublicProviderSettings,
+	SavedProviderDefinition,
+	SavedProviderSettings,
+	UpdateGatewayProviderModelsInput,
+} from "./provider-settings";
 export {
+	GatewayProviderSettingsError,
+	GatewayProviderSettingsStore,
 	gatewayProviderSettingsPath,
 	listSavedProviderSummaries,
 	readSavedProviderSelection,
@@ -264,11 +322,27 @@ export {
 	savedProviderOptions,
 } from "./provider-settings";
 export type {
+	GatewayRemoteAddress,
+	GatewayRemoteOptions,
+	GatewayTlsOptions,
+} from "./remote";
+export { isLoopbackHost, validateRemoteOptions } from "./remote";
+export type {
 	EngineRetryPolicy,
 	GatewayRecoveryReport,
 	GatewayRuntimeOptions,
+	QueuedRunPromotionResult,
+	QueuedRunUpdateResult,
 	RunStartParams,
+	ScheduleCreateParams,
+	ScheduleDeleteResult,
+	ScheduleTriggerResult,
+	ScheduleUpdateParams,
+	SessionDeleteResult,
+	SessionForkParams,
+	SessionForkResult,
 	SessionSnapshot,
+	SessionUpdateParams,
 } from "./runtime";
 export {
 	ApprovalBroker,
@@ -287,6 +361,8 @@ export { Scheduler } from "./schedules/scheduler";
 export type {
 	ScheduleJobRecord,
 	ScheduleJobState,
+	ScheduleMode,
+	ScheduleModelSelection,
 	ScheduleRecord,
 } from "./schedules/store";
 export { ScheduleJobStore, ScheduleStore } from "./schedules/store";
@@ -341,6 +417,22 @@ export {
 	UsageStore,
 	utcDateOf,
 } from "./usage";
+export type {
+	GatewayVoiceManagerOptions,
+	GatewayVoicePrimitives,
+	VoiceSettingsResult,
+	VoiceStreamingSession,
+	VoiceTranscriptionInput,
+	VoiceTranscriptionResult,
+} from "./voice";
+export {
+	GatewayVoiceError,
+	GatewayVoiceManager,
+	MAX_GATEWAY_VOICE_FRAME_CHARACTERS,
+	MAX_VOICE_AUDIO_BASE64_CHARACTERS,
+	MAX_VOICE_AUDIO_BYTES,
+	VOICE_TRANSCRIPTION_TIMEOUT_MS,
+} from "./voice";
 export type {
 	WorkerConnection,
 	WorkerCredentialCapability,

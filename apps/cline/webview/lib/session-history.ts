@@ -42,7 +42,7 @@ export interface SessionHistoryItem {
 	metadata?: SessionMetadata;
 }
 
-export const SCHEDULED_SESSION_SOURCE = "hub-schedule";
+export const SCHEDULED_SESSION_SOURCE = "gateway-schedule";
 export const ALL_SESSION_SOURCES = "__all_session_sources__";
 
 export function getSessionSource(

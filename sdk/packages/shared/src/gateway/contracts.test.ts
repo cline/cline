@@ -102,6 +102,17 @@ describe("handshake", () => {
 	});
 
 	it("capability names are dotted lowerCamel and the known set matches", () => {
+		expect(KNOWN_GATEWAY_CAPABILITIES).toContain("runs.queuedMutations");
+		expect(KNOWN_GATEWAY_CAPABILITIES).toContain("sessions.dedicated");
+		expect(KNOWN_GATEWAY_CAPABILITIES).toContain("sessions.fork");
+		expect(KNOWN_GATEWAY_CAPABILITIES).toContain("sessions.metadata");
+		expect(KNOWN_GATEWAY_CAPABILITIES).toContain("sessions.lifecycle");
+		expect(KNOWN_GATEWAY_CAPABILITIES).toContain("schedules.mutations");
+		expect(KNOWN_GATEWAY_CAPABILITIES).toContain("providers.settings");
+		expect(KNOWN_GATEWAY_CAPABILITIES).toContain("providers.oauth");
+		expect(KNOWN_GATEWAY_CAPABILITIES).toContain("account.cline");
+		expect(KNOWN_GATEWAY_CAPABILITIES).toContain("settings.global");
+		expect(KNOWN_GATEWAY_CAPABILITIES).toContain("voice.transcription");
 		for (const capability of KNOWN_GATEWAY_CAPABILITIES) {
 			expect(() =>
 				GatewayHelloParamsSchema.parse({

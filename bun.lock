@@ -64,7 +64,7 @@
     },
     "apps/cline": {
       "name": "@cline/cline-app",
-      "version": "0.0.1",
+      "version": "0.1.0-test.2",
       "dependencies": {
         "@anthropic-ai/sandbox-runtime": "^0.0.73",
         "@base-ui/react": "^1.2.0",
@@ -872,6 +872,7 @@
         "@anthropic-ai/sandbox-runtime": "^0.0.73",
         "@cline/bot": "workspace:*",
         "@cline/engine": "workspace:*",
+        "@cline/llms": "workspace:*",
         "@cline/shared": "workspace:*",
         "@cline/tools": "workspace:*",
         "ws": "^8.18.3",

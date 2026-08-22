@@ -13,14 +13,13 @@ export const SETTINGS_SECTIONS = [
 	"Account",
 ] as const;
 
-// Mirrors the Cline Hub dashboard's Customizations nav group.
+// Shared Customizations navigation group for desktop settings.
 export const CUSTOMIZATION_SECTIONS = [
 	"Plugins",
 	"Skills",
 	"MCP",
 	"Hooks",
 	"Rules",
-	"Agents",
 	"Tools",
 	"System Prompt",
 ] as const;

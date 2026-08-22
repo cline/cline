@@ -16,6 +16,11 @@ Cline server. The official UI and the user's server are separate deployments:
 bun -F @cline/gateway-ui dev
 ```
 
+The desktop app's Gateway status popover shows the loopback WebSocket address.
+Paste that address into the local UI; the bundled desktop bridge does not need
+an access token. Its `http://localhost:3135` and `http://127.0.0.1:3135`
+origins are allowed by default.
+
 ## Build for any static host
 
 ```bash

@@ -3,6 +3,11 @@ import type { GatewayModelSelection, JsonValue } from "./llms/gateway";
 import type { ReasoningEffort } from "./llms/reasoning-options";
 import type { RuntimeConfigExtensionKind } from "./session/runtime-config";
 
+export {
+	ONE_TIME_SCHEDULE_CRON_PATTERN,
+	ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY,
+} from "./automation/constants";
+
 export type HubProtocolVersion = "v1";
 
 export const CURRENT_HUB_PROTOCOL_VERSION: HubProtocolVersion = "v1";
@@ -331,9 +336,6 @@ export interface ScheduleExecutionRecord {
 	tokensUsed?: number;
 	costUsd?: number;
 }
-
-export const ONE_TIME_SCHEDULE_CRON_PATTERN = "0";
-export const ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY = "__hubScheduleRunAt";
 
 export const HUB_SCHEDULE_MODES = ["act", "plan", "yolo"] as const;
 export type HubScheduleMode = (typeof HUB_SCHEDULE_MODES)[number];

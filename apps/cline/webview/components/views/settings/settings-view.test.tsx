@@ -54,7 +54,11 @@ describe("SettingsView font size", () => {
 
 		await act(async () => {
 			root.render(
-				<SettingsView onNavigateSection={vi.fn()} section="General" />,
+				<SettingsView
+					activeBotId="cline"
+					onNavigateSection={vi.fn()}
+					section="General"
+				/>,
 			);
 		});
 

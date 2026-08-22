@@ -43,8 +43,13 @@ export interface BotIdentity {
 export interface BotConfig {
 	/** Named host profile used to assemble this bot's prompt and extensions. */
 	profileId?: string;
+	/** Host-managed rules supplied by `profileId`; users edit `systemPrompt`. */
+	profileSystemPrompt?: string;
+	/** Host-managed profile rule files and bundled skill guidance. */
+	profileRules?: string;
 	providerId?: string;
 	modelId?: string;
+	/** User-authored instructions appended after the host profile rules. */
 	systemPrompt?: string;
 	toolPolicies?: Record<string, ToolPolicy>;
 	/** Declarative profile/tool selection; Gateway resolves executable tools. */

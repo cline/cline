@@ -7,6 +7,7 @@
 
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import type { BotConfig } from "@cline/bot";
 import { createGatewayInstanceId, createRunId } from "@cline/shared/gateway";
 import { describe, expect, it } from "vitest";
 import { openGatewayDatabase } from "./db";
@@ -25,6 +26,8 @@ function createRuntime(
 		dataRoot?: string;
 		maxAttempts?: number;
 		maxPendingRunsPerSession?: number;
+		leadConfig?: BotConfig;
+		leadName?: string;
 	} = {},
 ) {
 	const dataRoot = options.dataRoot ?? tempDataRoot();
@@ -42,10 +45,56 @@ function createRuntime(
 		engine,
 		retry: { maxAttempts: options.maxAttempts ?? 1 },
 		maxPendingRunsPerSession: options.maxPendingRunsPerSession,
+		leadConfig: options.leadConfig,
+		leadName: options.leadName,
 	});
 	runtime.bootstrap();
 	return { runtime, stores, engine, paths, database, dataRoot };
 }
+
+describe("bootstrap lead profile", () => {
+	it("reconciles updated profile rules while preserving user instructions", () => {
+		const dataRoot = tempDataRoot();
+		const first = createRuntime({
+			dataRoot,
+			leadConfig: { profileId: "cline" },
+			leadName: "Cline",
+		});
+		const botId = first.runtime.defaultBotId;
+		if (!botId) throw new Error("bootstrap failed");
+		first.runtime.putBotSystemPrompt("test", {
+			botId,
+			content: "Keep answers concise.",
+		});
+		first.database.close();
+
+		const second = createRuntime({
+			dataRoot,
+			leadConfig: {
+				profileId: "cline-dad",
+				profileSystemPrompt: "You are Cline Dad.",
+				profileRules: "Inspect before acting.",
+			},
+			leadName: "Cline Dad",
+		});
+		const bot = second.stores.bots.get(botId);
+		expect(bot?.identity.name).toBe("Cline Dad");
+		expect(bot?.config).toMatchObject({
+			profileId: "cline-dad",
+			profileSystemPrompt: "You are Cline Dad.",
+			profileRules: "Inspect before acting.",
+			systemPrompt: "Keep answers concise.",
+		});
+		expect(second.runtime.getBotSystemPrompt(botId)).toEqual({
+			content: "Keep answers concise.",
+			bundledContent: "You are Cline Dad.",
+			profileRulesContent: "Inspect before acting.",
+			profileId: "cline-dad",
+			revision: 2,
+		});
+		second.database.close();
+	});
+});
 
 describe("run admission", () => {
 	it("creates an empty canonical session before its first prompt", () => {
@@ -59,6 +108,26 @@ describe("run admission", () => {
 		expect(session.workspace.rootPath).toBe("/workspace/project");
 		expect(stores.sessions.get(session.sessionId)).toEqual(session);
 		expect(stores.runs.listBySession(session.sessionId)).toEqual([]);
+	});
+
+	it("creates a dedicated session without replacing the canonical session", () => {
+		const { runtime, stores } = createRuntime();
+		const botId = runtime.defaultBotId;
+		if (!botId) throw new Error("bootstrap failed");
+		const canonical = runtime.createSession("desktop_test", {
+			botId,
+			workspaceRoot: "/workspace/project",
+		});
+		const dedicated = runtime.createSession("desktop_test", {
+			botId,
+			workspaceRoot: "/workspace/project",
+			kind: "dedicated",
+		});
+
+		expect(canonical.kind).toBe("canonical");
+		expect(stores.sessions.get(canonical.sessionId)?.state).toBe("active");
+		expect(dedicated.kind).toBe("dedicated");
+		expect(stores.sessions.get(dedicated.sessionId)?.state).toBe("active");
 	});
 
 	it("acks immediately with runId/acceptedAt/queuePosition and runs FIFO", async () => {
@@ -148,6 +217,290 @@ describe("run admission", () => {
 	});
 });
 
+describe("session metadata and lifecycle", () => {
+	it("updates metadata, closes, and permanently deletes settled history", async () => {
+		const { runtime, stores, engine } = createRuntime();
+		const botId = runtime.defaultBotId;
+		if (!botId) throw new Error("bootstrap failed");
+		const session = runtime.createSession("desktop_test", {
+			botId,
+			workspaceRoot: "/workspace/history",
+			kind: "dedicated",
+		});
+		const accepted = runtime.startRun("desktop_test", {
+			botId,
+			sessionId: session.sessionId,
+			prompt: "persist me",
+		});
+		engine.handlesFor(accepted.runId)[0].settle({ outputText: "done" });
+		await waitFor(() => stores.runs.get(accepted.runId)?.state === "completed");
+		stores.messages.append(session.sessionId, accepted.runId, {
+			id: "msg_session_management",
+			role: "assistant",
+			content: [{ type: "text", text: "history" }],
+			createdAt: 10,
+		});
+
+		const updated = runtime.updateSession("desktop_test", {
+			sessionId: session.sessionId,
+			title: "  Release notes  ",
+			metadata: { pinned: true, category: "work" },
+			expectedRevision: 0,
+		});
+		expect(updated).toMatchObject({
+			title: "Release notes",
+			metadata: { pinned: true, category: "work" },
+			revision: 1,
+		});
+		const patched = runtime.updateSession("desktop_test", {
+			sessionId: session.sessionId,
+			metadata: { pinned: null, archived: true },
+			expectedRevision: 1,
+		});
+		expect(patched.metadata).toEqual({ category: "work", archived: true });
+		expect(() =>
+			runtime.updateSession("desktop_test", {
+				sessionId: session.sessionId,
+				title: "stale",
+				expectedRevision: 0,
+			}),
+		).toThrow(GatewayCallError);
+
+		const closed = runtime.closeSession("desktop_test", session.sessionId);
+		expect(closed.state).toBe("closed");
+		expect(runtime.deleteSession("desktop_test", session.sessionId)).toEqual({
+			deleted: true,
+		});
+		expect(stores.sessions.get(session.sessionId)).toBeUndefined();
+		expect(stores.runs.listBySession(session.sessionId)).toEqual([]);
+		expect(stores.messages.listBySession(session.sessionId)).toEqual([]);
+		expect(stores.attempts.listByRun(accepted.runId)).toEqual([]);
+		const eventNames = stores.events
+			.listAfter(-1, { sessionId: session.sessionId }, 100)
+			.map((event) => event.event);
+		expect(eventNames).toContain("session.updated");
+		expect(eventNames).toContain("session.closed");
+		expect(eventNames).toContain("session.deleted");
+	});
+
+	it("refuses to delete a session with pending work", () => {
+		const { runtime } = createRuntime();
+		const botId = runtime.defaultBotId;
+		if (!botId) throw new Error("bootstrap failed");
+		const accepted = runtime.startRun("desktop_test", {
+			botId,
+			prompt: "still running",
+		});
+		const [session] = runtime.listSessions(botId);
+		expect(session).toBeDefined();
+		try {
+			runtime.deleteSession("desktop_test", session.sessionId);
+			throw new Error("expected invalid transition");
+		} catch (error) {
+			if (!(error instanceof GatewayCallError)) throw error;
+			expect(error.gatewayError.code).toBe("invalid_state_transition");
+		}
+		expect(runtime.listRuns({ runId: accepted.runId })[0]?.state).toBe(
+			"running",
+		);
+	});
+});
+
+describe("session fork", () => {
+	it("copies persisted messages into a new session with run links cleared", () => {
+		const { runtime, stores } = createRuntime();
+		const botId = runtime.defaultBotId;
+		if (!botId) throw new Error("bootstrap failed");
+		const source = runtime.createSession("desktop_test", {
+			botId,
+			workspaceRoot: "/workspace/project",
+		});
+		const sourceRunId = createRunId();
+		stores.messages.append(source.sessionId, sourceRunId, {
+			id: "msg_user_1",
+			role: "user",
+			content: [{ type: "text", text: "first" }],
+			createdAt: 1,
+		});
+		stores.messages.append(source.sessionId, sourceRunId, {
+			id: "msg_assistant_1",
+			role: "assistant",
+			content: [{ type: "text", text: "answer" }],
+			createdAt: 2,
+		});
+
+		const fork = runtime.forkSession("desktop_test", {
+			sessionId: source.sessionId,
+		});
+
+		expect(fork.forkedFromSessionId).toBe(source.sessionId);
+		expect(fork.session.sessionId).not.toBe(source.sessionId);
+		expect(fork.session.botId).toBe(source.botId);
+		expect(fork.session.workspace).toEqual(source.workspace);
+		expect(fork.messageCount).toBe(2);
+		expect(stores.sessions.get(source.sessionId)?.state).toBe("active");
+		expect(fork.session.kind).toBe("dedicated");
+		expect(stores.messages.listBySession(fork.session.sessionId)).toEqual([
+			expect.objectContaining({
+				runId: undefined,
+				message: expect.objectContaining({ id: "msg_user_1" }),
+			}),
+			expect.objectContaining({
+				runId: undefined,
+				message: expect.objectContaining({ id: "msg_assistant_1" }),
+			}),
+		]);
+		expect(
+			stores.events
+				.listAfter(0, {}, 100)
+				.some(
+					(event) =>
+						event.event === "session.forked" &&
+						event.scope.sessionId === fork.session.sessionId,
+				),
+		).toBe(true);
+	});
+
+	it("forks strictly before the requested user message", () => {
+		const { runtime, stores } = createRuntime();
+		const botId = runtime.defaultBotId;
+		if (!botId) throw new Error("bootstrap failed");
+		const source = runtime.createSession("desktop_test", { botId });
+		for (const message of [
+			{
+				id: "msg_user_1",
+				role: "user" as const,
+				content: [{ type: "text" as const, text: "first" }],
+				createdAt: 1,
+			},
+			{
+				id: "msg_assistant_1",
+				role: "assistant" as const,
+				content: [{ type: "text" as const, text: "answer" }],
+				createdAt: 2,
+			},
+			{
+				id: "msg_user_2",
+				role: "user" as const,
+				content: [{ type: "text" as const, text: "second" }],
+				createdAt: 3,
+			},
+			{
+				id: "msg_assistant_2",
+				role: "assistant" as const,
+				content: [{ type: "text" as const, text: "later" }],
+				createdAt: 4,
+			},
+		]) {
+			stores.messages.append(source.sessionId, undefined, message);
+		}
+
+		const fork = runtime.forkSession("desktop_test", {
+			sessionId: source.sessionId,
+			beforeRunCount: 2,
+		});
+
+		expect(fork.messageCount).toBe(2);
+		expect(
+			stores.messages
+				.listBySession(fork.session.sessionId)
+				.map(({ message }) => message.id),
+		).toEqual(["msg_user_1", "msg_assistant_1"]);
+
+		const beforeFirst = runtime.forkSession("desktop_test", {
+			sessionId: source.sessionId,
+			beforeRunCount: 1,
+		});
+		expect(beforeFirst.messageCount).toBe(0);
+		expect(
+			stores.messages.listBySession(beforeFirst.session.sessionId),
+		).toEqual([]);
+	});
+
+	it("rejects a source with queued or active work", () => {
+		const { runtime, stores, engine } = createRuntime();
+		const botId = runtime.defaultBotId;
+		if (!botId) throw new Error("bootstrap failed");
+		const source = runtime.createSession("desktop_test", { botId });
+		stores.messages.append(source.sessionId, undefined, {
+			id: "msg_user_1",
+			role: "user",
+			content: [{ type: "text", text: "first" }],
+			createdAt: 1,
+		});
+		runtime.startRun("desktop_test", {
+			botId,
+			sessionId: source.sessionId,
+			prompt: "still running",
+		});
+
+		expect(() =>
+			runtime.forkSession("desktop_test", {
+				sessionId: source.sessionId,
+			}),
+		).toThrowError(
+			expect.objectContaining({
+				gatewayError: expect.objectContaining({
+					code: "invalid_state_transition",
+					retryable: true,
+				}),
+			}),
+		);
+		engine.lastHandle?.settle({});
+	});
+
+	it("rejects a cutoff beyond the persisted user history", () => {
+		const { runtime, stores } = createRuntime();
+		const botId = runtime.defaultBotId;
+		if (!botId) throw new Error("bootstrap failed");
+		const source = runtime.createSession("desktop_test", { botId });
+		stores.messages.append(source.sessionId, undefined, {
+			id: "msg_user_1",
+			role: "user",
+			content: [{ type: "text", text: "first" }],
+			createdAt: 1,
+		});
+
+		expect(() =>
+			runtime.forkSession("desktop_test", {
+				sessionId: source.sessionId,
+				beforeRunCount: 2,
+			}),
+		).toThrowError(
+			expect.objectContaining({
+				gatewayError: expect.objectContaining({ code: "invalid_request" }),
+			}),
+		);
+	});
+
+	it("rejects an unknown or empty source session", () => {
+		const { runtime } = createRuntime();
+		const botId = runtime.defaultBotId;
+		if (!botId) throw new Error("bootstrap failed");
+		expect(() =>
+			runtime.forkSession("desktop_test", {
+				sessionId: "ses_does_not_exist" as never,
+			}),
+		).toThrowError(
+			expect.objectContaining({
+				gatewayError: expect.objectContaining({ code: "not_found" }),
+			}),
+		);
+
+		const empty = runtime.createSession("desktop_test", {
+			botId,
+			kind: "dedicated",
+		});
+		expect(() =>
+			runtime.forkSession("desktop_test", { sessionId: empty.sessionId }),
+		).toThrowError(
+			expect.objectContaining({
+				gatewayError: expect.objectContaining({ code: "invalid_request" }),
+			}),
+		);
+	});
+});
+
 describe("run attempts and retry", () => {
 	it("retries failed attempts up to the cap while the run stays running", async () => {
 		const engine = new ScriptedEnginePort();
@@ -213,6 +566,95 @@ describe("steer and stop", () => {
 		expect(engine.handles[0].steers).toEqual(["also do this"]);
 		const steered = stores.events.listAfter(-1, { runId: accepted.runId }, 100);
 		expect(steered.some((event) => event.event === "run.steered")).toBe(true);
+	});
+
+	it("updates a queued run durably and executes the updated input", async () => {
+		const { runtime, stores, engine } = createRuntime();
+		const botId = runtime.defaultBotId;
+		if (!botId) {
+			throw new Error("bootstrap failed");
+		}
+		const active = runtime.startRun("desktop_test", {
+			botId,
+			prompt: "active",
+		});
+		const queued = runtime.startRun("desktop_test", {
+			botId,
+			prompt: "original queued input",
+		});
+
+		const result = runtime.updateQueuedRun(
+			"desktop_test",
+			queued.runId,
+			"updated queued input",
+		);
+		expect(result.run.input).toBe("updated queued input");
+		expect(stores.runs.get(queued.runId)?.input).toBe("updated queued input");
+		expect(
+			stores.events
+				.listAfter(-1, { runId: queued.runId }, 100)
+				.some((event) => event.event === "run.queuedUpdated"),
+		).toBe(true);
+		expect(
+			stores.audit
+				.list()
+				.some(
+					(entry) =>
+						entry.action === "run.updateQueued" &&
+						entry.subject === queued.runId,
+				),
+		).toBe(true);
+
+		engine.handlesFor(active.runId)[0]?.settle({});
+		await waitFor(() => engine.handlesFor(queued.runId).length === 1);
+		expect(engine.handlesFor(queued.runId)[0].invocation.input).toBe(
+			"updated queued input",
+		);
+		engine.handlesFor(queued.runId)[0].settle({});
+		await waitFor(() => stores.runs.get(queued.runId)?.state === "completed");
+	});
+
+	it("promotes a queued run into its session's actual active steering lane", () => {
+		const { runtime, stores, engine } = createRuntime();
+		const botId = runtime.defaultBotId;
+		if (!botId) {
+			throw new Error("bootstrap failed");
+		}
+		const active = runtime.startRun("desktop_test", {
+			botId,
+			prompt: "active",
+		});
+		const queued = runtime.startRun("desktop_test", {
+			botId,
+			prompt: "merge this queued input",
+		});
+
+		const result = runtime.promoteQueuedRun("desktop_test", queued.runId);
+		expect(result).toEqual({
+			queuedRunId: queued.runId,
+			activeRunId: active.runId,
+			sessionId: stores.runs.get(active.runId)?.sessionId,
+			merged: true,
+		});
+		expect(engine.handlesFor(active.runId)[0].steers).toEqual([
+			"merge this queued input",
+		]);
+		expect(stores.runs.get(queued.runId)?.state).toBe("aborted");
+		const events = stores.events.listAfter(-1, { runId: queued.runId }, 100);
+		expect(events.some((event) => event.event === "run.aborted")).toBe(true);
+		expect(events.some((event) => event.event === "run.queuedPromoted")).toBe(
+			true,
+		);
+		expect(
+			stores.audit
+				.list()
+				.some(
+					(entry) =>
+						entry.action === "run.promoteQueued" &&
+						entry.subject === queued.runId,
+				),
+		).toBe(true);
+		engine.handlesFor(active.runId)[0].settle({});
 	});
 
 	it("steering a queued or finished run is an invalid transition", () => {

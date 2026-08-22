@@ -95,6 +95,12 @@ interface McpServersResponse {
 	settingsPath: string;
 	hasSettingsFile: boolean;
 	servers: McpServer[];
+	capabilities: {
+		oauth: {
+			supported: boolean;
+			reason: string;
+		};
+	};
 }
 
 interface McpServerUpsertInput {
@@ -209,6 +215,10 @@ export function McpServersContent() {
 	const [servers, setServers] = useState<McpServer[]>([]);
 	const [settingsPath, setSettingsPath] = useState("");
 	const [hasSettingsFile, setHasSettingsFile] = useState(false);
+	const [oauthCapability, setOauthCapability] = useState<{
+		supported: boolean;
+		reason: string;
+	} | null>(null);
 	const [isLoading, setIsLoading] = useState(true);
 	const [isOpeningSettingsFile, setIsOpeningSettingsFile] = useState(false);
 	const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -232,6 +242,7 @@ export function McpServersContent() {
 		setServers(response.servers);
 		setSettingsPath(response.settingsPath);
 		setHasSettingsFile(response.hasSettingsFile);
+		setOauthCapability(response.capabilities.oauth);
 	}, []);
 
 	const setServerActionError = useCallback(
@@ -454,6 +465,7 @@ export function McpServersContent() {
 		try {
 			const openedPath = await desktopClient.invoke<string>(
 				"open_mcp_settings_file",
+				{ path: settingsPath },
 			);
 			if (openedPath.trim().length > 0) {
 				setSettingsPath(openedPath);
@@ -639,7 +651,8 @@ export function McpServersContent() {
 							</p>
 						</div>
 					) : null}
-					{server.oauthStatus?.authorizationRequired ? (
+					{oauthCapability?.supported &&
+					server.oauthStatus?.authorizationRequired ? (
 						<div
 							className="flex items-center justify-between gap-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2"
 							role="alert"
@@ -722,15 +735,15 @@ export function McpServersContent() {
 			<PageHeader
 				description={
 					hasSettingsFile
-						? "Editing this list updates cline_mcp_settings.json."
-						: "No MCP settings file found yet. Add a server to create it."
+						? "Editing this list updates the Bundled Gateway's MCP settings."
+						: "No Gateway MCP settings file exists yet. Add a server to create it."
 				}
 				title="MCP Servers"
 				meta={
 					<>
-						<CommandBadge>cline config mcp</CommandBadge>
+						<CommandBadge>Bundled Gateway</CommandBadge>
 						<span className="rounded-md border border-border bg-background px-2 py-0.5 text-xs text-muted-foreground">
-							From settings file
+							Gateway-owned settings
 						</span>
 					</>
 				}
@@ -758,13 +771,23 @@ export function McpServersContent() {
 				<span>MCP settings path:</span>
 				<Button
 					variant="link"
-					className="h-auto p-0 font-mono text-xs"
+					className="h-auto select-text p-0 font-mono text-xs"
 					onClick={() => void openSettingsFile()}
 					disabled={isOpeningSettingsFile}
 				>
 					{settingsPath || "Open settings file"}
 				</Button>
 			</div>
+			{oauthCapability && !oauthCapability.supported ? (
+				<div className="mb-4 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2">
+					<p className="text-sm font-medium text-foreground">
+						Browser OAuth is not available for MCP servers
+					</p>
+					<p className="mt-0.5 text-xs text-muted-foreground">
+						{oauthCapability.reason}
+					</p>
+				</div>
+			) : null}
 			{errorMessage && (
 				<div className="mb-4 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
 					{errorMessage}
@@ -796,7 +819,7 @@ export function McpServersContent() {
 								? "Update the MCP server stored in "
 								: "The server is saved to "}
 							<code className="font-mono">
-								{settingsPath || "cline_mcp_settings.json"}
+								{settingsPath || "mcp-settings.json"}
 							</code>
 							.
 						</DialogDescription>

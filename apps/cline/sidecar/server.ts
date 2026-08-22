@@ -1,3 +1,5 @@
+import * as crypto from "node:crypto";
+import { timingSafeEqual } from "node:crypto";
 import type { DesktopTransportRequest } from "../webview/lib/desktop-transport";
 import { handleCommand } from "./commands";
 import {
@@ -13,6 +15,8 @@ const trustedOrigins = new Set([
 	"https://tauri.localhost",
 	"http://localhost:3125",
 	"http://127.0.0.1:3125",
+	"http://localhost:3135",
+	"http://127.0.0.1:3135",
 ]);
 for (const origin of process.env.CLINE_SIDECAR_TRUSTED_ORIGINS?.split(",") ??
 	[]) {
@@ -65,10 +69,7 @@ function issuePairingPin(): void {
 
 async function handlePairRequest(request: Request): Promise<Response> {
 	if (!pairingPin) return new Response("Not found", { status: 404 });
-	if (
-		Date.now() > pairingPin.expiresAt ||
-		pairingPin.attemptsRemaining <= 0
-	) {
+	if (Date.now() > pairingPin.expiresAt || pairingPin.attemptsRemaining <= 0) {
 		pairingPin = undefined;
 		return new Response("Gone", { status: 410 });
 	}
@@ -176,6 +177,3 @@ export function startServer(ctx: SidecarContext): {
 	});
 	return { port: server.port ?? SIDECAR_PORT, stop: () => server.stop() };
 }
-
-import * as crypto from "node:crypto";
-import { timingSafeEqual } from "node:crypto";

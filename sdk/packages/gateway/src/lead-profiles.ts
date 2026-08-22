@@ -11,6 +11,7 @@ const LeadProfileDocumentSchema = z
 		id: z.string().regex(/^[a-z0-9][a-z0-9-]{0,63}$/),
 		name: z.string().min(1).max(128),
 		description: z.string().min(1).max(1024),
+		systemPrompt: z.string().min(1),
 		rules: z.array(z.string().min(1)),
 		plugins: z.array(z.string().min(1)),
 		templateVariables: z.array(z.string().min(1)).default([]),
@@ -24,7 +25,10 @@ export interface LeadProfileSummary {
 }
 
 export interface ResolvedLeadProfile extends LeadProfileSummary {
+	/** Bundled base identity loaded from the profile's system-prompt file. */
 	readonly systemPrompt: string;
+	/** Bundled rule files and plugin skill guidance applied after the base. */
+	readonly rulesPrompt: string;
 	readonly pluginRoots: readonly string[];
 }
 
@@ -40,6 +44,7 @@ export const PLAIN_LEAD_PROFILE: ResolvedLeadProfile = Object.freeze({
 	name: "Cline",
 	description: "The standard Cline lead profile.",
 	systemPrompt: "",
+	rulesPrompt: "",
 	pluginRoots: Object.freeze([]),
 });
 
@@ -105,6 +110,16 @@ export function loadLeadProfile(
 	const document = LeadProfileDocumentSchema.parse(
 		JSON.parse(readFileSync(file, "utf8")),
 	);
+	const systemPromptPath = resolveInside(root, document.systemPrompt);
+	if (!existsSync(systemPromptPath)) {
+		throw new Error(
+			`Missing lead profile system prompt: ${document.systemPrompt}`,
+		);
+	}
+	const systemPrompt = renderTemplate(
+		readFileSync(systemPromptPath, "utf8"),
+		values,
+	).trim();
 	const rules = document.rules.map((entry) => {
 		const path = resolveInside(root, entry);
 		if (!existsSync(path))
@@ -134,7 +149,8 @@ export function loadLeadProfile(
 		id: document.id,
 		name: document.name,
 		description: document.description,
-		systemPrompt: [...rules, ...skills].join("\n\n---\n\n"),
+		systemPrompt,
+		rulesPrompt: [...rules, ...skills].join("\n\n---\n\n"),
 		pluginRoots: Object.freeze(pluginRoots),
 	});
 }

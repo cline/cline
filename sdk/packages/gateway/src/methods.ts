@@ -8,6 +8,11 @@
  */
 
 import {
+	ProviderCapabilitySchema,
+	ProviderClientSchema,
+	ProviderProtocolSchema,
+} from "@cline/shared";
+import {
 	BotIdSchema,
 	BotToolConfigurationSchema,
 	ConnectorIdSchema,
@@ -25,12 +30,57 @@ import {
 	ToolProfileSchema,
 } from "@cline/shared/gateway";
 import { z } from "zod";
+import { MAX_VOICE_AUDIO_BASE64_CHARACTERS } from "./voice";
 
 const IdempotentParamsBase = z.object({
 	[IDEMPOTENCY_KEY_PARAM]: IdempotencyKeySchema,
 });
 
 const StatisticsDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+
+const VoiceInputSelectionSchema = z
+	.object({
+		providerId: z.string().min(1),
+		modelId: z.string().min(1),
+	})
+	.strict();
+
+const AudioBase64Schema = z
+	.string()
+	.min(4)
+	.max(MAX_VOICE_AUDIO_BASE64_CHARACTERS)
+	.regex(
+		/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/,
+		"audioBase64 must be valid base64",
+	);
+
+const ScheduleNotifySchema = z
+	.object({
+		connectorId: ConnectorIdSchema,
+		externalAccountId: z.string().min(1),
+		externalConversationId: z.string().min(1),
+	})
+	.strict();
+
+const ScheduleModelSelectionSchema = z
+	.object({
+		providerId: z.string().min(1).optional(),
+		modelId: z.string().min(1).optional(),
+	})
+	.strict();
+
+const ScheduleDetailsShape = {
+	metadata: z.record(z.string(), z.unknown()).optional(),
+	modelSelection: ScheduleModelSelectionSchema.optional(),
+	mode: z.enum(["act", "plan", "yolo"]).optional(),
+	workspaceRoot: z.string().min(1).optional(),
+	cwd: z.string().min(1).optional(),
+	systemPrompt: z.string().optional(),
+	maxIterations: z.number().int().positive().optional(),
+	timeoutSeconds: z.number().int().positive().optional(),
+	maxParallel: z.number().int().positive().optional(),
+	tags: z.array(z.string()).max(100).optional(),
+};
 
 export interface GatewayMethodDefinition {
 	readonly method: string;
@@ -48,6 +98,42 @@ const TurnOverridesSchema = z
 		tools: BotToolConfigurationSchema.optional(),
 	})
 	.strict();
+
+const ClineAccountQuerySchema = z.discriminatedUnion("operation", [
+	z.object({ operation: z.literal("fetchMe") }).strict(),
+	z
+		.object({
+			operation: z.literal("fetchBalance"),
+			userId: z.string().min(1).optional(),
+		})
+		.strict(),
+	z
+		.object({
+			operation: z.literal("fetchUsageTransactions"),
+			userId: z.string().min(1).optional(),
+		})
+		.strict(),
+	z
+		.object({
+			operation: z.literal("fetchPaymentTransactions"),
+			userId: z.string().min(1).optional(),
+		})
+		.strict(),
+	z.object({ operation: z.literal("fetchUserOrganizations") }).strict(),
+	z
+		.object({
+			operation: z.literal("fetchOrganizationBalance"),
+			organizationId: z.string().min(1),
+		})
+		.strict(),
+	z
+		.object({
+			operation: z.literal("fetchOrganizationUsageTransactions"),
+			organizationId: z.string().min(1),
+			memberId: z.string().min(1).optional(),
+		})
+		.strict(),
+]);
 
 function define(
 	method: string,
@@ -77,6 +163,186 @@ export const GATEWAY_METHODS: readonly GatewayMethodDefinition[] = [
 			content: z.string(),
 			expectedRevision: z.number().int().nonnegative().optional(),
 		}).strict(),
+	),
+	define("provider.catalog.list", false, z.object({}).strict().optional()),
+	define(
+		"provider.models.list",
+		false,
+		z.object({ providerId: z.string().min(1) }).strict(),
+	),
+	define(
+		"provider.settings.get",
+		false,
+		z.object({ providerId: z.string().min(1) }).strict(),
+	),
+	define(
+		"provider.settings.patch",
+		true,
+		IdempotentParamsBase.extend({
+			providerId: z.string().min(1),
+			enabled: z.boolean().optional(),
+			settings: z.record(z.string(), z.unknown()).optional(),
+		}).strict(),
+	),
+	define(
+		"provider.add",
+		true,
+		IdempotentParamsBase.extend({
+			providerId: z.string().min(1),
+			name: z.string().min(1),
+			baseUrl: z.string().min(1),
+			apiKey: z.string().optional(),
+			headers: z.record(z.string(), z.string()).optional(),
+			timeoutMs: z.number().int().positive().optional(),
+			models: z.array(z.string().min(1)).max(2_000).optional(),
+			defaultModelId: z.string().min(1).optional(),
+			modelsSourceUrl: z.string().min(1).optional(),
+			protocol: ProviderProtocolSchema.optional(),
+			client: ProviderClientSchema.optional(),
+			capabilities: z.array(ProviderCapabilitySchema).optional(),
+		}).strict(),
+	),
+	define(
+		"provider.models.put",
+		true,
+		IdempotentParamsBase.extend({
+			providerId: z.string().min(1),
+			models: z.array(z.string().min(1)).min(1).max(2_000),
+			defaultModelId: z.string().min(1).optional(),
+		}).strict(),
+	),
+	define(
+		"provider.oauth.login",
+		true,
+		IdempotentParamsBase.extend({ providerId: z.literal("cline") }).strict(),
+	),
+	define(
+		"provider.oauth.cancel",
+		true,
+		IdempotentParamsBase.extend({ providerId: z.literal("cline") }).strict(),
+	),
+	define("account.cline.query", false, ClineAccountQuerySchema),
+	define(
+		"account.cline.switch",
+		true,
+		IdempotentParamsBase.extend({
+			operation: z.literal("switchAccount"),
+			organizationId: z.string().min(1).nullable().optional(),
+		}).strict(),
+	),
+	define("settings.global.get", false, z.object({}).strict().optional()),
+	define(
+		"settings.global.patch",
+		true,
+		IdempotentParamsBase.extend({
+			telemetryOptOut: z.boolean().optional(),
+			autoUpdateEnabled: z.boolean().optional(),
+			webSearchEnabled: z.boolean().optional(),
+		}).strict(),
+	),
+	define(
+		"voice.settings.put",
+		true,
+		IdempotentParamsBase.extend({
+			selection: VoiceInputSelectionSchema.nullable(),
+		}).strict(),
+	),
+	define(
+		"voice.transcription.createSession",
+		false,
+		z.object({}).strict().optional(),
+	),
+	define(
+		"voice.transcription.transcribe",
+		false,
+		z
+			.object({
+				audioBase64: AudioBase64Schema,
+				mediaType: z
+					.string()
+					.min(1)
+					.max(255)
+					.refine(
+						(value) =>
+							value.toLowerCase().startsWith("audio/") && !/[\r\n]/.test(value),
+						"mediaType must be an audio media type",
+					)
+					.optional(),
+			})
+			.strict(),
+	),
+	define("marketplace.catalog.get", false, z.object({}).strict().optional()),
+	define("marketplace.installed.list", false, z.object({}).strict().optional()),
+	define(
+		"marketplace.install",
+		true,
+		IdempotentParamsBase.extend({
+			type: z.enum(["mcp", "skill", "plugin"]),
+			id: z.string().min(1).max(128),
+		}).strict(),
+	),
+	define(
+		"marketplace.uninstall",
+		true,
+		IdempotentParamsBase.extend({
+			type: z.enum(["mcp", "skill", "plugin"]),
+			id: z.string().min(1).max(128),
+		}).strict(),
+	),
+	define("mcp.servers.list", false, z.object({}).strict().optional()),
+	define(
+		"mcp.servers.put",
+		true,
+		IdempotentParamsBase.extend({
+			name: z.string().min(1).max(128),
+			previousName: z.string().min(1).max(128).optional(),
+			transportType: z.enum(["stdio", "sse", "streamableHttp"]),
+			command: z.string().max(4_096).optional(),
+			args: z.array(z.string().max(8_192)).max(256).optional(),
+			cwd: z.string().max(8_192).optional(),
+			env: z.record(z.string(), z.string().max(32_768)).optional(),
+			url: z.string().max(2_048).optional(),
+			headers: z.record(z.string(), z.string().max(32_768)).optional(),
+			disabled: z.boolean().optional(),
+			metadata: z.unknown().optional(),
+		}).strict(),
+	),
+	define(
+		"mcp.servers.delete",
+		true,
+		IdempotentParamsBase.extend({ name: z.string().min(1).max(128) }).strict(),
+	),
+	define(
+		"mcp.servers.setDisabled",
+		true,
+		IdempotentParamsBase.extend({
+			name: z.string().min(1).max(128),
+			disabled: z.boolean(),
+		}).strict(),
+	),
+	define("plugins.managed.list", false, z.object({}).strict().optional()),
+	define(
+		"plugins.managed.setDisabled",
+		true,
+		IdempotentParamsBase.extend({
+			path: z.string().min(1).max(8_192),
+			disabled: z.boolean(),
+		}).strict(),
+	),
+	define(
+		"extensions.managed.uninstall",
+		true,
+		IdempotentParamsBase.extend({
+			type: z.enum(["mcp", "skill", "workflow", "plugin"]),
+			id: z.string().min(1).max(512).optional(),
+			name: z.string().min(1).max(512).optional(),
+			path: z.string().min(1).max(8_192).optional(),
+		})
+			.strict()
+			.refine(
+				(value) => Boolean(value.id || value.name || value.path),
+				"one of id, name, or path is required",
+			),
 	),
 	define(
 		"gateway.drain",
@@ -125,6 +391,23 @@ export const GATEWAY_METHODS: readonly GatewayMethodDefinition[] = [
 		IdempotentParamsBase.extend({
 			runId: RunIdSchema,
 			text: z.string().min(1),
+		}).strict(),
+	),
+	define(
+		"run.updateQueued",
+		true,
+		IdempotentParamsBase.extend({
+			runId: RunIdSchema,
+			input: z
+				.string()
+				.refine((value) => value.trim().length > 0, "input must not be empty"),
+		}).strict(),
+	),
+	define(
+		"run.promoteQueued",
+		true,
+		IdempotentParamsBase.extend({
+			runId: RunIdSchema,
 		}).strict(),
 	),
 	define(
@@ -180,6 +463,45 @@ export const GATEWAY_METHODS: readonly GatewayMethodDefinition[] = [
 		IdempotentParamsBase.extend({
 			botId: BotIdSchema,
 			workspaceRoot: z.string().min(1).optional(),
+			kind: z.enum(["canonical", "dedicated"]).optional(),
+		}).strict(),
+	),
+	define(
+		"session.fork",
+		true,
+		IdempotentParamsBase.extend({
+			sessionId: SessionIdSchema,
+			/** Copy history strictly before the Nth user message. */
+			beforeRunCount: z.number().int().positive().optional(),
+		}).strict(),
+	),
+	define(
+		"session.update",
+		true,
+		IdempotentParamsBase.extend({
+			sessionId: SessionIdSchema,
+			title: z.string().max(500).nullable().optional(),
+			metadata: z.record(z.string(), z.unknown()).optional(),
+			expectedRevision: z.number().int().nonnegative().optional(),
+		})
+			.strict()
+			.refine(
+				(params) => params.title !== undefined || params.metadata !== undefined,
+				"title or metadata is required",
+			),
+	),
+	define(
+		"session.close",
+		true,
+		IdempotentParamsBase.extend({
+			sessionId: SessionIdSchema,
+		}).strict(),
+	),
+	define(
+		"session.delete",
+		true,
+		IdempotentParamsBase.extend({
+			sessionId: SessionIdSchema,
 		}).strict(),
 	),
 	define(
@@ -327,6 +649,18 @@ export const GATEWAY_METHODS: readonly GatewayMethodDefinition[] = [
 		}).strict(),
 	),
 	define(
+		"connector.configure",
+		true,
+		IdempotentParamsBase.extend({
+			botId: BotIdSchema,
+			kind: z.enum(["telegram", "slack"]),
+			name: z.string().min(1),
+			config: z.record(z.string(), z.unknown()).optional(),
+			/** Raw credential received over the authenticated local transport. */
+			credential: z.string().min(1).max(32_768),
+		}).strict(),
+	),
+	define(
 		"connector.list",
 		false,
 		z.object({ botId: BotIdSchema.optional() }).strict().optional(),
@@ -412,17 +746,66 @@ export const GATEWAY_METHODS: readonly GatewayMethodDefinition[] = [
 			prompt: z.string().min(1),
 			intervalMs: z.number().int().positive().optional(),
 			at: z.number().int().nonnegative().optional(),
+			cronPattern: z.string().min(1).optional(),
 			maxAttempts: z.number().int().positive().optional(),
+			enabled: z.boolean().optional(),
+			...ScheduleDetailsShape,
 			/** Deliver firing outcomes to a connector conversation. */
-			notify: z
-				.object({
-					connectorId: ConnectorIdSchema,
-					externalAccountId: z.string().min(1),
-					externalConversationId: z.string().min(1),
-				})
-				.strict()
-				.optional(),
+			notify: ScheduleNotifySchema.optional(),
+		})
+			.strict()
+			.refine(
+				(params) =>
+					[params.intervalMs, params.at, params.cronPattern].filter(
+						(value) => value !== undefined,
+					).length === 1,
+				"exactly one trigger is required",
+			),
+	),
+	define(
+		"schedule.update",
+		true,
+		IdempotentParamsBase.extend({
+			scheduleId: ScheduleIdSchema,
+			expectedRevision: z.number().int().nonnegative().optional(),
+			name: z.string().min(1).optional(),
+			prompt: z.string().min(1).optional(),
+			intervalMs: z.number().int().positive().optional(),
+			at: z.number().int().nonnegative().optional(),
+			cronPattern: z.string().min(1).optional(),
+			maxAttempts: z.number().int().positive().optional(),
+			enabled: z.boolean().optional(),
+			metadata: z.record(z.string(), z.unknown()).optional(),
+			modelSelection: ScheduleModelSelectionSchema.nullable().optional(),
+			mode: z.enum(["act", "plan", "yolo"]).nullable().optional(),
+			workspaceRoot: z.string().min(1).nullable().optional(),
+			cwd: z.string().min(1).nullable().optional(),
+			systemPrompt: z.string().nullable().optional(),
+			maxIterations: z.number().int().positive().nullable().optional(),
+			timeoutSeconds: z.number().int().positive().nullable().optional(),
+			maxParallel: z.number().int().positive().optional(),
+			tags: z.array(z.string()).max(100).optional(),
 		}).strict(),
+	),
+	define(
+		"schedule.enable",
+		true,
+		IdempotentParamsBase.extend({ scheduleId: ScheduleIdSchema }).strict(),
+	),
+	define(
+		"schedule.disable",
+		true,
+		IdempotentParamsBase.extend({ scheduleId: ScheduleIdSchema }).strict(),
+	),
+	define(
+		"schedule.trigger",
+		true,
+		IdempotentParamsBase.extend({ scheduleId: ScheduleIdSchema }).strict(),
+	),
+	define(
+		"schedule.delete",
+		true,
+		IdempotentParamsBase.extend({ scheduleId: ScheduleIdSchema }).strict(),
 	),
 	define(
 		"schedule.list",

@@ -1,7 +1,7 @@
 "use client";
 
 import { isChatWorkspacePath } from "@cline/shared/browser";
-import { ImagePlus, Loader2 } from "lucide-react";
+import { ImagePlus, Loader2, RefreshCw } from "lucide-react";
 import dynamic from "next/dynamic";
 import {
 	useCallback,
@@ -14,7 +14,6 @@ import {
 } from "react";
 import { AgentHeader } from "@/components/agent-header";
 import { AgentSidebar } from "@/components/agent-sidebar";
-import { HubUpdateRequiredDialog } from "@/components/hub-update-required-dialog";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -25,6 +24,7 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
 import {
 	Sidebar,
 	SidebarInset,
@@ -47,6 +47,7 @@ import { useChatSession } from "@/hooks/use-chat-session";
 import { useMessageBotRelay } from "@/hooks/use-message-bot-relay";
 import { useSessionAgents } from "@/hooks/use-session-agents";
 import { useSessionHistory } from "@/hooks/use-session-history";
+import { useTauriAvailability } from "@/hooks/use-tauri-availability";
 import { toast } from "@/hooks/use-toast";
 import { applyAppZoomAction, syncAppFontSize } from "@/lib/app-font-size";
 import { syncAppIcon } from "@/lib/app-icon";
@@ -58,6 +59,7 @@ import {
 	desktopAppReducer,
 } from "@/lib/desktop-app-state";
 import { desktopClient, isTauriAvailable } from "@/lib/desktop-client";
+import { desktopConnectionCopy } from "@/lib/desktop-connection";
 import {
 	subscribeToDesktopMenuActions,
 	watchDesktopTrayStatus,
@@ -85,7 +87,7 @@ import {
 	type SessionHistoryItem,
 	type SessionMetadata,
 } from "@/lib/session-history";
-import { syncHubAccent, syncHubTheme, watchSystemHubTheme } from "@/lib/theme";
+import { syncAppAccent, syncAppTheme, watchSystemAppTheme } from "@/lib/theme";
 import {
 	filterWorkspacePaths,
 	mergeWorkspacePaths,
@@ -176,6 +178,7 @@ export default function Home() {
 	const { navigation, threads } = appState;
 	const { activeThreadId, settingsSection, view } = navigation.current;
 	const botRegistry = useBotRegistry();
+	const showNavigationControls = useTauriAvailability();
 	useMessageBotRelay();
 
 	const navigate = useCallback((destination: AppLocation) => {
@@ -205,10 +208,10 @@ export default function Home() {
 	}, []);
 
 	useEffect(() => {
-		syncHubTheme();
-		syncHubAccent();
+		syncAppTheme();
+		syncAppAccent();
 		syncAppFontSize();
-		return watchSystemHubTheme();
+		return watchSystemAppTheme();
 	}, []);
 
 	useEffect(() => {
@@ -476,7 +479,7 @@ export default function Home() {
 							view={view}
 							canNavigateBack={navigation.back.length > 0}
 							canNavigateForward={navigation.forward.length > 0}
-							showNavigationControls={isTauriAvailable()}
+							showNavigationControls={showNavigationControls}
 						/>
 						<SidebarRail />
 					</Sidebar>
@@ -546,7 +549,6 @@ export default function Home() {
 					/>
 				</div>
 			) : null}
-			<HubUpdateRequiredDialog />
 		</AccountProvider>
 	);
 }
@@ -717,6 +719,17 @@ function ChatThreadPane({
 		? (historySession.workspaceRoot || historySession.cwd || "").trim()
 		: activeWorkspaceCwd;
 
+	// Chat commands must name the active Gateway bot explicitly. Without this
+	// field Zod strips the bot identity and a shared sidecar can accidentally
+	// route a new session to the first bot returned by Gateway.
+	useLayoutEffect(() => {
+		setConfig((current) =>
+			current.botId === activeBotId
+				? current
+				: { ...current, botId: activeBotId },
+		);
+	}, [activeBotId, setConfig]);
+
 	useEffect(() => {
 		// The assigned-projects registry is authoritative in the sandboxed
 		// app; session-derived paths are already a subset of it by
@@ -750,26 +763,15 @@ function ChatThreadPane({
 		});
 	}, [config.cwd, config.workspaceRoot, workspaces]);
 
-	// Keeps desktopClient pointed at the right pooled backend process: empty
-	// cwd means no project has been assigned/selected yet (the "no project"
-	// entry, scoped to only this bot's own data - see main.rs's
-	// get_desktop_backend_endpoint), otherwise the active project's own
-	// sandboxed process. The layout effect runs before useChatSession's passive
-	// data-loading effects on every thread-switch remount, so those requests
-	// wait on the correct project's connection from the outset.
-	//
-	// A brand-new session with no requested cwd/workspaceRoot gets the SDK's
-	// own shared "chat workspace" scratch directory auto-assigned by the Hub
-	// (sdk/packages/core's resolveStartSessionWorkspace) - not a project the
-	// user picked via assign_project. `isChatWorkspacePath` only recognizes
-	// the plain, non-namespaced default (`.cline/data/workspaces/chat`) by
-	// its own documented design - it can't detect a CLINE_DIR override from
-	// a bare string, so it won't catch our actual bot-namespaced case
-	// (`.cline/bots/<bot-id>/data/workspaces/chat`). This is a best-effort
-	// pre-filter for the plain-default shape only; the real, bot-aware
-	// normalization (comparing against this specific bot's own chat-workspace
-	// path) happens authoritatively in main.rs's get_desktop_backend_endpoint
-	// regardless of what's sent here.
+	// Keeps desktopClient pointed at the right pooled backend process. Native
+	// endpoint resolution accepts an available assigned project and otherwise
+	// falls back to `~/.cline/bots/<bot-id>/workspaces`. A historical path is
+	// deliberately sent as-is here so the trusted host—not browser state—makes
+	// the access decision before choosing the process cwd and workspace lock.
+	// The layout effect runs before useChatSession's passive loading effects on
+	// every task switch, so those requests use the resolved connection from the
+	// outset. The legacy shared chat-workspace shape is treated as an empty
+	// request and therefore resolves to the same bot-owned fallback.
 	useLayoutEffect(() => {
 		if (!isTauriAvailable()) {
 			return;
@@ -1050,6 +1052,14 @@ function ChatThreadPane({
 			}
 
 			invalidateGitBranch();
+			// A path can have just transitioned from native fallback to assigned.
+			// Force a fresh target resolution even when its requested spelling is
+			// unchanged, so the cached fallback process is not retained.
+			if (isTauriAvailable()) {
+				desktopClient.setActiveProject(activeBotId, resolvedWorkspace, {
+					refresh: true,
+				});
+			}
 			setWorkspacePath(resolvedWorkspace);
 			setWorkspaces((prev) =>
 				filterWorkspacePaths(mergeWorkspacePaths(prev, [resolvedWorkspace])),
@@ -1242,21 +1252,15 @@ function ChatThreadPane({
 		[removePromptInQueue],
 	);
 	const handleApproveToolApproval = useCallback(
-		(requestId: string) => {
-			void approveToolApproval(requestId);
-		},
+		(requestId: string) => approveToolApproval(requestId),
 		[approveToolApproval],
 	);
 	const handleRejectToolApproval = useCallback(
-		(requestId: string) => {
-			void rejectToolApproval(requestId);
-		},
+		(requestId: string) => rejectToolApproval(requestId),
 		[rejectToolApproval],
 	);
 	const handleAnswerAskQuestion = useCallback(
-		(requestId: string, answer: string) => {
-			void answerAskQuestion(requestId, answer);
-		},
+		(requestId: string, answer: string) => answerAskQuestion(requestId, answer),
 		[answerAskQuestion],
 	);
 	const handleRestoreCheckpoint = useCallback(
@@ -1649,23 +1653,57 @@ function ChatThreadPane({
 
 	const isAppReady =
 		chatTransportState === "connected" && providersLoaded && workspacesLoaded;
+	const retryDesktopConnection = () => desktopClient.retryConnection();
 
 	if (!isAppReady) {
+		const connectionCopy = desktopConnectionCopy(
+			chatTransportState,
+			status === "starting" || status === "running" || status === "stopping",
+		);
+		if (chatTransportState !== "connected") {
+			return (
+				<div className="flex h-full flex-1 items-center justify-center bg-background p-6 text-foreground">
+					<div className="w-full max-w-lg rounded-xl border border-border bg-card p-5 shadow-sm">
+						<div className="flex items-start gap-3">
+							<Loader2 className="mt-0.5 size-5 shrink-0 animate-spin text-muted-foreground" />
+							<div className="min-w-0 flex-1">
+								<h2 className="text-base font-semibold">
+									{connectionCopy.title}
+								</h2>
+								<p className="mt-1 text-sm text-muted-foreground">
+									{connectionCopy.description}
+								</p>
+								{chatTransportError ? (
+									<details className="cline-chat-selectable mt-3 text-xs text-muted-foreground">
+										<summary className="cursor-pointer">
+											Technical details
+										</summary>
+										<p className="mt-2 break-words font-mono">
+											{chatTransportError}
+										</p>
+									</details>
+								) : null}
+								<Button
+									className="mt-4"
+									onClick={retryDesktopConnection}
+									size="sm"
+									type="button"
+								>
+									<RefreshCw className="size-3.5" />
+									Retry connection
+								</Button>
+							</div>
+						</div>
+					</div>
+				</div>
+			);
+		}
 		return (
 			<div className="flex h-full flex-1 flex-col items-center justify-center gap-3 bg-background text-foreground">
 				<div className="h-5 w-5 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
 				<p className="text-sm text-muted-foreground">
-					{chatTransportState === "unavailable"
-						? "Desktop backend unavailable"
-						: chatTransportState !== "connected"
-							? "Connecting..."
-							: "Loading..."}
+					Loading models and workspaces…
 				</p>
-				{chatTransportError ? (
-					<p className="max-w-xl px-6 text-center text-xs text-muted-foreground">
-						{chatTransportError}
-					</p>
-				) : null}
 			</div>
 		);
 	}
@@ -1770,11 +1808,15 @@ function ChatThreadPane({
 								onApproveToolApproval={handleApproveToolApproval}
 								onRejectToolApproval={handleRejectToolApproval}
 								chatTransportState={chatTransportState}
+								chatTransportError={chatTransportError}
 								error={displayedError}
 								messages={displayedMessages}
 								onEditMessage={handleEditMessage}
 								onRestoreCheckpoint={handleRestoreCheckpoint}
 								onForkSession={handleForkSession}
+								onAbort={handleAbort}
+								onOpenModelSettings={onOpenModelSettings}
+								onRetryConnection={retryDesktopConnection}
 								pendingToolApprovals={pendingToolApprovals}
 								pendingAskQuestions={pendingAskQuestions}
 								sessionId={displayedSessionId}

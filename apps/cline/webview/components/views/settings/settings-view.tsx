@@ -35,13 +35,13 @@ import type {
 	VoiceInputSelection,
 } from "@/lib/provider-schema";
 import {
-	type HubAccent,
-	type HubTheme,
-	readStoredHubAccent,
-	readStoredHubTheme,
-	readSystemHubTheme,
-	setStoredHubAccent,
-	setStoredHubTheme,
+	type AppAccent,
+	type AppTheme,
+	readStoredAppAccent,
+	readStoredAppTheme,
+	readSystemAppTheme,
+	setStoredAppAccent,
+	setStoredAppTheme,
 } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 import { PageFrame, PageHeader } from "../page-layout";
@@ -364,17 +364,19 @@ export function SettingsView({
 		try {
 			const result = await desktopClient.invoke<{
 				provider: string;
-				accessToken: string;
-			}>("run_provider_oauth_login", {
-				provider: id,
-			});
+				configured: true;
+			}>(
+				"run_provider_oauth_login",
+				{ provider: id },
+				{ timeoutMs: null },
+			);
 			setProvidersWithCache((prev) =>
 				prev.map((provider) =>
 					provider.id === id
 						? {
 								...provider,
 								enabled: true,
-								oauthAccessTokenPresent: result.accessToken.trim().length > 0,
+								oauthAccessTokenPresent: result.configured,
 							}
 						: provider,
 				),
@@ -516,8 +518,6 @@ export function SettingsView({
 			<CustomizationSectionView section="Hooks" />
 		) : activeNav === "Rules" ? (
 			<CustomizationSectionView section="Rules" />
-		) : activeNav === "Agents" ? (
-			<CustomizationSectionView section="Agents" />
 		) : activeNav === "Tools" ? (
 			<CustomizationSectionView section="Tools" />
 		) : activeNav === "System Prompt" ? (
@@ -551,7 +551,7 @@ export function SettingsView({
  * light-mode primary (see the [data-cline-accent] blocks in globals.css);
  * violet reads the live brand token so it always matches the default theme.
  */
-const ACCENT_OPTIONS: { id: HubAccent; label: string; swatch: string }[] = [
+const ACCENT_OPTIONS: { id: AppAccent; label: string; swatch: string }[] = [
 	{ id: "violet", label: "Violet", swatch: "var(--brand-violet)" },
 	{ id: "graphite", label: "Graphite", swatch: "oklch(0.27 0.012 248)" },
 	{ id: "cyan", label: "Cyan", swatch: "oklch(0.6 0.12 222)" },
@@ -561,13 +561,13 @@ const ACCENT_OPTIONS: { id: HubAccent; label: string; swatch: string }[] = [
 ];
 
 function GeneralSettingsContent() {
-	const [theme, setTheme] = useState<HubTheme>(() => {
+	const [theme, setTheme] = useState<AppTheme>(() => {
 		if (typeof window === "undefined") return "light";
-		return readStoredHubTheme() ?? readSystemHubTheme();
+		return readStoredAppTheme() ?? readSystemAppTheme();
 	});
-	const [accent, setAccent] = useState<HubAccent>(() => {
+	const [accent, setAccent] = useState<AppAccent>(() => {
 		if (typeof window === "undefined") return "violet";
-		return readStoredHubAccent();
+		return readStoredAppAccent();
 	});
 	const [fontSize, setFontSize] = useState(() => {
 		if (typeof window === "undefined") return DEFAULT_APP_FONT_SIZE;
@@ -689,11 +689,11 @@ function GeneralSettingsContent() {
 
 	const updateTheme = (darkModeEnabled: boolean) => {
 		const nextTheme = darkModeEnabled ? "dark" : "light";
-		setTheme(setStoredHubTheme(nextTheme));
+		setTheme(setStoredAppTheme(nextTheme));
 	};
 
-	const updateAccent = (nextAccent: HubAccent) => {
-		setAccent(setStoredHubAccent(nextAccent));
+	const updateAccent = (nextAccent: AppAccent) => {
+		setAccent(setStoredAppAccent(nextAccent));
 	};
 
 	const updateFontSizePreference = (nextFontSize: number) => {

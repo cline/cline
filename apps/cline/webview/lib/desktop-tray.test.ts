@@ -90,12 +90,12 @@ describe("desktop tray", () => {
 		expect(mocks.unlisten).toHaveBeenCalledOnce();
 	});
 
-	it("refreshes the native menu with Hub health and session count", async () => {
+	it("refreshes the native menu with Gateway health and session count", async () => {
 		mocks.isTauriAvailable = true;
 		mocks.invoke.mockImplementation(async (command: string) => {
 			if (command === "get_process_context") {
 				return {
-					hub: { status: "connected" },
+					gateway: { status: "connected" },
 					runningSessionCount: 2,
 				};
 			}
@@ -107,7 +107,7 @@ describe("desktop tray", () => {
 
 		await vi.waitFor(() =>
 			expect(mocks.invoke).toHaveBeenCalledWith("set_tray_status", {
-				hubHealthy: true,
+				gatewayHealthy: true,
 				runningSessions: 2,
 			}),
 		);

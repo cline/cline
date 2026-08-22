@@ -13,7 +13,11 @@
  * See `src/boundaries.test.ts` for the machine-checked rules.
  */
 
-export type { SubmitPromptOptions, SubmitToSessionOptions } from "./bot";
+export type {
+	QueuedRunPromotion,
+	SubmitPromptOptions,
+	SubmitToSessionOptions,
+} from "./bot";
 export { Bot } from "./bot";
 export type {
 	ConnectorDescriptor,
@@ -39,8 +43,10 @@ export {
 	ContractorTaskError,
 	DelegationNotAllowedError,
 	MessagingNotAllowedError,
+	QueuedRunMutationError,
 	RoleImmutableError,
 	RunAdmissionError,
+	SessionMutationError,
 	WorkspaceImmutableError,
 } from "./errors";
 export type {
@@ -72,13 +78,14 @@ export {
 export type { BotMemory } from "./memories";
 export { discoverMemories, MEMORIES_DIR } from "./memories";
 export type { TurnOverrides } from "./overrides";
-export { resolveEffectiveConfig } from "./overrides";
+export { resolveBotSystemPrompt, resolveEffectiveConfig } from "./overrides";
 export type {
 	BotClock,
 	BotIdSource,
 	BotPorts,
 	BotRepository,
 	EngineInvocation,
+	EngineMcpServer,
 	EngineOutcome,
 	EnginePort,
 	EngineRunHandle,

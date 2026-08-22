@@ -361,7 +361,7 @@ describe("OnboardingView", () => {
 		// Sign-in path still available alongside the expanded form.
 		invoke.mockImplementation(async (command: string) => {
 			if (command === "run_provider_oauth_login") {
-				return { provider: "cline", accessToken: "token" };
+				return { provider: "cline", configured: true };
 			}
 			if (command === "cline_account") {
 				throw new Error("No Cline account auth token found");
@@ -371,9 +371,11 @@ describe("OnboardingView", () => {
 		await act(async () => {
 			buttonByText("Sign in").click();
 		});
-		expect(invoke).toHaveBeenCalledWith("run_provider_oauth_login", {
-			provider: "cline",
-		});
+		expect(invoke).toHaveBeenCalledWith(
+			"run_provider_oauth_login",
+			{ provider: "cline" },
+			{ timeoutMs: null },
+		);
 		expect(container.textContent).toContain("You're all set");
 		expect(
 			parseModelSelectionStorage(

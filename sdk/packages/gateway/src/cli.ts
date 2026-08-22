@@ -66,6 +66,38 @@ interface ParsedArgs {
 	allowInsecureRemote?: boolean;
 }
 
+export interface GatewayCliSelfInvocation {
+	executable: string;
+	argsPrefix: string[];
+}
+
+/**
+ * Resolve how `start` re-enters `serve` in source, Node script, and Bun
+ * compiled-executable modes. In a compiled binary `argv[1]` is a virtual
+ * `/$bunfs/...` entry whose basename matches the executable; passing it back
+ * as an argument makes the binary parse that virtual path as the command.
+ */
+export function gatewayCliSelfInvocation(
+	execPath = process.execPath,
+	argv: readonly string[] = process.argv,
+): GatewayCliSelfInvocation {
+	const entry = argv[1];
+	if (!entry) {
+		throw new Error("Gateway CLI cannot resolve its entrypoint");
+	}
+	const normalizedName = (path: string) =>
+		(path.split(/[\\/]/).at(-1) ?? path).replace(/\.exe$/i, "");
+	const normalizedEntry = entry.replaceAll("\\", "/");
+	const compiled =
+		normalizedEntry.includes("/$bunfs/") ||
+		/(?:^|\/)~bun(?:\/|$)/i.test(normalizedEntry) ||
+		normalizedName(entry) === normalizedName(execPath);
+	return {
+		executable: execPath,
+		argsPrefix: compiled ? [] : [entry],
+	};
+}
+
 function parseArgs(argv: readonly string[]): ParsedArgs {
 	const [command, ...rest] = argv;
 	if (!GATEWAY_CLI_COMMANDS.includes(command as GatewayCliCommand)) {
@@ -295,9 +327,10 @@ async function commandStart(
 		if (args.tlsKey) serveArgs.push("--tls-key", args.tlsKey);
 		if (args.allowInsecureRemote) serveArgs.push("--allow-insecure-remote");
 	}
-	// Re-invoke the same entrypoint (works from source under Bun and from
-	// the packaged bin under Node).
-	const child = spawn(process.execPath, [process.argv[1], ...serveArgs], {
+	// Re-invoke the same entrypoint. A Bun-compiled binary executes itself
+	// directly; source/Node modes put their script entry before the CLI args.
+	const self = gatewayCliSelfInvocation();
+	const child = spawn(self.executable, [...self.argsPrefix, ...serveArgs], {
 		detached: true,
 		stdio: "ignore",
 	});

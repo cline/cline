@@ -31,6 +31,7 @@ import type {
 	EngineRunHandle,
 	MemorySource,
 	RunRecord,
+	SessionKind,
 	SessionRecord,
 	SessionRepository,
 	TurnOverrides,
@@ -41,6 +42,7 @@ import {
 	BotRegistry,
 	resolveEffectiveConfig,
 } from "@cline/bot";
+import type { VoiceInputSelection } from "@cline/shared";
 import type {
 	BotId,
 	ConnectorId,
@@ -69,15 +71,56 @@ import {
 	RunStateTransitionError,
 	SERVER_REQUEST_METHODS,
 } from "@cline/shared/gateway";
+import {
+	type GatewayClineAccountPort,
+	type GatewayClineAccountQuery,
+	GatewayClineAccountService,
+	type GatewayClineAccountSwitch,
+} from "./cline-account";
+import {
+	GatewayClineOAuthError,
+	type GatewayClineOAuthPort,
+	GatewayClineOAuthService,
+} from "./cline-oauth";
 import type { ConnectorRecord, ConnectorStatus } from "./connectors/store";
 import { assertNonSecretConnectorConfig } from "./connectors/store";
 import type { GatewayDatabase } from "./db";
+import {
+	type GatewayGlobalSettingsPatch,
+	GatewayGlobalSettingsStore,
+} from "./global-settings";
+import {
+	GatewayExtensionError,
+	GatewayExtensionStore,
+	type GatewayMcpServerInput,
+	type MarketplacePrimitiveType,
+} from "./managed-extensions";
 import { OUTBOX_KIND_SESSION_PROJECTION } from "./outbox";
 import type { GatewayPaths } from "./paths";
 import type { CatalogPin, PluginCatalog } from "./plugins/catalog";
-import type { ScheduleRecord } from "./schedules/store";
+import {
+	type AddGatewayProviderInput,
+	GatewayProviderSettingsError,
+	GatewayProviderSettingsStore,
+	type ProviderSettingsPatch,
+	type UpdateGatewayProviderModelsInput,
+} from "./provider-settings";
+import { nextCronDueAt } from "./schedules/cron";
+import type {
+	ScheduleJobRecord,
+	ScheduleMode,
+	ScheduleModelSelection,
+	ScheduleNotifyTarget,
+	ScheduleRecord,
+} from "./schedules/store";
 import type { GatewayStores, RunAttemptRecord, StoredMessage } from "./stores";
 import { UsageQueryError } from "./usage";
+import {
+	GatewayVoiceError,
+	GatewayVoiceManager,
+	type GatewayVoicePrimitives,
+	type VoiceTranscriptionInput,
+} from "./voice";
 
 /**
  * Sentinel workspace root: the Gateway materializes a managed directory
@@ -111,6 +154,29 @@ export function toGatewayError(error: unknown): GatewayError {
 	if (error instanceof UsageQueryError) {
 		return error.gatewayError;
 	}
+	if (error instanceof GatewayProviderSettingsError) {
+		return createGatewayError("invalid_request", error.message);
+	}
+	if (error instanceof GatewayVoiceError) {
+		return error.kind === "configuration"
+			? createGatewayError("invalid_request", error.message)
+			: createGatewayError("internal", error.message, { retryable: true });
+	}
+	if (error instanceof GatewayClineOAuthError) {
+		return createGatewayError(
+			error.code === "already_in_progress" || error.code === "cancelled"
+				? "invalid_state_transition"
+				: "internal",
+			error.message,
+			{
+				retryable:
+					error.code !== "cancelled" && error.code !== "already_in_progress",
+			},
+		);
+	}
+	if (error instanceof GatewayExtensionError) {
+		return createGatewayError("invalid_request", error.message);
+	}
 	if (error instanceof BotDomainError) {
 		switch (error.code) {
 			case "bot_not_found":
@@ -120,6 +186,11 @@ export function toGatewayError(error: unknown): GatewayError {
 				return createGatewayError("unauthorized", error.message);
 			case "role_immutable":
 				return createGatewayError("invalid_request", error.message);
+			case "queued_run_mutation_rejected":
+			case "session_mutation_rejected":
+				return createGatewayError("invalid_state_transition", error.message, {
+					retryable: false,
+				});
 			default:
 				return createGatewayError("run_admission_rejected", error.message);
 		}
@@ -159,6 +230,10 @@ class ManagedWorkspaceSessionRepository implements SessionRepository {
 
 	listByBot(botId: BotId): readonly SessionRecord[] {
 		return this.inner.listByBot(botId);
+	}
+
+	delete(sessionId: SessionId): boolean {
+		return this.inner.delete(sessionId);
 	}
 
 	save(record: SessionRecord): void {
@@ -217,6 +292,10 @@ class InstrumentedRunRepository {
 
 	listBySession(sessionId: SessionId): readonly RunRecord[] {
 		return this.inner.listBySession(sessionId);
+	}
+
+	updateQueuedInput(runId: RunId, input: string): RunRecord {
+		return this.inner.updateQueuedInput(runId, input);
 	}
 
 	save(record: RunRecord): void {
@@ -298,6 +377,10 @@ class InstrumentedSessionRepository implements SessionRepository {
 		return this.inner.listByBot(botId);
 	}
 
+	delete(sessionId: SessionId): boolean {
+		return this.inner.delete(sessionId);
+	}
+
 	save(record: SessionRecord): void {
 		const previous = this.inner.get(record.sessionId);
 		this.inner.save(record);
@@ -364,6 +447,12 @@ class AttemptingEngineHandle implements EngineRunHandle {
 			attempt: number,
 		) => EngineInvocation | Promise<EngineInvocation>,
 	) {
+		const hydratedInvocation: EngineInvocation = {
+			...invocation,
+			initialMessages: sinks.stores.messages
+				.listBySession(invocation.sessionId)
+				.map(({ message }) => message),
+		};
 		this.result = (async () => {
 			let outcome: EngineOutcome = {
 				status: "failed",
@@ -386,16 +475,16 @@ class AttemptingEngineHandle implements EngineRunHandle {
 					{ attempt: attemptRecord.attempt },
 					sinks.clock.now(),
 				);
-				let attemptInvocation = invocation;
+				let attemptInvocation = hydratedInvocation;
 				try {
 					const prepared = prepareInvocation?.(
-						invocation,
+						hydratedInvocation,
 						attemptRecord.attempt,
 					);
 					attemptInvocation =
 						prepared && "then" in prepared
 							? await prepared
-							: (prepared ?? invocation);
+							: (prepared ?? hydratedInvocation);
 					if (attemptInvocation.executionSnapshot) {
 						sinks.stores.events.append(
 							"run.executionResolved",
@@ -716,6 +805,7 @@ interface PendingServerRequest {
 	readonly request: GatewayServerRequest;
 	resolve(result: unknown): void;
 	reject(error: GatewayError): void;
+	dispose(): void;
 }
 
 /**
@@ -742,6 +832,7 @@ export class ApprovalBroker {
 		method: string,
 		scope: GatewayEventScope,
 		params: Record<string, unknown>,
+		signal?: AbortSignal,
 	): Promise<unknown> {
 		this.nextId += 1;
 		const request: GatewayServerRequest = {
@@ -752,11 +843,30 @@ export class ApprovalBroker {
 			params,
 		};
 		return new Promise((resolve, reject) => {
-			this.pending.set(request.id, {
+			const onAbort = () => {
+				const entry = this.pending.get(request.id);
+				if (!entry) return;
+				this.pending.delete(request.id);
+				entry.dispose();
+				entry.reject(
+					createGatewayError(
+						"invalid_state_transition",
+						"The pending server request was cancelled",
+					),
+				);
+			};
+			const entry: PendingServerRequest = {
 				request,
 				resolve,
 				reject: (error) => reject(new GatewayCallError(error)),
-			});
+				dispose: () => signal?.removeEventListener("abort", onAbort),
+			};
+			this.pending.set(request.id, entry);
+			if (signal?.aborted) {
+				onAbort();
+				return;
+			}
+			signal?.addEventListener("abort", onAbort, { once: true });
 			this.deliver?.(request);
 		});
 	}
@@ -767,6 +877,7 @@ export class ApprovalBroker {
 			return false;
 		}
 		this.pending.delete(id);
+		entry.dispose();
 		if (error) {
 			entry.reject(error);
 		} else {
@@ -827,7 +938,7 @@ export interface GatewayRuntimeOptions {
 	plugins?: PluginCatalog;
 	/** Phase 4: worker/execution health reported through gateway.status. */
 	executionHealth?: () => Record<string, unknown>;
-	/** Optional configuration applied to the single bootstrap lead. */
+	/** Host-selected profile configuration reconciled onto the bootstrap lead. */
 	leadConfig?: BotRecord["config"];
 	/** Display name supplied by the selected lead profile. */
 	leadName?: string;
@@ -836,6 +947,18 @@ export interface GatewayRuntimeOptions {
 		invocation: EngineInvocation,
 		attempt: number,
 	) => EngineInvocation | Promise<EngineInvocation>;
+	/** Gateway-owned provider authority; injectable for isolated tests. */
+	providerSettings?: GatewayProviderSettingsStore;
+	/** Gateway-owned global settings authority; injectable for isolated tests. */
+	globalSettings?: GatewayGlobalSettingsStore;
+	/** @cline/llms transcription primitives; injectable for isolated tests. */
+	voicePrimitives?: GatewayVoicePrimitives;
+	/** Gateway-owned Cline account API; injectable for isolated tests. */
+	clineAccount?: GatewayClineAccountPort;
+	/** Gateway-owned Cline OAuth device flow; injectable for isolated tests. */
+	clineOAuth?: GatewayClineOAuthPort;
+	/** Gateway-owned Marketplace/MCP/plugin authority; injectable in tests. */
+	extensions?: GatewayExtensionStore;
 }
 
 export interface RunStartParams {
@@ -858,6 +981,95 @@ export interface RunStartParams {
 export interface SessionCreateParams {
 	botId: BotId;
 	workspaceRoot?: string;
+	kind?: SessionKind;
+}
+
+export interface SessionForkParams {
+	sessionId: SessionId;
+	/** Copy history strictly before the Nth user message. */
+	beforeRunCount?: number;
+}
+
+export interface SessionForkResult {
+	readonly session: SessionRecord;
+	readonly forkedFromSessionId: SessionId;
+	readonly messageCount: number;
+}
+
+export interface SessionUpdateParams {
+	readonly sessionId: SessionId;
+	/** Null or blank clears the explicit title. */
+	readonly title?: string | null;
+	/** Shallow metadata patch. Null-valued keys are removed. */
+	readonly metadata?: Readonly<Record<string, unknown>>;
+	readonly expectedRevision?: number;
+}
+
+export interface SessionDeleteResult {
+	readonly deleted: boolean;
+}
+
+export interface ScheduleCreateParams {
+	readonly botId: BotId;
+	readonly name: string;
+	readonly prompt: string;
+	readonly intervalMs?: number;
+	readonly at?: number;
+	readonly cronPattern?: string;
+	readonly maxAttempts?: number;
+	readonly enabled?: boolean;
+	readonly notify?: ScheduleNotifyTarget;
+	readonly metadata?: Readonly<Record<string, unknown>>;
+	readonly modelSelection?: ScheduleModelSelection;
+	readonly mode?: ScheduleMode;
+	readonly workspaceRoot?: string;
+	readonly cwd?: string;
+	readonly systemPrompt?: string;
+	readonly maxIterations?: number;
+	readonly timeoutSeconds?: number;
+	readonly maxParallel?: number;
+	readonly tags?: readonly string[];
+}
+
+export interface ScheduleUpdateParams {
+	readonly scheduleId: ScheduleId;
+	readonly expectedRevision?: number;
+	readonly name?: string;
+	readonly prompt?: string;
+	readonly intervalMs?: number;
+	readonly at?: number;
+	readonly cronPattern?: string;
+	readonly maxAttempts?: number;
+	readonly enabled?: boolean;
+	readonly metadata?: Readonly<Record<string, unknown>>;
+	readonly modelSelection?: ScheduleModelSelection | null;
+	readonly mode?: ScheduleMode | null;
+	readonly workspaceRoot?: string | null;
+	readonly cwd?: string | null;
+	readonly systemPrompt?: string | null;
+	readonly maxIterations?: number | null;
+	readonly timeoutSeconds?: number | null;
+	readonly maxParallel?: number;
+	readonly tags?: readonly string[];
+}
+
+export interface ScheduleTriggerResult {
+	readonly job: ScheduleJobRecord;
+}
+
+export interface ScheduleDeleteResult {
+	readonly deleted: boolean;
+}
+
+export interface QueuedRunUpdateResult {
+	readonly run: RunRecord;
+}
+
+export interface QueuedRunPromotionResult {
+	readonly queuedRunId: RunId;
+	readonly activeRunId: RunId;
+	readonly sessionId: SessionId;
+	readonly merged: true;
 }
 
 export interface GatewayRecoveryReport {
@@ -900,6 +1112,12 @@ export class GatewayRuntime {
 	readonly instanceId: GatewayInstanceId;
 	readonly clock: BotClock;
 	readonly approvals = new ApprovalBroker();
+	readonly providerSettings: GatewayProviderSettingsStore;
+	readonly globalSettings: GatewayGlobalSettingsStore;
+	readonly voice: GatewayVoiceManager;
+	readonly clineAccount: GatewayClineAccountPort;
+	readonly clineOAuth: GatewayClineOAuthPort;
+	readonly extensions: GatewayExtensionStore;
 	readonly startedAt: number;
 
 	private readonly registry: BotRegistry;
@@ -934,6 +1152,29 @@ export class GatewayRuntime {
 		this.executionHealth = options.executionHealth;
 		this.leadConfig = options.leadConfig;
 		this.leadName = options.leadName;
+		this.providerSettings =
+			options.providerSettings ?? new GatewayProviderSettingsStore();
+		this.globalSettings =
+			options.globalSettings ?? new GatewayGlobalSettingsStore();
+		this.voice = new GatewayVoiceManager({
+			paths: this.paths,
+			providerSettings: this.providerSettings,
+			globalSettings: this.globalSettings,
+			primitives: options.voicePrimitives,
+		});
+		this.clineAccount =
+			options.clineAccount ??
+			new GatewayClineAccountService({
+				providerSettingsPath: this.providerSettings.filePath,
+			});
+		this.clineOAuth = options.clineOAuth ?? new GatewayClineOAuthService();
+		this.extensions =
+			options.extensions ??
+			new GatewayExtensionStore({
+				paths: this.paths,
+				plugins: this.plugins,
+				clock: () => this.clock.now(),
+			});
 		const sinks: InstrumentationSinks = {
 			stores: this.stores,
 			clock: this.clock,
@@ -965,12 +1206,50 @@ export class GatewayRuntime {
 			sessionId: () => createSessionId(),
 			runId: () => createRunId(),
 		};
+		const attachGatewayResources = (
+			base: EngineInvocation,
+			invocation: EngineInvocation,
+		): EngineInvocation => {
+			const snapshot =
+				this.catalogPins.get(invocation.runId)?.snapshot ??
+				this.plugins?.current;
+			const pluginRoots = snapshot?.entries
+				.filter((entry) => {
+					switch (entry.scope.kind) {
+						case "global":
+							return true;
+						case "bot":
+							return entry.scope.botId === invocation.botId;
+						case "workspace":
+							return entry.scope.workspaceRoot === invocation.workspaceRoot;
+					}
+					return false;
+				})
+				.map((entry) => entry.plugin.rootPath);
+			return {
+				...base,
+				...(pluginRoots?.length ? { pluginRoots } : {}),
+				mcpServers: this.extensions.listExecutableMcpDefinitions(),
+			};
+		};
+		const prepareInvocation = (
+			invocation: EngineInvocation,
+			attempt: number,
+		): EngineInvocation | Promise<EngineInvocation> => {
+			const prepared = options.prepareInvocation?.(invocation, attempt);
+			if (prepared && "then" in prepared) {
+				return prepared.then((base) =>
+					attachGatewayResources(base, invocation),
+				);
+			}
+			return attachGatewayResources(prepared ?? invocation, invocation);
+		};
 		this.enginePort = new AttemptingEnginePort(
 			options.engine,
 			sinks,
 			this.database,
 			{ maxAttempts: Math.max(1, options.retry?.maxAttempts ?? 1) },
-			options.prepareInvocation,
+			prepareInvocation,
 		);
 		const materialize =
 			options.materializeWorkspace ??
@@ -1013,9 +1292,11 @@ export class GatewayRuntime {
 		this.defaultBot = this.database.transaction(() => {
 			const before = this.stores.bots.list().length;
 			const record = this.registry.bootstrap({
-				// The bundled profile seeds a new Gateway. Once the bot exists its
-				// persisted configuration is user-owned and must survive restarts.
-				config: before === 0 ? this.leadConfig : undefined,
+				// The host-selected profile is authoritative and may evolve between
+				// releases. Bot-owned provider/model/tool settings and the user's
+				// custom system prompt survive because BotRegistry merges this narrow
+				// profile layer over the existing configuration.
+				config: this.leadConfig,
 				name: this.leadName,
 			});
 			if (this.stores.bots.list().length !== before) {
@@ -1227,13 +1508,289 @@ export class GatewayRuntime {
 		this.refuseWhileDraining();
 		const bot = this.getBot(params.botId);
 		return this.database.transaction(() => {
-			const session = bot.openSession(
-				params.workspaceRoot ? { rootPath: params.workspaceRoot } : undefined,
-			);
+			const workspace = params.workspaceRoot
+				? { rootPath: params.workspaceRoot }
+				: undefined;
+			const session =
+				params.kind === "dedicated"
+					? bot.openDedicatedSession(workspace)
+					: bot.openSession(workspace);
 			this.stores.audit.record(actor, "session.create", session.sessionId, {
 				botId: params.botId,
+				kind: session.kind ?? "canonical",
 			});
 			return session;
+		});
+	}
+
+	forkSession(actor: string, params: SessionForkParams): SessionForkResult {
+		this.refuseWhileDraining();
+		if (
+			params.beforeRunCount !== undefined &&
+			(!Number.isInteger(params.beforeRunCount) || params.beforeRunCount < 1)
+		) {
+			throw new GatewayCallError(
+				createGatewayError(
+					"invalid_request",
+					"beforeRunCount must be a positive integer",
+				),
+			);
+		}
+		const source = this.stores.sessions.get(params.sessionId);
+		if (!source) {
+			throw new GatewayCallError(
+				createGatewayError("not_found", `Unknown session: ${params.sessionId}`),
+			);
+		}
+		const pendingRuns = this.stores.runs.countPendingBySession(
+			source.sessionId,
+		);
+		if (pendingRuns > 0) {
+			throw new GatewayCallError(
+				createGatewayError(
+					"invalid_state_transition",
+					"Cannot fork a session while it has active or queued runs",
+					{
+						retryable: true,
+						details: { sessionId: source.sessionId, pendingRuns },
+					},
+				),
+			);
+		}
+
+		const sourceMessages = this.stores.messages.listBySession(source.sessionId);
+		if (sourceMessages.length === 0) {
+			throw new GatewayCallError(
+				createGatewayError(
+					"invalid_request",
+					`No messages found for session ${source.sessionId}`,
+				),
+			);
+		}
+
+		let messages = sourceMessages;
+		if (params.beforeRunCount !== undefined) {
+			let userRunCount = 0;
+			const cutoff = sourceMessages.findIndex(({ message }) => {
+				if (message.role !== "user") return false;
+				userRunCount += 1;
+				return userRunCount === params.beforeRunCount;
+			});
+			if (cutoff === -1) {
+				throw new GatewayCallError(
+					createGatewayError(
+						"invalid_request",
+						`Session ${source.sessionId} has ${userRunCount} user messages; cannot fork before user message ${params.beforeRunCount}`,
+						{
+							details: {
+								sessionId: source.sessionId,
+								requestedRunCount: params.beforeRunCount,
+								userRunCount,
+							},
+						},
+					),
+				);
+			}
+			messages = sourceMessages.slice(0, cutoff);
+		}
+
+		const bot = this.getBot(source.botId);
+		const result = this.database.transaction(() => {
+			const session = bot.openDedicatedSession(source.workspace);
+			for (const stored of messages) {
+				this.stores.messages.append(
+					session.sessionId,
+					undefined,
+					stored.message,
+				);
+			}
+			const now = this.clock.now();
+			const forkDetails = {
+				forkedFromSessionId: source.sessionId,
+				messageCount: messages.length,
+				...(params.beforeRunCount === undefined
+					? {}
+					: { beforeRunCount: params.beforeRunCount }),
+			};
+			this.stores.events.append(
+				"session.forked",
+				{ botId: source.botId, sessionId: session.sessionId },
+				forkDetails,
+				now,
+			);
+			this.stores.audit.record(
+				actor,
+				"session.fork",
+				session.sessionId,
+				forkDetails,
+				now,
+			);
+			this.stores.outbox.enqueue(
+				OUTBOX_KIND_SESSION_PROJECTION,
+				{ sessionId: session.sessionId },
+				now,
+			);
+			return {
+				session,
+				forkedFromSessionId: source.sessionId,
+				messageCount: messages.length,
+			};
+		});
+		this.onOutboxEnqueued();
+		return result;
+	}
+
+	updateSession(actor: string, params: SessionUpdateParams): SessionRecord {
+		this.refuseWhileDraining();
+		const session = this.stores.sessions.get(params.sessionId);
+		if (!session) {
+			throw new GatewayCallError(
+				createGatewayError("not_found", `Unknown session: ${params.sessionId}`),
+			);
+		}
+		if (params.title === undefined && params.metadata === undefined) {
+			throw new GatewayCallError(
+				createGatewayError(
+					"invalid_request",
+					"Session update requires a title or metadata patch",
+				),
+			);
+		}
+		if (
+			params.expectedRevision !== undefined &&
+			params.expectedRevision !== session.revision
+		) {
+			throw new GatewayCallError(
+				createGatewayError(
+					"revision_conflict",
+					`Session revision conflict: expected ${params.expectedRevision}, got ${session.revision}`,
+					{
+						retryable: false,
+						details: {
+							expected: params.expectedRevision,
+							actual: session.revision,
+						},
+					},
+				),
+			);
+		}
+
+		const metadata: Record<string, unknown> = { ...(session.metadata ?? {}) };
+		for (const [key, value] of Object.entries(params.metadata ?? {})) {
+			if (value === null) {
+				delete metadata[key];
+			} else {
+				metadata[key] = value;
+			}
+		}
+		const updated: SessionRecord = {
+			...session,
+			title:
+				params.title === undefined
+					? session.title
+					: params.title?.trim() || undefined,
+			metadata:
+				Object.keys(metadata).length > 0 ? Object.freeze(metadata) : undefined,
+			revision: session.revision + 1,
+		};
+		const result = this.database.transaction(() => {
+			this.sessionsPort.save(updated);
+			const now = this.clock.now();
+			this.stores.events.append(
+				"session.updated",
+				{ botId: session.botId, sessionId: session.sessionId },
+				{
+					revision: updated.revision,
+					titleChanged: params.title !== undefined,
+					metadataKeys: Object.keys(params.metadata ?? {}),
+				},
+				now,
+			);
+			this.stores.audit.record(
+				actor,
+				"session.update",
+				session.sessionId,
+				{ revision: updated.revision },
+				now,
+			);
+			this.stores.outbox.enqueue(
+				OUTBOX_KIND_SESSION_PROJECTION,
+				{ sessionId: session.sessionId },
+				now,
+			);
+			return updated;
+		});
+		this.onOutboxEnqueued();
+		return result;
+	}
+
+	closeSession(actor: string, sessionId: SessionId): SessionRecord {
+		this.refuseWhileDraining();
+		const session = this.stores.sessions.get(sessionId);
+		if (!session) {
+			throw new GatewayCallError(
+				createGatewayError("not_found", `Unknown session: ${sessionId}`),
+			);
+		}
+		if (session.state === "closed") {
+			return session;
+		}
+		return this.database.transaction(() => {
+			const closed = this.getBot(session.botId).closeSessionById(sessionId);
+			if (!closed) {
+				throw new Error(`Session ${sessionId} disappeared while closing`);
+			}
+			this.stores.audit.record(
+				actor,
+				"session.close",
+				sessionId,
+				{ revision: closed.revision },
+				this.clock.now(),
+			);
+			return closed;
+		});
+	}
+
+	deleteSession(actor: string, sessionId: SessionId): SessionDeleteResult {
+		this.refuseWhileDraining();
+		const session = this.stores.sessions.get(sessionId);
+		if (!session) {
+			return { deleted: false };
+		}
+		const pendingRuns = this.stores.runs.countPendingBySession(sessionId);
+		if (pendingRuns > 0) {
+			throw new GatewayCallError(
+				createGatewayError(
+					"invalid_state_transition",
+					"Cannot delete a session while it has active or queued runs",
+					{
+						retryable: true,
+						details: { sessionId, pendingRuns },
+					},
+				),
+			);
+		}
+		return this.database.transaction(() => {
+			const bot = this.getBot(session.botId);
+			bot.closeSessionById(sessionId);
+			const deleted = bot.deleteSessionById(sessionId);
+			if (deleted) {
+				const now = this.clock.now();
+				this.stores.events.append(
+					"session.deleted",
+					{ botId: session.botId, sessionId },
+					undefined,
+					now,
+				);
+				this.stores.audit.record(
+					actor,
+					"session.delete",
+					sessionId,
+					{ botId: session.botId },
+					now,
+				);
+			}
+			return { deleted };
 		});
 	}
 
@@ -1283,15 +1840,27 @@ export class GatewayRuntime {
 	}
 
 	/** Automation admission for the scheduler: an ordinary run. */
-	startAutomationRun(schedule: {
-		scheduleId: ScheduleId;
-		botId: BotId;
-		prompt: string;
-		name: string;
-	}): RunAccepted {
+	startAutomationRun(schedule: ScheduleRecord): RunAccepted {
 		return this.startRun(`schedule:${schedule.scheduleId}`, {
 			botId: schedule.botId,
 			prompt: schedule.prompt,
+			...(schedule.workspaceRoot
+				? { workspaceRoot: schedule.workspaceRoot }
+				: {}),
+			overrides: {
+				...(schedule.modelSelection?.providerId
+					? { providerId: schedule.modelSelection.providerId }
+					: {}),
+				...(schedule.modelSelection?.modelId
+					? { modelId: schedule.modelSelection.modelId }
+					: {}),
+				...(schedule.systemPrompt !== undefined
+					? { systemPrompt: schedule.systemPrompt }
+					: {}),
+				...(schedule.maxIterations !== undefined
+					? { maxIterations: schedule.maxIterations }
+					: {}),
+			},
 			provenance: {
 				mode: "automation",
 				submittedBy: `schedule:${schedule.scheduleId}`,
@@ -1418,6 +1987,64 @@ export class GatewayRuntime {
 			});
 		}
 		return { merged };
+	}
+
+	updateQueuedRun(
+		actor: string,
+		runId: RunId,
+		input: string,
+	): QueuedRunUpdateResult {
+		const { bot, record } = this.requireRun(runId);
+		const result = this.database.transaction(() => {
+			const updated = bot.updateQueuedRun(runId, input);
+			const now = this.clock.now();
+			this.stores.events.append(
+				"run.queuedUpdated",
+				{ botId: record.botId, sessionId: record.sessionId, runId },
+				{ inputLength: input.length },
+				now,
+			);
+			this.stores.audit.record(
+				actor,
+				"run.updateQueued",
+				runId,
+				{ sessionId: record.sessionId, inputLength: input.length },
+				now,
+			);
+			this.stores.outbox.enqueue(
+				OUTBOX_KIND_SESSION_PROJECTION,
+				{ sessionId: record.sessionId },
+				now,
+			);
+			return { run: updated };
+		});
+		this.onOutboxEnqueued();
+		return result;
+	}
+
+	promoteQueuedRun(actor: string, runId: RunId): QueuedRunPromotionResult {
+		const { bot, record } = this.requireRun(runId);
+		return this.database.transaction(() => {
+			const promoted = bot.promoteQueuedRun(runId);
+			const now = this.clock.now();
+			this.stores.events.append(
+				"run.queuedPromoted",
+				{ botId: record.botId, sessionId: record.sessionId, runId },
+				{ activeRunId: promoted.activeRunId },
+				now,
+			);
+			this.stores.audit.record(
+				actor,
+				"run.promoteQueued",
+				runId,
+				{
+					sessionId: record.sessionId,
+					activeRunId: promoted.activeRunId,
+				},
+				now,
+			);
+			return { ...promoted, merged: true };
+		});
 	}
 
 	interruptRun(
@@ -1615,17 +2242,32 @@ export class GatewayRuntime {
 
 	getBotSystemPrompt(botId: BotId): {
 		content: string | null;
+		bundledContent: string | null;
+		profileRulesContent: string | null;
+		profileId: string | null;
 		revision: number;
 	} {
 		const bot = this.stores.bots.get(botId);
 		if (!bot) throw new Error(`Unknown bot: ${botId}`);
-		return { content: bot.config.systemPrompt ?? null, revision: bot.revision };
+		return {
+			content: bot.config.systemPrompt ?? null,
+			bundledContent: bot.config.profileSystemPrompt ?? null,
+			profileRulesContent: bot.config.profileRules ?? null,
+			profileId: bot.config.profileId ?? null,
+			revision: bot.revision,
+		};
 	}
 
 	putBotSystemPrompt(
 		actor: string,
 		input: { botId: BotId; content: string; expectedRevision?: number },
-	): { content: string | null; revision: number } {
+	): {
+		content: string | null;
+		bundledContent: string | null;
+		profileRulesContent: string | null;
+		profileId: string | null;
+		revision: number;
+	} {
 		return this.database.transaction(() => {
 			const bot = this.stores.bots.get(input.botId);
 			if (!bot) throw new Error(`Unknown bot: ${input.botId}`);
@@ -1649,9 +2291,400 @@ export class GatewayRuntime {
 			});
 			return {
 				content: updated.config.systemPrompt ?? null,
+				bundledContent: updated.config.profileSystemPrompt ?? null,
+				profileRulesContent: updated.config.profileRules ?? null,
+				profileId: updated.config.profileId ?? null,
 				revision: updated.revision,
 			};
 		});
+	}
+
+	async listProviderCatalog() {
+		const catalog = await this.providerSettings.catalog();
+		const voiceInput = this.voice.selection();
+		return { ...catalog, ...(voiceInput ? { voiceInput } : {}) };
+	}
+
+	listProviderModels(providerId: string) {
+		return this.providerSettings.models(providerId);
+	}
+
+	getProviderSettings(providerId: string) {
+		const settings = this.providerSettings.get(providerId);
+		if (!settings) {
+			throw new GatewayCallError(
+				createGatewayError(
+					"not_found",
+					`Provider settings not found: ${providerId}`,
+				),
+			);
+		}
+		return settings;
+	}
+
+	patchProviderSettings(
+		actor: string,
+		input: { providerId: string } & ProviderSettingsPatch,
+	) {
+		const result = this.providerSettings.patch(input.providerId, input);
+		if (
+			!result.enabled &&
+			this.voice.selection()?.providerId === result.providerId
+		) {
+			this.globalSettings.setVoiceInput(undefined);
+			this.stores.events.append(
+				"voice.settings.updated",
+				{},
+				{ voiceInput: null, reason: "provider_disabled" },
+				this.clock.now(),
+			);
+		}
+		this.stores.audit.record(
+			actor,
+			"provider.settings.patch",
+			input.providerId,
+			{
+				...(input.enabled === undefined ? {} : { enabled: input.enabled }),
+				settingsFields: Object.keys(input.settings ?? {}).sort(),
+			},
+			this.clock.now(),
+		);
+		return result;
+	}
+
+	async addProvider(actor: string, input: AddGatewayProviderInput) {
+		const result = await this.providerSettings.add(input);
+		this.stores.audit.record(
+			actor,
+			"provider.add",
+			result.providerId,
+			{ modelsCount: result.modelsCount },
+			this.clock.now(),
+		);
+		return result;
+	}
+
+	async updateProviderModels(
+		actor: string,
+		input: UpdateGatewayProviderModelsInput,
+	) {
+		const result = await this.providerSettings.updateModels(input);
+		this.stores.audit.record(
+			actor,
+			"provider.models.put",
+			result.providerId,
+			{ modelsCount: result.modelsCount },
+			this.clock.now(),
+		);
+		return result;
+	}
+
+	async loginProviderOAuth(
+		actor: string,
+		providerId: string,
+		openExternalUrl: (url: string, signal: AbortSignal) => Promise<void>,
+	): Promise<{ provider: "cline"; configured: true }> {
+		await this.clineOAuth.login({
+			actor,
+			providerId,
+			openExternalUrl,
+			persistCredentials: (credentials) => {
+				this.patchProviderSettings(actor, {
+					providerId: "cline",
+					enabled: true,
+					settings: {
+						apiKey: null,
+						auth: {
+							accessToken: credentials.access.startsWith("workos:")
+								? credentials.access
+								: `workos:${credentials.access}`,
+							refreshToken: credentials.refresh,
+							expiresAt: credentials.expires,
+							accountId: credentials.accountId ?? null,
+							metadata: credentials.metadata,
+						},
+					},
+				});
+			},
+		});
+		this.stores.audit.record(
+			actor,
+			"provider.oauth.login",
+			providerId,
+			undefined,
+			this.clock.now(),
+		);
+		return { provider: "cline", configured: true };
+	}
+
+	cancelProviderOAuth(
+		actor: string,
+		providerId: string,
+	): { provider: "cline"; cancelled: boolean } {
+		const cancelled = this.clineOAuth.cancel(providerId, actor);
+		this.stores.audit.record(
+			actor,
+			"provider.oauth.cancel",
+			providerId,
+			{ cancelled },
+			this.clock.now(),
+		);
+		return { provider: "cline", cancelled };
+	}
+
+	cancelProviderOAuthForActor(actor: string): number {
+		return this.clineOAuth.cancelActor(actor);
+	}
+
+	queryClineAccount<T extends GatewayClineAccountQuery>(input: T) {
+		return this.clineAccount.query(input);
+	}
+
+	async switchClineAccount(actor: string, input: GatewayClineAccountSwitch) {
+		const result = await this.clineAccount.switchAccount(input);
+		this.stores.audit.record(
+			actor,
+			"account.cline.switch",
+			input.organizationId?.trim() || "personal",
+			undefined,
+			this.clock.now(),
+		);
+		return result;
+	}
+
+	getGlobalSettings() {
+		return this.globalSettings.get();
+	}
+
+	patchGlobalSettings(actor: string, patch: GatewayGlobalSettingsPatch) {
+		const result = this.globalSettings.patch(patch);
+		this.stores.audit.record(
+			actor,
+			"settings.global.patch",
+			"global",
+			{ fields: Object.keys(patch).sort() },
+			this.clock.now(),
+		);
+		return result;
+	}
+
+	async putVoiceSettings(
+		actor: string,
+		selection: VoiceInputSelection | undefined,
+	) {
+		const result = await this.voice.setSelection(selection);
+		const now = this.clock.now();
+		this.stores.audit.record(
+			actor,
+			"voice.settings.put",
+			result.voiceInput?.providerId ?? "disabled",
+			{
+				modelId: result.voiceInput?.modelId ?? null,
+				enabled: Boolean(result.voiceInput),
+			},
+			now,
+		);
+		this.stores.events.append(
+			"voice.settings.updated",
+			{},
+			{ voiceInput: result.voiceInput ?? null },
+			now,
+		);
+		return result;
+	}
+
+	async transcribeVoice(actor: string, input: VoiceTranscriptionInput) {
+		const selection = this.voice.selection();
+		const audioBytes = Buffer.byteLength(input.audioBase64, "base64");
+		try {
+			const result = await this.voice.transcribe(input);
+			this.recordVoiceDiagnostic(actor, "voice.transcription.transcribe", {
+				selection,
+				audioBytes,
+				status: "completed",
+			});
+			return result;
+		} catch (error) {
+			this.recordVoiceDiagnostic(actor, "voice.transcription.transcribe", {
+				selection,
+				audioBytes,
+				status: "failed",
+				failureKind:
+					error instanceof GatewayVoiceError ? error.kind : "internal",
+			});
+			throw error;
+		}
+	}
+
+	async createVoiceStreamingSession(actor: string) {
+		const selection = this.voice.selection();
+		try {
+			const result = await this.voice.createStreamingSession();
+			this.recordVoiceDiagnostic(actor, "voice.transcription.createSession", {
+				selection,
+				status: "completed",
+			});
+			return result;
+		} catch (error) {
+			this.recordVoiceDiagnostic(actor, "voice.transcription.createSession", {
+				selection,
+				status: "failed",
+				failureKind:
+					error instanceof GatewayVoiceError ? error.kind : "internal",
+			});
+			throw error;
+		}
+	}
+
+	private recordVoiceDiagnostic(
+		actor: string,
+		action: string,
+		input: {
+			selection: VoiceInputSelection | undefined;
+			status: "completed" | "failed";
+			audioBytes?: number;
+			failureKind?: string;
+		},
+	): void {
+		this.stores.audit.record(
+			actor,
+			action,
+			input.selection?.providerId ?? "unconfigured",
+			{
+				modelId: input.selection?.modelId ?? null,
+				status: input.status,
+				...(input.audioBytes === undefined
+					? {}
+					: { audioBytes: input.audioBytes }),
+				...(input.failureKind ? { failureKind: input.failureKind } : {}),
+			},
+			this.clock.now(),
+		);
+	}
+
+	listMarketplaceInstalled() {
+		return this.extensions.listMarketplaceInstalled();
+	}
+
+	getMarketplaceCatalog() {
+		return this.extensions.getMarketplaceCatalog();
+	}
+
+	async installMarketplace(
+		actor: string,
+		input: { type: MarketplacePrimitiveType; id: string },
+	) {
+		this.refuseWhileDraining();
+		const result = await this.extensions.installMarketplace(input);
+		this.stores.audit.record(
+			actor,
+			"marketplace.install",
+			`${input.type}:${input.id}`,
+			undefined,
+			this.clock.now(),
+		);
+		return result;
+	}
+
+	async uninstallMarketplace(
+		actor: string,
+		input: { type: MarketplacePrimitiveType; id: string },
+	) {
+		this.refuseWhileDraining();
+		const result = await this.extensions.uninstallMarketplace(input);
+		this.stores.audit.record(
+			actor,
+			"marketplace.uninstall",
+			`${input.type}:${input.id}`,
+			undefined,
+			this.clock.now(),
+		);
+		return result;
+	}
+
+	listMcpServers() {
+		return this.extensions.listMcpServers();
+	}
+
+	putMcpServer(actor: string, input: GatewayMcpServerInput) {
+		this.refuseWhileDraining();
+		const result = this.extensions.putMcpServer(input);
+		this.stores.audit.record(
+			actor,
+			"mcp.server.put",
+			input.name,
+			{
+				transportType: input.transportType,
+				envKeys: Object.keys(input.env ?? {}).sort(),
+				headerKeys: Object.keys(input.headers ?? {}).sort(),
+			},
+			this.clock.now(),
+		);
+		return result;
+	}
+
+	deleteMcpServer(actor: string, name: string) {
+		this.refuseWhileDraining();
+		const result = this.extensions.deleteMcpServer(name);
+		this.stores.audit.record(
+			actor,
+			"mcp.server.delete",
+			name,
+			undefined,
+			this.clock.now(),
+		);
+		return result;
+	}
+
+	setMcpServerDisabled(actor: string, name: string, disabled: boolean) {
+		this.refuseWhileDraining();
+		const result = this.extensions.setMcpServerDisabled(name, disabled);
+		this.stores.audit.record(
+			actor,
+			"mcp.server.setDisabled",
+			name,
+			{ disabled },
+			this.clock.now(),
+		);
+		return result;
+	}
+
+	listManagedExtensions() {
+		return this.extensions.listManagedExtensions();
+	}
+
+	setPluginDisabled(actor: string, path: string, disabled: boolean) {
+		this.refuseWhileDraining();
+		const result = this.extensions.setPluginDisabled(path, disabled);
+		this.stores.audit.record(
+			actor,
+			"plugin.setDisabled",
+			path,
+			{ disabled },
+			this.clock.now(),
+		);
+		return result;
+	}
+
+	uninstallLocalExtension(
+		actor: string,
+		input: {
+			type: "mcp" | "skill" | "workflow" | "plugin";
+			id?: string;
+			name?: string;
+			path?: string;
+		},
+	) {
+		this.refuseWhileDraining();
+		const result = this.extensions.uninstallLocal(input);
+		this.stores.audit.record(
+			actor,
+			"extension.uninstallLocal",
+			`${input.type}:${input.id ?? input.name ?? input.path ?? "unknown"}`,
+			undefined,
+			this.clock.now(),
+		);
+		return result;
 	}
 
 	/**
@@ -1659,6 +2692,27 @@ export class GatewayRuntime {
 	 * is non-secret; the credential stays an owner-only 0600 file named
 	 * by `credentialRef`.
 	 */
+	assertConnectorRegistration(input: {
+		botId: BotId;
+		config?: Record<string, unknown>;
+	}): void {
+		if (this.draining) {
+			throw new GatewayCallError(
+				createGatewayError(
+					"gateway_draining",
+					"Gateway is draining and refuses new mutating work",
+					{ retryable: true },
+				),
+			);
+		}
+		if (!this.stores.bots.get(input.botId)) {
+			throw new GatewayCallError(
+				createGatewayError("not_found", `Unknown bot: ${input.botId}`),
+			);
+		}
+		assertNonSecretConnectorConfig(input.config ?? {});
+	}
+
 	registerConnector(
 		actor: string,
 		params: {
@@ -1669,23 +2723,7 @@ export class GatewayRuntime {
 			credentialRef?: string;
 		},
 	): ConnectorRecord {
-		if (this.draining) {
-			throw new GatewayCallError(
-				createGatewayError(
-					"gateway_draining",
-					"Gateway is draining and refuses new mutating work",
-					{ retryable: true },
-				),
-			);
-		}
-		const bot = this.stores.bots.get(params.botId);
-		if (!bot) {
-			throw new GatewayCallError(
-				createGatewayError("not_found", `Unknown bot: ${params.botId}`),
-			);
-		}
-		// Config is non-secret by contract; tokens go into 0600 files.
-		assertNonSecretConnectorConfig(params.config ?? {});
+		this.assertConnectorRegistration(params);
 		return this.database.transaction(() => {
 			const record: ConnectorRecord = {
 				connectorId: createConnectorId(),
@@ -1879,61 +2917,97 @@ export class GatewayRuntime {
 		return this.stores.connectorOutbound.list(filter);
 	}
 
-	/** Create a schedule (Gateway RFC, Phase 6): a durable trigger. */
-	createSchedule(
-		actor: string,
+	private scheduleNextDue(
 		params: {
-			botId: BotId;
-			name: string;
-			prompt: string;
 			intervalMs?: number;
 			at?: number;
-			maxAttempts?: number;
-			/** Deliver firing outcomes to a connector conversation. */
-			notify?: {
-				connectorId: ConnectorId;
-				externalAccountId: string;
-				externalConversationId: string;
-			};
+			cronPattern?: string;
 		},
-	): ScheduleRecord {
-		if (this.draining) {
+		now: number,
+	): number {
+		const triggerCount = [
+			params.intervalMs,
+			params.at,
+			params.cronPattern,
+		].filter((value) => value !== undefined).length;
+		if (triggerCount !== 1) {
 			throw new GatewayCallError(
 				createGatewayError(
-					"gateway_draining",
-					"Gateway is draining and refuses new mutating work",
-					{ retryable: true },
+					"invalid_request",
+					"A schedule takes exactly one trigger: intervalMs, at, or cronPattern",
 				),
 			);
 		}
+		if (params.intervalMs !== undefined) {
+			if (!Number.isInteger(params.intervalMs) || params.intervalMs <= 0) {
+				throw new GatewayCallError(
+					createGatewayError("invalid_request", "intervalMs must be positive"),
+				);
+			}
+			return now + params.intervalMs;
+		}
+		if (params.at !== undefined) {
+			if (!Number.isInteger(params.at) || params.at < 0) {
+				throw new GatewayCallError(
+					createGatewayError(
+						"invalid_request",
+						"at must be a nonnegative epoch millisecond",
+					),
+				);
+			}
+			return params.at;
+		}
+		try {
+			return nextCronDueAt(params.cronPattern ?? "", now);
+		} catch (error) {
+			throw new GatewayCallError(
+				createGatewayError(
+					"invalid_request",
+					error instanceof Error ? error.message : String(error),
+				),
+			);
+		}
+	}
+
+	private validateScheduleNotify(
+		botId: BotId,
+		notify: ScheduleNotifyTarget | undefined,
+	): void {
+		if (!notify) return;
+		const connector = this.stores.connectors.get(notify.connectorId);
+		if (!connector || connector.botId !== botId) {
+			throw new GatewayCallError(
+				createGatewayError(
+					"unauthorized",
+					`Notify connector ${notify.connectorId} does not belong to bot ${botId}`,
+				),
+			);
+		}
+	}
+
+	private requireSchedule(scheduleId: ScheduleId): ScheduleRecord {
+		const schedule = this.stores.schedules.get(scheduleId);
+		if (!schedule) {
+			throw new GatewayCallError(
+				createGatewayError("not_found", `Unknown schedule: ${scheduleId}`),
+			);
+		}
+		return schedule;
+	}
+
+	/** Create a schedule (Gateway RFC, Phase 6): a durable trigger. */
+	createSchedule(actor: string, params: ScheduleCreateParams): ScheduleRecord {
+		this.refuseWhileDraining();
 		const bot = this.stores.bots.get(params.botId);
 		if (!bot) {
 			throw new GatewayCallError(
 				createGatewayError("not_found", `Unknown bot: ${params.botId}`),
 			);
 		}
-		if ((params.intervalMs === undefined) === (params.at === undefined)) {
-			throw new GatewayCallError(
-				createGatewayError(
-					"invalid_request",
-					"A schedule takes exactly one trigger: intervalMs (recurring) or at (one-shot)",
-				),
-			);
-		}
-		if (params.notify) {
-			// The notify target must be a connector of the SAME bot.
-			const connector = this.stores.connectors.get(params.notify.connectorId);
-			if (!connector || connector.botId !== params.botId) {
-				throw new GatewayCallError(
-					createGatewayError(
-						"unauthorized",
-						`Notify connector ${params.notify.connectorId} does not belong to bot ${params.botId}`,
-					),
-				);
-			}
-		}
+		this.validateScheduleNotify(params.botId, params.notify);
 		return this.database.transaction(() => {
 			const now = this.clock.now();
+			const nextDueAt = this.scheduleNextDue(params, now);
 			const record: ScheduleRecord = {
 				scheduleId: createScheduleId(),
 				botId: params.botId,
@@ -1941,11 +3015,23 @@ export class GatewayRuntime {
 				prompt: params.prompt,
 				intervalMs: params.intervalMs,
 				at: params.at,
-				nextDueAt: params.at ?? now + (params.intervalMs ?? 0),
-				enabled: true,
+				cronPattern: params.cronPattern,
+				nextDueAt,
+				enabled: params.enabled ?? true,
 				maxAttempts: Math.max(1, params.maxAttempts ?? 1),
 				notify: params.notify,
+				metadata: params.metadata,
+				modelSelection: params.modelSelection,
+				mode: params.mode,
+				workspaceRoot: params.workspaceRoot,
+				cwd: params.cwd,
+				systemPrompt: params.systemPrompt,
+				maxIterations: params.maxIterations,
+				timeoutSeconds: params.timeoutSeconds,
+				maxParallel: Math.max(1, params.maxParallel ?? 1),
+				tags: params.tags,
 				createdAt: now,
+				updatedAt: now,
 				revision: 0,
 			};
 			this.stores.schedules.save(record);
@@ -1963,6 +3049,184 @@ export class GatewayRuntime {
 				now,
 			);
 			return record;
+		});
+	}
+
+	updateSchedule(actor: string, params: ScheduleUpdateParams): ScheduleRecord {
+		this.refuseWhileDraining();
+		const schedule = this.requireSchedule(params.scheduleId);
+		if (
+			params.expectedRevision !== undefined &&
+			params.expectedRevision !== schedule.revision
+		) {
+			throw new GatewayCallError(
+				createGatewayError("revision_conflict", "Schedule revision changed"),
+			);
+		}
+		const triggerChanged =
+			params.intervalMs !== undefined ||
+			params.at !== undefined ||
+			params.cronPattern !== undefined;
+		return this.database.transaction(() => {
+			const now = this.clock.now();
+			const updated: ScheduleRecord = {
+				...schedule,
+				...(params.name !== undefined ? { name: params.name } : {}),
+				...(params.prompt !== undefined ? { prompt: params.prompt } : {}),
+				...(triggerChanged
+					? {
+							intervalMs: params.intervalMs,
+							at: params.at,
+							cronPattern: params.cronPattern,
+							nextDueAt: this.scheduleNextDue(params, now),
+						}
+					: {}),
+				...(params.maxAttempts !== undefined
+					? { maxAttempts: params.maxAttempts }
+					: {}),
+				...(params.enabled !== undefined ? { enabled: params.enabled } : {}),
+				...(params.metadata !== undefined ? { metadata: params.metadata } : {}),
+				...(params.modelSelection !== undefined
+					? { modelSelection: params.modelSelection ?? undefined }
+					: {}),
+				...(params.mode !== undefined
+					? { mode: params.mode ?? undefined }
+					: {}),
+				...(params.workspaceRoot !== undefined
+					? { workspaceRoot: params.workspaceRoot ?? undefined }
+					: {}),
+				...(params.cwd !== undefined ? { cwd: params.cwd ?? undefined } : {}),
+				...(params.systemPrompt !== undefined
+					? { systemPrompt: params.systemPrompt ?? undefined }
+					: {}),
+				...(params.maxIterations !== undefined
+					? { maxIterations: params.maxIterations ?? undefined }
+					: {}),
+				...(params.timeoutSeconds !== undefined
+					? { timeoutSeconds: params.timeoutSeconds ?? undefined }
+					: {}),
+				...(params.maxParallel !== undefined
+					? { maxParallel: params.maxParallel }
+					: {}),
+				...(params.tags !== undefined ? { tags: params.tags } : {}),
+				updatedAt: now,
+				revision: schedule.revision + 1,
+			};
+			this.stores.schedules.save(updated);
+			this.stores.events.append(
+				"schedule.updated",
+				{ botId: schedule.botId },
+				{ scheduleId: schedule.scheduleId, revision: updated.revision },
+				now,
+			);
+			this.stores.audit.record(
+				actor,
+				"schedule.update",
+				schedule.scheduleId,
+				undefined,
+				now,
+			);
+			return updated;
+		});
+	}
+
+	setScheduleEnabled(
+		actor: string,
+		scheduleId: ScheduleId,
+		enabled: boolean,
+	): ScheduleRecord {
+		this.refuseWhileDraining();
+		const schedule = this.requireSchedule(scheduleId);
+		if (schedule.enabled === enabled) return schedule;
+		return this.database.transaction(() => {
+			const now = this.clock.now();
+			const nextDueAt =
+				enabled &&
+				(schedule.nextDueAt === undefined || schedule.nextDueAt <= now)
+					? this.scheduleNextDue(schedule, now)
+					: schedule.nextDueAt;
+			const updated: ScheduleRecord = {
+				...schedule,
+				enabled,
+				nextDueAt,
+				updatedAt: now,
+				revision: schedule.revision + 1,
+			};
+			this.stores.schedules.save(updated);
+			const verb = enabled ? "enabled" : "disabled";
+			this.stores.events.append(
+				`schedule.${verb}`,
+				{ botId: schedule.botId },
+				{ scheduleId },
+				now,
+			);
+			this.stores.audit.record(
+				actor,
+				`schedule.${enabled ? "enable" : "disable"}`,
+				scheduleId,
+				undefined,
+				now,
+			);
+			return updated;
+		});
+	}
+
+	triggerSchedule(
+		actor: string,
+		scheduleId: ScheduleId,
+	): ScheduleTriggerResult {
+		this.refuseWhileDraining();
+		const schedule = this.requireSchedule(scheduleId);
+		return this.database.transaction(() => {
+			const now = this.clock.now();
+			let dueAt = now;
+			while (this.stores.scheduleJobs.getByScheduleDue(scheduleId, dueAt)) {
+				dueAt += 1;
+			}
+			this.stores.scheduleJobs.ensureJob(scheduleId, dueAt, now);
+			const job = this.stores.scheduleJobs.getByScheduleDue(scheduleId, dueAt);
+			if (!job) throw new Error("Failed to materialize schedule job");
+			this.stores.events.append(
+				"schedule.triggered",
+				{ botId: schedule.botId },
+				{ scheduleId, jobId: job.jobId },
+				now,
+			);
+			this.stores.audit.record(
+				actor,
+				"schedule.trigger",
+				scheduleId,
+				{ jobId: job.jobId },
+				now,
+			);
+			return { job };
+		});
+	}
+
+	deleteSchedule(actor: string, scheduleId: ScheduleId): ScheduleDeleteResult {
+		this.refuseWhileDraining();
+		const schedule = this.stores.schedules.get(scheduleId);
+		if (!schedule) return { deleted: false };
+		return this.database.transaction(() => {
+			const now = this.clock.now();
+			this.stores.scheduleJobs.deleteBySchedule(scheduleId);
+			const deleted = this.stores.schedules.delete(scheduleId);
+			if (deleted) {
+				this.stores.events.append(
+					"schedule.deleted",
+					{ botId: schedule.botId },
+					{ scheduleId },
+					now,
+				);
+				this.stores.audit.record(
+					actor,
+					"schedule.delete",
+					scheduleId,
+					undefined,
+					now,
+				);
+			}
+			return { deleted };
 		});
 	}
 

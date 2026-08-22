@@ -103,6 +103,17 @@ clinegate secret-put remote-access # store a distinct remote access token
 clinegate serve --remote-port 18080 --remote-host 127.0.0.1
 ```
 
+The bundled `cline-dad` profile lives under
+`default-agent/cline-dad/`. Its model-facing instructions are layered in this
+order:
+
+1. `system-prompt.md` — the bundled base system prompt.
+2. `rules/*.md` plus bundled Agent Plugin skill guidance — profile rules.
+3. The bot's persisted `systemPrompt` — user-authored custom instructions.
+
+The desktop Settings view exposes the first two layers read-only and edits only
+the third.
+
 The optional remote listener is the browser-facing WebSocket transport. It uses
 the `remote-access` secret by default, independently of local discovery auth,
 and requires an authenticated `gateway.hello` before accepting requests. Keep

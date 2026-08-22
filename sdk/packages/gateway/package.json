@@ -49,6 +49,7 @@
 		"@anthropic-ai/sandbox-runtime": "^0.0.73",
 		"@cline/bot": "workspace:*",
 		"@cline/engine": "workspace:*",
+		"@cline/llms": "workspace:*",
 		"@cline/shared": "workspace:*",
 		"@cline/tools": "workspace:*",
 		"ws": "^8.18.3",

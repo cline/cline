@@ -1,11 +1,8 @@
 # Cline Bots (Desktop App)
 
-Tauri desktop shell + Bun sidecar backend + Next.js UI for running and inspecting Cline chat sessions.
-
-Forked from `apps/examples/desktop-app` to add a sandboxed backend: the Hub
-can run inside a libkrun/krunkit microVM instead of directly on the host. See
-[SANDBOX.md](./SANDBOX.md) for that design; everything else in this README
-still applies as-is.
+Tauri desktop shell + thin Bun Gateway bridge + Next.js UI for running and
+inspecting Cline chat sessions. The bundled `clinegate` process is the only
+runtime authority; this app has no Core SDK or legacy Hub dependency.
 
 ## Dev Commands
 
@@ -37,8 +34,9 @@ them as the current user's `bot.cline.gate` LaunchAgent on macOS or
 the next time a newer desktop bundle starts. It uses `cline-dad` as its default
 lead profile and stores durable state under `~/.cline/gateway`.
 
-Development builds keep the app-owned sidecar lifecycle so source changes can
-be rebuilt and restarted normally with `bun run dev`.
+Development builds launch app-local bridge source so source changes can be
+restarted normally with `bun run dev`. Bridge processes connect to the same
+`desktop` Gateway namespace and never own or stop the Gateway authority.
 
 ## Login Shell PATH Resolution
 
@@ -67,15 +65,10 @@ desktop integration notes.
 
 **Not set up yet for this app.** `tauri.conf.json`'s `plugins.updater` block
 deliberately points at a placeholder feed (`cline-app-latest`) with an
-unconfigured pubkey (`"UNCONFIGURED"`) — copied from `apps/examples/desktop-app`
-but NOT its real signing key or `desktop-latest` feed, since that key/feed
-belongs to a different, already-published product and reusing it here would
-be wrong. The app still runs fine; update checks just fail harmlessly (already
-handled in `main.rs`'s `check_and_install_update`). Before shipping this app
-for real: generate a fresh keypair (`tauri signer generate`), publish a real
-release feed under its own tag, and wire `TAURI_SIGNING_PRIVATE_KEY` the same
-way `apps/examples/desktop-app` does via the `desktop-publish` workflow and
-`publish-desktop` skill — don't just copy their key/feed over.
+unconfigured pubkey (`"UNCONFIGURED"`). The app still runs; update checks fail
+harmlessly (handled in `main.rs`'s `check_and_install_update`). Before shipping,
+generate a dedicated keypair (`tauri signer generate`), publish this app's own
+release feed, and wire `TAURI_SIGNING_PRIVATE_KEY` in its release workflow.
 
 ## Shareable Desktop Packages (manual fallback)
 
@@ -125,9 +118,9 @@ Release startup flow:
 
 1. Tauri installs or updates the bundled local Gate user service and keeps only
    native window/file-picker/open-path responsibilities.
-2. The persistent Bun compatibility sidecar owns the bundled Gateway and
-   exposes one websocket transport (`/`) for desktop commands, queries, and
-   pushed events.
+2. The persistent Bun bridge exposes one websocket transport (`/`) for desktop
+   commands and events and connects to the `desktop` Gateway namespace. It
+   does not own the Gateway process.
 3. The React app uses `lib/desktop-client.ts` and no longer imports `@tauri-apps/api/core` directly in feature code.
 4. Tool approval updates are pushed from the backend instead of polled from the UI.
 5. Session process context resolves `workspaceRoot` from git root and uses that same path as default `cwd` for chat runtime and git operations unless explicitly overridden.
@@ -140,7 +133,7 @@ Desktop transport envelope:
 
 ## Settings: Routine
 
-- The Settings sidebar includes a `Routine` view for hub-backed automations.
+- The Settings sidebar includes a `Routine` view for Gateway schedules.
 - `Routine` lists all RPC schedules and shows status (`enabled`, `nextRunAt`, active execution).
 - From the UI you can open a create form and add, pause/resume, trigger-now, and delete schedules.
 - The view is wired to the same scheduler APIs used by `cline schedule` through Tauri commands and `scripts/routine-schedules.ts`.
@@ -148,8 +141,9 @@ Desktop transport envelope:
 ## Key Files
 
 - [`src-tauri/src/main.rs`](./src-tauri/src/main.rs) - Tauri shell lifecycle, backend launch, and native-only commands
-- [`sidecar/index.ts`](./sidecar/index.ts) - persistent Bun sidecar and Hub-daemon entry dispatch
-- [`sidecar/chat-session.ts`](./sidecar/chat-session.ts) - shared-Hub chat session adapter
+- [`sidecar/index.ts`](./sidecar/index.ts) - desktop websocket bridge
+- [`sidecar/gateway.ts`](./sidecar/gateway.ts) - singleton Gateway discovery and lifecycle requests
+- [`sidecar/commands.ts`](./sidecar/commands.ts) - typed desktop-to-Gateway command translation
 - [`webview/lib/desktop-client.ts`](./webview/lib/desktop-client.ts) - typed desktop websocket client
 - [`webview/hooks/use-chat-session.ts`](./webview/hooks/use-chat-session.ts) - UI chat session state + backend subscriptions
 - [`webview/lib/chat-schema.ts`](./webview/lib/chat-schema.ts) - chat message schema used by the UI
@@ -157,11 +151,10 @@ Desktop transport envelope:
 
 ## Data + Storage
 
-- Session artifacts are written under `~/.cline/data/sessions/<sessionId>/` (or `CLINE_SESSION_DATA_DIR`).
-- Canonical replay/export artifact: `<sessionId>.messages.json`.
-- `<sessionId>.messages.json` is expected to contain ordered messages plus assistant `modelInfo` and `metrics` (including cache token fields when provided by the model runtime).
-- `<sessionId>.hooks.jsonl` is observability/debug telemetry and should not be required for normal history replay/export flows.
-- Full v1 schema for the persisted messages file, including failure/retry semantics and golden fixtures, is documented in [`packages/core/docs/messages-contract-v1.md`](../../sdk/packages/core/docs/messages-contract-v1.md).
+The Gateway owns durable state under `~/.cline/gateway` (or
+`CLINE_GATEWAY_DATA_ROOT`). The bridge and webview keep only ephemeral
+connection and presentation state; they do not maintain a second session
+database.
 
 ## Sidecar observability
 
@@ -189,12 +182,13 @@ credentials, request headers, recorded audio, or transcript contents.
 ## Troubleshooting
 
 - If live updates stall, verify the desktop backend websocket is connected and `chat_event` messages are arriving.
-- Tauri restarts the desktop backend if the sidecar process exits and kills it on app teardown.
+- Tauri restarts a desktop bridge if it exits and stops bridges on app teardown.
+  The persistent Gateway authority remains available.
 - Chat sends now preflight provider credentials. If a provider that requires API-key auth is selected without a key, the UI blocks the turn with a clear error message instead of starting a hanging session.
 - If a turn completes with `finishReason=error` before any assistant content is produced, the UI now adds an explicit error chat message so failed turns are visible in the transcript.
-- If package changes are not reflected, rebuild SDK packages (`bun run build:sdk`).
-  The next desktop or CLI Hub connection will reuse a compatible running Hub or
-  replace an incompatible one through the shared discovery path.
+- If Gateway stack changes are not reflected, rebuild only its dependency
+  closure (`bun run build:gateway-stack`). The next bridge reconnects to the
+  one authority discovered for the `desktop` namespace.
 - Provider settings updates are patch-style: only fields you edit are changed. Unset fields are preserved instead of being cleared.
 - Speech input requires an enabled provider whose models.dev metadata identifies
   a dedicated `audio`-to-`text` model, or the built-in ElevenLabs provider with

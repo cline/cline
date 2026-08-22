@@ -1,5 +1,38 @@
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { $ } from "bun";
 import { telemetryDefineArgs } from "./telemetry-define-args";
+
+const FORBIDDEN_RUNTIME_INPUT =
+	/(?:^|\/)(?:sdk\/packages\/(?:core|sdk)|sdk\/packages\/shared\/src\/hub\.ts|apps\/(?:cline-hub|examples\/desktop-app)|node_modules\/@cline\/(?:core|sdk|cline-hub))(?:\/|$)/;
+
+const verifyBundleBoundary = async (): Promise<void> => {
+	const analysisDir = mkdtempSync(join(tmpdir(), "cline-bundle-boundary-"));
+	try {
+		for (const [name, entrypoint] of [
+			["sidecar", "./sidecar/index.ts"],
+			["clinegate", "../../sdk/packages/gateway/bin/clinegate.mjs"],
+		] as const) {
+			const outfile = join(analysisDir, `${name}.js`);
+			const metafile = join(analysisDir, `${name}.meta.json`);
+			await $`bun build ${entrypoint} --target=bun --outfile=${outfile} --metafile=${metafile}`.quiet();
+			const metadata = JSON.parse(readFileSync(metafile, "utf8")) as {
+				inputs?: Record<string, unknown>;
+			};
+			const forbidden = Object.keys(metadata.inputs ?? {}).filter((input) =>
+				FORBIDDEN_RUNTIME_INPUT.test(input.replaceAll("\\", "/")),
+			);
+			if (forbidden.length > 0) {
+				throw new Error(
+					`${name} bundle crosses the Gateway-only dependency boundary:\n${forbidden.join("\n")}`,
+				);
+			}
+		}
+	} finally {
+		rmSync(analysisDir, { force: true, recursive: true });
+	}
+};
 
 const resolveTargetTriple = async (): Promise<string> => {
 	const fromEnv = process.env.TAURI_ENV_TARGET_TRIPLE ?? process.env.TARGET;
@@ -90,6 +123,7 @@ const buildUniversalMacSidecar = async (): Promise<void> => {
 };
 
 const main = async () => {
+	await verifyBundleBoundary();
 	const targetTriple = await resolveTargetTriple();
 	await $`mkdir -p src-tauri/bin`;
 	if (targetTriple === "universal-apple-darwin") {

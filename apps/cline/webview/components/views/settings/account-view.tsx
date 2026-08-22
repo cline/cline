@@ -1,14 +1,5 @@
 "use client";
 
-import type {
-	ClineAccountBalance,
-	ClineAccountOrganization,
-	ClineAccountOrganizationBalance,
-	ClineAccountOrganizationUsageTransaction,
-	ClineAccountPaymentTransaction,
-	ClineAccountUsageTransaction,
-	ClineAccountUser,
-} from "@/lib/account-types";
 import {
 	AlertCircle,
 	Building,
@@ -26,6 +17,15 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAccount } from "@/contexts/account-context";
+import type {
+	ClineAccountBalance,
+	ClineAccountOrganization,
+	ClineAccountOrganizationBalance,
+	ClineAccountOrganizationUsageTransaction,
+	ClineAccountPaymentTransaction,
+	ClineAccountUsageTransaction,
+	ClineAccountUser,
+} from "@/lib/account-types";
 import { isClineAccountNotAuthenticatedResult } from "@/lib/cline-account-state";
 import { desktopClient, openExternalUrl } from "@/lib/desktop-client";
 import { invalidateProviderCatalogCache } from "@/lib/provider-model-catalog";
@@ -277,9 +277,11 @@ export function AccountView() {
 		setAccountActionPending("sign-in");
 		setOverviewError(null);
 		try {
-			await desktopClient.invoke("run_provider_oauth_login", {
-				provider: "cline",
-			});
+			await desktopClient.invoke(
+				"run_provider_oauth_login",
+				{ provider: "cline" },
+				{ timeoutMs: null },
+			);
 			await loadOverview();
 			setActiveTab("overview");
 		} catch (err) {

@@ -98,7 +98,7 @@ describe("useSessionHistory session mapping", () => {
 					metadata: {
 						sessionHistoryOrigin: {
 							mode: "automation",
-							trigger: "hub-schedule",
+							trigger: "gateway-schedule",
 						},
 					},
 				},

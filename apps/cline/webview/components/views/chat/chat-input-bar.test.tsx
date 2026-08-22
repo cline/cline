@@ -15,18 +15,22 @@ import {
 } from "./chat-input-bar";
 
 const {
+	desktopInvokeMock,
 	loadProviderModelCatalogMock,
 	loadProviderModelsMock,
 	speechInputMockState,
 	startVercelStreamingTranscriptionMock,
+	subscribeTransportStateMock,
 	subscribeToProviderModelsMock,
 } = vi.hoisted(() => ({
+	desktopInvokeMock: vi.fn(),
 	loadProviderModelCatalogMock: vi.fn(),
 	loadProviderModelsMock: vi.fn(),
 	speechInputMockState: {
 		current: null as MockSpeechInputProps | null,
 	},
 	startVercelStreamingTranscriptionMock: vi.fn(),
+	subscribeTransportStateMock: vi.fn(),
 	subscribeToProviderModelsMock: vi.fn(() => vi.fn()),
 }));
 
@@ -69,6 +73,13 @@ vi.mock("@/components/ai-elements/speech-input", async () => {
 	};
 });
 
+vi.mock("@/lib/desktop-client", () => ({
+	desktopClient: {
+		invoke: desktopInvokeMock,
+		subscribeTransportState: subscribeTransportStateMock,
+	},
+}));
+
 vi.mock("@/lib/provider-model-catalog", () => ({
 	loadProviderModelCatalog: loadProviderModelCatalogMock,
 	loadProviderModels: loadProviderModelsMock,
@@ -85,6 +96,7 @@ let root: Root;
 
 beforeEach(() => {
 	Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+	desktopInvokeMock.mockReset().mockResolvedValue([]);
 	loadProviderModelCatalogMock.mockReset().mockResolvedValue({
 		providers: [],
 		enabledProviderIds: ["cline"],
@@ -98,6 +110,10 @@ beforeEach(() => {
 		done: new Promise<void>(() => {}),
 		stop: vi.fn(),
 		cancel: vi.fn(),
+	});
+	subscribeTransportStateMock.mockReset().mockImplementation((listener) => {
+		listener("connected");
+		return vi.fn();
 	});
 	subscribeToProviderModelsMock.mockReset().mockReturnValue(vi.fn());
 	HTMLElement.prototype.scrollIntoView = vi.fn();

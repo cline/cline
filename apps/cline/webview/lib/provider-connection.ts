@@ -32,3 +32,14 @@ export function isProviderConnected(provider: Provider): boolean {
 		return String(value).trim() !== "";
 	});
 }
+
+export function isProviderCredentialErrorMessage(
+	message: string | null,
+): boolean {
+	return Boolean(
+		message &&
+			/unauthorized|\b401\b|\b403\b|forbidden|api key|credential|authentication|sign in|auth token|access token|invalid token|expired token|token expired/i.test(
+				message,
+			),
+	);
+}

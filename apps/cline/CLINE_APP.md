@@ -15,6 +15,9 @@ backend is a Gateway client, not a `ClineCore` host and not a Hub client.
   a loopback-only user service that remains available after the desktop app
   exits. The complete `cline-dad` profile and plugin tree is bundled and used
   as the default lead.
+- Debug mode can run multiple bot/workspace bridge processes, but all use the
+  fixed `desktop` namespace. The Gateway namespace lock guarantees a single
+  authority, and bridge shutdown never stops it.
 - The webview remains presentation-only. No UI component was replaced as part
   of the backend migration.
 

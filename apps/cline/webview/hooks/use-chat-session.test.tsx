@@ -3,6 +3,7 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { CHAT_SEND_ADMISSION_TIMEOUT_MS } from "@/hooks/chat-session/constants";
 import { MODEL_SELECTION_STORAGE_KEY } from "@/lib/model-selection";
 import { useChatSession } from "./use-chat-session";
 
@@ -120,7 +121,7 @@ describe("useChatSession", () => {
 					prompt: "Start the task",
 				}),
 			},
-			{ timeoutMs: null },
+			{ timeoutMs: CHAT_SEND_ADMISSION_TIMEOUT_MS },
 		);
 	});
 
@@ -145,6 +146,36 @@ describe("useChatSession", () => {
 		expect(current.messages.at(-1)?.content).toBe(expected);
 	});
 
+	it("turns a missing Gateway admission acknowledgement into recovery guidance", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command !== "chat_session_command") return [];
+				const request = args?.request as { action?: string } | undefined;
+				if (request?.action === "start") {
+					return {
+						sessionId: "session-gateway-timeout",
+						cwd: "/workspace/cline",
+						workspaceRoot: "/workspace/cline",
+					};
+				}
+				throw new Error(
+					"Desktop command timed out waiting for chat_session_command",
+				);
+			},
+		);
+
+		await act(async () => current.sendPrompt("hello"));
+
+		expect(current.status).toBe("error");
+		expect(current.error).toContain(
+			"The bundled Gateway did not acknowledge this message in time.",
+		);
+		expect(current.error).toContain("Retry the connection");
+	});
+
 	it("does not show an error bubble when a request is dropped by a deliberate project switch", async () => {
 		invokeMock.mockImplementation(async (command: string) => {
 			if (command === "get_process_context") {
@@ -159,9 +190,9 @@ describe("useChatSession", () => {
 		await act(async () => current.start(current.config));
 
 		expect(current.error).toBeNull();
-		expect(
-			current.messages.some((message) => message.role === "error"),
-		).toBe(false);
+		expect(current.messages.some((message) => message.role === "error")).toBe(
+			false,
+		);
 	});
 
 	it.each([
@@ -1148,6 +1179,119 @@ describe("useChatSession", () => {
 			cacheReadTokens: 8_000,
 		});
 		expect(current.summary.totalCostUsd).toBeCloseTo(0.03);
+	});
+
+	it("keeps approval visible until Gateway acknowledgement and completes a hydrated tool card", async () => {
+		const hydratedSessionId = "session-awaiting-approval";
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "read_session_messages") {
+					return [
+						{
+							id: "tool-pending",
+							sessionId: hydratedSessionId,
+							role: "tool",
+							content: JSON.stringify({
+								toolName: "run_commands",
+								input: { commands: ["pwd"] },
+								result: null,
+								isError: false,
+							}),
+							createdAt: 1,
+							meta: {
+								toolName: "run_commands",
+								toolCallId: "call_1",
+								hookEventName: "history_tool_use",
+							},
+						},
+					];
+				}
+				if (command === "read_session_hooks") return [];
+				if (command === "poll_tool_approvals") return [];
+				if (command === "respond_tool_approval") return true;
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string } | undefined;
+					if (request?.action === "attach") {
+						return {
+							sessionId: hydratedSessionId,
+							cwd: "/workspace/cline",
+							workspaceRoot: "/workspace/cline",
+						};
+					}
+					return { promptsInQueue: [] };
+				}
+				return [];
+			},
+		);
+
+		await act(async () => {
+			await current.hydrateSession({
+				sessionId: hydratedSessionId,
+				status: "running",
+				provider: "cline",
+				model: "test-model",
+				cwd: "/workspace/cline",
+				workspaceRoot: "/workspace/cline",
+				startedAt: "2026-07-31T00:00:00.000Z",
+			});
+		});
+
+		const approvalStateHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "tool_approval_state",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+		expect(approvalStateHandler).toBeDefined();
+		expect(chatEventHandler).toBeDefined();
+
+		await act(async () => {
+			approvalStateHandler?.({
+				sessionId: hydratedSessionId,
+				items: [
+					{
+						requestId: "srq_1",
+						sessionId: hydratedSessionId,
+						createdAt: "2026-07-31T00:00:01.000Z",
+						toolCallId: "call_1",
+						toolName: "run_commands",
+						input: { commands: ["pwd"] },
+					},
+				],
+			});
+		});
+		expect(current.pendingToolApprovals).toHaveLength(1);
+
+		await act(async () => current.approveToolApproval("srq_1"));
+		expect(current.pendingToolApprovals).toHaveLength(1);
+
+		await act(async () => {
+			approvalStateHandler?.({ sessionId: hydratedSessionId, items: [] });
+			chatEventHandler?.({
+				sessionId: hydratedSessionId,
+				stream: "chat_tool_call_end",
+				chunk: JSON.stringify({
+					toolCallId: "call_1",
+					toolName: "run_commands",
+					output: { stdout: "/workspace/cline" },
+				}),
+				ts: 2,
+			});
+		});
+
+		expect(current.pendingToolApprovals).toHaveLength(0);
+		const tool = current.messages.find(
+			(message) => message.id === "tool-pending",
+		);
+		expect(tool?.meta?.hookEventName).toBe("tool_call_end");
+		expect(JSON.parse(tool?.content ?? "{}")).toMatchObject({
+			toolName: "run_commands",
+			result: { stdout: "/workspace/cline" },
+			isError: false,
+		});
 	});
 
 	it("resets to the remembered provider/model after viewing a historical session", async () => {
@@ -2395,7 +2539,7 @@ describe("coerced-queue first turn vs stale send response", () => {
 		expect(current.status).toBe("completed");
 	});
 
-	// Session status events are projected asynchronously from the hub's
+	// Session status events are projected asynchronously from the Gateway's
 	// session record, so a stale "running" can arrive after the stream's
 	// chat_done already settled the turn. Applying it would re-wedge the
 	// composer on "Agent is working…" with nothing left to reconcile.
@@ -2434,7 +2578,7 @@ describe("coerced-queue first turn vs stale send response", () => {
 			await sendPromise;
 		});
 
-		// Trailing hub-projected status for the turn that already ended.
+		// Trailing Gateway-projected status for the turn that already ended.
 		await act(async () => {
 			statusHandler?.({ sessionId: sid, status: "running" });
 		});

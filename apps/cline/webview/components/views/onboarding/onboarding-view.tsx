@@ -248,9 +248,11 @@ function ConnectStep({
 		setSigningIn(true);
 		setSignInError(null);
 		try {
-			await desktopClient.invoke("run_provider_oauth_login", {
-				provider: "cline",
-			});
+			await desktopClient.invoke(
+				"run_provider_oauth_login",
+				{ provider: "cline" },
+				{ timeoutMs: null },
+			);
 			if (signInAttemptRef.current !== attempt) {
 				// The sign-in completed after the user cancelled but before the
 				// backend processed the cancellation, so credentials were saved.

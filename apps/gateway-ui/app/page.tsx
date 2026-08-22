@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
 
 const DesktopHome = dynamic(
 	() => import("../../cline/webview/app/page").then((module) => module.default),
@@ -26,10 +26,9 @@ async function verifyConnection(
 		);
 	}
 	await new Promise<void>((resolve, reject) => {
-		const socket = new WebSocket(endpoint, [
-			"cline-desktop-v1",
-			`cline-auth.${token}`,
-		]);
+		const protocols = ["cline-desktop-v1"];
+		if (token) protocols.push(`cline-auth.${token}`);
+		const socket = new WebSocket(endpoint, protocols);
 		const requestId = `verify-${crypto.randomUUID()}`;
 		let settled = false;
 		const finish = (error?: Error) => {
@@ -87,13 +86,41 @@ async function verifyConnection(
 }
 
 export default function GatewayUiPage() {
-	const [endpoint, setEndpoint] = useState(() => storedValue(ENDPOINT_KEY));
-	const [token, setToken] = useState(() => storedValue(TOKEN_KEY));
-	const [configured, setConfigured] = useState(
-		() => Boolean(storedValue(ENDPOINT_KEY) && storedValue(TOKEN_KEY)),
-	);
+	const [endpoint, setEndpoint] = useState("");
+	const [token, setToken] = useState("");
+	const [configured, setConfigured] = useState(false);
 	const [connecting, setConnecting] = useState(false);
 	const [error, setError] = useState<string>();
+
+	useEffect(() => {
+		const savedEndpoint = storedValue(ENDPOINT_KEY);
+		const savedToken = storedValue(TOKEN_KEY);
+		setEndpoint(savedEndpoint);
+		setToken(savedToken);
+		if (!savedEndpoint) return;
+
+		let cancelled = false;
+		setConnecting(true);
+		verifyConnection(savedEndpoint, savedToken)
+			.then(() => {
+				if (!cancelled) setConfigured(true);
+			})
+			.catch((connectionError: unknown) => {
+				if (cancelled) return;
+				setError(
+					connectionError instanceof Error
+						? connectionError.message
+						: String(connectionError),
+				);
+			})
+			.finally(() => {
+				if (!cancelled) setConnecting(false);
+			});
+
+		return () => {
+			cancelled = true;
+		};
+	}, []);
 
 	async function connect(event: FormEvent) {
 		event.preventDefault();
@@ -155,11 +182,11 @@ export default function GatewayUiPage() {
 					/>
 				</label>
 				<label className="block space-y-2 text-sm">
-					<span>Access token</span>
+					<span>Access token (remote servers)</span>
 					<input
 						className="w-full rounded-md border bg-background px-3 py-2"
 						onChange={(event) => setToken(event.target.value)}
-						required
+						placeholder="Not needed for the local desktop address"
 						type="password"
 						value={token}
 					/>
@@ -177,8 +204,9 @@ export default function GatewayUiPage() {
 					{connecting ? "Connecting…" : "Connect"}
 				</button>
 				<p className="text-xs leading-relaxed text-muted-foreground">
-					Your server address and token stay in this browser and are sent only
-					directly to the server you choose.
+					The bundled desktop address works without a token on this machine.
+					Remote servers require their configured access token. Connection
+					details stay in this browser.
 				</p>
 			</form>
 		</main>

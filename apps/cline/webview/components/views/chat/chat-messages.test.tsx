@@ -782,10 +782,13 @@ describe("ChatMessages tool disclosures", () => {
 		await act(async () => editButton?.click());
 
 		expect(onEditMessage).not.toHaveBeenCalled();
-		expect(document.body.textContent).toContain("Edit and restart from here?");
+		expect(document.body.textContent).toContain("Edit and branch from here?");
+		expect(document.body.textContent).toContain(
+			"Workspace files are not rolled back",
+		);
 
 		const continueButton = [...document.body.querySelectorAll("button")].find(
-			(button) => button.textContent === "Continue",
+			(button) => button.textContent === "Create branch",
 		);
 		await act(async () => continueButton?.click());
 
@@ -828,7 +831,7 @@ describe("ChatMessages tool disclosures", () => {
 		);
 		await act(async () => editButton?.click());
 		const continueButton = [...document.body.querySelectorAll("button")].find(
-			(button) => button.textContent === "Continue",
+			(button) => button.textContent === "Create branch",
 		);
 		await act(async () => continueButton?.click());
 
@@ -867,7 +870,7 @@ describe("ChatMessages tool disclosures", () => {
 		);
 		await act(async () => editButton?.click());
 		const continueButton = [...document.body.querySelectorAll("button")].find(
-			(button) => button.textContent === "Continue",
+			(button) => button.textContent === "Create branch",
 		);
 		await act(async () => continueButton?.click());
 
@@ -945,14 +948,14 @@ describe("ChatMessages propose_new_bot card", () => {
 		);
 
 		expect(container.textContent).toContain("Proposed new bot: Recipe Bot");
-		expect(container.textContent).toContain(
-			"To help organize your recipes.",
-		);
+		expect(container.textContent).toContain("To help organize your recipes.");
 		expect(container.querySelector(".cline-chat-tool")).toBeNull();
 	});
 
 	it("calls onCreateBot with the proposed name and folder when clicked", async () => {
-		const onCreateBot = vi.fn().mockResolvedValue({ id: "recipe-bot", name: "Recipe Bot" });
+		const onCreateBot = vi
+			.fn()
+			.mockResolvedValue({ id: "recipe-bot", name: "Recipe Bot" });
 		await renderMessages(
 			[
 				proposeNewBotMessage({
@@ -968,17 +971,16 @@ describe("ChatMessages propose_new_bot card", () => {
 		);
 		await act(async () => createButton?.click());
 
-		expect(onCreateBot).toHaveBeenCalledWith(
-			"Recipe Bot",
-			"/Users/me/recipes",
-		);
+		expect(onCreateBot).toHaveBeenCalledWith("Recipe Bot", "/Users/me/recipes");
 		expect(container.textContent).toContain(
 			'Created "Recipe Bot" and switched to it.',
 		);
 	});
 
 	it("shows an inline error and re-enables the button on failure", async () => {
-		const onCreateBot = vi.fn().mockRejectedValue(new Error("maximum of 5 bots reached"));
+		const onCreateBot = vi
+			.fn()
+			.mockRejectedValue(new Error("maximum of 5 bots reached"));
 		await renderMessages([proposeNewBotMessage({ name: "Recipe Bot" })], {
 			onCreateBot,
 		});
@@ -1593,6 +1595,76 @@ describe("ChatMessages thinking indicator", () => {
 		});
 
 		expect(container.textContent).not.toContain("Thinking...");
+	});
+
+	it("turns a long quiet run into an explicit state with a stop action", async () => {
+		vi.useFakeTimers();
+		const onAbort = vi.fn();
+		try {
+			await renderMessages([userMessage], { status: "running", onAbort });
+			await act(async () => vi.advanceTimersByTime(15_000));
+
+			expect(container.textContent).toContain("Still thinking...");
+			expect(container.textContent).toContain(
+				"The run is active, but no new model output has arrived.",
+			);
+			const stop = [...container.querySelectorAll("button")].find(
+				(button) => button.textContent === "Stop run",
+			);
+			expect(stop).toBeDefined();
+			await act(async () => stop?.click());
+			expect(onAbort).toHaveBeenCalledOnce();
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+});
+
+describe("ChatMessages Gateway recovery", () => {
+	it("explains a lost run connection and retries on demand", async () => {
+		const onRetryConnection = vi.fn();
+		await renderMessages(
+			[
+				{
+					id: "user-running",
+					sessionId: "session-1",
+					role: "user",
+					content: "Keep working",
+					createdAt: 1,
+				},
+			],
+			{
+				chatTransportState: "reconnecting",
+				chatTransportError: "Desktop backend transport closed",
+				onRetryConnection,
+				status: "running",
+			},
+		);
+
+		expect(container.textContent).toContain(
+			"Reconnecting to the bundled Gateway…",
+		);
+		expect(container.textContent).toContain("the agent may still be working");
+		const retry = [...container.querySelectorAll("button")].find((button) =>
+			button.textContent?.includes("Retry"),
+		);
+		await act(async () => retry?.click());
+		expect(onRetryConnection).toHaveBeenCalledOnce();
+	});
+
+	it("links credential failures directly to model settings", async () => {
+		const onOpenModelSettings = vi.fn();
+		await renderMessages([], {
+			error: "Unauthorized: API key is missing",
+			onOpenModelSettings,
+		});
+
+		const openModels = [...container.querySelectorAll("button")].find(
+			(button) => button.textContent === "Open Models",
+		);
+		expect(openModels).toBeDefined();
+		await act(async () => openModels?.click());
+		expect(onOpenModelSettings).toHaveBeenCalledOnce();
 	});
 });
 

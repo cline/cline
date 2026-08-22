@@ -20,7 +20,8 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:net";
 import { basename, dirname, join } from "node:path";
 import type { Duplex } from "node:stream";
-import type { EnginePort } from "@cline/bot";
+import type { EnginePort, SessionKind } from "@cline/bot";
+import type { VoiceInputSelection } from "@cline/shared";
 import type {
 	BotId,
 	ClientId,
@@ -45,7 +46,12 @@ import {
 	type GatewayError,
 	GatewayServerResponseSchema,
 	IDEMPOTENCY_KEY_PARAM,
+	SERVER_REQUEST_METHODS,
 } from "@cline/shared/gateway";
+import type {
+	GatewayClineAccountQuery,
+	GatewayClineAccountSwitch,
+} from "./cline-account";
 import type { ConnectorAdapter } from "./connectors/adapter";
 import { OutboundDeliveryWorker } from "./connectors/delivery";
 import { ConnectorManager } from "./connectors/manager";
@@ -64,6 +70,12 @@ import { resolveProviderModelSelection } from "./engine-binding";
 import { negotiateHello, SUPPORTED_PROTOCOL_VERSIONS } from "./hello";
 import type { ResolvedLeadProfile } from "./lead-profiles";
 import { GatewayLock } from "./lock";
+import {
+	GatewayExtensionStore,
+	type GatewayExtensionStoreOptions,
+	type GatewayMcpServerInput,
+	type MarketplacePrimitiveType,
+} from "./managed-extensions";
 import { validateGatewayRequest } from "./methods";
 import {
 	createFileProjector,
@@ -78,6 +90,11 @@ import {
 	resolveGatewayPaths,
 } from "./paths";
 import { PluginCatalog, type PluginSource } from "./plugins/catalog";
+import type {
+	AddGatewayProviderInput,
+	ProviderSettingsPatch,
+	UpdateGatewayProviderModelsInput,
+} from "./provider-settings";
 import {
 	type GatewayRemoteAddress,
 	GatewayRemoteListener,
@@ -90,14 +107,18 @@ import {
 	toGatewayError,
 } from "./runtime";
 import { Scheduler } from "./schedules/scheduler";
-import { readSecretFile } from "./secrets";
+import { readSecretFile, writeSecretFile } from "./secrets";
 import { createGatewayStores, type GatewayStores } from "./stores";
 import { ToolCatalog } from "./tools/catalog";
 import { ToolConfigurationStore } from "./tools/store";
 import { GatewayToolSystem } from "./tools/system";
 import type { PriceResolver } from "./usage";
+import { MAX_GATEWAY_VOICE_FRAME_CHARACTERS } from "./voice";
 
-const MAX_LINE_BYTES = 8 * 1024 * 1024;
+const MAX_LINE_BYTES = Math.max(
+	8 * 1024 * 1024,
+	MAX_GATEWAY_VOICE_FRAME_CHARACTERS,
+);
 const MAX_WORKSPACE_UPLOAD_BYTES = 5 * 1024 * 1024;
 const EVENT_PAGE_SIZE = 100;
 
@@ -110,6 +131,18 @@ export interface GatewayServerOptions extends GatewayPathsOptions {
 	engine: EnginePort;
 	clock?: GatewayRuntimeOptions["clock"];
 	retry?: GatewayRuntimeOptions["retry"];
+	/** Gateway-owned provider authority; injectable for isolated tests. */
+	providerSettings?: GatewayRuntimeOptions["providerSettings"];
+	/** Gateway-owned global settings authority; injectable for isolated tests. */
+	globalSettings?: GatewayRuntimeOptions["globalSettings"];
+	/** @cline/llms transcription primitives; injectable for isolated tests. */
+	voicePrimitives?: GatewayRuntimeOptions["voicePrimitives"];
+	/** Marketplace acquisition dependencies; paths/catalog stay server-owned. */
+	managedExtensions?: Omit<GatewayExtensionStoreOptions, "paths" | "plugins">;
+	/** Gateway-owned Cline account API; injectable for isolated tests. */
+	clineAccount?: GatewayRuntimeOptions["clineAccount"];
+	/** Gateway-owned Cline OAuth device flow; injectable for isolated tests. */
+	clineOAuth?: GatewayRuntimeOptions["clineOAuth"];
 	maxPendingRunsPerSession?: number;
 	projector?: OutboxProjector;
 	outbox?: OutboxWorkerOptions;
@@ -370,6 +403,11 @@ export class GatewayServer {
 					resolveProviderModelSelection(invocation),
 				clock: () => options.clock?.now() ?? Date.now(),
 			});
+			const extensions = new GatewayExtensionStore({
+				...options.managedExtensions,
+				paths,
+				plugins,
+			});
 
 			let workerRef: OutboxWorker | undefined;
 			const runtime = new GatewayRuntime({
@@ -380,6 +418,12 @@ export class GatewayServer {
 				engine: options.engine,
 				clock: options.clock,
 				retry: options.retry,
+				providerSettings: options.providerSettings,
+				globalSettings: options.globalSettings,
+				voicePrimitives: options.voicePrimitives,
+				extensions,
+				clineAccount: options.clineAccount,
+				clineOAuth: options.clineOAuth,
 				maxPendingRunsPerSession: options.maxPendingRunsPerSession,
 				onOutboxEnqueued: () => workerRef?.schedule(),
 				plugins,
@@ -387,7 +431,9 @@ export class GatewayServer {
 				leadConfig: options.leadProfile
 					? {
 							profileId: options.leadProfile.id,
-							systemPrompt: options.leadProfile.systemPrompt,
+							profileSystemPrompt:
+								options.leadProfile.systemPrompt || undefined,
+							profileRules: options.leadProfile.rulesPrompt || undefined,
 						}
 					: undefined,
 				leadName: options.leadProfile?.name,
@@ -711,8 +757,12 @@ export class GatewayServer {
 		const cleanup = () => {
 			connection.dispose();
 			this.connections.delete(connection);
-			// Disconnect never implies abort: runs and pending server
-			// requests are untouched; only the connection registry shrinks.
+			if (connection.clientId) {
+				this.runtime.cancelProviderOAuthForActor(connection.clientId);
+			}
+			// Disconnect never aborts runs or durable approval/questions. A
+			// host-bound OAuth flow is different: without its initiating desktop
+			// there is nowhere safe to open the browser, so it is cancelled.
 			// During stop the database may already be closed — socket close
 			// events race shutdown, so the audit write is best-effort then.
 			if (connection.clientId && !this.stopping) {
@@ -893,24 +943,32 @@ export class GatewayServer {
 			);
 			return;
 		}
-		let response: GatewayResponse;
+		const settle = (response: GatewayResponse) => {
+			if (response.error?.retryable === true) {
+				// A retryable failure releases the key: the same request may be
+				// retried with the same idempotency key.
+				this.stores.idempotency.forget(key);
+			} else {
+				this.stores.idempotency.record(key, response);
+			}
+			connection.send(response);
+		};
 		try {
 			const result = this.database.transaction(() => {
 				const value = this.execute(connection, request.method, params);
 				return value;
 			});
-			response = okResponse(request.id, result);
+			if (result instanceof Promise) {
+				void result.then(
+					(value) => settle(okResponse(request.id, value)),
+					(error) => settle(errorResponse(request.id, toGatewayError(error))),
+				);
+				return;
+			}
+			settle(okResponse(request.id, result));
 		} catch (error) {
-			response = errorResponse(request.id, toGatewayError(error));
+			settle(errorResponse(request.id, toGatewayError(error)));
 		}
-		if (response.error?.retryable === true) {
-			// A retryable failure releases the key: the same request may be
-			// retried with the same idempotency key.
-			this.stores.idempotency.forget(key);
-		} else {
-			this.stores.idempotency.record(key, response);
-		}
-		connection.send(response);
 	}
 
 	/** Dispatch one validated request to the runtime. */
@@ -1009,9 +1067,34 @@ export class GatewayServer {
 				return this.runtime.createSession(actor, {
 					botId: p.botId as BotId,
 					workspaceRoot: p.workspaceRoot as string | undefined,
+					kind: p.kind as SessionKind | undefined,
 				});
+			case "session.fork":
+				return this.runtime.forkSession(actor, {
+					sessionId: p.sessionId as SessionId,
+					beforeRunCount: p.beforeRunCount as number | undefined,
+				});
+			case "session.update":
+				return this.runtime.updateSession(actor, {
+					sessionId: p.sessionId as SessionId,
+					title: p.title as string | null | undefined,
+					metadata: p.metadata as Record<string, unknown> | undefined,
+					expectedRevision: p.expectedRevision as number | undefined,
+				});
+			case "session.close":
+				return this.runtime.closeSession(actor, p.sessionId as SessionId);
+			case "session.delete":
+				return this.runtime.deleteSession(actor, p.sessionId as SessionId);
 			case "run.steer":
 				return this.runtime.steerRun(actor, p.runId as RunId, p.text as string);
+			case "run.updateQueued":
+				return this.runtime.updateQueuedRun(
+					actor,
+					p.runId as RunId,
+					p.input as string,
+				);
+			case "run.promoteQueued":
+				return this.runtime.promoteQueuedRun(actor, p.runId as RunId);
 			case "run.interrupt":
 				return this.runtime.interruptRun(
 					actor,
@@ -1094,6 +1177,128 @@ export class GatewayServer {
 					content: p.content as string,
 					expectedRevision: p.expectedRevision as number | undefined,
 				});
+			case "provider.catalog.list":
+				return this.runtime.listProviderCatalog();
+			case "provider.models.list":
+				return this.runtime.listProviderModels(p.providerId as string);
+			case "provider.settings.get":
+				return this.runtime.getProviderSettings(p.providerId as string);
+			case "provider.settings.patch":
+				return this.runtime.patchProviderSettings(actor, {
+					providerId: p.providerId as string,
+					enabled: p.enabled as boolean | undefined,
+					settings: p.settings as ProviderSettingsPatch["settings"],
+				});
+			case "provider.add":
+				return this.runtime.addProvider(
+					actor,
+					p as unknown as AddGatewayProviderInput,
+				);
+			case "provider.models.put":
+				return this.runtime.updateProviderModels(
+					actor,
+					p as unknown as UpdateGatewayProviderModelsInput,
+				);
+			case "provider.oauth.login":
+				return this.runtime.loginProviderOAuth(
+					actor,
+					p.providerId as string,
+					async (url, signal) => {
+						const response = await this.runtime.approvals.request(
+							SERVER_REQUEST_METHODS.openExternalUrl,
+							{},
+							{ url, targetClientId: actor },
+							signal,
+						);
+						if (
+							!response ||
+							typeof response !== "object" ||
+							(response as { opened?: unknown }).opened !== true
+						) {
+							throw new GatewayCallError(
+								createGatewayError(
+									"internal",
+									"The desktop host could not open the Cline sign-in page. Retry sign-in or open the authorization URL from a desktop client.",
+								),
+							);
+						}
+					},
+				);
+			case "provider.oauth.cancel":
+				return this.runtime.cancelProviderOAuth(actor, p.providerId as string);
+			case "account.cline.query":
+				return this.runtime.queryClineAccount(
+					p as unknown as GatewayClineAccountQuery,
+				);
+			case "account.cline.switch":
+				return this.runtime.switchClineAccount(
+					actor,
+					p as unknown as GatewayClineAccountSwitch,
+				);
+			case "settings.global.get":
+				return this.runtime.getGlobalSettings();
+			case "settings.global.patch":
+				return this.runtime.patchGlobalSettings(actor, {
+					telemetryOptOut: p.telemetryOptOut as boolean | undefined,
+					autoUpdateEnabled: p.autoUpdateEnabled as boolean | undefined,
+					webSearchEnabled: p.webSearchEnabled as boolean | undefined,
+				});
+			case "voice.settings.put":
+				return this.runtime.putVoiceSettings(
+					actor,
+					(p.selection as VoiceInputSelection | null) ?? undefined,
+				);
+			case "voice.transcription.createSession":
+				return this.runtime.createVoiceStreamingSession(actor);
+			case "voice.transcription.transcribe":
+				return this.runtime.transcribeVoice(actor, {
+					audioBase64: p.audioBase64 as string,
+					mediaType: p.mediaType as string | undefined,
+				});
+			case "marketplace.catalog.get":
+				return this.runtime.getMarketplaceCatalog();
+			case "marketplace.installed.list":
+				return this.runtime.listMarketplaceInstalled();
+			case "marketplace.install":
+				return this.runtime.installMarketplace(actor, {
+					type: p.type as MarketplacePrimitiveType,
+					id: p.id as string,
+				});
+			case "marketplace.uninstall":
+				return this.runtime.uninstallMarketplace(actor, {
+					type: p.type as MarketplacePrimitiveType,
+					id: p.id as string,
+				});
+			case "mcp.servers.list":
+				return this.runtime.listMcpServers();
+			case "mcp.servers.put":
+				return this.runtime.putMcpServer(
+					actor,
+					p as unknown as GatewayMcpServerInput,
+				);
+			case "mcp.servers.delete":
+				return this.runtime.deleteMcpServer(actor, p.name as string);
+			case "mcp.servers.setDisabled":
+				return this.runtime.setMcpServerDisabled(
+					actor,
+					p.name as string,
+					p.disabled as boolean,
+				);
+			case "plugins.managed.list":
+				return this.runtime.listManagedExtensions();
+			case "plugins.managed.setDisabled":
+				return this.runtime.setPluginDisabled(
+					actor,
+					p.path as string,
+					p.disabled as boolean,
+				);
+			case "extensions.managed.uninstall":
+				return this.runtime.uninstallLocalExtension(actor, {
+					type: p.type as "mcp" | "skill" | "workflow" | "plugin",
+					id: p.id as string | undefined,
+					name: p.name as string | undefined,
+					path: p.path as string | undefined,
+				});
 			case "session.list":
 				return {
 					sessions: this.runtime.listSessions(p.botId as BotId | undefined),
@@ -1131,6 +1336,33 @@ export class GatewayServer {
 					name: p.name as string,
 					config: p.config as Record<string, unknown> | undefined,
 					credentialRef: p.credentialRef as string | undefined,
+				});
+				this.connectors.start(record.connectorId);
+				return record;
+			}
+			case "connector.configure": {
+				const botId = p.botId as BotId;
+				const kind = p.kind as "telegram" | "slack";
+				const config = p.config as Record<string, unknown> | undefined;
+				this.runtime.assertConnectorRegistration({ botId, config });
+				const existing = this.runtime
+					.listConnectors(botId)
+					.find((connector) => connector.kind === kind);
+				if (existing) {
+					this.connectors.stopConnector(existing.connectorId);
+					this.runtime.removeConnector(actor, existing.connectorId);
+				}
+				const credentialRef = `connector-${botId}-${kind}`;
+				// Credential bytes cross the authenticated loopback transport once and
+				// are persisted by the Gateway authority. Clients never resolve or
+				// write Gateway-owned filesystem paths.
+				writeSecretFile(this.paths, credentialRef, p.credential as string);
+				const record = this.runtime.registerConnector(actor, {
+					botId,
+					kind,
+					name: p.name as string,
+					config,
+					credentialRef,
 				});
 				this.connectors.start(record.connectorId);
 				return record;
@@ -1242,8 +1474,67 @@ export class GatewayServer {
 					notify: p.notify as never,
 					intervalMs: p.intervalMs as number | undefined,
 					at: p.at as number | undefined,
+					cronPattern: p.cronPattern as string | undefined,
 					maxAttempts: p.maxAttempts as number | undefined,
+					enabled: p.enabled as boolean | undefined,
+					metadata: p.metadata as Record<string, unknown> | undefined,
+					modelSelection: p.modelSelection as never,
+					mode: p.mode as never,
+					workspaceRoot: p.workspaceRoot as string | undefined,
+					cwd: p.cwd as string | undefined,
+					systemPrompt: p.systemPrompt as string | undefined,
+					maxIterations: p.maxIterations as number | undefined,
+					timeoutSeconds: p.timeoutSeconds as number | undefined,
+					maxParallel: p.maxParallel as number | undefined,
+					tags: p.tags as string[] | undefined,
 				});
+			case "schedule.update":
+				return this.runtime.updateSchedule(actor, {
+					scheduleId: p.scheduleId as ScheduleId,
+					expectedRevision: p.expectedRevision as number | undefined,
+					name: p.name as string | undefined,
+					prompt: p.prompt as string | undefined,
+					intervalMs: p.intervalMs as number | undefined,
+					at: p.at as number | undefined,
+					cronPattern: p.cronPattern as string | undefined,
+					maxAttempts: p.maxAttempts as number | undefined,
+					enabled: p.enabled as boolean | undefined,
+					metadata: p.metadata as Record<string, unknown> | undefined,
+					modelSelection: p.modelSelection as never,
+					mode: p.mode as never,
+					workspaceRoot: p.workspaceRoot as string | null | undefined,
+					cwd: p.cwd as string | null | undefined,
+					systemPrompt: p.systemPrompt as string | null | undefined,
+					maxIterations: p.maxIterations as number | null | undefined,
+					timeoutSeconds: p.timeoutSeconds as number | null | undefined,
+					maxParallel: p.maxParallel as number | undefined,
+					tags: p.tags as string[] | undefined,
+				});
+			case "schedule.enable":
+				return this.runtime.setScheduleEnabled(
+					actor,
+					p.scheduleId as ScheduleId,
+					true,
+				);
+			case "schedule.disable":
+				return this.runtime.setScheduleEnabled(
+					actor,
+					p.scheduleId as ScheduleId,
+					false,
+				);
+			case "schedule.trigger": {
+				const triggered = this.runtime.triggerSchedule(
+					actor,
+					p.scheduleId as ScheduleId,
+				);
+				this.scheduler.tick();
+				return {
+					job:
+						this.stores.scheduleJobs.get(triggered.job.jobId) ?? triggered.job,
+				};
+			}
+			case "schedule.delete":
+				return this.runtime.deleteSchedule(actor, p.scheduleId as ScheduleId);
 			case "schedule.list":
 				return {
 					schedules: this.runtime.listSchedules(p.botId as BotId | undefined),
@@ -1279,6 +1570,12 @@ export class GatewayServer {
 		// Re-issue server requests still pending for this scope: a
 		// reconnecting client neither loses nor implicitly answers them.
 		for (const pending of this.runtime.approvals.pendingForScope(scope)) {
+			const targetClientId =
+				pending.method === SERVER_REQUEST_METHODS.openExternalUrl &&
+				typeof pending.params?.targetClientId === "string"
+					? pending.params.targetClientId
+					: undefined;
+			if (targetClientId && connection.clientId !== targetClientId) continue;
 			connection.send(pending);
 		}
 		return { subscribed: true, replayFromSequence: after };
@@ -1304,6 +1601,12 @@ export class GatewayServer {
 			if (!connection.authenticated) {
 				continue;
 			}
+			const targetClientId =
+				request.method === SERVER_REQUEST_METHODS.openExternalUrl &&
+				typeof request.params?.targetClientId === "string"
+					? request.params.targetClientId
+					: undefined;
+			if (targetClientId && connection.clientId !== targetClientId) continue;
 			const interested =
 				connection.subscriptions.length === 0
 					? false

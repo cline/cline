@@ -12,6 +12,10 @@ export const CHAT_WS_ENDPOINT_RETRY_DELAY_MS = 100;
 export const CHAT_WS_RECONNECT_BASE_DELAY_MS = 300;
 export const CHAT_WS_RECONNECT_MAX_DELAY_MS = 3000;
 export const CHAT_WS_REQUEST_TIMEOUT_MS = 120000;
+// Gateway-backed sends acknowledge run admission; they do not wait for the
+// model turn to finish. A missing acknowledgement is therefore a connection
+// failure, not a legitimately long-running command.
+export const CHAT_SEND_ADMISSION_TIMEOUT_MS = 20_000;
 export const OAUTH_MANAGED_PROVIDERS = new Set([
 	"cline",
 	"oca",
@@ -58,11 +62,14 @@ export function getInitialChatConfig(): ChatSessionConfig {
 	// host-owned per-bot registry (assign_project/list_assigned_projects in
 	// main.rs), not by this un-namespaced localStorage value — it isn't
 	// scoped per bot and survives clearing a bot's data, so trusting it here
-	// can hand a session a cwd that was never actually granted to this bot
-	// (rejected by get_desktop_backend_endpoint). Start with no workspace;
+	// can request a cwd that was never actually granted to this bot. The native
+	// host would resolve that to the bot workspace, but starting empty avoids
+	// carrying stale browser state into the request at all;
 	// Home()'s activeBotId-keyed effect (page.tsx) assigns the real,
 	// registry-checked project once the bot switcher/selector picks one.
-	const lastWorkspace = isTauriAvailable() ? "" : workspaceSelection.lastWorkspace;
+	const lastWorkspace = isTauriAvailable()
+		? ""
+		: workspaceSelection.lastWorkspace;
 
 	return {
 		...DEFAULT_CHAT_CONFIG,
