@@ -53,48 +53,38 @@ export async function ensureTaskDirectoryExists(taskId: string): Promise<string>
 	return getGlobalStorageDir("tasks", taskId)
 }
 
-export async function ensureRulesDirectoryExists(): Promise<string> {
-	const userDocumentsPath = await getDocumentsPath()
-	const clineRulesDir = path.join(userDocumentsPath, "Cline", "Rules")
+/**
+ * Resolves a subdirectory of the global Cline config directory, creating it if needed.
+ * CLINE_DOCUMENTS_DIR overrides the default ~/Documents/Cline location.
+ */
+async function ensureClineDocumentsSubdirExists(name: string): Promise<string> {
+	const explicitDir = process.env.CLINE_DOCUMENTS_DIR?.trim()
+	const baseDir = explicitDir || path.join(await getDocumentsPath(), "Cline")
+	const subdir = path.join(baseDir, name)
 	try {
-		await fs.mkdir(clineRulesDir, { recursive: true })
+		await fs.mkdir(subdir, { recursive: true })
 	} catch (_error) {
-		return path.join(os.homedir(), "Documents", "Cline", "Rules") // in case creating a directory in documents fails for whatever reason (e.g. permissions) - this is fine because we will fail gracefully with a path that does not exist
+		// creating the directory can fail for whatever reason (e.g. permissions) - returning the
+		// path is fine because callers fail gracefully with a path that does not exist
+		return explicitDir ? subdir : path.join(os.homedir(), "Documents", "Cline", name)
 	}
-	return clineRulesDir
+	return subdir
+}
+
+export async function ensureRulesDirectoryExists(): Promise<string> {
+	return ensureClineDocumentsSubdirExists("Rules")
 }
 
 export async function ensureWorkflowsDirectoryExists(): Promise<string> {
-	const userDocumentsPath = await getDocumentsPath()
-	const clineWorkflowsDir = path.join(userDocumentsPath, "Cline", "Workflows")
-	try {
-		await fs.mkdir(clineWorkflowsDir, { recursive: true })
-	} catch (_error) {
-		return path.join(os.homedir(), "Documents", "Cline", "Workflows") // in case creating a directory in documents fails for whatever reason (e.g. permissions) - this is fine because we will fail gracefully with a path that does not exist
-	}
-	return clineWorkflowsDir
+	return ensureClineDocumentsSubdirExists("Workflows")
 }
 
 export async function ensureMcpServersDirectoryExists(): Promise<string> {
-	const userDocumentsPath = await getDocumentsPath()
-	const mcpServersDir = path.join(userDocumentsPath, "Cline", "MCP")
-	try {
-		await fs.mkdir(mcpServersDir, { recursive: true })
-	} catch (_error) {
-		return path.join(os.homedir(), "Documents", "Cline", "MCP") // in case creating a directory in documents fails for whatever reason (e.g. permissions) - this is fine since this path is only ever used in the system prompt
-	}
-	return mcpServersDir
+	return ensureClineDocumentsSubdirExists("MCP")
 }
 
 export async function ensureHooksDirectoryExists(): Promise<string> {
-	const userDocumentsPath = await getDocumentsPath()
-	const clineHooksDir = path.join(userDocumentsPath, "Cline", "Hooks")
-	try {
-		await fs.mkdir(clineHooksDir, { recursive: true })
-	} catch (_error) {
-		return path.join(os.homedir(), "Documents", "Cline", "Hooks") // in case creating a directory in documents fails for whatever reason (e.g. permissions) - this is fine because we will fail gracefully with a path that does not exist
-	}
-	return clineHooksDir
+	return ensureClineDocumentsSubdirExists("Hooks")
 }
 
 /**
