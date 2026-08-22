@@ -37,6 +37,7 @@ export interface ParseMarkdownFrontmatterResult {
 	body: string;
 	hadFrontmatter: boolean;
 	parseError?: string;
+	warning?: string;
 }
 
 export interface SkillConfig {
@@ -195,6 +196,25 @@ async function discoverManagedPluginRoots(
 	}
 }
 
+/**
+ * Detects a YAML frontmatter block whose opening `---` delimiter is not at byte 0.
+ * The parser only recognizes frontmatter that begins at the very first byte; any
+ * leading whitespace, blank line, or prose makes it silently fall through to the
+ * body. Requiring both an opening and closing delimiter line avoids flagging
+ * ordinary markdown horizontal rules.
+ */
+function hasMisplacedFrontmatterDelimiter(content: string): boolean {
+	if (content.startsWith("---")) {
+		return false;
+	}
+	const lines = content.split(/\r?\n/);
+	const openingIndex = lines.findIndex((line) => line.trim() === "---");
+	if (openingIndex < 0) {
+		return false;
+	}
+	return lines.slice(openingIndex + 1).some((line) => line.trim() === "---");
+}
+
 function parseMarkdownFrontmatter(
 	content: string,
 ): ParseMarkdownFrontmatterResult {
@@ -206,7 +226,18 @@ function parseMarkdownFrontmatter(
 	const frontmatterRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/;
 	const match = normalizedContent.match(frontmatterRegex);
 	if (!match) {
-		return { data: {}, body: normalizedContent, hadFrontmatter: false };
+		const warning = hasMisplacedFrontmatterDelimiter(normalizedContent)
+			? "Markdown frontmatter was not parsed because the opening '---' delimiter is not at the start of the file."
+			: undefined;
+		if (warning) {
+			console.warn(`[cline] ${warning}`);
+		}
+		return {
+			data: {},
+			body: normalizedContent,
+			hadFrontmatter: false,
+			warning,
+		};
 	}
 
 	const [, yamlContent, body] = match;
