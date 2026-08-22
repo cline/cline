@@ -1,0 +1,45 @@
+{
+	"name": "cline-github-pr-dashboard-plugin",
+	"version": "0.1.0",
+	"private": true,
+	"description": "Pre-run hook gate that checks GitHub PR dashboard metrics and only wakes an agent when dashboard data changes.",
+	"type": "module",
+	"scripts": {
+		"preview": "bun run src/preview.ts",
+		"run-once": "bun run src/preview.ts",
+		"typecheck": "tsc --noEmit",
+		"test": "vitest run",
+		"clean": "rm -rf node_modules dist"
+	},
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"cline": {
+		"plugins": [
+			{
+				"paths": [
+					"./src/index.ts"
+				],
+				"capabilities": [
+					"hooks"
+				]
+			}
+		]
+	},
+	"peerDependencies": {
+		"@cline/core": "*",
+		"@cline/shared": "*"
+	},
+	"peerDependenciesMeta": {
+		"@cline/core": {
+			"optional": true
+		},
+		"@cline/shared": {
+			"optional": true
+		}
+	},
+	"devDependencies": {
+		"@types/bun": "^1.3.13",
+		"vitest": "^4.0.18"
+	}
+}
