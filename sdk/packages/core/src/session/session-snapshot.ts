@@ -2,6 +2,7 @@ import type * as LlmsProviders from "@cline/llms";
 import type { CheckpointEntry } from "../hooks/checkpoint-hooks";
 import type { SessionAccumulatedUsage } from "../runtime/host/runtime-host";
 import type { SessionRecord } from "../types/sessions";
+import { cloneJsonRecord } from "../utils/json-record";
 
 export interface CoreSessionCheckpointSnapshot {
 	enabled?: boolean;
@@ -56,7 +57,7 @@ export interface CoreSessionSnapshot {
 function cloneJsonObject<T extends Record<string, unknown>>(
 	value: T | undefined,
 ): T | undefined {
-	return value ? (JSON.parse(JSON.stringify(value)) as T) : undefined;
+	return cloneJsonRecord(value) as T | undefined;
 }
 
 function cloneMessages(
