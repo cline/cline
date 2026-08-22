@@ -13,6 +13,7 @@ import {
 	SDK_ERROR_TELEMETRY_EVENT,
 	TASK_CANCELLED_EVENT,
 	TASK_FIRST_CHUNK_RECEIVED_EVENT,
+	TASK_MAX_TOKENS_RECOVERY_EVENT,
 	TASK_PROVIDER_REQUEST_STARTED_EVENT,
 	TASK_PROVIDER_STREAM_FAILED_EVENT,
 	TASK_PROVIDER_STREAM_STARTED_EVENT,
@@ -371,6 +372,394 @@ describe("AgentRuntime", () => {
 				}),
 			}),
 		);
+	});
+
+	it("recovers a max-tokens-truncated text turn with a forced compaction and one retry", async () => {
+		const longPrompt = `Please review this: ${"lots of context ".repeat(50)}`;
+		const model = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "truncated..." },
+				{ type: "finish", reason: "max-tokens" },
+			],
+			() => [
+				{ type: "text-delta", text: "recovered" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const compactedMessages: AgentMessage[] = [
+			{ role: "user", content: [{ type: "text", text: "compacted" }] },
+		];
+		const prepareTurn = vi.fn(
+			async (context: { overflowRecovery?: boolean }) =>
+				context.overflowRecovery ? { messages: compactedMessages } : undefined,
+		);
+		const { capture, telemetry } = createTelemetryMock();
+		const statusNotices: Array<{ message: string; metadata?: unknown }> = [];
+		const runtime = new AgentRuntime({ model, prepareTurn, telemetry });
+		runtime.subscribe((event) => {
+			if (event.type === "status-notice") {
+				statusNotices.push({
+					message: event.message,
+					metadata: event.metadata,
+				});
+			}
+		});
+
+		const result = await runtime.run(longPrompt);
+
+		expect(result.status).toBe("completed");
+		expect(result.outputText).toBe("recovered");
+		expect(model.requests).toHaveLength(2);
+		expect(prepareTurn.mock.calls[1]?.[0].overflowRecovery).toBe(true);
+		// The retried request uses the compacted transcript.
+		expect(model.requests[1]?.messages).toEqual(compactedMessages);
+		// The truncated assistant message is replaced, not persisted.
+		expect(
+			result.messages.filter((message) => message.role === "assistant"),
+		).toHaveLength(1);
+		expect(statusNotices).toContainEqual(
+			expect.objectContaining({
+				message:
+					"response hit the output token limit — compacting and retrying",
+				metadata: expect.objectContaining({
+					kind: "max_tokens_recovery",
+					phase: "started",
+				}),
+			}),
+		);
+		const recoveryEvents = capture.mock.calls
+			.map(([input]) => input)
+			.filter((input) => input.event === TASK_MAX_TOKENS_RECOVERY_EVENT);
+		expect(recoveryEvents.map((input) => input.properties?.phase)).toEqual([
+			"started",
+			"succeeded",
+		]);
+	});
+
+	it("surfaces the max-tokens error when the retried turn is truncated again", async () => {
+		const longPrompt = `Please review this: ${"lots of context ".repeat(50)}`;
+		const model = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "truncated once..." },
+				{ type: "finish", reason: "max-tokens" },
+			],
+			() => [
+				{ type: "text-delta", text: "truncated twice..." },
+				{ type: "finish", reason: "max-tokens" },
+			],
+		]);
+		const compactedMessages: AgentMessage[] = [
+			{ role: "user", content: [{ type: "text", text: "compacted" }] },
+		];
+		const prepareTurn = vi.fn(
+			async (context: { overflowRecovery?: boolean }) =>
+				context.overflowRecovery ? { messages: compactedMessages } : undefined,
+		);
+		const { capture, telemetry } = createTelemetryMock();
+		const runtime = new AgentRuntime({ model, prepareTurn, telemetry });
+
+		const result = await runtime.run(longPrompt);
+
+		expect(result.status).toBe("failed");
+		expect(result.error?.message).toContain("maximum output token limit");
+		// Exactly one recovery attempt: two model requests, no third.
+		expect(model.requests).toHaveLength(2);
+		// The retried turn's partial content is preserved.
+		expect(result.messages.at(-1)).toMatchObject({
+			role: "assistant",
+			content: [{ type: "text", text: "truncated twice..." }],
+		});
+		const recoveryEvents = capture.mock.calls
+			.map(([input]) => input)
+			.filter((input) => input.event === TASK_MAX_TOKENS_RECOVERY_EVENT);
+		expect(recoveryEvents.map((input) => input.properties?.phase)).toEqual([
+			"started",
+			"failed",
+		]);
+	});
+
+	it("surfaces the max-tokens error when compaction has nothing to remove", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "truncated..." },
+				{ type: "finish", reason: "max-tokens" },
+			],
+		]);
+		// prepareTurn never shrinks the transcript, so the forced compaction
+		// retry is rejected and the original truncated turn is surfaced.
+		const prepareTurn = vi.fn(async () => undefined);
+		const { capture, telemetry } = createTelemetryMock();
+		const runtime = new AgentRuntime({ model, prepareTurn, telemetry });
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("failed");
+		expect(result.error?.message).toContain("maximum output token limit");
+		expect(model.requests).toHaveLength(1);
+		// The truncated turn's partial content is preserved.
+		expect(result.messages.at(-1)).toMatchObject({
+			role: "assistant",
+			content: [{ type: "text", text: "truncated..." }],
+		});
+		const recoveryEvents = capture.mock.calls
+			.map(([input]) => input)
+			.filter((input) => input.event === TASK_MAX_TOKENS_RECOVERY_EVENT);
+		expect(recoveryEvents.map((input) => input.properties?.phase)).toEqual([
+			"started",
+			"failed",
+		]);
+	});
+
+	it("closes recovery telemetry as failed when the compacted retry throws", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "truncated..." },
+				{ type: "finish", reason: "max-tokens" },
+			],
+		]);
+		const prepareTurn = vi.fn(
+			async (context: { overflowRecovery?: boolean }) => {
+				if (context.overflowRecovery) {
+					throw new Error("prepareTurn exploded");
+				}
+				return undefined;
+			},
+		);
+		const { capture, telemetry } = createTelemetryMock();
+		const runtime = new AgentRuntime({ model, prepareTurn, telemetry });
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("failed");
+		expect(result.error?.message).toBe("prepareTurn exploded");
+		const recoveryEvents = capture.mock.calls
+			.map(([input]) => input)
+			.filter((input) => input.event === TASK_MAX_TOKENS_RECOVERY_EVENT);
+		expect(recoveryEvents.map((input) => input.properties?.phase)).toEqual([
+			"started",
+			"failed",
+		]);
+		expect(recoveryEvents[1]?.properties).toEqual(
+			expect.objectContaining({ eventType: "retry_threw" }),
+		);
+	});
+
+	it("closes recovery telemetry as failed when a listener throws on the recovery notice", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "truncated..." },
+				{ type: "finish", reason: "max-tokens" },
+			],
+		]);
+		const prepareTurn = vi.fn(async () => undefined);
+		const { capture, telemetry } = createTelemetryMock();
+		const runtime = new AgentRuntime({ model, prepareTurn, telemetry });
+		runtime.subscribe((event) => {
+			if (
+				event.type === "status-notice" &&
+				event.metadata?.kind === "max_tokens_recovery" &&
+				event.metadata?.phase === "started"
+			) {
+				throw new Error("listener exploded");
+			}
+		});
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("failed");
+		expect(result.error?.message).toBe("listener exploded");
+		const recoveryEvents = capture.mock.calls
+			.map(([input]) => input)
+			.filter((input) => input.event === TASK_MAX_TOKENS_RECOVERY_EVENT);
+		expect(recoveryEvents.map((input) => input.properties?.phase)).toEqual([
+			"started",
+			"failed",
+		]);
+	});
+
+	it("records a failed recovery when a listener throws on the terminal notice", async () => {
+		const longPrompt = `Please review this: ${"lots of context ".repeat(50)}`;
+		const model = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "truncated..." },
+				{ type: "finish", reason: "max-tokens" },
+			],
+			() => [
+				{ type: "text-delta", text: "recovered" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const compactedMessages: AgentMessage[] = [
+			{ role: "user", content: [{ type: "text", text: "compacted" }] },
+		];
+		const prepareTurn = vi.fn(
+			async (context: { overflowRecovery?: boolean }) =>
+				context.overflowRecovery ? { messages: compactedMessages } : undefined,
+		);
+		const { capture, telemetry } = createTelemetryMock();
+		const runtime = new AgentRuntime({ model, prepareTurn, telemetry });
+		runtime.subscribe((event) => {
+			if (
+				event.type === "status-notice" &&
+				event.metadata?.kind === "max_tokens_recovery" &&
+				event.metadata?.phase === "succeeded"
+			) {
+				throw new Error("terminal listener exploded");
+			}
+		});
+
+		const result = await runtime.run(longPrompt);
+
+		// The throwing listener fails the run, so telemetry must not have
+		// recorded the recovery as succeeded.
+		expect(result.status).toBe("failed");
+		expect(result.error?.message).toBe("terminal listener exploded");
+		const recoveryEvents = capture.mock.calls
+			.map(([input]) => input)
+			.filter((input) => input.event === TASK_MAX_TOKENS_RECOVERY_EVENT);
+		expect(recoveryEvents.map((input) => input.properties?.phase)).toEqual([
+			"started",
+			"failed",
+		]);
+		expect(recoveryEvents[1]?.properties).toEqual(
+			expect.objectContaining({ eventType: "notice_threw" }),
+		);
+	});
+
+	it("records a hook-stopped compacted retry as an aborted recovery", async () => {
+		const longPrompt = `Please review this: ${"lots of context ".repeat(50)}`;
+		const model = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "truncated..." },
+				{ type: "finish", reason: "max-tokens" },
+			],
+		]);
+		const compactedMessages: AgentMessage[] = [
+			{ role: "user", content: [{ type: "text", text: "compacted" }] },
+		];
+		const prepareTurn = vi.fn(
+			async (context: { overflowRecovery?: boolean }) =>
+				context.overflowRecovery ? { messages: compactedMessages } : undefined,
+		);
+		const { capture, telemetry } = createTelemetryMock();
+		let modelCalls = 0;
+		const runtime = new AgentRuntime({
+			model,
+			prepareTurn,
+			telemetry,
+			hooks: {
+				// Let the first model call through; stop the compacted retry.
+				beforeModel: () => {
+					modelCalls += 1;
+					return modelCalls > 1
+						? { stop: true, reason: "approval required" }
+						: undefined;
+				},
+			},
+		});
+
+		const result = await runtime.run(longPrompt);
+
+		expect(result.status).toBe("aborted");
+		const recoveryEvents = capture.mock.calls
+			.map(([input]) => input)
+			.filter((input) => input.event === TASK_MAX_TOKENS_RECOVERY_EVENT);
+		expect(recoveryEvents.map((input) => input.properties?.phase)).toEqual([
+			"started",
+			"failed",
+		]);
+		// A deliberate stop is not a recovery defect — it must not be
+		// classified as retry_threw in the failure breakdown.
+		expect(recoveryEvents[1]?.properties).toEqual(
+			expect.objectContaining({ eventType: "aborted" }),
+		);
+	});
+
+	it("records a failed recovery when the compacted retry returns an empty response", async () => {
+		const longPrompt = `Please review this: ${"lots of context ".repeat(50)}`;
+		const model = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "truncated..." },
+				{ type: "finish", reason: "max-tokens" },
+			],
+			// Clean stop finish but no content: the run loop rejects this as
+			// an empty response, so the recovery must not count as succeeded.
+			() => [{ type: "finish", reason: "stop" }],
+		]);
+		const compactedMessages: AgentMessage[] = [
+			{ role: "user", content: [{ type: "text", text: "compacted" }] },
+		];
+		const prepareTurn = vi.fn(
+			async (context: { overflowRecovery?: boolean }) =>
+				context.overflowRecovery ? { messages: compactedMessages } : undefined,
+		);
+		const { capture, telemetry } = createTelemetryMock();
+		const runtime = new AgentRuntime({ model, prepareTurn, telemetry });
+
+		const result = await runtime.run(longPrompt);
+
+		expect(result.status).toBe("failed");
+		expect(result.error?.message).toBe("Model returned empty response");
+		const recoveryEvents = capture.mock.calls
+			.map(([input]) => input)
+			.filter((input) => input.event === TASK_MAX_TOKENS_RECOVERY_EVENT);
+		expect(recoveryEvents.map((input) => input.properties?.phase)).toEqual([
+			"started",
+			"failed",
+		]);
+		expect(recoveryEvents[1]?.properties).toEqual(
+			expect.objectContaining({ eventType: "empty_response" }),
+		);
+	});
+
+	it("counts a retry with only model-tool activity as a recovered turn", async () => {
+		const longPrompt = `Please review this: ${"lots of context ".repeat(50)}`;
+		const model = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "truncated..." },
+				{ type: "finish", reason: "max-tokens" },
+			],
+			// Empty assistant content, but provider-executed tool activity in
+			// metadata — the run loop accepts this turn, so the recovery must
+			// count as succeeded, not empty_response.
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "search_1",
+					toolName: "web_search",
+					execution: "client",
+					input: { query: "current weather" },
+				},
+				{
+					type: "tool-result",
+					toolCallId: "search_1",
+					toolName: "web_search",
+					execution: "client",
+					output: { results: [] },
+				},
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const compactedMessages: AgentMessage[] = [
+			{ role: "user", content: [{ type: "text", text: "compacted" }] },
+		];
+		const prepareTurn = vi.fn(
+			async (context: { overflowRecovery?: boolean }) =>
+				context.overflowRecovery ? { messages: compactedMessages } : undefined,
+		);
+		const { capture, telemetry } = createTelemetryMock();
+		const runtime = new AgentRuntime({ model, prepareTurn, telemetry });
+
+		const result = await runtime.run(longPrompt);
+
+		expect(result.status).toBe("completed");
+		const recoveryEvents = capture.mock.calls
+			.map(([input]) => input)
+			.filter((input) => input.event === TASK_MAX_TOKENS_RECOVERY_EVENT);
+		expect(recoveryEvents.map((input) => input.properties?.phase)).toEqual([
+			"started",
+			"succeeded",
+		]);
 	});
 
 	it("does not persist an empty assistant message when the model stream fails", async () => {
