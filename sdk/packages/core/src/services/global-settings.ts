@@ -7,6 +7,7 @@ import {
 	type ConfigurableModelToolName,
 	type ITelemetryService,
 	type ModelToolSettings,
+	stripUtf8Bom,
 } from "@cline/shared";
 import { resolveGlobalSettingsPath } from "@cline/shared/storage";
 import { z } from "zod";
@@ -162,7 +163,7 @@ function loadSettingsFromDisk(filePath: string): GlobalSettings {
 		return defaultGlobalSettings();
 	}
 	try {
-		const result = GlobalSettingsSchema.safeParse(JSON.parse(raw));
+		const result = GlobalSettingsSchema.safeParse(JSON.parse(stripUtf8Bom(raw)));
 		return result.success ? result.data : defaultGlobalSettings();
 	} catch {
 		return defaultGlobalSettings();
