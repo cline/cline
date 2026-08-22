@@ -719,6 +719,52 @@ describe("resolveProviderConfig", () => {
 		);
 	});
 
+	it("falls back to /v1/models when LiteLLM management routes are forbidden", async () => {
+		const forbidden = () => new Response("forbidden", { status: 403 });
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValueOnce(forbidden())
+			.mockResolvedValueOnce(forbidden())
+			.mockResolvedValueOnce(forbidden())
+			.mockResolvedValueOnce(forbidden())
+			.mockResolvedValueOnce(
+				new Response(
+					JSON.stringify({
+						data: [{ id: "gpt-full", object: "model", owned_by: "openai" }],
+					}),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				),
+			);
+		vi.stubGlobal("fetch", fetchMock);
+
+		const resolved = await resolveProviderConfig(
+			"litellm",
+			{ failOnError: true, cacheTtlMs: 0 },
+			{
+				providerId: "litellm",
+				modelId: "",
+				apiKey: "litellm-key",
+				baseUrl: "http://localhost:4000/v1/",
+			},
+		);
+
+		expect(fetchMock.mock.calls.map((call) => call[0])).toEqual([
+			"http://localhost:4000/v1/model/info",
+			"http://localhost:4000/v1/model/info",
+			"http://localhost:4000/model/info",
+			"http://localhost:4000/model/info",
+			"http://localhost:4000/v1/models",
+		]);
+		expect(resolved?.knownModels?.["gpt-full"]).toEqual(
+			expect.objectContaining({
+				id: "gpt-full",
+				name: "gpt-full",
+				status: "active",
+			}),
+		);
+		expect(Object.keys(resolved?.knownModels ?? {})).toEqual(["gpt-full"]);
+	});
+
 	it("derives ChatGPT subscription models from the generated OpenAI catalog", async () => {
 		const resolved = await resolveProviderConfig("openai-codex");
 		const openAiResolved = await resolveProviderConfig("openai-native");
