@@ -1,4 +1,5 @@
 import { ClineEndpoint } from "@/config"
+import { StateManager } from "@/core/storage/StateManager"
 import {
 	getValidOpenTelemetryConfig,
 	getValidRuntimeOpenTelemetryConfig,
@@ -26,6 +27,19 @@ export type TelemetryProviderConfig =
 	 */
 	| { type: "opentelemetry"; config: OpenTelemetryClientValidConfig; bypassUserSettings: boolean }
 	| { type: "no-op" }
+
+/**
+ * Returns true when the user has explicitly opted out of telemetry in Cline settings.
+ * During extension activation the state manager may not be ready yet; defaults to false.
+ */
+function isTelemetryExplicitlyDisabled(): boolean {
+	try {
+		const stateManager = StateManager.get()
+		return stateManager.getGlobalSettingsKey("telemetrySetting") === "disabled"
+	} catch {
+		return false
+	}
+}
 
 /**
  * Factory class for creating telemetry providers
@@ -100,16 +114,17 @@ export class TelemetryProviderFactory {
 	 */
 	public static getDefaultConfigs(): TelemetryProviderConfig[] {
 		const configs: TelemetryProviderConfig[] = []
+		const telemetryDisabled = isTelemetryExplicitlyDisabled()
 
 		// Skip PostHog in selfHosted mode - enterprise customers should not send telemetry to PostHog
-		if (!ClineEndpoint.isSelfHosted() && isPostHogConfigValid(posthogConfig)) {
+		if (!ClineEndpoint.isSelfHosted() && !telemetryDisabled && isPostHogConfigValid(posthogConfig)) {
 			configs.push({ type: "posthog", ...posthogConfig })
 		}
 
 		// Skip build-time OTEL in selfHosted mode - enterprise customers should not send telemetry to Cline's collector
 		// Note: Runtime env OTEL and remote config OTEL are still allowed (user/org explicitly configured them)
 		const otelConfig = getValidOpenTelemetryConfig()
-		if (!ClineEndpoint.isSelfHosted() && otelConfig) {
+		if (!ClineEndpoint.isSelfHosted() && !telemetryDisabled && otelConfig) {
 			configs.push({
 				type: "opentelemetry",
 				config: otelConfig,

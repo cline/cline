@@ -70,9 +70,17 @@ export async function initialize(storageContext: StorageContext): Promise<Webvie
 
 	// =============== External services ===============
 	await ErrorService.initialize()
-	// Initialize PostHog client provider (skip in self-hosted mode)
+	// Initialize PostHog client provider (skip in self-hosted mode or when telemetry is disabled)
 	if (!ClineEndpoint.isSelfHosted()) {
-		PostHogClientProvider.getInstance()
+		try {
+			const telemetrySetting = StateManager.get().getGlobalSettingsKey("telemetrySetting")
+			if (telemetrySetting !== "disabled") {
+				PostHogClientProvider.getInstance()
+			}
+		} catch {
+			// StateManager not available yet; initialize PostHog client as default behavior
+			PostHogClientProvider.getInstance()
+		}
 	}
 
 	// =============== Webview services ===============
