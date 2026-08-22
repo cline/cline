@@ -245,6 +245,7 @@ export * from "./llms/model-tools";
 export {
 	DEFAULT_REASONING_EFFORT,
 	REASONING_EFFORT_RATIOS,
+	type ReasoningEffortValue,
 	resolveEffectiveReasoningEffort,
 	resolveReasoningBudgetFromRatio,
 	resolveReasoningEffortRatio,

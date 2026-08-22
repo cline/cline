@@ -695,6 +695,12 @@ export {
 	type ProviderConfigFields,
 } from "./services/providers/provider-config-fields";
 export {
+	hasCurrentSessionThinkingMetadata,
+	readSessionThinkingMetadata,
+	resolveSessionThinkingMetadata,
+	withSessionThinkingMetadata,
+} from "./services/session-thinking";
+export {
 	type MigrateLegacyProviderSettingsOptions,
 	type MigrateLegacyProviderSettingsResult,
 	migrateLegacyProviderSettings,
@@ -1091,5 +1097,6 @@ export type {
 	SessionHistoryRecord,
 	SessionRecord,
 	SessionRef,
+	SessionThinkingMetadata,
 } from "./types/sessions";
 export type { ArtifactStore, SessionStore, TeamStore } from "./types/storage";
