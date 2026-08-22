@@ -4,7 +4,7 @@ import type {
 	ModelOperation,
 } from "@cline/shared";
 import { isChatProviderModel } from "../../../utils/chat-models";
-import { isOpenAICodexCliProvider } from "../../../utils/codex-cli";
+import { isLocalCliProvider } from "../../../utils/local-cli-providers";
 import { isOAuthProvider } from "../../../utils/provider-auth";
 
 export type OnboardingStep =
@@ -13,7 +13,7 @@ export type OnboardingStep =
 	| "device_code"
 	| "byo_provider"
 	| "byo_apikey"
-	| "codex_cli_setup"
+	| "local_cli_setup"
 	| "cline_pass_subscription"
 	| "cline_model"
 	| "model_picker"
@@ -174,7 +174,7 @@ export function toProviderEntry(provider: ProviderCatalogItem): ProviderEntry {
 		id: provider.id,
 		name: provider.name,
 		isOAuth: isOAuthProvider(provider.id),
-		isLocalAuth: isOpenAICodexCliProvider(provider.id),
+		isLocalAuth: isLocalCliProvider(provider.id),
 		hasAuth:
 			Boolean(provider.apiKey) || provider.oauthAccessTokenPresent === true,
 		...(provider.capabilities ? { capabilities: provider.capabilities } : {}),

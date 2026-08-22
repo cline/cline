@@ -10,7 +10,7 @@ import { isClineProvider } from "@cline/shared";
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import type { DialogActions } from "@opentui-ui/dialog/react";
 import { useCallback } from "react";
-import { isOpenAICodexCliProvider } from "../../utils/codex-cli";
+import { getLocalCliProvider } from "../../utils/local-cli-providers";
 import {
 	getPersistedProviderApiKey,
 	isOAuthProvider,
@@ -20,8 +20,8 @@ import type { Config } from "../../utils/types";
 import { withLoadingDialog } from "../components/dialogs/loading-dialog";
 import {
 	ClinePassSubscriptionContent,
-	CodexCliStatusContent,
 	type ExistingProviderOption,
+	LocalCliStatusContent,
 	OAuthApiKeyInputContent,
 	OAuthLoginContent,
 	type OAuthLoginResult,
@@ -178,6 +178,7 @@ async function runProviderChange(
 		async () => await getProviderDisplayName(newProviderId),
 	);
 	const existingSettings = manager.getProviderSettings(newProviderId);
+	const localCliProvider = getLocalCliProvider(newProviderId);
 
 	// Manual API key entry is the escape hatch for when OAuth login isn't
 	// working; only the Cline providers accept a dashboard API key.
@@ -246,12 +247,16 @@ async function runProviderChange(
 				loginResult === "use_api_key"
 					? await openManualApiKeyDialog()
 					: loginResult;
-		} else if (isOpenAICodexCliProvider(newProviderId)) {
+		} else if (localCliProvider) {
 			saved = await dialog.choice<boolean>({
 				style: { maxHeight: termHeight - 2 },
 				closeOnEscape: false,
 				content: (ctx: ChoiceContext<boolean>) => (
-					<CodexCliStatusContent {...ctx} providerName={displayName} />
+					<LocalCliStatusContent
+						{...ctx}
+						cli={localCliProvider}
+						providerName={displayName}
+					/>
 				),
 			});
 			if (saved) {
