@@ -1102,7 +1102,7 @@ describe("buildSessionConfig", () => {
 		expect((config.providerConfig as any).sap).not.toHaveProperty("deploymentId")
 	})
 
-	it("omits SAP AI Core deployment id when orchestration mode is enabled", async () => {
+	it("preserves SAP AI Core deployment id when orchestration mode is enabled", async () => {
 		mocks.stateManager.getApiConfiguration.mockReturnValue({
 			actModeApiProvider: "sapaicore",
 			actModeApiModelId: "anthropic--claude-4.6-sonnet",
@@ -1112,7 +1112,7 @@ describe("buildSessionConfig", () => {
 			sapAiCoreTokenUrl: "https://example.authentication.sap.hana.ondemand.com",
 			sapAiResourceGroup: "default",
 			sapAiCoreUseOrchestrationMode: true,
-			actModeSapAiCoreDeploymentId: "foundation-deployment-id",
+			actModeSapAiCoreDeploymentId: "orchestration-deployment-id",
 		} as any)
 
 		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
@@ -1120,8 +1120,8 @@ describe("buildSessionConfig", () => {
 		expect((config.providerConfig as any).sap).toMatchObject({
 			resourceGroup: "default",
 			useOrchestrationMode: true,
+			deploymentId: "orchestration-deployment-id",
 		})
-		expect((config.providerConfig as any).sap).not.toHaveProperty("deploymentId")
 	})
 
 	it("falls back to legacy SAP-specific model fields when the generic model field is absent", async () => {

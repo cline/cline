@@ -382,6 +382,7 @@ const PROVIDER_API_KEY_MAP: Record<string, keyof ApiConfiguration> = {
 	wandb: "wandbApiKey",
 	"qwen-code": "qwenApiKey",
 	oca: "ocaApiKey",
+	sapaicore: "sapAiCoreClientSecret",
 }
 
 /**
