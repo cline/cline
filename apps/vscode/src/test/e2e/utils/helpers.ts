@@ -305,7 +305,24 @@ export class E2ETestHelper {
 	}
 
 	public static async openClineSidebar(page: Page): Promise<void> {
-		await page.getByRole("tab", { name: /Cline/ }).locator("a").click()
+		// Extension activation can lag behind the window becoming interactive on CI
+		// runners (Windows in particular), so the tab is sometimes not clickable yet
+		// even though `page` has already loaded. A single click can then race the
+		// activation and time out (see #13005 discussion). Retry instead of failing
+		// on the first miss, mirroring the tolerance already used in getSidebar().
+		const isCI = !!process.env.CI
+		const isWindows = process.platform.startsWith("win")
+		const overallTimeout = isCI || isWindows ? 60_000 : 30_000
+		const clineTab = page.getByRole("tab", { name: /Cline/ }).locator("a")
+
+		await E2ETestHelper.waitUntil(async () => {
+			try {
+				await clineTab.click({ timeout: 5_000 })
+				return true
+			} catch {
+				return false
+			}
+		}, overallTimeout)
 	}
 
 	public static async runCommandPalette(page: Page, command: string): Promise<void> {
