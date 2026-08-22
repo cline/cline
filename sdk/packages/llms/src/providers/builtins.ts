@@ -497,7 +497,9 @@ function buildClineModels(): Record<string, ModelInfo> {
 	);
 
 	// Cline's inference backend currently rejects image-output models. Keep
-	// those models in their native OpenRouter and Vercel catalogs.
+	// those models in their native OpenRouter and Vercel catalogs. This filter
+	// is also applied to the merged runtime catalog in mergeKnownModels; remove
+	// both call sites together when the backend gains image-output support.
 	return filterImageOutputModels(models);
 }
 
