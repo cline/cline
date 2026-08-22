@@ -12,7 +12,7 @@ import { once } from "node:events";
 import { existsSync } from "node:fs";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { basename, delimiter, join } from "node:path";
+import { basename, delimiter, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -193,11 +193,11 @@ describe("hub singleton lock (real processes)", () => {
 		const incumbent = await startDaemon();
 
 		const challenger = spawnFixture(
-			// Same owner context: same data dir + discovery path.
-			new URL(incumbent.discoveryPath, "file:").pathname.replace(
-				/\/[^/]+$/,
-				"",
-			),
+			// Same owner context: same data dir + discovery path. The data dir is
+			// the discovery file's parent; deriving it through a file: URL breaks
+			// on Windows (`/C:/...` is not a valid spawn cwd, so spawn fails
+			// ENOENT before the singleton lock is ever contested).
+			dirname(incumbent.discoveryPath),
 			incumbent.discoveryPath,
 		);
 		const challengerExit = await Promise.race([
