@@ -209,6 +209,18 @@ describe("models registry parsing", () => {
 						bare: {
 							contextWindow: 16000,
 						},
+						// Explicit partial list on a non-catalog model: nothing can
+						// author a "no tools" stored entry (the VS Code legacy
+						// migration writes exactly this shape), so "tools" must be
+						// seeded here too.
+						"partial-list": {
+							capabilities: ["prompt-cache"],
+						},
+						// Non-language models must not gain a tools claim.
+						"image-gen": {
+							operation: "image-generation",
+							capabilities: ["images"],
+						},
 					},
 				},
 			},
@@ -228,6 +240,10 @@ describe("models registry parsing", () => {
 			expect.arrayContaining(["reasoning", "tools"]),
 		);
 		expect(models.bare).not.toHaveProperty("capabilities");
+		expect(models["partial-list"]?.capabilities).toEqual(
+			expect.arrayContaining(["prompt-cache", "tools"]),
+		);
+		expect(models["image-gen"]?.capabilities).not.toContain("tools");
 	});
 
 	it("keeps generated tool support when stale OpenCode Go metadata shadows a catalog model", async () => {

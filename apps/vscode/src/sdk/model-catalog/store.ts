@@ -731,7 +731,13 @@ function legacyModelInfoToOverrides(modelInfo: ModelInfo, fallback: ModelInfo): 
 	if (Boolean(modelInfo.supportsReasoning) !== Boolean(fallback.supportsReasoning))
 		overrides.supportsReasoning = Boolean(modelInfo.supportsReasoning)
 	if (modelInfo.supportsPromptCache !== fallback.supportsPromptCache) {
-		const capabilities: string[] = []
+		// Legacy ModelInfo has no tool-calling boolean, so this projection
+		// carries no "no tools" signal. Persisting the list without "tools"
+		// would read as an authoritative tool-less capability list to the SDK
+		// runtime once stored in models.json, silently disabling tool calling
+		// (#13463). Match the providers.json migration, which always writes
+		// "tools" for OpenAI-compatible custom models.
+		const capabilities: string[] = ["tools"]
 		if (supportsVision) capabilities.push("images")
 		if (modelInfo.supportsPromptCache) capabilities.push("prompt-cache")
 		overrides.capabilities = capabilities

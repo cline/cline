@@ -325,9 +325,8 @@ function toStoredModelInfo(
 	modelId: string,
 	model: StoredModelEntry | undefined,
 	fallbackCapabilities?: ModelInfo["capabilities"],
+	capabilitiesAreAuthoritative = false,
 ): ModelInfo {
-	const hasExplicitCapabilities =
-		model?.capabilities !== undefined || fallbackCapabilities !== undefined;
 	const capabilities = new Set<ModelCapability>(
 		model?.capabilities ?? fallbackCapabilities ?? [],
 	);
@@ -344,10 +343,21 @@ function toStoredModelInfo(
 		else capabilities.delete("reasoning");
 	}
 	// An unspecified capability list fails open for tool calling
-	// (modelSupportsToolCalling), but a list synthesized purely from the
-	// boolean convenience flags would be treated as authoritative and
-	// silently revoke tools. Preserve the fail-open behavior in that case.
-	if (!hasExplicitCapabilities && capabilities.size > 0) {
+	// (modelSupportsToolCalling), but any populated list is treated as
+	// authoritative — a partial one without "tools" silently revokes every
+	// tool definition (#13463). Stored entries and user-authored provider
+	// metadata cannot declare "cannot call tools" (there is no supportsTools
+	// field, and no writer intentionally omits "tools"): their lists are
+	// partial overlays, not authoritative catalogs. Seed "tools" into any
+	// non-empty list for a language model unless the list is anchored on
+	// generated catalog metadata, which IS authoritative (a genuine no-tools
+	// catalog model must stay that way). An empty set stays absent so every
+	// gate keeps its own fail-open default.
+	if (
+		!capabilitiesAreAuthoritative &&
+		capabilities.size > 0 &&
+		(model?.operation === undefined || model.operation === "language")
+	) {
 		capabilities.add("tools");
 	}
 
@@ -420,17 +430,19 @@ function registerCustomModels(
 						// when loading metadata written by older clients that only
 						// persisted their boolean projections.
 						capabilities: [
-							...new Set([
-								...generatedCapabilities,
-								...model.capabilities,
-							]),
+							...new Set([...generatedCapabilities, ...model.capabilities]),
 						],
 					}
 				: model;
 		LlmsModels.registerModel(
 			providerId,
 			modelId,
-			toStoredModelInfo(modelId, storedModel, generatedCapabilities),
+			toStoredModelInfo(
+				modelId,
+				storedModel,
+				generatedCapabilities,
+				generatedCapabilities !== undefined,
+			),
 		);
 	}
 }
