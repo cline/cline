@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs"
 import path from "node:path"
-import type { ClineCoreListHistoryOptions, SessionHistoryRecord } from "@cline/core"
+import type { ClineCoreListHistoryOptions, SessionHistoryRecord, SessionStatus } from "@cline/core"
 import type { MessageWithMetadata as SdkMessage } from "@cline/llms"
 import { formatDisplayUserInput, parseUserInputMode } from "@cline/shared"
 import { resolveSessionDataDir } from "@cline/shared/storage"
@@ -70,6 +70,12 @@ function dateStringToTimestamp(value: string | null | undefined): number {
 	}
 	const timestamp = Date.parse(value)
 	return Number.isFinite(timestamp) ? timestamp : 0
+}
+
+const NON_TERMINAL_SESSION_STATUSES = new Set<SessionStatus>(["idle", "running", "pending"])
+
+function isNonTerminalSessionStatus(status: SessionStatus | undefined): boolean {
+	return status !== undefined && NON_TERMINAL_SESSION_STATUSES.has(status)
 }
 
 /**
@@ -694,7 +700,13 @@ export class SdkTaskHistory {
 	private async getCachedTaskSize(host: VscodeSessionHost, record: SessionHistoryRecord): Promise<number | undefined> {
 		// metadata.size is a display cache: fill it when absent, and let explicit item.size updates replace it.
 		const cachedSize = metadataNumber(record.metadata, "size")
-		if (cachedSize !== undefined && cachedSize >= 0) {
+		// The cache is only authoritative once the session is terminal. A live session's folder
+		// keeps growing, and nothing re-measures it while the task is open, so whatever was
+		// cached first is a floor, not the current size — History showed "0 B" (or a stale
+		// early value) for a running/paused task whose folder had grown to kilobytes (#13169).
+		// Re-measure the artifact folder for non-terminal sessions (idle/running/pending — a
+		// paused task reports idle).
+		if (cachedSize !== undefined && !isNonTerminalSessionStatus(record.status)) {
 			return cachedSize
 		}
 
@@ -704,7 +716,9 @@ export class SdkTaskHistory {
 			return artifactSize
 		}
 
-		return undefined
+		// The measurement failed (unreadable folder) — a previously cached size is still a
+		// better answer than none, which the History list would render as "0 B".
+		return cachedSize
 	}
 
 	private async getSessionArtifactSize(record: SessionHistoryRecord): Promise<number | undefined> {
@@ -725,13 +739,28 @@ export class SdkTaskHistory {
 	}
 
 	private async cacheTaskSize(host: VscodeSessionHost, record: SessionHistoryRecord, size: number): Promise<void> {
-		if (!Number.isFinite(size) || size < 0 || metadataNumber(record.metadata, "size") === size) {
+		if (!Number.isFinite(size) || size < 0) {
+			return
+		}
+
+		// Metadata is persisted as a whole object, so this write has to merge onto the freshest
+		// record available: `record` was read before the (async) folder measurement, and for a
+		// live task a usage update can land in that gap — persisting the pre-measurement
+		// snapshot would roll its token/cost totals back.
+		const current = await host.get(record.sessionId).catch((error) => {
+			Logger.warn(`[SdkTaskHistory] Failed to re-read SDK session before caching size: ${record.sessionId}`, error)
+			return undefined
+		})
+		// No fresh base (read failed, or the session was deleted): skip the write rather than
+		// persist a snapshot that may already be outdated. Size is only a display cache, and
+		// the measured value is returned to the caller either way.
+		if (!current || metadataNumber(current.metadata, "size") === size) {
 			return
 		}
 
 		await host.update(record.sessionId, {
 			metadata: {
-				...(record.metadata ?? {}),
+				...(current.metadata ?? {}),
 				size,
 			},
 		})

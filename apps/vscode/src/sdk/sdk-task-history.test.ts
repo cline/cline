@@ -444,6 +444,125 @@ describe("SdkTaskHistory", () => {
 		)
 	})
 
+	it("re-measures a zero-byte cached size for a paused (non-terminal) task", async () => {
+		vi.mocked(getFolderSize.loose).mockResolvedValue(6144 as never)
+		const { history, updateSession } = makeHistory([
+			makeSessionRecord("task-1", {
+				// A paused task's session is still alive, so the SDK record reports a
+				// non-terminal status ("idle") and its artifacts can keep growing.
+				status: "idle",
+				// Nothing re-measures the folder while the task is open, so the cached
+				// size stays at whatever was measured first and History shows "0 B".
+				metadata: { size: 0 },
+				messagesPath: "/tmp/cline/sessions/task-1/task-1.messages.json",
+			}),
+		])
+
+		await expect(history.findHistoryItem("task-1")).resolves.toMatchObject({
+			id: "task-1",
+			size: 6144,
+		})
+
+		expect(getFolderSize.loose).toHaveBeenCalledWith("/tmp/cline/sessions/task-1", { bigint: false })
+		expect(updateSession).toHaveBeenCalledWith(
+			"task-1",
+			expect.objectContaining({
+				metadata: expect.objectContaining({ size: 6144 }),
+			}),
+		)
+	})
+
+	it("re-measures a stale non-zero cached size for a running task", async () => {
+		vi.mocked(getFolderSize.loose).mockResolvedValue(6144 as never)
+		const { history, updateSession } = makeHistory([
+			makeSessionRecord("task-1", {
+				status: "running",
+				metadata: { size: 2048 },
+				messagesPath: "/tmp/cline/sessions/task-1/task-1.messages.json",
+			}),
+		])
+
+		await expect(history.findHistoryItem("task-1")).resolves.toMatchObject({
+			id: "task-1",
+			size: 6144,
+		})
+
+		expect(updateSession).toHaveBeenCalledWith(
+			"task-1",
+			expect.objectContaining({
+				metadata: expect.objectContaining({ size: 6144 }),
+			}),
+		)
+	})
+
+	it("keeps metadata written while the artifact folder was being measured", async () => {
+		const { history, updateSession } = makeHistory([
+			makeSessionRecord("task-1", {
+				status: "running",
+				metadata: { size: 2048, tokensIn: 10 },
+				messagesPath: "/tmp/cline/sessions/task-1/task-1.messages.json",
+			}),
+		])
+		// A usage update commits while the measurement is in flight. Metadata is persisted as a
+		// whole object, so caching the size off the pre-measurement snapshot would revert it.
+		vi.mocked(getFolderSize.loose).mockImplementation(async () => {
+			await updateSession("task-1", { metadata: { size: 2048, tokensIn: 99 } })
+			return 6144 as never
+		})
+
+		await expect(history.findHistoryItem("task-1")).resolves.toMatchObject({ id: "task-1", size: 6144 })
+
+		expect(updateSession).toHaveBeenLastCalledWith(
+			"task-1",
+			expect.objectContaining({
+				metadata: expect.objectContaining({ size: 6144, tokensIn: 99 }),
+			}),
+		)
+	})
+
+	it("skips the size cache write when the session cannot be re-read", async () => {
+		vi.mocked(getFolderSize.loose).mockResolvedValue(6144 as never)
+		const { history, getSession, updateSession } = makeHistory([
+			makeSessionRecord("task-1", {
+				status: "running",
+				metadata: { size: 2048, tokensIn: 10 },
+				messagesPath: "/tmp/cline/sessions/task-1/task-1.messages.json",
+			}),
+		])
+		getSession.mockImplementationOnce(
+			async (sessionId: string) =>
+				makeSessionRecord(sessionId, {
+					status: "running",
+					metadata: { size: 2048, tokensIn: 10 },
+					messagesPath: "/tmp/cline/sessions/task-1/task-1.messages.json",
+				}) as never,
+		)
+		getSession.mockRejectedValueOnce(new Error("unavailable") as never)
+
+		// The measured size still reaches the caller; only the cache write is skipped.
+		await expect(history.findHistoryItem("task-1")).resolves.toMatchObject({ id: "task-1", size: 6144 })
+
+		expect(updateSession).not.toHaveBeenCalled()
+	})
+
+	it("falls back to the cached size when a live session's artifacts are unreadable", async () => {
+		vi.mocked(getFolderSize.loose).mockRejectedValue(new Error("unreadable"))
+		const { history, updateSession } = makeHistory([
+			makeSessionRecord("task-1", {
+				status: "running",
+				metadata: { size: 2048 },
+				messagesPath: "/tmp/cline/sessions/task-1/task-1.messages.json",
+			}),
+		])
+
+		await expect(history.findHistoryItem("task-1")).resolves.toMatchObject({
+			id: "task-1",
+			size: 2048,
+		})
+
+		expect(updateSession).not.toHaveBeenCalled()
+	})
+
 	it("keeps existing SDK task size metadata without measuring artifacts", async () => {
 		const { history, updateSession } = makeHistory([makeSessionRecord("task-1", { metadata: { size: 2048 } })])
 
