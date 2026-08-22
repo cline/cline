@@ -95,7 +95,7 @@
  * ```
  */
 
-import { EnvHttpProxyAgent, setGlobalDispatcher, fetch as undiciFetch } from "undici"
+import { Agent, EnvHttpProxyAgent, setGlobalDispatcher, fetch as undiciFetch } from "undici"
 
 type FetchFunction = (...args: Parameters<typeof globalThis.fetch>) => ReturnType<typeof globalThis.fetch>
 
@@ -128,6 +128,27 @@ export const fetch: typeof globalThis.fetch = (() => {
 	return ((input: string | URL | Request, init?: RequestInit): Promise<Response> =>
 		(mockFetch || baseFetch)(input, init)) as typeof globalThis.fetch
 })()
+
+const unlimitedBodyTimeoutDispatcher = new Agent({ bodyTimeout: 0, headersTimeout: 0 })
+
+/**
+ * Wraps a fetch so its requests ignore undici's default 5-minute idle-body
+ * timeout (UND_ERR_BODY_TIMEOUT). Locally-hosted OpenAI-compatible servers
+ * (e.g. LM Studio) can go silent for arbitrarily long stretches mid-stream —
+ * loading a model into VRAM, chewing through a long prompt, decoding slowly
+ * on consumer hardware — with zero bytes on the wire the whole time. Without
+ * this, undici kills the response after 5 minutes of silence even while the
+ * local server is actively generating and the socket is healthy
+ * (cline/cline#13464). There's no universally-correct replacement number,
+ * since local inference speed is entirely a function of the user's own
+ * hardware, so this disables the timeout outright. A genuinely dead
+ * connection still errors at the OS/TCP layer, and the user can always
+ * cancel the task from the UI.
+ */
+export function withUnlimitedBodyTimeout(baseFetch: typeof globalThis.fetch): typeof globalThis.fetch {
+	return ((input: string | URL | Request, init?: RequestInit): Promise<Response> =>
+		baseFetch(input, { ...init, dispatcher: unlimitedBodyTimeoutDispatcher } as RequestInit)) as typeof globalThis.fetch
+}
 
 /**
  * Mocks `fetch` for testing and calls `callback`. Then restores `fetch`. If the
