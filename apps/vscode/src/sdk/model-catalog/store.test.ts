@@ -490,7 +490,11 @@ describe("createProviderConfigStore", () => {
 			name: "Legacy Custom",
 			maxTokens: 4_096,
 			contextWindow: 64_000,
-			capabilities: ["prompt-cache"],
+			// "tools" must always ride along: legacy ModelInfo carries no
+			// tool-calling boolean, and a persisted capability list without
+			// "tools" reads as authoritative "cannot call tools" to the SDK
+			// runtime (#13463).
+			capabilities: ["tools", "prompt-cache"],
 			supportsVision: false,
 			supportsReasoning: true,
 			inputPrice: 1,

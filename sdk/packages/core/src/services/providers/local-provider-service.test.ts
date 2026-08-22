@@ -186,6 +186,108 @@ describe("models registry parsing", () => {
 		expect(model).not.toHaveProperty("temperature");
 	});
 
+	it("seeds tool calling when capabilities are synthesized purely from boolean flags", async () => {
+		const parsed = parseModelsFile({
+			version: 1,
+			providers: {
+				"boolean-only-provider": {
+					provider: {
+						name: "Boolean Only Provider",
+						baseUrl: "https://boolean-only.example.invalid/v1",
+					},
+					models: {
+						// No explicit capabilities list: the entry only carries the
+						// boolean convenience flag. The synthesized list must include
+						// "tools", otherwise a non-empty list without it reads as an
+						// authoritative denial to modelSupportsToolCalling (#13463).
+						reasoner: {
+							contextWindow: 16000,
+							supportsReasoning: true,
+						},
+						// No flags at all: the capability list must stay absent so the
+						// runtime keeps its fail-open behavior.
+						bare: {
+							contextWindow: 16000,
+						},
+						// Explicit partial list on a non-catalog model: nothing can
+						// author a "no tools" stored entry (the VS Code legacy
+						// migration writes exactly this shape), so "tools" must be
+						// seeded here too.
+						"partial-list": {
+							capabilities: ["prompt-cache"],
+						},
+						// Non-language models must not gain a tools claim.
+						"image-gen": {
+							operation: "image-generation",
+							capabilities: ["images"],
+						},
+					},
+				},
+			},
+		});
+
+		const entry = parsed.providers["boolean-only-provider"];
+		if (!entry) {
+			throw new Error("expected boolean-only provider entry");
+		}
+
+		registerCustomProvider("boolean-only-provider", entry);
+
+		const models = await LlmsModels.getModelsForProvider(
+			"boolean-only-provider",
+		);
+		expect(models.reasoner?.capabilities).toEqual(
+			expect.arrayContaining(["reasoning", "tools"]),
+		);
+		expect(models.bare).not.toHaveProperty("capabilities");
+		expect(models["partial-list"]?.capabilities).toEqual(
+			expect.arrayContaining(["prompt-cache", "tools"]),
+		);
+		expect(models["image-gen"]?.capabilities).not.toContain("tools");
+	});
+
+	it("keeps generated tool support when stale OpenCode Go metadata shadows a catalog model", async () => {
+		const generatedModel =
+			LlmsModels.getGeneratedModelsForProvider("opencode-go")["glm-5.3"];
+		expect(generatedModel?.capabilities).toContain("tools");
+
+		const parsed = parseModelsFile({
+			version: 1,
+			providers: {
+				"opencode-go": {
+					models: {
+						"glm-5.3": {
+							// Older clients persisted only capability projections they
+							// understood. Once v4.1.11 began gating tools, this partial
+							// list shadowed the catalog's "tools" capability and disabled
+							// every edit/read tool for the model.
+							capabilities: ["reasoning", "prompt-cache"],
+						},
+					},
+				},
+			},
+		});
+
+		const entry = parsed.providers["opencode-go"];
+		if (!entry) {
+			throw new Error("expected OpenCode Go provider entry");
+		}
+
+		registerCustomProvider("opencode-go", entry);
+
+		const model = (await LlmsModels.getModelsForProvider("opencode-go"))[
+			"glm-5.3"
+		];
+		expect(model?.capabilities).toEqual(
+			expect.arrayContaining([
+				"tools",
+				"reasoning",
+				"prompt-cache",
+				"structured_output",
+			]),
+		);
+	});
+
 	it("skips malformed provider entries while preserving valid providers", () => {
 		expect(
 			parseModelsFile({
