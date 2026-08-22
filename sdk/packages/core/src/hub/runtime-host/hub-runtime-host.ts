@@ -1303,7 +1303,12 @@ export class HubRuntimeHost implements RuntimeHost {
 	}
 
 	async listSessions(limit = 100): Promise<SessionRecord[]> {
-		const reply = await this.client.command("session.list", { limit });
+		// RuntimeHost parity: LocalRuntimeHost.listSessions returns subagent
+		// rows, so the hub-backed host requests them too.
+		const reply = await this.client.command("session.list", {
+			limit,
+			includeSubagents: true,
+		});
 		const snapshots = Array.isArray(reply.payload?.snapshots)
 			? reply.payload.snapshots.flatMap((value) => {
 					const snapshot = parseCoreSessionSnapshot(value);

@@ -227,6 +227,16 @@ export async function handleSessionInput(
 	if (!session) {
 		return sessionNotFoundReply(envelope, sessionId);
 	}
+	if (session.isSubagent) {
+		// Subagent/team-task rows are persisted history records, never live
+		// sessions. Without this guard the turn fails deep in the runtime
+		// host with a raw "session not found: <id>" error.
+		return errorReply(
+			envelope,
+			"session_not_sendable",
+			`Session ${sessionId} is a subagent history record and cannot accept input. Send to its root session instead.`,
+		);
+	}
 	ctx.publish(
 		ctx.buildEvent(
 			"run.started",

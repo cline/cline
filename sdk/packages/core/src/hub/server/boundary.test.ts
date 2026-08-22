@@ -465,6 +465,74 @@ describe("HubServerTransport boundaries", () => {
 		expect(readSessionMessages).toHaveBeenCalledWith("session-1");
 	});
 
+	it("excludes subagent rows from session list unless requested", async () => {
+		const rootSession = {
+			sessionId: "root-1",
+			source: "cli",
+			status: "running",
+			startedAt: new Date(0).toISOString(),
+			updatedAt: new Date(0).toISOString(),
+			workspaceRoot: "/tmp/project",
+			cwd: "/tmp/project",
+			interactive: true,
+			provider: "cline",
+			model: "test-model",
+			enableTools: true,
+			enableSpawn: true,
+			enableTeams: true,
+			isSubagent: false,
+		};
+		const teamTaskSession = {
+			...rootSession,
+			sessionId: "root-1__teamtask__lead__abc123",
+			source: "subagent",
+			parentSessionId: "root-1",
+			isSubagent: true,
+		};
+		const transport = createTransport({
+			sessionHost: {
+				subscribe: vi.fn(),
+				startSession: vi.fn(),
+				stopSession: vi.fn(),
+				runTurn: vi.fn(),
+				abort: vi.fn(),
+				dispose: vi.fn(),
+				getSession: vi.fn(),
+				getAccumulatedUsage: vi.fn().mockResolvedValue(undefined),
+				listSessions: vi.fn().mockResolvedValue([rootSession, teamTaskSession]),
+				deleteSession: vi.fn(),
+				updateSession: vi.fn(),
+				dispatchHookEvent: vi.fn(),
+				readSessionMessages: vi.fn(),
+			} as never,
+		});
+
+		const defaultReply = await transport.handleCommand({
+			version: "v1",
+			requestId: "req-list-default",
+			command: "session.list",
+			payload: { limit: 10 },
+		});
+		const sessions = defaultReply.payload?.sessions as Array<{
+			sessionId: string;
+		}>;
+		expect(sessions.map((session) => session.sessionId)).toEqual(["root-1"]);
+
+		const optInReply = await transport.handleCommand({
+			version: "v1",
+			requestId: "req-list-subagents",
+			command: "session.list",
+			payload: { limit: 10, includeSubagents: true },
+		});
+		const allSessions = optInReply.payload?.sessions as Array<{
+			sessionId: string;
+		}>;
+		expect(allSessions.map((session) => session.sessionId)).toEqual([
+			"root-1",
+			"root-1__teamtask__lead__abc123",
+		]);
+	});
+
 	it("keeps interactive approval requests pending until a response arrives", async () => {
 		vi.useFakeTimers();
 		try {

@@ -585,10 +585,14 @@ export class HubSessionClient {
 		};
 	}
 
-	async listSessions(input?: { limit?: number }): Promise<HubSessionRow[]> {
+	async listSessions(input?: {
+		limit?: number;
+		includeSubagents?: boolean;
+	}): Promise<HubSessionRow[]> {
 		await this.ensureMetadataApplied();
 		const reply = await this.client.command("session.list", {
 			limit: input?.limit ?? 200,
+			...(input?.includeSubagents ? { includeSubagents: true } : {}),
 		});
 		const sessions = Array.isArray(reply.payload?.sessions)
 			? (reply.payload?.sessions as Record<string, unknown>[])

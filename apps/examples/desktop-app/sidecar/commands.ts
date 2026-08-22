@@ -463,7 +463,12 @@ async function listSessionsFromSidecarManager(
 
 	if (ctx.hubClient) {
 		try {
-			const reply = await ctx.hubClient.command("session.list", { limit: max });
+			// The history tree renders subagent child rows, which session.list
+			// excludes unless requested.
+			const reply = await ctx.hubClient.command("session.list", {
+				limit: max,
+				includeSubagents: true,
+			});
 			const sessions = Array.isArray(reply.payload?.sessions)
 				? reply.payload.sessions
 				: [];

@@ -71,6 +71,36 @@ describe("run handlers", () => {
 		);
 	});
 
+	it("rejects input to a subagent history row with a structured error", async () => {
+		const runTurn = vi.fn();
+		const ctx = createContext({
+			getSession: vi.fn().mockResolvedValue({
+				sessionId: "root__teamtask__lead__abc123",
+				isSubagent: true,
+			}),
+			runTurn,
+		});
+
+		await expect(
+			handleSessionInput(ctx, {
+				version: "v1",
+				command: "session.send_input",
+				requestId: "req-subagent",
+				clientId: "client-1",
+				sessionId: "root__teamtask__lead__abc123",
+				payload: { prompt: "go" },
+			}),
+		).resolves.toMatchObject({
+			error: { code: "session_not_sendable" },
+			ok: false,
+		});
+
+		expect(runTurn).not.toHaveBeenCalled();
+		expect(ctx.events).not.toContainEqual(
+			expect.objectContaining({ event: "run.started" }),
+		);
+	});
+
 	it("does not publish run start for an unknown session", async () => {
 		const runTurn = vi.fn();
 		const ctx = createContext({
