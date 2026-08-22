@@ -1,5 +1,10 @@
 # Cline SDK Changelog
 
+## Unreleased
+
+- The hub's `session.list` no longer returns subagent/team-task child rows by default. These are persistence-only history records, not attachable sessions, and clients that picked "the latest session" from the list could latch onto one and break (wrong transcript, `session not found` on every send). Clients that render session trees pass `includeSubagents: true`; the hub-backed runtime host keeps returning them for parity with the local runtime host
+- Sending input to a subagent session id now fails fast with a structured `session_not_sendable` error instead of a raw `session not found: <id>` thrown from inside the runtime host
+
 ## 0.0.77
 
 - The `tasks` tool (durable todos and one-time or recurring agent schedules) is now scoped to the clients that can service it. Hosts declare their client type and the core tool catalog resolves availability centrally, so CLI and VS Code sessions no longer register a tool they cannot act on; hub sessions resolve the same way from the requesting client's metadata

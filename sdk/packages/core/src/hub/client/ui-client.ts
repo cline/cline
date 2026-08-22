@@ -81,8 +81,14 @@ export class HubUIClient {
 			: [];
 	}
 
-	async listSessions(limit = 200): Promise<SessionRecord[]> {
-		const reply = await this.client.command("session.list", { limit });
+	async listSessions(
+		limit = 200,
+		options?: { includeSubagents?: boolean },
+	): Promise<SessionRecord[]> {
+		const reply = await this.client.command("session.list", {
+			limit,
+			...(options?.includeSubagents ? { includeSubagents: true } : {}),
+		});
 		return Array.isArray(reply.payload?.sessions)
 			? (reply.payload.sessions as SessionRecord[])
 			: [];

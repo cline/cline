@@ -911,10 +911,21 @@ export async function handleSessionList(
 ): Promise<HubReplyEnvelope> {
 	const limit =
 		typeof envelope.payload?.limit === "number" ? envelope.payload.limit : 200;
-	const records = await ctx.sessionHost.listSessions(limit);
-	const sessions = records.map((session) =>
-		toHubSessionRecord(session, ctx.sessionState.get(session.sessionId)),
-	);
+	// Subagent and team-task child rows are persistence-only history records,
+	// not attachable sessions: sending input to one fails because it never
+	// exists in the runtime host's live session map. Clients that render
+	// session trees opt in explicitly.
+	const includeSubagents = envelope.payload?.includeSubagents === true;
+	// Over-fetch when filtering so a burst of child rows cannot crowd root
+	// sessions out of the requested page.
+	const scanLimit = includeSubagents ? limit : Math.min(limit * 5, 1000);
+	const records = await ctx.sessionHost.listSessions(scanLimit);
+	const sessions = records
+		.filter((session) => includeSubagents || !session.isSubagent)
+		.slice(0, limit)
+		.map((session) =>
+			toHubSessionRecord(session, ctx.sessionState.get(session.sessionId)),
+		);
 	return okReply(envelope, {
 		sessions,
 	});
