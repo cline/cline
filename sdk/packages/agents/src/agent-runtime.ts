@@ -47,9 +47,17 @@ import {
 	trimNonEmpty,
 } from "@cline/shared";
 import { nanoid } from "nanoid";
+import {
+	inspectAssistantTextLoop,
+	TEXT_LOOP_ABORT_MESSAGE,
+	TEXT_LOOP_RECOVERY_GUIDANCE,
+} from "./text-loop-detection";
 
 const MAX_TOKENS_INCOMPLETE_TURN_MESSAGE =
 	"Model reached the maximum output token limit before completing the turn";
+
+/** How often (in chars of accumulated text) to re-check for text loops mid-stream. */
+const TEXT_LOOP_CHECK_EVERY_CHARS = 400;
 
 /**
  * Terminal message when a context-window overflow cannot be recovered because
@@ -736,7 +744,7 @@ export class AgentRuntime {
 					iteration: this.state.iteration,
 				});
 
-				const { message, finishReason } =
+				const { message, finishReason, textLoopAborted } =
 					await this.generateAssistantMessageWithOverflowRecovery();
 				if (finishReason === "aborted") {
 					throw this.normalizeAbortError();
@@ -794,6 +802,31 @@ export class AgentRuntime {
 						iteration: this.state.iteration,
 						toolCallCount: 0,
 					});
+					const assistantText = textFromMessage(message);
+					const textLoop = inspectAssistantTextLoop(assistantText);
+					if (
+						textLoopAborted ||
+						textLoop.kind === "hard" ||
+						textLoop.kind === "soft"
+					) {
+						this.config.logger?.log("Assistant text loop without tools", {
+							agentId: this.state.agentId,
+							runId: this.state.runId,
+							iteration: this.state.iteration,
+							kind: textLoopAborted ? "hard" : textLoop.kind,
+							reason: textLoop.reason ?? this.state.lastError,
+							textLength: assistantText.length,
+							textLoopAborted,
+						});
+						await this.addUserReminderMessage(
+							`${TEXT_LOOP_RECOVERY_GUIDANCE}\nDetected: ${
+								textLoop.reason ??
+								this.state.lastError ??
+								TEXT_LOOP_ABORT_MESSAGE
+							}`,
+						);
+						continue;
+					}
 					const completionReminderMessages =
 						this.getCompletionReminderMessages();
 					if (completionReminderMessages.length > 0) {
@@ -960,6 +993,7 @@ export class AgentRuntime {
 	private async generateAssistantMessageWithOverflowRecovery(): Promise<{
 		message: AgentMessage;
 		finishReason: AgentModelFinishReason;
+		textLoopAborted?: boolean;
 	}> {
 		const first = await this.generateAssistantMessage();
 		if (!this.isRecoverableOverflowTurn(first)) {
@@ -1022,6 +1056,7 @@ export class AgentRuntime {
 	}): Promise<{
 		message: AgentMessage;
 		finishReason: AgentModelFinishReason;
+		textLoopAborted?: boolean;
 	}> {
 		const usageBeforeModel = cloneUsage(this.state.usage);
 		const modelRequestMetadata = omitUndefinedValues({
@@ -1126,8 +1161,10 @@ export class AgentRuntime {
 		let finishReason: AgentModelFinishReason = "stop";
 		let accumulatedText = "";
 		let accumulatedReasoning = "";
+		let lastTextLoopCheckAt = 0;
+		let textLoopAborted = false;
 
-		for await (const event of stream) {
+		stream: for await (const event of stream) {
 			this.throwIfAborted();
 			switch (event.type) {
 				case "text-delta": {
@@ -1148,6 +1185,40 @@ export class AgentRuntime {
 						text: event.text,
 						accumulatedText,
 					});
+					if (
+						accumulatedText.length - lastTextLoopCheckAt >=
+						TEXT_LOOP_CHECK_EVERY_CHARS
+					) {
+						lastTextLoopCheckAt = accumulatedText.length;
+						const loop = inspectAssistantTextLoop(accumulatedText);
+						if (loop.kind === "hard") {
+							textLoopAborted = true;
+							finishReason = "stop";
+							this.state.lastError =
+								loop.reason ?? TEXT_LOOP_ABORT_MESSAGE;
+							this.config.logger?.log(
+								"Aborting model stream due to assistant text loop",
+								{
+									agentId: this.state.agentId,
+									runId: this.state.runId,
+									iteration: this.state.iteration,
+									reason: loop.reason,
+									textLength: accumulatedText.length,
+								},
+							);
+							// Truncate trailing spam so history stays usable.
+							for (const item of sequence) {
+								if (
+									item.type === "part" &&
+									item.part.type === "text" &&
+									item.part.text.length > 2_500
+								) {
+									item.part.text = `${item.part.text.slice(0, 2_000)}\n\n[${TEXT_LOOP_ABORT_MESSAGE}]`;
+								}
+							}
+							break stream;
+						}
+					}
 					break;
 				}
 				case "media": {
@@ -1381,7 +1452,7 @@ export class AgentRuntime {
 			this.applyStopControl(control);
 		}
 
-		return { message, finishReason };
+		return { message, finishReason, textLoopAborted };
 	}
 
 	private async *openTaskLifecycleStream(
