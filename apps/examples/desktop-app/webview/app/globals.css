@@ -164,3 +164,23 @@
 	--primary-emphasis: oklch(0.77 0.15 36);
 	--ring: oklch(0.7 0.14 36);
 }
+
+/*
+ * Find-in-session match painting (hooks/use-session-search-highlight.ts).
+ *
+ * Uses the CSS Custom Highlight API so matches are painted over the existing
+ * DOM instead of being wrapped in <mark> elements. That keeps MemoizedMarkdown's
+ * memoization intact and cannot disturb rendered markdown formatting.
+ *
+ * Only color and background-color are honored inside ::highlight(), so the
+ * active match is distinguished by a stronger fill rather than a border.
+ */
+::highlight(cline-find-match) {
+	background-color: color-mix(in oklch, var(--primary) 28%, transparent);
+	color: var(--foreground);
+}
+
+::highlight(cline-find-match-active) {
+	background-color: var(--primary);
+	color: var(--primary-foreground);
+}

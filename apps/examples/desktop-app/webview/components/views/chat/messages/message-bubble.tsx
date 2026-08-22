@@ -24,6 +24,7 @@ import type {
 	ChatMessageImage,
 	ChatMessageMedia,
 } from "@/lib/chat-schema";
+import { searchAnchorId } from "@/lib/session-search";
 import { cn } from "@/lib/utils";
 import { MemoizedMarkdown } from "../../../ui/markdown";
 import { formatChatMessageContent } from "../message-content";
@@ -176,6 +177,8 @@ export const MessageBubble = memo(function MessageBubble({
 	forkError,
 	isLastAssistantMessage = false,
 	followsWorkingRows = false,
+	isSearchMatch = false,
+	isActiveSearchMatch = false,
 	reasoningContent,
 	reasoningRedacted,
 	thoughtDurationMilliseconds,
@@ -210,6 +213,10 @@ export const MessageBubble = memo(function MessageBubble({
 	/** Pulls the bubble closer to the working rows (tool calls/run summary)
 	 * directly above it, which it answers. */
 	followsWorkingRows?: boolean;
+	/** Message contains the find-in-session query. */
+	isSearchMatch?: boolean;
+	/** Message is the match the find bar is currently focused on. */
+	isActiveSearchMatch?: boolean;
 	reasoningContent: string;
 	reasoningRedacted: boolean;
 	thoughtDurationMilliseconds?: number;
@@ -270,8 +277,17 @@ export const MessageBubble = memo(function MessageBubble({
 				"relative flex flex-col gap-2",
 				isUser && "mt-4 first:mt-0",
 				followsWorkingRows && "-mt-2",
+				// Fallback presentation only: where the CSS Custom Highlight API is
+				// unavailable the whole container is tinted instead of the matched
+				// characters. Highlighting words inside the rendered markdown would
+				// mean mutating MemoizedMarkdown's output and defeating its memo.
+				isSearchMatch &&
+					"rounded-md ring-1 ring-primary/30 bg-primary/5 -mx-2 px-2 py-1",
+				isActiveSearchMatch && "ring-2 ring-primary/70 bg-primary/10",
 			)}
+			data-search-match={isSearchMatch || undefined}
 			from={agentRole}
+			id={searchAnchorId(message.id)}
 		>
 			<MessageContent className="flex min-w-0 flex-col gap-2 wrap-break-word">
 				{reasoningContent || reasoningRedacted ? (
