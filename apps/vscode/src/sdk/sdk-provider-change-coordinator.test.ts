@@ -1,5 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { StateManager } from "@/core/storage/StateManager"
+import { parseProviderId } from "./model-catalog/provider-id"
 import { SdkProviderChangeCoordinator, type SdkProviderChangeCoordinatorOptions } from "./sdk-provider-change-coordinator"
 
 vi.mock("@/shared/services/Logger", () => ({
@@ -12,7 +13,12 @@ vi.mock("@/shared/services/Logger", () => ({
 
 describe("SdkProviderChangeCoordinator", () => {
 	beforeEach(() => {
+		vi.useRealTimers()
 		vi.clearAllMocks()
+	})
+
+	afterEach(() => {
+		vi.useRealTimers()
 	})
 
 	it("does nothing when the active mode provider did not change", () => {
@@ -48,6 +54,117 @@ describe("SdkProviderChangeCoordinator", () => {
 		coordinator.handleApiConfigurationChanged({ actModeApiProvider: "anthropic" }, { actModeApiProvider: "deepseek" })
 
 		expect(options.sessions.replaceActiveSession).not.toHaveBeenCalled()
+	})
+
+	it("restarts when active provider fields change while idle", async () => {
+		vi.useFakeTimers()
+		const activeSession = makeActiveSession()
+		const { coordinator, options } = makeCoordinator({ activeSession, activeProvider: "lmstudio" })
+
+		coordinator.handleProviderConfigFieldsChanged(parseProviderId("lmstudio"))
+
+		expect(options.rebuilds.request).not.toHaveBeenCalled()
+		vi.runOnlyPendingTimers()
+		await Promise.resolve()
+
+		expect(options.sessionConfigBuilder.build).toHaveBeenCalledWith({ cwd: "/workspace", mode: "act" })
+		expect(options.rebuilds.request).toHaveBeenCalledWith("provider", expect.any(Function))
+	})
+
+	it("coalesces repeated active provider field changes", async () => {
+		vi.useFakeTimers()
+		const activeSession = makeActiveSession()
+		const { coordinator, options } = makeCoordinator({ activeSession, activeProvider: "lmstudio" })
+
+		coordinator.handleProviderConfigFieldsChanged(parseProviderId("lmstudio"))
+		coordinator.handleProviderConfigFieldsChanged(parseProviderId("lmstudio"))
+		coordinator.handleProviderConfigFieldsChanged(parseProviderId("lmstudio"))
+
+		expect(options.rebuilds.request).not.toHaveBeenCalled()
+		vi.runOnlyPendingTimers()
+
+		expect(options.rebuilds.request).toHaveBeenCalledTimes(1)
+	})
+
+	it("flushes a pending field-change restart without letting its timer fire again", () => {
+		vi.useFakeTimers()
+		const activeSession = makeActiveSession()
+		const { coordinator, options } = makeCoordinator({ activeSession, activeProvider: "lmstudio" })
+
+		coordinator.handleProviderConfigFieldsChanged(parseProviderId("lmstudio"))
+		coordinator.flushPendingProviderFieldsRebuild()
+
+		expect(options.rebuilds.request).toHaveBeenCalledTimes(1)
+		vi.runAllTimers()
+		expect(options.rebuilds.request).toHaveBeenCalledTimes(1)
+	})
+
+	it("drops a debounced field restart when the active session is replaced", () => {
+		vi.useFakeTimers()
+		const activeSession = makeActiveSession()
+		const replacementSession = makeActiveSession()
+		const { coordinator, options } = makeCoordinator({ activeSession, activeProvider: "lmstudio" })
+
+		coordinator.handleProviderConfigFieldsChanged(parseProviderId("lmstudio"))
+		options.sessions.getActiveSession.mockReturnValue(replacementSession)
+		vi.runOnlyPendingTimers()
+
+		expect(options.rebuilds.request).not.toHaveBeenCalled()
+	})
+
+	it("drops a queued field restart when the active session is replaced", async () => {
+		vi.useFakeTimers()
+		const activeSession = makeActiveSession({ isRunning: true })
+		const replacementSession = makeActiveSession()
+		const { coordinator, options } = makeCoordinator({ activeSession, activeProvider: "lmstudio" })
+
+		coordinator.handleProviderConfigFieldsChanged(parseProviderId("lmstudio"))
+		vi.runOnlyPendingTimers()
+		const queuedRebuild = vi.mocked(options.rebuilds.request).mock.calls[0]?.[1]
+		expect(queuedRebuild).toBeTypeOf("function")
+
+		options.sessions.getActiveSession.mockReturnValue(replacementSession)
+		await queuedRebuild?.()
+
+		expect(options.sessionConfigBuilder.build).not.toHaveBeenCalled()
+		expect(options.sessions.replaceActiveSession).not.toHaveBeenCalled()
+	})
+
+	it("does nothing when fields change for an inactive provider", () => {
+		const activeSession = makeActiveSession()
+		const { coordinator, options } = makeCoordinator({ activeSession, activeProvider: "lmstudio" })
+
+		coordinator.handleProviderConfigFieldsChanged(parseProviderId("ollama"))
+
+		expect(options.rebuilds.request).not.toHaveBeenCalled()
+		expect(options.sessions.replaceActiveSession).not.toHaveBeenCalled()
+	})
+
+	it("schedules a field-change restart while the active session is running", async () => {
+		vi.useFakeTimers()
+		const activeSession = makeActiveSession({ isRunning: true })
+		const { coordinator, options } = makeCoordinator({ activeSession, activeProvider: "lmstudio" })
+
+		coordinator.handleProviderConfigFieldsChanged(parseProviderId("lmstudio"))
+
+		expect(options.sessions.replaceActiveSession).not.toHaveBeenCalled()
+		expect(options.rebuilds.request).not.toHaveBeenCalled()
+		vi.runOnlyPendingTimers()
+
+		expect(options.rebuilds.request).toHaveBeenCalledWith("provider", expect.any(Function))
+	})
+
+	it("keeps provider switches immediate and cancels a pending field-change restart", async () => {
+		vi.useFakeTimers()
+		const activeSession = makeActiveSession()
+		const { coordinator, options } = makeCoordinator({ activeSession, activeProvider: "anthropic" })
+
+		coordinator.handleProviderConfigFieldsChanged(parseProviderId("anthropic"))
+		coordinator.handleApiConfigurationChanged({ actModeApiProvider: "anthropic" }, { actModeApiProvider: "deepseek" })
+
+		expect(options.rebuilds.request).toHaveBeenCalledTimes(1)
+		vi.runAllTimers()
+		expect(options.rebuilds.request).toHaveBeenCalledTimes(1)
 	})
 
 	it("restarts immediately when the active provider changes while idle", async () => {
@@ -163,6 +280,10 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 	const options = {
 		stateManager: {
 			getGlobalSettingsKey: vi.fn(() => input.mode ?? "act"),
+			getApiConfiguration: vi.fn(() => ({
+				actModeApiProvider: input.activeProvider ?? "anthropic",
+				planModeApiProvider: input.activeProvider ?? "anthropic",
+			})),
 		} as unknown as StateManager,
 		sessions: {
 			getActiveSession: vi.fn(() => activeSession),
@@ -215,6 +336,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 
 interface MakeCoordinatorInput {
 	activeSession: ReturnType<typeof makeActiveSession>
+	activeProvider: string
 	mode: "act" | "plan"
 	task: { taskId: string }
 }

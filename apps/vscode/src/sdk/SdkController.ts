@@ -554,10 +554,7 @@ export class Controller {
 			messages: this.messages,
 			taskHistory: this.taskHistory,
 			sessionConfigBuilder: this.sessionConfigBuilder,
-			waitForPendingRebuilds: async () => {
-				await this.mode.waitForPendingRebuild()
-				await this.sessionRebuilds.waitUntilSettled()
-			},
+			waitForPendingRebuilds: () => this.flushPendingProviderChangesAndWaitForRebuilds(),
 			runExclusive: (operation) => this.sessionRebuilds.runExclusive(operation),
 			getTask: () => this.task,
 			createTempSessionHost: () => this.createRemoteConfigAwareSessionHost(),
@@ -708,11 +705,19 @@ export class Controller {
 	private handleProviderConfigChange(event: ProviderConfigChange): void {
 		this.scheduleProviderConfigStatePost()
 
-		if (event.kind === "selection" && this.isSelectionForActiveModeProvider(event)) {
+		if (event.kind === "fields") {
+			this.providerChanges.handleProviderConfigFieldsChanged(event.providerId)
+		} else if (this.isSelectionForActiveModeProvider(event)) {
 			this.sessions
 				?.updateActiveSessionModel(event.selection.modelId)
 				.catch((error) => Logger.error("[SdkController] Failed to update active session model:", error))
 		}
+	}
+
+	private async flushPendingProviderChangesAndWaitForRebuilds(): Promise<void> {
+		this.providerChanges.flushPendingProviderFieldsRebuild()
+		await this.mode.waitForPendingRebuild()
+		await this.sessionRebuilds.waitUntilSettled()
 	}
 
 	handleApiConfigurationChanged(previous: ApiConfiguration, next: ApiConfiguration): void {

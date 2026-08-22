@@ -3,6 +3,7 @@ import type { Mode } from "@shared/storage/types"
 import type { StateManager } from "@/core/storage/StateManager"
 import { toLegacyApiProvider } from "@/shared/model-catalog/provider-helpers"
 import { Logger } from "@/shared/services/Logger"
+import type { ProviderId } from "./model-catalog/contracts"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import type { SdkSessionConfigBuilder } from "./sdk-session-config-builder"
 import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
@@ -14,6 +15,9 @@ import type { VscodeSessionHost } from "./vscode-session-host"
 type StartInput = Parameters<VscodeSessionHost["start"]>[0]
 type InitialMessages = StartInput["initialMessages"]
 type SessionConfig = Awaited<ReturnType<SdkSessionConfigBuilder["build"]>>
+type ActiveSession = NonNullable<ReturnType<SdkSessionLifecycle["getActiveSession"]>>
+
+const PROVIDER_FIELDS_REBUILD_DEBOUNCE_MS = 300
 
 export interface SdkProviderChangeCoordinatorOptions {
 	stateManager: StateManager
@@ -38,7 +42,42 @@ function providerForMode(config: ApiConfiguration, mode: Mode): string | undefin
 }
 
 export class SdkProviderChangeCoordinator {
+	private providerFieldsRebuildTimer: ReturnType<typeof setTimeout> | undefined
+	private pendingProviderFieldsRebuild: (() => void) | undefined
+
 	constructor(private readonly options: SdkProviderChangeCoordinatorOptions) {}
+
+	handleProviderConfigFieldsChanged(providerId: ProviderId): void {
+		const mode = this.getCurrentMode()
+		const activeProvider = providerForMode(this.options.stateManager.getApiConfiguration(), mode)
+		const changedProvider = toLegacyApiProvider(providerId)
+
+		if (activeProvider !== changedProvider) {
+			return
+		}
+
+		const activeSession = this.options.sessions.getActiveSession()
+		if (!activeSession) {
+			Logger.log("[SdkController] Provider fields changed without active session; next task will use new configuration")
+			return
+		}
+
+		this.cancelPendingProviderFieldsRebuild()
+		this.pendingProviderFieldsRebuild = () => {
+			const currentMode = this.getCurrentMode()
+			const currentProvider = providerForMode(this.options.stateManager.getApiConfiguration(), currentMode)
+			if (currentProvider !== changedProvider || this.options.sessions.getActiveSession() !== activeSession) {
+				return
+			}
+
+			Logger.log(`[SdkController] Active provider fields changed for ${currentMode}: ${changedProvider}`)
+			this.options.rebuilds.request("provider", () => this.performRestartActiveSessionForProviderChange(activeSession))
+		}
+		this.providerFieldsRebuildTimer = setTimeout(
+			() => this.flushPendingProviderFieldsRebuild(),
+			PROVIDER_FIELDS_REBUILD_DEBOUNCE_MS,
+		)
+	}
 
 	handleApiConfigurationChanged(previous: ApiConfiguration, next: ApiConfiguration): void {
 		const mode = this.getCurrentMode()
@@ -48,6 +87,8 @@ export class SdkProviderChangeCoordinator {
 		if (previousProvider === nextProvider) {
 			return
 		}
+
+		this.cancelPendingProviderFieldsRebuild()
 
 		const activeSession = this.options.sessions.getActiveSession()
 		if (!activeSession) {
@@ -59,16 +100,30 @@ export class SdkProviderChangeCoordinator {
 			`[SdkController] Active provider changed for ${mode}: ${previousProvider ?? "none"} -> ${nextProvider ?? "none"}`,
 		)
 
-		this.options.rebuilds.request("provider", () => this.restartActiveSessionForProviderChange())
+		this.options.rebuilds.request("provider", () => this.performRestartActiveSessionForProviderChange(activeSession))
 	}
 
 	async restartActiveSessionForProviderChange(): Promise<void> {
 		await this.performRestartActiveSessionForProviderChange()
 	}
 
-	private async performRestartActiveSessionForProviderChange(): Promise<void> {
+	flushPendingProviderFieldsRebuild(): void {
+		const pendingRebuild = this.pendingProviderFieldsRebuild
+		if (!pendingRebuild) {
+			return
+		}
+
+		if (this.providerFieldsRebuildTimer !== undefined) {
+			clearTimeout(this.providerFieldsRebuildTimer)
+		}
+		this.providerFieldsRebuildTimer = undefined
+		this.pendingProviderFieldsRebuild = undefined
+		pendingRebuild()
+	}
+
+	private async performRestartActiveSessionForProviderChange(expectedSession?: ActiveSession): Promise<void> {
 		const activeSession = this.options.sessions.getActiveSession()
-		if (!activeSession) {
+		if (!activeSession || (expectedSession && activeSession !== expectedSession)) {
 			return
 		}
 
@@ -127,5 +182,13 @@ export class SdkProviderChangeCoordinator {
 
 	private getCurrentMode(): Mode {
 		return this.options.stateManager.getGlobalSettingsKey("mode") === "plan" ? "plan" : "act"
+	}
+
+	private cancelPendingProviderFieldsRebuild(): void {
+		if (this.providerFieldsRebuildTimer !== undefined) {
+			clearTimeout(this.providerFieldsRebuildTimer)
+			this.providerFieldsRebuildTimer = undefined
+		}
+		this.pendingProviderFieldsRebuild = undefined
 	}
 }

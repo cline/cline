@@ -23,6 +23,27 @@ describe("resolveWorkspaceRootPath", () => {
 	})
 })
 
+describe("SDK follow-up rebuild coordination", () => {
+	it("flushes provider field changes before waiting for rebuild settlement", async () => {
+		const events: string[] = []
+		const controller = {
+			providerChanges: {
+				flushPendingProviderFieldsRebuild: vi.fn(() => events.push("flush-provider")),
+			},
+			mode: {
+				waitForPendingRebuild: vi.fn(async () => events.push("wait-mode")),
+			},
+			sessionRebuilds: {
+				waitUntilSettled: vi.fn(async () => events.push("wait-scheduler")),
+			},
+		}
+
+		await SdkController.prototype["flushPendingProviderChangesAndWaitForRebuilds"].call(controller as never)
+
+		expect(events).toEqual(["flush-provider", "wait-mode", "wait-scheduler"])
+	})
+})
+
 vi.mock("@/services/telemetry", () => ({
 	telemetryService: {
 		captureRemoteConfigSessionGate: vi.fn(),
