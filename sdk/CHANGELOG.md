@@ -3,6 +3,7 @@
 ## 0.0.77
 
 - The `tasks` tool (durable todos and one-time or recurring agent schedules) is now scoped to the clients that can service it. Hosts declare their client type and the core tool catalog resolves availability centrally, so CLI and VS Code sessions no longer register a tool they cannot act on; hub sessions resolve the same way from the requesting client's metadata
+- Added a sensitive `langfuse-telemetry` feature-flag rollout for Cline and ClinePass requests. Langfuse credentials are validated at session startup, remain memory-only, and are ignored for all third-party providers
 
 ## 0.0.76
 

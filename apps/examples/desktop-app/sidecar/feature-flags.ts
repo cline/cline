@@ -6,6 +6,7 @@ import {
 	type FeatureFlagsContext,
 	FeatureFlagsService,
 	type ITelemetryService,
+	isSensitiveFeatureFlag,
 	NoOpFeatureFlagsProvider,
 	resolveCoreDistinctId,
 } from "@cline/core";
@@ -122,6 +123,7 @@ export function buildFeatureFlagsSnapshot(
 ): FeatureFlagsSnapshot {
 	const flags: Record<string, FeatureFlagPayload> = {};
 	for (const flag of FEATURE_FLAGS) {
+		if (isSensitiveFeatureFlag(flag)) continue;
 		flags[flag] = service.getFlagPayload(flag) ?? false;
 	}
 	return { flags };

@@ -125,6 +125,42 @@ describe("createAgentModelFromConfig", () => {
 		);
 	});
 
+	it("forwards in-memory Langfuse configuration to the gateway provider", async () => {
+		const { createAgentModelFromConfig } = await import("./handler-factory");
+		const langfuse = {
+			baseUrl: "https://langfuse.example",
+			publicKey: "public-key",
+			secretKey: "secret-key",
+		};
+
+		createAgentModelFromConfig(
+			{
+				providerId: "cline",
+				modelId: "mock-model",
+				apiKey: "key",
+				systemPrompt: "",
+				tools: [],
+				providerConfig: {
+					providerId: "cline",
+					modelId: "mock-model",
+					langfuse,
+				},
+			},
+			undefined,
+		);
+
+		expect(gatewayMock.createGateway).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				providerConfigs: [
+					expect.objectContaining({
+						providerId: "cline",
+						langfuse,
+					}),
+				],
+			}),
+		);
+	});
+
 	it("preserves model capabilities and metadata when configuring gateway models", async () => {
 		const { createAgentModelFromConfig } = await import("./handler-factory");
 

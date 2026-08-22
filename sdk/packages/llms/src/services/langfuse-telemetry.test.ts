@@ -38,7 +38,8 @@ class MockNodeTracerProvider {
 	register = vi.fn();
 }
 
-vi.mock("@cline/shared", () => ({
+vi.mock("@cline/shared", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@cline/shared")>()),
 	registerDisposable: registerDisposableSpy,
 }));
 
@@ -59,6 +60,7 @@ vi.mock("@opentelemetry/sdk-trace-node", () => ({
 	NodeTracerProvider: MockNodeTracerProvider,
 }));
 
+import type { LangfuseTelemetryConfig } from "@cline/shared";
 import { generateText } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 import {
@@ -66,6 +68,12 @@ import {
 	ensureLangfuseTelemetry,
 	resetLangfuseTelemetryForTests,
 } from "./langfuse-telemetry";
+
+const config: LangfuseTelemetryConfig = {
+	baseUrl: "https://langfuse.example",
+	publicKey: "public-key",
+	secretKey: "secret-key",
+};
 
 describe("langfuse telemetry", () => {
 	beforeEach(() => {
@@ -84,21 +92,20 @@ describe("langfuse telemetry", () => {
 			forceFlush: forceFlushSpy,
 			shutdown: shutdownSpy,
 		});
-		process.env.LANGFUSE_BASE_URL = "https://langfuse.example";
-		process.env.LANGFUSE_PUBLIC_KEY = "public-key";
-		process.env.LANGFUSE_SECRET_KEY = "secret-key";
 	});
 
 	afterEach(() => {
-		delete process.env.LANGFUSE_BASE_URL;
-		delete process.env.LANGFUSE_PUBLIC_KEY;
-		delete process.env.LANGFUSE_SECRET_KEY;
 		resetLangfuseTelemetryForTests();
 	});
 
-	it("enables telemetry for non-cline providers when langfuse config is available", async () => {
-		await expect(ensureLangfuseTelemetry("openrouter")).resolves.toBe(true);
-		await expect(ensureLangfuseTelemetry("cline")).resolves.toBe(true);
+	it("enables telemetry only for Cline and ClinePass providers", async () => {
+		await expect(ensureLangfuseTelemetry("openrouter", config)).resolves.toBe(
+			false,
+		);
+		await expect(ensureLangfuseTelemetry("cline", config)).resolves.toBe(true);
+		await expect(ensureLangfuseTelemetry("cline-pass", config)).resolves.toBe(
+			true,
+		);
 
 		expect(registerDisposableSpy).toHaveBeenCalledTimes(1);
 		expect(addSpanProcessorSpy).toHaveBeenCalledTimes(1);
@@ -117,7 +124,7 @@ describe("langfuse telemetry", () => {
 	});
 
 	it("connects an AI SDK call to the registered telemetry integration", async () => {
-		await expect(ensureLangfuseTelemetry("openrouter")).resolves.toBe(true);
+		await expect(ensureLangfuseTelemetry("cline", config)).resolves.toBe(true);
 
 		await generateText({
 			model: new MockLanguageModelV4({
@@ -141,5 +148,17 @@ describe("langfuse telemetry", () => {
 		});
 
 		expect(telemetryStartSpy).toHaveBeenCalled();
+	});
+
+	it("fails closed when feature-flag configuration is incomplete", async () => {
+		await expect(
+			ensureLangfuseTelemetry("cline", {
+				...config,
+				secretKey: "",
+			}),
+		).resolves.toBe(false);
+
+		expect(registerDisposableSpy).not.toHaveBeenCalled();
+		expect(addSpanProcessorSpy).not.toHaveBeenCalled();
 	});
 });

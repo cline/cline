@@ -13,6 +13,7 @@ import { BannerService } from "@/services/banner/BannerService"
 import { featureFlagsService } from "@/services/feature-flags"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { getExtensionVariant } from "@/services/telemetry/rollout-metadata"
+import { FeatureFlag } from "@/shared/services/feature-flags/feature-flags"
 import { getLatestAnnouncementId } from "@/utils/announcements"
 import { getClineOnboardingModels } from "../models/getClineOnboardingModels"
 
@@ -168,7 +169,7 @@ export async function getStateToPostToWebview(controller: {
 		},
 		worktreesEnabled: {
 			user: stateManager.getGlobalSettingsKey("worktreesEnabled"),
-			featureFlag: featureFlagsService.getWorktreesEnabled(),
+			featureFlag: featureFlagsService.getBooleanFlagEnabled(FeatureFlag.WORKTREES),
 		},
 		hooksEnabled: getHooksEnabledSafe(stateManager.getGlobalSettingsKey("hooksEnabled")),
 		lastDismissedInfoBannerVersion,

@@ -17,9 +17,16 @@ vi.mock("./runtime/host/host", () => ({
 	createRuntimeHost: createRuntimeHostMock,
 }));
 
-import type { AgentResult } from "@cline/shared";
+import {
+	type AgentResult,
+	FeatureFlag,
+	type IFeatureFlagsProvider,
+} from "@cline/shared";
 import { ClineCore } from "./ClineCore";
-import { NoOpFeatureFlagsProvider } from "./services/feature-flags";
+import {
+	FeatureFlagsService,
+	NoOpFeatureFlagsProvider,
+} from "./services/feature-flags";
 
 function createStartInput(): ClineCoreStartInput {
 	return {
@@ -269,6 +276,110 @@ describe("ClineCore", () => {
 		expect(host.startSession).toHaveBeenCalledTimes(1);
 		expect(dispose).toHaveBeenCalledTimes(1);
 		expect(listeners).toHaveLength(1);
+	});
+
+	it.each([
+		"cline",
+		"cline-pass",
+	])("threads enabled Langfuse flag configuration into the %s provider", async (providerId) => {
+		const host = {
+			runtimeAddress: undefined,
+			startSession: vi.fn(async (_input: StartSessionInput) =>
+				createStartResult("session-langfuse"),
+			),
+			runTurn: vi.fn(),
+			getAccumulatedUsage: vi.fn(),
+			abort: vi.fn(),
+			stopSession: vi.fn(),
+			dispose: vi.fn(),
+			getSession: vi.fn(async () => undefined),
+			listSessions: vi.fn(),
+			deleteSession: vi.fn(),
+			readSessionMessages: vi.fn(),
+			dispatchHookEvent: vi.fn(),
+			subscribe: vi.fn(() => () => {}),
+			updateSessionModel: vi.fn(),
+		};
+		createRuntimeHostMock.mockResolvedValue(host);
+		const flagPayload = {
+			baseUrl: "https://langfuse.example",
+			publicKey: "public-key",
+			secretKey: "secret-key",
+		};
+		const featureFlagProvider: IFeatureFlagsProvider = {
+			getAllFlagsAndPayloads: vi.fn(async () => ({
+				featureFlags: { [FeatureFlag.LANGFUSE_TELEMETRY]: true },
+				featureFlagPayloads: {
+					[FeatureFlag.LANGFUSE_TELEMETRY]: flagPayload,
+				},
+			})),
+			enabled: true,
+			getSettings: () => ({ enabled: true }),
+			dispose: vi.fn(async () => {}),
+		};
+		const featureFlags = new FeatureFlagsService({
+			provider: featureFlagProvider,
+		});
+		await featureFlags.poll();
+		const core = await ClineCore.create({ featureFlags });
+		const input = createStartInput();
+		input.config.providerId = providerId;
+		input.config.modelId = `${providerId}/test-model`;
+
+		await core.start(input);
+
+		const forwarded = host.startSession.mock.calls[0]?.[0];
+		expect(forwarded?.config.providerConfig).toMatchObject({
+			providerId,
+			modelId: `${providerId}/test-model`,
+			langfuse: flagPayload,
+		});
+	});
+
+	it("does not thread Langfuse credentials into third-party providers", async () => {
+		const host = {
+			runtimeAddress: undefined,
+			startSession: vi.fn(async (_input: StartSessionInput) =>
+				createStartResult("session-no-langfuse"),
+			),
+			runTurn: vi.fn(),
+			getAccumulatedUsage: vi.fn(),
+			abort: vi.fn(),
+			stopSession: vi.fn(),
+			dispose: vi.fn(),
+			getSession: vi.fn(async () => undefined),
+			listSessions: vi.fn(),
+			deleteSession: vi.fn(),
+			readSessionMessages: vi.fn(),
+			dispatchHookEvent: vi.fn(),
+			subscribe: vi.fn(() => () => {}),
+			updateSessionModel: vi.fn(),
+		};
+		createRuntimeHostMock.mockResolvedValue(host);
+		const featureFlags = new FeatureFlagsService({
+			provider: {
+				getAllFlagsAndPayloads: vi.fn(async () => ({
+					featureFlags: { [FeatureFlag.LANGFUSE_TELEMETRY]: true },
+					featureFlagPayloads: {
+						[FeatureFlag.LANGFUSE_TELEMETRY]: {
+							baseUrl: "https://langfuse.example",
+							publicKey: "public-key",
+							secretKey: "secret-key",
+						},
+					},
+				})),
+				enabled: true,
+				getSettings: () => ({ enabled: true }),
+				dispose: vi.fn(async () => {}),
+			},
+		});
+		await featureFlags.poll();
+		const core = await ClineCore.create({ featureFlags });
+
+		await core.start(createStartInput());
+
+		const forwarded = host.startSession.mock.calls[0]?.[0];
+		expect(forwarded?.config.providerConfig).toBeUndefined();
 	});
 
 	it("preserves an omitted workspace until the execution host resolves it", async () => {

@@ -1,5 +1,6 @@
 import type { ClineCoreStartInput, ITelemetryService } from "@cline/core"
 import { beforeEach, describe, expect, it, vi } from "vitest"
+import { getFeatureFlagsService } from "@/services/feature-flags"
 
 const mockClineCoreCreate = vi.hoisted(() => vi.fn())
 const mockCreateVscodeExtraTools = vi.hoisted(() => vi.fn(async () => []))
@@ -39,8 +40,9 @@ describe("VscodeSessionHost telemetry wiring", () => {
 		mockCreateVscodeExtraTools.mockReset().mockResolvedValue([])
 	})
 
-	it("passes shared telemetry to ClineCore.create", async () => {
+	it("passes shared telemetry and feature flags to ClineCore.create", async () => {
 		const telemetry = makeTelemetry()
+		const featureFlags = getFeatureFlagsService()
 
 		await VscodeSessionHost.create({
 			// biome-ignore lint/suspicious/noExplicitAny: focused host unit test
@@ -48,7 +50,7 @@ describe("VscodeSessionHost telemetry wiring", () => {
 			telemetry,
 		})
 
-		expect(mockClineCoreCreate).toHaveBeenCalledWith(expect.objectContaining({ telemetry }))
+		expect(mockClineCoreCreate).toHaveBeenCalledWith(expect.objectContaining({ telemetry, featureFlags }))
 	})
 
 	it("injects shared telemetry into CoreSessionConfig when remote config did not provide one", async () => {

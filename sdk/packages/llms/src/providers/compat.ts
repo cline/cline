@@ -525,6 +525,7 @@ function buildGatewayConfig(config: ProviderConfig) {
 		headers: config.headers,
 		timeoutMs: config.timeoutMs,
 		fetch: config.fetch,
+		langfuse: config.langfuse,
 		defaultModelId: config.modelId,
 		models: buildGatewayModels(providerId, config),
 		options: {
