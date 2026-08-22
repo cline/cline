@@ -1,6 +1,17 @@
 import { getClineEnvironmentConfig } from "@cline/shared";
 import type { ModelInfo } from "./types";
 
+/**
+ * The minimal fetch capability the catalog needs. Callers may pass the global
+ * fetch or any compatible wrapper (for example one that adds a timeout); only
+ * the call signature is required, so Bun- and DOM-typed environments both
+ * satisfy it.
+ */
+export type CatalogFetcher = (
+	input: string | URL | Request,
+	init?: RequestInit,
+) => Promise<Response>;
+
 export interface ClineRecommendedModelEntry {
 	id: string;
 	name?: string;
@@ -140,7 +151,7 @@ export function normalizeClineRecommendedProviderModels(
 }
 
 export async function fetchClineRecommendedModelsPayload(
-	fetcher: typeof fetch = fetch,
+	fetcher: CatalogFetcher = fetch,
 ): Promise<ClineRecommendedModelsPayload> {
 	const url = `${getClineEnvironmentConfig().apiBaseUrl}/api/v1/ai/cline/recommended-models`;
 	const response = await fetcher(url);
@@ -154,7 +165,7 @@ export async function fetchClineRecommendedModelsPayload(
 }
 
 export async function fetchClineRecommendedProviderModels(
-	fetcher: typeof fetch = fetch,
+	fetcher: CatalogFetcher = fetch,
 	openRouterModels: Record<string, ModelInfo>,
 ): Promise<Record<string, Record<string, ModelInfo>>> {
 	const payload = await fetchClineRecommendedModelsPayload(fetcher);
