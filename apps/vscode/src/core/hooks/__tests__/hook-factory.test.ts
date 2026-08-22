@@ -4,7 +4,7 @@ import fs from "fs/promises"
 import path from "path"
 import sinon from "sinon"
 import { setDistinctId } from "@/services/logging/distinctId"
-import { HookFactory } from "../hook-factory"
+import { HookFactory, isPathWithin } from "../hook-factory"
 import { createHookTestEnv, HookTestEnv, stubHookDirs, withPlatform, writeHookScriptForPlatform } from "./test-utils"
 
 describe("Hook System", () => {
@@ -36,6 +36,8 @@ describe("Hook System", () => {
 		it("should return success without executing anything when no hooks found", async () => {
 			const factory = new HookFactory()
 			const runner = await factory.create("PreToolUse")
+
+			runner.isNoOp.should.be.true()
 
 			const result = await runner.run({
 				taskId: "test-task",
@@ -107,6 +109,8 @@ console.log(JSON.stringify({
 			// Test execution
 			const factory = new HookFactory()
 			const runner = await factory.create("PreToolUse")
+
+			runner.isNoOp.should.be.false()
 
 			const result = await runner.run({
 				taskId: "test-task",
@@ -684,6 +688,42 @@ console.log(JSON.stringify({
 			})
 
 			result.contextModification?.should.equal("Global observed: true")
+		})
+	})
+
+	describe("workspace root matching", () => {
+		it("isPathWithin requires a whole path-segment boundary", () => {
+			const root = path.join(path.sep, "repo", "app")
+			const sibling = path.join(path.sep, "repo", "app-web", "x")
+			const child = path.join(root, "x")
+
+			isPathWithin(root, root).should.be.true()
+			isPathWithin(root, child).should.be.true()
+			isPathWithin(root, sibling).should.be.false()
+			isPathWithin(root + path.sep, child).should.be.true()
+		})
+
+		it("determineHookCwd picks the owning root for prefix-sharing and nested roots", () => {
+			const factory = new HookFactory() as any
+			const app = path.join(path.sep, "repo", "app")
+			const appWeb = path.join(path.sep, "repo", "app-web")
+			const hooksDir = (root: string) => path.join(root, ".clinerules", "hooks")
+			const script = (root: string) => path.join(hooksDir(root), "PreToolUse")
+
+			// Prefix-sharing sibling roots: the hook must run from its own root,
+			// not the root that happens to be a string prefix of it.
+			factory.determineHookCwd(script(appWeb), [hooksDir(app), hooksDir(appWeb)], [app, appWeb]).should.equal(appWeb)
+
+			// Nested roots: the innermost matching root wins regardless of order.
+			const outer = path.join(path.sep, "repo")
+			const inner = path.join(path.sep, "repo", "packages", "x")
+			factory.determineHookCwd(script(inner), [hooksDir(outer), hooksDir(inner)], [outer, inner]).should.equal(inner)
+
+			// Global hooks (and unplaceable scripts) fall back to the primary root.
+			const globalScript = path.join(path.sep, "home", "Documents", "Cline", "Hooks", "PreToolUse")
+			factory
+				.determineHookCwd(globalScript, [path.join(path.sep, "home", "Documents", "Cline", "Hooks")], [app, appWeb])
+				.should.equal(app)
 		})
 	})
 })
