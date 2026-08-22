@@ -482,6 +482,8 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 		} else {
 			// no shell integration detected, we'll fallback to running the command and capturing the terminal's output after some time
 			telemetryService.captureTerminalOutputFailure(TerminalOutputFailureReason.NO_SHELL_INTEGRATION, "vscode")
+			// Clipboard capture operates on the active terminal, so reveal it only for this degraded fallback path.
+			terminal.show()
 			terminal.sendText(command, true)
 
 			// wait 3 seconds for the command to run
