@@ -8,6 +8,7 @@
 import type {
 	BasicLogger,
 	ExtensionContext,
+	LangfuseTelemetryConfig,
 	ReasoningEffort,
 } from "@cline/shared";
 import type { ModelInfo, ProviderClient } from "../catalog/types";
@@ -313,6 +314,12 @@ export interface ProviderConfig
 
 	/** Task/session ID for telemetry */
 	taskId?: string;
+
+	/**
+	 * In-memory Langfuse exporter configuration supplied by the host feature
+	 * flag. This is runtime-only and is not part of persisted provider settings.
+	 */
+	langfuse?: LangfuseTelemetryConfig;
 
 	/** AbortSignal for cancelling requests */
 	abortSignal?: AbortSignal;

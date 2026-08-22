@@ -1,14 +1,14 @@
+import {
+	isClineProvider,
+	type LangfuseTelemetryConfig,
+	parseLangfuseTelemetryConfig,
+} from "@cline/shared";
+
 type MutableTracerProvider = {
 	addSpanProcessor?: (spanProcessor: unknown) => void;
 	constructor?: {
 		name?: string;
 	};
-};
-
-type LangfuseTelemetryConfig = {
-	baseUrl: string;
-	publicKey: string;
-	secretKey: string;
 };
 
 export type LangfuseTraceAttributes = {
@@ -41,32 +41,33 @@ const LANGFUSE_DEBUG_ENV = "CLINE_DEBUG_LANGFUSE";
 
 let langfuseTelemetryReady: boolean | undefined;
 let langfuseTelemetryInitPromise: Promise<boolean> | undefined;
+let langfuseTelemetryConfigKey: string | undefined;
 
-function readLangfuseTelemetryConfig(): LangfuseTelemetryConfig | undefined {
-	const env = process?.env;
-	const baseUrl = env?.LANGFUSE_BASE_URL?.trim();
-	const publicKey = env?.LANGFUSE_PUBLIC_KEY?.trim();
-	const secretKey = env?.LANGFUSE_SECRET_KEY?.trim();
-
-	if (!baseUrl || !publicKey || !secretKey) {
-		return undefined;
-	}
-
-	return {
-		baseUrl,
-		publicKey,
-		secretKey,
-	};
-}
-
-export function hasLangfuseTelemetryConfig(): boolean {
-	return readLangfuseTelemetryConfig() !== undefined;
+export function hasLangfuseTelemetryConfig(
+	config: unknown,
+): config is LangfuseTelemetryConfig {
+	return parseLangfuseTelemetryConfig(config) !== undefined;
 }
 
 export async function ensureLangfuseTelemetry(
-	_providerId: string,
+	providerId: string,
+	config: LangfuseTelemetryConfig | undefined,
 ): Promise<boolean> {
-	if (!hasLangfuseTelemetryConfig()) {
+	const normalizedConfig = parseLangfuseTelemetryConfig(config);
+	if (!isClineProvider(providerId) || !normalizedConfig) {
+		debugLangfuse(
+			`config missing or provider ${providerId} is not Cline-owned`,
+		);
+		return false;
+	}
+	const configKey = JSON.stringify(normalizedConfig);
+	if (
+		langfuseTelemetryConfigKey !== undefined &&
+		langfuseTelemetryConfigKey !== configKey
+	) {
+		// OpenTelemetry does not support replacing a registered global tracer
+		// provider safely. Fail closed if a flag payload changes mid-process.
+		debugLangfuse("configuration changed after initialization began");
 		return false;
 	}
 
@@ -76,7 +77,9 @@ export async function ensureLangfuseTelemetry(
 	}
 
 	if (!langfuseTelemetryInitPromise) {
-		langfuseTelemetryInitPromise = initializeLangfuseTelemetry();
+		langfuseTelemetryConfigKey = configKey;
+		langfuseTelemetryInitPromise =
+			initializeLangfuseTelemetry(normalizedConfig);
 	}
 
 	langfuseTelemetryReady = await langfuseTelemetryInitPromise;
@@ -84,14 +87,12 @@ export async function ensureLangfuseTelemetry(
 	return langfuseTelemetryReady;
 }
 
-async function initializeLangfuseTelemetry(): Promise<boolean> {
+async function initializeLangfuseTelemetry(
+	config: LangfuseTelemetryConfig,
+): Promise<boolean> {
 	// Register for cleanup once, when initialization begins.
 	const { registerDisposable } = await import("@cline/shared");
 	registerDisposable(disposeLangfuseTelemetry);
-	const config = readLangfuseTelemetryConfig();
-	if (!config) {
-		return false;
-	}
 
 	try {
 		// Give Langfuse and any other OTEL exporter a stable resource identity.
@@ -228,4 +229,5 @@ function isLangfuseDebugEnabled(): boolean {
 export function resetLangfuseTelemetryForTests(): void {
 	langfuseTelemetryReady = undefined;
 	langfuseTelemetryInitPromise = undefined;
+	langfuseTelemetryConfigKey = undefined;
 }

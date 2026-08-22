@@ -6481,6 +6481,53 @@ describe("sdk-gateway", () => {
 		expect(createProvider).toHaveBeenCalledOnce();
 	});
 
+	it("forwards per-provider Langfuse configuration through the registry", async () => {
+		const langfuse = {
+			baseUrl: "https://langfuse.example",
+			publicKey: "public-key",
+			secretKey: "secret-key",
+		};
+		const createProvider = vi.fn((config: { langfuse?: typeof langfuse }) => ({
+			async *stream() {
+				expect(config.langfuse).toEqual(langfuse);
+				yield { type: "text-delta", text: "ok" } satisfies AgentModelEvent;
+				yield { type: "finish", reason: "stop" } satisfies AgentModelEvent;
+			},
+		}));
+
+		const gateway = createGateway({
+			builtins: false,
+			providers: [
+				{
+					manifest: {
+						id: "custom-langfuse",
+						name: "CustomLangfuse",
+						defaultModelId: "alpha",
+						models: [
+							{
+								id: "alpha",
+								name: "Alpha",
+								providerId: "custom-langfuse",
+							},
+						],
+					},
+					createProvider,
+				},
+			],
+			providerConfigs: [{ providerId: "custom-langfuse", langfuse }],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "custom-langfuse",
+				modelId: "alpha",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(createProvider).toHaveBeenCalledOnce();
+	});
+
 	it("falls back to the top-level gateway fetch when no provider fetch is set", async () => {
 		const fallbackFetch = vi.fn() as unknown as typeof fetch;
 		const createProvider = vi.fn((config: { fetch?: typeof fetch }) => ({

@@ -49,9 +49,7 @@ describe("BannerService", () => {
 		sandbox.stub(getFeatureFlagsService(), "getBooleanFlagEnabled").returns(true)
 		flagPayloadStub = sandbox
 			.stub(getFeatureFlagsService(), "getFlagPayload")
-			.callsFake((flag: FeatureFlag) =>
-				flag === FeatureFlag.EXTENSION_REMOTE_BANNERS_TTL ? 24 * 60 * 60 * 1000 : undefined,
-			)
+			.callsFake((flag) => (flag === FeatureFlag.EXTENSION_REMOTE_BANNERS_TTL ? 24 * 60 * 60 * 1000 : undefined))
 
 		// Default state manager configuration
 		mockStateManagerConfig = {
@@ -189,7 +187,7 @@ describe("BannerService", () => {
 
 		it("should cache banners for the configured hours from PostHog", async () => {
 			const clock = useBannerFakeTimers()
-			flagPayloadStub.callsFake((flag: FeatureFlag) =>
+			flagPayloadStub.callsFake((flag) =>
 				flag === FeatureFlag.EXTENSION_REMOTE_BANNERS_TTL ? 4 * 60 * 60 * 1000 : undefined,
 			)
 
@@ -248,9 +246,7 @@ describe("BannerService", () => {
 
 		it("should fall back to 24 hours when payload is invalid", async () => {
 			const clock = useBannerFakeTimers()
-			flagPayloadStub.callsFake((flag: FeatureFlag) =>
-				flag === FeatureFlag.EXTENSION_REMOTE_BANNERS_TTL ? "invalid" : undefined,
-			)
+			flagPayloadStub.callsFake((flag) => (flag === FeatureFlag.EXTENSION_REMOTE_BANNERS_TTL ? "invalid" : undefined))
 
 			const mockResponse = {
 				data: {

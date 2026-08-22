@@ -1,4 +1,4 @@
-import type { FeatureFlagPayload } from "@/services/feature-flags/providers/IFeatureFlagsProvider"
+import type { FeatureFlagPayload } from "@cline/core"
 
 export enum FeatureFlag {
 	WORKTREES = "worktree-exp",

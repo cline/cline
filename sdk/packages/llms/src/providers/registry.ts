@@ -168,6 +168,9 @@ export class GatewayRegistry {
 							: undefined,
 						timeoutMs: registration.defaults.timeoutMs,
 						fetch: registration.defaults.fetch,
+						langfuse: registration.defaults.langfuse
+							? { ...registration.defaults.langfuse }
+							: undefined,
 						options: registration.defaults.options
 							? { ...registration.defaults.options }
 							: undefined,
@@ -191,6 +194,7 @@ export class GatewayRegistry {
 			headers: config.headers ? { ...config.headers } : undefined,
 			timeoutMs: config.timeoutMs,
 			fetch: config.fetch,
+			langfuse: config.langfuse ? { ...config.langfuse } : undefined,
 			options: config.options ? { ...config.options } : undefined,
 			metadata: config.metadata ? { ...config.metadata } : undefined,
 			enabled: config.enabled ?? true,
@@ -318,6 +322,7 @@ export class GatewayRegistry {
 				},
 				timeoutMs: config?.timeoutMs ?? record.defaults?.timeoutMs,
 				fetch: config?.fetch ?? record.defaults?.fetch ?? this.fallbackFetch,
+				langfuse: config?.langfuse ?? record.defaults?.langfuse,
 				options,
 				metadata,
 			},

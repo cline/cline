@@ -1,7 +1,11 @@
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { FEATURE_FLAGS, type IFeatureFlagsProvider } from "@cline/shared";
+import {
+	FEATURE_FLAGS,
+	FeatureFlag,
+	type IFeatureFlagsProvider,
+} from "@cline/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { FeatureFlagsService } from "./FeatureFlagsService";
 
@@ -60,6 +64,45 @@ describe("FeatureFlagsService", () => {
 				$feature_flag_response: true,
 			},
 		});
+	});
+
+	it("keeps a payload-backed flag's assignment separate from its payload", async () => {
+		const payload = { endpoint: "https://example.com" };
+		const provider = createProvider({
+			getAllFlagsAndPayloads: vi.fn(async () => ({
+				featureFlags: { [TEST_PAYLOAD_FLAG]: true },
+				featureFlagPayloads: { [TEST_PAYLOAD_FLAG]: payload },
+			})),
+		});
+		const service = new FeatureFlagsService({
+			provider,
+			flagKeys: [TEST_PAYLOAD_FLAG],
+		});
+
+		await service.poll();
+
+		expect(service.getBooleanFlagEnabled(TEST_PAYLOAD_FLAG)).toBe(true);
+		expect(service.getFlagPayload(TEST_PAYLOAD_FLAG)).toEqual(payload);
+	});
+
+	it("supports host-specific flag keys and defaults", async () => {
+		const provider = createProvider({
+			getAllFlagsAndPayloads: vi.fn(async () => ({})),
+		});
+		const service = new FeatureFlagsService({
+			provider,
+			flagKeys: [TEST_BOOLEAN_FLAG],
+			defaultValues: { [TEST_BOOLEAN_FLAG]: true },
+		});
+
+		await service.poll();
+
+		expect(provider.getAllFlagsAndPayloads).toHaveBeenCalledWith({
+			flagKeys: [TEST_BOOLEAN_FLAG],
+			context: { userId: null },
+		});
+		expect(service.getBooleanFlagEnabled(TEST_BOOLEAN_FLAG)).toBe(true);
+		expect(service.getFlagPayload(TEST_BOOLEAN_FLAG)).toBe(true);
 	});
 
 	it("skips polling while the cache is fresh and user context is unchanged", async () => {
@@ -171,6 +214,51 @@ describe("FeatureFlagsService", () => {
 				featureFlagPayloads: { [TEST_PAYLOAD_FLAG]: 1234 },
 			},
 		});
+	});
+
+	it("never persists sensitive feature-flag assignments or payloads", async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date("2026-06-10T10:00:00Z"));
+		const cacheFilePath = join(
+			mkdtempSync(join(tmpdir(), "cline-feature-flags-")),
+			"feature-flags.json",
+		);
+		const getAllFlagsAndPayloads = vi.fn(async () => ({
+			featureFlags: {
+				[FeatureFlag.LANGFUSE_TELEMETRY]: true,
+				[TEST_BOOLEAN_FLAG]: true,
+			},
+			featureFlagPayloads: {
+				[FeatureFlag.LANGFUSE_TELEMETRY]: {
+					baseUrl: "https://langfuse.example",
+					publicKey: "public-key",
+					secretKey: "secret-key",
+				},
+			},
+		}));
+		const provider = createProvider({ getAllFlagsAndPayloads });
+		const service = new FeatureFlagsService({ provider, cacheFilePath });
+
+		await service.poll("user-1");
+
+		expect(service.getBooleanFlagEnabled(FeatureFlag.LANGFUSE_TELEMETRY)).toBe(
+			true,
+		);
+		expect(service.getFlagPayload(FeatureFlag.LANGFUSE_TELEMETRY)).toEqual(
+			expect.objectContaining({ secretKey: "secret-key" }),
+		);
+		const persisted = readFileSync(cacheFilePath, "utf8");
+		expect(persisted).not.toContain(FeatureFlag.LANGFUSE_TELEMETRY);
+		expect(persisted).not.toContain("secret-key");
+
+		const nextProvider = createProvider();
+		const nextService = new FeatureFlagsService({
+			provider: nextProvider,
+			cacheFilePath,
+			context: { userId: "user-1" },
+		});
+		await nextService.poll("user-1");
+		expect(nextProvider.getAllFlagsAndPayloads).toHaveBeenCalledTimes(1);
 	});
 
 	it("disposes the provider", async () => {

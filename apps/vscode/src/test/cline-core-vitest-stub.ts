@@ -2,6 +2,12 @@ import { readFileSync, writeFileSync } from "node:fs"
 import { getGeneratedModelsForProvider, MODEL_COLLECTIONS_BY_PROVIDER_ID } from "@cline/llms"
 import { createFileReadExecutor } from "../../../../sdk/packages/core/src/extensions/tools/executors/file-read"
 
+// Keep the extension's shared feature-flag boundary real in unit tests. These
+// implementations are dependency-light, and extension services now consume
+// them directly from @cline/core.
+export { FEATURE_FLAGS } from "@cline/shared"
+export { FeatureFlagsService, NoOpFeatureFlagsProvider } from "../../../../sdk/packages/core/src/services/feature-flags"
+
 export interface OAuthCredentials {
 	accessToken?: string
 	refreshToken?: string

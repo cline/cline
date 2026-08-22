@@ -249,6 +249,7 @@ export function createAgentModelFromConfig(
 				headers: normalizedProviderConfig.headers,
 				timeoutMs: normalizedProviderConfig.timeoutMs,
 				fetch: normalizedProviderConfig.fetch,
+				langfuse: normalizedProviderConfig.langfuse,
 				options: buildGatewayProviderOptions(normalizedProviderConfig),
 				models: normalizedProviderConfig.knownModels
 					? Object.entries(normalizedProviderConfig.knownModels).map(

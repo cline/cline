@@ -41,6 +41,7 @@ import {
 } from "@cline/shared"
 import { StateManager } from "@/core/storage/StateManager"
 import type { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
+import { getFeatureFlagsService } from "@/services/feature-flags"
 import { getDistinctId } from "@/services/logging/distinctId"
 import type { McpHub } from "@/services/mcp/McpHub"
 import { Logger } from "@/shared/services/Logger"
@@ -188,6 +189,7 @@ export class VscodeSessionHost implements SdkSessionHost {
 			},
 			toolPolicies: options.toolPolicies,
 			telemetry: options.telemetry,
+			featureFlags: getFeatureFlagsService(),
 			distinctId: getDistinctId() || undefined,
 			prepare: async () => ({
 				applyToStartSessionInput: prepareStartSessionInput,

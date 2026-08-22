@@ -590,10 +590,11 @@ function shouldIncludeReasoningHistory(
 
 async function ensureGatewayLangfuseTelemetry(
 	providerId: string,
+	config: GatewayProviderContext["config"]["langfuse"],
 ): Promise<boolean> {
 	try {
 		const runtime = await import("../services/langfuse-telemetry");
-		return runtime.ensureLangfuseTelemetry(providerId);
+		return runtime.ensureLangfuseTelemetry(providerId, config);
 	} catch {
 		return false;
 	}
@@ -2155,6 +2156,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 				}
 				const langfuse = await ensureGatewayLangfuseTelemetry(
 					config.providerId,
+					context.config.langfuse,
 				);
 				const externalToolExecutionDisabled =
 					providerDisablesExternalToolExecution(context);

@@ -1,5 +1,10 @@
 import type { BasicLogger, ITelemetryService } from "@cline/shared";
 import {
+	FeatureFlag,
+	isClineProvider,
+	parseLangfuseTelemetryConfig,
+} from "@cline/shared";
+import {
 	ClineCoreAutomationController,
 	createClineCoreAutomationExtensionContext,
 	createClineCoreAutomationRuntimeHandlers,
@@ -57,6 +62,73 @@ import {
 } from "./session/display-messages";
 import type { CoreSessionEvent } from "./types/events";
 import type { SessionHistoryRecord } from "./types/sessions";
+
+function applyLangfuseFeatureFlag(
+	input: ClineCoreStartInput,
+	featureFlags: FeatureFlagsService,
+): ClineCoreStartInput {
+	if (!featureFlags.getBooleanFlagEnabled(FeatureFlag.LANGFUSE_TELEMETRY)) {
+		return input;
+	}
+	const langfuse = parseLangfuseTelemetryConfig(
+		featureFlags.getFlagPayload(FeatureFlag.LANGFUSE_TELEMETRY),
+	);
+	if (!langfuse) {
+		return input;
+	}
+
+	const config = input.config;
+	const rootProviderConfig = isClineProvider(config.providerId)
+		? {
+				...(config.providerConfig?.providerId === config.providerId
+					? config.providerConfig
+					: {
+							providerId: config.providerId,
+							modelId: config.modelId,
+						}),
+				langfuse,
+			}
+		: config.providerConfig;
+	const summarizer = config.compaction?.summarizer;
+	const nextSummarizer =
+		summarizer && isClineProvider(summarizer.providerId)
+			? {
+					...summarizer,
+					providerConfig: {
+						...(summarizer.providerConfig?.providerId === summarizer.providerId
+							? summarizer.providerConfig
+							: {
+									providerId: summarizer.providerId,
+									modelId: summarizer.modelId,
+								}),
+						langfuse,
+					},
+				}
+			: summarizer;
+
+	if (
+		rootProviderConfig === config.providerConfig &&
+		nextSummarizer === summarizer
+	) {
+		return input;
+	}
+
+	return {
+		...input,
+		config: {
+			...config,
+			...(rootProviderConfig ? { providerConfig: rootProviderConfig } : {}),
+			...(nextSummarizer
+				? {
+						compaction: {
+							...config.compaction,
+							summarizer: nextSummarizer,
+						},
+					}
+				: {}),
+		},
+	};
+}
 
 export type {
 	ClineAutomationEventIngressResult,
@@ -290,8 +362,12 @@ export class ClineCore {
 			const preparedInput = bootstrap
 				? await bootstrap.applyToStartSessionInput(clineCoreInput)
 				: clineCoreInput;
+			const featureFlaggedInput = applyLangfuseFeatureFlag(
+				preparedInput,
+				this.featureFlags,
+			);
 			const result = await this.host.startSession(
-				normalizeClineCoreStartInput(preparedInput, {
+				normalizeClineCoreStartInput(featureFlaggedInput, {
 					defaultCapabilities: this.capabilities,
 					withExtensionContext: (context) =>
 						createClineCoreAutomationExtensionContext({
@@ -559,19 +635,22 @@ export class ClineCore {
 
 	async restore(input: RestoreInput): Promise<RestoreResult> {
 		const normalizedStart = input.start
-			? normalizeClineCoreStartInput(input.start, {
-					defaultCapabilities: this.capabilities,
-					withExtensionContext: (context) =>
-						createClineCoreAutomationExtensionContext({
-							automationService: this.automationService,
-							automation: this.automation,
-							context,
-							clientName: this.clientName,
-							distinctId: this.distinctId,
-							logger: this.logger,
-							telemetry: this.telemetry,
-						}),
-				})
+			? normalizeClineCoreStartInput(
+					applyLangfuseFeatureFlag(input.start, this.featureFlags),
+					{
+						defaultCapabilities: this.capabilities,
+						withExtensionContext: (context) =>
+							createClineCoreAutomationExtensionContext({
+								automationService: this.automationService,
+								automation: this.automation,
+								context,
+								clientName: this.clientName,
+								distinctId: this.distinctId,
+								logger: this.logger,
+								telemetry: this.telemetry,
+							}),
+					},
+				)
 			: undefined;
 		return this.host.restoreSession({
 			sessionId: input.sessionId,

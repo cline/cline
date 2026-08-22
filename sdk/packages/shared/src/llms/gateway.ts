@@ -3,6 +3,7 @@ import type {
 	AgentModelEvent,
 	AgentToolDefinition,
 } from "../agent";
+import type { LangfuseTelemetryConfig } from "../feature-flags";
 import type { BasicLogger } from "../logging/logger";
 import type { ProviderCapability, ProviderConfigField } from "../rpc/runtime";
 import type { ITelemetryService } from "../services/telemetry";
@@ -193,6 +194,8 @@ export interface GatewayProviderSettings {
 	fetch?: typeof fetch;
 	options?: Record<string, unknown>;
 	metadata?: GatewayProviderMetadata;
+	/** In-memory Langfuse exporter configuration for this provider runtime. */
+	langfuse?: LangfuseTelemetryConfig;
 }
 
 export interface GatewayResolvedProviderConfig extends GatewayProviderSettings {

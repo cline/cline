@@ -1,8 +1,7 @@
+import { type IFeatureFlagsProvider, NoOpFeatureFlagsProvider } from "@cline/core"
 import { ClineEndpoint } from "@/config"
 import { isPostHogConfigValid, posthogConfig } from "@/shared/services/config/posthog-config"
-import { Logger } from "@/shared/services/Logger"
 import { PostHogClientProvider } from "../telemetry/providers/posthog/PostHogClientProvider"
-import type { FeatureFlagsAndPayloads, IFeatureFlagsProvider } from "./providers/IFeatureFlagsProvider"
 import { PostHogFeatureFlagsProvider } from "./providers/PostHogFeatureFlagsProvider"
 
 /**
@@ -56,30 +55,5 @@ export class FeatureFlagsProviderFactory {
 		return {
 			type: hasValidConfig ? "posthog" : "no-op",
 		}
-	}
-}
-
-/**
- * No-operation feature flags provider for when feature flags are disabled
- * or for testing purposes
- */
-class NoOpFeatureFlagsProvider implements IFeatureFlagsProvider {
-	async getAllFlagsAndPayloads(_: { flagKeys?: string[] }): Promise<FeatureFlagsAndPayloads | undefined> {
-		return {}
-	}
-
-	public isEnabled(): boolean {
-		return true
-	}
-
-	public getSettings() {
-		return {
-			enabled: true,
-			timeout: 1000,
-		}
-	}
-
-	public async dispose(): Promise<void> {
-		Logger.info("[NoOpFeatureFlagsProvider] Disposing")
 	}
 }

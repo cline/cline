@@ -4,6 +4,10 @@
 
 Everything here lands through the SDK bundle, so it applies to windows running that bundle.
 
+### Added
+
+- Allow Langfuse tracing to be rolled out through a sensitive feature-flag payload for Cline and ClinePass requests without exposing its credentials to client state or persistent feature-flag caches.
+
 ### Fixed
 
 - Enforce enterprise MCP controls on the Customize marketplace. MCP entries are now hidden when remote config disables the marketplace, and limited to `allowedMCPServers` when an allowlist is configured.
