@@ -1091,5 +1091,6 @@ export type {
 	SessionHistoryRecord,
 	SessionRecord,
 	SessionRef,
+	SessionTurnCompletionMetadata,
 } from "./types/sessions";
 export type { ArtifactStore, SessionStore, TeamStore } from "./types/storage";
