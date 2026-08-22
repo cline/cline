@@ -481,6 +481,12 @@ export interface AgentRuntimeConfig {
 	 * This is intentionally separate from the host-owned session id.
 	 */
 	distinctId?: string;
+	/** Calling client surface, for example `cline-vscode` or `cline-sdk`. */
+	clientName?: string;
+	/** Calling client version, such as the VS Code extension version. */
+	clientVersion?: string;
+	/** Version of the Cline Core SDK executing the runtime. */
+	clineCoreVersion?: string;
 	/**
 	 * Core/hub runtime session identifier.
 	 *
