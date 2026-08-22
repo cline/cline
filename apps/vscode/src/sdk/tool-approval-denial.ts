@@ -1,6 +1,7 @@
+import { buildUserRejectedToolReason, USER_REJECTED_TOOL_REASON_SUFFIX } from "@cline/shared"
 import { isEditTool } from "./sdk-tool-policies"
 
-export const DEFAULT_TOOL_APPROVAL_DENIAL_REASON = "User denied the tool execution"
+export const DEFAULT_TOOL_APPROVAL_DENIAL_REASON = buildUserRejectedToolReason()
 export const USER_MESSAGE_TOOL_APPROVAL_DENIAL_REASON = "Tool execution was cancelled because the user sent a follow-up message."
 export const EDIT_TOOL_APPROVAL_DENIAL_REASON =
 	"The user denied this edit. The file was NOT modified and still contains its original content."
@@ -15,7 +16,7 @@ export const EDIT_TOOL_APPROVAL_DENIAL_REASON =
  * sync with the file on every retry.
  */
 export function buildToolApprovalDenialReason(toolName: string | undefined, feedback: string | undefined): string {
-	const denial = toolName && isEditTool(toolName) ? EDIT_TOOL_APPROVAL_DENIAL_REASON : DEFAULT_TOOL_APPROVAL_DENIAL_REASON
+	const denial = toolName && isEditTool(toolName) ? EDIT_TOOL_APPROVAL_DENIAL_REASON : buildUserRejectedToolReason(toolName)
 	const trimmedFeedback = feedback?.trim()
 	if (!trimmedFeedback) {
 		return denial
@@ -48,7 +49,7 @@ export function isKnownToolApprovalDenial(value: unknown): boolean {
 
 	return (
 		message.includes(USER_MESSAGE_TOOL_APPROVAL_DENIAL_REASON) ||
-		message.includes(DEFAULT_TOOL_APPROVAL_DENIAL_REASON) ||
+		message.includes(USER_REJECTED_TOOL_REASON_SUFFIX) ||
 		message.includes(EDIT_TOOL_APPROVAL_DENIAL_REASON)
 	)
 }

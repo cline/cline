@@ -1,5 +1,9 @@
 import type { AgentMode } from "@cline/core";
-import type { ToolApprovalRequest, ToolApprovalResult } from "@cline/shared";
+import {
+	buildUserRejectedToolReason,
+	type ToolApprovalRequest,
+	type ToolApprovalResult,
+} from "@cline/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { RuntimeToolInteraction, TuiProps } from "../types";
 
@@ -39,7 +43,7 @@ function toRuntimeToolInteraction(
 function deniedToolResult(request: ToolApprovalRequest): ToolApprovalResult {
 	return {
 		approved: false,
-		reason: `Tool "${request.toolName}" was denied by user`,
+		reason: buildUserRejectedToolReason(request.toolName),
 	};
 }
 
