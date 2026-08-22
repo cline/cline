@@ -412,6 +412,7 @@ export class Controller {
 			// this.mode is assigned later in this constructor; the closure only
 			// runs at send time, long after construction completes.
 			consumeModeSwitchNotice: (sessionId) => this.mode.consumeModeSwitchNotice(sessionId),
+			consumeMcpToolsNotice: (sessionId) => this.mcpTools.consumeMcpToolsNotice(sessionId),
 			onSendComplete: async () => {
 				// Normal flows close their diff sessions inline; anything left here is orphaned.
 				void this.diffEdits.discardAllPreviews("turn complete")
@@ -511,6 +512,7 @@ export class Controller {
 			},
 		})
 		this.mcpTools = new SdkMcpCoordinator({
+			mcpHub: this.mcpHub,
 			stateManager: this.stateManager,
 			sessions: this.sessions,
 			messages: this.messages,

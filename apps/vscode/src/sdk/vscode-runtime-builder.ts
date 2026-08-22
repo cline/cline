@@ -106,6 +106,9 @@ export async function createVscodeExtraTools(mcpHub: McpHub, options?: VscodeExt
 		)
 	}
 
-	Logger.log(`[VscodeRuntimeTools] Prepared ${tools.length} VSCode extra tools`)
+	Logger.log(
+		`[VscodeRuntimeTools] Prepared ${tools.length} VSCode extra tools` +
+			(tools.length > 0 ? `: ${tools.map((tool) => tool.name).join(", ")}` : ""),
+	)
 	return tools
 }

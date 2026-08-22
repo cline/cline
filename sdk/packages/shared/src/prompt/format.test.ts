@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	createModeSwitchNoticeTracker,
 	formatDisplayUserInput,
+	formatMcpToolsUpdatedNotice,
 	formatModeSwitchNotice,
 	formatUserCommandBlock,
 	formatUserInputBlock,
@@ -9,6 +10,7 @@ import {
 	parseUserCommandEnvelope,
 	parseUserInputMode,
 	stripModeNotices,
+	summarizeConnectedMcpTools,
 } from "./format";
 
 describe("prompt format helpers", () => {
@@ -62,6 +64,45 @@ describe("prompt format helpers", () => {
 		expect(
 			parseUserInputMode('<user_input mode="warp">hello</user_input>'),
 		).toBeUndefined();
+	});
+
+	it("formats an MCP tools-updated notice", () => {
+		expect(formatMcpToolsUpdatedNotice("MCP tools were updated.")).toBe(
+			"<mcp_tools_notice>MCP tools were updated.</mcp_tools_notice>",
+		);
+	});
+
+	it("summarizes connected MCP tools for the model notice", () => {
+		expect(
+			summarizeConnectedMcpTools([
+				{
+					name: "bodyspec",
+					status: "connected",
+					tools: [{ name: "list_scan_results" }, { name: "search" }],
+				},
+				{ name: "offline", status: "disconnected", tools: [{ name: "x" }] },
+			]),
+		).toBe(
+			[
+				"MCP tools were updated and are available now. Connected servers:",
+				"- bodyspec: list_scan_results, search",
+				"Call these tools directly. Do not diagnose MCP connectivity by reading settings JSON files.",
+			].join("\n"),
+		);
+		expect(summarizeConnectedMcpTools([])).toBeNull();
+	});
+
+	it("hides MCP tools notices from displayed user input", () => {
+		const wrapped = formatUserInputBlock(
+			`${formatMcpToolsUpdatedNotice("MCP tools were updated.")}\nlist my scans`,
+			"act",
+		);
+		expect(formatDisplayUserInput(wrapped)).toBe("list my scans");
+	});
+
+	it("keeps MCP tools notices when normalizing outbound prompts", () => {
+		const prompt = `${formatMcpToolsUpdatedNotice("MCP tools were updated.")}\nlist my scans`;
+		expect(normalizeUserInput(prompt)).toBe(prompt);
 	});
 
 	it("formats a mode switch notice", () => {
