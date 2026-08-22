@@ -33,6 +33,10 @@
 			"types": "./dist/db/index.d.ts",
 			"import": "./dist/db/index.js"
 		},
+		"./gateway": {
+			"types": "./dist/gateway/index.d.ts",
+			"import": "./dist/gateway/index.js"
+		},
 		"./node": {
 			"types": "./dist/node.d.ts",
 			"import": "./dist/node.js"
