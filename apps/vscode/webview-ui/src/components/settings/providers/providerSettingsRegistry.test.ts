@@ -69,6 +69,7 @@ describe("providerSettingsRegistry", () => {
 				"https://support.huaweicloud.com/intl/zh-cn/usermanual-maas/maas_01_0001.html",
 			],
 			["huggingface", "Hugging Face", "https://huggingface.co/settings/tokens"],
+			["mindshub", "MindsHub", "https://console.mindshub.ai"],
 			["mistral", "Mistral", "https://console.mistral.ai/api-keys"],
 			["nebius", "Nebius", "https://auth.tokenfactory.nebius.com/ui/login"],
 			["nousResearch", "NousResearch", undefined],

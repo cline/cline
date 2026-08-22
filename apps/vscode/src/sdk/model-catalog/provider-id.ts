@@ -52,6 +52,7 @@ const KNOWN_API_PROVIDERS = {
 	"zai-coding-plan": true,
 	oca: true,
 	aihubmix: true,
+	mindshub: true,
 	minimax: true,
 	hicap: true,
 	nousResearch: true,
