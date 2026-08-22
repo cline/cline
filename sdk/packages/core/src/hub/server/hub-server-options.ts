@@ -12,6 +12,8 @@ import type {
 import type { CoreSettingsService } from "../../settings";
 import type { AgendaTaskManagerOptions } from "../../tasks";
 import type { HubOwnerContext } from "../discovery";
+import type { HubEventLogOptions } from "./hub-event-log";
+import type { HubRunQueueOptions } from "./hub-run-queue";
 
 export interface HubWebSocketServerOptions {
 	/** Workspace authority assigned by the Hub to authenticated clients. */
@@ -61,6 +63,14 @@ export interface HubWebSocketServerOptions {
 	 * signals, and fatal errors through one shutdown coordinator.
 	 */
 	onShutdownRequested?: () => void | Promise<void>;
+	/**
+	 * Durable event log configuration. Pass `false` to disable persistence
+	 * (events become fire-and-forget, the pre-log behavior; `stream.subscribe`
+	 * replay cursors are then best-effort no-ops).
+	 */
+	eventLog?: HubEventLogOptions | false;
+	/** Durable run queue configuration (`run.enqueue`). */
+	runQueue?: HubRunQueueOptions | false;
 }
 
 export interface HubWebSocketServer {
