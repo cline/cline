@@ -28,6 +28,7 @@ import type {
 	SubAgentStartContext,
 	TeamEvent,
 } from "../extensions/tools/team";
+import type { GenerateMediaExecutor } from "../extensions/tools/types";
 import { createCheckpointHooks } from "../hooks/checkpoint-hooks";
 import {
 	createHookAuditHooks,
@@ -50,6 +51,10 @@ import {
 } from "../types/provider-settings";
 import { resolveWorkspacePath } from "./config";
 import { filterExtensionToolRegistrations } from "./global-settings";
+import {
+	generateConfiguredMedia,
+	resolveConfiguredMediaGenerationTarget,
+} from "./providers/local-provider-service";
 import { hasRuntimeHooks, mergeAgentExtensions } from "./session-data";
 import type { ProviderSettingsManager } from "./storage/provider-settings-manager";
 import { InMemoryWorkspaceManager } from "./workspace/workspace-manager";
@@ -449,7 +454,37 @@ export async function prepareLocalRuntimeBootstrap(
 		input.capabilities,
 	);
 	const requestToolApproval = capabilities?.requestToolApproval;
-	const effectiveToolExecutors = capabilities?.toolExecutors;
+	const configuredMediaTarget = await resolveConfiguredMediaGenerationTarget(
+		providerSettingsManager,
+		"image",
+	);
+	const configuredGenerateMediaExecutor: GenerateMediaExecutor | undefined =
+		configuredMediaTarget
+			? async (mediaInput, context) => {
+					const generated = await generateConfiguredMedia(
+						providerSettingsManager,
+						{
+							mediaType: mediaInput.media_type,
+							prompt: mediaInput.prompt,
+							abortSignal: context.signal,
+						},
+					);
+					if (generated.usage) {
+						await context.reportUsage?.(generated.usage);
+					}
+					return generated.content;
+				}
+			: undefined;
+	const hostToolExecutors = capabilities?.toolExecutors;
+	const effectiveToolExecutors =
+		configuredGenerateMediaExecutor || hostToolExecutors
+			? {
+					...(configuredGenerateMediaExecutor
+						? { generateMedia: configuredGenerateMediaExecutor }
+						: {}),
+					...(hostToolExecutors ?? {}),
+				}
+			: undefined;
 	const subAgentLifecycleCallbacks = createSubAgentLifecycleCallbacks?.(config);
 	const workspaceManager = new InMemoryWorkspaceManager({
 		currentWorkspacePath: workspaceInfo.rootPath,

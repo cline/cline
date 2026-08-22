@@ -1843,6 +1843,7 @@ export class AgentRuntime {
 					signal: this.abortController?.signal,
 					metadata: this.config.toolContextMetadata,
 					snapshot: this.snapshot(),
+					reportUsage: (usage) => this.updateUsage(usage),
 					emitUpdate: (update: unknown) => {
 						void this.emit({
 							type: "tool-updated",

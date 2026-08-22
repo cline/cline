@@ -12,6 +12,7 @@ import {
 	inferHydratedChatStatus,
 	makeId,
 	normalizeRuntimeConfig,
+	projectGeneratedMediaFromToolOutput,
 	resolveCredentialError,
 } from "@/hooks/chat-session/helpers";
 import type {
@@ -1667,10 +1668,13 @@ export function useChatSession() {
 			const toolInput =
 				parsed.input ??
 				(toolCallId ? liveToolInputsRef.current[toolCallId] : undefined);
+			const projectedOutput = projectGeneratedMediaFromToolOutput(
+				parsed.output,
+			);
 			const toolPayload = buildToolPayloadString({
 				toolName,
 				input: toolInput,
-				output: parsed.output,
+				output: projectedOutput.output,
 				error: parsed.error,
 			});
 			if (toolCallId) {
@@ -1683,6 +1687,10 @@ export function useChatSession() {
 					updateMessageById(prev, messageId, (msg) => ({
 						...msg,
 						content: toolPayload,
+						media:
+							projectedOutput.media.length > 0
+								? projectedOutput.media
+								: msg.media,
 						meta: {
 							...msg.meta,
 							toolName,

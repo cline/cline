@@ -1,15 +1,10 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-	resolveRepoRootFromCorePackage,
-	resolveSdkRuntimeBuildId,
-} from "./runtime-build-id";
+import { resolveSdkRuntimeBuildIdFromCoreSource } from "../src/hub/discovery/runtime-build-id";
 
 const corePackageRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
-const buildId = resolveSdkRuntimeBuildId(
-	resolveRepoRootFromCorePackage(corePackageRoot),
-);
+const buildId = resolveSdkRuntimeBuildIdFromCoreSource();
 const entrypoints = [
 	join(corePackageRoot, "dist", "index.js"),
 	join(corePackageRoot, "dist", "hub", "index.js"),

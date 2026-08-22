@@ -196,7 +196,6 @@ export function ProviderListContent({
 		(entry) => entry.provider.id === voiceInput?.providerId,
 	);
 	const selectedVoiceModels = selectedVoiceProvider?.models ?? [];
-
 	return (
 		<ScrollArea className="h-full">
 			<div
