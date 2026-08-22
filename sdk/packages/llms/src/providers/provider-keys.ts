@@ -121,6 +121,11 @@ const PROVIDER_IDS_MAP: ReadonlyArray<{
 		generatedProviderId: "aihubmix",
 		runtimeProviderId: "aihubmix",
 	},
+	{
+		modelsDevKey: "gmicloud",
+		generatedProviderId: "gmicloud",
+		runtimeProviderId: "gmicloud",
+	},
 	{ modelsDevKey: "hicap", runtimeProviderId: "hicap" },
 	{ modelsDevKey: "nous-research", runtimeProviderId: "nousResearch" },
 	{ modelsDevKey: "huawei-cloud-maas", runtimeProviderId: "huawei-cloud-maas" },
