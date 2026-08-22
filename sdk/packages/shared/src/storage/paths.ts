@@ -138,8 +138,44 @@ export function resolveClineDir(): string {
 	return join(HOME_DIR, ".cline");
 }
 
+function resolveXdgDocumentsDirectoryPath(): string | undefined {
+	if (process.platform !== "linux") {
+		return undefined;
+	}
+
+	const configuredConfigHome = process.env.XDG_CONFIG_HOME?.trim();
+	const configHome =
+		configuredConfigHome && isAbsolute(configuredConfigHome)
+			? configuredConfigHome
+			: join(HOME_DIR, ".config");
+
+	let userDirs: string;
+	try {
+		userDirs = readFileSync(join(configHome, "user-dirs.dirs"), "utf8");
+	} catch {
+		return undefined;
+	}
+
+	const match = userDirs.match(
+		/^\s*XDG_DOCUMENTS_DIR\s*=\s*(?:"((?:\\.|[^"])*)"|'([^']*)'|([^#\r\n]*?))\s*(?:#.*)?$/m,
+	);
+	const configuredPath = (match?.[1] ?? match?.[2] ?? match?.[3])?.trim();
+	if (!configuredPath) {
+		return undefined;
+	}
+
+	const unescapedPath = configuredPath.replace(/\\(["\\$`])/g, "$1");
+	const expandedPath = unescapedPath.replace(
+		/^\$(?:\{HOME\}|HOME)(?=\/|$)/,
+		() => HOME_DIR,
+	);
+	return isAbsolute(expandedPath) ? expandedPath : undefined;
+}
+
 export function resolveDocumentsClineDirectoryPath(): string {
-	return join(HOME_DIR, "Documents", "Cline");
+	const documentsDir =
+		resolveXdgDocumentsDirectoryPath() ?? join(HOME_DIR, "Documents");
+	return join(documentsDir, "Cline");
 }
 
 type DocumentsExtensionName =
