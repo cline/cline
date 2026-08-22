@@ -816,7 +816,7 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		name: "Cerebras",
 		description: "Fast inference on Cerebras wafer-scale chips",
 		family: "openai-compatible",
-		defaultModelId: "zai-glm-4.7",
+		defaultModelId: "gemma-4-31b",
 		apiKeyEnv: ["CEREBRAS_API_KEY"],
 		defaults: { baseUrl: "https://api.cerebras.ai/v1" },
 	},
