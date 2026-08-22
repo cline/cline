@@ -34,6 +34,12 @@ export type PendingApproval = {
 	createdAt: number;
 	agendaTaskId?: string;
 	resolve: (result: { approved: boolean; reason?: string }) => void;
+	/**
+	 * The `approval.requested` event as originally published. Pending
+	 * approvals survive client disconnects, so a (re)subscribing client is
+	 * re-issued this event instead of being left with a silently parked turn.
+	 */
+	requestedEvent?: HubEventEnvelope;
 };
 
 export type PendingCapabilityRequest = {
@@ -80,6 +86,13 @@ export interface HubTransportContext {
 				SessionUsageRuntimeService &
 				SessionConnectionRuntimeService
 		>;
+	/**
+	 * While draining, new mutating work (session.create, run.*) is refused
+	 * with the retryable `hub_draining` error so the Hub can be replaced at a
+	 * boundary an operator chose instead of being ambushed mid-turn.
+	 * Optional: absent contexts (test fixtures) are never draining.
+	 */
+	isDraining?(): boolean;
 	publish(event: HubEventEnvelope): void;
 	buildEvent(
 		event: HubEventEnvelope["event"],

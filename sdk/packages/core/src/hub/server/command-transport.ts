@@ -22,4 +22,13 @@ export interface HubCommandTransport {
 		listener: (event: HubEventEnvelope) => void,
 		options?: { sessionId?: string },
 	): Promise<() => void> | (() => void);
+	/**
+	 * Durable events with `sequence > sinceSequence` (scoped when a sessionId
+	 * is given), oldest first, bounded by `limit`. Absent on transports
+	 * without a durable event log; callers must treat replay as best-effort.
+	 */
+	replayEventsAfter?(
+		sinceSequence: number,
+		options: { sessionId?: string; limit: number },
+	): HubEventEnvelope[];
 }
