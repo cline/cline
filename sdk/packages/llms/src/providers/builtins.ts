@@ -1219,9 +1219,10 @@ const BUILTIN_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 	},
 	{
 		id: "minimax",
+		defaults: { baseUrl: "https://api.minimax.io/anthropic" },
 		apiLineBaseUrls: {
-			china: "https://api.minimaxi.com/anthropic/v1",
-			international: "https://api.minimax.io/anthropic/v1",
+			china: "https://api.minimaxi.com/anthropic",
+			international: "https://api.minimax.io/anthropic",
 		},
 		metadata: MINIMAX_THINKING_ROUTING_METADATA,
 	},

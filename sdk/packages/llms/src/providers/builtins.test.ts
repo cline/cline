@@ -485,8 +485,8 @@ describe("regional API line base URLs", () => {
 				international: "https://api.z.ai/api/coding/paas/v4",
 			},
 			minimax: {
-				china: "https://api.minimaxi.com/anthropic/v1",
-				international: "https://api.minimax.io/anthropic/v1",
+				china: "https://api.minimaxi.com/anthropic",
+				international: "https://api.minimax.io/anthropic",
 			},
 		};
 
