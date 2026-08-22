@@ -1,4 +1,5 @@
 import { execFile as execFileCallback } from "node:child_process";
+import { existsSync } from "node:fs";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -8,7 +9,9 @@ import { describe, expect, it, vi } from "vitest";
 import {
 	type CheckpointEntry,
 	type CheckpointMetadata,
+	checkpointScratchDir,
 	createCheckpointHooks,
+	deleteCheckpointRefs,
 } from "./checkpoint-hooks";
 
 const execFile = promisify(execFileCallback);
@@ -591,5 +594,204 @@ describe("createCheckpointHooks", () => {
 		expect(
 			createCheckpoint.mock.calls.map(([input]) => input.runCount),
 		).toEqual([1, 2]);
+	});
+
+	it("skips untracked files over the size cap and records them on the entry", async () => {
+		const cwd = await createGitRepo();
+		const sessionId = "sess_size_cap";
+		let metadata: Record<string, unknown> | undefined;
+		const warnings: string[] = [];
+		const events: { event: string; properties?: Record<string, unknown> }[] =
+			[];
+		try {
+			const hooks = createCheckpointHooks({
+				cwd,
+				sessionId,
+				maxUntrackedFileBytes: 16,
+				logger: {
+					debug: () => {},
+					log: (message) => {
+						warnings.push(message);
+					},
+				},
+				telemetry: {
+					capture: (input) => {
+						events.push(input);
+					},
+				},
+				readSessionMetadata: async () => metadata,
+				writeSessionMetadata: async (next) => {
+					metadata = next;
+				},
+			});
+
+			await writeFile(join(cwd, "big.bin"), "x".repeat(64), "utf8");
+			await writeFile(join(cwd, "small.txt"), "small\n", "utf8");
+			await runCheckpointHooks(hooks);
+
+			const checkpoint = metadata?.checkpoint as CheckpointMetadata;
+			expect(checkpoint.latest.kind).toBe("stash");
+			expect(checkpoint.latest.skippedUntracked).toEqual(["big.bin"]);
+			const untrackedTree = await runGit(
+				cwd,
+				"ls-tree",
+				"-r",
+				"--name-only",
+				`${checkpoint.latest.ref}^3`,
+			);
+			expect(untrackedTree.split("\n")).toEqual(["small.txt"]);
+			expect(warnings.some((message) => message.includes("big.bin"))).toBe(
+				true,
+			);
+			// The snapshot event reports the cap being hit — no paths, counts only.
+			expect(events).toHaveLength(1);
+			expect(events[0]?.event).toBe("checkpoint.snapshot");
+			expect(events[0]?.properties).toMatchObject({
+				outcome: "stash",
+				skippedUntrackedCount: 1,
+			});
+			expect(JSON.stringify(events[0])).not.toContain("big.bin");
+
+			// The same still-skipped file does not warn again on later turns.
+			const warningCount = warnings.length;
+			await writeFile(join(cwd, "small.txt"), "small-two\n", "utf8");
+			await runCheckpointHooks(hooks, {
+				messages: [userMessage("first request"), userMessage("second request")],
+			});
+			expect(warnings.length).toBe(warningCount);
+			expect(
+				(metadata?.checkpoint as CheckpointMetadata).latest.skippedUntracked,
+			).toEqual(["big.bin"]);
+		} finally {
+			await deleteCheckpointRefs(cwd, sessionId);
+			await rm(cwd, { recursive: true, force: true });
+		}
+	});
+
+	it("drops persistent-index entries for untracked files that disappear between runs", async () => {
+		// The per-session GIT_INDEX_FILE caches untracked hashes across turns so
+		// unchanged files are not re-hashed; a file that was deleted (or became
+		// tracked) in the meantime must not ghost into later snapshots.
+		const cwd = await createGitRepo();
+		const sessionId = "sess_stale_index";
+		let metadata: Record<string, unknown> | undefined;
+		try {
+			const hooks = createCheckpointHooks({
+				cwd,
+				sessionId,
+				readSessionMetadata: async () => metadata,
+				writeSessionMetadata: async (next) => {
+					metadata = next;
+				},
+			});
+
+			await writeFile(join(cwd, "a.txt"), "a\n", "utf8");
+			await writeFile(join(cwd, "b.txt"), "b\n", "utf8");
+			await runCheckpointHooks(hooks);
+
+			const first = (metadata?.checkpoint as CheckpointMetadata).latest;
+			const firstTree = await runGit(
+				cwd,
+				"ls-tree",
+				"-r",
+				"--name-only",
+				`${first.ref}^3`,
+			);
+			expect(firstTree.split("\n").sort()).toEqual(["a.txt", "b.txt"]);
+			// The scratch index survives the turn — that is the cross-turn cache.
+			expect(existsSync(join(checkpointScratchDir(sessionId), "index"))).toBe(
+				true,
+			);
+
+			await rm(join(cwd, "a.txt"));
+			await runCheckpointHooks(hooks, {
+				messages: [userMessage("first request"), userMessage("second request")],
+			});
+
+			const second = (metadata?.checkpoint as CheckpointMetadata).latest;
+			expect(second.runCount).toBe(2);
+			const secondTree = await runGit(
+				cwd,
+				"ls-tree",
+				"-r",
+				"--name-only",
+				`${second.ref}^3`,
+			);
+			expect(secondTree.split("\n")).toEqual(["b.txt"]);
+		} finally {
+			await deleteCheckpointRefs(cwd, sessionId);
+			await rm(cwd, { recursive: true, force: true });
+		}
+	});
+
+	it("removes the per-session scratch dir together with the checkpoint refs", async () => {
+		const cwd = await createGitRepo();
+		const sessionId = "sess_scratch_cleanup";
+		let metadata: Record<string, unknown> | undefined;
+		try {
+			const hooks = createCheckpointHooks({
+				cwd,
+				sessionId,
+				readSessionMetadata: async () => metadata,
+				writeSessionMetadata: async (next) => {
+					metadata = next;
+				},
+			});
+			await writeFile(join(cwd, "loose.txt"), "loose\n", "utf8");
+			await runCheckpointHooks(hooks);
+			expect(existsSync(checkpointScratchDir(sessionId))).toBe(true);
+
+			await deleteCheckpointRefs(cwd, sessionId);
+
+			expect(existsSync(checkpointScratchDir(sessionId))).toBe(false);
+		} finally {
+			await deleteCheckpointRefs(cwd, sessionId);
+			await rm(cwd, { recursive: true, force: true });
+		}
+	});
+
+	it("degrades without blocking or throwing when the git time budget is exhausted", async () => {
+		const cwd = await createGitRepo();
+		let metadata: Record<string, unknown> | undefined;
+		const events: { event: string; properties?: Record<string, unknown> }[] =
+			[];
+		try {
+			const hooks = createCheckpointHooks({
+				cwd,
+				sessionId: "sess_timeout",
+				// A zero budget makes the snapshot's remainingMs check throw
+				// deterministically. The repo probe and HEAD fallback run with a
+				// 1ms execFile kill, which a fast machine's git may win or lose —
+				// so the assertions below are the race-free contract: never a
+				// stash snapshot, at most one degraded HEAD entry, and the turn
+				// is always reported as a timeout.
+				gitTimeoutMs: 0,
+				telemetry: {
+					capture: (input) => {
+						events.push(input);
+					},
+				},
+				readSessionMetadata: async () => metadata,
+				writeSessionMetadata: async (next) => {
+					metadata = next;
+				},
+			});
+
+			await writeFile(join(cwd, "note.txt"), "dirty\n", "utf8");
+			await runCheckpointHooks(hooks);
+
+			const checkpoint = metadata?.checkpoint as CheckpointMetadata | undefined;
+			if (checkpoint) {
+				expect(checkpoint.latest.kind).toBe("commit");
+			}
+			expect(events).toHaveLength(1);
+			expect(events[0]?.event).toBe("checkpoint.snapshot");
+			expect(events[0]?.properties?.reason).toBe("timeout");
+			expect(["skipped", "head_fallback"]).toContain(
+				events[0]?.properties?.outcome,
+			);
+		} finally {
+			await rm(cwd, { recursive: true, force: true });
+		}
 	});
 });

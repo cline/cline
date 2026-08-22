@@ -223,7 +223,15 @@ export function splitCoreSessionConfig(config: ClineCoreStartConfig): {
 	return {
 		config: {
 			...transportConfig,
-			...(checkpoint ? { checkpoint: { enabled: checkpoint.enabled } } : {}),
+			...(checkpoint
+				? {
+						checkpoint: {
+							enabled: checkpoint.enabled,
+							maxUntrackedFileBytes: checkpoint.maxUntrackedFileBytes,
+							gitTimeoutMs: checkpoint.gitTimeoutMs,
+						},
+					}
+				: {}),
 			...(compaction
 				? {
 						compaction: {

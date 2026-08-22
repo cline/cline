@@ -431,6 +431,9 @@ export async function prepareLocalRuntimeBootstrap(
 					sessionId,
 					logger: baseConfig.logger,
 					createCheckpoint: baseConfig.checkpoint?.createCheckpoint,
+					maxUntrackedFileBytes: baseConfig.checkpoint?.maxUntrackedFileBytes,
+					gitTimeoutMs: baseConfig.checkpoint?.gitTimeoutMs,
+					telemetry: baseConfig.telemetry,
 					readSessionMetadata,
 					writeSessionMetadata,
 				})
