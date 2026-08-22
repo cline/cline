@@ -2147,6 +2147,7 @@ describe("SessionRuntime.run — initialMessages seeding (P1 #1)", () => {
  */
 function makeScriptedRuntime(script: {
 	events: readonly AgentRuntimeEvent[];
+	eventRuns?: readonly (readonly AgentRuntimeEvent[])[];
 }): {
 	deps: SessionRuntimeOrchestratorDeps;
 	abortCalls: string[];
@@ -2168,13 +2169,19 @@ function makeScriptedRuntime(script: {
 		},
 	};
 	let listener: ((e: AgentRuntimeEvent) => void) | undefined;
+	let runIndex = 0;
+	const emitEvents = () => {
+		const events = script.eventRuns?.[runIndex] ?? script.events;
+		runIndex++;
+		for (const event of events) listener?.(event);
+	};
 	const runtime = {
 		async run() {
-			for (const e of script.events) listener?.(e);
+			emitEvents();
 			return baseResult;
 		},
 		async continue() {
-			for (const e of script.events) listener?.(e);
+			emitEvents();
 			return baseResult;
 		},
 		abort(reason?: string) {
@@ -2192,6 +2199,87 @@ function makeScriptedRuntime(script: {
 		deps: { createAgentRuntimeImpl: () => runtime },
 		abortCalls,
 	};
+}
+
+const turnStarted = (): AgentRuntimeEvent => ({
+	type: "turn-started",
+	iteration: 1,
+	snapshot: makeSnapshot(),
+});
+
+interface ScriptedToolOptions {
+	iteration?: number;
+	name?: string;
+	input?: unknown;
+	isError?: boolean;
+}
+
+function toolStarted(
+	id: string,
+	options: ScriptedToolOptions = {},
+): Extract<AgentRuntimeEvent, { type: "tool-started" }> {
+	return {
+		type: "tool-started",
+		iteration: options.iteration ?? 1,
+		toolCall: {
+			type: "tool-call",
+			toolCallId: id,
+			toolName: options.name ?? "poll",
+			input: options.input ?? { command: "status" },
+		},
+		snapshot: makeSnapshot(),
+	};
+}
+
+function completedTool(
+	id: string,
+	output: unknown,
+	options: ScriptedToolOptions = {},
+): AgentRuntimeEvent[] {
+	const started = toolStarted(id, options);
+	return [
+		started,
+		{
+			type: "tool-finished",
+			iteration: started.iteration,
+			toolCall: started.toolCall,
+			message: {
+				id: `message-${id}`,
+				role: "tool",
+				content: [
+					{
+						type: "tool-result",
+						toolCallId: id,
+						toolName: started.toolCall.toolName,
+						output,
+						isError: options.isError,
+					},
+				],
+				createdAt: 1,
+			},
+			snapshot: makeSnapshot(),
+		},
+	];
+}
+
+function loopSession(script: {
+	events?: readonly AgentRuntimeEvent[];
+	eventRuns?: readonly (readonly AgentRuntimeEvent[])[];
+}) {
+	const { deps, abortCalls } = makeScriptedRuntime({
+		events: script.events ?? [],
+		eventRuns: script.eventRuns,
+	});
+	const session = new SessionRuntime(
+		makeAgentConfig({
+			execution: {
+				maxConsecutiveMistakes: 6,
+				loopDetection: { softThreshold: 2, hardThreshold: 3 },
+			},
+		}),
+		deps,
+	);
+	return { session, abortCalls };
 }
 
 function failedToolTurnEvents(): AgentRuntimeEvent[] {
@@ -2410,36 +2498,241 @@ describe("SessionRuntime.run — tracker wiring (P1 #3)", () => {
 	});
 
 	it("aborts on hard-threshold loop detection of identical tool calls", async () => {
-		const identical = (i: number): AgentRuntimeEvent => ({
-			type: "tool-started",
-			iteration: i,
-			toolCall: {
-				type: "tool-call",
-				toolCallId: `tc${i}`,
-				toolName: "same",
-				input: { a: 1 },
-			},
-			snapshot: makeSnapshot(),
-		});
-		const { deps, abortCalls } = makeScriptedRuntime({
+		const { session, abortCalls } = loopSession({
 			events: [
-				{ type: "turn-started", iteration: 1, snapshot: makeSnapshot() },
-				identical(1),
-				identical(1),
-				identical(1),
+				turnStarted(),
+				...completedTool("same-1", "unchanged", {
+					iteration: 1,
+					name: "same",
+					input: { a: 1 },
+				}),
+				...completedTool("same-2", "unchanged", {
+					iteration: 2,
+					name: "same",
+					input: { a: 1 },
+				}),
+				...completedTool("same-3", "unchanged", {
+					iteration: 3,
+					name: "same",
+					input: { a: 1 },
+				}),
 			],
 		});
-		const session = new SessionRuntime(
-			makeAgentConfig({
-				execution: {
-					maxConsecutiveMistakes: 6,
-					loopDetection: { softThreshold: 2, hardThreshold: 3 },
-				},
-			}),
-			deps,
-		);
+
 		await session.run("loop-me");
+
 		expect(abortCalls.length).toBeGreaterThanOrEqual(1);
+	});
+
+	it("does not abort repeated successful calls whose output shows progress", async () => {
+		const { session, abortCalls } = loopSession({
+			events: [
+				turnStarted(),
+				...["10%", "30%", "50%", "70%", "90%", "done"].flatMap(
+					(output, index) =>
+						completedTool(`progress-${index}`, output, {
+							iteration: index + 1,
+						}),
+				),
+			],
+		});
+
+		await session.run("monitor progress");
+
+		expect(abortCalls).toHaveLength(0);
+	});
+
+	it("drops unfinished loop batches before a continuation", async () => {
+		const { session, abortCalls } = loopSession({
+			eventRuns: [
+				[turnStarted(), toolStarted("orphaned")],
+				[
+					turnStarted(),
+					...Array.from({ length: 11 }, (_, index) =>
+						toolStarted(`continued-${index}`),
+					),
+				],
+			],
+		});
+
+		await session.run("start poll");
+		await session.continue("resume poll");
+
+		expect(abortCalls).toHaveLength(0);
+	});
+
+	it("still aborts repeated built-in failures whose error output changes", async () => {
+		const { session, abortCalls } = loopSession({
+			events: [
+				turnStarted(),
+				...[1, 2, 3].flatMap((index) =>
+					completedTool(
+						`failed-${index}`,
+						[
+							{
+								query: "false",
+								result: "",
+								error: `attempt ${index}`,
+								success: false,
+							},
+						],
+						{
+							iteration: index,
+							name: "run_commands",
+							input: { commands: ["false"] },
+						},
+					),
+				),
+			],
+		});
+
+		await session.run("repeat a failing command");
+
+		expect(abortCalls.length).toBeGreaterThanOrEqual(1);
+	});
+
+	it("retains successful progress from mixed built-in operation results", async () => {
+		const { session, abortCalls } = loopSession({
+			events: [
+				turnStarted(),
+				...[25, 50, 75].flatMap((progress, index) =>
+					completedTool(
+						`mixed-${index}`,
+						[
+							{
+								query: "poll",
+								result: { progress },
+								success: true,
+							},
+							{
+								query: "optional-check",
+								result: "",
+								error: `attempt ${index + 1}`,
+								success: false,
+							},
+						],
+						{
+							iteration: index + 1,
+							name: "run_commands",
+							input: { commands: ["poll", "optional-check"] },
+						},
+					),
+				),
+			],
+		});
+
+		await session.run("monitor a partially successful command batch");
+
+		expect(abortCalls).toHaveLength(0);
+	});
+
+	it("ignores changing failures when mixed built-in success is unchanged", async () => {
+		const { session, abortCalls } = loopSession({
+			events: [
+				turnStarted(),
+				...[1, 2, 3].flatMap((index) =>
+					completedTool(
+						`mixed-stalled-${index}`,
+						[
+							{
+								query: "poll",
+								result: { progress: 50 },
+								success: true,
+							},
+							{
+								query: "optional-check",
+								result: "",
+								error: `attempt ${index}`,
+								success: false,
+							},
+						],
+						{
+							iteration: index,
+							name: "run_commands",
+							input: { commands: ["poll", "optional-check"] },
+						},
+					),
+				),
+			],
+		});
+
+		await session.run("monitor a stalled partially successful command batch");
+
+		expect(abortCalls.length).toBeGreaterThanOrEqual(1);
+	});
+
+	it("still aborts repeated adapter-promoted MCP failures", async () => {
+		const { session, abortCalls } = loopSession({
+			events: [
+				turnStarted(),
+				...[1, 2, 3].flatMap((index) =>
+					completedTool(
+						`mcp-failed-${index}`,
+						{ error: `attempt ${index}` },
+						{
+							iteration: index,
+							name: "server__poll",
+							input: { jobId: "job-1" },
+							isError: true,
+						},
+					),
+				),
+			],
+		});
+
+		await session.run("repeat a failing MCP poll");
+
+		expect(abortCalls.length).toBeGreaterThanOrEqual(1);
+	});
+
+	it("allows successful non-MCP outputs containing isError data", async () => {
+		const { session, abortCalls } = loopSession({
+			events: [
+				turnStarted(),
+				...[3, 2, 1].flatMap((pendingChecks, index) =>
+					completedTool(
+						`status-${index}`,
+						{ isError: true, pendingChecks },
+						{
+							iteration: index + 1,
+							name: "status",
+							input: { jobId: "job-1" },
+						},
+					),
+				),
+			],
+		});
+
+		await session.run("monitor a successful custom tool");
+
+		expect(abortCalls).toHaveLength(0);
+	});
+
+	it("allows successful custom outputs containing success data", async () => {
+		const { session, abortCalls } = loopSession({
+			events: [
+				turnStarted(),
+				...[25, 50, 75].flatMap((progress, index) =>
+					completedTool(
+						`custom-status-${index}`,
+						{
+							query: "remote-job",
+							result: { progress },
+							success: false,
+						},
+						{
+							iteration: index + 1,
+							name: "custom_status",
+							input: { jobId: "job-1" },
+						},
+					),
+				),
+			],
+		});
+
+		await session.run("monitor successful custom result data");
+
+		expect(abortCalls).toHaveLength(0);
 	});
 
 	it("resets loop detection when run() starts a fresh conversation", async () => {
