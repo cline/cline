@@ -30,6 +30,7 @@ Use this page for providers that follow the same setup pattern.
   - [Requesty](#requesty)
   - [SambaNova](#sambanova)
   - [SAP AI Core](#sap-ai-core)
+  - [SaladCloud AI Gateway](#saladcloud-ai-gateway)
   - [Together](#together)
   - [Vercel AI Gateway](#vercel-ai-gateway)
   - [VS Code Language Model API](#vs-code-language-model-api)
@@ -276,6 +277,21 @@ SAP AI Core is SAP’s enterprise AI platform for model integration and governan
 1. Set up SAP AI Core / generative AI hub access.
 2. Configure your service key/endpoint credentials.
 3. In Cline, select **SAP AI Core** and provide required values.
+
+### SaladCloud AI Gateway
+SaladCloud AI Gateway provides an OpenAI-compatible endpoint for hosted open models. Its Qwen3.6 35B-A3B model is designed for agentic tasks, complex reasoning, and code generation.
+
+**Website:** [https://salad.com/ai-gateway](https://salad.com/ai-gateway)
+
+**Documentation:** [Getting Started](https://docs.salad.com/ai-gateway/tutorials/getting-started) · [Model Reference](https://docs.salad.com/ai-gateway/reference/models)
+
+#### Basic Setup
+
+1. Request closed-beta access and create a Salad API key.
+2. In Cline, choose **OpenAI Compatible**.
+3. Set **Base URL** to `https://ai.salad.cloud/v1`.
+4. Paste your Salad API key and set **Model ID** to `qwen3.6-35b-a3b`.
+5. In **Model Configuration**, set the context window and maximum output to `262144`, and enable image support.
 
 ### Together
 Together provides hosted inference for many popular open models.
