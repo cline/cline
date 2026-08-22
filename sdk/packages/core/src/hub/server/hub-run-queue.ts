@@ -92,6 +92,11 @@ export class HubRunQueue {
 		);
 		this.maxPendingPerSession =
 			options.maxPendingPerSession ?? DEFAULT_MAX_PENDING_PER_SESSION;
+		// WAL + a busy timeout, matching the other SQLite stores: admissions
+		// and state transitions must not serialize against run.list readers or
+		// fail fast when another handle briefly holds the write lock.
+		this.db.exec("PRAGMA journal_mode = WAL;");
+		this.db.exec("PRAGMA busy_timeout = 5000;");
 		this.db.exec(`
 			CREATE TABLE IF NOT EXISTS hub_runs (
 				accepted_seq INTEGER PRIMARY KEY AUTOINCREMENT,

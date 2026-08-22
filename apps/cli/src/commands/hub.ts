@@ -10,7 +10,7 @@ import {
 	stopLocalHubServerGracefully,
 } from "@cline/core";
 import { formatUptime, resolveClineBuildEnv } from "@cline/shared";
-import { Command } from "commander";
+import { Command, InvalidArgumentError } from "commander";
 import { version as cliVersion } from "../../package.json";
 
 interface HubCommandIo {
@@ -54,6 +54,16 @@ function resolveCliHubOwnerContext() {
 	return resolveClineBuildEnv() === "production"
 		? resolveProductionHubOwnerContext()
 		: resolveSharedHubOwnerContext();
+}
+
+function parseWaitSeconds(value: string): number {
+	const parsed = Number.parseInt(value, 10);
+	if (Number.isNaN(parsed) || parsed < 0) {
+		throw new InvalidArgumentError(
+			"--wait requires a non-negative number of seconds.",
+		);
+	}
+	return parsed;
 }
 
 export function createHubCommand(
@@ -156,8 +166,9 @@ export function createHubCommand(
 		.command("drain")
 		.description("Refuse new mutating work while accepted runs finish")
 		.option("--reason <text>", "Why the hub is draining")
+		.option("--off", "Lift the drain and accept new mutating work again")
 		.action(
-			action(async (cmdOptions: { reason?: string }) => {
+			action(async (cmdOptions: { reason?: string; off?: boolean }) => {
 				const owner = resolveCliHubOwnerContext();
 				const discovery = await readHubDiscovery(owner.discoveryPath);
 				if (!discovery?.url) {
@@ -165,15 +176,22 @@ export function createHubCommand(
 					fail();
 					return;
 				}
-				const drained = await requestHubDrain(
+				const draining = cmdOptions.off !== true;
+				const ok = await requestHubDrain(
 					discovery.url,
 					discovery.authToken,
-					cmdOptions.reason ?? "cline hub drain",
+					cmdOptions.reason ??
+						(draining ? "cline hub drain" : "cline hub drain --off"),
+					{ off: !draining },
 				);
-				io.writeln(JSON.stringify({ draining: drained, url: discovery.url }));
-				if (!drained) {
+				if (!ok) {
+					io.writeErr(
+						draining ? "Hub drain request failed." : "Hub un-drain request failed.",
+					);
 					fail();
+					return;
 				}
+				io.writeln(JSON.stringify({ draining, url: discovery.url }));
 			}),
 		);
 
@@ -185,7 +203,7 @@ export function createHubCommand(
 		.option(
 			"--wait <seconds>",
 			"How long to wait for the hub to go idle",
-			(value) => Number.parseInt(value, 10),
+			parseWaitSeconds,
 			120,
 		)
 		.action(
@@ -199,31 +217,51 @@ export function createHubCommand(
 				const owner = resolveCliHubOwnerContext();
 				const discovery = await readHubDiscovery(owner.discoveryPath);
 				if (discovery?.url) {
-					await requestHubDrain(
+					const drained = await requestHubDrain(
 						discovery.url,
 						discovery.authToken,
 						"cline hub upgrade",
 					).catch(() => false);
-					const deadline = Date.now() + cmdOptions.wait * 1_000;
-					let idle = false;
-					while (Date.now() < deadline) {
-						idle = await localHubHasNoActiveSessions(
+					// An aborted upgrade must hand the hub back: leaving it
+					// draining refuses all new mutating work until a restart.
+					const undrain = async (): Promise<void> => {
+						if (!drained) {
+							return;
+						}
+						await requestHubDrain(
 							discovery.url,
 							discovery.authToken,
-						).catch(() => true);
-						if (idle) {
-							break;
+							"cline hub upgrade aborted",
+							{ off: true },
+						).catch(() => false);
+					};
+					try {
+						const deadline = Date.now() + cmdOptions.wait * 1_000;
+						let idle = false;
+						// Check at least once so --wait 0 still observes an idle hub.
+						for (;;) {
+							idle = await localHubHasNoActiveSessions(
+								discovery.url,
+								discovery.authToken,
+							).catch(() => true);
+							if (idle || Date.now() >= deadline) {
+								break;
+							}
+							await new Promise((resolve) => setTimeout(resolve, 1_000));
 						}
-						await new Promise((resolve) => setTimeout(resolve, 1_000));
+						if (!idle) {
+							await undrain();
+							io.writeErr(
+								"Hub is still serving sessions after the wait window; not replacing it. Re-run with a longer --wait, or finish the sessions first.",
+							);
+							fail();
+							return;
+						}
+						await stopHubServer(opts.cwd);
+					} catch (error) {
+						await undrain();
+						throw error;
 					}
-					if (!idle) {
-						io.writeErr(
-							"Hub is still serving sessions after the wait window; not replacing it. Re-run with a longer --wait, or finish the sessions first.",
-						);
-						fail();
-						return;
-					}
-					await stopHubServer(opts.cwd);
 				}
 				const { url } = await ensureDetachedHubServer(opts.cwd, {
 					host: opts.host,

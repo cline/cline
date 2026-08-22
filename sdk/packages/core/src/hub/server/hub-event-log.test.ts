@@ -1,4 +1,8 @@
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { HubEventEnvelope } from "@cline/shared";
+import { loadSqliteDb } from "@cline/shared/db";
 import { describe, expect, it } from "vitest";
 import { HubEventLogStore } from "./hub-event-log";
 
@@ -18,6 +22,25 @@ function envelope(
 }
 
 describe("HubEventLogStore", () => {
+	it("opens its database in WAL mode", () => {
+		const dbPath = join(
+			mkdtempSync(join(tmpdir(), "cline-hub-events-")),
+			"hub-events.db",
+		);
+		const log = new HubEventLogStore({ dbPath });
+		log.append(envelope("run.started", "s1"));
+		log.close();
+		// WAL is persistent: a fresh connection observes the configured mode.
+		const db = loadSqliteDb(dbPath);
+		try {
+			expect(
+				String(db.prepare("PRAGMA journal_mode;").get()?.journal_mode),
+			).toBe("wal");
+		} finally {
+			db.close?.();
+		}
+	});
+
 	it("stamps a monotonically increasing global sequence", () => {
 		const log = new HubEventLogStore({ dbPath: ":memory:" });
 		const first = log.append(envelope("run.started", "s1"));

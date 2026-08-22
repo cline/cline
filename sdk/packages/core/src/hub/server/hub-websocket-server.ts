@@ -11,9 +11,9 @@ import { WebSocketServer } from "ws";
 import corePackage from "../../../package.json";
 import {
 	rememberRecoverableLocalHubUrl,
-	requestHubShutdown,
 	verifyHubConnection,
 } from "../client";
+import { hubHasLiveSessions, retireDiscoveredHub } from "../daemon";
 import {
 	clearHubDiscovery,
 	clearHubDiscoveryIfOwned,
@@ -36,6 +36,7 @@ import {
 	resolveHubInstanceLockPath,
 } from "../discovery/instance-lock";
 import { BrowserWebSocketHubAdapter } from "./browser-websocket";
+import { logHubMessage } from "./hub-server-logging";
 import type {
 	EnsuredHubWebSocketServerResult,
 	EnsureHubWebSocketServerOptions,
@@ -363,6 +364,14 @@ export async function startHubWebSocketServer(
 	const instanceLock = HubInstanceLock.acquire(
 		resolveHubInstanceLockPath(owner.discoveryPath),
 	);
+	if (!instanceLock.held) {
+		// SQLite is unavailable in this runtime, so singleton enforcement is
+		// off; the Hub still serves (the event log and run queue degrade the
+		// same way) rather than refusing to start over a missing lock backend.
+		logHubMessage("warn", "instance_lock.unavailable", {
+			lockFile: instanceLock.lockFile,
+		});
+	}
 	let transport: HubServerTransport;
 	try {
 		// The resolved owner context flows into the transport so its durable
@@ -862,27 +871,42 @@ export async function ensureHubWebSocketServer(
 			// A live hub that cannot be reused must be retired before a
 			// successor can exist: singleton ownership is lock-enforced, so
 			// starting a replacement while it lives would (correctly) fail
-			// with the instance lock held. Ask it to stop and wait it out.
+			// with the instance lock held. Retirement follows the same rules
+			// as the detached-daemon ensure path (retireDiscoveredHub): never
+			// ambush a hub that is still serving sessions, drain before the
+			// shutdown request, and clear discovery only once the hub is
+			// actually gone — clearing the record of a survivor would leave a
+			// live daemon undiscoverable.
 			if (healthy?.url) {
-				await requestHubShutdown(healthy.url, discovered.authToken).catch(
-					() => false,
-				);
-				const retireDeadline = Date.now() + ENSURE_RETIRE_WAIT_MS;
-				while (Date.now() < retireDeadline) {
-					const stillAlive = await probeHubServer(healthy.url, {
-						authToken: discovered.authToken,
-					}).catch(() => undefined);
-					if (!stillAlive?.url) {
-						break;
+				const retirementRecord = {
+					url: healthy.url,
+					authToken: discovered.authToken,
+					pid: healthy.pid ?? discovered.pid,
+				};
+				if (await hubHasLiveSessions(retirementRecord)) {
+					// Busy: attach to the older hub instead of replacing it,
+					// mirroring the daemon's deferred_busy handling. If it
+					// cannot be attached either, leave it running — starting
+					// below surfaces the instance-lock conflict instead of
+					// tearing down live sessions.
+					if (
+						await verifyHubConnection(healthy.url, {
+							authToken: discovered.authToken,
+						})
+					) {
+						return rememberIfManaged({
+							url: healthy.url,
+							authToken: discovered.authToken,
+							action: "reuse",
+						});
 					}
-					await new Promise((resolve) =>
-						setTimeout(resolve, ENSURE_RETIRE_POLL_MS),
-					);
+				} else {
+					await retireDiscoveredHub(retirementRecord, owner.discoveryPath);
 				}
+			} else {
+				// A discovered endpoint that cannot even be probed is stale.
+				await clearHubDiscovery(owner.discoveryPath);
 			}
-
-			// A discovered endpoint that cannot be authenticated/verified is stale.
-			await clearHubDiscovery(owner.discoveryPath);
 		}
 
 		const start = async (

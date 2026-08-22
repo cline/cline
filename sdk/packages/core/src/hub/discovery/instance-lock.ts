@@ -55,7 +55,7 @@ export class HubInstanceLock {
 	private db: SqliteDb | undefined;
 	readonly lockFile: string;
 
-	private constructor(lockFile: string, db: SqliteDb) {
+	private constructor(lockFile: string, db: SqliteDb | undefined) {
 		this.lockFile = lockFile;
 		this.db = db;
 	}
@@ -82,11 +82,23 @@ export class HubInstanceLock {
 	/**
 	 * Attempt to take exclusive ownership of a Hub owner context. Throws
 	 * `HubLockHeldError` when another live process holds it.
+	 *
+	 * Only a positively held lock (SQLITE_BUSY/LOCKED) refuses startup. Any
+	 * other failure — SQLite unavailable in this runtime, an unwritable lock
+	 * directory — degrades to an unheld lock (`held === false`) and the Hub
+	 * starts without singleton enforcement, matching how the event log and
+	 * run queue already degrade rather than making SQLite a hard requirement.
 	 */
 	static acquire(lockFile: string): HubInstanceLock {
-		mkdirSync(dirname(lockFile), { recursive: true });
-		const existed = existsSync(lockFile);
-		const db = loadSqliteDb(lockFile);
+		let existed = false;
+		let db: SqliteDb;
+		try {
+			mkdirSync(dirname(lockFile), { recursive: true });
+			existed = existsSync(lockFile);
+			db = loadSqliteDb(lockFile);
+		} catch {
+			return new HubInstanceLock(lockFile, undefined);
+		}
 		try {
 			// Fail immediately instead of queueing behind the current holder.
 			db.exec("PRAGMA busy_timeout = 0;");
@@ -96,7 +108,7 @@ export class HubInstanceLock {
 			if (isBusy(error)) {
 				throw new HubLockHeldError(lockFile);
 			}
-			throw error;
+			return new HubInstanceLock(lockFile, undefined);
 		}
 		if (!existed) {
 			try {

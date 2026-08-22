@@ -21,6 +21,13 @@ import { logHubMessage } from "./hub-server-logging";
 type HubCommandFrame = HubTransportFrame & { kind: "command" };
 
 const HUB_EVENT_REPLAY_PAGE_SIZE = 200;
+/**
+ * Hard ceiling on replay pages per subscribe. At the default page size this
+ * covers the event log's full retention cap; a replay source that still has
+ * more after this is misbehaving, and live delivery takes over from wherever
+ * the cursor reached.
+ */
+const HUB_EVENT_REPLAY_MAX_PAGES = 1_000;
 
 export interface BrowserHubSocketLike {
 	send(data: string): void;
@@ -343,21 +350,24 @@ export class BrowserWebSocketHubAdapter {
 						// mutating the original) share the same eventId. The sequence
 						// cursor alone can't catch that: dedupe by eventId too, or the
 						// buffer flush below re-delivers it after replay already did.
-						const deliveredEventIds = new Set<string>();
+						// The set exists only for that replay/flush window — it is
+						// dropped once the flush completes so it cannot grow for the
+						// lifetime of the socket.
+						let deliveredEventIds: Set<string> | undefined = new Set<string>();
 						const deliver = (envelope: HubEventEnvelope): void => {
-							if (envelope.eventId && deliveredEventIds.has(envelope.eventId)) {
-								return;
-							}
-							if (
-								typeof envelope.sequence === "number" &&
-								envelope.sequence <= lastDelivered
-							) {
-								return;
-							}
 							if (typeof envelope.sequence === "number") {
+								if (envelope.sequence <= lastDelivered) {
+									return;
+								}
+								// Advance the cursor before any eventId dedupe: a skipped
+								// duplicate must still move replay forward, or the next
+								// page refetches it forever.
 								lastDelivered = envelope.sequence;
 							}
-							if (envelope.eventId) {
+							if (envelope.eventId && deliveredEventIds) {
+								if (deliveredEventIds.has(envelope.eventId)) {
+									return;
+								}
 								deliveredEventIds.add(envelope.eventId);
 							}
 							onEvent(envelope);
@@ -376,7 +386,9 @@ export class BrowserWebSocketHubAdapter {
 						);
 						subscriptions.set(key, unsubscribe);
 						try {
-							while (!closed) {
+							let pages = 0;
+							while (!closed && pages < HUB_EVENT_REPLAY_MAX_PAGES) {
+								const pageCursor = lastDelivered;
 								const page = this.transport.replayEventsAfter(lastDelivered, {
 									sessionId: frame.sessionId,
 									limit: HUB_EVENT_REPLAY_PAGE_SIZE,
@@ -387,6 +399,12 @@ export class BrowserWebSocketHubAdapter {
 								for (const envelope of page) {
 									deliver(envelope);
 								}
+								if (lastDelivered <= pageCursor) {
+									// The cursor did not move, so the next fetch would return
+									// this same page again. Stop instead of spinning.
+									break;
+								}
+								pages += 1;
 								// Yield between pages so replay never starves the socket.
 								await new Promise<void>((resolveYield) =>
 									setTimeout(resolveYield, 0),
@@ -398,6 +416,9 @@ export class BrowserWebSocketHubAdapter {
 								deliver(envelope);
 							}
 							buffered.length = 0;
+							// Replay/flush dedupe is over; from here the subscription is
+							// live-only and must not accumulate per-event state.
+							deliveredEventIds = undefined;
 						}
 						break;
 					}
