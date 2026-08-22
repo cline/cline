@@ -45,6 +45,7 @@ export enum BUILT_IN_PROVIDER {
 	VERCEL_AI_GATEWAY = "vercel-ai-gateway",
 	V0 = "v0",
 	AIHUBMIX = "aihubmix",
+	MINDSHUB = "mindshub",
 	HICAP = "hicap",
 	NOUS_RESEARCH = "nousResearch",
 	HUAWEI_CLOUD_MAAS = "huawei-cloud-maas",

@@ -21,6 +21,7 @@ Use this page for providers that follow the same setup pattern.
   - [Hicap](#hicap)
   - [Huawei Cloud MaaS](#huawei-cloud-maas)
   - [Hugging Face](#hugging-face)
+  - [MindsHub](#mindshub)
   - [Mistral](#mistral)
   - [Moonshot](#moonshot)
   - [Nebius AI Studio](#nebius-ai-studio)
@@ -177,6 +178,17 @@ Hugging Face provides hosted inference access for open-source models.
 1. Sign in to Hugging Face.
 2. Create an access token with inference permissions.
 3. In Cline, select **Hugging Face** and paste the token.
+
+### MindsHub
+MindsHub is an OpenAI/Anthropic-compatible inference gateway: one API key and one bill reach its whole catalog (Claude, GPT, Gemini, Kimi, DeepSeek, and more) through the OpenAI Chat Completions wire format, with the same catalog also reachable from other tools via OpenAI Responses or Anthropic Messages.
+
+**Website:** [https://mindshub.ai](https://mindshub.ai) · **Docs:** [https://docs.mindshub.ai/inference/](https://docs.mindshub.ai/inference/)
+
+#### Basic Setup
+
+1. Create an account at [console.mindshub.ai](https://console.mindshub.ai) and generate an API key.
+2. In Cline, select **MindsHub** and paste the key.
+3. Pick a model alias from the dropdown (`sonnet`, `opus`, `kimi`, `deepseek`, `gpt-codex`, etc.) — see the [model catalog](https://docs.mindshub.ai/inference/models) for the full list.
 
 ### Mistral
 Mistral provides direct API access to its model lineup.
