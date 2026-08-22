@@ -56,6 +56,11 @@ export interface DelegatedAgentRuntimeConfig
 	 * delegated-agent telemetry (Langfuse `sessionId`) groups with it.
 	 */
 	sessionId?: string;
+	/**
+	 * Parent client identity (`extensionContext.client`) so delegated-agent
+	 * traces keep the `clientName` / `clientVersion` metadata.
+	 */
+	extensionContext?: AgentConfig["extensionContext"];
 }
 
 export interface DelegatedAgentConfigProvider {
@@ -130,6 +135,7 @@ export function buildDelegatedAgentConfig(
 		...options.configProvider.getConnectionConfig(),
 		distinctId: runtimeConfig.distinctId,
 		sessionId: runtimeConfig.sessionId,
+		extensionContext: runtimeConfig.extensionContext,
 		systemPrompt,
 		tools: options.tools,
 		maxIterations: options.maxIterations ?? runtimeConfig.maxIterations,
