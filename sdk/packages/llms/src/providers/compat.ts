@@ -621,7 +621,11 @@ function toApiStreamChunk(
 				success: event.reason !== "error",
 				error: event.error,
 				incompleteReason:
-					event.reason === "max-tokens" ? "max_tokens" : undefined,
+					event.reason === "max-tokens"
+						? "max_tokens"
+						: event.reason === "content-filter"
+							? "content_filter"
+							: undefined,
 			};
 	}
 }
