@@ -1,18 +1,24 @@
 import {
 	type ConfiguredTelemetryHandle,
-	createClineTelemetryServiceConfig,
-	createConfiguredTelemetryHandle,
+	TelemetryService as CoreTelemetryService,
+	createClineTelemetryServiceMetadata,
 	type ITelemetryService,
+	OpenTelemetryAdapter,
+	resolveCoreDistinctId,
 	type TelemetryMetadata,
 	type TelemetryProperties,
 } from "@cline/core"
 import * as os from "os"
-import { StateManager } from "@/core/storage/StateManager"
 import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
 import { getDistinctId } from "@/services/logging/distinctId"
+import { flushSharedOtelClients, getSharedOtelClients, type SharedOtelClient } from "@/services/telemetry/otel-clients"
 import { getRolloutTelemetryMetadata } from "@/services/telemetry/rollout-metadata"
-import { Setting } from "@/shared/proto/index.host"
+import {
+	ensureTelemetryPolicyInitialized,
+	isHostTelemetryEnabled,
+	isTelemetryExportAllowed,
+} from "@/services/telemetry/telemetry-policy"
 import { Logger } from "@/shared/services/Logger"
 
 export interface VscodeSdkTelemetryHandle {
@@ -26,34 +32,8 @@ export interface CreateVscodeSdkTelemetryHandleOptions {
 	metadata?: Partial<TelemetryMetadata>
 }
 
-type TelemetrySettingsEvent = { isEnabled: Setting }
-
 export function createVscodeSdkTelemetryHandle(options: CreateVscodeSdkTelemetryHandleOptions = {}): VscodeSdkTelemetryHandle {
-	const sdkHandle =
-		options.telemetryHandle ??
-		createConfiguredTelemetryHandle({
-			...createClineTelemetryServiceConfig({
-				metadata: {
-					extension_version: ExtensionRegistryInfo.version,
-					// VscodeTelemetryPolicyService replaces these with the authoritative
-					// getHostVersion values before any event is emitted. "unknown" surfaces
-					// a failed host version lookup instead of mislabeling the host as VSCode.
-					cline_type: "unknown",
-					platform: "unknown",
-					platform_version: "unknown",
-					os_type: process.platform,
-					os_version: os.version(),
-					is_dev: process.env.IS_DEV,
-					...options.metadata,
-				},
-			}),
-			commonProperties: getRolloutTelemetryMetadata(),
-			distinctId: getDistinctId() || undefined,
-			// telemetry.provider_created is otherwise captured during construction,
-			// before the host identity resolves; VscodeTelemetryPolicyService emits
-			// it once the getHostVersion metadata has been applied.
-			deferProviderCreatedEvent: true,
-		})
+	const sdkHandle = options.telemetryHandle ?? createSharedStackTelemetryHandle(options.metadata)
 
 	const telemetry = new VscodeTelemetryPolicyService(sdkHandle)
 	return {
@@ -63,12 +43,108 @@ export function createVscodeSdkTelemetryHandle(options: CreateVscodeSdkTelemetry
 	}
 }
 
+/**
+ * Builds the SDK telemetry handle on top of the process's shared OpenTelemetry
+ * clients (see {@link getSharedOtelClients}) instead of a second, private
+ * exporter stack. One adapter is bound per shared client, each gated by the
+ * shared telemetry policy with that destination's bypass flag — so the SDK
+ * pipeline and the classic host pipeline always agree, per destination, on
+ * whether an event exports (ENG-2397).
+ */
+function createSharedStackTelemetryHandle(metadataOverrides: Partial<TelemetryMetadata> = {}): ConfiguredTelemetryHandle {
+	// The adapters' enabled closures read the shared policy state; start
+	// resolving it now so the host setting is known as early as possible.
+	void ensureTelemetryPolicyInitialized()
+
+	const metadata = createClineTelemetryServiceMetadata({
+		extension_version: ExtensionRegistryInfo.version,
+		// VscodeTelemetryPolicyService replaces these with the authoritative
+		// getHostVersion values before any event is emitted. "unknown" surfaces
+		// a failed host version lookup instead of mislabeling the host as VSCode.
+		cline_type: "unknown",
+		platform: "unknown",
+		platform_version: "unknown",
+		os_type: process.platform,
+		os_version: os.version(),
+		is_dev: process.env.IS_DEV,
+		...metadataOverrides,
+	})
+
+	const clients = getSharedOtelClients()
+	const adapters = clients.map(
+		({ client, bypassUserSettings }) =>
+			new OpenTelemetryAdapter({
+				metadata,
+				meterProvider: client.meterProvider,
+				loggerProvider: client.loggerProvider,
+				enabled: () => isTelemetryExportAllowed(bypassUserSettings),
+				// The shared clients are owned by the process-wide registry
+				// (disposed during extension teardown), not this handle.
+				ownsProviders: false,
+			}),
+	)
+
+	const telemetry = new CoreTelemetryService({
+		adapters,
+		metadata,
+		distinctId: resolveCoreDistinctId(getDistinctId() || undefined),
+		commonProperties: getRolloutTelemetryMetadata(),
+	})
+
+	const flush = async (): Promise<void> => {
+		try {
+			await flushSharedOtelClients()
+		} catch {
+			// best-effort flush; swallow to avoid blocking shutdown paths
+		}
+	}
+
+	const dispose = async (): Promise<void> => {
+		// The adapters do not own the shared clients, so this releases only the
+		// handle; the client registry shuts the exporters down at teardown.
+		await Promise.allSettled([telemetry.dispose(), flush()])
+	}
+
+	return {
+		telemetry,
+		flush,
+		dispose,
+		// telemetry.provider_created is emitted by VscodeTelemetryPolicyService
+		// once the host identity metadata has been applied (mirrors the
+		// deferProviderCreatedEvent flow the private stack used).
+		...(clients.length > 0 ? { emitProviderCreated: () => emitProviderCreated(telemetry, clients) } : {}),
+	}
+}
+
+/**
+ * Emits the same `telemetry.provider_created` event (name and attribute keys)
+ * that `createOpenTelemetryTelemetryService` in @cline/core emits, describing
+ * the primary shared destination this handle exports through.
+ */
+function emitProviderCreated(telemetry: ITelemetryService, clients: SharedOtelClient[]): void {
+	const primary = clients[0]
+	telemetry.captureRequired("telemetry.provider_created", {
+		provider: "opentelemetry",
+		enabled: true,
+		logsExporter: primary.config.logsExporter,
+		metricsExporter: primary.config.metricsExporter,
+		tracesExporter: undefined,
+		otlpProtocol: primary.config.otlpProtocol,
+		hasOtlpEndpoint: Boolean(primary.config.otlpEndpoint),
+		serviceName: undefined,
+		serviceVersion: undefined,
+	})
+}
+
 export class VscodeTelemetryPolicyService implements ITelemetryService {
-	private hostTelemetryEnabled = false
 	private disposed = false
-	private unsubscribeHostTelemetrySettings?: () => void
-	private receivedHostSubscriptionUpdate = false
 	private providerCreatedEmitted = false
+	/**
+	 * No event may be emitted before the authoritative host identity metadata is
+	 * applied; per-destination export decisions past this gate belong to the
+	 * shared telemetry policy (via the handle's adapters).
+	 */
+	private hostMetadataReady = false
 
 	constructor(private readonly handle: ConfiguredTelemetryHandle) {
 		this.initializeHostTelemetryState()
@@ -99,9 +175,11 @@ export class VscodeTelemetryPolicyService implements ITelemetryService {
 	}
 
 	capture(input: { event: string; properties?: TelemetryProperties }): void {
-		if (!this.isOrdinaryTelemetryAllowed()) {
+		if (!this.hostMetadataReady) {
 			return
 		}
+		// Per-destination gating (host + user settings, bypass flags) happens in
+		// the handle's adapters via the shared telemetry policy.
 		this.handle.telemetry.capture(input)
 	}
 
@@ -149,8 +227,6 @@ export class VscodeTelemetryPolicyService implements ITelemetryService {
 			return
 		}
 		this.disposed = true
-		this.unsubscribeHostTelemetrySettings?.()
-		this.unsubscribeHostTelemetrySettings = undefined
 		// If the host-version lookup is still pending, emit the deferred
 		// provider_created now (with the construction-time fallback identity, as the
 		// undeferred event always did) so disposal never swallows the required event.
@@ -167,48 +243,19 @@ export class VscodeTelemetryPolicyService implements ITelemetryService {
 	}
 
 	private initializeHostTelemetryState(): void {
-		// Resolve host-derived metadata first and only then let events flow: the gate
-		// below (and every subscription update) waits on this promise, so no event —
+		// The shared policy module owns the host telemetry setting (fetch +
+		// subscription); this service only sequences metadata: resolve the
+		// host-derived identity first and only then let events flow, so no event —
 		// including the deferred provider_created — is emitted before the host
 		// identity metadata is in place. Never rejects: resolveHostMetadata catches.
-		const hostMetadataApplied = this.resolveHostMetadata().then((hostMetadata) => {
+		void ensureTelemetryPolicyInitialized()
+		this.resolveHostMetadata().then((hostMetadata) => {
 			if (Object.keys(hostMetadata).length > 0) {
 				this.handle.telemetry.updateMetadata(hostMetadata)
 			}
+			this.hostMetadataReady = true
 			this.emitProviderCreatedOnce()
 		})
-
-		Promise.all([hostMetadataApplied, HostProvider.env.getTelemetrySettings({})])
-			.then(([, settings]) => {
-				// A subscription event is always newer than the initial fetch; don't
-				// let a slow fetch overwrite a setting change that already arrived.
-				if (!this.receivedHostSubscriptionUpdate) {
-					this.applyHostTelemetrySetting(settings.isEnabled)
-				}
-			})
-			.catch((error) => {
-				Logger.warn("[SdkTelemetry] Failed to read host telemetry setting; keeping SDK telemetry disabled", error)
-			})
-
-		try {
-			this.unsubscribeHostTelemetrySettings = HostProvider.env.subscribeToTelemetrySettings(
-				{},
-				{
-					onResponse: (event: TelemetrySettingsEvent) => {
-						this.receivedHostSubscriptionUpdate = true
-						// Chain on the metadata promise so a setting flip cannot open the
-						// gate while the host identity is still resolving. Chained callbacks
-						// run in attach order, so multiple updates apply in arrival order.
-						hostMetadataApplied.then(() => this.applyHostTelemetrySetting(event.isEnabled))
-					},
-					onError: (error: Error) => {
-						Logger.warn("[SdkTelemetry] Host telemetry subscription failed; keeping last known state", error)
-					},
-				},
-			)
-		} catch (error) {
-			Logger.warn("[SdkTelemetry] Failed to subscribe to host telemetry changes", error)
-		}
 	}
 
 	// Mirrors the classic TelemetryService.create() mapping of GetHostVersionResponse
@@ -229,19 +276,15 @@ export class VscodeTelemetryPolicyService implements ITelemetryService {
 		}
 	}
 
-	private applyHostTelemetrySetting(setting: Setting): void {
-		this.hostTelemetryEnabled = setting === Setting.ENABLED || setting === Setting.UNSUPPORTED
-	}
-
 	private isOrdinaryTelemetryAllowed(): boolean {
-		return this.hostTelemetryEnabled && StateManager.get().getGlobalSettingsKey("telemetrySetting") !== "disabled"
+		return this.hostMetadataReady && isTelemetryExportAllowed(false)
 	}
 
 	private isRequiredTelemetryAllowed(): boolean {
-		return this.hostTelemetryEnabled
+		return this.hostMetadataReady && isHostTelemetryEnabled()
 	}
 
 	private isMetricAllowed(required: boolean): boolean {
-		return required ? this.isRequiredTelemetryAllowed() : this.isOrdinaryTelemetryAllowed()
+		return required ? this.isRequiredTelemetryAllowed() : this.hostMetadataReady
 	}
 }

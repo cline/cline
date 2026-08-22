@@ -706,8 +706,12 @@ export {
 	type SqliteTeamStoreOptions,
 } from "./services/storage/team-store";
 export {
+	OpenTelemetryAdapter,
+	type OpenTelemetryAdapterOptions,
 	resolveCoreDeviceId,
 	resolveCoreDistinctId,
+	type TelemetryLoggerProviderLike,
+	type TelemetryMeterProviderLike,
 } from "./services/telemetry";
 export type {
 	CaptureAgentUnexpectedReasoningTokensInput,
