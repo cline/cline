@@ -31,6 +31,7 @@ import {
 	getEditorSizeError,
 	getReadFileRangeError,
 	normalizeRunCommandsInput,
+	stripAnsi,
 	TimeoutError,
 	withTimeout,
 } from "./helpers";
@@ -220,7 +221,7 @@ async function executeShellCommands(
 					);
 					return {
 						query,
-						result: output,
+						result: stripAnsi(output),
 						success: true,
 					};
 				} catch (error) {
@@ -235,7 +236,7 @@ async function executeShellCommands(
 					if (error instanceof CommandExitError) {
 						return {
 							query,
-							result: error.output,
+							result: stripAnsi(error.output),
 							error: error.message,
 							success: false,
 						};
