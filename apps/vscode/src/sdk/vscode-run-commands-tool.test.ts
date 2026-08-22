@@ -11,12 +11,19 @@ import {
 	executeForeground,
 	FOREGROUND_COMMAND_AUTO_PROCEED_MS,
 	formatCommandForTerminal,
+	normalizeVscodeShellCommand,
 	PROCEED_LOG_MAX_BYTES,
 } from "./vscode-run-commands-tool"
 
 const mocks = vi.hoisted(() => ({
+	backgroundExecutor: vi.fn(async () => "shell-ok"),
 	existsSync: vi.fn<(path: fs.PathLike) => boolean>(),
 	getGlobalSettingsKey: vi.fn(() => "default"),
+}))
+
+vi.mock("@cline/core", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@cline/core")>()),
+	createShellExecutor: () => mocks.backgroundExecutor,
 }))
 
 vi.mock("fs", async (importOriginal) => ({
@@ -50,11 +57,37 @@ afterEach(() => {
 	process.env = { ...originalEnv }
 	vscode.workspace.getConfiguration = originalGetConfiguration
 	mocks.existsSync.mockReset()
+	mocks.backgroundExecutor.mockReset()
+	mocks.backgroundExecutor.mockResolvedValue("shell-ok")
 	mocks.getGlobalSettingsKey.mockReset()
 	mocks.getGlobalSettingsKey.mockReturnValue("default")
 })
 
 describe("createVscodeRunCommandsTool", () => {
+	it("runs omitted-args compatibility commands through the background shell", async () => {
+		const tool = createVscodeRunCommandsTool({
+			cwd: process.cwd(),
+			getTerminalManager: () => {
+				throw new Error("Background execution must not acquire a VS Code terminal")
+			},
+			vscodeTerminalExecutionMode: "backgroundExec",
+		})
+
+		const results = await tool.execute(
+			{ commands: [{ command: "echo shell-ok" }] } as never,
+			{ agentId: "agent-1", conversationId: "conversation-1", iteration: 1 },
+		)
+
+		expect(results).toEqual([
+			expect.objectContaining({ query: "echo shell-ok", result: expect.stringContaining("shell-ok"), success: true }),
+		])
+		expect(mocks.backgroundExecutor).toHaveBeenCalledWith(
+			"echo shell-ok",
+			process.cwd(),
+			expect.objectContaining({ iteration: 1 }),
+		)
+	})
+
 	it("uses the VS Code terminal when the execution mode is omitted", async () => {
 		const process = createFakeTerminalProcess({ lines: ["terminal-default-ok"] })
 		const getTerminalManager = vi.fn(() => createFakeTerminalManager(process))
@@ -120,6 +153,20 @@ describe("createVscodeRunCommandsTool", () => {
 		// model-request boundary), without a session rebuild.
 		mocks.getGlobalSettingsKey.mockReturnValue("powershell-7")
 		expect(tool.description).toContain("Commands run through PowerShell")
+	})
+})
+
+describe("normalizeVscodeShellCommand", () => {
+	it("preserves explicit argv while converting only the omitted-args form", () => {
+		expect(normalizeVscodeShellCommand({ command: "echo shell-ok" })).toBe("echo shell-ok")
+		expect(normalizeVscodeShellCommand({ command: "tool; unintended-command", args: [] })).toEqual({
+			command: "tool; unintended-command",
+			args: [],
+		})
+		expect(normalizeVscodeShellCommand({ command: "node", args: ["--version"] })).toEqual({
+			command: "node",
+			args: ["--version"],
+		})
 	})
 })
 
