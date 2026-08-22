@@ -891,7 +891,7 @@ function GeneralSettingsContent({
 								aria-label={option.label}
 								aria-pressed={accent === option.id}
 								className={cn(
-									"size-7 rounded-full border border-foreground/10 transition-transform hover:scale-110",
+									"size-7 rounded-full border border-foreground/10 transition-transform hover:scale-110 dark:border-white",
 									accent === option.id &&
 										"ring-2 ring-ring ring-offset-2 ring-offset-background",
 								)}
