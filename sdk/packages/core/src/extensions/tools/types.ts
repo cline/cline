@@ -10,6 +10,7 @@ import type {
 	ITelemetryService,
 	TextContent,
 } from "@cline/shared";
+import type { MonitorRegistry } from "./executors/monitor";
 import type {
 	ApplyPatchInput,
 	EditFileInput,
@@ -232,6 +233,7 @@ export type DefaultToolName =
 	| "apply_patch"
 	| "editor"
 	| "skills"
+	| "monitor"
 	| "ask_question"
 	| "submit_and_exit";
 
@@ -288,6 +290,20 @@ export interface DefaultToolsConfig {
 	 * @default true
 	 */
 	enableSkills?: boolean;
+
+	/** Enable the monitor tool. @default true */
+	enableMonitor?: boolean;
+
+	/**
+	 * Monitor registry owned by the caller.
+	 *
+	 * Required for the monitor tool to be created at all, and deliberately not
+	 * built here from a notifier: the registry owns live background processes,
+	 * so whoever constructs it must keep the handle needed to `dispose()` them
+	 * at teardown. The tool is also withheld unless a `bash` executor is
+	 * present, since a monitor spawns its own shell.
+	 */
+	monitorRegistry?: MonitorRegistry;
 
 	/**
 	 * Enable the ask_followup_question tool
