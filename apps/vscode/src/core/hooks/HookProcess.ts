@@ -1,5 +1,6 @@
 import { ChildProcess, spawn } from "child_process"
 import { EventEmitter } from "events"
+import { existsSync } from "fs"
 import { Logger } from "@/shared/services/Logger"
 import { resolveWindowsPowerShellExecutable } from "@/utils/powershell"
 import { HookProcessRegistry } from "./HookProcessRegistry"
@@ -107,6 +108,9 @@ export class HookProcess extends EventEmitter {
 	// Track registration state to prevent leaks and ensure cleanup
 	private isRegistered = false
 
+	// The working directory actually passed to spawn (after existence validation)
+	private spawnCwd: string | undefined
+
 	constructor(
 		private readonly scriptPath: string,
 		private readonly timeoutMs: number = 30000,
@@ -173,11 +177,23 @@ export class HookProcess extends EventEmitter {
 				void (async () => {
 					try {
 						const launchConfig = await getHookLaunchConfig(this.scriptPath)
+
+						// A cwd that doesn't exist makes spawn fail with a misleading
+						// ENOENT against the launcher binary (e.g. "spawn /bin/sh ENOENT").
+						// Run the hook without an explicit cwd instead of failing.
+						let cwd = this.cwd
+						if (cwd && !existsSync(cwd)) {
+							Logger.warn(
+								`[HookProcess] Working directory '${cwd}' does not exist; running hook '${this.scriptPath}' without an explicit working directory`,
+							)
+							cwd = undefined
+						}
+						this.spawnCwd = cwd
 						this.childProcess = spawn(launchConfig.command, launchConfig.args, {
 							stdio: ["pipe", "pipe", "pipe"],
 							shell: launchConfig.shell,
 							detached: launchConfig.detached,
-							cwd: this.cwd, // Execute from the determined workspace root
+							cwd, // Execute from the determined workspace root (validated above)
 							windowsHide: true,
 						})
 
@@ -259,8 +275,15 @@ export class HookProcess extends EventEmitter {
 							if (this.abortSignal) {
 								this.abortSignal.removeEventListener("abort", abortHandler)
 							}
-							this.emit("error", error)
-							reject(error)
+							const spawnError = this.describeSpawnError(error)
+							// Emitting "error" with no listener registered makes EventEmitter
+							// throw, which would escape this callback as an uncaught exception
+							// and kill the whole host process. Hook failures must fail open,
+							// so only forward the event when someone is actually listening.
+							if (this.listenerCount("error") > 0) {
+								this.emit("error", spawnError)
+							}
+							reject(spawnError)
 						})
 
 						// Send input to the process
@@ -283,6 +306,21 @@ export class HookProcess extends EventEmitter {
 			// Guaranteed cleanup even if process setup fails or throws
 			this.safeUnregister()
 		}
+	}
+
+	/**
+	 * Translates a child-process spawn failure into an actionable error.
+	 *
+	 * Node reports a working directory that vanished between validation and
+	 * spawn as an ENOENT on the launcher binary (e.g. "spawn /bin/sh ENOENT"),
+	 * so name the real culprit when that is what happened.
+	 */
+	private describeSpawnError(error: Error): Error {
+		const code = (error as NodeJS.ErrnoException).code
+		if (code === "ENOENT" && this.spawnCwd && !existsSync(this.spawnCwd)) {
+			return new Error(`Hook working directory '${this.spawnCwd}' does not exist (reported by spawn as: ${error.message})`)
+		}
+		return error
 	}
 
 	/**

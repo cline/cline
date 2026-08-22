@@ -4,6 +4,7 @@ import fs from "fs/promises"
 import path from "path"
 import sinon from "sinon"
 import { setDistinctId } from "@/services/logging/distinctId"
+import { StateManager } from "../../storage/StateManager"
 import { HookFactory } from "../hook-factory"
 import { createHookTestEnv, HookTestEnv, stubHookDirs, withPlatform, writeHookScriptForPlatform } from "./test-utils"
 
@@ -88,6 +89,55 @@ console.log(JSON.stringify({
 				const normalizedCwd = await fs.realpath(cwdFromHook)
 				const normalizedTempDir = await fs.realpath(tempDir)
 				normalizedCwd.should.equal(normalizedTempDir)
+			},
+			WINDOWS_HOOK_TEST_TIMEOUT_MS,
+		)
+
+		it(
+			"should execute hooks even when the configured workspace root no longer exists",
+			async () => {
+				const hookPath = path.join(tempDir, ".clinerules", "hooks", "PreToolUse")
+				const hookScript = `#!/usr/bin/env node
+console.log(JSON.stringify({
+  cancel: false,
+  contextModification: "CWD: " + process.cwd()
+}))`
+
+				await writeHookScript(hookPath, hookScript)
+
+				// Point the persisted workspace state at a root that no longer
+				// exists on disk (deleted, renamed, or unmounted since it was
+				// saved). Spawning with that path as cwd used to fail with a
+				// misleading "spawn /bin/sh ENOENT" whose unlistened "error"
+				// emit crashed the whole host process.
+				sandbox.restore()
+				sandbox.stub(StateManager, "get").returns({
+					getGlobalStateKey: (key: string) => {
+						if (key === "workspaceRoots") {
+							return [{ path: path.join(tempDir, "deleted-workspace-root") }]
+						}
+						if (key === "primaryRootIndex") {
+							return 0
+						}
+						return undefined
+					},
+				} as any)
+
+				const factory = new HookFactory()
+				const runner = await factory.create("PreToolUse")
+
+				const result = await runner.run({
+					taskId: "test-task",
+					preToolUse: {
+						toolName: "test_tool",
+						parameters: {},
+					},
+				})
+
+				// The hook must still run (from the process default cwd) instead
+				// of crashing or failing on the stale root.
+				result.cancel.should.be.false()
+				result.contextModification?.should.startWith("CWD: ")
 			},
 			WINDOWS_HOOK_TEST_TIMEOUT_MS,
 		)
