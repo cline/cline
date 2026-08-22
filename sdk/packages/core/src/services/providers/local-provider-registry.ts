@@ -404,15 +404,33 @@ function registerCustomModels(
 	providerId: string,
 	models: StoredProviderEntry["models"] | undefined,
 ): void {
+	const generatedModels = getGeneratedModelsForProvider(providerId);
 	for (const [modelKey, model] of Object.entries(models ?? {})) {
 		const modelId = model.id?.trim() || modelKey.trim();
 		if (!modelId) {
 			continue;
 		}
+		const generatedCapabilities = generatedModels[modelId]?.capabilities;
+		const storedModel =
+			generatedCapabilities && model.capabilities
+				? {
+						...model,
+						// Stored capability lists are additive overrides for catalog
+						// models. Preserve generated capabilities such as "tools"
+						// when loading metadata written by older clients that only
+						// persisted their boolean projections.
+						capabilities: [
+							...new Set([
+								...generatedCapabilities,
+								...model.capabilities,
+							]),
+						],
+					}
+				: model;
 		LlmsModels.registerModel(
 			providerId,
 			modelId,
-			toStoredModelInfo(modelId, model),
+			toStoredModelInfo(modelId, storedModel, generatedCapabilities),
 		);
 	}
 }

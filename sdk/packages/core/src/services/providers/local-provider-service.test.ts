@@ -230,6 +230,48 @@ describe("models registry parsing", () => {
 		expect(models.bare).not.toHaveProperty("capabilities");
 	});
 
+	it("keeps generated tool support when stale OpenCode Go metadata shadows a catalog model", async () => {
+		const generatedModel =
+			LlmsModels.getGeneratedModelsForProvider("opencode-go")["glm-5.3"];
+		expect(generatedModel?.capabilities).toContain("tools");
+
+		const parsed = parseModelsFile({
+			version: 1,
+			providers: {
+				"opencode-go": {
+					models: {
+						"glm-5.3": {
+							// Older clients persisted only capability projections they
+							// understood. Once v4.1.11 began gating tools, this partial
+							// list shadowed the catalog's "tools" capability and disabled
+							// every edit/read tool for the model.
+							capabilities: ["reasoning", "prompt-cache"],
+						},
+					},
+				},
+			},
+		});
+
+		const entry = parsed.providers["opencode-go"];
+		if (!entry) {
+			throw new Error("expected OpenCode Go provider entry");
+		}
+
+		registerCustomProvider("opencode-go", entry);
+
+		const model = (await LlmsModels.getModelsForProvider("opencode-go"))[
+			"glm-5.3"
+		];
+		expect(model?.capabilities).toEqual(
+			expect.arrayContaining([
+				"tools",
+				"reasoning",
+				"prompt-cache",
+				"structured_output",
+			]),
+		);
+	});
+
 	it("skips malformed provider entries while preserving valid providers", () => {
 		expect(
 			parseModelsFile({
