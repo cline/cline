@@ -23,7 +23,7 @@ Cline stores shared configuration across a few well-known locations. The primary
     teams/                     # Team state
     sessions/                  # Session data
     db/                        # SQLite databases (for example cron.db)
-    workflows/                 # Global workflows
+  workflows/                   # Global workflows
   rules/                       # Global rules
   hooks/                       # Global hooks
   skills/                      # Global skills
@@ -39,7 +39,7 @@ Additional global search paths supported by the code:
   Rules/                       # Additional global rules
   Hooks/                       # Additional global hooks
   Plugins/                     # Additional global plugins
-  Workflows/                   # Additional global workflows
+  Workflows/                   # First-priority global workflows search path
 ```
 
 Project-level configuration lives in `.cline/` at your repository root:
@@ -57,7 +57,8 @@ Project-level configuration lives in `.cline/` at your repository root:
 Notes:
 
 - Global provider settings, global settings, and MCP settings are stored under `~/.cline/data/settings/`.
-- Global workflows resolve from `~/.cline/data/workflows/`.
+- Global workflows resolve from `~/.cline/workflows/`.
+- `~/Documents/Cline/Workflows` is the first-priority global workflows search path across IDE, CLI, and SDK clients.
 - Global rules, hooks, skills, agents, plugins, and cron specs resolve directly under `~/.cline/`.
 - Rules, hooks, plugins, and workflows may also be discovered from `~/Documents/Cline/` for compatibility.
 
