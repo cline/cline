@@ -233,8 +233,11 @@ export async function createBedrockProviderModule(
 	};
 
 	return {
-		model: (modelId) =>
-			provider(resolveBedrockModelId(modelId, modelIdOptions)),
+		operations: {
+			language: (modelId) =>
+				provider(resolveBedrockModelId(modelId, modelIdOptions)),
+			imageGeneration: (modelId) => provider.image(modelId),
+		},
 	};
 }
 

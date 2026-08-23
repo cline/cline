@@ -34,18 +34,34 @@ describe("app icon", () => {
 		expect(readStoredAppIcon()).toBe(DEFAULT_APP_ICON);
 		window.localStorage.setItem(APP_ICON_STORAGE_KEY, "bogus");
 		expect(readStoredAppIcon()).toBe(DEFAULT_APP_ICON);
+		window.localStorage.setItem(APP_ICON_STORAGE_KEY, "toString");
+		expect(readStoredAppIcon()).toBe(DEFAULT_APP_ICON);
 		expect(isAppIconId("midnight")).toBe(true);
+		expect(isAppIconId("hologram")).toBe(true);
+		expect(isAppIconId("chip")).toBe(true);
+		expect(isAppIconId("steel")).toBe(false);
+		expect(isAppIconId("sunrise")).toBe(false);
 		expect(isAppIconId("bogus")).toBe(false);
 	});
 
+	it.each([
+		["sunrise", "hologram"],
+		["steel", "midnight"],
+	])("migrates the retired %s preference to %s", (retired, replacement) => {
+		window.localStorage.setItem(APP_ICON_STORAGE_KEY, retired);
+
+		expect(readStoredAppIcon()).toBe(replacement);
+		expect(window.localStorage.getItem(APP_ICON_STORAGE_KEY)).toBe(replacement);
+	});
+
 	it("persists the choice and swaps the favicon in browser mode", async () => {
-		await setStoredAppIcon("steel");
-		expect(window.localStorage.getItem(APP_ICON_STORAGE_KEY)).toBe("steel");
+		await setStoredAppIcon("classic");
+		expect(window.localStorage.getItem(APP_ICON_STORAGE_KEY)).toBe("classic");
 		expect(
 			document
 				.querySelector<HTMLLinkElement>('link[rel="icon"]')
 				?.getAttribute("href"),
-		).toBe(appIconAssetPath("steel"));
+		).toBe(appIconAssetPath("classic"));
 		expect(invoke).not.toHaveBeenCalled();
 	});
 

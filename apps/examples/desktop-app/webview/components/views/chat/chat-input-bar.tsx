@@ -1,16 +1,16 @@
 "use client";
 
-import { CLINE_DEFAULT_MODEL_ID } from "@cline/shared/browser";
-import { AgentPromptQueue, SearchCombobox } from "@cline/ui";
 import {
-	ArrowUp,
-	Brain,
-	CircleStop,
-	Cpu,
-	Paperclip,
-	X,
-} from "lucide-react";
+	CLINE_DEFAULT_MODEL_ID,
+	formatDisplayUserInput,
+} from "@cline/shared/browser";
+import { AgentPromptQueue, SearchCombobox } from "@cline/ui";
+import { ArrowUp, Brain, CircleStop, Cpu, Paperclip, X } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+	SpeechInput,
+	type SpeechTranscriptionSource,
+} from "@/components/ai-elements/speech-input";
 import { Button } from "@/components/ui/button";
 import {
 	Popover,
@@ -24,11 +24,18 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { Spinner } from "@/components/ui/spinner";
 import { useWorkspace } from "@/contexts/workspace-context";
 import type { PromptInQueue } from "@/hooks/chat-session/types";
 import { formatCostUsd } from "@/hooks/use-session-history";
+import { toast } from "@/hooks/use-toast";
 import type { ChatSessionConfig, ChatSessionStatus } from "@/lib/chat-schema";
-import { desktopClient } from "@/lib/desktop-client";
+import { imageFilesFromClipboard } from "@/lib/clipboard-images";
+import { desktopClient, writeDesktopDebugLog } from "@/lib/desktop-client";
+import {
+	buildModelPickerData,
+	type ModelPickerData,
+} from "@/lib/featured-models";
 import {
 	readModelSelectionStorageFromWindow,
 	writeModelSelectionStorageToWindow,
@@ -38,8 +45,13 @@ import {
 	loadProviderModelCatalog,
 	loadProviderModels,
 	subscribeToProviderModels,
+	type TranscriptionModelTarget,
+	VOICE_INPUT_SETTINGS_CHANGED_EVENT,
 } from "@/lib/provider-model-catalog";
+import type { ProviderModel } from "@/lib/provider-schema";
 import { cn } from "@/lib/utils";
+import { startVercelStreamingTranscription } from "@/lib/vercel-streaming-transcription";
+import { MAX_RECORDED_AUDIO_BYTES } from "@/lib/voice-input-limits";
 import { WorkspaceSelector as WorkspaceSelectorImpl } from "./workspace-selector";
 
 // Memoized: the workspace/branch selector fans out into popovers and lists
@@ -80,6 +92,11 @@ const BUILTIN_SLASH_COMMANDS: SlashCommand[] = [
 	},
 	{ name: "team", description: "Start the task with an agent team" },
 ];
+
+// Last known user commands, kept across composer instances so reopening the
+// slash menu paints instantly (stale-while-revalidate); the fetch that
+// follows still picks up newly installed skills and workflows.
+let cachedSlashCommands: SlashCommand[] | null = null;
 
 export function buildUserInstructionSlashCommands(
 	response: UserInstructionConfigResponse,
@@ -143,6 +160,22 @@ const PROMPT_INPUT_COLLAPSED_ROWS = 1;
 const PROMPT_INPUT_EXPANDED_ROWS = 2;
 const PROMPT_INPUT_MAX_ROWS = 5;
 const PROMPT_INPUT_LINE_HEIGHT_REM = 1.25;
+const AUDIO_BASE64_CHUNK_SIZE = 0x8000;
+
+async function blobToBase64(blob: Blob): Promise<string> {
+	const bytes = new Uint8Array(await blob.arrayBuffer());
+	let binary = "";
+	for (
+		let offset = 0;
+		offset < bytes.length;
+		offset += AUDIO_BASE64_CHUNK_SIZE
+	) {
+		binary += String.fromCharCode(
+			...bytes.subarray(offset, offset + AUDIO_BASE64_CHUNK_SIZE),
+		);
+	}
+	return window.btoa(binary);
+}
 
 function resolveEffortIndex(
 	thinking: ChatSessionConfig["thinking"],
@@ -250,7 +283,8 @@ type ChatInputBarProps = {
 	mode: "act" | "plan";
 	thinking: ChatSessionConfig["thinking"];
 	reasoningEffort: ChatSessionConfig["reasoningEffort"];
-	gitBranch: string;
+	/** Branch name, "no-git" for a non-repo folder, null while discovery is pending. */
+	gitBranch: string | null;
 	promptDraft: PromptDraft;
 	onPromptInputChange: (value: string) => void;
 	onProviderChange: (provider: string) => void;
@@ -273,6 +307,7 @@ type ChatInputBarProps = {
 		prompt: string,
 	) => Promise<void> | void;
 	onRemovePromptInQueue: (promptId: string) => Promise<void> | void;
+	onOpenVoiceInputSettings?: () => void;
 	summary: {
 		toolCalls: number;
 		tokensIn: number;
@@ -282,7 +317,7 @@ type ChatInputBarProps = {
 	};
 };
 
-export function ChatInputBar({
+function ChatInputBarImpl({
 	variant = "conversation",
 	status,
 	provider,
@@ -309,6 +344,7 @@ export function ChatInputBar({
 	onSteerPromptInQueue,
 	onEditPromptInQueue,
 	onRemovePromptInQueue,
+	onOpenVoiceInputSettings,
 	summary,
 }: ChatInputBarProps) {
 	const {
@@ -321,9 +357,38 @@ export function ChatInputBar({
 	// Keystrokes only update this local state; the parent page tree is not
 	// re-rendered per keypress. External writers push text in via promptDraft.
 	const [promptInput, setPromptInputState] = useState(promptDraft.value);
+	const promptInputValueRef = useRef(promptDraft.value);
 	const appliedDraftVersionRef = useRef(promptDraft.version);
+	const latestDraftVersionRef = useRef(promptDraft.version);
+	latestDraftVersionRef.current = promptDraft.version;
+	const promptInputRef = useRef<HTMLTextAreaElement | null>(null);
+	const batchTranscriptSessionRef = useRef<{
+		start: number;
+		end: number;
+		expectedValue: string;
+		draftVersion: number;
+		generation: number;
+	} | null>(null);
+	const speechRecognitionSessionRef = useRef<{
+		start: number;
+		end: number;
+		expectedValue: string;
+		draftVersion: number;
+		generation: number;
+	} | null>(null);
+	const streamingTranscriptRangeRef = useRef<{
+		start: number;
+		end: number;
+		expectedValue: string;
+		draftVersion: number;
+		generation: number;
+	} | null>(null);
+	const transcriptionGenerationRef = useRef(0);
+	const transcriptionTargetIdentityRef = useRef("unconfigured");
+	const transcriptionTargetStreamsRef = useRef(false);
 	const setPromptInput = useCallback(
 		(value: string) => {
+			promptInputValueRef.current = value;
 			setPromptInputState(value);
 			onPromptInputChange(value);
 		},
@@ -334,12 +399,18 @@ export function ChatInputBar({
 			return;
 		}
 		appliedDraftVersionRef.current = promptDraft.version;
+		batchTranscriptSessionRef.current = null;
+		speechRecognitionSessionRef.current = null;
+		streamingTranscriptRangeRef.current = null;
 		setPromptInput(promptDraft.value);
 	}, [promptDraft, setPromptInput]);
 	const isBusy =
 		status === "starting" || status === "running" || status === "stopping";
 	const canAbort = status === "running" || status === "stopping";
 	const hasDraft = promptInput.trim().length > 0 || attachments.length > 0;
+	const [speechInputActive, setSpeechInputActive] = useState(false);
+	const speechInputActiveRef = useRef(false);
+	const [speechInputProcessing, setSpeechInputProcessing] = useState(false);
 
 	const [reasoningCapability, setReasoningCapability] = useState<{
 		provider: string;
@@ -366,14 +437,34 @@ export function ChatInputBar({
 		},
 		[model, provider],
 	);
-	const canSend = hasDraft;
+	const canSend = hasDraft && !speechInputActive;
 	const handleSend = useCallback(() => {
+		if (speechInputActive) return;
 		const prompt = promptInput.trim();
 		setPromptInput("");
 		onSend(prompt);
-	}, [onSend, promptInput, setPromptInput]);
+	}, [onSend, promptInput, setPromptInput, speechInputActive]);
 	const fileInputRef = useRef<HTMLInputElement | null>(null);
-	const promptInputRef = useRef<HTMLTextAreaElement | null>(null);
+	const [transcriptionTarget, setTranscriptionTarget] =
+		useState<TranscriptionModelTarget | null>(null);
+	const updateTranscriptionTarget = useCallback(
+		(target: TranscriptionModelTarget | null) => {
+			const identity = target
+				? `${target.providerId}:${target.modelId}:${target.supportsStreaming ? "streaming" : "auto"}`
+				: "unconfigured";
+			transcriptionTargetStreamsRef.current =
+				target?.supportsStreaming ?? false;
+			if (identity !== transcriptionTargetIdentityRef.current) {
+				transcriptionTargetIdentityRef.current = identity;
+				transcriptionGenerationRef.current += 1;
+				batchTranscriptSessionRef.current = null;
+				speechRecognitionSessionRef.current = null;
+				streamingTranscriptRangeRef.current = null;
+			}
+			setTranscriptionTarget(target);
+		},
+		[],
+	);
 	const [promptInputFocused, setPromptInputFocused] = useState(false);
 	const [cursorIndex, setCursorIndex] = useState(() => promptInput.length);
 	// Mention/slash detection is derived synchronously from the input +
@@ -409,10 +500,263 @@ export function ChatInputBar({
 		: null;
 	const slashOpen = slashKey !== null && dismissedSlashKey !== slashKey;
 	const [slashCommands, setSlashCommands] = useState<SlashCommand[]>(
-		BUILTIN_SLASH_COMMANDS,
+		() => cachedSlashCommands ?? BUILTIN_SLASH_COMMANDS,
 	);
 	const [slashLoading, setSlashLoading] = useState(false);
 	const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
+
+	useEffect(() => {
+		let cancelled = false;
+		let loadId = 0;
+		const loadVoiceInput = () => {
+			const currentLoadId = ++loadId;
+			loadProviderModelCatalog()
+				.then((catalog) => {
+					if (!cancelled && currentLoadId === loadId) {
+						updateTranscriptionTarget(catalog.voiceInput);
+					}
+				})
+				.catch(() => {
+					if (!cancelled && currentLoadId === loadId) {
+						updateTranscriptionTarget(null);
+					}
+				});
+		};
+		loadVoiceInput();
+		window.addEventListener(VOICE_INPUT_SETTINGS_CHANGED_EVENT, loadVoiceInput);
+		return () => {
+			cancelled = true;
+			loadId += 1;
+			window.removeEventListener(
+				VOICE_INPUT_SETTINGS_CHANGED_EVENT,
+				loadVoiceInput,
+			);
+		};
+	}, [updateTranscriptionTarget]);
+
+	const handleTranscriptionChange = useCallback(
+		(
+			transcript: string,
+			source: SpeechTranscriptionSource = "media-recorder",
+		) => {
+			const text = transcript.trim();
+			const session =
+				source === "speech-recognition"
+					? speechRecognitionSessionRef.current
+					: batchTranscriptSessionRef.current;
+
+			if (source === "speech-recognition") {
+				// Browser speech recognition yields final chunks while the microphone
+				// remains open. Keep its insertion cursor alive across those chunks.
+				batchTranscriptSessionRef.current = null;
+			} else {
+				// A completed recording produces one batch result.
+				speechRecognitionSessionRef.current = null;
+				batchTranscriptSessionRef.current = null;
+			}
+			// Each result must belong to the draft captured when recording began.
+			// Batch snapshots are consumed once; browser recognition advances its
+			// cursor after each final chunk.
+			if (!text || !session) return;
+
+			const current = promptInputValueRef.current;
+			if (
+				session.generation !== transcriptionGenerationRef.current ||
+				session.draftVersion !== latestDraftVersionRef.current ||
+				session.expectedValue !== current
+			) {
+				return;
+			}
+			const insertionStart = session.start;
+			const insertionEnd = session.end;
+			const before = current.slice(0, insertionStart);
+			const after = current.slice(insertionEnd);
+			const leadingSpace = before.length > 0 && !/\s$/.test(before) ? " " : "";
+			const trailingSpace = after.length > 0 && !/^\s/.test(after) ? " " : "";
+			const insertedText = `${leadingSpace}${text}${trailingSpace}`;
+			const next = `${before}${insertedText}${after}`;
+			const nextCursor = before.length + insertedText.length;
+			if (source === "speech-recognition") {
+				speechRecognitionSessionRef.current = {
+					start: nextCursor,
+					end: nextCursor,
+					expectedValue: next,
+					draftVersion: session.draftVersion,
+					generation: session.generation,
+				};
+			}
+			setPromptInput(next);
+			requestAnimationFrame(() => {
+				const textarea = promptInputRef.current;
+				if (!textarea) return;
+				textarea.focus();
+				textarea.setSelectionRange(nextCursor, nextCursor);
+				setCursorIndex(nextCursor);
+			});
+		},
+		[setPromptInput],
+	);
+
+	const handleSpeechInputActiveChange = useCallback((active: boolean) => {
+		const wasActive = speechInputActiveRef.current;
+		speechInputActiveRef.current = active;
+		setSpeechInputActive(active);
+
+		if (!active) {
+			batchTranscriptSessionRef.current = null;
+			speechRecognitionSessionRef.current = null;
+			return;
+		}
+		if (wasActive || transcriptionTargetStreamsRef.current) return;
+
+		const current = promptInputValueRef.current;
+		const input = promptInputRef.current;
+		const start = input?.selectionStart ?? current.length;
+		const end = input?.selectionEnd ?? start;
+		const session = {
+			start,
+			end,
+			expectedValue: current,
+			draftVersion: latestDraftVersionRef.current,
+			generation: transcriptionGenerationRef.current,
+		};
+		// `auto` chooses browser speech recognition when available and falls back
+		// to MediaRecorder. Capture both session shapes until the result tells us
+		// which transport was selected.
+		batchTranscriptSessionRef.current = session;
+		speechRecognitionSessionRef.current = session;
+	}, []);
+
+	const handleStreamingTranscriptionStart = useCallback(() => {
+		const current = promptInputValueRef.current;
+		const input = promptInputRef.current;
+		const start = input?.selectionStart ?? current.length;
+		const end = input?.selectionEnd ?? start;
+		streamingTranscriptRangeRef.current = {
+			start,
+			end,
+			expectedValue: current,
+			draftVersion: latestDraftVersionRef.current,
+			generation: transcriptionGenerationRef.current,
+		};
+	}, []);
+
+	const handleStreamingTranscriptionChange = useCallback(
+		(transcript: string) => {
+			const text = transcript.trim();
+			const range = streamingTranscriptRangeRef.current;
+			if (!text || !range) return;
+
+			const current = promptInputValueRef.current;
+			// A live transcript range is only valid for the exact draft produced by
+			// its previous update. Refuse to apply stale numeric offsets if another
+			// writer changes the draft while the microphone is active.
+			if (
+				range.generation !== transcriptionGenerationRef.current ||
+				range.draftVersion !== latestDraftVersionRef.current ||
+				current !== range.expectedValue
+			) {
+				streamingTranscriptRangeRef.current = null;
+				return;
+			}
+			const before = current.slice(0, range.start);
+			const after = current.slice(range.end);
+			const leadingSpace = before.length > 0 && !/\s$/.test(before) ? " " : "";
+			const trailingSpace = after.length > 0 && !/^\s/.test(after) ? " " : "";
+			const insertion = `${leadingSpace}${text}${trailingSpace}`;
+			const next = `${before}${insertion}${after}`;
+			const nextEnd = range.start + insertion.length;
+			streamingTranscriptRangeRef.current = {
+				start: range.start,
+				end: nextEnd,
+				expectedValue: next,
+				draftVersion: range.draftVersion,
+				generation: range.generation,
+			};
+			setPromptInput(next);
+
+			requestAnimationFrame(() => {
+				const textarea = promptInputRef.current;
+				textarea?.focus();
+				textarea?.setSelectionRange(nextEnd, nextEnd);
+				setCursorIndex(nextEnd);
+			});
+		},
+		[setPromptInput],
+	);
+
+	const handleStreamingTranscriptionEnd = useCallback(() => {
+		streamingTranscriptRangeRef.current = null;
+	}, []);
+
+	const handleStartStreamingTranscription = useCallback(() => {
+		const generation = transcriptionGenerationRef.current;
+		return startVercelStreamingTranscription({
+			onTranscript: (transcript) => {
+				if (generation === transcriptionGenerationRef.current) {
+					handleStreamingTranscriptionChange(transcript);
+				}
+			},
+		});
+	}, [handleStreamingTranscriptionChange]);
+
+	const handleAudioRecorded = useCallback(
+		async (audioBlob: Blob): Promise<string> => {
+			if (!transcriptionTarget) {
+				throw new Error(
+					"Configure an audio-to-text provider before using speech input",
+				);
+			}
+			if (audioBlob.size > MAX_RECORDED_AUDIO_BYTES) {
+				throw new Error("Recorded audio exceeds the 25 MiB upload limit");
+			}
+			writeDesktopDebugLog({
+				scope: "voice-input",
+				level: "debug",
+				message: "Webview recorded audio and is sending it to the sidecar",
+				timestamp: new Date().toISOString(),
+				metadata: {
+					providerId: transcriptionTarget.providerId,
+					modelId: transcriptionTarget.modelId,
+					mediaType: audioBlob.type,
+					audioBytes: audioBlob.size,
+				},
+			});
+			const audioBase64 = await blobToBase64(audioBlob);
+			const result = await desktopClient.invoke<{ text?: string }>(
+				"transcribe_audio",
+				{
+					audioBase64,
+					mediaType: audioBlob.type,
+				},
+			);
+			const text = result.text?.trim();
+			if (!text) {
+				throw new Error("The transcription provider returned no text");
+			}
+			return text;
+		},
+		[transcriptionTarget],
+	);
+
+	const handleSpeechInputError = useCallback((error: unknown) => {
+		const message =
+			error instanceof Error
+				? error.message
+				: "Check microphone permission and audio provider settings.";
+		writeDesktopDebugLog({
+			scope: "voice-input",
+			level: "error",
+			message: "Speech input failed in the webview",
+			timestamp: new Date().toISOString(),
+			metadata: { failure: message },
+		});
+		toast({
+			variant: "destructive",
+			title: "Speech input failed",
+			description: message,
+		});
+	}, []);
 
 	const effortIndex = useMemo(
 		() => resolveEffortIndex(thinking, reasoningEffort),
@@ -453,18 +797,22 @@ export function ChatInputBar({
 		}
 	}, [modelSupportsReasoning, onReasoningChange, reasoningEffort, thinking]);
 
+	// Focus the composer on mount/variant change and when text is injected
+	// from outside (quick actions, queue undo). Deliberately NOT on every
+	// keystroke: refocusing an already-focused textarea per keypress causes
+	// caret flicker and forced layout while typing.
 	useEffect(() => {
 		const input = promptInputRef.current;
-		if (!input) return;
+		if (!input || document.activeElement === input) return;
+		// The textarea is controlled, so its live value mirrors promptInput;
+		// reading it here keeps keystrokes out of this effect's dependencies.
 		if (
 			variant === "conversation" ||
-			(variant === "welcome" &&
-				promptInput.trim().length > 0 &&
-				document.activeElement !== input)
+			(variant === "welcome" && input.value.trim().length > 0)
 		) {
 			input.focus();
 		}
-	}, [promptInput, variant]);
+	}, [variant]);
 
 	useEffect(() => {
 		setCursorIndex((prev) => Math.min(prev, promptInput.length));
@@ -573,15 +921,18 @@ export function ChatInputBar({
 			return;
 		}
 		let cancelled = false;
-		setSlashLoading(true);
+		// Only show the loading row when there is nothing cached to show.
+		setSlashLoading(cachedSlashCommands === null);
 		desktopClient
 			.invoke<UserInstructionConfigResponse>("list_user_instruction_configs")
 			.then((response) => {
 				if (cancelled) return;
-				setSlashCommands([
+				const next = [
 					...BUILTIN_SLASH_COMMANDS,
 					...buildUserInstructionSlashCommands(response),
-				]);
+				];
+				cachedSlashCommands = next;
+				setSlashCommands(next);
 			})
 			.catch(() => {
 				// Keep built-in commands on error.
@@ -631,19 +982,37 @@ export function ChatInputBar({
 		[activeSlash, promptInput, setPromptInput],
 	);
 
+	// Queued prompts are stored in their runtime form (a /team command is
+	// persisted as its <user_command> envelope), so fold them back to the
+	// slash form for display and editing. Saving an edit re-resolves the
+	// slash form through the sidecar, so the round trip is lossless.
+	const displayPromptsInQueue = useMemo(
+		() =>
+			promptsInQueue.map((item) => ({
+				...item,
+				prompt: formatDisplayUserInput(item.prompt),
+			})),
+		[promptsInQueue],
+	);
+
 	return (
 		<div
 			className={cn(
 				"bg-card",
 				variant === "welcome"
-					? "overflow-visible rounded-xl border border-border/90 bg-card/90 shadow-[0_24px_80px_-56px_color-mix(in_oklab,var(--primary)_72%,transparent)] backdrop-blur-md"
-					: "border-t border-border bg-card/95 backdrop-blur-sm",
+					? "overflow-visible rounded-xl border border-border/90 bg-surface-1/40 shadow-[0_24px_80px_-56px_color-mix(in_oklab,var(--primary)_72%,transparent)] backdrop-blur-md"
+					: "overflow-visible rounded-xl border border-border bg-surface-2 backdrop-blur-sm focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20",
 			)}
 		>
 			{/* Input area */}
-			<div className={cn("px-4 py-3", variant === "welcome" && "pb-2 pt-4")}>
+			<div
+				className={cn(
+					"px-4 py-3",
+					variant === "welcome" ? "pb-2 pt-4" : "py-4",
+				)}
+			>
 				<AgentPromptQueue
-					items={promptsInQueue}
+					items={displayPromptsInQueue}
 					onEdit={onEditPromptInQueue}
 					onRemove={onRemovePromptInQueue}
 					onSteer={onSteerPromptInQueue}
@@ -734,13 +1103,35 @@ export function ChatInputBar({
 							)}
 						</div>
 					)}
+					{/* biome-ignore lint/a11y/noStaticElementInteractions: Empty composer space forwards pointer focus to the nested textarea; keyboard users focus the textarea directly. */}
 					<div
 						className={cn(
-							"flex items-end gap-2 rounded-lg border border-border bg-background px-3 py-2.5 transition-all focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20",
-							variant === "welcome" &&
-								"min-h-16 rounded-none border-0 bg-transparent px-0 py-0 focus-within:ring-0",
+							"flex items-end gap-2 rounded-lg border border-border bg-background px-3 py-2.5 focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20",
+							variant === "welcome"
+								? "min-h-16 rounded-none border-0 bg-transparent px-0 py-0 focus-within:ring-0"
+								: "min-h-24 items-start rounded-none border-0 bg-transparent px-0 py-0 focus-within:border-transparent focus-within:ring-0",
 						)}
+						onMouseDown={(event) => {
+							const target = event.target;
+							if (
+								target instanceof HTMLElement &&
+								target.closest("button, input, textarea")
+							) {
+								return;
+							}
+							event.preventDefault();
+							promptInputRef.current?.focus();
+						}}
 					>
+						{speechInputProcessing && (
+							<output
+								aria-live="polite"
+								className="flex shrink-0 items-center gap-1.5 self-center text-xs text-muted-foreground"
+							>
+								<Spinner className="size-3.5" />
+								<span className="sr-only">Transcribing voice input</span>
+							</output>
+						)}
 						<textarea
 							aria-activedescendant={
 								slashOpen && filteredSlashCommands.length > 0
@@ -761,8 +1152,10 @@ export function ChatInputBar({
 							aria-haspopup="listbox"
 							className={cn(
 								"field-sizing-content flex-1 resize-none overflow-y-auto bg-transparent text-sm leading-5 text-foreground placeholder:text-muted-foreground outline-none",
+								variant === "welcome" && "self-start",
 							)}
 							onChange={(e) => {
+								if (speechInputActive) return;
 								setPromptInput(e.target.value);
 								setCursorIndex(
 									e.target.selectionStart ?? e.target.value.length,
@@ -775,6 +1168,15 @@ export function ChatInputBar({
 							}
 							onBlur={() => setPromptInputFocused(false)}
 							onFocus={() => setPromptInputFocused(true)}
+							onPaste={(e) => {
+								const images = imageFilesFromClipboard(e.clipboardData);
+								if (images.length > 0) {
+									// Attach the image instead of pasting its fallback
+									// text representation (e.g. a file path or URL).
+									e.preventDefault();
+									onAttachFiles(images);
+								}
+							}}
 							onKeyDown={(e) => {
 								// Slash command menu takes priority when open.
 								if (slashOpen && filteredSlashCommands.length > 0) {
@@ -853,12 +1255,15 @@ export function ChatInputBar({
 								)
 							}
 							placeholder={
-								variant === "welcome"
-									? "Ask to make changes, @mention files, reference #PRs, or run /commands."
-									: isBusy
-										? "Agent is working... submit to queue another message"
-										: "Enter your question or type / for commands or @ for context"
+								speechInputProcessing
+									? "Transcribing voice input…"
+									: variant === "welcome"
+										? "Ask to make changes, @mention files, reference #PRs, or run /commands."
+										: isBusy
+											? "Agent is working... submit to queue another message"
+											: "Enter your question or type / for commands or @ for context"
 							}
+							readOnly={speechInputActive}
 							ref={promptInputRef}
 							role="combobox"
 							rows={promptInputRows}
@@ -868,7 +1273,12 @@ export function ChatInputBar({
 							}}
 							value={promptInput}
 						/>
-						<div className="flex shrink-0 items-center gap-2">
+						<div
+							className={cn(
+								"flex shrink-0 items-center gap-2",
+								variant === "conversation" && "self-end",
+							)}
+						>
 							{canAbort && (
 								<button
 									aria-label="Stop agent"
@@ -883,6 +1293,44 @@ export function ChatInputBar({
 									<CircleStop className="size-3" />
 								</button>
 							)}
+							<SpeechInput
+								allowUnavailableClick={!transcriptionTarget}
+								key={
+									transcriptionTarget
+										? `${transcriptionTarget.providerId}:${transcriptionTarget.modelId}:${transcriptionTarget.supportsStreaming ? "streaming" : "auto"}`
+										: "unconfigured"
+								}
+								onActiveChange={handleSpeechInputActiveChange}
+								onAudioRecorded={handleAudioRecorded}
+								onClick={(event) => {
+									if (!transcriptionTarget) {
+										event.preventDefault();
+										onOpenVoiceInputSettings?.();
+									}
+								}}
+								onError={handleSpeechInputError}
+								onProcessingChange={setSpeechInputProcessing}
+								onStartStreaming={
+									transcriptionTarget?.supportsStreaming
+										? handleStartStreamingTranscription
+										: undefined
+								}
+								onStreamingEnd={handleStreamingTranscriptionEnd}
+								onStreamingStart={handleStreamingTranscriptionStart}
+								onTranscriptionChange={
+									transcriptionTarget?.supportsStreaming
+										? undefined
+										: handleTranscriptionChange
+								}
+								recordingMode={
+									transcriptionTarget?.supportsStreaming ? "streaming" : "auto"
+								}
+								title={
+									transcriptionTarget
+										? `${transcriptionTarget.supportsStreaming ? "Transcribe live" : "Transcribe"} with ${transcriptionTarget.providerName} / ${transcriptionTarget.modelName}`
+										: "Configure voice input in Settings → Models"
+								}
+							/>
 							{(!isBusy || canSend) && (
 								<button
 									aria-label="Send message"
@@ -926,7 +1374,7 @@ export function ChatInputBar({
 			</div>
 
 			{/* Composer settings */}
-			<div className="flex min-w-0 items-center  justify-between gap-x-3 gap-y-2 border-t border-border px-2 py-2 text-sm text-muted-foreground">
+			<div className="flex min-w-0 items-center justify-between gap-x-3 gap-y-2 rounded-b-xl border-t border-border bg-muted/20 px-2 py-2 text-sm text-muted-foreground">
 				<div className="flex min-w-0 flex-auto flex-wrap items-center gap-2 max-[560px]:flex-nowrap">
 					<button
 						aria-label="Attach files"
@@ -1055,6 +1503,11 @@ export function ChatInputBar({
 	);
 }
 
+// Memoized: the chat pane re-renders on every stream flush (message deltas,
+// status, usage); the composer only cares about the props it receives, which
+// the pane keeps referentially stable.
+export const ChatInputBar = memo(ChatInputBarImpl);
+
 // Memoized: the selectors load/hold the full provider-model catalog, so they
 // should not re-render for every keystroke in the composer textarea.
 const ModelSelector = memo(function ModelSelector({
@@ -1083,6 +1536,12 @@ const ModelSelector = memo(function ModelSelector({
 		"loading" | "catalog" | "fallback"
 	>("loading");
 	const [enabledProviderIds, setEnabledProviderIds] = useState<string[]>([]);
+	const [providerNames, setProviderNames] = useState<Record<string, string>>(
+		{},
+	);
+	const [modelDetails, setModelDetails] = useState<
+		Record<string, ProviderModel[]>
+	>({});
 	const [lastSelection, setLastSelection] = useState(() =>
 		readModelSelectionStorageFromWindow(),
 	);
@@ -1116,6 +1575,30 @@ const ModelSelector = memo(function ModelSelector({
 		() => visibleProviderModels[resolvedProvider] ?? [],
 		[resolvedProvider, visibleProviderModels],
 	);
+	// Sectioned picker data: display names plus the Recommended/Free tiers the
+	// SDK stamps onto cline/cline-pass models (ProviderModel.featured).
+	const pickerDataForProvider = useCallback(
+		(providerId: string): ModelPickerData => {
+			const detailsById = new Map(
+				(modelDetails[providerId] ?? []).map(
+					(entry) => [entry.id, entry] as const,
+				),
+			);
+			const models = (visibleProviderModels[providerId] ?? []).map(
+				(id) => detailsById.get(id) ?? { id, name: id },
+			);
+			return buildModelPickerData(providerId, models);
+		},
+		[modelDetails, visibleProviderModels],
+	);
+	const modelPicker = useMemo(
+		() => pickerDataForProvider(resolvedProvider),
+		[pickerDataForProvider, resolvedProvider],
+	);
+	const pickerModelIds = useMemo(
+		() => new Set(modelPicker.options.map((option) => option.value)),
+		[modelPicker],
+	);
 	const resolvedModel = useMemo(() => {
 		if (modelsForProvider.length === 0) {
 			return "";
@@ -1123,18 +1606,66 @@ const ModelSelector = memo(function ModelSelector({
 		const rememberedModel =
 			lastSelection.lastModelByProvider[resolvedProvider] ??
 			lastSelection.lastModelByProvider[rememberedLastProvider];
+		// An explicitly configured model stays active even when the picker's
+		// offer hides it (the picker preserves it as a visible option below);
+		// remembered and default selections are our own bookkeeping, so they
+		// must resolve to a visible option — otherwise a stale remembered id
+		// gets silently resurrected into a selection the picker cannot show.
 		if (model && modelsForProvider.includes(model)) {
 			return model;
 		}
-		if (rememberedModel && modelsForProvider.includes(rememberedModel)) {
+		if (rememberedModel && pickerModelIds.has(rememberedModel)) {
 			return rememberedModel;
 		}
-		return modelsForProvider[0] ?? "";
+		return (
+			modelsForProvider.find((id) => pickerModelIds.has(id)) ??
+			modelsForProvider[0] ??
+			""
+		);
 	}, [
 		lastSelection.lastModelByProvider,
 		model,
 		modelsForProvider,
+		pickerModelIds,
 		rememberedLastProvider,
+		resolvedProvider,
+	]);
+	// The picker can intentionally hide catalog models (the ClinePass offer
+	// is exactly its subscribed/free tiers), but the active model must stay
+	// visible and selectable — e.g. a hydrated session configured with a
+	// model outside the current offer. Surface it under its own section
+	// rather than selecting a value that does not exist in the list.
+	const visibleModelPicker = useMemo((): ModelPickerData => {
+		if (!resolvedModel || pickerModelIds.has(resolvedModel)) {
+			return modelPicker;
+		}
+		const detail = (modelDetails[resolvedProvider] ?? []).find(
+			(entry) => entry.id === resolvedModel,
+		);
+		const hasSections = (modelPicker.sections?.length ?? 0) > 0;
+		return {
+			options: [
+				...modelPicker.options,
+				{
+					label: detail?.name?.trim() || resolvedModel,
+					...(hasSections ? { section: "current" } : {}),
+					value: resolvedModel,
+				},
+			],
+			...(hasSections
+				? {
+						sections: [
+							...(modelPicker.sections ?? []),
+							{ id: "current", label: "Current model" },
+						],
+					}
+				: {}),
+		};
+	}, [
+		modelDetails,
+		modelPicker,
+		pickerModelIds,
+		resolvedModel,
 		resolvedProvider,
 	]);
 
@@ -1150,6 +1681,14 @@ const ModelSelector = memo(function ModelSelector({
 				}
 				setProviderModels(payload.providerModels);
 				setProviderReasoningModels(payload.providerReasoningModels);
+				setProviderNames((current) => ({
+					...current,
+					...(payload.providerNames ?? {}),
+				}));
+				setModelDetails((current) => ({
+					...current,
+					...(payload.providerModelDetails ?? {}),
+				}));
 				setReasoningCapabilitySource("catalog");
 				setEnabledProviderIds((current) => {
 					const nextProviderIds = new Set(payload.enabledProviderIds);
@@ -1175,15 +1714,21 @@ const ModelSelector = memo(function ModelSelector({
 				if (cancelled || models.length === 0) {
 					return;
 				}
+				const modelIds = models.map((entry) => entry.id);
+				const reasoningModelIds = models
+					.filter((entry) => entry.supportsReasoning)
+					.map((entry) => entry.id);
 				setProviderModels((current) => ({
 					...current,
-					[normalizedProvider]: models.map((entry) => entry.id),
+					[normalizedProvider]: modelIds,
 				}));
 				setProviderReasoningModels((current) => ({
 					...current,
-					[normalizedProvider]: models
-						.filter((entry) => entry.supportsReasoning)
-						.map((entry) => entry.id),
+					[normalizedProvider]: reasoningModelIds,
+				}));
+				setModelDetails((current) => ({
+					...current,
+					[normalizedProvider]: models,
 				}));
 				setReasoningCapabilitySource("catalog");
 				setEnabledProviderIds((current) =>
@@ -1215,32 +1760,48 @@ const ModelSelector = memo(function ModelSelector({
 					.filter((entry) => entry.supportsReasoning)
 					.map((entry) => entry.id),
 			}));
+			setModelDetails((current) => ({
+				...current,
+				[normalizedId]: models,
+			}));
 			setEnabledProviderIds((current) =>
 				current.includes(normalizedId) ? current : [...current, normalizedId],
 			);
 		});
 	}, []);
 
-	useEffect(() => {
-		setLastSelection((prev) => {
-			if (!normalizedProvider || !model) {
-				return prev;
+	// The remembered selection (what new sessions default to) is only written
+	// from the explicit picker handlers below. Mirroring every provider/model
+	// prop change here would also capture passive changes — most notably
+	// opening an existing session, whose config drives these props — silently
+	// replacing the user's chosen default with whatever model that session
+	// happened to use.
+	const rememberSelection = useCallback(
+		(providerId: string, modelId: string | undefined) => {
+			const normalizedId = normalizeProviderId(providerId);
+			if (!normalizedId) {
+				return;
 			}
-			if (
-				prev.lastProvider === normalizedProvider &&
-				prev.lastModelByProvider[normalizedProvider] === model
-			) {
-				return prev;
-			}
-			return {
-				lastProvider: normalizedProvider,
-				lastModelByProvider: {
-					...prev.lastModelByProvider,
-					[normalizedProvider]: model,
-				},
-			};
-		});
-	}, [model, normalizedProvider]);
+			setLastSelection((prev) => {
+				if (
+					prev.lastProvider === normalizedId &&
+					(!modelId || prev.lastModelByProvider[normalizedId] === modelId)
+				) {
+					return prev;
+				}
+				return {
+					lastProvider: normalizedId,
+					lastModelByProvider: modelId
+						? {
+								...prev.lastModelByProvider,
+								[normalizedId]: modelId,
+							}
+						: prev.lastModelByProvider,
+				};
+			});
+		},
+		[],
+	);
 
 	useEffect(() => {
 		try {
@@ -1301,17 +1862,20 @@ const ModelSelector = memo(function ModelSelector({
 			onProviderChange(value);
 			const rememberedModel = lastSelection.lastModelByProvider[value];
 			const providerModelIds = visibleProviderModels[value] ?? [];
-			if (
-				rememberedModel &&
-				providerModelIds.includes(rememberedModel) &&
-				rememberedModel !== model
-			) {
-				onModelChange(rememberedModel);
-				return;
-			}
-			const firstModel = providerModelIds[0];
-			if (firstModel && firstModel !== model) {
-				onModelChange(firstModel);
+			// Validate against the target provider's visible picker options,
+			// not its full catalog: a remembered model the picker hides (e.g.
+			// outside the ClinePass offer) must not become the selection.
+			const providerOptionIds = new Set(
+				pickerDataForProvider(value).options.map((option) => option.value),
+			);
+			const nextModel =
+				rememberedModel && providerOptionIds.has(rememberedModel)
+					? rememberedModel
+					: (providerModelIds.find((id) => providerOptionIds.has(id)) ??
+						providerModelIds[0]);
+			rememberSelection(value, nextModel);
+			if (nextModel && nextModel !== model) {
+				onModelChange(nextModel);
 			}
 		},
 		[
@@ -1319,9 +1883,29 @@ const ModelSelector = memo(function ModelSelector({
 			model,
 			onModelChange,
 			onProviderChange,
+			pickerDataForProvider,
+			rememberSelection,
 			visibleProviderModels,
 		],
 	);
+	const handleModelSelect = useCallback(
+		(value: string) => {
+			rememberSelection(resolvedProvider, value);
+			onModelChange(value);
+		},
+		[onModelChange, rememberSelection, resolvedProvider],
+	);
+	const providerOptions = useMemo(
+		() =>
+			providers.map((value) => ({
+				label: providerNames[value]?.trim() || value,
+				value,
+			})),
+		[providerNames, providers],
+	);
+	const selectedModelLabel =
+		visibleModelPicker.options.find((option) => option.value === resolvedModel)
+			?.label ?? resolvedModel;
 	const renderProviderSelect = (triggerClassName: string) => (
 		<SearchCombobox
 			ariaLabel="Provider"
@@ -1329,7 +1913,7 @@ const ModelSelector = memo(function ModelSelector({
 			disabled={isBusy || providers.length === 0}
 			emptyText="No providers found."
 			onValueChange={handleProviderSelect}
-			options={providers.map((value) => ({ label: value, value }))}
+			options={providerOptions}
 			placeholder="Provider"
 			placement="top"
 			searchPlaceholder="Search providers"
@@ -1346,13 +1930,15 @@ const ModelSelector = memo(function ModelSelector({
 			disabled={isBusy || modelsForProvider.length === 0}
 			emptyText="No models found."
 			onValueChange={(value) => {
-				onModelChange(value);
+				handleModelSelect(value);
 				if (closeMobileMenu) setMobileOpen(false);
 			}}
-			options={modelsForProvider.map((value) => ({ label: value, value }))}
+			options={visibleModelPicker.options}
+			panelWidth="20rem"
 			placeholder="Model"
 			placement="top"
 			searchPlaceholder="Search models"
+			sections={visibleModelPicker.sections}
 			value={resolvedModel}
 		/>
 	);
@@ -1366,7 +1952,7 @@ const ModelSelector = memo(function ModelSelector({
 				className="hidden size-7 items-center justify-center rounded-md text-foreground hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 max-[560px]:inline-flex"
 				disabled={isBusy || providers.length === 0}
 				onClick={() => setMobileOpen((current) => !current)}
-				title={`${resolvedProvider || "Provider"} / ${resolvedModel || "Model"}`}
+				title={`${providerNames[resolvedProvider]?.trim() || resolvedProvider || "Provider"} / ${selectedModelLabel || "Model"}`}
 				type="button"
 			>
 				<Cpu className="size-3.5" />
@@ -1380,9 +1966,9 @@ const ModelSelector = memo(function ModelSelector({
 						onClick={() => setMobileOpen(false)}
 						type="button"
 					/>
-					<div className="absolute bottom-full left-0 z-50 mb-2 hidden w-64 max-w-[calc(100vw-2rem)] space-y-3 rounded-lg border border-border bg-popover p-3 shadow-xl max-[560px]:block">
+					<div className="absolute bottom-full left-0 z-50 mb-2 hidden w-64 max-w-[calc(100vw-2rem)] space-y-3 rounded-lg border border-border bg-popover p-3 shadow-xl animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-1 motion-reduce:animate-none max-[560px]:block">
 						<div className="space-y-1">
-							<div className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+							<div className="text-xs font-medium text-muted-foreground">
 								Provider
 							</div>
 							{renderProviderSelect(
@@ -1390,7 +1976,7 @@ const ModelSelector = memo(function ModelSelector({
 							)}
 						</div>
 						<div className="space-y-1">
-							<div className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+							<div className="text-xs font-medium text-muted-foreground">
 								Model
 							</div>
 							{renderModelSelect(
@@ -1403,8 +1989,10 @@ const ModelSelector = memo(function ModelSelector({
 			) : null}
 
 			<div className="flex min-w-0 items-center gap-0.5 max-[560px]:hidden">
-				{renderProviderSelect("max-w-28")}
-				<div className="bg-border-2 h-4 w-[0.1rem]"/>
+				{/* Wide enough for the longest built-in provider names ("Cline
+				    Usage-Billing", "OpenAI ChatGPT Subscription") untruncated. */}
+				{renderProviderSelect("max-w-56")}
+				<div className="bg-border-2 h-4 w-[0.1rem]" />
 				{renderModelSelect("max-w-52")}
 			</div>
 		</div>
@@ -1476,10 +2064,7 @@ function TokenUsageRing({ usage }: { usage: TokenUsage }) {
 							strokeWidth="4"
 						/>
 						<circle
-							className={cn(
-								"transition-[stroke,stroke-dashoffset] duration-200",
-								ringColorClass,
-							)}
+							className={cn("", ringColorClass)}
 							cx="11"
 							cy="11"
 							fill="none"
@@ -1509,13 +2094,13 @@ function TokenUsageRing({ usage }: { usage: TokenUsage }) {
 					<div className="mt-2 flex h-1 overflow-hidden rounded-full bg-muted">
 						<div
 							aria-hidden="true"
-							className="h-full shrink-0 bg-primary transition-[width] duration-200"
+							className="h-full shrink-0 bg-primary transition-[width] duration-120"
 							data-token-kind="uncached-input"
 							style={{ width: segmentWidth(uncachedInputTokens) }}
 						/>
 						<div
 							aria-hidden="true"
-							className="h-full shrink-0 bg-primary/60 transition-[background,width] duration-200"
+							className="h-full shrink-0 bg-primary/60 transition-[background,width] duration-120"
 							data-token-kind="cached-input"
 							style={{
 								backgroundImage:
@@ -1525,7 +2110,7 @@ function TokenUsageRing({ usage }: { usage: TokenUsage }) {
 						/>
 						<div
 							aria-hidden="true"
-							className="h-full shrink-0 bg-blue-500 transition-[background,width] duration-200"
+							className="h-full shrink-0 bg-blue-500 transition-[background,width] duration-120"
 							data-token-kind="output"
 							style={{
 								backgroundImage:

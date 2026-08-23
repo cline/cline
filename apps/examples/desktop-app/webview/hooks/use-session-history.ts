@@ -12,6 +12,7 @@ import type {
 } from "@/lib/session-history";
 import {
 	getSessionMetadataGitBranch,
+	getSessionMetadataIsScheduled,
 	getSessionMetadataPinned,
 	getSessionMetadataTitle,
 	getSessionSource,
@@ -37,6 +38,7 @@ export interface SessionThread {
 	totalCostUsd?: number;
 	status: SessionHistoryStatus;
 	pinned?: boolean;
+	isScheduled: boolean;
 }
 
 type SessionHookEvent = {
@@ -261,6 +263,7 @@ function toThread(session: SessionHistoryItem): SessionThread {
 		gitBranch: getSessionMetadataGitBranch(session.metadata) || undefined,
 		status: normalizeDiscoveredStatus(session.status, session.prompt),
 		pinned: getSessionMetadataPinned(session.metadata),
+		isScheduled: getSessionMetadataIsScheduled(session.metadata),
 	};
 }
 
@@ -358,6 +361,8 @@ function areSessionsEquivalent(
 			a.startedAt !== b.startedAt ||
 			a.endedAt !== b.endedAt ||
 			a.prompt !== b.prompt ||
+			getSessionMetadataIsScheduled(a.metadata) !==
+				getSessionMetadataIsScheduled(b.metadata) ||
 			getSessionMetadataGitBranch(a.metadata) !==
 				getSessionMetadataGitBranch(b.metadata) ||
 			getSessionMetadataTitle(a.metadata) !==
@@ -399,7 +404,8 @@ function areThreadsEquivalent(
 			a.outputTokens !== b.outputTokens ||
 			a.totalCostUsd !== b.totalCostUsd ||
 			a.status !== b.status ||
-			a.pinned !== b.pinned
+			a.pinned !== b.pinned ||
+			a.isScheduled !== b.isScheduled
 		) {
 			return false;
 		}
@@ -486,7 +492,11 @@ export function useSessionHistory({
 }: UseSessionHistoryOptions) {
 	const [sessions, setSessions] = useState<SessionHistoryItem[]>([]);
 	const [threads, setThreads] = useState<SessionThread[]>([]);
-	const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+	// False until the backend has answered a history request at least once.
+	// Consumers use this to tell "still loading" apart from "loaded, zero
+	// sessions": an empty-state copy shown before the first response reads as
+	// lost history whenever fetching takes more than an instant.
+	const [hasLoadedHistory, setHasLoadedHistory] = useState(false);
 	const [isLoadingMore, setIsLoadingMore] = useState(false);
 	const [mayHaveMoreSessions, setMayHaveMoreSessions] = useState(false);
 	const [pendingAction, setPendingAction] =
@@ -516,6 +526,10 @@ export function useSessionHistory({
 	const refreshLimitRef = useRef(0);
 	const loadAllPromiseRef = useRef<Promise<boolean> | null>(null);
 	const lastRefreshStartedAtRef = useRef(0);
+	// Guards scheduleRefresh against continuations that settle after unmount
+	// (e.g. the fast retry of a failed initial fetch), which would otherwise
+	// re-arm a timer the cleanup has already cleared and poll forever.
+	const disposedRef = useRef(false);
 
 	useEffect(() => {
 		sessionsRef.current = sessions;
@@ -556,12 +570,6 @@ export function useSessionHistory({
 			lastRefreshStartedAtRef.current = Date.now();
 			const limit = fetchLimitRef.current;
 			refreshLimitRef.current = limit;
-			// Only surface the loading state before anything has been fetched:
-			// consumers only render it for an empty list, and toggling it on
-			// every background poll re-rendered the whole app twice per refresh.
-			if (sessionsRef.current.length === 0) {
-				setIsLoadingHistory(true);
-			}
 			try {
 				const discovered = await desktopClient
 					.invoke<CliDiscoveredSession[]>("list_discovered_sessions", { limit })
@@ -649,12 +657,11 @@ export function useSessionHistory({
 					return areThreadsEquivalent(current, next) ? current : next;
 				});
 				loadedLimitRef.current = Math.max(loadedLimitRef.current, limit);
+				setHasLoadedHistory(true);
 				return true;
 			} catch {
 				// Ignore in browser mode or when tauri command is unavailable.
 				return false;
-			} finally {
-				setIsLoadingHistory(false);
 			}
 		})();
 
@@ -672,6 +679,9 @@ export function useSessionHistory({
 
 	const scheduleRefresh = useCallback(
 		(delayMs = 0, options: { force?: boolean } = {}) => {
+			if (disposedRef.current) {
+				return;
+			}
 			const now = Date.now();
 			const minTarget = options.force
 				? now
@@ -693,7 +703,16 @@ export function useSessionHistory({
 				() => {
 					refreshTimeoutRef.current = null;
 					scheduledRefreshAtRef.current = null;
-					void refreshSessions();
+					void refreshSessions().then((loaded) => {
+						// Until something has loaded the UI has nothing but a
+						// loading state to show, so a failed fetch (e.g. the
+						// websocket losing the race with a webview reload) retries
+						// on the short event cadence instead of stranding the
+						// sidebar until the periodic poll fires.
+						if (!loaded && loadedLimitRef.current === 0) {
+							scheduleRefresh(MIN_EVENT_HISTORY_REFRESH_INTERVAL_MS);
+						}
+					});
 				},
 				Math.max(0, target - now),
 			);
@@ -703,6 +722,7 @@ export function useSessionHistory({
 
 	useEffect(() => {
 		let disposed = false;
+		disposedRef.current = false;
 
 		const runRefresh = () => {
 			if (!disposed) {
@@ -720,6 +740,7 @@ export function useSessionHistory({
 
 		return () => {
 			disposed = true;
+			disposedRef.current = true;
 			window.clearInterval(interval);
 			if (refreshTimeoutRef.current !== null) {
 				window.clearTimeout(refreshTimeoutRef.current);
@@ -1410,7 +1431,7 @@ export function useSessionHistory({
 
 	return {
 		getSessionByThreadId,
-		isLoadingHistory,
+		hasLoadedHistory,
 		isLoadingMore,
 		loadAllSessions,
 		loadOlderSessions,

@@ -5,6 +5,7 @@
  *
  */
 
+import type { GeneratedMedia } from "./llms/media";
 import type { ModelInfo } from "./llms/model-info";
 import type {
 	ToolApprovalRequest,
@@ -46,12 +47,19 @@ export interface AgentFilePart {
 	content: string;
 }
 
+export interface AgentMediaPart {
+	type: "media";
+	media: GeneratedMedia;
+}
+
 export interface AgentToolCallPart {
 	type: "tool-call";
 	toolCallId: string;
 	toolName: string;
 	input: unknown;
 	metadata?: unknown;
+	/** Absent for ordinary AgentRuntime-executed tools. */
+	execution?: ModelToolExecution;
 }
 
 export interface AgentToolResultPart {
@@ -60,6 +68,20 @@ export interface AgentToolResultPart {
 	toolName: string;
 	output: unknown;
 	isError?: boolean;
+	/** Absent for ordinary AgentRuntime-executed tools. */
+	execution?: ModelToolExecution;
+}
+
+export type ModelToolExecution = "client" | "provider";
+
+/** Observational record for a model tool executed outside AgentRuntime. */
+export interface AgentModelToolActivity {
+	toolCallId: string;
+	toolName: string;
+	execution: ModelToolExecution;
+	input?: unknown;
+	output?: unknown;
+	isError?: boolean;
 }
 
 export type AgentMessagePart =
@@ -67,6 +89,7 @@ export type AgentMessagePart =
 	| AgentReasoningPart
 	| AgentImagePart
 	| AgentFilePart
+	| AgentMediaPart
 	| AgentToolCallPart
 	| AgentToolResultPart;
 
@@ -195,6 +218,8 @@ export interface AgentModelRequest {
 	systemPrompt?: string;
 	messages: readonly AgentMessage[];
 	tools: readonly AgentToolDefinition[];
+	/** Provider-executed tools enabled for this model request. */
+	modelTools?: readonly import("./llms/model-tools").ModelTool[];
 	signal?: AbortSignal;
 	options?: Record<string, unknown>;
 }
@@ -247,6 +272,7 @@ export type ProviderErrorClass = "context_window_exceeded" | "unknown";
 
 export type AgentModelEvent =
 	| { type: "text-delta"; text: string }
+	| { type: "media"; media: GeneratedMedia }
 	| {
 			type: "reasoning-delta";
 			text: string;
@@ -261,18 +287,21 @@ export type AgentModelEvent =
 			inputText?: string;
 			input?: unknown;
 			metadata?: unknown;
+			/** Set when execution is owned by AI SDK or the model provider. */
+			execution?: ModelToolExecution;
 	  }
 	| {
+			type: "tool-result";
+			toolCallId: string;
 			/**
-			 * A model-generated file (e.g. an image from an image-output
-			 * model). `data` is base64-encoded file data (or a URL for
-			 * URL-referenced files). Runtimes assemble it into the assistant
-			 * message (`AgentImagePart` for `image/*`, `AgentFilePart`
-			 * otherwise) so a file-only turn is not treated as empty.
+			 * Declared model tools carry a ModelToolName; provider-executed tools
+			 * (e.g. the Claude Code CLI's own tools) carry arbitrary names.
 			 */
-			type: "file";
-			data: string;
-			mediaType: string;
+			toolName: string;
+			input?: unknown;
+			output: unknown;
+			isError?: boolean;
+			execution: ModelToolExecution;
 	  }
 	| {
 			type: "usage";
@@ -341,6 +370,13 @@ export interface AgentBeforeToolResult {
 	reason?: string;
 	input?: unknown;
 	policy?: ToolPolicy;
+	/**
+	 * Text to inject into the conversation as hook context (e.g. a hook's
+	 * `contextModification`). Collected across hooks and appended after this
+	 * iteration's tool results as a `<hook_context>` user message, so the
+	 * model sees it on the next request.
+	 */
+	appendContext?: string;
 }
 
 export interface AgentAfterToolContext {
@@ -358,6 +394,13 @@ export interface AgentAfterToolResult {
 	stop?: boolean;
 	reason?: string;
 	result?: AgentToolResult;
+	/**
+	 * Text to inject into the conversation as hook context (e.g. a hook's
+	 * `contextModification`). Collected across hooks and appended after this
+	 * iteration's tool results as a `<hook_context>` user message, so the
+	 * model sees it on the next request.
+	 */
+	appendContext?: string;
 }
 
 export interface AgentRunLifecycleContext {
@@ -434,6 +477,17 @@ export interface AgentRuntimePlugin {
 
 export interface AgentRuntimeConfig {
 	/**
+	 * Stable end-user distinct ID used for provider and observability metadata.
+	 * This is intentionally separate from the host-owned session id.
+	 */
+	distinctId?: string;
+	/** Calling client surface, for example `cline-vscode` or `cline-sdk`. */
+	clientName?: string;
+	/** Calling client version, such as the VS Code extension version. */
+	clientVersion?: string;
+	/** Version of the Cline Core SDK executing the runtime. */
+	clineCoreVersion?: string;
+	/**
 	 * Core/hub runtime session identifier.
 	 *
 	 * The host-owned lifecycle id for the task/session containing this runtime.
@@ -457,6 +511,8 @@ export interface AgentRuntimeConfig {
 	messageModelInfo?: AgentMessage["modelInfo"];
 	model: AgentModel;
 	modelOptions?: Record<string, unknown>;
+	/** Provider-executed tools, separate from locally executed AgentTools. */
+	modelTools?: readonly import("./llms/model-tools").ModelTool[];
 	// biome-ignore lint/suspicious/noExplicitAny: tool input/output types vary per tool
 	tools?: readonly AgentTool<any, any>[];
 	hooks?: Partial<AgentRuntimeHooks>;
@@ -498,7 +554,7 @@ export interface AgentRuntimeConfig {
 }
 
 // =============================================================================
-// Runtime event union (13 variants)
+// Runtime event union
 // =============================================================================
 
 export type AgentRuntimeEvent =
@@ -531,6 +587,12 @@ export type AgentRuntimeEvent =
 			accumulatedText: string;
 			redacted?: boolean;
 			metadata?: unknown;
+	  }
+	| {
+			type: "assistant-media";
+			snapshot: AgentRuntimeStateSnapshot;
+			iteration: number;
+			media: GeneratedMedia;
 	  }
 	| {
 			type: "assistant-message";

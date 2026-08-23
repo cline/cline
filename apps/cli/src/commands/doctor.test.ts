@@ -18,6 +18,7 @@ const {
 	mockResolveProductionHubOwnerContext,
 	mockResolveSharedHubOwnerContext,
 	mockReadHubDiscovery,
+	mockReadSupersededHubDiscovery,
 	mockProbeHubServer,
 	mockClearHubDiscovery,
 	mockStopLocalHubServerGracefully,
@@ -48,6 +49,7 @@ const {
 		),
 	})),
 	mockReadHubDiscovery: vi.fn(),
+	mockReadSupersededHubDiscovery: vi.fn(() => undefined as unknown),
 	mockProbeHubServer: vi.fn(),
 	mockClearHubDiscovery: vi.fn(),
 	mockStopLocalHubServerGracefully: vi.fn(async () => false),
@@ -73,6 +75,7 @@ vi.mock("@cline/core", () => ({
 	clearHubDiscovery: mockClearHubDiscovery,
 	probeHubServer: mockProbeHubServer,
 	readHubDiscovery: mockReadHubDiscovery,
+	readSupersededHubDiscovery: mockReadSupersededHubDiscovery,
 	stopLocalHubServerGracefully: mockStopLocalHubServerGracefully,
 	ensureFileExists: mockEnsureFileExists,
 	listActiveConnectors: mockListActiveConnectors,
@@ -184,6 +187,65 @@ describe("runDoctorCommand", () => {
 						staleSidecarPids: [],
 					},
 		);
+	});
+
+	it("sees the hub through the set-aside record during the shielded update window", async () => {
+		const cwd = "/workspace";
+		// The npm postinstall shield renamed the discovery record aside; the
+		// hub is alive and serving an old client's sessions.
+		mockReadHubDiscovery.mockResolvedValue(undefined);
+		mockReadSupersededHubDiscovery.mockReturnValue({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "shielded-token",
+			pid: 50174,
+		});
+		mockProbeHubServer.mockResolvedValue({
+			url: "ws://127.0.0.1:25463/hub",
+			port: 25463,
+			pid: 50174,
+		});
+		mockSpawnSync.mockImplementation((command: string, args?: string[]) => {
+			if (command === "lsof") {
+				return { status: 0, stdout: "50174\n" };
+			}
+			if (
+				command === "pgrep" &&
+				Array.isArray(args) &&
+				args[2] === "--cline-hub-daemon"
+			) {
+				return {
+					status: 0,
+					stdout: "50174 /usr/local/bin/cline --cline-hub-daemon\n",
+				};
+			}
+			return { status: 1, stdout: "" };
+		});
+
+		const output: string[] = [];
+		const code = await runDoctorCommand(
+			{ cwd, json: true },
+			{
+				writeln: (text) => {
+					output.push(text ?? "");
+				},
+				writeErr: () => {},
+			},
+		);
+
+		expect(code).toBe(0);
+		expect(mockProbeHubServer).toHaveBeenCalledWith(
+			"ws://127.0.0.1:25463/hub",
+			{
+				authToken: "shielded-token",
+			},
+		);
+		// Without the fallback the live daemon reads as stale and doctor's
+		// advice (\"run doctor fix\") would kill the sessions the shield exists
+		// to protect.
+		expect(JSON.parse(output[0] || "")).toMatchObject({
+			hubHealthy: true,
+			staleHubPids: [],
+		});
 	});
 
 	it("reports CLI and running hub Core versions", async () => {
@@ -621,6 +683,45 @@ describe("doctor supervision reporting", () => {
 			}),
 		).toBe(
 			"telegram | instance=cline_bot | state=running | origin=spawned | pid=7",
+		);
+	});
+});
+
+describe("describeProcessesStartedDuringFix", () => {
+	const { describeProcessesStartedDuringFix } = __test__;
+	const liveParents = new Map([
+		[100, 10],
+		[200, 20],
+	]);
+	const resolveLiveParent = (pid: number) => liveParents.get(pid);
+
+	it("says nothing when no process started during the fix", () => {
+		expect(
+			describeProcessesStartedDuringFix([], resolveLiveParent),
+		).toBeUndefined();
+	});
+
+	it("blames the parent only when every process has a live one", () => {
+		expect(
+			describeProcessesStartedDuringFix([100, 200], resolveLiveParent),
+		).toBe(
+			"\nThese processes were respawned by a live parent. Stop the parent process listed above, then re-run.",
+		);
+	});
+
+	// A process can start on its own mid-repair - a user opening a new session,
+	// say - and telling them to go kill an unrelated parent would be wrong.
+	it("states the facts when no process has a live parent", () => {
+		expect(describeProcessesStartedDuringFix([777], resolveLiveParent)).toBe(
+			"\nThese processes started after the fix began, so they were not targeted. Re-run to see whether they persist.",
+		);
+	});
+
+	it("separates respawns from independent starts in a mixed batch", () => {
+		expect(
+			describeProcessesStartedDuringFix([100, 777], resolveLiveParent),
+		).toBe(
+			"\nSome of these were respawned by a live parent (100); stop the parent process listed above, then re-run. The rest started after the fix began and were not targeted.",
 		);
 	});
 });

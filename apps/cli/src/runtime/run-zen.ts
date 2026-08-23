@@ -78,7 +78,11 @@ export async function runZen(
 			prompt: userInput,
 			userImages,
 			userFiles,
-		} = await buildUserInputMessage(prompt, userInstructionService);
+		} = await buildUserInputMessage(prompt, userInstructionService, {
+			// Zen runs in yolo mode, whose preset has no skills tool — skill
+			// commands must keep expanding textually.
+			mode: "yolo",
+		});
 
 		const startRequest: ChatStartSessionRequest = {
 			workspaceRoot,

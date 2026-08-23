@@ -45,6 +45,13 @@ function trimLeading(text: string): string {
 	return text.replace(/^\n+/, "");
 }
 
+function formatMediaSize(byteLength: number): string {
+	if (byteLength <= 0) return "unknown size";
+	if (byteLength < 1024) return `${byteLength} B`;
+	if (byteLength < 1024 * 1024) return `${(byteLength / 1024).toFixed(1)} KiB`;
+	return `${(byteLength / (1024 * 1024)).toFixed(1)} MiB`;
+}
+
 function ReasoningBlock(props: { text: string; streaming: boolean }) {
 	const [expanded, setExpanded] = useState(false);
 	const { width } = useTerminalDimensions();
@@ -640,16 +647,43 @@ export function ChatEntryView(props: {
 						)}
 					</box>
 					<box flexGrow={1}>
+						{/*
+						 * internalBlockMode="top-level" keeps each markdown block as its
+						 * own renderable. The default coalesced mode merges the whole
+						 * message into one block that is torn down and re-highlighted on
+						 * every streamed chunk, which flashes already-rendered headings
+						 * and links back to raw uncolored markdown while tree-sitter
+						 * re-highlights asynchronously. Top-level blocks are reused by
+						 * token identity, so settled content never re-renders.
+						 * tableOptions preserves the bordered table style that coalesced
+						 * mode used by default (top-level defaults to borderless columns).
+						 */}
 						<markdown
 							content={content}
 							syntaxStyle={getSyntaxStyle(theme, mode)}
 							streaming={entry.streaming}
+							internalBlockMode="top-level"
+							tableOptions={{ style: "grid" }}
 							fg={defaultFg}
 						/>
 					</box>
 				</box>
 			);
 		}
+
+		case "assistant_media":
+			return (
+				<box flexDirection="row">
+					<box width={2}>
+						<text fg={accent}>*</text>
+					</box>
+					<text fg={defaultFg} selectable>
+						{entry.location
+							? `Generated ${entry.modality} (${entry.mediaType}, ${formatMediaSize(entry.byteLength)}): ${entry.location}`
+							: `Generated ${entry.modality} (${entry.mediaType}) could not be saved`}
+					</text>
+				</box>
+			);
 
 		case "reasoning":
 			return <ReasoningBlock text={entry.text} streaming={entry.streaming} />;

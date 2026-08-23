@@ -89,6 +89,11 @@ const GLOBAL_STATE_FIELDS = {
 	lastDismissedInfoBannerVersion: { default: 0 as number },
 	lastDismissedModelBannerVersion: { default: 0 as number },
 	lastDismissedCliBannerVersion: { default: 0 as number },
+	// Organization id of the last successful managed remote-config publish.
+	// Persistent evidence that this install is managed: the session gate uses it
+	// to fail closed when the user's identity cannot be resolved (API unreachable)
+	// instead of starting an unpoliced session. Cleared on explicit no-config.
+	lastManagedOrganizationId: { default: undefined as string | undefined },
 	remoteRulesToggles: { default: {} as ClineRulesToggles },
 	remoteWorkflowToggles: { default: {} as ClineRulesToggles },
 	remoteSkillsToggles: { default: {} as ClineRulesToggles },
@@ -272,8 +277,6 @@ const USER_SETTINGS_FIELDS = {
 	shellIntegrationTimeout: { default: 4000 as number },
 	defaultTerminalProfile: { default: "default" as string },
 	hooksEnabled: { default: true as boolean },
-	yoloModeToggled: { default: false as boolean },
-	autoApproveAllToggled: { default: false as boolean },
 	useAutoCondense: { default: true as boolean },
 	subagentsEnabled: { default: false as boolean },
 	worktreesEnabled: { default: false as boolean },

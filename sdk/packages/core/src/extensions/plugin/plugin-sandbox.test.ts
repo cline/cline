@@ -18,7 +18,10 @@ import {
 	it,
 	vi,
 } from "vitest";
-import { loadSandboxedPlugins } from "./plugin-sandbox";
+import {
+	CLINE_PLUGIN_IDLE_TIMEOUT_MS_ENV,
+	loadSandboxedPlugins,
+} from "./plugin-sandbox";
 
 function createApiCapture() {
 	const tools: AgentTool[] = [];
@@ -651,6 +654,60 @@ describe("plugin-sandbox", () => {
 		}
 	}, 3000);
 
+	it("reclaims an idle plugin process and reinitializes it on the next call", async () => {
+		const idleDir = await mkdtemp(join(tmpdir(), "core-plugin-sandbox-idle-"));
+		let sandboxed: Awaited<ReturnType<typeof loadSandboxedPlugins>> | undefined;
+		try {
+			const pluginPath = join(idleDir, "plugin-idle.mjs");
+			await writeFile(
+				pluginPath,
+				[
+					"export default {",
+					"  name: 'sandbox-idle',",
+					"  manifest: { capabilities: ['tools'] },",
+					"  setup(api) {",
+					"    api.registerTool({",
+					"      name: 'sandbox_process_id',",
+					"      description: 'return the sandbox process id',",
+					"      inputSchema: { type: 'object', properties: {}, required: [] },",
+					"      execute: async () => ({ pid: process.pid }),",
+					"    });",
+					"  },",
+					"};",
+				].join("\n"),
+				"utf8",
+			);
+
+			vi.stubEnv(CLINE_PLUGIN_IDLE_TIMEOUT_MS_ENV, "1000");
+			vi.useFakeTimers();
+			sandboxed = await loadSandboxedPlugins({
+				pluginPaths: [pluginPath],
+				importTimeoutMs: 30_000,
+			});
+			const { tools, api } = createApiCapture();
+			await sandboxed.extensions?.[0]?.setup?.(api, {});
+			const tool = tools.find((entry) => entry.name === "sandbox_process_id");
+			expect(tool).toBeDefined();
+
+			const context = {
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			} as AgentToolContext;
+			const first = (await tool?.execute({}, context)) as { pid: number };
+
+			await vi.advanceTimersByTimeAsync(1001);
+
+			const second = (await tool?.execute({}, context)) as { pid: number };
+			expect(second.pid).not.toBe(first.pid);
+		} finally {
+			vi.useRealTimers();
+			vi.unstubAllEnvs();
+			await sandboxed?.shutdown();
+			await rm(idleDir, { recursive: true, force: true });
+		}
+	}, 60_000);
+
 	it("forwards sandbox plugin events to the host", async () => {
 		const extension = sharedExtensions.get("sandbox-events");
 		const { tools, api } = createApiCapture();
@@ -669,7 +726,53 @@ describe("plugin-sandbox", () => {
 		]);
 	});
 
-	it("resolves sandbox bootstrap from the npm wrapper platform package", async () => {
+	it("selects sibling, then source, then installed bootstrap candidates", async () => {
+		const { selectBootstrapCandidate } = await import("./plugin-sandbox");
+		const makeExists = (existing: string[]) => (path: string) =>
+			existing.includes(path);
+
+		// Compiled bundle: the sibling bootstrap matches the host build.
+		expect(
+			selectBootstrapCandidate({
+				siblingCandidates: ["/dist/extensions/plugin-sandbox-bootstrap.js"],
+				sourceBootstrapPath: "/src/plugin-sandbox-bootstrap.ts",
+				installedCandidates: ["/wrapper/extensions/bootstrap.js"],
+				exists: makeExists([
+					"/dist/extensions/plugin-sandbox-bootstrap.js",
+					"/wrapper/extensions/bootstrap.js",
+				]),
+			}),
+		).toEqual({ file: "/dist/extensions/plugin-sandbox-bootstrap.js" });
+
+		// Source host: the source bootstrap must win over a separately
+		// installed CLI package's compiled bootstrap. A published bootstrap
+		// resolves modules against the other installation's layout and
+		// silently breaks plugin loading for the source host.
+		expect(
+			selectBootstrapCandidate({
+				siblingCandidates: ["/src/plugin-sandbox-bootstrap.js"],
+				sourceBootstrapPath: "/src/plugin-sandbox-bootstrap.ts",
+				installedCandidates: ["/wrapper/extensions/bootstrap.js"],
+				exists: makeExists([
+					"/src/plugin-sandbox-bootstrap.ts",
+					"/wrapper/extensions/bootstrap.js",
+				]),
+			}),
+		).toEqual({ sourcePath: "/src/plugin-sandbox-bootstrap.ts" });
+
+		// Compiled binary (bunfs import.meta): nothing exists on disk next to
+		// the module, so the installed wrapper bootstrap is the right one.
+		expect(
+			selectBootstrapCandidate({
+				siblingCandidates: ["/$bunfs/root/plugin-sandbox-bootstrap.js"],
+				sourceBootstrapPath: "/$bunfs/root/plugin-sandbox-bootstrap.ts",
+				installedCandidates: [undefined, "/wrapper/extensions/bootstrap.js"],
+				exists: makeExists(["/wrapper/extensions/bootstrap.js"]),
+			}),
+		).toEqual({ file: "/wrapper/extensions/bootstrap.js" });
+	});
+
+	it("ignores the npm wrapper platform package bootstrap when running from source", async () => {
 		const previousWrapperPath = process.env.CLINE_WRAPPER_PATH;
 		const wrapperRoot = await mkdtemp(
 			join(tmpdir(), "core-plugin-sandbox-wrapper-"),
@@ -742,13 +845,19 @@ describe("plugin-sandbox", () => {
 			});
 
 			try {
+				// Regression: this host runs from source, so the sandbox must run
+				// the source bootstrap, NOT the wrapper package's compiled one. The
+				// fake wrapper bootstrap would report a "wrapper-bootstrap" plugin
+				// and emit wrapper_bootstrap_selected; with the source bootstrap in
+				// charge, the (nonexistent) plugin path simply fails to load.
 				expect(
-					sandboxed.extensions?.map((extension) => extension.name),
-				).toEqual(["wrapper-bootstrap"]);
-				expect(events).toContainEqual({
+					sandboxed.extensions?.map((extension) => extension.name) ?? [],
+				).toEqual([]);
+				expect(events).not.toContainEqual({
 					name: "wrapper_bootstrap_selected",
 					payload: { ok: true },
 				});
+				expect(sandboxed.failures.length).toBeGreaterThan(0);
 			} finally {
 				await sandboxed.shutdown();
 			}

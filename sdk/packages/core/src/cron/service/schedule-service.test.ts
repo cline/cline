@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import {
 	type CronScheduleSpec,
 	ONE_TIME_SCHEDULE_CRON_PATTERN,
@@ -49,6 +49,7 @@ describe("HubScheduleService", () => {
 		}> = [];
 		const service = new HubScheduleService({
 			dbPath,
+			specs: { cronSpecsDir: join(dirname(dbPath), "cron") },
 			runtimeHandlers: {
 				startSession: vi.fn(async () => ({ sessionId: "session-1" })),
 				sendSession: vi.fn(async () => ({
@@ -147,6 +148,7 @@ describe("HubScheduleService", () => {
 
 			const service = new HubScheduleService({
 				dbPath,
+				specs: { cronSpecsDir: join(dirname(dbPath), "cron") },
 				runtimeHandlers: {
 					startSession: vi.fn(async () => ({ sessionId: "unused" })),
 					sendSession: vi.fn(async () => ({ result: { text: "unused" } })),
@@ -173,6 +175,7 @@ describe("HubScheduleService", () => {
 		}> = [];
 		const service = new HubScheduleService({
 			dbPath,
+			specs: { cronSpecsDir: join(dirname(dbPath), "cron") },
 			runtimeHandlers: {
 				startSession: vi.fn(async () => ({ sessionId: "session-failed" })),
 				sendSession: vi.fn(async () => {
@@ -223,6 +226,7 @@ describe("HubScheduleService", () => {
 			cleanupPaths.push(dbPath);
 			const service = new HubScheduleService({
 				dbPath,
+				specs: { cronSpecsDir: join(dirname(dbPath), "cron") },
 				runtimeHandlers: {
 					startSession: vi.fn(async () => ({ sessionId: "session-once" })),
 					sendSession: vi.fn(async () => ({ result: { text: "done" } })),
@@ -257,6 +261,65 @@ describe("HubScheduleService", () => {
 		},
 	);
 
+	sqliteIt("persists and validates recurring schedule timezones", async () => {
+		const dbPath = await createTempDbPath();
+		cleanupPaths.push(dbPath);
+		const service = new HubScheduleService({
+			dbPath,
+			specs: { cronSpecsDir: join(dirname(dbPath), "cron") },
+			runtimeHandlers: {
+				startSession: vi.fn(async () => ({ sessionId: "unused" })),
+				sendSession: vi.fn(async () => ({ result: { text: "unused" } })),
+				abortSession: vi.fn(async () => ({ applied: true })),
+				stopSession: vi.fn(async () => ({ applied: true })),
+			},
+		});
+		try {
+			const created = service.createSchedule({
+				name: "Pacific morning",
+				cronPattern: "0 9 * * 1-5",
+				timezone: "America/Los_Angeles",
+				prompt: "Review open pull requests.",
+				workspaceRoot: "/workspace",
+			});
+			expect(created.timezone).toBe("America/Los_Angeles");
+			service.createSchedule({
+				name: "Other workspace",
+				cronPattern: "0 9 * * *",
+				prompt: "Do other work.",
+				workspaceRoot: "/other-workspace",
+			});
+			expect(service.listSchedules({ workspaceRoot: "/workspace" })).toEqual([
+				expect.objectContaining({ scheduleId: created.scheduleId }),
+			]);
+
+			const updated = service.updateSchedule(created.scheduleId, {
+				scheduleId: created.scheduleId,
+				timezone: "UTC",
+			});
+			expect(updated?.timezone).toBe("UTC");
+			expect(updated?.nextRunAt).not.toBe(created.nextRunAt);
+
+			const cleared = service.updateSchedule(created.scheduleId, {
+				scheduleId: created.scheduleId,
+				timezone: null,
+			});
+			expect(cleared?.timezone).toBeUndefined();
+
+			expect(() =>
+				service.createSchedule({
+					name: "Invalid timezone",
+					cronPattern: "0 9 * * *",
+					timezone: "Not/A_Timezone",
+					prompt: "Do work.",
+					workspaceRoot: "/workspace",
+				}),
+			).toThrow();
+		} finally {
+			await service.dispose();
+		}
+	});
+
 	sqliteIt(
 		"handles schedule commands through the hub command adapter",
 		async () => {
@@ -264,6 +327,7 @@ describe("HubScheduleService", () => {
 			cleanupPaths.push(dbPath);
 			const service = new HubScheduleService({
 				dbPath,
+				specs: { cronSpecsDir: join(dirname(dbPath), "cron") },
 				runtimeHandlers: {
 					startSession: vi.fn(async () => ({ sessionId: "session-2" })),
 					sendSession: vi.fn(async () => ({ result: { text: "done" } })),
@@ -273,21 +337,29 @@ describe("HubScheduleService", () => {
 			});
 			try {
 				const commands = new HubScheduleCommandService(service);
+				const workspaceAuthority = {
+					clientId: "workspace-client",
+					workspaceContext: { workspaceRoot: "/workspace", cwd: "/workspace" },
+				};
 
-				const createdReply = await commands.handleCommand({
-					version: "v1",
-					command: "schedule.create",
-					payload: {
-						name: "Command routine",
-						cronPattern: "15 * * * *",
-						prompt: "Run from command",
-						workspaceRoot: "/workspace",
-						modelSelection: {
-							providerId: "openai",
-							modelId: "gpt-5.3-codex",
+				const createdReply = await commands.handleCommand(
+					{
+						version: "v1",
+						command: "schedule.create",
+						clientId: "workspace-client",
+						payload: {
+							name: "Command routine",
+							cronPattern: "15 * * * *",
+							prompt: "Run from command",
+							workspaceRoot: "/workspace",
+							modelSelection: {
+								providerId: "openai",
+								modelId: "gpt-5.3-codex",
+							},
 						},
 					},
-				});
+					workspaceAuthority,
+				);
 				expect(createdReply.ok).toBe(true);
 				const created = createdReply.payload?.schedule as {
 					scheduleId: string;
@@ -295,32 +367,47 @@ describe("HubScheduleService", () => {
 				};
 				expect(created.mode).toBe("yolo");
 
-				const planReply = await commands.handleCommand({
-					version: "v1",
-					command: "schedule.update",
-					payload: { scheduleId: created.scheduleId, mode: "plan" },
-				});
+				const planReply = await commands.handleCommand(
+					{
+						version: "v1",
+						command: "schedule.update",
+						clientId: "workspace-client",
+						payload: { scheduleId: created.scheduleId, mode: "plan" },
+					},
+					workspaceAuthority,
+				);
 				expect(planReply.ok).toBe(true);
 				expect((planReply.payload?.schedule as { mode: string }).mode).toBe(
 					"plan",
 				);
 
-				const omittedModeReply = await commands.handleCommand({
-					version: "v1",
-					command: "schedule.update",
-					payload: { scheduleId: created.scheduleId, name: "Renamed routine" },
-				});
+				const omittedModeReply = await commands.handleCommand(
+					{
+						version: "v1",
+						command: "schedule.update",
+						clientId: "workspace-client",
+						payload: {
+							scheduleId: created.scheduleId,
+							name: "Renamed routine",
+						},
+					},
+					workspaceAuthority,
+				);
 				expect(omittedModeReply.ok).toBe(true);
 				expect(
 					(omittedModeReply.payload?.schedule as { mode: string }).mode,
 				).toBe("plan");
 
 				for (const invalidMode of [null, "", "invalid"]) {
-					const invalidUpdateReply = await commands.handleCommand({
-						version: "v1",
-						command: "schedule.update",
-						payload: { scheduleId: created.scheduleId, mode: invalidMode },
-					});
+					const invalidUpdateReply = await commands.handleCommand(
+						{
+							version: "v1",
+							command: "schedule.update",
+							clientId: "workspace-client",
+							payload: { scheduleId: created.scheduleId, mode: invalidMode },
+						},
+						workspaceAuthority,
+					);
 					expect(invalidUpdateReply).toMatchObject({
 						ok: false,
 						error: {
@@ -330,17 +417,21 @@ describe("HubScheduleService", () => {
 					});
 				}
 
-				const invalidCreateReply = await commands.handleCommand({
-					version: "v1",
-					command: "schedule.create",
-					payload: {
-						name: "Invalid routine",
-						cronPattern: "30 * * * *",
-						prompt: "Do not create",
-						workspaceRoot: "/workspace",
-						mode: "invalid",
+				const invalidCreateReply = await commands.handleCommand(
+					{
+						version: "v1",
+						command: "schedule.create",
+						clientId: "workspace-client",
+						payload: {
+							name: "Invalid routine",
+							cronPattern: "30 * * * *",
+							prompt: "Do not create",
+							workspaceRoot: "/workspace",
+							mode: "invalid",
+						},
 					},
-				});
+					workspaceAuthority,
+				);
 				expect(invalidCreateReply).toMatchObject({
 					ok: false,
 					error: {
@@ -349,11 +440,15 @@ describe("HubScheduleService", () => {
 					},
 				});
 
-				const listReply = await commands.handleCommand({
-					version: "v1",
-					command: "schedule.list",
-					payload: { limit: 10 },
-				});
+				const listReply = await commands.handleCommand(
+					{
+						version: "v1",
+						command: "schedule.list",
+						clientId: "workspace-client",
+						payload: { limit: 10 },
+					},
+					workspaceAuthority,
+				);
 				expect(listReply.ok).toBe(true);
 				const listedSchedule = (
 					listReply.payload?.schedules as Array<{
@@ -362,6 +457,44 @@ describe("HubScheduleService", () => {
 					}>
 				).find((item) => item.scheduleId === created.scheduleId);
 				expect(listedSchedule).toMatchObject({ mode: "plan" });
+
+				const foreignGet = await commands.handleCommand(
+					{
+						version: "v1",
+						command: "schedule.get",
+						clientId: "other-client",
+						payload: { scheduleId: created.scheduleId },
+					},
+					{
+						clientId: "other-client",
+						workspaceContext: { workspaceRoot: "/other-workspace" },
+					},
+				);
+				expect(foreignGet).toMatchObject({
+					ok: false,
+					error: {
+						code: "schedule_command_failed",
+						message: "schedule does not exist in this workspace",
+					},
+				});
+
+				const spoofedCreate = await commands.handleCommand(
+					{
+						version: "v1",
+						command: "schedule.create",
+						clientId: "workspace-client",
+						payload: {
+							name: "Scoped routine",
+							cronPattern: "30 * * * *",
+							prompt: "Stay in scope",
+							workspaceRoot: "/other-workspace",
+						},
+					},
+					workspaceAuthority,
+				);
+				expect(spoofedCreate.payload?.schedule).toMatchObject({
+					workspaceRoot: resolve("/workspace"),
+				});
 			} finally {
 				await service.dispose();
 			}
