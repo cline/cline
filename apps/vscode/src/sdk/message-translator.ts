@@ -49,7 +49,7 @@ import { arePathsEqual, getDesktopDir } from "@/utils/path"
 import { CLINE_FREE_PROMOTION_ENDED_ERROR_CODE, isClineFreePromotionEndedMessage } from "../services/error/ClineError"
 import { MessageIdMinter } from "./message-id-minter"
 import { describeMissingCredentialError } from "./provider-credential-error"
-import { isSyntheticSdkUserMessage, isSyntheticUserPrompt } from "./sdk-user-message-mapping"
+import { extractPersistedHookContextChips, isSyntheticSdkUserMessage, isSyntheticUserPrompt } from "./sdk-user-message-mapping"
 import { isDeniedToolApprovalMistake, isKnownToolApprovalDenial } from "./tool-approval-denial"
 
 // ---------------------------------------------------------------------------
@@ -2438,6 +2438,23 @@ export function sdkMessagesToClineMessages(
 				}
 			}
 			appendPersistedMetricsMessage(clineMessages, message, state)
+			continue
+		}
+
+		// Runtime-injected hook context is not a user turn: reconstruct the hook
+		// status rows shown live and leave turn/mode state untouched, so the
+		// final turn's completion retag survives the injection.
+		const hookChips = extractPersistedHookContextChips(message)
+		if (hookChips.length > 0) {
+			for (const chip of hookChips) {
+				clineMessages.push({
+					ts: state.nextTs(),
+					type: "say",
+					say: "hook_status",
+					text: JSON.stringify(chip),
+					partial: false,
+				})
+			}
 			continue
 		}
 

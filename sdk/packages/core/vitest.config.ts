@@ -13,7 +13,13 @@ export default defineConfig({
 		hookTimeout: 15_000,
 		pool: "forks",
 		...(process.env.CI && process.platform === "win32"
-			? { maxWorkers: 2 }
+			? {
+					// The full core suite can exhaust a hosted Windows runner when two
+					// fork workers overlap process-heavy and SQLite-heavy test files.
+					// Run it serially there to prevent unexplained worker termination.
+					fileParallelism: false,
+					maxWorkers: 1,
+				}
 			: {}),
 	},
 });

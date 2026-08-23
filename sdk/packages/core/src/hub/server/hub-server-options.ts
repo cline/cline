@@ -10,9 +10,14 @@ import type {
 	RuntimeHost,
 } from "../../runtime/host/runtime-host";
 import type { CoreSettingsService } from "../../settings";
+import type { AgendaTaskManagerOptions } from "../../tasks";
 import type { HubOwnerContext } from "../discovery";
+import type { HubEventLogOptions } from "./hub-event-log";
+import type { HubRunQueueOptions } from "./hub-run-queue";
 
 export interface HubWebSocketServerOptions {
+	/** Workspace authority assigned by the Hub to authenticated clients. */
+	workspaceRoot?: string;
 	host?: string;
 	port?: number;
 	pathname?: string;
@@ -20,6 +25,8 @@ export interface HubWebSocketServerOptions {
 	sessionHost?: RuntimeHost &
 		Partial<PendingPromptsRuntimeService & CommandExecutionRuntimeService>;
 	settingsService?: CoreSettingsService;
+	/** File/DB/watcher overrides for the Hub-owned agenda task manager. */
+	taskOptions?: Omit<AgendaTaskManagerOptions, "runtime" | "publish">;
 	runtimeHandlers: HubScheduleRuntimeHandlers;
 	scheduleOptions?: Omit<HubScheduleServiceOptions, "runtimeHandlers">;
 	/**
@@ -56,6 +63,14 @@ export interface HubWebSocketServerOptions {
 	 * signals, and fatal errors through one shutdown coordinator.
 	 */
 	onShutdownRequested?: () => void | Promise<void>;
+	/**
+	 * Durable event log configuration. Pass `false` to disable persistence
+	 * (events become fire-and-forget, the pre-log behavior; `stream.subscribe`
+	 * replay cursors are then best-effort no-ops).
+	 */
+	eventLog?: HubEventLogOptions | false;
+	/** Durable run queue configuration (`run.enqueue`). */
+	runQueue?: HubRunQueueOptions | false;
 }
 
 export interface HubWebSocketServer {

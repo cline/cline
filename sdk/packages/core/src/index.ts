@@ -872,6 +872,7 @@ export {
 	CoreSettingsService,
 	createCoreSettingsService,
 } from "./settings";
+export * from "./tasks";
 export type {
 	ChatMessage,
 	ChatMessageImage,
@@ -930,18 +931,21 @@ export {
 	getCoreBuiltinToolCatalog,
 	getCoreDefaultEnabledToolIds,
 	getCoreHeadlessToolNames,
+	isCoreBuiltinToolAvailable,
 	isSkillsToolAvailable,
 	MAX_COMMAND_OUTPUT_CHARS,
 	PATCH_MARKERS,
 	PatchActionType,
 	type PatchFileChange,
 	resolveCoreSelectedToolIds,
+	resolveToolClientType,
 	type ShellExecutor,
 	type ShellExecutorOptions,
 	type StructuredCommandInput,
 	StructuredCommandInputSchema,
 	TEAM_TOOL_NAMES,
 	type ToolCatalogEntry,
+	type ToolClientType,
 	type ToolExecutors,
 	type ToolPolicyPresetName,
 	type ToolPresetName,
@@ -949,11 +953,15 @@ export {
 	truncateCommandOutput,
 } from "./extensions/tools";
 export {
+	applyClineFeaturedModels,
 	type ClineRecommendedModel,
 	type ClineRecommendedModelsData,
 	FALLBACK_CLINE_RECOMMENDED_MODELS,
 	type FetchClineRecommendedModelsOptions,
 	fetchClineRecommendedModels,
+	getCachedClineRecommendedModels,
+	peekClineRecommendedModels,
+	resetClineRecommendedModelsCacheForTests,
 } from "./services/llms/cline-recommended-models";
 export {
 	clearLiveModelsCatalogCache,
