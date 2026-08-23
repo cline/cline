@@ -780,15 +780,11 @@ export const ChatRowContent = memo(
 							<div>
 								<div onClick={(e) => e.stopPropagation()}>
 									<McpToolRow
-										serverName={useMcpServer.serverName}
 										tool={{
 											name: useMcpServer.toolName || "",
 											description:
 												server?.tools?.find((tool) => tool.name === useMcpServer.toolName)?.description ||
 												"",
-											autoApprove:
-												server?.tools?.find((tool) => tool.name === useMcpServer.toolName)?.autoApprove ||
-												false,
 										}}
 									/>
 								</div>

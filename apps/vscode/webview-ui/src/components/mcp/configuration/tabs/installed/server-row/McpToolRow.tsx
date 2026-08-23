@@ -1,41 +1,13 @@
 import { McpTool } from "@shared/mcp"
-import { ToggleToolAutoApproveRequest } from "@shared/proto/cline/mcp"
-import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
-import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { McpServiceClient } from "@/services/grpc-client"
 
 type McpToolRowProps = {
 	tool: McpTool
-	serverName?: string
 }
 
-const McpToolRow = ({ tool, serverName }: McpToolRowProps) => {
-	const { autoApprovalSettings } = useExtensionState()
-
-	const { setMcpServers } = useExtensionState()
-
-	// Accept the event object
-	const handleAutoApproveChange = (_event: any) => {
-		if (!serverName) {
-			return
-		}
-
-		McpServiceClient.toggleToolAutoApprove(
-			ToggleToolAutoApproveRequest.create({
-				serverName,
-				toolNames: [tool.name],
-				autoApprove: !tool.autoApprove,
-			}),
-		)
-			.then((response) => {
-				const mcpServers = convertProtoMcpServersToMcpServers(response.mcpServers)
-				setMcpServers(mcpServers)
-			})
-			.catch((error) => {
-				console.error("Error toggling tool auto-approve", error)
-			})
-	}
+// Note: MCP auto-approval is governed solely by the global "Use MCP servers"
+// toggle in the auto-approve menu; there is no per-tool opt-in (the SDK
+// approval path has no per-tool granularity).
+const McpToolRow = ({ tool }: McpToolRowProps) => {
 	return (
 		<div
 			key={tool.name}
@@ -50,15 +22,6 @@ const McpToolRow = ({ tool, serverName }: McpToolRowProps) => {
 					<span className="codicon codicon-symbol-method" style={{ marginRight: "6px", flexShrink: 0 }}></span>
 					<span style={{ fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis" }}>{tool.name}</span>
 				</div>
-				{serverName && autoApprovalSettings.actions.useMcp && (
-					<VSCodeCheckbox
-						checked={tool.autoApprove ?? false}
-						data-tool={tool.name}
-						onChange={handleAutoApproveChange}
-						style={{ fontSize: "11px" }}>
-						Auto-approve
-					</VSCodeCheckbox>
-				)}
 			</div>
 			{tool.description && (
 				<div
