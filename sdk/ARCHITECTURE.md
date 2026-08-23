@@ -130,12 +130,16 @@ Completion telemetry is anchored to the assistant's explicit completion
 declaration, not session shutdown. After each agent turn, the local
 runtime inspects `AgentResult.toolCalls` and emits `task.completed` the
 moment a successful `submit_and_exit` (the SDK analog of original
-Cline's `attempt_completion`) is observed. `shutdownSession(...)`
-retains a fallback emission for completed sessions that finished
-without an explicit completion-tool observation, so non-interactive
-runs not using the yolo preset still produce a `task.completed` signal.
-Each session emits at most one `task.completed`. See `DOC.md` for the
-event payload and `source` field.
+Cline's `attempt_completion`) is observed. A single teardown choke
+point (`emitTaskCompletedOnTeardown(...)`) retains a fallback emission
+for sessions whose final turn finished cleanly without an explicit
+completion-tool observation (non-interactive runs not using the yolo
+preset, or hosts that disable `submit_and_exit`). It is invoked from
+every session exit path — both `shutdownSession(...)` and
+`releaseSessionRuntime(...)` — so the emission never depends on which
+teardown branch a stop routes through. Each session emits at most one
+`task.completed`. See `DOC.md` for the event payload and `source`
+field.
 
 ### Hub-Backed Runtime
 

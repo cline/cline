@@ -1,5 +1,27 @@
 # Changelog
 
+## [4.1.14]
+
+Everything here lands through the SDK bundle, so it applies to windows running that bundle.
+
+### Added
+
+- Refresh the built-in model catalog. New entries include Claude Fable 5, Grok 4.6 on Vertex, several DeepSeek V4 Flash variants (including the vision preview), MiMo v2.5, Qwen3.8 27B, Gemma 4 26B, LongCat 2.0, Nemotron 3.5 Lightning, and Thinking Machines' Inkling models.
+
+### Fixed
+
+- Restore task completion telemetry for interactive sessions. A share of interactive stops routed through a teardown path that never reported completion after 4.1.11 changed how session status is tracked; every session now reports it exactly once.
+
+## [4.1.13]
+
+Everything here lands through the SDK bundle, so it applies to windows running that bundle.
+
+### Fixed
+
+- Restore tool calling for custom OpenAI-Compatible models whose capability list was inferred from convenience flags like `supportsReasoning`. The inferred list read as an authoritative denial and stripped every tool from the request; an explicitly authored capability list still decides.
+- Keep Hub-backed sessions intact across a Hub restart or upgrade. Clients replay the events they missed while disconnected, and the same event is no longer delivered twice when the replay and live streams overlap.
+- Carry session and client identity into Langfuse traces for Hub-backed and delegated-agent runs, which previously arrived without their session grouping or client version.
+
 ## [4.1.12]
 
 Everything here lands through the SDK bundle, so it applies to windows running that bundle.
