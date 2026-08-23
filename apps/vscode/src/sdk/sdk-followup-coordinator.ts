@@ -4,6 +4,7 @@ import type { Mode } from "@shared/storage/types"
 import type { ClineAskResponse } from "@shared/WebviewMessage"
 import type { StateManager } from "@/core/storage/StateManager"
 import { Logger } from "@/shared/services/Logger"
+import type { ActiveSession } from "./cline-session-factory"
 import type { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import type { SdkSessionConfigBuilder } from "./sdk-session-config-builder"
@@ -47,6 +48,8 @@ export interface SdkFollowupCoordinatorOptions {
 	waitForPendingRebuilds: () => Promise<void>
 	/** Serializes transcript preparation and session start with rebuilds and displayed-task compaction. */
 	runExclusive: (operation: () => Promise<void>) => Promise<void>
+	/** Restores the streaming phase if the preceding turn completed while a rebuild barrier was pending. */
+	onFollowUpStarting: () => void
 	/**
 	 * Called when resuming a task fails. askResponse moved the turn phase to
 	 * streaming before delegating here, so the failure must move it to a
@@ -79,17 +82,23 @@ export class SdkFollowupCoordinator {
 			return
 		}
 
-		const activeSession = this.options.sessions.getActiveSession()
 		const task = this.options.getTask()
 		const submittedDuringActiveTurn = turnPhaseAtSubmit === "streaming" || turnPhaseAtSubmit === "awaiting_approval"
+
+		// Rebuilds replace sessions once their current turn becomes idle. Wait
+		// before choosing even a running target: otherwise the SDK can drain a
+		// queued prompt on the old host before a provider-field rebuild runs.
+		await this.options.waitForPendingRebuilds()
+		if (task && this.options.getTask()?.taskId !== task.taskId) {
+			await this.abandonFollowUp(`askResponse: Task changed while waiting to resume ${task.taskId}; cancelling follow-up`)
+			return
+		}
+
+		const activeSession = this.options.sessions.getActiveSession()
 		if (activeSession && (activeSession.isRunning || submittedDuringActiveTurn)) {
 			await this.queueToActiveSession(activeSession, prompt, images, files)
 			return
 		}
-
-		// Rebuilds replace idle sessions. Wait before acquiring the shared
-		// prepare/start boundary so this follow-up cannot target a replaced host.
-		await this.options.waitForPendingRebuilds()
 
 		await this.options.runExclusive(async () => {
 			// Task navigation does not use the rebuild scheduler. Do not deliver a
@@ -140,8 +149,14 @@ export class SdkFollowupCoordinator {
 		const { sdkHost, sessionId } = activeSession
 		Logger.log(`[SdkController] Session is running - queuing follow-up message for session: ${sessionId}`)
 
-		this.options.sessions.setRunning(true)
 		const resolvedPrompt = prompt ? await this.options.resolveContextMentions(prompt) : ""
+		if (this.options.sessions.getActiveSession() !== activeSession) {
+			await this.abandonFollowUp(`Active session changed while queuing follow-up for ${sessionId}; cancelling follow-up`)
+			return
+		}
+
+		this.options.sessions.setRunning(true)
+		this.options.onFollowUpStarting()
 		this.options.sessions.fireAndForgetSend(sdkHost, sessionId, resolvedPrompt, images, files, "queue")
 	}
 
@@ -162,14 +177,19 @@ export class SdkFollowupCoordinator {
 		const { sdkHost, sessionId } = activeSession
 		Logger.log(`[SdkController] Continuing idle session for follow-up: ${sessionId}`)
 
+		const effectivePrompt = prompt?.trim() || TASK_RESUMPTION_PROMPT
+		const resolvedPrompt = await this.options.resolveContextMentions(effectivePrompt)
+		if (this.options.sessions.getActiveSession() !== activeSession) {
+			await this.abandonFollowUp(`Active session changed while preparing follow-up for ${sessionId}; cancelling follow-up`)
+			return
+		}
+
 		this.options.sessions.setRunning(true)
+		this.options.onFollowUpStarting()
+		this.options.resetMessageTranslator()
 		if (prompt?.trim() || images?.length || files?.length) {
 			this.emitUserFeedback(sessionId, prompt, images, files)
 		}
-		this.options.resetMessageTranslator()
-
-		const effectivePrompt = prompt?.trim() || TASK_RESUMPTION_PROMPT
-		const resolvedPrompt = await this.options.resolveContextMentions(effectivePrompt)
 		this.options.sessions.fireAndForgetSend(sdkHost, sessionId, resolvedPrompt, images, files)
 	}
 
@@ -233,9 +253,14 @@ export class SdkFollowupCoordinator {
 			...resumeStart,
 			interactive: true,
 		})
+		const startedSession = this.options.sessions.getActiveSession()
+		if (!startedSession || startedSession.sdkHost !== sdkHost || startedSession.sessionId !== startResult.sessionId) {
+			await this.abandonFollowUp(`Started session was replaced before resume setup for ${taskId}; cancelled follow-up`)
+			return
+		}
 
 		if (this.options.getTask()?.taskId !== taskId) {
-			await this.endStartedResume(sdkHost, startResult.sessionId)
+			await this.endStartedResume(startedSession)
 			await this.abandonFollowUp(`Task changed during resume start for ${taskId}; cancelled follow-up`)
 			return
 		}
@@ -246,8 +271,13 @@ export class SdkFollowupCoordinator {
 				historyItem.modelId = resumeStart.config.modelId
 				await this.options.taskHistory.updateTaskHistoryItem(historyItem)
 				if (this.options.getTask()?.taskId !== taskId) {
-					await this.endStartedResume(sdkHost, startResult.sessionId)
+					await this.endStartedResume(startedSession)
 					await this.abandonFollowUp(`Task changed while updating history for ${taskId}; cancelled follow-up`)
+					return
+				}
+				if (this.options.sessions.getActiveSession() !== startedSession) {
+					await this.endStartedResume(startedSession)
+					await this.abandonFollowUp(`Active session changed while updating history for ${taskId}; cancelled follow-up`)
 					return
 				}
 			}
@@ -255,14 +285,21 @@ export class SdkFollowupCoordinator {
 			const effectivePrompt = prompt?.trim() || TASK_RESUMPTION_PROMPT
 			const resolvedPrompt = await this.options.resolveContextMentions(effectivePrompt)
 			if (this.options.getTask()?.taskId !== taskId) {
-				await this.endStartedResume(sdkHost, startResult.sessionId)
+				await this.endStartedResume(startedSession)
 				await this.abandonFollowUp(`Task changed while resolving mentions for ${taskId}; cancelled follow-up`)
+				return
+			}
+			if (this.options.sessions.getActiveSession() !== startedSession) {
+				await this.endStartedResume(startedSession)
+				await this.abandonFollowUp(`Active session changed while resolving mentions for ${taskId}; cancelled follow-up`)
 				return
 			}
 
 			if (task.taskId !== startResult.sessionId) {
 				task.taskId = startResult.sessionId
 			}
+			this.options.sessions.setRunning(true)
+			this.options.onFollowUpStarting()
 			this.options.resetMessageTranslator()
 
 			// Echo whenever the user supplied content, including attachment-only
@@ -278,23 +315,35 @@ export class SdkFollowupCoordinator {
 			// Compare against the original taskId: a proxy reloaded from history
 			// carries it, while task.taskId may have been reassigned above.
 			if (this.options.getTask()?.taskId !== taskId && this.options.getTask() !== task) {
-				await this.endStartedResume(sdkHost, startResult.sessionId)
+				await this.endStartedResume(startedSession)
 				await this.abandonFollowUp(`Task changed while posting resumed state for ${taskId}; cancelled follow-up`)
 				return
 			}
+			if (this.options.sessions.getActiveSession() !== startedSession) {
+				await this.endStartedResume(startedSession)
+				await this.abandonFollowUp(
+					`Active session changed before resumed follow-up send for ${taskId}; cancelled follow-up`,
+				)
+				return
+			}
 
-			this.options.sessions.fireAndForgetSend(sdkHost, startResult.sessionId, resolvedPrompt, images, files)
+			this.options.sessions.fireAndForgetSend(
+				startedSession.sdkHost,
+				startedSession.sessionId,
+				resolvedPrompt,
+				images,
+				files,
+			)
 		} catch (error) {
-			await this.endStartedResume(sdkHost, startResult.sessionId)
+			await this.endStartedResume(startedSession)
 			throw error
 		}
 	}
 
-	private async endStartedResume(sdkHost: SdkSessionHost, sessionId: string): Promise<void> {
+	private async endStartedResume(startedSession: ActiveSession): Promise<void> {
 		// startNewSession installs the session before resolving. Clear that exact
 		// session synchronously, but never stop a replacement session.
-		const activeSession = this.options.sessions.getActiveSession()
-		if (activeSession?.sdkHost === sdkHost && activeSession.sessionId === sessionId) {
+		if (this.options.sessions.getActiveSession() === startedSession) {
 			await this.options.sessions.endActiveSession("followupTargetChanged", { awaitStop: true })
 		}
 	}

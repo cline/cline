@@ -42,6 +42,44 @@ describe("SDK follow-up rebuild coordination", () => {
 
 		expect(events).toEqual(["flush-provider", "wait-mode", "wait-scheduler"])
 	})
+
+	it("restores streaming state after a rebuild barrier observes the preceding turn completion", async () => {
+		const events: string[] = []
+		const controller = {
+			turnStateTracker: {
+				currentPhase: "awaiting_followup",
+				set: vi.fn((phase: string) => events.push(`phase:${phase}`)),
+			},
+			messageTranslatorState: {
+				clearTurnOutcome: vi.fn(() => events.push("clear-outcome")),
+			},
+			postStateToWebview: vi.fn(async () => events.push("post-state")),
+		}
+
+		SdkController.prototype["ensureFollowUpStartingState"].call(controller as never)
+		await Promise.resolve()
+
+		expect(events).toEqual(["phase:streaming", "clear-outcome", "post-state"])
+	})
+
+	it("does not duplicate the initial streaming state post when no rebuild delayed the follow-up", async () => {
+		const controller = {
+			turnStateTracker: {
+				currentPhase: "streaming",
+				set: vi.fn(),
+			},
+			messageTranslatorState: {
+				clearTurnOutcome: vi.fn(),
+			},
+			postStateToWebview: vi.fn().mockResolvedValue(undefined),
+		}
+
+		SdkController.prototype["ensureFollowUpStartingState"].call(controller as never)
+
+		expect(controller.turnStateTracker.set).not.toHaveBeenCalled()
+		expect(controller.messageTranslatorState.clearTurnOutcome).not.toHaveBeenCalled()
+		expect(controller.postStateToWebview).not.toHaveBeenCalled()
+	})
 })
 
 vi.mock("@/services/telemetry", () => ({

@@ -55,6 +55,8 @@ export interface SdkSessionLifecycleOptions {
 	 */
 	consumeModeSwitchNotice?: (sessionId: string) => ModeSwitchNotice | null
 	onDidBecomeIdle?: () => void
+	/** Called synchronously when the active-session reference is removed. */
+	onDidEndActiveSession?: () => void
 }
 
 export class SdkSessionLifecycle {
@@ -92,6 +94,9 @@ export class SdkSessionLifecycle {
 	private clearActiveSessionReference(): ActiveSession | undefined {
 		const activeSession = this.activeSession
 		this.activeSession = undefined
+		if (activeSession) {
+			this.options.onDidEndActiveSession?.()
+		}
 		return activeSession
 	}
 

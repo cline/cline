@@ -189,6 +189,19 @@ describe("SdkSessionLifecycle", () => {
 		expect(onDidBecomeIdle).toHaveBeenCalledOnce()
 	})
 
+	it("notifies when the active session reference is removed", async () => {
+		const onDidEndActiveSession = vi.fn()
+		const sdkHost = makeSdkHost()
+		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
+		const lifecycle = makeLifecycle({ onDidEndActiveSession })
+		await lifecycle.startNewSession({} as StartInput)
+
+		await lifecycle.endActiveSession("test")
+		await lifecycle.endActiveSession("test-again")
+
+		expect(onDidEndActiveSession).toHaveBeenCalledOnce()
+	})
+
 	it("calls the send-start hook before sending to the SDK host", async () => {
 		const onSendStart = vi.fn()
 		const send = vi.fn().mockResolvedValue(undefined)

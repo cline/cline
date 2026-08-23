@@ -388,6 +388,7 @@ export class Controller {
 				})
 			},
 			onDidBecomeIdle: () => this.handleSessionBecameIdle(),
+			onDidEndActiveSession: () => this.handleActiveSessionRemoved(),
 			beforeStartSession: () => this.ensureRemoteConfigForSessionStart(),
 			getRemoteConfigIntegration: () => this.remoteConfigCoreIntegration,
 			foregroundCommands: this.foregroundCommands,
@@ -556,6 +557,7 @@ export class Controller {
 			sessionConfigBuilder: this.sessionConfigBuilder,
 			waitForPendingRebuilds: () => this.flushPendingProviderChangesAndWaitForRebuilds(),
 			runExclusive: (operation) => this.sessionRebuilds.runExclusive(operation),
+			onFollowUpStarting: () => this.ensureFollowUpStartingState(),
 			getTask: () => this.task,
 			createTempSessionHost: () => this.createRemoteConfigAwareSessionHost(),
 			getWorkspaceRoot: () => this.getWorkspaceRoot(),
@@ -720,6 +722,18 @@ export class Controller {
 		await this.sessionRebuilds.waitUntilSettled()
 	}
 
+	private ensureFollowUpStartingState(): void {
+		if (this.turnStateTracker.currentPhase === "streaming") {
+			return
+		}
+
+		this.turnStateTracker.set("streaming")
+		this.messageTranslatorState.clearTurnOutcome()
+		this.postStateToWebview().catch((error) => {
+			Logger.error("[SdkController] Failed to post state after delayed follow-up phase change:", error)
+		})
+	}
+
 	handleApiConfigurationChanged(previous: ApiConfiguration, next: ApiConfiguration): void {
 		this.providerChanges.handleApiConfigurationChanged(previous, next)
 	}
@@ -730,6 +744,10 @@ export class Controller {
 
 	private handleSessionBecameIdle(): void {
 		this.sessionRebuilds?.sessionBecameIdle()
+	}
+
+	private handleActiveSessionRemoved(): void {
+		this.sessionRebuilds?.activeSessionRemoved()
 	}
 
 	private isSelectionForActiveModeProvider(event: Extract<ProviderConfigChange, { kind: "selection" }>): boolean {
