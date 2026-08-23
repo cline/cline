@@ -154,6 +154,40 @@ describe("SdkProviderChangeCoordinator", () => {
 		expect(options.rebuilds.request).toHaveBeenCalledWith("provider", expect.any(Function))
 	})
 
+	it("hot-applies pending connection fields before a suspended interaction resumes", async () => {
+		vi.useFakeTimers()
+		const activeSession = makeActiveSession({ isRunning: true })
+		const { coordinator, options } = makeCoordinator({ activeSession, activeProvider: "lmstudio" })
+		options.sessionConfigBuilder.build.mockResolvedValue({
+			providerId: "lmstudio",
+			modelId: "local-model",
+			apiKey: "new-key",
+			baseUrl: "http://localhost:1234/v1",
+			providerConfig: { providerId: "lmstudio", modelId: "local-model" },
+			thinking: false,
+		})
+
+		coordinator.handleProviderConfigFieldsChanged(parseProviderId("lmstudio"))
+		await coordinator.applyPendingConnectionUpdateBeforeInteractionResume()
+
+		expect(activeSession.sdkHost.updateSessionConnection).toHaveBeenCalledWith("old-session", {
+			providerId: "lmstudio",
+			modelId: "local-model",
+			apiKey: "new-key",
+			baseUrl: "http://localhost:1234/v1",
+			headers: {},
+			providerConfig: { providerId: "lmstudio", modelId: "local-model" },
+			thinking: false,
+			reasoningEffort: null,
+			thinkingBudgetTokens: null,
+		})
+		// The full rebuild remains pending for fields that cannot be changed in
+		// place, and will run after the resumed turn becomes idle.
+		expect(options.rebuilds.request).not.toHaveBeenCalled()
+		vi.runOnlyPendingTimers()
+		expect(options.rebuilds.request).toHaveBeenCalledWith("provider", expect.any(Function))
+	})
+
 	it("keeps provider switches immediate and cancels a pending field-change restart", async () => {
 		vi.useFakeTimers()
 		const activeSession = makeActiveSession()
@@ -346,6 +380,7 @@ function makeActiveSession(input: { isRunning?: boolean } = {}) {
 		sessionId: "old-session",
 		sdkHost: {
 			send: vi.fn(),
+			updateSessionConnection: vi.fn().mockResolvedValue(undefined),
 			stop: vi.fn().mockResolvedValue(undefined),
 			dispose: vi.fn().mockResolvedValue(undefined),
 		},

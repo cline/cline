@@ -69,7 +69,11 @@ import {
 	agentMessagesToMessagesWithMetadata,
 	messagesToAgentMessages,
 } from "../config/agent-message-codec";
-import { createAgentRuntimeConfig } from "../config/agent-runtime-config-builder";
+import {
+	buildMessageModelInfo,
+	buildModelOptions,
+	createAgentRuntimeConfig,
+} from "../config/agent-runtime-config-builder";
 import {
 	type ConnectionUpdate,
 	normalizeConnectionUpdate,
@@ -547,7 +551,16 @@ export class SessionRuntime {
 				next.thinkingBudgetTokens = undefined;
 			}
 		}
+		const activeModel = this.activeRuntime
+			? createAgentModelFromConfig(next, this.logger, this.telemetry)
+			: undefined;
 		this.config = next;
+		if (activeModel && this.activeRuntime) {
+			this.activeRuntime.updateModel(activeModel, {
+				modelOptions: buildModelOptions(next),
+				messageModelInfo: buildMessageModelInfo(next),
+			});
+		}
 	}
 
 	clearHistory(): void {

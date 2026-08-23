@@ -46,6 +46,8 @@ export interface SdkFollowupCoordinatorOptions {
 	postStateToWebview: () => Promise<void>
 	/** Resolves once no session rebuild is in flight. */
 	waitForPendingRebuilds: () => Promise<void>
+	/** Applies pending provider connection fields before a suspended SDK turn resumes. */
+	applyPendingProviderConnection: () => Promise<void>
 	/** Serializes transcript preparation and session start with rebuilds and displayed-task compaction. */
 	runExclusive: (operation: () => Promise<void>) => Promise<void>
 	/** Restores the streaming phase if the preceding turn completed while a rebuild barrier was pending. */
@@ -74,6 +76,21 @@ export class SdkFollowupCoordinator {
 		askResponse?: ClineAskResponse,
 		turnPhaseAtSubmit?: TurnPhase,
 	): Promise<void> {
+		const pendingInteraction = this.options.interactions.getPendingInteractionToResolve(askResponse)
+		if (pendingInteraction) {
+			// A full session rebuild cannot run while the SDK is suspended inside a
+			// tool approval/ask_question promise: the session remains "running"
+			// until that promise resolves. Hot-apply the connection first so the
+			// resumed inference uses the latest credentials without deadlocking.
+			await this.options.applyPendingProviderConnection()
+			if (pendingInteraction === "toolApproval") {
+				this.options.interactions.resolvePendingToolApproval(prompt, askResponse, images, files)
+			} else {
+				this.options.interactions.resolvePendingAskQuestion(prompt)
+			}
+			return
+		}
+
 		if (this.options.interactions.resolvePendingToolApproval(prompt, askResponse, images, files)) {
 			return
 		}

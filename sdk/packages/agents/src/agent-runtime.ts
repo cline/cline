@@ -511,8 +511,8 @@ export class AgentRuntime {
 	private overflowRecoveryAttempted = false;
 	private initialization?: Promise<void>;
 	private abortController?: AbortController;
-	private readonly telemetryProviderId?: string;
-	private readonly telemetryModelId?: string;
+	private telemetryProviderId?: string;
+	private telemetryModelId?: string;
 
 	constructor(config: AgentRuntimeConfig) {
 		this.telemetryProviderId =
@@ -556,6 +556,31 @@ export class AgentRuntime {
 			error: abortError,
 		});
 		this.abortController.abort(abortError);
+	}
+
+	/**
+	 * Replace the model connection used by subsequent requests in this run.
+	 * Tool approval and ask-question executors can suspend an active run between
+	 * model requests, so session-level credential changes must reach the already
+	 * constructed runtime without discarding its conversation or tool state.
+	 */
+	updateModel(
+		model: AgentModel,
+		options?: {
+			modelOptions?: Record<string, unknown>;
+			messageModelInfo?: AgentMessage["modelInfo"];
+		},
+	): void {
+		this.config = {
+			...this.config,
+			model,
+			modelOptions: options?.modelOptions,
+			messageModelInfo: options?.messageModelInfo,
+		};
+		this.telemetryProviderId = trimNonEmpty(
+			options?.messageModelInfo?.provider,
+		);
+		this.telemetryModelId = trimNonEmpty(options?.messageModelInfo?.id);
 	}
 
 	subscribe(listener: AgentEventListener): () => void {

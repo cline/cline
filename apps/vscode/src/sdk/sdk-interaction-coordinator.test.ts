@@ -216,6 +216,36 @@ describe("SdkInteractionCoordinator", () => {
 		await expect(approvalPromise).resolves.toEqual({ approved: true })
 	})
 
+	it("identifies only responses that resume a suspended interaction", async () => {
+		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		const coordinator = new SdkInteractionCoordinator({
+			messages: new SdkMessageCoordinator({ getTask: () => task }),
+			getSessionId: () => "session-123",
+			postStateToWebview: vi.fn().mockResolvedValue(undefined),
+		})
+
+		const approvalPromise = coordinator.handleRequestToolApproval({
+			agentId: "agent",
+			conversationId: "conversation",
+			iteration: 1,
+			toolCallId: "tool-call",
+			toolName: "read_files",
+			input: { path: "README.md" },
+			policy: { autoApprove: false },
+		})
+		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
+
+		expect(coordinator.getPendingInteractionToResolve("messageResponse")).toBeUndefined()
+		expect(coordinator.getPendingInteractionToResolve("yesButtonClicked")).toBe("toolApproval")
+		expect(coordinator.resolvePendingToolApproval(undefined, "yesButtonClicked")).toBe(true)
+		await approvalPromise
+
+		const answerPromise = coordinator.handleAskQuestion("Continue?", [], undefined)
+		await vi.waitFor(() => expect(coordinator.getPendingInteractionToResolve(undefined)).toBe("askQuestion"))
+		expect(coordinator.resolvePendingAskQuestion("yes")).toBe(true)
+		await answerPromise
+	})
+
 	it("records generic no-button approval denials for UI suppression", async () => {
 		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
 		const recordDeniedToolApproval = vi.fn()

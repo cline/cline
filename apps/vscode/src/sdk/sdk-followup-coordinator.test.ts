@@ -40,6 +40,53 @@ describe("SdkFollowupCoordinator", () => {
 		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
 	})
 
+	it("applies pending provider settings before resolving a suspended tool approval", async () => {
+		const events: string[] = []
+		const { coordinator, options } = makeCoordinator()
+		options.interactions.getPendingInteractionToResolve.mockReturnValue("toolApproval")
+		options.applyPendingProviderConnection.mockImplementation(async () => {
+			events.push("apply-provider")
+		})
+		options.interactions.resolvePendingToolApproval.mockImplementation(() => {
+			events.push("resolve-approval")
+			return true
+		})
+
+		await coordinator.askResponse("yes", undefined, undefined, "yesButtonClicked")
+
+		expect(events).toEqual(["apply-provider", "resolve-approval"])
+		expect(options.waitForPendingRebuilds).not.toHaveBeenCalled()
+	})
+
+	it("applies pending provider settings before resolving a suspended ask_question", async () => {
+		const events: string[] = []
+		const { coordinator, options } = makeCoordinator()
+		options.interactions.getPendingInteractionToResolve.mockReturnValue("askQuestion")
+		options.applyPendingProviderConnection.mockImplementation(async () => {
+			events.push("apply-provider")
+		})
+		options.interactions.resolvePendingAskQuestion.mockImplementation(() => {
+			events.push("resolve-question")
+			return true
+		})
+
+		await coordinator.askResponse("answer")
+
+		expect(events).toEqual(["apply-provider", "resolve-question"])
+		expect(options.waitForPendingRebuilds).not.toHaveBeenCalled()
+	})
+
+	it("keeps a suspended interaction pending when the provider update fails", async () => {
+		const { coordinator, options } = makeCoordinator()
+		options.interactions.getPendingInteractionToResolve.mockReturnValue("toolApproval")
+		options.applyPendingProviderConnection.mockRejectedValue(new Error("connection update failed"))
+
+		await expect(coordinator.askResponse("yes", undefined, undefined, "yesButtonClicked")).rejects.toThrow(
+			"connection update failed",
+		)
+		expect(options.interactions.resolvePendingToolApproval).not.toHaveBeenCalled()
+	})
+
 	it("sends a follow-up to an idle active session", async () => {
 		const activeSession = makeActiveSession()
 		const { coordinator, options } = makeCoordinator({ activeSession })
@@ -861,6 +908,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 			getGlobalSettingsKey: vi.fn(() => input.mode ?? "act"),
 		} as unknown as StateManager,
 		interactions: {
+			getPendingInteractionToResolve: vi.fn(() => undefined),
 			resolvePendingToolApproval: vi.fn(() => false),
 			resolvePendingAskQuestion: vi.fn(() => false),
 		},
@@ -896,12 +944,14 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		resetMessageTranslator: vi.fn(),
 		postStateToWebview: vi.fn().mockResolvedValue(undefined),
 		waitForPendingRebuilds: input.waitForPendingRebuilds ?? vi.fn().mockResolvedValue(undefined),
+		applyPendingProviderConnection: vi.fn().mockResolvedValue(undefined),
 		runExclusive: input.runExclusive ?? vi.fn(async (operation: () => Promise<unknown>) => operation()),
 		onFollowUpStarting: vi.fn(),
 		onResumeFailed: vi.fn(),
 		onFollowUpAbandoned: vi.fn(),
 	} as unknown as SdkFollowupCoordinatorOptions & {
 		interactions: SdkFollowupCoordinatorOptions["interactions"] & {
+			getPendingInteractionToResolve: ReturnType<typeof vi.fn>
 			resolvePendingToolApproval: ReturnType<typeof vi.fn>
 			resolvePendingAskQuestion: ReturnType<typeof vi.fn>
 		}
@@ -933,6 +983,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		emitClineAuthError: ReturnType<typeof vi.fn>
 		resetMessageTranslator: ReturnType<typeof vi.fn>
 		postStateToWebview: ReturnType<typeof vi.fn>
+		applyPendingProviderConnection: ReturnType<typeof vi.fn>
 		runExclusive: ReturnType<typeof vi.fn>
 		onFollowUpStarting: ReturnType<typeof vi.fn>
 		onResumeFailed: ReturnType<typeof vi.fn>

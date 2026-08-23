@@ -61,6 +61,8 @@ interface FakeAgentRuntimeScript {
 	readonly result?: Partial<AgentRunResult>;
 	/** If true, reject with the provided error instead of returning. */
 	readonly throwError?: Error;
+	/** Optional gate that keeps the fake run active until the test releases it. */
+	readonly release?: Promise<void>;
 }
 
 /**
@@ -69,7 +71,12 @@ interface FakeAgentRuntimeScript {
  */
 function makeFakeAgentRuntime(script: FakeAgentRuntimeScript = {}): {
 	runtime: AgentRuntime;
-	calls: { run: unknown[]; continue: unknown[]; abort: unknown[] };
+	calls: {
+		run: unknown[];
+		continue: unknown[];
+		abort: unknown[];
+		updateModel: unknown[];
+	};
 	listeners: Set<(event: AgentRuntimeEvent) => void>;
 } {
 	const listeners = new Set<(event: AgentRuntimeEvent) => void>();
@@ -77,6 +84,7 @@ function makeFakeAgentRuntime(script: FakeAgentRuntimeScript = {}): {
 		run: [] as unknown[],
 		continue: [] as unknown[],
 		abort: [] as unknown[],
+		updateModel: [] as unknown[],
 	};
 
 	const baseResult: AgentRunResult = {
@@ -108,6 +116,7 @@ function makeFakeAgentRuntime(script: FakeAgentRuntimeScript = {}): {
 		async run(input: unknown) {
 			calls.run.push(input);
 			emit();
+			await script.release;
 			if (script.throwError) {
 				throw script.throwError;
 			}
@@ -116,6 +125,7 @@ function makeFakeAgentRuntime(script: FakeAgentRuntimeScript = {}): {
 		async continue(input: unknown) {
 			calls.continue.push(input);
 			emit();
+			await script.release;
 			if (script.throwError) {
 				throw script.throwError;
 			}
@@ -123,6 +133,9 @@ function makeFakeAgentRuntime(script: FakeAgentRuntimeScript = {}): {
 		},
 		abort(reason?: string) {
 			calls.abort.push(reason);
+		},
+		updateModel(...args: unknown[]) {
+			calls.updateModel.push(args);
 		},
 		subscribe(listener: (event: AgentRuntimeEvent) => void) {
 			listeners.add(listener);
@@ -1373,6 +1386,36 @@ describe("SessionRuntime.addTools / updateConnection / clearHistory / restore", 
 		const result = await session.run("go");
 		expect(result.model.id).toBe("claude-4");
 		expect(calls.run).toHaveLength(1);
+	});
+
+	it("updateConnection replaces the model in an already-active run", async () => {
+		let releaseRun: () => void = () => {};
+		const release = new Promise<void>((resolve) => {
+			releaseRun = resolve;
+		});
+		const { deps, calls } = withFakeRuntime({ release });
+		const session = new SessionRuntime(makeAgentConfig(), deps);
+
+		const runPromise = session.run("go");
+		await vi.waitFor(() => expect(calls.run).toHaveLength(1));
+		session.updateConnection({
+			apiKey: "new-key",
+			baseUrl: "http://new-endpoint",
+		});
+
+		expect(calls.updateModel).toHaveLength(1);
+		expect(calls.updateModel[0]).toEqual([
+			expect.objectContaining({ stream: expect.any(Function) }),
+			expect.objectContaining({
+				messageModelInfo: expect.objectContaining({
+					provider: "anthropic",
+					id: "claude-3-5-sonnet",
+				}),
+			}),
+		]);
+
+		releaseRun();
+		await runPromise;
 	});
 
 	it("updateConnection clears stale reasoning fields for next run", async () => {

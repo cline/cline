@@ -63,6 +63,21 @@ export class SdkInteractionCoordinator {
 	constructor(private readonly options: SdkInteractionCoordinatorOptions) {}
 
 	/**
+	 * Returns the suspended SDK interaction that this response would resume.
+	 * A message typed while a tool approval is open is a queued follow-up, not
+	 * an approval decision, so it deliberately falls through to normal routing.
+	 */
+	getPendingInteractionToResolve(responseType: ClineAskResponse | undefined): "toolApproval" | "askQuestion" | undefined {
+		if (this.pendingToolApprovalResolve && responseType !== "messageResponse") {
+			return "toolApproval"
+		}
+		if (this.pendingAskResolve) {
+			return "askQuestion"
+		}
+		return undefined
+	}
+
+	/**
 	 * CLI-parity mistake-limit handling: show an error row and stop the run
 	 * immediately. The session stays resumable, so the user continues
 	 * whenever they want by sending a new message (which also resets the

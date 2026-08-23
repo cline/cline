@@ -556,6 +556,7 @@ export class Controller {
 			taskHistory: this.taskHistory,
 			sessionConfigBuilder: this.sessionConfigBuilder,
 			waitForPendingRebuilds: () => this.flushPendingProviderChangesAndWaitForRebuilds(),
+			applyPendingProviderConnection: () => this.providerChanges.applyPendingConnectionUpdateBeforeInteractionResume(),
 			runExclusive: (operation) => this.sessionRebuilds.runExclusive(operation),
 			onFollowUpStarting: () => this.ensureFollowUpStartingState(),
 			getTask: () => this.task,

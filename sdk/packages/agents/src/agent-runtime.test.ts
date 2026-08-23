@@ -1213,6 +1213,56 @@ describe("AgentRuntime", () => {
 		});
 	});
 
+	it("uses a replacement model for the request after a suspended approval resolves", async () => {
+		let resolveApproval: (result: { approved: boolean }) => void = () => {};
+		const requestToolApproval = vi.fn(
+			() =>
+				new Promise<{ approved: boolean }>((resolve) => {
+					resolveApproval = resolve;
+				}),
+		);
+		const oldModel = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "call_approval",
+					toolName: "echo",
+					inputText: '{"text":"hi"}',
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+		]);
+		const newModel = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "continued with new credentials" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({
+			model: oldModel,
+			tools: [createEchoTool()],
+			toolPolicies: { "*": { autoApprove: false } },
+			requestToolApproval,
+		});
+
+		const runPromise = runtime.run("Start");
+		await vi.waitFor(() => expect(requestToolApproval).toHaveBeenCalledOnce());
+
+		runtime.updateModel(newModel, {
+			messageModelInfo: { provider: "lmstudio", id: "new-model" },
+		});
+		resolveApproval({ approved: true });
+
+		const result = await runPromise;
+		expect(oldModel.requests).toHaveLength(1);
+		expect(newModel.requests).toHaveLength(1);
+		expect(result.outputText).toBe("continued with new credentials");
+		expect(result.messages.at(-1)?.modelInfo).toEqual({
+			provider: "lmstudio",
+			id: "new-model",
+		});
+	});
+
 	it("applies beforeTool approval policy overrides before executing tools", async () => {
 		const executeTool = vi.fn(async () => ({ echoed: "hi" }));
 		const requestToolApproval = vi.fn(async () => ({
