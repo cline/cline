@@ -22,7 +22,7 @@ describe("SdkProviderChangeCoordinator", () => {
 	})
 
 	it("does nothing when the active mode provider did not change", () => {
-		const activeSession = makeActiveSession()
+		const activeSession = makeActiveSession({ isRunning: true })
 		const { coordinator, options } = makeCoordinator({ activeSession })
 
 		coordinator.handleApiConfigurationChanged(
@@ -170,9 +170,7 @@ describe("SdkProviderChangeCoordinator", () => {
 		coordinator.handleProviderConfigFieldsChanged(parseProviderId("lmstudio"))
 		await coordinator.applyPendingConnectionUpdateBeforeInteractionResume()
 
-		expect(activeSession.sdkHost.updateSessionConnection).toHaveBeenCalledWith("old-session", {
-			providerId: "lmstudio",
-			modelId: "local-model",
+		expect(activeSession.sdkHost.updateSuspendedSessionConnection).toHaveBeenCalledWith("old-session", {
 			apiKey: "new-key",
 			baseUrl: "http://localhost:1234/v1",
 			headers: {},
@@ -185,6 +183,55 @@ describe("SdkProviderChangeCoordinator", () => {
 		// place, and will run after the resumed turn becomes idle.
 		expect(options.rebuilds.request).not.toHaveBeenCalled()
 		vi.runOnlyPendingTimers()
+		expect(options.rebuilds.request).toHaveBeenCalledWith("provider", expect.any(Function))
+	})
+
+	it("serializes concurrent suspended connection applies", async () => {
+		const activeSession = makeActiveSession({ isRunning: true })
+		const { coordinator, options } = makeCoordinator({ activeSession, activeProvider: "lmstudio" })
+		options.sessionConfigBuilder.build.mockResolvedValue({
+			providerId: "lmstudio",
+			modelId: "local-model",
+			apiKey: "new-key",
+		})
+		let releaseUpdate: (() => void) | undefined
+		activeSession.sdkHost.updateSuspendedSessionConnection.mockReturnValueOnce(
+			new Promise<void>((resolve) => {
+				releaseUpdate = resolve
+			}),
+		)
+
+		coordinator.handleProviderConfigFieldsChanged(parseProviderId("lmstudio"))
+		const first = coordinator.applyPendingConnectionUpdateBeforeInteractionResume()
+		const second = coordinator.applyPendingConnectionUpdateBeforeInteractionResume()
+
+		await vi.waitFor(() => expect(activeSession.sdkHost.updateSuspendedSessionConnection).toHaveBeenCalledOnce())
+		releaseUpdate?.()
+		await Promise.all([first, second])
+
+		expect(activeSession.sdkHost.updateSuspendedSessionConnection).toHaveBeenCalledOnce()
+	})
+
+	it("does not hot-apply a provider switch that lands while config is building", async () => {
+		const activeSession = makeActiveSession({ isRunning: true })
+		const { coordinator, options } = makeCoordinator({ activeSession, activeProvider: "lmstudio" })
+		let resolveBuild: ((config: { providerId: string; modelId: string; apiKey: string }) => void) | undefined
+		options.sessionConfigBuilder.build.mockReturnValueOnce(
+			new Promise((resolve) => {
+				resolveBuild = resolve
+			}),
+		)
+
+		coordinator.handleProviderConfigFieldsChanged(parseProviderId("lmstudio"))
+		const apply = coordinator.applyPendingConnectionUpdateBeforeInteractionResume()
+		await vi.waitFor(() => expect(options.sessionConfigBuilder.build).toHaveBeenCalledOnce())
+
+		options.stateManager.getApiConfiguration.mockReturnValue({ actModeApiProvider: "deepseek" })
+		coordinator.handleApiConfigurationChanged({ actModeApiProvider: "lmstudio" }, { actModeApiProvider: "deepseek" })
+		resolveBuild?.({ providerId: "lmstudio", modelId: "local-model", apiKey: "stale-key" })
+		await apply
+
+		expect(activeSession.sdkHost.updateSuspendedSessionConnection).not.toHaveBeenCalled()
 		expect(options.rebuilds.request).toHaveBeenCalledWith("provider", expect.any(Function))
 	})
 
@@ -283,6 +330,41 @@ describe("SdkProviderChangeCoordinator", () => {
 		await vi.waitFor(() => expect(options.sessions.replaceActiveSession).toHaveBeenCalledTimes(2))
 	})
 
+	it("does not mark a newer field edit applied when an older restart completes", async () => {
+		const activeSession = makeActiveSession()
+		const { coordinator, options } = makeCoordinator({ activeSession, activeProvider: "lmstudio" })
+		options.sessionConfigBuilder.build.mockResolvedValue({
+			providerId: "lmstudio",
+			modelId: "local-model",
+			apiKey: "latest-key",
+		})
+		let resolveRestart: (() => void) | undefined
+		options.sessions.replaceActiveSession.mockReturnValueOnce(
+			new Promise((resolve) => {
+				resolveRestart = () => {
+					resolve({
+						startResult: { sessionId: "new-session" },
+						sdkHost: { send: vi.fn() },
+					})
+				}
+			}),
+		)
+
+		coordinator.handleProviderConfigFieldsChanged(parseProviderId("lmstudio"))
+		const restart = coordinator.restartActiveSessionForProviderChange()
+		await vi.waitFor(() => expect(options.sessions.replaceActiveSession).toHaveBeenCalledOnce())
+		coordinator.handleProviderConfigFieldsChanged(parseProviderId("lmstudio"))
+		resolveRestart?.()
+		await restart
+
+		await coordinator.applyPendingConnectionUpdateBeforeInteractionResume()
+
+		expect(activeSession.sdkHost.updateSuspendedSessionConnection).toHaveBeenCalledWith(
+			"old-session",
+			expect.objectContaining({ apiKey: "latest-key" }),
+		)
+	})
+
 	it("emits an error message when restart fails", async () => {
 		const activeSession = makeActiveSession()
 		const { coordinator, options } = makeCoordinator({ activeSession })
@@ -346,7 +428,10 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 			}),
 		},
 	} as unknown as SdkProviderChangeCoordinatorOptions & {
-		stateManager: StateManager & { getGlobalSettingsKey: ReturnType<typeof vi.fn> }
+		stateManager: StateManager & {
+			getGlobalSettingsKey: ReturnType<typeof vi.fn>
+			getApiConfiguration: ReturnType<typeof vi.fn>
+		}
 		sessions: SdkProviderChangeCoordinatorOptions["sessions"] & {
 			getActiveSession: ReturnType<typeof vi.fn>
 			replaceActiveSession: ReturnType<typeof vi.fn>
@@ -380,7 +465,7 @@ function makeActiveSession(input: { isRunning?: boolean } = {}) {
 		sessionId: "old-session",
 		sdkHost: {
 			send: vi.fn(),
-			updateSessionConnection: vi.fn().mockResolvedValue(undefined),
+			updateSuspendedSessionConnection: vi.fn().mockResolvedValue(undefined),
 			stop: vi.fn().mockResolvedValue(undefined),
 			dispose: vi.fn().mockResolvedValue(undefined),
 		},

@@ -620,6 +620,102 @@ describe("LocalRuntimeHost", () => {
 		expect(sessionService.writeSessionManifest).not.toHaveBeenCalled();
 	});
 
+	it("updates a suspended connection without persistence and leaves host state unchanged on boundary rejection", async () => {
+		const sessionId = "sess-suspended-connection-update";
+		const manifest = createManifest(sessionId);
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest.json",
+				messagesPath: "/tmp/messages.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({ tools: [], shutdown: vi.fn() }),
+		};
+		const agent = {
+			run: vi.fn().mockResolvedValue(createResult()),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			getMessages: vi.fn().mockReturnValue([]),
+			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			updateConnection: vi.fn(),
+			updateSuspendedConnection: vi.fn(),
+			canStartRun: vi.fn().mockReturnValue(true),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		};
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent: vi.fn(() => agent as never),
+		});
+
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId, apiKey: "old-key" }),
+				prompt: "hello",
+				interactive: true,
+			}),
+		);
+		sessionService.writeSessionManifest.mockClear();
+
+		await manager.updateSuspendedSessionConnection(sessionId, {
+			apiKey: "new-key",
+			baseUrl: "http://new-endpoint",
+		});
+
+		const getSessionOrThrow = Reflect.get(
+			manager as object,
+			"getSessionOrThrow",
+		) as (sessionId: string) => { config: CoreSessionConfig };
+		const session = Reflect.apply(getSessionOrThrow, manager, [sessionId]) as {
+			config: CoreSessionConfig;
+		};
+		expect(agent.updateSuspendedConnection).toHaveBeenCalledWith({
+			apiKey: "new-key",
+			baseUrl: "http://new-endpoint",
+		});
+		expect(session.config.apiKey).toBe("new-key");
+		expect(session.config.baseUrl).toBe("http://new-endpoint");
+		expect(sessionService.writeSessionManifest).not.toHaveBeenCalled();
+
+		agent.updateSuspendedConnection.mockImplementationOnce(() => {
+			throw new Error("not suspended");
+		});
+		await expect(
+			manager.updateSuspendedSessionConnection(sessionId, {
+				apiKey: "rejected-key",
+				baseUrl: "http://rejected-endpoint",
+			}),
+		).rejects.toThrow("not suspended");
+
+		expect(session.config.apiKey).toBe("new-key");
+		expect(session.config.baseUrl).toBe("http://new-endpoint");
+		expect(sessionService.writeSessionManifest).not.toHaveBeenCalled();
+	});
+
+	it("rejects provider switches through the suspended connection path", async () => {
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: {} as never,
+		});
+
+		await expect(
+			manager.updateSuspendedSessionConnection("unused", {
+				providerId: "deepseek",
+			}),
+		).rejects.toThrow("cannot change provider or model");
+	});
+
 	it("persists thinking budget token connection updates", async () => {
 		const sessionId = "sess-thinking-budget-update";
 		const manifest = createManifest(sessionId);

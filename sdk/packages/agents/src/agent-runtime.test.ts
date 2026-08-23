@@ -1248,7 +1248,7 @@ describe("AgentRuntime", () => {
 		const runPromise = runtime.run("Start");
 		await vi.waitFor(() => expect(requestToolApproval).toHaveBeenCalledOnce());
 
-		runtime.updateModel(newModel, {
+		runtime.replaceModelBetweenRequests(newModel, {
 			messageModelInfo: { provider: "lmstudio", id: "new-model" },
 		});
 		resolveApproval({ approved: true });
@@ -1261,6 +1261,15 @@ describe("AgentRuntime", () => {
 			provider: "lmstudio",
 			id: "new-model",
 		});
+	});
+
+	it("rejects model replacement outside the verified between-request boundary", () => {
+		const model = new ScriptedModel([]);
+		const runtime = new AgentRuntime({ model });
+
+		expect(() => runtime.replaceModelBetweenRequests(model)).toThrow(
+			"only allowed while tool execution is suspended between model requests",
+		);
 	});
 
 	it("applies beforeTool approval policy overrides before executing tools", async () => {

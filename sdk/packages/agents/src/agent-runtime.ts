@@ -511,6 +511,7 @@ export class AgentRuntime {
 	private overflowRecoveryAttempted = false;
 	private initialization?: Promise<void>;
 	private abortController?: AbortController;
+	private betweenModelRequestsForToolExecution = false;
 	private telemetryProviderId?: string;
 	private telemetryModelId?: string;
 
@@ -562,15 +563,25 @@ export class AgentRuntime {
 	 * Replace the model connection used by subsequent requests in this run.
 	 * Tool approval and ask-question executors can suspend an active run between
 	 * model requests, so session-level credential changes must reach the already
-	 * constructed runtime without discarding its conversation or tool state.
+	 * constructed runtime without discarding its conversation or tool state. The
+	 * host interaction layer must separately verify that a resumable approval or
+	 * question is pending before invoking the dedicated suspended-session path.
 	 */
-	updateModel(
+	replaceModelBetweenRequests(
 		model: AgentModel,
 		options?: {
 			modelOptions?: Record<string, unknown>;
 			messageModelInfo?: AgentMessage["modelInfo"];
 		},
 	): void {
+		if (
+			this.state.status !== "running" ||
+			!this.betweenModelRequestsForToolExecution
+		) {
+			throw new Error(
+				"Agent model replacement is only allowed while tool execution is suspended between model requests",
+			);
+		}
 		this.config = {
 			...this.config,
 			model,
@@ -837,7 +848,13 @@ export class AgentRuntime {
 					return result;
 				}
 
-				const toolMessages = await this.executeToolCalls(toolCalls);
+				this.betweenModelRequestsForToolExecution = true;
+				let toolMessages: AgentMessage[];
+				try {
+					toolMessages = await this.executeToolCalls(toolCalls);
+				} finally {
+					this.betweenModelRequestsForToolExecution = false;
+				}
 				this.state.pendingToolCalls = [];
 				for (const toolMessage of toolMessages) {
 					this.state.messages.push(toolMessage);

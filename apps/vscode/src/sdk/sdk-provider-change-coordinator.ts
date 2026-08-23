@@ -18,6 +18,13 @@ type InitialMessages = StartInput["initialMessages"]
 type SessionConfig = Awaited<ReturnType<SdkSessionConfigBuilder["build"]>>
 type ActiveSession = NonNullable<ReturnType<SdkSessionLifecycle["getActiveSession"]>>
 
+interface PendingProviderFieldUpdate {
+	version: number
+	mode: Mode
+	provider: string
+	activeSession: ActiveSession
+}
+
 const PROVIDER_FIELDS_REBUILD_DEBOUNCE_MS = 300
 
 export interface SdkProviderChangeCoordinatorOptions {
@@ -47,6 +54,8 @@ export class SdkProviderChangeCoordinator {
 	private pendingProviderFieldsRebuild: (() => void) | undefined
 	private providerConnectionChangeVersion = 0
 	private appliedProviderConnectionVersion = 0
+	private pendingProviderFieldUpdate: PendingProviderFieldUpdate | undefined
+	private providerConnectionApplyTail: Promise<void> = Promise.resolve()
 
 	constructor(private readonly options: SdkProviderChangeCoordinatorOptions) {}
 
@@ -64,7 +73,13 @@ export class SdkProviderChangeCoordinator {
 			Logger.log("[SdkController] Provider fields changed without active session; next task will use new configuration")
 			return
 		}
-		this.providerConnectionChangeVersion += 1
+		const version = ++this.providerConnectionChangeVersion
+		this.pendingProviderFieldUpdate = {
+			version,
+			mode,
+			provider: changedProvider,
+			activeSession,
+		}
 
 		this.cancelPendingProviderFieldsRebuild()
 		this.pendingProviderFieldsRebuild = () => {
@@ -95,7 +110,9 @@ export class SdkProviderChangeCoordinator {
 		this.cancelPendingProviderFieldsRebuild()
 		// Provider switches retain their existing restart semantics. The live
 		// connection bridge below is only for field edits on the active provider.
+		this.providerConnectionChangeVersion += 1
 		this.appliedProviderConnectionVersion = this.providerConnectionChangeVersion
+		this.pendingProviderFieldUpdate = undefined
 
 		const activeSession = this.options.sessions.getActiveSession()
 		if (!activeSession) {
@@ -117,32 +134,35 @@ export class SdkProviderChangeCoordinator {
 	/**
 	 * Applies connection-scoped provider settings to a suspended live session.
 	 * The scheduled rebuild is intentionally retained: once the turn becomes
-	 * idle it still refreshes session-wide fields that updateSessionConnection
+	 * idle it still refreshes session-wide fields that an in-place connection update
 	 * cannot change (for example system-prompt/model metadata).
 	 */
 	async applyPendingConnectionUpdateBeforeInteractionResume(): Promise<void> {
-		while (this.appliedProviderConnectionVersion < this.providerConnectionChangeVersion) {
-			const targetVersion = this.providerConnectionChangeVersion
-			const activeSession = this.options.sessions.getActiveSession()
-			if (!activeSession) {
-				return
-			}
-			if (!activeSession.sdkHost.updateSessionConnection) {
-				throw new Error("Active SDK host cannot update provider settings without restarting")
-			}
+		const apply = this.providerConnectionApplyTail.then(() => this.performPendingConnectionUpdate())
+		this.providerConnectionApplyTail = apply.catch(() => {})
+		await apply
+	}
+
+	private async performPendingConnectionUpdate(): Promise<void> {
+		while (true) {
+			const pending = this.pendingProviderFieldUpdate
+			if (!pending || pending.version <= this.appliedProviderConnectionVersion) return
+			if (!this.isPendingProviderFieldUpdateCurrent(pending)) return
 
 			const cwd = await this.options.getWorkspaceRoot()
-			const mode = this.getCurrentMode()
-			const config = await this.options.sessionConfigBuilder.build({ cwd, mode })
-			if (this.options.sessions.getActiveSession() !== activeSession) {
-				continue
+			if (!this.isPendingProviderFieldUpdateCurrent(pending)) return
+			const config = await this.options.sessionConfigBuilder.build({ cwd, mode: pending.mode })
+			if (!this.isPendingProviderFieldUpdateCurrent(pending)) return
+			if (toLegacyApiProvider(config.providerId) !== pending.provider) return
+
+			const updateSuspendedConnection = pending.activeSession.sdkHost.updateSuspendedSessionConnection
+			if (!updateSuspendedConnection) {
+				throw new Error("Active SDK host cannot update suspended provider settings")
 			}
 
 			const hasReasoningConfig =
 				config.thinking !== undefined || config.reasoningEffort !== undefined || config.thinkingBudgetTokens !== undefined
 			const update: ConnectionUpdate = {
-				providerId: config.providerId,
-				modelId: config.modelId,
 				apiKey: config.apiKey ?? "",
 				baseUrl: config.baseUrl ?? "",
 				headers: config.headers ?? {},
@@ -151,11 +171,21 @@ export class SdkProviderChangeCoordinator {
 				reasoningEffort: config.reasoningEffort ?? null,
 				thinkingBudgetTokens: config.thinkingBudgetTokens ?? null,
 			}
-			await activeSession.sdkHost.updateSessionConnection(activeSession.sessionId, update)
-			if (this.options.sessions.getActiveSession() === activeSession) {
-				this.appliedProviderConnectionVersion = targetVersion
+			await updateSuspendedConnection.call(pending.activeSession.sdkHost, pending.activeSession.sessionId, update)
+			if (this.isPendingProviderFieldUpdateCurrent(pending)) {
+				this.appliedProviderConnectionVersion = pending.version
 			}
 		}
+	}
+
+	private isPendingProviderFieldUpdateCurrent(pending: PendingProviderFieldUpdate): boolean {
+		return (
+			this.pendingProviderFieldUpdate === pending &&
+			this.providerConnectionChangeVersion === pending.version &&
+			this.options.sessions.getActiveSession() === pending.activeSession &&
+			this.getCurrentMode() === pending.mode &&
+			providerForMode(this.options.stateManager.getApiConfiguration(), pending.mode) === pending.provider
+		)
 	}
 
 	flushPendingProviderFieldsRebuild(): void {
@@ -177,11 +207,11 @@ export class SdkProviderChangeCoordinator {
 		if (!activeSession || (expectedSession && activeSession !== expectedSession)) {
 			return
 		}
+		const pendingAtRestartStart = this.pendingProviderFieldUpdate
 
 		const { sdkHost: oldManager, sessionId: oldSessionId } = activeSession
 		const cwd = await this.options.getWorkspaceRoot()
 		const mode = this.getCurrentMode()
-		const providerConnectionVersion = this.providerConnectionChangeVersion
 
 		Logger.log(`[SdkController] Restarting session ${oldSessionId} for provider change`)
 
@@ -211,7 +241,13 @@ export class SdkProviderChangeCoordinator {
 			}
 
 			await this.options.postStateToWebview()
-			this.appliedProviderConnectionVersion = Math.max(this.appliedProviderConnectionVersion, providerConnectionVersion)
+			if (
+				pendingAtRestartStart?.activeSession === activeSession &&
+				this.pendingProviderFieldUpdate === pendingAtRestartStart
+			) {
+				this.appliedProviderConnectionVersion = pendingAtRestartStart.version
+				this.pendingProviderFieldUpdate = undefined
+			}
 			Logger.log(`[SdkController] Session restarted for provider change: ${oldSessionId} -> ${startResult.sessionId}`)
 		} catch (error) {
 			Logger.error("[SdkController] Failed to restart session for provider change:", error)

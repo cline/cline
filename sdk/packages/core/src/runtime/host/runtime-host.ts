@@ -328,6 +328,13 @@ export interface SessionConnectionRuntimeService {
 	): Promise<void>;
 }
 
+export interface SuspendedSessionConnectionRuntimeService {
+	updateSuspendedSessionConnection(
+		sessionId: string,
+		updates: SessionConnectionUpdate,
+	): Promise<void>;
+}
+
 export interface CommandExecutionRuntimeService {
 	proceedWhileRunning(sessionId: string, toolCallId?: string): Promise<number>;
 }

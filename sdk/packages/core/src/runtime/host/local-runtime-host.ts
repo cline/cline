@@ -1602,6 +1602,70 @@ export class LocalRuntimeHost implements RuntimeHost {
 		}
 	}
 
+	async updateSuspendedSessionConnection(
+		sessionId: string,
+		rawUpdates: SessionConnectionUpdate,
+	): Promise<void> {
+		const updates = normalizeConnectionUpdate(rawUpdates);
+		if (updates.providerId !== undefined || updates.modelId !== undefined) {
+			throw new Error(
+				"Suspended connection updates cannot change provider or model",
+			);
+		}
+
+		const session = this.getSessionOrThrow(sessionId);
+		// The agent boundary validates that the run is currently between model
+		// requests. Apply there first so a rejected boundary leaves host state
+		// and persistence untouched.
+		session.agent.updateSuspendedConnection(updates);
+
+		if (updates.apiKey !== undefined) session.config.apiKey = updates.apiKey;
+		if (updates.baseUrl !== undefined) session.config.baseUrl = updates.baseUrl;
+		if (updates.headers !== undefined) session.config.headers = updates.headers;
+		if (updates.providerConfig !== undefined)
+			session.config.providerConfig = updates.providerConfig;
+		if (Object.hasOwn(updates, "reasoningEffort")) {
+			session.config.reasoningEffort = updates.reasoningEffort ?? undefined;
+		}
+		if (Object.hasOwn(updates, "thinkingBudgetTokens")) {
+			session.config.thinkingBudgetTokens =
+				updates.thinkingBudgetTokens ?? undefined;
+		}
+		if (Object.hasOwn(updates, "thinking")) {
+			session.config.thinking = updates.thinking ?? undefined;
+			if (updates.thinking === false || updates.thinking === null) {
+				session.config.reasoningEffort = undefined;
+				session.config.thinkingBudgetTokens = undefined;
+			}
+		}
+
+		const delegatedUpdates = {
+			...(updates.apiKey !== undefined ? { apiKey: updates.apiKey } : {}),
+			...(updates.baseUrl !== undefined ? { baseUrl: updates.baseUrl } : {}),
+			...(updates.headers !== undefined ? { headers: updates.headers } : {}),
+			...(updates.providerConfig !== undefined
+				? { providerConfig: updates.providerConfig }
+				: {}),
+			...(Object.hasOwn(updates, "reasoningEffort")
+				? { reasoningEffort: updates.reasoningEffort ?? undefined }
+				: {}),
+			...(Object.hasOwn(updates, "thinking")
+				? { thinking: updates.thinking ?? undefined }
+				: {}),
+			...(Object.hasOwn(updates, "thinkingBudgetTokens")
+				? { thinkingBudgetTokens: updates.thinkingBudgetTokens ?? undefined }
+				: {}),
+		};
+		session.runtime.delegatedAgentConfigProvider?.updateConnectionDefaults(
+			delegatedUpdates,
+		);
+		session.runtime.teamRuntime?.updateTeammateConnections({
+			...(updates.apiKey !== undefined ? { apiKey: updates.apiKey } : {}),
+			...(updates.baseUrl !== undefined ? { baseUrl: updates.baseUrl } : {}),
+			...(updates.headers !== undefined ? { headers: updates.headers } : {}),
+		});
+	}
+
 	/**
 	 * Serialized read-modify-write for a live session's manifest. Every
 	 * manifest write for an active session MUST go through this helper: it

@@ -529,6 +529,33 @@ export class SessionRuntime {
 
 	/** Mutate provider / reasoning fields for subsequent runs. */
 	updateConnection(overrides: ConnectionOverrides): void {
+		this.config = this.buildUpdatedConnectionConfig(overrides);
+	}
+
+	/** Replace connection fields only at a verified suspended tool boundary. */
+	updateSuspendedConnection(overrides: ConnectionOverrides): void {
+		const activeRuntime = this.activeRuntime;
+		if (!activeRuntime) {
+			throw new Error(
+				"Session has no active runtime suspended between requests",
+			);
+		}
+		const next = this.buildUpdatedConnectionConfig(overrides);
+		const activeModel = createAgentModelFromConfig(
+			next,
+			this.logger,
+			this.telemetry,
+		);
+		activeRuntime.replaceModelBetweenRequests(activeModel, {
+			modelOptions: buildModelOptions(next),
+			messageModelInfo: buildMessageModelInfo(next),
+		});
+		this.config = next;
+	}
+
+	private buildUpdatedConnectionConfig(
+		overrides: ConnectionOverrides,
+	): AgentConfig {
 		const updates = normalizeConnectionUpdate(overrides);
 		const next: AgentConfig = { ...this.config };
 		if (updates.providerId !== undefined) next.providerId = updates.providerId;
@@ -551,16 +578,7 @@ export class SessionRuntime {
 				next.thinkingBudgetTokens = undefined;
 			}
 		}
-		const activeModel = this.activeRuntime
-			? createAgentModelFromConfig(next, this.logger, this.telemetry)
-			: undefined;
-		this.config = next;
-		if (activeModel && this.activeRuntime) {
-			this.activeRuntime.updateModel(activeModel, {
-				modelOptions: buildModelOptions(next),
-				messageModelInfo: buildMessageModelInfo(next),
-			});
-		}
+		return next;
 	}
 
 	clearHistory(): void {

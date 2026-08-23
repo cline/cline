@@ -42,6 +42,7 @@ import type {
 	SessionConnectionRuntimeService,
 	SessionModelRuntimeService,
 	SessionUsageRuntimeService,
+	SuspendedSessionConnectionRuntimeService,
 	StartSessionInput,
 	StartSessionResult,
 } from "./runtime/host/runtime-host";
@@ -665,5 +666,19 @@ export class ClineCore {
 		(...args) => {
 			const service = this.host as RuntimeHostServiceExtensions;
 			return service.updateSessionConnection?.(...args) ?? Promise.resolve();
+		};
+	/**
+	 * Updates connection fields only while the active run is verified to be
+	 * suspended between model requests by the host interaction layer.
+	 */
+	updateSuspendedSessionConnection: SuspendedSessionConnectionRuntimeService["updateSuspendedSessionConnection"] =
+		(...args) => {
+			const service = this.host as RuntimeHostServiceExtensions;
+			if (!service.updateSuspendedSessionConnection) {
+				return Promise.reject(
+					new Error("Suspended session connection updates are unavailable"),
+				);
+			}
+			return service.updateSuspendedSessionConnection(...args);
 		};
 }

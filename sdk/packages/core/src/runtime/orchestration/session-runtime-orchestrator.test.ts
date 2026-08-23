@@ -75,7 +75,7 @@ function makeFakeAgentRuntime(script: FakeAgentRuntimeScript = {}): {
 		run: unknown[];
 		continue: unknown[];
 		abort: unknown[];
-		updateModel: unknown[];
+		replaceModelBetweenRequests: unknown[];
 	};
 	listeners: Set<(event: AgentRuntimeEvent) => void>;
 } {
@@ -84,7 +84,7 @@ function makeFakeAgentRuntime(script: FakeAgentRuntimeScript = {}): {
 		run: [] as unknown[],
 		continue: [] as unknown[],
 		abort: [] as unknown[],
-		updateModel: [] as unknown[],
+		replaceModelBetweenRequests: [] as unknown[],
 	};
 
 	const baseResult: AgentRunResult = {
@@ -134,8 +134,8 @@ function makeFakeAgentRuntime(script: FakeAgentRuntimeScript = {}): {
 		abort(reason?: string) {
 			calls.abort.push(reason);
 		},
-		updateModel(...args: unknown[]) {
-			calls.updateModel.push(args);
+		replaceModelBetweenRequests(...args: unknown[]) {
+			calls.replaceModelBetweenRequests.push(args);
 		},
 		subscribe(listener: (event: AgentRuntimeEvent) => void) {
 			listeners.add(listener);
@@ -1388,7 +1388,7 @@ describe("SessionRuntime.addTools / updateConnection / clearHistory / restore", 
 		expect(calls.run).toHaveLength(1);
 	});
 
-	it("updateConnection replaces the model in an already-active run", async () => {
+	it("generic updateConnection does not replace the model in an active run", async () => {
 		let releaseRun: () => void = () => {};
 		const release = new Promise<void>((resolve) => {
 			releaseRun = resolve;
@@ -1403,8 +1403,29 @@ describe("SessionRuntime.addTools / updateConnection / clearHistory / restore", 
 			baseUrl: "http://new-endpoint",
 		});
 
-		expect(calls.updateModel).toHaveLength(1);
-		expect(calls.updateModel[0]).toEqual([
+		expect(calls.replaceModelBetweenRequests).toHaveLength(0);
+
+		releaseRun();
+		await runPromise;
+	});
+
+	it("dedicated suspended update replaces the active model", async () => {
+		let releaseRun: () => void = () => {};
+		const release = new Promise<void>((resolve) => {
+			releaseRun = resolve;
+		});
+		const { deps, calls } = withFakeRuntime({ release });
+		const session = new SessionRuntime(makeAgentConfig(), deps);
+
+		const runPromise = session.run("go");
+		await vi.waitFor(() => expect(calls.run).toHaveLength(1));
+		session.updateSuspendedConnection({
+			apiKey: "new-key",
+			baseUrl: "http://new-endpoint",
+		});
+
+		expect(calls.replaceModelBetweenRequests).toHaveLength(1);
+		expect(calls.replaceModelBetweenRequests[0]).toEqual([
 			expect.objectContaining({ stream: expect.any(Function) }),
 			expect.objectContaining({
 				messageModelInfo: expect.objectContaining({
