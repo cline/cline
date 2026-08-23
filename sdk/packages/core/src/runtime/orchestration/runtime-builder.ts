@@ -1,7 +1,9 @@
+import { supportsModelTool } from "@cline/llms";
 import type {
 	AgentTool,
 	BasicLogger,
 	ITelemetryService,
+	ModelTool,
 	RuntimeConfigExtensionKind,
 	TeamTeammateSpec,
 } from "@cline/shared";
@@ -22,6 +24,7 @@ import {
 import {
 	createBuiltinTools,
 	DEFAULT_MODEL_TOOL_ROUTING_RULES,
+	type RunCommandExecutionController,
 	resolveToolPresetName,
 	resolveToolRoutingConfig,
 	type SkillsExecutorWithMetadata,
@@ -41,6 +44,7 @@ import { loadConfiguredAgentConfigs } from "../../extensions/tools/team/configur
 import { createConfiguredAgentTools } from "../../extensions/tools/team/configured-agent-tool";
 import {
 	filterDisabledTools,
+	isModelToolEnabledGlobally,
 	resolveDisabledToolNames,
 } from "../../services/global-settings";
 import { createLocalTeamStore } from "../../services/storage/team-store";
@@ -138,6 +142,7 @@ function createBuiltinToolsList(
 	skillsExecutor?: SkillsExecutorWithMetadata,
 	executorOverrides?: Partial<ToolExecutors>,
 	telemetry?: ITelemetryService,
+	runCommandExecutionController?: RunCommandExecutionController,
 ): AgentTool[] {
 	const preset = ToolPresets[resolveToolPresetName({ mode })];
 	const toolRoutingConfig = resolveToolRoutingConfig(
@@ -151,6 +156,9 @@ function createBuiltinToolsList(
 		createBuiltinTools({
 			cwd,
 			telemetry,
+			executorOptions: {
+				bash: { executionController: runCommandExecutionController },
+			},
 			...preset,
 			enableSkills: !!skillsExecutor,
 			...toolRoutingConfig,
@@ -361,6 +369,26 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 		} = input;
 		const onTeamEvent = input.onTeamEvent ?? (() => {});
 		const normalized = normalizeConfig(config);
+		const modelTools: ModelTool[] = [];
+		if (
+			normalized.enableTools &&
+			isModelToolEnabledGlobally("web_search") &&
+			supportsModelTool(
+				{ providerId: config.providerId, modelId: config.modelId },
+				"web_search",
+			)
+		) {
+			modelTools.push({ name: "web_search" });
+		}
+		if (
+			normalized.enableTools &&
+			supportsModelTool(
+				{ providerId: config.providerId, modelId: config.modelId },
+				"image_generation",
+			)
+		) {
+			modelTools.push({ name: "image_generation", outputFormat: "png" });
+		}
 		const workspaceConfigRoot = config.workspaceRoot ?? config.cwd;
 		const effectiveToolPolicies = input.toolPolicies ?? config.toolPolicies;
 		const globallyDisabledToolNames = resolveDisabledToolNames();
@@ -480,6 +508,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 					undefined,
 					toolExecutors,
 					telemetry ?? config.telemetry,
+					input.runCommandExecutionController,
 				),
 			);
 			if (!normalized.disableMcpSettingsTools) {
@@ -510,6 +539,8 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 		const delegatedAgentConfigProvider = createDelegatedAgentConfigProvider({
 			providerId: config.providerId,
 			modelId: config.modelId,
+			distinctId: input.distinctId,
+			sessionId: config.sessionId,
 			cwd: config.cwd,
 			apiKey: config.apiKey ?? "",
 			baseUrl: config.baseUrl,
@@ -553,6 +584,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 													: undefined,
 												toolExecutors,
 												telemetry ?? config.telemetry,
+												input.runCommandExecutionController,
 											),
 											agent,
 										)
@@ -658,6 +690,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 									undefined,
 									toolExecutors,
 									telemetry ?? config.telemetry,
+									input.runCommandExecutionController,
 								)
 						: undefined,
 					teammateConfigProvider: delegatedAgentConfigProvider,
@@ -742,6 +775,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 
 		return {
 			tools: finalTools,
+			modelTools,
 			logger: logger ?? config.logger,
 			telemetry: telemetry ?? config.telemetry,
 			teamRuntime,

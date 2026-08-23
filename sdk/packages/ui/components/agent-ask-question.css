@@ -1,14 +1,23 @@
-.cline-ui-agent-ask-question {
-	/* Defaults match the desktop palette (blue-500/blue-400); hosts may override. */
-	--cline-ui-agent-ask-question-accent: oklch(62.3% 0.214 259.815);
-	--cline-ui-agent-ask-question-accent-border: oklch(70.7% 0.165 254.624);
-}
-
 .cline-ui-agent-ask-question,
 .cline-ui-agent-ask-question__item,
-.cline-ui-agent-ask-question__option {
+.cline-ui-agent-ask-question__option,
+.cline-ui-agent-ask-question__option-key {
 	box-sizing: border-box;
 	border-style: solid;
+}
+
+.cline-ui-agent-ask-question__item {
+	overflow: hidden;
+	border: 1px solid var(--border);
+	border-radius: var(--radius-lg);
+	background: var(--background);
+	padding-top: 0.75rem;
+	-webkit-user-select: text;
+	user-select: text;
+}
+
+.cline-ui-agent-ask-question__item-header {
+	padding-inline: 1rem 0.75rem;
 }
 
 .cline-ui-agent-ask-question__option {
@@ -20,14 +29,59 @@
 	line-height: inherit;
 }
 
+.cline-ui-agent-ask-question__option:hover:not(:disabled) {
+	background: var(--surface-hover-lighter);
+}
+
+.cline-ui-agent-ask-question__option-label {
+	font-size: var(--text-md);
+	line-height: var(--text-md--line-height);
+	letter-spacing: var(--text-md--letter-spacing);
+}
+
+.cline-ui-agent-ask-question__option[aria-pressed="true"] {
+	background: var(--surface-hover);
+}
+
+.cline-ui-agent-ask-question__option[aria-pressed="true"]
+	.cline-ui-agent-ask-question__option-key {
+	border-color: var(--neutral-6);
+	background: var(--neutral-5);
+}
+
+.cline-ui-agent-ask-question__option-key {
+	display: inline-flex;
+	height: 1.375rem;
+	width: 1.375rem;
+	flex: none;
+	align-items: center;
+	justify-content: center;
+	border: 1px solid var(--border);
+	border-radius: var(--radius-md);
+	background: var(--surface-hover-lighter);
+	color: var(--muted-foreground);
+	font-family: var(--font-mono);
+	font-size: var(--text-xs);
+	font-weight: var(--font-weight-medium);
+	line-height: var(--text-xs--line-height);
+}
+
 .cline-ui-agent-ask-question__spinner {
 	animation: cline-ui-agent-ask-question-spin 1s linear infinite;
 }
 
-.cline-ui-agent-ask-question__option:has(
-		> .cline-ui-agent-ask-question__spinner
-	) {
-	padding-inline: 0.625rem;
+.cline-ui-agent-ask-question__footer {
+	border-style: solid;
+	border-width: 1px 0 0;
+}
+
+.cline-ui-agent-ask-question__submit:not(:disabled) {
+	background: var(--foreground);
+	color: var(--background);
+}
+
+.cline-ui-agent-ask-question__submit:hover:not(:disabled) {
+	opacity: 0.9;
 }
 
 @keyframes cline-ui-agent-ask-question-spin {

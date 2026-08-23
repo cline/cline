@@ -31,7 +31,7 @@ import type {
 const stringRecordSchema = z.record(z.string(), z.string());
 const metadataSchema = z.record(z.string(), z.unknown());
 
-// Preserve omission and malformed values for the fast stdio initialize probe.
+// Preserve omission and malformed values for the stdio initialize budget.
 // Finite numbers clamp through the shared resolver without rejecting otherwise
 // valid servers in the settings file. Ordinary requests resolve undefined to
 // the shared default later, while initialize can still distinguish whether the

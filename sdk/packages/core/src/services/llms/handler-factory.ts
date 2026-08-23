@@ -74,6 +74,17 @@ function buildGatewayProviderOptions(
 		});
 	}
 
+	if (config.providerId === "claude-code") {
+		// The Claude Code CLI executes its own tools, so its session must be
+		// anchored on the workspace. Without an explicit cwd the spawned CLI
+		// inherits the host process cwd — `/` in GUI extension hosts — and
+		// then refuses writes outside its allowed working directories.
+		const workspace = config.extensionContext?.workspace;
+		Object.assign(options, {
+			cwd: workspace?.cwd ?? workspace?.rootPath,
+		});
+	}
+
 	if (config.providerId === "sapaicore") {
 		Object.assign(options, config.sap);
 	}
@@ -169,6 +180,9 @@ function toGatewayConfiguredModel(
 		contextWindow: model.contextWindow,
 		maxInputTokens: model.maxInputTokens,
 		maxOutputTokens: model.maxTokens,
+		operation: model.operation,
+		operationModes: model.operationModes,
+		modalities: model.modalities,
 		capabilities: toGatewayCapabilities(model.capabilities),
 		reasoningOptions: model.reasoningOptions,
 		metadata: {

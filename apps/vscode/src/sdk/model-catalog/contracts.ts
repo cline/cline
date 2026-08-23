@@ -201,9 +201,9 @@ export interface ResolvedModelSelection extends ModelSelection {
 	/**
 	 * Where the base `modelInfo` came from, before overrides were applied:
 	 *
-	 *  - "catalog"  — SDK catalog metadata (generated snapshot or registry).
+	 *  - "catalog"  — SDK catalog metadata (generated snapshot, registry, or live host cache).
 	 *  - "state"    — the mode-specific `*ModeModelInfo` snapshot persisted by
-	 *    the picker at selection time. Authoritative for dynamic-list providers
+	 *    the host at selection time. Authoritative for dynamic-list providers
 	 *    (openrouter, litellm, requesty, …) whose models are not in the static
 	 *    catalog.
 	 *  - "fallback" — provider-safe defaults fabricated because nothing better
@@ -404,10 +404,15 @@ export interface ProviderConfigStore extends ProviderConfigReader {
 	 * Supplying overrides replaces that model's stored override entry; omitting
 	 * them leaves the existing entry unchanged.
 	 *
+	 * `baseModelInfoHint` is the exact host-resolved catalog metadata selected
+	 * by the user. It is authoritative for that commit, including when a
+	 * private/dynamic provider reuses an id from the static SDK registry. It is
+	 * not user-authored and must never be persisted as an override.
+	 *
 	 * I2: refresh handlers do not have access to this method by type, since
 	 * `ProviderCatalog` holds only a `ProviderConfigReader`.
 	 */
-	commitSelection(providerId: ProviderId, mode: Mode, selection: ModelSelection): void
+	commitSelection(providerId: ProviderId, mode: Mode, selection: ModelSelection, baseModelInfoHint?: ModelInfo): void
 }
 
 /**

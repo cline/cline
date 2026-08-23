@@ -3,9 +3,10 @@
 import {
 	Bot,
 	Code,
+	Copy,
 	FileText,
+	MoreVertical,
 	Play,
-	Puzzle,
 	RefreshCw,
 	Server,
 	Trash2,
@@ -16,6 +17,12 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { desktopClient } from "@/lib/desktop-client";
@@ -99,6 +106,19 @@ type PluginItem = {
 	name: string;
 	path: string;
 	enabled: boolean;
+	contributions?: PluginContributions;
+};
+
+type PluginContributions = {
+	inspectionStatus?: "available" | "disabled" | "failed";
+	capabilities: string[];
+	tools: string[];
+	skills: string[];
+	rules: string[];
+	hooks: string[];
+	commands: string[];
+	mcpServers: string[];
+	providers: string[];
 };
 
 type ToolItem = {
@@ -230,6 +250,31 @@ let extensionHookStatsCache: {
 	fetchedAt: number;
 } | null = null;
 
+const extensionInventoryInvalidationListeners = new Set<() => void>();
+
+/**
+ * Drops the module-level inventory cache and notifies mounted inventory views
+ * so they refetch immediately. Used by the Marketplace page after
+ * installs/uninstalls that happen outside these views — including ones that
+ * complete after the user has already navigated back to the Plugins hub.
+ */
+export function invalidateExtensionInventoryCache() {
+	extensionListsCache = null;
+	for (const listener of extensionInventoryInvalidationListeners) {
+		listener();
+	}
+}
+
+/** Subscribe to inventory invalidations; returns an unsubscribe function. */
+export function subscribeToExtensionInventoryInvalidation(
+	listener: () => void,
+): () => void {
+	extensionInventoryInvalidationListeners.add(listener);
+	return () => {
+		extensionInventoryInvalidationListeners.delete(listener);
+	};
+}
+
 function hasFreshExtensionsListsCache(
 	cache: typeof extensionListsCache,
 	now: number,
@@ -305,10 +350,19 @@ function isUnsupportedDesktopCommand(error: unknown, command: string): boolean {
 
 export function CustomizationSectionView({
 	catalogPrimitive,
+	chrome = "page",
+	marketplaceVariant = "full",
+	onInventoryChanged,
 	section = "Rules",
 	showTabs = false,
 }: {
 	catalogPrimitive?: MarketplacePrimitiveType;
+	/** "embedded" renders without the page frame/header for use inside the Plugins hub. */
+	chrome?: "page" | "embedded";
+	/** Which marketplace sections the embedded MarketplaceView shows. */
+	marketplaceVariant?: "full" | "installed";
+	/** Invoked after a forced inventory refresh (installs, uninstalls). */
+	onInventoryChanged?: () => void;
 	section?: CustomizationSection;
 	showTabs?: boolean;
 }) {
@@ -371,49 +425,55 @@ export function CustomizationSectionView({
 		setActiveTab(section);
 	}, [section]);
 
-	const refresh = useCallback(async (force = false) => {
-		const now = Date.now();
-		if (!force && hasFreshExtensionsListsCache(extensionListsCache, now)) {
-			setWorkspaceRoot(extensionListsCache.workspaceRoot);
-			setRules(extensionListsCache.rules);
-			setWorkflows(extensionListsCache.workflows);
-			setSkills(extensionListsCache.skills);
-			setAgents(extensionListsCache.agents);
-			setPlugins(extensionListsCache.plugins);
-			setTools(extensionListsCache.tools);
-			setHooks(extensionListsCache.hooks);
-			setMcp(extensionListsCache.mcp);
-			setWarnings(extensionListsCache.warnings);
-			setErrorMessage(null);
-			setIsLoading(false);
-			return;
-		}
+	const refresh = useCallback(
+		async (force = false) => {
+			const now = Date.now();
+			if (!force && hasFreshExtensionsListsCache(extensionListsCache, now)) {
+				setWorkspaceRoot(extensionListsCache.workspaceRoot);
+				setRules(extensionListsCache.rules);
+				setWorkflows(extensionListsCache.workflows);
+				setSkills(extensionListsCache.skills);
+				setAgents(extensionListsCache.agents);
+				setPlugins(extensionListsCache.plugins);
+				setTools(extensionListsCache.tools);
+				setHooks(extensionListsCache.hooks);
+				setMcp(extensionListsCache.mcp);
+				setWarnings(extensionListsCache.warnings);
+				setErrorMessage(null);
+				setIsLoading(false);
+				return;
+			}
 
-		setIsLoading(true);
-		setErrorMessage(null);
-		try {
-			const response = await fetchUserInstructionLists();
-			setWorkspaceRoot(response.workspaceRoot);
-			setRules(response.rules);
-			setWorkflows(response.workflows);
-			setSkills(response.skills);
-			setAgents(response.agents);
-			setPlugins(response.plugins);
-			setTools(response.tools);
-			setHooks(response.hooks);
-			setMcp(response.mcp);
-			setWarnings(response.warnings);
-			extensionListsCache = {
-				...response,
-				fetchedAt: Date.now(),
-			};
-		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
-			setErrorMessage(message);
-		} finally {
-			setIsLoading(false);
-		}
-	}, []);
+			setIsLoading(true);
+			setErrorMessage(null);
+			try {
+				const response = await fetchUserInstructionLists();
+				setWorkspaceRoot(response.workspaceRoot);
+				setRules(response.rules);
+				setWorkflows(response.workflows);
+				setSkills(response.skills);
+				setAgents(response.agents);
+				setPlugins(response.plugins);
+				setTools(response.tools);
+				setHooks(response.hooks);
+				setMcp(response.mcp);
+				setWarnings(response.warnings);
+				extensionListsCache = {
+					...response,
+					fetchedAt: Date.now(),
+				};
+				if (force) {
+					onInventoryChanged?.();
+				}
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
+				setErrorMessage(message);
+			} finally {
+				setIsLoading(false);
+			}
+		},
+		[onInventoryChanged],
+	);
 
 	const loadHookExecutionStats = useCallback(async (force = false) => {
 		const now = Date.now();
@@ -666,6 +726,17 @@ export function CustomizationSectionView({
 		return () => window.clearTimeout(timeoutId);
 	}, [refresh]);
 
+	// Marketplace installs/uninstalls can complete after this view mounted
+	// (e.g. the user navigated back to Plugins mid-install); refetch when the
+	// shared inventory cache is invalidated so the list is never stale.
+	useEffect(
+		() =>
+			subscribeToExtensionInventoryInvalidation(() => {
+				void refresh(true);
+			}),
+		[refresh],
+	);
+
 	useEffect(() => {
 		if (activeTab !== "Hooks") {
 			return;
@@ -858,6 +929,44 @@ export function CustomizationSectionView({
 		);
 	};
 
+	const renderPluginMenu = (target: LocalUninstallTarget) => {
+		const uninstalling = localUninstallingKeys.has(target.key);
+		return (
+			<DropdownMenu>
+				<DropdownMenuTrigger asChild>
+					<Button
+						aria-label={`More actions for ${target.name ?? "plugin"}`}
+						className="m-0 size-auto shrink-0 p-0 text-muted-foreground"
+						onClick={(event) => event.stopPropagation()}
+						size="icon"
+						type="button"
+						variant="ghost"
+					>
+						<MoreVertical className="size-4" />
+					</Button>
+				</DropdownMenuTrigger>
+				<DropdownMenuContent align="end">
+					<DropdownMenuItem
+						onClick={() =>
+							void navigator.clipboard.writeText(target.path ?? "")
+						}
+					>
+						<Copy className="size-4" />
+						Copy path
+					</DropdownMenuItem>
+					<DropdownMenuItem
+						className="text-destructive focus:text-destructive"
+						disabled={uninstalling}
+						onClick={() => void uninstallLocalPrimitive(target)}
+					>
+						{uninstalling ? <Spinner /> : <Trash2 className="size-4" />}
+						{uninstalling ? "Uninstalling..." : "Uninstall"}
+					</DropdownMenuItem>
+				</DropdownMenuContent>
+			</DropdownMenu>
+		);
+	};
+
 	const renderSkillCard = (
 		item: CommandItem,
 		context?: MarketplaceLocalInstalledItemRenderContext,
@@ -919,13 +1028,32 @@ export function CustomizationSectionView({
 		context?: MarketplaceLocalInstalledItemRenderContext,
 	) => {
 		const key = plugin.path;
+		const contributionGroups = [
+			{
+				label: "Tools",
+				items:
+					plugin.contributions?.tools ??
+					(pluginToolsByPluginKey.get(plugin.path) ?? []).map(
+						(tool) => tool.name,
+					),
+			},
+			{ label: "Skills", items: plugin.contributions?.skills ?? [] },
+			{ label: "Rules", items: plugin.contributions?.rules ?? [] },
+			{ label: "Hooks", items: plugin.contributions?.hooks ?? [] },
+			{ label: "Commands", items: plugin.contributions?.commands ?? [] },
+			{ label: "MCP servers", items: plugin.contributions?.mcpServers ?? [] },
+			{ label: "Providers", items: plugin.contributions?.providers ?? [] },
+			{
+				label: "Capabilities",
+				items: plugin.contributions?.capabilities ?? [],
+			},
+		].filter((group) => group.items.length > 0);
 		return (
-			<div
+			<details
 				key={plugin.path}
 				className="rounded-lg border border-border px-5 py-4"
 			>
-				<div className="flex items-center gap-3">
-					<Puzzle className="h-4 w-4 shrink-0 text-primary" />
+				<summary className="flex cursor-pointer list-none items-center gap-3">
 					<h3 className="min-w-0 flex-1 text-sm font-semibold text-foreground">
 						{plugin.name}
 					</h3>
@@ -943,66 +1071,66 @@ export function CustomizationSectionView({
 						onCheckedChange={() => {
 							void setPluginEnabled(plugin);
 						}}
+						onClick={(event) => event.stopPropagation()}
 						disabled={togglingPluginPaths.has(plugin.path)}
 						aria-label={`Toggle ${plugin.name}`}
 					/>
-				</div>
-				<p className="mt-1 ml-7 text-xs font-mono text-muted-foreground">
-					{plugin.path}
-				</p>
-				<div className="mt-3 ml-7 flex flex-col gap-2">
-					{(pluginToolsByPluginKey.get(plugin.path) ?? []).map((tool) => {
-						const isToggling = togglingToolIds.has(tool.id);
-						return (
-							<div
-								key={tool.id}
-								className="flex items-center justify-between gap-4 rounded-md border border-border/70 px-3 py-2"
-							>
-								<div className="min-w-0">
-									<p className="text-xs font-medium text-foreground">
-										{tool.name}
-									</p>
-									<p className="text-xs text-muted-foreground">
-										{tool.description?.trim() || "No description available."}
-									</p>
-								</div>
-								<div className="flex items-center gap-2">
-									<span className="text-xs text-muted-foreground">
-										{tool.enabled ? "Enabled" : "Disabled"}
-									</span>
-									<Switch
-										checked={tool.enabled}
-										onCheckedChange={() => {
-											void setToolEnabled(tool);
-										}}
-										disabled={isToggling || !plugin.enabled}
-										aria-label={`Toggle ${tool.name}`}
-									/>
-								</div>
-							</div>
-						);
-					})}
-					{(pluginToolsByPluginKey.get(plugin.path)?.length ?? 0) === 0 && (
-						<p className="text-xs text-muted-foreground">
-							No plugin tools found.
-						</p>
-					)}
-				</div>
-				{context?.matchedEntries?.length ? (
-					<div className="mt-2 ml-7">
-						<MarketplaceEntrySetupDetails entries={context.matchedEntries} />
-					</div>
-				) : null}
-				<div className="mt-3">
-					{renderLocalActionRow({
+					{renderPluginMenu({
 						key,
 						type: "plugin",
 						id: plugin.name,
 						name: plugin.name,
 						path: plugin.path,
 					})}
+				</summary>
+				<div className="mt-3">
+					{plugin.contributions?.inspectionStatus === "disabled" ? (
+						<p className="mb-2 text-xs text-muted-foreground">
+							Enable this plugin to inspect its dynamic contributions.
+						</p>
+					) : null}
+					{contributionGroups.length > 0 ? (
+						<div>
+							<div className="flex flex-wrap items-center gap-2 py-2 text-xs font-medium text-foreground">
+								<span className="mr-1">Contributions</span>
+								{contributionGroups.map((group) => (
+									<Badge key={group.label} variant="outline">
+										{group.label} {group.items.length}
+									</Badge>
+								))}
+							</div>
+							<div className="grid max-h-56 gap-3 overflow-y-auto pt-2 sm:grid-cols-2">
+								{contributionGroups.map((group) => (
+									<div key={group.label} className="min-w-0">
+										<p className="mb-1 text-xs font-medium text-muted-foreground">
+											{group.label}
+										</p>
+										<div className="flex flex-wrap gap-1">
+											{group.items.map((item) => (
+												<Badge key={item} variant="secondary">
+													{item}
+												</Badge>
+											))}
+										</div>
+									</div>
+								))}
+							</div>
+						</div>
+					) : (
+						<p className="text-xs text-muted-foreground">
+							No plugin contributions found.
+						</p>
+					)}
 				</div>
-			</div>
+				{context?.matchedEntries?.length ? (
+					<div className="mt-2">
+						<MarketplaceEntrySetupDetails entries={context.matchedEntries} />
+					</div>
+				) : null}
+				{renderLocalActionMessage(key) ? (
+					<div className="mt-3">{renderLocalActionMessage(key)}</div>
+				) : null}
+			</details>
 		);
 	};
 
@@ -1096,28 +1224,39 @@ export function CustomizationSectionView({
 							}),
 						)
 					: null;
-	return (
-		<PageFrame>
-			<PageHeader
-				description={sectionDescriptions[activeTab]}
-				title={activeTab}
-				meta={<CommandBadge>{sectionCommands[activeTab]}</CommandBadge>}
-				actions={
-					<Button
-						variant="outline"
-						size="sm"
-						onClick={() => {
-							void refresh(true);
-							if (activeTab === "Hooks") {
-								void loadHookExecutionStats(true);
-							}
-						}}
-						disabled={isLoading}
-					>
-						<RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
-					</Button>
+	const refreshButton = (
+		<Button
+			variant="outline"
+			size="sm"
+			onClick={() => {
+				void refresh(true);
+				if (activeTab === "Hooks") {
+					void loadHookExecutionStats(true);
 				}
-			/>
+			}}
+			disabled={isLoading}
+		>
+			<RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
+		</Button>
+	);
+
+	const content = (
+		<>
+			{chrome === "page" ? (
+				<PageHeader
+					description={sectionDescriptions[activeTab]}
+					title={activeTab}
+					meta={<CommandBadge>{sectionCommands[activeTab]}</CommandBadge>}
+					actions={refreshButton}
+				/>
+			) : (
+				<div className="mb-4 flex items-center justify-between gap-3">
+					<p className="text-sm text-muted-foreground">
+						{sectionDescriptions[activeTab]}
+					</p>
+					{refreshButton}
+				</div>
+			)}
 
 			{showTabs ? (
 				<div className="mb-6 flex items-center gap-0 border-b border-border">
@@ -1168,6 +1307,7 @@ export function CustomizationSectionView({
 					installedItems={installedCatalogLocalItems ?? undefined}
 					onInstalledItemsChanged={() => refresh(true)}
 					primitive={catalogPrimitive}
+					variant={marketplaceVariant}
 				/>
 			) : null}
 
@@ -1398,7 +1538,6 @@ export function CustomizationSectionView({
 									className="rounded-lg border border-border px-5 py-4"
 								>
 									<div className="flex items-center gap-3">
-										<Puzzle className="h-4 w-4 shrink-0 text-primary" />
 										<h3 className="min-w-0 flex-1 text-sm font-semibold text-foreground">
 											{plugin.name}
 										</h3>
@@ -1414,13 +1553,9 @@ export function CustomizationSectionView({
 											aria-label={`Toggle ${plugin.name}`}
 										/>
 									</div>
-									<p className="mt-1 ml-7 text-xs font-mono text-muted-foreground">
-										{plugin.path}
-									</p>
-									<div className="mt-3 ml-7 flex flex-col gap-2">
+									<div className="mt-3 ml-7 flex max-h-56 flex-col gap-2 overflow-y-auto">
 										{(pluginToolsByPluginKey.get(plugin.path) ?? []).map(
 											(tool) => {
-												const isToggling = togglingToolIds.has(tool.id);
 												return (
 													<div
 														key={tool.id}
@@ -1434,19 +1569,6 @@ export function CustomizationSectionView({
 																{tool.description?.trim() ||
 																	"No description available."}
 															</p>
-														</div>
-														<div className="flex items-center gap-2">
-															<span className="text-xs text-muted-foreground">
-																{tool.enabled ? "Enabled" : "Disabled"}
-															</span>
-															<Switch
-																checked={tool.enabled}
-																onCheckedChange={() => {
-																	void setToolEnabled(tool);
-																}}
-																disabled={isToggling || !plugin.enabled}
-																aria-label={`Toggle ${tool.name}`}
-															/>
 														</div>
 													</div>
 												);
@@ -1480,7 +1602,6 @@ export function CustomizationSectionView({
 									className="rounded-lg border border-border px-5 py-4"
 								>
 									<div className="flex items-center gap-3">
-										<Puzzle className="h-4 w-4 shrink-0 text-primary" />
 										<h3 className="min-w-0 flex-1 text-sm font-semibold text-foreground">
 											{plugin.name}
 										</h3>
@@ -1496,13 +1617,9 @@ export function CustomizationSectionView({
 											aria-label={`Toggle ${plugin.name}`}
 										/>
 									</div>
-									<p className="mt-1 ml-7 text-xs font-mono text-muted-foreground">
-										{plugin.path}
-									</p>
-									<div className="mt-3 ml-7 flex flex-col gap-2">
+									<div className="mt-3 ml-7 flex max-h-56 flex-col gap-2 overflow-y-auto">
 										{(pluginToolsByPluginKey.get(plugin.path) ?? []).map(
 											(tool) => {
-												const isToggling = togglingToolIds.has(tool.id);
 												return (
 													<div
 														key={tool.id}
@@ -1516,19 +1633,6 @@ export function CustomizationSectionView({
 																{tool.description?.trim() ||
 																	"No description available."}
 															</p>
-														</div>
-														<div className="flex items-center gap-2">
-															<span className="text-xs text-muted-foreground">
-																{tool.enabled ? "Enabled" : "Disabled"}
-															</span>
-															<Switch
-																checked={tool.enabled}
-																onCheckedChange={() => {
-																	void setToolEnabled(tool);
-																}}
-																disabled={isToggling || !plugin.enabled}
-																aria-label={`Toggle ${tool.name}`}
-															/>
 														</div>
 													</div>
 												);
@@ -1668,7 +1772,13 @@ export function CustomizationSectionView({
 					</div>
 				</div>
 			)}
-		</PageFrame>
+		</>
+	);
+
+	return chrome === "embedded" ? (
+		<div>{content}</div>
+	) : (
+		<PageFrame>{content}</PageFrame>
 	);
 }
 

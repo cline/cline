@@ -211,6 +211,22 @@ describe("@cline/ui theme contract", () => {
 			expect(root).toContain(`--${token}:`);
 			expect(dark).toContain(`--${token}:`);
 		}
+		for (const [token, value] of [
+			["normal", 480],
+			["medium", 560],
+			["semibold", 640],
+			["bold", 640],
+		] as const) {
+			expect(root).toContain(`--font-weight-${token}: ${value};`);
+		}
+		for (const [token, value] of [
+			["normal", 400],
+			["medium", 500],
+			["semibold", 600],
+			["bold", 600],
+		] as const) {
+			expect(dark).toContain(`--font-weight-${token}: ${value};`);
+		}
 		for (const token of [
 			"--font-sans:",
 			"--font-mono:",
@@ -282,6 +298,7 @@ describe("@cline/ui theme contract", () => {
 		for (const size of [
 			"xs",
 			"sm",
+			"md",
 			"base",
 			"lg",
 			"xl",
@@ -311,6 +328,7 @@ describe("@cline/ui theme contract", () => {
 			"--font-weight-cline-ui-medium: var(--font-weight-medium);",
 		);
 		expect(componentTheme).toContain("--text-cline-ui-xs: var(--text-xs);");
+		expect(componentTheme).toContain("--text-cline-ui-md: var(--text-md);");
 		expect(componentTheme).toContain("--radius-cline-ui-lg: var(--radius-lg);");
 		expect(componentTheme).not.toMatch(
 			/--color-cline-ui-(?:neutral|accent|error|success|warning|info)-(?:a)?\d+:/,

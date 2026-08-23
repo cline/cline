@@ -93,7 +93,9 @@ Release prep on `main` (PR, not direct push):
 
 ```bash
 gh workflow run ext-vscode-ab-package.yml --ref main \
-  -f version=<VERSION> -f next-ref=main -f legacy-ref=legacy-extension -f publish=true
+  -f version=<VERSION> -f next-ref=main -f publish=true
+# (the legacy bundle always builds from the protected legacy-extension branch;
+# it is deliberately not an input)
 # publish=false builds an installable .vsix artifact without publishing and
 # needs NO environment approval — the ungated build job uploads the artifact
 # and the run completes.
@@ -156,7 +158,9 @@ For shipping a fix on the `legacy-extension` branch — or as the **structural r
 # versions, e.g. combined 4.1.0 live -> hotfix is 4.1.1, not 4.0.13),
 # add the matching `## [x.y.z]` entry to root CHANGELOG.md, push.
 gh workflow run ext-vscode-publish-legacy.yml --ref main \
-  -f release-type=release -f branch=legacy-extension
+  -f release-type=release
+# (the branch is hardcoded to legacy-extension in the workflow; it is
+# deliberately not an input)
 ```
 
 npm test suite runs ungated; the publish job waits on the `Publish` environment. This workflow derives + pushes the `v<version>` tag itself and creates the GitHub release — no manual tagging. Publishes to Marketplace **and** Open VSX. The branch is the npm codebase: use `npm`, never `bun`, and expect the old monolith layout (`apps/vscode/src/core/...`).
