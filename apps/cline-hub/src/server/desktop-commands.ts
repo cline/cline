@@ -253,7 +253,7 @@ export async function handleDesktopCommand(
 		return path;
 	}
 	if (ROUTINE_SCHEDULE_COMMANDS.has(command)) {
-		return await handleRoutineScheduleCommand(command, args);
+		return await handleRoutineScheduleCommand(command, args, workspaceRoot);
 	}
 	if (command === "get_process_context") {
 		return { workspaceRoot, cwd: workspaceRoot };
