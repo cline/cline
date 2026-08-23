@@ -43,6 +43,9 @@ for (const name of Object.keys(realClineCore)) {
 	clineCoreNamespace[name] = undefined
 }
 Object.assign(clineCoreNamespace, clineCoreStub)
+// Pure name helper with no runtime dependencies: tests need the real behavior
+// (sdk-tool-policies matches MCP tools by re-applying the transform).
+clineCoreNamespace.defaultMcpToolNameTransform = realClineCore.defaultMcpToolNameTransform
 
 bunBeforeEach(() => {
 	clineCoreStub.resetModelsFileState()

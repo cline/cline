@@ -1,4 +1,6 @@
+import { defaultMcpToolNameTransform } from "@cline/core"
 import type { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
+import type { McpTool } from "@shared/mcp"
 import type { McpHub } from "@/services/mcp/McpHub"
 
 /**
@@ -30,7 +32,9 @@ export function buildToolPolicies(
 	if (mcpHub) {
 		for (const server of mcpHub.getServers()) {
 			for (const tool of server.tools ?? []) {
-				const sdkName = `${server.name}__${tool.name}`
+				// Must match the name the tool was registered under (createMcpTools),
+				// otherwise the SDK's unlisted-tool default (auto-approve) applies.
+				const sdkName = defaultMcpToolNameTransform({ serverName: server.name, toolName: tool.name })
 				policies[sdkName] = { autoApprove: false }
 			}
 		}
@@ -59,14 +63,11 @@ export function isToolAutoApproved(toolName: string, settings: AutoApprovalSetti
 		return !!settings.actions.useBrowser
 	}
 
-	const mcpTool = parseMcpToolName(toolName)
+	const mcpTool = findMcpTool(toolName, mcpHub)
 	if (mcpTool) {
-		if (!settings.actions.useMcp || !mcpHub) {
-			return false
-		}
-		const server = mcpHub.getServers().find((entry) => entry.name === mcpTool.serverName)
-		const tool = server?.tools?.find((entry) => entry.name === mcpTool.toolName)
-		return !!tool?.autoApprove
+		// Legacy-extension parity: the global "Use MCP servers" auto-approve toggle
+		// OR the tool's per-tool checkbox is sufficient to auto-approve.
+		return !!settings.actions.useMcp || !!mcpTool.autoApprove
 	}
 
 	return false
@@ -90,11 +91,22 @@ function isBrowserTool(toolName: string): boolean {
 	return toolName === "fetch_web_content" || toolName === "web_fetch" || toolName === "web_search"
 }
 
-function parseMcpToolName(toolName: string): { serverName: string; toolName: string } | undefined {
-	const separatorIndex = toolName.indexOf("__")
-	if (separatorIndex <= 0) return undefined
-	const serverName = toolName.substring(0, separatorIndex)
-	const mcpToolName = toolName.substring(separatorIndex + 2)
-	if (!mcpToolName) return undefined
-	return { serverName, toolName: mcpToolName }
+/**
+ * Find the MCP tool registered under the given SDK tool name. SDK names come
+ * from `defaultMcpToolNameTransform` (sanitized/truncated/hashed when
+ * `serverName__toolName` is not a valid identifier), so match by re-applying
+ * the transform rather than string-splitting the name.
+ */
+function findMcpTool(toolName: string, mcpHub?: McpHub): McpTool | undefined {
+	if (!mcpHub) {
+		return undefined
+	}
+	for (const server of mcpHub.getServers()) {
+		for (const tool of server.tools ?? []) {
+			if (defaultMcpToolNameTransform({ serverName: server.name, toolName: tool.name }) === toolName) {
+				return tool
+			}
+		}
+	}
+	return undefined
 }
