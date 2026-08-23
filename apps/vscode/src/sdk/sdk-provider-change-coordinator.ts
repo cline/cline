@@ -147,12 +147,16 @@ export class SdkProviderChangeCoordinator {
 		while (true) {
 			const pending = this.pendingProviderFieldUpdate
 			if (!pending || pending.version <= this.appliedProviderConnectionVersion) return
-			if (!this.isPendingProviderFieldUpdateCurrent(pending)) return
+			if (this.classifyPendingProviderFieldUpdate(pending) !== "current") return
 
 			const cwd = await this.options.getWorkspaceRoot()
-			if (!this.isPendingProviderFieldUpdateCurrent(pending)) return
+			const workspaceStatus = this.classifyPendingProviderFieldUpdate(pending)
+			if (workspaceStatus === "superseded") continue
+			if (workspaceStatus === "invalid") return
 			const config = await this.options.sessionConfigBuilder.build({ cwd, mode: pending.mode })
-			if (!this.isPendingProviderFieldUpdateCurrent(pending)) return
+			const buildStatus = this.classifyPendingProviderFieldUpdate(pending)
+			if (buildStatus === "superseded") continue
+			if (buildStatus === "invalid") return
 			if (toLegacyApiProvider(config.providerId) !== pending.provider) return
 
 			const updateSuspendedConnection = pending.activeSession.sdkHost.updateSuspendedSessionConnection
@@ -172,20 +176,29 @@ export class SdkProviderChangeCoordinator {
 				thinkingBudgetTokens: config.thinkingBudgetTokens ?? null,
 			}
 			await updateSuspendedConnection.call(pending.activeSession.sdkHost, pending.activeSession.sessionId, update)
-			if (this.isPendingProviderFieldUpdateCurrent(pending)) {
+			const updateStatus = this.classifyPendingProviderFieldUpdate(pending)
+			if (updateStatus === "superseded") continue
+			if (updateStatus === "current") {
 				this.appliedProviderConnectionVersion = pending.version
 			}
+			return
 		}
 	}
 
-	private isPendingProviderFieldUpdateCurrent(pending: PendingProviderFieldUpdate): boolean {
-		return (
-			this.pendingProviderFieldUpdate === pending &&
-			this.providerConnectionChangeVersion === pending.version &&
+	private classifyPendingProviderFieldUpdate(pending: PendingProviderFieldUpdate): "current" | "superseded" | "invalid" {
+		const latest = this.pendingProviderFieldUpdate
+		if (!latest) return "invalid"
+		const sameExecutionContext =
+			latest.activeSession === pending.activeSession && latest.mode === pending.mode && latest.provider === pending.provider
+		const executionContextStillActive =
 			this.options.sessions.getActiveSession() === pending.activeSession &&
 			this.getCurrentMode() === pending.mode &&
 			providerForMode(this.options.stateManager.getApiConfiguration(), pending.mode) === pending.provider
-		)
+
+		if (!sameExecutionContext || !executionContextStillActive) return "invalid"
+		if (latest === pending && this.providerConnectionChangeVersion === pending.version) return "current"
+		if (latest.version > pending.version && this.providerConnectionChangeVersion === latest.version) return "superseded"
+		return "invalid"
 	}
 
 	flushPendingProviderFieldsRebuild(): void {

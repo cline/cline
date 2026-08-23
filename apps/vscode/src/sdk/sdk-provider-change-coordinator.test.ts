@@ -212,6 +212,38 @@ describe("SdkProviderChangeCoordinator", () => {
 		expect(activeSession.sdkHost.updateSuspendedSessionConnection).toHaveBeenCalledOnce()
 	})
 
+	it("applies the latest same-provider edit when it supersedes an in-flight config build", async () => {
+		const activeSession = makeActiveSession({ isRunning: true })
+		const { coordinator, options } = makeCoordinator({ activeSession, activeProvider: "lmstudio" })
+		let resolveFirstBuild: ((config: { providerId: string; modelId: string; apiKey: string }) => void) | undefined
+		options.sessionConfigBuilder.build
+			.mockReturnValueOnce(
+				new Promise((resolve) => {
+					resolveFirstBuild = resolve
+				}),
+			)
+			.mockResolvedValueOnce({
+				providerId: "lmstudio",
+				modelId: "local-model",
+				apiKey: "v2-key",
+			})
+
+		coordinator.handleProviderConfigFieldsChanged(parseProviderId("lmstudio"))
+		const apply = coordinator.applyPendingConnectionUpdateBeforeInteractionResume()
+		await vi.waitFor(() => expect(options.sessionConfigBuilder.build).toHaveBeenCalledOnce())
+
+		coordinator.handleProviderConfigFieldsChanged(parseProviderId("lmstudio"))
+		resolveFirstBuild?.({ providerId: "lmstudio", modelId: "local-model", apiKey: "v1-key" })
+		await apply
+
+		expect(options.sessionConfigBuilder.build).toHaveBeenCalledTimes(2)
+		expect(activeSession.sdkHost.updateSuspendedSessionConnection).toHaveBeenCalledOnce()
+		expect(activeSession.sdkHost.updateSuspendedSessionConnection).toHaveBeenCalledWith(
+			"old-session",
+			expect.objectContaining({ apiKey: "v2-key" }),
+		)
+	})
+
 	it("does not hot-apply a provider switch that lands while config is building", async () => {
 		const activeSession = makeActiveSession({ isRunning: true })
 		const { coordinator, options } = makeCoordinator({ activeSession, activeProvider: "lmstudio" })
