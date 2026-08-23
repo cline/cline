@@ -889,6 +889,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			drainingPendingPrompts: false,
 			pluginSandboxShutdown: bootstrap.pluginSandboxShutdown,
 			submitAndExitObserved: false,
+			taskCompletedEmitted: false,
 			lastInteractiveTurnFinishReason: undefined,
 		};
 		activeSessionRef = active;
@@ -1966,10 +1967,11 @@ export class LocalRuntimeHost implements RuntimeHost {
 	 * `attempt_completion`-driven emission and works for both interactive
 	 * and non-interactive sessions.
 	 *
-	 * `shutdownSession(...)` retains a fallback emission for completed
-	 * sessions that finish without an explicit completion-tool observation
-	 * (e.g., non-interactive runs not using the yolo preset). This helper
-	 * sets `submitAndExitObserved` so the shutdown fallback can suppress a
+	 * `emitTaskCompletedOnTeardown(...)` retains a fallback emission for
+	 * completed sessions that finish without an explicit completion-tool
+	 * observation (e.g., non-interactive runs not using the yolo preset,
+	 * or hosts that disable `submit_and_exit` entirely). This helper sets
+	 * `taskCompletedEmitted` so the teardown fallback can suppress a
 	 * duplicate emission for the same logical completion.
 	 */
 	private observeTaskCompletionTool(
@@ -1984,6 +1986,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		);
 		if (!completedWithSubmitAndExit) return;
 		session.submitAndExitObserved = true;
+		session.taskCompletedEmitted = true;
 		captureTaskCompleted(session.config.telemetry, {
 			ulid: session.sessionId,
 			provider: session.config.providerId,
@@ -1991,6 +1994,54 @@ export class LocalRuntimeHost implements RuntimeHost {
 			mode: session.config.mode,
 			durationMs: Date.now() - Date.parse(session.startedAt),
 			source: "submit_and_exit",
+			...this.getSessionAgentTelemetryIdentity(session),
+		});
+	}
+
+	/**
+	 * Single choke point for the fallback `task.completed` emission on
+	 * session teardown. Every path a session can end through funnels into
+	 * `shutdownSession(...)` or `releaseSessionRuntime(...)`, and BOTH must
+	 * call this helper — the emission must never depend on which teardown
+	 * branch a stop happens to route through. (The 4.1.11 regression:
+	 * truthful session-status reporting re-routed many interactive stops
+	 * onto the release branch, and the fallback that lived only inside
+	 * `shutdownSession` silently stopped firing for them.)
+	 *
+	 * Emits at most once per session (`taskCompletedEmitted`), and never
+	 * after the `submit_and_exit` observer already reported the completion.
+	 * The completion criterion deliberately does not read `session.status`
+	 * (whose lifecycle is what changed in 4.1.11):
+	 *
+	 * - Interactive sessions use the recorded final-turn outcome,
+	 *   `lastInteractiveTurnFinishReason === "completed"`. The extra guards
+	 *   suppress emission when teardown arrives mid-run (the in-flight turn
+	 *   being aborted is the real final turn, and it did not complete).
+	 * - Non-interactive sessions use the terminal status their run result
+	 *   resolved to (`finalStatus`, from `finalizeSingleRun`), preserving
+	 *   the pre-existing `input.status === "completed"` semantics.
+	 *
+	 * Sessions whose final turn errored or aborted emit nothing.
+	 */
+	private emitTaskCompletedOnTeardown(
+		session: ActiveSession,
+		finalStatus?: SessionStatus,
+	): void {
+		if (session.taskCompletedEmitted || session.submitAndExitObserved) return;
+		const completedCleanly = session.interactive
+			? session.lastInteractiveTurnFinishReason === "completed" &&
+				!session.aborting &&
+				session.agent.canStartRun()
+			: finalStatus === "completed";
+		if (!completedCleanly) return;
+		session.taskCompletedEmitted = true;
+		captureTaskCompleted(session.config.telemetry, {
+			ulid: session.sessionId,
+			provider: session.config.providerId,
+			modelId: session.config.modelId,
+			mode: session.config.mode,
+			durationMs: Date.now() - Date.parse(session.startedAt),
+			source: "shutdown",
 			...this.getSessionAgentTelemetryIdentity(session),
 		});
 	}
@@ -2173,6 +2224,11 @@ export class LocalRuntimeHost implements RuntimeHost {
 	}
 
 	private async failSession(session: ActiveSession): Promise<void> {
+		// The failing turn is this session's final turn. Record it so the
+		// teardown completion criterion (`lastInteractiveTurnFinishReason`)
+		// cannot read a stale "completed" left over from an earlier
+		// successful turn and emit `task.completed` for an errored session.
+		session.lastInteractiveTurnFinishReason = "error";
 		await this.shutdownSession(session, {
 			status: "failed",
 			exitCode: 1,
@@ -2190,21 +2246,11 @@ export class LocalRuntimeHost implements RuntimeHost {
 			endReason: string;
 		},
 	): Promise<void> {
-		// Fallback `task.completed` emission for completed sessions that
-		// did not observe an explicit `submit_and_exit` tool call. The
-		// observer in `executeAgentTurn(...)` already emitted the event in
-		// that case, so we suppress here to avoid double-counting.
-		if (input.status === "completed" && !session.submitAndExitObserved) {
-			captureTaskCompleted(session.config.telemetry, {
-				ulid: session.sessionId,
-				provider: session.config.providerId,
-				modelId: session.config.modelId,
-				mode: session.config.mode,
-				durationMs: Date.now() - Date.parse(session.startedAt),
-				source: "shutdown",
-				...this.getSessionAgentTelemetryIdentity(session),
-			});
-		}
+		// Fallback `task.completed` emission for completed sessions that did
+		// not observe an explicit `submit_and_exit` tool call, routed through
+		// the shared teardown choke point so it can neither double-fire nor
+		// be skipped by teardown routing.
+		this.emitTaskCompletedOnTeardown(session, input.status);
 		notifyTeamRunWaiters(session);
 
 		// Drain an in-flight run before tearing anything down. `stopSession` aborts
@@ -2286,6 +2332,12 @@ export class LocalRuntimeHost implements RuntimeHost {
 		session: ActiveSession,
 		reason: string,
 	): Promise<void> {
+		// Releasing is a full session exit too: interactive sessions whose
+		// reported status is already terminal are stopped/disposed through
+		// this branch. The completion emission must happen here as well —
+		// this is the branch that silently dropped `task.completed` when
+		// truthful status reporting re-routed interactive stops onto it.
+		this.emitTaskCompletedOnTeardown(session);
 		const cleanupErrors: unknown[] = [];
 		const recordCleanupError = (stage: string, error: unknown) => {
 			cleanupErrors.push(error);
