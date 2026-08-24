@@ -818,7 +818,10 @@ export class LocalRuntimeHost implements RuntimeHost {
 			activeTeamRunIds: new Set<string>(),
 			pendingTeamRunUpdates: [],
 			teamRunWaiters: [],
-			pendingPrompts: readPersistedPendingPrompts(initialSessionMetadata),
+			pendingPrompts: readPersistedPendingPrompts(
+				initialSessionMetadata,
+				configWithProvider.logger,
+			),
 			drainingPendingPrompts: false,
 			pluginSandboxShutdown: bootstrap.pluginSandboxShutdown,
 			submitAndExitObserved: false,
@@ -1991,7 +1994,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 		const write = previous
 			.catch(() => undefined)
 			.then(async () => {
-				await this.ensureSessionPersisted(session);
+				if (!session.artifacts) {
+					await this.ensureSessionPersisted(session);
+				}
 				await this.persistSessionMetadata(session.sessionId, (current) =>
 					withPersistedPendingPrompts(current, pendingPrompts),
 				);

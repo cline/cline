@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
 	readPersistedPendingPrompts,
 	withPersistedPendingPrompts,
@@ -44,5 +44,34 @@ describe("pending prompt persistence", () => {
 				],
 			}),
 		).toEqual([{ id: "pending_1", prompt: "valid", delivery: "steer" }]);
+	});
+
+	it("warns when malformed entries are discarded on resume", () => {
+		const log = vi.fn();
+		const prompts = readPersistedPendingPrompts(
+			{
+				"cline.pendingPrompts": [
+					null,
+					{ id: "missing-prompt", delivery: "queue" },
+					{ id: "pending_1", prompt: "valid", delivery: "steer" },
+				],
+			},
+			{ debug: vi.fn(), log },
+		);
+
+		expect(prompts).toEqual([
+			{ id: "pending_1", prompt: "valid", delivery: "steer" },
+		]);
+		expect(log).toHaveBeenCalledWith(
+			"Discarded 2 malformed persisted pending prompt(s) on session resume",
+			{ severity: "warn" },
+		);
+	});
+
+	it("does not warn when there is nothing to discard", () => {
+		const log = vi.fn();
+		readPersistedPendingPrompts({ title: "Task" }, { debug: vi.fn(), log });
+
+		expect(log).not.toHaveBeenCalled();
 	});
 });

@@ -1,41 +1,60 @@
+import type { BasicLogger } from "@cline/shared";
 import type { PendingPrompt } from "../../types/session";
 
 const PENDING_PROMPTS_METADATA_KEY = "cline.pendingPrompts";
 
 export function readPersistedPendingPrompts(
 	metadata: Record<string, unknown> | undefined,
+	logger?: BasicLogger,
 ): PendingPrompt[] {
 	const value = metadata?.[PENDING_PROMPTS_METADATA_KEY];
 	if (!Array.isArray(value)) return [];
 
-	return value.flatMap((entry): PendingPrompt[] => {
-		if (!entry || typeof entry !== "object" || Array.isArray(entry)) return [];
-		const record = entry as Record<string, unknown>;
-		if (
-			typeof record.id !== "string" ||
-			typeof record.prompt !== "string" ||
-			(record.delivery !== "queue" && record.delivery !== "steer")
-		) {
-			return [];
+	const prompts: PendingPrompt[] = [];
+	let dropped = 0;
+	for (const entry of value) {
+		const parsed = parsePendingPrompt(entry);
+		if (parsed) {
+			prompts.push(parsed);
+		} else {
+			dropped++;
 		}
-		const mode =
-			record.mode === "act" ||
-			record.mode === "plan" ||
-			record.mode === "yolo" ||
-			record.mode === "zen"
-				? record.mode
-				: undefined;
-		return [
-			{
-				id: record.id,
-				prompt: record.prompt,
-				delivery: record.delivery,
-				...(mode ? { mode } : {}),
-				userImages: readStringArray(record.userImages),
-				userFiles: readStringArray(record.userFiles),
-			},
-		];
-	});
+	}
+	if (dropped > 0) {
+		logger?.log?.(
+			`Discarded ${dropped} malformed persisted pending prompt(s) on session resume`,
+			{ severity: "warn" },
+		);
+	}
+	return prompts;
+}
+
+function parsePendingPrompt(entry: unknown): PendingPrompt | undefined {
+	if (!entry || typeof entry !== "object" || Array.isArray(entry))
+		return undefined;
+	const record = entry as Record<string, unknown>;
+	if (
+		typeof record.id !== "string" ||
+		typeof record.prompt !== "string" ||
+		(record.delivery !== "queue" && record.delivery !== "steer")
+	) {
+		return undefined;
+	}
+	const mode =
+		record.mode === "act" ||
+		record.mode === "plan" ||
+		record.mode === "yolo" ||
+		record.mode === "zen"
+			? record.mode
+			: undefined;
+	return {
+		id: record.id,
+		prompt: record.prompt,
+		delivery: record.delivery,
+		...(mode ? { mode } : {}),
+		userImages: readStringArray(record.userImages),
+		userFiles: readStringArray(record.userFiles),
+	};
 }
 
 export function withPersistedPendingPrompts(
