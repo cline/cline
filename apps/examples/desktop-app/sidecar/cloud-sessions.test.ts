@@ -2044,6 +2044,46 @@ describe("CloudSessionManager", () => {
 		);
 	});
 
+	it("preserves the live Hub model across REST discovery refreshes", async () => {
+		const { ctx } = createContext();
+		const hub = new FakeHubClient();
+		hub.listedModel = "anthropic/claude-opus-4-1";
+		const manager = new CloudSessionManager(ctx, {
+			api: {
+				list: async () => [
+					{
+						...REMOTE_SESSION,
+						metadata: {
+							...REMOTE_SESSION.metadata,
+							modelId: "anthropic/claude-sonnet-5",
+						},
+					},
+				],
+			} as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+		await manager.list();
+		await manager.attach("ses-outer");
+
+		await expect(manager.listForDiscovery()).resolves.toEqual([
+			expect.objectContaining({ model: "anthropic/claude-opus-4-1" }),
+		]);
+		await manager.send(
+			"ses-outer",
+			"Continue with the live model",
+			undefined,
+			"anthropic/claude-opus-4-1",
+		);
+
+		expect(
+			hub.commands.filter(
+				(command) => command.command === "session.update_connection",
+			),
+		).toHaveLength(0);
+	});
+
 	it("forwards cloud images and continues rejecting file attachments", async () => {
 		const { ctx } = createContext();
 		const hub = new FakeHubClient();
@@ -2283,6 +2323,47 @@ describe("CloudSessionManager", () => {
 		await expect(manager.send("ses-outer", "Lost prompt")).rejects.toThrow(
 			/not found in the cloud session.*send it again/i,
 		);
+		expect(
+			hub.commands.filter((entry) => entry.command === "session.send_input"),
+		).toHaveLength(1);
+	});
+
+	it("confirms a steer accepted in buffered recovery events", async () => {
+		const { ctx } = createContext();
+		const hub = new FakeHubClient();
+		hub.prompts = [];
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+		await manager.list();
+		await manager.attach("ses-outer");
+		await manager.readMessages("ses-outer");
+		hub.failNextSend = true;
+		hub.commandHook = (command) => {
+			if (command !== "session.messages") return;
+			hub.events?.({
+				version: "v1",
+				event: "session.pending_prompt_submitted",
+				eventId: "evt-steer-delivered",
+				timestamp: Date.now(),
+				sessionId: "inner-1",
+				payload: {
+					prompt: {
+						id: "steer-1",
+						prompt: "Steer accepted",
+						delivery: "steer",
+						attachmentCount: 0,
+					},
+				},
+			});
+		};
+
+		await expect(
+			manager.send("ses-outer", "Steer accepted", "steer"),
+		).resolves.toMatchObject({ ok: true, recoveredAfterDisconnect: true });
 		expect(
 			hub.commands.filter((entry) => entry.command === "session.send_input"),
 		).toHaveLength(1);
@@ -2920,7 +3001,7 @@ describe("CloudSessionManager", () => {
 		]);
 	});
 
-	it("single-flights identical cloud creates", async () => {
+	it("single-flights repeated starts for the same client request", async () => {
 		const { ctx } = createContext();
 		const hub = new FakeHubClient(false);
 		let createCalls = 0;
@@ -2942,6 +3023,7 @@ describe("CloudSessionManager", () => {
 			createHubClient: () => hub as never,
 		});
 		const input = {
+			requestId: "client-start-1",
 			modelId: "anthropic/claude-sonnet-5",
 			repoUrl: "https://github.com/cline/test",
 		};
@@ -2961,6 +3043,38 @@ describe("CloudSessionManager", () => {
 			expect.objectContaining({ sessionId: "ses-created" }),
 			expect.objectContaining({ sessionId: "ses-created" }),
 		]);
+	});
+
+	it("keeps identical starts from separate chats independent", async () => {
+		const { ctx } = createContext();
+		let createCalls = 0;
+		const manager = new CloudSessionManager(ctx, {
+			api: {
+				list: async () => [],
+				create: async () => {
+					createCalls += 1;
+					return {
+						sessionId: `ses-created-${createCalls}`,
+						sandboxUrl: "pod",
+					};
+				},
+			} as unknown as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => new FakeHubClient(false) as never,
+		});
+		const input = {
+			modelId: "anthropic/claude-sonnet-5",
+			repoUrl: "https://github.com/cline/test",
+		};
+
+		const [first, second] = await Promise.all([
+			manager.create({ ...input, requestId: "chat-a" }),
+			manager.create({ ...input, requestId: "chat-b" }),
+		]);
+
+		expect(createCalls).toBe(2);
+		expect(first.sessionId).not.toBe(second.sessionId);
 	});
 
 	it("deletes a late sandbox with the account that created it", async () => {

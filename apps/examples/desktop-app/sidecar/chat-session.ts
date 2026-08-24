@@ -1624,6 +1624,7 @@ export async function handleChatSessionCommand(
 					request.config?.reasoningEffort,
 				);
 				return await cloud.create({
+					...(requestedSessionId ? { requestId: requestedSessionId } : {}),
 					repoUrl,
 					modelId,
 					...(initialPrompt ? { initialPrompt } : {}),
