@@ -1,6 +1,3 @@
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { TuiTest } from "@microsoft/tui-test";
 import {
@@ -8,7 +5,7 @@ import {
 	withTerminal,
 } from "@microsoft/tui-test/test";
 import { expect, describe as vitestDescribe, test as vitestTest } from "vitest";
-import { trackProgramExitFile } from "./program-exit.js";
+import { BUN_BIN, CLINE_BIN } from "./constants.js";
 
 export { expect };
 
@@ -38,9 +35,6 @@ interface TerminalTest {
 
 const optionStack: TerminalTestOptions[] = [];
 const testSuiteRoot = fileURLToPath(new URL("../", import.meta.url));
-const programRunner = fileURLToPath(
-	new URL("./run-program.mjs", import.meta.url),
-);
 
 function compactEnv(
 	env: NodeJS.ProcessEnv | undefined,
@@ -66,18 +60,16 @@ function currentOptions(): TerminalTestOptions {
 
 function toCreateTerminalOptions(
 	options: TerminalTestOptions,
-	exitCodeFile: string,
 ): CreateTerminalOptions {
 	if (!options.program) {
 		throw new Error("A terminal test must configure a program with test.use()");
 	}
 
+	const isCline = options.program.file === CLINE_BIN;
 	return {
 		program: [
-			process.execPath,
-			programRunner,
-			exitCodeFile,
-			options.program.file,
+			isCline ? BUN_BIN : options.program.file,
+			...(isCline ? [CLINE_BIN] : []),
 			...(options.program.args ?? []),
 		],
 		cols: options.columns,
@@ -96,17 +88,10 @@ function registerTest(
 ): void {
 	const configuredOptions = { ...currentOptions() };
 	const run = async () => {
-		const resultDir = mkdtempSync(join(tmpdir(), "cline-tui-process-"));
-		const exitCodeFile = join(resultDir, "exit-code");
-		try {
-			const options = toCreateTerminalOptions(configuredOptions, exitCodeFile);
-			await withTerminal(options, async (terminal) => {
-				trackProgramExitFile(terminal, exitCodeFile);
-				await body({ terminal });
-			});
-		} finally {
-			rmSync(resultDir, { recursive: true, force: true });
-		}
+		const options = toCreateTerminalOptions(configuredOptions);
+		await withTerminal(options, async (terminal) => {
+			await body({ terminal });
+		});
 	};
 
 	if (skip) {

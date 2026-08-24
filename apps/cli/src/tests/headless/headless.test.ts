@@ -10,6 +10,7 @@
 
 import {
 	CLINE_BIN,
+	CLINE_SHELL_COMMAND,
 	EXIT_CODE_FAIL,
 	EXIT_CODE_SUCCESS,
 	TERMINAL_WIDE,
@@ -46,7 +47,7 @@ test.describe("piped stdin | cline - unauthenticated", () => {
 			file: "sh",
 			args: [
 				"-c",
-				`echo "max paulus" | ${CLINE_BIN} "print only the second word I gave you"`,
+				`echo "max paulus" | ${CLINE_SHELL_COMMAND} "print only the second word I gave you"`,
 			],
 		},
 		...TERMINAL_WIDE,
@@ -67,7 +68,7 @@ test.describe("cline -y --verbose - unauthenticated", () => {
 	test.use({
 		program: {
 			file: "sh",
-			args: ["-c", `${CLINE_BIN} -y --verbose "tell me a joke" 2>&1`],
+			args: ["-c", `${CLINE_SHELL_COMMAND} -y --verbose "tell me a joke" 2>&1`],
 		},
 		...TERMINAL_WIDE,
 		env: clineEnv("unauthenticated"),
@@ -123,7 +124,7 @@ test.describe("piped stdin | cline - authenticated", () => {
 			file: "sh",
 			args: [
 				"-c",
-				`echo "butterfly horse country" | ${CLINE_BIN} "print only the second word I gave you"`,
+				`echo "butterfly horse country" | ${CLINE_SHELL_COMMAND} "print only the second word I gave you"`,
 			],
 		},
 		...TERMINAL_WIDE,
@@ -147,7 +148,7 @@ test.describe("cline --verbose - authenticated @live", () => {
 	test.use({
 		program: {
 			file: "sh",
-			args: ["-c", `${CLINE_BIN} --verbose "tell me a joke" 2>&1`],
+			args: ["-c", `${CLINE_SHELL_COMMAND} --verbose "tell me a joke" 2>&1`],
 		},
 		...TERMINAL_WIDE,
 		env: clineEnv("default", {

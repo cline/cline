@@ -9,7 +9,6 @@ import {
 	type TuiTest as Terminal,
 } from "@microsoft/tui-test";
 import { EXIT_CODE_TIMEOUT } from "./constants.js";
-import { getProgramExitCode } from "./program-exit.js";
 
 // ---------------------------------------------------------------------------
 // Core wait / assertion helpers
@@ -70,8 +69,7 @@ export async function expectExitCode(
 	exitCode: number,
 ): Promise<void> {
 	await terminal.waitExit({ timeout: 31_000 });
-	const actualExitCode =
-		getProgramExitCode(terminal) ?? (await terminal.state()).exited;
+	const actualExitCode = (await terminal.state()).exited;
 	if (actualExitCode !== exitCode) {
 		throw new Error(
 			`Expected terminal to exit with ${exitCode}, received ${actualExitCode}`,
@@ -137,9 +135,5 @@ export async function waitForTerminalExit(
 		}
 		throw error;
 	}
-	return (
-		getProgramExitCode(terminal) ??
-		(await terminal.state()).exited ??
-		EXIT_CODE_TIMEOUT
-	);
+	return (await terminal.state()).exited ?? EXIT_CODE_TIMEOUT;
 }
