@@ -263,6 +263,25 @@ export default function Home() {
 	// completion event and the RPC result both carry the warning; whichever
 	// lands first claims it here so the user never sees it twice.
 	const surfacedHandoffWarningsRef = useRef<Set<string>>(new Set());
+	// Authoritative completions recorded SYNCHRONOUSLY at event arrival: the
+	// pane's reducer-fed ref only updates after a re-render, so an RPC
+	// rejection landing in the same tick would otherwise miss the completion.
+	const handoffCompletionsRef = useRef(
+		new Map<
+			string,
+			{
+				targetSessionId: string;
+				dashboardUrl: string;
+				externalPresentation: boolean;
+				warningKind?: "unqueued" | "unconfirmed";
+			}
+		>(),
+	);
+	const getHandoffCompletion = useCallback(
+		(sourceSessionId: string) =>
+			handoffCompletionsRef.current.get(sourceSessionId),
+		[],
+	);
 	const claimHandoffWarningToast = useCallback(
 		(sourceSessionId: string) =>
 			claimHandoffWarningSurface(
@@ -292,6 +311,18 @@ export default function Home() {
 					!(progress.phase in HANDOFF_PROGRESS_LABELS)
 				) {
 					return;
+				}
+				if (
+					progress.phase === "complete" &&
+					progress.sessionId?.trim() &&
+					progress.dashboardUrl?.trim()
+				) {
+					handoffCompletionsRef.current.set(progress.sourceSessionId, {
+						targetSessionId: progress.sessionId,
+						dashboardUrl: progress.dashboardUrl,
+						externalPresentation: progress.destination === "external",
+						warningKind: progress.warningKind,
+					});
 				}
 				dispatchHandoffUi({
 					type: "progress",
@@ -695,6 +726,7 @@ export default function Home() {
 									initialAttachments={activeThread.initialAttachments}
 									initialPromptDraft={activeThread.initialPromptDraft}
 									claimHandoffWarningToast={claimHandoffWarningToast}
+									getHandoffCompletion={getHandoffCompletion}
 									knownWorkspacePaths={historyWorkspacePaths}
 									onInitialPromptDraftConsumed={
 										handleInitialPromptDraftConsumed
@@ -761,6 +793,7 @@ function ChatThreadPane({
 	initialAttachments,
 	initialPromptDraft,
 	claimHandoffWarningToast,
+	getHandoffCompletion,
 	knownWorkspacePaths,
 	onInitialPromptDraftConsumed,
 	onUpdateSessionMetadata,
@@ -786,6 +819,14 @@ function ChatThreadPane({
 	initialPromptDraft?: string;
 	/** Home-level dedupe between the RPC and event handoff-warning paths. */
 	claimHandoffWarningToast?: (sourceSessionId: string) => boolean;
+	getHandoffCompletion?: (sourceSessionId: string) =>
+		| {
+				targetSessionId: string;
+				dashboardUrl: string;
+				externalPresentation: boolean;
+				warningKind?: "unqueued" | "unconfirmed";
+		  }
+		| undefined;
 	knownWorkspacePaths: string[];
 	onInitialPromptDraftConsumed?: (threadId: string) => void;
 	onUpdateSessionMetadata?: (
@@ -1605,8 +1646,19 @@ function ChatThreadPane({
 				// The authoritative completion event may have landed while the
 				// RPC transport failed; the handoff succeeded, so a destructive
 				// "failed" toast would contradict the visible receipt.
-				const completedEntry =
-					handoffUiRef.current?.status === "complete"
+				// The reducer-fed ref lags a render; the Home registry is written
+				// synchronously at event arrival and wins the same-tick race.
+				const syncCompletion = getHandoffCompletion?.(sourceSessionId);
+				const completedEntry = syncCompletion
+					? {
+							receipt: {
+								targetSessionId: syncCompletion.targetSessionId,
+								dashboardUrl: syncCompletion.dashboardUrl,
+							},
+							externalPresentation: syncCompletion.externalPresentation,
+							warningKind: syncCompletion.warningKind,
+						}
+					: handoffUiRef.current?.status === "complete"
 						? handoffUiRef.current
 						: undefined;
 				if (completedEntry) {
@@ -1670,6 +1722,7 @@ function ChatThreadPane({
 		[
 			claimHandoffWarningToast,
 			config,
+			getHandoffCompletion,
 			isThreadActive,
 			onOpenSessionById,
 			onHandoffUiAction,
@@ -1687,7 +1740,16 @@ function ChatThreadPane({
 				});
 				return;
 			}
-			if (!cloudHandoffAvailable) {
+			// A PENDING handoff must stay retryable after either gate flips
+			// off — the source session's normal actions are blocked by the
+			// pending guard, so gating the retry here would lock it forever.
+			// The sidecar applies the same recovery exemption on its side.
+			const pendingRetry =
+				Boolean(pendingHandoffRecovery) ||
+				handoffUi?.status === "recovery" ||
+				handoffUi?.status === "recovery_dismissed" ||
+				handoffUi?.status === "failed";
+			if (!cloudHandoffAvailable && !pendingRetry) {
 				setPromptInput(nextCommand ? `/handoff ${nextCommand}` : "/handoff");
 				toast({
 					title: "Cloud handoff is not available",
@@ -1840,6 +1902,7 @@ function ChatThreadPane({
 			setPromptInput,
 			status,
 			onHandoffUiAction,
+			handoffUi?.status,
 		],
 	);
 
@@ -1847,9 +1910,13 @@ function ChatThreadPane({
 		async (prompt: string) => {
 			const trimmed = prompt.trim();
 			const handoff = parseHandoffCommand(trimmed);
-			// Only reserve /handoff when the feature gate is on; otherwise a
-			// user's own workflow or skill named "handoff" stays reachable.
-			if (handoff && cloudHandoffAvailable) {
+			// Only reserve /handoff when the feature gate is on (or a pending
+			// handoff needs its retry path); otherwise a user's own workflow
+			// or skill named "handoff" stays reachable.
+			if (
+				handoff &&
+				(cloudHandoffAvailable || Boolean(pendingHandoffRecovery))
+			) {
 				await prepareHandoff(handoff.nextCommand);
 				return;
 			}
@@ -1879,6 +1946,7 @@ function ChatThreadPane({
 			setPromptInput,
 			threadId,
 			cloudHandoffAvailable,
+			pendingHandoffRecovery,
 		],
 	);
 
