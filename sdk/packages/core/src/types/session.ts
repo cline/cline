@@ -48,14 +48,21 @@ export type ActiveSession = {
 	 *    declares completion (parity with original Cline's
 	 *    `attempt_completion`).
 	 * 2. Suppress the fallback `task.completed` emission from
-	 *    `shutdownSession(...)` so the same logical completion is not
-	 *    reported twice.
+	 *    `emitTaskCompletedOnTeardown(...)` so the same logical completion
+	 *    is not reported twice.
 	 *
 	 * Non-interactive sessions that finish without ever calling the
-	 * completion tool still receive a `task.completed` from the shutdown
+	 * completion tool still receive a `task.completed` from the teardown
 	 * fallback.
 	 */
 	submitAndExitObserved: boolean;
+	/**
+	 * Set to `true` the moment `task.completed` is emitted for this session,
+	 * whether by the `submit_and_exit` observer or by the teardown fallback
+	 * (`emitTaskCompletedOnTeardown`). Enforces the invariant of exactly one
+	 * `task.completed` per session regardless of which teardown path runs.
+	 */
+	taskCompletedEmitted: boolean;
 };
 
 export type PendingPrompt = {

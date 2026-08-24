@@ -99,7 +99,11 @@ import {
 	readDesktopSettings,
 	setCloudSessionsEnabled,
 } from "./desktop-settings";
-import { isCloudAgentsEnabled } from "./feature-flags";
+import {
+	identifyDesktopFeatureFlagsAccount,
+	isCloudAgentsEnabled,
+	refreshDesktopFeatureFlags,
+} from "./feature-flags";
 import {
 	installMarketplaceEntryForDesktopCommand,
 	listMarketplaceInstalledEntries,
@@ -464,6 +468,32 @@ function removePathIfExists(
 	return true;
 }
 
+function syncFeatureFlagsAccountFromResult(
+	ctx: SidecarContext,
+	operation: string,
+	result: unknown,
+): void {
+	if (operation === "fetchMe") {
+		const user = result as { id?: string; email?: string } | undefined;
+		if (user?.id) {
+			void identifyDesktopFeatureFlagsAccount(
+				{ id: user.id, email: user.email },
+				{ logger: ctx.logger, telemetry: ctx.telemetry },
+			);
+		}
+		return;
+	}
+}
+
+function syncFeatureFlagsAccountFromSettings(
+	ctx: SidecarContext,
+	manager: ProviderSettingsManager,
+): void {
+	void identifyDesktopFeatureFlagsAccount(
+		{ id: manager.getProviderSettings("cline")?.auth?.accountId },
+		{ logger: ctx.logger, telemetry: ctx.telemetry },
+	);
+}
 function mergePersistedSessionRecord(
 	sessionId: string,
 	record: JsonRecord,
@@ -2259,6 +2289,14 @@ export async function handleCommand(
 		// would be captured as error telemetry and shown raw to the user.
 		const authToken = await resolveFreshClineAuthToken(manager, ctx);
 		if (!authToken) {
+			// Backstop for credentials that go away without a settings write —
+			// an expired or server-revoked token. Explicit sign-out is handled
+			// at its source in `save_provider_settings`; this catches the rest
+			// so a stale account never keeps serving its rollout cohort.
+			void identifyDesktopFeatureFlagsAccount(
+				{},
+				{ logger: ctx.logger, telemetry: ctx.telemetry },
+			);
 			return CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT;
 		}
 		const settings = manager.getProviderSettings("cline");
@@ -2271,6 +2309,7 @@ export async function handleCommand(
 			args as ClineAccountActionRequest,
 			accountService,
 		);
+		syncFeatureFlagsAccountFromResult(ctx, operation, result);
 		if (operation === "switchAccount") {
 			await resetCloudSessionManager(ctx);
 			// The sidebar must re-scope immediately (personal ⇄ org), not on
@@ -2539,7 +2578,7 @@ export async function handleCommand(
 	if (command === "save_provider_settings") {
 		const manager = new ProviderSettingsManager();
 		const providerId = String(args?.provider ?? "").trim();
-		const result = saveLocalProviderSettings(manager, {
+		const saved = saveLocalProviderSettings(manager, {
 			...readProviderSettingsUpdate(args),
 			providerId,
 			enabled: typeof args?.enabled === "boolean" ? args.enabled : undefined,
@@ -2552,7 +2591,14 @@ export async function handleCommand(
 			// not on the next 12s poll.
 			broadcastEvent(ctx, "cloud_sessions_changed", {});
 		}
-		return result;
+		// Sign-out is a `save_provider_settings` that blanks the cline auth block
+		// (see signOut in webview settings/account-view.tsx), so this is the
+		// authoritative signal — it fires the moment credentials are cleared
+		// rather than waiting for the next account fetch.
+		if (saved.providerId === "cline" || saved.providerId === "cline-pass") {
+			syncFeatureFlagsAccountFromSettings(ctx, manager);
+		}
+		return saved;
 	}
 	if (command === "add_provider") {
 		const manager = new ProviderSettingsManager();
@@ -2676,6 +2722,18 @@ export async function handleCommand(
 			cloudAgents: isCloudAgentsEnabled(),
 		});
 		return settings;
+	}
+
+	// ── Feature flags ──────────────────────────────────────────────────
+	// Flags are evaluated here, not in the webview: the sidecar already has
+	// the PostHog key inlined at build time and evaluates against the same
+	// distinct ID it reports telemetry with. The client just reads the
+	// resolved values.
+	if (command === "get_feature_flags") {
+		return await refreshDesktopFeatureFlags({
+			logger: ctx.logger,
+			telemetry: ctx.telemetry,
+		});
 	}
 
 	// ── Connector channels ─────────────────────────────────────────────

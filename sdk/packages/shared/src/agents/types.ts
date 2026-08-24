@@ -697,6 +697,8 @@ export const AgentResultSchema = z.object({
  * Configuration for creating an Agent
  */
 export interface AgentConfig {
+	/** Stable end-user identity used for provider and observability metadata. */
+	distinctId?: string;
 	/**
 	 * Core/hub runtime session identifier.
 	 *
@@ -930,6 +932,7 @@ export interface AgentConfig {
 }
 
 export const AgentConfigSchema = z.object({
+	distinctId: z.string().optional(),
 	sessionId: z.string().optional(),
 	// Provider Settings
 	providerId: z.string(),

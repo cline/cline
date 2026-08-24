@@ -19,7 +19,7 @@
     },
     "apps/cli": {
       "name": "@cline/cli",
-      "version": "3.0.56",
+      "version": "3.0.57",
       "bin": {
         "cline": "src/index.ts",
       },
@@ -224,6 +224,7 @@
         "next": "16.2.11",
         "next-themes": "^0.4.6",
         "pino": "^10.3.1",
+        "posthog-node": "^5.8.0",
         "radix-ui": "^1.4.3",
         "react": "19.2.4",
         "react-day-picker": "9.13.2",
@@ -640,7 +641,7 @@
     },
     "sdk/packages/agents": {
       "name": "@cline/agents",
-      "version": "0.0.77",
+      "version": "0.0.79",
       "dependencies": {
         "@cline/llms": "workspace:*",
         "@cline/shared": "workspace:*",
@@ -649,7 +650,7 @@
     },
     "sdk/packages/core": {
       "name": "@cline/core",
-      "version": "0.0.77",
+      "version": "0.0.79",
       "dependencies": {
         "@cline/agents": "workspace:*",
         "@cline/llms": "workspace:*",
@@ -687,7 +688,7 @@
     },
     "sdk/packages/llms": {
       "name": "@cline/llms",
-      "version": "0.0.77",
+      "version": "0.0.79",
       "dependencies": {
         "@ai-sdk/amazon-bedrock": "^5.0.50",
         "@ai-sdk/anthropic": "^4.0.36",
@@ -703,6 +704,7 @@
         "@aws-sdk/credential-providers": "^3.922.0",
         "@cline/shared": "workspace:*",
         "@jerome-benoit/sap-ai-provider": "4.8.0",
+        "@langfuse/core": "5.10.1",
         "@langfuse/otel": "5.10.1",
         "@langfuse/vercel-ai-sdk": "5.9.1",
         "@openrouter/ai-sdk-provider": "^3",
@@ -733,14 +735,14 @@
     },
     "sdk/packages/sdk": {
       "name": "@cline/sdk",
-      "version": "0.0.77",
+      "version": "0.0.79",
       "dependencies": {
         "@cline/core": "workspace:*",
       },
     },
     "sdk/packages/shared": {
       "name": "@cline/shared",
-      "version": "0.0.77",
+      "version": "0.0.79",
       "dependencies": {
         "aws4fetch": "^1.0.20",
         "jsonrepair": "^3.13.2",

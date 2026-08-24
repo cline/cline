@@ -1,5 +1,14 @@
 # Cline CLI Changelog
 
+## 3.0.57
+
+- Added `cline hub drain`, which stops a hub from accepting new mutating work while it finishes what it is already running, and `cline hub drain --off` to lift it
+- Added `cline hub upgrade`, which drains the hub, waits for it to go idle, stops it, and starts a fresh one on the current build. An aborted upgrade lifts the drain again, so the hub is never left refusing work
+- Sessions now survive a hub restart. A reconnecting client replays the events it missed while disconnected, deduped by event id so nothing is delivered twice
+- Fixed tool calling being silently disabled for custom OpenAI-Compatible models whose capability list was inferred from convenience flags like `supportsReasoning`. The inferred list read as an authoritative denial and stripped every tool from the request
+- Langfuse traces now carry session and client identity for hub-backed and delegated-agent runs, instead of arriving without their session grouping or client version
+- Refreshed the model catalog, which updates model lists and pricing across providers and changes the resolved default model for several of them (DeepSeek, Crof, CrossModel, Eden AI, Kilo, and NanoGPT)
+
 ## 3.0.56
 
 - Models that support image generation can now produce media during a turn. The TUI saves each generated file to a temporary path and prints it so you can open it with your usual tools, HTML session exports embed images inline, and ACP clients receive generated images as image content
