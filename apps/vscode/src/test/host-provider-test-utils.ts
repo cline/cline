@@ -1,3 +1,4 @@
+import type sinon from "sinon"
 import { CommentReviewControllerCreator, EditPreviewCreator, HostProvider, WebviewProviderCreator } from "@/hosts/host-provider"
 import { HostBridgeClientProvider } from "@/hosts/host-provider-types"
 import { vscodeHostBridgeClient } from "@/hosts/vscode/hostbridge/client/host-grpc-client"
@@ -31,4 +32,14 @@ export function setVscodeHostProviderMock(options?: {
 		options?.extensionFsPath ?? "/mock/path/to/extension",
 		options?.globalStorageFsPath ?? "/mock/path/to/globalstorage",
 	)
+}
+
+/**
+ * Stubs HostProvider.workspace so code under test resolves the given paths as
+ * this window's workspace roots.
+ */
+export function stubWorkspacePaths(sandbox: sinon.SinonSandbox, paths: string[]): void {
+	sandbox.stub(HostProvider, "workspace").get(() => ({
+		getWorkspacePaths: async () => ({ paths }),
+	}))
 }

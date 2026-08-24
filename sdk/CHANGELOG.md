@@ -1,5 +1,11 @@
 # Cline SDK Changelog
 
+## 0.0.79
+
+- The hub's durable event log is now capped at 64 MiB on disk. Event envelopes carrying full session snapshots could previously accumulate to tens of gigabytes, since row and time retention alone did not bound file size and deletes never shrink a SQLite file. Oldest events are dropped first and the file is vacuumed to return the space, and pruning now also runs after every 16 MiB appended instead of waiting for the hourly sweep
+- Fixed `task.completed` telemetry being dropped for most interactive sessions. The event is now emitted from every session teardown path, exactly once per session
+- Refreshed the model catalog. Adds two providers (AgentRouter and Opper) and updates model lists and pricing across providers. The resolved default model changes for Aki.io and NanoGPT, so if you use one of those without pinning a model you will get a different default
+
 ## 0.0.78
 
 - The hub can now be drained and upgraded without losing work. A draining hub refuses new mutating work while it finishes what it is running, a durable event log lets a reconnecting client replay everything it missed, and durable runs are queued rather than dropped. Replayed events are deduped by event id, so an event that arrives on both the replay and the live stream is delivered once
