@@ -125,7 +125,14 @@ function workspacePathKey(
  * token: the slash menu hides same-named user commands, so expansion must
  * not hijack them either.
  */
-const BUILTIN_SLASH_COMMAND_NAMES = new Set(["fork", "handoff", "team"]);
+const BUILTIN_SLASH_COMMAND_NAMES = new Set(["fork", "team"]);
+
+/** /handoff is built-in only while its gate is on; when the feature is off a
+ * user-defined /handoff workflow owns the name and must expand normally. */
+function isBuiltinSlashCommand(name: string): boolean {
+	if (BUILTIN_SLASH_COMMAND_NAMES.has(name)) return true;
+	return name === "handoff" && isCloudHandoffEffectivelyEnabled();
+}
 
 /**
  * Expand a leading `/skill` or `/workflow` token into its configured
@@ -149,7 +156,7 @@ async function expandRuntimeSlashCommand(
 		return prompt;
 	}
 	const name = prompt.match(/^\/(\S+)/)?.[1]?.toLowerCase();
-	if (!name || BUILTIN_SLASH_COMMAND_NAMES.has(name)) {
+	if (!name || isBuiltinSlashCommand(name)) {
 		return prompt;
 	}
 	const service = createUserInstructionConfigService({
@@ -1909,19 +1916,23 @@ export function formatPendingHandoffVerificationError(
 	return `${error.message} Open the pending cloud workspace to inspect it, or delete it before retrying /handoff: ${dashboardUrl}`;
 }
 
+/** The full handoff gate: rollout flag, cloudAgents, and the user's Cloud
+ * Sessions opt-in — a handoff uploads the local transcript, so the rollout
+ * flag alone is not consent. */
+function isCloudHandoffEffectivelyEnabled(): boolean {
+	return (
+		isCloudHandoffEnabled() &&
+		isCloudAgentsEnabled() &&
+		readDesktopSettings().cloudSessionsEnabled
+	);
+}
+
 async function assertCloudHandoffAvailable(
 	ctx: SidecarContext,
 	sourceSessionId?: string,
 ): Promise<void> {
 	const flagEnabled = isCloudHandoffEnabled();
-	// A handoff uploads the local transcript to Cline Cloud, so the rollout
-	// flag alone is not consent: the user must also have opted in to Cloud
-	// sessions (the webview's effective gate plus the Settings toggle).
-	if (
-		flagEnabled &&
-		isCloudAgentsEnabled() &&
-		readDesktopSettings().cloudSessionsEnabled
-	) {
+	if (isCloudHandoffEffectivelyEnabled()) {
 		return;
 	}
 	// These gates block NEW handoffs only. A handoff that is already pending

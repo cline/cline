@@ -116,7 +116,8 @@ export function filterSlashCommandsForHandoff(
 	const builtinHandoff = BUILTIN_SLASH_COMMANDS.find(
 		(command) => command.name === "handoff",
 	);
-	const hasBuiltin = builtinHandoff !== undefined && commands.includes(builtinHandoff);
+	const hasBuiltin =
+		builtinHandoff !== undefined && commands.includes(builtinHandoff);
 	return commands.filter((command) => {
 		if (command.name !== "handoff") return true;
 		const isBuiltin = command === builtinHandoff;

@@ -32,6 +32,9 @@ export type CloudHandoffUiEntry =
 			status: "complete";
 			receipt: HandoffReceipt;
 			externalPresentation: boolean;
+			/** Follow-up queue outcome, carried so a lost RPC response can
+			 * still drive the definite-failure restoration. */
+			warningKind?: "unqueued" | "unconfirmed";
 	  };
 
 export type CloudHandoffUiState = Record<string, CloudHandoffUiEntry>;
@@ -50,6 +53,7 @@ export type CloudHandoffUiAction =
 			dashboardUrl?: string;
 			sessionId?: string;
 			destination?: "in_app" | "external";
+			warningKind?: "unqueued" | "unconfirmed";
 	  }
 	| {
 			type: "failed";
@@ -80,6 +84,7 @@ function completeHandoff(
 	receipt: HandoffReceipt,
 	externalPresentation: boolean,
 	pendingPrompt?: PendingHandoffPrompt,
+	warningKind?: "unqueued" | "unconfirmed",
 ): CloudHandoffUiState {
 	return {
 		...state,
@@ -87,6 +92,7 @@ function completeHandoff(
 			status: "complete",
 			receipt,
 			externalPresentation,
+			...(warningKind ? { warningKind } : {}),
 		},
 		...(!externalPresentation && pendingPrompt
 			? {
@@ -141,6 +147,8 @@ export function cloudHandoffUiReducer(
 						dashboardUrl: action.dashboardUrl,
 					},
 					action.destination === "external",
+					undefined,
+					action.warningKind,
 				);
 			}
 			if (

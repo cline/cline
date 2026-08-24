@@ -5,6 +5,25 @@ import {
 } from "./cloud-handoff-ui-state";
 
 describe("cloudHandoffUiReducer", () => {
+	it("carries the event's warningKind into the completed entry", () => {
+		const next = cloudHandoffUiReducer(
+			{},
+			{
+				type: "progress",
+				sourceSessionId: "local-1",
+				phase: "complete",
+				sessionId: "cloud-1",
+				dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
+				destination: "in_app",
+				warningKind: "unqueued",
+			},
+		);
+		expect(next["local-1"]).toMatchObject({
+			status: "complete",
+			warningKind: "unqueued",
+		});
+	});
+
 	it("keeps a source locked across pane remounts and preserves its latest phase", () => {
 		const creating = cloudHandoffUiReducer(
 			{},

@@ -301,6 +301,7 @@ export default function Home() {
 					dashboardUrl: progress.dashboardUrl,
 					sessionId: progress.sessionId,
 					destination: progress.destination,
+					warningKind: progress.warningKind,
 				});
 				// If the RPC dies mid-flight this event is the only carrier of a
 				// follow-up queue failure; surface it exactly like the RPC path.
@@ -1604,7 +1605,34 @@ function ChatThreadPane({
 				// The authoritative completion event may have landed while the
 				// RPC transport failed; the handoff succeeded, so a destructive
 				// "failed" toast would contradict the visible receipt.
-				if (handoffUiRef.current?.status === "complete") {
+				const completedEntry =
+					handoffUiRef.current?.status === "complete"
+						? handoffUiRef.current
+						: undefined;
+				if (completedEntry) {
+					// The event told the user their command was kept; honor that
+					// even though the RPC (the usual restoration driver) is gone.
+					const restoreCommand =
+						completedEntry.warningKind === "unqueued"
+							? nextCommand.trim() || undefined
+							: undefined;
+					if (
+						restoreCommand &&
+						shouldOpenHandoffInApp(
+							completedEntry.externalPresentation ? "external" : "in_app",
+							isThreadActive?.() ?? true,
+						)
+					) {
+						await Promise.resolve(
+							onOpenSessionById?.(completedEntry.receipt.targetSessionId, {
+								silent: true,
+								initialPromptDraft: restoreCommand,
+								...(sourceAttachments.length > 0
+									? { initialAttachments: sourceAttachments }
+									: {}),
+							}),
+						).catch(() => false);
+					}
 					toast({
 						title: "Handoff completed",
 						description:

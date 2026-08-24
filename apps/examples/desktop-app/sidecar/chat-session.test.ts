@@ -2921,6 +2921,42 @@ Follow the desktop send workflow instructions.`,
 		});
 	});
 
+	it("expands a user /handoff workflow while the feature gate is off", async () => {
+		const workspace = createWorkspaceWithSkill();
+		const workflowsDir = join(workspace, ".cline", "workflows");
+		writeFileSync(
+			join(workflowsDir, "handoff.md"),
+			`---
+name: handoff
+---
+Follow the user handoff workflow instructions.`,
+		);
+		const { ctx, send, sessionId } = createContext(workspace);
+
+		// Gate off (default in tests): the user's workflow owns /handoff.
+		await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "/handoff please",
+		});
+		expect(send).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				prompt: "Follow the user handoff workflow instructions. please",
+			}),
+		);
+
+		// Gate on: /handoff is built-in again and passes through untouched.
+		enableCloudHandoffGates();
+		await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "/handoff please",
+		});
+		expect(send).toHaveBeenLastCalledWith(
+			expect.objectContaining({ prompt: "/handoff please" }),
+		);
+	});
+
 	it("leaves built-in and unknown slash commands untouched", async () => {
 		const workspace = createWorkspaceWithSkill();
 		const { ctx, send, sessionId } = createContext(workspace);
