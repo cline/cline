@@ -15,6 +15,7 @@ import {
 import type { MessageWithMetadata } from "@cline/llms";
 import {
 	type AgentMode,
+	decodeJwtPayload,
 	getClineEnvironmentConfig,
 	type HubEventEnvelope,
 } from "@cline/shared";
@@ -52,6 +53,8 @@ const QUEUE_COMMAND_TIMEOUT_MS = 30_000;
 const CLOUD_ERROR_PREFIX = "CLOUD_SESSION_ERROR:";
 const MAX_BUFFERED_SYNC_EVENTS = 2_000;
 const MAX_SEEN_EVENT_IDS = 2_000;
+const CREATE_REQUEST_TITLE_PREFIX = "__cline_create_request__:";
+
 type FetchLike = (
 	input: string | URL | Request,
 	init?: RequestInit,
@@ -185,7 +188,6 @@ export class CloudQueueUnconfirmedError extends CloudSessionError {
 	}
 }
 
-
 function isTransientGitHubTokenVendFailure(error: unknown): boolean {
 	if (!(error instanceof CloudSessionError) || error.status !== 502)
 		return false;
@@ -213,6 +215,28 @@ type ApiResponse<T> = {
 
 function trimTrailingSlash(value: string): string {
 	return value.replace(/\/+$/, "");
+}
+
+function createRequestTitle(requestId: string): string {
+	return `${CREATE_REQUEST_TITLE_PREFIX}${requestId}`.slice(0, 255);
+}
+
+function isCreateRequestTitle(title: string | undefined): boolean {
+	return title?.startsWith(CREATE_REQUEST_TITLE_PREFIX) === true;
+}
+
+type CreationAuth = {
+	token: string;
+	subject?: string;
+};
+
+type RequestAuth = string | CreationAuth;
+
+function authSubject(token: string): string | undefined {
+	const payload = decodeJwtPayload(token.replace(/^workos:/, ""));
+	return typeof payload?.sub === "string" && payload.sub.trim()
+		? payload.sub.trim()
+		: undefined;
 }
 
 function waitForProvisioningPoll(signal: AbortSignal): Promise<void> {
@@ -286,26 +310,6 @@ export class CloudSessionApi {
 	private readonly appBaseUrl: string;
 	private readonly fetchImpl: FetchLike;
 	private readonly createTimeoutMs: number;
-	// Session ids already owned by a create() call in this process. The
-	// create API has no request-specific identifier, so timeout recovery
-	// matches by repo/model/branch/time; without claims, two identical
-	// overlapping requests could both adopt the same record and orphan the
-	// other sandbox.
-	private readonly claimedSessionIds = new Set<string>();
-	// Concurrent creates for the same repo/model/org: a session becomes
-	// visible in the list the moment the server starts provisioning it — long
-	// before the successful POST returns — so a recovery must wait for every
-	// peer's POST to settle (and record its claim) before adopting a listed
-	// session, in both directions. Each entry settles when its POST settles,
-	// never after its recovery, so waits cannot cycle. Branch is deliberately
-	// excluded from the key: a branchless create's recovery filter ignores
-	// branch, so branch-specific peers must be visible to it.
-	private createSequence = 0;
-	private readonly inFlightCreates = new Map<
-		string,
-		Map<number, Promise<void>>
-	>();
-
 	constructor(private readonly options: CloudSessionApiOptions) {
 		this.apiBaseUrl = trimTrailingSlash(options.apiBaseUrl);
 		this.appBaseUrl = trimTrailingSlash(options.appBaseUrl);
@@ -317,38 +321,67 @@ export class CloudSessionApi {
 		path: string,
 		init: RequestInit = {},
 		githubConnectUrl?: string,
-		authToken?: string,
+		auth?: RequestAuth,
 	): Promise<T> {
-		const token = authToken ?? (await this.options.getAuthToken());
-		if (!token?.trim()) {
-			throw new CloudSessionError(
-				"authentication_required",
-				"Sign in to Cline before starting a cloud session.",
-			);
+		let refreshed = false;
+		while (true) {
+			const token =
+				typeof auth === "string"
+					? auth
+					: (auth?.token ?? (await this.options.getAuthToken()));
+			if (!token?.trim()) {
+				throw new CloudSessionError(
+					"authentication_required",
+					"Sign in to Cline before starting a cloud session.",
+				);
+			}
+			const response = await this.fetchImpl(`${this.apiBaseUrl}${path}`, {
+				...init,
+				signal: init.signal ?? AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+				headers: {
+					Accept: "application/json",
+					Authorization: `Bearer ${token.trim()}`,
+					...(init.body ? { "Content-Type": "application/json" } : {}),
+					...init.headers,
+				},
+			});
+			const payload =
+				response.status === 204
+					? undefined
+					: await response.json().catch(() => undefined);
+			if (!response.ok) {
+				if (
+					response.status === 401 &&
+					typeof auth === "object" &&
+					!refreshed &&
+					(await this.refreshCreationAuth(auth))
+				) {
+					refreshed = true;
+					continue;
+				}
+				throw cloudErrorForResponse(
+					response.status,
+					payload,
+					this.appBaseUrl,
+					githubConnectUrl,
+				);
+			}
+			return (payload as ApiResponse<T> | undefined)?.data as T;
 		}
-		const response = await this.fetchImpl(`${this.apiBaseUrl}${path}`, {
-			...init,
-			signal: init.signal ?? AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-			headers: {
-				Accept: "application/json",
-				Authorization: `Bearer ${token.trim()}`,
-				...(init.body ? { "Content-Type": "application/json" } : {}),
-				...init.headers,
-			},
-		});
-		const payload =
-			response.status === 204
-				? undefined
-				: await response.json().catch(() => undefined);
-		if (!response.ok) {
-			throw cloudErrorForResponse(
-				response.status,
-				payload,
-				this.appBaseUrl,
-				githubConnectUrl,
-			);
+	}
+
+	private async refreshCreationAuth(auth: CreationAuth): Promise<boolean> {
+		if (!auth.subject) return false;
+		const freshToken = (await this.options.getAuthToken())?.trim();
+		if (
+			!freshToken ||
+			freshToken === auth.token ||
+			authSubject(freshToken) !== auth.subject
+		) {
+			return false;
 		}
-		return (payload as ApiResponse<T> | undefined)?.data as T;
+		auth.token = freshToken;
+		return true;
 	}
 
 	async list(organizationId?: string): Promise<CloudSessionRecord[]> {
@@ -357,7 +390,8 @@ export class CloudSessionApi {
 
 	private async listWithToken(
 		organizationId?: string,
-		authToken?: string,
+		auth?: RequestAuth,
+		preserveCreateRequestTitle = false,
 	): Promise<CloudSessionRecord[]> {
 		const query = organizationId?.trim()
 			? `?organizationId=${encodeURIComponent(organizationId.trim())}`
@@ -367,7 +401,7 @@ export class CloudSessionApi {
 				`/api/v1/session${query}`,
 				{},
 				undefined,
-				authToken,
+				auth,
 			)) ?? [];
 		// Normalize before anything touches the rows: one malformed record
 		// (missing repoContext/metadata) must not crash discovery or turn a
@@ -379,6 +413,10 @@ export class CloudSessionApi {
 			return [
 				{
 					...row,
+					title:
+						!preserveCreateRequestTitle && isCreateRequestTitle(row.title)
+							? undefined
+							: row.title,
 					repoContext:
 						row.repoContext && typeof row.repoContext === "object"
 							? row.repoContext
@@ -524,31 +562,23 @@ export class CloudSessionApi {
 		sandboxUrl: string;
 		cleanupAuthToken: string;
 	}> {
-		const creationAuthToken = (await this.options.getAuthToken())?.trim();
-		if (!creationAuthToken) {
+		const initialAuthToken = (await this.options.getAuthToken())?.trim();
+		if (!initialAuthToken) {
 			throw new CloudSessionError(
 				"authentication_required",
 				"Sign in to Cline before starting a cloud session.",
 			);
 		}
+		const creationAuth: CreationAuth = {
+			token: initialAuthToken,
+			subject: authSubject(initialAuthToken),
+		};
+		const recoveryTitle = createRequestTitle(
+			input.requestId?.trim() || randomUUID(),
+		);
 		const controller = new AbortController();
 		const timeout = setTimeout(() => controller.abort(), this.createTimeoutMs);
-		const requestedAt = Date.now();
-		const peerKey = [
-			input.repoUrl,
-			input.modelId,
-			input.organizationId?.trim() ?? "",
-		].join("\u0000");
-		const sequence = ++this.createSequence;
 		let createdSessionId = "";
-		let settlePost!: () => void;
-		const postSettled = new Promise<void>((resolve) => {
-			settlePost = resolve;
-		});
-		const peers =
-			this.inFlightCreates.get(peerKey) ?? new Map<number, Promise<void>>();
-		peers.set(sequence, postSettled);
-		this.inFlightCreates.set(peerKey, peers);
 		try {
 			const created = await this.request<{
 				sessionId: string;
@@ -561,6 +591,7 @@ export class CloudSessionApi {
 					body: JSON.stringify({
 						modelId: input.modelId,
 						repoUrl: input.repoUrl,
+						title: recoveryTitle,
 						...(input.branch?.trim() ? { branch: input.branch.trim() } : {}),
 						...(input.organizationId?.trim()
 							? { organizationId: input.organizationId.trim() }
@@ -571,7 +602,7 @@ export class CloudSessionApi {
 				input.organizationId?.trim()
 					? `${this.appBaseUrl}/dashboard/organization/integrations`
 					: undefined,
-				creationAuthToken,
+				creationAuth,
 			);
 			const sessionId = created?.sessionId?.trim();
 			if (!sessionId) {
@@ -580,25 +611,15 @@ export class CloudSessionApi {
 					"The cloud session service returned no session id.",
 				);
 			}
-			this.claimedSessionIds.add(sessionId);
 			createdSessionId = sessionId;
-			settlePost();
-			await this.persistHandoffOuterSession(
-				input,
-				sessionId,
-				creationAuthToken,
-			);
+			await this.persistHandoffOuterSession(input, sessionId, creationAuth);
 			if (created.status === "provisioning" || !created.sandboxUrl?.trim()) {
-				await this.waitUntilReady(
-					sessionId,
-					controller.signal,
-					creationAuthToken,
-				);
+				await this.waitUntilReady(sessionId, controller.signal, creationAuth);
 			}
 			return {
 				sessionId,
 				sandboxUrl: created.sandboxUrl?.trim() ?? "",
-				cleanupAuthToken: creationAuthToken,
+				cleanupAuthToken: creationAuth.token,
 			};
 		} catch (error) {
 			if (createdSessionId) {
@@ -609,7 +630,7 @@ export class CloudSessionApi {
 					// A terminally failed sandbox lingers in the account list
 					// otherwise; clean it up under the identity that created it.
 					try {
-						await this.delete(createdSessionId, creationAuthToken);
+						await this.deleteWithAuth(createdSessionId, creationAuth);
 					} catch (cleanupError) {
 						if (
 							!(
@@ -624,7 +645,6 @@ export class CloudSessionApi {
 							);
 						}
 					}
-					this.claimedSessionIds.delete(createdSessionId);
 					await input.handoff?.onOuterSessionRemoved?.(createdSessionId);
 				}
 				throw error;
@@ -640,39 +660,38 @@ export class CloudSessionApi {
 			const mayStillBeProvisioning =
 				controller.signal.aborted ||
 				!(error instanceof CloudSessionError) ||
-				(error.code === "request_failed" &&
+				(error instanceof CloudSessionError &&
+					error.code === "request_failed" &&
 					(error.status === undefined || error.status >= 500));
 			if (mayStillBeProvisioning) {
-				// This POST is settled; record that before waiting on peers so
-				// two failing peers cannot deadlock waiting on each other.
-				settlePost();
-				// Let known peer POSTs record their claims before recovery lists.
-				const awaited = new Set<number>([sequence]);
-				while (true) {
-					const pending = [...peers.entries()].filter(
-						([peerSequence]) => !awaited.has(peerSequence),
-					);
-					if (pending.length === 0) break;
-					for (const [peerSequence] of pending) {
-						awaited.add(peerSequence);
-					}
-					await Promise.allSettled(pending.map(([, settled]) => settled));
-				}
 				const requestedBranch = input.branch?.trim();
+				// The API has no idempotency header, so stamp the request id into
+				// the optional title and recover only that exact record. Config/time
+				// matching can steal another process's otherwise-identical session.
+				const listOnce = async () =>
+					(
+						await this.listWithToken(
+							input.organizationId ?? undefined,
+							creationAuth,
+							true,
+						)
+					).filter(
+						(session) =>
+							session.title === recoveryTitle &&
+							session.repoContext.repoUrl === input.repoUrl &&
+							session.metadata.modelId === input.modelId &&
+							(!requestedBranch ||
+								session.repoContext.branch === requestedBranch),
+					);
 				// Recovery must observe the same identity/scope that issued the
 				// create — the active account can change mid-provision. A failed
 				// list is NOT an empty list: treating it as empty would blind
 				// the ambiguity guard and let a retry provision a duplicate.
 				let recoveryListFailed = false;
-				const listOnce = async () =>
-					await this.listWithToken(
-						input.organizationId ?? undefined,
-						creationAuthToken,
-					);
 				// The list is eventually consistent with creates: an accepted
 				// POST may not be visible yet. For seed-destructive handoffs,
 				// re-list briefly before concluding nothing was created.
-				let listed: Awaited<ReturnType<typeof listOnce>> = [];
+				let candidates: CloudSessionRecord[] = [];
 				for (let attempt = 0; attempt < (input.handoff ? 3 : 1); attempt += 1) {
 					if (attempt > 0) {
 						await (
@@ -682,35 +701,13 @@ export class CloudSessionApi {
 						)(2_500);
 					}
 					try {
-						listed = await listOnce();
+						candidates = await listOnce();
 						recoveryListFailed = false;
-						if (listed.length > 0 || !input.handoff) break;
+						if (candidates.length > 0 || !input.handoff) break;
 					} catch {
 						recoveryListFailed = true;
 					}
 				}
-				const candidates = listed
-					.filter(
-						(session) =>
-							session.repoContext.repoUrl === input.repoUrl &&
-							session.metadata.modelId === input.modelId &&
-							(!requestedBranch ||
-								session.repoContext.branch === requestedBranch) &&
-							Date.parse(session.createdAt) >= requestedAt - 60_000,
-					)
-					.sort(
-						(left, right) =>
-							Date.parse(right.createdAt) - Date.parse(left.createdAt),
-					);
-				// A peer can register while auth or the list request is awaiting.
-				// If so, let it claim any row already present in this snapshot.
-				const latePeers = [...peers.entries()].filter(
-					([peerSequence]) => !awaited.has(peerSequence),
-				);
-				await Promise.allSettled(latePeers.map(([, settled]) => settled));
-				const unclaimedCandidates = candidates.filter(
-					(candidate) => !this.claimedSessionIds.has(candidate.id),
-				);
 				if (input.handoff && recoveryListFailed) {
 					throw new CloudSessionError(
 						"request_failed",
@@ -718,19 +715,18 @@ export class CloudSessionApi {
 						new URL("/agents", this.appBaseUrl).toString(),
 					);
 				}
-				if (input.handoff && unclaimedCandidates.length > 0) {
+				if (candidates.length > 1) {
 					throw new CloudSessionError(
 						"request_failed",
-						"Cloud session creation had an ambiguous result. Check Cline Cloud for the new workspace before retrying; it was not adopted because this client cannot prove it created it.",
-						new URL("/agents", this.appBaseUrl).toString(),
+						"Cloud session creation had an ambiguous result. Check your cloud session list before trying again.",
 					);
 				}
-				const recovered = this.claimOnlyUnclaimed(candidates);
+				const recovered = candidates[0];
 				if (recovered) {
 					await this.persistHandoffOuterSession(
 						input,
 						recovered.id,
-						creationAuthToken,
+						creationAuth,
 					);
 					if (
 						recovered.status === "provisioning" ||
@@ -745,7 +741,7 @@ export class CloudSessionApi {
 							await this.waitUntilReady(
 								recovered.id,
 								recoveryController.signal,
-								creationAuthToken,
+								creationAuth,
 							);
 						} finally {
 							clearTimeout(recoveryTimeout);
@@ -754,38 +750,37 @@ export class CloudSessionApi {
 					return {
 						sessionId: recovered.id,
 						sandboxUrl: recovered.sandboxUrl,
-						cleanupAuthToken: creationAuthToken,
+						cleanupAuthToken: creationAuth.token,
 					};
 				}
 			}
 			throw error;
 		} finally {
 			clearTimeout(timeout);
-			settlePost();
-			peers.delete(sequence);
-			if (peers.size === 0) {
-				this.inFlightCreates.delete(peerKey);
-			}
 		}
 	}
 
 	async waitUntilReady(
 		sessionId: string,
-		signal: AbortSignal = AbortSignal.timeout(CREATE_TIMEOUT_MS),
-		authToken?: string,
+		signal: AbortSignal,
+		authToken?: RequestAuth,
 	): Promise<void> {
 		while (!signal.aborted) {
 			let result:
 				| { sessionId?: string; status?: string; statusReason?: string }
 				| undefined;
 			try {
-				result = await this.status(sessionId, {
-					signal: AbortSignal.any([
-						signal,
-						AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-					]),
+				result = await this.request(
+					`/api/v1/session/${encodeURIComponent(sessionId)}/status`,
+					{
+						signal: AbortSignal.any([
+							signal,
+							AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+						]),
+					},
+					undefined,
 					authToken,
-				});
+				);
 			} catch (error) {
 				if (signal.aborted) throw error;
 				if (
@@ -817,33 +812,14 @@ export class CloudSessionApi {
 		throw signal.reason;
 	}
 
-	/**
-	 * Selects and claims a recovery candidate in one synchronous step. No
-	 * awaits may ever separate the unclaimed check from the claim itself:
-	 * that atomicity (per event-loop continuation) is what guarantees two
-	 * concurrent recoveries can never adopt the same session record.
-	 */
-	private claimOnlyUnclaimed(
-		candidates: CloudSessionRecord[],
-	): CloudSessionRecord | undefined {
-		const unclaimed = candidates.filter(
-			(candidate) => !this.claimedSessionIds.has(candidate.id),
-		);
-		if (unclaimed.length > 1) {
-			throw new CloudSessionError(
-				"request_failed",
-				"Cloud session creation had an ambiguous result. Check your cloud session list before trying again.",
-			);
-		}
-		const candidate = unclaimed[0];
-		if (candidate) this.claimedSessionIds.add(candidate.id);
-		return candidate;
+	async delete(sessionId: string, authToken?: string): Promise<void> {
+		await this.deleteWithAuth(sessionId, authToken);
 	}
 
 	private async persistHandoffOuterSession(
 		input: CreateCloudSessionInput,
 		sessionId: string,
-		authToken: string,
+		auth: CreationAuth,
 	): Promise<void> {
 		const persist = input.handoff?.onOuterSessionCreated;
 		if (!persist) return;
@@ -851,7 +827,7 @@ export class CloudSessionApi {
 			await persist(sessionId);
 		} catch (persistenceError) {
 			try {
-				await this.delete(sessionId, authToken);
+				await this.deleteWithAuth(sessionId, auth);
 			} catch (cleanupError) {
 				if (
 					!(
@@ -870,17 +846,19 @@ export class CloudSessionApi {
 					);
 				}
 			}
-			this.claimedSessionIds.delete(sessionId);
 			throw persistenceError;
 		}
 	}
 
-	async delete(sessionId: string, authToken?: string): Promise<void> {
+	private async deleteWithAuth(
+		sessionId: string,
+		auth?: RequestAuth,
+	): Promise<void> {
 		await this.request(
 			`/api/v1/session/${encodeURIComponent(sessionId)}`,
 			{ method: "DELETE" },
 			undefined,
-			authToken,
+			auth,
 		);
 	}
 
@@ -1719,7 +1697,10 @@ export class CloudSessionManager {
 
 	/** Waits for an adopted pending handoff target before opening its Hub proxy. */
 	async waitUntilReady(outerSessionId: string): Promise<void> {
-		await this.options.api.waitUntilReady(outerSessionId);
+		await this.options.api.waitUntilReady(
+			outerSessionId,
+			AbortSignal.timeout(CREATE_TIMEOUT_MS),
+		);
 		await this.refreshKnownSession(outerSessionId);
 	}
 
@@ -2066,10 +2047,13 @@ export class CloudSessionManager {
 			throw new Error("Cloud Hub session was not initialized");
 		}
 		await this.ensureAttached(connection);
-		await this.updateModel(connection, modelId);
 		if (!connection.transcriptKnown) {
 			await this.rehydrateAfterTransportDrop(outerSessionId, connection);
 		}
+		// Rehydration attaches again and may reveal a model change made by a
+		// different client. Enforce this send's selected model only after the
+		// final authoritative snapshot.
+		await this.updateModel(connection, modelId);
 		const live = this.ctx.liveSessions.get(outerSessionId);
 		const delivery = requestedDelivery ?? (live?.busy ? "queue" : undefined);
 		const promptOccurrencesBeforeSend = countPromptOccurrences(
@@ -2258,6 +2242,7 @@ export class CloudSessionManager {
 				!Array.isArray(sessionReply.payload.session)
 					? (sessionReply.payload.session as JsonRecord)
 					: undefined;
+			this.applySessionModel(connection, session);
 			const live = this.ctx.liveSessions.get(outerSessionId);
 			const baselineMessages = live?.messages ?? [];
 			const runtimeStatus = String(
@@ -2735,7 +2720,10 @@ export class CloudSessionManager {
 			let socketAttempt = 0;
 			const client = this.createHubClient({
 				url: toWebSocketUrl(this.options.apiBaseUrl, outerSessionId),
-				clientId: `code-cloud-${outerSessionId}`,
+				// Hub registrations are keyed globally by client id. A per-process
+				// suffix prevents one viewer from replacing another viewer of the
+				// same cloud session and unregistering it on close.
+				clientId: `code-cloud-${outerSessionId}-${randomUUID()}`,
 				clientType: "code-cloud-sidecar",
 				displayName: "Cline cloud session",
 				workspaceRoot: CLOUD_WORKSPACE_ROOT,
@@ -2781,9 +2769,6 @@ export class CloudSessionManager {
 				seenEventIdOrder: [],
 				unsubscribe: () => {},
 			};
-			connection.unsubscribe = client.subscribe((event) => {
-				this.handleEvent(outerSessionId, connection, event);
-			});
 			try {
 				await client.connect();
 				if (this.disposed) {
@@ -2813,6 +2798,7 @@ export class CloudSessionManager {
 				const innerSessionId = String(newest?.sessionId ?? "").trim();
 				if (innerSessionId) {
 					connection.innerSessionId = innerSessionId;
+					this.subscribeToInnerSession(outerSessionId, connection);
 					const modelId = sessionRowModelId(newest);
 					if (modelId) this.applyModel(connection, modelId);
 					await this.ensureAttached(connection);
@@ -2979,6 +2965,8 @@ export class CloudSessionManager {
 			throw new Error("Cloud Hub did not return an inner session id");
 		}
 		connection.innerSessionId = innerSessionId;
+		this.subscribeToInnerSession(connection.remote.id, connection);
+		this.applySessionModel(connection, session);
 		// Seeded content is authoritative only after a strict session.messages
 		// read-back verifies that the pod persisted initialMessages.
 		connection.transcriptKnown = !handoffSeed;
@@ -3025,6 +3013,13 @@ export class CloudSessionManager {
 		connection: CloudConnection,
 		event: HubEventEnvelope,
 	): void {
+		if (
+			event.event === "session.attached" ||
+			event.event === "session.updated" ||
+			event.event === "session.created"
+		) {
+			this.applySessionModel(connection, event.payload?.session);
+		}
 		if (event.event === "approval.requested") {
 			this.handleApprovalRequested(outerSessionId, connection, event);
 			return;
@@ -3160,11 +3155,36 @@ export class CloudSessionManager {
 		if (!connection.innerSessionId) {
 			return;
 		}
-		await connection.client.command(
+		const reply = await connection.client.command(
 			"session.attach",
 			{ sessionId: connection.innerSessionId },
 			connection.innerSessionId,
 		);
+		this.applySessionModel(connection, reply.payload?.session);
+	}
+
+	private subscribeToInnerSession(
+		outerSessionId: string,
+		connection: CloudConnection,
+	): void {
+		const innerSessionId = connection.innerSessionId;
+		if (!innerSessionId) return;
+		connection.unsubscribe();
+		connection.unsubscribe = connection.client.subscribe(
+			(event) => this.handleEvent(outerSessionId, connection, event),
+			{ sessionId: innerSessionId },
+		);
+	}
+
+	private applySessionModel(
+		connection: CloudConnection,
+		session: unknown,
+	): void {
+		if (!session || typeof session !== "object" || Array.isArray(session)) {
+			return;
+		}
+		const modelId = sessionRowModelId(session as JsonRecord);
+		if (modelId) this.applyModel(connection, modelId);
 	}
 
 	private async disposeConnection(outerSessionId: string): Promise<void> {
