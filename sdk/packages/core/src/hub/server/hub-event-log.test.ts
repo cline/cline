@@ -114,7 +114,8 @@ describe("HubEventLogStore", () => {
 			"hub-events.db",
 		);
 		const log = new HubEventLogStore({ dbPath, maxTotalBytes: 256 * 1024 });
-		const bigText = "x".repeat(64 * 1024);
+		// Multibyte text: the budget must count UTF-8 bytes, not characters.
+		const bigText = "文".repeat(64 * 1024);
 		for (let index = 0; index < 32; index += 1) {
 			log.append(envelope("session.updated", "s1", { text: bigText }));
 		}

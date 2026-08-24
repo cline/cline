@@ -113,7 +113,7 @@ export class HubEventLogStore {
 			typeof rowid === "number" || typeof rowid === "bigint"
 				? Number(rowid)
 				: this.lastSequence();
-		this.appendedBytesSincePrune += envelopeJson.length;
+		this.appendedBytesSincePrune += Buffer.byteLength(envelopeJson);
 		if (this.appendedBytesSincePrune >= PRUNE_EVERY_APPENDED_BYTES) {
 			this.appendedBytesSincePrune = 0;
 			this.prune();
@@ -192,7 +192,7 @@ export class HubEventLogStore {
 				.prepare(
 					`DELETE FROM hub_events WHERE sequence <= (
 						SELECT sequence FROM (
-							SELECT sequence, SUM(LENGTH(envelope_json)) OVER (
+							SELECT sequence, SUM(LENGTH(CAST(envelope_json AS BLOB))) OVER (
 								ORDER BY sequence DESC
 								ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
 							) AS newer_bytes FROM hub_events
