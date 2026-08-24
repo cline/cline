@@ -302,7 +302,11 @@ export function createRetryEmptyResponseMiddleware(
 			// tokens nobody reads (and a local server keeps a slot busy).
 			// `cancelController` also cuts the backoff sleeps short so a
 			// cancelled pump exits promptly instead of re-dialing later.
-			let activeReader: ReadableStreamDefaultReader<LanguageModelV4StreamPart> | null =
+			// Structurally typed (cancel is all we use): naming the global
+			// ReadableStreamDefaultReader here breaks downstream consumers that
+			// typecheck these sources under a different streams lib (Bun's
+			// global reader has readMany, node:stream/web's does not).
+			let activeReader: { cancel(reason?: unknown): Promise<void> } | null =
 				null;
 			const cancelController = new AbortController();
 			const cancelled = () => cancelController.signal.aborted;
