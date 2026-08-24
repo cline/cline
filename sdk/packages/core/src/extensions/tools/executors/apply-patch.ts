@@ -7,7 +7,6 @@
  */
 
 import * as fs from "node:fs/promises";
-import * as os from "node:os";
 import * as path from "node:path";
 import type { AgentToolContext } from "@cline/shared";
 import type { ApplyPatchInput } from "../schemas";
@@ -21,6 +20,7 @@ import {
 	PatchParser,
 	type PatchWarning,
 } from "./apply-patch-parser";
+import { normalizeNewFileLineEndings } from "./line-endings";
 
 export interface PatchFileChange {
 	type: PatchActionType;
@@ -233,14 +233,7 @@ function patchToChanges(
 				}
 				changes[filePath] = {
 					type: PatchActionType.ADD,
-					// Models emit LF-only text, and an added file has no EOL
-					// of its own to preserve: use CRLF on Windows unless the
-					// content already chose its endings
-					// (github.com/cline/cline/issues/13504).
-					newContent:
-						os.EOL === "\r\n" && !action.newFile.includes("\r")
-							? action.newFile.replaceAll("\n", "\r\n")
-							: action.newFile,
+					newContent: normalizeNewFileLineEndings(action.newFile),
 				};
 				break;
 			case PatchActionType.UPDATE:

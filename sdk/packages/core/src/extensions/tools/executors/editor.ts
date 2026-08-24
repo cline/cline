@@ -5,11 +5,11 @@
  */
 
 import * as fs from "node:fs/promises";
-import * as os from "node:os";
 import * as path from "node:path";
 import type { AgentToolContext } from "@cline/shared";
 import type { EditFileInput } from "../schemas";
 import type { EditorExecutor } from "../types";
+import { normalizeNewFileLineEndings } from "./line-endings";
 
 /**
  * Options for the editor executor
@@ -155,14 +155,9 @@ async function createFile(
 	encoding: BufferEncoding,
 ): Promise<string> {
 	await fs.mkdir(path.dirname(filePath), { recursive: true });
-	// Models emit LF-only text, and a new file has no EOL of its own to
-	// preserve: use CRLF on Windows unless the content already chose its
-	// endings (github.com/cline/cline/issues/13504).
-	const content =
-		os.EOL === "\r\n" && !fileText.includes("\r")
-			? fileText.replaceAll("\n", "\r\n")
-			: fileText;
-	await fs.writeFile(filePath, content, { encoding });
+	await fs.writeFile(filePath, normalizeNewFileLineEndings(fileText), {
+		encoding,
+	});
 	return `File created successfully at: ${filePath}`;
 }
 
