@@ -49,32 +49,34 @@ use the pixel backend instead of Peekaboo.
 
 ### Background control on macOS
 
-Peekaboo desktop control is background-only by default. The plugin blocks app
-and window focus, foreground input, real-pointer movement, and
-process-targeted keyboard delivery, because a process target does not identify
-which field currently owns keyboard focus. `space` and `dock` allow only their
-`list` actions (no Space switches, cross-Space window moves, or Dock
-mutation). Prefer `see` or `inspect_ui`, then use `set_value` or
-`perform_action` on accessibility elements; `perform_action` accepts only the
-non-focusing accessibility actions `AXPress`, `AXConfirm`, `AXCancel`,
-`AXIncrement`, and `AXDecrement`. Element clicks and scrolls require both an
-element and its originating snapshot. Image capture must use
+Peekaboo 4.2.2's MCP server and the plugin policy are background-only. The
+plugin blocks app, window, menu, dialog, Space, and Dock mutations; foreground
+input; real-pointer movement; generic accessibility actions; clipboard access;
+and unbound raw key or chord delivery. `app`, `window`, `space`, `dock`, and
+`menu` allow only their `list` actions.
+
+Use `inspect_ui` with `web_focus: false`, then bind every `click`, `scroll`,
+`set_value`, and `type` to the explicit snapshot it returns. Typing also
+requires the target element ID. Clicks must be single primary-button element
+actions. Scrolls must target an element with
+`smooth: false` and `delay: 0`; Peekaboo then uses its background-only
+Accessibility or exact-window route. Use `verify_state` without its optional
+final screenshot for stable semantic verification. Image capture must use
 `capture_focus: "background"`, `format: "data"`, and an explicit
-`max_dimension` no greater than 1,568; `see` captures must not request a
-non-background focus and honor the same `max_dimension` bound. All dialog
-commands are blocked because Peekaboo auto-focuses their target; `inspect_ui`
-can inspect dialogs without that focus path.
+`max_dimension` no greater than 1,568. `see` is not exposed; keeping observation
+split between non-focusing `inspect_ui` and bounded `image` avoids implicit web
+focus and oversized screenshots.
 
 Some applications do not accept background input. If foreground control is
-essential, explain why and get the user's approval first. The user can then
-enable it for that Cline process:
+essential, stop and explain why. The user must explicitly select the portable
+pixel backend for a new Cline process:
 
 ```bash
-CLINE_COMPUTER_USE_ALLOW_FOREGROUND=true cline
+CLINE_COMPUTER_USE_BACKEND=portable cline
 ```
 
-This escape hatch permits the model to activate applications and move the real
-macOS pointer for that session.
+The portable backend controls the real macOS pointer and keyboard and can take
+over the foreground session. The plugin never switches to it silently.
 
 ## Tools
 
@@ -82,14 +84,15 @@ Browser tools are exposed under `computer-use-browser` and desktop tools under
 `computer-use-desktop`. Distinct namespaces let the agent choose the appropriate
 backend and use both during tasks that cross the browser/desktop boundary.
 Playwright's `browser_run_code_unsafe` (RCE-equivalent server-process code
-execution) and `browser_file_upload` (absolute-path local file read and upload)
-are hard-blocked in the plugin's `beforeTool` hook.
+execution), `browser_file_upload`, and `browser_drop` (local workspace/output
+file reads sent to a page) are hard-blocked in the plugin's `beforeTool` hook.
 
-On macOS, the plugin exposes Peekaboo's bounded native UI tools, including
-`permissions`, `see`, `inspect_ui`, `click`, `type`, `app`, and `window`.
-Nested AI, browser, video capture, and clipboard tools are blocked by a
-fail-closed allowlist. The allowlisted capture tools cannot invoke nested AI or
-write to an arbitrary path.
+On macOS, the plugin exposes only Peekaboo's bounded background UI tools:
+`permissions`, `inspect_ui`, `image`, `click`, `scroll`, `set_value`, `type`,
+`verify_state`, and the read-only list modes of `app`, `window`, `menu`, `space`,
+and `dock`. Nested AI, browser, video capture, clipboard, raw key, pointer,
+generic action, dialog, and long-sleep tools are blocked by a fail-closed
+allowlist. Capture tools cannot invoke nested AI or write to an arbitrary path.
 
 On Windows, Linux/X11, or macOS with the portable override, it exposes:
 

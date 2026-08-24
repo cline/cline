@@ -17,10 +17,8 @@ export type ComputerUseBackend = "peekaboo" | "portable";
 export const COMPUTER_USE_BROWSER_SERVER_NAME = "computer-use-browser";
 export const COMPUTER_USE_DESKTOP_SERVER_NAME = "computer-use-desktop";
 export const COMPUTER_USE_MCP_TIMEOUT_SECONDS = 60;
-export const COMPUTER_USE_ALLOW_FOREGROUND_ENV =
-	"CLINE_COMPUTER_USE_ALLOW_FOREGROUND";
 export const PLAYWRIGHT_MCP_VERSION = "0.0.78";
-export const PEEKABOO_VERSION = "3.9.8";
+export const PEEKABOO_VERSION = "4.2.2";
 export const PEEKABOO_MCP_ARGS = [
 	"-y",
 	`@steipete/peekaboo@${PEEKABOO_VERSION}`,
@@ -30,7 +28,6 @@ export const PEEKABOO_MCP_ARGS = [
 ] as const;
 export const PEEKABOO_MCP_ENV = {
 	PEEKABOO_CAPTURE_ENGINE: "classic",
-	PEEKABOO_ALLOW_LEGACY_CAPTURE: "true",
 } as const;
 export const PLAYWRIGHT_MCP_ARGS = [
 	"-y",
@@ -51,37 +48,34 @@ export const PLAYWRIGHT_MCP_ARGS = [
 export const PLAYWRIGHT_BLOCKED_TOOL_NAMES = [
 	"browser_run_code_unsafe",
 	"browser_file_upload",
+	"browser_drop",
 ] as const;
 export const PEEKABOO_ALLOWED_TOOL_NAMES = [
 	"app",
 	"click",
-	"dialog",
 	"dock",
-	"drag",
-	"hotkey",
 	"image",
 	"inspect_ui",
-	"list",
 	"menu",
-	"move",
-	"paste",
-	"perform_action",
 	"permissions",
 	"scroll",
-	"see",
 	"set_value",
-	"sleep",
 	"space",
-	"swipe",
 	"type",
+	"verify_state",
 	"window",
 ] as const;
-export const PEEKABOO_ALLOWED_AX_ACTIONS = [
-	"AXPress",
-	"AXConfirm",
-	"AXCancel",
-	"AXIncrement",
-	"AXDecrement",
+export const PORTABLE_COMPUTER_USE_TOOL_NAMES = [
+	"computer_environment",
+	"computer_list_displays",
+	"computer_screenshot",
+	"computer_cursor_position",
+	"computer_move",
+	"computer_click",
+	"computer_drag",
+	"computer_scroll",
+	"computer_type",
+	"computer_key",
 ] as const;
 
 const computerUseBrowserToolPrefix = `${COMPUTER_USE_BROWSER_SERVER_NAME}__`;
@@ -93,6 +87,11 @@ const blockedPlaywrightTools = new Set(
 );
 const allowedPeekabooTools = new Set(
 	PEEKABOO_ALLOWED_TOOL_NAMES.map(
+		(name) => `${computerUseDesktopToolPrefix}${name}`,
+	),
+);
+const portableComputerUseTools = new Set(
+	PORTABLE_COMPUTER_USE_TOOL_NAMES.map(
 		(name) => `${computerUseDesktopToolPrefix}${name}`,
 	),
 );
@@ -157,7 +156,7 @@ function backgroundOnlyReason(detail: string): {
 } {
 	return {
 		skip: true,
-		reason: `Blocked background-only macOS computer use: ${detail} Use direct accessibility actions such as set_value or perform_action instead. If foreground control is essential, explain why and ask the user to restart Cline with ${COMPUTER_USE_ALLOW_FOREGROUND_ENV}=true.`,
+		reason: `Blocked background-only macOS computer use: ${detail} Use inspect_ui followed by a snapshot-bound click, scroll, set_value, or element-targeted type instead. If foreground control is essential, stop and explain that the user must explicitly select the portable backend for a new Cline process.`,
 	};
 }
 
@@ -171,16 +170,9 @@ function blockedPeekabooCapabilityReason(detail: string): {
 	};
 }
 
-export function isForegroundComputerUseAllowed(
-	value = process.env[COMPUTER_USE_ALLOW_FOREGROUND_ENV],
-): boolean {
-	return value === "1" || value?.toLowerCase() === "true";
-}
-
 export function enforcePeekabooBackgroundPolicy(
 	toolName: string,
 	input: unknown,
-	allowForeground = false,
 ): { skip: true; reason: string } | undefined {
 	if (!toolName.startsWith(computerUseDesktopToolPrefix)) {
 		return undefined;
@@ -190,20 +182,16 @@ export function enforcePeekabooBackgroundPolicy(
 	const args = inputRecord(input);
 
 	// These arguments expand the allowlisted image tool into nested AI or an
-	// arbitrary filesystem write. Keep them blocked even in foreground mode.
+	// arbitrary filesystem write. Keep them blocked at the hook boundary.
 	if (name === "image" && hasInputTarget(args, ["question"])) {
 		return blockedPeekabooCapabilityReason(
 			"image.question invokes Peekaboo's nested AI analysis.",
 		);
 	}
-	if ((name === "image" || name === "see") && hasInputTarget(args, ["path"])) {
+	if (name === "image" && hasInputTarget(args, ["path"])) {
 		return blockedPeekabooCapabilityReason(
-			`${name}.path writes a screenshot to an arbitrary filesystem path.`,
+			"image.path writes a screenshot to an arbitrary filesystem path.",
 		);
-	}
-
-	if (allowForeground) {
-		return undefined;
 	}
 
 	if (args.foreground === true || args.background === false) {
@@ -219,23 +207,28 @@ export function enforcePeekabooBackgroundPolicy(
 
 	switch (name) {
 		case "app":
-			if (
-				["launch", "relaunch", "focus", "switch", "unhide"].includes(
-					String(args.action),
-				)
-			) {
+			if (args.action !== "list") {
 				return backgroundOnlyReason(
-					`app action '${String(args.action)}' can activate or reveal an application. Ask the user to open the app, or use app list and target an already-running app.`,
+					`app action '${String(args.action)}' can activate, hide, or terminate an application. Only app list is allowed.`,
 				);
 			}
 			break;
 		case "window":
-			if (args.action === "focus") {
-				return backgroundOnlyReason("window focus would steal focus.");
+			if (args.action !== "list") {
+				return backgroundOnlyReason(
+					`window action '${String(args.action)}' can focus, close, move, resize, minimize, restore, or maximize a window. Only window list is allowed.`,
+				);
+			}
+			break;
+		case "menu":
+			if (args.action !== "list") {
+				return backgroundOnlyReason(
+					`menu action '${String(args.action)}' can execute an arbitrary application command. Only menu list is allowed.`,
+				);
 			}
 			break;
 		case "space":
-			if (args.action !== "list" || args.follow === true) {
+			if (args.action !== "list") {
 				return backgroundOnlyReason(
 					`space action '${String(args.action)}' can switch Spaces or move windows across them, replacing or disrupting the user's current desktop. Only space list is allowed.`,
 				);
@@ -248,25 +241,17 @@ export function enforcePeekabooBackgroundPolicy(
 				);
 			}
 			break;
-		case "perform_action":
+		case "click":
 			if (
-				typeof args.action !== "string" ||
-				!PEEKABOO_ALLOWED_AX_ACTIONS.includes(
-					args.action as (typeof PEEKABOO_ALLOWED_AX_ACTIONS)[number],
-				)
+				args.right === true ||
+				args.double === true ||
+				args.middle === true ||
+				args.triple === true
 			) {
 				return backgroundOnlyReason(
-					`perform_action '${String(args.action)}' is not an allowlisted accessibility action; actions such as AXRaise or AXShowMenu can take focus or open foreground UI. Allowed: ${PEEKABOO_ALLOWED_AX_ACTIONS.join(", ")}.`,
+					"background click supports only a single primary-button accessibility action; other click modes can open foreground UI or cannot be delivered faithfully.",
 				);
 			}
-			break;
-		case "move":
-		case "drag":
-		case "swipe":
-			return backgroundOnlyReason(
-				`${name} moves the real macOS pointer and cannot run unobtrusively in the background.`,
-			);
-		case "click":
 			if (
 				!hasInputTarget(args, ["on"]) ||
 				!hasInputTarget(args, ["snapshot"])
@@ -276,19 +261,46 @@ export function enforcePeekabooBackgroundPolicy(
 				);
 			}
 			break;
-		case "type":
-		case "hotkey":
-		case "paste":
-			return backgroundOnlyReason(
-				`${name} sends keyboard events to a process's current focused element, which may not be the element the model inspected.`,
-			);
 		case "scroll":
+			if (
+				!hasInputTarget(args, ["on"]) ||
+				!hasInputTarget(args, ["snapshot"]) ||
+				args.smooth === true ||
+				(typeof args.delay === "number" && args.delay !== 0)
+			) {
+				return backgroundOnlyReason(
+					"scroll requires an element and explicit fresh snapshot, smooth=false, and delay=0 so Peekaboo uses its background-only accessibility or exact-window route.",
+				);
+			}
+			break;
+		case "set_value":
+			if (!hasInputTarget(args, ["snapshot"])) {
+				return backgroundOnlyReason(
+					"set_value requires an explicit snapshot so its element cannot resolve against the user's current foreground app.",
+				);
+			}
+			break;
+		case "type":
 			if (
 				!hasInputTarget(args, ["on"]) ||
 				!hasInputTarget(args, ["snapshot"])
 			) {
 				return backgroundOnlyReason(
-					"scroll requires both an accessibility element target and the snapshot that produced it.",
+					"type requires both an accessibility element target and an explicit fresh exact-window snapshot so delivery cannot drift to another field or app.",
+				);
+			}
+			break;
+		case "verify_state":
+			if (args.final_screenshot === true) {
+				return backgroundOnlyReason(
+					"verify_state final_screenshot is disabled; use the bounded image tool when visual verification is required.",
+				);
+			}
+			break;
+		case "inspect_ui":
+			if (args.web_focus === true) {
+				return backgroundOnlyReason(
+					"inspect_ui web_focus=true may press embedded web content. Keep web_focus false for non-focusing inspection.",
 				);
 			}
 			break;
@@ -312,35 +324,10 @@ export function enforcePeekabooBackgroundPolicy(
 				);
 			}
 			break;
-		case "see":
-			if (
-				args.capture_focus !== undefined &&
-				args.capture_focus !== "background"
-			) {
-				return backgroundOnlyReason(
-					"see must not request non-background capture focus, which can activate the target application.",
-				);
-			}
-			if (
-				typeof args.max_dimension === "number" &&
-				args.max_dimension > 1_568
-			) {
-				return backgroundOnlyReason(
-					"see max_dimension must be 1,568 pixels or less to preserve the model's coordinate space.",
-				);
-			}
-			break;
-		case "dialog":
-			return backgroundOnlyReason(
-				"dialog commands auto-focus the target application. Use inspect_ui to inspect dialogs without taking focus.",
-			);
 	}
 
 	return undefined;
 }
-
-let backend: ComputerUseBackend | undefined;
-let foregroundComputerUseAllowed = false;
 
 const plugin: AgentPlugin = {
 	name: "computer-use",
@@ -349,8 +336,7 @@ const plugin: AgentPlugin = {
 	},
 
 	setup(api) {
-		backend = resolveComputerUseBackend();
-		foregroundComputerUseAllowed = isForegroundComputerUseAllowed();
+		const backend = resolveComputerUseBackend();
 
 		api.registerMcpServer({
 			name: COMPUTER_USE_BROWSER_SERVER_NAME,
@@ -380,7 +366,7 @@ const plugin: AgentPlugin = {
 				timeoutSeconds: COMPUTER_USE_MCP_TIMEOUT_SECONDS,
 				metadata: {
 					description:
-						"Native macOS screenshots, accessibility inspection, and UI input",
+						"Native background-only macOS screenshots, accessibility inspection, and UI input",
 					homepage: "https://github.com/steipete/Peekaboo",
 					platform: "darwin",
 					version: PEEKABOO_VERSION,
@@ -417,23 +403,12 @@ const plugin: AgentPlugin = {
 					? [
 							"Call permissions before the first desktop action.",
 							"Peekaboo runs locally with its classic CoreGraphics capture engine to avoid ScreenCaptureKit stalls.",
-							...(foregroundComputerUseAllowed
-								? [
-										"Foreground macOS control was explicitly enabled for this Cline process. Prefer background actions and ask immediately before taking focus or moving the real pointer.",
-									]
-								: [
-										"Keep macOS desktop work in the background. Do not focus, switch, launch, relaunch, or unhide apps; focus windows; switch Spaces; move the real pointer; request foreground input; mutate dialogs; or send keyboard events.",
-										"Use app list to find already-running apps, then inspect_ui or see and use set_value or perform_action (allowed accessibility actions: AXPress, AXConfirm, AXCancel, AXIncrement, AXDecrement). space and dock support only their list actions. Element clicks and scrolls must include both an element target and the snapshot that produced it. Image captures must set capture_focus='background', format='data', and an explicit max_dimension no greater than 1,568; see captures must not request non-background focus.",
-									]),
-							...(foregroundComputerUseAllowed
-								? [
-										"Prefer inspect_ui or see followed by element-ID actions; use set_value for editable accessibility elements and raw coordinates only when accessibility data is insufficient.",
-									]
-								: [
-										"Prefer inspect_ui or see followed by direct accessibility actions. Raw coordinates and synthesized keyboard input are unavailable in background-only mode.",
-									]),
-							"After changing the UI, use inspect_ui or see again to verify the result.",
-							"Do not use Peekaboo's agent, analyze, browser, capture, or clipboard tools.",
+							"Peekaboo's MCP server and this plugin are background-only. Do not request foreground input, switch Spaces, move the real pointer, send unbound raw key or chord events, or mutate apps, windows, menus, dialogs, or the Dock outside the bounded actions below.",
+							"Use app or window list to find an already-running target, then inspect_ui with web_focus=false. Bind every click, scroll, set_value, and type action to the explicit snapshot returned by that inspection; type also requires the target element ID. Click supports only a single primary-button element action. Scroll must target an element with smooth=false and delay=0. app, window, space, dock, and menu support only list. Use verify_state without final_screenshot for stable semantic verification.",
+							"For screenshots, use image with capture_focus='background', format='data', and an explicit max_dimension no greater than 1,568. Raw coordinates, see, generic accessibility actions, clipboard access, and unbound raw key or chord input are unavailable in background-only mode.",
+							"If a task truly needs foreground mouse or keyboard control, stop and explain that the user must restart Cline with CLINE_COMPUTER_USE_BACKEND=portable; never switch modes silently.",
+							"After changing the UI, use inspect_ui again to verify the result.",
+							"Do not use Peekaboo's agent, analyze, browser, capture, clipboard, action, press, paste, move, or drag tools.",
 						]
 					: [
 							"Call computer_environment before the first desktop action, then take a screenshot.",
@@ -453,21 +428,20 @@ const plugin: AgentPlugin = {
 			if (!isAllowedPlaywrightTool(toolCall.toolName)) {
 				return {
 					skip: true,
-					reason: `${toolCall.toolName} is blocked by the computer-use plugin because it can execute arbitrary code or read and upload arbitrary local files from the Playwright server process. Use the bounded browser interaction tools instead.`,
+					reason: `${toolCall.toolName} is blocked by the computer-use plugin because it can execute arbitrary code or read local workspace/output files from the Playwright server process and send them to a page. Use the bounded browser interaction tools instead.`,
 				};
 			}
-			if (backend === "peekaboo" && !isAllowedPeekabooTool(toolCall.toolName)) {
+			const isPeekabooTool =
+				toolCall.toolName.startsWith(computerUseDesktopToolPrefix) &&
+				!portableComputerUseTools.has(toolCall.toolName);
+			if (isPeekabooTool && !isAllowedPeekabooTool(toolCall.toolName)) {
 				return {
 					skip: true,
 					reason: `${toolCall.toolName} is not allowlisted by the computer-use plugin. Use the bounded native UI tools instead.`,
 				};
 			}
-			if (backend === "peekaboo") {
-				return enforcePeekabooBackgroundPolicy(
-					toolCall.toolName,
-					input,
-					foregroundComputerUseAllowed,
-				);
+			if (isPeekabooTool) {
+				return enforcePeekabooBackgroundPolicy(toolCall.toolName, input);
 			}
 			return undefined;
 		},
