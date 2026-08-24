@@ -338,8 +338,8 @@ describe("CloudSessionApi", () => {
 		}
 	});
 
-	it("refreshes authentication while polling provisioning status", async () => {
-		const tokens = ["workos:create", "workos:poll-1", "workos:poll-2"];
+	it("keeps provisioning polls bound to the account that created the session", async () => {
+		const tokens = ["workos:create", "workos:new-account"];
 		const authorizations: string[] = [];
 		vi.useFakeTimers();
 		let statusCalls = 0;
@@ -385,9 +385,10 @@ describe("CloudSessionApi", () => {
 
 			expect(authorizations).toEqual([
 				"Bearer workos:create",
-				"Bearer workos:poll-1",
-				"Bearer workos:poll-2",
+				"Bearer workos:create",
+				"Bearer workos:create",
 			]);
+			expect(tokens).toEqual(["workos:new-account"]);
 		} finally {
 			vi.useRealTimers();
 		}

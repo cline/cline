@@ -519,7 +519,11 @@ export class CloudSessionApi {
 			createdSessionId = sessionId;
 			settlePost();
 			if (created.status === "provisioning" || !created.sandboxUrl?.trim()) {
-				await this.waitUntilReady(sessionId, controller.signal);
+				await this.waitUntilReady(
+					sessionId,
+					controller.signal,
+					creationAuthToken,
+				);
 			}
 			return {
 				sessionId,
