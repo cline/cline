@@ -93,6 +93,7 @@ interface RoutineSchedule {
 	scheduleId: string;
 	name: string;
 	cronPattern: string;
+	timezone?: string;
 	metadata?: Record<string, unknown>;
 	prompt: string;
 	provider?: string;
@@ -375,9 +376,11 @@ function formatScheduleTrigger(schedule: RoutineSchedule): string {
 		return `Once · ${formatDateTime(getOneTimeScheduleRunAt(schedule))}`;
 	}
 	const parsed = parseCronPattern(schedule.cronPattern);
-	return parsed.scheduleType === "daily"
-		? `Daily · ${formatScheduleTime(parsed.scheduleHour, parsed.scheduleMinute)}`
-		: `${formatScheduleDays(parsed.scheduleDays)} · ${formatScheduleTime(parsed.scheduleHour, parsed.scheduleMinute)}`;
+	const label =
+		parsed.scheduleType === "daily"
+			? `Daily · ${formatScheduleTime(parsed.scheduleHour, parsed.scheduleMinute)}`
+			: `${formatScheduleDays(parsed.scheduleDays)} · ${formatScheduleTime(parsed.scheduleHour, parsed.scheduleMinute)}`;
+	return schedule.timezone ? `${label} · ${schedule.timezone}` : label;
 }
 
 function getOneTimeScheduleRunAt(
@@ -1524,9 +1527,7 @@ export function RoutineSchedulesContent({
 			>
 				<DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
 					<DialogHeader>
-						<DialogTitle>
-							{editingSchedule ? "Edit Routine" : "Create Routine"}
-						</DialogTitle>
+						<DialogTitle>Schedule</DialogTitle>
 						<DialogDescription>
 							{editingSchedule
 								? "Update this scheduler routine."

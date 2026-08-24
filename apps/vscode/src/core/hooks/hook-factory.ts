@@ -719,6 +719,29 @@ function isExpectedHookError(error: unknown): boolean {
 
 export class HookFactory {
 	/**
+	 * @param options.sessionWorkspaceRoot The workspace root of the session the
+	 * hooks run for. Discovery additionally scans this root's .clinerules/hooks:
+	 * the global `workspaceRoots` state is shared across every Cline instance,
+	 * so another window can repoint it and workspace hooks would silently stop
+	 * being discovered without this session-scoped fallback.
+	 */
+	constructor(private readonly options?: { sessionWorkspaceRoot?: string }) {}
+
+	private sessionHooksDir(): string | undefined {
+		const root = this.options?.sessionWorkspaceRoot
+		return root ? path.join(root, ".clinerules", "hooks") : undefined
+	}
+
+	private async findSessionScripts(hookName: HookName): Promise<string[]> {
+		const dir = this.sessionHooksDir()
+		if (!dir) {
+			return []
+		}
+		const script = await HookFactory.findHookInHooksDir(hookName, dir)
+		return script ? [script] : []
+	}
+
+	/**
 	 * Get information about discovered hooks including their script paths
 	 * @param hookName The type of hook to query
 	 * @returns Object containing array of script paths
@@ -739,7 +762,10 @@ export class HookFactory {
 	 */
 	async hasHook<Name extends HookName>(hookName: Name): Promise<boolean> {
 		const scripts = await HookFactory.findHookScripts(hookName)
-		return scripts.length > 0
+		if (scripts.length > 0) {
+			return true
+		}
+		return (await this.findSessionScripts(hookName)).length > 0
 	}
 
 	/**
@@ -776,12 +802,19 @@ export class HookFactory {
 		taskId?: string,
 		toolName?: string,
 	): Promise<HookRunner<Name>> {
-		// Use cache for hook discovery instead of direct file system scan
+		// Use cache for hook discovery instead of direct file system scan,
+		// unioned with a session-scoped scan (see constructor doc).
 		const { HookDiscoveryCache } = await import("./HookDiscoveryCache")
-		const scripts = await HookDiscoveryCache.getInstance().get(hookName)
+		const cachedScripts = await HookDiscoveryCache.getInstance().get(hookName)
+		const sessionScripts = await this.findSessionScripts(hookName)
+		const scripts = [...new Set([...cachedScripts, ...sessionScripts])]
 
 		// Fetch hooks dirs once for source determination and telemetry
 		const hooksDirs = await getAllHooksDirs()
+		const sessionDir = this.sessionHooksDir()
+		if (sessionDir && !hooksDirs.includes(sessionDir)) {
+			hooksDirs.push(sessionDir)
+		}
 
 		// Capture hook discovery telemetry
 		// Categorize scripts by location (global vs workspace)
@@ -793,11 +826,17 @@ export class HookFactory {
 			)
 		}
 
-		// Get workspace roots for cwd determination
+		// Get workspace roots for cwd determination; the session root joins
+		// them so session-discovered hooks execute from their own workspace.
 		const stateManager = StateManager.get()
-		const workspaceRoots = stateManager.getGlobalStateKey("workspaceRoots")
+		const storedRoots = stateManager.getGlobalStateKey("workspaceRoots")
+		const sessionRoot = this.options?.sessionWorkspaceRoot
+		const workspaceRoots =
+			sessionRoot && !storedRoots?.some((root) => root.path === sessionRoot)
+				? [...(storedRoots ?? []), { path: sessionRoot }]
+				: storedRoots
 		const primaryRootIndex = stateManager.getGlobalStateKey("primaryRootIndex") ?? 0
-		const primaryCwd = workspaceRoots?.[primaryRootIndex]?.path
+		const primaryCwd = storedRoots?.[primaryRootIndex]?.path ?? sessionRoot
 
 		// Create runners with source and cwd determination for each script
 		// Global hooks run from primary workspace root

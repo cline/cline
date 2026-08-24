@@ -20,6 +20,7 @@ import {
 	createUserInstructionConfigService,
 	ensureCustomProvidersLoaded,
 	executeClineAccountAction,
+	fetchClineRecommendedModels,
 	getCoreBuiltinToolCatalog,
 	getLocalProviderModels,
 	listHookConfigFiles,
@@ -72,6 +73,7 @@ import {
 	broadcastEvent,
 	ensureSharedHubClient,
 	resolveSidecarAskQuestion,
+	sendEventToClient,
 } from "./context";
 import {
 	identifyDesktopFeatureFlagsAccount,
@@ -116,6 +118,7 @@ import type {
 	ChatSessionCommandRequest,
 	JsonRecord,
 	SidecarContext,
+	SidecarWebSocketClient,
 } from "./types";
 import { pickWorkspaceDirectory } from "./workspace-picker";
 
@@ -778,6 +781,43 @@ async function handleRoutineScheduleCommand(
 }
 
 // ---------------------------------------------------------------------------
+// Agenda task queue helpers (in-process via shared hub server)
+// ---------------------------------------------------------------------------
+
+const AGENDA_TASK_COMMANDS = new Set([
+	"task.create",
+	"task.list",
+	"task.get",
+	"task.update",
+	"task.approve",
+	"task.cancel",
+	"task.run",
+	"task.automation.get",
+	"task.automation.set",
+]);
+
+const AGENDA_TASK_EXECUTION_COMMANDS = new Set([
+	"task.create",
+	"task.approve",
+	"task.cancel",
+	"task.run",
+	"task.automation.set",
+]);
+
+async function handleAgendaTaskCommand(
+	ctx: SidecarContext,
+	command: string,
+	args?: Record<string, unknown>,
+): Promise<unknown> {
+	const hubClient = await ensureSharedHubClient(ctx);
+	const reply = await hubClient.command(command as never, args);
+	if (!reply.ok) {
+		throw new Error(reply.error?.message ?? `hub command failed: ${command}`);
+	}
+	return reply.payload ?? {};
+}
+
+// ---------------------------------------------------------------------------
 // User instruction config listing through the core config service.
 // ---------------------------------------------------------------------------
 
@@ -1185,7 +1225,7 @@ export async function handleCommand(
 	ctx: SidecarContext,
 	command: string,
 	args?: Record<string, unknown>,
-	options?: { connection?: object },
+	options?: { connection?: SidecarWebSocketClient },
 ): Promise<unknown> {
 	// ── Chat session commands ──────────────────────────────────────────
 	if (command === "chat_session_command") {
@@ -1195,6 +1235,33 @@ export async function handleCommand(
 			(args?.request as ChatSessionCommandRequest | undefined) ??
 				(args as ChatSessionCommandRequest),
 		);
+	}
+	if (command === "proceed_while_running") {
+		const sessionId = String(args?.sessionId ?? "").trim();
+		if (!sessionId) {
+			throw new Error("sessionId is required");
+		}
+		const toolCallId = asTrimmedString(args?.toolCallId);
+		const hubClient = await ensureSharedHubClient(
+			ctx,
+			ctx.sessionManager?.runtimeAddress,
+		);
+		const reply = await hubClient.command(
+			"run.proceed_while_running",
+			{ sessionId, ...(toolCallId ? { toolCallId } : {}) },
+			sessionId,
+		);
+		if (!reply.ok) {
+			throw new Error(
+				reply.error?.message ?? "Could not proceed while command is running.",
+			);
+		}
+		return {
+			detachedCount:
+				typeof reply.payload?.detachedCount === "number"
+					? reply.payload.detachedCount
+					: 0,
+		};
 	}
 
 	// ── Session data reading ──────────────────────────────────────────
@@ -1248,8 +1315,12 @@ export async function handleCommand(
 	// ── Tool approvals (in-memory) ────────────────────────────────────
 	if (command === "poll_tool_approvals") {
 		const sessionId = String(args?.sessionId ?? "").trim();
+		const connection = options?.connection;
+		if (!connection?.data?.canApproveTools) {
+			throw new Error("tool approvals require a trusted desktop connection");
+		}
 		return Array.from(ctx.pendingApprovals.values())
-			.filter((a) => a.item.sessionId === sessionId)
+			.filter((a) => a.owner === connection && a.item.sessionId === sessionId)
 			.map((a) => a.item);
 	}
 	if (command === "respond_tool_approval") {
@@ -1258,24 +1329,38 @@ export async function handleCommand(
 		if (!sessionId || !requestId) {
 			throw new Error("sessionId and requestId are required");
 		}
-		const pending = ctx.pendingApprovals.get(requestId);
-		if (pending) {
-			pending.resolve({
-				approved: Boolean(args?.approved),
-				...(typeof args?.reason === "string" && args.reason.trim().length > 0
-					? { reason: args.reason.trim() }
-					: {}),
-			});
+		const connection = options?.connection;
+		if (!connection?.data?.canApproveTools) {
+			throw new Error("tool approvals require a trusted desktop connection");
 		}
+		const pending = ctx.pendingApprovals.get(requestId);
+		if (!pending || pending.owner !== connection) {
+			throw new Error("tool approval does not belong to this connection");
+		}
+		if (pending.item.sessionId !== sessionId) {
+			throw new Error("tool approval does not belong to this session");
+		}
+		pending.resolve({
+			approved: Boolean(args?.approved),
+			...(typeof args?.reason === "string" && args.reason.trim().length > 0
+				? { reason: args.reason.trim() }
+				: {}),
+		});
 		ctx.pendingApprovals.delete(requestId);
 		const remaining = Array.from(ctx.pendingApprovals.values())
-			.filter((a) => a.item.sessionId === sessionId)
+			.filter((a) => a.owner === connection && a.item.sessionId === sessionId)
 			.map((a) => a.item);
-		broadcastEvent(ctx, "tool_approval_state", {
+		sendEventToClient(ctx, connection, "tool_approval_state", {
 			sessionId,
 			items: remaining,
 		});
 		return true;
+	}
+	if (command === "poll_ask_questions") {
+		const sessionId = String(args?.sessionId ?? "").trim();
+		return Array.from(ctx.pendingQuestions.values())
+			.filter((question) => question.item.sessionId === sessionId)
+			.map((question) => question.item);
 	}
 	if (command === "respond_ask_question") {
 		const requestId = String(args?.requestId ?? "").trim();
@@ -1566,6 +1651,11 @@ export async function handleCommand(
 			String(args?.provider ?? ""),
 			manager.getProviderConfig(String(args?.provider ?? "").trim()),
 		);
+	}
+	if (command === "list_cline_recommended_models") {
+		// Tiered picker data (recommended / free / clinePass) with
+		// display-ready names; falls back to a bundled list offline.
+		return await fetchClineRecommendedModels();
 	}
 	if (command === "create_streaming_transcription_session") {
 		const manager = new ProviderSettingsManager();
@@ -2087,6 +2177,17 @@ export async function handleCommand(
 		command === "delete_routine_schedule"
 	) {
 		return await handleRoutineScheduleCommand(ctx, command, args);
+	}
+
+	// ── Agenda task queue ─────────────────────────────────────────────
+	if (AGENDA_TASK_COMMANDS.has(command)) {
+		if (
+			AGENDA_TASK_EXECUTION_COMMANDS.has(command) &&
+			!options?.connection?.data?.canApproveTools
+		) {
+			throw new Error("task execution requires a trusted desktop connection");
+		}
+		return await handleAgendaTaskCommand(ctx, command, args);
 	}
 
 	// ── User instruction configs ──────────────────────────────────────

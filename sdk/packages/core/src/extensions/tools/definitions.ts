@@ -192,46 +192,64 @@ async function executeShellCommands(
 		options;
 
 	return Promise.all(
-		commands.map(async (command): Promise<ToolOperationResult> => {
-			const startedAt = Date.now();
-			const query = formatRunCommandQueryPreview(command);
-			try {
-				const output = await withTimeout(
-					executor(command, cwd, context),
-					timeoutMs,
-					`Command timed out after ${timeoutMs}ms`,
-				);
-				return {
-					query,
-					result: output,
-					success: true,
-				};
-			} catch (error) {
-				if (error instanceof TimeoutError) {
-					captureRunCommandsTimeoutFromContext(telemetry, context, {
-						effectiveTimeoutMs: error.timeoutMs,
-						timeoutSource,
-						commandCount: commands.length,
-						durationMs: Date.now() - startedAt,
-					});
-				}
-				if (error instanceof CommandExitError) {
+		commands.map(
+			async (command, commandIndex): Promise<ToolOperationResult> => {
+				const startedAt = Date.now();
+				const query = formatRunCommandQueryPreview(command);
+				const commandContext: AgentToolContext = context.emitUpdate
+					? {
+							...context,
+							emitUpdate: (update) => {
+								const payload =
+									update && typeof update === "object" && !Array.isArray(update)
+										? (update as Record<string, unknown>)
+										: { update };
+								context.emitUpdate?.({
+									...payload,
+									commandIndex,
+									query,
+								});
+							},
+						}
+					: context;
+				try {
+					const output = await withTimeout(
+						executor(command, cwd, commandContext),
+						timeoutMs,
+						`Command timed out after ${timeoutMs}ms`,
+					);
 					return {
 						query,
-						result: error.output,
-						error: error.message,
+						result: output,
+						success: true,
+					};
+				} catch (error) {
+					if (error instanceof TimeoutError) {
+						captureRunCommandsTimeoutFromContext(telemetry, context, {
+							effectiveTimeoutMs: error.timeoutMs,
+							timeoutSource,
+							commandCount: commands.length,
+							durationMs: Date.now() - startedAt,
+						});
+					}
+					if (error instanceof CommandExitError) {
+						return {
+							query,
+							result: error.output,
+							error: error.message,
+							success: false,
+						};
+					}
+					const msg = formatError(error);
+					return {
+						query,
+						result: "",
+						error: `Command failed: ${msg}`,
 						success: false,
 					};
 				}
-				const msg = formatError(error);
-				return {
-					query,
-					result: "",
-					error: `Command failed: ${msg}`,
-					success: false,
-				};
-			}
-		}),
+			},
+		),
 	);
 }
 

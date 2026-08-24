@@ -22,7 +22,7 @@ export {
 	AgentQuickActions,
 	type AgentQuickActionsProps,
 } from "./agent-quick-actions.js";
-export { GitHubIcon } from "./github-icon.js";
+export { Badge, type BadgeProps } from "./badge.js";
 export {
 	Button,
 	type ButtonProps,
@@ -39,10 +39,12 @@ export {
 	GeneratedMediaContent,
 	type GeneratedMediaContentProps,
 } from "./generated-media.js";
+export { GitHubIcon } from "./github-icon.js";
 export {
 	SearchCombobox,
 	type SearchComboboxOption,
 	type SearchComboboxProps,
+	type SearchComboboxSection,
 } from "./search-combobox.js";
 export {
 	SessionStatus,

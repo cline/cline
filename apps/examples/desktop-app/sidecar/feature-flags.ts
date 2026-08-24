@@ -23,7 +23,7 @@ let desktopFeatureFlagsContext: FeatureFlagsContext = {
 let desktopFeatureFlagsService: FeatureFlagsService | undefined;
 
 function resolveDesktopFeatureFlagsCachePath(): string {
-	return join(resolveClineDataDir(), "cache", "feature-flags.json");
+	return join(resolveClineDataDir(), "cache", "feature-flags.cline-code.json");
 }
 
 function ensureDesktopDistinctId(): string {

@@ -22,7 +22,7 @@ import {
 } from "../../../utils/codex-cli";
 import open from "../../../utils/open";
 import { listLocalProviders } from "../../../utils/provider-catalog";
-import { palette } from "../../palette";
+import { useDialogPalette } from "../../hooks/use-theme";
 import {
 	getDefaultAwsRegion,
 	type ProviderConfigValues,
@@ -63,6 +63,7 @@ export function ProviderPickerContent(
 	props: ChoiceContext<string> & { currentProviderId: string },
 ) {
 	const { resolve, dismiss, dialogId, currentProviderId } = props;
+	const palette = useDialogPalette();
 	const [providers, setProviders] = useState<ProviderItem[]>([]);
 	const [search, setSearch] = useState("");
 	const [selected, setSelected] = useState(0);
@@ -272,6 +273,7 @@ export function UseExistingOrReconfigureContent(
 	},
 ) {
 	const { resolve, dismiss, dialogId, providerName, extraOptions } = props;
+	const palette = useDialogPalette();
 	const options: ExistingProviderOption[] = useMemo(
 		() => [
 			{ value: "use_existing", label: "Use existing configuration" },
@@ -351,6 +353,7 @@ function ClinePassBrowserPageContent(
 		url,
 		openedStatus,
 	} = props;
+	const palette = useDialogPalette();
 	const [status, setStatus] = useState("Opening browser...");
 
 	useEffect(() => {
@@ -489,6 +492,7 @@ export function ProviderConfigInputContent(
 		providerName,
 		providerSettingsManager,
 	} = props;
+	const palette = useDialogPalette();
 
 	const config = useMemo(
 		() => getProviderConfigFields(providerId),
@@ -656,6 +660,7 @@ export function CodexCliStatusContent(
 	},
 ) {
 	const { resolve, dismiss, dialogId, providerName } = props;
+	const palette = useDialogPalette();
 	const [status, setStatus] = useState<CodexCliStatus | undefined>();
 	const [checking, setChecking] = useState(false);
 
@@ -749,6 +754,7 @@ export function OAuthLoginContent(
 		providerName,
 		allowApiKeyFallback,
 	} = props;
+	const palette = useDialogPalette();
 	const [mode, setMode] = useState<"browser" | "device">(
 		providerId === "cline" ? "device" : "browser",
 	);
@@ -969,6 +975,7 @@ export function OAuthApiKeyInputContent(
 		providerName,
 		providerSettingsManager,
 	} = props;
+	const palette = useDialogPalette();
 	const [value, setValue] = useState("");
 
 	const submit = () => {

@@ -4,9 +4,23 @@ import type {
 	ModelOperationMode,
 } from "@cline/shared/browser";
 
+/** Which tier of the Cline recommended-models feed featured a model. */
+export type ProviderModelFeaturedTier = "recommended" | "free" | "subscribed";
+
+export interface ProviderModelFeatured {
+	tier: ProviderModelFeaturedTier;
+	/** Position within the tier, preserving the feed's intentional order. */
+	rank: number;
+	/** Feed marketing tags, e.g. "NEW" or "BEST". */
+	tags: string[];
+}
+
 export interface ProviderModel {
 	id: string;
 	name: string;
+	description?: string;
+	/** Set by the SDK for cline/cline-pass models featured by the feed. */
+	featured?: ProviderModelFeatured;
 	operation?: ModelOperation;
 	operationModes?: ModelOperationMode[];
 	contextWindow?: number;
