@@ -1,8 +1,20 @@
 import { DEFAULT_MCP_TIMEOUT_SECONDS, McpServer } from "@shared/mcp"
 import { StringRequest } from "@shared/proto/cline/common"
-import { McpServers, ToggleMcpServerRequest, UpdateMcpTimeoutRequest } from "@shared/proto/cline/mcp"
+import {
+	McpServers,
+	ToggleMcpServerRequest,
+	ToggleToolAutoApproveRequest,
+	UpdateMcpTimeoutRequest,
+} from "@shared/proto/cline/mcp"
 import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
-import { VSCodeDropdown, VSCodeOption, VSCodePanels, VSCodePanelTab, VSCodePanelView } from "@vscode/webview-ui-toolkit/react"
+import {
+	VSCodeCheckbox,
+	VSCodeDropdown,
+	VSCodeOption,
+	VSCodePanels,
+	VSCodePanelTab,
+	VSCodePanelView,
+} from "@vscode/webview-ui-toolkit/react"
 import { RefreshCcwIcon, Trash2Icon } from "lucide-react"
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
@@ -14,7 +26,7 @@ import { McpServiceClient } from "@/services/grpc-client"
 import type { MarketplaceMcpMetadata } from "../ServersToggleList"
 import McpPromptRow from "./McpPromptRow"
 import McpResourceRow from "./McpResourceRow"
-import McpToolRow from "./McpToolRow"
+import McpToolRow, { SHOW_MCP_PER_TOOL_AUTO_APPROVE } from "./McpToolRow"
 
 // constant JSX.Elements
 const TimeoutOptions = [
@@ -41,7 +53,7 @@ const ServerRow = ({
 	hasTrashIcon?: boolean
 	marketplaceMetadata?: MarketplaceMcpMetadata
 }) => {
-	const { setMcpServers, remoteConfigSettings } = useExtensionState()
+	const { autoApprovalSettings, setMcpServers, remoteConfigSettings } = useExtensionState()
 
 	const [isExpanded, setIsExpanded] = useState(false)
 	const [isDeleting, setIsDeleting] = useState(false)
@@ -133,6 +145,27 @@ const ServerRow = ({
 			.catch((error) => {
 				console.error("Error deleting MCP server", error)
 				setIsDeleting(false)
+			})
+	}
+
+	const handleAutoApproveChange = () => {
+		if (!server.name) {
+			return
+		}
+
+		McpServiceClient.toggleToolAutoApprove(
+			ToggleToolAutoApproveRequest.create({
+				serverName: server.name,
+				toolNames: server.tools?.map((tool) => tool.name) || [],
+				autoApprove: !server.tools?.every((tool) => tool.autoApprove),
+			}),
+		)
+			.then((response) => {
+				const mcpServers = convertProtoMcpServersToMcpServers(response.mcpServers)
+				setMcpServers(mcpServers)
+			})
+			.catch((error) => {
+				console.error("Error toggling all tools auto-approve", error)
 			})
 	}
 
@@ -295,8 +328,17 @@ const ServerRow = ({
 							<VSCodePanelView id="tools-view">
 								{server.tools && server.tools.length > 0 ? (
 									<div className="flex flex-col gap-2 w-full pt-2">
+										{SHOW_MCP_PER_TOOL_AUTO_APPROVE && server.name && autoApprovalSettings.actions.useMcp && (
+											<VSCodeCheckbox
+												checked={server.tools.every((tool) => tool.autoApprove)}
+												className="mb-1 text-xs"
+												data-tool="all-tools"
+												onChange={handleAutoApproveChange}>
+												Auto-approve all tools
+											</VSCodeCheckbox>
+										)}
 										{server.tools.map((tool) => (
-											<McpToolRow key={tool.name} tool={tool} />
+											<McpToolRow key={tool.name} serverName={server.name} tool={tool} />
 										))}
 									</div>
 								) : (
