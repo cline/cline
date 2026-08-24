@@ -2208,6 +2208,9 @@ async function handleHandoffOnce(
 	if (!outerSessionId) {
 		emitProgress("creating", "Creating the cloud workspace…");
 		const created = await cloud.create({
+			// Single-flight concurrent handoff attempts of the same source
+			// session under the base's requestId-keyed create dedupe.
+			requestId: `handoff:${sourceSessionId}`,
 			repoUrl: prepared.repoUrl,
 			branch: prepared.branch,
 			modelId: prepared.modelId,
@@ -2547,6 +2550,7 @@ export async function handleChatSessionCommand(
 					request.config?.reasoningEffort,
 				);
 				return await cloud.create({
+					...(requestedSessionId ? { requestId: requestedSessionId } : {}),
 					repoUrl,
 					modelId,
 					...(initialPrompt ? { initialPrompt } : {}),

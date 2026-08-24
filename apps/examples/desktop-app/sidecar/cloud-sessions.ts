@@ -79,6 +79,8 @@ export function deriveCloudSessionTitle(prompt: string): string {
 }
 
 export type CreateCloudSessionInput = {
+	/** Stable client-planned id for single-flighting one chat's start request. */
+	requestId?: string;
 	modelId: string;
 	repoUrl: string;
 	initialPrompt?: string;
@@ -907,6 +909,7 @@ type CloudRehydrationSnapshot = {
 	status: string;
 	messages: unknown[];
 	prompts?: PromptInQueue[];
+	submittedPrompts: PromptInQueue[];
 };
 
 type CloudConnection = {
@@ -1162,6 +1165,50 @@ function countPromptOccurrences(
 	);
 }
 
+function submittedPromptsFromEvents(
+	events: HubEventEnvelope[],
+): PromptInQueue[] {
+	return events.flatMap((event) => {
+		if (event.event !== "session.pending_prompt_submitted") return [];
+		const prompt =
+			event.payload?.prompt &&
+			typeof event.payload.prompt === "object" &&
+			!Array.isArray(event.payload.prompt)
+				? (event.payload.prompt as JsonRecord)
+				: undefined;
+		const id = String(prompt?.id ?? "").trim();
+		if (!id) return [];
+		return [
+			{
+				id,
+				prompt: String(prompt?.prompt ?? ""),
+				steer: prompt?.delivery === "steer",
+				attachmentCount:
+					typeof prompt?.attachmentCount === "number"
+						? prompt.attachmentCount
+						: 0,
+				userImages: Array.isArray(prompt?.userImages)
+					? prompt.userImages.filter(
+							(image): image is string => typeof image === "string",
+						)
+					: undefined,
+			},
+		];
+	});
+}
+
+function mergePromptEvidence(
+	prompts: PromptInQueue[] | undefined,
+	submittedPrompts: PromptInQueue[],
+): PromptInQueue[] {
+	const merged = [...(prompts ?? [])];
+	const knownIds = new Set(merged.map((prompt) => prompt.id));
+	for (const prompt of submittedPrompts) {
+		if (!knownIds.has(prompt.id)) merged.push(prompt);
+	}
+	return merged;
+}
+
 const TERMINAL_RUN_EVENTS = new Set([
 	"run.completed",
 	"run.aborted",
@@ -1402,7 +1449,9 @@ export class CloudSessionManager {
 
 	async list(): Promise<CloudSessionRecord[]> {
 		const organizationId = await this.resolveActiveOrganizationId();
-		const listed = await this.options.api.list(organizationId);
+		const listed = (await this.options.api.list(organizationId)).map(
+			(session) => this.preserveConnectedRuntimeModel(session),
+		);
 		// Keep canonical rows available while their status checks run.
 		this.lastListedSessions = listed;
 		for (const session of listed) {
@@ -1470,6 +1519,21 @@ export class CloudSessionManager {
 			}
 			throw error;
 		}
+	}
+
+	private preserveConnectedRuntimeModel(
+		session: CloudSessionRecord,
+	): CloudSessionRecord {
+		const runtimeModel = this.connections
+			.get(session.id)
+			?.remote.metadata.modelId?.trim();
+		if (!runtimeModel || runtimeModel === session.metadata.modelId) {
+			return session;
+		}
+		return {
+			...session,
+			metadata: { ...session.metadata, modelId: runtimeModel },
+		};
 	}
 
 	private async resolveActiveOrganizationId(options?: {
@@ -1605,20 +1669,8 @@ export class CloudSessionManager {
 	}
 
 	async create(input: CreateCloudSessionInput): Promise<JsonRecord> {
-		const key = [
-			input.organizationId === null
-				? "personal"
-				: (input.organizationId?.trim() ?? "active"),
-			input.repoUrl,
-			input.branch?.trim() ?? "",
-			input.modelId,
-			String(input.thinking ?? ""),
-			input.reasoningEffort ?? "",
-			String(input.autoApproveTools ?? ""),
-			input.mode ?? "act",
-			input.workspaceRelativePath ?? "",
-			input.handoff?.sourceSessionId ?? "",
-		].join("\u0000");
+		const key = input.requestId?.trim();
+		if (!key) return await this.createOnce(input);
 		const existing = this.createRequests.get(key);
 		if (existing) return await existing;
 		const creating = this.createOnce(input).finally(() => {
@@ -2057,7 +2109,7 @@ export class CloudSessionManager {
 				}
 				const promptOccurrencesAfterRecovery = countPromptOccurrences(
 					snapshot.messages,
-					snapshot.prompts ?? [],
+					mergePromptEvidence(snapshot.prompts, snapshot.submittedPrompts),
 					prompt,
 				);
 				if (promptOccurrencesAfterRecovery <= promptOccurrencesBeforeSend) {
@@ -2249,18 +2301,19 @@ export class CloudSessionManager {
 					messages,
 				),
 			});
-			const buffered = reconcileBufferedCloudEvents(
-				connection.bufferedEvents,
-				messages,
-				{ queueSnapshotApplied: queueSnapshotValid, baselineMessages },
-			);
+			const bufferedEvents = connection.bufferedEvents;
+			const submittedPrompts = submittedPromptsFromEvents(bufferedEvents);
+			const buffered = reconcileBufferedCloudEvents(bufferedEvents, messages, {
+				queueSnapshotApplied: queueSnapshotValid,
+				baselineMessages,
+			});
 			connection.bufferedEvents = [];
 			connection.bufferingEvents = false;
 			connection.syncFailureNotified = false;
 			for (const event of buffered) {
 				this.forwardEvent(outerSessionId, connection, event);
 			}
-			return { status, messages, prompts };
+			return { status, messages, prompts, submittedPrompts };
 		} catch (error) {
 			// Preserve the current view and release the full tail on snapshot failure.
 			const buffered = connection.bufferedEvents;
@@ -3105,7 +3158,12 @@ export class CloudSessionManager {
 			.list(organizationId)
 			.catch(() => undefined);
 		if (!sessions || connection.disposed) return;
-		const listed = sessions.find((session) => session.id === outerSessionId);
+		const listedRecord = sessions.find(
+			(session) => session.id === outerSessionId,
+		);
+		const listed = listedRecord
+			? this.preserveConnectedRuntimeModel(listedRecord)
+			: undefined;
 		if (!listed) {
 			// The list succeeded and the session is absent: it was deleted
 			// (possibly from another device) or the account scope changed.

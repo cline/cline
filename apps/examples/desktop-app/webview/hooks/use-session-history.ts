@@ -972,7 +972,20 @@ export function useSessionHistory({
 				const known = sessionsRef.current.some(
 					(session) => session.sessionId === sessionId,
 				);
-				const status = normalizeDiscoveredStatus(record.status);
+				const status = normalizeDiscoveredStatus(
+					record.status,
+					"active session",
+				);
+				setThreads((current) =>
+					updateThreadById(current, sessionId, (thread) =>
+						thread.status === status ? thread : { ...thread, status },
+					),
+				);
+				setSessions((current) =>
+					updateSessionById(current, sessionId, (session) =>
+						session.status === status ? session : { ...session, status },
+					),
+				);
 				if (!known) {
 					scheduleRefresh(HISTORY_EVENT_REFRESH_DELAY_MS);
 				} else if (isTerminalHistoryStatus(status)) {
