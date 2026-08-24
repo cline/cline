@@ -1,5 +1,13 @@
 # Changelog
 
+## [4.1.15]
+
+Everything here lands through the SDK bundle, so it applies to windows running that bundle.
+
+### Fixed
+
+- Auto-approve every MCP tool call while the "Use MCP servers" toggle is on. The toggle only took effect on tools that had also been opted in individually, so turning it on appeared to do nothing; it now governs all MCP tools on its own.
+
 ## [4.1.14]
 
 Everything here lands through the SDK bundle, so it applies to windows running that bundle.
