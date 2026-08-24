@@ -39,12 +39,16 @@ Options:
   --retries <count>            Maximum consecutive mistakes (retries) before halting
   --hooks-dir <path>           Directory path to additional hooks for runtime hook injection (default: ~/.cline/hooks)
   --acp                        Run in Agent Client Protocol (ACP) mode for editor integration
+  --compaction <mode>          Context compaction mode: agentic|basic|off (default: agentic)
   -i, --tui                    Open the terminal user interface (TUI) for interactive sessions
   --id <session-id>            Resume an existing session by ID
   -k, --key <api-key>          API key override for this run
   -P, --provider <id>          Provider id (default: cline)
   -s, --system <system-prompt> Override the default system prompt
   -z, --zen                    Start a session that runs in the background hub
+  --worktree                   Auto-create a detached git worktree under ~/.cline/worktrees/ and run the task there
+  --update                     Check for updates and install if available
+  --kanban                     Run the kanban app
   -h, --help                   display help for command
 
 Commands:
@@ -82,12 +86,16 @@ Commands:
 | `--retries <count>` | Maximum consecutive mistakes (retries) before halting |
 | `--hooks-dir <path>` | Directory path to additional hooks for runtime hook injection (default: `~/.cline/hooks`) |
 | `--acp` | Run in Agent Client Protocol (ACP) mode for [editor integration](/usage/acp) |
+| `--compaction <mode>` | Context compaction mode: `agentic`, `basic` or `off` (default: `agentic`) |
 | `-i, --tui` | Open the terminal user interface (TUI) for interactive sessions |
 | `--id <session-id>` | Resume an existing session by ID |
 | `-k, --key <api-key>` | API key override for this run |
 | `-P, --provider <id>` | Provider id (default: `cline`) |
 | `-s, --system <system-prompt>` | Override the default system prompt |
 | `-z, --zen` | Start a session that runs in the background hub |
+| `--worktree` | Auto-create a detached git worktree under `~/.cline/worktrees/` and run the task there |
+| `--update` | Check for updates and install if available |
+| `--kanban` | Run the kanban app |
 | `-h, --help` | Display help for command |
 
 ## Commands
