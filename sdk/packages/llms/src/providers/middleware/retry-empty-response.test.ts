@@ -697,6 +697,36 @@ describe("downstream cancellation", () => {
 		expect(doStream).toHaveBeenCalledTimes(1);
 	});
 
+	it("cancels a retry attempt whose doStream() resolves after the consumer cancelled", async () => {
+		const { result: retryAttempt, cancelledWith } = openEndedStream([
+			streamStart,
+		]);
+		let resolveRetry: (value: LanguageModelV4StreamResult) => void;
+		const doStream = vi
+			.fn()
+			.mockResolvedValueOnce(streamOf(emptyParts))
+			.mockImplementationOnce(
+				() =>
+					new Promise<LanguageModelV4StreamResult>((resolve) => {
+						resolveRetry = resolve;
+					}),
+			);
+		const wrapped = await run(doStream);
+
+		// Let the empty first attempt drain and the re-dial start.
+		await new Promise((resolve) => setTimeout(resolve, 20));
+		expect(doStream).toHaveBeenCalledTimes(2);
+
+		// Cancel while the retry's doStream() is still pending, then let it
+		// resolve: the fresh provider stream must be cancelled, not drained.
+		await wrapped.stream.cancel(new Error("consumer cancelled"));
+		// biome-ignore lint/style/noNonNullAssertion: assigned by the mock above
+		resolveRetry!(retryAttempt);
+		await new Promise((resolve) => setTimeout(resolve, 20));
+
+		expect(cancelledWith).toHaveBeenCalledTimes(1);
+	});
+
 	it("does not re-dial after the consumer cancels during the network backoff", async () => {
 		const doStream = vi.fn(async () =>
 			streamThatDies([streamStart], undiciSocketClosed()),
