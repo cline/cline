@@ -2282,6 +2282,86 @@ describe("AgentRuntime", () => {
 		});
 	});
 
+	it("injects beforeRun appendContext into the run's first model request", async () => {
+		const model = new ScriptedModel([
+			(request) => {
+				// The hook context lands after the run's input messages, so the
+				// model sees it on the very first request of the run.
+				const contextMessage = request.messages.at(-1);
+				expect(contextMessage?.role).toBe("user");
+				expect(contextMessage?.content[0]).toMatchObject({
+					type: "text",
+					text: '<hook_context source="RunStart">\nrun-context\n</hook_context>',
+				});
+				const promptMessage = request.messages.at(-2);
+				expect(promptMessage?.role).toBe("user");
+				expect(promptMessage?.content[0]).toMatchObject({
+					type: "text",
+					text: "Inject run context",
+				});
+				return [
+					{ type: "text-delta", text: "done" },
+					{ type: "finish", reason: "stop" },
+				];
+			},
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			hooks: {
+				beforeRun: () => ({ appendContext: "run-context" }),
+			},
+		});
+
+		const result = await runtime.run("Inject run context");
+
+		expect(result.status).toBe("completed");
+		const hookContextMessage = result.messages.find(
+			(message) =>
+				message.role === "user" &&
+				message.content.some(
+					(part) =>
+						part.type === "text" && part.text.includes('source="RunStart"'),
+				),
+		);
+		// Hidden from user-facing transcripts (live and replayed) while still
+		// sent to the model, like compaction summaries.
+		expect(hookContextMessage?.metadata).toMatchObject({
+			displayRole: "system",
+			userRunSpan: 0,
+		});
+	});
+
+	it("does not inject context from a beforeRun hook that stops the run", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "unreachable" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			hooks: {
+				beforeRun: () => ({
+					stop: true,
+					reason: "blocked",
+					appendContext: "never-injected",
+				}),
+			},
+		});
+
+		const result = await runtime.run("Blocked run");
+
+		expect(result.status).not.toBe("completed");
+		expect(
+			result.messages.some((message) =>
+				message.content.some(
+					(part) =>
+						part.type === "text" && part.text.includes("never-injected"),
+				),
+			),
+		).toBe(false);
+	});
+
 	it("sanitizes hook context markup against corrupting identity attributes", async () => {
 		const model = new ScriptedModel([
 			() => [

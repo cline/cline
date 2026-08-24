@@ -344,6 +344,59 @@ describe("createHookConfigFileHooks", () => {
 		}
 	});
 
+	it("returns appendContext from a TaskStart hook", async () => {
+		const { workspace } = await createWorkspaceWithHook(
+			"TaskStart.js",
+			`console.log('HOOK_CONTROL\\t' + JSON.stringify({ cancel: false, contextModification: "RUN_NOTE: injected at start." }))\n`,
+		);
+		try {
+			const hooks = createHookConfigFileHooks({
+				cwd: workspace,
+				workspacePath: workspace,
+				detachAsyncHooks: false,
+			});
+			expect(hooks?.beforeRun).toBeTypeOf("function");
+			const result = await hooks?.beforeRun?.({
+				snapshot: beforeToolContext().snapshot,
+			});
+			expect(result).toEqual({
+				appendContext: "RUN_NOTE: injected at start.",
+			});
+		} finally {
+			await rm(workspace, {
+				recursive: true,
+				force: true,
+				maxRetries: 3,
+				retryDelay: 250,
+			});
+		}
+	});
+
+	it("stops the run when a TaskStart hook cancels", async () => {
+		const { workspace } = await createWorkspaceWithHook(
+			"TaskStart.js",
+			`console.log('HOOK_CONTROL\\t' + JSON.stringify({ cancel: true, errorMessage: "blocked at start" }))\n`,
+		);
+		try {
+			const hooks = createHookConfigFileHooks({
+				cwd: workspace,
+				workspacePath: workspace,
+				detachAsyncHooks: false,
+			});
+			const result = await hooks?.beforeRun?.({
+				snapshot: beforeToolContext().snapshot,
+			});
+			expect(result).toEqual({ stop: true, reason: "blocked at start" });
+		} finally {
+			await rm(workspace, {
+				recursive: true,
+				force: true,
+				maxRetries: 3,
+				retryDelay: 250,
+			});
+		}
+	});
+
 	it("does not inject context when the hook cancels", async () => {
 		const { workspace } = await createWorkspaceWithHook(
 			"PreToolUse.js",
