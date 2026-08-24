@@ -152,6 +152,47 @@ describe("cloudHandoffUiReducer", () => {
 		});
 	});
 
+	it("keeps the completion receipt when a late failure lands after complete", () => {
+		const completed = cloudHandoffUiReducer(
+			{},
+			{
+				type: "complete",
+				sourceSessionId: "local-1",
+				receipt: {
+					targetSessionId: "cloud-1",
+					dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
+				},
+				externalPresentation: false,
+			},
+		);
+
+		// The RPC transport can fail after the authoritative completion event
+		// already landed; the receipt and its cloud URL must survive.
+		expect(
+			cloudHandoffUiReducer(completed, {
+				type: "failed",
+				sourceSessionId: "local-1",
+				exposeRecovery: true,
+				retryDraft: "/handoff continue",
+			}),
+		).toBe(completed);
+		expect(
+			cloudHandoffUiReducer(completed, {
+				type: "failed",
+				sourceSessionId: "local-1",
+				exposeRecovery: false,
+			}),
+		).toBe(completed);
+		expect(completed["local-1"]).toEqual({
+			status: "complete",
+			receipt: {
+				targetSessionId: "cloud-1",
+				dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
+			},
+			externalPresentation: false,
+		});
+	});
+
 	it("dismisses recovery for this app run without accepting late progress", () => {
 		const recovery = {
 			"local-1": {

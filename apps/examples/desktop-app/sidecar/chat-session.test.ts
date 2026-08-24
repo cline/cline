@@ -10,6 +10,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
 	CloudHandoffTranscriptMismatchError,
+	preflightCloudHandoffGit,
+	readCloudHandoffMetadata,
 	selectCloudHandoffModel,
 } from "@cline/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -25,8 +27,8 @@ import {
 	hasProviderChanged,
 	mergeSessionConfig,
 	prewarmWorkspaceMetadata,
-	resolveDesktopSessionMode,
 	reconcilePendingCloudHandoff,
+	resolveDesktopSessionMode,
 	rewriteDesktopTeamPrompt,
 	shouldCleanupFailedHandoffVerification,
 	shouldUpdateSessionConnection,
@@ -35,10 +37,22 @@ import {
 } from "./chat-session";
 import {
 	CloudHandoffSeedUnsupportedError,
+	type CloudSessionApi,
 	CloudSessionError,
+	CloudSessionManager,
 } from "./cloud-sessions";
 import { handleCoreSessionEvent } from "./context";
 import type { SidecarContext } from "./types";
+
+// Git preflight shells out to `git` and requires a pushed github.com branch;
+// the full-transaction test below swaps in a deterministic repository state.
+vi.mock("@cline/core", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("@cline/core")>();
+	return {
+		...actual,
+		preflightCloudHandoffGit: vi.fn(actual.preflightCloudHandoffGit),
+	};
+});
 
 afterEach(() => {
 	delete process.env.CLINE_CODE_CLOUD_HANDOFF;
@@ -1993,8 +2007,7 @@ describe("cloud handoff gates", () => {
 				get: vi.fn(async () => ({
 					sessionId,
 					status:
-						options.persistedStatus ??
-						(options.busy ? "running" : "completed"),
+						options.persistedStatus ?? (options.busy ? "running" : "completed"),
 					cwd: "/workspace/project",
 					model: "anthropic/claude-sonnet-4.6",
 					metadata: options.metadata,
@@ -2063,6 +2076,222 @@ describe("cloud handoff gates", () => {
 			}),
 		).rejects.toThrow("Fork locally");
 		expect(send).not.toHaveBeenCalled();
+	});
+});
+
+describe("cloud handoff transaction", () => {
+	beforeEach(() => {
+		process.env.CLINE_CODE_CLOUD_HANDOFF = "1";
+		process.env.CLINE_CODE_CLOUD_AGENTS = "1";
+	});
+
+	afterEach(() => {
+		delete process.env.CLINE_CODE_CLOUD_AGENTS;
+		vi.mocked(preflightCloudHandoffGit).mockRestore();
+		vi.unstubAllGlobals();
+	});
+
+	it("completes a fresh handoff end to end", async () => {
+		const sourceSessionId = "local-handoff-source";
+		const modelId = "anthropic/claude-sonnet-4.6";
+		const headSha = "a".repeat(40);
+		vi.mocked(preflightCloudHandoffGit).mockResolvedValue({
+			repoUrl: "https://github.com/cline/test",
+			branch: "main",
+			remoteName: "origin",
+			headSha,
+		});
+		// The model catalog is the only network dependency left on this path.
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async (input: unknown) =>
+				String(input).endsWith("/api/v1/ai/cline/models")
+					? new Response(
+							JSON.stringify({ data: [{ id: modelId, name: "Sonnet" }] }),
+							{ status: 200, headers: { "content-type": "application/json" } },
+						)
+					: new Response("not found", { status: 404 }),
+			),
+		);
+
+		const messages = [
+			{ role: "user" as const, content: "continue this work" },
+			{ role: "assistant" as const, content: "done locally" },
+		];
+		const order: string[] = [];
+		const events: Array<{ name: string; payload: Record<string, unknown> }> =
+			[];
+		const metadataUpdates: Array<Record<string, unknown>> = [];
+		let persistedMetadata: Record<string, unknown> = {};
+		const ctx = {
+			liveSessions: new Map([
+				[
+					sourceSessionId,
+					{
+						config: {
+							cwd: "/workspace/project",
+							provider: "cline",
+							model: modelId,
+						},
+						messages,
+						promptsInQueue: [],
+						busy: false,
+						startedAt: Date.now(),
+						status: "idle",
+					},
+				],
+			]),
+			restoringWorkspacePaths: new Set(),
+			streamIndices: new Map(),
+			pendingApprovals: new Map(),
+			pendingQuestions: new Map(),
+			wsClients: new Set([
+				{
+					data: { canApproveTools: true },
+					send(message: string) {
+						const parsed = JSON.parse(message) as {
+							event: { name: string; payload: Record<string, unknown> };
+						};
+						events.push(parsed.event);
+						if (parsed.event.name === "cloud_handoff_progress") {
+							order.push(`event:${parsed.event.payload.phase}`);
+						}
+					},
+				},
+			]),
+			sessionManager: {
+				get: vi.fn(async () => ({
+					sessionId: sourceSessionId,
+					status: "completed",
+					cwd: "/workspace/project",
+					model: modelId,
+					metadata: persistedMetadata,
+				})),
+				readLiveMessages: vi.fn(async () => messages),
+				update: vi.fn(
+					async (_id: string, input: { metadata: Record<string, unknown> }) => {
+						persistedMetadata = input.metadata;
+						metadataUpdates.push(input.metadata);
+						order.push(
+							`metadata:${readCloudHandoffMetadata(input.metadata)?.status}`,
+						);
+						return { updated: true };
+					},
+				),
+				pendingPrompts: { list: vi.fn(async () => []) },
+			},
+		} as unknown as SidecarContext;
+
+		const verifyHandoffTranscript = vi.fn(async () => undefined);
+		const cloudSend = vi.fn(async () => ({
+			sessionId: "ses-cloud",
+			ok: true as const,
+			queued: true,
+		}));
+		const create = vi.fn(
+			async (input: {
+				handoff?: {
+					onOuterSessionCreated?: (id: string) => Promise<void>;
+					resolveMessages: () => Promise<unknown>;
+					onSeeding?: () => void;
+				};
+			}) => {
+				await input.handoff?.onOuterSessionCreated?.("ses-cloud");
+				await input.handoff?.resolveMessages();
+				input.handoff?.onSeeding?.();
+				return { sessionId: "ses-cloud", innerSessionId: "inner-cloud" };
+			},
+		);
+		const cloud = new CloudSessionManager(ctx, {
+			api: {} as unknown as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+		});
+		Object.assign(cloud, {
+			prepareHandoffRepository: vi.fn(async () => ({})),
+			create,
+			verifyHandoffTranscript,
+			send: cloudSend,
+		});
+		ctx.cloudSessionManager = cloud;
+
+		const running = handleChatSessionCommand(ctx, {
+			action: "handoff",
+			sessionId: sourceSessionId,
+			nextCommand: "continue in cloud",
+			fingerprint: {
+				repoUrl: "https://github.com/cline/test",
+				branch: "main",
+				headSha,
+				modelId,
+			},
+		});
+		running.then(() => order.push("resolved"));
+		const result = (await running) as {
+			sessionId: string;
+			outerSessionId: string;
+			innerSessionId: string;
+			dashboardUrl: string;
+			destination: string;
+		};
+
+		// The pending record lands before provisioning, the completion record
+		// replaces it, and the authoritative completion event fires before the
+		// RPC resolves.
+		expect(order).toEqual([
+			"event:creating",
+			"metadata:pending",
+			"event:provisioning",
+			"event:connecting",
+			"event:seeding",
+			"event:verifying",
+			"metadata:complete",
+			"event:complete",
+			"resolved",
+		]);
+		expect(readCloudHandoffMetadata(metadataUpdates[0])).toMatchObject({
+			status: "pending",
+			toCloudSessionId: "ses-cloud",
+			dashboardUrl: expect.stringContaining("ses-cloud"),
+		});
+		expect(metadataUpdates).toHaveLength(2);
+		expect(readCloudHandoffMetadata(persistedMetadata)).toMatchObject({
+			status: "complete",
+			toCloudSessionId: "ses-cloud",
+			innerSessionId: "inner-cloud",
+			dashboardUrl: result.dashboardUrl,
+		});
+		expect(verifyHandoffTranscript).toHaveBeenCalledWith(
+			"ses-cloud",
+			messages,
+			{ allowAppendedMessages: false },
+		);
+		expect(cloudSend).toHaveBeenCalledWith(
+			"ses-cloud",
+			"continue in cloud",
+			"queue",
+			modelId,
+			undefined,
+		);
+		const complete = events.find(
+			(event) =>
+				event.name === "cloud_handoff_progress" &&
+				event.payload.phase === "complete",
+		);
+		expect(complete?.payload).toMatchObject({
+			sourceSessionId,
+			sessionId: "ses-cloud",
+			dashboardUrl: result.dashboardUrl,
+			destination: "in_app",
+		});
+		expect(result).toMatchObject({
+			sessionId: "ses-cloud",
+			outerSessionId: "ses-cloud",
+			innerSessionId: "inner-cloud",
+			destination: "in_app",
+		});
+		expect(result.dashboardUrl).toContain("ses-cloud");
+		expect(result).not.toHaveProperty("warning");
 	});
 });
 

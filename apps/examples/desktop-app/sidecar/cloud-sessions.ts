@@ -107,6 +107,15 @@ type CloudHandoffSeed = {
 	messages: MessageWithMetadata[];
 	mode?: AgentMode;
 	workspaceRelativePath?: string;
+	/** Source-session settings that must survive a sidecar restart: the
+	 * liveSessions fallback in createInnerSessionOnce is empty after a
+	 * restart, and defaulting auto-approve to true there silently removes
+	 * the approval gate from resumed handoffs. */
+	config?: {
+		autoApproveTools?: boolean;
+		thinking?: boolean;
+		reasoningEffort?: "low" | "medium" | "high" | "xhigh";
+	};
 	onSeeding?: () => void;
 };
 
@@ -605,11 +614,13 @@ export class CloudSessionApi {
 			// (5xx / no HTTP status). A fast client-side rejection (4xx) never
 			// provisioned anything, and recovering on one risks silently
 			// adopting an identical-config session created by another device
-			// on the same account.
+			// on the same account. A raw transport rejection (fetch throwing
+			// before an HTTP status exists) is just as ambiguous as a 5xx: the
+			// request may have reached the server before the connection died.
 			const mayStillBeProvisioning =
 				controller.signal.aborted ||
-				(error instanceof CloudSessionError &&
-					error.code === "request_failed" &&
+				!(error instanceof CloudSessionError) ||
+				(error.code === "request_failed" &&
 					(error.status === undefined || error.status >= 500));
 			if (mayStillBeProvisioning) {
 				// This POST is settled; record that before waiting on peers so
@@ -629,12 +640,18 @@ export class CloudSessionApi {
 				}
 				const requestedBranch = input.branch?.trim();
 				// Recovery must observe the same identity/scope that issued the
-				// create — the active account can change mid-provision.
+				// create — the active account can change mid-provision. A failed
+				// list is NOT an empty list: treating it as empty would blind
+				// the ambiguity guard and let a retry provision a duplicate.
+				let recoveryListFailed = false;
 				const candidates = (
 					await this.listWithToken(
 						input.organizationId ?? undefined,
 						creationAuthToken,
-					).catch(() => [])
+					).catch(() => {
+						recoveryListFailed = true;
+						return [];
+					})
 				)
 					.filter(
 						(session) =>
@@ -657,6 +674,13 @@ export class CloudSessionApi {
 				const unclaimedCandidates = candidates.filter(
 					(candidate) => !this.claimedSessionIds.has(candidate.id),
 				);
+				if (input.handoff && recoveryListFailed) {
+					throw new CloudSessionError(
+						"request_failed",
+						"Cloud session creation had an ambiguous result and the session list could not be checked. Verify in Cline Cloud whether the workspace was created before retrying.",
+						new URL("/agents", this.appBaseUrl).toString(),
+					);
+				}
 				if (input.handoff && unclaimedCandidates.length > 0) {
 					throw new CloudSessionError(
 						"request_failed",
@@ -1810,6 +1834,17 @@ export class CloudSessionManager {
 					messages: await input.handoff.resolveMessages(),
 					mode: input.mode ?? "act",
 					workspaceRelativePath: input.workspaceRelativePath,
+					config: {
+						...(typeof input.autoApproveTools === "boolean"
+							? { autoApproveTools: input.autoApproveTools }
+							: {}),
+						...(typeof input.thinking === "boolean"
+							? { thinking: input.thinking }
+							: {}),
+						...(input.reasoningEffort
+							? { reasoningEffort: input.reasoningEffort }
+							: {}),
+					},
 					onSeeding: input.handoff.onSeeding,
 				}
 			: undefined;
@@ -2799,11 +2834,18 @@ export class CloudSessionManager {
 					: CLOUD_GITHUB_AUTH_SYSTEM_PROMPT,
 				mode,
 				enableTools: true,
-				...(typeof live?.config.thinking === "boolean"
-					? { thinking: live.config.thinking }
+				...(typeof (handoffSeed?.config?.thinking ?? live?.config.thinking) ===
+				"boolean"
+					? { thinking: handoffSeed?.config?.thinking ?? live?.config.thinking }
 					: {}),
-				...(typeof live?.config.reasoningEffort === "string"
-					? { reasoningEffort: live.config.reasoningEffort }
+				...(typeof (
+					handoffSeed?.config?.reasoningEffort ?? live?.config.reasoningEffort
+				) === "string"
+					? {
+							reasoningEffort:
+								handoffSeed?.config?.reasoningEffort ??
+								live?.config.reasoningEffort,
+						}
 					: {}),
 			},
 			metadata: {
@@ -2824,7 +2866,11 @@ export class CloudSessionManager {
 			runtimeOptions: { mode },
 			modelSelection: { provider: "cline", model: modelId },
 			toolPolicies: {
-				"*": { autoApprove: live?.config.autoApproveTools !== false },
+				"*": {
+					autoApprove:
+						(handoffSeed?.config?.autoApproveTools ??
+							live?.config.autoApproveTools) !== false,
+				},
 			},
 		});
 		const session =

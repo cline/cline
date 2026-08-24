@@ -471,13 +471,13 @@ export default function Home() {
 	const handleOpenSessionById = useCallback(
 		async (
 			sessionId: string,
-			options: { silent?: boolean } = {},
+			options: { silent?: boolean; initialPromptDraft?: string } = {},
 		): Promise<boolean> => {
 			const cachedSession = sessionHistoryRef.current.find(
 				(session) => session.sessionId === sessionId,
 			);
 			if (cachedSession) {
-				handleOpenSession(cachedSession);
+				handleOpenSession(cachedSession, options.initialPromptDraft);
 				return true;
 			}
 			try {
@@ -488,7 +488,7 @@ export default function Home() {
 				if (!session) {
 					throw new Error("The session for this run is no longer available.");
 				}
-				handleOpenSession(session);
+				handleOpenSession(session, options.initialPromptDraft);
 				return true;
 			} catch (error) {
 				if (!options.silent) {
@@ -742,7 +742,7 @@ function ChatThreadPane({
 	) => void;
 	onOpenSessionById?: (
 		sessionId: string,
-		options?: { silent?: boolean },
+		options?: { silent?: boolean; initialPromptDraft?: string },
 	) => boolean | Promise<boolean>;
 	onOpenSetup?: () => void;
 	onOpenModelSettings?: () => void;
@@ -1453,6 +1453,13 @@ function ChatThreadPane({
 					externalPresentation: destination === "external",
 					pendingPrompt,
 				});
+				// A warning means the follow-up command was NOT queued. Clear the
+				// optimistic bubble (it would read as sent), but preserve the
+				// user's command by pre-filling the target session's composer —
+				// the completed source is read-only, so this is the only copy.
+				const undeliveredCommand = result.warning
+					? nextCommand.trim() || undefined
+					: undefined;
 				if (result.warning) {
 					onHandoffUiAction({
 						type: "prompt_reconciled",
@@ -1461,7 +1468,12 @@ function ChatThreadPane({
 				}
 				if (shouldOpenHandoffInApp(destination, isThreadActive?.() ?? true)) {
 					const opened = await Promise.resolve(
-						onOpenSessionById?.(targetSessionId, { silent: true }),
+						onOpenSessionById?.(targetSessionId, {
+							silent: true,
+							...(undeliveredCommand
+								? { initialPromptDraft: undeliveredCommand }
+								: {}),
+						}),
 					).catch(() => false);
 					if (!opened) {
 						onHandoffUiAction({ type: "external", sourceSessionId });
@@ -1497,7 +1509,9 @@ function ChatThreadPane({
 				if (result.warning) {
 					toast({
 						title: "Handoff completed with a warning",
-						description: result.warning,
+						description: undeliveredCommand
+							? `${result.warning} Your command was kept: "${undeliveredCommand}" — send it from the cloud session.`
+							: result.warning,
 					});
 				}
 			} catch (error) {

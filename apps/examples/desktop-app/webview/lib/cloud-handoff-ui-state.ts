@@ -156,6 +156,12 @@ export function cloudHandoffUiReducer(
 				},
 			};
 		case "failed": {
+			// An authoritative completion event may have already landed while
+			// the RPC transport failed; the receipt (and its cloud URL) must
+			// survive, since the source session is locked either way.
+			if (current?.status === "complete") {
+				return state;
+			}
 			const dashboardUrl =
 				current?.status === "progress" ? current.dashboardUrl : undefined;
 			if (action.exposeRecovery && dashboardUrl) {

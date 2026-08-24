@@ -1087,7 +1087,92 @@ describe("CloudSessionApi", () => {
 		}
 	});
 
+	it("treats a raw transport rejection as possibly provisioned and refuses ambiguous adoption", async () => {
+		const now = new Date().toISOString();
+		const onOuterSessionCreated = vi.fn();
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api.example",
+			appBaseUrl: "https://app.example",
+			getAuthToken: async () => "workos:fresh",
+			fetch: async (_input, init) => {
+				// fetch itself rejecting (no HTTP status) is as ambiguous as a
+				// 5xx: the POST may have reached the server before the
+				// connection died.
+				if (init?.method === "POST") {
+					throw new Error("socket hang up");
+				}
+				return jsonResponse({
+					success: true,
+					data: [
+						{
+							id: "ses-maybe-created",
+							status: "ready",
+							sandboxUrl: "https://pod.example",
+							repoContext: { repoUrl: "https://github.com/cline/test" },
+							metadata: { modelId: "model" },
+							createdAt: now,
+							updatedAt: now,
+						},
+					],
+				});
+			},
+		});
 
+		const error = await api
+			.create({
+				modelId: "model",
+				repoUrl: "https://github.com/cline/test",
+				handoff: {
+					sourceSessionId: "local-1",
+					resolveMessages: async () => [],
+					onOuterSessionCreated,
+				},
+			})
+			.catch((caught) => caught);
+
+		expect(error).toMatchObject({
+			code: "request_failed",
+			connectUrl: "https://app.example/agents",
+		});
+		expect(String(error)).toContain("cannot prove it created it");
+		expect(String(error)).not.toContain("socket hang up");
+		expect(onOuterSessionCreated).not.toHaveBeenCalled();
+	});
+
+	it("does not silently proceed when the ambiguity recovery list fails", async () => {
+		const onOuterSessionCreated = vi.fn();
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api.example",
+			appBaseUrl: "https://app.example",
+			getAuthToken: async () => "workos:fresh",
+			fetch: async (_input, init) =>
+				init?.method === "POST"
+					? jsonResponse({ success: false, error: "gateway timeout" }, 500)
+					: jsonResponse({ success: false, error: "list unavailable" }, 503),
+		});
+
+		// A failed list is NOT an empty list: the create may have provisioned a
+		// sandbox this client cannot see, so a handoff must not retry blindly.
+		const error = await api
+			.create({
+				modelId: "model",
+				repoUrl: "https://github.com/cline/test",
+				handoff: {
+					sourceSessionId: "local-1",
+					resolveMessages: async () => [],
+					onOuterSessionCreated,
+				},
+			})
+			.catch((caught) => caught);
+
+		expect(error).toMatchObject({
+			code: "request_failed",
+			connectUrl: "https://app.example/agents",
+		});
+		expect(String(error)).toContain("the session list could not be checked");
+		expect(String(error)).toContain("Verify in Cline Cloud");
+		expect(onOuterSessionCreated).not.toHaveBeenCalled();
+	});
 
 	it("does not retry an arbitrary 502 that could have provisioned", async () => {
 		const { ctx } = createContext();
@@ -2282,7 +2367,6 @@ describe("CloudSessionManager", () => {
 		expect(sleep.mock.calls).toEqual([[500], [1000]]);
 	});
 
-
 	it("persists the outer handoff before seeding rich initial messages", async () => {
 		const { ctx } = createContext();
 		const hub = new FakeHubClient(false);
@@ -2483,6 +2567,72 @@ describe("CloudSessionManager", () => {
 		expect(seeded.innerSessionId).toBe("inner-handoff");
 		expect(
 			hub.commands.some((entry) => entry.command === "session.create"),
+		).toBe(false);
+	});
+
+	it("seeds the inner session from the handoff config after a sidecar restart", async () => {
+		// liveSessions is empty after a restart; the seed's source-session
+		// settings must win over the (absent) live fallback.
+		const { ctx } = createContext();
+		const hub = new FakeHubClient();
+		hub.sessionRows = [];
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+
+		const seeded = await manager.seedHandoff("ses-outer", {
+			sourceSessionId: "local-1",
+			messages: [{ role: "user", content: "continue" }],
+			config: {
+				autoApproveTools: false,
+				thinking: true,
+				reasoningEffort: "high",
+			},
+		});
+
+		expect(seeded.innerSessionId).toBe("inner-created");
+		const innerCreate = hub.commands.find(
+			(entry) => entry.command === "session.create",
+		);
+		expect(innerCreate?.payload?.toolPolicies).toEqual({
+			"*": { autoApprove: false },
+		});
+		expect(innerCreate?.payload?.sessionConfig).toMatchObject({
+			thinking: true,
+			reasoningEffort: "high",
+		});
+	});
+
+	it("keeps auto-approve on by default without a seed config or live session", async () => {
+		const { ctx } = createContext();
+		const hub = new FakeHubClient();
+		hub.sessionRows = [];
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+
+		await manager.seedHandoff("ses-outer", {
+			sourceSessionId: "local-1",
+			messages: [{ role: "user", content: "continue" }],
+		});
+
+		const innerCreate = hub.commands.find(
+			(entry) => entry.command === "session.create",
+		);
+		expect(innerCreate?.payload?.toolPolicies).toEqual({
+			"*": { autoApprove: true },
+		});
+		expect(
+			Object.hasOwn(
+				(innerCreate?.payload?.sessionConfig ?? {}) as Record<string, unknown>,
+				"thinking",
+			),
 		).toBe(false);
 	});
 

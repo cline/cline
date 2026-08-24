@@ -2147,6 +2147,23 @@ async function handleHandoffOnce(
 				messages: seed,
 				workspaceRelativePath: prepared.fingerprint.workspaceRelativePath,
 				mode: prepared.fingerprint.mode ?? "act",
+				// After a sidecar restart nothing else remembers the source
+				// session's approval/reasoning settings for the inner create.
+				config: {
+					...(typeof request.config?.autoApproveTools === "boolean"
+						? { autoApproveTools: request.config.autoApproveTools }
+						: {}),
+					...(typeof request.config?.thinking === "boolean"
+						? { thinking: request.config.thinking }
+						: {}),
+					...(readReasoningEffort(request.config?.reasoningEffort)
+						? {
+								reasoningEffort: readReasoningEffort(
+									request.config?.reasoningEffort,
+								),
+							}
+						: {}),
+				},
 				onSeeding: () =>
 					emitProgress(
 						"seeding",
