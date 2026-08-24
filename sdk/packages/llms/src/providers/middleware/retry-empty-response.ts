@@ -294,7 +294,27 @@ export function createRetryEmptyResponseMiddleware(
 			// Kick off the first attempt eagerly, matching normal doStream timing.
 			const firstResult = await doStream();
 
+			// Downstream cancellation must reach the provider's HTTP body. The
+			// pump below lives in start(), so without an explicit cancel()
+			// handler a consumer that stops reading would leave the pump
+			// draining the response to completion — for a generation request
+			// with no live AbortSignal that means the provider keeps producing
+			// tokens nobody reads (and a local server keeps a slot busy).
+			// `cancelController` also cuts the backoff sleeps short so a
+			// cancelled pump exits promptly instead of re-dialing later.
+			let activeReader: ReadableStreamDefaultReader<LanguageModelV4StreamPart> | null =
+				null;
+			const cancelController = new AbortController();
+			const cancelled = () => cancelController.signal.aborted;
+			const backoffSignal = abortSignal
+				? AbortSignal.any([abortSignal, cancelController.signal])
+				: cancelController.signal;
+
 			const stream = new ReadableStream<LanguageModelV4StreamPart>({
+				cancel(reason) {
+					cancelController.abort(reason);
+					return activeReader?.cancel(reason);
+				},
 				async start(controller) {
 					let result: LanguageModelV4StreamResult = firstResult;
 					const discardedUsage: LanguageModelV4Usage[] = [];
@@ -305,6 +325,7 @@ export function createRetryEmptyResponseMiddleware(
 
 					for (let attempt = 1; ; attempt++) {
 						const reader = result.stream.getReader();
+						activeReader = reader;
 						// Parts held back until this attempt proves non-empty.
 						const buffered: LanguageModelV4StreamPart[] = [];
 						let accepted = false;
@@ -351,7 +372,16 @@ export function createRetryEmptyResponseMiddleware(
 							streamFailed = true;
 							streamFailure = error;
 						} finally {
+							activeReader = null;
 							reader.releaseLock();
+						}
+
+						if (cancelled()) {
+							// The consumer cancelled: the inner reader is already
+							// cancelled (or this attempt's read loop ended racing
+							// the cancel). The controller is closed, so nothing
+							// can be enqueued — and nothing should be retried.
+							return;
 						}
 
 						if (streamFailed) {
@@ -387,7 +417,12 @@ export function createRetryEmptyResponseMiddleware(
 											: String(streamFailure),
 								},
 							);
-							await sleep(delayMs, abortSignal);
+							await sleep(delayMs, backoffSignal);
+							if (cancelled()) {
+								// The consumer cancelled during backoff: the
+								// controller is closed, so just stop.
+								return;
+							}
 							if (abortSignal?.aborted) {
 								// The user cancelled during backoff: surface
 								// the abort instead of re-dialing.
@@ -450,7 +485,10 @@ export function createRetryEmptyResponseMiddleware(
 						});
 
 						if (retryDelayMs > 0) {
-							await sleep(retryDelayMs);
+							await sleep(retryDelayMs, cancelController.signal);
+						}
+						if (cancelled()) {
+							return;
 						}
 						try {
 							result = await doStream();
