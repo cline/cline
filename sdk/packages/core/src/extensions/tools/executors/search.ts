@@ -13,6 +13,16 @@ import type { SearchExecutor } from "../types";
 import { MAX_LINE_CHARS, MAX_SEARCH_OUTPUT_CHARS } from "./output-limits";
 
 /**
+ * Cap on buffered `rg --json` stdout. Each event embeds the full text of its
+ * matched line, so one match in a giant single-line file (e.g. a serialized
+ * trace dump) can produce a multi-hundred-MB event; buffering unbounded can
+ * exceed the engine's max string length and crash the whole process with an
+ * uncaught RangeError from the stream data handler. Results are capped to
+ * MAX_SEARCH_OUTPUT_CHARS anyway, so output past this is never shown.
+ */
+const MAX_RG_STDOUT_CHARS = 10 * 1024 * 1024;
+
+/**
  * Options for the search executor
  */
 export interface SearchExecutorOptions {
@@ -120,34 +130,6 @@ interface SearchMatch {
 	context: string[];
 }
 
-/**
- * Max chars buffered for a single ripgrep --json event line. Each event
- * embeds the full text of the matched/context line (--max-columns is
- * ignored in JSON mode), so one match in a single-line multi-hundred-MB
- * file (e.g. a serialized trace/log dump) produces one event of about the
- * same size. Buffering the whole stream unbounded could grow a string past
- * the engine's max length and crash the host process with an uncaught
- * RangeError from the stream data handler. Events beyond this size are
- * dropped; legitimate code lines are far smaller and long lines get
- * truncated to MAX_LINE_CHARS in the result anyway.
- */
-const MAX_RG_EVENT_CHARS = 256 * 1024;
-
-/**
- * Max file size (bytes) the fallback regex scan reads into memory. Files
- * beyond this are skipped; they are almost never useful code-search
- * targets and reading them risks the same memory blowups the ripgrep
- * path guards against.
- */
-const MAX_FALLBACK_FILE_BYTES = 10 * 1024 * 1024;
-
-function truncateSearchLine(text: string): string {
-	if (text.length <= MAX_LINE_CHARS) {
-		return text;
-	}
-	return `${text.slice(0, MAX_LINE_CHARS)} [line truncated]`;
-}
-
 let rgAvailable: boolean | null = null;
 
 function checkRipgrepAvailable(): Promise<boolean> {
@@ -204,9 +186,7 @@ function searchWithRipgrep(
 			},
 		);
 
-		const matches: SearchMatch[] = [];
-		let buffer = "";
-		let discardingOversizedEvent = false;
+		let stdout = "";
 		let resolved = false;
 
 		const cleanup = () => {
@@ -242,66 +222,11 @@ function searchWithRipgrep(
 			finalize(null);
 		});
 
-		const processEventLine = (line: string) => {
-			if (!line.trim() || matches.length >= maxResults) {
-				return;
-			}
-			try {
-				const json = JSON.parse(line);
-				if (json.type === "match") {
-					const matchData = json.data;
-					const contextLines: string[] = [];
-
-					if (json.data.submatches && json.data.submatches.length > 0) {
-						const submatch = json.data.submatches[0];
-						matches.push({
-							file: matchData.path.text,
-							line: matchData.line_number,
-							column: (submatch?.start ?? 0) + 1,
-							match: truncateSearchLine(submatch?.match?.text ?? ""),
-							context: contextLines,
-						});
-					}
-				} else if (json.type === "context" && matches.length > 0) {
-					const lastMatch = matches[matches.length - 1];
-					const prefix = json.data.line_number === lastMatch.line ? ">" : " ";
-					lastMatch.context.push(
-						`${prefix} ${json.data.line_number}: ${truncateSearchLine(json.data.lines?.text ?? json.data.line?.text ?? "")}`,
-					);
-				}
-			} catch {
-				// Tolerate undecodable event lines (e.g. cut off when the
-				// process is killed mid-write); keep the matches parsed so far.
-			}
-		};
-
 		child.stdout.on("data", (chunk: Buffer | string) => {
-			if (resolved) {
+			if (stdout.length > MAX_RG_STDOUT_CHARS) {
 				return;
 			}
-			buffer += chunk.toString();
-
-			let newlineIndex = buffer.indexOf("\n");
-			while (newlineIndex !== -1) {
-				const line = buffer.slice(0, newlineIndex);
-				buffer = buffer.slice(newlineIndex + 1);
-				if (discardingOversizedEvent) {
-					// This was the tail of a dropped oversized event.
-					discardingOversizedEvent = false;
-				} else {
-					processEventLine(line);
-					if (matches.length >= maxResults) {
-						finalize(matches);
-						return;
-					}
-				}
-				newlineIndex = buffer.indexOf("\n");
-			}
-
-			if (buffer.length > MAX_RG_EVENT_CHARS) {
-				buffer = "";
-				discardingOversizedEvent = true;
-			}
+			stdout += chunk.toString();
 		});
 
 		child.stderr.on("data", () => {
@@ -310,10 +235,46 @@ function searchWithRipgrep(
 
 		child.on("close", (code: number | null) => {
 			if (code === 0 || code === 1) {
-				if (!discardingOversizedEvent) {
-					processEventLine(buffer);
+				try {
+					const matches: SearchMatch[] = [];
+					// Drop the trailing partial event left behind by the stdout cap.
+					const lines = stdout
+						.slice(0, stdout.lastIndexOf("\n") + 1)
+						.split("\n")
+						.filter((line) => line.trim());
+
+					for (const line of lines) {
+						if (matches.length >= maxResults) break;
+
+						const json = JSON.parse(line);
+						if (json.type === "match") {
+							const matchData = json.data;
+							const contextLines: string[] = [];
+
+							if (json.data.submatches && json.data.submatches.length > 0) {
+								const submatch = json.data.submatches[0];
+								matches.push({
+									file: matchData.path.text,
+									line: matchData.line_number,
+									column: (submatch?.start ?? 0) + 1,
+									match: submatch?.match?.text ?? "",
+									context: contextLines,
+								});
+							}
+						} else if (json.type === "context" && matches.length > 0) {
+							const lastMatch = matches[matches.length - 1];
+							const prefix =
+								json.data.line_number === lastMatch.line ? ">" : " ";
+							lastMatch.context.push(
+								`${prefix} ${json.data.line_number}: ${json.data.lines?.text ?? json.data.line?.text ?? ""}`,
+							);
+						}
+					}
+
+					finalize(matches.length > 0 ? matches : null);
+				} catch {
+					finalize(null);
 				}
-				finalize(matches.length > 0 ? matches : null);
 				return;
 			}
 
@@ -435,7 +396,6 @@ export function createSearchExecutor(
 
 		const matches: SearchMatch[] = [];
 		let totalFilesSearched = 0;
-		let oversizedFilesSkipped = 0;
 
 		const fileList = await getFileIndex(cwd);
 
@@ -459,15 +419,10 @@ export function createSearchExecutor(
 
 			if (matches.length >= maxResults) break;
 
+			totalFilesSearched++;
 			const filePath = path.join(cwd, relativePath);
 
 			try {
-				const stats = await fs.stat(filePath);
-				if (stats.size > MAX_FALLBACK_FILE_BYTES) {
-					oversizedFilesSkipped++;
-					continue;
-				}
-				totalFilesSearched++;
 				const content = await fs.readFile(filePath, "utf-8");
 				const lines = content.split("\n");
 
@@ -490,7 +445,7 @@ export function createSearchExecutor(
 						for (let i = contextStart; i <= contextEnd; i++) {
 							const prefix = i === lineIdx ? ">" : " ";
 							contextLinesArr.push(
-								`${prefix} ${i + 1}: ${truncateSearchLine(lines[i])}`,
+								`${prefix} ${i + 1}: ${lines[i].slice(0, MAX_LINE_CHARS)}`,
 							);
 						}
 
@@ -498,7 +453,7 @@ export function createSearchExecutor(
 							file: relativePath,
 							line: lineIdx + 1,
 							column: match.index + 1,
-							match: truncateSearchLine(match[0]),
+							match: match[0],
 							context: contextLinesArr,
 						});
 
@@ -514,11 +469,7 @@ export function createSearchExecutor(
 
 		// Format results
 		if (matches.length === 0) {
-			const skippedNote =
-				oversizedFilesSkipped > 0
-					? `\nSkipped ${oversizedFilesSkipped} file${oversizedFilesSkipped === 1 ? "" : "s"} larger than ${Math.round(MAX_FALLBACK_FILE_BYTES / (1024 * 1024))}MB.`
-					: "";
-			return `No results found for pattern: ${query}\nSearched ${totalFilesSearched} files.${skippedNote}`;
+			return `No results found for pattern: ${query}\nSearched ${totalFilesSearched} files.`;
 		}
 
 		const resultLines: string[] = [
