@@ -9,6 +9,10 @@ import {
 	parseRuntimeConfigExtensions,
 	ReasoningEffortSchema,
 } from "@cline/shared";
+import {
+	isCoreBuiltinToolAvailable,
+	resolveToolClientType,
+} from "../../../extensions/tools/runtime";
 import { normalizeConnectionUpdate } from "../../../runtime/config/connection-update";
 import type {
 	RuntimeSessionConfig,
@@ -19,6 +23,7 @@ import {
 	SessionVersioningError,
 	SessionVersioningService,
 } from "../../../session/session-versioning-service";
+import { TASKS_TOOL_NAME } from "../../../tasks/task-tool";
 import {
 	createHubClientContributionRuntime,
 	parseHubClientContributions,
@@ -39,6 +44,19 @@ import {
 } from "./context";
 
 const CAPABILITY_OWNER_METADATA_KEY = "hubCapabilityOwnerClientId";
+
+export function selectSessionTools<T extends { name: string }>(
+	tools: readonly T[],
+	mode: string,
+	source?: string,
+): T[] {
+	const clientType = resolveToolClientType(source);
+	return tools.filter(
+		(tool) =>
+			(mode !== "yolo" || tool.name !== TASKS_TOOL_NAME) &&
+			isCoreBuiltinToolAvailable(tool.name, clientType),
+	);
+}
 
 function readConnectionString(value: unknown): string | undefined {
 	return typeof value === "string" && value.trim().length > 0
@@ -114,13 +132,30 @@ function stripServerOwnedSessionMetadata(
 	metadata: Record<string, JsonValue | undefined> | undefined,
 ): Record<string, JsonValue | undefined> | undefined {
 	// Clients may echo old records back through session.update; keep ownership
-	// on the live hub state only.
-	if (!metadata || !(CAPABILITY_OWNER_METADATA_KEY in metadata)) {
+	// and approval policy on server-created session state only.
+	if (
+		!metadata ||
+		(!("autoApproveTools" in metadata) &&
+			!(CAPABILITY_OWNER_METADATA_KEY in metadata))
+	) {
 		return metadata;
 	}
 	const sanitized = { ...metadata };
 	delete sanitized[CAPABILITY_OWNER_METADATA_KEY];
+	delete sanitized.autoApproveTools;
 	return sanitized;
+}
+
+export function resolveSessionAutoApproveTools(
+	toolPolicies: unknown,
+	runtimeOptions: Record<string, unknown>,
+): boolean {
+	const policies = asPlainRecord(toolPolicies);
+	const globalPolicy = asPlainRecord(policies?.["*"]);
+	if (typeof globalPolicy?.autoApprove === "boolean") {
+		return globalPolicy.autoApprove;
+	}
+	return runtimeOptions.autoApproveTools === true;
 }
 
 function authorizeSessionCompactionAccess(input: {
@@ -198,6 +233,10 @@ export async function handleSessionCreate(
 	} else if (runtimeOptions.checkpointEnabled === true) {
 		metadata.checkpointEnabled = true;
 	}
+	metadata.autoApproveTools = resolveSessionAutoApproveTools(
+		payload.toolPolicies,
+		runtimeOptions,
+	);
 	const modelSelection =
 		payload.modelSelection && typeof payload.modelSelection === "object"
 			? (payload.modelSelection as Record<string, unknown>)
@@ -257,6 +296,11 @@ export async function handleSessionCreate(
 					? metadata.model
 					: "hub"),
 	});
+	const sessionMode =
+		sessionConfig?.mode ??
+		(runtimeOptions.mode === "plan" || runtimeOptions.mode === "yolo"
+			? runtimeOptions.mode
+			: "act");
 	const started = await ctx.sessionHost.startSession({
 		source: typeof metadata.source === "string" ? metadata.source : undefined,
 		interactive: metadata.interactive !== false,
@@ -275,6 +319,18 @@ export async function handleSessionCreate(
 			},
 			configExtensions,
 			...clientContributionRuntime.localRuntime,
+			extensions: [
+				...(ctx.sessionExtensions ?? []),
+				...(clientContributionRuntime.localRuntime.extensions ?? []),
+			],
+			extraTools: selectSessionTools(
+				[
+					...(ctx.sessionTools ?? []),
+					...(clientContributionRuntime.localRuntime.extraTools ?? []),
+				],
+				sessionMode,
+				typeof metadata.source === "string" ? metadata.source : undefined,
+			),
 		},
 		capabilities: {
 			toolExecutors: clientContributionRuntime.toolExecutors,
@@ -313,11 +369,7 @@ export async function handleSessionCreate(
 				(typeof runtimeOptions.systemPrompt === "string"
 					? runtimeOptions.systemPrompt
 					: ""),
-			mode:
-				sessionConfig?.mode ??
-				(runtimeOptions.mode === "plan" || runtimeOptions.mode === "yolo"
-					? runtimeOptions.mode
-					: "act"),
+			mode: sessionMode,
 			maxIterations:
 				sessionConfig?.maxIterations ??
 				(typeof runtimeOptions.maxIterations === "number"
@@ -467,6 +519,10 @@ export async function handleSessionRestore(
 		} else if (runtimeOptions.checkpointEnabled === true) {
 			metadata.checkpointEnabled = true;
 		}
+		metadata.autoApproveTools = resolveSessionAutoApproveTools(
+			payload.toolPolicies,
+			runtimeOptions,
+		);
 
 		const modelSelection =
 			payload.modelSelection && typeof payload.modelSelection === "object"
@@ -522,6 +578,11 @@ export async function handleSessionRestore(
 							? payload.cwd.trim()
 							: context.sourceSession.workspaceRoot ||
 								context.sourceSession.cwd;
+				const sessionMode =
+					sessionConfig?.mode ??
+					(runtimeOptions.mode === "plan" || runtimeOptions.mode === "yolo"
+						? runtimeOptions.mode
+						: "act");
 				return {
 					source:
 						typeof metadata.source === "string" ? metadata.source : undefined,
@@ -540,6 +601,18 @@ export async function handleSessionRestore(
 						},
 						configExtensions,
 						...clientContributionRuntime.localRuntime,
+						extensions: [
+							...(ctx.sessionExtensions ?? []),
+							...(clientContributionRuntime.localRuntime.extensions ?? []),
+						],
+						extraTools: selectSessionTools(
+							[
+								...(ctx.sessionTools ?? []),
+								...(clientContributionRuntime.localRuntime.extraTools ?? []),
+							],
+							sessionMode,
+							typeof metadata.source === "string" ? metadata.source : undefined,
+						),
 					},
 					capabilities: {
 						toolExecutors: clientContributionRuntime.toolExecutors,
@@ -570,11 +643,7 @@ export async function handleSessionRestore(
 							(typeof runtimeOptions.systemPrompt === "string"
 								? runtimeOptions.systemPrompt
 								: ""),
-						mode:
-							sessionConfig?.mode ??
-							(runtimeOptions.mode === "plan" || runtimeOptions.mode === "yolo"
-								? runtimeOptions.mode
-								: "act"),
+						mode: sessionMode,
 						maxIterations:
 							sessionConfig?.maxIterations ??
 							(typeof runtimeOptions.maxIterations === "number"

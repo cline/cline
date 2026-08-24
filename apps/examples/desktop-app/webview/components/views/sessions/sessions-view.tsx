@@ -426,13 +426,16 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 						<span className="sr-only">Actions</span>
 					</div>
 					<div>
-						{history.isLoadingHistory && history.threads.length === 0 ? (
+						{/* Keep the loader up until the backend's first response: the
+						    empty-state copy must only describe an actual zero-session
+						    answer, not a fetch that is still in flight or retrying. */}
+						{!history.hasLoadedHistory && history.threads.length === 0 ? (
 							<div className="flex items-center gap-2 border-t px-4 py-8 text-sm text-muted-foreground">
 								<Loader2 className="size-4 animate-spin" />
 								Loading session history...
 							</div>
 						) : null}
-						{!history.isLoadingHistory && filteredThreads.length === 0 ? (
+						{history.hasLoadedHistory && filteredThreads.length === 0 ? (
 							<div className="border-t px-4 py-8 text-sm text-muted-foreground">
 								{history.threads.length === 0
 									? "No sessions yet."

@@ -172,6 +172,7 @@ export interface HubClientOptions {
 	workspaceRoot?: string;
 	cwd?: string;
 	authToken?: string;
+	capabilities?: HubClientRegistration["capabilities"];
 }
 
 export interface LocalHubResolutionOptions {
@@ -299,6 +300,14 @@ export class NodeHubClient {
 	private readonly pendingReplies = new Map<string, PendingReply>();
 	private readonly listeners = new Set<SubscriptionEntry>();
 	private readonly subscriptionCounts = new Map<string, number>();
+	/**
+	 * Highest durable event sequence observed per subscription key. Sent as
+	 * `sinceSequence` when a subscription frame is (re)issued, so a hub with a
+	 * durable event log replays exactly what this client missed while
+	 * disconnected. Hubs without a log ignore the cursor (live-only, the
+	 * legacy behavior).
+	 */
+	private readonly lastEventSequenceByKey = new Map<string, number>();
 	private reconnectTimer: ReturnType<typeof setTimeout> | undefined;
 	private reconnectAttempt = 0;
 	private closedByClient = false;
@@ -308,12 +317,14 @@ export class NodeHubClient {
 	);
 	private sawSocketClose = false;
 	private registered = false;
+	private capabilities: NonNullable<HubClientRegistration["capabilities"]>;
 
 	constructor(private readonly options: HubClientOptions) {
 		this.clientId =
 			options.clientId ??
 			`core-${Math.random().toString(36).slice(2, 10)}-${Date.now().toString(36)}`;
 		this.currentUrl = options.url;
+		this.capabilities = [...(options.capabilities ?? [])];
 	}
 
 	getClientId(): string {
@@ -330,6 +341,16 @@ export class NodeHubClient {
 
 	getConnectionError(): HubTransportError | null {
 		return this.isConnected() ? null : this.lastCloseError;
+	}
+
+	async updateCapabilities(
+		capabilities: NonNullable<HubClientRegistration["capabilities"]>,
+	): Promise<void> {
+		this.capabilities = capabilities.map((capability) => ({ ...capability }));
+		if (!this.registered) return;
+		await this.command("client.update", {
+			capabilities: this.capabilities,
+		});
 	}
 
 	async connect(): Promise<void> {
@@ -442,6 +463,7 @@ export class NodeHubClient {
 			displayName: this.options.displayName ?? "core",
 			transport: "native",
 			actorKind: "client",
+			capabilities: this.capabilities,
 			workspaceContext: {
 				workspaceRoot: this.options.workspaceRoot,
 				cwd: this.options.cwd,
@@ -731,10 +753,17 @@ export class NodeHubClient {
 		kind: "stream.subscribe" | "stream.unsubscribe",
 		sessionId?: string,
 	): void {
+		const sinceSequence =
+			kind === "stream.subscribe"
+				? this.lastEventSequenceByKey.get(
+						this.subscriptionKeyForSessionId(sessionId),
+					)
+				: undefined;
 		this.sendFrame({
 			kind,
 			clientId: this.clientId,
 			...(sessionId ? { sessionId } : {}),
+			...(sinceSequence !== undefined ? { sinceSequence } : {}),
 		});
 	}
 
@@ -783,7 +812,20 @@ export class NodeHubClient {
 				pending.resolve(frame.envelope);
 				return;
 			}
-			case "event":
+			case "event": {
+				const sequence = frame.envelope.sequence;
+				if (typeof sequence === "number") {
+					const eventSessionKey = frame.envelope.sessionId?.trim();
+					for (const key of [GLOBAL_SUBSCRIPTION_KEY, eventSessionKey]) {
+						if (!key || !this.subscriptionCounts.has(key)) {
+							continue;
+						}
+						const previous = this.lastEventSequenceByKey.get(key) ?? 0;
+						if (sequence > previous) {
+							this.lastEventSequenceByKey.set(key, sequence);
+						}
+					}
+				}
 				for (const entry of this.listeners) {
 					if (
 						entry.sessionId &&
@@ -794,6 +836,7 @@ export class NodeHubClient {
 					entry.listener(frame.envelope);
 				}
 				return;
+			}
 			case "command":
 			case "stream.subscribe":
 			case "stream.unsubscribe":
@@ -1060,6 +1103,46 @@ export async function ensureCompatibleLocalHubUrl(
 	} catch {
 		return undefined;
 	}
+}
+
+/**
+ * Ask a hub to stop admitting new mutating work (sessions, runs) while its
+ * accepted work finishes. Best-effort: pre-drain hubs answer 404 and the
+ * caller proceeds without it.
+ *
+ * Pass `{ off: true }` to lift a drain (`POST /drain?off`): an aborted
+ * upgrade must be able to hand the hub back instead of leaving it refusing
+ * work until a restart.
+ */
+export async function requestHubDrain(
+	url: string,
+	authToken?: string,
+	reason?: string,
+	options?: { off?: boolean },
+): Promise<boolean> {
+	const parsed = new URL(url);
+	const resolvedAuthToken =
+		authToken?.trim() || resolveLocalHubAuthToken(parsed);
+	if (parsed.protocol === "ws:") {
+		parsed.protocol = "http:";
+	} else if (parsed.protocol === "wss:") {
+		parsed.protocol = "https:";
+	}
+	parsed.pathname = "/drain";
+	parsed.hash = "";
+	if (reason) {
+		parsed.searchParams.set("reason", reason);
+	}
+	if (options?.off) {
+		parsed.searchParams.set("off", "1");
+	}
+	const response = await fetch(parsed, {
+		method: "POST",
+		headers: resolvedAuthToken
+			? { authorization: `Bearer ${resolvedAuthToken}` }
+			: undefined,
+	});
+	return response.ok;
 }
 
 export async function requestHubShutdown(
