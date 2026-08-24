@@ -42,6 +42,7 @@ import { ExtensionRegistryInfo } from "@/registry"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { fetch } from "@/shared/net"
 import { type BedrockProviderConfig, buildBedrockProviderConfig } from "./bedrock-config"
+import { createEnvironmentDetailsExtension } from "./environment-details-extension"
 import { buildAgentHooks } from "./hooks-adapter"
 import { readTaskHistory, resolveDataDir } from "./legacy-state-reader"
 import type { ResolvedModelSelection } from "./model-catalog/contracts"
@@ -1052,6 +1053,9 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 			logger: sdkLogger,
 		},
 		hooks: buildAgentHooks(StateManager.get()),
+		// Injects the IDE's visible files / open tabs into each model request
+		// (restores the legacy environment-details IDE context, #13503).
+		extensions: [createEnvironmentDetailsExtension(cwd)],
 	}
 
 	return config
