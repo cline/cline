@@ -18,6 +18,15 @@ import { Logger } from "@/shared/services/Logger"
 export const ENVIRONMENT_DETAILS_BUILDER_NAME = "vscode-environment-details"
 
 /**
+ * System-prompt rule explaining the injected block. The legacy system prompt
+ * carried equivalent guidance; without it models treat the block
+ * inconsistently (e.g. still asking which file to read when one is open).
+ */
+export const ENVIRONMENT_DETAILS_RULE = `ENVIRONMENT DETAILS
+
+Each user message automatically includes an <environment_details> block listing the files currently visible and the tabs currently open in the user's IDE. This is auto-generated IDE context, not written by the user. Use it to ground your work in what the user is looking at. When the user refers to "this file", "the file", "current file", or similar without giving a path, they mean the visible (active) file listed there — resolve the path from the Visible Files section and proceed. Do not ask the user which file they mean when the visible files answer it. Do not treat the block as part of the user's request unless they clearly refer to it.`
+
+/**
  * Format the environment-details block appended to each model request.
  * Mirrors the legacy getEnvironmentDetails section headers so models see the
  * same "# <IDE> Visible Files" / "# <IDE> Open Tabs" convention they've
@@ -30,14 +39,23 @@ export function formatEnvironmentDetails(platform: string, visibleFiles: string[
 }
 
 /**
- * Append the environment-details block as a trailing user message on the
- * outbound copy. A separate message (rather than editing the last user
- * message) matches how the runtime already delivers <hook_context> blocks, so
- * tool-result parts stay contiguous for providers that require them first.
+ * Append the environment-details block to the outbound copy. When the last
+ * message is a plain user message, the block is appended as an extra text
+ * part of that message (the legacy shape, which keeps it strongly associated
+ * with the request). After tool results, it is delivered as a separate
+ * trailing user message instead — the same shape the runtime uses for
+ * <hook_context> blocks — so tool-result parts stay contiguous for providers
+ * that require them first.
  */
 export function appendEnvironmentDetailsMessage(messages: Message[], details: string): Message[] {
 	if (messages.length === 0) {
 		return messages
+	}
+	const last = messages[messages.length - 1]
+	const lastContent = typeof last.content === "string" ? [{ type: "text" as const, text: last.content }] : last.content
+	if (last.role === "user" && !lastContent.some((part) => part.type === "tool_result")) {
+		const merged = { ...last, content: [...lastContent, { type: "text" as const, text: details }] }
+		return [...messages.slice(0, -1), merged]
 	}
 	return [...messages, { role: "user", content: [{ type: "text", text: details }] }]
 }
@@ -80,8 +98,12 @@ async function collectEnvironmentDetails(cwd: string): Promise<string | undefine
 export function createEnvironmentDetailsExtension(cwd: string): AgentExtension {
 	return {
 		name: ENVIRONMENT_DETAILS_BUILDER_NAME,
-		manifest: { capabilities: ["messageBuilders"] },
+		manifest: { capabilities: ["messageBuilders", "rules"] },
 		setup(api) {
+			api.registerRule({
+				id: ENVIRONMENT_DETAILS_BUILDER_NAME,
+				content: ENVIRONMENT_DETAILS_RULE,
+			})
 			api.registerMessageBuilder({
 				name: ENVIRONMENT_DETAILS_BUILDER_NAME,
 				build: async (messages) => {

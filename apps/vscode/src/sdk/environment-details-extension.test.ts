@@ -25,21 +25,57 @@ describe("formatEnvironmentDetails", () => {
 })
 
 describe("appendEnvironmentDetailsMessage", () => {
-	it("appends a trailing user message and leaves prior messages untouched", () => {
+	const details = "<environment_details>x</environment_details>"
+
+	it("appends a text part to a trailing plain user message", () => {
 		const messages = [
 			{ role: "user" as const, content: "hello" },
 			{ role: "assistant" as const, content: "hi" },
 			{ role: "user" as const, content: [{ type: "text" as const, text: "continue" }] },
 		]
 
-		const result = appendEnvironmentDetailsMessage(messages, "<environment_details>x</environment_details>")
+		const result = appendEnvironmentDetailsMessage(messages, details)
+
+		expect(result).toHaveLength(3)
+		expect(result.slice(0, 2)).toEqual(messages.slice(0, 2))
+		expect(result[2]).toEqual({
+			role: "user",
+			content: [
+				{ type: "text", text: "continue" },
+				{ type: "text", text: details },
+			],
+		})
+	})
+
+	it("converts a string-content user message to text parts before appending", () => {
+		const result = appendEnvironmentDetailsMessage([{ role: "user", content: "hello" }], details)
+
+		expect(result).toEqual([
+			{
+				role: "user",
+				content: [
+					{ type: "text", text: "hello" },
+					{ type: "text", text: details },
+				],
+			},
+		])
+	})
+
+	it("appends a separate user message after tool results", () => {
+		const messages = [
+			{ role: "user" as const, content: "hello" },
+			{ role: "assistant" as const, content: [{ type: "tool_use" as const, id: "t1", name: "read", input: {} }] },
+			{
+				role: "user" as const,
+				content: [{ type: "tool_result" as const, tool_use_id: "t1", name: "read", content: "file body" }],
+			},
+		]
+
+		const result = appendEnvironmentDetailsMessage(messages, details)
 
 		expect(result).toHaveLength(4)
 		expect(result.slice(0, 3)).toEqual(messages)
-		expect(result[3]).toEqual({
-			role: "user",
-			content: [{ type: "text", text: "<environment_details>x</environment_details>" }],
-		})
+		expect(result[3]).toEqual({ role: "user", content: [{ type: "text", text: details }] })
 	})
 
 	it("returns an empty conversation unchanged", () => {
