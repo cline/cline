@@ -42,7 +42,6 @@ import { ExtensionRegistryInfo } from "@/registry"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { fetch } from "@/shared/net"
 import { type BedrockProviderConfig, buildBedrockProviderConfig } from "./bedrock-config"
-import { createEnvironmentDetailsExtension } from "./environment-details-extension"
 import { buildAgentHooks } from "./hooks-adapter"
 import { readTaskHistory, resolveDataDir } from "./legacy-state-reader"
 import type { ResolvedModelSelection } from "./model-catalog/contracts"
@@ -50,6 +49,7 @@ import { nonNegativeFiniteNumber, positiveFiniteNumber, toSdkApiFormat } from ".
 import { parseProviderId } from "./model-catalog/provider-id"
 import { toSdkProviderId } from "./model-catalog/sdk-provider-id"
 import { createProviderConfigStore, resolveRuntimeModelSelection } from "./model-catalog/store"
+import { buildOpenFilesSystemPromptSection } from "./open-files-context"
 import { getProviderSettingsManager } from "./provider-migration"
 import { buildSapProviderConfig, type SapProviderConfig } from "./sap-config"
 import type { SdkSessionHost } from "./session-host"
@@ -928,6 +928,14 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		systemPrompt = "You are Cline, a highly skilled software engineer. Help the user with their request."
 	}
 
+	// Tell the model which files are open in the IDE so prompts like "read
+	// this file" resolve to the active editor file (#13503).
+	try {
+		systemPrompt += await buildOpenFilesSystemPromptSection(cwd)
+	} catch (error) {
+		Logger.debug("[SessionFactory] Failed to collect open editor files:", error)
+	}
+
 	// Inject preferred language instructions when a non-default language is selected.
 	// Mirrors classic src/core/task/index.ts preferredLanguage handling.
 	try {
@@ -1053,9 +1061,6 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 			logger: sdkLogger,
 		},
 		hooks: buildAgentHooks(StateManager.get()),
-		// Injects the IDE's visible files / open tabs into each model request
-		// (restores the legacy environment-details IDE context, #13503).
-		extensions: [createEnvironmentDetailsExtension(cwd)],
 	}
 
 	return config
