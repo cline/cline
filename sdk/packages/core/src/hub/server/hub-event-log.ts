@@ -201,7 +201,15 @@ export class HubEventLogStore {
 					);`,
 				)
 				.run(Math.floor(this.maxTotalBytes / 2));
-			this.db.exec("VACUUM;");
+			// VACUUM needs scratch space and can fail on a full disk — the
+			// very state a ballooned log causes. The deletes above already
+			// bound live data, so keep the log running and let the next
+			// sweep retry the reclaim once space frees up.
+			try {
+				this.db.exec("VACUUM;");
+			} catch {
+				// Retried on the next sweep.
+			}
 		}
 	}
 
