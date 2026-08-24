@@ -15,6 +15,7 @@ import {
 	type ProviderSettings,
 	readCompactionStrategyGlobally,
 	resolveProviderApiKeyFromSettings,
+	resolveProviderConfig,
 	type StartSessionResult,
 } from "@cline/core"
 import type { ProviderApiLine, ModelInfo as SdkModelInfo } from "@cline/llms"
@@ -973,6 +974,32 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		}
 	} catch (error) {
 		Logger.warn(`[SessionFactory] Failed to resolve known models for provider=${sdkProviderId}:`, error)
+	}
+
+	// LM Studio enforces the context window server-side (whatever the model was
+	// loaded with), and its models are absent from the bundled catalog, so
+	// without live metadata context management budgets against a hardcoded 128k
+	// default (cline/cline#13457). Resolve the live catalog — which reads the
+	// server's real context length from LM Studio's REST API — and surface it on
+	// the session's knownModels. Non-fatal: an unreachable server just keeps the
+	// default budget.
+	if (sdkProviderId === "lmstudio" && modelId && !knownModels?.[modelId]?.contextWindow) {
+		try {
+			const resolved = await resolveProviderConfig(
+				sdkProviderId,
+				{ failOnError: false },
+				{ providerId: sdkProviderId, modelId, ...(baseUrl ? { baseUrl } : {}) },
+			)
+			const liveModel = resolved?.knownModels?.[modelId]
+			if (liveModel?.contextWindow) {
+				knownModels = {
+					...(knownModels ?? {}),
+					[modelId]: { ...liveModel, ...knownModels?.[modelId], contextWindow: liveModel.contextWindow },
+				}
+			}
+		} catch (error) {
+			Logger.warn("[SessionFactory] Failed to resolve live LM Studio model info:", error)
+		}
 	}
 
 	// Always pass a providerConfig so the proxy/CA-aware fetch reaches the SDK
