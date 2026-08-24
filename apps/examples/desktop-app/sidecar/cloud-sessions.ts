@@ -576,6 +576,74 @@ export class CloudSessionApi {
 		const recoveryTitle = createRequestTitle(
 			input.requestId?.trim() || randomUUID(),
 		);
+		const requestedBranch = input.branch?.trim();
+		// The API has no idempotency header, so stamp the request id into the
+		// optional title and match only that exact record. Config/time matching
+		// can steal another process's otherwise-identical session.
+		const listTitleMatches = async () =>
+			(
+				await this.listWithToken(
+					input.organizationId ?? undefined,
+					creationAuth,
+					true,
+				)
+			).filter(
+				(session) =>
+					session.title === recoveryTitle &&
+					session.repoContext.repoUrl === input.repoUrl &&
+					session.metadata.modelId === input.modelId &&
+					(!requestedBranch || session.repoContext.branch === requestedBranch),
+			);
+		const adoptExisting = async (recovered: CloudSessionRecord) => {
+			await this.persistHandoffOuterSession(input, recovered.id, creationAuth);
+			if (
+				recovered.status === "provisioning" ||
+				!recovered.sandboxUrl?.trim()
+			) {
+				const recoveryController = new AbortController();
+				const recoveryTimeout = setTimeout(
+					() => recoveryController.abort(),
+					this.createTimeoutMs,
+				);
+				try {
+					await this.waitUntilReady(
+						recovered.id,
+						recoveryController.signal,
+						creationAuth,
+					);
+				} finally {
+					clearTimeout(recoveryTimeout);
+				}
+			}
+			return {
+				sessionId: recovered.id,
+				sandboxUrl: recovered.sandboxUrl,
+				cleanupAuthToken: creationAuth.token,
+			};
+		};
+		// A retry after an ambiguous failure can arrive before the accepted
+		// POST's row became visible: the failure-path re-lists saw nothing, the
+		// user retried, and a second POST would provision a duplicate workspace.
+		// Handoffs stamp a STABLE request id, so a title-matched row seen before
+		// the POST always belongs to this logical create — adopt it instead.
+		if (input.requestId?.trim() && input.handoff) {
+			let probed: CloudSessionRecord[] | undefined;
+			try {
+				probed = await listTitleMatches();
+			} catch {
+				// A failed probe must not block creation: the post-failure
+				// recovery path still guards an ambiguous POST.
+				probed = undefined;
+			}
+			if (probed && probed.length > 1) {
+				throw new CloudSessionError(
+					"request_failed",
+					"Cloud session creation had an ambiguous result. Check your cloud session list before trying again.",
+				);
+			}
+			const preexisting = probed?.[0];
+			if (preexisting) return await adoptExisting(preexisting);
+		}
 		const controller = new AbortController();
 		const timeout = setTimeout(() => controller.abort(), this.createTimeoutMs);
 		let createdSessionId = "";
@@ -664,25 +732,6 @@ export class CloudSessionApi {
 					error.code === "request_failed" &&
 					(error.status === undefined || error.status >= 500));
 			if (mayStillBeProvisioning) {
-				const requestedBranch = input.branch?.trim();
-				// The API has no idempotency header, so stamp the request id into
-				// the optional title and recover only that exact record. Config/time
-				// matching can steal another process's otherwise-identical session.
-				const listOnce = async () =>
-					(
-						await this.listWithToken(
-							input.organizationId ?? undefined,
-							creationAuth,
-							true,
-						)
-					).filter(
-						(session) =>
-							session.title === recoveryTitle &&
-							session.repoContext.repoUrl === input.repoUrl &&
-							session.metadata.modelId === input.modelId &&
-							(!requestedBranch ||
-								session.repoContext.branch === requestedBranch),
-					);
 				// Recovery must observe the same identity/scope that issued the
 				// create — the active account can change mid-provision. A failed
 				// list is NOT an empty list: treating it as empty would blind
@@ -701,7 +750,7 @@ export class CloudSessionApi {
 						)(2_500);
 					}
 					try {
-						candidates = await listOnce();
+						candidates = await listTitleMatches();
 						recoveryListFailed = false;
 						if (candidates.length > 0 || !input.handoff) break;
 					} catch {
@@ -722,37 +771,7 @@ export class CloudSessionApi {
 					);
 				}
 				const recovered = candidates[0];
-				if (recovered) {
-					await this.persistHandoffOuterSession(
-						input,
-						recovered.id,
-						creationAuth,
-					);
-					if (
-						recovered.status === "provisioning" ||
-						!recovered.sandboxUrl?.trim()
-					) {
-						const recoveryController = new AbortController();
-						const recoveryTimeout = setTimeout(
-							() => recoveryController.abort(),
-							this.createTimeoutMs,
-						);
-						try {
-							await this.waitUntilReady(
-								recovered.id,
-								recoveryController.signal,
-								creationAuth,
-							);
-						} finally {
-							clearTimeout(recoveryTimeout);
-						}
-					}
-					return {
-						sessionId: recovered.id,
-						sandboxUrl: recovered.sandboxUrl,
-						cleanupAuthToken: creationAuth.token,
-					};
-				}
+				if (recovered) return await adoptExisting(recovered);
 			}
 			throw error;
 		} finally {
@@ -2122,6 +2141,14 @@ export class CloudSessionManager {
 					if (live && ownsBusyState) {
 						live.busy = false;
 						live.status = "error";
+					}
+					// The original failure left a queue delivery's outcome
+					// unknown, and the recovery check itself failed — the
+					// outcome is STILL unknown. Surfacing the raw recovery
+					// error would be read as "not queued" and invite a
+					// duplicate resubmission.
+					if (delivery === "queue") {
+						throw new CloudQueueUnconfirmedError();
 					}
 					throw recoveryError;
 				}

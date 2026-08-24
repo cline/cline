@@ -13,6 +13,12 @@ export type SessionMetadata = {
 	 * state so every client reading the session sees the same flag.
 	 */
 	pinned?: boolean;
+	/**
+	 * The agent mode ("act" | "plan" | "yolo") the session last ran under.
+	 * Persisted by the sidecar so reopening a Plan session restores Plan
+	 * instead of silently running with execution enabled.
+	 */
+	mode?: string;
 	git?: {
 		url?: string;
 		branch?: string;
@@ -122,6 +128,18 @@ export function getSessionMetadataIsScheduled(
 		typeof origin.trigger === "string" &&
 		origin.trigger.trim() === SCHEDULED_SESSION_SOURCE
 	);
+}
+
+/**
+ * The persisted agent mode, restricted to the modes the desktop composer
+ * supports. Unknown or missing values return undefined so callers keep the
+ * pane's current mode instead of guessing.
+ */
+export function getSessionMetadataMode(
+	metadata?: SessionMetadata,
+): "act" | "plan" | undefined {
+	const mode = typeof metadata?.mode === "string" ? metadata.mode.trim() : "";
+	return mode === "act" || mode === "plan" ? mode : undefined;
 }
 
 export function getSessionMetadataGitBranch(

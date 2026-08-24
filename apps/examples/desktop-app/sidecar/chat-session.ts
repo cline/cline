@@ -53,6 +53,7 @@ import {
 	getCloudSessionManager,
 } from "./cloud-sessions";
 import { emitChunk, nowMs, sendEvent } from "./context";
+import { readDesktopSettings } from "./desktop-settings";
 import { isCloudAgentsEnabled, isCloudHandoffEnabled } from "./feature-flags";
 import { readSessionManifest, sharedSessionDataDir } from "./paths";
 import { persistSessionMessages } from "./session-data/messages";
@@ -482,6 +483,40 @@ export function resolveDesktopSessionMode(
 			: "act";
 }
 
+/**
+ * Keep the persisted session metadata's `mode` in sync with the mode the
+ * session actually runs under. Mode lives only in the live session config,
+ * so without this a reopened session cannot restore Plan/Act. Best-effort:
+ * a metadata write failure must never block the send itself.
+ */
+async function persistDesktopSessionModeMetadata(
+	ctx: SidecarContext,
+	manager: ClineCore,
+	sessionId: string,
+	config: JsonRecord,
+	persistedMetadata: Record<string, unknown> | null | undefined,
+): Promise<void> {
+	if (typeof manager.update !== "function") return;
+	const mode = resolveDesktopSessionMode(config);
+	const metadata =
+		(persistedMetadata && typeof persistedMetadata === "object"
+			? (persistedMetadata as JsonRecord)
+			: undefined) ??
+		readSessionMetadata(sessionId) ??
+		{};
+	if (metadata.mode === mode) return;
+	try {
+		// `update` replaces metadata wholesale, so merge over what is stored.
+		await manager.update(sessionId, { metadata: { ...metadata, mode } });
+	} catch (error) {
+		ctx.logger?.log?.("Failed to persist desktop session mode", {
+			sessionId,
+			error,
+			severity: "warn",
+		});
+	}
+}
+
 export function buildSessionConnectionUpdate(
 	config: JsonRecord,
 ): SessionConnectionUpdate {
@@ -717,6 +752,9 @@ async function handleStart(
 		...splitCoreSessionConfig(coreConfig as unknown as ClineCoreStartConfig),
 		source: SessionSource.DESKTOP,
 		interactive: true,
+		// Persist the agent mode with the session so reopening it later can
+		// restore Plan/Act instead of inheriting the pane's current mode.
+		sessionMetadata: { mode: resolveDesktopSessionMode(request.config) },
 		...(initialMessages ? { initialMessages } : {}),
 		toolPolicies: resolveToolPolicies(request.config),
 	});
@@ -1040,6 +1078,14 @@ async function handleSend(
 				}
 			}
 		}
+
+		await persistDesktopSessionModeMetadata(
+			ctx,
+			manager,
+			sessionId,
+			nextConfig ?? session?.config ?? request.config ?? {},
+			persistedSession?.metadata,
+		);
 
 		const userFiles = materializeUserFiles(
 			sessionId,
@@ -1867,11 +1913,21 @@ async function assertCloudHandoffAvailable(
 	ctx: SidecarContext,
 	sourceSessionId?: string,
 ): Promise<void> {
-	if (isCloudHandoffEnabled()) return;
-	// The flag gates NEW handoffs only. A handoff that is already pending must
-	// stay recoverable after the flag flips off: the source session's normal
-	// actions are blocked by the pending guard, so gating recovery here would
-	// deadlock the session until the flag returns.
+	const flagEnabled = isCloudHandoffEnabled();
+	// A handoff uploads the local transcript to Cline Cloud, so the rollout
+	// flag alone is not consent: the user must also have opted in to Cloud
+	// sessions (the webview's effective gate plus the Settings toggle).
+	if (
+		flagEnabled &&
+		isCloudAgentsEnabled() &&
+		readDesktopSettings().cloudSessionsEnabled
+	) {
+		return;
+	}
+	// These gates block NEW handoffs only. A handoff that is already pending
+	// must stay recoverable after a flag or the opt-in flips off: the source
+	// session's normal actions are blocked by the pending guard, so gating
+	// recovery here would deadlock the session until the gate returns.
 	if (sourceSessionId) {
 		const manager = getSessionManager(ctx);
 		const persisted = await manager.get(sourceSessionId).catch(() => undefined);
@@ -1880,7 +1936,11 @@ async function assertCloudHandoffAvailable(
 		);
 		if (pending?.status === "pending") return;
 	}
-	throw new Error("Cloud handoff is not enabled for this account.");
+	throw new Error(
+		flagEnabled
+			? "Enable Cloud sessions in Settings before using cloud handoff."
+			: "Cloud handoff is not enabled for this account.",
+	);
 }
 
 async function prepareCloudHandoff(
@@ -2418,6 +2478,15 @@ async function handleHandoffOnce(
 		sessionId: outerSessionId,
 		dashboardUrl,
 		destination,
+		// If the RPC response is lost, this event is all the webview sees: a
+		// clean complete would silently drop a definite follow-up queue failure.
+		...(warning ? { warning } : {}),
+		...(warningKind ? { warningKind } : {}),
+		// Only a definitely-unqueued command is safe to offer for resending; an
+		// unconfirmed one may already be durably queued.
+		...(warningKind === "unqueued" && nextCommand.trim()
+			? { undeliveredCommand: nextCommand.trim() }
+			: {}),
 	});
 	return {
 		sessionId: outerSessionId,

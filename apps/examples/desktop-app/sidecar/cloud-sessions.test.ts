@@ -1314,6 +1314,7 @@ describe("CloudSessionApi", () => {
 	it("treats a raw transport rejection as possibly provisioned and adopts only the title-matched row", async () => {
 		const now = new Date().toISOString();
 		const onOuterSessionCreated = vi.fn(async () => undefined);
+		let posted = false;
 		const api = new CloudSessionApi({
 			apiBaseUrl: "https://api.example",
 			appBaseUrl: "https://app.example",
@@ -1323,7 +1324,13 @@ describe("CloudSessionApi", () => {
 				// 5xx: the POST may have reached the server before the
 				// connection died.
 				if (init?.method === "POST") {
+					posted = true;
 					throw new Error("socket hang up");
+				}
+				// The rows appear only after the POST: the pre-create probe must
+				// see nothing so this exercises the post-failure recovery path.
+				if (!posted) {
+					return jsonResponse({ success: true, data: [] });
 				}
 				return jsonResponse({
 					success: true,
@@ -1430,12 +1437,13 @@ describe("CloudSessionApi", () => {
 					);
 				}
 				listCalls += 1;
-				// The list is eventually consistent with creates: the accepted
-				// POST's row becomes visible only on the second read.
+				// The list is eventually consistent with creates: the pre-create
+				// probe (1) and the first recovery read (2) see nothing; the
+				// accepted POST's row becomes visible only on the re-list (3).
 				return jsonResponse({
 					success: true,
 					data:
-						listCalls === 1
+						listCalls <= 2
 							? []
 							: [
 									{
@@ -1464,13 +1472,167 @@ describe("CloudSessionApi", () => {
 			},
 		});
 
-		// A single empty list must not conclude nothing was created: the second
-		// list caught the late row and its title proves it is ours to adopt.
-		expect(listCalls).toBe(2);
+		// A single empty list must not conclude nothing was created: the re-list
+		// caught the late row and its title proves it is ours to adopt.
+		expect(listCalls).toBe(3);
 		expect(created.sessionId).toBe("ses-late-row");
 		expect(onOuterSessionCreated).toHaveBeenCalledExactlyOnceWith(
 			"ses-late-row",
 		);
+	});
+
+	it("adopts the late row on a handoff retry instead of POSTing a duplicate", async () => {
+		const now = new Date().toISOString();
+		const onOuterSessionCreated = vi.fn(async () => undefined);
+		let postCalls = 0;
+		// The accepted POST's row becomes visible only after the first attempt
+		// exhausted its recovery re-lists and gave up.
+		let rowVisible = false;
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api.example",
+			appBaseUrl: "https://app.example",
+			getAuthToken: async () => "workos:fresh",
+			// Keep the re-list backoff instant.
+			sleep: async () => undefined,
+			fetch: async (_input, init) => {
+				if (init?.method === "POST") {
+					postCalls += 1;
+					return jsonResponse(
+						{ success: false, error: "gateway timeout" },
+						500,
+					);
+				}
+				return jsonResponse({
+					success: true,
+					data: rowVisible
+						? [
+								{
+									id: "ses-late-adopted",
+									title: "__cline_create_request__:handoff:local-1",
+									status: "ready",
+									sandboxUrl: "https://pod.example",
+									repoContext: { repoUrl: "https://github.com/cline/test" },
+									metadata: { modelId: "model" },
+									createdAt: now,
+									updatedAt: now,
+								},
+							]
+						: [],
+				});
+			},
+		});
+		// Handoffs reuse a STABLE request id across retries, so the second
+		// attempt's title probe can prove the first attempt's row is ours.
+		const input = {
+			requestId: "handoff:local-1",
+			modelId: "model",
+			repoUrl: "https://github.com/cline/test",
+			handoff: {
+				sourceSessionId: "local-1",
+				resolveMessages: async () => [],
+				onOuterSessionCreated,
+			},
+		};
+
+		await expect(api.create(input)).rejects.toThrow("gateway timeout");
+		expect(postCalls).toBe(1);
+		expect(onOuterSessionCreated).not.toHaveBeenCalled();
+
+		rowVisible = true;
+		const retried = await api.create(input);
+
+		// The pre-create probe adopted the first attempt's row: retrying after
+		// "nothing was created" must not provision a second workspace.
+		expect(retried.sessionId).toBe("ses-late-adopted");
+		expect(postCalls).toBe(1);
+		expect(onOuterSessionCreated).toHaveBeenCalledExactlyOnceWith(
+			"ses-late-adopted",
+		);
+	});
+
+	it("degrades to POSTing when the pre-create probe list fails", async () => {
+		let listCalls = 0;
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api.example",
+			appBaseUrl: "https://app.example",
+			getAuthToken: async () => "workos:fresh",
+			fetch: async (_input, init) => {
+				if (init?.method === "POST") {
+					return jsonResponse({
+						success: true,
+						data: {
+							sessionId: "ses-created",
+							sandboxUrl: "https://pod.example",
+							status: "ready",
+						},
+					});
+				}
+				listCalls += 1;
+				return jsonResponse({ success: false, error: "list unavailable" }, 503);
+			},
+		});
+
+		// A failed probe must not block creation; the post-failure recovery
+		// path still guards an ambiguous POST.
+		await expect(
+			api.create({
+				requestId: "handoff:local-1",
+				modelId: "model",
+				repoUrl: "https://github.com/cline/test",
+				handoff: {
+					sourceSessionId: "local-1",
+					resolveMessages: async () => [],
+					onOuterSessionCreated: async () => undefined,
+				},
+			}),
+		).resolves.toMatchObject({ sessionId: "ses-created" });
+		expect(listCalls).toBe(1);
+	});
+
+	it("refuses to create when the pre-create probe finds multiple matching rows", async () => {
+		const now = new Date().toISOString();
+		const record = (id: string) => ({
+			id,
+			title: "__cline_create_request__:handoff:local-1",
+			status: "ready",
+			sandboxUrl: `https://pod.example/${id}`,
+			repoContext: { repoUrl: "https://github.com/cline/test" },
+			metadata: { modelId: "model" },
+			createdAt: now,
+			updatedAt: now,
+		});
+		let postCalls = 0;
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api.example",
+			appBaseUrl: "https://app.example",
+			getAuthToken: async () => "workos:fresh",
+			fetch: async (_input, init) => {
+				if (init?.method === "POST") {
+					postCalls += 1;
+					return jsonResponse({ success: false, error: "unreachable" }, 500);
+				}
+				return jsonResponse({
+					success: true,
+					data: [record("ses-a"), record("ses-b")],
+				});
+			},
+		});
+
+		await expect(
+			api.create({
+				requestId: "handoff:local-1",
+				modelId: "model",
+				repoUrl: "https://github.com/cline/test",
+				handoff: {
+					sourceSessionId: "local-1",
+					resolveMessages: async () => [],
+					onOuterSessionCreated: async () => undefined,
+				},
+			}),
+		).rejects.toThrow("ambiguous result");
+		// Neither row can be proven to be this request's; a POST could mint a
+		// third workspace on top of the ambiguity.
+		expect(postCalls).toBe(0);
 	});
 
 	it("does not retry an arbitrary 502 that could have provisioned", async () => {

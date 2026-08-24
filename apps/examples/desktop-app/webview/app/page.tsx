@@ -60,6 +60,8 @@ import { applyAppZoomAction, syncAppFontSize } from "@/lib/app-font-size";
 import { syncAppIcon } from "@/lib/app-icon";
 import type { ChatSessionConfig } from "@/lib/chat-schema";
 import {
+	buildHandoffWarningToast,
+	claimHandoffWarningSurface,
 	formatHandoffModelFallback,
 	HANDOFF_PROGRESS_LABELS,
 	type HandoffPreflight,
@@ -257,6 +259,18 @@ export default function Home() {
 		cloudHandoffUiReducer,
 		{},
 	);
+	// Source sessions whose completion warning has already been toasted. The
+	// completion event and the RPC result both carry the warning; whichever
+	// lands first claims it here so the user never sees it twice.
+	const surfacedHandoffWarningsRef = useRef<Set<string>>(new Set());
+	const claimHandoffWarningToast = useCallback(
+		(sourceSessionId: string) =>
+			claimHandoffWarningSurface(
+				surfacedHandoffWarningsRef.current,
+				sourceSessionId,
+			),
+		[],
+	);
 	useEffect(
 		() =>
 			desktopClient.subscribe("cloud_handoff_progress", (payload) => {
@@ -268,6 +282,9 @@ export default function Home() {
 					dashboardUrl?: string;
 					sessionId?: string;
 					destination?: "in_app" | "external";
+					warning?: string;
+					warningKind?: "unqueued" | "unconfirmed";
+					undeliveredCommand?: string;
 				};
 				if (
 					!progress.sourceSessionId?.trim() ||
@@ -285,8 +302,19 @@ export default function Home() {
 					sessionId: progress.sessionId,
 					destination: progress.destination,
 				});
+				// If the RPC dies mid-flight this event is the only carrier of a
+				// follow-up queue failure; surface it exactly like the RPC path.
+				if (progress.phase === "complete") {
+					const warningToast = buildHandoffWarningToast(progress);
+					if (
+						warningToast &&
+						claimHandoffWarningToast(progress.sourceSessionId)
+					) {
+						toast(warningToast);
+					}
+				}
 			}),
-		[],
+		[claimHandoffWarningToast],
 	);
 	// Starts false on both server and first client render (hydration-safe);
 	// the effect below reads the persisted state right after mount.
@@ -364,8 +392,17 @@ export default function Home() {
 	}, []);
 
 	const handleOpenSession = useCallback(
-		(session: SessionHistoryItem, initialPromptDraft?: string) => {
-			dispatchApp({ type: "open-session", session, initialPromptDraft });
+		(
+			session: SessionHistoryItem,
+			initialPromptDraft?: string,
+			initialAttachments?: File[],
+		) => {
+			dispatchApp({
+				type: "open-session",
+				session,
+				initialPromptDraft,
+				initialAttachments,
+			});
 		},
 		[],
 	);
@@ -471,13 +508,21 @@ export default function Home() {
 	const handleOpenSessionById = useCallback(
 		async (
 			sessionId: string,
-			options: { silent?: boolean; initialPromptDraft?: string } = {},
+			options: {
+				silent?: boolean;
+				initialPromptDraft?: string;
+				initialAttachments?: File[];
+			} = {},
 		): Promise<boolean> => {
 			const cachedSession = sessionHistoryRef.current.find(
 				(session) => session.sessionId === sessionId,
 			);
 			if (cachedSession) {
-				handleOpenSession(cachedSession, options.initialPromptDraft);
+				handleOpenSession(
+					cachedSession,
+					options.initialPromptDraft,
+					options.initialAttachments,
+				);
 				return true;
 			}
 			try {
@@ -488,7 +533,11 @@ export default function Home() {
 				if (!session) {
 					throw new Error("The session for this run is no longer available.");
 				}
-				handleOpenSession(session, options.initialPromptDraft);
+				handleOpenSession(
+					session,
+					options.initialPromptDraft,
+					options.initialAttachments,
+				);
 				return true;
 			} catch (error) {
 				if (!options.silent) {
@@ -642,7 +691,9 @@ export default function Home() {
 												activeThread.historySession?.sessionId,
 										)?.status ?? activeThread.historySession?.status
 									}
+									initialAttachments={activeThread.initialAttachments}
 									initialPromptDraft={activeThread.initialPromptDraft}
+									claimHandoffWarningToast={claimHandoffWarningToast}
 									knownWorkspacePaths={historyWorkspacePaths}
 									onInitialPromptDraftConsumed={
 										handleInitialPromptDraftConsumed
@@ -706,7 +757,9 @@ function ChatThreadPane({
 	threadId,
 	historySession,
 	liveHistoryStatus,
+	initialAttachments,
 	initialPromptDraft,
+	claimHandoffWarningToast,
 	knownWorkspacePaths,
 	onInitialPromptDraftConsumed,
 	onUpdateSessionMetadata,
@@ -727,7 +780,11 @@ function ChatThreadPane({
 	historySession?: SessionHistoryItem;
 	/** Current status from the live list; the history snapshot may be stale. */
 	liveHistoryStatus?: SessionHistoryItem["status"];
+	/** Attachments to restore into the composer alongside initialPromptDraft. */
+	initialAttachments?: File[];
 	initialPromptDraft?: string;
+	/** Home-level dedupe between the RPC and event handoff-warning paths. */
+	claimHandoffWarningToast?: (sourceSessionId: string) => boolean;
 	knownWorkspacePaths: string[];
 	onInitialPromptDraftConsumed?: (threadId: string) => void;
 	onUpdateSessionMetadata?: (
@@ -739,10 +796,15 @@ function ChatThreadPane({
 	onOpenSession?: (
 		session: SessionHistoryItem,
 		initialPromptDraft?: string,
+		initialAttachments?: File[],
 	) => void;
 	onOpenSessionById?: (
 		sessionId: string,
-		options?: { silent?: boolean; initialPromptDraft?: string },
+		options?: {
+			silent?: boolean;
+			initialPromptDraft?: string;
+			initialAttachments?: File[];
+		},
 	) => boolean | Promise<boolean>;
 	onOpenSetup?: () => void;
 	onOpenModelSettings?: () => void;
@@ -1375,15 +1437,16 @@ function ChatThreadPane({
 		}
 		hydratedSessionRef.current = historySession.sessionId;
 		setPromptInput(initialPromptDraft ?? "");
-		if (initialPromptDraft !== undefined) {
+		setPendingAttachments(initialAttachments ? [...initialAttachments] : []);
+		if (initialPromptDraft !== undefined || initialAttachments !== undefined) {
 			onInitialPromptDraftConsumed?.(threadId);
 		}
-		setPendingAttachments([]);
 		setManualTitle(getSessionMetadataTitle(historySession.metadata));
 		void hydrateSession(historySession);
 	}, [
 		historySession,
 		hydrateSession,
+		initialAttachments,
 		initialPromptDraft,
 		onInitialPromptDraftConsumed,
 		setPromptInput,
@@ -1465,6 +1528,14 @@ function ChatThreadPane({
 					result.warning && result.warningKind !== "unconfirmed"
 						? nextCommand.trim() || undefined
 						: undefined;
+				// The images travel with the command: a definite queue failure
+				// dropped them too, so restore them into the target composer.
+				const undeliveredAttachments =
+					result.warning &&
+					result.warningKind !== "unconfirmed" &&
+					sourceAttachments.length > 0
+						? sourceAttachments
+						: undefined;
 				if (result.warning) {
 					onHandoffUiAction({
 						type: "prompt_reconciled",
@@ -1477,6 +1548,9 @@ function ChatThreadPane({
 							silent: true,
 							...(undeliveredCommand
 								? { initialPromptDraft: undeliveredCommand }
+								: {}),
+							...(undeliveredAttachments
+								? { initialAttachments: undeliveredAttachments }
 								: {}),
 						}),
 					).catch(() => false);
@@ -1512,15 +1586,19 @@ function ChatThreadPane({
 					});
 				}
 				if (result.warning) {
-					toast({
-						title: "Handoff completed with a warning",
-						description: undeliveredCommand
-							? `${result.warning} Your command was kept: "${undeliveredCommand}" — send it from the cloud session.`
-							: result.warning,
-						...(result.warningKind === "unconfirmed"
-							? { variant: "destructive" as const }
-							: {}),
+					const warningToast = buildHandoffWarningToast({
+						warning: result.warning,
+						warningKind: result.warningKind,
+						undeliveredCommand,
 					});
+					// The completion event usually lands first and claims the
+					// toast; only surface it here when the event path did not.
+					if (
+						warningToast &&
+						(claimHandoffWarningToast?.(sourceSessionId) ?? true)
+					) {
+						toast(warningToast);
+					}
 				}
 			} catch (error) {
 				// The authoritative completion event may have landed while the
@@ -1561,7 +1639,13 @@ function ChatThreadPane({
 				});
 			}
 		},
-		[config, isThreadActive, onOpenSessionById, onHandoffUiAction],
+		[
+			claimHandoffWarningToast,
+			config,
+			isThreadActive,
+			onOpenSessionById,
+			onHandoffUiAction,
+		],
 	);
 
 	const prepareHandoff = useCallback(
@@ -1766,6 +1850,7 @@ function ChatThreadPane({
 			sessionId,
 			setPromptInput,
 			threadId,
+			cloudHandoffAvailable,
 		],
 	);
 

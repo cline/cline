@@ -110,9 +110,19 @@ export function filterSlashCommandsForHandoff(
 	commands: SlashCommand[],
 	cloudHandoffAvailable: boolean,
 ): SlashCommand[] {
-	return cloudHandoffAvailable
-		? commands
-		: commands.filter((command) => command.name !== "handoff");
+	// With the gate on, the built-in owns /handoff (a user duplicate is
+	// dropped); with it off, the built-in is removed and a user-defined
+	// /handoff stays reachable.
+	const builtinHandoff = BUILTIN_SLASH_COMMANDS.find(
+		(command) => command.name === "handoff",
+	);
+	const hasBuiltin = builtinHandoff !== undefined && commands.includes(builtinHandoff);
+	return commands.filter((command) => {
+		if (command.name !== "handoff") return true;
+		const isBuiltin = command === builtinHandoff;
+		if (cloudHandoffAvailable) return isBuiltin || !hasBuiltin;
+		return !isBuiltin;
+	});
 }
 
 // Last known user commands, kept across composer instances so reopening the
@@ -126,7 +136,14 @@ export function buildUserInstructionSlashCommands(
 	const commands = Array.isArray(response.runtimeCommands)
 		? response.runtimeCommands
 		: [];
-	const seen = new Set(BUILTIN_SLASH_COMMANDS.map((command) => command.name));
+	// "handoff" is deliberately NOT deduped away: when the cloud-handoff gate
+	// is off the built-in is filtered out, and a user's own /handoff workflow
+	// must remain reachable. filterSlashCommandsForHandoff keeps exactly one.
+	const seen = new Set(
+		BUILTIN_SLASH_COMMANDS.map((command) => command.name).filter(
+			(name) => name !== "handoff",
+		),
+	);
 	return commands.flatMap((command) => {
 		const name = command.name;
 		if (!name || seen.has(name)) {

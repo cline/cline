@@ -53,8 +53,10 @@ import {
 } from "@/lib/session-diff";
 import {
 	getSessionMetadataGitBranch,
+	getSessionMetadataMode,
 	type SessionHistoryItem,
 	type SessionHistoryStatus,
+	type SessionMetadata,
 } from "@/lib/session-history";
 import {
 	normalizeWorkspacePath,
@@ -3156,6 +3158,9 @@ export function useChatSession() {
 						: undefined,
 				provider: session.provider || prev.provider,
 				model: session.model || prev.model,
+				// Restore the persisted agent mode: reopening a Plan session on a
+				// pane last used in Act would otherwise run with execution enabled.
+				mode: getSessionMetadataMode(session.metadata) ?? prev.mode,
 				workspaceRoot: session.workspaceRoot || prev.workspaceRoot,
 				cwd: session.workspaceRoot || session.cwd || prev.cwd,
 			}));
@@ -3228,6 +3233,7 @@ export function useChatSession() {
 						workspaceRoot?: string;
 						branch?: string;
 						prompt?: string;
+						metadata?: SessionMetadata;
 					}>("chat_session_command", {
 						request: {
 							action: "attach",
@@ -3262,6 +3268,10 @@ export function useChatSession() {
 							: undefined),
 					provider: attached?.provider || session.provider || prev.provider,
 					model: attached?.model || session.model || prev.model,
+					mode:
+						getSessionMetadataMode(attached?.metadata) ??
+						getSessionMetadataMode(session.metadata) ??
+						prev.mode,
 					workspaceRoot:
 						attached?.workspaceRoot ||
 						session.workspaceRoot ||

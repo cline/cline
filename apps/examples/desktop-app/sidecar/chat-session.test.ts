@@ -43,6 +43,7 @@ import {
 	CloudSessionManager,
 } from "./cloud-sessions";
 import { handleCoreSessionEvent } from "./context";
+import { writeDesktopSettings } from "./desktop-settings";
 import type { SidecarContext } from "./types";
 
 // Git preflight shells out to `git` and requires a pushed github.com branch;
@@ -55,8 +56,27 @@ vi.mock("@cline/core", async (importOriginal) => {
 	};
 });
 
+// New handoffs are gated on the rollout flags AND the user's Cloud sessions
+// opt-in (a handoff uploads the local transcript). Tests that drive
+// prepare_handoff/handoff arrange all three through this helper.
+const handoffOptInDataDirs: string[] = [];
+
+function enableCloudHandoffGates(): void {
+	const dataDir = mkdtempSync(join(tmpdir(), "cline-handoff-optin-"));
+	handoffOptInDataDirs.push(dataDir);
+	process.env.CLINE_DATA_DIR = dataDir;
+	process.env.CLINE_CODE_CLOUD_HANDOFF = "1";
+	process.env.CLINE_CODE_CLOUD_AGENTS = "1";
+	writeDesktopSettings({ cloudSessionsEnabled: true });
+}
+
 afterEach(() => {
 	delete process.env.CLINE_CODE_CLOUD_HANDOFF;
+	delete process.env.CLINE_CODE_CLOUD_AGENTS;
+	delete process.env.CLINE_DATA_DIR;
+	for (const dataDir of handoffOptInDataDirs.splice(0)) {
+		rmSync(dataDir, { recursive: true, force: true });
+	}
 });
 
 describe("resolveDesktopSessionMode", () => {
@@ -303,6 +323,132 @@ describe("pathless session starts", () => {
 	});
 });
 
+describe("session mode persistence", () => {
+	function startResult(sessionId: string) {
+		return {
+			sessionId,
+			manifest: { cwd: "/workspace/cline", workspace_root: "/workspace/cline" },
+			manifestPath: `/tmp/${sessionId}.json`,
+			messagesPath: `/tmp/${sessionId}.messages.json`,
+		};
+	}
+
+	it("stores the agent mode in session metadata at start", async () => {
+		const start = vi.fn(async () => startResult("session-mode-start"));
+		const ctx = {
+			liveSessions: new Map(),
+			restoringWorkspacePaths: new Set(),
+			sessionManager: { start },
+		} as unknown as SidecarContext;
+
+		await handleChatSessionCommand(ctx, {
+			action: "start",
+			config: {
+				provider: "cline",
+				model: "anthropic/claude-sonnet-4.6",
+				mode: "plan",
+			},
+		});
+
+		expect(start).toHaveBeenCalledWith(
+			expect.objectContaining({ sessionMetadata: { mode: "plan" } }),
+		);
+	});
+
+	it("defaults the persisted mode to act when the config has none", async () => {
+		const start = vi.fn(async () => startResult("session-mode-default"));
+		const ctx = {
+			liveSessions: new Map(),
+			restoringWorkspacePaths: new Set(),
+			sessionManager: { start },
+		} as unknown as SidecarContext;
+
+		await handleChatSessionCommand(ctx, {
+			action: "start",
+			config: { provider: "cline", model: "anthropic/claude-sonnet-4.6" },
+		});
+
+		expect(start).toHaveBeenCalledWith(
+			expect.objectContaining({ sessionMetadata: { mode: "act" } }),
+		);
+	});
+
+	it("persists a mode change on send and skips when unchanged", async () => {
+		const sessionId = "session-mode-send";
+		let persistedMetadata: Record<string, unknown> = {
+			title: "Keep me",
+			mode: "act",
+		};
+		const get = vi.fn(async () => ({
+			sessionId,
+			status: "idle",
+			metadata: persistedMetadata,
+		}));
+		const update = vi.fn(
+			async (_id: string, input: { metadata: Record<string, unknown> }) => {
+				persistedMetadata = input.metadata;
+				return { updated: true };
+			},
+		);
+		const send = vi.fn(async () => ({
+			text: "done",
+			finishReason: "completed",
+			messages: [],
+		}));
+		const baseConfig = {
+			provider: "cline",
+			model: "anthropic/claude-sonnet-4.6",
+			mode: "act",
+		};
+		const ctx = {
+			liveSessions: new Map([
+				[
+					sessionId,
+					{
+						config: baseConfig,
+						messages: [],
+						promptsInQueue: [],
+						busy: false,
+						startedAt: Date.now(),
+						status: "idle",
+						attachedViaHub: false,
+					},
+				],
+			]),
+			restoringWorkspacePaths: new Set(),
+			streamIndices: new Map(),
+			wsClients: new Set(),
+			sessionManager: {
+				get,
+				send,
+				update,
+				updateSessionConnection: vi.fn(async () => undefined),
+				pendingPrompts: { list: vi.fn(async () => []) },
+			},
+		} as unknown as SidecarContext;
+
+		await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "switch to plan",
+			config: { ...baseConfig, mode: "plan" },
+		});
+		// The existing metadata (e.g. title) must survive the wholesale replace.
+		expect(update).toHaveBeenCalledWith(sessionId, {
+			metadata: { title: "Keep me", mode: "plan" },
+		});
+
+		update.mockClear();
+		await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "still plan",
+			config: { ...baseConfig, mode: "plan" },
+		});
+		expect(update).not.toHaveBeenCalled();
+	});
+});
+
 describe("session forks", () => {
 	it("blocks the delete command while a persisted cloud handoff is pending", async () => {
 		const remove = vi.fn();
@@ -335,7 +481,7 @@ describe("session forks", () => {
 	});
 
 	it("blocks deletion while the handoff request is starting", async () => {
-		process.env.CLINE_CODE_CLOUD_HANDOFF = "1";
+		enableCloudHandoffGates();
 		let releaseGet: ((value: undefined) => void) | undefined;
 		const ctx = {
 			liveSessions: new Map(),
@@ -1748,7 +1894,7 @@ describe("workspace metadata prewarming", () => {
 
 describe("cloud handoff gates", () => {
 	beforeEach(() => {
-		process.env.CLINE_CODE_CLOUD_HANDOFF = "1";
+		enableCloudHandoffGates();
 	});
 
 	it("blocks handoff actions when the rollout flag is off", async () => {
@@ -1827,6 +1973,60 @@ describe("cloud handoff gates", () => {
 				},
 			}),
 		).rejects.toThrow("Cloud handoff is not enabled for this account.");
+	});
+
+	it("blocks new handoffs when the Cloud sessions opt-in is off", async () => {
+		// The rollout flag is on (suite setup), but the user has not opted in:
+		// a handoff uploads the local transcript and needs that consent.
+		writeDesktopSettings({ cloudSessionsEnabled: false });
+		const { ctx, sessionId } = createHandoffGateContext({ busy: false });
+
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "prepare_handoff",
+				sessionId,
+			}),
+		).rejects.toThrow(
+			"Enable Cloud sessions in Settings before using cloud handoff.",
+		);
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "handoff",
+				sessionId,
+				fingerprint: {
+					repoUrl: "https://github.com/cline/cline.git",
+					branch: "main",
+					headSha: "abc123",
+					modelId: "anthropic/claude-sonnet-4.6",
+				},
+			}),
+		).rejects.toThrow(
+			"Enable Cloud sessions in Settings before using cloud handoff.",
+		);
+		expect(ctx.cloudSessionManager).toBeFalsy();
+	});
+
+	it("lets new handoffs proceed when the flag and opt-in are both on", async () => {
+		// An empty transcript makes the attempt fail deterministically at a
+		// later gate, proving the flag+opt-in gate itself let it through.
+		const { ctx, sessionId } = createHandoffGateContext({ messages: [] });
+
+		const attempt = handleChatSessionCommand(ctx, {
+			action: "handoff",
+			sessionId,
+			fingerprint: {
+				repoUrl: "https://github.com/cline/cline.git",
+				branch: "main",
+				headSha: "abc123",
+				modelId: "anthropic/claude-sonnet-4.6",
+			},
+		});
+
+		await expect(attempt).rejects.not.toThrow("Enable Cloud sessions");
+		await expect(attempt).rejects.not.toThrow("Cloud handoff is not enabled");
+		await expect(attempt).rejects.toThrow(
+			"Start a conversation before handing it off to cloud.",
+		);
 	});
 
 	it("explains how to recover a mismatched resumed handoff", () => {
@@ -2135,12 +2335,10 @@ describe("cloud handoff gates", () => {
 
 describe("cloud handoff transaction", () => {
 	beforeEach(() => {
-		process.env.CLINE_CODE_CLOUD_HANDOFF = "1";
-		process.env.CLINE_CODE_CLOUD_AGENTS = "1";
+		enableCloudHandoffGates();
 	});
 
 	afterEach(() => {
-		delete process.env.CLINE_CODE_CLOUD_AGENTS;
 		vi.mocked(preflightCloudHandoffGit).mockRestore();
 		vi.unstubAllGlobals();
 	});
@@ -2338,6 +2536,9 @@ describe("cloud handoff transaction", () => {
 			dashboardUrl: result.dashboardUrl,
 			destination: "in_app",
 		});
+		expect(complete?.payload).not.toHaveProperty("warning");
+		expect(complete?.payload).not.toHaveProperty("warningKind");
+		expect(complete?.payload).not.toHaveProperty("undeliveredCommand");
 		expect(result).toMatchObject({
 			sessionId: "ses-cloud",
 			outerSessionId: "ses-cloud",
@@ -2353,6 +2554,7 @@ describe("cloud handoff transaction", () => {
 	async function runHandoffWithFailingFollowUp(sendError: Error): Promise<{
 		cloudSend: ReturnType<typeof vi.fn>;
 		result: { sessionId: string; warning?: string; warningKind?: string };
+		completeEvent: Record<string, unknown> | undefined;
 	}> {
 		const sourceSessionId = "local-handoff-source";
 		const modelId = "anthropic/claude-sonnet-4.6";
@@ -2379,6 +2581,8 @@ describe("cloud handoff transaction", () => {
 			{ role: "user" as const, content: "continue this work" },
 			{ role: "assistant" as const, content: "done locally" },
 		];
+		const events: Array<{ name: string; payload: Record<string, unknown> }> =
+			[];
 		let persistedMetadata: Record<string, unknown> = {};
 		const ctx = {
 			liveSessions: new Map([
@@ -2402,7 +2606,17 @@ describe("cloud handoff transaction", () => {
 			streamIndices: new Map(),
 			pendingApprovals: new Map(),
 			pendingQuestions: new Map(),
-			wsClients: new Set([{ data: { canApproveTools: true }, send() {} }]),
+			wsClients: new Set([
+				{
+					data: { canApproveTools: true },
+					send(message: string) {
+						const parsed = JSON.parse(message) as {
+							event: { name: string; payload: Record<string, unknown> };
+						};
+						events.push(parsed.event);
+					},
+				},
+			]),
 			sessionManager: {
 				get: vi.fn(async () => ({
 					sessionId: sourceSessionId,
@@ -2462,13 +2676,17 @@ describe("cloud handoff transaction", () => {
 				modelId,
 			},
 		})) as { sessionId: string; warning?: string; warningKind?: string };
-		return { cloudSend, result };
+		const completeEvent = events.find(
+			(event) =>
+				event.name === "cloud_handoff_progress" &&
+				event.payload.phase === "complete",
+		)?.payload;
+		return { cloudSend, result, completeEvent };
 	}
 
 	it("flags an unconfirmed follow-up queue outcome without claiming it was unqueued", async () => {
-		const { cloudSend, result } = await runHandoffWithFailingFollowUp(
-			new CloudQueueUnconfirmedError(),
-		);
+		const { cloudSend, result, completeEvent } =
+			await runHandoffWithFailingFollowUp(new CloudQueueUnconfirmedError());
 
 		expect(cloudSend).toHaveBeenCalledOnce();
 		expect(result.sessionId).toBe("ses-cloud");
@@ -2479,15 +2697,36 @@ describe("cloud handoff transaction", () => {
 		// An unconfirmed outcome must never invite a resend of a prompt that
 		// may already be durably queued.
 		expect(result.warning).not.toContain("was not queued");
+		// The completion event is the authoritative signal when the RPC response
+		// is lost, so it must carry the same warning...
+		expect(completeEvent).toMatchObject({
+			warningKind: "unconfirmed",
+			warning: expect.stringContaining(
+				"could not confirm whether the follow-up command was queued",
+			),
+		});
+		// ...but never prefill an unconfirmed command for resending.
+		expect(completeEvent).not.toHaveProperty("undeliveredCommand");
 	});
 
 	it("flags a definitively unqueued follow-up with its failure reason", async () => {
-		const { result } = await runHandoffWithFailingFollowUp(new Error("boom"));
+		const { result, completeEvent } = await runHandoffWithFailingFollowUp(
+			new Error("boom"),
+		);
 
 		expect(result.warningKind).toBe("unqueued");
 		expect(result.warning).toContain(
 			"the follow-up command was not queued: boom",
 		);
+		// A definite queue failure survives a lost RPC response: the event
+		// carries the warning and the exact command that never made it.
+		expect(completeEvent).toMatchObject({
+			warningKind: "unqueued",
+			warning: expect.stringContaining(
+				"the follow-up command was not queued: boom",
+			),
+			undeliveredCommand: "continue in cloud",
+		});
 	});
 });
 
