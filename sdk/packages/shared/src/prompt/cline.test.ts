@@ -78,6 +78,27 @@ describe("buildClineSystemPrompt mode instructions", () => {
 		expect(rulesIndex).toBeLessThan(prompt.indexOf(MODE_TAG_INSTRUCTIONS));
 	});
 
+	it("includes rich workspace metadata for the Cline backend parser", () => {
+		const metadata = JSON.stringify({
+			workspaces: {
+				"/workspace/project": {
+					hint: "project",
+					associatedRemoteUrls: [
+						"origin: https://github.com/cline/cline.git",
+					],
+					latestGitCommitHash: "abc123",
+				},
+			},
+		});
+		const prompt = buildClineSystemPrompt({
+			...BASE_OPTIONS,
+			providerId: "cline",
+			metadata,
+		});
+
+		expect(prompt).toContain(`# Workspace Configuration\n${metadata}`);
+	});
+
 	it("respects an explicit override prompt without injecting mode sections", () => {
 		const prompt = buildClineSystemPrompt({
 			...BASE_OPTIONS,
