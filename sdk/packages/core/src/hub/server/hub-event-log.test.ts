@@ -1,4 +1,4 @@
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { HubEventEnvelope } from "@cline/shared";
@@ -106,6 +106,29 @@ describe("HubEventLogStore", () => {
 		// Sequences stay monotonic after pruning — cursors never rewind.
 		expect(log.append(envelope("run.started", "s2")).sequence).toBe(4);
 		log.close();
+	});
+
+	it("prunes by size budget and shrinks the file on disk", () => {
+		const dbPath = join(
+			mkdtempSync(join(tmpdir(), "cline-hub-events-")),
+			"hub-events.db",
+		);
+		const log = new HubEventLogStore({ dbPath, maxTotalBytes: 256 * 1024 });
+		// Multibyte text: the budget must count UTF-8 bytes, not characters.
+		const bigText = "文".repeat(64 * 1024);
+		for (let index = 0; index < 32; index += 1) {
+			log.append(envelope("session.updated", "s1", { text: bigText }));
+		}
+		log.prune();
+		const rows = log.listAfter(0, {}, 100);
+		// The newest events survive and sequences stay monotonic.
+		expect(rows.length).toBeGreaterThan(0);
+		expect(rows.length).toBeLessThan(32);
+		expect(rows.at(-1)?.sequence).toBe(32);
+		expect(log.append(envelope("run.started", "s2")).sequence).toBe(33);
+		log.close();
+		// ~2 MiB was appended; the file reflects the budget, not the high-water mark.
+		expect(statSync(dbPath).size).toBeLessThan(512 * 1024);
 	});
 
 	it("is inert after close", () => {

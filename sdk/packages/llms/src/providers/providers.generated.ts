@@ -60,6 +60,20 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		},
 	},
 	{
+		id: "agentrouter",
+		name: "AgentRouter",
+		description: "AgentRouter model provider from models.dev",
+		family: "openai-compatible",
+		capabilities: ["tools", "reasoning"],
+		modelsProviderId: "agentrouter",
+		defaultModelId: "claude-opus-5",
+		apiKeyEnv: ["AGENTROUTER_API_KEY"],
+		docsUrl: "https://agentrouter.org/docs/opencode.html",
+		defaults: {
+			baseUrl: "https://agentrouter.org/v1",
+		},
+	},
+	{
 		id: "ai-router",
 		name: "AI-ROUTER",
 		description: "AI-ROUTER model provider from models.dev",
@@ -103,9 +117,9 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		name: "AKI.IO",
 		description: "AKI.IO model provider from models.dev",
 		family: "openai-compatible",
-		capabilities: ["tools", "reasoning"],
+		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "aki-io",
-		defaultModelId: "kimi-k2.7-code-1100b",
+		defaultModelId: "qwen3.8-27b",
 		apiKeyEnv: ["AKI_IO_API_KEY"],
 		docsUrl: "https://aki.io/docs/",
 		defaults: {
@@ -1468,9 +1482,9 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		name: "NanoGPT",
 		description: "NanoGPT model provider from models.dev",
 		family: "openai-compatible",
-		capabilities: ["tools", "prompt-cache", "reasoning"],
+		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "nano-gpt",
-		defaultModelId: "google/gemma-4-26b-a4b-uncensored",
+		defaultModelId: "Gemma-4-31B-MeroMero-v2",
 		apiKeyEnv: ["NANO_GPT_API_KEY"],
 		docsUrl: "https://docs.nano-gpt.com",
 		defaults: {
@@ -1654,6 +1668,20 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		docsUrl: "https://openrouter.ai/models",
 		defaults: {
 			baseUrl: "https://openrouter.ai/api/v1",
+		},
+	},
+	{
+		id: "opper",
+		name: "Opper",
+		description: "Opper model provider from models.dev",
+		family: "openai-compatible",
+		capabilities: ["tools", "reasoning", "prompt-cache"],
+		modelsProviderId: "opper",
+		defaultModelId: "vertexai/gemini-3.7-flash",
+		apiKeyEnv: ["OPPER_API_KEY"],
+		docsUrl: "https://opper.ai/models",
+		defaults: {
+			baseUrl: "https://api.opper.ai/v3/compat",
 		},
 	},
 	{

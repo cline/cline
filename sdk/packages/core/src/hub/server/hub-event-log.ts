@@ -20,6 +20,9 @@ import { resolveDbDataDir } from "@cline/shared/storage";
 
 const DEFAULT_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 const DEFAULT_MAX_ROWS = 200_000;
+const DEFAULT_MAX_TOTAL_BYTES = 64 * 1024 * 1024;
+/** Appended bytes between sweeps; the hourly timer alone can't keep up with bursts. */
+const PRUNE_EVERY_APPENDED_BYTES = 16 * 1024 * 1024;
 
 export interface HubEventLogOptions {
 	/** Database file. Defaults to an owner-scoped `<data>/db/hub-events-*.db`; use ":memory:" in tests. */
@@ -30,6 +33,8 @@ export interface HubEventLogOptions {
 	retentionMs?: number;
 	/** Hard cap on rows kept, oldest pruned first. Defaults to 200k. */
 	maxRows?: number;
+	/** Cap on the database file size, oldest rows pruned first. Defaults to 64 MiB. */
+	maxTotalBytes?: number;
 }
 
 export interface HubEventLogScope {
@@ -52,6 +57,8 @@ export class HubEventLogStore {
 	private readonly db: SqliteDb;
 	private readonly retentionMs: number;
 	private readonly maxRows: number;
+	private readonly maxTotalBytes: number;
+	private appendedBytesSincePrune = 0;
 	private closed = false;
 
 	constructor(options: HubEventLogOptions = {}) {
@@ -60,6 +67,7 @@ export class HubEventLogStore {
 		);
 		this.retentionMs = options.retentionMs ?? DEFAULT_RETENTION_MS;
 		this.maxRows = options.maxRows ?? DEFAULT_MAX_ROWS;
+		this.maxTotalBytes = options.maxTotalBytes ?? DEFAULT_MAX_TOTAL_BYTES;
 		// Every streaming chunk lands here as an INSERT; WAL keeps those
 		// appends from serializing against replay reads, and the busy timeout
 		// matches the other SQLite stores instead of failing fast on contention.
@@ -90,18 +98,14 @@ export class HubEventLogStore {
 			return envelope;
 		}
 		const createdAt = envelope.timestamp ?? Date.now();
+		// Stored without `sequence`; stamped from the rowid on read/return.
+		const envelopeJson = JSON.stringify(envelope);
 		const inserted = this.db
 			.prepare(
 				`INSERT INTO hub_events (event, session_id, envelope_json, created_at)
 				 VALUES (?, ?, ?, ?);`,
 			)
-			.run(
-				envelope.event,
-				envelope.sessionId ?? null,
-				// Stored without `sequence`; stamped from the rowid on read/return.
-				JSON.stringify(envelope),
-				createdAt,
-			);
+			.run(envelope.event, envelope.sessionId ?? null, envelopeJson, createdAt);
 		// The AUTOINCREMENT primary key IS the sequence, so the insert's own
 		// rowid stamps it without a second round-trip per streaming chunk.
 		const rowid = inserted?.lastInsertRowid;
@@ -109,6 +113,11 @@ export class HubEventLogStore {
 			typeof rowid === "number" || typeof rowid === "bigint"
 				? Number(rowid)
 				: this.lastSequence();
+		this.appendedBytesSincePrune += Buffer.byteLength(envelopeJson);
+		if (this.appendedBytesSincePrune >= PRUNE_EVERY_APPENDED_BYTES) {
+			this.appendedBytesSincePrune = 0;
+			this.prune();
+		}
 		return { ...envelope, sequence };
 	}
 
@@ -156,7 +165,7 @@ export class HubEventLogStore {
 		return Number(row?.sequence ?? 0);
 	}
 
-	/** Bound the log: drop rows past retention, then enforce the row cap. */
+	/** Bound the log: drop rows past retention, the row cap, and the size budget. */
 	prune(now = Date.now()): void {
 		if (this.closed) {
 			return;
@@ -172,6 +181,42 @@ export class HubEventLogStore {
 				);`,
 			)
 			.run(this.maxRows);
+		// Age/row caps alone don't bound disk: envelopes carrying full session
+		// snapshots reach hundreds of KB each, so retained rows could still
+		// total tens of GB (#13505). Over budget, keep only the newest rows
+		// that fit in half the budget (the newest row — a NULL running sum —
+		// is never deleted, so cursors never rewind), then VACUUM: DELETE
+		// alone never shrinks the file on disk.
+		if (this.fileSizeBytes() > this.maxTotalBytes) {
+			this.db
+				.prepare(
+					`DELETE FROM hub_events WHERE sequence <= (
+						SELECT sequence FROM (
+							SELECT sequence, SUM(LENGTH(CAST(envelope_json AS BLOB))) OVER (
+								ORDER BY sequence DESC
+								ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
+							) AS newer_bytes FROM hub_events
+						)
+						WHERE newer_bytes > ? ORDER BY sequence DESC LIMIT 1
+					);`,
+				)
+				.run(Math.floor(this.maxTotalBytes / 2));
+			// VACUUM needs scratch space and can fail on a full disk — the
+			// very state a ballooned log causes. The deletes above already
+			// bound live data, so keep the log running and let the next
+			// sweep retry the reclaim once space frees up.
+			try {
+				this.db.exec("VACUUM;");
+			} catch {
+				// Retried on the next sweep.
+			}
+		}
+	}
+
+	private fileSizeBytes(): number {
+		const pragma = (name: string) =>
+			Number(this.db.prepare(`PRAGMA ${name};`).get()?.[name] ?? 0);
+		return pragma("page_count") * pragma("page_size");
 	}
 
 	close(): void {
