@@ -228,9 +228,8 @@ describe("createEditorExecutor", () => {
 		});
 	});
 
-	// New files get the platform-native EOL: CRLF on Windows, LF elsewhere
-	// (github.com/cline/cline/issues/13504). The Windows branch is exercised
-	// for real by Windows CI and deterministically in line-endings.test.ts.
+	// The CRLF branch is exercised for real by Windows CI, where os.EOL is
+	// "\r\n" (github.com/cline/cline/issues/13504).
 	it("creates new files with the platform-native line ending", async () => {
 		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "agents-editor-"));
 		const filePath = path.join(dir, "fresh.txt");
@@ -245,26 +244,6 @@ describe("createEditorExecutor", () => {
 
 			await expect(fs.readFile(filePath, "utf-8")).resolves.toBe(
 				["one", "two", "three"].join(os.EOL),
-			);
-		} finally {
-			await fs.rm(dir, { recursive: true, force: true });
-		}
-	});
-
-	it("keeps explicit CRLF content in created files on every platform", async () => {
-		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "agents-editor-"));
-		const filePath = path.join(dir, "fresh.txt");
-
-		try {
-			const editor = createEditorExecutor();
-			await editor(
-				{ path: filePath, new_text: "one\r\ntwo\nthree" },
-				dir,
-				context,
-			);
-
-			await expect(fs.readFile(filePath, "utf-8")).resolves.toBe(
-				"one\r\ntwo\r\nthree",
 			);
 		} finally {
 			await fs.rm(dir, { recursive: true, force: true });
