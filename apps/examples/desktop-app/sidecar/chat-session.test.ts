@@ -37,6 +37,7 @@ import {
 } from "./chat-session";
 import {
 	CloudHandoffSeedUnsupportedError,
+	CloudQueueUnconfirmedError,
 	type CloudSessionApi,
 	CloudSessionError,
 	CloudSessionManager,
@@ -1775,6 +1776,59 @@ describe("cloud handoff gates", () => {
 		expect(ctx.cloudSessionManager).toBeFalsy();
 	});
 
+	it("exempts a persisted pending handoff from the rollout flag gate", async () => {
+		process.env.CLINE_CODE_CLOUD_HANDOFF = "0";
+		// An empty transcript makes the recovery attempt fail deterministically
+		// at a later gate, proving the flag gate itself let it through.
+		const { ctx, sessionId } = createHandoffGateContext({
+			messages: [],
+			metadata: {
+				handoff: {
+					status: "pending",
+					toCloudSessionId: "ses-pending-target",
+					handedOffAt: "2026-08-18T00:00:00.000Z",
+				},
+			},
+		});
+
+		const recovery = handleChatSessionCommand(ctx, {
+			action: "handoff",
+			sessionId,
+			fingerprint: {
+				repoUrl: "https://github.com/cline/cline.git",
+				branch: "main",
+				headSha: "abc123",
+				modelId: "anthropic/claude-sonnet-4.6",
+			},
+		});
+
+		await expect(recovery).rejects.not.toThrow("Cloud handoff is not enabled");
+		await expect(recovery).rejects.toThrow(
+			"Start a conversation before handing it off to cloud.",
+		);
+	});
+
+	it("keeps the rollout flag gate for sessions without a pending handoff", async () => {
+		process.env.CLINE_CODE_CLOUD_HANDOFF = "0";
+		const { ctx, sessionId } = createHandoffGateContext({
+			messages: [],
+			metadata: { workspace: "preserved" },
+		});
+
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "handoff",
+				sessionId,
+				fingerprint: {
+					repoUrl: "https://github.com/cline/cline.git",
+					branch: "main",
+					headSha: "abc123",
+					modelId: "anthropic/claude-sonnet-4.6",
+				},
+			}),
+		).rejects.toThrow("Cloud handoff is not enabled for this account.");
+	});
+
 	it("explains how to recover a mismatched resumed handoff", () => {
 		const dashboardUrl = "https://app.cline.bot/agents?sessionId=ses-pending";
 		const message = formatPendingHandoffVerificationError(
@@ -2292,6 +2346,148 @@ describe("cloud handoff transaction", () => {
 		});
 		expect(result.dashboardUrl).toContain("ses-cloud");
 		expect(result).not.toHaveProperty("warning");
+	});
+
+	// Mirrors the fresh end-to-end handoff above, but with a follow-up command
+	// whose queueing fails with the given error.
+	async function runHandoffWithFailingFollowUp(sendError: Error): Promise<{
+		cloudSend: ReturnType<typeof vi.fn>;
+		result: { sessionId: string; warning?: string; warningKind?: string };
+	}> {
+		const sourceSessionId = "local-handoff-source";
+		const modelId = "anthropic/claude-sonnet-4.6";
+		const headSha = "a".repeat(40);
+		vi.mocked(preflightCloudHandoffGit).mockResolvedValue({
+			repoUrl: "https://github.com/cline/test",
+			branch: "main",
+			remoteName: "origin",
+			headSha,
+		});
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async (input: unknown) =>
+				String(input).endsWith("/api/v1/ai/cline/models")
+					? new Response(
+							JSON.stringify({ data: [{ id: modelId, name: "Sonnet" }] }),
+							{ status: 200, headers: { "content-type": "application/json" } },
+						)
+					: new Response("not found", { status: 404 }),
+			),
+		);
+
+		const messages = [
+			{ role: "user" as const, content: "continue this work" },
+			{ role: "assistant" as const, content: "done locally" },
+		];
+		let persistedMetadata: Record<string, unknown> = {};
+		const ctx = {
+			liveSessions: new Map([
+				[
+					sourceSessionId,
+					{
+						config: {
+							cwd: "/workspace/project",
+							provider: "cline",
+							model: modelId,
+						},
+						messages,
+						promptsInQueue: [],
+						busy: false,
+						startedAt: Date.now(),
+						status: "idle",
+					},
+				],
+			]),
+			restoringWorkspacePaths: new Set(),
+			streamIndices: new Map(),
+			pendingApprovals: new Map(),
+			pendingQuestions: new Map(),
+			wsClients: new Set([{ data: { canApproveTools: true }, send() {} }]),
+			sessionManager: {
+				get: vi.fn(async () => ({
+					sessionId: sourceSessionId,
+					status: "completed",
+					cwd: "/workspace/project",
+					model: modelId,
+					metadata: persistedMetadata,
+				})),
+				readLiveMessages: vi.fn(async () => messages),
+				update: vi.fn(
+					async (_id: string, input: { metadata: Record<string, unknown> }) => {
+						persistedMetadata = input.metadata;
+						return { updated: true };
+					},
+				),
+				pendingPrompts: { list: vi.fn(async () => []) },
+			},
+		} as unknown as SidecarContext;
+
+		const cloudSend = vi.fn(async () => {
+			throw sendError;
+		});
+		const cloud = new CloudSessionManager(ctx, {
+			api: {} as unknown as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+		});
+		Object.assign(cloud, {
+			prepareHandoffRepository: vi.fn(async () => ({})),
+			create: vi.fn(
+				async (input: {
+					handoff?: {
+						onOuterSessionCreated?: (id: string) => Promise<void>;
+						resolveMessages: () => Promise<unknown>;
+						onSeeding?: () => void;
+					};
+				}) => {
+					await input.handoff?.onOuterSessionCreated?.("ses-cloud");
+					await input.handoff?.resolveMessages();
+					input.handoff?.onSeeding?.();
+					return { sessionId: "ses-cloud", innerSessionId: "inner-cloud" };
+				},
+			),
+			verifyHandoffTranscript: vi.fn(async () => undefined),
+			send: cloudSend,
+		});
+		ctx.cloudSessionManager = cloud;
+
+		const result = (await handleChatSessionCommand(ctx, {
+			action: "handoff",
+			sessionId: sourceSessionId,
+			nextCommand: "continue in cloud",
+			fingerprint: {
+				repoUrl: "https://github.com/cline/test",
+				branch: "main",
+				headSha,
+				modelId,
+			},
+		})) as { sessionId: string; warning?: string; warningKind?: string };
+		return { cloudSend, result };
+	}
+
+	it("flags an unconfirmed follow-up queue outcome without claiming it was unqueued", async () => {
+		const { cloudSend, result } = await runHandoffWithFailingFollowUp(
+			new CloudQueueUnconfirmedError(),
+		);
+
+		expect(cloudSend).toHaveBeenCalledOnce();
+		expect(result.sessionId).toBe("ses-cloud");
+		expect(result.warningKind).toBe("unconfirmed");
+		expect(result.warning).toContain(
+			"could not confirm whether the follow-up command was queued",
+		);
+		// An unconfirmed outcome must never invite a resend of a prompt that
+		// may already be durably queued.
+		expect(result.warning).not.toContain("was not queued");
+	});
+
+	it("flags a definitively unqueued follow-up with its failure reason", async () => {
+		const { result } = await runHandoffWithFailingFollowUp(new Error("boom"));
+
+		expect(result.warningKind).toBe("unqueued");
+		expect(result.warning).toContain(
+			"the follow-up command was not queued: boom",
+		);
 	});
 });
 

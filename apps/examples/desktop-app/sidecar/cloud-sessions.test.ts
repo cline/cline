@@ -1145,6 +1145,9 @@ describe("CloudSessionApi", () => {
 			apiBaseUrl: "https://api.example",
 			appBaseUrl: "https://app.example",
 			getAuthToken: async () => "workos:fresh",
+			// The handoff recovery path re-lists on emptiness/failure; keep the
+			// backoff instant so the test exercises all attempts.
+			sleep: async () => undefined,
 			fetch: async (_input, init) =>
 				init?.method === "POST"
 					? jsonResponse({ success: false, error: "gateway timeout" }, 500)
@@ -1171,6 +1174,69 @@ describe("CloudSessionApi", () => {
 		});
 		expect(String(error)).toContain("the session list could not be checked");
 		expect(String(error)).toContain("Verify in Cline Cloud");
+		expect(onOuterSessionCreated).not.toHaveBeenCalled();
+	});
+
+	it("re-lists after an empty recovery list so a late row still blocks a handoff", async () => {
+		const now = new Date().toISOString();
+		const onOuterSessionCreated = vi.fn();
+		let listCalls = 0;
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api.example",
+			appBaseUrl: "https://app.example",
+			getAuthToken: async () => "workos:fresh",
+			// Keep the re-list backoff instant.
+			sleep: async () => undefined,
+			fetch: async (_input, init) => {
+				if (init?.method === "POST") {
+					return jsonResponse(
+						{ success: false, error: "gateway timeout" },
+						500,
+					);
+				}
+				listCalls += 1;
+				// The list is eventually consistent with creates: the accepted
+				// POST's row becomes visible only on the second read.
+				return jsonResponse({
+					success: true,
+					data:
+						listCalls === 1
+							? []
+							: [
+									{
+										id: "ses-late-row",
+										status: "ready",
+										sandboxUrl: "https://pod.example",
+										repoContext: { repoUrl: "https://github.com/cline/test" },
+										metadata: { modelId: "model" },
+										createdAt: now,
+										updatedAt: now,
+									},
+								],
+				});
+			},
+		});
+
+		const error = await api
+			.create({
+				modelId: "model",
+				repoUrl: "https://github.com/cline/test",
+				handoff: {
+					sourceSessionId: "local-1",
+					resolveMessages: async () => [],
+					onOuterSessionCreated,
+				},
+			})
+			.catch((caught) => caught);
+
+		// A single empty list must not clear the seed-destructive handoff to
+		// retry: the second list caught the late row and kept the ambiguity.
+		expect(listCalls).toBe(2);
+		expect(error).toMatchObject({
+			code: "request_failed",
+			connectUrl: "https://app.example/agents",
+		});
+		expect(String(error)).toContain("cannot prove it created it");
 		expect(onOuterSessionCreated).not.toHaveBeenCalled();
 	});
 
@@ -2541,6 +2607,34 @@ describe("CloudSessionManager", () => {
 		).rejects.toBeInstanceOf(CloudHandoffTranscriptMismatchError);
 	});
 
+	it("baselines the live transcript with the verified cloud messages", async () => {
+		const { ctx } = createContext();
+		const hub = new FakeHubClient();
+		const msgA = { role: "user" as const, content: "continue" };
+		hub.messages = [msgA];
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+		await manager.list();
+		await manager.attach("ses-outer");
+		const live = ctx.liveSessions.get("ses-outer");
+		if (!live) throw new Error("missing live session");
+		live.messages = [{ role: "user", content: "stale local baseline" }];
+
+		await expect(
+			manager.verifyHandoffTranscript("ses-outer", [msgA]),
+		).resolves.toBeUndefined();
+
+		// The verified cloud transcript becomes the duplicate-prompt baseline
+		// for later sends; a stale or empty baseline could let an identical
+		// prompt in the seeded history falsely confirm an undelivered send.
+		expect(live.messages).toEqual([msgA]);
+		expect(live.messages).not.toBe(hub.messages);
+	});
+
 	it("reuses only one inner session owned by the same handoff source", async () => {
 		const { ctx } = createContext();
 		const hub = new FakeHubClient();
@@ -2718,6 +2812,61 @@ describe("CloudSessionManager", () => {
 		expect(
 			hub.commands.some((entry) => entry.command === "session.create"),
 		).toBe(false);
+	});
+
+	it("rejects a seeded join onto a concurrent seedless inner creation", async () => {
+		const { ctx } = createContext();
+		const hub = new FakeHubClient();
+		// The workspace starts with no inner session at all.
+		hub.sessionRows = [];
+		let releaseCreate!: () => void;
+		const createGate = new Promise<void>((resolve) => {
+			releaseCreate = resolve;
+		});
+		let markCreateStarted!: () => void;
+		const createStarted = new Promise<void>((resolve) => {
+			markCreateStarted = resolve;
+		});
+		hub.commandHook = async (command) => {
+			if (command === "session.create") {
+				markCreateStarted();
+				await createGate;
+				// The seedless creation resolves an inner session whose rows do
+				// not carry the seed's sourceSessionId.
+				hub.sessionRows = [{ sessionId: "inner-created" }];
+			}
+		};
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+		await manager.list();
+		// Establish the connection without an inner session.
+		await manager.attach("ses-outer");
+
+		// A seedless caller starts the inner creation and is held in flight.
+		const seedlessSend = manager.send("ses-outer", "start fresh work");
+		await createStarted;
+		// The seeded caller joins the same single-flight inner creation. It
+		// must validate the joined session against its seed instead of
+		// silently adopting the seedless conversation (verification would
+		// later fail and destroy a workspace holding a real conversation).
+		const seeded = manager.seedHandoff("ses-outer", {
+			sourceSessionId: "local-1",
+			messages: [{ role: "user", content: "continue" }],
+		});
+		releaseCreate();
+
+		await expect(seeded).rejects.toThrow(
+			"already contains another conversation",
+		);
+		await expect(seedlessSend).resolves.toMatchObject({ ok: true });
+		// The seeded caller never created a second inner session.
+		expect(
+			hub.commands.filter((entry) => entry.command === "session.create"),
+		).toHaveLength(1);
 	});
 
 	it("updates the cloud model before sending and skips redundant updates", async () => {

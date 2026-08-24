@@ -123,6 +123,9 @@ describe("cloudHandoffUiReducer", () => {
 		expect(retry["local-1"]).toEqual({
 			status: "progress",
 			phase: "checking",
+			// A retry keeps the recovery URL so an early failure cannot drop
+			// the only dashboard link held in live state.
+			dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
 		});
 	});
 
@@ -221,7 +224,11 @@ describe("cloudHandoffUiReducer", () => {
 				type: "start",
 				sourceSessionId: "local-1",
 			})["local-1"],
-		).toEqual({ status: "progress", phase: "checking" });
+		).toEqual({
+			status: "progress",
+			phase: "checking",
+			dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
+		});
 	});
 
 	it("keeps the temporary handoff prompt ahead of a live response", () => {

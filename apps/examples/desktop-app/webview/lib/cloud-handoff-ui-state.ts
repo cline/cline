@@ -106,11 +106,21 @@ export function cloudHandoffUiReducer(
 	const current = state[action.sourceSessionId];
 	switch (action.type) {
 		case "start": {
+			// A retry of a pending handoff must not discard the recovery URL:
+			// if the retry fails before any progress event re-supplies it, the
+			// dashboard link would be gone from live state entirely.
+			const carriedDashboardUrl =
+				current?.status === "recovery" ||
+				current?.status === "recovery_dismissed" ||
+				current?.status === "progress"
+					? current.dashboardUrl
+					: undefined;
 			return {
 				...state,
 				[action.sourceSessionId]: {
 					status: "progress",
 					phase: "checking",
+					...(carriedDashboardUrl ? { dashboardUrl: carriedDashboardUrl } : {}),
 					...(action.pendingPrompt
 						? { pendingPrompt: action.pendingPrompt }
 						: {}),

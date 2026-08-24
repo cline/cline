@@ -1405,6 +1405,10 @@ function ChatThreadPane({
 		});
 	}, [handoffRetry, onHandoffUiAction, setPromptInput, sourceSessionId]);
 
+	const handoffUiRef = useRef(handoffUi);
+	useEffect(() => {
+		handoffUiRef.current = handoffUi;
+	}, [handoffUi]);
 	const runHandoff = useCallback(
 		async (
 			preflight: HandoffPreflight,
@@ -1457,9 +1461,10 @@ function ChatThreadPane({
 				// optimistic bubble (it would read as sent), but preserve the
 				// user's command by pre-filling the target session's composer —
 				// the completed source is read-only, so this is the only copy.
-				const undeliveredCommand = result.warning
-					? nextCommand.trim() || undefined
-					: undefined;
+				const undeliveredCommand =
+					result.warning && result.warningKind !== "unconfirmed"
+						? nextCommand.trim() || undefined
+						: undefined;
 				if (result.warning) {
 					onHandoffUiAction({
 						type: "prompt_reconciled",
@@ -1512,9 +1517,23 @@ function ChatThreadPane({
 						description: undeliveredCommand
 							? `${result.warning} Your command was kept: "${undeliveredCommand}" — send it from the cloud session.`
 							: result.warning,
+						...(result.warningKind === "unconfirmed"
+							? { variant: "destructive" as const }
+							: {}),
 					});
 				}
 			} catch (error) {
+				// The authoritative completion event may have landed while the
+				// RPC transport failed; the handoff succeeded, so a destructive
+				// "failed" toast would contradict the visible receipt.
+				if (handoffUiRef.current?.status === "complete") {
+					toast({
+						title: "Handoff completed",
+						description:
+							"The connection dropped while reporting the result, but the cloud session is ready.",
+					});
+					return;
+				}
 				onHandoffUiAction({
 					type: "failed",
 					sourceSessionId,
@@ -1716,7 +1735,9 @@ function ChatThreadPane({
 		async (prompt: string) => {
 			const trimmed = prompt.trim();
 			const handoff = parseHandoffCommand(trimmed);
-			if (handoff) {
+			// Only reserve /handoff when the feature gate is on; otherwise a
+			// user's own workflow or skill named "handoff" stays reachable.
+			if (handoff && cloudHandoffAvailable) {
 				await prepareHandoff(handoff.nextCommand);
 				return;
 			}

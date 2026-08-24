@@ -47,6 +47,7 @@ import {
 } from "./attachments";
 import {
 	CloudHandoffSeedUnsupportedError,
+	CloudQueueUnconfirmedError,
 	CloudSessionError,
 	type CloudSessionManager,
 	getCloudSessionManager,
@@ -1862,10 +1863,24 @@ export function formatPendingHandoffVerificationError(
 	return `${error.message} Open the pending cloud workspace to inspect it, or delete it before retrying /handoff: ${dashboardUrl}`;
 }
 
-function assertCloudHandoffAvailable(): void {
-	if (!isCloudHandoffEnabled()) {
-		throw new Error("Cloud handoff is not enabled for this account.");
+async function assertCloudHandoffAvailable(
+	ctx: SidecarContext,
+	sourceSessionId?: string,
+): Promise<void> {
+	if (isCloudHandoffEnabled()) return;
+	// The flag gates NEW handoffs only. A handoff that is already pending must
+	// stay recoverable after the flag flips off: the source session's normal
+	// actions are blocked by the pending guard, so gating recovery here would
+	// deadlock the session until the flag returns.
+	if (sourceSessionId) {
+		const manager = getSessionManager(ctx);
+		const persisted = await manager.get(sourceSessionId).catch(() => undefined);
+		const pending = readCloudHandoffMetadata(
+			(persisted?.metadata ?? undefined) as JsonRecord | undefined,
+		);
+		if (pending?.status === "pending") return;
 	}
+	throw new Error("Cloud handoff is not enabled for this account.");
 }
 
 async function prepareCloudHandoff(
@@ -1969,7 +1984,7 @@ async function handlePrepareHandoff(
 	ctx: SidecarContext,
 	request: ChatSessionCommandRequest,
 ): Promise<PreparedCloudHandoff> {
-	assertCloudHandoffAvailable();
+	await assertCloudHandoffAvailable(ctx, request.sessionId?.trim());
 	return await prepareCloudHandoff(ctx, request);
 }
 
@@ -1978,6 +1993,7 @@ async function handleHandoffOnce(
 	request: ChatSessionCommandRequest,
 ): Promise<unknown> {
 	const sourceSessionId = request.sessionId?.trim();
+	await assertCloudHandoffAvailable(ctx, sourceSessionId);
 	if (!sourceSessionId) throw new Error("sessionId is required");
 	if (request.attachments?.userFiles?.length) {
 		throw new Error("Only image attachments can be sent with a cloud handoff.");
@@ -2370,6 +2386,7 @@ async function handleHandoffOnce(
 	);
 
 	let warning: string | undefined;
+	let warningKind: "unqueued" | "unconfirmed" | undefined;
 	if (nextCommand) {
 		try {
 			await cloud.send(
@@ -2380,7 +2397,15 @@ async function handleHandoffOnce(
 				request.attachments?.userImages,
 			);
 		} catch (error) {
-			warning = `The handoff completed, but the follow-up command was not queued: ${error instanceof Error ? error.message : String(error)}`;
+			// An unconfirmed outcome must never read as "not queued": inviting
+			// a resubmission of a durably queued prompt executes it twice.
+			if (error instanceof CloudQueueUnconfirmedError) {
+				warningKind = "unconfirmed";
+				warning = `The handoff completed, but Cline could not confirm whether the follow-up command was queued. Check the cloud session before resending it.`;
+			} else {
+				warningKind = "unqueued";
+				warning = `The handoff completed, but the follow-up command was not queued: ${error instanceof Error ? error.message : String(error)}`;
+			}
 		}
 	}
 	const destination = isCloudAgentsEnabled() ? "in_app" : "external";
@@ -2401,6 +2426,7 @@ async function handleHandoffOnce(
 		dashboardUrl,
 		destination,
 		...(warning ? { warning } : {}),
+		...(warningKind ? { warningKind } : {}),
 	};
 }
 
@@ -2444,7 +2470,6 @@ async function handleHandoff(
 	ctx: SidecarContext,
 	request: ChatSessionCommandRequest,
 ): Promise<unknown> {
-	assertCloudHandoffAvailable();
 	const sourceSessionId = request.sessionId?.trim();
 	if (!sourceSessionId) throw new Error("sessionId is required");
 	let requests = handoffRequests.get(ctx);

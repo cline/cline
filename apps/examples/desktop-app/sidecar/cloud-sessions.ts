@@ -138,6 +138,8 @@ export type {
 } from "../webview/lib/cloud-repositories";
 
 type CloudSessionApiOptions = {
+	/** Test seam for recovery re-list backoff waits. */
+	sleep?: (ms: number) => Promise<void>;
 	apiBaseUrl: string;
 	appBaseUrl: string;
 	getAuthToken: () => Promise<string | undefined>;
@@ -167,6 +169,22 @@ export class CloudSessionError extends Error {
 		this.name = "CloudSessionError";
 	}
 }
+
+/**
+ * A queue delivery whose outcome could not be confirmed either way. Callers
+ * must never present this as "not queued" — resubmitting a durably queued
+ * prompt executes it twice.
+ */
+export class CloudQueueUnconfirmedError extends CloudSessionError {
+	constructor() {
+		super(
+			"request_failed",
+			"The connection was interrupted and Cline could not confirm whether this message was queued. Check the cloud session before resending it.",
+		);
+		this.name = "CloudQueueUnconfirmedError";
+	}
+}
+
 
 function isTransientGitHubTokenVendFailure(error: unknown): boolean {
 	if (!(error instanceof CloudSessionError) || error.status !== 502)
@@ -646,15 +664,32 @@ export class CloudSessionApi {
 				// list is NOT an empty list: treating it as empty would blind
 				// the ambiguity guard and let a retry provision a duplicate.
 				let recoveryListFailed = false;
-				const candidates = (
+				const listOnce = async () =>
 					await this.listWithToken(
 						input.organizationId ?? undefined,
 						creationAuthToken,
-					).catch(() => {
+					);
+				// The list is eventually consistent with creates: an accepted
+				// POST may not be visible yet. For seed-destructive handoffs,
+				// re-list briefly before concluding nothing was created.
+				let listed: Awaited<ReturnType<typeof listOnce>> = [];
+				for (let attempt = 0; attempt < (input.handoff ? 3 : 1); attempt += 1) {
+					if (attempt > 0) {
+						await (
+							this.options.sleep ??
+							((ms: number) =>
+								new Promise<void>((resolve) => setTimeout(resolve, ms)))
+						)(2_500);
+					}
+					try {
+						listed = await listOnce();
+						recoveryListFailed = false;
+						if (listed.length > 0 || !input.handoff) break;
+					} catch {
 						recoveryListFailed = true;
-						return [];
-					})
-				)
+					}
+				}
+				const candidates = listed
 					.filter(
 						(session) =>
 							session.repoContext.repoUrl === input.repoUrl &&
@@ -1736,6 +1771,14 @@ export class CloudSessionManager {
 			);
 		}
 		connection.transcriptKnown = true;
+		// Baseline the live transcript with the verified seed: a later send's
+		// ambiguity recovery counts prompt occurrences against this baseline,
+		// and an empty baseline would let an older identical prompt in the
+		// seeded history falsely confirm a new, undelivered follow-up.
+		const live = this.ctx.liveSessions.get(outerSessionId);
+		if (live) {
+			live.messages = [...actual];
+		}
 	}
 
 	private async createOnce(
@@ -2102,10 +2145,7 @@ export class CloudSessionManager {
 				// nothing for a queue delivery — telling the user to resend
 				// would duplicate a durably queued prompt.
 				if (delivery === "queue" && snapshot.prompts === undefined) {
-					throw new CloudSessionError(
-						"request_failed",
-						"The connection was interrupted and Cline could not confirm whether this message was queued. Check the cloud session before resending it.",
-					);
+					throw new CloudQueueUnconfirmedError();
 				}
 				const promptOccurrencesAfterRecovery = countPromptOccurrences(
 					snapshot.messages,
@@ -2113,12 +2153,6 @@ export class CloudSessionManager {
 					prompt,
 				);
 				if (promptOccurrencesAfterRecovery <= promptOccurrencesBeforeSend) {
-					if (delivery === "queue" && snapshot.prompts === undefined) {
-						throw new CloudSessionError(
-							"request_failed",
-							"The connection was interrupted and Cline could not confirm whether this message was queued. Check the cloud session before resending it.",
-						);
-					}
 					throw new CloudSessionError(
 						"request_failed",
 						"The connection was interrupted before this message could be confirmed. It was not found in the cloud session, so please send it again.",
@@ -2843,7 +2877,15 @@ export class CloudSessionManager {
 			return;
 		}
 		if (connection.innerSessionCreation) {
-			return await connection.innerSessionCreation;
+			await connection.innerSessionCreation;
+			// A seeded creation must never silently adopt a session created by
+			// a concurrent seedless caller: the transcript would fail
+			// verification later and destroy a workspace that may hold a
+			// conversation. Validate the joined session against this seed.
+			if (handoffSeed) {
+				await this.assertHandoffConnectionReusable(connection, handoffSeed);
+			}
+			return;
 		}
 		const creation = this.createInnerSessionOnce(
 			connection,
