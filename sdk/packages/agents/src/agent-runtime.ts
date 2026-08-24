@@ -362,6 +362,15 @@ function formatHookContextBlock(
 	return `<hook_context source="${source}" tool_name="${toolName}" tool_call_id="${toolCallId}">\n${body}\n</hook_context>`;
 }
 
+function formatRunHookContextBlock(text: string): string {
+	// Run-start hooks (TaskStart/UserPromptSubmit/TaskResume in their various
+	// layer spellings) have no tool identity; layers merge their outputs before
+	// the runtime sees them, so a single generic source labels the block.
+	// Embedded hook_context tags are neutralized like the tool variant.
+	const body = text.trim().replace(/<(\/?)hook_context/gi, "<\\$1hook_context");
+	return `<hook_context source="RunStart">\n${body}\n</hook_context>`;
+}
+
 function cloneMessages(messages: readonly AgentMessage[]): AgentMessage[] {
 	return messages.map((message) => ({
 		...message,
@@ -703,6 +712,7 @@ export class AgentRuntime {
 		this.state.lastErrorReported = false;
 		this.state.usage = cloneUsage(DEFAULT_USAGE);
 		this.overflowRecoveryAttempted = false;
+		this.pendingHookContexts = [];
 
 		try {
 			await this.callBeforeRunHooks();
@@ -721,6 +731,10 @@ export class AgentRuntime {
 			if (completionToolReminder) {
 				await this.addUserReminderMessage(completionToolReminder);
 			}
+
+			// Context collected by beforeRun hooks lands after the run's input
+			// messages so the model sees it on the first request of the run.
+			await this.flushPendingHookContexts();
 
 			let finalAssistantMessage: AgentMessage | undefined;
 
@@ -823,24 +837,7 @@ export class AgentRuntime {
 						message: toolMessage,
 					});
 				}
-				if (this.pendingHookContexts.length > 0) {
-					const hookContextText = this.pendingHookContexts.join("\n\n");
-					this.pendingHookContexts = [];
-					// displayRole "system" keeps the injected block out of user-facing
-					// transcripts (live and replayed) while it still reaches the model,
-					// mirroring how compaction summaries are handled.
-					const hookContextMessage = createMessage(
-						"user",
-						[{ type: "text", text: hookContextText }],
-						{ userRunSpan: 0, displayRole: "system" },
-					);
-					this.state.messages.push(hookContextMessage);
-					await this.emit({
-						type: "message-added",
-						snapshot: this.snapshot(),
-						message: hookContextMessage,
-					});
-				}
+				await this.flushPendingHookContexts();
 				await this.emit({
 					type: "turn-finished",
 					snapshot: this.snapshot(),
@@ -937,12 +934,44 @@ export class AgentRuntime {
 		}
 	}
 
+	/**
+	 * Injects the collected hook context blocks as one user message. The
+	 * displayRole "system" keeps the injected block out of user-facing
+	 * transcripts (live and replayed) while it still reaches the model,
+	 * mirroring how compaction summaries are handled.
+	 */
+	private async flushPendingHookContexts(): Promise<void> {
+		if (this.pendingHookContexts.length === 0) {
+			return;
+		}
+		const hookContextText = this.pendingHookContexts.join("\n\n");
+		this.pendingHookContexts = [];
+		const hookContextMessage = createMessage(
+			"user",
+			[{ type: "text", text: hookContextText }],
+			{ userRunSpan: 0, displayRole: "system" },
+		);
+		this.state.messages.push(hookContextMessage);
+		await this.emit({
+			type: "message-added",
+			snapshot: this.snapshot(),
+			message: hookContextMessage,
+		});
+	}
+
 	private async callBeforeRunHooks(): Promise<void> {
 		for (const hook of this.hooks.beforeRun) {
-			const control = (await hook({
+			const result = await hook({
 				snapshot: this.snapshot(),
-			})) as AgentStopControl | undefined;
-			this.applyStopControl(control);
+			});
+			this.applyStopControl(result);
+			// Collected here, injected after the run's input messages are
+			// pushed, so the block lands in the same turn as the user prompt.
+			if (result?.appendContext?.trim()) {
+				this.pendingHookContexts.push(
+					formatRunHookContextBlock(result.appendContext),
+				);
+			}
 		}
 	}
 
