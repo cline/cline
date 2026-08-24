@@ -357,7 +357,9 @@ function beforeToolResultFromControl(
 	return Object.keys(result).length > 0 ? result : undefined;
 }
 
-function afterToolResultFromControl(
+// Shared by afterTool and beforeRun: both may stop the run or inject
+// context, and neither can override tool input.
+function stopOrContextResultFromControl(
 	control: AgentHookControl | undefined,
 ): { stop?: boolean; reason?: string; appendContext?: string } | undefined {
 	if (!control) return undefined;
@@ -395,35 +397,64 @@ async function dispatchDetached(
 export function createSubprocessHooks(
 	options: SubprocessHooksOptions = {},
 ): SubprocessHookControl {
+	// Run-start hooks execute blocking so their output is collected: like the
+	// tool hooks, they may cancel the run or inject context, neither of which
+	// is possible from a detached spawn with ignored stdio.
 	const beforeRun = async (
 		ctx: AgentRunLifecycleContext,
-	): Promise<undefined> => {
+	): Promise<
+		{ stop?: boolean; reason?: string; appendContext?: string } | undefined
+	> => {
 		const base = runtimeBase(ctx);
 		const isResume =
 			(options.env ?? process.env).CLINE_HOOK_AGENT_RESUME === "1";
-		if (isResume) {
-			const resumePayload: AgentResumeHookPayload = {
-				...basePayload("agent_resume", base, options),
-				hookName: "agent_resume",
-				taskResume: {
-					taskMetadata: {},
-					previousState: {},
-				},
-			};
-			await dispatchDetached(resumePayload, options);
-		} else {
-			const startPayload: AgentStartHookPayload = {
-				...basePayload("agent_start", base, options),
-				hookName: "agent_start",
-				taskStart: { taskMetadata: {} },
-			};
-			await dispatchDetached(startPayload, options);
+		const payload: AgentResumeHookPayload | AgentStartHookPayload = isResume
+			? {
+					...basePayload("agent_resume", base, options),
+					hookName: "agent_resume",
+					taskResume: {
+						taskMetadata: {},
+						previousState: {},
+					},
+				}
+			: {
+					...basePayload("agent_start", base, options),
+					hookName: "agent_start",
+					taskStart: { taskMetadata: {} },
+				};
+		try {
+			const result = await runHook(payload, {
+				command: options.command,
+				cwd: options.cwd,
+				env: options.env,
+				detached: false,
+				timeoutMs: options.timeoutMs ?? DEFAULT_TOOL_HOOK_TIMEOUT_MS,
+				onSpawn: options.onSpawn,
+			});
+			options.onDispatch?.({ payload, result, detached: false });
+			if (result?.timedOut) {
+				throw new Error(`${payload.hookName} hook command timed out`);
+			}
+			if (result?.parseError) {
+				throw new Error(
+					`${payload.hookName} hook produced invalid control JSON: ${result.parseError}`,
+				);
+			}
+			return stopOrContextResultFromControl(toHookControl(result?.parsedJson));
+		} catch (error) {
+			options.onDispatchError?.(toError(error), payload);
+			return;
 		}
-		return undefined;
 	};
 
 	const onEvent = async (event: AgentRuntimeEvent): Promise<void> => {
-		if (event.type !== "message-added" || event.message.role !== "user") {
+		if (
+			event.type !== "message-added" ||
+			event.message.role !== "user" ||
+			// Injected hook-context blocks are user-role messages with a system
+			// display role; they are not user prompts.
+			event.message.metadata?.displayRole === "system"
+		) {
 			return;
 		}
 		const base = {
@@ -545,7 +576,7 @@ export function createSubprocessHooks(
 					`tool_result hook produced invalid control JSON: ${result.parseError}`,
 				);
 			}
-			return afterToolResultFromControl(toHookControl(result?.parsedJson));
+			return stopOrContextResultFromControl(toHookControl(result?.parsedJson));
 		} catch (error) {
 			options.onDispatchError?.(toError(error), payload);
 			return;

@@ -564,6 +564,28 @@ function beforeToolResultFromControl(
 	return Object.keys(result).length > 0 ? result : undefined;
 }
 
+function runStartResultFromControl(
+	control: HookCommandControl | undefined,
+): { stop?: boolean; reason?: string; appendContext?: string } | undefined {
+	if (!control) {
+		return undefined;
+	}
+	const result: { stop?: boolean; reason?: string; appendContext?: string } =
+		{};
+	if (control.cancel === true) {
+		result.stop = true;
+		if (control.cancelReason?.trim()) {
+			result.reason = control.cancelReason;
+		}
+	} else if (control.context?.trim()) {
+		// Context is injected only when the hook lets the run continue; a
+		// cancelling hook's message travels as cancelReason instead (legacy
+		// surfaced it as an error, never as conversation context).
+		result.appendContext = control.context;
+	}
+	return Object.keys(result).length > 0 ? result : undefined;
+}
+
 function afterToolResultFromControl(
 	control: HookCommandControl | undefined,
 ): { stop?: boolean; reason?: string; appendContext?: string } | undefined {
@@ -719,19 +741,22 @@ export function createHookConfigFileHooks(
 		return undefined;
 	}
 
+	// Run-start hooks execute blocking so their output is collected: like the
+	// tool hooks, they may cancel the run or inject context, neither of which
+	// is possible from a detached spawn with ignored stdio.
 	const runAgentStart = async (
 		ctx: HookContextBase,
 		hookName: "agent_start" | "agent_resume",
-	): Promise<void> => {
+	): Promise<HookCommandControl | undefined> => {
 		const commandPaths = commandMap[hookName] ?? [];
 		if (commandPaths.length === 0) {
-			return;
+			return undefined;
 		}
-		await runAsyncHookCommands({
+		return runBlockingHookCommands({
 			commands: commandPaths,
 			cwd: options.cwd,
 			logger: options.logger,
-			detached: options.detachAsyncHooks ?? true,
+			timeoutMs: options.toolCallTimeoutMs ?? 120000,
 			payload:
 				hookName === "agent_resume"
 					? {
@@ -929,13 +954,27 @@ export function createHookConfigFileHooks(
 					process.env.CLINE_HOOK_AGENT_RESUME === "1"
 						? "agent_resume"
 						: "agent_start";
-				await runAgentStart(baseContextFromSnapshot(ctx.snapshot), hookName);
-				return undefined;
+				const control = await runAgentStart(
+					baseContextFromSnapshot(ctx.snapshot),
+					hookName,
+				);
+				return runStartResultFromControl(control);
 			};
 		}
 		if ((commandMap.prompt_submit?.length ?? 0) > 0) {
+			// prompt_submit stays a fire-and-forget dispatch on message-added:
+			// when beforeRun fires, the run's input messages are not yet in the
+			// snapshot, so this is the only point where the prompt text is
+			// available to this layer. onEvent has no return channel, which
+			// means prompt_submit hooks here cannot cancel or inject context.
 			hooks.onEvent = async (event: AgentRuntimeEvent) => {
-				if (event.type !== "message-added" || event.message.role !== "user") {
+				if (
+					event.type !== "message-added" ||
+					event.message.role !== "user" ||
+					// Injected hook-context blocks are user-role messages with a
+					// system display role; they are not user prompts.
+					event.message.metadata?.displayRole === "system"
+				) {
 					return;
 				}
 				await runPromptSubmit(
