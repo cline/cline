@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, describe, it } from "bun:test"
-import "should"
-import { getHookLaunchConfig, resetHookLaunchConfigCacheForTesting } from "../HookProcess"
-import { withPlatform } from "./test-utils"
+import fs from "fs/promises"
+import os from "os"
+import path from "path"
+import should from "should"
+import { getHookLaunchConfig, HookProcess, resetHookLaunchConfigCacheForTesting } from "../HookProcess"
+import { withPlatform, writeHookScriptForPlatform } from "./test-utils"
 
 function createDeferred<T>() {
 	let resolve!: (value: T | PromiseLike<T>) => void
@@ -174,4 +177,57 @@ describe("HookProcess", () => {
 			}
 		})
 	})
+})
+
+describe("HookProcess spawn failures", () => {
+	let tempDir: string
+
+	beforeEach(async () => {
+		tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "hookprocess-test-"))
+	})
+
+	afterEach(async () => {
+		await fs.rm(tempDir, { recursive: true, force: true })
+	})
+
+	async function writeTestHook(): Promise<string> {
+		const hookBasePath = path.join(tempDir, "TaskStart")
+		await writeHookScriptForPlatform(hookBasePath, `#!/usr/bin/env node\nconsole.log(JSON.stringify({ cancel: false }))\n`)
+		return process.platform === "win32" ? `${hookBasePath}.ps1` : hookBasePath
+	}
+
+	it("runs the hook without an explicit cwd when the requested cwd does not exist", async () => {
+		const scriptPath = await writeTestHook()
+		const missingCwd = path.join(tempDir, "deleted-workspace-root")
+
+		const hookProcess = new HookProcess(scriptPath, 30000, undefined, missingCwd)
+		await hookProcess.run("{}")
+
+		should(hookProcess.getExitCode()).equal(0)
+		hookProcess.getStdout().should.containEql('"cancel":false')
+	}, 15000)
+
+	it.skipIf(process.platform === "win32")(
+		"rejects instead of crashing when spawn fails with no error listener registered",
+		async () => {
+			const scriptPath = await writeTestHook()
+
+			// A regular file passes the pre-spawn cwd existence check but makes
+			// spawn fail with an "error" event (ENOTDIR). No "error" listener is
+			// registered here, matching StdioHookRunner: an unguarded emit would
+			// escape the child's error callback as an uncaught exception and kill
+			// the whole process instead of failing this one hook.
+			const fileAsCwd = path.join(tempDir, "not-a-directory")
+			await fs.writeFile(fileAsCwd, "")
+
+			const hookProcess = new HookProcess(scriptPath, 5000, undefined, fileAsCwd)
+
+			try {
+				await hookProcess.run("{}")
+				throw new Error("Expected hook run to fail")
+			} catch (error: any) {
+				error.message.should.not.equal("Expected hook run to fail")
+			}
+		},
+	)
 })
