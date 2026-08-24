@@ -131,6 +131,58 @@ describe("createApplyPatchExecutor", () => {
 		await expect(fs.readFile(filePath, "utf-8")).resolves.toBe("hello");
 	});
 
+	it("preserves CRLF line endings when updating a CRLF file", async () => {
+		const filePath = path.join(tempDir, "note.txt");
+		await fs.writeFile(filePath, "alpha\r\nbeta\r\ngamma", "utf-8");
+		const execute = createApplyPatchExecutor();
+
+		// Models emit LF-only patch text even for CRLF files.
+		await execute(
+			{
+				input: [
+					"*** Update File: note.txt",
+					"@@",
+					" alpha",
+					"-beta",
+					"+BETA",
+					"+inserted",
+					" gamma",
+				].join("\n"),
+			},
+			tempDir,
+			{} as never,
+		);
+
+		await expect(fs.readFile(filePath, "utf-8")).resolves.toBe(
+			"alpha\r\nBETA\r\ninserted\r\ngamma",
+		);
+	});
+
+	// Added files get the platform-native EOL: CRLF on Windows, LF elsewhere
+	// (github.com/cline/cline/issues/13504).
+	it("adds new files with the platform-native line ending", async () => {
+		const filePath = path.join(tempDir, "added.txt");
+		const execute = createApplyPatchExecutor();
+
+		await execute(
+			{
+				input: [
+					"*** Begin Patch",
+					"*** Add File: added.txt",
+					"+one",
+					"+two",
+					"*** End Patch",
+				].join("\n"),
+			},
+			tempDir,
+			{} as never,
+		);
+
+		await expect(fs.readFile(filePath, "utf-8")).resolves.toBe(
+			["one", "two"].join(os.EOL),
+		);
+	});
+
 	it("rejects incomplete patch sentinels", async () => {
 		const execute = createApplyPatchExecutor();
 

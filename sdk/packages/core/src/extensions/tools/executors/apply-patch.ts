@@ -20,6 +20,12 @@ import {
 	PatchParser,
 	type PatchWarning,
 } from "./apply-patch-parser";
+import {
+	detectLineEnding,
+	type LineEnding,
+	normalizeLineEndings,
+	normalizeNewFileContent,
+} from "./line-endings";
 
 export interface PatchFileChange {
 	type: PatchActionType;
@@ -70,7 +76,7 @@ function resolveFilePath(
 	return resolved;
 }
 
-function normalizeLineEndings(input: string): string[] {
+function splitPatchInputLines(input: string): string[] {
 	return input.split("\n").map((line) => line.replace(/\r$/, ""));
 }
 
@@ -97,7 +103,7 @@ function trimWrapperLines(lines: string[]): string[] {
 }
 
 function normalizePatchInput(input: string): NormalizedPatchInput {
-	const rawLines = normalizeLineEndings(input);
+	const rawLines = splitPatchInputLines(input);
 	const beginIndex = rawLines.findIndex((line) =>
 		line.startsWith(PATCH_MARKERS.BEGIN),
 	);
@@ -191,12 +197,18 @@ async function loadFiles(
 	cwd: string,
 	encoding: BufferEncoding,
 	restrictToCwd: boolean,
-): Promise<Record<string, string>> {
+): Promise<{
+	/** Contents normalized to LF: parsing and chunk math run in LF space. */
+	files: Record<string, string>;
+	/** Each file's own EOL, restored onto the output after chunks apply. */
+	eols: Record<string, LineEnding>;
+}> {
 	const filesToLoad = extractFilesForOperations(lines, [
 		PATCH_MARKERS.UPDATE,
 		PATCH_MARKERS.DELETE,
 	]);
 	const files: Record<string, string> = {};
+	const eols: Record<string, LineEnding> = {};
 
 	for (const filePath of filesToLoad) {
 		const absolutePath = resolveFilePath(cwd, filePath, restrictToCwd);
@@ -207,14 +219,16 @@ async function loadFiles(
 			throw new DiffError(`File not found: ${filePath}`);
 		}
 		files[filePath] = fileContent.replace(/\r\n/g, "\n");
+		eols[filePath] = detectLineEnding(fileContent);
 	}
 
-	return files;
+	return { files, eols };
 }
 
 function patchToChanges(
 	patch: ReturnType<PatchParser["parse"]>["patch"],
 	originalFiles: Record<string, string>,
+	eols: Record<string, LineEnding>,
 ): Record<string, PatchFileChange> {
 	const changes: Record<string, PatchFileChange> = {};
 
@@ -232,21 +246,31 @@ function patchToChanges(
 				}
 				changes[filePath] = {
 					type: PatchActionType.ADD,
-					newContent: action.newFile,
+					// An added file has no EOL of its own to preserve, so it
+					// gets the platform-native line ending
+					// (github.com/cline/cline/issues/13504).
+					newContent: normalizeNewFileContent(action.newFile),
 				};
 				break;
-			case PatchActionType.UPDATE:
+			case PatchActionType.UPDATE: {
+				// Chunk math ran in LF space; restore the file's own EOL so
+				// an update never rewrites a CRLF file to LF wholesale.
+				const eol = eols[filePath] ?? "\n";
+				const oldContent = originalFiles[filePath];
 				changes[filePath] = {
 					type: PatchActionType.UPDATE,
-					oldContent: originalFiles[filePath],
-					newContent: applyChunks(
-						originalFiles[filePath] ?? "",
-						action.chunks,
-						filePath,
+					oldContent:
+						oldContent === undefined
+							? undefined
+							: normalizeLineEndings(oldContent, eol),
+					newContent: normalizeLineEndings(
+						applyChunks(oldContent ?? "", action.chunks, filePath),
+						eol,
 					),
 					movePath: action.movePath,
 				};
 				break;
+			}
 		}
 	}
 
@@ -337,7 +361,7 @@ export async function computePatchChanges(
 ): Promise<{ changes: Record<string, PatchFileChange>; fuzz: number }> {
 	const { encoding = "utf-8", restrictToCwd = true } = options;
 	const normalizedInput = normalizePatchInput(patchText);
-	const currentFiles = await loadFiles(
+	const { files: currentFiles, eols } = await loadFiles(
 		normalizedInput.lines,
 		cwd,
 		encoding,
@@ -349,7 +373,7 @@ export async function computePatchChanges(
 		throw new DiffError(formatSkippedHunkFailure(patch.warnings));
 	}
 
-	return { changes: patchToChanges(patch, currentFiles), fuzz };
+	return { changes: patchToChanges(patch, currentFiles, eols), fuzz };
 }
 
 /**
