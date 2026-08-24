@@ -1087,6 +1087,36 @@ describe("CloudSessionApi", () => {
 		}
 	});
 
+
+
+	it("does not retry an arbitrary 502 that could have provisioned", async () => {
+		const { ctx } = createContext();
+		const create = vi.fn(async () => {
+			throw new CloudSessionError(
+				"request_failed",
+				"upstream request failed",
+				undefined,
+				502,
+			);
+		});
+		const sleep = vi.fn(async () => undefined);
+		const manager = new CloudSessionManager(ctx, {
+			api: { create } as unknown as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			sleep,
+		});
+
+		await expect(
+			manager.create({
+				modelId: "model",
+				repoUrl: "https://github.com/cline/test",
+			}),
+		).rejects.toThrow("upstream request failed");
+		expect(create).toHaveBeenCalledOnce();
+		expect(sleep).not.toHaveBeenCalled();
+	});
+
 	it("recovery never steals a session whose successful POST is still completing", async () => {
 		const now = new Date().toISOString();
 		let releaseSlowCreate!: () => void;
@@ -2252,33 +2282,6 @@ describe("CloudSessionManager", () => {
 		expect(sleep.mock.calls).toEqual([[500], [1000]]);
 	});
 
-	it("does not retry an arbitrary 502 that could have provisioned", async () => {
-		const { ctx } = createContext();
-		const create = vi.fn(async () => {
-			throw new CloudSessionError(
-				"request_failed",
-				"upstream request failed",
-				undefined,
-				502,
-			);
-		});
-		const sleep = vi.fn(async () => undefined);
-		const manager = new CloudSessionManager(ctx, {
-			api: { create } as unknown as CloudSessionApi,
-			apiBaseUrl: "https://api.example",
-			getAuthToken: async () => "workos:fresh",
-			sleep,
-		});
-
-		await expect(
-			manager.create({
-				modelId: "model",
-				repoUrl: "https://github.com/cline/test",
-			}),
-		).rejects.toThrow("upstream request failed");
-		expect(create).toHaveBeenCalledOnce();
-		expect(sleep).not.toHaveBeenCalled();
-	});
 
 	it("persists the outer handoff before seeding rich initial messages", async () => {
 		const { ctx } = createContext();

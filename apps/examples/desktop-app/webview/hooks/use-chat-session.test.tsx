@@ -157,6 +157,52 @@ describe("mergeCloudSnapshotWithLive", () => {
 		expect(merged.map((item) => item.id)).toEqual(["saved-old", "live-new"]);
 	});
 
+	it("keeps optimistic images while a cloud snapshot is temporarily text-only", () => {
+		const optimisticStates = new Map([
+			["optimistic", { sessionId: "ses-cloud", state: "pending" as const }],
+		]);
+		const optimistic = {
+			...message("optimistic", "user", "describe this", 1),
+			images: [
+				{
+					id: "optimistic-image",
+					mediaType: "image/png" as const,
+					data: "AQID",
+				},
+			],
+		};
+		const first = mergeCloudSnapshotWithLive(
+			[message("saved", "user", "describe this", 2)],
+			[optimistic],
+			{
+				sessionId: "ses-cloud",
+				transcriptKnown: true,
+				previousUserCounts: new Map(),
+				optimisticStates,
+			},
+		);
+
+		expect(first).toEqual([
+			expect.objectContaining({
+				id: "saved",
+				images: [expect.objectContaining({ data: "AQID" })],
+			}),
+		]);
+		expect(optimisticStates.has("optimistic")).toBe(false);
+
+		const second = mergeCloudSnapshotWithLive(
+			[message("saved", "user", "describe this", 2)],
+			first,
+			{
+				sessionId: "ses-cloud",
+				transcriptKnown: true,
+				previousUserCounts: new Map([["describe this", 1]]),
+				optimisticStates,
+			},
+		);
+		expect(second[0]?.images?.[0]?.data).toBe("AQID");
+	});
+
 	it("keeps a failed optimistic prompt during the first hydrate", () => {
 		const optimisticStates = new Map([
 			["failed-prompt", { sessionId: "ses-cloud", state: "failed" as const }],

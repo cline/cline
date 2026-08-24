@@ -44,9 +44,11 @@ import type {
 const CLOUD_WORKSPACE_ROOT = "/workspace";
 const CREATE_TIMEOUT_MS = 610_000;
 const PROVISIONING_POLL_MS = 3_000;
-const QUEUE_COMMAND_TIMEOUT_MS = 30_000;
 // Bound hot-path REST calls so a dead network cannot hang the sidebar.
 const REQUEST_TIMEOUT_MS = 15_000;
+// Queue deliveries are acked promptly by the hub; a dead transport must not
+// hang them forever the way a run-length immediate send legitimately can.
+const QUEUE_COMMAND_TIMEOUT_MS = 30_000;
 const CLOUD_ERROR_PREFIX = "CLOUD_SESSION_ERROR:";
 const MAX_BUFFERED_SYNC_EVENTS = 2_000;
 const MAX_SEEN_EVENT_IDS = 2_000;
@@ -575,6 +577,8 @@ export class CloudSessionApi {
 					error instanceof CloudSessionError &&
 					error.code === "session_failed"
 				) {
+					// A terminally failed sandbox lingers in the account list
+					// otherwise; clean it up under the identity that created it.
 					try {
 						await this.delete(createdSessionId, creationAuthToken);
 					} catch (cleanupError) {
@@ -624,6 +628,8 @@ export class CloudSessionApi {
 					await Promise.allSettled(pending.map(([, settled]) => settled));
 				}
 				const requestedBranch = input.branch?.trim();
+				// Recovery must observe the same identity/scope that issued the
+				// create — the active account can change mid-provision.
 				const candidates = (
 					await this.listWithToken(
 						input.organizationId ?? undefined,
@@ -921,11 +927,11 @@ type CloudSessionManagerOptions = {
 	getActiveOrganizationId?: (options?: {
 		fresh?: boolean;
 	}) => Promise<string | undefined>;
+	/** Test seam for retry backoff waits. */
+	sleep?: (ms: number) => Promise<void>;
 	createHubClient?: (
 		options: ConstructorParameters<typeof NodeHubClient>[0],
 	) => CloudHubClient;
-	/** Test seam for the narrow GitHub token-vending retry. */
-	sleep?: (ms: number) => Promise<void>;
 };
 
 /** Recognizes server ids even before the in-memory cloud registry is warm. */
@@ -1744,6 +1750,9 @@ export class CloudSessionManager {
 				});
 				break;
 			} catch (error) {
+				// The secrets proxy occasionally 502s while vending the GitHub
+				// token; that specific failure is safe to retry (nothing was
+				// provisioned). Any other 502 could have provisioned.
 				if (!isTransientGitHubTokenVendFailure(error) || attempt === 2) {
 					throw error;
 				}
@@ -2001,6 +2010,15 @@ export class CloudSessionManager {
 						live.status = "error";
 					}
 					throw recoveryError;
+				}
+				// Without a queue snapshot the absence of the prompt proves
+				// nothing for a queue delivery — telling the user to resend
+				// would duplicate a durably queued prompt.
+				if (delivery === "queue" && snapshot.prompts === undefined) {
+					throw new CloudSessionError(
+						"request_failed",
+						"The connection was interrupted and Cline could not confirm whether this message was queued. Check the cloud session before resending it.",
+					);
 				}
 				const promptOccurrencesAfterRecovery = countPromptOccurrences(
 					snapshot.messages,
@@ -2917,29 +2935,11 @@ export class CloudSessionManager {
 					? payload.conversationId
 					: undefined,
 		};
-		// Approvals are answered through a trusted webview connection (the
-		// same ownership contract local approvals follow); without one there
-		// is nobody to ask, so decline pod-side rather than queueing forever.
-		const owner = [...this.ctx.wsClients].find(
-			(client) => client.data?.canApproveTools === true,
-		);
-		if (!owner) {
-			void connection.client
-				.command(
-					"approval.respond",
-					{
-						approvalId,
-						approved: false,
-						reason: "No trusted desktop approval surface is connected",
-					},
-					connection.innerSessionId ?? undefined,
-				)
-				.catch(() => undefined);
-			return;
-		}
+		// Pod-relayed approvals have no local owner: they must survive a
+		// webview reload/disconnect and stay answerable from any trusted
+		// surface, so they are stored ownerless rather than declined.
 		this.ctx.pendingApprovals.set(requestId, {
 			item,
-			owner,
 			resolve: async (result) => {
 				if (connection.disposed) {
 					// Commanding a disposed NodeHubClient would silently redial;

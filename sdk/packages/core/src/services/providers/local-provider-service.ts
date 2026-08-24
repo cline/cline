@@ -840,12 +840,16 @@ export async function getLocalProviderModels(
 	if (id === CLINE_PROVIDER_ID || id === CLINE_PASS_PROVIDER_ID) {
 		// Stamp the recommended-feed tiers onto the list so every client's
 		// picker gets Recommended/Free/Subscribed data without fetching and
-		// joining the feed itself. Cached; falls back to a bundled list, so
-		// a failure only means models without tier decoration.
+		// joining the feed itself. The loadLatest path just refreshed live
+		// data, so peek (cache-or-bundled, never fetches) avoids a duplicate
+		// feed request; otherwise use the cached fetch. A miss only means
+		// models without tier decoration.
 		models = applyClineFeaturedModels(
 			id,
 			models,
-			await getCachedClineRecommendedModels(),
+			options?.loadLatest
+				? peekClineRecommendedModels()
+				: await getCachedClineRecommendedModels(),
 		);
 	}
 	return { providerId: id, models };
