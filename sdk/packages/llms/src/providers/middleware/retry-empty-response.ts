@@ -324,6 +324,16 @@ export function createRetryEmptyResponseMiddleware(
 					let networkRetries = 0;
 
 					for (let attempt = 1; ; attempt++) {
+						if (cancelled()) {
+							// Cancellation landed while no reader was live — before
+							// the pump started, or while a retry's doStream() was
+							// still being awaited. Cancel the fresh provider stream
+							// instead of draining a generation nobody will read.
+							await result.stream
+								.cancel(cancelController.signal.reason)
+								.catch(() => {});
+							return;
+						}
 						const reader = result.stream.getReader();
 						activeReader = reader;
 						// Parts held back until this attempt proves non-empty.
