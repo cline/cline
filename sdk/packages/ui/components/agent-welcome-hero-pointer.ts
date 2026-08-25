@@ -1,83 +1,83 @@
 import { type RefObject, useEffect } from "react";
-import { WELCOME_HERO_POINTER_CONFIG } from "./hero-config";
+
+const POINTER_CONFIG = {
+	defaultFrameHeight: 220,
+	defaultGridHeight: 520,
+	eyes: {
+		travel: 6,
+		falloffDistance: 200,
+		smoothing: 0.22,
+	},
+} as const;
 
 function clamp(value: number, min: number, max: number): number {
 	return Math.min(Math.max(value, min), max);
 }
 
-interface WelcomeHeroPointerState {
-	eyeX: number;
-	eyeY: number;
-	gridX: string;
-	gridY: string;
-}
-
-const WELCOME_HERO_POINTER_PROPERTIES = [
+const POINTER_PROPERTIES = [
 	"--welcome-grid-x",
 	"--welcome-grid-y",
 	"--welcome-eye-x",
 	"--welcome-eye-y",
 ] as const;
 
-function resetWelcomeHeroPointerStyles(element: HTMLDivElement | null): void {
+function resetPointerStyles(element: HTMLDivElement | null): void {
 	if (!element) return;
-	for (const property of WELCOME_HERO_POINTER_PROPERTIES) {
+	for (const property of POINTER_PROPERTIES) {
 		element.style.removeProperty(property);
 	}
 }
 
-function getWelcomeHeroPointerState(
+function getPointerState(
 	element: HTMLDivElement,
 	clientX: number,
 	clientY: number,
-): WelcomeHeroPointerState | null {
+) {
 	const bounds = element.getBoundingClientRect();
 	if (bounds.width <= 0 || bounds.height <= 0) return null;
 
-	const { defaultFrameHeight, defaultGridHeight, eyes } =
-		WELCOME_HERO_POINTER_CONFIG;
 	const pointerX = clientX - bounds.left;
 	const pointerY = clientY - bounds.top;
-	const gridElement = element.querySelector<HTMLElement>(
-		'[data-welcome-hero-layer="grid"]',
-	);
-	const gridBounds = gridElement?.getBoundingClientRect();
-	const hasRenderedGridBounds =
+	const gridBounds = element
+		.querySelector<HTMLElement>('[data-welcome-hero-layer="grid"]')
+		?.getBoundingClientRect();
+	const hasGridBounds =
 		gridBounds !== undefined && gridBounds.width > 0 && gridBounds.height > 0;
-	const gridX = hasRenderedGridBounds
+	const gridX = hasGridBounds
 		? `${(
 				(clamp(clientX - gridBounds.left, 0, gridBounds.width) /
 					gridBounds.width) *
 					100
 			).toFixed(2)}%`
 		: `${((clamp(pointerX, 0, bounds.width) / bounds.width) * 100).toFixed(2)}%`;
-	const gridY = hasRenderedGridBounds
+	const gridY = hasGridBounds
 		? `${(
 				(clamp(clientY - gridBounds.top, 0, gridBounds.height) /
 					gridBounds.height) *
 					100
 			).toFixed(2)}%`
 		: `${(
-				clamp(pointerY, 0, defaultFrameHeight) +
-					(defaultGridHeight - defaultFrameHeight) / 2
+				clamp(pointerY, 0, POINTER_CONFIG.defaultFrameHeight) +
+					(POINTER_CONFIG.defaultGridHeight -
+						POINTER_CONFIG.defaultFrameHeight) /
+						2
 			).toFixed(2)}px`;
 	const deltaX = pointerX - bounds.width / 2;
-	const deltaY = pointerY - defaultFrameHeight / 2;
+	const deltaY = pointerY - POINTER_CONFIG.defaultFrameHeight / 2;
 	const distance = Math.hypot(deltaX, deltaY);
 	const eyeStrength =
-		Math.min(distance / eyes.falloffDistance, 1) * eyes.travel;
-	const eyeX = distance === 0 ? 0 : (deltaX / distance) * eyeStrength;
-	const eyeY = distance === 0 ? 0 : (deltaY / distance) * eyeStrength;
+		Math.min(distance / POINTER_CONFIG.eyes.falloffDistance, 1) *
+		POINTER_CONFIG.eyes.travel;
 
 	return {
-		eyeX,
-		eyeY,
+		eyeX: distance === 0 ? 0 : (deltaX / distance) * eyeStrength,
+		eyeY: distance === 0 ? 0 : (deltaY / distance) * eyeStrength,
 		gridX,
 		gridY,
 	};
 }
 
-function applyWelcomeHeroEyeState(
+function applyEyeState(
 	element: HTMLDivElement,
 	eyeX: number,
 	eyeY: number,
@@ -86,10 +86,9 @@ function applyWelcomeHeroEyeState(
 	element.style.setProperty("--welcome-eye-y", `${eyeY.toFixed(2)}px`);
 }
 
-/** Tracks the full page while keeping the visual response clamped to the hero. */
-export function useWelcomeHeroPointer(
+export function useAgentWelcomeHeroPointer(
 	heroRef: RefObject<HTMLDivElement | null>,
-	enabled = true,
+	enabled: boolean,
 ): void {
 	useEffect(() => {
 		if (!enabled) return;
@@ -106,11 +105,7 @@ export function useWelcomeHeroPointer(
 
 		const updatePointerTarget = (hero: HTMLDivElement): boolean => {
 			if (!pointerDirty) return false;
-			const target = getWelcomeHeroPointerState(
-				hero,
-				latestClientX,
-				latestClientY,
-			);
+			const target = getPointerState(hero, latestClientX, latestClientY);
 			pointerDirty = false;
 			if (!target) return false;
 
@@ -127,17 +122,13 @@ export function useWelcomeHeroPointer(
 			if (!hero) return;
 
 			updatePointerTarget(hero);
-
-			const { smoothing } = WELCOME_HERO_POINTER_CONFIG.eyes;
-			currentEyeX += (targetEyeX - currentEyeX) * smoothing;
-			currentEyeY += (targetEyeY - currentEyeY) * smoothing;
-
+			currentEyeX += (targetEyeX - currentEyeX) * POINTER_CONFIG.eyes.smoothing;
+			currentEyeY += (targetEyeY - currentEyeY) * POINTER_CONFIG.eyes.smoothing;
 			const settledX = Math.abs(targetEyeX - currentEyeX) < 0.01;
 			const settledY = Math.abs(targetEyeY - currentEyeY) < 0.01;
 			if (settledX) currentEyeX = targetEyeX;
 			if (settledY) currentEyeY = targetEyeY;
-
-			applyWelcomeHeroEyeState(hero, currentEyeX, currentEyeY);
+			applyEyeState(hero, currentEyeX, currentEyeY);
 
 			if (!settledX || !settledY) {
 				animationFrame = window.requestAnimationFrame(drawFrame);
@@ -147,17 +138,15 @@ export function useWelcomeHeroPointer(
 		const handlePointerMove = (event: PointerEvent) => {
 			const hero = heroRef.current;
 			if (!hero) return;
-
 			latestClientX = event.clientX;
 			latestClientY = event.clientY;
 			pointerDirty = true;
 
-			// jsdom and older webviews may not expose requestAnimationFrame.
 			if (typeof window.requestAnimationFrame !== "function") {
 				if (updatePointerTarget(hero)) {
 					currentEyeX = targetEyeX;
 					currentEyeY = targetEyeY;
-					applyWelcomeHeroEyeState(hero, currentEyeX, currentEyeY);
+					applyEyeState(hero, currentEyeX, currentEyeY);
 				}
 				return;
 			}
@@ -189,7 +178,7 @@ export function useWelcomeHeroPointer(
 			currentEyeY = 0;
 			targetEyeX = 0;
 			targetEyeY = 0;
-			resetWelcomeHeroPointerStyles(heroRef.current);
+			resetPointerStyles(heroRef.current);
 		};
 
 		const motionPreference = window.matchMedia?.(

@@ -1,7 +1,11 @@
 "use client";
 
 import type { AgendaTaskRecord } from "@cline/shared";
-import { type AgentQuickAction, AgentQuickActions } from "@cline/ui";
+import {
+	type AgentQuickAction,
+	AgentQuickActions,
+	AgentWelcomeHero,
+} from "@cline/ui";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AgendaTaskReviewDialog } from "@/components/agenda-task-review-dialog";
@@ -10,7 +14,6 @@ import { isAgendaTaskExpired, useAgendaTasks } from "@/hooks/use-agenda-tasks";
 import { AGENDA_UI_ENABLED } from "@/lib/feature-flags";
 import { cn } from "@/lib/utils";
 import { SessionContent } from "./session-content";
-import { WelcomeHero } from "./welcome-hero";
 import { WelcomeWorkspaceControls } from "./welcome-workspace-controls";
 
 export function WelcomeScreen({
@@ -131,7 +134,7 @@ export function WelcomeScreen({
 					{active ? (
 						<div className="cline-view-enter">
 							<h1 className="sr-only">What would you like to build?</h1>
-							<WelcomeHero />
+							<AgentWelcomeHero />
 
 							<div className="mt-11 flex min-w-0 items-center">
 								<WelcomeWorkspaceControls

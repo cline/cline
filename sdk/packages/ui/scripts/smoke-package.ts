@@ -18,6 +18,7 @@ import {
 	AgentApprovalCard,
 	AgentAurora,
 	AgentHeroHeading,
+	AgentWelcomeHero,
 	AgentPromptQueue,
 	AgentQuickActions,
 	SearchCombobox,
@@ -55,6 +56,7 @@ if (
 	!AgentAskQuestion ||
 	!AgentAurora ||
 	!AgentHeroHeading ||
+	!AgentWelcomeHero ||
 	!AgentPromptQueue ||
 	!SearchCombobox ||
 	!AgentQuickActions ||
