@@ -298,6 +298,45 @@ describe("cloud handoff lifecycle: RPC resolved", () => {
 });
 
 describe("cloud handoff lifecycle: event/RPC ordering races", () => {
+	it("event before a successful RPC leaves the full in-app open to the attachment-bearing RPC result", async () => {
+		const h = makeHarness();
+		const attachment = makeAttachment();
+		await h.lifecycle.onEvent(
+			completeEvent({
+				warning: "The follow-up command could not be queued.",
+				warningKind: "unqueued",
+				undeliveredCommand: "run the suite",
+			}),
+		);
+		expect(h.openSession).not.toHaveBeenCalled();
+
+		await h.lifecycle.onRpcResolved(SOURCE, {
+			result: makeResult({
+				warning: "The follow-up command could not be queued.",
+				warningKind: "unqueued",
+			}),
+			nextCommand: "run the suite",
+			sourceAttachments: [attachment],
+			isThreadActive: () => true,
+		});
+		expect(h.openSession).toHaveBeenCalledExactlyOnceWith(TARGET, {
+			silent: true,
+			initialPromptDraft: "run the suite",
+			initialAttachments: [attachment],
+		});
+	});
+
+	it("duplicate completion events do not open or reopen the target", async () => {
+		const h = makeHarness();
+		const event = completeEvent({
+			warningKind: "unqueued",
+			undeliveredCommand: "run the suite",
+		});
+		await h.lifecycle.onEvent(event);
+		await h.lifecycle.onEvent(event);
+		expect(h.openSession).not.toHaveBeenCalled();
+	});
+
 	it("(d) event then reject in the same tick: restoration via the completions registry, benign toast, NO failed dispatch", async () => {
 		const h = makeHarness();
 		const attachment = makeAttachment();
@@ -430,9 +469,16 @@ describe("cloud handoff lifecycle: event/RPC ordering races", () => {
 		);
 	});
 
-	it("(e) reject then event: failure handling first, then the event restores draft and attachments from the retry registry and toasts the warning once", async () => {
+	it("(e) reject then event: recovery stays available until the target opens with the saved draft and attachments", async () => {
 		const h = makeHarness();
 		const attachment = makeAttachment();
+		let resolveOpen: ((opened: boolean) => void) | undefined;
+		h.openSession.mockImplementationOnce(
+			() =>
+				new Promise<boolean>((resolve) => {
+					resolveOpen = resolve;
+				}),
+		);
 		await h.lifecycle.onRpcRejected(SOURCE, {
 			error: new Error("fetch failed"),
 			nextCommand: "fix flaky test",
@@ -456,12 +502,22 @@ describe("cloud handoff lifecycle: event/RPC ordering races", () => {
 		});
 		expect(h.openSession).not.toHaveBeenCalled();
 
-		h.lifecycle.onEvent(
+		const completion = h.lifecycle.onEvent(
 			completeEvent({
 				warning: "The follow-up command could not be queued.",
 				warningKind: "unqueued",
 			}),
 		);
+		await vi.waitFor(() => expect(h.openSession).toHaveBeenCalledTimes(1));
+		// Do not replace the recoverable failure while the open outcome is
+		// unknown: these File objects otherwise have no durable owner.
+		expect(h.getState()[SOURCE]).toMatchObject({
+			status: "failed",
+			retryDraft: "/handoff fix flaky test",
+			retryAttachments: [attachment],
+		});
+		resolveOpen?.(true);
+		await completion;
 		// The retry registry (written synchronously at rejection) is the only
 		// carrier of the unsent command and attachments once the reducer's
 		// failed entry has been replaced by the receipt.
@@ -480,6 +536,65 @@ describe("cloud handoff lifecycle: event/RPC ordering races", () => {
 		});
 	});
 
+	it("reject then event: a false target-open result preserves the recovery payload", async () => {
+		const h = makeHarness({ openSessionResult: false });
+		const attachment = makeAttachment();
+		await h.lifecycle.onRpcRejected(SOURCE, {
+			error: new Error("fetch failed"),
+			nextCommand: "fix flaky test",
+			sourceAttachments: [attachment],
+		});
+
+		await h.lifecycle.onEvent(
+			completeEvent({
+				warning: "The follow-up command could not be queued.",
+				warningKind: "unqueued",
+			}),
+		);
+		expect(h.openSession).toHaveBeenCalledExactlyOnceWith(TARGET, {
+			silent: true,
+			initialPromptDraft: "fix flaky test",
+			initialAttachments: [attachment],
+		});
+		expect(h.getState()[SOURCE]).toMatchObject({
+			status: "failed",
+			retryDraft: "/handoff fix flaky test",
+			retryAttachments: [attachment],
+		});
+
+		await h.lifecycle.onEvent(
+			completeEvent({
+				warningKind: "unqueued",
+				undeliveredCommand: "fix flaky test",
+			}),
+		);
+		expect(h.openSession).toHaveBeenCalledTimes(1);
+	});
+
+	it("reject then event: a rejected target open preserves the recovery payload", async () => {
+		const h = makeHarness();
+		const attachment = makeAttachment();
+		h.openSession.mockRejectedValueOnce(new Error("discovery failed"));
+		await h.lifecycle.onRpcRejected(SOURCE, {
+			error: new Error("fetch failed"),
+			nextCommand: "fix flaky test",
+			sourceAttachments: [attachment],
+		});
+
+		await h.lifecycle.onEvent(
+			completeEvent({
+				warning: "The follow-up command could not be queued.",
+				warningKind: "unqueued",
+			}),
+		);
+		expect(h.openSession).toHaveBeenCalledTimes(1);
+		expect(h.getState()[SOURCE]).toMatchObject({
+			status: "failed",
+			retryDraft: "/handoff fix flaky test",
+			retryAttachments: [attachment],
+		});
+	});
+
 	it("reject then event: the event's undeliveredCommand overrides the recorded retry command", async () => {
 		const h = makeHarness();
 		await h.lifecycle.onRpcRejected(SOURCE, {
@@ -487,7 +602,7 @@ describe("cloud handoff lifecycle: event/RPC ordering races", () => {
 			nextCommand: "recorded command",
 			sourceAttachments: [],
 		});
-		h.lifecycle.onEvent(
+		await h.lifecycle.onEvent(
 			completeEvent({
 				warningKind: "unqueued",
 				undeliveredCommand: "authoritative command",
@@ -515,7 +630,7 @@ describe("cloud handoff lifecycle: event/RPC ordering races", () => {
 				retryAttachments: [],
 			},
 		]);
-		h.lifecycle.onEvent(completeEvent({ warningKind: "unqueued" }));
+		await h.lifecycle.onEvent(completeEvent({ warningKind: "unqueued" }));
 		expect(h.openSession).not.toHaveBeenCalled();
 	});
 
@@ -526,10 +641,10 @@ describe("cloud handoff lifecycle: event/RPC ordering races", () => {
 			nextCommand: "fix it",
 			sourceAttachments: [],
 		});
-		h.lifecycle.onEvent(completeEvent({ warningKind: "unqueued" }));
+		await h.lifecycle.onEvent(completeEvent({ warningKind: "unqueued" }));
 		expect(h.openSession).toHaveBeenCalledTimes(1);
 		// A duplicate event finds the registry empty and restores nothing.
-		h.lifecycle.onEvent(completeEvent({ warningKind: "unqueued" }));
+		await h.lifecycle.onEvent(completeEvent({ warningKind: "unqueued" }));
 		expect(h.openSession).toHaveBeenCalledTimes(1);
 	});
 });
@@ -637,29 +752,16 @@ describe("cloud handoff lifecycle: event handling", () => {
 		});
 	});
 
-	it("restores the undelivered command in-app before dispatching the progress action", () => {
+	it("does not open from an unqueued completion event without an RPC rejection", async () => {
 		const h = makeHarness();
-		const order: string[] = [];
-		h.openSession.mockImplementation(() => {
-			order.push("openSession");
-			return Promise.resolve(true);
-		});
-		h.dispatch.mockImplementation(() => {
-			order.push("dispatch");
-		});
-		h.lifecycle.onEvent(
+		await h.lifecycle.onEvent(
 			completeEvent({
 				warningKind: "unqueued",
 				undeliveredCommand: "ship it",
 			}),
 		);
-		// Rejection-first restoration: the composer prefill is issued before
-		// the reducer learns about the completion.
-		expect(order).toEqual(["openSession", "dispatch"]);
-		expect(h.openSession).toHaveBeenCalledExactlyOnceWith(TARGET, {
-			silent: true,
-			initialPromptDraft: "ship it",
-		});
+		expect(h.openSession).not.toHaveBeenCalled();
+		expect(h.getState()[SOURCE]).toMatchObject({ status: "complete" });
 	});
 
 	it("forwards non-complete progress phases to the reducer verbatim", () => {

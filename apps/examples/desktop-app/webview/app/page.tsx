@@ -549,7 +549,7 @@ export default function Home() {
 				) {
 					return;
 				}
-				handoffLifecycle.onEvent({
+				void handoffLifecycle.onEvent({
 					sourceSessionId: progress.sourceSessionId,
 					phase: progress.phase,
 					message: progress.message,

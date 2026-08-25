@@ -114,64 +114,86 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 	// rejection landing in the same tick would otherwise miss the completion.
 	const completions = new Map<string, HandoffCompletionRecord>();
 	// Retry payloads recorded SYNCHRONOUSLY when an RPC rejection saves
-	// recovery state: if the authoritative completion arrives AFTER the
-	// rejection, the reducer replaces the failed entry (receipt wins), and
-	// this registry is then the only carrier of the unsent attachments.
+	// recovery state. If the authoritative completion arrives afterward, keep
+	// this payload and the reducer's recovery entry until the target confirms
+	// that it opened with the unsent command and attachments.
 	const retryStates = new Map<
 		string,
 		{ command?: string; attachments?: File[] }
 	>();
+	// A duplicate completion event must not retry an in-app recovery open. If
+	// the first attempt fails, the reducer and retry registry remain the user's
+	// recovery surface instead of an event replay repeatedly stealing focus.
+	const recoveryOpenAttempts = new Set<string>();
 
 	const claimWarningToast = (sourceSessionId: string) =>
 		claimHandoffWarningSurface(surfacedWarnings, sourceSessionId);
 
 	return {
 		/** Handles a validated `cloud_handoff_progress` event. */
-		onEvent(progress: HandoffProgressEventPayload): void {
+		async onEvent(progress: HandoffProgressEventPayload): Promise<void> {
+			let preserveRecoveryState = false;
 			if (
 				progress.phase === "complete" &&
 				progress.sessionId?.trim() &&
 				progress.dashboardUrl?.trim()
 			) {
+				const targetSessionId = progress.sessionId.trim();
 				completions.set(progress.sourceSessionId, {
-					targetSessionId: progress.sessionId,
+					targetSessionId,
 					dashboardUrl: progress.dashboardUrl,
 					externalPresentation: progress.destination === "external",
 					warningKind: progress.warningKind,
 				});
-				// Completion after an RPC rejection: the reducer is about to
-				// replace the saved recovery state with the receipt, so
-				// restore the definitely-unqueued command and attachments
-				// into the target composer from here — the RPC path already
-				// took its failure branch and will never do it.
-				if (progress.warningKind === "unqueued") {
-					const saved = retryStates.get(progress.sourceSessionId);
-					const draft = progress.undeliveredCommand ?? saved?.command;
+				// Completion after an RPC rejection: restore the definitely
+				// unqueued command and attachments from here because the RPC path
+				// already took its failure branch. Only then may the receipt
+				// replace the saved recovery state.
+				const saved = retryStates.get(progress.sourceSessionId);
+				if (progress.warningKind === "unqueued" && saved) {
+					const draft = progress.undeliveredCommand ?? saved.command;
 					if (
-						(draft || saved?.attachments?.length) &&
+						(draft || saved.attachments?.length) &&
 						progress.destination !== "external"
 					) {
-						void effects.openSession(progress.sessionId, {
-							silent: true,
-							...(draft ? { initialPromptDraft: draft } : {}),
-							...(saved?.attachments?.length
-								? { initialAttachments: saved.attachments }
-								: {}),
-						});
+						if (!recoveryOpenAttempts.has(progress.sourceSessionId)) {
+							recoveryOpenAttempts.add(progress.sourceSessionId);
+							const opened = await Promise.resolve()
+								.then(() =>
+									effects.openSession(targetSessionId, {
+										silent: true,
+										...(draft ? { initialPromptDraft: draft } : {}),
+										...(saved.attachments?.length
+											? { initialAttachments: saved.attachments }
+											: {}),
+									}),
+								)
+								.catch(() => false);
+							if (opened) {
+								retryStates.delete(progress.sourceSessionId);
+							} else {
+								preserveRecoveryState = true;
+							}
+						} else {
+							preserveRecoveryState = true;
+						}
+					} else {
+						retryStates.delete(progress.sourceSessionId);
 					}
-					retryStates.delete(progress.sourceSessionId);
 				}
 			}
-			effects.dispatch({
-				type: "progress",
-				sourceSessionId: progress.sourceSessionId,
-				phase: progress.phase,
-				message: progress.message,
-				dashboardUrl: progress.dashboardUrl,
-				sessionId: progress.sessionId,
-				destination: progress.destination,
-				warningKind: progress.warningKind,
-			});
+			if (!preserveRecoveryState) {
+				effects.dispatch({
+					type: "progress",
+					sourceSessionId: progress.sourceSessionId,
+					phase: progress.phase,
+					message: progress.message,
+					dashboardUrl: progress.dashboardUrl,
+					sessionId: progress.sessionId,
+					destination: progress.destination,
+					warningKind: progress.warningKind,
+				});
+			}
 			// If the RPC dies mid-flight this event is the only carrier of a
 			// follow-up queue failure; surface it exactly like the RPC path.
 			if (progress.phase === "complete") {
