@@ -11,7 +11,7 @@ import { basename, join, resolve } from "node:path";
 
 const packageRoot = join(import.meta.dir, "..");
 const importCheck = `
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
 	AgentAskQuestion,
@@ -36,6 +36,21 @@ for (const specifier of [
 ]) {
 	if (!existsSync(fileURLToPath(import.meta.resolve(specifier)))) {
 		throw new Error("packed CSS export does not exist: " + specifier);
+	}
+}
+
+const packageJsonUrl = import.meta.resolve("@cline/ui/package.json");
+const heroCss = readFileSync(
+	fileURLToPath(new URL("./components/agent-welcome-hero.css", packageJsonUrl)),
+	"utf8",
+);
+for (const asset of ["bot-fill-mask.svg", "bot-outline-mask.svg", "grid-tile.svg", "inner-mask.svg"]) {
+	const assetUrl = "./agent-welcome-hero-assets/" + asset;
+	if (!heroCss.includes('url("' + assetUrl + '")')) {
+		throw new Error("packed hero CSS does not reference: " + asset);
+	}
+	if (!existsSync(fileURLToPath(new URL("./components/" + assetUrl, packageJsonUrl)))) {
+		throw new Error("packed hero asset does not exist: " + asset);
 	}
 }
 
