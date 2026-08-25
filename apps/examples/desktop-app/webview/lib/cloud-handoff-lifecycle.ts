@@ -1,0 +1,372 @@
+import {
+	buildHandoffWarningToast,
+	claimHandoffWarningSurface,
+	type HandoffProgressPhase,
+	type HandoffReceipt,
+	type HandoffResult,
+	shouldOpenHandoffInApp,
+} from "./cloud-handoff";
+import type {
+	CloudHandoffUiAction,
+	PendingHandoffPrompt,
+} from "./cloud-handoff-ui-state";
+import {
+	humanizeCloudHandoffError,
+	parseCloudSessionError,
+} from "./cloud-session-error";
+
+/**
+ * Pure coordinator for handoff completion, failure, and follow-up restoration.
+ *
+ * The `cloud_handoff_progress` completion event and the handoff RPC result
+ * race each other in every direction (event-before-rejection,
+ * rejection-before-event, same tick, either first), and the React reducer
+ * state lags a render behind both. This module owns the synchronous
+ * registries that resolve those races — the authoritative completions map,
+ * the retry-state map, and the warning-toast claim set — so every ordering is
+ * decided by plain function calls that unit tests can drive directly.
+ */
+export type HandoffLifecycleToast = {
+	title: string;
+	description?: string;
+	variant?: "destructive";
+	/**
+	 * When set, the caller should attach a "Connect GitHub" action that opens
+	 * this URL. The action itself is JSX, so the coordinator stays pure and
+	 * hands the URL back through the toast effect instead.
+	 */
+	connectUrl?: string;
+};
+
+export type HandoffLifecycleEffects = {
+	dispatch: (action: CloudHandoffUiAction) => void;
+	toast: (t: HandoffLifecycleToast) => void;
+	openSession: (
+		sessionId: string,
+		opts: {
+			silent: true;
+			initialPromptDraft?: string;
+			initialAttachments?: File[];
+		},
+	) => Promise<boolean> | boolean | void;
+	openExternal: (url: string) => Promise<void>;
+};
+
+/** The validated `cloud_handoff_progress` payload (caller checks the shape). */
+export type HandoffProgressEventPayload = {
+	sourceSessionId: string;
+	phase: HandoffProgressPhase;
+	message?: string;
+	dashboardUrl?: string;
+	sessionId?: string;
+	destination?: "in_app" | "external";
+	warning?: string;
+	warningKind?: "unqueued" | "unconfirmed";
+	undeliveredCommand?: string;
+};
+
+export type HandoffCompletionRecord = {
+	targetSessionId: string;
+	dashboardUrl: string;
+	externalPresentation: boolean;
+	warningKind?: "unqueued" | "unconfirmed";
+};
+
+export type HandoffRpcResolvedContext = {
+	result: HandoffResult;
+	nextCommand: string;
+	sourceAttachments: File[];
+	pendingPrompt?: PendingHandoffPrompt;
+	/**
+	 * Whether the source thread is still the active chat view. Scoped to the
+	 * pane that ran the RPC, so it travels per-call instead of living in the
+	 * effects; the event path never consults it (mirroring the pre-extraction
+	 * behavior). Absent means "assume active".
+	 */
+	isThreadActive?: () => boolean;
+};
+
+export type HandoffRpcRejectedContext = {
+	error: unknown;
+	nextCommand: string;
+	sourceAttachments: File[];
+	/**
+	 * The reducer entry for the source session IF it already shows a completed
+	 * handoff, read by the caller at rejection time. The coordinator's own
+	 * registry wins the same-tick race; this reducer-fed fallback covers
+	 * completions that landed a render earlier.
+	 */
+	reducerEntryIsComplete?: {
+		receipt: HandoffReceipt;
+		externalPresentation: boolean;
+		warningKind?: "unqueued" | "unconfirmed";
+	};
+	isThreadActive?: () => boolean;
+};
+
+export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
+	// Source sessions whose completion warning has already been toasted. The
+	// completion event and the RPC result both carry the warning; whichever
+	// lands first claims it here so the user never sees it twice.
+	const surfacedWarnings = new Set<string>();
+	// Authoritative completions recorded SYNCHRONOUSLY at event arrival: the
+	// pane's reducer-fed ref only updates after a re-render, so an RPC
+	// rejection landing in the same tick would otherwise miss the completion.
+	const completions = new Map<string, HandoffCompletionRecord>();
+	// Retry payloads recorded SYNCHRONOUSLY when an RPC rejection saves
+	// recovery state: if the authoritative completion arrives AFTER the
+	// rejection, the reducer replaces the failed entry (receipt wins), and
+	// this registry is then the only carrier of the unsent attachments.
+	const retryStates = new Map<
+		string,
+		{ command?: string; attachments?: File[] }
+	>();
+
+	const claimWarningToast = (sourceSessionId: string) =>
+		claimHandoffWarningSurface(surfacedWarnings, sourceSessionId);
+
+	return {
+		/** Handles a validated `cloud_handoff_progress` event. */
+		onEvent(progress: HandoffProgressEventPayload): void {
+			if (
+				progress.phase === "complete" &&
+				progress.sessionId?.trim() &&
+				progress.dashboardUrl?.trim()
+			) {
+				completions.set(progress.sourceSessionId, {
+					targetSessionId: progress.sessionId,
+					dashboardUrl: progress.dashboardUrl,
+					externalPresentation: progress.destination === "external",
+					warningKind: progress.warningKind,
+				});
+				// Completion after an RPC rejection: the reducer is about to
+				// replace the saved recovery state with the receipt, so
+				// restore the definitely-unqueued command and attachments
+				// into the target composer from here — the RPC path already
+				// took its failure branch and will never do it.
+				if (progress.warningKind === "unqueued") {
+					const saved = retryStates.get(progress.sourceSessionId);
+					const draft = progress.undeliveredCommand ?? saved?.command;
+					if (
+						(draft || saved?.attachments?.length) &&
+						progress.destination !== "external"
+					) {
+						void effects.openSession(progress.sessionId, {
+							silent: true,
+							...(draft ? { initialPromptDraft: draft } : {}),
+							...(saved?.attachments?.length
+								? { initialAttachments: saved.attachments }
+								: {}),
+						});
+					}
+					retryStates.delete(progress.sourceSessionId);
+				}
+			}
+			effects.dispatch({
+				type: "progress",
+				sourceSessionId: progress.sourceSessionId,
+				phase: progress.phase,
+				message: progress.message,
+				dashboardUrl: progress.dashboardUrl,
+				sessionId: progress.sessionId,
+				destination: progress.destination,
+				warningKind: progress.warningKind,
+			});
+			// If the RPC dies mid-flight this event is the only carrier of a
+			// follow-up queue failure; surface it exactly like the RPC path.
+			if (progress.phase === "complete") {
+				const warningToast = buildHandoffWarningToast(progress);
+				if (warningToast && claimWarningToast(progress.sourceSessionId)) {
+					effects.toast(warningToast);
+				}
+			}
+		},
+
+		/** The success tail of the handoff RPC. Throws when the result carries
+		 * no cloud session, so the caller's catch routes into onRpcRejected. */
+		async onRpcResolved(
+			sourceSessionId: string,
+			ctx: HandoffRpcResolvedContext,
+		): Promise<void> {
+			const { result, nextCommand, sourceAttachments, pendingPrompt } = ctx;
+			const targetSessionId = (
+				result.outerSessionId ||
+				result.sessionId ||
+				""
+			).trim();
+			const dashboardUrl = result.dashboardUrl?.trim();
+			if (!targetSessionId || !dashboardUrl) {
+				throw new Error("Cloud handoff did not return a cloud session.");
+			}
+			const receipt = { targetSessionId, dashboardUrl };
+			const destination = result.destination ?? "in_app";
+			effects.dispatch({
+				type: "complete",
+				sourceSessionId,
+				receipt,
+				externalPresentation: destination === "external",
+				pendingPrompt,
+			});
+			// A warning means the follow-up command was NOT queued. Clear the
+			// optimistic bubble (it would read as sent), but preserve the
+			// user's command by pre-filling the target session's composer —
+			// the completed source is read-only, so this is the only copy.
+			const undeliveredCommand =
+				result.warning && result.warningKind !== "unconfirmed"
+					? nextCommand.trim() || undefined
+					: undefined;
+			// The images travel with the command: a definite queue failure
+			// dropped them too, so restore them into the target composer.
+			const undeliveredAttachments =
+				result.warning &&
+				result.warningKind !== "unconfirmed" &&
+				sourceAttachments.length > 0
+					? sourceAttachments
+					: undefined;
+			if (result.warning) {
+				effects.dispatch({
+					type: "prompt_reconciled",
+					sourceSessionId: targetSessionId,
+				});
+			}
+			if (shouldOpenHandoffInApp(destination, ctx.isThreadActive?.() ?? true)) {
+				const opened = await Promise.resolve(
+					effects.openSession(targetSessionId, {
+						silent: true,
+						...(undeliveredCommand
+							? { initialPromptDraft: undeliveredCommand }
+							: {}),
+						...(undeliveredAttachments
+							? { initialAttachments: undeliveredAttachments }
+							: {}),
+					}),
+				).catch(() => false);
+				if (!opened) {
+					effects.dispatch({ type: "external", sourceSessionId });
+					try {
+						await effects.openExternal(dashboardUrl);
+						effects.toast({
+							title: "Opened handoff in your browser",
+							description:
+								"The cloud session could not be attached inside Cline.",
+						});
+					} catch {
+						effects.toast({
+							title: "Unable to open the browser",
+							description:
+								"Use the recovery link to open the cloud session manually.",
+							variant: "destructive",
+						});
+					}
+				}
+			} else if (destination === "external") {
+				await effects.openExternal(dashboardUrl).catch(() =>
+					effects.toast({
+						title: "Cloud handoff complete",
+						description: "Use the recovery link to open the cloud session.",
+					}),
+				);
+			} else {
+				effects.toast({
+					title: "Cloud handoff complete",
+					description: "The cloud session is ready in your session list.",
+				});
+			}
+			if (result.warning) {
+				const warningToast = buildHandoffWarningToast({
+					warning: result.warning,
+					warningKind: result.warningKind,
+					undeliveredCommand,
+				});
+				// The completion event usually lands first and claims the
+				// toast; only surface it here when the event path did not.
+				if (warningToast && claimWarningToast(sourceSessionId)) {
+					effects.toast(warningToast);
+				}
+			}
+		},
+
+		/** The failure tail of the handoff RPC (its catch block). */
+		async onRpcRejected(
+			sourceSessionId: string,
+			ctx: HandoffRpcRejectedContext,
+		): Promise<void> {
+			const { error, nextCommand, sourceAttachments } = ctx;
+			// The authoritative completion event may have landed while the
+			// RPC transport failed; the handoff succeeded, so a destructive
+			// "failed" toast would contradict the visible receipt.
+			// The reducer-fed entry lags a render; this registry is written
+			// synchronously at event arrival and wins the same-tick race.
+			const syncCompletion = completions.get(sourceSessionId);
+			const completedEntry = syncCompletion
+				? {
+						receipt: {
+							targetSessionId: syncCompletion.targetSessionId,
+							dashboardUrl: syncCompletion.dashboardUrl,
+						},
+						externalPresentation: syncCompletion.externalPresentation,
+						warningKind: syncCompletion.warningKind,
+					}
+				: ctx.reducerEntryIsComplete;
+			if (completedEntry) {
+				// The event told the user their command was kept; honor that
+				// even though the RPC (the usual restoration driver) is gone.
+				const restoreCommand =
+					completedEntry.warningKind === "unqueued"
+						? nextCommand.trim() || undefined
+						: undefined;
+				if (
+					restoreCommand &&
+					shouldOpenHandoffInApp(
+						completedEntry.externalPresentation ? "external" : "in_app",
+						ctx.isThreadActive?.() ?? true,
+					)
+				) {
+					await Promise.resolve(
+						effects.openSession(completedEntry.receipt.targetSessionId, {
+							silent: true,
+							initialPromptDraft: restoreCommand,
+							...(sourceAttachments.length > 0
+								? { initialAttachments: sourceAttachments }
+								: {}),
+						}),
+					).catch(() => false);
+				}
+				effects.toast({
+					title: "Handoff completed",
+					description:
+						"The connection dropped while reporting the result, but the cloud session is ready.",
+				});
+				return;
+			}
+			// Record the retry payload synchronously: if the authoritative
+			// completion lands after this rejection, the reducer replaces the
+			// failed entry, and the event path restores the command and
+			// attachments from this registry.
+			retryStates.set(sourceSessionId, {
+				...(nextCommand.trim() ? { command: nextCommand.trim() } : {}),
+				...(sourceAttachments.length > 0
+					? { attachments: sourceAttachments }
+					: {}),
+			});
+			effects.dispatch({
+				type: "failed",
+				sourceSessionId,
+				exposeRecovery: true,
+				retryDraft: nextCommand ? `/handoff ${nextCommand}` : "/handoff",
+				retryAttachments: sourceAttachments,
+			});
+			const rawError = error instanceof Error ? error.message : String(error);
+			const cloudError = parseCloudSessionError(rawError);
+			const connectUrl = cloudError?.connectUrl;
+			effects.toast({
+				title: "Handoff failed",
+				description: humanizeCloudHandoffError(cloudError?.message ?? rawError),
+				variant: "destructive",
+				...(connectUrl ? { connectUrl } : {}),
+			});
+		},
+	};
+}
+
+export type HandoffLifecycle = ReturnType<typeof createHandoffLifecycle>;
