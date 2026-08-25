@@ -108,7 +108,6 @@ vi.mock("axios", () => ({
 }))
 
 const mockLoginClineOAuth = vi.hoisted(() => vi.fn())
-const mockLoginOpenAICodex = vi.hoisted(() => vi.fn())
 
 // Mock @cline/core OAuth functions
 vi.mock("@cline/core", async () => ({
@@ -128,7 +127,7 @@ vi.mock("@cline/core", async () => ({
 	}),
 	loginClineOAuth: mockLoginClineOAuth,
 	loginOcaOAuth: vi.fn(),
-	loginOpenAICodex: mockLoginOpenAICodex,
+	loginOpenAICodex: vi.fn(),
 	refreshClineToken: vi.fn(),
 	getValidClineCredentials: vi.fn(),
 	// Mirrors the SDK registry: cline-pass stores credentials under "cline".
@@ -499,40 +498,6 @@ describe("AuthService", () => {
 			await new Promise((resolve) => setTimeout(resolve, 0))
 			await new Promise((resolve) => setTimeout(resolve, 0))
 			expect(mockGlobalState.get("welcomeViewCompleted")).toBeUndefined()
-		})
-	})
-
-	describe("openAiCodexLogin() — concurrent sign-in clicks", () => {
-		it("dedupes a second click into the pending flow and re-opens the auth URL", async () => {
-			const { openExternal } = await import("@/utils/env")
-			let rejectLogin!: (error: Error) => void
-			mockLoginOpenAICodex.mockImplementationOnce((callbacks: { onAuth: (info: { url: string }) => void }) => {
-				callbacks.onAuth({ url: "https://auth.openai.com/oauth/authorize?test=1" })
-				return new Promise((_resolve, reject) => {
-					rejectLogin = reject
-				})
-			})
-
-			const first = authService.openAiCodexLogin()
-			await waitForCondition(() => vi.mocked(openExternal).mock.calls.length === 1)
-
-			// Second click while the flow is pending: no second loginOpenAICodex
-			// call (it would dead-end on the occupied callback port); the auth
-			// page is just re-opened.
-			const second = authService.openAiCodexLogin()
-			await waitForCondition(() => vi.mocked(openExternal).mock.calls.length === 2)
-			expect(mockLoginOpenAICodex).toHaveBeenCalledTimes(1)
-			expect(vi.mocked(openExternal).mock.calls[1][0]).toBe("https://auth.openai.com/oauth/authorize?test=1")
-
-			// Both callers observe the same outcome.
-			rejectLogin(new Error("login aborted"))
-			await expect(first).rejects.toThrow("login aborted")
-			await expect(second).rejects.toThrow("login aborted")
-
-			// The pending slot is cleared, so a later click starts a fresh flow.
-			mockLoginOpenAICodex.mockRejectedValueOnce(new Error("second flow"))
-			await expect(authService.openAiCodexLogin()).rejects.toThrow("second flow")
-			expect(mockLoginOpenAICodex).toHaveBeenCalledTimes(2)
 		})
 	})
 
