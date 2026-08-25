@@ -15,6 +15,8 @@ export { OAUTH_PROVIDER_IDS as OAUTH_MANAGED_PROVIDERS } from "@/lib/provider-co
 
 export const DEFAULT_CHAT_CONFIG: ChatSessionConfig = {
 	sessionId: undefined,
+	executionTarget: "local",
+	repoUrl: undefined,
 	workspaceRoot: "",
 	cwd: "",
 	provider: "cline",
