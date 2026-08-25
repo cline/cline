@@ -220,11 +220,6 @@ function ProviderRow({
 			) : (
 				<AuthKindHint kind={authKind} />
 			)}
-			<p className="w-20 shrink-0 text-right text-xs text-muted-foreground max-[860px]:hidden">
-				{provider.models === null
-					? "On demand"
-					: `${provider.models} model${provider.models !== 1 ? "s" : ""}`}
-			</p>
 			<ChevronRight className="size-4 shrink-0 text-muted-foreground" />
 		</button>
 	);
