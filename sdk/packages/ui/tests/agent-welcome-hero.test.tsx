@@ -81,6 +81,22 @@ describe("AgentWelcomeHero", () => {
 		expect(bot.querySelectorAll("[data-welcome-hero-eye]")).toHaveLength(2);
 	});
 
+	it("keeps the default grid-only variant static", async () => {
+		const hero = await renderHero({ variant: "grid-only" });
+		const bounds = vi.spyOn(hero, "getBoundingClientRect");
+
+		await act(async () => {
+			window.dispatchEvent(
+				new MouseEvent("pointermove", { clientX: 100, clientY: 100 }),
+			);
+		});
+
+		expect(bounds).not.toHaveBeenCalled();
+		expect(animationFrames).toHaveLength(0);
+		expect(hero.style.getPropertyValue("--welcome-grid-x")).toBe("");
+		expect(hero.style.getPropertyValue("--welcome-grid-y")).toBe("");
+	});
+
 	it("tracks the pointer", async () => {
 		const hero = await renderHero();
 		hero.getBoundingClientRect = vi.fn(

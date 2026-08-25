@@ -65,7 +65,6 @@
 		"components/agent-welcome-hero.css",
 		"components/agent-welcome-hero.tsx",
 		"components/agent-welcome-hero-pointer.ts",
-		"components/agent-welcome-hero-assets",
 		"components/agent-prompt-queue.css",
 		"components/agent-prompt-queue.tsx",
 		"components/agent-quick-actions.css",

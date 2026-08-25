@@ -44,14 +44,10 @@ const heroCss = readFileSync(
 	fileURLToPath(new URL("./components/agent-welcome-hero.css", packageJsonUrl)),
 	"utf8",
 );
-for (const asset of ["bot-fill-mask.svg", "bot-outline-mask.svg", "grid-tile.svg", "inner-mask.svg"]) {
-	const assetUrl = "./agent-welcome-hero-assets/" + asset;
-	if (!heroCss.includes('url("' + assetUrl + '")')) {
-		throw new Error("packed hero CSS does not reference: " + asset);
-	}
-	if (!existsSync(fileURLToPath(new URL("./components/" + assetUrl, packageJsonUrl)))) {
-		throw new Error("packed hero asset does not exist: " + asset);
-	}
+const inlineHeroMaskCount =
+	heroCss.split('url("data:image/svg+xml;base64,').length - 1;
+if (inlineHeroMaskCount !== 4) {
+	throw new Error("packed hero CSS does not contain four inline SVG masks");
 }
 
 const css = import.meta.resolve("@cline/ui/components/agent-chat.css");
@@ -131,6 +127,16 @@ function expectFragment(css: string, fragment: string, contract: string): void {
 	}
 }
 
+function expectInlineHeroMasks(css: string, contract: string): void {
+	const masks = css.match(/url\("?data:image\/svg\+xml;base64,/g);
+	if (masks?.length !== 4) {
+		throw new Error(`${contract} did not emit four inline SVG masks`);
+	}
+	if (css.includes("agent-welcome-hero-assets")) {
+		throw new Error(`${contract} emitted external hero mask URLs`);
+	}
+}
+
 async function verifyTailwindContract(
 	root: string,
 	runner: string[],
@@ -173,6 +179,7 @@ async function verifyTailwindContract(
 	]) {
 		expectFragment(css, fragment, "host Tailwind namespace");
 	}
+	expectInlineHeroMasks(css, "host Tailwind namespace");
 
 	const noPreflightCss = await compileTailwind(
 		root,
@@ -195,6 +202,7 @@ async function verifyTailwindContract(
 	]) {
 		expectFragment(noPreflightCss, fragment, "no-Preflight Tailwind contract");
 	}
+	expectInlineHeroMasks(noPreflightCss, "no-Preflight Tailwind contract");
 }
 
 const temporaryRoot = mkdtempSync(join(tmpdir(), "cline-ui-package-"));
