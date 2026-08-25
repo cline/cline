@@ -116,6 +116,7 @@ import {
 } from "@/lib/app-channel";
 import { isCloudProvisioningSessionId } from "@/lib/cloud-repositories";
 import { desktopClient } from "@/lib/desktop-client";
+import { AGENDA_UI_ENABLED } from "@/lib/feature-flags";
 import { readModelSelectionStorageFromWindow } from "@/lib/model-selection";
 import {
 	ALL_SESSION_SOURCES,
@@ -328,9 +329,11 @@ export function AgentSidebar({
 			workspaceRoot: agendaWorkspaceRoot,
 			limit: 200,
 		},
-		view !== "settings",
+		AGENDA_UI_ENABLED && view !== "settings",
 	);
-	const agendaAutomation = useAgendaAutomation(view !== "settings");
+	const agendaAutomation = useAgendaAutomation(
+		AGENDA_UI_ENABLED && view !== "settings",
+	);
 
 	useEffect(() => {
 		if (view === "settings") {
@@ -797,31 +800,37 @@ export function AgentSidebar({
 					</div>
 					{!isCollapsed ? (
 						<div className="flex items-center gap-1">
-							<Button
-								aria-label={
-									sidebarContent === "agenda" ? "Show Sessions" : "Show Agenda"
-								}
-								aria-pressed={sidebarContent === "agenda"}
-								className={cn(
-									"relative size-8 shrink-0 justify-center px-0",
-									sidebarContent === "agenda" &&
-										"bg-surface-hover text-sidebar-foreground",
-								)}
-								onClick={toggleSidebarContent}
-								title={
-									sidebarContent === "agenda" ? "Show Sessions" : "Show Agenda"
-								}
-								type="button"
-								variant="sidebarItem"
-							>
-								<ClipboardList className="size-4" />
-								{hasNewTodoTasks ? (
-									<span
-										className="absolute right-1 top-1 size-1.5 rounded-full bg-primary"
-										data-testid="new-todo-indicator"
-									/>
-								) : null}
-							</Button>
+							{AGENDA_UI_ENABLED ? (
+								<Button
+									aria-label={
+										sidebarContent === "agenda"
+											? "Show Sessions"
+											: "Show Agenda"
+									}
+									aria-pressed={sidebarContent === "agenda"}
+									className={cn(
+										"relative size-8 shrink-0 justify-center px-0",
+										sidebarContent === "agenda" &&
+											"bg-surface-hover text-sidebar-foreground",
+									)}
+									onClick={toggleSidebarContent}
+									title={
+										sidebarContent === "agenda"
+											? "Show Sessions"
+											: "Show Agenda"
+									}
+									type="button"
+									variant="sidebarItem"
+								>
+									<ClipboardList className="size-4" />
+									{hasNewTodoTasks ? (
+										<span
+											className="absolute right-1 top-1 size-1.5 rounded-full bg-primary"
+											data-testid="new-todo-indicator"
+										/>
+									) : null}
+								</Button>
+							) : null}
 							<Button
 								aria-label="New Session"
 								className="size-8 shrink-0 justify-center px-0"
@@ -865,7 +874,7 @@ export function AgentSidebar({
 							onSelect={openSettingsSection}
 						/>
 					</div>
-				) : sidebarContent === "agenda" ? (
+				) : AGENDA_UI_ENABLED && sidebarContent === "agenda" ? (
 					<AgendaSection
 						automatic={
 							agendaAutomation.policy !== null &&

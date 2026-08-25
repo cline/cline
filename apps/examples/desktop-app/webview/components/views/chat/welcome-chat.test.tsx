@@ -42,6 +42,10 @@ vi.mock("@/contexts/account-context", () => ({
 		refreshAccount: vi.fn(async () => undefined),
 	}),
 }));
+// The Agenda UI ships hidden for now; these tests force the flag on so they
+// keep guarding the dormant feature. agenda-ui-hidden.test.tsx covers the
+// shipped (hidden) state.
+vi.mock("@/lib/feature-flags", () => ({ AGENDA_UI_ENABLED: true }));
 
 let container: HTMLDivElement;
 let root: Root;

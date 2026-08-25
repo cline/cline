@@ -22,6 +22,7 @@ import {
 	normalizeCloudRepositoryUrl,
 } from "@/lib/cloud-repositories";
 import { desktopClient } from "@/lib/desktop-client";
+import { AGENDA_UI_ENABLED } from "@/lib/feature-flags";
 import { invalidateProviderCatalogCache } from "@/lib/provider-model-catalog";
 import { cn } from "@/lib/utils";
 import {
@@ -232,7 +233,7 @@ export function WelcomeScreen({
 			statuses: ["pending_approval", "approved", "in_progress", "failed"],
 			limit: 8,
 		},
-		active && workspaceRoot.trim().length > 0,
+		AGENDA_UI_ENABLED && active && workspaceRoot.trim().length > 0,
 	);
 	const [runningTaskId, setRunningTaskId] = useState<string | null>(null);
 	const [reviewTask, setReviewTask] = useState<AgendaTaskRecord | null>(null);
@@ -439,7 +440,7 @@ export function WelcomeScreen({
 						{active ? composer : <SessionContent>{composer}</SessionContent>}
 					</div>
 
-					{active ? (
+					{active && AGENDA_UI_ENABLED ? (
 						<>
 							<AgentQuickActions
 								actions={actions}

@@ -9,10 +9,7 @@ import {
 } from "@cline/shared";
 import { WebSocketServer } from "ws";
 import corePackage from "../../../package.json";
-import {
-	rememberRecoverableLocalHubUrl,
-	verifyHubConnection,
-} from "../client";
+import { rememberRecoverableLocalHubUrl, verifyHubConnection } from "../client";
 import { hubHasLiveSessions, retireDiscoveredHub } from "../daemon";
 import {
 	clearHubDiscovery,
@@ -592,10 +589,19 @@ export async function startHubWebSocketServer(
 				res.end("Unauthorized");
 				return;
 			}
-			res.statusCode = 202;
-			res.setHeader("content-type", "application/json");
-			res.end(JSON.stringify({ ok: true }));
-			queueMicrotask(() => {
+			// This response races the teardown it triggers: shutdown ends in
+			// process.exit(), which does not flush pending socket writes. Scheduling
+			// teardown on a microtask ran it before the event loop ever reached its
+			// write phase, so the accepted 202 could be lost and the caller saw a
+			// socket hang up. Unix hid this because uv_try_write lands small loopback
+			// writes in the kernel synchronously; Windows has no such fast path and
+			// lost the race regularly.
+			let teardownStarted = false;
+			const startTeardown = (): void => {
+				if (teardownStarted) {
+					return;
+				}
+				teardownStarted = true;
 				try {
 					void Promise.resolve(options.onShutdownRequested?.()).catch(
 						() => undefined,
@@ -611,6 +617,24 @@ export async function startHubWebSocketServer(
 					// must not take the daemon's unhandledRejection fatal path.
 					closeServer().catch(() => undefined);
 				}
+			};
+			res.statusCode = 202;
+			res.setHeader("content-type", "application/json");
+			// Ask for a clean close so the client gets a FIN after the body rather
+			// than an abort from the imminent exit.
+			res.setHeader("connection", "close");
+			// A caller that vanishes mid-write must never strand the daemon: the
+			// write callback can then go unfired, so a timer starts the same
+			// (idempotent) teardown regardless. The request was already accepted.
+			const teardownFallback = setTimeout(startTeardown, 1_000);
+			teardownFallback.unref?.();
+			res.end(JSON.stringify({ ok: true }), () => {
+				// `end`'s callback fires once the body has been handed to the socket;
+				// setImmediate then yields a loop turn so the write actually drains.
+				setImmediate(() => {
+					clearTimeout(teardownFallback);
+					startTeardown();
+				});
 			});
 			return;
 		}
