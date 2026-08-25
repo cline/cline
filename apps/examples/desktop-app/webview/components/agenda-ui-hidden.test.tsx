@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 
-// Covers the shipped state of the Agenda feature: with AGENDA_UI_ENABLED
-// false (the real flag value), the sidebar Agenda toggle and the welcome
-// quick actions stay hidden and no agenda commands are issued. The
-// feature-flag mock in agent-sidebar.test.tsx and welcome-chat.test.tsx
-// forces the flag on to keep exercising the dormant UI.
+// Covers the shipped state of the Agenda feature: the sidebar has no Agenda
+// UI at all, and with AGENDA_UI_ENABLED false (the real flag value) the
+// welcome quick actions stay hidden and no agenda commands are issued. The
+// feature-flag mock in welcome-chat.test.tsx forces the flag on to keep
+// exercising the dormant welcome-screen UI.
 
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
@@ -55,6 +55,7 @@ function makeSessionHistory(): UseSessionHistoryResult {
 		forkThread: vi.fn(),
 		hasLoadedHistory: true,
 		isLoadingMore: false,
+		loadAllSessions: vi.fn(async () => true),
 		loadOlderSessions: vi.fn(),
 		loadMoreSessions: vi.fn(),
 		mayHaveMoreSessions: false,
@@ -67,19 +68,17 @@ function makeSessionHistory(): UseSessionHistoryResult {
 }
 
 describe("Agenda UI hidden by default", () => {
-	it("renders the sidebar without the Agenda toggle and issues no agenda commands", async () => {
+	it("renders the sidebar without any Agenda UI and issues no agenda commands", async () => {
 		await act(async () => {
 			root.render(
 				<SidebarProvider>
 					<AgentSidebar
 						onHome={vi.fn()}
-						onNewThread={vi.fn()}
 						onSettingsSectionChange={vi.fn()}
 						sessionHistory={makeSessionHistory()}
 						setView={vi.fn()}
 						settingsSection="General"
 						view="chat"
-						workspaceRoot="/projects/current"
 					/>
 				</SidebarProvider>,
 			);
@@ -87,10 +86,10 @@ describe("Agenda UI hidden by default", () => {
 		});
 
 		expect(container.querySelector('[aria-label="Show Agenda"]')).toBeNull();
-		expect(
-			container.querySelector('[aria-label="New Session"]'),
-		).not.toBeNull();
 		expect(container.querySelector('[aria-label="Agenda"]')).toBeNull();
+		expect(
+			container.querySelector('[aria-label="Search sessions"]'),
+		).not.toBeNull();
 		expect(desktopMocks.listAgendaTasks).not.toHaveBeenCalled();
 		expect(desktopMocks.getAgendaAutomationPolicy).not.toHaveBeenCalled();
 	});
