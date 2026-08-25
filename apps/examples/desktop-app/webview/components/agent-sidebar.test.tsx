@@ -436,7 +436,7 @@ describe("AgentSidebar session organization", () => {
 		expect(Date.parse(input.expiresAt)).toBeGreaterThan(Date.now());
 	});
 
-	it("filters scheduled sessions without changing their titles", async () => {
+	it("groups scheduled sessions into a collapsible Scheduled section", async () => {
 		const scheduled = {
 			...makeThread("scheduled", 1),
 			source: "core",
@@ -462,23 +462,93 @@ describe("AgentSidebar session organization", () => {
 		});
 
 		expect(sessionIsVisible("scheduled session 1")).toBe(true);
-		expect(container.textContent).not.toContain("(schedule)");
+		expect(sessionIsVisible("regular session 1")).toBe(true);
+		const scheduledHeader = buttonWithText("Scheduled");
+		const tasksHeader = buttonWithText("Tasks");
+		expect(scheduledHeader.getAttribute("aria-expanded")).toBe("true");
+		expect(tasksHeader.getAttribute("aria-expanded")).toBe("true");
 
+		// The scheduled and pinned categories replaced the old filter options.
 		await click(
 			container.querySelector('[aria-label="Filter sessions"]') as Element,
 		);
-		expect(document.body.textContent).not.toContain("Recent");
-		const schedulesOption = await vi.waitFor(() => {
-			const option = [
-				...document.querySelectorAll<HTMLElement>('[role="menuitemradio"]'),
-			].find((candidate) => candidate.textContent?.includes("Schedules"));
-			expect(option).toBeDefined();
-			return option as HTMLElement;
+		await vi.waitFor(() => {
+			expect(
+				document.querySelectorAll('[role="menuitemradio"]').length,
+			).toBeGreaterThan(0);
 		});
-		await click(schedulesOption);
+		const filterOptionLabels = [
+			...document.querySelectorAll<HTMLElement>('[role="menuitemradio"]'),
+		].map((option) => option.textContent);
+		expect(filterOptionLabels).not.toContain("Schedules");
+		expect(filterOptionLabels).not.toContain("Favorites");
 
-		expect(sessionIsVisible("scheduled session 1")).toBe(true);
-		expect(sessionIsVisible("regular session 1")).toBe(false);
+		await click(scheduledHeader);
+		expect(sessionIsVisible("scheduled session 1")).toBe(false);
+		expect(sessionIsVisible("regular session 1")).toBe(true);
+	});
+
+	it("shows pinned sessions in a Pinned section ahead of Tasks", async () => {
+		const pinned = { ...makeThread("pinned", 1), pinned: true };
+		const regular = makeThread("regular", 1);
+
+		await act(async () => {
+			root.render(
+				<SidebarProvider>
+					<AgentSidebar
+						activeSessionId={null}
+						onHome={vi.fn()}
+						onNewThread={vi.fn()}
+						onSettingsSectionChange={vi.fn()}
+						sessionHistory={makeSessionHistory([regular, pinned], vi.fn())}
+						setView={vi.fn()}
+						settingsSection="General"
+						view="chat"
+					/>
+				</SidebarProvider>,
+			);
+		});
+
+		expect(sessionIsVisible("pinned session 1")).toBe(true);
+		expect(sessionIsVisible("regular session 1")).toBe(true);
+		expect(container.querySelector('[aria-label="Pinned"]')).not.toBeNull();
+		const pinnedHeader = buttonWithText("Pinned");
+		const tasksHeader = buttonWithText("Tasks");
+		expect(
+			pinnedHeader.compareDocumentPosition(tasksHeader) &
+				Node.DOCUMENT_POSITION_FOLLOWING,
+		).toBeTruthy();
+
+		await click(pinnedHeader);
+		expect(sessionIsVisible("pinned session 1")).toBe(false);
+		expect(sessionIsVisible("regular session 1")).toBe(true);
+	});
+
+	it("keeps a flat session list when nothing is pinned or scheduled", async () => {
+		await act(async () => {
+			root.render(
+				<SidebarProvider>
+					<AgentSidebar
+						activeSessionId={null}
+						onHome={vi.fn()}
+						onNewThread={vi.fn()}
+						onSettingsSectionChange={vi.fn()}
+						sessionHistory={makeSessionHistory(
+							[makeThread("plain", 1)],
+							vi.fn(),
+						)}
+						setView={vi.fn()}
+						settingsSection="General"
+						view="chat"
+					/>
+				</SidebarProvider>,
+			);
+		});
+
+		expect(sessionIsVisible("plain session 1")).toBe(true);
+		expect(container.textContent).not.toContain("Pinned");
+		expect(container.textContent).not.toContain("Scheduled");
+		expect(container.textContent).not.toContain("Tasks");
 	});
 
 	it("defaults to all sources and filters by the selected client source", async () => {
