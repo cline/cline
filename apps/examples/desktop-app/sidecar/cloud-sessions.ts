@@ -1235,6 +1235,8 @@ export class CloudSessionManager {
 	private readonly createRequests = new Map<string, Promise<JsonRecord>>();
 	// Keep locally-created sessions visible while their sandbox is provisioning.
 	private readonly pendingCreates = new Map<string, JsonRecord>();
+	// Reconcile only the server row stamped by this exact create request.
+	private readonly pendingCreateRecoveryTitles = new Map<string, string>();
 	private readonly provisioningOutcomes = new Map<
 		string,
 		Exclude<CloudProvisioningOutcome, { status: "provisioning" }>
@@ -1277,7 +1279,7 @@ export class CloudSessionManager {
 		sessionId: string,
 	): Promise<JsonRecord | undefined> {
 		const cached = this.getCachedDiscoveryRecord(sessionId);
-		if (!cached || typeof this.options.api.status !== "function") {
+		if (!cached) {
 			return undefined;
 		}
 		try {
@@ -1318,10 +1320,7 @@ export class CloudSessionManager {
 		}
 		const scoped = await Promise.all(
 			listed.map(async (session) => {
-				if (
-					session.status !== "provisioning" ||
-					typeof this.options.api.status !== "function"
-				) {
+				if (session.status !== "provisioning") {
 					return session;
 				}
 				const result = await this.options.api
@@ -1431,18 +1430,12 @@ export class CloudSessionManager {
 		}
 
 		const placeholders = Array.from(this.pendingCreates.values());
-		const unmatchedPlaceholders = [...placeholders];
+		const unmatchedRecoveryTitles = new Set(
+			this.pendingCreateRecoveryTitles.values(),
+		);
 		const listedRecords = records.filter((record) => {
-			const placeholderIndex = unmatchedPlaceholders.findIndex(
-				(placeholder) =>
-					placeholder.repoUrl === record.repoContext.repoUrl &&
-					placeholder.model === record.metadata.modelId &&
-					String(placeholder.branch ?? "") ===
-						String(record.repoContext.branch ?? ""),
-			);
-			if (placeholderIndex < 0) return true;
-			unmatchedPlaceholders.splice(placeholderIndex, 1);
-			return false;
+			const title = record.title?.trim();
+			return !title || !unmatchedRecoveryTitles.delete(title);
 		});
 		const listed = listedRecords.map((record) => {
 			const projected = cloudSessionToDiscoveryRecord(record);
@@ -1495,6 +1488,13 @@ export class CloudSessionManager {
 		}
 		// Keep the session visible while the blocking create request provisions it.
 		const placeholderId = `${CLOUD_PROVISIONING_SESSION_ID_PREFIX}${randomUUID()}`;
+		const requestId = input.requestId?.trim();
+		if (requestId) {
+			this.pendingCreateRecoveryTitles.set(
+				placeholderId,
+				createRequestTitle(requestId),
+			);
+		}
 		const startedAt = new Date().toISOString();
 		this.pendingCreates.set(placeholderId, {
 			sessionId: placeholderId,
@@ -1552,6 +1552,7 @@ export class CloudSessionManager {
 			throw error;
 		} finally {
 			this.pendingCreates.delete(placeholderId);
+			this.pendingCreateRecoveryTitles.delete(placeholderId);
 			sendEvent(this.ctx, "chat_session_status", {
 				sessionId: placeholderId,
 				status: "ended",
@@ -1772,7 +1773,7 @@ export class CloudSessionManager {
 				if (live) {
 					live.title = title;
 				}
-				void this.options.api.updateTitle?.(outerSessionId, title).catch(() => {
+				void this.options.api.updateTitle(outerSessionId, title).catch(() => {
 					// Sidebar still shows the local title; REST retries on rename.
 				});
 			}
@@ -1977,7 +1978,7 @@ export class CloudSessionManager {
 						status === "failed" ||
 						status === "aborted"
 					) {
-						live.endedAt ??= Date.now();
+						live.endedAt = Date.now();
 						sendEvent(this.ctx, "chat_session_ended", {
 							sessionId: outerSessionId,
 							// The live run.failed path reports "error"; keep the
@@ -2287,6 +2288,7 @@ export class CloudSessionManager {
 		}
 		this.knownSessions.clear();
 		this.pendingCreates.clear();
+		this.pendingCreateRecoveryTitles.clear();
 		this.provisioningOutcomes.clear();
 		await Promise.allSettled(
 			Array.from(this.connections.keys()).map((sessionId) =>
