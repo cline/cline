@@ -431,7 +431,6 @@ export default function Home() {
 							onHome={handleHome}
 							onNavigateBack={handleNavigateBack}
 							onNavigateForward={handleNavigateForward}
-							onNewThread={handleNewThread}
 							onOpenSessionById={handleOpenSessionById}
 							onSettingsSectionChange={handleSettingsSectionChange}
 							sessionHistory={sessionHistory}

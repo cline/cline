@@ -450,7 +450,6 @@ describe("AgentSidebar session organization", () => {
 					<AgentSidebar
 						activeSessionId={null}
 						onHome={vi.fn()}
-						onNewThread={vi.fn()}
 						onSettingsSectionChange={vi.fn()}
 						sessionHistory={makeSessionHistory([scheduled, regular], vi.fn())}
 						setView={vi.fn()}
@@ -527,7 +526,6 @@ describe("AgentSidebar session organization", () => {
 					<AgentSidebar
 						activeSessionId={null}
 						onHome={vi.fn()}
-						onNewThread={vi.fn()}
 						onSettingsSectionChange={vi.fn()}
 						sessionHistory={makeSessionHistory([], vi.fn(), {
 							hasLoadedHistory: false,
@@ -553,7 +551,6 @@ describe("AgentSidebar session organization", () => {
 					<AgentSidebar
 						activeSessionId={null}
 						onHome={vi.fn()}
-						onNewThread={vi.fn()}
 						onSettingsSectionChange={vi.fn()}
 						sessionHistory={makeSessionHistory([], vi.fn(), {
 							hasLoadedHistory: true,
@@ -626,7 +623,6 @@ describe("AgentSidebar session organization", () => {
 					<AgentSidebar
 						activeSessionId={null}
 						onHome={vi.fn()}
-						onNewThread={vi.fn()}
 						onSettingsSectionChange={vi.fn()}
 						sessionHistory={sessionHistory}
 						setView={vi.fn()}
@@ -688,7 +684,6 @@ describe("AgentSidebar session organization", () => {
 						<AgentSidebar
 							activeSessionId={null}
 							onHome={vi.fn()}
-							onNewThread={vi.fn()}
 							onSettingsSectionChange={vi.fn()}
 							sessionHistory={makeSessionHistory([], vi.fn())}
 							setView={vi.fn()}
@@ -734,7 +729,6 @@ describe("AgentSidebar session organization", () => {
 						<AgentSidebar
 							activeSessionId={null}
 							onHome={vi.fn()}
-							onNewThread={vi.fn()}
 							onSettingsSectionChange={onSettingsSectionChange}
 							sessionHistory={makeSessionHistory([], vi.fn())}
 							setView={setView}
@@ -768,7 +762,6 @@ describe("AgentSidebar session organization", () => {
 							<AgentSidebar
 								activeSessionId={null}
 								onHome={vi.fn()}
-								onNewThread={vi.fn()}
 								onSettingsSectionChange={vi.fn()}
 								sessionHistory={makeSessionHistory([], vi.fn())}
 								setView={vi.fn()}
@@ -818,7 +811,6 @@ describe("AgentSidebar session organization", () => {
 						<AgentSidebar
 							activeSessionId={null}
 							onHome={onHome}
-							onNewThread={vi.fn()}
 							onSettingsSectionChange={vi.fn()}
 							sessionHistory={makeSessionHistory([], vi.fn())}
 							setView={vi.fn()}
@@ -867,7 +859,6 @@ describe("AgentSidebar session organization", () => {
 						<AgentSidebar
 							activeSessionId={null}
 							onHome={vi.fn()}
-							onNewThread={vi.fn()}
 							onSettingsSectionChange={vi.fn()}
 							sessionHistory={makeSessionHistory([], vi.fn())}
 							setView={vi.fn()}
@@ -906,7 +897,6 @@ describe("AgentSidebar session organization", () => {
 							onHome={vi.fn()}
 							onNavigateBack={onNavigateBack}
 							onNavigateForward={onNavigateForward}
-							onNewThread={vi.fn()}
 							onSettingsSectionChange={vi.fn()}
 							sessionHistory={makeSessionHistory([], vi.fn())}
 							setView={vi.fn()}
@@ -930,16 +920,15 @@ describe("AgentSidebar session organization", () => {
 		expect(onNavigateForward).toHaveBeenCalledOnce();
 	});
 
-	it("places the logo and icon-only new-session action below the title bar", async () => {
-		const onNewThread = vi.fn();
+	it("gives New Task its own full-width row that navigates home", async () => {
+		const onHome = vi.fn();
 		await act(async () => {
 			root.render(
 				<AccountProvider>
 					<SidebarProvider>
 						<AgentSidebar
 							activeSessionId={null}
-							onHome={vi.fn()}
-							onNewThread={onNewThread}
+							onHome={onHome}
 							onSettingsSectionChange={vi.fn()}
 							sessionHistory={makeSessionHistory([], vi.fn())}
 							setView={vi.fn()}
@@ -953,13 +942,17 @@ describe("AgentSidebar session organization", () => {
 
 		const logo = container.querySelector('[aria-label="Cline home"]');
 		const showAgenda = container.querySelector('[aria-label="Show Agenda"]');
-		const newSession = container.querySelector('[aria-label="New Session"]');
+		const newTask = container.querySelector('[aria-label="New Task"]');
 		expect(logo).not.toBeNull();
 		expect(showAgenda).not.toBeNull();
-		expect(newSession).not.toBeNull();
-		expect(newSession?.textContent).toBe("");
-		await click(newSession as Element);
-		expect(onNewThread).toHaveBeenCalledOnce();
+		expect(newTask).not.toBeNull();
+		// The action reads as a labeled row, not an ambiguous icon in the
+		// header cluster, and it lives outside the logo row.
+		expect(newTask?.textContent).toBe("New Task");
+		expect(newTask?.className).toContain("w-full");
+		expect(newTask?.parentElement).not.toBe(logo?.parentElement);
+		await click(newTask as Element);
+		expect(onHome).toHaveBeenCalledOnce();
 	});
 
 	it("uses only the Cline logo for home in the collapsed sidebar", async () => {
@@ -970,7 +963,6 @@ describe("AgentSidebar session organization", () => {
 						<AgentSidebar
 							activeSessionId={null}
 							onHome={vi.fn()}
-							onNewThread={vi.fn()}
 							onSettingsSectionChange={vi.fn()}
 							sessionHistory={makeSessionHistory([], vi.fn())}
 							setView={vi.fn()}
@@ -983,7 +975,7 @@ describe("AgentSidebar session organization", () => {
 		});
 
 		expect(container.querySelector('[aria-label="Cline home"]')).not.toBeNull();
-		expect(container.querySelector('[aria-label="New Session"]')).toBeNull();
+		expect(container.querySelector('[aria-label="New Task"]')).toBeNull();
 		expect(
 			container.querySelector('[aria-label="Expand sidebar"]')?.className,
 		).toContain("mt-auto");
@@ -997,7 +989,6 @@ describe("AgentSidebar session organization", () => {
 						<AgentSidebar
 							activeSessionId={null}
 							onHome={vi.fn()}
-							onNewThread={vi.fn()}
 							onSettingsSectionChange={vi.fn()}
 							sessionHistory={makeSessionHistory([], vi.fn())}
 							setView={vi.fn()}
@@ -1046,7 +1037,6 @@ describe("AgentSidebar session organization", () => {
 						<AgentSidebar
 							activeSessionId={null}
 							onHome={vi.fn()}
-							onNewThread={vi.fn()}
 							onSettingsSectionChange={vi.fn()}
 							sessionHistory={makeSessionHistory([], vi.fn())}
 							setView={vi.fn()}

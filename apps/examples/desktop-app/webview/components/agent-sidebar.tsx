@@ -9,10 +9,11 @@ import type {
 import { isChatWorkspacePath } from "@cline/shared/browser";
 import {
 	ArrowDownUp,
+	ArrowLeft,
+	ArrowRight,
 	Bot,
 	Check,
 	ChevronDown,
-	ChevronLeft,
 	ChevronRight,
 	CircleUserRound,
 	ClipboardList,
@@ -239,7 +240,6 @@ export function AgentSidebar({
 	onHome,
 	onNavigateBack,
 	onNavigateForward,
-	onNewThread,
 	onOpenSessionById,
 	onSettingsSectionChange,
 	setView,
@@ -254,7 +254,6 @@ export function AgentSidebar({
 	onHome: () => void;
 	onNavigateBack?: () => void;
 	onNavigateForward?: () => void;
-	onNewThread?: () => void;
 	onOpenSessionById?: (sessionId: string) => void | Promise<void>;
 	onSettingsSectionChange: (section: SettingsSection) => void;
 	setView: (view: AppView) => void;
@@ -446,10 +445,6 @@ export function AgentSidebar({
 		[closeMobileSidebar, openHistoryThread],
 	);
 
-	const openNewThread = useCallback(() => {
-		onNewThread?.();
-		closeMobileSidebar();
-	}, [closeMobileSidebar, onNewThread]);
 	const openHome = useCallback(() => {
 		onHome();
 		closeMobileSidebar();
@@ -692,7 +687,7 @@ export function AgentSidebar({
 						<>
 							<Button
 								aria-label="Previous page"
-								className="size-7 text-muted-foreground hover:bg-surface-hover"
+								className="size-8 text-muted-foreground hover:bg-surface-hover hover:text-sidebar-foreground"
 								disabled={!canNavigateBack}
 								onClick={navigateBack}
 								size="icon"
@@ -700,11 +695,11 @@ export function AgentSidebar({
 								type="button"
 								variant="ghost"
 							>
-								<ChevronLeft className="size-4" />
+								<ArrowLeft className="size-4.5" />
 							</Button>
 							<Button
 								aria-label="Next page"
-								className="size-7 text-muted-foreground hover:text-sidebar-foreground"
+								className="size-8 text-muted-foreground hover:bg-surface-hover hover:text-sidebar-foreground"
 								disabled={!canNavigateForward}
 								onClick={navigateForward}
 								size="icon"
@@ -712,7 +707,7 @@ export function AgentSidebar({
 								type="button"
 								variant="ghost"
 							>
-								<ChevronRight className="size-4" />
+								<ArrowRight className="size-4.5" />
 							</Button>
 						</>
 					) : null}
@@ -820,19 +815,24 @@ export function AgentSidebar({
 									/>
 								) : null}
 							</Button>
-							<Button
-								aria-label="New Session"
-								className="size-8 shrink-0 justify-center px-0"
-								onClick={openNewThread}
-								title="New Session"
-								type="button"
-								variant="sidebarItem"
-							>
-								<MessageSquarePlus className="size-4" />
-							</Button>
 						</div>
 					) : null}
 				</div>
+
+				{!isCollapsed ? (
+					<div className="mt-1 shrink-0 px-2">
+						<Button
+							aria-label="New Task"
+							onClick={openHome}
+							title="New Task"
+							type="button"
+							variant="sidebarItem"
+						>
+							<MessageSquarePlus className="size-4 shrink-0" />
+							<span className="truncate">New Task</span>
+						</Button>
+					</div>
+				) : null}
 
 				{isCollapsed ? (
 					<div className="mt-2 flex min-h-0 flex-1 flex-col items-start gap-1 px-1.5">
