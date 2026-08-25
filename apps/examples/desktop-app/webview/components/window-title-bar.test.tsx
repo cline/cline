@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 
-import { act } from "react";
+import { act, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+	WindowTitleBar,
 	WindowTitleBarContent,
 	WindowTitleBarProvider,
 } from "@/components/window-title-bar";
@@ -23,77 +24,96 @@ afterEach(async () => {
 	container.remove();
 });
 
-describe("WindowTitleBarProvider", () => {
-	it("keeps an empty draggable title bar mounted without page content", async () => {
-		await act(async () => {
-			root.render(
-				<WindowTitleBarProvider contentEnabled={false}>
-					<main data-testid="page">Settings</main>
-				</WindowTitleBarProvider>,
-			);
-		});
+function StatefulProjectedControl() {
+	const [count, setCount] = useState(0);
+	return (
+		<button type="button" onClick={() => setCount((value) => value + 1)}>
+			Count {count}
+		</button>
+	);
+}
 
-		const titleBar = container.querySelector('[data-slot="window-title-bar"]');
+function renderShell(contentEnabled: boolean) {
+	return (
+		<WindowTitleBarProvider contentEnabled={contentEnabled}>
+			<nav>Sidebar</nav>
+			<main>
+				<WindowTitleBar />
+				<section data-testid="page">Page content</section>
+				<WindowTitleBarContent>
+					<StatefulProjectedControl />
+				</WindowTitleBarContent>
+			</main>
+		</WindowTitleBarProvider>
+	);
+}
+
+describe("WindowTitleBar", () => {
+	it("reserves an in-flow draggable row before page content inside main", async () => {
+		await act(async () => root.render(renderShell(false)));
+
+		const main = container.querySelector("main");
+		const titleBar = main?.querySelector('[data-slot="window-title-bar"]');
+		const page = main?.querySelector('[data-testid="page"]');
 		expect(titleBar?.getAttribute("data-tauri-drag-region")).toBe("deep");
 		expect(titleBar?.className).toContain("h-12");
-		expect(titleBar?.className).toContain("md:left-(--sidebar-width)");
-		expect(titleBar?.className).toContain(
-			"md:group-data-[state=collapsed]/sidebar-wrapper:left-(--sidebar-width-icon)",
-		);
-		expect(container.querySelector('[data-testid="page"]')).not.toBeNull();
+		expect(titleBar?.className).toContain("shrink-0");
+		expect(titleBar?.nextElementSibling).toBe(page);
 	});
 
-	it("projects controls into the title bar and preserves source geometry", async () => {
+	it("projects controls into the title bar within the main landmark", async () => {
+		await act(async () => root.render(renderShell(true)));
+
+		const titleBar = container.querySelector('[data-slot="window-title-bar"]');
+		const button = titleBar?.querySelector("button");
+		expect(button?.textContent).toBe("Count 0");
+		expect(button?.closest("main")).not.toBeNull();
+		expect(
+			container.querySelector("nav")?.compareDocumentPosition(button!),
+		).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+	});
+
+	it("hides projected controls without unmounting their state", async () => {
+		await act(async () => root.render(renderShell(true)));
+		const button = container.querySelector("button");
+		await act(async () => button?.click());
+		expect(container.querySelector("button")?.textContent).toBe("Count 1");
+
+		await act(async () => root.render(renderShell(false)));
+		const hiddenHost = container.querySelector<HTMLDivElement>(
+			'[data-slot="window-title-bar-content-host"]',
+		);
+		expect(hiddenHost?.hidden).toBe(true);
+		expect(container.querySelector("button")?.textContent).toBe("Count 1");
+
+		await act(async () => root.render(renderShell(true)));
+		expect(
+			container.querySelector<HTMLDivElement>(
+				'[data-slot="window-title-bar-content-host"]',
+			)?.hidden,
+		).toBe(false);
+		expect(container.querySelector("button")?.textContent).toBe("Count 1");
+	});
+
+	it("renders a drag-only row for a full-screen shell overlay", async () => {
 		await act(async () => {
 			root.render(
 				<WindowTitleBarProvider>
-					<WindowTitleBarContent>
-						<button type="button">Session actions</button>
-					</WindowTitleBarContent>
+					<div className="flex flex-col" data-testid="onboarding-shell">
+						<WindowTitleBar hostContent={false} />
+						<div data-testid="onboarding-content">Onboarding</div>
+					</div>
 				</WindowTitleBarProvider>,
 			);
 		});
 
-		const titleBar = container.querySelector('[data-slot="window-title-bar"]');
-		expect(titleBar?.querySelector("button")?.textContent).toBe(
-			"Session actions",
+		const shell = container.querySelector('[data-testid="onboarding-shell"]');
+		const titleBar = shell?.querySelector('[data-slot="window-title-bar"]');
+		expect(titleBar?.nextElementSibling).toBe(
+			shell?.querySelector('[data-testid="onboarding-content"]'),
 		);
 		expect(
-			container.querySelector('[data-slot="window-title-bar-spacer"]')
-				?.className,
-		).toContain("h-12");
-	});
-
-	it("clears projected controls while retaining the spacer", async () => {
-		await act(async () => {
-			root.render(
-				<WindowTitleBarProvider contentEnabled={false}>
-					<WindowTitleBarContent>
-						<button type="button">Hidden chat action</button>
-					</WindowTitleBarContent>
-				</WindowTitleBarProvider>,
-			);
-		});
-
-		const titleBar = container.querySelector('[data-slot="window-title-bar"]');
-		expect(titleBar?.querySelector("button")).toBeNull();
-		expect(
-			container.querySelector('[data-slot="window-title-bar-spacer"]'),
-		).not.toBeNull();
-	});
-
-	it("covers the full window when a shell overlay replaces the sidebar", async () => {
-		await act(async () => {
-			root.render(
-				<WindowTitleBarProvider fullWidth>
-					<div>Onboarding</div>
-				</WindowTitleBarProvider>,
-			);
-		});
-
-		const titleBar = container.querySelector('[data-slot="window-title-bar"]');
-		expect(titleBar?.className).toContain("left-0");
-		expect(titleBar?.className).toContain("z-[60]");
-		expect(titleBar?.className).not.toContain("md:left-(--sidebar-width)");
+			titleBar?.querySelector('[data-slot="window-title-bar-content-host"]'),
+		).toBeNull();
 	});
 });

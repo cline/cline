@@ -37,6 +37,7 @@ import { WelcomeSetupNotice } from "@/components/views/chat/welcome-setup-notice
 import type { OnboardingStep } from "@/components/views/onboarding/onboarding-view";
 import type { SettingsSection } from "@/components/views/settings/sections";
 import {
+	WindowTitleBar,
 	WindowTitleBarContent,
 	WindowTitleBarProvider,
 } from "@/components/window-title-bar";
@@ -426,7 +427,6 @@ export default function Home() {
 			<SidebarProvider>
 				<WindowTitleBarProvider
 					contentEnabled={!showOnboarding && view === "chat"}
-					fullWidth={showOnboarding}
 				>
 					<div
 						aria-hidden={showOnboarding ? true : undefined}
@@ -461,61 +461,67 @@ export default function Home() {
 							<SidebarRail />
 						</Sidebar>
 						<SidebarInset className="min-h-0 min-w-0 overflow-hidden">
+							<WindowTitleBar />
 							<SidebarTrigger className="absolute left-20 top-0 z-40 md:hidden" />
-							{view === "sessions" ? (
-								<SessionsView
-									activeSessionId={activeHistorySessionId}
-									history={sessionHistory}
-								/>
-							) : activeThread ? (
-								<div
-									aria-hidden={view === "settings" ? true : undefined}
-									className="flex min-h-0 flex-1 flex-col"
-									inert={view === "settings" ? true : undefined}
-								>
-									<ChatThreadPane
-										key={activeThread.id}
-										historySession={activeThread.historySession}
-										initialPromptDraft={activeThread.initialPromptDraft}
-										knownWorkspacePaths={historyWorkspacePaths}
-										onInitialPromptDraftConsumed={
-											handleInitialPromptDraftConsumed
-										}
-										onUpdateSessionMetadata={handleUpdateSessionMetadata}
-										threadId={activeThread.id}
-										onDeleteSession={handleDeleteSession}
-										onNewThread={handleNewThread}
-										onOpenSession={handleOpenSession}
-										onOpenSessionById={handleOpenSessionById}
-										onOpenSetup={handleOpenSetup}
-										onOpenModelSettings={() =>
-											handleSettingsSectionChange("Models")
-										}
-										parentSession={activeParentSession}
-										onOpenVoiceInputSettings={() =>
-											handleSettingsSectionChange("Voice")
-										}
-										onThreadStarted={handleThreadStarted}
+							<div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+								{view === "sessions" ? (
+									<SessionsView
+										activeSessionId={activeHistorySessionId}
+										history={sessionHistory}
 									/>
-								</div>
-							) : null}
-							{view === "settings" ? (
-								<div className="absolute inset-0 z-30 bg-background text-foreground">
-									<SettingsView
-										onNavigateSection={handleSettingsSectionChange}
-										onOpenSession={handleOpenSessionById}
-										section={settingsSection}
-									/>
-								</div>
-							) : null}
+								) : activeThread ? (
+									<div
+										aria-hidden={view === "settings" ? true : undefined}
+										className="flex min-h-0 flex-1 flex-col"
+										inert={view === "settings" ? true : undefined}
+									>
+										<ChatThreadPane
+											key={activeThread.id}
+											historySession={activeThread.historySession}
+											initialPromptDraft={activeThread.initialPromptDraft}
+											knownWorkspacePaths={historyWorkspacePaths}
+											onInitialPromptDraftConsumed={
+												handleInitialPromptDraftConsumed
+											}
+											onUpdateSessionMetadata={handleUpdateSessionMetadata}
+											threadId={activeThread.id}
+											onDeleteSession={handleDeleteSession}
+											onNewThread={handleNewThread}
+											onOpenSession={handleOpenSession}
+											onOpenSessionById={handleOpenSessionById}
+											onOpenSetup={handleOpenSetup}
+											onOpenModelSettings={() =>
+												handleSettingsSectionChange("Models")
+											}
+											parentSession={activeParentSession}
+											onOpenVoiceInputSettings={() =>
+												handleSettingsSectionChange("Voice")
+											}
+											onThreadStarted={handleThreadStarted}
+										/>
+									</div>
+								) : null}
+								{view === "settings" ? (
+									<div className="absolute inset-0 z-30 bg-background text-foreground">
+										<SettingsView
+											onNavigateSection={handleSettingsSectionChange}
+											onOpenSession={handleOpenSessionById}
+											section={settingsSection}
+										/>
+									</div>
+								) : null}
+							</div>
 						</SidebarInset>
 					</div>
 					{showOnboarding ? (
-						<div className="fixed inset-0 z-50">
-							<OnboardingView
-								initialStep={onboardingInitialStep}
-								onComplete={completeOnboarding}
-							/>
+						<div className="fixed inset-0 z-50 flex flex-col bg-background">
+							<WindowTitleBar hostContent={false} />
+							<div className="min-h-0 flex-1">
+								<OnboardingView
+									initialStep={onboardingInitialStep}
+									onComplete={completeOnboarding}
+								/>
+							</div>
 						</div>
 					) : null}
 				</WindowTitleBarProvider>
@@ -1572,7 +1578,7 @@ function ChatThreadPane({
 				className={
 					isWelcomeState
 						? "relative grid h-full min-h-0 flex-1 grid-rows-[minmax(0,1fr)] overflow-hidden"
-						: "relative grid h-full min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden"
+						: "relative grid h-full min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto] overflow-hidden"
 				}
 				onDragEnter={handleDragEnter}
 				onDragLeave={handleDragLeave}

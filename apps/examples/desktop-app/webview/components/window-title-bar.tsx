@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 type WindowTitleBarContextValue = {
 	contentEnabled: boolean;
 	portalTarget: HTMLDivElement | null;
+	setPortalTarget: (target: HTMLDivElement | null) => void;
 };
 
 const WindowTitleBarContext = createContext<WindowTitleBarContextValue | null>(
@@ -14,46 +15,66 @@ const WindowTitleBarContext = createContext<WindowTitleBarContextValue | null>(
 );
 
 /**
- * Owns the main-pane portion of the native overlay title bar.
- *
- * The region stays mounted while routes and loading states change. Pages may
- * project controls into it, but they never control whether the draggable
- * surface itself exists.
+ * Keeps title-bar content mounted while shell views change.
  */
 export function WindowTitleBarProvider({
 	children,
 	contentEnabled = true,
-	fullWidth = false,
 }: {
 	children: ReactNode;
 	contentEnabled?: boolean;
-	fullWidth?: boolean;
 }) {
 	const [portalTarget, setPortalTarget] = useState<HTMLDivElement | null>(null);
 
 	return (
-		<WindowTitleBarContext.Provider value={{ contentEnabled, portalTarget }}>
-			<div
-				className={cn(
-					"fixed top-0 right-0 isolate h-12 transition-[left] duration-120 max-md:h-7",
-					fullWidth
-						? "left-0 z-[60]"
-						: "left-0 z-40 md:left-(--sidebar-width) md:group-data-[state=collapsed]/sidebar-wrapper:left-(--sidebar-width-icon)",
-				)}
-				data-slot="window-title-bar"
-				data-tauri-drag-region="deep"
-			>
-				<div className="h-full min-w-0" ref={setPortalTarget} />
-			</div>
+		<WindowTitleBarContext.Provider
+			value={{ contentEnabled, portalTarget, setPortalTarget }}
+		>
 			{children}
 		</WindowTitleBarContext.Provider>
 	);
 }
 
 /**
- * Projects page-owned controls into the persistent title bar while leaving a
- * same-height spacer at the source so existing page geometry does not move.
+ * Reserves the native title-bar row at the shell boundary. The normal app
+ * shell hosts projected controls; full-screen shell overlays only need the
+ * draggable surface.
  */
+export function WindowTitleBar({
+	className,
+	hostContent = true,
+}: {
+	className?: string;
+	hostContent?: boolean;
+}) {
+	const context = useContext(WindowTitleBarContext);
+	if (!context) {
+		throw new Error(
+			"WindowTitleBar must be used within WindowTitleBarProvider.",
+		);
+	}
+
+	return (
+		<div
+			className={cn("isolate h-12 shrink-0 max-md:h-7", className)}
+			data-slot="window-title-bar"
+			data-tauri-drag-region="deep"
+		>
+			{hostContent ? (
+				<div
+					aria-hidden={context.contentEnabled ? undefined : true}
+					className="h-full min-w-0"
+					data-slot="window-title-bar-content-host"
+					hidden={!context.contentEnabled}
+					inert={context.contentEnabled ? undefined : true}
+					ref={context.setPortalTarget}
+				/>
+			) : null}
+		</div>
+	);
+}
+
+/** Projects page-owned controls into the persistent shell title bar. */
 export function WindowTitleBarContent({ children }: { children: ReactNode }) {
 	const context = useContext(WindowTitleBarContext);
 	if (!context) {
@@ -62,16 +83,7 @@ export function WindowTitleBarContent({ children }: { children: ReactNode }) {
 		);
 	}
 
-	return (
-		<>
-			{context.contentEnabled && context.portalTarget
-				? createPortal(children, context.portalTarget)
-				: null}
-			<div
-				aria-hidden="true"
-				className="h-12 shrink-0 max-md:h-7"
-				data-slot="window-title-bar-spacer"
-			/>
-		</>
-	);
+	return context.portalTarget
+		? createPortal(children, context.portalTarget)
+		: null;
 }
