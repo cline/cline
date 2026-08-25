@@ -192,10 +192,7 @@ function SettingsSectionNavigation({
 	const renderSectionButton = (section: SettingsSection) => {
 		const Icon = SETTINGS_SECTION_ICONS[section];
 		const disabled = section === "Voice" && hasConnectedProvider === false;
-		const title = disabled
-			? "Connect a model provider to set up voice input"
-			: section;
-		return (
+		const button = (
 			<Button
 				aria-current={activeSection === section ? "page" : undefined}
 				aria-label={section}
@@ -204,17 +201,32 @@ function SettingsSectionNavigation({
 					activeSection === section &&
 						"bg-surface-hover text-sidebar-foreground",
 					collapsed && "size-9 justify-center px-0",
+					disabled && !collapsed && "w-full",
 				)}
 				disabled={disabled}
-				key={section}
+				key={disabled ? undefined : section}
 				onClick={() => onSelect(section)}
-				title={title}
+				title={section}
 				type="button"
 				variant="sidebarItem"
 			>
 				<Icon className="size-4 shrink-0" />
 				{!collapsed ? <span className="truncate">{section}</span> : null}
 			</Button>
+		);
+		if (!disabled) {
+			return button;
+		}
+		// Disabled buttons swallow pointer events, so the explanation lives on
+		// a wrapping span for the native tooltip to work.
+		return (
+			<span
+				className={cn("block", collapsed && "flex w-full justify-start")}
+				key={section}
+				title="Connect a model provider to set up voice input"
+			>
+				{button}
+			</span>
 		);
 	};
 
