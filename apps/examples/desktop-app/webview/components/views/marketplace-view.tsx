@@ -1,4 +1,5 @@
 import {
+	Blocks,
 	ChevronRight,
 	ExternalLink,
 	Puzzle,
@@ -7,6 +8,7 @@ import {
 	Star,
 	Store,
 	Trash2,
+	X,
 	Zap,
 } from "lucide-react";
 import {
@@ -107,7 +109,7 @@ const primitivePageDetails = {
 const directoryPageDetails: MarketplacePageDetails = {
 	title: "Marketplace",
 	description:
-		"Browse and install plugins, MCP servers, and skills from the Cline marketplace.",
+		"A curated set of plugins, MCP servers, and skills from the Cline community.",
 	emptyInstalled: "Nothing installed yet.",
 	emptyCatalog: "No marketplace entries match the current filters.",
 	icon: Store,
@@ -643,6 +645,7 @@ export function MarketplaceView({
 	defaultTypeFilter,
 	installedItems,
 	onInstalledItemsChanged,
+	onOpenInstalled,
 	primitive,
 	variant = "full",
 }: {
@@ -651,6 +654,8 @@ export function MarketplaceView({
 	defaultTypeFilter?: MarketplacePrimitiveType;
 	installedItems?: MarketplaceLocalInstalledItem[];
 	onInstalledItemsChanged?: () => void | Promise<void>;
+	/** Renders an Installed button in the directory page header. */
+	onOpenInstalled?: () => void;
 	/** When omitted, the view spans every catalog type (directory variant). */
 	primitive?: MarketplacePrimitiveType;
 	variant?: MarketplaceViewVariant;
@@ -956,7 +961,7 @@ export function MarketplaceView({
 
 	const typeFilterChips =
 		variant === "directory" && !primitive ? (
-			<div className="flex min-w-0 gap-2 overflow-x-auto pb-1">
+			<div className="flex min-w-0 flex-wrap gap-2">
 				<Button
 					aria-pressed={typeFilter === null}
 					onClick={() => setTypeFilter(null)}
@@ -991,31 +996,30 @@ export function MarketplaceView({
 
 	const marketplaceTagFilters =
 		primitiveTags.length > 0 ? (
-			<div className="flex min-w-0 flex-col gap-2 md:flex-row md:items-center md:justify-between">
-				<div className="flex min-w-0 gap-2 overflow-x-auto pb-1">
-					{primitiveTags.map((tag) => (
-						<TagButton
-							active={selectedTag === tag.id}
-							count={tagCounts.get(tag.id) ?? 0}
-							key={tag.id}
-							onClick={() =>
-								setSelectedTag((current) =>
-									current === tag.id ? null : tag.id,
-								)
-							}
-							tag={tag}
-						/>
-					))}
-				</div>
+			<div className="flex min-w-0 flex-wrap items-center gap-2">
+				{primitiveTags.map((tag) => (
+					<TagButton
+						active={selectedTag === tag.id}
+						count={tagCounts.get(tag.id) ?? 0}
+						key={tag.id}
+						onClick={() =>
+							setSelectedTag((current) => (current === tag.id ? null : tag.id))
+						}
+						tag={tag}
+					/>
+				))}
+				{/* Clearing belongs with what it clears: the control appears at
+				    the end of the chip row only while a tag is active. */}
 				{selectedTag ? (
 					<Button
-						className="shrink-0 self-start md:self-auto"
+						className="text-muted-foreground"
 						onClick={() => setSelectedTag(null)}
 						size="sm"
 						type="button"
 						variant="ghost"
 					>
-						Clear filters
+						<X className="size-3.5" />
+						Clear
 					</Button>
 				) : null}
 			</div>
@@ -1123,16 +1127,17 @@ export function MarketplaceView({
 						) : undefined
 					}
 					actions={
-						catalog?.generatedAt ? (
-							<p className="text-xs text-muted-foreground">
-								Updated{" "}
-								{new Intl.DateTimeFormat(undefined, {
-									month: "short",
-									day: "numeric",
-									year: "numeric",
-								}).format(new Date(catalog.generatedAt))}
-							</p>
-						) : null
+						onOpenInstalled ? (
+							<Button
+								onClick={onOpenInstalled}
+								size="sm"
+								type="button"
+								variant="outline"
+							>
+								<Blocks className="size-4" />
+								Installed
+							</Button>
+						) : undefined
 					}
 				/>
 			) : null}
@@ -1202,10 +1207,28 @@ export function MarketplaceView({
 							expandedEntryKey={expandedEntryKey}
 							headerContent={
 								typeFilterChips || marketplaceTagFilters ? (
-									<div className="grid min-w-0 gap-2">
-										{typeFilterChips}
-										{marketplaceTagFilters}
-									</div>
+									variant === "directory" ? (
+										// Light rules separate the filter tiers from each
+										// other and from the results below.
+										<div className="grid min-w-0 gap-3">
+											{typeFilterChips}
+											{marketplaceTagFilters ? (
+												<>
+													<div
+														aria-hidden="true"
+														className="h-px bg-border/70"
+													/>
+													{marketplaceTagFilters}
+												</>
+											) : null}
+											<div aria-hidden="true" className="h-px bg-border/70" />
+										</div>
+									) : (
+										<div className="grid min-w-0 gap-2">
+											{typeFilterChips}
+											{marketplaceTagFilters}
+										</div>
+									)
 								) : null
 							}
 							installedEntryKeys={installedEntryKeys}

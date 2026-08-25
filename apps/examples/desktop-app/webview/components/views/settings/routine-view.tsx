@@ -10,7 +10,6 @@ import {
 	Circle,
 	Clock3,
 	ExternalLink,
-	Eye,
 	Pause,
 	Pencil,
 	Play,
@@ -1164,10 +1163,35 @@ export function RoutineSchedulesContent({
 						const upcoming = upcomingRuns.find(
 							(item) => item.scheduleId === schedule.scheduleId,
 						);
+						// The whole card opens the details dialog; clicks on the row's
+						// own controls (all button elements, including the Radix
+						// switch) are excluded via closest().
 						return (
+							// biome-ignore lint/a11y/useSemanticElements: The card contains nested action buttons and a switch, so the wrapper cannot be a native button.
 							<div
 								key={schedule.scheduleId}
-								className="rounded-lg border border-border px-5 py-4 transition-colors hover:bg-surface-hover-lighter"
+								className="cursor-pointer rounded-lg border border-border px-5 py-4 transition-colors hover:bg-surface-hover-lighter"
+								onClick={(event) => {
+									if (
+										(event.target as HTMLElement).closest(
+											"button,a,input,textarea,[role='menuitem']",
+										)
+									) {
+										return;
+									}
+									setViewingSchedule(schedule);
+								}}
+								onKeyDown={(event) => {
+									if (event.target !== event.currentTarget) {
+										return;
+									}
+									if (event.key === "Enter" || event.key === " ") {
+										event.preventDefault();
+										setViewingSchedule(schedule);
+									}
+								}}
+								role="button"
+								tabIndex={0}
 							>
 								<div className="flex items-center gap-3">
 									<Circle
@@ -1193,25 +1217,13 @@ export function RoutineSchedulesContent({
 											<TooltipTrigger asChild>
 												<Button
 													variant="ghost"
-													size="icon-sm"
-													aria-label={`View ${schedule.name}`}
-													onClick={() => setViewingSchedule(schedule)}
-												>
-													<Eye className="h-3.5 w-3.5" />
-												</Button>
-											</TooltipTrigger>
-											<TooltipContent>View details</TooltipContent>
-										</Tooltip>
-										<Tooltip>
-											<TooltipTrigger asChild>
-												<Button
-													variant="ghost"
-													size="icon-sm"
+													size="icon"
+													className="size-7"
 													aria-label={`Edit ${schedule.name}`}
 													onClick={() => openEditDialog(schedule)}
 													disabled={isBusy}
 												>
-													<Pencil className="h-3.5 w-3.5" />
+													<Pencil className="size-4" />
 												</Button>
 											</TooltipTrigger>
 											<TooltipContent>Edit schedule</TooltipContent>
@@ -1220,15 +1232,16 @@ export function RoutineSchedulesContent({
 											<TooltipTrigger asChild>
 												<Button
 													variant="ghost"
-													size="icon-sm"
+													size="icon"
+													className="size-7"
 													aria-label={`Run ${schedule.name} now`}
 													onClick={() => void triggerSchedule(schedule)}
 													disabled={isBusy}
 												>
 													{triggeringScheduleIds.has(schedule.scheduleId) ? (
-														<RefreshCw className="h-3.5 w-3.5 animate-spin" />
+														<RefreshCw className="size-4 animate-spin" />
 													) : (
-														<PlayIcon className="h-3.5 w-3.5" />
+														<PlayIcon className="size-4" />
 													)}
 												</Button>
 											</TooltipTrigger>
@@ -1238,7 +1251,8 @@ export function RoutineSchedulesContent({
 											<TooltipTrigger asChild>
 												<Button
 													variant="ghost"
-													size="icon-sm"
+													size="icon"
+													className="size-7"
 													aria-label={
 														schedule.enabled
 															? `Pause ${schedule.name}`
@@ -1253,9 +1267,9 @@ export function RoutineSchedulesContent({
 													disabled={isBusy}
 												>
 													{schedule.enabled ? (
-														<Pause className="h-3.5 w-3.5" />
+														<Pause className="size-4" />
 													) : (
-														<Play className="h-3.5 w-3.5" />
+														<Play className="size-4" />
 													)}
 												</Button>
 											</TooltipTrigger>
@@ -1269,12 +1283,13 @@ export function RoutineSchedulesContent({
 											<TooltipTrigger asChild>
 												<Button
 													variant="ghost"
-													size="icon-sm"
+													size="icon"
+													className="size-7"
 													aria-label={`Delete ${schedule.name}`}
 													onClick={() => setSchedulePendingDelete(schedule)}
 													disabled={isBusy}
 												>
-													<Trash2 className="h-3.5 w-3.5" />
+													<Trash2 className="size-4" />
 												</Button>
 											</TooltipTrigger>
 											<TooltipContent>Delete schedule</TooltipContent>
@@ -1408,7 +1423,7 @@ export function RoutineSchedulesContent({
 					}
 				}}
 			>
-				<DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+				<DialogContent className="flex max-h-[85vh] flex-col sm:max-w-2xl">
 					<DialogHeader>
 						<DialogTitle>{viewingSchedule?.name ?? "Schedule"}</DialogTitle>
 						<DialogDescription>
@@ -1416,7 +1431,7 @@ export function RoutineSchedulesContent({
 						</DialogDescription>
 					</DialogHeader>
 					{viewingSchedule && (
-						<Tabs defaultValue="overview">
+						<Tabs className="min-h-0 flex-1" defaultValue="overview">
 							<TabsList>
 								<TabsTrigger value="overview">Overview</TabsTrigger>
 								<TabsTrigger value="runs">
@@ -1429,7 +1444,7 @@ export function RoutineSchedulesContent({
 								</TabsTrigger>
 							</TabsList>
 							<TabsContent
-								className="mt-4 flex flex-col gap-3"
+								className="mt-4 flex min-h-0 flex-1 flex-col gap-3"
 								value="overview"
 							>
 								<div className="grid grid-cols-1 gap-1.5 text-xs sm:grid-cols-2">
@@ -1458,11 +1473,18 @@ export function RoutineSchedulesContent({
 										{formatDateTime(viewingSchedule.nextRunAt)}
 									</p>
 								</div>
-								<pre className="max-h-80 overflow-auto rounded-md border border-border bg-muted/30 p-3 text-xs">
+								{/* The JSON block absorbs the overflow so the dialog
+								    itself never scrolls: min-h-0 lets it shrink to the
+								    space the capped dialog leaves, and it scrolls
+								    internally past that. */}
+								<pre className="min-h-0 overflow-auto rounded-md border border-border bg-muted/30 p-3 text-xs">
 									{JSON.stringify(viewingSchedule, null, 2)}
 								</pre>
 							</TabsContent>
-							<TabsContent className="mt-4" value="runs">
+							<TabsContent
+								className="mt-4 min-h-0 flex-1 overflow-y-auto"
+								value="runs"
+							>
 								<div className="mb-2 flex items-center justify-between">
 									<h3 className="text-sm font-semibold">Runs</h3>
 									<span className="text-xs text-muted-foreground">
@@ -1593,7 +1615,7 @@ export function RoutineSchedulesContent({
 					</DialogHeader>
 
 					<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-						<div className="sm:col-span-2">
+						<div className="sm:col-span-2 space-y-2">
 							<Label htmlFor="routine-name">Name</Label>
 							<Input
 								id="routine-name"
@@ -1611,7 +1633,7 @@ export function RoutineSchedulesContent({
 						<div className="sm:col-span-2 space-y-3">
 							<Label>Schedule</Label>
 							<div className="flex flex-wrap items-end gap-3 rounded-xl border border-border p-3">
-								<div className="min-w-32 flex-1">
+								<div className="min-w-32 flex-1 space-y-2">
 									<Label htmlFor="routine-schedule-type">Frequency</Label>
 									<Select
 										onValueChange={(value) =>
@@ -1639,7 +1661,7 @@ export function RoutineSchedulesContent({
 									</Select>
 								</div>
 								{createForm.scheduleType === "once" && (
-									<div className="min-w-40 flex-1">
+									<div className="min-w-40 flex-1 space-y-2">
 										<Label htmlFor="routine-date">Date</Label>
 										<Input
 											id="routine-date"
@@ -1675,7 +1697,7 @@ export function RoutineSchedulesContent({
 									</div>
 								)}
 								{createForm.scheduleType === "weekly" && (
-									<div className="min-w-44 flex-[1.4]">
+									<div className="min-w-44 flex-[1.4] space-y-2">
 										<Label>Days</Label>
 										<DropdownMenu>
 											<DropdownMenuTrigger asChild>
@@ -1718,7 +1740,7 @@ export function RoutineSchedulesContent({
 										</DropdownMenu>
 									</div>
 								)}
-								<div className="min-w-32 flex-1">
+								<div className="min-w-32 flex-1 space-y-2">
 									<Label htmlFor="routine-time">Time</Label>
 									<Input
 										id="routine-time"
@@ -1751,7 +1773,7 @@ export function RoutineSchedulesContent({
 							</div>
 						</div>
 
-						<div className="sm:col-span-2">
+						<div className="sm:col-span-2 space-y-2">
 							<Label htmlFor="routine-prompt">Prompt</Label>
 							<Textarea
 								id="routine-prompt"
@@ -1766,7 +1788,7 @@ export function RoutineSchedulesContent({
 							/>
 						</div>
 
-						<div>
+						<div className="space-y-2">
 							<Label>Provider</Label>
 							<Combobox
 								items={availableProviders}
@@ -1810,7 +1832,7 @@ export function RoutineSchedulesContent({
 							</Combobox>
 						</div>
 
-						<div>
+						<div className="space-y-2">
 							<Label>Model</Label>
 							<Combobox
 								items={availableModelsForProvider}
@@ -1841,7 +1863,7 @@ export function RoutineSchedulesContent({
 							</Combobox>
 						</div>
 
-						<div className="sm:col-span-2">
+						<div className="sm:col-span-2 space-y-2">
 							<Label htmlFor="routine-workspace">Workspace</Label>
 							<Input
 								id="routine-workspace"
@@ -1855,7 +1877,7 @@ export function RoutineSchedulesContent({
 							/>
 						</div>
 
-						<div className="sm:col-span-2">
+						<div className="sm:col-span-2 space-y-2">
 							<Label htmlFor="routine-system-prompt">
 								System prompt (optional)
 							</Label>
@@ -1872,7 +1894,7 @@ export function RoutineSchedulesContent({
 							/>
 						</div>
 
-						<div>
+						<div className="space-y-2">
 							<Label htmlFor="routine-timeout">
 								Timeout seconds (optional)
 							</Label>
@@ -1889,7 +1911,7 @@ export function RoutineSchedulesContent({
 							/>
 						</div>
 
-						<div>
+						<div className="space-y-2">
 							<Label htmlFor="routine-tags">
 								Tags (comma-separated, optional)
 							</Label>
