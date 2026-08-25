@@ -794,7 +794,10 @@ function ChatThreadPane({
 	initialAttachments?: File[];
 	initialPromptDraft?: string;
 	/** Home-level coordinator owning handoff completion/failure ordering. */
-	handoffLifecycle: Pick<HandoffLifecycle, "onRpcResolved" | "onRpcRejected">;
+	handoffLifecycle: Pick<
+		HandoffLifecycle,
+		"onRpcStarted" | "onRpcResolved" | "onRpcRejected"
+	>;
 	knownWorkspacePaths: string[];
 	onInitialPromptDraftConsumed?: (threadId: string) => void;
 	onUpdateSessionMetadata?: (
