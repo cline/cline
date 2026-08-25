@@ -10,6 +10,7 @@ import type {
 	RuntimeHost,
 } from "../../runtime/host/runtime-host";
 import type { CoreSettingsService } from "../../settings";
+import type { AgendaTaskManagerOptions } from "../../tasks";
 import type { HubOwnerContext } from "../discovery";
 import type { HubEventLogOptions } from "./hub-event-log";
 import type { HubRunQueueOptions } from "./hub-run-queue";
@@ -24,6 +25,8 @@ export interface HubWebSocketServerOptions {
 	sessionHost?: RuntimeHost &
 		Partial<PendingPromptsRuntimeService & CommandExecutionRuntimeService>;
 	settingsService?: CoreSettingsService;
+	/** File/DB/watcher overrides for the Hub-owned agenda task manager. */
+	taskOptions?: Omit<AgendaTaskManagerOptions, "runtime" | "publish">;
 	runtimeHandlers: HubScheduleRuntimeHandlers;
 	scheduleOptions?: Omit<HubScheduleServiceOptions, "runtimeHandlers">;
 	/**

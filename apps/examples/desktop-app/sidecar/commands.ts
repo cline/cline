@@ -776,6 +776,43 @@ async function handleRoutineScheduleCommand(
 }
 
 // ---------------------------------------------------------------------------
+// Agenda task queue helpers (in-process via shared hub server)
+// ---------------------------------------------------------------------------
+
+const AGENDA_TASK_COMMANDS = new Set([
+	"task.create",
+	"task.list",
+	"task.get",
+	"task.update",
+	"task.approve",
+	"task.cancel",
+	"task.run",
+	"task.automation.get",
+	"task.automation.set",
+]);
+
+const AGENDA_TASK_EXECUTION_COMMANDS = new Set([
+	"task.create",
+	"task.approve",
+	"task.cancel",
+	"task.run",
+	"task.automation.set",
+]);
+
+async function handleAgendaTaskCommand(
+	ctx: SidecarContext,
+	command: string,
+	args?: Record<string, unknown>,
+): Promise<unknown> {
+	const hubClient = await ensureSharedHubClient(ctx);
+	const reply = await hubClient.command(command as never, args);
+	if (!reply.ok) {
+		throw new Error(reply.error?.message ?? `hub command failed: ${command}`);
+	}
+	return reply.payload ?? {};
+}
+
+// ---------------------------------------------------------------------------
 // User instruction config listing through the core config service.
 // ---------------------------------------------------------------------------
 
@@ -2104,6 +2141,17 @@ export async function handleCommand(
 		command === "delete_routine_schedule"
 	) {
 		return await handleRoutineScheduleCommand(ctx, command, args);
+	}
+
+	// ── Agenda task queue ─────────────────────────────────────────────
+	if (AGENDA_TASK_COMMANDS.has(command)) {
+		if (
+			AGENDA_TASK_EXECUTION_COMMANDS.has(command) &&
+			!options?.connection?.data?.canApproveTools
+		) {
+			throw new Error("task execution requires a trusted desktop connection");
+		}
+		return await handleAgendaTaskCommand(ctx, command, args);
 	}
 
 	// ── User instruction configs ──────────────────────────────────────
