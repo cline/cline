@@ -3,7 +3,11 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { Provider, VoiceInputSelection } from "@/lib/provider-schema";
+import type {
+	Provider,
+	RealtimeVoiceModeSettings,
+	VoiceOutputModeSettings,
+} from "@/lib/provider-schema";
 import {
 	ProviderDetailContent,
 	ProviderListContent,
@@ -132,16 +136,14 @@ afterEach(async () => {
 	vi.restoreAllMocks();
 });
 
-describe("ProviderListContent voice input settings", () => {
-	it("shows model providers above the mode provider settings", async () => {
+describe("ProviderListContent mode settings", () => {
+	it("keeps mode provider settings available from the model provider list", async () => {
 		await act(async () => {
 			root.render(
 				<ProviderListContent
 					onAddProvider={vi.fn()}
 					onConfigure={vi.fn()}
 					onRealtimeVoiceChange={vi.fn()}
-					onToggle={vi.fn()}
-					onVoiceInputChange={vi.fn()}
 					onVoiceOutputChange={vi.fn()}
 					providers={providers}
 				/>,
@@ -149,7 +151,6 @@ describe("ProviderListContent voice input settings", () => {
 		});
 
 		expect(container.textContent).toContain("Model Providers");
-		expect(container.textContent).toContain("Scroll to view more providers");
 		const modesButton = [...container.querySelectorAll("button")].find(
 			(button) => button.textContent === "Modes",
 		);
@@ -159,14 +160,11 @@ describe("ProviderListContent voice input settings", () => {
 		});
 		expect(document.body.textContent).toContain("Mode Providers");
 		expect(
-			container.querySelector('[aria-label="Model provider list"]')?.className,
-		).toContain("min-h-0");
-		expect(
 			document.querySelector('[data-slot="mode-providers"]')?.className,
 		).toContain("space-y-6");
-		expect(
-			modeQuery('[aria-label="Voice input provider"]'),
-		).not.toBeNull();
+		expect(modeQuery('[aria-label="Voice input provider"]')).toBeNull();
+		expect(modeQuery('[aria-label="Voice output provider"]')).not.toBeNull();
+		expect(modeQuery('[aria-label="Realtime voice provider"]')).not.toBeNull();
 		expect(
 			container.querySelector('[aria-label="Search model providers"]'),
 		).not.toBeNull();
@@ -174,21 +172,16 @@ describe("ProviderListContent voice input settings", () => {
 			container.querySelector('[aria-label="Search providers"]'),
 		).toBeNull();
 		expect(
-			document
-				.querySelector('[aria-label="Voice input provider"]')
-				?.closest('[data-slot="mode-providers"]'),
-		).not.toBeNull();
-		expect(
 			container.querySelector('[aria-label="Toggle model providers"]'),
 		).toBeNull();
 		expect(
 			container.querySelector('[aria-label="Toggle mode providers"]'),
 		).toBeNull();
-			expect(
-				[...container.querySelectorAll("button")].find(
-					(button) => button.textContent === "Modes",
-				),
-			).not.toBeUndefined();
+		expect(
+			[...container.querySelectorAll("button")].find(
+				(button) => button.textContent === "Modes",
+			),
+		).not.toBeUndefined();
 	});
 
 	it("hides mode providers while a model provider is selected", async () => {
@@ -198,8 +191,6 @@ describe("ProviderListContent voice input settings", () => {
 					onAddProvider={vi.fn()}
 					onConfigure={vi.fn()}
 					onRealtimeVoiceChange={vi.fn()}
-					onToggle={vi.fn()}
-					onVoiceInputChange={vi.fn()}
 					onVoiceOutputChange={vi.fn()}
 					providers={providers}
 					selectedProviderId="openai"
@@ -222,8 +213,6 @@ describe("ProviderListContent voice input settings", () => {
 					onAddProvider={vi.fn()}
 					onConfigure={vi.fn()}
 					onRealtimeVoiceChange={vi.fn()}
-					onToggle={vi.fn()}
-					onVoiceInputChange={vi.fn()}
 					onVoiceOutputChange={vi.fn()}
 					providers={providers}
 				/>,
@@ -255,82 +244,6 @@ describe("ProviderListContent voice input settings", () => {
 		expect(document.activeElement).toBe(searchInput);
 	});
 
-	it("lets the user choose and clear the voice provider and model", async () => {
-		const onVoiceInputChange = vi.fn();
-		let selection: VoiceInputModeSettings | undefined = {
-			providerId: "elevenlabs",
-			modelId: "scribe_v2",
-		};
-		const render = async () => {
-			await act(async () => {
-				root.render(
-					<ProviderListContent
-						onAddProvider={vi.fn()}
-						onConfigure={vi.fn()}
-						onRealtimeVoiceChange={vi.fn()}
-						onToggle={vi.fn()}
-						onVoiceInputChange={onVoiceInputChange}
-						onVoiceOutputChange={vi.fn()}
-						providers={providers}
-						voiceInput={selection}
-					/>,
-				);
-			});
-		};
-
-		await render();
-		await openModes();
-		const providerSelect = modeQuery<HTMLSelectElement>(
-			'[aria-label="Voice input provider"]',
-		);
-		const modelSelect = modeQuery<HTMLSelectElement>(
-			'[aria-label="Voice input model"]',
-		);
-		expect(providerSelect?.value).toBe("elevenlabs");
-		expect(modelSelect?.value).toBe("scribe_v2");
-
-		await act(async () => {
-			if (!providerSelect) return;
-			providerSelect.value = "groq";
-			providerSelect.dispatchEvent(new Event("change", { bubbles: true }));
-		});
-		expect(onVoiceInputChange).toHaveBeenLastCalledWith({
-			providerId: "groq",
-			modelId: "whisper-large-v3",
-		});
-
-		selection = {
-			providerId: "groq",
-			modelId: "whisper-large-v3",
-		};
-		await render();
-		await openModes();
-		const groqModelSelect = Array.from(
-			document.querySelectorAll<HTMLSelectElement>(
-				'[aria-label="Voice input model"]',
-			),
-		).find((select) => select.value === "whisper-large-v3");
-		await act(async () => {
-			if (!groqModelSelect) return;
-			groqModelSelect.value = "whisper-large-v3-turbo";
-			groqModelSelect.dispatchEvent(new Event("change", { bubbles: true }));
-		});
-		expect(onVoiceInputChange).toHaveBeenLastCalledWith({
-			providerId: "groq",
-			modelId: "whisper-large-v3-turbo",
-		});
-
-		const groqProviderSelect = modeQuery<HTMLSelectElement>(
-			'[aria-label="Voice input provider"]',
-		);
-		await act(async () => {
-			if (!groqProviderSelect) return;
-			groqProviderSelect.value = "";
-			groqProviderSelect.dispatchEvent(new Event("change", { bubbles: true }));
-		});
-		expect(onVoiceInputChange).toHaveBeenLastCalledWith(undefined);
-	});
-
 	it("lets the user configure a text-to-audio model and provider voice", async () => {
 		const onVoiceOutputChange = vi.fn();
 		let selection: VoiceOutputModeSettings | undefined;
@@ -341,8 +254,6 @@ describe("ProviderListContent voice input settings", () => {
 						onAddProvider={vi.fn()}
 						onConfigure={vi.fn()}
 						onRealtimeVoiceChange={vi.fn()}
-						onToggle={vi.fn()}
-						onVoiceInputChange={vi.fn()}
 						onVoiceOutputChange={onVoiceOutputChange}
 						providers={providers}
 						voiceOutput={selection}
@@ -402,8 +313,6 @@ describe("ProviderListContent voice input settings", () => {
 						onAddProvider={vi.fn()}
 						onConfigure={vi.fn()}
 						onRealtimeVoiceChange={onRealtimeVoiceChange}
-						onToggle={vi.fn()}
-						onVoiceInputChange={vi.fn()}
 						onVoiceOutputChange={vi.fn()}
 						providers={providers}
 						realtimeVoice={selection}
@@ -434,14 +343,12 @@ describe("ProviderListContent voice input settings", () => {
 		await render();
 		await openModes();
 		expect(
-			modeQuery<HTMLSelectElement>(
-				'[aria-label="Realtime voice model"]',
-			)?.value,
+			modeQuery<HTMLSelectElement>('[aria-label="Realtime voice model"]')
+				?.value,
 		).toBe("gemini-3.5-live-translate-preview");
 		expect(
-			modeQuery<HTMLInputElement>(
-				'[aria-label="Realtime voice name"]',
-			)?.placeholder,
+			modeQuery<HTMLInputElement>('[aria-label="Realtime voice name"]')
+				?.placeholder,
 		).toBe("Provider default");
 	});
 });
@@ -576,57 +483,40 @@ describe("ProviderDetailContent model capabilities", () => {
 	});
 });
 
-const voiceProviders: Provider[] = [
+const catalogProviders: Provider[] = [
+	{
+		id: "anthropic",
+		name: "Anthropic",
+		models: 4,
+		color: "#000000",
+		letter: "AN",
+		enabled: true,
+		apiKey: "sk-test",
+		capabilities: ["popular"],
+		modelList: [],
+	},
+	{
+		id: "cline",
+		name: "Cline",
+		models: 12,
+		color: "#000000",
+		letter: "CL",
+		enabled: false,
+		capabilities: ["oauth", "popular"],
+		modelList: [],
+	},
 	{
 		id: "elevenlabs",
 		name: "ElevenLabs",
 		models: 1,
 		color: "#000000",
 		letter: "EL",
-		enabled: true,
-		modelList: [
-			{
-				id: "scribe_v2",
-				name: "Scribe v2",
-				operation: "transcription",
-				inputModalities: ["audio"],
-				outputModalities: ["text"],
-			},
-		],
-	},
-	{
-		id: "groq",
-		name: "Groq",
-		models: 3,
-		color: "#000000",
-		letter: "GR",
-		enabled: true,
-		modelList: [
-			{
-				id: "whisper-large-v3",
-				name: "Whisper Large v3",
-				operation: "transcription",
-				inputModalities: ["audio"],
-				outputModalities: ["text"],
-			},
-			{
-				id: "whisper-large-v3-turbo",
-				name: "Whisper Large v3 Turbo",
-				operation: "transcription",
-				inputModalities: ["audio"],
-				outputModalities: ["text"],
-			},
-			{
-				id: "llama-chat",
-				name: "Llama Chat",
-				inputModalities: ["text"],
-				outputModalities: ["text"],
-			},
-		],
+		enabled: false,
+		modelList: [],
 	},
 ];
 
-describe("ProviderListContent voice input settings", () => {
+describe("ProviderListContent", () => {
 	let container: HTMLDivElement;
 	let root: Root;
 
@@ -643,76 +533,210 @@ describe("ProviderListContent voice input settings", () => {
 		vi.restoreAllMocks();
 	});
 
-	it("lets the user choose and clear the voice provider and model", async () => {
-		const onVoiceInputChange = vi.fn();
-		let selection: VoiceInputSelection | undefined = {
-			providerId: "elevenlabs",
-			modelId: "scribe_v2",
-		};
-		const render = async () => {
-			await act(async () => {
-				root.render(
-					<ProviderListContent
-						onAddProvider={vi.fn()}
-						onConfigure={vi.fn()}
-						onToggle={vi.fn()}
-						onVoiceInputChange={onVoiceInputChange}
-						providers={voiceProviders}
-						voiceInput={selection}
-					/>,
-				);
-			});
-		};
-
-		await render();
-		await openModes();
-		const providerSelect = modeQuery<HTMLSelectElement>(
-			'[aria-label="Voice input provider"]',
-		);
-		const modelSelect = modeQuery<HTMLSelectElement>(
-			'[aria-label="Voice input model"]',
-		);
-		expect(providerSelect?.value).toBe("elevenlabs");
-		expect(modelSelect?.value).toBe("scribe_v2");
-
+	it("groups providers into Configured, Popular, and All providers", async () => {
+		const onConfigure = vi.fn();
 		await act(async () => {
-			if (!providerSelect) return;
-			providerSelect.value = "groq";
-			providerSelect.dispatchEvent(new Event("change", { bubbles: true }));
-		});
-		expect(onVoiceInputChange).toHaveBeenLastCalledWith({
-			providerId: "groq",
-			modelId: "whisper-large-v3",
+			root.render(
+				<ProviderListContent
+					onAddProvider={vi.fn()}
+					onConfigure={onConfigure}
+					providers={catalogProviders}
+				/>,
+			);
 		});
 
-		selection = {
-			providerId: "groq",
-			modelId: "whisper-large-v3",
-		};
-		await render();
-		await openModes();
-		const groqModelSelect = modeQuery<HTMLSelectElement>(
-			'[aria-label="Voice input model"]',
+		const headings = Array.from(container.querySelectorAll("h2")).map(
+			(heading) => heading.textContent,
 		);
+		expect(headings).toEqual(["Configured", "Popular", "All providers"]);
+		// No per-provider enable toggles anymore.
+		expect(container.querySelector('[role="switch"]')).toBeNull();
+		expect(container.textContent).toContain("1 configured");
+
+		const rows = Array.from(container.querySelectorAll("button")).filter(
+			(button) => button.textContent?.includes("Anthropic"),
+		);
+		await act(async () => rows[0]?.click());
+		expect(onConfigure).toHaveBeenCalledWith("anthropic");
+	});
+
+	it("shows connection status and auth kind per row", async () => {
 		await act(async () => {
-			if (!groqModelSelect) return;
-			groqModelSelect.value = "whisper-large-v3-turbo";
-			groqModelSelect.dispatchEvent(new Event("change", { bubbles: true }));
-		});
-		expect(onVoiceInputChange).toHaveBeenLastCalledWith({
-			providerId: "groq",
-			modelId: "whisper-large-v3-turbo",
+			root.render(
+				<ProviderListContent
+					onAddProvider={vi.fn()}
+					onConfigure={vi.fn()}
+					providers={catalogProviders}
+				/>,
+			);
 		});
 
-		const groqProviderSelect = modeQuery<HTMLSelectElement>(
-			'[aria-label="Voice input provider"]',
+		const rowFor = (name: string) =>
+			Array.from(container.querySelectorAll("button")).find((button) =>
+				button.textContent?.includes(name),
+			);
+		expect(rowFor("Anthropic")?.textContent).toContain("Configured");
+		expect(rowFor("Cline")?.textContent).toContain("Sign in");
+		expect(rowFor("ElevenLabs")?.textContent).toContain("API key");
+	});
+
+	it("filters providers by search across every group", async () => {
+		await act(async () => {
+			root.render(
+				<ProviderListContent
+					onAddProvider={vi.fn()}
+					onConfigure={vi.fn()}
+					providers={catalogProviders}
+				/>,
+			);
+		});
+
+		const search = container.querySelector<HTMLInputElement>(
+			'[aria-label="Search model providers"]',
 		);
 		await act(async () => {
-			if (!groqProviderSelect) return;
-			groqProviderSelect.value = "";
-			groqProviderSelect.dispatchEvent(new Event("change", { bubbles: true }));
+			const setter = Object.getOwnPropertyDescriptor(
+				HTMLInputElement.prototype,
+				"value",
+			)?.set;
+			setter?.call(search, "eleven");
+			search?.dispatchEvent(new Event("input", { bubbles: true }));
 		});
-		expect(onVoiceInputChange).toHaveBeenLastCalledWith(undefined);
+		expect(container.textContent).toContain("ElevenLabs");
+		expect(container.textContent).not.toContain("Anthropic");
+	});
+});
+
+describe("ProviderDetailContent auth flows", () => {
+	let container: HTMLDivElement;
+	let root: Root;
+
+	beforeEach(() => {
+		Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+		container = document.createElement("div");
+		document.body.appendChild(container);
+		root = createRoot(container);
+		// "cline" is a featured provider, so mounting its detail refreshes the
+		// model list; resolve it to keep the auth assertions deterministic.
+		loadProviderModelsMock.mockReset().mockResolvedValue([]);
+	});
+
+	afterEach(async () => {
+		await act(async () => root.unmount());
+		container.remove();
+		vi.restoreAllMocks();
+	});
+
+	const signInProvider: Provider = {
+		id: "cline",
+		name: "Cline",
+		models: 0,
+		color: "#000",
+		letter: "CL",
+		enabled: false,
+		capabilities: ["oauth"],
+		configFields: [
+			{
+				path: "apiKey",
+				label: "API Key",
+				type: "password",
+				secret: true,
+			},
+		],
+		modelList: [],
+	};
+
+	it("shows browser sign-in instead of an API key field for OAuth providers", async () => {
+		const onOAuthLogin = vi.fn();
+		await act(async () => {
+			root.render(
+				<ProviderDetailContent
+					onBack={vi.fn()}
+					onOAuthLogin={onOAuthLogin}
+					onUpdate={vi.fn()}
+					provider={signInProvider}
+				/>,
+			);
+		});
+
+		expect(container.textContent).toContain("Sign in with browser");
+		expect(container.textContent).toContain("Not configured");
+		// The API key input stays collapsed until explicitly requested.
+		expect(container.querySelector('input[type="password"]')).toBeNull();
+
+		const signIn = Array.from(container.querySelectorAll("button")).find(
+			(button) => button.textContent?.includes("Sign in with browser"),
+		);
+		await act(async () => signIn?.click());
+		expect(onOAuthLogin).toHaveBeenCalledOnce();
+
+		const manualKey = Array.from(container.querySelectorAll("button")).find(
+			(button) => button.textContent?.includes("Use an API key instead"),
+		);
+		await act(async () => manualKey?.click());
+		expect(container.querySelector('input[type="password"]')).not.toBeNull();
+	});
+
+	it("offers sign out when OAuth is connected", async () => {
+		const onDisconnect = vi.fn();
+		await act(async () => {
+			root.render(
+				<ProviderDetailContent
+					onBack={vi.fn()}
+					onDisconnect={onDisconnect}
+					onUpdate={vi.fn()}
+					provider={{
+						...signInProvider,
+						enabled: true,
+						oauthAccessTokenPresent: true,
+					}}
+				/>,
+			);
+		});
+
+		expect(container.textContent).toContain("Signed in via browser");
+		expect(container.textContent).toContain("Configured");
+		const signOut = Array.from(container.querySelectorAll("button")).find(
+			(button) => button.textContent === "Sign out",
+		);
+		await act(async () => signOut?.click());
+		expect(onDisconnect).toHaveBeenCalledOnce();
+	});
+
+	it("offers connect and disconnect for API-key providers", async () => {
+		const onConnect = vi.fn();
+		await act(async () => {
+			root.render(
+				<ProviderDetailContent
+					onBack={vi.fn()}
+					onConnect={onConnect}
+					onUpdate={vi.fn()}
+					provider={{ ...provider, enabled: false }}
+				/>,
+			);
+		});
+		const connect = Array.from(container.querySelectorAll("button")).find(
+			(button) => button.textContent === "Connect",
+		);
+		await act(async () => connect?.click());
+		expect(onConnect).toHaveBeenCalledOnce();
+
+		const onDisconnect = vi.fn();
+		await act(async () => {
+			root.render(
+				<ProviderDetailContent
+					onBack={vi.fn()}
+					onDisconnect={onDisconnect}
+					onUpdate={vi.fn()}
+					provider={{ ...provider, apiKey: "sk-test" }}
+				/>,
+			);
+		});
+		const disconnect = Array.from(container.querySelectorAll("button")).find(
+			(button) => button.textContent === "Disconnect",
+		);
+		await act(async () => disconnect?.click());
+		expect(onDisconnect).toHaveBeenCalledOnce();
 	});
 });
 

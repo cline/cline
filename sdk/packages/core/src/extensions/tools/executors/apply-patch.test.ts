@@ -131,6 +131,31 @@ describe("createApplyPatchExecutor", () => {
 		await expect(fs.readFile(filePath, "utf-8")).resolves.toBe("hello");
 	});
 
+	// The CRLF branch is exercised for real by Windows CI, where os.EOL is
+	// "\r\n" (github.com/cline/cline/issues/13504).
+	it("adds new files with the platform-native line ending", async () => {
+		const filePath = path.join(tempDir, "added.txt");
+		const execute = createApplyPatchExecutor();
+
+		await execute(
+			{
+				input: [
+					"*** Begin Patch",
+					"*** Add File: added.txt",
+					"+one",
+					"+two",
+					"*** End Patch",
+				].join("\n"),
+			},
+			tempDir,
+			{} as never,
+		);
+
+		await expect(fs.readFile(filePath, "utf-8")).resolves.toBe(
+			["one", "two"].join(os.EOL),
+		);
+	});
+
 	it("rejects incomplete patch sentinels", async () => {
 		const execute = createApplyPatchExecutor();
 

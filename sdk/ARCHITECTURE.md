@@ -130,12 +130,16 @@ Completion telemetry is anchored to the assistant's explicit completion
 declaration, not session shutdown. After each agent turn, the local
 runtime inspects `AgentResult.toolCalls` and emits `task.completed` the
 moment a successful `submit_and_exit` (the SDK analog of original
-Cline's `attempt_completion`) is observed. `shutdownSession(...)`
-retains a fallback emission for completed sessions that finished
-without an explicit completion-tool observation, so non-interactive
-runs not using the yolo preset still produce a `task.completed` signal.
-Each session emits at most one `task.completed`. See `DOC.md` for the
-event payload and `source` field.
+Cline's `attempt_completion`) is observed. A single teardown choke
+point (`emitTaskCompletedOnTeardown(...)`) retains a fallback emission
+for sessions whose final turn finished cleanly without an explicit
+completion-tool observation (non-interactive runs not using the yolo
+preset, or hosts that disable `submit_and_exit`). It is invoked from
+every session exit path — both `shutdownSession(...)` and
+`releaseSessionRuntime(...)` — so the emission never depends on which
+teardown branch a stop routes through. Each session emits at most one
+`task.completed`. See `DOC.md` for the event payload and `source`
+field.
 
 ### Hub-Backed Runtime
 
@@ -560,6 +564,13 @@ separate from cron specs, queued prompts inside an existing session, and the
 agent-team task board. Shared, browser-safe contracts use `AgendaTaskRecord`
 and `AgendaTaskRunRecord`; orchestration and persistence remain in
 `@cline/core`.
+
+> **Status:** the agent-facing `kind: "todo"` half of the `tasks` tool and the
+> desktop Agenda UI are temporarily disabled while the Agenda UX is reworked
+> (`AGENDA_TODO_TOOL_ENABLED` in `hub-server-transport.ts` and
+> `AGENDA_UI_ENABLED` in the desktop webview). The backend described below —
+> the manager, storage, `task.*` Hub commands, and desktop plumbing — stays
+> fully wired, and the schedule kind remains active.
 
 ### Authority and persistence
 

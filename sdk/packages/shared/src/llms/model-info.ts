@@ -32,7 +32,6 @@ export const ModelCapabilitySchema = z.enum([
 	"structured_output",
 	"temperature",
 	"files",
-	"transcription-streaming",
 ]);
 
 export type ModelCapability = z.infer<typeof ModelCapabilitySchema>;

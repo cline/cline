@@ -11,6 +11,7 @@
 import type { ITelemetryService, OAuthCredentials, ProviderSettings } from "@cline/core"
 import {
 	createOAuthClientCallbacks,
+	getProviderAuthStorageId,
 	getValidClineCredentials,
 	hashSecret,
 	loginClineOAuth,
@@ -184,13 +185,21 @@ function writeClineCredentials(credentials: {
 			auth.expiresAt = credentials.expiresAt
 		}
 
+		// Token refreshes and startup restores also land here. Only claim the
+		// last-used slot when the current selection isn't already a provider
+		// backed by this credential entry (cline-pass stores under "cline") —
+		// otherwise every refresh resets a ClinePass selection back to
+		// usage-billing in the shared providers.json (#13501).
+		const lastUsedProvider = manager.read().lastUsedProvider
+		const setLastUsed = getProviderAuthStorageId(lastUsedProvider ?? "") !== "cline"
+
 		manager.saveProviderSettings(
 			{
 				...(existing ?? { provider: "cline" }),
 				provider: "cline",
 				auth: auth as { accessToken?: string; refreshToken?: string; accountId?: string; metadata?: AuthMetadata },
 			},
-			{ tokenSource: "oauth", setLastUsed: true },
+			{ tokenSource: "oauth", setLastUsed },
 		)
 		sdkDebug(
 			`[SdkAuthService] writeClineCredentials: wrote (accessHash=${hashSecret(credentials.accessToken)}, refreshHash=${hashSecret(credentials.refreshToken)}, expiresAt=${credentials.expiresAt}, sessionStartedAtMs=${sessionStartedAtMs})`,
