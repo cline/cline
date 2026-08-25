@@ -376,7 +376,34 @@ describe("cloud handoff lifecycle: event/RPC ordering races", () => {
 		});
 	});
 
-	it("keeps a timed-out attempt authoritative when its retry is rejected before sidecar acceptance", async () => {
+	it("keeps the edited retry payload after consecutive preflight failures", async () => {
+		const h = makeHarness();
+		const originalAttachment = makeAttachment("original.png");
+		const retryAttachment = makeAttachment("retry.png");
+		const originalAttemptId = h.lifecycle.onRpcStarted(SOURCE);
+		await h.lifecycle.onRpcRejected(SOURCE, {
+			handoffAttemptId: originalAttemptId,
+			error: new Error("first preflight failed"),
+			nextCommand: "original command",
+			sourceAttachments: [originalAttachment],
+		});
+
+		const retryAttemptId = h.lifecycle.onRpcStarted(SOURCE);
+		await h.lifecycle.onRpcRejected(SOURCE, {
+			handoffAttemptId: retryAttemptId,
+			error: new Error("retry preflight failed"),
+			nextCommand: "edited retry command",
+			sourceAttachments: [retryAttachment],
+		});
+
+		expect(h.getState()[SOURCE]).toMatchObject({
+			status: "failed",
+			retryDraft: "/handoff edited retry command",
+			retryAttachments: [retryAttachment],
+		});
+	});
+
+	it("restores only the matching payload when an older timed-out attempt completes", async () => {
 		const h = makeHarness();
 		const originalAttachment = makeAttachment("original.png");
 		const retryAttachment = makeAttachment("retry.png");
@@ -399,8 +426,8 @@ describe("cloud handoff lifecycle: event/RPC ordering races", () => {
 		});
 		expect(h.getState()[SOURCE]).toMatchObject({
 			status: "failed",
-			retryDraft: "/handoff original command",
-			retryAttachments: [originalAttachment],
+			retryDraft: "/handoff retry command",
+			retryAttachments: [retryAttachment],
 		});
 
 		await h.lifecycle.onEvent(
@@ -413,6 +440,44 @@ describe("cloud handoff lifecycle: event/RPC ordering races", () => {
 			silent: true,
 			initialPromptDraft: "original command",
 			initialAttachments: [originalAttachment],
+		});
+		expect(h.getState()[SOURCE]).toMatchObject({ status: "complete" });
+	});
+
+	it("accepts a matching retry completion even when all of its progress was lost", async () => {
+		const h = makeHarness();
+		const originalAttemptId = h.lifecycle.onRpcStarted(SOURCE);
+		await h.lifecycle.onEvent({
+			sourceSessionId: SOURCE,
+			handoffAttemptId: originalAttemptId,
+			phase: "creating",
+		});
+		await h.lifecycle.onRpcRejected(SOURCE, {
+			handoffAttemptId: originalAttemptId,
+			error: new Error("original request timed out"),
+			nextCommand: "original command",
+			sourceAttachments: [makeAttachment("original.png")],
+		});
+
+		const retryAttachment = makeAttachment("retry.png");
+		const retryAttemptId = h.lifecycle.onRpcStarted(SOURCE);
+		await h.lifecycle.onRpcRejected(SOURCE, {
+			handoffAttemptId: retryAttemptId,
+			error: new Error("retry transport failed"),
+			nextCommand: "retry command",
+			sourceAttachments: [retryAttachment],
+		});
+
+		await h.lifecycle.onEvent(
+			completeEvent({
+				handoffAttemptId: retryAttemptId,
+				warningKind: "unqueued",
+			}),
+		);
+		expect(h.openSession).toHaveBeenCalledExactlyOnceWith(TARGET, {
+			silent: true,
+			initialPromptDraft: "retry command",
+			initialAttachments: [retryAttachment],
 		});
 		expect(h.getState()[SOURCE]).toMatchObject({ status: "complete" });
 	});

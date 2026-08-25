@@ -112,14 +112,13 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 	// completion event and the RPC result both carry the warning; whichever
 	// lands first claims it here so the user never sees it twice.
 	const surfacedWarnings = new Set<string>();
-	// Authoritative completions recorded SYNCHRONOUSLY at event arrival: the
-	// pane's reducer-fed ref only updates after a re-render, so an RPC
-	// rejection landing in the same tick would otherwise miss the completion.
+	// Authoritative completions recorded SYNCHRONOUSLY by attempt at event
+	// arrival: the pane's reducer-fed ref only updates after a re-render, so an
+	// RPC rejection landing in the same tick would otherwise miss its matching
+	// completion.
 	const completions = new Map<string, HandoffCompletionRecord>();
-	// Retry payloads recorded SYNCHRONOUSLY when an RPC rejection saves
-	// recovery state. If the authoritative completion arrives afterward, keep
-	// this payload and the reducer's recovery entry until the target confirms
-	// that it opened with the unsent command and attachments.
+	// Retry payloads belong to the attempt that submitted them. This prevents a
+	// delayed completion for A from ever restoring B's edited command or files.
 	const retryStates = new Map<
 		string,
 		{ command?: string; attachments?: File[] }
@@ -128,28 +127,35 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 	// the first attempt fails, the reducer and retry registry remain the user's
 	// recovery surface instead of an event replay repeatedly stealing focus.
 	const recoveryOpenAttempts = new Set<string>();
-	const activeAttempts = new Map<string, string>();
-	// A retry is only authoritative after the sidecar acknowledges it with
-	// correlated progress (or its RPC succeeds). Until then, the previous
-	// timed-out attempt may still complete and must remain eligible.
-	const pendingAttempts = new Map<string, string>();
+	const latestAttempts = new Map<string, string>();
+	const acceptedAttempts = new Map<string, string>();
+	const attemptOrders = new Map<string, number>();
+	let nextAttemptOrder = 0;
 
-	const clearAttemptState = (sourceSessionId: string) => {
-		surfacedWarnings.delete(sourceSessionId);
-		completions.delete(sourceSessionId);
-		retryStates.delete(sourceSessionId);
-		recoveryOpenAttempts.delete(sourceSessionId);
-	};
+	const attemptKey = (sourceSessionId: string, attemptId?: string) =>
+		attemptId ?? sourceSessionId;
 
-	const promotePendingAttempt = (
+	// Correlated progress or a successful RPC positively establishes an
+	// attempt. Missing progress does not: a later completion can still prove
+	// that a newer retry was accepted. The local order lets a positively
+	// established newer attempt reject genuinely stale older events.
+	const acceptAttempt = (
 		sourceSessionId: string,
-		attemptId: string,
+		attemptId?: string,
 	): boolean => {
-		if (activeAttempts.get(sourceSessionId) === attemptId) return true;
-		if (pendingAttempts.get(sourceSessionId) !== attemptId) return false;
-		clearAttemptState(sourceSessionId);
-		activeAttempts.set(sourceSessionId, attemptId);
-		pendingAttempts.delete(sourceSessionId);
+		if (!attemptId) {
+			return !latestAttempts.has(sourceSessionId);
+		}
+		const order = attemptOrders.get(attemptId) ?? 0;
+		const accepted = acceptedAttempts.get(sourceSessionId);
+		if (
+			accepted &&
+			accepted !== attemptId &&
+			order < (attemptOrders.get(accepted) ?? 0)
+		) {
+			return false;
+		}
+		acceptedAttempts.set(sourceSessionId, attemptId);
 		return true;
 	};
 
@@ -170,28 +176,18 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 		/** Starts a distinct RPC attempt for this source session. */
 		onRpcStarted(sourceSessionId: string): string {
 			const attemptId = crypto.randomUUID();
-			if (activeAttempts.has(sourceSessionId)) {
-				pendingAttempts.set(sourceSessionId, attemptId);
-			} else {
-				clearAttemptState(sourceSessionId);
-				activeAttempts.set(sourceSessionId, attemptId);
-			}
+			attemptOrders.set(attemptId, ++nextAttemptOrder);
+			latestAttempts.set(sourceSessionId, attemptId);
+			surfacedWarnings.delete(sourceSessionId);
 			return attemptId;
 		},
 
 		/** Handles a validated `cloud_handoff_progress` event. */
 		async onEvent(progress: HandoffProgressEventPayload): Promise<void> {
 			const { sourceSessionId, handoffAttemptId } = progress;
-			const activeAttempt = activeAttempts.get(sourceSessionId);
-			if (activeAttempt && handoffAttemptId !== activeAttempt) {
-				if (
-					!handoffAttemptId ||
-					!promotePendingAttempt(sourceSessionId, handoffAttemptId)
-				) {
-					return;
-				}
-			}
+			if (!acceptAttempt(sourceSessionId, handoffAttemptId)) return;
 			const acceptedAttempt = handoffAttemptId;
+			const key = attemptKey(sourceSessionId, handoffAttemptId);
 			let preserveRecoveryState = false;
 			if (
 				progress.phase === "complete" &&
@@ -199,7 +195,7 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 				progress.dashboardUrl?.trim()
 			) {
 				const targetSessionId = progress.sessionId.trim();
-				completions.set(progress.sourceSessionId, {
+				completions.set(key, {
 					targetSessionId,
 					dashboardUrl: progress.dashboardUrl,
 					externalPresentation: progress.destination === "external",
@@ -209,15 +205,15 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 				// unqueued command and attachments from here because the RPC path
 				// already took its failure branch. Only then may the receipt
 				// replace the saved recovery state.
-				const saved = retryStates.get(progress.sourceSessionId);
+				const saved = retryStates.get(key);
 				if (progress.warningKind === "unqueued" && saved) {
 					const draft = progress.undeliveredCommand ?? saved.command;
 					if (
 						(draft || saved.attachments?.length) &&
 						progress.destination !== "external"
 					) {
-						if (!recoveryOpenAttempts.has(progress.sourceSessionId)) {
-							recoveryOpenAttempts.add(progress.sourceSessionId);
+						if (!recoveryOpenAttempts.has(key)) {
+							recoveryOpenAttempts.add(key);
 							const opened = await Promise.resolve()
 								.then(() =>
 									effects.openSession(targetSessionId, {
@@ -231,12 +227,12 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 								.catch(() => false);
 							if (
 								acceptedAttempt &&
-								activeAttempts.get(sourceSessionId) !== acceptedAttempt
+								acceptedAttempts.get(sourceSessionId) !== acceptedAttempt
 							) {
 								return;
 							}
 							if (opened) {
-								retryStates.delete(progress.sourceSessionId);
+								retryStates.delete(key);
 							} else {
 								preserveRecoveryState = true;
 							}
@@ -244,7 +240,7 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 							preserveRecoveryState = true;
 						}
 					} else {
-						retryStates.delete(progress.sourceSessionId);
+						retryStates.delete(key);
 					}
 				}
 			}
@@ -276,21 +272,6 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 			sourceSessionId: string,
 			ctx: HandoffRpcResolvedContext,
 		): Promise<void> {
-			if (ctx.handoffAttemptId) {
-				const activeAttempt = activeAttempts.get(sourceSessionId);
-				if (activeAttempt !== ctx.handoffAttemptId) {
-					if (pendingAttempts.get(sourceSessionId) !== ctx.handoffAttemptId) {
-						return;
-					}
-					// A completion already accepted for the prior attempt means this
-					// retry joined that same sidecar request. Do not reopen its target.
-					if (completions.has(sourceSessionId)) {
-						pendingAttempts.delete(sourceSessionId);
-						return;
-					}
-					promotePendingAttempt(sourceSessionId, ctx.handoffAttemptId);
-				}
-			}
 			const { result, nextCommand, sourceAttachments, pendingPrompt } = ctx;
 			const targetSessionId = (
 				result.outerSessionId ||
@@ -301,6 +282,7 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 			if (!targetSessionId || !dashboardUrl) {
 				throw new Error("Cloud handoff did not return a cloud session.");
 			}
+			if (!acceptAttempt(sourceSessionId, ctx.handoffAttemptId)) return;
 			const receipt = { targetSessionId, dashboardUrl };
 			const destination = result.destination ?? "in_app";
 			effects.dispatch({
@@ -395,38 +377,13 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 			ctx: HandoffRpcRejectedContext,
 		): Promise<void> {
 			const { error, nextCommand, sourceAttachments } = ctx;
-			if (
-				ctx.handoffAttemptId &&
-				activeAttempts.get(sourceSessionId) !== ctx.handoffAttemptId
-			) {
-				if (pendingAttempts.get(sourceSessionId) !== ctx.handoffAttemptId) {
-					return;
-				}
-				pendingAttempts.delete(sourceSessionId);
-				// The sidecar rejected this retry before acknowledging it. Restore
-				// the prior timed-out attempt's recovery surface and keep accepting
-				// its authoritative completion.
-				const saved = retryStates.get(sourceSessionId);
-				if (saved) {
-					effects.dispatch({
-						type: "failed",
-						sourceSessionId,
-						exposeRecovery: true,
-						retryDraft: saved.command
-							? `/handoff ${saved.command}`
-							: "/handoff",
-						retryAttachments: saved.attachments ?? [],
-					});
-				}
-				toastFailure(error);
-				return;
-			}
+			const key = attemptKey(sourceSessionId, ctx.handoffAttemptId);
 			// The authoritative completion event may have landed while the
 			// RPC transport failed; the handoff succeeded, so a destructive
 			// "failed" toast would contradict the visible receipt.
 			// The reducer-fed entry lags a render; this registry is written
 			// synchronously at event arrival and wins the same-tick race.
-			const syncCompletion = completions.get(sourceSessionId);
+			const syncCompletion = completions.get(key);
 			const completedEntry = syncCompletion
 				? {
 						receipt: {
@@ -436,7 +393,9 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 						externalPresentation: syncCompletion.externalPresentation,
 						warningKind: syncCompletion.warningKind,
 					}
-				: ctx.reducerEntryIsComplete;
+				: ctx.handoffAttemptId
+					? undefined
+					: ctx.reducerEntryIsComplete;
 			if (completedEntry) {
 				// The event told the user their command was kept; honor that
 				// even though the RPC (the usual restoration driver) is gone.
@@ -490,12 +449,18 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 			// completion lands after this rejection, the reducer replaces the
 			// failed entry, and the event path restores the command and
 			// attachments from this registry.
-			retryStates.set(sourceSessionId, {
+			retryStates.set(key, {
 				...(nextCommand.trim() ? { command: nextCommand.trim() } : {}),
 				...(sourceAttachments.length > 0
 					? { attachments: sourceAttachments }
 					: {}),
 			});
+			if (
+				ctx.handoffAttemptId &&
+				latestAttempts.get(sourceSessionId) !== ctx.handoffAttemptId
+			) {
+				return;
+			}
 			effects.dispatch({
 				type: "failed",
 				sourceSessionId,
