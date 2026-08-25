@@ -116,6 +116,14 @@ function sessionIsVisible(title: string): boolean {
 	);
 }
 
+function sessionRow(title: string): HTMLButtonElement {
+	const row = [...container.querySelectorAll<HTMLButtonElement>("button")].find(
+		(button) => button.querySelector("span")?.textContent === title,
+	);
+	expect(row).toBeDefined();
+	return row as HTMLButtonElement;
+}
+
 const signedInUser = {
 	id: "user-1",
 	email: "beatrix@cline.bot",
@@ -179,145 +187,95 @@ afterEach(async () => {
 });
 
 describe("AgentSidebar session organization", () => {
-	it("groups scheduled sessions into a collapsible Scheduled section", async () => {
+	it("marks scheduled sessions with a clock icon in the row", async () => {
 		const scheduled = {
-			...makeThread("scheduled", 1),
+			...makeThread("alpha", 1),
 			source: "core",
 			isScheduled: true,
 		};
-		const regular = { ...makeThread("regular", 1), source: "core" };
-
-		await act(async () => {
-			root.render(
-				<SidebarProvider>
-					<AgentSidebar
-						activeSessionId={null}
-						onHome={vi.fn()}
-						onSettingsSectionChange={vi.fn()}
-						sessionHistory={makeSessionHistory([scheduled, regular], vi.fn())}
-						setView={vi.fn()}
-						settingsSection="General"
-						view="chat"
-					/>
-				</SidebarProvider>,
-			);
-		});
-
-		expect(sessionIsVisible("scheduled session 1")).toBe(true);
-		expect(sessionIsVisible("regular session 1")).toBe(true);
-		const scheduledHeader = buttonWithText("Scheduled");
-		const tasksHeader = buttonWithText("Tasks");
-		expect(scheduledHeader.getAttribute("aria-expanded")).toBe("true");
-		expect(tasksHeader.getAttribute("aria-expanded")).toBe("true");
-
-		// The scheduled and pinned categories replaced the old filter options.
-		await click(
-			container.querySelector('[aria-label="Filter sessions"]') as Element,
-		);
-		await vi.waitFor(() => {
-			expect(
-				document.querySelectorAll('[role="menuitemradio"]').length,
-			).toBeGreaterThan(0);
-		});
-		const filterOptionLabels = [
-			...document.querySelectorAll<HTMLElement>('[role="menuitemradio"]'),
-		].map((option) => option.textContent);
-		expect(filterOptionLabels).not.toContain("Schedules");
-		expect(filterOptionLabels).not.toContain("Favorites");
-
-		await click(scheduledHeader);
-		expect(sessionIsVisible("scheduled session 1")).toBe(false);
-		expect(sessionIsVisible("regular session 1")).toBe(true);
-	});
-
-	it("shows pinned sessions in a Pinned section ahead of Tasks", async () => {
-		const pinned = { ...makeThread("pinned", 1), pinned: true };
-		const regular = makeThread("regular", 1);
-
-		await act(async () => {
-			root.render(
-				<SidebarProvider>
-					<AgentSidebar
-						activeSessionId={null}
-						onHome={vi.fn()}
-						onNewThread={vi.fn()}
-						onSettingsSectionChange={vi.fn()}
-						sessionHistory={makeSessionHistory([regular, pinned], vi.fn())}
-						setView={vi.fn()}
-						settingsSection="General"
-						view="chat"
-					/>
-				</SidebarProvider>,
-			);
-		});
-
-		expect(sessionIsVisible("pinned session 1")).toBe(true);
-		expect(sessionIsVisible("regular session 1")).toBe(true);
-		expect(container.querySelector('[aria-label="Pinned"]')).not.toBeNull();
-		const pinnedHeader = buttonWithText("Pinned");
-		const tasksHeader = buttonWithText("Tasks");
-		expect(
-			pinnedHeader.compareDocumentPosition(tasksHeader) &
-				Node.DOCUMENT_POSITION_FOLLOWING,
-		).toBeTruthy();
-
-		await click(pinnedHeader);
-		expect(sessionIsVisible("pinned session 1")).toBe(false);
-		expect(sessionIsVisible("regular session 1")).toBe(true);
-	});
-
-	it("keeps growing history when a fetch adds no tasks and more remain", async () => {
-		const scheduled = Array.from({ length: 8 }, (_, index) => ({
-			...makeThread("cron", index + 1),
+		const pinnedScheduled = {
+			...makeThread("alpha", 2),
 			isScheduled: true,
-		}));
-		const tasks = Array.from({ length: 5 }, (_, index) =>
-			makeThread("plain", index + 1),
-		);
-		const loadOlderSessions = vi.fn(async () => true);
-		const renderSidebar = async (isLoadingMore: boolean) => {
-			await act(async () => {
-				root.render(
-					<SidebarProvider>
-						<AgentSidebar
-							activeSessionId={null}
-							onHome={vi.fn()}
-							onSettingsSectionChange={vi.fn()}
-							sessionHistory={makeSessionHistory(
-								[...scheduled, ...tasks],
-								vi.fn(),
-								{
-									isLoadingMore,
-									loadOlderSessions,
-									mayHaveMoreSessions: true,
-								},
-							)}
-							setView={vi.fn()}
-							settingsSection="General"
-							view="chat"
-						/>
-					</SidebarProvider>,
-				);
-			});
+			pinned: true,
 		};
+		const regular = { ...makeThread("alpha", 3), source: "core" };
 
-		await renderSidebar(false);
-		expect(loadOlderSessions).not.toHaveBeenCalled();
+		await act(async () => {
+			root.render(
+				<SidebarProvider>
+					<AgentSidebar
+						activeSessionId={null}
+						onHome={vi.fn()}
+						onSettingsSectionChange={vi.fn()}
+						sessionHistory={makeSessionHistory(
+							[scheduled, pinnedScheduled, regular],
+							vi.fn(),
+						)}
+						setView={vi.fn()}
+						settingsSection="General"
+						view="chat"
+					/>
+				</SidebarProvider>,
+			);
+		});
 
-		// Five loaded tasks cannot fill the requested page of 20, so the
-		// page-fill effect grows the history window.
-		await click(buttonWithText("Show more"));
-		expect(loadOlderSessions).toHaveBeenCalledOnce();
+		// The clock marks scheduled rows inline; a pinned scheduled session
+		// shows both indicators at once.
+		expect(
+			sessionRow("alpha session 1").querySelector('[aria-label="Scheduled"]'),
+		).not.toBeNull();
+		expect(
+			sessionRow("alpha session 1").querySelector('[aria-label="Pinned"]'),
+		).toBeNull();
+		expect(
+			sessionRow("alpha session 2").querySelector('[aria-label="Scheduled"]'),
+		).not.toBeNull();
+		expect(
+			sessionRow("alpha session 2").querySelector('[aria-label="Pinned"]'),
+		).not.toBeNull();
+		expect(
+			sessionRow("alpha session 3").querySelector('[aria-label="Scheduled"]'),
+		).toBeNull();
 
-		// Simulate that fetch settling without adding any tasks (the batch was
-		// all scheduled sessions): with more history remaining, the effect
-		// asks again instead of leaving the click without visible progress.
-		await renderSidebar(true);
-		await renderSidebar(false);
-		expect(loadOlderSessions).toHaveBeenCalledTimes(2);
+		// The old Pinned/Scheduled/Tasks category sections are gone.
+		expect(container.textContent).not.toContain("Scheduled");
+		expect(container.textContent).not.toContain("Tasks");
 	});
 
-	it("halts page-fill retries after a failed fetch until the next click", async () => {
+	it("pins sessions to the top of their project group", async () => {
+		const pinned = { ...makeThread("alpha", 3), pinned: true };
+		const threads = [makeThread("alpha", 1), makeThread("alpha", 2), pinned];
+
+		await act(async () => {
+			root.render(
+				<SidebarProvider>
+					<AgentSidebar
+						activeSessionId={null}
+						onHome={vi.fn()}
+						onSettingsSectionChange={vi.fn()}
+						sessionHistory={makeSessionHistory(threads, vi.fn())}
+						setView={vi.fn()}
+						settingsSection="General"
+						view="chat"
+					/>
+				</SidebarProvider>,
+			);
+		});
+
+		// The pinned session leads its project group despite being the oldest
+		// entry in history order, and carries the pin icon inline.
+		const pinnedRow = sessionRow("alpha session 3");
+		expect(pinnedRow.querySelector('[aria-label="Pinned"]')).not.toBeNull();
+		for (const title of ["alpha session 1", "alpha session 2"]) {
+			expect(
+				pinnedRow.compareDocumentPosition(sessionRow(title)) &
+					Node.DOCUMENT_POSITION_FOLLOWING,
+			).toBeTruthy();
+		}
+		expect(container.textContent).not.toContain("Pinned");
+	});
+
+	it("loads older history only on explicit Show more clicks", async () => {
 		const tasks = Array.from({ length: 5 }, (_, index) =>
 			makeThread("plain", index + 1),
 		);
@@ -348,13 +306,12 @@ describe("AgentSidebar session organization", () => {
 		await click(buttonWithText("Show more"));
 		expect(loadOlderSessions).toHaveBeenCalledOnce();
 
-		// The failed fetch settles with nothing changed; retrying automatically
-		// would loop the same failing request and re-toast the error forever.
+		// A settled fetch never triggers an automatic follow-up request; only
+		// another explicit click asks for more history.
 		await renderSidebar(true);
 		await renderSidebar(false);
 		expect(loadOlderSessions).toHaveBeenCalledOnce();
 
-		// An explicit click clears the halt and retries.
 		await click(buttonWithText("Show more"));
 		expect(loadOlderSessions).toHaveBeenCalledTimes(2);
 	});
@@ -366,7 +323,6 @@ describe("AgentSidebar session organization", () => {
 					<AgentSidebar
 						activeSessionId={null}
 						onHome={vi.fn()}
-						onNewThread={vi.fn()}
 						onSettingsSectionChange={vi.fn()}
 						sessionHistory={makeSessionHistory(
 							[makeThread("plain", 1)],
@@ -507,7 +463,7 @@ describe("AgentSidebar session organization", () => {
 		);
 	});
 
-	it("defaults to time and keeps project expansion scoped to one project", async () => {
+	it("always groups sessions by project and scopes expansion to one project", async () => {
 		const threads = [
 			...Array.from({ length: 12 }, (_, index) =>
 				makeThread("alpha", index + 1),
@@ -539,54 +495,28 @@ describe("AgentSidebar session organization", () => {
 			);
 		});
 
-		expect(
-			container.querySelector('[aria-label="Sort sessions: Time"]'),
-		).not.toBeNull();
-		expect(sessionIsVisible("alpha session 10")).toBe(true);
-		expect(sessionIsVisible("alpha session 11")).toBe(false);
-		expect(sessionIsVisible("beta session 1")).toBe(false);
-
-		// The first page grows purely from already-loaded sessions (24 loaded,
-		// 20 requested), so no history fetch is needed.
-		await click(buttonWithText("Show more"));
-		expect(sessionIsVisible("alpha session 11")).toBe(true);
-		expect(loadMoreSessions).not.toHaveBeenCalled();
-		expect(loadOlderSessions).not.toHaveBeenCalled();
-
-		// The next page (30) exceeds the 24 loaded sessions, so the whole
-		// history window grows.
-		await click(buttonWithText("Show more"));
-		expect(sessionIsVisible("beta session 12")).toBe(true);
-		expect(loadOlderSessions).toHaveBeenCalledOnce();
-
-		await click(
-			container.querySelector('[aria-label="Sort sessions: Time"]') as Element,
-		);
-		const projectOption = await vi.waitFor(() => {
-			const option = [
-				...document.querySelectorAll<HTMLElement>('[role="menuitemradio"]'),
-			].find((candidate) => candidate.textContent?.includes("Sort by project"));
-			expect(option).toBeDefined();
-			return option as HTMLElement;
-		});
-		await click(projectOption);
-
-		await vi.waitFor(() => {
-			expect(
-				container.querySelector('[aria-label="Sort sessions: Project"]'),
-			).not.toBeNull();
-		});
+		// The sort toggle is gone: grouping is always by project.
+		expect(container.querySelector('[aria-label^="Sort sessions"]')).toBeNull();
 		expect(container.textContent).toContain("alpha");
 		expect(container.textContent).toContain("beta");
+		expect(sessionIsVisible("alpha session 10")).toBe(true);
 		expect(sessionIsVisible("alpha session 11")).toBe(false);
+		expect(sessionIsVisible("beta session 10")).toBe(true);
 		expect(sessionIsVisible("beta session 11")).toBe(false);
 
+		// Expanding one project leaves the others' pagination untouched.
 		await click(buttonWithText("Show more in alpha"));
 		expect(sessionIsVisible("alpha session 11")).toBe(true);
 		expect(sessionIsVisible("beta session 11")).toBe(false);
+		expect(loadMoreSessions).not.toHaveBeenCalled();
 
-		await click(buttonWithText("Load older projects"));
-		expect(loadOlderSessions).toHaveBeenCalledTimes(2);
+		// The trailing Show more button grows the loaded history window.
+		const globalShowMore = [
+			...container.querySelectorAll<HTMLButtonElement>("button"),
+		].find((button) => button.textContent?.trim() === "Show more");
+		expect(globalShowMore).toBeDefined();
+		await click(globalShowMore as HTMLButtonElement);
+		expect(loadOlderSessions).toHaveBeenCalledOnce();
 	});
 
 	it("shows the signed-in account and active organization in the footer", async () => {
@@ -666,8 +596,9 @@ describe("AgentSidebar session organization", () => {
 		expect(setView).not.toHaveBeenCalled();
 	});
 
-	it("suppresses the settings gear hover state while the Account screen is open", async () => {
+	it("opens the General settings section from the gear in any section", async () => {
 		invoke.mockResolvedValue(signedInUser);
+		const onSettingsSectionChange = vi.fn();
 
 		const renderSidebar = async (settingsSection: "Account" | "General") => {
 			await act(async () => {
@@ -677,7 +608,7 @@ describe("AgentSidebar session organization", () => {
 							<AgentSidebar
 								activeSessionId={null}
 								onHome={vi.fn()}
-								onSettingsSectionChange={vi.fn()}
+								onSettingsSectionChange={onSettingsSectionChange}
 								sessionHistory={makeSessionHistory([], vi.fn())}
 								setView={vi.fn()}
 								settingsSection={settingsSection}
@@ -694,13 +625,19 @@ describe("AgentSidebar session organization", () => {
 			});
 		};
 
+		// The Account screen leaves the gear un-highlighted, but clicking it
+		// still navigates to General rather than acting as a no-op.
+		// (split on spaces: the variant's hover:bg-surface-hover would match a
+		// plain substring check)
 		const gearOnAccount = await renderSidebar("Account");
-		expect(gearOnAccount.className).toContain("hover:bg-transparent");
-		expect(gearOnAccount.className).not.toContain("bg-surface-hover");
+		expect(gearOnAccount.className.split(" ")).not.toContain(
+			"bg-surface-hover",
+		);
+		await click(gearOnAccount);
+		expect(onSettingsSectionChange).toHaveBeenCalledWith("General");
 
 		const gearOnGeneral = await renderSidebar("General");
-		expect(gearOnGeneral.className).not.toContain("hover:bg-transparent");
-		expect(gearOnGeneral.className).toContain("bg-surface-hover");
+		expect(gearOnGeneral.className.split(" ")).toContain("bg-surface-hover");
 	});
 
 	it("shows the desktop app version and connected Hub when the logo is hovered", async () => {
@@ -882,7 +819,42 @@ describe("AgentSidebar session organization", () => {
 		await click(buttonWithText("Schedule", actionsNav as ParentNode));
 		expect(onSettingsSectionChange).toHaveBeenCalledWith("Schedules");
 		await click(buttonWithText("Customize", actionsNav as ParentNode));
-		expect(onSettingsSectionChange).toHaveBeenCalledWith("Plugins");
+		expect(onSettingsSectionChange).toHaveBeenCalledWith("Customize");
+	});
+
+	it("highlights the New row only while the new-task page is active", async () => {
+		const renderSidebar = async (newTaskActive: boolean) => {
+			await act(async () => {
+				root.render(
+					<AccountProvider>
+						<SidebarProvider>
+							<AgentSidebar
+								activeSessionId={null}
+								newTaskActive={newTaskActive}
+								onHome={vi.fn()}
+								onSettingsSectionChange={vi.fn()}
+								sessionHistory={makeSessionHistory([], vi.fn())}
+								setView={vi.fn()}
+								settingsSection="General"
+								view="chat"
+							/>
+						</SidebarProvider>
+					</AccountProvider>,
+				);
+			});
+			return buttonWithText(
+				"New",
+				container.querySelector('[aria-label="Sidebar actions"]') as ParentNode,
+			);
+		};
+
+		const activeRow = await renderSidebar(true);
+		expect(activeRow.className.split(" ")).toContain("bg-surface-hover");
+		expect(activeRow.getAttribute("aria-current")).toBe("page");
+
+		const inactiveRow = await renderSidebar(false);
+		expect(inactiveRow.className.split(" ")).not.toContain("bg-surface-hover");
+		expect(inactiveRow.getAttribute("aria-current")).toBeNull();
 	});
 
 	it("opens session search in a dialog from the logo-row icon", async () => {
