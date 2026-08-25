@@ -29,7 +29,10 @@ function future(days = 7): string {
 
 function createHarness(
 	result: "completed" | "failed" = "completed",
-	options: { interactiveClientAvailable?: boolean } = {},
+	options: {
+		interactiveClientAvailable?: boolean;
+		automationEnabled?: boolean;
+	} = {},
 ) {
 	const root = mkdtempSync(join(tmpdir(), "cline-agenda-manager-"));
 	const events: string[] = [];
@@ -51,6 +54,7 @@ function createHarness(
 		dbPath: join(root, "tasks.db"),
 		globalSpecsDir: join(root, "specs"),
 		watchFiles: false,
+		automationEnabled: options.automationEnabled,
 		publish: (event) => events.push(event),
 	});
 	managers.push(manager);
@@ -626,6 +630,51 @@ describe("AgendaTaskManager", () => {
 			expect((await manager.getTask(task.taskId))?.status).toBe("completed");
 		});
 		expect(runtime.startSession).toHaveBeenCalledTimes(1);
+	});
+
+	it("keeps a persisted automation policy idle when automation is disabled", async () => {
+		const { root, manager, runtime } = createHarness("completed", {
+			automationEnabled: false,
+		});
+		await manager.start();
+		await manager.setAutomationPolicy(
+			{
+				scopeKey: "global",
+				mode: "unattended",
+				applyToAgentCreated: true,
+				maxConcurrentRuns: 1,
+				maxChainDepth: 3,
+				maxStartsPerHour: 20,
+			},
+			{ kind: "user", clientId: "desktop" },
+		);
+		const task = await createPending(manager);
+		manager.notifyAutomationReadinessChanged();
+		await new Promise((resolve) => setTimeout(resolve, 100));
+
+		expect((await manager.getTask(task.taskId))?.status).toBe(
+			"pending_approval",
+		);
+		expect(runtime.startSession).not.toHaveBeenCalled();
+		await manager.dispose();
+
+		// A restarted Hub with the same store and the flag still off must not
+		// pick the persisted unattended policy back up either.
+		const restarted = new AgendaTaskManager({
+			runtime,
+			dbPath: join(root, "tasks.db"),
+			globalSpecsDir: join(root, "specs"),
+			watchFiles: false,
+			automationEnabled: false,
+		});
+		managers.push(restarted);
+		await restarted.start();
+		await new Promise((resolve) => setTimeout(resolve, 100));
+
+		expect((await restarted.getTask(task.taskId))?.status).toBe(
+			"pending_approval",
+		);
+		expect(runtime.startSession).not.toHaveBeenCalled();
 	});
 
 	it("only automates tasks in the policy workspace", async () => {
