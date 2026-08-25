@@ -43,7 +43,6 @@ import {
 	SqliteSessionStore,
 	saveLocalProviderSettings,
 	saveModeSettings,
-	saveVoiceInputSettings,
 	setAutoUpdateEnabledGlobally,
 	setMcpServerDisabled,
 	setModelToolEnabledGlobally,
@@ -166,6 +165,15 @@ const MAX_SPEECH_TEXT_CHARACTERS = 10_000;
 const desktopClientSettingsManager = new ClientSettingsManager({
 	clientId: "desktop",
 });
+
+function clearDesktopModesForProvider(providerId: string): void {
+	const modes = desktopClientSettingsManager.read().modes;
+	for (const mode of ["voiceInput", "voiceOutput", "realtimeVoice"] as const) {
+		if (modes[mode]?.providerId === providerId) {
+			desktopClientSettingsManager.setModeSettings(mode, undefined);
+		}
+	}
+}
 
 function createDesktopProviderSettingsManager(): ProviderSettingsManager {
 	const manager = new ProviderSettingsManager();
@@ -2563,20 +2571,27 @@ export async function handleCommand(
 				"voice input provider and model must both be set or both be cleared",
 			);
 		}
-		const manager = new ProviderSettingsManager();
-		const result = await saveVoiceInputSettings(
+		const manager = createDesktopProviderSettingsManager();
+		const result = await saveModeSettings(
 			manager,
-			providerId && modelId ? { providerId, modelId } : undefined,
+			{
+				mode: "voiceInput",
+				settings: providerId && modelId ? { providerId, modelId } : undefined,
+			},
+			desktopClientSettingsManager,
 		);
+		const voiceInput = result.modes.voiceInput;
 		emitDesktopDebugLog(ctx, "info", "Voice input settings saved", {
-			providerId: result.voiceInput?.providerId,
-			modelId: result.voiceInput?.modelId,
-			configured: Boolean(result.voiceInput),
+			providerId: voiceInput?.providerId,
+			modelId: voiceInput?.modelId,
+			configured: Boolean(voiceInput),
 		});
-		return result;
+		return { ...result, voiceInput };
 	}
 	if (command === "save_provider_settings") {
-		const manager = new ProviderSettingsManager();
+		// Seed the client-specific mode store before removing the provider. This
+		// also covers upgrades where modes still exist only in providers.json.
+		const manager = createDesktopProviderSettingsManager();
 		const providerId = String(args?.provider ?? "").trim();
 		const saved = saveLocalProviderSettings(manager, {
 			...readProviderSettingsUpdate(args),
@@ -2585,6 +2600,9 @@ export async function handleCommand(
 			apiKey: typeof args?.api_key === "string" ? args.api_key : undefined,
 			baseUrl: typeof args?.base_url === "string" ? args.base_url : undefined,
 		});
+		if (saved.enabled === false) {
+			clearDesktopModesForProvider(saved.providerId);
+		}
 		if (providerId === "cline") {
 			await resetCloudSessionManager(ctx);
 			// Sign-out must clear cloud rows from the sidebar immediately,

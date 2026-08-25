@@ -13,6 +13,17 @@ vi.mock("@cline/core", async () => {
 		await vi.importActual<typeof import("@cline/core")>("@cline/core");
 	return {
 		...actual,
+		ClientSettingsManager: class {
+			initializeModesIfMissing() {
+				return { version: 1, modes: {} };
+			}
+			read() {
+				return { version: 1, modes: {} };
+			}
+			setModeSettings() {
+				return { version: 1, modes: {} };
+			}
+		},
 		ClineAccountService: class {
 			constructor(options: unknown) {
 				clineAccountServiceCtorMock(options);
@@ -21,6 +32,9 @@ vi.mock("@cline/core", async () => {
 		executeClineAccountAction: executeClineAccountActionMock,
 		ProviderSettingsManager: class {
 			getProviderSettings = getProviderSettingsMock;
+			read() {
+				return { modes: {} };
+			}
 		},
 		saveLocalProviderSettings: saveProviderSettingsMock,
 		RuntimeOAuthTokenManager: class {
