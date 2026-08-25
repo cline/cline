@@ -24,6 +24,7 @@ import {
 	GitFork,
 	Loader2,
 	MessageSquarePlus,
+	Mic,
 	PanelLeftOpen,
 	Pencil,
 	Play,
@@ -103,6 +104,7 @@ import {
 } from "@/components/views/settings/sections";
 import { useAccount } from "@/contexts/account-context";
 import { useAgendaAutomation, useAgendaTasks } from "@/hooks/use-agenda-tasks";
+import { useHasConnectedProvider } from "@/hooks/use-has-connected-provider";
 import type {
 	SessionThread,
 	UseSessionHistoryResult,
@@ -163,6 +165,7 @@ function hubPort(url: string | null): string | null {
 const SETTINGS_SECTION_ICONS = {
 	General: SlidersHorizontal,
 	Models: Bot,
+	Voice: Mic,
 	Channels: Radio,
 	Schedules: Clock3,
 	Account: CircleUserRound,
@@ -183,8 +186,15 @@ function SettingsSectionNavigation({
 	collapsed: boolean;
 	onSelect: (section: SettingsSection) => void;
 }) {
+	// Voice input only works with a connected model provider, so its section
+	// stays disabled until one is set up (null = catalog still loading).
+	const hasConnectedProvider = useHasConnectedProvider();
 	const renderSectionButton = (section: SettingsSection) => {
 		const Icon = SETTINGS_SECTION_ICONS[section];
+		const disabled = section === "Voice" && hasConnectedProvider === false;
+		const title = disabled
+			? "Connect a model provider to set up voice input"
+			: section;
 		return (
 			<Button
 				aria-current={activeSection === section ? "page" : undefined}
@@ -195,9 +205,10 @@ function SettingsSectionNavigation({
 						"bg-surface-hover text-sidebar-foreground",
 					collapsed && "size-9 justify-center px-0",
 				)}
+				disabled={disabled}
 				key={section}
 				onClick={() => onSelect(section)}
-				title={section}
+				title={title}
 				type="button"
 				variant="sidebarItem"
 			>

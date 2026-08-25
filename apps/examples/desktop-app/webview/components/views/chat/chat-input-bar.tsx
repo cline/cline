@@ -1328,7 +1328,7 @@ function ChatInputBarImpl({
 								title={
 									transcriptionTarget
 										? `${transcriptionTarget.supportsStreaming ? "Transcribe live" : "Transcribe"} with ${transcriptionTarget.providerName} / ${transcriptionTarget.modelName}`
-										: "Configure voice input in Settings → Models"
+										: "Configure voice input in Settings → Voice"
 								}
 							/>
 							{(!isBusy || canSend) && (

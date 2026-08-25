@@ -8,6 +8,7 @@
 export const SETTINGS_SECTIONS = [
 	"General",
 	"Models",
+	"Voice",
 	"Channels",
 	"Schedules",
 	"Account",
