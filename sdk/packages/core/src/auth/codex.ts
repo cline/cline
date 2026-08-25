@@ -311,6 +311,21 @@ export async function loginOpenAICodex(options: {
 		expectedState: state,
 	});
 
+	// startLocalOAuthServer returns a no-op server (empty callbackUrl, a
+	// waitForCallback that resolves null immediately) when every candidate
+	// port is occupied. Codex OAuth uses the fixed registered redirect
+	// http://localhost:1455/auth/callback, so without that port the browser
+	// callback can never be received. Unless the host offers manual code
+	// entry as a fallback, fail fast with an actionable error instead of
+	// opening a browser flow that silently dead-ends.
+	if (!server.callbackUrl && !options.onManualCodeInput) {
+		const error = new Error(
+			`Port ${callbackConfig.port} is already in use, so the OpenAI sign-in callback cannot be received. Close the application using that port (for example another Codex or Cline sign-in) and try again.`,
+		);
+		captureAuthFailed(options.telemetry, "openai-codex", error.message);
+		throw error;
+	}
+
 	options.onAuth({
 		url,
 		instructions: "Continue the authentication process in your browser.",
@@ -324,6 +339,9 @@ export async function loginOpenAICodex(options: {
 			onManualCodeInput: options.onManualCodeInput,
 			parseOptions: { allowHashCodeState: true },
 		});
+		if (authResult.error) {
+			throw new Error(`OAuth error: ${authResult.error}`);
+		}
 		if (authResult.state && authResult.state !== state) {
 			throw new Error("State mismatch");
 		}

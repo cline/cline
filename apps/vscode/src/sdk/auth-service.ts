@@ -22,6 +22,7 @@ import {
 import type { ApiProvider } from "@shared/api"
 import { AuthState, UserInfo } from "@shared/proto/cline/account"
 import type { EmptyRequest, String } from "@shared/proto/cline/common"
+import { ShowMessageType } from "@shared/proto/host/window"
 import axios from "axios"
 import { ClineEnv } from "@/config"
 import type { Controller } from "@/core/controller"
@@ -244,6 +245,7 @@ export class AuthService {
 	private _activeAuthStatusUpdateHandlers = new Set<StreamingResponseHandler<AuthState>>()
 	private _handlerToController = new Map<StreamingResponseHandler<AuthState>, Controller>()
 	private _refreshPromise: Promise<string | undefined> | null = null
+	private _pendingCodexLogin: { promise: Promise<void>; authUrl?: string } | null = null
 	private _telemetry?: ITelemetryService
 
 	private constructor() {}
@@ -743,38 +745,62 @@ export class AuthService {
 
 	/**
 	 * Initiate OpenAI Codex OAuth login.
+	 *
+	 * Concurrent calls are deduped: while a flow is pending it holds callback
+	 * port 1455, so starting a second flow would fail with "port in use"
+	 * against our own server. Instead, a repeat click re-opens the auth page
+	 * for the pending flow and awaits its result.
 	 */
 	async openAiCodexLogin(): Promise<void> {
-		try {
-			const callbacks = createOAuthClientCallbacks({
-				onPrompt: async (prompt) => prompt.defaultValue ?? "",
-				openUrl: async (url: string) => {
-					await openExternal(url)
-				},
-				onOpenUrlError: ({ url, error }) => {
-					Logger.error(`[SdkAuthService] Failed to open browser for Codex: ${url}:`, error)
-				},
-			})
-
-			const credentials = await loginOpenAICodex(callbacks)
-
-			// Store Codex credentials in providers.json
-			await this.saveCodexCredentials(credentials)
-			await openAiCodexOAuthManager.saveCredentials({
-				type: "openai-codex",
-				access_token: credentials.access,
-				refresh_token: credentials.refresh,
-				expires: credentials.expires,
-				email: credentials.email,
-				accountId: credentials.accountId,
-			})
-
-			// Notify webview of state change
-			await this.sendAuthStatusUpdate()
-		} catch (error) {
-			Logger.error("[SdkAuthService] OpenAI Codex OAuth login failed:", error)
-			throw error
+		if (this._pendingCodexLogin) {
+			if (this._pendingCodexLogin.authUrl) {
+				await openExternal(this._pendingCodexLogin.authUrl)
+			}
+			return this._pendingCodexLogin.promise
 		}
+
+		const pending: { promise: Promise<void>; authUrl?: string } = { promise: Promise.resolve() }
+		pending.promise = (async () => {
+			try {
+				const callbacks = createOAuthClientCallbacks({
+					onPrompt: async (prompt) => prompt.defaultValue ?? "",
+					openUrl: async (url: string) => {
+						pending.authUrl = url
+						await openExternal(url)
+					},
+					onOpenUrlError: ({ url, error }) => {
+						Logger.error(`[SdkAuthService] Failed to open browser for Codex: ${url}:`, error)
+						HostProvider.window.showMessage({
+							type: ShowMessageType.ERROR,
+							message: `Couldn't open your browser for OpenAI sign-in. Open this URL manually: ${url}`,
+						})
+					},
+				})
+
+				const credentials = await loginOpenAICodex(callbacks)
+
+				// Store Codex credentials in providers.json
+				await this.saveCodexCredentials(credentials)
+				await openAiCodexOAuthManager.saveCredentials({
+					type: "openai-codex",
+					access_token: credentials.access,
+					refresh_token: credentials.refresh,
+					expires: credentials.expires,
+					email: credentials.email,
+					accountId: credentials.accountId,
+				})
+
+				// Notify webview of state change
+				await this.sendAuthStatusUpdate()
+			} catch (error) {
+				Logger.error("[SdkAuthService] OpenAI Codex OAuth login failed:", error)
+				throw error
+			} finally {
+				this._pendingCodexLogin = null
+			}
+		})()
+		this._pendingCodexLogin = pending
+		return pending.promise
 	}
 
 	/**
