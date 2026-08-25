@@ -92,8 +92,9 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	// Local providers report no cost; the openai-compatible provider can
 	// report cost only when the user has supplied both prices. For every
 	// other provider, the SDK is the source of truth for whether to render
-	// per-task cost: providers with `metadata.usageCostDisplay = "hide"`
-	// (e.g. ChatGPT Plus/Pro subscription) are filtered out here. This
+	// per-task cost: providers with `metadata.usageCostDisplay` set to
+	// "hide" or "subscription" (e.g. ClinePass, ChatGPT Plus/Pro
+	// subscription) are filtered out here. This
 	// mirrors the CLI's `shouldShowCliUsageCost` consumer and removes the
 	// previous extension-side hard-coded "openai-codex" check.
 	const usageCostDisplay = useProviderUsageCostDisplay(modeFields.apiProvider)
