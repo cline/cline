@@ -270,6 +270,7 @@ export function VoiceInputContent({
 											defaultTranscriptionModel(selectedEntry.models)?.id ===
 											model.id;
 										return (
+											// biome-ignore lint/a11y/useSemanticElements: the model picker is a styled radiogroup of buttons; aria-checked + role convey the semantics, and an <input type="radio"> would need a full restyle.
 											<button
 												aria-checked={isSelected}
 												className={cn(
