@@ -111,7 +111,7 @@ jobs:
               fi
               ANCESTOR_REF=main
               FEED=desktop-latest
-              PRODUCT="Cline Code"
+              PRODUCT="Cline"
               ;;
             beta)
               if ! printf "%s\n" "$TAG" | grep -Eq '^desktop-v[0-9]+\.[0-9]+\.[0-9]+-beta\.[0-9]+$'; then
@@ -120,7 +120,7 @@ jobs:
               fi
               ANCESTOR_REF=desktop-experimental
               FEED=desktop-beta
-              PRODUCT="Cline Code Beta"
+              PRODUCT="Cline Beta"
               ;;
             *)
               echo "unknown channel: ${CHANNEL}"
@@ -435,7 +435,7 @@ jobs:
           OUT="dist/publish"
           mkdir -p "$OUT"
 
-          # "Cline Code" -> Cline-Code, "Cline Code Beta" -> Cline-Code-Beta
+          # "Cline" -> Cline, "Cline Beta" -> Cline-Beta
           PREFIX="${PRODUCT// /-}"
 
           DMG=$(find "$BUNDLE_DIR/dmg" -name '*.dmg' -print -quit)
@@ -505,6 +505,33 @@ jobs:
           echo "$CONTENT" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
           printf "%s\n" "$CONTENT" > "$RUNNER_TEMP/release-notes.md"
+
+          # Slack section blocks reject text longer than 3000 characters, and the
+          # Slack action logs that rejection WITHOUT failing the step - so an
+          # over-long changelog silently drops the release announcement while the
+          # run stays green. Post a trimmed copy to Slack and link out to the full
+          # notes. The GitHub release body and updater manifest stay whole.
+          RELEASE_URL="https://github.com/${GITHUB_REPOSITORY}/releases/tag/${{ needs.validate.outputs.tag }}"
+          SLACK_CONTENT=$(CONTENT="$CONTENT" RELEASE_URL="$RELEASE_URL" python3 -c '
+          import os
+          content = os.environ["CONTENT"]
+          more = "\n\n… <%s|Read the full release notes>" % os.environ["RELEASE_URL"]
+          if len(content) <= 3000:
+              print(content, end="")
+          else:
+              budget = 3000 - len(more)
+              kept, used = [], 0
+              for line in content.splitlines(keepends=True):
+                  if used + len(line) > budget:
+                      break
+                  kept.append(line)
+                  used += len(line)
+              body = "".join(kept).rstrip() if kept else content[:budget].rstrip()
+              print(body + more, end="")
+          ')
+          echo "slack_content<<SLACK_EOF" >> $GITHUB_OUTPUT
+          echo "$SLACK_CONTENT" >> $GITHUB_OUTPUT
+          echo "SLACK_EOF" >> $GITHUB_OUTPUT
 
       - name: Generate updater manifest
         env:
@@ -580,14 +607,14 @@ jobs:
           if ! gh release view "$FEED" >/dev/null 2>&1; then
             if [ "$CHANNEL" = "beta" ]; then
               gh release create "$FEED" \
-                --title "Cline Code desktop beta (auto-update feed)" \
+                --title "Cline desktop beta (auto-update feed)" \
                 --notes "Rolling release backing the beta desktop app auto-updater. The latest.json asset points at the newest desktop-vX.Y.Z-beta.N release. Only beta installs poll this feed; stable installs use desktop-latest. Do not delete." \
                 --latest=false \
                 --prerelease \
                 --target "$(git rev-parse HEAD)"
             else
               gh release create "$FEED" \
-                --title "Cline Code desktop (auto-update feed)" \
+                --title "Cline desktop (auto-update feed)" \
                 --notes "Rolling release backing the desktop app auto-updater. The latest.json asset points at the newest desktop-vX.Y.Z release. Do not delete." \
                 --latest=false \
                 --target "$(git rev-parse HEAD)"
@@ -601,7 +628,7 @@ jobs:
           TAG: ${{ needs.validate.outputs.tag }}
           FEED: ${{ needs.validate.outputs.feed }}
         run: |
-          echo "Published Cline Code desktop v${VERSION}"
+          echo "Published Cline desktop v${VERSION}"
           echo "Release: https://github.com/${GITHUB_REPOSITORY}/releases/tag/${TAG}"
           echo "Auto-update feed refreshed: https://github.com/${GITHUB_REPOSITORY}/releases/download/${FEED}/latest.json"
 
@@ -612,16 +639,16 @@ jobs:
           token: ${{ secrets.SLACK_RELEASE_BOT_TOKEN }}
           payload: |
             channel: "C0APVKGGZFC"
-            text: "Cline Code desktop v${{ needs.validate.outputs.version }}${{ needs.validate.outputs.channel == 'beta' && ' (beta)' || '' }}"
+            text: "Cline desktop v${{ needs.validate.outputs.version }}${{ needs.validate.outputs.channel == 'beta' && ' (beta)' || '' }}"
             blocks:
               - type: "section"
                 text:
                   type: "mrkdwn"
-                  text: "Cline Code desktop v${{ needs.validate.outputs.version }}${{ needs.validate.outputs.channel == 'beta' && ' (beta)' || '' }}"
+                  text: "Cline desktop v${{ needs.validate.outputs.version }}${{ needs.validate.outputs.channel == 'beta' && ' (beta)' || '' }}"
               - type: "section"
                 text:
                   type: "mrkdwn"
-                  text: ${{ toJSON(steps.changelog.outputs.content) }}
+                  text: ${{ toJSON(steps.changelog.outputs.slack_content) }}
               - type: "context"
                 elements:
                   - type: "mrkdwn"

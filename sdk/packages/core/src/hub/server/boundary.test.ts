@@ -534,6 +534,61 @@ describe("HubServerTransport boundaries", () => {
 		}
 	});
 
+	it("replays a pending approval to a client that (re)subscribes after it was raised", async () => {
+		const transport = createTransport();
+		const ctx = getContext(transport);
+		ensureSessionState(ctx, "session-1", "client-1", "creator", {
+			interactive: true,
+		});
+
+		// No subscriber is attached yet: the approval is raised into the void.
+		const resultPromise = requestToolApproval(ctx, {
+			sessionId: "session-1",
+			agentId: "agent-1",
+			conversationId: "conversation-1",
+			iteration: 1,
+			toolCallId: "call-1",
+			toolName: "run_commands",
+			input: { commands: ["echo hi"] },
+			policy: { autoApprove: false },
+		});
+
+		// Let the request actually publish (it awaits ctx.sessionHost.getSession
+		// first) before anyone subscribes, so this exercises replay-on-subscribe
+		// rather than catching a live broadcast in that async gap.
+		for (let i = 0; i < 50 && ctx.pendingApprovals.size === 0; i += 1) {
+			await Promise.resolve();
+		}
+		expect(ctx.pendingApprovals.size).toBe(1);
+
+		// A client subscribing after the fact must still see the request.
+		const events: HubEventEnvelope[] = [];
+		transport.subscribe("late-client", (event) => events.push(event));
+		await Promise.resolve();
+		await Promise.resolve();
+
+		const requested = events.find(
+			(event) => event.event === "approval.requested",
+		);
+		expect(requested?.payload).toMatchObject({
+			sessionId: "session-1",
+			conversationId: "conversation-1",
+			toolCallId: "call-1",
+		});
+
+		const approvalId = requested?.payload?.approvalId as string;
+		await handleApprovalRespond(ctx, {
+			version: "v1",
+			requestId: "req-late",
+			command: "approval.respond",
+			payload: { approvalId, approved: true },
+		});
+		await expect(resultPromise).resolves.toEqual({
+			approved: true,
+			reason: undefined,
+		});
+	});
+
 	it("rejects pending tool approvals when a run is aborted", async () => {
 		const abort = vi.fn().mockResolvedValue(undefined);
 		const transport = createTransport({
@@ -903,6 +958,7 @@ describe("HubServerTransport boundaries", () => {
 			payload: {
 				metadata: {
 					hubCapabilityOwnerClientId: "attacker-client",
+					autoApproveTools: true,
 					title: "safe title",
 				},
 			},
@@ -1517,6 +1573,65 @@ describe("HubServerTransport boundaries", () => {
 		});
 
 		expect(published).toEqual(["iteration.started", "iteration.finished"]);
+	});
+
+	it("projects in-flight tool updates onto the hub stream", async () => {
+		const transport = createTransport();
+		const events: HubEventEnvelope[] = [];
+		transport.subscribe("test", (event) => events.push(event));
+
+		await projectSessionEvent(getContext(transport), {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "content_update",
+					contentType: "tool",
+					toolCallId: "call-1",
+					toolName: "run_commands",
+					update: {
+						stream: "stdout",
+						chunk: "\u001b[32mpassed\u001b[0m\n",
+					},
+				},
+			},
+		});
+
+		expect(events).toContainEqual(
+			expect.objectContaining({
+				event: "tool.updated",
+				sessionId: "session-1",
+				payload: {
+					toolCallId: "call-1",
+					toolName: "run_commands",
+					update: {
+						stream: "stdout",
+						chunk: "\u001b[32mpassed\u001b[0m\n",
+					},
+				},
+			}),
+		);
+	});
+
+	it("detaches a running command through the hub command boundary", async () => {
+		const proceedWhileRunning = vi.fn().mockResolvedValue(2);
+		const transport = createTransport({
+			sessionHost: { proceedWhileRunning },
+		});
+
+		const reply = await transport.handleCommand({
+			version: "v1",
+			requestId: "req-proceed",
+			command: "run.proceed_while_running",
+			sessionId: "session-1",
+			payload: { sessionId: "session-1", toolCallId: "call-1" },
+		});
+
+		expect(reply).toMatchObject({
+			ok: true,
+			payload: { detachedCount: 2 },
+		});
+		expect(proceedWhileRunning).toHaveBeenCalledWith("session-1", "call-1");
 	});
 
 	it("projects an unreported non-recoverable agent error as run.failed", async () => {

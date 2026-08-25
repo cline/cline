@@ -7,6 +7,7 @@ export {
 	fetchModelsDevProviderModels,
 	sortModelsByReleaseDate,
 } from "./catalog/catalog-live";
+export { filterImageOutputModels } from "./catalog/model-filters";
 export type { ModelIdAliasRule } from "./catalog/model-id-aliases";
 export {
 	isCanonicalModelIdForAliasRules,
@@ -21,6 +22,10 @@ export type {
 	ProviderInfo,
 	ProviderProtocol,
 } from "./catalog/types";
+export type {
+	GetModelsForProviderOptions,
+	ProviderModelFilter,
+} from "./providers/model-registry";
 export {
 	getAllProviders,
 	getModelsForProvider,

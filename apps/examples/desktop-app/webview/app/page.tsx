@@ -53,8 +53,9 @@ import {
 	desktopAppReducer,
 } from "@/lib/desktop-app-state";
 import { desktopClient } from "@/lib/desktop-client";
+import { watchDesktopNotifications } from "@/lib/desktop-notifications";
 import {
-	subscribeToDesktopMenuActions,
+	subscribeToDesktopActions,
 	watchDesktopTrayStatus,
 } from "@/lib/desktop-tray";
 import { syncDesktopWindowTitle } from "@/lib/desktop-window-title";
@@ -64,6 +65,7 @@ import {
 	markOnboardingCompleted,
 	ONBOARDING_RESET_EVENT,
 } from "@/lib/onboarding";
+import { requestPromptInputFocus } from "@/lib/prompt-input-focus";
 import { isProviderConnected } from "@/lib/provider-connection";
 import {
 	fetchProviderCatalog,
@@ -215,9 +217,11 @@ export default function Home() {
 	}, []);
 
 	useEffect(() => watchDesktopTrayStatus(), []);
+	useEffect(() => watchDesktopNotifications(), []);
 
 	const handleNewThread = useCallback(() => {
 		dispatchApp({ type: "new-thread", threadId: makeThreadId() });
+		requestPromptInputFocus();
 	}, []);
 
 	const completeOnboarding = useCallback(() => {
@@ -287,6 +291,7 @@ export default function Home() {
 			return;
 		}
 		navigateWith({ view: "chat" });
+		requestPromptInputFocus();
 	}, [activeThread, handleNewThread, navigateWith]);
 	const handleViewChange = useCallback(
 		(nextView: DesktopAppView) => {
@@ -294,30 +299,18 @@ export default function Home() {
 		},
 		[navigateWith],
 	);
+	// The sidebar's New row reads as selected while the fresh, not-yet-started
+	// task page is showing; once the task starts the session row takes over.
+	const newTaskActive =
+		view === "chat" &&
+		activeThread !== undefined &&
+		!activeThread.hasStarted &&
+		!activeThread.historySession;
 	const handleSettingsSectionChange = useCallback(
 		(section: SettingsSection) => {
 			navigateWith({ settingsSection: section, view: "settings" });
 		},
 		[navigateWith],
-	);
-	useEffect(
-		() =>
-			subscribeToDesktopMenuActions((action) => {
-				switch (action) {
-					case "new-session":
-						handleNewThread();
-						break;
-					case "open-settings":
-						handleViewChange("settings");
-						break;
-					case "zoom-in":
-					case "zoom-out":
-					case "zoom-reset":
-						applyAppZoomAction(action);
-						break;
-				}
-			}),
-		[handleNewThread, handleViewChange],
 	);
 	// Standard app shortcuts: Cmd/Ctrl+N for a new session, Cmd/Ctrl+, for
 	// settings — matching the tray menu actions.
@@ -352,9 +345,13 @@ export default function Home() {
 		onOpenSession: handleOpenSession,
 		onUpdateSessionMetadata: handleUpdateSessionMetadata,
 	});
+	const sessionHistoryRef = useRef(sessionHistory.sessions);
+	useEffect(() => {
+		sessionHistoryRef.current = sessionHistory.sessions;
+	}, [sessionHistory.sessions]);
 	const handleOpenSessionById = useCallback(
 		async (sessionId: string) => {
-			const cachedSession = sessionHistory.sessions.find(
+			const cachedSession = sessionHistoryRef.current.find(
 				(session) => session.sessionId === sessionId,
 			);
 			if (cachedSession) {
@@ -364,7 +361,7 @@ export default function Home() {
 			try {
 				const session = await desktopClient.invoke<SessionHistoryItem | null>(
 					"get_discovered_session",
-					{ session_id: sessionId },
+					{ sessionId },
 				);
 				if (!session) {
 					throw new Error("The session for this run is no longer available.");
@@ -378,7 +375,29 @@ export default function Home() {
 				});
 			}
 		},
-		[handleOpenSession, sessionHistory.sessions],
+		[handleOpenSession],
+	);
+	useEffect(
+		() =>
+			subscribeToDesktopActions((action) => {
+				switch (action.type) {
+					case "new-session":
+						handleNewThread();
+						break;
+					case "open-settings":
+						handleViewChange("settings");
+						break;
+					case "open-session":
+						void handleOpenSessionById(action.sessionId);
+						break;
+					case "zoom-in":
+					case "zoom-out":
+					case "zoom-reset":
+						applyAppZoomAction(action.type);
+						break;
+				}
+			}),
+		[handleNewThread, handleOpenSessionById, handleViewChange],
 	);
 	const historyWorkspacePaths = useMemo(
 		() => workspacePathsFromSessions(sessionHistory.sessions),
@@ -419,10 +438,10 @@ export default function Home() {
 					>
 						<AgentSidebar
 							activeSessionId={activeHistorySessionId}
+							newTaskActive={newTaskActive}
 							onHome={handleHome}
 							onNavigateBack={handleNavigateBack}
 							onNavigateForward={handleNavigateForward}
-							onNewThread={handleNewThread}
 							onSettingsSectionChange={handleSettingsSectionChange}
 							sessionHistory={sessionHistory}
 							setView={handleViewChange}
@@ -466,7 +485,7 @@ export default function Home() {
 									}
 									parentSession={activeParentSession}
 									onOpenVoiceInputSettings={() =>
-										handleSettingsSectionChange("Models")
+										handleSettingsSectionChange("Voice")
 									}
 									onThreadStarted={handleThreadStarted}
 								/>
@@ -569,6 +588,7 @@ function ChatThreadPane({
 		answerAskQuestion,
 		restoreCheckpoint,
 		forkSession,
+		proceedWhileRunning,
 		reset,
 		abort,
 		hydrateSession,
@@ -1608,6 +1628,7 @@ function ChatThreadPane({
 								onEditMessage={handleEditMessage}
 								onRestoreCheckpoint={handleRestoreCheckpoint}
 								onForkSession={handleForkSession}
+								onProceedWhileRunning={proceedWhileRunning}
 								pendingToolApprovals={pendingToolApprovals}
 								pendingAskQuestions={pendingAskQuestions}
 								sessionId={displayedSessionId}
@@ -1631,6 +1652,7 @@ function ChatThreadPane({
 						) : undefined
 					}
 					onListGitBranches={listGitBranches}
+					onOpenSession={onOpenSessionById}
 					onSwitchGitBranch={switchGitBranch}
 				/>
 			</div>

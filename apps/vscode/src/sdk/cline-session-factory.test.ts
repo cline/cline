@@ -908,6 +908,35 @@ describe("buildSessionConfig", () => {
 		expect(knownModel.modalities).toEqual({ input: ["text", "image"], output: ["text", "image"] })
 	})
 
+	it("defaults tool-calling on when the preserved capability list is defined but empty", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "openrouter",
+			actModeOpenRouterModelId: "mock/empty-capabilities-model",
+			openRouterApiKey: "openrouter-key",
+			// A capabilities field that round-tripped through a boundary
+			// defaulting the missing array to [] — same "no signal" state as
+			// an absent one (modelHasCapability treats both as unspecified).
+			// Before the fix, the strict `=== undefined` guard skipped the
+			// tools seeding, supportsReasoning populated the array, and the
+			// runtime gate silently dropped every tool definition (#13463).
+			actModeOpenRouterModelInfo: {
+				name: "Empty Capabilities Model",
+				contextWindow: 16_000,
+				// Required by the store's isModelInfo gate: without a boolean
+				// supportsPromptCache the state snapshot is rejected and the
+				// model never reaches knownModels at all.
+				supportsPromptCache: false,
+				supportsReasoning: true,
+				capabilities: [],
+			},
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+		const knownModel = (config.providerConfig as any).knownModels["mock/empty-capabilities-model"]
+
+		expect(knownModel.capabilities).toEqual(expect.arrayContaining(["reasoning", "tools"]))
+	})
+
 	it("keeps legacy supportsTools=false authoritative for dynamic-list models", async () => {
 		mocks.stateManager.getApiConfiguration.mockReturnValue({
 			actModeApiProvider: "openrouter",
