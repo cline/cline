@@ -167,6 +167,21 @@ describe("SessionsView table", () => {
 		expect(container.querySelector('[aria-label="Pinned"]')).not.toBeNull();
 	});
 
+	it("marks cloud sessions and shows their repository", async () => {
+		const cloudThread: SessionThread = {
+			...thread,
+			origin: "cloud",
+			repoUrl: "https://github.com/cline/cline",
+		};
+		const view = renderView({ threads: [cloudThread] });
+		await view.render();
+
+		expect(
+			container.querySelector('[aria-label="Cloud session"]'),
+		).not.toBeNull();
+		expect(container.textContent).toContain("https://github.com/cline/cline");
+	});
+
 	it("opens a session on click but not while text is selected", async () => {
 		const view = renderView({});
 		await view.render();

@@ -577,6 +577,21 @@ describe("AgentSidebar session organization", () => {
 		).toBe(false);
 	});
 
+	it("labels a cloud session by repository", () => {
+		expect(
+			getSessionOverviewItems({
+				...makeThread("cloud", 1),
+				origin: "cloud",
+				repoUrl: "https://github.com/cline/cline",
+				workspacePath: "https://github.com/cline/cline",
+			}),
+		).toContainEqual([
+			"Repository",
+			"https://github.com/cline/cline",
+			"https://github.com/cline/cline",
+		]);
+	});
+
 	it("shows the full first line of the session title", () => {
 		const firstLine =
 			"This is a complete session title that is intentionally longer than seventy characters for the hover overview";
