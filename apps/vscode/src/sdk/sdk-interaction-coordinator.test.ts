@@ -216,6 +216,48 @@ describe("SdkInteractionCoordinator", () => {
 		await expect(approvalPromise).resolves.toEqual({ approved: true })
 	})
 
+	it("restores the exact pending interaction phase and message anchor", async () => {
+		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		const setTurnPhase = vi.fn()
+		const coordinator = new SdkInteractionCoordinator({
+			messages: new SdkMessageCoordinator({ getTask: () => task }),
+			getSessionId: () => "session-123",
+			postStateToWebview: vi.fn().mockResolvedValue(undefined),
+			setTurnPhase,
+		})
+
+		const approvalPromise = coordinator.handleRequestToolApproval({
+			agentId: "agent",
+			conversationId: "conversation",
+			iteration: 1,
+			toolCallId: "tool-call",
+			toolName: "read_files",
+			input: { path: "README.md" },
+			policy: { autoApprove: false },
+		})
+		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
+		const approvalTs = task.messageStateHandler.getClineMessages()[0].ts
+		setTurnPhase.mockClear()
+
+		expect(coordinator.restorePendingInteractionTurnPhase()).toBe("toolApproval")
+		expect(setTurnPhase).toHaveBeenCalledWith("awaiting_approval", approvalTs)
+
+		coordinator.clearPending("test complete")
+		await approvalPromise
+
+		const answerPromise = coordinator.handleAskQuestion("Continue?", ["Yes"], undefined)
+		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(2))
+		const askTs = task.messageStateHandler.getClineMessages()[1].ts
+		setTurnPhase.mockClear()
+
+		expect(coordinator.restorePendingInteractionTurnPhase()).toBe("askQuestion")
+		expect(setTurnPhase).toHaveBeenCalledWith("awaiting_followup", askTs)
+
+		coordinator.clearPending("test complete")
+		await answerPromise
+		expect(coordinator.restorePendingInteractionTurnPhase()).toBeUndefined()
+	})
+
 	it("identifies only responses that resume a suspended interaction", async () => {
 		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
 		const coordinator = new SdkInteractionCoordinator({

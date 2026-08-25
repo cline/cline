@@ -139,8 +139,12 @@ Provider-field edits have two coordinated paths in the VS Code host:
    The second check rebases request options when an edit lands during slow
    preparation or hooks. This includes provider-backed compaction and requests
    that follow auto-approved tools, not only tools suspended for approval or
-   `ask_question`. Delegated runtimes do not inherit this callback; their
-   connection defaults are refreshed through the core-owned delegation path.
+   `ask_question`. Clearing a custom base URL carries an explicit reset marker,
+   so core rebuilds the provider config with its configured default instead of
+   treating an empty URL as that default. Delegated runtimes do not inherit the
+   root callback; shared versioned defaults and session-owned pre-request
+   boundaries refresh already-running subagents, while teammate updates queue
+   the same safe refresh on their existing `SessionRuntime`.
    The callback is split into host-local bootstrap config; hub and remote
    runtime hosts reject it instead of silently dropping a function at the JSON
    transport boundary.
@@ -153,9 +157,10 @@ Provider-field edits have two coordinated paths in the VS Code host:
    the root pre-request callback; it is rejected during request preparation,
    while a provider request is streaming, or when no run is active.
 5. Any idle full-session replacement temporarily removes the active-session
-   reference, whether it was requested for a provider, mode, MCP-tool, or
-   terminal-mode change. The shared VS Code lifecycle brackets that gap so the
-   provider coordinator can retain edits, rebind them to a matching installed
+   reference, whether it uses the explicit replacement helper or a direct
+   `startNewSession` path for a new task, history resume, or edit/regenerate.
+   The shared VS Code lifecycle brackets every such gap so the provider
+   coordinator can retain edits, rebind them to a matching installed
    replacement, and schedule another rebuild while keeping the pre-request hot
    update available. A stale `startInput` therefore cannot silently discard a
    newer API key or base URL.

@@ -260,7 +260,7 @@ export class SdkProviderChangeCoordinator {
 				config.thinking !== undefined || config.reasoningEffort !== undefined || config.thinkingBudgetTokens !== undefined
 			const update: ConnectionUpdate = {
 				apiKey: config.apiKey ?? "",
-				baseUrl: config.baseUrl ?? "",
+				baseUrl: config.baseUrl ?? null,
 				headers: config.headers ?? {},
 				providerConfig: config.providerConfig,
 				thinking: hasReasoningConfig ? (config.thinking ?? true) : null,

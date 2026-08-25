@@ -186,6 +186,29 @@ describe("SdkProviderChangeCoordinator", () => {
 		expect(options.rebuilds.request).toHaveBeenCalledWith("provider", expect.any(Function))
 	})
 
+	it("uses an explicit provider-default reset when a custom base URL is cleared", async () => {
+		const activeSession = makeActiveSession({ isRunning: true })
+		const { coordinator, options } = makeCoordinator({ activeSession, activeProvider: "lmstudio" })
+		options.sessionConfigBuilder.build.mockResolvedValue({
+			providerId: "lmstudio",
+			modelId: "local-model",
+			apiKey: "new-key",
+			baseUrl: undefined,
+			providerConfig: { providerId: "lmstudio", modelId: "local-model" },
+		})
+
+		coordinator.handleProviderConfigFieldsChanged(parseProviderId("lmstudio"))
+		await coordinator.applyPendingConnectionUpdateBeforeModelRequest()
+
+		expect(activeSession.sdkHost.updateSuspendedSessionConnection).toHaveBeenCalledWith(
+			"old-session",
+			expect.objectContaining({
+				baseUrl: null,
+				providerConfig: { providerId: "lmstudio", modelId: "local-model" },
+			}),
+		)
+	})
+
 	it("serializes concurrent suspended connection applies", async () => {
 		const activeSession = makeActiveSession({ isRunning: true })
 		const { coordinator, options } = makeCoordinator({ activeSession, activeProvider: "lmstudio" })

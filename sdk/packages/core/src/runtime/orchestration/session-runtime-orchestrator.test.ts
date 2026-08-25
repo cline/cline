@@ -1388,7 +1388,7 @@ describe("SessionRuntime.addTools / updateConnection / clearHistory / restore", 
 		expect(calls.run).toHaveLength(1);
 	});
 
-	it("generic updateConnection does not replace the model in an active run", async () => {
+	it("generic updateConnection waits for a safe boundary in an active run", async () => {
 		let releaseRun: () => void = () => {};
 		const release = new Promise<void>((resolve) => {
 			releaseRun = resolve;
@@ -1404,6 +1404,47 @@ describe("SessionRuntime.addTools / updateConnection / clearHistory / restore", 
 		});
 
 		expect(calls.replaceModelBetweenRequests).toHaveLength(0);
+
+		releaseRun();
+		await runPromise;
+	});
+
+	it("applies a queued active connection update at the next pre-request boundary", async () => {
+		let releaseRun: () => void = () => {};
+		const release = new Promise<void>((resolve) => {
+			releaseRun = resolve;
+		});
+		const fake = makeFakeAgentRuntime({ release });
+		let runtimeConfig: AgentRuntimeConfig | undefined;
+		const session = new SessionRuntime(makeAgentConfig(), {
+			createAgentRuntimeImpl: (config) => {
+				runtimeConfig = config;
+				return fake.runtime;
+			},
+		});
+
+		const runPromise = session.run("go");
+		await vi.waitFor(() => expect(fake.calls.run).toHaveLength(1));
+		session.updateConnection({
+			apiKey: "new-key",
+			baseUrl: "http://new-endpoint",
+		});
+
+		expect(fake.calls.replaceModelBetweenRequests).toHaveLength(0);
+		await runtimeConfig?.beforeModelRequest?.();
+
+		expect(fake.calls.replaceModelBetweenRequests).toHaveLength(1);
+		expect(fake.calls.replaceModelBetweenRequests).toEqual([
+			[
+				expect.objectContaining({ stream: expect.any(Function) }),
+				expect.objectContaining({
+					messageModelInfo: expect.objectContaining({
+						provider: "anthropic",
+						id: "claude-3-5-sonnet",
+					}),
+				}),
+			],
+		]);
 
 		releaseRun();
 		await runPromise;

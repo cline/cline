@@ -152,41 +152,52 @@ export class SdkSessionLifecycle {
 	async startNewSession(
 		startInput: Parameters<VscodeSessionHost["start"]>[0],
 	): Promise<{ startResult: StartSessionResult; sdkHost: SdkSessionHost }> {
-		if (this.activeSession) {
-			await this.endActiveSession("startNewSession")
+		const replacedSession = this.activeSession
+		if (replacedSession) {
+			this.options.onActiveSessionReplacementStarted?.(replacedSession)
 		}
 
-		// Same-id starts must wait for the previous session's stop to finish;
-		// see pendingStops. A fresh id cannot conflict, so it never waits.
-		const requestedSessionId = startInput.config?.sessionId?.trim()
-		if (requestedSessionId) {
-			await this.waitForPendingStop(requestedSessionId)
+		try {
+			if (this.activeSession) {
+				await this.endActiveSession("startNewSession")
+			}
+
+			// Same-id starts must wait for the previous session's stop to finish;
+			// see pendingStops. A fresh id cannot conflict, so it never waits.
+			const requestedSessionId = startInput.config?.sessionId?.trim()
+			if (requestedSessionId) {
+				await this.waitForPendingStop(requestedSessionId)
+			}
+
+			const autoApprovalSettings = StateManager.get().getGlobalSettingsKey("autoApprovalSettings")
+			const toolPolicies = autoApprovalSettings ? buildToolPolicies(autoApprovalSettings, this.options.mcpHub) : undefined
+
+			const sdkHost = await this.getOrCreateSharedHost()
+
+			const startResult = await sdkHost.start({
+				...startInput,
+				...(toolPolicies ? { toolPolicies } : {}),
+			})
+			this.activeSession = {
+				sessionId: startResult.sessionId,
+				startConfig: startInput.config
+					? {
+							providerId: startInput.config.providerId,
+							modelId: startInput.config.modelId,
+						}
+					: undefined,
+				sdkHost,
+				unsubscribe: () => {},
+				startResult,
+				isRunning: true,
+			}
+
+			return { startResult, sdkHost }
+		} finally {
+			if (replacedSession) {
+				this.options.onActiveSessionReplacementFinished?.(this.activeSession)
+			}
 		}
-
-		const autoApprovalSettings = StateManager.get().getGlobalSettingsKey("autoApprovalSettings")
-		const toolPolicies = autoApprovalSettings ? buildToolPolicies(autoApprovalSettings, this.options.mcpHub) : undefined
-
-		const sdkHost = await this.getOrCreateSharedHost()
-
-		const startResult = await sdkHost.start({
-			...startInput,
-			...(toolPolicies ? { toolPolicies } : {}),
-		})
-		this.activeSession = {
-			sessionId: startResult.sessionId,
-			startConfig: startInput.config
-				? {
-						providerId: startInput.config.providerId,
-						modelId: startInput.config.modelId,
-					}
-				: undefined,
-			sdkHost,
-			unsubscribe: () => {},
-			startResult,
-			isRunning: true,
-		}
-
-		return { startResult, sdkHost }
 	}
 
 	async replaceActiveSession(options: {

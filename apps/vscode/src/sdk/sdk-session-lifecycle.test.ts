@@ -104,6 +104,42 @@ describe("SdkSessionLifecycle", () => {
 		expect(unsubscribe).toHaveBeenCalledOnce()
 	})
 
+	it("brackets the reference-free gap for direct session replacements", async () => {
+		let finishReplacementStart: ((result: { sessionId: string }) => void) | undefined
+		const replacementStart = new Promise<{ sessionId: string }>((resolve) => {
+			finishReplacementStart = resolve
+		})
+		const onActiveSessionReplacementStarted = vi.fn()
+		const onActiveSessionReplacementFinished = vi.fn()
+		const sdkHost = makeSdkHost({
+			start: vi
+				.fn()
+				.mockResolvedValueOnce({ sessionId: "session-1" })
+				.mockImplementationOnce(() => replacementStart),
+			stop: vi.fn().mockResolvedValue(undefined),
+		})
+		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
+		const lifecycle = makeLifecycle({
+			onActiveSessionReplacementStarted,
+			onActiveSessionReplacementFinished,
+		})
+		await lifecycle.startNewSession({} as StartInput)
+		const replacedSession = lifecycle.getActiveSession()
+
+		const startPromise = lifecycle.startNewSession({ config: { sessionId: "session-2" } } as StartInput)
+		await vi.waitFor(() => expect(onActiveSessionReplacementStarted).toHaveBeenCalledWith(replacedSession))
+
+		expect(lifecycle.getActiveSession()).toBeUndefined()
+		expect(onActiveSessionReplacementFinished).not.toHaveBeenCalled()
+
+		finishReplacementStart?.({ sessionId: "session-2" })
+		await startPromise
+
+		expect(onActiveSessionReplacementStarted).toHaveBeenCalledOnce()
+		expect(onActiveSessionReplacementFinished).toHaveBeenCalledOnce()
+		expect(onActiveSessionReplacementFinished).toHaveBeenCalledWith(lifecycle.getActiveSession())
+	})
+
 	it("unsubscribes if session start fails", async () => {
 		const unsubscribe = vi.fn()
 		const error = new Error("start failed")

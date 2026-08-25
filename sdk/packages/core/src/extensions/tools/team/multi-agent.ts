@@ -32,7 +32,10 @@ import {
 	type TeamTaskStatus,
 } from "@cline/shared";
 import { nanoid } from "nanoid";
-import { SessionRuntime } from "../../../runtime/orchestration/session-runtime-orchestrator";
+import {
+	type ConnectionOverrides,
+	SessionRuntime,
+} from "../../../runtime/orchestration/session-runtime-orchestrator";
 
 // Re-export shared types for backward compatibility
 export {
@@ -920,9 +923,7 @@ export class AgentTeamsRuntime {
 		this.emitEvent({ type: TeamMessageType.TeammateShutdown, agentId, reason });
 	}
 
-	updateTeammateConnections(
-		overrides: Partial<Pick<AgentConfig, "apiKey" | "baseUrl" | "headers">>,
-	): void {
+	updateTeammateConnections(overrides: ConnectionOverrides): void {
 		for (const member of this.members.values()) {
 			if (member.role !== "teammate" || !member.agent) {
 				continue;

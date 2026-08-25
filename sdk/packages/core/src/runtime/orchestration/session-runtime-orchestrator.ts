@@ -355,6 +355,8 @@ export class SessionRuntime {
 	private abortReason: string | undefined;
 	/** Reference to the current run's `AgentRuntime` so `abort` can forward. */
 	private activeRuntime: AgentRuntime | null = null;
+	/** Connection edits waiting for the active runtime's next safe boundary. */
+	private activeConnectionRefreshPending = false;
 	/** Promise returned from the current run so shutdown can await its drain. */
 	private activeRunPromise: Promise<AgentResult> | null = null;
 	/** Per-run `Agent → AgentEvent` adapter; `reset()` each run. */
@@ -527,9 +529,12 @@ export class SessionRuntime {
 		this.config = { ...this.config, tools: merged };
 	}
 
-	/** Mutate provider / reasoning fields for subsequent runs. */
+	/** Mutate provider / reasoning fields for subsequent requests and runs. */
 	updateConnection(overrides: ConnectionOverrides): void {
 		this.config = this.buildUpdatedConnectionConfig(overrides);
+		if (this.activeRuntime) {
+			this.activeConnectionRefreshPending = true;
+		}
 	}
 
 	/** Replace connection fields only at a verified suspended tool boundary. */
@@ -551,6 +556,7 @@ export class SessionRuntime {
 			messageModelInfo: buildMessageModelInfo(next),
 		});
 		this.config = next;
+		this.activeConnectionRefreshPending = false;
 	}
 
 	private buildUpdatedConnectionConfig(
@@ -561,7 +567,9 @@ export class SessionRuntime {
 		if (updates.providerId !== undefined) next.providerId = updates.providerId;
 		if (updates.modelId !== undefined) next.modelId = updates.modelId;
 		if (updates.apiKey !== undefined) next.apiKey = updates.apiKey;
-		if (updates.baseUrl !== undefined) next.baseUrl = updates.baseUrl;
+		if (Object.hasOwn(updates, "baseUrl")) {
+			next.baseUrl = updates.baseUrl ?? undefined;
+		}
 		if (updates.headers !== undefined) next.headers = updates.headers;
 		if (updates.providerConfig !== undefined)
 			next.providerConfig = updates.providerConfig;
@@ -923,6 +931,8 @@ export class SessionRuntime {
 				...this.config.toolContextMetadata,
 			},
 			hooks: this.createRuntimeHooks(),
+			beforeModelRequest: () =>
+				this.refreshActiveConnectionBeforeModelRequest(),
 			prepareTurn: this.createRuntimePrepareTurn(modelInfo, tools),
 			initialMessages,
 			completionPolicy: toolCallingDisabled ? null : undefined,
@@ -968,6 +978,7 @@ export class SessionRuntime {
 				);
 			}
 			this.activeRuntime = null;
+			this.activeConnectionRefreshPending = false;
 			this.running = false;
 			this.abortRequested = false;
 			this.abortReason = undefined;
@@ -995,6 +1006,34 @@ export class SessionRuntime {
 		} finally {
 			this.activeRunId = null;
 		}
+	}
+
+	/**
+	 * Runs inside AgentRuntime's verified between-request boundary. Root hosts
+	 * can hot-apply through their configured callback; delegated/team runtimes
+	 * queue `updateConnection` calls and consume the latest full config here.
+	 */
+	private async refreshActiveConnectionBeforeModelRequest(): Promise<void> {
+		await this.config.beforeModelRequest?.();
+		if (!this.activeConnectionRefreshPending) {
+			return;
+		}
+
+		const activeRuntime = this.activeRuntime;
+		if (!activeRuntime) {
+			return;
+		}
+
+		const activeModel = createAgentModelFromConfig(
+			this.config,
+			this.logger,
+			this.telemetry,
+		);
+		activeRuntime.replaceModelBetweenRequests(activeModel, {
+			modelOptions: buildModelOptions(this.config),
+			messageModelInfo: buildMessageModelInfo(this.config),
+		});
+		this.activeConnectionRefreshPending = false;
 	}
 
 	/**

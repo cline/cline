@@ -82,7 +82,17 @@ export class SdkFollowupCoordinator {
 			// tool approval/ask_question promise: the session remains "running"
 			// until that promise resolves. Hot-apply the connection first so the
 			// resumed inference uses the latest credentials without deadlocking.
-			await this.options.applyPendingProviderConnection()
+			try {
+				await this.options.applyPendingProviderConnection()
+			} catch (error) {
+				this.options.interactions.restorePendingInteractionTurnPhase()
+				try {
+					await this.options.postStateToWebview()
+				} catch (postError) {
+					Logger.error("[SdkController] Failed to post restored suspended interaction state:", postError)
+				}
+				throw error
+			}
 			if (pendingInteraction === "toolApproval") {
 				this.options.interactions.resolvePendingToolApproval(prompt, askResponse, images, files)
 			} else {

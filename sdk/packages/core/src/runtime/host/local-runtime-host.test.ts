@@ -644,8 +644,17 @@ describe("LocalRuntimeHost", () => {
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 		};
+		const updateTeammateConnections = vi.fn();
 		const runtimeBuilder = {
-			build: vi.fn().mockReturnValue({ tools: [], shutdown: vi.fn() }),
+			build: vi.fn().mockReturnValue({
+				tools: [],
+				teamRuntime: {
+					getTeamId: () => "team-1",
+					getTeamName: () => "test-team",
+					updateTeammateConnections,
+				},
+				shutdown: vi.fn(),
+			}),
 		};
 		const agent = {
 			run: vi.fn().mockResolvedValue(createResult()),
@@ -665,6 +674,12 @@ describe("LocalRuntimeHost", () => {
 			sessionService: sessionService as never,
 			runtimeBuilder: runtimeBuilder as never,
 			createAgent: vi.fn(() => agent as never),
+			providerSettingsManager: {
+				getProviderSettings: vi.fn().mockReturnValue({
+					provider: "mock-provider",
+					baseUrl: "http://provider-default",
+				}),
+			} as never,
 		});
 
 		await manager.startSession(
@@ -721,28 +736,36 @@ describe("LocalRuntimeHost", () => {
 
 		await manager.updateSuspendedSessionConnection(sessionId, {
 			apiKey: "",
-			baseUrl: "",
+			baseUrl: null,
 			headers: {},
-			providerConfig: {
-				providerId: "mock-provider",
-				modelId: "mock-model",
-			},
 		});
 		expect(agent.updateSuspendedConnection).toHaveBeenLastCalledWith(
 			expect.objectContaining({
 				apiKey: "",
-				baseUrl: "",
+				baseUrl: null,
 				headers: {},
 				providerConfig: expect.objectContaining({
-					baseUrl: "",
+					baseUrl: "http://provider-default",
 					headers: {},
 				}),
 			}),
 		);
 		expect(session.config.providerConfig).toEqual(
-			expect.objectContaining({ baseUrl: "", headers: {} }),
+			expect.objectContaining({
+				baseUrl: "http://provider-default",
+				headers: {},
+			}),
 		);
+		expect(session.config.baseUrl).toBeUndefined();
 		expect(session.config.providerConfig?.apiKey).not.toBe("new-key");
+		expect(updateTeammateConnections).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				baseUrl: undefined,
+				providerConfig: expect.objectContaining({
+					baseUrl: "http://provider-default",
+				}),
+			}),
+		);
 
 		agent.updateSuspendedConnection.mockImplementationOnce(() => {
 			throw new Error("not suspended");
@@ -755,7 +778,7 @@ describe("LocalRuntimeHost", () => {
 		).rejects.toThrow("not suspended");
 
 		expect(session.config.apiKey).toBe("");
-		expect(session.config.baseUrl).toBe("");
+		expect(session.config.baseUrl).toBeUndefined();
 		expect(sessionService.writeSessionManifest).not.toHaveBeenCalled();
 	});
 

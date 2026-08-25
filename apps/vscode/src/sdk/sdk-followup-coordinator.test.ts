@@ -85,6 +85,20 @@ describe("SdkFollowupCoordinator", () => {
 			"connection update failed",
 		)
 		expect(options.interactions.resolvePendingToolApproval).not.toHaveBeenCalled()
+		expect(options.interactions.restorePendingInteractionTurnPhase).toHaveBeenCalledOnce()
+		expect(options.postStateToWebview).toHaveBeenCalledOnce()
+	})
+
+	it("restores a pending ask_question phase before rethrowing a provider update failure", async () => {
+		const { coordinator, options } = makeCoordinator()
+		options.interactions.getPendingInteractionToResolve.mockReturnValue("askQuestion")
+		options.applyPendingProviderConnection.mockRejectedValue(new Error("connection update failed"))
+
+		await expect(coordinator.askResponse("answer")).rejects.toThrow("connection update failed")
+
+		expect(options.interactions.restorePendingInteractionTurnPhase).toHaveBeenCalledOnce()
+		expect(options.postStateToWebview).toHaveBeenCalledOnce()
+		expect(options.interactions.resolvePendingAskQuestion).not.toHaveBeenCalled()
 	})
 
 	it("sends a follow-up to an idle active session", async () => {
@@ -914,6 +928,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		} as unknown as StateManager,
 		interactions: {
 			getPendingInteractionToResolve: vi.fn(() => undefined),
+			restorePendingInteractionTurnPhase: vi.fn(() => undefined),
 			resolvePendingToolApproval: vi.fn(() => false),
 			resolvePendingAskQuestion: vi.fn(() => false),
 		},
@@ -957,6 +972,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 	} as unknown as SdkFollowupCoordinatorOptions & {
 		interactions: SdkFollowupCoordinatorOptions["interactions"] & {
 			getPendingInteractionToResolve: ReturnType<typeof vi.fn>
+			restorePendingInteractionTurnPhase: ReturnType<typeof vi.fn>
 			resolvePendingToolApproval: ReturnType<typeof vi.fn>
 			resolvePendingAskQuestion: ReturnType<typeof vi.fn>
 		}

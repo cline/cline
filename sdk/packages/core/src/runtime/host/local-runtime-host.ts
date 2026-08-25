@@ -1551,7 +1551,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 			session.config.providerId = updates.providerId;
 		if (updates.modelId !== undefined) session.config.modelId = updates.modelId;
 		if (updates.apiKey !== undefined) session.config.apiKey = updates.apiKey;
-		if (updates.baseUrl !== undefined) session.config.baseUrl = updates.baseUrl;
+		if (Object.hasOwn(updates, "baseUrl")) {
+			session.config.baseUrl = updates.baseUrl ?? undefined;
+		}
 		if (updates.headers !== undefined) session.config.headers = updates.headers;
 		if (updates.providerConfig !== undefined)
 			session.config.providerConfig = updates.providerConfig;
@@ -1575,7 +1577,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 				: {}),
 			...(updates.modelId !== undefined ? { modelId: updates.modelId } : {}),
 			...(updates.apiKey !== undefined ? { apiKey: updates.apiKey } : {}),
-			...(updates.baseUrl !== undefined ? { baseUrl: updates.baseUrl } : {}),
+			...(Object.hasOwn(updates, "baseUrl")
+				? { baseUrl: updates.baseUrl ?? undefined }
+				: {}),
 			...(updates.headers !== undefined ? { headers: updates.headers } : {}),
 			...(updates.providerConfig !== undefined
 				? { providerConfig: updates.providerConfig }
@@ -1596,8 +1600,22 @@ export class LocalRuntimeHost implements RuntimeHost {
 		}
 		const teammateUpdates = {
 			...(updates.apiKey !== undefined ? { apiKey: updates.apiKey } : {}),
-			...(updates.baseUrl !== undefined ? { baseUrl: updates.baseUrl } : {}),
+			...(Object.hasOwn(updates, "baseUrl")
+				? { baseUrl: updates.baseUrl ?? undefined }
+				: {}),
 			...(updates.headers !== undefined ? { headers: updates.headers } : {}),
+			...(updates.providerConfig !== undefined
+				? { providerConfig: updates.providerConfig }
+				: {}),
+			...(Object.hasOwn(updates, "reasoningEffort")
+				? { reasoningEffort: updates.reasoningEffort ?? undefined }
+				: {}),
+			...(Object.hasOwn(updates, "thinking")
+				? { thinking: updates.thinking ?? undefined }
+				: {}),
+			...(Object.hasOwn(updates, "thinkingBudgetTokens")
+				? { thinkingBudgetTokens: updates.thinkingBudgetTokens ?? undefined }
+				: {}),
 		};
 		session.runtime.delegatedAgentConfigProvider?.updateConnectionDefaults(
 			delegatedUpdates,
@@ -1639,7 +1657,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 		session.agent.updateSuspendedConnection(updates);
 
 		if (updates.apiKey !== undefined) session.config.apiKey = updates.apiKey;
-		if (updates.baseUrl !== undefined) session.config.baseUrl = updates.baseUrl;
+		if (Object.hasOwn(updates, "baseUrl")) {
+			session.config.baseUrl = updates.baseUrl ?? undefined;
+		}
 		if (updates.headers !== undefined) session.config.headers = updates.headers;
 		if (updates.providerConfig !== undefined)
 			session.config.providerConfig = updates.providerConfig;
@@ -1660,7 +1680,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 
 		const delegatedUpdates = {
 			...(updates.apiKey !== undefined ? { apiKey: updates.apiKey } : {}),
-			...(updates.baseUrl !== undefined ? { baseUrl: updates.baseUrl } : {}),
+			...(Object.hasOwn(updates, "baseUrl")
+				? { baseUrl: updates.baseUrl ?? undefined }
+				: {}),
 			...(updates.headers !== undefined ? { headers: updates.headers } : {}),
 			...(updates.providerConfig !== undefined
 				? { providerConfig: updates.providerConfig }
@@ -1680,8 +1702,22 @@ export class LocalRuntimeHost implements RuntimeHost {
 		);
 		session.runtime.teamRuntime?.updateTeammateConnections({
 			...(updates.apiKey !== undefined ? { apiKey: updates.apiKey } : {}),
-			...(updates.baseUrl !== undefined ? { baseUrl: updates.baseUrl } : {}),
+			...(Object.hasOwn(updates, "baseUrl")
+				? { baseUrl: updates.baseUrl ?? undefined }
+				: {}),
 			...(updates.headers !== undefined ? { headers: updates.headers } : {}),
+			...(updates.providerConfig !== undefined
+				? { providerConfig: updates.providerConfig }
+				: {}),
+			...(Object.hasOwn(updates, "reasoningEffort")
+				? { reasoningEffort: updates.reasoningEffort ?? undefined }
+				: {}),
+			...(Object.hasOwn(updates, "thinking")
+				? { thinking: updates.thinking ?? undefined }
+				: {}),
+			...(Object.hasOwn(updates, "thinkingBudgetTokens")
+				? { thinkingBudgetTokens: updates.thinkingBudgetTokens ?? undefined }
+				: {}),
 		});
 	}
 
@@ -1689,8 +1725,23 @@ export class LocalRuntimeHost implements RuntimeHost {
 		session: ActiveSession,
 		updates: ConnectionUpdate,
 	): ConnectionUpdate {
-		if (updates.providerConfig === undefined) {
+		const resetsBaseUrl = updates.baseUrl === null;
+		if (updates.providerConfig === undefined && !resetsBaseUrl) {
 			return updates;
+		}
+		const providerConfigInput =
+			updates.providerConfig ?? session.config.providerConfig;
+		let providerConfigForBuild = providerConfigInput;
+		if (
+			providerConfigInput &&
+			(resetsBaseUrl ||
+				updates.apiKey !== undefined ||
+				updates.headers !== undefined)
+		) {
+			providerConfigForBuild = { ...providerConfigInput };
+			if (resetsBaseUrl) delete providerConfigForBuild.baseUrl;
+			if (updates.apiKey !== undefined) delete providerConfigForBuild.apiKey;
+			if (updates.headers !== undefined) delete providerConfigForBuild.headers;
 		}
 
 		const nextConfig: CoreSessionConfig = {
@@ -1698,8 +1749,10 @@ export class LocalRuntimeHost implements RuntimeHost {
 			providerId: updates.providerId ?? session.config.providerId,
 			modelId: updates.modelId ?? session.config.modelId,
 			apiKey: updates.apiKey ?? session.config.apiKey,
-			baseUrl: updates.baseUrl ?? session.config.baseUrl,
-			providerConfig: updates.providerConfig,
+			baseUrl: resetsBaseUrl
+				? undefined
+				: (updates.baseUrl ?? session.config.baseUrl),
+			providerConfig: providerConfigForBuild,
 			...(updates.headers !== undefined ? { headers: updates.headers } : {}),
 		};
 		const providerConfig = buildProviderConfig(

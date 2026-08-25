@@ -8,6 +8,7 @@ const runMock = vi.fn();
 const getAgentIdMock = vi.fn(() => "sub-agent-1");
 const getConversationIdMock = vi.fn(() => "conv-sub-1");
 const agentConstructorSpy = vi.fn();
+const updateConnectionMock = vi.fn();
 
 vi.mock("../../../runtime/orchestration/session-runtime-orchestrator", () => {
 	return {
@@ -22,6 +23,10 @@ vi.mock("../../../runtime/orchestration/session-runtime-orchestrator", () => {
 
 			getConversationId(): string {
 				return getConversationIdMock();
+			}
+
+			updateConnection(overrides: unknown): void {
+				updateConnectionMock(overrides);
 			}
 
 			subscribeEvents(): () => void {
@@ -374,6 +379,53 @@ describe("createSpawnAgentTool", () => {
 				apiKey: "oauth-access-new",
 				modelId: "updated-model",
 				temperature: 0.3,
+			}),
+		);
+	});
+
+	it("refreshes an already-active delegated runtime from versioned defaults", async () => {
+		const { createSpawnAgentTool } = await import("./spawn-agent-tool.js");
+		runMock.mockResolvedValue({
+			text: "ok",
+			iterations: 1,
+			finishReason: "completed",
+			usage: { inputTokens: 1, outputTokens: 1 },
+		});
+		const configProvider = createDelegatedAgentConfigProvider({
+			providerId: "lmstudio",
+			modelId: "local-model",
+			apiKey: "old-key",
+			baseUrl: "http://custom-endpoint",
+		});
+		const tool = createSpawnAgentTool({
+			configProvider,
+			subAgentTools: [],
+		});
+
+		await tool.execute(
+			{ systemPrompt: "System", task: "Do task" },
+			{
+				agentId: "parent-7",
+				conversationId: "conv-parent",
+				iteration: 1,
+			},
+		);
+		const delegatedConfig = agentConstructorSpy.mock.calls.at(-1)?.[0] as
+			| AgentConfig
+			| undefined;
+
+		configProvider.updateConnectionDefaults({
+			apiKey: "new-key",
+			baseUrl: undefined,
+		});
+		await delegatedConfig?.beforeModelRequest?.();
+
+		expect(updateConnectionMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				providerId: "lmstudio",
+				modelId: "local-model",
+				apiKey: "new-key",
+				baseUrl: null,
 			}),
 		);
 	});
