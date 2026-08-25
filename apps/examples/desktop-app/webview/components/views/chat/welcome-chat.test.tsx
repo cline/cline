@@ -1,22 +1,13 @@
 // @vitest-environment jsdom
 
-import type { AgendaTaskRecord } from "@cline/shared";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
 import { WelcomeScreen } from "./welcome-chat";
 
-const listAgendaTasksMock = vi.hoisted(() => vi.fn());
-const approveAgendaTaskMock = vi.hoisted(() => vi.fn());
-const runAgendaTaskMock = vi.hoisted(() => vi.fn());
-
 vi.mock("@/lib/desktop-client", () => ({
 	desktopClient: {
-		listAgendaTasks: listAgendaTasksMock,
-		approveAgendaTask: approveAgendaTaskMock,
-		cancelAgendaTask: vi.fn(),
-		runAgendaTask: runAgendaTaskMock,
 		subscribe: vi.fn(() => () => undefined),
 		subscribeTransportState: vi.fn(() => () => undefined),
 	},
@@ -35,10 +26,6 @@ beforeEach(() => {
 	container = document.createElement("div");
 	document.body.appendChild(container);
 	root = createRoot(container);
-	listAgendaTasksMock.mockReset();
-	listAgendaTasksMock.mockResolvedValue([]);
-	approveAgendaTaskMock.mockReset();
-	runAgendaTaskMock.mockReset();
 });
 
 afterEach(async () => {
@@ -56,7 +43,6 @@ async function renderWelcomeScreen({
 		current: "main",
 		branches: ["main"],
 	})),
-	onOpenSession = vi.fn(),
 }: {
 	workspaceRoot: string;
 	workspaces: string[];
@@ -66,7 +52,6 @@ async function renderWelcomeScreen({
 		current: string;
 		branches: string[];
 	}>;
-	onOpenSession?: (sessionId: string) => void | Promise<void>;
 }): Promise<void> {
 	await act(async () => {
 		root.render(
@@ -87,7 +72,6 @@ async function renderWelcomeScreen({
 					composer={null}
 					gitBranch={gitBranch}
 					onListGitBranches={onListGitBranches}
-					onOpenSession={onOpenSession}
 					onSwitchGitBranch={vi.fn(async () => true)}
 				/>
 			</WorkspaceProvider>,
@@ -124,78 +108,6 @@ describe("WelcomeScreen", () => {
 		expect(container.textContent).not.toContain("Check for build errors");
 		expect(container.textContent).not.toContain("Summarize this folder");
 		expect(container.textContent).not.toContain("Draft a document");
-	});
-
-	it("shows live workspace suggestions and approves them before starting", async () => {
-		const task = agendaTask({ status: "pending_approval" });
-		const approved = { ...task, status: "approved" as const, revision: 2 };
-		const running = {
-			...approved,
-			status: "in_progress" as const,
-			lastSessionId: "task-session-1",
-		};
-		const onOpenSession = vi.fn();
-		listAgendaTasksMock.mockResolvedValue([task]);
-		approveAgendaTaskMock.mockResolvedValue(approved);
-		runAgendaTaskMock.mockResolvedValue({ task: running });
-
-		await renderWelcomeScreen({
-			workspaceRoot: "/projects/project-1",
-			workspaces: ["/projects/project-1"],
-			onOpenSession,
-		});
-		expect(listAgendaTasksMock).toHaveBeenCalledWith(
-			expect.objectContaining({
-				scope: "workspace",
-				workspaceRoot: "/projects/project-1",
-				types: ["suggestion", "reminder", "follow-up"],
-			}),
-		);
-		await clickButton("Review PR checks");
-		expect(approveAgendaTaskMock).not.toHaveBeenCalled();
-		expect(document.body.textContent).toContain(task.instructions);
-		await clickButton("Approve and start", false, document);
-
-		expect(approveAgendaTaskMock).toHaveBeenCalledWith({
-			taskId: "task-1",
-			expectedRevision: 1,
-		});
-		expect(runAgendaTaskMock).toHaveBeenCalledWith({
-			taskId: "task-1",
-			expectedRevision: 2,
-		});
-		expect(onOpenSession).toHaveBeenCalledWith("task-session-1");
-	});
-
-	it("shows workspace follow-up items", async () => {
-		listAgendaTasksMock.mockResolvedValue([
-			agendaTask({
-				type: "follow-up",
-				title: "Finish accessibility review",
-				description: undefined,
-			}),
-		]);
-
-		await renderWelcomeScreen({
-			workspaceRoot: "/projects/project-1",
-			workspaces: ["/projects/project-1"],
-		});
-
-		expect(container.textContent).toContain("Finish accessibility review");
-		expect(container.textContent).toContain("Follow-up · P1");
-	});
-
-	it("hides expired workspace suggestions", async () => {
-		listAgendaTasksMock.mockResolvedValue([
-			agendaTask({ expiresAt: "2020-01-01T00:00:00.000Z" }),
-		]);
-
-		await renderWelcomeScreen({
-			workspaceRoot: "/projects/project-1",
-			workspaces: ["/projects/project-1"],
-		});
-
-		expect(container.textContent).not.toContain("Review PR checks");
 	});
 
 	it("renders every known project in the opened workspace menu", async () => {
@@ -241,29 +153,3 @@ describe("WelcomeScreen", () => {
 		expect(selectChat).toHaveBeenCalledOnce();
 	});
 });
-
-function agendaTask(
-	overrides: Partial<AgendaTaskRecord> = {},
-): AgendaTaskRecord {
-	return {
-		taskId: "task-1",
-		type: "suggestion",
-		status: "pending_approval",
-		title: "Review PR checks",
-		description: "Check whether CI is green.",
-		instructions: "Review the pull request checks.",
-		scope: "workspace",
-		workspaceRoot: "/projects/project-1",
-		resourcePaths: [],
-		priority: 1,
-		availableAt: "2026-08-13T00:00:00.000Z",
-		expiresAt: "2099-08-20T00:00:00.000Z",
-		automationEligible: true,
-		revision: 1,
-		createdBy: { kind: "agent" },
-		updatedBy: { kind: "agent" },
-		createdAt: "2026-08-13T00:00:00.000Z",
-		updatedAt: "2026-08-13T00:00:00.000Z",
-		...overrides,
-	};
-}

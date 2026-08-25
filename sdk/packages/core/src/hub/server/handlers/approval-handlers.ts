@@ -21,18 +21,6 @@ export async function requestToolApproval(
 				"Tool approval requires an interactive session, but this session is non-interactive.",
 		};
 	}
-	let session:
-		| Awaited<ReturnType<typeof ctx.sessionHost.getSession>>
-		| undefined;
-	try {
-		session = await ctx.sessionHost.getSession(sessionId);
-	} catch {
-		session = undefined;
-	}
-	const agendaTaskId =
-		typeof session?.metadata?.agendaTaskId === "string"
-			? session.metadata.agendaTaskId
-			: undefined;
 	return await new Promise((resolve) => {
 		const requestedEvent = ctx.buildEvent(
 			"approval.requested",
@@ -46,7 +34,6 @@ export async function requestToolApproval(
 				toolName: request.toolName,
 				inputJson: JSON.stringify(request.input ?? null),
 				policy: request.policy,
-				agendaTaskId,
 			},
 			sessionId,
 		);

@@ -163,11 +163,6 @@ describe("hub event replay over the wire", () => {
 			workspaceRoot: root,
 			runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
 			scheduleOptions: { dbPath: ":memory:" },
-			taskOptions: {
-				dbPath: join(root, "tasks.db"),
-				globalSpecsDir: join(root, "specs"),
-				watchFiles: false,
-			},
 			eventLog: { dbPath: ":memory:" },
 			runQueue: { dbPath: ":memory:" },
 			sessionHost: host,
