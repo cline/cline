@@ -1115,8 +1115,8 @@ export function RoutineSchedulesContent({
 	return (
 		<PageFrame>
 			<PageHeader
-				description="Scheduled jobs are run through the hub."
-				title="Schedules"
+				description="Run agents on cron schedules for recurring automations like daily summaries and code reviews."
+				title="Schedule"
 				meta={<CommandBadge>cline schedule</CommandBadge>}
 				actions={
 					<>
