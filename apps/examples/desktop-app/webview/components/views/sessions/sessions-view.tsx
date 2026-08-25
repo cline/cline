@@ -7,6 +7,7 @@ import {
 	ChevronLeft,
 	ChevronRight,
 	ChevronsLeft,
+	Cloud,
 	Filter,
 	Folder,
 	GitFork,
@@ -49,6 +50,7 @@ import {
 	sessionActivityTimestamp,
 	type UseSessionHistoryResult,
 } from "@/hooks/use-session-history";
+import { isCloudProvisioningSessionId } from "@/lib/cloud-repositories";
 import type { SessionHistoryItem } from "@/lib/session-history";
 import { sessionStatusColor, sessionStatusTone } from "@/lib/session-status";
 import { cn } from "@/lib/utils";
@@ -131,6 +133,7 @@ function sessionFilterDetails(
 	const workspacePath = session?.workspaceRoot || session?.cwd || "";
 	const workspace = workspacePath ? basenamePath(workspacePath) : "";
 	return [
+		thread.origin === "cloud" ? "location:cloud" : undefined,
 		thread.pinned ? "favorite:yes" : undefined,
 		workspace ? `workspace:${workspace}` : undefined,
 		thread.status ? `status:${thread.status}` : undefined,
@@ -206,6 +209,7 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 				thread.codebase,
 				thread.provider,
 				thread.model,
+				thread.repoUrl,
 				session?.workspaceRoot,
 				session?.cwd,
 			]
@@ -571,6 +575,12 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 													tone={sessionStatusTone(thread.status)}
 												/>
 												<span className="truncate">{thread.title}</span>
+												{thread.origin === "cloud" ? (
+													<Cloud
+														aria-label="Cloud session"
+														className="size-3.5 shrink-0 text-muted-foreground"
+													/>
+												) : null}
 												{thread.pinned ? (
 													<Star
 														aria-label="Favorited"
@@ -579,9 +589,20 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 												) : null}
 											</span>
 											<span className="flex min-w-0 items-center gap-2 text-muted-foreground">
-												<Folder className="size-3.5 shrink-0" />
-												<span className="truncate" title={workspace}>
-													{workspace ? basenamePath(workspace) : "No workspace"}
+												{thread.origin === "cloud" ? (
+													<Cloud className="size-3.5 shrink-0" />
+												) : (
+													<Folder className="size-3.5 shrink-0" />
+												)}
+												<span
+													className="truncate"
+													title={thread.repoUrl || workspace}
+												>
+													{thread.origin === "cloud"
+														? thread.repoUrl || "Cloud repository"
+														: workspace
+															? basenamePath(workspace)
+															: "No workspace"}
 												</span>
 											</span>
 											<span
@@ -618,34 +639,46 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 												</button>
 											</DropdownMenuTrigger>
 											<DropdownMenuContent align="end" sideOffset={6}>
-												<DropdownMenuItem
-													onClick={() =>
-														void history.setThreadPinned(
-															thread.id,
-															!thread.pinned,
-														)
-													}
-												>
-													<Star
-														className={cn(
-															"size-4",
-															thread.pinned && "fill-current",
-														)}
-													/>
-													{thread.pinned ? "Unfavorite" : "Favorite"}
-												</DropdownMenuItem>
-												<DropdownMenuItem onClick={() => startRename(thread)}>
-													<Pencil className="size-4" />
-													Rename
-												</DropdownMenuItem>
-												<DropdownMenuItem
-													onClick={() => void history.forkThread(thread.id)}
-												>
-													<GitFork className="size-4" />
-													Fork
-												</DropdownMenuItem>
+												{thread.origin !== "cloud" ? (
+													<DropdownMenuItem
+														onClick={() =>
+															void history.setThreadPinned(
+																thread.id,
+																!thread.pinned,
+															)
+														}
+													>
+														<Star
+															className={cn(
+																"size-4",
+																thread.pinned && "fill-current",
+															)}
+														/>
+														{thread.pinned ? "Unfavorite" : "Favorite"}
+													</DropdownMenuItem>
+												) : null}
+												{/* Cloud sessions support rename (PATCH title), matching
+												    the sidebar and chat header affordances. Provisioning
+												    placeholders have no server session to rename yet. */}
+												{!isCloudProvisioningSessionId(thread.id) ? (
+													<DropdownMenuItem onClick={() => startRename(thread)}>
+														<Pencil className="size-4" />
+														Rename
+													</DropdownMenuItem>
+												) : null}
+												{thread.origin !== "cloud" ? (
+													<DropdownMenuItem
+														onClick={() => void history.forkThread(thread.id)}
+													>
+														<GitFork className="size-4" />
+														Fork
+													</DropdownMenuItem>
+												) : null}
 												<DropdownMenuSeparator />
 												<DropdownMenuItem
+													// Provisioning placeholders have no server session
+													// to delete yet; the sidecar rejects the request.
+													disabled={isCloudProvisioningSessionId(thread.id)}
 													onClick={() => setDeleteCandidate(thread)}
 													variant="destructive"
 												>
@@ -751,8 +784,9 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 					<AlertDialogHeader>
 						<AlertDialogTitle>Delete session?</AlertDialogTitle>
 						<AlertDialogDescription>
-							This removes "{deleteCandidate?.title ?? "this session"}" from
-							local history.
+							{deleteCandidate?.origin === "cloud"
+								? `This deletes "${deleteCandidate?.title ?? "this session"}" and its cloud workspace.`
+								: `This removes "${deleteCandidate?.title ?? "this session"}" from local history.`}
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter>

@@ -5,7 +5,33 @@ import type {
 	ToolApprovalRequest,
 } from "@cline/shared";
 import { createSessionId } from "@cline/shared";
-import { errorReply, type HubTransportContext, okReply } from "./context";
+import {
+	errorReply,
+	extractSessionId,
+	type HubTransportContext,
+	okReply,
+} from "./context";
+
+function pendingApprovalPayload(
+	approvalId: string,
+	request: ToolApprovalRequest,
+	createdAt: number,
+	agendaTaskId?: string,
+): Record<string, unknown> {
+	return {
+		approvalId,
+		createdAt,
+		agendaTaskId,
+		sessionId: request.sessionId,
+		agentId: request.agentId,
+		conversationId: request.conversationId,
+		iteration: request.iteration,
+		toolCallId: request.toolCallId,
+		toolName: request.toolName,
+		inputJson: JSON.stringify(request.input ?? null),
+		policy: request.policy,
+	};
+}
 
 export async function requestToolApproval(
 	ctx: HubTransportContext,
@@ -34,24 +60,17 @@ export async function requestToolApproval(
 			? session.metadata.agendaTaskId
 			: undefined;
 	return await new Promise((resolve) => {
+		const createdAt = Date.now();
 		const requestedEvent = ctx.buildEvent(
 			"approval.requested",
-			{
-				approvalId,
-				sessionId: request.sessionId,
-				agentId: request.agentId,
-				conversationId: request.conversationId,
-				iteration: request.iteration,
-				toolCallId: request.toolCallId,
-				toolName: request.toolName,
-				inputJson: JSON.stringify(request.input ?? null),
-				policy: request.policy,
-				agendaTaskId,
-			},
+			pendingApprovalPayload(approvalId, request, createdAt, agendaTaskId),
 			sessionId,
 		);
 		ctx.pendingApprovals.set(approvalId, {
 			sessionId,
+			request,
+			createdAt,
+			agendaTaskId,
 			resolve,
 			requestedEvent,
 		});
@@ -80,6 +99,44 @@ export function pendingApprovalEvents(
 		events.push(pending.requestedEvent);
 	}
 	return events;
+}
+
+export function handleApprovalListPending(
+	ctx: HubTransportContext,
+	envelope: HubCommandEnvelope,
+): HubReplyEnvelope {
+	const sessionId = extractSessionId(envelope);
+	if (!sessionId) {
+		return errorReply(
+			envelope,
+			"session_id_required",
+			"sessionId is required to list pending approvals",
+		);
+	}
+	const clientId = envelope.clientId?.trim();
+	const state = ctx.sessionState.get(sessionId);
+	if (
+		!clientId ||
+		!state ||
+		(state.createdByClientId !== clientId && !state.participants.has(clientId))
+	) {
+		return errorReply(
+			envelope,
+			"session_not_found",
+			"Session was not found or is not attached to this client",
+		);
+	}
+	const approvals = Array.from(ctx.pendingApprovals.entries())
+		.filter(([, pending]) => pending.sessionId === sessionId)
+		.map(([approvalId, pending]) =>
+			pendingApprovalPayload(
+				approvalId,
+				pending.request,
+				pending.createdAt,
+				pending.agendaTaskId,
+			),
+		);
+	return okReply(envelope, { approvals });
 }
 
 export function resolvePendingApproval(

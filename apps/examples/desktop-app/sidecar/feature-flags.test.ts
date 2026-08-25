@@ -239,3 +239,45 @@ describe("disposeDesktopFeatureFlagsService", () => {
 		expect(mocks.dispose).not.toHaveBeenCalled();
 	});
 });
+
+describe("cloud agents gate", () => {
+	beforeEach(() => {
+		delete process.env.CLINE_CODE_CLOUD_AGENTS;
+	});
+
+	it("is unavailable and disabled while the rollout flag is off", async () => {
+		const { isCloudAgentsAvailable, isCloudAgentsEnabled } = await import(
+			"./feature-flags"
+		);
+		mocks.getFlagPayload.mockReturnValue(undefined);
+		expect(isCloudAgentsAvailable()).toBe(false);
+		expect(isCloudAgentsEnabled()).toBe(false);
+	});
+
+	it("needs both the rollout flag and the user's opt-in to enable", async () => {
+		const { isCloudAgentsEnabled, isCloudAgentsAvailable } = await import(
+			"./feature-flags"
+		);
+		const { setCloudSessionsEnabled } = await import("./desktop-settings");
+		mocks.getFlagPayload.mockImplementation((flag: unknown) =>
+			flag === "code-cloud-agents" ? true : undefined,
+		);
+		expect(isCloudAgentsAvailable()).toBe(true);
+		setCloudSessionsEnabled(false);
+		expect(isCloudAgentsEnabled()).toBe(false);
+		setCloudSessionsEnabled(true);
+		expect(isCloudAgentsEnabled()).toBe(true);
+	});
+
+	it("lets the env override force the gate in both directions", async () => {
+		const { isCloudAgentsEnabled, isCloudAgentsAvailable } = await import(
+			"./feature-flags"
+		);
+		mocks.getFlagPayload.mockReturnValue(undefined);
+		process.env.CLINE_CODE_CLOUD_AGENTS = "1";
+		expect(isCloudAgentsAvailable()).toBe(true);
+		expect(isCloudAgentsEnabled()).toBe(true);
+		process.env.CLINE_CODE_CLOUD_AGENTS = "0";
+		expect(isCloudAgentsEnabled()).toBe(false);
+	});
+});
