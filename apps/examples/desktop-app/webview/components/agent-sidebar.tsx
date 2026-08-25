@@ -255,6 +255,7 @@ export function AgentSidebar({
 		forkThread: forkHistoryThread,
 		hasLoadedHistory,
 		isLoadingMore,
+		loadAllSessions,
 		loadOlderSessions,
 		loadMoreSessions,
 		mayHaveMoreSessions,
@@ -376,6 +377,12 @@ export function AgentSidebar({
 	const navigateForward = useCallback(() => {
 		onNavigateForward?.();
 	}, [onNavigateForward]);
+	const openSearch = useCallback(() => {
+		setSearchOpen(true);
+		// The sidebar only pages in recent history; pull the rest so older
+		// sessions are searchable too.
+		void loadAllSessions();
+	}, [loadAllSessions]);
 	const openSearchResult = useCallback(
 		(threadId: string) => {
 			setSearchOpen(false);
@@ -700,7 +707,7 @@ export function AgentSidebar({
 							<Button
 								aria-label="Search sessions"
 								className="size-8 shrink-0 justify-center px-0"
-								onClick={() => setSearchOpen(true)}
+								onClick={openSearch}
 								title="Search sessions"
 								type="button"
 								variant="sidebarItem"
@@ -1006,7 +1013,11 @@ export function AgentSidebar({
 			>
 				<CommandInput placeholder="Search sessions..." />
 				<CommandList>
-					<CommandEmpty>No sessions found.</CommandEmpty>
+					<CommandEmpty>
+						{isLoadingMore
+							? "Searching older sessions..."
+							: "No sessions found."}
+					</CommandEmpty>
 					{threads.map((thread) => (
 						<CommandItem
 							key={thread.id}

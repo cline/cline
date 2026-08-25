@@ -55,6 +55,7 @@ function makeSessionHistory(): UseSessionHistoryResult {
 		forkThread: vi.fn(),
 		hasLoadedHistory: true,
 		isLoadingMore: false,
+		loadAllSessions: vi.fn(async () => true),
 		loadOlderSessions: vi.fn(),
 		loadMoreSessions: vi.fn(),
 		mayHaveMoreSessions: false,

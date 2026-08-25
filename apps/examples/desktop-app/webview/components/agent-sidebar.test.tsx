@@ -54,6 +54,7 @@ function makeSessionHistory(
 		forkThread: vi.fn(),
 		hasLoadedHistory: options.hasLoadedHistory ?? true,
 		isLoadingMore: false,
+		loadAllSessions: vi.fn(async () => true),
 		loadOlderSessions: options.loadOlderSessions ?? vi.fn(),
 		loadMoreSessions,
 		mayHaveMoreSessions: options.mayHaveMoreSessions ?? false,
@@ -741,6 +742,8 @@ describe("AgentSidebar session organization", () => {
 		);
 		expect(searchButton).not.toBeNull();
 		await click(searchButton as Element);
+		// Opening search pulls the full history so unloaded sessions match too.
+		expect(sessionHistory.loadAllSessions).toHaveBeenCalledOnce();
 
 		const searchInput = await vi.waitFor(() => {
 			const input = document.querySelector<HTMLInputElement>(
