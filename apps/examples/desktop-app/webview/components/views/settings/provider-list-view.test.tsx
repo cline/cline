@@ -157,7 +157,7 @@ describe("ProviderListContent", () => {
 		vi.restoreAllMocks();
 	});
 
-	it("groups providers into Connected, Popular, and All providers", async () => {
+	it("groups providers into Configured, Popular, and All providers", async () => {
 		const onConfigure = vi.fn();
 		await act(async () => {
 			root.render(
@@ -172,10 +172,10 @@ describe("ProviderListContent", () => {
 		const headings = Array.from(container.querySelectorAll("h2")).map(
 			(heading) => heading.textContent,
 		);
-		expect(headings).toEqual(["Connected", "Popular", "All providers"]);
+		expect(headings).toEqual(["Configured", "Popular", "All providers"]);
 		// No per-provider enable toggles anymore.
 		expect(container.querySelector('[role="switch"]')).toBeNull();
-		expect(container.textContent).toContain("1 connected");
+		expect(container.textContent).toContain("1 configured");
 
 		const rows = Array.from(container.querySelectorAll("button")).filter(
 			(button) => button.textContent?.includes("Anthropic"),
@@ -199,7 +199,7 @@ describe("ProviderListContent", () => {
 			Array.from(container.querySelectorAll("button")).find((button) =>
 				button.textContent?.includes(name),
 			);
-		expect(rowFor("Anthropic")?.textContent).toContain("Connected");
+		expect(rowFor("Anthropic")?.textContent).toContain("Configured");
 		expect(rowFor("Cline")?.textContent).toContain("Sign in");
 		expect(rowFor("ElevenLabs")?.textContent).toContain("API key");
 	});
@@ -284,7 +284,7 @@ describe("ProviderDetailContent auth flows", () => {
 		});
 
 		expect(container.textContent).toContain("Sign in with browser");
-		expect(container.textContent).toContain("Not connected");
+		expect(container.textContent).toContain("Not configured");
 		// The API key input stays collapsed until explicitly requested.
 		expect(container.querySelector('input[type="password"]')).toBeNull();
 
@@ -319,7 +319,7 @@ describe("ProviderDetailContent auth flows", () => {
 		});
 
 		expect(container.textContent).toContain("Signed in via browser");
-		expect(container.textContent).toContain("Connected");
+		expect(container.textContent).toContain("Configured");
 		const signOut = Array.from(container.querySelectorAll("button")).find(
 			(button) => button.textContent === "Sign out",
 		);

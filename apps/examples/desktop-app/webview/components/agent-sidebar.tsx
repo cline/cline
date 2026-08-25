@@ -223,7 +223,7 @@ function SettingsSectionNavigation({
 			<span
 				className={cn("block", collapsed && "flex w-full justify-start")}
 				key={section}
-				title="Connect a model provider to set up voice input"
+				title="Configure a model provider to set up voice input"
 			>
 				{button}
 			</span>

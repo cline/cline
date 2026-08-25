@@ -121,18 +121,6 @@ function AuthKindHint({ kind }: { kind: ProviderAuthKind }) {
 	);
 }
 
-function ConnectedDot({ className }: { className?: string }) {
-	return (
-		<span
-			aria-hidden="true"
-			className={cn(
-				"inline-block size-1.5 shrink-0 rounded-full bg-emerald-500",
-				className,
-			)}
-		/>
-	);
-}
-
 function getInitialConfigValues(
 	provider: Provider,
 ): Record<string, ProviderConfigFieldPrimitive> {
@@ -213,9 +201,8 @@ function ProviderRow({
 				{provider.name}
 			</p>
 			{connected ? (
-				<span className="inline-flex shrink-0 items-center gap-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
-					<ConnectedDot />
-					Connected
+				<span className="shrink-0 text-xs font-medium text-muted-foreground">
+					Configured
 				</span>
 			) : (
 				<AuthKindHint kind={authKind} />
@@ -322,7 +309,7 @@ export function ProviderListContent({
 						<p className="mt-3 text-base leading-6 text-muted-foreground">
 							{connectedCount === 0
 								? "Connect a provider to start using models."
-								: `${connectedCount} connected · ${providers.length} available`}
+								: `${connectedCount} configured · ${providers.length} available`}
 						</p>
 					</div>
 					<Button
@@ -367,7 +354,7 @@ export function ProviderListContent({
 
 					{connectedProviders.length > 0 ? (
 						<>
-							<ProviderSectionHeading title="Connected" />
+							<ProviderSectionHeading title="Configured" />
 							{renderRows(connectedProviders)}
 						</>
 					) : null}
@@ -757,17 +744,14 @@ export function ProviderDetailContent({
 			<section className={cn("mb-8", isPanel ? "max-w-none" : "max-w-344")}>
 				{oauthConnected ? (
 					<div className="flex items-center justify-between gap-4 rounded-lg border px-4 py-3">
-						<div className="flex min-w-0 items-center gap-2.5">
-							<ConnectedDot className="size-2" />
-							<div className="min-w-0">
-								<p className="text-sm font-medium text-foreground">
-									Signed in via browser
-								</p>
-								<p className="text-xs text-muted-foreground">
-									This provider authenticates with your account — no API key
-									needed.
-								</p>
-							</div>
+						<div className="min-w-0">
+							<p className="text-sm font-medium text-foreground">
+								Signed in via browser
+							</p>
+							<p className="text-xs text-muted-foreground">
+								This provider authenticates with your account — no API key
+								needed.
+							</p>
 						</div>
 						{onDisconnect ? (
 							<Button
@@ -785,7 +769,7 @@ export function ProviderDetailContent({
 					<div className="flex flex-col">
 						<div className="mb-2 flex items-center justify-between gap-4">
 							<p className="text-sm text-muted-foreground">
-								Connected with an API key.
+								Configured with an API key.
 							</p>
 							{onDisconnect ? (
 								<Button
@@ -857,17 +841,14 @@ export function ProviderDetailContent({
 		) : authKind === "local" ? (
 			<section className={cn("mb-8", isPanel ? "max-w-none" : "max-w-344")}>
 				<div className="flex items-center justify-between gap-4 rounded-lg border px-4 py-3">
-					<div className="flex min-w-0 items-center gap-2.5">
-						{connected ? <ConnectedDot className="size-2" /> : null}
-						<div className="min-w-0">
-							<p className="text-sm font-medium text-foreground">
-								Uses your local CLI sign-in
-							</p>
-							<p className="text-xs text-muted-foreground">
-								Credentials come from the provider's own CLI on this machine —
-								no API key needed.
-							</p>
-						</div>
+					<div className="min-w-0">
+						<p className="text-sm font-medium text-foreground">
+							Uses your local CLI sign-in
+						</p>
+						<p className="text-xs text-muted-foreground">
+							Credentials come from the provider's own CLI on this machine — no
+							API key needed.
+						</p>
 					</div>
 					{connected
 						? onDisconnect && (
@@ -919,7 +900,7 @@ export function ProviderDetailContent({
 					) : (
 						<>
 							<p className="text-xs text-muted-foreground">
-								Saving an API key connects this provider automatically. Use
+								Saving an API key configures this provider automatically. Use
 								Connect if it reads credentials from your environment or a
 								local endpoint.
 							</p>
@@ -972,16 +953,8 @@ export function ProviderDetailContent({
 					>
 						{provider.name}
 					</h1>
-					<span
-						className={cn(
-							"inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium",
-							connected
-								? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-								: "text-muted-foreground",
-						)}
-					>
-						{connected ? <ConnectedDot /> : null}
-						{connected ? "Connected" : "Not connected"}
+					<span className="inline-flex shrink-0 items-center rounded-full border px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
+						{connected ? "Configured" : "Not configured"}
 					</span>
 				</div>
 

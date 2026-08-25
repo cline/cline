@@ -173,8 +173,8 @@ export function VoiceInputContent({
 					<Mic aria-hidden="true" className="size-6 text-muted-foreground" />
 					<p className="text-base font-medium text-foreground">
 						{hasConnected
-							? "None of your connected providers offer speech-to-text models"
-							: "Voice input needs a connected model provider"}
+							? "None of your configured providers offer speech-to-text models"
+							: "Voice input needs a configured model provider"}
 					</p>
 					<p className="text-sm text-muted-foreground">
 						{voiceCapableProviderNames.length > 0

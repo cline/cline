@@ -111,7 +111,7 @@ describe("VoiceInputContent", () => {
 		const onOpenModelProviders = await render();
 
 		expect(container.textContent).toContain(
-			"Voice input needs a connected model provider",
+			"Voice input needs a configured model provider",
 		);
 		const openProviders = Array.from(
 			container.querySelectorAll("button"),
@@ -136,7 +136,7 @@ describe("VoiceInputContent", () => {
 		await render();
 
 		expect(container.textContent).toContain(
-			"None of your connected providers offer speech-to-text models",
+			"None of your configured providers offer speech-to-text models",
 		);
 		expect(container.textContent).toContain("Groq");
 	});
