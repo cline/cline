@@ -1279,7 +1279,7 @@ export class CloudSessionManager {
 		sessionId: string,
 	): Promise<JsonRecord | undefined> {
 		const cached = this.getCachedDiscoveryRecord(sessionId);
-		if (!cached) {
+		if (!cached || typeof this.options.api.status !== "function") {
 			return undefined;
 		}
 		try {
@@ -1320,7 +1320,10 @@ export class CloudSessionManager {
 		}
 		const scoped = await Promise.all(
 			listed.map(async (session) => {
-				if (session.status !== "provisioning") {
+				if (
+					session.status !== "provisioning" ||
+					typeof this.options.api.status !== "function"
+				) {
 					return session;
 				}
 				const result = await this.options.api
@@ -1773,7 +1776,7 @@ export class CloudSessionManager {
 				if (live) {
 					live.title = title;
 				}
-				void this.options.api.updateTitle(outerSessionId, title).catch(() => {
+				void this.options.api.updateTitle?.(outerSessionId, title).catch(() => {
 					// Sidebar still shows the local title; REST retries on rename.
 				});
 			}
@@ -1933,7 +1936,7 @@ export class CloudSessionManager {
 			await this.ensureAttached(connection);
 			const sessionReply = await connection.client.command(
 				"session.get",
-				{},
+				{ includeSnapshot: true },
 				innerSessionId,
 			);
 			const session =

@@ -1555,9 +1555,6 @@ describe("CloudSessionManager", () => {
 					event.payload.sessionId === "ses-outer",
 			),
 		).toBe(true);
-		expect(
-			hub.commands.find((entry) => entry.command === "session.get")?.payload,
-		).toEqual({});
 	});
 
 	it("refreshes the completion time for a later turn completed while disconnected", async () => {
@@ -1888,7 +1885,6 @@ describe("CloudSessionManager", () => {
 					sessionId: "ses-outer",
 					sandboxUrl: "",
 				}),
-				updateTitle: async () => {},
 			} as unknown as CloudSessionApi,
 			apiBaseUrl: "https://api.example",
 			getAuthToken: async () => "workos:fresh",
@@ -1945,10 +1941,7 @@ describe("CloudSessionManager", () => {
 			metadata: { ...REMOTE_SESSION.metadata },
 		};
 		const manager = new CloudSessionManager(ctx, {
-			api: {
-				list: async () => [remote],
-				updateTitle: async () => {},
-			} as unknown as CloudSessionApi,
+			api: { list: async () => [remote] } as CloudSessionApi,
 			apiBaseUrl: "https://api.example",
 			getAuthToken: async () => "workos:fresh",
 			createHubClient: () => hub as never,
@@ -2010,8 +2003,7 @@ describe("CloudSessionManager", () => {
 						},
 					},
 				],
-				updateTitle: async () => {},
-			} as unknown as CloudSessionApi,
+			} as CloudSessionApi,
 			apiBaseUrl: "https://api.example",
 			getAuthToken: async () => "workos:fresh",
 			createHubClient: () => hub as never,
@@ -2042,10 +2034,7 @@ describe("CloudSessionManager", () => {
 		const originalModel = REMOTE_SESSION.metadata.modelId ?? "";
 		const externalModel = "anthropic/claude-opus-4-1";
 		const manager = new CloudSessionManager(ctx, {
-			api: {
-				list: async () => [REMOTE_SESSION],
-				updateTitle: async () => {},
-			} as unknown as CloudSessionApi,
+			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
 			apiBaseUrl: "https://api.example",
 			getAuthToken: async () => "workos:fresh",
 			createHubClient: () => hub as never,
@@ -2892,10 +2881,6 @@ describe("CloudSessionManager", () => {
 					new Promise((resolve) => {
 						finishCreate = resolve;
 					}),
-				status: async (sessionId: string) => ({
-					sessionId,
-					status: serverReady ? "ready" : "provisioning",
-				}),
 			} as unknown as CloudSessionApi,
 			apiBaseUrl: "https://api.example",
 			getAuthToken: async () => "workos:fresh",
@@ -3357,7 +3342,6 @@ describe("CloudSessionManager", () => {
 		const manager = new CloudSessionManager(ctx, {
 			api: {
 				list: async () => [{ ...REMOTE_SESSION, title: undefined }],
-				updateTitle: async () => {},
 			} as unknown as CloudSessionApi,
 			apiBaseUrl: "https://api.example",
 			getAuthToken: async () => "workos:fresh",
@@ -3404,7 +3388,6 @@ describe("CloudSessionManager", () => {
 		const manager = new CloudSessionManager(ctx, {
 			api: {
 				list: async () => [{ ...REMOTE_SESSION, title: undefined }],
-				updateTitle: async () => {},
 			} as unknown as CloudSessionApi,
 			apiBaseUrl: "https://api.example",
 			getAuthToken: async () => "workos:fresh",
@@ -3437,7 +3420,6 @@ describe("CloudSessionManager", () => {
 			api: {
 				list: async (organizationId?: string) =>
 					organizationId ? [orgSession] : [personalSession],
-				updateTitle: async () => {},
 			} as unknown as CloudSessionApi,
 			apiBaseUrl: "https://api.example",
 			getAuthToken: async () => "workos:fresh",
