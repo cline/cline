@@ -215,6 +215,38 @@ describe("cloudHandoffUiReducer", () => {
 		});
 	});
 
+	it("replaces a completed receipt with recovery when its target cannot open", () => {
+		const attachment = new File(["img"], "shot.png", {
+			type: "image/png",
+		});
+		const recovered = cloudHandoffUiReducer(
+			{
+				"local-1": {
+					status: "complete",
+					receipt: {
+						targetSessionId: "cloud-1",
+						dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
+					},
+					externalPresentation: false,
+				},
+			},
+			{
+				type: "target_open_failed",
+				sourceSessionId: "local-1",
+				dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
+				retryDraft: "/handoff continue",
+				retryAttachments: [attachment],
+			},
+		);
+
+		expect(recovered["local-1"]).toEqual({
+			status: "recovery",
+			dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
+			retryDraft: "/handoff continue",
+			retryAttachments: [attachment],
+		});
+	});
+
 	it("dismisses recovery for this app run without accepting late progress", () => {
 		const recovery = {
 			"local-1": {

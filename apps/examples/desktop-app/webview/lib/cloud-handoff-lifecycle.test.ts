@@ -388,6 +388,58 @@ describe("cloud handoff lifecycle: event/RPC ordering races", () => {
 		);
 	});
 
+	it("event then reject: a false target-open result exposes the draft and attachments for recovery", async () => {
+		const h = makeHarness({ openSessionResult: false });
+		const attachment = makeAttachment();
+		await h.lifecycle.onEvent(completeEvent({ warningKind: "unqueued" }));
+
+		await h.lifecycle.onRpcRejected(SOURCE, {
+			error: new Error("socket closed"),
+			nextCommand: "run the suite",
+			sourceAttachments: [attachment],
+			isThreadActive: () => true,
+		});
+		expect(h.openSession).toHaveBeenCalledExactlyOnceWith(TARGET, {
+			silent: true,
+			initialPromptDraft: "run the suite",
+			initialAttachments: [attachment],
+		});
+		expect(h.dispatched.at(-1)).toEqual({
+			type: "target_open_failed",
+			sourceSessionId: SOURCE,
+			dashboardUrl: DASHBOARD_URL,
+			retryDraft: "/handoff run the suite",
+			retryAttachments: [attachment],
+		});
+		expect(h.getState()[SOURCE]).toEqual({
+			status: "recovery",
+			dashboardUrl: DASHBOARD_URL,
+			retryDraft: "/handoff run the suite",
+			retryAttachments: [attachment],
+		});
+	});
+
+	it("event then reject: a rejected target open exposes the draft and attachments for recovery", async () => {
+		const h = makeHarness();
+		const attachment = makeAttachment();
+		h.openSession.mockRejectedValueOnce(new Error("discovery failed"));
+		await h.lifecycle.onEvent(completeEvent({ warningKind: "unqueued" }));
+
+		await h.lifecycle.onRpcRejected(SOURCE, {
+			error: new Error("socket closed"),
+			nextCommand: "run the suite",
+			sourceAttachments: [attachment],
+			isThreadActive: () => true,
+		});
+		expect(h.openSession).toHaveBeenCalledTimes(1);
+		expect(h.getState()[SOURCE]).toEqual({
+			status: "recovery",
+			dashboardUrl: DASHBOARD_URL,
+			retryDraft: "/handoff run the suite",
+			retryAttachments: [attachment],
+		});
+	});
+
 	it("ref-lag fallback: a reducer-fed complete entry drives restoration when the registry is empty", async () => {
 		const h = makeHarness();
 		await h.lifecycle.onRpcRejected(SOURCE, {

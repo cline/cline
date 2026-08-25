@@ -69,6 +69,13 @@ export type CloudHandoffUiAction =
 			externalPresentation: boolean;
 			pendingPrompt?: PendingHandoffPrompt;
 	  }
+	| {
+			type: "target_open_failed";
+			sourceSessionId: string;
+			dashboardUrl: string;
+			retryDraft?: string;
+			retryAttachments?: File[];
+	  }
 	| { type: "external"; sourceSessionId: string }
 	| { type: "prompt_reconciled"; sourceSessionId: string }
 	| {
@@ -210,6 +217,16 @@ export function cloudHandoffUiReducer(
 				action.externalPresentation,
 				action.pendingPrompt,
 			);
+		case "target_open_failed":
+			return {
+				...state,
+				[action.sourceSessionId]: {
+					status: "recovery",
+					dashboardUrl: action.dashboardUrl,
+					retryDraft: action.retryDraft,
+					retryAttachments: action.retryAttachments,
+				},
+			};
 		case "external": {
 			if (current?.status !== "complete") return state;
 			const next = {

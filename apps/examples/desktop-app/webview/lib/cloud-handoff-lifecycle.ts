@@ -337,22 +337,40 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 					completedEntry.warningKind === "unqueued"
 						? nextCommand.trim() || undefined
 						: undefined;
+				const restoreAttachments =
+					completedEntry.warningKind === "unqueued" &&
+					sourceAttachments.length > 0
+						? sourceAttachments
+						: undefined;
 				if (
-					restoreCommand &&
+					(restoreCommand || restoreAttachments) &&
 					shouldOpenHandoffInApp(
 						completedEntry.externalPresentation ? "external" : "in_app",
 						ctx.isThreadActive?.() ?? true,
 					)
 				) {
-					await Promise.resolve(
-						effects.openSession(completedEntry.receipt.targetSessionId, {
-							silent: true,
-							initialPromptDraft: restoreCommand,
-							...(sourceAttachments.length > 0
-								? { initialAttachments: sourceAttachments }
-								: {}),
-						}),
-					).catch(() => false);
+					const opened = await Promise.resolve()
+						.then(() =>
+							effects.openSession(completedEntry.receipt.targetSessionId, {
+								silent: true,
+								...(restoreCommand
+									? { initialPromptDraft: restoreCommand }
+									: {}),
+								...(restoreAttachments
+									? { initialAttachments: restoreAttachments }
+									: {}),
+							}),
+						)
+						.catch(() => false);
+					if (!opened) {
+						effects.dispatch({
+							type: "target_open_failed",
+							sourceSessionId,
+							dashboardUrl: completedEntry.receipt.dashboardUrl,
+							retryDraft: nextCommand ? `/handoff ${nextCommand}` : "/handoff",
+							retryAttachments: sourceAttachments,
+						});
+					}
 				}
 				effects.toast({
 					title: "Handoff completed",
