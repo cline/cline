@@ -59,6 +59,15 @@ describe("AgentWelcomeHero", () => {
 		expect(
 			hero.querySelector('[data-welcome-hero-layer="grid"]'),
 		).not.toBeNull();
+		expect(
+			hero.querySelector('[data-welcome-hero-layer="inner"]'),
+		).not.toBeNull();
+		expect(
+			hero.querySelector('[data-welcome-hero-layer="bot-fill"]'),
+		).not.toBeNull();
+		expect(
+			hero.querySelector('[data-welcome-hero-layer="bot-outline"]'),
+		).not.toBeNull();
 		expect(hero.querySelectorAll("[data-welcome-hero-eye]")).toHaveLength(2);
 	});
 
@@ -96,6 +105,52 @@ describe("AgentWelcomeHero", () => {
 		expect(hero.style.getPropertyValue("--welcome-eye-x")).toMatch(/^-/);
 	});
 
+	it("tracks an interactive grid using its rendered bounds", async () => {
+		const hero = await renderHero({ interactive: true, variant: "grid-only" });
+		const grid = hero.querySelector<HTMLElement>(
+			'[data-welcome-hero-layer="grid"]',
+		);
+		if (!grid) throw new Error("Expected the grid layer to render");
+		hero.getBoundingClientRect = vi.fn(
+			() => ({ height: 220, left: 10, top: 20, width: 930 }) as DOMRect,
+		);
+		grid.getBoundingClientRect = vi.fn(
+			() => ({ height: 700, left: 10, top: 20, width: 930 }) as DOMRect,
+		);
+
+		await act(async () => {
+			window.dispatchEvent(
+				new MouseEvent("pointermove", { clientX: -100, clientY: 500 }),
+			);
+			animationFrames.shift()?.(0);
+		});
+
+		expect(hero.style.getPropertyValue("--welcome-grid-x")).toBe("0.00%");
+		expect(hero.style.getPropertyValue("--welcome-grid-y")).toBe("68.57%");
+	});
+
+	it("clears pointer styles when interaction is disabled", async () => {
+		const hero = await renderHero();
+		hero.getBoundingClientRect = vi.fn(
+			() => ({ height: 220, left: 10, top: 20, width: 930 }) as DOMRect,
+		);
+
+		await act(async () => {
+			window.dispatchEvent(
+				new MouseEvent("pointermove", { clientX: 220, clientY: 120 }),
+			);
+			animationFrames.shift()?.(0);
+		});
+		expect(hero.style.getPropertyValue("--welcome-grid-x")).not.toBe("");
+
+		const staticHero = await renderHero({ interactive: false });
+		expect(staticHero).toBe(hero);
+		expect(staticHero.style.getPropertyValue("--welcome-grid-x")).toBe("");
+		expect(staticHero.style.getPropertyValue("--welcome-grid-y")).toBe("");
+		expect(staticHero.style.getPropertyValue("--welcome-eye-x")).toBe("");
+		expect(staticHero.style.getPropertyValue("--welcome-eye-y")).toBe("");
+	});
+
 	it("does not track the pointer with reduced motion", async () => {
 		reducedMotion = true;
 		const hero = await renderHero();
@@ -109,5 +164,7 @@ describe("AgentWelcomeHero", () => {
 
 		expect(bounds).not.toHaveBeenCalled();
 		expect(animationFrames).toHaveLength(0);
+		expect(hero.style.getPropertyValue("--welcome-grid-x")).toBe("");
+		expect(hero.style.getPropertyValue("--welcome-eye-x")).toBe("");
 	});
 });
