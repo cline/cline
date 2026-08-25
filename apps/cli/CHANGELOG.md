@@ -1,5 +1,11 @@
 # Cline CLI Changelog
 
+## 3.0.58
+
+- The first-launch "Try ClinePass" dialog no longer advertises the $4.99 first-month promo, which is ending
+- The hub's event log is now capped at 64 MiB on disk. Events carrying full session snapshots could previously grow the log to tens of gigabytes on a long-running hub, since deleting rows never shrinks the file. Oldest events are dropped first and the space is returned, and pruning runs on volume as well as on a timer
+- Refreshed the model catalog. Adds two providers (AgentRouter and Opper) and updates model lists and pricing across providers. The resolved default model changes for Aki.io and NanoGPT, so if you use one of those without pinning a model you will get a different default
+
 ## 3.0.57
 
 - Added `cline hub drain`, which stops a hub from accepting new mutating work while it finishes what it is already running, and `cline hub drain --off` to lift it
