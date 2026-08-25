@@ -115,10 +115,14 @@ import {
 } from "./task-command-service";
 
 /**
- * The agent-facing `kind: "todo"` half of the `tasks` tool is temporarily
- * disabled while the Agenda UX is reworked; the desktop Agenda UI is removed
- * for the same reason. The Agenda backend (manager, `task.*` Hub commands,
- * storage) stays fully wired so flipping this back on restores the feature.
+ * The agent-facing `kind: "todo"` half of the `tasks` tool and the Agenda
+ * automation pump are temporarily disabled while the Agenda UX is reworked;
+ * the desktop Agenda UI is removed for the same reason. Automation must stay
+ * off with the UI gone: a previously persisted `auto_start`/`unattended`
+ * policy would otherwise keep starting eligible tasks with no surface left to
+ * inspect, pause, or cancel them. The Agenda backend (manager, `task.*` Hub
+ * commands, storage, persisted policies) stays fully wired so flipping this
+ * back on restores the feature.
  */
 const AGENDA_TODO_TOOL_ENABLED = false;
 
@@ -282,6 +286,7 @@ export class HubServerTransport implements NativeHubTransport {
 		};
 		this.tasks = new AgendaTaskManager({
 			...options.taskOptions,
+			automationEnabled: AGENDA_TODO_TOOL_ENABLED,
 			runtime: {
 				isInteractiveClientAvailable: () =>
 					[...this.clients.values()].some((client) =>
