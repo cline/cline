@@ -18,8 +18,11 @@ import {
 	resolve,
 } from "node:path";
 import {
+	installPlugin as installCorePlugin,
+	installMcpServer,
 	type MarketplaceActionResult,
 	type MarketplaceEntryInput,
+	parseMcpInstallArgs,
 	resolveSkillsConfigSearchPaths,
 	resolveWorkflowsConfigSearchPaths,
 	uninstallMarketplaceEntry as uninstallCoreMarketplaceEntry,
@@ -75,6 +78,11 @@ type SpawnCommand = (
 	args: string[],
 	options?: SpawnOptions,
 ) => Promise<SpawnResult>;
+type PluginInstaller = typeof installCorePlugin;
+type MarketplaceInstallOptions = {
+	spawnCommand?: SpawnCommand;
+	installPlugin?: PluginInstaller;
+};
 type CatalogFetch = (
 	input: string | URL | Request,
 	init?: RequestInit,
@@ -454,18 +462,6 @@ export function buildMarketplaceMcpInput(args: string[]): JsonRecord {
 	};
 }
 
-function resolveClineInvocation(): { command: string; argsPrefix: string[] } {
-	const wrapperPath = process.env.CLINE_WRAPPER_PATH?.trim();
-	if (wrapperPath) {
-		return { command: wrapperPath, argsPrefix: [] };
-	}
-	const entry = process.argv[1]?.trim();
-	if (entry && /(?:^|[/\\])apps[/\\]cli[/\\]src[/\\]index\.ts$/.test(entry)) {
-		return { command: process.execPath, argsPrefix: [entry] };
-	}
-	return { command: "cline", argsPrefix: [] };
-}
-
 function isInsidePath(childPath: string, parentPath: string): boolean {
 	const relativePath = relative(resolve(parentPath), resolve(childPath));
 	return (
@@ -797,7 +793,7 @@ async function installSkill(
 
 async function installPlugin(
 	entry: MarketplaceInstallInput,
-	spawnCommand: SpawnCommand,
+	installPluginImpl: PluginInstaller,
 ): Promise<MarketplaceInstallResult> {
 	const installArgs = entry.install.args ?? [];
 	if (installArgs.length !== 1) {
@@ -813,84 +809,56 @@ async function installPlugin(
 			message: `${entry.name ?? entry.id} is already installed.`,
 		};
 	}
-	const { command, argsPrefix } = resolveClineInvocation();
-	const result = await spawnCommand(command, [
-		...argsPrefix,
-		"plugin",
-		"install",
-		installArgs[0] ?? "",
-		"--json",
-	]);
-	if (result.exitCode !== 0) {
-		const output = commandOutput(result);
-		throw new Error(
-			`Plugin install failed with exit code ${result.exitCode}${output ? `:\n${output}` : ""}`,
-		);
-	}
-	let details: JsonRecord | undefined;
-	try {
-		details = result.stdout.trim()
-			? (JSON.parse(result.stdout.trim()) as JsonRecord)
-			: undefined;
-	} catch {
-		details = undefined;
-	}
+	// Install in-process instead of shelling out to a `cline` binary, which
+	// fails with 'Executable not found in $PATH: "cline"' when the hub runs
+	// without a CLI install on PATH.
+	const result = await installPluginImpl({ source: installArgs[0] ?? "" });
+	const warnings = result.mcpSyncFailures.map(
+		(failure) =>
+			`Failed to sync plugin MCP servers for ${failure.pluginName ?? failure.pluginPath}: ${failure.message}`,
+	);
 	return {
 		id: entry.id,
 		type: entry.type,
 		status: "installed",
 		message: `Installed ${entry.name ?? entry.id}.`,
-		details,
-		output: commandOutput(result),
+		details: {
+			source: result.source,
+			installPath: result.installPath,
+			entryPaths: result.entryPaths,
+			mcpSyncFailures: result.mcpSyncFailures,
+		} as JsonRecord,
+		output: [`Path: ${result.installPath}`, ...warnings].join("\n"),
 	};
 }
 
 export async function installMarketplaceEntry(
 	args?: Record<string, unknown>,
-	options: { spawnCommand?: SpawnCommand } = {},
+	options: MarketplaceInstallOptions = {},
 ): Promise<MarketplaceInstallResult> {
 	const entry = readInstallInput(args);
 	const spawnCommand = options.spawnCommand ?? defaultSpawnCommand;
 	if (entry.type === "mcp") {
-		// Validate marketplace args before handing them to the CLI-backed installer.
-		buildMarketplaceMcpInput(entry.install.args ?? []);
-		const { command, argsPrefix } = resolveClineInvocation();
-		const result = await spawnCommand(command, [
-			...argsPrefix,
-			"mcp",
-			"install",
-			"--yes",
-			"--json",
-			...(entry.install.args ?? []),
-		]);
-		if (result.exitCode !== 0) {
-			const output = commandOutput(result);
-			throw new Error(
-				`MCP install failed with exit code ${result.exitCode}${output ? `:\n${output}` : ""}`,
-			);
-		}
-		let details: JsonRecord | undefined;
-		try {
-			details = result.stdout.trim()
-				? (JSON.parse(result.stdout.trim()) as JsonRecord)
-				: undefined;
-		} catch {
-			details = undefined;
-		}
+		// Register the server in-process; this only writes MCP settings, so
+		// there is no reason to depend on a `cline` binary being on PATH.
+		const result = installMcpServer(
+			parseMcpInstallArgs(entry.install.args ?? []),
+		);
 		return {
 			id: entry.id,
 			type: entry.type,
 			status: "installed",
 			message: `Installed ${entry.name ?? entry.id}.`,
-			details,
-			output: commandOutput(result),
+			details: result as unknown as JsonRecord,
+			output:
+				result.warnings.length > 0 ? result.warnings.join("\n") : undefined,
 		};
 	}
 	if (entry.type === "skill") {
 		return installSkill(entry, spawnCommand);
 	}
 	if (entry.type === "plugin") {
-		return installPlugin(entry, spawnCommand);
+		return installPlugin(entry, options.installPlugin ?? installCorePlugin);
 	}
 	throw new Error(`Unsupported marketplace entry type: ${entry.type}`);
 }
@@ -920,8 +888,7 @@ export async function uninstallMarketplaceEntry(
 
 export async function installMarketplaceEntryFromCatalog(
 	args?: Record<string, unknown>,
-	options: {
-		spawnCommand?: SpawnCommand;
+	options: MarketplaceInstallOptions & {
 		loadCatalog?: CatalogLoader;
 	} = {},
 ): Promise<MarketplaceInstallResult> {
@@ -938,7 +905,10 @@ export async function installMarketplaceEntryFromCatalog(
 	}
 	return installMarketplaceEntry(
 		{ entry },
-		{ spawnCommand: options.spawnCommand },
+		{
+			spawnCommand: options.spawnCommand,
+			installPlugin: options.installPlugin,
+		},
 	);
 }
 
@@ -979,8 +949,7 @@ export function listMarketplaceInstalledEntries(
 
 export async function installMarketplaceEntryForDesktopCommand(
 	args?: Record<string, unknown>,
-	options: {
-		spawnCommand?: SpawnCommand;
+	options: MarketplaceInstallOptions & {
 		loadCatalog?: CatalogLoader;
 	} = {},
 ): Promise<MarketplaceInstallResult> {

@@ -1,6 +1,7 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { PluginInstallOptions, PluginInstallResult } from "@cline/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	getOfficialPluginInstallPath,
@@ -42,58 +43,84 @@ function goalInstallDir(): string {
 	return path;
 }
 
+function fakePluginInstaller(overrides: Partial<PluginInstallResult> = {}) {
+	return vi.fn(
+		async (options: PluginInstallOptions): Promise<PluginInstallResult> => ({
+			source: options.source,
+			installPath: goalInstallDir(),
+			entryPaths: [],
+			mcpSyncFailures: [],
+			mcpOAuthCandidates: [],
+			...overrides,
+		}),
+	);
+}
+
 describe("official plugin install detection", () => {
-	it("does not treat a leftover empty install directory as installed", async () => {
-		// Regression: a failed or interrupted install can leave the directory
-		// behind with nothing in it. The next install attempt then returned
-		// "already installed" without running the CLI, so the UI flipped the
-		// entry to Uninstall with no error while nothing actually worked.
-		await mkdir(goalInstallDir(), { recursive: true });
+	it("installs plugins in-process instead of shelling out to a cline binary", async () => {
+		// Regression: the packaged desktop app spawned `cline plugin install`,
+		// which fails with 'Executable not found in $PATH: "cline"' when no
+		// CLI is installed (or when the GUI app inherits launchd's minimal
+		// PATH on macOS).
 		const spawnCommand = vi.fn(async () => ({
-			exitCode: 1,
-			stdout: "",
-			stderr: "install exploded",
-		}));
-
-		await expect(
-			installMarketplaceEntry({ entry: GOAL_ENTRY }, { spawnCommand }),
-		).rejects.toThrow(/Plugin install failed/);
-		expect(spawnCommand).toHaveBeenCalledTimes(1);
-	});
-
-	it("passes --force so a retry can reclaim the leftover directory", async () => {
-		// Without --force the CLI refuses to replace the existing path
-		// ("Plugin is already installed at ... Use --force to replace it."),
-		// so every retry from the UI would fail against the stale directory.
-		await mkdir(goalInstallDir(), { recursive: true });
-		const spawnCommand = vi.fn(async (_command: string, _args: string[]) => ({
 			exitCode: 0,
 			stdout: "",
 			stderr: "",
 		}));
+		const installPlugin = fakePluginInstaller();
 
 		const result = await installMarketplaceEntry(
 			{ entry: GOAL_ENTRY },
-			{ spawnCommand },
+			{ spawnCommand, installPlugin },
 		);
 
 		expect(result).toMatchObject({
 			status: "installed",
 			message: "Installed Goal.",
 		});
-		expect(spawnCommand.mock.calls[0]?.[1]).toContain("--force");
+		expect(installPlugin).toHaveBeenCalledWith({
+			source: "goal",
+			force: false,
+		});
+		expect(spawnCommand).not.toHaveBeenCalled();
 	});
 
-	it("does not pass --force for a clean first install", async () => {
-		const spawnCommand = vi.fn(async (_command: string, _args: string[]) => ({
-			exitCode: 0,
-			stdout: "",
-			stderr: "",
-		}));
+	it("does not treat a leftover empty install directory as installed", async () => {
+		// Regression: a failed or interrupted install can leave the directory
+		// behind with nothing in it. The next install attempt then returned
+		// "already installed" without running the installer, so the UI flipped
+		// the entry to Uninstall with no error while nothing actually worked.
+		await mkdir(goalInstallDir(), { recursive: true });
+		const installPlugin = vi.fn(async () => {
+			throw new Error("install exploded");
+		});
 
-		await installMarketplaceEntry({ entry: GOAL_ENTRY }, { spawnCommand });
+		await expect(
+			installMarketplaceEntry({ entry: GOAL_ENTRY }, { installPlugin }),
+		).rejects.toThrow(/install exploded/);
+		expect(installPlugin).toHaveBeenCalledTimes(1);
+	});
 
-		expect(spawnCommand.mock.calls[0]?.[1]).not.toContain("--force");
+	it("passes force so a retry can reclaim the leftover directory", async () => {
+		// Without force the installer refuses to replace the existing path
+		// ("Plugin is already installed at ... Use --force to replace it."),
+		// so every retry from the UI would fail against the stale directory.
+		await mkdir(goalInstallDir(), { recursive: true });
+		const installPlugin = fakePluginInstaller();
+
+		const result = await installMarketplaceEntry(
+			{ entry: GOAL_ENTRY },
+			{ installPlugin },
+		);
+
+		expect(result).toMatchObject({
+			status: "installed",
+			message: "Installed Goal.",
+		});
+		expect(installPlugin).toHaveBeenCalledWith({
+			source: "goal",
+			force: true,
+		});
 	});
 
 	it("still short-circuits when the directory contains a plugin module", async () => {
@@ -111,22 +138,64 @@ describe("official plugin install detection", () => {
 			join(installDir, "package", "index.ts"),
 			"export default {};",
 		);
-		const spawnCommand = vi.fn(async () => ({
-			exitCode: 0,
-			stdout: "",
-			stderr: "",
-		}));
+		const installPlugin = fakePluginInstaller();
 
 		const result = await installMarketplaceEntry(
 			{ entry: GOAL_ENTRY },
-			{ spawnCommand },
+			{ installPlugin },
 		);
 
 		expect(result).toMatchObject({
 			status: "installed",
 			message: "Goal is already installed.",
 		});
-		expect(spawnCommand).not.toHaveBeenCalled();
+		expect(installPlugin).not.toHaveBeenCalled();
+	});
+
+	it("registers MCP servers in-process, honoring the -- args separator", async () => {
+		const settingsPath = join(tempClineDir, "cline_mcp_settings.json");
+		const previousSettingsPath = process.env.CLINE_MCP_SETTINGS_PATH;
+		process.env.CLINE_MCP_SETTINGS_PATH = settingsPath;
+		const spawnCommand = vi.fn(async () => ({
+			exitCode: 0,
+			stdout: "",
+			stderr: "",
+		}));
+		try {
+			const result = await installMarketplaceEntry(
+				{
+					entry: {
+						id: "aikido",
+						type: "mcp",
+						name: "Aikido",
+						install: {
+							args: ["aikido", "--", "npx", "-y", "@aikidosec/mcp@1.0.9"],
+						},
+					},
+				},
+				{ spawnCommand },
+			);
+
+			expect(result).toMatchObject({
+				status: "installed",
+				message: "Installed Aikido.",
+			});
+			expect(spawnCommand).not.toHaveBeenCalled();
+			const settings = JSON.parse(await readFile(settingsPath, "utf8")) as {
+				mcpServers: Record<string, { transport?: unknown }>;
+			};
+			expect(settings.mcpServers.aikido?.transport).toEqual({
+				type: "stdio",
+				command: "npx",
+				args: ["-y", "@aikidosec/mcp@1.0.9"],
+			});
+		} finally {
+			if (previousSettingsPath === undefined) {
+				delete process.env.CLINE_MCP_SETTINGS_PATH;
+			} else {
+				process.env.CLINE_MCP_SETTINGS_PATH = previousSettingsPath;
+			}
+		}
 	});
 
 	it("excludes partial install directories from the installed entries list", async () => {
