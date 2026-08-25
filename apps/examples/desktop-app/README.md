@@ -28,7 +28,7 @@ regenerated from them on every build.
 1. The current source artwork is `640x400`. Export `background.png` at 1x and
    `background@2x.png` at 2x.
 2. Currently the app icons are centered at `(140, 200)` and
-   the Applications folder centered at `(520, 200)`. If updating artwork, update `appPosition`
+   the Applications folder centered at `(500, 200)`. If updating artwork, update `appPosition`
    and `applicationFolderPosition` to reposition the app icons.
 3. Build with `bun run build:binary`. Before compiling, the build validates
    both PNG dimensions, combines them with `tiffutil` into the Retina-aware
