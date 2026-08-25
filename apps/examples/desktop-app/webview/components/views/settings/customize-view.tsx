@@ -1,6 +1,5 @@
 "use client";
 
-import { Store } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { desktopClient } from "@/lib/desktop-client";
@@ -10,25 +9,33 @@ import { CustomizationSectionView } from "./extensions-view";
 import { McpServersContent } from "./mcp-view";
 
 /**
- * Unified Plugins hub: one page for everything installed (plugins, MCP
- * servers, skills) with sub-tabs and live counts. The "Browse Marketplace"
- * button navigates to the dedicated Marketplace settings page.
+ * Unified Customize hub: one page for everything that extends Cline —
+ * skills, MCP servers, plugins, rules, hooks, and tools — as sub-tabs with
+ * live counts. Tabs with a marketplace catalog (skills, MCP, plugins) show
+ * installed items followed by an inline browsable marketplace section, so
+ * there is no separate Marketplace page.
  */
 
-type PluginsHubTab = "plugins" | "mcp" | "skills";
+type CustomizeTab = "skills" | "mcp" | "plugins" | "rules" | "hooks" | "tools";
 
-const HUB_TABS: { id: PluginsHubTab; label: string }[] = [
-	{ id: "plugins", label: "Plugins" },
-	{ id: "mcp", label: "MCP" },
+const CUSTOMIZE_TABS: { id: CustomizeTab; label: string }[] = [
 	{ id: "skills", label: "Skills" },
+	{ id: "mcp", label: "MCP" },
+	{ id: "plugins", label: "Plugins" },
+	{ id: "rules", label: "Rules" },
+	{ id: "hooks", label: "Hooks" },
+	{ id: "tools", label: "Tools" },
 ];
 
-type HubCounts = Partial<Record<PluginsHubTab, number>>;
+type TabCounts = Partial<Record<CustomizeTab, number>>;
 
 type HubInventoryResponse = {
 	plugins?: unknown[];
 	skills?: unknown[];
 	workflows?: unknown[];
+	rules?: unknown[];
+	hooks?: unknown[];
+	tools?: unknown[];
 	mcp?: { servers?: unknown[] };
 };
 
@@ -36,13 +43,9 @@ function asCount(value: unknown): number {
 	return Array.isArray(value) ? value.length : 0;
 }
 
-export function PluginsHubView({
-	onOpenMarketplace,
-}: {
-	onOpenMarketplace?: () => void;
-}) {
-	const [tab, setTab] = useState<PluginsHubTab>("plugins");
-	const [counts, setCounts] = useState<HubCounts>({});
+export function CustomizeView() {
+	const [tab, setTab] = useState<CustomizeTab>("skills");
+	const [counts, setCounts] = useState<TabCounts>({});
 
 	const refreshCounts = useCallback(async () => {
 		const inventory = await desktopClient
@@ -52,9 +55,12 @@ export function PluginsHubView({
 			return;
 		}
 		setCounts({
-			plugins: asCount(inventory.plugins),
 			skills: asCount(inventory.skills) + asCount(inventory.workflows),
 			mcp: asCount(inventory.mcp?.servers),
+			plugins: asCount(inventory.plugins),
+			rules: asCount(inventory.rules),
+			hooks: asCount(inventory.hooks),
+			tools: asCount(inventory.tools),
 		});
 	}, []);
 
@@ -72,22 +78,14 @@ export function PluginsHubView({
 	return (
 		<PageFrame>
 			<PageHeader
-				description="Manage installed plugins, MCP servers, and skills. Browse the marketplace to install more."
-				title="Plugins"
-				actions={
-					onOpenMarketplace ? (
-						<Button onClick={onOpenMarketplace} type="button" variant="outline">
-							<Store className="size-4" />
-							Browse Marketplace
-						</Button>
-					) : undefined
-				}
+				description="Extend what Cline can do and change how it works. Manage what's installed and browse the marketplace for more options."
+				title="Customize"
 			/>
 
 			<div className="mb-6 flex items-center gap-0 border-b border-border">
-				{HUB_TABS.map((hubTab) => {
-					const count = counts[hubTab.id];
-					const active = tab === hubTab.id;
+				{CUSTOMIZE_TABS.map((customizeTab) => {
+					const count = counts[customizeTab.id];
+					const active = tab === customizeTab.id;
 					return (
 						<Button
 							aria-current={active ? "page" : undefined}
@@ -97,12 +95,12 @@ export function PluginsHubView({
 									? "text-foreground"
 									: "text-muted-foreground hover:text-foreground",
 							)}
-							key={hubTab.id}
-							onClick={() => setTab(hubTab.id)}
+							key={customizeTab.id}
+							onClick={() => setTab(customizeTab.id)}
 							type="button"
 							variant="ghost"
 						>
-							{hubTab.label}
+							{customizeTab.label}
 							{typeof count === "number" ? (
 								<span
 									className={cn(
@@ -123,26 +121,44 @@ export function PluginsHubView({
 				})}
 			</div>
 
-			{tab === "plugins" ? (
+			{tab === "skills" ? (
 				<CustomizationSectionView
-					catalogPrimitive="plugin"
+					catalogPrimitive="skill"
 					chrome="embedded"
-					marketplaceVariant="installed"
+					marketplaceVariant="full"
 					onInventoryChanged={handleInventoryChanged}
-					section="Plugins"
+					section="Skills"
 				/>
 			) : tab === "mcp" ? (
 				<McpServersContent
 					chrome="embedded"
 					onInventoryChanged={handleInventoryChanged}
 				/>
+			) : tab === "plugins" ? (
+				<CustomizationSectionView
+					catalogPrimitive="plugin"
+					chrome="embedded"
+					marketplaceVariant="full"
+					onInventoryChanged={handleInventoryChanged}
+					section="Plugins"
+				/>
+			) : tab === "rules" ? (
+				<CustomizationSectionView
+					chrome="embedded"
+					onInventoryChanged={handleInventoryChanged}
+					section="Rules"
+				/>
+			) : tab === "hooks" ? (
+				<CustomizationSectionView
+					chrome="embedded"
+					onInventoryChanged={handleInventoryChanged}
+					section="Hooks"
+				/>
 			) : (
 				<CustomizationSectionView
-					catalogPrimitive="skill"
 					chrome="embedded"
-					marketplaceVariant="installed"
 					onInventoryChanged={handleInventoryChanged}
-					section="Skills"
+					section="Tools"
 				/>
 			)}
 		</PageFrame>

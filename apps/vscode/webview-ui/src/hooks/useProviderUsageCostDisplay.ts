@@ -8,12 +8,12 @@ import { useProviderListings } from "./useProviderListings"
  * `apps/vscode/src/sdk/model-catalog/catalog.ts`) and is propagated
  * through the `ProviderListing.usage_cost_display` gRPC field.
  *
- * Returns `"hide"` when the SDK reports a subscription-style provider
- * whose per-token / total cost displays should be suppressed (matches
- * the CLI's `shouldShowCliUsageCost` consumer in `sdk/apps/cli`). Falls
- * back to `"show"` while the listings are still loading or for any
- * provider the SDK does not explicitly mark — the same default policy
- * the SDK and CLI use.
+ * Returns `"hide"` when the SDK reports `"hide"` or `"subscription"` —
+ * either way per-token / total cost displays should be suppressed
+ * (matches the CLI's `shouldShowCliUsageCost`, which only shows cost
+ * for `"show"`). Falls back to `"show"` while the listings are still
+ * loading or for any provider the SDK does not explicitly mark — the
+ * same default policy the SDK and CLI use.
  *
  * Webview consumers must pass the returned value into
  * `ModelInfoView.hideUsageCost` (and equivalent cost-display sites)
@@ -28,6 +28,6 @@ export function useProviderUsageCostDisplay(providerId: string | undefined): "sh
 			return "show"
 		}
 		const listing = providers.find((p) => p.id === providerId)
-		return listing?.usageCostDisplay === "hide" ? "hide" : "show"
+		return listing?.usageCostDisplay === "hide" || listing?.usageCostDisplay === "subscription" ? "hide" : "show"
 	}, [providers, providerId])
 }

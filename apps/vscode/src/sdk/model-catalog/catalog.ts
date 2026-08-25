@@ -48,13 +48,13 @@ const DEFAULT_MODEL_CATALOG_CONFIG: ModelCatalogConfig = {
 }
 
 /**
- * Normalize the SDK's usage-cost-display answer (string union) into the
- * extension's {@link UsageCostDisplay} type. The SDK function takes a
- * provider id (not metadata) and consults its own registry; we forward
- * the id and trust the answer rather than re-parsing the metadata bag.
+ * Read the SDK's usage-cost-display answer for a provider. The SDK
+ * function takes a provider id (not metadata) and consults its own
+ * registry; we forward the id and trust the answer rather than
+ * re-parsing the metadata bag.
  */
 function readUsageCostDisplay(providerId: string): UsageCostDisplay {
-	return resolveProviderUsageCostDisplay(providerId) === "hide" ? "hide" : "show"
+	return resolveProviderUsageCostDisplay(providerId)
 }
 
 function makeCacheKey(providerId: ProviderId, fingerprint: Fingerprint): CacheKey {

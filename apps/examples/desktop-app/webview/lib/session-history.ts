@@ -8,7 +8,7 @@ export type SessionHistoryStatus =
 export type SessionMetadata = {
 	title?: string;
 	/**
-	 * Favorited sessions. Stored in session metadata rather than desktop-local
+	 * Pinned sessions. Stored in session metadata rather than desktop-local
 	 * state so every client reading the session sees the same flag.
 	 */
 	pinned?: boolean;

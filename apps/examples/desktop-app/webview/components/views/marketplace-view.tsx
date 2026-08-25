@@ -1007,22 +1007,17 @@ export function MarketplaceView({
 						/>
 					))}
 				</div>
-				<div className="flex min-h-8 shrink-0 items-center gap-2 text-sm text-muted-foreground">
-					<span className="font-medium text-foreground">
-						{catalogEntries.length}
-					</span>
-					<span>{catalogEntries.length === 1 ? "result" : "results"}</span>
-					{selectedTag ? (
-						<Button
-							onClick={() => setSelectedTag(null)}
-							size="sm"
-							type="button"
-							variant="ghost"
-						>
-							Clear filters
-						</Button>
-					) : null}
-				</div>
+				{selectedTag ? (
+					<Button
+						className="shrink-0 self-start md:self-auto"
+						onClick={() => setSelectedTag(null)}
+						size="sm"
+						type="button"
+						variant="ghost"
+					>
+						Clear filters
+					</Button>
+				) : null}
 			</div>
 		) : null;
 
@@ -1219,7 +1214,7 @@ export function MarketplaceView({
 							onToggleExpanded={toggleExpanded}
 							onUninstall={uninstallEntry}
 							tagLabels={tagLabels}
-							title={variant === "directory" ? undefined : "Marketplace"}
+							title={variant === "directory" ? undefined : "Browse"}
 						/>
 					) : null}
 				</div>
