@@ -2,9 +2,28 @@ import { describe, expect, it } from "vitest";
 import {
 	appendPendingHandoffPrompt,
 	cloudHandoffUiReducer,
+	resolveHandoffReceipt,
 } from "./cloud-handoff-ui-state";
 
 describe("cloudHandoffUiReducer", () => {
+	it("lets live recovery state override a persisted completion receipt", () => {
+		const persisted = {
+			targetSessionId: "cloud-1",
+			dashboardUrl: "https://app.cline.bot/agents/cloud-1",
+		};
+		expect(
+			resolveHandoffReceipt(
+				{
+					status: "recovery",
+					dashboardUrl: persisted.dashboardUrl,
+					retryDraft: "/handoff continue",
+				},
+				persisted,
+			),
+		).toBeNull();
+		expect(resolveHandoffReceipt(undefined, persisted)).toBe(persisted);
+	});
+
 	it("carries the event's warningKind into the completed entry", () => {
 		const next = cloudHandoffUiReducer(
 			{},

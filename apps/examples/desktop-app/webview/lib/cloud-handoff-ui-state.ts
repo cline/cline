@@ -39,6 +39,14 @@ export type CloudHandoffUiEntry =
 
 export type CloudHandoffUiState = Record<string, CloudHandoffUiEntry>;
 
+export function resolveHandoffReceipt(
+	live: CloudHandoffUiEntry | undefined,
+	persisted: HandoffReceipt | null,
+): HandoffReceipt | null {
+	if (!live) return persisted;
+	return live.status === "complete" ? live.receipt : null;
+}
+
 export type CloudHandoffUiAction =
 	| {
 			type: "start";

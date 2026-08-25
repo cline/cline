@@ -82,6 +82,7 @@ import {
 	matchingUserPromptCount,
 	type PendingHandoffPrompt,
 	pendingHandoffPromptCaughtUp,
+	resolveHandoffReceipt,
 } from "@/lib/cloud-handoff-ui-state";
 import {
 	cloudRepositoryLabel,
@@ -912,9 +913,10 @@ function ChatThreadPane({
 					attachments: handoffUi.retryAttachments,
 				}
 			: null;
-	const handoffReceipt =
-		(handoffUi?.status === "complete" ? handoffUi.receipt : null) ??
-		readHandoffReceipt(historySession?.metadata);
+	const handoffReceipt = resolveHandoffReceipt(
+		handoffUi,
+		readHandoffReceipt(historySession?.metadata),
+	);
 	const handoffExternalPresentation =
 		handoffUi?.status === "complete" && handoffUi.externalPresentation;
 	const { user: accountUser } = useAccount();
@@ -1490,6 +1492,7 @@ function ChatThreadPane({
 			sourceSessionId: string,
 			pendingPrompt?: PendingHandoffPrompt,
 		) => {
+			handoffLifecycle.onRpcStarted(sourceSessionId);
 			onHandoffUiAction({
 				type: "progress",
 				sourceSessionId,

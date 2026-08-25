@@ -130,6 +130,14 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 		claimHandoffWarningSurface(surfacedWarnings, sourceSessionId);
 
 	return {
+		/** Starts a distinct RPC attempt for this source session. */
+		onRpcStarted(sourceSessionId: string): void {
+			surfacedWarnings.delete(sourceSessionId);
+			completions.delete(sourceSessionId);
+			retryStates.delete(sourceSessionId);
+			recoveryOpenAttempts.delete(sourceSessionId);
+		},
+
 		/** Handles a validated `cloud_handoff_progress` event. */
 		async onEvent(progress: HandoffProgressEventPayload): Promise<void> {
 			let preserveRecoveryState = false;

@@ -337,6 +337,41 @@ describe("cloud handoff lifecycle: event/RPC ordering races", () => {
 		expect(h.openSession).not.toHaveBeenCalled();
 	});
 
+	it("a new RPC attempt cannot consume the previous attempt's recovery attachments", async () => {
+		const h = makeHarness();
+		const staleAttachment = makeAttachment("stale.png");
+		const currentAttachment = makeAttachment("current.png");
+		await h.lifecycle.onRpcRejected(SOURCE, {
+			error: new Error("first attempt failed"),
+			nextCommand: "old command",
+			sourceAttachments: [staleAttachment],
+		});
+
+		h.lifecycle.onRpcStarted(SOURCE);
+		await h.lifecycle.onEvent(
+			completeEvent({
+				warning: "The follow-up command could not be queued.",
+				warningKind: "unqueued",
+				undeliveredCommand: "current command",
+			}),
+		);
+		expect(h.openSession).not.toHaveBeenCalled();
+
+		await h.lifecycle.onRpcResolved(SOURCE, {
+			result: makeResult({
+				warning: "The follow-up command could not be queued.",
+				warningKind: "unqueued",
+			}),
+			nextCommand: "current command",
+			sourceAttachments: [currentAttachment],
+		});
+		expect(h.openSession).toHaveBeenCalledExactlyOnceWith(TARGET, {
+			silent: true,
+			initialPromptDraft: "current command",
+			initialAttachments: [currentAttachment],
+		});
+	});
+
 	it("(d) event then reject in the same tick: restoration via the completions registry, benign toast, NO failed dispatch", async () => {
 		const h = makeHarness();
 		const attachment = makeAttachment();
