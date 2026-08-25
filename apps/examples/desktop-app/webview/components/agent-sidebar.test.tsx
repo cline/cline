@@ -317,6 +317,48 @@ describe("AgentSidebar session organization", () => {
 		expect(loadOlderSessions).toHaveBeenCalledTimes(2);
 	});
 
+	it("halts page-fill retries after a failed fetch until the next click", async () => {
+		const tasks = Array.from({ length: 5 }, (_, index) =>
+			makeThread("plain", index + 1),
+		);
+		const loadOlderSessions = vi.fn(async () => false);
+		const renderSidebar = async (isLoadingMore: boolean) => {
+			await act(async () => {
+				root.render(
+					<SidebarProvider>
+						<AgentSidebar
+							activeSessionId={null}
+							onHome={vi.fn()}
+							onSettingsSectionChange={vi.fn()}
+							sessionHistory={makeSessionHistory(tasks, vi.fn(), {
+								isLoadingMore,
+								loadOlderSessions,
+								mayHaveMoreSessions: true,
+							})}
+							setView={vi.fn()}
+							settingsSection="General"
+							view="chat"
+						/>
+					</SidebarProvider>,
+				);
+			});
+		};
+
+		await renderSidebar(false);
+		await click(buttonWithText("Show more"));
+		expect(loadOlderSessions).toHaveBeenCalledOnce();
+
+		// The failed fetch settles with nothing changed; retrying automatically
+		// would loop the same failing request and re-toast the error forever.
+		await renderSidebar(true);
+		await renderSidebar(false);
+		expect(loadOlderSessions).toHaveBeenCalledOnce();
+
+		// An explicit click clears the halt and retries.
+		await click(buttonWithText("Show more"));
+		expect(loadOlderSessions).toHaveBeenCalledTimes(2);
+	});
+
 	it("keeps a flat session list when nothing is pinned or scheduled", async () => {
 		await act(async () => {
 			root.render(

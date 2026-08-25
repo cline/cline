@@ -456,6 +456,11 @@ export function AgentSidebar({
 	const showTimeShowMore =
 		taskThreads.length > showMoreCount ||
 		(filter === "All" && mayHaveMoreSessions);
+	// A failed fetch leaves the task count and has-more state unchanged, which
+	// are exactly the conditions the page-fill effect fires on; without this
+	// halt it would retry a failing request (and re-toast the error) forever.
+	// The next explicit "Show more" click clears the halt to retry.
+	const pageFillFailedRef = useRef(false);
 	// A "Show more" click can outpace the loaded history: showMoreCount counts
 	// only Tasks rows while the backend limit counts all sessions, and a
 	// fetched batch can consist entirely of pinned or scheduled sessions. Keep
@@ -469,11 +474,16 @@ export function AgentSidebar({
 			isLoadingMore ||
 			!mayHaveMoreSessions ||
 			showMoreCount <= INITIAL_VISIBLE_THREAD_COUNT ||
-			taskThreads.length >= showMoreCount
+			taskThreads.length >= showMoreCount ||
+			pageFillFailedRef.current
 		) {
 			return;
 		}
-		void loadOlderSessions();
+		void loadOlderSessions().then((loaded) => {
+			if (!loaded) {
+				pageFillFailedRef.current = true;
+			}
+		});
 	}, [
 		filter,
 		isLoadingMore,
@@ -638,7 +648,9 @@ export function AgentSidebar({
 			disabled={isLoadingMore}
 			onClick={() => {
 				// Raising the page size is enough: the page-fill effect fetches
-				// older history whenever loaded tasks cannot fill the page.
+				// older history whenever loaded tasks cannot fill the page. An
+				// explicit click also retries after a failed fetch halted it.
+				pageFillFailedRef.current = false;
 				setShowMoreCount(showMoreCount + INITIAL_VISIBLE_THREAD_COUNT);
 			}}
 			type="button"
