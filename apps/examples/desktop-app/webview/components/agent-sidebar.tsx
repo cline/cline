@@ -281,7 +281,6 @@ export function AgentSidebar({
 		hasLoadedHistory,
 		isLoadingMore,
 		loadOlderSessions,
-		loadMoreSessions,
 		mayHaveMoreSessions,
 		openThread: openHistoryThread,
 		pendingAction,
@@ -704,7 +703,14 @@ export function AgentSidebar({
 			onClick={() => {
 				const nextCount = showMoreCount + INITIAL_VISIBLE_THREAD_COUNT;
 				setShowMoreCount(nextCount);
-				void loadMoreSessions(nextCount);
+				// showMoreCount counts only Tasks rows, but loadMoreSessions treats
+				// its argument as a limit on all sessions, so passing nextCount
+				// would no-op once pinned/scheduled rows push the loaded total past
+				// it. Grow the whole history window instead, and only when the
+				// loaded tasks cannot fill the next page.
+				if (taskThreads.length < nextCount) {
+					void loadOlderSessions();
+				}
 			}}
 			type="button"
 			variant="sidebarText"

@@ -714,9 +714,18 @@ describe("AgentSidebar session organization", () => {
 		expect(sessionIsVisible("alpha session 11")).toBe(false);
 		expect(sessionIsVisible("beta session 1")).toBe(false);
 
+		// The first page grows purely from already-loaded sessions (24 loaded,
+		// 20 requested), so no history fetch is needed.
 		await click(buttonWithText("Show more"));
 		expect(sessionIsVisible("alpha session 11")).toBe(true);
-		expect(loadMoreSessions).toHaveBeenCalledWith(20);
+		expect(loadMoreSessions).not.toHaveBeenCalled();
+		expect(loadOlderSessions).not.toHaveBeenCalled();
+
+		// The next page (30) exceeds the 24 loaded sessions, so the whole
+		// history window grows.
+		await click(buttonWithText("Show more"));
+		expect(sessionIsVisible("beta session 12")).toBe(true);
+		expect(loadOlderSessions).toHaveBeenCalledOnce();
 
 		await click(
 			container.querySelector('[aria-label="Sort sessions: Time"]') as Element,
@@ -745,7 +754,7 @@ describe("AgentSidebar session organization", () => {
 		expect(sessionIsVisible("beta session 11")).toBe(false);
 
 		await click(buttonWithText("Load older projects"));
-		expect(loadOlderSessions).toHaveBeenCalledOnce();
+		expect(loadOlderSessions).toHaveBeenCalledTimes(2);
 	});
 
 	it("shows the signed-in account and active organization in the footer", async () => {
