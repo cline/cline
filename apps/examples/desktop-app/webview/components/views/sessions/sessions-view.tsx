@@ -13,8 +13,8 @@ import {
 	Loader2,
 	MoreHorizontal,
 	Pencil,
+	Pin,
 	Search,
-	Star,
 	Trash2,
 	X,
 } from "lucide-react";
@@ -131,7 +131,7 @@ function sessionFilterDetails(
 	const workspacePath = session?.workspaceRoot || session?.cwd || "";
 	const workspace = workspacePath ? basenamePath(workspacePath) : "";
 	return [
-		thread.pinned ? "favorite:yes" : undefined,
+		thread.pinned ? "pinned:yes" : undefined,
 		workspace ? `workspace:${workspace}` : undefined,
 		thread.status ? `status:${thread.status}` : undefined,
 		thread.provider ? `provider:${thread.provider}` : undefined,
@@ -572,8 +572,8 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 												/>
 												<span className="truncate">{thread.title}</span>
 												{thread.pinned ? (
-													<Star
-														aria-label="Favorited"
+													<Pin
+														aria-label="Pinned"
 														className="size-3.5 shrink-0 fill-current text-muted-foreground"
 													/>
 												) : null}
@@ -626,13 +626,13 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 														)
 													}
 												>
-													<Star
+													<Pin
 														className={cn(
 															"size-4",
 															thread.pinned && "fill-current",
 														)}
 													/>
-													{thread.pinned ? "Unfavorite" : "Favorite"}
+													{thread.pinned ? "Unpin" : "Pin"}
 												</DropdownMenuItem>
 												<DropdownMenuItem onClick={() => startRename(thread)}>
 													<Pencil className="size-4" />

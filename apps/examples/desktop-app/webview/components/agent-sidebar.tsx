@@ -17,13 +17,13 @@ import {
 	Loader2,
 	PanelLeftOpen,
 	Pencil,
+	Pin,
 	Plug,
 	Plus,
 	Radio,
 	Search,
 	Settings,
 	SlidersHorizontal,
-	Star,
 	Store,
 	Trash2,
 	Wrench,
@@ -114,9 +114,10 @@ import { cn } from "@/lib/utils";
 type Thread = SessionThread;
 type AppView = "chat" | "sessions" | "settings";
 
-const filterOptions = ["All", "Running", "Schedules", "Favorites"] as const;
+const filterOptions = ["All", "Running"] as const;
 type FilterOption = (typeof filterOptions)[number];
 type SidebarSortMode = "time" | "project";
+type SessionCategory = "pinned" | "scheduled" | "tasks";
 type DesktopProcessContext = {
 	appVersion?: unknown;
 	hub?: {
@@ -257,7 +258,6 @@ export function AgentSidebar({
 		isLoadingMore,
 		loadAllSessions,
 		loadOlderSessions,
-		loadMoreSessions,
 		mayHaveMoreSessions,
 		openThread: openHistoryThread,
 		pendingAction,
@@ -274,6 +274,12 @@ export function AgentSidebar({
 	const [showMoreCount, setShowMoreCount] = useState(
 		INITIAL_VISIBLE_THREAD_COUNT,
 	);
+	const [scheduledVisibleCount, setScheduledVisibleCount] = useState(
+		INITIAL_VISIBLE_THREAD_COUNT,
+	);
+	const [collapsedSections, setCollapsedSections] = useState<
+		Set<SessionCategory>
+	>(() => new Set());
 	const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
 	const [editingTitle, setEditingTitle] = useState("");
 	const [deleteConfirmThread, setDeleteConfirmThread] = useState<Thread | null>(
@@ -329,16 +335,10 @@ export function AgentSidebar({
 	const sourceOptions = useMemo(() => getSessionSources(threads), [threads]);
 	const filteredThreads = useMemo(() => {
 		const filtered = filterSessionsBySource(threads, sourceFilter);
-		switch (filter) {
-			case "Running":
-				return filtered.filter((t) => t.status === "running");
-			case "Schedules":
-				return filtered.filter((t) => t.isScheduled);
-			case "Favorites":
-				return filtered.filter((t) => t.pinned);
-			default:
-				return filtered;
+		if (filter === "Running") {
+			return filtered.filter((t) => t.status === "running");
 		}
+		return filtered;
 	}, [filter, sourceFilter, threads]);
 	const closeMobileSidebar = useCallback(() => {
 		if (isMobile) setOpenMobile(false);
@@ -418,7 +418,7 @@ export function AgentSidebar({
 		[forkHistoryThread],
 	);
 
-	const toggleFavorite = useCallback(
+	const togglePinned = useCallback(
 		async (thread: Thread) => {
 			await setThreadPinned(thread.id, !thread.pinned);
 		},
@@ -441,25 +441,75 @@ export function AgentSidebar({
 		() => filteredThreads.filter((t) => t.pinned),
 		[filteredThreads],
 	);
-	const sessionThreads = useMemo(
-		() => filteredThreads.filter((t) => !t.pinned),
+	const scheduledThreads = useMemo(
+		() => filteredThreads.filter((t) => !t.pinned && t.isScheduled),
 		[filteredThreads],
 	);
-	const displayedThreads = useMemo(
-		() =>
-			filter === "All"
-				? [...pinnedThreads, ...sessionThreads.slice(0, showMoreCount)]
-				: [...pinnedThreads, ...sessionThreads].slice(0, showMoreCount),
-		[filter, pinnedThreads, sessionThreads, showMoreCount],
+	const taskThreads = useMemo(
+		() => filteredThreads.filter((t) => !t.pinned && !t.isScheduled),
+		[filteredThreads],
 	);
+	// Category headers only appear once there is something to categorize;
+	// a lone "Tasks" header over the whole list would be noise.
+	const showCategorySections =
+		pinnedThreads.length > 0 || scheduledThreads.length > 0;
 	const showTimeShowMore =
-		sessionThreads.length > showMoreCount ||
+		taskThreads.length > showMoreCount ||
 		(filter === "All" && mayHaveMoreSessions);
+	// A failed fetch leaves the task count and has-more state unchanged, which
+	// are exactly the conditions the page-fill effect fires on; without this
+	// halt it would retry a failing request (and re-toast the error) forever.
+	// The next explicit "Show more" click clears the halt to retry.
+	const pageFillFailedRef = useRef(false);
+	// A "Show more" click can outpace the loaded history: showMoreCount counts
+	// only Tasks rows while the backend limit counts all sessions, and a
+	// fetched batch can consist entirely of pinned or scheduled sessions. Keep
+	// growing the history window until the requested Tasks page fills or
+	// history runs out, so every click makes visible progress. The
+	// isLoadingMore dependency retriggers the check after each fetch settles.
+	useEffect(() => {
+		if (
+			sortMode !== "time" ||
+			filter !== "All" ||
+			isLoadingMore ||
+			!mayHaveMoreSessions ||
+			showMoreCount <= INITIAL_VISIBLE_THREAD_COUNT ||
+			taskThreads.length >= showMoreCount ||
+			pageFillFailedRef.current
+		) {
+			return;
+		}
+		void loadOlderSessions().then((loaded) => {
+			if (!loaded) {
+				pageFillFailedRef.current = true;
+			}
+		});
+	}, [
+		filter,
+		isLoadingMore,
+		loadOlderSessions,
+		mayHaveMoreSessions,
+		showMoreCount,
+		sortMode,
+		taskThreads.length,
+	]);
 	const projectGroups = useMemo(
-		() => groupThreadsByProject([...pinnedThreads, ...sessionThreads]),
-		[pinnedThreads, sessionThreads],
+		() =>
+			groupThreadsByProject([
+				...pinnedThreads,
+				...filteredThreads.filter((t) => !t.pinned),
+			]),
+		[filteredThreads, pinnedThreads],
 	);
 
+	const toggleSection = useCallback((section: SessionCategory) => {
+		setCollapsedSections((current) => {
+			const next = new Set(current);
+			if (next.has(section)) next.delete(section);
+			else next.add(section);
+			return next;
+		});
+	}, []);
 	const toggleProject = useCallback((project: string) => {
 		setCollapsedProjects((current) => {
 			const next = new Set(current);
@@ -490,11 +540,12 @@ export function AgentSidebar({
 				</Button>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align="end" className="w-36">
-				<DropdownMenuLabel>Session type</DropdownMenuLabel>
+				<DropdownMenuLabel>Status</DropdownMenuLabel>
 				<DropdownMenuRadioGroup
 					onValueChange={(value) => {
 						setFilter(value as FilterOption);
 						setShowMoreCount(INITIAL_VISIBLE_THREAD_COUNT);
+						setScheduledVisibleCount(INITIAL_VISIBLE_THREAD_COUNT);
 						setProjectVisibleCounts({});
 					}}
 					value={filter}
@@ -513,6 +564,7 @@ export function AgentSidebar({
 							onValueChange={(value) => {
 								setSourceFilter(value);
 								setShowMoreCount(INITIAL_VISIBLE_THREAD_COUNT);
+								setScheduledVisibleCount(INITIAL_VISIBLE_THREAD_COUNT);
 								setProjectVisibleCounts({});
 							}}
 							value={sourceFilter}
@@ -578,13 +630,44 @@ export function AgentSidebar({
 			onEditTitleChange={setEditingTitle}
 			onFork={() => void forkThread(thread)}
 			onRename={() => startRenameThread(thread)}
-			onToggleFavorite={() => void toggleFavorite(thread)}
+			onTogglePin={() => void togglePinned(thread)}
 			pendingAction={
 				pendingAction?.sessionId === thread.id ? pendingAction.action : null
 			}
 			thread={thread}
 			unread={unreadSessionIds.has(thread.id)}
 		/>
+	);
+	const timeShowMoreButton = (
+		<Button
+			// `pl-0!`: the default button size adds
+			// `has-[>svg]:px-3`, and that modifier beats a plain
+			// `pl-0` on specificity, so the icon child was
+			// re-indenting the row.
+			className="pl-0!"
+			disabled={isLoadingMore}
+			onClick={() => {
+				// Raising the page size is enough: the page-fill effect fetches
+				// older history whenever loaded tasks cannot fill the page. An
+				// explicit click also retries after a failed fetch halted it.
+				pageFillFailedRef.current = false;
+				setShowMoreCount(showMoreCount + INITIAL_VISIBLE_THREAD_COUNT);
+			}}
+			type="button"
+			variant="sidebarText"
+		>
+			{isLoadingMore ? (
+				<>
+					<Loader2 className="size-3 animate-spin" />
+					Loading...
+				</>
+			) : (
+				<div className="ml-2 flex items-center gap-1">
+					Show more
+					<ChevronDown className="size-3" />
+				</div>
+			)}
+		</Button>
 	);
 
 	return (
@@ -831,41 +914,101 @@ export function AgentSidebar({
 										</div>
 									) : (
 										<>
-											{sortMode === "time"
-												? displayedThreads.map(threadItem)
-												: projectGroups.map((project) => {
-														const visibleCount =
-															projectVisibleCounts[project.id] ??
-															INITIAL_VISIBLE_THREAD_COUNT;
-														return (
-															<ProjectSection
-																collapsed={collapsedProjects.has(project.id)}
-																key={project.id}
-																label={project.label}
-																onToggle={() => toggleProject(project.id)}
+											{sortMode === "time" ? (
+												showCategorySections ? (
+													<>
+														{pinnedThreads.length > 0 ? (
+															<CategorySection
+																collapsed={collapsedSections.has("pinned")}
+																count={pinnedThreads.length}
+																label="Pinned"
+																onToggle={() => toggleSection("pinned")}
 															>
-																{project.threads
-																	.slice(0, visibleCount)
+																{pinnedThreads.map(threadItem)}
+															</CategorySection>
+														) : null}
+														{scheduledThreads.length > 0 ? (
+															<CategorySection
+																collapsed={collapsedSections.has("scheduled")}
+																count={scheduledThreads.length}
+																label="Scheduled"
+																onToggle={() => toggleSection("scheduled")}
+															>
+																{scheduledThreads
+																	.slice(0, scheduledVisibleCount)
 																	.map(threadItem)}
-																{project.threads.length > visibleCount ? (
+																{scheduledThreads.length >
+																scheduledVisibleCount ? (
 																	<Button
-																		className="pl-2!"
+																		className="pl-0!"
 																		onClick={() =>
-																			showMoreForProject(project.id)
+																			setScheduledVisibleCount(
+																				(current) =>
+																					current +
+																					INITIAL_VISIBLE_THREAD_COUNT,
+																			)
 																		}
 																		type="button"
 																		variant="sidebarText"
 																	>
-																		Show more in {project.label}
-																		<ChevronDown className="size-3" />
+																		<div className="ml-2 flex items-center gap-1">
+																			Show more
+																			<ChevronDown className="size-3" />
+																		</div>
 																	</Button>
 																) : null}
-															</ProjectSection>
-														);
-													})}
+															</CategorySection>
+														) : null}
+														{taskThreads.length > 0 || showTimeShowMore ? (
+															<CategorySection
+																collapsed={collapsedSections.has("tasks")}
+																count={taskThreads.length}
+																label="Tasks"
+																onToggle={() => toggleSection("tasks")}
+															>
+																{taskThreads
+																	.slice(0, showMoreCount)
+																	.map(threadItem)}
+																{showTimeShowMore ? timeShowMoreButton : null}
+															</CategorySection>
+														) : null}
+													</>
+												) : (
+													taskThreads.slice(0, showMoreCount).map(threadItem)
+												)
+											) : (
+												projectGroups.map((project) => {
+													const visibleCount =
+														projectVisibleCounts[project.id] ??
+														INITIAL_VISIBLE_THREAD_COUNT;
+													return (
+														<ProjectSection
+															collapsed={collapsedProjects.has(project.id)}
+															key={project.id}
+															label={project.label}
+															onToggle={() => toggleProject(project.id)}
+														>
+															{project.threads
+																.slice(0, visibleCount)
+																.map(threadItem)}
+															{project.threads.length > visibleCount ? (
+																<Button
+																	className="pl-2!"
+																	onClick={() => showMoreForProject(project.id)}
+																	type="button"
+																	variant="sidebarText"
+																>
+																	Show more in {project.label}
+																	<ChevronDown className="size-3" />
+																</Button>
+															) : null}
+														</ProjectSection>
+													);
+												})
+											)}
 
 											{(sortMode === "time"
-												? displayedThreads.length === 0
+												? filteredThreads.length === 0
 												: projectGroups.length === 0) && (
 												<div className="px-2 py-4 text-xs text-muted-foreground">
 													No sessions found in history.
@@ -873,36 +1016,10 @@ export function AgentSidebar({
 											)}
 										</>
 									)}
-									{sortMode === "time" && showTimeShowMore && (
-										<Button
-											// `pl-0!`: the default button size adds
-											// `has-[>svg]:px-3`, and that modifier beats a plain
-											// `pl-0` on specificity, so the icon child was
-											// re-indenting the row.
-											className="pl-0!"
-											disabled={isLoadingMore}
-											onClick={() => {
-												const nextCount =
-													showMoreCount + INITIAL_VISIBLE_THREAD_COUNT;
-												setShowMoreCount(nextCount);
-												void loadMoreSessions(nextCount);
-											}}
-											type="button"
-											variant="sidebarText"
-										>
-											{isLoadingMore ? (
-												<>
-													<Loader2 className="size-3 animate-spin" />
-													Loading...
-												</>
-											) : (
-												<div className="ml-2 flex items-center gap-1">
-													Show more
-													<ChevronDown className="size-3" />
-												</div>
-											)}
-										</Button>
-									)}
+									{sortMode === "time" &&
+										!showCategorySections &&
+										showTimeShowMore &&
+										timeShowMoreButton}
 									{sortMode === "project" &&
 										filter === "All" &&
 										mayHaveMoreSessions && (
@@ -1083,6 +1200,44 @@ export function AgentSidebar({
 	);
 }
 
+function CategorySection({
+	label,
+	count,
+	collapsed,
+	onToggle,
+	children,
+}: {
+	label: string;
+	count: number;
+	collapsed: boolean;
+	onToggle: () => void;
+	children: ReactNode;
+}) {
+	return (
+		<div className="mb-1 min-w-0">
+			<button
+				aria-expanded={!collapsed}
+				className="flex h-7 w-full min-w-0 items-center gap-1 rounded-md px-1 text-left text-xs font-medium text-muted-foreground hover:bg-surface-hover-lighter hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+				onClick={onToggle}
+				title={label}
+				type="button"
+			>
+				<ChevronDown
+					className={cn(
+						"size-3 shrink-0 transition-transform",
+						collapsed && "-rotate-90",
+					)}
+				/>
+				<span className="block min-w-0 truncate">{label}</span>
+				<span className="ml-auto pr-1 text-[10px] tabular-nums">{count}</span>
+			</button>
+			{!collapsed ? (
+				<div className="flex min-w-0 flex-col gap-0.5">{children}</div>
+			) : null}
+		</div>
+	);
+}
+
 function ProjectSection({
 	label,
 	collapsed,
@@ -1126,7 +1281,7 @@ function ThreadItem({
 	onCommitRename,
 	onEditTitleChange,
 	onRename,
-	onToggleFavorite,
+	onTogglePin,
 	onFork,
 	onDelete,
 	pendingAction,
@@ -1141,7 +1296,7 @@ function ThreadItem({
 	onCommitRename: () => void;
 	onEditTitleChange: (title: string) => void;
 	onRename: () => void;
-	onToggleFavorite: () => void;
+	onTogglePin: () => void;
 	onFork: () => void;
 	onDelete: () => void;
 	pendingAction: "rename" | "fork" | "delete" | null;
@@ -1204,10 +1359,7 @@ function ThreadItem({
 							</span>
 							<span className="flex shrink-0 items-center gap-1.5 text-[11px] text-muted-foreground">
 								{thread.pinned ? (
-									<Star
-										aria-label="Favorited"
-										className="size-3 fill-current"
-									/>
+									<Pin aria-label="Pinned" className="size-3 fill-current" />
 								) : statusDotClass ? (
 									<span
 										aria-hidden="true"
@@ -1247,12 +1399,12 @@ function ThreadItem({
 				</HoverCardContent>
 			</HoverCard>
 			<SessionContextMenuContent
-				favorited={Boolean(thread.pinned)}
 				onDelete={onDelete}
 				onFork={onFork}
 				onRename={onRename}
-				onToggleFavorite={onToggleFavorite}
+				onTogglePin={onTogglePin}
 				pendingAction={pendingAction}
+				pinned={Boolean(thread.pinned)}
 			/>
 		</ContextMenu>
 	);
@@ -1339,16 +1491,16 @@ function EditableSessionTitle({
 }
 
 function SessionContextMenuContent({
-	favorited,
+	pinned,
 	onRename,
-	onToggleFavorite,
+	onTogglePin,
 	onFork,
 	onDelete,
 	pendingAction,
 }: {
-	favorited: boolean;
+	pinned: boolean;
 	onRename: () => void;
-	onToggleFavorite: () => void;
+	onTogglePin: () => void;
 	onFork: () => void;
 	onDelete: () => void;
 	pendingAction: "rename" | "fork" | "delete" | null;
@@ -1356,9 +1508,9 @@ function SessionContextMenuContent({
 	const pending = pendingAction !== null;
 	return (
 		<ContextMenuContent className="w-40">
-			<ContextMenuItem disabled={pending} onSelect={onToggleFavorite}>
-				<Star className={cn("size-4", favorited && "fill-current")} />
-				{favorited ? "Unfavorite" : "Favorite"}
+			<ContextMenuItem disabled={pending} onSelect={onTogglePin}>
+				<Pin className={cn("size-4", pinned && "fill-current")} />
+				{pinned ? "Unpin" : "Pin"}
 			</ContextMenuItem>
 			<ContextMenuItem disabled={pending} onSelect={onRename}>
 				{pendingAction === "rename" ? (
