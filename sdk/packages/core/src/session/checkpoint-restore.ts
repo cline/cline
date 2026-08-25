@@ -354,6 +354,40 @@ async function checkpointCapturedUntracked(
 	}
 }
 
+/**
+ * Pins commits that a restore is about to orphan behind a private ref, so
+ * they stay reachable instead of relying on reflog expiry (~90 days by
+ * default) after `git reset --hard` moves the branch pointer backward past
+ * them. Same technique as `beginWorktreeRestoreTransaction`'s private ref,
+ * applied to committed history instead of the uncommitted worktree.
+ *
+ * No-ops (returns undefined) when `restoreBase` already contains HEAD — the
+ * common case, where no commits were made after the checkpoint.
+ */
+async function preserveCommitsOrphanedByRestore(
+	cwd: string,
+	restoreBase: string,
+): Promise<string | undefined> {
+	const orphaned = await execFile(
+		"git",
+		["-C", cwd, "rev-list", `${restoreBase}..HEAD`],
+		{ windowsHide: true },
+	);
+	if (!orphaned.stdout.trim()) {
+		return undefined;
+	}
+	const head = (
+		await execFile("git", ["-C", cwd, "rev-parse", "HEAD"], {
+			windowsHide: true,
+		})
+	).stdout.trim();
+	const preservedRef = `refs/cline/pre-restore/${randomUUID()}`;
+	await execFile("git", ["-C", cwd, "update-ref", preservedRef, head], {
+		windowsHide: true,
+	});
+	return preservedRef;
+}
+
 export async function applyCheckpointToWorktree(
 	cwd: string,
 	checkpoint: CheckpointEntry,
@@ -390,6 +424,10 @@ export async function applyCheckpointToWorktree(
 		cwd,
 		checkpoint.ref,
 	);
+	// A commit made after this checkpoint (by the user or the agent) would
+	// otherwise be knocked off the branch by the reset below and left to
+	// expire from the reflog — pin it behind a private ref first.
+	await preserveCommitsOrphanedByRestore(cwd, restoreBase);
 	await execFile("git", ["-C", cwd, "reset", "--hard", restoreBase], {
 		windowsHide: true,
 	});

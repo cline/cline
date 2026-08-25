@@ -156,6 +156,66 @@ describe("applyCheckpointToWorktree", () => {
 		expect(git(dir, ["rev-parse", "HEAD"])).toBe(checkpointBase);
 	});
 
+	// NOVEL-02: the branch-rewind behavior above (HEAD moving to
+	// checkpointBase) is unchanged and still correct — this test only checks
+	// that a commit made after the checkpoint isn't left to expire from the
+	// reflog once it's off the branch. Three tests in this file already name
+	// their post-checkpoint commit "discarded commit"/"discarded later
+	// commit" for the worktree-restore behavior above; this test covers the
+	// separate concern of not losing that commit's *history* permanently.
+	it("preserves a commit made after the checkpoint behind a private ref instead of losing it", async () => {
+		writeFileSync(join(dir, "tracked.txt"), "checkpoint state\n", "utf8");
+		const checkpointRef = git(dir, [
+			"stash",
+			"create",
+			"checkpoint before edited run",
+		]);
+
+		writeFileSync(
+			join(dir, "tracked.txt"),
+			"user work after checkpoint\n",
+			"utf8",
+		);
+		git(dir, ["add", "tracked.txt"]);
+		git(dir, ["commit", "-m", "user work after checkpoint"]);
+		const userCommit = git(dir, ["rev-parse", "HEAD"]);
+
+		await applyCheckpointToWorktree(dir, {
+			ref: checkpointRef,
+			createdAt: Date.now(),
+			runCount: 2,
+			kind: "stash",
+		});
+
+		// Branch rewind is unchanged: the commit is off the branch.
+		expect(git(dir, ["branch", "--contains", userCommit])).toBe("");
+
+		// But it's pinned behind a private ref this restore creates, so it
+		// stays reachable instead of relying on reflog expiry.
+		expect(
+			git(dir, [
+				"for-each-ref",
+				"--format=%(objectname)",
+				"refs/cline/pre-restore",
+			]),
+		).toBe(userCommit);
+	});
+
+	it("does not create a preservation ref when there are no commits after the checkpoint", async () => {
+		writeFileSync(join(dir, "tracked.txt"), "checkpoint state\n", "utf8");
+		const checkpoint = await snapshotCurrentWorktree(dir);
+
+		await applyCheckpointToWorktree(dir, checkpoint);
+
+		expect(
+			git(dir, [
+				"for-each-ref",
+				"--format=%(objectname)",
+				"refs/cline/pre-restore",
+			]),
+		).toBe("");
+	});
+
 	it("fully rewinds a snapshot checkpoint: untracked reverted, created-after removed, no apply conflict", async () => {
 		// State captured by the checkpoint: a tracked edit plus an untracked
 		// file at "v2".
