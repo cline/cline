@@ -381,9 +381,9 @@ describe("SessionRuntime.getExtensionRegistry", () => {
 				});
 			},
 		};
-		const tasksTool: AgentTool = {
+		const todoListTool: AgentTool = {
 			name: "tasks",
-			description: "Manage scheduled work.",
+			description: "Manage durable agenda items.",
 			inputSchema: { type: "object", properties: {} },
 			execute: async () => ({ ok: true }),
 		};
@@ -392,7 +392,7 @@ describe("SessionRuntime.getExtensionRegistry", () => {
 		const enabledSession = new SessionRuntime(
 			makeAgentConfig({
 				systemPrompt: "Base prompt.",
-				tools: [tasksTool],
+				tools: [todoListTool],
 				extensions: [conditionalRuleExtension],
 			}),
 			enabledCapture.deps,
@@ -402,13 +402,13 @@ describe("SessionRuntime.getExtensionRegistry", () => {
 		expect(enabledCapture.configs[0]?.systemPrompt).toBe(
 			"Base prompt.\n\nUse tasks for durable follow-up work.",
 		);
-		expect(enabledCapture.configs[0]?.tools).toContainEqual(tasksTool);
+		expect(enabledCapture.configs[0]?.tools).toContainEqual(todoListTool);
 
 		const disabledCapture = withCapturingFakeRuntime();
 		const disabledSession = new SessionRuntime(
 			makeAgentConfig({
 				systemPrompt: "Base prompt.",
-				tools: [tasksTool],
+				tools: [todoListTool],
 				extensions: [conditionalRuleExtension],
 				toolPolicies: { tasks: { enabled: false } },
 			}),
