@@ -1354,10 +1354,9 @@ export function RoutineSchedulesContent({
 
 			{!isLoading && (
 				<section className="mt-10">
-					<h2 className="text-sm font-semibold text-foreground">Suggested</h2>
-					<p className="mt-1 text-xs text-muted-foreground">
-						Start from a ready-made prompt and adjust it before saving.
-					</p>
+					<h2 className="text-xs font-medium tracking-wider text-muted-foreground uppercase">
+						Suggested
+					</h2>
 					<div className="mt-3 grid gap-3 sm:grid-cols-2">
 						{ROUTINE_TEMPLATES.map((template) => {
 							const Icon = template.icon;
