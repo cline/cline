@@ -213,6 +213,11 @@ export function SettingsView({
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
 				window.alert(`Failed to save provider settings for ${id}: ${message}`);
+				// The optimistic list update no longer matches disk; reload the
+				// catalog so the view doesn't keep showing (and caching) a
+				// connection state that was never persisted.
+				providerCatalogCache = null;
+				void loadProviderCatalog();
 				return false;
 			} finally {
 				// Keep the shared short-lived catalog cache (composer model
@@ -220,7 +225,7 @@ export function SettingsView({
 				invalidateProviderCatalogCache();
 			}
 		},
-		[],
+		[loadProviderCatalog],
 	);
 
 	const connectProvider = useCallback(
