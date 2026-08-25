@@ -251,7 +251,7 @@ describe("ProviderDetailContent auth flows", () => {
 		vi.restoreAllMocks();
 	});
 
-	const oauthProvider: Provider = {
+	const signInProvider: Provider = {
 		id: "cline",
 		name: "Cline",
 		models: 0,
@@ -278,7 +278,7 @@ describe("ProviderDetailContent auth flows", () => {
 					onBack={vi.fn()}
 					onOAuthLogin={onOAuthLogin}
 					onUpdate={vi.fn()}
-					provider={oauthProvider}
+					provider={signInProvider}
 				/>,
 			);
 		});
@@ -310,7 +310,7 @@ describe("ProviderDetailContent auth flows", () => {
 					onDisconnect={onDisconnect}
 					onUpdate={vi.fn()}
 					provider={{
-						...oauthProvider,
+						...signInProvider,
 						enabled: true,
 						oauthAccessTokenPresent: true,
 					}}
