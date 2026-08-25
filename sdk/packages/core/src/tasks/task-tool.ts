@@ -27,6 +27,16 @@ Use the \`tasks\` tool to manage durable Todo items and explicitly requested sch
 - Todo instructions and scheduled prompts must be self-contained. Include the goal, constraints, relevant project context, and expected output.
 - Never approve or start a Todo yourself. Only mutate schedules from an interactive user session, and only update, pause, resume, delete, or run one immediately when the user asks.`;
 
+/** Guidance used while the Todo kind is disabled and only schedules remain. */
+export const SCHEDULED_TASKS_SYSTEM_PROMPT_RULE = `# Tasks
+
+Use the \`tasks\` tool only when the user explicitly asks Cline to execute work once at a future time or on a recurrence. Always pass \`kind: "scheduled"\`.
+
+- One-time schedules require an exact future ISO 8601 \`run_at\` with an offset or Z. Recurring schedules require a five-field \`cron_pattern\` and may include an IANA \`timezone\`.
+- Never create a schedule proactively. Check existing schedules before creating a likely duplicate.
+- Make the scheduled \`prompt\` self-contained because it runs in a new unattended session. Include the goal, constraints, relevant project context, and expected output.
+- Only update, pause, resume, delete, or run a schedule immediately when the user asks for that action.`;
+
 const TodoRequestSchema = TodoTaskInputSchema.extend({
 	kind: z.literal("todo"),
 }).strict();
@@ -40,25 +50,39 @@ export const TasksToolInputSchema = z.discriminatedUnion("kind", [
 	ScheduledRequestSchema,
 ]);
 
+const ScheduledOnlyTasksToolInputSchema = z.discriminatedUnion("kind", [
+	ScheduledRequestSchema,
+]);
+
+const TASKS_OPERATIONS = [
+	"create",
+	"update",
+	"list",
+	"get",
+	"pause",
+	"resume",
+	"delete",
+	"run_now",
+] as const;
+
 // Anthropic requires a plain object at the top level of a tool input schema and
 // rejects the oneOf emitted by a discriminated union. Advertise the union of
-// both domains' fields as one object, then retain strict domain validation with
-// TasksToolInputSchema inside execute().
+// the enabled domains' fields as one object, then retain strict domain
+// validation inside execute().
 const TasksToolProviderInputSchema = z
 	.object({
 		...ScheduledTaskInputSchema.shape,
 		...TodoTaskInputSchema.shape,
 		kind: z.enum(["todo", "scheduled"]),
-		operation: z.enum([
-			"create",
-			"update",
-			"list",
-			"get",
-			"pause",
-			"resume",
-			"delete",
-			"run_now",
-		]),
+		operation: z.enum(TASKS_OPERATIONS),
+	})
+	.strict();
+
+const ScheduledOnlyTasksToolProviderInputSchema = z
+	.object({
+		...ScheduledTaskInputSchema.shape,
+		kind: z.enum(["scheduled"]),
+		operation: z.enum(TASKS_OPERATIONS),
 	})
 	.strict();
 
@@ -74,7 +98,12 @@ export type TasksToolResult =
 	  };
 
 export interface CreateTasksToolOptions {
-	todo: TodoTaskOperationOptions;
+	/**
+	 * Omit to disable the Todo kind: the tool then advertises and accepts only
+	 * `kind: "scheduled"` while the Agenda backend stays intact for hosts that
+	 * re-enable it.
+	 */
+	todo?: TodoTaskOperationOptions;
 	scheduled: ScheduleTaskOperationOptions;
 }
 
@@ -86,18 +115,27 @@ export interface CreateTasksToolOptions {
 export function createTasksTool(
 	options: CreateTasksToolOptions,
 ): AgentTool<TasksToolInput, TasksToolResult> {
+	const todoOptions = options.todo;
 	return createTool<TasksToolInput, TasksToolResult>({
 		name: TASKS_TOOL_NAME,
-		description:
-			"Create and manage reviewed Todo items or explicitly requested scheduled agent work. " +
-			'Use kind "todo" for durable Agenda items that require user or automation approval. ' +
-			'Use kind "scheduled" for one-time or recurring autonomous execution. ' +
-			"Todo available_at is not an execution timer; schedules use run_at or cron_pattern.",
-		inputSchema: zodToJsonSchema(TasksToolProviderInputSchema),
+		description: todoOptions
+			? "Create and manage reviewed Todo items or explicitly requested scheduled agent work. " +
+				'Use kind "todo" for durable Agenda items that require user or automation approval. ' +
+				'Use kind "scheduled" for one-time or recurring autonomous execution. ' +
+				"Todo available_at is not an execution timer; schedules use run_at or cron_pattern."
+			: 'Create and manage explicitly requested scheduled agent work with kind "scheduled". ' +
+				"One-time schedules use a future ISO 8601 run_at; recurring schedules use a five-field cron_pattern.",
+		inputSchema: zodToJsonSchema(
+			todoOptions
+				? TasksToolProviderInputSchema
+				: ScheduledOnlyTasksToolProviderInputSchema,
+		),
 		retryable: false,
 		maxRetries: 0,
 		execute: async (rawInput, context) => {
-			const parsed = TasksToolInputSchema.safeParse(rawInput);
+			const parsed = (
+				todoOptions ? TasksToolInputSchema : ScheduledOnlyTasksToolInputSchema
+			).safeParse(rawInput);
 			if (!parsed.success) {
 				return {
 					ok: false,
@@ -116,8 +154,18 @@ export function createTasksTool(
 			}
 
 			if (parsed.data.kind === "todo") {
+				if (!todoOptions) {
+					return {
+						ok: false,
+						kind: "todo",
+						error: {
+							code: "invalid_tasks_input",
+							message: 'kind "todo" is not available in this session',
+						},
+					};
+				}
 				const result = await executeTodoTaskOperation(
-					options.todo,
+					todoOptions,
 					parsed.data,
 					context,
 				);
@@ -135,14 +183,19 @@ export function createTasksTool(
 }
 
 /** Adds selection and safety guidance only when the unified tool is enabled. */
-export function createTasksPromptExtension(): AgentExtension {
+export function createTasksPromptExtension(options?: {
+	todoEnabled?: boolean;
+}): AgentExtension {
 	return {
 		name: "hub-task-guidance",
 		manifest: { capabilities: ["rules"] },
 		setup: (api) => {
 			api.registerRule({
 				id: "hub:task-guidance",
-				content: TASKS_SYSTEM_PROMPT_RULE,
+				content:
+					options?.todoEnabled === false
+						? SCHEDULED_TASKS_SYSTEM_PROMPT_RULE
+						: TASKS_SYSTEM_PROMPT_RULE,
 				whenToolAvailable: TASKS_TOOL_NAME,
 			});
 		},

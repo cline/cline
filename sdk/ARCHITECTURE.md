@@ -558,6 +558,13 @@ agent-team task board. Shared, browser-safe contracts use `AgendaTaskRecord`
 and `AgendaTaskRunRecord`; orchestration and persistence remain in
 `@cline/core`.
 
+> **Status:** the agent-facing `kind: "todo"` half of the `tasks` tool and the
+> desktop Agenda UI are temporarily disabled while the Agenda UX is reworked
+> (`AGENDA_TODO_TOOL_ENABLED` in `hub-server-transport.ts` and
+> `AGENDA_UI_ENABLED` in the desktop webview). The backend described below —
+> the manager, storage, `task.*` Hub commands, and desktop plumbing — stays
+> fully wired, and the schedule kind remains active.
+
 ### Authority and persistence
 
 - A Hub process owns one Agenda task manager. Its
