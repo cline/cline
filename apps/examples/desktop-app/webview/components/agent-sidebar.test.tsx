@@ -47,13 +47,14 @@ function makeSessionHistory(
 		loadOlderSessions?: ReturnType<typeof vi.fn>;
 		mayHaveMoreSessions?: boolean;
 		hasLoadedHistory?: boolean;
+		isLoadingMore?: boolean;
 	} = {},
 ): UseSessionHistoryResult {
 	return {
 		deleteThread: vi.fn(),
 		forkThread: vi.fn(),
 		hasLoadedHistory: options.hasLoadedHistory ?? true,
-		isLoadingMore: false,
+		isLoadingMore: options.isLoadingMore ?? false,
 		loadAllSessions: vi.fn(async () => true),
 		loadOlderSessions: options.loadOlderSessions ?? vi.fn(),
 		loadMoreSessions,
@@ -263,6 +264,57 @@ describe("AgentSidebar session organization", () => {
 		await click(pinnedHeader);
 		expect(sessionIsVisible("pinned session 1")).toBe(false);
 		expect(sessionIsVisible("regular session 1")).toBe(true);
+	});
+
+	it("keeps growing history when a fetch adds no tasks and more remain", async () => {
+		const scheduled = Array.from({ length: 8 }, (_, index) => ({
+			...makeThread("cron", index + 1),
+			isScheduled: true,
+		}));
+		const tasks = Array.from({ length: 5 }, (_, index) =>
+			makeThread("plain", index + 1),
+		);
+		const loadOlderSessions = vi.fn(async () => true);
+		const renderSidebar = async (isLoadingMore: boolean) => {
+			await act(async () => {
+				root.render(
+					<SidebarProvider>
+						<AgentSidebar
+							activeSessionId={null}
+							onHome={vi.fn()}
+							onSettingsSectionChange={vi.fn()}
+							sessionHistory={makeSessionHistory(
+								[...scheduled, ...tasks],
+								vi.fn(),
+								{
+									isLoadingMore,
+									loadOlderSessions,
+									mayHaveMoreSessions: true,
+								},
+							)}
+							setView={vi.fn()}
+							settingsSection="General"
+							view="chat"
+						/>
+					</SidebarProvider>,
+				);
+			});
+		};
+
+		await renderSidebar(false);
+		expect(loadOlderSessions).not.toHaveBeenCalled();
+
+		// Five loaded tasks cannot fill the requested page of 20, so the
+		// page-fill effect grows the history window.
+		await click(buttonWithText("Show more"));
+		expect(loadOlderSessions).toHaveBeenCalledOnce();
+
+		// Simulate that fetch settling without adding any tasks (the batch was
+		// all scheduled sessions): with more history remaining, the effect
+		// asks again instead of leaving the click without visible progress.
+		await renderSidebar(true);
+		await renderSidebar(false);
+		expect(loadOlderSessions).toHaveBeenCalledTimes(2);
 	});
 
 	it("keeps a flat session list when nothing is pinned or scheduled", async () => {

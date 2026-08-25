@@ -456,6 +456,33 @@ export function AgentSidebar({
 	const showTimeShowMore =
 		taskThreads.length > showMoreCount ||
 		(filter === "All" && mayHaveMoreSessions);
+	// A "Show more" click can outpace the loaded history: showMoreCount counts
+	// only Tasks rows while the backend limit counts all sessions, and a
+	// fetched batch can consist entirely of pinned or scheduled sessions. Keep
+	// growing the history window until the requested Tasks page fills or
+	// history runs out, so every click makes visible progress. The
+	// isLoadingMore dependency retriggers the check after each fetch settles.
+	useEffect(() => {
+		if (
+			sortMode !== "time" ||
+			filter !== "All" ||
+			isLoadingMore ||
+			!mayHaveMoreSessions ||
+			showMoreCount <= INITIAL_VISIBLE_THREAD_COUNT ||
+			taskThreads.length >= showMoreCount
+		) {
+			return;
+		}
+		void loadOlderSessions();
+	}, [
+		filter,
+		isLoadingMore,
+		loadOlderSessions,
+		mayHaveMoreSessions,
+		showMoreCount,
+		sortMode,
+		taskThreads.length,
+	]);
 	const projectGroups = useMemo(
 		() =>
 			groupThreadsByProject([
@@ -610,16 +637,9 @@ export function AgentSidebar({
 			className="pl-0!"
 			disabled={isLoadingMore}
 			onClick={() => {
-				const nextCount = showMoreCount + INITIAL_VISIBLE_THREAD_COUNT;
-				setShowMoreCount(nextCount);
-				// showMoreCount counts only Tasks rows, but loadMoreSessions treats
-				// its argument as a limit on all sessions, so passing nextCount
-				// would no-op once pinned/scheduled rows push the loaded total past
-				// it. Grow the whole history window instead, and only when the
-				// loaded tasks cannot fill the next page.
-				if (taskThreads.length < nextCount) {
-					void loadOlderSessions();
-				}
+				// Raising the page size is enough: the page-fill effect fetches
+				// older history whenever loaded tasks cannot fill the page.
+				setShowMoreCount(showMoreCount + INITIAL_VISIBLE_THREAD_COUNT);
 			}}
 			type="button"
 			variant="sidebarText"
