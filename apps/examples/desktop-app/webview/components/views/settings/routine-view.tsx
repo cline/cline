@@ -86,6 +86,7 @@ import {
 	PageFrame,
 	PageHeader,
 } from "../page-layout";
+import { ROUTINE_TEMPLATES, type RoutineTemplate } from "./routine-templates";
 
 type DateTimeValue = number | string;
 
@@ -868,7 +869,7 @@ export function RoutineSchedulesContent({
 		}
 	};
 
-	const openCreateDialog = async () => {
+	const openCreateDialog = async (template?: RoutineTemplate) => {
 		setEditingSchedule(null);
 		setErrorMessage(null);
 		setCreateFormError(null);
@@ -893,13 +894,20 @@ export function RoutineSchedulesContent({
 				? rememberedModel
 				: (modelsForProvider[0] ?? createForm.model);
 		setCreateForm({
-			name: "",
-			scheduleType: "once",
+			name: template?.name ?? "",
+			scheduleType: template?.scheduleType ?? "once",
 			scheduleDate: defaultScheduleDate(),
-			scheduleHour: "9",
-			scheduleMinute: "0",
-			scheduleDays: ["MON", "TUE", "WED", "THU", "FRI"],
-			prompt: "Review PRs opened yesterday and summarize issues.",
+			scheduleHour: template?.scheduleHour ?? "9",
+			scheduleMinute: template?.scheduleMinute ?? "0",
+			scheduleDays: template?.scheduleDays ?? [
+				"MON",
+				"TUE",
+				"WED",
+				"THU",
+				"FRI",
+			],
+			prompt:
+				template?.prompt ?? "Review PRs opened yesterday and summarize issues.",
 			provider: preferredProvider,
 			model: preferredModel,
 			workspaceRoot: context.workspaceRoot || context.cwd,
@@ -1075,6 +1083,16 @@ export function RoutineSchedulesContent({
 		[schedules],
 	);
 
+	// Hide suggestions the user has already created (matched by schedule name).
+	const visibleTemplates = useMemo(() => {
+		const existingNames = new Set(
+			schedules.map((schedule) => schedule.name.trim().toLowerCase()),
+		);
+		return ROUTINE_TEMPLATES.filter(
+			(template) => !existingNames.has(template.name.trim().toLowerCase()),
+		);
+	}, [schedules]);
+
 	const viewingExecutions = useMemo(() => {
 		if (!viewingSchedule) {
 			return [];
@@ -1130,8 +1148,8 @@ export function RoutineSchedulesContent({
 				<PageEmptyState>Loading schedules...</PageEmptyState>
 			) : sortedSchedules.length === 0 ? (
 				<PageEmptyState>
-					No schedules found. Create a schedule to run routines on a recurring
-					basis.
+					No schedules yet. Start from a suggestion below, or create your own
+					with New Schedule.
 				</PageEmptyState>
 			) : (
 				<div className="flex flex-col gap-3">
@@ -1342,6 +1360,45 @@ export function RoutineSchedulesContent({
 						);
 					})}
 				</div>
+			)}
+
+			{!isLoading && visibleTemplates.length > 0 && (
+				<section className="mt-10">
+					<h2 className="text-xs font-medium tracking-wider text-muted-foreground uppercase">
+						Suggested
+					</h2>
+					<div className="mt-3 grid gap-3 sm:grid-cols-2">
+						{visibleTemplates.map((template) => {
+							const Icon = template.icon;
+							return (
+								<button
+									className="group flex items-start gap-3 rounded-lg border border-border bg-card p-4 text-left transition-colors hover:bg-surface-hover-lighter"
+									key={template.id}
+									onClick={() => void openCreateDialog(template)}
+									type="button"
+								>
+									<div className="flex size-9 shrink-0 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition-colors group-hover:text-primary">
+										<Icon className="size-4.5" />
+									</div>
+									<div className="min-w-0 flex-1">
+										<div className="flex items-center gap-2">
+											<h3 className="truncate text-sm font-semibold text-foreground">
+												{template.title}
+											</h3>
+											<span className="shrink-0 rounded-md border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground">
+												{template.scheduleType === "daily" ? "Daily" : "Weekly"}
+											</span>
+										</div>
+										<p className="mt-1 text-xs leading-5 text-muted-foreground">
+											{template.description}
+										</p>
+									</div>
+									<Plus className="mt-0.5 size-4 shrink-0 text-muted-foreground/60 opacity-0 transition-opacity group-hover:opacity-100" />
+								</button>
+							);
+						})}
+					</div>
+				</section>
 			)}
 			<Dialog
 				open={Boolean(viewingSchedule)}
