@@ -2378,10 +2378,7 @@ export class CloudSessionManager {
 		const existing = this.connections.get(outerSessionId);
 		if (existing) {
 			if (options.createInner && !existing.innerSessionId) {
-				await this.createInnerSessionForCachedConnection(
-					outerSessionId,
-					existing,
-				);
+				await this.createInnerSession(existing);
 			}
 			return existing;
 		}
@@ -2389,10 +2386,7 @@ export class CloudSessionManager {
 		if (pending) {
 			const connection = await pending;
 			if (options.createInner && !connection.innerSessionId) {
-				await this.createInnerSessionForCachedConnection(
-					outerSessionId,
-					connection,
-				);
+				await this.createInnerSession(connection);
 			}
 			return connection;
 		}
@@ -2510,22 +2504,6 @@ export class CloudSessionManager {
 		});
 		this.connectionPromises.set(outerSessionId, connecting);
 		return await connecting;
-	}
-
-	private async createInnerSessionForCachedConnection(
-		outerSessionId: string,
-		connection: CloudConnection,
-	): Promise<void> {
-		try {
-			await this.createInnerSession(connection);
-		} catch (error) {
-			// A lost successful create reply is ambiguous. Force the next attempt
-			// through session.list so it can adopt the server-created session.
-			if (this.connections.get(outerSessionId) === connection) {
-				await this.disposeConnection(outerSessionId).catch(() => undefined);
-			}
-			throw error;
-		}
 	}
 
 	private async createInnerSession(connection: CloudConnection): Promise<void> {
