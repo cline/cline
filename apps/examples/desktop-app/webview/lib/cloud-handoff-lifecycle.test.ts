@@ -337,7 +337,7 @@ describe("cloud handoff lifecycle: event/RPC ordering races", () => {
 		expect(h.openSession).not.toHaveBeenCalled();
 	});
 
-	it("ignores a delayed completion from an older attempt", async () => {
+	it("ignores mismatched and uncorrelated completions after a newer attempt starts", async () => {
 		const h = makeHarness();
 		const currentAttachment = makeAttachment("current.png");
 		const staleAttemptId = h.lifecycle.onRpcStarted(SOURCE);
@@ -354,6 +354,12 @@ describe("cloud handoff lifecycle: event/RPC ordering races", () => {
 				warning: "The follow-up command could not be queued.",
 				warningKind: "unqueued",
 				undeliveredCommand: "stale command",
+			}),
+		);
+		await h.lifecycle.onEvent(
+			completeEvent({
+				warningKind: "unqueued",
+				undeliveredCommand: "untagged stale command",
 			}),
 		);
 		expect(h.openSession).not.toHaveBeenCalled();

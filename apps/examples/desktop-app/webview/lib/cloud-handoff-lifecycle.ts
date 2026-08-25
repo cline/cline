@@ -146,11 +146,7 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 		/** Handles a validated `cloud_handoff_progress` event. */
 		async onEvent(progress: HandoffProgressEventPayload): Promise<void> {
 			const activeAttempt = activeAttempts.get(progress.sourceSessionId);
-			if (
-				activeAttempt &&
-				progress.handoffAttemptId &&
-				progress.handoffAttemptId !== activeAttempt
-			) {
+			if (activeAttempt && progress.handoffAttemptId !== activeAttempt) {
 				return;
 			}
 			let preserveRecoveryState = false;
