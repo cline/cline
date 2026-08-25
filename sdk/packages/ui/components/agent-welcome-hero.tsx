@@ -1,13 +1,11 @@
 "use client";
 
-import { clsx } from "clsx";
 import { useRef } from "react";
 import { useAgentWelcomeHeroPointer } from "./agent-welcome-hero-pointer.js";
 
 export type AgentWelcomeHeroLayout = "default" | "full-bleed" | "wide-grid";
 
 export interface AgentWelcomeHeroProps {
-	className?: string;
 	interactive?: boolean;
 	layout?: AgentWelcomeHeroLayout;
 	variant?: "full" | "grid-only" | "bot-only";
@@ -15,7 +13,6 @@ export interface AgentWelcomeHeroProps {
 
 /** Cline bot illustration and grid backdrop used on agent welcome surfaces. */
 export function AgentWelcomeHero({
-	className,
 	interactive,
 	layout = "default",
 	variant = "full",
@@ -29,7 +26,7 @@ export function AgentWelcomeHero({
 	return (
 		<div
 			aria-hidden="true"
-			className={clsx("cline-ui-agent-welcome-hero", className)}
+			className="cline-ui-agent-welcome-hero"
 			data-welcome-hero
 			data-welcome-hero-interactive={tracksPointer}
 			data-welcome-hero-layout={layout}
