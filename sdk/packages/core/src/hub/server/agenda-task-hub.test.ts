@@ -327,6 +327,10 @@ describe("Hub agenda task vertical slice", () => {
 				}),
 			);
 
+			// While the Agenda todo tool and UI are disabled, the hub keeps the
+			// automation pump idle: a persisted auto_start policy must not
+			// approve or start eligible work even once an approval-capable
+			// client registers, because no surface remains to supervise it.
 			const automated = await transport.handleCommand({
 				version: "v1",
 				command: "task.create",
@@ -358,17 +362,6 @@ describe("Hub agenda task vertical slice", () => {
 					},
 				},
 			});
-			await vi.waitFor(async () => {
-				const waiting = await transport.handleCommand({
-					version: "v1",
-					command: "task.get",
-					clientId: "desktop",
-					payload: { taskId: automatedTask.taskId },
-				});
-				expect(waiting.payload?.task).toMatchObject({ status: "approved" });
-			});
-			expect(startSession).toHaveBeenCalledTimes(1);
-
 			await transport.handleCommand({
 				version: "v1",
 				command: "client.register",
@@ -380,16 +373,19 @@ describe("Hub agenda task vertical slice", () => {
 					capabilities: [{ name: "approval.respond" }],
 				},
 			});
-			await vi.waitFor(async () => {
-				const completed = await transport.handleCommand({
-					version: "v1",
-					command: "task.get",
-					clientId: "desktop",
-					payload: { taskId: automatedTask.taskId },
-				});
-				expect(completed.payload?.task).toMatchObject({ status: "completed" });
+			await new Promise((resolve) => setTimeout(resolve, 100));
+			const idle = await transport.handleCommand({
+				version: "v1",
+				command: "task.get",
+				clientId: "desktop",
+				payload: { taskId: automatedTask.taskId },
 			});
-			expect(startSession).toHaveBeenCalledTimes(2);
+			expect(idle.payload?.task).toMatchObject({
+				// User-created todos are approved on creation; automation must
+				// still never start them while it is disabled.
+				status: "approved",
+			});
+			expect(startSession).toHaveBeenCalledTimes(1);
 		} finally {
 			await transport.stop();
 		}

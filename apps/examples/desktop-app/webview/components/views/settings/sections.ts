@@ -5,26 +5,33 @@
  * initial chat bundle. The heavy views load on demand via next/dynamic.
  */
 
-export const SETTINGS_SECTIONS = [
+const ALL_SETTINGS_SECTIONS = [
 	"General",
 	"Models",
+	"Voice",
 	"Channels",
 	"Schedules",
+	"Remote",
 	"Account",
 ] as const;
 
-// Mirrors the Cline Hub dashboard's Customizations nav group. Plugins is the
-// unified hub for installed plugins, MCP servers, and skills; Marketplace is
-// the full catalog page for installing more.
-export const CUSTOMIZATION_SECTIONS = [
-	"Plugins",
-	"Marketplace",
-	"Hooks",
-	"Rules",
-	"Agents",
-	"Tools",
-] as const;
+// Customize is the unified hub for everything that extends Cline — skills,
+// MCP servers, plugins, rules, hooks, and tools — each as a sub-tab with
+// inline marketplace browsing where a catalog exists.
+const ALL_CUSTOMIZATION_SECTIONS = ["Customize"] as const;
 
 export type SettingsSection =
-	| (typeof SETTINGS_SECTIONS)[number]
-	| (typeof CUSTOMIZATION_SECTIONS)[number];
+	| (typeof ALL_SETTINGS_SECTIONS)[number]
+	| (typeof ALL_CUSTOMIZATION_SECTIONS)[number];
+
+// Temporarily hidden from the sidebar. The views and routes still exist —
+// remove a section from this set to surface it again.
+const HIDDEN_SECTIONS: ReadonlySet<SettingsSection> = new Set(["Channels"]);
+
+export const SETTINGS_SECTIONS = ALL_SETTINGS_SECTIONS.filter(
+	(section) => !HIDDEN_SECTIONS.has(section),
+);
+
+export const CUSTOMIZATION_SECTIONS = ALL_CUSTOMIZATION_SECTIONS.filter(
+	(section) => !HIDDEN_SECTIONS.has(section),
+);

@@ -1174,8 +1174,7 @@ describe("ChatInputBar", () => {
 		const emptySpeechTrigger = container.querySelector<HTMLButtonElement>(
 			'[aria-label="Record speech"]',
 		);
-		expect(emptySpeechTrigger).not.toBeNull();
-		expect(promptInput?.parentElement?.contains(emptySpeechTrigger)).toBe(true);
+		expect(emptySpeechTrigger).toBeNull();
 		expect(onOpenVoiceInputSettings).not.toHaveBeenCalled();
 
 		await act(async () => {
@@ -1188,9 +1187,7 @@ describe("ChatInputBar", () => {
 			promptInput.dispatchEvent(new Event("input", { bubbles: true }));
 		});
 		expect(promptInput?.rows).toBe(2);
-		expect(
-			container.querySelector('[aria-label="Record speech"]'),
-		).not.toBeNull();
+		expect(container.querySelector('[aria-label="Record speech"]')).toBeNull();
 		expect(
 			container.querySelector('[aria-label="Send message"]'),
 		).not.toBeNull();
@@ -1222,7 +1219,7 @@ describe("ChatInputBar", () => {
 		).toContain("size-3");
 		expect(leftControls?.className).toContain("max-[560px]:flex-nowrap");
 		expect(leftControls?.contains(compactModelTrigger ?? null)).toBe(true);
-		expect(leftControls?.contains(thinkingTrigger ?? null)).toBe(true);
+		expect(leftControls?.contains(thinkingTrigger ?? null)).toBe(false);
 		expect(leftControls?.contains(speechTrigger ?? null)).toBe(false);
 
 		const workspaceTrigger =
@@ -1248,14 +1245,11 @@ describe("ChatInputBar", () => {
 		expect(promptInput?.parentElement?.className).toContain("items-start");
 		expect(promptInput?.parentElement?.contains(sendTrigger)).toBe(true);
 		expect(promptInput?.parentElement?.contains(stopTrigger)).toBe(true);
-		expect(promptInput?.parentElement?.contains(speechTrigger)).toBe(true);
+		// The mic button is hidden for now (SHOW_VOICE_INPUT_BUTTON).
+		expect(speechTrigger).toBeNull();
 		expect(sendTrigger?.parentElement?.className).toContain("self-end");
 		expect(rightControls?.contains(sendTrigger)).toBe(false);
-		expect(rightControls?.contains(speechTrigger ?? null)).toBe(false);
-		expect(speechTrigger?.parentElement?.nextElementSibling).toBe(sendTrigger);
 		expect(leftControls?.parentElement).toBe(rightControls?.parentElement);
-		await act(async () => speechTrigger?.click());
-		expect(onOpenVoiceInputSettings).toHaveBeenCalledOnce();
 	});
 
 	it("selects High with the supported model thinking slider", async () => {

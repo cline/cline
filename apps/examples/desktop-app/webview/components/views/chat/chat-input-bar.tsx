@@ -59,6 +59,7 @@ import {
 	readModelSelectionStorageFromWindow,
 	writeModelSelectionStorageToWindow,
 } from "@/lib/model-selection";
+import { subscribeToPromptInputFocus } from "@/lib/prompt-input-focus";
 import { normalizeProviderId } from "@/lib/provider-id";
 import {
 	loadProviderModelCatalog,
@@ -70,6 +71,7 @@ import {
 } from "@/lib/provider-model-catalog";
 import type { ProviderModel } from "@/lib/provider-schema";
 import { cn } from "@/lib/utils";
+
 import { startVercelStreamingTranscription } from "@/lib/vercel-streaming-transcription";
 import { MAX_RECORDED_AUDIO_BYTES } from "@/lib/voice-input-limits";
 import { WorkspaceSelector as WorkspaceSelectorImpl } from "./workspace-selector";
@@ -425,7 +427,6 @@ function ChatInputBarImpl({
 	onSteerPromptInQueue,
 	onEditPromptInQueue,
 	onRemovePromptInQueue,
-	onOpenVoiceInputSettings,
 	summary,
 }: ChatInputBarProps) {
 	const {
@@ -443,6 +444,15 @@ function ChatInputBarImpl({
 	const latestDraftVersionRef = useRef(promptDraft.version);
 	latestDraftVersionRef.current = promptDraft.version;
 	const promptInputRef = useRef<HTMLTextAreaElement | null>(null);
+	// The sidebar's "New" action asks the prompt input to grab focus through a
+	// window event (see lib/prompt-input-focus.ts).
+	useEffect(
+		() =>
+			subscribeToPromptInputFocus(() => {
+				promptInputRef.current?.focus();
+			}),
+		[],
+	);
 	const batchTranscriptSessionRef = useRef<{
 		start: number;
 		end: number;
@@ -1457,45 +1467,35 @@ function ChatInputBarImpl({
 									<CircleStop className="size-2" />
 								</button>
 							)}
-							<SpeechInput
-								allowUnavailableClick={!transcriptionTarget}
-								key={
-									transcriptionTarget
-										? `${transcriptionTarget.providerId}:${transcriptionTarget.modelId}:${transcriptionTarget.supportsStreaming ? "streaming" : "auto"}`
-										: "unconfigured"
-								}
-								onActiveChange={handleSpeechInputActiveChange}
-								onAudioRecorded={handleAudioRecorded}
-								onClick={(event) => {
-									if (!transcriptionTarget) {
-										event.preventDefault();
-										onOpenVoiceInputSettings?.();
+							{/* The mic button only appears once a voice model is
+							    configured in Settings → Voice; unconfigured users
+							    don't get a dead control. */}
+							{transcriptionTarget ? (
+								<SpeechInput
+									key={`${transcriptionTarget.providerId}:${transcriptionTarget.modelId}:${transcriptionTarget.supportsStreaming ? "streaming" : "auto"}`}
+									onActiveChange={handleSpeechInputActiveChange}
+									onAudioRecorded={handleAudioRecorded}
+									onError={handleSpeechInputError}
+									onProcessingChange={setSpeechInputProcessing}
+									onStartStreaming={
+										transcriptionTarget.supportsStreaming
+											? handleStartStreamingTranscription
+											: undefined
 									}
-								}}
-								onError={handleSpeechInputError}
-								onProcessingChange={setSpeechInputProcessing}
-								onStartStreaming={
-									transcriptionTarget?.supportsStreaming
-										? handleStartStreamingTranscription
-										: undefined
-								}
-								onStreamingEnd={handleStreamingTranscriptionEnd}
-								onStreamingStart={handleStreamingTranscriptionStart}
-								onTranscriptionChange={
-									transcriptionTarget?.supportsStreaming
-										? undefined
-										: handleTranscriptionChange
-								}
-								recordingMode={
-									transcriptionTarget?.supportsStreaming ? "streaming" : "auto"
-								}
-								title={
-									transcriptionTarget
-										? `${transcriptionTarget.supportsStreaming ? "Transcribe live" : "Transcribe"} with ${transcriptionTarget.providerName} / ${transcriptionTarget.modelName}`
-										: "Configure voice input in Settings → Models"
-								}
-							/>
-							{!isBusy || canSend ? (
+									onStreamingEnd={handleStreamingTranscriptionEnd}
+									onStreamingStart={handleStreamingTranscriptionStart}
+									onTranscriptionChange={
+										transcriptionTarget.supportsStreaming
+											? undefined
+											: handleTranscriptionChange
+									}
+									recordingMode={
+										transcriptionTarget.supportsStreaming ? "streaming" : "auto"
+									}
+									title={`${transcriptionTarget.supportsStreaming ? "Transcribe live" : "Transcribe"} with ${transcriptionTarget.providerName} / ${transcriptionTarget.modelName}`}
+								/>
+							) : null}
+							{(!isBusy || canSend) && (
 								<button
 									aria-label="Send message"
 									className={cn(
@@ -1515,7 +1515,7 @@ function ChatInputBarImpl({
 								>
 									<ArrowRight className="size-4" />
 								</button>
-							) : null}
+							)}
 						</div>
 					</div>
 				</div>

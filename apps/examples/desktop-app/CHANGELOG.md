@@ -1,5 +1,25 @@
 # Cline Desktop Changelog
 
+## 0.0.17
+
+- Plugins, MCP, Skills, Rules, Hooks, and Tools are now one Customize hub with tabbed sections and live counts. Catalog-backed tabs show what you have installed followed by an inline Browse section, so installing something from the catalog immediately appears above — the separate Marketplace page is gone
+- Redesigned the Models page: providers are grouped into Connected, Popular, and All with their auth kind and configuration status instead of per-row toggles. OAuth providers now offer a browser sign-in rather than an API key field, with a collapsed manual-key escape hatch where supported, and explicit Connect / Disconnect / Sign out actions
+- Voice input moved to its own Settings → Voice page that only offers connected transcription-capable providers and preselects a default model. The composer's microphone button now appears only once a voice model is configured
+- Sidebar sessions are always grouped by project, with pinned sessions leading each group and scheduled sessions marked by an inline clock. The Favorite action is now called Pin
+- New, Schedule, and Customize each got their own labeled row below the logo. New starts a fresh task and puts your cursor straight in the composer
+- Session search moved into a dialog behind the search icon in the logo row, and it now searches your full history instead of only the sessions already loaded in the sidebar
+- Added suggested schedule templates to the Schedule page
+- Add Provider opens a dialog instead of swapping out the page
+- Desktop notifications are now a single section under General, so the Event/Notify/Sound matrix no longer reads as a peer of settings like Dark mode
+- The agent's todo tool and the Agenda panel have been removed; scheduled tasks are unaffected
+- Fixed the provider list being unscrollable while a provider detail panel was open
+- Fixed a failed settings save leaving the Models page claiming a provider configuration that was never written to disk
+- Fixed Uninstall buttons collapsing to a broken square next to Install
+- Fixed unreadable selected text inside input fields
+- New files are now created with your platform's native line endings
+- Fixed the codebase search tool crashing the app on files containing a single enormous line
+- The hub's event log can no longer grow until it fills your disk
+
 ## 0.0.16
 
 - The agent can now be handed off between Hub instances without losing work: a Hub that is restarting refuses new work while it finishes what it is running, and the app replays anything it missed while disconnected instead of dropping it
