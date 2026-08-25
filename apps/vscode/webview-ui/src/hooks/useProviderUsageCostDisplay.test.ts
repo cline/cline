@@ -19,13 +19,13 @@ function withListings(providers: Array<{ id: string; usageCostDisplay: string }>
 }
 
 describe("useProviderUsageCostDisplay", () => {
-	it("hides cost for providers the SDK marks as subscription", () => {
+	it("returns the subscription mark for subscription-billed providers", () => {
 		withListings([{ id: "cline-pass", usageCostDisplay: "subscription" }])
 		const { result } = renderHook(() => useProviderUsageCostDisplay("cline-pass"))
-		expect(result.current).toBe("hide")
+		expect(result.current).toBe("subscription")
 	})
 
-	it("hides cost for providers the SDK marks as hide", () => {
+	it("returns hide for providers the SDK marks as hide", () => {
 		withListings([{ id: "some-provider", usageCostDisplay: "hide" }])
 		const { result } = renderHook(() => useProviderUsageCostDisplay("some-provider"))
 		expect(result.current).toBe("hide")
