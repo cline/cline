@@ -91,6 +91,12 @@ const BUSY_STATUSES = new Set<ChatSessionStatus>([
 	"stopping",
 ]);
 
+// Stale-stream fallback cadence for attached sessions (see the polling
+// effect below): only poll after the live stream has been quiet this long,
+// and re-check at this interval while it stays quiet.
+const STALE_STREAM_QUIET_MS = 5_000;
+const STALE_STREAM_POLL_INTERVAL_MS = 3_000;
+
 type PendingToolOutput = {
 	text: string;
 	truncated: boolean;
@@ -382,6 +388,9 @@ export function useChatSession() {
 	>([]);
 	const [promptsInQueue, setPromptsInQueue] = useState<PromptInQueue[]>([]);
 	const messagesRef = useRef<ChatMessage[]>([]);
+	// When the last chat_event chunk for the active session arrived. The
+	// stale-stream fallback below only polls while this stays quiet.
+	const lastLiveChunkAtRef = useRef(0);
 	const promptsInQueueRef = useRef<PromptInQueue[]>([]);
 	const liveToolMessageIdsRef = useRef<Record<string, string>>({});
 	const pendingToolOutputRef = useRef(new Map<string, PendingToolOutput>());
@@ -1224,6 +1233,7 @@ export function useChatSession() {
 			if (!listeningSessionId || payload.sessionId !== listeningSessionId) {
 				return;
 			}
+			lastLiveChunkAtRef.current = Date.now();
 			if (abortedRef.current) {
 				return;
 			}
@@ -1799,6 +1809,98 @@ export function useChatSession() {
 			unsubscribeEnded();
 		};
 	}, [clearLiveToolRefs, finalizeSettledTurn]);
+
+	// ---- Stale-stream fallback for attached sessions ----
+	// Scheduled/automation runs execute on a session host whose events are
+	// not projected through the hub's live pipeline (and with several hub
+	// daemons sharing cron.db, a different daemon can claim the run
+	// entirely), so an attached session can sit at "running" with a dead
+	// event stream — stuck on the thinking shimmer until a remount re-reads
+	// history. While an attached session is busy and the stream is quiet,
+	// poll canonical history and the session record so the transcript and
+	// status heal in place. A locally driven turn keeps chunks flowing, so
+	// the quiet-window guard keeps this fallback out of the way there.
+	useEffect(() => {
+		if (!sessionId || hydratedHistorySessionId !== sessionId) {
+			return;
+		}
+		if (!BUSY_STATUSES.has(status)) {
+			return;
+		}
+		let cancelled = false;
+		let polling = false;
+		const poll = async () => {
+			if (cancelled || polling) {
+				return;
+			}
+			if (Date.now() - lastLiveChunkAtRef.current < STALE_STREAM_QUIET_MS) {
+				return;
+			}
+			// An assistant bubble mid-stream means the live pipeline works;
+			// canonical history could lag behind it.
+			if (activeAssistantMessageIdRef.current) {
+				return;
+			}
+			polling = true;
+			try {
+				const pollStartedAt = Date.now();
+				const [historyMessages, record] = await Promise.all([
+					desktopClient
+						.invoke<ChatMessage[]>("read_session_messages", {
+							sessionId,
+							maxMessages: MAX_MESSAGES,
+						})
+						.catch(() => null),
+					desktopClient
+						.invoke<{ status?: string } | null>("get_discovered_session", {
+							sessionId,
+						})
+						.catch(() => null),
+				]);
+				if (
+					cancelled ||
+					activeSessionIdRef.current !== sessionId ||
+					// The live stream resumed while the poll was in flight; its
+					// state is fresher than the snapshot we just read.
+					Date.now() - lastLiveChunkAtRef.current < STALE_STREAM_QUIET_MS ||
+					activeAssistantMessageIdRef.current
+				) {
+					return;
+				}
+				if (Array.isArray(historyMessages) && historyMessages.length > 0) {
+					setMessages(
+						mergeHydratedMessagesWithLive({
+							hydrated: historyMessages,
+							current: messagesRef.current,
+							sessionId,
+							hydrationStartedAt: pollStartedAt,
+						}),
+					);
+				}
+				const nextStatus = record?.status?.trim();
+				if (nextStatus) {
+					setStatus(
+						inferHydratedChatStatus(
+							nextStatus as SessionHistoryStatus,
+							Array.isArray(historyMessages) && historyMessages.length > 0
+								? historyMessages
+								: messagesRef.current,
+						),
+					);
+				}
+			} finally {
+				polling = false;
+			}
+		};
+		const interval = window.setInterval(
+			() => void poll(),
+			STALE_STREAM_POLL_INTERVAL_MS,
+		);
+		return () => {
+			cancelled = true;
+			window.clearInterval(interval);
+		};
+	}, [hydratedHistorySessionId, sessionId, status]);
 
 	// ---- Shared: start a new session via RPC ----
 
