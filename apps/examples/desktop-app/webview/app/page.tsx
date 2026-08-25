@@ -533,6 +533,7 @@ export default function Home() {
 				if (!payload || typeof payload !== "object") return;
 				const progress = payload as {
 					sourceSessionId?: string;
+					handoffAttemptId?: string;
 					phase?: HandoffProgressPhase;
 					message?: string;
 					dashboardUrl?: string;
@@ -551,6 +552,7 @@ export default function Home() {
 				}
 				void handoffLifecycle.onEvent({
 					sourceSessionId: progress.sourceSessionId,
+					handoffAttemptId: progress.handoffAttemptId,
 					phase: progress.phase,
 					message: progress.message,
 					dashboardUrl: progress.dashboardUrl,
@@ -1492,6 +1494,7 @@ function ChatThreadPane({
 			sourceAttachments: File[],
 			attachments: SerializedAttachments,
 			sourceSessionId: string,
+			handoffAttemptId: string,
 			pendingPrompt?: PendingHandoffPrompt,
 		) => {
 			onHandoffUiAction({
@@ -1508,6 +1511,7 @@ function ChatThreadPane({
 							sessionId: sourceSessionId,
 							config,
 							fingerprint: preflight.fingerprint,
+							handoffAttemptId,
 							nextCommand: nextCommand || undefined,
 							attachments:
 								attachments.userImages.length > 0 ? attachments : undefined,
@@ -1617,7 +1621,7 @@ function ChatThreadPane({
 			}
 			handoffStartingRef.current = true;
 			const sourceAttachments = [...pendingAttachments];
-			handoffLifecycle.onRpcStarted(sourceSessionId);
+			const handoffAttemptId = handoffLifecycle.onRpcStarted(sourceSessionId);
 			const submittedAt = Date.now();
 			setPendingAttachments([]);
 			try {
@@ -1669,6 +1673,7 @@ function ChatThreadPane({
 					sourceAttachments,
 					attachments,
 					sourceSessionId,
+					handoffAttemptId,
 					pendingPrompt,
 				);
 			} catch (error) {

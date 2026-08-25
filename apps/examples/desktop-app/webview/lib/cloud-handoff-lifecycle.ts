@@ -55,6 +55,7 @@ export type HandoffLifecycleEffects = {
 /** The validated `cloud_handoff_progress` payload (caller checks the shape). */
 export type HandoffProgressEventPayload = {
 	sourceSessionId: string;
+	handoffAttemptId?: string;
 	phase: HandoffProgressPhase;
 	message?: string;
 	dashboardUrl?: string;
@@ -125,21 +126,33 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 	// the first attempt fails, the reducer and retry registry remain the user's
 	// recovery surface instead of an event replay repeatedly stealing focus.
 	const recoveryOpenAttempts = new Set<string>();
+	const activeAttempts = new Map<string, string>();
 
 	const claimWarningToast = (sourceSessionId: string) =>
 		claimHandoffWarningSurface(surfacedWarnings, sourceSessionId);
 
 	return {
 		/** Starts a distinct RPC attempt for this source session. */
-		onRpcStarted(sourceSessionId: string): void {
+		onRpcStarted(sourceSessionId: string): string {
 			surfacedWarnings.delete(sourceSessionId);
 			completions.delete(sourceSessionId);
 			retryStates.delete(sourceSessionId);
 			recoveryOpenAttempts.delete(sourceSessionId);
+			const attemptId = crypto.randomUUID();
+			activeAttempts.set(sourceSessionId, attemptId);
+			return attemptId;
 		},
 
 		/** Handles a validated `cloud_handoff_progress` event. */
 		async onEvent(progress: HandoffProgressEventPayload): Promise<void> {
+			const activeAttempt = activeAttempts.get(progress.sourceSessionId);
+			if (
+				activeAttempt &&
+				progress.handoffAttemptId &&
+				progress.handoffAttemptId !== activeAttempt
+			) {
+				return;
+			}
 			let preserveRecoveryState = false;
 			if (
 				progress.phase === "complete" &&

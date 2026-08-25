@@ -2470,6 +2470,7 @@ describe("cloud handoff transaction", () => {
 		const running = handleChatSessionCommand(ctx, {
 			action: "handoff",
 			sessionId: sourceSessionId,
+			handoffAttemptId: "attempt-1",
 			nextCommand: "continue in cloud",
 			fingerprint: {
 				repoUrl: "https://github.com/cline/test",
@@ -2532,6 +2533,7 @@ describe("cloud handoff transaction", () => {
 		);
 		expect(complete?.payload).toMatchObject({
 			sourceSessionId,
+			handoffAttemptId: "attempt-1",
 			sessionId: "ses-cloud",
 			dashboardUrl: result.dashboardUrl,
 			destination: "in_app",

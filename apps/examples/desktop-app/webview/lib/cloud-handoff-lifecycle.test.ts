@@ -337,38 +337,30 @@ describe("cloud handoff lifecycle: event/RPC ordering races", () => {
 		expect(h.openSession).not.toHaveBeenCalled();
 	});
 
-	it("a new RPC attempt cannot consume the previous attempt's recovery attachments", async () => {
+	it("ignores a delayed completion from an older attempt", async () => {
 		const h = makeHarness();
-		const staleAttachment = makeAttachment("stale.png");
 		const currentAttachment = makeAttachment("current.png");
-		await h.lifecycle.onRpcRejected(SOURCE, {
-			error: new Error("first attempt failed"),
-			nextCommand: "old command",
-			sourceAttachments: [staleAttachment],
-		});
-
+		const staleAttemptId = h.lifecycle.onRpcStarted(SOURCE);
 		h.lifecycle.onRpcStarted(SOURCE);
-		await h.lifecycle.onEvent(
-			completeEvent({
-				warning: "The follow-up command could not be queued.",
-				warningKind: "unqueued",
-				undeliveredCommand: "current command",
-			}),
-		);
-		expect(h.openSession).not.toHaveBeenCalled();
-
-		await h.lifecycle.onRpcResolved(SOURCE, {
-			result: makeResult({
-				warning: "The follow-up command could not be queued.",
-				warningKind: "unqueued",
-			}),
+		await h.lifecycle.onRpcRejected(SOURCE, {
+			error: new Error("current attempt failed"),
 			nextCommand: "current command",
 			sourceAttachments: [currentAttachment],
 		});
-		expect(h.openSession).toHaveBeenCalledExactlyOnceWith(TARGET, {
-			silent: true,
-			initialPromptDraft: "current command",
-			initialAttachments: [currentAttachment],
+
+		await h.lifecycle.onEvent(
+			completeEvent({
+				handoffAttemptId: staleAttemptId,
+				warning: "The follow-up command could not be queued.",
+				warningKind: "unqueued",
+				undeliveredCommand: "stale command",
+			}),
+		);
+		expect(h.openSession).not.toHaveBeenCalled();
+		expect(h.getState()[SOURCE]).toMatchObject({
+			status: "failed",
+			retryDraft: "/handoff current command",
+			retryAttachments: [currentAttachment],
 		});
 	});
 

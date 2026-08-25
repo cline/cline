@@ -2070,6 +2070,7 @@ async function handleHandoffOnce(
 		throw new Error("Only image attachments can be sent with a cloud handoff.");
 	}
 	const nextCommand = request.nextCommand?.trim() ?? "";
+	const handoffAttemptId = request.handoffAttemptId?.trim();
 	if (!nextCommand && request.attachments?.userImages?.length) {
 		throw new Error("Add a command to send the attached images after handoff.");
 	}
@@ -2100,6 +2101,7 @@ async function handleHandoffOnce(
 	) => {
 		sendEvent(ctx, "cloud_handoff_progress", {
 			sourceSessionId,
+			...(handoffAttemptId ? { handoffAttemptId } : {}),
 			phase,
 			message,
 			...(outerSessionId
@@ -2484,6 +2486,7 @@ async function handleHandoffOnce(
 	// with the full payload before the RPC returns.
 	sendEvent(ctx, "cloud_handoff_progress", {
 		sourceSessionId,
+		...(handoffAttemptId ? { handoffAttemptId } : {}),
 		phase: "complete",
 		message: "Ready in Cline Cloud.",
 		sessionId: outerSessionId,
