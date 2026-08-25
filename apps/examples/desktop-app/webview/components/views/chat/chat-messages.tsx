@@ -20,12 +20,14 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import type {
 	ChatMessage,
 	ChatMessageImage,
 	ChatSessionStatus,
 } from "@/lib/chat-schema";
+import { openExternalUrl } from "@/lib/desktop-client";
 import { cn } from "@/lib/utils";
 import { STREAMING_TITLE_CLASS } from "./messages/constants";
 import {
@@ -73,6 +75,8 @@ type ChatMessagesProps = {
 		runCount: number,
 	) => void | Promise<void>;
 	onForkSession?: () => void | Promise<void>;
+	startingLabel?: string;
+	errorAction?: { label: string; url: string };
 	onProceedWhileRunning?: (
 		sessionId: string,
 		toolCallId?: string,
@@ -108,6 +112,8 @@ function ChatMessagesImpl({
 	onRestoreCheckpoint,
 	onEditMessage,
 	onForkSession,
+	startingLabel = "Thinking...",
+	errorAction,
 	onProceedWhileRunning,
 }: ChatMessagesProps) {
 	const hasMessages = messages.length > 0;
@@ -675,7 +681,9 @@ function ChatMessagesImpl({
 										)}
 									>
 										<Loader2 className="size-4 animate-spin" />
-										<span className={STREAMING_TITLE_CLASS}>Thinking...</span>
+										<span className={STREAMING_TITLE_CLASS}>
+											{startingLabel}
+										</span>
 									</div>
 								) : null}
 								{pendingToolApprovals.length > 0 ? (
@@ -731,6 +739,7 @@ function ChatMessagesImpl({
 								</div>
 							)
 						) : null}
+
 						{chatTransportState !== "connected" && !shouldShowErrorBanner ? (
 							<div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
 								<Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -743,7 +752,17 @@ function ChatMessagesImpl({
 						) : null}
 						{shouldShowErrorBanner ? (
 							<div className="cline-chat-selectable mt-4 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
-								{error}
+								<p>{error}</p>
+								{errorAction ? (
+									<Button
+										className="mt-2"
+										onClick={() => void openExternalUrl(errorAction.url)}
+										size="sm"
+										variant="outline"
+									>
+										{errorAction.label}
+									</Button>
+								) : null}
 							</div>
 						) : null}
 					</SessionContent>
