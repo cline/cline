@@ -489,6 +489,15 @@ export class ClineApiServerMock {
 							messages.some((m: { role?: string }) => m?.role === "tool")
 
 						let responseText = E2E_MOCK_API_RESPONSES.DEFAULT
+						// The hooks e2e sends "hook context probe" after its
+						// UserPromptSubmit hook returned a contextModification; answer
+						// according to whether the injected block made it into this
+						// model request, so the test asserts injection end to end.
+						if (body.includes("hook context probe")) {
+							responseText = body.includes("HOOK_INJECTED_FACT")
+								? E2E_MOCK_API_RESPONSES.HOOK_CONTEXT_RECEIVED
+								: E2E_MOCK_API_RESPONSES.HOOK_CONTEXT_MISSING
+						}
 						let toolCall: typeof E2E_MOCK_EDITOR_TOOL_CALL | typeof E2E_MOCK_POWERSHELL_TOOL_CALL | undefined
 						log("Chat completion mock selection:", {
 							isEditRequest: body.includes("edit_request"),
