@@ -1101,15 +1101,14 @@ export class AgentRuntime {
 			});
 			throw error;
 		}
-		// Only a cleanly finished retry the loop will accept counts as
-		// recovered — an errored or aborted retry still fails the run
-		// downstream, and a turn without renderable output is rejected by
-		// the loop's emptiness check, so recording either as success would
-		// contradict the run result.
+		// Only a retry the loop will accept counts as recovered, so the
+		// outcome can never contradict the run result: an aborted retry
+		// throws, a turn without renderable output is rejected by the
+		// emptiness check, and an errored or re-truncated retry survives
+		// only when it produced tool calls for the loop to execute.
 		const cleanFinish =
 			retry.finishReason === "stop" || retry.finishReason === "tool-calls";
-		const succeeded =
-			cleanFinish && this.hasRenderableTurnOutput(retry.message);
+		const succeeded = this.loopAcceptsTurn(retry);
 		try {
 			// Emitted before the outcome capture: a throwing listener fails
 			// the run, so recording success first would contradict the result.
@@ -1643,6 +1642,30 @@ export class AgentRuntime {
 		}
 		const modelToolActivities = message.metadata?.modelToolActivities;
 		return Array.isArray(modelToolActivities) && modelToolActivities.length > 0;
+	}
+
+	/**
+	 * Whether the run loop proceeds with this turn instead of throwing.
+	 * Mirrors the loop's decision chain: an aborted finish throws, a turn
+	 * without renderable output is rejected as empty, and an errored or
+	 * max-tokens finish survives only when the turn produced tool calls for
+	 * the loop to execute. Recovery outcome classification uses this so the
+	 * metric can never contradict the run result.
+	 */
+	private loopAcceptsTurn(turn: {
+		message: AgentMessage;
+		finishReason: AgentModelFinishReason;
+	}): boolean {
+		if (turn.finishReason === "aborted") {
+			return false;
+		}
+		if (!this.hasRenderableTurnOutput(turn.message)) {
+			return false;
+		}
+		if (turn.finishReason === "stop" || turn.finishReason === "tool-calls") {
+			return true;
+		}
+		return turn.message.content.some((part) => part.type === "tool-call");
 	}
 
 	private captureUnexpectedReasoningTokens(
