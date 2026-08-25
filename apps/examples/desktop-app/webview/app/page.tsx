@@ -89,7 +89,6 @@ import {
 	isCloudProvisioningSessionId,
 } from "@/lib/cloud-repositories";
 import {
-	humanizeCloudHandoffError,
 	humanizeCloudSessionError,
 	parseCloudSessionError,
 } from "@/lib/cloud-session-error";
@@ -1495,7 +1494,6 @@ function ChatThreadPane({
 			sourceSessionId: string,
 			pendingPrompt?: PendingHandoffPrompt,
 		) => {
-			handoffLifecycle.onRpcStarted(sourceSessionId);
 			onHandoffUiAction({
 				type: "progress",
 				sourceSessionId,
@@ -1619,6 +1617,7 @@ function ChatThreadPane({
 			}
 			handoffStartingRef.current = true;
 			const sourceAttachments = [...pendingAttachments];
+			handoffLifecycle.onRpcStarted(sourceSessionId);
 			const submittedAt = Date.now();
 			setPendingAttachments([]);
 			try {
@@ -1673,30 +1672,14 @@ function ChatThreadPane({
 					pendingPrompt,
 				);
 			} catch (error) {
-				onHandoffUiAction({
-					type: "failed",
-					sourceSessionId,
-					exposeRecovery: true,
-					retryDraft: nextCommand ? `/handoff ${nextCommand}` : "/handoff",
-					retryAttachments: sourceAttachments,
-				});
-				const rawError = error instanceof Error ? error.message : String(error);
-				const cloudError = parseCloudSessionError(rawError);
-				const connectUrl = cloudError?.connectUrl;
-				toast({
-					title: "Handoff is not ready",
-					description: humanizeCloudHandoffError(
-						cloudError?.message ?? rawError,
-					),
-					variant: "destructive",
-					action: connectUrl ? (
-						<ToastAction
-							altText="Connect GitHub"
-							onClick={() => void openExternalUrl(connectUrl)}
-						>
-							Connect GitHub
-						</ToastAction>
-					) : undefined,
+				const reducerEntry = handoffUiRef.current;
+				await handoffLifecycle.onRpcRejected(sourceSessionId, {
+					error,
+					nextCommand,
+					sourceAttachments,
+					reducerEntryIsComplete:
+						reducerEntry?.status === "complete" ? reducerEntry : undefined,
+					isThreadActive,
 				});
 			} finally {
 				handoffStartingRef.current = false;
@@ -1706,8 +1689,10 @@ function ChatThreadPane({
 			cloudAgentsEnabled,
 			cloudHandoffAvailable,
 			config,
+			handoffLifecycle,
 			historySession?.sessionId,
 			isCloudSession,
+			isThreadActive,
 			messages,
 			pendingAttachments,
 			pendingHandoffRecovery,
