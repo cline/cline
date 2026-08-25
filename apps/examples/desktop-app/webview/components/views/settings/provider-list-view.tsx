@@ -133,27 +133,6 @@ function ConnectedDot({ className }: { className?: string }) {
 	);
 }
 
-function ProviderAvatar({
-	provider,
-	className,
-}: {
-	provider: Provider;
-	className?: string;
-}) {
-	return (
-		<span
-			aria-hidden="true"
-			className={cn(
-				"grid size-8 shrink-0 place-items-center rounded-lg text-xs font-semibold text-white",
-				className,
-			)}
-			style={{ backgroundColor: provider.color }}
-		>
-			{provider.letter}
-		</span>
-	);
-}
-
 function getInitialConfigValues(
 	provider: Provider,
 ): Record<string, ProviderConfigFieldPrimitive> {
@@ -230,15 +209,9 @@ function ProviderRow({
 			onClick={() => onConfigure(provider.id)}
 			type="button"
 		>
-			<ProviderAvatar provider={provider} />
-			<div className="flex min-w-0 flex-1 items-baseline gap-2">
-				<p className="truncate text-base font-semibold text-foreground">
-					{provider.name}
-				</p>
-				<p className="shrink-0 truncate font-mono text-xs text-muted-foreground">
-					{provider.id}
-				</p>
-			</div>
+			<p className="min-w-0 flex-1 truncate text-base font-semibold text-foreground">
+				{provider.name}
+			</p>
 			{connected ? (
 				<span className="inline-flex shrink-0 items-center gap-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
 					<ConnectedDot />
@@ -996,19 +969,14 @@ export function ProviderDetailContent({
 							<ArrowLeft className="h-4 w-4" />
 						)}
 					</Button>
-					<div className="flex min-w-0 flex-1 items-baseline gap-2">
-						<h1
-							className={cn(
-								"truncate font-semibold leading-[1.15] text-foreground",
-								isPanel ? "text-2xl" : "text-3xl",
-							)}
-						>
-							{provider.name}
-						</h1>
-						<p className="shrink-0 font-mono text-xs text-muted-foreground">
-							{provider.id}
-						</p>
-					</div>
+					<h1
+						className={cn(
+							"min-w-0 flex-1 truncate font-semibold leading-[1.15] text-foreground",
+							isPanel ? "text-2xl" : "text-3xl",
+						)}
+					>
+						{provider.name}
+					</h1>
 					<span
 						className={cn(
 							"inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium",

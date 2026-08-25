@@ -247,13 +247,6 @@ export function VoiceInputContent({
 											onClick={() => selectProvider(provider.id)}
 											type="button"
 										>
-											<span
-												aria-hidden="true"
-												className="grid size-5 shrink-0 place-items-center rounded text-[0.6rem] font-semibold text-white"
-												style={{ backgroundColor: provider.color }}
-											>
-												{provider.letter}
-											</span>
 											{provider.name}
 										</button>
 									);
