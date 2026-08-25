@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, test } from "vitest";
-import { MemoizedMarkdown } from "./markdown";
+import { describe, expect, test, vi } from "vitest";
+import { createDesktopMarkdownPlugins, MemoizedMarkdown } from "./markdown";
 
 describe("MemoizedMarkdown", () => {
 	test("renders structured GFM content and blocks remote images", () => {
@@ -43,6 +43,41 @@ const ready = true;
 		expect(html).not.toContain('data-streamdown="blocked-image"');
 	});
 
+	test("recognizes Mermaid fences as lazy diagrams instead of plain code", () => {
+		const html = renderToStaticMarkup(
+			<MemoizedMarkdown
+				content={"```mermaid\nflowchart LR\n  A[Text] --> B[SVG]\n```"}
+			/>,
+		);
+
+		// Streamdown defers diagram rendering to the browser and emits its diagram
+		// loading shell during SSR. A normal fence would use data-streamdown=code-block.
+		expect(html).toContain("animate-spin");
+		expect(html).not.toContain('data-streamdown="code-block"');
+		expect(html).not.toContain("flowchart LR");
+	});
+
+	test("keeps the Desktop Mermaid renderer lazy and host-owned", async () => {
+		const renderer = {
+			initialize: vi.fn(),
+			render: vi.fn(async () => ({ svg: '<svg data-testid="diagram" />' })),
+		};
+		const loader = vi.fn(async () => ({ default: renderer }));
+		const plugins = createDesktopMarkdownPlugins(loader);
+
+		expect(loader).not.toHaveBeenCalled();
+		const instance = plugins.mermaid.getMermaid();
+		await expect(
+			instance.render("desktop-diagram", "flowchart LR\nA --> B"),
+		).resolves.toEqual({
+			svg: '<svg data-testid="diagram" />',
+		});
+		expect(loader).toHaveBeenCalledOnce();
+		expect(renderer.initialize).toHaveBeenCalledWith(
+			expect.objectContaining({ securityLevel: "strict" }),
+		);
+	});
+
 	test("repairs an unfinished code fence while streaming", () => {
 		const html = renderToStaticMarkup(
 			<MemoizedMarkdown
@@ -53,6 +88,27 @@ const ready = true;
 
 		expect(html).toContain('data-streamdown="code-block"');
 		expect(html).toContain("stillStreaming");
+	});
+
+	test("repairs an incomplete streaming Mermaid fence into a diagram shell", () => {
+		const streaming = renderToStaticMarkup(
+			<MemoizedMarkdown
+				content={"```mermaid\nflowchart LR\n  A[Streaming] -->"}
+				streaming
+			/>,
+		);
+		const completed = renderToStaticMarkup(
+			<MemoizedMarkdown
+				content={
+					"```mermaid\nflowchart LR\n  A[Streaming] --> B[Complete]\n```"
+				}
+			/>,
+		);
+
+		expect(streaming).toContain("animate-spin");
+		expect(streaming).not.toContain('data-streamdown="code-block"');
+		expect(completed).toContain("animate-spin");
+		expect(completed).not.toContain('data-streamdown="code-block"');
 	});
 
 	test("renders honest external links with their real destination", () => {

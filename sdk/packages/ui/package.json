@@ -109,6 +109,7 @@
 		"@shikijs/langs": ">=4.0.0 <5",
 		"@shikijs/themes": ">=4.0.0 <5",
 		"react": ">=18.3.0 <20",
+		"mermaid": ">=11.16.0 <12",
 		"shiki": ">=4.0.0 <5",
 		"streamdown": "^2.5.0",
 		"tailwindcss": ">=4.0.0 <5"
@@ -121,6 +122,9 @@
 			"optional": true
 		},
 		"@shikijs/themes": {
+			"optional": true
+		},
+		"mermaid": {
 			"optional": true
 		},
 		"react": {
@@ -151,6 +155,7 @@
 		"@types/react": "19.2.14",
 		"@types/react-dom": "19.2.3",
 		"jsdom": "^26.0.0",
+		"mermaid": "11.16.0",
 		"react": "19.2.4",
 		"react-dom": "19.2.4",
 		"shiki": "^4.0.2",
