@@ -159,7 +159,13 @@ export function SettingsView({
 		[],
 	);
 
-	const loadProviderCatalog = useCallback(async () => {
+	/**
+	 * Loads the catalog into view state. Resolves to false when the response
+	 * was discarded because a newer mutation or load superseded it while in
+	 * flight (so an older disk snapshot never overwrites a newer edit);
+	 * callers needing an authoritative resync should retry on false.
+	 */
+	const loadProviderCatalog = useCallback(async (): Promise<boolean> => {
 		const now = Date.now();
 		if (
 			providerCatalogCache &&
@@ -168,7 +174,7 @@ export function SettingsView({
 			setProviders(providerCatalogCache.providers);
 			setProvidersLoading(false);
 			setProviderCatalogError(null);
-			return;
+			return true;
 		}
 
 		const generation = ++catalogGenerationRef.current;
@@ -179,12 +185,12 @@ export function SettingsView({
 				"list_provider_catalog",
 			);
 			if (generation !== catalogGenerationRef.current) {
-				return;
+				return false;
 			}
 			setProvidersWithCache(payload.providers);
 		} catch (error) {
 			if (generation !== catalogGenerationRef.current) {
-				return;
+				return false;
 			}
 			const message = error instanceof Error ? error.message : String(error);
 			setProviderCatalogError(message);
@@ -192,6 +198,7 @@ export function SettingsView({
 		} finally {
 			setProvidersLoading(false);
 		}
+		return true;
 	}, [setProvidersWithCache]);
 
 	useEffect(() => {
@@ -228,13 +235,19 @@ export function SettingsView({
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
 				window.alert(`Failed to save provider settings for ${id}: ${message}`);
-				// The optimistic list update no longer matches disk; reload the
-				// catalog so the view doesn't keep showing (and caching) a
-				// connection state that was never persisted, and remount the
-				// detail panel so its field drafts resync to the reloaded state.
-				providerCatalogCache = null;
+				// The optimistic list update no longer matches disk: resync from
+				// the authoritative catalog. Retry when a concurrent edit
+				// superseded the in-flight response (that edit performs no
+				// reload of its own), then remount the detail panel so its
+				// field drafts re-seed from the reloaded state — not before,
+				// or they would re-capture the unpersisted optimistic values.
+				for (let attempt = 0; attempt < 3; attempt++) {
+					providerCatalogCache = null;
+					if (await loadProviderCatalog()) {
+						break;
+					}
+				}
 				setDetailResetToken((token) => token + 1);
-				void loadProviderCatalog();
 				return false;
 			} finally {
 				// Keep the shared short-lived catalog cache (composer model
