@@ -255,6 +255,94 @@ describe("useChatSession", () => {
 		expect(current.status).toBe("completed");
 	});
 
+	it("keeps the stale-stream poll inert while a local turn is in flight", async () => {
+		// Regression: the fallback poll replaced an optimistic user bubble
+		// (raw prompt) with its canonical envelope-wrapped twin, desyncing
+		// the rekey bookkeeping so the stream appended a duplicate bubble.
+		const hydratedSessionId = "session-local-turn";
+		let readCount = 0;
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "read_session_messages") {
+					readCount += 1;
+					return [
+						{
+							id: "history-user",
+							sessionId: hydratedSessionId,
+							role: "user",
+							content: "earlier prompt",
+							createdAt: 1,
+						},
+					];
+				}
+				if (command === "get_discovered_session") {
+					return { sessionId: hydratedSessionId, status: "running" };
+				}
+				if (command === "read_session_hooks") return [];
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string } | undefined;
+					if (request?.action === "attach" || request?.action === "start") {
+						return {
+							sessionId: hydratedSessionId,
+							status: "idle",
+							provider: "cline",
+							model: "test-model",
+							cwd: "/workspace/cline",
+							workspaceRoot: "/workspace/cline",
+						};
+					}
+					if (request?.action === "send") {
+						// Keep the send unresolved: the local turn stays in
+						// flight for the whole test.
+						return await new Promise(() => {});
+					}
+					return { promptsInQueue: [] };
+				}
+				return [];
+			},
+		);
+
+		vi.useFakeTimers();
+		try {
+			await act(async () => {
+				await current.hydrateSession({
+					sessionId: hydratedSessionId,
+					status: "idle",
+					provider: "cline",
+					model: "test-model",
+					cwd: "/workspace/cline",
+					workspaceRoot: "/workspace/cline",
+					startedAt: "2026-08-12T00:00:00.000Z",
+				});
+			});
+			const readsAfterHydration = readCount;
+
+			await act(async () => {
+				void current.sendPrompt("what time is it");
+				await Promise.resolve();
+			});
+			expect(current.status).toBe("starting");
+			expect(
+				current.messages.filter((m) => m.content === "what time is it"),
+			).toHaveLength(1);
+
+			// Model produces nothing for a long quiet window; the poll must
+			// not fire while the local turn is unsettled.
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(10_000);
+			});
+			expect(readCount).toBe(readsAfterHydration);
+			expect(
+				current.messages.filter((m) => m.content === "what time is it"),
+			).toHaveLength(1);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	it("routes command updates after attaching to an in-flight tool call", async () => {
 		const hydratedSessionId = "session-in-flight-command";
 		invokeMock.mockImplementation(

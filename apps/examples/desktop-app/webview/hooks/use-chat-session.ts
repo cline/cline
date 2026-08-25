@@ -1841,6 +1841,20 @@ export function useChatSession() {
 			if (activeAssistantMessageIdRef.current) {
 				return;
 			}
+			// A locally driven turn is in flight (submit/queue bumps the epoch;
+			// settling closes it). Its optimistic user bubble carries the raw
+			// prompt while canonical history stores it wrapped in a
+			// user_input envelope, so replacing state mid-turn desyncs the
+			// rekey bookkeeping and the stream then appends a duplicate
+			// bubble. The fallback exists for externally driven runs
+			// (schedules, other clients) — stay inert until the local turn
+			// settles.
+			if (
+				turnEpochRef.current !== turnSettledEpochRef.current ||
+				outstandingOptimisticUserIdsRef.current.size > 0
+			) {
+				return;
+			}
 			polling = true;
 			try {
 				const pollStartedAt = Date.now();
@@ -1860,22 +1874,30 @@ export function useChatSession() {
 				if (
 					cancelled ||
 					activeSessionIdRef.current !== sessionId ||
-					// The live stream resumed while the poll was in flight; its
-					// state is fresher than the snapshot we just read.
+					// The live stream resumed (or a local turn started) while
+					// the poll was in flight; live state is fresher than the
+					// snapshot we just read.
 					Date.now() - lastLiveChunkAtRef.current < STALE_STREAM_QUIET_MS ||
-					activeAssistantMessageIdRef.current
+					activeAssistantMessageIdRef.current ||
+					turnEpochRef.current !== turnSettledEpochRef.current ||
+					outstandingOptimisticUserIdsRef.current.size > 0
 				) {
 					return;
 				}
 				if (Array.isArray(historyMessages) && historyMessages.length > 0) {
-					setMessages(
-						mergeHydratedMessagesWithLive({
-							hydrated: historyMessages,
-							current: messagesRef.current,
-							sessionId,
-							hydrationStartedAt: pollStartedAt,
-						}),
-					);
+					const mergedMessages = mergeHydratedMessagesWithLive({
+						hydrated: historyMessages,
+						current: messagesRef.current,
+						sessionId,
+						hydrationStartedAt: pollStartedAt,
+					});
+					// Same as hydration: canonical rows may have replaced live
+					// tool rows, so rebuild the tool routing keys or later
+					// tool events would append instead of updating in place.
+					const liveToolState = deriveLiveToolState(mergedMessages);
+					liveToolMessageIdsRef.current = liveToolState.messageIds;
+					liveToolInputsRef.current = liveToolState.inputs;
+					setMessages(mergedMessages);
 				}
 				const nextStatus = record?.status?.trim();
 				if (nextStatus) {
@@ -2844,6 +2866,10 @@ export function useChatSession() {
 			activeSessionIdRef.current = session.sessionId;
 			activeAssistantMessageIdRef.current = null;
 			setActiveAssistantMessageId(null);
+			// A freshly hydrated session has no local turn in flight; without
+			// this the mount defaults (epoch 0, settled -1) read as an open
+			// turn and keep the stale-stream fallback inert forever.
+			turnSettledEpochRef.current = turnEpochRef.current;
 			setHydratedHistorySessionId(session.sessionId);
 			setPendingToolApprovals([]);
 			setPendingAskQuestions([]);
