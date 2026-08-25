@@ -9,6 +9,7 @@ import * as path from "node:path";
 import type { AgentToolContext } from "@cline/shared";
 import type { EditFileInput } from "../schemas";
 import type { EditorExecutor } from "../types";
+import { normalizeNewFileLineEndings } from "./line-endings";
 
 /**
  * Options for the editor executor
@@ -154,7 +155,9 @@ async function createFile(
 	encoding: BufferEncoding,
 ): Promise<string> {
 	await fs.mkdir(path.dirname(filePath), { recursive: true });
-	await fs.writeFile(filePath, fileText, { encoding });
+	await fs.writeFile(filePath, normalizeNewFileLineEndings(fileText), {
+		encoding,
+	});
 	return `File created successfully at: ${filePath}`;
 }
 

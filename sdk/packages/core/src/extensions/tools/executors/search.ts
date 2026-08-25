@@ -10,7 +10,17 @@ import * as path from "node:path";
 import type { AgentToolContext } from "@cline/shared";
 import { getFileIndex } from "../../../services/workspace";
 import type { SearchExecutor } from "../types";
-import { MAX_SEARCH_OUTPUT_CHARS } from "./output-limits";
+import { MAX_LINE_CHARS, MAX_SEARCH_OUTPUT_CHARS } from "./output-limits";
+
+/**
+ * Cap on buffered `rg --json` stdout. Each event embeds the full text of its
+ * matched line, so one match in a giant single-line file (e.g. a serialized
+ * trace dump) can produce a multi-hundred-MB event; buffering unbounded can
+ * exceed the engine's max string length and crash the whole process with an
+ * uncaught RangeError from the stream data handler. Results are capped to
+ * MAX_SEARCH_OUTPUT_CHARS anyway, so output past this is never shown.
+ */
+const MAX_RG_STDOUT_CHARS = 10 * 1024 * 1024;
 
 /**
  * Options for the search executor
@@ -213,6 +223,9 @@ function searchWithRipgrep(
 		});
 
 		child.stdout.on("data", (chunk: Buffer | string) => {
+			if (stdout.length > MAX_RG_STDOUT_CHARS) {
+				return;
+			}
 			stdout += chunk.toString();
 		});
 
@@ -224,7 +237,11 @@ function searchWithRipgrep(
 			if (code === 0 || code === 1) {
 				try {
 					const matches: SearchMatch[] = [];
-					const lines = stdout.split("\n").filter((line) => line.trim());
+					// Drop the trailing partial event left behind by the stdout cap.
+					const lines = stdout
+						.slice(0, stdout.lastIndexOf("\n") + 1)
+						.split("\n")
+						.filter((line) => line.trim());
 
 					for (const line of lines) {
 						if (matches.length >= maxResults) break;
@@ -427,7 +444,9 @@ export function createSearchExecutor(
 
 						for (let i = contextStart; i <= contextEnd; i++) {
 							const prefix = i === lineIdx ? ">" : " ";
-							contextLinesArr.push(`${prefix} ${i + 1}: ${lines[i]}`);
+							contextLinesArr.push(
+								`${prefix} ${i + 1}: ${lines[i].slice(0, MAX_LINE_CHARS)}`,
+							);
 						}
 
 						matches.push({
