@@ -80,6 +80,12 @@ export interface AgendaTaskManagerOptions {
 	globalSpecsDir?: string;
 	watcherDebounceMs?: number;
 	watchFiles?: boolean;
+	/**
+	 * Set to false to keep the automation pump idle regardless of persisted
+	 * automation policies. Policies stay stored untouched and manual approve/run
+	 * commands keep working; nothing is auto-approved or auto-started.
+	 */
+	automationEnabled?: boolean;
 	logger?: BasicLogger;
 	publish?: (
 		event: AgendaTaskManagerEventName,
@@ -272,6 +278,7 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 	private readonly backgroundRuns = new Set<Promise<void>>();
 	private maintenanceTimer?: ReturnType<typeof setInterval>;
 	private readonly queuedAutomationScopes = new Set<string>();
+	private readonly automationEnabled: boolean;
 	private automationPumping = false;
 	private automationPolicyGeneration = 0;
 	private started = false;
@@ -288,6 +295,7 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 			options.watcherDebounceMs ?? DEFAULT_WATCH_DEBOUNCE_MS,
 		);
 		this.watchFiles = options.watchFiles !== false;
+		this.automationEnabled = options.automationEnabled !== false;
 		this.logger = options.logger ?? noopBasicLogger;
 		this.publishEvent = options.publish ?? (() => {});
 	}
@@ -1222,7 +1230,7 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 	}
 
 	private queueAutomation(scopeKey?: string): void {
-		if (this.disposed) return;
+		if (this.disposed || !this.automationEnabled) return;
 		if (scopeKey) {
 			this.queuedAutomationScopes.add(scopeKey);
 		} else {

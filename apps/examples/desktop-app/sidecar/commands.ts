@@ -1434,7 +1434,7 @@ export async function handleCommand(
 		const result = await backend.updateSession({ sessionId, metadata: merged });
 		if (!result.updated) throw new Error(`Session ${sessionId} not found`);
 		// Annotating a session is not session activity. updateSession stamps
-		// updated_at, which clients sort and label rows by, so a favorite would
+		// updated_at, which clients sort and label rows by, so a pin would
 		// otherwise make an old session look like it just ran.
 		if (existing?.updatedAt) {
 			store.run("UPDATE sessions SET updated_at = ? WHERE session_id = ?", [
