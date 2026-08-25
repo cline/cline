@@ -27,7 +27,11 @@ afterEach(async () => {
 function StatefulProjectedControl() {
 	const [count, setCount] = useState(0);
 	return (
-		<button type="button" onClick={() => setCount((value) => value + 1)}>
+		<button
+			data-testid="projected-control"
+			type="button"
+			onClick={() => setCount((value) => value + 1)}
+		>
 			Count {count}
 		</button>
 	);
@@ -38,6 +42,9 @@ function renderShell(contentEnabled: boolean) {
 		<WindowTitleBarProvider contentEnabled={contentEnabled}>
 			<nav>Sidebar</nav>
 			<main>
+				<button data-testid="sidebar-trigger" type="button">
+					Toggle Sidebar
+				</button>
 				<WindowTitleBar />
 				<section data-testid="page">Page content</section>
 				<WindowTitleBarContent>
@@ -69,22 +76,33 @@ describe("WindowTitleBar", () => {
 		expect(button?.textContent).toBe("Count 0");
 		expect(button?.closest("main")).not.toBeNull();
 		expect(
+			container
+				.querySelector('[data-testid="sidebar-trigger"]')
+				?.compareDocumentPosition(button!),
+		).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+		expect(
 			container.querySelector("nav")?.compareDocumentPosition(button!),
 		).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
 	});
 
 	it("hides projected controls without unmounting their state", async () => {
 		await act(async () => root.render(renderShell(true)));
-		const button = container.querySelector("button");
+		const button = container.querySelector(
+			'[data-testid="projected-control"]',
+		) as HTMLButtonElement | null;
 		await act(async () => button?.click());
-		expect(container.querySelector("button")?.textContent).toBe("Count 1");
+		expect(
+			container.querySelector('[data-testid="projected-control"]')?.textContent,
+		).toBe("Count 1");
 
 		await act(async () => root.render(renderShell(false)));
 		const hiddenHost = container.querySelector<HTMLDivElement>(
 			'[data-slot="window-title-bar-content-host"]',
 		);
 		expect(hiddenHost?.hidden).toBe(true);
-		expect(container.querySelector("button")?.textContent).toBe("Count 1");
+		expect(
+			container.querySelector('[data-testid="projected-control"]')?.textContent,
+		).toBe("Count 1");
 
 		await act(async () => root.render(renderShell(true)));
 		expect(
@@ -92,15 +110,20 @@ describe("WindowTitleBar", () => {
 				'[data-slot="window-title-bar-content-host"]',
 			)?.hidden,
 		).toBe(false);
-		expect(container.querySelector("button")?.textContent).toBe("Count 1");
+		expect(
+			container.querySelector('[data-testid="projected-control"]')?.textContent,
+		).toBe("Count 1");
 	});
 
 	it("renders a drag-only row for a full-screen shell overlay", async () => {
 		await act(async () => {
 			root.render(
 				<WindowTitleBarProvider>
-					<div className="flex flex-col" data-testid="onboarding-shell">
-						<WindowTitleBar hostContent={false} />
+					<div className="relative" data-testid="onboarding-shell">
+						<WindowTitleBar
+							className="absolute inset-x-0 top-0"
+							hostContent={false}
+						/>
 						<div data-testid="onboarding-content">Onboarding</div>
 					</div>
 				</WindowTitleBarProvider>,
@@ -109,6 +132,7 @@ describe("WindowTitleBar", () => {
 
 		const shell = container.querySelector('[data-testid="onboarding-shell"]');
 		const titleBar = shell?.querySelector('[data-slot="window-title-bar"]');
+		expect(titleBar?.className).toContain("absolute");
 		expect(titleBar?.nextElementSibling).toBe(
 			shell?.querySelector('[data-testid="onboarding-content"]'),
 		);

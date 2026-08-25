@@ -461,8 +461,8 @@ export default function Home() {
 							<SidebarRail />
 						</Sidebar>
 						<SidebarInset className="min-h-0 min-w-0 overflow-hidden">
-							<WindowTitleBar />
 							<SidebarTrigger className="absolute left-20 top-0 z-40 md:hidden" />
+							<WindowTitleBar />
 							<div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
 								{view === "sessions" ? (
 									<SessionsView
@@ -514,9 +514,12 @@ export default function Home() {
 						</SidebarInset>
 					</div>
 					{showOnboarding ? (
-						<div className="fixed inset-0 z-50 flex flex-col bg-background">
-							<WindowTitleBar hostContent={false} />
-							<div className="min-h-0 flex-1">
+						<div className="fixed inset-0 z-50 bg-background">
+							<WindowTitleBar
+								className="absolute inset-x-0 top-0 z-10"
+								hostContent={false}
+							/>
+							<div className="h-full">
 								<OnboardingView
 									initialStep={onboardingInitialStep}
 									onComplete={completeOnboarding}
