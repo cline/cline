@@ -1209,7 +1209,7 @@ export function useSessionHistory({
 				);
 			};
 
-			// Favoriting is a single click, so apply it locally first and roll back
+			// Pinning is a single click, so apply it locally first and roll back
 			// if the write fails rather than blocking the row on a round trip.
 			applyPinned(pinned);
 			try {
@@ -1228,7 +1228,7 @@ export function useSessionHistory({
 				applyPinned(!pinned);
 				toast({
 					variant: "destructive",
-					title: pinned ? "Favorite failed" : "Unfavorite failed",
+					title: pinned ? "Pin failed" : "Unpin failed",
 					description:
 						error instanceof Error
 							? error.message
