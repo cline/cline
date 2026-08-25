@@ -797,4 +797,3 @@ describe("AgentSidebar session organization", () => {
 		).toContain("Settings");
 	});
 });
-

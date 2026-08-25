@@ -863,7 +863,6 @@ describe("Code sidecar runtime capabilities", () => {
 			scheduleId: "schedule-1",
 		});
 	});
-
 });
 
 describe("disposeSidecarContext attachment cleanup", () => {

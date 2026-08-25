@@ -756,5 +756,4 @@ export class HubSessionClient {
 			? (reply.payload?.upcoming as Array<Record<string, unknown>>)
 			: [];
 	}
-
 }

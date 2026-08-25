@@ -2,8 +2,8 @@ import type { AgentExtension, AgentTool } from "@cline/shared";
 import { createTool, zodToJsonSchema } from "@cline/shared";
 import {
 	executeScheduleOperation,
-	ScheduledTaskInputSchema,
 	type ScheduledTaskInput,
+	ScheduledTaskInputSchema,
 	type ScheduledTaskResult,
 	type ScheduleTaskOperationOptions,
 } from "../cron/service/schedule-tool";
