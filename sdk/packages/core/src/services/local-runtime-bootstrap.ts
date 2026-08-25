@@ -134,7 +134,7 @@ function hasConfigExtension(
 	return hasRuntimeConfigExtension(extensions, kind);
 }
 
-function buildProviderConfig(
+export function buildProviderConfig(
 	config: CoreSessionConfig,
 	sessionId: string,
 	source: ResolvedStartSessionInput["source"],

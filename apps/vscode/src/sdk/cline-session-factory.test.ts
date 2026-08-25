@@ -457,21 +457,27 @@ describe("buildSessionConfig", () => {
 		const store = createProviderConfigStore()
 		const providerId = parseProviderId("lmstudio")
 
-		store.write(providerId, { apiKey: "provider-lmstudio-key" })
+		store.write(providerId, {
+			apiKey: "provider-lmstudio-key",
+			headers: { "x-proxy-auth": "proxy-token" },
+		})
 		const storedConfig = await buildSessionConfig({ cwd: "/tmp/workspace" })
 
 		expect(storedConfig.apiKey).toBe("provider-lmstudio-key")
+		expect(storedConfig.headers).toEqual({ "x-proxy-auth": "proxy-token" })
 		expect(storedConfig.providerConfig).toMatchObject({
 			providerId: "lmstudio",
 			modelId: "local-model",
 			apiKey: "provider-lmstudio-key",
+			headers: { "x-proxy-auth": "proxy-token" },
 		})
 
-		store.write(providerId, { apiKey: "" })
+		store.write(providerId, { apiKey: "", headers: {} })
 		const fallbackConfig = await buildSessionConfig({ cwd: "/tmp/workspace" })
 
-		expect(providerSettings).toEqual({ provider: "lmstudio" })
+		expect(providerSettings).toEqual({ provider: "lmstudio", headers: {} })
 		expect(fallbackConfig.apiKey).toBe("environment-key")
+		expect(fallbackConfig.headers).toBeUndefined()
 		expect(fallbackConfig.providerConfig).toMatchObject({ apiKey: "environment-key" })
 	})
 

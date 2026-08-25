@@ -168,7 +168,7 @@ describe("SdkProviderChangeCoordinator", () => {
 		})
 
 		coordinator.handleProviderConfigFieldsChanged(parseProviderId("lmstudio"))
-		await coordinator.applyPendingConnectionUpdateBeforeInteractionResume()
+		await coordinator.applyPendingConnectionUpdateBeforeModelRequest()
 
 		expect(activeSession.sdkHost.updateSuspendedSessionConnection).toHaveBeenCalledWith("old-session", {
 			apiKey: "new-key",
@@ -202,8 +202,8 @@ describe("SdkProviderChangeCoordinator", () => {
 		)
 
 		coordinator.handleProviderConfigFieldsChanged(parseProviderId("lmstudio"))
-		const first = coordinator.applyPendingConnectionUpdateBeforeInteractionResume()
-		const second = coordinator.applyPendingConnectionUpdateBeforeInteractionResume()
+		const first = coordinator.applyPendingConnectionUpdateBeforeModelRequest()
+		const second = coordinator.applyPendingConnectionUpdateBeforeModelRequest()
 
 		await vi.waitFor(() => expect(activeSession.sdkHost.updateSuspendedSessionConnection).toHaveBeenCalledOnce())
 		releaseUpdate?.()
@@ -229,7 +229,7 @@ describe("SdkProviderChangeCoordinator", () => {
 			})
 
 		coordinator.handleProviderConfigFieldsChanged(parseProviderId("lmstudio"))
-		const apply = coordinator.applyPendingConnectionUpdateBeforeInteractionResume()
+		const apply = coordinator.applyPendingConnectionUpdateBeforeModelRequest()
 		await vi.waitFor(() => expect(options.sessionConfigBuilder.build).toHaveBeenCalledOnce())
 
 		coordinator.handleProviderConfigFieldsChanged(parseProviderId("lmstudio"))
@@ -255,7 +255,7 @@ describe("SdkProviderChangeCoordinator", () => {
 		)
 
 		coordinator.handleProviderConfigFieldsChanged(parseProviderId("lmstudio"))
-		const apply = coordinator.applyPendingConnectionUpdateBeforeInteractionResume()
+		const apply = coordinator.applyPendingConnectionUpdateBeforeModelRequest()
 		await vi.waitFor(() => expect(options.sessionConfigBuilder.build).toHaveBeenCalledOnce())
 
 		options.stateManager.getApiConfiguration.mockReturnValue({ actModeApiProvider: "deepseek" })
@@ -265,6 +265,48 @@ describe("SdkProviderChangeCoordinator", () => {
 
 		expect(activeSession.sdkHost.updateSuspendedSessionConnection).not.toHaveBeenCalled()
 		expect(options.rebuilds.request).toHaveBeenCalledWith("provider", expect.any(Function))
+	})
+
+	it("does not hot-apply newly selected provider credentials to the previous provider session", async () => {
+		vi.useFakeTimers()
+		const activeSession = makeActiveSession({ isRunning: true, provider: "anthropic" })
+		const replacementSession = {
+			...makeActiveSession({ isRunning: true, provider: "deepseek" }),
+			sessionId: "deepseek-session",
+			startResult: { sessionId: "deepseek-session" },
+		}
+		const { coordinator, options } = makeCoordinator({
+			activeSession,
+			activeProvider: "deepseek",
+			activeSessionProvider: "anthropic",
+		})
+		options.sessionConfigBuilder.build.mockResolvedValue({
+			providerId: "deepseek",
+			modelId: "deepseek-v4-flash",
+			apiKey: "deepseek-key",
+		})
+
+		coordinator.handleApiConfigurationChanged({ actModeApiProvider: "anthropic" }, { actModeApiProvider: "deepseek" })
+		coordinator.handleProviderConfigFieldsChanged(parseProviderId("deepseek"))
+		await coordinator.applyPendingConnectionUpdateBeforeModelRequest()
+
+		expect(options.sessionConfigBuilder.build).not.toHaveBeenCalled()
+		expect(activeSession.sdkHost.updateSuspendedSessionConnection).not.toHaveBeenCalled()
+		expect(options.rebuilds.request).toHaveBeenCalledWith("provider", expect.any(Function))
+
+		coordinator.handleActiveSessionReplacementStarted(
+			activeSession as unknown as Parameters<typeof coordinator.handleActiveSessionReplacementStarted>[0],
+		)
+		options.sessions.getActiveSession.mockReturnValue(replacementSession)
+		coordinator.handleActiveSessionReplacementFinished(
+			replacementSession as unknown as Parameters<typeof coordinator.handleActiveSessionReplacementFinished>[0],
+		)
+		await coordinator.applyPendingConnectionUpdateBeforeModelRequest()
+
+		expect(replacementSession.sdkHost.updateSuspendedSessionConnection).toHaveBeenCalledWith(
+			"deepseek-session",
+			expect.objectContaining({ apiKey: "deepseek-key" }),
+		)
 	})
 
 	it("keeps provider switches immediate and cancels a pending field-change restart", async () => {
@@ -389,7 +431,135 @@ describe("SdkProviderChangeCoordinator", () => {
 		resolveRestart?.()
 		await restart
 
-		await coordinator.applyPendingConnectionUpdateBeforeInteractionResume()
+		await coordinator.applyPendingConnectionUpdateBeforeModelRequest()
+
+		expect(activeSession.sdkHost.updateSuspendedSessionConnection).toHaveBeenCalledWith(
+			"old-session",
+			expect.objectContaining({ apiKey: "latest-key" }),
+		)
+	})
+
+	it("carries a provider edit across the active-session replacement gap", async () => {
+		vi.useFakeTimers()
+		const activeSession = makeActiveSession({ isRunning: true })
+		const replacementSession = {
+			...makeActiveSession({ isRunning: true, provider: "lmstudio" }),
+			sessionId: "new-session",
+			// Same-id history resumes can expose the previous provider in the
+			// persisted manifest; startConfig above is the live replacement identity.
+			startResult: { sessionId: "new-session", manifest: { provider: "anthropic" } },
+		}
+		const { coordinator, options } = makeCoordinator({ activeSession, activeProvider: "lmstudio" })
+		options.sessionConfigBuilder.build
+			.mockResolvedValueOnce({
+				providerId: "lmstudio",
+				modelId: "local-model",
+				apiKey: "snapshotted-key",
+			})
+			.mockResolvedValueOnce({
+				providerId: "lmstudio",
+				modelId: "local-model",
+				apiKey: "latest-key",
+			})
+		let installedSession: ReturnType<typeof makeActiveSession> | undefined = activeSession
+		let replacementStarted: (() => void) | undefined
+		const didStartReplacement = new Promise<void>((resolve) => {
+			replacementStarted = resolve
+		})
+		let finishReplacement: (() => void) | undefined
+		const mayFinishReplacement = new Promise<void>((resolve) => {
+			finishReplacement = resolve
+		})
+		options.sessions.getActiveSession.mockImplementation(() => installedSession)
+		options.sessions.replaceActiveSession.mockImplementationOnce(async () => {
+			installedSession = undefined
+			replacementStarted?.()
+			await mayFinishReplacement
+			installedSession = replacementSession
+			return {
+				startResult: { sessionId: "new-session" },
+				sdkHost: replacementSession.sdkHost,
+			}
+		})
+		options.postStateToWebview.mockRejectedValueOnce(new Error("state post failed")).mockResolvedValueOnce(undefined)
+
+		coordinator.handleProviderConfigFieldsChanged(parseProviderId("lmstudio"))
+		const restart = coordinator.restartActiveSessionForProviderChange()
+		await didStartReplacement
+
+		coordinator.handleProviderConfigFieldsChanged(parseProviderId("lmstudio"))
+		finishReplacement?.()
+		await restart
+		await coordinator.applyPendingConnectionUpdateBeforeModelRequest()
+
+		expect(activeSession.sdkHost.updateSuspendedSessionConnection).not.toHaveBeenCalled()
+		expect(replacementSession.sdkHost.updateSuspendedSessionConnection).toHaveBeenCalledWith(
+			"new-session",
+			expect.objectContaining({ apiKey: "latest-key" }),
+		)
+		expect(options.messages.appendAndEmit).toHaveBeenCalledWith(
+			expect.arrayContaining([expect.objectContaining({ text: expect.stringContaining("state post failed") })]),
+			expect.any(Object),
+		)
+		vi.runOnlyPendingTimers()
+		expect(options.rebuilds.request).toHaveBeenCalledWith("provider", expect.any(Function))
+	})
+
+	it("carries a provider edit across a replacement gap owned by another coordinator", async () => {
+		vi.useFakeTimers()
+		const activeSession = makeActiveSession({ isRunning: false, provider: "lmstudio" })
+		const replacementSession = {
+			...makeActiveSession({ isRunning: false, provider: "lmstudio" }),
+			sessionId: "mode-replacement",
+			startResult: { sessionId: "mode-replacement" },
+		}
+		const { coordinator, options } = makeCoordinator({ activeSession, activeProvider: "lmstudio" })
+		options.sessionConfigBuilder.build.mockResolvedValueOnce({
+			providerId: "lmstudio",
+			modelId: "local-model",
+			apiKey: "latest-key",
+		})
+		let installedSession: ReturnType<typeof makeActiveSession> | undefined = activeSession
+		options.sessions.getActiveSession.mockImplementation(() => installedSession)
+
+		// The other coordinator already snapshotted its config before this edit,
+		// but lifecycle replacement tracking has not started yet.
+		coordinator.handleProviderConfigFieldsChanged(parseProviderId("lmstudio"))
+		coordinator.handleActiveSessionReplacementStarted(
+			activeSession as unknown as Parameters<typeof coordinator.handleActiveSessionReplacementStarted>[0],
+		)
+		installedSession = undefined
+		installedSession = replacementSession
+		coordinator.handleActiveSessionReplacementFinished(
+			replacementSession as unknown as Parameters<typeof coordinator.handleActiveSessionReplacementFinished>[0],
+		)
+
+		await coordinator.applyPendingConnectionUpdateBeforeModelRequest()
+
+		expect(activeSession.sdkHost.updateSuspendedSessionConnection).not.toHaveBeenCalled()
+		expect(replacementSession.sdkHost.updateSuspendedSessionConnection).toHaveBeenCalledWith(
+			"mode-replacement",
+			expect.objectContaining({ apiKey: "latest-key" }),
+		)
+		vi.runOnlyPendingTimers()
+		expect(options.rebuilds.request).toHaveBeenCalledWith("provider", expect.any(Function))
+	})
+
+	it("keeps a provider edit pending when the provider-owned replacement is refused", async () => {
+		const activeSession = makeActiveSession({ isRunning: true, provider: "lmstudio" })
+		const { coordinator, options } = makeCoordinator({ activeSession, activeProvider: "lmstudio" })
+		options.sessionConfigBuilder.build.mockResolvedValue({
+			providerId: "lmstudio",
+			modelId: "local-model",
+			apiKey: "latest-key",
+		})
+		options.sessions.replaceActiveSession.mockResolvedValueOnce(undefined)
+
+		coordinator.handleProviderConfigFieldsChanged(parseProviderId("lmstudio"))
+		activeSession.isRunning = false
+		await coordinator.restartActiveSessionForProviderChange()
+		activeSession.isRunning = true
+		await coordinator.applyPendingConnectionUpdateBeforeModelRequest()
 
 		expect(activeSession.sdkHost.updateSuspendedSessionConnection).toHaveBeenCalledWith(
 			"old-session",
@@ -420,6 +590,9 @@ describe("SdkProviderChangeCoordinator", () => {
 
 function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 	const activeSession = input.activeSession
+	if (activeSession) {
+		activeSession.startConfig.providerId = input.activeSessionProvider ?? input.activeProvider ?? "anthropic"
+	}
 	const config = {
 		providerId: "deepseek",
 		modelId: "deepseek-v4-flash",
@@ -488,13 +661,18 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 interface MakeCoordinatorInput {
 	activeSession: ReturnType<typeof makeActiveSession>
 	activeProvider: string
+	activeSessionProvider: string
 	mode: "act" | "plan"
 	task: { taskId: string }
 }
 
-function makeActiveSession(input: { isRunning?: boolean } = {}) {
+function makeActiveSession(input: { isRunning?: boolean; provider?: string } = {}) {
 	return {
 		sessionId: "old-session",
+		startConfig: {
+			providerId: input.provider ?? "anthropic",
+			modelId: "local-model",
+		},
 		sdkHost: {
 			send: vi.fn(),
 			updateSuspendedSessionConnection: vi.fn().mockResolvedValue(undefined),

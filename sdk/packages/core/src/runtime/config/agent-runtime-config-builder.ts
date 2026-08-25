@@ -113,6 +113,7 @@ export function createAgentRuntimeConfig(
 		modelTools: agentConfig.modelTools,
 		tools: input.tools,
 		hooks,
+		beforeModelRequest: agentConfig.beforeModelRequest,
 		prepareTurn: input.prepareTurn,
 		consumePendingUserMessage: agentConfig.consumePendingUserMessage,
 		plugins: input.plugins,

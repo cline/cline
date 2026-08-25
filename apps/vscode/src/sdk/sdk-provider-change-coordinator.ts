@@ -25,6 +25,16 @@ interface PendingProviderFieldUpdate {
 	activeSession: ActiveSession
 }
 
+interface ProviderReplacementContext {
+	activeSession: ActiveSession
+	mode: Mode
+	provider: string | undefined
+	versionAtStart: number
+	providerOwned: boolean
+	depth: number
+	replacementSession?: ActiveSession
+}
+
 const PROVIDER_FIELDS_REBUILD_DEBOUNCE_MS = 300
 
 export interface SdkProviderChangeCoordinatorOptions {
@@ -49,6 +59,14 @@ function providerForMode(config: ApiConfiguration, mode: Mode): string | undefin
 	return provider === undefined ? undefined : toLegacyApiProvider(provider)
 }
 
+function providerForSession(session: ActiveSession): string | undefined {
+	// A same-id replacement seeded with history can return the persisted
+	// manifest from the previous runtime. The lifecycle-owned start config is
+	// the authoritative identity of the installed replacement.
+	const provider = session.startConfig?.providerId?.trim() || session.startResult?.manifest?.provider?.trim()
+	return provider === undefined ? undefined : toLegacyApiProvider(provider)
+}
+
 export class SdkProviderChangeCoordinator {
 	private providerFieldsRebuildTimer: ReturnType<typeof setTimeout> | undefined
 	private pendingProviderFieldsRebuild: (() => void) | undefined
@@ -56,6 +74,7 @@ export class SdkProviderChangeCoordinator {
 	private appliedProviderConnectionVersion = 0
 	private pendingProviderFieldUpdate: PendingProviderFieldUpdate | undefined
 	private providerConnectionApplyTail: Promise<void> = Promise.resolve()
+	private sessionReplacementInFlight: ProviderReplacementContext | undefined
 
 	constructor(private readonly options: SdkProviderChangeCoordinatorOptions) {}
 
@@ -68,7 +87,11 @@ export class SdkProviderChangeCoordinator {
 			return
 		}
 
-		const activeSession = this.options.sessions.getActiveSession()
+		const replacement = this.sessionReplacementInFlight
+		const installedSession = this.options.sessions.getActiveSession()
+		const activeSession =
+			installedSession ??
+			(replacement?.mode === mode && replacement.provider === changedProvider ? replacement.activeSession : undefined)
 		if (!activeSession) {
 			Logger.log("[SdkController] Provider fields changed without active session; next task will use new configuration")
 			return
@@ -81,15 +104,38 @@ export class SdkProviderChangeCoordinator {
 			activeSession,
 		}
 
+		const sessionUsesChangedProvider = providerForSession(activeSession) === changedProvider
+		const matchingReplacementInFlight =
+			replacement?.activeSession === activeSession && replacement.mode === mode && replacement.provider === changedProvider
+		if (!sessionUsesChangedProvider && !matchingReplacementInFlight) {
+			// The selected provider can change while the previous provider's turn is
+			// still running. Never hot-apply the newly selected provider's credentials
+			// to that old session; let the already-queued full replacement (or this
+			// field-change rebuild) install them on a matching session instead.
+			Logger.log(
+				`[SdkController] Deferring ${changedProvider} field refresh until the active ${providerForSession(activeSession) ?? "unknown"} session is rebuilt`,
+			)
+			this.scheduleProviderFieldsRebuild(mode, changedProvider, activeSession)
+			return
+		}
+
+		this.scheduleProviderFieldsRebuild(mode, changedProvider, activeSession)
+	}
+
+	private scheduleProviderFieldsRebuild(mode: Mode, provider: string, activeSession: ActiveSession): void {
 		this.cancelPendingProviderFieldsRebuild()
 		this.pendingProviderFieldsRebuild = () => {
 			const currentMode = this.getCurrentMode()
 			const currentProvider = providerForMode(this.options.stateManager.getApiConfiguration(), currentMode)
-			if (currentProvider !== changedProvider || this.options.sessions.getActiveSession() !== activeSession) {
+			if (
+				currentProvider !== provider ||
+				currentMode !== mode ||
+				this.options.sessions.getActiveSession() !== activeSession
+			) {
 				return
 			}
 
-			Logger.log(`[SdkController] Active provider fields changed for ${currentMode}: ${changedProvider}`)
+			Logger.log(`[SdkController] Active provider fields changed for ${currentMode}: ${provider}`)
 			this.options.rebuilds.request("provider", () => this.performRestartActiveSessionForProviderChange(activeSession))
 		}
 		this.providerFieldsRebuildTimer = setTimeout(
@@ -132,12 +178,58 @@ export class SdkProviderChangeCoordinator {
 	}
 
 	/**
+	 * Retains provider-field edits while any coordinator replaces the active
+	 * session. Calls may nest because the provider coordinator owns the wider
+	 * rebuild while SdkSessionLifecycle owns the exact reference-free gap.
+	 */
+	handleActiveSessionReplacementStarted(activeSession: ActiveSession): void {
+		this.beginActiveSessionReplacement(activeSession, false)
+	}
+
+	private beginActiveSessionReplacement(activeSession: ActiveSession, providerOwned: boolean): void {
+		const current = this.sessionReplacementInFlight
+		if (current?.activeSession === activeSession) {
+			current.providerOwned ||= providerOwned
+			current.depth += 1
+			return
+		}
+
+		const mode = this.getCurrentMode()
+		this.sessionReplacementInFlight = {
+			activeSession,
+			mode,
+			provider: providerForMode(this.options.stateManager.getApiConfiguration(), mode),
+			versionAtStart: this.providerConnectionChangeVersion,
+			providerOwned,
+			depth: 1,
+		}
+	}
+
+	handleActiveSessionReplacementFinished(replacementSession: ActiveSession | undefined): void {
+		const context = this.sessionReplacementInFlight
+		if (!context) {
+			return
+		}
+
+		if (replacementSession) {
+			context.replacementSession = replacementSession
+		}
+		context.depth -= 1
+		if (context.depth > 0) {
+			return
+		}
+
+		this.sessionReplacementInFlight = undefined
+		this.rebindProviderEditAfterReplacement(context, context.replacementSession)
+	}
+
+	/**
 	 * Applies connection-scoped provider settings to a suspended live session.
 	 * The scheduled rebuild is intentionally retained: once the turn becomes
 	 * idle it still refreshes session-wide fields that an in-place connection update
 	 * cannot change (for example system-prompt/model metadata).
 	 */
-	async applyPendingConnectionUpdateBeforeInteractionResume(): Promise<void> {
+	async applyPendingConnectionUpdateBeforeModelRequest(): Promise<void> {
 		const apply = this.providerConnectionApplyTail.then(() => this.performPendingConnectionUpdate())
 		this.providerConnectionApplyTail = apply.catch(() => {})
 		await apply
@@ -192,6 +284,7 @@ export class SdkProviderChangeCoordinator {
 			latest.activeSession === pending.activeSession && latest.mode === pending.mode && latest.provider === pending.provider
 		const executionContextStillActive =
 			this.options.sessions.getActiveSession() === pending.activeSession &&
+			providerForSession(pending.activeSession) === pending.provider &&
 			this.getCurrentMode() === pending.mode &&
 			providerForMode(this.options.stateManager.getApiConfiguration(), pending.mode) === pending.provider
 
@@ -220,11 +313,11 @@ export class SdkProviderChangeCoordinator {
 		if (!activeSession || (expectedSession && activeSession !== expectedSession)) {
 			return
 		}
-		const pendingAtRestartStart = this.pendingProviderFieldUpdate
-
 		const { sdkHost: oldManager, sessionId: oldSessionId } = activeSession
 		const cwd = await this.options.getWorkspaceRoot()
 		const mode = this.getCurrentMode()
+		this.beginActiveSessionReplacement(activeSession, true)
+		let replacementInstalled = false
 
 		Logger.log(`[SdkController] Restarting session ${oldSessionId} for provider change`)
 
@@ -243,6 +336,7 @@ export class SdkProviderChangeCoordinator {
 			if (!restartResult) {
 				return
 			}
+			replacementInstalled = true
 
 			const { startResult } = restartResult
 			const task = this.options.getTask()
@@ -254,13 +348,6 @@ export class SdkProviderChangeCoordinator {
 			}
 
 			await this.options.postStateToWebview()
-			if (
-				pendingAtRestartStart?.activeSession === activeSession &&
-				this.pendingProviderFieldUpdate === pendingAtRestartStart
-			) {
-				this.appliedProviderConnectionVersion = pendingAtRestartStart.version
-				this.pendingProviderFieldUpdate = undefined
-			}
 			Logger.log(`[SdkController] Session restarted for provider change: ${oldSessionId} -> ${startResult.sessionId}`)
 		} catch (error) {
 			Logger.error("[SdkController] Failed to restart session for provider change:", error)
@@ -279,6 +366,53 @@ export class SdkProviderChangeCoordinator {
 				{ type: "status", payload: { sessionId: oldSessionId, status: "error" } },
 			)
 			await this.options.postStateToWebview()
+		} finally {
+			this.handleActiveSessionReplacementFinished(
+				replacementInstalled ? this.options.sessions.getActiveSession() : undefined,
+			)
+		}
+	}
+
+	private rebindProviderEditAfterReplacement(
+		context: ProviderReplacementContext,
+		replacementSession: ActiveSession | undefined,
+	): void {
+		const latestPending = this.pendingProviderFieldUpdate
+		const pendingMatchesReplacement =
+			replacementSession !== undefined &&
+			latestPending !== undefined &&
+			latestPending.mode === context.mode &&
+			latestPending.provider === context.provider &&
+			providerForSession(replacementSession) === context.provider &&
+			this.getCurrentMode() === context.mode &&
+			providerForMode(this.options.stateManager.getApiConfiguration(), context.mode) === context.provider
+		const editNeedsRefresh =
+			pendingMatchesReplacement && (!context.providerOwned || latestPending.version > context.versionAtStart)
+		if (editNeedsRefresh) {
+			this.pendingProviderFieldUpdate = {
+				...latestPending,
+				activeSession: replacementSession,
+			}
+			this.scheduleProviderFieldsRebuild(latestPending.mode, latestPending.provider, replacementSession)
+			return
+		}
+
+		// A successful provider-owned rebuild began before it snapshotted config.
+		// An older pending edit was therefore included in that replacement and
+		// must not schedule another identical rebuild. Other coordinators begin
+		// tracking only after their config snapshot, so they conservatively rebind
+		// any matching pending edit above. A failed/refused rebuild has no
+		// replacementSession and must retain the edit for the next request.
+		if (
+			context.providerOwned &&
+			replacementSession !== undefined &&
+			latestPending?.activeSession === context.activeSession &&
+			latestPending.mode === context.mode &&
+			latestPending.provider === context.provider &&
+			latestPending.version <= context.versionAtStart
+		) {
+			this.appliedProviderConnectionVersion = Math.max(this.appliedProviderConnectionVersion, latestPending.version)
+			this.pendingProviderFieldUpdate = undefined
 		}
 	}
 

@@ -511,7 +511,7 @@ export class AgentRuntime {
 	private overflowRecoveryAttempted = false;
 	private initialization?: Promise<void>;
 	private abortController?: AbortController;
-	private betweenModelRequestsForToolExecution = false;
+	private connectionUpdateBoundaryActive = false;
 	private telemetryProviderId?: string;
 	private telemetryModelId?: string;
 
@@ -562,10 +562,10 @@ export class AgentRuntime {
 	/**
 	 * Replace the model connection used by subsequent requests in this run.
 	 * Tool approval and ask-question executors can suspend an active run between
-	 * model requests, so session-level credential changes must reach the already
+	 * model requests, while the host-owned pre-request callback runs in a shorter
+	 * boundary before request preparation. Session-level credential changes must reach the already
 	 * constructed runtime without discarding its conversation or tool state. The
-	 * host interaction layer must separately verify that a resumable approval or
-	 * question is pending before invoking the dedicated suspended-session path.
+	 * host must invoke this only through one of those verified boundaries.
 	 */
 	replaceModelBetweenRequests(
 		model: AgentModel,
@@ -576,10 +576,10 @@ export class AgentRuntime {
 	): void {
 		if (
 			this.state.status !== "running" ||
-			!this.betweenModelRequestsForToolExecution
+			!this.connectionUpdateBoundaryActive
 		) {
 			throw new Error(
-				"Agent model replacement is only allowed while tool execution is suspended between model requests",
+				"Agent model replacement is only allowed at a verified boundary between model requests",
 			);
 		}
 		this.config = {
@@ -848,12 +848,12 @@ export class AgentRuntime {
 					return result;
 				}
 
-				this.betweenModelRequestsForToolExecution = true;
+				this.connectionUpdateBoundaryActive = true;
 				let toolMessages: AgentMessage[];
 				try {
 					toolMessages = await this.executeToolCalls(toolCalls);
 				} finally {
-					this.betweenModelRequestsForToolExecution = false;
+					this.connectionUpdateBoundaryActive = false;
 				}
 				this.state.pendingToolCalls = [];
 				for (const toolMessage of toolMessages) {
@@ -1065,6 +1065,11 @@ export class AgentRuntime {
 		message: AgentMessage;
 		finishReason: AgentModelFinishReason;
 	}> {
+		// Refresh host-owned connection state before prepareTurn: preparation may
+		// itself make a provider request (for example agentic compaction). This
+		// callback is root-runtime-only and is not inherited by delegated agents.
+		await this.refreshConnectionBeforeModelRequest();
+
 		const usageBeforeModel = cloneUsage(this.state.usage);
 		const modelRequestMetadata = omitUndefinedValues({
 			distinctId: trimNonEmpty(this.config.distinctId),
@@ -1077,6 +1082,8 @@ export class AgentRuntime {
 			runId: this.state.runId,
 			iteration: this.state.iteration,
 		});
+		const requestMetadataOptions = { metadata: modelRequestMetadata };
+		let hookModelOptions: Record<string, unknown> | undefined;
 		let request: AgentModelRequest = {
 			systemPrompt: this.config.systemPrompt,
 			messages: cloneMessages(this.state.messages),
@@ -1087,9 +1094,10 @@ export class AgentRuntime {
 			})),
 			modelTools: this.config.modelTools,
 			signal: this.abortController?.signal,
-			options: mergeModelOptions(this.config.modelOptions, {
-				metadata: modelRequestMetadata,
-			}),
+			options: mergeModelOptions(
+				this.config.modelOptions,
+				requestMetadataOptions,
+			),
 		};
 
 		const taskLifecycleStartedAt = Date.now();
@@ -1126,11 +1134,33 @@ export class AgentRuntime {
 				request = { ...request, tools: [...result.tools] };
 			}
 			if (result?.options) {
+				hookModelOptions = mergeModelOptions(hookModelOptions, result.options);
 				request = {
 					...request,
 					options: mergeModelOptions(request.options, result.options),
 				};
 			}
+		}
+
+		// Preparation and hooks may await long-running work. Recheck immediately
+		// before the provider stream so an edit that landed during that interval is
+		// not deferred to another iteration. If the host replaced the model or its
+		// base options, rebase the final request while preserving per-request
+		// metadata and explicit hook overrides.
+		const preparedModel = this.config.model;
+		const preparedModelOptions = this.config.modelOptions;
+		await this.refreshConnectionBeforeModelRequest();
+		if (
+			this.config.model !== preparedModel ||
+			this.config.modelOptions !== preparedModelOptions
+		) {
+			request = {
+				...request,
+				options: mergeModelOptions(
+					mergeModelOptions(this.config.modelOptions, requestMetadataOptions),
+					hookModelOptions,
+				),
+			};
 		}
 
 		this.config.logger?.debug("Agent model request diagnostics", {
@@ -1424,6 +1454,16 @@ export class AgentRuntime {
 		}
 
 		return { message, finishReason };
+	}
+
+	private async refreshConnectionBeforeModelRequest(): Promise<void> {
+		this.connectionUpdateBoundaryActive = true;
+		try {
+			await this.config.beforeModelRequest?.();
+			this.throwIfAborted();
+		} finally {
+			this.connectionUpdateBoundaryActive = false;
+		}
 	}
 
 	private async *openTaskLifecycleStream(

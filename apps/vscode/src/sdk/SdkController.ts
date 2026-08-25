@@ -343,6 +343,7 @@ export class Controller {
 			stateManager: this.stateManager,
 			emitHookMessage: (msg) => this.messages.emitHookMessage(msg),
 			onConsecutiveMistakeLimitReached: (context) => this.interactions.handleConsecutiveMistakeLimitReached(context),
+			beforeModelRequest: () => this.providerChanges.applyPendingConnectionUpdateBeforeModelRequest(),
 		})
 		this.diffEdits = new SdkDiffEditCoordinator({
 			getCwd: () => this.getWorkspaceRoot(),
@@ -389,6 +390,10 @@ export class Controller {
 			},
 			onDidBecomeIdle: () => this.handleSessionBecameIdle(),
 			onDidEndActiveSession: () => this.handleActiveSessionRemoved(),
+			onActiveSessionReplacementStarted: (activeSession) =>
+				this.providerChanges.handleActiveSessionReplacementStarted(activeSession),
+			onActiveSessionReplacementFinished: (activeSession) =>
+				this.providerChanges.handleActiveSessionReplacementFinished(activeSession),
 			beforeStartSession: () => this.ensureRemoteConfigForSessionStart(),
 			getRemoteConfigIntegration: () => this.remoteConfigCoreIntegration,
 			foregroundCommands: this.foregroundCommands,
@@ -556,7 +561,7 @@ export class Controller {
 			taskHistory: this.taskHistory,
 			sessionConfigBuilder: this.sessionConfigBuilder,
 			waitForPendingRebuilds: () => this.flushPendingProviderChangesAndWaitForRebuilds(),
-			applyPendingProviderConnection: () => this.providerChanges.applyPendingConnectionUpdateBeforeInteractionResume(),
+			applyPendingProviderConnection: () => this.providerChanges.applyPendingConnectionUpdateBeforeModelRequest(),
 			runExclusive: (operation) => this.sessionRebuilds.runExclusive(operation),
 			onFollowUpStarting: () => this.ensureFollowUpStartingState(),
 			getTask: () => this.task,

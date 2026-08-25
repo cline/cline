@@ -84,6 +84,8 @@ type BuiltinCompactionStrategyRunner = (
 export interface ContextCompactionPrepareTurnOptions {
 	mode?: CoreCompactionMode;
 	manualTargetRatio?: number;
+	/** Resolve live connection settings immediately before agentic compaction. */
+	getProviderConfig?: () => ProviderConfig | undefined;
 }
 
 const LONG_CONVERSATION_TARGET_RATIO = 0.5;
@@ -275,7 +277,7 @@ export function createContextCompactionPrepareTurn(
 		return undefined;
 	}
 
-	const providerConfig =
+	const initialProviderConfig =
 		config.providerConfig ??
 		({
 			providerId: config.providerId,
@@ -290,6 +292,8 @@ export function createContextCompactionPrepareTurn(
 		: strategy;
 
 	return async (context) => {
+		const providerConfig =
+			options.getProviderConfig?.() ?? initialProviderConfig;
 		const effectiveMode: CoreCompactionMode = context.overflowRecovery
 			? "overflow_recovery"
 			: mode;

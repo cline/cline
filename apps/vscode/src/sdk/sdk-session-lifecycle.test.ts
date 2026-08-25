@@ -462,6 +462,8 @@ describe("SdkSessionLifecycle", () => {
 
 	it("replaces the active session by stopping the old session and reusing the shared host", async () => {
 		const oldUnsubscribe = vi.fn()
+		const onActiveSessionReplacementStarted = vi.fn()
+		const onActiveSessionReplacementFinished = vi.fn()
 		const sdkHost = makeSdkHost({
 			start: vi
 				.fn()
@@ -472,7 +474,10 @@ describe("SdkSessionLifecycle", () => {
 			dispose: vi.fn().mockResolvedValue(undefined),
 		})
 		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
-		const lifecycle = makeLifecycle()
+		const lifecycle = makeLifecycle({
+			onActiveSessionReplacementStarted,
+			onActiveSessionReplacementFinished,
+		})
 		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
 		await lifecycle.startNewSession({} as any)
 		lifecycle.setRunning(false)
@@ -500,6 +505,10 @@ describe("SdkSessionLifecycle", () => {
 		})
 		expect(lifecycle.getActiveSession()?.sessionId).toBe("new-session")
 		expect(lifecycle.getActiveSession()?.isRunning).toBe(false)
+		expect(onActiveSessionReplacementStarted).toHaveBeenCalledOnce()
+		expect(onActiveSessionReplacementStarted).toHaveBeenCalledWith(expectedSession)
+		expect(onActiveSessionReplacementFinished).toHaveBeenCalledOnce()
+		expect(onActiveSessionReplacementFinished).toHaveBeenCalledWith(lifecycle.getActiveSession())
 	})
 
 	it("does not replace a session that started running", async () => {

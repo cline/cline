@@ -57,6 +57,9 @@ export interface SdkSessionLifecycleOptions {
 	onDidBecomeIdle?: () => void
 	/** Called synchronously when the active-session reference is removed. */
 	onDidEndActiveSession?: () => void
+	/** Brackets every active-session replacement, including its reference-free gap. */
+	onActiveSessionReplacementStarted?: (activeSession: ActiveSession) => void
+	onActiveSessionReplacementFinished?: (activeSession: ActiveSession | undefined) => void
 }
 
 export class SdkSessionLifecycle {
@@ -205,18 +208,23 @@ export class SdkSessionLifecycle {
 		}
 
 		const { sessionId: oldSessionId } = oldSession
+		this.options.onActiveSessionReplacementStarted?.(oldSession)
 
-		// No need to await the stop here: callers reuse oldSessionId in the
-		// startInput, and startNewSession waits on the pending stop for it.
-		await this.endActiveSession(options.disposeReason)
+		try {
+			// No need to await the stop here: callers reuse oldSessionId in the
+			// startInput, and startNewSession waits on the pending stop for it.
+			await this.endActiveSession(options.disposeReason)
 
-		const { startResult, sdkHost } = await this.startNewSession({
-			...options.startInput,
-			...(options.initialMessages ? { initialMessages: options.initialMessages } : {}),
-		})
-		this.setRunning(false)
+			const { startResult, sdkHost } = await this.startNewSession({
+				...options.startInput,
+				...(options.initialMessages ? { initialMessages: options.initialMessages } : {}),
+			})
+			this.setRunning(false)
 
-		return { oldSessionId, startResult, sdkHost }
+			return { oldSessionId, startResult, sdkHost }
+		} finally {
+			this.options.onActiveSessionReplacementFinished?.(this.activeSession)
+		}
 	}
 
 	async restoreActiveSession(input: RestoreInput): Promise<RestoreResult> {

@@ -516,6 +516,8 @@ export interface AgentRuntimeConfig {
 	// biome-ignore lint/suspicious/noExplicitAny: tool input/output types vary per tool
 	tools?: readonly AgentTool<any, any>[];
 	hooks?: Partial<AgentRuntimeHooks>;
+	/** Host-owned root-runtime callback invoked before request preparation. */
+	beforeModelRequest?: () => void | Promise<void>;
 	plugins?: readonly AgentRuntimePlugin[];
 	logger?: BasicLogger;
 	telemetry?: ITelemetryService;

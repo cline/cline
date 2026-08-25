@@ -195,6 +195,14 @@ describe("LocalRuntimeHost", () => {
 		rmSync(isolatedHomeDir, { recursive: true, force: true });
 	});
 
+	it("keeps the pre-request callback in host-local session config", () => {
+		const beforeModelRequest = vi.fn();
+		const split = splitCoreSessionConfig(createConfig({ beforeModelRequest }));
+
+		expect(split.config).not.toHaveProperty("beforeModelRequest");
+		expect(split.localRuntime?.beforeModelRequest).toBe(beforeModelRequest);
+	});
+
 	it("recovers stale detached command logs for non-daemon hosts", async () => {
 		const detachedLogDirectory = mkdtempSync(
 			join(tmpdir(), "cline-command-local-host-recovery-"),
@@ -661,7 +669,11 @@ describe("LocalRuntimeHost", () => {
 
 		await manager.startSession(
 			normalizeStartInput({
-				config: createConfig({ sessionId, apiKey: "old-key" }),
+				config: createConfig({
+					sessionId,
+					apiKey: "old-key",
+					headers: { "x-proxy-auth": "proxy-token" },
+				}),
 				prompt: "hello",
 				interactive: true,
 			}),
@@ -671,6 +683,12 @@ describe("LocalRuntimeHost", () => {
 		await manager.updateSuspendedSessionConnection(sessionId, {
 			apiKey: "new-key",
 			baseUrl: "http://new-endpoint",
+			providerConfig: {
+				providerId: "mock-provider",
+				modelId: "mock-model",
+				apiKey: "new-key",
+				baseUrl: "http://new-endpoint",
+			},
 		});
 
 		const getSessionOrThrow = Reflect.get(
@@ -680,13 +698,51 @@ describe("LocalRuntimeHost", () => {
 		const session = Reflect.apply(getSessionOrThrow, manager, [sessionId]) as {
 			config: CoreSessionConfig;
 		};
-		expect(agent.updateSuspendedConnection).toHaveBeenCalledWith({
-			apiKey: "new-key",
-			baseUrl: "http://new-endpoint",
-		});
+		expect(agent.updateSuspendedConnection).toHaveBeenCalledWith(
+			expect.objectContaining({
+				apiKey: "new-key",
+				baseUrl: "http://new-endpoint",
+				providerConfig: expect.objectContaining({
+					providerId: "mock-provider",
+					apiKey: "new-key",
+					baseUrl: "http://new-endpoint",
+					headers: expect.objectContaining({
+						"x-proxy-auth": "proxy-token",
+					}),
+				}),
+			}),
+		);
 		expect(session.config.apiKey).toBe("new-key");
 		expect(session.config.baseUrl).toBe("http://new-endpoint");
+		expect(session.config.providerConfig?.headers).toEqual(
+			expect.objectContaining({ "x-proxy-auth": "proxy-token" }),
+		);
 		expect(sessionService.writeSessionManifest).not.toHaveBeenCalled();
+
+		await manager.updateSuspendedSessionConnection(sessionId, {
+			apiKey: "",
+			baseUrl: "",
+			headers: {},
+			providerConfig: {
+				providerId: "mock-provider",
+				modelId: "mock-model",
+			},
+		});
+		expect(agent.updateSuspendedConnection).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				apiKey: "",
+				baseUrl: "",
+				headers: {},
+				providerConfig: expect.objectContaining({
+					baseUrl: "",
+					headers: {},
+				}),
+			}),
+		);
+		expect(session.config.providerConfig).toEqual(
+			expect.objectContaining({ baseUrl: "", headers: {} }),
+		);
+		expect(session.config.providerConfig?.apiKey).not.toBe("new-key");
 
 		agent.updateSuspendedConnection.mockImplementationOnce(() => {
 			throw new Error("not suspended");
@@ -698,8 +754,8 @@ describe("LocalRuntimeHost", () => {
 			}),
 		).rejects.toThrow("not suspended");
 
-		expect(session.config.apiKey).toBe("new-key");
-		expect(session.config.baseUrl).toBe("http://new-endpoint");
+		expect(session.config.apiKey).toBe("");
+		expect(session.config.baseUrl).toBe("");
 		expect(sessionService.writeSessionManifest).not.toHaveBeenCalled();
 	});
 
