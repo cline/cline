@@ -1083,6 +1083,16 @@ export function RoutineSchedulesContent({
 		[schedules],
 	);
 
+	// Hide suggestions the user has already created (matched by schedule name).
+	const visibleTemplates = useMemo(() => {
+		const existingNames = new Set(
+			schedules.map((schedule) => schedule.name.trim().toLowerCase()),
+		);
+		return ROUTINE_TEMPLATES.filter(
+			(template) => !existingNames.has(template.name.trim().toLowerCase()),
+		);
+	}, [schedules]);
+
 	const viewingExecutions = useMemo(() => {
 		if (!viewingSchedule) {
 			return [];
@@ -1352,13 +1362,13 @@ export function RoutineSchedulesContent({
 				</div>
 			)}
 
-			{!isLoading && (
+			{!isLoading && visibleTemplates.length > 0 && (
 				<section className="mt-10">
 					<h2 className="text-xs font-medium tracking-wider text-muted-foreground uppercase">
 						Suggested
 					</h2>
 					<div className="mt-3 grid gap-3 sm:grid-cols-2">
-						{ROUTINE_TEMPLATES.map((template) => {
+						{visibleTemplates.map((template) => {
 							const Icon = template.icon;
 							return (
 								<button
