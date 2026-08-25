@@ -126,6 +126,14 @@ export function SettingsView({
 		null,
 	);
 	const [addingProvider, setAddingProvider] = useState(false);
+	// Bumped by every optimistic provider mutation and catalog load. An
+	// in-flight catalog response is discarded when the generation moved on,
+	// so an older disk snapshot can never overwrite a newer edit.
+	const catalogGenerationRef = useRef(0);
+	// Bumped when a failed save resyncs the catalog from disk; keys the
+	// detail panel so its local field drafts remount from the reloaded
+	// props instead of keeping unpersisted values.
+	const [detailResetToken, setDetailResetToken] = useState(0);
 
 	useEffect(() => {
 		if (section !== "Models") {
@@ -163,14 +171,21 @@ export function SettingsView({
 			return;
 		}
 
+		const generation = ++catalogGenerationRef.current;
 		setProvidersLoading(true);
 		setProviderCatalogError(null);
 		try {
 			const payload = await desktopClient.invoke<ProviderCatalogResponse>(
 				"list_provider_catalog",
 			);
+			if (generation !== catalogGenerationRef.current) {
+				return;
+			}
 			setProvidersWithCache(payload.providers);
 		} catch (error) {
+			if (generation !== catalogGenerationRef.current) {
+				return;
+			}
 			const message = error instanceof Error ? error.message : String(error);
 			setProviderCatalogError(message);
 			setProviders([]);
@@ -215,8 +230,10 @@ export function SettingsView({
 				window.alert(`Failed to save provider settings for ${id}: ${message}`);
 				// The optimistic list update no longer matches disk; reload the
 				// catalog so the view doesn't keep showing (and caching) a
-				// connection state that was never persisted.
+				// connection state that was never persisted, and remount the
+				// detail panel so its field drafts resync to the reloaded state.
 				providerCatalogCache = null;
+				setDetailResetToken((token) => token + 1);
 				void loadProviderCatalog();
 				return false;
 			} finally {
@@ -233,6 +250,7 @@ export function SettingsView({
 			// Persist an (empty) settings entry so the provider is enabled with
 			// whatever credentials it resolves at runtime (env vars, local CLI,
 			// keyless endpoints).
+			catalogGenerationRef.current++;
 			setProvidersWithCache((prev) =>
 				prev.map((p) => (p.id === id ? { ...p, enabled: true } : p)),
 			);
@@ -243,6 +261,7 @@ export function SettingsView({
 
 	const disconnectProvider = useCallback(
 		async (id: string) => {
+			catalogGenerationRef.current++;
 			setProvidersWithCache((prev) =>
 				prev.map((p) =>
 					p.id === id
@@ -272,6 +291,7 @@ export function SettingsView({
 		(id: string, updates: ProviderSettingsUpdate) => {
 			// Saving settings creates the provider's persisted entry, which is
 			// what "connected" means for keyless providers — reflect it locally.
+			catalogGenerationRef.current++;
 			setProvidersWithCache((prev) =>
 				prev.map((p) =>
 					p.id === id
@@ -467,7 +487,7 @@ export function SettingsView({
 			/>
 			<aside className="min-h-0 overflow-hidden border-l bg-background max-[1100px]:border-l-0 max-[1100px]:border-t">
 				<ProviderDetailContent
-					key={selectedProvider.id}
+					key={`${selectedProvider.id}:${detailResetToken}`}
 					modelsError={modelsErrorByProvider[selectedProvider.id] ?? null}
 					modelsLoading={modelsLoadingByProvider[selectedProvider.id] ?? false}
 					oauthLoginPending={oauthSigningProviderId === selectedProvider.id}
