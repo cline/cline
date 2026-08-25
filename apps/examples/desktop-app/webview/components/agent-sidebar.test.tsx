@@ -920,8 +920,9 @@ describe("AgentSidebar session organization", () => {
 		expect(onNavigateForward).toHaveBeenCalledOnce();
 	});
 
-	it("gives New Task its own full-width row that navigates home", async () => {
+	it("stacks New, Schedule, and Customize as full-width rows below the logo", async () => {
 		const onHome = vi.fn();
+		const onSettingsSectionChange = vi.fn();
 		await act(async () => {
 			root.render(
 				<AccountProvider>
@@ -929,7 +930,7 @@ describe("AgentSidebar session organization", () => {
 						<AgentSidebar
 							activeSessionId={null}
 							onHome={onHome}
-							onSettingsSectionChange={vi.fn()}
+							onSettingsSectionChange={onSettingsSectionChange}
 							sessionHistory={makeSessionHistory([], vi.fn())}
 							setView={vi.fn()}
 							settingsSection="General"
@@ -941,18 +942,65 @@ describe("AgentSidebar session organization", () => {
 		});
 
 		const logo = container.querySelector('[aria-label="Cline home"]');
-		const showAgenda = container.querySelector('[aria-label="Show Agenda"]');
-		const newTask = container.querySelector('[aria-label="New Task"]');
+		const actionsNav = container.querySelector(
+			'[aria-label="Sidebar actions"]',
+		);
 		expect(logo).not.toBeNull();
-		expect(showAgenda).not.toBeNull();
-		expect(newTask).not.toBeNull();
-		// The action reads as a labeled row, not an ambiguous icon in the
-		// header cluster, and it lives outside the logo row.
-		expect(newTask?.textContent).toBe("New Task");
-		expect(newTask?.className).toContain("w-full");
-		expect(newTask?.parentElement).not.toBe(logo?.parentElement);
-		await click(newTask as Element);
+		expect(actionsNav).not.toBeNull();
+		// The rows read as labeled full-width entries stacked outside the
+		// logo row, not ambiguous icons in the header cluster.
+		const rows = [
+			...(actionsNav?.querySelectorAll<HTMLButtonElement>("button") ?? []),
+		];
+		expect(rows.map((row) => row.textContent)).toEqual([
+			"New",
+			"Schedule",
+			"Customize",
+		]);
+		for (const row of rows) {
+			expect(row.className).toContain("w-full");
+		}
+		expect(actionsNav?.contains(logo as Element)).toBe(false);
+
+		await click(buttonWithText("New", actionsNav as ParentNode));
 		expect(onHome).toHaveBeenCalledOnce();
+		await click(buttonWithText("Schedule", actionsNav as ParentNode));
+		expect(onSettingsSectionChange).toHaveBeenCalledWith("Schedules");
+		await click(buttonWithText("Customize", actionsNav as ParentNode));
+		expect(onSettingsSectionChange).toHaveBeenCalledWith("Plugins");
+	});
+
+	it("always shows the session search bar above the sessions list", async () => {
+		await act(async () => {
+			root.render(
+				<AccountProvider>
+					<SidebarProvider>
+						<AgentSidebar
+							activeSessionId={null}
+							onHome={vi.fn()}
+							onSettingsSectionChange={vi.fn()}
+							sessionHistory={makeSessionHistory(
+								[makeThread("alpha", 1), makeThread("beta", 1)],
+								vi.fn(),
+							)}
+							setView={vi.fn()}
+							settingsSection="General"
+							view="chat"
+						/>
+					</SidebarProvider>
+				</AccountProvider>,
+			);
+		});
+
+		const search = container.querySelector<HTMLInputElement>(
+			'input[aria-label="Search sessions"]',
+		);
+		expect(search).not.toBeNull();
+		expect(search?.placeholder).toBe("Search sessions...");
+
+		await changeField(search as HTMLInputElement, "alpha");
+		expect(sessionIsVisible("alpha session 1")).toBe(true);
+		expect(sessionIsVisible("beta session 1")).toBe(false);
 	});
 
 	it("uses only the Cline logo for home in the collapsed sidebar", async () => {
@@ -975,7 +1023,9 @@ describe("AgentSidebar session organization", () => {
 		});
 
 		expect(container.querySelector('[aria-label="Cline home"]')).not.toBeNull();
-		expect(container.querySelector('[aria-label="New Task"]')).toBeNull();
+		expect(
+			container.querySelector('[aria-label="Sidebar actions"]'),
+		).toBeNull();
 		expect(
 			container.querySelector('[aria-label="Expand sidebar"]')?.className,
 		).toContain("mt-auto");

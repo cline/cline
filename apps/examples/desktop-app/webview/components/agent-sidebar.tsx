@@ -11,6 +11,7 @@ import {
 	ArrowDownUp,
 	ArrowLeft,
 	ArrowRight,
+	Blocks,
 	Bot,
 	Check,
 	ChevronDown,
@@ -24,7 +25,6 @@ import {
 	FolderTree,
 	GitFork,
 	Loader2,
-	MessageSquarePlus,
 	PanelLeftOpen,
 	Pencil,
 	Play,
@@ -296,7 +296,6 @@ export function AgentSidebar({
 		useState<SidebarContent>("sessions");
 	const [hasNewTodoTasks, setHasNewTodoTasks] = useState(false);
 	const knownAgendaTaskIdsRef = useRef<Set<string> | null>(null);
-	const [searchOpen, setSearchOpen] = useState(false);
 	const [searchQuery, setSearchQuery] = useState("");
 	const [showMoreCount, setShowMoreCount] = useState(
 		INITIAL_VISIBLE_THREAD_COUNT,
@@ -384,12 +383,6 @@ export function AgentSidebar({
 	useEffect(() => {
 		void loadProcessContext();
 	}, [loadProcessContext]);
-
-	useEffect(() => {
-		if (isCollapsed && searchOpen) {
-			setSearchOpen(false);
-		}
-	}, [isCollapsed, searchOpen]);
 
 	const sourceOptions = useMemo(() => getSessionSources(threads), [threads]);
 	const filteredThreads = useMemo(() => {
@@ -820,18 +813,53 @@ export function AgentSidebar({
 				</div>
 
 				{!isCollapsed ? (
-					<div className="mt-1 shrink-0 px-2">
+					<nav
+						aria-label="Sidebar actions"
+						className="mt-1 flex shrink-0 flex-col gap-0.5 px-2"
+					>
 						<Button
-							aria-label="New Task"
+							aria-label="New"
 							onClick={openHome}
-							title="New Task"
+							title="Start a new task"
 							type="button"
 							variant="sidebarItem"
 						>
-							<MessageSquarePlus className="size-4 shrink-0" />
-							<span className="truncate">New Task</span>
+							<Plus className="size-4 shrink-0" />
+							<span className="truncate">New</span>
 						</Button>
-					</div>
+						<Button
+							aria-label="Schedule"
+							className={cn(
+								view === "settings" &&
+									settingsSection === "Schedules" &&
+									"bg-surface-hover text-sidebar-foreground",
+							)}
+							onClick={() => openSettingsSection("Schedules")}
+							title="Schedules"
+							type="button"
+							variant="sidebarItem"
+						>
+							<Clock3 className="size-4 shrink-0" />
+							<span className="truncate">Schedule</span>
+						</Button>
+						<Button
+							aria-label="Customize"
+							className={cn(
+								view === "settings" &&
+									(
+										CUSTOMIZATION_SECTIONS as readonly SettingsSection[]
+									).includes(settingsSection) &&
+									"bg-surface-hover text-sidebar-foreground",
+							)}
+							onClick={() => openSettingsSection("Plugins")}
+							title="Customize Cline with plugins, rules, and more"
+							type="button"
+							variant="sidebarItem"
+						>
+							<Blocks className="size-4 shrink-0" />
+							<span className="truncate">Customize</span>
+						</Button>
+					</nav>
 				) : null}
 
 				{isCollapsed ? (
@@ -908,33 +936,20 @@ export function AgentSidebar({
 									{sortMode === "time" ? "Sessions" : "Projects"}
 								</button>
 								<div className="flex shrink-0 items-center gap-0.5">
-									<Button
-										aria-label="Search sessions"
-										className="m-0! size-8 p-0! text-muted-foreground hover:bg-surface-hover"
-										onClick={() => setSearchOpen((current) => !current)}
-										size="icon"
-										title="Search sessions"
-										type="button"
-										variant="ghost"
-									>
-										<Search className="size-3.5" />
-									</Button>
 									{sortMenu}
 									{filterMenu}
 								</div>
 							</div>
-							{searchOpen ? (
-								<div className="mt-1 flex min-w-0 items-center gap-2 overflow-hidden rounded-md border border-sidebar-border bg-background/70 px-2 py-1">
-									<Search className="size-4 shrink-0" />
-									<Input
-										className="h-7 min-w-0 flex-1 border-0 bg-transparent px-0 text-sm text-sidebar-foreground shadow-none outline-none placeholder:text-muted-foreground focus-visible:ring-0"
-										autoFocus={true}
-										onChange={(e) => setSearchQuery(e.target.value)}
-										placeholder="Search sessions..."
-										value={searchQuery}
-									/>
-								</div>
-							) : null}
+							<div className="mt-1 flex min-w-0 items-center gap-2 overflow-hidden rounded-md border border-sidebar-border bg-background/70 px-2 py-1">
+								<Search className="size-3.5 shrink-0 text-muted-foreground" />
+								<Input
+									aria-label="Search sessions"
+									className="h-7 min-w-0 flex-1 border-0 bg-transparent px-0 text-sm text-sidebar-foreground shadow-none outline-none placeholder:text-muted-foreground focus-visible:ring-0"
+									onChange={(e) => setSearchQuery(e.target.value)}
+									placeholder="Search sessions..."
+									value={searchQuery}
+								/>
+							</div>
 						</div>
 
 						<div className="mt-1 min-h-0 w-full flex-1">
