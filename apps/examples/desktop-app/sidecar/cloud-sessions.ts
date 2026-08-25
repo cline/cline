@@ -1932,7 +1932,7 @@ export class CloudSessionManager {
 			await this.ensureAttached(connection);
 			const sessionReply = await connection.client.command(
 				"session.get",
-				{ includeSnapshot: true },
+				{},
 				innerSessionId,
 			);
 			const session =
