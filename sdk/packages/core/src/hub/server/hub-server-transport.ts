@@ -114,6 +114,18 @@ import {
 	isAgendaTaskCommand,
 } from "./task-command-service";
 
+/**
+ * The agent-facing `kind: "todo"` half of the `tasks` tool and the Agenda
+ * automation pump are temporarily disabled while the Agenda UX is reworked;
+ * the desktop Agenda UI is hidden for the same reason. Automation must stay
+ * off with the UI hidden: a previously persisted `auto_start`/`unattended`
+ * policy would otherwise keep starting eligible tasks with no surface left to
+ * inspect, pause, or cancel them. The Agenda backend (manager, `task.*` Hub
+ * commands, storage, persisted policies) stays fully wired so flipping this
+ * back on restores the feature.
+ */
+const AGENDA_TODO_TOOL_ENABLED = false;
+
 const SETTINGS_TYPES = new Set<CoreSettingsType>([
 	"skills",
 	"workflows",
@@ -274,6 +286,7 @@ export class HubServerTransport implements NativeHubTransport {
 		};
 		this.tasks = new AgendaTaskManager({
 			...options.taskOptions,
+			automationEnabled: AGENDA_TODO_TOOL_ENABLED,
 			runtime: {
 				isInteractiveClientAvailable: () =>
 					[...this.clients.values()].some((client) =>
@@ -327,29 +340,33 @@ export class HubServerTransport implements NativeHubTransport {
 		this.scheduleCommands = new HubScheduleCommandService(this.schedules);
 		this.sessionTools.push(
 			createTasksTool({
-				todo: {
-					manager: this.tasks,
-					telemetry: options.telemetry,
-					resolveSessionDefaults: async (sessionId) => {
-						const session = await this.sessionHost.getSession(sessionId);
-						if (!session) return undefined;
-						const projectWorkspace = !isChatWorkspacePath(session.workspaceRoot)
-							? session.workspaceRoot
-							: undefined;
-						return {
-							workspaceRoot: projectWorkspace,
-							cwd: projectWorkspace ? session.cwd : undefined,
-							modelSelection: {
-								providerId: session.provider,
-								modelId: session.model,
+				todo: AGENDA_TODO_TOOL_ENABLED
+					? {
+							manager: this.tasks,
+							telemetry: options.telemetry,
+							resolveSessionDefaults: async (sessionId) => {
+								const session = await this.sessionHost.getSession(sessionId);
+								if (!session) return undefined;
+								const projectWorkspace = !isChatWorkspacePath(
+									session.workspaceRoot,
+								)
+									? session.workspaceRoot
+									: undefined;
+								return {
+									workspaceRoot: projectWorkspace,
+									cwd: projectWorkspace ? session.cwd : undefined,
+									modelSelection: {
+										providerId: session.provider,
+										modelId: session.model,
+									},
+									originTaskId:
+										typeof session.metadata?.agendaTaskId === "string"
+											? session.metadata.agendaTaskId
+											: undefined,
+								};
 							},
-							originTaskId:
-								typeof session.metadata?.agendaTaskId === "string"
-									? session.metadata.agendaTaskId
-									: undefined,
-						};
-					},
-				},
+						}
+					: undefined,
 				scheduled: {
 					schedules: this.schedules,
 					telemetry: options.telemetry,
@@ -372,7 +389,9 @@ export class HubServerTransport implements NativeHubTransport {
 				},
 			}) as AgentTool,
 		);
-		this.sessionExtensions.push(createTasksPromptExtension());
+		this.sessionExtensions.push(
+			createTasksPromptExtension({ todoEnabled: AGENDA_TODO_TOOL_ENABLED }),
+		);
 		this.settings = options.settingsService ?? new CoreSettingsService();
 		if (options.cronOptions) {
 			this.cronService = new CronService({
