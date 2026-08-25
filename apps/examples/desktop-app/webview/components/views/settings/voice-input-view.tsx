@@ -270,6 +270,7 @@ export function VoiceInputContent({
 											defaultTranscriptionModel(selectedEntry.models)?.id ===
 											model.id;
 										return (
+											// biome-ignore lint/a11y/useSemanticElements: custom-styled radio option; a native input would need a full restyle
 											<button
 												aria-checked={isSelected}
 												className={cn(
