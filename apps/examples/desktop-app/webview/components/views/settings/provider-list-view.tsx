@@ -3,16 +3,20 @@
 import {
 	ArrowLeft,
 	Brain,
+	ChevronDown,
 	ChevronRight,
 	Copy,
 	ExternalLink,
 	Eye,
 	EyeOff,
 	FileIcon,
+	Globe,
 	ImageIcon,
+	KeyRound,
 	Link as LinkIcon,
 	Loader2,
 	Mic,
+	MonitorSmartphone,
 	Plus,
 	PlusCircle,
 	RefreshCw,
@@ -26,19 +30,19 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
 import { openExternalUrl } from "@/lib/desktop-client";
-import { getProviderApiKeyUrl } from "@/lib/provider-key-urls";
 import {
-	isDedicatedTranscriptionModel,
-	loadProviderModels,
-	supportsAudio,
-} from "@/lib/provider-model-catalog";
+	getProviderAuthKind,
+	isProviderConnected,
+	type ProviderAuthKind,
+} from "@/lib/provider-connection";
+import { getProviderApiKeyUrl } from "@/lib/provider-key-urls";
+import { loadProviderModels, supportsAudio } from "@/lib/provider-model-catalog";
 import type {
 	Provider,
 	ProviderConfigField,
 	ProviderConfigFieldPrimitive,
 	ProviderModel,
 	ProviderSettingsUpdate,
-	VoiceInputSelection,
 } from "@/lib/provider-schema";
 import { cn } from "@/lib/utils";
 
@@ -97,8 +101,25 @@ function writeFavoriteModels(value: Record<string, string[]>): void {
 }
 
 // -----------------------------------------------------------
-// Provider LIST content (the grid of all providers)
+// Shared bits
 // -----------------------------------------------------------
+
+const AUTH_KIND_LABEL: Record<ProviderAuthKind, string> = {
+	oauth: "Sign in",
+	local: "Local CLI",
+	"api-key": "API key",
+};
+
+function AuthKindHint({ kind }: { kind: ProviderAuthKind }) {
+	const Icon =
+		kind === "oauth" ? Globe : kind === "local" ? MonitorSmartphone : KeyRound;
+	return (
+		<span className="inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
+			<Icon aria-hidden="true" className="size-3" />
+			{AUTH_KIND_LABEL[kind]}
+		</span>
+	);
+}
 
 function getInitialConfigValues(
 	provider: Provider,
@@ -152,50 +173,115 @@ function coerceFieldValue(
 	return trimmed;
 }
 
+// -----------------------------------------------------------
+// Provider LIST content
+// -----------------------------------------------------------
+
+function ProviderRow({
+	provider,
+	onConfigure,
+	selected,
+}: {
+	provider: Provider;
+	onConfigure: (id: string) => void;
+	selected: boolean;
+}) {
+	const connected = isProviderConnected(provider);
+	const authKind = getProviderAuthKind(provider);
+	return (
+		<button
+			className={cn(
+				"flex min-h-12 w-full items-center gap-3 border-b px-2 py-2 text-left hover:bg-surface-hover-lighter focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+				selected && "bg-surface-hover",
+			)}
+			onClick={() => onConfigure(provider.id)}
+			type="button"
+		>
+			<p className="min-w-0 flex-1 truncate text-base font-semibold text-foreground">
+				{provider.name}
+			</p>
+			{connected ? (
+				<span className="shrink-0 text-xs font-medium text-muted-foreground">
+					Configured
+				</span>
+			) : (
+				<AuthKindHint kind={authKind} />
+			)}
+			<ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+		</button>
+	);
+}
+
+function ProviderSectionHeading({
+	title,
+	description,
+}: {
+	title: string;
+	description?: string;
+}) {
+	return (
+		<div className="mb-2 mt-8 first:mt-0">
+			<h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+				{title}
+			</h2>
+			{description ? (
+				<p className="mt-1 text-sm text-muted-foreground">{description}</p>
+			) : null}
+		</div>
+	);
+}
+
 export function ProviderListContent({
 	providers,
-	onToggle,
 	onConfigure,
 	onAddProvider,
-	onVoiceInputChange,
 	selectedProviderId,
 	variant = "page",
-	voiceInput,
-	voiceInputSaving = false,
 }: {
 	providers: Provider[];
-	onToggle: (id: string) => void;
 	onConfigure: (id: string) => void;
 	onAddProvider: () => void;
-	onVoiceInputChange: (selection: VoiceInputSelection | undefined) => void;
 	selectedProviderId?: string | null;
 	variant?: "page" | "panel";
-	voiceInput?: VoiceInputSelection;
-	voiceInputSaving?: boolean;
 }) {
-	const [providerSearchOpen, setProviderSearchOpen] = useState(false);
 	const [providerSearch, setProviderSearch] = useState("");
-	const enabledProviderCount = providers.filter(
-		(provider) => provider.enabled,
-	).length;
+	const isPanel = variant === "panel";
+
 	const providerSearchQuery = providerSearch.trim().toLowerCase();
 	const filteredProviders = providerSearchQuery
-		? providers.filter((provider) =>
-				provider.name.toLowerCase().includes(providerSearchQuery),
+		? providers.filter(
+				(provider) =>
+					provider.name.toLowerCase().includes(providerSearchQuery) ||
+					provider.id.toLowerCase().includes(providerSearchQuery),
 			)
 		: providers;
-	const isPanel = variant === "panel";
-	const voiceProviders = providers
-		.filter((provider) => provider.enabled)
-		.map((provider) => ({
-			provider,
-			models: (provider.modelList ?? []).filter(isDedicatedTranscriptionModel),
-		}))
-		.filter((entry) => entry.models.length > 0);
-	const selectedVoiceProvider = voiceProviders.find(
-		(entry) => entry.provider.id === voiceInput?.providerId,
+
+	const connectedProviders = filteredProviders.filter(isProviderConnected);
+	const availableProviders = filteredProviders.filter(
+		(provider) => !isProviderConnected(provider),
 	);
-	const selectedVoiceModels = selectedVoiceProvider?.models ?? [];
+	// The catalog arrives sorted by popular rank, then name; "popular" entries
+	// surface first so the common providers don't drown in the long tail.
+	const popularProviders = availableProviders.filter((provider) =>
+		provider.capabilities?.includes("popular"),
+	);
+	const otherProviders = availableProviders.filter(
+		(provider) => !provider.capabilities?.includes("popular"),
+	);
+	const connectedCount = providers.filter(isProviderConnected).length;
+
+	const renderRows = (entries: Provider[]) => (
+		<div className="overflow-hidden border-t">
+			{entries.map((provider) => (
+				<ProviderRow
+					key={provider.id}
+					onConfigure={onConfigure}
+					provider={provider}
+					selected={selectedProviderId === provider.id}
+				/>
+			))}
+		</div>
+	);
 
 	return (
 		<ScrollArea className="h-full">
@@ -207,7 +293,7 @@ export function ProviderListContent({
 			>
 				<div
 					className={cn(
-						"mb-8 flex items-start justify-between gap-6 max-[860px]:flex-col max-[860px]:items-stretch",
+						"mb-6 flex items-start justify-between gap-6 max-[860px]:flex-col max-[860px]:items-stretch",
 						isPanel ? "max-w-none" : "max-w-2xl",
 					)}
 				>
@@ -221,182 +307,198 @@ export function ProviderListContent({
 							Model Providers
 						</h1>
 						<p className="mt-3 text-base leading-6 text-muted-foreground">
-							{providers.length} available &middot; {enabledProviderCount}{" "}
-							enabled
+							{connectedCount === 0
+								? "Connect a provider to start using models."
+								: `${connectedCount} configured · ${providers.length} available`}
 						</p>
 					</div>
-					<div className="flex shrink-0 items-center gap-2 max-[860px]:justify-start">
-						<Button
-							aria-label="Search providers"
-							className="size-8 rounded-md"
-							onClick={() => setProviderSearchOpen((open) => !open)}
-							size="icon-sm"
-							type="button"
-							variant={providerSearchOpen ? "default" : "secondary"}
-						>
-							<Search className="size-4" />
-						</Button>
-						<Button
-							className="h-8 rounded-md bg-foreground px-3 text-sm text-background hover:bg-foreground/90"
-							onClick={onAddProvider}
-							type="button"
-						>
-							<PlusCircle className="size-4" />
-							Add provider
-						</Button>
+					<Button
+						className="h-8 shrink-0 rounded-md bg-foreground px-3 text-sm text-background hover:bg-foreground/90 max-[860px]:self-start"
+						onClick={onAddProvider}
+						type="button"
+					>
+						<PlusCircle className="size-4" />
+						Add provider
+					</Button>
+				</div>
+
+				<div className={cn("mb-6", isPanel ? "max-w-none" : "max-w-2xl")}>
+					<div className="flex h-9 items-center gap-2 rounded border bg-background px-3">
+						<Search className="size-4 shrink-0 text-muted-foreground" />
+						<Input
+							aria-label="Search model providers"
+							className="h-7 border-0 bg-transparent px-0 text-sm"
+							onChange={(event) => setProviderSearch(event.target.value)}
+							placeholder="Search providers"
+							value={providerSearch}
+						/>
+						{providerSearch ? (
+							<button
+								aria-label="Clear provider search"
+								className="grid size-5 place-items-center rounded text-muted-foreground hover:text-foreground"
+								onClick={() => setProviderSearch("")}
+								type="button"
+							>
+								<X className="size-3.5" />
+							</button>
+						) : null}
 					</div>
 				</div>
 
-				<div
-					className={cn(
-						"mb-7 border-y py-4",
-						isPanel ? "max-w-none" : "max-w-[42rem]",
-					)}
-				>
-					<div className="mb-3">
-						<h2 className="text-[17px] font-semibold text-foreground">
-							Voice input
-						</h2>
-						<p className="mt-1 text-sm leading-5 text-muted-foreground">
-							Choose the configured audio-to-text model used by the microphone
-							in chat. Streaming models show text live; other models transcribe
-							after recording stops.
-						</p>
-					</div>
-					<div className="grid grid-cols-2 gap-3 max-[720px]:grid-cols-1">
-						<label className="space-y-1.5 text-sm text-muted-foreground">
-							<span>Provider</span>
-							<select
-								aria-label="Voice input provider"
-								className="h-9 w-full rounded border border-border bg-background px-3 text-sm text-foreground outline-none focus:ring-1 focus:ring-ring"
-								disabled={voiceInputSaving}
-								onChange={(event) => {
-									const providerId = event.target.value;
-									if (!providerId) {
-										onVoiceInputChange(undefined);
-										return;
-									}
-									const entry = voiceProviders.find(
-										(candidate) => candidate.provider.id === providerId,
-									);
-									const modelId = entry?.models[0]?.id;
-									if (modelId) {
-										onVoiceInputChange({ providerId, modelId });
-									}
-								}}
-								value={selectedVoiceProvider?.provider.id ?? ""}
-							>
-								<option value="">Not configured</option>
-								{voiceProviders.map(({ provider }) => (
-									<option key={provider.id} value={provider.id}>
-										{provider.name}
-									</option>
-								))}
-							</select>
-						</label>
-						<label className="space-y-1.5 text-sm text-muted-foreground">
-							<span>Model</span>
-							<select
-								aria-label="Voice input model"
-								className="h-9 w-full rounded border border-border bg-background px-3 text-sm text-foreground outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
-								disabled={!selectedVoiceProvider || voiceInputSaving}
-								onChange={(event) => {
-									if (!selectedVoiceProvider || !event.target.value) return;
-									onVoiceInputChange({
-										providerId: selectedVoiceProvider.provider.id,
-										modelId: event.target.value,
-									});
-								}}
-								value={voiceInput?.modelId ?? ""}
-							>
-								{selectedVoiceModels.length === 0 ? (
-									<option value="">Enable an audio provider first</option>
-								) : null}
-								{selectedVoiceModels.map((model) => (
-									<option key={model.id} value={model.id}>
-										{model.name}
-										{model.operationModes?.includes("streaming")
-											? " (Live)"
-											: ""}
-									</option>
-								))}
-							</select>
-						</label>
-					</div>
-				</div>
-
-				{providerSearchOpen ? (
-					<div className={cn("mb-4", isPanel ? "max-w-none" : "max-w-2xl")}>
-						<div className="flex h-9 items-center gap-2 rounded border bg-background px-3">
-							<Search className="size-4 shrink-0 text-muted-foreground" />
-							<Input
-								aria-label="Search model providers"
-								autoFocus
-								className="h-7 border-0 bg-transparent px-0 text-sm"
-								onChange={(event) => setProviderSearch(event.target.value)}
-								placeholder="Search providers"
-								value={providerSearch}
-							/>
-						</div>
-					</div>
-				) : null}
-
-				<div
-					className={cn(
-						"overflow-hidden",
-						isPanel ? "max-w-none" : "max-w-2xl",
-					)}
-				>
+				<div className={cn(isPanel ? "max-w-none" : "max-w-2xl")}>
 					{filteredProviders.length === 0 ? (
-						<div className="border-b px-2 py-6 text-base text-muted-foreground">
+						<div className="border-y px-2 py-6 text-base text-muted-foreground">
 							No providers match "{providerSearch.trim()}".
 						</div>
 					) : null}
-					{filteredProviders.map((prov) => (
-						<div
-							className={cn(
-								"flex min-h-11 items-center gap-4 border-b px-2 py-2 hover:bg-surface-hover-lighter",
-								selectedProviderId === prov.id && "bg-surface-hover",
-							)}
-							key={prov.id}
-						>
-							<button
-								className="flex min-w-0 flex-1 items-center gap-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-								onClick={() => onConfigure(prov.id)}
-								type="button"
-							>
-								<div className="flex min-w-0 flex-1 items-baseline gap-2">
-									<p className="truncate text-lg font-semibold text-foreground">
-										{prov.name}
-									</p>
-									<p className="shrink-0 truncate font-mono text-xs text-muted-foreground">
-										{prov.id}
-									</p>
-								</div>
-								<p className="shrink-0 text-[15px] text-muted-foreground">
-									{prov.models === null
-										? "Models load on demand"
-										: `${prov.models} model${prov.models !== 1 ? "s" : ""}`}
-								</p>
-							</button>
-							<Switch
-								aria-label={`Toggle ${prov.name}`}
-								checked={prov.enabled}
-								onCheckedChange={() => onToggle(prov.id)}
+
+					{connectedProviders.length > 0 ? (
+						<>
+							<ProviderSectionHeading title="Configured" />
+							{renderRows(connectedProviders)}
+						</>
+					) : null}
+
+					{popularProviders.length > 0 ? (
+						<>
+							<ProviderSectionHeading
+								description={
+									connectedProviders.length === 0 && !providerSearchQuery
+										? "Sign in or add an API key to connect."
+										: undefined
+								}
+								title="Popular"
 							/>
-							<button
-								aria-label={`Configure ${prov.name}`}
-								className="grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground  hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-								onClick={() => onConfigure(prov.id)}
-								type="button"
-							>
-								<ChevronRight className="size-4" />
-							</button>
-						</div>
-					))}
+							{renderRows(popularProviders)}
+						</>
+					) : null}
+
+					{otherProviders.length > 0 ? (
+						<>
+							<ProviderSectionHeading title="All providers" />
+							{renderRows(otherProviders)}
+						</>
+					) : null}
 				</div>
 			</div>
 		</ScrollArea>
+	);
+}
+
+// -----------------------------------------------------------
+// Provider DETAIL content
+// -----------------------------------------------------------
+
+function ConfigFieldRow({
+	field,
+	value,
+	provider,
+	shown,
+	onToggleShown,
+	onDraftChange,
+	onCommit,
+}: {
+	field: ProviderConfigField;
+	value: ProviderConfigFieldPrimitive | undefined;
+	provider: Provider;
+	shown: boolean;
+	onToggleShown: () => void;
+	onDraftChange: (value: string) => void;
+	onCommit: (value: string | boolean) => void;
+}) {
+	const valueText = fieldValueToString(value);
+	const isSecret = field.type === "password" || field.secret;
+	const providerKeyUrl = getProviderApiKeyUrl(provider);
+	return (
+		<div className="grid min-h-18 grid-cols-[minmax(12rem,0.55fr)_minmax(16rem,0.45fr)] items-center gap-6 border-b py-4 max-[900px]:grid-cols-1 max-[900px]:gap-3">
+			<header>
+				<h3 className="text-lg font-semibold text-foreground">{field.label}</h3>
+				{field.description ? (
+					<p className="mt-1 text-base leading-relaxed text-muted-foreground">
+						{field.description}
+					</p>
+				) : null}
+				{field.path === "apiKey" && providerKeyUrl ? (
+					<button
+						className="mt-1 inline-flex items-center gap-1 text-sm text-primary underline-offset-2 transition-colors hover:underline"
+						onClick={() => void openExternalUrl(providerKeyUrl)}
+						type="button"
+					>
+						{provider.docLabel || `Get a ${provider.name} API key`}
+						<ExternalLink className="size-3.5" />
+					</button>
+				) : null}
+			</header>
+			{field.type === "boolean" ? (
+				<div className="flex items-center justify-end">
+					<span className="text-sm text-muted-foreground">{field.label}</span>
+					<Switch
+						checked={Boolean(value)}
+						onCheckedChange={(checked) => onCommit(checked)}
+					/>
+				</div>
+			) : field.type === "select" ? (
+				<select
+					className="h-9 w-full rounded border border-border bg-background px-3 text-sm text-foreground outline-none focus:ring-1 focus:ring-ring"
+					onChange={(event) => onCommit(event.target.value)}
+					value={valueText}
+				>
+					<option value="">Not set</option>
+					{field.options?.map((option) => (
+						<option key={String(option.value)} value={String(option.value)}>
+							{option.label}
+						</option>
+					))}
+				</select>
+			) : (
+				<div className="flex h-9 items-center gap-2 rounded border border-border bg-background px-3">
+					{field.type === "url" ? (
+						<LinkIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
+					) : null}
+					<Input
+						className="h-7 flex-1 border-0 bg-transparent px-0 text-sm text-foreground outline-none placeholder:text-muted-foreground"
+						onBlur={() => onCommit(valueText)}
+						onChange={(event) => onDraftChange(event.target.value)}
+						placeholder={field.placeholder}
+						spellCheck={false}
+						type={
+							isSecret && !shown
+								? "password"
+								: field.type === "number"
+									? "number"
+									: field.type === "url"
+										? "url"
+										: "text"
+						}
+						value={valueText}
+					/>
+					{isSecret ? (
+						<>
+							<Button
+								aria-label={shown ? "Hide secret" : "Show secret"}
+								className="rounded-md p-1 text-muted-foreground hover:text-foreground "
+								onClick={onToggleShown}
+								variant="ghost"
+							>
+								{shown ? (
+									<EyeOff className="h-4 w-4" />
+								) : (
+									<Eye className="h-4 w-4" />
+								)}
+							</Button>
+							<Button
+								aria-label={`Copy ${field.label}`}
+								className="rounded-md p-1 text-muted-foreground hover:text-foreground "
+								onClick={() => navigator.clipboard.writeText(valueText)}
+								variant="ghost"
+							>
+								<Copy className="h-4 w-4" />
+							</Button>
+						</>
+					) : null}
+				</div>
+			)}
+		</div>
 	);
 }
 
@@ -410,6 +512,8 @@ export function ProviderDetailContent({
 	modelsError,
 	onOAuthLogin,
 	oauthLoginPending = false,
+	onConnect,
+	onDisconnect,
 	variant = "page",
 }: {
 	provider: Provider;
@@ -421,12 +525,15 @@ export function ProviderDetailContent({
 	modelsError?: string | null;
 	onOAuthLogin?: () => void;
 	oauthLoginPending?: boolean;
+	onConnect?: () => void;
+	onDisconnect?: () => void;
 	variant?: "page" | "panel";
 }) {
 	const [shownSecrets, setShownSecrets] = useState<Record<string, boolean>>({});
 	const [localConfigValues, setLocalConfigValues] = useState<
 		Record<string, ProviderConfigFieldPrimitive>
 	>(() => getInitialConfigValues(provider));
+	const [manualKeyExpanded, setManualKeyExpanded] = useState(false);
 	const [modelSearchState, setModelSearchState] = useState<{
 		providerId: string;
 		value: string;
@@ -442,9 +549,11 @@ export function ProviderDetailContent({
 	const [favoriteModels, setFavoriteModels] = useState(readFavoriteModels);
 	const copiedModelTimeoutRef = useRef<number | undefined>(undefined);
 
+	const authKind = getProviderAuthKind(provider);
+	const connected = isProviderConnected(provider);
 	const configFields = provider.configFields ?? [];
+	const apiKeyField = configFields.find((field) => field.path === "apiKey");
 	const apiKeyValue = fieldValueToString(localConfigValues.apiKey);
-	const providerKeyUrl = getProviderApiKeyUrl(provider);
 	// The catalog's modelList is fetched without the recommended-feed overlay
 	// (the catalog must not block on the feed); featured providers refresh
 	// their list here so tier badges and live entries can render. The result
@@ -541,6 +650,44 @@ export function ProviderDetailContent({
 		onUpdate(updates);
 	};
 
+	const handleDisconnect = () => {
+		// The persisted entry is being removed; clear the local drafts so
+		// stale secrets don't linger in the inputs.
+		setShownSecrets({});
+		setManualKeyExpanded(false);
+		setLocalConfigValues(
+			getInitialConfigValues({
+				...provider,
+				apiKey: undefined,
+				configValues: undefined,
+			}),
+		);
+		onDisconnect?.();
+	};
+
+	const renderConfigFieldRow = (field: ProviderConfigField) => (
+		<ConfigFieldRow
+			field={field}
+			key={field.path}
+			onCommit={(value) => commitField(field, value)}
+			onDraftChange={(value) =>
+				setLocalConfigValues((current) => ({
+					...current,
+					[field.path]: value,
+				}))
+			}
+			onToggleShown={() =>
+				setShownSecrets((current) => ({
+					...current,
+					[field.path]: !(current[field.path] ?? false),
+				}))
+			}
+			provider={provider}
+			shown={shownSecrets[field.path] ?? false}
+			value={localConfigValues[field.path]}
+		/>
+	);
+
 	const copyModelId = (modelId: string) => {
 		if (typeof navigator === "undefined" || !navigator.clipboard?.writeText) {
 			return;
@@ -590,6 +737,190 @@ export function ProviderDetailContent({
 		});
 	};
 
+	const oauthConnected = Boolean(provider.oauthAccessTokenPresent);
+
+	const connectionSection =
+		authKind === "oauth" ? (
+			<section className={cn("mb-8", isPanel ? "max-w-none" : "max-w-344")}>
+				{oauthConnected ? (
+					<div className="flex items-center justify-between gap-4 rounded-lg border px-4 py-3">
+						<div className="min-w-0">
+							<p className="text-sm font-medium text-foreground">
+								Signed in via browser
+							</p>
+							<p className="text-xs text-muted-foreground">
+								This provider authenticates with your account — no API key
+								needed.
+							</p>
+						</div>
+						{onDisconnect ? (
+							<Button
+								className="shrink-0"
+								onClick={handleDisconnect}
+								size="sm"
+								type="button"
+								variant="outline"
+							>
+								Sign out
+							</Button>
+						) : null}
+					</div>
+				) : connected && apiKeyValue ? (
+					<div className="flex flex-col">
+						<div className="mb-2 flex items-center justify-between gap-4">
+							<p className="text-sm text-muted-foreground">
+								Configured with an API key.
+							</p>
+							{onDisconnect ? (
+								<Button
+									className="shrink-0"
+									onClick={handleDisconnect}
+									size="sm"
+									type="button"
+									variant="outline"
+								>
+									Disconnect
+								</Button>
+							) : null}
+						</div>
+						{apiKeyField ? renderConfigFieldRow(apiKeyField) : null}
+					</div>
+				) : (
+					<div className="rounded-lg border px-4 py-4">
+						<p className="text-sm font-medium text-foreground">
+							Sign in to {provider.name}
+						</p>
+						<p className="mt-1 text-xs text-muted-foreground">
+							Connects through your browser. No API key needed.
+						</p>
+						{onOAuthLogin ? (
+							<Button
+								className="mt-3 inline-flex items-center gap-2"
+								disabled={oauthLoginPending}
+								onClick={onOAuthLogin}
+								type="button"
+								variant="default"
+							>
+								{oauthLoginPending ? (
+									<Loader2 className="h-4 w-4 animate-spin" />
+								) : null}
+								<span>
+									{oauthLoginPending
+										? "Waiting for browser..."
+										: "Sign in with browser"}
+								</span>
+							</Button>
+						) : null}
+						{apiKeyField ? (
+							<div className="mt-3">
+								<Button
+									aria-expanded={manualKeyExpanded}
+									className="-ml-2"
+									onClick={() => setManualKeyExpanded((open) => !open)}
+									size="sm"
+									type="button"
+									variant="ghost"
+								>
+									Use an API key instead
+									<ChevronDown
+										aria-hidden="true"
+										className={cn(
+											"size-3.5 transition-transform",
+											manualKeyExpanded && "rotate-180",
+										)}
+									/>
+								</Button>
+								{manualKeyExpanded ? (
+									<div className="mt-1">{renderConfigFieldRow(apiKeyField)}</div>
+								) : null}
+							</div>
+						) : null}
+					</div>
+				)}
+			</section>
+		) : authKind === "local" ? (
+			<section className={cn("mb-8", isPanel ? "max-w-none" : "max-w-344")}>
+				<div className="flex items-center justify-between gap-4 rounded-lg border px-4 py-3">
+					<div className="min-w-0">
+						<p className="text-sm font-medium text-foreground">
+							Uses your local CLI sign-in
+						</p>
+						<p className="text-xs text-muted-foreground">
+							Credentials come from the provider's own CLI on this machine — no
+							API key needed.
+						</p>
+					</div>
+					{connected
+						? onDisconnect && (
+								<Button
+									className="shrink-0"
+									onClick={handleDisconnect}
+									size="sm"
+									type="button"
+									variant="outline"
+								>
+									Disconnect
+								</Button>
+							)
+						: onConnect && (
+								<Button
+									className="shrink-0"
+									onClick={onConnect}
+									size="sm"
+									type="button"
+								>
+									Connect
+								</Button>
+							)}
+				</div>
+			</section>
+		) : (
+			<section className={cn("mb-8", isPanel ? "max-w-none" : "max-w-344")}>
+				{configFields.length > 0 ? (
+					<div className="flex flex-col">{configFields.map(renderConfigFieldRow)}</div>
+				) : null}
+				<div className="mt-4 flex items-center justify-between gap-4">
+					{connected ? (
+						<>
+							<p className="text-xs text-muted-foreground">
+								Changes to the fields above are saved automatically.
+							</p>
+							{onDisconnect ? (
+								<Button
+									className="shrink-0"
+									onClick={handleDisconnect}
+									size="sm"
+									type="button"
+									variant="outline"
+								>
+									Disconnect
+								</Button>
+							) : null}
+						</>
+					) : (
+						<>
+							<p className="text-xs text-muted-foreground">
+								Saving an API key configures this provider automatically. Use
+								Connect if it reads credentials from your environment or a
+								local endpoint.
+							</p>
+							{onConnect ? (
+								<Button
+									className="shrink-0"
+									onClick={onConnect}
+									size="sm"
+									type="button"
+									variant="outline"
+								>
+									Connect
+								</Button>
+							) : null}
+						</>
+					)}
+				</div>
+			</section>
+		);
+
 	return (
 		<ScrollArea className="h-full">
 			<div
@@ -614,175 +945,20 @@ export function ProviderDetailContent({
 							<ArrowLeft className="h-4 w-4" />
 						)}
 					</Button>
-					<div className="flex min-w-0 items-baseline gap-2">
-						<h1
-							className={cn(
-								"truncate font-semibold leading-[1.15] text-foreground",
-								isPanel ? "text-2xl" : "text-3xl",
-							)}
-						>
-							{provider.name}
-						</h1>
-						<p className="shrink-0 font-mono text-xs text-muted-foreground">
-							{provider.id}
-						</p>
-					</div>
+					<h1
+						className={cn(
+							"min-w-0 flex-1 truncate font-semibold leading-[1.15] text-foreground",
+							isPanel ? "text-2xl" : "text-3xl",
+						)}
+					>
+						{provider.name}
+					</h1>
+					<span className="inline-flex shrink-0 items-center rounded-full border px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
+						{connected ? "Configured" : "Not configured"}
+					</span>
 				</div>
 
-				{configFields.length > 0 ? (
-					<section className={cn("mb-8", isPanel ? "max-w-none" : "max-w-344")}>
-						<div className="flex flex-col">
-							{configFields.map((field) => {
-								const value = localConfigValues[field.path];
-								const valueText = fieldValueToString(value);
-								const isSecret = field.type === "password" || field.secret;
-								const isShown = shownSecrets[field.path] ?? false;
-								return (
-									<div
-										className="grid min-h-18 grid-cols-[minmax(12rem,0.55fr)_minmax(16rem,0.45fr)] items-center gap-6 border-b py-4 max-[900px]:grid-cols-1 max-[900px]:gap-3"
-										key={field.path}
-									>
-										<header>
-											<h3 className="text-lg font-semibold text-foreground">
-												{field.label}
-											</h3>
-											{field.description ? (
-												<p className="mt-1 text-base leading-relaxed text-muted-foreground">
-													{field.description}
-												</p>
-											) : null}
-											{field.path === "apiKey" && providerKeyUrl ? (
-												<button
-													className="mt-1 inline-flex items-center gap-1 text-sm text-primary underline-offset-2 transition-colors hover:underline"
-													onClick={() => void openExternalUrl(providerKeyUrl)}
-													type="button"
-												>
-													{provider.docLabel ||
-														`Get a ${provider.name} API key`}
-													<ExternalLink className="size-3.5" />
-												</button>
-											) : null}
-										</header>
-										{field.type === "boolean" ? (
-											<div className="flex items-center justify-end">
-												<span className="text-sm text-muted-foreground">
-													{field.label}
-												</span>
-												<Switch
-													checked={Boolean(value)}
-													onCheckedChange={(checked) =>
-														commitField(field, checked)
-													}
-												/>
-											</div>
-										) : field.type === "select" ? (
-											<select
-												className="h-9 w-full rounded border border-border bg-background px-3 text-sm text-foreground outline-none focus:ring-1 focus:ring-ring"
-												onChange={(event) =>
-													commitField(field, event.target.value)
-												}
-												value={valueText}
-											>
-												<option value="">Not set</option>
-												{field.options?.map((option) => (
-													<option
-														key={String(option.value)}
-														value={String(option.value)}
-													>
-														{option.label}
-													</option>
-												))}
-											</select>
-										) : (
-											<div className="flex h-9 items-center gap-2 rounded border border-border bg-background px-3">
-												{field.type === "url" ? (
-													<LinkIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
-												) : null}
-												<Input
-													className="h-7 flex-1 border-0 bg-transparent px-0 text-sm text-foreground outline-none placeholder:text-muted-foreground"
-													onBlur={() => commitField(field, valueText)}
-													onChange={(event) =>
-														setLocalConfigValues((current) => ({
-															...current,
-															[field.path]: event.target.value,
-														}))
-													}
-													placeholder={field.placeholder}
-													spellCheck={false}
-													type={
-														isSecret && !isShown
-															? "password"
-															: field.type === "number"
-																? "number"
-																: field.type === "url"
-																	? "url"
-																	: "text"
-													}
-													value={valueText}
-												/>
-												{isSecret ? (
-													<>
-														<Button
-															aria-label={
-																isShown ? "Hide secret" : "Show secret"
-															}
-															className="rounded-md p-1 text-muted-foreground hover:text-foreground "
-															onClick={() =>
-																setShownSecrets((current) => ({
-																	...current,
-																	[field.path]: !isShown,
-																}))
-															}
-															variant="ghost"
-														>
-															{isShown ? (
-																<EyeOff className="h-4 w-4" />
-															) : (
-																<Eye className="h-4 w-4" />
-															)}
-														</Button>
-														<Button
-															aria-label={`Copy ${field.label}`}
-															className="rounded-md p-1 text-muted-foreground hover:text-foreground "
-															onClick={() =>
-																navigator.clipboard.writeText(valueText)
-															}
-															variant="ghost"
-														>
-															<Copy className="h-4 w-4" />
-														</Button>
-													</>
-												) : null}
-											</div>
-										)}
-									</div>
-								);
-							})}
-						</div>
-					</section>
-				) : null}
-
-				{!apiKeyValue && !provider.oauthAccessTokenPresent && onOAuthLogin ? (
-					<div className="mb-8">
-						<Button
-							className="inline-flex items-center gap-2 w-full"
-							disabled={oauthLoginPending}
-							onClick={onOAuthLogin}
-							variant="default"
-						>
-							{oauthLoginPending ? (
-								<Loader2 className="h-4 w-4 animate-spin" />
-							) : null}
-							<span>Login via Browser</span>
-						</Button>
-					</div>
-				) : null}
-				{provider.oauthAccessTokenPresent ? (
-					<p className="mb-8 text-xs text-muted-foreground">
-						OAuth is connected. Manual credentials remain available when this
-						provider supports them.
-					</p>
-				) : null}
+				{connectionSection}
 
 				{/* Models section */}
 				<section

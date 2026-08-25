@@ -474,7 +474,7 @@ export default function Home() {
 									}
 									parentSession={activeParentSession}
 									onOpenVoiceInputSettings={() =>
-										handleSettingsSectionChange("Models")
+										handleSettingsSectionChange("Voice")
 									}
 									onThreadStarted={handleThreadStarted}
 								/>
