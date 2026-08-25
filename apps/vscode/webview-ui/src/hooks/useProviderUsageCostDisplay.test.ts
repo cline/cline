@@ -37,4 +37,10 @@ describe("useProviderUsageCostDisplay", () => {
 		expect(renderHook(() => useProviderUsageCostDisplay("anthropic")).result.current).toBe("show")
 		expect(renderHook(() => useProviderUsageCostDisplay(undefined)).result.current).toBe("show")
 	})
+
+	it("returns unknown while listings have not arrived", () => {
+		withListings([])
+		const { result } = renderHook(() => useProviderUsageCostDisplay("cline-pass"))
+		expect(result.current).toBe("unknown")
+	})
 })
