@@ -100,9 +100,9 @@ export function buildAgentHooks(
 	sessionWorkspaceRoot?: string,
 ): AgentHooks {
 	const hooksEnabled = () => getHooksEnabledSafe(stateManager.getGlobalSettingsKey("hooksEnabled"))
-	// Session-scoped discovery: the shared workspaceRoots global state can be
-	// repointed by another Cline instance, so the factory also scans this
-	// session's own workspace for hook files.
+	// Session-scoped discovery: the session's root is not always among the
+	// window's workspace folders (e.g. the chat-workspace fallback when no
+	// folder is open), so the factory also scans this session's own workspace.
 	const createFactory = () => new HookFactory({ sessionWorkspaceRoot })
 
 	return {
@@ -124,7 +124,8 @@ export function buildAgentHooks(
 				}
 
 				const factory = createFactory()
-				if (!(await factory.hasHook("PreToolUse"))) {
+				const runner = await factory.create("PreToolUse")
+				if (runner.isNoOp) {
 					return undefined
 				}
 
@@ -133,7 +134,6 @@ export function buildAgentHooks(
 				runningTs = runningMsg.ts
 				emitHookMessage?.(runningMsg)
 
-				const runner = await factory.create("PreToolUse")
 				const result = await runner.run({
 					taskId: taskIdFromSnapshot(ctx.snapshot),
 					preToolUse: {
@@ -183,7 +183,8 @@ export function buildAgentHooks(
 				}
 
 				const factory = createFactory()
-				if (!(await factory.hasHook("PostToolUse"))) {
+				const runner = await factory.create("PostToolUse")
+				if (runner.isNoOp) {
 					return undefined
 				}
 
@@ -192,7 +193,6 @@ export function buildAgentHooks(
 				runningTs = runningMsg.ts
 				emitHookMessage?.(runningMsg)
 
-				const runner = await factory.create("PostToolUse")
 				const result = await runner.run({
 					taskId: taskIdFromSnapshot(ctx.snapshot),
 					postToolUse: {
@@ -254,7 +254,8 @@ export function buildAgentHooks(
 				}
 
 				const factory = createFactory()
-				if (!(await factory.hasHook(hookName))) {
+				const runner = await factory.create(hookName)
+				if (runner.isNoOp) {
 					return
 				}
 
@@ -264,7 +265,6 @@ export function buildAgentHooks(
 				emitHookMessage?.(runningMsg)
 
 				if (hookName === "TaskComplete") {
-					const runner = await factory.create("TaskComplete")
 					await runner.run({
 						taskId,
 						taskComplete: {
@@ -277,7 +277,6 @@ export function buildAgentHooks(
 						},
 					})
 				} else {
-					const runner = await factory.create("TaskCancel")
 					await runner.run({
 						taskId,
 						taskCancel: {
@@ -315,7 +314,8 @@ async function runTaskStart(
 		}
 
 		const factory = createFactory()
-		if (!(await factory.hasHook("TaskStart"))) {
+		const runner = await factory.create("TaskStart")
+		if (runner.isNoOp) {
 			return undefined
 		}
 
@@ -324,7 +324,6 @@ async function runTaskStart(
 		emitHookMessage?.(runningMsg)
 
 		const taskId = taskIdFromSnapshot(ctx.snapshot)
-		const runner = await factory.create("TaskStart")
 		const result = await runner.run({
 			taskId,
 			taskStart: {
@@ -364,7 +363,8 @@ async function runUserPromptSubmit(
 		}
 
 		const factory = createFactory()
-		if (!(await factory.hasHook("UserPromptSubmit"))) {
+		const runner = await factory.create("UserPromptSubmit")
+		if (runner.isNoOp) {
 			return undefined
 		}
 
@@ -372,7 +372,6 @@ async function runUserPromptSubmit(
 		runningTs = runningMsg.ts
 		emitHookMessage?.(runningMsg)
 
-		const runner = await factory.create("UserPromptSubmit")
 		const result = await runner.run({
 			taskId: taskIdFromSnapshot(ctx.snapshot),
 			userPromptSubmit: {
