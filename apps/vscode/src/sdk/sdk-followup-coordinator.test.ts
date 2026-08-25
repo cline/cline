@@ -257,35 +257,40 @@ describe("SdkFollowupCoordinator", () => {
 		)
 	})
 
-	it("queues a chat-field message submitted while a tool approval is pending", async () => {
+	it("queues an approval-time message response without waiting for a rebuild", async () => {
 		const activeSession = makeActiveSession({ isRunning: false })
 		const task = makeTask("session-123")
-		const { coordinator, options } = makeCoordinator({ activeSession, task })
+		const waitForPendingRebuilds = vi.fn().mockRejectedValue(new Error("must not wait for an approval-blocked rebuild"))
+		const { coordinator, options } = makeCoordinator({ activeSession, task, waitForPendingRebuilds })
 		options.interactions.resolvePendingToolApproval.mockReturnValue(false)
 
 		await coordinator.askResponse(
 			"do the next thing after this",
-			undefined,
-			undefined,
+			["image.png"],
+			["notes.md"],
 			"messageResponse",
 			"awaiting_approval",
 		)
 
+		expect(options.interactions.getPendingInteractionToResolve).toHaveBeenCalledWith("messageResponse")
 		expect(options.interactions.resolvePendingToolApproval).toHaveBeenCalledWith(
 			"do the next thing after this",
 			"messageResponse",
-			undefined,
-			undefined,
+			["image.png"],
+			["notes.md"],
 		)
-		expect(options.waitForPendingRebuilds).toHaveBeenCalledOnce()
+		expect(options.applyPendingProviderConnection).not.toHaveBeenCalled()
+		expect(waitForPendingRebuilds).not.toHaveBeenCalled()
 		expect(options.messages.appendAndEmit).not.toHaveBeenCalled()
 		expect(options.resetMessageTranslator).not.toHaveBeenCalled()
+		expect(options.onFollowUpStarting).not.toHaveBeenCalled()
+		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledOnce()
 		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
 			activeSession.sdkHost,
 			"session-123",
 			"resolved: do the next thing after this",
-			undefined,
-			undefined,
+			["image.png"],
+			["notes.md"],
 			"queue",
 		)
 	})

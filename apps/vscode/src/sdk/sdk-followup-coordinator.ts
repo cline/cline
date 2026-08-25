@@ -101,6 +101,21 @@ export class SdkFollowupCoordinator {
 
 		const task = this.options.getTask()
 		const submittedDuringActiveTurn = turnPhaseAtSubmit === "streaming" || turnPhaseAtSubmit === "awaiting_approval"
+		// The webview composer rejects a displayed approval via noButtonClicked;
+		// this branch covers SDK/API clients that explicitly send messageResponse.
+		const approvalTimeMessage = askResponse === "messageResponse" && turnPhaseAtSubmit === "awaiting_approval"
+
+		if (approvalTimeMessage) {
+			// A messageResponse deliberately leaves the tool approval unresolved. The
+			// running session therefore cannot become idle for a queued rebuild,
+			// so queue the guidance now; the pre-request callback applies pending
+			// provider fields before the queued turn starts.
+			const activeSession = this.options.sessions.getActiveSession()
+			if (activeSession) {
+				await this.queueToActiveSession(activeSession, prompt, images, files, { preserveTurnPhase: true })
+				return
+			}
+		}
 
 		// Rebuilds replace sessions once their current turn becomes idle. Wait
 		// before choosing even a running target: otherwise the SDK can drain a
@@ -162,6 +177,7 @@ export class SdkFollowupCoordinator {
 		prompt?: string,
 		images?: string[],
 		files?: string[],
+		options: { preserveTurnPhase?: boolean } = {},
 	): Promise<void> {
 		const { sdkHost, sessionId } = activeSession
 		Logger.log(`[SdkController] Session is running - queuing follow-up message for session: ${sessionId}`)
@@ -173,7 +189,9 @@ export class SdkFollowupCoordinator {
 		}
 
 		this.options.sessions.setRunning(true)
-		this.options.onFollowUpStarting()
+		if (!options.preserveTurnPhase) {
+			this.options.onFollowUpStarting()
+		}
 		this.options.sessions.fireAndForgetSend(sdkHost, sessionId, resolvedPrompt, images, files, "queue")
 	}
 
