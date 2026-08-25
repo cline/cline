@@ -14,17 +14,10 @@ const ALL_SETTINGS_SECTIONS = [
 	"Account",
 ] as const;
 
-// Mirrors the Cline Hub dashboard's Customizations nav group. Plugins is the
-// unified hub for installed plugins, MCP servers, and skills; Marketplace is
-// the full catalog page for installing more.
-const ALL_CUSTOMIZATION_SECTIONS = [
-	"Plugins",
-	"Marketplace",
-	"Hooks",
-	"Rules",
-	"Agents",
-	"Tools",
-] as const;
+// Customize is the unified hub for everything that extends Cline — skills,
+// MCP servers, plugins, rules, hooks, and tools — each as a sub-tab with
+// inline marketplace browsing where a catalog exists.
+const ALL_CUSTOMIZATION_SECTIONS = ["Customize"] as const;
 
 export type SettingsSection =
 	| (typeof ALL_SETTINGS_SECTIONS)[number]
@@ -32,10 +25,7 @@ export type SettingsSection =
 
 // Temporarily hidden from the sidebar. The views and routes still exist —
 // remove a section from this set to surface it again.
-const HIDDEN_SECTIONS: ReadonlySet<SettingsSection> = new Set([
-	"Channels",
-	"Agents",
-]);
+const HIDDEN_SECTIONS: ReadonlySet<SettingsSection> = new Set(["Channels"]);
 
 export const SETTINGS_SECTIONS = ALL_SETTINGS_SECTIONS.filter(
 	(section) => !HIDDEN_SECTIONS.has(section),
