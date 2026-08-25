@@ -1555,6 +1555,9 @@ describe("CloudSessionManager", () => {
 					event.payload.sessionId === "ses-outer",
 			),
 		).toBe(true);
+		expect(
+			hub.commands.find((entry) => entry.command === "session.get")?.payload,
+		).toEqual({});
 	});
 
 	it("keeps an org connection when reconnect cleanup cannot resolve its scope", async () => {
