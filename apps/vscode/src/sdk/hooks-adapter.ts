@@ -56,12 +56,12 @@ function mapStopControl(hookOutput: {
 }
 
 /**
- * Maps a run-level hook's output to a beforeRun result: cancel stops the run
- * (its message travels as the reason, never as context), otherwise
- * contextModification is returned for injection. HookFactory already
- * truncates contextModification at 50KB.
+ * Maps a hook's output to a stop-or-context result: cancel stops the run (its
+ * message travels as the reason, never as context), otherwise
+ * contextModification is returned for injection as a <hook_context> block.
+ * HookFactory already truncates contextModification at 50KB.
  */
-function mapRunStartResult(hookOutput: {
+function mapStopOrContextResult(hookOutput: {
 	cancel?: boolean
 	errorMessage?: string
 	contextModification?: string
@@ -88,7 +88,10 @@ function textFromMessageContent(content: readonly { type: string; text?: string 
 function latestUserPrompt(ctx: AgentRunLifecycleContext): string {
 	for (let index = ctx.snapshot.messages.length - 1; index >= 0; index -= 1) {
 		const message = ctx.snapshot.messages[index]
-		if (message?.role === "user") {
+		// Injected hook-context blocks are user-role messages with a system
+		// display role; feeding one back to a hook as "the prompt" would hand
+		// hooks their own previous output.
+		if (message?.role === "user" && message.metadata?.displayRole !== "system") {
 			return textFromMessageContent(message.content)
 		}
 	}
@@ -178,15 +181,7 @@ export function buildAgentHooks(
 						ts: runningTs,
 					}),
 				)
-				const stopControl = mapStopControl(result)
-				if (stopControl) {
-					return stopControl
-				}
-				// The runtime injects appendContext into the conversation as a
-				// <hook_context> block, restoring the documented contextModification
-				// behavior. HookFactory already truncates it at 50KB.
-				const contextModification = result.contextModification?.trim()
-				return contextModification ? { appendContext: contextModification } : undefined
+				return mapStopOrContextResult(result)
 			} catch (error) {
 				emitHookMessage?.(
 					buildHookStatusMessage({
@@ -241,15 +236,7 @@ export function buildAgentHooks(
 						ts: runningTs,
 					}),
 				)
-				const stopControl = mapStopControl(result)
-				if (stopControl) {
-					return stopControl
-				}
-				// The runtime injects appendContext into the conversation as a
-				// <hook_context> block, restoring the documented contextModification
-				// behavior. HookFactory already truncates it at 50KB.
-				const contextModification = result.contextModification?.trim()
-				return contextModification ? { appendContext: contextModification } : undefined
+				return mapStopOrContextResult(result)
 			} catch (error) {
 				emitHookMessage?.(
 					buildHookStatusMessage({
@@ -371,7 +358,7 @@ async function runTaskStart(
 				ts: runningTs,
 			}),
 		)
-		return mapRunStartResult(result)
+		return mapStopOrContextResult(result)
 	} catch (error) {
 		emitHookMessage?.(buildHookStatusMessage({ hookName: "TaskStart", status: "failed", ts: runningTs }))
 		Logger.error("[HooksAdapter] beforeRun (TaskStart) hook failed:", error)
@@ -417,7 +404,7 @@ async function runUserPromptSubmit(
 				ts: runningTs,
 			}),
 		)
-		return mapRunStartResult(result)
+		return mapStopOrContextResult(result)
 	} catch (error) {
 		emitHookMessage?.(buildHookStatusMessage({ hookName: "UserPromptSubmit", status: "failed", ts: runningTs }))
 		Logger.error("[HooksAdapter] beforeRun (UserPromptSubmit) hook failed:", error)

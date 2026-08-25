@@ -620,6 +620,64 @@ describe("SessionRuntime message preparation", () => {
 		expect(textParts).toEqual(["original", "builder-added"]);
 	});
 
+	it("aggregates beforeRun appendContext across config and extension hooks", async () => {
+		const extension: AgentExtension = {
+			name: "run-start-ext",
+			manifest: { capabilities: ["hooks"] },
+			hooks: {
+				beforeRun: () => ({ appendContext: "ext-context" }),
+			},
+		};
+		const { deps } = makeRecordingRuntimeFactory();
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				extensions: [extension],
+				hooks: {
+					beforeRun: () => ({ appendContext: "config-context" }),
+				},
+			}),
+			deps,
+		);
+
+		await (
+			session as unknown as {
+				ensureExtensionsInitialized(): Promise<void>;
+			}
+		).ensureExtensionsInitialized();
+		const hooks = (
+			session as unknown as {
+				createRuntimeHooks(): AgentRuntimeConfig["hooks"];
+			}
+		).createRuntimeHooks();
+		const beforeRun = hooks?.beforeRun;
+		expect(beforeRun).toBeDefined();
+
+		const result = await beforeRun?.({ snapshot: makeSnapshot() });
+		expect(result).toEqual({
+			appendContext: "config-context\n\next-context",
+		});
+	});
+
+	it("returns a stopping beforeRun result without aggregating context into it", async () => {
+		const { deps } = makeRecordingRuntimeFactory();
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				hooks: {
+					beforeRun: () => ({ stop: true, reason: "blocked at start" }),
+				},
+			}),
+			deps,
+		);
+
+		const hooks = (
+			session as unknown as {
+				createRuntimeHooks(): AgentRuntimeConfig["hooks"];
+			}
+		).createRuntimeHooks();
+		const result = await hooks?.beforeRun?.({ snapshot: makeSnapshot() });
+		expect(result).toEqual({ stop: true, reason: "blocked at start" });
+	});
+
 	it("merges beforeModel metadata through final message preparation", async () => {
 		const extension: AgentExtension = {
 			name: "metadata-ext",

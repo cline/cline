@@ -180,11 +180,7 @@ export async function runSubprocessEvent(
 		child.once("error", (error) => reject(formatSpawnError(error, command)));
 	});
 	const completed = new Promise<RunSubprocessEventResult>((resolve, reject) => {
-		child.once("error", (error) => {
-			if (timeoutId) clearTimeout(timeoutId);
-			reject(formatSpawnError(error, command));
-		});
-		child.once("close", (exitCode) => {
+		const settle = (exitCode: number | null) => {
 			if (timeoutId) clearTimeout(timeoutId);
 			const { parsedJson, parseError } = parseStdout(stdout);
 			resolve({
@@ -195,7 +191,24 @@ export async function runSubprocessEvent(
 				parseError,
 				timedOut,
 			});
+		};
+		child.once("error", (error) => {
+			if (timeoutId) clearTimeout(timeoutId);
+			reject(formatSpawnError(error, command));
 		});
+		child.once("close", (exitCode) => settle(exitCode));
+		// "close" waits for the stdio pipes to reach EOF, and a hook that spawned
+		// a background child sharing its stdout keeps the pipe open after the
+		// hook itself exits — without a fallback the caller would wait on that
+		// grandchild forever (the timeout's SIGKILL only reaches the direct
+		// child). Settle shortly after process exit with whatever output arrived;
+		// a resolved promise ignores the eventual "close".
+		if (!detached) {
+			child.once("exit", (exitCode) => {
+				const fallback = setTimeout(() => settle(exitCode), 1_000);
+				fallback.unref?.();
+			});
+		}
 	});
 	// Avoid an unhandled rejection from the completion observer when a detached
 	// process reports a late spawn error after ownership has been handed off.

@@ -435,10 +435,11 @@ export function createSubprocessHooks(
 			if (result?.timedOut) {
 				throw new Error(`${payload.hookName} hook command timed out`);
 			}
+			// Unparseable stdout is tolerated for run-start hooks: they long ran
+			// with stdout ignored entirely, so existing scripts print diagnostics
+			// freely. Output only becomes control when it parses.
 			if (result?.parseError) {
-				throw new Error(
-					`${payload.hookName} hook produced invalid control JSON: ${result.parseError}`,
-				);
+				return undefined;
 			}
 			return stopOrContextResultFromControl(toHookControl(result?.parsedJson));
 		} catch (error) {

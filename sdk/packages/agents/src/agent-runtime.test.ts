@@ -2331,6 +2331,60 @@ describe("AgentRuntime", () => {
 		});
 	});
 
+	it("defers run-start context past a seeded trailing tool call", async () => {
+		const model = new ScriptedModel([
+			(request) => {
+				// The seeded assistant tool_use must stay adjacent to whatever
+				// follows it; no hook-context message may be inserted after it.
+				const lastMessage = request.messages.at(-1);
+				expect(lastMessage?.role).toBe("assistant");
+				return [
+					{ type: "text-delta", text: "done" },
+					{ type: "finish", reason: "stop" },
+				];
+			},
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			initialMessages: [
+				{
+					id: "u1",
+					role: "user",
+					content: [{ type: "text", text: "resume me" }],
+					createdAt: 1,
+				},
+				{
+					id: "a1",
+					role: "assistant",
+					content: [
+						{
+							type: "tool-call",
+							toolCallId: "dangling",
+							toolName: "echo",
+							input: {},
+						},
+					],
+					createdAt: 2,
+				},
+			],
+			hooks: {
+				beforeRun: () => ({ appendContext: "resume-context" }),
+			},
+		});
+
+		const result = await runtime.run("");
+
+		expect(result.status).toBe("completed");
+		expect(
+			result.messages.some((message) =>
+				message.content.some(
+					(part) =>
+						part.type === "text" && part.text.includes("resume-context"),
+				),
+			),
+		).toBe(false);
+	});
+
 	it("does not inject context from a beforeRun hook that stops the run", async () => {
 		const model = new ScriptedModel([
 			() => [

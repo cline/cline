@@ -564,29 +564,9 @@ function beforeToolResultFromControl(
 	return Object.keys(result).length > 0 ? result : undefined;
 }
 
-function runStartResultFromControl(
-	control: HookCommandControl | undefined,
-): { stop?: boolean; reason?: string; appendContext?: string } | undefined {
-	if (!control) {
-		return undefined;
-	}
-	const result: { stop?: boolean; reason?: string; appendContext?: string } =
-		{};
-	if (control.cancel === true) {
-		result.stop = true;
-		if (control.cancelReason?.trim()) {
-			result.reason = control.cancelReason;
-		}
-	} else if (control.context?.trim()) {
-		// Context is injected only when the hook lets the run continue; a
-		// cancelling hook's message travels as cancelReason instead (legacy
-		// surfaced it as an error, never as conversation context).
-		result.appendContext = control.context;
-	}
-	return Object.keys(result).length > 0 ? result : undefined;
-}
-
-function afterToolResultFromControl(
+// Shared by afterTool and beforeRun: both may stop the run or inject
+// context, and neither can override tool input.
+function stopOrContextResultFromControl(
 	control: HookCommandControl | undefined,
 ): { stop?: boolean; reason?: string; appendContext?: string } | undefined {
 	if (!control) {
@@ -711,7 +691,13 @@ export function createHookAuditHooks(options: {
 			}
 		},
 		onEvent: async (event: AgentRuntimeEvent) => {
-			if (event.type !== "message-added" || event.message.role !== "user") {
+			if (
+				event.type !== "message-added" ||
+				event.message.role !== "user" ||
+				// Injected hook-context blocks are user-role messages with a
+				// system display role; they are not user prompts.
+				event.message.metadata?.displayRole === "system"
+			) {
 				return;
 			}
 			const commandCtx = runStartContext(
@@ -958,15 +944,17 @@ export function createHookConfigFileHooks(
 					baseContextFromSnapshot(ctx.snapshot),
 					hookName,
 				);
-				return runStartResultFromControl(control);
+				return stopOrContextResultFromControl(control);
 			};
 		}
 		if ((commandMap.prompt_submit?.length ?? 0) > 0) {
-			// prompt_submit stays a fire-and-forget dispatch on message-added:
-			// when beforeRun fires, the run's input messages are not yet in the
-			// snapshot, so this is the only point where the prompt text is
-			// available to this layer. onEvent has no return channel, which
-			// means prompt_submit hooks here cannot cancel or inject context.
+			// prompt_submit dispatches on message-added, which has no return
+			// channel, so prompt hooks at this layer cannot cancel or inject
+			// context. Note the two host paths differ: a directly-driven
+			// runtime pushes the prompt as run input (visible here, absent
+			// from the beforeRun snapshot), while orchestrated sessions seed
+			// the prompt into the runtime's initial messages (visible to
+			// beforeRun, never emitted as message-added).
 			hooks.onEvent = async (event: AgentRuntimeEvent) => {
 				if (
 					event.type !== "message-added" ||
@@ -995,7 +983,7 @@ export function createHookConfigFileHooks(
 	if ((commandMap.tool_result?.length ?? 0) > 0) {
 		hooks.afterTool = async (ctx: AgentAfterToolContext) => {
 			const control = await runToolCallEnd(toolCallEndContext(ctx));
-			return afterToolResultFromControl(control);
+			return stopOrContextResultFromControl(control);
 		};
 	}
 	if ((commandMap.agent_end?.length ?? 0) > 0) {
@@ -1074,6 +1062,12 @@ function mergeHookFunction<K extends keyof AgentHooks>(
 						typeof value === "string" && value.length > 0,
 				)
 				.join("\n\n");
+			// A stopping layer ends the merge: later layers' hooks are not run
+			// for a turn that is already cancelled (each is a blocking
+			// subprocess with its own timeout budget).
+			if (record.stop === true) {
+				return { ...(merged ?? {}), ...record, stop: true };
+			}
 			merged = {
 				...(merged ?? {}),
 				...record,
