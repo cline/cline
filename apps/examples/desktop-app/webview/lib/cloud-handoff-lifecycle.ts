@@ -74,6 +74,7 @@ export type HandoffCompletionRecord = {
 };
 
 export type HandoffRpcResolvedContext = {
+	handoffAttemptId?: string;
 	result: HandoffResult;
 	nextCommand: string;
 	sourceAttachments: File[];
@@ -88,6 +89,7 @@ export type HandoffRpcResolvedContext = {
 };
 
 export type HandoffRpcRejectedContext = {
+	handoffAttemptId?: string;
 	error: unknown;
 	nextCommand: string;
 	sourceAttachments: File[];
@@ -127,28 +129,69 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 	// recovery surface instead of an event replay repeatedly stealing focus.
 	const recoveryOpenAttempts = new Set<string>();
 	const activeAttempts = new Map<string, string>();
+	// A retry is only authoritative after the sidecar acknowledges it with
+	// correlated progress (or its RPC succeeds). Until then, the previous
+	// timed-out attempt may still complete and must remain eligible.
+	const pendingAttempts = new Map<string, string>();
+
+	const clearAttemptState = (sourceSessionId: string) => {
+		surfacedWarnings.delete(sourceSessionId);
+		completions.delete(sourceSessionId);
+		retryStates.delete(sourceSessionId);
+		recoveryOpenAttempts.delete(sourceSessionId);
+	};
+
+	const promotePendingAttempt = (
+		sourceSessionId: string,
+		attemptId: string,
+	): boolean => {
+		if (activeAttempts.get(sourceSessionId) === attemptId) return true;
+		if (pendingAttempts.get(sourceSessionId) !== attemptId) return false;
+		clearAttemptState(sourceSessionId);
+		activeAttempts.set(sourceSessionId, attemptId);
+		pendingAttempts.delete(sourceSessionId);
+		return true;
+	};
 
 	const claimWarningToast = (sourceSessionId: string) =>
 		claimHandoffWarningSurface(surfacedWarnings, sourceSessionId);
+	const toastFailure = (error: unknown) => {
+		const rawError = error instanceof Error ? error.message : String(error);
+		const cloudError = parseCloudSessionError(rawError);
+		effects.toast({
+			title: "Handoff failed",
+			description: humanizeCloudHandoffError(cloudError?.message ?? rawError),
+			variant: "destructive",
+			...(cloudError?.connectUrl ? { connectUrl: cloudError.connectUrl } : {}),
+		});
+	};
 
 	return {
 		/** Starts a distinct RPC attempt for this source session. */
 		onRpcStarted(sourceSessionId: string): string {
-			surfacedWarnings.delete(sourceSessionId);
-			completions.delete(sourceSessionId);
-			retryStates.delete(sourceSessionId);
-			recoveryOpenAttempts.delete(sourceSessionId);
 			const attemptId = crypto.randomUUID();
-			activeAttempts.set(sourceSessionId, attemptId);
+			if (activeAttempts.has(sourceSessionId)) {
+				pendingAttempts.set(sourceSessionId, attemptId);
+			} else {
+				clearAttemptState(sourceSessionId);
+				activeAttempts.set(sourceSessionId, attemptId);
+			}
 			return attemptId;
 		},
 
 		/** Handles a validated `cloud_handoff_progress` event. */
 		async onEvent(progress: HandoffProgressEventPayload): Promise<void> {
-			const activeAttempt = activeAttempts.get(progress.sourceSessionId);
-			if (activeAttempt && progress.handoffAttemptId !== activeAttempt) {
-				return;
+			const { sourceSessionId, handoffAttemptId } = progress;
+			const activeAttempt = activeAttempts.get(sourceSessionId);
+			if (activeAttempt && handoffAttemptId !== activeAttempt) {
+				if (
+					!handoffAttemptId ||
+					!promotePendingAttempt(sourceSessionId, handoffAttemptId)
+				) {
+					return;
+				}
 			}
+			const acceptedAttempt = handoffAttemptId;
 			let preserveRecoveryState = false;
 			if (
 				progress.phase === "complete" &&
@@ -186,6 +229,12 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 									}),
 								)
 								.catch(() => false);
+							if (
+								acceptedAttempt &&
+								activeAttempts.get(sourceSessionId) !== acceptedAttempt
+							) {
+								return;
+							}
 							if (opened) {
 								retryStates.delete(progress.sourceSessionId);
 							} else {
@@ -227,6 +276,21 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 			sourceSessionId: string,
 			ctx: HandoffRpcResolvedContext,
 		): Promise<void> {
+			if (ctx.handoffAttemptId) {
+				const activeAttempt = activeAttempts.get(sourceSessionId);
+				if (activeAttempt !== ctx.handoffAttemptId) {
+					if (pendingAttempts.get(sourceSessionId) !== ctx.handoffAttemptId) {
+						return;
+					}
+					// A completion already accepted for the prior attempt means this
+					// retry joined that same sidecar request. Do not reopen its target.
+					if (completions.has(sourceSessionId)) {
+						pendingAttempts.delete(sourceSessionId);
+						return;
+					}
+					promotePendingAttempt(sourceSessionId, ctx.handoffAttemptId);
+				}
+			}
 			const { result, nextCommand, sourceAttachments, pendingPrompt } = ctx;
 			const targetSessionId = (
 				result.outerSessionId ||
@@ -331,6 +395,32 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 			ctx: HandoffRpcRejectedContext,
 		): Promise<void> {
 			const { error, nextCommand, sourceAttachments } = ctx;
+			if (
+				ctx.handoffAttemptId &&
+				activeAttempts.get(sourceSessionId) !== ctx.handoffAttemptId
+			) {
+				if (pendingAttempts.get(sourceSessionId) !== ctx.handoffAttemptId) {
+					return;
+				}
+				pendingAttempts.delete(sourceSessionId);
+				// The sidecar rejected this retry before acknowledging it. Restore
+				// the prior timed-out attempt's recovery surface and keep accepting
+				// its authoritative completion.
+				const saved = retryStates.get(sourceSessionId);
+				if (saved) {
+					effects.dispatch({
+						type: "failed",
+						sourceSessionId,
+						exposeRecovery: true,
+						retryDraft: saved.command
+							? `/handoff ${saved.command}`
+							: "/handoff",
+						retryAttachments: saved.attachments ?? [],
+					});
+				}
+				toastFailure(error);
+				return;
+			}
 			// The authoritative completion event may have landed while the
 			// RPC transport failed; the handoff succeeded, so a destructive
 			// "failed" toast would contradict the visible receipt.
@@ -413,15 +503,7 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 				retryDraft: nextCommand ? `/handoff ${nextCommand}` : "/handoff",
 				retryAttachments: sourceAttachments,
 			});
-			const rawError = error instanceof Error ? error.message : String(error);
-			const cloudError = parseCloudSessionError(rawError);
-			const connectUrl = cloudError?.connectUrl;
-			effects.toast({
-				title: "Handoff failed",
-				description: humanizeCloudHandoffError(cloudError?.message ?? rawError),
-				variant: "destructive",
-				...(connectUrl ? { connectUrl } : {}),
-			});
+			toastFailure(error);
 		},
 	};
 }

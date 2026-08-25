@@ -1522,6 +1522,7 @@ function ChatThreadPane({
 				// Throws when the result carries no cloud session, landing in the
 				// rejection path below exactly like an RPC failure.
 				await handoffLifecycle.onRpcResolved(sourceSessionId, {
+					handoffAttemptId,
 					result,
 					nextCommand,
 					sourceAttachments,
@@ -1534,6 +1535,7 @@ function ChatThreadPane({
 				// entry covers completions that landed a render earlier.
 				const reducerEntry = handoffUiRef.current;
 				await handoffLifecycle.onRpcRejected(sourceSessionId, {
+					handoffAttemptId,
 					error,
 					nextCommand,
 					sourceAttachments,
@@ -1679,6 +1681,7 @@ function ChatThreadPane({
 			} catch (error) {
 				const reducerEntry = handoffUiRef.current;
 				await handoffLifecycle.onRpcRejected(sourceSessionId, {
+					handoffAttemptId,
 					error,
 					nextCommand,
 					sourceAttachments,

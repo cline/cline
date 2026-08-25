@@ -337,12 +337,18 @@ describe("cloud handoff lifecycle: event/RPC ordering races", () => {
 		expect(h.openSession).not.toHaveBeenCalled();
 	});
 
-	it("ignores mismatched and uncorrelated completions after a newer attempt starts", async () => {
+	it("ignores mismatched and uncorrelated completions after a newer attempt is accepted", async () => {
 		const h = makeHarness();
 		const currentAttachment = makeAttachment("current.png");
 		const staleAttemptId = h.lifecycle.onRpcStarted(SOURCE);
-		h.lifecycle.onRpcStarted(SOURCE);
+		const currentAttemptId = h.lifecycle.onRpcStarted(SOURCE);
+		await h.lifecycle.onEvent({
+			sourceSessionId: SOURCE,
+			handoffAttemptId: currentAttemptId,
+			phase: "creating",
+		});
 		await h.lifecycle.onRpcRejected(SOURCE, {
+			handoffAttemptId: currentAttemptId,
 			error: new Error("current attempt failed"),
 			nextCommand: "current command",
 			sourceAttachments: [currentAttachment],
@@ -367,6 +373,95 @@ describe("cloud handoff lifecycle: event/RPC ordering races", () => {
 			status: "failed",
 			retryDraft: "/handoff current command",
 			retryAttachments: [currentAttachment],
+		});
+	});
+
+	it("keeps a timed-out attempt authoritative when its retry is rejected before sidecar acceptance", async () => {
+		const h = makeHarness();
+		const originalAttachment = makeAttachment("original.png");
+		const retryAttachment = makeAttachment("retry.png");
+		const originalAttemptId = h.lifecycle.onRpcStarted(SOURCE);
+		await h.lifecycle.onRpcRejected(SOURCE, {
+			handoffAttemptId: originalAttemptId,
+			error: new Error("request timed out"),
+			nextCommand: "original command",
+			sourceAttachments: [originalAttachment],
+		});
+
+		const retryAttemptId = h.lifecycle.onRpcStarted(SOURCE);
+		await h.lifecycle.onRpcRejected(SOURCE, {
+			handoffAttemptId: retryAttemptId,
+			error: new Error(
+				"A different cloud handoff is already in progress for this session.",
+			),
+			nextCommand: "retry command",
+			sourceAttachments: [retryAttachment],
+		});
+		expect(h.getState()[SOURCE]).toMatchObject({
+			status: "failed",
+			retryDraft: "/handoff original command",
+			retryAttachments: [originalAttachment],
+		});
+
+		await h.lifecycle.onEvent(
+			completeEvent({
+				handoffAttemptId: originalAttemptId,
+				warningKind: "unqueued",
+			}),
+		);
+		expect(h.openSession).toHaveBeenCalledExactlyOnceWith(TARGET, {
+			silent: true,
+			initialPromptDraft: "original command",
+			initialAttachments: [originalAttachment],
+		});
+		expect(h.getState()[SOURCE]).toMatchObject({ status: "complete" });
+	});
+
+	it("does not let an older completion overwrite a retry accepted while its target open awaited", async () => {
+		const h = makeHarness();
+		let resolveOpen: ((opened: boolean) => void) | undefined;
+		h.openSession.mockImplementationOnce(
+			() =>
+				new Promise<boolean>((resolve) => {
+					resolveOpen = resolve;
+				}),
+		);
+		const originalAttemptId = h.lifecycle.onRpcStarted(SOURCE);
+		await h.lifecycle.onRpcRejected(SOURCE, {
+			handoffAttemptId: originalAttemptId,
+			error: new Error("request timed out"),
+			nextCommand: "original command",
+			sourceAttachments: [],
+		});
+
+		const originalCompletion = h.lifecycle.onEvent(
+			completeEvent({
+				handoffAttemptId: originalAttemptId,
+				warningKind: "unqueued",
+			}),
+		);
+		await vi.waitFor(() => expect(h.openSession).toHaveBeenCalledTimes(1));
+
+		const retryAttemptId = h.lifecycle.onRpcStarted(SOURCE);
+		await h.lifecycle.onEvent({
+			sourceSessionId: SOURCE,
+			handoffAttemptId: retryAttemptId,
+			phase: "creating",
+			message: "Creating the retry",
+		});
+		resolveOpen?.(true);
+		await originalCompletion;
+
+		expect(
+			h.dispatched.filter(
+				(action) => action.type === "progress" && action.phase === "complete",
+			),
+		).toEqual([]);
+		expect(h.dispatched.at(-1)).toMatchObject({
+			type: "progress",
+			sourceSessionId: SOURCE,
+			phase: "creating",
+			message: "Creating the retry",
 		});
 	});
 
