@@ -16,6 +16,7 @@ import {
 	normalizeProviderReasoningSettings,
 	normalizeSdkBaseUrl,
 	resolveApiKey,
+	resolveModelId,
 	updateHistoryItem,
 } from "./cline-session-factory"
 import { parseProviderId } from "./model-catalog/provider-id"
@@ -337,6 +338,40 @@ describe("normalizeProviderReasoningSettings", () => {
 })
 
 // ---------------------------------------------------------------------------
+// resolveModelId
+// ---------------------------------------------------------------------------
+
+describe("resolveModelId", () => {
+	it("returns the legacy mode model slot when set", () => {
+		expect(resolveModelId("openai", "act", { actModeOpenAiModelId: "openai/gpt-4o-mini" } as any)).toBe("openai/gpt-4o-mini")
+		expect(mocks.providerSettingsManager.getProviderSettings).not.toHaveBeenCalled()
+	})
+
+	it("falls back to the providers.json model when the legacy slot is empty", () => {
+		mocks.providerSettingsManager.getProviderSettings.mockImplementation((providerId?: string) => {
+			if (providerId !== "openai-compatible") {
+				return undefined
+			}
+			return {
+				provider: "openai-compatible",
+				apiKey: "compat-key",
+				baseUrl: "http://127.0.0.1:8000/v1",
+				model: "sakamakismile/Huihui-Qwen3.8-27B-abliterated-NVFP4",
+			} as any
+		})
+
+		const modelId = resolveModelId("openai", "act", { actModeApiProvider: "openai" } as any)
+
+		// The OpenAI Compatible provider UI commits baseUrl + model to
+		// providers.json and leaves the legacy actModeOpenAiModelId empty.
+		// Without the fallback, the session factory would substitute the
+		// catalog default (gpt-4o) which does not exist on a vLLM server.
+		expect(modelId).toBe("sakamakismile/Huihui-Qwen3.8-27B-abliterated-NVFP4")
+		expect(mocks.providerSettingsManager.getProviderSettings).toHaveBeenCalledWith("openai-compatible")
+	})
+})
+
+// ---------------------------------------------------------------------------
 // buildSessionConfig
 // ---------------------------------------------------------------------------
 
@@ -461,6 +496,36 @@ describe("buildSessionConfig", () => {
 		expect(config.providerConfig).toMatchObject({
 			providerId: "openai-compatible",
 			baseUrl: "http://127.0.0.1:4141/v1",
+		})
+	})
+
+	it("uses the model committed in providers.json when the legacy model slot is empty", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "openai",
+		} as any)
+		mocks.providerSettingsManager.getProviderSettings.mockImplementation((providerId?: string) => {
+			if (providerId !== "openai-compatible") {
+				return undefined
+			}
+			return {
+				provider: "openai-compatible",
+				apiKey: "compat-key",
+				baseUrl: "http://127.0.0.1:8000/v1",
+				model: "sakamakismile/Huihui-Qwen3.8-27B-abliterated-NVFP4",
+			} as any
+		})
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		// Regression: with the legacy actModeOpenAiModelId empty, the factory
+		// used to substitute the openai-compatible catalog default (gpt-4o),
+		// which does not exist on the user's vLLM server.
+		expect(config.providerId).toBe("openai-compatible")
+		expect(config.modelId).toBe("sakamakismile/Huihui-Qwen3.8-27B-abliterated-NVFP4")
+		expect(config.providerConfig).toMatchObject({
+			providerId: "openai-compatible",
+			modelId: "sakamakismile/Huihui-Qwen3.8-27B-abliterated-NVFP4",
+			baseUrl: "http://127.0.0.1:8000/v1",
 		})
 	})
 
