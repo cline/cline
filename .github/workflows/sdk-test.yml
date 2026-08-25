@@ -10,8 +10,6 @@ on:
             - ".github/workflows/sdk-test.yml"
     workflow_dispatch:
     pull_request:
-        branches:
-            - main
         paths:
             - "sdk/**"
             - "apps/examples/desktop-app/**"
