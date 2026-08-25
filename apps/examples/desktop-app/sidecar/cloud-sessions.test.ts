@@ -77,8 +77,6 @@ class FakeHubClient {
 	failNextSend = false;
 	onFailedSend?: () => void;
 	commandHook?: (command: string) => void | Promise<void>;
-	listSessions?: () => Array<Record<string, unknown>>;
-	afterSessionCreate?: () => void;
 	invalidMessagesSnapshot = false;
 	malformedQueueReply = false;
 	listedModel?: string;
@@ -143,24 +141,21 @@ class FakeHubClient {
 			return {
 				ok: true,
 				payload: {
-					sessions:
-						this.listSessions?.() ??
-						(this.hasExistingInner
-							? [
-									{
-										sessionId: "inner-1",
-										updatedAt: 20,
-										...(this.listedModel
-											? { metadata: { model: this.listedModel } }
-											: {}),
-									},
-								]
-							: []),
+					sessions: this.hasExistingInner
+						? [
+								{
+									sessionId: "inner-1",
+									updatedAt: 20,
+									...(this.listedModel
+										? { metadata: { model: this.listedModel } }
+										: {}),
+								},
+							]
+						: [],
 				},
 			};
 		}
 		if (command === "session.create") {
-			this.afterSessionCreate?.();
 			return {
 				ok: true,
 				payload: { session: { sessionId: "inner-created" } },
@@ -1560,9 +1555,6 @@ describe("CloudSessionManager", () => {
 					event.payload.sessionId === "ses-outer",
 			),
 		).toBe(true);
-		expect(
-			hub.commands.find((entry) => entry.command === "session.get")?.payload,
-		).toEqual({});
 	});
 
 	it("refreshes the completion time for a later turn completed while disconnected", async () => {
@@ -1893,7 +1885,6 @@ describe("CloudSessionManager", () => {
 					sessionId: "ses-outer",
 					sandboxUrl: "",
 				}),
-				updateTitle: async () => {},
 			} as unknown as CloudSessionApi,
 			apiBaseUrl: "https://api.example",
 			getAuthToken: async () => "workos:fresh",
@@ -1950,10 +1941,7 @@ describe("CloudSessionManager", () => {
 			metadata: { ...REMOTE_SESSION.metadata },
 		};
 		const manager = new CloudSessionManager(ctx, {
-			api: {
-				list: async () => [remote],
-				updateTitle: async () => {},
-			} as unknown as CloudSessionApi,
+			api: { list: async () => [remote] } as CloudSessionApi,
 			apiBaseUrl: "https://api.example",
 			getAuthToken: async () => "workos:fresh",
 			createHubClient: () => hub as never,
@@ -2015,8 +2003,7 @@ describe("CloudSessionManager", () => {
 						},
 					},
 				],
-				updateTitle: async () => {},
-			} as unknown as CloudSessionApi,
+			} as CloudSessionApi,
 			apiBaseUrl: "https://api.example",
 			getAuthToken: async () => "workos:fresh",
 			createHubClient: () => hub as never,
@@ -2047,10 +2034,7 @@ describe("CloudSessionManager", () => {
 		const originalModel = REMOTE_SESSION.metadata.modelId ?? "";
 		const externalModel = "anthropic/claude-opus-4-1";
 		const manager = new CloudSessionManager(ctx, {
-			api: {
-				list: async () => [REMOTE_SESSION],
-				updateTitle: async () => {},
-			} as unknown as CloudSessionApi,
+			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
 			apiBaseUrl: "https://api.example",
 			getAuthToken: async () => "workos:fresh",
 			createHubClient: () => hub as never,
@@ -2897,10 +2881,6 @@ describe("CloudSessionManager", () => {
 					new Promise((resolve) => {
 						finishCreate = resolve;
 					}),
-				status: async (sessionId: string) => ({
-					sessionId,
-					status: serverReady ? "ready" : "provisioning",
-				}),
 			} as unknown as CloudSessionApi,
 			apiBaseUrl: "https://api.example",
 			getAuthToken: async () => "workos:fresh",
@@ -3362,7 +3342,6 @@ describe("CloudSessionManager", () => {
 		const manager = new CloudSessionManager(ctx, {
 			api: {
 				list: async () => [{ ...REMOTE_SESSION, title: undefined }],
-				updateTitle: async () => {},
 			} as unknown as CloudSessionApi,
 			apiBaseUrl: "https://api.example",
 			getAuthToken: async () => "workos:fresh",
@@ -3403,65 +3382,12 @@ describe("CloudSessionManager", () => {
 		).toBe(true);
 	});
 
-	it("adopts an inner session when its successful create reply is lost", async () => {
-		const { ctx } = createContext();
-		let createdInner = false;
-		const clients: FakeHubClient[] = [];
-		const manager = new CloudSessionManager(ctx, {
-			api: {
-				list: async () => [{ ...REMOTE_SESSION, title: undefined }],
-				updateTitle: async () => {},
-			} as unknown as CloudSessionApi,
-			apiBaseUrl: "https://api.example",
-			getAuthToken: async () => "workos:fresh",
-			createHubClient: () => {
-				const hub = new FakeHubClient(false);
-				hub.listSessions = () =>
-					createdInner ? [{ sessionId: "inner-recovered", updatedAt: 20 }] : [];
-				hub.afterSessionCreate = () => {
-					if (createdInner) return;
-					createdInner = true;
-					throw new HubTransportError(
-						"hub_connection_closed",
-						"create reply lost",
-					);
-				};
-				clients.push(hub);
-				return hub as never;
-			},
-		});
-		ctx.cloudSessionManager = manager;
-		await manager.list();
-
-		// Attach first so creation happens on an already-cached connection.
-		await manager.attach("ses-outer");
-		await expect(manager.send("ses-outer", "first")).rejects.toThrow(
-			"create reply lost",
-		);
-		await manager.send("ses-outer", "second");
-
-		expect(clients).toHaveLength(2);
-		expect(clients[0]?.disposed).toBe(true);
-		expect(
-			clients
-				.flatMap((client) => client.commands)
-				.filter((entry) => entry.command === "session.create"),
-		).toHaveLength(1);
-		expect(clients[1]?.commands).toContainEqual(
-			expect.objectContaining({
-				command: "session.send_input",
-				sessionId: "inner-recovered",
-			}),
-		);
-	});
-
 	it("single-flights inner-session creation under concurrent sends", async () => {
 		const { ctx } = createContext();
 		const hub = new FakeHubClient(false);
 		const manager = new CloudSessionManager(ctx, {
 			api: {
 				list: async () => [{ ...REMOTE_SESSION, title: undefined }],
-				updateTitle: async () => {},
 			} as unknown as CloudSessionApi,
 			apiBaseUrl: "https://api.example",
 			getAuthToken: async () => "workos:fresh",
@@ -3494,7 +3420,6 @@ describe("CloudSessionManager", () => {
 			api: {
 				list: async (organizationId?: string) =>
 					organizationId ? [orgSession] : [personalSession],
-				updateTitle: async () => {},
 			} as unknown as CloudSessionApi,
 			apiBaseUrl: "https://api.example",
 			getAuthToken: async () => "workos:fresh",
