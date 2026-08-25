@@ -262,17 +262,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # The DMG background TIFF is a build artifact: Tauri's beforeBuildCommand
-      # regenerates it from the committed PNG sources on every build. Run the
-      # validation suite and generator up front too, so malformed artwork fails
-      # the job before the expensive SDK and signed Rust builds instead of an
-      # hour into them.
-      - name: Validate and generate DMG background artwork
-        working-directory: apps/examples/desktop-app
-        run: |
-          bun run test:dmg-background
-          bun run dmg:background
-
       - name: Build SDK packages
         run: bun run build:sdk
         env:
