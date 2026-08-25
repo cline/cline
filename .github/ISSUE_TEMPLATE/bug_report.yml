@@ -64,7 +64,7 @@ body:
   - type: textarea
     id: ide-diagnostics
     attributes:
-      label: Surface Diagnostics
+      label: Diagnostics
       description: |
         Paste the diagnostics for your Cline surface. This captures the build, runtime, and host details we need.
         - VSCode Extension: open `Help → About` (Windows/Linux) or `Code → About Visual Studio Code` (macOS), then copy the info.
