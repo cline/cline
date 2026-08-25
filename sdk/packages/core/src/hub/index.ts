@@ -30,13 +30,11 @@ export {
 	createConfiguredTelemetryService,
 } from "../services/telemetry/OpenTelemetryProvider";
 export {
-	type CreateTasksToolOptions,
 	createTasksPromptExtension,
 	createTasksTool,
 	TASKS_SYSTEM_PROMPT_RULE,
 	TASKS_TOOL_NAME,
 	type TasksToolInput,
-	TasksToolInputSchema,
 	type TasksToolResult,
 } from "../tasks/task-tool";
 export * from "./client";

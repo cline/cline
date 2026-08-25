@@ -85,11 +85,6 @@ function createStartedTransportOptions() {
 				stopSession: vi.fn(),
 			},
 			scheduleOptions: { dbPath: ":memory:" },
-			taskOptions: {
-				dbPath: join(root, "tasks.db"),
-				globalSpecsDir: join(root, "specs"),
-				watchFiles: false,
-			},
 			eventLog: { dbPath: ":memory:" },
 			runQueue: { dbPath: ":memory:" },
 			sessionHost: {
