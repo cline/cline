@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ChatSessionConfig } from "@/lib/chat-schema";
-import { resolveCredentialError } from "./helpers";
+import { inferHydratedChatStatus, resolveCredentialError } from "./helpers";
 
 function makeConfig(overrides: Partial<ChatSessionConfig>): ChatSessionConfig {
 	return {
@@ -51,5 +51,40 @@ describe("resolveCredentialError", () => {
 		expect(
 			resolveCredentialError(makeConfig({ provider: "Cline-Pass" })),
 		).toBeNull();
+	});
+});
+
+describe("inferHydratedChatStatus", () => {
+	const user = (createdAt: number) => ({
+		id: "u",
+		sessionId: "s",
+		role: "user" as const,
+		content: "prompt",
+		createdAt,
+	});
+	const assistant = (createdAt: number) => ({
+		id: "a",
+		sessionId: "s",
+		role: "assistant" as const,
+		content: "It is 12:28 PM PT.",
+		createdAt,
+	});
+
+	it("treats an assistant-answered running record as completed once stale", () => {
+		// A record stuck on "running" whose transcript went quiet long ago is
+		// a session that died without a status flip.
+		expect(inferHydratedChatStatus("running", [user(1), assistant(2)])).toBe(
+			"completed",
+		);
+	});
+
+	it("trusts a running record while the transcript is recently active", () => {
+		// Scheduled runs narrate between tool calls: a snapshot can genuinely
+		// end on assistant text mid-run. Flipping it to completed would hide
+		// the working indicator and disarm the stale-stream poll.
+		const now = Date.now();
+		expect(
+			inferHydratedChatStatus("running", [user(now - 5_000), assistant(now)]),
+		).toBe("running");
 	});
 });

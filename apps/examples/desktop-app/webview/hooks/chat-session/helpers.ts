@@ -194,6 +194,11 @@ function mapHistoryStatusToChatStatus(
 	}
 }
 
+// How fresh the newest message must be for a "running" session record to be
+// trusted over the assistant-answered-last staleness heuristic below. Agent
+// turns (model latency plus tool runs) fit comfortably inside this.
+const RUNNING_RECORD_TRUSTED_ACTIVITY_MS = 2 * 60 * 1000;
+
 export function inferHydratedChatStatus(
 	fallback: SessionHistoryStatus,
 	messages: ChatMessage[],
@@ -215,7 +220,23 @@ export function inferHydratedChatStatus(
 	}
 	if (fallback === "running") {
 		const lastMeaningful = meaningfulMessages[meaningfulMessages.length - 1];
-		if (lastMeaningful?.role === "assistant") {
+		// A "running" record whose transcript ends on an assistant answer is
+		// usually a session that died without a status flip — but only when
+		// the transcript has actually gone quiet. Scheduled/automation runs
+		// narrate between tool calls, so a snapshot can genuinely end on
+		// assistant text mid-run; flipping those to completed hides the
+		// working indicator and disarms the stale-stream poll that would
+		// have delivered the rest of the run.
+		const newestTimestamp = messages.reduce(
+			(newest, message) =>
+				Number.isFinite(message.createdAt) && message.createdAt > newest
+					? message.createdAt
+					: newest,
+			0,
+		);
+		const recentlyActive =
+			Date.now() - newestTimestamp < RUNNING_RECORD_TRUSTED_ACTIVITY_MS;
+		if (lastMeaningful?.role === "assistant" && !recentlyActive) {
 			return "completed";
 		}
 	}
