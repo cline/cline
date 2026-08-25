@@ -944,6 +944,18 @@ export class AgentRuntime {
 		if (this.pendingHookContexts.length === 0) {
 			return;
 		}
+		// Never insert between an assistant tool_use and its tool_result: a
+		// resumed session can be seeded with a trailing unresolved tool call,
+		// and a user message in that gap breaks providers' pairing rules. The
+		// buffer keeps the context until the next flush point, which runs
+		// after the tool messages.
+		const lastMessage = this.state.messages.at(-1);
+		if (
+			lastMessage?.role === "assistant" &&
+			lastMessage.content.some((part) => part.type === "tool-call")
+		) {
+			return;
+		}
 		const hookContextText = this.pendingHookContexts.join("\n\n");
 		this.pendingHookContexts = [];
 		const hookContextMessage = createMessage(
@@ -1659,7 +1671,11 @@ export class AgentRuntime {
 	private async executeToolCalls(
 		toolCalls: AgentToolCallPart[],
 	): Promise<AgentMessage[]> {
-		this.pendingHookContexts = [];
+		// The buffer is not cleared here: it is empty on the normal path (each
+		// batch's contexts flush right after the batch, and stale entries from
+		// an aborted run are cleared at run start), and it may legitimately
+		// hold a run-start context whose flush was deferred past a seeded
+		// trailing tool call.
 		const prepared: PreparedToolExecution[] = [];
 		for (const toolCall of toolCalls) {
 			prepared.push(await this.prepareToolExecution(toolCall));

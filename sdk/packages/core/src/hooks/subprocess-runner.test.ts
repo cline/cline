@@ -40,4 +40,27 @@ describe("runSubprocessEvent", () => {
 		);
 		expect(result?.timedOut).toBe(true);
 	});
+
+	it("settles after exit even when a spawned child keeps the stdio pipes open", async () => {
+		// The hook exits immediately, but its detached-and-inheriting child
+		// holds the stdout pipe open well past it — "close" alone would keep
+		// the caller waiting on the grandchild.
+		const script = [
+			`const { spawn } = require("child_process");`,
+			`const child = spawn(process.execPath, ["-e", "setTimeout(() => {}, 30_000)"], { stdio: ["ignore", "inherit", "ignore"], detached: true });`,
+			`child.unref();`,
+			`process.stdout.write('HOOK_CONTROL\\t{"cancel":false}\\n');`,
+		].join("\n");
+		const started = Date.now();
+		const result = await runSubprocessEvent(
+			{},
+			{
+				command: [process.execPath, "-e", script],
+				timeoutMs: 10_000,
+			},
+		);
+		expect(Date.now() - started).toBeLessThan(10_000);
+		expect(result?.exitCode).toBe(0);
+		expect(result?.parsedJson).toEqual({ cancel: false });
+	}, 15_000);
 });
