@@ -196,10 +196,8 @@ export function isCloudAgentsAvailable(options?: {
 }): boolean {
 	const override = readCloudAgentsEnvOverride();
 	if (override !== undefined) return override;
-	return Boolean(
-		getDesktopFeatureFlagsService(options).getFlagPayload(
-			FEATURE_FLAG_CODE_CLOUD_AGENTS,
-		),
+	return getDesktopFeatureFlagsService(options).getBooleanFlagEnabled(
+		FEATURE_FLAG_CODE_CLOUD_AGENTS,
 	);
 }
 
