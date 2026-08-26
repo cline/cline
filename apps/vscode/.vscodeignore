@@ -100,6 +100,12 @@ coverage/**
 webview-ui/coverage/**
 webview-ui/.vite-port
 
+# Debug/scratch artifacts never shipped in the VSIX
+vsix-build-*.log
+*.log
+e2e-repro.mjs
+tmp-msg-handler.ts
+
 # Ignore Storybook files
 **/*.stories.tsx
 *storybook.log

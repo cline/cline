@@ -1,10 +1,12 @@
 # V21 实施报告 — 历史分页回弹修复、历史对话计费显示修复、Auto Compact 阈值用户可配置
 
-> 承接 V20（webview chunk 循环依赖修复，空白面板定论）。V21 完成五件事：
+> 承接 V20（webview chunk 循环依赖修复，空白面板定论）。V21 完成六件事：
 > ① 历史消息上拉加载回弹修复；② 历史对话计费显示失效（$0.00）根因修复；
 > ③ Auto Compact 触发阈值从硬编码 90% 改为用户可配置（设置页 50-100%）；
 > ④ 追加：历史消息滚到头永不触发加载的根因修复（ts 游标域不匹配）；
-> ⑤ 追加：CI 双平台回归失败修复（Ubuntu JSONL 解析、Windows SQLite WAL）。
+> ⑤ 追加：CI 双平台回归失败修复（Ubuntu JSONL 解析、Windows SQLite WAL）；
+> ⑥ 追加：问题4 上线后复核 —— 前端回弹主因定位（列表重挂载）+ 旧 SDK 任务
+>    `currentTaskItem` 兜底合成，滚动查看历史不再回弹。
 
 ---
 
@@ -14,7 +16,8 @@
 |:---|:---|:---|:---|
 | 🔴 P0 | 问题2：历史对话计费显示失效（$0.00） | `readPersistedMessagesFile` V18 默认 `limit:50` → `isTruncated=false` → 分页永不触发 → 50 条外消息（含 `api_req_started` 计费行）不可达；次因 `mergeMessagesBatch` Phase 3 无条件替换 | ✅ 全量读取恢复（limit 改显式 opt-in）+ seq 新鲜度守卫回归 |
 | 🟡 P1 | 问题1：历史消息上拉加载回弹 | `MessagesArea` 缺稳定 key / prepend 后滚动定位失败 | ✅ 稳定 task key + `computeItemKey` + prepend 不滚底 + in-flight 锁 |
-| 🔴 P0（追加） | 问题4：历史消息滚到头**永不触发**加载 | `ClineMessage.ts` 为进程内单调计数器，每次磁盘回读（`getClineMessages`）都重新铸造 → 快照与 `loadHistoryBatch` 的 ts 域不一致 → `beforeIndex === -1` → 空批次 + `hasMore=false` 永久锁死；次因 `currentTaskItem` 从 top-100 切片查找，旧任务打开时取不到 | ✅ `loadHistoryBatch` 改读**当前打开任务的内存 transcript**（同一铸造域）；`currentTaskItem` 改为全量列表查找 |
+| 🔴 P0（追加） | 问题4：历史消息滚到头**永不触发**加载 | `ClineMessage.ts` 为进程内单调计数器，每次磁盘回读（`getClineMessages`）都重新铸造 → 快照与 `loadHistoryBatch` 的 ts 域不一致 → `beforeIndex === -1` → 空批次 + `hasMore=false` 永久锁死；次因 `currentTaskItem` 从 top-100 切片查找，旧任务打开时取不到 | ✅ `loadHistoryBatch` 改读**当前打开任务的内存 transcript**（同一铸造域）；`currentTaskItem` 改为全量列表查找 + 打开任务兜底合成 |
+| 🟡 P1（追加） | 问题6：滚动查看历史仍触发回弹 / 旧 SDK 任务固定上限 | `ChatView` 用 `messages.at(0)` 派生 task → prepend 后 `task.ts` 变化 → `virtuosoKey` 变更 → react-virtuoso **整表重挂载** → `initialTopMostItemIndex` 滚回底部；旧任务超出 `listHistory(100)` 窗口时 `currentTaskItem` 仍可能缺省 → taskId `""` 分页短路 | ✅ `task` 改为 `find(say==="task")` 优先（prepend 稳定）；`currentTaskItem` 在合并列表漏取时用打开任务的首条 task 消息合成 |
 | 🟢 P2（追加） | 问题5：CI 双平台回归失败 | Ubuntu：V18 JSONL `.messages.json` 被旧测试按整文件 `JSON.parse`；Windows：`HubServerTransport` 惰性建 `SqliteCronStore` → 测试进程并发开 `~/.cline/data/db/cron.db` WAL → 磁盘 I/O 错误 | ✅ 新增 `messages-artifact.ts` 共享助手（自动识别 JSONL/旧 JSON）；测试全部改用 `dbPath: ":memory:"` |
 | 🟡 P1 | 问题3：Auto Compact 阈值不可配置 | `COMPACTION_TRIGGER_RATIO=0.9` 硬编码，SDK 配置无字段 | ✅ 全链路用户可配置（proto → 设置 → global-settings → SDK triggerRatio → 触发计算） |
 
@@ -144,7 +147,43 @@ ClineMessage.ts 不是墙钟，而是进程级 MessageIdMinter 的单调计数�
 
 ---
 
-## 六、🟡 P1：问题3 — Auto Compact 阈值用户可配置
+## 六、🟡 P1（追加）：问题6 — 滚动查看历史仍回弹 / 旧 SDK 任务固定上限复核修复
+
+### 6.1 症状
+
+问题4 修复后复测，**固定上限**依旧（顶部无法拉取更早内容），且**用滚轮查看对话记录
+也触发回弹**（用户原文"会谈"，即回弹）：滚到顶部加载旧批次后，列表瞬间弹回底部。
+
+### 6.2 根因（前端复核定位）
+
+1. **列表重挂载回弹（主因）**：`ChatView.tsx` 以 `messages.at(0)` 派生 `task`，而
+   `MessagesArea` 的 `virtuosoKey = currentTaskItem?.id ?? task.ts ?? "no-task"`。向上
+   prepend 旧批次后 `messages[0]` 变成**最旧消息**（常为 `text`/`tool` 行，无 ts），
+   `task.ts` 变化 → react-virtuoso 以 `key={virtuosoKey}` **整表重挂载** → 重新执行
+   `initialTopMostItemIndex`（滚到底部）。react-virtuoso 4.12.3 对 prepend 本有自动
+   滚动补偿，但重挂载让该补偿失效 —— 这是"回弹"的真正机制。
+2. **固定上限残余（次因）**：`currentTaskItem` 在全量合并列表中查找，但 `listHistory(100)`
+   之外的旧 SDK 任务（或 ts/title 非法被 `item.ts && item.task` 过滤的记录）仍可能缺省 →
+   webview 以 `""` 调 `loadHistoryBatch` → 后端空批次短路，分页静默失效。
+
+### 6.3 修复
+
+1. **`ChatView.tsx`**：`task` 派生改为 `messages.find((m) => m.say === "task") ?? messages.at(0)`。
+   首条 task 消息在 prepend 后保持不变，`task.ts` 稳定 → `virtuosoKey` 不变 → 列表不
+   重挂载，由 virtuoso 的向上 prepend 补偿接管，滚动位置保持。
+2. **`SdkController.getStateToPostToWebview`**：`currentTaskItem` 在全量列表漏取时，
+   用**打开任务的首条 task 消息**兜底合成（`id: this.task.taskId`），保证任务打开期间
+   `currentTaskItem` 恒存在，`loadHistoryBatch` 的 taskId 永不退化 `""`。
+
+### 6.4 测试
+
+- 扩展端类型检查通过；`sdk-task-history` 35/35、`sdk-task-control-coordinator` /
+  `message-translator` / `task-proxy` 136/136 全绿（问题4 回归不受影响）。
+- webview 类型检查通过；全量 48 文件 / 376 用例全绿（含 messageReducer、消息工具链）。
+
+---
+
+## 七、🟡 P1：问题3 — Auto Compact 阈值用户可配置
 
 ### 4.1 改动链路（自上而下）
 
@@ -189,7 +228,7 @@ ClineMessage.ts 不是墙钟，而是进程级 MessageIdMinter 的单调计数�
 
 ---
 
-## 七、验证状态
+## 八、验证状态
 
 | 项 | 结果 |
 |:---|:---|
@@ -201,7 +240,7 @@ ClineMessage.ts 不是墙钟，而是进程级 MessageIdMinter 的单调计数�
 | 扩展端单测 sdk-task-control-coordinator / message-translator / task-proxy 回归 | ✅ 136 全绿 |
 | CLI 单测 settings / fetch-wiring（SQLite 隔离修复） | ✅ 7 全绿 |
 | webview 类型检查 | ✅ |
-| webview 单测 FeatureSettingsSection | ✅ 14 全绿 |
+| webview 单测全量（48 文件，含 messageReducer / 消息工具链） | ✅ 376 全绿 |
 | webview 构建（`bun run build:webview`） | ✅ 32.86s |
 | 扩展 bundle（`bun esbuild.mjs`） | ✅ `compactionTriggerRatio`/`autoCompactThreshold` 已入包 |
 | `vsce package` 全流程（prepublish: check-types + webview build + lint + esbuild --production） | ✅ 52 files / 8,338,172 B |
@@ -212,7 +251,7 @@ ClineMessage.ts 不是墙钟，而是进程级 MessageIdMinter 的单调计数�
 
 ---
 
-## 八、产物
+## 九、产物
 
 - 打包：`apps/vscode/dist/cline-v21-auto-compact-threshold.vsix`（8,338,172 B，52 files）
 - 验收：vsce 全流程（类型检查 + lint + webview 构建 + 生产 bundle）通过；

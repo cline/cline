@@ -2103,6 +2103,32 @@ export class Controller {
 			const fullTaskHistory = Array.from(mergedTaskHistoryById.values()).filter((item) => item.ts && item.task)
 			const processedTaskHistory = fullTaskHistory.sort((a, b) => b.ts - a.ts).slice(0, 100)
 
+			// currentTaskItem must exist whenever a task is open — the webview uses
+			// currentTaskItem.id as the loadHistoryBatch taskId ("" silently disables
+			// pagination). Fall back to synthesizing it from the open task's first
+			// "task" message when the merged history misses it (old SDK task beyond the
+			// listHistory window, or a record filtered out by an invalid ts/empty title).
+			let currentTaskItem = this.task?.taskId ? fullTaskHistory.find((item) => item.id === this.task?.taskId) : undefined
+			if (!currentTaskItem && this.task?.taskId) {
+				const taskMessage = this.task.messageStateHandler
+					.getClineMessages()
+					.find((message) => message.type === "say" && message.say === "task" && message.text)
+				if (taskMessage?.text) {
+					currentTaskItem = {
+						id: this.task.taskId,
+						ts: taskMessage.ts || Date.now(),
+						task: taskMessage.text,
+						tokensIn: 0,
+						tokensOut: 0,
+						cacheWrites: 0,
+						cacheReads: 0,
+						totalCost: 0,
+						modelId: this.task.api?.getModel?.().id,
+						cwdOnTaskInitialization: await this.getWorkspaceRoot(),
+					}
+				}
+			}
+
 			let queuedPrompts: ExtensionState["queuedPrompts"] = []
 			const activeSession = this.sessions.getActiveSession()
 			if (activeSession) {
@@ -2120,7 +2146,7 @@ export class Controller {
 			const minter = this.messageTranslatorState.getMinter()
 			return {
 				...state,
-				currentTaskItem: this.task?.taskId ? fullTaskHistory.find((item) => item.id === this.task?.taskId) : undefined,
+				currentTaskItem,
 				taskHistory: processedTaskHistory,
 				turnState: this.turnStateTracker.get(),
 				queuedPrompts,

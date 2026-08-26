@@ -105,8 +105,12 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		}
 	}, [messages, pendingUserMessage, setPendingUserMessage])
 
-	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined) : undefined
-	const task = useMemo(() => messages.at(0), [messages]) // leaving this less safe version here since if the first message is not a task, then the extension is in a bad state and needs to be debugged (see Cline.abort)
+	// The task message is the first "task" say row. Deriving it from messages.at(0)
+	// is fragile: prepending older history changes messages[0] to the OLDEST message,
+	// so task.ts would change on every scroll-up batch. MessagesArea falls back to
+	// task.ts for the Virtuoso key, so a changing task.ts remounts the list and
+	// initialTopMostItemIndex slams the view back to the bottom (the scroll bounce).
+	const task = useMemo(() => messages.find((message) => message.say === "task") ?? messages.at(0), [messages])
 	// Incremental message processing -- caches derived arrays across renders when
 	// messages haven't changed (ts/seq fingerprint), avoiding 7 full traversals per update.
 	const { modifiedMessages, visibleMessages, groupedMessages } = useIncrementalMessages(displayMessages, hooksEnabled)
