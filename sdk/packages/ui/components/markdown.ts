@@ -1,9 +1,14 @@
+import type { MermaidConfig } from "mermaid";
 import type {
 	HighlighterCore,
 	LanguageRegistration,
 	ThemeRegistration,
 } from "shiki/core";
-import type { CodeHighlighterPlugin, ControlsConfig } from "streamdown";
+import type {
+	CodeHighlighterPlugin,
+	ControlsConfig,
+	DiagramPlugin,
+} from "streamdown";
 
 /**
  * Shared Streamdown configuration for agent chat Markdown, so every product
@@ -21,7 +26,8 @@ import type { CodeHighlighterPlugin, ControlsConfig } from "streamdown";
  * headings, table cards).
  *
  * Runtime requirements (optional peer dependencies): `streamdown`, `shiki`,
- * `@shikijs/langs`, and `@shikijs/themes`.
+ * `@shikijs/langs`, `@shikijs/themes`, and `mermaid` when using the Mermaid
+ * plugin factory.
  */
 
 type HighlightResult = NonNullable<
@@ -35,6 +41,70 @@ export const agentMarkdownControls = {
 	mermaid: false,
 	table: false,
 } satisfies ControlsConfig;
+
+const DEFAULT_MERMAID_CONFIG = {
+	fontFamily: "monospace",
+	securityLevel: "strict",
+	startOnLoad: false,
+	suppressErrorRendering: true,
+	theme: "default",
+} satisfies MermaidConfig;
+
+interface LazyMermaidInstance {
+	initialize: (config: MermaidConfig) => void;
+	render: (
+		id: string,
+		source: string,
+	) => Promise<{
+		svg: string;
+	}>;
+}
+
+/**
+ * Creates a Streamdown Mermaid plugin without putting Mermaid in the initial
+ * JavaScript graph. Mermaid is imported on the first diagram render, then the
+ * same initialized module is reused for the life of this plugin instance.
+ *
+ * Security level is deliberately pinned after caller configuration is merged;
+ * a product cannot accidentally relax sanitization for model-authored charts.
+ */
+export function createLazyMermaidPlugin(): DiagramPlugin {
+	let config: MermaidConfig = DEFAULT_MERMAID_CONFIG;
+	let initialized = false;
+
+	const instance: LazyMermaidInstance = {
+		initialize(nextConfig: MermaidConfig) {
+			config = {
+				...DEFAULT_MERMAID_CONFIG,
+				...config,
+				...nextConfig,
+				securityLevel: "strict",
+			};
+			initialized = false;
+		},
+		async render(id: string, source: string) {
+			const mermaidModule = await import("mermaid");
+			const mermaid = mermaidModule.default;
+			if (!initialized) {
+				mermaid.initialize(config);
+				initialized = true;
+			}
+			return mermaid.render(id, source);
+		},
+	};
+
+	return {
+		getMermaid(nextConfig?: MermaidConfig) {
+			if (nextConfig) {
+				instance.initialize(nextConfig);
+			}
+			return instance;
+		},
+		language: "mermaid",
+		name: "mermaid",
+		type: "diagram",
+	};
+}
 
 export const SUPPORTED_MARKDOWN_LANGUAGES = [
 	"bash",

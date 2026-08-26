@@ -26,7 +26,7 @@
 		"pretypecheck": "bun run build:ui",
 		"typecheck": "tsc -p tsconfig.dev.json --noEmit",
 		"pretest:chat-ui": "bun run build:ui",
-		"test:chat-ui": "vitest run webview/components/views/chat/chat-messages.test.tsx webview/components/views/chat/messages --config vitest.config.ts",
+		"test:chat-ui": "vitest run webview/components/views/chat/chat-messages.test.tsx webview/components/views/chat/messages webview/components/ui/markdown.test.tsx webview/components/ui/markdown.interactions.test.tsx --config vitest.config.ts",
 		"clean": "rm -rf webview/.next webview/out node_modules dist && (cd src-tauri && rm -rf target node_modules dist)"
 	},
 	"dependencies": {
@@ -79,6 +79,7 @@
 		"date-fns": "4.1.0",
 		"input-otp": "1.4.2",
 		"lucide-react": "^0.564.0",
+		"mermaid": "11.16.0",
 		"next": "16.2.11",
 		"next-themes": "^0.4.6",
 		"pino": "^10.3.1",
