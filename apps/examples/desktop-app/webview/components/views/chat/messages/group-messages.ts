@@ -39,6 +39,10 @@ export type ChatRenderItem =
 export function isSystemSteeringMessage(message: ChatMessage): boolean {
 	return (
 		message.role === "user" &&
+		// Injected reminders carry userRunSpan 0 (they are not user turns);
+		// requiring it keeps a person's genuine prompt that happens to start
+		// with "[SYSTEM]" visible and turn-counted.
+		message.meta?.userRunSpan === 0 &&
 		message.content.trimStart().startsWith("[SYSTEM]")
 	);
 }

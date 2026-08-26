@@ -848,10 +848,18 @@ export function RoutineSchedulesContent({
 			// the agent session, so the session id usually is not attached
 			// yet. Poll the overview (which also keeps the page's run status
 			// fresh) until it appears, then jump into the session.
+			// Only ever follow the execution the trigger itself named; matching
+			// "the schedule's newest execution" could open a previous run's
+			// session when the trigger failed to enqueue one.
 			const executionId = reply?.execution?.executionId ?? null;
 			let sessionId = reply?.execution?.sessionId?.trim() || null;
 			const deadline = Date.now() + 15_000;
-			while (!sessionId && mountedRef.current && Date.now() < deadline) {
+			while (
+				!sessionId &&
+				executionId &&
+				mountedRef.current &&
+				Date.now() < deadline
+			) {
 				const overview = await refreshSchedules({
 					force: true,
 					showLoading: false,
@@ -860,12 +868,8 @@ export function RoutineSchedulesContent({
 					...(overview?.activeExecutions ?? []),
 					...(overview?.lastExecutions ?? []),
 				];
-				// Without an execution id from the trigger reply, fall back to
-				// the newest execution recorded for this schedule.
-				const match = executions.find((execution) =>
-					executionId
-						? execution.executionId === executionId
-						: execution.scheduleId === schedule.scheduleId,
+				const match = executions.find(
+					(execution) => execution.executionId === executionId,
 				);
 				sessionId = match?.sessionId?.trim() || null;
 				if (!sessionId) {
