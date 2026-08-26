@@ -68,3 +68,11 @@
 
 - R2/R3/R8-examples-vscode：维持第一阶段路线图。
 - 冒烟工作流首跑仍待仓库 secret `CLINE_API_KEY` 配置后人工触发。
+
+## 最终验证（P2-2 之后补记）
+
+| 验证项 | 命令 | 结果 |
+|---|---|---|
+| 全库类型检查 | `bun run types`（= `bun --parallel -F '*' typecheck`） | ✅ 15 个包的 typecheck 任务全部通过（core/cli/vscode/rollout/sdk/shared/llms/agents/ui/code/hub/menubar/plugin/examples×2），exit 0 |
+
+至此 §2 验证表中悬置引用的"最终验证"闭合：两阶段全部提交在最终代码状态下均通过类型门禁。
