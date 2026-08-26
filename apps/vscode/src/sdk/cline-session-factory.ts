@@ -115,7 +115,7 @@ function createSdkLogger() {
  * direct API reads would yield non-string values. The hostbridge returns the
  * per-host values (e.g. "Cline for JetBrains" + IDE version on JetBrains).
  */
-async function resolveHostIdentity() {
+export async function resolveHostIdentity() {
 	try {
 		return await HostProvider.env.getHostVersion({})
 	} catch (error) {
@@ -124,7 +124,7 @@ async function resolveHostIdentity() {
 	}
 }
 
-async function resolveIsMultiRootWorkspace(): Promise<boolean> {
+export async function resolveIsMultiRootWorkspace(): Promise<boolean> {
 	try {
 		const { paths } = await HostProvider.workspace.getWorkspacePaths({})
 		return paths.length > 1
