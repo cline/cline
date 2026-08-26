@@ -74,6 +74,20 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		},
 	},
 	{
+		id: "agnes",
+		name: "Agnes AI",
+		description: "Agnes AI model provider from models.dev",
+		family: "openai-compatible",
+		capabilities: ["tools", "reasoning", "prompt-cache"],
+		modelsProviderId: "agnes",
+		defaultModelId: "agnes-2.5-pro-alpha",
+		apiKeyEnv: ["AGNES_API_KEY"],
+		docsUrl: "https://agnes-ai.com/doc",
+		defaults: {
+			baseUrl: "https://apihub.agnes-ai.com/v1",
+		},
+	},
+	{
 		id: "ai-router",
 		name: "AI-ROUTER",
 		description: "AI-ROUTER model provider from models.dev",
@@ -111,6 +125,20 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		defaultModelId: "gemini-3.7-flash",
 		apiKeyEnv: ["AIHUBMIX_API_KEY"],
 		docsUrl: "https://docs.aihubmix.com",
+	},
+	{
+		id: "aixy",
+		name: "Aixy",
+		description: "Aixy model provider from models.dev",
+		family: "openai-compatible",
+		capabilities: ["tools", "prompt-cache"],
+		modelsProviderId: "aixy",
+		defaultModelId: "openai/gpt-4.1-mini",
+		apiKeyEnv: ["AIXY_API_KEY"],
+		docsUrl: "https://docs.aixy-gateway.com/integrations/overview",
+		defaults: {
+			baseUrl: "https://api.aixy-gateway.com/v1",
+		},
 	},
 	{
 		id: "aki-io",
@@ -442,7 +470,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "cline-pass",
-		defaultModelId: "cline-pass/kimi-k3",
+		defaultModelId: "cline-pass/glm-5.3",
 		apiKeyEnv: ["CLINE_API_KEY"],
 		docsUrl: "https://docs.cline.bot/getting-started/clinepass",
 		defaults: {
@@ -697,7 +725,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning"],
 		modelsProviderId: "evroc",
-		defaultModelId: "zai-org/GLM-5.2",
+		defaultModelId: "Qwen/Qwen3.8-27B",
 		apiKeyEnv: ["EVROC_API_KEY"],
 		docsUrl: "https://docs.evroc.com/products/think/overview.html",
 		defaults: {
@@ -893,7 +921,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "huggingface",
-		defaultModelId: "deepseek-ai/DeepSeek-V4-Pro-0813",
+		defaultModelId: "Qwen/Qwen3.8-27B",
 		apiKeyEnv: ["HF_TOKEN"],
 		docsUrl: "https://huggingface.co/docs/inference-providers",
 		defaults: {
@@ -1026,6 +1054,20 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		docsUrl: "https://io.net/docs/guides/intelligence/io-intelligence",
 		defaults: {
 			baseUrl: "https://api.intelligence.io.solutions/api/v1",
+		},
+	},
+	{
+		id: "iteracompute",
+		name: "IteraCompute",
+		description: "IteraCompute model provider from models.dev",
+		family: "openai-compatible",
+		capabilities: ["tools", "reasoning", "prompt-cache"],
+		modelsProviderId: "iteracompute",
+		defaultModelId: "iteracompute/qwen3.8-27b",
+		apiKeyEnv: ["ITERACOMPUTE_API_KEY"],
+		docsUrl: "https://iteracompute.com/docs.html",
+		defaults: {
+			baseUrl: "https://api.iteracompute.com/v1",
 		},
 	},
 	{
@@ -1178,11 +1220,25 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "llmgateway-providers",
-		defaultModelId: "zai/glm-5.3",
+		defaultModelId: "baidu/glm-5.3",
 		apiKeyEnv: ["LLMGATEWAY_API_KEY"],
 		docsUrl: "https://llmgateway.io/docs",
 		defaults: {
 			baseUrl: "https://api.llmgateway.io/v1",
+		},
+	},
+	{
+		id: "llmtech",
+		name: "LLM Tech",
+		description: "LLM Tech model provider from models.dev",
+		family: "openai-compatible",
+		capabilities: ["tools", "reasoning", "prompt-cache"],
+		modelsProviderId: "llmtech",
+		defaultModelId: "unsloth/Qwen3.8-27B-NVFP4",
+		apiKeyEnv: ["LLMTECH_API_KEY"],
+		docsUrl: "https://llmtech.eu/models/qwen3.8-27b",
+		defaults: {
+			baseUrl: "https://api.llmtech.eu/v1",
 		},
 	},
 	{
@@ -1484,7 +1540,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "nano-gpt",
-		defaultModelId: "Gemma-4-31B-MeroMero-v2",
+		defaultModelId: "qwen/qwen3.8-27b-uncensored:thinking",
 		apiKeyEnv: ["NANO_GPT_API_KEY"],
 		docsUrl: "https://docs.nano-gpt.com",
 		defaults: {
@@ -1531,6 +1587,20 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		docsUrl: "https://neon.com/docs",
 		defaults: {
 			baseUrl: "${NEON_AI_GATEWAY_BASE_URL}/v1",
+		},
+	},
+	{
+		id: "neosmith",
+		name: "NeoSmith",
+		description: "NeoSmith model provider from models.dev",
+		family: "openai",
+		capabilities: ["tools", "reasoning", "prompt-cache"],
+		modelsProviderId: "neosmith",
+		defaultModelId: "neosmith.intelligent-maestro",
+		apiKeyEnv: ["NEOSMITH_API_KEY"],
+		docsUrl: "https://neosmith.ai/docs",
+		defaults: {
+			baseUrl: "https://router.neosmith.ai/v1",
 		},
 	},
 	{
@@ -1710,6 +1780,20 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		docsUrl: "https://www.ovhcloud.com/en/public-cloud/ai-endpoints/catalog//",
 		defaults: {
 			baseUrl: "https://oai.endpoints.kepler.ai.cloud.ovh.net/v1",
+		},
+	},
+	{
+		id: "pendra",
+		name: "Pendra",
+		description: "Pendra model provider from models.dev",
+		family: "openai-compatible",
+		capabilities: ["tools", "reasoning"],
+		modelsProviderId: "pendra",
+		defaultModelId: "deepseek-v4-flash",
+		apiKeyEnv: ["PENDRA_API_KEY"],
+		docsUrl: "https://pendra.ai/docs/integrations/opencode",
+		defaults: {
+			baseUrl: "https://api.pendra.ai/api/v1",
 		},
 	},
 	{
@@ -2007,6 +2091,20 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		defaults: {
 			baseUrl:
 				"https://api.openai-compat.model-serving.eu01.onstackit.cloud/v1",
+		},
+	},
+	{
+		id: "standardcompute",
+		name: "Standard Compute",
+		description: "Standard Compute model provider from models.dev",
+		family: "openai-compatible",
+		capabilities: ["tools", "reasoning"],
+		modelsProviderId: "standardcompute",
+		defaultModelId: "standardcompute",
+		apiKeyEnv: ["STANDARDCOMPUTE_API_KEY"],
+		docsUrl: "https://standardcompute.com/models",
+		defaults: {
+			baseUrl: "https://api.stdcmpt.com/v1",
 		},
 	},
 	{
@@ -2377,7 +2475,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "wandb",
-		defaultModelId: "Qwen/Qwen3.8-27B",
+		defaultModelId: "ibm-granite/granite-4.2-8b",
 		apiKeyEnv: ["WANDB_API_KEY"],
 		docsUrl: "https://docs.wandb.ai/guides/integrations/inference/",
 		defaults: {
@@ -2472,7 +2570,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "zai",
-		defaultModelId: "glm-5.2",
+		defaultModelId: "glm-5.3",
 		apiKeyEnv: ["ZHIPU_API_KEY"],
 		docsUrl: "https://docs.z.ai/guides/overview/pricing",
 		defaults: {
