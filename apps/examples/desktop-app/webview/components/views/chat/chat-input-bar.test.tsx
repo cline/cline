@@ -10,8 +10,10 @@ import {
 	parseModelSelectionStorage,
 } from "@/lib/model-selection";
 import {
+	BUILTIN_SLASH_COMMANDS,
 	buildUserInstructionSlashCommands,
 	ChatInputBar,
+	filterSlashCommandsForHandoff,
 } from "./chat-input-bar";
 
 const {
@@ -203,6 +205,10 @@ async function renderVoiceComposer({
 
 describe("ChatInputBar", () => {
 	it("builds slash commands from both workflows and skills", () => {
+		expect(BUILTIN_SLASH_COMMANDS).toContainEqual({
+			name: "handoff",
+			description: "Continue this local session in Cline Cloud",
+		});
 		expect(
 			buildUserInstructionSlashCommands({
 				runtimeCommands: [
@@ -218,12 +224,44 @@ describe("ChatInputBar", () => {
 						kind: "skill",
 					},
 					{ id: "skill:fork", name: "fork", kind: "skill" },
+					{ id: "workflow:handoff", name: "handoff", kind: "workflow" },
 				],
 			}),
 		).toEqual([
 			{ name: "release", description: "Ship it" },
 			{ name: "publish-ui-skill", description: "Skill command" },
+			// A user-defined /handoff survives building: when the cloud-handoff
+			// gate is off the built-in is filtered out and this one must remain
+			// reachable; filterSlashCommandsForHandoff keeps exactly one.
+			{ name: "handoff", description: "Workflow command" },
 		]);
+	});
+
+	it("hides handoff unless its effective feature gate is enabled", () => {
+		expect(
+			filterSlashCommandsForHandoff(BUILTIN_SLASH_COMMANDS, false),
+		).not.toContainEqual(expect.objectContaining({ name: "handoff" }));
+		expect(
+			filterSlashCommandsForHandoff(BUILTIN_SLASH_COMMANDS, true),
+		).toContainEqual(expect.objectContaining({ name: "handoff" }));
+	});
+
+	it("keeps exactly one /handoff between the built-in and a user command", () => {
+		const userHandoff = { name: "handoff", description: "Workflow command" };
+		const commands = [...BUILTIN_SLASH_COMMANDS, userHandoff];
+		// Gate on: the built-in owns the name; the user duplicate is dropped.
+		const gatedOn = filterSlashCommandsForHandoff(commands, true).filter(
+			(command) => command.name === "handoff",
+		);
+		expect(gatedOn).toHaveLength(1);
+		expect(gatedOn[0]?.description).toBe(
+			"Continue this local session in Cline Cloud",
+		);
+		// Gate off: the built-in is removed; the user command stays reachable.
+		const gatedOff = filterSlashCommandsForHandoff(commands, false).filter(
+			(command) => command.name === "handoff",
+		);
+		expect(gatedOff).toEqual([userHandoff]);
 	});
 
 	it("allows cloud image and model selection without replacing local defaults", async () => {

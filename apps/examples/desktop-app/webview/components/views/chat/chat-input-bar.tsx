@@ -94,13 +94,37 @@ type UserInstructionConfigResponse = {
 	runtimeCommands?: UserInstructionCommand[];
 };
 
-const BUILTIN_SLASH_COMMANDS: SlashCommand[] = [
+export const BUILTIN_SLASH_COMMANDS: SlashCommand[] = [
+	{
+		name: "handoff",
+		description: "Continue this local session in Cline Cloud",
+	},
 	{
 		name: "fork",
 		description: "Create a copy of the current session into a new session",
 	},
 	{ name: "team", description: "Start the task with an agent team" },
 ];
+
+export function filterSlashCommandsForHandoff(
+	commands: SlashCommand[],
+	cloudHandoffAvailable: boolean,
+): SlashCommand[] {
+	// With the gate on, the built-in owns /handoff (a user duplicate is
+	// dropped); with it off, the built-in is removed and a user-defined
+	// /handoff stays reachable.
+	const builtinHandoff = BUILTIN_SLASH_COMMANDS.find(
+		(command) => command.name === "handoff",
+	);
+	const hasBuiltin =
+		builtinHandoff !== undefined && commands.includes(builtinHandoff);
+	return commands.filter((command) => {
+		if (command.name !== "handoff") return true;
+		const isBuiltin = command === builtinHandoff;
+		if (cloudHandoffAvailable) return isBuiltin || !hasBuiltin;
+		return !isBuiltin;
+	});
+}
 
 // Last known user commands, kept across composer instances so reopening the
 // slash menu paints instantly (stale-while-revalidate); the fetch that
@@ -113,7 +137,14 @@ export function buildUserInstructionSlashCommands(
 	const commands = Array.isArray(response.runtimeCommands)
 		? response.runtimeCommands
 		: [];
-	const seen = new Set(BUILTIN_SLASH_COMMANDS.map((command) => command.name));
+	// "handoff" is deliberately NOT deduped away: when the cloud-handoff gate
+	// is off the built-in is filtered out, and a user's own /handoff workflow
+	// must remain reachable. filterSlashCommandsForHandoff keeps exactly one.
+	const seen = new Set(
+		BUILTIN_SLASH_COMMANDS.map((command) => command.name).filter(
+			(name) => name !== "handoff",
+		),
+	);
 	return commands.flatMap((command) => {
 		const name = command.name;
 		if (!name || seen.has(name)) {
@@ -296,6 +327,7 @@ type ChatInputBarProps = {
 	/** Branch name, "no-git" for a non-repo folder, null while discovery is pending. */
 	gitBranch: string | null;
 	executionTarget?: "local" | "cloud";
+	cloudHandoffAvailable?: boolean;
 	repoUrl?: string;
 	cloudBranch?: string;
 	hasActiveSession?: boolean;
@@ -342,6 +374,7 @@ function ChatInputBarImpl({
 	reasoningEffort,
 	gitBranch,
 	executionTarget = "local",
+	cloudHandoffAvailable = false,
 	repoUrl,
 	cloudBranch,
 	hasActiveSession = false,
@@ -996,11 +1029,15 @@ function ChatInputBarImpl({
 	// Filtered slash commands based on the current query.
 	const filteredSlashCommands = useMemo(() => {
 		if (!slashOpen) return [];
+		const availableCommands = filterSlashCommandsForHandoff(
+			slashCommands,
+			cloudHandoffAvailable,
+		);
 		const query = (activeSlash?.query ?? "").trim().toLowerCase();
 		if (!query) {
-			return slashCommands.slice(0, 10);
+			return availableCommands.slice(0, 10);
 		}
-		return slashCommands
+		return availableCommands
 			.filter((cmd) => cmd.name.toLowerCase().includes(query))
 			.sort((a, b) => {
 				const aStarts = a.name.toLowerCase().startsWith(query);
@@ -1010,7 +1047,7 @@ function ChatInputBarImpl({
 				return a.name.localeCompare(b.name);
 			})
 			.slice(0, 10);
-	}, [slashOpen, activeSlash?.query, slashCommands]);
+	}, [slashOpen, activeSlash?.query, slashCommands, cloudHandoffAvailable]);
 
 	const insertSlashCommandItem = useCallback(
 		(commandName: string) => {

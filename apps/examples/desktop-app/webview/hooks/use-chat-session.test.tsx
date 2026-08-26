@@ -65,6 +65,52 @@ describe("mergeCloudSnapshotWithLive", () => {
 		expect(optimisticStates.has("optimistic-2")).toBe(false);
 	});
 
+	it("keeps optimistic images while a cloud snapshot is temporarily text-only", () => {
+		const optimisticStates = new Map([
+			["optimistic", { sessionId: "ses-cloud", state: "pending" as const }],
+		]);
+		const optimistic = {
+			...message("optimistic", "user", "describe this", 1),
+			images: [
+				{
+					id: "optimistic-image",
+					mediaType: "image/png" as const,
+					data: "AQID",
+				},
+			],
+		};
+		const first = mergeCloudSnapshotWithLive(
+			[message("saved", "user", "describe this", 2)],
+			[optimistic],
+			{
+				sessionId: "ses-cloud",
+				transcriptKnown: true,
+				previousUserCounts: new Map(),
+				optimisticStates,
+			},
+		);
+
+		expect(first).toEqual([
+			expect.objectContaining({
+				id: "saved",
+				images: [expect.objectContaining({ data: "AQID" })],
+			}),
+		]);
+		expect(optimisticStates.has("optimistic")).toBe(false);
+
+		const second = mergeCloudSnapshotWithLive(
+			[message("saved", "user", "describe this", 2)],
+			first,
+			{
+				sessionId: "ses-cloud",
+				transcriptKnown: true,
+				previousUserCounts: new Map([["describe this", 1]]),
+				optimisticStates,
+			},
+		);
+		expect(second[0]?.images?.[0]?.data).toBe("AQID");
+	});
+
 	it("reconciles a wrapped cloud prompt with its optimistic bubble", () => {
 		const optimisticStates = new Map([
 			["optimistic", { sessionId: "ses-cloud", state: "pending" as const }],
@@ -604,6 +650,96 @@ describe("useChatSession", () => {
 			result: "done",
 		});
 		expect(current.messages[0]?.meta?.hookEventName).toBe("tool_call_end");
+	});
+
+	it("restores the persisted Plan mode when hydrating a session", async () => {
+		const hydratedSessionId = "session-plan-mode";
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "read_session_messages") return [];
+				if (command === "read_session_hooks") return [];
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string } | undefined;
+					if (request?.action === "attach") {
+						return {
+							sessionId: hydratedSessionId,
+							status: "idle",
+							provider: "cline",
+							model: "test-model",
+							cwd: "/workspace/cline",
+							workspaceRoot: "/workspace/cline",
+							metadata: { mode: "plan" },
+						};
+					}
+					return { promptsInQueue: [] };
+				}
+				return [];
+			},
+		);
+
+		expect(current.config.mode).toBe("act");
+		await act(async () => {
+			await current.hydrateSession({
+				sessionId: hydratedSessionId,
+				status: "idle",
+				provider: "cline",
+				model: "test-model",
+				cwd: "/workspace/cline",
+				workspaceRoot: "/workspace/cline",
+				startedAt: "2026-08-18T00:00:00.000Z",
+				metadata: { mode: "plan" },
+			});
+		});
+
+		expect(current.config.mode).toBe("plan");
+	});
+
+	it("keeps the pane's current mode when the session has none persisted", async () => {
+		const hydratedSessionId = "session-no-mode";
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "read_session_messages") return [];
+				if (command === "read_session_hooks") return [];
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string } | undefined;
+					if (request?.action === "attach") {
+						return {
+							sessionId: hydratedSessionId,
+							status: "idle",
+							provider: "cline",
+							model: "test-model",
+							cwd: "/workspace/cline",
+							workspaceRoot: "/workspace/cline",
+						};
+					}
+					return { promptsInQueue: [] };
+				}
+				return [];
+			},
+		);
+
+		await act(async () => {
+			current.setConfig((prev) => ({ ...prev, mode: "plan" }));
+		});
+		await act(async () => {
+			await current.hydrateSession({
+				sessionId: hydratedSessionId,
+				status: "idle",
+				provider: "cline",
+				model: "test-model",
+				cwd: "/workspace/cline",
+				workspaceRoot: "/workspace/cline",
+				startedAt: "2026-08-18T00:00:00.000Z",
+			});
+		});
+
+		expect(current.config.mode).toBe("plan");
 	});
 
 	it("starts without a selected workspace and adopts the SDK temporary path", async () => {
