@@ -1,5 +1,10 @@
 # Cline Desktop Changelog
 
+## 0.0.19
+
+- Fixed the background Cline process ballooning in memory during long sessions — session status updates were carrying a full copy of the conversation transcript to every connected client, which on a multi-megabyte task could grow the process to tens of gigabytes. Status updates now carry only state (status, usage, model, workspace, checkpoint); the transcript is fetched on demand
+- Refreshed the model catalog. Adds seven providers (Agnes AI, Aixy, IteraCompute, LLM Tech, NeoSmith, Pendra, and Standard Compute) and updates model lists and pricing across providers. The resolved default model changes for ClinePass (now GLM 5.3), Z.ai, Hugging Face, evroc, LLM Gateway, NanoGPT, and Weights & Biases, so if you use one of those without pinning a model you will get a different default
+
 ## 0.0.18
 
 - The sidebar is time-sorted again by default, with collapsible Pinned / Scheduled / Tasks sections and a one-click toggle to switch to project grouping (the old dropdown is gone). Scheduled sessions are marked with a clock icon, and the list starts taller and grows to fill the sidebar instead of stranding rows over empty space
