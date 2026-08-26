@@ -56,7 +56,6 @@ export { HubServerTransport } from "./hub-server-transport";
 
 type NodeWebSocketLike = {
 	send(data: string): void;
-	readonly bufferedAmount?: number;
 	on(event: "message", listener: (data: unknown) => void): void;
 	on(event: "close", listener: () => void): void;
 	on(event: "pong", listener: () => void): void;
@@ -95,12 +94,6 @@ function wrapWsSocket(socket: NodeWebSocketLike) {
 	return {
 		send(data: string): void {
 			socket.send(data);
-		},
-		get bufferedAmount(): number | undefined {
-			return socket.bufferedAmount;
-		},
-		terminate(): void {
-			socket.terminate?.();
 		},
 		addEventListener(
 			type: "message" | "close",

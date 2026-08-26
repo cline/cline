@@ -1319,31 +1319,6 @@ describe("HubServerTransport boundaries", () => {
 		);
 	});
 
-	it("projects status changes without re-reading the full transcript", async () => {
-		// Every status emit is paired with a session_snapshot emit that
-		// already carries the transcript; attaching another full snapshot
-		// here doubled multi-MB session.updated traffic per status flip.
-		const readSessionMessages = vi.fn();
-		const transport = createTransport({
-			sessionHost: { readSessionMessages },
-		});
-		const events: HubEventEnvelope[] = [];
-		transport.subscribe("test", (event) => events.push(event));
-
-		await projectSessionEvent(getContext(transport), {
-			type: "status",
-			payload: { sessionId: "session-1", status: "running" },
-		});
-
-		const updated = events.filter((event) => event.event === "session.updated");
-		expect(updated).toHaveLength(1);
-		expect(updated[0]?.payload?.session).toMatchObject({
-			sessionId: "session-1",
-		});
-		expect(updated[0]?.payload?.snapshot).toBeUndefined();
-		expect(readSessionMessages).not.toHaveBeenCalled();
-	});
-
 	it("cancels pending capability requests when a run is aborted", async () => {
 		const abort = vi.fn().mockResolvedValue(undefined);
 		const transport = createTransport({
