@@ -1,6 +1,12 @@
 import { randomUUID } from "node:crypto";
+import { posix } from "node:path";
 import {
+	buildCloudHandoffDashboardUrl,
+	buildCloudHandoffSystemPrompt,
+	CLOUD_GITHUB_AUTH_SYSTEM_PROMPT,
 	ClineAccountService,
+	CloudHandoffTranscriptMismatchError,
+	cloudHandoffTranscriptsEqual,
 	isHubCommandTimeoutError,
 	isHubReconnectableTransportError,
 	NodeHubClient,
@@ -8,6 +14,7 @@ import {
 } from "@cline/core";
 import type { MessageWithMetadata } from "@cline/llms";
 import {
+	type AgentMode,
 	decodeJwtPayload,
 	getClineEnvironmentConfig,
 	type HubEventEnvelope,
@@ -47,11 +54,6 @@ const CLOUD_ERROR_PREFIX = "CLOUD_SESSION_ERROR:";
 const MAX_BUFFERED_SYNC_EVENTS = 2_000;
 const MAX_SEEN_EVENT_IDS = 2_000;
 const CREATE_REQUEST_TITLE_PREFIX = "__cline_create_request__:";
-const GITHUB_AUTH_SYSTEM_PROMPT =
-	"IMPORTANT: GitHub API authentication is handled automatically by the infrastructure. " +
-	"A secrets-proxy sidecar injects the necessary authentication credentials into all GitHub API requests. " +
-	"You do NOT need to set up, configure, or manage any authentication tokens, API keys, or credentials for GitHub API calls. " +
-	"Simply make your GitHub API calls normally — authentication will be injected transparently.";
 
 type FetchLike = (
 	input: string | URL | Request,
@@ -89,9 +91,44 @@ export type CreateCloudSessionInput = {
 	autoApproveTools?: boolean;
 	thinking?: boolean;
 	reasoningEffort?: "low" | "medium" | "high" | "xhigh";
-	/** Omit for a personal session; otherwise scopes billing to this org. */
-	organizationId?: string;
+	/** Handoff-only source mode; ordinary cloud creation defaults to Act. */
+	mode?: AgentMode;
+	/** Handoff-only source cwd relative to the repository root. */
+	workspaceRelativePath?: string;
+	/** Null selects personal scope; omit to use the currently active scope. */
+	organizationId?: string | null;
+	/** Desktop handoff-only hooks; never serialized into the provisioning API body. */
+	handoff?: {
+		sourceSessionId: string;
+		resolveMessages: () => Promise<MessageWithMetadata[]>;
+		onOuterSessionCreated: (sessionId: string) => Promise<void>;
+		onOuterSessionRemoved?: (sessionId: string) => Promise<void>;
+		onSeeding?: () => void;
+	};
 };
+
+type CloudHandoffSeed = {
+	sourceSessionId: string;
+	messages: MessageWithMetadata[];
+	mode?: AgentMode;
+	workspaceRelativePath?: string;
+	/** Source-session settings that must survive a sidecar restart: the
+	 * liveSessions fallback in createInnerSessionOnce is empty after a
+	 * restart, and defaulting auto-approve to true there silently removes
+	 * the approval gate from resumed handoffs. */
+	config?: {
+		autoApproveTools?: boolean;
+		thinking?: boolean;
+		reasoningEffort?: "low" | "medium" | "high" | "xhigh";
+	};
+	onSeeding?: () => void;
+};
+
+function cloudWorkspaceCwd(workspaceRelativePath?: string): string {
+	return workspaceRelativePath
+		? posix.join(CLOUD_WORKSPACE_ROOT, workspaceRelativePath)
+		: CLOUD_WORKSPACE_ROOT;
+}
 
 // The repository/branch wire contract is owned by the webview lib so the two
 // sides of the desktop client cannot silently drift; re-exported here for
@@ -104,6 +141,8 @@ export type {
 } from "../webview/lib/cloud-repositories";
 
 type CloudSessionApiOptions = {
+	/** Test seam for recovery re-list backoff waits. */
+	sleep?: (ms: number) => Promise<void>;
 	apiBaseUrl: string;
 	appBaseUrl: string;
 	getAuthToken: () => Promise<string | undefined>;
@@ -134,6 +173,21 @@ export class CloudSessionError extends Error {
 	}
 }
 
+/**
+ * A queue delivery whose outcome could not be confirmed either way. Callers
+ * must never present this as "not queued" — resubmitting a durably queued
+ * prompt executes it twice.
+ */
+export class CloudQueueUnconfirmedError extends CloudSessionError {
+	constructor() {
+		super(
+			"request_failed",
+			"The connection was interrupted and Cline could not confirm whether this message was queued. Check the cloud session before resending it.",
+		);
+		this.name = "CloudQueueUnconfirmedError";
+	}
+}
+
 function isTransientGitHubTokenVendFailure(error: unknown): boolean {
 	if (!(error instanceof CloudSessionError) || error.status !== 502)
 		return false;
@@ -142,6 +196,15 @@ function isTransientGitHubTokenVendFailure(error: unknown): boolean {
 		detail.includes("couldn't authenticate with github") &&
 		detail.includes("reconnecting the integration")
 	);
+}
+
+export class CloudHandoffSeedUnsupportedError extends Error {
+	constructor() {
+		super(
+			"The cloud session was created, but its transcript was not persisted. This cloud runtime cannot durably seed handoff transcripts and must use @cline/core 0.0.72 or newer. Updating the cloud runtime or pod is required; retrying /handoff against this same pod will not help.",
+		);
+		this.name = "CloudHandoffSeedUnsupportedError";
+	}
 }
 
 type ApiResponse<T> = {
@@ -513,6 +576,74 @@ export class CloudSessionApi {
 		const recoveryTitle = createRequestTitle(
 			input.requestId?.trim() || randomUUID(),
 		);
+		const requestedBranch = input.branch?.trim();
+		// The API has no idempotency header, so stamp the request id into the
+		// optional title and match only that exact record. Config/time matching
+		// can steal another process's otherwise-identical session.
+		const listTitleMatches = async () =>
+			(
+				await this.listWithToken(
+					input.organizationId ?? undefined,
+					creationAuth,
+					true,
+				)
+			).filter(
+				(session) =>
+					session.title === recoveryTitle &&
+					session.repoContext.repoUrl === input.repoUrl &&
+					session.metadata.modelId === input.modelId &&
+					(!requestedBranch || session.repoContext.branch === requestedBranch),
+			);
+		const adoptExisting = async (recovered: CloudSessionRecord) => {
+			await this.persistHandoffOuterSession(input, recovered.id, creationAuth);
+			if (
+				recovered.status === "provisioning" ||
+				!recovered.sandboxUrl?.trim()
+			) {
+				const recoveryController = new AbortController();
+				const recoveryTimeout = setTimeout(
+					() => recoveryController.abort(),
+					this.createTimeoutMs,
+				);
+				try {
+					await this.waitUntilReady(
+						recovered.id,
+						recoveryController.signal,
+						creationAuth,
+					);
+				} finally {
+					clearTimeout(recoveryTimeout);
+				}
+			}
+			return {
+				sessionId: recovered.id,
+				sandboxUrl: recovered.sandboxUrl,
+				cleanupAuthToken: creationAuth.token,
+			};
+		};
+		// A retry after an ambiguous failure can arrive before the accepted
+		// POST's row became visible: the failure-path re-lists saw nothing, the
+		// user retried, and a second POST would provision a duplicate workspace.
+		// Handoffs stamp a STABLE request id, so a title-matched row seen before
+		// the POST always belongs to this logical create — adopt it instead.
+		if (input.requestId?.trim() && input.handoff) {
+			let probed: CloudSessionRecord[] | undefined;
+			try {
+				probed = await listTitleMatches();
+			} catch {
+				// A failed probe must not block creation: the post-failure
+				// recovery path still guards an ambiguous POST.
+				probed = undefined;
+			}
+			if (probed && probed.length > 1) {
+				throw new CloudSessionError(
+					"request_failed",
+					"Cloud session creation had an ambiguous result. Check your cloud session list before trying again.",
+				);
+			}
+			const preexisting = probed?.[0];
+			if (preexisting) return await adoptExisting(preexisting);
+		}
 		const controller = new AbortController();
 		const timeout = setTimeout(() => controller.abort(), this.createTimeoutMs);
 		let createdSessionId = "";
@@ -549,6 +680,7 @@ export class CloudSessionApi {
 				);
 			}
 			createdSessionId = sessionId;
+			await this.persistHandoffOuterSession(input, sessionId, creationAuth);
 			if (created.status === "provisioning" || !created.sandboxUrl?.trim()) {
 				await this.waitUntilReady(sessionId, controller.signal, creationAuth);
 			}
@@ -581,6 +713,7 @@ export class CloudSessionApi {
 							);
 						}
 					}
+					await input.handoff?.onOuterSessionRemoved?.(createdSessionId);
 				}
 				throw error;
 			}
@@ -589,7 +722,9 @@ export class CloudSessionApi {
 			// (5xx / no HTTP status). A fast client-side rejection (4xx) never
 			// provisioned anything, and recovering on one risks silently
 			// adopting an identical-config session created by another device
-			// on the same account.
+			// on the same account. A raw transport rejection (fetch throwing
+			// before an HTTP status exists) is just as ambiguous as a 5xx: the
+			// request may have reached the server before the connection died.
 			const mayStillBeProvisioning =
 				controller.signal.aborted ||
 				!(error instanceof CloudSessionError) ||
@@ -597,24 +732,38 @@ export class CloudSessionApi {
 					error.code === "request_failed" &&
 					(error.status === undefined || error.status >= 500));
 			if (mayStillBeProvisioning) {
-				const requestedBranch = input.branch?.trim();
-				// The API has no idempotency header, so stamp the request id into
-				// the optional title and recover only that exact record. Config/time
-				// matching can steal another process's otherwise-identical session.
-				const candidates = (
-					await this.listWithToken(
-						input.organizationId,
-						creationAuth,
-						true,
-					).catch(() => [])
-				).filter(
-					(session) =>
-						session.title === recoveryTitle &&
-						session.repoContext.repoUrl === input.repoUrl &&
-						session.metadata.modelId === input.modelId &&
-						(!requestedBranch ||
-							session.repoContext.branch === requestedBranch),
-				);
+				// Recovery must observe the same identity/scope that issued the
+				// create — the active account can change mid-provision. A failed
+				// list is NOT an empty list: treating it as empty would blind
+				// the ambiguity guard and let a retry provision a duplicate.
+				let recoveryListFailed = false;
+				// The list is eventually consistent with creates: an accepted
+				// POST may not be visible yet. For seed-destructive handoffs,
+				// re-list briefly before concluding nothing was created.
+				let candidates: CloudSessionRecord[] = [];
+				for (let attempt = 0; attempt < (input.handoff ? 3 : 1); attempt += 1) {
+					if (attempt > 0) {
+						await (
+							this.options.sleep ??
+							((ms: number) =>
+								new Promise<void>((resolve) => setTimeout(resolve, ms)))
+						)(2_500);
+					}
+					try {
+						candidates = await listTitleMatches();
+						recoveryListFailed = false;
+						if (candidates.length > 0 || !input.handoff) break;
+					} catch {
+						recoveryListFailed = true;
+					}
+				}
+				if (input.handoff && recoveryListFailed) {
+					throw new CloudSessionError(
+						"request_failed",
+						"Cloud session creation had an ambiguous result and the session list could not be checked. Verify in Cline Cloud whether the workspace was created before retrying.",
+						new URL("/agents", this.appBaseUrl).toString(),
+					);
+				}
 				if (candidates.length > 1) {
 					throw new CloudSessionError(
 						"request_failed",
@@ -622,32 +771,7 @@ export class CloudSessionApi {
 					);
 				}
 				const recovered = candidates[0];
-				if (recovered) {
-					if (
-						recovered.status === "provisioning" ||
-						!recovered.sandboxUrl?.trim()
-					) {
-						const recoveryController = new AbortController();
-						const recoveryTimeout = setTimeout(
-							() => recoveryController.abort(),
-							this.createTimeoutMs,
-						);
-						try {
-							await this.waitUntilReady(
-								recovered.id,
-								recoveryController.signal,
-								creationAuth,
-							);
-						} finally {
-							clearTimeout(recoveryTimeout);
-						}
-					}
-					return {
-						sessionId: recovered.id,
-						sandboxUrl: recovered.sandboxUrl,
-						cleanupAuthToken: creationAuth.token,
-					};
-				}
+				if (recovered) return await adoptExisting(recovered);
 			}
 			throw error;
 		} finally {
@@ -655,7 +779,7 @@ export class CloudSessionApi {
 		}
 	}
 
-	private async waitUntilReady(
+	async waitUntilReady(
 		sessionId: string,
 		signal: AbortSignal,
 		authToken?: RequestAuth,
@@ -709,6 +833,40 @@ export class CloudSessionApi {
 
 	async delete(sessionId: string, authToken?: string): Promise<void> {
 		await this.deleteWithAuth(sessionId, authToken);
+	}
+
+	private async persistHandoffOuterSession(
+		input: CreateCloudSessionInput,
+		sessionId: string,
+		auth: CreationAuth,
+	): Promise<void> {
+		const persist = input.handoff?.onOuterSessionCreated;
+		if (!persist) return;
+		try {
+			await persist(sessionId);
+		} catch (persistenceError) {
+			try {
+				await this.deleteWithAuth(sessionId, auth);
+			} catch (cleanupError) {
+				if (
+					!(
+						cleanupError instanceof CloudSessionError &&
+						(cleanupError.code === "session_not_found" ||
+							cleanupError.code === "session_expired")
+					)
+				) {
+					const dashboardUrl = buildCloudHandoffDashboardUrl(
+						this.appBaseUrl,
+						sessionId,
+					);
+					throw new AggregateError(
+						[persistenceError, cleanupError],
+						`The cloud session was created, but its local recovery record could not be saved or cleaned up. Cloud session ${sessionId}: ${dashboardUrl}`,
+					);
+				}
+			}
+			throw persistenceError;
+		}
 	}
 
 	private async deleteWithAuth(
@@ -816,6 +974,7 @@ type CloudSessionManagerOptions = {
 		| "delete"
 		| "list"
 		| "status"
+		| "waitUntilReady"
 		| "history"
 		| "updateTitle"
 		| "listRepositories"
@@ -963,6 +1122,20 @@ function sessionRowModelId(record: JsonRecord | undefined): string {
 			? (record.metadata as JsonRecord)
 			: undefined;
 	return String(metadata?.model ?? record?.model ?? "").trim();
+}
+
+function sessionRowHandoffSourceSessionId(
+	record: JsonRecord | undefined,
+): string {
+	const metadata =
+		record?.metadata && typeof record.metadata === "object"
+			? (record.metadata as JsonRecord)
+			: undefined;
+	const handoff =
+		metadata?.handoff && typeof metadata.handoff === "object"
+			? (metadata.handoff as JsonRecord)
+			: undefined;
+	return String(handoff?.sourceSessionId ?? "").trim();
 }
 
 function parseApprovalInput(value: unknown): unknown {
@@ -1359,6 +1532,27 @@ export class CloudSessionManager {
 		return scoped;
 	}
 
+	/**
+	 * Checks whether an exact handoff target still exists without waiting for
+	 * provisioning. Only an authoritative gone response is treated as absent;
+	 * auth, network, and server failures remain errors so callers preserve the
+	 * local recovery record.
+	 */
+	async handoffTargetExists(sessionId: string): Promise<boolean> {
+		try {
+			await this.options.api.status(sessionId);
+			return true;
+		} catch (error) {
+			if (
+				error instanceof CloudSessionError &&
+				(error.code === "session_not_found" || error.code === "session_expired")
+			) {
+				return false;
+			}
+			throw error;
+		}
+	}
+
 	private preserveConnectedRuntimeModel(
 		session: CloudSessionRecord,
 	): CloudSessionRecord {
@@ -1384,6 +1578,39 @@ export class CloudSessionManager {
 		return await this.options.api.listRepositories(
 			await this.resolveActiveOrganizationId(),
 		);
+	}
+
+	/** Validates account auth and GitHub access before provisioning a handoff. */
+	async prepareHandoffRepository(repoUrl: string): Promise<{
+		organizationId?: string;
+	}> {
+		const organizationId = await this.resolveActiveOrganizationId();
+		const listed = await this.options.api.listRepositories(organizationId);
+		if (!listed.connected) {
+			throw new CloudSessionError(
+				"github_not_connected",
+				"Connect GitHub before handing this session off to cloud.",
+				listed.connectUrl,
+			);
+		}
+		const normalize = (value: string) =>
+			value
+				.trim()
+				.replace(/\.git$/i, "")
+				.replace(/\/+$/, "")
+				.toLowerCase();
+		if (
+			!listed.repositories.some(
+				(repository) => normalize(repository.url) === normalize(repoUrl),
+			)
+		) {
+			throw new CloudSessionError(
+				"github_not_connected",
+				`The GitHub integration cannot access ${cloudRepositoryLabel(repoUrl, repoUrl)}. Grant repository access before handing off.`,
+				listed.connectUrl,
+			);
+		}
+		return organizationId ? { organizationId } : {};
 	}
 
 	async listBranches(
@@ -1487,6 +1714,73 @@ export class CloudSessionManager {
 		return await creating;
 	}
 
+	/** Waits for an adopted pending handoff target before opening its Hub proxy. */
+	async waitUntilReady(outerSessionId: string): Promise<void> {
+		await this.options.api.waitUntilReady(
+			outerSessionId,
+			AbortSignal.timeout(CREATE_TIMEOUT_MS),
+		);
+		await this.refreshKnownSession(outerSessionId);
+	}
+
+	/** Seeds an already-provisioned outer session when retrying a pending handoff. */
+	async seedHandoff(
+		outerSessionId: string,
+		seed: CloudHandoffSeed,
+	): Promise<{ innerSessionId: string }> {
+		const connection = await this.ensureConnection(outerSessionId, {
+			createInner: true,
+			handoffSeed: seed,
+		});
+		if (!connection.innerSessionId) {
+			throw new Error("Cloud Hub did not return an inner session id");
+		}
+		return { innerSessionId: connection.innerSessionId };
+	}
+
+	async verifyHandoffTranscript(
+		outerSessionId: string,
+		expected: readonly MessageWithMetadata[],
+		options: { allowAppendedMessages?: boolean } = {},
+	): Promise<void> {
+		const connection = await this.ensureConnection(outerSessionId);
+		const innerSessionId = connection.innerSessionId;
+		if (!innerSessionId) {
+			throw new Error("Cloud Hub did not return an inner session id");
+		}
+		const reply = await connection.client.command(
+			"session.messages",
+			{ sessionId: innerSessionId },
+			innerSessionId,
+		);
+		const actual = reply.payload?.messages;
+		if (!Array.isArray(actual)) {
+			throw new Error("Cloud runtime returned no transcript after seeding.");
+		}
+		if (expected.length > 0 && actual.length === 0) {
+			throw new CloudHandoffSeedUnsupportedError();
+		}
+		const verified = options.allowAppendedMessages
+			? actual.length >= expected.length &&
+				cloudHandoffTranscriptsEqual(expected, actual.slice(0, expected.length))
+			: cloudHandoffTranscriptsEqual(expected, actual);
+		if (!verified) {
+			throw new CloudHandoffTranscriptMismatchError(
+				expected.length,
+				actual.length,
+			);
+		}
+		connection.transcriptKnown = true;
+		// Baseline the live transcript with the verified seed: a later send's
+		// ambiguity recovery counts prompt occurrences against this baseline,
+		// and an empty baseline would let an older identical prompt in the
+		// seeded history falsely confirm a new, undelivered follow-up.
+		const live = this.ctx.liveSessions.get(outerSessionId);
+		if (live) {
+			live.messages = [...actual];
+		}
+	}
+
 	private async createOnce(
 		input: CreateCloudSessionInput,
 	): Promise<JsonRecord> {
@@ -1505,7 +1799,7 @@ export class CloudSessionManager {
 			model: input.modelId,
 			repoUrl: input.repoUrl,
 			branch: input.branch ?? "",
-			cwd: CLOUD_WORKSPACE_ROOT,
+			cwd: cloudWorkspaceCwd(input.workspaceRelativePath),
 			workspaceRoot: CLOUD_WORKSPACE_ROOT,
 			...(input.initialPrompt?.trim()
 				? { prompt: input.initialPrompt.trim() }
@@ -1563,8 +1857,9 @@ export class CloudSessionManager {
 		input: CreateCloudSessionInput,
 	): Promise<JsonRecord> {
 		const organizationId =
-			input.organizationId ??
-			(await this.resolveActiveOrganizationId({ fresh: true }));
+			input.organizationId === undefined
+				? await this.resolveActiveOrganizationId({ fresh: true })
+				: (input.organizationId ?? undefined);
 		let created: Awaited<ReturnType<CloudSessionApi["create"]>> | undefined;
 		for (let attempt = 0; attempt < 3; attempt += 1) {
 			try {
@@ -1628,10 +1923,35 @@ export class CloudSessionManager {
 			live.config.reasoningEffort = input.reasoningEffort;
 		}
 		this.ctx.liveSessions.set(record.id, live);
-		// Provisioning succeeded; a transient Hub connect must not report create failure.
+		const handoffSeed = input.handoff
+			? {
+					sourceSessionId: input.handoff.sourceSessionId,
+					messages: await input.handoff.resolveMessages(),
+					mode: input.mode ?? "act",
+					workspaceRelativePath: input.workspaceRelativePath,
+					config: {
+						...(typeof input.autoApproveTools === "boolean"
+							? { autoApproveTools: input.autoApproveTools }
+							: {}),
+						...(typeof input.thinking === "boolean"
+							? { thinking: input.thinking }
+							: {}),
+						...(input.reasoningEffort
+							? { reasoningEffort: input.reasoningEffort }
+							: {}),
+					},
+					onSeeding: input.handoff.onSeeding,
+				}
+			: undefined;
+		// A handoff must seed durably before it can report success. Ordinary cloud
+		// creation keeps its existing best-effort initial-connect behavior.
 		try {
-			await this.ensureConnection(record.id, { createInner: true });
+			await this.ensureConnection(record.id, {
+				createInner: true,
+				handoffSeed,
+			});
 		} catch (error) {
+			if (handoffSeed) throw error;
 			this.ctx.logger?.log(
 				"Cloud session provisioned but initial connect failed; will connect on demand",
 				{ sessionId: record.id, error },
@@ -1655,9 +1975,12 @@ export class CloudSessionManager {
 			model: input.modelId,
 			repoUrl: input.repoUrl,
 			branch: input.branch ?? "",
-			cwd: CLOUD_WORKSPACE_ROOT,
+			cwd: cloudWorkspaceCwd(input.workspaceRelativePath),
 			workspaceRoot: CLOUD_WORKSPACE_ROOT,
 			...(live.prompt ? { prompt: live.prompt } : {}),
+			...(this.connections.get(record.id)?.innerSessionId
+				? { innerSessionId: this.connections.get(record.id)?.innerSessionId }
+				: {}),
 		};
 	}
 
@@ -1819,16 +2142,21 @@ export class CloudSessionManager {
 						live.busy = false;
 						live.status = "error";
 					}
+					// The original failure left a queue delivery's outcome
+					// unknown, and the recovery check itself failed — the
+					// outcome is STILL unknown. Surfacing the raw recovery
+					// error would be read as "not queued" and invite a
+					// duplicate resubmission.
+					if (delivery === "queue") {
+						throw new CloudQueueUnconfirmedError();
+					}
 					throw recoveryError;
 				}
 				// Without a queue snapshot the absence of the prompt proves
 				// nothing for a queue delivery — telling the user to resend
 				// would duplicate a durably queued prompt.
 				if (delivery === "queue" && snapshot.prompts === undefined) {
-					throw new CloudSessionError(
-						"request_failed",
-						"The connection was interrupted and Cline could not confirm whether this message was queued. Check the cloud session before resending it.",
-					);
+					throw new CloudQueueUnconfirmedError();
 				}
 				const promptOccurrencesAfterRecovery = countPromptOccurrences(
 					snapshot.messages,
@@ -2362,7 +2690,7 @@ export class CloudSessionManager {
 
 	private async ensureConnection(
 		outerSessionId: string,
-		options: { createInner?: boolean } = {},
+		options: { createInner?: boolean; handoffSeed?: CloudHandoffSeed } = {},
 	): Promise<CloudConnection> {
 		if (this.disposed) {
 			throw new Error("Cloud session manager was disposed");
@@ -2375,16 +2703,28 @@ export class CloudSessionManager {
 		}
 		const existing = this.connections.get(outerSessionId);
 		if (existing) {
+			if (options.handoffSeed && existing.innerSessionId) {
+				await this.assertHandoffConnectionReusable(
+					existing,
+					options.handoffSeed,
+				);
+			}
 			if (options.createInner && !existing.innerSessionId) {
-				await this.createInnerSession(existing);
+				await this.createInnerSession(existing, options.handoffSeed);
 			}
 			return existing;
 		}
 		const pending = this.connectionPromises.get(outerSessionId);
 		if (pending) {
 			const connection = await pending;
+			if (options.handoffSeed && connection.innerSessionId) {
+				await this.assertHandoffConnectionReusable(
+					connection,
+					options.handoffSeed,
+				);
+			}
 			if (options.createInner && !connection.innerSessionId) {
-				await this.createInnerSession(connection);
+				await this.createInnerSession(connection, options.handoffSeed);
 			}
 			return connection;
 		}
@@ -2412,7 +2752,7 @@ export class CloudSessionManager {
 				// same cloud session and unregistering it on close.
 				clientId: `code-cloud-${outerSessionId}-${randomUUID()}`,
 				clientType: "code-cloud-sidecar",
-				displayName: "Cline Code cloud session",
+				displayName: "Cline cloud session",
 				workspaceRoot: CLOUD_WORKSPACE_ROOT,
 				cwd: CLOUD_WORKSPACE_ROOT,
 				resolveConnectionHeaders: async () => {
@@ -2462,9 +2802,26 @@ export class CloudSessionManager {
 					throw new Error("Cloud session manager was disposed");
 				}
 				const listed = await client.command("session.list", { limit: 100 });
-				const newest = readSessionRows(listed.payload).sort(
-					(left, right) => updatedAt(right) - updatedAt(left),
-				)[0];
+				const rows = readSessionRows(listed.payload);
+				let newest: JsonRecord | undefined;
+				if (options.handoffSeed && rows.length > 0) {
+					const [only] = rows;
+					if (
+						rows.length !== 1 ||
+						sessionRowHandoffSourceSessionId(only) !==
+							options.handoffSeed.sourceSessionId
+					) {
+						throw new CloudSessionError(
+							"request_failed",
+							"This cloud workspace already contains another conversation. Open it in Cline Cloud or delete it before retrying the handoff.",
+						);
+					}
+					newest = only;
+				} else {
+					newest = rows.sort(
+						(left, right) => updatedAt(right) - updatedAt(left),
+					)[0];
+				}
 				const innerSessionId = String(newest?.sessionId ?? "").trim();
 				if (innerSessionId) {
 					connection.innerSessionId = innerSessionId;
@@ -2478,7 +2835,7 @@ export class CloudSessionManager {
 				}
 				this.connections.set(outerSessionId, connection);
 				if (options.createInner && !connection.innerSessionId) {
-					await this.createInnerSession(connection);
+					await this.createInnerSession(connection, options.handoffSeed);
 				}
 				return connection;
 			} catch (error) {
@@ -2504,14 +2861,49 @@ export class CloudSessionManager {
 		return await connecting;
 	}
 
-	private async createInnerSession(connection: CloudConnection): Promise<void> {
+	private async assertHandoffConnectionReusable(
+		connection: CloudConnection,
+		handoffSeed: CloudHandoffSeed,
+	): Promise<void> {
+		const listed = await connection.client.command("session.list", {
+			limit: 100,
+		});
+		const rows = readSessionRows(listed.payload);
+		const [only] = rows;
+		if (
+			rows.length !== 1 ||
+			String(only?.sessionId ?? "").trim() !== connection.innerSessionId ||
+			sessionRowHandoffSourceSessionId(only) !== handoffSeed.sourceSessionId
+		) {
+			throw new CloudSessionError(
+				"request_failed",
+				"This cloud workspace already contains another conversation. Open it in Cline Cloud or delete it before retrying the handoff.",
+			);
+		}
+	}
+
+	private async createInnerSession(
+		connection: CloudConnection,
+		handoffSeed?: CloudHandoffSeed,
+	): Promise<void> {
 		if (connection.innerSessionId) {
 			return;
 		}
 		if (connection.innerSessionCreation) {
-			return await connection.innerSessionCreation;
+			await connection.innerSessionCreation;
+			// A seeded creation must never silently adopt a session created by
+			// a concurrent seedless caller: the transcript would fail
+			// verification later and destroy a workspace that may hold a
+			// conversation. Validate the joined session against this seed.
+			if (handoffSeed) {
+				await this.assertHandoffConnectionReusable(connection, handoffSeed);
+			}
+			return;
 		}
-		const creation = this.createInnerSessionOnce(connection).finally(() => {
+		const creation = this.createInnerSessionOnce(
+			connection,
+			handoffSeed,
+		).finally(() => {
 			connection.innerSessionCreation = undefined;
 		});
 		connection.innerSessionCreation = creation;
@@ -2520,28 +2912,48 @@ export class CloudSessionManager {
 
 	private async createInnerSessionOnce(
 		connection: CloudConnection,
+		handoffSeed?: CloudHandoffSeed,
 	): Promise<void> {
 		const modelId = connection.remote.metadata.modelId?.trim();
 		if (!modelId) {
 			throw new Error("Cloud session is missing its model id");
 		}
 		const live = this.ctx.liveSessions.get(connection.remote.id);
+		const cwd = cloudWorkspaceCwd(handoffSeed?.workspaceRelativePath);
+		const mode = handoffSeed?.mode ?? "act";
+		handoffSeed?.onSeeding?.();
 		const reply = await connection.client.command("session.create", {
 			workspaceRoot: CLOUD_WORKSPACE_ROOT,
-			cwd: CLOUD_WORKSPACE_ROOT,
+			cwd,
+			...(handoffSeed ? { initialMessages: handoffSeed.messages } : {}),
 			sessionConfig: {
 				providerId: "cline",
 				modelId,
 				workspaceRoot: CLOUD_WORKSPACE_ROOT,
-				cwd: CLOUD_WORKSPACE_ROOT,
-				systemPrompt: GITHUB_AUTH_SYSTEM_PROMPT,
-				mode: "act",
+				cwd,
+				systemPrompt: handoffSeed
+					? `${buildCloudHandoffSystemPrompt({
+							repoUrl:
+								connection.remote.repoContext.repoUrl ?? "the repository",
+							branch:
+								connection.remote.repoContext.branch ?? "the selected branch",
+							workspaceRoot: CLOUD_WORKSPACE_ROOT,
+						})}${cwd === CLOUD_WORKSPACE_ROOT ? "" : `\n\nContinue from the original repository subdirectory at ${cwd}.`}`
+					: CLOUD_GITHUB_AUTH_SYSTEM_PROMPT,
+				mode,
 				enableTools: true,
-				...(typeof live?.config.thinking === "boolean"
-					? { thinking: live.config.thinking }
+				...(typeof (handoffSeed?.config?.thinking ?? live?.config.thinking) ===
+				"boolean"
+					? { thinking: handoffSeed?.config?.thinking ?? live?.config.thinking }
 					: {}),
-				...(typeof live?.config.reasoningEffort === "string"
-					? { reasoningEffort: live.config.reasoningEffort }
+				...(typeof (
+					handoffSeed?.config?.reasoningEffort ?? live?.config.reasoningEffort
+				) === "string"
+					? {
+							reasoningEffort:
+								handoffSeed?.config?.reasoningEffort ??
+								live?.config.reasoningEffort,
+						}
 					: {}),
 			},
 			metadata: {
@@ -2549,11 +2961,24 @@ export class CloudSessionManager {
 				provider: "cline",
 				model: modelId,
 				interactive: true,
+				...(handoffSeed
+					? {
+							handoff: {
+								from: "local",
+								sourceSessionId: handoffSeed.sourceSessionId,
+								outerSessionId: connection.remote.id,
+							},
+						}
+					: {}),
 			},
-			runtimeOptions: { mode: "act" },
+			runtimeOptions: { mode },
 			modelSelection: { provider: "cline", model: modelId },
 			toolPolicies: {
-				"*": { autoApprove: live?.config.autoApproveTools !== false },
+				"*": {
+					autoApprove:
+						(handoffSeed?.config?.autoApproveTools ??
+							live?.config.autoApproveTools) !== false,
+				},
 			},
 		});
 		const session =
@@ -2569,8 +2994,9 @@ export class CloudSessionManager {
 		connection.innerSessionId = innerSessionId;
 		this.subscribeToInnerSession(connection.remote.id, connection);
 		this.applySessionModel(connection, session);
-		// A newly-created inner session has an authoritative empty transcript.
-		connection.transcriptKnown = true;
+		// Seeded content is authoritative only after a strict session.messages
+		// read-back verifies that the pod persisted initialMessages.
+		connection.transcriptKnown = !handoffSeed;
 	}
 
 	private handleEvent(
