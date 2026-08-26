@@ -56,6 +56,7 @@ export { HubServerTransport } from "./hub-server-transport";
 
 type NodeWebSocketLike = {
 	send(data: string): void;
+	readonly bufferedAmount?: number;
 	on(event: "message", listener: (data: unknown) => void): void;
 	on(event: "close", listener: () => void): void;
 	on(event: "pong", listener: () => void): void;
@@ -90,9 +91,23 @@ function decodeSocketData(data: unknown): string {
 	return String(data);
 }
 
+/**
+ * A reader slower than the publish rate accumulates unsent frames in the
+ * socket's send buffer with no ceiling — full-snapshot session.updated
+ * envelopes reach several MB each, so one stalled subscriber can balloon the
+ * hub process by gigabytes. Past the durable event log's own size budget the
+ * backlog is strictly worse than a reconnect: the client resumes losslessly
+ * by cursor replay, so terminate instead of buffering on.
+ */
+const HUB_SOCKET_MAX_BUFFERED_BYTES = 64 * 1024 * 1024;
+
 function wrapWsSocket(socket: NodeWebSocketLike) {
 	return {
 		send(data: string): void {
+			if ((socket.bufferedAmount ?? 0) > HUB_SOCKET_MAX_BUFFERED_BYTES) {
+				socket.terminate?.();
+				return;
+			}
 			socket.send(data);
 		},
 		addEventListener(
