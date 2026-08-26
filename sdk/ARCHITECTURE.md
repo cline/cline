@@ -149,9 +149,14 @@ Provider-field edits have two coordinated paths in the VS Code host:
    runtime hosts reject it instead of silently dropping a function at the JSON
    transport boundary.
 3. The update travels through `ClineCore` and `LocalRuntimeHost` to
-   `SessionRuntime`, which replaces the active agent model without replacing
-   conversation or tool state. Host and persisted connection state are
-   updated only after the agent accepts the replacement.
+   `SessionRuntime`. Connection and reasoning edits can replace the active
+   agent model without replacing conversation or tool state, but a changed
+   `providerId` or `modelId` is retained for the next fully rebuilt turn. The
+   active turn keeps its original tools, completion policy, system prompt,
+   tool metadata, `prepareTurn` model context, and result metadata. Host and
+   persisted state can record a deferred selection immediately; the dedicated
+   suspended-connection path updates its host projection only after the agent
+   accepts the in-place replacement.
 4. `AgentRuntime` owns the final safety boundary. Replacement is valid while
    an interactive tool is suspended between requests or synchronously inside
    the root pre-request callback; it is rejected during request preparation,

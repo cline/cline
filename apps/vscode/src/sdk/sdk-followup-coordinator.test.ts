@@ -276,7 +276,18 @@ describe("SdkFollowupCoordinator", () => {
 		const task = makeTask("session-123")
 		const waitForPendingRebuilds = vi.fn().mockRejectedValue(new Error("must not wait for an approval-blocked rebuild"))
 		const { coordinator, options } = makeCoordinator({ activeSession, task, waitForPendingRebuilds })
+		const events: string[] = []
 		options.interactions.resolvePendingToolApproval.mockReturnValue(false)
+		options.sessions.fireAndForgetSend.mockImplementation(() => {
+			events.push("queue")
+		})
+		options.interactions.restorePendingInteractionTurnPhase.mockImplementation(() => {
+			events.push("restore-approval")
+			return "toolApproval"
+		})
+		options.postStateToWebview.mockImplementation(async () => {
+			events.push("post-restored-state")
+		})
 
 		await coordinator.askResponse(
 			"do the next thing after this",
@@ -299,6 +310,9 @@ describe("SdkFollowupCoordinator", () => {
 		expect(options.resetMessageTranslator).not.toHaveBeenCalled()
 		expect(options.onFollowUpStarting).not.toHaveBeenCalled()
 		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledOnce()
+		expect(options.interactions.restorePendingInteractionTurnPhase).toHaveBeenCalledOnce()
+		expect(options.postStateToWebview).toHaveBeenCalledOnce()
+		expect(events).toEqual(["queue", "restore-approval", "post-restored-state"])
 		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
 			activeSession.sdkHost,
 			"session-123",

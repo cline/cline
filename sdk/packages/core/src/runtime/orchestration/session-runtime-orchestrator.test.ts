@@ -1450,6 +1450,126 @@ describe("SessionRuntime.addTools / updateConnection / clearHistory / restore", 
 		await runPromise;
 	});
 
+	it("defers active model changes until the next run rebuilds model-dependent state", async () => {
+		let releaseRun: () => void = () => {};
+		const release = new Promise<void>((resolve) => {
+			releaseRun = resolve;
+		});
+		const firstRuntime = makeFakeAgentRuntime({ release });
+		const secondRuntime = makeFakeAgentRuntime();
+		const runtimeConfigs: AgentRuntimeConfig[] = [];
+		const prepareTurn = vi.fn(() => undefined);
+		const imageModelId = "openai/gpt-5-image";
+		const completionPolicy = { requireCompletionTool: true };
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				knownModels: {
+					"claude-3-5-sonnet": {
+						id: "claude-3-5-sonnet",
+						capabilities: ["tools"],
+					},
+					[imageModelId]: {
+						id: imageModelId,
+						operation: "image-generation",
+						capabilities: ["tools", "images"],
+						modalities: {
+							input: ["text", "image"],
+							output: ["image"],
+						},
+					},
+				},
+				tools: [echoTool],
+				completionPolicy,
+				prepareTurn,
+			}),
+			{
+				createAgentRuntimeImpl: (config) => {
+					const runtime =
+						runtimeConfigs.length === 0
+							? firstRuntime.runtime
+							: secondRuntime.runtime;
+					runtimeConfigs.push(config);
+					return runtime;
+				},
+			},
+		);
+
+		const firstRun = session.run("go");
+		await vi.waitFor(() => expect(runtimeConfigs).toHaveLength(1));
+		session.updateConnection({ modelId: imageModelId, apiKey: "next-key" });
+
+		await runtimeConfigs[0]?.beforeModelRequest?.();
+		expect(firstRuntime.calls.replaceModelBetweenRequests).toHaveLength(0);
+		expect(runtimeConfigs[0]?.tools).toEqual([echoTool]);
+		expect(runtimeConfigs[0]?.completionPolicy).toEqual(completionPolicy);
+
+		await runtimeConfigs[0]?.prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conversation-1",
+			parentAgentId: null,
+			iteration: 1,
+			messages: [],
+			systemPrompt: "system",
+			tools: [echoTool],
+			model: {},
+		});
+		expect(prepareTurn).toHaveBeenCalledWith(
+			expect.objectContaining({
+				tools: [echoTool],
+				model: expect.objectContaining({
+					id: "claude-3-5-sonnet",
+					provider: "anthropic",
+				}),
+			}),
+		);
+
+		releaseRun();
+		const firstResult = await firstRun;
+		expect(firstResult.model).toMatchObject({
+			id: "claude-3-5-sonnet",
+			provider: "anthropic",
+		});
+
+		const secondResult = await session.run("again");
+		expect(runtimeConfigs).toHaveLength(2);
+		expect(runtimeConfigs[1]?.tools).toEqual([]);
+		expect(runtimeConfigs[1]?.completionPolicy).toBeUndefined();
+		expect(secondResult.model).toMatchObject({
+			id: imageModelId,
+			provider: "anthropic",
+		});
+	});
+
+	it("defers active provider changes until the next run", async () => {
+		let releaseRun: () => void = () => {};
+		const release = new Promise<void>((resolve) => {
+			releaseRun = resolve;
+		});
+		const firstRuntime = makeFakeAgentRuntime({ release });
+		const secondRuntime = makeFakeAgentRuntime();
+		const runtimeConfigs: AgentRuntimeConfig[] = [];
+		const session = new SessionRuntime(makeAgentConfig(), {
+			createAgentRuntimeImpl: (config) => {
+				const runtime =
+					runtimeConfigs.length === 0
+						? firstRuntime.runtime
+						: secondRuntime.runtime;
+				runtimeConfigs.push(config);
+				return runtime;
+			},
+		});
+
+		const firstRun = session.run("go");
+		await vi.waitFor(() => expect(runtimeConfigs).toHaveLength(1));
+		session.updateConnection({ providerId: "openai" });
+		await runtimeConfigs[0]?.beforeModelRequest?.();
+
+		expect(firstRuntime.calls.replaceModelBetweenRequests).toHaveLength(0);
+		releaseRun();
+		expect((await firstRun).model.provider).toBe("anthropic");
+		expect((await session.run("again")).model.provider).toBe("openai");
+	});
+
 	it("dedicated suspended update replaces the active model", async () => {
 		let releaseRun: () => void = () => {};
 		const release = new Promise<void>((resolve) => {

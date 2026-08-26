@@ -24,6 +24,42 @@ describe("resolveWorkspaceRootPath", () => {
 })
 
 describe("SDK follow-up rebuild coordination", () => {
+	it("makes the restored approval phase and anchor visible after queued guidance", async () => {
+		let turnState = { phase: "awaiting_approval", anchorTs: 42 }
+		const postedStates: Array<typeof turnState> = []
+		const setTurnState = vi.fn((phase: string, anchorTs?: number) => {
+			turnState = { phase, anchorTs: anchorTs ?? 0 }
+		})
+		const postStateToWebview = vi.fn(async () => {
+			postedStates.push({ ...turnState })
+		})
+		const followupAskResponse = vi.fn(async (_prompt, _images, _files, responseType, turnPhaseAtSubmit) => {
+			expect(responseType).toBe("messageResponse")
+			expect(turnPhaseAtSubmit).toBe("awaiting_approval")
+			setTurnState("awaiting_approval", 42)
+			await postStateToWebview()
+		})
+		const controller = {
+			pendingClineAuthRetryPrompt: undefined,
+			task: { taskState: { askResponse: "messageResponse" } },
+			turnStateTracker: {
+				get: vi.fn(() => turnState),
+				set: setTurnState,
+			},
+			messageTranslatorState: { clearTurnOutcome: vi.fn() },
+			postStateToWebview,
+			followups: {
+				askResponse: followupAskResponse,
+			},
+		}
+
+		await SdkController.prototype.askResponse.call(controller as never, "queued guidance")
+
+		expect(controller.turnStateTracker.set).toHaveBeenNthCalledWith(1, "streaming")
+		expect(controller.turnStateTracker.set).toHaveBeenNthCalledWith(2, "awaiting_approval", 42)
+		expect(postedStates.at(-1)).toEqual({ phase: "awaiting_approval", anchorTs: 42 })
+	})
+
 	it("flushes provider field changes before waiting for rebuild settlement", async () => {
 		const events: string[] = []
 		const controller = {

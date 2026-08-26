@@ -122,7 +122,16 @@ export class SdkFollowupCoordinator {
 			// provider fields before the queued turn starts.
 			const activeSession = this.options.sessions.getActiveSession()
 			if (activeSession) {
-				await this.queueToActiveSession(activeSession, prompt, images, files, { preserveTurnPhase: true })
+				const queued = await this.queueToActiveSession(activeSession, prompt, images, files, {
+					preserveTurnPhase: true,
+				})
+				if (queued && this.options.interactions.restorePendingInteractionTurnPhase()) {
+					try {
+						await this.options.postStateToWebview()
+					} catch (error) {
+						Logger.error("[SdkController] Failed to post restored approval state after queuing guidance:", error)
+					}
+				}
 				return
 			}
 		}
@@ -188,14 +197,14 @@ export class SdkFollowupCoordinator {
 		images?: string[],
 		files?: string[],
 		options: { preserveTurnPhase?: boolean } = {},
-	): Promise<void> {
+	): Promise<boolean> {
 		const { sdkHost, sessionId } = activeSession
 		Logger.log(`[SdkController] Session is running - queuing follow-up message for session: ${sessionId}`)
 
 		const resolvedPrompt = prompt ? await this.options.resolveContextMentions(prompt) : ""
 		if (this.options.sessions.getActiveSession() !== activeSession) {
 			await this.abandonFollowUp(`Active session changed while queuing follow-up for ${sessionId}; cancelling follow-up`)
-			return
+			return false
 		}
 
 		this.options.sessions.setRunning(true)
@@ -203,6 +212,7 @@ export class SdkFollowupCoordinator {
 			this.options.onFollowUpStarting()
 		}
 		this.options.sessions.fireAndForgetSend(sdkHost, sessionId, resolvedPrompt, images, files, "queue")
+		return true
 	}
 
 	/**

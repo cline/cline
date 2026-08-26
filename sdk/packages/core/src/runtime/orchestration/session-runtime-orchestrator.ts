@@ -355,6 +355,11 @@ export class SessionRuntime {
 	private abortReason: string | undefined;
 	/** Reference to the current run's `AgentRuntime` so `abort` can forward. */
 	private activeRuntime: AgentRuntime | null = null;
+	/** Provider/model pair whose turn-scoped state the active runtime captured. */
+	private activeRuntimeModelSelection: Pick<
+		AgentConfig,
+		"providerId" | "modelId"
+	> | null = null;
 	/** Connection edits waiting for the active runtime's next safe boundary. */
 	private activeConnectionRefreshPending = false;
 	/** Promise returned from the current run so shutdown can await its drain. */
@@ -531,13 +536,21 @@ export class SessionRuntime {
 
 	/** Mutate provider / reasoning fields for subsequent requests and runs. */
 	updateConnection(overrides: ConnectionOverrides): void {
-		this.config = this.buildUpdatedConnectionConfig(overrides);
+		const next = this.buildUpdatedConnectionConfig(overrides);
+		this.config = next;
 		if (this.activeRuntime) {
-			this.activeConnectionRefreshPending = true;
+			// Tools, system prompt, completion policy, tool metadata, and
+			// prepareTurn are captured once for the active provider/model. A
+			// selection change therefore waits for the next fully rebuilt turn.
+			this.activeConnectionRefreshPending =
+				this.activeRuntimeUsesModelSelection(next);
 		}
 	}
 
-	/** Replace connection fields only at a verified suspended tool boundary. */
+	/**
+	 * Replace connection fields only at a verified suspended tool boundary.
+	 * Provider/model selection changes are retained for the next rebuilt turn.
+	 */
 	updateSuspendedConnection(overrides: ConnectionOverrides): void {
 		const activeRuntime = this.activeRuntime;
 		if (!activeRuntime) {
@@ -546,6 +559,11 @@ export class SessionRuntime {
 			);
 		}
 		const next = this.buildUpdatedConnectionConfig(overrides);
+		if (!this.activeRuntimeUsesModelSelection(next)) {
+			this.config = next;
+			this.activeConnectionRefreshPending = false;
+			return;
+		}
 		const activeModel = createAgentModelFromConfig(
 			next,
 			this.logger,
@@ -587,6 +605,14 @@ export class SessionRuntime {
 			}
 		}
 		return next;
+	}
+
+	private activeRuntimeUsesModelSelection(config: AgentConfig): boolean {
+		return (
+			this.activeRuntimeModelSelection !== null &&
+			this.activeRuntimeModelSelection.providerId === config.providerId &&
+			this.activeRuntimeModelSelection.modelId === config.modelId
+		);
 	}
 
 	clearHistory(): void {
@@ -740,6 +766,7 @@ export class SessionRuntime {
 	// -------------------------------------------------------------------
 
 	private async composeSystemPrompt(
+		baseSystemPrompt: string,
 		availableToolNames: ReadonlySet<string>,
 	): Promise<string> {
 		const rules: string[] = [];
@@ -755,7 +782,7 @@ export class SessionRuntime {
 				rules.push(content);
 			}
 		}
-		return mergeSystemPromptRules(this.config.systemPrompt, rules);
+		return mergeSystemPromptRules(baseSystemPrompt, rules);
 	}
 
 	private executeRun(input: {
@@ -861,9 +888,12 @@ export class SessionRuntime {
 			this.conversation.appendMessage({ role: "user", content });
 		}
 
-		// Build the AgentRuntime for this turn.
+		// Build the AgentRuntime from one turn-scoped config snapshot. Connection
+		// edits may replace its model in place only while this provider/model pair
+		// remains unchanged; selection edits are consumed by the next run.
+		const turnConfig = this.config;
 		const agentModel = createAgentModelFromConfig(
-			this.config,
+			turnConfig,
 			this.logger,
 			this.telemetry,
 		);
@@ -882,17 +912,17 @@ export class SessionRuntime {
 		}
 		const extensionTools = filterAvailableExtensionTools(
 			[...extensionToolsByName.values()],
-			this.config.toolPolicies,
+			turnConfig.toolPolicies,
 		);
 		const mergedToolsByName = new Map<string, AgentTool>();
 		for (const tool of extensionTools) {
 			mergedToolsByName.set(tool.name, tool);
 		}
-		for (const tool of this.config.tools) {
+		for (const tool of turnConfig.tools) {
 			mergedToolsByName.set(tool.name, tool);
 		}
 		const conversationId = this.conversation.getConversationId();
-		const modelInfo = tryGetModelInfo(this.config);
+		const modelInfo = tryGetModelInfo(turnConfig);
 		const dedicatedImageGeneration = usesImageGenerationOperation(
 			modelInfo ?? {},
 		);
@@ -900,10 +930,11 @@ export class SessionRuntime {
 			dedicatedImageGeneration || !modelSupportsToolCalling(modelInfo ?? {});
 		const availableTools = filterAvailableExtensionTools(
 			Array.from(mergedToolsByName.values()),
-			this.config.toolPolicies,
+			turnConfig.toolPolicies,
 		);
 		const tools = toolCallingDisabled ? [] : availableTools;
 		const systemPrompt = await this.composeSystemPrompt(
+			turnConfig.systemPrompt,
 			new Set(tools.map((tool) => tool.name)),
 		);
 		// Seed initialMessages with the full prior transcript (including
@@ -916,8 +947,8 @@ export class SessionRuntime {
 			this.conversation.getMessages(),
 		);
 		const runtimeConfig = createAgentRuntimeConfig({
-			agentConfig: this.config,
-			sessionId: this.config.sessionId,
+			agentConfig: turnConfig,
+			sessionId: turnConfig.sessionId,
 			agentId: this.agentId,
 			conversationId,
 			parentAgentId: this.parentAgentId,
@@ -928,18 +959,25 @@ export class SessionRuntime {
 			toolContextMetadata: {
 				modelSupportsImages:
 					modelInfo?.capabilities?.includes("images") ?? true,
-				...this.config.toolContextMetadata,
+				...turnConfig.toolContextMetadata,
 			},
 			hooks: this.createRuntimeHooks(),
 			beforeModelRequest: () =>
 				this.refreshActiveConnectionBeforeModelRequest(),
-			prepareTurn: this.createRuntimePrepareTurn(modelInfo, tools),
+			prepareTurn: this.createRuntimePrepareTurn(turnConfig, modelInfo, tools),
 			initialMessages,
 			completionPolicy: toolCallingDisabled ? null : undefined,
 			systemPrompt,
 		});
 		const runtime = this.createAgentRuntimeImpl(runtimeConfig);
 		this.activeRuntime = runtime;
+		this.activeRuntimeModelSelection = {
+			providerId: turnConfig.providerId,
+			modelId: turnConfig.modelId,
+		};
+		this.activeConnectionRefreshPending =
+			this.config !== turnConfig &&
+			this.activeRuntimeUsesModelSelection(this.config);
 		if (this.abortRequested) {
 			runtime.abort(this.abortReason);
 		}
@@ -978,6 +1016,7 @@ export class SessionRuntime {
 				);
 			}
 			this.activeRuntime = null;
+			this.activeRuntimeModelSelection = null;
 			this.activeConnectionRefreshPending = false;
 			this.running = false;
 			this.abortRequested = false;
@@ -1002,6 +1041,7 @@ export class SessionRuntime {
 				thrownError,
 				startedAt,
 				endedAt,
+				turnConfig,
 			});
 		} finally {
 			this.activeRunId = null;
@@ -1016,6 +1056,10 @@ export class SessionRuntime {
 	private async refreshActiveConnectionBeforeModelRequest(): Promise<void> {
 		await this.config.beforeModelRequest?.();
 		if (!this.activeConnectionRefreshPending) {
+			return;
+		}
+		if (!this.activeRuntimeUsesModelSelection(this.config)) {
+			this.activeConnectionRefreshPending = false;
 			return;
 		}
 
@@ -1099,6 +1143,7 @@ export class SessionRuntime {
 	}
 
 	private createRuntimePrepareTurn(
+		turnConfig: AgentConfig,
 		modelInfo: ModelInfo | undefined,
 		tools: AgentTool[],
 	):
@@ -1110,7 +1155,7 @@ export class SessionRuntime {
 				| undefined
 		  >)
 		| undefined {
-		const prepareTurn = this.config.prepareTurn;
+		const prepareTurn = turnConfig.prepareTurn;
 		if (!prepareTurn) {
 			return undefined;
 		}
@@ -1130,8 +1175,8 @@ export class SessionRuntime {
 				systemPrompt: context.systemPrompt ?? "",
 				tools,
 				model: {
-					id: this.config.modelId,
-					provider: this.config.providerId,
+					id: turnConfig.modelId,
+					provider: turnConfig.providerId,
 					info: modelInfo,
 				},
 				overflowRecovery: context.overflowRecovery,
@@ -1434,8 +1479,9 @@ export class SessionRuntime {
 		thrownError: Error | undefined;
 		startedAt: Date;
 		endedAt: Date;
+		turnConfig: AgentConfig;
 	}): AgentResult {
-		const { runResult, thrownError, startedAt, endedAt } = input;
+		const { runResult, thrownError, startedAt, endedAt, turnConfig } = input;
 		const durationMs = endedAt.getTime() - startedAt.getTime();
 		const finishReason: AgentFinishReason = thrownError
 			? "error"
@@ -1462,7 +1508,7 @@ export class SessionRuntime {
 		const messages = runResult
 			? agentMessagesToMessagesWithMetadata(runResult.messages)
 			: this.conversation.getMessages();
-		const modelInfo = tryGetModelInfo(this.config);
+		const modelInfo = tryGetModelInfo(turnConfig);
 		if (thrownError) {
 			throw thrownError;
 		}
@@ -1474,8 +1520,8 @@ export class SessionRuntime {
 			iterations: runResult?.iterations ?? 0,
 			finishReason,
 			model: {
-				id: this.config.modelId,
-				provider: this.config.providerId,
+				id: turnConfig.modelId,
+				provider: turnConfig.providerId,
 				info: modelInfo,
 			},
 			startedAt,
