@@ -1,6 +1,6 @@
 {
 	"name": "@cline/ui",
-	"version": "0.2.0-next.6",
+	"version": "0.2.0-next.7",
 	"description": "Shared Cline web theme and reusable agent UI components",
 	"repository": {
 		"type": "git",
@@ -62,6 +62,9 @@
 		"components/agent-aurora.tsx",
 		"components/agent-hero-heading.css",
 		"components/agent-hero-heading.tsx",
+		"components/agent-welcome-hero.css",
+		"components/agent-welcome-hero.tsx",
+		"components/agent-welcome-hero-pointer.ts",
 		"components/agent-prompt-queue.css",
 		"components/agent-prompt-queue.tsx",
 		"components/agent-quick-actions.css",
