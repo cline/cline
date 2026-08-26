@@ -1,44 +1,28 @@
 "use client";
 
-import type {
-	AgendaTaskPriority,
-	AgendaTaskRecord,
-	AgendaTaskType,
-	HubTaskCreateInput,
-} from "@cline/shared";
-import { isChatWorkspacePath } from "@cline/shared/browser";
 import {
-	ArrowDownUp,
+	ArrowLeft,
+	ArrowRight,
+	Blocks,
 	Bot,
-	Check,
 	ChevronDown,
-	ChevronLeft,
-	ChevronRight,
 	CircleUserRound,
-	ClipboardList,
 	Clock3,
-	Code,
-	FileText,
 	Filter,
 	FolderTree,
 	GitFork,
 	Loader2,
-	MessageSquarePlus,
+	Mic,
 	PanelLeftOpen,
 	Pencil,
-	Play,
-	Plug,
+	Pin,
 	Plus,
 	Radio,
 	Search,
 	Settings,
 	SlidersHorizontal,
-	Star,
 	Store,
 	Trash2,
-	Wrench,
-	X,
-	Zap,
 } from "lucide-react";
 import {
 	type ReactNode,
@@ -48,7 +32,6 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { AgendaTaskReviewDialog } from "@/components/agenda-task-review-dialog";
 import { AppUpdateIndicator } from "@/components/app-update-indicator";
 import { ClineLogo } from "@/components/cline-logo";
 import {
@@ -64,19 +47,18 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
+	CommandDialog,
+	CommandEmpty,
+	CommandInput,
+	CommandItem,
+	CommandList,
+} from "@/components/ui/command";
+import {
 	ContextMenu,
 	ContextMenuContent,
 	ContextMenuItem,
 	ContextMenuTrigger,
 } from "@/components/ui/context-menu";
-import {
-	Dialog,
-	DialogContent,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-	DialogTrigger,
-} from "@/components/ui/dialog";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -94,15 +76,15 @@ import {
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useSidebar } from "@/components/ui/sidebar";
-import { Textarea } from "@/components/ui/textarea";
 import { normalizeTitle } from "@/components/utils";
 import {
+	CUSTOMIZATION_SECTION_LABELS,
 	CUSTOMIZATION_SECTIONS,
 	SETTINGS_SECTIONS,
 	type SettingsSection,
 } from "@/components/views/settings/sections";
 import { useAccount } from "@/contexts/account-context";
-import { useAgendaAutomation, useAgendaTasks } from "@/hooks/use-agenda-tasks";
+import { useHasConnectedProvider } from "@/hooks/use-has-connected-provider";
 import type {
 	SessionThread,
 	UseSessionHistoryResult,
@@ -114,7 +96,6 @@ import {
 	productNameForVersion,
 } from "@/lib/app-channel";
 import { desktopClient } from "@/lib/desktop-client";
-import { readModelSelectionStorageFromWindow } from "@/lib/model-selection";
 import {
 	ALL_SESSION_SOURCES,
 	filterSessionsBySource,
@@ -131,10 +112,10 @@ import { cn } from "@/lib/utils";
 type Thread = SessionThread;
 type AppView = "chat" | "sessions" | "settings";
 
-const filterOptions = ["All", "Running", "Schedules", "Favorites"] as const;
+const filterOptions = ["All", "Running"] as const;
 type FilterOption = (typeof filterOptions)[number];
 type SidebarSortMode = "time" | "project";
-type SidebarContent = "sessions" | "agenda";
+type SessionCategory = "pinned" | "scheduled" | "tasks";
 type DesktopProcessContext = {
 	appVersion?: unknown;
 	hub?: {
@@ -163,16 +144,24 @@ function hubPort(url: string | null): string | null {
 const SETTINGS_SECTION_ICONS = {
 	General: SlidersHorizontal,
 	Models: Bot,
+	Voice: Mic,
 	Channels: Radio,
 	Schedules: Clock3,
 	Account: CircleUserRound,
-	Plugins: Plug,
+	Customize: Blocks,
 	Marketplace: Store,
-	Hooks: Code,
-	Rules: FileText,
-	Agents: Bot,
-	Tools: Wrench,
 } satisfies Record<SettingsSection, typeof Settings>;
+
+// The Customize section is the installed inventory, so its nav row reads
+// "Installed" (it sits under a "Customize" group header / next to the
+// Marketplace row, which supplies the context).
+function settingsSectionLabel(section: SettingsSection): string {
+	return (
+		CUSTOMIZATION_SECTION_LABELS[
+			section as keyof typeof CUSTOMIZATION_SECTION_LABELS
+		] ?? section
+	);
+}
 
 function SettingsSectionNavigation({
 	activeSection,
@@ -183,27 +172,48 @@ function SettingsSectionNavigation({
 	collapsed: boolean;
 	onSelect: (section: SettingsSection) => void;
 }) {
+	// Voice input only works with a connected model provider, so its section
+	// stays disabled until one is set up (null = catalog still loading).
+	const hasConnectedProvider = useHasConnectedProvider();
 	const renderSectionButton = (section: SettingsSection) => {
 		const Icon = SETTINGS_SECTION_ICONS[section];
-		return (
+		const label = settingsSectionLabel(section);
+		const disabled = section === "Voice" && hasConnectedProvider === false;
+		const button = (
 			<Button
 				aria-current={activeSection === section ? "page" : undefined}
-				aria-label={section}
+				aria-label={label}
 				className={cn(
 					"min-w-0 justify-start",
 					activeSection === section &&
 						"bg-surface-hover text-sidebar-foreground",
 					collapsed && "size-9 justify-center px-0",
+					disabled && !collapsed && "w-full",
 				)}
-				key={section}
+				disabled={disabled}
+				key={disabled ? undefined : section}
 				onClick={() => onSelect(section)}
-				title={section}
+				title={label}
 				type="button"
 				variant="sidebarItem"
 			>
 				<Icon className="size-4 shrink-0" />
-				{!collapsed ? <span className="truncate">{section}</span> : null}
+				{!collapsed ? <span className="truncate">{label}</span> : null}
 			</Button>
+		);
+		if (!disabled) {
+			return button;
+		}
+		// Disabled buttons swallow pointer events, so the explanation lives on
+		// a wrapping span for the native tooltip to work.
+		return (
+			<span
+				className={cn("block", collapsed && "flex w-full justify-start")}
+				key={section}
+				title="Configure a model provider to set up voice input"
+			>
+				{button}
+			</span>
 		);
 	};
 
@@ -220,15 +230,20 @@ function SettingsSectionNavigation({
 					Settings
 				</p>
 			) : null}
-			{SETTINGS_SECTIONS.map(renderSectionButton)}
-			{!collapsed ? (
-				<p className="px-2 pb-2 pt-4 text-sm font-medium text-muted-foreground">
-					Customizations
-				</p>
-			) : (
-				<div className="my-2 h-px w-6 shrink-0 bg-sidebar-border" />
-			)}
-			{CUSTOMIZATION_SECTIONS.map(renderSectionButton)}
+			{/* Schedules and Customize already have dedicated rows at the top of
+			    the expanded sidebar (Customize's Installed/Marketplace sub-tabs
+			    render under that row), so the section nav skips them there.
+			    The collapsed sidebar has no action rows and keeps them
+			    reachable. */}
+			{SETTINGS_SECTIONS.filter(
+				(section) => collapsed || section !== "Schedules",
+			).map(renderSectionButton)}
+			{collapsed ? (
+				<>
+					<div className="my-2 h-px w-6 shrink-0 bg-sidebar-border" />
+					{CUSTOMIZATION_SECTIONS.map(renderSectionButton)}
+				</>
+			) : null}
 		</nav>
 	);
 }
@@ -236,33 +251,30 @@ function SettingsSectionNavigation({
 export function AgentSidebar({
 	canNavigateBack = false,
 	canNavigateForward = false,
+	newTaskActive = false,
 	onHome,
 	onNavigateBack,
 	onNavigateForward,
-	onNewThread,
-	onOpenSessionById,
 	onSettingsSectionChange,
 	setView,
 	settingsSection,
 	view,
 	activeSessionId,
 	sessionHistory,
-	workspaceRoot,
 }: {
 	canNavigateBack?: boolean;
 	canNavigateForward?: boolean;
+	/** Highlights the New row while the fresh, not-yet-started task page is showing. */
+	newTaskActive?: boolean;
 	onHome: () => void;
 	onNavigateBack?: () => void;
 	onNavigateForward?: () => void;
-	onNewThread?: () => void;
-	onOpenSessionById?: (sessionId: string) => void | Promise<void>;
 	onSettingsSectionChange: (section: SettingsSection) => void;
 	setView: (view: AppView) => void;
 	settingsSection: SettingsSection;
 	view: AppView;
 	activeSessionId?: string | null;
 	sessionHistory: UseSessionHistoryResult;
-	workspaceRoot?: string;
 }) {
 	const { isMobile, setOpen, setOpenMobile, state } = useSidebar();
 	const isCollapsed = !isMobile && state === "collapsed";
@@ -279,8 +291,8 @@ export function AgentSidebar({
 		forkThread: forkHistoryThread,
 		hasLoadedHistory,
 		isLoadingMore,
+		loadAllSessions,
 		loadOlderSessions,
-		loadMoreSessions,
 		mayHaveMoreSessions,
 		openThread: openHistoryThread,
 		pendingAction,
@@ -293,14 +305,23 @@ export function AgentSidebar({
 	const [filter, setFilter] = useState<FilterOption>("All");
 	const [sourceFilter, setSourceFilter] = useState(ALL_SESSION_SOURCES);
 	const [sortMode, setSortMode] = useState<SidebarSortMode>("time");
-	const [sidebarContent, setSidebarContent] =
-		useState<SidebarContent>("sessions");
-	const [hasNewTodoTasks, setHasNewTodoTasks] = useState(false);
-	const knownAgendaTaskIdsRef = useRef<Set<string> | null>(null);
 	const [searchOpen, setSearchOpen] = useState(false);
-	const [searchQuery, setSearchQuery] = useState("");
 	const [showMoreCount, setShowMoreCount] = useState(
 		INITIAL_VISIBLE_THREAD_COUNT,
+	);
+	const [scheduledVisibleCount, setScheduledVisibleCount] = useState(
+		INITIAL_VISIBLE_THREAD_COUNT,
+	);
+	const [collapsedSections, setCollapsedSections] = useState<
+		Set<SessionCategory>
+	>(() => new Set());
+	// Drives the gradient fade under the Sessions header once the list is
+	// scrolled, so rows fade out instead of clipping against the header.
+	const [sessionListScrolled, setSessionListScrolled] = useState(false);
+	// The session-detail hover card is controlled from up here so scrolling
+	// the list can dismiss it (Radix gets no pointer events during scroll).
+	const [hoverCardThreadId, setHoverCardThreadId] = useState<string | null>(
+		null,
 	);
 	const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
 	const [editingTitle, setEditingTitle] = useState("");
@@ -315,38 +336,6 @@ export function AgentSidebar({
 	>({});
 	const [appVersion, setAppVersion] = useState<string | null>(null);
 	const [hubStatus, setHubStatus] = useState<HubStatus | null>(null);
-	const normalizedWorkspaceRoot = workspaceRoot?.trim() ?? "";
-	const agendaWorkspaceRoot =
-		normalizedWorkspaceRoot && !isChatWorkspacePath(normalizedWorkspaceRoot)
-			? normalizedWorkspaceRoot
-			: undefined;
-	const agenda = useAgendaTasks(
-		{
-			statuses: ["pending_approval", "approved", "in_progress", "failed"],
-			workspaceRoot: agendaWorkspaceRoot,
-			limit: 200,
-		},
-		view !== "settings",
-	);
-	const agendaAutomation = useAgendaAutomation(view !== "settings");
-
-	useEffect(() => {
-		if (view === "settings") {
-			knownAgendaTaskIdsRef.current = null;
-			return;
-		}
-		if (agenda.isLoading) return;
-		const currentTaskIds = new Set(agenda.tasks.map((task) => task.taskId));
-		const knownTaskIds = knownAgendaTaskIdsRef.current;
-		if (
-			knownTaskIds !== null &&
-			sidebarContent !== "agenda" &&
-			agenda.tasks.some((task) => !knownTaskIds.has(task.taskId))
-		) {
-			setHasNewTodoTasks(true);
-		}
-		knownAgendaTaskIdsRef.current = currentTaskIds;
-	}, [agenda.isLoading, agenda.tasks, sidebarContent, view]);
 
 	const loadProcessContext = useCallback(async () => {
 		try {
@@ -386,57 +375,17 @@ export function AgentSidebar({
 		void loadProcessContext();
 	}, [loadProcessContext]);
 
-	useEffect(() => {
-		if (isCollapsed && searchOpen) {
-			setSearchOpen(false);
-		}
-	}, [isCollapsed, searchOpen]);
-
 	const sourceOptions = useMemo(() => getSessionSources(threads), [threads]);
 	const filteredThreads = useMemo(() => {
-		let filtered = filterSessionsBySource(threads, sourceFilter);
-		if (searchQuery) {
-			const q = searchQuery.toLowerCase();
-			filtered = filtered.filter(
-				(t) =>
-					t.title.toLowerCase().includes(q) ||
-					t.codebase.toLowerCase().includes(q) ||
-					t.workspacePath.toLowerCase().includes(q),
-			);
+		const filtered = filterSessionsBySource(threads, sourceFilter);
+		if (filter === "Running") {
+			return filtered.filter((t) => t.status === "running");
 		}
-		switch (filter) {
-			case "Running":
-				return filtered.filter((t) => t.status === "running");
-			case "Schedules":
-				return filtered.filter((t) => t.isScheduled);
-			case "Favorites":
-				return filtered.filter((t) => t.pinned);
-			default:
-				return filtered;
-		}
-	}, [filter, searchQuery, sourceFilter, threads]);
+		return filtered;
+	}, [filter, sourceFilter, threads]);
 	const closeMobileSidebar = useCallback(() => {
 		if (isMobile) setOpenMobile(false);
 	}, [isMobile, setOpenMobile]);
-	const openAgendaSession = useCallback(
-		(task: AgendaTaskRecord) => {
-			if (!task.lastSessionId) return;
-			void onOpenSessionById?.(task.lastSessionId);
-			closeMobileSidebar();
-		},
-		[closeMobileSidebar, onOpenSessionById],
-	);
-	const runAgendaTask = useCallback(
-		async (task: AgendaTaskRecord) => {
-			try {
-				const started = await agenda.runTask(task);
-				if (started.lastSessionId) openAgendaSession(started);
-			} catch {
-				// The queue hook exposes the error inline and refreshes after recovery.
-			}
-		},
-		[agenda.runTask, openAgendaSession],
-	);
 
 	const openThread = useCallback(
 		(threadId: string) => {
@@ -446,10 +395,6 @@ export function AgentSidebar({
 		[closeMobileSidebar, openHistoryThread],
 	);
 
-	const openNewThread = useCallback(() => {
-		onNewThread?.();
-		closeMobileSidebar();
-	}, [closeMobileSidebar, onNewThread]);
 	const openHome = useCallback(() => {
 		onHome();
 		closeMobileSidebar();
@@ -458,10 +403,12 @@ export function AgentSidebar({
 		setView("sessions");
 		closeMobileSidebar();
 	}, [closeMobileSidebar, setView]);
+	// The gear is a shortcut to the General settings page rather than a
+	// resume-last-section toggle.
 	const openSettings = useCallback(() => {
-		setView("settings");
+		onSettingsSectionChange("General");
 		closeMobileSidebar();
-	}, [closeMobileSidebar, setView]);
+	}, [closeMobileSidebar, onSettingsSectionChange]);
 	const openSettingsSection = useCallback(
 		(section: SettingsSection) => {
 			onSettingsSectionChange(section);
@@ -475,12 +422,19 @@ export function AgentSidebar({
 	const navigateForward = useCallback(() => {
 		onNavigateForward?.();
 	}, [onNavigateForward]);
-	const toggleSidebarContent = useCallback(() => {
-		const next = sidebarContent === "agenda" ? "sessions" : "agenda";
-		setSidebarContent(next);
-		if (next === "agenda") setHasNewTodoTasks(false);
-		if (next === "agenda" && view === "settings") setView("chat");
-	}, [setView, sidebarContent, view]);
+	const openSearch = useCallback(() => {
+		setSearchOpen(true);
+		// The sidebar only pages in recent history; pull the rest so older
+		// sessions are searchable too.
+		void loadAllSessions();
+	}, [loadAllSessions]);
+	const openSearchResult = useCallback(
+		(threadId: string) => {
+			setSearchOpen(false);
+			openThread(threadId);
+		},
+		[openThread],
+	);
 
 	const startRenameThread = useCallback((thread: Thread) => {
 		setEditingSessionId(thread.id);
@@ -509,7 +463,7 @@ export function AgentSidebar({
 		[forkHistoryThread],
 	);
 
-	const toggleFavorite = useCallback(
+	const togglePinned = useCallback(
 		async (thread: Thread) => {
 			await setThreadPinned(thread.id, !thread.pinned);
 		},
@@ -532,25 +486,77 @@ export function AgentSidebar({
 		() => filteredThreads.filter((t) => t.pinned),
 		[filteredThreads],
 	);
-	const sessionThreads = useMemo(
-		() => filteredThreads.filter((t) => !t.pinned),
+	const scheduledThreads = useMemo(
+		() => filteredThreads.filter((t) => !t.pinned && t.isScheduled),
 		[filteredThreads],
 	);
-	const displayedThreads = useMemo(
-		() =>
-			filter === "All"
-				? [...pinnedThreads, ...sessionThreads.slice(0, showMoreCount)]
-				: [...pinnedThreads, ...sessionThreads].slice(0, showMoreCount),
-		[filter, pinnedThreads, sessionThreads, showMoreCount],
+	const taskThreads = useMemo(
+		() => filteredThreads.filter((t) => !t.pinned && !t.isScheduled),
+		[filteredThreads],
 	);
+	// Category headers only appear once there is something to categorize;
+	// a lone "Tasks" header over the whole list would be noise.
+	const showCategorySections =
+		pinnedThreads.length > 0 || scheduledThreads.length > 0;
 	const showTimeShowMore =
-		sessionThreads.length > showMoreCount ||
-		(filter === "All" && !searchQuery && mayHaveMoreSessions);
+		taskThreads.length > showMoreCount ||
+		(filter === "All" && mayHaveMoreSessions);
+	// A failed fetch leaves the task count and has-more state unchanged, which
+	// are exactly the conditions the page-fill effect fires on; without this
+	// halt it would retry a failing request (and re-toast the error) forever.
+	// The next explicit "Show more" click clears the halt to retry.
+	const pageFillFailedRef = useRef(false);
+	// A "Show more" click can outpace the loaded history: showMoreCount counts
+	// only Tasks rows while the backend limit counts all sessions, and a
+	// fetched batch can consist entirely of pinned or scheduled sessions. Keep
+	// growing the history window until the requested Tasks page fills or
+	// history runs out, so every click makes visible progress. The
+	// isLoadingMore dependency retriggers the check after each fetch settles.
+	useEffect(() => {
+		if (
+			sortMode !== "time" ||
+			filter !== "All" ||
+			isLoadingMore ||
+			!mayHaveMoreSessions ||
+			showMoreCount <= INITIAL_VISIBLE_THREAD_COUNT ||
+			taskThreads.length >= showMoreCount ||
+			pageFillFailedRef.current
+		) {
+			return;
+		}
+		void loadOlderSessions().then((loaded) => {
+			if (!loaded) {
+				pageFillFailedRef.current = true;
+			}
+		});
+	}, [
+		filter,
+		isLoadingMore,
+		loadOlderSessions,
+		mayHaveMoreSessions,
+		showMoreCount,
+		sortMode,
+		taskThreads.length,
+	]);
+	// Pinned threads lead the concatenation, and groupThreadsByProject keeps
+	// insertion order, so each project group reads pinned-by-recency first,
+	// then the rest by recency.
 	const projectGroups = useMemo(
-		() => groupThreadsByProject([...pinnedThreads, ...sessionThreads]),
-		[pinnedThreads, sessionThreads],
+		() =>
+			groupThreadsByProject([
+				...filteredThreads.filter((t) => t.pinned),
+				...filteredThreads.filter((t) => !t.pinned),
+			]),
+		[filteredThreads],
 	);
-
+	const toggleSection = useCallback((section: SessionCategory) => {
+		setCollapsedSections((current) => {
+			const next = new Set(current);
+			if (next.has(section)) next.delete(section);
+			else next.add(section);
+			return next;
+		});
+	}, []);
 	const toggleProject = useCallback((project: string) => {
 		setCollapsedProjects((current) => {
 			const next = new Set(current);
@@ -581,11 +587,12 @@ export function AgentSidebar({
 				</Button>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align="end" className="w-36">
-				<DropdownMenuLabel>Session type</DropdownMenuLabel>
+				<DropdownMenuLabel>Status</DropdownMenuLabel>
 				<DropdownMenuRadioGroup
 					onValueChange={(value) => {
 						setFilter(value as FilterOption);
 						setShowMoreCount(INITIAL_VISIBLE_THREAD_COUNT);
+						setScheduledVisibleCount(INITIAL_VISIBLE_THREAD_COUNT);
 						setProjectVisibleCounts({});
 					}}
 					value={filter}
@@ -604,6 +611,7 @@ export function AgentSidebar({
 							onValueChange={(value) => {
 								setSourceFilter(value);
 								setShowMoreCount(INITIAL_VISIBLE_THREAD_COUNT);
+								setScheduledVisibleCount(INITIAL_VISIBLE_THREAD_COUNT);
 								setProjectVisibleCounts({});
 							}}
 							value={sourceFilter}
@@ -622,46 +630,43 @@ export function AgentSidebar({
 			</DropdownMenuContent>
 		</DropdownMenu>
 	);
-	const sortMenu = (
-		<DropdownMenu>
-			<DropdownMenuTrigger asChild>
-				<Button
-					aria-label={`Sort sessions: ${sortMode === "time" ? "Time" : "Project"}`}
-					className="m-0! inline-flex size-8 items-center justify-center rounded-md p-0! text-muted-foreground hover:bg-surface-hover hover:text-sidebar-foreground"
-					size="icon"
-					title={sortMode === "time" ? "Sort by time" : "Sort by project"}
-					variant="ghost"
-				>
-					<ArrowDownUp className="size-3.5" />
-				</Button>
-			</DropdownMenuTrigger>
-			<DropdownMenuContent align="end" className="w-44">
-				<DropdownMenuRadioGroup
-					onValueChange={(value) => {
-						if (value === "time" || value === "project") {
-							setSortMode(value);
-						}
-					}}
-					value={sortMode}
-				>
-					<DropdownMenuRadioItem value="time">
-						<Clock3 className="size-4" />
-						Sort by time
-					</DropdownMenuRadioItem>
-					<DropdownMenuRadioItem value="project">
-						<FolderTree className="size-4" />
-						Sort by project
-					</DropdownMenuRadioItem>
-				</DropdownMenuRadioGroup>
-			</DropdownMenuContent>
-		</DropdownMenu>
+	// A single click flips straight to the other mode (a dropdown here would
+	// cost an extra click for a two-option choice); the icon shows the mode
+	// that is currently active.
+	const sortToggle = (
+		<Button
+			aria-label={`Sort sessions: ${sortMode === "time" ? "Time" : "Project"}`}
+			className="m-0! inline-flex size-8 items-center justify-center rounded-md p-0! text-muted-foreground hover:bg-surface-hover hover:text-sidebar-foreground"
+			onClick={() =>
+				setSortMode((current) => (current === "time" ? "project" : "time"))
+			}
+			size="icon"
+			title={
+				sortMode === "time"
+					? "Sorted by time — click to group by project"
+					: "Grouped by project — click to sort by time"
+			}
+			variant="ghost"
+		>
+			{sortMode === "time" ? (
+				<Clock3 className="size-3.5" />
+			) : (
+				<FolderTree className="size-3.5" />
+			)}
+		</Button>
 	);
 	const threadItem = (thread: Thread) => (
 		<ThreadItem
 			editTitle={editingTitle}
 			editing={editingSessionId === thread.id}
+			hoverCardOpen={hoverCardThreadId === thread.id}
 			isActive={activeThread === thread.id}
 			key={thread.id}
+			onHoverCardOpenChange={(open) =>
+				setHoverCardThreadId((current) =>
+					open ? thread.id : current === thread.id ? null : current,
+				)
+			}
 			onCancelRename={cancelRenameThread}
 			onClick={() => openThread(thread.id)}
 			onCommitRename={() => void commitRenameThread(thread)}
@@ -669,7 +674,7 @@ export function AgentSidebar({
 			onEditTitleChange={setEditingTitle}
 			onFork={() => void forkThread(thread)}
 			onRename={() => startRenameThread(thread)}
-			onToggleFavorite={() => void toggleFavorite(thread)}
+			onTogglePin={() => void togglePinned(thread)}
 			pendingAction={
 				pendingAction?.sessionId === thread.id ? pendingAction.action : null
 			}
@@ -677,7 +682,38 @@ export function AgentSidebar({
 			unread={unreadSessionIds.has(thread.id)}
 		/>
 	);
-
+	const customizeSectionOpen =
+		view === "settings" &&
+		(CUSTOMIZATION_SECTIONS as readonly SettingsSection[]).includes(
+			settingsSection,
+		);
+	const timeShowMoreButton = (
+		<Button
+			className="px-2!"
+			disabled={isLoadingMore}
+			onClick={() => {
+				// Raising the page size is enough: the page-fill effect fetches
+				// older history whenever loaded tasks cannot fill the page. An
+				// explicit click also retries after a failed fetch halted it.
+				pageFillFailedRef.current = false;
+				setShowMoreCount(showMoreCount + INITIAL_VISIBLE_THREAD_COUNT);
+			}}
+			type="button"
+			variant="sidebarText"
+		>
+			{isLoadingMore ? (
+				<>
+					<Loader2 className="size-3 animate-spin" />
+					Loading...
+				</>
+			) : (
+				<>
+					Show more
+					<ChevronDown className="size-3" />
+				</>
+			)}
+		</Button>
+	);
 	return (
 		<>
 			<div className="flex h-full min-h-0 w-full min-w-0 shrink-0 flex-col overflow-hidden bg-sidebar text-sidebar-foreground">
@@ -692,7 +728,7 @@ export function AgentSidebar({
 						<>
 							<Button
 								aria-label="Previous page"
-								className="size-7 text-muted-foreground hover:bg-surface-hover"
+								className="size-8 text-muted-foreground hover:bg-surface-hover hover:text-sidebar-foreground"
 								disabled={!canNavigateBack}
 								onClick={navigateBack}
 								size="icon"
@@ -700,11 +736,11 @@ export function AgentSidebar({
 								type="button"
 								variant="ghost"
 							>
-								<ChevronLeft className="size-4" />
+								<ArrowLeft className="size-4.5" />
 							</Button>
 							<Button
 								aria-label="Next page"
-								className="size-7 text-muted-foreground hover:text-sidebar-foreground"
+								className="size-8 text-muted-foreground hover:bg-surface-hover hover:text-sidebar-foreground"
 								disabled={!canNavigateForward}
 								onClick={navigateForward}
 								size="icon"
@@ -712,7 +748,7 @@ export function AgentSidebar({
 								type="button"
 								variant="ghost"
 							>
-								<ChevronRight className="size-4" />
+								<ArrowRight className="size-4.5" />
 							</Button>
 						</>
 					) : null}
@@ -751,6 +787,12 @@ export function AgentSidebar({
 							<HoverCardContent
 								align="start"
 								className="w-64 p-3"
+								// Clicking the trigger counts as a pointer-down outside the
+								// card, which dismisses it — and the button's focus event
+								// then reopens it, so the card flashes on every click.
+								// Suppress the dismissal; the card still closes on pointer
+								// leave like any hover card.
+								onPointerDownOutside={(event) => event.preventDefault()}
 								side="bottom"
 							>
 								<p className="text-sm font-medium">
@@ -796,43 +838,93 @@ export function AgentSidebar({
 					{!isCollapsed ? (
 						<div className="flex items-center gap-1">
 							<Button
-								aria-label={
-									sidebarContent === "agenda" ? "Show Sessions" : "Show Agenda"
-								}
-								aria-pressed={sidebarContent === "agenda"}
-								className={cn(
-									"relative size-8 shrink-0 justify-center px-0",
-									sidebarContent === "agenda" &&
-										"bg-surface-hover text-sidebar-foreground",
-								)}
-								onClick={toggleSidebarContent}
-								title={
-									sidebarContent === "agenda" ? "Show Sessions" : "Show Agenda"
-								}
-								type="button"
-								variant="sidebarItem"
-							>
-								<ClipboardList className="size-4" />
-								{hasNewTodoTasks ? (
-									<span
-										className="absolute right-1 top-1 size-1.5 rounded-full bg-primary"
-										data-testid="new-todo-indicator"
-									/>
-								) : null}
-							</Button>
-							<Button
-								aria-label="New Session"
+								aria-label="Search sessions"
 								className="size-8 shrink-0 justify-center px-0"
-								onClick={openNewThread}
-								title="New Session"
+								onClick={openSearch}
+								title="Search sessions"
 								type="button"
 								variant="sidebarItem"
 							>
-								<MessageSquarePlus className="size-4" />
+								<Search className="size-4" />
 							</Button>
 						</div>
 					) : null}
 				</div>
+
+				{!isCollapsed ? (
+					<nav
+						aria-label="Sidebar actions"
+						className="mt-1 flex shrink-0 flex-col gap-0.5 px-2"
+					>
+						<Button
+							aria-current={newTaskActive ? "page" : undefined}
+							aria-label="New"
+							className={cn(
+								newTaskActive && "bg-surface-hover text-sidebar-foreground",
+							)}
+							onClick={openHome}
+							title="Start a new task"
+							type="button"
+							variant="sidebarItem"
+						>
+							<Plus className="size-4 shrink-0" />
+							<span className="truncate">New</span>
+						</Button>
+						<Button
+							aria-label="Schedule"
+							className={cn(
+								view === "settings" &&
+									settingsSection === "Schedules" &&
+									"bg-surface-hover text-sidebar-foreground",
+							)}
+							onClick={() => openSettingsSection("Schedules")}
+							title="Schedules"
+							type="button"
+							variant="sidebarItem"
+						>
+							<Clock3 className="size-4 shrink-0" />
+							<span className="truncate">Schedule</span>
+						</Button>
+						<Button
+							aria-label="Customize"
+							className={cn(
+								customizeSectionOpen &&
+									"bg-surface-hover-lighter text-sidebar-foreground",
+							)}
+							onClick={() => openSettingsSection("Customize")}
+							title="Customize Cline with plugins, rules, and more"
+							type="button"
+							variant="sidebarItem"
+						>
+							<Blocks className="size-4 shrink-0" />
+							<span className="truncate">Customize</span>
+						</Button>
+						{customizeSectionOpen
+							? CUSTOMIZATION_SECTIONS.map((section) => (
+									<Button
+										aria-current={
+											settingsSection === section ? "page" : undefined
+										}
+										aria-label={settingsSectionLabel(section)}
+										className={cn(
+											"pl-8!",
+											settingsSection === section &&
+												"bg-surface-hover text-sidebar-foreground",
+										)}
+										key={section}
+										onClick={() => openSettingsSection(section)}
+										title={settingsSectionLabel(section)}
+										type="button"
+										variant="sidebarItem"
+									>
+										<span className="truncate">
+											{settingsSectionLabel(section)}
+										</span>
+									</Button>
+								))
+							: null}
+					</nav>
+				) : null}
 
 				{isCollapsed ? (
 					<div className="mt-2 flex min-h-0 flex-1 flex-col items-start gap-1 px-1.5">
@@ -863,36 +955,6 @@ export function AgentSidebar({
 							onSelect={openSettingsSection}
 						/>
 					</div>
-				) : sidebarContent === "agenda" ? (
-					<AgendaSection
-						automatic={
-							agendaAutomation.policy !== null &&
-							agendaAutomation.policy.mode !== "manual"
-						}
-						automationDisabled={
-							agendaAutomation.isLoading || agendaAutomation.isUpdating
-						}
-						error={agenda.error ?? agendaAutomation.error}
-						isLoading={agenda.isLoading}
-						onCreate={agenda.createTask}
-						onApprove={agenda.approveTask}
-						onCancel={(task) => {
-							return agenda.cancelTask(task).catch(() => undefined);
-						}}
-						onOpen={openAgendaSession}
-						onRun={(task) => void runAgendaTask(task)}
-						onToggleAutomation={() => {
-							void agendaAutomation
-								.setAutomatic(
-									agendaAutomation.policy?.mode !== "auto_start" &&
-										agendaAutomation.policy?.mode !== "unattended",
-								)
-								.catch(() => undefined);
-						}}
-						pendingTaskIds={agenda.pendingTaskIds}
-						tasks={agenda.tasks}
-						workspaceRoot={agendaWorkspaceRoot}
-					/>
 				) : (
 					<>
 						<div className="mt-5 shrink-0 pl-4 pr-2">
@@ -908,128 +970,152 @@ export function AgentSidebar({
 									{sortMode === "time" ? "Sessions" : "Projects"}
 								</button>
 								<div className="flex shrink-0 items-center gap-0.5">
-									<Button
-										aria-label="Search sessions"
-										className="m-0! size-8 p-0! text-muted-foreground hover:bg-surface-hover"
-										onClick={() => setSearchOpen((current) => !current)}
-										size="icon"
-										title="Search sessions"
-										type="button"
-										variant="ghost"
-									>
-										<Search className="size-3.5" />
-									</Button>
-									{sortMenu}
+									{sortToggle}
 									{filterMenu}
 								</div>
 							</div>
-							{searchOpen ? (
-								<div className="mt-1 flex min-w-0 items-center gap-2 overflow-hidden rounded-md border border-sidebar-border bg-background/70 px-2 py-1">
-									<Search className="size-4 shrink-0" />
-									<Input
-										className="h-7 min-w-0 flex-1 border-0 bg-transparent px-0 text-sm text-sidebar-foreground shadow-none outline-none placeholder:text-muted-foreground focus-visible:ring-0"
-										autoFocus={true}
-										onChange={(e) => setSearchQuery(e.target.value)}
-										placeholder="Search sessions..."
-										value={searchQuery}
-									/>
-								</div>
-							) : null}
 						</div>
 
-						<div className="mt-1 min-h-0 w-full flex-1">
-							<ScrollArea className="h-full min-h-0 w-full min-w-0">
+						<div className="relative mt-1 min-h-0 w-full flex-1">
+							<div
+								aria-hidden="true"
+								className={cn(
+									"pointer-events-none absolute inset-x-0 top-0 z-10 h-8 bg-gradient-to-b from-sidebar via-sidebar/70 to-transparent transition-opacity duration-200",
+									sessionListScrolled ? "opacity-100" : "opacity-0",
+								)}
+							/>
+							<ScrollArea
+								className="h-full min-h-0 w-full min-w-0"
+								onScrollCapture={(event) => {
+									const target = event.target as HTMLElement | null;
+									if (target?.dataset.slot === "scroll-area-viewport") {
+										setSessionListScrolled(target.scrollTop > 0);
+									}
+									setHoverCardThreadId(null);
+								}}
+							>
 								<div className="flex min-w-0 flex-col gap-0.5 pb-3 px-2">
 									{/* Empty-state copy is reserved for a definitive zero-
 									    session answer from the backend: before the first
 									    response (or while a failed fetch is being retried)
 									    "No sessions found" would read as lost history. */}
 									{!hasLoadedHistory && threads.length === 0 ? (
-										<div className="p-4 text-xs text-muted-foreground">
+										<div className="p-4 text-sm text-muted-foreground">
 											Loading session history...
 										</div>
 									) : (
 										<>
-											{sortMode === "time"
-												? displayedThreads.map(threadItem)
-												: projectGroups.map((project) => {
-														const visibleCount =
-															projectVisibleCounts[project.id] ??
-															INITIAL_VISIBLE_THREAD_COUNT;
-														return (
-															<ProjectSection
-																collapsed={collapsedProjects.has(project.id)}
-																key={project.id}
-																label={project.label}
-																onToggle={() => toggleProject(project.id)}
+											{sortMode === "time" ? (
+												showCategorySections ? (
+													<>
+														{pinnedThreads.length > 0 ? (
+															<CategorySection
+																collapsed={collapsedSections.has("pinned")}
+																count={pinnedThreads.length}
+																label="Pinned"
+																onToggle={() => toggleSection("pinned")}
 															>
-																{project.threads
-																	.slice(0, visibleCount)
+																{pinnedThreads.map(threadItem)}
+															</CategorySection>
+														) : null}
+														{scheduledThreads.length > 0 ? (
+															<CategorySection
+																collapsed={collapsedSections.has("scheduled")}
+																count={scheduledThreads.length}
+																label="Scheduled"
+																onToggle={() => toggleSection("scheduled")}
+															>
+																{scheduledThreads
+																	.slice(0, scheduledVisibleCount)
 																	.map(threadItem)}
-																{project.threads.length > visibleCount ? (
+																{scheduledThreads.length >
+																scheduledVisibleCount ? (
 																	<Button
-																		className="pl-2!"
+																		className="px-2!"
 																		onClick={() =>
-																			showMoreForProject(project.id)
+																			setScheduledVisibleCount(
+																				(current) =>
+																					current +
+																					INITIAL_VISIBLE_THREAD_COUNT,
+																			)
 																		}
 																		type="button"
 																		variant="sidebarText"
 																	>
-																		Show more in {project.label}
+																		Show more
 																		<ChevronDown className="size-3" />
 																	</Button>
 																) : null}
-															</ProjectSection>
-														);
-													})}
+															</CategorySection>
+														) : null}
+														{taskThreads.length > 0 || showTimeShowMore ? (
+															<CategorySection
+																collapsed={collapsedSections.has("tasks")}
+																count={taskThreads.length}
+																label="Tasks"
+																onToggle={() => toggleSection("tasks")}
+															>
+																{taskThreads
+																	.slice(0, showMoreCount)
+																	.map(threadItem)}
+																{showTimeShowMore ? timeShowMoreButton : null}
+															</CategorySection>
+														) : null}
+													</>
+												) : (
+													taskThreads.slice(0, showMoreCount).map(threadItem)
+												)
+											) : (
+												projectGroups.map((project) => {
+													const visibleCount =
+														projectVisibleCounts[project.id] ??
+														INITIAL_VISIBLE_THREAD_COUNT;
+													return (
+														<ProjectSection
+															collapsed={collapsedProjects.has(project.id)}
+															key={project.id}
+															label={project.label}
+															onToggle={() => toggleProject(project.id)}
+														>
+															{project.threads
+																.slice(0, visibleCount)
+																.map(threadItem)}
+															{project.threads.length > visibleCount ? (
+																<Button
+																	className="max-w-full pl-2!"
+																	onClick={() => showMoreForProject(project.id)}
+																	type="button"
+																	variant="sidebarText"
+																>
+																	<span className="min-w-0 truncate">
+																		Show more in {project.label}
+																	</span>
+																	<ChevronDown className="size-3" />
+																</Button>
+															) : null}
+														</ProjectSection>
+													);
+												})
+											)}
 
 											{(sortMode === "time"
-												? displayedThreads.length === 0
+												? filteredThreads.length === 0
 												: projectGroups.length === 0) && (
-												<div className="px-2 py-4 text-xs text-muted-foreground">
-													{searchQuery
-														? "No sessions match your search."
-														: "No sessions found in history."}
+												<div className="px-2 py-4 text-sm text-muted-foreground">
+													No sessions found in history.
 												</div>
 											)}
 										</>
 									)}
-									{sortMode === "time" && showTimeShowMore && (
-										<Button
-											// `pl-0!`: the default button size adds
-											// `has-[>svg]:px-3`, and that modifier beats a plain
-											// `pl-0` on specificity, so the icon child was
-											// re-indenting the row.
-											className="pl-0!"
-											disabled={isLoadingMore}
-											onClick={() => {
-												const nextCount =
-													showMoreCount + INITIAL_VISIBLE_THREAD_COUNT;
-												setShowMoreCount(nextCount);
-												void loadMoreSessions(nextCount);
-											}}
-											type="button"
-											variant="sidebarText"
-										>
-											{isLoadingMore ? (
-												<>
-													<Loader2 className="size-3 animate-spin" />
-													Loading...
-												</>
-											) : (
-												<div className="ml-2 flex items-center gap-1">
-													Show more
-													<ChevronDown className="size-3" />
-												</div>
-											)}
-										</Button>
-									)}
+									{sortMode === "time" &&
+										!showCategorySections &&
+										showTimeShowMore &&
+										timeShowMoreButton}
 									{sortMode === "project" &&
 										filter === "All" &&
-										!searchQuery &&
 										mayHaveMoreSessions && (
 											<Button
-												className="pl-0!"
+												className="px-2!"
 												disabled={isLoadingMore}
 												onClick={() => void loadOlderSessions()}
 												type="button"
@@ -1038,11 +1124,11 @@ export function AgentSidebar({
 												{isLoadingMore ? (
 													<>
 														<Loader2 className="size-3 animate-spin" />
-														Loading older projects...
+														Loading...
 													</>
 												) : (
 													<>
-														Load older projects
+														Show more
 														<ChevronDown className="size-3" />
 													</>
 												)}
@@ -1093,11 +1179,8 @@ export function AgentSidebar({
 								className={cn(
 									"size-9 shrink-0 justify-center px-0",
 									view === "settings" &&
-										(settingsSection !== "Account"
-											? "bg-surface-hover text-sidebar-foreground"
-											: // Clicking the gear is a no-op while the Account (profile)
-												// screen is open, so don't hint interactivity on hover.
-												"hover:bg-transparent hover:text-muted-foreground"),
+										settingsSection !== "Account" &&
+										"bg-surface-hover text-sidebar-foreground",
 								)}
 								onClick={openSettings}
 								title="Settings"
@@ -1127,6 +1210,35 @@ export function AgentSidebar({
 					)}
 				</div>
 			</div>
+			<CommandDialog
+				description="Search sessions by title, project, or path"
+				onOpenChange={setSearchOpen}
+				open={searchOpen}
+				title="Search sessions"
+			>
+				<CommandInput placeholder="Search sessions..." />
+				<CommandList>
+					<CommandEmpty>
+						{isLoadingMore
+							? "Searching older sessions..."
+							: "No sessions found."}
+					</CommandEmpty>
+					{threads.map((thread) => (
+						<CommandItem
+							key={thread.id}
+							onSelect={() => openSearchResult(thread.id)}
+							value={`${normalizeTitle(thread.title)} ${thread.codebase} ${thread.workspacePath} ${thread.id}`}
+						>
+							<span className="min-w-0 flex-1 truncate">
+								{normalizeTitle(thread.title)}
+							</span>
+							<span className="shrink-0 text-xs text-muted-foreground">
+								{thread.time}
+							</span>
+						</CommandItem>
+					))}
+				</CommandList>
+			</CommandDialog>
 			<AlertDialog
 				open={deleteConfirmThread !== null}
 				onOpenChange={(open) => {
@@ -1176,418 +1288,43 @@ export function AgentSidebar({
 	);
 }
 
-function AgendaSection({
-	tasks,
-	workspaceRoot,
-	isLoading,
-	error,
-	pendingTaskIds,
-	automatic,
-	automationDisabled,
-	onApprove,
-	onRun,
-	onOpen,
-	onCancel,
-	onToggleAutomation,
-	onCreate,
-}: {
-	tasks: AgendaTaskRecord[];
-	workspaceRoot?: string;
-	isLoading: boolean;
-	error: string | null;
-	pendingTaskIds: ReadonlySet<string>;
-	automatic: boolean;
-	automationDisabled: boolean;
-	onApprove: (task: AgendaTaskRecord) => Promise<AgendaTaskRecord>;
-	onRun: (task: AgendaTaskRecord) => void;
-	onOpen: (task: AgendaTaskRecord) => void;
-	onCancel: (task: AgendaTaskRecord) => void | Promise<void>;
-	onToggleAutomation: () => void;
-	onCreate: (input: HubTaskCreateInput) => Promise<AgendaTaskRecord>;
-}) {
-	const [createOpen, setCreateOpen] = useState(false);
-	const [reviewTask, setReviewTask] = useState<AgendaTaskRecord | null>(null);
-	const [creating, setCreating] = useState(false);
-	const [title, setTitle] = useState("");
-	const [instructions, setInstructions] = useState("");
-	const [type, setType] = useState<AgendaTaskType>("todo");
-	const [priority, setPriority] = useState<AgendaTaskPriority>(3);
-	const [scope, setScope] = useState<"workspace" | "global">(
-		workspaceRoot ? "workspace" : "global",
-	);
-	const [expiresAt, setExpiresAt] = useState(() =>
-		new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 16),
-	);
-	const resetCreateForm = () => {
-		setTitle("");
-		setInstructions("");
-		setType("todo");
-		setPriority(3);
-		setScope(workspaceRoot ? "workspace" : "global");
-		setExpiresAt(
-			new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 16),
-		);
-	};
-	const submitCreate = async () => {
-		const normalizedTitle = title.trim();
-		const normalizedInstructions = instructions.trim();
-		if (!normalizedTitle || !normalizedInstructions || !expiresAt) return;
-		const expiration = new Date(expiresAt);
-		if (Number.isNaN(expiration.getTime())) return;
-		setCreating(true);
-		try {
-			const rememberedModel = readModelSelectionStorageFromWindow();
-			const providerId = rememberedModel.lastProvider.trim();
-			const modelId = providerId
-				? rememberedModel.lastModelByProvider[providerId]?.trim()
-				: undefined;
-			await onCreate({
-				type,
-				title: normalizedTitle,
-				instructions: normalizedInstructions,
-				scope: scope === "workspace" && workspaceRoot ? "workspace" : "global",
-				workspaceRoot:
-					scope === "workspace" && workspaceRoot ? workspaceRoot : undefined,
-				priority,
-				modelSelection: providerId
-					? { providerId, ...(modelId ? { modelId } : {}) }
-					: undefined,
-				expiresAt: expiration.toISOString(),
-				automationEligible: true,
-			});
-			setCreateOpen(false);
-			resetCreateForm();
-		} catch {
-			// The Agenda hook surfaces the manager's structured error inline.
-		} finally {
-			setCreating(false);
-		}
-	};
-	return (
-		<section
-			aria-label="Agenda"
-			className="mt-4 flex min-h-0 flex-1 flex-col px-2"
-		>
-			<div className="flex h-8 items-center justify-between px-2">
-				<span className="text-sm font-medium text-muted-foreground">Todo</span>
-				<div className="flex items-center">
-					<Button
-						aria-label={
-							automatic ? "Pause Agenda automation" : "Automate Agenda"
-						}
-						aria-pressed={automatic}
-						className={cn(
-							"size-7 p-0 text-muted-foreground",
-							automatic && "text-emerald-500",
-						)}
-						disabled={automationDisabled}
-						onClick={onToggleAutomation}
-						title={
-							automatic
-								? "Auto mode: click to switch to manual"
-								: "Manual mode: click to automate eligible trusted work"
-						}
-						type="button"
-						variant="ghost"
-					>
-						{automationDisabled ? (
-							<Loader2 className="size-3.5 animate-spin" />
-						) : (
-							<Zap className={cn("size-3.5", automatic && "fill-current")} />
-						)}
-					</Button>
-					<Dialog
-						onOpenChange={(open) => {
-							setCreateOpen(open);
-							if (open) setScope(workspaceRoot ? "workspace" : "global");
-						}}
-						open={createOpen}
-					>
-						<DialogTrigger asChild>
-							<Button
-								aria-label="Create Todo item"
-								className="size-7 p-0 text-muted-foreground"
-								title="Create task"
-								type="button"
-								variant="ghost"
-							>
-								<Plus className="size-3.5" />
-							</Button>
-						</DialogTrigger>
-						<DialogContent className="sm:max-w-md">
-							<DialogHeader>
-								<DialogTitle>Create Todo Item</DialogTitle>
-							</DialogHeader>
-							<div className="space-y-3">
-								<label
-									className="block space-y-1 text-xs"
-									htmlFor="agenda-task-title"
-								>
-									<span className="text-muted-foreground">Title</span>
-									<Input
-										autoFocus
-										id="agenda-task-title"
-										onChange={(event) => setTitle(event.target.value)}
-										placeholder="What needs attention?"
-										value={title}
-									/>
-								</label>
-								<label
-									className="block space-y-1 text-xs"
-									htmlFor="agenda-task-instructions"
-								>
-									<span className="text-muted-foreground">Instructions</span>
-									<Textarea
-										id="agenda-task-instructions"
-										onChange={(event) => setInstructions(event.target.value)}
-										placeholder="Describe the outcome and any relevant files."
-										rows={4}
-										value={instructions}
-									/>
-								</label>
-								<div className="grid grid-cols-3 gap-2">
-									<label className="space-y-1 text-xs">
-										<span className="text-muted-foreground">Type</span>
-										<select
-											className="h-9 w-full rounded-md border border-input bg-background px-2"
-											onChange={(event) =>
-												setType(event.target.value as AgendaTaskType)
-											}
-											value={type}
-										>
-											{[
-												"todo",
-												"follow-up",
-												"suggestion",
-												"handoff",
-												"idea",
-												"reminder",
-											].map((value) => (
-												<option key={value} value={value}>
-													{value}
-												</option>
-											))}
-										</select>
-									</label>
-									<label className="space-y-1 text-xs">
-										<span className="text-muted-foreground">Priority</span>
-										<select
-											className="h-9 w-full rounded-md border border-input bg-background px-2"
-											onChange={(event) =>
-												setPriority(
-													Number(event.target.value) as AgendaTaskPriority,
-												)
-											}
-											value={priority}
-										>
-											{[0, 1, 2, 3, 4, 5].map((value) => (
-												<option key={value} value={value}>
-													P{value}
-												</option>
-											))}
-										</select>
-									</label>
-									<label className="space-y-1 text-xs">
-										<span className="text-muted-foreground">Scope</span>
-										<select
-											className="h-9 w-full rounded-md border border-input bg-background px-2"
-											onChange={(event) =>
-												setScope(event.target.value as "workspace" | "global")
-											}
-											value={scope}
-										>
-											{workspaceRoot ? (
-												<option value="workspace">Project</option>
-											) : null}
-											<option value="global">General</option>
-										</select>
-									</label>
-								</div>
-								<label
-									className="block space-y-1 text-xs"
-									htmlFor="agenda-task-expires-at"
-								>
-									<span className="text-muted-foreground">Expires</span>
-									<Input
-										id="agenda-task-expires-at"
-										onChange={(event) => setExpiresAt(event.target.value)}
-										type="datetime-local"
-										value={expiresAt}
-									/>
-								</label>
-							</div>
-							<DialogFooter>
-								<Button
-									disabled={
-										creating ||
-										!title.trim() ||
-										!instructions.trim() ||
-										!expiresAt
-									}
-									onClick={() => void submitCreate()}
-									type="button"
-								>
-									{creating ? (
-										<Loader2 className="size-4 animate-spin" />
-									) : null}
-									Add to Agenda
-								</Button>
-							</DialogFooter>
-						</DialogContent>
-					</Dialog>
-				</div>
-			</div>
-			{/* Radix ScrollArea wraps its children in a display:table element. A long
-			    task title can therefore widen the table beyond the sidebar and push the
-			    action buttons off-screen, so this fixed-width list uses native scrolling. */}
-			<div className="min-h-0 w-full min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain">
-				<div className="w-full min-w-0 max-w-full space-y-1">
-					{isLoading && tasks.length === 0 ? (
-						<div className="flex items-center gap-2 px-2 py-2 text-xs text-muted-foreground">
-							<Loader2 className="size-3 animate-spin" />
-							Loading Agenda…
-						</div>
-					) : null}
-					{tasks.map((task) => {
-						const pending = pendingTaskIds.has(task.taskId);
-						const requiresFileReview =
-							task.updatedBy.kind === "system" &&
-							task.updatedBy.id === "file_reconciler" &&
-							task.status === "pending_approval";
-						const canOpen = Boolean(task.lastSessionId);
-						const canRun =
-							task.status === "approved" || task.status === "failed";
-						const taskWorkspaceName =
-							task.scope === "workspace"
-								? workspaceDisplayName(task.workspaceRoot ?? task.cwd ?? "") ||
-									"Workspace"
-								: "General";
-						return (
-							<div
-								className="group flex w-full min-w-0 max-w-full flex-col items-stretch overflow-hidden rounded-md px-2 py-1.5 hover:bg-surface-hover"
-								key={task.taskId}
-								title={
-									requiresFileReview
-										? "File-created or edited tasks always require manual review."
-										: task.description || task.instructions
-								}
-							>
-								<button
-									className="w-full min-w-0 overflow-hidden text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
-									onClick={() => setReviewTask(task)}
-									type="button"
-								>
-									<span className="block truncate text-xs text-sidebar-foreground">
-										{task.title}
-									</span>
-								</button>
-								<div className="flex min-w-0 items-center justify-between">
-									<span className="min-w-0 truncate text-[10px] capitalize text-muted-foreground">
-										{taskWorkspaceName}
-										{task.status !== "pending_approval"
-											? ` · ${task.status.replace("_", " ")}`
-											: ""}
-										{requiresFileReview ? " · file review" : ""}
-									</span>
-									<div className="flex shrink-0 items-center">
-										{pending ? (
-											<Loader2 className="mx-1 size-3 animate-spin text-muted-foreground" />
-										) : task.status === "pending_approval" ? (
-											<AgendaIconButton
-												className="text-emerald-500! hover:text-emerald-400!"
-												icon={<Check className="size-3" />}
-												label={`Approve ${task.title}`}
-												onClick={() => setReviewTask(task)}
-											/>
-										) : canRun ? (
-											<AgendaIconButton
-												icon={<Play className="size-3 fill-current" />}
-												label={`Run ${task.title}`}
-												onClick={() => onRun(task)}
-											/>
-										) : canOpen ? (
-											<AgendaIconButton
-												icon={<ChevronRight className="size-3" />}
-												label={`Open session for ${task.title}`}
-												onClick={() => onOpen(task)}
-											/>
-										) : null}
-										{!pending ? (
-											<AgendaIconButton
-												className="text-destructive! hover:text-destructive!"
-												icon={<X className="size-3" />}
-												label={`Cancel ${task.title}`}
-												onClick={() => onCancel(task)}
-											/>
-										) : null}
-									</div>
-								</div>
-							</div>
-						);
-					})}
-					{!isLoading && tasks.length === 0 && !error ? (
-						<p className="px-2 py-1 text-[11px] text-muted-foreground">
-							Nothing waiting for review.
-						</p>
-					) : null}
-					{error ? (
-						<p
-							className="truncate px-2 py-1 text-[11px] text-destructive"
-							title={error}
-						>
-							{error}
-						</p>
-					) : null}
-				</div>
-			</div>
-			<AgendaTaskReviewDialog
-				onConfirm={async (task) => {
-					try {
-						await onApprove(task);
-						setReviewTask(null);
-					} catch {
-						// The Agenda hook keeps the manager error visible in this section.
-					}
-				}}
-				onOpenChange={(open) => {
-					if (!open) setReviewTask(null);
-				}}
-				onReject={async (task) => {
-					await onCancel(task);
-					setReviewTask(null);
-				}}
-				open={reviewTask !== null}
-				pending={reviewTask ? pendingTaskIds.has(reviewTask.taskId) : false}
-				task={reviewTask}
-			/>
-		</section>
-	);
-}
-
-function AgendaIconButton({
-	className,
-	icon,
+function CategorySection({
 	label,
-	onClick,
+	count,
+	collapsed,
+	onToggle,
+	children,
 }: {
-	className?: string;
-	icon: ReactNode;
 	label: string;
-	onClick: () => void;
+	count: number;
+	collapsed: boolean;
+	onToggle: () => void;
+	children: ReactNode;
 }) {
 	return (
-		<button
-			aria-label={label}
-			className={cn(
-				"flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-background/70 hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
-				className,
-			)}
-			onClick={onClick}
-			title={label}
-			type="button"
-		>
-			{icon}
-		</button>
+		<div className="mb-1 min-w-0">
+			<button
+				aria-expanded={!collapsed}
+				className="flex h-8 w-full min-w-0 items-center gap-1.5 rounded-md px-1 text-left text-sm font-medium text-sidebar-foreground hover:bg-surface-hover-lighter focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+				onClick={onToggle}
+				title={label}
+				type="button"
+			>
+				<ChevronDown
+					className={cn(
+						"size-3.5 shrink-0 transition-transform",
+						collapsed && "-rotate-90",
+					)}
+				/>
+				<span className="block min-w-0 truncate">{label}</span>
+				<span className="ml-auto pr-1 text-xs tabular-nums text-muted-foreground">
+					{count}
+				</span>
+			</button>
+			{!collapsed ? (
+				<div className="flex min-w-0 flex-col gap-0.5">{children}</div>
+			) : null}
+		</div>
 	);
 }
 
@@ -1628,13 +1365,15 @@ function ThreadItem({
 	thread,
 	editTitle,
 	editing,
+	hoverCardOpen,
 	isActive,
 	onClick,
+	onHoverCardOpenChange,
 	onCancelRename,
 	onCommitRename,
 	onEditTitleChange,
 	onRename,
-	onToggleFavorite,
+	onTogglePin,
 	onFork,
 	onDelete,
 	pendingAction,
@@ -1643,13 +1382,15 @@ function ThreadItem({
 	thread: Thread;
 	editTitle: string;
 	editing: boolean;
+	hoverCardOpen: boolean;
 	isActive: boolean;
 	onClick: () => void;
+	onHoverCardOpenChange: (open: boolean) => void;
 	onCancelRename: () => void;
 	onCommitRename: () => void;
 	onEditTitleChange: (title: string) => void;
 	onRename: () => void;
-	onToggleFavorite: () => void;
+	onTogglePin: () => void;
 	onFork: () => void;
 	onDelete: () => void;
 	pendingAction: "rename" | "fork" | "delete" | null;
@@ -1693,44 +1434,83 @@ function ThreadItem({
 
 	return (
 		<ContextMenu>
-			<HoverCard openDelay={0} closeDelay={100}>
+			<HoverCard
+				closeDelay={100}
+				onOpenChange={onHoverCardOpenChange}
+				open={hoverCardOpen}
+				openDelay={0}
+			>
 				<ContextMenuTrigger asChild>
 					<HoverCardTrigger asChild>
-						<button
-							className={cn(
-								"group grid h-8 w-full max-w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-1 overflow-hidden rounded-md px-2 text-left text-sm font-normal",
-								isActive
-									? "bg-surface-hover text-sidebar-foreground"
-									: "text-sidebar-foreground/80 hover:bg-surface-hover",
-							)}
-							disabled={pending}
-							onClick={onClick}
-							type="button"
-						>
-							<span className="block max-w-full min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-sm font-normal leading-tight">
-								{title}
-							</span>
-							<span className="flex shrink-0 items-center gap-1.5 text-[11px] text-muted-foreground">
-								{thread.pinned ? (
-									<Star
-										aria-label="Favorited"
-										className="size-3 fill-current"
-									/>
-								) : statusDotClass ? (
-									<span
-										aria-hidden="true"
-										className={cn("size-1.5 rounded-full", statusDotClass)}
-									/>
-								) : null}
-								<span>{thread.time}</span>
-							</span>
-						</button>
+						{/* The delete affordance is a sibling of the row button
+						    (buttons cannot nest), overlaid where the timestamp
+						    sits; group/row hover swaps the two and keeps the
+						    row's hover background while the pointer is on the
+						    trash button. */}
+						<div className="group/row relative min-w-0">
+							<button
+								className={cn(
+									"group grid h-8 w-full max-w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-1 overflow-hidden rounded-md px-2 text-left text-sm font-normal",
+									isActive
+										? "bg-surface-hover text-sidebar-foreground"
+										: "text-sidebar-foreground/80 group-hover/row:bg-surface-hover",
+								)}
+								disabled={pending}
+								onClick={onClick}
+								type="button"
+							>
+								<span className="flex max-w-full min-w-0 items-center gap-1.5 overflow-hidden">
+									{thread.isScheduled ? (
+										<Clock3
+											aria-label="Scheduled"
+											className="size-3 shrink-0 text-muted-foreground"
+										/>
+									) : null}
+									<span className="block min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-sm font-normal leading-tight">
+										{title}
+									</span>
+								</span>
+								<span className="flex shrink-0 items-center gap-1.5 text-sm text-muted-foreground">
+									{statusDotClass ? (
+										<span
+											aria-hidden="true"
+											className={cn("size-1.5 rounded-full", statusDotClass)}
+										/>
+									) : null}
+									{thread.pinned ? (
+										<Pin aria-label="Pinned" className="size-3 fill-current" />
+									) : null}
+									<span className="group-hover/row:invisible">
+										{thread.time}
+									</span>
+								</span>
+							</button>
+							<Button
+								aria-label={`Delete ${title}`}
+								className="absolute top-1/2 right-1 size-6 -translate-y-1/2 justify-center px-0 text-muted-foreground opacity-0 group-hover/row:opacity-100 hover:text-destructive focus-visible:opacity-100"
+								disabled={pending}
+								onClick={(event) => {
+									event.stopPropagation();
+									onDelete();
+								}}
+								size="icon"
+								title="Delete session"
+								type="button"
+								variant="ghost"
+							>
+								<Trash2 className="size-3.5" />
+							</Button>
+						</div>
 					</HoverCardTrigger>
 				</ContextMenuTrigger>
 				<HoverCardContent
 					align="start"
 					avoidCollisions={false}
 					className="w-72 p-3"
+					// Same flash-on-click suppression as the logo hover card: a
+					// click on the row is a pointer-down outside the card, and the
+					// dismiss + refocus cycle makes the card blink.
+					onPointerDownOutside={(event) => event.preventDefault()}
 					side="right"
 					sideOffset={8}
 				>
@@ -1755,12 +1535,12 @@ function ThreadItem({
 				</HoverCardContent>
 			</HoverCard>
 			<SessionContextMenuContent
-				favorited={Boolean(thread.pinned)}
 				onDelete={onDelete}
 				onFork={onFork}
 				onRename={onRename}
-				onToggleFavorite={onToggleFavorite}
+				onTogglePin={onTogglePin}
 				pendingAction={pendingAction}
+				pinned={Boolean(thread.pinned)}
 			/>
 		</ContextMenu>
 	);
@@ -1847,16 +1627,16 @@ function EditableSessionTitle({
 }
 
 function SessionContextMenuContent({
-	favorited,
+	pinned,
 	onRename,
-	onToggleFavorite,
+	onTogglePin,
 	onFork,
 	onDelete,
 	pendingAction,
 }: {
-	favorited: boolean;
+	pinned: boolean;
 	onRename: () => void;
-	onToggleFavorite: () => void;
+	onTogglePin: () => void;
 	onFork: () => void;
 	onDelete: () => void;
 	pendingAction: "rename" | "fork" | "delete" | null;
@@ -1864,9 +1644,9 @@ function SessionContextMenuContent({
 	const pending = pendingAction !== null;
 	return (
 		<ContextMenuContent className="w-40">
-			<ContextMenuItem disabled={pending} onSelect={onToggleFavorite}>
-				<Star className={cn("size-4", favorited && "fill-current")} />
-				{favorited ? "Unfavorite" : "Favorite"}
+			<ContextMenuItem disabled={pending} onSelect={onTogglePin}>
+				<Pin className={cn("size-4", pinned && "fill-current")} />
+				{pinned ? "Unpin" : "Pin"}
 			</ContextMenuItem>
 			<ContextMenuItem disabled={pending} onSelect={onRename}>
 				{pendingAction === "rename" ? (

@@ -2603,6 +2603,11 @@ export class LocalRuntimeHost implements RuntimeHost {
 		});
 	}
 
+	// The emitted snapshot is a state notification (status, usage, workspace,
+	// checkpoint) and deliberately omits the transcript: emitStatus fires this
+	// on every status flip, so including messages would re-read and broadcast
+	// the entire conversation each time. Consumers that need messages read
+	// them explicitly via readSessionMessages / the session.messages command.
 	private async emitSessionSnapshot(sessionId: string): Promise<void> {
 		const session = await this.getSession(sessionId);
 		if (!session) return;
@@ -2612,7 +2617,6 @@ export class LocalRuntimeHost implements RuntimeHost {
 				sessionId,
 				snapshot: createCoreSessionSnapshot({
 					session,
-					messages: await this.readSessionMessages(sessionId),
 					usage: this.usageBySession.get(sessionId),
 					aggregateUsage: this.aggregateUsageBySession.get(sessionId),
 				}),

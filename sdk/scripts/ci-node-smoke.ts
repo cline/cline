@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 
-import { mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -88,6 +88,13 @@ async function main(): Promise<void> {
 			shared: await packWorkspace("shared", packDir),
 		};
 
+		// Carry the repo root's dependency overrides into the sandbox so a broken
+		// third-party release that the root already pins around (e.g. the
+		// @sap-cloud-sdk 4.9.0 exports breakage) can't fail the smoke install.
+		const rootPackageJson = JSON.parse(
+			await readFile(join(root, "..", "package.json"), "utf8"),
+		) as { overrides?: Record<string, unknown> };
+
 		await writeFile(
 			join(smokeDir, "package.json"),
 			`${JSON.stringify(
@@ -101,6 +108,9 @@ async function main(): Promise<void> {
 						"@cline/llms": `file:${tarballs.llms}`,
 						"@cline/shared": `file:${tarballs.shared}`,
 					},
+					...(rootPackageJson.overrides
+						? { overrides: rootPackageJson.overrides }
+						: {}),
 				},
 				null,
 				2,
