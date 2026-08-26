@@ -390,6 +390,7 @@ export class Controller {
 				})
 			},
 			onDidBecomeIdle: () => this.handleSessionBecameIdle(),
+			isAutoRetryPending: () => this.autoRetryPending,
 			getRemoteConfigIntegration: () => this.remoteConfigCoreIntegration,
 			foregroundCommands: this.foregroundCommands,
 			getTerminalManager: () => {
@@ -477,6 +478,7 @@ export class Controller {
 						// coordinator's emitRetryScheduled callback surfaces the
 						// "retrying in Ns" message; we still emit the error text so the
 						// user can see what failed.
+						this.autoRetryPending = true
 						this.turnStateTracker.set("streaming")
 						this.messages.emitSessionEvents(
 							[
@@ -1332,6 +1334,9 @@ export class Controller {
 		historyItem?: HistoryItem,
 		taskSettings?: Partial<Settings>,
 	): Promise<string | undefined> {
+		// A new task supersedes any pending connection-error retry from a prior task.
+		this.autoRetryPending = false
+		this.apiRetry?.cancel()
 		// Fire-and-forget: ensure we have the latest remote config (enterprise
 		// policies like allowedMCPServers, provider lockdown, etc.) without
 		// blocking the UI.
@@ -1344,6 +1349,8 @@ export class Controller {
 	}
 
 	async reinitExistingTaskFromId(taskId: string): Promise<void> {
+		this.autoRetryPending = false
+		this.apiRetry?.cancel()
 		this.turnStateTracker.set("streaming")
 		this.messageTranslatorState.clearTurnOutcome()
 		await this.taskStart.reinitExistingTaskFromId(taskId)

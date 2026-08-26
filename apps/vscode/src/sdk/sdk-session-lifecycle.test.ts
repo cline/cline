@@ -228,6 +228,48 @@ describe("SdkSessionLifecycle", () => {
 		expect(lifecycle.getActiveSession()?.isRunning).toBe(false)
 	})
 
+	it("keeps the session running after a resolved send when an auto-retry is pending", async () => {
+		const onSendComplete = vi.fn()
+		const sdkHost = makeSdkHost({ send: vi.fn().mockResolvedValue(undefined) })
+		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
+		const lifecycle = makeLifecycle({
+			onSendComplete,
+			isAutoRetryPending: () => true,
+		})
+		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
+		await lifecycle.startNewSession({} as any)
+
+		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
+		lifecycle.fireAndForgetSend(sdkHost as any, "session-123", "hello")
+		await vi.waitFor(() => expect(onSendComplete).toHaveBeenCalledWith("session-123"))
+
+		// A connection-level error (e.g. ETIMEDOUT) was intercepted for
+		// auto-retry — send() resolved normally, but the turn did NOT succeed.
+		// The session must stay running so the retry's askResponse() re-sends.
+		expect(lifecycle.getActiveSession()?.isRunning).toBe(true)
+	})
+
+	it("keeps the session running after a rejected send when an auto-retry is pending", async () => {
+		const onSendError = vi.fn()
+		const error = new Error("boom")
+		const sdkHost = makeSdkHost({ send: vi.fn().mockRejectedValue(error) })
+		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
+		const lifecycle = makeLifecycle({
+			onSendError,
+			isAutoRetryPending: () => true,
+		})
+		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
+		await lifecycle.startNewSession({} as any)
+
+		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
+		lifecycle.fireAndForgetSend(sdkHost as any, "session-123", "hello")
+		await vi.waitFor(() => expect(onSendError).toHaveBeenCalledWith(error, "session-123"))
+
+		// onSendError scheduled an auto-retry; the session must stay running
+		// so the retry fires against the same session.
+		expect(lifecycle.getActiveSession()?.isRunning).toBe(true)
+	})
+
 	it("skips completion bookkeeping when the session was replaced before the send settled", async () => {
 		const onSendComplete = vi.fn()
 		let resolveSend: () => void = () => {}
