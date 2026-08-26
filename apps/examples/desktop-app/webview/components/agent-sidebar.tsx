@@ -1442,41 +1442,65 @@ function ThreadItem({
 			>
 				<ContextMenuTrigger asChild>
 					<HoverCardTrigger asChild>
-						<button
-							className={cn(
-								"group grid h-8 w-full max-w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-1 overflow-hidden rounded-md px-2 text-left text-sm font-normal",
-								isActive
-									? "bg-surface-hover text-sidebar-foreground"
-									: "text-sidebar-foreground/80 hover:bg-surface-hover",
-							)}
-							disabled={pending}
-							onClick={onClick}
-							type="button"
-						>
-							<span className="flex max-w-full min-w-0 items-center gap-1.5 overflow-hidden">
-								{thread.isScheduled ? (
-									<Clock3
-										aria-label="Scheduled"
-										className="size-3 shrink-0 text-muted-foreground"
-									/>
-								) : null}
-								<span className="block min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-sm font-normal leading-tight">
-									{title}
+						{/* The delete affordance is a sibling of the row button
+						    (buttons cannot nest), overlaid where the timestamp
+						    sits; group/row hover swaps the two and keeps the
+						    row's hover background while the pointer is on the
+						    trash button. */}
+						<div className="group/row relative min-w-0">
+							<button
+								className={cn(
+									"group grid h-8 w-full max-w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-1 overflow-hidden rounded-md px-2 text-left text-sm font-normal",
+									isActive
+										? "bg-surface-hover text-sidebar-foreground"
+										: "text-sidebar-foreground/80 group-hover/row:bg-surface-hover",
+								)}
+								disabled={pending}
+								onClick={onClick}
+								type="button"
+							>
+								<span className="flex max-w-full min-w-0 items-center gap-1.5 overflow-hidden">
+									{thread.isScheduled ? (
+										<Clock3
+											aria-label="Scheduled"
+											className="size-3 shrink-0 text-muted-foreground"
+										/>
+									) : null}
+									<span className="block min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-sm font-normal leading-tight">
+										{title}
+									</span>
 								</span>
-							</span>
-							<span className="flex shrink-0 items-center gap-1.5 text-sm text-muted-foreground">
-								{statusDotClass ? (
-									<span
-										aria-hidden="true"
-										className={cn("size-1.5 rounded-full", statusDotClass)}
-									/>
-								) : null}
-								{thread.pinned ? (
-									<Pin aria-label="Pinned" className="size-3 fill-current" />
-								) : null}
-								<span>{thread.time}</span>
-							</span>
-						</button>
+								<span className="flex shrink-0 items-center gap-1.5 text-sm text-muted-foreground">
+									{statusDotClass ? (
+										<span
+											aria-hidden="true"
+											className={cn("size-1.5 rounded-full", statusDotClass)}
+										/>
+									) : null}
+									{thread.pinned ? (
+										<Pin aria-label="Pinned" className="size-3 fill-current" />
+									) : null}
+									<span className="group-hover/row:invisible">
+										{thread.time}
+									</span>
+								</span>
+							</button>
+							<Button
+								aria-label={`Delete ${title}`}
+								className="absolute top-1/2 right-1 size-6 -translate-y-1/2 justify-center px-0 text-muted-foreground opacity-0 group-hover/row:opacity-100 hover:text-destructive focus-visible:opacity-100"
+								disabled={pending}
+								onClick={(event) => {
+									event.stopPropagation();
+									onDelete();
+								}}
+								size="icon"
+								title="Delete session"
+								type="button"
+								variant="ghost"
+							>
+								<Trash2 className="size-3.5" />
+							</Button>
+						</div>
 					</HoverCardTrigger>
 				</ContextMenuTrigger>
 				<HoverCardContent

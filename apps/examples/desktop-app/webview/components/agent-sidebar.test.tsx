@@ -319,6 +319,48 @@ describe("AgentSidebar session organization", () => {
 		expect(sessionIsVisible("gamma session 1")).toBe(true);
 	});
 
+	it("deletes a session through the row's hover trash button", async () => {
+		const deleteThread = vi.fn(async () => undefined);
+		const sessionHistory = makeSessionHistory([makeThread("alpha", 1)], vi.fn());
+		(sessionHistory as { deleteThread: unknown }).deleteThread = deleteThread;
+
+		await act(async () => {
+			root.render(
+				<SidebarProvider>
+					<AgentSidebar
+						activeSessionId={null}
+						onHome={vi.fn()}
+						onSettingsSectionChange={vi.fn()}
+						sessionHistory={sessionHistory}
+						setView={vi.fn()}
+						settingsSection="General"
+						view="chat"
+					/>
+				</SidebarProvider>,
+			);
+		});
+
+		// The trash affordance is a sibling of the row button (buttons cannot
+		// nest) and opens the same confirmation dialog as the context menu.
+		const deleteButton = container.querySelector<HTMLButtonElement>(
+			'[aria-label="Delete alpha session 1"]',
+		);
+		expect(deleteButton).not.toBeNull();
+		expect(deleteButton?.closest("button")).toBe(deleteButton);
+		await click(deleteButton as HTMLButtonElement);
+
+		const confirm = await vi.waitFor(() => {
+			const button = [...document.body.querySelectorAll("button")].find(
+				(candidate) => candidate.textContent === "Delete",
+			);
+			expect(button).toBeDefined();
+			return button as HTMLButtonElement;
+		});
+		expect(document.body.textContent).toContain("Delete session?");
+		await click(confirm);
+		expect(deleteThread).toHaveBeenCalledWith("alpha-1");
+	});
+
 	it("pins sessions to the top of their project group in project sort", async () => {
 		const pinned = { ...makeThread("alpha", 3), pinned: true };
 		const threads = [makeThread("alpha", 1), makeThread("alpha", 2), pinned];
