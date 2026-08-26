@@ -275,36 +275,18 @@ impl DesktopBackendState {
             *guard = true;
         }
 
-        if let Ok(endpoint_guard) = self.ws_endpoint.lock() {
-            if let Some(endpoint) = endpoint_guard.as_ref() {
-                request_desktop_backend_shutdown(endpoint);
-            }
-        }
-
         if let Ok(mut process_guard) = self.process.lock() {
             if let Some(child) = process_guard.as_mut() {
-                // The sidecar bounds its own graceful shutdown with
-                // SHUTDOWN_TIMEOUT_MS (5s in sidecar/index.ts) and then exits
-                // itself; wait past that window before escalating to kill so
-                // an active session can finish persisting.
-                for _ in 0..70 {
-                    match child.try_wait() {
-                        Ok(Some(_)) => break,
-                        Ok(None) => thread::sleep(Duration::from_millis(100)),
-                        Err(_) => break,
-                    }
-                }
-                match child.try_wait() {
-                    Ok(Some(_)) => {}
-                    Ok(None) => {
-                        let _ = child.kill();
-                        let _ = child.wait();
-                    }
-                    Err(_) => {
-                        let _ = child.kill();
-                        let _ = child.wait();
-                    }
-                }
+                // Quit runs this on the main thread (on macOS inside
+                // applicationWillTerminate:, where blocking beach-balls the
+                // app), so signal the sidecar and return without waiting.
+                // SIGTERM triggers its own bounded graceful shutdown
+                // (SHUTDOWN_TIMEOUT_MS in sidecar/index.ts), after which it
+                // exits itself, finishing session persistence as an orphan.
+                #[cfg(unix)]
+                let _ = Command::new("kill").arg(child.id().to_string()).status();
+                #[cfg(not(unix))]
+                let _ = child.kill();
             }
             *process_guard = None;
         }
@@ -350,51 +332,6 @@ fn resolve_workspace_root(launch_cwd: &str) -> String {
             }
         }
         _ => launch_cwd.to_string(),
-    }
-}
-
-fn request_desktop_backend_shutdown(endpoint: &str) {
-    let trimmed = endpoint.trim();
-    if trimmed.is_empty() {
-        return;
-    }
-    let base = trimmed.strip_suffix('/').unwrap_or(trimmed);
-    let url = format!("{base}/shutdown");
-    let timeout_seconds = "2";
-
-    #[cfg(target_os = "windows")]
-    {
-        let _ = Command::new("powershell")
-            .args([
-                "-NoProfile",
-                "-Command",
-                &format!(
-                    "try {{ Invoke-WebRequest -UseBasicParsing -Method Post -Uri '{}' -TimeoutSec {} | Out-Null }} catch {{ }}",
-                    url.replace('\'', "''"),
-                    timeout_seconds
-                ),
-            ])
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status();
-    }
-
-    #[cfg(not(target_os = "windows"))]
-    {
-        let _ = Command::new("curl")
-            .args([
-                "-fsS",
-                "--connect-timeout",
-                timeout_seconds,
-                "--max-time",
-                timeout_seconds,
-                "-X",
-                "POST",
-                &url,
-            ])
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status();
     }
 }
 
