@@ -1,4 +1,8 @@
-import { createSessionId } from "@cline/shared/browser";
+import {
+	createSessionId,
+	type GeneratedMedia,
+	isGeneratedMedia,
+} from "@cline/shared/browser";
 import type {
 	ChatMessage,
 	ChatSessionConfig,
@@ -58,9 +62,17 @@ export function extractAssistantTurnDataFromRpcMessages(messages: unknown): {
 	text: string;
 	reasoning: string;
 	reasoningRedacted: boolean;
+	images: Array<{ data: string; mediaType: string }>;
+	media: GeneratedMedia[];
 } {
 	if (!Array.isArray(messages)) {
-		return { text: "", reasoning: "", reasoningRedacted: false };
+		return {
+			text: "",
+			reasoning: "",
+			reasoningRedacted: false,
+			images: [],
+			media: [],
+		};
 	}
 	for (let i = messages.length - 1; i >= 0; i -= 1) {
 		const message = messages[i] as RpcMessageLike;
@@ -68,6 +80,8 @@ export function extractAssistantTurnDataFromRpcMessages(messages: unknown): {
 			continue;
 		}
 		const reasoningParts: string[] = [];
+		const images: Array<{ data: string; mediaType: string }> = [];
+		const media: GeneratedMedia[] = [];
 		let reasoningRedacted = false;
 		if (Array.isArray(message.content)) {
 			for (const block of message.content) {
@@ -85,6 +99,18 @@ export function extractAssistantTurnDataFromRpcMessages(messages: unknown): {
 				}
 				if (obj.type === "redacted_thinking") {
 					reasoningRedacted = true;
+					continue;
+				}
+				if (
+					obj.type === "image" &&
+					typeof obj.data === "string" &&
+					typeof obj.mediaType === "string"
+				) {
+					images.push({ data: obj.data, mediaType: obj.mediaType });
+					continue;
+				}
+				if (obj.type === "media" && isGeneratedMedia(obj.media)) {
+					media.push(obj.media);
 				}
 			}
 		}
@@ -92,9 +118,17 @@ export function extractAssistantTurnDataFromRpcMessages(messages: unknown): {
 			text: stringifyRpcMessageContent(message.content).trim(),
 			reasoning: reasoningParts.join("\n").trim(),
 			reasoningRedacted,
+			images,
+			media,
 		};
 	}
-	return { text: "", reasoning: "", reasoningRedacted: false };
+	return {
+		text: "",
+		reasoning: "",
+		reasoningRedacted: false,
+		images: [],
+		media: [],
+	};
 }
 
 export function buildToolPayloadString(options: {
@@ -186,4 +220,17 @@ export function inferHydratedChatStatus(
 		}
 	}
 	return mapHistoryStatusToChatStatus(fallback);
+}
+
+/**
+ * The session record's status mapped verbatim — no transcript inference. For
+ * callers observing a session whose record is actively maintained by the
+ * executing host (the stale-stream poll), the record is the authority;
+ * inferHydratedChatStatus's stale-record heuristic would misread a mid-run
+ * snapshot that happens to end on assistant narration as a finished session.
+ */
+export function mapSessionRecordStatus(
+	status: SessionHistoryStatus,
+): ChatSessionStatus {
+	return mapHistoryStatusToChatStatus(status);
 }

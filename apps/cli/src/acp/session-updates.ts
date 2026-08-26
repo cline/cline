@@ -4,6 +4,7 @@ import type {
 	SessionUpdate,
 } from "@agentclientprotocol/sdk";
 import type { AgentEvent } from "@cline/core";
+import type { GeneratedMedia } from "@cline/shared";
 import { getErrorMessage } from "@cline/shared";
 import { buildToolTitle, mapToolKind } from "./tool-utils";
 
@@ -100,6 +101,7 @@ function translateContentEnd(
 		output?: unknown;
 		error?: string;
 		durationMs?: number;
+		media?: GeneratedMedia;
 	};
 
 	switch (e.contentType) {
@@ -109,6 +111,29 @@ function translateContentEnd(
 		case "reasoning":
 			// Reasoning was already streamed via content_start chunks; don't re-send.
 			return [];
+		case "media":
+			if (!e.media) return [];
+			if (e.media.modality !== "image" || e.media.source.type !== "base64") {
+				return [
+					{
+						sessionUpdate: "agent_message_chunk",
+						content: {
+							type: "text",
+							text: `[Generated ${e.media.modality}: ${e.media.mediaType}]`,
+						},
+					},
+				];
+			}
+			return [
+				{
+					sessionUpdate: "agent_message_chunk",
+					content: {
+						type: "image",
+						data: e.media.source.data,
+						mimeType: e.media.mediaType,
+					},
+				},
+			];
 		case "tool": {
 			const toolCallId = e.toolCallId ?? "unknown";
 			const failed = !!e.error;

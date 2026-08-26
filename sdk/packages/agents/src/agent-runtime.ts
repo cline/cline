@@ -13,6 +13,7 @@ import type {
 	AgentModelEvent,
 	AgentModelFinishReason,
 	AgentModelRequest,
+	AgentModelToolActivity,
 	AgentRunResult,
 	AgentRuntimeEvent,
 	AgentRuntimeHooks,
@@ -328,6 +329,38 @@ function cloneUsage(usage: AgentUsage): AgentUsage {
 	return { ...usage };
 }
 
+const HOOK_ATTRIBUTE_ESCAPES: Record<string, string> = {
+	_: "__",
+	'"': "_q_",
+	"<": "_lt_",
+	">": "_gt_",
+};
+
+function sanitizeHookAttribute(value: string): string {
+	// The underscore escapes itself, which makes the encoding injective
+	// (uniquely decodable escape code): no two distinct ids can collapse to
+	// the same sanitized stamp.
+	return value.replace(/[_"<>]/g, (char) => HOOK_ATTRIBUTE_ESCAPES[char]);
+}
+
+function formatHookContextBlock(
+	source: "PreToolUse" | "PostToolUse",
+	toolCall: AgentToolCallPart,
+	text: string,
+): string {
+	// Tool identity keeps each block attributable to its call: contexts are
+	// batched into one message after the tool results, and parallel tool
+	// execution collects them in completion order, so position alone cannot
+	// identify the tool. Attribute values are sanitized and embedded
+	// hook_context tags (opening and closing) neutralized so neither
+	// provider-supplied ids nor hook output can corrupt or spoof the block
+	// markup.
+	const toolName = sanitizeHookAttribute(toolCall.toolName);
+	const toolCallId = sanitizeHookAttribute(toolCall.toolCallId);
+	const body = text.trim().replace(/<(\/?)hook_context/gi, "<\\$1hook_context");
+	return `<hook_context source="${source}" tool_name="${toolName}" tool_call_id="${toolCallId}">\n${body}\n</hook_context>`;
+}
+
 function cloneMessages(messages: readonly AgentMessage[]): AgentMessage[] {
 	return messages.map((message) => ({
 		...message,
@@ -447,6 +480,13 @@ export class AgentRuntime {
 		afterTool: [],
 		onEvent: [],
 	};
+	/**
+	 * `appendContext` blocks collected from beforeTool/afterTool hooks during
+	 * the current iteration's tool executions, flushed as one user message
+	 * after the tool results so tool-result parts stay contiguous for
+	 * providers that require them first in the following turn.
+	 */
+	private pendingHookContexts: string[] = [];
 	private readonly state = {
 		agentId: "",
 		agentRole: undefined as string | undefined,
@@ -702,11 +742,22 @@ export class AgentRuntime {
 					throw this.normalizeAbortError();
 				}
 				if (message.content.length === 0) {
-					throw new Error(
-						finishReason === "error"
-							? (this.state.lastError ?? "Model stream failed")
-							: "Model returned empty response",
-					);
+					if (finishReason === "error") {
+						throw new Error(this.state.lastError ?? "Model stream failed");
+					}
+					// Provider-executed tool activity lives in message metadata, not
+					// content (projecting it into content would replay tool_use blocks
+					// the model never gets results for). A turn that is only such
+					// activity is not empty: keep the message so the transcript and
+					// display projection retain it. Replay stays safe — the codec
+					// renders empty content as its placeholder text block.
+					const modelToolActivities = message.metadata?.modelToolActivities;
+					const hasModelToolActivity =
+						Array.isArray(modelToolActivities) &&
+						modelToolActivities.length > 0;
+					if (!hasModelToolActivity) {
+						throw new Error("Model returned empty response");
+					}
 				}
 				const toolCalls = message.content.filter(
 					(part: AgentMessagePart): part is AgentToolCallPart =>
@@ -769,6 +820,24 @@ export class AgentRuntime {
 						type: "message-added",
 						snapshot: this.snapshot(),
 						message: toolMessage,
+					});
+				}
+				if (this.pendingHookContexts.length > 0) {
+					const hookContextText = this.pendingHookContexts.join("\n\n");
+					this.pendingHookContexts = [];
+					// displayRole "system" keeps the injected block out of user-facing
+					// transcripts (live and replayed) while it still reaches the model,
+					// mirroring how compaction summaries are handled.
+					const hookContextMessage = createMessage(
+						"user",
+						[{ type: "text", text: hookContextText }],
+						{ userRunSpan: 0, displayRole: "system" },
+					);
+					this.state.messages.push(hookContextMessage);
+					await this.emit({
+						type: "message-added",
+						snapshot: this.snapshot(),
+						message: hookContextMessage,
 					});
 				}
 				await this.emit({
@@ -956,6 +1025,10 @@ export class AgentRuntime {
 	}> {
 		const usageBeforeModel = cloneUsage(this.state.usage);
 		const modelRequestMetadata = omitUndefinedValues({
+			distinctId: trimNonEmpty(this.config.distinctId),
+			clientName: trimNonEmpty(this.config.clientName),
+			clientVersion: trimNonEmpty(this.config.clientVersion),
+			clineCoreVersion: trimNonEmpty(this.config.clineCoreVersion),
 			sessionId: trimNonEmpty(this.config.sessionId),
 			agentId: this.state.agentId,
 			conversationId: trimNonEmpty(this.config.conversationId),
@@ -970,6 +1043,7 @@ export class AgentRuntime {
 				description: tool.description,
 				inputSchema: tool.inputSchema,
 			})),
+			modelTools: this.config.modelTools,
 			signal: this.abortController?.signal,
 			options: mergeModelOptions(this.config.modelOptions, {
 				metadata: modelRequestMetadata,
@@ -1043,6 +1117,7 @@ export class AgentRuntime {
 
 		const content: AgentMessagePart[] = [];
 		const toolAssemblies = new Map<string, PendingToolAssembly>();
+		const modelToolActivities = new Map<string, AgentModelToolActivity>();
 		const invalidToolCalls: InvalidToolCall[] = [];
 		const sequence: Array<
 			{ type: "tool"; key: string } | { type: "part"; part: AgentMessagePart }
@@ -1072,6 +1147,22 @@ export class AgentRuntime {
 						iteration: this.state.iteration,
 						text: event.text,
 						accumulatedText,
+					});
+					break;
+				}
+				case "media": {
+					sequence.push({
+						type: "part",
+						part: {
+							type: "media",
+							media: event.media,
+						},
+					});
+					await this.emit({
+						type: "assistant-media",
+						snapshot: this.snapshot(),
+						iteration: this.state.iteration,
+						media: event.media,
 					});
 					break;
 				}
@@ -1105,6 +1196,29 @@ export class AgentRuntime {
 					break;
 				}
 				case "tool-call-delta": {
+					if (event.execution) {
+						const toolCall: AgentToolCallPart = {
+							type: "tool-call",
+							toolCallId: event.toolCallId ?? createUID("model_tool"),
+							toolName: event.toolName ?? "tool",
+							input: event.input,
+							metadata: event.metadata,
+							execution: event.execution,
+						};
+						modelToolActivities.set(toolCall.toolCallId, {
+							toolCallId: toolCall.toolCallId,
+							toolName: toolCall.toolName,
+							execution: event.execution,
+							input: toolCall.input,
+						});
+						await this.emit({
+							type: "tool-started",
+							snapshot: this.snapshot(),
+							iteration: this.state.iteration,
+							toolCall,
+						});
+						break;
+					}
 					const key =
 						event.toolCallId ?? `tool_${event.index ?? nextToolIndex}`;
 					if (event.index == null && event.toolCallId == null) {
@@ -1142,25 +1256,40 @@ export class AgentRuntime {
 					}
 					break;
 				}
-				case "file": {
-					// Model-generated file output. Preserved into the assistant
-					// message so a file-only turn is not treated as empty:
-					// images become image parts (the shape providers accept on
-					// resend); other media becomes a file part carrying the
-					// base64 payload.
-					sequence.push({
-						type: "part",
-						part: event.mediaType.startsWith("image/")
-							? {
-									type: "image",
-									image: event.data,
-									mediaType: event.mediaType,
-								}
-							: {
-									type: "file",
-									path: `model-generated-file-${sequence.length + 1}`,
-									content: event.data,
-								},
+				case "tool-result": {
+					const existing = modelToolActivities.get(event.toolCallId);
+					const activity = {
+						...existing,
+						toolCallId: event.toolCallId,
+						toolName: event.toolName,
+						execution: event.execution,
+						input: event.input === undefined ? existing?.input : event.input,
+						output: event.output,
+						isError: event.isError,
+					};
+					modelToolActivities.set(event.toolCallId, activity);
+					const toolCall: AgentToolCallPart = {
+						type: "tool-call",
+						toolCallId: event.toolCallId,
+						toolName: event.toolName,
+						input: activity.input,
+						execution: event.execution,
+					};
+					await this.emit({
+						type: "tool-finished",
+						snapshot: this.snapshot(),
+						iteration: this.state.iteration,
+						toolCall,
+						message: createMessage("tool", [
+							{
+								type: "tool-result",
+								toolCallId: event.toolCallId,
+								toolName: event.toolName,
+								output: event.output,
+								isError: event.isError,
+								execution: event.execution,
+							},
+						]),
 					});
 					break;
 				}
@@ -1223,10 +1352,17 @@ export class AgentRuntime {
 			});
 		}
 
+		const messageMetadata: Record<string, unknown> = {};
+		if (invalidToolCalls.length > 0) {
+			messageMetadata.invalidToolCalls = invalidToolCalls;
+		}
+		if (modelToolActivities.size > 0) {
+			messageMetadata.modelToolActivities = [...modelToolActivities.values()];
+		}
 		const message = createMessage(
 			"assistant",
 			content,
-			invalidToolCalls.length > 0 ? { invalidToolCalls } : undefined,
+			Object.keys(messageMetadata).length > 0 ? messageMetadata : undefined,
 		);
 		const metrics = usageDelta(usageBeforeModel, this.state.usage);
 		if (metrics) {
@@ -1493,6 +1629,7 @@ export class AgentRuntime {
 	private async executeToolCalls(
 		toolCalls: AgentToolCallPart[],
 	): Promise<AgentMessage[]> {
+		this.pendingHookContexts = [];
 		const prepared: PreparedToolExecution[] = [];
 		for (const toolCall of toolCalls) {
 			prepared.push(await this.prepareToolExecution(toolCall));
@@ -1585,6 +1722,15 @@ export class AgentRuntime {
 						...policyOverride,
 						...result.policy,
 					};
+				}
+				if (result?.appendContext?.trim()) {
+					this.pendingHookContexts.push(
+						formatHookContextBlock(
+							"PreToolUse",
+							toolCall,
+							result.appendContext,
+						),
+					);
 				}
 				this.applyStopControl(result);
 				if (result?.skip) {
@@ -1733,6 +1879,15 @@ export class AgentRuntime {
 					endedAt,
 					durationMs,
 				})) as AgentAfterToolResult | undefined;
+				if (after?.appendContext?.trim()) {
+					this.pendingHookContexts.push(
+						formatHookContextBlock(
+							"PostToolUse",
+							prepared.toolCall,
+							after.appendContext,
+						),
+					);
+				}
 				this.applyStopControl(after);
 				if (after?.result) {
 					result = after.result;
@@ -1861,10 +2016,22 @@ export class AgentRuntime {
 				this.config.logger?.debug?.("Agent event", metadata);
 				break;
 		}
-		this.config.telemetry?.capture({
-			event: `agent.${event.type}`,
-			properties: metadata as TelemetryProperties,
-		});
+		switch (event.type) {
+			// Per-token/per-chunk stream events are ~97% of agent.* telemetry
+			// volume and are never queried, so they are not mirrored to
+			// telemetry. Listeners and hooks below still receive them.
+			case "assistant-text-delta":
+			case "assistant-reasoning-delta":
+			case "assistant-media":
+			case "tool-updated":
+				break;
+			default:
+				this.config.telemetry?.capture({
+					event: `agent.${event.type}`,
+					properties: metadata as TelemetryProperties,
+				});
+				break;
+		}
 		for (const listener of this.listeners) {
 			listener(event);
 		}

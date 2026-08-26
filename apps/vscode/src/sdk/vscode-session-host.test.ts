@@ -130,6 +130,33 @@ describe("VscodeSessionHost telemetry wiring", () => {
 		expect(capabilities.toolExecutors).toBeUndefined()
 	})
 
+	it("waits for policy readiness before selecting and applying remote config", async () => {
+		const events: string[] = []
+		const beforeStartSession = vi.fn(async () => {
+			events.push("ready")
+		})
+		const applyToStartSessionInput = vi.fn(async (input: ClineCoreStartInput) => {
+			events.push("apply")
+			return input
+		})
+		await VscodeSessionHost.create({
+			// biome-ignore lint/suspicious/noExplicitAny: focused host unit test
+			mcpHub: {} as any,
+			beforeStartSession,
+			getRemoteConfigIntegration: () =>
+				({
+					applyToStartSessionInput,
+					dispose: vi.fn(),
+				}) as never,
+		})
+
+		const prepare = mockClineCoreCreate.mock.calls[0][0].prepare
+		const bootstrap = await prepare()
+		await bootstrap.applyToStartSessionInput({ config: { cwd: "/workspace" } })
+
+		expect(events).toEqual(["ready", "apply"])
+	})
+
 	it("applies remote config before appending VS Code extra tools", async () => {
 		mockCreateVscodeExtraTools.mockResolvedValueOnce([{ name: "vscode-tool" }] as never)
 		const applyToStartSessionInput = vi.fn(async (input: ClineCoreStartInput) => ({
@@ -163,6 +190,54 @@ describe("VscodeSessionHost telemetry wiring", () => {
 		expect(result.source).toBe("vscode")
 		expect(result.config.extensions).toEqual([{ name: "remote-config" }])
 		expect(result.config.extraTools).toEqual([{ name: "remote-tool" }, { name: "vscode-tool" }])
+	})
+
+	it("runs the session gate and remote-config integration on a checkpoint restore with a replacement session", async () => {
+		const events: string[] = []
+		const innerRestore = vi.fn(async (_input: unknown) => ({ checkpoint: {} }))
+		mockClineCoreCreate.mockResolvedValue({ runtimeAddress: undefined, restore: innerRestore })
+		const host = await VscodeSessionHost.create({
+			// biome-ignore lint/suspicious/noExplicitAny: focused host unit test
+			mcpHub: {} as any,
+			beforeStartSession: async () => {
+				events.push("gate")
+			},
+			getRemoteConfigIntegration: () =>
+				({
+					applyToStartSessionInput: (input: ClineCoreStartInput) => {
+						events.push("integration")
+						return input
+					},
+				}) as never,
+		})
+
+		await host.restore({
+			sessionId: "session-1",
+			checkpointRunCount: 1,
+			start: { config: { cwd: "/workspace", extraTools: [] } } as never,
+		})
+
+		// The gate must resolve before the integration is read; ClineCore.restore
+		// does not run the prepare hook, so the host must apply it itself.
+		expect(events).toEqual(["gate", "integration"])
+		const restoredInput = innerRestore.mock.calls[0][0] as { start: ClineCoreStartInput }
+		expect(restoredInput.start.source).toBe("vscode")
+	})
+
+	it("does not gate a workspace-only restore that starts no replacement session", async () => {
+		const innerRestore = vi.fn(async () => ({ checkpoint: {} }))
+		const beforeStartSession = vi.fn()
+		mockClineCoreCreate.mockResolvedValue({ runtimeAddress: undefined, restore: innerRestore })
+		const host = await VscodeSessionHost.create({
+			// biome-ignore lint/suspicious/noExplicitAny: focused host unit test
+			mcpHub: {} as any,
+			beforeStartSession,
+		})
+
+		await host.restore({ sessionId: "session-1", checkpointRunCount: 1 })
+
+		expect(beforeStartSession).not.toHaveBeenCalled()
+		expect(innerRestore).toHaveBeenCalledWith({ sessionId: "session-1", checkpointRunCount: 1 })
 	})
 })
 

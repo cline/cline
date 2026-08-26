@@ -9,6 +9,7 @@ import {
 	createSessionCompactionState,
 	createUserInstructionConfigService,
 	getCoreBuiltinToolCatalog,
+	isSkillsToolAvailable,
 	projectSessionCompactionState,
 	readGlobalSettings,
 	type SessionCompactionState,
@@ -18,7 +19,7 @@ import {
 	splitCoreSessionConfig,
 	trimMessagesBeforeUserRun,
 } from "@cline/core";
-import type { Message } from "@cline/llms";
+import type { MessageWithMetadata } from "@cline/llms";
 import { buildClineSystemPrompt, formatUserCommandBlock } from "@cline/shared";
 import {
 	deleteMaterializedAttachments,
@@ -28,6 +29,7 @@ import {
 } from "./attachments";
 import { emitChunk, nowMs, sendEvent } from "./context";
 import { readSessionManifest, sharedSessionDataDir } from "./paths";
+import { persistSessionMessages } from "./session-data/messages";
 import type {
 	ChatSessionCommandRequest,
 	JsonRecord,
@@ -100,15 +102,21 @@ const BUILTIN_SLASH_COMMAND_NAMES = new Set(["fork", "team"]);
 
 /**
  * Expand a leading `/skill` or `/workflow` token into its configured
- * instructions before dispatching the prompt, mirroring the CLI's
- * `buildUserInputMessage`. Returns the prompt unchanged when it is not a
- * slash command, the token is a built-in, no command matches, or command
- * discovery fails.
+ * instructions before dispatching the prompt. Skill commands pass through as
+ * typed whenever the session registers the runtime's `skills` tool (its
+ * description requires the model to invoke it on slash-command references),
+ * so the instructions reach the model as a tool result instead of being
+ * pasted into the user message — where the transcript would render them as
+ * if the user had typed the whole skill body. Workflows, and skills in
+ * configurations without the tool (e.g. yolo mode), keep textual expansion.
+ * Returns the prompt unchanged when it is not a slash command, the token is
+ * a built-in, no command matches, or command discovery fails.
  */
 async function expandRuntimeSlashCommand(
 	ctx: SidecarContext,
 	workspacePath: string | undefined,
 	prompt: string,
+	mode?: unknown,
 ): Promise<string> {
 	if (!prompt.startsWith("/") || prompt.length < 2) {
 		return prompt;
@@ -124,7 +132,12 @@ async function expandRuntimeSlashCommand(
 	});
 	try {
 		await service.start();
-		return service.resolveRuntimeSlashCommand(prompt);
+		return service.resolveRuntimeSlashCommand(prompt, {
+			expandSkillCommands: !isSkillsToolAvailable({
+				mode: mode === "plan" || mode === "yolo" ? mode : "act",
+				disabledToolIds: new Set(readGlobalSettings().disabledTools ?? []),
+			}),
+		});
 	} catch (error) {
 		ctx.logger?.debug("Slash command expansion failed, sending raw prompt", {
 			error,
@@ -187,7 +200,7 @@ async function resolveDesktopRuntimePrompt(
 	mode?: unknown,
 ): Promise<string> {
 	return rewriteDesktopTeamPrompt(
-		await expandRuntimeSlashCommand(ctx, workspacePath, prompt),
+		await expandRuntimeSlashCommand(ctx, workspacePath, prompt, mode),
 		{ mode },
 	);
 }
@@ -282,7 +295,9 @@ export function refreshWorkspaceMetadata(cwd: string): void {
 // Session data helpers
 // ---------------------------------------------------------------------------
 
-function readPersistedChatMessages(sessionId: string): unknown[] | null {
+function readPersistedChatMessages(
+	sessionId: string,
+): MessageWithMetadata[] | null {
 	const path = join(
 		sharedSessionDataDir(),
 		sessionId,
@@ -291,8 +306,8 @@ function readPersistedChatMessages(sessionId: string): unknown[] | null {
 	if (!existsSync(path)) return null;
 	try {
 		const parsed = JSON.parse(readFileSync(path, "utf8").trim()) as
-			| { messages?: unknown[] }
-			| unknown[];
+			| { messages?: MessageWithMetadata[] }
+			| MessageWithMetadata[];
 		if (Array.isArray(parsed)) return parsed;
 		return Array.isArray(parsed.messages) ? parsed.messages : null;
 	} catch {
@@ -406,7 +421,7 @@ function buildCoreSessionConfig(config: JsonRecord): JsonRecord {
 		sessionId: config.sessionId ?? config.session_id,
 		providerId: config.provider ?? config.providerId ?? "",
 		modelId: config.model ?? config.modelId ?? "",
-		mode: config.mode ?? "act",
+		mode: resolveDesktopSessionMode(config),
 		apiKey: config.apiKey ?? config.api_key ?? "",
 		baseUrl: config.baseUrl,
 		headers: config.headers,
@@ -428,6 +443,17 @@ function buildCoreSessionConfig(config: JsonRecord): JsonRecord {
 		sessions: config.sessions,
 		initialMessages: config.initialMessages,
 	};
+}
+
+/** Auto-approval is a tool policy, not a request to change the tool preset. */
+export function resolveDesktopSessionMode(
+	config: JsonRecord,
+): "act" | "plan" | "yolo" {
+	return config.mode === "plan"
+		? "plan"
+		: config.mode === "yolo"
+			? "yolo"
+			: "act";
 }
 
 export function buildSessionConnectionUpdate(
@@ -538,11 +564,7 @@ async function resolveSystemPrompt(config: JsonRecord): Promise<string> {
 		return String(config.systemPrompt ?? config.system_prompt ?? "").trim();
 	}
 	const providerId = String(config.provider ?? config.providerId ?? "").trim();
-	const mode = config.autoApproveTools
-		? "yolo"
-		: config.mode === "plan"
-			? "plan"
-			: "act";
+	const mode = resolveDesktopSessionMode(config);
 	const metadata = await consumeWorkspaceMetadata(cwd);
 	const inlineRules =
 		typeof config.rules === "string" && config.rules.trim().length > 0
@@ -669,9 +691,7 @@ async function handleStart(
 		...splitCoreSessionConfig(coreConfig as unknown as ClineCoreStartConfig),
 		source: SessionSource.DESKTOP,
 		interactive: true,
-		...(initialMessages
-			? { initialMessages: initialMessages as Message[] }
-			: {}),
+		...(initialMessages ? { initialMessages } : {}),
 		toolPolicies: resolveToolPolicies(request.config),
 	});
 	const sessionId = startResult.sessionId;
@@ -775,7 +795,7 @@ async function startRebuiltSession(
 	sessionId: string,
 	config: JsonRecord,
 	systemPrompt: string,
-	messages: Message[],
+	messages: MessageWithMetadata[],
 	compactionState: SessionCompactionState | undefined,
 ): Promise<void> {
 	const projectedMessages = compactionState
@@ -973,6 +993,12 @@ async function handleSend(
 			sessionId,
 			request.attachments?.userFiles,
 		);
+		if (session?.attachedViaHub) {
+			// Once ClineCore sends a turn, its HubRuntimeHost owns the session
+			// subscription. Stop projecting the observer stream as well or every
+			// assistant/tool update (including command chunks) is emitted twice.
+			session.attachedViaHub = false;
+		}
 		if (delivery === "queue") {
 			if (session) {
 				session.prompt = prompt;
@@ -990,7 +1016,23 @@ async function handleSend(
 				sessionId,
 				ok: true,
 				queued: true,
-				promptsInQueue: applyPendingPrompts(ctx, sessionId, prompts),
+				// Response snapshot only — deliberately not routed through
+				// applyPendingPrompts. The list was taken at enqueue time and
+				// can already be stale when this response is written (the
+				// runtime may have drained the prompt meanwhile, e.g. the
+				// coerced first prompt of a fresh session); overwriting the
+				// event-maintained session.promptsInQueue and rebroadcasting
+				// prompts_in_queue_state here would resurrect a phantom queue
+				// entry for every connected webview.
+				promptsInQueue: prompts
+					.map(mapPendingPrompt)
+					.filter((item) => item.id)
+					.map(({ id, prompt, steer, attachmentCount }) => ({
+						id,
+						prompt,
+						steer,
+						attachmentCount,
+					})),
 			};
 		}
 
@@ -1033,7 +1075,7 @@ async function handleSend(
 		});
 		if (session && ownsBusyState) {
 			session.status = "idle";
-			if (result?.messages) session.messages = result.messages as unknown[];
+			if (result?.messages) session.messages = result.messages;
 		}
 		return {
 			sessionId,
@@ -1231,10 +1273,7 @@ async function handleForkUnlocked(
 	let forkMessages =
 		forkBeforeRunCount === undefined
 			? sourceMessages
-			: trimMessagesBeforeUserRun(
-					sourceMessages as Message[],
-					forkBeforeRunCount,
-				);
+			: trimMessagesBeforeUserRun(sourceMessages, forkBeforeRunCount);
 	const forkMetadata: JsonRecord = {
 		...(sourceMetadata ?? {}),
 		fork: {
@@ -1289,7 +1328,7 @@ async function handleForkUnlocked(
 	} else {
 		const started = await manager.start({
 			...startInput,
-			initialMessages: forkMessages as Message[],
+			initialMessages: forkMessages,
 		});
 		newSessionId = started.sessionId;
 	}
@@ -1318,7 +1357,6 @@ async function handleForkUnlocked(
 	return {
 		sessionId: newSessionId,
 		forkedFromSessionId: sourceSessionId,
-		messages: forkMessages,
 	};
 }
 
@@ -1402,16 +1440,15 @@ async function handleRestoreCheckpoint(
 				status: "idle",
 			}),
 		);
+		// A restore that reuses the source session id leaves the persisted
+		// transcript describing the discarded turns, and read_session_messages
+		// prefers that file over the live session. Write the trimmed history so
+		// the transcript matches the workspace the restore just rolled back to.
+		persistSessionMessages(sessionId, restoredMessages);
 		sendPromptsInQueueSnapshot(ctx, sourceSessionId);
 		sendPromptsInQueueSnapshot(ctx, sessionId);
-		let messages: unknown[] = restoredMessages;
-		try {
-			const read = await manager.readMessages(sessionId);
-			if (read?.length > 0) messages = read;
-		} catch {}
 		return {
 			sessionId,
-			messages,
 			restoredCheckpoint: restored.checkpoint,
 		};
 	});

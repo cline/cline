@@ -6,8 +6,9 @@ Tauri desktop shell + Bun sidecar backend + Next.js UI for running and inspectin
 
 From `apps/examples/desktop-app/`:
 
-- `bun run dev:web` - Next.js UI only (`http://localhost:3125`)
-- `bun run dev:sidecar` - sidecar backend only
+- `bun run dev:headless` - Next.js UI (`http://localhost:3125`) and sidecar backend with a fresh shared approval credential
+- `bun run dev:web` - Next.js UI only (approval-gated tools require `dev:headless` or the native app)
+- `bun run dev:sidecar` - sidecar backend only (approval-gated tools require `dev:headless` or the native app)
 - `bun run dev` - Tauri desktop dev
 - `bun run build` - build web assets
 - `bun run build:sidecar` - build the Bun sidecar bundle
@@ -15,6 +16,38 @@ From `apps/examples/desktop-app/`:
 - `bun run build:binary` - build desktop binary
 - `bun run package:desktop` - package the current OS desktop app into `dist/desktop/`
 - `bun run typecheck` - TypeScript check
+
+## Customizing the macOS Install Window
+
+The drag-to-Applications window is configured by `bundle.macOS.dmg` in
+[`src-tauri/tauri.conf.json`](./src-tauri/tauri.conf.json). Its artwork comes
+from the PNG sources in [`src-tauri/dmg/`](./src-tauri/dmg/); the
+`background.gen.tiff` Finder actually renders is a gitignored build artifact
+regenerated from them on every build.
+
+1. The current source artwork is `640x400`. Export `background.png` at 1x and
+   `background@2x.png` at 2x.
+2. Currently the app icons are centered at `(140, 200)` and
+   the Applications folder centered at `(500, 200)`. If updating artwork, update `appPosition`
+   and `applicationFolderPosition` to reposition the app icons.
+3. Build with `bun run build:binary`. Before compiling, the build validates
+   both PNG dimensions, combines them with `tiffutil` into the Retina-aware
+   `src-tauri/dmg/background.gen.tiff`, and verifies the TIFF contains the
+   expected 1x and 2x representations. Run `bun run dmg:background` to do just
+   that step, e.g. to sanity-check new artwork without a full build. The DMG
+   is written beneath `src-tauri/target/release/bundle/dmg/`.
+
+Run `bun run test:dmg-background` for the cross-platform checks covering the
+committed PNG dimensions and TIFF validation logic.
+
+The configured `640x432` Finder window is intentionally 32 points taller than
+the `640x400` background. That extra height matches the Finder chrome in the
+currently verified packaged layout; re-check it after material macOS or Finder
+changes. The project deliberately uses a multi-resolution TIFF even though
+Tauri's documented background formats are PNG, JPG, and GIF: Finder renders
+both the 1x and 2x representations from a single background file. Re-check the
+packaged DMG after upgrading Tauri in case its background validation changes.
+
 
 ## Login Shell PATH Resolution
 
@@ -54,6 +87,12 @@ updates in the background, and prompt for a restart. Two things must never be
 lost: the `desktop-latest` release/tag (its feed URL is baked into shipped
 apps) and the updater private key (`TAURI_SIGNING_PRIVATE_KEY` — without it,
 shipped apps can't verify new updates).
+
+There is also a beta channel ("Cline Beta", a separate app that installs
+side by side with stable) cut from the `desktop-experimental` branch and
+served by the rolling `desktop-beta` release — the same never-delete rule
+applies to it. The experimental-branch process and beta release flow live in
+[`EXPERIMENTAL.md`](./EXPERIMENTAL.md).
 
 ## Shareable Desktop Packages (manual fallback)
 
@@ -155,6 +194,14 @@ Logging can be configured with the same environment variables as the CLI:
 - `CLINE_LOG_PATH` overrides the log destination.
 - `CLINE_LOG_NAME` overrides the logger name.
 
+In a development webview, sidecar voice-input diagnostics are also streamed to
+the webview console as `[desktop:voice-input]` entries. Production builds can
+enable the same console stream with `NEXT_PUBLIC_CLINE_DEBUG_LOGS=1` at build
+time, or at runtime from DevTools with
+`localStorage.setItem("cline.debugLogs", "1")` followed by a reload. Diagnostic
+events include the selected provider/model and sanitized endpoint, but never
+credentials, request headers, recorded audio, or transcript contents.
+
 ## Troubleshooting
 
 - If live updates stall, verify the desktop backend websocket is connected and `chat_event` messages are arriving.
@@ -165,3 +212,17 @@ Logging can be configured with the same environment variables as the CLI:
   The next desktop or CLI Hub connection will reuse a compatible running Hub or
   replace an incompatible one through the shared discovery path.
 - Provider settings updates are patch-style: only fields you edit are changed. Unset fields are preserved instead of being cleared.
+- Speech input requires an enabled provider whose models.dev metadata identifies
+  a dedicated `audio`-to-`text` model, or the built-in ElevenLabs provider with
+  its Scribe v2 model. Choose the voice input provider and model explicitly under
+  **Settings → Models → Voice input**. That selection is stored separately from
+  the chat model as `modes.voiceInput` in
+  `~/.cline/data/settings/providers.json`; provider credentials remain in their
+  existing provider entry and never enter the webview. ElevenLabs uses its native
+  `/v1/speech-to-text` API. Text-to-speech models with `output: ["audio"]` are
+  not used for microphone transcription.
+- Streaming transcription models, such as Vercel AI Gateway's
+  `openai/gpt-realtime-whisper`, update the composer while the user speaks.
+  The sidecar mints a short-lived transcription token; the long-lived gateway
+  credential is never sent to the webview. Batch models such as
+  `openai/whisper-1` continue to transcribe after recording stops.

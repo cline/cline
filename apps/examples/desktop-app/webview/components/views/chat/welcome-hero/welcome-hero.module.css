@@ -1,0 +1,208 @@
+.root {
+	/* Default inline layout. Alternate compositions override only this set. */
+	--welcome-hero-width: 1200px;
+	--welcome-hero-height: 220px;
+	--welcome-hero-viewport-gutter: 16px;
+	--welcome-grid-height: 520px;
+	--welcome-grid-initial-x: 50%;
+	--welcome-grid-initial-y: 280px;
+	--welcome-grid-x: var(--welcome-grid-initial-x);
+	--welcome-grid-y: var(--welcome-grid-initial-y);
+	--welcome-grid-layer-mask: radial-gradient(
+		ellipse 44.7% 45% at 44.7% 50%,
+		black 50%,
+		transparent 100%
+	);
+	--welcome-grid-mask: url("/welcome-hero/grid-tile.svg");
+	--welcome-grid-tile-size: 400px;
+	--welcome-inner-mask: url("/welcome-hero/inner-mask.svg");
+	--welcome-bot-top: -2px;
+	--welcome-bot-offset-x: -100px;
+	--welcome-bot-width: 204px;
+	--welcome-bot-height: 192px;
+	--welcome-bot-fill-mask: url("/welcome-hero/bot-fill-mask.svg");
+	--welcome-bot-outline-mask: url("/welcome-hero/bot-outline-mask.svg");
+	--welcome-eye-top: 83px;
+	--welcome-eye-width: 18px;
+	--welcome-eye-height: 52px;
+	--welcome-eye-left-offset-x: -37px;
+	--welcome-eye-right-offset-x: 19.5px;
+	--welcome-eye-x: 0px;
+	--welcome-eye-y: 0px;
+
+	/* Appearance controls. */
+	--welcome-hero-color: oklch(from var(--primary) 0.68 calc(c * 0.8) h);
+	--welcome-grid-color: oklch(from var(--welcome-hero-color) l calc(c * 0.4) h);
+	--welcome-grid-opacity: 0.2;
+	--welcome-inner-opacity: 2%;
+	--welcome-bot-fill-opacity: 13%;
+	--welcome-bot-stroke-opacity: 12%;
+
+	position: relative;
+	left: 50%;
+	isolation: isolate;
+	width: min(
+		calc(
+			100vw -
+			var(--welcome-hero-viewport-gutter) -
+			var(--welcome-hero-viewport-gutter)
+		),
+		var(--welcome-hero-width)
+	);
+	max-width: none;
+	height: var(--welcome-hero-height);
+	transform: translateX(-50%);
+}
+
+.root[data-welcome-hero-layout="full-bleed"] {
+	--welcome-hero-width: 100vw;
+	--welcome-hero-height: 100%;
+	--welcome-hero-viewport-gutter: 0px;
+	--welcome-grid-height: 100%;
+	--welcome-grid-initial-y: 50%;
+	--welcome-grid-layer-mask: none;
+}
+
+.root[data-welcome-hero-layout="wide-grid"] {
+	--welcome-hero-width: 1600px;
+	--welcome-grid-height: 960px;
+	--welcome-grid-initial-y: 370px;
+}
+
+.grid {
+	position: absolute;
+	z-index: 0;
+	top: 50%;
+	left: 0;
+	width: 100%;
+	height: var(--welcome-grid-height);
+	pointer-events: none;
+	-webkit-mask-image: var(--welcome-grid-layer-mask);
+	mask-image: var(--welcome-grid-layer-mask);
+	transform: translateY(-50%);
+}
+
+.grid::before {
+	position: absolute;
+	inset: 0;
+	content: "";
+	background: radial-gradient(
+		ellipse 44% 41.25% at var(--welcome-grid-x) var(--welcome-grid-y),
+		var(--welcome-grid-color) 0%,
+		color-mix(in srgb, var(--welcome-grid-color) 0%, transparent) 100%
+	);
+	-webkit-mask-image: var(--welcome-grid-mask);
+	mask-image: var(--welcome-grid-mask);
+	-webkit-mask-position: center;
+	mask-position: center;
+	-webkit-mask-repeat: repeat;
+	mask-repeat: repeat;
+	-webkit-mask-size: var(--welcome-grid-tile-size) var(--welcome-grid-tile-size);
+	mask-size: var(--welcome-grid-tile-size) var(--welcome-grid-tile-size);
+	opacity: var(--welcome-grid-opacity);
+}
+
+.inner,
+.botFill,
+.botOutline {
+	position: absolute;
+	display: block;
+	top: var(--welcome-bot-top);
+	left: calc(50% + var(--welcome-bot-offset-x));
+	width: var(--welcome-bot-width);
+	height: var(--welcome-bot-height);
+	max-width: none;
+	pointer-events: none;
+	-webkit-mask-position: center;
+	mask-position: center;
+	-webkit-mask-repeat: no-repeat;
+	mask-repeat: no-repeat;
+	-webkit-mask-size: 100% 100%;
+	mask-size: 100% 100%;
+}
+
+.inner {
+	z-index: 1;
+	background: color-mix(
+		in srgb,
+		var(--welcome-hero-color) var(--welcome-inner-opacity),
+		transparent
+	);
+	-webkit-mask-image: var(--welcome-inner-mask);
+	mask-image: var(--welcome-inner-mask);
+}
+
+.botFill {
+	z-index: 2;
+	background: color-mix(
+		in srgb,
+		var(--welcome-hero-color) var(--welcome-bot-fill-opacity),
+		transparent
+	);
+	-webkit-mask-image: var(--welcome-bot-fill-mask);
+	mask-image: var(--welcome-bot-fill-mask);
+}
+
+.botOutline {
+	z-index: 3;
+	background: color-mix(
+		in srgb,
+		var(--welcome-hero-color) var(--welcome-bot-stroke-opacity),
+		transparent
+	);
+	-webkit-mask-image: var(--welcome-bot-outline-mask);
+	mask-image: var(--welcome-bot-outline-mask);
+}
+
+.eye {
+	position: absolute;
+	z-index: 4;
+	top: var(--welcome-eye-top);
+	width: var(--welcome-eye-width);
+	height: var(--welcome-eye-height);
+	border: 1px solid
+		color-mix(
+			in srgb,
+			var(--welcome-hero-color) var(--welcome-bot-stroke-opacity),
+			transparent
+		);
+	border-radius: 999px;
+	pointer-events: none;
+	background: color-mix(
+		in srgb,
+		var(--welcome-hero-color) var(--welcome-bot-fill-opacity),
+		transparent
+	);
+	backface-visibility: hidden;
+	transform: translate3d(var(--welcome-eye-x), var(--welcome-eye-y), 0);
+	will-change: transform;
+}
+
+.eyeLeft {
+	left: calc(50% + var(--welcome-eye-left-offset-x));
+}
+
+.eyeRight {
+	left: calc(50% + var(--welcome-eye-right-offset-x));
+}
+
+[class~="dark"] .root {
+	--welcome-hero-color: oklch(from var(--primary) 0.9 calc(c * 0.8) h);
+	--welcome-grid-opacity: 0.2;
+	--welcome-inner-opacity: 6%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.grid::before {
+		background: radial-gradient(
+			ellipse 44% 41.25% at var(--welcome-grid-initial-x)
+				var(--welcome-grid-initial-y),
+			var(--welcome-grid-color) 0%,
+			color-mix(in srgb, var(--welcome-grid-color) 0%, transparent) 100%
+		);
+	}
+
+	.eye {
+		transform: none;
+	}
+}

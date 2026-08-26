@@ -22,6 +22,8 @@ import {
 	StoredProviderSettingsSchema,
 	type ToProviderConfigOptions,
 	toProviderConfig,
+	type VoiceInputSettings,
+	VoiceInputSettingsSchema,
 } from "../../types/provider-settings";
 import {
 	ensureCustomProvidersLoadedSync,
@@ -212,6 +214,23 @@ export class ProviderSettingsManager {
 	getProviderSettings(providerId: string): ProviderSettings | undefined {
 		const state = this.read();
 		return this.resolveProviderSettings(state, providerId);
+	}
+
+	getVoiceInputSettings(): VoiceInputSettings | undefined {
+		return this.read().modes.voiceInput;
+	}
+
+	setVoiceInputSettings(
+		settings: VoiceInputSettings | undefined,
+	): StoredProviderSettings {
+		const state = this.read();
+		if (settings) {
+			state.modes.voiceInput = VoiceInputSettingsSchema.parse(settings);
+		} else {
+			delete state.modes.voiceInput;
+		}
+		this.write(state);
+		return state;
 	}
 
 	private resolveLastUsedProviderId(

@@ -1,4 +1,9 @@
-import { getCurrentContextSize, summarizeUsageFromMessages } from "@cline/core";
+import {
+	getCurrentContextSize,
+	type ManagedHubBuildMismatchEvent,
+	summarizeUsageFromMessages,
+	watchManagedHubBuildMismatch,
+} from "@cline/core";
 import { formatDisplayUserInput } from "@cline/shared";
 import type { KeyEvent } from "@opentui/core";
 import { useRenderer, useTerminalDimensions } from "@opentui/react";
@@ -18,6 +23,7 @@ import {
 } from "../utils/repo-status";
 import { buildCheckpointPickerItems } from "./checkpoint-picker-items";
 import type { TranscriptScrollHandle } from "./components/chat-message-list";
+import { DialogThemeSync } from "./components/dialog-theme-sync";
 import {
 	CheckpointConfirmContent,
 	type CheckpointRestoreMode,
@@ -34,6 +40,8 @@ import {
 	buildCommandPaletteItems,
 	findCommandPaletteShortcut,
 } from "./components/dialogs/command-palette-items";
+import { HubUpdateRequiredContent } from "./components/dialogs/hub-update-required";
+import { shouldWatchManagedHubBuild } from "./components/dialogs/hub-update-required-helpers";
 import {
 	SKILLS_MARKETPLACE_ACTION,
 	SKILLS_MARKETPLACE_URL,
@@ -562,6 +570,55 @@ function App(props: TuiProps) {
 		return () => clearTimeout(timeout);
 	}, [appView, currentProviderId, dialog, notice, onInitialNoticeShown]);
 
+	const [hubBuildMismatch, setHubBuildMismatch] =
+		useState<ManagedHubBuildMismatchEvent | null>(null);
+	const hubBuildWatchEnabled = shouldWatchManagedHubBuild(props.config);
+	useEffect(() => {
+		if (!hubBuildWatchEnabled) return;
+		return watchManagedHubBuildMismatch({
+			onMismatch: (mismatch) => setHubBuildMismatch(mismatch),
+		});
+	}, [hubBuildWatchEnabled]);
+
+	const onHubUpdateRestart = props.onHubUpdateRestart;
+	useEffect(() => {
+		if (!hubBuildMismatch) return;
+		setHubBuildMismatch(null);
+		const hubCoreVersion = hubBuildMismatch.hubCoreVersion;
+		if (hubBuildMismatch.reason === "outdated_hub") {
+			// This CLI is already the newer build. The Hub is behind only because
+			// retiring it would kill the sessions it is serving, and it is
+			// replaced on its own at the next launch. Nothing is wrong, nothing is
+			// asked, and nothing the user can act on differs - so say nothing, the
+			// same conclusion the desktop surface reached.
+			//
+			// The classification still earns its keep here: it is what stops the
+			// update-and-restart prompt below from firing at someone who has
+			// nothing to update.
+			return;
+		}
+		void dialog
+			.choice<boolean>({
+				content: (ctx: ChoiceContext<boolean>) => (
+					<HubUpdateRequiredContent {...ctx} hubCoreVersion={hubCoreVersion} />
+				),
+			})
+			.then((update) => {
+				if (update) {
+					(onHubUpdateRestart ?? exitCline)();
+					return;
+				}
+				showToast(
+					"Hub still differs from this CLI. Run 'cline update' and restart when convenient.",
+					"info",
+				);
+				refocusTextareaRef.current();
+			})
+			.catch(() => {
+				refocusTextareaRef.current();
+			});
+	}, [dialog, exitCline, hubBuildMismatch, onHubUpdateRestart, showToast]);
+
 	const {
 		appendEntry: appendSessionEntry,
 		replaceEntries: replaceSessionEntries,
@@ -982,6 +1039,7 @@ export function Root(
 		<TerminalColorsContext value={terminalColors}>
 			<ThemeProvider initialThemeId={props.initialThemeId}>
 				<DialogProvider size="medium">
+					<DialogThemeSync />
 					<SessionProvider
 						config={props.config}
 						initialEntries={initialEntries}

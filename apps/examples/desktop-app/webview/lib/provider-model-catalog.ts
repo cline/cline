@@ -1,37 +1,113 @@
 "use client";
 
+import { isChatCompatibleModel } from "@cline/shared/browser";
 import { desktopClient } from "@/lib/desktop-client";
 import type {
 	Provider,
 	ProviderCatalogResponse,
 	ProviderModel,
 	ProviderModelsResponse,
+	VoiceInputSelection,
 } from "@/lib/provider-schema";
 
 export type ProviderModelCatalog = {
 	providers: Provider[];
 	enabledProviderIds: string[];
 	providerModels: Record<string, string[]>;
+	/** Full chat-model entries per provider (display names, capabilities). */
+	providerModelDetails: Record<string, ProviderModel[]>;
+	/** Display name per provider id, for pickers that show providers. */
+	providerNames: Record<string, string>;
 	providerReasoningModels: Record<string, string[]>;
+	voiceInput: TranscriptionModelTarget | null;
 };
 
+export type TranscriptionModelTarget = {
+	providerId: string;
+	providerName: string;
+	modelId: string;
+	modelName: string;
+	supportsStreaming: boolean;
+};
+
+export function isDedicatedTranscriptionModel(model: ProviderModel): boolean {
+	return model.operation === "transcription";
+}
+
+export function supportsAudio(model: ProviderModel): boolean {
+	return (
+		model.inputModalities?.includes("audio") === true ||
+		model.outputModalities?.includes("audio") === true
+	);
+}
+
+export function filterChatModels(
+	models: ProviderModel[] | undefined,
+): ProviderModel[] {
+	return (models ?? []).filter(isChatModel);
+}
+
+export function isChatModel(model: ProviderModel): boolean {
+	return (
+		// Desktop supports image generation directly from its composer. Other
+		// chat-only clients intentionally use isChatCompatibleModel without this
+		// operation-specific exception.
+		model.operation === "image-generation" ||
+		isChatCompatibleModel({
+			operation: model.operation,
+			modalities: {
+				input: model.inputModalities,
+				output: model.outputModalities,
+			},
+		})
+	);
+}
+
+export function selectTranscriptionModel(
+	providers: Provider[],
+	selection: VoiceInputSelection | undefined,
+): TranscriptionModelTarget | null {
+	if (!selection) return null;
+	const provider = providers.find(
+		(candidate) => candidate.enabled && candidate.id === selection.providerId,
+	);
+	const model = provider?.modelList?.find(
+		(candidate) =>
+			candidate.id === selection.modelId &&
+			isDedicatedTranscriptionModel(candidate),
+	);
+	return provider && model
+		? {
+				providerId: provider.id,
+				providerName: provider.name,
+				modelId: model.id,
+				modelName: model.name,
+				supportsStreaming: model.operationModes?.includes("streaming") === true,
+			}
+		: null;
+}
+
 function toModelIds(models: ProviderModel[] | undefined): string[] {
-	return (models ?? []).map((model) => model.id);
+	return filterChatModels(models).map((model) => model.id);
 }
 
 function toReasoningModelIds(models: ProviderModel[] | undefined): string[] {
-	return (models ?? [])
+	return filterChatModels(models)
 		.filter((model) => model.supportsReasoning)
 		.map((model) => model.id);
 }
 
 export function buildProviderModelCatalog(
 	providers: Provider[],
+	voiceInput?: VoiceInputSelection,
 ): ProviderModelCatalog {
 	return {
 		providers,
 		enabledProviderIds: providers
-			.filter((provider) => provider.enabled)
+			.filter(
+				(provider) =>
+					provider.enabled && toModelIds(provider.modelList).length > 0,
+			)
 			.map((provider) => provider.id),
 		providerModels: Object.fromEntries(
 			providers.map((provider) => [
@@ -39,12 +115,22 @@ export function buildProviderModelCatalog(
 				toModelIds(provider.modelList),
 			]),
 		),
+		providerModelDetails: Object.fromEntries(
+			providers.map((provider) => [
+				provider.id,
+				filterChatModels(provider.modelList),
+			]),
+		),
+		providerNames: Object.fromEntries(
+			providers.map((provider) => [provider.id, provider.name]),
+		),
 		providerReasoningModels: Object.fromEntries(
 			providers.map((provider) => [
 				provider.id,
 				toReasoningModelIds(provider.modelList),
 			]),
 		),
+		voiceInput: selectTranscriptionModel(providers, voiceInput),
 	};
 }
 
@@ -53,6 +139,8 @@ export function buildProviderModelCatalog(
 // Deduplicate concurrent requests and keep the response briefly so the app
 // boot issues a single round-trip instead of one per consumer.
 const PROVIDER_CATALOG_CACHE_TTL_MS = 5_000;
+export const VOICE_INPUT_SETTINGS_CHANGED_EVENT =
+	"cline:voice-input-settings-changed";
 
 let providerCatalogCache: {
 	fetchedAt: number;
@@ -70,8 +158,9 @@ export function publishProviderModels(
 	models: ProviderModel[],
 ): void {
 	invalidateProviderCatalogCache();
+	const chatModels = filterChatModels(models);
 	for (const listener of providerModelsListeners) {
-		listener(providerId, models);
+		listener(providerId, chatModels);
 	}
 }
 
@@ -153,9 +242,16 @@ export function writeProviderCatalogSnapshot(
 	providerCatalogSnapshot = snapshot;
 }
 
+export function notifyVoiceInputSettingsChanged(): void {
+	invalidateProviderCatalogCache();
+	if (typeof window !== "undefined") {
+		window.dispatchEvent(new Event(VOICE_INPUT_SETTINGS_CHANGED_EVENT));
+	}
+}
+
 export async function loadProviderModelCatalog(): Promise<ProviderModelCatalog> {
 	const payload = await fetchProviderCatalog();
-	return buildProviderModelCatalog(payload.providers ?? []);
+	return buildProviderModelCatalog(payload.providers ?? [], payload.voiceInput);
 }
 
 export async function loadProviderModels(
@@ -167,5 +263,5 @@ export async function loadProviderModels(
 			provider: providerId,
 		},
 	);
-	return payload.models ?? [];
+	return filterChatModels(payload.models);
 }

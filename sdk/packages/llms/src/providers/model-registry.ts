@@ -1,9 +1,20 @@
+import { isChatCompatibleModel } from "@cline/shared";
 import type {
 	ModelCollection,
 	ModelInfo,
 	ProviderInfo,
 } from "../catalog/types";
 import { BUILTIN_PROVIDER_COLLECTION_LIST } from "./builtins";
+
+export type ProviderModelFilter = "chat";
+
+export interface GetModelsForProviderOptions {
+	filter?: ProviderModelFilter;
+}
+
+const PROVIDER_MODEL_FILTERS = {
+	chat: (model: ModelInfo) => isChatCompatibleModel(model),
+} satisfies Record<ProviderModelFilter, (model: ModelInfo) => boolean>;
 
 function buildInitialRegistry(): Map<string, ModelCollection> {
 	const map = new Map<string, ModelCollection>();
@@ -61,14 +72,22 @@ export async function getProviderCollection(
 
 export async function getModelsForProvider(
 	providerId: string,
+	options: GetModelsForProviderOptions = {},
 ): Promise<Record<string, ModelInfo>> {
 	const collection = getProviderFromCache(providerId);
 	const builtInModels = collection?.models ?? {};
 	const customModels = CUSTOM_MODELS.get(providerId);
-	if (customModels) {
-		return { ...builtInModels, ...Object.fromEntries(customModels) };
+	const models = customModels
+		? { ...builtInModels, ...Object.fromEntries(customModels) }
+		: builtInModels;
+	if (!options.filter) {
+		return models;
 	}
-	return builtInModels;
+
+	const matches = PROVIDER_MODEL_FILTERS[options.filter];
+	return Object.fromEntries(
+		Object.entries(models).filter(([, model]) => matches(model)),
+	);
 }
 
 export async function getAllProviders(): Promise<ProviderInfo[]> {

@@ -656,6 +656,11 @@ describe("SdkTaskHistory", () => {
 				makeSessionRecord("migrated", {
 					metadata: { migratedFromLegacyTask: true },
 				}),
+				// Resumed legacy sessions carry legacyTask metadata (stamped by
+				// historyItemToSessionMetadata) and count as migrated too.
+				makeSessionRecord("resumed-legacy", {
+					metadata: { legacyTask: true },
+				}),
 			],
 			telemetry,
 		)
@@ -664,9 +669,9 @@ describe("SdkTaskHistory", () => {
 
 		expect(telemetry.captureLegacyTaskMigrationBacklog).toHaveBeenCalledWith({
 			pendingLegacyTaskCount: 1,
-			migratedSdkTaskCount: 1,
-			visibleSdkTaskCount: 2,
-			visibleTaskCount: 3,
+			migratedSdkTaskCount: 2,
+			visibleSdkTaskCount: 3,
+			visibleTaskCount: 4,
 		})
 	})
 

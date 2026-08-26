@@ -157,6 +157,59 @@ describe("HubRuntimeHost", () => {
 		});
 	});
 
+	it("reconstructs tool content updates from hub events", async () => {
+		let onEvent: ((event: HubEventEnvelope) => void) | undefined;
+		subscribeMock.mockImplementation((listener) => {
+			onEvent = listener;
+			return () => {};
+		});
+		commandMock.mockResolvedValue({
+			payload: {
+				session: {
+					sessionId: "sess-1",
+					status: "running",
+					createdAt: Date.now(),
+					updatedAt: Date.now(),
+					workspaceRoot: "/tmp/project",
+					cwd: "/tmp/project",
+				},
+			},
+		});
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+		const events: unknown[] = [];
+		host.subscribe((event) => events.push(event));
+		await host.startSession({
+			config: createConfig(),
+			source: SessionSource.CLI,
+		});
+
+		onEvent?.({
+			version: "v1",
+			event: "tool.updated",
+			sessionId: "sess-1",
+			payload: {
+				toolCallId: "call-1",
+				toolName: "run_commands",
+				update: { stream: "stdout", chunk: "live output\n" },
+			},
+		});
+
+		expect(events).toContainEqual({
+			type: "agent_event",
+			payload: {
+				sessionId: "sess-1",
+				event: {
+					type: "content_update",
+					contentType: "tool",
+					toolCallId: "call-1",
+					toolName: "run_commands",
+					update: { stream: "stdout", chunk: "live output\n" },
+				},
+			},
+		});
+	});
+
 	it("uses the hub-resolved workspace in the manifest for a pathless start", async () => {
 		subscribeMock.mockReturnValue(() => {});
 		const resolvedWorkspace = "/home/host/.cline/data/workspaces/chat";
@@ -455,6 +508,27 @@ describe("HubRuntimeHost", () => {
 				}),
 			]),
 		);
+		// A snapshot-only session.updated reports the snapshot's status; it
+		// must not fabricate "running" for a session whose turn has finished.
+		const statusEvents = events.filter(
+			(event): event is { type: "status"; payload: { status: string } } =>
+				(event as { type?: unknown }).type === "status",
+		);
+		expect(statusEvents.at(-1)?.payload).toMatchObject({
+			status: "completed",
+		});
+
+		// A session.updated with neither session nor snapshot reports nothing.
+		onEvent?.({
+			version: "v1",
+			event: "session.updated",
+			sessionId: "sess-snapshot",
+			payload: {},
+		});
+		expect(
+			events.filter((event) => (event as { type?: unknown }).type === "status")
+				.length,
+		).toBe(statusEvents.length);
 
 		commandMock.mockResolvedValueOnce({ ok: true, payload: { snapshot } });
 		await expect(host.getSession("sess-snapshot")).resolves.toMatchObject({
@@ -644,6 +718,7 @@ describe("HubRuntimeHost", () => {
 				payload: {
 					args: ["Which approach?", ["Use the SDK", "Write custom code"]],
 					context: {
+						sessionId: "sess-1",
 						agentId: "agent-1",
 						conversationId: "conversation-1",
 						iteration: 1,
@@ -657,6 +732,7 @@ describe("HubRuntimeHost", () => {
 			"Which approach?",
 			["Use the SDK", "Write custom code"],
 			expect.objectContaining({
+				sessionId: "sess-1",
 				agentId: "agent-1",
 				conversationId: "conversation-1",
 				iteration: 1,
@@ -839,6 +915,7 @@ describe("HubRuntimeHost", () => {
 					version: 1;
 					event:
 						| "assistant.finished"
+						| "assistant.media"
 						| "reasoning.finished"
 						| "agent.done"
 						| "run.completed";
@@ -882,6 +959,19 @@ describe("HubRuntimeHost", () => {
 		});
 		onEvent?.({
 			version: 1,
+			event: "assistant.media",
+			sessionId: "sess-1",
+			payload: {
+				media: {
+					id: "generated-1",
+					modality: "image",
+					mediaType: "image/png",
+					source: { type: "base64", data: "aGVsbG8=" },
+				},
+			},
+		});
+		onEvent?.({
+			version: 1,
 			event: "reasoning.finished",
 			sessionId: "sess-1",
 			payload: { reasoning: "thought" },
@@ -910,6 +1000,21 @@ describe("HubRuntimeHost", () => {
 					type: "agent_event",
 					payload: expect.objectContaining({
 						event: { type: "content_end", contentType: "text", text: "hello" },
+					}),
+				}),
+				expect.objectContaining({
+					type: "agent_event",
+					payload: expect.objectContaining({
+						event: {
+							type: "content_end",
+							contentType: "media",
+							media: {
+								id: "generated-1",
+								modality: "image",
+								mediaType: "image/png",
+								source: { type: "base64", data: "aGVsbG8=" },
+							},
+						},
 					}),
 				}),
 				expect.objectContaining({

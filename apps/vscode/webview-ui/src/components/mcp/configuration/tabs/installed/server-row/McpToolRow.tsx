@@ -10,6 +10,12 @@ type McpToolRowProps = {
 	serverName?: string
 }
 
+// Per-tool MCP auto-approve checkboxes are hidden for now: the SDK approval
+// path (shared with the CLI and desktop app) is all-or-nothing via the global
+// "Use MCP servers" toggle, so they would be no-ops. Flip this back on if the
+// SDK ever gains per-tool approval granularity.
+export const SHOW_MCP_PER_TOOL_AUTO_APPROVE = false
+
 const McpToolRow = ({ tool, serverName }: McpToolRowProps) => {
 	const { autoApprovalSettings } = useExtensionState()
 
@@ -47,10 +53,10 @@ const McpToolRow = ({ tool, serverName }: McpToolRowProps) => {
 				onClick={(e) => e.stopPropagation()}
 				style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "4px" }}>
 				<div style={{ display: "flex", alignItems: "center", minWidth: 0, flex: "1 1 auto" }}>
-					<span className="codicon codicon-symbol-method" style={{ marginRight: "6px", flexShrink: 0 }}></span>
+					<span className="codicon codicon-symbol-method" style={{ marginRight: "6px", flexShrink: 0 }} />
 					<span style={{ fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis" }}>{tool.name}</span>
 				</div>
-				{serverName && autoApprovalSettings.actions.useMcp && (
+				{SHOW_MCP_PER_TOOL_AUTO_APPROVE && serverName && autoApprovalSettings.actions.useMcp && (
 					<VSCodeCheckbox
 						checked={tool.autoApprove ?? false}
 						data-tool={tool.name}

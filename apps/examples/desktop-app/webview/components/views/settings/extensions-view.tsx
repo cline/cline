@@ -7,6 +7,7 @@ import {
 	FileText,
 	MoreVertical,
 	Play,
+	Puzzle,
 	RefreshCw,
 	Server,
 	Trash2,
@@ -250,6 +251,31 @@ let extensionHookStatsCache: {
 	fetchedAt: number;
 } | null = null;
 
+const extensionInventoryInvalidationListeners = new Set<() => void>();
+
+/**
+ * Drops the module-level inventory cache and notifies mounted inventory views
+ * so they refetch immediately. Used by the Marketplace page after
+ * installs/uninstalls that happen outside these views — including ones that
+ * complete after the user has already navigated back to the Plugins hub.
+ */
+export function invalidateExtensionInventoryCache() {
+	extensionListsCache = null;
+	for (const listener of extensionInventoryInvalidationListeners) {
+		listener();
+	}
+}
+
+/** Subscribe to inventory invalidations; returns an unsubscribe function. */
+export function subscribeToExtensionInventoryInvalidation(
+	listener: () => void,
+): () => void {
+	extensionInventoryInvalidationListeners.add(listener);
+	return () => {
+		extensionInventoryInvalidationListeners.delete(listener);
+	};
+}
+
 function hasFreshExtensionsListsCache(
 	cache: typeof extensionListsCache,
 	now: number,
@@ -325,10 +351,19 @@ function isUnsupportedDesktopCommand(error: unknown, command: string): boolean {
 
 export function CustomizationSectionView({
 	catalogPrimitive,
+	chrome = "page",
+	marketplaceVariant = "full",
+	onInventoryChanged,
 	section = "Rules",
 	showTabs = false,
 }: {
 	catalogPrimitive?: MarketplacePrimitiveType;
+	/** "embedded" renders without the page frame/header for use inside the Plugins hub. */
+	chrome?: "page" | "embedded";
+	/** Which marketplace sections the embedded MarketplaceView shows. */
+	marketplaceVariant?: "full" | "installed";
+	/** Invoked after a forced inventory refresh (installs, uninstalls). */
+	onInventoryChanged?: () => void;
 	section?: CustomizationSection;
 	showTabs?: boolean;
 }) {
@@ -391,49 +426,55 @@ export function CustomizationSectionView({
 		setActiveTab(section);
 	}, [section]);
 
-	const refresh = useCallback(async (force = false) => {
-		const now = Date.now();
-		if (!force && hasFreshExtensionsListsCache(extensionListsCache, now)) {
-			setWorkspaceRoot(extensionListsCache.workspaceRoot);
-			setRules(extensionListsCache.rules);
-			setWorkflows(extensionListsCache.workflows);
-			setSkills(extensionListsCache.skills);
-			setAgents(extensionListsCache.agents);
-			setPlugins(extensionListsCache.plugins);
-			setTools(extensionListsCache.tools);
-			setHooks(extensionListsCache.hooks);
-			setMcp(extensionListsCache.mcp);
-			setWarnings(extensionListsCache.warnings);
-			setErrorMessage(null);
-			setIsLoading(false);
-			return;
-		}
+	const refresh = useCallback(
+		async (force = false) => {
+			const now = Date.now();
+			if (!force && hasFreshExtensionsListsCache(extensionListsCache, now)) {
+				setWorkspaceRoot(extensionListsCache.workspaceRoot);
+				setRules(extensionListsCache.rules);
+				setWorkflows(extensionListsCache.workflows);
+				setSkills(extensionListsCache.skills);
+				setAgents(extensionListsCache.agents);
+				setPlugins(extensionListsCache.plugins);
+				setTools(extensionListsCache.tools);
+				setHooks(extensionListsCache.hooks);
+				setMcp(extensionListsCache.mcp);
+				setWarnings(extensionListsCache.warnings);
+				setErrorMessage(null);
+				setIsLoading(false);
+				return;
+			}
 
-		setIsLoading(true);
-		setErrorMessage(null);
-		try {
-			const response = await fetchUserInstructionLists();
-			setWorkspaceRoot(response.workspaceRoot);
-			setRules(response.rules);
-			setWorkflows(response.workflows);
-			setSkills(response.skills);
-			setAgents(response.agents);
-			setPlugins(response.plugins);
-			setTools(response.tools);
-			setHooks(response.hooks);
-			setMcp(response.mcp);
-			setWarnings(response.warnings);
-			extensionListsCache = {
-				...response,
-				fetchedAt: Date.now(),
-			};
-		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
-			setErrorMessage(message);
-		} finally {
-			setIsLoading(false);
-		}
-	}, []);
+			setIsLoading(true);
+			setErrorMessage(null);
+			try {
+				const response = await fetchUserInstructionLists();
+				setWorkspaceRoot(response.workspaceRoot);
+				setRules(response.rules);
+				setWorkflows(response.workflows);
+				setSkills(response.skills);
+				setAgents(response.agents);
+				setPlugins(response.plugins);
+				setTools(response.tools);
+				setHooks(response.hooks);
+				setMcp(response.mcp);
+				setWarnings(response.warnings);
+				extensionListsCache = {
+					...response,
+					fetchedAt: Date.now(),
+				};
+				if (force) {
+					onInventoryChanged?.();
+				}
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
+				setErrorMessage(message);
+			} finally {
+				setIsLoading(false);
+			}
+		},
+		[onInventoryChanged],
+	);
 
 	const loadHookExecutionStats = useCallback(async (force = false) => {
 		const now = Date.now();
@@ -686,6 +727,17 @@ export function CustomizationSectionView({
 		return () => window.clearTimeout(timeoutId);
 	}, [refresh]);
 
+	// Marketplace installs/uninstalls can complete after this view mounted
+	// (e.g. the user navigated back to Plugins mid-install); refetch when the
+	// shared inventory cache is invalidated so the list is never stale.
+	useEffect(
+		() =>
+			subscribeToExtensionInventoryInvalidation(() => {
+				void refresh(true);
+			}),
+		[refresh],
+	);
+
 	useEffect(() => {
 		if (activeTab !== "Hooks") {
 			return;
@@ -856,25 +908,23 @@ export function CustomizationSectionView({
 		);
 	};
 
-	const renderLocalActionRow = (target: LocalUninstallTarget) => {
+	// Sized and styled to match the Install/Uninstall button on marketplace
+	// entry cards so installed rows and browse rows read as one list.
+	const renderLocalActionButton = (target: LocalUninstallTarget) => {
 		const uninstalling = localUninstallingKeys.has(target.key);
 		return (
-			<div className="flex flex-wrap items-center justify-between gap-3">
-				<div className="min-h-5 text-xs text-muted-foreground">
-					{renderLocalActionMessage(target.key)}
-				</div>
-				<Button
-					disabled={uninstalling}
-					onClick={() => {
-						void uninstallLocalPrimitive(target);
-					}}
-					type="button"
-					variant="destructive"
-				>
-					{uninstalling ? <Spinner /> : <Trash2 className="size-4" />}
-					{uninstalling ? "Uninstalling..." : "Uninstall"}
-				</Button>
-			</div>
+			<Button
+				disabled={uninstalling}
+				onClick={() => {
+					void uninstallLocalPrimitive(target);
+				}}
+				size="xs"
+				type="button"
+				variant="destructive"
+			>
+				{uninstalling ? <Spinner /> : <Trash2 className="size-4" />}
+				{uninstalling ? "Uninstalling..." : "Uninstall"}
+			</Button>
 		);
 	};
 
@@ -922,14 +972,26 @@ export function CustomizationSectionView({
 	) => {
 		const key = `${item.type}:${item.path}`;
 		return (
-			<div key={key} className="rounded-lg border border-border px-5 py-4">
-				<div className="flex items-center gap-3">
+			<div
+				key={key}
+				className="relative grid min-w-0 gap-2 rounded-lg border bg-card p-4"
+			>
+				<div className="absolute top-4 right-4">
+					{renderLocalActionButton({
+						key,
+						type: item.type,
+						id: item.id,
+						name: item.name,
+						path: item.path,
+					})}
+				</div>
+				<div className="flex min-w-0 items-center gap-2 pr-28">
 					{item.type === "workflow" ? (
 						<Play className="h-4 w-4 shrink-0 text-primary" />
 					) : (
 						<Zap className="h-4 w-4 shrink-0 text-primary" />
 					)}
-					<h3 className="min-w-0 flex-1 text-sm font-semibold text-foreground">
+					<h3 className="min-w-0 truncate text-sm font-semibold text-foreground">
 						{item.name}
 					</h3>
 					<ScopeBadge scope={item.scope} />
@@ -942,26 +1004,16 @@ export function CustomizationSectionView({
 						</Badge>
 					) : null}
 				</div>
-				<p className="mt-2 ml-7 text-xs text-muted-foreground">
+				<p className="line-clamp-2 text-xs leading-5 text-muted-foreground">
 					{item.description?.trim() || previewText(item.instructions)}
 				</p>
-				<p className="mt-1 ml-7 text-xs font-mono text-muted-foreground">
+				<p className="truncate text-xs font-mono text-muted-foreground">
 					{item.path}
 				</p>
 				{context?.matchedEntries?.length ? (
-					<div className="mt-2 ml-7">
-						<MarketplaceEntrySetupDetails entries={context.matchedEntries} />
-					</div>
+					<MarketplaceEntrySetupDetails entries={context.matchedEntries} />
 				) : null}
-				<div className="mt-3">
-					{renderLocalActionRow({
-						key,
-						type: item.type,
-						id: item.id,
-						name: item.name,
-						path: item.path,
-					})}
-				</div>
+				{renderLocalActionMessage(key)}
 			</div>
 		);
 	};
@@ -998,12 +1050,10 @@ export function CustomizationSectionView({
 			},
 		].filter((group) => group.items.length > 0);
 		return (
-			<details
-				key={plugin.path}
-				className="rounded-lg border border-border px-5 py-4"
-			>
-				<summary className="flex cursor-pointer list-none items-center gap-3">
-					<h3 className="min-w-0 flex-1 text-sm font-semibold text-foreground">
+			<details key={plugin.path} className="rounded-lg border bg-card p-4">
+				<summary className="flex cursor-pointer list-none items-center gap-2">
+					<Puzzle className="h-4 w-4 shrink-0 text-primary" />
+					<h3 className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">
 						{plugin.name}
 					</h3>
 					<ScopeBadge scope={scope} />
@@ -1091,11 +1141,19 @@ export function CustomizationSectionView({
 		return (
 			<div
 				key={server.name}
-				className="rounded-lg border border-border px-5 py-4"
+				className="relative grid min-w-0 gap-2 rounded-lg border bg-card p-4"
 			>
-				<div className="flex items-center gap-3">
+				<div className="absolute top-4 right-4">
+					{renderLocalActionButton({
+						key,
+						type: "mcp",
+						id: server.name,
+						name: server.name,
+					})}
+				</div>
+				<div className="flex min-w-0 items-center gap-2 pr-28">
 					<Server className="h-4 w-4 shrink-0 text-primary" />
-					<h3 className="min-w-0 flex-1 text-sm font-semibold text-foreground">
+					<h3 className="min-w-0 truncate text-sm font-semibold text-foreground">
 						{server.name}
 					</h3>
 					<ScopeBadge scope="Global" />
@@ -1107,11 +1165,13 @@ export function CustomizationSectionView({
 							Marketplace
 						</Badge>
 					) : null}
-					<span className="text-xs text-muted-foreground">
-						{server.disabled ? "Disabled" : "Enabled"}
-					</span>
+					{server.disabled ? (
+						<Badge variant="outline" className="shrink-0 text-muted-foreground">
+							Disabled
+						</Badge>
+					) : null}
 				</div>
-				<p className="mt-2 ml-7 text-xs text-muted-foreground">
+				<p className="line-clamp-2 text-xs leading-5 text-muted-foreground">
 					{server.url ??
 						([server.command, ...(server.args ?? [])]
 							.filter(Boolean)
@@ -1119,23 +1179,14 @@ export function CustomizationSectionView({
 							"No launch command configured.")}
 				</p>
 				{mcp.settingsPath ? (
-					<p className="mt-1 ml-7 text-xs font-mono text-muted-foreground">
+					<p className="truncate text-xs font-mono text-muted-foreground">
 						{mcp.settingsPath}
 					</p>
 				) : null}
 				{context?.matchedEntries?.length ? (
-					<div className="mt-2 ml-7">
-						<MarketplaceEntrySetupDetails entries={context.matchedEntries} />
-					</div>
+					<MarketplaceEntrySetupDetails entries={context.matchedEntries} />
 				) : null}
-				<div className="mt-3">
-					{renderLocalActionRow({
-						key,
-						type: "mcp",
-						id: server.name,
-						name: server.name,
-					})}
-				</div>
+				{renderLocalActionMessage(key)}
 			</div>
 		);
 	};
@@ -1173,28 +1224,39 @@ export function CustomizationSectionView({
 							}),
 						)
 					: null;
-	return (
-		<PageFrame>
-			<PageHeader
-				description={sectionDescriptions[activeTab]}
-				title={activeTab}
-				meta={<CommandBadge>{sectionCommands[activeTab]}</CommandBadge>}
-				actions={
-					<Button
-						variant="outline"
-						size="sm"
-						onClick={() => {
-							void refresh(true);
-							if (activeTab === "Hooks") {
-								void loadHookExecutionStats(true);
-							}
-						}}
-						disabled={isLoading}
-					>
-						<RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
-					</Button>
+	const refreshButton = (
+		<Button
+			variant="outline"
+			size="sm"
+			onClick={() => {
+				void refresh(true);
+				if (activeTab === "Hooks") {
+					void loadHookExecutionStats(true);
 				}
-			/>
+			}}
+			disabled={isLoading}
+		>
+			<RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
+		</Button>
+	);
+
+	const content = (
+		<>
+			{chrome === "page" ? (
+				<PageHeader
+					description={sectionDescriptions[activeTab]}
+					title={activeTab}
+					meta={<CommandBadge>{sectionCommands[activeTab]}</CommandBadge>}
+					actions={refreshButton}
+				/>
+			) : (
+				<div className="mb-4 flex items-center justify-between gap-3">
+					<p className="text-sm text-muted-foreground">
+						{sectionDescriptions[activeTab]}
+					</p>
+					{refreshButton}
+				</div>
+			)}
 
 			{showTabs ? (
 				<div className="mb-6 flex items-center gap-0 border-b border-border">
@@ -1245,16 +1307,12 @@ export function CustomizationSectionView({
 					installedItems={installedCatalogLocalItems ?? undefined}
 					onInstalledItemsChanged={() => refresh(true)}
 					primitive={catalogPrimitive}
+					variant={marketplaceVariant}
 				/>
 			) : null}
 
 			{activeTab === "Rules" && (
 				<div>
-					<p className="mb-6 text-sm leading-relaxed text-muted-foreground">
-						Enabled rules discovered from configured workspace/global
-						directories.
-					</p>
-
 					<div className="grid gap-3">
 						<div className="flex items-center justify-between gap-3">
 							<h3 className="text-base font-semibold text-foreground">
@@ -1268,19 +1326,19 @@ export function CustomizationSectionView({
 							{scopedRules.map(({ rule, scope }) => (
 								<div
 									key={rule.path}
-									className="rounded-lg border border-border px-4 py-3"
+									className="grid min-w-0 gap-2 rounded-lg border bg-card p-4"
 								>
-									<div className="flex items-center gap-3">
-										<FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
-										<span className="flex-1 text-sm font-medium text-foreground">
+									<div className="flex min-w-0 items-center gap-2">
+										<FileText className="h-4 w-4 shrink-0 text-primary" />
+										<span className="min-w-0 truncate text-sm font-semibold text-foreground">
 											{rule.name}
 										</span>
 										<ScopeBadge scope={scope} />
 									</div>
-									<p className="mt-2 text-xs text-muted-foreground">
+									<p className="line-clamp-2 text-xs leading-5 text-muted-foreground">
 										{previewText(rule.instructions)}
 									</p>
-									<p className="mt-1 text-xs font-mono text-muted-foreground">
+									<p className="truncate text-xs font-mono text-muted-foreground">
 										{rule.path}
 									</p>
 								</div>
@@ -1297,9 +1355,6 @@ export function CustomizationSectionView({
 
 			{activeTab === "Hooks" && (
 				<div>
-					<p className="mb-6 text-sm leading-relaxed text-muted-foreground">
-						Hook config files from workspace and global hook directories.
-					</p>
 					{hookExecutionLoading && hookExecutionSessionId && (
 						<p className="mb-4 text-xs text-muted-foreground">
 							Execution status is based on hook events in session{" "}
@@ -1320,43 +1375,47 @@ export function CustomizationSectionView({
 							{scopedHooks.map(({ hook, scope }) => (
 								<div
 									key={hook.path}
-									className="rounded-lg border border-border px-4 py-3"
+									className="grid min-w-0 gap-2 rounded-lg border bg-card p-4"
 								>
-									<div className="flex items-center gap-3">
-										<Code className="h-4 w-4 shrink-0 text-muted-foreground" />
-										<span className="flex-1 text-sm font-mono text-foreground">
+									<div className="flex min-w-0 items-center gap-2">
+										<Code className="h-4 w-4 shrink-0 text-primary" />
+										<span className="min-w-0 truncate text-sm font-semibold text-foreground">
 											{hook.fileName}
 										</span>
 										<ScopeBadge scope={scope} />
 										{hook.hookEventName && (
-											<div className="flex items-center gap-2">
-												<span className="rounded border border-border px-2 py-0.5 text-xs text-muted-foreground">
+											<>
+												<Badge
+													variant="outline"
+													className="shrink-0 text-muted-foreground"
+												>
 													{hook.hookEventName}
-												</span>
+												</Badge>
 												{(() => {
 													const stats =
 														hookExecutionByEvent[hook.hookEventName];
 													const executed = (stats?.count ?? 0) > 0;
 													return (
-														<span
+														<Badge
+															variant="outline"
 															className={cn(
-																"rounded border px-2 py-0.5 text-xs",
+																"shrink-0",
 																executed
 																	? "border-emerald-400/50 text-emerald-600 dark:text-emerald-400"
-																	: "border-border text-muted-foreground",
+																	: "text-muted-foreground",
 															)}
 														>
 															{executed
 																? `${stats?.count ?? 0} executed`
 																: "never executed"}
-														</span>
+														</Badge>
 													);
 												})()}
-											</div>
+											</>
 										)}
 									</div>
 									{hook.hookEventName ? (
-										<p className="mt-1 text-xs text-muted-foreground">
+										<p className="text-xs leading-5 text-muted-foreground">
 											Last run:{" "}
 											{formatExecutionTs(
 												hookExecutionByEvent[hook.hookEventName]?.lastTs ??
@@ -1364,7 +1423,7 @@ export function CustomizationSectionView({
 											)}
 										</p>
 									) : null}
-									<p className="mt-1 text-xs font-mono text-muted-foreground">
+									<p className="truncate text-xs font-mono text-muted-foreground">
 										{hook.path}
 									</p>
 								</div>
@@ -1596,27 +1655,27 @@ export function CustomizationSectionView({
 
 			{activeTab === "Tools" && (
 				<div>
-					<p className="mb-6 text-sm leading-relaxed text-muted-foreground">
-						Builtin tool groups and plugin-contributed tools available to the
-						runtime.
-					</p>
-
-					<div className="mb-6">
-						<h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-							Builtin Tools
-						</h3>
-						<div className="flex flex-col gap-3">
+					<div className="mb-6 grid gap-3">
+						<div className="flex items-center justify-between gap-3">
+							<h3 className="text-base font-semibold text-foreground">
+								Builtin Tools
+							</h3>
+							<span className="text-sm text-muted-foreground">
+								{builtinTools.length}
+							</span>
+						</div>
+						<div className="flex flex-col gap-2">
 							{builtinTools.map((tool) =>
 								(() => {
 									const isToggling = togglingToolIds.has(tool.id);
 									return (
 										<div
 											key={tool.id}
-											className="rounded-lg border border-border px-5 py-4"
+											className="grid min-w-0 gap-2 rounded-lg border bg-card p-4"
 										>
-											<div className="flex items-center gap-3">
+											<div className="flex min-w-0 items-center gap-2">
 												<Wrench className="h-4 w-4 shrink-0 text-primary" />
-												<h3 className="min-w-0 flex-1 text-sm font-semibold text-foreground">
+												<h3 className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">
 													{tool.name}
 												</h3>
 												<span className="text-xs text-muted-foreground">
@@ -1631,12 +1690,12 @@ export function CustomizationSectionView({
 													aria-label={`Toggle ${tool.name}`}
 												/>
 											</div>
-											<p className="mt-2 ml-7 text-xs text-muted-foreground">
+											<p className="line-clamp-2 text-xs leading-5 text-muted-foreground">
 												{tool.description?.trim() ||
 													"No description available."}
 											</p>
 											{!!tool.headlessToolNames?.length && (
-												<p className="mt-1 ml-7 text-xs font-mono text-muted-foreground">
+												<p className="truncate text-xs font-mono text-muted-foreground">
 													{tool.headlessToolNames.join(", ")}
 												</p>
 											)}
@@ -1652,28 +1711,36 @@ export function CustomizationSectionView({
 						</div>
 					</div>
 
-					<div>
-						<h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-							Plugin Tools
-						</h3>
-						<div className="flex flex-col gap-3">
+					<div className="grid gap-3">
+						<div className="flex items-center justify-between gap-3">
+							<h3 className="text-base font-semibold text-foreground">
+								Plugin Tools
+							</h3>
+							<span className="text-sm text-muted-foreground">
+								{pluginTools.length}
+							</span>
+						</div>
+						<div className="flex flex-col gap-2">
 							{pluginTools.map((tool) =>
 								(() => {
 									const isToggling = togglingToolIds.has(tool.id);
 									return (
 										<div
 											key={tool.id}
-											className="rounded-lg border border-border px-5 py-4"
+											className="grid min-w-0 gap-2 rounded-lg border bg-card p-4"
 										>
-											<div className="flex items-center gap-3">
+											<div className="flex min-w-0 items-center gap-2">
 												<Wrench className="h-4 w-4 shrink-0 text-primary" />
-												<h3 className="min-w-0 flex-1 text-sm font-semibold text-foreground">
+												<h3 className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">
 													{tool.name}
 												</h3>
 												{tool.pluginName && (
-													<span className="rounded border border-border px-2 py-0.5 text-xs text-muted-foreground">
-														plugin: {tool.pluginName}
-													</span>
+													<Badge
+														variant="outline"
+														className="shrink-0 text-muted-foreground"
+													>
+														{tool.pluginName}
+													</Badge>
 												)}
 												<span className="text-xs text-muted-foreground">
 													{tool.enabled ? "Enabled" : "Disabled"}
@@ -1687,12 +1754,12 @@ export function CustomizationSectionView({
 													aria-label={`Toggle ${tool.name}`}
 												/>
 											</div>
-											<p className="mt-2 ml-7 text-xs text-muted-foreground">
+											<p className="line-clamp-2 text-xs leading-5 text-muted-foreground">
 												{tool.description?.trim() ||
 													"No description available."}
 											</p>
 											{tool.path && (
-												<p className="mt-1 ml-7 text-xs font-mono text-muted-foreground">
+												<p className="truncate text-xs font-mono text-muted-foreground">
 													{tool.path}
 												</p>
 											)}
@@ -1709,7 +1776,13 @@ export function CustomizationSectionView({
 					</div>
 				</div>
 			)}
-		</PageFrame>
+		</>
+	);
+
+	return chrome === "embedded" ? (
+		<div>{content}</div>
+	) : (
+		<PageFrame>{content}</PageFrame>
 	);
 }
 
