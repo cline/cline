@@ -1,7 +1,8 @@
 # Cline CLI Changelog
 
-## 3.0.59
+## 3.0.60
 
+- Fixed the background hub process ballooning in memory during long sessions — session status updates were broadcasting a full copy of the conversation transcript to every connected client, which on a large task could grow the process to tens of gigabytes. Upgrading retires the running hub so the fix takes effect on the next command
 - New files are now created with your platform's native line endings
 - Fixed the codebase search tool crashing on files that contain a single enormous line
 - Cost estimates are no longer shown for Claude Code. Its usage is typically covered by a Claude Pro/Max subscription, but its models reuse Anthropic API pricing, so Cline was showing charges you were not being billed
