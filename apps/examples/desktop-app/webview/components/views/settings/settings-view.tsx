@@ -3,6 +3,13 @@ import { Minus, Plus, RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogHeader,
+	DialogTitle,
+} from "@/components/ui/dialog";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { isBetaVersion, productNameForVersion } from "@/lib/app-channel";
@@ -26,6 +33,10 @@ import {
 import { desktopClient } from "@/lib/desktop-client";
 import { resetOnboarding } from "@/lib/onboarding";
 import {
+	getProviderAuthKind,
+	isProviderConnected,
+} from "@/lib/provider-connection";
+import {
 	fetchProviderCatalog,
 	invalidateProviderCatalogCache,
 	notifyVoiceInputSettingsChanged,
@@ -37,7 +48,6 @@ import type {
 	ProviderCatalogResponse,
 	ProviderModelsResponse,
 	ProviderSettingsUpdate,
-	VoiceInputSelection,
 } from "@/lib/provider-schema";
 import {
 	type HubAccent,
@@ -54,12 +64,8 @@ import { PageFrame, PageHeader } from "../page-layout";
 import { AccountView } from "./account-view";
 import { AddProviderContent, type AddProviderPayload } from "./add-provider";
 import { ChannelsContent } from "./channels-view";
-import {
-	CustomizationSectionView,
-	invalidateExtensionInventoryCache,
-} from "./extensions-view";
+import { CustomizeView } from "./customize-view";
 import { NotificationSettings } from "./notification-settings";
-import { PluginsHubView } from "./plugins-hub-view";
 import {
 	ProviderDetailContent,
 	ProviderListContent,
@@ -67,6 +73,7 @@ import {
 import { RoutineSchedulesContent } from "./routine-view";
 import type { SettingsSection } from "./sections";
 import { toSettingsPatch } from "./settings-patch";
+import { VoiceInputContent } from "./voice-input-view";
 
 // Nav categories live in ./sections so the always-mounted sidebar can import
 // them without pulling this module graph into the initial bundle.
@@ -88,7 +95,6 @@ let providerCatalogCache: {
 	providers: Provider[];
 	fetchedAt: number;
 } | null = null;
-let voiceInputCache: VoiceInputSelection | undefined;
 
 // -----------------------------------------------------------
 // Component
@@ -126,10 +132,14 @@ export function SettingsView({
 		null,
 	);
 	const [addingProvider, setAddingProvider] = useState(false);
-	const [voiceInput, setVoiceInput] = useState<VoiceInputSelection | undefined>(
-		() => voiceInputCache,
-	);
-	const [voiceInputSaving, setVoiceInputSaving] = useState(false);
+	// Bumped by every optimistic provider mutation and catalog load. An
+	// in-flight catalog response is discarded when the generation moved on,
+	// so an older disk snapshot can never overwrite a newer edit.
+	const catalogGenerationRef = useRef(0);
+	// Bumped when a failed save resyncs the catalog from disk; keys the
+	// detail panel so its local field drafts remount from the reloaded
+	// props instead of keeping unpersisted values.
+	const [detailResetToken, setDetailResetToken] = useState(0);
 
 	useEffect(() => {
 		if (section !== "Models") {
@@ -155,35 +165,46 @@ export function SettingsView({
 		[],
 	);
 
-	const loadProviderCatalog = useCallback(async () => {
+	/**
+	 * Loads the catalog into view state. Resolves to false when the response
+	 * was discarded because a newer mutation or load superseded it while in
+	 * flight (so an older disk snapshot never overwrites a newer edit);
+	 * callers needing an authoritative resync should retry on false.
+	 */
+	const loadProviderCatalog = useCallback(async (): Promise<boolean> => {
 		const now = Date.now();
 		if (
 			providerCatalogCache &&
 			now - providerCatalogCache.fetchedAt < PROVIDER_CATALOG_CACHE_TTL_MS
 		) {
 			setProviders(providerCatalogCache.providers);
-			setVoiceInput(voiceInputCache);
 			setProvidersLoading(false);
 			setProviderCatalogError(null);
-			return;
+			return true;
 		}
 
+		const generation = ++catalogGenerationRef.current;
 		setProvidersLoading(true);
 		setProviderCatalogError(null);
 		try {
 			const payload = await desktopClient.invoke<ProviderCatalogResponse>(
 				"list_provider_catalog",
 			);
+			if (generation !== catalogGenerationRef.current) {
+				return false;
+			}
 			setProvidersWithCache(payload.providers);
-			voiceInputCache = payload.voiceInput;
-			setVoiceInput(payload.voiceInput);
 		} catch (error) {
+			if (generation !== catalogGenerationRef.current) {
+				return false;
+			}
 			const message = error instanceof Error ? error.message : String(error);
 			setProviderCatalogError(message);
 			setProviders([]);
 		} finally {
 			setProvidersLoading(false);
 		}
+		return true;
 	}, [setProvidersWithCache]);
 
 	useEffect(() => {
@@ -220,6 +241,19 @@ export function SettingsView({
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
 				window.alert(`Failed to save provider settings for ${id}: ${message}`);
+				// The optimistic list update no longer matches disk: resync from
+				// the authoritative catalog. Retry when a concurrent edit
+				// superseded the in-flight response (that edit performs no
+				// reload of its own), then remount the detail panel so its
+				// field drafts re-seed from the reloaded state — not before,
+				// or they would re-capture the unpersisted optimistic values.
+				for (let attempt = 0; attempt < 3; attempt++) {
+					providerCatalogCache = null;
+					if (await loadProviderCatalog()) {
+						break;
+					}
+				}
+				setDetailResetToken((token) => token + 1);
 				return false;
 			} finally {
 				// Keep the shared short-lived catalog cache (composer model
@@ -227,66 +261,63 @@ export function SettingsView({
 				invalidateProviderCatalogCache();
 			}
 		},
-		[],
+		[loadProviderCatalog],
 	);
 
-	const toggleProvider = useCallback(
+	const connectProvider = useCallback(
 		(id: string) => {
+			// Persist an (empty) settings entry so the provider is enabled with
+			// whatever credentials it resolves at runtime (env vars, local CLI,
+			// keyless endpoints).
+			catalogGenerationRef.current++;
 			setProvidersWithCache((prev) =>
-				prev.map((p) => {
-					if (p.id !== id) {
-						return p;
-					}
-					const nextEnabled = !p.enabled;
-					const clearsVoiceInput =
-						!nextEnabled && voiceInput?.providerId === id;
-					void persistProviderSettings(id, { enabled: nextEnabled }).then(
-						(saved) => {
-							if (saved && clearsVoiceInput) {
-								voiceInputCache = undefined;
-								setVoiceInput(undefined);
-								notifyVoiceInputSettingsChanged();
-							}
-						},
-					);
-					return { ...p, enabled: nextEnabled };
-				}),
+				prev.map((p) => (p.id === id ? { ...p, enabled: true } : p)),
 			);
+			void persistProviderSettings(id, { enabled: true });
 		},
-		[persistProviderSettings, setProvidersWithCache, voiceInput],
+		[persistProviderSettings, setProvidersWithCache],
 	);
 
-	const updateVoiceInput = useCallback(
-		async (selection: VoiceInputSelection | undefined) => {
-			setVoiceInputSaving(true);
-			try {
-				const result = await desktopClient.invoke<{
-					voiceInput?: VoiceInputSelection;
-				}>("save_voice_input_settings", {
-					provider: selection?.providerId,
-					model: selection?.modelId,
-				});
-				voiceInputCache = result.voiceInput;
-				setVoiceInput(result.voiceInput);
+	const disconnectProvider = useCallback(
+		async (id: string) => {
+			catalogGenerationRef.current++;
+			setProvidersWithCache((prev) =>
+				prev.map((p) =>
+					p.id === id
+						? {
+								...p,
+								enabled: false,
+								apiKey: undefined,
+								oauthAccessTokenPresent: false,
+							}
+						: p,
+				),
+			);
+			const saved = await persistProviderSettings(id, { enabled: false });
+			if (saved) {
+				// Disconnecting removes the persisted entry (and the sidecar drops
+				// a voice-input selection pointing at it); reload so the view and
+				// the chat microphone reflect the real on-disk state.
+				providerCatalogCache = null;
 				notifyVoiceInputSettingsChanged();
-			} catch (error) {
-				const message = error instanceof Error ? error.message : String(error);
-				window.alert(`Failed to save voice input settings: ${message}`);
-			} finally {
-				setVoiceInputSaving(false);
+				await loadProviderCatalog();
 			}
 		},
-		[],
+		[loadProviderCatalog, persistProviderSettings, setProvidersWithCache],
 	);
 
 	const updateProvider = useCallback(
 		(id: string, updates: ProviderSettingsUpdate) => {
+			// Saving settings creates the provider's persisted entry, which is
+			// what "connected" means for keyless providers — reflect it locally.
+			catalogGenerationRef.current++;
 			setProvidersWithCache((prev) =>
 				prev.map((p) =>
 					p.id === id
 						? {
 								...p,
 								...updates,
+								enabled: true,
 								configValues: updates.configValues
 									? {
 											...(p.configValues ?? {}),
@@ -359,12 +390,19 @@ export function SettingsView({
 		[loadProviderModels],
 	);
 
-	const selectedProvider = selectedProviderId
-		? (providers.find((p) => p.id === selectedProviderId) ?? null)
+	// The detail panel is always open: with no explicit selection, default to
+	// the first connected provider (the one in use), then the first provider.
+	const effectiveSelectedProviderId =
+		selectedProviderId ??
+		providers.find(isProviderConnected)?.id ??
+		providers[0]?.id ??
+		null;
+	const selectedProvider = effectiveSelectedProviderId
+		? (providers.find((p) => p.id === effectiveSelectedProviderId) ?? null)
 		: null;
 
 	const usesOAuth = (provider: Provider) =>
-		provider.capabilities?.includes("oauth") ?? false;
+		getProviderAuthKind(provider) === "oauth";
 
 	const runOAuthProviderLogin = async (id: string) => {
 		setOauthSigningProviderId(id);
@@ -405,14 +443,14 @@ export function SettingsView({
 	};
 
 	useEffect(() => {
-		if (!selectedProviderId) {
+		if (!effectiveSelectedProviderId) {
 			return;
 		}
 		const timeoutId = window.setTimeout(() => {
-			void loadProviderModels(selectedProviderId);
+			void loadProviderModels(effectiveSelectedProviderId);
 		}, 0);
 		return () => window.clearTimeout(timeoutId);
-	}, [loadProviderModels, selectedProviderId]);
+	}, [loadProviderModels, effectiveSelectedProviderId]);
 
 	const backToProviderList = () => {
 		onNavigateSection("Models");
@@ -444,17 +482,36 @@ export function SettingsView({
 
 	const openAddProvider = () => {
 		onNavigateSection("Models");
-		setSelectedProviderId(null);
 		setAddingProvider(true);
 	};
 
-	const providerContent = addingProvider ? (
-		<AddProviderContent
-			existingProviderIds={providers.map((provider) => provider.id)}
-			onBack={backToProviderList}
-			onSave={saveNewProvider}
-		/>
-	) : providersLoading ? (
+	const addProviderDialog = (
+		<Dialog
+			onOpenChange={(open) => {
+				if (!open) {
+					setAddingProvider(false);
+				}
+			}}
+			open={addingProvider}
+		>
+			<DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
+				<DialogHeader>
+					<DialogTitle>Add Provider</DialogTitle>
+					<DialogDescription>
+						Add an OpenAI-compatible provider and choose its available models.
+					</DialogDescription>
+				</DialogHeader>
+				<AddProviderContent
+					existingProviderIds={providers.map((provider) => provider.id)}
+					onBack={() => setAddingProvider(false)}
+					onSave={saveNewProvider}
+					variant="dialog"
+				/>
+			</DialogContent>
+		</Dialog>
+	);
+
+	const providerContent = providersLoading ? (
 		<div className="flex h-full items-center justify-center">
 			<p className="text-sm text-muted-foreground">Loading providers...</p>
 		</div>
@@ -466,23 +523,27 @@ export function SettingsView({
 		</div>
 	) : selectedProvider ? (
 		<div className="grid h-full grid-cols-[minmax(24rem,0.95fr)_minmax(28rem,1.05fr)] overflow-hidden max-[1100px]:grid-cols-1 max-[1100px]:grid-rows-[minmax(24rem,0.9fr)_minmax(26rem,1fr)]">
-			<ProviderListContent
-				onAddProvider={openAddProvider}
-				onConfigure={openProviderDetail}
-				onToggle={toggleProvider}
-				onVoiceInputChange={(selection) => void updateVoiceInput(selection)}
-				providers={providers}
-				selectedProviderId={selectedProvider.id}
-				variant="panel"
-				voiceInput={voiceInput}
-				voiceInputSaving={voiceInputSaving}
-			/>
+			{/* min-h-0/min-w-0: grid items default to min-size auto, which lets
+			    the pane grow past its track and leaves the inner ScrollArea with
+			    nothing to scroll. */}
+			<div className="min-h-0 min-w-0 overflow-hidden">
+				<ProviderListContent
+					onAddProvider={openAddProvider}
+					onConfigure={openProviderDetail}
+					providers={providers}
+					selectedProviderId={selectedProvider.id}
+					variant="panel"
+				/>
+			</div>
 			<aside className="min-h-0 overflow-hidden border-l bg-background max-[1100px]:border-l-0 max-[1100px]:border-t">
 				<ProviderDetailContent
+					key={`${selectedProvider.id}:${detailResetToken}`}
 					modelsError={modelsErrorByProvider[selectedProvider.id] ?? null}
 					modelsLoading={modelsLoadingByProvider[selectedProvider.id] ?? false}
 					oauthLoginPending={oauthSigningProviderId === selectedProvider.id}
 					onBack={backToProviderList}
+					onConnect={() => connectProvider(selectedProvider.id)}
+					onDisconnect={() => void disconnectProvider(selectedProvider.id)}
 					onLoadModels={() => void loadProviderModels(selectedProvider.id)}
 					onUpdateModels={(models) =>
 						void updateProviderModels(selectedProvider.id, models)
@@ -502,34 +563,29 @@ export function SettingsView({
 		<ProviderListContent
 			onAddProvider={openAddProvider}
 			onConfigure={openProviderDetail}
-			onToggle={toggleProvider}
-			onVoiceInputChange={(selection) => void updateVoiceInput(selection)}
 			providers={providers}
-			voiceInput={voiceInput}
-			voiceInputSaving={voiceInputSaving}
 		/>
 	);
 
 	const content =
 		activeNav === "Models" ? (
-			providerContent
-		) : activeNav === "Plugins" ? (
-			<PluginsHubView
+			<>
+				{providerContent}
+				{addProviderDialog}
+			</>
+		) : activeNav === "Voice" ? (
+			<VoiceInputContent
+				onOpenModelProviders={() => onNavigateSection("Models")}
+			/>
+		) : activeNav === "Customize" ? (
+			<CustomizeView
 				onOpenMarketplace={() => onNavigateSection("Marketplace")}
 			/>
 		) : activeNav === "Marketplace" ? (
 			<MarketplaceView
-				onInstalledItemsChanged={invalidateExtensionInventoryCache}
+				onOpenInstalled={() => onNavigateSection("Customize")}
 				variant="directory"
 			/>
-		) : activeNav === "Hooks" ? (
-			<CustomizationSectionView section="Hooks" />
-		) : activeNav === "Rules" ? (
-			<CustomizationSectionView section="Rules" />
-		) : activeNav === "Agents" ? (
-			<CustomizationSectionView section="Agents" />
-		) : activeNav === "Tools" ? (
-			<CustomizationSectionView section="Tools" />
 		) : activeNav === "Channels" ? (
 			<ChannelsContent />
 		) : activeNav === "Schedules" ? (

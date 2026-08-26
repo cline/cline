@@ -20,6 +20,7 @@ import {
 	PatchParser,
 	type PatchWarning,
 } from "./apply-patch-parser";
+import { normalizeNewFileLineEndings } from "./line-endings";
 
 export interface PatchFileChange {
 	type: PatchActionType;
@@ -232,7 +233,7 @@ function patchToChanges(
 				}
 				changes[filePath] = {
 					type: PatchActionType.ADD,
-					newContent: action.newFile,
+					newContent: normalizeNewFileLineEndings(action.newFile),
 				};
 				break;
 			case PatchActionType.UPDATE:
