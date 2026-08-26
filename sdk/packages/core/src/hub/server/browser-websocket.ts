@@ -29,8 +29,31 @@ const HUB_EVENT_REPLAY_PAGE_SIZE = 200;
  */
 const HUB_EVENT_REPLAY_MAX_PAGES = 1_000;
 
+/**
+ * Kick threshold for a subscriber that stopped draining its socket. Frames
+ * are queued in process memory by `socket.send`, so an unread backlog grows
+ * the Hub without bound (observed as a 25GB hub process feeding a stalled
+ * client). Past this ceiling the connection is terminated; the client's
+ * auto-reconnect resubscribes with its `sinceSequence` cursor and the durable
+ * event log replays everything it missed, so the kick is lossless within the
+ * log's retention window.
+ */
+const MAX_SOCKET_BUFFERED_BYTES = 64 * 1024 * 1024;
+
 export interface BrowserHubSocketLike {
 	send(data: string): void;
+	/**
+	 * Bytes queued in the socket's send buffer, when the underlying transport
+	 * exposes it. Used to detect subscribers that stopped draining; sockets
+	 * that cannot report it are exempt from the backpressure cap.
+	 */
+	readonly bufferedAmount?: number;
+	/**
+	 * Immediately tear the connection down without a close handshake. A close
+	 * frame would queue behind the very backlog that triggered the kick, so
+	 * graceful close is useless here.
+	 */
+	terminate?(): void;
 	addEventListener(
 		type: "message",
 		listener: (event: { data: string }) => void,
@@ -121,8 +144,47 @@ export class BrowserWebSocketHubAdapter {
 		const registeredClientIds = new Set<string>();
 		let authority: HubConnectionAuthority | undefined;
 		let closed = false;
+		// Set on a backpressure kick: terminate() tears the transport down
+		// asynchronously, so this gates sends (and repeat kicks) in the window
+		// before the close event lands.
+		let kicked = false;
 
 		const sendFrame = (frame: HubTransportFrame): void => {
+			if (closed || kicked) {
+				return;
+			}
+			const bufferedAmount = socket.bufferedAmount;
+			if (
+				typeof bufferedAmount === "number" &&
+				bufferedAmount > MAX_SOCKET_BUFFERED_BYTES
+			) {
+				kicked = true;
+				// The peer stopped reading: every additional frame is retained
+				// in this process until the socket drains, which it clearly is
+				// not doing. Cut the connection instead of buffering forever —
+				// reconnect + cursor replay makes this lossless for the client.
+				logHubMessage("warn", "socket.backpressure_kick", {
+					bufferedAmount,
+					maxBufferedBytes: MAX_SOCKET_BUFFERED_BYTES,
+					droppedFrameKind: frame.kind,
+				});
+				captureSdkError(this.telemetry, {
+					component: "core",
+					operation: "hub.websocket_backpressure_kick",
+					error: new Error(
+						`hub socket send buffer exceeded ${MAX_SOCKET_BUFFERED_BYTES} bytes (${bufferedAmount})`,
+					),
+					severity: "warn",
+					handled: true,
+					context: { bufferedAmount },
+				});
+				try {
+					socket.terminate?.();
+				} catch {
+					// The close listener still runs; nothing else to do.
+				}
+				return;
+			}
 			try {
 				socket.send(JSON.stringify(frame));
 			} catch (error) {
