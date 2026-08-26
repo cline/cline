@@ -28,9 +28,23 @@ const HUB_EVENT_REPLAY_PAGE_SIZE = 200;
  * the cursor reached.
  */
 const HUB_EVENT_REPLAY_MAX_PAGES = 1_000;
+/**
+ * Ceiling on bytes queued to one socket but not yet transmitted. A reader
+ * slower than the publish rate accumulates whole frames in the socket's send
+ * buffer — full-snapshot session.updated envelopes reach several MB each, so
+ * an unread backlog can grow the hub process by gigabytes. The cap matches
+ * the durable event log's size budget: a client further behind than the
+ * entire replayable log recovers strictly faster by reconnecting and
+ * resuming from its cursor, so terminate instead of buffering on.
+ */
+const HUB_SOCKET_MAX_BUFFERED_BYTES = 64 * 1024 * 1024;
 
 export interface BrowserHubSocketLike {
 	send(data: string): void;
+	/** Bytes accepted by send() but not yet handed to the OS (ws / WHATWG). */
+	readonly bufferedAmount?: number;
+	/** Forcibly close the connection without a closing handshake (ws). */
+	terminate?(): void;
 	addEventListener(
 		type: "message",
 		listener: (event: { data: string }) => void,
@@ -137,6 +151,27 @@ export class BrowserWebSocketHubAdapter {
 		};
 
 		const onEvent = (envelope: HubEventEnvelope): void => {
+			// Live fan-out only: replies stay best-effort so commands can
+			// still settle, and the durable log makes dropped live events
+			// recoverable — the terminated client reconnects and resumes by
+			// cursor replay from exactly where it fell behind.
+			const bufferedAmount = socket.bufferedAmount;
+			if (
+				typeof bufferedAmount === "number" &&
+				bufferedAmount > HUB_SOCKET_MAX_BUFFERED_BYTES &&
+				typeof socket.terminate === "function"
+			) {
+				logHubMessage("warn", "terminating backlogged event subscriber", {
+					bufferedAmount,
+					maxBufferedBytes: HUB_SOCKET_MAX_BUFFERED_BYTES,
+				});
+				try {
+					socket.terminate();
+				} catch {
+					// The close event still fires and unwinds the subscriptions.
+				}
+				return;
+			}
 			sendFrame({ kind: "event", envelope });
 		};
 

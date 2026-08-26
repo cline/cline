@@ -107,15 +107,18 @@ export async function projectSessionEvent(
 			);
 			return;
 		case "status": {
-			const [session, snapshot] = await Promise.all([
-				readHubSessionRecord(ctx, event.payload.sessionId),
-				readCoreSessionSnapshot(ctx, event.payload.sessionId),
-			]);
+			// Every status emit is paired with a session_snapshot emit that
+			// already projects the full transcript (see emitStatus). Attaching
+			// another freshly-read snapshot here doubled the multi-MB
+			// session.updated traffic per status flip — several per tool
+			// approval — through the event log and every subscriber socket.
+			// The session record alone carries the status change.
+			const session = await readHubSessionRecord(ctx, event.payload.sessionId);
 			if (session) {
 				ctx.publish(
 					ctx.buildEvent(
 						"session.updated",
-						{ session, ...(snapshot ? { snapshot } : {}) },
+						{ session },
 						event.payload.sessionId,
 					),
 				);

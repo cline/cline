@@ -13,8 +13,16 @@ function createSocket() {
 	const closeListeners = new Set<() => void>();
 	return {
 		sent: [] as string[],
+		bufferedAmount: 0,
+		terminated: false,
 		send(data: string) {
 			this.sent.push(data);
+		},
+		terminate() {
+			this.terminated = true;
+			for (const listener of closeListeners) {
+				listener();
+			}
 		},
 		addEventListener(
 			type: "message" | "close",
@@ -620,5 +628,60 @@ describe("BrowserWebSocketHubAdapter", () => {
 					frame.envelope.eventId === "hevt_reissued",
 			);
 		expect(delivered).toHaveLength(2);
+	});
+
+	it("terminates a subscriber whose send backlog exceeds the buffer budget", async () => {
+		// A reader slower than the publish rate accumulates whole frames in
+		// the socket's send buffer; multi-MB session.updated envelopes make
+		// that backlog a hub-process memory leak. Past the budget the client
+		// is better served by a reconnect + cursor replay, so the adapter
+		// must terminate instead of queueing more.
+		let liveListener: ((event: HubEventEnvelope) => void) | undefined;
+		const unsubscribe = vi.fn();
+		const transport = {
+			command: vi.fn(),
+			subscribe: vi.fn(
+				(_clientId: string, listener: (event: HubEventEnvelope) => void) => {
+					liveListener = listener;
+					return unsubscribe;
+				},
+			),
+		};
+		const socket = createSocket();
+		new BrowserWebSocketHubAdapter(transport).attach(socket);
+
+		socket.emitMessage(
+			JSON.stringify({
+				kind: "stream.subscribe",
+				clientId: "slow-reader",
+				sessionId: "session-1",
+			}),
+		);
+		await vi.waitFor(() => expect(transport.subscribe).toHaveBeenCalled());
+
+		const envelope: HubEventEnvelope = {
+			version: "v1",
+			event: "session.updated",
+			eventId: "hevt_full_snapshot",
+			sessionId: "session-1",
+			timestamp: Date.now(),
+		};
+		const eventFrames = () =>
+			socket.sent
+				.map((entry) => JSON.parse(entry))
+				.filter((frame) => frame.kind === "event");
+
+		// A draining socket keeps receiving events.
+		liveListener?.(envelope);
+		expect(eventFrames()).toHaveLength(1);
+		expect(socket.terminated).toBe(false);
+
+		// Once the backlog passes the budget, the socket is terminated and
+		// the event is not queued on top of it.
+		socket.bufferedAmount = 64 * 1024 * 1024 + 1;
+		liveListener?.(envelope);
+		expect(socket.terminated).toBe(true);
+		expect(eventFrames()).toHaveLength(1);
+		expect(unsubscribe).toHaveBeenCalled();
 	});
 });
