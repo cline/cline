@@ -78,11 +78,6 @@ type SpawnCommand = (
 	args: string[],
 	options?: SpawnOptions,
 ) => Promise<SpawnResult>;
-type PluginInstaller = typeof installCorePlugin;
-type MarketplaceInstallOptions = {
-	spawnCommand?: SpawnCommand;
-	installPlugin?: PluginInstaller;
-};
 type CatalogFetch = (
 	input: string | URL | Request,
 	init?: RequestInit,
@@ -793,7 +788,6 @@ async function installSkill(
 
 async function installPlugin(
 	entry: MarketplaceInstallInput,
-	installPluginImpl: PluginInstaller,
 ): Promise<MarketplaceInstallResult> {
 	const installArgs = entry.install.args ?? [];
 	if (installArgs.length !== 1) {
@@ -812,7 +806,7 @@ async function installPlugin(
 	// Install in-process instead of shelling out to a `cline` binary, which
 	// fails with 'Executable not found in $PATH: "cline"' when the hub runs
 	// without a CLI install on PATH.
-	const result = await installPluginImpl({ source: installArgs[0] ?? "" });
+	const result = await installCorePlugin({ source: installArgs[0] ?? "" });
 	const warnings = result.mcpSyncFailures.map(
 		(failure) =>
 			`Failed to sync plugin MCP servers for ${failure.pluginName ?? failure.pluginPath}: ${failure.message}`,
@@ -834,7 +828,7 @@ async function installPlugin(
 
 export async function installMarketplaceEntry(
 	args?: Record<string, unknown>,
-	options: MarketplaceInstallOptions = {},
+	options: { spawnCommand?: SpawnCommand } = {},
 ): Promise<MarketplaceInstallResult> {
 	const entry = readInstallInput(args);
 	const spawnCommand = options.spawnCommand ?? defaultSpawnCommand;
@@ -858,7 +852,7 @@ export async function installMarketplaceEntry(
 		return installSkill(entry, spawnCommand);
 	}
 	if (entry.type === "plugin") {
-		return installPlugin(entry, options.installPlugin ?? installCorePlugin);
+		return installPlugin(entry);
 	}
 	throw new Error(`Unsupported marketplace entry type: ${entry.type}`);
 }
@@ -888,7 +882,8 @@ export async function uninstallMarketplaceEntry(
 
 export async function installMarketplaceEntryFromCatalog(
 	args?: Record<string, unknown>,
-	options: MarketplaceInstallOptions & {
+	options: {
+		spawnCommand?: SpawnCommand;
 		loadCatalog?: CatalogLoader;
 	} = {},
 ): Promise<MarketplaceInstallResult> {
@@ -905,10 +900,7 @@ export async function installMarketplaceEntryFromCatalog(
 	}
 	return installMarketplaceEntry(
 		{ entry },
-		{
-			spawnCommand: options.spawnCommand,
-			installPlugin: options.installPlugin,
-		},
+		{ spawnCommand: options.spawnCommand },
 	);
 }
 
@@ -949,7 +941,8 @@ export function listMarketplaceInstalledEntries(
 
 export async function installMarketplaceEntryForDesktopCommand(
 	args?: Record<string, unknown>,
-	options: MarketplaceInstallOptions & {
+	options: {
+		spawnCommand?: SpawnCommand;
 		loadCatalog?: CatalogLoader;
 	} = {},
 ): Promise<MarketplaceInstallResult> {

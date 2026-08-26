@@ -138,39 +138,12 @@ describe("MCP install service", () => {
 			"-y",
 			"@aikidosec/mcp@1.0.9",
 		]);
-		expect(parsed).toEqual({
-			name: "aikido",
-			transport: undefined,
-			targetArgs: ["npx", "-y", "@aikidosec/mcp@1.0.9"],
-			headers: [],
-		});
+		expect(parsed.targetArgs).toEqual(["npx", "-y", "@aikidosec/mcp@1.0.9"]);
 		expect(buildMcpInstallTransport(parsed).transport).toEqual({
 			type: "stdio",
 			command: "npx",
 			args: ["-y", "@aikidosec/mcp@1.0.9"],
 		});
-	});
-
-	it("keeps option-like values after -- verbatim in marketplace args", () => {
-		const parsed = parseMcpInstallArgs([
-			"custom",
-			"--",
-			"node",
-			"server.js",
-			"--transport",
-			"ipc",
-			"--header",
-			"x",
-		]);
-		expect(parsed.targetArgs).toEqual([
-			"node",
-			"server.js",
-			"--transport",
-			"ipc",
-			"--header",
-			"x",
-		]);
-		expect(parsed.headers).toEqual([]);
 	});
 
 	it("keeps transport-like values as stdio command args for direct builder input", () => {

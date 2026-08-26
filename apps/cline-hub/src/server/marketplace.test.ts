@@ -9,8 +9,8 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { PluginInstallOptions, PluginInstallResult } from "@cline/core";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { installPlugin } from "@cline/core";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	buildMarketplaceMcpInput,
 	fetchMarketplaceCatalog,
@@ -22,10 +22,29 @@ import {
 	uninstallMarketplaceEntryForDesktopCommand,
 } from "./marketplace";
 
+// Marketplace plugin installs run in-process through @cline/core (spawning a
+// `cline` binary fails with 'Executable not found in $PATH: "cline"' when no
+// CLI is on PATH). Stub only installPlugin; everything else stays real.
+vi.mock(import("@cline/core"), async (importOriginal) => ({
+	...(await importOriginal()),
+	installPlugin: vi.fn(),
+}));
+const installPluginMock = vi.mocked(installPlugin);
+
 describe("marketplace installer", () => {
 	const originalClineDir = process.env.CLINE_DIR;
 	const originalHome = process.env.HOME;
 	const originalMcpSettingsPath = process.env.CLINE_MCP_SETTINGS_PATH;
+
+	beforeEach(() => {
+		installPluginMock.mockReset().mockImplementation(async (options) => ({
+			source: options.source,
+			installPath: "/tmp/plugin",
+			entryPaths: [],
+			mcpSyncFailures: [],
+			mcpOAuthCandidates: [],
+		}));
+	});
 
 	afterEach(() => {
 		if (originalClineDir === undefined) {
@@ -478,15 +497,6 @@ describe("marketplace installer", () => {
 			stdout: "",
 			stderr: "",
 		}));
-		const installPlugin = vi.fn(
-			async (options: PluginInstallOptions): Promise<PluginInstallResult> => ({
-				source: options.source,
-				installPath: "/tmp/plugin",
-				entryPaths: [],
-				mcpSyncFailures: [],
-				mcpOAuthCandidates: [],
-			}),
-		);
 
 		await expect(
 			installMarketplaceEntry(
@@ -498,14 +508,14 @@ describe("marketplace installer", () => {
 						install: { args: ["marketplace-test-plugin"] },
 					},
 				},
-				{ spawnCommand, installPlugin },
+				{ spawnCommand },
 			),
 		).resolves.toMatchObject({
 			status: "installed",
 			message: "Installed Marketplace Test Plugin.",
 		});
 
-		expect(installPlugin).toHaveBeenCalledWith({
+		expect(installPluginMock).toHaveBeenCalledWith({
 			source: "marketplace-test-plugin",
 		});
 		expect(spawnCommand).not.toHaveBeenCalled();
@@ -631,15 +641,6 @@ describe("marketplace installer", () => {
 	it("resolves desktop installs from the server catalog instead of browser-sent args", async () => {
 		const clineDir = mkdtempSync(join(tmpdir(), "cline-marketplace-plugin-"));
 		process.env.CLINE_DIR = clineDir;
-		const installPlugin = vi.fn(
-			async (options: PluginInstallOptions): Promise<PluginInstallResult> => ({
-				source: options.source,
-				installPath: "/tmp/plugin",
-				entryPaths: [],
-				mcpSyncFailures: [],
-				mcpOAuthCandidates: [],
-			}),
-		);
 
 		await installMarketplaceEntryForDesktopCommand(
 			{
@@ -651,7 +652,6 @@ describe("marketplace installer", () => {
 				},
 			},
 			{
-				installPlugin,
 				loadCatalog: async () => ({
 					entries: [
 						{
@@ -665,7 +665,7 @@ describe("marketplace installer", () => {
 			},
 		);
 
-		expect(installPlugin).toHaveBeenCalledWith({
+		expect(installPluginMock).toHaveBeenCalledWith({
 			source: "marketplace-test-plugin",
 		});
 	});
