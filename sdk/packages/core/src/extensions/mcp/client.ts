@@ -253,6 +253,14 @@ class StdioMcpClient implements McpServerClient {
 		this.stderrBuffer = "";
 		this.protocolMode = protocolMode;
 
+		// With shell:true (win32 only) Node concatenates command + args without
+		// quoting, so any executable path containing spaces (e.g.
+		// "C:\Program Files\nodejs\node.exe") is truncated by cmd.exe. Quote
+		// segments that contain whitespace to keep absolute-path launches
+		// working; plain commands like "npx" are untouched.
+		const needsQuoting = (value: string) => /\s/.test(value);
+		const quoteForShell = (value: string) =>
+			needsQuoting(value) ? `"${value}"` : value;
 		const platformOptions =
 			process.platform === "win32"
 				? {
@@ -260,15 +268,19 @@ class StdioMcpClient implements McpServerClient {
 						shell: true,
 					}
 				: {};
-		const child = spawn(transport.command, transport.args ?? [], {
-			cwd: transport.cwd,
-			env: {
-				...process.env,
-				...(transport.env ?? {}),
+		const child = spawn(
+			quoteForShell(transport.command),
+			(transport.args ?? []).map(quoteForShell),
+			{
+				cwd: transport.cwd,
+				env: {
+					...process.env,
+					...(transport.env ?? {}),
+				},
+				stdio: ["pipe", "pipe", "pipe"],
+				...platformOptions,
 			},
-			stdio: ["pipe", "pipe", "pipe"],
-			...platformOptions,
-		});
+		);
 
 		this.process = child;
 		child.stdout.on("data", (chunk: Buffer) => this.handleStdout(chunk));
