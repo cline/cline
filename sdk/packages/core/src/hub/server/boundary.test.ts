@@ -462,7 +462,12 @@ describe("HubServerTransport boundaries", () => {
 		});
 
 		expect(snapshotReply.payload).toHaveProperty("snapshot");
-		expect(readSessionMessages).toHaveBeenCalledWith("session-1");
+		// Snapshots are state notifications: even when requested they never
+		// carry (or read) the transcript — that's session.messages' job.
+		expect(readSessionMessages).not.toHaveBeenCalled();
+		expect(
+			snapshotReply.payload?.snapshot as Record<string, unknown>,
+		).not.toHaveProperty("messages");
 	});
 
 	it("keeps interactive approval requests pending until a response arrives", async () => {
@@ -532,6 +537,61 @@ describe("HubServerTransport boundaries", () => {
 		} finally {
 			vi.useRealTimers();
 		}
+	});
+
+	it("replays a pending approval to a client that (re)subscribes after it was raised", async () => {
+		const transport = createTransport();
+		const ctx = getContext(transport);
+		ensureSessionState(ctx, "session-1", "client-1", "creator", {
+			interactive: true,
+		});
+
+		// No subscriber is attached yet: the approval is raised into the void.
+		const resultPromise = requestToolApproval(ctx, {
+			sessionId: "session-1",
+			agentId: "agent-1",
+			conversationId: "conversation-1",
+			iteration: 1,
+			toolCallId: "call-1",
+			toolName: "run_commands",
+			input: { commands: ["echo hi"] },
+			policy: { autoApprove: false },
+		});
+
+		// Let the request actually publish (it awaits ctx.sessionHost.getSession
+		// first) before anyone subscribes, so this exercises replay-on-subscribe
+		// rather than catching a live broadcast in that async gap.
+		for (let i = 0; i < 50 && ctx.pendingApprovals.size === 0; i += 1) {
+			await Promise.resolve();
+		}
+		expect(ctx.pendingApprovals.size).toBe(1);
+
+		// A client subscribing after the fact must still see the request.
+		const events: HubEventEnvelope[] = [];
+		transport.subscribe("late-client", (event) => events.push(event));
+		await Promise.resolve();
+		await Promise.resolve();
+
+		const requested = events.find(
+			(event) => event.event === "approval.requested",
+		);
+		expect(requested?.payload).toMatchObject({
+			sessionId: "session-1",
+			conversationId: "conversation-1",
+			toolCallId: "call-1",
+		});
+
+		const approvalId = requested?.payload?.approvalId as string;
+		await handleApprovalRespond(ctx, {
+			version: "v1",
+			requestId: "req-late",
+			command: "approval.respond",
+			payload: { approvalId, approved: true },
+		});
+		await expect(resultPromise).resolves.toEqual({
+			approved: true,
+			reason: undefined,
+		});
 	});
 
 	it("rejects pending tool approvals when a run is aborted", async () => {
@@ -1181,6 +1241,78 @@ describe("HubServerTransport boundaries", () => {
 			error: { code: "invalid_compaction_state" },
 		});
 		expect(updateSessionCompactionState).not.toHaveBeenCalled();
+	});
+
+	it("never captures the transcript into event or reply snapshots", async () => {
+		const transcript = [
+			{ role: "user", content: [{ type: "text", text: "hello" }] },
+			{ role: "assistant", content: [{ type: "text", text: "world" }] },
+		];
+		let capturedSessionListener:
+			| ((event: Record<string, unknown>) => void)
+			| undefined;
+		const readSessionMessages = vi.fn().mockResolvedValue(transcript);
+		const transport = createTransport({
+			sessionHost: {
+				subscribe: vi.fn(
+					(listener: (event: Record<string, unknown>) => void) => {
+						capturedSessionListener = listener;
+						return () => {};
+					},
+				),
+				updateSession: vi.fn().mockResolvedValue({ updated: true }),
+				readSessionMessages,
+			},
+		});
+		const ctx = getContext(transport);
+		const events: HubEventEnvelope[] = [];
+		ensureSessionState(ctx, "session-1", "owner-client", "creator");
+		transport.subscribe("owner-client", (event) => events.push(event));
+
+		// A status change projects a session.updated whose snapshot carries
+		// state (status, usage, ...) but never the conversation — the session
+		// host's transcript must not even be read for it.
+		capturedSessionListener?.({
+			type: "status",
+			payload: { sessionId: "session-1", status: "running" },
+		});
+		await vi.waitFor(() => {
+			expect(events.some((event) => event.event === "session.updated")).toBe(
+				true,
+			);
+		});
+		const statusEvent = events.find(
+			(event) => event.event === "session.updated",
+		);
+		const statusSnapshot = statusEvent?.payload?.snapshot as Record<
+			string,
+			unknown
+		>;
+		expect(statusSnapshot.status).toBe("completed");
+		expect(statusSnapshot).not.toHaveProperty("messages");
+
+		// A session.update command: neither the published event nor the reply
+		// snapshot contains messages (clients fetch them via session.messages).
+		events.length = 0;
+		const reply = await transport.handleCommand({
+			version: "v1",
+			requestId: "req-update-no-transcript",
+			command: "session.update",
+			clientId: "owner-client",
+			sessionId: "session-1",
+			payload: { metadata: { title: "renamed" } },
+		});
+		const replySnapshot = reply.payload?.snapshot as Record<string, unknown>;
+		expect(replySnapshot).not.toHaveProperty("messages");
+		const updated = events.find((event) => event.event === "session.updated");
+		expect(updated).toBeDefined();
+		const updatedSnapshot = updated?.payload?.snapshot as Record<
+			string,
+			unknown
+		>;
+		expect(updatedSnapshot).not.toHaveProperty("messages");
+		expect(updatedSnapshot.status).toBe("completed");
+		expect(readSessionMessages).not.toHaveBeenCalled();
 	});
 
 	it("publishes session updates after successful compaction sidecar updates", async () => {

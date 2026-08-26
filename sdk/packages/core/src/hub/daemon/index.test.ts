@@ -8,6 +8,7 @@ const {
 	rememberRecoverableLocalHubUrl,
 	verifyHubConnection,
 	localHubHasNoActiveSessions,
+	requestHubDrain,
 	resolveProductionHubOwnerContext,
 	resolveSharedHubOwnerContext,
 	createHubServerUrl,
@@ -31,6 +32,7 @@ const {
 	verifyHubConnection: vi.fn(),
 	// Idle by default, so existing replacement cases are unaffected.
 	localHubHasNoActiveSessions: vi.fn(async () => true),
+	requestHubDrain: vi.fn(async () => true),
 	resolveProductionHubOwnerContext: vi.fn(() => ({
 		discoveryPath: "/tmp/hub-discovery.json",
 	})),
@@ -101,6 +103,7 @@ vi.mock("@cline/shared", () => ({
 vi.mock("../client", () => ({
 	localHubHasNoActiveSessions,
 	rememberRecoverableLocalHubUrl,
+	requestHubDrain,
 	requestHubShutdown,
 	verifyHubConnection,
 }));
@@ -148,6 +151,8 @@ describe("ensureDetachedHubServer", () => {
 		probeHubServer.mockReset();
 		requestHubShutdown.mockReset();
 		requestHubShutdown.mockResolvedValue(true);
+		requestHubDrain.mockReset();
+		requestHubDrain.mockResolvedValue(true);
 		readHubDiscovery.mockReset();
 		vi.stubGlobal("fetch", fetchMock);
 	});
@@ -401,7 +406,17 @@ describe("ensureDetachedHubServer", () => {
 				"ws://127.0.0.1:25463/hub",
 				"old-token",
 			);
-			expect(kill).toHaveBeenCalledWith(12345, "SIGTERM");
+			// Retirement is drain-first: the hub refuses new work before it is
+			// asked to shut down.
+			expect(requestHubDrain).toHaveBeenCalledWith(
+				"ws://127.0.0.1:25463/hub",
+				"old-token",
+				"retired by newer install",
+			);
+			expect(requestHubDrain.mock.invocationCallOrder[0]).toBeLessThan(
+				requestHubShutdown.mock.invocationCallOrder[0] ?? 0,
+			);
+			expect(kill).not.toHaveBeenCalledWith(12345, "SIGTERM");
 			expect(clearHubDiscovery).toHaveBeenCalledWith("/tmp/hub-discovery.json");
 			expect(spawn).toHaveBeenCalledOnce();
 			expect(verifyHubConnection).toHaveBeenCalledOnce();
@@ -509,7 +524,7 @@ describe("ensureDetachedHubServer", () => {
 				"ws://127.0.0.1:25463/hub",
 				"",
 			);
-			expect(kill).toHaveBeenCalledWith(12345, "SIGTERM");
+			expect(kill).not.toHaveBeenCalledWith(12345, "SIGTERM");
 			expect(clearHubDiscovery).toHaveBeenCalledWith("/tmp/hub-discovery.json");
 			expect(spawn).toHaveBeenCalledOnce();
 		} finally {
@@ -537,6 +552,10 @@ describe("ensureDetachedHubServer", () => {
 
 			await pending;
 			expect(spawn).not.toHaveBeenCalled();
+			// The hub survived the retirement attempt, so its discovery record
+			// must not be cleared — clearing it would leave the live daemon
+			// undiscoverable.
+			expect(clearHubDiscovery).not.toHaveBeenCalled();
 		} finally {
 			vi.useRealTimers();
 		}
@@ -580,7 +599,7 @@ describe("ensureDetachedHubServer", () => {
 				"ws://127.0.0.1:39121/hub",
 				"legacy-token",
 			);
-			expect(kill).toHaveBeenCalledWith(222, "SIGTERM");
+			expect(kill).not.toHaveBeenCalledWith(222, "SIGTERM");
 			expect(clearHubDiscovery).toHaveBeenCalledWith(
 				"/tmp/legacy-hub-discovery.json",
 			);
@@ -679,7 +698,7 @@ describe("ensureDetachedHubServer", () => {
 				"ws://127.0.0.1:25463/hub",
 				"old-token",
 			);
-			expect(kill).toHaveBeenCalledWith(12345, "SIGTERM");
+			expect(kill).not.toHaveBeenCalledWith(12345, "SIGTERM");
 		} finally {
 			kill.mockRestore();
 		}
@@ -740,7 +759,7 @@ describe("ensureDetachedHubServer", () => {
 			expect(clearHubDiscovery.mock.invocationCallOrder[0]).toBeGreaterThan(
 				probeHubServer.mock.invocationCallOrder[2],
 			);
-			expect(kill).toHaveBeenCalledWith(12345, "SIGTERM");
+			expect(kill).not.toHaveBeenCalledWith(12345, "SIGTERM");
 			expect(spawn).toHaveBeenCalledOnce();
 			expect(verifyHubConnection).toHaveBeenCalledOnce();
 		} finally {
