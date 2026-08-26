@@ -44,3 +44,27 @@
 - **单项回退**：上表逐条 `git revert <sha>`——各 commit 无交叉文件依赖（唯一交叠是 evals/README.md 被 commit 2 与 4 先后修改，若需回退 commit 2 请连同 4 一并 revert 或手工保留 CI 段落）。
 - **整体回退**：`git checkout main && git branch -D scan-remediation/2026-08-26`（未合并前零影响）。
 - **合并后回退**：按 commit 逐个 revert，或 `git revert --mainline 1 -m 1 <merge-sha>` 整体撤销。
+
+---
+
+# 第二阶段（同日续）：架构稳定前提下的深化修复
+
+> 约束：不做任何跨模块结构改动；每步均有验证门；R2/R3 仍按路线图推迟。
+
+## Phase-2 提交清单
+
+| # | Commit | 风险项 | 类型 | 内容 | 验证 |
+|---|---|---|---|---|---|
+| P2-1 | `31493f765` | R7 | build | **evals 工具链现代化**：裁剪 4 个零使用依赖（better-sqlite3 原生模块/tiktoken/chalk/commander）+ ts-node → 仅留 dotenv；TS ^4.9.4→^5.9.3、@types/node→^25.3.5、加 tsx devDep；锁文件重生成（净 -277 行）；替换断链 tsconfig（根目录无 tsconfig.json，旧 extends 形同虚设）为独立配置（ES2022+bundler）；顺带修复暴露的 harbor 指标命名契约断裂（camelCase→snake_case 适配器，smoke-runner 输出格式不变）；工作流同步（analysis npm ci + tsc 门 + 本地 tsx） | `tsc --noEmit` exit 0；runner 于 tsx 下完整加载至 CLI 守卫早退；js-yaml 解析 workflow exit 0 |
+| P2-2 | （本提交） | R6 | docs | V19 缺口结案：逐文件 `--follow` 取证证实 V19 加固 squash 进 V18 提交 `5a6862d5a`（session-messages-jsonl.ts 648 行仅存于该提交，含 VSIX 标记 subarray）；v17-v21-index 对应行更新 | git log --all --follow 取证记录 |
+
+## Phase-2 关键发现
+
+1. **evals/tsconfig.json 此前 extends 不存在的根 tsconfig**——所有历史类型检查对该目录实际无效。本次独立配置后首次获得真实类型门禁，并立即捕获 harbor 的指标契约 bug（若未修，未来 analysis JSON 报告的 metrics 字段将静默错位）。
+2. **V19 结案**消除了"存在丢失工作"的担忧——是标签缺失而非代码缺失。
+3. better-sqlite3 从 evals 依赖树移除后，CI 安装不再触发原生编译，冒烟工作流的失败面显著缩小。
+
+## Phase-2 后剩余项（不变）
+
+- R2/R3/R8-examples-vscode：维持第一阶段路线图。
+- 冒烟工作流首跑仍待仓库 secret `CLINE_API_KEY` 配置后人工触发。

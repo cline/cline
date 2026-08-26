@@ -16,16 +16,16 @@
 | V17 | `doc/v17-webview-json-blocking-analysis.md` | `83bbbf938` fix(webview): OOB version 门控 + scroll-up 修复 (V17) | ✅ |
 | V17a | `doc/v17a-startup-log-analysis.md` | 分析文档，随 `8da42613d` 入库；其初判结论后被 V20 修正 | ✅（含修正注记） |
 | V18 | —（无独立报告） | `5a6862d5a` feat(storage): JSONL session-message persistence, full-read + tail-window (V18) | ⚠️ 有提交无报告 |
-| V19 | —（无独立报告） | **未找到带标签提交**。v17a 第八节描述其范围："消除超大 JSONL 读取的死循环/句柄耗尽隐患"。V18→V21 提交历史直接相邻，推测加固工作并入 V18 提交或未单独成 commit | ❌ 缺口 |
+| V19 | —（无独立报告） | ~~未找到带标签提交~~ **已结案（2026-08-26 二轮扫描）**：`git log --all --follow` 证实 `sdk/packages/core/src/services/session-messages-jsonl.ts`（648 行 + 228 行测试）及 manifest store 加固**仅存在于 V18 提交 `5a6862d5a` 中**；其"full-read + tail-window"设计与 v17a §八所述 V19 范围（消除超大 JSONL 死循环/句柄耗尽）完全吻合，文件含 VSIX 验证标记 `subarray`（1 处）。结论：V19 工作已 squash 进 V18 提交，无缺失 diff，仅缺独立标签/报告 | ✅ 已并入 V18 |
 | V20 | —（无独立报告） | `f1c2068ac` fix(build): stop splitting framer-motion vendor chunk（即 v17a 第九节"chunk 循环依赖"定论的修复），但提交信息未标 V20 | ⚠️ 有修复无标签 |
 | V21 | `doc/v21-implementation-report.md` | `6aa7b1b73` feat(compaction): auto-compact 阈值可配置 (V21)、`8316906c0` bump 4.9.9 | ✅ |
 | 后续 | （本索引创建时） | `c2fbf6508` refactor、`90b31f389` fix(分页收尾)、`a8d4e781c` chore(checkpoint [R5]) | — |
 
 ## 2. 缺口说明与结论
 
-1. **V19 是真实缺口**：既有工作描述（v17a §八）、又有 VSIX 验证记录（v17a 行 212），却无可识别提交。若该工作确实落地，应补一条指向实际 diff 的链接；若是计划未实施，应在 v17a 中标注。
+1. ~~**V19 是真实缺口**~~ **V19 已结案**：二轮取证（`git log --all --follow` 逐文件追踪 + VSIX 标记比对）证实 V19 的加固工作被 squash 进 V18 提交 `5a6862d5a`，无代码缺失。历史疑点源于"提交标签 ≠ 工作轮次"。
 2. **V20 修复存在但未打标**：`f1c2068ac` 即 V20 修复本体，建议后续引用时以该哈希为准。
-3. 本索引基于 `git log --reverse 5a6862d5a~1..6aa7b1b73` 仅含两个相邻提交的事实得出"V19 无独立提交"结论；如存在 squash 或 rebase 历史，此结论需复核。
+3. 本索引基于 `git log --reverse 5a6862d5a~1..6aa7b1b73` 与逐文件 `--follow` 追踪得出上述结论。
 
 ## 3. 维护建议
 
