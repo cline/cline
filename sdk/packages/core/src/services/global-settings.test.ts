@@ -5,17 +5,19 @@ import type { ITelemetryService } from "@cline/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	GlobalSettingsSchema,
+	isModelToolEnabledGlobally,
 	readCompactionModeGlobally,
 	readCompactionStrategyGlobally,
 	readGlobalSettings,
 	readPlanActModeGlobally,
 	readToolAutoApproveGlobally,
+	readTuiThemeGlobally,
 	setAutoUpdateEnabledGlobally,
 	setCompactionModeGlobally,
 	setCompactionStrategyGlobally,
 	setDisabledPlugin,
 	setDisabledTools,
-	readTuiThemeGlobally,
+	setModelToolEnabledGlobally,
 	setPlanActModeGlobally,
 	setTelemetryOptOutGlobally,
 	setToolAutoApproveGlobally,
@@ -158,6 +160,30 @@ describe("global-settings", () => {
 				disabledPlugins: ["/plugins/example.js"],
 				disabledTools: ["read_files"],
 				telemetryOptOut: false,
+			});
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	it("stores provider-executed tool preferences in the scalable tools map", async () => {
+		const root = await mkdtemp(join(tmpdir(), "core-global-settings-"));
+		try {
+			process.env.CLINE_GLOBAL_SETTINGS_PATH = join(
+				root,
+				"global-settings.json",
+			);
+
+			expect(isModelToolEnabledGlobally("web_search")).toBe(false);
+			setModelToolEnabledGlobally("web_search", true);
+			expect(isModelToolEnabledGlobally("web_search")).toBe(true);
+			expect(readGlobalSettings().tools).toEqual({
+				web_search: { enabled: true },
+			});
+
+			setDisabledTools(["web_search"], true);
+			expect(readGlobalSettings().tools).toEqual({
+				web_search: { enabled: false },
 			});
 		} finally {
 			await rm(root, { recursive: true, force: true });

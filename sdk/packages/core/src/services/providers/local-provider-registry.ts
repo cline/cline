@@ -14,6 +14,9 @@ import {
 	type ModelCapability,
 	ModelCapabilitySchema,
 	type ModelInfo,
+	ModelModalitiesSchema,
+	ModelOperationModeSchema,
+	ModelOperationSchema,
 	type ProviderCapability,
 	ProviderCapabilitySchema,
 	type ProviderClient,
@@ -54,6 +57,9 @@ export const StoredModelEntrySchema = z
 		supportsVision: z.boolean().optional(),
 		supportsAttachments: z.boolean().optional(),
 		supportsReasoning: z.boolean().optional(),
+		operation: ModelOperationSchema.optional(),
+		operationModes: z.array(ModelOperationModeSchema).optional(),
+		modalities: ModelModalitiesSchema.optional(),
 		inputPrice: OptionalNonNegativeFiniteNumberSchema,
 		outputPrice: OptionalNonNegativeFiniteNumberSchema,
 		cacheReadsPrice: OptionalNonNegativeFiniteNumberSchema,
@@ -217,12 +223,21 @@ export function toProviderModel(
 	modelId: string,
 	info: Pick<
 		ModelInfo,
-		"name" | "contextWindow" | "capabilities" | "thinkingConfig"
+		| "name"
+		| "description"
+		| "contextWindow"
+		| "capabilities"
+		| "thinkingConfig"
+		| "operation"
+		| "operationModes"
+		| "modalities"
 	>,
 ): ProviderModel {
 	return {
 		id: modelId,
 		name: info.name ?? modelId,
+		...(info.description ? { description: info.description } : {}),
+		operation: info.operation,
 		...(info.contextWindow !== undefined
 			? { contextWindow: info.contextWindow }
 			: {}),
@@ -230,6 +245,9 @@ export function toProviderModel(
 		supportsVision: info.capabilities?.includes("images"),
 		supportsReasoning:
 			info.capabilities?.includes("reasoning") || info.thinkingConfig != null,
+		operationModes: info.operationModes,
+		inputModalities: info.modalities?.input,
+		outputModalities: info.modalities?.output,
 	};
 }
 
@@ -307,6 +325,7 @@ function toStoredModelInfo(
 	modelId: string,
 	model: StoredModelEntry | undefined,
 	fallbackCapabilities?: ModelInfo["capabilities"],
+	capabilitiesAreAuthoritative = false,
 ): ModelInfo {
 	const capabilities = new Set<ModelCapability>(
 		model?.capabilities ?? fallbackCapabilities ?? [],
@@ -322,6 +341,24 @@ function toStoredModelInfo(
 	if (model?.supportsReasoning !== undefined) {
 		if (model.supportsReasoning) capabilities.add("reasoning");
 		else capabilities.delete("reasoning");
+	}
+	// An unspecified capability list fails open for tool calling
+	// (modelSupportsToolCalling), but any populated list is treated as
+	// authoritative — a partial one without "tools" silently revokes every
+	// tool definition (#13463). Stored entries and user-authored provider
+	// metadata cannot declare "cannot call tools" (there is no supportsTools
+	// field, and no writer intentionally omits "tools"): their lists are
+	// partial overlays, not authoritative catalogs. Seed "tools" into any
+	// non-empty list for a language model unless the list is anchored on
+	// generated catalog metadata, which IS authoritative (a genuine no-tools
+	// catalog model must stay that way). An empty set stays absent so every
+	// gate keeps its own fail-open default.
+	if (
+		!capabilitiesAreAuthoritative &&
+		capabilities.size > 0 &&
+		(model?.operation === undefined || model.operation === "language")
+	) {
+		capabilities.add("tools");
 	}
 
 	const apiFormat = model?.apiFormat;
@@ -345,6 +382,13 @@ function toStoredModelInfo(
 			? { temperature: model.temperature }
 			: {}),
 		...(apiFormat !== undefined ? { apiFormat } : {}),
+		...(model?.operation !== undefined ? { operation: model.operation } : {}),
+		...(model?.operationModes !== undefined
+			? { operationModes: model.operationModes }
+			: {}),
+		...(model?.modalities !== undefined
+			? { modalities: model.modalities }
+			: {}),
 		...(hasPricing
 			? {
 					pricing: {
@@ -370,15 +414,35 @@ function registerCustomModels(
 	providerId: string,
 	models: StoredProviderEntry["models"] | undefined,
 ): void {
+	const generatedModels = getGeneratedModelsForProvider(providerId);
 	for (const [modelKey, model] of Object.entries(models ?? {})) {
 		const modelId = model.id?.trim() || modelKey.trim();
 		if (!modelId) {
 			continue;
 		}
+		const generatedCapabilities = generatedModels[modelId]?.capabilities;
+		const storedModel =
+			generatedCapabilities && model.capabilities
+				? {
+						...model,
+						// Stored capability lists are additive overrides for catalog
+						// models. Preserve generated capabilities such as "tools"
+						// when loading metadata written by older clients that only
+						// persisted their boolean projections.
+						capabilities: [
+							...new Set([...generatedCapabilities, ...model.capabilities]),
+						],
+					}
+				: model;
 		LlmsModels.registerModel(
 			providerId,
 			modelId,
-			toStoredModelInfo(modelId, model),
+			toStoredModelInfo(
+				modelId,
+				storedModel,
+				generatedCapabilities,
+				generatedCapabilities !== undefined,
+			),
 		);
 	}
 }

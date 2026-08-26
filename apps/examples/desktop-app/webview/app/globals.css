@@ -1,10 +1,13 @@
-@import "@fontsource-variable/schibsted-grotesk";
-@import "@fontsource/azeret-mono/latin.css";
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/geist-mono";
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "@cline/ui/theme/index.css";
 @import "@cline/ui/components.css";
 @import "@cline/ui/components/agent-chat.css";
+/* Unlayered on purpose: its chat-polish rules must beat Streamdown's layered
+ * Tailwind utilities (from the @source below) without !important. */
+@import "@cline/ui/components/markdown.css";
 
 @source "../../node_modules/streamdown/dist";
 
@@ -14,213 +17,71 @@
 		height: 100%;
 		min-height: 100vh;
 		overflow: hidden;
+		/* Keep scroll momentum inside the app: without this, hitting the end
+		 * of an inner scroller rubber-bands the whole window like a web page. */
+		overscroll-behavior: none;
 	}
 
 	#__next {
 		height: 100%;
 	}
-}
 
-/*
- * Chat Markdown (components/ui/markdown.tsx). Streamdown ships its defaults
- * as Tailwind utilities, which land in the layered @source output; these
- * unlayered rules win the cascade without needing !important.
- */
-
-/* Chat panes are narrow and the base text is --text-sm: tighten the rhythm
- * between top-level blocks from Streamdown's document-scale 1rem. */
-.cline-markdown > :not(:last-child) {
-	margin-block-end: 0.75rem;
-}
-
-/* Chat-scale heading ramp (defaults go up to text-3xl, huge next to 14px body). */
-.cline-markdown :is(h1, h2, h3, h4, h5, h6) {
-	margin-block: 1.25rem 0.5rem;
-	line-height: 1.35;
-}
-
-.cline-markdown h1 {
-	font-size: 1.25rem;
-}
-
-.cline-markdown h2 {
-	font-size: 1.125rem;
-}
-
-.cline-markdown h3 {
-	font-size: 1rem;
-}
-
-.cline-markdown :is(h4, h5, h6) {
-	font-size: 0.875rem;
-}
-
-.cline-markdown hr {
-	margin-block: 1rem;
-}
-
-/* Outside markers so wrapped list lines align with their first line, not the
- * bullet (Streamdown uses list-inside). */
-.cline-markdown :is(ul, ol) {
-	list-style-position: outside;
-	padding-inline-start: 1.375rem;
-}
-
-.cline-markdown li {
-	padding-block: 0.125rem;
-}
-
-.cline-markdown li::marker {
-	color: var(--muted-foreground);
-}
-
-.cline-markdown [data-streamdown="inline-code"] {
-	padding: 0.1em 0.35em;
-	font-size: 0.8125rem;
-}
-
-/* Running reasoning/tool titles use their inherited text color as the bright
- * band, so the same shimmer fits muted thinking text and primary tool text. */
-.cline-chat-streaming-title {
-	display: inline-block;
-	background-image: linear-gradient(
-		90deg,
-		color-mix(in oklab, currentcolor 55%, transparent) 0%,
-		currentcolor 50%,
-		color-mix(in oklab, currentcolor 55%, transparent) 100%
-	);
-	background-position: 200% 0;
-	background-size: 200% 100%;
-	-webkit-background-clip: text;
-	background-clip: text;
-	-webkit-text-fill-color: transparent;
-	animation: cline-chat-title-shimmer 2.25s linear infinite;
-}
-
-@keyframes cline-chat-title-shimmer {
-	to {
-		background-position: -200% 0;
+	/*
+	 * Native-app chrome: labels, buttons, and panel text must not highlight
+	 * when the user drags across them. Content the user genuinely reads and
+	 * copies — chat messages, code, diffs, form fields — opts back in below.
+	 */
+	body {
+		-webkit-user-select: none;
+		user-select: none;
 	}
+
+	input,
+	textarea,
+	[contenteditable="true"] {
+		-webkit-user-select: text;
+		user-select: text;
+	}
+
+	/* Selectable content surfaces: chat message bodies (incl. markdown and
+	 * code blocks), reasoning/tool panels, and diff text. */
+	.cline-chat-message-content,
+	.cline-markdown,
+	.cline-chat-selectable,
+	pre,
+	code {
+		-webkit-user-select: text;
+		user-select: text;
+	}
+}
+
+/* Chat Markdown polish and the streaming-title shimmer live in
+ * @cline/ui (components/markdown.css and agent-chat.css), shared with the
+ * cloud dashboard so both products render assistant output identically. */
+
+/* Softens the welcome <-> conversation swap: the hero and the message grid
+ * replace each other in a single commit, which otherwise reads as a hard
+ * white flash. Plays whenever the element (re)becomes visible — display:none
+ * resets animations, so toggling Tailwind's `hidden` re-triggers it. */
+@keyframes cline-view-enter {
+	from {
+		opacity: 0;
+		transform: translateY(4px);
+	}
+	to {
+		opacity: 1;
+		transform: none;
+	}
+}
+
+.cline-view-enter {
+	animation: cline-view-enter 180ms ease-out;
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.cline-chat-streaming-title {
-		background: none;
-		-webkit-text-fill-color: currentcolor;
+	.cline-view-enter {
 		animation: none;
 	}
-}
-
-/* Tool panels scroll on both axes, but a horizontal thumb inside a short
- * disclosure eats a whole detail row. Keep the axis scrollable (wheel, trackpad,
- * keyboard, drag-select) and hide only its bar; the vertical one stays visible.
- * `:horizontal` is the one selector that separates the two axes — the standard
- * `scrollbar-width: none` would take out both. */
-.cline-chat-scroll-x-bare::-webkit-scrollbar:horizontal {
-	display: none;
-}
-
-/* The shared reveal rule is `.cline-chat-message:hover`, so hovering anywhere in
- * the message pops the action row — including the reasoning disclosure nested in
- * the message content. The actions act on the message body, so suppress the
- * reveal while the pointer is inside the thinking panel. `[data-visible]` still
- * wins, keeping the pending/error states pinned open. */
-.cline-chat-message:has(
-	> .cline-chat-message-content .cline-chat-reasoning:hover
-)
-> .cline-chat-message-actions:not([data-visible="true"]) {
-	pointer-events: none;
-	opacity: 0;
-}
-
-/*
- * Code blocks: Streamdown renders a double box — an outer sidebar-tinted card
- * holding a language header row plus an inner bordered body. Collapse it to a
- * single quiet block: no outer chrome, no language label, and the copy button
- * only appears while hovering the block.
- */
-.cline-markdown [data-streamdown="code-block"] {
-	padding: 0;
-	gap: 0;
-	border: none;
-	background: transparent;
-}
-
-.cline-markdown [data-streamdown="code-block-header"] {
-	display: none;
-}
-
-.cline-markdown [data-streamdown="code-block-body"] {
-	border-radius: 0.5rem;
-	background: var(--card);
-	padding: 0.625rem 0.75rem;
-	font-size: 0.8125rem;
-	line-height: 1.6;
-}
-
-/* The body's <pre> paints the Shiki theme background, which never quite
- * matches the app theme; let the body's --card background show instead. */
-.cline-markdown [data-streamdown="code-block-body"] pre {
-	background: transparent;
-}
-
-/* The actions overlay's -mt-10 was sized to cover the (now hidden) header
- * row; re-anchor it over the top-right of the code body and reveal on
- * hover/focus so it stops competing with the code. Stickiness is kept so the
- * copy button stays reachable inside long blocks. */
-.cline-markdown [data-streamdown="code-block"]
-	> div:has(> [data-streamdown="code-block-actions"]) {
-	margin-block: 0 -2rem;
-	padding: 0.375rem 0.375rem 0 0;
-	opacity: 0;
-	transition: opacity 120ms ease;
-}
-
-/* While hidden the pill must not intercept clicks or text selection on the
- * code beneath it (it ships with pointer-events-auto). Keyboard focus is
- * unaffected by pointer-events, so tabbing still reveals it. */
-.cline-markdown [data-streamdown="code-block-actions"] {
-	pointer-events: none;
-}
-
-.cline-markdown
-	[data-streamdown="code-block"]:hover
-	> div:has(> [data-streamdown="code-block-actions"]),
-.cline-markdown
-	[data-streamdown="code-block"]
-	> div:focus-within:has(> [data-streamdown="code-block-actions"]) {
-	opacity: 1;
-}
-
-.cline-markdown
-	[data-streamdown="code-block"]:hover
-	[data-streamdown="code-block-actions"],
-.cline-markdown
-	[data-streamdown="code-block"]
-	> div:focus-within
-	[data-streamdown="code-block-actions"] {
-	pointer-events: auto;
-}
-
-@media (hover: none) {
-	.cline-markdown
-		[data-streamdown="code-block"]
-		> div:has(> [data-streamdown="code-block-actions"]) {
-		opacity: 1;
-	}
-
-	.cline-markdown [data-streamdown="code-block-actions"] {
-		pointer-events: auto;
-	}
-}
-
-/* Tables get the same single-box treatment as code blocks. */
-.cline-markdown [data-streamdown="table-wrapper"] {
-	padding: 0;
-	gap: 0;
-	overflow: hidden;
-	border-radius: 0.5rem;
-	background: var(--card);
 }
 
 /*

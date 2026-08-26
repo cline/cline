@@ -347,7 +347,15 @@ function CredentialField({
 	);
 }
 
-export function ChannelsContent() {
+export function ChannelsContent({
+	chrome = "page",
+	onInventoryChanged,
+}: {
+	/** "embedded" renders without the page frame/header for use inside the Plugins hub. */
+	chrome?: "page" | "embedded";
+	/** Invoked whenever the connector list is (re)loaded or mutated. */
+	onInventoryChanged?: () => void;
+} = {}) {
 	const [channels, setChannels] = useState<ConnectorChannel[]>([]);
 	const [activeConnectors, setActiveConnectors] = useState<
 		ActiveConnectorRecord[]
@@ -373,8 +381,9 @@ export function ChannelsContent() {
 			setActiveConnectors(
 				Array.isArray(response.active) ? response.active : [],
 			);
+			onInventoryChanged?.();
 		},
-		[],
+		[onInventoryChanged],
 	);
 
 	const updateChannelError = useCallback(
@@ -572,29 +581,41 @@ export function ChannelsContent() {
 		: [];
 	const isBusy = isLoading || pendingAction !== null;
 
-	return (
-		<PageFrame>
-			<PageHeader
-				actions={
-					<Button
-						aria-label="Refresh channels"
-						disabled={isBusy}
-						onClick={() => void refreshChannels()}
-						size="sm"
-						title="Refresh channels"
-						variant="outline"
-					>
-						<RefreshCw className={cn("size-4", isLoading && "animate-spin")} />
-					</Button>
-				}
-				description="Connect messaging platforms so you can chat with Cline anywhere. Click on a channel name to view or edit its configuration."
-				meta={
-					<span className="rounded-md border border-border bg-background px-2 py-0.5 text-xs text-muted-foreground">
-						cline connect
-					</span>
-				}
-				title="Channels"
-			/>
+	const refreshButton = (
+		<Button
+			aria-label="Refresh channels"
+			disabled={isBusy}
+			onClick={() => void refreshChannels()}
+			size="sm"
+			title="Refresh channels"
+			variant="outline"
+		>
+			<RefreshCw className={cn("size-4", isLoading && "animate-spin")} />
+		</Button>
+	);
+
+	const content = (
+		<>
+			{chrome === "page" ? (
+				<PageHeader
+					actions={refreshButton}
+					description="Connect messaging platforms so you can chat with Cline anywhere. Click on a channel name to view or edit its configuration."
+					meta={
+						<span className="rounded-md border border-border bg-background px-2 py-0.5 text-xs text-muted-foreground">
+							cline connect
+						</span>
+					}
+					title="Channels"
+				/>
+			) : (
+				<div className="mb-4 flex items-center justify-between gap-3">
+					<p className="text-sm text-muted-foreground">
+						Connect messaging platforms so you can chat with Cline anywhere.
+						Click on a channel name to view or edit its configuration.
+					</p>
+					{refreshButton}
+				</div>
+			)}
 
 			{catalogError ? (
 				<div
@@ -657,8 +678,8 @@ export function ChannelsContent() {
 							className={cn(
 								"rounded-lg border transition-colors",
 								isExpanded
-									? "border-border bg-accent/20"
-									: "border-border hover:bg-accent/10",
+									? "border-border bg-surface-hover-lighter"
+									: "border-border hover:bg-surface-hover-lighter",
 							)}
 							key={channel.id}
 						>
@@ -853,7 +874,7 @@ export function ChannelsContent() {
 													"rounded-lg border px-3.5 py-2 text-sm font-medium transition-colors",
 													isConnected
 														? "border-destructive/40 text-destructive hover:bg-destructive/10"
-														: "border-border text-muted-foreground hover:bg-accent hover:text-foreground",
+														: "border-border text-muted-foreground hover:bg-surface-hover hover:text-foreground",
 												)}
 												onClick={() => {
 													if (isConnected) {
@@ -929,6 +950,12 @@ export function ChannelsContent() {
 					</AlertDialogFooter>
 				</AlertDialogContent>
 			</AlertDialog>
-		</PageFrame>
+		</>
+	);
+
+	return chrome === "embedded" ? (
+		<div>{content}</div>
+	) : (
+		<PageFrame>{content}</PageFrame>
 	);
 }

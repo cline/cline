@@ -15,8 +15,12 @@ import type {
 	WorkspaceInfo,
 } from "@cline/shared";
 import { SubprocessSandbox } from "../../runtime/tools/subprocess-sandbox";
+import { MAX_NODE_TIMER_DELAY_MS } from "../../runtime/tools/subprocess-sandbox-lifecycle";
 import type { PluginLoadDiagnostics } from "./plugin-load-report";
 import type { PluginTargeting } from "./plugin-targeting";
+
+export const CLINE_PLUGIN_IDLE_TIMEOUT_MS_ENV = "CLINE_PLUGIN_IDLE_TIMEOUT_MS";
+export const DEFAULT_PLUGIN_SANDBOX_IDLE_TIMEOUT_MS = 30 * 60 * 1000;
 
 export type SandboxedPluginSetupContext = Pick<
 	PluginSetupContext,
@@ -35,6 +39,12 @@ export interface PluginSandboxOptions extends PluginTargeting {
 	importTimeoutMs?: number;
 	hookTimeoutMs?: number;
 	contributionTimeoutMs?: number;
+	/**
+	 * Reclaim the plugin subprocess after this much time with no calls in
+	 * flight. Defaults to 30 minutes and can be overridden with
+	 * `CLINE_PLUGIN_IDLE_TIMEOUT_MS`.
+	 */
+	idleTimeoutMs?: number;
 	onEvent?: (event: { name: string; payload?: unknown }) => void;
 	/**
 	 * The session's working directory. Forwarded to the sandbox subprocess so
@@ -179,6 +189,39 @@ function resolveBootstrapFromExecutable(): string | undefined {
 }
 
 /**
+ * Pick the bootstrap the sandbox subprocess should run.
+ *
+ * Sibling compiled candidates always match the running host build, so they
+ * win. When the host runs from source (the `.ts` bootstrap exists next to
+ * this module), the sandbox must run that SAME source bootstrap: the
+ * wrapper/executable fallbacks locate compiled bootstraps from a separately
+ * installed CLI package (e.g. a published version in the package-manager
+ * cache), and mixing that code with a source host silently breaks plugin
+ * loading because its module resolution points at the other installation's
+ * layout. Those fallbacks exist only for compiled hosts
+ * (`bun build --compile`) where import.meta points inside the binary and no
+ * sibling file exists on real disk.
+ */
+export function selectBootstrapCandidate(options: {
+	siblingCandidates: string[];
+	sourceBootstrapPath: string;
+	installedCandidates: Array<string | undefined>;
+	exists?: (path: string) => boolean;
+}): { file: string } | { sourcePath: string } {
+	const exists = options.exists ?? existsSync;
+	for (const candidate of options.siblingCandidates) {
+		if (exists(candidate)) return { file: candidate };
+	}
+	if (exists(options.sourceBootstrapPath)) {
+		return { sourcePath: options.sourceBootstrapPath };
+	}
+	for (const candidate of options.installedCandidates) {
+		if (candidate && exists(candidate)) return { file: candidate };
+	}
+	return { sourcePath: options.sourceBootstrapPath };
+}
+
+/**
  * Resolve the bootstrap for the sandbox subprocess.
  *
  * In production (bundled), the compiled `.js` file lives next to this module
@@ -193,19 +236,22 @@ function resolveBootstrap(): { file: string } | { script: string } {
 	// In production, the main bundle is at dist/ and the bootstrap is emitted
 	// under dist/extensions/. Keep the older dist/agents/ fallback for
 	// compatibility with previously built layouts.
-	const candidates = [
-		join(dir, "plugin-sandbox-bootstrap.js"),
-		join(dir, "extensions", "plugin-sandbox-bootstrap.js"),
-		join(dir, "agents", "plugin-sandbox-bootstrap.js"),
-		resolveBootstrapFromWrapper(),
-		resolveBootstrapFromExecutable(),
-	];
-	for (const candidate of candidates.filter(
-		(candidate): candidate is string => typeof candidate === "string",
-	)) {
-		if (existsSync(candidate)) return { file: candidate };
+	const selected = selectBootstrapCandidate({
+		siblingCandidates: [
+			join(dir, "plugin-sandbox-bootstrap.js"),
+			join(dir, "extensions", "plugin-sandbox-bootstrap.js"),
+			join(dir, "agents", "plugin-sandbox-bootstrap.js"),
+		],
+		sourceBootstrapPath: join(dir, "plugin-sandbox-bootstrap.ts"),
+		installedCandidates: [
+			resolveBootstrapFromWrapper(),
+			resolveBootstrapFromExecutable(),
+		],
+	});
+	if ("file" in selected) {
+		return selected;
 	}
-	const tsPath = join(dir, "plugin-sandbox-bootstrap.ts");
+	const tsPath = selected.sourcePath;
 	let jitiSpecifier = "jiti";
 	try {
 		jitiSpecifier = requireFromHere.resolve("jiti");
@@ -231,7 +277,12 @@ function withTimeoutFallback(
 	fallback: number,
 	envVarName?: string,
 ): number {
-	if (typeof timeoutMs === "number" && timeoutMs > 0) {
+	if (
+		typeof timeoutMs === "number" &&
+		Number.isInteger(timeoutMs) &&
+		timeoutMs > 0 &&
+		timeoutMs <= MAX_NODE_TIMER_DELAY_MS
+	) {
 		return timeoutMs;
 	}
 	if (envVarName) {
@@ -242,7 +293,11 @@ function withTimeoutFallback(
 			// malformed env value falls back to the default instead of
 			// silently consuming its numeric prefix.
 			const parsed = Number(raw);
-			if (Number.isInteger(parsed) && parsed > 0) {
+			if (
+				Number.isInteger(parsed) &&
+				parsed > 0 &&
+				parsed <= MAX_NODE_TIMER_DELAY_MS
+			) {
 				return parsed;
 			}
 		}
@@ -259,11 +314,17 @@ export async function loadSandboxedPlugins(
 		shutdown: () => Promise<void>;
 	} & PluginLoadDiagnostics
 > {
+	const idleTimeoutMs = withTimeoutFallback(
+		options.idleTimeoutMs,
+		DEFAULT_PLUGIN_SANDBOX_IDLE_TIMEOUT_MS,
+		CLINE_PLUGIN_IDLE_TIMEOUT_MS_ENV,
+	);
 	const sandbox = new SubprocessSandbox({
 		name: "plugin-sandbox",
 		...("file" in BOOTSTRAP
 			? { bootstrapFile: BOOTSTRAP.file }
 			: { bootstrapScript: BOOTSTRAP.script }),
+		idleTimeoutMs,
 		onEvent: options.onEvent,
 	});
 	const importTimeoutMs = withTimeoutFallback(
@@ -432,9 +493,7 @@ function toJsonSafePayload(
 	ancestors.add(value);
 	try {
 		if (Array.isArray(value)) {
-			return value.map(
-				(entry) => toJsonSafePayload(entry, ancestors) ?? null,
-			);
+			return value.map((entry) => toJsonSafePayload(entry, ancestors) ?? null);
 		}
 		const out: Record<string, unknown> = {};
 		for (const [key, entry] of Object.entries(value)) {
@@ -512,8 +571,10 @@ function registerTools(
 				// just as capable of smuggling a non-serializable value as the
 				// context is.
 				const invoke = async (payload: unknown) => {
-					const { input: sandboxInput, context: sandboxContext } =
-						payload as { input: unknown; context: unknown };
+					const { input: sandboxInput, context: sandboxContext } = payload as {
+						input: unknown;
+						context: unknown;
+					};
 					try {
 						return await sandbox.call(
 							"executeTool",

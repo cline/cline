@@ -1,5 +1,197 @@
 # Changelog
 
+## [4.1.16]
+
+Everything here lands through the SDK bundle, so it applies to windows running that bundle.
+
+### Fixed
+
+- Cost estimates are no longer shown for providers billed by a flat-rate subscription (ClinePass, ChatGPT via Codex, and Claude Code). The task header and model pricing rows rendered API-rate dollar figures that read as real charges on top of the subscription, including a flash of them on every chat-view mount while provider listings were loading.
+- Signing back in no longer moves your last-used provider off ClinePass on credential refresh.
+- Hooks now resolve their workspace from the VS Code window instead of shared global state in `~/.cline`. With a second window open on another project, a workspace's `.clinerules/hooks` scripts were never discovered, and hook cwd and the workspace paths passed to hook scripts resolved against whatever project some other or older Cline instance last recorded.
+- New files are now created with your platform's native line endings.
+- Fixed the codebase search tool crashing on files containing a single enormous line.
+- Credentials embedded in git remote URLs are now redacted from the workspace information sent to the model, which also now carries richer workspace metadata.
+- Installing an MCP server from the marketplace no longer misreads the catalog's `--` separator as part of the server command.
+- The hub's event log can no longer grow until it fills your disk.
+
+### Changed
+
+- The per-tool MCP auto-approve checkboxes are hidden. MCP auto-approval is governed solely by the global "Use MCP servers" toggle — the per-tool checkboxes were no-ops that implied granularity the approval path does not have.
+
+## [4.1.15]
+
+Everything here lands through the SDK bundle, so it applies to windows running that bundle.
+
+### Fixed
+
+- Auto-approve every MCP tool call while the "Use MCP servers" toggle is on. The toggle only took effect on tools that had also been opted in individually, so turning it on appeared to do nothing; it now governs all MCP tools on its own.
+
+## [4.1.14]
+
+Everything here lands through the SDK bundle, so it applies to windows running that bundle.
+
+### Added
+
+- Refresh the built-in model catalog. New entries include Claude Fable 5, Grok 4.6 on Vertex, several DeepSeek V4 Flash variants (including the vision preview), MiMo v2.5, Qwen3.8 27B, Gemma 4 26B, LongCat 2.0, Nemotron 3.5 Lightning, and Thinking Machines' Inkling models.
+
+### Fixed
+
+- Restore task completion telemetry for interactive sessions. A share of interactive stops routed through a teardown path that never reported completion after 4.1.11 changed how session status is tracked; every session now reports it exactly once.
+
+## [4.1.13]
+
+Everything here lands through the SDK bundle, so it applies to windows running that bundle.
+
+### Fixed
+
+- Restore tool calling for custom OpenAI-Compatible models whose capability list was inferred from convenience flags like `supportsReasoning`. The inferred list read as an authoritative denial and stripped every tool from the request; an explicitly authored capability list still decides.
+- Keep Hub-backed sessions intact across a Hub restart or upgrade. Clients replay the events they missed while disconnected, and the same event is no longer delivered twice when the replay and live streams overlap.
+- Carry session and client identity into Langfuse traces for Hub-backed and delegated-agent runs, which previously arrived without their session grouping or client version.
+
+## [4.1.12]
+
+Everything here lands through the SDK bundle, so it applies to windows running that bundle.
+
+### Fixed
+
+- Enforce enterprise MCP controls on the Customize marketplace. MCP entries are now hidden when remote config disables the marketplace, and limited to `allowedMCPServers` when an allowlist is configured.
+- Restore tool calling for custom OpenAI-Compatible models whose stored capability list was empty.
+
+## [4.1.11]
+
+Everything here lands through the SDK bundle, so it applies to windows running that bundle — except the last section, which is a legacy-bundle fix.
+
+### Added
+
+- Let models that support it generate images during a task. Generated images render inline in the conversation.
+
+### Fixed
+
+- Fix code actions failing with "command not found" on VS Code 1.134.
+- Fix `@` file mentions breaking on paths that contain spaces.
+- Show the diff edit view for multi-line edits in files with CRLF line endings.
+- Continue the surviving session when resuming a task, instead of rebuilding it from the original task text.
+- Clear the task-scoped settings overlay when the task view is cleared or switched, so one task's overrides no longer leak into the next.
+- Honor the classic truncation range when migrating legacy tasks.
+- Preserve LiteLLM input token limits instead of overwriting them with catalog values.
+- Restore custom base URLs for Gemini, and normalize legacy host-root values so they keep working.
+- Point provider signup links at each provider's API key page instead of a generic landing page.
+- Load skill slash commands through the skills tool instead of pasting their instructions into your message, which previously delivered them twice.
+- Stop offering image, voice, and other non-chat models in chat model pickers.
+- Deliver a `PreToolUse` hook's `contextModification` to the model again, and wait for `PostToolUse` hooks so their output and `cancel` control are honored.
+- Show tool activity a provider runs itself — every tool the Claude Code provider executes inside its own session — instead of dropping it from the conversation.
+- Fix `run_commands` failing with ENOENT when a structured command carried a full command line with no arguments.
+- Run PowerShell commands fail-fast, so a pipeline erroring per item stops at the first error instead of flooding output and still reporting success.
+- Keep remote configuration in step with the SDK: coordinated refreshes, session gating, and a fail-closed opt-out.
+
+### Changed
+
+- Show the billed cost for Cline gateway usage.
+- Refresh the model catalog, which adds AMD, Arcee, Echo, Jalapeno, Kosmik, LLM Gateway, RunInfra, and SCNet as providers and updates model lists, pricing, and per-provider default models across the board.
+
+### Fixed (legacy bundle)
+
+- Only treat an Anthropic `invalid_request_error` as a context-overflow when its message says so. An unrelated invalid request (bad tool schema, oversized image, unknown model id) no longer triggers context-overflow recovery.
+
+## [4.1.10]
+
+Everything in this release lands through the SDK bundle, so it applies to windows running that bundle and not the legacy one. The legacy bundle is unchanged from 4.1.9.
+
+### Added
+
+- Let models that support it search the web during a task, with a toggle in Feature Settings to turn it on. Search calls and their results appear in the conversation and persist across reloads.
+
+### Fixed
+
+- Stop two Cline installations on different builds from shutting each other's Hub daemon down in a loop, which killed live sessions with an abnormal socket close. Build identity is now compared through a total order, so at most one side of a pair can decide to retire the other.
+- Leave a Hub that is still serving sessions in place instead of replacing it mid-handshake; the swap happens once it goes idle.
+- Reclaim idle plugin sandbox processes instead of leaving them running for the life of the session.
+
+### Changed
+
+- Refresh the model catalog, which adds Crusoe as a provider and updates model lists and per-provider default models across the board.
+
+## [4.1.9]
+
+### Changed
+
+- Use the editor's foreground color for diff block text, so diffs stay legible in themes where the previous hardcoded color washed them out.
+- Switch the interface to Inter and Geist Mono.
+
+### Fixed
+
+- Don't discard a successfully refreshed Cline token when the old one was already past expiry, which made the first request after a long idle period fail despite valid credentials.
+- Stop the legacy-task migration backlog from spamming telemetry, and record a migration outcome only once the seeded session actually persists, so a failed migration is no longer reported as a success.
+- Report involuntary Cline logouts (a rejected refresh token) instead of clearing credentials silently.
+
+### Fixed (SDK bundle only)
+
+These land through SDK v0.0.74 and therefore apply to windows running the SDK bundle, not the legacy one.
+
+- Fix the Claude Code provider being unusable for agentic work: it now runs its own native tools instead of receiving tool definitions it cannot bridge, anchors the session on your workspace directory, and loads `~/.claude` plus project settings so your permission rules apply.
+- Reject truncated tool-call JSON instead of silently "repairing" it into wrong arguments.
+- Fix strict providers rejecting a turn with "user message must have content" when a message's content held only empty text parts.
+- Fix a mid-turn crash on streamed tool calls with non-zero or non-contiguous indexes, hit through LiteLLM's Anthropic passthrough.
+- Report disjoint per-request token buckets instead of re-counting the whole cached conversation on every request, which inflated per-task totals roughly 5x on cache-heavy sessions.
+
+## [4.1.8]
+
+### Added
+
+- Enter any Vertex model ID by hand, including models the catalog doesn't list yet.
+- Support Fable 5 on Vertex.
+
+### Changed
+
+- Show the full model catalog for every Vertex region instead of filtering the picker down to a hardcoded list of global-endpoint models, which lagged behind every model launch. Picking a model the region doesn't serve now fails at request time with recovery guidance in the error row.
+- Report Fable 5 cost on Vertex as unknown rather than applying Anthropic's list price, which understated what Vertex actually bills — its rates are region-dependent.
+- Make the auto-approve menu the single source of truth for unattended runs and remove the Yolo Mode toggle, which was cosmetic: nothing in the approval path read it. Setups that had Yolo Mode (or auto-approve-all) turned on are migrated to auto-approving every action, so they keep running unattended.
+
+### Fixed
+
+- Respect your configured max output tokens when the compaction summarizer requests a summary.
+- Remove the stale "Double-Check Completion" feature tip.
+
+## [4.1.7]
+
+### Added
+
+- Restore the "View Changes" button on completion rows, backed by SDK checkpoints, so you can review everything a task touched from the completion card.
+- Bring back a copy button on turn-final response rows.
+- Support pre-registered OAuth clients for remote MCP servers, for setups where dynamic client registration isn't available.
+
+### Changed
+
+- Fade the "View Changes" button until changes since the last message are confirmed, and hide it entirely when there is nothing to show.
+- Centralize plugin settings and contributions, with host-aware snapshots and atomic plugin toggles.
+- Carry execution context in scheduled run reports — readable headers, schedule metadata, durations, and lifecycle error details.
+
+### Fixed
+
+- Preserve prompts queued during a turn when that turn is interrupted: they survive aborts, are drained after a turn aborts itself, and the stop is surfaced instead of the queue being silently dropped.
+- Keep session context durable across aborts and hub restarts, so an interrupted session resumes with the state it had.
+- Settle the turn phase when a mode switch aborts a running turn.
+- Report queued-turn failures as `run.failed` instead of letting them complete silently.
+- Keep a hung MCP server from taking down session creation, and give stdio servers that were never configured a 30-second initialize budget instead of blocking indefinitely.
+- Surface OAuth authorization for SSE MCP servers on a 401 instead of failing outright.
+- Route LiteLLM through Chat Completions instead of the Responses API, fixing requests against LiteLLM proxies.
+- Retry network interruptions that happen mid-stream but before any model output, instead of failing the turn.
+- Use the configured fetch for Vertex ADC token refreshes, so they work behind proxies and custom transports.
+- Include files that were untracked when a snapshot was taken in checkpoint diffs, and pick up checkpoints when git is initialized part-way through a session.
+- Fall back to the session cwd or Desktop for @-mention file search in empty windows.
+- Never run a foreign compiled plugin-sandbox bootstrap for a source host.
+
+## [4.1.6]
+
+### Added
+
+- Offer `meta/muse-spark-1.2-contributor` on the Cline provider, alongside a refreshed model catalog.
+
+### Fixed
+
+- Attribute error telemetry to the model actually in use for a run, so failures are no longer reported against the wrong model.
+
 ## [4.1.5]
 
 ### Added

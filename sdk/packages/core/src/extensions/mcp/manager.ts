@@ -69,7 +69,7 @@ export class InMemoryMcpManager implements McpManager {
 				JSON.stringify(registration.transport);
 			// A client snapshots the timeout at construction. Preserve an
 			// unconfigured or malformed value as distinct from an explicit default
-			// because stdio initialize uses the fast compatibility probe only when
+			// because stdio initialize uses its default connect budget only when
 			// the timeout is not explicitly configured.
 			const didTimeoutChange =
 				isMcpTimeoutConfigured(existing.registration.timeoutSeconds) !==
