@@ -55,36 +55,28 @@ describe("resolveCredentialError", () => {
 });
 
 describe("inferHydratedChatStatus", () => {
-	const user = (createdAt: number) => ({
-		id: "u",
-		sessionId: "s",
-		role: "user" as const,
-		content: "prompt",
-		createdAt,
-	});
-	const assistant = (createdAt: number) => ({
-		id: "a",
-		sessionId: "s",
-		role: "assistant" as const,
-		content: "It is 12:28 PM PT.",
-		createdAt,
-	});
-
-	it("treats an assistant-answered running record as completed once stale", () => {
-		// A record stuck on "running" whose transcript went quiet long ago is
-		// a session that died without a status flip.
-		expect(inferHydratedChatStatus("running", [user(1), assistant(2)])).toBe(
-			"completed",
-		);
-	});
-
-	it("trusts a running record while the transcript is recently active", () => {
-		// Scheduled runs narrate between tool calls: a snapshot can genuinely
-		// end on assistant text mid-run. Flipping it to completed would hide
-		// the working indicator and disarm the stale-stream poll.
-		const now = Date.now();
+	it("treats an assistant-answered running record as completed", () => {
+		// The stale-record heuristic: a "running" record whose transcript
+		// ends on an assistant answer is read as a session that died without
+		// a status flip. (The stale-stream poll deliberately bypasses this
+		// via mapSessionRecordStatus — see use-chat-session.)
 		expect(
-			inferHydratedChatStatus("running", [user(now - 5_000), assistant(now)]),
-		).toBe("running");
+			inferHydratedChatStatus("running", [
+				{
+					id: "u",
+					sessionId: "s",
+					role: "user",
+					content: "prompt",
+					createdAt: 1,
+				},
+				{
+					id: "a",
+					sessionId: "s",
+					role: "assistant",
+					content: "answer",
+					createdAt: 2,
+				},
+			]),
+		).toBe("completed");
 	});
 });

@@ -171,6 +171,7 @@ describe("useChatSession", () => {
 		// this client; the transcript must still settle without a remount.
 		const hydratedSessionId = "session-dead-stream";
 		let readCount = 0;
+		let recordReads = 0;
 		invokeMock.mockImplementation(
 			async (command: string, args?: Record<string, unknown>) => {
 				if (command === "get_process_context") {
@@ -201,7 +202,14 @@ describe("useChatSession", () => {
 							];
 				}
 				if (command === "get_discovered_session") {
-					return { sessionId: hydratedSessionId, status: "completed" };
+					recordReads += 1;
+					// Still running on the first poll — the snapshot already
+					// ends on assistant narration, which must NOT read as
+					// finished while the record says running.
+					return {
+						sessionId: hydratedSessionId,
+						status: recordReads === 1 ? "running" : "completed",
+					};
 				}
 				if (command === "read_session_hooks") return [];
 				if (command === "chat_session_command") {
@@ -240,18 +248,24 @@ describe("useChatSession", () => {
 			expect(current.status).toBe("running");
 			expect(current.messages).toHaveLength(1);
 
-			// No chat_event chunks arrive. The fallback poll re-reads canonical
-			// history and the session record, surfacing the answer and settling
-			// the stuck thinking state.
+			// No chat_event chunks arrive. The first poll surfaces the
+			// narration mid-run; the record still says running, and the
+			// record — not transcript shape — decides the status.
 			await act(async () => {
-				await vi.advanceTimersByTimeAsync(6_500);
+				await vi.advanceTimersByTimeAsync(3_100);
+			});
+			expect(current.messages).toHaveLength(2);
+			expect(current.messages[1]?.content).toBe("It is 12:28 PM PT.");
+			expect(current.status).toBe("running");
+
+			// The record flips to completed; the next poll mirrors it.
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(3_100);
 			});
 		} finally {
 			vi.useRealTimers();
 		}
 
-		expect(current.messages).toHaveLength(2);
-		expect(current.messages[1]?.content).toBe("It is 12:28 PM PT.");
 		expect(current.status).toBe("completed");
 	});
 

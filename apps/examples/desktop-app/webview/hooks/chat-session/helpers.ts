@@ -194,11 +194,6 @@ function mapHistoryStatusToChatStatus(
 	}
 }
 
-// How fresh the newest message must be for a "running" session record to be
-// trusted over the assistant-answered-last staleness heuristic below. Agent
-// turns (model latency plus tool runs) fit comfortably inside this.
-const RUNNING_RECORD_TRUSTED_ACTIVITY_MS = 2 * 60 * 1000;
-
 export function inferHydratedChatStatus(
 	fallback: SessionHistoryStatus,
 	messages: ChatMessage[],
@@ -220,25 +215,22 @@ export function inferHydratedChatStatus(
 	}
 	if (fallback === "running") {
 		const lastMeaningful = meaningfulMessages[meaningfulMessages.length - 1];
-		// A "running" record whose transcript ends on an assistant answer is
-		// usually a session that died without a status flip — but only when
-		// the transcript has actually gone quiet. Scheduled/automation runs
-		// narrate between tool calls, so a snapshot can genuinely end on
-		// assistant text mid-run; flipping those to completed hides the
-		// working indicator and disarms the stale-stream poll that would
-		// have delivered the rest of the run.
-		const newestTimestamp = messages.reduce(
-			(newest, message) =>
-				Number.isFinite(message.createdAt) && message.createdAt > newest
-					? message.createdAt
-					: newest,
-			0,
-		);
-		const recentlyActive =
-			Date.now() - newestTimestamp < RUNNING_RECORD_TRUSTED_ACTIVITY_MS;
-		if (lastMeaningful?.role === "assistant" && !recentlyActive) {
+		if (lastMeaningful?.role === "assistant") {
 			return "completed";
 		}
 	}
 	return mapHistoryStatusToChatStatus(fallback);
+}
+
+/**
+ * The session record's status mapped verbatim — no transcript inference. For
+ * callers observing a session whose record is actively maintained by the
+ * executing host (the stale-stream poll), the record is the authority;
+ * inferHydratedChatStatus's stale-record heuristic would misread a mid-run
+ * snapshot that happens to end on assistant narration as a finished session.
+ */
+export function mapSessionRecordStatus(
+	status: SessionHistoryStatus,
+): ChatSessionStatus {
+	return mapHistoryStatusToChatStatus(status);
 }

@@ -11,6 +11,7 @@ import {
 	extractAssistantTurnDataFromRpcMessages,
 	inferHydratedChatStatus,
 	makeId,
+	mapSessionRecordStatus,
 	normalizeRuntimeConfig,
 	resolveCredentialError,
 } from "@/hooks/chat-session/helpers";
@@ -1899,16 +1900,15 @@ export function useChatSession() {
 					liveToolInputsRef.current = liveToolState.inputs;
 					setMessages(mergedMessages);
 				}
+				// The record is the authority here: the sessions this poll
+				// serves have a live host maintaining their record, and it
+				// flips to a terminal status when the run ends. Transcript
+				// inference (inferHydratedChatStatus) would misread a mid-run
+				// snapshot ending on assistant narration as finished, hiding
+				// the working indicator and disarming this poll.
 				const nextStatus = record?.status?.trim();
 				if (nextStatus) {
-					setStatus(
-						inferHydratedChatStatus(
-							nextStatus as SessionHistoryStatus,
-							Array.isArray(historyMessages) && historyMessages.length > 0
-								? historyMessages
-								: messagesRef.current,
-						),
-					);
+					setStatus(mapSessionRecordStatus(nextStatus as SessionHistoryStatus));
 				}
 			} finally {
 				polling = false;
