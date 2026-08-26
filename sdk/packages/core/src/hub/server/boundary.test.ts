@@ -1238,6 +1238,85 @@ describe("HubServerTransport boundaries", () => {
 		expect(updateSessionCompactionState).not.toHaveBeenCalled();
 	});
 
+	it("strips snapshot.messages from published events but keeps them in replies", async () => {
+		const transcript = [
+			{ role: "user", content: [{ type: "text", text: "hello" }] },
+			{ role: "assistant", content: [{ type: "text", text: "world" }] },
+		];
+		let capturedSessionListener:
+			| ((event: Record<string, unknown>) => void)
+			| undefined;
+		const transport = createTransport({
+			sessionHost: {
+				subscribe: vi.fn(
+					(listener: (event: Record<string, unknown>) => void) => {
+						capturedSessionListener = listener;
+						return () => {};
+					},
+				),
+				updateSession: vi.fn().mockResolvedValue({ updated: true }),
+				readSessionMessages: vi.fn().mockResolvedValue(transcript),
+			},
+		});
+		const ctx = getContext(transport);
+		const events: HubEventEnvelope[] = [];
+		ensureSessionState(ctx, "session-1", "owner-client", "creator");
+		transport.subscribe("owner-client", (event) => events.push(event));
+
+		// A snapshot-only persistence update from the session host: the
+		// published session.updated must keep the snapshot's status but drop
+		// the transcript.
+		capturedSessionListener?.({
+			type: "session_snapshot",
+			payload: {
+				sessionId: "session-1",
+				snapshot: {
+					version: 1,
+					sessionId: "session-1",
+					status: "idle",
+					messages: transcript,
+				},
+			},
+		});
+		await vi.waitFor(() => {
+			expect(events.some((event) => event.event === "session.updated")).toBe(
+				true,
+			);
+		});
+		const snapshotOnly = events.find(
+			(event) => event.event === "session.updated",
+		);
+		const snapshotOnlyPayload = snapshotOnly?.payload?.snapshot as Record<
+			string,
+			unknown
+		>;
+		expect(snapshotOnlyPayload.status).toBe("idle");
+		expect(snapshotOnlyPayload).not.toHaveProperty("messages");
+
+		// A session.update command: the published event is stripped the same
+		// way, while the command reply keeps the full snapshot (replies are
+		// request-scoped, not broadcast).
+		events.length = 0;
+		const reply = await transport.handleCommand({
+			version: "v1",
+			requestId: "req-update-strip",
+			command: "session.update",
+			clientId: "owner-client",
+			sessionId: "session-1",
+			payload: { metadata: { title: "renamed" } },
+		});
+		const replySnapshot = reply.payload?.snapshot as Record<string, unknown>;
+		expect(replySnapshot.messages).toEqual(transcript);
+		const updated = events.find((event) => event.event === "session.updated");
+		expect(updated).toBeDefined();
+		const updatedSnapshot = updated?.payload?.snapshot as Record<
+			string,
+			unknown
+		>;
+		expect(updatedSnapshot).not.toHaveProperty("messages");
+		expect(updatedSnapshot.status).toBe("completed");
+	});
+
 	it("publishes session updates after successful compaction sidecar updates", async () => {
 		const state = createSessionCompactionState({
 			sourceMessages: [{ role: "user", content: "source" }],

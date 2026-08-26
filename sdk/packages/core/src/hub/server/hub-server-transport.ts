@@ -1115,6 +1115,14 @@ export class HubServerTransport implements NativeHubTransport {
 	}
 
 	private publish(event: HubEventEnvelope): void {
+		// Events are broadcast state notifications, not transcript transport:
+		// no consumer reads `snapshot.messages` off an event (they fetch via
+		// the `session.messages` command instead), but a full transcript here
+		// multiplies every status flip into megabytes per subscriber — enough
+		// to swamp the event log and, for a slow reader, balloon the socket
+		// send queue until the process OOMs. Strip messages before the event
+		// becomes durable so live fan-out and cursor replay stay identical.
+		event = stripSnapshotMessagesFromEvent(event);
 		// Durability before delivery: append to the event log and fan out the
 		// sequence-stamped envelope, so live listeners and replaying clients
 		// observe identical frames and the cursor is always meaningful.
@@ -1155,6 +1163,32 @@ export class HubServerTransport implements NativeHubTransport {
 			}
 		}
 	}
+}
+
+/**
+ * Drops the (potentially multi-megabyte) `snapshot.messages` transcript from
+ * an outward-bound event envelope, keeping every other snapshot field
+ * (status, usage, model, workspace, checkpoint, ...) intact. Command replies
+ * are untouched — only the broadcast stream is slimmed.
+ */
+function stripSnapshotMessagesFromEvent(
+	event: HubEventEnvelope,
+): HubEventEnvelope {
+	const payload = event.payload;
+	const snapshot = payload?.snapshot;
+	if (
+		!snapshot ||
+		typeof snapshot !== "object" ||
+		Array.isArray(snapshot) ||
+		!("messages" in snapshot)
+	) {
+		return event;
+	}
+	const { messages: _messages, ...slimSnapshot } = snapshot as Record<
+		string,
+		unknown
+	>;
+	return { ...event, payload: { ...payload, snapshot: slimSnapshot } };
 }
 
 function shouldCaptureHubReplyError(code: string): boolean {
