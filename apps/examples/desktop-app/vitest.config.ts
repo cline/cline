@@ -9,5 +9,9 @@ export default defineConfig({
 	},
 	test: {
 		environment: "node",
+		// Heavy webview/React import graph; the 5s default produces false
+		// timeouts when several workspace suites run in parallel.
+		testTimeout: 30_000,
+		hookTimeout: 30_000,
 	},
 });
