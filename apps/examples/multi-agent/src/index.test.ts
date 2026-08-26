@@ -3,7 +3,12 @@ import { AGENT_ROLES, createAgentConfig } from "./index";
 
 describe("multi-agent war room example", () => {
 	test("spawns exactly the four documented specialist agents with unique ids", () => {
-		expect(AGENT_ROLES.map((a) => a.id)).toEqual(["architect", "security", "pragmatist", "skeptic"]);
+		expect(AGENT_ROLES.map((a) => a.id)).toEqual([
+			"architect",
+			"security",
+			"pragmatist",
+			"skeptic",
+		]);
 		const ids = new Set(AGENT_ROLES.map((a) => a.id));
 		expect(ids.size).toBe(AGENT_ROLES.length);
 		for (const agent of AGENT_ROLES) {
