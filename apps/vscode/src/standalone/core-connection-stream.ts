@@ -37,7 +37,11 @@ export function connectCoreStream(
 		let closed = false
 
 		const failStartup = (error: Error) => {
-			if (!connected) reject(error)
+			if (!connected && !closed) {
+				closed = true
+				client.close()
+				reject(error)
+			}
 		}
 		const disconnect = (error: Error) => {
 			failStartup(error)

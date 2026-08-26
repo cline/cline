@@ -97,6 +97,44 @@ describe("core connection dispatcher", () => {
 		expect(stream.messages.at(-1)?.response?.completed).to.equal(true)
 	})
 
+	it("serializes concurrent streaming responses so chunks never interleave", async () => {
+		const stream = fakeStream()
+		const first = JSON.stringify({ value: `A${"a".repeat(2 * 1024 * 1024)}` })
+		const second = JSON.stringify({ value: `B${"b".repeat(2 * 1024 * 1024)}` })
+
+		await dispatchCoreConnectionRequest(
+			stream.write,
+			request("interleave", true),
+			() => true,
+			async (postMessage) => {
+				// Fire-and-forget delivery, as streaming handlers do: both
+				// logical responses are in flight at once.
+				const inFlight = [first, second].map((payload, index) =>
+					postMessage({
+						type: "grpc_response",
+						grpc_response: {
+							request_id: "interleave",
+							message: JSON.parse(payload),
+							is_streaming: index === 0,
+						},
+					}),
+				)
+				await Promise.all(inFlight)
+			},
+		)
+
+		const payloads: string[] = []
+		let buffered = ""
+		for (const message of stream.messages) {
+			buffered += new TextDecoder().decode(message.response?.messageJsonChunk)
+			if (message.response?.messageJsonComplete) {
+				payloads.push(buffered)
+				buffered = ""
+			}
+		}
+		expect(payloads).to.deep.equal([first, second])
+	})
+
 	it("reports active stream loss exactly once", async () => {
 		const server = new grpc.Server()
 		server.addService(CoreConnectionServiceService, {

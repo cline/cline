@@ -103,7 +103,7 @@ async function main() {
 		const dbPath = `${DATA_DIR}/locks.db`
 		globalLockManager = new SqliteLockManager({
 			dbPath,
-			instanceAddress: instanceOwner,
+			instanceOwner,
 		})
 
 		await globalLockManager.registerInstance({

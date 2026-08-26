@@ -41,8 +41,10 @@ message CoreConnectionRequest {
 
 message CoreConnectionResponse {
   string request_id = 1;
-  // Logical reassembled payload. The core sends message_json_chunk instead;
-  // the host reconstructs this field only after all bounded chunks arrive.
+  // Logical response payload. A legal wire encoding for small payloads,
+  // though the current core always sends message_json_chunk instead and the
+  // host reconstructs this field after all bounded chunks arrive. Receivers
+  // must accept both encodings; a response may not mix them.
   optional string message_json = 2;
   optional string error = 3;
   // Ends this request. A streaming response may carry its final payload in one

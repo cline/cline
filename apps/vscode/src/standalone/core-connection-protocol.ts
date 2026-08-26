@@ -35,13 +35,31 @@ export async function dispatchCoreConnectionRequest(
 		return
 	}
 
-	await handleRequest((message) => forwardCoreControllerResponse(write, message), {
+	await handleRequest(serializeForwards(write), {
 		service: request.service,
 		method: request.method,
 		message: JSON.parse(request.messageJson || "{}"),
 		request_id: request.requestId,
 		is_streaming: request.isStreaming,
 	})
+}
+
+/**
+ * Serializes all response forwards for one request through a single promise
+ * chain. Streaming handlers deliver updates fire-and-forget, so two logical
+ * responses for the same request can be in flight at once; without this, the
+ * awaits inside the chunk loop would let their chunk sequences interleave and
+ * the receiver — which reassembles purely by arrival order — would splice two
+ * payloads together. A failed write rejects every later forward for the
+ * request, so a torn payload is never followed by more chunks.
+ */
+function serializeForwards(write: CoreConnectionMessageWriter): (message: ExtensionMessage) => Promise<boolean> {
+	let chain: Promise<unknown> = Promise.resolve()
+	return (message) => {
+		const result = chain.then(() => forwardCoreControllerResponse(write, message))
+		chain = result
+		return result
+	}
 }
 
 export async function forwardCoreControllerResponse(

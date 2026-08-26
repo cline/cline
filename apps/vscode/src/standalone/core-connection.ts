@@ -32,6 +32,9 @@ export function connectCoreToHostBridge(
 				}
 			},
 			onCancel: (requestId) => {
+				// The cancellation confirmation is intentionally discarded: the
+				// host has already dropped the request by the time it sends
+				// cancel, so there is no one to deliver the confirmation to.
 				void handleGrpcRequestCancel(async () => true, { request_id: requestId })
 			},
 		},
