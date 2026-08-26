@@ -35,6 +35,7 @@ export {
 	resolveProviderUsageCostDisplay,
 	shouldShowProviderUsageCost,
 } from "./providers/billing";
+export { toGatewayModelCapabilities } from "./providers/model-capabilities";
 export {
 	BUILTIN_MODEL_OPERATION_CAPABILITIES,
 	builtinProviderSupportsModelOperation,
