@@ -1,5 +1,9 @@
 # Cline SDK Changelog
 
+## 0.0.81
+
+- Session snapshot events no longer carry the full conversation transcript. Every `session.updated` (and `session.created` / `session.detached` / `run.started`) event embedded the session's entire message history, so on a multi-megabyte task each status flip shipped megabytes to every subscriber, flooded the durable event log, and could grow the hub process by one transcript copy per event — reported as a 25 GB `cline` process on a 16 GB machine. Snapshots are now state-only (status, usage, model, workspace, checkpoint); transcripts are fetched with the `session.messages` command. Checkpoint-restore replies, which carry messages in their own field, are unaffected
+
 ## 0.0.80
 
 - New files created by the file-writing tools now use the platform's native line endings
