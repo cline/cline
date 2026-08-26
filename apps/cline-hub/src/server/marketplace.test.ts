@@ -9,8 +9,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { installPlugin } from "@cline/core";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	buildMarketplaceMcpInput,
 	fetchMarketplaceCatalog,
@@ -22,31 +21,18 @@ import {
 	uninstallMarketplaceEntryForDesktopCommand,
 } from "./marketplace";
 
-// Marketplace plugin installs run in-process through @cline/core (spawning a
-// `cline` binary fails with 'Executable not found in $PATH: "cline"' when no
-// CLI is on PATH). Stub only installPlugin; everything else stays real.
-vi.mock(import("@cline/core"), async (importOriginal) => ({
-	...(await importOriginal()),
-	installPlugin: vi.fn(),
-}));
-const installPluginMock = vi.mocked(installPlugin);
-
 describe("marketplace installer", () => {
+	const originalWrapperPath = process.env.CLINE_WRAPPER_PATH;
 	const originalClineDir = process.env.CLINE_DIR;
 	const originalHome = process.env.HOME;
 	const originalMcpSettingsPath = process.env.CLINE_MCP_SETTINGS_PATH;
 
-	beforeEach(() => {
-		installPluginMock.mockReset().mockImplementation(async (options) => ({
-			source: options.source,
-			installPath: "/tmp/plugin",
-			entryPaths: [],
-			mcpSyncFailures: [],
-			mcpOAuthCandidates: [],
-		}));
-	});
-
 	afterEach(() => {
+		if (originalWrapperPath === undefined) {
+			delete process.env.CLINE_WRAPPER_PATH;
+		} else {
+			process.env.CLINE_WRAPPER_PATH = originalWrapperPath;
+		}
 		if (originalClineDir === undefined) {
 			delete process.env.CLINE_DIR;
 		} else {
@@ -487,49 +473,49 @@ describe("marketplace installer", () => {
 		).rejects.toThrow("was not found in Cline's global skills directories");
 	});
 
-	it("installs official plugins in-process without a cline binary", async () => {
-		// Regression: this used to spawn `cline plugin install`, which fails
-		// with 'Executable not found in $PATH: "cline"' when no CLI is on PATH.
-		const clineDir = mkdtempSync(join(tmpdir(), "cline-marketplace-plugin-"));
-		process.env.CLINE_DIR = clineDir;
+	it("runs official plugin installs through the current Cline CLI", async () => {
+		process.env.CLINE_WRAPPER_PATH = "/usr/local/bin/cline";
 		const spawnCommand = vi.fn(async () => ({
 			exitCode: 0,
-			stdout: "",
+			stdout: JSON.stringify({ installPath: "/tmp/plugin" }),
 			stderr: "",
 		}));
 
-		await expect(
-			installMarketplaceEntry(
-				{
-					entry: {
-						id: "marketplace-test-plugin",
-						type: "plugin",
-						name: "Marketplace Test Plugin",
-						install: { args: ["marketplace-test-plugin"] },
-					},
+		await installMarketplaceEntry(
+			{
+				entry: {
+					id: "marketplace-test-plugin",
+					type: "plugin",
+					name: "Marketplace Test Plugin",
+					install: { args: ["marketplace-test-plugin"] },
 				},
-				{ spawnCommand },
-			),
-		).resolves.toMatchObject({
-			status: "installed",
-			message: "Installed Marketplace Test Plugin.",
-		});
+			},
+			{ spawnCommand },
+		);
 
-		expect(installPluginMock).toHaveBeenCalledWith({
-			source: "marketplace-test-plugin",
-		});
-		expect(spawnCommand).not.toHaveBeenCalled();
+		expect(spawnCommand).toHaveBeenCalledWith("/usr/local/bin/cline", [
+			"plugin",
+			"install",
+			"marketplace-test-plugin",
+			"--json",
+		]);
 	});
 
-	it("installs MCP servers in-process without prompts", async () => {
-		const settingsPath = join(
-			mkdtempSync(join(tmpdir(), "cline-marketplace-mcp-")),
-			"cline_mcp_settings.json",
-		);
-		process.env.CLINE_MCP_SETTINGS_PATH = settingsPath;
+	it("runs MCP installs through the current Cline CLI without prompts", async () => {
+		process.env.CLINE_WRAPPER_PATH = "/usr/local/bin/cline";
 		const spawnCommand = vi.fn(async () => ({
 			exitCode: 0,
-			stdout: "",
+			stdout: JSON.stringify({
+				name: "context7",
+				status: "installed",
+				transport: {
+					type: "streamableHttp",
+					url: "https://mcp.context7.com/mcp",
+					headers: {
+						Authorization: "Bearer token",
+					},
+				},
+			}),
 			stderr: "",
 		}));
 
@@ -563,48 +549,18 @@ describe("marketplace installer", () => {
 			},
 		});
 
-		expect(spawnCommand).not.toHaveBeenCalled();
-		const settings = JSON.parse(readFileSync(settingsPath, "utf8")) as {
-			mcpServers: Record<string, { transport?: unknown }>;
-		};
-		expect(settings.mcpServers.context7?.transport).toEqual({
-			type: "streamableHttp",
-			url: "https://mcp.context7.com/mcp",
-			headers: { Authorization: "Bearer token" },
-		});
-	});
-
-	it("registers stdio MCP servers using the -- args separator", async () => {
-		const settingsPath = join(
-			mkdtempSync(join(tmpdir(), "cline-marketplace-mcp-")),
-			"cline_mcp_settings.json",
-		);
-		process.env.CLINE_MCP_SETTINGS_PATH = settingsPath;
-
-		await expect(
-			installMarketplaceEntry({
-				entry: {
-					id: "aikido",
-					type: "mcp",
-					name: "Aikido",
-					install: {
-						args: ["aikido", "--", "npx", "-y", "@aikidosec/mcp@1.0.9"],
-					},
-				},
-			}),
-		).resolves.toMatchObject({
-			status: "installed",
-			message: "Installed Aikido.",
-		});
-
-		const settings = JSON.parse(readFileSync(settingsPath, "utf8")) as {
-			mcpServers: Record<string, { transport?: unknown }>;
-		};
-		expect(settings.mcpServers.aikido?.transport).toEqual({
-			type: "stdio",
-			command: "npx",
-			args: ["-y", "@aikidosec/mcp@1.0.9"],
-		});
+		expect(spawnCommand).toHaveBeenCalledWith("/usr/local/bin/cline", [
+			"mcp",
+			"install",
+			"--yes",
+			"--json",
+			"context7",
+			"--transport",
+			"http",
+			"https://mcp.context7.com/mcp",
+			"--header",
+			"Authorization: Bearer token",
+		]);
 	});
 
 	it("uninstalls official marketplace plugins through the shared core service", async () => {
@@ -639,8 +595,12 @@ describe("marketplace installer", () => {
 	});
 
 	it("resolves desktop installs from the server catalog instead of browser-sent args", async () => {
-		const clineDir = mkdtempSync(join(tmpdir(), "cline-marketplace-plugin-"));
-		process.env.CLINE_DIR = clineDir;
+		process.env.CLINE_WRAPPER_PATH = "/usr/local/bin/cline";
+		const spawnCommand = vi.fn(async () => ({
+			exitCode: 0,
+			stdout: JSON.stringify({ installPath: "/tmp/plugin" }),
+			stderr: "",
+		}));
 
 		await installMarketplaceEntryForDesktopCommand(
 			{
@@ -652,6 +612,7 @@ describe("marketplace installer", () => {
 				},
 			},
 			{
+				spawnCommand,
 				loadCatalog: async () => ({
 					entries: [
 						{
@@ -665,9 +626,12 @@ describe("marketplace installer", () => {
 			},
 		);
 
-		expect(installPluginMock).toHaveBeenCalledWith({
-			source: "marketplace-test-plugin",
-		});
+		expect(spawnCommand).toHaveBeenCalledWith("/usr/local/bin/cline", [
+			"plugin",
+			"install",
+			"marketplace-test-plugin",
+			"--json",
+		]);
 	});
 
 	it("resolves desktop uninstalls from the server catalog instead of browser-sent args", async () => {
