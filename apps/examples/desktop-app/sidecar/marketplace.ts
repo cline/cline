@@ -18,8 +18,11 @@ import {
 	resolve,
 } from "node:path";
 import {
+	installPlugin as installCorePlugin,
+	installMcpServer,
 	type MarketplaceActionResult,
 	type MarketplaceEntryInput,
+	parseMcpInstallArgs,
 	resolveSkillsConfigSearchPaths,
 	resolveWorkflowsConfigSearchPaths,
 	uninstallMarketplaceEntry as uninstallCoreMarketplaceEntry,
@@ -457,18 +460,6 @@ export function buildMarketplaceMcpInput(args: string[]): JsonRecord {
 	};
 }
 
-function resolveClineInvocation(): { command: string; argsPrefix: string[] } {
-	const wrapperPath = process.env.CLINE_WRAPPER_PATH?.trim();
-	if (wrapperPath) {
-		return { command: wrapperPath, argsPrefix: [] };
-	}
-	const entry = process.argv[1]?.trim();
-	if (entry && /(?:^|[/\\])apps[/\\]cli[/\\]src[/\\]index\.ts$/.test(entry)) {
-		return { command: process.execPath, argsPrefix: [entry] };
-	}
-	return { command: "cline", argsPrefix: [] };
-}
-
 function isInsidePath(childPath: string, parentPath: string): boolean {
 	const relativePath = relative(resolve(parentPath), resolve(childPath));
 	return (
@@ -823,7 +814,6 @@ async function installSkill(
 
 async function installPlugin(
 	entry: MarketplaceInstallInput,
-	spawnCommand: SpawnCommand,
 ): Promise<MarketplaceInstallResult> {
 	const installArgs = entry.install.args ?? [];
 	if (installArgs.length !== 1) {
@@ -840,41 +830,36 @@ async function installPlugin(
 			message: `${entry.name ?? entry.id} is already installed.`,
 		};
 	}
-	const { command, argsPrefix } = resolveClineInvocation();
-	const result = await spawnCommand(command, [
-		...argsPrefix,
-		"plugin",
-		"install",
-		installArgs[0] ?? "",
-		// Reclaim a leftover directory from a failed or interrupted install:
-		// without --force the CLI refuses to replace the existing path and
-		// every retry from the UI would fail the same way. This is safe
-		// because the state check just confirmed the directory contains no
-		// loadable plugin module.
-		...(installState === "partial" ? ["--force"] : []),
-		"--json",
-	]);
-	if (result.exitCode !== 0) {
-		const output = commandOutput(result);
-		throw new Error(
-			`Plugin install failed with exit code ${result.exitCode}${output ? `:\n${output}` : ""}`,
-		);
-	}
-	let details: JsonRecord | undefined;
-	try {
-		details = result.stdout.trim()
-			? (JSON.parse(result.stdout.trim()) as JsonRecord)
-			: undefined;
-	} catch {
-		details = undefined;
-	}
+	// Install in-process instead of shelling out to a `cline` binary: the
+	// packaged desktop app cannot assume a CLI install exists on the user's
+	// PATH (GUI apps inherit launchd's minimal PATH on macOS), which surfaced
+	// as 'Executable not found in $PATH: "cline"' in the marketplace UI.
+	//
+	// force reclaims a leftover directory from a failed or interrupted
+	// install: without it the installer refuses to replace the existing path
+	// and every retry from the UI would fail the same way. This is safe
+	// because the state check just confirmed the directory contains no
+	// loadable plugin module.
+	const result = await installCorePlugin({
+		source: installArgs[0] ?? "",
+		force: installState === "partial",
+	});
+	const warnings = result.mcpSyncFailures.map(
+		(failure) =>
+			`Failed to sync plugin MCP servers for ${failure.pluginName ?? failure.pluginPath}: ${failure.message}`,
+	);
 	return {
 		id: entry.id,
 		type: entry.type,
 		status: "installed",
 		message: `Installed ${entry.name ?? entry.id}.`,
-		details,
-		output: commandOutput(result),
+		details: {
+			source: result.source,
+			installPath: result.installPath,
+			entryPaths: result.entryPaths,
+			mcpSyncFailures: result.mcpSyncFailures,
+		} as JsonRecord,
+		output: [`Path: ${result.installPath}`, ...warnings].join("\n"),
 	};
 }
 
@@ -885,45 +870,26 @@ export async function installMarketplaceEntry(
 	const entry = readInstallInput(args);
 	const spawnCommand = options.spawnCommand ?? defaultSpawnCommand;
 	if (entry.type === "mcp") {
-		// Validate marketplace args before handing them to the CLI-backed installer.
-		buildMarketplaceMcpInput(entry.install.args ?? []);
-		const { command, argsPrefix } = resolveClineInvocation();
-		const result = await spawnCommand(command, [
-			...argsPrefix,
-			"mcp",
-			"install",
-			"--yes",
-			"--json",
-			...(entry.install.args ?? []),
-		]);
-		if (result.exitCode !== 0) {
-			const output = commandOutput(result);
-			throw new Error(
-				`MCP install failed with exit code ${result.exitCode}${output ? `:\n${output}` : ""}`,
-			);
-		}
-		let details: JsonRecord | undefined;
-		try {
-			details = result.stdout.trim()
-				? (JSON.parse(result.stdout.trim()) as JsonRecord)
-				: undefined;
-		} catch {
-			details = undefined;
-		}
+		// Register the server in-process; this only writes MCP settings, so
+		// there is no reason to depend on a `cline` binary being on PATH.
+		const result = installMcpServer(
+			parseMcpInstallArgs(entry.install.args ?? []),
+		);
 		return {
 			id: entry.id,
 			type: entry.type,
 			status: "installed",
 			message: `Installed ${entry.name ?? entry.id}.`,
-			details,
-			output: commandOutput(result),
+			details: result as unknown as JsonRecord,
+			output:
+				result.warnings.length > 0 ? result.warnings.join("\n") : undefined,
 		};
 	}
 	if (entry.type === "skill") {
 		return installSkill(entry, spawnCommand);
 	}
 	if (entry.type === "plugin") {
-		return installPlugin(entry, spawnCommand);
+		return installPlugin(entry);
 	}
 	throw new Error(`Unsupported marketplace entry type: ${entry.type}`);
 }

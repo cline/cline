@@ -15,9 +15,20 @@ const ALL_SETTINGS_SECTIONS = [
 ] as const;
 
 // Customize is the unified hub for everything that extends Cline — skills,
-// MCP servers, plugins, rules, hooks, and tools — each as a sub-tab with
-// inline marketplace browsing where a catalog exists.
-const ALL_CUSTOMIZATION_SECTIONS = ["Customize"] as const;
+// MCP servers, plugins, rules, hooks, and tools. "Customize" is the installed
+// inventory (labeled "Installed" in the sidebar group); "Marketplace" is the
+// dedicated browse-and-install directory.
+const ALL_CUSTOMIZATION_SECTIONS = ["Customize", "Marketplace"] as const;
+
+// Sidebar labels for the Customize group: the Customize section shows what is
+// installed, so its row reads "Installed" next to the Marketplace row.
+export const CUSTOMIZATION_SECTION_LABELS: Record<
+	(typeof ALL_CUSTOMIZATION_SECTIONS)[number],
+	string
+> = {
+	Customize: "Installed",
+	Marketplace: "Marketplace",
+};
 
 export type SettingsSection =
 	| (typeof ALL_SETTINGS_SECTIONS)[number]

@@ -1,5 +1,15 @@
 # Cline SDK Changelog
 
+## 0.0.80
+
+- New files created by the file-writing tools now use the platform's native line endings
+- Fixed `search_codebase` crashing the process on files that contain a single enormous line
+- Credentials embedded in git remote URLs are now redacted from the workspace information included in the system prompt
+- Claude Code is now marked as a subscription-billed provider, so hosts suppress its per-token prices and API-rate cost estimates. Its models reuse Anthropic API pricing metadata, which produced dollar figures for usage that is covered by a Claude Pro/Max subscription
+- `installMcpServer` no longer treats a `--` separator in the install arguments as part of the stdio command
+- The `tasks` tool can now be configured to offer only scheduled work, disabling the Todo kind while leaving the Agenda backend intact
+- Refreshed the model catalog. Adds seven providers (Agnes AI, Aixy, IteraCompute, LLM Tech, NeoSmith, Pendra, and Standard Compute) and updates model lists and pricing across providers. The resolved default model changes for ClinePass (now GLM 5.3), Z.ai, Hugging Face, evroc, LLM Gateway, NanoGPT, and Weights & Biases, so if you use one of those without pinning a model you will get a different default
+
 ## 0.0.79
 
 - The hub's durable event log is now capped at 64 MiB on disk. Event envelopes carrying full session snapshots could previously accumulate to tens of gigabytes, since row and time retention alone did not bound file size and deletes never shrink a SQLite file. Oldest events are dropped first and the file is vacuumed to return the space, and pruning now also runs after every 16 MiB appended instead of waiting for the hourly sweep
