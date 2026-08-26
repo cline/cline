@@ -20,6 +20,19 @@ zig version      # any recent stable release
 node --version   # should be >= 22
 ```
 
+### Troubleshooting: OpenTUI Native Build Failures
+
+The most common first-time setup failure is `bun install` erroring inside `@opentui/core`. The package compiles its Zig core into a native binary during install, so a missing or incompatible Zig toolchain aborts the whole workspace install with errors that do not always mention Zig by name (look for `zig`, `bun:ffi`, or `@opentui/core` in the output).
+
+Recovery steps:
+
+1. Confirm Zig is installed and on PATH (`zig version`). Install it from [ziglang.org/download](https://ziglang.org/download/) if missing.
+2. Retry the install so the native build reruns: `bun install` from the repository root.
+3. If the failure persists, clear Bun's module cache for a clean rebuild and retry.
+4. Only the CLI (and anything importing `apps/cli`) needs the native layer; SDK-only work (`sdk/packages/**`) installs and tests without Zig. If you only need SDK tests, you can temporarily proceed once the CLI dependency tree is not being installed -- but full-workspace `bun install` requires Zig.
+
+Note: because the CLI depends on this `bun:ffi` native binary, the published CLI ships as self-contained compiled binaries rather than plain Node scripts (see [DISTRIBUTION.md](./DISTRIBUTION.md)).
+
 ## First-Time Setup
 
 From the repository root:
