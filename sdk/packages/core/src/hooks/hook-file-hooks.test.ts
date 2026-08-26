@@ -163,7 +163,9 @@ describe("createHookConfigFileHooks", () => {
 		}
 	});
 
-	it("executes extensionless legacy hook files via bash fallback", async () => {
+	it.skipIf(process.platform === "win32")(
+		"executes extensionless legacy hook files via bash fallback",
+		async () => {
 		const { workspace } = await createWorkspaceWithHook(
 			"PreToolUse",
 			'echo \'HOOK_CONTROL\t{"cancel":true,"context":"legacy-ok"}\'\nexit 0\n',
@@ -186,7 +188,10 @@ describe("createHookConfigFileHooks", () => {
 		}
 	});
 
-	it("adapts file hooks into an AgentExtension", async () => {
+	// Same extensionless-bash dependency as the legacy fallback test above.
+	it.skipIf(process.platform === "win32")(
+		"adapts file hooks into an AgentExtension",
+		async () => {
 		const { workspace } = await createWorkspaceWithHook(
 			"PreToolUse",
 			'echo \'HOOK_CONTROL\t{"cancel":true,"context":"extension-ok"}\'\nexit 0\n',
