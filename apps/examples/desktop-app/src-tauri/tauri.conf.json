@@ -6,7 +6,7 @@
 	"build": {
 		"beforeDevCommand": "bun run build:sidecar:bin && bun run dev:web",
 		"devUrl": "http://localhost:3125",
-		"beforeBuildCommand": "bun run build",
+		"beforeBuildCommand": "bun run dmg:background && bun run build",
 		"frontendDist": "../webview/out"
 	},
 	"plugins": {
@@ -48,7 +48,22 @@
 		],
 		"macOS": {
 			"entitlements": "entitlements.plist",
-			"hardenedRuntime": true
+			"hardenedRuntime": true,
+			"dmg": {
+				"background": "dmg/background.gen.tiff",
+				"windowSize": {
+					"width": 640,
+					"height": 432
+				},
+				"appPosition": {
+					"x": 140,
+					"y": 200
+				},
+				"applicationFolderPosition": {
+					"x": 500,
+					"y": 200
+				}
+			}
 		}
 	}
 }
