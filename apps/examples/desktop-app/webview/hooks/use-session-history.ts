@@ -504,6 +504,14 @@ export function useSessionHistory({
 	const [unreadSessionIds, setUnreadSessionIds] = useState<Set<string>>(
 		() => new Set(),
 	);
+	// Session ids that schedule executions report as their own. Scheduled runs
+	// executed by the local hub do not reliably carry the "hub-schedule"
+	// origin trigger in their session metadata (the runtime that claims the
+	// run doesn't always stamp provenance), so the metadata check alone would
+	// miss them; the executions list is the authoritative link.
+	const [scheduledSessionIds, setScheduledSessionIds] = useState<Set<string>>(
+		() => new Set(),
+	);
 	const fetchLimitRef = useRef(INITIAL_HISTORY_FETCH_LIMIT);
 	// Limit of the most recent refresh that actually returned sessions. Failed
 	// attempts roll back to this rather than to a caller-local snapshot, which
@@ -552,6 +560,52 @@ export function useSessionHistory({
 			return next;
 		});
 	}, [activeSessionId]);
+
+	useEffect(() => {
+		let cancelled = false;
+		const collectScheduledSessionIds = async () => {
+			const response = await desktopClient
+				.invoke<{
+					activeExecutions?: Array<{ sessionId?: unknown }>;
+					lastExecutions?: Array<{ sessionId?: unknown }>;
+				}>("list_routine_schedules")
+				.catch(() => null);
+			if (cancelled || !response) {
+				return;
+			}
+			const ids = new Set<string>();
+			for (const execution of [
+				...(response.activeExecutions ?? []),
+				...(response.lastExecutions ?? []),
+			]) {
+				const sessionId =
+					typeof execution?.sessionId === "string"
+						? execution.sessionId.trim()
+						: "";
+				if (sessionId) {
+					ids.add(sessionId);
+				}
+			}
+			setScheduledSessionIds((current) => {
+				// Merge instead of replace: the executions list is a rolling
+				// window, so ids that fell out of it are still scheduled runs.
+				const next = new Set(current);
+				for (const id of ids) {
+					next.add(id);
+				}
+				return next.size === current.size ? current : next;
+			});
+		};
+		void collectScheduledSessionIds();
+		const interval = window.setInterval(
+			() => void collectScheduledSessionIds(),
+			2 * 60 * 1000,
+		);
+		return () => {
+			cancelled = true;
+			window.clearInterval(interval);
+		};
+	}, []);
 
 	const refreshSessions = useCallback(async () => {
 		// Reuse an in-flight refresh only when it already asked for at least as
@@ -1429,6 +1483,17 @@ export function useSessionHistory({
 		[sessions],
 	);
 
+	const threadsWithScheduled = useMemo(() => {
+		if (scheduledSessionIds.size === 0) {
+			return threads;
+		}
+		return threads.map((thread) =>
+			!thread.isScheduled && scheduledSessionIds.has(thread.id)
+				? { ...thread, isScheduled: true }
+				: thread,
+		);
+	}, [scheduledSessionIds, threads]);
+
 	return {
 		getSessionByThreadId,
 		hasLoadedHistory,
@@ -1446,7 +1511,7 @@ export function useSessionHistory({
 		forkThread,
 		sessionById,
 		sessions,
-		threads,
+		threads: threadsWithScheduled,
 		unreadSessionIds,
 	};
 }
