@@ -20,7 +20,12 @@ import {
 	PatchParser,
 	type PatchWarning,
 } from "./apply-patch-parser";
-import { normalizeNewFileLineEndings } from "./line-endings";
+import {
+	detectLineEnding,
+	type LineEnding,
+	normalizeLineEndings,
+	normalizeNewFileLineEndings,
+} from "./line-endings";
 
 export interface PatchFileChange {
 	type: PatchActionType;
@@ -71,7 +76,7 @@ function resolveFilePath(
 	return resolved;
 }
 
-function normalizeLineEndings(input: string): string[] {
+function splitPatchInputLines(input: string): string[] {
 	return input.split("\n").map((line) => line.replace(/\r$/, ""));
 }
 
@@ -98,7 +103,7 @@ function trimWrapperLines(lines: string[]): string[] {
 }
 
 function normalizePatchInput(input: string): NormalizedPatchInput {
-	const rawLines = normalizeLineEndings(input);
+	const rawLines = splitPatchInputLines(input);
 	const beginIndex = rawLines.findIndex((line) =>
 		line.startsWith(PATCH_MARKERS.BEGIN),
 	);
@@ -187,17 +192,28 @@ function applyChunks(
 	return result.join("\n");
 }
 
+interface LoadedFiles {
+	/**
+	 * File contents normalized to LF. The parser and chunk math work in LF
+	 * space because models emit LF-only patch text even for CRLF files.
+	 */
+	files: Record<string, string>;
+	/** Each file's own EOL, restored onto the output after chunks apply. */
+	eols: Record<string, LineEnding>;
+}
+
 async function loadFiles(
 	lines: readonly string[],
 	cwd: string,
 	encoding: BufferEncoding,
 	restrictToCwd: boolean,
-): Promise<Record<string, string>> {
+): Promise<LoadedFiles> {
 	const filesToLoad = extractFilesForOperations(lines, [
 		PATCH_MARKERS.UPDATE,
 		PATCH_MARKERS.DELETE,
 	]);
 	const files: Record<string, string> = {};
+	const eols: Record<string, LineEnding> = {};
 
 	for (const filePath of filesToLoad) {
 		const absolutePath = resolveFilePath(cwd, filePath, restrictToCwd);
@@ -208,23 +224,34 @@ async function loadFiles(
 			throw new DiffError(`File not found: ${filePath}`);
 		}
 		files[filePath] = fileContent.replace(/\r\n/g, "\n");
+		eols[filePath] = detectLineEnding(fileContent);
 	}
 
-	return files;
+	return { files, eols };
 }
 
 function patchToChanges(
 	patch: ReturnType<PatchParser["parse"]>["patch"],
-	originalFiles: Record<string, string>,
+	loaded: LoadedFiles,
 ): Record<string, PatchFileChange> {
 	const changes: Record<string, PatchFileChange> = {};
+	const originalFiles = loaded.files;
+	// Chunk math ran in LF space; restore each file's own EOL on the way out
+	// so an UPDATE never rewrites a CRLF file to LF wholesale.
+	const withFileEol = (
+		filePath: string,
+		content: string | undefined,
+	): string | undefined =>
+		content === undefined
+			? undefined
+			: normalizeLineEndings(content, loaded.eols[filePath] ?? "\n");
 
 	for (const [filePath, action] of Object.entries(patch.actions)) {
 		switch (action.type) {
 			case PatchActionType.DELETE:
 				changes[filePath] = {
 					type: PatchActionType.DELETE,
-					oldContent: originalFiles[filePath],
+					oldContent: withFileEol(filePath, originalFiles[filePath]),
 				};
 				break;
 			case PatchActionType.ADD:
@@ -239,11 +266,10 @@ function patchToChanges(
 			case PatchActionType.UPDATE:
 				changes[filePath] = {
 					type: PatchActionType.UPDATE,
-					oldContent: originalFiles[filePath],
-					newContent: applyChunks(
-						originalFiles[filePath] ?? "",
-						action.chunks,
+					oldContent: withFileEol(filePath, originalFiles[filePath]),
+					newContent: withFileEol(
 						filePath,
+						applyChunks(originalFiles[filePath] ?? "", action.chunks, filePath),
 					),
 					movePath: action.movePath,
 				};
@@ -338,19 +364,19 @@ export async function computePatchChanges(
 ): Promise<{ changes: Record<string, PatchFileChange>; fuzz: number }> {
 	const { encoding = "utf-8", restrictToCwd = true } = options;
 	const normalizedInput = normalizePatchInput(patchText);
-	const currentFiles = await loadFiles(
+	const loaded = await loadFiles(
 		normalizedInput.lines,
 		cwd,
 		encoding,
 		restrictToCwd,
 	);
-	const parser = new PatchParser(normalizedInput.lines, currentFiles);
+	const parser = new PatchParser(normalizedInput.lines, loaded.files);
 	const { patch, fuzz } = parser.parse();
 	if (patch.warnings && patch.warnings.length > 0) {
 		throw new DiffError(formatSkippedHunkFailure(patch.warnings));
 	}
 
-	return { changes: patchToChanges(patch, currentFiles), fuzz };
+	return { changes: patchToChanges(patch, loaded), fuzz };
 }
 
 /**
