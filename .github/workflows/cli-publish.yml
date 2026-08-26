@@ -198,7 +198,7 @@ jobs:
           azure-subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
           endpoint: ${{ secrets.AZURE_TRUSTED_SIGNING_ENDPOINT }}
           account: ${{ secrets.AZURE_TRUSTED_SIGNING_ACCOUNT_NAME }}
-          certificate-profile: ${{ secrets.AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE }}
+          certificate-profile: ${{ secrets.AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_CLI }}
           files: |
             apps/cli/dist/cli-windows-x64/bin/cline.exe
             apps/cli/dist/cli-windows-arm64/bin/cline.exe
@@ -441,7 +441,7 @@ jobs:
           azure-subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
           endpoint: ${{ secrets.AZURE_TRUSTED_SIGNING_ENDPOINT }}
           account: ${{ secrets.AZURE_TRUSTED_SIGNING_ACCOUNT_NAME }}
-          certificate-profile: ${{ secrets.AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE }}
+          certificate-profile: ${{ secrets.AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_CLI }}
           files: |
             apps/cli/dist/cli-windows-x64/bin/cline.exe
             apps/cli/dist/cli-windows-arm64/bin/cline.exe

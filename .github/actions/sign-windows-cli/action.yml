@@ -49,13 +49,27 @@ runs:
         SIGNING_ACCOUNT: ${{ inputs.account }}
         SIGNING_PROFILE: ${{ inputs.certificate-profile }}
       run: |
-        if [ -z "$AZURE_CLIENT_ID" ] || [ -z "$AZURE_TENANT_ID" ] || [ -z "$AZURE_SUBSCRIPTION_ID" ] || \
-           [ -z "$SIGNING_ENDPOINT" ] || [ -z "$SIGNING_ACCOUNT" ] || [ -z "$SIGNING_PROFILE" ]; then
+        missing=()
+        set_count=0
+        for var in AZURE_CLIENT_ID AZURE_TENANT_ID AZURE_SUBSCRIPTION_ID SIGNING_ENDPOINT SIGNING_ACCOUNT SIGNING_PROFILE; do
+          if [ -z "${!var}" ]; then
+            missing+=("$var")
+          else
+            set_count=$((set_count + 1))
+          fi
+        done
+
+        if [ "${#missing[@]}" -eq 0 ]; then
+          echo "Azure Trusted Signing is configured; Windows binaries will be signed."
+          echo "enabled=true" >> "$GITHUB_OUTPUT"
+        elif [ "$set_count" -eq 0 ]; then
           echo "::warning::Azure Trusted Signing is not configured; publishing UNSIGNED Windows binaries. Set the AZURE_* and AZURE_TRUSTED_SIGNING_* repository secrets to enable signing."
           echo "enabled=false" >> "$GITHUB_OUTPUT"
         else
-          echo "Azure Trusted Signing is configured; Windows binaries will be signed."
-          echo "enabled=true" >> "$GITHUB_OUTPUT"
+          # Partial configuration is almost certainly a typo'd or renamed
+          # secret. Fail loudly instead of silently publishing unsigned.
+          echo "::error::Azure Trusted Signing is PARTIALLY configured; refusing to publish. Missing: ${missing[*]}"
+          exit 1
         fi
 
     - name: Azure login (OIDC)
@@ -87,8 +101,10 @@ runs:
         echo "::add-mask::${JSIGN_STOREPASS}"
         export JSIGN_STOREPASS
 
-        # jsign expects the endpoint host, not the URL
+        # jsign expects the endpoint host, not the URL. Tolerate both the
+        # portal's display form (trailing slash) and the bare form.
         KEYSTORE="${SIGNING_ENDPOINT#https://}"
+        KEYSTORE="${KEYSTORE%/}"
 
         while IFS= read -r file; do
           [ -z "$file" ] && continue
