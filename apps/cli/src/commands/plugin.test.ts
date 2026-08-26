@@ -260,7 +260,12 @@ describe("plugin install command", () => {
 		).toEqual(result.entryPaths);
 	});
 
-	it("installs an official package plugin and runs package dependency install", async () => {
+	// Fixture below is a /bin/sh fake-npm launcher (mode 0755, shebang);
+	// cmd.exe cannot execute it even through the product's win32 shell
+	// spawn path. Cross-platform fixture conversion tracked separately.
+	it.skipIf(process.platform === "win32")(
+		"installs an official package plugin and runs package dependency install",
+		async () => {
 		const officialPluginsRepo = await createOfficialPluginsRepo({
 			"package-plugin": {
 				"package.json": JSON.stringify(
@@ -412,7 +417,10 @@ describe("plugin install command", () => {
 		);
 	});
 
-	it("installs into cwd plugin root when cwd is provided", async () => {
+	// Same /bin/sh fake-npm fixture constraint as the official-plugin test.
+	it.skipIf(process.platform === "win32")(
+		"installs into cwd plugin root when cwd is provided",
+		async () => {
 		const source = join(root, "plugin-package");
 		const npmLogPath = join(root, "npm-install.log");
 		const npmCommandPath = join(root, "fake-npm.sh");
@@ -504,7 +512,11 @@ describe("plugin install command", () => {
 		expect(discovered.some((path) => path.includes("noise.ts"))).toBe(false);
 	});
 
-	it("omits and removes host SDK packages from npm-sourced installs", async () => {
+	// Same /bin/sh fake-npm fixture constraint (parses --prefix, materializes
+	// node_modules) as the other gated plugin install tests.
+	it.skipIf(process.platform === "win32")(
+		"omits and removes host SDK packages from npm-sourced installs",
+		async () => {
 		const npmLogPath = join(root, "npm-source-install.log");
 		const npmCommandPath = join(root, "fake-npm-source.sh");
 		writeFileSync(
@@ -562,7 +574,11 @@ describe("plugin install command", () => {
 		expect(second.installPath).toBe(first.installPath);
 	});
 
-	it("keeps an existing install when a forced replacement fails during staging", async () => {
+	// Same /bin/sh fake-npm fixture constraint (rewritten between phases to
+	// flip exit status) as the other gated plugin install tests.
+	it.skipIf(process.platform === "win32")(
+		"keeps an existing install when a forced replacement fails during staging",
+		async () => {
 		const source = join(root, "replace-package");
 		const npmCommandPath = join(root, "fake-npm.sh");
 		await mkdir(source, { recursive: true });

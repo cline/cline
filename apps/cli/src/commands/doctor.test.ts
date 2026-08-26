@@ -308,7 +308,12 @@ describe("runDoctorCommand", () => {
 		});
 	});
 
-	it("doctor --fix kills stale code sidecar processes", async () => {
+	// listMatchingProcesses short-circuits to [] on win32 (no Windows
+	// process-enumeration support yet), so the pgrep-driven flow under test
+	// is POSIX-only by contract.
+	it.skipIf(process.platform === "win32")(
+		"doctor --fix kills stale code sidecar processes",
+		async () => {
 		const cwd = "/workspace";
 		mockReadHubDiscovery.mockResolvedValue(undefined);
 		mockProbeHubServer.mockResolvedValue(undefined);
