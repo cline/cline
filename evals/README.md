@@ -105,7 +105,7 @@ With 3 trials:
 ## CI Integration
 
 - Current PR gate: contract tests only
-- Smoke test CI: temporarily disabled while the workflow is repointed at the SDK CLI
+- Smoke test CI: auto-regression retired during the SDK CLI migration; an on-demand replacement exists at `.github/workflows/cline-evals-smoke.yml` (manual `workflow_dispatch`, requires the `CLINE_API_KEY` repository secret)
 - Nightly: E2E tests with cline-bench are not yet implemented, see TODO
 
 ## Quick Start

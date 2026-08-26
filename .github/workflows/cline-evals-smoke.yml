@@ -1,0 +1,102 @@
+name: cline-evals-smoke
+
+# Layer-2 smoke-test regression (evals/smoke-tests).
+#
+# Status: EXPERIMENTAL / MANUAL ONLY.
+# The previous auto-regression workflow was retired while the eval
+# framework migrates to the SDK CLI (see evals/README.md). This workflow
+# restores an on-demand safety net without gating PRs:
+#   - runs only via workflow_dispatch
+#   - requires the CLINE_API_KEY repository secret
+#
+# Results are uploaded as artifacts under evals/smoke-tests/results/.
+
+on:
+    workflow_dispatch:
+        inputs:
+            model:
+                description: "Model id passed to --model (default: anthropic/claude-sonnet-4.5)"
+                required: false
+                default: "anthropic/claude-sonnet-4.5"
+            scenario:
+                description: "Scenario id passed to --scenario (empty = all)"
+                required: false
+                default: ""
+            trials:
+                description: "Trials per test passed to --trials"
+                required: false
+                default: "1"
+
+permissions:
+    contents: read
+
+defaults:
+    run:
+        working-directory: .
+
+jobs:
+    smoke-regression:
+        runs-on: ubuntu-latest
+        name: Smoke regression (${{ inputs.model }})
+        timeout-minutes: 120
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+              with:
+                  submodules: recursive
+
+            - name: Guard - require CLINE_API_KEY secret
+              run: |
+                  if [ -z "${{ secrets.CLINE_API_KEY }}" ]; then
+                      echo "::error::Repository secret CLINE_API_KEY is not set - cannot authenticate the cline provider."
+                      exit 1
+                  fi
+
+            - name: Setup Bun
+              uses: oven-sh/setup-bun@v2
+              with:
+                  bun-version: "1.3.13"
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: "22.x"
+
+            - name: Install dependencies
+              run: bun install
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Build SDK + CLI
+              run: |
+                  bun run build:sdk
+                  bun -F @cline/cli build
+
+            - name: Link cline CLI onto PATH
+              run: |
+                  cd apps/cli
+                  bun link
+                  which cline
+
+            - name: Install evals dependencies
+              run: npm ci
+              working-directory: ./evals
+
+            - name: Run smoke tests
+              working-directory: ./evals
+              env:
+                  CLINE_API_KEY: ${{ secrets.CLINE_API_KEY }}
+              run: |
+                  ARGS=(--trials "${{ inputs.trials }}" --model "${{ inputs.model }}")
+                  if [ -n "${{ inputs.scenario }}" ]; then
+                      ARGS+=(--scenario "${{ inputs.scenario }}")
+                  fi
+                  npx -y tsx@4 smoke-tests/run-smoke-tests.ts "${ARGS[@]}"
+
+            - name: Upload results
+              if: always()
+              uses: actions/upload-artifact@v4
+              with:
+                  name: smoke-results-${{ github.run_id }}
+                  path: evals/smoke-tests/results/
+                  if-no-files-found: ignore
