@@ -88,7 +88,11 @@ describe("desktop settings commands", () => {
 		expect(events).toEqual([
 			{
 				name: "feature_flags_changed",
-				payload: { cloudAgents: false, cloudAgentsAvailable: false },
+				payload: {
+					cloudAgents: false,
+					cloudAgentsAvailable: false,
+					cloudHandoff: false,
+				},
 			},
 		]);
 		await expect(
@@ -103,7 +107,11 @@ describe("desktop settings commands", () => {
 		});
 		expect(events.at(-1)).toEqual({
 			name: "feature_flags_changed",
-			payload: { cloudAgents: false, cloudAgentsAvailable: false },
+			payload: {
+				cloudAgents: false,
+				cloudAgentsAvailable: false,
+				cloudHandoff: false,
+			},
 		});
 	});
 

@@ -80,6 +80,7 @@ import {
 	identifyDesktopFeatureFlagsAccount,
 	isCloudAgentsAvailable,
 	isCloudAgentsEnabled,
+	isCloudHandoffEnabled,
 	refreshDesktopFeatureFlags,
 } from "./feature-flags";
 import {
@@ -1299,6 +1300,10 @@ export async function handleCommand(
 				logger: ctx.logger,
 				telemetry: ctx.telemetry,
 			}),
+			cloudHandoff: isCloudHandoffEnabled({
+				logger: ctx.logger,
+				telemetry: ctx.telemetry,
+			}),
 		};
 	}
 	if (command === "list_cloud_repositories") {
@@ -1448,6 +1453,8 @@ export async function handleCommand(
 					null
 				);
 			} catch {
+				// Preserve offline access, but never let a successful fresh list be
+				// shadowed forever by a session deleted on another device.
 				return cloud.getCachedDiscoveryRecord(sessionId) ?? null;
 			}
 		}
@@ -1516,6 +1523,10 @@ export async function handleCommand(
 			await cloud.delete(sessionId);
 			return true;
 		}
+		const { assertSessionDeleteAllowedDuringHandoff } = await import(
+			"./chat-session"
+		);
+		await assertSessionDeleteAllowedDuringHandoff(ctx, sessionId);
 		ctx.logger?.log("Deleting desktop chat session", { command, sessionId });
 		const store = new SqliteSessionStore();
 		const row = store.get(sessionId);
@@ -1973,6 +1984,7 @@ export async function handleCommand(
 		broadcastEvent(ctx, "feature_flags_changed", {
 			cloudAgents: isCloudAgentsEnabled(),
 			cloudAgentsAvailable: isCloudAgentsAvailable(),
+			cloudHandoff: isCloudHandoffEnabled(),
 		});
 		return settings;
 	}

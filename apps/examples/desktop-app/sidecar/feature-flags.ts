@@ -18,6 +18,7 @@ import { resolveClineDataDir } from "@cline/shared/storage";
 import { readDesktopSettings } from "./desktop-settings";
 
 const FEATURE_FLAG_CODE_CLOUD_AGENTS = SharedFeatureFlag.CODE_CLOUD_AGENTS;
+const FEATURE_FLAG_CODE_CLOUD_HANDOFF = SharedFeatureFlag.CODE_CLOUD_HANDOFF;
 
 const DESKTOP_FEATURE_FLAGS_CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -213,4 +214,32 @@ export function isCloudAgentsEnabled(options?: {
 	if (override !== undefined) return override;
 	if (!isCloudAgentsAvailable(options)) return false;
 	return readDesktopSettings().cloudSessionsEnabled;
+}
+
+/**
+ * Dev/build override for the handoff gate: "1"/"true" forces it on,
+ * "0"/"false" forces it off, anything else defers to the flag.
+ */
+export function readCloudHandoffEnvOverride(): boolean | undefined {
+	const override = process.env.CLINE_CODE_CLOUD_HANDOFF?.trim().toLowerCase();
+	if (override === "1" || override === "true") return true;
+	if (override === "0" || override === "false") return false;
+	return undefined;
+}
+
+/**
+ * Whether cloud handoff (/handoff) is enabled for this account: the PostHog
+ * rollout flag decides (cached snapshot; no network on this path).
+ */
+export function isCloudHandoffEnabled(options?: {
+	logger?: BasicLogger;
+	telemetry?: ITelemetryService;
+}): boolean {
+	const override = readCloudHandoffEnvOverride();
+	if (override !== undefined) return override;
+	return Boolean(
+		getDesktopFeatureFlagsService(options).getFlagPayload(
+			FEATURE_FLAG_CODE_CLOUD_HANDOFF,
+		),
+	);
 }

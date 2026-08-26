@@ -8,22 +8,76 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+	CloudHandoffTranscriptMismatchError,
+	preflightCloudHandoffGit,
+	readCloudHandoffMetadata,
+	selectCloudHandoffModel,
+} from "@cline/core";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { materializeUserFiles } from "./attachments";
 import {
+	assertSessionDeleteAllowedDuringHandoff,
 	buildSessionConnectionUpdate,
+	cloudHandoffGitStateMatchesFingerprint,
+	combineCloudHandoffModels,
 	consumeWorkspaceMetadata,
+	formatPendingHandoffVerificationError,
 	handleChatSessionCommand,
 	hasProviderChanged,
 	mergeSessionConfig,
 	prewarmWorkspaceMetadata,
+	reconcilePendingCloudHandoff,
 	resolveDesktopSessionMode,
 	rewriteDesktopTeamPrompt,
+	shouldCleanupFailedHandoffVerification,
 	shouldUpdateSessionConnection,
+	updateHandoffMetadataOrThrow,
 	WORKSPACE_METADATA_PREWARM_TTL_MS,
 } from "./chat-session";
+import {
+	CloudHandoffSeedUnsupportedError,
+	CloudQueueUnconfirmedError,
+	type CloudSessionApi,
+	CloudSessionError,
+	CloudSessionManager,
+} from "./cloud-sessions";
 import { handleCoreSessionEvent } from "./context";
+import { writeDesktopSettings } from "./desktop-settings";
 import type { SidecarContext } from "./types";
+
+// Git preflight shells out to `git` and requires a pushed github.com branch;
+// the full-transaction test below swaps in a deterministic repository state.
+vi.mock("@cline/core", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("@cline/core")>();
+	return {
+		...actual,
+		preflightCloudHandoffGit: vi.fn(actual.preflightCloudHandoffGit),
+	};
+});
+
+// New handoffs are gated on the rollout flags AND the user's Cloud sessions
+// opt-in (a handoff uploads the local transcript). Tests that drive
+// prepare_handoff/handoff arrange all three through this helper.
+const handoffOptInDataDirs: string[] = [];
+
+function enableCloudHandoffGates(): void {
+	const dataDir = mkdtempSync(join(tmpdir(), "cline-handoff-optin-"));
+	handoffOptInDataDirs.push(dataDir);
+	process.env.CLINE_DATA_DIR = dataDir;
+	process.env.CLINE_CODE_CLOUD_HANDOFF = "1";
+	process.env.CLINE_CODE_CLOUD_AGENTS = "1";
+	writeDesktopSettings({ cloudSessionsEnabled: true });
+}
+
+afterEach(() => {
+	delete process.env.CLINE_CODE_CLOUD_HANDOFF;
+	delete process.env.CLINE_CODE_CLOUD_AGENTS;
+	delete process.env.CLINE_DATA_DIR;
+	for (const dataDir of handoffOptInDataDirs.splice(0)) {
+		rmSync(dataDir, { recursive: true, force: true });
+	}
+});
 
 describe("resolveDesktopSessionMode", () => {
 	it("does not turn auto-approved Act sessions into Yolo sessions", () => {
@@ -36,6 +90,30 @@ describe("resolveDesktopSessionMode", () => {
 	it("preserves explicit Plan and Yolo modes", () => {
 		expect(resolveDesktopSessionMode({ mode: "plan" })).toBe("plan");
 		expect(resolveDesktopSessionMode({ mode: "yolo" })).toBe("yolo");
+	});
+});
+
+describe("cloud handoff model catalog", () => {
+	it("retains a catalog model duplicated in Cline Pass for organization use", () => {
+		const models = combineCloudHandoffModels({
+			catalog: [{ id: "shared/model", name: "Shared", catalogId: "cline" }],
+			clinePass: [
+				{ id: "shared/model", name: "Shared Pass", catalogId: "cline-pass" },
+			],
+			clineCloud: [],
+		});
+
+		expect(
+			selectCloudHandoffModel({
+				localModelId: "shared/model",
+				models,
+				isOrganizationSession: true,
+			}),
+		).toMatchObject({
+			modelId: "shared/model",
+			catalogId: "cline",
+			usedFallback: false,
+		});
 	});
 });
 
@@ -245,7 +323,322 @@ describe("pathless session starts", () => {
 	});
 });
 
+describe("session mode persistence", () => {
+	function startResult(sessionId: string) {
+		return {
+			sessionId,
+			manifest: { cwd: "/workspace/cline", workspace_root: "/workspace/cline" },
+			manifestPath: `/tmp/${sessionId}.json`,
+			messagesPath: `/tmp/${sessionId}.messages.json`,
+		};
+	}
+
+	it("stores the agent mode in session metadata at start", async () => {
+		const start = vi.fn(async () => startResult("session-mode-start"));
+		const ctx = {
+			liveSessions: new Map(),
+			restoringWorkspacePaths: new Set(),
+			sessionManager: { start },
+		} as unknown as SidecarContext;
+
+		await handleChatSessionCommand(ctx, {
+			action: "start",
+			config: {
+				provider: "cline",
+				model: "anthropic/claude-sonnet-4.6",
+				mode: "plan",
+			},
+		});
+
+		expect(start).toHaveBeenCalledWith(
+			expect.objectContaining({ sessionMetadata: { mode: "plan" } }),
+		);
+	});
+
+	it("defaults the persisted mode to act when the config has none", async () => {
+		const start = vi.fn(async () => startResult("session-mode-default"));
+		const ctx = {
+			liveSessions: new Map(),
+			restoringWorkspacePaths: new Set(),
+			sessionManager: { start },
+		} as unknown as SidecarContext;
+
+		await handleChatSessionCommand(ctx, {
+			action: "start",
+			config: { provider: "cline", model: "anthropic/claude-sonnet-4.6" },
+		});
+
+		expect(start).toHaveBeenCalledWith(
+			expect.objectContaining({ sessionMetadata: { mode: "act" } }),
+		);
+	});
+
+	it("persists a mode change on send and skips when unchanged", async () => {
+		const sessionId = "session-mode-send";
+		let persistedMetadata: Record<string, unknown> = {
+			title: "Keep me",
+			mode: "act",
+		};
+		const get = vi.fn(async () => ({
+			sessionId,
+			status: "idle",
+			metadata: persistedMetadata,
+		}));
+		const update = vi.fn(
+			async (_id: string, input: { metadata: Record<string, unknown> }) => {
+				persistedMetadata = input.metadata;
+				return { updated: true };
+			},
+		);
+		const send = vi.fn(async () => ({
+			text: "done",
+			finishReason: "completed",
+			messages: [],
+		}));
+		const baseConfig = {
+			provider: "cline",
+			model: "anthropic/claude-sonnet-4.6",
+			mode: "act",
+		};
+		const ctx = {
+			liveSessions: new Map([
+				[
+					sessionId,
+					{
+						config: baseConfig,
+						messages: [],
+						promptsInQueue: [],
+						busy: false,
+						startedAt: Date.now(),
+						status: "idle",
+						attachedViaHub: false,
+					},
+				],
+			]),
+			restoringWorkspacePaths: new Set(),
+			streamIndices: new Map(),
+			wsClients: new Set(),
+			sessionManager: {
+				get,
+				send,
+				update,
+				updateSessionConnection: vi.fn(async () => undefined),
+				pendingPrompts: { list: vi.fn(async () => []) },
+			},
+		} as unknown as SidecarContext;
+
+		await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "switch to plan",
+			config: { ...baseConfig, mode: "plan" },
+		});
+		// The existing metadata (e.g. title) must survive the wholesale replace.
+		expect(update).toHaveBeenCalledWith(sessionId, {
+			metadata: { title: "Keep me", mode: "plan" },
+		});
+
+		update.mockClear();
+		await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "still plan",
+			config: { ...baseConfig, mode: "plan" },
+		});
+		expect(update).not.toHaveBeenCalled();
+	});
+});
+
 describe("session forks", () => {
+	it("blocks the delete command while a persisted cloud handoff is pending", async () => {
+		const remove = vi.fn();
+		const ctx = {
+			liveSessions: new Map(),
+			sessionManager: {
+				get: vi.fn(async () => ({
+					sessionId: "pending-handoff-source",
+					metadata: {
+						handoff: {
+							status: "pending",
+							toCloudSessionId: "cloud-pending",
+							handedOffAt: "2026-08-18T00:00:00.000Z",
+							dashboardUrl:
+								"https://app.cline.bot/agents?sessionId=cloud-pending",
+						},
+					},
+				})),
+				delete: remove,
+			},
+		} as unknown as SidecarContext;
+		const { handleCommand } = await import("./commands");
+
+		await expect(
+			handleCommand(ctx, "delete_chat_session", {
+				sessionId: "pending-handoff-source",
+			}),
+		).rejects.toThrow("Cloud handoff is still pending");
+		expect(remove).not.toHaveBeenCalled();
+	});
+
+	it("blocks deletion while the handoff request is starting", async () => {
+		enableCloudHandoffGates();
+		let releaseGet: ((value: undefined) => void) | undefined;
+		const ctx = {
+			liveSessions: new Map(),
+			sessionManager: {
+				get: vi.fn(
+					async () =>
+						await new Promise<undefined>((resolve) => {
+							releaseGet = resolve;
+						}),
+				),
+			},
+		} as unknown as SidecarContext;
+		const handoff = handleChatSessionCommand(ctx, {
+			action: "handoff",
+			sessionId: "starting-handoff-source",
+			fingerprint: {
+				repoUrl: "https://github.com/cline/cline.git",
+				branch: "main",
+				headSha: "abc123",
+				modelId: "anthropic/claude-sonnet-4.6",
+			},
+		});
+
+		await expect(
+			assertSessionDeleteAllowedDuringHandoff(ctx, "starting-handoff-source"),
+		).rejects.toThrow("Wait for the cloud handoff to finish before deleting");
+		releaseGet?.(undefined);
+		await expect(handoff).rejects.toThrow("was not found");
+	});
+
+	it("allows deletion after a cloud handoff has completed", async () => {
+		const ctx = {
+			liveSessions: new Map(),
+			sessionManager: {
+				get: vi.fn(async () => ({
+					sessionId: "completed-handoff-source",
+					metadata: {
+						handoff: {
+							status: "complete",
+							toCloudSessionId: "cloud-complete",
+							handedOffAt: "2026-08-18T00:00:00.000Z",
+						},
+					},
+				})),
+			},
+		} as unknown as SidecarContext;
+
+		await expect(
+			assertSessionDeleteAllowedDuringHandoff(ctx, "completed-handoff-source"),
+		).resolves.toBeUndefined();
+	});
+
+	it("keeps a persisted pending handoff read-only after restart", async () => {
+		const send = vi.fn();
+		const restore = vi.fn();
+		const sourceSessionId = "pending-handoff-source";
+		const pendingSession = {
+			sessionId: sourceSessionId,
+			status: "idle",
+			metadata: {
+				handoff: {
+					status: "pending",
+					toCloudSessionId: "cloud-pending",
+					handedOffAt: "2026-08-18T00:00:00.000Z",
+					dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-pending",
+				},
+			},
+		};
+		const ctx = {
+			liveSessions: new Map([
+				[
+					sourceSessionId,
+					{
+						config: { cwd: "/workspace/project" },
+						messages: [{ role: "user", content: "continue" }],
+						promptsInQueue: [],
+						busy: false,
+						startedAt: Date.now(),
+						status: "idle",
+					},
+				],
+			]),
+			restoringWorkspacePaths: new Set(),
+			sessionManager: {
+				get: vi.fn(async () => pendingSession),
+				send,
+				restore,
+			},
+			streamIndices: new Map(),
+			wsClients: new Set(),
+		} as unknown as SidecarContext;
+		const recovery = "Cloud handoff is still pending";
+
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId: sourceSessionId,
+				prompt: "race",
+			}),
+		).rejects.toThrow(recovery);
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "fork",
+				sessionId: sourceSessionId,
+			}),
+		).rejects.toThrow(recovery);
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "reset",
+				sessionId: sourceSessionId,
+			}),
+		).rejects.toThrow(recovery);
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "restore_checkpoint",
+				sessionId: sourceSessionId,
+				checkpointRunCount: 1,
+				config: { cwd: "/workspace/project" },
+			}),
+		).rejects.toThrow(recovery);
+		expect(send).not.toHaveBeenCalled();
+		expect(restore).not.toHaveBeenCalled();
+	});
+
+	it("rejects checkpoint restore after the source completed a cloud handoff", async () => {
+		const restore = vi.fn();
+		const ctx = {
+			liveSessions: new Map(),
+			restoringWorkspacePaths: new Set(),
+			sessionManager: {
+				get: vi.fn(async () => ({
+					sessionId: "handed-off-source",
+					metadata: {
+						handoff: {
+							status: "complete",
+							toCloudSessionId: "cloud-target",
+							handedOffAt: "2026-08-18T00:00:00.000Z",
+						},
+					},
+				})),
+				restore,
+			},
+			streamIndices: new Map(),
+			wsClients: new Set(),
+		} as unknown as SidecarContext;
+
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "restore_checkpoint",
+				sessionId: "handed-off-source",
+				checkpointRunCount: 1,
+				config: { cwd: "/workspace/project" },
+			}),
+		).rejects.toThrow("Fork locally before restoring a checkpoint");
+		expect(restore).not.toHaveBeenCalled();
+	});
+
 	it("restores the selected workspace checkpoint before forking for message editing", async () => {
 		const sourceSessionId = `source-fork-${Date.now()}`;
 		const sourceMessages = [
@@ -498,6 +891,13 @@ describe("session forks", () => {
 					model: "anthropic/claude-sonnet-4.6",
 					cwd: "/workspace/project",
 					workspaceRoot: "/workspace/project",
+					metadata: {
+						handoff: {
+							toCloudSessionId: "ses-cloud-copy",
+							handedOffAt: "2026-08-18T00:00:00.000Z",
+							status: "complete",
+						},
+					},
 				})),
 				readMessages,
 				restore,
@@ -518,7 +918,12 @@ describe("session forks", () => {
 
 		expect(restore).not.toHaveBeenCalled();
 		expect(start).toHaveBeenCalledWith(
-			expect.objectContaining({ initialMessages: sourceMessages }),
+			expect.objectContaining({
+				initialMessages: sourceMessages,
+				sessionMetadata: expect.not.objectContaining({
+					handoff: expect.anything(),
+				}),
+			}),
 		);
 	});
 
@@ -673,7 +1078,7 @@ describe("session forks", () => {
 				restoringWorkspacePaths: new Set(),
 				streamIndices: new Map(),
 				wsClients: new Set(),
-				sessionManager: { restore },
+				sessionManager: { restore, get: vi.fn(async () => undefined) },
 			} as unknown as SidecarContext;
 			const restoreRequest = {
 				action: "restore_checkpoint" as const,
@@ -778,6 +1183,7 @@ describe("first-send connection updates", () => {
 		const stop = vi.fn(async () => undefined);
 		const sessionId = "session-connection-test";
 		const start = vi.fn(async (_input?: unknown) => ({ sessionId }));
+		const get = vi.fn(async () => ({ sessionId, status: "idle" }));
 		const ctx = {
 			liveSessions: new Map([
 				[
@@ -797,6 +1203,7 @@ describe("first-send connection updates", () => {
 			streamIndices: new Map(),
 			wsClients: new Set(),
 			sessionManager: {
+				get,
 				readMessages,
 				readSessionCompactionState,
 				send,
@@ -1091,6 +1498,35 @@ describe("first-send connection updates", () => {
 			}
 			rmSync(testSessionDataDir, { recursive: true, force: true });
 		}
+	});
+
+	it("preserves an idle fork status when Core reports its resident process as running", async () => {
+		const { ctx, sessionId } = createContext();
+		const existing = ctx.liveSessions.get(sessionId);
+		if (!existing) throw new Error("missing session");
+		existing.status = "idle";
+		existing.busy = false;
+		(ctx.sessionManager as unknown as { get: unknown }).get = vi.fn(
+			async () => ({
+				sessionId,
+				status: "running",
+				provider: "cline",
+				model: "anthropic/claude-sonnet-4.6",
+				cwd: "/workspace",
+				workspaceRoot: "/workspace",
+			}),
+		);
+
+		const result = (await handleChatSessionCommand(ctx, {
+			action: "attach",
+			sessionId,
+		})) as { status: string };
+
+		expect(result.status).toBe("idle");
+		expect(ctx.liveSessions.get(sessionId)).toMatchObject({
+			status: "idle",
+			busy: false,
+		});
 	});
 
 	it("updates a changed connection before sending", async () => {
@@ -1456,6 +1892,846 @@ describe("workspace metadata prewarming", () => {
 	});
 });
 
+describe("cloud handoff gates", () => {
+	beforeEach(() => {
+		enableCloudHandoffGates();
+	});
+
+	it("blocks handoff actions when the rollout flag is off", async () => {
+		const { ctx, sessionId } = createHandoffGateContext({ busy: false });
+
+		process.env.CLINE_CODE_CLOUD_HANDOFF = "0";
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "prepare_handoff",
+				sessionId,
+			}),
+		).rejects.toThrow("Cloud handoff is not enabled for this account.");
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "handoff",
+				sessionId,
+				fingerprint: {
+					repoUrl: "https://github.com/cline/cline.git",
+					branch: "main",
+					headSha: "abc123",
+					modelId: "anthropic/claude-sonnet-4.6",
+				},
+			}),
+		).rejects.toThrow("Cloud handoff is not enabled for this account.");
+		expect(ctx.cloudSessionManager).toBeFalsy();
+	});
+
+	it("exempts a persisted pending handoff from the rollout flag gate", async () => {
+		process.env.CLINE_CODE_CLOUD_HANDOFF = "0";
+		// An empty transcript makes the recovery attempt fail deterministically
+		// at a later gate, proving the flag gate itself let it through.
+		const { ctx, sessionId } = createHandoffGateContext({
+			messages: [],
+			metadata: {
+				handoff: {
+					status: "pending",
+					toCloudSessionId: "ses-pending-target",
+					handedOffAt: "2026-08-18T00:00:00.000Z",
+				},
+			},
+		});
+
+		const recovery = handleChatSessionCommand(ctx, {
+			action: "handoff",
+			sessionId,
+			fingerprint: {
+				repoUrl: "https://github.com/cline/cline.git",
+				branch: "main",
+				headSha: "abc123",
+				modelId: "anthropic/claude-sonnet-4.6",
+			},
+		});
+
+		await expect(recovery).rejects.not.toThrow("Cloud handoff is not enabled");
+		await expect(recovery).rejects.toThrow(
+			"Start a conversation before handing it off to cloud.",
+		);
+	});
+
+	it("keeps the rollout flag gate for sessions without a pending handoff", async () => {
+		process.env.CLINE_CODE_CLOUD_HANDOFF = "0";
+		const { ctx, sessionId } = createHandoffGateContext({
+			messages: [],
+			metadata: { workspace: "preserved" },
+		});
+
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "handoff",
+				sessionId,
+				fingerprint: {
+					repoUrl: "https://github.com/cline/cline.git",
+					branch: "main",
+					headSha: "abc123",
+					modelId: "anthropic/claude-sonnet-4.6",
+				},
+			}),
+		).rejects.toThrow("Cloud handoff is not enabled for this account.");
+	});
+
+	it("blocks new handoffs when the Cloud sessions opt-in is off", async () => {
+		// The rollout flag is on (suite setup), but the user has not opted in:
+		// a handoff uploads the local transcript and needs that consent.
+		writeDesktopSettings({ cloudSessionsEnabled: false });
+		const { ctx, sessionId } = createHandoffGateContext({ busy: false });
+
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "prepare_handoff",
+				sessionId,
+			}),
+		).rejects.toThrow(
+			"Enable Cloud sessions in Settings before using cloud handoff.",
+		);
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "handoff",
+				sessionId,
+				fingerprint: {
+					repoUrl: "https://github.com/cline/cline.git",
+					branch: "main",
+					headSha: "abc123",
+					modelId: "anthropic/claude-sonnet-4.6",
+				},
+			}),
+		).rejects.toThrow(
+			"Enable Cloud sessions in Settings before using cloud handoff.",
+		);
+		expect(ctx.cloudSessionManager).toBeFalsy();
+	});
+
+	it("lets new handoffs proceed when the flag and opt-in are both on", async () => {
+		// An empty transcript makes the attempt fail deterministically at a
+		// later gate, proving the flag+opt-in gate itself let it through.
+		const { ctx, sessionId } = createHandoffGateContext({ messages: [] });
+
+		const attempt = handleChatSessionCommand(ctx, {
+			action: "handoff",
+			sessionId,
+			fingerprint: {
+				repoUrl: "https://github.com/cline/cline.git",
+				branch: "main",
+				headSha: "abc123",
+				modelId: "anthropic/claude-sonnet-4.6",
+			},
+		});
+
+		await expect(attempt).rejects.not.toThrow("Enable Cloud sessions");
+		await expect(attempt).rejects.not.toThrow("Cloud handoff is not enabled");
+		await expect(attempt).rejects.toThrow(
+			"Start a conversation before handing it off to cloud.",
+		);
+	});
+
+	it("explains how to recover a mismatched resumed handoff", () => {
+		const dashboardUrl = "https://app.cline.bot/agents?sessionId=ses-pending";
+		const message = formatPendingHandoffVerificationError(
+			new CloudHandoffTranscriptMismatchError(2, 3),
+			dashboardUrl,
+		);
+
+		expect(message).toContain("delete it before retrying /handoff");
+		expect(message).toContain(dashboardUrl);
+	});
+
+	it("detects repository drift after cloud provisioning", () => {
+		const fingerprint = {
+			repoUrl: "https://github.com/cline/cline",
+			branch: "main",
+			headSha: "A".repeat(40),
+			modelId: "anthropic/claude-sonnet-4.6",
+			workspaceRelativePath: "apps/examples/desktop-app",
+		};
+
+		expect(
+			cloudHandoffGitStateMatchesFingerprint(
+				{
+					repoUrl: fingerprint.repoUrl,
+					branch: fingerprint.branch,
+					headSha: fingerprint.headSha.toLowerCase(),
+					workspaceRelativePath: fingerprint.workspaceRelativePath,
+				},
+				fingerprint,
+			),
+		).toBe(true);
+		expect(
+			cloudHandoffGitStateMatchesFingerprint(
+				{
+					repoUrl: fingerprint.repoUrl,
+					branch: fingerprint.branch,
+					headSha: "B".repeat(40),
+					workspaceRelativePath: fingerprint.workspaceRelativePath,
+				},
+				fingerprint,
+			),
+		).toBe(false);
+	});
+
+	it("cleans up an old runtime that ignored the seeded transcript", () => {
+		expect(
+			shouldCleanupFailedHandoffVerification(
+				new CloudHandoffSeedUnsupportedError(),
+			),
+		).toBe(true);
+		expect(
+			shouldCleanupFailedHandoffVerification(
+				new CloudHandoffSeedUnsupportedError(),
+				false,
+			),
+		).toBe(true);
+		expect(
+			shouldCleanupFailedHandoffVerification(
+				new CloudHandoffTranscriptMismatchError(1, 2),
+				false,
+			),
+		).toBe(false);
+		expect(
+			shouldCleanupFailedHandoffVerification(
+				new CloudSessionError("request_failed", "temporary read failure"),
+			),
+		).toBe(false);
+	});
+
+	const pendingFingerprint = {
+		repoUrl: "https://github.com/cline/cline.git",
+		branch: "main",
+		headSha: "old-head",
+		modelId: "anthropic/claude-sonnet-4.6",
+	};
+	const pendingMetadata = {
+		workspace: "preserved",
+		handoff: {
+			status: "pending" as const,
+			toCloudSessionId: "ses-old-target",
+			handedOffAt: "2026-08-18T00:00:00.000Z",
+			dashboardUrl: "https://app.cline.bot/agents?sessionId=ses-old-target",
+			fingerprint: pendingFingerprint,
+		},
+	};
+	const changedFingerprint = { ...pendingFingerprint, headSha: "new-head" };
+
+	it("does not build a recovery URL for a fresh handoff", async () => {
+		const handoffTargetExists = vi.fn();
+		await expect(
+			reconcilePendingCloudHandoff(
+				{ update: vi.fn() } as never,
+				{ handoffTargetExists },
+				{
+					sourceSessionId: "local-1",
+					metadata: { workspace: "preserved" },
+					fingerprint: changedFingerprint,
+					appBaseUrl: "not a valid URL",
+				},
+			),
+		).resolves.toEqual({
+			metadata: { workspace: "preserved" },
+			pending: undefined,
+		});
+		expect(handoffTargetExists).not.toHaveBeenCalled();
+	});
+
+	it("preserves a mismatched pending handoff while its target exists", async () => {
+		const update = vi.fn();
+		await expect(
+			reconcilePendingCloudHandoff(
+				{ update } as never,
+				{ handoffTargetExists: vi.fn(async () => true) },
+				{
+					sourceSessionId: "local-1",
+					metadata: pendingMetadata,
+					pending: pendingMetadata.handoff,
+					fingerprint: changedFingerprint,
+					appBaseUrl: "https://app.cline.bot",
+				},
+			),
+		).rejects.toThrow("still pending for a different");
+		expect(update).not.toHaveBeenCalled();
+	});
+
+	it("clears a mismatched pending handoff only after the target is gone", async () => {
+		const update = vi.fn(async () => ({ updated: true }));
+		await expect(
+			reconcilePendingCloudHandoff(
+				{ update } as never,
+				{ handoffTargetExists: vi.fn(async () => false) },
+				{
+					sourceSessionId: "local-1",
+					metadata: pendingMetadata,
+					pending: pendingMetadata.handoff,
+					fingerprint: changedFingerprint,
+					appBaseUrl: "https://app.cline.bot",
+				},
+			),
+		).resolves.toEqual({ metadata: { workspace: "preserved" } });
+		expect(update).toHaveBeenCalledWith("local-1", {
+			metadata: { workspace: "preserved" },
+		});
+	});
+
+	it("preserves pending lineage when target lookup is uncertain", async () => {
+		const update = vi.fn();
+		await expect(
+			reconcilePendingCloudHandoff(
+				{ update } as never,
+				{
+					handoffTargetExists: vi.fn(async () => {
+						throw new Error("network unavailable");
+					}),
+				},
+				{
+					sourceSessionId: "local-1",
+					metadata: pendingMetadata,
+					pending: pendingMetadata.handoff,
+					fingerprint: changedFingerprint,
+					appBaseUrl: "https://app.cline.bot",
+				},
+			),
+		).rejects.toThrow("network unavailable");
+		expect(update).not.toHaveBeenCalled();
+	});
+
+	it("keeps the source locked when clearing gone lineage is not persisted", async () => {
+		await expect(
+			reconcilePendingCloudHandoff(
+				{ update: vi.fn(async () => ({ updated: false })) } as never,
+				{ handoffTargetExists: vi.fn(async () => false) },
+				{
+					sourceSessionId: "local-1",
+					metadata: pendingMetadata,
+					pending: pendingMetadata.handoff,
+					fingerprint: changedFingerprint,
+					appBaseUrl: "https://app.cline.bot",
+				},
+			),
+		).rejects.toThrow("local pending handoff record could not be cleared");
+	});
+
+	it("fails when a required handoff metadata update is not persisted", async () => {
+		const update = vi.fn(async () => ({ updated: false }));
+		await expect(
+			updateHandoffMetadataOrThrow(
+				{ update } as never,
+				"local-1",
+				{ handoff: { status: "pending" } },
+				"recovery record was not saved",
+			),
+		).rejects.toThrow("recovery record was not saved");
+	});
+
+	function createHandoffGateContext(options: {
+		busy?: boolean;
+		persistedStatus?: string;
+		messages?: Array<{ role: "user" | "assistant"; content: string }>;
+		metadata?: Record<string, unknown>;
+	}) {
+		const sessionId = "local-handoff-source";
+		const send = vi.fn();
+		const messages = options.messages ?? [
+			{ role: "user" as const, content: "continue this work" },
+		];
+		const ctx = {
+			workspaceRoot: "/workspace/project",
+			liveSessions: new Map([
+				[
+					sessionId,
+					{
+						config: {
+							cwd: "/workspace/project",
+							provider: "cline",
+							model: "anthropic/claude-sonnet-4.6",
+						},
+						messages,
+						promptsInQueue: [],
+						busy: options.busy ?? false,
+						startedAt: Date.now(),
+						status: options.busy ? "running" : "idle",
+					},
+				],
+			]),
+			restoringWorkspacePaths: new Set(),
+			streamIndices: new Map(),
+			wsClients: new Set(),
+			sessionManager: {
+				get: vi.fn(async () => ({
+					sessionId,
+					status:
+						options.persistedStatus ?? (options.busy ? "running" : "completed"),
+					cwd: "/workspace/project",
+					model: "anthropic/claude-sonnet-4.6",
+					metadata: options.metadata,
+				})),
+				readLiveMessages: vi.fn(async () => messages),
+				send,
+				pendingPrompts: { list: vi.fn(async () => []) },
+			},
+		} as unknown as SidecarContext;
+		return { ctx, send, sessionId };
+	}
+
+	it("rejects a busy source before provisioning", async () => {
+		const { ctx, sessionId } = createHandoffGateContext({ busy: true });
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "prepare_handoff",
+				sessionId,
+			}),
+		).rejects.toThrow("Stop the current run");
+		expect(ctx.cloudSessionManager).toBeFalsy();
+	});
+
+	it("trusts an authoritative idle live session over a legacy running record", async () => {
+		const { ctx, sessionId } = createHandoffGateContext({
+			busy: false,
+			persistedStatus: "running",
+		});
+
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "prepare_handoff",
+				sessionId,
+			}),
+		).rejects.not.toThrow("Stop the current run");
+	});
+
+	it("rejects an empty source before provisioning", async () => {
+		const { ctx, sessionId } = createHandoffGateContext({ messages: [] });
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "prepare_handoff",
+				sessionId,
+			}),
+		).rejects.toThrow("Start a conversation");
+		expect(ctx.cloudSessionManager).toBeFalsy();
+	});
+
+	it("rejects normal sends after ownership moved to cloud", async () => {
+		const { ctx, send, sessionId } = createHandoffGateContext({
+			metadata: {
+				handoff: {
+					toCloudSessionId: "ses-cloud-target",
+					handedOffAt: "2026-08-18T00:00:00.000Z",
+					status: "complete",
+					dashboardUrl:
+						"https://app.cline.bot/agents?sessionId=ses-cloud-target",
+				},
+			},
+		});
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "keep editing locally",
+			}),
+		).rejects.toThrow("Fork locally");
+		expect(send).not.toHaveBeenCalled();
+	});
+});
+
+describe("cloud handoff transaction", () => {
+	beforeEach(() => {
+		enableCloudHandoffGates();
+	});
+
+	afterEach(() => {
+		vi.mocked(preflightCloudHandoffGit).mockRestore();
+		vi.unstubAllGlobals();
+	});
+
+	it("completes a fresh handoff end to end", async () => {
+		const sourceSessionId = "local-handoff-source";
+		const modelId = "anthropic/claude-sonnet-4.6";
+		const headSha = "a".repeat(40);
+		vi.mocked(preflightCloudHandoffGit).mockResolvedValue({
+			repoUrl: "https://github.com/cline/test",
+			branch: "main",
+			remoteName: "origin",
+			headSha,
+		});
+		// The model catalog is the only network dependency left on this path.
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async (input: unknown) =>
+				String(input).endsWith("/api/v1/ai/cline/models")
+					? new Response(
+							JSON.stringify({ data: [{ id: modelId, name: "Sonnet" }] }),
+							{ status: 200, headers: { "content-type": "application/json" } },
+						)
+					: new Response("not found", { status: 404 }),
+			),
+		);
+
+		const messages = [
+			{ role: "user" as const, content: "continue this work" },
+			{ role: "assistant" as const, content: "done locally" },
+		];
+		const order: string[] = [];
+		const events: Array<{ name: string; payload: Record<string, unknown> }> =
+			[];
+		const metadataUpdates: Array<Record<string, unknown>> = [];
+		let persistedMetadata: Record<string, unknown> = {};
+		const ctx = {
+			liveSessions: new Map([
+				[
+					sourceSessionId,
+					{
+						config: {
+							cwd: "/workspace/project",
+							provider: "cline",
+							model: modelId,
+						},
+						messages,
+						promptsInQueue: [],
+						busy: false,
+						startedAt: Date.now(),
+						status: "idle",
+					},
+				],
+			]),
+			restoringWorkspacePaths: new Set(),
+			streamIndices: new Map(),
+			pendingApprovals: new Map(),
+			pendingQuestions: new Map(),
+			wsClients: new Set([
+				{
+					data: { canApproveTools: true },
+					send(message: string) {
+						const parsed = JSON.parse(message) as {
+							event: { name: string; payload: Record<string, unknown> };
+						};
+						events.push(parsed.event);
+						if (parsed.event.name === "cloud_handoff_progress") {
+							order.push(`event:${parsed.event.payload.phase}`);
+						}
+					},
+				},
+			]),
+			sessionManager: {
+				get: vi.fn(async () => ({
+					sessionId: sourceSessionId,
+					status: "completed",
+					cwd: "/workspace/project",
+					model: modelId,
+					metadata: persistedMetadata,
+				})),
+				readLiveMessages: vi.fn(async () => messages),
+				update: vi.fn(
+					async (_id: string, input: { metadata: Record<string, unknown> }) => {
+						persistedMetadata = input.metadata;
+						metadataUpdates.push(input.metadata);
+						order.push(
+							`metadata:${readCloudHandoffMetadata(input.metadata)?.status}`,
+						);
+						return { updated: true };
+					},
+				),
+				pendingPrompts: { list: vi.fn(async () => []) },
+			},
+		} as unknown as SidecarContext;
+
+		const verifyHandoffTranscript = vi.fn(async () => undefined);
+		const cloudSend = vi.fn(async () => ({
+			sessionId: "ses-cloud",
+			ok: true as const,
+			queued: true,
+		}));
+		const create = vi.fn(
+			async (input: {
+				handoff?: {
+					onOuterSessionCreated?: (id: string) => Promise<void>;
+					resolveMessages: () => Promise<unknown>;
+					onSeeding?: () => void;
+				};
+			}) => {
+				await input.handoff?.onOuterSessionCreated?.("ses-cloud");
+				await input.handoff?.resolveMessages();
+				input.handoff?.onSeeding?.();
+				return { sessionId: "ses-cloud", innerSessionId: "inner-cloud" };
+			},
+		);
+		const cloud = new CloudSessionManager(ctx, {
+			api: {} as unknown as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+		});
+		Object.assign(cloud, {
+			prepareHandoffRepository: vi.fn(async () => ({})),
+			create,
+			verifyHandoffTranscript,
+			send: cloudSend,
+		});
+		ctx.cloudSessionManager = cloud;
+
+		const running = handleChatSessionCommand(ctx, {
+			action: "handoff",
+			sessionId: sourceSessionId,
+			handoffAttemptId: "attempt-1",
+			nextCommand: "continue in cloud",
+			fingerprint: {
+				repoUrl: "https://github.com/cline/test",
+				branch: "main",
+				headSha,
+				modelId,
+			},
+		});
+		running.then(() => order.push("resolved"));
+		const result = (await running) as {
+			sessionId: string;
+			outerSessionId: string;
+			innerSessionId: string;
+			dashboardUrl: string;
+			destination: string;
+		};
+
+		// The pending record lands before provisioning, the completion record
+		// replaces it, and the authoritative completion event fires before the
+		// RPC resolves.
+		expect(order).toEqual([
+			"event:creating",
+			"metadata:pending",
+			"event:provisioning",
+			"event:connecting",
+			"event:seeding",
+			"event:verifying",
+			"metadata:complete",
+			"event:complete",
+			"resolved",
+		]);
+		expect(readCloudHandoffMetadata(metadataUpdates[0])).toMatchObject({
+			status: "pending",
+			toCloudSessionId: "ses-cloud",
+			dashboardUrl: expect.stringContaining("ses-cloud"),
+		});
+		expect(metadataUpdates).toHaveLength(2);
+		expect(readCloudHandoffMetadata(persistedMetadata)).toMatchObject({
+			status: "complete",
+			toCloudSessionId: "ses-cloud",
+			innerSessionId: "inner-cloud",
+			dashboardUrl: result.dashboardUrl,
+		});
+		expect(verifyHandoffTranscript).toHaveBeenCalledWith(
+			"ses-cloud",
+			messages,
+			{ allowAppendedMessages: false },
+		);
+		expect(cloudSend).toHaveBeenCalledWith(
+			"ses-cloud",
+			"continue in cloud",
+			"queue",
+			modelId,
+			undefined,
+		);
+		const complete = events.find(
+			(event) =>
+				event.name === "cloud_handoff_progress" &&
+				event.payload.phase === "complete",
+		);
+		expect(complete?.payload).toMatchObject({
+			sourceSessionId,
+			handoffAttemptId: "attempt-1",
+			sessionId: "ses-cloud",
+			dashboardUrl: result.dashboardUrl,
+			destination: "in_app",
+		});
+		expect(complete?.payload).not.toHaveProperty("warning");
+		expect(complete?.payload).not.toHaveProperty("warningKind");
+		expect(complete?.payload).not.toHaveProperty("undeliveredCommand");
+		expect(result).toMatchObject({
+			sessionId: "ses-cloud",
+			outerSessionId: "ses-cloud",
+			innerSessionId: "inner-cloud",
+			destination: "in_app",
+		});
+		expect(result.dashboardUrl).toContain("ses-cloud");
+		expect(result).not.toHaveProperty("warning");
+	});
+
+	// Mirrors the fresh end-to-end handoff above, but with a follow-up command
+	// whose queueing fails with the given error.
+	async function runHandoffWithFailingFollowUp(sendError: Error): Promise<{
+		cloudSend: ReturnType<typeof vi.fn>;
+		result: { sessionId: string; warning?: string; warningKind?: string };
+		completeEvent: Record<string, unknown> | undefined;
+	}> {
+		const sourceSessionId = "local-handoff-source";
+		const modelId = "anthropic/claude-sonnet-4.6";
+		const headSha = "a".repeat(40);
+		vi.mocked(preflightCloudHandoffGit).mockResolvedValue({
+			repoUrl: "https://github.com/cline/test",
+			branch: "main",
+			remoteName: "origin",
+			headSha,
+		});
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async (input: unknown) =>
+				String(input).endsWith("/api/v1/ai/cline/models")
+					? new Response(
+							JSON.stringify({ data: [{ id: modelId, name: "Sonnet" }] }),
+							{ status: 200, headers: { "content-type": "application/json" } },
+						)
+					: new Response("not found", { status: 404 }),
+			),
+		);
+
+		const messages = [
+			{ role: "user" as const, content: "continue this work" },
+			{ role: "assistant" as const, content: "done locally" },
+		];
+		const events: Array<{ name: string; payload: Record<string, unknown> }> =
+			[];
+		let persistedMetadata: Record<string, unknown> = {};
+		const ctx = {
+			liveSessions: new Map([
+				[
+					sourceSessionId,
+					{
+						config: {
+							cwd: "/workspace/project",
+							provider: "cline",
+							model: modelId,
+						},
+						messages,
+						promptsInQueue: [],
+						busy: false,
+						startedAt: Date.now(),
+						status: "idle",
+					},
+				],
+			]),
+			restoringWorkspacePaths: new Set(),
+			streamIndices: new Map(),
+			pendingApprovals: new Map(),
+			pendingQuestions: new Map(),
+			wsClients: new Set([
+				{
+					data: { canApproveTools: true },
+					send(message: string) {
+						const parsed = JSON.parse(message) as {
+							event: { name: string; payload: Record<string, unknown> };
+						};
+						events.push(parsed.event);
+					},
+				},
+			]),
+			sessionManager: {
+				get: vi.fn(async () => ({
+					sessionId: sourceSessionId,
+					status: "completed",
+					cwd: "/workspace/project",
+					model: modelId,
+					metadata: persistedMetadata,
+				})),
+				readLiveMessages: vi.fn(async () => messages),
+				update: vi.fn(
+					async (_id: string, input: { metadata: Record<string, unknown> }) => {
+						persistedMetadata = input.metadata;
+						return { updated: true };
+					},
+				),
+				pendingPrompts: { list: vi.fn(async () => []) },
+			},
+		} as unknown as SidecarContext;
+
+		const cloudSend = vi.fn(async () => {
+			throw sendError;
+		});
+		const cloud = new CloudSessionManager(ctx, {
+			api: {} as unknown as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+		});
+		Object.assign(cloud, {
+			prepareHandoffRepository: vi.fn(async () => ({})),
+			create: vi.fn(
+				async (input: {
+					handoff?: {
+						onOuterSessionCreated?: (id: string) => Promise<void>;
+						resolveMessages: () => Promise<unknown>;
+						onSeeding?: () => void;
+					};
+				}) => {
+					await input.handoff?.onOuterSessionCreated?.("ses-cloud");
+					await input.handoff?.resolveMessages();
+					input.handoff?.onSeeding?.();
+					return { sessionId: "ses-cloud", innerSessionId: "inner-cloud" };
+				},
+			),
+			verifyHandoffTranscript: vi.fn(async () => undefined),
+			send: cloudSend,
+		});
+		ctx.cloudSessionManager = cloud;
+
+		const result = (await handleChatSessionCommand(ctx, {
+			action: "handoff",
+			sessionId: sourceSessionId,
+			nextCommand: "continue in cloud",
+			fingerprint: {
+				repoUrl: "https://github.com/cline/test",
+				branch: "main",
+				headSha,
+				modelId,
+			},
+		})) as { sessionId: string; warning?: string; warningKind?: string };
+		const completeEvent = events.find(
+			(event) =>
+				event.name === "cloud_handoff_progress" &&
+				event.payload.phase === "complete",
+		)?.payload;
+		return { cloudSend, result, completeEvent };
+	}
+
+	it("flags an unconfirmed follow-up queue outcome without claiming it was unqueued", async () => {
+		const { cloudSend, result, completeEvent } =
+			await runHandoffWithFailingFollowUp(new CloudQueueUnconfirmedError());
+
+		expect(cloudSend).toHaveBeenCalledOnce();
+		expect(result.sessionId).toBe("ses-cloud");
+		expect(result.warningKind).toBe("unconfirmed");
+		expect(result.warning).toContain(
+			"could not confirm whether the follow-up command was queued",
+		);
+		// An unconfirmed outcome must never invite a resend of a prompt that
+		// may already be durably queued.
+		expect(result.warning).not.toContain("was not queued");
+		// The completion event is the authoritative signal when the RPC response
+		// is lost, so it must carry the same warning...
+		expect(completeEvent).toMatchObject({
+			warningKind: "unconfirmed",
+			warning: expect.stringContaining(
+				"could not confirm whether the follow-up command was queued",
+			),
+		});
+		// ...but never prefill an unconfirmed command for resending.
+		expect(completeEvent).not.toHaveProperty("undeliveredCommand");
+	});
+
+	it("flags a definitively unqueued follow-up with its failure reason", async () => {
+		const { result, completeEvent } = await runHandoffWithFailingFollowUp(
+			new Error("boom"),
+		);
+
+		expect(result.warningKind).toBe("unqueued");
+		expect(result.warning).toContain(
+			"the follow-up command was not queued: boom",
+		);
+		// A definite queue failure survives a lost RPC response: the event
+		// carries the warning and the exact command that never made it.
+		expect(completeEvent).toMatchObject({
+			warningKind: "unqueued",
+			warning: expect.stringContaining(
+				"the follow-up command was not queued: boom",
+			),
+			undeliveredCommand: "continue in cloud",
+		});
+	});
+});
+
 describe("runtime slash command expansion on send", () => {
 	const tempRoots: string[] = [];
 
@@ -1645,6 +2921,42 @@ Follow the desktop send workflow instructions.`,
 			prompt:
 				'<user_command slash="team">spawn a team of agents for the following task: inspect the app</user_command>',
 		});
+	});
+
+	it("expands a user /handoff workflow while the feature gate is off", async () => {
+		const workspace = createWorkspaceWithSkill();
+		const workflowsDir = join(workspace, ".cline", "workflows");
+		writeFileSync(
+			join(workflowsDir, "handoff.md"),
+			`---
+name: handoff
+---
+Follow the user handoff workflow instructions.`,
+		);
+		const { ctx, send, sessionId } = createContext(workspace);
+
+		// Gate off (default in tests): the user's workflow owns /handoff.
+		await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "/handoff please",
+		});
+		expect(send).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				prompt: "Follow the user handoff workflow instructions. please",
+			}),
+		);
+
+		// Gate on: /handoff is built-in again and passes through untouched.
+		enableCloudHandoffGates();
+		await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "/handoff please",
+		});
+		expect(send).toHaveBeenLastCalledWith(
+			expect.objectContaining({ prompt: "/handoff please" }),
+		);
 	});
 
 	it("leaves built-in and unknown slash commands untouched", async () => {
