@@ -86,7 +86,10 @@ async function waitForDiscovery(
 	childExit: Promise<{ code: number | null; signal: NodeJS.Signals | null }>,
 	readStderr: () => string,
 ): Promise<ReadyDaemon["discovery"]> {
-	const deadline = Date.now() + 10_000;
+	// A hang guard, not a timing assertion: spawning a real bun daemon on a
+	// 2-core hosted Windows runner regularly needs more than 10s under load, and
+	// failing a publish on runner speed is worse than waiting.
+	const deadline = Date.now() + 30_000;
 	while (Date.now() < deadline) {
 		try {
 			const parsed = JSON.parse(
