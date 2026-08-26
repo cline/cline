@@ -36,6 +36,11 @@ import { WelcomeScreen } from "@/components/views/chat/welcome-chat";
 import { WelcomeSetupNotice } from "@/components/views/chat/welcome-setup-notice";
 import type { OnboardingStep } from "@/components/views/onboarding/onboarding-view";
 import type { SettingsSection } from "@/components/views/settings/sections";
+import {
+	WindowTitleBar,
+	WindowTitleBarContent,
+	WindowTitleBarProvider,
+} from "@/components/window-title-bar";
 import { AccountProvider } from "@/contexts/account-context";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
 import { useAppUpdate } from "@/hooks/use-app-update";
@@ -420,97 +425,110 @@ export default function Home() {
 	return (
 		<AccountProvider>
 			<SidebarProvider>
-				<div
-					aria-hidden={showOnboarding ? true : undefined}
-					className="flex h-screen w-full overflow-hidden bg-background text-foreground"
-					// The onboarding overlay is opaque and sits on top of the whole
-					// shell; hiding the shell keeps its aurora + animations from
-					// being composited every frame underneath while it still mounts
-					// and loads (providers, history, transport) in the background.
-					// `inert` additionally keeps the covered controls out of the
-					// keyboard tab order and assistive tech while it is hidden.
-					inert={showOnboarding ? true : undefined}
-					style={showOnboarding ? { visibility: "hidden" } : undefined}
+				<WindowTitleBarProvider
+					contentEnabled={!showOnboarding && view === "chat"}
 				>
-					<Sidebar
-						className="border-r border-sidebar-border"
-						collapsible="icon"
+					<div
+						aria-hidden={showOnboarding ? true : undefined}
+						className="flex h-screen w-full overflow-hidden bg-background text-foreground"
+						// The onboarding overlay is opaque and sits on top of the whole
+						// shell; hiding the shell keeps its aurora + animations from
+						// being composited every frame underneath while it still mounts
+						// and loads (providers, history, transport) in the background.
+						// `inert` additionally keeps the covered controls out of the
+						// keyboard tab order and assistive tech while it is hidden.
+						inert={showOnboarding ? true : undefined}
+						style={showOnboarding ? { visibility: "hidden" } : undefined}
 					>
-						<AgentSidebar
-							activeSessionId={activeHistorySessionId}
-							newTaskActive={newTaskActive}
-							onHome={handleHome}
-							onNavigateBack={handleNavigateBack}
-							onNavigateForward={handleNavigateForward}
-							onSettingsSectionChange={handleSettingsSectionChange}
-							sessionHistory={sessionHistory}
-							setView={handleViewChange}
-							settingsSection={settingsSection}
-							view={view}
-							canNavigateBack={navigation.back.length > 0}
-							canNavigateForward={navigation.forward.length > 0}
-						/>
-						<SidebarRail />
-					</Sidebar>
-					<SidebarInset className="min-h-0 min-w-0 overflow-hidden">
-						<SidebarTrigger className="absolute left-20 top-0 z-40 md:hidden" />
-						{view === "sessions" ? (
-							<SessionsView
+						<Sidebar
+							className="border-r border-sidebar-border"
+							collapsible="icon"
+						>
+							<AgentSidebar
 								activeSessionId={activeHistorySessionId}
-								history={sessionHistory}
+								newTaskActive={newTaskActive}
+								onHome={handleHome}
+								onNavigateBack={handleNavigateBack}
+								onNavigateForward={handleNavigateForward}
+								onSettingsSectionChange={handleSettingsSectionChange}
+								sessionHistory={sessionHistory}
+								setView={handleViewChange}
+								settingsSection={settingsSection}
+								view={view}
+								canNavigateBack={navigation.back.length > 0}
+								canNavigateForward={navigation.forward.length > 0}
 							/>
-						) : activeThread ? (
-							<div
-								aria-hidden={view === "settings" ? true : undefined}
-								className="flex min-h-0 flex-1 flex-col"
-								inert={view === "settings" ? true : undefined}
-							>
-								<ChatThreadPane
-									key={activeThread.id}
-									historySession={activeThread.historySession}
-									initialPromptDraft={activeThread.initialPromptDraft}
-									knownWorkspacePaths={historyWorkspacePaths}
-									onInitialPromptDraftConsumed={
-										handleInitialPromptDraftConsumed
-									}
-									onUpdateSessionMetadata={handleUpdateSessionMetadata}
-									threadId={activeThread.id}
-									onDeleteSession={handleDeleteSession}
-									onNewThread={handleNewThread}
-									onOpenSession={handleOpenSession}
-									onOpenSessionById={handleOpenSessionById}
-									onOpenSetup={handleOpenSetup}
-									onOpenModelSettings={() =>
-										handleSettingsSectionChange("Models")
-									}
-									parentSession={activeParentSession}
-									onOpenVoiceInputSettings={() =>
-										handleSettingsSectionChange("Voice")
-									}
-									onThreadStarted={handleThreadStarted}
+							<SidebarRail />
+						</Sidebar>
+						<SidebarInset className="min-h-0 min-w-0 overflow-hidden">
+							<SidebarTrigger className="absolute left-20 top-0 z-40 md:hidden" />
+							<WindowTitleBar />
+							<div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+								{view === "sessions" ? (
+									<SessionsView
+										activeSessionId={activeHistorySessionId}
+										history={sessionHistory}
+									/>
+								) : activeThread ? (
+									<div
+										aria-hidden={view === "settings" ? true : undefined}
+										className="flex min-h-0 flex-1 flex-col"
+										inert={view === "settings" ? true : undefined}
+									>
+										<ChatThreadPane
+											key={activeThread.id}
+											historySession={activeThread.historySession}
+											initialPromptDraft={activeThread.initialPromptDraft}
+											knownWorkspacePaths={historyWorkspacePaths}
+											onInitialPromptDraftConsumed={
+												handleInitialPromptDraftConsumed
+											}
+											onUpdateSessionMetadata={handleUpdateSessionMetadata}
+											threadId={activeThread.id}
+											onDeleteSession={handleDeleteSession}
+											onNewThread={handleNewThread}
+											onOpenSession={handleOpenSession}
+											onOpenSessionById={handleOpenSessionById}
+											onOpenSetup={handleOpenSetup}
+											onOpenModelSettings={() =>
+												handleSettingsSectionChange("Models")
+											}
+											parentSession={activeParentSession}
+											onOpenVoiceInputSettings={() =>
+												handleSettingsSectionChange("Voice")
+											}
+											onThreadStarted={handleThreadStarted}
+										/>
+									</div>
+								) : null}
+								{view === "settings" ? (
+									<div className="absolute inset-0 z-30 bg-background text-foreground">
+										<SettingsView
+											onNavigateSection={handleSettingsSectionChange}
+											onOpenSession={handleOpenSessionById}
+											section={settingsSection}
+										/>
+									</div>
+								) : null}
+							</div>
+						</SidebarInset>
+					</div>
+					{showOnboarding ? (
+						<div className="fixed inset-0 z-50 bg-background">
+							<WindowTitleBar
+								className="absolute inset-x-0 top-0 z-10"
+								hostContent={false}
+							/>
+							<div className="h-full">
+								<OnboardingView
+									initialStep={onboardingInitialStep}
+									onComplete={completeOnboarding}
 								/>
 							</div>
-						) : null}
-						{view === "settings" ? (
-							<div className="absolute inset-0 z-30 bg-background text-foreground">
-								<SettingsView
-									onNavigateSection={handleSettingsSectionChange}
-									onOpenSession={handleOpenSessionById}
-									section={settingsSection}
-								/>
-							</div>
-						) : null}
-					</SidebarInset>
-				</div>
+						</div>
+					) : null}
+				</WindowTitleBarProvider>
 			</SidebarProvider>
-			{showOnboarding ? (
-				<div className="fixed inset-0 z-50">
-					<OnboardingView
-						initialStep={onboardingInitialStep}
-						onComplete={completeOnboarding}
-					/>
-				</div>
-			) : null}
 			<HubUpdateRequiredDialog />
 		</AccountProvider>
 	);
@@ -1563,7 +1581,7 @@ function ChatThreadPane({
 				className={
 					isWelcomeState
 						? "relative grid h-full min-h-0 flex-1 grid-rows-[minmax(0,1fr)] overflow-hidden"
-						: "relative grid h-full min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden"
+						: "relative grid h-full min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto] overflow-hidden"
 				}
 				onDragEnter={handleDragEnter}
 				onDragLeave={handleDragLeave}
@@ -1584,29 +1602,31 @@ function ChatThreadPane({
 					</div>
 				) : null}
 				{!isWelcomeState ? (
-					<div className="cline-view-enter z-20 border-b border-border/70 bg-background/85 backdrop-blur-sm">
-						<AgentHeader
-							agentActivity={agentActivity}
-							agents={agents}
-							agentsError={agentsError}
-							agentsLoading={agentsLoading}
-							onAgentsOpenChange={setAgentPanelOpen}
-							onOpenAgentSession={onOpenAgentSession}
-							onOpenParentSession={onOpenSessionById}
-							parentSession={hideDeletedSessionUi ? undefined : parentSession}
-							canEditTitle={Boolean(activeSessionForTitle)}
-							canDeleteSession={Boolean(activeSessionToDelete)}
-							deletingSession={deletingSession}
-							diff={headerDiff}
-							onDeleteSession={requestDeleteSession}
-							onNewThread={onNewThread}
-							onOpenDiff={handleOpenDiff}
-							onRenameTitle={handleRenameTitle}
-							renamingTitle={renamingSession}
-							status={status}
-							title={threadTitle}
-						/>
-					</div>
+					<WindowTitleBarContent>
+						<div className="cline-view-enter z-20 border-b border-border/70 bg-background/85 backdrop-blur-sm">
+							<AgentHeader
+								agentActivity={agentActivity}
+								agents={agents}
+								agentsError={agentsError}
+								agentsLoading={agentsLoading}
+								onAgentsOpenChange={setAgentPanelOpen}
+								onOpenAgentSession={onOpenAgentSession}
+								onOpenParentSession={onOpenSessionById}
+								parentSession={hideDeletedSessionUi ? undefined : parentSession}
+								canEditTitle={Boolean(activeSessionForTitle)}
+								canDeleteSession={Boolean(activeSessionToDelete)}
+								deletingSession={deletingSession}
+								diff={headerDiff}
+								onDeleteSession={requestDeleteSession}
+								onNewThread={onNewThread}
+								onOpenDiff={handleOpenDiff}
+								onRenameTitle={handleRenameTitle}
+								renamingTitle={renamingSession}
+								status={status}
+								title={threadTitle}
+							/>
+						</div>
+					</WindowTitleBarContent>
 				) : null}
 				<WelcomeScreen
 					active={isWelcomeState}

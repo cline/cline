@@ -22,6 +22,11 @@ export {
 	AgentQuickActions,
 	type AgentQuickActionsProps,
 } from "./agent-quick-actions.js";
+export {
+	AgentWelcomeHero,
+	type AgentWelcomeHeroLayout,
+	type AgentWelcomeHeroProps,
+} from "./agent-welcome-hero.js";
 export { Badge, type BadgeProps } from "./badge.js";
 export {
 	Button,
