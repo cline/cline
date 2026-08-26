@@ -1021,7 +1021,7 @@ resetDashboard();
 </body>
 </html>`;
 
-const AGENT_ROLES = [
+export const AGENT_ROLES = [
 	{
 		id: "architect",
 		role: "Architect",
@@ -1048,7 +1048,7 @@ const AGENT_ROLES = [
 	},
 ];
 
-function createAgentConfig() {
+export function createAgentConfig() {
 	return {
 		providerId: "cline",
 		modelId: "anthropic/claude-sonnet-4.6",
@@ -1149,6 +1149,8 @@ async function runAgents(
 	return Promise.all(promises);
 }
 
-server.listen(PORT, () => {
-	console.log(`Multi-agent server running at http://localhost:${PORT}`);
-});
+if (import.meta.main) {
+	server.listen(PORT, () => {
+		console.log(`Multi-agent server running at http://localhost:${PORT}`);
+	});
+}

@@ -7,7 +7,9 @@
 		"dev": "bun run src/index.ts",
 		"build:sdk": "bun run --cwd ../../.. build:sdk",
 		"build": "tsc",
-		"start": "node dist/index.js"
+		"start": "node dist/index.js",
+		"typecheck": "tsc --noEmit",
+		"test": "bun test"
 	},
 	"dependencies": {
 		"@cline/sdk": "workspace:*"
