@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawnPlatformCommand } from "../utils/shell-spawn";
 import { createHash } from "node:crypto";
 import {
 	type Dirent,
@@ -543,25 +543,17 @@ async function runCommand(
 	args: string[],
 	options: { cwd?: string } = {},
 ): Promise<void> {
-	// On Windows npm/git resolve to .cmd/batch launchers that cannot be
-	// spawned directly without a shell (spawn EFTYPE), so route through
-	// cmd.exe and quote segments containing whitespace (e.g. --prefix paths
-	// under "C:\Users\John Doe\..."); plain tokens like "install" are
-	// untouched.
-	const useShell = process.platform === "win32";
-	const quoteForShell = (value: string) =>
-		useShell && /\s/.test(value) ? `"${value}"` : value;
+	// spawnPlatformCommand routes win32 through cmd.exe (npm resolves to a
+	// .cmd batch launcher there) and quotes whitespace-containing segments;
+	// see the helper for details.
 	await new Promise<void>((resolvePromise, reject) => {
-		const child = spawn(command, args.map(quoteForShell), {
+		const child = spawnPlatformCommand(command, args, {
 			cwd: options.cwd,
 			stdio: ["ignore", "ignore", "pipe"],
 			env: process.env,
-			// Prevent a console window from flashing on Windows.
-			windowsHide: true,
-			shell: useShell,
 		});
 		let stderr = "";
-		child.stderr.on("data", (chunk) => {
+		child.stderr?.on("data", (chunk) => {
 			stderr += String(chunk);
 		});
 		child.on("error", reject);

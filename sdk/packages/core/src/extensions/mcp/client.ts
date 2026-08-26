@@ -1,4 +1,5 @@
-import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
+import { type ChildProcessWithoutNullStreams } from "node:child_process";
+import { spawnPlatformCommand } from "../../utils/shell-spawn";
 import { StringDecoder } from "node:string_decoder";
 import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -253,34 +254,17 @@ class StdioMcpClient implements McpServerClient {
 		this.stderrBuffer = "";
 		this.protocolMode = protocolMode;
 
-		// With shell:true (win32 only) Node concatenates command + args without
-		// quoting, so any executable path containing spaces (e.g.
-		// "C:\Program Files\nodejs\node.exe") is truncated by cmd.exe. Quote
-		// segments that contain whitespace to keep absolute-path launches
-		// working; plain commands like "npx" are untouched.
-		const needsQuoting = (value: string) => /\s/.test(value);
-		const quoteForShell = (value: string) =>
-			needsQuoting(value) ? `"${value}"` : value;
-		const platformOptions =
-			process.platform === "win32"
-				? {
-						windowsHide: true,
-						shell: true,
-					}
-				: {};
-		const child = spawn(
-			quoteForShell(transport.command),
-			(transport.args ?? []).map(quoteForShell),
-			{
-				cwd: transport.cwd,
-				env: {
-					...process.env,
-					...(transport.env ?? {}),
-				},
-				stdio: ["pipe", "pipe", "pipe"],
-				...platformOptions,
+		// spawnPlatformCommand routes win32 through cmd.exe and quotes
+		// whitespace-containing segments (e.g. "C:\Program Files\nodejs\node.exe")
+		// so absolute-path launches survive shell concatenation; see the helper.
+		const child = spawnPlatformCommand(transport.command, transport.args ?? [], {
+			cwd: transport.cwd,
+			env: {
+				...process.env,
+				...(transport.env ?? {}),
 			},
-		);
+			stdio: ["pipe", "pipe", "pipe"],
+		}) as ChildProcessWithoutNullStreams;
 
 		this.process = child;
 		child.stdout.on("data", (chunk: Buffer) => this.handleStdout(chunk));
