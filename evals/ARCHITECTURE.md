@@ -19,7 +19,7 @@ The evals system provides multi-layered testing for Cline's AI capabilities.
 │                                                                             │
 │                        ┌───────────────────┐                                │
 │                       /    Smoke Tests     \     Layer 2: Provider          │
-│                      /   run-smoke-tests    \    - 5 curated scenarios      │
+│                      /   run-smoke-tests    \    - 8 curated scenarios      │
 │                     /    (cline provider)    \   - 3 models via Vercel      │
 │                    /_________________________\   - pass@k metrics           │
 │                                                                             │

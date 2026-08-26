@@ -10,7 +10,7 @@ A layered testing system for measuring Cline's performance at different levels.
 evals/
 ├── smoke-tests/           # Quick provider validation (minutes)
 │   ├── run-smoke-tests.ts
-│   └── scenarios/         # 5 curated test scenarios
+│   └── scenarios/         # 8 curated test scenarios
 │
 ├── e2e/                   # Full E2E with cline-bench (hours)
 │   └── run-cline-bench.ts
@@ -49,7 +49,7 @@ npm run test:unit -- --grep "Thinking\|Tool Call"
 Location: `evals/smoke-tests/`
 
 Quick validation across providers with real LLM calls:
-- 5 curated scenarios
+- 8 curated scenarios (01-create-file through 08-openai-compat-gpt-oss-edit; 06-08 cover provider-specific capabilities: apply-patch, Gemini editing, OpenAI-compatible gpt-oss editing)
 - 3 trials per test for pass@k metrics
 - Runs the `cline` CLI with `--config`, `-y`, `-t`, and `-m`
 
