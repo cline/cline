@@ -1,6 +1,15 @@
 {
-	"extends": "../tsconfig.json",
 	"compilerOptions": {
-		"baseUrl": ".."
-	}
+		"target": "ES2022",
+		"lib": ["ES2022"],
+		"module": "ESNext",
+		"moduleResolution": "bundler",
+		"types": ["node"],
+		"strict": false,
+		"esModuleInterop": true,
+		"skipLibCheck": true,
+		"resolveJsonModule": true,
+		"noEmit": true
+	},
+	"include": ["smoke-tests/**/*.ts", "e2e/**/*.ts", "analysis/src/**/*.ts"]
 }

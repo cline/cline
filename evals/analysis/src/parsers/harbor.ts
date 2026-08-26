@@ -16,6 +16,7 @@ import type {
 	AnalysisOutputV1,
 	AnalysisSummary,
 	FailureAnalysis,
+	TaskMetrics,
 	TaskResultV1,
 	TrialResultV1,
 } from "../schemas"
@@ -159,8 +160,17 @@ export class HarborParser {
 			}))
 
 			const passResults = taskTrials.map((t) => t.passed)
-			const metrics = this.metrics.calculateTaskMetrics(passResults)
+			const calculated = this.metrics.calculateTaskMetrics(passResults)
 			const status = this.metrics.getTaskStatus(passResults)
+
+			// MetricsCalculator returns camelCase; the TaskResultV1 schema is
+			// snake_case (matches analysis-output.json consumers).
+			const metrics: TaskMetrics = {
+				pass_at_1: calculated.passAt1,
+				pass_at_3: calculated.passAt3,
+				pass_caret_3: calculated.passCaret3,
+				flakiness_score: calculated.flakinessScore,
+			}
 
 			const totalCost = taskTrials.reduce((sum, t) => sum + t.cost, 0)
 			const avgDuration = taskTrials.reduce((sum, t) => sum + t.duration, 0) / taskTrials.length

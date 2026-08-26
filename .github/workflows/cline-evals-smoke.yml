@@ -79,8 +79,13 @@ jobs:
                   which cline
 
             - name: Install evals dependencies
-              run: npm ci
+              run: |
+                  npm ci
+                  cd analysis && npm ci
+
+            - name: Typecheck evals tooling
               working-directory: ./evals
+              run: npx tsc --noEmit
 
             - name: Run smoke tests
               working-directory: ./evals
@@ -91,7 +96,7 @@ jobs:
                   if [ -n "${{ inputs.scenario }}" ]; then
                       ARGS+=(--scenario "${{ inputs.scenario }}")
                   fi
-                  npx -y tsx@4 smoke-tests/run-smoke-tests.ts "${ARGS[@]}"
+                  npx tsx smoke-tests/run-smoke-tests.ts "${ARGS[@]}"
 
             - name: Upload results
               if: always()
