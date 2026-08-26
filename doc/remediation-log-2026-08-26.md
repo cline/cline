@@ -146,3 +146,12 @@
 - cli Windows 平台债清单化与门控（P4 取证 #3）。
 - 默认 `test` 的覆盖缺口维持现状（CI ubuntu 上语义不变）；若维护者愿意，可将 `test:extended` 并入 sdk-test.yml 或独立 workflow。
 - R2/R3 大迁移、bash hooks win32 产品策略、冒烟工作流首跑：不变。
+
+## Phase-4 续：cli 平台债首批清偿
+
+| # | Commit | 风险项 | 类型 | 内容 | 验证 |
+|---|---|---|---|---|---|
+| P4-3 | `3835bcf59` | R9 | fix | **插件包管理器 spawn win32 修复**（与 MCP 同族缺陷）：runCommand 无 shell 直接 spawn `"npm"`，Windows 解析到 .cmd 批处理启动器报 spawn EFTYPE——此前所有 Windows 用户安装插件必败。win32 路由 cmd.exe + windowsHide，仅对含空白片段加引号 | plugin.test 卸载用例由 EFTYPE 红转绿；core plugin-install/uninstall 套件 9 pass/2 skip；tsc/biome 干净 |
+| P4-4 | `cb3591d0e` | R9 | test | doctor --fix 用例门控（产品在 win32 显式短路返回空枚举，属既定契约）；plugin 四个 `/bin/sh` fake-npm 夹具用例门控（含参数解析+建目录、中途改写翻转退出码两种形态，cmd.exe 无法执行） | 两文件 34 pass / 5 skip（win32） |
+
+**新增路线图**：fake-npm 夹具跨平台化（.cmd 包装 + .cjs 行为体，恢复 Windows 安装流覆盖）；doctor 的 win32 进程枚举产品实现（tasklist/PowerShell Get-Process）。
