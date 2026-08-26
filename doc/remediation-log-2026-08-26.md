@@ -76,3 +76,47 @@
 | 全库类型检查 | `bun run types`（= `bun --parallel -F '*' typecheck`） | ✅ 15 个包的 typecheck 任务全部通过（core/cli/vscode/rollout/sdk/shared/llms/agents/ui/code/hub/menubar/plugin/examples×2），exit 0 |
 
 至此 §2 验证表中悬置引用的"最终验证"闭合：两阶段全部提交在最终代码状态下均通过类型门禁。
+
+---
+
+# 第三阶段（同日再续）：R8 收官与新发现 R9
+
+> 约束不变：小提交、可单独回退、每步验证门。本轮以"测试安全网"为主线推进 R8 路线图项，过程中发现并登记新风险 R9。
+
+## Phase-3 提交清单
+
+| # | Commit | 风险项 | 类型 | 内容 | 验证 |
+|---|---|---|---|---|---|
+| P3-1 | `c23aa38e4` | R8 | test | **examples/vscode RPC 链路端到端测试**：进程内启动真实 hub WebSocket server（临时 discovery 文件 + 端口 0）+ 桩 RuntimeHost，覆盖扩展实际依赖的 `ClineCore backendMode=hub` 全链路——HubSessionClient startRuntimeSession→`session.create` / sendRuntimeSession→`session.send_input` / abortRuntimeSession→`run.abort` + getSession 与广播事件观测（session.created/run.started/run.completed）；HubRuntimeHost startSession/runTurn/abort 含 manifest 断言。新增 vitest.config.ts 与 test 脚本 | vitest 3/3 ×2；tsc exit 0 |
+| P3-2 | `180eab591` | R9 | fix | **MCP stdio spawn win32 引号缺陷**：shell:true 下 Node 不加引号拼接命令，含空格的可执行路径（如 `C:\Program Files\nodejs\node.exe`）被 cmd 截断导致 MCP server 无法启动。仅对含空白片段加引号 | runtime-builder MCP 集成用例于 Windows 由红转绿；core 全量单测 1395 pass/0 fail |
+| P3-3 | `4b398b139` | R9 | test | legacy bash 回退与 AgentExtension 两用例依赖 POSIX shell，win32 永远失败；`it.skipIf(win32)` 平台门控 | 同上（1395 pass / 7 skip / 0 fail） |
+| P3-4 | `52d21f38f` | R9 | build | 重型套件预算放宽：core/llms/cli vitest 配置 testTimeout/hookTimeout→30s（基线取证：原始聚合集在并行下即产生 5s 假超时；cli main.test 在九套件并行下连自设的 15s 也超出） | 多轮全量运行零超时级失败 |
+| P3-5 | `0bbb36e50` | R8+R9 | test | **desktop-app 测试收编**：16 个 vitest 文件此前无通用 test 脚本、从未被任何门禁执行且已腐烂（sidecar 能力两用例必败：单测内冷加载整个 @cline/core 图超出默认 5s）。动态导入提升至 beforeAll + 单文件预算 60s + 补 `test` 脚本 | `bun run test` ×2 → 16 files/59 tests 全绿 |
+| P3-6 | （本提交） | R6/R9 | docs | 本节 | — |
+
+## Phase-3 关键发现（新登记 R9）
+
+1. **根聚合脚本 `bun run test` 三重缺陷（维持原样未动，留作路线图）**：
+   - `--parallel` 同时冷启动 9 套件互相饿死——基线取证显示**原始集合本身就红**（llms gateway 5s 假超时随机出现），非本轮引入；
+   - sdk 包的 `test` 脚本含 e2e 变体（core 为 `test:unit && test:e2e`），聚合器语义不可控；
+   - 覆盖缺口：webview-ui(48 文件/376 测试)、desktop-app(16)、examples/vscode(3)、multi-agent、rollout 均不在聚合范围。
+   - 建议路径：聚合器重构为 unit-only 过滤 + 受控并行度/分组串行，先纳入已验证全绿的 webview-ui。
+2. **Windows 平台缺口两处**：MCP spawn 引号 bug 已修（P3-2）；legacy bash hooks 产品层无 win32 支持待产品决策（P3-3 仅门控测试）。
+3. **未被门禁执行的套件必然腐烂**：desktop-app 即实例（P3-5）；webview-ui 独立运行仅 ~37s 且全绿，是聚合器重构时最安全的首批收编对象。
+
+## Phase-3 后剩余项
+
+- R2/R3 大迁移路线图不变（webview-ui 实际已是 Vitest，R3 真正碎片在 apps/vscode/src 的 Mocha24/bun66/Vitest82 三套并存，影响面大仍推迟）。
+- R8-examples-vscode **本轮收官**（98 文件从 1 个测试增至覆盖核心 RPC 链路的 3 个集成用例）。
+- 新增路线图：根聚合器重构（见上）、legacy bash hooks 的 win32 产品策略、冒烟工作流首跑仍待 secret。
+
+## Phase-3 验证记录汇总
+
+| 验证项 | 结果 |
+|---|---|
+| examples/vscode `bun run test` | ✅ 3/3 ×2 次 |
+| desktop-app `bun run test` | ✅ 59/59 ×2 次 + 并行大跑 1 次 |
+| core `test:unit` 全量（含 MCP 修复后） | ✅ 1395 pass / 7 平台跳过 / 0 fail（41.7s） |
+| llms/cli/webview-ui/hub 等（并行大跑） | ✅ 无超时类失败残留 |
+| biome lint（全部改动文件） | ✅ 无新增告警（输出均为 apps/cli 存量 warning） |
+| gitleaks 提交钩子 | ✅ 全部通过 |
