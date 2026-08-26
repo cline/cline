@@ -46,6 +46,7 @@ import {
 	type MessageWithMetadata,
 	type ModelInfo,
 	mergeModelOptions,
+	modelSupportsImageInput,
 	modelSupportsToolCalling,
 	type ToolCallRecord,
 	usesImageGenerationOperation,
@@ -887,8 +888,7 @@ export class SessionRuntime {
 			telemetry: this.telemetry,
 			tools,
 			toolContextMetadata: {
-				modelSupportsImages:
-					modelInfo?.capabilities?.includes("images") ?? true,
+				modelSupportsImages: modelSupportsImageInput(modelInfo ?? {}),
 				...this.config.toolContextMetadata,
 			},
 			hooks: this.createRuntimeHooks(),
