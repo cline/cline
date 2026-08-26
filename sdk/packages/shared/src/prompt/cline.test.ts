@@ -4,6 +4,7 @@ import {
 	MODE_TAG_INSTRUCTIONS,
 	PLAN_MODE_INSTRUCTIONS,
 	PLAN_MODE_INSTRUCTIONS_MANUAL_SWITCH,
+	processWorkspaceInfo,
 } from "./cline";
 
 const BASE_OPTIONS = {
@@ -12,6 +13,29 @@ const BASE_OPTIONS = {
 	workspaceName: "project",
 	platform: "linux",
 };
+
+describe("processWorkspaceInfo", () => {
+	it("redacts URL credentials while preserving SCP-style SSH remotes", () => {
+		const metadata = JSON.parse(
+			processWorkspaceInfo({
+				rootPath: "/workspace/project",
+				associatedRemoteUrls: [
+					"origin: https://user:token@github.com/cline/cline.git",
+					"backup: ssh://git:secret@example.com/cline/cline.git",
+					"mirror: git@github.com:cline/cline.git",
+				],
+			}),
+		);
+
+		expect(
+			metadata.workspaces["/workspace/project"].associatedRemoteUrls,
+		).toEqual([
+			"origin: https://github.com/cline/cline.git",
+			"backup: ssh://example.com/cline/cline.git",
+			"mirror: git@github.com:cline/cline.git",
+		]);
+	});
+});
 
 describe("buildClineSystemPrompt mode instructions", () => {
 	it("explains the user_input mode attribute in act mode", () => {
@@ -76,6 +100,27 @@ describe("buildClineSystemPrompt mode instructions", () => {
 		const rulesIndex = prompt.indexOf("Always speak like a pirate.");
 		expect(rulesIndex).toBeGreaterThan(-1);
 		expect(rulesIndex).toBeLessThan(prompt.indexOf(MODE_TAG_INSTRUCTIONS));
+	});
+
+	it("includes rich workspace metadata for the Cline backend parser", () => {
+		const metadata = JSON.stringify({
+			workspaces: {
+				"/workspace/project": {
+					hint: "project",
+					associatedRemoteUrls: [
+						"origin: https://github.com/cline/cline.git",
+					],
+					latestGitCommitHash: "abc123",
+				},
+			},
+		});
+		const prompt = buildClineSystemPrompt({
+			...BASE_OPTIONS,
+			providerId: "cline",
+			metadata,
+		});
+
+		expect(prompt).toContain(`# Workspace Configuration\n${metadata}`);
 	});
 
 	it("respects an explicit override prompt without injecting mode sections", () => {
