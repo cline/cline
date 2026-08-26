@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
+import { version as extensionVersion } from "../../package.json"
 import { buildSdkProviderConfig } from "./sdk-api-handler"
 
 const mocks = vi.hoisted(() => {
@@ -102,6 +103,84 @@ describe("buildSdkProviderConfig", () => {
 			timeoutMs: 45_000,
 			modelInfo: { id: "qwen2.5:7b", contextWindow: 16384 },
 		})
+	})
+
+	it("attaches the Cline surface headers for Cline billing providers", () => {
+		mocks.providerSettingsManager.getProviderSettings.mockReturnValue({
+			provider: "cline",
+			apiKey: "cline-token",
+		})
+
+		const providerConfig = buildSdkProviderConfig(
+			{
+				actModeApiProvider: "cline",
+				actModeApiModelId: "deepseek/deepseek-v4-flash",
+			},
+			"act",
+			{
+				client: {
+					name: "VSCode Extension",
+					version: "4.1.16",
+					platform: "Visual Studio Code",
+					platformVersion: "1.109.0",
+					isMultiRoot: false,
+				},
+			},
+		)
+
+		expect(providerConfig.headers).toMatchObject({
+			"HTTP-Referer": "https://cline.bot",
+			"X-Title": "Cline",
+			"User-Agent": "Cline/4.1.16",
+			"X-IS-MULTIROOT": "false",
+			"X-CLIENT-TYPE": "VSCode Extension",
+			"X-CLIENT-VERSION": "4.1.16",
+			"X-PLATFORM": "Visual Studio Code",
+			"X-PLATFORM-VERSION": "1.109.0",
+		})
+		// A standalone handler is not a task, so no task id is claimed.
+		expect(providerConfig.headers && "X-Task-ID" in providerConfig.headers).toBe(false)
+	})
+
+	it("attaches the Cline surface headers for ClinePass", () => {
+		mocks.providerSettingsManager.getProviderSettings.mockReturnValue({
+			provider: "cline",
+			auth: { accessToken: "workos:shared-cline-token" },
+		})
+
+		const providerConfig = buildSdkProviderConfig(
+			{
+				actModeApiProvider: "cline-pass",
+				actModeClinePassModelId: "cline-pass/glm-5.2",
+			},
+			"act",
+		)
+
+		// Without a resolved host context the extension's own identity is used.
+		expect(providerConfig.headers).toMatchObject({
+			"X-CLIENT-TYPE": "VSCode Extension",
+			"X-CLIENT-VERSION": extensionVersion,
+			"X-CORE-VERSION": extensionVersion,
+			"User-Agent": `Cline/${extensionVersion}`,
+		})
+	})
+
+	it("does not attach Cline surface headers to other providers, but keeps their stored headers", () => {
+		mocks.providerSettingsManager.getProviderSettings.mockReturnValue({
+			provider: "anthropic",
+			apiKey: "sk-ant",
+			headers: { "x-custom": "kept" },
+		})
+
+		const providerConfig = buildSdkProviderConfig(
+			{
+				actModeApiProvider: "anthropic",
+				actModeApiModelId: "claude-sonnet-5",
+			},
+			"act",
+		)
+
+		expect(providerConfig.headers).toEqual({ "x-custom": "kept" })
 	})
 
 	it("omits timeoutMs for Ollama when no explicit timeout is configured", () => {
