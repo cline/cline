@@ -543,13 +543,22 @@ async function runCommand(
 	args: string[],
 	options: { cwd?: string } = {},
 ): Promise<void> {
+	// On Windows npm/git resolve to .cmd/batch launchers that cannot be
+	// spawned directly without a shell (spawn EFTYPE), so route through
+	// cmd.exe and quote segments containing whitespace (e.g. --prefix paths
+	// under "C:\Users\John Doe\..."); plain tokens like "install" are
+	// untouched.
+	const useShell = process.platform === "win32";
+	const quoteForShell = (value: string) =>
+		useShell && /\s/.test(value) ? `"${value}"` : value;
 	await new Promise<void>((resolvePromise, reject) => {
-		const child = spawn(command, args, {
+		const child = spawn(command, args.map(quoteForShell), {
 			cwd: options.cwd,
 			stdio: ["ignore", "ignore", "pipe"],
 			env: process.env,
 			// Prevent a console window from flashing on Windows.
 			windowsHide: true,
+			shell: useShell,
 		});
 		let stderr = "";
 		child.stderr.on("data", (chunk) => {
