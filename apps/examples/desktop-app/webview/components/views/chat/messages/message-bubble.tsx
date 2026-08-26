@@ -27,6 +27,7 @@ import type {
 import { cn } from "@/lib/utils";
 import { MemoizedMarkdown } from "../../../ui/markdown";
 import { formatChatMessageContent } from "../message-content";
+import { isSystemSteeringMessage } from "./group-messages";
 import { ReasoningBlock } from "./reasoning-block";
 
 function AssistantImageCarousel({
@@ -217,6 +218,14 @@ export const MessageBubble = memo(function MessageBubble({
 	const isUser = message.role === "user";
 	const isError = message.role === "error";
 	const checkpoint = message.meta?.checkpoint;
+	// Runtime steering notes (completion nudges in scheduled/automation runs,
+	// team-obligation reminders) are user-role messages the machinery sends to
+	// the model, not something the person said or needs to read — hide them
+	// from the transcript entirely. Grouping still treats them as working-row
+	// machinery (never a turn boundary, an answer, or a run-count increment).
+	if (isSystemSteeringMessage(message)) {
+		return null;
+	}
 	const displayContent = formatChatMessageContent(
 		message.role,
 		message.content,
