@@ -1,5 +1,24 @@
 # Changelog
 
+## [4.1.16]
+
+Everything here lands through the SDK bundle, so it applies to windows running that bundle.
+
+### Fixed
+
+- Cost estimates are no longer shown for providers billed by a flat-rate subscription (ClinePass, ChatGPT via Codex, and Claude Code). The task header and model pricing rows rendered API-rate dollar figures that read as real charges on top of the subscription, including a flash of them on every chat-view mount while provider listings were loading.
+- Signing back in no longer moves your last-used provider off ClinePass on credential refresh.
+- Hooks now resolve their workspace from the VS Code window instead of shared global state in `~/.cline`. With a second window open on another project, a workspace's `.clinerules/hooks` scripts were never discovered, and hook cwd and the workspace paths passed to hook scripts resolved against whatever project some other or older Cline instance last recorded.
+- New files are now created with your platform's native line endings.
+- Fixed the codebase search tool crashing on files containing a single enormous line.
+- Credentials embedded in git remote URLs are now redacted from the workspace information sent to the model, which also now carries richer workspace metadata.
+- Installing an MCP server from the marketplace no longer misreads the catalog's `--` separator as part of the server command.
+- The hub's event log can no longer grow until it fills your disk.
+
+### Changed
+
+- The per-tool MCP auto-approve checkboxes are hidden. MCP auto-approval is governed solely by the global "Use MCP servers" toggle — the per-tool checkboxes were no-ops that implied granularity the approval path does not have.
+
 ## [4.1.15]
 
 Everything here lands through the SDK bundle, so it applies to windows running that bundle.

@@ -903,14 +903,11 @@ describe("ChatInputBar", () => {
 		expect(promptInput?.parentElement?.className).toContain("items-start");
 		expect(promptInput?.parentElement?.contains(sendTrigger)).toBe(true);
 		expect(promptInput?.parentElement?.contains(stopTrigger)).toBe(true);
-		expect(promptInput?.parentElement?.contains(speechTrigger)).toBe(true);
+		// The mic button is hidden for now (SHOW_VOICE_INPUT_BUTTON).
+		expect(speechTrigger).toBeNull();
 		expect(sendTrigger?.parentElement?.className).toContain("self-end");
 		expect(rightControls?.contains(sendTrigger)).toBe(false);
-		expect(rightControls?.contains(speechTrigger ?? null)).toBe(false);
-		expect(speechTrigger?.parentElement?.nextElementSibling).toBe(sendTrigger);
 		expect(leftControls?.parentElement).toBe(rightControls?.parentElement);
-		await act(async () => speechTrigger?.click());
-		expect(onOpenVoiceInputSettings).toHaveBeenCalledOnce();
 	});
 
 	it("selects High from the supported model thinking menu", async () => {
