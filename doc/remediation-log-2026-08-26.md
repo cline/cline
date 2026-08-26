@@ -120,3 +120,29 @@
 | llms/cli/webview-ui/hub 等（并行大跑） | ✅ 无超时类失败残留 |
 | biome lint（全部改动文件） | ✅ 无新增告警（输出均为 apps/cli 存量 warning） |
 | gitleaks 提交钩子 | ✅ 全部通过 |
+
+---
+
+# 第四阶段：聚合器取证与增量收编
+
+> 前置发现改变了第三阶段的路线图判断：`.github/workflows/sdk-test.yml` 在 ubuntu 上执行的就是根 `bun run test`（Windows 矩阵仅跑 sdk glob）——该脚本是 **CI 载体**，不能按原计划直接重构。
+
+## Phase-4 提交清单
+
+| # | Commit | 风险项 | 类型 | 内容 | 验证 |
+|---|---|---|---|---|---|
+| P4-1 | `1c3a21b8f` | R9 | build | 新增 `test:extended` 确定性入口（显式 `&&` 串行链）：webview-ui → desktop-app → multi-agent → rollout → examples/vscode；desktop-app vitest 预算对齐 P3-4。默认 `test` 一字未动 | `test:extended` 端到端全绿 ×2（合计 477 用例）；desktop-app 单独 59/59 |
+| P4-2 | （本提交） | R6/R9 | docs | 本节 | — |
+
+## Phase-4 取证结论（R9 扩充）
+
+1. **CI 载体约束**：根 `test` 被 sdk-test.yml 消费 → 覆盖缺口改用增量入口解决，CI 语义零变更。
+2. **bun 多过滤器仍有并发重叠**：`bun -F a -F b ... test` 不加 `--parallel` 也非严格串行——五套件并发下 desktop-app 冷导入可超 60s hook 预算（同代码单独运行仅 18s）。显式 `&&` 链是唯一构造性串行方案。
+3. **cli 测试套件存在 Windows 平台债（登记，未修）**：`/tmp/cline-worktree` POSIX 路径、plugin.test npm 安装 5 例失败、doctor 进程枚举失败，且队列中存在未定位的硬挂起点（二分定位到 doctor 之后）。复现：`cd apps/cli && bun run test:unit`。这些是 POSIx 导向的存量用例，需按 P3-3 模式逐个平台门控或产品适配。
+4. **本机负载数据**：同一提交状态下各套件耗时随整机负载波动可达 2-5 倍（webview-ui 37s→175s），并行聚合在本机永远不可靠；**单独运行是本机上唯一可信的门禁信号**，所有已提交修复均以单独运行验证。
+
+## Phase-4 后剩余项
+
+- cli Windows 平台债清单化与门控（P4 取证 #3）。
+- 默认 `test` 的覆盖缺口维持现状（CI ubuntu 上语义不变）；若维护者愿意，可将 `test:extended` 并入 sdk-test.yml 或独立 workflow。
+- R2/R3 大迁移、bash hooks win32 产品策略、冒烟工作流首跑：不变。
