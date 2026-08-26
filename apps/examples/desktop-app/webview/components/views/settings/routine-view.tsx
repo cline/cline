@@ -840,6 +840,18 @@ export function RoutineSchedulesContent({
 			}>("trigger_routine_schedule", {
 				schedule_id: schedule.scheduleId,
 			});
+			// A reply without an execution means no run was enqueued (the
+			// schedule may have been disabled or deleted since the page
+			// loaded) — say so instead of confirming a start.
+			if (!reply?.execution) {
+				toast({
+					title: "Run not started",
+					description: `"${schedule.name}" did not queue a run — the schedule may be disabled or deleted.`,
+					variant: "destructive",
+				});
+				await refreshSchedules({ force: true, showLoading: false });
+				return;
+			}
 			toast({
 				title: "Run started",
 				description: `"${schedule.name}" was queued to run now.`,
@@ -851,8 +863,8 @@ export function RoutineSchedulesContent({
 			// Only ever follow the execution the trigger itself named; matching
 			// "the schedule's newest execution" could open a previous run's
 			// session when the trigger failed to enqueue one.
-			const executionId = reply?.execution?.executionId ?? null;
-			let sessionId = reply?.execution?.sessionId?.trim() || null;
+			const executionId = reply.execution.executionId ?? null;
+			let sessionId = reply.execution.sessionId?.trim() || null;
 			const deadline = Date.now() + 15_000;
 			while (
 				!sessionId &&
