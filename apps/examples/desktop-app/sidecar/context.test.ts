@@ -1,6 +1,11 @@
 import type { RuntimeCapabilities } from "@cline/core";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SidecarContext } from "./types";
+
+// Cold-loading the real @cline/core graph via vi.importActual easily exceeds
+// the default 5s budgets on fresh checkouts; pay it once outside any test and
+// widen both budgets for slow/loaded machines.
+vi.setConfig({ testTimeout: 60_000, hookTimeout: 60_000 });
 
 const createCoreMock = vi.hoisted(() => vi.fn());
 const connectMock = vi.hoisted(() => vi.fn());
@@ -50,6 +55,11 @@ function readEvents(ctx: SidecarContext): Array<{
 }
 
 describe("Code sidecar runtime capabilities", () => {
+	beforeAll(async () => {
+		await import("./context");
+		await import("./commands");
+	});
+
 	beforeEach(() => {
 		createCoreMock.mockReset();
 		connectMock.mockReset();
