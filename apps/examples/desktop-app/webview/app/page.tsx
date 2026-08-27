@@ -602,10 +602,12 @@ export default function Home() {
 								) : null}
 								{view === "settings" ? (
 									<div className="absolute inset-0 z-30 bg-background text-foreground">
-										<SettingsView
-											onNavigateSection={handleSettingsSectionChange}
-											onOpenSession={handleOpenSessionById}
-											section={settingsSection}
+									<SettingsView
+										onNavigateSection={handleSettingsSectionChange}
+										onOpenSession={async (sessionId) => {
+											await handleOpenSessionById(sessionId);
+										}}
+										section={settingsSection}
 										/>
 									</div>
 								) : null}
@@ -1761,7 +1763,9 @@ function ChatThreadPane({
 	// A child agent has its own session row, so opening it goes through the same
 	// path as any other session — it is just never listed in the sidebar.
 	const onOpenAgentSession = useCallback(
-		(agentSessionId: string) => onOpenSessionById?.(agentSessionId),
+		async (agentSessionId: string) => {
+			await onOpenSessionById?.(agentSessionId);
+		},
 		[onOpenSessionById],
 	);
 
@@ -1935,7 +1939,13 @@ function ChatThreadPane({
 								agentsLoading={agentsLoading}
 								onAgentsOpenChange={setAgentPanelOpen}
 								onOpenAgentSession={onOpenAgentSession}
-								onOpenParentSession={onOpenSessionById}
+								onOpenParentSession={
+									onOpenSessionById
+										? async (parentSessionId) => {
+												await onOpenSessionById(parentSessionId);
+											}
+										: undefined
+								}
 								parentSession={hideDeletedSessionUi ? undefined : parentSession}
 								canEditTitle={
 									Boolean(activeSessionForTitle) && !isProvisioningCloudSession
@@ -2042,7 +2052,13 @@ function ChatThreadPane({
 						) : undefined
 					}
 					onListGitBranches={listGitBranches}
-					onOpenSession={onOpenSessionById}
+					onOpenSession={
+						onOpenSessionById
+							? async (sessionId) => {
+									await onOpenSessionById(sessionId);
+								}
+							: undefined
+					}
 					onSwitchGitBranch={switchGitBranch}
 					executionTarget={isCloudSession ? "cloud" : "local"}
 					repoUrl={config.repoUrl ?? ""}
