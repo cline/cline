@@ -88,20 +88,6 @@ async function hover(element: Element): Promise<void> {
 	});
 }
 
-async function changeField(
-	element: HTMLInputElement | HTMLTextAreaElement,
-	value: string,
-): Promise<void> {
-	await act(async () => {
-		const prototype = Object.getPrototypeOf(element) as object;
-		const setter = Object.getOwnPropertyDescriptor(prototype, "value")?.set;
-		setter?.call(element, value);
-		element.dispatchEvent(new Event("input", { bubbles: true }));
-		element.dispatchEvent(new Event("change", { bubbles: true }));
-		await Promise.resolve();
-	});
-}
-
 function buttonWithText(text: string, rootNode: ParentNode = container) {
 	const button = [
 		...rootNode.querySelectorAll<HTMLButtonElement>("button"),
@@ -1048,11 +1034,12 @@ describe("AgentSidebar session organization", () => {
 		expect(inactiveRow.getAttribute("aria-current")).toBeNull();
 	});
 
-	it("opens session search in a dialog from the logo-row icon", async () => {
+	it("opens the global search command bar from the logo-row icon without loading full history", async () => {
 		const sessionHistory = makeSessionHistory(
 			[makeThread("alpha", 1), makeThread("beta", 1)],
 			vi.fn(),
 		);
+		const onOpenSearch = vi.fn();
 		await act(async () => {
 			root.render(
 				<AccountProvider>
@@ -1060,6 +1047,7 @@ describe("AgentSidebar session organization", () => {
 						<AgentSidebar
 							activeSessionId={null}
 							onHome={vi.fn()}
+							onOpenSearch={onOpenSearch}
 							onSettingsSectionChange={vi.fn()}
 							sessionHistory={sessionHistory}
 							setView={vi.fn()}
@@ -1078,33 +1066,12 @@ describe("AgentSidebar session organization", () => {
 		);
 		expect(searchButton).not.toBeNull();
 		await click(searchButton as Element);
-		// Opening search pulls the full history so unloaded sessions match too.
-		expect(sessionHistory.loadAllSessions).toHaveBeenCalledOnce();
-
-		const searchInput = await vi.waitFor(() => {
-			const input = document.querySelector<HTMLInputElement>(
-				'[data-slot="command-input"]',
-			);
-			expect(input).not.toBeNull();
-			return input as HTMLInputElement;
-		});
-		expect(searchInput.placeholder).toBe("Search sessions...");
-
-		await changeField(searchInput, "alpha");
-		const match = await vi.waitFor(() => {
-			const items = [
-				...document.querySelectorAll<HTMLElement>('[data-slot="command-item"]'),
-			];
-			expect(items).toHaveLength(1);
-			return items[0] as HTMLElement;
-		});
-		expect(match.textContent).toContain("alpha session 1");
-
-		await click(match);
-		expect(sessionHistory.openThread).toHaveBeenCalledWith("alpha-1");
-		await vi.waitFor(() =>
-			expect(document.querySelector('[data-slot="command-input"]')).toBeNull(),
-		);
+		// The icon opens the indexed command bar owned by the page shell...
+		expect(onOpenSearch).toHaveBeenCalledOnce();
+		// ...instead of a sidebar-local dialog that eagerly pulled the entire
+		// session history just to filter titles client-side.
+		expect(sessionHistory.loadAllSessions).not.toHaveBeenCalled();
+		expect(document.querySelector('[data-slot="command-input"]')).toBeNull();
 	});
 
 	it("uses only the Cline logo for home in the collapsed sidebar", async () => {
