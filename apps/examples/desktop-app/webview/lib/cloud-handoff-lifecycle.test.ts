@@ -452,6 +452,31 @@ describe("cloud handoff lifecycle: event/RPC ordering races", () => {
 		});
 	});
 
+	it("does not carry a bare newer handoff command into an older target", async () => {
+		const h = makeHarness();
+		const originalAttemptId = h.lifecycle.onRpcStarted(SOURCE);
+		await h.lifecycle.onRpcRejected(SOURCE, {
+			handoffAttemptId: originalAttemptId,
+			error: new Error("request timed out"),
+			nextCommand: "original command",
+			sourceAttachments: [],
+		});
+
+		const retryAttemptId = h.lifecycle.onRpcStarted(SOURCE);
+		await h.lifecycle.onRpcRejected(SOURCE, {
+			handoffAttemptId: retryAttemptId,
+			error: new Error("retry preflight failed"),
+			nextCommand: "",
+			sourceAttachments: [],
+		});
+
+		await h.lifecycle.onEvent(
+			completeEvent({ handoffAttemptId: originalAttemptId }),
+		);
+		expect(h.getState()[SOURCE]).toMatchObject({ status: "complete" });
+		expect(h.getState()[SOURCE]).not.toHaveProperty("retryDraft");
+	});
+
 	it("clears a rejected attempt's payload when its clean completion arrives", async () => {
 		const h = makeHarness();
 		const attemptId = h.lifecycle.onRpcStarted(SOURCE);
