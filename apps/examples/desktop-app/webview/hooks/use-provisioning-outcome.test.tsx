@@ -86,6 +86,32 @@ describe("useProvisioningOutcome", () => {
 		expect(invokeMock).not.toHaveBeenCalled();
 	});
 
+	it("resolves the placeholder when opening unmounts its pane", async () => {
+		invokeMock.mockResolvedValue({
+			status: "ready",
+			sessionId: "ses-real",
+		} satisfies CloudProvisioningOutcome);
+		let resolveOpen!: (opened: boolean) => void;
+		const openResult = new Promise<boolean>((resolve) => {
+			resolveOpen = resolve;
+		});
+		const onResolved = vi.fn();
+
+		await renderHarness({
+			placeholderId: "cloud-provisioning-1",
+			onOpenReady: vi.fn(() => openResult),
+			onResolved,
+			onError: vi.fn(),
+		});
+		await act(async () => {
+			root.render(null);
+			resolveOpen(true);
+			await openResult;
+		});
+
+		expect(onResolved).toHaveBeenCalledOnce();
+	});
+
 	it("surfaces a failed outcome and stops polling", async () => {
 		invokeMock.mockResolvedValue({
 			status: "failed",

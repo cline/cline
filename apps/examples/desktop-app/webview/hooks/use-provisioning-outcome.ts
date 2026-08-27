@@ -37,14 +37,13 @@ export function useProvisioningOutcome(options: {
 					);
 				if (cancelled) return;
 				if (outcome?.status === "ready") {
-					const opened = await callbacksRef.current.onOpenReady(
-						outcome.sessionId,
-					);
-					if (cancelled) return;
+					const { onOpenReady, onResolved } = callbacksRef.current;
+					const opened = await onOpenReady(outcome.sessionId);
 					if (opened) {
-						callbacksRef.current.onResolved();
+						onResolved();
 						return;
 					}
+					if (cancelled) return;
 					failedOpens += 1;
 					if (failedOpens >= PROVISIONING_OPEN_GIVE_UP_ATTEMPTS) {
 						callbacksRef.current.onError(
