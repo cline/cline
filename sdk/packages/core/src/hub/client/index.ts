@@ -467,10 +467,17 @@ export class NodeHubClient {
 			// identity check alone decides ownership and cannot be poisoned by a
 			// stale registration flag.
 			if (attemptSocket && this.socket === attemptSocket) {
+				this.lastCloseError = normalizeWebSocketConnectError(error, url);
+				this.registered = false;
+				this.sawSocketClose = false;
+				this.socket = undefined;
 				try {
 					attemptSocket.close();
 				} catch {
 					// best-effort close
+				}
+				if (!this.closedByClient && this.hasActiveSubscriptions()) {
+					this.scheduleReconnect();
 				}
 			}
 			throw error;
@@ -531,9 +538,14 @@ export class NodeHubClient {
 				(name) => name.toLowerCase() === "sec-websocket-protocol",
 			)
 		) {
-			throw new Error(
+			const error = new HubTransportError(
+				"hub_connect_failed",
 				"Hub connection headers cannot set Sec-WebSocket-Protocol.",
 			);
+			if (generation === this.connectGeneration) {
+				this.lastCloseError = error;
+			}
+			throw error;
 		}
 
 		const socket = headers

@@ -401,6 +401,10 @@ describe("NodeHubClient connection headers", () => {
 
 		try {
 			await expect(client.connect()).rejects.toThrow();
+			expect(client.getConnectionError()?.message).toBe("denied");
+			expect(
+				(client as unknown as { socket?: unknown }).socket,
+			).toBeUndefined();
 			// The unregistered socket must not satisfy the next connect().
 			await client.connect();
 			expect(client.isConnected()).toBe(true);
@@ -537,6 +541,9 @@ describe("NodeHubClient connection headers", () => {
 		});
 
 		await expect(client.connect()).rejects.toThrow(
+			"Hub connection headers cannot set Sec-WebSocket-Protocol.",
+		);
+		expect(client.getConnectionError()?.message).toBe(
 			"Hub connection headers cannot set Sec-WebSocket-Protocol.",
 		);
 	});
