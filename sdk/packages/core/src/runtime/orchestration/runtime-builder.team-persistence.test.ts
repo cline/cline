@@ -13,6 +13,7 @@ type BootstrapCall = {
 	teammateConfigProvider: {
 		getRuntimeConfig(): unknown;
 	};
+	cloudTeammates?: unknown;
 };
 
 class MockAgentTeamsRuntime {
@@ -119,6 +120,11 @@ describe("DefaultRuntimeBuilder team persistence boundary", () => {
 	it("persists teammate specs and runtime state from team events", async () => {
 		const { DefaultRuntimeBuilder } = await import("./runtime-builder");
 		const onTeamRestored = vi.fn();
+		const cloudTeammates = {
+			enabled: true,
+			controlPlane: {},
+			initialCapsule: { roots: [], selections: [] },
+		} as never;
 
 		await new DefaultRuntimeBuilder().build({
 			config: {
@@ -133,6 +139,7 @@ describe("DefaultRuntimeBuilder team persistence boundary", () => {
 				enableTools: false,
 				enableSpawnAgent: false,
 				enableAgentTeams: true,
+				cloudTeammates,
 			},
 			onTeamRestored,
 		});
@@ -144,6 +151,7 @@ describe("DefaultRuntimeBuilder team persistence boundary", () => {
 				teammateConfigProvider: expect.objectContaining({
 					getRuntimeConfig: expect.any(Function),
 				}),
+				cloudTeammates,
 			}),
 		);
 		const bootstrapCall = (
@@ -191,6 +199,27 @@ describe("DefaultRuntimeBuilder team persistence boundary", () => {
 			type: "teammate_shutdown",
 			agentId: "python-poet",
 		});
+
+		runtimeInstance.emit({
+			type: "teammate_spawned",
+			agentId: "cloud-reviewer",
+			teammate: {
+				rolePrompt: "Review in cloud",
+				execution: "cloud",
+				runtimeAgentId: "cnd-123",
+			},
+		});
+		expect(teamStoreInstance.persistRuntime).toHaveBeenLastCalledWith(
+			expect.any(String),
+			expect.any(Object),
+			expect.arrayContaining([
+				expect.objectContaining({
+					agentId: "cloud-reviewer",
+					execution: "cloud",
+					cloudNodeId: "cnd-123",
+				}),
+			]),
+		);
 		expect(teamStoreInstance.handleTeamEvent).toHaveBeenCalledWith(
 			expect.any(String),
 			expect.objectContaining({
@@ -230,12 +259,48 @@ describe("DefaultRuntimeBuilder team persistence boundary", () => {
 			type: "teammate_shutdown",
 			agentId: "java-poet",
 			reason: "cli_run_shutdown",
+			shutdownMode: "detach",
 		});
 		expect(teamStoreInstance.persistRuntime).toHaveBeenLastCalledWith(
 			expect.any(String),
 			expect.any(Object),
 			expect.arrayContaining([
 				expect.objectContaining({ agentId: "java-poet" }),
+			]),
+		);
+
+		// An explicit destroy cannot be disguised as a runtime detach by using
+		// a reserved-looking, model-provided reason.
+		runtimeInstance.emit({
+			type: "teammate_shutdown",
+			agentId: "java-poet",
+			reason: "cli_run_shutdown",
+			shutdownMode: "destroy",
+		});
+		expect(teamStoreInstance.persistRuntime).toHaveBeenLastCalledWith(
+			expect.any(String),
+			expect.any(Object),
+			expect.not.arrayContaining([
+				expect.objectContaining({ agentId: "java-poet" }),
+			]),
+		);
+
+		runtimeInstance.emit({
+			type: "teammate_spawned",
+			agentId: "cleanup-target",
+			teammate: { rolePrompt: "Temporary cleanup target" },
+		});
+		runtimeInstance.emit({
+			type: "teammate_shutdown",
+			agentId: "cleanup-target",
+			reason: "team_cleanup",
+			shutdownMode: "destroy",
+		});
+		expect(teamStoreInstance.persistRuntime).toHaveBeenLastCalledWith(
+			expect.any(String),
+			expect.any(Object),
+			expect.not.arrayContaining([
+				expect.objectContaining({ agentId: "cleanup-target" }),
 			]),
 		);
 	});

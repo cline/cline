@@ -37,7 +37,7 @@ const CapsulePathSchema = z
 					normalized === ".git" ||
 					normalized === ".ssh" ||
 					normalized === ".env" ||
-					normalized.startsWith(".env.")
+					(normalized.startsWith(".env.") && normalized !== ".env.example")
 				);
 			}),
 		"Capsule paths must be normalized, relative POSIX paths without traversal",

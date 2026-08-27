@@ -837,6 +837,46 @@ describe("createAgentTeamsTools runtime behavior", () => {
 		expect(result2.message).toContain("already dispatched");
 	});
 
+	it("generates a unique sync run id for each invocation without a tool call id", async () => {
+		const routeToTeammate = vi.fn(async () => ({
+			text: "done",
+			iterations: 1,
+		}));
+		const runtime = {
+			routeToTeammate,
+			getMemberRole: vi.fn(() => "lead"),
+		} as unknown as AgentTeamsRuntime;
+		const runTask = createAgentTeamsTools({
+			runtime,
+			requesterId: "lead",
+			teammateConfigProvider: makeTeammateConfigProvider(),
+		}).find((tool) => tool.name === "team_run_task");
+		if (!runTask) throw new Error("Expected team_run_task tool to be defined");
+		const context = {
+			agentId: "lead",
+			conversationId: "conv-1",
+			runId: "parent-run",
+			iteration: 1,
+		};
+		const input = {
+			agentId: "reviewer",
+			task: "Review",
+			runMode: "sync",
+		};
+
+		await runTask.execute(input, context);
+		await runTask.execute(input, context);
+
+		const routeCalls = routeToTeammate.mock.calls as unknown as Array<
+			[unknown, unknown, { runId?: string }]
+		>;
+		const firstRunId = routeCalls[0]?.[2]?.runId;
+		const secondRunId = routeCalls[1]?.[2]?.runId;
+		expect(firstRunId).toMatch(/^parent-run:/);
+		expect(secondRunId).toMatch(/^parent-run:/);
+		expect(secondRunId).not.toBe(firstRunId);
+	});
+
 	it("returns explicit dispatch state for async team_run_task calls", async () => {
 		const runtime = {
 			startTeammateRun: vi.fn(() => ({ id: "run_00001" })),

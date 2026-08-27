@@ -607,7 +607,9 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 			});
 		}
 
-		const ensureTeamRuntime = (): AgentTeamsRuntime | undefined => {
+		const ensureTeamRuntime = async (): Promise<
+			AgentTeamsRuntime | undefined
+		> => {
 			if (!normalized.enableAgentTeams) {
 				return undefined;
 			}
@@ -634,6 +636,11 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 								const spec: TeamTeammateSpec = {
 									agentId: event.agentId,
 									rolePrompt: event.teammate.rolePrompt,
+									execution: event.teammate.execution,
+									cloudNodeId:
+										event.teammate.execution === "cloud"
+											? event.teammate.runtimeAgentId
+											: undefined,
 									modelId: event.teammate.modelId,
 									maxIterations: event.teammate.maxIterations,
 								};
@@ -641,7 +648,9 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 							}
 							if (
 								event.type === "teammate_shutdown" &&
-								!isRuntimeLifecycleShutdownReason(event.reason)
+								(event.shutdownMode === "destroy" ||
+									(event.shutdownMode === undefined &&
+										!isRuntimeLifecycleShutdownReason(event.reason)))
 							) {
 								teammateSpecs.delete(event.agentId);
 							}
@@ -665,9 +674,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 				if (!teamRuntime) {
 					return undefined;
 				}
-				teamToolsRegistered = true;
-
-				const teamBootstrap = bootstrapAgentTeams({
+				const teamBootstrap = await bootstrapAgentTeams({
 					runtime: teamRuntime,
 					leadAgentId: config.sessionId || "lead",
 					restoredFromPersistence: Boolean(restoredTeamState),
@@ -694,6 +701,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 								)
 						: undefined,
 					teammateConfigProvider: delegatedAgentConfigProvider,
+					cloudTeammates: config.cloudTeammates,
 				});
 
 				if (restoredStateHydratedIntoRuntime) {
@@ -704,6 +712,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 					onTeamRestored?.();
 				}
 				tools.push(...teamBootstrap.tools);
+				teamToolsRegistered = true;
 			}
 
 			return teamRuntime;
@@ -714,14 +723,14 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 			tools.push({
 				...spawnTool,
 				execute: async (spawnInput, context) => {
-					ensureTeamRuntime();
+					await ensureTeamRuntime();
 					return spawnTool.execute(spawnInput, context);
 				},
 			});
 		}
 
 		if (normalized.enableAgentTeams) {
-			ensureTeamRuntime();
+			await ensureTeamRuntime();
 		}
 
 		const finalTools = filterAvailableTools(tools, effectiveToolPolicies);

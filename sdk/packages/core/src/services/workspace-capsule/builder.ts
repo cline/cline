@@ -69,8 +69,16 @@ export interface WorkspaceCapsulePayloadPlanEntry {
 export interface WorkspaceCapsulePlan {
 	manifest: WorkspaceCapsuleManifest;
 	payloads: WorkspaceCapsulePayloadPlanEntry[];
+	/** Sensitive descendants omitted while recursively walking a selection. */
+	skippedPaths: WorkspaceCapsuleSkippedPath[];
 	/** Resolved planning limits; archive writers enforce maxArchiveBytes. */
 	limits: WorkspaceCapsuleLimits;
+}
+
+export interface WorkspaceCapsuleSkippedPath {
+	rootId: string;
+	path: string;
+	reason: "blocked_path" | "blocked_secret";
 }
 
 export type WorkspaceCapsulePlanningErrorCode =
@@ -266,7 +274,7 @@ function normalizedDestination(value: string): string {
 				lower === ".git" ||
 				lower === ".ssh" ||
 				lower === ".env" ||
-				lower.startsWith(".env.")
+				(lower.startsWith(".env.") && lower !== ".env.example")
 			);
 		})
 	) {
@@ -304,10 +312,14 @@ function assertPathIsAllowed(sourceRelativePath: string): void {
 	}
 	const basename = segments.at(-1)?.toLowerCase();
 	if (!basename) return;
+	// Checked-in examples are useful source context and intentionally contain
+	// placeholders. Their contents still pass through the secret scanner.
+	const isEnvironmentExample = basename === ".env.example";
 	if (
 		BLOCKED_DIRECTORY_NAMES.has(basename) ||
 		BLOCKED_EXACT_FILE_NAMES.has(basename) ||
-		BLOCKED_SECRET_FILE_PATTERNS.some((pattern) => pattern.test(basename))
+		(!isEnvironmentExample &&
+			BLOCKED_SECRET_FILE_PATTERNS.some((pattern) => pattern.test(basename)))
 	) {
 		fail(
 			"BLOCKED_PATH",
@@ -423,6 +435,7 @@ export async function buildWorkspaceCapsulePlan(
 		WorkspaceCapsuleEntry & { sourcePath: string }
 	>();
 	const payloads: WorkspaceCapsulePayloadPlanEntry[] = [];
+	const skippedPaths: WorkspaceCapsuleSkippedPath[] = [];
 	let totalBytes = 0;
 
 	const reserveEntry = (
@@ -469,8 +482,25 @@ export async function buildWorkspaceCapsulePlan(
 		sourceRelativePath: string;
 		manifestPath: string;
 		purpose: "workspace" | "artifact";
+		directSelection: boolean;
 	}): Promise<void> => {
-		assertPathIsAllowed(input.sourceRelativePath);
+		try {
+			assertPathIsAllowed(input.sourceRelativePath);
+		} catch (error) {
+			if (
+				!input.directSelection &&
+				error instanceof WorkspaceCapsulePlanningError &&
+				error.code === "BLOCKED_PATH"
+			) {
+				skippedPaths.push({
+					rootId: input.root.id,
+					path: input.sourceRelativePath,
+					reason: "blocked_path",
+				});
+				return;
+			}
+			throw error;
+		}
 
 		let stat: Stats;
 		try {
@@ -513,6 +543,7 @@ export async function buildWorkspaceCapsulePlan(
 			for (const child of children) {
 				await visit({
 					...input,
+					directSelection: false,
 					absolutePath: resolve(input.absolutePath, child.name),
 					sourceRelativePath: childManifestPath(
 						input.sourceRelativePath === "." ? "" : input.sourceRelativePath,
@@ -543,11 +574,24 @@ export async function buildWorkspaceCapsulePlan(
 				input.sourceRelativePath,
 			);
 		}
-		const sha256 = await hashOpenFile(
-			input.absolutePath,
-			stat,
-			input.purpose === "workspace",
-		);
+		let sha256: string;
+		try {
+			sha256 = await hashOpenFile(input.absolutePath, stat, true);
+		} catch (error) {
+			if (
+				!input.directSelection &&
+				error instanceof WorkspaceCapsulePlanningError &&
+				error.code === "BLOCKED_SECRET"
+			) {
+				skippedPaths.push({
+					rootId: input.root.id,
+					path: input.sourceRelativePath,
+					reason: "blocked_secret",
+				});
+				return;
+			}
+			throw error;
+		}
 		const entry: WorkspaceCapsuleEntry = {
 			kind: "file",
 			path: input.manifestPath,
@@ -611,6 +655,7 @@ export async function buildWorkspaceCapsulePlan(
 			sourceRelativePath,
 			manifestPath,
 			purpose: selection.purpose ?? "workspace",
+			directSelection: true,
 		});
 	}
 
@@ -631,5 +676,10 @@ export async function buildWorkspaceCapsulePlan(
 		team: options.team,
 	});
 
-	return { manifest, payloads, limits };
+	skippedPaths.sort((left, right) =>
+		left.rootId === right.rootId
+			? left.path.localeCompare(right.path)
+			: left.rootId.localeCompare(right.rootId),
+	);
+	return { manifest, payloads, skippedPaths, limits };
 }

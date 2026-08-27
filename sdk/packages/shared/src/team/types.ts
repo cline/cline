@@ -71,6 +71,7 @@ export interface TeamMemberSnapshot {
 
 export interface TeammateLifecycleSpec {
 	rolePrompt: string;
+	execution?: "local" | "cloud";
 	modelId?: string;
 	maxIterations?: number;
 	runtimeAgentId?: string;
@@ -206,6 +207,10 @@ export interface ReviewTeamOutcomeFragmentInput {
 }
 
 export interface RouteToTeammateOptions {
+	/** Stable Teams run id for retry/reattach idempotency. */
+	runId?: string;
+	/** Cancels only the caller's wait; durable remote runs continue. */
+	signal?: AbortSignal;
 	taskId?: string;
 	fromAgentId?: string;
 	continueConversation?: boolean;

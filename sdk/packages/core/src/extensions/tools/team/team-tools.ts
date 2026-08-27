@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { AgentResult } from "@cline/shared";
 import {
 	type AgentTool,
@@ -71,6 +72,11 @@ import {
 	validateWithZod,
 	zodToJsonSchema,
 } from "@cline/shared";
+import {
+	type CloudTeammateConfiguration,
+	provisionCloudTeammate,
+	reattachCloudTeammate,
+} from "./cloud-teammate";
 import {
 	buildDelegatedAgentConfig,
 	type DelegatedAgentConfigProvider,
@@ -172,6 +178,8 @@ export interface CreateAgentTeamsToolsOptions {
 	includeSpawnTool?: boolean;
 	includeManagementTools?: boolean;
 	onLeadToolsUnlocked?: (tools: AgentTool[]) => void;
+	/** One-time parent configuration. When omitted, no cloud tool is exposed. */
+	cloudTeammates?: CloudTeammateConfiguration;
 }
 
 export interface BootstrapAgentTeamsOptions {
@@ -184,16 +192,19 @@ export interface BootstrapAgentTeamsOptions {
 	includeLeadSpawnTool?: boolean;
 	includeLeadManagementTools?: boolean;
 	onLeadToolsUnlocked?: (tools: AgentTool[]) => void;
+	cloudTeammates?: CloudTeammateConfiguration;
 }
 
 export interface BootstrapAgentTeamsResult {
 	tools: AgentTool[];
 	restoredFromPersistence: boolean;
 	restoredTeammates: string[];
+	failedRestoredTeammates: string[];
 }
 
 export const TEAM_TOOL_NAMES = [
 	"team_spawn_teammate",
+	"team_spawn_cloud_teammate",
 	"team_shutdown_teammate",
 	"team_status",
 	"team_task",
@@ -250,9 +261,9 @@ function spawnTeamTeammate(
 	});
 }
 
-export function bootstrapAgentTeams(
+export async function bootstrapAgentTeams(
 	options: BootstrapAgentTeamsOptions,
-): BootstrapAgentTeamsResult {
+): Promise<BootstrapAgentTeamsResult> {
 	const leadAgentId = options.leadAgentId ?? "lead";
 	const restoredFromPersistence = options.restoredFromPersistence === true;
 
@@ -265,11 +276,43 @@ export function bootstrapAgentTeams(
 		includeSpawnTool: options.includeLeadSpawnTool,
 		includeManagementTools: options.includeLeadManagementTools,
 		onLeadToolsUnlocked: options.onLeadToolsUnlocked,
+		cloudTeammates: options.cloudTeammates,
 	});
 
 	const restoredTeammates: string[] = [];
+	const failedRestoredTeammates: string[] = [];
 	for (const spec of options.restoredTeammates ?? []) {
 		if (options.runtime.isTeammateActive(spec.agentId)) {
+			continue;
+		}
+		if (spec.execution === "cloud") {
+			if (!options.cloudTeammates || !spec.cloudNodeId) {
+				continue;
+			}
+			try {
+				await reattachCloudTeammate({
+					runtime: options.runtime,
+					configuration: options.cloudTeammates,
+					agentId: spec.agentId,
+					rolePrompt: spec.rolePrompt,
+					nodeId: spec.cloudNodeId,
+				});
+			} catch {
+				// One stale or temporarily unreachable durable node must not prevent
+				// the parent session from starting. Keep its persisted spec for a
+				// future reattach, but mark the hydrated member stopped locally.
+				try {
+					options.runtime.shutdownTeammate(
+						spec.agentId,
+						"cloud_reattach_failed",
+					);
+				} catch {
+					// A spec can outlive its runtime member; either way it is not active.
+				}
+				failedRestoredTeammates.push(spec.agentId);
+				continue;
+			}
+			restoredTeammates.push(spec.agentId);
 			continue;
 		}
 		spawnTeamTeammate({
@@ -286,6 +329,7 @@ export function bootstrapAgentTeams(
 		tools,
 		restoredFromPersistence,
 		restoredTeammates,
+		failedRestoredTeammates,
 	};
 }
 
@@ -342,6 +386,58 @@ export function createAgentTeamsTools(
 				},
 			}) as AgentTool,
 		);
+
+		const cloudTeammates = options.cloudTeammates;
+		if (cloudTeammates?.enabled) {
+			tools.push(
+				createTool<TeamSpawnTeammateInput, { agentId: string; status: string }>(
+					{
+						name: "team_spawn_cloud_teammate",
+						description:
+							"Provision a cloud-backed teammate using the parent-selected initial workspace capsule. Cloud access was already enabled by the parent; do not ask for confirmation again.",
+						inputSchema: zodToJsonSchema(TeamSpawnTeammateInputSchema),
+						execute: async (input, context) => {
+							const validatedInput = validateWithZod(
+								TeamSpawnTeammateInputSchema,
+								input,
+							);
+							if (
+								options.runtime.getMemberRole(options.requesterId) !== "lead"
+							) {
+								throw new Error("Only the lead agent can manage teammates.");
+							}
+							if (!allowSpawn) {
+								throw new Error(
+									"Spawning teammates is disabled in this context.",
+								);
+							}
+							const provisioned = await provisionCloudTeammate({
+								runtime: options.runtime,
+								configuration: cloudTeammates,
+								agentId: validatedInput.agentId,
+								rolePrompt: validatedInput.rolePrompt,
+								signal: context.signal,
+							});
+							if (!includeManagementTools) {
+								options.onLeadToolsUnlocked?.(
+									createAgentTeamsTools({
+										...options,
+										includeSpawnTool: false,
+										includeManagementTools: true,
+										onLeadToolsUnlocked: undefined,
+									}),
+								);
+							}
+							return validateWithZod(TeamSimpleAgentStatusToolResultSchema, {
+								agentId: validatedInput.agentId,
+								status: "spawned_cloud",
+								skippedPaths: provisioned.skippedPaths,
+							});
+						},
+					},
+				) as AgentTool,
+			);
+		}
 	}
 
 	if (!includeManagementTools) {
@@ -361,7 +457,7 @@ export function createAgentTeamsTools(
 				if (options.runtime.getMemberRole(options.requesterId) !== "lead") {
 					throw new Error("Only the lead agent can manage teammates.");
 				}
-				options.runtime.shutdownTeammate(
+				await options.runtime.shutdownTeammateAndWait(
 					validatedInput.agentId,
 					validatedInput.reason,
 				);
@@ -496,7 +592,7 @@ export function createAgentTeamsTools(
 			description:
 				"Route a delegated task to a teammate. Choose sync (wait) or async (run in background).",
 			inputSchema: zodToJsonSchema(TeamRunTaskInputSchema),
-			execute: async (input) => {
+			execute: async (input, context) => {
 				const validatedInput = validateWithZod(TeamRunTaskInputSchema, input);
 				if (validatedInput.runMode === "async") {
 					const run = options.runtime.startTeammateRun(
@@ -533,10 +629,14 @@ export function createAgentTeamsTools(
 				}
 				const runPromise = options.runtime
 					.routeToTeammate(validatedInput.agentId, validatedInput.task, {
+						runId:
+							context.toolCallId ??
+							`${context.runId ?? "cline-sync"}:${randomUUID()}`,
 						taskId: validatedInput.taskId || undefined,
 						fromAgentId: options.requesterId,
 						continueConversation:
 							validatedInput.continueConversation || undefined,
+						signal: context.signal,
 					})
 					.then((result) =>
 						validateWithZod(TeamRunTaskToolResultSchema, {
@@ -736,7 +836,7 @@ export function createAgentTeamsTools(
 				if (options.runtime.getMemberRole(options.requesterId) !== "lead") {
 					throw new Error("Only the lead agent can run cleanup.");
 				}
-				options.runtime.cleanup();
+				await options.runtime.cleanupAndWait();
 				return validateWithZod(TeamCleanupToolResultSchema, {
 					status: "cleaned",
 				});

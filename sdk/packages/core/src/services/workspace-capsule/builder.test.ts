@@ -119,15 +119,63 @@ describe("buildWorkspaceCapsulePlan", () => {
 		});
 	});
 
-	it("fails a directory selection containing sensitive configuration", async () => {
+	it("skips and reports sensitive descendants of a recursive selection", async () => {
 		const root = await temporaryDirectory();
 		await mkdir(join(root, ".cline"));
 		await writeFile(join(root, ".cline", "rules.md"), "untrusted rules");
+		await writeFile(join(root, "safe.txt"), "safe");
+
+		const plan = await buildWorkspaceCapsulePlan({
+			roots: [{ id: "workspace", path: root }],
+			selections: [{ rootId: "workspace", path: "." }],
+		});
+
+		expect(plan.manifest.entries.map((entry) => entry.path)).toEqual([
+			"safe.txt",
+		]);
+		expect(plan.skippedPaths).toEqual([
+			{ rootId: "workspace", path: ".cline", reason: "blocked_path" },
+		]);
+	});
+
+	it("supports a repository-root selection while skipping .git and real env files", async () => {
+		const root = await temporaryDirectory();
+		await mkdir(join(root, ".git"));
+		await writeFile(join(root, ".git", "config"), "sensitive metadata");
+		await writeFile(join(root, ".env"), "TOKEN=real-secret-value-123456");
+		await writeFile(
+			join(root, ".env.example"),
+			"OPENAI_API_KEY=example-placeholder\n",
+		);
+		await writeFile(join(root, "package.json"), "{}\n");
+
+		const plan = await buildWorkspaceCapsulePlan({
+			roots: [{ id: "repo", path: root }],
+			selections: [{ rootId: "repo", path: "." }],
+		});
+
+		expect(plan.manifest.entries.map((entry) => entry.path)).toEqual([
+			".env.example",
+			"package.json",
+		]);
+		expect(plan.skippedPaths).toEqual([
+			{ rootId: "repo", path: ".env", reason: "blocked_path" },
+			{ rootId: "repo", path: ".git", reason: "blocked_path" },
+		]);
+	});
+
+	it.each([
+		".git",
+		".env",
+	])("still rejects directly selected blocked path %s", async (name) => {
+		const root = await temporaryDirectory();
+		if (name === ".git") await mkdir(join(root, name));
+		else await writeFile(join(root, name), "secret");
 
 		await expect(
 			buildWorkspaceCapsulePlan({
 				roots: [{ id: "workspace", path: root }],
-				selections: [{ rootId: "workspace", path: "." }],
+				selections: [{ rootId: "workspace", path: name }],
 			}),
 		).rejects.toMatchObject({ code: "BLOCKED_PATH" });
 	});
@@ -174,6 +222,48 @@ describe("buildWorkspaceCapsulePlan", () => {
 		});
 
 		expect(plan.manifest.entries).toHaveLength(2);
+	});
+
+	it("scans textual artifact contents for high-confidence secrets", async () => {
+		const root = await temporaryDirectory();
+		await writeFile(
+			join(root, "build.log"),
+			"GITHUB_TOKEN=abcdefghijklmnopqrstuvwxyz0123456789\n",
+		);
+
+		await expect(
+			buildWorkspaceCapsulePlan({
+				roots: [{ id: "artifacts", path: root }],
+				selections: [
+					{ rootId: "artifacts", path: "build.log", purpose: "artifact" },
+				],
+			}),
+		).rejects.toMatchObject({ code: "BLOCKED_SECRET" });
+	});
+
+	it("skips and reports secret content discovered during a recursive walk", async () => {
+		const root = await temporaryDirectory();
+		await writeFile(join(root, "safe.txt"), "safe\n");
+		await writeFile(
+			join(root, "leaked-fixture.txt"),
+			"-----BEGIN PRIVATE KEY-----\nnot-real\n",
+		);
+
+		const plan = await buildWorkspaceCapsulePlan({
+			roots: [{ id: "workspace", path: root }],
+			selections: [{ rootId: "workspace", path: "." }],
+		});
+
+		expect(plan.manifest.entries.map((entry) => entry.path)).toEqual([
+			"safe.txt",
+		]);
+		expect(plan.skippedPaths).toEqual([
+			{
+				rootId: "workspace",
+				path: "leaked-fixture.txt",
+				reason: "blocked_secret",
+			},
+		]);
 	});
 
 	it("blocks traversal and symlinks that escape an approved root", async () => {

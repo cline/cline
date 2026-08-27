@@ -65,6 +65,12 @@ function parseTeammatesJson(raw: string): TeamTeammateSpec[] {
 			agentId: agentId.trim(),
 			rolePrompt,
 		};
+		if (rec.execution === "local" || rec.execution === "cloud") {
+			spec.execution = rec.execution;
+		}
+		if (typeof rec.cloudNodeId === "string" && rec.cloudNodeId.trim()) {
+			spec.cloudNodeId = rec.cloudNodeId.trim();
+		}
 		if (typeof rec.modelId === "string" && rec.modelId.trim()) {
 			spec.modelId = rec.modelId.trim();
 		}

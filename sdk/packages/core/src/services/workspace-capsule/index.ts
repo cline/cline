@@ -10,6 +10,7 @@ export {
 	type WorkspaceCapsuleLimits,
 	type WorkspaceCapsulePayloadPlanEntry,
 	type WorkspaceCapsulePlan,
+	type WorkspaceCapsuleSkippedPath,
 	WorkspaceCapsulePlanningError,
 	type WorkspaceCapsulePlanningErrorCode,
 	type WorkspaceCapsuleSelection,

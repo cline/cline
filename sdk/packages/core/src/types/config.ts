@@ -16,7 +16,10 @@ import type {
 	SessionWorkspaceConfig,
 } from "@cline/shared";
 import type { ToolRoutingRule } from "../extensions/tools/model-tool-routing";
-import type { TeamEvent } from "../extensions/tools/team";
+import type {
+	CloudTeammateConfiguration,
+	TeamEvent,
+} from "../extensions/tools/team";
 import type { ProviderConfig } from "./provider-settings";
 
 export type CoreAgentMode = AgentMode;
@@ -276,6 +279,11 @@ export interface CoreSessionConfig
 	compaction?: CoreCompactionConfig;
 	checkpoint?: CoreCheckpointConfig;
 	onTeamEvent?: (event: TeamEvent) => void;
+	/**
+	 * Explicit local-runtime opt-in for cloud teammates. This contains a
+	 * process-local control-plane adapter and is not serialized to a Hub.
+	 */
+	cloudTeammates?: CloudTeammateConfiguration;
 	onConsecutiveMistakeLimitReached?: (
 		context: ConsecutiveMistakeLimitContext,
 	) =>

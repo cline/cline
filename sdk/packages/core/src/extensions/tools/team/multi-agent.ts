@@ -98,7 +98,13 @@ export type TeamEvent =
 			role?: string;
 			teammate: TeammateLifecycleSpec;
 	  }
-	| { type: TeamMessageType.TeammateShutdown; agentId: string; reason?: string }
+	| {
+			type: TeamMessageType.TeammateShutdown;
+			agentId: string;
+			reason?: string;
+			/** Internal lifecycle intent; never derived from a model-provided reason. */
+			shutdownMode?: "detach" | "destroy";
+	  }
 	| { type: TeamMessageType.TeamTaskUpdated; task: TeamTask }
 	| { type: TeamMessageType.TeamMessage; message: TeamMailboxMessage }
 	| { type: TeamMessageType.TeamMissionLog; entry: MissionLogEntry }
@@ -136,6 +142,27 @@ export interface AgentTeamsRuntimeOptions {
 export interface SpawnTeammateOptions {
 	agentId: string;
 	config: TeamMemberConfig;
+}
+
+/**
+ * Execution boundary for a teammate whose agent loop is owned outside this
+ * process (for example, by a Cline Cloud sandbox). The Teams runtime remains
+ * the source of task/run/mailbox state; only execution is delegated.
+ */
+export interface ManagedTeammateRunner {
+	canStartRun(): boolean;
+	run(message: string, options?: RouteToTeammateOptions): Promise<AgentResult>;
+	/** Detach this parent process without terminating durable remote work. */
+	detach(): Promise<void> | void;
+	/** Explicitly terminate and destroy the externally managed teammate. */
+	shutdown(reason?: string): Promise<void> | void;
+}
+
+export interface SpawnManagedTeammateOptions {
+	agentId: string;
+	description: string;
+	runner: ManagedTeammateRunner;
+	lifecycle?: TeammateLifecycleSpec;
 }
 
 function isAbortLikeError(error: unknown): boolean {
@@ -513,6 +540,7 @@ export function createWorkerReviewerTeam(configs: {
 
 interface TeamMemberState extends TeamMemberSnapshot {
 	agent?: SessionRuntime;
+	managedRunner?: ManagedTeammateRunner;
 	runningCount: number;
 	lastMissionStep: number;
 	lastMissionAt: number;
@@ -520,7 +548,7 @@ interface TeamMemberState extends TeamMemberSnapshot {
 }
 
 export class AgentTeamsRuntime {
-	private readonly teamId: string;
+	private teamId: string;
 	private readonly teamName: string;
 	private readonly onTeamEvent?: (event: TeamEvent) => void;
 	private readonly members: Map<string, TeamMemberState> = new Map();
@@ -723,6 +751,7 @@ export class AgentTeamsRuntime {
 	}
 
 	hydrateState(state: TeamRuntimeState): void {
+		this.teamId = state.teamId;
 		this.clearQueuedRunDispatchTimer();
 		this.tasks.clear();
 		for (const task of state.tasks) {
@@ -833,7 +862,12 @@ export class AgentTeamsRuntime {
 
 	isTeammateActive(agentId: string): boolean {
 		const member = this.members.get(agentId);
-		return !!member && member.role === "teammate" && !!member.agent;
+		return (
+			!!member &&
+			member.role === "teammate" &&
+			member.status !== "stopped" &&
+			(!!member.agent || !!member.managedRunner)
+		);
 	}
 
 	spawnTeammate({ agentId, config }: SpawnTeammateOptions): TeamMemberSnapshot {
@@ -904,6 +938,52 @@ export class AgentTeamsRuntime {
 		};
 	}
 
+	spawnManagedTeammate({
+		agentId,
+		description,
+		runner,
+		lifecycle,
+	}: SpawnManagedTeammateOptions): TeamMemberSnapshot {
+		const existing = this.members.get(agentId);
+		if (existing && existing.role !== "teammate") {
+			throw new Error(
+				`Team member "${agentId}" already exists and is not a teammate`,
+			);
+		}
+		if (existing && existing.runningCount > 0) {
+			throw new Error(
+				`Teammate "${agentId}" is currently running and cannot be respawned`,
+			);
+		}
+
+		const teammate: TeamMemberState = {
+			agentId,
+			role: "teammate",
+			description,
+			status: "idle",
+			managedRunner: runner,
+			runningCount: 0,
+			lastMissionStep: 0,
+			lastMissionAt: Date.now(),
+		};
+		this.members.set(agentId, teammate);
+		this.emitEvent({
+			type: TeamMessageType.TeammateSpawned,
+			agentId,
+			role: description,
+			teammate: {
+				rolePrompt: description,
+				...lifecycle,
+			},
+		});
+		return {
+			agentId: teammate.agentId,
+			role: teammate.role,
+			description: teammate.description,
+			status: teammate.status,
+		};
+	}
+
 	shutdownTeammate(agentId: string, reason?: string): void {
 		const member = this.members.get(agentId);
 		if (!member || member.role !== "teammate") {
@@ -911,13 +991,49 @@ export class AgentTeamsRuntime {
 		}
 		try {
 			member.agent?.abort();
+			const detach = member.managedRunner?.detach();
+			if (detach) {
+				void Promise.resolve(detach).catch(() => undefined);
+			}
 		} catch (error) {
 			if (!isAbortLikeError(error)) {
 				throw error;
 			}
 		}
 		member.status = "stopped";
-		this.emitEvent({ type: TeamMessageType.TeammateShutdown, agentId, reason });
+		this.emitEvent({
+			type: TeamMessageType.TeammateShutdown,
+			agentId,
+			reason,
+			shutdownMode: "detach",
+		});
+	}
+
+	async shutdownTeammateAndWait(
+		agentId: string,
+		reason?: string,
+	): Promise<void> {
+		const member = this.members.get(agentId);
+		if (!member || member.role !== "teammate") {
+			throw new Error(`Teammate "${agentId}" was not found`);
+		}
+		try {
+			member.agent?.abort();
+			// The model-facing reason is descriptive only. It must never select a
+			// destructive control-plane scope such as whole-team cleanup.
+			await member.managedRunner?.shutdown("explicit_teammate_shutdown");
+		} catch (error) {
+			if (!isAbortLikeError(error)) {
+				throw error;
+			}
+		}
+		member.status = "stopped";
+		this.emitEvent({
+			type: TeamMessageType.TeammateShutdown,
+			agentId,
+			reason,
+			shutdownMode: "destroy",
+		});
 	}
 
 	updateTeammateConnections(
@@ -1017,10 +1133,17 @@ export class AgentTeamsRuntime {
 		options?: RouteToTeammateOptions,
 	): Promise<AgentResult> {
 		const member = this.members.get(agentId);
-		if (!member || member.role !== "teammate" || !member.agent) {
+		if (
+			!member ||
+			member.role !== "teammate" ||
+			(!member.agent && !member.managedRunner)
+		) {
 			throw new Error(`Teammate "${agentId}" was not found`);
 		}
-		if (!member.agent.canStartRun()) {
+		const canStartRun = member.agent
+			? member.agent.canStartRun()
+			: (member.managedRunner?.canStartRun() ?? false);
+		if (!canStartRun) {
 			throw new Error(
 				`Cannot start a new run while another run is already in progress`,
 			);
@@ -1039,9 +1162,11 @@ export class AgentTeamsRuntime {
 				unreadMail.length > 0
 					? `${this.buildMailboxNotification(unreadMail)}\n\n${message}`
 					: message;
-			const result = options?.continueConversation
-				? await member.agent.continue(enrichedMessage)
-				: await member.agent.run(enrichedMessage);
+			const result = member.agent
+				? options?.continueConversation
+					? await member.agent.continue(enrichedMessage)
+					: await member.agent.run(enrichedMessage)
+				: await member.managedRunner!.run(enrichedMessage, options);
 			this.emitEvent({ type: TeamMessageType.TaskEnd, agentId, result });
 			this.recordProgressStep(
 				agentId,
@@ -1056,7 +1181,7 @@ export class AgentTeamsRuntime {
 				type: TeamMessageType.TaskEnd,
 				agentId,
 				error: err,
-				messages: member.agent.getMessages(),
+				messages: member.agent?.getMessages(),
 			});
 			if (!isIntentionalShutdownAbort(member, err)) {
 				this.appendMissionLog({
@@ -1215,6 +1340,7 @@ export class AgentTeamsRuntime {
 				? buildRecoveredRunMessage(run)
 				: run.message;
 			const result = await this.routeToTeammate(run.agentId, runMessage, {
+				runId: run.id,
 				taskId: run.taskId,
 				continueConversation: run.continueConversation,
 			});
@@ -1346,7 +1472,11 @@ export class AgentTeamsRuntime {
 			}
 
 			const member = this.members.get(run.agentId);
-			if (!member || member.role !== "teammate" || !member.agent) {
+			if (
+				!member ||
+				member.role !== "teammate" ||
+				(!member.agent && !member.managedRunner)
+			) {
 				run.status = "interrupted";
 				run.error = "teammate_unavailable_after_recovery";
 				run.endedAt = new Date();
@@ -1639,6 +1769,60 @@ export class AgentTeamsRuntime {
 		this.outcomes.clear();
 		this.outcomeFragments.clear();
 
+		for (const [memberId, member] of this.members.entries()) {
+			if (member.role === "teammate") {
+				this.members.delete(memberId);
+			}
+		}
+	}
+
+	async cleanupAndWait(): Promise<void> {
+		for (const member of this.members.values()) {
+			if (member.role === "teammate" && member.runningCount > 0) {
+				throw new Error(
+					`Cannot cleanup team while teammate "${member.agentId}" is still running`,
+				);
+			}
+		}
+		if (
+			Array.from(this.runs.values()).some((run) =>
+				["queued", "running"].includes(run.status),
+			)
+		) {
+			throw new Error(
+				"Cannot cleanup team while async teammate runs are still active",
+			);
+		}
+
+		for (const member of this.members.values()) {
+			if (member.role !== "teammate") {
+				continue;
+			}
+			try {
+				member.agent?.abort();
+				await member.managedRunner?.shutdown("team_cleanup");
+			} catch (error) {
+				if (!isAbortLikeError(error)) {
+					throw error;
+				}
+			}
+			member.status = "stopped";
+			this.emitEvent({
+				type: TeamMessageType.TeammateShutdown,
+				agentId: member.agentId,
+				reason: "team_cleanup",
+				shutdownMode: "destroy",
+			});
+		}
+
+		this.tasks.clear();
+		this.mailbox.length = 0;
+		this.missionLog.length = 0;
+		this.runs.clear();
+		this.runQueue.length = 0;
+		this.clearQueuedRunDispatchTimer();
+		this.outcomes.clear();
+		this.outcomeFragments.clear();
 		for (const [memberId, member] of this.members.entries()) {
 			if (member.role === "teammate") {
 				this.members.delete(memberId);

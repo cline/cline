@@ -26,12 +26,31 @@ export {
 // =============================================================================
 
 export {
+	type CloudInitialCapsuleConfiguration,
+	type CloudTeammateConfiguration,
+	type CloudTeammateControlPlane,
+	type CloudTeammateProvisionInput,
+	type CloudTeammateProvisionResult,
+	type CloudTeammateRunInput,
+	type ProvisionCloudTeammateOptions,
+	provisionCloudTeammate,
+	type ReattachCloudTeammateOptions,
+	reattachCloudTeammate,
+} from "./cloud-teammate";
+export {
+	createHttpCloudTeammateControlPlane,
+	HttpCloudTeammateControlPlane,
+	type HttpCloudTeammateControlPlaneOptions,
+} from "./http-cloud-teammate-control-plane";
+export {
 	type AgentTask,
 	AgentTeam,
 	AgentTeamsRuntime,
 	type AgentTeamsRuntimeOptions,
 	createAgentTeam,
 	createWorkerReviewerTeam,
+	type ManagedTeammateRunner,
+	type SpawnManagedTeammateOptions,
 	type SpawnTeammateOptions,
 	type TaskResult,
 	type TeamEvent,

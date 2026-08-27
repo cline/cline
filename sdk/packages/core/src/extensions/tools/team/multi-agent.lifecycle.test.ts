@@ -206,7 +206,40 @@ describe("AgentTeamsRuntime teammate lifecycle events", () => {
 			type: TeamMessageType.TeammateShutdown,
 			agentId: "python-poet",
 			reason: "manual_restart",
+			shutdownMode: "detach",
 		});
+	});
+
+	it("emits destroy shutdown events for every teammate during awaited cleanup", async () => {
+		const events: TeamEvent[] = [];
+		const shutdown = vi.fn(async () => undefined);
+		const runtime = new AgentTeamsRuntime({
+			teamName: "cleanup-team",
+			onTeamEvent: (event) => events.push(event),
+		});
+		runtime.spawnManagedTeammate({
+			agentId: "cloud-reviewer",
+			description: "Review in cloud",
+			runner: {
+				canStartRun: () => true,
+				run: vi.fn(),
+				detach: vi.fn(),
+				shutdown,
+			},
+		});
+
+		await runtime.cleanupAndWait();
+
+		expect(shutdown).toHaveBeenCalledWith("team_cleanup");
+		expect(events).toContainEqual({
+			type: TeamMessageType.TeammateShutdown,
+			agentId: "cloud-reviewer",
+			reason: "team_cleanup",
+			shutdownMode: "destroy",
+		});
+		expect(runtime.getSnapshot().members).not.toContainEqual(
+			expect.objectContaining({ agentId: "cloud-reviewer" }),
+		);
 	});
 
 	it("marks an active queued run as cancelled when teammate shutdown aborts it", async () => {

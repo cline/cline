@@ -71,6 +71,14 @@ describe("WorkspaceCapsuleManifestSchema", () => {
 		);
 	});
 
+	it("allows a checked-in .env.example path", () => {
+		const manifest = validManifest();
+		manifest.entries[0].path = ".env.example";
+		expect(WorkspaceCapsuleManifestSchema.safeParse(manifest).success).toBe(
+			true,
+		);
+	});
+
 	it("rejects an incorrect aggregate byte count", () => {
 		const manifest = validManifest();
 		manifest.totalBytes = 11;

@@ -45,12 +45,31 @@ const TeamMemberSnapshotSchema = z.object({
 	status: z.enum(["idle", "running", "stopped"]),
 });
 
-export const TeamTeammateSpecSchema = z.object({
-	agentId: z.string(),
-	rolePrompt: z.string(),
-	modelId: z.string().optional(),
-	maxIterations: z.number().optional(),
-});
+export const TeamTeammateSpecSchema = z
+	.object({
+		agentId: z.string(),
+		rolePrompt: z.string(),
+		execution: z.enum(["local", "cloud"]).optional(),
+		cloudNodeId: z.string().min(1).optional(),
+		modelId: z.string().optional(),
+		maxIterations: z.number().optional(),
+	})
+	.superRefine((spec, ctx) => {
+		if (spec.execution === "cloud" && !spec.cloudNodeId) {
+			ctx.addIssue({
+				code: "custom",
+				path: ["cloudNodeId"],
+				message: "Cloud teammate specs require cloudNodeId",
+			});
+		}
+		if (spec.execution !== "cloud" && spec.cloudNodeId) {
+			ctx.addIssue({
+				code: "custom",
+				path: ["cloudNodeId"],
+				message: "cloudNodeId is only valid for cloud teammate specs",
+			});
+		}
+	});
 
 function nullableOptional<T extends z.ZodTypeAny>(schema: T) {
 	return z.preprocess(
@@ -404,6 +423,15 @@ export const TeamCreateOutcomeToolResultSchema = z.object({
 export const TeamSimpleAgentStatusToolResultSchema = z.object({
 	agentId: z.string(),
 	status: z.string(),
+	skippedPaths: z
+		.array(
+			z.object({
+				rootId: z.string(),
+				path: z.string(),
+				reason: z.enum(["blocked_path", "blocked_secret"]),
+			}),
+		)
+		.optional(),
 });
 
 export const TeamCancelRunToolResultSchema = z.object({
