@@ -1195,7 +1195,11 @@ export class AgentTeamsRuntime {
 	private async executeQueuedRun(
 		run: TeamRunRecord & { result?: AgentResult },
 	): Promise<void> {
-		const recoveredRun = run.currentActivity === RECOVERED_QUEUED_ACTIVITY;
+		// Retried attempts get the same preamble as crash-recovered runs: the
+		// teammate starts with a fresh conversation, so it must inspect
+		// workspace state instead of blindly redoing completed work.
+		const recoveredRun =
+			run.currentActivity === RECOVERED_QUEUED_ACTIVITY || run.retryCount > 0;
 		run.nextAttemptAt = undefined;
 		run.status = "running";
 		run.startedAt = new Date();
@@ -1232,6 +1236,13 @@ export class AgentTeamsRuntime {
 			run.currentActivity = "completed";
 			this.emitEvent({ type: TeamMessageType.RunCompleted, run: { ...run } });
 		} catch (error) {
+			// Re-read through the map: `run.status` is narrowed by the earlier
+			// assignments, but cancelRun can mutate it across the await above.
+			if (this.runs.get(run.id)?.status === "cancelled") {
+				// cancelRun settled this run while the attempt was in flight;
+				// don't overwrite the cancellation or resurrect the run.
+				return;
+			}
 			const message =
 				error instanceof Error
 					? error.message

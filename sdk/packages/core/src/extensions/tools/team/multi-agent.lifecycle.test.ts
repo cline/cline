@@ -265,6 +265,53 @@ describe("AgentTeamsRuntime teammate lifecycle events", () => {
 		});
 	});
 
+	it("does not resurrect a cancelled run when its in-flight attempt later fails", async () => {
+		let rejectRun: ((error: Error) => void) | undefined;
+		// biome-ignore lint/complexity/useArrowFunction: `new SessionRuntime(...)` requires a non-arrow callable.
+		createSessionRuntimeMock.mockImplementationOnce(function () {
+			return {
+				abort: vi.fn(),
+				run: vi.fn(
+					() =>
+						new Promise((_, reject) => {
+							rejectRun = reject;
+						}),
+				),
+				continue: vi.fn(),
+				canStartRun: vi.fn(() => true),
+				getAgentId: vi.fn(() => "teammate-1"),
+				getConversationId: vi.fn(() => "conv-1"),
+				getMessages: vi.fn(() => []),
+				subscribeEvents: vi.fn(() => () => {}),
+			};
+		});
+		const runtime = new AgentTeamsRuntime({ teamName: "test-team" });
+
+		runtime.spawnTeammate({
+			agentId: "python-poet",
+			config: {
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-5-20250929",
+				systemPrompt: "Write concise Python-focused haiku",
+				tools: [],
+			},
+		});
+
+		const run = runtime.startTeammateRun("python-poet", "write something", {
+			maxRetries: 2,
+		});
+		runtime.cancelRun(run.id, "user_cancelled");
+		rejectRun?.(
+			new Error("terminated: SocketError: other side closed (UND_ERR_SOCKET)"),
+		);
+		await new Promise((resolve) => setTimeout(resolve, 0));
+
+		const settled = runtime.getRun(run.id);
+		expect(settled?.status).toBe("cancelled");
+		expect(settled?.error).toBe("user_cancelled");
+		expect(settled?.retryCount).toBe(0);
+	});
+
 	it("prepends unread mailbox notification to teammate message", async () => {
 		let routedMessage: string | undefined;
 		// biome-ignore lint/complexity/useArrowFunction: `new SessionRuntime(...)` requires a non-arrow callable.
