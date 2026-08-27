@@ -103,7 +103,11 @@ function registrationAuthority(
 	) {
 		throw new Error("Registration cwd must be inside its workspace");
 	}
-	return { clientId, workspaceContext: { workspaceRoot, cwd } };
+	return {
+		clientId,
+		workspaceContext: { workspaceRoot, cwd },
+		...(allowRegisteredWorkspace ? { crossWorkspace: true } : {}),
+	};
 }
 
 export class BrowserWebSocketHubAdapter {
