@@ -497,6 +497,7 @@ describe("session forks", () => {
 		const handoff = handleChatSessionCommand(ctx, {
 			action: "handoff",
 			sessionId: "starting-handoff-source",
+			handoffAttemptId: "attempt-a",
 			fingerprint: {
 				repoUrl: "https://github.com/cline/cline.git",
 				branch: "main",
@@ -504,6 +505,19 @@ describe("session forks", () => {
 				modelId: "anthropic/claude-sonnet-4.6",
 			},
 		});
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "handoff",
+				sessionId: "starting-handoff-source",
+				handoffAttemptId: "attempt-b",
+				fingerprint: {
+					repoUrl: "https://github.com/cline/cline.git",
+					branch: "main",
+					headSha: "abc123",
+					modelId: "anthropic/claude-sonnet-4.6",
+				},
+			}),
+		).rejects.toThrow("A different cloud handoff is already in progress");
 
 		await expect(
 			assertSessionDeleteAllowedDuringHandoff(ctx, "starting-handoff-source"),
@@ -2154,8 +2168,8 @@ describe("cloud handoff gates", () => {
 		expect(update).not.toHaveBeenCalled();
 	});
 
-	it("clears a mismatched pending handoff only after the target is gone", async () => {
-		const update = vi.fn(async () => ({ updated: true }));
+	it("preserves a mismatched pending handoff when it is invisible to the current account", async () => {
+		const update = vi.fn();
 		await expect(
 			reconcilePendingCloudHandoff(
 				{ update } as never,
@@ -2168,10 +2182,8 @@ describe("cloud handoff gates", () => {
 					appBaseUrl: "https://app.cline.bot",
 				},
 			),
-		).resolves.toEqual({ metadata: { workspace: "preserved" } });
-		expect(update).toHaveBeenCalledWith("local-1", {
-			metadata: { workspace: "preserved" },
-		});
+		).rejects.toThrow("not visible from the current account");
+		expect(update).not.toHaveBeenCalled();
 	});
 
 	it("preserves pending lineage when target lookup is uncertain", async () => {
@@ -2196,10 +2208,11 @@ describe("cloud handoff gates", () => {
 		expect(update).not.toHaveBeenCalled();
 	});
 
-	it("keeps the source locked when clearing gone lineage is not persisted", async () => {
+	it("does not clear gone lineage before proving the current account owns it", async () => {
+		const update = vi.fn(async () => ({ updated: false }));
 		await expect(
 			reconcilePendingCloudHandoff(
-				{ update: vi.fn(async () => ({ updated: false })) } as never,
+				{ update } as never,
 				{ handoffTargetExists: vi.fn(async () => false) },
 				{
 					sourceSessionId: "local-1",
@@ -2209,7 +2222,8 @@ describe("cloud handoff gates", () => {
 					appBaseUrl: "https://app.cline.bot",
 				},
 			),
-		).rejects.toThrow("local pending handoff record could not be cleared");
+		).rejects.toThrow("not visible from the current account");
+		expect(update).not.toHaveBeenCalled();
 	});
 
 	it("fails when a required handoff metadata update is not persisted", async () => {
@@ -2384,6 +2398,8 @@ describe("cloud handoff transaction", () => {
 							cwd: "/workspace/project",
 							provider: "cline",
 							model: modelId,
+							autoApproveTools: false,
+							thinking: false,
 						},
 						messages,
 						promptsInQueue: [],
@@ -2518,6 +2534,13 @@ describe("cloud handoff transaction", () => {
 			"ses-cloud",
 			messages,
 			{ allowAppendedMessages: false },
+		);
+		expect(create).toHaveBeenCalledWith(
+			expect.objectContaining({
+				requestId: `handoff:${sourceSessionId}:${headSha}`,
+				autoApproveTools: false,
+				thinking: false,
+			}),
 		);
 		expect(cloudSend).toHaveBeenCalledWith(
 			"ses-cloud",

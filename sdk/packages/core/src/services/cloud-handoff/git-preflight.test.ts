@@ -70,6 +70,17 @@ describe("preflightCloudHandoffGit", () => {
 		);
 	});
 
+	it("preserves significant whitespace in repository-relative workspace paths", async () => {
+		await expect(
+			preflightCloudHandoffGit({
+				cwd: "/repo/ leading ",
+				git: fakeGit({ "rev-parse --show-prefix": " leading /\n" }),
+			}),
+		).resolves.toEqual(
+			expect.objectContaining({ workspaceRelativePath: " leading " }),
+		);
+	});
+
 	it("refuses tracked or untracked worktree changes with a compact summary", async () => {
 		const dirty = Array.from(
 			{ length: 8 },
@@ -180,5 +191,24 @@ describe("preflightCloudHandoffGit", () => {
 		expect(error.code).toBe("missing_upstream");
 		expect(error.message).toBe("Could not resolve the upstream remote.");
 		expect(error.message).not.toContain(secret);
+		expect(error.cause).toBeUndefined();
+	});
+
+	it("supports a GitHub URL configured directly as the branch remote", async () => {
+		const remote = "https://github.com/cline/cline.git";
+		await expect(
+			preflightCloudHandoffGit({
+				cwd: "/repo",
+				git: fakeGit({
+					"config --get branch.feature/handoff.remote": remote,
+					[`ls-remote --exit-code ${remote} refs/heads/feature/handoff`]: `${HEAD}\trefs/heads/feature/handoff\n`,
+				}),
+			}),
+		).resolves.toEqual(
+			expect.objectContaining({
+				repoUrl: "https://github.com/cline/cline",
+				remoteName: remote,
+			}),
+		);
 	});
 });

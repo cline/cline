@@ -66,7 +66,7 @@ export type CloudSessionRecord = {
 	title?: string;
 	sandboxUrl: string;
 	repoContext: { repoUrl?: string; branch?: string };
-	metadata: { modelId?: string; statusReason?: string };
+	metadata: { modelId?: string; statusReason?: string; cwd?: string };
 	expiredAt?: string | null;
 	createdAt: string;
 	updatedAt: string;
@@ -125,8 +125,34 @@ type CloudHandoffSeed = {
 };
 
 function cloudWorkspaceCwd(workspaceRelativePath?: string): string {
-	return workspaceRelativePath
-		? posix.join(CLOUD_WORKSPACE_ROOT, workspaceRelativePath)
+	if (!workspaceRelativePath) return CLOUD_WORKSPACE_ROOT;
+	if (
+		posix.isAbsolute(workspaceRelativePath) ||
+		workspaceRelativePath.includes("\\") ||
+		workspaceRelativePath
+			.split("/")
+			.some((part) => !part || part === "." || part === "..")
+	) {
+		throw new CloudSessionError(
+			"request_failed",
+			"The handoff workspace path must stay inside the repository.",
+		);
+	}
+	const cwd = posix.join(CLOUD_WORKSPACE_ROOT, workspaceRelativePath);
+	if (!cwd.startsWith(`${CLOUD_WORKSPACE_ROOT}/`)) {
+		throw new CloudSessionError(
+			"request_failed",
+			"The handoff workspace path must stay inside the repository.",
+		);
+	}
+	return cwd;
+}
+
+function cloudSessionCwd(record: CloudSessionRecord): string {
+	const cwd = record.metadata.cwd;
+	return typeof cwd === "string" &&
+		(cwd === CLOUD_WORKSPACE_ROOT || cwd.startsWith(`${CLOUD_WORKSPACE_ROOT}/`))
+		? cwd
 		: CLOUD_WORKSPACE_ROOT;
 }
 
@@ -594,12 +620,48 @@ export class CloudSessionApi {
 					session.metadata.modelId === input.modelId &&
 					(!requestedBranch || session.repoContext.branch === requestedBranch),
 			);
+		const removeTerminalRecoveredSession = async (
+			recovered: CloudSessionRecord,
+			error: CloudSessionError,
+		): Promise<never> => {
+			try {
+				await this.deleteWithAuth(recovered.id, creationAuth);
+			} catch (cleanupError) {
+				if (
+					!(
+						cleanupError instanceof CloudSessionError &&
+						(cleanupError.code === "session_not_found" ||
+							cleanupError.code === "session_expired")
+					)
+				) {
+					throw new AggregateError(
+						[error, cleanupError],
+						"The recovered cloud workspace is unusable and could not be cleaned up.",
+					);
+				}
+			}
+			await input.handoff?.onOuterSessionRemoved?.(recovered.id);
+			throw error;
+		};
 		const adoptExisting = async (recovered: CloudSessionRecord) => {
-			await this.persistHandoffOuterSession(input, recovered.id, creationAuth);
-			if (
-				recovered.status === "provisioning" ||
-				!recovered.sandboxUrl?.trim()
-			) {
+			const recoveredStatus = recovered.status.trim().toLowerCase();
+			if (recoveredStatus === "failed" || isExpiredRecord(recovered)) {
+				return await removeTerminalRecoveredSession(
+					recovered,
+					new CloudSessionError(
+						recoveredStatus === "failed" ? "session_failed" : "session_expired",
+						recovered.metadata.statusReason?.trim() ||
+							"The recovered cloud workspace is no longer usable.",
+					),
+				);
+			}
+			await this.persistHandoffOuterSession(
+				input,
+				recovered.id,
+				creationAuth,
+				false,
+			);
+			if (recoveredStatus === "provisioning" || !recovered.sandboxUrl?.trim()) {
 				const recoveryController = new AbortController();
 				const recoveryTimeout = setTimeout(
 					() => recoveryController.abort(),
@@ -611,6 +673,15 @@ export class CloudSessionApi {
 						recoveryController.signal,
 						creationAuth,
 					);
+				} catch (error) {
+					if (
+						error instanceof CloudSessionError &&
+						(error.code === "session_failed" ||
+							error.code === "session_expired")
+					) {
+						return await removeTerminalRecoveredSession(recovered, error);
+					}
+					throw error;
 				} finally {
 					clearTimeout(recoveryTimeout);
 				}
@@ -631,9 +702,10 @@ export class CloudSessionApi {
 			try {
 				probed = await listTitleMatches();
 			} catch {
-				// A failed probe must not block creation: the post-failure
-				// recovery path still guards an ambiguous POST.
-				probed = undefined;
+				throw new CloudSessionError(
+					"request_failed",
+					"Cloud session creation could not be safely retried because the previous result is still unconfirmed. Check your cloud session list before trying again.",
+				);
 			}
 			if (probed && probed.length > 1) {
 				throw new CloudSessionError(
@@ -839,12 +911,14 @@ export class CloudSessionApi {
 		input: CreateCloudSessionInput,
 		sessionId: string,
 		auth: CreationAuth,
+		deleteOnFailure = true,
 	): Promise<void> {
 		const persist = input.handoff?.onOuterSessionCreated;
 		if (!persist) return;
 		try {
 			await persist(sessionId);
 		} catch (persistenceError) {
+			if (!deleteOnFailure) throw persistenceError;
 			try {
 				await this.deleteWithAuth(sessionId, auth);
 			} catch (cleanupError) {
@@ -1008,6 +1082,7 @@ function toWebSocketUrl(apiBaseUrl: string, outerSessionId: string): string {
 }
 
 function recordToLiveSession(record: CloudSessionRecord): LiveSession {
+	const cwd = cloudSessionCwd(record);
 	return {
 		config: {
 			executionTarget: "cloud",
@@ -1017,7 +1092,7 @@ function recordToLiveSession(record: CloudSessionRecord): LiveSession {
 			modelId: record.metadata.modelId ?? "",
 			repoUrl: record.repoContext.repoUrl ?? "",
 			branch: record.repoContext.branch ?? "",
-			cwd: CLOUD_WORKSPACE_ROOT,
+			cwd,
 			workspaceRoot: CLOUD_WORKSPACE_ROOT,
 		},
 		messages: [],
@@ -1042,6 +1117,7 @@ function attachResultPayload(
 	status: string,
 	prompt?: string,
 ): JsonRecord {
+	const cwd = cloudSessionCwd(record);
 	return {
 		sessionId: record.id,
 		origin: "cloud",
@@ -1051,7 +1127,7 @@ function attachResultPayload(
 		model: record.metadata.modelId ?? "",
 		repoUrl: record.repoContext.repoUrl ?? "",
 		branch: record.repoContext.branch ?? "",
-		cwd: CLOUD_WORKSPACE_ROOT,
+		cwd,
 		workspaceRoot: CLOUD_WORKSPACE_ROOT,
 		...(prompt?.trim() ? { prompt: prompt.trim() } : {}),
 		metadata: {
@@ -1068,6 +1144,7 @@ function attachResultPayload(
 export function cloudSessionToDiscoveryRecord(
 	record: CloudSessionRecord,
 ): JsonRecord {
+	const cwd = cloudSessionCwd(record);
 	return {
 		sessionId: record.id,
 		origin: "cloud",
@@ -1075,7 +1152,7 @@ export function cloudSessionToDiscoveryRecord(
 		status: record.status,
 		provider: "cline",
 		model: record.metadata.modelId ?? "",
-		cwd: CLOUD_WORKSPACE_ROOT,
+		cwd,
 		workspaceRoot: CLOUD_WORKSPACE_ROOT,
 		repoUrl: record.repoContext.repoUrl ?? "",
 		branch: record.repoContext.branch ?? "",
@@ -1122,6 +1199,14 @@ function sessionRowModelId(record: JsonRecord | undefined): string {
 			? (record.metadata as JsonRecord)
 			: undefined;
 	return String(metadata?.model ?? record?.model ?? "").trim();
+}
+
+function sessionRowCwd(record: JsonRecord | undefined): string | undefined {
+	const cwd = record?.cwd;
+	return typeof cwd === "string" &&
+		(cwd === CLOUD_WORKSPACE_ROOT || cwd.startsWith(`${CLOUD_WORKSPACE_ROOT}/`))
+		? cwd
+		: undefined;
 }
 
 function sessionRowHandoffSourceSessionId(
@@ -1896,6 +1981,7 @@ export class CloudSessionManager {
 			await this.deleteProvisionedSessionAfterDispose(
 				created.sessionId,
 				created.cleanupAuthToken,
+				input.handoff?.onOuterSessionRemoved,
 			);
 			throw new Error(
 				"Cline account changed while the cloud session was starting",
@@ -1909,7 +1995,10 @@ export class CloudSessionManager {
 				repoUrl: input.repoUrl,
 				...(input.branch?.trim() ? { branch: input.branch.trim() } : {}),
 			},
-			metadata: { modelId: input.modelId },
+			metadata: {
+				modelId: input.modelId,
+				cwd: cloudWorkspaceCwd(input.workspaceRelativePath),
+			},
 			createdAt: new Date().toISOString(),
 			updatedAt: new Date().toISOString(),
 		};
@@ -1965,6 +2054,7 @@ export class CloudSessionManager {
 			await this.deleteProvisionedSessionAfterDispose(
 				record.id,
 				created.cleanupAuthToken,
+				input.handoff?.onOuterSessionRemoved,
 			);
 			throw new Error(
 				"Cline account changed while the cloud session was starting",
@@ -1991,15 +2081,29 @@ export class CloudSessionManager {
 	private async deleteProvisionedSessionAfterDispose(
 		outerSessionId: string,
 		authToken?: string,
+		onOuterSessionRemoved?: (sessionId: string) => Promise<void>,
 	): Promise<void> {
 		this.knownSessions.delete(outerSessionId);
 		this.ctx.liveSessions.delete(outerSessionId);
-		await this.options.api.delete(outerSessionId, authToken).catch((error) => {
-			this.ctx.logger?.log(
-				"Failed to clean up a cloud session created during an account change",
-				{ sessionId: outerSessionId, error },
-			);
-		});
+		let removed = false;
+		try {
+			await this.options.api.delete(outerSessionId, authToken);
+			removed = true;
+		} catch (error) {
+			removed =
+				error instanceof CloudSessionError &&
+				(error.code === "session_not_found" ||
+					error.code === "session_expired");
+			if (!removed) {
+				this.ctx.logger?.log(
+					"Failed to clean up a cloud session created during an account change",
+					{ sessionId: outerSessionId, error },
+				);
+			}
+		}
+		if (removed) {
+			await onOuterSessionRemoved?.(outerSessionId);
+		}
 	}
 
 	async attach(outerSessionId: string): Promise<JsonRecord> {
@@ -2831,8 +2935,7 @@ export class CloudSessionManager {
 				if (innerSessionId) {
 					connection.innerSessionId = innerSessionId;
 					this.subscribeToInnerSession(outerSessionId, connection);
-					const modelId = sessionRowModelId(newest);
-					if (modelId) this.applyModel(connection, modelId);
+					this.applySessionModel(connection, newest);
 					await this.ensureAttached(connection);
 				}
 				if (this.disposed) {
@@ -3217,6 +3320,12 @@ export class CloudSessionManager {
 		}
 		const modelId = sessionRowModelId(session as JsonRecord);
 		if (modelId) this.applyModel(connection, modelId);
+		const cwd = sessionRowCwd(session as JsonRecord);
+		if (cwd) {
+			connection.remote.metadata.cwd = cwd;
+			const live = this.ctx.liveSessions.get(connection.remote.id);
+			if (live) live.config.cwd = cwd;
+		}
 	}
 
 	private async disposeConnection(outerSessionId: string): Promise<void> {
