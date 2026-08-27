@@ -731,6 +731,38 @@ describe("CloudSessionApi", () => {
 		]);
 	});
 
+	it("clears handoff recovery when a new provisioning session expires", async () => {
+		const removed = vi.fn();
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api.example",
+			appBaseUrl: "https://app.example",
+			getAuthToken: async () => "workos:create",
+			fetch: async (_input, init) => {
+				if (init?.method === "POST") {
+					return jsonResponse({
+						success: true,
+						data: { sessionId: "ses-expired", status: "provisioning" },
+					});
+				}
+				return jsonResponse({ success: false, error: "expired" }, 410);
+			},
+		});
+
+		await expect(
+			api.create({
+				modelId: "model",
+				repoUrl: "https://github.com/cline/test",
+				handoff: {
+					sourceSessionId: "local-1",
+					resolveMessages: async () => [],
+					onOuterSessionCreated: async () => undefined,
+					onOuterSessionRemoved: removed,
+				},
+			}),
+		).rejects.toMatchObject({ code: "session_expired" });
+		expect(removed).toHaveBeenCalledExactlyOnceWith("ses-expired");
+	});
+
 	it("refreshes an expired provisioning token without switching accounts", async () => {
 		const original = jwtFor("user-1", "original");
 		const refreshed = jwtFor("user-1", "refreshed");
@@ -2911,6 +2943,10 @@ describe("CloudSessionManager", () => {
 		expect(ctx.liveSessions.get("ses-outer")?.config.cwd).toBe(
 			"/workspace/apps/examples/desktop-app",
 		);
+		await manager.list();
+		await expect(manager.listForDiscovery()).resolves.toEqual([
+			expect.objectContaining({ cwd: "/workspace/apps/examples/desktop-app" }),
+		]);
 	});
 
 	it("verifies handoff seeding from the live Hub without archive fallback", async () => {

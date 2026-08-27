@@ -113,14 +113,18 @@ async function generateVscodeProtobusServers(protobusServices) {
 	const imports = []
 	const servers = []
 	const serviceMap = []
+	const streamingMethods = []
 	for (const [serviceName, def] of Object.entries(protobusServices)) {
 		const domain = getDomainName(serviceName)
 		const dir = getDirName(serviceName)
 		imports.push(`// ${domain} Service`)
 		servers.push(`const ${serviceName}Handlers: serviceTypes.${serviceName}Handlers = {`)
-		for (const [rpcName, _rpc] of Object.entries(def.service)) {
+		for (const [rpcName, rpc] of Object.entries(def.service)) {
 			imports.push(`import { ${rpcName} } from "@core/controller/${dir}/${rpcName}"`)
 			servers.push(`    ${rpcName}: ${rpcName},`)
+			if (rpc.responseStream) {
+				streamingMethods.push(`    "cline.${serviceName}.${rpcName}",`)
+			}
 		}
 		servers.push(`} \n`)
 		serviceMap.push(`    "cline.${serviceName}": ${serviceName}Handlers,`)
@@ -137,6 +141,11 @@ ${servers.join("\n")}
 export const serviceHandlers: Record<string, any> = {
 ${serviceMap.join("\n")}
 }
+
+/** Fully-qualified response-streaming methods, derived from the proto descriptors. */
+export const responseStreamingMethods: ReadonlySet<string> = new Set([
+${streamingMethods.join("\n")}
+])
 `
 	// Write output file
 	await writeFileWithMkdirs(VSCODE_SERVICES_FILE, output)
