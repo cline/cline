@@ -912,6 +912,12 @@ function ChatThreadPane({
 	const pendingHandoffRecovery = readPendingHandoffRecovery(
 		historySession?.metadata,
 	);
+	const handoffRetryEligible =
+		Boolean(pendingHandoffRecovery) ||
+		handoffUi?.status === "recovery" ||
+		handoffUi?.status === "recovery_dismissed" ||
+		handoffUi?.status === "failed" ||
+		handoffUi?.status === "retry_restored";
 	const dismissedHandoffRecoveryUrl =
 		handoffUi?.status === "recovery_dismissed" ? handoffUi.dashboardUrl : null;
 	const handoffRecoveryUrl =
@@ -1611,12 +1617,7 @@ function ChatThreadPane({
 			// off — the source session's normal actions are blocked by the
 			// pending guard, so gating the retry here would lock it forever.
 			// The sidecar applies the same recovery exemption on its side.
-			const pendingRetry =
-				Boolean(pendingHandoffRecovery) ||
-				handoffUi?.status === "recovery" ||
-				handoffUi?.status === "recovery_dismissed" ||
-				handoffUi?.status === "failed";
-			if (!cloudHandoffAvailable && !pendingRetry) {
+			if (!cloudHandoffAvailable && !handoffRetryEligible) {
 				setPromptInput(nextCommand ? `/handoff ${nextCommand}` : "/handoff");
 				toast({
 					title: "Cloud handoff is not available",
@@ -1745,6 +1746,7 @@ function ChatThreadPane({
 			cloudAgentsEnabled,
 			cloudHandoffAvailable,
 			config,
+			handoffRetryEligible,
 			handoffLifecycle,
 			historySession?.sessionId,
 			isCloudSession,
@@ -1758,7 +1760,6 @@ function ChatThreadPane({
 			setPromptInput,
 			status,
 			onHandoffUiAction,
-			handoffUi?.status,
 		],
 	);
 
@@ -1769,11 +1770,17 @@ function ChatThreadPane({
 			// Only reserve /handoff when the feature gate is on (or a pending
 			// handoff needs its retry path); otherwise a user's own workflow
 			// or skill named "handoff" stays reachable.
-			if (
-				handoff &&
-				(cloudHandoffAvailable || Boolean(pendingHandoffRecovery))
-			) {
+			if (handoff && (cloudHandoffAvailable || handoffRetryEligible)) {
 				await prepareHandoff(handoff.nextCommand);
+				return;
+			}
+			if (!handoff && pendingHandoffRecovery) {
+				setPromptInput(prompt);
+				toast({
+					title: "Cloud handoff is still pending",
+					description:
+						"Retry /handoff or use the recovery link before sending another prompt.",
+				});
 				return;
 			}
 			if (!trimmed && pendingAttachments.length === 0) {
@@ -1802,6 +1809,7 @@ function ChatThreadPane({
 			setPromptInput,
 			threadId,
 			cloudHandoffAvailable,
+			handoffRetryEligible,
 			pendingHandoffRecovery,
 		],
 	);
