@@ -13,6 +13,9 @@ const INDEX_VERSION = 2;
 const DEFAULT_RECONCILE_INTERVAL_MS = 5 * 60_000;
 const MAX_INDEXED_TEXT_LENGTH = 128 * 1024;
 const MAX_SESSIONS = 100_000;
+const MAX_SEARCH_CANDIDATES = 2_000;
+// FTS5 weights are positional and include the five UNINDEXED metadata columns.
+const SESSION_SEARCH_RANKING = "bm25(0, 0, 0, 0, 0, 0.5, 8.0, 1.0)";
 
 export interface SessionSearchInput {
 	query: string;
@@ -43,10 +46,24 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
 		: undefined;
 }
 
-function appendSearchableText(value: unknown, output: string[]): void {
-	if (output.join("\n").length >= MAX_INDEXED_TEXT_LENGTH) return;
+interface SearchableTextAccumulator {
+	length: number;
+	parts: string[];
+}
+
+function appendSearchableText(
+	value: unknown,
+	output: SearchableTextAccumulator,
+): void {
+	if (output.length >= MAX_INDEXED_TEXT_LENGTH) return;
 	if (typeof value === "string") {
-		output.push(value);
+		const separatorLength = output.parts.length > 0 ? 1 : 0;
+		const remaining = MAX_INDEXED_TEXT_LENGTH - output.length - separatorLength;
+		if (remaining <= 0) return;
+		const part = value.slice(0, remaining);
+		if (!part) return;
+		output.parts.push(part);
+		output.length += separatorLength + part.length;
 		return;
 	}
 	if (Array.isArray(value)) {
@@ -72,9 +89,9 @@ function appendSearchableText(value: unknown, output: string[]): void {
 
 function messageText(message: unknown): string {
 	const record = asRecord(message);
-	const output: string[] = [];
+	const output: SearchableTextAccumulator = { length: 0, parts: [] };
 	appendSearchableText(record?.content ?? message, output);
-	return output.join("\n").slice(0, MAX_INDEXED_TEXT_LENGTH).trim();
+	return output.parts.join("\n").trim();
 }
 
 function messageRole(message: unknown): string {
@@ -100,8 +117,67 @@ function ftsQuery(query: string): string {
 		.join(" AND ");
 }
 
+function ensureSearchSchema(db: SqliteDb): void {
+	db.exec("PRAGMA journal_mode = WAL;");
+	db.exec("PRAGMA busy_timeout = 5000;");
+	db.exec(`CREATE TABLE IF NOT EXISTS indexed_sessions (
+		session_id TEXT PRIMARY KEY,
+		source_revision TEXT NOT NULL,
+		indexed_at TEXT NOT NULL,
+		document_count INTEGER NOT NULL,
+		index_version INTEGER NOT NULL,
+		title TEXT NOT NULL DEFAULT ''
+	);`);
+	const indexedSessionColumns = new Set(
+		(
+			db.prepare("PRAGMA table_info(indexed_sessions)").all() as Array<{
+				name: string;
+			}>
+		).map((column) => column.name),
+	);
+	if (!indexedSessionColumns.has("title")) {
+		db.exec(
+			"ALTER TABLE indexed_sessions ADD COLUMN title TEXT NOT NULL DEFAULT '';",
+		);
+	}
+	db.exec(`CREATE VIRTUAL TABLE IF NOT EXISTS session_search USING fts5(
+		session_id UNINDEXED,
+		document_id UNINDEXED,
+		ordinal UNINDEXED,
+		role UNINDEXED,
+		started_at UNINDEXED,
+		workspace_root,
+		title,
+		content,
+		tokenize='unicode61 remove_diacritics 2 tokenchars ''_-@'''
+	);`);
+}
+
+function initializeSearchDatabase(dbPath: string): {
+	db?: SqliteDb;
+	error?: unknown;
+} {
+	let db: SqliteDb | undefined;
+	try {
+		db = loadSqliteDb(dbPath);
+		ensureSearchSchema(db);
+		return { db };
+	} catch (error) {
+		try {
+			db?.close?.();
+		} catch {
+			// The database is already unavailable; preserve the initialization error.
+		}
+		return {
+			error:
+				error ?? new Error("Session search database initialization failed"),
+		};
+	}
+}
+
 export class SessionHistorySearchService {
-	private readonly db: SqliteDb;
+	private readonly db: SqliteDb | undefined;
+	private readonly initializationError: unknown | undefined;
 	private readonly intervalMs: number;
 	private readonly removedDuringRefresh = new Set<string>();
 	private readonly failedEvictionSessionIds = new Set<string>();
@@ -116,15 +192,17 @@ export class SessionHistorySearchService {
 		>,
 		options: SessionHistorySearchOptions = {},
 	) {
-		this.db = loadSqliteDb(
+		const initialized = initializeSearchDatabase(
 			options.dbPath ?? join(resolveDbDataDir(), "session-search.db"),
 		);
+		this.db = initialized.db;
+		this.initializationError = initialized.error;
 		this.intervalMs =
 			options.reconcileIntervalMs ?? DEFAULT_RECONCILE_INTERVAL_MS;
-		this.ensureSchema();
 	}
 
 	start(): void {
+		if (!this.db) return;
 		this.readyPromise = this.refreshNow();
 		void this.readyPromise.catch((error) =>
 			console.warn("[hub] session search indexing failed", error),
@@ -141,12 +219,14 @@ export class SessionHistorySearchService {
 		if (this.timer) clearInterval(this.timer);
 		this.timer = undefined;
 		await this.refreshPromise?.catch(() => undefined);
-		this.db.close?.();
+		this.db?.close?.();
 	}
 
 	refreshNow(): Promise<void> {
+		const db = this.db;
+		if (!db) return Promise.resolve();
 		if (!this.refreshPromise) {
-			this.refreshPromise = this.reconcile().finally(() => {
+			this.refreshPromise = this.reconcile(db).finally(() => {
 				this.removedDuringRefresh.clear();
 				this.refreshPromise = undefined;
 			});
@@ -160,11 +240,13 @@ export class SessionHistorySearchService {
 	 * that captured the session before deletion from writing it back.
 	 */
 	removeSession(sessionId: string): void {
+		const db = this.db;
+		if (!db) return;
 		const normalized = sessionId.trim();
 		if (!normalized) return;
 		if (this.refreshPromise) this.removedDuringRefresh.add(normalized);
 		try {
-			this.deleteIndexedSession(normalized);
+			this.deleteIndexedSession(db, normalized);
 			this.failedEvictionSessionIds.delete(normalized);
 		} catch (error) {
 			// Keep failed evictions hidden until reconciliation can retry the
@@ -178,28 +260,63 @@ export class SessionHistorySearchService {
 		await this.readyPromise;
 	}
 
+	isAvailable(): boolean {
+		return this.db !== undefined;
+	}
+
+	getInitializationError(): unknown | undefined {
+		return this.initializationError;
+	}
+
 	search(input: SessionSearchInput): SessionSearchHit[] {
+		const db = this.db;
+		if (!db) return [];
 		const query = ftsQuery(input.query);
 		if (!query) return [];
 		const limit = Math.min(Math.max(Math.trunc(input.limit ?? 50), 1), 200);
+		// Bound per-session deduplication work for broad queries while scanning
+		// enough ranked candidates to keep chatty sessions from crowding the list.
+		const candidateLimit = Math.min(
+			Math.max(limit * 20, 200),
+			MAX_SEARCH_CANDIDATES,
+		);
 		const workspaceRoot = input.workspaceRoot?.trim();
-		const rows = this.db
+		const rows = db
 			.prepare(
-				`SELECT session_search.session_id, document_id, ordinal, role, started_at,
-					workspace_root, indexed_sessions.title,
-					snippet(session_search, 7, '[', ']', '…', 24) AS snippet,
-					bm25(session_search, 0, 0, 0, 0, 0.5, 8.0, 1.0) AS score
-				 FROM session_search
-				 JOIN indexed_sessions
-					ON indexed_sessions.session_id = session_search.session_id
-				 WHERE session_search MATCH ?
-					AND (? IS NULL OR workspace_root = ?)
-				 ORDER BY score, started_at DESC
-				 LIMIT ?`,
+				`WITH matches AS MATERIALIZED (
+					SELECT session_search.session_id, document_id, ordinal, role, started_at,
+						workspace_root, indexed_sessions.title,
+						snippet(session_search, 7, '[', ']', '…', 24) AS snippet,
+						session_search.rank AS score
+					FROM session_search
+					JOIN indexed_sessions
+						ON indexed_sessions.session_id = session_search.session_id
+					WHERE session_search MATCH ?
+						AND session_search.rank MATCH ?
+						AND (? IS NULL OR workspace_root = ?)
+					ORDER BY score, started_at DESC
+					LIMIT ?
+				), ranked AS (
+					SELECT *, ROW_NUMBER() OVER (
+						PARTITION BY session_id ORDER BY score, ordinal
+					) AS session_rank
+					FROM matches
+				)
+				SELECT session_id, document_id, ordinal, role, started_at,
+					workspace_root, title, snippet, score
+				FROM ranked
+				WHERE session_rank = 1
+				ORDER BY score, started_at DESC
+				LIMIT ?`,
 			)
-			.all(query, workspaceRoot ?? null, workspaceRoot ?? null, limit) as Array<
-			Record<string, unknown>
-		>;
+			.all(
+				query,
+				SESSION_SEARCH_RANKING,
+				workspaceRoot ?? null,
+				workspaceRoot ?? null,
+				candidateLimit,
+				limit,
+			) as Array<Record<string, unknown>>;
 		const visibleRows =
 			this.removedDuringRefresh.size === 0 &&
 			this.failedEvictionSessionIds.size === 0
@@ -230,46 +347,10 @@ export class SessionHistorySearchService {
 		);
 	}
 
-	private ensureSchema(): void {
-		this.db.exec("PRAGMA journal_mode = WAL;");
-		this.db.exec("PRAGMA busy_timeout = 5000;");
-		this.db.exec(`CREATE TABLE IF NOT EXISTS indexed_sessions (
-			session_id TEXT PRIMARY KEY,
-			source_revision TEXT NOT NULL,
-			indexed_at TEXT NOT NULL,
-			document_count INTEGER NOT NULL,
-			index_version INTEGER NOT NULL,
-			title TEXT NOT NULL DEFAULT ''
-		);`);
-		const indexedSessionColumns = new Set(
-			(
-				this.db.prepare("PRAGMA table_info(indexed_sessions)").all() as Array<{
-					name: string;
-				}>
-			).map((column) => column.name),
-		);
-		if (!indexedSessionColumns.has("title")) {
-			this.db.exec(
-				"ALTER TABLE indexed_sessions ADD COLUMN title TEXT NOT NULL DEFAULT '';",
-			);
-		}
-		this.db.exec(`CREATE VIRTUAL TABLE IF NOT EXISTS session_search USING fts5(
-			session_id UNINDEXED,
-			document_id UNINDEXED,
-			ordinal UNINDEXED,
-			role UNINDEXED,
-			started_at UNINDEXED,
-			workspace_root,
-			title,
-			content,
-			tokenize='unicode61 remove_diacritics 2 tokenchars ''_-@'''
-		);`);
-	}
-
-	private async reconcile(): Promise<void> {
+	private async reconcile(db: SqliteDb): Promise<void> {
 		const sessions = await this.host.listSessions(MAX_SESSIONS);
 		const liveIds = new Set(sessions.map((session) => session.sessionId));
-		const indexed = this.db
+		const indexed = db
 			.prepare(
 				"SELECT session_id, source_revision, index_version FROM indexed_sessions",
 			)
@@ -289,13 +370,13 @@ export class SessionHistorySearchService {
 			) {
 				continue;
 			}
-			await this.indexSession(session, revision);
+			await this.indexSession(db, session, revision);
 		}
 
 		for (const row of indexed) {
 			const sessionId = String(row.session_id);
 			if (!liveIds.has(sessionId) || this.isSessionSuppressed(sessionId)) {
-				this.deleteIndexedSession(sessionId);
+				this.deleteIndexedSession(db, sessionId);
 				this.failedEvictionSessionIds.delete(sessionId);
 			}
 		}
@@ -313,6 +394,7 @@ export class SessionHistorySearchService {
 	}
 
 	private async indexSession(
+		db: SqliteDb,
 		session: SessionRecord,
 		revision: string,
 	): Promise<void> {
@@ -321,17 +403,17 @@ export class SessionHistorySearchService {
 			.catch(() => []);
 		if (this.removedDuringRefresh.has(session.sessionId)) return;
 		const title = sessionTitle(session);
-		const insert = this.db.prepare(
+		const insert = db.prepare(
 			`INSERT INTO session_search (
 				session_id, document_id, ordinal, role, started_at,
 				workspace_root, title, content
 			) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 		);
-		this.db.exec("BEGIN IMMEDIATE;");
+		db.exec("BEGIN IMMEDIATE;");
 		try {
-			this.db
-				.prepare("DELETE FROM session_search WHERE session_id = ?")
-				.run(session.sessionId);
+			db.prepare("DELETE FROM session_search WHERE session_id = ?").run(
+				session.sessionId,
+			);
 			insert.run(
 				session.sessionId,
 				`${session.sessionId}:metadata`,
@@ -358,9 +440,8 @@ export class SessionHistorySearchService {
 				);
 				count += 1;
 			}
-			this.db
-				.prepare(
-					`INSERT INTO indexed_sessions (
+			db.prepare(
+				`INSERT INTO indexed_sessions (
 						session_id, source_revision, indexed_at, document_count, index_version, title
 					) VALUES (?, ?, ?, ?, ?, ?)
 					ON CONFLICT(session_id) DO UPDATE SET
@@ -369,34 +450,26 @@ export class SessionHistorySearchService {
 						document_count = excluded.document_count,
 						index_version = excluded.index_version,
 						title = excluded.title`,
-				)
-				.run(
-					session.sessionId,
-					revision,
-					nowIso(),
-					count,
-					INDEX_VERSION,
-					title,
-				);
-			this.db.exec("COMMIT;");
+			).run(session.sessionId, revision, nowIso(), count, INDEX_VERSION, title);
+			db.exec("COMMIT;");
 		} catch (error) {
-			this.db.exec("ROLLBACK;");
+			db.exec("ROLLBACK;");
 			throw error;
 		}
 	}
 
-	private deleteIndexedSession(sessionId: string): void {
-		this.db.exec("BEGIN IMMEDIATE;");
+	private deleteIndexedSession(db: SqliteDb, sessionId: string): void {
+		db.exec("BEGIN IMMEDIATE;");
 		try {
-			this.db
-				.prepare("DELETE FROM session_search WHERE session_id = ?")
-				.run(sessionId);
-			this.db
-				.prepare("DELETE FROM indexed_sessions WHERE session_id = ?")
-				.run(sessionId);
-			this.db.exec("COMMIT;");
+			db.prepare("DELETE FROM session_search WHERE session_id = ?").run(
+				sessionId,
+			);
+			db.prepare("DELETE FROM indexed_sessions WHERE session_id = ?").run(
+				sessionId,
+			);
+			db.exec("COMMIT;");
 		} catch (error) {
-			this.db.exec("ROLLBACK;");
+			db.exec("ROLLBACK;");
 			throw error;
 		}
 	}

@@ -265,6 +265,14 @@ export class HubServerTransport implements NativeHubTransport {
 			options.sessionSearchOptions ??
 				(process.env.NODE_ENV === "test" ? { dbPath: ":memory:" } : {}),
 		);
+		const sessionSearchInitializationError =
+			this.sessionSearch.getInitializationError();
+		if (sessionSearchInitializationError !== undefined) {
+			logHubBoundaryError(
+				"session search is unavailable",
+				sessionSearchInitializationError,
+			);
+		}
 		this.ctx = {
 			isDraining: () => this.draining,
 			sessionSearch: this.sessionSearch,

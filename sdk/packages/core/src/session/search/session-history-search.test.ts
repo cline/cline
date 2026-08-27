@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -73,6 +73,73 @@ describe("SessionHistorySearchService", () => {
 			title: "Parser repair",
 		});
 		expect(hits[0]?.snippet).toContain("[session-service]");
+		await service.dispose();
+	});
+
+	it("weights titles above paths and returns one hit per session", async () => {
+		const dir = await mkdtemp(join(tmpdir(), "cline-session-search-"));
+		tempDirs.push(dir);
+		const sessions = [
+			session({
+				sessionId: "title-match",
+				workspaceRoot: "/work/alpha",
+				cwd: "/work/alpha",
+				metadata: { title: "Needle title" },
+			}),
+			session({
+				sessionId: "path-match",
+				workspaceRoot: "/work/needle",
+				cwd: "/work/needle",
+				metadata: { title: "Unrelated title" },
+			}),
+		];
+		const service = new SessionHistorySearchService(
+			{
+				listSessions: async () => sessions,
+				readSessionMessages: async (sessionId) =>
+					sessionId === "title-match"
+						? [
+								{ role: "user", content: "Needle first message" },
+								{ role: "assistant", content: "Needle second message" },
+							]
+						: [],
+			},
+			{ dbPath: join(dir, "search.db") },
+		);
+
+		await service.refreshNow();
+		const hits = service.search({ query: "needle", limit: 10 });
+
+		expect(hits.map((hit) => hit.sessionId)).toEqual([
+			"title-match",
+			"path-match",
+		]);
+		expect(new Set(hits.map((hit) => hit.sessionId)).size).toBe(hits.length);
+		await service.dispose();
+	});
+
+	it("degrades to unavailable when the disposable index cannot initialize", async () => {
+		const dir = await mkdtemp(join(tmpdir(), "cline-session-search-"));
+		tempDirs.push(dir);
+		const dbPath = join(dir, "search.db");
+		await writeFile(dbPath, "not a sqlite database");
+		const listSessions = vi.fn(async () => [session()]);
+		const service = new SessionHistorySearchService(
+			{
+				listSessions,
+				readSessionMessages: async () => [],
+			},
+			{ dbPath },
+		);
+
+		expect(service.isAvailable()).toBe(false);
+		expect(service.getInitializationError()).toBeDefined();
+		service.start();
+		await expect(service.refreshNow()).resolves.toBeUndefined();
+		await expect(service.waitUntilReady()).resolves.toBeUndefined();
+		expect(service.search({ query: "parser" })).toEqual([]);
+		expect(() => service.removeSession("session-1")).not.toThrow();
+		expect(listSessions).not.toHaveBeenCalled();
 		await service.dispose();
 	});
 

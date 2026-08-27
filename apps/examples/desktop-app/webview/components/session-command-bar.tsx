@@ -193,7 +193,7 @@ export function SessionCommandBar({
 			<div className="flex items-center justify-between border-t px-3 py-2 text-[11px] text-muted-foreground">
 				<span>Navigate with ↑↓ and open with ↵</span>
 				<kbd className="rounded border bg-muted px-1.5 py-0.5 font-sans">
-					⌘P
+					Cmd/Ctrl+P
 				</kbd>
 			</div>
 		</CommandDialog>

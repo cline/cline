@@ -821,7 +821,7 @@ export function AgentSidebar({
 								aria-label="Search sessions"
 								className="size-8 shrink-0 justify-center px-0"
 								onClick={onOpenSearch}
-								title="Search sessions (⌘P)"
+								title="Search sessions (Cmd/Ctrl+P)"
 								type="button"
 								variant="sidebarItem"
 							>

@@ -99,6 +99,7 @@ describe("SessionCommandBar", () => {
 
 		const input = document.querySelector<HTMLInputElement>("[cmdk-input]");
 		expect(input).not.toBeNull();
+		expect(document.body.textContent).toContain("Cmd/Ctrl+P");
 		await changeInput(input as HTMLInputElement, "generate");
 		await waitForDebounce();
 		expect(desktopMocks.invoke).toHaveBeenCalledTimes(1);

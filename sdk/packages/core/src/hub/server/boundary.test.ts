@@ -1,3 +1,6 @@
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { AgentToolContext, HubEventEnvelope } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -98,6 +101,33 @@ describe("HubServerTransport boundaries", () => {
 			expect(payload.error).toContain("listener boom");
 		} finally {
 			errorSpy.mockRestore();
+		}
+	});
+
+	it("keeps the hub available when the session search index cannot initialize", async () => {
+		const dir = await mkdtemp(join(tmpdir(), "cline-hub-search-unavailable-"));
+		const dbPath = join(dir, "search.db");
+		await writeFile(dbPath, "not a sqlite database");
+		const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+		const transport = createTransport({
+			sessionSearchOptions: { dbPath },
+			taskOptions: { dbPath: ":memory:", watchFiles: false },
+		});
+
+		try {
+			expect(getContext(transport).sessionSearch.isAvailable()).toBe(false);
+			const reply = await transport.handleCommand({
+				version: "v1",
+				requestId: "search-with-unavailable-index",
+				command: "session.search",
+				payload: { query: "parser" },
+			});
+			expect(reply.ok).toBe(true);
+			expect(reply.payload?.hits).toEqual([]);
+		} finally {
+			await transport.stop();
+			errorSpy.mockRestore();
+			await rm(dir, { recursive: true, force: true });
 		}
 	});
 
@@ -291,7 +321,7 @@ describe("HubServerTransport boundaries", () => {
 		await getContext(transport).sessionSearch.refreshNow();
 		expect(
 			getContext(transport).sessionSearch.search({ query: "orphanmarker" }),
-		).toHaveLength(2);
+		).toHaveLength(1);
 
 		const restoreCheckpoint = vi
 			.spyOn(SessionVersioningService.prototype, "restoreCheckpoint")
