@@ -640,6 +640,54 @@ describe("CloudSessionApi", () => {
 		}
 	});
 
+	it("rejects and deletes a recovered session that failed provisioning", async () => {
+		let recoveryTitle = "";
+		let deleted = false;
+		const now = new Date().toISOString();
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api.example",
+			appBaseUrl: "https://app.example",
+			getAuthToken: async () => "workos:fresh",
+			fetch: async (input, init) => {
+				const path = new URL(String(input)).pathname;
+				if (init?.method === "POST") {
+					recoveryTitle = String(JSON.parse(String(init.body)).title);
+					return jsonResponse({ success: false, error: "gateway" }, 500);
+				}
+				if (init?.method === "DELETE") {
+					deleted = true;
+					return jsonResponse({ success: true, data: {} });
+				}
+				if (path.endsWith("/status")) {
+					return jsonResponse({
+						success: true,
+						data: { status: "failed", statusReason: "clone failed" },
+					});
+				}
+				return jsonResponse({
+					success: true,
+					data: [
+						{
+							...REMOTE_SESSION,
+							title: recoveryTitle,
+							status: "failed",
+							createdAt: now,
+							updatedAt: now,
+						},
+					],
+				});
+			},
+		});
+
+		await expect(
+			api.create({
+				modelId: REMOTE_SESSION.metadata.modelId ?? "",
+				repoUrl: REMOTE_SESSION.repoContext.repoUrl ?? "",
+			}),
+		).rejects.toMatchObject({ code: "session_failed" });
+		expect(deleted).toBe(true);
+	});
+
 	it("recovers a create accepted before a raw network failure", async () => {
 		let recoveryTitle = "";
 		let listCalls = 0;
@@ -2367,6 +2415,43 @@ describe("CloudSessionManager", () => {
 		await expect(manager.send("ses-outer", "yes")).rejects.toThrow(
 			/please send it again/,
 		);
+	});
+
+	it("includes an in-flight prompt in a concurrent send's recovery baseline", async () => {
+		const { ctx } = createContext();
+		const hub = new FakeHubClient();
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+		await manager.list();
+		await manager.attach("ses-outer");
+		await manager.readMessages("ses-outer");
+		let releaseSend!: () => void;
+		const blocked = new Promise<void>((resolve) => {
+			releaseSend = resolve;
+		});
+		let reachedSend!: () => void;
+		const reached = new Promise<void>((resolve) => {
+			reachedSend = resolve;
+		});
+		hub.commandHook = async (command) => {
+			if (command !== "session.send_input") return;
+			reachedSend();
+			await blocked;
+		};
+
+		const sending = manager.send("ses-outer", "same prompt");
+		await reached;
+
+		expect(ctx.liveSessions.get("ses-outer")?.messages).toContainEqual({
+			role: "user",
+			content: [{ type: "text", text: "same prompt" }],
+		});
+		releaseSend();
+		await sending;
 	});
 
 	it("reattaches after a transport failure without retrying the prompt", async () => {

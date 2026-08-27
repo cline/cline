@@ -633,6 +633,7 @@ export class CloudSessionApi {
 				if (recovered) {
 					if (
 						recovered.status === "provisioning" ||
+						recovered.status === "failed" ||
 						!recovered.sandboxUrl?.trim()
 					) {
 						const recoveryController = new AbortController();
@@ -646,6 +647,26 @@ export class CloudSessionApi {
 								recoveryController.signal,
 								creationAuth,
 							);
+						} catch (recoveryError) {
+							if (
+								recoveryError instanceof CloudSessionError &&
+								recoveryError.code === "session_failed"
+							) {
+								await this.deleteWithAuth(recovered.id, creationAuth).catch(
+									(cleanupError) => {
+										if (
+											!(
+												cleanupError instanceof CloudSessionError &&
+												(cleanupError.code === "session_not_found" ||
+													cleanupError.code === "session_expired")
+											)
+										) {
+											throw cleanupError;
+										}
+									},
+								);
+							}
+							throw recoveryError;
 						} finally {
 							clearTimeout(recoveryTimeout);
 						}
@@ -1437,7 +1458,12 @@ export class CloudSessionManager {
 			const result = await Promise.race([
 				refresh.then(
 					(value) => ({ value }),
-					() => ({ value: this.lastListedSessions }),
+					(error) => {
+						this.ctx.logger?.error?.("Cloud session discovery failed", {
+							error,
+						});
+						return { value: this.lastListedSessions };
+					},
 				),
 				new Promise<{ value: CloudSessionRecord[] }>((resolve) => {
 					timeout = setTimeout(
@@ -1781,6 +1807,20 @@ export class CloudSessionManager {
 			prompt,
 		);
 		const ownsBusyState = delivery !== "queue" && delivery !== "steer";
+		const pendingMessage: MessageWithMetadata | undefined =
+			live && delivery !== "queue"
+				? { role: "user", content: [{ type: "text", text: prompt }] }
+				: undefined;
+		if (live && pendingMessage) {
+			live.messages = [...live.messages, pendingMessage];
+		}
+		const removePendingMessage = () => {
+			if (live && pendingMessage) {
+				live.messages = live.messages.filter(
+					(message) => message !== pendingMessage,
+				);
+			}
+		};
 		if (live && ownsBusyState) {
 			live.busy = true;
 			live.status = "running";
@@ -1813,13 +1853,6 @@ export class CloudSessionManager {
 					? { timeoutMs: QUEUE_COMMAND_TIMEOUT_MS }
 					: { timeoutMs: null },
 			);
-			// Advance the baseline so an older identical prompt cannot confirm this send.
-			if (live && delivery !== "queue") {
-				live.messages = [
-					...live.messages,
-					{ role: "user", content: [{ type: "text", text: prompt }] },
-				];
-			}
 			return {
 				sessionId: outerSessionId,
 				ok: true,
@@ -1838,6 +1871,7 @@ export class CloudSessionManager {
 						connection,
 					);
 				} catch (recoveryError) {
+					removePendingMessage();
 					if (live && ownsBusyState) {
 						live.busy = false;
 						live.status = "error";
@@ -1872,6 +1906,7 @@ export class CloudSessionManager {
 					status: snapshot.status,
 				};
 			}
+			removePendingMessage();
 			if (live && ownsBusyState) {
 				live.busy = false;
 				live.status = "error";
