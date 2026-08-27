@@ -335,6 +335,34 @@ describe("cloudHandoffUiReducer", () => {
 		});
 	});
 
+	it("retains a restored retry payload when recovery is dismissed", () => {
+		const attachment = new File(["image"], "diagram.png", {
+			type: "image/png",
+		});
+		const dismissed = cloudHandoffUiReducer(
+			{
+				"local-1": {
+					status: "retry_restored",
+					dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
+					retryDraft: "/handoff continue",
+					retryAttachments: [attachment],
+				},
+			},
+			{
+				type: "dismiss_recovery",
+				sourceSessionId: "local-1",
+				dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
+			},
+		);
+
+		expect(dismissed["local-1"]).toEqual({
+			status: "recovery_dismissed",
+			dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
+			retryDraft: "/handoff continue",
+			retryAttachments: [attachment],
+		});
+	});
+
 	it("keeps the temporary handoff prompt ahead of a live response", () => {
 		const prompt = {
 			content: "hey cloud what do you see",

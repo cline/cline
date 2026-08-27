@@ -949,6 +949,7 @@ function ChatThreadPane({
 		null;
 	const handoffRetry =
 		(handoffUi?.status === "recovery" ||
+			handoffUi?.status === "recovery_dismissed" ||
 			handoffUi?.status === "failed" ||
 			handoffUi?.status === "retry_restored") &&
 		(handoffUi.retryDraft || handoffUi.retryAttachments?.length)
