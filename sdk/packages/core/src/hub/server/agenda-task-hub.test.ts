@@ -6,7 +6,7 @@ import type {
 	ToolApprovalRequest,
 	ToolApprovalResult,
 } from "@cline/shared";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 
 vi.mock("@ai-sdk/provider-utils", () => ({
 	createProviderDefinedToolFactory: vi.fn(() => vi.fn()),
@@ -26,10 +26,19 @@ describe("Hub agenda task vertical slice", () => {
 		const canonicalChatWorkspace = realpathSync.native(chatWorkspace);
 		// Agent-created schedules anchor in the ~/.cline/schedules home; point
 		// the Cline dir at the test root so that home stays inside this test.
+		// Restore via onTestFinished so an early throw (before the try below)
+		// cannot leave the override behind for later tests in this worker.
 		const clineHome = join(root, "cline-home");
 		mkdirSync(clineHome);
 		const previousClineDir = process.env.CLINE_DIR;
 		process.env.CLINE_DIR = clineHome;
+		onTestFinished(() => {
+			if (previousClineDir === undefined) {
+				delete process.env.CLINE_DIR;
+			} else {
+				process.env.CLINE_DIR = previousClineDir;
+			}
+		});
 		const sessions = new Map<string, Record<string, unknown>>();
 		let capturedStart: StartSessionInput | undefined;
 		let requestToolApproval:
@@ -416,11 +425,6 @@ describe("Hub agenda task vertical slice", () => {
 			});
 			expect(startSession).toHaveBeenCalledTimes(1);
 		} finally {
-			if (previousClineDir === undefined) {
-				delete process.env.CLINE_DIR;
-			} else {
-				process.env.CLINE_DIR = previousClineDir;
-			}
 			await transport.stop();
 		}
 	});
