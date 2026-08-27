@@ -54,7 +54,10 @@ import { useAppUpdate } from "@/hooks/use-app-update";
 import { useChatSession } from "@/hooks/use-chat-session";
 import { useProvisioningOutcome } from "@/hooks/use-provisioning-outcome";
 import { useSessionAgents } from "@/hooks/use-session-agents";
-import { useSessionHistory } from "@/hooks/use-session-history";
+import {
+	resolveLiveHistorySession,
+	useSessionHistory,
+} from "@/hooks/use-session-history";
 import { toast } from "@/hooks/use-toast";
 import { applyAppZoomAction, syncAppFontSize } from "@/lib/app-font-size";
 import { syncAppIcon } from "@/lib/app-icon";
@@ -455,6 +458,10 @@ export default function Home() {
 		onOpenSession: handleOpenSession,
 		onUpdateSessionMetadata: handleUpdateSessionMetadata,
 	});
+	const activeHistorySession = resolveLiveHistorySession(
+		activeThread?.historySession,
+		sessionHistory.sessions,
+	);
 	const sessionHistoryRef = useRef(sessionHistory.sessions);
 	useEffect(() => {
 		sessionHistoryRef.current = sessionHistory.sessions;
@@ -693,7 +700,7 @@ export default function Home() {
 							>
 								<ChatThreadPane
 									key={activeThread.id}
-									historySession={activeThread.historySession}
+									historySession={activeHistorySession}
 									handoffUiState={handoffUiState}
 									onHandoffUiAction={dispatchHandoffUi}
 									liveHistoryStatus={
@@ -704,7 +711,7 @@ export default function Home() {
 											(session) =>
 												session.sessionId ===
 												activeThread.historySession?.sessionId,
-										)?.status ?? activeThread.historySession?.status
+										)?.status ?? activeHistorySession?.status
 									}
 									initialAttachments={activeThread.initialAttachments}
 									initialPromptDraft={activeThread.initialPromptDraft}

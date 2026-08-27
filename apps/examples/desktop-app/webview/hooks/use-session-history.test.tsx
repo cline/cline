@@ -3,7 +3,10 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { useSessionHistory } from "./use-session-history";
+import {
+	resolveLiveHistorySession,
+	useSessionHistory,
+} from "./use-session-history";
 
 const { invokeMock, subscribeMock, subscribers } = vi.hoisted(() => {
 	const subscribers = new Map<string, (payload: unknown) => void>();
@@ -47,6 +50,24 @@ function sessionRow(sessionId: string) {
 		endedAt: "2026-07-20T11:00:00.000Z",
 	};
 }
+
+describe("resolveLiveHistorySession", () => {
+	it("uses refreshed metadata for an already-open session", () => {
+		const snapshot = sessionRow("handoff-source");
+		const refreshed = {
+			...snapshot,
+			metadata: {
+				handoff: {
+					status: "complete",
+					toCloudSessionId: "cloud-1",
+				},
+			},
+		};
+
+		expect(resolveLiveHistorySession(snapshot, [refreshed])).toBe(refreshed);
+		expect(resolveLiveHistorySession(snapshot, [])).toBe(snapshot);
+	});
+});
 
 let container: HTMLDivElement;
 let root: Root;
