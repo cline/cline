@@ -24,6 +24,7 @@ import { WelcomeHero } from "@/components/views/chat/welcome-hero";
 import { GitHubConnectStep } from "@/components/views/onboarding/onboarding-github-step";
 import { useAccount } from "@/contexts/account-context";
 import { OAUTH_MANAGED_PROVIDERS } from "@/hooks/chat-session/constants";
+import { isFeatureEnabled, useFeatureFlags } from "@/hooks/use-feature-flags";
 import { isClineAccountNotAuthenticatedResult } from "@/lib/cline-account-state";
 import { desktopClient, openExternalUrl } from "@/lib/desktop-client";
 import {
@@ -42,6 +43,8 @@ import type { Provider } from "@/lib/provider-schema";
 import { cn } from "@/lib/utils";
 
 const CREATE_ACCOUNT_URL = "https://app.cline.bot";
+
+export const GITHUB_ONBOARDING_FEATURE_FLAG = "code-onboarding-github";
 
 export type OnboardingStep = "welcome" | "connect" | "github" | "done";
 
@@ -870,6 +873,11 @@ export function OnboardingView({
 	const [connection, setConnection] = useState<OnboardingConnection | null>(
 		null,
 	);
+	const { flags } = useFeatureFlags();
+	const githubStepEnabled = isFeatureEnabled(
+		flags,
+		GITHUB_ONBOARDING_FEATURE_FLAG,
+	);
 
 	return (
 		<div className="relative h-full w-full overflow-y-auto bg-background">
@@ -896,8 +904,12 @@ export function OnboardingView({
 						onConnected={(nextConnection) => {
 							setConnection(nextConnection);
 							// The GitHub integration lives on the Cline account, so the
-							// step only applies when one is connected.
-							setStep(nextConnection.kind === "cline" ? "github" : "done");
+							// step only applies when one is connected and included in the rollout.
+							setStep(
+								nextConnection.kind === "cline" && githubStepEnabled
+									? "github"
+									: "done",
+							);
 						}}
 						onSkip={onComplete}
 					/>
