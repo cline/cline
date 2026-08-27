@@ -677,7 +677,8 @@ export class CloudSessionApi {
 					if (
 						error instanceof CloudSessionError &&
 						(error.code === "session_failed" ||
-							error.code === "session_expired")
+							error.code === "session_expired" ||
+							error.code === "session_not_found")
 					) {
 						return await removeTerminalRecoveredSession(recovered, error);
 					}
@@ -1495,6 +1496,8 @@ export class CloudSessionManager {
 	private lastListedSessions: CloudSessionRecord[] = [];
 	private discoveryRefresh?: Promise<CloudSessionRecord[]>;
 	private readonly createRequests = new Map<string, Promise<JsonRecord>>();
+	// Never repeat a seeded create whose request may still complete server-side.
+	private readonly unconfirmedInnerCreates = new Map<string, string>();
 	// Keep locally-created sessions visible while their sandbox is provisioning.
 	private readonly pendingCreates = new Map<string, JsonRecord>();
 	// Reconcile only the server row stamped by this exact create request.
@@ -2700,6 +2703,7 @@ export class CloudSessionManager {
 				}
 			}
 			this.knownSessions.delete(outerSessionId);
+			this.unconfirmedInnerCreates.delete(outerSessionId);
 			this.ctx.liveSessions.delete(outerSessionId);
 			for (const [requestId, pending] of this.ctx.pendingApprovals) {
 				if (pending.item.sessionId === outerSessionId) {
@@ -2734,6 +2738,7 @@ export class CloudSessionManager {
 		this.knownSessions.clear();
 		this.pendingCreates.clear();
 		this.pendingCreateRecoveryTitles.clear();
+		this.unconfirmedInnerCreates.clear();
 		this.provisioningOutcomes.clear();
 		await Promise.allSettled(
 			Array.from(this.connections.keys()).map((sessionId) =>
@@ -3023,7 +3028,14 @@ export class CloudSessionManager {
 				handoffSeed &&
 				(await this.adoptExistingHandoffSession(connection, handoffSeed))
 			) {
+				this.unconfirmedInnerCreates.delete(connection.remote.id);
 				return;
+			}
+			if (this.unconfirmedInnerCreates.has(connection.remote.id)) {
+				throw new CloudSessionError(
+					"request_failed",
+					"Cloud conversation creation is still unconfirmed. Wait for it to appear before trying again.",
+				);
 			}
 			await this.createInnerSessionOnce(connection, handoffSeed);
 		})().finally(() => {
@@ -3073,7 +3085,7 @@ export class CloudSessionManager {
 		const cwd = cloudWorkspaceCwd(handoffSeed?.workspaceRelativePath);
 		const mode = handoffSeed?.mode ?? "act";
 		handoffSeed?.onSeeding?.();
-		const reply = await connection.client.command("session.create", {
+		const pendingReply = connection.client.command("session.create", {
 			workspaceRoot: CLOUD_WORKSPACE_ROOT,
 			cwd,
 			...(handoffSeed ? { initialMessages: handoffSeed.messages } : {}),
@@ -3132,6 +3144,22 @@ export class CloudSessionManager {
 				},
 			},
 		});
+		let reply: Awaited<typeof pendingReply>;
+		try {
+			reply = await pendingReply;
+		} catch (error) {
+			if (
+				handoffSeed &&
+				(isHubCommandTimeoutError(error, "session.create") ||
+					isHubReconnectableTransportError(error))
+			) {
+				this.unconfirmedInnerCreates.set(
+					connection.remote.id,
+					handoffSeed.sourceSessionId,
+				);
+			}
+			throw error;
+		}
 		const session =
 			reply.payload?.session && typeof reply.payload.session === "object"
 				? (reply.payload.session as JsonRecord)
@@ -3140,8 +3168,15 @@ export class CloudSessionManager {
 			session?.sessionId ?? reply.payload?.sessionId ?? "",
 		).trim();
 		if (!innerSessionId) {
+			if (handoffSeed) {
+				this.unconfirmedInnerCreates.set(
+					connection.remote.id,
+					handoffSeed.sourceSessionId,
+				);
+			}
 			throw new Error("Cloud Hub did not return an inner session id");
 		}
+		this.unconfirmedInnerCreates.delete(connection.remote.id);
 		connection.innerSessionId = innerSessionId;
 		this.subscribeToInnerSession(connection.remote.id, connection);
 		this.applySessionModel(connection, session);
