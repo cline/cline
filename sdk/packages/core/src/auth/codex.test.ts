@@ -1,6 +1,9 @@
+import net from "node:net";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	getValidOpenAICodexCredentials,
+	loginOpenAICodex,
+	OPENAI_CODEX_OAUTH_CONFIG,
 	refreshOpenAICodexToken,
 } from "./codex";
 import type { OAuthCredentials } from "./types";
@@ -239,4 +242,106 @@ describe("auth/codex token lifecycle", () => {
 		);
 		nowSpy.mockRestore();
 	});
+});
+
+// Codex OAuth uses the fixed registered redirect port (1455). These tests
+// occupy that real port, so they are skipped in sandboxes where binding it is
+// not possible.
+const canBindCodexPort = await (async () => {
+	try {
+		const srv = net.createServer();
+		await new Promise<void>((resolve, reject) => {
+			srv.once("error", reject);
+			srv.listen(OPENAI_CODEX_OAUTH_CONFIG.callbackPort, "localhost", () =>
+				resolve(),
+			);
+		});
+		await new Promise<void>((resolve) => {
+			srv.close(() => resolve());
+		});
+		return true;
+	} catch {
+		return false;
+	}
+})();
+const codexPortIt = canBindCodexPort ? it : it.skip;
+
+async function occupyCodexPort(): Promise<net.Server> {
+	const blocker = net.createServer();
+	await new Promise<void>((resolve, reject) => {
+		blocker.once("error", reject);
+		blocker.listen(OPENAI_CODEX_OAUTH_CONFIG.callbackPort, "localhost", () =>
+			resolve(),
+		);
+	});
+	return blocker;
+}
+
+describe("auth/codex loginOpenAICodex — callback port unavailable", () => {
+	afterEach(() => {
+		vi.unstubAllGlobals();
+		vi.restoreAllMocks();
+	});
+
+	codexPortIt(
+		"fails fast before opening the browser when the port is occupied and no manual fallback exists",
+		async () => {
+			const blocker = await occupyCodexPort();
+			try {
+				const onAuth = vi.fn();
+				await expect(
+					loginOpenAICodex({ onAuth, onPrompt: async () => "" }),
+				).rejects.toThrow(/already in use/);
+				expect(onAuth).not.toHaveBeenCalled();
+			} finally {
+				await new Promise<void>((resolve) => {
+					blocker.close(() => resolve());
+				});
+			}
+		},
+	);
+
+	codexPortIt(
+		"continues via manual code entry when the port is occupied but a manual fallback exists",
+		async () => {
+			const accessToken = createJwt({
+				"https://api.openai.com/auth": { chatgpt_account_id: "acct-manual" },
+			});
+			vi.stubGlobal(
+				"fetch",
+				vi.fn(
+					async () =>
+						new Response(
+							JSON.stringify({
+								access_token: accessToken,
+								refresh_token: "refresh-manual",
+								expires_in: 3600,
+								email: "manual@example.com",
+							}),
+							{ status: 200, headers: { "Content-Type": "application/json" } },
+						),
+				),
+			);
+
+			const blocker = await occupyCodexPort();
+			try {
+				const onAuth = vi.fn();
+				const credentials = await loginOpenAICodex({
+					onAuth,
+					onPrompt: async () => "",
+					onManualCodeInput: async () => "manual-auth-code",
+				});
+				expect(onAuth).toHaveBeenCalledOnce();
+				expect(credentials).toMatchObject({
+					access: accessToken,
+					refresh: "refresh-manual",
+					accountId: "acct-manual",
+				});
+			} finally {
+				await new Promise<void>((resolve) => {
+					blocker.close(() => resolve());
+				});
+			}
+		},
+	);
 });
