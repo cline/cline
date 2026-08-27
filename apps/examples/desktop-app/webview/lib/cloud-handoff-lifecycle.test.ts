@@ -447,7 +447,7 @@ describe("cloud handoff lifecycle: event/RPC ordering races", () => {
 		});
 		expect(h.getState()[SOURCE]).toMatchObject({
 			status: "complete",
-			retryDraft: "/handoff retry command",
+			retryDraft: "retry command",
 			retryAttachments: [retryAttachment],
 		});
 	});

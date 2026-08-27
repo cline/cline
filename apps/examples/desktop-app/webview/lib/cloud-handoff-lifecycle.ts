@@ -192,12 +192,12 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 			let retryAttachments: File[] | undefined;
 			let retryDelivered = false;
 			const latestAttempt = latestAttempts.get(sourceSessionId);
-			const retainNewerRetry = Boolean(
+			const newerRetry =
 				handoffAttemptId &&
-					latestAttempt &&
-					latestAttempt !== handoffAttemptId &&
-					retryStates.has(attemptKey(sourceSessionId, latestAttempt)),
-			);
+				latestAttempt &&
+				latestAttempt !== handoffAttemptId &&
+				retryStates.get(attemptKey(sourceSessionId, latestAttempt));
+			const retainNewerRetry = Boolean(newerRetry);
 			if (
 				progress.phase === "complete" &&
 				progress.sessionId?.trim() &&
@@ -265,10 +265,16 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 				sessionId: progress.sessionId,
 				destination: progress.destination,
 				warningKind: progress.warningKind,
-				...(!retainNewerRetry && retryDraft ? { retryDraft } : {}),
-				...(!retainNewerRetry && retryAttachments?.length
-					? { retryAttachments }
-					: {}),
+				...(retainNewerRetry
+					? { retryDraft: newerRetry?.command }
+					: retryDraft
+						? { retryDraft }
+						: {}),
+				...(retainNewerRetry
+					? { retryAttachments: newerRetry?.attachments }
+					: retryAttachments?.length
+						? { retryAttachments }
+						: {}),
 				...(retainNewerRetry ? { retainRetry: true } : {}),
 			});
 			if (retryDelivered && !retainNewerRetry) {
