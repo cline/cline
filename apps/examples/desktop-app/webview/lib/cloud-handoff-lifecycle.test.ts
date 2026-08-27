@@ -477,6 +477,35 @@ describe("cloud handoff lifecycle: event/RPC ordering races", () => {
 		expect(h.getState()[SOURCE]).not.toHaveProperty("retryDraft");
 	});
 
+	it("retains attachment-only newer retries without a handoff command", async () => {
+		const h = makeHarness();
+		const retryAttachment = makeAttachment("retry.png");
+		const originalAttemptId = h.lifecycle.onRpcStarted(SOURCE);
+		await h.lifecycle.onRpcRejected(SOURCE, {
+			handoffAttemptId: originalAttemptId,
+			error: new Error("request timed out"),
+			nextCommand: "original command",
+			sourceAttachments: [],
+		});
+
+		const retryAttemptId = h.lifecycle.onRpcStarted(SOURCE);
+		await h.lifecycle.onRpcRejected(SOURCE, {
+			handoffAttemptId: retryAttemptId,
+			error: new Error("retry preflight failed"),
+			nextCommand: "",
+			sourceAttachments: [retryAttachment],
+		});
+
+		await h.lifecycle.onEvent(
+			completeEvent({ handoffAttemptId: originalAttemptId }),
+		);
+		expect(h.getState()[SOURCE]).toMatchObject({
+			status: "complete",
+			retryAttachments: [retryAttachment],
+		});
+		expect(h.getState()[SOURCE]).not.toHaveProperty("retryDraft");
+	});
+
 	it("clears a rejected attempt's payload when its clean completion arrives", async () => {
 		const h = makeHarness();
 		const attemptId = h.lifecycle.onRpcStarted(SOURCE);
