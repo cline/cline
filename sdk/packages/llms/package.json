@@ -1,6 +1,6 @@
 {
 	"name": "@cline/llms",
-	"version": "0.0.79",
+	"version": "0.0.81",
 	"description": "Config-driven SDK for selecting, extending, and instantiating LLM providers and models",
 	"repository": {
 		"type": "git",
@@ -70,7 +70,6 @@
 		"@openrouter/ai-sdk-provider": "^3",
 		"@opentelemetry/api": "^1.9.0",
 		"@opentelemetry/sdk-trace-node": "^2.6.1",
-		"@sap-cloud-sdk/connectivity": "4.8.0",
 		"@streamparser/json": "^0.0.21",
 		"ai": "^7.0.58",
 		"ai-sdk-provider-opencode-sdk": "^3.0.1",

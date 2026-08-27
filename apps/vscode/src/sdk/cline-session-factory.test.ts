@@ -355,6 +355,8 @@ describe("buildSessionConfig", () => {
 
 		expect(config.providerId).toBe("cline")
 		expect(config.apiKey).toBe("workos:test-access-token")
+		expect(config.systemPrompt).toContain("# Workspace Configuration")
+		expect(config.systemPrompt).toContain(JSON.stringify("/tmp/workspace"))
 	})
 
 	it("resolves ClinePass from the shared Cline OAuth credentials", async () => {

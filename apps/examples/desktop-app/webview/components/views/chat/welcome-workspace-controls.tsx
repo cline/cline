@@ -34,8 +34,8 @@ import {
 	normalizeCloudRepositoryUrl,
 	preferredCloudBranch,
 } from "@/lib/cloud-repositories";
-import { cn } from "@/lib/utils";
 import { scrollCurrentOptionIntoView } from "@/lib/scroll-current-option";
+import { cn } from "@/lib/utils";
 import {
 	looksLikeFolderPath,
 	normalizeWorkspacePath,
@@ -526,7 +526,10 @@ function SearchInput({
 	// Search row styled to match the composer's model picker.
 	return (
 		<div className="flex items-center gap-2 border-b border-border px-3">
-			<Search aria-hidden="true" className="size-3 shrink-0 text-muted-foreground" />
+			<Search
+				aria-hidden="true"
+				className="size-3 shrink-0 text-muted-foreground"
+			/>
 			<Input
 				autoFocus
 				aria-label={placeholder}
@@ -873,9 +876,9 @@ function BranchPicker({
 							</div>
 						) : (
 							<div
-							className="flex max-h-56 flex-col gap-0.5 overflow-y-auto"
-							ref={branchListRef}
-						>
+								className="flex max-h-56 flex-col gap-0.5 overflow-y-auto"
+								ref={branchListRef}
+							>
 								{filteredBranches.length === 0 ? (
 									<div className="px-2 py-2 text-xs text-muted-foreground">
 										No branches found

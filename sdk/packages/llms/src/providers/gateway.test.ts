@@ -3171,14 +3171,26 @@ describe("sdk-gateway", () => {
 			mockSuccessfulStream();
 
 			const gateway = createGateway({
-				providerConfigs: [{ providerId: "deepseek", apiKey: "deepseek-key" }],
+				providerConfigs: [
+					{
+						providerId: "deepseek",
+						apiKey: "deepseek-key",
+						models: [
+							{
+								id: "deepseek-text-only",
+								name: "DeepSeek Text Only",
+								// Advertises no "images" capability.
+								capabilities: ["text"],
+							},
+						],
+					},
+				],
 			});
 
 			await collect(
 				await gateway.stream({
 					providerId: "deepseek",
-					// Catalog entry advertises no "images" capability.
-					modelId: "deepseek-chat",
+					modelId: "deepseek-text-only",
 					messages: imageHistory,
 				}),
 			);

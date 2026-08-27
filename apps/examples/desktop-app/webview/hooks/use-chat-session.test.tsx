@@ -65,52 +65,6 @@ describe("mergeCloudSnapshotWithLive", () => {
 		expect(optimisticStates.has("optimistic-2")).toBe(false);
 	});
 
-	it("keeps optimistic images while a cloud snapshot is temporarily text-only", () => {
-		const optimisticStates = new Map([
-			["optimistic", { sessionId: "ses-cloud", state: "pending" as const }],
-		]);
-		const optimistic = {
-			...message("optimistic", "user", "describe this", 1),
-			images: [
-				{
-					id: "optimistic-image",
-					mediaType: "image/png" as const,
-					data: "AQID",
-				},
-			],
-		};
-		const first = mergeCloudSnapshotWithLive(
-			[message("saved", "user", "describe this", 2)],
-			[optimistic],
-			{
-				sessionId: "ses-cloud",
-				transcriptKnown: true,
-				previousUserCounts: new Map(),
-				optimisticStates,
-			},
-		);
-
-		expect(first).toEqual([
-			expect.objectContaining({
-				id: "saved",
-				images: [expect.objectContaining({ data: "AQID" })],
-			}),
-		]);
-		expect(optimisticStates.has("optimistic")).toBe(false);
-
-		const second = mergeCloudSnapshotWithLive(
-			[message("saved", "user", "describe this", 2)],
-			first,
-			{
-				sessionId: "ses-cloud",
-				transcriptKnown: true,
-				previousUserCounts: new Map([["describe this", 1]]),
-				optimisticStates,
-			},
-		);
-		expect(second[0]?.images?.[0]?.data).toBe("AQID");
-	});
-
 	it("reconciles a wrapped cloud prompt with its optimistic bubble", () => {
 		const optimisticStates = new Map([
 			["optimistic", { sessionId: "ses-cloud", state: "pending" as const }],
@@ -550,6 +504,197 @@ describe("useChatSession", () => {
 		});
 	});
 
+	it("heals a running attached session with a dead event stream by polling history", async () => {
+		// Scheduled runs can execute on a host whose live events never reach
+		// this client; the transcript must still settle without a remount.
+		const hydratedSessionId = "session-dead-stream";
+		let readCount = 0;
+		let recordReads = 0;
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "read_session_messages") {
+					readCount += 1;
+					const base = [
+						{
+							id: "history-user",
+							sessionId: hydratedSessionId,
+							role: "user",
+							content: "tell me the current time",
+							createdAt: 1,
+						},
+					];
+					return readCount === 1
+						? base
+						: [
+								...base,
+								{
+									id: "history-answer",
+									sessionId: hydratedSessionId,
+									role: "assistant",
+									content: "It is 12:28 PM PT.",
+									createdAt: 2,
+								},
+							];
+				}
+				if (command === "get_discovered_session") {
+					recordReads += 1;
+					// Still running on the first poll — the snapshot already
+					// ends on assistant narration, which must NOT read as
+					// finished while the record says running.
+					return {
+						sessionId: hydratedSessionId,
+						status: recordReads === 1 ? "running" : "completed",
+					};
+				}
+				if (command === "read_session_hooks") return [];
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string } | undefined;
+					if (request?.action === "attach") {
+						return {
+							sessionId: hydratedSessionId,
+							status: "running",
+							provider: "cline",
+							model: "test-model",
+							cwd: "/workspace/cline",
+							workspaceRoot: "/workspace/cline",
+						};
+					}
+					return { promptsInQueue: [] };
+				}
+				return [];
+			},
+		);
+
+		// Fake timers must be active before hydration so the fallback's
+		// interval registers on the fake clock.
+		vi.useFakeTimers();
+		try {
+			await act(async () => {
+				await current.hydrateSession({
+					sessionId: hydratedSessionId,
+					status: "running",
+					provider: "cline",
+					model: "test-model",
+					cwd: "/workspace/cline",
+					workspaceRoot: "/workspace/cline",
+					startedAt: "2026-08-12T00:00:00.000Z",
+				});
+			});
+			expect(current.status).toBe("running");
+			expect(current.messages).toHaveLength(1);
+
+			// No chat_event chunks arrive. The first poll surfaces the
+			// narration mid-run; the record still says running, and the
+			// record — not transcript shape — decides the status.
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(3_100);
+			});
+			expect(current.messages).toHaveLength(2);
+			expect(current.messages[1]?.content).toBe("It is 12:28 PM PT.");
+			expect(current.status).toBe("running");
+
+			// The record flips to completed; the next poll mirrors it.
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(3_100);
+			});
+		} finally {
+			vi.useRealTimers();
+		}
+
+		expect(current.status).toBe("completed");
+	});
+
+	it("keeps the stale-stream poll inert while a local turn is in flight", async () => {
+		// Regression: the fallback poll replaced an optimistic user bubble
+		// (raw prompt) with its canonical envelope-wrapped twin, desyncing
+		// the rekey bookkeeping so the stream appended a duplicate bubble.
+		const hydratedSessionId = "session-local-turn";
+		let readCount = 0;
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "read_session_messages") {
+					readCount += 1;
+					return [
+						{
+							id: "history-user",
+							sessionId: hydratedSessionId,
+							role: "user",
+							content: "earlier prompt",
+							createdAt: 1,
+						},
+					];
+				}
+				if (command === "get_discovered_session") {
+					return { sessionId: hydratedSessionId, status: "running" };
+				}
+				if (command === "read_session_hooks") return [];
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string } | undefined;
+					if (request?.action === "attach" || request?.action === "start") {
+						return {
+							sessionId: hydratedSessionId,
+							status: "idle",
+							provider: "cline",
+							model: "test-model",
+							cwd: "/workspace/cline",
+							workspaceRoot: "/workspace/cline",
+						};
+					}
+					if (request?.action === "send") {
+						// Keep the send unresolved: the local turn stays in
+						// flight for the whole test.
+						return await new Promise(() => {});
+					}
+					return { promptsInQueue: [] };
+				}
+				return [];
+			},
+		);
+
+		vi.useFakeTimers();
+		try {
+			await act(async () => {
+				await current.hydrateSession({
+					sessionId: hydratedSessionId,
+					status: "idle",
+					provider: "cline",
+					model: "test-model",
+					cwd: "/workspace/cline",
+					workspaceRoot: "/workspace/cline",
+					startedAt: "2026-08-12T00:00:00.000Z",
+				});
+			});
+			const readsAfterHydration = readCount;
+
+			await act(async () => {
+				void current.sendPrompt("what time is it");
+				await Promise.resolve();
+			});
+			expect(current.status).toBe("starting");
+			expect(
+				current.messages.filter((m) => m.content === "what time is it"),
+			).toHaveLength(1);
+
+			// Model produces nothing for a long quiet window; the poll must
+			// not fire while the local turn is unsettled.
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(10_000);
+			});
+			expect(readCount).toBe(readsAfterHydration);
+			expect(
+				current.messages.filter((m) => m.content === "what time is it"),
+			).toHaveLength(1);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	it("routes command updates after attaching to an in-flight tool call", async () => {
 		const hydratedSessionId = "session-in-flight-command";
 		invokeMock.mockImplementation(
@@ -650,96 +795,6 @@ describe("useChatSession", () => {
 			result: "done",
 		});
 		expect(current.messages[0]?.meta?.hookEventName).toBe("tool_call_end");
-	});
-
-	it("restores the persisted Plan mode when hydrating a session", async () => {
-		const hydratedSessionId = "session-plan-mode";
-		invokeMock.mockImplementation(
-			async (command: string, args?: Record<string, unknown>) => {
-				if (command === "get_process_context") {
-					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
-				}
-				if (command === "read_session_messages") return [];
-				if (command === "read_session_hooks") return [];
-				if (command === "chat_session_command") {
-					const request = args?.request as { action?: string } | undefined;
-					if (request?.action === "attach") {
-						return {
-							sessionId: hydratedSessionId,
-							status: "idle",
-							provider: "cline",
-							model: "test-model",
-							cwd: "/workspace/cline",
-							workspaceRoot: "/workspace/cline",
-							metadata: { mode: "plan" },
-						};
-					}
-					return { promptsInQueue: [] };
-				}
-				return [];
-			},
-		);
-
-		expect(current.config.mode).toBe("act");
-		await act(async () => {
-			await current.hydrateSession({
-				sessionId: hydratedSessionId,
-				status: "idle",
-				provider: "cline",
-				model: "test-model",
-				cwd: "/workspace/cline",
-				workspaceRoot: "/workspace/cline",
-				startedAt: "2026-08-18T00:00:00.000Z",
-				metadata: { mode: "plan" },
-			});
-		});
-
-		expect(current.config.mode).toBe("plan");
-	});
-
-	it("keeps the pane's current mode when the session has none persisted", async () => {
-		const hydratedSessionId = "session-no-mode";
-		invokeMock.mockImplementation(
-			async (command: string, args?: Record<string, unknown>) => {
-				if (command === "get_process_context") {
-					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
-				}
-				if (command === "read_session_messages") return [];
-				if (command === "read_session_hooks") return [];
-				if (command === "chat_session_command") {
-					const request = args?.request as { action?: string } | undefined;
-					if (request?.action === "attach") {
-						return {
-							sessionId: hydratedSessionId,
-							status: "idle",
-							provider: "cline",
-							model: "test-model",
-							cwd: "/workspace/cline",
-							workspaceRoot: "/workspace/cline",
-						};
-					}
-					return { promptsInQueue: [] };
-				}
-				return [];
-			},
-		);
-
-		await act(async () => {
-			current.setConfig((prev) => ({ ...prev, mode: "plan" }));
-		});
-		await act(async () => {
-			await current.hydrateSession({
-				sessionId: hydratedSessionId,
-				status: "idle",
-				provider: "cline",
-				model: "test-model",
-				cwd: "/workspace/cline",
-				workspaceRoot: "/workspace/cline",
-				startedAt: "2026-08-18T00:00:00.000Z",
-			});
-		});
-
-		expect(current.config.mode).toBe("plan");
 	});
 
 	it("starts without a selected workspace and adopts the SDK temporary path", async () => {

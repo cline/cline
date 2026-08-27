@@ -252,9 +252,17 @@ describe("cloud agents gate", () => {
 		const { isCloudAgentsAvailable, isCloudAgentsEnabled } = await import(
 			"./feature-flags"
 		);
-		mocks.getFlagPayload.mockReturnValue(undefined);
 		expect(isCloudAgentsAvailable()).toBe(false);
 		expect(isCloudAgentsEnabled()).toBe(false);
+	});
+
+	it("does not enable a boolean rollout from a truthy variant payload", async () => {
+		const { isCloudAgentsAvailable } = await import("./feature-flags");
+		mocks.getFlagPayload.mockReturnValue("control");
+		expect(isCloudAgentsAvailable()).toBe(false);
+		expect(mocks.getBooleanFlagEnabled).toHaveBeenCalledWith(
+			"code-cloud-agents",
+		);
 	});
 
 	it("needs both the rollout flag and the user's opt-in to enable", async () => {
@@ -262,8 +270,8 @@ describe("cloud agents gate", () => {
 			"./feature-flags"
 		);
 		const { setCloudSessionsEnabled } = await import("./desktop-settings");
-		mocks.getFlagPayload.mockImplementation((flag: unknown) =>
-			flag === "code-cloud-agents" ? true : undefined,
+		mocks.getBooleanFlagEnabled.mockImplementation(
+			(flag: unknown) => flag === "code-cloud-agents",
 		);
 		expect(isCloudAgentsAvailable()).toBe(true);
 		setCloudSessionsEnabled(false);

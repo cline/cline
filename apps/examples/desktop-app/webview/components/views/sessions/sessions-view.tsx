@@ -14,8 +14,8 @@ import {
 	Loader2,
 	MoreHorizontal,
 	Pencil,
+	Pin,
 	Search,
-	Star,
 	Trash2,
 	X,
 } from "lucide-react";
@@ -134,7 +134,7 @@ function sessionFilterDetails(
 	const workspace = workspacePath ? basenamePath(workspacePath) : "";
 	return [
 		thread.origin === "cloud" ? "location:cloud" : undefined,
-		thread.pinned ? "favorite:yes" : undefined,
+		thread.pinned ? "pinned:yes" : undefined,
 		workspace ? `workspace:${workspace}` : undefined,
 		thread.status ? `status:${thread.status}` : undefined,
 		thread.provider ? `provider:${thread.provider}` : undefined,
@@ -582,8 +582,8 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 													/>
 												) : null}
 												{thread.pinned ? (
-													<Star
-														aria-label="Favorited"
+													<Pin
+														aria-label="Pinned"
 														className="size-3.5 shrink-0 fill-current text-muted-foreground"
 													/>
 												) : null}
@@ -648,13 +648,13 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 															)
 														}
 													>
-														<Star
+														<Pin
 															className={cn(
 																"size-4",
 																thread.pinned && "fill-current",
 															)}
 														/>
-														{thread.pinned ? "Unfavorite" : "Favorite"}
+														{thread.pinned ? "Unpin" : "Pin"}
 													</DropdownMenuItem>
 												) : null}
 												{/* Cloud sessions support rename (PATCH title), matching

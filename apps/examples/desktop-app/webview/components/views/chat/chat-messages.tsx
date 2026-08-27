@@ -681,7 +681,9 @@ function ChatMessagesImpl({
 										)}
 									>
 										<Loader2 className="size-4 animate-spin" />
-										<span className={STREAMING_TITLE_CLASS}>{startingLabel}</span>
+										<span className={STREAMING_TITLE_CLASS}>
+											{startingLabel}
+										</span>
 									</div>
 								) : null}
 								{pendingToolApprovals.length > 0 ? (

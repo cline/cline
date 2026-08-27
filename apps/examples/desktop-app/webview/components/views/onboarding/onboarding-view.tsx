@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, IconButton } from "@cline/ui";
+import { AgentWelcomeHero, Button, IconButton } from "@cline/ui";
 import {
 	ArrowLeft,
 	CheckCircle2,
@@ -20,7 +20,6 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import { WelcomeHero } from "@/components/views/chat/welcome-hero";
 import { useAccount } from "@/contexts/account-context";
 import { OAUTH_MANAGED_PROVIDERS } from "@/hooks/chat-session/constants";
 import { isClineAccountNotAuthenticatedResult } from "@/lib/cline-account-state";
@@ -268,7 +267,7 @@ function WelcomeStep({ onContinue }: { onContinue: () => void }) {
 		<OnboardingContent surface="transparent">
 			<div className="flex flex-col items-center py-4 text-center">
 				<div className="w-full">
-					<WelcomeHero variant="bot-only" />
+					<AgentWelcomeHero variant="bot-only" />
 				</div>
 				<h1 className="mt-5 text-4xl font-semibold text-foreground">Cline</h1>
 				<p className="mt-2 text-lg text-foreground">Build software your way</p>
@@ -880,7 +879,7 @@ export function OnboardingView({
 					}
 					data-onboarding-grid={step}
 				>
-					<WelcomeHero
+					<AgentWelcomeHero
 						interactive={step !== "done"}
 						layout={step === "done" ? "wide-grid" : "full-bleed"}
 						variant="grid-only"

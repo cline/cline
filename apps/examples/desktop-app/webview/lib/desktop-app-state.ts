@@ -12,8 +12,6 @@ export type DesktopThread = {
 	historySession?: SessionHistoryItem;
 	hasStarted?: boolean;
 	initialPromptDraft?: string;
-	/** Attachments restored into the composer alongside initialPromptDraft. */
-	initialAttachments?: File[];
 };
 
 export type DesktopAppLocation<SettingsSection extends string> = {
@@ -36,7 +34,6 @@ export type DesktopAppAction<SettingsSection extends string> =
 			type: "open-session";
 			session: SessionHistoryItem;
 			initialPromptDraft?: string;
-			initialAttachments?: File[];
 	  }
 	| { type: "consume-initial-prompt-draft"; threadId: string }
 	| {
@@ -125,7 +122,6 @@ export function desktopAppReducer<SettingsSection extends string>(
 										hasStarted: true,
 										historySession: action.session,
 										initialPromptDraft: action.initialPromptDraft,
-										initialAttachments: action.initialAttachments,
 									}
 								: thread,
 						)
@@ -136,7 +132,6 @@ export function desktopAppReducer<SettingsSection extends string>(
 								hasStarted: true,
 								historySession: action.session,
 								initialPromptDraft: action.initialPromptDraft,
-								initialAttachments: action.initialAttachments,
 							},
 						];
 			return {
@@ -156,13 +151,8 @@ export function desktopAppReducer<SettingsSection extends string>(
 				...state,
 				threads: state.threads.map((thread) =>
 					thread.id === action.threadId &&
-					(thread.initialPromptDraft !== undefined ||
-						thread.initialAttachments !== undefined)
-						? {
-								...thread,
-								initialPromptDraft: undefined,
-								initialAttachments: undefined,
-							}
+					thread.initialPromptDraft !== undefined
+						? { ...thread, initialPromptDraft: undefined }
 						: thread,
 				),
 			};

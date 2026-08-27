@@ -49,6 +49,7 @@ import {
 	readModelSelectionStorageFromWindow,
 	writeModelSelectionStorageToWindow,
 } from "@/lib/model-selection";
+import { subscribeToPromptInputFocus } from "@/lib/prompt-input-focus";
 import { normalizeProviderId } from "@/lib/provider-id";
 import {
 	loadProviderModelCatalog,
@@ -59,6 +60,7 @@ import {
 } from "@/lib/provider-model-catalog";
 import type { ProviderModel } from "@/lib/provider-schema";
 import { cn } from "@/lib/utils";
+
 import { startVercelStreamingTranscription } from "@/lib/vercel-streaming-transcription";
 import { MAX_RECORDED_AUDIO_BYTES } from "@/lib/voice-input-limits";
 import { WorkspaceSelector as WorkspaceSelectorImpl } from "./workspace-selector";
@@ -94,37 +96,13 @@ type UserInstructionConfigResponse = {
 	runtimeCommands?: UserInstructionCommand[];
 };
 
-export const BUILTIN_SLASH_COMMANDS: SlashCommand[] = [
-	{
-		name: "handoff",
-		description: "Continue this local session in Cline Cloud",
-	},
+const BUILTIN_SLASH_COMMANDS: SlashCommand[] = [
 	{
 		name: "fork",
 		description: "Create a copy of the current session into a new session",
 	},
 	{ name: "team", description: "Start the task with an agent team" },
 ];
-
-export function filterSlashCommandsForHandoff(
-	commands: SlashCommand[],
-	cloudHandoffAvailable: boolean,
-): SlashCommand[] {
-	// With the gate on, the built-in owns /handoff (a user duplicate is
-	// dropped); with it off, the built-in is removed and a user-defined
-	// /handoff stays reachable.
-	const builtinHandoff = BUILTIN_SLASH_COMMANDS.find(
-		(command) => command.name === "handoff",
-	);
-	const hasBuiltin =
-		builtinHandoff !== undefined && commands.includes(builtinHandoff);
-	return commands.filter((command) => {
-		if (command.name !== "handoff") return true;
-		const isBuiltin = command === builtinHandoff;
-		if (cloudHandoffAvailable) return isBuiltin || !hasBuiltin;
-		return !isBuiltin;
-	});
-}
 
 // Last known user commands, kept across composer instances so reopening the
 // slash menu paints instantly (stale-while-revalidate); the fetch that
@@ -137,14 +115,7 @@ export function buildUserInstructionSlashCommands(
 	const commands = Array.isArray(response.runtimeCommands)
 		? response.runtimeCommands
 		: [];
-	// "handoff" is deliberately NOT deduped away: when the cloud-handoff gate
-	// is off the built-in is filtered out, and a user's own /handoff workflow
-	// must remain reachable. filterSlashCommandsForHandoff keeps exactly one.
-	const seen = new Set(
-		BUILTIN_SLASH_COMMANDS.map((command) => command.name).filter(
-			(name) => name !== "handoff",
-		),
-	);
+	const seen = new Set(BUILTIN_SLASH_COMMANDS.map((command) => command.name));
 	return commands.flatMap((command) => {
 		const name = command.name;
 		if (!name || seen.has(name)) {
@@ -327,7 +298,6 @@ type ChatInputBarProps = {
 	/** Branch name, "no-git" for a non-repo folder, null while discovery is pending. */
 	gitBranch: string | null;
 	executionTarget?: "local" | "cloud";
-	cloudHandoffAvailable?: boolean;
 	repoUrl?: string;
 	cloudBranch?: string;
 	hasActiveSession?: boolean;
@@ -374,7 +344,6 @@ function ChatInputBarImpl({
 	reasoningEffort,
 	gitBranch,
 	executionTarget = "local",
-	cloudHandoffAvailable = false,
 	repoUrl,
 	cloudBranch,
 	hasActiveSession = false,
@@ -395,7 +364,6 @@ function ChatInputBarImpl({
 	onSteerPromptInQueue,
 	onEditPromptInQueue,
 	onRemovePromptInQueue,
-	onOpenVoiceInputSettings,
 	summary,
 }: ChatInputBarProps) {
 	const {
@@ -413,6 +381,15 @@ function ChatInputBarImpl({
 	const latestDraftVersionRef = useRef(promptDraft.version);
 	latestDraftVersionRef.current = promptDraft.version;
 	const promptInputRef = useRef<HTMLTextAreaElement | null>(null);
+	// The sidebar's "New" action asks the prompt input to grab focus through a
+	// window event (see lib/prompt-input-focus.ts).
+	useEffect(
+		() =>
+			subscribeToPromptInputFocus(() => {
+				promptInputRef.current?.focus();
+			}),
+		[],
+	);
 	const batchTranscriptSessionRef = useRef<{
 		start: number;
 		end: number;
@@ -1029,15 +1006,11 @@ function ChatInputBarImpl({
 	// Filtered slash commands based on the current query.
 	const filteredSlashCommands = useMemo(() => {
 		if (!slashOpen) return [];
-		const availableCommands = filterSlashCommandsForHandoff(
-			slashCommands,
-			cloudHandoffAvailable,
-		);
 		const query = (activeSlash?.query ?? "").trim().toLowerCase();
 		if (!query) {
-			return availableCommands.slice(0, 10);
+			return slashCommands.slice(0, 10);
 		}
-		return availableCommands
+		return slashCommands
 			.filter((cmd) => cmd.name.toLowerCase().includes(query))
 			.sort((a, b) => {
 				const aStarts = a.name.toLowerCase().startsWith(query);
@@ -1047,7 +1020,7 @@ function ChatInputBarImpl({
 				return a.name.localeCompare(b.name);
 			})
 			.slice(0, 10);
-	}, [slashOpen, activeSlash?.query, slashCommands, cloudHandoffAvailable]);
+	}, [slashOpen, activeSlash?.query, slashCommands]);
 
 	const insertSlashCommandItem = useCallback(
 		(commandName: string) => {
@@ -1390,44 +1363,34 @@ function ChatInputBarImpl({
 									<CircleStop className="size-3" />
 								</button>
 							)}
-							<SpeechInput
-								allowUnavailableClick={!transcriptionTarget}
-								key={
-									transcriptionTarget
-										? `${transcriptionTarget.providerId}:${transcriptionTarget.modelId}:${transcriptionTarget.supportsStreaming ? "streaming" : "auto"}`
-										: "unconfigured"
-								}
-								onActiveChange={handleSpeechInputActiveChange}
-								onAudioRecorded={handleAudioRecorded}
-								onClick={(event) => {
-									if (!transcriptionTarget) {
-										event.preventDefault();
-										onOpenVoiceInputSettings?.();
+							{/* The mic button only appears once a voice model is
+							    configured in Settings → Voice; unconfigured users
+							    don't get a dead control. */}
+							{transcriptionTarget ? (
+								<SpeechInput
+									key={`${transcriptionTarget.providerId}:${transcriptionTarget.modelId}:${transcriptionTarget.supportsStreaming ? "streaming" : "auto"}`}
+									onActiveChange={handleSpeechInputActiveChange}
+									onAudioRecorded={handleAudioRecorded}
+									onError={handleSpeechInputError}
+									onProcessingChange={setSpeechInputProcessing}
+									onStartStreaming={
+										transcriptionTarget.supportsStreaming
+											? handleStartStreamingTranscription
+											: undefined
 									}
-								}}
-								onError={handleSpeechInputError}
-								onProcessingChange={setSpeechInputProcessing}
-								onStartStreaming={
-									transcriptionTarget?.supportsStreaming
-										? handleStartStreamingTranscription
-										: undefined
-								}
-								onStreamingEnd={handleStreamingTranscriptionEnd}
-								onStreamingStart={handleStreamingTranscriptionStart}
-								onTranscriptionChange={
-									transcriptionTarget?.supportsStreaming
-										? undefined
-										: handleTranscriptionChange
-								}
-								recordingMode={
-									transcriptionTarget?.supportsStreaming ? "streaming" : "auto"
-								}
-								title={
-									transcriptionTarget
-										? `${transcriptionTarget.supportsStreaming ? "Transcribe live" : "Transcribe"} with ${transcriptionTarget.providerName} / ${transcriptionTarget.modelName}`
-										: "Configure voice input in Settings → Models"
-								}
-							/>
+									onStreamingEnd={handleStreamingTranscriptionEnd}
+									onStreamingStart={handleStreamingTranscriptionStart}
+									onTranscriptionChange={
+										transcriptionTarget.supportsStreaming
+											? undefined
+											: handleTranscriptionChange
+									}
+									recordingMode={
+										transcriptionTarget.supportsStreaming ? "streaming" : "auto"
+									}
+									title={`${transcriptionTarget.supportsStreaming ? "Transcribe live" : "Transcribe"} with ${transcriptionTarget.providerName} / ${transcriptionTarget.modelName}`}
+								/>
+							) : null}
 							{(!isBusy || canSend) && (
 								<button
 									aria-label="Send message"

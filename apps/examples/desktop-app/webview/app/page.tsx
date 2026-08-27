@@ -111,6 +111,7 @@ import {
 	markOnboardingCompleted,
 	ONBOARDING_RESET_EVENT,
 } from "@/lib/onboarding";
+import { requestPromptInputFocus } from "@/lib/prompt-input-focus";
 import { isProviderConnected } from "@/lib/provider-connection";
 import {
 	fetchProviderCatalog,
@@ -319,6 +320,7 @@ export default function Home() {
 
 	const handleNewThread = useCallback(() => {
 		dispatchApp({ type: "new-thread", threadId: makeThreadId() });
+		requestPromptInputFocus();
 	}, []);
 
 	const completeOnboarding = useCallback(() => {
@@ -399,6 +401,7 @@ export default function Home() {
 			return;
 		}
 		navigateWith({ view: "chat" });
+		requestPromptInputFocus();
 	}, [activeThread, handleNewThread, navigateWith]);
 	const handleViewChange = useCallback(
 		(nextView: DesktopAppView) => {
@@ -406,6 +409,13 @@ export default function Home() {
 		},
 		[navigateWith],
 	);
+	// The sidebar's New row reads as selected while the fresh, not-yet-started
+	// task page is showing; once the task starts the session row takes over.
+	const newTaskActive =
+		view === "chat" &&
+		activeThread !== undefined &&
+		!activeThread.hasStarted &&
+		!activeThread.historySession;
 	const handleSettingsSectionChange = useCallback(
 		(section: SettingsSection) => {
 			navigateWith({ settingsSection: section, view: "settings" });
@@ -654,21 +664,15 @@ export default function Home() {
 					>
 						<AgentSidebar
 							activeSessionId={activeHistorySessionId}
+							newTaskActive={newTaskActive}
 							onHome={handleHome}
 							onNavigateBack={handleNavigateBack}
 							onNavigateForward={handleNavigateForward}
-							onNewThread={handleNewThread}
-							onOpenSessionById={handleOpenSessionById}
 							onSettingsSectionChange={handleSettingsSectionChange}
 							sessionHistory={sessionHistory}
 							setView={handleViewChange}
 							settingsSection={settingsSection}
 							view={view}
-							workspaceRoot={
-								activeThread?.historySession?.workspaceRoot ||
-								activeThread?.historySession?.cwd ||
-								historyWorkspacePaths[0]
-							}
 							canNavigateBack={navigation.back.length > 0}
 							canNavigateForward={navigation.forward.length > 0}
 						/>
@@ -726,7 +730,7 @@ export default function Home() {
 									}
 									parentSession={activeParentSession}
 									onOpenVoiceInputSettings={() =>
-										handleSettingsSectionChange("Models")
+										handleSettingsSectionChange("Voice")
 									}
 									onThreadStarted={handleThreadStarted}
 								/>
