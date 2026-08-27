@@ -436,7 +436,26 @@ export async function applyCheckpointToWorktree(
 		cwd,
 		checkpoint.ref,
 	);
-	await execFile("git", ["-C", cwd, "reset", "--hard", restoreBase], {
+	// `git update-ref <ref> <new> <old>` is git's native compare-and-swap: it
+	// moves HEAD to the restore base only if HEAD still points at the commit
+	// verified above, closing the race between the guard check and the reset.
+	// The bare `reset --hard` then syncs the index and worktree to the
+	// already-moved HEAD without touching the branch pointer again.
+	await execFile(
+		"git",
+		[
+			"-C",
+			cwd,
+			"update-ref",
+			"-m",
+			"cline: checkpoint restore",
+			"HEAD",
+			restoreBaseSha,
+			currentHead,
+		],
+		{ windowsHide: true },
+	);
+	await execFile("git", ["-C", cwd, "reset", "--hard"], {
 		windowsHide: true,
 	});
 	// Only clear untracked files for snapshots that captured them (third
