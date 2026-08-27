@@ -237,9 +237,7 @@ export function isCloudHandoffEnabled(options?: {
 }): boolean {
 	const override = readCloudHandoffEnvOverride();
 	if (override !== undefined) return override;
-	return Boolean(
-		getDesktopFeatureFlagsService(options).getFlagPayload(
-			FEATURE_FLAG_CODE_CLOUD_HANDOFF,
-		),
+	return getDesktopFeatureFlagsService(options).getBooleanFlagEnabled(
+		FEATURE_FLAG_CODE_CLOUD_HANDOFF,
 	);
 }
