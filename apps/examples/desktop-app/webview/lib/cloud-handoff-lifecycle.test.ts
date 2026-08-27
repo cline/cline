@@ -330,6 +330,40 @@ describe("cloud handoff lifecycle: event/RPC ordering races", () => {
 		});
 	});
 
+	it("RPC before its completion event keeps recovery payload after the target cannot open", async () => {
+		const h = makeHarness({ openSessionResult: false });
+		const attachment = makeAttachment();
+		const handoffAttemptId = h.lifecycle.onRpcStarted(SOURCE);
+		await h.lifecycle.onRpcResolved(SOURCE, {
+			handoffAttemptId,
+			result: makeResult({
+				warning: "The follow-up command could not be queued.",
+				warningKind: "unqueued",
+			}),
+			nextCommand: "run the suite",
+			sourceAttachments: [attachment],
+			isThreadActive: () => true,
+		});
+
+		await h.lifecycle.onEvent(
+			completeEvent({
+				handoffAttemptId,
+				warningKind: "unqueued",
+				undeliveredCommand: "run the suite",
+			}),
+		);
+
+		expect(h.openSession).toHaveBeenCalledTimes(1);
+		expect(h.getState()[SOURCE]).toEqual({
+			status: "complete",
+			receipt: { targetSessionId: TARGET, dashboardUrl: DASHBOARD_URL },
+			externalPresentation: true,
+			warningKind: "unqueued",
+			retryDraft: "run the suite",
+			retryAttachments: [attachment],
+		});
+	});
+
 	it("duplicate completion events do not open or reopen the target", async () => {
 		const h = makeHarness();
 		const event = completeEvent({
@@ -691,6 +725,14 @@ describe("cloud handoff lifecycle: event/RPC ordering races", () => {
 			receipt: { targetSessionId: TARGET, dashboardUrl: DASHBOARD_URL },
 			externalPresentation: false,
 			warningKind: "unqueued",
+			retryDraft: "run the suite",
+			retryAttachments: [attachment],
+		});
+
+		await h.lifecycle.onEvent(completeEvent({ warningKind: "unqueued" }));
+		expect(h.openSession).toHaveBeenCalledTimes(1);
+		expect(h.getState()[SOURCE]).toMatchObject({
+			status: "complete",
 			retryDraft: "run the suite",
 			retryAttachments: [attachment],
 		});
