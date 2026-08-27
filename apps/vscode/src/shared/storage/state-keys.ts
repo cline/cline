@@ -283,10 +283,6 @@ const USER_SETTINGS_FIELDS = {
 	backgroundEditEnabled: { default: false as boolean },
 	optOutOfRemoteConfig: { default: false as boolean },
 	showFeatureTips: { default: false as boolean },
-	// When enabled, a failed agent turn (generic send/stream error) is retried
-	// indefinitely on an unbounded Fibonacci backoff (1s,1s,2s,3s,5s,8s,… capped
-	// at 5min) until it succeeds or the user cancels. Auth/balance errors are
-	// NOT retried (they require user action). Failed requests cost no tokens.
 	autoRetryFailedRequests: { default: true as boolean },
 
 	// OpenTelemetry configuration

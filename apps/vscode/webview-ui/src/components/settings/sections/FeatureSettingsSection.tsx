@@ -43,8 +43,7 @@ const agentFeatures: FeatureToggle[] = [
 		description: (
 			<>
 				Automatically retry failed API requests with increasing delays (1s, 1s, 2s, 3s, 5s, 8s…) until they succeed or you
-				cancel. Failed requests cost no tokens, so this can keep a task going through transient outages without
-				intervention.
+				cancel. Failed requests cost no tokens.
 			</>
 		),
 		stateKey: "autoRetryFailedRequests",

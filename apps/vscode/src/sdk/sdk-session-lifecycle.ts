@@ -57,11 +57,7 @@ export interface SdkSessionLifecycleOptions {
 	onDidBecomeIdle?: () => void
 	/**
 	 * Returns true when a connection-level error was intercepted for auto-retry
-	 * and the retry is still pending. When true, fireAndForgetSend's `.then()`
-	 * skips `setRunning(false)` — the session must stay "running" so the retry's
-	 * askResponse() re-sends through the active-session path, and so
-	 * onDidBecomeIdle (which can trigger session rebuilds) does not fire
-	 * mid-retry.
+	 * and the retry is still pending.
 	 */
 	isAutoRetryPending?: () => boolean
 }
@@ -417,11 +413,6 @@ export class SdkSessionLifecycle {
 					return
 				}
 				Logger.log(`[SdkController] Agent turn completed for session: ${sessionId}`)
-				// A connection-level error was intercepted for auto-retry — the
-				// turn did NOT actually succeed. Keep the session running so the
-				// pending retry's askResponse() re-sends through the
-				// active-session path, and so onDidBecomeIdle (which can trigger
-				// session rebuilds) does not fire mid-retry.
 				if (!this.options.isAutoRetryPending?.()) {
 					this.setRunning(false)
 				}
@@ -437,8 +428,6 @@ export class SdkSessionLifecycle {
 				}
 				Logger.error("[SdkController] Agent turn failed:", error)
 				await this.options.onSendError(error, sessionId)
-				// onSendError may have scheduled an auto-retry; only mark the
-				// session idle when no retry is pending (same guard as .then()).
 				if (!this.options.isAutoRetryPending?.()) {
 					this.setRunning(false)
 				}

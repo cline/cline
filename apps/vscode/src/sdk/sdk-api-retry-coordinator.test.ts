@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "bun:test"
 import {
 	getFibonacciBackoffSeconds,
+	isPermanentApiErrorMessage,
 	MAX_RETRY_DELAY_SECONDS,
 	SdkApiRetryCoordinator,
 	type SdkApiRetryCoordinatorOptions,
@@ -153,6 +154,18 @@ describe("SdkApiRetryCoordinator", () => {
 		expect(sendTurn).not.toHaveBeenCalled()
 	})
 
+	it("notifies onRetryAbandoned when the session died while waiting", () => {
+		const onRetryAbandoned = vi.fn()
+		const { coordinator, sendTurn, isSessionActive, fire } = makeCoordinator({ onRetryAbandoned })
+
+		coordinator.handleSendError(new Error("boom"), "s1")
+		isSessionActive.mockReturnValue(false)
+		fire()
+
+		expect(sendTurn).not.toHaveBeenCalled()
+		expect(onRetryAbandoned).toHaveBeenCalledTimes(1)
+	})
+
 	it("a new failure supersedes a prior pending retry without double-firing", () => {
 		const { coordinator, timers, sendTurn, fire } = makeCoordinator()
 
@@ -169,13 +182,9 @@ describe("SdkApiRetryCoordinator", () => {
 		expect(sendTurn).toHaveBeenCalledTimes(1)
 	})
 
-	// Regression: the user-visible failure
-	//   "Cannot connect to API:: AggregateError: connect ETIMEDOUT 43.159.106.97:443"
-	// (and every other transport/network error that escapes the SDK's own 3-attempt
-	// in-stream retry) must be retried continuously by the coordinator. The
-	// coordinator is deliberately error-agnostic — it never inspects the error
-	// type, so this test guards against anyone later adding error-class filtering
-	// that would stop the retry on transient connectivity failures.
+	// Regression: "Cannot connect to API:: AggregateError: connect ETIMEDOUT …"
+	// (and every other transient transport/network error) must be retried
+	// continuously — the coordinator never gives up on connectivity failures.
 	it("retries ETIMEDOUT / 'Cannot connect to API' network failures continuously (non-stopping)", () => {
 		const { coordinator, timers, sendTurn, emitRetryScheduled, fire } = makeCoordinator()
 
@@ -205,5 +214,36 @@ describe("SdkApiRetryCoordinator", () => {
 		// ...and the very next failure schedules attempt 9, not a reset.
 		expect(coordinator.handleSendError(etimedout, "s1")).toBe(true)
 		expect(coordinator.currentRetryCount).toBe(consecutiveFailures + 1)
+	})
+})
+
+describe("isPermanentApiErrorMessage", () => {
+	it("flags errors that can never succeed by retrying", () => {
+		const permanent = [
+			"Input validation error: Prompt is too long: 243120 tokens > 200000 maximum",
+			"context_length_exceeded: This model's maximum context length is 128000 tokens",
+			"exceeds the model's context window",
+			"The input token count exceeds the maximum number of tokens allowed",
+			"Incorrect API key provided: sk-foo",
+			"Request failed with status code 401 Unauthorized",
+			"insufficient_quota: You exceeded your current quota, please check your plan and billing details",
+			"model_not_found: The model does not exist",
+		]
+		for (const message of permanent) {
+			expect(isPermanentApiErrorMessage(message)).toBe(true)
+		}
+	})
+
+	it("keeps transient connection errors retryable", () => {
+		const transient = [
+			"Cannot connect to API:: AggregateError: connect ETIMEDOUT 43.159.106.97:443 (ETIMEDOUT)",
+			"fetch failed",
+			"ECONNRESET",
+			"overloaded_error",
+			"Rate limit reached for requests",
+		]
+		for (const message of transient) {
+			expect(isPermanentApiErrorMessage(message)).toBe(false)
+		}
 	})
 })
