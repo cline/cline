@@ -1227,6 +1227,7 @@ export class AgentTeamsRuntime {
 			}
 			run.status = "completed";
 			run.result = result;
+			run.error = undefined; // clear a retried attempt's stale failure
 			run.endedAt = new Date();
 			run.currentActivity = "completed";
 			this.emitEvent({ type: TeamMessageType.RunCompleted, run: { ...run } });

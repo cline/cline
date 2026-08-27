@@ -505,6 +505,10 @@ export function createAgentTeamsTools(
 						{
 							taskId: validatedInput.taskId || undefined,
 							fromAgentId: options.requesterId,
+							// Re-queue failed runs (backoff built into the runtime):
+							// transient mid-stream network deaths are the dominant
+							// killer of async runs and succeed on retry.
+							maxRetries: 2,
 							continueConversation:
 								validatedInput.continueConversation || undefined,
 						},
