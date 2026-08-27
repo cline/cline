@@ -192,7 +192,12 @@ export async function preflightCloudHandoffGit(input: {
 	const dirty = await runRequired(
 		git,
 		cwd,
-		["status", "--porcelain=v1", "--untracked-files=all"],
+		[
+			"status",
+			"--porcelain=v1",
+			"--untracked-files=all",
+			"--ignore-submodules=none",
+		],
 		"git_command_failed",
 		"Could not inspect the Git worktree.",
 		input.signal,
