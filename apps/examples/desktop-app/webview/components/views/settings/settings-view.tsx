@@ -59,6 +59,7 @@ import {
 	setStoredHubTheme,
 } from "@/lib/theme";
 import { cn } from "@/lib/utils";
+import { MarketplaceView } from "../marketplace-view";
 import { PageFrame, PageHeader } from "../page-layout";
 import { AccountView } from "./account-view";
 import { AddProviderContent, type AddProviderPayload } from "./add-provider";
@@ -577,7 +578,14 @@ export function SettingsView({
 				onOpenModelProviders={() => onNavigateSection("Models")}
 			/>
 		) : activeNav === "Customize" ? (
-			<CustomizeView />
+			<CustomizeView
+				onOpenMarketplace={() => onNavigateSection("Marketplace")}
+			/>
+		) : activeNav === "Marketplace" ? (
+			<MarketplaceView
+				onOpenInstalled={() => onNavigateSection("Customize")}
+				variant="directory"
+			/>
 		) : activeNav === "Channels" ? (
 			<ChannelsContent />
 		) : activeNav === "Schedules" ? (
@@ -597,9 +605,8 @@ export function SettingsView({
 		);
 
 	return (
-		<div className="grid h-full grid-rows-[3rem_minmax(0,1fr)] overflow-hidden bg-background md:block">
-			<div aria-hidden="true" className="md:hidden" />
-			<div className="min-h-0 overflow-hidden md:h-full">{content}</div>
+		<div className="h-full overflow-hidden bg-background">
+			<div className="h-full min-h-0 overflow-hidden">{content}</div>
 		</div>
 	);
 }

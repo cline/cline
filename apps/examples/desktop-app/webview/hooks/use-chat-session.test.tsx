@@ -166,6 +166,197 @@ describe("useChatSession", () => {
 		});
 	});
 
+	it("heals a running attached session with a dead event stream by polling history", async () => {
+		// Scheduled runs can execute on a host whose live events never reach
+		// this client; the transcript must still settle without a remount.
+		const hydratedSessionId = "session-dead-stream";
+		let readCount = 0;
+		let recordReads = 0;
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "read_session_messages") {
+					readCount += 1;
+					const base = [
+						{
+							id: "history-user",
+							sessionId: hydratedSessionId,
+							role: "user",
+							content: "tell me the current time",
+							createdAt: 1,
+						},
+					];
+					return readCount === 1
+						? base
+						: [
+								...base,
+								{
+									id: "history-answer",
+									sessionId: hydratedSessionId,
+									role: "assistant",
+									content: "It is 12:28 PM PT.",
+									createdAt: 2,
+								},
+							];
+				}
+				if (command === "get_discovered_session") {
+					recordReads += 1;
+					// Still running on the first poll — the snapshot already
+					// ends on assistant narration, which must NOT read as
+					// finished while the record says running.
+					return {
+						sessionId: hydratedSessionId,
+						status: recordReads === 1 ? "running" : "completed",
+					};
+				}
+				if (command === "read_session_hooks") return [];
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string } | undefined;
+					if (request?.action === "attach") {
+						return {
+							sessionId: hydratedSessionId,
+							status: "running",
+							provider: "cline",
+							model: "test-model",
+							cwd: "/workspace/cline",
+							workspaceRoot: "/workspace/cline",
+						};
+					}
+					return { promptsInQueue: [] };
+				}
+				return [];
+			},
+		);
+
+		// Fake timers must be active before hydration so the fallback's
+		// interval registers on the fake clock.
+		vi.useFakeTimers();
+		try {
+			await act(async () => {
+				await current.hydrateSession({
+					sessionId: hydratedSessionId,
+					status: "running",
+					provider: "cline",
+					model: "test-model",
+					cwd: "/workspace/cline",
+					workspaceRoot: "/workspace/cline",
+					startedAt: "2026-08-12T00:00:00.000Z",
+				});
+			});
+			expect(current.status).toBe("running");
+			expect(current.messages).toHaveLength(1);
+
+			// No chat_event chunks arrive. The first poll surfaces the
+			// narration mid-run; the record still says running, and the
+			// record — not transcript shape — decides the status.
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(3_100);
+			});
+			expect(current.messages).toHaveLength(2);
+			expect(current.messages[1]?.content).toBe("It is 12:28 PM PT.");
+			expect(current.status).toBe("running");
+
+			// The record flips to completed; the next poll mirrors it.
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(3_100);
+			});
+		} finally {
+			vi.useRealTimers();
+		}
+
+		expect(current.status).toBe("completed");
+	});
+
+	it("keeps the stale-stream poll inert while a local turn is in flight", async () => {
+		// Regression: the fallback poll replaced an optimistic user bubble
+		// (raw prompt) with its canonical envelope-wrapped twin, desyncing
+		// the rekey bookkeeping so the stream appended a duplicate bubble.
+		const hydratedSessionId = "session-local-turn";
+		let readCount = 0;
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "read_session_messages") {
+					readCount += 1;
+					return [
+						{
+							id: "history-user",
+							sessionId: hydratedSessionId,
+							role: "user",
+							content: "earlier prompt",
+							createdAt: 1,
+						},
+					];
+				}
+				if (command === "get_discovered_session") {
+					return { sessionId: hydratedSessionId, status: "running" };
+				}
+				if (command === "read_session_hooks") return [];
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string } | undefined;
+					if (request?.action === "attach" || request?.action === "start") {
+						return {
+							sessionId: hydratedSessionId,
+							status: "idle",
+							provider: "cline",
+							model: "test-model",
+							cwd: "/workspace/cline",
+							workspaceRoot: "/workspace/cline",
+						};
+					}
+					if (request?.action === "send") {
+						// Keep the send unresolved: the local turn stays in
+						// flight for the whole test.
+						return await new Promise(() => {});
+					}
+					return { promptsInQueue: [] };
+				}
+				return [];
+			},
+		);
+
+		vi.useFakeTimers();
+		try {
+			await act(async () => {
+				await current.hydrateSession({
+					sessionId: hydratedSessionId,
+					status: "idle",
+					provider: "cline",
+					model: "test-model",
+					cwd: "/workspace/cline",
+					workspaceRoot: "/workspace/cline",
+					startedAt: "2026-08-12T00:00:00.000Z",
+				});
+			});
+			const readsAfterHydration = readCount;
+
+			await act(async () => {
+				void current.sendPrompt("what time is it");
+				await Promise.resolve();
+			});
+			expect(current.status).toBe("starting");
+			expect(
+				current.messages.filter((m) => m.content === "what time is it"),
+			).toHaveLength(1);
+
+			// Model produces nothing for a long quiet window; the poll must
+			// not fire while the local turn is unsettled.
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(10_000);
+			});
+			expect(readCount).toBe(readsAfterHydration);
+			expect(
+				current.messages.filter((m) => m.content === "what time is it"),
+			).toHaveLength(1);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	it("routes command updates after attaching to an in-flight tool call", async () => {
 		const hydratedSessionId = "session-in-flight-command";
 		invokeMock.mockImplementation(

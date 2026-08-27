@@ -29,6 +29,24 @@ export type ChatRenderItem =
 			items: ChatRenderItem[];
 	  };
 
+/**
+ * Runtime steering notes injected into the conversation as user-role
+ * messages (completion-tool reminders, team-obligation nudges). They are
+ * machinery talking to the model, not the person talking, so the transcript
+ * renders them as subtle system rows and folds them into the run's working
+ * span instead of showing user bubbles.
+ */
+export function isSystemSteeringMessage(message: ChatMessage): boolean {
+	return (
+		message.role === "user" &&
+		// Injected reminders carry userRunSpan 0 (they are not user turns);
+		// requiring it keeps a person's genuine prompt that happens to start
+		// with "[SYSTEM]" visible and turn-counted.
+		message.meta?.userRunSpan === 0 &&
+		message.content.trimStart().startsWith("[SYSTEM]")
+	);
+}
+
 export function hasMessageReasoning(message: ChatMessage): boolean {
 	return Boolean(message.reasoning?.trim() || message.reasoningRedacted);
 }
@@ -66,7 +84,8 @@ export function buildUserRunCountMap(
 
 	for (const message of messages) {
 		const userRunSpan =
-			message.meta?.userRunSpan ?? (message.role === "user" ? 1 : 0);
+			message.meta?.userRunSpan ??
+			(message.role === "user" && !isSystemSteeringMessage(message) ? 1 : 0);
 		const storedRunCount =
 			message.meta?.runCount ?? message.meta?.checkpoint?.runCount;
 		if (storedRunCount !== undefined) {
@@ -119,8 +138,9 @@ export type CollapseWorkOptions = {
  */
 function isCollapsibleWorkItem(item: ChatRenderItem): boolean {
 	if (item.type === "tools") return true;
+	if (item.type !== "message") return false;
+	if (isSystemSteeringMessage(item.message)) return true;
 	return (
-		item.type === "message" &&
 		item.message.role === "assistant" &&
 		!item.message.images?.length &&
 		!item.message.media?.length
@@ -177,7 +197,11 @@ export function collapseCompletedWork(
 	let lastUserIndex = -1;
 	for (let index = items.length - 1; index >= 0; index--) {
 		const item = items[index];
-		if (item.type === "message" && item.message.role === "user") {
+		if (
+			item.type === "message" &&
+			item.message.role === "user" &&
+			!isSystemSteeringMessage(item.message)
+		) {
 			lastUserIndex = index;
 			break;
 		}
@@ -195,7 +219,9 @@ export function collapseCompletedWork(
 		// message is the run's answer and stays visible below the summary.
 		const last = span.at(-1);
 		const answer =
-			last?.type === "message" && last.message.content.trim()
+			last?.type === "message" &&
+			last.message.role === "assistant" &&
+			last.message.content.trim()
 				? last
 				: undefined;
 		// A span is settled once a later user message exists. The trailing span
