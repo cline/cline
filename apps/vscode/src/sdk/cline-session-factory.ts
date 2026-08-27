@@ -14,8 +14,10 @@ import {
 	type CoreSessionConfig,
 	getProviderAuthHandler,
 	type ProviderSettings,
+	providerModelInfoRequiresLiveRefresh,
 	readCompactionStrategyGlobally,
 	resolveProviderApiKeyFromSettings,
+	resolveProviderConfig,
 	type StartSessionResult,
 } from "@cline/core"
 import type { ProviderApiLine, ModelInfo as SdkModelInfo } from "@cline/llms"
@@ -982,6 +984,29 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		}
 	} catch (error) {
 		Logger.warn(`[SessionFactory] Failed to resolve known models for provider=${sdkProviderId}:`, error)
+	}
+
+	// Refresh providers whose catalog adapter marks model metadata as live. The
+	// live context must replace bundled or committed metadata because it may
+	// change without the provider or model id changing. Non-fatal: an
+	// unreachable server keeps the existing catalog budget.
+	if (providerModelInfoRequiresLiveRefresh(sdkProviderId) && modelId) {
+		try {
+			const resolved = await resolveProviderConfig(
+				sdkProviderId,
+				{ failOnError: false, cacheTtlMs: 0 },
+				{ providerId: sdkProviderId, modelId, ...(baseUrl ? { baseUrl } : {}) },
+			)
+			const liveModel = resolved?.knownModels?.[modelId]
+			if (liveModel?.contextWindow) {
+				knownModels = {
+					...(knownModels ?? {}),
+					[modelId]: { ...liveModel, ...knownModels?.[modelId], contextWindow: liveModel.contextWindow },
+				}
+			}
+		} catch (error) {
+			Logger.warn(`[SessionFactory] Failed to resolve live model info for provider=${sdkProviderId}:`, error)
+		}
 	}
 
 	// Always pass a providerConfig so the proxy/CA-aware fetch reaches the SDK
