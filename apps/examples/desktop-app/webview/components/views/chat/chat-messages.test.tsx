@@ -191,6 +191,38 @@ describe("ChatMessages tool disclosures", () => {
 		);
 	});
 
+	it("auto-expands submit_and_exit and renders its summary as markdown", async () => {
+		const summary = "## Report\n\nChecked **3 feeds**, all healthy.";
+		await renderMessages([
+			{
+				id: "tool-submit",
+				sessionId: "session-1",
+				role: "tool",
+				content: JSON.stringify({
+					toolName: "submit_and_exit",
+					input: { summary, verified: true },
+					result: summary,
+				}),
+				createdAt: 1,
+			},
+		]);
+
+		// The final answer of the run is visible without a click…
+		const trigger = [...container.querySelectorAll("button")].find((element) =>
+			element.textContent?.includes("Submit and exit"),
+		);
+		expect(trigger?.getAttribute("aria-expanded")).toBe("true");
+		// …rendered as markdown structure, not a monospace code block.
+		const panel = document.getElementById(
+			trigger?.getAttribute("aria-controls") ?? "",
+		);
+		const markdown = panel?.querySelector(".cline-markdown");
+		expect(markdown?.querySelector("h2")?.textContent).toBe("Report");
+		expect(markdown?.textContent).toContain("3 feeds");
+		expect(markdown?.textContent).not.toContain("##");
+		expect(markdown?.textContent).not.toContain("**");
+	});
+
 	it("renders consecutive tool calls as individual rows", async () => {
 		const tools: ChatMessage[] = [
 			{

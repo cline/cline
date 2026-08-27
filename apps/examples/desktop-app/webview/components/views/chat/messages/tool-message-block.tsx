@@ -16,11 +16,13 @@ import { Button } from "@/components/ui/button";
 import type { ChatMessage } from "@/lib/chat-schema";
 import { appendCappedCommandOutput } from "@/lib/command-output";
 import { cn } from "@/lib/utils";
+import { MemoizedMarkdown } from "../../../ui/markdown";
 import { IS_DEBUG, STREAMING_TITLE_CLASS } from "./constants";
 import { getToolNameIcon } from "./tool-icons";
 import {
 	buildToolPresentation,
 	extractRunCommandOutput,
+	extractSubmitSummaryText,
 	formatToolValue,
 } from "./tool-summaries";
 
@@ -61,6 +63,13 @@ const ToolCallRow = memo(function ToolCallRow({
 	const { payload, toolName, inProgress, summary } =
 		buildToolPresentation(message);
 	const isCommand = summary.kind === "command";
+	// submit_and_exit carries the run's final answer (scheduled tasks end with
+	// it), so surface it expanded and rendered as markdown rather than leaving
+	// it collapsed behind a code block.
+	const isSubmit = summary.toolName === "submit_and_exit";
+	const submitText = isSubmit
+		? extractSubmitSummaryText(payload) || summary.outputText || ""
+		: "";
 	const commandOutputSource = isCommand
 		? message.meta?.toolOutput ||
 			(payload?.isError
@@ -107,7 +116,9 @@ const ToolCallRow = memo(function ToolCallRow({
 	});
 	const hasFileDiffs = fileDiffs.length > 0;
 	const shouldAutoOpen =
-		hasFileDiffs || (inProgress && (Boolean(commandOutput) || canProceed));
+		hasFileDiffs ||
+		Boolean(submitText) ||
+		(inProgress && (Boolean(commandOutput) || canProceed));
 	const [open, setOpen] = useState(shouldAutoOpen);
 	const [userToggled, setUserToggled] = useState(false);
 	const [isProceeding, setIsProceeding] = useState(false);
@@ -147,6 +158,7 @@ const ToolCallRow = memo(function ToolCallRow({
 	const hasExpandedSections =
 		details.length > 0 ||
 		fileDiffs.length > 0 ||
+		Boolean(submitText) ||
 		Boolean(isCommand ? commandOutput : summary.outputText) ||
 		Boolean(summary.errorText) ||
 		Boolean(inputPreview) ||
@@ -210,6 +222,10 @@ const ToolCallRow = memo(function ToolCallRow({
 						isRunning={inProgress}
 						output={commandOutput}
 					/>
+				) : submitText ? (
+					<div className="mt-1 min-w-0 max-w-full wrap-break-word">
+						<MemoizedMarkdown content={submitText} />
+					</div>
 				) : summary.outputText ? (
 					<ToolActivityCode className="mt-1 max-h-64 overflow-auto whitespace-pre-wrap break-words font-mono text-xs">
 						{summary.outputText}
