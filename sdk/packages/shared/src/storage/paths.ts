@@ -514,6 +514,11 @@ export function resolveRulesConfigSearchPaths(
 		...wsPaths,
 		resolveGlobalAgentsRulesPath(),
 		join(resolveClineDir(), RULES_CONFIG_DIRECTORY_NAME),
+		// The VS Code Rules tab resolves Documents via `xdg-user-dir DOCUMENTS`,
+		// which prints bare $HOME when unconfigured (WSL/headless), putting
+		// global rules at ~/Cline/Rules instead of ~/Documents/Cline/Rules
+		// (cline/cline#13542).
+		join(HOME_DIR, "Cline", "Rules"),
 		resolveDocumentsExtensionPath("Rules"),
 	]);
 }
