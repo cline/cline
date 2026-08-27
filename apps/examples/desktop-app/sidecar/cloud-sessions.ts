@@ -765,24 +765,26 @@ export class CloudSessionApi {
 			if (createdSessionId) {
 				if (
 					error instanceof CloudSessionError &&
-					error.code === "session_failed"
+					(error.code === "session_failed" || error.code === "session_expired")
 				) {
-					// A terminally failed sandbox lingers in the account list
-					// otherwise; clean it up under the identity that created it.
-					try {
-						await this.deleteWithAuth(createdSessionId, creationAuth);
-					} catch (cleanupError) {
-						if (
-							!(
-								cleanupError instanceof CloudSessionError &&
-								(cleanupError.code === "session_not_found" ||
-									cleanupError.code === "session_expired")
-							)
-						) {
-							throw new AggregateError(
-								[error, cleanupError],
-								"The cloud workspace failed to provision and could not be cleaned up.",
-							);
+					if (error.code === "session_failed") {
+						// A terminally failed sandbox lingers in the account list
+						// otherwise; clean it up under the identity that created it.
+						try {
+							await this.deleteWithAuth(createdSessionId, creationAuth);
+						} catch (cleanupError) {
+							if (
+								!(
+									cleanupError instanceof CloudSessionError &&
+									(cleanupError.code === "session_not_found" ||
+										cleanupError.code === "session_expired")
+								)
+							) {
+								throw new AggregateError(
+									[error, cleanupError],
+									"The cloud workspace failed to provision and could not be cleaned up.",
+								);
+							}
 						}
 					}
 					await input.handoff?.onOuterSessionRemoved?.(createdSessionId);
@@ -1643,15 +1645,19 @@ export class CloudSessionManager {
 	private preserveConnectedRuntimeModel(
 		session: CloudSessionRecord,
 	): CloudSessionRecord {
-		const runtimeModel = this.connections
-			.get(session.id)
-			?.remote.metadata.modelId?.trim();
-		if (!runtimeModel || runtimeModel === session.metadata.modelId) {
+		const runtimeMetadata = this.connections.get(session.id)?.remote.metadata;
+		const runtimeModel = runtimeMetadata?.modelId?.trim();
+		const runtimeCwd = runtimeMetadata?.cwd?.trim();
+		if (!runtimeModel && !runtimeCwd) {
 			return session;
 		}
 		return {
 			...session,
-			metadata: { ...session.metadata, modelId: runtimeModel },
+			metadata: {
+				...session.metadata,
+				...(runtimeModel ? { modelId: runtimeModel } : {}),
+				...(runtimeCwd ? { cwd: runtimeCwd } : {}),
+			},
 		};
 	}
 
