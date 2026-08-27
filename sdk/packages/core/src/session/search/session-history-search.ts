@@ -380,8 +380,14 @@ export class SessionHistorySearchService {
 				this.failedEvictionSessionIds.delete(sessionId);
 			}
 		}
+		const currentIndexedSession = db.prepare(
+			"SELECT 1 FROM indexed_sessions WHERE session_id = ? LIMIT 1",
+		);
 		for (const sessionId of this.failedEvictionSessionIds) {
-			if (!indexedById.has(sessionId)) {
+			// `indexedById` is a snapshot captured before this reconciliation may
+			// have indexed the session. Re-check the database so a concurrent failed
+			// eviction cannot lose its suppression marker after inserting a new row.
+			if (!currentIndexedSession.get(sessionId)) {
 				this.failedEvictionSessionIds.delete(sessionId);
 			}
 		}
