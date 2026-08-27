@@ -28,6 +28,7 @@ describe("Hub agenda task vertical slice", () => {
 		// the Cline dir at the test root so that home stays inside this test.
 		const clineHome = join(root, "cline-home");
 		mkdirSync(clineHome);
+		const previousClineDir = process.env.CLINE_DIR;
 		process.env.CLINE_DIR = clineHome;
 		const sessions = new Map<string, Record<string, unknown>>();
 		let capturedStart: StartSessionInput | undefined;
@@ -415,7 +416,11 @@ describe("Hub agenda task vertical slice", () => {
 			});
 			expect(startSession).toHaveBeenCalledTimes(1);
 		} finally {
-			delete process.env.CLINE_DIR;
+			if (previousClineDir === undefined) {
+				delete process.env.CLINE_DIR;
+			} else {
+				process.env.CLINE_DIR = previousClineDir;
+			}
 			await transport.stop();
 		}
 	});
