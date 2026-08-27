@@ -46,6 +46,17 @@ import {
 
 const CAPABILITY_OWNER_METADATA_KEY = "hubCapabilityOwnerClientId";
 
+async function deleteSessionAndEvictSearchIndex(
+	ctx: HubTransportContext,
+	sessionId: string,
+): Promise<boolean> {
+	const deleted = await ctx.sessionHost.deleteSession(sessionId);
+	// False means canonical history was already absent. Eviction is still safe
+	// and repairs any index left stale by an earlier deletion.
+	ctx.sessionSearch.removeSession(sessionId);
+	return deleted;
+}
+
 export function selectSessionTools<T extends { name: string }>(
 	tools: readonly T[],
 	mode: string,
@@ -686,7 +697,7 @@ export async function handleSessionRestore(
 			startSession: (startInput) => ctx.sessionHost.startSession(startInput),
 			getStartedSessionId: (started) => started.sessionId,
 			cleanupStartedSession: async (started) => {
-				if (!(await ctx.sessionHost.deleteSession(started.sessionId))) {
+				if (!(await deleteSessionAndEvictSearchIndex(ctx, started.sessionId))) {
 					throw new Error(
 						`Failed to clean up restored session ${started.sessionId}`,
 					);
@@ -1084,10 +1095,7 @@ export async function handleSessionDelete(
 	envelope: HubCommandEnvelope,
 ): Promise<HubReplyEnvelope> {
 	const sessionId = extractSessionId(envelope);
-	const deleted = await ctx.sessionHost.deleteSession(sessionId);
-	// The host returns false only when canonical history is already absent, so
-	// eviction is safe and also repairs an index left stale by an earlier delete.
-	ctx.sessionSearch.removeSession(sessionId);
+	const deleted = await deleteSessionAndEvictSearchIndex(ctx, sessionId);
 	ctx.sessionState.delete(sessionId);
 	return okReply(envelope, { deleted });
 }

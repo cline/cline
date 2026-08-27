@@ -6,6 +6,7 @@ import {
 	type StartSessionResult,
 } from "../../runtime/host/runtime-host";
 import { createSessionCompactionState } from "../../session/models/session-compaction";
+import { SessionVersioningService } from "../../session/session-versioning-service";
 import { createLocalHubScheduleRuntimeHandlers } from "../daemon/runtime-handlers";
 import { HubServerTransport } from "../server";
 import {
@@ -171,6 +172,93 @@ describe("HubServerTransport boundaries", () => {
 		expect(afterDelete.payload?.hits).toEqual([]);
 		expect(listSessions).toHaveBeenCalledOnce();
 		await transport.stop();
+	});
+
+	it("evicts an indexed replacement when failed restoration cleans it up", async () => {
+		const replacement = {
+			sessionId: "restored-session",
+			source: "core",
+			pid: 1,
+			startedAt: "2026-08-19T12:00:00.000Z",
+			endedAt: "2026-08-19T12:01:00.000Z",
+			exitCode: 0,
+			status: "completed",
+			interactive: true,
+			provider: "test",
+			model: "test-model",
+			cwd: "/tmp/project",
+			workspaceRoot: "/tmp/project",
+			enableTools: true,
+			enableSpawn: false,
+			enableTeams: false,
+			isSubagent: false,
+			prompt: "Find the orphanmarker regression",
+			metadata: { title: "Orphanmarker replacement" },
+			updatedAt: "2026-08-19T12:01:00.000Z",
+		};
+		const sessions = [replacement];
+		const listSessions = vi.fn(async () => sessions);
+		const deleteSession = vi.fn(async (sessionId: string) => {
+			expect(sessionId).toBe(replacement.sessionId);
+			sessions.splice(0);
+			return true;
+		});
+		const transport = createTransport({
+			sessionSearchOptions: { dbPath: ":memory:" },
+			taskOptions: { dbPath: ":memory:", watchFiles: false },
+			sessionHost: {
+				listSessions,
+				deleteSession,
+				readSessionMessages: vi
+					.fn()
+					.mockResolvedValue([
+						{ role: "user", content: "Find the orphanmarker regression" },
+					]),
+			},
+		});
+		await getContext(transport).sessionSearch.refreshNow();
+		expect(
+			getContext(transport).sessionSearch.search({ query: "orphanmarker" }),
+		).toHaveLength(2);
+
+		const restoreCheckpoint = vi
+			.spyOn(SessionVersioningService.prototype, "restoreCheckpoint")
+			.mockImplementationOnce(async (input) => {
+				await input.cleanupStartedSession?.({
+					sessionId: replacement.sessionId,
+				} as never);
+				throw new Error("restore failed after replacement indexing");
+			});
+		try {
+			const restoreReply = await transport.handleCommand({
+				version: "v1",
+				requestId: "restore-with-indexed-replacement",
+				command: "session.restore",
+				payload: {
+					sessionId: "source-session",
+					checkpointRunCount: 1,
+					sessionConfig: {
+						providerId: "test",
+						modelId: "test-model",
+						cwd: "/tmp/project",
+						workspaceRoot: "/tmp/project",
+					},
+				},
+			});
+
+			expect(restoreReply.ok).toBe(false);
+			expect(restoreReply.error?.message).toContain(
+				"restore failed after replacement indexing",
+			);
+			expect(
+				getContext(transport).sessionSearch.search({ query: "orphanmarker" }),
+			).toEqual([]);
+			expect(deleteSession).toHaveBeenCalledOnce();
+			expect(listSessions).toHaveBeenCalledOnce();
+		} finally {
+			restoreCheckpoint.mockRestore();
+			await transport.stop();
+		}
 	});
 
 	it("delegates pathless session.create and returns the host-resolved workspace", async () => {
