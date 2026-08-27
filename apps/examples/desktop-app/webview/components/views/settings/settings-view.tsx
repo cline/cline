@@ -217,6 +217,30 @@ export function SettingsView({
 		return () => window.clearTimeout(timeoutId);
 	}, [activeNav, loadProviderCatalog]);
 
+	/**
+	 * Silently refreshes view state from the authoritative catalog after a
+	 * successful save, without toggling the loading screen. Optimistic
+	 * mutations can't know sidecar-computed fields (`configured`), so the
+	 * Configured badge would otherwise stay stale until a remount. The
+	 * generation guard discards the response if a newer edit or load
+	 * superseded it while in flight.
+	 */
+	const resyncProviderCatalog = useCallback(async () => {
+		const generation = catalogGenerationRef.current;
+		try {
+			const payload = await desktopClient.invoke<ProviderCatalogResponse>(
+				"list_provider_catalog",
+			);
+			if (generation !== catalogGenerationRef.current) {
+				return;
+			}
+			setProvidersWithCache(payload.providers);
+		} catch {
+			// Background refresh only; the optimistic state remains until the
+			// next full load.
+		}
+	}, [setProvidersWithCache]);
+
 	const persistProviderSettings = useCallback(
 		async (
 			id: string,
@@ -237,6 +261,10 @@ export function SettingsView({
 						? toSettingsPatch(updates.configValues)
 						: undefined,
 				});
+				// Pick up sidecar-computed readiness (`configured`) for the
+				// just-saved settings so the Configured badge and count update
+				// without a remount.
+				void resyncProviderCatalog();
 				return true;
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
@@ -261,7 +289,7 @@ export function SettingsView({
 				invalidateProviderCatalogCache();
 			}
 		},
-		[loadProviderCatalog],
+		[loadProviderCatalog, resyncProviderCatalog],
 	);
 
 	const connectProvider = useCallback(
