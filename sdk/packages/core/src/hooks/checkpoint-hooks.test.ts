@@ -1,4 +1,5 @@
 import { execFile as execFileCallback } from "node:child_process";
+import { existsSync } from "node:fs";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -8,7 +9,9 @@ import { describe, expect, it, vi } from "vitest";
 import {
 	type CheckpointEntry,
 	type CheckpointMetadata,
+	checkpointScratchDir,
 	createCheckpointHooks,
+	deleteCheckpointRefs,
 } from "./checkpoint-hooks";
 
 const execFile = promisify(execFileCallback);
@@ -592,4 +595,127 @@ describe("createCheckpointHooks", () => {
 			createCheckpoint.mock.calls.map(([input]) => input.runCount),
 		).toEqual([1, 2]);
 	});
+
+	it("emits one checkpoint.snapshot event per snapshot attempt without file paths", async () => {
+		const cwd = await createGitRepo();
+		const sessionId = "sess_telemetry";
+		let metadata: Record<string, unknown> | undefined;
+		const events: { event: string; properties?: Record<string, unknown> }[] =
+			[];
+		try {
+			const hooks = createCheckpointHooks({
+				cwd,
+				sessionId,
+				telemetry: {
+					capture: (input) => {
+						events.push(input);
+					},
+				},
+				readSessionMetadata: async () => metadata,
+				writeSessionMetadata: async (next) => {
+					metadata = next;
+				},
+			});
+
+			await writeFile(join(cwd, "loose-data.txt"), "loose\n", "utf8");
+			await runCheckpointHooks(hooks);
+
+			expect(events).toHaveLength(1);
+			expect(events[0]?.event).toBe("checkpoint.snapshot");
+			expect(events[0]?.properties).toMatchObject({
+				sessionId,
+				runCount: 1,
+				outcome: "stash",
+			});
+			expect(typeof events[0]?.properties?.durationMs).toBe("number");
+			// Durations and outcomes only — never workspace file paths.
+			expect(JSON.stringify(events[0])).not.toContain("loose-data");
+		} finally {
+			await deleteCheckpointRefs(cwd, sessionId);
+			await rm(cwd, { recursive: true, force: true });
+		}
+	});
+
+	it("drops persistent-index entries for untracked files that disappear between runs", async () => {
+		// The per-session GIT_INDEX_FILE caches untracked hashes across turns so
+		// unchanged files are not re-hashed; a file that was deleted (or became
+		// tracked) in the meantime must not ghost into later snapshots.
+		const cwd = await createGitRepo();
+		const sessionId = "sess_stale_index";
+		let metadata: Record<string, unknown> | undefined;
+		try {
+			const hooks = createCheckpointHooks({
+				cwd,
+				sessionId,
+				readSessionMetadata: async () => metadata,
+				writeSessionMetadata: async (next) => {
+					metadata = next;
+				},
+			});
+
+			await writeFile(join(cwd, "a.txt"), "a\n", "utf8");
+			await writeFile(join(cwd, "b.txt"), "b\n", "utf8");
+			await runCheckpointHooks(hooks);
+
+			const first = (metadata?.checkpoint as CheckpointMetadata).latest;
+			const firstTree = await runGit(
+				cwd,
+				"ls-tree",
+				"-r",
+				"--name-only",
+				`${first.ref}^3`,
+			);
+			expect(firstTree.split("\n").sort()).toEqual(["a.txt", "b.txt"]);
+			// The scratch index survives the turn — that is the cross-turn cache.
+			expect(existsSync(join(checkpointScratchDir(sessionId), "index"))).toBe(
+				true,
+			);
+
+			await rm(join(cwd, "a.txt"));
+			await runCheckpointHooks(hooks, {
+				messages: [userMessage("first request"), userMessage("second request")],
+			});
+
+			const second = (metadata?.checkpoint as CheckpointMetadata).latest;
+			expect(second.runCount).toBe(2);
+			const secondTree = await runGit(
+				cwd,
+				"ls-tree",
+				"-r",
+				"--name-only",
+				`${second.ref}^3`,
+			);
+			expect(secondTree.split("\n")).toEqual(["b.txt"]);
+		} finally {
+			await deleteCheckpointRefs(cwd, sessionId);
+			await rm(cwd, { recursive: true, force: true });
+		}
+	});
+
+	it("removes the per-session scratch dir together with the checkpoint refs", async () => {
+		const cwd = await createGitRepo();
+		const sessionId = "sess_scratch_cleanup";
+		let metadata: Record<string, unknown> | undefined;
+		try {
+			const hooks = createCheckpointHooks({
+				cwd,
+				sessionId,
+				readSessionMetadata: async () => metadata,
+				writeSessionMetadata: async (next) => {
+					metadata = next;
+				},
+			});
+			await writeFile(join(cwd, "loose.txt"), "loose\n", "utf8");
+			await runCheckpointHooks(hooks);
+			expect(existsSync(checkpointScratchDir(sessionId))).toBe(true);
+
+			await deleteCheckpointRefs(cwd, sessionId);
+
+			expect(existsSync(checkpointScratchDir(sessionId))).toBe(false);
+		} finally {
+			await deleteCheckpointRefs(cwd, sessionId);
+			await rm(cwd, { recursive: true, force: true });
+		}
+	});
+
 });

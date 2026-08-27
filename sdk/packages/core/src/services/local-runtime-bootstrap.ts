@@ -431,6 +431,7 @@ export async function prepareLocalRuntimeBootstrap(
 					sessionId,
 					logger: baseConfig.logger,
 					createCheckpoint: baseConfig.checkpoint?.createCheckpoint,
+					telemetry: baseConfig.telemetry,
 					readSessionMetadata,
 					writeSessionMetadata,
 				})
