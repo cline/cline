@@ -296,7 +296,7 @@ describe("Hub app-server upgrades", () => {
 			} as never);
 
 			const seen: HubEventEnvelope[] = [];
-			transport.subscribe("late-client", (event) => seen.push(event), {
+			transport.subscribe("creator", (event) => seen.push(event), {
 				sessionId: "approval-session",
 			});
 			await waitFor(() =>
@@ -309,7 +309,7 @@ describe("Hub app-server upgrades", () => {
 			const respond = await transport.handleCommand({
 				version: "v1",
 				command: "approval.respond",
-				clientId: "late-client",
+				clientId: "creator",
 				payload: { approvalId, approved: true },
 			});
 			expect(respond.ok).toBe(true);
