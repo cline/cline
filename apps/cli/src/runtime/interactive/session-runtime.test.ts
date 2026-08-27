@@ -242,6 +242,18 @@ describe("createInteractiveSessionRuntime", () => {
 		subscribeToPendingPromptEventsMock.mockReturnValue(() => {});
 	});
 
+	it("defers backend selection to CLINE_SESSION_BACKEND_MODE", async () => {
+		vi.stubEnv("CLINE_SESSION_BACKEND_MODE", "local");
+		try {
+			const runtime = await makeRuntime(makeManager());
+			await runtime.ensureReady();
+			expect(createCliCoreMock).toHaveBeenCalledTimes(1);
+			expect(createCliCoreMock.mock.calls[0][0]?.backendMode).toBeUndefined();
+		} finally {
+			vi.unstubAllEnvs();
+		}
+	});
+
 	it("manual compact updates the active session sidecar without restarting", async () => {
 		const sessionId = "sess-active";
 		const messages = [
