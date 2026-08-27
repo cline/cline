@@ -100,6 +100,19 @@ describe("FeatureFlagsService", () => {
 		expect(provider.getAllFlagsAndPayloads).toHaveBeenCalledTimes(2);
 	});
 
+	it("does not expose cached flags after the account context changes", async () => {
+		const service = new FeatureFlagsService({
+			provider: createProvider(),
+			context: { userId: "user-1" },
+		});
+		await service.poll();
+
+		service.setContext({ userId: "user-2" });
+
+		expect(service.getBooleanFlagEnabled(TEST_BOOLEAN_FLAG)).toBe(false);
+		expect(service.getFlagPayload(TEST_PAYLOAD_FLAG)).toBeUndefined();
+	});
+
 	it("returns false or undefined before polling", () => {
 		const service = new FeatureFlagsService({ provider: createProvider() });
 
