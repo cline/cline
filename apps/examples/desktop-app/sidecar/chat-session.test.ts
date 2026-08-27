@@ -526,6 +526,44 @@ describe("session forks", () => {
 		await expect(handoff).rejects.toThrow("was not found");
 	});
 
+	it("blocks handoff while session deletion is starting", async () => {
+		enableCloudHandoffGates();
+		let releaseGet: ((value: undefined) => void) | undefined;
+		const ctx = {
+			liveSessions: new Map(),
+			sessionManager: {
+				get: vi.fn(
+					async () =>
+						await new Promise<undefined>((resolve) => {
+							releaseGet = resolve;
+						}),
+				),
+			},
+		} as unknown as SidecarContext;
+		const deletion = assertSessionDeleteAllowedDuringHandoff(
+			ctx,
+			"deleting-handoff-source",
+		);
+		expect(releaseGet).toBeTypeOf("function");
+
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "handoff",
+				sessionId: "deleting-handoff-source",
+				handoffAttemptId: "attempt-a",
+				fingerprint: {
+					repoUrl: "https://github.com/cline/cline.git",
+					branch: "main",
+					headSha: "abc123",
+					modelId: "anthropic/claude-sonnet-4.6",
+				},
+			}),
+		).rejects.toThrow("Wait for session deletion to finish before handing off");
+		releaseGet?.(undefined);
+		const releaseDelete = await deletion;
+		releaseDelete();
+	});
+
 	it("allows deletion after a cloud handoff has completed", async () => {
 		const ctx = {
 			liveSessions: new Map(),
@@ -543,9 +581,11 @@ describe("session forks", () => {
 			},
 		} as unknown as SidecarContext;
 
-		await expect(
-			assertSessionDeleteAllowedDuringHandoff(ctx, "completed-handoff-source"),
-		).resolves.toBeUndefined();
+		const releaseDelete = await assertSessionDeleteAllowedDuringHandoff(
+			ctx,
+			"completed-handoff-source",
+		);
+		releaseDelete();
 	});
 
 	it("keeps a persisted pending handoff read-only after restart", async () => {

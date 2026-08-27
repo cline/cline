@@ -2536,6 +2536,7 @@ const handoffRequests = new WeakMap<
 // their first await so whichever operation starts first excludes the other;
 // the counter keeps concurrent queued sends from releasing the guard early.
 const activeSendRequests = new WeakMap<SidecarContext, Map<string, number>>();
+const activeDeleteRequests = new WeakMap<SidecarContext, Map<string, number>>();
 
 function beginActiveSessionSend(
 	ctx: SidecarContext,
@@ -2558,6 +2559,30 @@ function beginActiveSessionSend(
 	};
 }
 
+function beginActiveSessionDelete(
+	ctx: SidecarContext,
+	sessionId: string,
+): () => void {
+	if (handoffRequests.get(ctx)?.has(sessionId)) {
+		throw new Error("Wait for the cloud handoff to finish before deleting.");
+	}
+	let requests = activeDeleteRequests.get(ctx);
+	if (!requests) {
+		requests = new Map();
+		activeDeleteRequests.set(ctx, requests);
+	}
+	requests.set(sessionId, (requests.get(sessionId) ?? 0) + 1);
+	let finished = false;
+	return () => {
+		if (finished) return;
+		finished = true;
+		const remaining = (requests?.get(sessionId) ?? 1) - 1;
+		if (remaining > 0) requests?.set(sessionId, remaining);
+		else requests?.delete(sessionId);
+		if (requests?.size === 0) activeDeleteRequests.delete(ctx);
+	};
+}
+
 /**
  * Deleting a source session while its cloud handoff is in flight can remove
  * the only durable recovery record for an already-created sandbox. Keep this
@@ -2566,19 +2591,23 @@ function beginActiveSessionSend(
 export async function assertSessionDeleteAllowedDuringHandoff(
 	ctx: SidecarContext,
 	sessionId: string,
-): Promise<void> {
-	if (handoffRequests.get(ctx)?.has(sessionId)) {
-		throw new Error("Wait for the cloud handoff to finish before deleting.");
-	}
-	const manager = getSessionManager(ctx);
-	const persisted = await manager.get(sessionId);
-	const handoff = readCloudHandoffMetadata(
-		persisted?.metadata ?? readSessionMetadata(sessionId),
-	);
-	if (handoff?.status === "pending") {
-		throw new Error(
-			`Cloud handoff is still pending. Retry /handoff or continue here: ${handoff.dashboardUrl ?? buildCloudHandoffDashboardUrl(getClineEnvironmentConfig().appBaseUrl, handoff.toCloudSessionId)}`,
+): Promise<() => void> {
+	const release = beginActiveSessionDelete(ctx, sessionId);
+	try {
+		const manager = getSessionManager(ctx);
+		const persisted = await manager.get(sessionId);
+		const handoff = readCloudHandoffMetadata(
+			persisted?.metadata ?? readSessionMetadata(sessionId),
 		);
+		if (handoff?.status === "pending") {
+			throw new Error(
+				`Cloud handoff is still pending. Retry /handoff or continue here: ${handoff.dashboardUrl ?? buildCloudHandoffDashboardUrl(getClineEnvironmentConfig().appBaseUrl, handoff.toCloudSessionId)}`,
+			);
+		}
+		return release;
+	} catch (error) {
+		release();
+		throw error;
 	}
 }
 
@@ -2588,6 +2617,9 @@ async function handleHandoff(
 ): Promise<unknown> {
 	const sourceSessionId = request.sessionId?.trim();
 	if (!sourceSessionId) throw new Error("sessionId is required");
+	if (activeDeleteRequests.get(ctx)?.has(sourceSessionId)) {
+		throw new Error("Wait for session deletion to finish before handing off.");
+	}
 	let requests = handoffRequests.get(ctx);
 	if (!requests) {
 		requests = new Map();

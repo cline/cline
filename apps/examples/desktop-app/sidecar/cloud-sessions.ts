@@ -765,7 +765,9 @@ export class CloudSessionApi {
 			if (createdSessionId) {
 				if (
 					error instanceof CloudSessionError &&
-					(error.code === "session_failed" || error.code === "session_expired")
+					(error.code === "session_failed" ||
+						error.code === "session_expired" ||
+						error.code === "session_not_found")
 				) {
 					if (error.code === "session_failed") {
 						// A terminally failed sandbox lingers in the account list
@@ -3016,14 +3018,47 @@ export class CloudSessionManager {
 			}
 			return;
 		}
-		const creation = this.createInnerSessionOnce(
-			connection,
-			handoffSeed,
-		).finally(() => {
+		const creation = (async () => {
+			if (
+				handoffSeed &&
+				(await this.adoptExistingHandoffSession(connection, handoffSeed))
+			) {
+				return;
+			}
+			await this.createInnerSessionOnce(connection, handoffSeed);
+		})().finally(() => {
 			connection.innerSessionCreation = undefined;
 		});
 		connection.innerSessionCreation = creation;
 		return await creation;
+	}
+
+	private async adoptExistingHandoffSession(
+		connection: CloudConnection,
+		handoffSeed: CloudHandoffSeed,
+	): Promise<boolean> {
+		const listed = await connection.client.command("session.list", {
+			limit: 100,
+		});
+		const rows = readSessionRows(listed.payload);
+		if (rows.length === 0) return false;
+		const [only] = rows;
+		const innerSessionId = String(only?.sessionId ?? "").trim();
+		if (
+			rows.length !== 1 ||
+			!innerSessionId ||
+			sessionRowHandoffSourceSessionId(only) !== handoffSeed.sourceSessionId
+		) {
+			throw new CloudSessionError(
+				"request_failed",
+				"This cloud workspace already contains another conversation. Open it in Cline Cloud or delete it before retrying the handoff.",
+			);
+		}
+		connection.innerSessionId = innerSessionId;
+		this.subscribeToInnerSession(connection.remote.id, connection);
+		this.applySessionModel(connection, only);
+		await this.ensureAttached(connection);
+		return true;
 	}
 
 	private async createInnerSessionOnce(
