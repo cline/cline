@@ -125,83 +125,19 @@ describe("runScheduleCommand list output", () => {
 		});
 	});
 
-	it("lists schedules across all workspaces and filters with --workspace", async () => {
+	it("passes --workspace to the hub for server-side filtering", async () => {
 		mockEnsureCliHubServer.mockResolvedValue({
 			url: "ws://127.0.0.1:25463/hub",
 			authToken: "test-token",
 		});
-		const inWorkspace = {
-			scheduleId: "sched_a",
-			name: "daily-issue-summary",
-			workspaceRoot: "/Users/someone/project-a",
-		};
-		const elsewhere = {
+		const filtered = {
 			scheduleId: "sched_b",
 			name: "daily-pr-summary",
 			workspaceRoot: "/Users/someone/project-b",
 		};
 		mockHubClientCommand.mockResolvedValue({
 			ok: true,
-			payload: { schedules: [inWorkspace, elsewhere] },
-		});
-
-		const output: string[] = [];
-		const code = await runScheduleCommand(
-			[
-				"list",
-				"--json",
-				"--workspace",
-				"/Users/someone/project-b",
-				"--address",
-				"127.0.0.1:25463",
-			],
-			{
-				writeln: (text?: string) => {
-					output.push(text ?? "");
-				},
-				writeErr: () => {},
-			},
-		);
-
-		expect(code).toBe(0);
-		// The hub query spans every workspace, and fetches wide so the global
-		// limit cannot truncate away this workspace's matches before the
-		// client-side --workspace filter runs.
-		expect(mockHubClientCommand).toHaveBeenCalledWith(
-			"schedule.list",
-			expect.objectContaining({ allWorkspaces: true, limit: 10_000 }),
-		);
-		expect(JSON.parse(output.join("\n"))).toEqual([elsewhere]);
-	});
-
-	it("applies --limit after the --workspace filter", async () => {
-		mockEnsureCliHubServer.mockResolvedValue({
-			url: "ws://127.0.0.1:25463/hub",
-			authToken: "test-token",
-		});
-		const matchA = {
-			scheduleId: "sched_a",
-			name: "match-a",
-			workspaceRoot: "/Users/someone/project-b",
-		};
-		const matchB = {
-			scheduleId: "sched_b",
-			name: "match-b",
-			workspaceRoot: "/Users/someone/project-b",
-		};
-		mockHubClientCommand.mockResolvedValue({
-			ok: true,
-			payload: {
-				schedules: [
-					{
-						scheduleId: "sched_other",
-						name: "other",
-						workspaceRoot: "/Users/someone/project-a",
-					},
-					matchA,
-					matchB,
-				],
-			},
+			payload: { schedules: [filtered] },
 		});
 
 		const output: string[] = [];
@@ -210,7 +146,7 @@ describe("runScheduleCommand list output", () => {
 				"list",
 				"--json",
 				"--limit",
-				"1",
+				"5",
 				"--workspace",
 				"/Users/someone/project-b",
 				"--address",
@@ -225,57 +161,17 @@ describe("runScheduleCommand list output", () => {
 		);
 
 		expect(code).toBe(0);
+		// The hub filters by workspace before applying the limit and matches
+		// canonical path forms, so the CLI just forwards the filter.
 		expect(mockHubClientCommand).toHaveBeenCalledWith(
 			"schedule.list",
-			expect.objectContaining({ limit: 10_000 }),
+			expect.objectContaining({
+				allWorkspaces: true,
+				workspaceRoot: "/Users/someone/project-b",
+				limit: 5,
+			}),
 		);
-		expect(JSON.parse(output.join("\n"))).toEqual([matchA]);
-	});
-
-	it("matches --workspace across symlinked path forms", async () => {
-		mockEnsureCliHubServer.mockResolvedValue({
-			url: "ws://127.0.0.1:25463/hub",
-			authToken: "test-token",
-		});
-		const root = join(tmpdir(), `cline-cli-schedule-links-${Date.now()}`);
-		const realWorkspace = join(root, "real-workspace");
-		const linkedWorkspace = join(root, "linked-workspace");
-		await mkdir(realWorkspace, { recursive: true });
-		await symlink(realWorkspace, linkedWorkspace, "dir");
-		try {
-			const schedule = {
-				scheduleId: "sched_real",
-				name: "daily-summary",
-				workspaceRoot: realWorkspace,
-			};
-			mockHubClientCommand.mockResolvedValue({
-				ok: true,
-				payload: { schedules: [schedule] },
-			});
-
-			const output: string[] = [];
-			const code = await runScheduleCommand(
-				[
-					"list",
-					"--json",
-					"--workspace",
-					linkedWorkspace,
-					"--address",
-					"127.0.0.1:25463",
-				],
-				{
-					writeln: (text?: string) => {
-						output.push(text ?? "");
-					},
-					writeErr: () => {},
-				},
-			);
-
-			expect(code).toBe(0);
-			expect(JSON.parse(output.join("\n"))).toEqual([schedule]);
-		} finally {
-			await rm(root, { recursive: true, force: true });
-		}
+		expect(JSON.parse(output.join("\n"))).toEqual([filtered]);
 	});
 
 	it("sends allWorkspaces on id-addressed schedule commands", async () => {
@@ -393,6 +289,69 @@ describe("runScheduleCommand local client across workspaces", () => {
 				name: "daily-issue-summary",
 				workspaceRoot: workspaceA,
 			});
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	it("filters --workspace through symlinked paths before the limit", async () => {
+		const root = join(tmpdir(), `cline-cli-schedule-links-${Date.now()}`);
+		const targetWorkspace = join(root, "target-workspace");
+		const linkedWorkspace = join(root, "linked-workspace");
+		const otherWorkspace = join(root, "other-workspace");
+		await mkdir(targetWorkspace, { recursive: true });
+		await mkdir(otherWorkspace, { recursive: true });
+		await symlink(targetWorkspace, linkedWorkspace, "dir");
+		process.env.CLINE_CRON_DB_PATH = join(root, "cron.db");
+		try {
+			const seed = async (name: string, workspaceRoot: string) => {
+				const code = await runScheduleCommand(
+					[
+						"create",
+						name,
+						"--cron",
+						"0 7 * * *",
+						"--prompt",
+						`Run ${name}.`,
+						"--workspace",
+						workspaceRoot,
+						"--provider",
+						"cline",
+						"--model",
+						"cline/test-model",
+						"--disabled",
+					],
+					{ writeln: () => {}, writeErr: () => {} },
+				);
+				expect(code).toBe(0);
+			};
+			// Surround the match with other-workspace schedules so a global
+			// limit of 1 could not contain it under any listing order.
+			await seed("other-first", otherWorkspace);
+			await seed("target-routine", targetWorkspace);
+			await seed("other-last", otherWorkspace);
+
+			const output: string[] = [];
+			const errors: string[] = [];
+			const code = await runScheduleCommand(
+				["list", "--json", "--limit", "1", "--workspace", linkedWorkspace],
+				{
+					writeln: (text?: string) => {
+						output.push(text ?? "");
+					},
+					writeErr: (text: string) => {
+						errors.push(text);
+					},
+				},
+			);
+			expect(errors).toEqual([]);
+			expect(code).toBe(0);
+			const schedules = JSON.parse(output.join("\n")) as Array<{
+				name?: string;
+			}>;
+			expect(schedules).toEqual([
+				expect.objectContaining({ name: "target-routine" }),
+			]);
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}

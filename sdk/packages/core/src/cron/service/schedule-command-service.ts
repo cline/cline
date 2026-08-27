@@ -1,3 +1,4 @@
+import { realpathSync } from "node:fs";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import type {
 	HubCommandEnvelope,
@@ -52,6 +53,38 @@ function pathWithin(workspaceRoot: string, candidate: string): boolean {
 	return path !== ".." && !path.startsWith(`..${sep}`) && !isAbsolute(path);
 }
 
+/** Mirrors the store's default page size for filtered listings. */
+const DEFAULT_LIST_LIMIT = 200;
+
+/**
+ * Stored workspace roots mix canonical (realpath) and merely resolved forms,
+ * so workspace filters compare canonical forms on both sides. Fall back to
+ * the resolved form for paths that no longer exist, and fold case on Windows,
+ * where lexically different paths can name the same directory.
+ */
+function comparableWorkspacePath(value: string): string {
+	const resolved = resolve(value.trim());
+	let canonical = resolved;
+	try {
+		canonical = realpathSync.native(resolved);
+	} catch {
+		// A removed workspace still filters by its last known path.
+	}
+	return process.platform === "win32" ? canonical.toLowerCase() : canonical;
+}
+
+/** Per-request memo so large listings canonicalize each distinct root once. */
+function memoizedComparableWorkspacePath(): (value: string) => string {
+	const cache = new Map<string, string>();
+	return (value) => {
+		const cached = cache.get(value);
+		if (cached !== undefined) return cached;
+		const computed = comparableWorkspacePath(value);
+		cache.set(value, computed);
+		return computed;
+	};
+}
+
 function okReply(
 	envelope: HubCommandEnvelope,
 	payload?: Record<string, unknown>,
@@ -97,25 +130,51 @@ export class HubScheduleCommandService {
 							),
 						),
 					});
-				case "schedule.list":
+				case "schedule.list": {
+					const enabled =
+						typeof envelope.payload?.enabled === "boolean"
+							? envelope.payload.enabled
+							: undefined;
+					const limit =
+						typeof envelope.payload?.limit === "number"
+							? envelope.payload.limit
+							: undefined;
+					const tags = Array.isArray(envelope.payload?.tags)
+						? (envelope.payload?.tags as string[])
+						: undefined;
+					const requestedRoot = spansAllWorkspaces(envelope, scope)
+						? requestedWorkspaceRoot(envelope.payload ?? {})
+						: undefined;
+					if (requestedRoot) {
+						// Filter before applying the limit — a limited global
+						// listing could otherwise truncate away every match for
+						// the requested workspace.
+						const wanted = comparableWorkspacePath(requestedRoot);
+						const comparable = memoizedComparableWorkspacePath();
+						return okReply(envelope, {
+							schedules: this.schedules
+								.listSchedules({
+									enabled,
+									tags,
+									limit: Number.MAX_SAFE_INTEGER,
+								})
+								.filter(
+									(schedule) => comparable(schedule.workspaceRoot) === wanted,
+								)
+								.slice(0, limit ?? DEFAULT_LIST_LIMIT),
+						});
+					}
 					return okReply(envelope, {
 						schedules: this.schedules.listSchedules({
-							enabled:
-								typeof envelope.payload?.enabled === "boolean"
-									? envelope.payload.enabled
-									: undefined,
-							limit:
-								typeof envelope.payload?.limit === "number"
-									? envelope.payload.limit
-									: undefined,
-							tags: Array.isArray(envelope.payload?.tags)
-								? (envelope.payload?.tags as string[])
-								: undefined,
+							enabled,
+							limit,
+							tags,
 							workspaceRoot: spansAllWorkspaces(envelope, scope)
 								? undefined
 								: scope.workspaceRoot,
 						}),
 					});
+				}
 				case "schedule.get":
 					return okReply(envelope, {
 						schedule: this.requireScopedSchedule(envelope, scope),
@@ -229,7 +288,11 @@ export class HubScheduleCommandService {
 		if (!pathWithin(workspaceRoot, cwd)) {
 			throw new Error("client cwd is outside its workspace scope");
 		}
-		return { workspaceRoot, cwd, crossWorkspace: authority.crossWorkspace === true };
+		return {
+			workspaceRoot,
+			cwd,
+			crossWorkspace: authority.crossWorkspace === true,
+		};
 	}
 
 	private requireScopedSchedule(

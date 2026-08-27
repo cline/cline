@@ -1,5 +1,3 @@
-import { realpathSync } from "node:fs";
-import { resolve } from "node:path";
 import type { Command } from "commander";
 import { ensureSchedulerHub } from "./client";
 import {
@@ -22,28 +20,6 @@ import {
 } from "./import-export";
 import { resolveScheduleModelSelection } from "./model-selection";
 import type { CommandIo, ScheduleActionWrapper } from "./types";
-
-/**
- * Fetch window used when a `--workspace` filter is applied client-side. The
- * hub's limit is global across workspaces, so filtering a response truncated
- * to the user's `--limit` could drop every match; fetch wide, filter, then
- * apply the user's limit to the filtered results.
- */
-const WORKSPACE_FILTER_FETCH_LIMIT = 10_000;
-
-/**
- * Stored workspace roots mix canonical (realpath) and merely resolved forms,
- * so compare canonical forms on both sides; fall back to the resolved path
- * when it does not exist (e.g. a cleaned-up workspace).
- */
-function canonicalWorkspacePath(value: string): string {
-	const resolved = resolve(value.trim());
-	try {
-		return realpathSync.native(resolved);
-	} catch {
-		return resolved;
-	}
-}
 
 export function registerScheduleCommands(
 	schedule: Command,
@@ -271,27 +247,19 @@ export function registerScheduleCommands(
 			const client = ensured.client;
 			try {
 				const enabled = opts.enabled ? true : opts.disabled ? false : undefined;
-				const limit = toPositiveInt(opts.limit, 100);
-				const workspaceFilter =
+				// The hub filters by workspace before applying the limit, and
+				// matches canonical path forms, so the filter cannot be starved
+				// by other workspaces' schedules or miss symlink aliases.
+				const workspaceRoot =
 					typeof opts.workspace === "string" && opts.workspace.trim()
-						? canonicalWorkspacePath(opts.workspace)
+						? opts.workspace.trim()
 						: undefined;
-				const listed = await client.listSchedules({
-					limit: workspaceFilter ? WORKSPACE_FILTER_FETCH_LIMIT : limit,
+				const schedules = await client.listSchedules({
+					limit: toPositiveInt(opts.limit, 100),
 					enabled,
 					tags: parseList(opts.tags),
+					...(workspaceRoot ? { workspaceRoot } : {}),
 				});
-				const schedules =
-					workspaceFilter && Array.isArray(listed)
-						? listed
-								.filter(
-									(schedule) =>
-										typeof schedule?.workspaceRoot === "string" &&
-										canonicalWorkspacePath(schedule.workspaceRoot) ===
-											workspaceFilter,
-								)
-								.slice(0, limit)
-						: listed;
 				if (!opts.json && Array.isArray(schedules) && schedules.length === 0) {
 					io.writeln("No schedules found.");
 					return;
