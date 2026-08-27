@@ -1744,6 +1744,56 @@ describe("CloudSessionApi", () => {
 		expect(deleteCalls).toBe(1);
 	});
 
+	it("clears handoff recovery when an adopted provisioning row returns 404", async () => {
+		const now = new Date().toISOString();
+		const removed = vi.fn(async () => undefined);
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api.example",
+			appBaseUrl: "https://app.example",
+			getAuthToken: async () => "workos:fresh",
+			fetch: async (input, init) => {
+				if (init?.method === "DELETE") {
+					return new Response(undefined, { status: 204 });
+				}
+				if (new URL(String(input)).pathname.endsWith("/status")) {
+					return jsonResponse({ success: false, error: "gone" }, 404);
+				}
+				return jsonResponse({
+					success: true,
+					data: [
+						{
+							id: "ses-provisioning-existing",
+							title: "__cline_create_request__:handoff:local-1",
+							status: "provisioning",
+							sandboxUrl: "",
+							repoContext: { repoUrl: "https://github.com/cline/test" },
+							metadata: { modelId: "model" },
+							createdAt: now,
+							updatedAt: now,
+						},
+					],
+				});
+			},
+		});
+
+		await expect(
+			api.create({
+				requestId: "handoff:local-1",
+				modelId: "model",
+				repoUrl: "https://github.com/cline/test",
+				handoff: {
+					sourceSessionId: "local-1",
+					resolveMessages: async () => [],
+					onOuterSessionCreated: async () => undefined,
+					onOuterSessionRemoved: removed,
+				},
+			}),
+		).rejects.toMatchObject({ code: "session_not_found" });
+		expect(removed).toHaveBeenCalledExactlyOnceWith(
+			"ses-provisioning-existing",
+		);
+	});
+
 	it("refuses to create when the pre-create probe finds multiple matching rows", async () => {
 		const now = new Date().toISOString();
 		const record = (id: string) => ({
@@ -3265,7 +3315,11 @@ describe("CloudSessionManager", () => {
 						metadata: { handoff: { sourceSessionId: "local-1" } },
 					},
 				];
-				throw new Error("response lost");
+				throw new HubCommandError(
+					"session.create",
+					"hub_command_timeout",
+					"response lost",
+				);
 			}
 		};
 		const manager = new CloudSessionManager(ctx, {
@@ -3275,7 +3329,6 @@ describe("CloudSessionManager", () => {
 			createHubClient: () => hub as never,
 		});
 		await manager.list();
-		await manager.attach("ses-outer");
 		const seed = {
 			sourceSessionId: "local-1",
 			messages: [{ role: "user" as const, content: "continue" }],
@@ -3284,6 +3337,59 @@ describe("CloudSessionManager", () => {
 		await expect(manager.seedHandoff("ses-outer", seed)).rejects.toThrow(
 			"response lost",
 		);
+		await expect(manager.seedHandoff("ses-outer", seed)).resolves.toMatchObject(
+			{
+				innerSessionId: "inner-created",
+			},
+		);
+		expect(
+			hub.commands.filter((entry) => entry.command === "session.create"),
+		).toHaveLength(1);
+	});
+
+	it("does not recreate a seeded inner session before a timed-out create becomes visible", async () => {
+		const { ctx } = createContext();
+		const hub = new FakeHubClient();
+		hub.sessionRows = [];
+		let loseCreateResponse = true;
+		hub.commandHook = async (command) => {
+			if (command === "session.create" && loseCreateResponse) {
+				loseCreateResponse = false;
+				throw new HubCommandError(
+					"session.create",
+					"hub_command_timeout",
+					"response lost",
+				);
+			}
+		};
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+		await manager.list();
+		const seed = {
+			sourceSessionId: "local-1",
+			messages: [{ role: "user" as const, content: "continue" }],
+		};
+
+		await expect(manager.seedHandoff("ses-outer", seed)).rejects.toThrow(
+			"response lost",
+		);
+		await expect(manager.seedHandoff("ses-outer", seed)).rejects.toThrow(
+			"still unconfirmed",
+		);
+		expect(
+			hub.commands.filter((entry) => entry.command === "session.create"),
+		).toHaveLength(1);
+
+		hub.sessionRows = [
+			{
+				sessionId: "inner-created",
+				metadata: { handoff: { sourceSessionId: "local-1" } },
+			},
+		];
 		await expect(manager.seedHandoff("ses-outer", seed)).resolves.toMatchObject(
 			{
 				innerSessionId: "inner-created",
