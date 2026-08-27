@@ -191,6 +191,13 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 			let retryDraft: string | undefined;
 			let retryAttachments: File[] | undefined;
 			let retryDelivered = false;
+			const latestAttempt = latestAttempts.get(sourceSessionId);
+			const retainNewerRetry = Boolean(
+				handoffAttemptId &&
+					latestAttempt &&
+					latestAttempt !== handoffAttemptId &&
+					retryStates.has(attemptKey(sourceSessionId, latestAttempt)),
+			);
 			if (
 				progress.phase === "complete" &&
 				progress.sessionId?.trim() &&
@@ -211,6 +218,8 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 				if (progress.warningKind === "unqueued" && saved) {
 					retryDraft = progress.undeliveredCommand ?? saved.command;
 					retryAttachments = saved.attachments;
+				} else if (saved) {
+					retryStates.delete(key);
 				}
 				if (retryDraft || retryAttachments?.length) {
 					if (progress.destination !== "external") {
@@ -256,10 +265,13 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 				sessionId: progress.sessionId,
 				destination: progress.destination,
 				warningKind: progress.warningKind,
-				retryDraft,
-				retryAttachments,
+				...(!retainNewerRetry && retryDraft ? { retryDraft } : {}),
+				...(!retainNewerRetry && retryAttachments?.length
+					? { retryAttachments }
+					: {}),
+				...(retainNewerRetry ? { retainRetry: true } : {}),
 			});
-			if (retryDelivered) {
+			if (retryDelivered && !retainNewerRetry) {
 				effects.dispatch({ type: "retry_delivered", sourceSessionId });
 			}
 			// If the RPC dies mid-flight this event is the only carrier of a
@@ -313,9 +325,11 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 				receipt,
 				externalPresentation: destination === "external",
 				pendingPrompt,
-				warningKind: result.warningKind,
-				retryDraft: undeliveredCommand,
-				retryAttachments: undeliveredAttachments,
+				...(result.warningKind ? { warningKind: result.warningKind } : {}),
+				...(undeliveredCommand ? { retryDraft: undeliveredCommand } : {}),
+				...(undeliveredAttachments
+					? { retryAttachments: undeliveredAttachments }
+					: {}),
 			});
 			if (result.warning) {
 				effects.dispatch({
@@ -429,9 +443,13 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 					sourceSessionId,
 					receipt: completedEntry.receipt,
 					externalPresentation: completedEntry.externalPresentation,
-					warningKind: completedEntry.warningKind,
-					retryDraft: restoreCommand,
-					retryAttachments: restoreAttachments,
+					...(completedEntry.warningKind
+						? { warningKind: completedEntry.warningKind }
+						: {}),
+					...(restoreCommand ? { retryDraft: restoreCommand } : {}),
+					...(restoreAttachments
+						? { retryAttachments: restoreAttachments }
+						: {}),
 				});
 				if (
 					(restoreCommand || restoreAttachments) &&

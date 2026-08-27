@@ -445,7 +445,31 @@ describe("cloud handoff lifecycle: event/RPC ordering races", () => {
 			initialPromptDraft: "original command",
 			initialAttachments: [originalAttachment],
 		});
-		expect(h.getState()[SOURCE]).toMatchObject({ status: "complete" });
+		expect(h.getState()[SOURCE]).toMatchObject({
+			status: "complete",
+			retryDraft: "/handoff retry command",
+			retryAttachments: [retryAttachment],
+		});
+	});
+
+	it("clears a rejected attempt's payload when its clean completion arrives", async () => {
+		const h = makeHarness();
+		const attemptId = h.lifecycle.onRpcStarted(SOURCE);
+		await h.lifecycle.onRpcRejected(SOURCE, {
+			handoffAttemptId: attemptId,
+			error: new Error("response lost"),
+			nextCommand: "already queued",
+			sourceAttachments: [makeAttachment()],
+		});
+
+		await h.lifecycle.onEvent(completeEvent({ handoffAttemptId: attemptId }));
+
+		expect(h.getState()[SOURCE]).toEqual({
+			status: "complete",
+			receipt: { targetSessionId: TARGET, dashboardUrl: DASHBOARD_URL },
+			externalPresentation: false,
+		});
+		expect(h.openSession).not.toHaveBeenCalled();
 	});
 
 	it("accepts a matching retry completion even when all of its progress was lost", async () => {
