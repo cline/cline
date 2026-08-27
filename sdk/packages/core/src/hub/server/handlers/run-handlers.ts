@@ -296,13 +296,18 @@ export async function handleSessionInput(
 		if (result) {
 			const snapshot = await readCoreSessionSnapshot(ctx, sessionId);
 			const error = errorMessageForResult(result);
+			// The transcript riding on result.messages belongs only in the
+			// command reply the caller awaits; the broadcast event fans out to
+			// every subscriber and is persisted in the durable event log, so a
+			// multi-megabyte transcript would ship once per turn per client.
+			const { messages: _resultMessages, ...eventResult } = result;
 			ctx.publish(
 				ctx.buildEvent(
 					terminalRunEventForReason(result.finishReason),
 					{
 						reason: result.finishReason,
 						...(error ? { error } : {}),
-						result,
+						result: eventResult,
 						...(snapshot ? { snapshot } : {}),
 					},
 					sessionId,

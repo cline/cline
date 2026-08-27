@@ -1621,6 +1621,81 @@ describe("HubServerTransport boundaries", () => {
 		);
 	});
 
+	it("strips the transcript from terminal run event results but keeps it in the reply", async () => {
+		const transcript = [
+			{ role: "user", content: [{ type: "text", text: "hello" }] },
+			{ role: "assistant", content: [{ type: "text", text: "world" }] },
+		];
+		const runTurn = vi.fn().mockResolvedValue({
+			text: "world",
+			finishReason: "completed",
+			iterations: 1,
+			usage: { inputTokens: 0, outputTokens: 0 },
+			toolCalls: [],
+			messages: transcript,
+			model: { id: "model-1", provider: "provider-1" },
+			startedAt: new Date(0),
+			endedAt: new Date(0),
+			durationMs: 0,
+		});
+		const transport = createTransport({
+			sessionHost: {
+				subscribe: vi.fn(),
+				startSession: vi.fn(),
+				stopSession: vi.fn(),
+				runTurn,
+				abort: vi.fn(),
+				dispose: vi.fn(),
+				getSession: vi.fn().mockResolvedValue({ sessionId: "session-1" }),
+				listSessions: vi.fn(),
+				deleteSession: vi.fn(),
+				updateSession: vi.fn(),
+				dispatchHookEvent: vi.fn(),
+			} as never,
+		});
+		const events: HubEventEnvelope[] = [];
+		transport.subscribe("test", (event) => {
+			events.push(event);
+		});
+
+		const reply = await (
+			transport as unknown as {
+				handleCommand: (envelope: {
+					version: "v1";
+					requestId: string;
+					command: "run.start";
+					sessionId: string;
+					payload: { sessionId: string; prompt: string };
+				}) => Promise<{
+					ok: boolean;
+					payload?: { result?: Record<string, unknown> };
+				}>;
+			}
+		).handleCommand({
+			version: "v1",
+			requestId: "req-1",
+			command: "run.start",
+			sessionId: "session-1",
+			payload: { sessionId: "session-1", prompt: "go" },
+		});
+
+		// The awaiting caller gets the transcript in its reply; the broadcast
+		// event (fanned out to every subscriber and persisted in the durable
+		// event log) must not carry it.
+		expect(reply.ok).toBe(true);
+		expect(reply.payload?.result?.messages).toEqual(transcript);
+		const completedEvent = events.find(
+			(event) => event.event === "run.completed",
+		);
+		expect(completedEvent).toBeDefined();
+		const eventResult = completedEvent?.payload?.result as Record<
+			string,
+			unknown
+		>;
+		expect(eventResult).toMatchObject({ finishReason: "completed" });
+		expect(eventResult).not.toHaveProperty("messages");
+	});
+
 	it("publishes iteration lifecycle events from agent events", async () => {
 		const transport = createTransport();
 		const published: string[] = [];
