@@ -103,6 +103,27 @@ describe("CronReconciler", () => {
 		expect(all[0]?.removed).toBe(true);
 	});
 
+	it("does not remove hub-managed schedules with virtual source paths", async () => {
+		const created = store.createHubSchedule({
+			name: "Daily digest",
+			cronPattern: "0 9 * * *",
+			prompt: "Summarize the day",
+			workspaceRoot: "/ws",
+		});
+
+		// Simulates hub startup (e.g. after an app update) with no cron spec
+		// files on disk: DB-native hub schedules must survive reconciliation.
+		const summary = await reconciler.reconcileAll();
+		expect(summary.removed).toBe(0);
+
+		const schedule = requireValue(store.getSpec(created.specId));
+		expect(schedule.removed).toBe(false);
+		expect(schedule.enabled).toBe(true);
+		expect(store.listHubSchedules().map((s) => s.specId)).toContain(
+			created.specId,
+		);
+	});
+
 	it("cancels queued runs when spec is removed", async () => {
 		writeSpec("cleanup.md", `---\nid: cleanup\nworkspaceRoot: /ws\n---\nBody`);
 		await reconciler.reconcileAll();

@@ -130,6 +130,10 @@ export class CronReconciler {
 			limit: 10_000,
 		});
 		for (const spec of existing) {
+			// Hub-managed schedules live only in cron.db with a virtual
+			// sourcePath (`hub/schedules/<id>.cron.md`) that never exists on
+			// disk — they must not be treated as deleted spec files.
+			if (spec.source === "hub-schedule") continue;
 			if (!seenPaths.has(spec.sourcePath)) {
 				this.handleFileDeleted(spec);
 				summary.removed += 1;
