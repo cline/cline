@@ -49,6 +49,8 @@ import {
 import { resolveAudioTranscriptionRoute } from "@cline/llms";
 import {
 	CLINE_DEFAULT_MODEL_ID,
+	formatSessionSearchPreview,
+	formatSessionSearchTitle,
 	getClineEnvironmentConfig,
 	isCanonicalBase64,
 	ONE_TIME_SCHEDULE_CRON_PATTERN,
@@ -532,6 +534,67 @@ async function listSessionsFromSidecarManager(
 			);
 		})
 		.slice(0, max);
+}
+
+async function withSearchDeadline<T>(
+	promise: Promise<T>,
+	timeoutMs: number,
+): Promise<T> {
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	try {
+		return await Promise.race([
+			promise,
+			new Promise<never>((_, reject) => {
+				timer = setTimeout(
+					() => reject(new Error("Session search timed out")),
+					timeoutMs,
+				);
+			}),
+		]);
+	} finally {
+		if (timer) clearTimeout(timer);
+	}
+}
+
+function metadataSessionSearchHits(
+	value: unknown,
+	query: string,
+): JsonRecord[] {
+	if (!Array.isArray(value)) return [];
+	const normalizedQuery = query.toLocaleLowerCase();
+	return value.flatMap((item) => {
+		if (!item || typeof item !== "object") return [];
+		const session = item as JsonRecord;
+		const metadata =
+			session.metadata && typeof session.metadata === "object"
+				? (session.metadata as JsonRecord)
+				: {};
+		const sessionId = String(session.sessionId ?? "").trim();
+		if (!sessionId) return [];
+		const rawTitle = String(
+			metadata.title ?? session.title ?? session.prompt ?? sessionId,
+		).trim();
+		const prompt = String(session.prompt ?? metadata.prompt ?? "");
+		const title = formatSessionSearchTitle(rawTitle) || sessionId;
+		const workspaceRoot = String(session.workspaceRoot ?? session.cwd ?? "");
+		const searchable = [rawTitle, prompt, workspaceRoot, session.model]
+			.join("\n")
+			.toLocaleLowerCase();
+		if (!searchable.includes(normalizedQuery)) return [];
+		return [
+			{
+				sessionId,
+				documentId: `${sessionId}:metadata`,
+				ordinal: -1,
+				role: "session",
+				startedAt: String(session.startedAt ?? session.createdAt ?? ""),
+				workspaceRoot,
+				title,
+				snippet: formatSessionSearchPreview("session", prompt || title),
+				score: 0,
+			},
+		];
+	});
 }
 
 // ---------------------------------------------------------------------------
@@ -1397,6 +1460,49 @@ export async function handleCommand(
 			ctx,
 			typeof args?.limit === "number" ? args.limit : 300,
 		);
+	}
+	if (command === "search_sessions") {
+		const query = String(args?.query ?? "").trim();
+		if (!query) return [];
+		const limit =
+			typeof args?.limit === "number" && Number.isFinite(args.limit)
+				? Math.max(1, Math.min(200, Math.trunc(args.limit)))
+				: 50;
+		const workspaceRoot =
+			typeof args?.workspaceRoot === "string"
+				? args.workspaceRoot.trim() || undefined
+				: undefined;
+		if (ctx.hubClient) {
+			try {
+				const reply = await withSearchDeadline(
+					ctx.hubClient.command("session.search", {
+						query,
+						limit,
+						workspaceRoot,
+					}),
+					750,
+				);
+				if (
+					reply.ok &&
+					Array.isArray(reply.payload?.hits) &&
+					reply.payload.hits.length > 0
+				) {
+					return reply.payload.hits.slice(0, limit).map((hit) => ({
+						...hit,
+						title: formatSessionSearchTitle(hit.title),
+						snippet: formatSessionSearchPreview(hit.role, hit.snippet),
+					}));
+				}
+			} catch {
+				// Fall back to metadata-only search when the index is unavailable.
+			}
+		}
+
+		const sessions = await withSearchDeadline(
+			listSessionsFromSidecarManager(ctx, 500),
+			1_000,
+		).catch(() => []);
+		return metadataSessionSearchHits(sessions, query).slice(0, limit);
 	}
 	if (command === "get_discovered_session") {
 		const sessionId = String(args?.sessionId ?? args?.session_id ?? "").trim();
