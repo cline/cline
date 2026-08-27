@@ -24,6 +24,11 @@ describe("Hub agenda task vertical slice", () => {
 		const chatWorkspace = join(root, "chat-workspace");
 		mkdirSync(chatWorkspace);
 		const canonicalChatWorkspace = realpathSync.native(chatWorkspace);
+		// Agent-created schedules anchor in the ~/.cline/schedules home; point
+		// the Cline dir at the test root so that home stays inside this test.
+		const clineHome = join(root, "cline-home");
+		mkdirSync(clineHome);
+		process.env.CLINE_DIR = clineHome;
 		const sessions = new Map<string, Record<string, unknown>>();
 		let capturedStart: StartSessionInput | undefined;
 		let requestToolApproval:
@@ -234,12 +239,18 @@ describe("Hub agenda task vertical slice", () => {
 					iteration: 2,
 				},
 			);
+			// Agent-created schedules anchor in the user's schedules home, not
+			// the chat workspace that created them.
+			expect((scheduled as { error?: unknown })?.error).toBeUndefined();
+			const canonicalSchedulesHome = realpathSync.native(
+				join(clineHome, "schedules"),
+			);
 			expect(scheduled).toMatchObject({
 				ok: true,
 				kind: "scheduled",
 				schedule: {
 					name: "Review task output",
-					workspaceRoot: canonicalChatWorkspace,
+					workspaceRoot: canonicalSchedulesHome,
 					timezone: "America/Los_Angeles",
 					createdBy: "agent:task-agent",
 				},
@@ -268,8 +279,8 @@ describe("Hub agenda task vertical slice", () => {
 					clientType: "test-client",
 					transport: "native",
 					workspaceContext: {
-						workspaceRoot: canonicalChatWorkspace,
-						cwd: canonicalChatWorkspace,
+						workspaceRoot: canonicalSchedulesHome,
+						cwd: canonicalSchedulesHome,
 					},
 				},
 			});
@@ -278,7 +289,26 @@ describe("Hub agenda task vertical slice", () => {
 					version: "v1",
 					command: "schedule.list",
 					clientId: "schedule-client",
-					payload: { workspaceRoot: canonicalChatWorkspace },
+					payload: { workspaceRoot: canonicalSchedulesHome },
+				},
+				{
+					clientId: "schedule-client",
+					workspaceContext: {
+						workspaceRoot: canonicalSchedulesHome,
+						cwd: canonicalSchedulesHome,
+					},
+				},
+			);
+			expect(listedSchedules.payload?.schedules).toEqual([
+				expect.objectContaining({ name: "Review task output" }),
+			]);
+			// A client scoped to the chat workspace no longer owns the
+			// agent-created schedule.
+			const chatScopedSchedules = await transport.handleCommand(
+				{
+					version: "v1",
+					command: "schedule.list",
+					clientId: "schedule-client",
 				},
 				{
 					clientId: "schedule-client",
@@ -288,9 +318,7 @@ describe("Hub agenda task vertical slice", () => {
 					},
 				},
 			);
-			expect(listedSchedules.payload?.schedules).toEqual([
-				expect.objectContaining({ name: "Review task output" }),
-			]);
+			expect(chatScopedSchedules.payload?.schedules).toEqual([]);
 
 			await vi.waitFor(async () => {
 				const listed = await transport.handleCommand({
@@ -387,6 +415,7 @@ describe("Hub agenda task vertical slice", () => {
 			});
 			expect(startSession).toHaveBeenCalledTimes(1);
 		} finally {
+			delete process.env.CLINE_DIR;
 			await transport.stop();
 		}
 	});
