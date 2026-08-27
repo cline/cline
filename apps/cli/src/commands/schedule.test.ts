@@ -1,4 +1,4 @@
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -164,12 +164,118 @@ describe("runScheduleCommand list output", () => {
 		);
 
 		expect(code).toBe(0);
-		// The hub query spans every workspace; --workspace narrows client-side.
+		// The hub query spans every workspace, and fetches wide so the global
+		// limit cannot truncate away this workspace's matches before the
+		// client-side --workspace filter runs.
 		expect(mockHubClientCommand).toHaveBeenCalledWith(
 			"schedule.list",
-			expect.objectContaining({ allWorkspaces: true }),
+			expect.objectContaining({ allWorkspaces: true, limit: 10_000 }),
 		);
 		expect(JSON.parse(output.join("\n"))).toEqual([elsewhere]);
+	});
+
+	it("applies --limit after the --workspace filter", async () => {
+		mockEnsureCliHubServer.mockResolvedValue({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "test-token",
+		});
+		const matchA = {
+			scheduleId: "sched_a",
+			name: "match-a",
+			workspaceRoot: "/Users/someone/project-b",
+		};
+		const matchB = {
+			scheduleId: "sched_b",
+			name: "match-b",
+			workspaceRoot: "/Users/someone/project-b",
+		};
+		mockHubClientCommand.mockResolvedValue({
+			ok: true,
+			payload: {
+				schedules: [
+					{
+						scheduleId: "sched_other",
+						name: "other",
+						workspaceRoot: "/Users/someone/project-a",
+					},
+					matchA,
+					matchB,
+				],
+			},
+		});
+
+		const output: string[] = [];
+		const code = await runScheduleCommand(
+			[
+				"list",
+				"--json",
+				"--limit",
+				"1",
+				"--workspace",
+				"/Users/someone/project-b",
+				"--address",
+				"127.0.0.1:25463",
+			],
+			{
+				writeln: (text?: string) => {
+					output.push(text ?? "");
+				},
+				writeErr: () => {},
+			},
+		);
+
+		expect(code).toBe(0);
+		expect(mockHubClientCommand).toHaveBeenCalledWith(
+			"schedule.list",
+			expect.objectContaining({ limit: 10_000 }),
+		);
+		expect(JSON.parse(output.join("\n"))).toEqual([matchA]);
+	});
+
+	it("matches --workspace across symlinked path forms", async () => {
+		mockEnsureCliHubServer.mockResolvedValue({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "test-token",
+		});
+		const root = join(tmpdir(), `cline-cli-schedule-links-${Date.now()}`);
+		const realWorkspace = join(root, "real-workspace");
+		const linkedWorkspace = join(root, "linked-workspace");
+		await mkdir(realWorkspace, { recursive: true });
+		await symlink(realWorkspace, linkedWorkspace, "dir");
+		try {
+			const schedule = {
+				scheduleId: "sched_real",
+				name: "daily-summary",
+				workspaceRoot: realWorkspace,
+			};
+			mockHubClientCommand.mockResolvedValue({
+				ok: true,
+				payload: { schedules: [schedule] },
+			});
+
+			const output: string[] = [];
+			const code = await runScheduleCommand(
+				[
+					"list",
+					"--json",
+					"--workspace",
+					linkedWorkspace,
+					"--address",
+					"127.0.0.1:25463",
+				],
+				{
+					writeln: (text?: string) => {
+						output.push(text ?? "");
+					},
+					writeErr: () => {},
+				},
+			);
+
+			expect(code).toBe(0);
+			expect(JSON.parse(output.join("\n"))).toEqual([schedule]);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
 	});
 
 	it("sends allWorkspaces on id-addressed schedule commands", async () => {
