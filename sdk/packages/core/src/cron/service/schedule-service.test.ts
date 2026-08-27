@@ -500,4 +500,136 @@ describe("HubScheduleService", () => {
 			}
 		},
 	);
+
+	sqliteIt(
+		"grants explicit cross-workspace schedule access to authorized clients",
+		async () => {
+			const dbPath = await createTempDbPath();
+			cleanupPaths.push(dbPath);
+			const service = new HubScheduleService({
+				dbPath,
+				specs: { cronSpecsDir: join(dirname(dbPath), "cron") },
+				runtimeHandlers: {
+					startSession: vi.fn(async () => ({ sessionId: "session-3" })),
+					sendSession: vi.fn(async () => ({ result: { text: "done" } })),
+					abortSession: vi.fn(async () => ({ applied: true })),
+					stopSession: vi.fn(async () => ({ applied: true })),
+				},
+			});
+			try {
+				const commands = new HubScheduleCommandService(service);
+				// Like an agent-created schedule: written directly through the
+				// service with the chat session's workspace, not the client's.
+				const agentSchedule = service.createSchedule({
+					name: "Agent routine",
+					cronPattern: "0 * * * *",
+					prompt: "Created from a chat session",
+					workspaceRoot: "/chat-workspace",
+					cwd: "/chat-workspace",
+					createdBy: "agent:agent-1",
+				});
+				const scopedAuthority = {
+					clientId: "scoped-client",
+					workspaceContext: { workspaceRoot: "/desktop", cwd: "/desktop" },
+				};
+				const crossAuthority = { ...scopedAuthority, crossWorkspace: true };
+
+				// allWorkspaces is ignored without cross-workspace authority.
+				const scopedList = await commands.handleCommand(
+					{
+						version: "v1",
+						command: "schedule.list",
+						clientId: "scoped-client",
+						payload: { allWorkspaces: true },
+					},
+					scopedAuthority,
+				);
+				expect(scopedList.payload?.schedules).toEqual([]);
+				const scopedGet = await commands.handleCommand(
+					{
+						version: "v1",
+						command: "schedule.get",
+						clientId: "scoped-client",
+						payload: {
+							scheduleId: agentSchedule.scheduleId,
+							allWorkspaces: true,
+						},
+					},
+					scopedAuthority,
+				);
+				expect(scopedGet).toMatchObject({
+					ok: false,
+					error: { message: "schedule does not exist in this workspace" },
+				});
+
+				// Cross-workspace authority still stays scoped by default.
+				const defaultList = await commands.handleCommand(
+					{
+						version: "v1",
+						command: "schedule.list",
+						clientId: "scoped-client",
+					},
+					crossAuthority,
+				);
+				expect(defaultList.payload?.schedules).toEqual([]);
+
+				// With the explicit flag, the schedule is visible and editable.
+				const allList = await commands.handleCommand(
+					{
+						version: "v1",
+						command: "schedule.list",
+						clientId: "scoped-client",
+						payload: { allWorkspaces: true },
+					},
+					crossAuthority,
+				);
+				expect(allList.payload?.schedules).toMatchObject([
+					{ scheduleId: agentSchedule.scheduleId },
+				]);
+				const renamed = await commands.handleCommand(
+					{
+						version: "v1",
+						command: "schedule.update",
+						clientId: "scoped-client",
+						payload: {
+							scheduleId: agentSchedule.scheduleId,
+							name: "Renamed agent routine",
+							allWorkspaces: true,
+						},
+					},
+					crossAuthority,
+				);
+				expect(renamed.payload?.schedule).toMatchObject({
+					name: "Renamed agent routine",
+					// The update keeps the schedule in its own workspace instead
+					// of pulling it into the client's connection scope.
+					workspaceRoot: resolve("/chat-workspace"),
+				});
+
+				// Cross-workspace creates honor the requested workspace.
+				const created = await commands.handleCommand(
+					{
+						version: "v1",
+						command: "schedule.create",
+						clientId: "scoped-client",
+						payload: {
+							name: "Cross-workspace routine",
+							cronPattern: "30 * * * *",
+							prompt: "Run elsewhere",
+							workspaceRoot: "/another-workspace",
+							cwd: "/another-workspace",
+							allWorkspaces: true,
+						},
+					},
+					crossAuthority,
+				);
+				expect(created.payload?.schedule).toMatchObject({
+					workspaceRoot: resolve("/another-workspace"),
+					cwd: resolve("/another-workspace"),
+				});
+			} finally {
+				await service.dispose();
+			}
+		},
+	);
 });
