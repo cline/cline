@@ -3010,7 +3010,13 @@ export function useChatSession() {
 					setStatus("cancelled");
 				} else if (payload.recoveredAfterDisconnect) {
 					const recoveredStatus = mapCloudRuntimeStatus(payload.status);
-					if (recoveredStatus) {
+					if (
+						recoveredStatus &&
+						!(
+							recoveredStatus === "running" &&
+							turnEpochRef.current === turnSettledEpochRef.current
+						)
+					) {
 						setStatus(recoveredStatus);
 					}
 				} else if (result?.finishReason === "error") {

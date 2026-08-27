@@ -4274,6 +4274,31 @@ describe("coerced-queue first turn vs stale send response", () => {
 		expect(current.status).toBe("idle");
 	});
 
+	it("ignores a stale recovered response after the turn ended", async () => {
+		const sendResolvers = mockTransport();
+		const { sendPromise } = await dispatchPrompt("Finish during reconnect");
+		const endedHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_session_ended",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+		const sid = current.sessionId;
+
+		await act(async () => {
+			endedHandler?.({ sessionId: sid, reason: "completed" });
+		});
+		expect(current.status).toBe("completed");
+
+		await act(async () => {
+			sendResolvers[0]?.({
+				sessionId: sid,
+				ok: true,
+				recoveredAfterDisconnect: true,
+				status: "running",
+			});
+			await sendPromise;
+		});
+		expect(current.status).toBe("completed");
+	});
+
 	it("still applies 'running' status events once a new turn has started", async () => {
 		const sendResolvers = mockTransport();
 		const { sendPromise } = await dispatchPrompt("Say the word ready");
