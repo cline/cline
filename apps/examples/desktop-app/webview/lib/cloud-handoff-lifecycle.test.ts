@@ -164,8 +164,12 @@ describe("cloud handoff lifecycle: RPC resolved", () => {
 				receipt: { targetSessionId: TARGET, dashboardUrl: DASHBOARD_URL },
 				externalPresentation: false,
 				pendingPrompt,
+				warningKind: "unqueued",
+				retryDraft: "fix the tests",
+				retryAttachments: [attachment],
 			},
 			{ type: "prompt_reconciled", sourceSessionId: TARGET },
+			{ type: "retry_delivered", sourceSessionId: SOURCE },
 		]);
 		expect(h.openSession).toHaveBeenCalledExactlyOnceWith(TARGET, {
 			silent: true,
@@ -521,7 +525,7 @@ describe("cloud handoff lifecycle: event/RPC ordering races", () => {
 			h.dispatched.filter(
 				(action) => action.type === "progress" && action.phase === "complete",
 			),
-		).toEqual([]);
+		).toHaveLength(0);
 		expect(h.dispatched.at(-1)).toMatchObject({
 			type: "progress",
 			sourceSessionId: SOURCE,
@@ -601,13 +605,15 @@ describe("cloud handoff lifecycle: event/RPC ordering races", () => {
 			type: "target_open_failed",
 			sourceSessionId: SOURCE,
 			dashboardUrl: DASHBOARD_URL,
-			retryDraft: "/handoff run the suite",
+			retryDraft: "run the suite",
 			retryAttachments: [attachment],
 		});
 		expect(h.getState()[SOURCE]).toEqual({
-			status: "recovery",
-			dashboardUrl: DASHBOARD_URL,
-			retryDraft: "/handoff run the suite",
+			status: "complete",
+			receipt: { targetSessionId: TARGET, dashboardUrl: DASHBOARD_URL },
+			externalPresentation: false,
+			warningKind: "unqueued",
+			retryDraft: "run the suite",
 			retryAttachments: [attachment],
 		});
 	});
@@ -626,9 +632,11 @@ describe("cloud handoff lifecycle: event/RPC ordering races", () => {
 		});
 		expect(h.openSession).toHaveBeenCalledTimes(1);
 		expect(h.getState()[SOURCE]).toEqual({
-			status: "recovery",
-			dashboardUrl: DASHBOARD_URL,
-			retryDraft: "/handoff run the suite",
+			status: "complete",
+			receipt: { targetSessionId: TARGET, dashboardUrl: DASHBOARD_URL },
+			externalPresentation: false,
+			warningKind: "unqueued",
+			retryDraft: "run the suite",
 			retryAttachments: [attachment],
 		});
 	});
@@ -653,7 +661,13 @@ describe("cloud handoff lifecycle: event/RPC ordering races", () => {
 		expect(h.toast).toHaveBeenCalledExactlyOnceWith(
 			expect.objectContaining({ title: "Handoff completed" }),
 		);
-		expect(h.dispatch).not.toHaveBeenCalled();
+		expect(h.dispatched).toEqual([
+			expect.objectContaining({
+				type: "complete",
+				retryDraft: "run the suite",
+			}),
+			{ type: "retry_delivered", sourceSessionId: SOURCE },
+		]);
 	});
 
 	it("registry completion wins over a conflicting reducer entry", async () => {
@@ -683,6 +697,7 @@ describe("cloud handoff lifecycle: event/RPC ordering races", () => {
 
 	it("completed externally: no restoration open, benign toast still shown", async () => {
 		const h = makeHarness();
+		const attachment = makeAttachment();
 		h.lifecycle.onEvent(
 			completeEvent({ destination: "external", warningKind: "unqueued" }),
 		);
@@ -690,10 +705,15 @@ describe("cloud handoff lifecycle: event/RPC ordering races", () => {
 		await h.lifecycle.onRpcRejected(SOURCE, {
 			error: new Error("socket closed"),
 			nextCommand: "run the suite",
-			sourceAttachments: [],
+			sourceAttachments: [attachment],
 			isThreadActive: () => true,
 		});
 		expect(h.openSession).not.toHaveBeenCalled();
+		expect(h.getState()[SOURCE]).toMatchObject({
+			status: "complete",
+			retryDraft: "run the suite",
+			retryAttachments: [attachment],
+		});
 		expect(h.toast).toHaveBeenCalledWith(
 			expect.objectContaining({ title: "Handoff completed" }),
 		);
@@ -701,14 +721,20 @@ describe("cloud handoff lifecycle: event/RPC ordering races", () => {
 
 	it("completed but the source thread went inactive: no restoration open", async () => {
 		const h = makeHarness();
+		const attachment = makeAttachment();
 		h.lifecycle.onEvent(completeEvent({ warningKind: "unqueued" }));
 		await h.lifecycle.onRpcRejected(SOURCE, {
 			error: new Error("socket closed"),
 			nextCommand: "run the suite",
-			sourceAttachments: [],
+			sourceAttachments: [attachment],
 			isThreadActive: () => false,
 		});
 		expect(h.openSession).not.toHaveBeenCalled();
+		expect(h.getState()[SOURCE]).toMatchObject({
+			status: "complete",
+			retryDraft: "run the suite",
+			retryAttachments: [attachment],
+		});
 		expect(h.toast).toHaveBeenCalledExactlyOnceWith(
 			expect.objectContaining({ title: "Handoff completed" }),
 		);
@@ -802,8 +828,8 @@ describe("cloud handoff lifecycle: event/RPC ordering races", () => {
 			initialAttachments: [attachment],
 		});
 		expect(h.getState()[SOURCE]).toMatchObject({
-			status: "failed",
-			retryDraft: "/handoff fix flaky test",
+			status: "complete",
+			retryDraft: "fix flaky test",
 			retryAttachments: [attachment],
 		});
 
@@ -834,8 +860,8 @@ describe("cloud handoff lifecycle: event/RPC ordering races", () => {
 		);
 		expect(h.openSession).toHaveBeenCalledTimes(1);
 		expect(h.getState()[SOURCE]).toMatchObject({
-			status: "failed",
-			retryDraft: "/handoff fix flaky test",
+			status: "complete",
+			retryDraft: "fix flaky test",
 			retryAttachments: [attachment],
 		});
 	});

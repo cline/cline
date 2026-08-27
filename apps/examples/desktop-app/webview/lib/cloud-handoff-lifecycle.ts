@@ -126,7 +126,7 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 	// A duplicate completion event must not retry an in-app recovery open. If
 	// the first attempt fails, the reducer and retry registry remain the user's
 	// recovery surface instead of an event replay repeatedly stealing focus.
-	const recoveryOpenAttempts = new Set<string>();
+	const targetOpenAttempts = new Set<string>();
 	const latestAttempts = new Map<string, string>();
 	const acceptedAttempts = new Map<string, string>();
 	const attemptOrders = new Map<string, number>();
@@ -188,7 +188,9 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 			if (!acceptAttempt(sourceSessionId, handoffAttemptId)) return;
 			const acceptedAttempt = handoffAttemptId;
 			const key = attemptKey(sourceSessionId, handoffAttemptId);
-			let preserveRecoveryState = false;
+			let retryDraft: string | undefined;
+			let retryAttachments: File[] | undefined;
+			let retryDelivered = false;
 			if (
 				progress.phase === "complete" &&
 				progress.sessionId?.trim() &&
@@ -207,20 +209,20 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 				// replace the saved recovery state.
 				const saved = retryStates.get(key);
 				if (progress.warningKind === "unqueued" && saved) {
-					const draft = progress.undeliveredCommand ?? saved.command;
-					if (
-						(draft || saved.attachments?.length) &&
-						progress.destination !== "external"
-					) {
-						if (!recoveryOpenAttempts.has(key)) {
-							recoveryOpenAttempts.add(key);
+					retryDraft = progress.undeliveredCommand ?? saved.command;
+					retryAttachments = saved.attachments;
+				}
+				if (retryDraft || retryAttachments?.length) {
+					if (progress.destination !== "external") {
+						if (!targetOpenAttempts.has(key)) {
+							targetOpenAttempts.add(key);
 							const opened = await Promise.resolve()
 								.then(() =>
 									effects.openSession(targetSessionId, {
 										silent: true,
-										...(draft ? { initialPromptDraft: draft } : {}),
-										...(saved.attachments?.length
-											? { initialAttachments: saved.attachments }
+										...(retryDraft ? { initialPromptDraft: retryDraft } : {}),
+										...(retryAttachments?.length
+											? { initialAttachments: retryAttachments }
 											: {}),
 									}),
 								)
@@ -233,28 +235,32 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 							}
 							if (opened) {
 								retryStates.delete(key);
-							} else {
-								preserveRecoveryState = true;
+								retryDelivered = true;
 							}
-						} else {
-							preserveRecoveryState = true;
 						}
-					} else {
-						retryStates.delete(key);
 					}
 				}
+				if (
+					acceptedAttempt &&
+					acceptedAttempts.get(sourceSessionId) !== acceptedAttempt
+				) {
+					return;
+				}
 			}
-			if (!preserveRecoveryState) {
-				effects.dispatch({
-					type: "progress",
-					sourceSessionId: progress.sourceSessionId,
-					phase: progress.phase,
-					message: progress.message,
-					dashboardUrl: progress.dashboardUrl,
-					sessionId: progress.sessionId,
-					destination: progress.destination,
-					warningKind: progress.warningKind,
-				});
+			effects.dispatch({
+				type: "progress",
+				sourceSessionId: progress.sourceSessionId,
+				phase: progress.phase,
+				message: progress.message,
+				dashboardUrl: progress.dashboardUrl,
+				sessionId: progress.sessionId,
+				destination: progress.destination,
+				warningKind: progress.warningKind,
+				retryDraft,
+				retryAttachments,
+			});
+			if (retryDelivered) {
+				effects.dispatch({ type: "retry_delivered", sourceSessionId });
 			}
 			// If the RPC dies mid-flight this event is the only carrier of a
 			// follow-up queue failure; surface it exactly like the RPC path.
@@ -285,13 +291,6 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 			if (!acceptAttempt(sourceSessionId, ctx.handoffAttemptId)) return;
 			const receipt = { targetSessionId, dashboardUrl };
 			const destination = result.destination ?? "in_app";
-			effects.dispatch({
-				type: "complete",
-				sourceSessionId,
-				receipt,
-				externalPresentation: destination === "external",
-				pendingPrompt,
-			});
 			// A warning means the follow-up command was NOT queued. Clear the
 			// optimistic bubble (it would read as sent), but preserve the
 			// user's command by pre-filling the target session's composer —
@@ -308,6 +307,16 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 				sourceAttachments.length > 0
 					? sourceAttachments
 					: undefined;
+			effects.dispatch({
+				type: "complete",
+				sourceSessionId,
+				receipt,
+				externalPresentation: destination === "external",
+				pendingPrompt,
+				warningKind: result.warningKind,
+				retryDraft: undeliveredCommand,
+				retryAttachments: undeliveredAttachments,
+			});
 			if (result.warning) {
 				effects.dispatch({
 					type: "prompt_reconciled",
@@ -315,33 +324,40 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 				});
 			}
 			if (shouldOpenHandoffInApp(destination, ctx.isThreadActive?.() ?? true)) {
-				const opened = await Promise.resolve(
-					effects.openSession(targetSessionId, {
-						silent: true,
-						...(undeliveredCommand
-							? { initialPromptDraft: undeliveredCommand }
-							: {}),
-						...(undeliveredAttachments
-							? { initialAttachments: undeliveredAttachments }
-							: {}),
-					}),
-				).catch(() => false);
-				if (!opened) {
-					effects.dispatch({ type: "external", sourceSessionId });
-					try {
-						await effects.openExternal(dashboardUrl);
-						effects.toast({
-							title: "Opened handoff in your browser",
-							description:
-								"The cloud session could not be attached inside Cline.",
-						});
-					} catch {
-						effects.toast({
-							title: "Unable to open the browser",
-							description:
-								"Use the recovery link to open the cloud session manually.",
-							variant: "destructive",
-						});
+				const key = attemptKey(sourceSessionId, ctx.handoffAttemptId);
+				if (!targetOpenAttempts.has(key)) {
+					targetOpenAttempts.add(key);
+					const opened = await Promise.resolve(
+						effects.openSession(targetSessionId, {
+							silent: true,
+							...(undeliveredCommand
+								? { initialPromptDraft: undeliveredCommand }
+								: {}),
+							...(undeliveredAttachments
+								? { initialAttachments: undeliveredAttachments }
+								: {}),
+						}),
+					).catch(() => false);
+					if (opened && (undeliveredCommand || undeliveredAttachments)) {
+						effects.dispatch({ type: "retry_delivered", sourceSessionId });
+					}
+					if (!opened) {
+						effects.dispatch({ type: "external", sourceSessionId });
+						try {
+							await effects.openExternal(dashboardUrl);
+							effects.toast({
+								title: "Opened handoff in your browser",
+								description:
+									"The cloud session could not be attached inside Cline.",
+							});
+						} catch {
+							effects.toast({
+								title: "Unable to open the browser",
+								description:
+									"Use the recovery link to open the cloud session manually.",
+								variant: "destructive",
+							});
+						}
 					}
 				}
 			} else if (destination === "external") {
@@ -408,13 +424,24 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 					sourceAttachments.length > 0
 						? sourceAttachments
 						: undefined;
+				effects.dispatch({
+					type: "complete",
+					sourceSessionId,
+					receipt: completedEntry.receipt,
+					externalPresentation: completedEntry.externalPresentation,
+					warningKind: completedEntry.warningKind,
+					retryDraft: restoreCommand,
+					retryAttachments: restoreAttachments,
+				});
 				if (
 					(restoreCommand || restoreAttachments) &&
 					shouldOpenHandoffInApp(
 						completedEntry.externalPresentation ? "external" : "in_app",
 						ctx.isThreadActive?.() ?? true,
-					)
+					) &&
+					!targetOpenAttempts.has(key)
 				) {
+					targetOpenAttempts.add(key);
 					const opened = await Promise.resolve()
 						.then(() =>
 							effects.openSession(completedEntry.receipt.targetSessionId, {
@@ -433,9 +460,11 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 							type: "target_open_failed",
 							sourceSessionId,
 							dashboardUrl: completedEntry.receipt.dashboardUrl,
-							retryDraft: nextCommand ? `/handoff ${nextCommand}` : "/handoff",
+							retryDraft: restoreCommand,
 							retryAttachments: sourceAttachments,
 						});
+					} else {
+						effects.dispatch({ type: "retry_delivered", sourceSessionId });
 					}
 				}
 				effects.toast({
