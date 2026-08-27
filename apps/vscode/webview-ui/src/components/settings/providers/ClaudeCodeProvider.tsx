@@ -4,6 +4,7 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useProviderConfig } from "@/hooks/useProviderConfig"
 import { useProviderModelSelection } from "@/hooks/useProviderModelSelection"
 import { useProviderModels } from "@/hooks/useProviderModels"
+import { useProviderUsageCostDisplay } from "@/hooks/useProviderUsageCostDisplay"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { ModelSelector } from "../common/ModelSelector"
@@ -27,6 +28,9 @@ export const ClaudeCodeProvider = ({ showModelOptions, isPopup, currentMode }: C
 	const { handleFieldChange } = useApiConfigurationHandlers()
 	const providerId = "claude-code"
 	const { models, defaultModelId } = useProviderModels(providerId)
+	// The models reuse Anthropic API pricing metadata, but usage is billed
+	// through the Claude subscription — suppress the per-token price rows.
+	const hideUsageCost = useProviderUsageCostDisplay(providerId) !== "show"
 	const { config, write, commitSelection } = useProviderConfig(providerId)
 	const { selectedModelId, selectedModelInfo, commitModelSelection } = useProviderModelSelection(providerId, currentMode, {
 		models,
@@ -99,7 +103,12 @@ export const ClaudeCodeProvider = ({ showModelOptions, isPopup, currentMode }: C
 						/>
 					)}
 
-					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
+					<ModelInfoView
+						hideUsageCost={hideUsageCost}
+						isPopup={isPopup}
+						modelInfo={selectedModelInfo}
+						selectedModelId={selectedModelId}
+					/>
 				</>
 			)}
 		</div>

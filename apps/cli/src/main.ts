@@ -17,6 +17,7 @@ import {
 } from "./commands/update";
 import { CLI_DEFAULT_CHECKPOINT_CONFIG } from "./runtime/defaults";
 import type { TuiStartupTarget } from "./tui/types";
+import { filterChatModels } from "./utils/chat-models";
 import { getCliBuildInfo } from "./utils/common";
 import {
 	buildCliCompactionConfig,
@@ -502,6 +503,24 @@ export async function runCli(): Promise<void> {
 				transport: opts.transport,
 				json: opts.json === true || program.opts().json === true,
 				yes: opts.yes === true,
+				io,
+			});
+		});
+	const mcpUninstallCmd = mcpCmd
+		.command("uninstall")
+		.alias("remove")
+		.alias("rm")
+		.description("Uninstall an MCP server by name")
+		.argument("<name>", "MCP server name")
+		.option("--json", "Output as JSON")
+		.action(async (name: string) => {
+			const opts = mcpUninstallCmd.opts<{
+				json?: boolean;
+			}>();
+			const { runMcpUninstallCommand } = await import("./commands/mcp");
+			ctx.exitCode = await runMcpUninstallCommand({
+				name,
+				json: opts.json === true || program.opts().json === true,
 				io,
 			});
 		});
@@ -1011,7 +1030,9 @@ export async function runCli(): Promise<void> {
 				`${c.dim}[model-catalog] catalog resolution failed (${message})${c.reset}`,
 			);
 		}
-		const knownModelIds = knownModels ? Object.keys(knownModels) : [];
+		const knownModelIds = knownModels
+			? Object.keys(filterChatModels(knownModels))
+			: [];
 		const resolvedReasoning = resolveCliReasoning({
 			thinking: args.thinking,
 			thinkingExplicitlySet: args.thinkingExplicitlySet,

@@ -20,6 +20,7 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
 	Collapsible,
@@ -55,6 +56,7 @@ import {
 	MarketplaceView,
 } from "../marketplace-view";
 import { CommandBadge, PageFrame, PageHeader } from "../page-layout";
+import { subscribeToExtensionInventoryInvalidation } from "./extensions-view";
 
 type McpTransportType = "stdio" | "sse" | "streamableHttp";
 
@@ -81,6 +83,14 @@ interface McpServer {
 	url?: string;
 	headers?: Record<string, string>;
 	metadata?: unknown;
+	configurationError?: string;
+	oauthStatus?: {
+		supported: boolean;
+		configured: boolean;
+		authorizationRequired: boolean;
+		lastError?: string;
+		lastAuthenticatedAt?: number;
+	};
 }
 
 interface McpServersResponse {
@@ -197,14 +207,31 @@ function createServerFormState(existing?: McpServer): McpServerFormState {
 	};
 }
 
-export function McpServersContent() {
+export function McpServersContent({
+	chrome = "page",
+	marketplaceVariant = "full",
+	onInventoryChanged,
+}: {
+	/** "embedded" renders without the page frame/header for use inside the Plugins hub. */
+	chrome?: "page" | "embedded";
+	/** Which marketplace sections the embedded MarketplaceView shows. */
+	marketplaceVariant?: "full" | "installed";
+	/** Invoked whenever the server list is (re)loaded or mutated. */
+	onInventoryChanged?: () => void;
+} = {}) {
 	const [servers, setServers] = useState<McpServer[]>([]);
 	const [settingsPath, setSettingsPath] = useState("");
 	const [hasSettingsFile, setHasSettingsFile] = useState(false);
 	const [isLoading, setIsLoading] = useState(true);
 	const [isOpeningSettingsFile, setIsOpeningSettingsFile] = useState(false);
 	const [errorMessage, setErrorMessage] = useState<string | null>(null);
+	const [serverActionErrors, setServerActionErrors] = useState<
+		Record<string, string>
+	>({});
 	const [busyServerName, setBusyServerName] = useState<string | null>(null);
+	const [authorizingServerName, setAuthorizingServerName] = useState<
+		string | null
+	>(null);
 	const [editorOpen, setEditorOpen] = useState(false);
 	const [editorMode, setEditorMode] = useState<"create" | "edit">("create");
 	const [formState, setFormState] = useState<McpServerFormState>(() =>
@@ -214,11 +241,32 @@ export function McpServersContent() {
 	const [formErrorMessage, setFormErrorMessage] = useState<string | null>(null);
 	const [deleteTarget, setDeleteTarget] = useState<McpServer | null>(null);
 
-	const applyResponse = useCallback((response: McpServersResponse) => {
-		setServers(response.servers);
-		setSettingsPath(response.settingsPath);
-		setHasSettingsFile(response.hasSettingsFile);
-	}, []);
+	const applyResponse = useCallback(
+		(response: McpServersResponse) => {
+			setServers(response.servers);
+			setSettingsPath(response.settingsPath);
+			setHasSettingsFile(response.hasSettingsFile);
+			onInventoryChanged?.();
+		},
+		[onInventoryChanged],
+	);
+
+	const setServerActionError = useCallback(
+		(serverName: string, message?: string) => {
+			setServerActionErrors((current) => {
+				if (message) {
+					return { ...current, [serverName]: message };
+				}
+				if (!(serverName in current)) {
+					return current;
+				}
+				const next = { ...current };
+				delete next[serverName];
+				return next;
+			});
+		},
+		[],
+	);
 
 	const refreshServers = useCallback(async () => {
 		setIsLoading(true);
@@ -227,6 +275,7 @@ export function McpServersContent() {
 			const response =
 				await desktopClient.invoke<McpServersResponse>("list_mcp_servers");
 			applyResponse(response);
+			setServerActionErrors({});
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			setErrorMessage(message);
@@ -242,9 +291,21 @@ export function McpServersContent() {
 		return () => window.clearTimeout(timeoutId);
 	}, [refreshServers]);
 
+	// Marketplace installs/uninstalls can complete after this view mounted
+	// (e.g. the user navigated back to Plugins mid-install); refetch when the
+	// shared inventory cache is invalidated so the list is never stale.
+	useEffect(
+		() =>
+			subscribeToExtensionInventoryInvalidation(() => {
+				void refreshServers();
+			}),
+		[refreshServers],
+	);
+
 	const toggleServer = async (server: McpServer, disabled: boolean) => {
 		setBusyServerName(server.name);
 		setErrorMessage(null);
+		setServerActionError(server.name);
 		try {
 			const response = await desktopClient.invoke<McpServersResponse>(
 				"set_mcp_server_disabled",
@@ -256,7 +317,7 @@ export function McpServersContent() {
 			applyResponse(response);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			setErrorMessage(message);
+			setServerActionError(server.name, message);
 		} finally {
 			setBusyServerName(null);
 		}
@@ -273,10 +334,6 @@ export function McpServersContent() {
 				},
 			);
 			applyResponse(response);
-		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
-			setErrorMessage(message);
-			throw error;
 		} finally {
 			setBusyServerName(null);
 		}
@@ -285,6 +342,7 @@ export function McpServersContent() {
 	const deleteServer = async (serverName: string) => {
 		setBusyServerName(serverName);
 		setErrorMessage(null);
+		setServerActionError(serverName);
 		try {
 			const response = await desktopClient.invoke<McpServersResponse>(
 				"delete_mcp_server",
@@ -295,9 +353,46 @@ export function McpServersContent() {
 			applyResponse(response);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			setErrorMessage(message);
+			setServerActionError(serverName, message);
 		} finally {
 			setBusyServerName(null);
+		}
+	};
+
+	const authorizeOAuth = async (serverName: string) => {
+		setAuthorizingServerName(serverName);
+		setErrorMessage(null);
+		setServerActionError(serverName);
+		try {
+			const response = await desktopClient.invoke<McpServersResponse>(
+				"authorize_mcp_server_oauth",
+				{ name: serverName },
+				{ timeoutMs: null },
+			);
+			applyResponse(response);
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			await refreshServers();
+			setServerActionError(serverName, message);
+		} finally {
+			setAuthorizingServerName(null);
+		}
+	};
+
+	const cancelOAuth = async (serverName: string) => {
+		setErrorMessage(null);
+		setServerActionError(serverName);
+		try {
+			const response = await desktopClient.invoke<McpServersResponse>(
+				"cancel_mcp_server_oauth",
+				{ name: serverName },
+			);
+			applyResponse(response);
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			setServerActionError(serverName, message);
+		} finally {
+			setAuthorizingServerName(null);
 		}
 	};
 
@@ -441,8 +536,21 @@ export function McpServersContent() {
 		}));
 	};
 
-	const renderServerActions = (server: McpServer) => {
+	const renderServerToggle = (server: McpServer) => {
 		const isBusy = busyServerName === server.name;
+		return (
+			<Switch
+				checked={!server.disabled}
+				onCheckedChange={(enabled) => toggleServer(server, !enabled)}
+				disabled={isBusy}
+				aria-label={`Enable ${server.name}`}
+			/>
+		);
+	};
+
+	const renderServerManagementActions = (server: McpServer) => {
+		const isBusy = busyServerName === server.name;
+		const isAuthorizing = authorizingServerName === server.name;
 		return (
 			<div className="flex items-center gap-1">
 				<Button
@@ -450,7 +558,7 @@ export function McpServersContent() {
 					size="icon-sm"
 					aria-label={`Edit ${server.name}`}
 					onClick={() => openEditDialog(server)}
-					disabled={isBusy}
+					disabled={isBusy || isAuthorizing}
 				>
 					<Pencil className="h-3.5 w-3.5" />
 				</Button>
@@ -459,16 +567,10 @@ export function McpServersContent() {
 					size="icon-sm"
 					aria-label={`Delete ${server.name}`}
 					onClick={() => setDeleteTarget(server)}
-					disabled={isBusy}
+					disabled={isBusy || isAuthorizing}
 				>
 					<Trash2 className="h-3.5 w-3.5" />
 				</Button>
-				<Switch
-					checked={!server.disabled}
-					onCheckedChange={(enabled) => toggleServer(server, !enabled)}
-					disabled={isBusy}
-					aria-label={`Enable ${server.name}`}
-				/>
 			</div>
 		);
 	};
@@ -515,40 +617,125 @@ export function McpServersContent() {
 	const renderServerCard = (
 		server: McpServer,
 		context?: MarketplaceLocalInstalledItemRenderContext,
-	) => (
-		<div
-			key={server.name}
-			className="rounded-lg border border-border px-5 py-4 transition-colors hover:bg-accent/20"
-		>
-			<div className="flex items-center gap-3">
-				<Circle
-					className={cn(
-						"h-2.5 w-2.5 shrink-0",
-						server.disabled
-							? "fill-muted-foreground/40 text-muted-foreground/40"
-							: "fill-primary text-primary",
-					)}
-				/>
-				<h3 className="text-sm font-semibold text-foreground">{server.name}</h3>
-				<span className="rounded-md border border-border px-2 py-0.5 text-xs text-muted-foreground">
-					{TRANSPORT_TYPE_LABELS[server.transportType] ?? server.transportType}
-				</span>
-				{context?.matchedEntries?.length ? (
-					<span className="rounded-md border border-border px-2 py-0.5 text-xs text-muted-foreground">
-						Marketplace
-					</span>
-				) : null}
-				<div className="flex-1" />
-				{renderServerActions(server)}
+	) => {
+		const isBusy = busyServerName === server.name;
+		const isAuthorizing = authorizingServerName === server.name;
+		const serverError =
+			serverActionErrors[server.name] ??
+			(server.disabled ? undefined : server.oauthStatus?.lastError);
+
+		return (
+			<div
+				key={server.name}
+				className="group relative rounded-lg border bg-card p-4 transition-colors hover:bg-surface-hover-lighter"
+			>
+				<div className="flex min-w-0 items-center gap-2">
+					<Circle
+						className={cn(
+							"h-2.5 w-2.5 shrink-0",
+							server.disabled
+								? "fill-muted-foreground/40 text-muted-foreground/40"
+								: "fill-primary text-primary",
+						)}
+					/>
+					<h3 className="min-w-0 truncate text-sm font-semibold text-foreground">
+						{server.name}
+					</h3>
+					<Badge variant="outline" className="shrink-0 text-muted-foreground">
+						{TRANSPORT_TYPE_LABELS[server.transportType] ??
+							server.transportType}
+					</Badge>
+					{context?.matchedEntries?.length ? (
+						<Badge variant="outline" className="shrink-0 text-muted-foreground">
+							Marketplace
+						</Badge>
+					) : null}
+					<div className="flex-1" />
+					{renderServerToggle(server)}
+				</div>
+				<div className="mt-2.5 grid gap-2">
+					{server.configurationError ? (
+						<div
+							className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2"
+							role="alert"
+						>
+							<p className="text-xs font-medium text-destructive">
+								Invalid configuration
+							</p>
+							<p className="mt-0.5 wrap-break-word text-xs text-muted-foreground">
+								{server.configurationError}
+							</p>
+						</div>
+					) : null}
+					{server.oauthStatus?.authorizationRequired ? (
+						<div
+							className="flex items-center justify-between gap-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2"
+							role="alert"
+						>
+							<div className="min-w-0 flex-1 grid gap-0.5">
+								<p className="text-xs font-medium text-foreground">
+									{isAuthorizing
+										? "Waiting for OAuth authorization"
+										: "OAuth authorization required"}
+								</p>
+								<p className="wrap-break-word text-xs text-muted-foreground">
+									{isAuthorizing
+										? "Complete sign-in in your browser, or select Cancel to stop waiting."
+										: (serverError ??
+											"Select Connect to sign in with your browser. The server will remain off until authorization succeeds.")}
+								</p>
+							</div>
+							<Button
+								variant="default"
+								size="sm"
+								className="shrink-0"
+								aria-label={
+									isAuthorizing
+										? `Cancel OAuth for ${server.name}`
+										: `Connect ${server.name} with OAuth`
+								}
+								onClick={() =>
+									void (isAuthorizing
+										? cancelOAuth(server.name)
+										: authorizeOAuth(server.name))
+								}
+								disabled={isBusy}
+							>
+								{isAuthorizing ? "Cancel" : "Connect"}
+							</Button>
+						</div>
+					) : null}
+					{serverError && !server.oauthStatus?.authorizationRequired ? (
+						<div
+							className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2"
+							role="alert"
+						>
+							<p className="text-xs font-medium text-destructive">
+								Connection failed
+							</p>
+							<p className="mt-0.5 wrap-break-word text-xs text-muted-foreground">
+								{serverError}
+							</p>
+						</div>
+					) : null}
+					{renderServerDetails(server)}
+					{server.oauthStatus?.configured ? (
+						<div className="flex items-center gap-2 text-xs text-muted-foreground">
+							<span className="rounded-md border border-primary/40 bg-primary/10 px-2 py-0.5 text-primary">
+								OAuth connected
+							</span>
+						</div>
+					) : null}
+					{context?.matchedEntries?.length ? (
+						<MarketplaceEntrySetupDetails entries={context.matchedEntries} />
+					) : null}
+					<div className="pointer-events-none absolute right-4 bottom-3 opacity-0 transition-opacity group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100">
+						{renderServerManagementActions(server)}
+					</div>
+				</div>
 			</div>
-			<div className="mt-2.5 ml-5.5 grid gap-2">
-				{renderServerDetails(server)}
-				{context?.matchedEntries?.length ? (
-					<MarketplaceEntrySetupDetails entries={context.matchedEntries} />
-				) : null}
-			</div>
-		</div>
-	);
+		);
+	};
 
 	const installedItems = sortedServers.map(
 		(server): MarketplaceLocalInstalledItem => ({
@@ -558,42 +745,55 @@ export function McpServersContent() {
 		}),
 	);
 
-	return (
-		<PageFrame>
-			<PageHeader
-				description={
-					hasSettingsFile
-						? "Editing this list updates cline_mcp_settings.json."
-						: "No MCP settings file found yet. Add a server to create it."
-				}
-				title="MCP Servers"
-				meta={
-					<>
-						<CommandBadge>cline config mcp</CommandBadge>
-						<span className="rounded-md border border-border bg-background px-2 py-0.5 text-xs text-muted-foreground">
-							From settings file
-						</span>
-					</>
-				}
-				actions={
-					<>
-						<Button
-							variant="outline"
-							size="sm"
-							onClick={() => void refreshServers()}
-							disabled={isLoading}
-						>
-							<RefreshCw
-								className={cn("h-4 w-4", isLoading && "animate-spin")}
-							/>
-						</Button>
-						<Button size="sm" onClick={openCreateDialog}>
-							<Plus className="h-4 w-4" />
-							Add MCP Server
-						</Button>
-					</>
-				}
-			/>
+	const headerActions = (
+		<>
+			<Button
+				variant="outline"
+				size="sm"
+				onClick={() => void refreshServers()}
+				disabled={isLoading}
+			>
+				<RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
+			</Button>
+			<Button size="sm" onClick={openCreateDialog}>
+				<Plus className="h-4 w-4" />
+				Add MCP Server
+			</Button>
+		</>
+	);
+
+	const content = (
+		<>
+			{chrome === "page" ? (
+				<PageHeader
+					description={
+						hasSettingsFile
+							? "Editing this list updates cline_mcp_settings.json."
+							: "No MCP settings file found yet. Add a server to create it."
+					}
+					title="MCP Servers"
+					meta={
+						<>
+							<CommandBadge>cline config mcp</CommandBadge>
+							<span className="rounded-md border border-border bg-background px-2 py-0.5 text-xs text-muted-foreground">
+								From settings file
+							</span>
+						</>
+					}
+					actions={headerActions}
+				/>
+			) : (
+				<div className="mb-4 flex items-center justify-between gap-3">
+					<p className="text-sm text-muted-foreground">
+						{hasSettingsFile
+							? "Editing this list updates cline_mcp_settings.json."
+							: "No MCP settings file found yet. Add a server to create it."}
+					</p>
+					<div className="flex shrink-0 items-center gap-2">
+						{headerActions}
+					</div>
+				</div>
+			)}
 
 			<div className="mb-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
 				<span>MCP settings path:</span>
@@ -617,6 +817,7 @@ export function McpServersContent() {
 				installedItems={installedItems}
 				onInstalledItemsChanged={() => refreshServers()}
 				primitive="mcp"
+				variant={marketplaceVariant}
 			/>
 			<Dialog
 				open={editorOpen}
@@ -678,7 +879,7 @@ export function McpServersContent() {
 							>
 								<Label
 									htmlFor="mcp-server-type-local"
-									className="flex cursor-pointer items-start gap-3 rounded-md border border-border px-3 py-2.5 font-normal has-[[data-state=checked]]:border-primary/60 has-[[data-state=checked]]:bg-accent/30"
+									className="flex cursor-pointer items-start gap-3 rounded-md border border-border px-3 py-2.5 font-normal has-[[data-state=checked]]:border-primary/60 has-[[data-state=checked]]:bg-surface-hover-lighter"
 								>
 									<RadioGroupItem
 										className="mt-0.5"
@@ -697,7 +898,7 @@ export function McpServersContent() {
 								</Label>
 								<Label
 									htmlFor="mcp-server-type-remote"
-									className="flex cursor-pointer items-start gap-3 rounded-md border border-border px-3 py-2.5 font-normal has-[[data-state=checked]]:border-primary/60 has-[[data-state=checked]]:bg-accent/30"
+									className="flex cursor-pointer items-start gap-3 rounded-md border border-border px-3 py-2.5 font-normal has-[[data-state=checked]]:border-primary/60 has-[[data-state=checked]]:bg-surface-hover-lighter"
 								>
 									<RadioGroupItem
 										className="mt-0.5"
@@ -857,7 +1058,7 @@ export function McpServersContent() {
 							<CollapsibleTrigger asChild>
 								<button
 									type="button"
-									className="flex w-fit items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
+									className="flex w-fit items-center gap-1 text-sm text-muted-foreground  hover:text-foreground"
 								>
 									<ChevronRight
 										className={cn(
@@ -985,6 +1186,12 @@ export function McpServersContent() {
 					</AlertDialogFooter>
 				</AlertDialogContent>
 			</AlertDialog>
-		</PageFrame>
+		</>
+	);
+
+	return chrome === "embedded" ? (
+		<div>{content}</div>
+	) : (
+		<PageFrame>{content}</PageFrame>
 	);
 }

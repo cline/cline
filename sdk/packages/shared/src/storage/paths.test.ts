@@ -208,6 +208,12 @@ describe("storage path resolution", () => {
 			expect.arrayContaining([
 				resolveGlobalAgentsRulesPath(),
 				join("/tmp/home", ".cline", RULES_CONFIG_DIRECTORY_NAME),
+				// xdg-user-dir's unconfigured Documents fallback (cline/cline#13542)
+				join(
+					dirname(dirname(resolveGlobalAgentsRulesPath())),
+					"Cline",
+					"Rules",
+				),
 			]),
 		);
 		expect(resolveRulesConfigSearchPaths()).not.toContain(

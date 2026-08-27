@@ -1,7 +1,27 @@
-import { RotateCcw } from "lucide-react";
+import { providerOffersModelTool } from "@cline/llms/browser";
+import { Minus, Plus, RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogHeader,
+	DialogTitle,
+} from "@/components/ui/dialog";
+import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
+import { isBetaVersion, productNameForVersion } from "@/lib/app-channel";
+import {
+	DEFAULT_APP_FONT_SIZE,
+	isAppFontSize,
+	MAX_APP_FONT_SIZE,
+	MIN_APP_FONT_SIZE,
+	readStoredAppFontSize,
+	setStoredAppFontSize,
+	subscribeToAppFontSize,
+} from "@/lib/app-font-size";
 import {
 	APP_ICONS,
 	type AppIconId,
@@ -13,8 +33,15 @@ import {
 import { desktopClient } from "@/lib/desktop-client";
 import { resetOnboarding } from "@/lib/onboarding";
 import {
+	getProviderAuthKind,
+	isProviderConnected,
+} from "@/lib/provider-connection";
+import {
+	fetchProviderCatalog,
 	invalidateProviderCatalogCache,
+	notifyVoiceInputSettingsChanged,
 	publishProviderModels,
+	subscribeToProviderCatalogInvalidation,
 } from "@/lib/provider-model-catalog";
 import type {
 	Provider,
@@ -32,48 +59,34 @@ import {
 	setStoredHubTheme,
 } from "@/lib/theme";
 import { cn } from "@/lib/utils";
+import { MarketplaceView } from "../marketplace-view";
 import { PageFrame, PageHeader } from "../page-layout";
 import { AccountView } from "./account-view";
 import { AddProviderContent, type AddProviderPayload } from "./add-provider";
 import { ChannelsContent } from "./channels-view";
-import { CustomizationSectionView } from "./extensions-view";
-import { McpServersContent } from "./mcp-view";
+import { CustomizeView } from "./customize-view";
+import { NotificationSettings } from "./notification-settings";
 import {
 	ProviderDetailContent,
 	ProviderListContent,
 } from "./provider-list-view";
 import { RoutineSchedulesContent } from "./routine-view";
+import type { SettingsSection } from "./sections";
 import { toSettingsPatch } from "./settings-patch";
+import { VoiceInputContent } from "./voice-input-view";
 
-// -----------------------------------------------------------
-// Settings nav categories
-// -----------------------------------------------------------
+// Nav categories live in ./sections so the always-mounted sidebar can import
+// them without pulling this module graph into the initial bundle.
+export {
+	CUSTOMIZATION_SECTIONS,
+	SETTINGS_SECTIONS,
+	type SettingsSection,
+} from "./sections";
 
-export const SETTINGS_SECTIONS = [
-	"General",
-	"Models",
-	"Channels",
-	"Schedules",
-	"Account",
-] as const;
-
-// Mirrors the Cline Hub dashboard's Customizations nav group.
-export const CUSTOMIZATION_SECTIONS = [
-	"Plugins",
-	"Skills",
-	"MCP",
-	"Hooks",
-	"Rules",
-	"Agents",
-	"Tools",
-] as const;
-
-export type SettingsSection =
-	| (typeof SETTINGS_SECTIONS)[number]
-	| (typeof CUSTOMIZATION_SECTIONS)[number];
 type GlobalSettingsResponse = {
 	telemetryOptOut: boolean;
 	autoUpdateEnabled: boolean;
+	tools?: Partial<Record<"web_search", { enabled: boolean }>>;
 };
 
 const PROVIDER_CATALOG_CACHE_TTL_MS = 60_000;
@@ -119,6 +132,14 @@ export function SettingsView({
 		null,
 	);
 	const [addingProvider, setAddingProvider] = useState(false);
+	// Bumped by every optimistic provider mutation and catalog load. An
+	// in-flight catalog response is discarded when the generation moved on,
+	// so an older disk snapshot can never overwrite a newer edit.
+	const catalogGenerationRef = useRef(0);
+	// Bumped when a failed save resyncs the catalog from disk; keys the
+	// detail panel so its local field drafts remount from the reloaded
+	// props instead of keeping unpersisted values.
+	const [detailResetToken, setDetailResetToken] = useState(0);
 
 	useEffect(() => {
 		if (section !== "Models") {
@@ -144,7 +165,13 @@ export function SettingsView({
 		[],
 	);
 
-	const loadProviderCatalog = useCallback(async () => {
+	/**
+	 * Loads the catalog into view state. Resolves to false when the response
+	 * was discarded because a newer mutation or load superseded it while in
+	 * flight (so an older disk snapshot never overwrites a newer edit);
+	 * callers needing an authoritative resync should retry on false.
+	 */
+	const loadProviderCatalog = useCallback(async (): Promise<boolean> => {
 		const now = Date.now();
 		if (
 			providerCatalogCache &&
@@ -153,23 +180,31 @@ export function SettingsView({
 			setProviders(providerCatalogCache.providers);
 			setProvidersLoading(false);
 			setProviderCatalogError(null);
-			return;
+			return true;
 		}
 
+		const generation = ++catalogGenerationRef.current;
 		setProvidersLoading(true);
 		setProviderCatalogError(null);
 		try {
 			const payload = await desktopClient.invoke<ProviderCatalogResponse>(
 				"list_provider_catalog",
 			);
+			if (generation !== catalogGenerationRef.current) {
+				return false;
+			}
 			setProvidersWithCache(payload.providers);
 		} catch (error) {
+			if (generation !== catalogGenerationRef.current) {
+				return false;
+			}
 			const message = error instanceof Error ? error.message : String(error);
 			setProviderCatalogError(message);
 			setProviders([]);
 		} finally {
 			setProvidersLoading(false);
 		}
+		return true;
 	}, [setProvidersWithCache]);
 
 	useEffect(() => {
@@ -182,6 +217,31 @@ export function SettingsView({
 		return () => window.clearTimeout(timeoutId);
 	}, [activeNav, loadProviderCatalog]);
 
+	/**
+	 * Silently refreshes view state from the authoritative catalog after a
+	 * successful save, without toggling the loading screen. Optimistic
+	 * mutations can't know sidecar-computed fields (`configured`), so the
+	 * Configured badge would otherwise stay stale until a remount. Claims a
+	 * new generation like loadProviderCatalog, so overlapping resyncs, loads,
+	 * and edits always resolve to the newest snapshot: anything older still
+	 * in flight is discarded on arrival.
+	 */
+	const resyncProviderCatalog = useCallback(async () => {
+		const generation = ++catalogGenerationRef.current;
+		try {
+			const payload = await desktopClient.invoke<ProviderCatalogResponse>(
+				"list_provider_catalog",
+			);
+			if (generation !== catalogGenerationRef.current) {
+				return;
+			}
+			setProvidersWithCache(payload.providers);
+		} catch {
+			// Background refresh only; the optimistic state remains until the
+			// next full load.
+		}
+	}, [setProvidersWithCache]);
+
 	const persistProviderSettings = useCallback(
 		async (
 			id: string,
@@ -191,7 +251,7 @@ export function SettingsView({
 				baseUrl?: string;
 				configValues?: ProviderSettingsUpdate["configValues"];
 			},
-		) => {
+		): Promise<boolean> => {
 			try {
 				await desktopClient.invoke("save_provider_settings", {
 					provider: id,
@@ -202,42 +262,91 @@ export function SettingsView({
 						? toSettingsPatch(updates.configValues)
 						: undefined,
 				});
+				// Pick up sidecar-computed readiness (`configured`) for the
+				// just-saved settings so the Configured badge and count update
+				// without a remount.
+				void resyncProviderCatalog();
+				return true;
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
 				window.alert(`Failed to save provider settings for ${id}: ${message}`);
+				// The optimistic list update no longer matches disk: resync from
+				// the authoritative catalog. Retry when a concurrent edit
+				// superseded the in-flight response (that edit performs no
+				// reload of its own), then remount the detail panel so its
+				// field drafts re-seed from the reloaded state — not before,
+				// or they would re-capture the unpersisted optimistic values.
+				for (let attempt = 0; attempt < 3; attempt++) {
+					providerCatalogCache = null;
+					if (await loadProviderCatalog()) {
+						break;
+					}
+				}
+				setDetailResetToken((token) => token + 1);
+				return false;
 			} finally {
 				// Keep the shared short-lived catalog cache (composer model
 				// selector, onboarding) in sync with the just-saved settings.
 				invalidateProviderCatalogCache();
 			}
 		},
-		[],
+		[loadProviderCatalog, resyncProviderCatalog],
 	);
 
-	const toggleProvider = useCallback(
+	const connectProvider = useCallback(
 		(id: string) => {
+			// Persist an (empty) settings entry so the provider is enabled with
+			// whatever credentials it resolves at runtime (env vars, local CLI,
+			// keyless endpoints).
+			catalogGenerationRef.current++;
 			setProvidersWithCache((prev) =>
-				prev.map((p) => {
-					if (p.id !== id) {
-						return p;
-					}
-					const nextEnabled = !p.enabled;
-					void persistProviderSettings(id, { enabled: nextEnabled });
-					return { ...p, enabled: nextEnabled };
-				}),
+				prev.map((p) => (p.id === id ? { ...p, enabled: true } : p)),
 			);
+			void persistProviderSettings(id, { enabled: true });
 		},
 		[persistProviderSettings, setProvidersWithCache],
 	);
 
+	const disconnectProvider = useCallback(
+		async (id: string) => {
+			catalogGenerationRef.current++;
+			setProvidersWithCache((prev) =>
+				prev.map((p) =>
+					p.id === id
+						? {
+								...p,
+								enabled: false,
+								apiKey: undefined,
+								oauthAccessTokenPresent: false,
+							}
+						: p,
+				),
+			);
+			const saved = await persistProviderSettings(id, { enabled: false });
+			if (saved) {
+				// Disconnecting removes the persisted entry (and the sidecar drops
+				// a voice-input selection pointing at it); reload so the view and
+				// the chat microphone reflect the real on-disk state.
+				providerCatalogCache = null;
+				notifyVoiceInputSettingsChanged();
+				await loadProviderCatalog();
+			}
+		},
+		[loadProviderCatalog, persistProviderSettings, setProvidersWithCache],
+	);
+
 	const updateProvider = useCallback(
 		(id: string, updates: ProviderSettingsUpdate) => {
+			// Saving settings creates the provider's persisted entry, which is
+			// what "connected" means for keyless providers — reflect it locally.
+			catalogGenerationRef.current++;
 			setProvidersWithCache((prev) =>
 				prev.map((p) =>
 					p.id === id
 						? {
 								...p,
 								...updates,
+								enabled: true,
 								configValues: updates.configValues
 									? {
 											...(p.configValues ?? {}),
@@ -310,12 +419,19 @@ export function SettingsView({
 		[loadProviderModels],
 	);
 
-	const selectedProvider = selectedProviderId
-		? (providers.find((p) => p.id === selectedProviderId) ?? null)
+	// The detail panel is always open: with no explicit selection, default to
+	// the first connected provider (the one in use), then the first provider.
+	const effectiveSelectedProviderId =
+		selectedProviderId ??
+		providers.find(isProviderConnected)?.id ??
+		providers[0]?.id ??
+		null;
+	const selectedProvider = effectiveSelectedProviderId
+		? (providers.find((p) => p.id === effectiveSelectedProviderId) ?? null)
 		: null;
 
 	const usesOAuth = (provider: Provider) =>
-		provider.capabilities?.includes("oauth") ?? false;
+		getProviderAuthKind(provider) === "oauth";
 
 	const runOAuthProviderLogin = async (id: string) => {
 		setOauthSigningProviderId(id);
@@ -337,6 +453,15 @@ export function SettingsView({
 						: provider,
 				),
 			);
+			// The shared catalog cache (composer selector, welcome setup notice)
+			// must learn about the new OAuth connection too, not just this
+			// view's local provider state.
+			invalidateProviderCatalogCache();
+			// Fetch the authoritative post-login snapshot. The resync claims a
+			// new generation, so an older load or resync still in flight can't
+			// arrive late and overwrite the just-connected state, and its own
+			// response also covers any provider saved moments earlier.
+			void resyncProviderCatalog();
 			setSelectedProviderId(id);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
@@ -352,14 +477,14 @@ export function SettingsView({
 	};
 
 	useEffect(() => {
-		if (!selectedProviderId) {
+		if (!effectiveSelectedProviderId) {
 			return;
 		}
 		const timeoutId = window.setTimeout(() => {
-			void loadProviderModels(selectedProviderId);
+			void loadProviderModels(effectiveSelectedProviderId);
 		}, 0);
 		return () => window.clearTimeout(timeoutId);
-	}, [loadProviderModels, selectedProviderId]);
+	}, [loadProviderModels, effectiveSelectedProviderId]);
 
 	const backToProviderList = () => {
 		onNavigateSection("Models");
@@ -391,17 +516,36 @@ export function SettingsView({
 
 	const openAddProvider = () => {
 		onNavigateSection("Models");
-		setSelectedProviderId(null);
 		setAddingProvider(true);
 	};
 
-	const providerContent = addingProvider ? (
-		<AddProviderContent
-			existingProviderIds={providers.map((provider) => provider.id)}
-			onBack={backToProviderList}
-			onSave={saveNewProvider}
-		/>
-	) : providersLoading ? (
+	const addProviderDialog = (
+		<Dialog
+			onOpenChange={(open) => {
+				if (!open) {
+					setAddingProvider(false);
+				}
+			}}
+			open={addingProvider}
+		>
+			<DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
+				<DialogHeader>
+					<DialogTitle>Add Provider</DialogTitle>
+					<DialogDescription>
+						Add an OpenAI-compatible provider and choose its available models.
+					</DialogDescription>
+				</DialogHeader>
+				<AddProviderContent
+					existingProviderIds={providers.map((provider) => provider.id)}
+					onBack={() => setAddingProvider(false)}
+					onSave={saveNewProvider}
+					variant="dialog"
+				/>
+			</DialogContent>
+		</Dialog>
+	);
+
+	const providerContent = providersLoading ? (
 		<div className="flex h-full items-center justify-center">
 			<p className="text-sm text-muted-foreground">Loading providers...</p>
 		</div>
@@ -413,20 +557,27 @@ export function SettingsView({
 		</div>
 	) : selectedProvider ? (
 		<div className="grid h-full grid-cols-[minmax(24rem,0.95fr)_minmax(28rem,1.05fr)] overflow-hidden max-[1100px]:grid-cols-1 max-[1100px]:grid-rows-[minmax(24rem,0.9fr)_minmax(26rem,1fr)]">
-			<ProviderListContent
-				onAddProvider={openAddProvider}
-				onConfigure={openProviderDetail}
-				onToggle={toggleProvider}
-				providers={providers}
-				selectedProviderId={selectedProvider.id}
-				variant="panel"
-			/>
+			{/* min-h-0/min-w-0: grid items default to min-size auto, which lets
+			    the pane grow past its track and leaves the inner ScrollArea with
+			    nothing to scroll. */}
+			<div className="min-h-0 min-w-0 overflow-hidden">
+				<ProviderListContent
+					onAddProvider={openAddProvider}
+					onConfigure={openProviderDetail}
+					providers={providers}
+					selectedProviderId={selectedProvider.id}
+					variant="panel"
+				/>
+			</div>
 			<aside className="min-h-0 overflow-hidden border-l bg-background max-[1100px]:border-l-0 max-[1100px]:border-t">
 				<ProviderDetailContent
+					key={`${selectedProvider.id}:${detailResetToken}`}
 					modelsError={modelsErrorByProvider[selectedProvider.id] ?? null}
 					modelsLoading={modelsLoadingByProvider[selectedProvider.id] ?? false}
 					oauthLoginPending={oauthSigningProviderId === selectedProvider.id}
 					onBack={backToProviderList}
+					onConnect={() => connectProvider(selectedProvider.id)}
+					onDisconnect={() => void disconnectProvider(selectedProvider.id)}
 					onLoadModels={() => void loadProviderModels(selectedProvider.id)}
 					onUpdateModels={(models) =>
 						void updateProviderModels(selectedProvider.id, models)
@@ -446,28 +597,29 @@ export function SettingsView({
 		<ProviderListContent
 			onAddProvider={openAddProvider}
 			onConfigure={openProviderDetail}
-			onToggle={toggleProvider}
 			providers={providers}
 		/>
 	);
 
 	const content =
 		activeNav === "Models" ? (
-			providerContent
-		) : activeNav === "Plugins" ? (
-			<CustomizationSectionView catalogPrimitive="plugin" section="Plugins" />
-		) : activeNav === "Skills" ? (
-			<CustomizationSectionView catalogPrimitive="skill" section="Skills" />
-		) : activeNav === "MCP" ? (
-			<McpServersContent />
-		) : activeNav === "Hooks" ? (
-			<CustomizationSectionView section="Hooks" />
-		) : activeNav === "Rules" ? (
-			<CustomizationSectionView section="Rules" />
-		) : activeNav === "Agents" ? (
-			<CustomizationSectionView section="Agents" />
-		) : activeNav === "Tools" ? (
-			<CustomizationSectionView section="Tools" />
+			<>
+				{providerContent}
+				{addProviderDialog}
+			</>
+		) : activeNav === "Voice" ? (
+			<VoiceInputContent
+				onOpenModelProviders={() => onNavigateSection("Models")}
+			/>
+		) : activeNav === "Customize" ? (
+			<CustomizeView
+				onOpenMarketplace={() => onNavigateSection("Marketplace")}
+			/>
+		) : activeNav === "Marketplace" ? (
+			<MarketplaceView
+				onOpenInstalled={() => onNavigateSection("Customize")}
+				variant="directory"
+			/>
 		) : activeNav === "Channels" ? (
 			<ChannelsContent />
 		) : activeNav === "Schedules" ? (
@@ -475,7 +627,9 @@ export function SettingsView({
 		) : activeNav === "Account" ? (
 			<AccountView />
 		) : activeNav === "General" ? (
-			<GeneralSettingsContent />
+			<GeneralSettingsContent
+				onOpenModelProviders={() => onNavigateSection("Models")}
+			/>
 		) : (
 			<div className="flex h-full items-center justify-center">
 				<p className="text-sm text-muted-foreground">
@@ -485,9 +639,8 @@ export function SettingsView({
 		);
 
 	return (
-		<div className="grid h-full grid-rows-[3rem_minmax(0,1fr)] overflow-hidden bg-background md:block">
-			<div aria-hidden="true" className="md:hidden" />
-			<div className="min-h-0 overflow-hidden md:h-full">{content}</div>
+		<div className="h-full overflow-hidden bg-background">
+			<div className="h-full min-h-0 overflow-hidden">{content}</div>
 		</div>
 	);
 }
@@ -506,7 +659,11 @@ const ACCENT_OPTIONS: { id: HubAccent; label: string; swatch: string }[] = [
 	{ id: "ember", label: "Ember", swatch: "oklch(0.6 0.19 33)" },
 ];
 
-function GeneralSettingsContent() {
+function GeneralSettingsContent({
+	onOpenModelProviders,
+}: {
+	onOpenModelProviders: () => void;
+}) {
 	const [theme, setTheme] = useState<HubTheme>(() => {
 		if (typeof window === "undefined") return "light";
 		return readStoredHubTheme() ?? readSystemHubTheme();
@@ -514,6 +671,10 @@ function GeneralSettingsContent() {
 	const [accent, setAccent] = useState<HubAccent>(() => {
 		if (typeof window === "undefined") return "violet";
 		return readStoredHubAccent();
+	});
+	const [fontSize, setFontSize] = useState(() => {
+		if (typeof window === "undefined") return DEFAULT_APP_FONT_SIZE;
+		return readStoredAppFontSize();
 	});
 	const [appIcon, setAppIcon] = useState<AppIconId>(() => {
 		if (typeof window === "undefined") return DEFAULT_APP_ICON;
@@ -529,25 +690,97 @@ function GeneralSettingsContent() {
 	const [autoUpdateLoading, setAutoUpdateLoading] = useState(true);
 	const [autoUpdateSaving, setAutoUpdateSaving] = useState(false);
 	const [autoUpdateError, setAutoUpdateError] = useState<string | null>(null);
+	const [webSearchEnabled, setWebSearchEnabled] = useState(false);
+	const [webSearchLoading, setWebSearchLoading] = useState(true);
+	const [webSearchSaving, setWebSearchSaving] = useState(false);
+	const [webSearchError, setWebSearchError] = useState<string | null>(null);
+	// Connected providers that offer native web search; null until the
+	// catalog loads. The toggle silently does nothing with other providers,
+	// so the row spells out whether it will actually take effect.
+	const [webSearchReadyProviders, setWebSearchReadyProviders] = useState<
+		string[] | null
+	>(null);
+	const [appVersion, setAppVersion] = useState<string | null>(null);
+
+	useEffect(() => subscribeToAppFontSize(setFontSize), []);
+
+	useEffect(() => {
+		let cancelled = false;
+		const loadWebSearchSupport = () => {
+			void fetchProviderCatalog()
+				.then((payload) => {
+					if (cancelled) return;
+					setWebSearchReadyProviders(
+						(payload.providers ?? [])
+							.filter(
+								(provider) =>
+									provider.enabled &&
+									providerOffersModelTool(provider.id, "web_search"),
+							)
+							.map((provider) => provider.name),
+					);
+				})
+				.catch(() => {
+					// Support status is best-effort; the toggle works without it.
+				});
+		};
+		loadWebSearchSupport();
+		// Provider saves invalidate the catalog cache when they complete, so
+		// refetching on invalidation keeps the status current even when the
+		// user navigates here while a save is still in flight.
+		const unsubscribe =
+			subscribeToProviderCatalogInvalidation(loadWebSearchSupport);
+		return () => {
+			cancelled = true;
+			unsubscribe();
+		};
+	}, []);
+
+	useEffect(() => {
+		let cancelled = false;
+		void desktopClient
+			.invoke<{ appVersion?: unknown }>("get_process_context")
+			.then((context) => {
+				if (cancelled) {
+					return;
+				}
+				const version =
+					typeof context?.appVersion === "string"
+						? context.appVersion.trim()
+						: "";
+				setAppVersion(version || null);
+			})
+			.catch(() => {
+				// Leave the About row versionless if the sidecar is unreachable.
+			});
+		return () => {
+			cancelled = true;
+		};
+	}, []);
 
 	const loadGlobalSettings = useCallback(async () => {
 		setTelemetryLoading(true);
 		setTelemetryError(null);
 		setAutoUpdateLoading(true);
 		setAutoUpdateError(null);
+		setWebSearchLoading(true);
+		setWebSearchError(null);
 		try {
 			const settings = await desktopClient.invoke<GlobalSettingsResponse>(
 				"get_global_settings",
 			);
 			setTelemetryOptOut(settings.telemetryOptOut);
 			setAutoUpdateEnabled(settings.autoUpdateEnabled);
+			setWebSearchEnabled(settings.tools?.web_search?.enabled === true);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			setTelemetryError(message);
 			setAutoUpdateError(message);
+			setWebSearchError(message);
 		} finally {
 			setTelemetryLoading(false);
 			setAutoUpdateLoading(false);
+			setWebSearchLoading(false);
 		}
 	}, []);
 
@@ -598,6 +831,26 @@ function GeneralSettingsContent() {
 		}
 	};
 
+	const updateWebSearchEnabled = async (nextValue: boolean) => {
+		const previousValue = webSearchEnabled;
+		setWebSearchEnabled(nextValue);
+		setWebSearchSaving(true);
+		setWebSearchError(null);
+		try {
+			const settings = await desktopClient.invoke<GlobalSettingsResponse>(
+				"set_web_search_enabled",
+				{ web_search_enabled: nextValue },
+			);
+			setWebSearchEnabled(settings.tools?.web_search?.enabled === true);
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			setWebSearchEnabled(previousValue);
+			setWebSearchError(message);
+		} finally {
+			setWebSearchSaving(false);
+		}
+	};
+
 	const updateTheme = (darkModeEnabled: boolean) => {
 		const nextTheme = darkModeEnabled ? "dark" : "light";
 		setTheme(setStoredHubTheme(nextTheme));
@@ -605,6 +858,16 @@ function GeneralSettingsContent() {
 
 	const updateAccent = (nextAccent: HubAccent) => {
 		setAccent(setStoredHubAccent(nextAccent));
+	};
+
+	const updateFontSizePreference = (nextFontSize: number) => {
+		if (isAppFontSize(nextFontSize)) {
+			setFontSize(setStoredAppFontSize(nextFontSize));
+		}
+	};
+
+	const updateFontSize = ([nextFontSize]: number[]) => {
+		updateFontSizePreference(nextFontSize);
 	};
 
 	const updateAppIcon = async (nextIcon: AppIconId) => {
@@ -640,13 +903,12 @@ function GeneralSettingsContent() {
 				description="Manage desktop preferences for this browser and CLI environment."
 				title="Settings"
 			/>
-			<section className="max-w-[86rem]">
-				<div className="flex min-h-20 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
-					<div>
-						<p className="text-[17px] font-semibold text-foreground">
-							Dark mode
-						</p>
-						<p className="mt-1 text-[15px] text-muted-foreground">
+			<section className="max-w-344">
+				<NotificationSettings />
+				<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
+					<div className="flex flex-col gap-1">
+						<p className="text-base font-semibold text-foreground">Dark mode</p>
+						<p className="text-sm text-muted-foreground">
 							Keep the desktop interface in dark mode on this browser.
 						</p>
 					</div>
@@ -656,16 +918,63 @@ function GeneralSettingsContent() {
 						onCheckedChange={updateTheme}
 					/>
 				</div>
-				<div className="flex min-h-20 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
-					<div>
-						<p className="text-[17px] font-semibold text-foreground">
+				<div className="flex items-center justify-between gap-5 border-b py-4 max-[720px]:flex-col max-[720px]:items-stretch">
+					<div className="flex flex-col gap-1">
+						<p className="text-base font-semibold text-foreground">Font size</p>
+						<p className="text-sm text-muted-foreground">
+							Adjust the size of text and interface elements throughout the app.
+						</p>
+					</div>
+					<div className="flex w-64 shrink-0 items-center gap-3 max-[720px]:w-full">
+						<Button
+							aria-label="Decrease font size"
+							className="size-7"
+							disabled={fontSize === MIN_APP_FONT_SIZE}
+							onClick={() => updateFontSizePreference(fontSize - 1)}
+							size="icon"
+							type="button"
+							variant="outline"
+						>
+							<Minus />
+						</Button>
+						<Slider
+							aria-label="Font size"
+							aria-valuetext={`${fontSize} pixels`}
+							max={MAX_APP_FONT_SIZE}
+							min={MIN_APP_FONT_SIZE}
+							onValueChange={updateFontSize}
+							step={1}
+							value={[fontSize]}
+						/>
+						<Button
+							aria-label="Increase font size"
+							className="size-7"
+							disabled={fontSize === MAX_APP_FONT_SIZE}
+							onClick={() => updateFontSizePreference(fontSize + 1)}
+							size="icon"
+							type="button"
+							variant="outline"
+						>
+							<Plus />
+						</Button>
+						<output
+							aria-label="Selected font size"
+							className="w-10 shrink-0 text-right font-mono text-sm tabular-nums text-foreground"
+						>
+							{fontSize}px
+						</output>
+					</div>
+				</div>
+				<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
+					<div className="flex flex-col gap-1">
+						<p className="text-base font-semibold text-foreground">
 							Accent color
 						</p>
-						<p className="mt-1 text-[15px] text-muted-foreground">
+						<p className="text-sm text-muted-foreground">
 							Tint buttons, links, and highlights across the app.
 						</p>
 					</div>
-					<div className="flex shrink-0 items-center gap-2.5">
+					<div className="flex shrink-0 items-center gap-2">
 						{ACCENT_OPTIONS.map((option) => (
 							<button
 								aria-label={option.label}
@@ -684,12 +993,10 @@ function GeneralSettingsContent() {
 						))}
 					</div>
 				</div>
-				<div className="flex min-h-20 items-center justify-between gap-5 border-b py-4 max-[720px]:flex-col max-[720px]:items-stretch">
-					<div>
-						<p className="text-[17px] font-semibold text-foreground">
-							App icon
-						</p>
-						<p className="mt-1 text-[15px] text-muted-foreground">
+				<div className="flex items-center justify-between gap-5 border-b py-4 max-[720px]:flex-col max-[720px]:items-stretch">
+					<div className="flex flex-col gap-1">
+						<p className="text-base font-semibold text-foreground">App icon</p>
+						<p className="text-sm text-muted-foreground">
 							Pick the icon Cline shows in the Dock.
 						</p>
 						{appIconError ? (
@@ -698,12 +1005,12 @@ function GeneralSettingsContent() {
 							</p>
 						) : null}
 					</div>
-					<div className="flex shrink-0 items-start gap-4">
+					<div className="flex shrink-0 items-start gap-2.5">
 						{APP_ICONS.map((icon) => (
 							<button
 								aria-label={icon.label}
 								aria-pressed={appIcon === icon.id}
-								className="group flex flex-col items-center gap-1.5"
+								className="group flex flex-col items-center gap-2"
 								key={icon.id}
 								onClick={() => void updateAppIcon(icon.id)}
 								type="button"
@@ -734,12 +1041,56 @@ function GeneralSettingsContent() {
 						))}
 					</div>
 				</div>
-				<div className="flex min-h-20 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
-					<div>
-						<p className="text-[17px] font-semibold text-foreground">
+				<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
+					<div className="flex flex-col gap-1">
+						<p className="text-base font-semibold text-foreground">
+							Web search
+						</p>
+						<p className="text-sm text-muted-foreground">
+							Let the model search the web during a task. Only providers with
+							built-in web search honor this setting; other providers ignore it.
+							Applies to new sessions.
+						</p>
+						{webSearchReadyProviders ===
+						null ? null : webSearchReadyProviders.length > 0 ? (
+							<p className="text-xs text-muted-foreground">
+								Ready to use with {webSearchReadyProviders.join(", ")} on models
+								that support it — no extra setup needed.
+							</p>
+						) : (
+							<p className="text-xs text-amber-700 dark:text-amber-300">
+								None of your connected providers include built-in web search, so
+								this setting has no effect yet.{" "}
+								<button
+									className="underline underline-offset-2 hover:text-foreground"
+									onClick={onOpenModelProviders}
+									type="button"
+								>
+									Connect a provider
+								</button>{" "}
+								that supports it, such as Anthropic, OpenAI, Google Gemini, or
+								Cline.
+							</p>
+						)}
+						{webSearchError ? (
+							<p className="mt-2 text-xs text-destructive" role="alert">
+								Failed to update web search setting: {webSearchError}
+							</p>
+						) : null}
+					</div>
+					<Switch
+						aria-label="Web search"
+						checked={webSearchEnabled}
+						disabled={webSearchLoading || webSearchSaving}
+						onCheckedChange={(checked) => void updateWebSearchEnabled(checked)}
+					/>
+				</div>
+				<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
+					<div className="flex flex-col gap-1">
+						<p className="text-base font-semibold text-foreground">
 							Keep CLI up to date
 						</p>
-						<p className="mt-1 text-[15px] text-muted-foreground">
+						<p className="text-sm text-muted-foreground">
 							Automatically update the cline terminal command, which shares your
 							sessions and settings with this app. The app itself updates
 							separately.
@@ -757,12 +1108,10 @@ function GeneralSettingsContent() {
 						onCheckedChange={(checked) => void updateAutoUpdateEnabled(checked)}
 					/>
 				</div>
-				<div className="flex min-h-20 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
-					<div>
-						<p className="text-[17px] font-semibold text-foreground">
-							Telemetry
-						</p>
-						<p className="mt-1 text-[15px] text-muted-foreground">
+				<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
+					<div className="flex flex-col gap-1">
+						<p className="text-base font-semibold text-foreground">Telemetry</p>
+						<p className="text-sm text-muted-foreground">
 							Enable error and usage reports to help improve Cline.
 						</p>
 						{telemetryError ? (
@@ -778,12 +1127,12 @@ function GeneralSettingsContent() {
 						onCheckedChange={(checked) => void updateTelemetryOptOut(!checked)}
 					/>
 				</div>
-				<div className="flex min-h-20 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
-					<div>
-						<p className="text-[17px] font-semibold text-foreground">
+				<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
+					<div className="flex flex-col gap-1">
+						<p className="text-base font-semibold text-foreground">
 							New user experience
 						</p>
-						<p className="mt-1 text-[15px] text-muted-foreground">
+						<p className="text-sm text-muted-foreground">
 							Replay the first-run experience new users see when they open Cline
 							for the first time.
 						</p>
@@ -791,12 +1140,33 @@ function GeneralSettingsContent() {
 					<Button
 						className="shrink-0"
 						onClick={replayOnboarding}
+						size="sm"
 						type="button"
 						variant="outline"
 					>
-						<RotateCcw className="size-3.5" />
+						<RotateCcw className="size-3" />
 						Replay
 					</Button>
+				</div>
+				<div className="flex py-4 items-center justify-between gap-5 max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
+					<div className="flex flex-col gap-1">
+						<p className="text-base font-semibold text-foreground">About</p>
+						<p className="text-sm text-muted-foreground">
+							{productNameForVersion(appVersion)}
+							{appVersion ? ` v${appVersion}` : ""}
+							{isBetaVersion(appVersion)
+								? " — beta builds install side by side with the stable app and update from the beta channel."
+								: ""}
+						</p>
+					</div>
+					{isBetaVersion(appVersion) ? (
+						<Badge
+							className="shrink-0 uppercase tracking-wide"
+							variant="secondary"
+						>
+							Beta
+						</Badge>
+					) : null}
 				</div>
 			</section>
 		</PageFrame>

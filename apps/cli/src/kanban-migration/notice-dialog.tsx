@@ -2,7 +2,7 @@
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialogKeyboard } from "@opentui-ui/dialog/react";
 import { useCallback, useMemo, useState } from "react";
-import { palette } from "../tui/palette";
+import { useDialogPalette } from "../tui/hooks/use-theme";
 import {
 	type DialogDismissKey,
 	isAnyKeyDismiss,
@@ -35,6 +35,7 @@ export function MigrationNoticeContent(
 	},
 ) {
 	const { dialogId, notice, resolve } = props;
+	const palette = useDialogPalette();
 	const subscriptionUrl = useMemo(() => getCliSubscriptionUrl(), []);
 	const [status, setStatus] = useState<string | undefined>();
 
@@ -70,7 +71,6 @@ export function MigrationNoticeContent(
 					latest open-weight coding models with enough quota for day-to-day
 					work, at a much lower cost than paying API costs directly.
 				</text>
-				<text selectable>Try it now with a limited-time promo for $4.99.</text>
 			</box>
 			<box flexDirection="row">
 				<text fg={palette.act} selectable>

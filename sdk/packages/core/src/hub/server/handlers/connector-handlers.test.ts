@@ -37,11 +37,13 @@ describe("connector hub handlers", () => {
 		telemetry = { capture: vi.fn() },
 	): HubTransportContext {
 		return {
+			sessionSearch: { removeSession: vi.fn() } as never,
 			clients: new Map(),
 			sessionState: new Map(),
 			pendingApprovals: new Map(),
 			pendingCapabilityRequests: new Map(),
 			suppressNextTerminalEventBySession: new Map(),
+			activeRpcTurnCountBySession: new Map(),
 			telemetry: telemetry as never,
 			sessionHost: {} as never,
 			publish: vi.fn(),
@@ -387,11 +389,13 @@ describe("supervised connector hub commands", () => {
 
 	function createHubContext(): HubTransportContext {
 		return {
+			sessionSearch: { removeSession: vi.fn() } as never,
 			clients: new Map(),
 			sessionState: new Map(),
 			pendingApprovals: new Map(),
 			pendingCapabilityRequests: new Map(),
 			suppressNextTerminalEventBySession: new Map(),
+			activeRpcTurnCountBySession: new Map(),
 			telemetry: { capture: vi.fn() } as never,
 			sessionHost: {} as never,
 			publish: vi.fn(),

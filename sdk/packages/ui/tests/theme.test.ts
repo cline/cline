@@ -10,6 +10,37 @@ const read = (name: string) => readFileSync(join(themeDir, name), "utf8");
 const readComponent = (name: string) =>
 	readFileSync(join(componentsDir, name), "utf8");
 
+const paletteNames = [
+	"neutral",
+	"accent",
+	"error",
+	"success",
+	"warning",
+	"info",
+] as const;
+
+const visualRoleTokens = [
+	"surface-1",
+	"surface-2",
+	"surface-3",
+	"surface-hover",
+	"surface-hover-lighter",
+	"surface-hover-darker",
+	"text-1",
+	"text-2",
+	"text-disabled",
+	"border-1",
+	"border-2",
+	"focus-ring",
+];
+
+const statusRoleTokens = ["success", "warning", "error", "info"].flatMap(
+	(status) =>
+		["surface", "border", "solid", "text", "contrast"].map(
+			(role) => `${status}-${role}`,
+		),
+);
+
 const semanticTokens = [
 	"background",
 	"foreground",
@@ -19,6 +50,7 @@ const semanticTokens = [
 	"popover-foreground",
 	"primary",
 	"primary-foreground",
+	"primary-emphasis",
 	"secondary",
 	"secondary-foreground",
 	"muted",
@@ -43,63 +75,46 @@ const semanticTokens = [
 	"sidebar-accent-foreground",
 	"sidebar-border",
 	"sidebar-ring",
-	"primary-emphasis",
-	"brand-violet",
-	"brand-lilac",
-	"brand-magenta",
-	"brand-periwinkle",
-	"brand-cyan",
 	"scrollbar-thumb",
 	"scrollbar-thumb-hover",
 	"selection-background",
 ];
 
-const mappedColorTokens = [
-	"background",
-	"foreground",
-	"card",
-	"card-foreground",
-	"popover",
-	"popover-foreground",
-	"primary",
-	"primary-foreground",
-	"primary-emphasis",
-	"secondary",
-	"secondary-foreground",
-	"muted",
-	"muted-foreground",
-	"accent",
-	"accent-foreground",
-	"destructive",
-	"destructive-foreground",
-	"border",
-	"input",
-	"ring",
-	"chart-1",
-	"chart-2",
-	"chart-3",
-	"chart-4",
-	"chart-5",
+const brandTokens = [
 	"brand-violet",
 	"brand-lilac",
 	"brand-magenta",
 	"brand-periwinkle",
 	"brand-cyan",
-	"sidebar",
-	"sidebar-foreground",
-	"sidebar-primary",
-	"sidebar-primary-foreground",
-	"sidebar-accent",
-	"sidebar-accent-foreground",
-	"sidebar-border",
-	"sidebar-ring",
 ];
+
+const mappedColorTokens = [
+	...visualRoleTokens,
+	...statusRoleTokens,
+	...semanticTokens.filter(
+		(token) =>
+			![
+				"scrollbar-thumb",
+				"scrollbar-thumb-hover",
+				"selection-background",
+			].includes(token),
+	),
+	...brandTokens,
+];
+
+function removeComments(source: string): string {
+	return source.replace(/\/\*[\s\S]*?\*\//g, "");
+}
+
+function removeImports(source: string): string {
+	return source.replace(/^\s*@import\s+["'][^"']+["'];\s*/gm, "");
+}
 
 function topLevelRules(source: string): Array<{
 	selector: string;
 	body: string;
 }> {
-	const css = source.replace(/\/\*[\s\S]*?\*\//g, "");
+	const css = removeImports(removeComments(source));
 	const rules: Array<{ selector: string; body: string }> = [];
 	let cursor = 0;
 	while (cursor < css.length) {
@@ -135,13 +150,82 @@ function block(source: string, selector: string): string {
 	throw new Error(`Unclosed ${selector} block`);
 }
 
+function expectVariableOnlyRules(source: string): void {
+	for (const rule of topLevelRules(source)) {
+		const declarations = rule.body
+			.split(";")
+			.map((declaration) => declaration.trim())
+			.filter(Boolean);
+		expect(declarations.length).toBeGreaterThan(0);
+		for (const declaration of declarations) {
+			expect(declaration).toMatch(/^--[a-z0-9-]+\s*:/);
+		}
+	}
+}
+
 describe("@cline/ui theme contract", () => {
-	it("uses standard semantic and Tailwind token names", () => {
+	it("owns complete Radix 3.0.0 solid and alpha palettes", () => {
+		const palette = read("palette.css");
+		const light = block(palette, ":root");
+		const dark = block(palette, ".dark");
+
+		expect(palette).toContain("Radix Colors 3.0.0");
+		expect(palette).not.toContain("display-p3");
+		expect(palette).not.toMatch(
+			/--(?:slate|violet|ruby|green|amber|sky)-(?:a)?\d+:/,
+		);
+		for (const mode of [light, dark]) {
+			for (const paletteName of paletteNames) {
+				for (let step = 1; step <= 12; step += 1) {
+					expect(mode).toContain(`--${paletteName}-${step}:`);
+					expect(mode).toContain(`--${paletteName}-a${step}:`);
+				}
+			}
+			expect(
+				Array.from(mode.matchAll(/--[a-z]+-(?:a)?(?:[1-9]|1[0-2]):/g)),
+			).toHaveLength(144);
+		}
+		expect(topLevelRules(palette).map((rule) => rule.selector)).toEqual([
+			":root",
+			".dark",
+		]);
+		expectVariableOnlyRules(palette);
+	});
+
+	it("maps readable roles onto the palettes and preserves shadcn names", () => {
 		const tokens = read("tokens.css");
+		const shared = block(tokens, ":root,\n.dark");
+		const root = block(tokens, ":root");
+		const dark = block(tokens, ".dark");
+
+		expect(tokens).toContain('@import "@cline/ui/theme/palette.css";');
 		expect(tokens).not.toContain("--cline-");
-		for (const token of semanticTokens) {
-			expect(block(tokens, ":root")).toContain(`--${token}:`);
-			expect(block(tokens, ".dark")).toContain(`--${token}:`);
+		for (const token of [
+			...visualRoleTokens,
+			...statusRoleTokens,
+			...semanticTokens,
+		]) {
+			expect(shared).toContain(`--${token}:`);
+		}
+		for (const token of brandTokens) {
+			expect(root).toContain(`--${token}:`);
+			expect(dark).toContain(`--${token}:`);
+		}
+		for (const [token, value] of [
+			["normal", 480],
+			["medium", 560],
+			["semibold", 640],
+			["bold", 640],
+		] as const) {
+			expect(root).toContain(`--font-weight-${token}: ${value};`);
+		}
+		for (const [token, value] of [
+			["normal", 400],
+			["medium", 500],
+			["semibold", 600],
+			["bold", 600],
+		] as const) {
+			expect(dark).toContain(`--font-weight-${token}: ${value};`);
 		}
 		for (const token of [
 			"--font-sans:",
@@ -151,31 +235,53 @@ describe("@cline/ui theme contract", () => {
 			"--text-xs:",
 			"--text-6xl:",
 		]) {
-			expect(block(tokens, ":root")).toContain(token);
+			expect(root).toContain(token);
+		}
+
+		expect(shared).toContain("--primary: var(--accent-9);");
+		expect(shared).toContain("--primary-emphasis: var(--accent-10);");
+		expect(shared).toContain("--ring: var(--focus-ring);");
+		expect(shared).toContain("--destructive: var(--error-solid);");
+		for (const status of ["success", "warning", "error", "info"]) {
+			expect(shared).toContain(`--${status}-surface: var(--${status}-a3);`);
+			expect(shared).toContain(`--${status}-border: var(--${status}-a7);`);
 		}
 	});
 
-	it("keeps the token-only entry point framework-neutral", () => {
+	it("keeps palette and token sources framework-neutral", () => {
+		const palette = read("palette.css");
 		const tokens = read("tokens.css");
-		const tokensWithoutComments = tokens.replace(/\/\*[\s\S]*?\*\//g, "");
-		expect(tokensWithoutComments).not.toMatch(
-			/@(apply|custom-variant|layer|theme)\b/,
+		const sourcesWithoutComments = removeComments(palette + tokens);
+		expect(sourcesWithoutComments).not.toMatch(
+			/@(apply|custom-variant|layer|theme|supports|media)\b/,
 		);
-		const rules = topLevelRules(tokens);
-		expect(rules.map((rule) => rule.selector)).toEqual([":root", ".dark"]);
-		for (const rule of rules) {
-			const declarations = rule.body
-				.split(";")
-				.map((declaration) => declaration.trim())
-				.filter(Boolean);
-			expect(declarations.length).toBeGreaterThan(0);
-			for (const declaration of declarations) {
-				expect(declaration).toMatch(/^--[a-z0-9-]+\s*:/);
-			}
-		}
+		expect(topLevelRules(tokens).map((rule) => rule.selector)).toEqual([
+			":root",
+			".dark",
+			":root,\n.dark",
+		]);
+		expectVariableOnlyRules(tokens);
 	});
 
-	it("provides composable Tailwind and optional base entry points", () => {
+	it("generates a fully scoped palette and semantic theme", () => {
+		const scoped = read("scoped-tokens.css");
+		const rules = topLevelRules(scoped);
+
+		expect(scoped).not.toContain("@import");
+		expect(rules).toHaveLength(5);
+		expect(rules.every((rule) => !rule.selector.includes(":root"))).toBe(true);
+		expect(rules.every((rule) => rule.selector !== ".dark")).toBe(true);
+		expect(scoped).toContain(".cline-ui-theme");
+		expect(scoped).toContain(".dark .cline-ui-theme");
+		expect(scoped).toContain(".cline-ui-theme.dark");
+		for (const paletteName of paletteNames) {
+			expect(scoped).toContain(`--${paletteName}-1:`);
+			expect(scoped).toContain(`--${paletteName}-a12:`);
+		}
+		expect(scoped).toContain("--background: var(--surface-1);");
+	});
+
+	it("provides Tailwind mappings without registering raw palette steps", () => {
 		const theme = read("theme.css");
 		const componentTheme = read("component-theme.css");
 		const base = read("base.css");
@@ -192,6 +298,7 @@ describe("@cline/ui theme contract", () => {
 		for (const size of [
 			"xs",
 			"sm",
+			"md",
 			"base",
 			"lg",
 			"xl",
@@ -212,16 +319,23 @@ describe("@cline/ui theme contract", () => {
 				),
 			);
 		}
+		expect(theme).not.toMatch(
+			/--color-(?:neutral|accent|error|success|warning|info)-(?:a)?\d+:/,
+		);
 		expect(componentTheme).toContain("@custom-variant cline-ui-dark");
 		expect(componentTheme).not.toContain("@custom-variant dark ");
 		expect(componentTheme).toContain(
 			"--font-weight-cline-ui-medium: var(--font-weight-medium);",
 		);
 		expect(componentTheme).toContain("--text-cline-ui-xs: var(--text-xs);");
+		expect(componentTheme).toContain("--text-cline-ui-md: var(--text-md);");
 		expect(componentTheme).toContain("--radius-cline-ui-lg: var(--radius-lg);");
+		expect(componentTheme).not.toMatch(
+			/--color-cline-ui-(?:neutral|accent|error|success|warning|info)-(?:a)?\d+:/,
+		);
 		expect(components).toContain('@import "./theme/component-theme.css";');
 		expect(base).toContain(
-			'@import "../components/markdown.css" layer(components);',
+			'@import "@cline/ui/components/markdown.css" layer(components);',
 		);
 		expect(markdown).toContain(":is(.markdown, .cline-markdown)");
 		expect(markdown).not.toContain("@apply");
@@ -231,7 +345,7 @@ describe("@cline/ui theme contract", () => {
 		expect(base).not.toContain("#__next");
 		expect(base).not.toContain("@source");
 		expect(index).toBe(
-			'@import "./tokens.css";\n@import "./theme.css";\n@import "./base.css";\n',
+			'@import "@cline/ui/theme/tokens.css";\n@import "@cline/ui/theme/theme.css";\n@import "@cline/ui/theme/base.css";\n',
 		);
 	});
 
@@ -268,14 +382,30 @@ describe("@cline/ui theme contract", () => {
 		expect(componentSources).toContain("cline-ui-dark:");
 	});
 
+	it("uses status roles in shared components", () => {
+		const agentChat = readComponent("agent-chat/agent-chat.css");
+		const approval = readComponent("agent-approval-card.css");
+		const sessionStatus = readComponent("session-status.css");
+		const componentCss = agentChat + approval + sessionStatus;
+
+		expect(agentChat).toContain("var(--success-text)");
+		expect(agentChat).toContain("var(--error-surface)");
+		expect(agentChat).toContain("var(--error-border)");
+		expect(approval).toContain("var(--error-text)");
+		expect(sessionStatus).toContain("var(--error-text)");
+		expect(componentCss).not.toContain("var(--destructive)");
+		expect(componentCss).not.toContain("var(--chart-2)");
+	});
+
 	it("exports every documented CSS entry point", () => {
 		const manifest = JSON.parse(
 			readFileSync(join(packageRoot, "package.json"), "utf8"),
-		) as { exports?: Record<string, string> };
+		) as { exports?: Record<string, string>; files?: string[] };
 		for (const subpath of [
 			"./components/agent-chat.css",
 			"./components/markdown.css",
 			"./theme/index.css",
+			"./theme/palette.css",
 			"./theme/scoped-tokens.css",
 			"./theme/tokens.css",
 			"./theme/theme.css",
@@ -285,5 +415,7 @@ describe("@cline/ui theme contract", () => {
 			expect(target, `missing export ${subpath}`).toBeTypeOf("string");
 			expect(existsSync(join(packageRoot, target ?? ""))).toBe(true);
 		}
+		expect(manifest.files).toContain("RADIX-COLORS-LICENSE");
+		expect(existsSync(join(packageRoot, "RADIX-COLORS-LICENSE"))).toBe(true);
 	});
 });

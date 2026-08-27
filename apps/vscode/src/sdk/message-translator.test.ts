@@ -1,6 +1,6 @@
 import type { CoreSessionEvent } from "@cline/core"
 import type { Message as SdkMessage } from "@cline/llms"
-import type { AgentEvent } from "@cline/shared"
+import type { AgentEvent, MessageWithMetadata } from "@cline/shared"
 import type { ClineAskUseMcpServer, ClineSayTool } from "@shared/ExtensionMessage"
 import { describe, expect, it } from "vitest"
 import { getDesktopDir } from "@/utils/path"
@@ -225,6 +225,57 @@ describe("translateSessionEvent — pending prompts", () => {
 			expect.objectContaining({
 				say: "user_feedback",
 				text: "please just finish",
+			}),
+		])
+	})
+
+	it("does not echo a synthetic resumption prompt that was auto-queued behind a settling abort", () => {
+		// A bare Resume that races the abort settling is auto-queued by the
+		// runtime; when it drains, the submitted-prompt echo must not leak the
+		// synthetic [TASK RESUMPTION] text as a visible user bubble (it is
+		// hidden from every other transcript surface, and a visible bubble
+		// would shift edit/regenerate ordinal mapping).
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "pending_prompt_submitted",
+			payload: {
+				sessionId: "session-1",
+				id: "pending-1",
+				prompt: "[TASK RESUMPTION] Please continue where you left off.",
+				delivery: "queue",
+				attachmentCount: 0,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+
+		expect(result.messages).toEqual([])
+	})
+
+	it("still renders attachments carried by a synthetic resumption prompt, without the synthetic text", () => {
+		// Attachment-only follow-ups ride on the synthetic prompt; the user's
+		// images/files are real content and must stay visible (matching
+		// isSyntheticSdkUserMessage, which counts such messages as visible).
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "pending_prompt_submitted",
+			payload: {
+				sessionId: "session-1",
+				id: "pending-1",
+				prompt: '<user_input mode="act">[TASK RESUMPTION] Please continue where you left off.</user_input>',
+				delivery: "queue",
+				attachmentCount: 1,
+				userImages: ["image.png"],
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+
+		expect(result.messages).toEqual([
+			expect.objectContaining({
+				say: "user_feedback",
+				text: "",
+				images: ["image.png"],
 			}),
 		])
 	})
@@ -574,6 +625,44 @@ describe("translateSessionEvent — agent_event content_end", () => {
 		expect(result.messages[0].say).toBe("text")
 		expect(result.messages[0].text).toBe("Hello world")
 		expect(result.messages[0].partial).toBe(false)
+	})
+
+	it("translates generated media content_end to the shared media payload", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "content_end",
+					contentType: "media",
+					media: {
+						id: "generated-1",
+						modality: "image",
+						mediaType: "image/png",
+						source: { type: "base64", data: "aGVsbG8=" },
+					},
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		expect(result.messages).toEqual([
+			expect.objectContaining({
+				type: "say",
+				say: "text",
+				text: "",
+				media: [
+					{
+						id: "generated-1",
+						modality: "image",
+						mediaType: "image/png",
+						source: { type: "base64", data: "aGVsbG8=" },
+					},
+				],
+				partial: false,
+			}),
+		])
 	})
 
 	it("translates tool content_end with error", () => {
@@ -1237,6 +1326,80 @@ describe("translateSessionEvent — agent_event error", () => {
 		expect(result.messages[1].text).toBe("API rate limit exceeded")
 		expect(result.messages[1].partial).toBe(false)
 		expect(result.turnComplete).toBe(true)
+	})
+
+	it("appends region-switch guidance when Vertex rejects a model on the global endpoint", () => {
+		const state = new MessageTranslatorState(undefined, () => "vertex")
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "error",
+					error: { message: "model not available in region: global" },
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		expect(result.messages[1].ask).toBe("api_req_failed")
+		expect(result.messages[1].text).toContain("model not available in region: global")
+		expect(result.messages[1].text).toContain("does not support the Vertex AI global endpoint")
+		expect(result.messages[1].text).toContain("us-east5")
+	})
+
+	it("appends the same guidance for Google's Publisher Model not-found body on the global location", () => {
+		const state = new MessageTranslatorState(undefined, () => "vertex")
+		const message =
+			"Publisher Model `projects/test-project/locations/global/publishers/anthropic/models/claude-fable-5` was not found or your project does not have access to it."
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "error",
+					error: { message },
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		expect(result.messages[1].text).toContain(message)
+		expect(result.messages[1].text).toContain("does not support the Vertex AI global endpoint")
+	})
+
+	it("leaves region errors from other providers untouched", () => {
+		const state = new MessageTranslatorState(undefined, () => "bedrock")
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "error",
+					error: { message: "model not available in region: global" },
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		expect(result.messages[1].text).toBe("model not available in region: global")
+	})
+
+	it("leaves unrelated Vertex errors untouched", () => {
+		const state = new MessageTranslatorState(undefined, () => "vertex")
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "error",
+					error: { message: "Quota exceeded for metric: generate_requests" },
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		expect(result.messages[1].text).toBe("Quota exceeded for metric: generate_requests")
 	})
 
 	it("treats recoverable errors as in-run notices: no messages, no turn end, no error phase", () => {
@@ -3914,6 +4077,46 @@ describe("tool display paths are relativized to the cwd", () => {
 		expect(parseTool(message.text).path).toBe("src/index.ts")
 	})
 
+	it("reconstructs hook status chips from injected hook context and keeps the completion retag", () => {
+		const messages: SdkMessage[] = [
+			{ role: "user", content: '<user_input mode="act">read the readme</user_input>' } as SdkMessage,
+			{
+				role: "assistant",
+				content: [
+					{ type: "text", text: "I'll read it." },
+					{ type: "tool_use", id: "t1", name: "read_files", input: { path: "README.md" } },
+				],
+			} as SdkMessage,
+			{ role: "user", content: [{ type: "tool_result", tool_use_id: "t1", content: "hello" }] } as SdkMessage,
+			{
+				role: "user",
+				content: [
+					{
+						type: "text",
+						text: '<hook_context source="PreToolUse" tool_name="read_files" tool_call_id="t1">\nNOTE\n</hook_context>\n\n<hook_context source="PostToolUse" tool_name="read_files" tool_call_id="t1">\nNOTE2\n</hook_context>',
+					},
+				],
+				metadata: { displayRole: "system", userRunSpan: 0 },
+			} as SdkMessage,
+			{ role: "assistant", content: [{ type: "text", text: "The readme says hello." }] } as SdkMessage,
+		]
+
+		const clineMessages = sdkMessagesToClineMessages(messages)
+
+		const hookRows = clineMessages.filter((m) => m.say === "hook_status").map((m) => JSON.parse(m.text ?? "{}"))
+		expect(hookRows).toEqual([
+			{ hookName: "PreToolUse", toolName: "read_files", status: "completed" },
+			{ hookName: "PostToolUse", toolName: "read_files", status: "completed" },
+		])
+
+		// The injected context never renders as a user bubble.
+		expect(clineMessages.some((m) => m.text?.includes("<hook_context"))).toBe(false)
+
+		// The hidden injection is not a turn boundary: the final text keeps the
+		// inferred completion retag.
+		expect(clineMessages.some((m) => m.say === "completion_result" || m.ask === "completion_result")).toBe(true)
+	})
+
 	it("relativizes persisted-history tool paths via options.cwd", () => {
 		const messages: SdkMessage[] = [
 			{
@@ -3925,5 +4128,64 @@ describe("tool display paths are relativized to the cwd", () => {
 		const toolMessage = clineMessages.find((m) => m.say === "tool")
 		expect(toolMessage).toBeDefined()
 		expect(parseTool(toolMessage?.text).path).toBe("src/index.ts")
+	})
+
+	it("rehydrates generated images from persisted SDK history", () => {
+		const messages: SdkMessage[] = [
+			{
+				role: "assistant",
+				content: [{ type: "image", data: "aGVsbG8=", mediaType: "image/webp" }],
+			} as SdkMessage,
+		]
+
+		const clineMessages = sdkMessagesToClineMessages(messages)
+		const imageMessage = clineMessages.find((message) => message.media?.length)
+		expect(imageMessage).toEqual(
+			expect.objectContaining({
+				type: "say",
+				say: "text",
+				media: [
+					expect.objectContaining({
+						modality: "image",
+						mediaType: "image/webp",
+						source: { type: "base64", data: "aGVsbG8=" },
+					}),
+				],
+			}),
+		)
+	})
+
+	it("renders provider model activities through the persisted local-tool path", () => {
+		const messages: MessageWithMetadata[] = [
+			{
+				role: "assistant",
+				content: "Bun 1.3.14 is current.",
+				metadata: {
+					modelToolActivities: [
+						{
+							toolCallId: "search-1",
+							toolName: "web_search",
+							execution: "provider",
+							input: { query: "latest Bun release" },
+							output: "Bun 1.3.14",
+						},
+					],
+				},
+			},
+		]
+
+		const clineMessages = sdkMessagesToClineMessages(messages)
+		const toolMessage = clineMessages.find((message) => message.say === "tool")
+
+		expect(toolMessage).toBeDefined()
+		expect(parseTool(toolMessage?.text)).toMatchObject({
+			tool: "webSearch",
+		})
+		expect(clineMessages).toContainEqual(
+			expect.objectContaining({
+				type: "say",
+				text: "Bun 1.3.14 is current.",
+			}),
+		)
 	})
 })

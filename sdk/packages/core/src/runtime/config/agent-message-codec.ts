@@ -5,6 +5,7 @@ import type {
 	ContentBlock,
 	FileContent,
 	ImageContent,
+	MediaContent,
 	Message,
 	MessageWithMetadata,
 	RedactedThinkingContent,
@@ -14,6 +15,7 @@ import type {
 	ToolUseContent,
 } from "@cline/shared";
 import { EMPTY_CONTENT_TEXT } from "@cline/shared";
+import { toPersistedToolResultContent } from "../../session/persisted-tool-result-content";
 
 export function messageToAgentMessages(
 	message: MessageWithMetadata,
@@ -197,6 +199,8 @@ function contentBlockToAgentPart(block: ContentBlock): AgentMessagePart {
 			};
 		case "image":
 			return { type: "image", image: block.data, mediaType: block.mediaType };
+		case "media":
+			return { type: "media", media: block.media };
 		case "file":
 			return { type: "file", path: block.path, content: block.content };
 		case "tool_use":
@@ -267,6 +271,11 @@ function agentPartToContentBlock(
 				path: part.path,
 				content: part.content,
 			} satisfies FileContent;
+		case "media":
+			return {
+				type: "media",
+				media: part.media,
+			} satisfies MediaContent;
 		case "tool-call": {
 			const metadata = part.metadata as
 				| {
@@ -283,18 +292,11 @@ function agentPartToContentBlock(
 			} satisfies ToolUseContent;
 		}
 		case "tool-result": {
-			const output = part.output;
-			const content =
-				typeof output === "string"
-					? output
-					: Array.isArray(output)
-						? (output as ToolResultContent["content"])
-						: JSON.stringify(output);
 			return {
 				type: "tool_result",
 				tool_use_id: part.toolCallId,
 				name: part.toolName,
-				content,
+				content: toPersistedToolResultContent(part.output),
 				is_error: part.isError,
 			} satisfies ToolResultContent;
 		}
