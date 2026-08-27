@@ -420,6 +420,11 @@ export const e2e = test
 						TEMP_PROFILE: "true",
 						E2E_TEST: "true",
 						CLINE_ENVIRONMENT: "local",
+						// OAuth tests intentionally open auth URLs. Capture those URLs in
+						// the isolated test profile instead of launching a real browser;
+						// browser processes outlive VS Code on Linux and keep Playwright's
+						// worker from shutting down cleanly.
+						CLINE_CAPTURE_BROWSER: "true",
 						CLINE_DIR: clineTestDir, // Isolate test data from user's ~/.cline
 						CLINE_DATA_DIR: clineDataDir, // Keep SDK/shared storage off the user's real Cline data dir
 						GRPC_RECORDER_FILE_NAME: E2ETestHelper.generateTestFileName(testInfo.title, testInfo.project.name),
