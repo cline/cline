@@ -100,6 +100,60 @@ describe("HubServerTransport boundaries", () => {
 		}
 	});
 
+	it("indexes canonical history and serves session.search end to end", async () => {
+		const session = {
+			sessionId: "searchable-session",
+			source: "core",
+			pid: 1,
+			startedAt: "2026-08-19T12:00:00.000Z",
+			endedAt: "2026-08-19T12:01:00.000Z",
+			exitCode: 0,
+			status: "completed",
+			interactive: true,
+			provider: "test",
+			model: "test-model",
+			cwd: "/tmp/project",
+			workspaceRoot: "/tmp/project",
+			enableTools: true,
+			enableSpawn: false,
+			enableTeams: false,
+			isSubagent: false,
+			prompt: "Investigate indexing",
+			metadata: { title: "Search prototype" },
+			updatedAt: "2026-08-19T12:01:00.000Z",
+		};
+		const transport = createTransport({
+			sessionSearchOptions: { dbPath: ":memory:" },
+			taskOptions: { dbPath: ":memory:", watchFiles: false },
+			sessionHost: {
+				listSessions: vi.fn().mockResolvedValue([session]),
+				readSessionMessages: vi
+					.fn()
+					.mockResolvedValue([
+						{ role: "user", content: "Find the ultramarine regression" },
+					]),
+			},
+		});
+		await getContext(transport).sessionSearch.refreshNow();
+
+		const reply = await transport.handleCommand({
+			version: "v1",
+			requestId: "search-request",
+			command: "session.search",
+			payload: { query: "ultramarine" },
+		});
+
+		expect(reply.ok).toBe(true);
+		expect(reply.payload?.hits).toEqual([
+			expect.objectContaining({
+				sessionId: "searchable-session",
+				title: "Search prototype",
+				role: "user",
+			}),
+		]);
+		await transport.stop();
+	});
+
 	it("delegates pathless session.create and returns the host-resolved workspace", async () => {
 		let resolvedWorkspace = "";
 		let capturedStartInput: StartSessionInput | undefined;
