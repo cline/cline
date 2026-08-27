@@ -197,7 +197,9 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 				latestAttempt &&
 				latestAttempt !== handoffAttemptId &&
 				retryStates.get(attemptKey(sourceSessionId, latestAttempt));
-			const retainNewerRetry = Boolean(newerRetry);
+			const retainNewerRetry = Boolean(
+				newerRetry?.command || newerRetry?.attachments?.length,
+			);
 			if (
 				progress.phase === "complete" &&
 				progress.sessionId?.trim() &&
