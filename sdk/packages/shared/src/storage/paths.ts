@@ -269,6 +269,16 @@ export interface ResolveTaskSpecsDirOptions {
 	workspaceRoot?: string;
 }
 
+/**
+ * Home workspace for agent-created schedules: `~/.cline/schedules/`.
+ * Agent-created schedules are user-level routines, so they anchor here (and
+ * their unattended sessions run here) instead of inheriting whichever chat
+ * workspace happened to create them.
+ */
+export function resolveAgentSchedulesDir(): string {
+	return join(resolveClineDir(), "schedules");
+}
+
 /** Global file-backed agenda tasks: `~/.cline/tasks/`. */
 export function resolveGlobalTaskSpecsDir(): string {
 	return join(resolveClineDir(), "tasks");
@@ -504,6 +514,11 @@ export function resolveRulesConfigSearchPaths(
 		...wsPaths,
 		resolveGlobalAgentsRulesPath(),
 		join(resolveClineDir(), RULES_CONFIG_DIRECTORY_NAME),
+		// The VS Code Rules tab resolves Documents via `xdg-user-dir DOCUMENTS`,
+		// which prints bare $HOME when unconfigured (WSL/headless), putting
+		// global rules at ~/Cline/Rules instead of ~/Documents/Cline/Rules
+		// (cline/cline#13542).
+		join(HOME_DIR, "Cline", "Rules"),
 		resolveDocumentsExtensionPath("Rules"),
 	]);
 }

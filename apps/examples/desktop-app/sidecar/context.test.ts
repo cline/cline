@@ -929,6 +929,7 @@ describe("Code sidecar runtime capabilities", () => {
 			schedule: { scheduleId: "schedule-1", enabled: false },
 		});
 		expect(hubCommandMock).toHaveBeenCalledWith("schedule.disable", {
+			allWorkspaces: true,
 			scheduleId: "schedule-1",
 		});
 	});

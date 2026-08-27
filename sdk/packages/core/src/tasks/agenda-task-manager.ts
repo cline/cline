@@ -455,6 +455,19 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 
 	async updateTask(input: AgendaTaskUpdateInput): Promise<AgendaTaskRecord> {
 		this.assertUsable();
+		const known = this.requireTask(input.taskId);
+		// Without watchers there is no background reconciliation, so a spec
+		// edited outside the manager would fail the same-store signature check
+		// below on every retry. Reconcile first — except when the reconciler
+		// itself is applying a spec edit — so an external edit surfaces as a
+		// stale-revision conflict the caller can re-read and retry against.
+		if (input.updatedBy.id !== FILE_RECONCILER_ACTOR.id) {
+			await this.reconcileSourceForProjection(
+				known.scope,
+				known.workspaceRoot,
+				"update",
+			);
+		}
 		const current = this.requireTask(input.taskId);
 		if (current.revision !== input.expectedRevision) {
 			// Let the store produce its canonical conflict error and current record.
@@ -979,7 +992,7 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 	private async reconcileSourceForProjection(
 		scope: "global" | "workspace",
 		workspaceRoot: string | undefined,
-		phase: "startup" | "list" | "read",
+		phase: "startup" | "list" | "read" | "update",
 	): Promise<void> {
 		try {
 			await this.reconcileScope(scope, workspaceRoot);
