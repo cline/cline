@@ -622,8 +622,8 @@ async function handleRoutineScheduleCommand(
 		// across all workspaces so the Schedules page manages every schedule
 		// on this machine, not just the launch-directory scope.
 		const reply = await hubClient.command(hubCommand as never, {
-			allWorkspaces: true,
 			...payload,
+			allWorkspaces: true,
 		});
 		if (!reply.ok) {
 			throw new Error(

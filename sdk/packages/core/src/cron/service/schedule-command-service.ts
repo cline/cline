@@ -309,8 +309,9 @@ export class HubScheduleCommandService {
 		const workspaceRoot =
 			(allWorkspaces ? requestedWorkspaceRoot(payload) : undefined) ??
 			scope.workspaceRoot;
+		const { allWorkspaces: _allWorkspaces, ...rest } = payload;
 		return {
-			...(payload as unknown as HubScheduleCreateInput),
+			...(rest as unknown as HubScheduleCreateInput),
 			modelSelection,
 			mode,
 			workspaceRoot,
@@ -344,8 +345,9 @@ export class HubScheduleCommandService {
 		const workspaceRoot = allWorkspaces
 			? (requestedWorkspaceRoot(payload) ?? resolve(current.workspaceRoot))
 			: scope.workspaceRoot;
+		const { allWorkspaces: _allWorkspaces, ...rest } = payload;
 		return {
-			...(payload as unknown as HubScheduleUpdateInput),
+			...(rest as unknown as HubScheduleUpdateInput),
 			modelSelection,
 			...(mode === undefined ? {} : { mode }),
 			workspaceRoot,
