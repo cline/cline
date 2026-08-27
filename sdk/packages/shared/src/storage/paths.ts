@@ -269,6 +269,16 @@ export interface ResolveTaskSpecsDirOptions {
 	workspaceRoot?: string;
 }
 
+/**
+ * Home workspace for agent-created schedules: `~/.cline/schedules/`.
+ * Agent-created schedules are user-level routines, so they anchor here (and
+ * their unattended sessions run here) instead of inheriting whichever chat
+ * workspace happened to create them.
+ */
+export function resolveAgentSchedulesDir(): string {
+	return join(resolveClineDir(), "schedules");
+}
+
 /** Global file-backed agenda tasks: `~/.cline/tasks/`. */
 export function resolveGlobalTaskSpecsDir(): string {
 	return join(resolveClineDir(), "tasks");

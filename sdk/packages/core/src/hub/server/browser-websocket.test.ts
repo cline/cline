@@ -288,6 +288,7 @@ describe("BrowserWebSocketHubAdapter", () => {
 				workspaceRoot: resolve("/second-workspace"),
 				cwd: resolve("/second-workspace/project"),
 			},
+			crossWorkspace: true,
 		});
 	});
 

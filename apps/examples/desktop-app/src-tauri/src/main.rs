@@ -112,6 +112,12 @@ struct UpdateState {
     // concurrently and the later one can overwrite a freshly staged "ready"
     // with "idle"/"error" decided from its stale pre-await snapshot.
     cycle: tokio::sync::Mutex<()>,
+    // Windows only: the downloaded-but-not-installed update. On Windows,
+    // Update::install launches the NSIS installer and std::process::exit(0)s
+    // immediately, so installation must wait for the user-initiated restart
+    // instead of running inside the background cycle like it does on macOS.
+    #[cfg(windows)]
+    pending_install: Mutex<Option<(tauri_plugin_updater::Update, Vec<u8>)>>,
 }
 
 impl UpdateState {
@@ -224,8 +230,26 @@ async fn check_and_install_update(app: &tauri::AppHandle, state: &UpdateState) {
                 return;
             }
             set_update_status(app, state, "downloading", Some(version.clone()), None);
+            // macOS: install right away — it only swaps the .app on disk and
+            // the running app keeps going until the user restarts. Windows:
+            // download only, because install() launches the NSIS installer
+            // and exits the process on the spot; the staged bytes are
+            // installed by restart_to_apply_update instead.
+            #[cfg(not(windows))]
             match update.download_and_install(|_, _| {}, || {}).await {
                 Ok(()) => set_update_status(app, state, "ready", Some(version), None),
+                Err(error) => {
+                    set_update_status(app, state, "error", Some(version), Some(error.to_string()))
+                }
+            }
+            #[cfg(windows)]
+            match update.download(|_, _| {}, || {}).await {
+                Ok(bytes) => {
+                    if let Ok(mut pending) = state.pending_install.lock() {
+                        *pending = Some((update, bytes));
+                    }
+                    set_update_status(app, state, "ready", Some(version), None);
+                }
                 Err(error) => {
                     set_update_status(app, state, "error", Some(version), Some(error.to_string()))
                 }
@@ -285,8 +309,15 @@ impl DesktopBackendState {
                 // exits itself, finishing session persistence as an orphan.
                 #[cfg(unix)]
                 let _ = Command::new("kill").arg(child.id().to_string()).status();
+                // Windows has no SIGTERM equivalent, so terminate outright.
+                // Reap the child too: TerminateProcess is quick, and the
+                // update-restart path needs the sidecar exe's file lock
+                // released before the NSIS installer replaces it.
                 #[cfg(not(unix))]
-                let _ = child.kill();
+                {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                }
             }
             *process_guard = None;
         }
@@ -314,13 +345,29 @@ struct DesktopBackendReadyLine {
     mode: Option<String>,
 }
 
+/// The release binary is a GUI-subsystem app (no console), so on Windows
+/// every console-subsystem child (git, cmd, the sidecar) would otherwise
+/// allocate its own visible console window. Piped stdio does not prevent
+/// that; only CREATE_NO_WINDOW does.
+#[cfg(windows)]
+fn hide_console_window(command: &mut Command) {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    command.creation_flags(CREATE_NO_WINDOW);
+}
+
+#[cfg(not(windows))]
+fn hide_console_window(_command: &mut Command) {}
+
 fn resolve_workspace_root(launch_cwd: &str) -> String {
-    let output = Command::new("git")
+    let mut command = Command::new("git");
+    command
         .arg("-C")
         .arg(launch_cwd)
         .arg("rev-parse")
-        .arg("--show-toplevel")
-        .output();
+        .arg("--show-toplevel");
+    hide_console_window(&mut command);
+    let output = command.output();
 
     match output {
         Ok(result) if result.status.success() => {
@@ -438,7 +485,9 @@ fn spawn_desktop_backend_process(context: &AppContext) -> Result<Child, String> 
     command
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
+        .stderr(Stdio::piped());
+    hide_console_window(&mut command);
+    command
         .spawn()
         .map_err(|e| format!("failed to start desktop backend sidecar: {e}"))
 }
@@ -561,7 +610,11 @@ fn resolve_mcp_settings_path() -> Result<PathBuf, String> {
             return Ok(PathBuf::from(trimmed));
         }
     }
-    let home = std::env::var("HOME").map_err(|_| "HOME is not set".to_string())?;
+    // USERPROFILE is the Windows equivalent of HOME (and what the sidecar's
+    // homedir() resolves there); HOME is usually unset on Windows.
+    let home = std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .map_err(|_| "neither HOME nor USERPROFILE is set".to_string())?;
     Ok(PathBuf::from(home)
         .join(".cline")
         .join("data")
@@ -585,8 +638,10 @@ fn open_path_with_default_app(path: &Path) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
         let path_arg = path.to_string_lossy().to_string();
-        let status = Command::new("cmd")
-            .args(["/C", "start", "", &path_arg])
+        let mut command = Command::new("cmd");
+        command.args(["/C", "start", "", &path_arg]);
+        hide_console_window(&mut command);
+        let status = command
             .status()
             .map_err(|e| format!("failed to open path: {e}"))?;
         if status.success() {
@@ -673,10 +728,30 @@ fn get_update_status(update_state: State<'_, Arc<UpdateState>>) -> UpdateStatus 
 fn restart_to_apply_update(
     app: tauri::AppHandle,
     backend_state: State<'_, Arc<DesktopBackendState>>,
+    update_state: State<'_, Arc<UpdateState>>,
 ) {
-    // restart() never returns, so the run-loop Exit handler does not get a
-    // chance to stop the sidecar; shut it down explicitly first.
+    // Neither restart() nor install() returns, so the run-loop Exit handler
+    // does not get a chance to stop the sidecar; shut it down explicitly
+    // first. On Windows this also releases the sidecar exe's file lock,
+    // which the NSIS installer needs in order to replace it.
     backend_state.stop();
+    // Windows: install the bytes staged by the background cycle. install()
+    // launches the NSIS installer (which relaunches the app when done) and
+    // exits this process, so it only returns on failure — fall through to a
+    // plain restart of the current version in that case.
+    #[cfg(windows)]
+    if let Some((update, bytes)) = update_state
+        .pending_install
+        .lock()
+        .ok()
+        .and_then(|mut pending| pending.take())
+    {
+        if let Err(error) = update.install(bytes) {
+            eprintln!("[updater] failed to launch the update installer: {error}");
+        }
+    }
+    #[cfg(not(windows))]
+    let _ = update_state;
     app.restart();
 }
 
