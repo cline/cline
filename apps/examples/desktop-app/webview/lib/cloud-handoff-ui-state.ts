@@ -42,6 +42,7 @@ export type CloudHandoffUiEntry =
 			warningKind?: "unqueued" | "unconfirmed";
 			retryDraft?: string;
 			retryAttachments?: File[];
+			retainRetry?: boolean;
 	  };
 
 export type CloudHandoffUiState = Record<string, CloudHandoffUiEntry>;
@@ -71,6 +72,7 @@ export type CloudHandoffUiAction =
 			warningKind?: "unqueued" | "unconfirmed";
 			retryDraft?: string;
 			retryAttachments?: File[];
+			retainRetry?: boolean;
 	  }
 	| {
 			type: "failed";
@@ -115,22 +117,25 @@ function completeHandoff(
 	warningKind?: "unqueued" | "unconfirmed",
 	retryDraft?: string,
 	retryAttachments?: File[],
+	retainRetry = false,
 ): CloudHandoffUiState {
 	const current = state[sourceSessionId];
 	const carriedRetryDraft =
 		retryDraft ??
+		(retainRetry &&
 		(current?.status === "failed" ||
-		current?.status === "recovery" ||
-		current?.status === "retry_restored" ||
-		current?.status === "complete"
+			current?.status === "recovery" ||
+			current?.status === "retry_restored" ||
+			current?.status === "complete")
 			? current.retryDraft
 			: undefined);
 	const carriedRetryAttachments =
 		retryAttachments ??
+		(retainRetry &&
 		(current?.status === "failed" ||
-		current?.status === "recovery" ||
-		current?.status === "retry_restored" ||
-		current?.status === "complete"
+			current?.status === "recovery" ||
+			current?.status === "retry_restored" ||
+			current?.status === "complete")
 			? current.retryAttachments
 			: undefined);
 	return {
@@ -202,6 +207,7 @@ export function cloudHandoffUiReducer(
 					action.warningKind,
 					action.retryDraft,
 					action.retryAttachments,
+					action.retainRetry,
 				);
 			}
 			if (
@@ -274,6 +280,7 @@ export function cloudHandoffUiReducer(
 				action.warningKind,
 				action.retryDraft,
 				action.retryAttachments,
+				action.retainRetry,
 			);
 		case "target_open_failed":
 			if (current?.status === "complete") {

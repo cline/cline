@@ -173,7 +173,7 @@ describe("cloudHandoffUiReducer", () => {
 		});
 	});
 
-	it("reconciles an authoritative late completion after a webview failure", () => {
+	it("clears same-attempt recovery after a clean authoritative completion", () => {
 		const failed = {
 			"local-1": {
 				status: "failed" as const,
@@ -196,7 +196,6 @@ describe("cloudHandoffUiReducer", () => {
 				dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
 			},
 			externalPresentation: false,
-			retryDraft: "/handoff continue",
 		});
 	});
 
