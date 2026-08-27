@@ -26,12 +26,13 @@ import {
 	getLiveModelsCatalog,
 	resolveProviderConfig,
 } from "../../services/llms/provider-defaults";
-import type {
-	ModelInfo,
-	ProviderClient,
-	ProviderConfig,
-	ProviderProtocol,
-	ProviderSettings,
+import {
+	type ModelInfo,
+	type ProviderClient,
+	type ProviderConfig,
+	type ProviderProtocol,
+	type ProviderSettings,
+	toProviderConfig,
 } from "../../services/llms/provider-settings";
 import type { ProviderTokenSource } from "../../types/provider-settings";
 import type { ProviderSettingsManager } from "../storage/provider-settings-manager";
@@ -46,6 +47,7 @@ import {
 	fetchModelIdsFromSource,
 	resolveModelsSourceUrl,
 } from "./model-source";
+import { isProviderSettingsUsable } from "./provider-readiness";
 
 export { ensureCustomProvidersLoaded } from "./local-provider-registry";
 
@@ -774,6 +776,19 @@ export async function listLocalProviders(
 						color: stableColor(id),
 						letter: createLetter(name),
 						enabled: Boolean(directSettings),
+						// Distinct from `enabled` (any persisted entry, which
+						// migrations and empty saves can create): true only when
+						// the saved settings hold real credentials or a usable
+						// keyless endpoint, mirroring the CLI's readiness check.
+						configured: isProviderSettingsUsable(
+							id,
+							persistedSettings,
+							persistedSettings
+								? toProviderConfig(persistedSettings, {
+										includeKnownModels: false,
+									})
+								: undefined,
+						),
 						apiKey: persistedSettings
 							? resolveVisibleApiKey(persistedSettings)
 							: undefined,
