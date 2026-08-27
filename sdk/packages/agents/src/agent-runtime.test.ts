@@ -1633,6 +1633,56 @@ describe("AgentRuntime", () => {
 		expect(runtime.snapshot().status).toBe("completed");
 	});
 
+	it("injects beforeRun appendContext as a hook_context message", async () => {
+		const model = new ScriptedModel([
+			(request) => {
+				// The context block is injected before the run's input message, so
+				// the model sees it on the first request.
+				const inputMessage = request.messages.at(-1);
+				expect(inputMessage?.role).toBe("user");
+				expect(inputMessage?.content[0]).toMatchObject({
+					type: "text",
+					text: "Start",
+				});
+				const contextMessage = request.messages.at(-2);
+				expect(contextMessage?.role).toBe("user");
+				expect(contextMessage?.content[0]).toMatchObject({
+					type: "text",
+					text: '<hook_context source="beforeRun">\nlifecycle hook context\n</hook_context>',
+				});
+				return [
+					{ type: "text-delta", text: "ok" },
+					{ type: "finish", reason: "stop" },
+				];
+			},
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			hooks: {
+				beforeRun: async () => ({ appendContext: "lifecycle hook context" }),
+			},
+		});
+
+		const result = await runtime.run("Start");
+
+		expect(result.status).toBe("completed");
+		const hookContextMessage = result.messages.find(
+			(message) =>
+				message.role === "user" &&
+				message.content.some(
+					(part) =>
+						part.type === "text" && (part.text ?? "").includes("<hook_context"),
+				),
+		);
+		expect(hookContextMessage).toBeDefined();
+		// Hidden from user-facing transcripts (live and replayed) while still
+		// sent to the model, like tool hook context and compaction summaries.
+		expect(hookContextMessage?.metadata).toMatchObject({
+			displayRole: "system",
+			userRunSpan: 0,
+		});
+	});
+
 	it("annotates assistant messages with per-turn metrics and model info", async () => {
 		const model = new ScriptedModel([
 			() => [
