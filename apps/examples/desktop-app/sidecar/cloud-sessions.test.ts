@@ -731,7 +731,13 @@ describe("CloudSessionApi", () => {
 		]);
 	});
 
-	it("clears handoff recovery when a new provisioning session expires", async () => {
+	it.each([
+		{ status: 404, code: "session_not_found" },
+		{ status: 410, code: "session_expired" },
+	] as const)("clears handoff recovery when a new provisioning session returns $status", async ({
+		status,
+		code,
+	}) => {
 		const removed = vi.fn();
 		const api = new CloudSessionApi({
 			apiBaseUrl: "https://api.example",
@@ -744,7 +750,7 @@ describe("CloudSessionApi", () => {
 						data: { sessionId: "ses-expired", status: "provisioning" },
 					});
 				}
-				return jsonResponse({ success: false, error: "expired" }, 410);
+				return jsonResponse({ success: false, error: "gone" }, status);
 			},
 		});
 
@@ -759,7 +765,7 @@ describe("CloudSessionApi", () => {
 					onOuterSessionRemoved: removed,
 				},
 			}),
-		).rejects.toMatchObject({ code: "session_expired" });
+		).rejects.toMatchObject({ code });
 		expect(removed).toHaveBeenCalledExactlyOnceWith("ses-expired");
 	});
 
@@ -3243,6 +3249,49 @@ describe("CloudSessionManager", () => {
 		expect(
 			hub.commands.some((entry) => entry.command === "session.create"),
 		).toBe(false);
+	});
+
+	it("adopts a seeded inner session after its create response is lost", async () => {
+		const { ctx } = createContext();
+		const hub = new FakeHubClient();
+		hub.sessionRows = [];
+		let loseCreateResponse = true;
+		hub.commandHook = async (command) => {
+			if (command === "session.create" && loseCreateResponse) {
+				loseCreateResponse = false;
+				hub.sessionRows = [
+					{
+						sessionId: "inner-created",
+						metadata: { handoff: { sourceSessionId: "local-1" } },
+					},
+				];
+				throw new Error("response lost");
+			}
+		};
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+		await manager.list();
+		await manager.attach("ses-outer");
+		const seed = {
+			sourceSessionId: "local-1",
+			messages: [{ role: "user" as const, content: "continue" }],
+		};
+
+		await expect(manager.seedHandoff("ses-outer", seed)).rejects.toThrow(
+			"response lost",
+		);
+		await expect(manager.seedHandoff("ses-outer", seed)).resolves.toMatchObject(
+			{
+				innerSessionId: "inner-created",
+			},
+		);
+		expect(
+			hub.commands.filter((entry) => entry.command === "session.create"),
+		).toHaveLength(1);
 	});
 
 	it("rejects a seeded join onto a concurrent seedless inner creation", async () => {
