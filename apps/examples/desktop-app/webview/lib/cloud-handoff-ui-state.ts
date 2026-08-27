@@ -47,6 +47,16 @@ export type CloudHandoffUiEntry =
 
 export type CloudHandoffUiState = Record<string, CloudHandoffUiEntry>;
 
+export function hasLivePendingHandoff(
+	entry: CloudHandoffUiEntry | undefined,
+): boolean {
+	return (
+		entry?.status === "recovery" ||
+		entry?.status === "recovery_dismissed" ||
+		(entry?.status === "retry_restored" && Boolean(entry.dashboardUrl))
+	);
+}
+
 export function resolveHandoffReceipt(
 	live: CloudHandoffUiEntry | undefined,
 	persisted: HandoffReceipt | null,

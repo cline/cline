@@ -43,6 +43,11 @@ import { WelcomeScreen } from "@/components/views/chat/welcome-chat";
 import { WelcomeSetupNotice } from "@/components/views/chat/welcome-setup-notice";
 import type { OnboardingStep } from "@/components/views/onboarding/onboarding-view";
 import type { SettingsSection } from "@/components/views/settings/sections";
+import {
+	WindowTitleBar,
+	WindowTitleBarContent,
+	WindowTitleBarProvider,
+} from "@/components/window-title-bar";
 import { AccountProvider, useAccount } from "@/contexts/account-context";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
 import {
@@ -82,6 +87,7 @@ import {
 	type CloudHandoffUiAction,
 	type CloudHandoffUiState,
 	cloudHandoffUiReducer,
+	hasLivePendingHandoff,
 	matchingUserPromptCount,
 	type PendingHandoffPrompt,
 	pendingHandoffPromptCaughtUp,
@@ -653,116 +659,129 @@ export default function Home() {
 	return (
 		<AccountProvider>
 			<SidebarProvider>
-				<div
-					aria-hidden={showOnboarding ? true : undefined}
-					className="flex h-screen w-full overflow-hidden bg-background text-foreground"
-					// The onboarding overlay is opaque and sits on top of the whole
-					// shell; hiding the shell keeps its aurora + animations from
-					// being composited every frame underneath while it still mounts
-					// and loads (providers, history, transport) in the background.
-					// `inert` additionally keeps the covered controls out of the
-					// keyboard tab order and assistive tech while it is hidden.
-					inert={showOnboarding ? true : undefined}
-					style={showOnboarding ? { visibility: "hidden" } : undefined}
+				<WindowTitleBarProvider
+					contentEnabled={!showOnboarding && view === "chat"}
 				>
-					<Sidebar
-						className="border-r border-sidebar-border"
-						collapsible="icon"
+					<div
+						aria-hidden={showOnboarding ? true : undefined}
+						className="flex h-screen w-full overflow-hidden bg-background text-foreground"
+						// The onboarding overlay is opaque and sits on top of the whole
+						// shell; hiding the shell keeps its aurora + animations from
+						// being composited every frame underneath while it still mounts
+						// and loads (providers, history, transport) in the background.
+						// `inert` additionally keeps the covered controls out of the
+						// keyboard tab order and assistive tech while it is hidden.
+						inert={showOnboarding ? true : undefined}
+						style={showOnboarding ? { visibility: "hidden" } : undefined}
 					>
-						<AgentSidebar
-							activeSessionId={activeHistorySessionId}
-							newTaskActive={newTaskActive}
-							onHome={handleHome}
-							onNavigateBack={handleNavigateBack}
-							onNavigateForward={handleNavigateForward}
-							onSettingsSectionChange={handleSettingsSectionChange}
-							sessionHistory={sessionHistory}
-							setView={handleViewChange}
-							settingsSection={settingsSection}
-							view={view}
-							canNavigateBack={navigation.back.length > 0}
-							canNavigateForward={navigation.forward.length > 0}
-						/>
-						<SidebarRail />
-					</Sidebar>
-					<SidebarInset className="min-h-0 min-w-0 overflow-hidden">
-						<SidebarTrigger className="absolute left-20 top-0 z-40 md:hidden" />
-						{view === "sessions" ? (
-							<SessionsView
+						<Sidebar
+							className="border-r border-sidebar-border"
+							collapsible="icon"
+						>
+							<AgentSidebar
 								activeSessionId={activeHistorySessionId}
-								history={sessionHistory}
+								newTaskActive={newTaskActive}
+								onHome={handleHome}
+								onNavigateBack={handleNavigateBack}
+								onNavigateForward={handleNavigateForward}
+								onSettingsSectionChange={handleSettingsSectionChange}
+								sessionHistory={sessionHistory}
+								setView={handleViewChange}
+								settingsSection={settingsSection}
+								view={view}
+								canNavigateBack={navigation.back.length > 0}
+								canNavigateForward={navigation.forward.length > 0}
 							/>
-						) : activeThread ? (
-							<div
-								aria-hidden={view === "settings" ? true : undefined}
-								className="flex min-h-0 flex-1 flex-col"
-								inert={view === "settings" ? true : undefined}
-							>
-								<ChatThreadPane
-									key={activeThread.id}
-									historySession={activeHistorySession}
-									handoffUiState={handoffUiState}
-									onHandoffUiAction={dispatchHandoffUi}
-									liveHistoryStatus={
-										// Live entry wins; otherwise trust the clicked snapshot
-										// (the list can lag by a refresh). Resolution is handled
-										// by cloud_session_provisioned, which swaps the thread.
-										sessionHistory.sessions.find(
-											(session) =>
-												session.sessionId ===
-												activeThread.historySession?.sessionId,
-										)?.status ?? activeHistorySession?.status
-									}
-									initialAttachments={activeThread.initialAttachments}
-									initialPromptDraft={activeThread.initialPromptDraft}
-									handoffLifecycle={handoffLifecycle}
-									knownWorkspacePaths={historyWorkspacePaths}
-									onInitialPromptDraftConsumed={
-										handleInitialPromptDraftConsumed
-									}
-									onUpdateSessionMetadata={handleUpdateSessionMetadata}
-									threadId={activeThread.id}
-									isThreadActive={() =>
-										activeLocationRef.current.activeThreadId ===
-											activeThread.id &&
-										activeLocationRef.current.view === "chat"
-									}
-									onDeleteSession={handleDeleteSession}
-									onNewThread={handleNewThread}
-									onOpenSession={handleOpenSession}
-									onOpenSessionById={handleOpenSessionById}
-									onOpenSetup={handleOpenSetup}
-									onOpenModelSettings={() =>
-										handleSettingsSectionChange("Models")
-									}
-									parentSession={activeParentSession}
-									onOpenVoiceInputSettings={() =>
-										handleSettingsSectionChange("Voice")
-									}
-									onThreadStarted={handleThreadStarted}
+							<SidebarRail />
+						</Sidebar>
+						<SidebarInset className="min-h-0 min-w-0 overflow-hidden">
+							<SidebarTrigger className="absolute left-20 top-0 z-40 md:hidden" />
+							<WindowTitleBar />
+							<div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+								{view === "sessions" ? (
+									<SessionsView
+										activeSessionId={activeHistorySessionId}
+										history={sessionHistory}
+									/>
+								) : activeThread ? (
+									<div
+										aria-hidden={view === "settings" ? true : undefined}
+										className="flex min-h-0 flex-1 flex-col"
+										inert={view === "settings" ? true : undefined}
+									>
+										<ChatThreadPane
+											key={activeThread.id}
+											historySession={activeHistorySession}
+											handoffUiState={handoffUiState}
+											onHandoffUiAction={dispatchHandoffUi}
+											liveHistoryStatus={
+												// Live entry wins; otherwise trust the clicked snapshot
+												// (the list can lag by a refresh). Resolution is handled
+												// by cloud_session_provisioned, which swaps the thread.
+												sessionHistory.sessions.find(
+													(session) =>
+														session.sessionId ===
+														activeThread.historySession?.sessionId,
+												)?.status ?? activeHistorySession?.status
+											}
+											initialAttachments={activeThread.initialAttachments}
+											initialPromptDraft={activeThread.initialPromptDraft}
+											handoffLifecycle={handoffLifecycle}
+											knownWorkspacePaths={historyWorkspacePaths}
+											onInitialPromptDraftConsumed={
+												handleInitialPromptDraftConsumed
+											}
+											onUpdateSessionMetadata={handleUpdateSessionMetadata}
+											threadId={activeThread.id}
+											isThreadActive={() =>
+												activeLocationRef.current.activeThreadId ===
+													activeThread.id &&
+												activeLocationRef.current.view === "chat"
+											}
+											onDeleteSession={handleDeleteSession}
+											onNewThread={handleNewThread}
+											onOpenSession={handleOpenSession}
+											onOpenSessionById={handleOpenSessionById}
+											onOpenSetup={handleOpenSetup}
+											onOpenModelSettings={() =>
+												handleSettingsSectionChange("Models")
+											}
+											parentSession={activeParentSession}
+											onOpenVoiceInputSettings={() =>
+												handleSettingsSectionChange("Voice")
+											}
+											onThreadStarted={handleThreadStarted}
+										/>
+									</div>
+								) : null}
+								{view === "settings" ? (
+									<div className="absolute inset-0 z-30 bg-background text-foreground">
+										<SettingsView
+											onNavigateSection={handleSettingsSectionChange}
+											onOpenSession={handleOpenSessionById}
+											section={settingsSection}
+										/>
+									</div>
+								) : null}
+							</div>
+						</SidebarInset>
+					</div>
+					{showOnboarding ? (
+						<div className="fixed inset-0 z-50 bg-background">
+							<WindowTitleBar
+								className="absolute inset-x-0 top-0 z-10"
+								hostContent={false}
+							/>
+							<div className="h-full">
+								<OnboardingView
+									initialStep={onboardingInitialStep}
+									onComplete={completeOnboarding}
 								/>
 							</div>
-						) : null}
-						{view === "settings" ? (
-							<div className="absolute inset-0 z-30 bg-background text-foreground">
-								<SettingsView
-									onNavigateSection={handleSettingsSectionChange}
-									onOpenSession={handleOpenSessionById}
-									section={settingsSection}
-								/>
-							</div>
-						) : null}
-					</SidebarInset>
-				</div>
+						</div>
+					) : null}
+				</WindowTitleBarProvider>
 			</SidebarProvider>
-			{showOnboarding ? (
-				<div className="fixed inset-0 z-50">
-					<OnboardingView
-						initialStep={onboardingInitialStep}
-						onComplete={completeOnboarding}
-					/>
-				</div>
-			) : null}
 			<HubUpdateRequiredDialog />
 		</AccountProvider>
 	);
@@ -918,6 +937,8 @@ function ChatThreadPane({
 		handoffUi?.status === "recovery_dismissed" ||
 		handoffUi?.status === "failed" ||
 		handoffUi?.status === "retry_restored";
+	const handoffOwnershipPending =
+		Boolean(pendingHandoffRecovery) || hasLivePendingHandoff(handoffUi);
 	const dismissedHandoffRecoveryUrl =
 		handoffUi?.status === "recovery_dismissed" ? handoffUi.dashboardUrl : null;
 	const handoffRecoveryUrl =
@@ -1774,7 +1795,7 @@ function ChatThreadPane({
 				await prepareHandoff(handoff.nextCommand);
 				return;
 			}
-			if (!handoff && pendingHandoffRecovery) {
+			if (!handoff && handoffOwnershipPending) {
 				setPromptInput(prompt);
 				toast({
 					title: "Cloud handoff is still pending",
@@ -1810,7 +1831,7 @@ function ChatThreadPane({
 			threadId,
 			cloudHandoffAvailable,
 			handoffRetryEligible,
-			pendingHandoffRecovery,
+			handoffOwnershipPending,
 		],
 	);
 
@@ -1920,7 +1941,7 @@ function ChatThreadPane({
 		? null
 		: (sessionId ?? visibleHistorySession?.sessionId ?? null);
 	const handoffDeleteLocked = Boolean(
-		handoffProgress || pendingHandoffRecovery,
+		handoffProgress || handoffOwnershipPending,
 	);
 
 	const requestDeleteSession = useCallback(() => {
@@ -2443,7 +2464,7 @@ function ChatThreadPane({
 	const chatComposer = (
 		<ChatInputBar
 			attachments={attachmentList}
-			cloudHandoffAvailable={cloudHandoffAvailable}
+			cloudHandoffAvailable={cloudHandoffAvailable || handoffRetryEligible}
 			onAbort={handleAbort}
 			onAttachFiles={handleAttachFiles}
 			onListGitBranches={listGitBranches}
@@ -2513,7 +2534,7 @@ function ChatThreadPane({
 				className={
 					isWelcomeState
 						? "relative grid h-full min-h-0 flex-1 grid-rows-[minmax(0,1fr)] overflow-hidden"
-						: "relative grid h-full min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden"
+						: "relative grid h-full min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto] overflow-hidden"
 				}
 				onDragEnter={isCloudSession ? undefined : handleDragEnter}
 				onDragLeave={isCloudSession ? undefined : handleDragLeave}
@@ -2534,33 +2555,35 @@ function ChatThreadPane({
 					</div>
 				) : null}
 				{!isWelcomeState ? (
-					<div className="cline-view-enter z-20 border-b border-border/70 bg-background/85 backdrop-blur-sm">
-						<AgentHeader
-							agentActivity={isCloudSession ? undefined : agentActivity}
-							agents={isCloudSession ? undefined : agents}
-							agentsError={agentsError}
-							agentsLoading={agentsLoading}
-							onAgentsOpenChange={setAgentPanelOpen}
-							onOpenAgentSession={onOpenAgentSession}
-							onOpenParentSession={onOpenSessionById}
-							parentSession={hideDeletedSessionUi ? undefined : parentSession}
-							canEditTitle={
-								Boolean(activeSessionForTitle) && !isProvisioningCloudSession
-							}
-							canDeleteSession={
-								Boolean(activeSessionToDelete) && !handoffDeleteLocked
-							}
-							deletingSession={deletingSession}
-							diff={isCloudSession ? undefined : headerDiff}
-							onDeleteSession={requestDeleteSession}
-							onNewThread={onNewThread}
-							onOpenDiff={handleOpenDiff}
-							onRenameTitle={handleRenameTitle}
-							renamingTitle={renamingSession}
-							status={headerStatus}
-							title={threadTitle}
-						/>
-					</div>
+					<WindowTitleBarContent>
+						<div className="cline-view-enter z-20 border-b border-border/70 bg-background/85 backdrop-blur-sm">
+							<AgentHeader
+								agentActivity={isCloudSession ? undefined : agentActivity}
+								agents={isCloudSession ? undefined : agents}
+								agentsError={agentsError}
+								agentsLoading={agentsLoading}
+								onAgentsOpenChange={setAgentPanelOpen}
+								onOpenAgentSession={onOpenAgentSession}
+								onOpenParentSession={onOpenSessionById}
+								parentSession={hideDeletedSessionUi ? undefined : parentSession}
+								canEditTitle={
+									Boolean(activeSessionForTitle) && !isProvisioningCloudSession
+								}
+								canDeleteSession={
+									Boolean(activeSessionToDelete) && !handoffDeleteLocked
+								}
+								deletingSession={deletingSession}
+								diff={isCloudSession ? undefined : headerDiff}
+								onDeleteSession={requestDeleteSession}
+								onNewThread={onNewThread}
+								onOpenDiff={handleOpenDiff}
+								onRenameTitle={handleRenameTitle}
+								renamingTitle={renamingSession}
+								status={headerStatus}
+								title={threadTitle}
+							/>
+						</div>
+					</WindowTitleBarContent>
 				) : null}
 				<WelcomeScreen
 					active={isWelcomeState}

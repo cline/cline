@@ -2,10 +2,28 @@ import { describe, expect, it } from "vitest";
 import {
 	appendPendingHandoffPrompt,
 	cloudHandoffUiReducer,
+	hasLivePendingHandoff,
 	resolveHandoffReceipt,
 } from "./cloud-handoff-ui-state";
 
 describe("cloudHandoffUiReducer", () => {
+	it("recognizes live recovery ownership before history refreshes", () => {
+		expect(
+			hasLivePendingHandoff({
+				status: "recovery",
+				dashboardUrl: "https://app.cline.bot/agents/cloud-1",
+			}),
+		).toBe(true);
+		expect(
+			hasLivePendingHandoff({
+				status: "retry_restored",
+				dashboardUrl: "https://app.cline.bot/agents/cloud-1",
+			}),
+		).toBe(true);
+		expect(hasLivePendingHandoff({ status: "retry_restored" })).toBe(false);
+		expect(hasLivePendingHandoff({ status: "failed" })).toBe(false);
+	});
+
 	it("keeps a persisted completion receipt alongside live recovery state", () => {
 		const persisted = {
 			targetSessionId: "cloud-1",

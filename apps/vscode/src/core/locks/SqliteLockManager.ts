@@ -6,12 +6,12 @@ import { Logger } from "@/shared/services/Logger"
 import type { LockRow, SqliteLockManagerOptions } from "./types"
 export class SqliteLockManager {
 	private db!: Database.Database
-	private instanceAddress: string
+	private instanceOwner: string
 	private dbPath: string
 	private readonly STALE_LOCK_TIMEOUT = 1 * 60 * 1000 // 1 minute in milliseconds
 
 	constructor(options: SqliteLockManagerOptions) {
-		this.instanceAddress = options.instanceAddress
+		this.instanceOwner = options.instanceOwner
 		this.dbPath = options.dbPath
 
 		// Ensure the directory exists before creating the database
@@ -148,7 +148,7 @@ export class SqliteLockManager {
 			VALUES (?, 'instance', ?, ?)
 		`)
 
-		insertLock.run(this.instanceAddress, data.hostAddress, now)
+		insertLock.run(this.instanceOwner, data.hostAddress, now)
 	}
 
 	/**
@@ -162,7 +162,7 @@ export class SqliteLockManager {
 			WHERE held_by = ? AND lock_type = 'instance'
 		`)
 
-		updateLock.run(now, this.instanceAddress)
+		updateLock.run(now, this.instanceOwner)
 	}
 
 	/**
@@ -174,42 +174,19 @@ export class SqliteLockManager {
 			WHERE held_by = ? AND lock_type = 'instance'
 		`)
 
-		deleteLock.run(this.instanceAddress)
-	}
-
-	/**
-	 * Query the registry for any instance registered on the given port
-	 */
-	getInstanceByPort(port: number): { instanceAddress: string; hostAddress: string } | null {
-		const query = this.db.prepare(`
-			SELECT held_by, lock_target 
-			FROM locks 
-			WHERE lock_type = 'instance' 
-			AND (held_by LIKE '%:' || ? OR lock_target LIKE '%:' || ?)
-		`)
-
-		const result = query.get(port, port) as { held_by: string; lock_target: string } | undefined
-
-		if (result) {
-			return {
-				instanceAddress: result.held_by,
-				hostAddress: result.lock_target,
-			}
-		}
-
-		return null
+		deleteLock.run(this.instanceOwner)
 	}
 
 	/**
 	 * Remove a specific instance entry from the registry
 	 */
-	removeInstanceByAddress(instanceAddress: string): void {
+	removeInstanceByOwner(instanceOwner: string): void {
 		const deleteLock = this.db.prepare(`
 			DELETE FROM locks 
 			WHERE held_by = ? AND lock_type = 'instance'
 		`)
 
-		deleteLock.run(instanceAddress)
+		deleteLock.run(instanceOwner)
 	}
 
 	/**
@@ -235,8 +212,8 @@ export class SqliteLockManager {
 			WHERE held_by = ? AND lock_type = 'folder' AND lock_target = ?
 		`)
 
-		// swap instance address in place of taskID
-		heldBy = this.instanceAddress
+		// swap instance owner in place of taskID
+		heldBy = this.instanceOwner
 		deleteLock.run(heldBy, lockTarget)
 	}
 
@@ -251,20 +228,19 @@ export class SqliteLockManager {
 			VALUES (?, 'folder', ?, ?)
 		`)
 
-		// swap instance address in place of taskID
-		heldBy = this.instanceAddress
-		const insertedCount = insertLock.run(this.instanceAddress, lockTarget, now).changes
+		// swap instance owner in place of taskID
+		heldBy = this.instanceOwner
+		const insertedCount = insertLock.run(this.instanceOwner, lockTarget, now).changes
 
 		if (insertedCount > 0) {
 			return null // lock acquired
-		} else {
-			const existingLock = await this.getFolderLockByTarget(lockTarget)
-			if (existingLock && existingLock.held_by === heldBy) {
-				return null // existing lock is held by the same task
-			}
-			// existing lock held by other task, return the conflicting lock
-			return await this.getFolderLockByTarget(lockTarget)
 		}
+		const existingLock = await this.getFolderLockByTarget(lockTarget)
+		if (existingLock && existingLock.held_by === heldBy) {
+			return null // existing lock is held by the same task
+		}
+		// existing lock held by other task, return the conflicting lock
+		return await this.getFolderLockByTarget(lockTarget)
 	}
 
 	/**
