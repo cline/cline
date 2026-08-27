@@ -12,10 +12,22 @@ vi.mock("@ai-sdk/provider-utils", () => ({
 	createProviderDefinedToolFactory: vi.fn(() => vi.fn()),
 }));
 
+const fsWatchSpy = vi.hoisted(() => vi.fn());
+
+vi.mock("node:fs", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("node:fs")>();
+	fsWatchSpy.mockImplementation(actual.watch as never);
+	return { ...actual, watch: fsWatchSpy };
+});
+
 import type {
 	StartSessionInput,
 	StartSessionResult,
 } from "../../runtime/host/runtime-host";
+import {
+	AgendaTaskManager,
+	type AgendaTaskRuntime,
+} from "../../tasks/agenda-task-manager";
 import { HubServerTransport } from "./hub-server-transport";
 
 describe("Hub agenda task vertical slice", () => {
@@ -386,6 +398,96 @@ describe("Hub agenda task vertical slice", () => {
 				status: "approved",
 			});
 			expect(startSession).toHaveBeenCalledTimes(1);
+		} finally {
+			await transport.stop();
+		}
+	});
+
+	it("keeps agenda spec watchers off while the todo tool is disabled", async () => {
+		const root = mkdtempSync(join(tmpdir(), "cline-hub-agenda-watch-"));
+		const canonicalRoot = realpathSync.native(root);
+		const specWatchTargets = () =>
+			fsWatchSpy.mock.calls
+				.map(([target]) => String(target))
+				.filter((target) => target.startsWith(canonicalRoot));
+
+		// Positive control: a manager with file watching left at its default
+		// registers an fs.watch on its specs dir, proving the spy observes
+		// agenda watchers at all.
+		const controlDir = join(root, "control");
+		mkdirSync(controlDir, { recursive: true });
+		const controlRuntime: AgendaTaskRuntime = {
+			isInteractiveClientAvailable: vi.fn(() => true),
+			startSession: vi.fn(async () => ({ sessionId: "control-session" })),
+			runSession: vi.fn(async () => ({ status: "completed" as const })),
+			abortSession: vi.fn(async () => {}),
+		};
+		const control = new AgendaTaskManager({
+			runtime: controlRuntime,
+			dbPath: join(controlDir, "tasks.db"),
+			globalSpecsDir: join(controlDir, "specs"),
+		});
+		try {
+			await control.start();
+			expect(specWatchTargets()).not.toEqual([]);
+		} finally {
+			await control.dispose();
+		}
+		fsWatchSpy.mockClear();
+
+		// The transport must force watchers off on its own while the todo tool
+		// is disabled, even when the host leaves watchFiles unset.
+		const workspace = join(root, "workspace");
+		mkdirSync(workspace);
+		const transport = new HubServerTransport({
+			workspaceRoot: realpathSync.native(workspace),
+			runtimeHandlers: {
+				startSession: vi.fn(),
+				sendSession: vi.fn(),
+				abortSession: vi.fn(),
+				stopSession: vi.fn(),
+			},
+			scheduleOptions: { dbPath: ":memory:" },
+			taskOptions: {
+				dbPath: join(root, "tasks.db"),
+				globalSpecsDir: join(root, "specs"),
+			},
+			sessionHost: {
+				subscribe: vi.fn(() => () => {}),
+				startSession: vi.fn(),
+				runTurn: vi.fn(),
+				stopSession: vi.fn(async () => {}),
+				abort: vi.fn(async () => {}),
+				dispose: vi.fn(async () => {}),
+				getSession: vi.fn(async () => undefined),
+				getAccumulatedUsage: vi.fn(async () => undefined),
+				listSessions: vi.fn(async () => []),
+				deleteSession: vi.fn(async () => false),
+				updateSession: vi.fn(async () => ({ updated: false })),
+				updateSessionCompactionState: vi.fn(async () => ({
+					updated: false,
+				})),
+				readSessionCompactionState: vi.fn(async () => undefined),
+				readSessionMessages: vi.fn(async () => []),
+				dispatchHookEvent: vi.fn(async () => {}),
+				restoreSession: vi.fn(),
+			} as never,
+		});
+		try {
+			await transport.start();
+			const created = await transport.handleCommand({
+				version: "v1",
+				command: "task.create",
+				clientId: "desktop",
+				payload: {
+					type: "follow-up",
+					title: "Watcherless todo",
+					instructions: "Verify agenda spec watchers stay off.",
+					expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
+				},
+			});
+			expect(created.ok).toBe(true);
+			expect(specWatchTargets()).toEqual([]);
 		} finally {
 			await transport.stop();
 		}
