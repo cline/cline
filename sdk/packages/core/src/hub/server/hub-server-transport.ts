@@ -27,6 +27,7 @@ import type {
 	RuntimeHost,
 } from "../../runtime/host/runtime-host";
 import { SqliteSessionStore } from "../../services/storage/sqlite-session-store";
+import { ensureAgentSchedulesWorkspace } from "../../services/workspace/agent-schedules-workspace";
 import { withSessionHistoryOriginMetadata } from "../../session/history-origin";
 import { CoreSessionService } from "../../session/services/session-service";
 import {
@@ -381,9 +382,14 @@ export class HubServerTransport implements NativeHubTransport {
 					resolveSessionDefaults: async (sessionId) => {
 						const session = await this.sessionHost.getSession(sessionId);
 						if (!session) return undefined;
+						// Agent-created schedules are user-level routines: anchor
+						// them (and run their unattended sessions) in the stable
+						// ~/.cline/schedules home instead of whichever chat
+						// workspace created them, so they survive chat cleanup and
+						// every chat manages the same set. Prompts must carry
+						// absolute paths to any project they operate on.
 						return {
-							workspaceRoot: session.workspaceRoot,
-							cwd: session.cwd,
+							workspaceRoot: await ensureAgentSchedulesWorkspace(),
 							modelSelection: {
 								providerId: session.provider,
 								modelId: session.model,
