@@ -12,6 +12,10 @@ function readRequiredString(value: unknown): string | undefined {
 	return trimmed || undefined;
 }
 
+function readWorkspaceRelativePath(value: unknown): string | undefined {
+	return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
 export function createCloudHandoffFingerprint(input: {
 	repoUrl: string;
 	branch: string;
@@ -29,7 +33,9 @@ export function createCloudHandoffFingerprint(input: {
 		throw new Error("Cloud handoff fingerprint fields cannot be empty.");
 	}
 	const organizationId = readRequiredString(input.organizationId);
-	const workspaceRelativePath = readRequiredString(input.workspaceRelativePath);
+	const workspaceRelativePath = readWorkspaceRelativePath(
+		input.workspaceRelativePath,
+	);
 	const mode = input.mode;
 	return {
 		repoUrl,
