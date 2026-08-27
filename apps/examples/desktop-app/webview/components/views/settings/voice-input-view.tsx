@@ -4,6 +4,11 @@ import { AudioLines, Mic, Radio } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { desktopClient } from "@/lib/desktop-client";
 import { isProviderConnected } from "@/lib/provider-connection";
 import {
@@ -306,20 +311,34 @@ export function VoiceInputContent({
 														<span className="truncate text-sm text-foreground">
 															{model.name}
 														</span>
-														{isStreamingModel(model) ? (
-															<span className="inline-flex shrink-0 items-center gap-1 rounded bg-surface-hover px-1.5 py-px text-[0.625rem] font-medium uppercase tracking-wide text-muted-foreground">
-																<Radio aria-hidden="true" className="size-3" />
-																Live
-															</span>
-														) : (
-															<span className="inline-flex shrink-0 items-center gap-1 rounded bg-surface-hover px-1.5 py-px text-[0.625rem] font-medium uppercase tracking-wide text-muted-foreground">
-																<AudioLines
-																	aria-hidden="true"
-																	className="size-3"
-																/>
-																After recording
-															</span>
-														)}
+														<Tooltip>
+															<TooltipTrigger asChild>
+																<span className="inline-flex shrink-0 items-center gap-1 rounded bg-surface-hover px-1.5 py-px text-[0.625rem] font-medium uppercase tracking-wide text-muted-foreground">
+																	{isStreamingModel(model) ? (
+																		<>
+																			<Radio
+																				aria-hidden="true"
+																				className="size-3"
+																			/>
+																			Live
+																		</>
+																	) : (
+																		<>
+																			<AudioLines
+																				aria-hidden="true"
+																				className="size-3"
+																			/>
+																			After recording
+																		</>
+																	)}
+																</span>
+															</TooltipTrigger>
+															<TooltipContent>
+																{isStreamingModel(model)
+																	? "Streaming transcription: text appears in the chat box while you speak."
+																	: "Transcribes in one pass after you stop the recording."}
+															</TooltipContent>
+														</Tooltip>
 														{isDefault ? (
 															<span className="shrink-0 text-[0.625rem] font-medium uppercase tracking-wide text-muted-foreground">
 																Default

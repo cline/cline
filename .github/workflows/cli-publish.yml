@@ -190,6 +190,19 @@ jobs:
             ls -lh "$dir/bin/"
           done
 
+      - name: Sign Windows binaries
+        uses: ./.github/actions/sign-windows-cli
+        with:
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          endpoint: ${{ secrets.AZURE_TRUSTED_SIGNING_ENDPOINT }}
+          account: ${{ secrets.AZURE_TRUSTED_SIGNING_ACCOUNT_NAME }}
+          certificate-profile: ${{ secrets.AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_CLI }}
+          files: |
+            apps/cli/dist/cli-windows-x64/bin/cline.exe
+            apps/cli/dist/cli-windows-arm64/bin/cline.exe
+
       - name: Publish to NPM with latest tag
         env:
           NPM_CONFIG_PROVENANCE: "true"
@@ -446,6 +459,20 @@ jobs:
             fi
             ls -lh "$dir/bin/"
           done
+
+      - name: Sign Windows binaries
+        if: steps.check_commits.outputs.skip != 'true'
+        uses: ./.github/actions/sign-windows-cli
+        with:
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          endpoint: ${{ secrets.AZURE_TRUSTED_SIGNING_ENDPOINT }}
+          account: ${{ secrets.AZURE_TRUSTED_SIGNING_ACCOUNT_NAME }}
+          certificate-profile: ${{ secrets.AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_CLI }}
+          files: |
+            apps/cli/dist/cli-windows-x64/bin/cline.exe
+            apps/cli/dist/cli-windows-arm64/bin/cline.exe
 
       - name: Publish to NPM with nightly tag
         if: steps.check_commits.outputs.skip != 'true'

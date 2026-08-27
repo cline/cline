@@ -95,6 +95,15 @@ export function extractRunCommandOutput(value: unknown): string {
 		.join("\n\n");
 }
 
+/**
+ * The final answer carried in a `submit_and_exit` call's input. Present as
+ * soon as the call starts; the result merely echoes it back.
+ */
+export function extractSubmitSummaryText(payload: ToolPayload | null): string {
+	const input = asRecord(normalizeDisplayValue(payload?.input));
+	return recordString(input, "summary");
+}
+
 export function parseToolPayload(raw: string): ToolPayload | null {
 	try {
 		return JSON.parse(raw) as ToolPayload;
