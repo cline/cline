@@ -928,8 +928,12 @@ describe("Code sidecar runtime capabilities", () => {
 		).resolves.toEqual({
 			schedule: { scheduleId: "schedule-1", enabled: false },
 		});
+		// allWorkspaces lifts the hub's connection-workspace confinement: the
+		// Schedules page manages schedules regardless of the launch directory
+		// this sidecar's hub client happens to be registered with.
 		expect(hubCommandMock).toHaveBeenCalledWith("schedule.disable", {
 			scheduleId: "schedule-1",
+			allWorkspaces: true,
 		});
 	});
 

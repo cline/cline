@@ -500,4 +500,143 @@ describe("HubScheduleService", () => {
 			}
 		},
 	);
+
+	sqliteIt(
+		"lets allWorkspaces commands cross the connection workspace scope",
+		async () => {
+			const dbPath = await createTempDbPath();
+			cleanupPaths.push(dbPath);
+			const service = new HubScheduleService({
+				dbPath,
+				specs: { cronSpecsDir: join(dirname(dbPath), "cron") },
+				runtimeHandlers: {
+					startSession: vi.fn(async () => ({ sessionId: "session-3" })),
+					sendSession: vi.fn(async () => ({ result: { text: "done" } })),
+					abortSession: vi.fn(async () => ({ applied: true })),
+					stopSession: vi.fn(async () => ({ applied: true })),
+				},
+			});
+			try {
+				const commands = new HubScheduleCommandService(service);
+				// Mirrors the production desktop app: the sidecar's hub client is
+				// registered with the app launch directory, not the workspace the
+				// schedules actually belong to.
+				const launchDirAuthority = {
+					clientId: "desktop-observer",
+					workspaceContext: { workspaceRoot: "/", cwd: "/" },
+				};
+				const projectRoot = resolve("/workspace");
+
+				const agentCreated = service.createSchedule({
+					name: "Agent routine",
+					cronPattern: "0 9 * * *",
+					prompt: "Created by an agent session",
+					workspaceRoot: projectRoot,
+					cwd: projectRoot,
+				});
+
+				const scopedList = await commands.handleCommand(
+					{
+						version: "v1",
+						command: "schedule.list",
+						clientId: "desktop-observer",
+						payload: { limit: 10 },
+					},
+					launchDirAuthority,
+				);
+				expect(scopedList.ok).toBe(true);
+				expect(scopedList.payload?.schedules).toEqual([]);
+
+				const globalList = await commands.handleCommand(
+					{
+						version: "v1",
+						command: "schedule.list",
+						clientId: "desktop-observer",
+						payload: { limit: 10, allWorkspaces: true },
+					},
+					launchDirAuthority,
+				);
+				expect(globalList.ok).toBe(true);
+				expect(
+					(globalList.payload?.schedules as Array<{ scheduleId: string }>).map(
+						(schedule) => schedule.scheduleId,
+					),
+				).toContain(agentCreated.scheduleId);
+
+				const scopedGet = await commands.handleCommand(
+					{
+						version: "v1",
+						command: "schedule.get",
+						clientId: "desktop-observer",
+						payload: { scheduleId: agentCreated.scheduleId },
+					},
+					launchDirAuthority,
+				);
+				expect(scopedGet.ok).toBe(false);
+
+				const globalDisable = await commands.handleCommand(
+					{
+						version: "v1",
+						command: "schedule.disable",
+						clientId: "desktop-observer",
+						payload: {
+							scheduleId: agentCreated.scheduleId,
+							allWorkspaces: true,
+						},
+					},
+					launchDirAuthority,
+				);
+				expect(globalDisable.ok).toBe(true);
+				expect(globalDisable.payload?.schedule).toMatchObject({
+					enabled: false,
+				});
+
+				const globalUpdate = await commands.handleCommand(
+					{
+						version: "v1",
+						command: "schedule.update",
+						clientId: "desktop-observer",
+						payload: {
+							scheduleId: agentCreated.scheduleId,
+							name: "Renamed by desktop",
+							allWorkspaces: true,
+						},
+					},
+					launchDirAuthority,
+				);
+				expect(globalUpdate.ok).toBe(true);
+				// An all-workspaces update keeps the schedule in its own
+				// workspace instead of pulling it into the connection scope.
+				expect(globalUpdate.payload?.schedule).toMatchObject({
+					name: "Renamed by desktop",
+					workspaceRoot: projectRoot,
+				});
+
+				const globalCreate = await commands.handleCommand(
+					{
+						version: "v1",
+						command: "schedule.create",
+						clientId: "desktop-observer",
+						payload: {
+							name: "Desktop routine",
+							cronPattern: "30 8 * * *",
+							prompt: "Created from the Schedules page",
+							workspaceRoot: projectRoot,
+							allWorkspaces: true,
+						},
+					},
+					launchDirAuthority,
+				);
+				expect(globalCreate.ok).toBe(true);
+				// The user-picked workspace is honored instead of being forced
+				// to the connection's launch-directory scope.
+				expect(globalCreate.payload?.schedule).toMatchObject({
+					workspaceRoot: projectRoot,
+					cwd: projectRoot,
+				});
+			} finally {
+				await service.dispose();
+			}
+		},
+	);
 });

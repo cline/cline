@@ -612,11 +612,19 @@ async function handleRoutineScheduleCommand(
 	args?: Record<string, unknown>,
 ): Promise<unknown> {
 	const hubClient = await ensureSharedHubClient(ctx);
+	// The Schedules page manages schedules across every workspace, while this
+	// hub connection is registered with the app launch directory (which is
+	// meaningless — e.g. "/" for a Finder-launched production app). Opt out of
+	// connection-workspace confinement so agent- and project-created schedules
+	// stay visible and manageable, and creates honor the user-picked workspace.
 	const clientCommand = async (
 		hubCommand: string,
 		payload?: Record<string, unknown>,
 	) => {
-		const reply = await hubClient.command(hubCommand as never, payload);
+		const reply = await hubClient.command(hubCommand as never, {
+			...payload,
+			allWorkspaces: true,
+		});
 		if (!reply.ok) {
 			throw new Error(
 				reply.error?.message ?? `hub command failed: ${hubCommand}`,

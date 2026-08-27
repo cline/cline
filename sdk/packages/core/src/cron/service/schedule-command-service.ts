@@ -12,18 +12,32 @@ import type { HubScheduleService } from "./schedule-service";
 interface ScheduleCommandScope {
 	workspaceRoot: string;
 	cwd: string;
+	/**
+	 * Explicit per-command opt-out of connection-workspace confinement,
+	 * requested via `payload.allWorkspaces`. User-driven surfaces that manage
+	 * schedules across every workspace (e.g. the desktop Schedules page, whose
+	 * connection workspace is just the app launch directory) set this; scoped
+	 * clients such as the CLI and the agent tasks tool never do.
+	 */
+	allWorkspaces: boolean;
 }
 
-function scopedCwd(
-	scope: ScheduleCommandScope,
-	value: unknown,
-): string | undefined {
+function scopedCwd(workspaceRoot: string, value: unknown): string | undefined {
 	if (typeof value !== "string" || !value.trim()) return undefined;
-	const cwd = resolve(scope.workspaceRoot, value);
-	if (!pathWithin(scope.workspaceRoot, cwd)) {
+	const cwd = resolve(workspaceRoot, value);
+	if (!pathWithin(workspaceRoot, cwd)) {
 		throw new Error("schedule cwd is outside the client workspace scope");
 	}
 	return cwd;
+}
+
+function requestedWorkspaceRoot(
+	payload: Record<string, unknown>,
+): string | undefined {
+	return typeof payload.workspaceRoot === "string" &&
+		payload.workspaceRoot.trim()
+		? resolve(payload.workspaceRoot.trim())
+		: undefined;
 }
 
 function pathWithin(workspaceRoot: string, candidate: string): boolean {
@@ -64,7 +78,7 @@ export class HubScheduleCommandService {
 		authority?: HubConnectionAuthority,
 	): Promise<HubReplyEnvelope> {
 		try {
-			const scope = this.resolveScope(authority);
+			const scope = this.resolveScope(authority, envelope.payload);
 			switch (envelope.command) {
 				case "schedule.create":
 					return okReply(envelope, {
@@ -86,20 +100,24 @@ export class HubScheduleCommandService {
 							tags: Array.isArray(envelope.payload?.tags)
 								? (envelope.payload?.tags as string[])
 								: undefined,
-							workspaceRoot: scope.workspaceRoot,
+							workspaceRoot: scope.allWorkspaces
+								? undefined
+								: scope.workspaceRoot,
 						}),
 					});
 				case "schedule.get":
 					return okReply(envelope, {
 						schedule: this.requireScopedSchedule(envelope, scope),
 					});
-				case "schedule.update":
+				case "schedule.update": {
+					const schedule = this.requireScopedSchedule(envelope, scope);
 					return okReply(envelope, {
 						schedule: this.schedules.updateSchedule(
-							this.requireScopedSchedule(envelope, scope).scheduleId,
-							this.toUpdateInput(envelope.payload ?? {}, scope),
+							schedule.scheduleId,
+							this.toUpdateInput(envelope.payload ?? {}, scope, schedule),
 						),
 					});
+				}
 				case "schedule.delete":
 					return okReply(envelope, {
 						deleted: this.schedules.deleteSchedule(
@@ -140,23 +158,29 @@ export class HubScheduleCommandService {
 						),
 					});
 				case "schedule.active": {
+					const executions = this.schedules.getActiveExecutions();
+					if (scope.allWorkspaces) {
+						return okReply(envelope, { executions });
+					}
 					const scheduleIds = this.scopedScheduleIds(scope);
 					return okReply(envelope, {
-						executions: this.schedules
-							.getActiveExecutions()
-							.filter((execution) => scheduleIds.has(execution.scheduleId)),
+						executions: executions.filter((execution) =>
+							scheduleIds.has(execution.scheduleId),
+						),
 					});
 				}
 				case "schedule.upcoming": {
+					const runs = this.schedules.getUpcomingRuns(
+						typeof envelope.payload?.limit === "number"
+							? envelope.payload.limit
+							: undefined,
+					);
+					if (scope.allWorkspaces) {
+						return okReply(envelope, { runs });
+					}
 					const scheduleIds = this.scopedScheduleIds(scope);
 					return okReply(envelope, {
-						runs: this.schedules
-							.getUpcomingRuns(
-								typeof envelope.payload?.limit === "number"
-									? envelope.payload.limit
-									: undefined,
-							)
-							.filter((run) => scheduleIds.has(run.scheduleId)),
+						runs: runs.filter((run) => scheduleIds.has(run.scheduleId)),
 					});
 				}
 				default:
@@ -177,6 +201,7 @@ export class HubScheduleCommandService {
 
 	private resolveScope(
 		authority: HubConnectionAuthority | undefined,
+		payload: Record<string, unknown> | undefined,
 	): ScheduleCommandScope {
 		const context = authority?.workspaceContext;
 		if (!authority?.clientId || !context?.workspaceRoot?.trim()) {
@@ -189,7 +214,11 @@ export class HubScheduleCommandService {
 		if (!pathWithin(workspaceRoot, cwd)) {
 			throw new Error("client cwd is outside its workspace scope");
 		}
-		return { workspaceRoot, cwd };
+		return {
+			workspaceRoot,
+			cwd,
+			allWorkspaces: payload?.allWorkspaces === true,
+		};
 	}
 
 	private requireScopedSchedule(
@@ -200,7 +229,11 @@ export class HubScheduleCommandService {
 		const schedule = scheduleId
 			? this.schedules.getSchedule(scheduleId)
 			: undefined;
-		if (!schedule || resolve(schedule.workspaceRoot) !== scope.workspaceRoot) {
+		if (
+			!schedule ||
+			(!scope.allWorkspaces &&
+				resolve(schedule.workspaceRoot) !== scope.workspaceRoot)
+		) {
 			throw new Error("schedule does not exist in this workspace");
 		}
 		return schedule;
@@ -225,20 +258,24 @@ export class HubScheduleCommandService {
 		if (requestedScheduleId) {
 			this.requireScopedSchedule(envelope, scope);
 		}
+		const executions = this.schedules.listScheduleExecutions({
+			scheduleId: requestedScheduleId,
+			status:
+				typeof envelope.payload?.status === "string"
+					? (envelope.payload.status as never)
+					: undefined,
+			limit:
+				typeof envelope.payload?.limit === "number"
+					? envelope.payload.limit
+					: undefined,
+		});
+		if (scope.allWorkspaces) {
+			return executions;
+		}
 		const scheduleIds = this.scopedScheduleIds(scope);
-		return this.schedules
-			.listScheduleExecutions({
-				scheduleId: requestedScheduleId,
-				status:
-					typeof envelope.payload?.status === "string"
-						? (envelope.payload.status as never)
-						: undefined,
-				limit:
-					typeof envelope.payload?.limit === "number"
-						? envelope.payload.limit
-						: undefined,
-			})
-			.filter((execution) => scheduleIds.has(execution.scheduleId));
+		return executions.filter((execution) =>
+			scheduleIds.has(execution.scheduleId),
+		);
 	}
 
 	private toCreateInput(
@@ -257,18 +294,25 @@ export class HubScheduleCommandService {
 							modelId: String(payload.model),
 						}
 					: undefined;
+		const workspaceRoot = scope.allWorkspaces
+			? (requestedWorkspaceRoot(payload) ?? scope.workspaceRoot)
+			: scope.workspaceRoot;
+		const { allWorkspaces: _allWorkspaces, ...rest } = payload;
 		return {
-			...(payload as unknown as HubScheduleCreateInput),
+			...(rest as unknown as HubScheduleCreateInput),
 			modelSelection,
 			mode,
-			workspaceRoot: scope.workspaceRoot,
-			cwd: scopedCwd(scope, payload.cwd) ?? scope.cwd,
+			workspaceRoot,
+			cwd:
+				scopedCwd(workspaceRoot, payload.cwd) ??
+				(workspaceRoot === scope.workspaceRoot ? scope.cwd : workspaceRoot),
 		};
 	}
 
 	private toUpdateInput(
 		payload: Record<string, unknown>,
 		scope: ScheduleCommandScope,
+		schedule: { workspaceRoot: string },
 	): HubScheduleUpdateInput {
 		const mode = readHubScheduleMode(payload);
 		const modelSelection =
@@ -283,17 +327,24 @@ export class HubScheduleCommandService {
 							modelId: typeof payload.model === "string" ? payload.model : "",
 						}
 					: undefined;
+		const workspaceRoot = scope.allWorkspaces
+			? (requestedWorkspaceRoot(payload) ?? resolve(schedule.workspaceRoot))
+			: scope.workspaceRoot;
+		const { allWorkspaces: _allWorkspaces, ...rest } = payload;
 		return {
-			...(payload as unknown as HubScheduleUpdateInput),
+			...(rest as unknown as HubScheduleUpdateInput),
 			modelSelection,
 			...(mode === undefined ? {} : { mode }),
-			workspaceRoot: scope.workspaceRoot,
+			workspaceRoot,
 			...(Object.hasOwn(payload, "cwd")
 				? {
 						cwd:
 							payload.cwd === null
-								? scope.workspaceRoot
-								: (scopedCwd(scope, payload.cwd) ?? scope.cwd),
+								? workspaceRoot
+								: (scopedCwd(workspaceRoot, payload.cwd) ??
+									(workspaceRoot === scope.workspaceRoot
+										? scope.cwd
+										: workspaceRoot)),
 					}
 				: {}),
 		};
