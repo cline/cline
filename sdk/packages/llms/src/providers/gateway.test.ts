@@ -564,6 +564,81 @@ describe("sdk-gateway", () => {
 		);
 	});
 
+	it("auto-detects the context window from an openai-compatible /models endpoint", async () => {
+		const vllmModelsResponse = new Response(
+			JSON.stringify({
+				object: "list",
+				data: [
+					{
+						id: "sakamakismile/Huihui-Qwen3.8-27B-abliterated-NVFP4",
+						object: "model",
+						created: 1_724_000_000,
+						max_model_len: 8_192,
+						owned_by: "vllm",
+					},
+				],
+			}),
+			{ status: 200, headers: { "Content-Type": "application/json" } },
+		);
+		const modelsFetchMock = vi.fn().mockResolvedValue(vllmModelsResponse);
+		const estimatedInput = estimateRequestInputTokens({
+			messages: baseMessages,
+		});
+		const expectedMaxTokens = Math.max(
+			1,
+			Math.floor(
+				Math.min(
+					DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS,
+					8_192 - estimatedInput - 1_024,
+				),
+			),
+		);
+		const createProvider = vi.fn(() => ({
+			// eslint-disable-next-line require-await
+			async *stream(request: { maxTokens?: number }) {
+				expect(request.maxTokens).toBe(expectedMaxTokens);
+				yield { type: "finish", reason: "stop" } satisfies AgentModelEvent;
+			},
+		}));
+
+		const gateway = createGateway({
+			builtins: false,
+			providers: [
+				{
+					manifest: {
+						id: "openai-compatible",
+						name: "OpenAI Compatible",
+						defaultModelId:
+							"sakamakismile/Huihui-Qwen3.8-27B-abliterated-NVFP4",
+						models: [],
+					},
+					createProvider,
+				},
+			],
+			providerConfigs: [
+				{
+					providerId: "openai-compatible",
+					baseUrl: "http://127.0.0.1:8000/v1",
+					defaultModelId: "sakamakismile/Huihui-Qwen3.8-27B-abliterated-NVFP4",
+					fetch: modelsFetchMock as unknown as typeof fetch,
+				},
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openai-compatible",
+				modelId: "sakamakismile/Huihui-Qwen3.8-27B-abliterated-NVFP4",
+				messages: baseMessages,
+			}),
+		);
+
+		// The constructor pre-fetch dedupes with the on-demand resolution, so
+		// the /models endpoint is hit exactly once per Cline process.
+		expect(modelsFetchMock).toHaveBeenCalledTimes(1);
+		expect(createProvider).toHaveBeenCalledTimes(1);
+	});
+
 	it("translates portable web_search intent into a native provider tool", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: makeStreamParts([

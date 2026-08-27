@@ -9,6 +9,7 @@ import type {
 	GatewayResolvedModel,
 	GatewayResolvedProviderConfig,
 } from "@cline/shared";
+import { resolveOpenAICompatibleContextWindow } from "./openai-compat-models";
 
 interface ProviderRecord {
 	manifest: GatewayProviderManifest;
@@ -144,7 +145,7 @@ export class GatewayRegistry {
 	private readonly fallbackFetch?: typeof fetch;
 
 	constructor(fetchImpl?: typeof fetch) {
-		this.fallbackFetch = fetchImpl;
+		this.fallbackFetch = fetchImpl ?? (globalThis.fetch as typeof fetch);
 	}
 
 	registerProvider(registration: GatewayProviderRegistration): void {
@@ -248,7 +249,9 @@ export class GatewayRegistry {
 		};
 	}
 
-	resolveModel(selection: GatewayModelSelection): GatewayResolvedModel {
+	async resolveModel(
+		selection: GatewayModelSelection,
+	): Promise<GatewayResolvedModel> {
 		const provider = this.getManifest(selection.providerId);
 		if (!provider) {
 			throw new Error(
@@ -257,9 +260,45 @@ export class GatewayRegistry {
 		}
 
 		const modelId = selection.modelId ?? provider.defaultModelId;
-		const model =
-			provider.models.find((entry) => entry.id === modelId) ??
-			createUnregisteredModel(provider, modelId);
+		const registered = provider.models.find((entry) => entry.id === modelId);
+		let model: GatewayModelDefinition =
+			registered ?? createUnregisteredModel(provider, modelId);
+
+		// Local vLLM / LM Studio / LiteLLM gateways expose their live
+		// context window via the OpenAI-compatible `/models` endpoint
+		// (`max_model_len`). When the model's context window is not
+		// configured (neither registered nor in provider settings),
+		// query the live endpoint so the gateway can cap output tokens
+		// against the context the server was actually started with.
+		if (
+			registered?.contextWindow === undefined &&
+			provider.id === "openai-compatible"
+		) {
+			const record = this.providers.get(provider.id);
+			const config = this.providerConfigs.get(provider.id);
+			// Only auto-detect when a custom endpoint (e.g. local vLLM) is
+			// explicitly configured. Without an explicit base URL the provider
+			// uses its builtin default endpoint, which does not report
+			// `max_model_len`, so detecting there would add a pointless
+			// request.
+			const baseUrl = config?.baseUrl;
+			const fetchImpl =
+				config?.fetch ?? record?.defaults?.fetch ?? this.fallbackFetch;
+			if (baseUrl && fetchImpl) {
+				const contextWindow = await resolveOpenAICompatibleContextWindow(
+					baseUrl,
+					modelId,
+					fetchImpl,
+				);
+				if (contextWindow !== undefined) {
+					model = {
+						...model,
+						contextWindow,
+						maxInputTokens: contextWindow,
+					};
+				}
+			}
+		}
 
 		return {
 			provider,

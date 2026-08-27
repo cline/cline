@@ -20,6 +20,7 @@ import { toAsyncIterable } from "./async";
 import { BUILTIN_PROVIDER_REGISTRATIONS } from "./builtins-runtime";
 import { providerManifestSupportsModelOperation } from "./model-operations";
 import { providerManifestSupportsModelTool } from "./model-tools";
+import { fetchOpenAICompatibleModels } from "./openai-compat-models";
 import { GatewayRegistry } from "./registry";
 import { isPositiveFiniteNumber } from "./utils";
 
@@ -272,6 +273,28 @@ export class DefaultGateway implements Gateway {
 		for (const providerConfig of config.providerConfigs ?? []) {
 			this.registry.configureProvider(providerConfig);
 		}
+
+		// Warm the OpenAI-compatible model catalog at gateway construction
+		// (i.e. at Cline startup) so the context window of a local vLLM
+		// server is known before the first stream request. When no explicit
+		// fetch is configured, the global fetch is used as the fallback.
+		for (const providerConfig of config.providerConfigs ?? []) {
+			if (
+				providerConfig.providerId === "openai-compatible" &&
+				providerConfig.baseUrl
+			) {
+				const fetchImpl =
+					providerConfig.fetch ??
+					config.fetch ??
+					(globalThis.fetch as typeof fetch);
+				// A failed pre-fetch is not fatal: the first stream request
+				// retries the catalog fetch on demand.
+				void fetchOpenAICompatibleModels(
+					providerConfig.baseUrl,
+					fetchImpl,
+				).catch(() => undefined);
+			}
+		}
 	}
 
 	registerProvider(registration: GatewayProviderRegistration): this {
@@ -304,7 +327,7 @@ export class DefaultGateway implements Gateway {
 	async stream(
 		request: GatewayStreamRequest,
 	): Promise<AsyncIterable<AgentModelEvent>> {
-		const resolved = this.registry.resolveModel({
+		const resolved = await this.registry.resolveModel({
 			providerId: request.providerId,
 			modelId: request.modelId || undefined,
 		});

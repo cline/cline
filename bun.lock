@@ -1,5 +1,5 @@
 {
-  "lockfileVersion": 1,
+  "lockfileVersion": 3,
   "configVersion": 1,
   "workspaces": {
     "": {
@@ -165,7 +165,7 @@
     },
     "apps/examples/desktop-app": {
       "name": "@cline/code",
-      "version": "0.0.14",
+      "version": "0.0.17",
       "dependencies": {
         "@base-ui/react": "^1.2.0",
         "@cline/core": "workspace:*",
@@ -360,7 +360,7 @@
     },
     "apps/vscode": {
       "name": "claude-dev",
-      "version": "4.1.10",
+      "version": "4.1.15",
       "dependencies": {
         "@anthropic-ai/sdk": "^0.37.0",
         "@bufbuild/protobuf": "^2.2.5",
@@ -824,7 +824,9 @@
     "serialize-javascript": ">=7.0.3",
     "tar": "^7.5.2",
     "tar-fs": ">=3.1.1",
-    "undici@>=6.0.0 <7.0.0": "6.28.0",
+    "undici@>=6.0.0 <7.0.0": {
+      ".": "6.28.0",
+    },
   },
   "packages": {
     "@adobe/css-tools": ["@adobe/css-tools@4.5.0", "", {}, "sha512-6OzddxPio9UiWTCemp4N8cYLV2ZN1ncRnV1cVGtve7dhPOtRkleRyx32GQCYSwDYgaHU3USMm84tNsvKzRCa1Q=="],
