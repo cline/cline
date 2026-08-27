@@ -525,6 +525,53 @@ Design implications:
   state belongs in persistent storage
 - a sandbox must never outlive its owning hub process
 
+### 11. Workspace Capsules and Remote Team Nodes
+
+A workspace capsule is the portable input boundary for executing an agent on a
+different runtime. It is intentionally filesystem-first:
+
+- the parent agent selects semantic paths; capsule construction does not crawl
+  the rest of the workspace
+- Git metadata is optional and GitHub is never required
+- `@cline/shared` owns the versioned, browser-safe manifest schema
+- `@cline/core` owns local filesystem validation and payload planning
+- upload, storage, hydration, and remote execution belong to higher-level
+  control-plane adapters and are not performed by the local builder
+
+`buildWorkspaceCapsulePlan()` canonicalizes every approved root, confines each
+selection to its root, hashes regular files, records portable relative paths,
+and separates source inputs from explicit artifacts. It fails closed for
+secret-like paths, sensitive configuration directories, all symlinks in v1,
+special files, destination collisions, and configured size/count
+limits. Absolute host paths appear only in the local payload plan and are never
+serialized in the manifest. An uploader must re-hash payloads before sending
+them because files can change after planning. The SDK's deterministic ustar/gzip
+writer performs that second hash check and emits
+`.cline-capsule-manifest.json` followed by members whose names exactly match the
+manifest paths; it does not upload the resulting stream.
+Default v1 limits are 64 MiB per workspace file, 1 GiB per explicit artifact,
+2 GiB across manifest entries, 4 MiB for the exact serialized manifest member,
+and 1 GiB for the compressed archive. Manifest size is checked before an output
+file is opened; the archive limit is enforced while streaming so compression
+overhead or incompressible data fails locally before upload. Returned archive
+metadata includes both the whole-archive SHA-256 and `manifestSha256`, computed
+over the exact `.cline-capsule-manifest.json` member bytes.
+
+Workspace-purpose regular files also receive a streaming, bounded-memory,
+high-confidence content scan for private-key headers, common provider token
+prefixes, and credential assignments. This is defense in depth rather than an
+exhaustive secret detector. Explicit artifacts may be arbitrary binary content
+(including DMGs), so v1 applies path policy and integrity hashing to them but
+does not decode or content-scan them.
+
+Capsules may carry optional `teamId`, `agentId`, `taskId`, and `runId` linkage.
+This reuses the existing Teams task/run/await/cancel/outcome lifecycle rather
+than creating a second orchestration API. It does not change `spawn_agent`, and
+the capsule contract does not pretend that a cloud executor exists: a future
+team execution backend will attach an immutable capsule to a run and own one
+isolated sandbox per remote teammate. Nodes exchange capsules and outcomes
+through that control plane; they do not share a writable filesystem.
+
 ## Architectural Constraints
 
 ### Keep `agents` Stateless

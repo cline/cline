@@ -1,0 +1,43 @@
+{
+	"manifest": {
+		"version": 1,
+		"createdAt": "2026-08-26T12:00:00.000Z",
+		"roots": [
+			{
+				"id": "workspace"
+			}
+		],
+		"entries": [
+			{
+				"path": "hello.txt",
+				"sourceRootId": "workspace",
+				"purpose": "workspace",
+				"mode": 420,
+				"kind": "file",
+				"size": 14,
+				"sha256": "55d6110230c260319d580bb6274db530b7e751c4f687fc00d0736ec531260a02"
+			}
+		],
+		"totalBytes": 14,
+		"team": {
+			"teamId": "t_golden",
+			"agentId": "cloud-reviewer",
+			"taskId": "task_1",
+			"runId": "run_00001"
+		}
+	},
+	"files": {
+		"hello.txt": "aGVsbG8gY2Fwc3VsZQo="
+	},
+	"archiveBase64": "H4sIAAAAAAACE+1VsW7bMBDV7K8QNFfGkZIoJ1uzdS06NSgMmjzHrGVRIKmkaeB/74my3dRo0KXxYj0IJO/dOx51FKm5akyLuZKd7xvMd7I1a/Rh/t3bNvlPAIIoy9gTznsGrD6OR54VvKySFJILoPdBOkqfXCdeZmmaPaLzxrbZbco+DLZyKAPqj4GYjAMXOSxyLr4wfgtAz5x26WsWpc7a4El2T0aavsSWaKOH0Cfrtr6TCrPI76n9FqOwDc7gX+I6GTZD5Aabxs7DjxCzRJe3vVP4mfJ9Opv8JOl611mPb3h3Vg+uksOJ2po2zrU2zSuhNz8HISt/MxvJKzEoq0oLxoAXoLiAgt3oagGrleB1qVdVAasa64qpci0W9VoBaKgLgaoqGMkl8PNKBBtkc/ccYjHGjFlAuSNrLEq0xjcOywfbaGwPK83kA9VxdKnG9jp3+GjwCd1REKTfHkJptGRH3vXtSNNgGY/gsKz9bD9LJlwXTgftHXP84/6nz0/8ef9DLUBM9//F9j89/P6n4z9hwoQJV4NfusTH3gAOAAA=",
+	"metadata": {
+		"version": 1,
+		"manifestVersion": 1,
+		"mediaType": "application/vnd.cline.workspace-capsule.v1+tar+gzip",
+		"format": "tar+gzip",
+		"sha256": "945daa9d5376684a82a7e487dc217a9138ccaf8695e0dc6dfcb7a7a1060fc8ca",
+		"manifestSha256": "4e7e179981121936d8f1ab11c3ae278f1d6f349e250e28469a261c6396e5acb7",
+		"archiveSizeBytes": 416,
+		"unpackedSizeBytes": 14
+	}
+}
