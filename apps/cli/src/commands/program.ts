@@ -17,6 +17,10 @@ function normalizeAutoApproveValue(
 	return String(value);
 }
 
+function collectCloudFile(value: string, previous: string[] = []): string[] {
+	return [...previous, value];
+}
+
 /**
  * Add the shared root-level options to any command.
  */
@@ -76,6 +80,16 @@ export function addRootOptions(cmd: Command): Command {
 			.option(
 				"--worktree",
 				"Auto-create a detached git worktree under ~/.cline/worktrees/ and run the task there",
+			)
+			.option(
+				"--cloud-teammates-local",
+				"Enable the loopback cloud-teammate development control plane",
+			)
+			.option(
+				"--cloud-file <path>",
+				"Include a workspace-relative file or directory in the initial cloud capsule (repeatable)",
+				collectCloudFile,
+				[],
 			)
 			.option("--update", "Check for updates and install if available")
 			.option("--kanban", "Run the kanban app")
@@ -219,6 +233,12 @@ export function commanderToParsedArgs(program: Command): ParsedArgs {
 	if (opts.config !== undefined) result.configDir = opts.config;
 	if (opts.hooksDir !== undefined) result.hooksDir = opts.hooksDir;
 	if (opts.worktree !== undefined) result.worktree = !!opts.worktree;
+	if (opts.cloudTeammatesLocal !== undefined) {
+		result.cloudTeammatesLocal = !!opts.cloudTeammatesLocal;
+	}
+	if (Array.isArray(opts.cloudFile)) {
+		result.cloudFiles = opts.cloudFile.map(String);
+	}
 	if (opts.cwd !== undefined) result.cwd = opts.cwd;
 	if (opts.teamName !== undefined) result.teamName = opts.teamName;
 	if (opts.system !== undefined) result.systemPrompt = opts.system;

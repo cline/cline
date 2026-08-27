@@ -170,7 +170,10 @@ export async function runAgent(
 			toolExecutors,
 			requestToolApproval,
 		},
-		forceLocalBackend: isYoloMode || config.sandbox === true,
+		// cloudTeammates contains a process-local control-plane adapter with
+		// methods that cannot be serialized through the daemon Hub transport.
+		forceLocalBackend:
+			isYoloMode || config.sandbox === true || Boolean(config.cloudTeammates),
 		logger: config.logger,
 		cwd: config.cwd,
 		workspaceRoot: config.workspaceRoot,

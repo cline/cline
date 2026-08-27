@@ -5,7 +5,7 @@ import {
 	setHomeDir,
 } from "@cline/shared/storage";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createProgram } from "./program";
+import { commanderToParsedArgs, createProgram } from "./program";
 
 /** Render an absolute path under `home` the way help text does: `~/...`. */
 function tildePath(absolutePath: string, home: string): string {
@@ -57,5 +57,27 @@ describe("root option help text", () => {
 		expect(help).toContain(
 			`Use isolated local state at this directory path (default: ${dataDirDefault})`,
 		);
+	});
+});
+
+describe("local cloud teammate flags", () => {
+	it("collects an explicit opt-in and repeatable capsule selections", () => {
+		const program = createProgram();
+		program.parse([
+			"node",
+			"cline",
+			"--cloud-teammates-local",
+			"--cloud-file",
+			"src/index.ts",
+			"--cloud-file",
+			"dist/app.dmg",
+			"delegate this review",
+		]);
+
+		expect(commanderToParsedArgs(program)).toMatchObject({
+			cloudTeammatesLocal: true,
+			cloudFiles: ["src/index.ts", "dist/app.dmg"],
+			prompt: "delegate this review",
+		});
 	});
 });

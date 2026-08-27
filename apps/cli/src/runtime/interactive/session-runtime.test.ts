@@ -242,6 +242,19 @@ describe("createInteractiveSessionRuntime", () => {
 		subscribeToPendingPromptEventsMock.mockReturnValue(() => {});
 	});
 
+	it("keeps a process-local cloud control plane out of the hub transport", async () => {
+		const manager = makeManager();
+		const config = createConfig();
+		config.cloudTeammates = { controlPlane: {} } as never;
+		const runtime = await makeRuntime(manager, { config });
+
+		await runtime.ensureReady();
+
+		expect(createCliCoreMock).toHaveBeenCalledWith(
+			expect.objectContaining({ forceLocalBackend: true }),
+		);
+	});
+
 	it("manual compact updates the active session sidecar without restarting", async () => {
 		const sessionId = "sess-active";
 		const messages = [

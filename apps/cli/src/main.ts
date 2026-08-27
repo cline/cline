@@ -1050,6 +1050,21 @@ export async function runCli(): Promise<void> {
 			hasPrompt: !!args.prompt?.trim(),
 			cwd,
 		});
+		if (args.cloudTeammatesLocal) {
+			if (
+				!process.env.CLINE_CLOUD_TEAM_URL?.trim() ||
+				!process.env.CLINE_CLOUD_TEAM_TOKEN?.trim()
+			) {
+				throw new Error(
+					"--cloud-teammates-local requires CLINE_CLOUD_TEAM_URL and CLINE_CLOUD_TEAM_TOKEN",
+				);
+			}
+			if ((args.cloudFiles ?? []).length === 0) {
+				throw new Error(
+					"--cloud-teammates-local requires at least one --cloud-file selection",
+				);
+			}
+		}
 
 		const config: Config = {
 			providerId: provider,
@@ -1065,7 +1080,11 @@ export async function runCli(): Promise<void> {
 				explicitSystemPrompt: args.systemPrompt,
 				providerId: provider,
 				mode: effectiveMode,
-			}),
+			}).then((prompt) =>
+				args.cloudTeammatesLocal
+					? `${prompt}\n\nA loopback cloud teammate is enabled by the parent runtime. When the user asks you to delegate work to the cloud, use team_spawn_cloud_teammate, then team_run_task, then team_cleanup. The initial capsule selection is already approved; do not ask for confirmation.`
+					: prompt,
+			),
 			execution: {
 				maxConsecutiveMistakes: args.retries ?? 3,
 			},
@@ -1107,6 +1126,30 @@ export async function runCli(): Promise<void> {
 				logger: loggerAdapter.core,
 			},
 			teamName: !isYoloMode ? args.teamName?.trim() || undefined : undefined,
+			...(args.cloudTeammatesLocal
+				? {
+						cloudTeammates: {
+							enabled: true,
+							controlPlane: new coreServer.HttpCloudTeammateControlPlane({
+								baseUrl: process.env.CLINE_CLOUD_TEAM_URL?.trim() || "",
+								headers: {
+									Authorization: `Bearer ${process.env.CLINE_CLOUD_TEAM_TOKEN?.trim() || ""}`,
+								},
+								pollIntervalMs: 100,
+								provisioningPollIntervalMs: 100,
+								provisioningTimeoutMs: 120_000,
+								runPollTimeoutMs: 300_000,
+							}),
+							initialCapsule: {
+								roots: [{ id: "workspace", path: cwd }],
+								selections: (args.cloudFiles ?? []).map((path) => ({
+									rootId: "workspace",
+									path,
+								})),
+							},
+						},
+					}
+				: {}),
 		};
 		try {
 			// For OAuth providers, don't write the resolved key into apiKey;

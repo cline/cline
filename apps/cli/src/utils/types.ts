@@ -88,6 +88,8 @@ export interface ParsedArgs {
 	configDir?: string;
 	hooksDir?: string;
 	worktree?: boolean;
+	cloudTeammatesLocal?: boolean;
+	cloudFiles?: string[];
 	acpMode: boolean;
 	model?: string;
 	provider?: string;

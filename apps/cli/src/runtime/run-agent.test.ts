@@ -293,6 +293,7 @@ describe("runAgent", () => {
 
 		await expect(
 			runAgent("test prompt", {
+				cloudTeammates: { controlPlane: {} },
 				cwd: process.cwd(),
 				enableAgentTeams: false,
 				enableSpawnAgent: false,
@@ -315,6 +316,7 @@ describe("runAgent", () => {
 
 		expect(createCliCore).toHaveBeenCalledWith(
 			expect.objectContaining({
+				forceLocalBackend: true,
 				capabilities: {
 					toolExecutors: {
 						askQuestion: askQuestionInTerminal,
