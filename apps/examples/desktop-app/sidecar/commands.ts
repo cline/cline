@@ -1695,10 +1695,14 @@ export async function handleCommand(
 	if (command === "list_provider_models") {
 		const manager = new ProviderSettingsManager();
 		const providerId = String(args?.provider ?? "").trim();
+		const includeCloudModels =
+			providerId === "cline" &&
+			args?.includeCloudModels === true &&
+			isCloudAgentsEnabled();
 		return await getLocalProviderModels(
 			providerId,
 			manager.getProviderConfig(providerId),
-			{ loadLatest: providerId === "cline" },
+			{ loadLatest: includeCloudModels },
 		);
 	}
 	if (command === "list_cline_recommended_models") {

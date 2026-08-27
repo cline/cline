@@ -79,6 +79,7 @@ class FakeHubClient {
 	commandHook?: (command: string) => void | Promise<void>;
 	invalidMessagesSnapshot = false;
 	malformedQueueReply = false;
+	listedSessions?: Array<Record<string, unknown>>;
 	listedModel?: string;
 	attachedModel?: string;
 	subscriptionSessionId?: string;
@@ -141,17 +142,19 @@ class FakeHubClient {
 			return {
 				ok: true,
 				payload: {
-					sessions: this.hasExistingInner
-						? [
-								{
-									sessionId: "inner-1",
-									updatedAt: 20,
-									...(this.listedModel
-										? { metadata: { model: this.listedModel } }
-										: {}),
-								},
-							]
-						: [],
+					sessions:
+						this.listedSessions ??
+						(this.hasExistingInner
+							? [
+									{
+										sessionId: "inner-1",
+										updatedAt: 20,
+										...(this.listedModel
+											? { metadata: { model: this.listedModel } }
+											: {}),
+									},
+								]
+							: []),
 				},
 			};
 		}
@@ -726,7 +729,13 @@ describe("CloudSessionApi", () => {
 		});
 
 		await expect(api.list()).resolves.toEqual([
-			expect.objectContaining({ id: "ses-outer", title: undefined }),
+			expect.objectContaining({
+				id: "ses-outer",
+				title: undefined,
+				metadata: expect.objectContaining({
+					createRequestTitle: "__cline_create_request__:request-a",
+				}),
+			}),
 		]);
 	});
 
@@ -1422,6 +1431,35 @@ describe("CloudSessionManager", () => {
 		});
 	});
 
+	it("ignores newer child sessions when reconnecting to the cloud root", async () => {
+		const { ctx } = createContext();
+		const hub = new FakeHubClient();
+		hub.listedSessions = [
+			{ sessionId: "inner-root", updatedAt: 20 },
+			{
+				sessionId: "inner-child",
+				updatedAt: 30,
+				metadata: { parentSessionId: "inner-root" },
+			},
+		];
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+
+		await manager.list();
+		await manager.attach("ses-outer");
+
+		expect(hub.commands).toContainEqual(
+			expect.objectContaining({
+				command: "session.attach",
+				sessionId: "inner-root",
+			}),
+		);
+	});
+
 	it("uses unique Hub client ids and subscribes only to the inner session", async () => {
 		const clientIds: string[] = [];
 		const hubs = [new FakeHubClient(), new FakeHubClient()];
@@ -1874,6 +1912,52 @@ describe("CloudSessionManager", () => {
 				reason: "not now",
 			},
 		});
+	});
+
+	it("does not restore pending approvals after the manager is disposed", async () => {
+		const { ctx, events } = createContext();
+		const hub = new FakeHubClient();
+		hub.pendingApprovals = [
+			{
+				approvalId: "approval-old-account",
+				toolCallId: "tool-old-account",
+				toolName: "write_to_file",
+				inputJson: '{"path":"secret.txt"}',
+			},
+		];
+		let enterList!: () => void;
+		let releaseList!: () => void;
+		const listEntered = new Promise<void>((resolve) => {
+			enterList = resolve;
+		});
+		const listReleased = new Promise<void>((resolve) => {
+			releaseList = resolve;
+		});
+		hub.commandHook = async (command) => {
+			if (command !== "approval.list_pending") return;
+			enterList();
+			await listReleased;
+		};
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+		await manager.list();
+
+		const attaching = manager.attach("ses-outer");
+		await listEntered;
+		await manager.dispose();
+		releaseList();
+		await attaching;
+
+		expect(ctx.pendingApprovals.size).toBe(0);
+		expect(
+			events.some((event) =>
+				JSON.stringify(event.payload).includes("approval-old-account"),
+			),
+		).toBe(false);
 	});
 
 	it("creates and sends to an inner session while preserving the outer id", async () => {
@@ -2874,7 +2958,11 @@ describe("CloudSessionManager", () => {
 						...REMOTE_SESSION,
 						id: "ses-created",
 						status: serverReady ? "ready" : "provisioning",
-						title: "__cline_create_request__:client-start-1",
+						title: undefined,
+						metadata: {
+							...REMOTE_SESSION.metadata,
+							createRequestTitle: "__cline_create_request__:client-start-1",
+						},
 					},
 				],
 				create: () =>

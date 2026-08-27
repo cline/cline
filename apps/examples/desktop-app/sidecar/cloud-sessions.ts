@@ -64,7 +64,11 @@ export type CloudSessionRecord = {
 	title?: string;
 	sandboxUrl: string;
 	repoContext: { repoUrl?: string; branch?: string };
-	metadata: { modelId?: string; statusReason?: string };
+	metadata: {
+		modelId?: string;
+		statusReason?: string;
+		createRequestTitle?: string;
+	};
 	expiredAt?: string | null;
 	createdAt: string;
 	updatedAt: string;
@@ -358,10 +362,14 @@ export class CloudSessionApi {
 						row.repoContext && typeof row.repoContext === "object"
 							? row.repoContext
 							: {},
-					metadata:
-						row.metadata && typeof row.metadata === "object"
+					metadata: {
+						...(row.metadata && typeof row.metadata === "object"
 							? row.metadata
-							: {},
+							: {}),
+						...(!preserveCreateRequestTitle && isCreateRequestTitle(row.title)
+							? { createRequestTitle: row.title }
+							: {}),
+					},
 				},
 			];
 		});
@@ -965,6 +973,16 @@ function sessionRowModelId(record: JsonRecord | undefined): string {
 	return String(metadata?.model ?? record?.model ?? "").trim();
 }
 
+function isRootSessionRow(record: JsonRecord): boolean {
+	const metadata =
+		record.metadata && typeof record.metadata === "object"
+			? (record.metadata as JsonRecord)
+			: undefined;
+	return !String(
+		metadata?.parentSessionId ?? record.parentSessionId ?? "",
+	).trim();
+}
+
 function parseApprovalInput(value: unknown): unknown {
 	if (typeof value !== "string") {
 		return value;
@@ -1437,7 +1455,8 @@ export class CloudSessionManager {
 			this.pendingCreateRecoveryTitles.values(),
 		);
 		const listedRecords = records.filter((record) => {
-			const title = record.title?.trim();
+			const title =
+				record.metadata.createRequestTitle?.trim() ?? record.title?.trim();
 			return !title || !unmatchedRecoveryTitles.delete(title);
 		});
 		const listed = listedRecords.map((record) => {
@@ -2467,9 +2486,9 @@ export class CloudSessionManager {
 					throw new Error("Cloud session manager was disposed");
 				}
 				const listed = await client.command("session.list", { limit: 100 });
-				const newest = readSessionRows(listed.payload).sort(
-					(left, right) => updatedAt(right) - updatedAt(left),
-				)[0];
+				const newest = readSessionRows(listed.payload)
+					.filter(isRootSessionRow)
+					.sort((left, right) => updatedAt(right) - updatedAt(left))[0];
 				const innerSessionId = String(newest?.sessionId ?? "").trim();
 				if (innerSessionId) {
 					connection.innerSessionId = innerSessionId;
@@ -2719,6 +2738,13 @@ export class CloudSessionManager {
 			.catch(() => undefined);
 		// Old pods lack this command; keep observed state unless a list is returned.
 		if (!reply?.ok || !Array.isArray(reply.payload?.approvals)) {
+			return;
+		}
+		if (
+			this.disposed ||
+			connection.disposed ||
+			this.connections.get(outerSessionId) !== connection
+		) {
 			return;
 		}
 		for (const [requestId, pending] of this.ctx.pendingApprovals) {
