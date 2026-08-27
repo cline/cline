@@ -77,7 +77,9 @@ const ToolCallRow = memo(function ToolCallRow({
 				{
 					text: inProgress
 						? "Completing scheduled task"
-						: "Scheduled task completed",
+						: payload?.isError
+							? "Scheduled task failed"
+							: "Scheduled task completed",
 				},
 			]
 		: summary.labelParts;
