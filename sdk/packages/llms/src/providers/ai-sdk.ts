@@ -2113,7 +2113,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					});
 					const result = await generateImage({
 						model: provider.operations.imageGeneration(
-							context.model.id,
+							request.modelId,
 						) as never,
 						prompt,
 						abortSignal: request.signal,
@@ -2211,7 +2211,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					() =>
 						streamText({
 							model: withEmptyResponseRetry(
-								provider.operations.language(context.model.id),
+								provider.operations.language(request.modelId),
 								provider.retryEmptyResponses,
 								context.logger,
 							) as never,

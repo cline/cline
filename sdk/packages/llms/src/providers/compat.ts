@@ -112,6 +112,7 @@ function toGatewayModelDefinition(
 			pricing: model.pricing,
 			status: model.status,
 			releaseDate: model.releaseDate,
+			requestModelId: model.metadata?.requestModelId,
 		},
 	};
 }

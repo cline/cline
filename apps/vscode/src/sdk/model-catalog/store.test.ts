@@ -226,9 +226,10 @@ describe("createProviderConfigStore", () => {
 		const { createProviderConfigStore } = await import("./store")
 		const store = createProviderConfigStore()
 		const providerId = parseProviderId("litellm")
-		const modelId = "openai/grok-4.6"
+		const modelId = "xai/grok-4.6"
 		const liveModelInfo: ModelInfo = {
 			name: "xai/grok-4.6",
+			requestModelId: "openai/grok-4.6",
 			contextWindow: 500_000,
 			maxInputTokens: 500_000,
 			maxTokens: 64_000,

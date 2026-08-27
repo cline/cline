@@ -60,6 +60,7 @@ export function fromProtobufModelInfo(protoInfo: OpenRouterModelInfo): ModelInfo
 		tiers: protoInfo.tiers.length > 0 ? protoInfo.tiers : undefined,
 		temperature: protoInfo.temperature,
 		apiFormat: protoInfo.apiFormat,
+		requestModelId: protoInfo.requestModelId,
 	}
 }
 
@@ -84,6 +85,7 @@ export function toProtobufModelInfo(modelInfo: ModelInfo): OpenRouterModelInfo {
 		tiers: modelInfo.tiers || [],
 		temperature: modelInfo.temperature,
 		apiFormat: modelInfo.apiFormat,
+		requestModelId: modelInfo.requestModelId,
 	})
 }
 
@@ -127,6 +129,7 @@ export function fromProtobufLiteLLMModelInfo(protoInfo: ProtoLiteLLMModelInfo): 
 		supportsGlobalEndpoint: protoInfo.supportsGlobalEndpoint,
 		tiers: protoInfo.tiers.length > 0 ? protoInfo.tiers : undefined,
 		temperature: protoInfo.temperature,
+		requestModelId: protoInfo.requestModelId,
 	}
 }
 

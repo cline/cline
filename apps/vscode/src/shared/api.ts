@@ -113,6 +113,8 @@ export interface ModelInfo {
 	operation?: ModelOperation
 	/** SDK execution modes preserved for operation-specific clients. */
 	operationModes?: readonly ModelOperationMode[]
+	/** Provider-facing model id used when it differs from the catalog selection id. */
+	requestModelId?: string
 }
 
 export interface OpenAiCompatibleModelInfo extends ModelInfo {

@@ -53,6 +53,12 @@ describe("adaptSdkModelInfo", () => {
 			expect(() => adaptSdkModelInfo({ id: "m", pricing: { input: Number.POSITIVE_INFINITY } })).toThrow(CatalogShapeError)
 		})
 
+		it("throws CatalogShapeError when request routing metadata is malformed", () => {
+			expect(() => adaptSdkModelInfo({ id: "m", metadata: "route" })).toThrow(CatalogShapeError)
+			expect(() => adaptSdkModelInfo({ id: "m", metadata: { requestModelId: 42 } })).toThrow(CatalogShapeError)
+			expect(() => adaptSdkModelInfo({ id: "m", metadata: { requestModelId: "   " } })).toThrow(CatalogShapeError)
+		})
+
 		it("throws CatalogShapeError when modalities are malformed", () => {
 			expect(() => adaptSdkModelInfo({ id: "m", modalities: "audio" })).toThrow(CatalogShapeError)
 			expect(() => adaptSdkModelInfo({ id: "m", modalities: { input: ["audio"] } })).toThrow(CatalogShapeError)
@@ -146,6 +152,15 @@ describe("adaptSdkModelInfo", () => {
 			})
 			expect(model.operation).toBe("transcription")
 			expect(model.operationModes).toEqual(["streaming"])
+		})
+
+		it("preserves a validated provider request model id", () => {
+			const model = adaptSdkModelInfo({
+				id: "xai/grok-4.6",
+				metadata: { requestModelId: " openai/grok-4.6 " },
+			})
+
+			expect(model.requestModelId).toBe("openai/grok-4.6")
 		})
 	})
 

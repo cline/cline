@@ -94,6 +94,32 @@ describe("ModelInfoSchema operations", () => {
 	});
 });
 
+describe("ModelInfoSchema metadata", () => {
+	it("preserves a validated provider request model id", () => {
+		expect(
+			ModelInfoSchema.parse({
+				id: "xai/grok-4.6",
+				metadata: {
+					requestModelId: "  openai/grok-4.6  ",
+					catalogFact: "preserved",
+				},
+			}).metadata,
+		).toEqual({
+			requestModelId: "openai/grok-4.6",
+			catalogFact: "preserved",
+		});
+	});
+
+	it("rejects an empty provider request model id", () => {
+		expect(
+			ModelInfoSchema.safeParse({
+				id: "xai/grok-4.6",
+				metadata: { requestModelId: "   " },
+			}).success,
+		).toBe(false);
+	});
+});
+
 describe("modelHasCapability", () => {
 	it("reads a populated capability list authoritatively", () => {
 		const model = { capabilities: ["tools", "reasoning"] };

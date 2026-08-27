@@ -63,6 +63,7 @@ function convertModelInfoToProtoOpenRouter(info: ModelInfo | undefined): OpenRou
 		thinkingConfig: convertThinkingConfigToProto(info.thinkingConfig),
 		supportsGlobalEndpoint: info.supportsGlobalEndpoint,
 		tiers: info.tiers || [],
+		requestModelId: info.requestModelId,
 	}
 }
 
@@ -85,6 +86,7 @@ function convertProtoToModelInfo(info: OpenRouterModelInfo | undefined): ModelIn
 		thinkingConfig: convertProtoToThinkingConfig(info.thinkingConfig),
 		supportsGlobalEndpoint: info.supportsGlobalEndpoint,
 		tiers: info.tiers.length > 0 ? info.tiers : undefined,
+		requestModelId: info.requestModelId,
 	}
 }
 
@@ -162,6 +164,7 @@ function convertLiteLLMModelInfoToProto(info: AppLiteLLMModelInfo | undefined): 
 		tiers: info.tiers || [],
 		temperature: info.temperature,
 		supportsReasoning: info.supportsReasoning,
+		requestModelId: info.requestModelId,
 	}
 }
 
@@ -186,6 +189,7 @@ function convertProtoToLiteLLMModelInfo(info: LiteLLMModelInfo | undefined): App
 		tiers: info.tiers.length > 0 ? info.tiers : undefined,
 		temperature: info.temperature,
 		supportsReasoning: info.supportsReasoning,
+		requestModelId: info.requestModelId,
 	}
 }
 

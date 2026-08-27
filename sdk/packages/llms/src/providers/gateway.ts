@@ -41,6 +41,13 @@ function mergeRequestMetadata(
 	};
 }
 
+function resolveProviderRequestModelId(model: GatewayModelDefinition): string {
+	const requestModelId = model.metadata?.requestModelId;
+	return typeof requestModelId === "string" && requestModelId.trim().length > 0
+		? requestModelId.trim()
+		: model.id;
+}
+
 function normalizeReasoningBudgetTokens(value: unknown): number | undefined {
 	return typeof value === "number" && Number.isInteger(value) && value > 0
 		? value
@@ -358,7 +365,7 @@ export class DefaultGateway implements Gateway {
 		const stream = await provider.stream(
 			{
 				...request,
-				modelId: resolved.model.id,
+				modelId: resolveProviderRequestModelId(resolved.model),
 				providerId: resolved.provider.id,
 				maxTokens,
 				defaultedMaxTokens:

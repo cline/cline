@@ -582,6 +582,9 @@ function modelInfoToGateway(
 	if (typeof info.metadata?.reasoningDefaultOn === "boolean") {
 		metadata.reasoningDefaultOn = info.metadata.reasoningDefaultOn;
 	}
+	if (typeof info.metadata?.requestModelId === "string") {
+		metadata.requestModelId = info.metadata.requestModelId;
+	}
 	return {
 		id: info.id,
 		name: info.name ?? info.id,

@@ -734,6 +734,7 @@ describe("buildSessionConfig", () => {
 		const knownModel = (config.providerConfig as any).knownModels["openai/grok-4.6"]
 
 		expect(config.providerId).toBe("litellm")
+		expect(config.modelId).toBe("openai/grok-4.6")
 		expect(knownModel).toMatchObject({
 			id: "openai/grok-4.6",
 			name: "xai/grok-4.6",
@@ -742,6 +743,33 @@ describe("buildSessionConfig", () => {
 			maxTokens: 64_000,
 		})
 		expect(config.knownModels?.["openai/grok-4.6"]).toEqual(knownModel)
+		getModelsSpy.mockRestore()
+	})
+
+	it("keeps a LiteLLM alias selected while preserving its backend request model", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "litellm",
+			actModeLiteLlmModelId: "xai/grok-4.6",
+			liteLlmApiKey: "litellm-key",
+			actModeLiteLlmModelInfo: {
+				name: "xai/grok-4.6",
+				requestModelId: "openai/grok-4.6",
+				contextWindow: 500_000,
+				maxInputTokens: 500_000,
+				maxTokens: 64_000,
+				supportsPromptCache: false,
+			},
+		} as any)
+		const getModelsSpy = vi.spyOn(LlmsModels, "getModelsForProvider").mockResolvedValueOnce({})
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+		const knownModel = (config.providerConfig as any).knownModels["xai/grok-4.6"]
+
+		expect(config.modelId).toBe("xai/grok-4.6")
+		expect(knownModel).toMatchObject({
+			id: "xai/grok-4.6",
+			metadata: { requestModelId: "openai/grok-4.6" },
+		})
 		getModelsSpy.mockRestore()
 	})
 
