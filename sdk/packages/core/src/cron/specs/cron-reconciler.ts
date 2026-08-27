@@ -6,10 +6,11 @@ import {
 	resolveCronSpecsDir,
 } from "@cline/shared/storage";
 import { getNextCronTime } from "../schedule/scheduler";
-import type {
-	CronSpecRecord,
-	SqliteCronStore,
-	UpsertSpecResult,
+import {
+	type CronSpecRecord,
+	isHubManagedSpec,
+	type SqliteCronStore,
+	type UpsertSpecResult,
 } from "../store/sqlite-cron-store";
 import { type ParseCronSpecInput, parseCronSpecFile } from "./cron-spec-parser";
 
@@ -133,7 +134,7 @@ export class CronReconciler {
 			// Hub-managed schedules live only in cron.db with a virtual
 			// sourcePath (`hub/schedules/<id>.cron.md`) that never exists on
 			// disk — they must not be treated as deleted spec files.
-			if (spec.source === "hub-schedule") continue;
+			if (isHubManagedSpec(spec)) continue;
 			if (!seenPaths.has(spec.sourcePath)) {
 				this.handleFileDeleted(spec);
 				summary.removed += 1;

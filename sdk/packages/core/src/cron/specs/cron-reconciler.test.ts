@@ -124,6 +124,21 @@ describe("CronReconciler", () => {
 		);
 	});
 
+	it("still removes deleted file specs that spoof the hub-schedule source", async () => {
+		writeSpec(
+			"impostor.cron.md",
+			`---\nid: impostor\nworkspaceRoot: /ws\nschedule: "0 9 * * *"\nsource: hub-schedule\n---\nBody`,
+		);
+		await reconciler.reconcileAll();
+		const spec = requireValue(store.getSpecBySourcePath("impostor.cron.md"));
+		expect(spec.source).toBe("hub-schedule");
+
+		rmSync(join(cronDir, "impostor.cron.md"));
+		const summary = await reconciler.reconcileAll();
+		expect(summary.removed).toBe(1);
+		expect(requireValue(store.getSpec(spec.specId)).removed).toBe(true);
+	});
+
 	it("cancels queued runs when spec is removed", async () => {
 		writeSpec("cleanup.md", `---\nid: cleanup\nworkspaceRoot: /ws\n---\nBody`);
 		await reconciler.reconcileAll();

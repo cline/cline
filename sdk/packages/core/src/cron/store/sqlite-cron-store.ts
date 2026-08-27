@@ -364,8 +364,25 @@ function filenameStemFromPath(sourcePath: string): string {
 		.replace(/\.md$/, "");
 }
 
+const HUB_SCHEDULE_SOURCE_PATH_PREFIX = "hub/schedules/";
+
 function hubScheduleSourcePath(scheduleId: string): string {
-	return `hub/schedules/${scheduleId}.cron.md`;
+	return `${HUB_SCHEDULE_SOURCE_PATH_PREFIX}${scheduleId}.cron.md`;
+}
+
+/**
+ * DB-native hub schedules (created via the schedule tools/UI) live only in
+ * cron.db under a virtual sourcePath that never exists on disk. File-backed
+ * specs can spoof `source: hub-schedule` in frontmatter but keep their real
+ * relative sourcePath, so both markers are required to identify one.
+ */
+export function isHubManagedSpec(
+	spec: Pick<CronSpecRecord, "source" | "sourcePath">,
+): boolean {
+	return (
+		spec.source === "hub-schedule" &&
+		spec.sourcePath.startsWith(HUB_SCHEDULE_SOURCE_PATH_PREFIX)
+	);
 }
 
 function hubScheduleMetadata(
