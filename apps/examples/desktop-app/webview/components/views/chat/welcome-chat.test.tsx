@@ -315,10 +315,21 @@ describe("WelcomeScreen", () => {
 
 	it("re-checks cloud setup when the sidecar broadcasts a scope change", async () => {
 		accountRef.user = { id: "user-1" };
+		subscribeMock.mockClear();
 		let fetches = 0;
+		let resolveScopedRepositories:
+			| ((value: { connected: true; repositories: [] }) => void)
+			| undefined;
+		const scopedRepositories = new Promise<{
+			connected: true;
+			repositories: [];
+		}>((resolve) => {
+			resolveScopedRepositories = resolve;
+		});
 		invokeMock.mockImplementation(async (command: string) => {
 			if (command === "list_cloud_repositories") {
 				fetches += 1;
+				if (fetches > 1) return await scopedRepositories;
 				return {
 					connected: true,
 					connectUrl: "https://app.example/dashboard/integrations",
@@ -335,12 +346,19 @@ describe("WelcomeScreen", () => {
 			}
 			return {};
 		});
+		const onRepoUrlChange = vi.fn();
+		const onCloudBranchChange = vi.fn();
 		await renderWelcomeScreen({
 			workspaceRoot: "/projects/project-1",
 			workspaces: ["/projects/project-1"],
 			cloudAgentsEnabled: true,
 			executionTarget: "cloud",
+			repoUrl: "https://github.com/org/repo",
+			onRepoUrlChange,
+			onCloudBranchChange,
 		});
+		onRepoUrlChange.mockClear();
+		onCloudBranchChange.mockClear();
 		const scopeHandler = subscribeMock.mock.calls.find(
 			([eventName]) => eventName === "cloud_sessions_changed",
 		)?.[1] as ((payload: unknown) => void) | undefined;
@@ -353,6 +371,12 @@ describe("WelcomeScreen", () => {
 		});
 
 		expect(fetches).toBeGreaterThan(fetchesBefore);
+		expect(onRepoUrlChange).toHaveBeenCalledWith("");
+		expect(onCloudBranchChange).toHaveBeenCalledWith("");
+		await act(async () => {
+			resolveScopedRepositories?.({ connected: true, repositories: [] });
+			await scopedRepositories;
+		});
 		accountRef.user = null;
 	});
 

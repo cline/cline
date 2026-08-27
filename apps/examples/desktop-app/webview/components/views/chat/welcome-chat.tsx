@@ -187,6 +187,15 @@ export function WelcomeScreen({
 			}
 		}
 	}, [applyCloudSetupResult, fetchCloudRepositories]);
+	const invalidateCloudScope = useCallback(() => {
+		setCloudSetup((prev) => ({
+			...prev,
+			status: "checking",
+			repositoryUrls: [],
+		}));
+		onRepoUrlChange("");
+		onCloudBranchChange("");
+	}, [onCloudBranchChange, onRepoUrlChange]);
 
 	// Check GitHub connectivity whenever the cloud composer becomes relevant
 	// or the signed-in account changes, and keep watching while onboarding is
@@ -195,9 +204,7 @@ export function WelcomeScreen({
 	useEffect(() => {
 		void accountUserId;
 		if (!cloudModeActive || !signedIn) return;
-		setCloudSetup((prev) =>
-			prev.status === "unknown" ? { ...prev, status: "checking" } : prev,
-		);
+		invalidateCloudScope();
 		void checkCloudSetup();
 		const handleFocus = () => void checkCloudSetup();
 		window.addEventListener("focus", handleFocus);
@@ -211,7 +218,13 @@ export function WelcomeScreen({
 			window.removeEventListener("focus", handleFocus);
 			window.clearInterval(interval);
 		};
-	}, [accountUserId, checkCloudSetup, cloudModeActive, signedIn]);
+	}, [
+		accountUserId,
+		checkCloudSetup,
+		cloudModeActive,
+		invalidateCloudScope,
+		signedIn,
+	]);
 
 	// Account/organization switches re-scope the repository list on the
 	// sidecar side; refresh the setup snapshot immediately instead of waiting
@@ -219,9 +232,10 @@ export function WelcomeScreen({
 	useEffect(() => {
 		if (!cloudModeActive || !signedIn) return;
 		return desktopClient.subscribe("cloud_sessions_changed", () => {
+			invalidateCloudScope();
 			void checkCloudSetup();
 		});
-	}, [checkCloudSetup, cloudModeActive, signedIn]);
+	}, [checkCloudSetup, cloudModeActive, invalidateCloudScope, signedIn]);
 
 	const agenda = useAgendaTasks(
 		{
