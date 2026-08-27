@@ -1317,6 +1317,21 @@ describe("reconcileBufferedCloudEvents", () => {
 		).toEqual(["q-2", "a-1"]);
 	});
 
+	it("replays a queue snapshot received after the queue fetch", () => {
+		const buffered = [
+			event("session.pending_prompts", "q-old", { prompts: [] }),
+			event("assistant.delta", "a-1", { text: "live tail" }),
+			event("session.pending_prompts", "q-new", {
+				prompts: [{ id: "p-1", prompt: "queued work" }],
+			}),
+		];
+		expect(
+			reconcileBufferedCloudEvents(buffered, [], {
+				queueSnapshotEventCutoff: 1,
+			}).map((item) => item.eventId),
+		).toEqual(["a-1", "q-new"]);
+	});
+
 	it("supersedes content independently across two terminal run segments", () => {
 		const buffered = [
 			event("assistant.delta", "a-1", { text: "first tail" }),
@@ -2692,10 +2707,14 @@ describe("CloudSessionManager", () => {
 		// The session's TTL lapses while the app is open; the next sidebar
 		// poll must stop the connection's reconnect loop.
 		expired = true;
-		await manager.list();
+		const discovered = await manager.listForDiscovery();
 		await new Promise((resolve) => setTimeout(resolve, 0));
 
 		expect(hub.disposed).toBe(true);
+		expect(ctx.liveSessions.get("ses-outer")?.status).toBe("expired");
+		expect(discovered).toContainEqual(
+			expect.objectContaining({ sessionId: "ses-outer", status: "expired" }),
+		);
 	});
 
 	it("leaves cloud approvals pending on app shutdown instead of denying them", async () => {

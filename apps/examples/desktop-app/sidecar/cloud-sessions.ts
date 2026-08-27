@@ -1200,12 +1200,12 @@ export function reconcileBufferedCloudEvents(
 	options: {
 		/**
 		 * Whether a fresh queue snapshot was fetched and applied during
-		 * rehydration. When it was, buffered queue events are stale and
-		 * dropped; when the fetch failed, the newest buffered queue event is
-		 * the best queue state available and must be replayed instead of
-		 * silently losing queued/steered prompts.
+		 * rehydration. When it was, queue events received before its reply are
+		 * stale; later events still win. When the fetch failed, the newest
+		 * buffered queue event is the best state available.
 		 */
 		queueSnapshotApplied?: boolean;
+		queueSnapshotEventCutoff?: number;
 		baselineMessages?: unknown[];
 	} = {},
 ): HubEventEnvelope[] {
@@ -1216,9 +1216,12 @@ export function reconcileBufferedCloudEvents(
 	);
 	const snapshotToolCallIds = collectToolCallIds(snapshotMessages);
 	// Queue events are full snapshots, so only the newest one matters.
-	const lastQueueEvent = queueSnapshotApplied
-		? undefined
-		: events.findLast((event) => event.event === "session.pending_prompts");
+	const queueEvents = queueSnapshotApplied
+		? events.slice(options.queueSnapshotEventCutoff ?? events.length)
+		: events;
+	const lastQueueEvent = queueEvents.findLast(
+		(event) => event.event === "session.pending_prompts",
+	);
 	const reconciled: HubEventEnvelope[] = [];
 	let segment: HubEventEnvelope[] = [];
 
@@ -1234,8 +1237,7 @@ export function reconcileBufferedCloudEvents(
 			if (contentPersisted && SUPERSEDABLE_CONTENT_EVENTS.has(event.event)) {
 				continue;
 			}
-			// The separately fetched queue snapshot is newer than buffered
-			// copies; without one, replay the newest buffered snapshot.
+			// Replay only the newest queue state after the snapshot cutoff.
 			if (
 				event.event === "session.pending_prompts" &&
 				event !== lastQueueEvent
@@ -1392,6 +1394,12 @@ export class CloudSessionManager {
 				// they stop reconnect-looping against a dead proxy.
 				connection.remote = session;
 				if (isExpiredRecord(session)) {
+					const live = this.ctx.liveSessions.get(session.id);
+					if (live) {
+						live.busy = false;
+						live.status = "expired";
+						live.endedAt = Date.parse(session.expiredAt ?? "") || Date.now();
+					}
 					void this.disposeConnection(session.id).catch(() => undefined);
 				}
 			}
@@ -2023,6 +2031,7 @@ export class CloudSessionManager {
 					innerSessionId,
 				)
 				.catch(() => undefined);
+			const queueSnapshotEventCutoff = connection.bufferedEvents.length;
 
 			if (live) {
 				const statusChanged = live.status !== status;
@@ -2081,6 +2090,7 @@ export class CloudSessionManager {
 			const submittedPrompts = submittedPromptsFromEvents(bufferedEvents);
 			const buffered = reconcileBufferedCloudEvents(bufferedEvents, messages, {
 				queueSnapshotApplied: queueSnapshotValid,
+				queueSnapshotEventCutoff,
 				baselineMessages,
 			});
 			connection.bufferedEvents = [];
