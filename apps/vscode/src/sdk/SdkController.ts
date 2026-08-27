@@ -2042,6 +2042,7 @@ export class Controller {
 				cacheWrites: metadataNumber(metadata, "cacheWrites") ?? 0,
 				cacheReads: metadataNumber(metadata, "cacheReads") ?? 0,
 				modelId: item.model || metadataString(metadata, "modelId") || "",
+				apiProvider: item.provider ?? "",
 				isLegacy:
 					metadataBoolean(metadata, "legacyTask") === true ||
 					metadataBoolean(metadata, "migratedFromLegacyTask") === true,
@@ -2066,6 +2067,7 @@ export class Controller {
 					cacheWrites: 0,
 					cacheReads: 0,
 					modelId: this.task.api?.getModel?.().id ?? "",
+					apiProvider: "",
 					isLegacy: false,
 				})
 			}
