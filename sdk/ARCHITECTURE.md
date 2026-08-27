@@ -320,7 +320,7 @@ different process.
 ### Interactive CLI Startup
 
 1. `apps/cli` owns OpenTUI startup and must render the first frame without waiting for detached hub startup.
-2. Interactive sessions use `backendMode: "auto"` so an already-compatible hub can be reused immediately, while a missing hub is only prewarmed in the background and the TUI falls back to a local runtime for responsiveness.
+2. Interactive sessions delegate backend selection to core; absent an environment override, core defaults to the same non-blocking `auto` behavior so an already-compatible hub can be reused immediately while the TUI falls back to a local runtime for responsiveness.
 3. Hub-required flows such as `cline hub`, schedules, connectors, and `--zen` may still call the explicit ensure path because those commands require a live hub before proceeding.
 4. Resume hydration is deferred until after `renderOpenTui()` so loading previous messages cannot block initial TUI paint.
 5. Any future CLI/TUI startup work should follow the same rule: daemon startup, discovery polling, provider catalog refreshes, file indexing, and resume reads must be background or user-action gated unless a command explicitly requires their result before output.

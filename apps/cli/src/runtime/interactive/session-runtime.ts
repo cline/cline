@@ -143,14 +143,9 @@ export function createInteractiveSessionRuntime(input: {
 			return sessionManager;
 		}
 		const manager = await createCliCore({
-			// Interactive startup must never wait for a detached hub daemon to boot.
-			// `auto` uses an already-compatible hub when one is immediately available,
-			// but falls back to the local runtime while the hub is prewarmed in the
-			// background. Forcing `hub` here routes through `ensureCompatibleLocalHubUrl`,
-			// which can poll for up to the hub startup timeout before the TUI is usable.
-			// Yolo and sandbox modes must stay fully local and must not prewarm or reuse
-			// the shared daemon hub.
-			backendMode: "auto",
+			// Core owns backend selection. Without an environment override it defaults to
+			// non-blocking `auto` behavior, while configured environment modes are honored.
+			// Yolo and sandbox modes must stay fully local.
 			forceLocalBackend:
 				input.config.mode === "yolo" || input.config.sandbox === true,
 			capabilities: {
