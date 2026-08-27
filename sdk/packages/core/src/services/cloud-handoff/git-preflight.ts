@@ -57,10 +57,14 @@ function defaultGitCommand(
 }
 
 function trimGitSuffix(pathname: string): string {
-	return pathname
-		.replace(/^\/+/, "")
-		.replace(/\/+$/, "")
-		.replace(/\.git$/i, "");
+	let start = 0;
+	let end = pathname.length;
+	while (start < end && pathname[start] === "/") start += 1;
+	while (end > start && pathname[end - 1] === "/") end -= 1;
+	const trimmed = pathname.slice(start, end);
+	return trimmed.toLowerCase().endsWith(".git")
+		? trimmed.slice(0, -4)
+		: trimmed;
 }
 
 /** Converts supported GitHub clone URLs to the URL expected by cloud sessions. */
