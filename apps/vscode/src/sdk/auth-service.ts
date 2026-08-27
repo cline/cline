@@ -22,6 +22,7 @@ import {
 import type { ApiProvider } from "@shared/api"
 import { AuthState, UserInfo } from "@shared/proto/cline/account"
 import type { EmptyRequest, String } from "@shared/proto/cline/common"
+import { ShowMessageType } from "@shared/proto/host/window"
 import axios from "axios"
 import { ClineEnv } from "@/config"
 import type { Controller } from "@/core/controller"
@@ -752,7 +753,13 @@ export class AuthService {
 					await openExternal(url)
 				},
 				onOpenUrlError: ({ url, error }) => {
+					// Same recovery the CLI offers ("open the URL above manually") —
+					// the toast is the extension's only place to surface the URL.
 					Logger.error(`[SdkAuthService] Failed to open browser for Codex: ${url}:`, error)
+					HostProvider.window.showMessage({
+						type: ShowMessageType.ERROR,
+						message: `Couldn't open your browser for OpenAI sign-in. Open this URL manually: ${url}`,
+					})
 				},
 			})
 

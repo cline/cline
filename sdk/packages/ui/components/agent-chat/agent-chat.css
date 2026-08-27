@@ -161,7 +161,6 @@
 		border-radius: var(--radius);
 		background: color-mix(in oklab, var(--background) 92%, transparent);
 		backdrop-filter: blur(4px);
-		box-shadow: 0 1px 3px rgb(0 0 0 / 0.1);
 		pointer-events: none;
 		opacity: 0;
 	}

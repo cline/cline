@@ -27,6 +27,7 @@ import type {
 	RuntimeHost,
 } from "../../runtime/host/runtime-host";
 import { SqliteSessionStore } from "../../services/storage/sqlite-session-store";
+import { ensureAgentSchedulesWorkspace } from "../../services/workspace/agent-schedules-workspace";
 import { withSessionHistoryOriginMetadata } from "../../session/history-origin";
 import { SessionHistorySearchService } from "../../session/search";
 import { CoreSessionService } from "../../session/services/session-service";
@@ -122,7 +123,10 @@ import {
  * the desktop Agenda UI is hidden for the same reason. Automation must stay
  * off with the UI hidden: a previously persisted `auto_start`/`unattended`
  * policy would otherwise keep starting eligible tasks with no surface left to
- * inspect, pause, or cancel them. The Agenda backend (manager, `task.*` Hub
+ * inspect, pause, or cancel them. The agenda spec-file watchers stay off for
+ * the same reason: with the tool, UI, and automation all idle, nothing
+ * consumes watcher-driven task events, and the `task.*` commands reconcile
+ * spec files on demand anyway. The Agenda backend (manager, `task.*` Hub
  * commands, storage, persisted policies) stays fully wired so flipping this
  * back on restores the feature.
  */
@@ -296,6 +300,8 @@ export class HubServerTransport implements NativeHubTransport {
 		this.tasks = new AgendaTaskManager({
 			...options.taskOptions,
 			automationEnabled: AGENDA_TODO_TOOL_ENABLED,
+			watchFiles:
+				AGENDA_TODO_TOOL_ENABLED && options.taskOptions?.watchFiles !== false,
 			runtime: {
 				isInteractiveClientAvailable: () =>
 					[...this.clients.values()].some((client) =>
@@ -385,9 +391,14 @@ export class HubServerTransport implements NativeHubTransport {
 					resolveSessionDefaults: async (sessionId) => {
 						const session = await this.sessionHost.getSession(sessionId);
 						if (!session) return undefined;
+						// Agent-created schedules are user-level routines: anchor
+						// them (and run their unattended sessions) in the stable
+						// ~/.cline/schedules home instead of whichever chat
+						// workspace created them, so they survive chat cleanup and
+						// every chat manages the same set. Prompts must carry
+						// absolute paths to any project they operate on.
 						return {
-							workspaceRoot: session.workspaceRoot,
-							cwd: session.cwd,
+							workspaceRoot: await ensureAgentSchedulesWorkspace(),
 							modelSelection: {
 								providerId: session.provider,
 								modelId: session.model,
