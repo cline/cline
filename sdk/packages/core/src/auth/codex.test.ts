@@ -128,12 +128,27 @@ describe("auth/codex token lifecycle", () => {
 			),
 		);
 
+		const capture = vi.fn();
 		const current = createCredentials({ expires: 150_000 });
 		const result = await getValidOpenAICodexCredentials(current, {
 			refreshBufferMs: 60_000,
 			retryableTokenGraceMs: 30_000,
+			telemetry: { capture } as never,
 		});
 		expect(result).toBe(current);
+		expect(capture).toHaveBeenCalledWith(
+			expect.objectContaining({
+				event: "user.auth_refresh_soft_failure",
+				properties: expect.objectContaining({
+					provider: "openai-codex",
+					status: 500,
+					tokenExpired: false,
+				}),
+			}),
+		);
+		expect(capture).not.toHaveBeenCalledWith(
+			expect.objectContaining({ event: "user.auth_logged_out" }),
+		);
 		nowSpy.mockRestore();
 	});
 
@@ -152,5 +167,76 @@ describe("auth/codex token lifecycle", () => {
 		await expect(refreshOpenAICodexToken("refresh")).rejects.toThrow(
 			"Failed to refresh OpenAI Codex token",
 		);
+	});
+
+	it("throws on transient refresh error when the token is already expired", async () => {
+		// A server error landing after expiry is NOT an invalid grant; returning
+		// null here is what turned an outage blip into a forced
+		// "requires re-authentication" stop.
+		const nowSpy = vi.spyOn(Date, "now").mockReturnValue(100_000);
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(
+				async () =>
+					new Response(
+						JSON.stringify({
+							error: "server_error",
+							error_description: "temporary issue",
+						}),
+						{ status: 500, headers: { "Content-Type": "application/json" } },
+					),
+			),
+		);
+
+		const capture = vi.fn();
+		await expect(
+			getValidOpenAICodexCredentials(createCredentials({ expires: 90_000 }), {
+				telemetry: { capture } as never,
+			}),
+		).rejects.toThrow("Token refresh failed: 500");
+		expect(capture).toHaveBeenCalledWith(
+			expect.objectContaining({
+				event: "user.auth_refresh_soft_failure",
+				properties: expect.objectContaining({
+					provider: "openai-codex",
+					status: 500,
+					tokenExpired: true,
+				}),
+			}),
+		);
+		expect(capture).not.toHaveBeenCalledWith(
+			expect.objectContaining({ event: "user.auth_logged_out" }),
+		);
+		nowSpy.mockRestore();
+	});
+
+	it("throws on a network-level refresh failure when the token is already expired", async () => {
+		const nowSpy = vi.spyOn(Date, "now").mockReturnValue(100_000);
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () => {
+				throw new TypeError("fetch failed");
+			}),
+		);
+
+		const capture = vi.fn();
+		await expect(
+			getValidOpenAICodexCredentials(createCredentials({ expires: 90_000 }), {
+				telemetry: { capture } as never,
+			}),
+		).rejects.toThrow("Failed to refresh OpenAI Codex token");
+		expect(capture).toHaveBeenCalledWith(
+			expect.objectContaining({
+				event: "user.auth_refresh_soft_failure",
+				properties: expect.objectContaining({
+					provider: "openai-codex",
+					tokenExpired: true,
+				}),
+			}),
+		);
+		expect(capture).not.toHaveBeenCalledWith(
+			expect.objectContaining({ event: "user.auth_logged_out" }),
+		);
+		nowSpy.mockRestore();
 	});
 });

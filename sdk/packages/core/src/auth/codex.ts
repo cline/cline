@@ -10,6 +10,7 @@ import { nanoid } from "nanoid";
 import {
 	captureAuthFailed,
 	captureAuthLoggedOut,
+	captureAuthRefreshSoftFailure,
 	captureAuthStarted,
 	captureAuthSucceeded,
 	identifyAccount,
@@ -423,16 +424,44 @@ export async function getValidOpenAICodexCredentials(
 		);
 		return refreshed;
 	} catch (error) {
+		const failureDetails = {
+			status:
+				error instanceof OpenAICodexOAuthTokenError ? error.status : undefined,
+			errorCode:
+				error instanceof OpenAICodexOAuthTokenError
+					? error.errorCode
+					: undefined,
+			errorName: error instanceof Error ? error.name : undefined,
+		};
 		if (
 			error instanceof OpenAICodexOAuthTokenError &&
 			error.isLikelyInvalidGrant()
 		) {
-			captureAuthLoggedOut(options?.telemetry, "openai-codex", "invalid_grant");
+			captureAuthLoggedOut(
+				options?.telemetry,
+				"openai-codex",
+				"invalid_grant",
+				{
+					status: error.status,
+					errorCode: error.errorCode,
+				},
+			);
 			return null;
 		}
-		if (currentCredentials.expires - Date.now() > retryableTokenGraceMs) {
+		const tokenExpired =
+			currentCredentials.expires - Date.now() <= retryableTokenGraceMs;
+		captureAuthRefreshSoftFailure(options?.telemetry, "openai-codex", {
+			...failureDetails,
+			tokenExpired,
+		});
+		if (!tokenExpired) {
 			return currentCredentials;
 		}
-		return null;
+		// Rethrow instead of returning null. A null from this function means the
+		// refresh token was REJECTED (re-auth required); a network blip or server
+		// error that happens to land after expiry must not be mistaken for that —
+		// callers turn null into a forced "requires re-authentication" stop even
+		// though the very next refresh attempt would likely succeed.
+		throw error;
 	}
 }
