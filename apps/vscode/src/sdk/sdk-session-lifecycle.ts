@@ -55,11 +55,6 @@ export interface SdkSessionLifecycleOptions {
 	 */
 	consumeModeSwitchNotice?: (sessionId: string) => ModeSwitchNotice | null
 	onDidBecomeIdle?: () => void
-	/**
-	 * Returns true when a connection-level error was intercepted for auto-retry
-	 * and the retry is still pending.
-	 */
-	isAutoRetryPending?: () => boolean
 }
 
 export class SdkSessionLifecycle {
@@ -413,9 +408,15 @@ export class SdkSessionLifecycle {
 					return
 				}
 				Logger.log(`[SdkController] Agent turn completed for session: ${sessionId}`)
-				if (!this.options.isAutoRetryPending?.()) {
-					this.setRunning(false)
-				}
+				// Always mark the session idle when a send settles — even when the
+				// turn failed and an auto-retry is pending. isRunning is routing
+				// truth for follow-ups (queue vs. continue-in-place): keeping it
+				// true after a failed send routes the retry's re-drive into the
+				// queue path with an empty prompt, which drives no turn and wedges
+				// the session (the UI stays on a streaming phase nothing will ever
+				// settle). The auto-retry keeps the *visible* phase on streaming
+				// via TurnStateTracker, so there is no UI flicker here.
+				this.setRunning(false)
 				await this.options.onSendComplete(sessionId)
 			})
 			.catch(async (error: unknown) => {
@@ -428,9 +429,9 @@ export class SdkSessionLifecycle {
 				}
 				Logger.error("[SdkController] Agent turn failed:", error)
 				await this.options.onSendError(error, sessionId)
-				if (!this.options.isAutoRetryPending?.()) {
-					this.setRunning(false)
-				}
+				// Mirror the resolve path: a settled send always idles the session,
+				// pending auto-retry or not (see the resolve-path comment above).
+				this.setRunning(false)
 			})
 	}
 }

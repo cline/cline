@@ -130,6 +130,26 @@ export class SdkFollowupCoordinator {
 		})
 	}
 
+	/**
+	 * Re-drive an idle live session after a failed turn (auto-retry). Unlike
+	 * askResponse, this bypasses approval resolution and the running-session
+	 * queue on purpose: the failed turn's send has settled, so the retry must
+	 * start a real new turn via the synthetic resumption prompt. Routing it
+	 * through the queue path (empty prompt, "queue" delivery) drives no turn
+	 * and strands the session — see the lifecycle send-settle comment.
+	 *
+	 * @returns true when a new turn was started for `sessionId`.
+	 */
+	async retryIdleSession(sessionId: string): Promise<boolean> {
+		const activeSession = this.options.sessions.getActiveSession()
+		if (!activeSession || activeSession.sessionId !== sessionId || activeSession.isRunning) {
+			Logger.log(`[SdkController] Auto-retry cannot re-drive session ${sessionId}: not an idle active session`)
+			return false
+		}
+		await this.continueIdleSession(activeSession)
+		return true
+	}
+
 	/** Queue a follow-up onto a session whose turn is still running. */
 	private async queueToActiveSession(
 		activeSession: NonNullable<ReturnType<SdkSessionLifecycle["getActiveSession"]>>,

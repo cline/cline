@@ -396,7 +396,6 @@ export class Controller {
 				})
 			},
 			onDidBecomeIdle: () => this.handleSessionBecameIdle(),
-			isAutoRetryPending: () => this.autoRetryPending,
 			beforeStartSession: () => this.ensureRemoteConfigForSessionStart(),
 			getRemoteConfigIntegration: () => this.remoteConfigCoreIntegration,
 			foregroundCommands: this.foregroundCommands,
@@ -470,9 +469,15 @@ export class Controller {
 						errorType: PROVIDER_FAILURE_ERROR_TYPE.SEND_ERROR,
 						failurePhase: PROVIDER_FAILURE_PHASE.STREAMING,
 					})
-					const willAutoRetry = this.shouldAutoRetryError(error, sessionId)
-						? (this.apiRetry?.handleSendError(error, sessionId) ?? false)
-						: false
+					// The agent-event path may have already armed a retry for this
+					// same failure (it fires before the send promise settles); don't
+					// double-schedule or the attempt counter advances twice.
+					const retryAlreadyPending = this.apiRetry?.hasPendingRetry ?? false
+					const willAutoRetry =
+						retryAlreadyPending ||
+						(this.shouldAutoRetryError(error, sessionId)
+							? (this.apiRetry?.handleSendError(error, sessionId) ?? false)
+							: false)
 					if (willAutoRetry) {
 						this.autoRetryPending = true
 						this.autoRetrySessionId = sessionId
@@ -486,9 +491,14 @@ export class Controller {
 		this.apiRetry = new SdkApiRetryCoordinator({
 			isAutoRetryEnabled: () => !!this.stateManager.getGlobalSettingsKey("autoRetryFailedRequests"),
 			isSessionActive: (sessionId) => this.sessions.getActiveSession()?.sessionId === sessionId,
-			sendTurn: () => {
-				this.autoRetryPending = false
-				this.askResponse().catch((err) => Logger.error("[SdkController] Auto-retry send failed:", err))
+			// A retry re-drives the failed session as a real new turn (synthetic
+			// resumption prompt) once the failed send has settled. Never route it
+			// through askResponse(): while a retry is pending the turn phase is
+			// "streaming", which sends the re-drive down the running-session queue
+			// path with an empty prompt — that starts no turn and strands the
+			// session with the UI stuck on streaming.
+			sendTurn: (sessionId) => {
+				void this.executeAutoRetry(sessionId)
 			},
 			onRetryAbandoned: () => {
 				this.autoRetryPending = false
@@ -1575,6 +1585,72 @@ export class Controller {
 		})
 	}
 
+	/**
+	 * Re-drives a failed session once the auto-retry delay elapses. Waits for
+	 * the failed send to settle (the agent-event path arms the retry timer
+	 * before the send promise settles), then continues the idle session in
+	 * place with the synthetic resumption prompt — a real new turn. If the
+	 * session is gone or another turn owns it, abandons the retry, surfacing
+	 * an error only when the displayed task is the failed one so the UI never
+	 * stays on a streaming phase that nothing will ever settle.
+	 */
+	private async executeAutoRetry(sessionId: string): Promise<void> {
+		this.autoRetryPending = false
+		let reDriven = false
+		try {
+			const settleState = await this.waitForIdleSessionForRetry(sessionId, 5000)
+			if (settleState === "busy") {
+				// Another turn (e.g. a user follow-up that won the race) owns the
+				// session; its own events will settle the UI phase.
+				Logger.log(`[ApiRetry] Session ${sessionId} is running another turn; abandoning auto-retry`)
+				return
+			}
+			if (settleState === "idle") {
+				reDriven = await this.followups.retryIdleSession(sessionId)
+				if (!reDriven) {
+					const active = this.sessions.getActiveSession()
+					if (active?.sessionId === sessionId && active.isRunning) {
+						Logger.log(`[ApiRetry] Session ${sessionId} started another turn; abandoning auto-retry`)
+						return
+					}
+				}
+			}
+		} catch (error) {
+			Logger.error("[SdkController] Auto-retry re-drive failed:", error)
+		}
+		if (reDriven) {
+			return
+		}
+		Logger.log(`[ApiRetry] Auto-retry abandoned for session ${sessionId}`)
+		if (!this.task || this.task.taskId === sessionId) {
+			this.turnStateTracker.set("error")
+			this.emitAgentError(
+				sessionId,
+				"Auto-retry abandoned: the session could not be continued. Use Retry to start a new attempt.",
+				"error",
+			)
+			this.postStateToWebview().catch(() => {})
+		}
+	}
+
+	/** Waits for the failed session's send to settle (isRunning to clear). */
+	private async waitForIdleSessionForRetry(sessionId: string, timeoutMs: number): Promise<"idle" | "busy" | "gone"> {
+		const deadline = Date.now() + timeoutMs
+		for (;;) {
+			const active = this.sessions.getActiveSession()
+			if (!active || active.sessionId !== sessionId) {
+				return "gone"
+			}
+			if (!active.isRunning) {
+				return "idle"
+			}
+			if (Date.now() >= deadline) {
+				return "busy"
+			}
+			await new Promise((resolve) => setTimeout(resolve, 100))
+		}
+	}
+
 	private maybeHandleAutoRetryForEvent(event: CoreSessionEvent): boolean {
 		if (event.type !== "agent_event") {
 			return false
@@ -1590,7 +1666,10 @@ export class Controller {
 		if (!this.shouldAutoRetryError(agentEvent.error, sessionId)) {
 			return false
 		}
-		const willRetry = this.apiRetry?.handleSendError(agentEvent.error, sessionId) ?? false
+		// The host's send-settle path (onSendError) may have armed a retry for
+		// this same failure already; don't double-schedule or the attempt
+		// counter advances twice.
+		const willRetry = this.apiRetry?.hasPendingRetry || (this.apiRetry?.handleSendError(agentEvent.error, sessionId) ?? false)
 		if (!willRetry) {
 			return false
 		}

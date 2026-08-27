@@ -109,6 +109,59 @@ describe("SdkFollowupCoordinator", () => {
 		)
 	})
 
+	it("re-drives an idle session on auto-retry with the synthetic resumption prompt, never the queue", async () => {
+		const activeSession = makeActiveSession({ isRunning: false })
+		const { coordinator, options } = makeCoordinator({ activeSession })
+
+		const started = await coordinator.retryIdleSession("session-123")
+
+		expect(started).toBe(true)
+		expect(options.sessions.setRunning).toHaveBeenCalledWith(true)
+		// No user bubble for the synthetic retry prompt.
+		expect(options.messages.appendAndEmit).not.toHaveBeenCalled()
+		expect(options.resetMessageTranslator).toHaveBeenCalledOnce()
+		// The resumption prompt goes through mention resolution (like a bare
+		// resume) and is sent WITHOUT queue delivery so it starts a real turn.
+		expect(options.resolveContextMentions).toHaveBeenCalledWith("[TASK RESUMPTION] Please continue where you left off.")
+		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
+			activeSession.sdkHost,
+			"session-123",
+			"resolved: [TASK RESUMPTION] Please continue where you left off.",
+			undefined,
+			undefined,
+		)
+		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalledWith(
+			expect.anything(),
+			expect.anything(),
+			expect.anything(),
+			expect.anything(),
+			expect.anything(),
+			"queue",
+		)
+	})
+
+	it("refuses to re-drive a running session on auto-retry", async () => {
+		const activeSession = makeActiveSession({ isRunning: true })
+		const { coordinator, options } = makeCoordinator({ activeSession })
+
+		const started = await coordinator.retryIdleSession("session-123")
+
+		expect(started).toBe(false)
+		expect(options.sessions.setRunning).not.toHaveBeenCalled()
+		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
+	})
+
+	it("refuses to re-drive when the failed session is no longer active", async () => {
+		const activeSession = makeActiveSession({ isRunning: false })
+		const { coordinator, options } = makeCoordinator({ activeSession })
+
+		const started = await coordinator.retryIdleSession("another-session")
+
+		expect(started).toBe(false)
+		expect(options.sessions.setRunning).not.toHaveBeenCalled()
+		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
+	})
+
 	it("queues a chat-field message submitted while a tool approval is pending", async () => {
 		const activeSession = makeActiveSession({ isRunning: false })
 		const task = makeTask("session-123")
