@@ -520,13 +520,20 @@ jobs:
         with:
           ref: ${{ needs.validate.outputs.tag }}
 
+      # SHA-pinned (unlike elsewhere in this file): these actions run with
+      # id-token: write and the updater signing key in scope, so a hijacked
+      # upstream tag must not be able to reach the signing identity.
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: "1.3.13"
 
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable branch
+        with:
+          # With a SHA-pinned action the toolchain no longer comes from the
+          # ref name, so it must be set explicitly.
+          toolchain: stable
 
       # No Rust build cache, mirroring the macOS job: this job holds the
       # updater signing key and an Azure signing session, and a restored cache
