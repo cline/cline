@@ -1,5 +1,13 @@
 import { realpathSync } from "node:fs";
-import { isAbsolute, relative, resolve, sep } from "node:path";
+import {
+	basename,
+	dirname,
+	isAbsolute,
+	join,
+	relative,
+	resolve,
+	sep,
+} from "node:path";
 import type {
 	HubCommandEnvelope,
 	HubReplyEnvelope,
@@ -57,19 +65,37 @@ function pathWithin(workspaceRoot: string, candidate: string): boolean {
 const DEFAULT_LIST_LIMIT = 200;
 
 /**
+ * Canonicalize a path that may no longer exist: realpath the deepest existing
+ * ancestor and reattach the missing remainder, so a removed workspace that was
+ * reached through a symlinked ancestor (e.g. `/var` vs `/private/var`) still
+ * canonicalizes to the same identity as its stored form.
+ */
+function canonicalizeThroughExistingAncestor(resolved: string): string {
+	let prefix = resolved;
+	let suffix = "";
+	for (;;) {
+		try {
+			const canonicalPrefix = realpathSync.native(prefix);
+			return suffix ? join(canonicalPrefix, suffix) : canonicalPrefix;
+		} catch {
+			const parent = dirname(prefix);
+			// Even the filesystem root failed to resolve; keep the input.
+			if (parent === prefix) return resolved;
+			suffix = suffix ? join(basename(prefix), suffix) : basename(prefix);
+			prefix = parent;
+		}
+	}
+}
+
+/**
  * Stored workspace roots mix canonical (realpath) and merely resolved forms,
- * so workspace filters compare canonical forms on both sides. Fall back to
- * the resolved form for paths that no longer exist, and fold case on Windows,
- * where lexically different paths can name the same directory.
+ * so workspace filters compare canonical forms on both sides. Removed
+ * workspaces canonicalize through their deepest existing ancestor, and case
+ * folds on Windows, where lexically different paths can name the same
+ * directory.
  */
 function comparableWorkspacePath(value: string): string {
-	const resolved = resolve(value.trim());
-	let canonical = resolved;
-	try {
-		canonical = realpathSync.native(resolved);
-	} catch {
-		// A removed workspace still filters by its last known path.
-	}
+	const canonical = canonicalizeThroughExistingAncestor(resolve(value.trim()));
 	return process.platform === "win32" ? canonical.toLowerCase() : canonical;
 }
 

@@ -725,6 +725,29 @@ describe("HubScheduleService", () => {
 					.map((schedule) => schedule.name)
 					.sort();
 				expect(scopedNames).toEqual(["other-first", "other-last"]);
+
+				// A removed workspace referenced through a symlinked ancestor
+				// still filters by identity, not by lexical spelling: both
+				// sides canonicalize through their deepest existing ancestor.
+				const goneSchedule = seed(
+					"gone-routine",
+					join(targetWorkspace, "gone-workspace"),
+				);
+				const goneFiltered = await commands.handleCommand(
+					{
+						version: "v1",
+						command: "schedule.list",
+						clientId: "cross-client",
+						payload: {
+							allWorkspaces: true,
+							workspaceRoot: join(aliasWorkspace, "gone-workspace"),
+						},
+					},
+					crossAuthority,
+				);
+				expect(goneFiltered.payload?.schedules).toMatchObject([
+					{ scheduleId: goneSchedule.scheduleId },
+				]);
 			} finally {
 				await service.dispose();
 			}
