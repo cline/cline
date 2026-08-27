@@ -1909,9 +1909,6 @@ export async function handleCommand(
 			},
 		};
 	}
-	if (command === "get_feature_flags") {
-		return { cloudAgents: isCloudAgentsEnabled() };
-	}
 	if (command === "list_cloud_repositories") {
 		return await getCloudSessionManager(ctx).listRepositories();
 	}
@@ -2748,10 +2745,11 @@ export async function handleCommand(
 	// distinct ID it reports telemetry with. The client just reads the
 	// resolved values.
 	if (command === "get_feature_flags") {
-		return await refreshDesktopFeatureFlags({
+		const snapshot = await refreshDesktopFeatureFlags({
 			logger: ctx.logger,
 			telemetry: ctx.telemetry,
 		});
+		return { ...snapshot, cloudAgents: isCloudAgentsEnabled() };
 	}
 
 	// ── Connector channels ─────────────────────────────────────────────
