@@ -191,6 +191,61 @@ describe("ChatMessages tool disclosures", () => {
 		);
 	});
 
+	it("auto-expands submit_and_exit and renders its summary as markdown", async () => {
+		const summary = "## Report\n\nChecked **3 feeds**, all healthy.";
+		await renderMessages([
+			{
+				id: "tool-submit",
+				sessionId: "session-1",
+				role: "tool",
+				content: JSON.stringify({
+					toolName: "submit_and_exit",
+					input: { summary, verified: true },
+					result: summary,
+				}),
+				createdAt: 1,
+			},
+		]);
+
+		// The final answer of the run is visible without a click…
+		const trigger = [...container.querySelectorAll("button")].find((element) =>
+			element.textContent?.includes("Scheduled task completed"),
+		);
+		expect(trigger?.getAttribute("aria-expanded")).toBe("true");
+		// …rendered as markdown structure, not a monospace code block.
+		const panel = document.getElementById(
+			trigger?.getAttribute("aria-controls") ?? "",
+		);
+		const markdown = panel?.querySelector(".cline-markdown");
+		expect(markdown?.querySelector("h2")?.textContent).toBe("Report");
+		expect(markdown?.textContent).toContain("3 feeds");
+		expect(markdown?.textContent).not.toContain("##");
+		expect(markdown?.textContent).not.toContain("**");
+		// The final answer renders in full foreground color, overriding the
+		// panel's muted tool-detail gray.
+		expect(markdown?.closest(".text-foreground")).not.toBeNull();
+	});
+
+	it("labels an errored submit_and_exit as failed", async () => {
+		await renderMessages([
+			{
+				id: "tool-submit-error",
+				sessionId: "session-1",
+				role: "tool",
+				content: JSON.stringify({
+					toolName: "submit_and_exit",
+					input: { summary: "Attempted report.", verified: false },
+					isError: true,
+					result: { error: "submit_and_exit timed out after 15000ms" },
+				}),
+				createdAt: 1,
+			},
+		]);
+
+		expect(container.textContent).toContain("Scheduled task failed");
+		expect(container.textContent).not.toContain("Scheduled task completed");
+	});
+
 	it("renders consecutive tool calls as individual rows", async () => {
 		const tools: ChatMessage[] = [
 			{
