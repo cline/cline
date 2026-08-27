@@ -2249,6 +2249,16 @@ describe("cloud handoff gates", () => {
 		const messages = options.messages ?? [
 			{ role: "user" as const, content: "continue this work" },
 		];
+		const persistedSession = {
+			sessionId,
+			status:
+				options.persistedStatus ?? (options.busy ? "running" : "completed"),
+			cwd: "/workspace/project",
+			model: "anthropic/claude-sonnet-4.6",
+			metadata: options.metadata,
+		};
+		const get = vi.fn(async () => persistedSession);
+		const readLiveMessages = vi.fn(async () => messages);
 		const ctx = {
 			workspaceRoot: "/workspace/project",
 			liveSessions: new Map([
@@ -2272,20 +2282,20 @@ describe("cloud handoff gates", () => {
 			streamIndices: new Map(),
 			wsClients: new Set(),
 			sessionManager: {
-				get: vi.fn(async () => ({
-					sessionId,
-					status:
-						options.persistedStatus ?? (options.busy ? "running" : "completed"),
-					cwd: "/workspace/project",
-					model: "anthropic/claude-sonnet-4.6",
-					metadata: options.metadata,
-				})),
-				readLiveMessages: vi.fn(async () => messages),
+				get,
+				readLiveMessages,
 				send,
 				pendingPrompts: { list: vi.fn(async () => []) },
 			},
 		} as unknown as SidecarContext;
-		return { ctx, send, sessionId };
+		return {
+			ctx,
+			get,
+			persistedSession,
+			readLiveMessages,
+			send,
+			sessionId,
+		};
 	}
 
 	it("rejects a busy source before provisioning", async () => {
@@ -2297,6 +2307,37 @@ describe("cloud handoff gates", () => {
 			}),
 		).rejects.toThrow("Stop the current run");
 		expect(ctx.cloudSessionManager).toBeFalsy();
+	});
+
+	it("rejects handoff while a send is still entering the queue", async () => {
+		const { ctx, get, persistedSession, readLiveMessages, sessionId } =
+			createHandoffGateContext({ busy: false });
+		let releaseGet: ((value: typeof persistedSession) => void) | undefined;
+		get.mockImplementationOnce(
+			async () =>
+				await new Promise<typeof persistedSession>((resolve) => {
+					releaseGet = resolve;
+				}),
+		);
+
+		const sending = handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "queue this before handoff",
+			delivery: "queue",
+		});
+		await vi.waitFor(() => expect(get).toHaveBeenCalledOnce());
+
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "prepare_handoff",
+				sessionId,
+			}),
+		).rejects.toThrow("Wait for the current send to finish before handing off");
+		expect(readLiveMessages).not.toHaveBeenCalled();
+
+		releaseGet?.(persistedSession);
+		await sending;
 	});
 
 	it("trusts an authoritative idle live session over a legacy running record", async () => {
