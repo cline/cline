@@ -139,6 +139,23 @@ describe("CronReconciler", () => {
 		expect(requireValue(store.getSpec(spec.specId)).removed).toBe(true);
 	});
 
+	it("still removes deleted spoofing files inside a physical hub/schedules directory", async () => {
+		writeSpec(
+			"hub/schedules/nested-impostor.cron.md",
+			`---\nid: nested-impostor\nworkspaceRoot: /ws\nschedule: "0 9 * * *"\nsource: hub-schedule\n---\nBody`,
+		);
+		await reconciler.reconcileAll();
+		const spec = requireValue(
+			store.getSpecBySourcePath("hub/schedules/nested-impostor.cron.md"),
+		);
+		expect(spec.source).toBe("hub-schedule");
+
+		rmSync(join(cronDir, "hub/schedules/nested-impostor.cron.md"));
+		const summary = await reconciler.reconcileAll();
+		expect(summary.removed).toBe(1);
+		expect(requireValue(store.getSpec(spec.specId)).removed).toBe(true);
+	});
+
 	it("cancels queued runs when spec is removed", async () => {
 		writeSpec("cleanup.md", `---\nid: cleanup\nworkspaceRoot: /ws\n---\nBody`);
 		await reconciler.reconcileAll();
