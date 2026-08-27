@@ -33,9 +33,18 @@ Explicitly skip style nits, theoretical edge cases with no realistic trigger, an
 - Before opening a PR, check whether an open PR already fixes the same bug. If one exists, note that it is awaiting review with a link instead of duplicating it. If a previous fix was closed without merging, do not re-open one unless the relevant code has materially changed.
 - Only open a PR when you are highly confident the bug is real and the fix is correct. If PRs are not available in this workspace, commit the fix to a branch and describe it in your summary.
 
-## Wrap up
+## Final report
 
-Finish with a short report: what you inspected, and for each fix the bug, its impact, the root cause, and how you validated the change. If nothing clears the bar, a plain "no critical bugs found" summary is the expected outcome most runs.`;
+Your last message is the report the user reads, so write it about the code, not about your session. Do not include process narration: no environment assessment, no list of commands you ran, no "what I attempted" or "investigation summary" sections, and no restating these instructions.
+
+If you fixed bugs, write one short section per bug covering:
+- **Bug**: what is wrong and where, in one line
+- **Impact**: the concrete consequence users would hit
+- **Root cause**: the change that introduced it
+- **Fix**: what you changed, with a link to the PR or branch
+- **Validation**: the test or check that proves the fix works
+
+If nothing clears the bar (the expected outcome most runs), reply with a single line like "No critical bugs found in the N commits since the last run", optionally followed by up to three bullets on areas you inspected closely and why they are sound.`;
 
 const SECURITY_SCAN_PROMPT = `You are a scheduled security reviewer for this repository. Find medium, high, or critical vulnerabilities with a genuine end-to-end attack path, not theoretical weaknesses.
 
