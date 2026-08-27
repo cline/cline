@@ -6,6 +6,7 @@ import {
 	classifyTool,
 	extractOutputMedia,
 	extractOutputText,
+	extractOutputVideos,
 	normalizeToolName,
 	parseApplyPatchInput,
 	parseReadFilesInput,
@@ -661,19 +662,22 @@ describe("tool output content", () => {
 			],
 		};
 		expect(extractOutputText(raw)).toBe(
-			"before\n[image: image/png]\n[resource: file:///a.md]\nd29ybGQ=\n[resource_link: file:///b.md]\nafter",
+			"before\n[resource: file:///a.md]\nd29ybGQ=\n[resource_link: file:///b.md]\nafter",
 		);
 	});
 
-	it("extracts direct content-block arrays without serializing image data", () => {
+	it("omits rendered images from direct content-block text", () => {
 		const raw = [
 			{ type: "text", text: "Screenshot captured" },
 			{ type: "image", data: "aGVsbG8=", mediaType: "image/png" },
 		];
-		expect(extractOutputText(raw)).toBe(
-			"Screenshot captured\n[image: image/png]",
-		);
+		expect(extractOutputText(raw)).toBe("Screenshot captured");
 		expect(extractOutputText(raw)).not.toContain("aGVsbG8=");
+		expect(
+			extractOutputText([
+				{ type: "image", data: "not-base64", mediaType: "image/png" },
+			]),
+		).toBe("[image: image/png]");
 	});
 
 	it("extracts, validates, and deduplicates inline image results", () => {
@@ -694,6 +698,25 @@ describe("tool output content", () => {
 		expect(
 			buildToolSummary({ toolName: "computer", result: raw }).outputMedia,
 		).toHaveLength(1);
+	});
+
+	it("extracts absolute videoPath results with their browser media type", () => {
+		const videoPath =
+			"/Users/test/.cline/data/tools/computer-use/session/run/videos/page.webm";
+		expect(
+			extractOutputVideos([
+				{ result: { active: false, videoPath } },
+				{ video_path: videoPath },
+				{ videoPath: "relative/video.webm" },
+				{ videoPath: "https://example.com/video.webm" },
+			]),
+		).toEqual([{ path: videoPath, mediaType: "video/webm" }]);
+		expect(
+			buildToolSummary({
+				toolName: "computer_stop",
+				result: { active: false, videoPath },
+			}).outputVideos,
+		).toEqual([{ path: videoPath, mediaType: "video/webm" }]);
 	});
 
 	it("extracts embedded resource text from MCP content", () => {

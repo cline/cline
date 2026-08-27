@@ -43,6 +43,7 @@ export {
 	type GeneratedMediaClassNames,
 	GeneratedMediaContent,
 	type GeneratedMediaContentProps,
+	type GeneratedMediaImageLayout,
 } from "./generated-media.js";
 export {
 	SearchCombobox,

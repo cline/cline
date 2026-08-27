@@ -1,5 +1,6 @@
 "use client";
 
+import type { GeneratedMedia } from "@cline/shared/browser";
 import { AgentAskQuestion } from "@cline/ui";
 import {
 	Conversation,
@@ -21,11 +22,7 @@ import {
 	AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "@/hooks/use-toast";
-import type {
-	ChatMessage,
-	ChatMessageImage,
-	ChatSessionStatus,
-} from "@/lib/chat-schema";
+import type { ChatMessage, ChatSessionStatus } from "@/lib/chat-schema";
 import { cn } from "@/lib/utils";
 import { STREAMING_TITLE_CLASS } from "./messages/constants";
 import {
@@ -183,7 +180,7 @@ function ChatMessagesImpl({
 	const [forkErrors, setForkErrors] = useState<Record<string, string>>({});
 	const [expandedImage, setExpandedImage] = useState<{
 		sessionId: string | null;
-		image: ChatMessageImage;
+		image: GeneratedMedia;
 	} | null>(null);
 	const sessionVersioningPending =
 		editingMessageId !== null ||
@@ -447,7 +444,7 @@ function ChatMessagesImpl({
 	);
 
 	const handleExpandImage = useCallback(
-		(image: ChatMessageImage) => {
+		(image: GeneratedMedia) => {
 			setExpandedImage({ sessionId, image });
 		},
 		[sessionId],

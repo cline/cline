@@ -26,6 +26,7 @@ beforeEach(() => {
 afterEach(async () => {
 	await act(async () => root.unmount());
 	container.remove();
+	delete (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__;
 	vi.restoreAllMocks();
 });
 
@@ -191,7 +192,7 @@ describe("ChatMessages tool disclosures", () => {
 		);
 	});
 
-	it("renders image content returned by a tool instead of raw base64", async () => {
+	it("keeps a tool result image visible while its details are collapsed", async () => {
 		const screenshotData = "aGVsbG8=";
 		await renderMessages([
 			{
@@ -220,22 +221,111 @@ describe("ChatMessages tool disclosures", () => {
 		const trigger = [...container.querySelectorAll("button")].find((element) =>
 			element.textContent?.includes("Computer use"),
 		);
-		expect(trigger?.getAttribute("aria-expanded")).toBe("true");
-		expect(container.textContent).toContain(
-			"Screenshot captured at /tmp/screenshot.png",
+		expect(trigger?.getAttribute("aria-expanded")).toBe("false");
+		const panel = document.getElementById(
+			trigger?.getAttribute("aria-controls") ?? "",
 		);
+		expect(panel?.getAttribute("aria-hidden")).toBe("true");
 		expect(container.textContent).not.toContain(screenshotData);
 
 		const image = container.querySelector<HTMLImageElement>(
 			'img[alt="Generated result 1"]',
 		);
-		expect(image?.src).toBe(`data:image/png;base64,${screenshotData}`);
+		expect(image?.src.startsWith("blob:")).toBe(true);
+		expect(image?.closest(".cline-chat-disclosure-content-motion")).toBeNull();
+		expect(image?.classList.contains("h-full")).toBe(true);
+		expect(image?.classList.contains("w-full")).toBe(true);
+		const imageFrame = image?.closest(".aspect-video");
+		expect(imageFrame?.classList.contains("w-full")).toBe(true);
+		expect(imageFrame?.classList.contains("max-w-2xl")).toBe(true);
+
+		await act(async () => trigger?.click());
+		expect(trigger?.getAttribute("aria-expanded")).toBe("true");
+		expect(panel?.getAttribute("aria-hidden")).toBe("false");
+		expect(panel?.textContent).toContain(
+			"Screenshot captured at /tmp/screenshot.png",
+		);
+		expect(panel?.textContent).not.toContain("[image: image/png]");
+		expect(
+			container.querySelector('img[alt="Generated result 1"]'),
+		).not.toBeNull();
+
+		await act(async () => trigger?.click());
+		expect(trigger?.getAttribute("aria-expanded")).toBe("false");
+		expect(panel?.getAttribute("aria-hidden")).toBe("true");
+		expect(
+			container.querySelector('img[alt="Generated result 1"]'),
+		).not.toBeNull();
 
 		await act(async () => image?.closest("button")?.click());
 		expect(
 			container.querySelector(
 				'[role="dialog"][aria-label="Expanded attachment"]',
 			),
+		).not.toBeNull();
+	});
+
+	it("keeps a recorded tool video visible while its JSON is collapsed", async () => {
+		const videoPath =
+			"/Users/test/.cline/data/tools/computer-use/session/run/videos/page.webm";
+		const convertFileSrc = vi.fn(() => "asset://localhost/tool-video.webm");
+		(window as unknown as Record<string, unknown>).__TAURI_INTERNALS__ = {
+			convertFileSrc,
+		};
+
+		await renderMessages([
+			{
+				id: "tool-video",
+				sessionId: "session-1",
+				role: "tool",
+				content: JSON.stringify({
+					toolName: "computer_stop",
+					input: {},
+					result: { active: false, videoPath },
+				}),
+				createdAt: 1,
+			},
+		]);
+
+		const trigger = [...container.querySelectorAll("button")].find((element) =>
+			element.textContent?.includes("Computer stop"),
+		);
+		expect(trigger?.getAttribute("aria-expanded")).toBe("false");
+		const panel = document.getElementById(
+			trigger?.getAttribute("aria-controls") ?? "",
+		);
+		expect(panel?.getAttribute("aria-hidden")).toBe("true");
+		expect(convertFileSrc).toHaveBeenCalledWith(videoPath, "asset");
+
+		const video = container.querySelector<HTMLVideoElement>(
+			'video[aria-label="Tool result video"]',
+		);
+		expect(video?.closest(".cline-chat-disclosure-content-motion")).toBeNull();
+		expect(video?.classList.contains("aspect-video")).toBe(true);
+		expect(video?.classList.contains("w-full")).toBe(true);
+		expect(video?.classList.contains("max-w-2xl")).toBe(true);
+		expect(video?.controls).toBe(true);
+		expect(video?.preload).toBe("metadata");
+		const source = video?.querySelector("source");
+		expect(source?.getAttribute("src")).toBe(
+			"asset://localhost/tool-video.webm",
+		);
+		expect(source?.getAttribute("type")).toBe("video/webm");
+
+		await act(async () => trigger?.click());
+		expect(trigger?.getAttribute("aria-expanded")).toBe("true");
+		expect(panel?.getAttribute("aria-hidden")).toBe("false");
+		expect(panel?.textContent).toContain('"videoPath"');
+		expect(panel?.textContent).toContain(videoPath);
+		expect(
+			container.querySelector('video[aria-label="Tool result video"]'),
+		).not.toBeNull();
+
+		await act(async () => trigger?.click());
+		expect(trigger?.getAttribute("aria-expanded")).toBe("false");
+		expect(panel?.getAttribute("aria-hidden")).toBe("true");
+		expect(
+			container.querySelector('video[aria-label="Tool result video"]'),
 		).not.toBeNull();
 	});
 
@@ -1310,7 +1400,8 @@ describe("ChatMessages image attachments", () => {
 		const image = container.querySelector<HTMLImageElement>(
 			'img[alt="Attachment 1"]',
 		);
-		expect(image?.src).toBe("data:image/png;base64,aGVsbG8=");
+		expect(image?.src.startsWith("blob:")).toBe(true);
+		expect(image?.dataset.mediaId).toBe("user-image-1");
 		expect(image?.className).toContain("max-h-56.25");
 		expect(image?.className).toContain("max-w-56.25");
 		expect(container.textContent).toContain("Describe this");
@@ -1334,10 +1425,11 @@ describe("ChatMessages image attachments", () => {
 			},
 		]);
 
-		expect(
-			container.querySelector<HTMLImageElement>('img[alt="Generated result 1"]')
-				?.src,
-		).toBe("data:image/webp;base64,aGVsbG8=");
+		const image = container.querySelector<HTMLImageElement>(
+			'img[alt="Generated result 1"]',
+		);
+		expect(image?.src.startsWith("blob:")).toBe(true);
+		expect(image?.dataset.mediaId).toBe("generated-image-1");
 	});
 
 	it("shows one generated image at a time and navigates the result set", async () => {
@@ -1365,8 +1457,8 @@ describe("ChatMessages image attachments", () => {
 
 		expect(
 			container.querySelector<HTMLImageElement>('img[alt="Generated result 1"]')
-				?.src,
-		).toBe("data:image/png;base64,Zmlyc3Q=");
+				?.dataset.mediaId,
+		).toBe("generated-image-1");
 		expect(container.querySelector('img[alt="Generated result 2"]')).toBeNull();
 		expect(container.textContent).toContain("1 / 2");
 
@@ -1381,16 +1473,16 @@ describe("ChatMessages image attachments", () => {
 
 		expect(
 			container.querySelector<HTMLImageElement>('img[alt="Generated result 2"]')
-				?.src,
-		).toBe("data:image/png;base64,c2Vjb25k");
+				?.dataset.mediaId,
+		).toBe("generated-image-2");
 		expect(container.textContent).toContain("2 / 2");
 		expect(next?.disabled).toBe(true);
 
 		await act(async () => previous?.click());
 		expect(
 			container.querySelector<HTMLImageElement>('img[alt="Generated result 1"]')
-				?.src,
-		).toBe("data:image/png;base64,Zmlyc3Q=");
+				?.dataset.mediaId,
+		).toBe("generated-image-1");
 	});
 
 	it("expands an attachment within the conversation and closes it", async () => {
@@ -1418,10 +1510,10 @@ describe("ChatMessages image attachments", () => {
 			),
 		).not.toBeNull();
 		expect(
-			container.querySelector<HTMLImageElement>(
-				'img[alt="Expanded attachment"]',
-			)?.src,
-		).toBe("data:image/png;base64,aGVsbG8=");
+			container
+				.querySelector<HTMLImageElement>('img[alt="Expanded attachment"]')
+				?.src.startsWith("blob:"),
+		).toBe(true);
 
 		await act(async () => {
 			window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));

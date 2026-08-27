@@ -1,14 +1,15 @@
 "use client";
 
+import type { GeneratedMedia } from "@cline/shared/browser";
+import { GeneratedMediaContent } from "@cline/ui";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import type { ChatMessageImage } from "@/lib/chat-schema";
 
 export function ChatImageLightbox({
 	image,
 	onClose,
 }: {
-	image: ChatMessageImage;
+	image: GeneratedMedia;
 	onClose: () => void;
 }) {
 	return (
@@ -25,11 +26,14 @@ export function ChatImageLightbox({
 				type="button"
 			/>
 			<div className="pointer-events-none relative z-10 flex h-full w-full items-center justify-center">
-				{/* biome-ignore lint/performance/noImgElement: User-provided data URLs cannot use Next's optimizer. */}
-				<img
-					alt="Expanded attachment"
-					className="max-h-full max-w-full rounded-lg object-contain shadow-2xl"
-					src={`data:${image.mediaType};base64,${image.data}`}
+				<GeneratedMediaContent
+					classNames={{
+						image: "max-h-full max-w-full rounded-lg object-contain shadow-2xl",
+						unavailable:
+							"pointer-events-auto rounded-lg border border-border bg-muted p-3 text-sm",
+					}}
+					getImageAlt={() => "Expanded attachment"}
+					media={image}
 				/>
 				<Button
 					aria-label="Close image viewer"

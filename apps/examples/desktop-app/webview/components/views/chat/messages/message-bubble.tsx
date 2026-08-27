@@ -1,5 +1,6 @@
 "use client";
 
+import type { GeneratedMedia } from "@cline/shared/browser";
 import { GeneratedMediaContent } from "@cline/ui";
 import {
 	Message as AgentMessage,
@@ -26,7 +27,6 @@ import { cn } from "@/lib/utils";
 import { MemoizedMarkdown } from "../../../ui/markdown";
 import { formatChatMessageContent } from "../message-content";
 import { isSystemSteeringMessage } from "./group-messages";
-import { MessageImageCarousel } from "./image-carousel";
 import { ReasoningBlock } from "./reasoning-block";
 
 function MessageImages({
@@ -36,54 +36,54 @@ function MessageImages({
 }: {
 	images: ChatMessageImage[];
 	isUser: boolean;
-	onExpandImage?: (image: ChatMessageImage) => void;
+	onExpandImage?: (image: GeneratedMedia) => void;
 }) {
-	if (!isUser) {
-		return (
-			<MessageImageCarousel images={images} onExpandImage={onExpandImage} />
-		);
-	}
-
 	return (
-		<div className="grid max-w-2xl gap-2">
-			{images.map((image, index) => (
-				<button
-					aria-label={`Expand attachment ${index + 1}`}
-					className="cursor-zoom-in overflow-hidden rounded-lg border border-border bg-muted text-left transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-					key={image.id}
-					onClick={() => onExpandImage?.(image)}
-					type="button"
-				>
-					{/* biome-ignore lint/performance/noImgElement: In-memory data URLs do not have dimensions and cannot use Next's optimizer. */}
-					<img
-						alt={`Attachment ${index + 1}`}
-						className="max-h-56.25 max-w-56.25 object-contain"
-						src={`data:${image.mediaType};base64,${image.data}`}
-					/>
-				</button>
-			))}
-		</div>
+		<GeneratedMediaContent
+			classNames={{
+				container: isUser ? "grid max-w-2xl gap-2" : undefined,
+				image: "max-h-56.25 max-w-56.25 object-contain",
+				imageFrame: "w-fit max-w-2xl",
+			}}
+			getImageAlt={isUser ? (_, index) => `Attachment ${index + 1}` : undefined}
+			getImageExpandLabel={
+				isUser ? (_, index) => `Expand attachment ${index + 1}` : undefined
+			}
+			imageLayout={isUser ? "grid" : "carousel"}
+			media={images.map(
+				(image): GeneratedMedia => ({
+					id: image.id,
+					mediaType: image.mediaType,
+					modality: "image",
+					source: { type: "base64", data: image.data },
+				}),
+			)}
+			onImageClick={onExpandImage}
+		/>
 	);
 }
 
-function MessageMedia({ media }: { media: ChatMessageMedia[] }) {
+function MessageMedia({
+	media,
+	onExpandImage,
+}: {
+	media: ChatMessageMedia[];
+	onExpandImage?: (image: GeneratedMedia) => void;
+}) {
 	return (
-		<div className="flex max-w-2xl flex-col gap-2">
-			{media.map((item) => (
-				<GeneratedMediaContent
-					classNames={{
-						image:
-							"max-h-96 max-w-full rounded-lg border border-border bg-muted object-contain",
-						audio: "w-full",
-						video: "max-h-96 max-w-full rounded-lg",
-						file: "text-sm underline",
-						unavailable: "rounded-lg border border-border bg-muted p-3 text-sm",
-					}}
-					key={item.id}
-					media={item}
-				/>
-			))}
-		</div>
+		<GeneratedMediaContent
+			classNames={{
+				container: "flex max-w-2xl flex-col gap-2",
+				image: "max-h-96 max-w-full object-contain",
+				imageFrame: "w-fit max-w-2xl",
+				audio: "w-full",
+				video: "max-h-96 max-w-full rounded-lg",
+				file: "text-sm underline",
+				unavailable: "rounded-lg border border-border bg-muted p-3 text-sm",
+			}}
+			media={media}
+			onImageClick={onExpandImage}
+		/>
 	);
 }
 
@@ -121,7 +121,7 @@ export const MessageBubble = memo(function MessageBubble({
 	runCount?: number;
 	isStreaming?: boolean;
 	onCopyMessage?: (messageId: string, content: string) => void | Promise<void>;
-	onExpandImage?: (image: ChatMessageImage) => void;
+	onExpandImage?: (image: GeneratedMedia) => void;
 	onEditMessage?: (
 		messageId: string,
 		content: string,
@@ -235,7 +235,9 @@ export const MessageBubble = memo(function MessageBubble({
 					/>
 				) : null}
 
-				{message.media?.length ? <MessageMedia media={message.media} /> : null}
+				{message.media?.length ? (
+					<MessageMedia media={message.media} onExpandImage={onExpandImage} />
+				) : null}
 
 				{displayContent ? (
 					<div className="min-w-0 max-w-full wrap-break-word">

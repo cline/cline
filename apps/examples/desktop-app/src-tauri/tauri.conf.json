@@ -31,7 +31,14 @@
 			}
 		],
 		"security": {
-			"csp": null
+			"csp": null,
+			"assetProtocol": {
+				"enable": true,
+				"scope": [
+					"$HOME/.cline/data/tools/computer-use/**/screenshots/**",
+					"$HOME/.cline/data/tools/computer-use/**/videos/**"
+				]
+			}
 		}
 	},
 	"bundle": {

@@ -70,6 +70,79 @@ describe("GeneratedMediaContent", () => {
 		expect(createObjectURL).toHaveBeenCalledOnce();
 	});
 
+	it("renders image collections as an interactive carousel", async () => {
+		const first = {
+			...media("image", "image/png"),
+			id: "generated-image-1",
+		};
+		const second = {
+			...media("image", "image/png"),
+			id: "generated-image-2",
+		};
+		const onImageClick = vi.fn();
+
+		await render(
+			<GeneratedMediaContent
+				classNames={{
+					image: "image-content",
+					imageFrame: "image-frame",
+					imageTrigger: "image-trigger",
+				}}
+				media={[first, second]}
+				onImageClick={onImageClick}
+			/>,
+		);
+
+		let image = container.querySelector<HTMLImageElement>(
+			'img[alt="Generated result 1"]',
+		);
+		expect(image?.getAttribute("data-media-id")).toBe("generated-image-1");
+		expect(image?.className).toContain("image-content");
+		expect(image?.closest(".image-frame")).not.toBeNull();
+		expect(image?.closest("button")?.className).toContain("image-trigger");
+		expect(container.textContent).toContain("1 / 2");
+
+		const previous = container.querySelector<HTMLButtonElement>(
+			'button[aria-label="Previous generated image"]',
+		);
+		const next = container.querySelector<HTMLButtonElement>(
+			'button[aria-label="Next generated image"]',
+		);
+		expect(previous?.disabled).toBe(true);
+		await act(async () => next?.click());
+
+		image = container.querySelector<HTMLImageElement>(
+			'img[alt="Generated result 2"]',
+		);
+		expect(image?.getAttribute("data-media-id")).toBe("generated-image-2");
+		expect(container.textContent).toContain("2 / 2");
+		expect(next?.disabled).toBe(true);
+
+		await act(async () => image?.closest("button")?.click());
+		expect(onImageClick).toHaveBeenCalledWith(second);
+	});
+
+	it("renders image collections as a grid when requested", async () => {
+		await render(
+			<GeneratedMediaContent
+				classNames={{ container: "image-grid" }}
+				getImageAlt={(_, index) => `Attachment ${index + 1}`}
+				imageLayout="grid"
+				media={[
+					{ ...media("image", "image/png"), id: "attachment-1" },
+					{ ...media("image", "image/png"), id: "attachment-2" },
+				]}
+			/>,
+		);
+
+		expect(container.querySelector(".image-grid")).not.toBeNull();
+		expect(container.querySelector('img[alt="Attachment 1"]')).not.toBeNull();
+		expect(container.querySelector('img[alt="Attachment 2"]')).not.toBeNull();
+		expect(
+			container.querySelector('button[aria-label="Next generated image"]'),
+		).toBeNull();
+	});
+
 	it("renders artifact-backed media without inventing a URL", async () => {
 		await render(
 			<GeneratedMediaContent

@@ -1,5 +1,6 @@
 "use client";
 
+import type { GeneratedMedia } from "@cline/shared/browser";
 import { GeneratedMediaContent } from "@cline/ui";
 import {
 	ToolActivity,
@@ -14,17 +15,18 @@ import Ansi from "ansi-to-react";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import {
-	type ChatMessage,
-	type ChatMessageImage,
-	ChatMessageImageSchema,
-} from "@/lib/chat-schema";
+import type { ChatMessage } from "@/lib/chat-schema";
 import { appendCappedCommandOutput } from "@/lib/command-output";
 import { cn } from "@/lib/utils";
 import { MemoizedMarkdown } from "../../../ui/markdown";
 import { IS_DEBUG, STREAMING_TITLE_CLASS } from "./constants";
-import { MessageImageCarousel } from "./image-carousel";
 import { getToolNameIcon } from "./tool-icons";
+import {
+	TOOL_RESULT_MEDIA_CONTENT_CLASS,
+	TOOL_RESULT_MEDIA_FRAME_CLASS,
+	TOOL_RESULT_MEDIA_VIDEO_CLASS,
+} from "./tool-result-media";
+import { ToolResultVideo } from "./tool-result-video";
 import {
 	buildToolPresentation,
 	extractRunCommandOutput,
@@ -65,7 +67,7 @@ const ToolCallRow = memo(function ToolCallRow({
 	onProceedWhileRunning,
 }: {
 	message: ChatMessage;
-	onExpandImage?: (image: ChatMessageImage) => void;
+	onExpandImage?: (image: GeneratedMedia) => void;
 	onProceedWhileRunning?: ProceedWhileRunningHandler;
 }) {
 	const { payload, toolName, inProgress, summary } =
@@ -136,22 +138,33 @@ const ToolCallRow = memo(function ToolCallRow({
 			: [];
 	});
 	const hasFileDiffs = fileDiffs.length > 0;
-	const outputImages = summary.outputMedia.flatMap((media, index) => {
-		if (media.modality !== "image") return [];
-		const image = ChatMessageImageSchema.safeParse({
-			id: `${message.id}_tool_image_${index}`,
+	const canonicalOutputMedia = summary.outputMedia.map(
+		(media, index): GeneratedMedia => ({
+			id: `${message.id}_tool_media_${index}`,
+			modality: media.modality,
 			mediaType: media.mediaType,
-			data: media.data,
-		});
-		return image.success ? [image.data] : [];
-	});
-	const otherOutputMedia = summary.outputMedia.filter(
-		(media) => media.modality !== "image",
+			name: media.name,
+			source: { type: "base64", data: media.data },
+		}),
 	);
+	const outputImages = canonicalOutputMedia.filter(
+		(media) => media.modality === "image",
+	);
+	const inlineOutputVideos = canonicalOutputMedia.filter(
+		(media) => media.modality === "video",
+	);
+	const expandableOutputMedia = canonicalOutputMedia.filter(
+		(media) => media.modality !== "image" && media.modality !== "video",
+	);
+	const outputVideos = summary.outputVideos;
+	const hasPersistentMedia =
+		outputImages.length > 0 ||
+		inlineOutputVideos.length > 0 ||
+		outputVideos.length > 0;
 	const shouldAutoOpen =
 		hasFileDiffs ||
 		Boolean(submitText) ||
-		summary.outputMedia.length > 0 ||
+		expandableOutputMedia.length > 0 ||
 		(inProgress && (Boolean(commandOutput) || canProceed));
 	const [open, setOpen] = useState(shouldAutoOpen);
 	const [userToggled, setUserToggled] = useState(false);
@@ -194,7 +207,7 @@ const ToolCallRow = memo(function ToolCallRow({
 		fileDiffs.length > 0 ||
 		Boolean(submitText) ||
 		Boolean(isCommand ? commandOutput : summary.outputText) ||
-		summary.outputMedia.length > 0 ||
+		expandableOutputMedia.length > 0 ||
 		Boolean(summary.errorText) ||
 		Boolean(inputPreview) ||
 		canProceed;
@@ -268,35 +281,17 @@ const ToolCallRow = memo(function ToolCallRow({
 						{summary.outputText}
 					</ToolActivityCode>
 				) : null}
-				{outputImages.length > 0 ? (
-					<div className="mt-2">
-						<MessageImageCarousel
-							images={outputImages}
-							onExpandImage={onExpandImage}
-						/>
-					</div>
-				) : null}
-				{otherOutputMedia.length > 0 ? (
+				{expandableOutputMedia.length > 0 ? (
 					<div className="mt-2 flex max-w-2xl flex-col gap-2">
-						{otherOutputMedia.map((media, index) => (
-							<GeneratedMediaContent
-								classNames={{
-									audio: "w-full",
-									video: "max-h-96 max-w-full rounded-lg",
-									file: "text-sm underline",
-									unavailable:
-										"rounded-lg border border-border bg-muted p-3 text-sm",
-								}}
-								key={`${message.id}_tool_media_${index}`}
-								media={{
-									id: `${message.id}_tool_media_${index}`,
-									modality: media.modality,
-									mediaType: media.mediaType,
-									name: media.name,
-									source: { type: "base64", data: media.data },
-								}}
-							/>
-						))}
+						<GeneratedMediaContent
+							classNames={{
+								audio: "w-full",
+								file: "text-sm underline",
+								unavailable:
+									"rounded-lg border border-border bg-muted p-3 text-sm",
+							}}
+							media={expandableOutputMedia}
+						/>
 					</div>
 				) : null}
 				{inputPreview ? (
@@ -334,6 +329,41 @@ const ToolCallRow = memo(function ToolCallRow({
 					</div>
 				) : null}
 			</ToolActivityContent>
+			{hasPersistentMedia ? (
+				<div
+					className="ml-[1.45rem] mt-2 flex min-w-0 flex-col gap-2"
+					data-testid="tool-result-media"
+				>
+					{outputImages.length > 0 ? (
+						<GeneratedMediaContent
+							classNames={{
+								image: TOOL_RESULT_MEDIA_CONTENT_CLASS,
+								imageFrame: TOOL_RESULT_MEDIA_FRAME_CLASS,
+								imageTrigger: "h-full w-full",
+							}}
+							media={outputImages}
+							onImageClick={onExpandImage}
+						/>
+					) : null}
+					{inlineOutputVideos.length > 0 ? (
+						<GeneratedMediaContent
+							classNames={{
+								video: TOOL_RESULT_MEDIA_VIDEO_CLASS,
+								unavailable:
+									"rounded-lg border border-border bg-muted p-3 text-sm",
+							}}
+							media={inlineOutputVideos}
+						/>
+					) : null}
+					{outputVideos.map((video) => (
+						<ToolResultVideo
+							key={video.path}
+							mediaType={video.mediaType}
+							videoPath={video.path}
+						/>
+					))}
+				</div>
+			) : null}
 		</ToolActivity>
 	);
 });
@@ -395,7 +425,7 @@ export const ToolMessageBlock = memo(
 		onProceedWhileRunning,
 	}: {
 		messages: ChatMessage[];
-		onExpandImage?: (image: ChatMessageImage) => void;
+		onExpandImage?: (image: GeneratedMedia) => void;
 		onProceedWhileRunning?: ProceedWhileRunningHandler;
 	}) {
 		if (messages.length === 0) return null;

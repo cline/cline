@@ -388,6 +388,68 @@ export interface ToolOutputMedia {
 	name?: string;
 }
 
+export interface ToolOutputVideo {
+	path: string;
+	mediaType: string;
+}
+
+const VIDEO_MEDIA_TYPES_BY_EXTENSION: Record<string, string> = {
+	".m4v": "video/mp4",
+	".mov": "video/quicktime",
+	".mp4": "video/mp4",
+	".ogv": "video/ogg",
+	".webm": "video/webm",
+};
+
+function outputVideoFromPath(value: unknown): ToolOutputVideo | undefined {
+	if (typeof value !== "string") return undefined;
+	const path = value.trim();
+	if (!path) return undefined;
+	const normalizedPath = path.replaceAll("\\", "/");
+	if (
+		!normalizedPath.startsWith("/") &&
+		!normalizedPath.startsWith("//") &&
+		!/^[a-z]:\//i.test(normalizedPath)
+	) {
+		return undefined;
+	}
+	const lowerPath = normalizedPath.toLowerCase();
+	for (const [extension, mediaType] of Object.entries(
+		VIDEO_MEDIA_TYPES_BY_EXTENSION,
+	)) {
+		if (lowerPath.endsWith(extension)) return { path, mediaType };
+	}
+	return undefined;
+}
+
+function collectOutputVideos(raw: unknown, output: ToolOutputVideo[]): void {
+	const normalized = normalizeValue(raw);
+	if (Array.isArray(normalized)) {
+		for (const item of normalized) collectOutputVideos(item, output);
+		return;
+	}
+	if (!isRecord(normalized)) return;
+
+	const direct = outputVideoFromPath(
+		normalized.videoPath ?? normalized.video_path,
+	);
+	if (direct) output.push(direct);
+	if ("result" in normalized) collectOutputVideos(normalized.result, output);
+	if (Array.isArray(normalized.content)) {
+		collectOutputVideos(normalized.content, output);
+	}
+}
+
+/** Extract absolute local video paths from structured tool output. */
+export function extractOutputVideos(raw: unknown): ToolOutputVideo[] {
+	const output: ToolOutputVideo[] = [];
+	collectOutputVideos(raw, output);
+	return output.filter(
+		(video, index) =>
+			output.findIndex((candidate) => candidate.path === video.path) === index,
+	);
+}
+
 function contentBlockMediaType(part: Record<string, unknown>): string {
 	for (const key of ["mimeType", "mediaType", "mime_type"] as const) {
 		const value = part[key];
@@ -423,11 +485,21 @@ function contentBlockText(part: Record<string, unknown>): string | undefined {
 	if (part.type === "resource_link" && typeof part.uri === "string") {
 		return `[resource_link: ${part.uri}]`;
 	}
-	if (part.type === "image" || part.type === "audio") {
+	if (part.type === "image") {
+		// A valid inline image is rendered separately by extractOutputMedia, so
+		// repeating its MIME type in the text projection adds no useful context.
+		// Keep the marker for malformed/unrenderable blocks so they do not vanish.
+		if (inlineContentBlockMedia(part)) return undefined;
 		const mediaType = contentBlockMediaType(part);
-		return mediaType ? `[${part.type}: ${mediaType}]` : `[${part.type}]`;
+		return mediaType ? `[image: ${mediaType}]` : "[image]";
+	}
+	if (part.type === "audio") {
+		const mediaType = contentBlockMediaType(part);
+		return mediaType ? `[audio: ${mediaType}]` : "[audio]";
 	}
 	if (part.type === "media" && isRecord(part.media)) {
+		const inlineMedia = canonicalInlineMedia(part);
+		if (inlineMedia?.modality === "image") return undefined;
 		const modality =
 			typeof part.media.modality === "string" ? part.media.modality : "media";
 		const mediaType =
@@ -571,9 +643,9 @@ export function extractOutputMedia(raw: unknown): ToolOutputMedia[] {
 /**
  * Extract human-readable text from a tool result: plain strings,
  * `[{ result }]` arrays, direct content-block arrays, and MCP
- * `{ content: [...] }` shapes are all handled. Binary payloads are represented
- * by compact placeholders; visual consumers render them via
- * `extractOutputMedia` instead of dumping base64 into the transcript.
+ * `{ content: [...] }` shapes are all handled. Renderable images are omitted
+ * from the text projection because visual consumers display them via
+ * `extractOutputMedia`; other binary payloads retain compact placeholders.
  */
 export function extractOutputText(raw: unknown): string | undefined {
 	if (raw === null || raw === undefined) return undefined;
@@ -588,8 +660,8 @@ export function extractOutputText(raw: unknown): string | undefined {
 		// MCP tools return {content: [{type: "text", text}, ...]}. Extract the
 		// text so multi-line results keep real newlines instead of being
 		// JSON-escaped into one giant line. Non-text blocks keep identifying
-		// placeholders while their binary payloads are returned separately by
-		// extractOutputMedia.
+		// placeholders while renderable images are returned separately by
+		// extractOutputMedia without duplicating a MIME marker in the text.
 		const content = (raw as { content?: unknown }).content;
 		if (Array.isArray(content)) {
 			const text = extractOutputArrayText(content);
