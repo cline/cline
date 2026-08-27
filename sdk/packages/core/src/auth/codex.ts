@@ -448,25 +448,20 @@ export async function getValidOpenAICodexCredentials(
 			);
 			return null;
 		}
-		if (currentCredentials.expires - Date.now() > retryableTokenGraceMs) {
-			// Keep the current token on transient refresh failures while it
-			// still has usable life left.
-			captureAuthRefreshSoftFailure(options?.telemetry, "openai-codex", {
-				...failureDetails,
-				tokenExpired: false,
-			});
-			return currentCredentials;
-		}
-		// Transient failure with an already-expired token: rethrow instead of
-		// returning null. A null from this function means the refresh token was
-		// REJECTED (re-auth required); a network blip or server error that
-		// happens to land after expiry must not be mistaken for that — callers
-		// turn null into a forced "requires re-authentication" stop even though
-		// the very next refresh attempt would likely succeed.
+		const tokenExpired =
+			currentCredentials.expires - Date.now() <= retryableTokenGraceMs;
 		captureAuthRefreshSoftFailure(options?.telemetry, "openai-codex", {
 			...failureDetails,
-			tokenExpired: true,
+			tokenExpired,
 		});
+		if (!tokenExpired) {
+			return currentCredentials;
+		}
+		// Rethrow instead of returning null. A null from this function means the
+		// refresh token was REJECTED (re-auth required); a network blip or server
+		// error that happens to land after expiry must not be mistaken for that —
+		// callers turn null into a forced "requires re-authentication" stop even
+		// though the very next refresh attempt would likely succeed.
 		throw error;
 	}
 }

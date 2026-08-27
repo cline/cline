@@ -128,12 +128,27 @@ describe("auth/codex token lifecycle", () => {
 			),
 		);
 
+		const capture = vi.fn();
 		const current = createCredentials({ expires: 150_000 });
 		const result = await getValidOpenAICodexCredentials(current, {
 			refreshBufferMs: 60_000,
 			retryableTokenGraceMs: 30_000,
+			telemetry: { capture } as never,
 		});
 		expect(result).toBe(current);
+		expect(capture).toHaveBeenCalledWith(
+			expect.objectContaining({
+				event: "user.auth_refresh_soft_failure",
+				properties: expect.objectContaining({
+					provider: "openai-codex",
+					status: 500,
+					tokenExpired: false,
+				}),
+			}),
+		);
+		expect(capture).not.toHaveBeenCalledWith(
+			expect.objectContaining({ event: "user.auth_logged_out" }),
+		);
 		nowSpy.mockRestore();
 	});
 
@@ -152,44 +167,6 @@ describe("auth/codex token lifecycle", () => {
 		await expect(refreshOpenAICodexToken("refresh")).rejects.toThrow(
 			"Failed to refresh OpenAI Codex token",
 		);
-	});
-
-	it("keeps current credentials and captures a soft failure on transient refresh error while the token is still usable", async () => {
-		const nowSpy = vi.spyOn(Date, "now").mockReturnValue(100_000);
-		vi.stubGlobal(
-			"fetch",
-			vi.fn(
-				async () =>
-					new Response(
-						JSON.stringify({
-							error: "server_error",
-							error_description: "temporary issue",
-						}),
-						{ status: 500, headers: { "Content-Type": "application/json" } },
-					),
-			),
-		);
-
-		const capture = vi.fn();
-		const current = createCredentials({ expires: 200_000 });
-		const result = await getValidOpenAICodexCredentials(current, {
-			telemetry: { capture } as never,
-		});
-		expect(result).toBe(current);
-		expect(capture).toHaveBeenCalledWith(
-			expect.objectContaining({
-				event: "user.auth_refresh_soft_failure",
-				properties: expect.objectContaining({
-					provider: "openai-codex",
-					status: 500,
-					tokenExpired: false,
-				}),
-			}),
-		);
-		expect(capture).not.toHaveBeenCalledWith(
-			expect.objectContaining({ event: "user.auth_logged_out" }),
-		);
-		nowSpy.mockRestore();
 	});
 
 	it("throws on transient refresh error when the token is already expired", async () => {
