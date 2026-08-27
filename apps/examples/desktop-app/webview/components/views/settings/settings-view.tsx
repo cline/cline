@@ -442,6 +442,10 @@ export function SettingsView({
 			}>("run_provider_oauth_login", {
 				provider: id,
 			});
+			// Like every optimistic provider mutation, claim a new generation so
+			// an older catalog load or resync still in flight can't arrive late
+			// and overwrite the just-connected OAuth state.
+			catalogGenerationRef.current++;
 			setProvidersWithCache((prev) =>
 				prev.map((provider) =>
 					provider.id === id
