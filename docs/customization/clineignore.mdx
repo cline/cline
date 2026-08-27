@@ -10,23 +10,47 @@ description: "Control which files and directories Cline can access in your proje
   `.clineignore` filters what Cline loads automatically, but it is not a security or access-control boundary — ignored files can still be read via explicit `@` mentions or shell commands. We're moving away from it as a supported feature.
 </Warning>
 
-## Restricting File Access with a Plugin
+## Enforcing .clineignore with a Hook
 
-While `.clineignore` is being phased out, you can get a stronger, enforced restriction on **file reads and edits** with the [Block Ignored File Access](https://docs.cline.bot/sdk/plugin-examples#block-ignored-file-access) Cline plugin example. Unlike `.clineignore`, it uses a `beforeTool` runtime hook to actively **block** tool calls: when `read_files`, `editor`, or `apply_patch` targets a file ignored by your workspace's `.gitignore` file. 
+While `.clineignore` is being phased out as a built-in feature, you can keep using the same file — and get a **stronger, enforced** restriction than the original ever provided — with the [.clineignore Read Guard](https://github.com/cline/cline/blob/main/sdk/examples/plugins/clineignore-read-files-guard.ts) Cline plugin example. The original `.clineignore` only filtered automatic context loading; this plugin uses a `beforeTool` runtime hook to actively **block** tool calls: whenever `read_files`, `editor`, `apply_patch`, or a shell command (`run_commands`) targets a file matching a `.clineignore` pattern, the hook skips the call and the agent sees a policy error instead of your file's contents.
 
 Install it into your project with:
 
 ```bash
-cline plugin install https://github.com/cline/cline/blob/main/sdk/examples/plugins/gitignore-read-files-guard.ts --cwd .
+cline plugin install https://github.com/cline/cline/blob/main/sdk/examples/plugins/clineignore-read-files-guard.ts --cwd .
+```
+
+Then list the files you want to protect in a `.clineignore` file at your workspace root. Patterns use `.gitignore` syntax — directories, globs, and `!` negations all work:
+
+```text
+# .clineignore
+.env
+.env.*
+secrets/
+*.pem
+```
+
+When the agent tries to touch a matching file, the tool call is blocked before it runs and the agent sees the reason:
+
+```
+$ cline "Run this shell command and show me its raw output: cat key.pem"
+
+[run_commands] cat key.pem
+   ⎿ error: {"error":"Blocked run_commands: key.pem matched a .clineignore
+     pattern. Do not try to access these files another way; ask the user if
+     you need their contents."}
+
+The command was blocked: `cat key.pem`
 ```
 
 <Note>
-This plugin covers only part of what `.clineignore` did:
-- It **guards file reads/edits** (`read_files`, `editor`, `apply_patch`) — it does **not** filter `search_files`/`list_files` results or guard shell commands, so it is not a full context-reduction tool.
-- It reads your **`.gitignore`** (not a separate `.clineignore`) and requires a Git repository.
+This plugin covers only part of what `.clineignore` did — and enforces more than it ever did:
+- It **guards file reads, edits, and shell commands** (`read_files`, `editor`, `apply_patch`, `run_commands`) — it does **not** filter search or file-listing results, so it is an access-control boundary rather than a context-reduction tool (the original `.clineignore` was the reverse).
+- The shell guard is a conservative token check, not a full shell parser: it catches straightforward access like `cat .env`, but a sufficiently creative command could still slip through.
+- The pattern check is scoped to `.clineignore` alone — your `.gitignore` files are never consulted, and the workspace does not need to be a git repository (`git` is used purely as a pattern matcher, so it must be installed).
 - Plugins run on the Cline **SDK, CLI, and Kanban**. Support in the VS Code and JetBrains extensions arrives as they migrate onto the SDK.
 
-See [Plugins](/customization/plugins) for installation details and scopes.
+If you want to key off your existing `.gitignore` instead of a separate `.clineignore`, see the [Block Ignored File Access](/sdk/plugin-examples#block-ignored-file-access) plugin example. See [Plugins](/customization/plugins) for installation details and scopes.
 </Note>
 
 ---
