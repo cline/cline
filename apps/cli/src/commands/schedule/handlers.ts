@@ -1,3 +1,4 @@
+import { resolve } from "node:path";
 import type { Command } from "commander";
 import { ensureSchedulerHub } from "./client";
 import {
@@ -222,11 +223,15 @@ export function registerScheduleCommands(
 
 	const listCmd = schedule
 		.command("list")
-		.description("List schedules")
+		.description("List schedules across all workspaces")
 		.option("--disabled", "Show only disabled schedules")
 		.option("--enabled", "Show only enabled schedules")
 		.option("--limit <n>", "Maximum number of results", "100")
-		.option("--tags <list>", "Filter by comma-separated tags");
+		.option("--tags <list>", "Filter by comma-separated tags")
+		.option(
+			"--workspace <path>",
+			"Only show schedules for this workspace root",
+		);
 	addSharedOptions(listCmd);
 	listCmd.action(
 		action(async () => {
@@ -243,11 +248,23 @@ export function registerScheduleCommands(
 			const client = ensured.client;
 			try {
 				const enabled = opts.enabled ? true : opts.disabled ? false : undefined;
-				const schedules = await client.listSchedules({
+				const listed = await client.listSchedules({
 					limit: toPositiveInt(opts.limit, 100),
 					enabled,
 					tags: parseList(opts.tags),
 				});
+				const workspaceFilter =
+					typeof opts.workspace === "string" && opts.workspace.trim()
+						? resolve(opts.workspace.trim())
+						: undefined;
+				const schedules =
+					workspaceFilter && Array.isArray(listed)
+						? listed.filter(
+								(schedule) =>
+									typeof schedule?.workspaceRoot === "string" &&
+									resolve(schedule.workspaceRoot) === workspaceFilter,
+							)
+						: listed;
 				if (!opts.json && Array.isArray(schedules) && schedules.length === 0) {
 					io.writeln("No schedules found.");
 					return;
