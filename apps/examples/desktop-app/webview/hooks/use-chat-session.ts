@@ -233,6 +233,7 @@ export function mergeCloudSnapshotWithLive(
 		previousUserCounts: Map<string, number>;
 		optimisticStates: Map<string, CloudOptimisticState>;
 		preserveUnmatchedLive?: boolean;
+		preserveLiveMessageIds?: Set<string>;
 	},
 ): ChatMessage[] {
 	const reconciledHydrated = [...hydrated];
@@ -240,11 +241,11 @@ export function mergeCloudSnapshotWithLive(
 		index: number | undefined,
 		source: ChatMessage,
 	) => {
-		if (index === undefined || !source.images?.length) return;
+		if (index === undefined) return;
 		const target = reconciledHydrated[index];
 		if (!target) return;
 		const existing = target.images ?? [];
-		const additions = source.images.filter(
+		const additions = (source.images ?? []).filter(
 			(image) =>
 				!existing.some(
 					(candidate) =>
@@ -252,9 +253,11 @@ export function mergeCloudSnapshotWithLive(
 						candidate.mediaType === image.mediaType,
 				),
 		);
-		if (additions.length > 0) {
+		const preserveId = options.preserveLiveMessageIds?.has(source.id) === true;
+		if (additions.length > 0 || preserveId) {
 			reconciledHydrated[index] = {
 				...target,
+				...(preserveId ? { id: source.id } : {}),
 				images: [...existing, ...additions],
 			};
 		}
@@ -276,10 +279,11 @@ export function mergeCloudSnapshotWithLive(
 		indexes.push(index);
 		hydratedIndexesByKey.set(key, indexes);
 	}
-	const hydratedAssistantTexts = hydrated
-		.filter((message) => message.role === "assistant" && message.content)
-		.map((message) => message.content);
-	const unmatchedHydratedAssistantTexts = [...hydratedAssistantTexts];
+	const unmatchedHydratedAssistants = hydrated.flatMap((message, index) =>
+		message.role === "assistant" && message.content
+			? [{ index, text: message.content }]
+			: [],
+	);
 	const liveOnly: ChatMessage[] = [];
 	const optimistic: ChatMessage[] = [];
 	for (const message of current) {
@@ -304,17 +308,20 @@ export function mergeCloudSnapshotWithLive(
 				hydratedIndexesByKey.delete(key);
 			}
 			if (message.role === "assistant" && message.content) {
-				const index = unmatchedHydratedAssistantTexts.indexOf(message.content);
-				if (index >= 0) unmatchedHydratedAssistantTexts.splice(index, 1);
+				const index = unmatchedHydratedAssistants.findIndex(
+					(candidate) => candidate.text === message.content,
+				);
+				if (index >= 0) unmatchedHydratedAssistants.splice(index, 1);
 			}
 			continue;
 		}
 		if (message.role === "assistant" && message.content) {
-			const index = unmatchedHydratedAssistantTexts.findIndex((text) =>
-				text.includes(message.content),
+			const index = unmatchedHydratedAssistants.findIndex((candidate) =>
+				candidate.text.includes(message.content),
 			);
 			if (index >= 0) {
-				unmatchedHydratedAssistantTexts.splice(index, 1);
+				const [match] = unmatchedHydratedAssistants.splice(index, 1);
+				mergeImagesIntoHydrated(match?.index, message);
 				continue;
 			}
 		}
@@ -702,20 +709,36 @@ export function useChatSession() {
 			messages: ChatMessage[];
 			preserveUnmatchedLive?: boolean;
 			transcriptKnown?: boolean;
+			preserveLiveRouting?: boolean;
 		}) => {
 			const previousUserCounts =
 				cloudTranscriptUserCountsRef.current[options.sessionId] ?? new Map();
 			const transcriptKnown =
 				cloudTranscriptKnownRef.current[options.sessionId] === true;
-			setMessages((current) =>
-				mergeCloudSnapshotWithLive(options.messages, current, {
+			const preservedMessageIds = options.preserveLiveRouting
+				? new Set([
+						...(activeAssistantMessageIdRef.current
+							? [activeAssistantMessageIdRef.current]
+							: []),
+						...Object.values(liveToolMessageIdsRef.current),
+					])
+				: undefined;
+			setMessages((current) => {
+				const merged = mergeCloudSnapshotWithLive(options.messages, current, {
 					sessionId: options.sessionId,
 					transcriptKnown,
 					previousUserCounts,
 					optimisticStates: cloudOptimisticStatesRef.current,
 					preserveUnmatchedLive: options.preserveUnmatchedLive,
-				}),
-			);
+					preserveLiveMessageIds: preservedMessageIds,
+				});
+				if (options.preserveLiveRouting) {
+					const liveToolState = deriveLiveToolState(merged);
+					liveToolMessageIdsRef.current = liveToolState.messageIds;
+					liveToolInputsRef.current = liveToolState.inputs;
+				}
+				return merged;
+			});
 			cloudTranscriptUserCountsRef.current[options.sessionId] =
 				userMessageCounts(options.messages);
 			cloudTranscriptKnownRef.current[options.sessionId] =
@@ -1456,7 +1479,9 @@ export function useChatSession() {
 			}
 			lastLiveChunkAtRef.current = Date.now();
 			if (abortedRef.current) {
-				return;
+				if (payload.stream !== "chat_queued_prompt_start") return;
+				abortedRef.current = false;
+				clearAbortFallbackTimeout();
 			}
 
 			// --- Text stream (buffered) ---
@@ -1944,6 +1969,7 @@ export function useChatSession() {
 		[
 			addMessage,
 			appendTurnFailureMessage,
+			clearAbortFallbackTimeout,
 			clearLiveToolRefs,
 			finalizeSettledTurn,
 			flushPendingStream,
@@ -2088,8 +2114,12 @@ export function useChatSession() {
 						transcriptKnown: record.transcriptKnown,
 						preserveUnmatchedLive:
 							nextStatus === "running" || nextStatus === "pending",
+						preserveLiveRouting:
+							nextStatus === "running" || nextStatus === "pending",
 					});
-					clearLiveToolRefs();
+					if (nextStatus !== "running" && nextStatus !== "pending") {
+						clearLiveToolRefs();
+					}
 					const mappedStatus = mapCloudRuntimeStatus(nextStatus);
 					if (mappedStatus) {
 						setStatus(mappedStatus);
@@ -3309,6 +3339,7 @@ export function useChatSession() {
 						sessionId: session.sessionId,
 						messages: msgs,
 						preserveUnmatchedLive: true,
+						preserveLiveRouting: sessionStatus === "running",
 					});
 				} else {
 					const mergedMessages = mergeHydratedMessagesWithLive({
@@ -3327,7 +3358,12 @@ export function useChatSession() {
 				}
 				setRawTranscript("");
 				resetCounters();
-				setStatus(inferHydratedChatStatus(sessionStatus, msgs));
+				setStatus(
+					session.origin === "cloud"
+						? (mapCloudRuntimeStatus(sessionStatus) ??
+								inferHydratedChatStatus(sessionStatus, msgs))
+						: inferHydratedChatStatus(sessionStatus, msgs),
+				);
 				void refreshSessionDiffSummary(session.sessionId);
 			};
 
@@ -3401,10 +3437,17 @@ export function useChatSession() {
 
 				if (historyMessages.length > 0) {
 					setStatus(
-						inferHydratedChatStatus(
-							(attached?.status || session.status) as SessionHistoryStatus,
-							historyMessages,
-						),
+						session.origin === "cloud"
+							? (mapCloudRuntimeStatus(attached?.status || session.status) ??
+									inferHydratedChatStatus(
+										(attached?.status ||
+											session.status) as SessionHistoryStatus,
+										historyMessages,
+									))
+							: inferHydratedChatStatus(
+									(attached?.status || session.status) as SessionHistoryStatus,
+									historyMessages,
+								),
 					);
 					return;
 				}

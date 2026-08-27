@@ -343,6 +343,12 @@ function HookHarness() {
 
 beforeEach(async () => {
 	Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+	if (typeof window.localStorage.clear !== "function") {
+		Object.defineProperty(window, "localStorage", {
+			configurable: true,
+			value: window.sessionStorage,
+		});
+	}
 	window.localStorage.clear();
 	container = document.createElement("div");
 	document.body.appendChild(container);
@@ -1309,6 +1315,195 @@ describe("useChatSession", () => {
 		expect(current.messages.at(-1)?.content).toContain("read_files");
 	});
 
+	it("keeps live assistant and tool routing across a running cloud snapshot", async () => {
+		invokeMock.mockImplementation(async (command: string) => {
+			if (command === "get_process_context") {
+				return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+			}
+			if (command === "chat_session_command") {
+				return {
+					sessionId: "ses-cloud",
+					cwd: "/workspace",
+					workspaceRoot: "/workspace",
+				};
+			}
+			return [];
+		});
+		await act(async () => {
+			await current.start({
+				...current.config,
+				executionTarget: "cloud",
+				provider: "cline",
+				repoUrl: "https://github.com/cline/test",
+			});
+		});
+		const rehydratedHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "cloud_session_rehydrated",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: "ses-cloud",
+				stream: "chat_text",
+				chunk: "Hel",
+				ts: 1,
+				index: 1,
+			});
+			chatEventHandler?.({
+				sessionId: "ses-cloud",
+				stream: "chat_core_log",
+				chunk: "flush",
+				ts: 2,
+				index: 2,
+			});
+			rehydratedHandler?.({
+				sessionId: "ses-cloud",
+				status: "running",
+				transcriptKnown: true,
+				messages: [
+					{
+						id: "saved-assistant",
+						sessionId: "ses-cloud",
+						role: "assistant",
+						content: "Hello",
+						createdAt: 1,
+					},
+				],
+			});
+			chatEventHandler?.({
+				sessionId: "ses-cloud",
+				stream: "chat_text",
+				chunk: "!",
+				ts: 3,
+				index: 3,
+			});
+			chatEventHandler?.({
+				sessionId: "ses-cloud",
+				stream: "chat_core_log",
+				chunk: "flush",
+				ts: 4,
+				index: 4,
+			});
+		});
+		expect(
+			current.messages.filter((message) => message.role === "assistant"),
+		).toEqual([expect.objectContaining({ content: "Hello!" })]);
+
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: "ses-cloud",
+				stream: "chat_tool_call_start",
+				chunk: JSON.stringify({
+					toolCallId: "tool-1",
+					toolName: "read_files",
+					input: { paths: ["README.md"] },
+				}),
+				ts: 5,
+				index: 5,
+			});
+			rehydratedHandler?.({
+				sessionId: "ses-cloud",
+				status: "running",
+				transcriptKnown: true,
+				messages: [
+					{
+						id: "saved-assistant",
+						sessionId: "ses-cloud",
+						role: "assistant",
+						content: "Hello",
+						createdAt: 1,
+					},
+					{
+						id: "saved-tool",
+						sessionId: "ses-cloud",
+						role: "tool",
+						content: JSON.stringify({
+							toolName: "read_files",
+							input: {},
+							result: null,
+						}),
+						createdAt: 5,
+						meta: {
+							toolCallId: "tool-1",
+							toolName: "read_files",
+							hookEventName: "tool_call_start",
+						},
+					},
+				],
+			});
+			chatEventHandler?.({
+				sessionId: "ses-cloud",
+				stream: "chat_tool_call_end",
+				chunk: JSON.stringify({
+					toolCallId: "tool-1",
+					toolName: "read_files",
+					output: "done",
+				}),
+				ts: 6,
+				index: 6,
+			});
+		});
+		expect(current.messages.find((message) => message.role === "tool")).toEqual(
+			expect.objectContaining({
+				meta: expect.objectContaining({ hookEventName: "tool_call_end" }),
+			}),
+		);
+	});
+
+	it("keeps an attached running cloud session running after hydration", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "read_session_messages") {
+					return [
+						{
+							id: "assistant-running",
+							sessionId: "ses-cloud",
+							role: "assistant",
+							content: "Still working",
+							createdAt: Date.now(),
+						},
+					];
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string } | undefined;
+					if (request?.action === "attach") {
+						return {
+							sessionId: "ses-cloud",
+							status: "running",
+							provider: "cline",
+							model: "test-model",
+							cwd: "/workspace",
+							workspaceRoot: "/workspace",
+						};
+					}
+				}
+				return [];
+			},
+		);
+
+		await act(async () => {
+			await current.hydrateSession({
+				sessionId: "ses-cloud",
+				origin: "cloud",
+				repoUrl: "https://github.com/cline/test",
+				status: "running",
+				provider: "cline",
+				model: "test-model",
+				cwd: "/workspace",
+				workspaceRoot: "/workspace",
+				startedAt: "2026-08-06T00:00:00.000Z",
+			});
+		});
+
+		expect(current.status).toBe("running");
+	});
+
 	it("restores a cloud session's persisted branch during hydration", async () => {
 		invokeMock.mockImplementation(
 			async (command: string, args?: Record<string, unknown>) => {
@@ -1739,20 +1934,19 @@ describe("useChatSession", () => {
 		await act(async () => {
 			chatEventHandler?.({
 				sessionId: current.sessionId,
-				stream: "chat_queued_prompt_start",
-				chunk: JSON.stringify({ promptId: "straggler", prompt: "old turn" }),
+				stream: "chat_text",
+				chunk: "stale assistant text",
 				ts: Date.now(),
 				index: 1,
 			});
 		});
 		expect(
-			current.messages.some(
-				(message) => message.id === "queued_user_straggler",
+			current.messages.some((message) =>
+				message.content.includes("stale assistant text"),
 			),
 		).toBe(false);
 
 		await act(async () => {
-			statusHandler?.({ sessionId: current.sessionId, status: "running" });
 			chatEventHandler?.({
 				sessionId: current.sessionId,
 				stream: "chat_queued_prompt_start",
@@ -1763,6 +1957,7 @@ describe("useChatSession", () => {
 				ts: Date.now(),
 				index: 2,
 			});
+			statusHandler?.({ sessionId: current.sessionId, status: "running" });
 		});
 		expect(current.status).toBe("running");
 		expect(
