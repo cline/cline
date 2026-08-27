@@ -616,7 +616,15 @@ async function handleRoutineScheduleCommand(
 		hubCommand: string,
 		payload?: Record<string, unknown>,
 	) => {
-		const reply = await hubClient.command(hubCommand as never, payload);
+		// The desktop app runs chats (and therefore agent-created schedules)
+		// across many workspace folders, while this hub client is registered
+		// against the app's own launch directory. Ask the hub for schedules
+		// across all workspaces so the Schedules page manages every schedule
+		// on this machine, not just the launch-directory scope.
+		const reply = await hubClient.command(hubCommand as never, {
+			...payload,
+			allWorkspaces: true,
+		});
 		if (!reply.ok) {
 			throw new Error(
 				reply.error?.message ?? `hub command failed: ${hubCommand}`,

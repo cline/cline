@@ -75,6 +75,10 @@ dimensions.
 `AgentHeroHeading` renders the shared cycling “What would you like to …?”
 welcome heading and respects reduced-motion preferences.
 
+`AgentWelcomeHero` renders the interactive Cline bot and grid used on agent
+welcome surfaces. It supports bot-only and grid-only compositions and becomes
+static when reduced motion is requested.
+
 `AgentApprovalCard` is controlled presentation; the host owns approval state
 and submits its callbacks.
 
