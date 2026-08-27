@@ -63,6 +63,8 @@ describe("WorkspaceCapsuleManifestSchema", () => {
 		"nested/.ssh/config",
 		"config/.env",
 		"config/.env.production",
+		"config/.envrc",
+		"config/.envrc.local",
 	])("rejects protected or non-portable entry path %s", (path) => {
 		const manifest = validManifest();
 		manifest.entries[0].path = path;
@@ -71,11 +73,11 @@ describe("WorkspaceCapsuleManifestSchema", () => {
 		);
 	});
 
-	it("allows a checked-in .env.example path", () => {
+	it("rejects a checked-in .env.example path", () => {
 		const manifest = validManifest();
 		manifest.entries[0].path = ".env.example";
 		expect(WorkspaceCapsuleManifestSchema.safeParse(manifest).success).toBe(
-			true,
+			false,
 		);
 	});
 

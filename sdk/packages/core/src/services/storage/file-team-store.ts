@@ -51,6 +51,9 @@ function reviveTeamRuntimeStateDates(
 				? new Date(run.nextAttemptAt)
 				: undefined,
 			heartbeatAt: run.heartbeatAt ? new Date(run.heartbeatAt) : undefined,
+			lastProgressAt: run.lastProgressAt
+				? new Date(run.lastProgressAt)
+				: undefined,
 		})),
 		outcomes: (state.outcomes ?? []).map((outcome) => ({
 			...outcome,

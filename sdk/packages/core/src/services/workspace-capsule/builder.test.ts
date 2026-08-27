@@ -138,11 +138,16 @@ describe("buildWorkspaceCapsulePlan", () => {
 		]);
 	});
 
-	it("supports a repository-root selection while skipping .git and real env files", async () => {
+	it("supports a repository-root selection while skipping .git and all env files", async () => {
 		const root = await temporaryDirectory();
 		await mkdir(join(root, ".git"));
 		await writeFile(join(root, ".git", "config"), "sensitive metadata");
 		await writeFile(join(root, ".env"), "TOKEN=real-secret-value-123456");
+		await writeFile(join(root, ".envrc"), "export TOKEN=real-secret-value");
+		await writeFile(
+			join(root, ".envrc.local"),
+			"export TOKEN=another-real-secret-value",
+		);
 		await writeFile(
 			join(root, ".env.example"),
 			"OPENAI_API_KEY=example-placeholder\n",
@@ -155,11 +160,13 @@ describe("buildWorkspaceCapsulePlan", () => {
 		});
 
 		expect(plan.manifest.entries.map((entry) => entry.path)).toEqual([
-			".env.example",
 			"package.json",
 		]);
 		expect(plan.skippedPaths).toEqual([
 			{ rootId: "repo", path: ".env", reason: "blocked_path" },
+			{ rootId: "repo", path: ".env.example", reason: "blocked_path" },
+			{ rootId: "repo", path: ".envrc", reason: "blocked_path" },
+			{ rootId: "repo", path: ".envrc.local", reason: "blocked_path" },
 			{ rootId: "repo", path: ".git", reason: "blocked_path" },
 		]);
 	});
@@ -167,6 +174,9 @@ describe("buildWorkspaceCapsulePlan", () => {
 	it.each([
 		".git",
 		".env",
+		".env.example",
+		".envrc",
+		".envrc.local",
 	])("still rejects directly selected blocked path %s", async (name) => {
 		const root = await temporaryDirectory();
 		if (name === ".git") await mkdir(join(root, name));
@@ -366,6 +376,7 @@ describe("buildWorkspaceCapsulePlan", () => {
 		".cline-capsule-manifest.json",
 		"nested/.git/config",
 		"config/.env.local",
+		"config/.envrc.local",
 	])("rejects protected capsule destination %s", async (destination) => {
 		const root = await temporaryDirectory();
 		await writeFile(join(root, "input.txt"), "input");

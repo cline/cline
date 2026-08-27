@@ -1,4 +1,4 @@
-import type { AgentConfig, AgentEvent } from "@cline/shared";
+import type { AgentConfig, AgentEvent, AgentResult } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
 import {
 	AgentTeamsRuntime,
@@ -37,6 +37,21 @@ vi.mock("../../../runtime/orchestration/session-runtime-orchestrator", () => {
 		SessionRuntime: createSessionRuntimeMock,
 	};
 });
+
+function completedResult(text: string): AgentResult {
+	return {
+		text,
+		usage: { inputTokens: 1, outputTokens: 1, totalCost: 0 },
+		messages: [],
+		toolCalls: [],
+		iterations: 1,
+		finishReason: "completed",
+		model: { id: "test", provider: "test" },
+		startedAt: new Date(),
+		endedAt: new Date(),
+		durationMs: 1,
+	};
+}
 
 describe("AgentTeamsRuntime teammate lifecycle events", () => {
 	it("spawns teammates with a 10 minute API timeout", () => {
@@ -242,6 +257,68 @@ describe("AgentTeamsRuntime teammate lifecycle events", () => {
 		);
 	});
 
+	it("persists a recoverable interruption when the parent stops waiting", async () => {
+		const controller = new AbortController();
+		let attempts = 0;
+		const run = vi.fn(
+			(_message: string, options?: { signal?: AbortSignal }) => {
+				attempts++;
+				if (attempts > 1) return Promise.resolve(completedResult("recovered"));
+				return new Promise<AgentResult>((_resolve, reject) => {
+					options?.signal?.addEventListener(
+						"abort",
+						() => reject(options.signal?.reason),
+						{ once: true },
+					);
+				});
+			},
+		);
+		const runtime = new AgentTeamsRuntime({
+			teamName: "cancel-team",
+			leadAgentId: "lead",
+		});
+		runtime.spawnManagedTeammate({
+			agentId: "cloud-worker",
+			description: "Cloud worker",
+			runner: {
+				canStartRun: () => true,
+				run,
+				detach: vi.fn(),
+				shutdown: vi.fn(),
+			},
+		});
+		runtime.sendMessage("lead", "cloud-worker", "Context", "Preserve this");
+
+		const record = runtime.startTeammateRun("cloud-worker", "held work", {
+			signal: controller.signal,
+		});
+		await vi.waitFor(() => expect(run).toHaveBeenCalledTimes(1));
+		const submittedMessage = run.mock.calls[0]?.[0];
+		expect(submittedMessage).toContain("held work");
+		expect(submittedMessage).toContain("Preserve this");
+		expect(run.mock.calls[0]?.[1]).toEqual(
+			expect.objectContaining({ signal: expect.any(AbortSignal) }),
+		);
+		expect(runtime.exportState().runs).toContainEqual(
+			expect.objectContaining({ id: record.id, status: "running" }),
+		);
+
+		controller.abort(new DOMException("parent disconnected", "AbortError"));
+		await vi.waitFor(() =>
+			expect(runtime.listRuns()).toContainEqual(
+				expect.objectContaining({ id: record.id, status: "interrupted" }),
+			),
+		);
+		expect(runtime.getRun(record.id)?.message).toBe(submittedMessage);
+		expect(runtime.recoverActiveRuns("parent_reconnected")).toEqual([
+			expect.objectContaining({ id: record.id, status: "queued" }),
+		]);
+		await expect(runtime.awaitRun(record.id, 1)).resolves.toEqual(
+			expect.objectContaining({ status: "completed" }),
+		);
+		expect(run.mock.calls[1]?.[0]).toBe(submittedMessage);
+	});
+
 	it("marks an active queued run as cancelled when teammate shutdown aborts it", async () => {
 		const events: TeamEvent[] = [];
 		let rejectRun: ((error: Error) => void) | undefined;
@@ -296,6 +373,105 @@ describe("AgentTeamsRuntime teammate lifecycle events", () => {
 			}),
 			reason: "This operation was aborted",
 		});
+	});
+
+	it("cancelling queued run B does not abort running run A", async () => {
+		let resolveFirstRun: ((result: AgentResult) => void) | undefined;
+		const abort = vi.fn();
+		const runAgent = vi.fn(
+			() =>
+				new Promise<AgentResult>((resolve) => {
+					resolveFirstRun = resolve;
+				}),
+		);
+		// biome-ignore lint/complexity/useArrowFunction: `new SessionRuntime(...)` requires a non-arrow callable.
+		createSessionRuntimeMock.mockImplementationOnce(function () {
+			return {
+				abort,
+				run: runAgent,
+				continue: vi.fn(),
+				canStartRun: vi.fn(() => true),
+				getAgentId: vi.fn(() => "teammate-1"),
+				getConversationId: vi.fn(() => "conv-1"),
+				getMessages: vi.fn(() => []),
+				subscribeEvents: vi.fn(() => () => {}),
+			};
+		});
+		const runtime = new AgentTeamsRuntime({
+			teamName: "isolated-cancel-team",
+			maxConcurrentRuns: 1,
+		});
+		runtime.spawnTeammate({
+			agentId: "worker",
+			config: {
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-5-20250929",
+				systemPrompt: "Work",
+				tools: [],
+			},
+		});
+
+		const runA = runtime.startTeammateRun("worker", "run A");
+		await vi.waitFor(() => expect(runAgent).toHaveBeenCalledTimes(1));
+		const runB = runtime.startTeammateRun("worker", "run B");
+		expect(runtime.getRun(runB.id)?.status).toBe("queued");
+
+		expect(runtime.cancelRun(runB.id, "cancel only B").status).toBe(
+			"cancelled",
+		);
+		expect(abort).not.toHaveBeenCalled();
+		expect(runtime.getRun(runA.id)?.status).toBe("running");
+
+		resolveFirstRun?.(completedResult("A completed"));
+		await expect(runtime.awaitRun(runA.id, 1)).resolves.toEqual(
+			expect.objectContaining({ status: "completed" }),
+		);
+		expect(runtime.getRun(runB.id)?.status).toBe("cancelled");
+		expect(runAgent).toHaveBeenCalledTimes(1);
+	});
+
+	it("cancelling the actively dispatched run aborts its local teammate", async () => {
+		let rejectRun: ((error: Error) => void) | undefined;
+		const abort = vi.fn(() => {
+			rejectRun?.(new DOMException("cancel active run", "AbortError"));
+		});
+		const runAgent = vi.fn(
+			() =>
+				new Promise<AgentResult>((_resolve, reject) => {
+					rejectRun = reject;
+				}),
+		);
+		// biome-ignore lint/complexity/useArrowFunction: `new SessionRuntime(...)` requires a non-arrow callable.
+		createSessionRuntimeMock.mockImplementationOnce(function () {
+			return {
+				abort,
+				run: runAgent,
+				continue: vi.fn(),
+				canStartRun: vi.fn(() => true),
+				getAgentId: vi.fn(() => "teammate-1"),
+				getConversationId: vi.fn(() => "conv-1"),
+				getMessages: vi.fn(() => []),
+				subscribeEvents: vi.fn(() => () => {}),
+			};
+		});
+		const runtime = new AgentTeamsRuntime({ teamName: "active-cancel-team" });
+		runtime.spawnTeammate({
+			agentId: "worker",
+			config: {
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-5-20250929",
+				systemPrompt: "Work",
+				tools: [],
+			},
+		});
+
+		const run = runtime.startTeammateRun("worker", "active work");
+		await vi.waitFor(() => expect(runAgent).toHaveBeenCalledTimes(1));
+		expect(runtime.cancelRun(run.id, "cancel active").status).toBe("cancelled");
+		expect(abort).toHaveBeenCalledTimes(1);
+		await expect(runtime.awaitRun(run.id, 1)).resolves.toEqual(
+			expect.objectContaining({ status: "cancelled" }),
+		);
 	});
 
 	it("prepends unread mailbox notification to teammate message", async () => {

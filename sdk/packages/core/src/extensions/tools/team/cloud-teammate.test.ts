@@ -284,25 +284,27 @@ describe("cloud teammate Teams integration", () => {
 		await first;
 	});
 
-	it("keeps a cloud node busy after client polling is aborted", async () => {
+	it("releases process-local busy state after client polling is aborted", async () => {
 		const workspace = await temporaryWorkspace();
 		await writeFile(join(workspace, "source.ts"), "export {};\n");
+		let attempts = 0;
 		const controlPlane: CloudTeammateControlPlane = {
 			provisionTeammate: vi.fn(async (input) => {
 				await readFile(input.initialCapsule.archivePath);
 				return { nodeId: "cnd-abort" };
 			}),
 			reattachTeammate: vi.fn(async (input) => ({ nodeId: input.nodeId })),
-			runTeammateTask: vi.fn(
-				(input: CloudTeammateRunInput) =>
-					new Promise<AgentResult>((_, reject) => {
-						input.signal?.addEventListener(
-							"abort",
-							() => reject(input.signal?.reason),
-							{ once: true },
-						);
-					}),
-			),
+			runTeammateTask: vi.fn((input: CloudTeammateRunInput) => {
+				attempts++;
+				if (attempts > 1) return Promise.resolve(result("cloud:second run"));
+				return new Promise<AgentResult>((_, reject) => {
+					input.signal?.addEventListener(
+						"abort",
+						() => reject(input.signal?.reason),
+						{ once: true },
+					);
+				});
+			}),
 			destroyTeammate: vi.fn(),
 		};
 		const runtime = new AgentTeamsRuntime({ teamName: "abort-safe" });
@@ -339,7 +341,7 @@ describe("cloud teammate Teams integration", () => {
 		await expect(firstRun).rejects.toThrow("stop polling");
 		await expect(
 			runtime.routeToTeammate("builder", "second run"),
-		).rejects.toThrow("another run is already in progress");
+		).resolves.toEqual(expect.objectContaining({ text: "cloud:second run" }));
 	});
 
 	it("reattaches a persisted cloud node and resumes its queued run without reprovisioning", async () => {
@@ -417,6 +419,7 @@ describe("cloud teammate Teams integration", () => {
 				agentId: "durable-reviewer",
 				runId: "run_00001",
 				taskId: "task_0001",
+				message: "Continue after disconnect",
 			}),
 		);
 		expect(provisionTeammate).not.toHaveBeenCalled();

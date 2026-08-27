@@ -182,6 +182,10 @@ function isAbortLikeError(error: unknown): boolean {
 	);
 }
 
+function runWasStoppedWhileDispatching(run: TeamRunRecord): boolean {
+	return run.status === "cancelled" || run.status === "interrupted";
+}
+
 function isIntentionalShutdownAbort(
 	member: TeamMemberState | undefined,
 	error: unknown,
@@ -564,6 +568,12 @@ export class AgentTeamsRuntime {
 	private outcomeFragmentCounter = 0;
 	private readonly runs: Map<string, TeamRunRecord & { result?: AgentResult }> =
 		new Map();
+	/** Process-local cancellation for active dispatch polling; never persisted. */
+	private readonly runSignals = new Map<string, AbortSignal>();
+	/** Runtime-owned cancellation used by cancelRun; never persisted. */
+	private readonly runAbortControllers = new Map<string, AbortController>();
+	/** Run ids that currently own their teammate's local dispatch. */
+	private readonly activeRunDispatches = new Set<string>();
 	private readonly runQueue: string[] = [];
 	private queuedRunDispatchTimer: ReturnType<typeof setTimeout> | undefined;
 	private readonly outcomes: Map<string, TeamOutcome> = new Map();
@@ -765,6 +775,9 @@ export class AgentTeamsRuntime {
 		this.missionLog.push(...state.missionLog.map((entry) => ({ ...entry })));
 
 		this.runs.clear();
+		this.runSignals.clear();
+		this.runAbortControllers.clear();
+		this.activeRunDispatches.clear();
 		for (const run of state.runs ?? []) {
 			this.runs.set(run.id, { ...run } as TeamRunRecord & {
 				result?: AgentResult;
@@ -1132,6 +1145,20 @@ export class AgentTeamsRuntime {
 		message: string,
 		options?: RouteToTeammateOptions,
 	): Promise<AgentResult> {
+		return await this.routeToTeammateInternal(agentId, message, options);
+	}
+
+	private async routeToTeammateInternal(
+		agentId: string,
+		message: string,
+		options?: RouteToTeammateOptions,
+		preparation?: {
+			skipMailboxEnrichment?: boolean;
+			onPreparedMessage?: (preparedMessage: string) => void;
+			onDispatchStarted?: () => void;
+			onDispatchEnded?: () => void;
+		},
+	): Promise<AgentResult> {
 		const member = this.members.get(agentId);
 		if (
 			!member ||
@@ -1149,19 +1176,29 @@ export class AgentTeamsRuntime {
 			);
 		}
 
-		member.runningCount++;
-		member.status = "running";
-		this.emitEvent({ type: TeamMessageType.TaskStart, agentId, message });
-
+		let dispatchStarted = false;
+		let memberClaimed = false;
 		try {
 			const unreadMail = this.listMailbox(agentId, {
-				unreadOnly: true,
-				markRead: true,
+				unreadOnly: !preparation?.skipMailboxEnrichment,
+				markRead: !preparation?.skipMailboxEnrichment,
 			});
 			const enrichedMessage =
-				unreadMail.length > 0
+				!preparation?.skipMailboxEnrichment && unreadMail.length > 0
 					? `${this.buildMailboxNotification(unreadMail)}\n\n${message}`
 					: message;
+			preparation?.onPreparedMessage?.(enrichedMessage);
+			options?.signal?.throwIfAborted();
+			preparation?.onDispatchStarted?.();
+			dispatchStarted = true;
+			member.runningCount++;
+			memberClaimed = true;
+			member.status = "running";
+			this.emitEvent({
+				type: TeamMessageType.TaskStart,
+				agentId,
+				message: enrichedMessage,
+			});
 			const result = member.agent
 				? options?.continueConversation
 					? await member.agent.continue(enrichedMessage)
@@ -1193,8 +1230,10 @@ export class AgentTeamsRuntime {
 			}
 			throw err;
 		} finally {
-			member.runningCount--;
+			if (dispatchStarted) preparation?.onDispatchEnded?.();
+			if (memberClaimed) member.runningCount--;
 			if (
+				memberClaimed &&
 				member.runningCount <= 0 &&
 				this.members.get(agentId)?.status !== "stopped"
 			) {
@@ -1231,6 +1270,8 @@ export class AgentTeamsRuntime {
 			currentActivity: "queued",
 		};
 		this.runs.set(runId, record);
+		if (options?.signal) this.runSignals.set(runId, options.signal);
+		this.runAbortControllers.set(runId, new AbortController());
 		this.runQueue.push(runId);
 		this.emitEvent({ type: TeamMessageType.RunQueued, run: { ...record } });
 		this.dispatchQueuedRuns();
@@ -1336,14 +1377,39 @@ export class AgentTeamsRuntime {
 		}, 2000);
 
 		try {
-			const runMessage = recoveredRun
-				? buildRecoveredRunMessage(run)
-				: run.message;
-			const result = await this.routeToTeammate(run.agentId, runMessage, {
-				runId: run.id,
-				taskId: run.taskId,
-				continueConversation: run.continueConversation,
-			});
+			const member = this.members.get(run.agentId);
+			const isManagedRun = Boolean(member?.managedRunner);
+			const runMessage =
+				recoveredRun && !isManagedRun
+					? buildRecoveredRunMessage(run)
+					: run.message;
+			const externalSignal = this.runSignals.get(run.id);
+			const runtimeSignal = this.runAbortControllers.get(run.id)?.signal;
+			const signal =
+				externalSignal && runtimeSignal
+					? AbortSignal.any([externalSignal, runtimeSignal])
+					: (externalSignal ?? runtimeSignal);
+			const result = await this.routeToTeammateInternal(
+				run.agentId,
+				runMessage,
+				{
+					runId: run.id,
+					taskId: run.taskId,
+					continueConversation: run.continueConversation,
+					signal,
+				},
+				{
+					skipMailboxEnrichment: recoveredRun && isManagedRun,
+					onPreparedMessage: isManagedRun
+						? (preparedMessage) => {
+								run.message = preparedMessage;
+							}
+						: undefined,
+					onDispatchStarted: () => this.activeRunDispatches.add(run.id),
+					onDispatchEnded: () => this.activeRunDispatches.delete(run.id),
+				},
+			);
+			if (runWasStoppedWhileDispatching(run)) return;
 			// Model-stream failures surface as results with finishReason
 			// "error" rather than throws; route them through the failure
 			// path so the run is reported as failed (and retried when
@@ -1364,7 +1430,18 @@ export class AgentTeamsRuntime {
 			run.error = message;
 			run.endedAt = new Date();
 			const member = this.members.get(run.agentId);
-			if (isIntentionalShutdownAbort(member, error)) {
+			const parentWaitWasInterrupted = this.runSignals.get(run.id)?.aborted;
+			if (runWasStoppedWhileDispatching(run)) {
+				// cancelRun/markStaleRunsInterrupted already emitted the terminal event.
+			} else if (parentWaitWasInterrupted) {
+				run.status = "interrupted";
+				run.currentActivity = "parent_wait_interrupted";
+				this.emitEvent({
+					type: TeamMessageType.RunInterrupted,
+					run: { ...run },
+					reason: message,
+				});
+			} else if (isIntentionalShutdownAbort(member, error)) {
 				run.status = "cancelled";
 				run.currentActivity = "cancelled";
 				this.emitEvent({
@@ -1387,6 +1464,11 @@ export class AgentTeamsRuntime {
 			}
 		} finally {
 			clearInterval(heartbeatTimer);
+			this.activeRunDispatches.delete(run.id);
+			if (run.status !== "queued") {
+				this.runSignals.delete(run.id);
+				this.runAbortControllers.delete(run.id);
+			}
 			this.dispatchQueuedRuns();
 		}
 	}
@@ -1445,9 +1527,12 @@ export class AgentTeamsRuntime {
 		if (!run) {
 			throw new Error(`Run "${runId}" was not found`);
 		}
-		if (run.status === "completed" || run.status === "failed") {
+		if (
+			["completed", "failed", "cancelled", "interrupted"].includes(run.status)
+		) {
 			return { ...run };
 		}
+		const wasRunning = run.status === "running";
 		run.status = "cancelled";
 		run.error = reason;
 		run.endedAt = new Date();
@@ -1456,18 +1541,28 @@ export class AgentTeamsRuntime {
 		if (queueIndex >= 0) {
 			this.runQueue.splice(queueIndex, 1);
 		}
+		this.runAbortControllers
+			.get(runId)
+			?.abort(new DOMException(reason ?? "Run cancelled", "AbortError"));
+		if (this.activeRunDispatches.has(runId)) {
+			this.members.get(run.agentId)?.agent?.abort();
+		}
 		this.emitEvent({
 			type: TeamMessageType.RunCancelled,
 			run: { ...run },
 			reason,
 		});
+		if (!wasRunning) {
+			this.runSignals.delete(runId);
+			this.runAbortControllers.delete(runId);
+		}
 		return { ...run };
 	}
 
 	recoverActiveRuns(reason = "runtime_recovered"): TeamRunRecord[] {
 		const recovered: TeamRunRecord[] = [];
 		for (const run of this.runs.values()) {
-			if (!["queued", "running"].includes(run.status)) {
+			if (!["queued", "running", "interrupted"].includes(run.status)) {
 				continue;
 			}
 
@@ -1500,6 +1595,9 @@ export class AgentTeamsRuntime {
 			if (!this.runQueue.includes(run.id)) {
 				this.runQueue.push(run.id);
 			}
+			if (!this.runAbortControllers.has(run.id)) {
+				this.runAbortControllers.set(run.id, new AbortController());
+			}
 			recovered.push({ ...run });
 			this.emitEvent({ type: TeamMessageType.RunQueued, run: { ...run } });
 		}
@@ -1517,6 +1615,11 @@ export class AgentTeamsRuntime {
 			run.error = reason;
 			run.endedAt = new Date();
 			run.currentActivity = "interrupted";
+			this.runAbortControllers
+				.get(run.id)
+				?.abort(new DOMException(reason, "AbortError"));
+			this.runSignals.delete(run.id);
+			this.runAbortControllers.delete(run.id);
 			interrupted.push({ ...run });
 			this.emitEvent({
 				type: TeamMessageType.RunInterrupted,
@@ -1764,6 +1867,9 @@ export class AgentTeamsRuntime {
 		this.mailbox.length = 0;
 		this.missionLog.length = 0;
 		this.runs.clear();
+		this.runSignals.clear();
+		this.runAbortControllers.clear();
+		this.activeRunDispatches.clear();
 		this.runQueue.length = 0;
 		this.clearQueuedRunDispatchTimer();
 		this.outcomes.clear();
@@ -1819,6 +1925,9 @@ export class AgentTeamsRuntime {
 		this.mailbox.length = 0;
 		this.missionLog.length = 0;
 		this.runs.clear();
+		this.runSignals.clear();
+		this.runAbortControllers.clear();
+		this.activeRunDispatches.clear();
 		this.runQueue.length = 0;
 		this.clearQueuedRunDispatchTimer();
 		this.outcomes.clear();

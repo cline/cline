@@ -147,6 +147,7 @@ const BLOCKED_EXACT_FILE_NAMES = new Set([
 
 const BLOCKED_SECRET_FILE_PATTERNS = [
 	/^\.env(?:\..+)?$/i,
+	/^\.envrc(?:\..+)?$/i,
 	/^credentials?(?:\..+)?$/i,
 	/^secrets?(?:\.(?:json|ya?ml|toml|ini|txt))$/i,
 	/\.(?:key|pem|p12|pfx|kdbx)$/i,
@@ -274,7 +275,9 @@ function normalizedDestination(value: string): string {
 				lower === ".git" ||
 				lower === ".ssh" ||
 				lower === ".env" ||
-				(lower.startsWith(".env.") && lower !== ".env.example")
+				lower === ".envrc" ||
+				lower.startsWith(".envrc.") ||
+				lower.startsWith(".env.")
 			);
 		})
 	) {
@@ -312,14 +315,10 @@ function assertPathIsAllowed(sourceRelativePath: string): void {
 	}
 	const basename = segments.at(-1)?.toLowerCase();
 	if (!basename) return;
-	// Checked-in examples are useful source context and intentionally contain
-	// placeholders. Their contents still pass through the secret scanner.
-	const isEnvironmentExample = basename === ".env.example";
 	if (
 		BLOCKED_DIRECTORY_NAMES.has(basename) ||
 		BLOCKED_EXACT_FILE_NAMES.has(basename) ||
-		(!isEnvironmentExample &&
-			BLOCKED_SECRET_FILE_PATTERNS.some((pattern) => pattern.test(basename)))
+		BLOCKED_SECRET_FILE_PATTERNS.some((pattern) => pattern.test(basename))
 	) {
 		fail(
 			"BLOCKED_PATH",

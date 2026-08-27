@@ -147,20 +147,17 @@ class CloudManagedTeammateRunner implements ManagedTeammateRunner {
 			);
 		}
 		this.busy = true;
-		let completed = false;
 		try {
-			const result = await this.controlPlane.runTeammateTask({
+			return await this.controlPlane.runTeammateTask({
 				...this.identity,
 				message,
 				...options,
 			});
-			completed = true;
-			return result;
 		} finally {
-			// Any client-side failure after Core accepted the run is ambiguous: the
-			// durable run may still be executing. Only a successful terminal result
-			// releases the node; reattach is the recovery path for failures.
-			if (completed) this.busy = false;
+			// Core owns node serialization and run idempotency. This flag protects
+			// only concurrent calls in the current process, so it must be released
+			// when a caller stops waiting for a still-durable remote run.
+			this.busy = false;
 		}
 	}
 
