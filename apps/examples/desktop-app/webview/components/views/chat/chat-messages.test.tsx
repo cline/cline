@@ -221,6 +221,9 @@ describe("ChatMessages tool disclosures", () => {
 		expect(markdown?.textContent).toContain("3 feeds");
 		expect(markdown?.textContent).not.toContain("##");
 		expect(markdown?.textContent).not.toContain("**");
+		// The final answer renders in full foreground color, overriding the
+		// panel's muted tool-detail gray.
+		expect(markdown?.closest(".text-foreground")).not.toBeNull();
 	});
 
 	it("renders consecutive tool calls as individual rows", async () => {

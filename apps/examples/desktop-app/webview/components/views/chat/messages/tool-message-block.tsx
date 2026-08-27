@@ -223,7 +223,9 @@ const ToolCallRow = memo(function ToolCallRow({
 						output={commandOutput}
 					/>
 				) : submitText ? (
-					<div className="mt-1 min-w-0 max-w-full wrap-break-word">
+					// The summary is the run's final answer: full foreground color,
+					// not the panel's muted tool-detail gray.
+					<div className="mt-1 min-w-0 max-w-full wrap-break-word text-foreground">
 						<MemoizedMarkdown content={submitText} />
 					</div>
 				) : summary.outputText ? (
