@@ -505,7 +505,11 @@ async function persistDesktopSessionModeMetadata(
 ): Promise<void> {
 	if (typeof manager.update !== "function") return;
 	const mode = resolveDesktopSessionMode(config);
+	const current = await manager.get(sessionId).catch(() => undefined);
 	const metadata =
+		(current?.metadata && typeof current.metadata === "object"
+			? (current.metadata as JsonRecord)
+			: undefined) ??
 		(persistedMetadata && typeof persistedMetadata === "object"
 			? (persistedMetadata as JsonRecord)
 			: undefined) ??
@@ -1861,7 +1865,7 @@ export async function updateHandoffMetadataOrThrow(
 }
 
 export async function reconcilePendingCloudHandoff(
-	manager: Pick<ClineCore, "update">,
+	_manager: Pick<ClineCore, "update">,
 	cloud: Pick<CloudSessionManager, "handoffTargetExists">,
 	input: {
 		sourceSessionId: string;
@@ -1888,14 +1892,9 @@ export async function reconcilePendingCloudHandoff(
 			`A previous cloud handoff is still pending for a different repository, branch, commit, or model. Continue or delete it before retrying: ${dashboardUrl}`,
 		);
 	}
-	const metadata = clearCloudHandoffMetadata(input.metadata);
-	await updateHandoffMetadataOrThrow(
-		manager,
-		input.sourceSessionId,
-		metadata,
-		"The previous cloud workspace is gone, but its local pending handoff record could not be cleared.",
+	throw new Error(
+		"The previous cloud handoff is not visible from the current account. Sign back into the account that created it before retrying.",
 	);
-	return { metadata };
 }
 
 export function shouldCleanupFailedHandoffVerification(
@@ -1942,9 +1941,10 @@ async function assertCloudHandoffAvailable(
 	if (sourceSessionId) {
 		const manager = getSessionManager(ctx);
 		const persisted = await manager.get(sourceSessionId).catch(() => undefined);
-		const pending = readCloudHandoffMetadata(
-			(persisted?.metadata ?? undefined) as JsonRecord | undefined,
-		);
+		const pending =
+			readCloudHandoffMetadata(
+				(persisted?.metadata ?? undefined) as JsonRecord | undefined,
+			) ?? readCloudHandoffMetadata(readSessionMetadata(sourceSessionId));
 		if (pending?.status === "pending") return;
 	}
 	throw new Error(
@@ -2121,6 +2121,20 @@ async function handleHandoffOnce(
 		...(ctx.liveSessions.get(sourceSessionId)?.config ?? {}),
 		...(request.config ?? {}),
 	};
+	const sourceReasoningEffort = readReasoningEffort(
+		sourceConfig.reasoningEffort,
+	);
+	const handoffConfig = {
+		...(typeof sourceConfig.autoApproveTools === "boolean"
+			? { autoApproveTools: sourceConfig.autoApproveTools }
+			: {}),
+		...(typeof sourceConfig.thinking === "boolean"
+			? { thinking: sourceConfig.thinking }
+			: {}),
+		...(sourceReasoningEffort
+			? { reasoningEffort: sourceReasoningEffort }
+			: {}),
+	};
 	const sourceCwd =
 		readWorkspacePath(sourceConfig) ?? readWorkspacePath(persistedBefore);
 	if (!sourceCwd) throw new Error("Cloud handoff requires a workspace path.");
@@ -2238,21 +2252,7 @@ async function handleHandoffOnce(
 				mode: prepared.fingerprint.mode ?? "act",
 				// After a sidecar restart nothing else remembers the source
 				// session's approval/reasoning settings for the inner create.
-				config: {
-					...(typeof request.config?.autoApproveTools === "boolean"
-						? { autoApproveTools: request.config.autoApproveTools }
-						: {}),
-					...(typeof request.config?.thinking === "boolean"
-						? { thinking: request.config.thinking }
-						: {}),
-					...(readReasoningEffort(request.config?.reasoningEffort)
-						? {
-								reasoningEffort: readReasoningEffort(
-									request.config?.reasoningEffort,
-								),
-							}
-						: {}),
-				},
+				config: handoffConfig,
 				onSeeding: () =>
 					emitProgress(
 						"seeding",
@@ -2299,26 +2299,14 @@ async function handleHandoffOnce(
 		const created = await cloud.create({
 			// Single-flight concurrent handoff attempts of the same source
 			// session under the base's requestId-keyed create dedupe.
-			requestId: `handoff:${sourceSessionId}`,
+			requestId: `handoff:${sourceSessionId}:${prepared.headSha.toLowerCase()}`,
 			repoUrl: prepared.repoUrl,
 			branch: prepared.branch,
 			modelId: prepared.modelId,
 			mode: prepared.fingerprint.mode ?? "act",
 			workspaceRelativePath: prepared.fingerprint.workspaceRelativePath,
 			organizationId: prepared.fingerprint.organizationId ?? null,
-			...(typeof request.config?.autoApproveTools === "boolean"
-				? { autoApproveTools: request.config.autoApproveTools }
-				: {}),
-			...(typeof request.config?.thinking === "boolean"
-				? { thinking: request.config.thinking }
-				: {}),
-			...(readReasoningEffort(request.config?.reasoningEffort)
-				? {
-						reasoningEffort: readReasoningEffort(
-							request.config?.reasoningEffort,
-						),
-					}
-				: {}),
+			...handoffConfig,
 			handoff: {
 				sourceSessionId,
 				resolveMessages: readSeedMessages,
@@ -2514,7 +2502,9 @@ async function handleHandoffOnce(
 }
 
 type HandoffRequestIdentity = {
+	handoffAttemptId: string;
 	fingerprint: JsonRecord | null;
+	config: JsonRecord | null;
 	nextCommand: string;
 	userImages: string[];
 	userFiles: Array<{ name: string; content: string }>;
@@ -2561,7 +2551,9 @@ async function handleHandoff(
 		handoffRequests.set(ctx, requests);
 	}
 	const identity: HandoffRequestIdentity = {
+		handoffAttemptId: request.handoffAttemptId?.trim() ?? "",
 		fingerprint: request.fingerprint ?? null,
+		config: request.config ?? null,
 		nextCommand: request.nextCommand?.trim() ?? "",
 		userImages: [...(request.attachments?.userImages ?? [])],
 		userFiles: (request.attachments?.userFiles ?? []).map((file) => ({
