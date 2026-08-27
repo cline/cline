@@ -41,7 +41,7 @@ describe("desktopAppReducer", () => {
 		).toBeUndefined();
 	});
 
-	it("hands restored attachments to the target thread exactly once", () => {
+	it("hands attachment-only recovery to the target thread exactly once", () => {
 		const attachment = new File(["png-bytes"], "screenshot.png", {
 			type: "image/png",
 		});
@@ -49,14 +49,13 @@ describe("desktopAppReducer", () => {
 		state = desktopAppReducer(state, {
 			type: "open-session",
 			session: createSession("handoff-target"),
-			initialPromptDraft: "fix the failing tests",
 			initialAttachments: [attachment],
 		});
 
 		const thread = state.threads.find(
 			(item) => item.id === "session_handoff-target",
 		);
-		expect(thread?.initialPromptDraft).toBe("fix the failing tests");
+		expect(thread?.initialPromptDraft).toBeUndefined();
 		expect(thread?.initialAttachments).toEqual([attachment]);
 
 		state = desktopAppReducer(state, {
