@@ -164,7 +164,10 @@ type AppLocation = DesktopAppLocation<SettingsSection>;
 const PROVISIONING_PHASE_INTERVAL_MS = 4_500;
 
 /** Shared provisioning status for the originating thread and placeholder. */
-function useCloudProvisioningPhase(repoUrl?: string): string {
+function useCloudProvisioningPhase(
+	repoUrl: string | undefined,
+	active: boolean,
+): string {
 	const repoLabel = cloudRepositoryLabel(repoUrl ?? "");
 	const phases = useMemo(
 		() => [
@@ -181,12 +184,16 @@ function useCloudProvisioningPhase(repoUrl?: string): string {
 	// which must stay pure (StrictMode double-invokes it).
 	const lastPhase = phaseIndex >= phases.length - 1;
 	useEffect(() => {
+		if (!active) {
+			setPhaseIndex(0);
+			return;
+		}
 		if (lastPhase) return;
 		const interval = window.setInterval(() => {
 			setPhaseIndex((current) => Math.min(current + 1, phases.length - 1));
 		}, PROVISIONING_PHASE_INTERVAL_MS);
 		return () => window.clearInterval(interval);
-	}, [lastPhase, phases.length]);
+	}, [active, lastPhase, phases.length]);
 	return `${phases[phaseIndex]}...`;
 }
 
@@ -874,6 +881,7 @@ function ChatThreadPane({
 			));
 	const provisioningPhase = useCloudProvisioningPhase(
 		config.repoUrl || historySession?.repoUrl,
+		isProvisioningCloudSession || (isCloudSession && status === "starting"),
 	);
 	const activeWorkspaceCwd = isCloudSession
 		? ""
@@ -1950,7 +1958,9 @@ function ChatThreadPane({
 								canEditTitle={
 									Boolean(activeSessionForTitle) && !isProvisioningCloudSession
 								}
-								canDeleteSession={Boolean(activeSessionToDelete)}
+								canDeleteSession={
+									Boolean(activeSessionToDelete) && !isProvisioningCloudSession
+								}
 								deletingSession={deletingSession}
 								diff={isCloudSession ? undefined : headerDiff}
 								onDeleteSession={requestDeleteSession}

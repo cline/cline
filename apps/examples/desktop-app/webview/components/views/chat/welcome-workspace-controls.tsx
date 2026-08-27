@@ -994,6 +994,11 @@ export function WelcomeWorkspaceControls({
 		},
 		[repoUrl],
 	);
+	useEffect(() => {
+		if (repoUrl.trim()) return;
+		setCloudRepositoryId(undefined);
+		setCloudDefaultBranch("");
+	}, [repoUrl]);
 
 	// Close whichever menu is open when clicking outside the control row.
 	useEffect(() => {

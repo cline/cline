@@ -19,6 +19,7 @@ const {
 	loadProviderModelsMock,
 	speechInputMockState,
 	startVercelStreamingTranscriptionMock,
+	subscribeToProviderCatalogInvalidationMock,
 	subscribeToProviderModelsMock,
 } = vi.hoisted(() => ({
 	loadProviderModelCatalogMock: vi.fn(),
@@ -27,6 +28,7 @@ const {
 		current: null as MockSpeechInputProps | null,
 	},
 	startVercelStreamingTranscriptionMock: vi.fn(),
+	subscribeToProviderCatalogInvalidationMock: vi.fn(() => vi.fn()),
 	subscribeToProviderModelsMock: vi.fn(() => vi.fn()),
 }));
 
@@ -72,6 +74,8 @@ vi.mock("@/components/ai-elements/speech-input", async () => {
 vi.mock("@/lib/provider-model-catalog", () => ({
 	loadProviderModelCatalog: loadProviderModelCatalogMock,
 	loadProviderModels: loadProviderModelsMock,
+	subscribeToProviderCatalogInvalidation:
+		subscribeToProviderCatalogInvalidationMock,
 	subscribeToProviderModels: subscribeToProviderModelsMock,
 	VOICE_INPUT_SETTINGS_CHANGED_EVENT: "cline:test-voice-input-settings-changed",
 }));
@@ -105,6 +109,9 @@ beforeEach(() => {
 		stop: vi.fn(),
 		cancel: vi.fn(),
 	});
+	subscribeToProviderCatalogInvalidationMock
+		.mockReset()
+		.mockReturnValue(vi.fn());
 	subscribeToProviderModelsMock.mockReset().mockReturnValue(vi.fn());
 	HTMLElement.prototype.scrollIntoView = vi.fn();
 	HTMLElement.prototype.hasPointerCapture = vi.fn(() => false);
@@ -307,6 +314,15 @@ describe("ChatInputBar", () => {
 
 		await vi.waitFor(() => {
 			expect(onProviderChange).toHaveBeenCalledWith("cline");
+		});
+		const initialCatalogLoads = loadProviderModelCatalogMock.mock.calls.length;
+		const catalogInvalidated =
+			subscribeToProviderCatalogInvalidationMock.mock.calls[0]?.[0];
+		await act(async () => catalogInvalidated?.());
+		await vi.waitFor(() => {
+			expect(loadProviderModelCatalogMock).toHaveBeenCalledTimes(
+				initialCatalogLoads + 1,
+			);
 		});
 		expect(loadProviderModelsMock).toHaveBeenCalledWith("anthropic", {
 			includeCloudModels: true,
