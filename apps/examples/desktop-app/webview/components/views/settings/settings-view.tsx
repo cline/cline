@@ -442,10 +442,6 @@ export function SettingsView({
 			}>("run_provider_oauth_login", {
 				provider: id,
 			});
-			// Like every optimistic provider mutation, claim a new generation so
-			// an older catalog load or resync still in flight can't arrive late
-			// and overwrite the just-connected OAuth state.
-			catalogGenerationRef.current++;
 			setProvidersWithCache((prev) =>
 				prev.map((provider) =>
 					provider.id === id
@@ -461,6 +457,11 @@ export function SettingsView({
 			// must learn about the new OAuth connection too, not just this
 			// view's local provider state.
 			invalidateProviderCatalogCache();
+			// Fetch the authoritative post-login snapshot. The resync claims a
+			// new generation, so an older load or resync still in flight can't
+			// arrive late and overwrite the just-connected state, and its own
+			// response also covers any provider saved moments earlier.
+			void resyncProviderCatalog();
 			setSelectedProviderId(id);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
