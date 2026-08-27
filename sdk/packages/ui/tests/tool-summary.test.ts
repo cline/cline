@@ -4,6 +4,7 @@ import {
 	buildReadFilesKeys,
 	buildToolSummary,
 	classifyTool,
+	extractOutputMedia,
 	extractOutputText,
 	normalizeToolName,
 	parseApplyPatchInput,
@@ -635,7 +636,7 @@ describe("buildReadFilesKeys (ported from CLI)", () => {
 	});
 });
 
-describe("extractOutputText (ported from CLI)", () => {
+describe("tool output content", () => {
 	it("extracts text with real newlines from the MCP CallToolResult shape", () => {
 		const raw = {
 			content: [
@@ -646,7 +647,7 @@ describe("extractOutputText (ported from CLI)", () => {
 		expect(extractOutputText(raw)).toBe("# Memory\n\nline one\nline two");
 	});
 
-	it("keeps binary payloads behind placeholders in mixed MCP content", () => {
+	it("keeps binary payloads out of mixed MCP output text", () => {
 		const raw = {
 			content: [
 				{ type: "text", text: "before" },
@@ -660,22 +661,39 @@ describe("extractOutputText (ported from CLI)", () => {
 			],
 		};
 		expect(extractOutputText(raw)).toBe(
-			"before\n[image: image/png]\naGVsbG8=\n[resource: file:///a.md]\nd29ybGQ=\n[resource_link: file:///b.md]\nafter",
+			"before\n[image: image/png]\n[resource: file:///a.md]\nd29ybGQ=\n[resource_link: file:///b.md]\nafter",
 		);
 	});
 
-	it("chunks base64 payloads into 76-char lines so collapse stays compact", () => {
+	it("extracts direct content-block arrays without serializing image data", () => {
+		const raw = [
+			{ type: "text", text: "Screenshot captured" },
+			{ type: "image", data: "aGVsbG8=", mediaType: "image/png" },
+		];
+		expect(extractOutputText(raw)).toBe(
+			"Screenshot captured\n[image: image/png]",
+		);
+		expect(extractOutputText(raw)).not.toContain("aGVsbG8=");
+	});
+
+	it("extracts, validates, and deduplicates inline image results", () => {
 		const raw = {
 			content: [
-				{ type: "image", data: "A".repeat(160), mimeType: "image/png" },
+				{ type: "image", data: "aGVsbG8=", mimeType: "image/png" },
+				{ type: "image", data: "aGVsbG8=", mediaType: "image/png" },
+				{ type: "image", data: "not-base64", mimeType: "image/png" },
 			],
 		};
-		expect(extractOutputText(raw)?.split("\n")).toEqual([
-			"[image: image/png]",
-			"A".repeat(76),
-			"A".repeat(76),
-			"A".repeat(8),
+		expect(extractOutputMedia(raw)).toEqual([
+			{
+				modality: "image",
+				mediaType: "image/png",
+				data: "aGVsbG8=",
+			},
 		]);
+		expect(
+			buildToolSummary({ toolName: "computer", result: raw }).outputMedia,
+		).toHaveLength(1);
 	});
 
 	it("extracts embedded resource text from MCP content", () => {
