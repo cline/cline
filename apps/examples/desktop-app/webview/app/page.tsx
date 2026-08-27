@@ -495,13 +495,19 @@ export default function Home() {
 			if (!placeholderThread) {
 				return;
 			}
-			// The mounted chat pane owns active-placeholder recovery, including
-			// retries. Background placeholders need only be removed.
-			if (placeholderThread.id !== activeThreadId) {
-				handleDeleteSession(placeholderId, placeholderThread.id);
+			if (placeholderThread.id === activeThreadId) {
+				void handleOpenSessionById(sessionId, { silent: true }).then(
+					(opened) => {
+						if (opened) {
+							handleDeleteSession(placeholderId, placeholderThread.id);
+						}
+					},
+				);
+				return;
 			}
+			handleDeleteSession(placeholderId, placeholderThread.id);
 		});
-	}, [threads, activeThreadId, handleDeleteSession]);
+	}, [threads, activeThreadId, handleDeleteSession, handleOpenSessionById]);
 
 	const historyWorkspacePaths = useMemo(
 		() => workspacePathsFromSessions(sessionHistory.sessions),
@@ -609,12 +615,12 @@ export default function Home() {
 								) : null}
 								{view === "settings" ? (
 									<div className="absolute inset-0 z-30 bg-background text-foreground">
-									<SettingsView
-										onNavigateSection={handleSettingsSectionChange}
-										onOpenSession={async (sessionId) => {
-											await handleOpenSessionById(sessionId);
-										}}
-										section={settingsSection}
+										<SettingsView
+											onNavigateSection={handleSettingsSectionChange}
+											onOpenSession={async (sessionId) => {
+												await handleOpenSessionById(sessionId);
+											}}
+											section={settingsSection}
 										/>
 									</div>
 								) : null}
@@ -628,9 +634,9 @@ export default function Home() {
 								hostContent={false}
 							/>
 							<div className="h-full">
-									<OnboardingView
-										initialStep={onboardingInitialStep}
-										onComplete={completeOnboarding}
+								<OnboardingView
+									initialStep={onboardingInitialStep}
+									onComplete={completeOnboarding}
 								/>
 							</div>
 						</div>

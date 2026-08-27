@@ -636,10 +636,10 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 													) : (
 														<MoreHorizontal className="size-4" />
 													)}
-											</button>
-										</DropdownMenuTrigger>
-										<DropdownMenuContent align="end" sideOffset={6}>
-											{thread.origin !== "cloud" ? (
+												</button>
+											</DropdownMenuTrigger>
+											<DropdownMenuContent align="end" sideOffset={6}>
+												{thread.origin !== "cloud" ? (
 													<DropdownMenuItem
 														onClick={() =>
 															void history.setThreadPinned(
@@ -647,14 +647,14 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 																!thread.pinned,
 															)
 														}
-												>
-													<Pin
-														className={cn(
+													>
+														<Pin
+															className={cn(
 																"size-4",
 																thread.pinned && "fill-current",
-														)}
-													/>
-													{thread.pinned ? "Unpin" : "Pin"}
+															)}
+														/>
+														{thread.pinned ? "Unpin" : "Pin"}
 													</DropdownMenuItem>
 												) : null}
 												{/* Cloud sessions support rename (PATCH title), matching
@@ -671,9 +671,9 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 														onClick={() => void history.forkThread(thread.id)}
 													>
 														<GitFork className="size-4" />
-													Fork
-												</DropdownMenuItem>
-											) : null}
+														Fork
+													</DropdownMenuItem>
+												) : null}
 												<DropdownMenuSeparator />
 												<DropdownMenuItem
 													// Provisioning placeholders have no server session
