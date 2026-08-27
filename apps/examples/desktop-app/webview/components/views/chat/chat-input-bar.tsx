@@ -1781,6 +1781,8 @@ const ModelSelector = memo(function ModelSelector({
 		resolvedProvider,
 	]);
 
+	// Catalog invalidation intentionally retriggers this load via catalogRevision.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: catalogRevision is a reload signal.
 	useEffect(() => {
 		let cancelled = false;
 		setReasoningCapabilitySource("loading");
