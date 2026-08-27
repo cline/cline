@@ -2040,11 +2040,13 @@ export class CloudSessionManager {
 				handoffSeed,
 			});
 		} catch (error) {
-			if (handoffSeed) throw error;
-			this.ctx.logger?.log(
-				"Cloud session provisioned but initial connect failed; will connect on demand",
-				{ sessionId: record.id, error },
-			);
+			if (handoffSeed && !this.disposed) throw error;
+			if (!this.disposed) {
+				this.ctx.logger?.log(
+					"Cloud session provisioned but initial connect failed; will connect on demand",
+					{ sessionId: record.id, error },
+				);
+			}
 		}
 		if (this.disposed) {
 			await this.deleteProvisionedSessionAfterDispose(

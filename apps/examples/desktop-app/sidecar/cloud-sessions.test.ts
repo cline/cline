@@ -2666,6 +2666,52 @@ describe("CloudSessionManager", () => {
 		expect(remove).toHaveBeenCalledExactlyOnceWith("ses-account-change");
 	});
 
+	it("cleans up a seeded handoff disposed while its Hub connection opens", async () => {
+		const { ctx } = createContext();
+		const hub = new FakeHubClient(false);
+		let releaseConnect!: () => void;
+		const connectBlocked = new Promise<void>((resolve) => {
+			releaseConnect = resolve;
+		});
+		hub.connect = vi.fn(async () => await connectBlocked);
+		const remove = vi.fn(async () => undefined);
+		const deleteSession = vi.fn(async () => undefined);
+		const manager = new CloudSessionManager(ctx, {
+			api: {
+				create: async () => ({
+					sessionId: "ses-connect-race",
+					sandboxUrl: "pod",
+					cleanupAuthToken: "workos:old-account",
+				}),
+				delete: deleteSession,
+			} as unknown as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+
+		const creating = manager.create({
+			modelId: "model",
+			repoUrl: "https://github.com/cline/test",
+			handoff: {
+				sourceSessionId: "local-1",
+				resolveMessages: async () => [],
+				onOuterSessionCreated: async () => undefined,
+				onOuterSessionRemoved: remove,
+			},
+		});
+		await vi.waitFor(() => expect(hub.connect).toHaveBeenCalledOnce());
+		await manager.dispose();
+		releaseConnect();
+
+		await expect(creating).rejects.toThrow("account changed");
+		expect(deleteSession).toHaveBeenCalledWith(
+			"ses-connect-race",
+			"workos:old-account",
+		);
+		expect(remove).toHaveBeenCalledExactlyOnceWith("ses-connect-race");
+	});
+
 	it("retries only the transient GitHub installation-token failure", async () => {
 		const { ctx } = createContext();
 		const hub = new FakeHubClient(false);
