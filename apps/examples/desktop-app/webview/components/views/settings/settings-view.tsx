@@ -221,12 +221,13 @@ export function SettingsView({
 	 * Silently refreshes view state from the authoritative catalog after a
 	 * successful save, without toggling the loading screen. Optimistic
 	 * mutations can't know sidecar-computed fields (`configured`), so the
-	 * Configured badge would otherwise stay stale until a remount. The
-	 * generation guard discards the response if a newer edit or load
-	 * superseded it while in flight.
+	 * Configured badge would otherwise stay stale until a remount. Claims a
+	 * new generation like loadProviderCatalog, so overlapping resyncs, loads,
+	 * and edits always resolve to the newest snapshot: anything older still
+	 * in flight is discarded on arrival.
 	 */
 	const resyncProviderCatalog = useCallback(async () => {
-		const generation = catalogGenerationRef.current;
+		const generation = ++catalogGenerationRef.current;
 		try {
 			const payload = await desktopClient.invoke<ProviderCatalogResponse>(
 				"list_provider_catalog",
