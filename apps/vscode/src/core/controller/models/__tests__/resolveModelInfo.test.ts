@@ -116,6 +116,36 @@ describe("resolveModelInfo", () => {
 		expect(catalog.resolveModels).toHaveBeenCalledWith(providerId, { forceRefresh: true })
 	})
 
+	it("prefers the mode's committed LM Studio model over a stale legacy model id", async () => {
+		const { resolveModelInfo } = await import("../resolveModelInfo")
+		const providerId = parseProviderId("lmstudio")
+		const store = makeStore({ providerId })
+		vi.mocked(store.readSelection).mockImplementation((_, mode) =>
+			mode === "act"
+				? {
+						providerId,
+						modelId: "gemma",
+						modelInfoSource: "catalog",
+						modelInfo: { name: "gemma", contextWindow: 128_000, supportsPromptCache: false },
+					}
+				: undefined,
+		)
+		const catalog = makeCatalog()
+		vi.mocked(catalog.resolveModels).mockResolvedValue(
+			peekResult("lmstudio", [["gemma", { name: "gemma", contextWindow: 40_000, supportsPromptCache: false }]], "gemma"),
+		)
+
+		const response = await resolveModelInfo(makeController(store, catalog), {
+			providerId: "lmstudio",
+			modelId: "qwen",
+			mode: "act",
+		})
+
+		expect(response.modelId).toBe("gemma")
+		expect(response.modelInfo?.contextWindow).toBe(40_000)
+		expect(catalog.resolveModels).toHaveBeenCalledWith(providerId, { forceRefresh: true })
+	})
+
 	it("returns sdk-known-models from a populated catalog peek", async () => {
 		const { resolveModelInfo } = await import("../resolveModelInfo")
 		const store = makeStore({ providerId: parseProviderId("deepseek") })

@@ -323,13 +323,10 @@ function resolveCommittedRuntimeModel(
 	mode: Mode,
 	modelId: string | undefined,
 ): ResolvedModelSelection | undefined {
-	if (!modelId) {
-		return undefined
-	}
 	try {
 		const parsedProviderId = parseProviderId(providerId)
 		const selection = createProviderConfigStore().readSelection(parsedProviderId, mode)
-		return selection?.modelId === modelId ? selection : resolveRuntimeModelSelection(parsedProviderId, modelId)
+		return selection ?? (modelId ? resolveRuntimeModelSelection(parsedProviderId, modelId) : undefined)
 	} catch (error) {
 		Logger.warn(`[SessionFactory] Failed to resolve committed model settings for provider=${providerId}:`, error)
 		return undefined
@@ -894,6 +891,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	}
 	apiKey = apiKey ?? ""
 	const committedRuntimeModel = resolveCommittedRuntimeModel(providerId, mode, modelId)
+	modelId = committedRuntimeModel?.modelId ?? modelId
 	const overriddenMaxTokens = committedRuntimeModel?.overrides?.maxTokens
 	const maxTokensPerTurn =
 		positiveFiniteNumber(overriddenMaxTokens) ??

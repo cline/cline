@@ -207,6 +207,7 @@ message ProviderModelsResponse {
 message ResolveModelInfoRequest {
   string provider_id = 1;
   optional string model_id = 2;
+  optional string mode = 3;
 }
 
 message ResolveModelInfoResponse {

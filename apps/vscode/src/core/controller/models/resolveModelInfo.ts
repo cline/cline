@@ -3,7 +3,7 @@ import type { ProviderModelsResult } from "@/sdk/model-catalog/contracts"
 import { providerAllowsCustomModelIds } from "@/sdk/model-catalog/custom-model-ids"
 import { ResolveModelInfoRequest, ResolveModelInfoResponse } from "@/shared/proto/cline/models"
 import { toProtobufModelInfo } from "@/shared/proto-conversions/models/typeConversion"
-import { type ProviderCatalogController, parseProviderIdRequest } from "./providerCatalogShared"
+import { type ProviderCatalogController, parseModeRequest, parseProviderIdRequest } from "./providerCatalogShared"
 
 /**
  * Resolve a single (provider, model) pair for the webview's status /
@@ -41,56 +41,33 @@ export async function resolveModelInfo(
 ): Promise<ResolveModelInfoResponse> {
 	const providerId = parseProviderIdRequest(request.providerId)
 	const requestedModelId = request.modelId?.trim() || ""
+	const requestedMode = request.mode ? parseModeRequest(request.mode) : undefined
 	const requiresLiveModelInfo = providerModelInfoRequiresLiveRefresh(providerId)
 
 	const store = controller.getProviderConfigStore()
-	// A committed selection whose metadata is pure fallback fabrication (no
-	// catalog/state base and no user overrides) must not shadow the live
-	// catalog below; it is kept only as a last resort before "unknown".
+	// When the caller supplies a mode, the provider store is authoritative. Its
+	// selection may be newer than the mirrored legacy ApiConfiguration model id.
+	// Requests without a mode retain the old id-matching behavior for callers
+	// that cannot disambiguate plan and act selections.
+	const modes = requestedMode ? [requestedMode] : (["act", "plan"] as const)
+	let resolvedModelId = requestedModelId
 	let fallbackSelection: ReturnType<typeof store.readSelection>
-	if (requestedModelId) {
-		for (const mode of ["act", "plan"] as const) {
-			const selection = store.readSelection(providerId, mode)
-			if (selection?.modelId !== requestedModelId) {
-				continue
-			}
-			if (requiresLiveModelInfo || (selection.modelInfoSource === "fallback" && !selection.overrides)) {
-				fallbackSelection ??= selection
-				continue
-			}
-			return ResolveModelInfoResponse.create({
-				providerId,
-				modelId: selection.modelId,
-				modelInfo: toProtobufModelInfo(selection.modelInfo),
-				source: "committed-selection",
-			})
+	for (const mode of modes) {
+		const selection = store.readSelection(providerId, mode)
+		if (!selection || (!requestedMode && requestedModelId && selection.modelId !== requestedModelId)) {
+			continue
 		}
-	} else {
-		// No explicit model id. This is the state immediately after the SDK
-		// provider migration, which records the committed model in
-		// providers.json but not in the mode-specific globalState fields the
-		// settings picker reads — so the webview asks "what model?" with no id.
-		// Honor the user's committed selection (readSelection falls through to
-		// providers.json when the state field is empty) before substituting a
-		// catalog default, so the settings UI reflects the model that will
-		// actually run instead of the hardcoded openRouterDefaultModelId.
-		//
-		// The act-then-plan order mirrors the matching loop above. It cannot
-		// misattribute a mode-specific selection: the request only omits the id
-		// when the asking mode has no committed state field, and in that state
-		// readSelection falls through to the single provider-level entry in
-		// providers.json — the same answer for both modes.
-		for (const mode of ["act", "plan"] as const) {
-			const selection = store.readSelection(providerId, mode)
-			if (selection) {
-				return ResolveModelInfoResponse.create({
-					providerId,
-					modelId: selection.modelId,
-					modelInfo: toProtobufModelInfo(selection.modelInfo),
-					source: "committed-selection",
-				})
-			}
+		resolvedModelId = selection.modelId
+		if (requiresLiveModelInfo || (selection.modelInfoSource === "fallback" && !selection.overrides)) {
+			fallbackSelection ??= selection
+			continue
 		}
+		return ResolveModelInfoResponse.create({
+			providerId,
+			modelId: selection.modelId,
+			modelInfo: toProtobufModelInfo(selection.modelInfo),
+			source: "committed-selection",
+		})
 	}
 
 	// Custom-model-id providers (openai-compatible, ollama, lmstudio, litellm,
@@ -104,7 +81,7 @@ export async function resolveModelInfo(
 	const catalog = controller.getProviderCatalog()
 	const cached = requiresLiveModelInfo ? undefined : catalog.peekModels(providerId)
 	if (cached?.ok) {
-		const hit = pickFromCatalog(cached, requestedModelId, allowCustomModelIds)
+		const hit = pickFromCatalog(cached, resolvedModelId, allowCustomModelIds)
 		// A default-model substitution answers a question about a different
 		// model; the committed selection, even fallback-grade, is closer.
 		if (hit && (hit.matchedRequested || !fallbackSelection)) {
@@ -124,7 +101,7 @@ export async function resolveModelInfo(
 		.resolveModels(providerId, requiresLiveModelInfo ? { forceRefresh: true } : undefined)
 		.catch(() => undefined)
 	if (resolved?.ok) {
-		const hit = pickFromCatalog(resolved, requestedModelId, allowCustomModelIds)
+		const hit = pickFromCatalog(resolved, resolvedModelId, allowCustomModelIds)
 		if (hit && (hit.matchedRequested || !fallbackSelection)) {
 			return ResolveModelInfoResponse.create({
 				providerId,
@@ -146,7 +123,7 @@ export async function resolveModelInfo(
 
 	return ResolveModelInfoResponse.create({
 		providerId,
-		modelId: requestedModelId,
+		modelId: resolvedModelId,
 		source: "unknown",
 	})
 }

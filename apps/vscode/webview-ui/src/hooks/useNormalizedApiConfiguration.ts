@@ -86,7 +86,7 @@ function getActiveProviderAndModelId(apiConfiguration: ReturnType<typeof useExte
  * not assume features are unsupported.
  */
 export function useNormalizedApiConfiguration(mode: Mode): NormalizedApiConfig {
-	const { apiConfiguration } = useExtensionState()
+	const { apiConfiguration, showSettings } = useExtensionState()
 	const { provider, modelId } = getActiveProviderAndModelId(apiConfiguration, mode)
 	const [resolvedInfo, setResolvedInfo] = useState<
 		Awaited<ReturnType<typeof ModelsServiceClient.resolveModelInfo>> | undefined
@@ -100,7 +100,7 @@ export function useNormalizedApiConfiguration(mode: Mode): NormalizedApiConfig {
 		// or warm; if the response is `unknown`, the catalog truly has no
 		// data and the UI renders a placeholder.
 		void ModelsServiceClient.resolveModelInfo(
-			ResolveModelInfoRequest.create({ providerId: provider, modelId: modelId || undefined }),
+			ResolveModelInfoRequest.create({ providerId: provider, modelId: modelId || undefined, mode }),
 		)
 			.then((response) => {
 				if (!cancelled) {
@@ -115,7 +115,7 @@ export function useNormalizedApiConfiguration(mode: Mode): NormalizedApiConfig {
 		return () => {
 			cancelled = true
 		}
-	}, [provider, modelId])
+	}, [provider, modelId, mode, showSettings])
 
 	return useMemo(() => {
 		if (!resolvedInfo || resolvedInfo.source === "unknown" || !resolvedInfo.modelInfo) {
