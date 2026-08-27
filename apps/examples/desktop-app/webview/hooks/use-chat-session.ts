@@ -2121,6 +2121,12 @@ export function useChatSession() {
 						clearLiveToolRefs();
 					}
 					const mappedStatus = mapCloudRuntimeStatus(nextStatus);
+					if (
+						mappedStatus === "running" &&
+						turnEpochRef.current === turnSettledEpochRef.current
+					) {
+						return;
+					}
 					if (mappedStatus) {
 						setStatus(mappedStatus);
 					}

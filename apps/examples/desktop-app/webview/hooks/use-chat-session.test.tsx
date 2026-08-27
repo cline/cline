@@ -4211,14 +4211,18 @@ describe("coerced-queue first turn vs stale send response", () => {
 	// session record, so a stale "running" can arrive after the stream's
 	// chat_done already settled the turn. Applying it would re-wedge the
 	// composer on "Agent is working…" with nothing left to reconcile.
-	it("ignores a stale 'running' status event arriving after the turn settled", async () => {
+	it("ignores stale busy updates arriving after the turn settled", async () => {
 		const sendResolvers = mockTransport();
 		const { sendPromise } = await dispatchPrompt("Say the word ready");
 		const chatEventHandler = getChatEventHandler();
 		const statusHandler = subscribeMock.mock.calls.find(
 			([eventName]) => eventName === "chat_session_status",
 		)?.[1] as ((payload: unknown) => void) | undefined;
+		const rehydratedHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "cloud_session_rehydrated",
+		)?.[1] as ((payload: unknown) => void) | undefined;
 		expect(statusHandler).toBeDefined();
+		expect(rehydratedHandler).toBeDefined();
 		const sid = current.sessionId;
 
 		await act(async () => {
@@ -4251,6 +4255,17 @@ describe("coerced-queue first turn vs stale send response", () => {
 			statusHandler?.({ sessionId: sid, status: "running" });
 		});
 		expect(current.status).toBe("completed");
+		for (const status of ["running", "pending"]) {
+			await act(async () => {
+				rehydratedHandler?.({
+					sessionId: sid,
+					status,
+					transcriptKnown: true,
+					messages: current.messages,
+				});
+			});
+			expect(current.status).toBe("completed");
+		}
 
 		// Non-busy trailing statuses still settle normally.
 		await act(async () => {
