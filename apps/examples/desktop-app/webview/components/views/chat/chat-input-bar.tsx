@@ -1502,6 +1502,7 @@ function ChatInputBarImpl({
 									: undefined
 							}
 							autoCorrectModel={!cloudSettingsLocked}
+							includeCloudModels={executionTarget === "cloud"}
 							isBusy={isBusy}
 							model={model}
 							onModelChange={onModelChange}
@@ -1598,6 +1599,7 @@ export const ChatInputBar = memo(ChatInputBarImpl);
 const ModelSelector = memo(function ModelSelector({
 	allowedProviderIds,
 	autoCorrectModel = true,
+	includeCloudModels = false,
 	persistSelection = true,
 	provider,
 	model,
@@ -1608,6 +1610,7 @@ const ModelSelector = memo(function ModelSelector({
 }: {
 	allowedProviderIds?: string[];
 	autoCorrectModel?: boolean;
+	includeCloudModels?: boolean;
 	persistSelection?: boolean;
 	provider: string;
 	model: string;
@@ -1804,7 +1807,11 @@ const ModelSelector = memo(function ModelSelector({
 				return;
 			}
 			try {
-				const models = await loadProviderModels(normalizedProvider);
+				const models = includeCloudModels
+					? await loadProviderModels(normalizedProvider, {
+							includeCloudModels: true,
+						})
+					: await loadProviderModels(normalizedProvider);
 				if (cancelled || models.length === 0) {
 					return;
 				}
@@ -1839,7 +1846,7 @@ const ModelSelector = memo(function ModelSelector({
 		return () => {
 			cancelled = true;
 		};
-	}, [normalizedProvider]);
+	}, [includeCloudModels, normalizedProvider]);
 
 	useEffect(() => {
 		return subscribeToProviderModels((providerId, models) => {

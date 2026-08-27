@@ -85,6 +85,12 @@ let root: Root;
 
 beforeEach(() => {
 	Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+	if (typeof window.localStorage.clear !== "function") {
+		Object.defineProperty(window, "localStorage", {
+			configurable: true,
+			value: window.sessionStorage,
+		});
+	}
 	loadProviderModelCatalogMock.mockReset().mockResolvedValue({
 		providers: [],
 		enabledProviderIds: ["cline"],
@@ -301,6 +307,9 @@ describe("ChatInputBar", () => {
 
 		await vi.waitFor(() => {
 			expect(onProviderChange).toHaveBeenCalledWith("cline");
+		});
+		expect(loadProviderModelsMock).toHaveBeenCalledWith("anthropic", {
+			includeCloudModels: true,
 		});
 		expect(onModelChange).not.toHaveBeenCalled();
 		expect(
