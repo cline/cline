@@ -48,7 +48,7 @@ export type HandoffLifecycleEffects = {
 			initialPromptDraft?: string;
 			initialAttachments?: File[];
 		},
-	) => Promise<boolean> | boolean | void;
+	) => Promise<boolean> | boolean | undefined;
 	openExternal: (url: string) => Promise<void>;
 };
 
