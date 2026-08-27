@@ -688,6 +688,7 @@ export function createEditorTool(
 			"An editor for controlled filesystem edits on the text file at the provided path. " +
 			"Provide `insert_line` to insert `new_text` at a specific line number. " +
 			"Otherwise, the tool replaces `old_text` with `new_text`, or creates the file with `new_text` if file does not exist. " +
+			"For multiline `old_text` or `new_text`, include actual line breaks; use literal backslash-n only when those characters are intended file content. " +
 			"Use this tool for making small, precise edits to existing files or creating new files over shell commands. If several edits to different files or non-overlapping regions are already known, emit multiple editor tool calls in the same response instead of serializing them across turns.",
 
 		inputSchema: zodToJsonSchema(EditFileInputSchema),

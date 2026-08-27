@@ -1817,6 +1817,23 @@ describe("zod schema conversion", () => {
 });
 
 describe("default editor tool", () => {
+	it("requires actual line breaks for multiline editor input", () => {
+		const tool = createEditorTool(vi.fn(async () => "patched"));
+		const schema = tool.inputSchema as {
+			description?: string;
+			properties?: Record<string, { description?: string }>;
+		};
+
+		expect(tool.description).toContain("include actual line breaks");
+		expect(schema.description).toContain("actual line breaks");
+		expect(schema.properties?.old_text?.description).toContain(
+			"backslash followed by n",
+		);
+		expect(schema.properties?.new_text?.description).toContain(
+			"backslash followed by n",
+		);
+	});
+
 	it("accepts replacement edits without insert fields", async () => {
 		const execute = vi.fn(async () => "patched");
 		const tools = createDefaultTools({
