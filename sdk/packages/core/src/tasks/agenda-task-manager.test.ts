@@ -239,6 +239,66 @@ describe("AgendaTaskManager", () => {
 		expect(runtime.startSession).not.toHaveBeenCalled();
 	});
 
+	it("reconciles external spec edits before applying an update", async () => {
+		const { root, manager } = createHarness();
+		await manager.start();
+		const pending = await createPending(manager, {
+			title: "Original intent",
+			instructions: "Perform the original work.",
+		});
+		if (!pending.specPath) throw new Error("task has no spec path");
+		const files = new AgendaTaskSpecFileStore({
+			scope: "global",
+			taskSpecsDir: join(root, "specs"),
+		});
+		const source = files.readSpec(pending.specPath);
+		if (!source.ok || !source.spec.taskId) {
+			throw new Error("task spec fixture is invalid");
+		}
+		files.writeSpec(
+			{
+				...source.spec,
+				taskId: source.spec.taskId,
+				title: "Edited intent",
+			},
+			{
+				specPath: source.specPath,
+				expectedContentHash: source.contentHash,
+			},
+		);
+
+		// With watchers off, nothing has reconciled the on-disk edit yet. The
+		// update must fold it in on its own and surface a retryable
+		// stale-revision conflict — not dead-end on the signature check until
+		// an unrelated read reconciles the scope.
+		await expect(
+			manager.updateTask({
+				taskId: pending.taskId,
+				expectedRevision: pending.revision,
+				title: "Caller title",
+				updatedBy: { kind: "user", clientId: "desktop" },
+			}),
+		).rejects.toThrow("requested revision is stale");
+
+		const reconciled = await manager.getTask(pending.taskId);
+		if (!reconciled) throw new Error("edited task was not reconciled");
+		expect(reconciled).toMatchObject({
+			title: "Edited intent",
+			revision: pending.revision + 1,
+		});
+		const updated = await manager.updateTask({
+			taskId: reconciled.taskId,
+			expectedRevision: reconciled.revision,
+			title: "Caller title",
+			updatedBy: { kind: "user", clientId: "desktop" },
+		});
+		expect(updated).toMatchObject({
+			title: "Caller title",
+			revision: reconciled.revision + 1,
+			status: "pending_approval",
+		});
+	});
+
 	it("rehydrates known workspaces and watches their task specs after restart", async () => {
 		const root = mkdtempSync(join(tmpdir(), "cline-agenda-workspace-"));
 		const workspaceRoot = join(root, "workspace");
