@@ -515,14 +515,15 @@ jobs:
 
           echo "All Windows signing secrets are present."
 
+      # Every action in this job is SHA-pinned (unlike elsewhere in this
+      # file): they run with id-token: write and the updater signing key in
+      # scope, so a hijacked upstream tag must not be able to reach the
+      # signing identity or tamper with what gets signed and uploaded.
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ needs.validate.outputs.tag }}
 
-      # SHA-pinned (unlike elsewhere in this file): these actions run with
-      # id-token: write and the updater signing key in scope, so a hijacked
-      # upstream tag must not be able to reach the signing identity.
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
@@ -728,7 +729,7 @@ jobs:
           }
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: desktop-windows-x64
           path: apps/examples/desktop-app/dist/publish/*
