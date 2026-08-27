@@ -67,8 +67,7 @@ export async function parseMentions(
 		mentions.add(mention)
 		if (mention.startsWith("http")) {
 			return `'${mention}' (see below for site content)`
-		}
-		if (isFileMention(mention)) {
+		} else if (isFileMention(mention)) {
 			const mentionPath = getFilePathFromMention(mention)
 			const workspaceHint = getWorkspaceHintFromMention(mention)
 			// For workspace-prefixed mentions, include the workspace name in the same format the model uses for tool calls
@@ -80,17 +79,13 @@ export async function parseMentions(
 			return mentionPath.endsWith("/")
 				? `'${mentionPath}' (see below for folder content)`
 				: `'${mentionPath}' (see below for file content)`
-		}
-		if (mention === "problems") {
+		} else if (mention === "problems") {
 			return `Workspace Problems (see below for diagnostics)`
-		}
-		if (mention === "terminal") {
+		} else if (mention === "terminal") {
 			return `Terminal Output (see below for output)`
-		}
-		if (mention === "git-changes") {
+		} else if (mention === "git-changes") {
 			return `Working directory changes (see below for details)`
-		}
-		if (/^[a-f0-9]{7,40}$/.test(mention)) {
+		} else if (/^[a-f0-9]{7,40}$/.test(mention)) {
 			return `Git commit '${mention}' (see below for commit info)`
 		}
 		return match
@@ -344,8 +339,7 @@ async function getFileOrFolderContent(mentionPath: string, cwd: string): Promise
 			}
 			const content = await extractTextFromFile(absPath)
 			return content
-		}
-		if (stats.isDirectory()) {
+		} else if (stats.isDirectory()) {
 			const entries = await fs.readdir(absPath, { withFileTypes: true })
 			let folderContent = ""
 			const fileContentPromises: Promise<string | undefined>[] = []
@@ -380,8 +374,9 @@ async function getFileOrFolderContent(mentionPath: string, cwd: string): Promise
 			})
 			const fileContents = (await Promise.all(fileContentPromises)).filter((content) => content)
 			return `${folderContent}\n${fileContents.join("\n\n")}`.trim()
+		} else {
+			return `(Failed to read contents of ${mentionPath})`
 		}
-		return `(Failed to read contents of ${mentionPath})`
 	} catch (error) {
 		throw new Error(`Failed to access path "${mentionPath}": ${error.message}`)
 	}
