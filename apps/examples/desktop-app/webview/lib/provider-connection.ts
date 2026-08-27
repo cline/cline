@@ -37,15 +37,15 @@ export function getProviderAuthKind(provider: Provider): ProviderAuthKind {
 }
 
 /**
- * Whether a provider from the catalog is usable for turns, for the purpose
- * of the first-run "connect a model" notice. Plain API keys and OAuth are
- * definitive. Beyond those, an enabled provider counts as connected unless
- * a *required* config field is unmet: `enabled` means the user deliberately
- * persisted settings for it, and its credentials may legitimately live
- * outside the catalog (Bedrock IAM/profile auth, env-var keys, keyless
- * local endpoints like Ollama), so an empty optional API-key field must not
- * disqualify it. A brand-new user has no enabled providers, so the notice
- * still shows for them.
+ * Whether a provider from the catalog is usable for turns, shown as
+ * "Configured" in settings and consulted by the first-run "connect a model"
+ * notice. Plain API keys and OAuth are definitive. Beyond those, we rely on
+ * the sidecar's `configured` flag (the same per-provider readiness check the
+ * CLI uses), which requires real evidence of credentials: cloud credentials
+ * for Bedrock/Vertex/SAP AI Core, a local-auth CLI, or a resolvable endpoint
+ * + model for keyless local providers like Ollama. `enabled` alone is not
+ * enough — legacy VS Code migration and empty saves can persist entries for
+ * providers the user never actually configured.
  */
 export function isProviderConnected(provider: Provider): boolean {
 	if (provider.apiKey?.trim()) {
@@ -54,17 +54,5 @@ export function isProviderConnected(provider: Provider): boolean {
 	if (provider.oauthAccessTokenPresent) {
 		return true;
 	}
-	if (!provider.enabled) {
-		return false;
-	}
-	const requiredFields = (provider.configFields ?? []).filter(
-		(field) => field.required,
-	);
-	return requiredFields.every((field) => {
-		const value = provider.configValues?.[field.path];
-		if (value === null || value === undefined) {
-			return false;
-		}
-		return String(value).trim() !== "";
-	});
+	return provider.enabled && provider.configured === true;
 }
