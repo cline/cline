@@ -1654,6 +1654,8 @@ describe("ChatInputBar", () => {
 
 	describe("cline-pass picker offer", () => {
 		const renderComposer = async (props: {
+			executionTarget?: "cloud" | "local";
+			hasActiveSession?: boolean;
 			model: string;
 			provider: string;
 			onModelChange?: ReturnType<typeof vi.fn>;
@@ -1664,7 +1666,9 @@ describe("ChatInputBar", () => {
 					<WorkspaceProvider value={workspaceValue}>
 						<ChatInputBar
 							attachments={[]}
+							executionTarget={props.executionTarget}
 							gitBranch="main"
+							hasActiveSession={props.hasActiveSession}
 							mode="act"
 							model={props.model}
 							onAbort={vi.fn()}
@@ -1799,6 +1803,27 @@ describe("ChatInputBar", () => {
 					[]),
 			].find((option) => option.textContent?.includes("Stale Legacy"));
 			expect(staleOption?.getAttribute("aria-selected")).toBe("true");
+		});
+
+		it("keeps an active model that is absent from the gated catalog", async () => {
+			const onModelChange = vi.fn();
+			await renderComposer({
+				executionTarget: "cloud",
+				hasActiveSession: true,
+				model: "cline-cloud/claude-sonnet-4.6",
+				onModelChange,
+				provider: "cline",
+			});
+
+			expect(onModelChange).not.toHaveBeenCalled();
+			const modelTrigger = container.querySelector<HTMLButtonElement>(
+				'[aria-label^="Model:"]',
+			);
+			await vi.waitFor(() => {
+				expect(modelTrigger?.textContent).toContain(
+					"cline-cloud/claude-sonnet-4.6",
+				);
+			});
 		});
 
 		it("falls back to a visible model when switching providers with a hidden remembered model", async () => {

@@ -1708,7 +1708,11 @@ const ModelSelector = memo(function ModelSelector({
 		// remembered and default selections are our own bookkeeping, so they
 		// must resolve to a visible option — otherwise a stale remembered id
 		// gets silently resurrected into a selection the picker cannot show.
-		if (model && modelsForProvider.includes(model)) {
+		if (
+			model &&
+			normalizedProvider === resolvedProvider &&
+			(modelsForProvider.includes(model) || !autoCorrectModel)
+		) {
 			return model;
 		}
 		if (rememberedModel && pickerModelIds.has(rememberedModel)) {
@@ -1720,9 +1724,11 @@ const ModelSelector = memo(function ModelSelector({
 			""
 		);
 	}, [
+		autoCorrectModel,
 		lastSelection.lastModelByProvider,
 		model,
 		modelsForProvider,
+		normalizedProvider,
 		pickerModelIds,
 		rememberedLastProvider,
 		resolvedProvider,
