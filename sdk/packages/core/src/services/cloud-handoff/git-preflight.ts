@@ -339,7 +339,7 @@ export async function preflightCloudHandoffGit(input: {
 	return {
 		repoUrl,
 		branch: upstreamBranch,
-		remoteName,
+		remoteName: normalizeGitHubRemoteUrl(remoteName) ? repoUrl : remoteName,
 		headSha,
 		...(workspaceRelativePath ? { workspaceRelativePath } : {}),
 	};

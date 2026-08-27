@@ -206,7 +206,7 @@ describe("preflightCloudHandoffGit", () => {
 	});
 
 	it("supports a GitHub URL configured directly as the branch remote", async () => {
-		const remote = "https://github.com/cline/cline.git";
+		const remote = "https://github_pat_secret@github.com/cline/cline.git";
 		await expect(
 			preflightCloudHandoffGit({
 				cwd: "/repo",
@@ -218,7 +218,7 @@ describe("preflightCloudHandoffGit", () => {
 		).resolves.toEqual(
 			expect.objectContaining({
 				repoUrl: "https://github.com/cline/cline",
-				remoteName: remote,
+				remoteName: "https://github.com/cline/cline",
 			}),
 		);
 	});
