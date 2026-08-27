@@ -70,6 +70,17 @@ const ToolCallRow = memo(function ToolCallRow({
 	const submitText = isSubmit
 		? extractSubmitSummaryText(payload) || summary.outputText || ""
 		: "";
+	// The generic fallback label ("Submit and exit") describes the tool, not
+	// the moment; name the milestone the row represents instead.
+	const labelParts = isSubmit
+		? [
+				{
+					text: inProgress
+						? "Completing scheduled task"
+						: "Scheduled task completed",
+				},
+			]
+		: summary.labelParts;
 	const commandOutputSource = isCommand
 		? message.meta?.toolOutput ||
 			(payload?.isError
@@ -181,7 +192,7 @@ const ToolCallRow = memo(function ToolCallRow({
 						<Icon className="size-4" />
 					)
 				}
-				label={<ToolLabel isRunning={inProgress} parts={summary.labelParts} />}
+				label={<ToolLabel isRunning={inProgress} parts={labelParts} />}
 				showDisclosureIcon={false}
 				status={hasError ? "error" : inProgress ? "running" : "success"}
 			/>

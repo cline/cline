@@ -209,7 +209,7 @@ describe("ChatMessages tool disclosures", () => {
 
 		// The final answer of the run is visible without a click…
 		const trigger = [...container.querySelectorAll("button")].find((element) =>
-			element.textContent?.includes("Submit and exit"),
+			element.textContent?.includes("Scheduled task completed"),
 		);
 		expect(trigger?.getAttribute("aria-expanded")).toBe("true");
 		// …rendered as markdown structure, not a monospace code block.
