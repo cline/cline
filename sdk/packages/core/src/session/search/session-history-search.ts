@@ -1,5 +1,9 @@
 import { stat } from "node:fs/promises";
 import { join } from "node:path";
+import {
+	formatSessionSearchPreview,
+	formatSessionSearchTitle,
+} from "@cline/shared";
 import { loadSqliteDb, nowIso, type SqliteDb } from "@cline/shared/db";
 import { resolveDbDataDir } from "@cline/shared/storage";
 import type { RuntimeHost } from "../../runtime/host/runtime-host";
@@ -80,9 +84,11 @@ function messageRole(message: unknown): string {
 
 function sessionTitle(session: SessionRecord): string {
 	const title = session.metadata?.title;
-	return typeof title === "string" && title.trim()
-		? title.trim()
-		: session.prompt?.trim() || session.sessionId;
+	const source =
+		typeof title === "string" && title.trim()
+			? title
+			: session.prompt || session.sessionId;
+	return formatSessionSearchTitle(source) || session.sessionId;
 }
 
 function ftsQuery(query: string): string {
@@ -97,6 +103,7 @@ function ftsQuery(query: string): string {
 export class SessionHistorySearchService {
 	private readonly db: SqliteDb;
 	private readonly intervalMs: number;
+	private readonly removedDuringRefresh = new Set<string>();
 	private timer: ReturnType<typeof setInterval> | undefined;
 	private refreshPromise: Promise<void> | undefined;
 	private readyPromise: Promise<void> = Promise.resolve();
@@ -139,10 +146,23 @@ export class SessionHistorySearchService {
 	refreshNow(): Promise<void> {
 		if (!this.refreshPromise) {
 			this.refreshPromise = this.reconcile().finally(() => {
+				this.removedDuringRefresh.clear();
 				this.refreshPromise = undefined;
 			});
 		}
 		return this.refreshPromise;
+	}
+
+	/**
+	 * Removes one session from the derived index without scanning canonical
+	 * history. The temporary tombstone prevents an in-flight reconciliation
+	 * that captured the session before deletion from writing it back.
+	 */
+	removeSession(sessionId: string): void {
+		const normalized = sessionId.trim();
+		if (!normalized) return;
+		if (this.refreshPromise) this.removedDuringRefresh.add(normalized);
+		this.deleteIndexedSession(normalized);
 	}
 
 	async waitUntilReady(): Promise<void> {
@@ -171,17 +191,20 @@ export class SessionHistorySearchService {
 			.all(query, workspaceRoot ?? null, workspaceRoot ?? null, limit) as Array<
 			Record<string, unknown>
 		>;
-		return rows.map((row) => ({
-			sessionId: String(row.session_id),
-			documentId: String(row.document_id),
-			ordinal: Number(row.ordinal),
-			role: String(row.role),
-			startedAt: String(row.started_at),
-			workspaceRoot: String(row.workspace_root),
-			title: String(row.title),
-			snippet: String(row.snippet ?? ""),
-			score: Number(row.score),
-		}));
+		return rows.map((row) => {
+			const role = String(row.role);
+			return {
+				sessionId: String(row.session_id),
+				documentId: String(row.document_id),
+				ordinal: Number(row.ordinal),
+				role,
+				startedAt: String(row.started_at),
+				workspaceRoot: String(row.workspace_root),
+				title: formatSessionSearchTitle(String(row.title)),
+				snippet: formatSessionSearchPreview(role, String(row.snippet ?? "")),
+				score: Number(row.score),
+			};
+		});
 	}
 
 	private ensureSchema(): void {
@@ -233,7 +256,9 @@ export class SessionHistorySearchService {
 		);
 
 		for (const session of sessions) {
+			if (this.removedDuringRefresh.has(session.sessionId)) continue;
 			const revision = await this.sourceRevision(session);
+			if (this.removedDuringRefresh.has(session.sessionId)) continue;
 			const current = indexedById.get(session.sessionId);
 			if (
 				current?.source_revision === revision &&
@@ -246,7 +271,9 @@ export class SessionHistorySearchService {
 
 		for (const row of indexed) {
 			const sessionId = String(row.session_id);
-			if (!liveIds.has(sessionId)) this.deleteSession(sessionId);
+			if (!liveIds.has(sessionId) || this.removedDuringRefresh.has(sessionId)) {
+				this.deleteIndexedSession(sessionId);
+			}
 		}
 	}
 
@@ -263,6 +290,7 @@ export class SessionHistorySearchService {
 		const messages = await this.host
 			.readSessionMessages(session.sessionId)
 			.catch(() => []);
+		if (this.removedDuringRefresh.has(session.sessionId)) return;
 		const title = sessionTitle(session);
 		const insert = this.db.prepare(
 			`INSERT INTO session_search (
@@ -328,7 +356,7 @@ export class SessionHistorySearchService {
 		}
 	}
 
-	private deleteSession(sessionId: string): void {
+	private deleteIndexedSession(sessionId: string): void {
 		this.db.exec("BEGIN IMMEDIATE;");
 		try {
 			this.db

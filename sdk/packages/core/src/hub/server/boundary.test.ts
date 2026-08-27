@@ -100,7 +100,7 @@ describe("HubServerTransport boundaries", () => {
 		}
 	});
 
-	it("indexes canonical history and serves session.search end to end", async () => {
+	it("serves indexed history and evicts a deleted session immediately", async () => {
 		const session = {
 			sessionId: "searchable-session",
 			source: "core",
@@ -122,11 +122,13 @@ describe("HubServerTransport boundaries", () => {
 			metadata: { title: "Search prototype" },
 			updatedAt: "2026-08-19T12:01:00.000Z",
 		};
+		const listSessions = vi.fn().mockResolvedValue([session]);
 		const transport = createTransport({
 			sessionSearchOptions: { dbPath: ":memory:" },
 			taskOptions: { dbPath: ":memory:", watchFiles: false },
 			sessionHost: {
-				listSessions: vi.fn().mockResolvedValue([session]),
+				listSessions,
+				deleteSession: vi.fn().mockResolvedValue(true),
 				readSessionMessages: vi
 					.fn()
 					.mockResolvedValue([
@@ -151,6 +153,23 @@ describe("HubServerTransport boundaries", () => {
 				role: "user",
 			}),
 		]);
+
+		const deleteReply = await transport.handleCommand({
+			version: "v1",
+			requestId: "delete-searchable-session",
+			command: "session.delete",
+			payload: { sessionId: "searchable-session" },
+		});
+		const afterDelete = await transport.handleCommand({
+			version: "v1",
+			requestId: "search-after-delete",
+			command: "session.search",
+			payload: { query: "ultramarine" },
+		});
+
+		expect(deleteReply.payload?.deleted).toBe(true);
+		expect(afterDelete.payload?.hits).toEqual([]);
+		expect(listSessions).toHaveBeenCalledOnce();
 		await transport.stop();
 	});
 

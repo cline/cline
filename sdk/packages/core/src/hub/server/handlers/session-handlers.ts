@@ -1085,6 +1085,9 @@ export async function handleSessionDelete(
 ): Promise<HubReplyEnvelope> {
 	const sessionId = extractSessionId(envelope);
 	const deleted = await ctx.sessionHost.deleteSession(sessionId);
+	// The host returns false only when canonical history is already absent, so
+	// eviction is safe and also repairs an index left stale by an earlier delete.
+	ctx.sessionSearch.removeSession(sessionId);
 	ctx.sessionState.delete(sessionId);
 	return okReply(envelope, { deleted });
 }

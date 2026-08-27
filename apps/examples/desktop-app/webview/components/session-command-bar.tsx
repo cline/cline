@@ -1,7 +1,11 @@
 "use client";
 
-import { Loader2, MessageSquareText } from "lucide-react";
-import { useEffect, useState } from "react";
+import {
+	formatSessionSearchPreview,
+	formatSessionSearchTitle,
+} from "@cline/shared/browser";
+import { Loader2 } from "lucide-react";
+import { type UIEvent, useEffect, useState } from "react";
 import {
 	CommandDialog,
 	CommandEmpty,
@@ -23,6 +27,8 @@ type SessionSearchHit = {
 	snippet: string;
 };
 
+const SESSION_SEARCH_RESULT_BATCH_SIZE = 15;
+
 export function SessionCommandBar({
 	open,
 	onOpenChange,
@@ -35,12 +41,16 @@ export function SessionCommandBar({
 	const [query, setQuery] = useState("");
 	const [hits, setHits] = useState<SessionSearchHit[]>([]);
 	const [searching, setSearching] = useState(false);
+	const [visibleHitCount, setVisibleHitCount] = useState(
+		SESSION_SEARCH_RESULT_BATCH_SIZE,
+	);
 
 	useEffect(() => {
 		if (!open) {
 			setQuery("");
 			setHits([]);
 			setSearching(false);
+			setVisibleHitCount(SESSION_SEARCH_RESULT_BATCH_SIZE);
 		}
 	}, [open]);
 
@@ -49,6 +59,7 @@ export function SessionCommandBar({
 		if (!open || !normalized) {
 			setHits([]);
 			setSearching(false);
+			setVisibleHitCount(SESSION_SEARCH_RESULT_BATCH_SIZE);
 			return;
 		}
 
@@ -65,7 +76,16 @@ export function SessionCommandBar({
 					{ timeoutMs: 3_000 },
 				)
 				.then((results) => {
-					if (!cancelled) setHits(results);
+					if (!cancelled) {
+						setHits(
+							results.map((hit) => ({
+								...hit,
+								title: formatSessionSearchTitle(hit.title),
+								snippet: formatSessionSearchPreview(hit.role, hit.snippet),
+							})),
+						);
+						setVisibleHitCount(SESSION_SEARCH_RESULT_BATCH_SIZE);
+					}
 				})
 				.catch(() => {
 					if (!cancelled) setHits([]);
@@ -81,9 +101,26 @@ export function SessionCommandBar({
 		};
 	}, [open, query]);
 
+	const handleQueryChange = (value: string) => {
+		setQuery(value);
+		setHits([]);
+		setVisibleHitCount(SESSION_SEARCH_RESULT_BATCH_SIZE);
+		setSearching(Boolean(value.trim()));
+	};
+
+	const handleResultListScroll = (event: UIEvent<HTMLDivElement>) => {
+		const list = event.currentTarget;
+		if (list.scrollHeight - list.scrollTop - list.clientHeight > 120) return;
+		setVisibleHitCount((current) =>
+			Math.min(current + SESSION_SEARCH_RESULT_BATCH_SIZE, hits.length),
+		);
+	};
+
+	const visibleHits = hits.slice(0, visibleHitCount);
+
 	return (
 		<CommandDialog
-			className="h-[min(38rem,calc(100vh-2rem))] w-[min(42rem,calc(100vw-2rem))] max-w-none sm:max-w-none"
+			className="h-[min(38rem,calc(100vh-2rem))] w-[min(56rem,calc(100vw-2rem))] max-w-none sm:max-w-none"
 			description="Search messages across all Cline sessions"
 			onOpenChange={onOpenChange}
 			open={open}
@@ -95,11 +132,14 @@ export function SessionCommandBar({
 			title="Search session history"
 		>
 			<CommandInput
-				onValueChange={setQuery}
+				onValueChange={handleQueryChange}
 				placeholder="Search all session history…"
 				value={query}
 			/>
-			<CommandList className="min-h-0 max-h-none flex-1">
+			<CommandList
+				className="min-h-0 max-h-none flex-1"
+				onScroll={handleResultListScroll}
+			>
 				{searching ? (
 					<div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
 						<Loader2 className="size-4 animate-spin" />
@@ -111,7 +151,7 @@ export function SessionCommandBar({
 				) : null}
 				{!searching && hits.length > 0 ? (
 					<CommandGroup heading="Session history">
-						{hits.map((hit) => (
+						{visibleHits.map((hit) => (
 							<CommandItem
 								className="items-start py-3"
 								key={hit.documentId}
@@ -121,13 +161,12 @@ export function SessionCommandBar({
 								}}
 								value={`${hit.documentId} ${hit.title} ${hit.snippet} ${hit.workspaceRoot}`}
 							>
-								<MessageSquareText className="mt-0.5 size-4" />
 								<div className="min-w-0 flex-1">
-									<div className="flex items-center gap-2">
-										<span className="truncate font-medium">{hit.title}</span>
+									<div className="flex min-w-0 items-center gap-2">
 										<span className="shrink-0 text-xs capitalize text-muted-foreground">
 											{hit.role}
 										</span>
+										<span className="truncate font-medium">{hit.title}</span>
 									</div>
 									<p className="mt-1 line-clamp-2 whitespace-normal text-xs text-muted-foreground">
 										{hit.snippet}
@@ -138,6 +177,11 @@ export function SessionCommandBar({
 								</div>
 							</CommandItem>
 						))}
+						{visibleHitCount < hits.length ? (
+							<div className="py-2 text-center text-[11px] text-muted-foreground">
+								Showing {visibleHitCount} of {hits.length} results
+							</div>
+						) : null}
 					</CommandGroup>
 				) : null}
 				{!query.trim() ? (

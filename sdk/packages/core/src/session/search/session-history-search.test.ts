@@ -1,7 +1,11 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import {
+	SESSION_SEARCH_PREVIEW_MAX_LENGTH,
+	SESSION_SEARCH_TITLE_MAX_LENGTH,
+} from "@cline/shared";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { SessionRecord } from "../../types/sessions";
 import { SessionHistorySearchService } from "./session-history-search";
 
@@ -44,9 +48,9 @@ describe("SessionHistorySearchService", () => {
 		tempDirs.push(dir);
 		const sessions = [session()];
 		const messages = [
-			{ role: "user", content: "Find the frobnicator regression" },
+			{ role: "user" as const, content: "Find the frobnicator regression" },
 			{
-				role: "assistant",
+				role: "assistant" as const,
 				content: "The issue is in src/parser/session-service.ts",
 			},
 		];
@@ -99,6 +103,75 @@ describe("SessionHistorySearchService", () => {
 		await service.dispose();
 	});
 
+	it("evicts a deleted session without scanning canonical history", async () => {
+		const dir = await mkdtemp(join(tmpdir(), "cline-session-search-"));
+		tempDirs.push(dir);
+		const listSessions = vi.fn(async () => [session()]);
+		const service = new SessionHistorySearchService(
+			{
+				listSessions,
+				readSessionMessages: async () => [
+					{ role: "user", content: "Find the frobnicator regression" },
+				],
+			},
+			{ dbPath: join(dir, "search.db") },
+		);
+
+		await service.refreshNow();
+		expect(service.search({ query: "frobnicator" })).toHaveLength(1);
+		listSessions.mockClear();
+
+		service.removeSession("session-1");
+
+		expect(service.search({ query: "frobnicator" })).toHaveLength(0);
+		expect(service.search({ query: "Parser" })).toHaveLength(0);
+		expect(listSessions).not.toHaveBeenCalled();
+		await service.dispose();
+	});
+
+	it("does not let an in-flight reconciliation restore a deleted session", async () => {
+		const dir = await mkdtemp(join(tmpdir(), "cline-session-search-"));
+		tempDirs.push(dir);
+		const sessions = [session()];
+		let blockMessageRead = false;
+		let markMessageReadStarted!: () => void;
+		let releaseMessageRead!: () => void;
+		const messageReadStarted = new Promise<void>((resolve) => {
+			markMessageReadStarted = resolve;
+		});
+		const messageReadReleased = new Promise<void>((resolve) => {
+			releaseMessageRead = resolve;
+		});
+		const service = new SessionHistorySearchService(
+			{
+				listSessions: async () => sessions,
+				readSessionMessages: async () => {
+					if (blockMessageRead) {
+						markMessageReadStarted();
+						await messageReadReleased;
+					}
+					return [{ role: "user", content: "Find the frobnicator regression" }];
+				},
+			},
+			{ dbPath: join(dir, "search.db") },
+		);
+
+		await service.refreshNow();
+		blockMessageRead = true;
+		sessions[0] = session({ updatedAt: "2026-08-19T12:02:00.000Z" });
+		const refresh = service.refreshNow();
+		await messageReadStarted;
+
+		service.removeSession("session-1");
+		expect(service.search({ query: "frobnicator" })).toHaveLength(0);
+		releaseMessageRead();
+		await refresh;
+
+		expect(service.search({ query: "frobnicator" })).toHaveLength(0);
+		expect(service.search({ query: "Parser" })).toHaveLength(0);
+		await service.dispose();
+	});
+
 	it("searches session titles when no message artifact is available", async () => {
 		const dir = await mkdtemp(join(tmpdir(), "cline-session-search-"));
 		tempDirs.push(dir);
@@ -122,6 +195,41 @@ describe("SessionHistorySearchService", () => {
 				title: "Generate an image of a puppy",
 			}),
 		]);
+		await service.dispose();
+	});
+
+	it("bounds oversized titles and unwraps user prompt snippets", async () => {
+		const dir = await mkdtemp(join(tmpdir(), "cline-session-search-"));
+		tempDirs.push(dir);
+		const oversized = "generate an image ".repeat(3_000);
+		const wrapped = `<user_input mode="act">${oversized}</user_input>`;
+		const service = new SessionHistorySearchService(
+			{
+				listSessions: async () => [
+					session({
+						metadata: { title: wrapped },
+						prompt: wrapped,
+					}),
+				],
+				readSessionMessages: async () => [{ role: "user", content: wrapped }],
+			},
+			{ dbPath: join(dir, "search.db") },
+		);
+
+		await service.refreshNow();
+		const hits = service.search({ query: "generate" });
+
+		expect(hits.length).toBeGreaterThan(0);
+		for (const hit of hits) {
+			expect(hit.title.length).toBeLessThanOrEqual(
+				SESSION_SEARCH_TITLE_MAX_LENGTH,
+			);
+			expect(hit.snippet.length).toBeLessThanOrEqual(
+				SESSION_SEARCH_PREVIEW_MAX_LENGTH,
+			);
+			expect(hit.title).not.toContain("user_input");
+			expect(hit.snippet).not.toContain("user_input");
+		}
 		await service.dispose();
 	});
 });

@@ -49,6 +49,8 @@ import {
 import { resolveAudioTranscriptionRoute } from "@cline/llms";
 import {
 	CLINE_DEFAULT_MODEL_ID,
+	formatSessionSearchPreview,
+	formatSessionSearchTitle,
 	getClineEnvironmentConfig,
 	isCanonicalBase64,
 	ONE_TIME_SCHEDULE_CRON_PATTERN,
@@ -569,12 +571,13 @@ function metadataSessionSearchHits(
 				: {};
 		const sessionId = String(session.sessionId ?? "").trim();
 		if (!sessionId) return [];
-		const title = String(
+		const rawTitle = String(
 			metadata.title ?? session.title ?? session.prompt ?? sessionId,
 		).trim();
 		const prompt = String(session.prompt ?? metadata.prompt ?? "");
+		const title = formatSessionSearchTitle(rawTitle) || sessionId;
 		const workspaceRoot = String(session.workspaceRoot ?? session.cwd ?? "");
-		const searchable = [title, prompt, workspaceRoot, session.model]
+		const searchable = [rawTitle, prompt, workspaceRoot, session.model]
 			.join("\n")
 			.toLocaleLowerCase();
 		if (!searchable.includes(normalizedQuery)) return [];
@@ -587,7 +590,7 @@ function metadataSessionSearchHits(
 				startedAt: String(session.startedAt ?? session.createdAt ?? ""),
 				workspaceRoot,
 				title,
-				snippet: prompt || title,
+				snippet: formatSessionSearchPreview("session", prompt || title),
 				score: 0,
 			},
 		];
@@ -1469,42 +1472,37 @@ export async function handleCommand(
 			typeof args?.workspaceRoot === "string"
 				? args.workspaceRoot.trim() || undefined
 				: undefined;
-		const sessionsPromise = withSearchDeadline(
-			listSessionsFromSidecarManager(ctx, 500),
-			1_000,
-		).catch(() => []);
-		const indexedHitsPromise = ctx.hubClient
-			? withSearchDeadline(
+		if (ctx.hubClient) {
+			try {
+				const reply = await withSearchDeadline(
 					ctx.hubClient.command("session.search", {
 						query,
 						limit,
 						workspaceRoot,
 					}),
 					750,
-				)
-					.then((reply) =>
-						Array.isArray(reply.payload?.hits) ? reply.payload.hits : [],
-					)
-					.catch(() => [])
-			: Promise.resolve([]);
-		const [sessions, indexedHits] = await Promise.all([
-			sessionsPromise,
-			indexedHitsPromise,
-		]);
-		const combined = [
-			...indexedHits,
-			...metadataSessionSearchHits(sessions, query),
-		];
-		const seen = new Set<string>();
-		return combined
-			.filter((hit) => {
-				if (!hit || typeof hit !== "object") return false;
-				const documentId = String((hit as JsonRecord).documentId ?? "");
-				if (!documentId || seen.has(documentId)) return false;
-				seen.add(documentId);
-				return true;
-			})
-			.slice(0, limit);
+				);
+				if (
+					reply.ok &&
+					Array.isArray(reply.payload?.hits) &&
+					reply.payload.hits.length > 0
+				) {
+					return reply.payload.hits.slice(0, limit).map((hit) => ({
+						...hit,
+						title: formatSessionSearchTitle(hit.title),
+						snippet: formatSessionSearchPreview(hit.role, hit.snippet),
+					}));
+				}
+			} catch {
+				// Fall back to metadata-only search when the index is unavailable.
+			}
+		}
+
+		const sessions = await withSearchDeadline(
+			listSessionsFromSidecarManager(ctx, 500),
+			1_000,
+		).catch(() => []);
+		return metadataSessionSearchHits(sessions, query).slice(0, limit);
 	}
 	if (command === "get_discovered_session") {
 		const sessionId = String(args?.sessionId ?? args?.session_id ?? "").trim();
