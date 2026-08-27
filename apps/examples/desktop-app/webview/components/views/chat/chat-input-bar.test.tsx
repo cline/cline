@@ -311,6 +311,13 @@ describe("ChatInputBar", () => {
 		expect(loadProviderModelsMock).toHaveBeenCalledWith("anthropic", {
 			includeCloudModels: true,
 		});
+		const providerModelsListener =
+			subscribeToProviderModelsMock.mock.calls[0]?.[0];
+		await act(async () => {
+			providerModelsListener?.("cline", [
+				{ id: "local-only-model", name: "Local only" },
+			]);
+		});
 		expect(onModelChange).not.toHaveBeenCalled();
 		expect(
 			container.querySelector('[aria-label="Attach images"]'),
@@ -344,6 +351,7 @@ describe("ChatInputBar", () => {
 			),
 		).find((button) => button.textContent?.includes("cline-alt"));
 		expect(alternateModel).not.toBeUndefined();
+		expect(container.textContent).not.toContain("Local only");
 		await act(async () => alternateModel?.click());
 		expect(onModelChange).toHaveBeenCalledWith("cline-alt");
 		expect(

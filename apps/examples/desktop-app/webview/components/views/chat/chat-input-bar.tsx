@@ -1851,6 +1851,7 @@ const ModelSelector = memo(function ModelSelector({
 	useEffect(() => {
 		return subscribeToProviderModels((providerId, models) => {
 			const normalizedId = normalizeProviderId(providerId);
+			if (includeCloudModels && normalizedId === "cline") return;
 			setProviderModels((current) => ({
 				...current,
 				[normalizedId]: models.map((entry) => entry.id),
@@ -1869,7 +1870,7 @@ const ModelSelector = memo(function ModelSelector({
 				current.includes(normalizedId) ? current : [...current, normalizedId],
 			);
 		});
-	}, []);
+	}, [includeCloudModels]);
 
 	// The remembered selection (what new sessions default to) is only written
 	// from the explicit picker handlers below. Mirroring every provider/model
