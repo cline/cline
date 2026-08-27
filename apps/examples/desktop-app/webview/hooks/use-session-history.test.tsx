@@ -130,6 +130,42 @@ describe("useSessionHistory session mapping", () => {
 			current.threads.find((thread) => thread.id === "regular-session"),
 		).toMatchObject({ source: "core", isScheduled: false });
 	});
+
+	it("refreshes metadata-only cloud handoff transitions", async () => {
+		await act(async () => {
+			root.render(<HookHarness />);
+		});
+		await flush();
+		await act(async () => {
+			pendingLists[0].resolve([sessionRow("handoff-source")]);
+			await Promise.resolve();
+		});
+
+		let refresh: Promise<boolean> | undefined;
+		await act(async () => {
+			refresh = current.refreshSessions();
+		});
+		await act(async () => {
+			pendingLists[1].resolve([
+				{
+					...sessionRow("handoff-source"),
+					metadata: {
+						handoff: {
+							status: "complete",
+							toCloudSessionId: "cloud-1",
+							dashboardUrl: "https://app.cline.bot/agents/cloud-1",
+						},
+					},
+				},
+			]);
+			await refresh;
+		});
+
+		expect(current.sessions[0]?.metadata?.handoff).toMatchObject({
+			status: "complete",
+			toCloudSessionId: "cloud-1",
+		});
+	});
 });
 
 describe("useSessionHistory live status", () => {
