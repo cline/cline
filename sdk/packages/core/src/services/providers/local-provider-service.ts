@@ -22,7 +22,10 @@ import {
 	getCachedClineRecommendedModels,
 	peekClineRecommendedModels,
 } from "../../services/llms/cline-recommended-models";
-import { resolveProviderConfig } from "../../services/llms/provider-defaults";
+import {
+	getLiveModelsCatalog,
+	resolveProviderConfig,
+} from "../../services/llms/provider-defaults";
 import type {
 	ModelInfo,
 	ProviderClient,
@@ -166,6 +169,7 @@ async function resolveProviderModelMap(
 		providerId,
 		{
 			loadLatestOnInit: isClinePass || options.loadLatest,
+			includeClineCloudModels: options.loadLatest,
 			loadPrivateOnAuth: true,
 			failOnError: false,
 		},
@@ -840,16 +844,19 @@ export async function getLocalProviderModels(
 	if (id === CLINE_PROVIDER_ID || id === CLINE_PASS_PROVIDER_ID) {
 		// Stamp the recommended-feed tiers onto the list so every client's
 		// picker gets Recommended/Free/Subscribed data without fetching and
-		// joining the feed itself. The loadLatest path just refreshed live
-		// data, so peek (cache-or-bundled, never fetches) avoids a duplicate
-		// feed request; otherwise use the cached fetch. A miss only means
-		// models without tier decoration.
+		// joining the feed itself. A miss only means models without tier
+		// decoration.
 		models = applyClineFeaturedModels(
 			id,
 			models,
-			options?.loadLatest
-				? peekClineRecommendedModels()
-				: await getCachedClineRecommendedModels(),
+			await getCachedClineRecommendedModels(
+				options?.loadLatest
+					? {
+							catalogLoader: () =>
+								getLiveModelsCatalog({ includeClineCloudModels: true }),
+						}
+					: undefined,
+			),
 		);
 	}
 	return { providerId: id, models };

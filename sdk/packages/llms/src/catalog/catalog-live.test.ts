@@ -564,18 +564,26 @@ describe("models-dev-catalog", () => {
 		);
 	});
 
-	it("includes Cline Cloud models in the Cline provider", () => {
+	it("includes Cline Cloud models only when explicitly requested", () => {
+		const payload = {
+			clinePass: [{ id: "cline-pass/glm-5.2", name: "glm-5.2" }],
+			clineCloud: [
+				{
+					id: "cline-cloud/claude-sonnet-4.6",
+					name: "Claude Sonnet 4.6",
+				},
+			],
+		};
+		expect(
+			normalizeClineRecommendedProviderModels(payload, {}).cline ?? {},
+		).not.toHaveProperty("cline-cloud/claude-sonnet-4.6");
+
 		const result = normalizeClineRecommendedProviderModels(
-			{
-				clinePass: [{ id: "cline-pass/glm-5.2", name: "glm-5.2" }],
-				clineCloud: [
-					{
-						id: "cline-cloud/claude-sonnet-4.6",
-						name: "Claude Sonnet 4.6",
-					},
-				],
-			},
+			payload,
 			{},
+			{
+				includeClineCloudModels: true,
+			},
 		);
 
 		expect(result.cline?.["cline-cloud/claude-sonnet-4.6"]).toMatchObject({

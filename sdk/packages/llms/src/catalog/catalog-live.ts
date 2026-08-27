@@ -515,6 +515,7 @@ export async function fetchModelsDevCatalog(
 export async function fetchLiveProviderModels(
 	modelsDevUrl: string,
 	fetcher: typeof fetch = fetch,
+	options: { includeClineCloudModels?: boolean } = {},
 ): Promise<Record<string, Record<string, ModelInfo>>> {
 	const emptyProviderModels: Record<string, Record<string, ModelInfo>> = {};
 	const [providerModels, clineRecommendedPayload] = await Promise.all([
@@ -527,6 +528,7 @@ export async function fetchLiveProviderModels(
 		? normalizeClineRecommendedProviderModels(
 				clineRecommendedPayload,
 				providerModels.openrouter ?? {},
+				options,
 			)
 		: {};
 

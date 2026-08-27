@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -63,8 +66,12 @@ import {
 
 const originalApiKey = process.env.TELEMETRY_SERVICE_API_KEY;
 const originalIsTest = process.env.IS_TEST;
+const originalDataDir = process.env.CLINE_DATA_DIR;
+let dataDir: string;
 
 beforeEach(() => {
+	dataDir = mkdtempSync(join(tmpdir(), "cline-feature-flags-"));
+	process.env.CLINE_DATA_DIR = dataDir;
 	vi.clearAllMocks();
 	mocks.getBooleanFlagEnabled.mockReset().mockReturnValue(false);
 	resetDesktopFeatureFlagsForTesting();
@@ -73,6 +80,12 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+	rmSync(dataDir, { recursive: true, force: true });
+	if (originalDataDir === undefined) {
+		delete process.env.CLINE_DATA_DIR;
+	} else {
+		process.env.CLINE_DATA_DIR = originalDataDir;
+	}
 	if (originalApiKey === undefined) {
 		delete process.env.TELEMETRY_SERVICE_API_KEY;
 	} else {

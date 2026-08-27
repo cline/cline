@@ -501,6 +501,12 @@ describe("addLocalProvider – model ID parsing via modelsSourceUrl", () => {
 
 			return new Response(
 				JSON.stringify({
+					free: [
+						{
+							id: "cline-free/live-free-model",
+							name: "Live Free Model",
+						},
+					],
 					clineCloud: [
 						{
 							id: "cline-cloud/claude-sonnet-4.6",
@@ -517,11 +523,17 @@ describe("addLocalProvider – model ID parsing via modelsSourceUrl", () => {
 			loadLatest: true,
 		});
 
-		expect(fetchMock).toHaveBeenCalledTimes(2);
+		expect(fetchMock).toHaveBeenCalledTimes(3);
 		expect(models).toContainEqual(
 			expect.objectContaining({
 				id: "cline-cloud/claude-sonnet-4.6",
 				name: "Claude Sonnet 4.6",
+			}),
+		);
+		expect(models).toContainEqual(
+			expect.objectContaining({
+				id: "cline-free/live-free-model",
+				featured: expect.objectContaining({ tier: "free" }),
 			}),
 		);
 	});

@@ -71,6 +71,7 @@ function buildModelsNameMap(
 export function normalizeClineRecommendedProviderModels(
 	payload: ClineRecommendedModelsPayload,
 	openRouterModels: Record<string, ModelInfo>,
+	options: { includeClineCloudModels?: boolean } = {},
 ): Record<string, Record<string, ModelInfo>> {
 	const clinePass = payload.clinePass ?? [];
 	const models: Record<string, ModelInfo> = {};
@@ -132,9 +133,11 @@ export function normalizeClineRecommendedProviderModels(
 	(payload.free ?? []).forEach((entry) => {
 		addClineModel(entry, true);
 	});
-	(payload.clineCloud ?? []).forEach((entry) => {
-		addClineModel(entry, false);
-	});
+	if (options.includeClineCloudModels) {
+		(payload.clineCloud ?? []).forEach((entry) => {
+			addClineModel(entry, false);
+		});
+	}
 
 	const result: Record<string, Record<string, ModelInfo>> = {};
 	if (Object.keys(clineModels).length > 0) {
