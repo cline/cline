@@ -1514,6 +1514,50 @@ describe("runCli lightweight command dispatch", () => {
 		);
 	});
 
+	it("enables OpenAI Fast mode when --fast is provided", async () => {
+		mockState.runAgentCalls = 0;
+		runtimeMocks.runAgent.mockClear();
+
+		forcePromptModeInput();
+		process.argv = ["bun", "src/index.ts", "--fast", "say hello"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(mockState.runAgentCalls).toBe(1);
+		expect(runtimeMocks.runAgent).toHaveBeenCalledWith(
+			"say hello",
+			expect.objectContaining({
+				serviceTier: "fast",
+			}),
+			expect.anything(),
+		);
+		expect(providerSettingsMocks.saveProviderSettings).toHaveBeenCalled();
+		const persistedSettings =
+			providerSettingsMocks.saveProviderSettings.mock.calls.at(-1)?.[0];
+		expect(persistedSettings).not.toHaveProperty("serviceTier");
+	});
+
+	it("leaves the service tier unset when --fast is omitted", async () => {
+		mockState.runAgentCalls = 0;
+		runtimeMocks.runAgent.mockClear();
+
+		forcePromptModeInput();
+		process.argv = ["bun", "src/index.ts", "say hello"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(mockState.runAgentCalls).toBe(1);
+		expect(runtimeMocks.runAgent).toHaveBeenCalledWith(
+			"say hello",
+			expect.objectContaining({
+				serviceTier: undefined,
+			}),
+			expect.anything(),
+		);
+	});
+
 	it("leaves thinking unset when --thinking is not provided", async () => {
 		mockState.runAgentCalls = 0;
 		runtimeMocks.runAgent.mockClear();

@@ -4814,6 +4814,37 @@ describe("sdk-gateway", () => {
 		expect(call?.providerOptions?.openaiCodex).not.toHaveProperty("truncation");
 	});
 
+	it.each([
+		"openai-native",
+		"openai-codex",
+	])("passes OpenAI Fast mode through provider options for %s", async (providerId) => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [{ providerId, options: { serviceTier: "fast" } }],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId,
+				modelId: "gpt-5.6-sol",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(streamTextSpy).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				providerOptions: expect.objectContaining({
+					openai: expect.objectContaining({ serviceTier: "fast" }),
+				}),
+			}),
+		);
+	});
+
 	it("passes object JSON schemas unchanged to the OpenAI Codex tool adapter", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: makeStreamParts([

@@ -196,6 +196,7 @@ function buildProviderConfig(
 	const providerConfig: ProviderConfig = {
 		...toProviderConfig(settings),
 		...(sessionProviderConfig ?? {}),
+		serviceTier: config.serviceTier ?? sessionProviderConfig?.serviceTier,
 	};
 	if (resolvedHeaders) {
 		providerConfig.headers = resolvedHeaders;

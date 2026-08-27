@@ -30,6 +30,8 @@ test.describe("root flag descriptions", () => {
 			"Set reasoning effort:",
 			"Bare --thinking uses medium",
 			"omitted leaves provider default",
+			"Use OpenAI Fast mode with OpenAI or ChatGPT subscription providers",
+			"higher per-token cost",
 			"consecutive mistakes",
 			"Output messages as JSON",
 			"Check for updates and install if available",

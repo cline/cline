@@ -360,6 +360,11 @@ export class DefaultGateway implements Gateway {
 				...request,
 				modelId: resolved.model.id,
 				providerId: resolved.provider.id,
+				serviceTier:
+					request.serviceTier ??
+					(providerRecord.config.options?.serviceTier === "fast"
+						? "fast"
+						: undefined),
 				maxTokens,
 				defaultedMaxTokens:
 					maxTokens !== undefined && !isPositiveFiniteNumber(request.maxTokens),
