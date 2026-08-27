@@ -910,7 +910,9 @@ function ChatThreadPane({
 			: null) ??
 		null;
 	const handoffRetry =
-		(handoffUi?.status === "recovery" || handoffUi?.status === "failed") &&
+		(handoffUi?.status === "recovery" ||
+			handoffUi?.status === "failed" ||
+			handoffUi?.status === "retry_restored") &&
 		(handoffUi.retryDraft || handoffUi.retryAttachments?.length)
 			? {
 					draft: handoffUi.retryDraft,
@@ -1447,14 +1449,20 @@ function ChatThreadPane({
 		if (!historySession) {
 			return;
 		}
+		const hasInitialComposerState =
+			initialPromptDraft !== undefined || initialAttachments !== undefined;
+		if (hasInitialComposerState) {
+			setPromptInput(initialPromptDraft ?? "");
+			setPendingAttachments(initialAttachments ? [...initialAttachments] : []);
+			onInitialPromptDraftConsumed?.(threadId);
+		}
 		if (hydratedSessionRef.current === historySession.sessionId) {
 			return;
 		}
 		hydratedSessionRef.current = historySession.sessionId;
-		setPromptInput(initialPromptDraft ?? "");
-		setPendingAttachments(initialAttachments ? [...initialAttachments] : []);
-		if (initialPromptDraft !== undefined || initialAttachments !== undefined) {
-			onInitialPromptDraftConsumed?.(threadId);
+		if (!hasInitialComposerState) {
+			setPromptInput("");
+			setPendingAttachments([]);
 		}
 		setManualTitle(getSessionMetadataTitle(historySession.metadata));
 		void hydrateSession(historySession);
@@ -1471,17 +1479,46 @@ function ChatThreadPane({
 	// Hydrate first, then restore a failed handoff's draft and attachments. If
 	// this ran above the hydration effect, hydration would immediately wipe the
 	// only retained retry payload after navigation back to the source session.
+	const restoredHandoffRetryRef = useRef<{
+		sourceSessionId: string;
+		draft?: string;
+		attachments?: File[];
+	} | null>(null);
 	useEffect(() => {
-		if (!sourceSessionId || !handoffRetry) return;
+		if (!sourceSessionId || !handoffRetry) {
+			restoredHandoffRetryRef.current = null;
+			return;
+		}
+		const restored = restoredHandoffRetryRef.current;
+		if (
+			restored?.sourceSessionId === sourceSessionId &&
+			restored.draft === handoffRetry.draft &&
+			restored.attachments === handoffRetry.attachments
+		) {
+			return;
+		}
+		restoredHandoffRetryRef.current = {
+			sourceSessionId,
+			draft: handoffRetry.draft,
+			attachments: handoffRetry.attachments,
+		};
 		if (handoffRetry.draft) setPromptInput(handoffRetry.draft);
 		if (handoffRetry.attachments?.length) {
 			setPendingAttachments([...handoffRetry.attachments]);
 		}
-		onHandoffUiAction({
-			type: "retry_restored",
-			sourceSessionId,
-		});
-	}, [handoffRetry, onHandoffUiAction, setPromptInput, sourceSessionId]);
+		if (handoffUi?.status !== "retry_restored") {
+			onHandoffUiAction({
+				type: "retry_restored",
+				sourceSessionId,
+			});
+		}
+	}, [
+		handoffRetry,
+		handoffUi?.status,
+		onHandoffUiAction,
+		setPromptInput,
+		sourceSessionId,
+	]);
 
 	const handoffUiRef = useRef(handoffUi);
 	useEffect(() => {
@@ -2135,10 +2172,23 @@ function ChatThreadPane({
 			return;
 		}
 		if (cloudAgentsEnabled) {
+			const retryDraft =
+				handoffUi?.status === "complete" ? handoffUi.retryDraft : undefined;
+			const retryAttachments =
+				handoffUi?.status === "complete"
+					? handoffUi.retryAttachments
+					: undefined;
 			const opened = await Promise.resolve(
-				onOpenSessionById?.(receipt.targetSessionId, { silent: true }),
+				onOpenSessionById?.(receipt.targetSessionId, {
+					silent: true,
+					initialPromptDraft: retryDraft,
+					initialAttachments: retryAttachments,
+				}),
 			).catch(() => false);
 			if (opened) {
+				if (sourceSessionId && (retryDraft || retryAttachments?.length)) {
+					onHandoffUiAction({ type: "retry_delivered", sourceSessionId });
+				}
 				return;
 			}
 			if (sourceSessionId) {
@@ -2155,6 +2205,7 @@ function ChatThreadPane({
 	}, [
 		cloudAgentsEnabled,
 		handoffReceipt,
+		handoffUi,
 		onHandoffUiAction,
 		onOpenSessionById,
 		sourceSessionId,

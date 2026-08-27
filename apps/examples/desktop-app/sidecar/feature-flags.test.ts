@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
 	poll: vi.fn(async () => {}),
 	dispose: vi.fn(async () => {}),
 	setContext: vi.fn(),
+	getBooleanFlagEnabled: vi.fn((_flag: unknown): boolean => false),
 	getFlagPayload: vi.fn((_flag: unknown): unknown => undefined),
 }));
 
@@ -39,6 +40,7 @@ vi.mock("@cline/core", async () => {
 			poll = mocks.poll;
 			dispose = mocks.dispose;
 			setContext = mocks.setContext;
+			getBooleanFlagEnabled = mocks.getBooleanFlagEnabled;
 			getFlagPayload = mocks.getFlagPayload;
 		},
 	};
@@ -64,6 +66,7 @@ const originalIsTest = process.env.IS_TEST;
 
 beforeEach(() => {
 	vi.clearAllMocks();
+	mocks.getBooleanFlagEnabled.mockReset().mockReturnValue(false);
 	resetDesktopFeatureFlagsForTesting();
 	delete process.env.IS_TEST;
 	delete process.env.E2E_TEST;
