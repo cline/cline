@@ -174,6 +174,78 @@ describe("HubServerTransport boundaries", () => {
 		await transport.stop();
 	});
 
+	it("preserves canonical deletion results when search eviction fails", async () => {
+		const deleteSession = vi.fn().mockResolvedValue(true);
+		const transport = createTransport({
+			sessionSearchOptions: { dbPath: ":memory:" },
+			taskOptions: { dbPath: ":memory:", watchFiles: false },
+			sessionHost: { deleteSession },
+		});
+		const ctx = getContext(transport);
+		ensureSessionState(ctx, "deleted-session", "client-1", "creator");
+		ensureSessionState(ctx, "restored-session", "client-1", "creator");
+		const eviction = vi
+			.spyOn(ctx.sessionSearch, "removeSession")
+			.mockImplementation(() => {
+				throw new Error("search index is unavailable");
+			});
+		const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+		const restoreCheckpoint = vi
+			.spyOn(SessionVersioningService.prototype, "restoreCheckpoint")
+			.mockImplementationOnce(async (input) => {
+				await input.cleanupStartedSession?.({
+					sessionId: "restored-session",
+				} as never);
+				throw new Error("original restoration failure");
+			});
+		try {
+			const deleteReply = await transport.handleCommand({
+				version: "v1",
+				requestId: "delete-with-failed-eviction",
+				command: "session.delete",
+				payload: { sessionId: "deleted-session" },
+			});
+
+			expect(deleteReply.ok).toBe(true);
+			expect(deleteReply.payload?.deleted).toBe(true);
+			expect(ctx.sessionState.has("deleted-session")).toBe(false);
+
+			const restoreReply = await transport.handleCommand({
+				version: "v1",
+				requestId: "restore-with-failed-eviction",
+				command: "session.restore",
+				payload: {
+					sessionId: "source-session",
+					checkpointRunCount: 1,
+					sessionConfig: {
+						providerId: "test",
+						modelId: "test-model",
+						cwd: "/tmp/project",
+						workspaceRoot: "/tmp/project",
+					},
+				},
+			});
+
+			expect(restoreReply.ok).toBe(false);
+			expect(restoreReply.error?.message).toContain(
+				"original restoration failure",
+			);
+			expect(restoreReply.error?.message).not.toContain(
+				"search index is unavailable",
+			);
+			expect(ctx.sessionState.has("restored-session")).toBe(false);
+			expect(deleteSession).toHaveBeenNthCalledWith(1, "deleted-session");
+			expect(deleteSession).toHaveBeenNthCalledWith(2, "restored-session");
+			expect(eviction).toHaveBeenCalledTimes(2);
+		} finally {
+			restoreCheckpoint.mockRestore();
+			eviction.mockRestore();
+			errorSpy.mockRestore();
+			await transport.stop();
+		}
+	});
+
 	it("evicts an indexed replacement when failed restoration cleans it up", async () => {
 		const replacement = {
 			sessionId: "restored-session",

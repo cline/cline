@@ -104,6 +104,7 @@ export class SessionHistorySearchService {
 	private readonly db: SqliteDb;
 	private readonly intervalMs: number;
 	private readonly removedDuringRefresh = new Set<string>();
+	private readonly failedEvictionSessionIds = new Set<string>();
 	private timer: ReturnType<typeof setInterval> | undefined;
 	private refreshPromise: Promise<void> | undefined;
 	private readyPromise: Promise<void> = Promise.resolve();
@@ -162,7 +163,15 @@ export class SessionHistorySearchService {
 		const normalized = sessionId.trim();
 		if (!normalized) return;
 		if (this.refreshPromise) this.removedDuringRefresh.add(normalized);
-		this.deleteIndexedSession(normalized);
+		try {
+			this.deleteIndexedSession(normalized);
+			this.failedEvictionSessionIds.delete(normalized);
+		} catch (error) {
+			// Keep failed evictions hidden until reconciliation can retry the
+			// disposable database cleanup successfully.
+			this.failedEvictionSessionIds.add(normalized);
+			throw error;
+		}
 	}
 
 	async waitUntilReady(): Promise<void> {
@@ -191,7 +200,14 @@ export class SessionHistorySearchService {
 			.all(query, workspaceRoot ?? null, workspaceRoot ?? null, limit) as Array<
 			Record<string, unknown>
 		>;
-		return rows.map((row) => {
+		const visibleRows =
+			this.removedDuringRefresh.size === 0 &&
+			this.failedEvictionSessionIds.size === 0
+				? rows
+				: rows.filter(
+						(row) => !this.isSessionSuppressed(String(row.session_id)),
+					);
+		return visibleRows.map((row) => {
 			const role = String(row.role);
 			return {
 				sessionId: String(row.session_id),
@@ -205,6 +221,13 @@ export class SessionHistorySearchService {
 				score: Number(row.score),
 			};
 		});
+	}
+
+	private isSessionSuppressed(sessionId: string): boolean {
+		return (
+			this.removedDuringRefresh.has(sessionId) ||
+			this.failedEvictionSessionIds.has(sessionId)
+		);
 	}
 
 	private ensureSchema(): void {
@@ -256,9 +279,9 @@ export class SessionHistorySearchService {
 		);
 
 		for (const session of sessions) {
-			if (this.removedDuringRefresh.has(session.sessionId)) continue;
+			if (this.isSessionSuppressed(session.sessionId)) continue;
 			const revision = await this.sourceRevision(session);
-			if (this.removedDuringRefresh.has(session.sessionId)) continue;
+			if (this.isSessionSuppressed(session.sessionId)) continue;
 			const current = indexedById.get(session.sessionId);
 			if (
 				current?.source_revision === revision &&
@@ -271,8 +294,14 @@ export class SessionHistorySearchService {
 
 		for (const row of indexed) {
 			const sessionId = String(row.session_id);
-			if (!liveIds.has(sessionId) || this.removedDuringRefresh.has(sessionId)) {
+			if (!liveIds.has(sessionId) || this.isSessionSuppressed(sessionId)) {
 				this.deleteIndexedSession(sessionId);
+				this.failedEvictionSessionIds.delete(sessionId);
+			}
+		}
+		for (const sessionId of this.failedEvictionSessionIds) {
+			if (!indexedById.has(sessionId)) {
+				this.failedEvictionSessionIds.delete(sessionId);
 			}
 		}
 	}

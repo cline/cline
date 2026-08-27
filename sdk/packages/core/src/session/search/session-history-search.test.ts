@@ -129,6 +129,57 @@ describe("SessionHistorySearchService", () => {
 		await service.dispose();
 	});
 
+	it("hides a failed eviction until reconciliation repairs the index", async () => {
+		const dir = await mkdtemp(join(tmpdir(), "cline-session-search-"));
+		tempDirs.push(dir);
+		const sessions = [session()];
+		const service = new SessionHistorySearchService(
+			{
+				listSessions: async () => sessions,
+				readSessionMessages: async () => [
+					{ role: "user", content: "Find the frobnicator regression" },
+				],
+			},
+			{ dbPath: join(dir, "search.db") },
+		);
+
+		await service.refreshNow();
+		expect(service.search({ query: "frobnicator" })).toHaveLength(1);
+		sessions.splice(0);
+
+		const db = (
+			service as unknown as {
+				db: { exec: (sql: string) => void };
+			}
+		).db;
+		const exec = db.exec.bind(db);
+		let rejectEviction = true;
+		const execSpy = vi.spyOn(db, "exec").mockImplementation((sql) => {
+			if (rejectEviction && sql === "BEGIN IMMEDIATE;") {
+				throw new Error("search index is unavailable");
+			}
+			exec(sql);
+		});
+		try {
+			expect(() => service.removeSession("session-1")).toThrow(
+				"search index is unavailable",
+			);
+			expect(service.search({ query: "frobnicator" })).toHaveLength(0);
+			expect(service.search({ query: "Parser" })).toHaveLength(0);
+
+			rejectEviction = false;
+			await service.refreshNow();
+			expect(service.search({ query: "frobnicator" })).toHaveLength(0);
+
+			sessions.push(session({ updatedAt: "2026-08-19T12:02:00.000Z" }));
+			await service.refreshNow();
+			expect(service.search({ query: "frobnicator" })).toHaveLength(1);
+		} finally {
+			execSpy.mockRestore();
+			await service.dispose();
+		}
+	});
+
 	it("does not let an in-flight reconciliation restore a deleted session", async () => {
 		const dir = await mkdtemp(join(tmpdir(), "cline-session-search-"));
 		tempDirs.push(dir);

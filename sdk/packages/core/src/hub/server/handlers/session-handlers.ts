@@ -46,14 +46,24 @@ import {
 
 const CAPABILITY_OWNER_METADATA_KEY = "hubCapabilityOwnerClientId";
 
-async function deleteSessionAndEvictSearchIndex(
+async function deleteSessionAndCleanDerivedState(
 	ctx: HubTransportContext,
 	sessionId: string,
 ): Promise<boolean> {
 	const deleted = await ctx.sessionHost.deleteSession(sessionId);
+	ctx.sessionState.delete(sessionId);
 	// False means canonical history was already absent. Eviction is still safe
 	// and repairs any index left stale by an earlier deletion.
-	ctx.sessionSearch.removeSession(sessionId);
+	try {
+		ctx.sessionSearch.removeSession(sessionId);
+	} catch (error) {
+		// Search is disposable derived state. A failed eviction must not reverse a
+		// completed canonical deletion; reconciliation will retry the cleanup.
+		logHubMessage("warn", "session search eviction failed", {
+			error,
+			sessionId,
+		});
+	}
 	return deleted;
 }
 
@@ -697,7 +707,9 @@ export async function handleSessionRestore(
 			startSession: (startInput) => ctx.sessionHost.startSession(startInput),
 			getStartedSessionId: (started) => started.sessionId,
 			cleanupStartedSession: async (started) => {
-				if (!(await deleteSessionAndEvictSearchIndex(ctx, started.sessionId))) {
+				if (
+					!(await deleteSessionAndCleanDerivedState(ctx, started.sessionId))
+				) {
 					throw new Error(
 						`Failed to clean up restored session ${started.sessionId}`,
 					);
@@ -1095,8 +1107,7 @@ export async function handleSessionDelete(
 	envelope: HubCommandEnvelope,
 ): Promise<HubReplyEnvelope> {
 	const sessionId = extractSessionId(envelope);
-	const deleted = await deleteSessionAndEvictSearchIndex(ctx, sessionId);
-	ctx.sessionState.delete(sessionId);
+	const deleted = await deleteSessionAndCleanDerivedState(ctx, sessionId);
 	return okReply(envelope, { deleted });
 }
 
