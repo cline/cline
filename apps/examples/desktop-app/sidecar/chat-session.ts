@@ -995,6 +995,20 @@ async function handleSend(
 			"Cloud handoff is in progress. Wait for it to finish before sending another prompt.",
 		);
 	}
+	const finishActiveSend = beginActiveSessionSend(ctx, sessionId);
+	try {
+		return await handleSendOnce(ctx, request, sessionId, prompt);
+	} finally {
+		finishActiveSend();
+	}
+}
+
+async function handleSendOnce(
+	ctx: SidecarContext,
+	request: ChatSessionCommandRequest,
+	sessionId: string,
+	prompt: string,
+): Promise<unknown> {
 	const manager = getSessionManager(ctx);
 	const persistedSession =
 		typeof manager.get === "function"
@@ -1831,6 +1845,9 @@ async function assertHandoffIdle(
 	manager: ClineCore,
 	sessionId: string,
 ): Promise<void> {
+	if ((activeSendRequests.get(ctx)?.get(sessionId) ?? 0) > 0) {
+		throw new Error("Wait for the current send to finish before handing off.");
+	}
 	const live = ctx.liveSessions.get(sessionId);
 	const persisted = await manager.get(sessionId);
 	if (!live && !persisted) {
@@ -2514,6 +2531,32 @@ const handoffRequests = new WeakMap<
 	SidecarContext,
 	Map<string, { identity: HandoffRequestIdentity; promise: Promise<unknown> }>
 >();
+
+// Sending and handoff both replace session metadata. Track sends from before
+// their first await so whichever operation starts first excludes the other;
+// the counter keeps concurrent queued sends from releasing the guard early.
+const activeSendRequests = new WeakMap<SidecarContext, Map<string, number>>();
+
+function beginActiveSessionSend(
+	ctx: SidecarContext,
+	sessionId: string,
+): () => void {
+	let requests = activeSendRequests.get(ctx);
+	if (!requests) {
+		requests = new Map();
+		activeSendRequests.set(ctx, requests);
+	}
+	requests.set(sessionId, (requests.get(sessionId) ?? 0) + 1);
+	let finished = false;
+	return () => {
+		if (finished) return;
+		finished = true;
+		const remaining = (requests?.get(sessionId) ?? 1) - 1;
+		if (remaining > 0) requests?.set(sessionId, remaining);
+		else requests?.delete(sessionId);
+		if (requests?.size === 0) activeSendRequests.delete(ctx);
+	};
+}
 
 /**
  * Deleting a source session while its cloud handoff is in flight can remove

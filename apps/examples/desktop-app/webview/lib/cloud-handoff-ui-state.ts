@@ -280,7 +280,6 @@ export function cloudHandoffUiReducer(
 				action.warningKind,
 				action.retryDraft,
 				action.retryAttachments,
-				action.retainRetry,
 			);
 		case "target_open_failed":
 			if (current?.status === "complete") {

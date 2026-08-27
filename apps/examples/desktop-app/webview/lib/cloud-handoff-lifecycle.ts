@@ -112,10 +112,9 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 	// completion event and the RPC result both carry the warning; whichever
 	// lands first claims it here so the user never sees it twice.
 	const surfacedWarnings = new Set<string>();
-	// Authoritative completions recorded SYNCHRONOUSLY by attempt at event
-	// arrival: the pane's reducer-fed ref only updates after a re-render, so an
-	// RPC rejection landing in the same tick would otherwise miss its matching
-	// completion.
+	// Completions recorded SYNCHRONOUSLY by attempt. Besides bridging reducer
+	// lag for event-before-rejection, this makes a trailing/duplicate event a
+	// no-op after either completion path has already updated the UI.
 	const completions = new Map<string, HandoffCompletionRecord>();
 	// Retry payloads belong to the attempt that submitted them. This prevents a
 	// delayed completion for A from ever restoring B's edited command or files.
@@ -188,15 +187,15 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 			if (!acceptAttempt(sourceSessionId, handoffAttemptId)) return;
 			const acceptedAttempt = handoffAttemptId;
 			const key = attemptKey(sourceSessionId, handoffAttemptId);
+			if (progress.phase === "complete" && completions.has(key)) return;
 			let retryDraft: string | undefined;
 			let retryAttachments: File[] | undefined;
 			let retryDelivered = false;
 			const latestAttempt = latestAttempts.get(sourceSessionId);
 			const newerRetry =
-				handoffAttemptId &&
-				latestAttempt &&
-				latestAttempt !== handoffAttemptId &&
-				retryStates.get(attemptKey(sourceSessionId, latestAttempt));
+				handoffAttemptId && latestAttempt && latestAttempt !== handoffAttemptId
+					? retryStates.get(attemptKey(sourceSessionId, latestAttempt))
+					: undefined;
 			const retainNewerRetry = Boolean(
 				newerRetry?.command || newerRetry?.attachments?.length,
 			);
@@ -311,6 +310,13 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 			if (!acceptAttempt(sourceSessionId, ctx.handoffAttemptId)) return;
 			const receipt = { targetSessionId, dashboardUrl };
 			const destination = result.destination ?? "in_app";
+			const key = attemptKey(sourceSessionId, ctx.handoffAttemptId);
+			completions.set(key, {
+				targetSessionId,
+				dashboardUrl,
+				externalPresentation: destination === "external",
+				warningKind: result.warningKind,
+			});
 			// A warning means the follow-up command was NOT queued. Clear the
 			// optimistic bubble (it would read as sent), but preserve the
 			// user's command by pre-filling the target session's composer —
@@ -346,7 +352,6 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 				});
 			}
 			if (shouldOpenHandoffInApp(destination, ctx.isThreadActive?.() ?? true)) {
-				const key = attemptKey(sourceSessionId, ctx.handoffAttemptId);
 				if (!targetOpenAttempts.has(key)) {
 					targetOpenAttempts.add(key);
 					const opened = await Promise.resolve(
