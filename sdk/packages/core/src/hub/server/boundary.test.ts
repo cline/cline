@@ -552,6 +552,26 @@ describe("HubServerTransport boundaries", () => {
 				ok: false,
 				error: { code: "session_not_found" },
 			});
+			const strangerEvents: HubEventEnvelope[] = [];
+			transport.subscribe(
+				"stranger-client",
+				(event) => strangerEvents.push(event),
+				{ sessionId: "session-1" },
+			);
+			await Promise.resolve();
+			expect(strangerEvents).toEqual([]);
+			await expect(
+				handleApprovalRespond(ctx, {
+					version: "v1",
+					requestId: "req-stranger-response",
+					command: "approval.respond",
+					clientId: "stranger-client",
+					payload: { approvalId, approved: true },
+				}),
+			).resolves.toMatchObject({
+				ok: false,
+				error: { code: "approval_not_found" },
+			});
 			const reply = handleApprovalRespond(ctx, {
 				version: "v1",
 				requestId: "req-1",
@@ -614,7 +634,9 @@ describe("HubServerTransport boundaries", () => {
 
 		// A client subscribing after the fact must still see the request.
 		const events: HubEventEnvelope[] = [];
-		transport.subscribe("late-client", (event) => events.push(event));
+		transport.subscribe("client-1", (event) => events.push(event), {
+			sessionId: "session-1",
+		});
 		await Promise.resolve();
 		await Promise.resolve();
 

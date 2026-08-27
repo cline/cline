@@ -33,6 +33,19 @@ function pendingApprovalPayload(
 	};
 }
 
+function isClientAttached(
+	ctx: HubTransportContext,
+	sessionId: string,
+	clientId: string,
+): boolean {
+	const state = ctx.sessionState.get(sessionId);
+	return Boolean(
+		state &&
+			(state.createdByClientId === clientId ||
+				state.participants.has(clientId)),
+	);
+}
+
 export async function requestToolApproval(
 	ctx: HubTransportContext,
 	request: ToolApprovalRequest,
@@ -87,7 +100,11 @@ export async function requestToolApproval(
 export function pendingApprovalEvents(
 	ctx: HubTransportContext,
 	sessionId?: string,
+	clientId?: string,
 ): HubEventEnvelope[] {
+	if (!sessionId || !clientId || !isClientAttached(ctx, sessionId, clientId)) {
+		return [];
+	}
 	const events: HubEventEnvelope[] = [];
 	for (const pending of ctx.pendingApprovals.values()) {
 		if (!pending.requestedEvent) {
@@ -114,12 +131,7 @@ export function handleApprovalListPending(
 		);
 	}
 	const clientId = envelope.clientId?.trim();
-	const state = ctx.sessionState.get(sessionId);
-	if (
-		!clientId ||
-		!state ||
-		(state.createdByClientId !== clientId && !state.participants.has(clientId))
-	) {
+	if (!clientId || !isClientAttached(ctx, sessionId, clientId)) {
 		return errorReply(
 			envelope,
 			"session_not_found",
@@ -187,6 +199,14 @@ export async function handleApprovalRespond(
 			: "";
 	const pending = ctx.pendingApprovals.get(approvalId);
 	if (!pending) {
+		return errorReply(
+			envelope,
+			"approval_not_found",
+			`Unknown approval: ${approvalId}`,
+		);
+	}
+	const clientId = envelope.clientId?.trim();
+	if (clientId && !isClientAttached(ctx, pending.sessionId, clientId)) {
 		return errorReply(
 			envelope,
 			"approval_not_found",

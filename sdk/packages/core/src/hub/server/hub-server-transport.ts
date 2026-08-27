@@ -1080,7 +1080,11 @@ export class HubServerTransport implements NativeHubTransport {
 		this.listeners.set(clientId, current);
 		// Re-issue pending approvals so a (re)connecting client can answer a
 		// request raised while it was away instead of leaving the turn parked.
-		const pending = pendingApprovalEvents(this.ctx, options?.sessionId);
+		const pending = pendingApprovalEvents(
+			this.ctx,
+			options?.sessionId,
+			clientId,
+		);
 		if (pending.length > 0) {
 			queueMicrotask(() => {
 				const listeners = this.listeners.get(clientId);
