@@ -268,7 +268,7 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 				destination: progress.destination,
 				warningKind: progress.warningKind,
 				...(retainNewerRetry
-					? { retryDraft: newerRetry?.command }
+					? { retryDraft: newerRetry?.command ?? "" }
 					: retryDraft
 						? { retryDraft }
 						: {}),
