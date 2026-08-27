@@ -2105,8 +2105,10 @@ export function useChatSession() {
 				) {
 					return;
 				}
+				const rehydrationEpoch = turnEpochRef.current;
 				const applySnapshot = (rehydratedMessages: ChatMessage[]) => {
 					if (activeSessionIdRef.current !== targetSessionId) return;
+					if (turnEpochRef.current !== rehydrationEpoch) return;
 					const nextStatus = record.status?.trim();
 					applyCloudSnapshotMessages({
 						sessionId: targetSessionId,

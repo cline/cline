@@ -4341,6 +4341,43 @@ describe("coerced-queue first turn vs stale send response", () => {
 		expect(current.status).toBe("completed");
 	});
 
+	it("ignores a rehydration read that resolves after a new turn starts", async () => {
+		mockTransport({ deferredSendCount: 0 });
+		const transport = invokeMock.getMockImplementation();
+		let resolveRead!: (messages: unknown[]) => void;
+		const read = new Promise<unknown[]>((resolve) => {
+			resolveRead = resolve;
+		});
+		invokeMock.mockImplementation(async (command, args) => {
+			if (command === "read_session_messages") return await read;
+			return await transport?.(command, args);
+		});
+		const { sendPromise } = await dispatchPrompt("first prompt");
+		await act(async () => sendPromise);
+		const sid = current.sessionId;
+		const chatEventHandler = getChatEventHandler();
+		const rehydratedHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "cloud_session_rehydrated",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+
+		await act(async () => {
+			rehydratedHandler?.({ sessionId: sid, status: "completed" });
+		});
+		await act(async () => {
+			emitTurnEvents(chatEventHandler, sid, [
+				{
+					stream: "chat_queued_prompt_start",
+					chunk: JSON.stringify({ prompt: "first prompt" }),
+					index: 1,
+				},
+			]);
+			resolveRead([]);
+			await read;
+		});
+
+		expect(current.status).toBe("running");
+	});
+
 	it("still applies a queued response for a deliberately queued prompt", async () => {
 		// First send stays in flight (turn 1 running); the second prompt is
 		// deliberately queued behind it and its response must keep updating
