@@ -3,47 +3,283 @@ import {
 	BadgeCheck,
 	Github,
 	Globe,
+	Puzzle,
 	Scale,
 	Search,
+	Server,
 	Trash2,
 	User,
+	Zap,
 } from "lucide-react";
-import { type CSSProperties, useMemo, useState } from "react";
+import { type CSSProperties, useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
-import { openExternalUrl } from "@/lib/desktop-client";
-import type {
-	MarketplaceEntry,
-	MarketplacePrimitiveType,
+import { desktopClient, openExternalUrl } from "@/lib/desktop-client";
+import {
+	fetchMarketplaceCatalog,
+	type MarketplaceCatalog,
+	type MarketplaceEntry,
+	type MarketplacePrimitiveType,
 } from "@/lib/marketplace";
 import { cn } from "@/lib/utils";
-import {
-	actionLabelFor,
-	entryKey,
-	entrySearchText,
-	isBusy,
-	MATURITY_ORDER,
-	type MarketplaceDirectory,
-	TYPE_META,
-	useMarketplaceDirectory,
-} from "./shared";
 
 /**
- * Direction B: "Explorer" — a two-pane master/detail marketplace in the
- * spirit of an IDE extensions panel. The left rail lists everything grouped
- * by maturity (Skills, then MCP, then plugins); the right pane is a full
- * detail page for the selected entry with every piece of catalog metadata.
+ * Marketplace explorer: a two-pane master/detail directory in the spirit of
+ * an IDE extensions panel. The left rail lists every catalog entry grouped by
+ * primitive maturity (Skills, then MCP, then plugins); the right pane is a
+ * full detail page for the selected entry with the catalog's metadata
+ * (author, license, verified state, tags, install command, env setup) and
+ * links out to the entry's homepage and repository.
  */
+
+/** Ordered most-mature first: skills > MCP servers > plugins. */
+const MATURITY_ORDER: MarketplacePrimitiveType[] = ["skill", "mcp", "plugin"];
+
+type TypeMeta = {
+	label: string;
+	plural: string;
+	icon: typeof Server;
+	maturity: string;
+};
+
+const TYPE_META: Record<MarketplacePrimitiveType, TypeMeta> = {
+	skill: {
+		label: "Skill",
+		plural: "Skills",
+		icon: Zap,
+		maturity: "Most mature",
+	},
+	mcp: {
+		label: "MCP Server",
+		plural: "MCP",
+		icon: Server,
+		maturity: "Maturing",
+	},
+	plugin: {
+		label: "Plugin",
+		plural: "Plugins",
+		icon: Puzzle,
+		maturity: "Early",
+	},
+};
 
 const CODE_FONT_STYLE: CSSProperties = {
 	fontFamily:
 		'"Geist Mono Variable", ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace',
 };
 
-type TypeFilter = MarketplacePrimitiveType | null;
+const INSTALL_TIMEOUT_MS = 300_000;
+
+function entryKey(entry: Pick<MarketplaceEntry, "id" | "type">): string {
+	return `${entry.type}:${entry.id}`;
+}
+
+function entrySearchText(
+	entry: MarketplaceEntry,
+	tagLabels: Map<string, string>,
+): string {
+	return [
+		entry.name,
+		entry.tagline,
+		entry.description,
+		entry.type,
+		entry.author?.name ?? "",
+		...entry.tags.map((tag) => tagLabels.get(tag) ?? tag),
+	]
+		.join(" ")
+		.toLowerCase();
+}
+
+type EntryActionState =
+	| { status: "idle" }
+	| { status: "installing" }
+	| { status: "uninstalling" }
+	| { status: "installed"; message: string }
+	| { status: "uninstalled"; message: string }
+	| { status: "failed"; message: string };
+
+type MarketplaceInstallResult = {
+	status: "installed" | "uninstalled";
+	message: string;
+	output?: string;
+};
+
+type MarketplaceInstallStatusResult = {
+	installedKeys: string[];
+};
+
+type MarketplaceDirectory = {
+	catalog: MarketplaceCatalog | null;
+	errorMessage: string | null;
+	loading: boolean;
+	tagLabels: Map<string, string>;
+	installedKeys: Set<string>;
+	installedReady: boolean;
+	actionStates: Map<string, EntryActionState>;
+	install: (entry: MarketplaceEntry) => Promise<void>;
+	uninstall: (entry: MarketplaceEntry) => Promise<void>;
+};
+
+function useMarketplaceDirectory(): MarketplaceDirectory {
+	const [catalog, setCatalog] = useState<MarketplaceCatalog | null>(null);
+	const [errorMessage, setErrorMessage] = useState<string | null>(null);
+	const [installedKeys, setInstalledKeys] = useState<Set<string>>(
+		() => new Set(),
+	);
+	const [installedReady, setInstalledReady] = useState(false);
+	const [actionStates, setActionStates] = useState<
+		Map<string, EntryActionState>
+	>(() => new Map());
+
+	useEffect(() => {
+		let cancelled = false;
+		void (async () => {
+			try {
+				const nextCatalog = await fetchMarketplaceCatalog();
+				if (!cancelled) {
+					setCatalog(nextCatalog);
+					setErrorMessage(null);
+				}
+			} catch (error) {
+				if (!cancelled) {
+					setErrorMessage(
+						error instanceof Error ? error.message : String(error),
+					);
+					setInstalledReady(true);
+				}
+			}
+		})();
+		return () => {
+			cancelled = true;
+		};
+	}, []);
+
+	useEffect(() => {
+		if (!catalog) return;
+		let cancelled = false;
+		void (async () => {
+			try {
+				const response =
+					await desktopClient.invoke<MarketplaceInstallStatusResult>(
+						"list_marketplace_installed_entries",
+						{ entries: catalog.entries },
+					);
+				if (!cancelled) {
+					setInstalledKeys(new Set(response.installedKeys));
+				}
+			} catch {
+				// Keep current installed status when the check fails.
+			} finally {
+				if (!cancelled) {
+					setInstalledReady(true);
+				}
+			}
+		})();
+		return () => {
+			cancelled = true;
+		};
+	}, [catalog]);
+
+	const tagLabels = useMemo(
+		() => new Map(catalog?.tags.map((tag) => [tag.id, tag.label]) ?? []),
+		[catalog?.tags],
+	);
+
+	const setEntryState = (entry: MarketplaceEntry, state: EntryActionState) => {
+		const key = entryKey(entry);
+		setActionStates((current) => {
+			const next = new Map(current);
+			next.set(key, state);
+			return next;
+		});
+	};
+
+	const install = async (entry: MarketplaceEntry) => {
+		const key = entryKey(entry);
+		const current = actionStates.get(key);
+		if (
+			current?.status === "installing" ||
+			current?.status === "uninstalling"
+		) {
+			return;
+		}
+		setEntryState(entry, { status: "installing" });
+		try {
+			const result = await desktopClient.invoke<MarketplaceInstallResult>(
+				"install_marketplace_entry",
+				{ entry },
+				{ timeoutMs: INSTALL_TIMEOUT_MS },
+			);
+			setEntryState(entry, { status: "installed", message: result.message });
+			setInstalledKeys((prev) => new Set(prev).add(key));
+		} catch (error) {
+			setEntryState(entry, {
+				status: "failed",
+				message: error instanceof Error ? error.message : String(error),
+			});
+		}
+	};
+
+	const uninstall = async (entry: MarketplaceEntry) => {
+		const key = entryKey(entry);
+		const current = actionStates.get(key);
+		if (
+			current?.status === "installing" ||
+			current?.status === "uninstalling"
+		) {
+			return;
+		}
+		setEntryState(entry, { status: "uninstalling" });
+		try {
+			const result = await desktopClient.invoke<MarketplaceInstallResult>(
+				"uninstall_marketplace_entry",
+				{ entry },
+				{ timeoutMs: INSTALL_TIMEOUT_MS },
+			);
+			setEntryState(entry, { status: "uninstalled", message: result.message });
+			setInstalledKeys((prev) => {
+				const next = new Set(prev);
+				next.delete(key);
+				return next;
+			});
+		} catch (error) {
+			setEntryState(entry, {
+				status: "failed",
+				message: error instanceof Error ? error.message : String(error),
+			});
+		}
+	};
+
+	return {
+		catalog,
+		errorMessage,
+		loading: !catalog && !errorMessage,
+		tagLabels,
+		installedKeys,
+		installedReady,
+		actionStates,
+		install,
+		uninstall,
+	};
+}
+
+function actionLabelFor(
+	state: EntryActionState | undefined,
+	installed: boolean,
+	ready: boolean,
+): string {
+	if (!ready) return "Checking...";
+	if (state?.status === "installing") return "Installing...";
+	if (state?.status === "uninstalling") return "Uninstalling...";
+	return installed ? "Uninstall" : "Install";
+}
+
+function isBusy(state: EntryActionState | undefined): boolean {
+	return state?.status === "installing" || state?.status === "uninstalling";
+}
 
 function ListRow({
 	entry,
@@ -333,10 +569,12 @@ function DetailPane({
 	);
 }
 
-export function ExplorerMarketplaceView() {
+export function MarketplaceExplorerView() {
 	const directory = useMarketplaceDirectory();
 	const [query, setQuery] = useState("");
-	const [typeFilter, setTypeFilter] = useState<TypeFilter>(null);
+	const [typeFilter, setTypeFilter] = useState<MarketplacePrimitiveType | null>(
+		null,
+	);
 	const [selectedKey, setSelectedKey] = useState<string | null>(null);
 
 	const filteredEntries = useMemo(() => {
