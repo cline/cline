@@ -14,6 +14,7 @@ import {
 import { AgentHeader } from "@/components/agent-header";
 import { AgentSidebar } from "@/components/agent-sidebar";
 import { HubUpdateRequiredDialog } from "@/components/hub-update-required-dialog";
+import { SessionCommandBar } from "@/components/session-command-bar";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -232,6 +233,9 @@ export default function Home() {
 	// Starts false on both server and first client render (hydration-safe);
 	// the effect below reads the persisted state right after mount.
 	const [showOnboarding, setShowOnboarding] = useState(false);
+	const [commandBarOpen, setCommandBarOpen] = useState(false);
+	// Shared by the sidebar search icon and the Cmd/Ctrl+P shortcut.
+	const handleOpenCommandBar = useCallback(() => setCommandBarOpen(true), []);
 	// "welcome" for the full first-run flow; "connect" when re-entered from
 	// the in-app "connect a model" notice, which should land directly on the
 	// provider setup step.
@@ -379,8 +383,8 @@ export default function Home() {
 		},
 		[navigateWith],
 	);
-	// Standard app shortcuts: Cmd/Ctrl+N for a new session, Cmd/Ctrl+, for
-	// settings — matching the tray menu actions.
+	// Standard app shortcuts: Cmd/Ctrl+P for session search, Cmd/Ctrl+N for a
+	// new session, and Cmd/Ctrl+, for settings.
 	useEffect(() => {
 		const handleKeyDown = (event: KeyboardEvent) => {
 			if (showOnboarding) {
@@ -392,6 +396,9 @@ export default function Home() {
 			if (event.key === "n" || event.key === "N") {
 				event.preventDefault();
 				handleNewThread();
+			} else if (event.key === "p" || event.key === "P") {
+				event.preventDefault();
+				setCommandBarOpen((current) => !current);
 			} else if (event.key === ",") {
 				event.preventDefault();
 				handleViewChange("settings");
@@ -555,6 +562,7 @@ export default function Home() {
 								onHome={handleHome}
 								onNavigateBack={handleNavigateBack}
 								onNavigateForward={handleNavigateForward}
+								onOpenSearch={handleOpenCommandBar}
 								onSettingsSectionChange={handleSettingsSectionChange}
 								sessionHistory={sessionHistory}
 								setView={handleViewChange}
@@ -644,6 +652,11 @@ export default function Home() {
 				</WindowTitleBarProvider>
 			</SidebarProvider>
 			<HubUpdateRequiredDialog />
+			<SessionCommandBar
+				onOpenChange={setCommandBarOpen}
+				onOpenSession={handleOpenSessionById}
+				open={commandBarOpen && !showOnboarding}
+			/>
 		</AccountProvider>
 	);
 }
