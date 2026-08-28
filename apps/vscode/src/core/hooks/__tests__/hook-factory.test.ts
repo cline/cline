@@ -96,13 +96,12 @@ console.log(JSON.stringify({
 		)
 
 		it(
-			"should execute hooks even when the configured workspace root no longer exists",
+			"should fail open without crashing when the workspace root no longer exists",
 			async () => {
 				const hookPath = path.join(tempDir, ".clinerules", "hooks", "PreToolUse")
 				const hookScript = `#!/usr/bin/env node
 console.log(JSON.stringify({
-  cancel: false,
-  contextModification: "CWD: " + process.cwd()
+  cancel: false
 }))`
 
 				await writeHookScript(hookPath, hookScript)
@@ -118,18 +117,22 @@ console.log(JSON.stringify({
 				const factory = new HookFactory()
 				const runner = await factory.create("PreToolUse")
 
-				const result = await runner.run({
-					taskId: "test-task",
-					preToolUse: {
-						toolName: "test_tool",
-						parameters: {},
-					},
-				})
-
-				// The hook must still run (from the process default cwd) instead
-				// of crashing or failing on the stale root.
-				result.cancel.should.be.false()
-				result.contextModification?.should.startWith("CWD: ")
+				try {
+					await runner.run({
+						taskId: "test-task",
+						preToolUse: {
+							toolName: "test_tool",
+							parameters: {},
+						},
+					})
+					throw new Error("Expected hook run to fail")
+				} catch (error: any) {
+					// The failure must be a catchable hook error that names the
+					// missing directory - not an uncaught exception killing the
+					// process, and not a run from an unrelated working directory.
+					error.message.should.not.equal("Expected hook run to fail")
+					String(error.errorInfo?.stderr ?? "").should.containEql("deleted-workspace-root")
+				}
 			},
 			WINDOWS_HOOK_TEST_TIMEOUT_MS,
 		)

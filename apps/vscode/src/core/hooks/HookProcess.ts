@@ -108,9 +108,6 @@ export class HookProcess extends EventEmitter {
 	// Track registration state to prevent leaks and ensure cleanup
 	private isRegistered = false
 
-	// The working directory actually passed to spawn (after existence validation)
-	private spawnCwd: string | undefined
-
 	constructor(
 		private readonly scriptPath: string,
 		private readonly timeoutMs: number = 30000,
@@ -180,20 +177,20 @@ export class HookProcess extends EventEmitter {
 
 						// A cwd that doesn't exist makes spawn fail with a misleading
 						// ENOENT against the launcher binary (e.g. "spawn /bin/sh ENOENT").
-						// Run the hook without an explicit cwd instead of failing.
-						let cwd = this.cwd
-						if (cwd && !existsSync(cwd)) {
-							Logger.warn(
-								`[HookProcess] Working directory '${cwd}' does not exist; running hook '${this.scriptPath}' without an explicit working directory`,
+						// Fail the hook with an error naming the real culprit instead.
+						// Running the hook anyway (with no explicit cwd) is not safe: its
+						// relative paths would resolve against the host process's own
+						// working directory, not the workspace it was written for.
+						if (this.cwd && !existsSync(this.cwd)) {
+							throw new Error(
+								`Hook working directory '${this.cwd}' does not exist; not running hook '${this.scriptPath}'`,
 							)
-							cwd = undefined
 						}
-						this.spawnCwd = cwd
 						this.childProcess = spawn(launchConfig.command, launchConfig.args, {
 							stdio: ["pipe", "pipe", "pipe"],
 							shell: launchConfig.shell,
 							detached: launchConfig.detached,
-							cwd, // Execute from the determined workspace root (validated above)
+							cwd: this.cwd, // Execute from the determined workspace root (validated above)
 							windowsHide: true,
 						})
 
@@ -317,8 +314,8 @@ export class HookProcess extends EventEmitter {
 	 */
 	private describeSpawnError(error: Error): Error {
 		const code = (error as NodeJS.ErrnoException).code
-		if (code === "ENOENT" && this.spawnCwd && !existsSync(this.spawnCwd)) {
-			return new Error(`Hook working directory '${this.spawnCwd}' does not exist (reported by spawn as: ${error.message})`)
+		if (code === "ENOENT" && this.cwd && !existsSync(this.cwd)) {
+			return new Error(`Hook working directory '${this.cwd}' does not exist (reported by spawn as: ${error.message})`)
 		}
 		return error
 	}
