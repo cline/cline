@@ -162,15 +162,17 @@ describe("cloud teammate Teams integration", () => {
 		).toBe(false);
 	});
 
-	it("awaits cloud destruction and makes it idempotent", async () => {
+	it("awaits node destruction and still escalates later team cleanup", async () => {
 		const workspace = await temporaryWorkspace();
 		await writeFile(join(workspace, "source.ts"), "export {};\n");
 		let releaseDestroy: (() => void) | undefined;
 		const destroyTeammate = vi.fn(
-			() =>
-				new Promise<void>((resolve) => {
-					releaseDestroy = resolve;
-				}),
+			(input: { reason?: string }) =>
+				input.reason === "explicit_teammate_shutdown"
+					? new Promise<void>((resolve) => {
+							releaseDestroy = resolve;
+						})
+					: Promise.resolve(),
 		);
 		const controlPlane: CloudTeammateControlPlane = {
 			provisionTeammate: async (input) => {
@@ -227,6 +229,12 @@ describe("cloud teammate Teams integration", () => {
 		);
 		expect(runtime.getSnapshot().members).toContainEqual(
 			expect.objectContaining({ agentId: "builder", status: "stopped" }),
+		);
+
+		await runtime.cleanupAndWait();
+		expect(destroyTeammate).toHaveBeenCalledTimes(2);
+		expect(destroyTeammate).toHaveBeenLastCalledWith(
+			expect.objectContaining({ reason: "team_cleanup" }),
 		);
 	});
 

@@ -115,7 +115,8 @@ const pendingCloudSpawns = new WeakMap<AgentTeamsRuntime, Set<string>>();
 class CloudManagedTeammateRunner implements ManagedTeammateRunner {
 	private busy = false;
 	private destroyed = false;
-	private destroyPromise: Promise<void> | undefined;
+	private nodeDestroyPromise: Promise<void> | undefined;
+	private teamCleanupPromise: Promise<void> | undefined;
 
 	constructor(
 		private readonly controlPlane: CloudTeammateControlPlane,
@@ -167,19 +168,37 @@ class CloudManagedTeammateRunner implements ManagedTeammateRunner {
 	}
 
 	shutdown(reason?: string): Promise<void> {
-		if (!this.destroyPromise) {
-			this.destroyed = true;
-			this.destroyPromise = this.controlPlane
-				.destroyTeammate({
-					...this.identity,
-					reason,
-				})
+		this.destroyed = true;
+		if (reason === "team_cleanup") {
+			if (!this.teamCleanupPromise) {
+				this.teamCleanupPromise = (async () => {
+					// A teammate may already have been explicitly destroyed. Whole-team
+					// cleanup is a broader operation and must still run so capsules and
+					// the durable cloud team are deleted.
+					await this.nodeDestroyPromise?.catch(() => undefined);
+					await this.controlPlane.destroyTeammate({
+						...this.identity,
+						reason: "team_cleanup",
+					});
+				})().catch((error) => {
+					this.teamCleanupPromise = undefined;
+					throw error;
+				});
+			}
+			return this.teamCleanupPromise;
+		}
+		if (this.teamCleanupPromise) {
+			return this.teamCleanupPromise;
+		}
+		if (!this.nodeDestroyPromise) {
+			this.nodeDestroyPromise = this.controlPlane
+				.destroyTeammate({ ...this.identity, reason })
 				.catch((error) => {
-					this.destroyPromise = undefined;
+					this.nodeDestroyPromise = undefined;
 					throw error;
 				});
 		}
-		return this.destroyPromise;
+		return this.nodeDestroyPromise;
 	}
 }
 
