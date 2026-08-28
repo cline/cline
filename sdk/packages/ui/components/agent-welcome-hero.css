@@ -154,7 +154,7 @@
 .cline-ui-agent-welcome-hero__eye {
 	position: absolute;
 	z-index: 4;
-	top: var(--welcome-eye-top);
+	top: calc(var(--welcome-eye-top) + var(--welcome-eye-y));
 	width: var(--welcome-eye-width);
 	height: var(--welcome-eye-height);
 	border: 1px solid
@@ -170,17 +170,14 @@
 		var(--welcome-hero-color) var(--welcome-bot-fill-opacity),
 		transparent
 	);
-	backface-visibility: hidden;
-	transform: translate3d(var(--welcome-eye-x), var(--welcome-eye-y), 0);
-	will-change: transform;
 }
 
 .cline-ui-agent-welcome-hero__eye--left {
-	left: calc(50% + var(--welcome-eye-left-offset-x));
+	left: calc(50% + var(--welcome-eye-left-offset-x) + var(--welcome-eye-x));
 }
 
 .cline-ui-agent-welcome-hero__eye--right {
-	left: calc(50% + var(--welcome-eye-right-offset-x));
+	left: calc(50% + var(--welcome-eye-right-offset-x) + var(--welcome-eye-x));
 }
 
 .dark .cline-ui-agent-welcome-hero,
@@ -198,9 +195,5 @@
 			var(--welcome-grid-color) 0%,
 			color-mix(in srgb, var(--welcome-grid-color) 0%, transparent) 100%
 		);
-	}
-
-	.cline-ui-agent-welcome-hero__eye {
-		transform: none;
 	}
 }
