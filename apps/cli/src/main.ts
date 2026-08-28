@@ -1137,8 +1137,8 @@ export async function runCli(): Promise<void> {
 								},
 								pollIntervalMs: 100,
 								provisioningPollIntervalMs: 100,
-								provisioningTimeoutMs: 120_000,
-								runPollTimeoutMs: 300_000,
+								provisioningTimeoutMs: 300_000,
+								runPollTimeoutMs: 420_000,
 							}),
 							initialCapsule: {
 								roots: [{ id: "workspace", path: cwd }],
