@@ -1,0 +1,40 @@
+{
+	"name": "@cline/gateway",
+	"version": "0.0.75",
+	"description": "Cline Gateway — protocol authority for the Gateway RFC (Phase 0 contracts; server lands in Phase 3)",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/cline/cline",
+		"directory": "sdk/packages/gateway"
+	},
+	"private": true,
+	"internal": true,
+	"type": "module",
+	"main": "dist/index.js",
+	"types": "dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		}
+	},
+	"files": [
+		"dist"
+	],
+	"license": "Apache-2.0",
+	"scripts": {
+		"build": "bun run bun.mts && bun tsc -p tsconfig.build.json",
+		"typecheck": "bun tsc -p tsconfig.dev.json --noEmit",
+		"test": "vitest run",
+		"test:watch": "vitest"
+	},
+	"engines": {
+		"node": ">=22"
+	},
+	"dependencies": {
+		"@cline/bot": "workspace:*",
+		"@cline/engine": "workspace:*",
+		"@cline/shared": "workspace:*",
+		"zod": "^4.3.6"
+	}
+}

@@ -23,6 +23,16 @@ Run SDK commands from `sdk/`, not from the legacy repository root. Do not run di
 - `@cline/agents`: stateless agent loop, tool orchestration, hook/extension runtime, event streaming
 - `@cline/core`: stateful orchestration, session lifecycle, storage, config watching, plugin loading, default tools, telemetry. Exposes `@cline/core/hub` for discovery, the detached daemon entry, WebSocket clients, and session/UI client adapters, plus `@cline/core/hub/daemon-entry` for launching the shared daemon
 
+### Internal Gateway RFC Packages (not published)
+
+Foundation for the Gateway RFC (see `packages/gateway/README.md` and `packages/gateway/docs/adr/`). `@cline/core` and the existing Hub are untouched by these packages.
+
+- `@cline/engine`: single-execution engine over the `@cline/agents` loop — immutable `RunSpec`, ordered `EngineEvent`s, steer/interrupt/abort, `RunResult` + persistence deltas. No storage, discovery, sockets, or daemon code.
+- `@cline/bot`: bot domain semantics (immutable roles, lazy sessions, immutable workspaces, FIFO run admission, delegation, contractor teardown, memories) behind injected ports.
+- `@cline/gateway`: Gateway protocol authority — currently the private command registry, `gateway.hello` negotiation, idempotency ledger, and ADRs; the server itself is a later phase.
+
+Dependency rule: `gateway -> bot -> engine -> agents -> llms -> shared`. Engine never imports bot/gateway; bot never imports gateway; no new package depends on `@cline/core`. Reusable wire contracts live in `@cline/shared/gateway`. These rules are machine-checked by `boundaries.test.ts` in each new package.
+
 ### Dependency Direction
 
 ```mermaid

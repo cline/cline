@@ -643,6 +643,14 @@
         "nanoid": "^5.1.7",
       },
     },
+    "sdk/packages/bot": {
+      "name": "@cline/bot",
+      "version": "0.0.75",
+      "dependencies": {
+        "@cline/engine": "workspace:*",
+        "@cline/shared": "workspace:*",
+      },
+    },
     "sdk/packages/core": {
       "name": "@cline/core",
       "version": "0.0.81",
@@ -680,6 +688,24 @@
       "optionalPeers": [
         "posthog-node",
       ],
+    },
+    "sdk/packages/engine": {
+      "name": "@cline/engine",
+      "version": "0.0.75",
+      "dependencies": {
+        "@cline/agents": "workspace:*",
+        "@cline/shared": "workspace:*",
+      },
+    },
+    "sdk/packages/gateway": {
+      "name": "@cline/gateway",
+      "version": "0.0.75",
+      "dependencies": {
+        "@cline/bot": "workspace:*",
+        "@cline/engine": "workspace:*",
+        "@cline/shared": "workspace:*",
+        "zod": "^4.3.6",
+      },
     },
     "sdk/packages/llms": {
       "name": "@cline/llms",
@@ -1075,6 +1101,8 @@
 
     "@cline/agents": ["@cline/agents@workspace:sdk/packages/agents"],
 
+    "@cline/bot": ["@cline/bot@workspace:sdk/packages/bot"],
+
     "@cline/cli": ["@cline/cli@workspace:apps/cli"],
 
     "@cline/cline-hub": ["@cline/cline-hub@workspace:apps/cline-hub"],
@@ -1085,6 +1113,8 @@
 
     "@cline/core": ["@cline/core@workspace:sdk/packages/core"],
 
+    "@cline/engine": ["@cline/engine@workspace:sdk/packages/engine"],
+
     "@cline/example-cli-agent": ["@cline/example-cli-agent@workspace:apps/examples/cli-agent"],
 
     "@cline/example-cline-core-cli-agent": ["@cline/example-cline-core-cli-agent@workspace:apps/examples/cline-core-cli-agent"],
@@ -1094,6 +1124,8 @@
     "@cline/example-multi-agent": ["@cline/example-multi-agent@workspace:apps/examples/multi-agent"],
 
     "@cline/example-quickstart": ["@cline/example-quickstart@workspace:apps/examples/quickstart"],
+
+    "@cline/gateway": ["@cline/gateway@workspace:sdk/packages/gateway"],
 
     "@cline/llms": ["@cline/llms@workspace:sdk/packages/llms"],
 
