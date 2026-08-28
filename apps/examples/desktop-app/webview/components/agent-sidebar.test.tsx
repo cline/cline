@@ -307,7 +307,10 @@ describe("AgentSidebar session organization", () => {
 
 	it("deletes a session through the row's hover trash button", async () => {
 		const deleteThread = vi.fn(async () => undefined);
-		const sessionHistory = makeSessionHistory([makeThread("alpha", 1)], vi.fn());
+		const sessionHistory = makeSessionHistory(
+			[makeThread("alpha", 1)],
+			vi.fn(),
+		);
 		(sessionHistory as { deleteThread: unknown }).deleteThread = deleteThread;
 
 		await act(async () => {
@@ -982,9 +985,7 @@ describe("AgentSidebar session organization", () => {
 		expect(customizeRow.className.split(" ")).toContain(
 			"bg-surface-hover-lighter",
 		);
-		expect(customizeRow.className.split(" ")).not.toContain(
-			"bg-surface-hover",
-		);
+		expect(customizeRow.className.split(" ")).not.toContain("bg-surface-hover");
 		// Sub-tabs are indented under the parent row.
 		expect(installedRow.className.split(" ")).toContain("pl-8!");
 
