@@ -1,5 +1,6 @@
 "use client";
 
+import { GeneratedMediaContent } from "@cline/ui";
 import {
 	ToolActivity,
 	ToolActivityCode,
@@ -13,11 +14,16 @@ import Ansi from "ansi-to-react";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import type { ChatMessage } from "@/lib/chat-schema";
+import {
+	type ChatMessage,
+	type ChatMessageImage,
+	ChatMessageImageSchema,
+} from "@/lib/chat-schema";
 import { appendCappedCommandOutput } from "@/lib/command-output";
 import { cn } from "@/lib/utils";
 import { MemoizedMarkdown } from "../../../ui/markdown";
 import { IS_DEBUG, STREAMING_TITLE_CLASS } from "./constants";
+import { MessageImageCarousel } from "./image-carousel";
 import { getToolNameIcon } from "./tool-icons";
 import {
 	buildToolPresentation,
@@ -55,9 +61,11 @@ function ToolLabel({
 
 const ToolCallRow = memo(function ToolCallRow({
 	message,
+	onExpandImage,
 	onProceedWhileRunning,
 }: {
 	message: ChatMessage;
+	onExpandImage?: (image: ChatMessageImage) => void;
 	onProceedWhileRunning?: ProceedWhileRunningHandler;
 }) {
 	const { payload, toolName, inProgress, summary } =
@@ -128,9 +136,22 @@ const ToolCallRow = memo(function ToolCallRow({
 			: [];
 	});
 	const hasFileDiffs = fileDiffs.length > 0;
+	const outputImages = summary.outputMedia.flatMap((media, index) => {
+		if (media.modality !== "image") return [];
+		const image = ChatMessageImageSchema.safeParse({
+			id: `${message.id}_tool_image_${index}`,
+			mediaType: media.mediaType,
+			data: media.data,
+		});
+		return image.success ? [image.data] : [];
+	});
+	const otherOutputMedia = summary.outputMedia.filter(
+		(media) => media.modality !== "image",
+	);
 	const shouldAutoOpen =
 		hasFileDiffs ||
 		Boolean(submitText) ||
+		summary.outputMedia.length > 0 ||
 		(inProgress && (Boolean(commandOutput) || canProceed));
 	const [open, setOpen] = useState(shouldAutoOpen);
 	const [userToggled, setUserToggled] = useState(false);
@@ -173,6 +194,7 @@ const ToolCallRow = memo(function ToolCallRow({
 		fileDiffs.length > 0 ||
 		Boolean(submitText) ||
 		Boolean(isCommand ? commandOutput : summary.outputText) ||
+		summary.outputMedia.length > 0 ||
 		Boolean(summary.errorText) ||
 		Boolean(inputPreview) ||
 		canProceed;
@@ -245,6 +267,37 @@ const ToolCallRow = memo(function ToolCallRow({
 					<ToolActivityCode className="mt-1 max-h-64 overflow-auto whitespace-pre-wrap break-words font-mono text-xs">
 						{summary.outputText}
 					</ToolActivityCode>
+				) : null}
+				{outputImages.length > 0 ? (
+					<div className="mt-2">
+						<MessageImageCarousel
+							images={outputImages}
+							onExpandImage={onExpandImage}
+						/>
+					</div>
+				) : null}
+				{otherOutputMedia.length > 0 ? (
+					<div className="mt-2 flex max-w-2xl flex-col gap-2">
+						{otherOutputMedia.map((media, index) => (
+							<GeneratedMediaContent
+								classNames={{
+									audio: "w-full",
+									video: "max-h-96 max-w-full rounded-lg",
+									file: "text-sm underline",
+									unavailable:
+										"rounded-lg border border-border bg-muted p-3 text-sm",
+								}}
+								key={`${message.id}_tool_media_${index}`}
+								media={{
+									id: `${message.id}_tool_media_${index}`,
+									modality: media.modality,
+									mediaType: media.mediaType,
+									name: media.name,
+									source: { type: "base64", data: media.data },
+								}}
+							/>
+						))}
+					</div>
 				) : null}
 				{inputPreview ? (
 					<div className="space-y-1">
@@ -338,9 +391,11 @@ function CommandOutputTerminal({
 export const ToolMessageBlock = memo(
 	function ToolMessageBlock({
 		messages,
+		onExpandImage,
 		onProceedWhileRunning,
 	}: {
 		messages: ChatMessage[];
+		onExpandImage?: (image: ChatMessageImage) => void;
 		onProceedWhileRunning?: ProceedWhileRunningHandler;
 	}) {
 		if (messages.length === 0) return null;
@@ -350,6 +405,7 @@ export const ToolMessageBlock = memo(
 					<ToolCallRow
 						key={message.id}
 						message={message}
+						onExpandImage={onExpandImage}
 						onProceedWhileRunning={onProceedWhileRunning}
 					/>
 				))}
@@ -359,5 +415,6 @@ export const ToolMessageBlock = memo(
 	(prev, next) =>
 		prev.messages.length === next.messages.length &&
 		prev.messages.every((message, index) => message === next.messages[index]) &&
+		prev.onExpandImage === next.onExpandImage &&
 		prev.onProceedWhileRunning === next.onProceedWhileRunning,
 );
