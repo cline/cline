@@ -138,7 +138,7 @@ describe("prepareLocalRuntimeBootstrap", () => {
 				}),
 				"utf8",
 			);
-			const resolvedSkillRoot = realpathSync(skillRoot);
+			const resolvedSkillRoot = realpathSync.native(skillRoot);
 			writeFileSync(
 				join(skillRoot, "SKILL.md"),
 				"---\nname: review\ndescription: Review code\n---\nReview carefully.",

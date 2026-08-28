@@ -70,7 +70,12 @@ describe("DefaultRuntimeBuilder", () => {
 		setHomeDir(previousHome ?? "~");
 		process.env.CLINE_GLOBAL_SETTINGS_PATH = previousGlobalSettingsPath;
 		for (const dir of tempDirs.splice(0)) {
-			rmSync(dir, { recursive: true, force: true });
+			rmSync(dir, {
+				recursive: true,
+				force: true,
+				maxRetries: process.platform === "win32" ? 5 : 0,
+				retryDelay: 100,
+			});
 		}
 	});
 
@@ -554,7 +559,7 @@ process.stdin.on("data", (chunk) => {
 	});
 
 	it("combines hub-owned Agent Plugin skills and MCP servers with client instructions", async () => {
-		const tempRoot = realpathSync(
+		const tempRoot = realpathSync.native(
 			mkdtempSync(join(tmpdir(), "runtime-builder-agent-plugin-")),
 		);
 		tempDirs.push(tempRoot);
@@ -600,9 +605,9 @@ process.stdin.on("data", (chunk) => {
 });`,
 			"utf8",
 		);
-		const resolvedPluginRoot = realpathSync(pluginRoot);
-		const resolvedPluginSkillRoot = realpathSync(pluginSkillRoot);
-		const resolvedPluginSkillPath = realpathSync(pluginSkillPath);
+		const resolvedPluginRoot = realpathSync.native(pluginRoot);
+		const resolvedPluginSkillRoot = realpathSync.native(pluginSkillRoot);
+		const resolvedPluginSkillPath = realpathSync.native(pluginSkillPath);
 
 		const clientInstructionService = createUserInstructionConfigService({
 			skills: { directories: [join(tempRoot, "local-skills")] },
