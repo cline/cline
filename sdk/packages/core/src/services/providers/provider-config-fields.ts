@@ -201,6 +201,22 @@ function shouldExposeBaseUrlField(
 }
 
 /**
+ * Whether a provider authenticates through credentials already stored on the
+ * machine by a local CLI (Codex CLI, Claude Code, ...) instead of an API key
+ * or an OAuth flow.
+ *
+ * Read from the provider registry's `local-auth` capability rather than a
+ * hardcoded id list, so tagging a provider in `@cline/llms` is all it takes
+ * for configure UIs to route it to their local-readiness flow. Mirrors
+ * `isOAuthProvider` for the OAuth side.
+ */
+export function isLocalAuthProvider(providerId: string): boolean {
+	const id = LlmsModels.normalizeProviderId(providerId);
+	const collection = LlmsModels.MODEL_COLLECTIONS_BY_PROVIDER_ID[id];
+	return collection?.provider.capabilities?.includes("local-auth") === true;
+}
+
+/**
  * Project a provider into the inputs a configure-dialog should render.
  *
  * No fields are marked "required". `llms` no longer pre-flights credentials,
@@ -230,7 +246,7 @@ export function getProviderConfigFields(
 	}
 
 	const collection = LlmsModels.MODEL_COLLECTIONS_BY_PROVIDER_ID[id];
-	if (collection?.provider.capabilities?.includes("local-auth")) {
+	if (isLocalAuthProvider(id)) {
 		return { providerId: id, authMethod: "local", fields: {} };
 	}
 

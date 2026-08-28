@@ -1,11 +1,31 @@
 import * as LlmsModels from "@cline/llms";
 import { afterEach, describe, expect, it } from "vitest";
 import { registerCustomProvider } from "./local-provider-registry";
-import { getProviderConfigFields } from "./provider-config-fields";
+import {
+	getProviderConfigFields,
+	isLocalAuthProvider,
+} from "./provider-config-fields";
 
 afterEach(() => {
 	LlmsModels.resetRegistry();
 });
+
+/** Registers a provider whose only distinguishing trait is `local-auth`. */
+function registerLocalAuthProvider(providerId: string): void {
+	LlmsModels.registerProvider({
+		provider: {
+			id: providerId,
+			name: "Vendor CLI",
+			protocol: "openai-chat",
+			client: "openai",
+			baseUrl: "",
+			defaultModelId: "alpha",
+			capabilities: ["local-auth"],
+			source: "file",
+		},
+		models: { alpha: { id: "alpha", name: "Alpha" } },
+	});
+}
 
 describe("getProviderConfigFields", () => {
 	it("returns api-key auth with only apiKey for cloud providers", () => {
@@ -83,6 +103,14 @@ describe("getProviderConfigFields", () => {
 		expect(result.fields).toEqual({});
 	});
 
+	it("returns local auth for any provider advertising local-auth", () => {
+		registerLocalAuthProvider("vendor-cli");
+
+		const result = getProviderConfigFields("vendor-cli");
+		expect(result.authMethod).toBe("local");
+		expect(result.fields).toEqual({});
+	});
+
 	it("returns api-key auth with apiKey, baseUrl, and Azure API version for OpenAI Compatible", () => {
 		const result = getProviderConfigFields("openai-compatible");
 		expect(result.providerId).toBe("openai-compatible");
@@ -153,5 +181,22 @@ describe("getProviderConfigFields", () => {
 		const result = getProviderConfigFields("not-a-real-provider");
 		expect(result.authMethod).toBe("api-key");
 		expect(result.fields).toEqual({ apiKey: {} });
+	});
+});
+
+describe("isLocalAuthProvider", () => {
+	it("reads the local-auth capability rather than a provider id list", () => {
+		registerLocalAuthProvider("vendor-cli");
+
+		expect(isLocalAuthProvider("openai-codex-cli")).toBe(true);
+		expect(isLocalAuthProvider("vendor-cli")).toBe(true);
+		expect(isLocalAuthProvider("anthropic")).toBe(false);
+		// OAuth is a separate auth kind even though it also needs no fields.
+		expect(isLocalAuthProvider("openai-codex")).toBe(false);
+		expect(isLocalAuthProvider("does-not-exist")).toBe(false);
+	});
+
+	it("normalizes the provider id", () => {
+		expect(isLocalAuthProvider("  openai-codex-cli  ")).toBe(true);
 	});
 });

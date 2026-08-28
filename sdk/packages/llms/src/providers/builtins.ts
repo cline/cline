@@ -1116,7 +1116,15 @@ const BUILTIN_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		modelsProviderId: "openai",
 		defaults: { baseUrl: "https://chatgpt.com/backend-api/codex" },
 		configFields: [],
-		metadata: { usageCostDisplay: "subscription" },
+		// Where a host sends someone whose machine has no Codex CLI yet.
+		docsUrl: "https://developers.openai.com/codex/cli",
+		metadata: {
+			usageCostDisplay: "subscription",
+			// The `local-auth` credentials live wherever this executable keeps
+			// them, so hosts probe it (and point at `docsUrl`) before offering
+			// the provider. See `resolveProviderLocalCli`.
+			localCliCommand: "codex",
+		},
 	},
 	{
 		id: "elevenlabs",
@@ -1155,17 +1163,26 @@ const BUILTIN_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		// gateway sends Cline's tool definitions (which the provider drops)
 		// while the CLI's own tools stay enabled with no approval plumbing —
 		// every write is refused and no prompt can appear (#13146).
-		capabilities: ["reasoning", "provider-tools"],
+		capabilities: ["reasoning", "provider-tools", "local-auth"],
 		defaultModelId: "sonnet",
 		modelsFactory: buildClaudeCodeModels,
 		defaults: { baseUrl: "" },
 		configFields: [],
-		// Claude Code is typically authenticated with a Pro/Max subscription,
-		// where any dollar figure would be an API-rate estimate rather than a
-		// real charge. The CLI does report a cost when it runs on API-key
-		// billing, but the provider cannot tell the two apart from here, so
-		// prefer not showing a number over showing a misleading one.
-		metadata: { usageCostDisplay: "subscription" },
+		docsUrl: "https://docs.claude.com/en/docs/claude-code/setup",
+		metadata: {
+			// Claude Code is typically authenticated with a Pro/Max
+			// subscription, where any dollar figure would be an API-rate
+			// estimate rather than a real charge. The CLI does report a cost
+			// when it runs on API-key billing, but the provider cannot tell the
+			// two apart from here, so prefer not showing a number over showing
+			// a misleading one.
+			usageCostDisplay: "subscription",
+			// See `resolveProviderLocalCli`. The runtime prefers the platform
+			// binary shipped with @anthropic-ai/claude-agent-sdk when it is
+			// installed and only then falls back to this PATH lookup, so a
+			// failed probe means "no CLI on PATH", not "provider unusable".
+			localCliCommand: "claude",
+		},
 	},
 	{
 		id: "gemini",
@@ -1339,6 +1356,7 @@ function toModelCollection(spec: BuiltinSpec): ModelCollection {
 			protocol: spec.protocol ?? inferProtocol(spec),
 			baseUrl: spec.defaults?.baseUrl,
 			modelsSourceUrl: spec.modelsSourceUrl,
+			docsUrl: spec.docsUrl,
 			defaultModelId,
 			capabilities,
 			env: spec.apiKeyEnv ? [...spec.apiKeyEnv] : undefined,

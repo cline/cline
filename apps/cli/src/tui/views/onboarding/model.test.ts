@@ -63,11 +63,12 @@ describe("onboarding model helpers", () => {
 		});
 	});
 
-	it("marks the OpenAI Codex CLI provider as local auth", () => {
+	it("marks providers advertising local-auth as local auth", () => {
 		expect(
 			toProviderEntry({
 				id: "openai-codex-cli",
 				name: "OpenAI Codex CLI",
+				capabilities: ["reasoning", "provider-tools", "local-auth"],
 				models: null,
 			}),
 		).toMatchObject({
@@ -75,6 +76,29 @@ describe("onboarding model helpers", () => {
 			isOAuth: false,
 			isLocalAuth: true,
 		});
+
+		// Same capability, different provider: nothing here is keyed on ids.
+		expect(
+			toProviderEntry({
+				id: "claude-code",
+				name: "Claude Code",
+				capabilities: ["reasoning", "provider-tools", "local-auth"],
+				models: null,
+			}),
+		).toMatchObject({
+			id: "claude-code",
+			isOAuth: false,
+			isLocalAuth: true,
+		});
+
+		expect(
+			toProviderEntry({
+				id: "anthropic",
+				name: "Anthropic",
+				capabilities: ["reasoning", "prompt-cache"],
+				models: null,
+			}),
+		).toMatchObject({ isLocalAuth: false });
 	});
 
 	it("maps model names and reasoning support strictly", () => {

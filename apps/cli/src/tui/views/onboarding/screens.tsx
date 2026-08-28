@@ -2,10 +2,7 @@ import "opentui-spinner/react";
 import type { ScrollBoxRenderable } from "@opentui/core";
 import type { ReactNode } from "react";
 import { useEffect, useRef } from "react";
-import {
-	CODEX_CLI_INSTALL_URL,
-	type CodexCliStatus,
-} from "../../../utils/codex-cli";
+import { getLocalCliInfo, type LocalCliStatus } from "../../../utils/local-cli";
 import {
 	ClineModelPicker,
 	type ClineModelPickerEntry,
@@ -362,18 +359,23 @@ export function OnboardingProviderConfigScreen(props: {
 	);
 }
 
-export function OnboardingCodexCliScreen(props: {
+export function OnboardingLocalCliScreen(props: {
+	activeProviderId: string;
 	activeProviderName: string;
 	checking: boolean;
 	compact: boolean;
 	contentWidth: number;
 	mouse: MouseTrackerState;
-	status?: CodexCliStatus;
+	status?: LocalCliStatus;
 }) {
 	const defaultFg = useDefaultFg();
 	const colors = useOnboardingColors();
+	const cli = getLocalCliInfo(props.activeProviderId);
 	const installedStatus =
 		props.status?.installed === true ? props.status : undefined;
+	// A local-auth provider we know no CLI for has nothing to probe, so
+	// connecting is always available.
+	const canContinue = !cli || installedStatus !== undefined;
 	return (
 		<OnboardingFrame
 			compact={props.compact}
@@ -386,33 +388,47 @@ export function OnboardingCodexCliScreen(props: {
 				{props.checking && (
 					<box flexDirection="row" gap={1}>
 						<spinner name="dots" color="gray" />
-						<text fg="gray">Checking for Codex CLI...</text>
+						<text fg="gray">Checking for {props.activeProviderName}...</text>
 					</box>
 				)}
 
 				{installedStatus && (
 					<box flexDirection="column" gap={1} alignItems="center">
-						<text fg={colors.success}>{"\u25cf"} Codex CLI installed</text>
+						<text fg={colors.success}>
+							{"\u25cf"} {props.activeProviderName} installed
+						</text>
 						<text fg="gray">{installedStatus.version}</text>
 					</box>
 				)}
 
-				{props.status && !props.status.installed && (
+				{cli && props.status && !props.status.installed && (
 					<box flexDirection="column" gap={1} width={props.contentWidth}>
-						<text fg="yellow">Codex CLI was not found</text>
+						<text fg="yellow">{props.activeProviderName} was not found</text>
 						<text fg="gray">{props.status.reason}</text>
-						<text fg="gray">Install Codex CLI from:</text>
-						<text fg={colors.accent} selectable>
-							{CODEX_CLI_INSTALL_URL}
-						</text>
+						{cli.docsUrl && (
+							<box flexDirection="column">
+								<text fg="gray">Install {props.activeProviderName} from:</text>
+								<text fg={colors.accent} selectable>
+									{cli.docsUrl}
+								</text>
+							</box>
+						)}
 					</box>
+				)}
+
+				{!cli && (
+					<text fg="gray" width={props.contentWidth}>
+						Signs in with the credentials stored by this provider's local CLI.
+					</text>
 				)}
 
 				<text fg="gray">
 					<em>
-						{installedStatus
-							? "Enter to continue, R to recheck, Esc to go back, Ctrl+C to exit"
-							: "R to recheck, Esc to go back, Ctrl+C to exit"}
+						{!cli
+							? "Enter to continue, Esc to go back, Ctrl+C to exit"
+							: canContinue
+								? "Enter to continue, R to recheck, Esc to go back, Ctrl+C to exit"
+								: "R to recheck, Esc to go back, Ctrl+C to exit"}
 					</em>
 				</text>
 			</box>

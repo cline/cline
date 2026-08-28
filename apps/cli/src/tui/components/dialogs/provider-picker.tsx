@@ -15,11 +15,10 @@ import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialogKeyboard } from "@opentui-ui/dialog/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-	CODEX_CLI_INSTALL_URL,
-	type CodexCliStatus,
-	checkCodexCliInstalled,
-	isOpenAICodexCliProvider,
-} from "../../../utils/codex-cli";
+	checkLocalCliInstalled,
+	getLocalCliInfo,
+	type LocalCliStatus,
+} from "../../../utils/local-cli";
 import open from "../../../utils/open";
 import { listLocalProviders } from "../../../utils/provider-catalog";
 import { useDialogPalette } from "../../hooks/use-theme";
@@ -82,7 +81,10 @@ export function ProviderPickerContent(
 					// just a model id and base URL) still render as configured.
 					isConfigured: p.enabled === true,
 					isOAuth: isOAuthProvider(p.id),
-					isLocalAuth: isOpenAICodexCliProvider(p.id),
+					// Local-auth providers borrow credentials from a CLI already
+					// signed in on this machine; the catalog reports it as a
+					// capability so no provider ids are hardcoded here.
+					isLocalAuth: p.capabilities?.includes("local-auth") ?? false,
 					capabilities: p.capabilities,
 				}));
 				setProviders(providerItems);
@@ -654,20 +656,23 @@ export function ProviderConfigInputContent(
 	);
 }
 
-export function CodexCliStatusContent(
+export function LocalCliStatusContent(
 	props: ChoiceContext<boolean> & {
+		providerId: string;
 		providerName: string;
 	},
 ) {
-	const { resolve, dismiss, dialogId, providerName } = props;
+	const { resolve, dismiss, dialogId, providerId, providerName } = props;
 	const palette = useDialogPalette();
-	const [status, setStatus] = useState<CodexCliStatus | undefined>();
+	const cli = useMemo(() => getLocalCliInfo(providerId), [providerId]);
+	const [status, setStatus] = useState<LocalCliStatus | undefined>();
 	const [checking, setChecking] = useState(false);
 
 	const refresh = useCallback(() => {
+		if (!cli) return;
 		setStatus(undefined);
 		setChecking(true);
-		checkCodexCliInstalled()
+		checkLocalCliInstalled(cli)
 			.then(setStatus)
 			.catch((error: unknown) => {
 				setStatus({
@@ -676,11 +681,16 @@ export function CodexCliStatusContent(
 				});
 			})
 			.finally(() => setChecking(false));
-	}, []);
+	}, [cli]);
 
 	useEffect(() => {
 		refresh();
 	}, [refresh]);
+
+	// Providers with no known CLI to probe have nothing to check: connecting
+	// them just records the choice, and the provider's own error surfaces on
+	// the first turn if its credentials are missing.
+	const canContinue = !cli || status?.installed === true;
 
 	useDialogKeyboard((key) => {
 		if (key.name === "escape") {
@@ -691,7 +701,7 @@ export function CodexCliStatusContent(
 			refresh();
 			return;
 		}
-		if (key.name === "return" && status?.installed) {
+		if (key.name === "return" && canContinue) {
 			resolve(true);
 		}
 	}, dialogId);
@@ -702,31 +712,45 @@ export function CodexCliStatusContent(
 				<strong>{providerName}</strong>
 			</text>
 
-			{checking && <text fg="gray">Checking for Codex CLI...</text>}
+			{checking && <text fg="gray">Checking for {providerName}...</text>}
 
 			{status?.installed && (
 				<box flexDirection="column" gap={1}>
-					<text fg={palette.success}>{"\u25cf"} Codex CLI installed</text>
+					<text fg={palette.success}>
+						{"\u25cf"} {providerName} installed
+					</text>
 					<text fg="gray">{status.version}</text>
 				</box>
 			)}
 
-			{status && !status.installed && (
+			{cli && status && !status.installed && (
 				<box flexDirection="column" gap={1}>
-					<text fg="yellow">Codex CLI was not found</text>
+					<text fg="yellow">{providerName} was not found</text>
 					<text fg="gray">{status.reason}</text>
-					<text fg="gray">Install Codex CLI from:</text>
-					<text fg={palette.act} selectable>
-						{CODEX_CLI_INSTALL_URL}
-					</text>
+					{cli.docsUrl && (
+						<box flexDirection="column">
+							<text fg="gray">Install {providerName} from:</text>
+							<text fg={palette.act} selectable>
+								{cli.docsUrl}
+							</text>
+						</box>
+					)}
 				</box>
+			)}
+
+			{!cli && (
+				<text fg="gray">
+					Signs in with the credentials stored by this provider's local CLI.
+				</text>
 			)}
 
 			<text fg="gray">
 				<em>
-					{status?.installed
-						? "Enter to continue, R to recheck, Esc to go back"
-						: "R to recheck, Esc to go back"}
+					{!cli
+						? "Enter to continue, Esc to go back"
+						: canContinue
+							? "Enter to continue, R to recheck, Esc to go back"
+							: "R to recheck, Esc to go back"}
 				</em>
 			</text>
 		</box>

@@ -1,6 +1,7 @@
 import {
 	fetchClineRecommendedModels,
 	getProviderConfigFields,
+	isLocalAuthProvider,
 	Llms,
 	ProviderSettingsManager,
 	refreshProviderModelsFromSource,
@@ -10,7 +11,6 @@ import { isClineProvider } from "@cline/shared";
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import type { DialogActions } from "@opentui-ui/dialog/react";
 import { useCallback } from "react";
-import { isOpenAICodexCliProvider } from "../../utils/codex-cli";
 import {
 	getPersistedProviderApiKey,
 	isOAuthProvider,
@@ -20,8 +20,8 @@ import type { Config } from "../../utils/types";
 import { withLoadingDialog } from "../components/dialogs/loading-dialog";
 import {
 	ClinePassSubscriptionContent,
-	CodexCliStatusContent,
 	type ExistingProviderOption,
+	LocalCliStatusContent,
 	OAuthApiKeyInputContent,
 	OAuthLoginContent,
 	type OAuthLoginResult,
@@ -246,12 +246,16 @@ async function runProviderChange(
 				loginResult === "use_api_key"
 					? await openManualApiKeyDialog()
 					: loginResult;
-		} else if (isOpenAICodexCliProvider(newProviderId)) {
+		} else if (isLocalAuthProvider(newProviderId)) {
 			saved = await dialog.choice<boolean>({
 				style: { maxHeight: termHeight - 2 },
 				closeOnEscape: false,
 				content: (ctx: ChoiceContext<boolean>) => (
-					<CodexCliStatusContent {...ctx} providerName={displayName} />
+					<LocalCliStatusContent
+						{...ctx}
+						providerId={newProviderId}
+						providerName={displayName}
+					/>
 				),
 			});
 			if (saved) {

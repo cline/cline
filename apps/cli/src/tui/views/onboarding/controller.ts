@@ -17,10 +17,10 @@ import {
 	getIndividualPlanFeatures,
 } from "../../../utils/cline-pass-errors";
 import {
-	type CodexCliStatus,
-	checkCodexCliInstalled,
-	isOpenAICodexCliProvider,
-} from "../../../utils/codex-cli";
+	checkLocalCliInstalled,
+	getLocalCliInfo,
+	type LocalCliStatus,
+} from "../../../utils/local-cli";
 import open from "../../../utils/open";
 import { getPersistedProviderApiKey } from "../../../utils/provider-auth";
 import { listLocalProviders } from "../../../utils/provider-catalog";
@@ -110,10 +110,10 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 	const [byoValues, setByoValues] = useState<ProviderConfigValues>({});
 	const [byoFocusedField, setByoFocusedField] =
 		useState<ProviderConfigFieldKey>("apiKey");
-	const [codexCliStatus, setCodexCliStatus] = useState<
-		CodexCliStatus | undefined
+	const [localCliStatus, setLocalCliStatus] = useState<
+		LocalCliStatus | undefined
 	>();
-	const [codexCliChecking, setCodexCliChecking] = useState(false);
+	const [localCliChecking, setLocalCliChecking] = useState(false);
 	const authAbortRef = useRef(false);
 
 	// Device code flow
@@ -486,19 +486,32 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		}
 	}, [step, clinePassSubscriptionStatus, transitionToModelPicker]);
 
-	const refreshCodexCliStatus = useCallback(() => {
-		setCodexCliStatus(undefined);
-		setCodexCliChecking(true);
-		checkCodexCliInstalled()
-			.then(setCodexCliStatus)
-			.catch((error: unknown) => {
-				setCodexCliStatus({
-					installed: false,
-					reason: error instanceof Error ? error.message : String(error),
-				});
-			})
-			.finally(() => setCodexCliChecking(false));
-	}, []);
+	// `providerId` is explicit when coming from provider selection, where the
+	// active-provider state has not been committed yet; the recheck key can
+	// rely on it being set.
+	const refreshLocalCliStatus = useCallback(
+		(providerId?: string) => {
+			const cli = getLocalCliInfo(providerId ?? activeProviderId);
+			setLocalCliStatus(undefined);
+			if (!cli) {
+				// Nothing to probe: the provider advertises local auth but we know
+				// no CLI to check for it, so let the setup screen connect it.
+				setLocalCliChecking(false);
+				return;
+			}
+			setLocalCliChecking(true);
+			checkLocalCliInstalled(cli)
+				.then(setLocalCliStatus)
+				.catch((error: unknown) => {
+					setLocalCliStatus({
+						installed: false,
+						reason: error instanceof Error ? error.message : String(error),
+					});
+				})
+				.finally(() => setLocalCliChecking(false));
+		},
+		[activeProviderId],
+	);
 
 	const selectProvider = useCallback(
 		(providerId: string) => {
@@ -510,12 +523,12 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 				}
 				return;
 			}
-			if (provider.isLocalAuth || isOpenAICodexCliProvider(provider.id)) {
+			if (provider.isLocalAuth) {
 				setActiveProviderId(provider.id);
 				setActiveProviderName(provider.name);
-				setCodexCliStatus(undefined);
-				setStep("codex_cli_setup");
-				refreshCodexCliStatus();
+				setLocalCliStatus(undefined);
+				setStep("local_cli_setup");
+				refreshLocalCliStatus(provider.id);
 				return;
 			}
 			const config = getProviderConfigFields(provider.id);
@@ -575,11 +588,13 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 			setByoFocusedField(firstField ?? "apiKey");
 			setStep("byo_apikey");
 		},
-		[providers, startOAuthFlow, refreshCodexCliStatus, providerSettingsManager],
+		[providers, startOAuthFlow, refreshLocalCliStatus, providerSettingsManager],
 	);
 
-	const saveCodexCliConfig = useCallback(() => {
-		if (!codexCliStatus?.installed) {
+	const saveLocalCliConfig = useCallback(() => {
+		// Providers with a known CLI must pass the readiness probe first;
+		// those without one have nothing to check and connect straight away.
+		if (getLocalCliInfo(activeProviderId) && !localCliStatus?.installed) {
 			return;
 		}
 		saveLocalProviderSettings(providerSettingsManager, {
@@ -588,7 +603,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		transitionToModelPicker(activeProviderId);
 	}, [
 		activeProviderId,
-		codexCliStatus,
+		localCliStatus,
 		providerSettingsManager,
 		transitionToModelPicker,
 	]);
@@ -798,13 +813,13 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 			deviceAbortRef.current = true;
 		},
 		resetAuth,
-		refreshCodexCliStatus,
+		refreshLocalCliStatus,
 		startOAuthFlow,
 		startDeviceCodeFlow,
 		selectProvider,
 		loadModelsForProvider,
 		saveClineModelSelection,
-		saveCodexCliConfig,
+		saveLocalCliConfig,
 		saveByoConfig,
 		saveModelSelection,
 		saveThinkingLevel,
@@ -820,8 +835,8 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		byoFields,
 		byoFocusedField,
 		byoValues,
-		codexCliChecking,
-		codexCliStatus,
+		localCliChecking,
+		localCliStatus,
 		clineEntries,
 		clineModelSelected,
 		clinePassCurrentPlanName,
@@ -860,7 +875,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		providersLoading,
 		recommendedLoading: recommended.loading,
 		saveByoConfig,
-		saveCodexCliConfig,
+		saveLocalCliConfig,
 		saveCustomModelId,
 		selectedModelName,
 		step,
