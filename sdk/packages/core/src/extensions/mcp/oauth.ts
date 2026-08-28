@@ -85,14 +85,18 @@ export function createOriginBoundMcpHeadersFetch(input: {
 	);
 	const baseFetch = input.baseFetch ?? globalThis.fetch;
 	const stripCrossOriginHeaders = (headers: Headers): void => {
-		for (const headerName of [...headers.keys()]) {
+		const headerNamesToDelete: string[] = [];
+		headers.forEach((_value, headerName) => {
 			const normalized = headerName.toLowerCase();
 			if (
 				configuredHeaderNames.has(normalized) ||
 				CROSS_ORIGIN_SENSITIVE_HEADERS.has(normalized)
 			) {
-				headers.delete(headerName);
+				headerNamesToDelete.push(headerName);
 			}
+		});
+		for (const headerName of headerNamesToDelete) {
+			headers.delete(headerName);
 		}
 	};
 

@@ -87,17 +87,19 @@ describe("prepareLocalRuntimeBootstrap", () => {
 		});
 	});
 
-	it("discovers Agent Plugins on the execution host and threads portable components into the runtime", async () => {
+	it("discovers user Agent Plugins on the execution host and ignores workspace packages", async () => {
 		const root = realpathSync(
 			mkdtempSync(join(tmpdir(), "core-agent-plugin-bootstrap-")),
 		);
 		const previousHome = process.env.HOME;
-		setHomeDir(join(root, "home"));
+		const homeRoot = join(root, "home");
+		setHomeDir(homeRoot);
 		try {
 			const globalSettingsPath = join(root, "global-settings.json");
 			process.env.CLINE_GLOBAL_SETTINGS_PATH = globalSettingsPath;
 			const workspaceRoot = join(root, "workspace");
-			const pluginRoot = join(workspaceRoot, ".agents", "plugins", "portable");
+			mkdirSync(workspaceRoot, { recursive: true });
+			const pluginRoot = join(homeRoot, ".agents", "plugins", "portable");
 			const skillRoot = join(pluginRoot, "skills", "review");
 			mkdirSync(skillRoot, { recursive: true });
 			writeFileSync(
@@ -108,6 +110,35 @@ describe("prepareLocalRuntimeBootstrap", () => {
 				}),
 				"utf8",
 			);
+			const workspacePluginRoot = join(
+				workspaceRoot,
+				".agents",
+				"plugins",
+				"workspace-owned",
+			);
+			mkdirSync(workspacePluginRoot, { recursive: true });
+			writeFileSync(
+				join(workspacePluginRoot, "plugin.json"),
+				JSON.stringify({
+					$schema: "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+					name: "workspace-owned",
+				}),
+				"utf8",
+			);
+			writeFileSync(
+				join(workspacePluginRoot, "mcp.json"),
+				JSON.stringify({
+					$schema: "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+					mcpServers: {
+						untrusted: {
+							type: "streamable-http",
+							url: "https://workspace.example.test/mcp",
+						},
+					},
+				}),
+				"utf8",
+			);
+			const resolvedSkillRoot = realpathSync(skillRoot);
 			writeFileSync(
 				join(skillRoot, "SKILL.md"),
 				"---\nname: review\ndescription: Review code\n---\nReview carefully.",
@@ -151,7 +182,7 @@ describe("prepareLocalRuntimeBootstrap", () => {
 			expect(bootstrap.runtimeBuilderInput.agentPluginSkills).toEqual([
 				expect.objectContaining({
 					pluginName: "portable",
-					directoryPath: skillRoot,
+					directoryPath: resolvedSkillRoot,
 				}),
 			]);
 			expect(bootstrap.runtimeBuilderInput.agentPluginMcpServers).toEqual([
@@ -163,6 +194,11 @@ describe("prepareLocalRuntimeBootstrap", () => {
 					}),
 				}),
 			]);
+			expect(
+				bootstrap.runtimeBuilderInput.agentPluginMcpServers?.some(
+					(server) => server.pluginName === "workspace-owned",
+				),
+			).toBe(false);
 
 			writeFileSync(
 				globalSettingsPath,

@@ -68,8 +68,6 @@ export interface AgentPluginPackageLoadReport {
 }
 
 export interface LoadAgentPluginPackagesOptions {
-	/** Workspace used for automatic `<workspace>/.agents/plugins` discovery. */
-	workspacePath?: string;
 	/** Explicit plugin roots, resolved on the runtime host relative to `cwd`. */
 	pluginPaths?: ReadonlyArray<string>;
 	/** Base directory for resolving relative explicit plugin paths. */

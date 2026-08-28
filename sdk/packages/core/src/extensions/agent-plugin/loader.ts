@@ -221,7 +221,7 @@ async function resolveCandidateRoots(
 	options: LoadAgentPluginPackagesOptions,
 	diagnostics: AgentPluginPackageDiagnostic[],
 ): Promise<string[]> {
-	const cwd = resolve(options.cwd ?? options.workspacePath ?? process.cwd());
+	const cwd = resolve(options.cwd ?? process.cwd());
 	const candidates: string[] = [];
 	for (const configuredPath of options.pluginPaths ?? []) {
 		const trimmed = configuredPath.trim();
@@ -242,8 +242,7 @@ async function resolveCandidateRoots(
 		}
 	}
 
-	const searchPaths =
-		options.searchPaths ?? resolveAgentPluginSearchPaths(options.workspacePath);
+	const searchPaths = options.searchPaths ?? resolveAgentPluginSearchPaths();
 	for (const searchPath of searchPaths) {
 		candidates.push(...(await discoverPluginRoots(searchPath)));
 	}

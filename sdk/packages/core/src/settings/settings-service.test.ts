@@ -194,6 +194,20 @@ Use the browser.`,
 		);
 		const workspaceRoot = join(tempRoot, "workspace");
 		await mkdir(workspaceRoot, { recursive: true });
+		const workspacePluginRoot = join(
+			workspaceRoot,
+			".agents",
+			"plugins",
+			"workspace-owned",
+		);
+		await mkdir(workspacePluginRoot, { recursive: true });
+		await writeFile(
+			join(workspacePluginRoot, "plugin.json"),
+			JSON.stringify({
+				$schema: "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+				name: "workspace-owned",
+			}),
+		);
 		const pluginRoot = join(tempRoot, ".agents", "plugins", "portable-review");
 		const skillRoot = join(pluginRoot, "skills", "review");
 		await mkdir(skillRoot, { recursive: true });
@@ -251,6 +265,9 @@ Review the change.`,
 				}),
 			]),
 		);
+		expect(
+			snapshot.plugins.some((plugin) => plugin.name === "workspace-owned"),
+		).toBe(false);
 
 		const disabled = await service.toggle({
 			type: "plugins",

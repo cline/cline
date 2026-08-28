@@ -215,16 +215,13 @@ The paths in `session.manifest` are the authoritative resolved workspace paths.
 
 ### Portable Agent Plugins
 
-`ClineCore` and Hub-backed SDK clients support [Agent Plugins v1](https://agent-plugins.org/specification) without a client-side loader. The execution host discovers package directories at:
-
-- `<workspace>/.agents/plugins/*`
-- `~/.agents/plugins/*` on the Hub host
+`ClineCore` and Hub-backed SDK clients support [Agent Plugins v1](https://agent-plugins.org/specification) without a client-side loader. The execution host automatically discovers user-installed package directories under `~/.agents/plugins/*` on the Hub host. Workspace `.agents/plugins` directories are intentionally not scanned, so opening a repository cannot activate repository-controlled MCP servers.
 
 Each package is validated from its root `plugin.json`. Valid immediate-child Agent Skills under `skills/` are exposed through the `skills` tool as `plugin-name:skill-name`; valid servers from root `mcp.json` are connected without modifying `cline_mcp_settings.json`. Invalid packages, components, skills, and MCP entries fail at their specification-defined narrow boundaries.
 
 The Hub also owns Agent Plugin enablement. Hub-backed clients read the same plugin inventory through settings APIs and toggle entries there instead of maintaining client-local state. Disabled plugins are persisted by their validated manifest name and do not contribute skills or MCP servers when a session runtime is built. Every settings mutation publishes `settings.changed`, so subscribed clients can refresh their settings views.
 
-Agent Plugin contributions are part of a session's runtime snapshot. A client may rebuild an idle session after a toggle (the CLI does this for a toggle made in its interactive settings view), but an already-running turn keeps the tools, skills, and rules it started with. Other existing sessions pick up the new state when they are rebuilt or restarted; new sessions use it immediately. Installing or removing files under an Agent Plugin discovery directory is detected on the next settings refresh or session build rather than pushed by a filesystem watcher.
+Agent Plugin contributions are part of a session's runtime snapshot. A client may rebuild an idle session after a toggle (the CLI does this for a toggle made in its interactive settings view), but an already-running turn keeps the tools, skills, and rules it started with. Other existing sessions pick up the new state when they are rebuilt or restarted; new sessions use it immediately. Installing or removing files under `~/.agents/plugins` is detected on the next settings refresh or session build rather than pushed by a filesystem watcher.
 
 You can also provide package roots explicitly. Relative paths are resolved by the Hub against the session `cwd`:
 

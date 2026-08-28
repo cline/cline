@@ -156,11 +156,11 @@ describe("loadAgentPluginPackages", () => {
 			command: join(pluginRoot, "bin", "server"),
 			args: ["--root", pluginRoot, `${local?.pluginDataPath}/cache`],
 			env: {
-				CONFIG: join(pluginRoot, "config.json"),
+				CONFIG: `${pluginRoot}/config.json`,
 				PLUGIN_ROOT: pluginRoot,
 				PLUGIN_DATA: local?.pluginDataPath,
 			},
-			cwd: `${local?.pluginDataPath}/work`,
+			cwd: join(local?.pluginDataPath ?? "", "work"),
 		});
 		expect(report.diagnostics).toEqual(
 			expect.arrayContaining([

@@ -600,14 +600,20 @@ process.stdin.on("data", (chunk) => {
 });`,
 			"utf8",
 		);
+		const resolvedPluginRoot = realpathSync(pluginRoot);
+		const resolvedPluginSkillRoot = realpathSync(pluginSkillRoot);
+		const resolvedPluginSkillPath = realpathSync(pluginSkillPath);
 
 		const clientInstructionService = createUserInstructionConfigService({
 			skills: { directories: [join(tempRoot, "local-skills")] },
 			rules: { directories: [] },
 			workflows: { directories: [] },
 		});
+		let runtime:
+			| Awaited<ReturnType<DefaultRuntimeBuilder["build"]>>
+			| undefined;
 		try {
-			const runtime = await new DefaultRuntimeBuilder().build({
+			runtime = await new DefaultRuntimeBuilder().build({
 				config: makeBaseConfig({
 					cwd: tempRoot,
 					disableMcpSettingsTools: true,
@@ -616,9 +622,9 @@ process.stdin.on("data", (chunk) => {
 				agentPluginSkills: [
 					{
 						pluginName: "portable",
-						pluginRoot,
-						directoryPath: pluginSkillRoot,
-						filePath: pluginSkillPath,
+						pluginRoot: resolvedPluginRoot,
+						directoryPath: resolvedPluginSkillRoot,
+						filePath: resolvedPluginSkillPath,
 						metadata: {
 							name: "portable-review",
 							description: "Review with the portable plugin",
@@ -628,7 +634,7 @@ process.stdin.on("data", (chunk) => {
 				agentPluginMcpServers: [
 					{
 						pluginName: "portable",
-						pluginRoot,
+						pluginRoot: resolvedPluginRoot,
 						pluginDataPath: join(tempRoot, "plugin-data"),
 						serverName: "tools",
 						registration: {
@@ -637,7 +643,7 @@ process.stdin.on("data", (chunk) => {
 								type: "stdio",
 								command: process.execPath,
 								args: [serverPath],
-								cwd: pluginRoot,
+								cwd: resolvedPluginRoot,
 							},
 							metadata: { source: "agent-plugin" },
 						},
@@ -667,14 +673,13 @@ process.stdin.on("data", (chunk) => {
 			);
 			expect(portableResult).toContain("Use portable guidance.");
 			expect(portableResult).toContain(
-				`<skill-root>${pluginSkillRoot}</skill-root>`,
+				`<skill-root>${resolvedPluginSkillRoot}</skill-root>`,
 			);
 			await expect(
 				skillsTool.execute({ skill: "local-review" }, context),
 			).resolves.toContain("Use local guidance.");
-
-			await runtime.shutdown("test");
 		} finally {
+			await runtime?.shutdown("test");
 			clientInstructionService.stop();
 			process.env.CLINE_MCP_SETTINGS_PATH = previousSettingsPath;
 		}

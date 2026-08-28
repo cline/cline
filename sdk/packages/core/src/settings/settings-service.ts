@@ -487,7 +487,6 @@ export class CoreSettingsService {
 			}
 			try {
 				const report = await loadAgentPluginPackages({
-					workspacePath: workspaceRoot || undefined,
 					pluginPaths: input.agentPluginPaths,
 					cwd: resolveCwd(input, workspaceRoot),
 				});

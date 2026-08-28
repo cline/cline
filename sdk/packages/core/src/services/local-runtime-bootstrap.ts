@@ -420,7 +420,6 @@ export async function prepareLocalRuntimeBootstrap(
 	if (hasConfigExtension(configExtensions, "plugins")) {
 		try {
 			loadedAgentPluginPackages = await loadAgentPluginPackages({
-				workspacePath,
 				pluginPaths: input.config.agentPluginPaths,
 				cwd: input.config.cwd,
 				disabledPluginNames: [...resolveDisabledAgentPluginNames()],
