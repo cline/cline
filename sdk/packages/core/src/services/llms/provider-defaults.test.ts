@@ -527,6 +527,38 @@ describe("resolveProviderConfig", () => {
 		expect(Object.keys(resolved?.knownModels ?? {})).toEqual(["local-llama"]);
 	});
 
+	it("leaves capabilities unset for id-only public source models (#13666)", async () => {
+		// LM Studio's /v1/models only reports ids. A fabricated partial
+		// capability list is treated as authoritative downstream and would
+		// strip image input from vision-capable local models.
+		const fetchMock = vi.fn(async () => {
+			return new Response(
+				JSON.stringify({ data: [{ id: "qwen/qwen3-vl-8b" }] }),
+				{
+					status: 200,
+					headers: { "content-type": "application/json" },
+				},
+			);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const resolved = await resolveProviderConfig(
+			"lmstudio",
+			{ failOnError: false, cacheTtlMs: 0 },
+			{
+				providerId: "lmstudio",
+				modelId: "qwen/qwen3-vl-8b",
+				baseUrl: "http://localhost:1234/v1",
+			},
+		);
+
+		expect(resolved?.knownModels?.["qwen/qwen3-vl-8b"]).toEqual({
+			id: "qwen/qwen3-vl-8b",
+			name: "qwen/qwen3-vl-8b",
+			status: "active",
+		});
+	});
+
 	it("loads Poolside models from the authenticated models endpoint", async () => {
 		const fetchMock = vi.fn(async () => {
 			return new Response(

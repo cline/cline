@@ -716,10 +716,16 @@ async function getPublicProviderModels(
 
 	const request = fetchModelIdsFromSource(sourceUrl, providerId)
 		.then((modelIds) => {
+			// Public model sources (Ollama, LM Studio) report ids only, with no
+			// capability metadata. Leave `capabilities` unset so every gate keeps
+			// its documented fail-open default: a fabricated partial list is
+			// treated as authoritative downstream, which silently stripped image
+			// input from vision-capable local models (#13666) — the same failure
+			// mode as the tool-less lists in #13463.
 			const data = Object.fromEntries(
-				modelIds.map((id) => [
+				modelIds.map((id): [string, ModelInfo] => [
 					id,
-					buildModelFromPrivateSource(id, { name: id }),
+					{ id, name: id, status: "active" },
 				]),
 			);
 			PUBLIC_MODELS_CACHE.set(cacheKey, {
