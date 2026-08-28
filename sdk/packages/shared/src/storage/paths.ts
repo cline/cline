@@ -5,6 +5,7 @@ import {
 	mkdirSync,
 	readdirSync,
 	readFileSync,
+	realpathSync,
 	statSync,
 } from "node:fs";
 import { homedir } from "node:os";
@@ -618,6 +619,73 @@ export function isAgentPluginDirectory(directoryPath: string): boolean {
 	}
 }
 
+/**
+ * Finds the Agent Plugin root that owns `path`, if any. Agent Plugins own their
+ * package subtree, so a JS/TS file nested under skills, hooks, another client's
+ * extension directory, or vendored dependencies must never be imported as a
+ * Cline plugin entry. A nested `.cline/plugins` (or Documents/Cline/Plugins)
+ * directory starts an explicit Cline configuration lane and therefore ends the
+ * ancestor search; this keeps project-scoped Cline plugins working when the
+ * workspace itself is an Agent Plugin repository.
+ *
+ * Existing paths are canonicalized first so an explicitly configured symlink
+ * cannot bypass the package boundary.
+ */
+export function findAgentPluginRoot(path: string): string | null {
+	const absolutePath = resolve(path);
+	let canonicalPath = absolutePath;
+	try {
+		canonicalPath = realpathSync(absolutePath);
+	} catch {
+		// Let the caller report a missing/unreadable path. The ancestor walk still
+		// provides a useful answer for a path whose final segment does not exist.
+	}
+
+	let current = canonicalPath;
+	try {
+		if (!statSync(current).isDirectory()) {
+			current = dirname(current);
+		}
+	} catch {
+		current = dirname(current);
+	}
+
+	while (true) {
+		if (isAgentPluginDirectory(current)) {
+			return current;
+		}
+		const directoryName = basename(current).toLowerCase();
+		const parentDirectoryName = basename(dirname(current)).toLowerCase();
+		if (
+			directoryName === PLUGINS_DIRECTORY_NAME &&
+			(parentDirectoryName === CLINE_CONFIG_DIR ||
+				parentDirectoryName === "cline")
+		) {
+			return null;
+		}
+		const parent = dirname(current);
+		if (parent === current) {
+			return null;
+		}
+		current = parent;
+	}
+}
+
+/**
+ * Enforces the user-visible separation between the two plugin systems.
+ * Agent Plugins belong in `.agents/plugins`; Cline's executable JS/TS plugins
+ * belong in `.cline/plugins` (or another explicitly configured Cline path).
+ */
+export function assertNotAgentPluginPath(path: string): void {
+	const agentPluginRoot = findAgentPluginRoot(path);
+	if (!agentPluginRoot) {
+		return;
+	}
+	throw new Error(
+		`Cannot load ${resolve(path)} as a Cline plugin because it belongs to the Agent Plugin at ${agentPluginRoot}. Agent Plugins belong in ".agents/plugins"; ".cline/plugins" is reserved for Cline plugins.`,
+	);
+}
+
 interface PluginPackageManifest {
 	plugins?: PluginManifest[];
 }
@@ -656,6 +724,19 @@ function getManifestPluginEntries(
 	return entries.flatMap((entry) => entry.paths ?? []);
 }
 
+function isDiscoverableClinePluginModule(path: string): boolean {
+	try {
+		return (
+			existsSync(path) &&
+			statSync(path).isFile() &&
+			isPluginModulePath(path) &&
+			findAgentPluginRoot(path) === null
+		);
+	} catch {
+		return false;
+	}
+}
+
 export function resolvePluginModuleEntries(
 	directoryPath: string,
 ): string[] | null {
@@ -676,12 +757,7 @@ export function resolvePluginModuleEntries(
 		const manifest = readPluginPackageManifest(packageJsonPath);
 		const entries = getManifestPluginEntries(manifest)
 			.map((entry) => resolve(root, entry))
-			.filter(
-				(entryPath) =>
-					existsSync(entryPath) &&
-					statSync(entryPath).isFile() &&
-					isPluginModulePath(entryPath),
-			);
+			.filter(isDiscoverableClinePluginModule);
 		if (entries.length > 0) {
 			return entries;
 		}
@@ -689,7 +765,7 @@ export function resolvePluginModuleEntries(
 
 	for (const candidate of PLUGIN_DIRECTORY_INDEX_CANDIDATES) {
 		const entryPath = join(root, candidate);
-		if (existsSync(entryPath) && statSync(entryPath).isFile()) {
+		if (isDiscoverableClinePluginModule(entryPath)) {
 			return [entryPath];
 		}
 	}
@@ -794,12 +870,7 @@ export function discoverPluginModulePaths(directoryPath: string): string[] {
 					const manifest = readPluginPackageManifest(packageJsonPath);
 					const entries = getManifestPluginEntries(manifest)
 						.map((e) => resolve(candidate, e))
-						.filter(
-							(entryPath) =>
-								existsSync(entryPath) &&
-								statSync(entryPath).isFile() &&
-								isPluginModulePath(entryPath),
-						);
+						.filter(isDiscoverableClinePluginModule);
 					if (entries.length > 0) {
 						discovered.push(...entries);
 						continue;
@@ -811,7 +882,7 @@ export function discoverPluginModulePaths(directoryPath: string): string[] {
 			if (entry.name.startsWith(".")) {
 				continue;
 			}
-			if (entry.isFile() && isPluginModulePath(candidate)) {
+			if (entry.isFile() && isDiscoverableClinePluginModule(candidate)) {
 				discovered.push(candidate);
 			}
 		}
@@ -833,6 +904,7 @@ export function resolveConfiguredPluginModulePaths(
 		if (!existsSync(absolutePath)) {
 			throw new Error(`Plugin path does not exist: ${absolutePath}`);
 		}
+		assertNotAgentPluginPath(absolutePath);
 		const stats = statSync(absolutePath);
 		if (stats.isDirectory()) {
 			const entries = resolvePluginModuleEntries(absolutePath);

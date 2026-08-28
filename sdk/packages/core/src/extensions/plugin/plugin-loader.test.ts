@@ -231,6 +231,25 @@ describe("plugin-loader", () => {
 			"utf8",
 		);
 
+		const agentPluginScriptDir = join(
+			dir,
+			"agent-plugin",
+			"skills",
+			"summarize",
+			"scripts",
+		);
+		await mkdir(agentPluginScriptDir, { recursive: true });
+		await writeFile(
+			join(dir, "agent-plugin", "plugin.json"),
+			JSON.stringify({ name: "summarizer" }),
+			"utf8",
+		);
+		await writeFile(
+			join(agentPluginScriptDir, "cline-shaped.ts"),
+			"export default { name: 'must-not-load', manifest: { capabilities: ['tools'] } };",
+			"utf8",
+		);
+
 		await writeFile(
 			join(dir, "duplicate-one.mjs"),
 			"export default { name: 'duplicate-plugin', manifest: { capabilities: ['tools'] } };",
@@ -301,6 +320,23 @@ describe("plugin-loader", () => {
 	it("loads TypeScript plugins from file paths", async () => {
 		const plugin = await loadAgentPluginFromPath(join(dir, "plugin-ts.ts"));
 		expect(plugin.name).toBe("plugin-ts");
+	});
+
+	it("rejects direct imports from inside an Agent Plugin", async () => {
+		await expect(
+			loadAgentPluginFromPath(
+				join(
+					dir,
+					"agent-plugin",
+					"skills",
+					"summarize",
+					"scripts",
+					"cline-shaped.ts",
+				),
+			),
+		).rejects.toThrow(
+			/Agent Plugins belong in "\.agents\/plugins"; "\.cline\/plugins" is reserved for Cline plugins/,
+		);
 	});
 
 	it("resolves plugin-local dependencies from the plugin path", async () => {

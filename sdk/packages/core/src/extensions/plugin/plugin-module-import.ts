@@ -3,6 +3,7 @@ import { builtinModules, createRequire } from "node:module";
 import { dirname, extname, isAbsolute, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PLUGIN_FILE_EXTENSIONS } from "@cline/shared";
+import { assertNotAgentPluginPath } from "@cline/shared/storage";
 
 const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
 const HOST_REQUIRE = createRequire(import.meta.url);
@@ -623,6 +624,10 @@ export async function importPluginModule(
 	pluginPath: string,
 	options: ImportPluginModuleOptions = {},
 ): Promise<Record<string, unknown>> {
+	// This is the final import boundary shared by in-process and sandboxed Cline
+	// plugins. Keep the Agent Plugin discriminator here as defense in depth so a
+	// direct loader call cannot bypass config-path discovery.
+	assertNotAgentPluginPath(pluginPath);
 	const preferHostRuntimeDependencies = !isPackageBasedPlugin(pluginPath);
 	assertPluginDependenciesInstalled(pluginPath, preferHostRuntimeDependencies);
 	const aliases = collectPluginImportAliases(

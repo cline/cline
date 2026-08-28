@@ -22,6 +22,8 @@ import {
 	sep,
 } from "node:path";
 import {
+	assertNotAgentPluginPath,
+	discoverPluginModulePaths,
 	isPluginModulePath,
 	resolveClineDir,
 	resolvePluginModuleEntries,
@@ -668,8 +670,8 @@ function removeInstalledHostProvidedSdkDependencies(
 	}
 }
 
-function collectPluginEntries(packageRoot: string): string[] {
-	const manifestPaths = getManifestPaths(readPackageManifest(packageRoot))
+function resolveDeclaredPluginEntries(packageRoot: string): string[] {
+	return getManifestPaths(readPackageManifest(packageRoot))
 		.map((entry) => resolve(packageRoot, entry))
 		.filter(
 			(entry) =>
@@ -677,6 +679,20 @@ function collectPluginEntries(packageRoot: string): string[] {
 				statSync(entry).isFile() &&
 				isPluginModulePath(entry),
 		);
+}
+
+function assertClinePluginPackageBoundary(packageRoot: string): void {
+	// The Cline installer writes beneath `.cline/plugins`. An Agent Plugin is a
+	// different package type and must go through the `.agents/plugins` lane.
+	assertNotAgentPluginPath(packageRoot);
+	for (const manifestPath of resolveDeclaredPluginEntries(packageRoot)) {
+		assertNotAgentPluginPath(manifestPath);
+	}
+}
+
+function collectPluginEntries(packageRoot: string): string[] {
+	assertClinePluginPackageBoundary(packageRoot);
+	const manifestPaths = resolveDeclaredPluginEntries(packageRoot);
 	if (manifestPaths.length > 0) {
 		return manifestPaths;
 	}
@@ -684,32 +700,7 @@ function collectPluginEntries(packageRoot: string): string[] {
 	if (directEntries?.length) {
 		return directEntries;
 	}
-	const entries: string[] = [];
-	const stack = [packageRoot];
-	while (stack.length > 0) {
-		const current = stack.pop();
-		if (!current) {
-			continue;
-		}
-		for (const entry of statSafeReadDir(current)) {
-			const entryPath = join(current, entry.name);
-			if (entry.name === "node_modules" || entry.name === ".git") {
-				continue;
-			}
-			if (entry.isDirectory()) {
-				stack.push(entryPath);
-				continue;
-			}
-			if (
-				entry.isFile() &&
-				!entry.name.startsWith(".") &&
-				isPluginModulePath(entryPath)
-			) {
-				entries.push(entryPath);
-			}
-		}
-	}
-	return entries.sort((left, right) => left.localeCompare(right));
+	return discoverPluginModulePaths(packageRoot);
 }
 
 function statSafeReadDir(dir: string): Dirent[] {
@@ -789,6 +780,7 @@ async function installPackageDependencies(
 	packageRoot: string,
 	npmCommand: string,
 ): Promise<void> {
+	assertClinePluginPackageBoundary(packageRoot);
 	if (!existsSync(join(packageRoot, "package.json"))) {
 		return;
 	}
@@ -980,6 +972,7 @@ async function installLocalPackage(
 	if (!existsSync(absolutePath)) {
 		throw new Error(`Plugin source path does not exist: ${absolutePath}`);
 	}
+	assertNotAgentPluginPath(absolutePath);
 	const stats = statSync(absolutePath);
 	if (stats.isFile()) {
 		if (!isPluginModulePath(absolutePath)) {

@@ -8,7 +8,7 @@ import {
 } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import {
 	discoverPluginModulePaths,
 	resolvePluginConfigSearchPaths,
@@ -140,6 +140,98 @@ describe("plugin install service", () => {
 		expect(existsSync(result.entryPaths[0] ?? "")).toBe(true);
 		expect(discoverPluginModulePaths(join(home, ".cline", "plugins"))).toEqual(
 			result.entryPaths,
+		);
+	});
+
+	it("rejects Agent Plugins instead of installing them into .cline/plugins", async () => {
+		const source = join(root, "agent-plugin");
+		const scriptDirectory = join(source, "skills", "summarize", "scripts");
+		await mkdir(scriptDirectory, { recursive: true });
+		await writeFile(
+			join(source, "plugin.json"),
+			JSON.stringify({ name: "summarizer" }),
+			"utf8",
+		);
+		await writeFile(
+			join(scriptDirectory, "cline-shaped.ts"),
+			"export default { name: 'must-not-install', manifest: { capabilities: ['tools'] } };",
+			"utf8",
+		);
+
+		await expect(installPlugin({ source })).rejects.toThrow(
+			/Agent Plugins belong in "\.agents\/plugins"; "\.cline\/plugins" is reserved for Cline plugins/,
+		);
+		expect(discoverPluginModulePaths(join(home, ".cline", "plugins"))).toEqual(
+			[],
+		);
+	});
+
+	it("rejects a single Cline-shaped file taken from inside an Agent Plugin", async () => {
+		const agentPluginRoot = join(root, "agent-plugin");
+		const source = join(
+			agentPluginRoot,
+			"skills",
+			"summarize",
+			"scripts",
+			"cline-shaped.ts",
+		);
+		await mkdir(dirname(source), { recursive: true });
+		await writeFile(
+			join(agentPluginRoot, "plugin.json"),
+			JSON.stringify({ name: "summarizer" }),
+			"utf8",
+		);
+		await writeFile(
+			source,
+			"export default { name: 'must-not-install', manifest: { capabilities: ['tools'] } };",
+			"utf8",
+		);
+
+		await expect(installPlugin({ source })).rejects.toThrow(
+			/Agent Plugins belong in "\.agents\/plugins"; "\.cline\/plugins" is reserved for Cline plugins/,
+		);
+		expect(discoverPluginModulePaths(join(home, ".cline", "plugins"))).toEqual(
+			[],
+		);
+	});
+
+	it("rejects Cline package entries that point inside an Agent Plugin", async () => {
+		const source = join(root, "mixed-plugin-package");
+		const agentPluginRoot = join(source, "summarizer");
+		const scriptDirectory = join(
+			agentPluginRoot,
+			"skills",
+			"summarize",
+			"scripts",
+		);
+		await mkdir(scriptDirectory, { recursive: true });
+		await writeFile(
+			join(agentPluginRoot, "plugin.json"),
+			JSON.stringify({ name: "summarizer" }),
+			"utf8",
+		);
+		await writeFile(
+			join(scriptDirectory, "cline-shaped.ts"),
+			"export default { name: 'must-not-install', manifest: { capabilities: ['tools'] } };",
+			"utf8",
+		);
+		await writeFile(
+			join(source, "package.json"),
+			JSON.stringify({
+				name: "mixed-plugin-package",
+				cline: {
+					plugins: [
+						{
+							paths: ["summarizer/skills/summarize/scripts/cline-shaped.ts"],
+						},
+					],
+				},
+			}),
+			"utf8",
+		);
+
+		await expect(installPlugin({ source })).rejects.toThrow(
+			/Agent Plugins belong in "\.agents\/plugins"; "\.cline\/plugins" is reserved for Cline plugins/,
 		);
 	});
 

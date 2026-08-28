@@ -14,6 +14,7 @@ import {
 	isAgentPluginDirectory,
 	isChatWorkspacePath,
 	RULES_CONFIG_DIRECTORY_NAME,
+	resolveAgentPluginSearchPaths,
 	resolveAgentsConfigDirPath,
 	resolveChatWorkspacePath,
 	resolveClineDataDir,
@@ -25,6 +26,7 @@ import {
 	resolveGlobalSettingsPath,
 	resolveHooksConfigSearchPaths,
 	resolveMcpSettingsPath,
+	resolvePluginConfigSearchPaths,
 	resolvePluginModuleEntries,
 	resolveProviderSettingsPath,
 	resolveRulesConfigSearchPaths,
@@ -445,11 +447,42 @@ describe("Cline plugin discovery boundary", () => {
 		}
 	});
 
-	it("claims nothing from an Agent Plugin dropped into a Cline plugin root", () => {
-		const root = createTempRoot();
-		writeAgentPlugin(join(root, "summarizer"));
+	it("does not load Agent Plugins dropped into .cline/plugins", () => {
+		const workspace = createTempRoot();
+		const clinePluginRoot = join(workspace, ".cline", "plugins");
+		writeAgentPlugin(join(clinePluginRoot, "summarizer"));
+		const clineEntry = writeFile(
+			join(clinePluginRoot, "weather.ts"),
+			"export default {};",
+		);
 
-		expect(discoverPluginModulePaths(root)).toEqual([]);
+		expect(discoverPluginModulePaths(clinePluginRoot)).toEqual([clineEntry]);
+	});
+
+	it("keeps Agent Plugin and Cline plugin search roots separate", () => {
+		const workspace = createTempRoot();
+
+		expect(resolveAgentPluginSearchPaths(workspace)[0]).toBe(
+			join(workspace, ".agents", "plugins"),
+		);
+		expect(resolvePluginConfigSearchPaths(workspace)[0]).toBe(
+			join(workspace, ".cline", "plugins"),
+		);
+	});
+
+	it("allows project Cline plugins when the workspace is an Agent Plugin", () => {
+		const workspace = createTempRoot();
+		writeAgentPlugin(workspace);
+		const clinePluginRoot = join(workspace, ".cline", "plugins");
+		const entryPath = writeFile(
+			join(clinePluginRoot, "workspace-tools.ts"),
+			"export default {};",
+		);
+
+		expect(discoverPluginModulePaths(clinePluginRoot)).toEqual([entryPath]);
+		expect(resolveConfiguredPluginModulePaths([entryPath], workspace)).toEqual([
+			entryPath,
+		]);
 	});
 
 	it("claims nothing when the scan root is itself an Agent Plugin", () => {
@@ -521,13 +554,57 @@ describe("Cline plugin discovery boundary", () => {
 		expect(resolvePluginModuleEntries(root)).toBeNull();
 	});
 
-	it("resolves no modules for an explicitly configured Agent Plugin path", () => {
+	it("rejects an explicitly configured Agent Plugin directory", () => {
 		const root = createTempRoot();
 		writeAgentPlugin(join(root, "summarizer"));
 
-		expect(resolveConfiguredPluginModulePaths(["summarizer"], root)).toEqual(
-			[],
+		expect(() =>
+			resolveConfiguredPluginModulePaths(["summarizer"], root),
+		).toThrowError(
+			/Agent Plugins belong in "\.agents\/plugins"; "\.cline\/plugins" is reserved for Cline plugins/,
 		);
+	});
+
+	it("rejects an explicitly configured file inside an Agent Plugin", () => {
+		const root = createTempRoot();
+		const pluginRoot = join(root, ".cline", "plugins", "summarizer");
+		writeAgentPlugin(pluginRoot);
+		const scriptPath = join(
+			pluginRoot,
+			"skills",
+			"summarize",
+			"scripts",
+			"build.ts",
+		);
+
+		expect(() =>
+			resolveConfiguredPluginModulePaths([scriptPath], root),
+		).toThrowError(
+			/Agent Plugins belong in "\.agents\/plugins"; "\.cline\/plugins" is reserved for Cline plugins/,
+		);
+	});
+
+	it("ignores Cline package entries that point inside an Agent Plugin", () => {
+		const root = createTempRoot();
+		const clinePluginRoot = join(root, ".cline", "plugins");
+		const packageRoot = join(clinePluginRoot, "mixed-package");
+		const agentPluginRoot = join(packageRoot, "summarizer");
+		writeAgentPlugin(agentPluginRoot);
+		writeFile(
+			join(packageRoot, "package.json"),
+			JSON.stringify({
+				cline: {
+					plugins: [
+						{
+							paths: ["summarizer/skills/summarize/scripts/build.ts"],
+						},
+					],
+				},
+			}),
+		);
+
+		expect(resolvePluginModuleEntries(packageRoot)).toBeNull();
+		expect(discoverPluginModulePaths(clinePluginRoot)).toEqual([]);
 	});
 
 	it("detects an Agent Plugin manifest only when it is a regular file", () => {
