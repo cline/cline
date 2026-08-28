@@ -33,7 +33,7 @@ export async function withLangfuseTraceAttributes<T>(
 		return await callback();
 	}
 
-	const { propagateAttributes } = await import("@langfuse/core");
+	const { propagateAttributes } = await import("@langfuse/tracing");
 	return await propagateAttributes(attributes, callback);
 }
 

@@ -2220,7 +2220,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 							...(tools ? { tools } : {}),
 							abortSignal: request.signal,
 							experimental_repairToolCall: repairMalformedToolCall as never,
-							experimental_telemetry: {
+							telemetry: {
 								isEnabled: langfuse,
 								functionId: "cline-agent-turn",
 								includeRuntimeContext: {
