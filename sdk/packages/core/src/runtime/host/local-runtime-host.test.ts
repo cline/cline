@@ -2946,6 +2946,71 @@ describe("LocalRuntimeHost", () => {
 		});
 	});
 
+	it("propagates a parent session abort to its team runtime", async () => {
+		const sessionId = "sess-team-abort";
+		const manifest = createManifest(sessionId);
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest.json",
+				messagesPath: "/tmp/messages.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const cancelOutstandingWork = vi.fn();
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({
+				tools: [],
+				teamRuntime: {
+					getTeamId: vi.fn().mockReturnValue("team_test-team"),
+					getTeamName: vi.fn().mockReturnValue("test-team"),
+					cancelOutstandingWork,
+				},
+				shutdown: vi.fn(),
+			}),
+		};
+		const agent = {
+			run: vi.fn().mockResolvedValue(createResult()),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			getMessages: vi.fn().mockReturnValue([]),
+			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			canStartRun: vi.fn().mockReturnValue(true),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		};
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent: () => agent as never,
+		});
+
+		try {
+			await manager.startSession(
+				normalizeStartInput({
+					config: createConfig({ sessionId }),
+					interactive: true,
+				}),
+			);
+
+			const abortReason = new Error("user cancelled");
+			await manager.abort(sessionId, abortReason);
+
+			expect(cancelOutstandingWork).toHaveBeenCalledOnce();
+			expect(cancelOutstandingWork).toHaveBeenCalledWith(abortReason);
+			expect(agent.abort).toHaveBeenCalledOnce();
+		} finally {
+			await manager.dispose();
+		}
+	});
+
 	it("drains queued prompts after a turn that self-aborts (loop detector / mistake limit)", async () => {
 		const sessionId = "sess-self-abort-drains-prompts";
 		const manifest = createManifest(sessionId);

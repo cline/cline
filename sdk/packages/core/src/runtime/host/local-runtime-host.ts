@@ -1138,7 +1138,11 @@ export class LocalRuntimeHost implements RuntimeHost {
 		if (session.drainingPendingPrompts) {
 			this.pendingPromptsController.discardQueue(session);
 		}
-		session.agent.abort(reason);
+		try {
+			session.runtime.teamRuntime?.cancelOutstandingWork(reason);
+		} finally {
+			session.agent.abort(reason);
+		}
 	}
 
 	async proceedWhileRunning(

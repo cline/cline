@@ -403,6 +403,12 @@ Design implication:
   model switching are also service-style capabilities exposed through
   `ClineCore` when the concrete transport implements them. These service APIs
   are intentionally outside the minimal `RuntimeHost` primitive vocabulary.
+- `session.abort` remains the cancellation boundary for a root session in both
+  local and hub-backed execution. The owning `LocalRuntimeHost` aborts the lead
+  agent and asks only that session's team runtime to cancel active synchronous
+  teammate work plus running or queued async runs. Teammate definitions and
+  conversation state remain available for later turns; idle and unrelated team
+  runtimes are not stopped.
 - The usage service's `getAccumulatedUsage(sessionId)` method returns a summary
   with two explicit buckets: `usage` for the root/lead agent and
   `aggregateUsage` for root plus teammates/subagents. Local execution tracks
