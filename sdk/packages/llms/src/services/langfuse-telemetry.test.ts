@@ -265,7 +265,7 @@ describe("langfuse telemetry", () => {
 		expect(lastFlushOrder).toBeLessThan(firstShutdownOrder);
 	});
 
-	it("connects an AI SDK call to the selected per-call integration", async () => {
+	it("connects an AI SDK 7 call to the selected per-call integration", async () => {
 		setGenericEnvironment();
 		const integration = await ensureLangfuseTelemetry("openrouter");
 		expect(integration).toBeDefined();
@@ -288,7 +288,7 @@ describe("langfuse telemetry", () => {
 				},
 			}),
 			prompt: "say hello",
-			experimental_telemetry: {
+			telemetry: {
 				isEnabled: true,
 				integrations: integration,
 			},

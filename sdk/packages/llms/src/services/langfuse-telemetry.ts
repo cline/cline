@@ -51,7 +51,7 @@ export async function withLangfuseTraceAttributes<T>(
 		return await callback();
 	}
 
-	const { propagateAttributes } = await import("@langfuse/core");
+	const { propagateAttributes } = await import("@langfuse/tracing");
 	return await propagateAttributes(attributes, callback);
 }
 
@@ -200,7 +200,7 @@ async function initializeLangfuseTelemetry(
 	try {
 		// Give Langfuse a stable resource identity without replacing the process's
 		// global tracer provider. Each credential set gets an isolated provider and
-		// is selected through AI SDK's per-call telemetry integration.
+		// is selected through AI SDK 7's per-call telemetry integration.
 		if (!process.env.OTEL_SERVICE_NAME?.trim()) {
 			process.env.OTEL_SERVICE_NAME = "cline-sdk";
 		}

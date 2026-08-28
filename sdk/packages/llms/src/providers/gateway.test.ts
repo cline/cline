@@ -429,6 +429,29 @@ describe("sdk-gateway", () => {
 		).toBe(DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS);
 	});
 
+	it("uses the AI SDK 7 telemetry option", async () => {
+		mockSuccessfulStream();
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "openai-native", apiKey: "test" }],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openai-native",
+				modelId: "gpt-5-mini",
+				messages: baseMessages,
+			}),
+		);
+
+		const call = streamTextSpy.mock.calls.at(-1)?.[0] as
+			| Record<string, unknown>
+			| undefined;
+		expect(call?.telemetry).toMatchObject({
+			functionId: "cline-agent-turn",
+		});
+		expect(call).not.toHaveProperty("experimental_telemetry");
+	});
+
 	it("lifts the default output cap above an explicit reasoning budget", () => {
 		expect(
 			resolveGatewayRequestMaxTokens({
