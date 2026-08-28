@@ -1041,6 +1041,7 @@ class TelegramConnector extends ConnectorBase<
 					client,
 					clientId,
 					pendingApprovals,
+					deniedReason: "Denied by Telegram user",
 					transport: "telegram",
 				})
 			) {
@@ -1064,6 +1065,7 @@ class TelegramConnector extends ConnectorBase<
 					client,
 					clientId,
 					pendingApprovals,
+					deniedReason: "Denied by Telegram user",
 					transport: "telegram",
 				})
 			) {

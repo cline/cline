@@ -1341,6 +1341,7 @@ class DiscordConnector extends ConnectorBase<
 					client,
 					clientId,
 					pendingApprovals,
+					deniedReason: "Denied by Discord user",
 				})
 			) {
 				return;
@@ -1377,6 +1378,7 @@ class DiscordConnector extends ConnectorBase<
 					client,
 					clientId,
 					pendingApprovals,
+					deniedReason: "Denied by Discord user",
 				})
 			) {
 				return;

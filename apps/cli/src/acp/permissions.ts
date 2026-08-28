@@ -5,11 +5,7 @@ import type {
 	RequestPermissionRequest,
 	ToolCallUpdate,
 } from "@agentclientprotocol/sdk";
-import {
-	buildUserRejectedToolReason,
-	type ToolApprovalRequest,
-	type ToolApprovalResult,
-} from "@cline/shared";
+import type { ToolApprovalRequest, ToolApprovalResult } from "@cline/shared";
 import { buildToolTitle, mapToolKind } from "./tool-utils";
 
 // ---------------------------------------------------------------------------
@@ -70,7 +66,6 @@ export function handlePermissionResponse(
 				outcome: "selected";
 				optionId: string;
 		  },
-	toolName?: string,
 ): ToolApprovalResult {
 	if (outcome.outcome === "cancelled") {
 		return { approved: false, reason: "Permission request was cancelled" };
@@ -83,7 +78,7 @@ export function handlePermissionResponse(
 			return { approved: true };
 		case "reject_once":
 		case "reject_always":
-			return { approved: false, reason: buildUserRejectedToolReason(toolName) };
+			return { approved: false, reason: "User rejected the tool call" };
 		default:
 			return {
 				approved: false,
@@ -122,7 +117,7 @@ export async function requestAcpToolApproval(
 		return { approved: false, reason: "Permission request failed" };
 	}
 
-	const result = handlePermissionResponse(response.outcome, request.toolName);
+	const result = handlePermissionResponse(response.outcome);
 
 	// Emit a tool_call_update reflecting the decision
 	void conn.sessionUpdate({

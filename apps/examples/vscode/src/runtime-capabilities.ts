@@ -3,7 +3,6 @@ import type {
 	ToolApprovalRequest,
 	ToolApprovalResult,
 } from "@cline/core";
-import { buildUserRejectedToolReason } from "@cline/shared";
 
 type QuickPickOptions = {
 	placeHolder?: string;
@@ -95,10 +94,7 @@ export function createVsCodeRuntimeCapabilities(options: {
 		);
 		return selected === approve
 			? { approved: true }
-			: {
-					approved: false,
-					reason: buildUserRejectedToolReason(request.toolName),
-				};
+			: { approved: false, reason: "Denied by VS Code user" };
 	};
 
 	return {

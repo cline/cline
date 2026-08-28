@@ -734,6 +734,7 @@ class GoogleChatConnector extends ConnectorBase<
 					client,
 					clientId,
 					pendingApprovals,
+					deniedReason: "Denied by Google Chat user",
 				})
 			) {
 				return;
@@ -756,6 +757,7 @@ class GoogleChatConnector extends ConnectorBase<
 					client,
 					clientId,
 					pendingApprovals,
+					deniedReason: "Denied by Google Chat user",
 				})
 			) {
 				return;

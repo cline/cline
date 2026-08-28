@@ -83,7 +83,8 @@ export function formatConnectorApprovalPrompt(
 
 export function parseConnectorApprovalDecision(
 	text: string,
-): { approved: boolean } | undefined {
+	deniedReason = "Denied by user",
+): { approved: boolean; reason?: string } | undefined {
 	const normalized = text.trim().toLowerCase();
 	if (
 		normalized === "y" ||
@@ -99,7 +100,7 @@ export function parseConnectorApprovalDecision(
 		normalized === "deny" ||
 		normalized === "denied"
 	) {
-		return { approved: false };
+		return { approved: false, reason: deniedReason };
 	}
 	return undefined;
 }

@@ -7,10 +7,7 @@ import type {
 	UserInstructionConfigService,
 } from "@cline/core";
 import { isUnusableSessionError } from "@cline/core";
-import {
-	buildUserRejectedToolReason,
-	type GeneratedMedia,
-} from "@cline/shared";
+import type { GeneratedMedia } from "@cline/shared";
 import type { SentMessage, Thread } from "chat";
 import type { CliLoggerAdapter } from "../logging/adapter";
 import { buildUserInputMessage, resolveSystemPrompt } from "../runtime/prompt";
@@ -1316,13 +1313,17 @@ export async function maybeHandleConnectorApprovalReply<
 	client: HubSessionClient;
 	clientId: string;
 	pendingApprovals: Map<string, PendingConnectorApproval>;
+	deniedReason: string;
 	transport?: string;
 }): Promise<boolean> {
 	const pending = input.pendingApprovals.get(input.thread.id);
 	if (!pending) {
 		return false;
 	}
-	const decision = parseConnectorApprovalDecision(input.text);
+	const decision = parseConnectorApprovalDecision(
+		input.text,
+		input.deniedReason,
+	);
 	if (!decision) {
 		await postConnectorText(
 			input.thread,
@@ -1335,9 +1336,7 @@ export async function maybeHandleConnectorApprovalReply<
 	await input.client.respondToolApproval({
 		approvalId: pending.approvalId,
 		approved: decision.approved,
-		reason: decision.approved
-			? undefined
-			: buildUserRejectedToolReason(pending.toolName),
+		reason: decision.reason,
 		responderClientId: input.clientId,
 	});
 	await postConnectorText(

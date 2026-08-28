@@ -1,6 +1,5 @@
 "use client";
 
-import { buildUserRejectedToolReason } from "@cline/shared";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
 	serializeAttachments,
@@ -2643,20 +2642,19 @@ export function useChatSession() {
 		async (requestId: string, approved: boolean) => {
 			const activeSessionId = activeSessionIdRef.current;
 			if (!activeSessionId) return;
-			const toolName = pendingToolApprovals.find(
-				(item) => item.requestId === requestId,
-			)?.toolName;
 			await desktopClient.invoke("respond_tool_approval", {
 				sessionId: activeSessionId,
 				requestId,
 				approved,
-				reason: approved ? undefined : buildUserRejectedToolReason(toolName),
+				reason: approved
+					? undefined
+					: "Tool call rejected from desktop approval prompt",
 			});
 			setPendingToolApprovals((prev) =>
 				prev.filter((item) => item.requestId !== requestId),
 			);
 		},
-		[pendingToolApprovals],
+		[],
 	);
 
 	const approveToolApproval = useCallback(

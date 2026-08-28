@@ -1072,6 +1072,7 @@ class SlackConnector extends ConnectorBase<
 					client,
 					clientId,
 					pendingApprovals,
+					deniedReason: "Denied by Slack user",
 				})
 			) {
 				return;
@@ -1098,6 +1099,7 @@ class SlackConnector extends ConnectorBase<
 					client,
 					clientId,
 					pendingApprovals,
+					deniedReason: "Denied by Slack user",
 				})
 			) {
 				return;
