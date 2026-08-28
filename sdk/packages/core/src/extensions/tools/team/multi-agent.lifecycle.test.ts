@@ -447,6 +447,68 @@ describe("AgentTeamsRuntime teammate lifecycle events", () => {
 		);
 	});
 
+	it("does not inherit stale abort state on a replacement async run", async () => {
+		const events: TeamEvent[] = [];
+		let busy = false;
+		let resolveRun: (() => void) | undefined;
+		mockNextSessionRuntime({
+			abort: vi.fn(),
+			canStartRun: vi.fn(() => !busy),
+			run: vi.fn(() => {
+				busy = true;
+				return new Promise<AgentResult>((resolve) => {
+					resolveRun = () => {
+						busy = false;
+						resolve(createAbortedResult());
+					};
+				});
+			}),
+		});
+		const runtime = new AgentTeamsRuntime({
+			teamName: "test-team",
+			maxConcurrentRuns: 1,
+			onTeamEvent: (event) => events.push(event),
+		});
+		spawnTestTeammate(runtime, "python-poet");
+
+		const predecessor = runtime.startTeammateRun("python-poet", "first task");
+		await vi.waitFor(() => {
+			expect(runtime.getRun(predecessor.id)?.status).toBe("running");
+		});
+		runtime.cancelOutstandingWork("parent_session_abort");
+
+		const replacement = runtime.startTeammateRun(
+			"python-poet",
+			"replacement task",
+			{ maxRetries: 1 },
+		);
+		await vi.waitFor(() => {
+			expect(runtime.getRun(replacement.id)).toEqual(
+				expect.objectContaining({
+					status: "queued",
+					error:
+						"Cannot start a new run while another run is already in progress",
+					retryCount: 1,
+				}),
+			);
+		});
+		expect(
+			events.filter(
+				(event) =>
+					event.type === TeamMessageType.RunCancelled &&
+					event.run.id === replacement.id,
+			),
+		).toHaveLength(0);
+
+		resolveRun?.();
+		await vi.waitFor(() => {
+			expect(runtime.getSnapshot().members).toContainEqual(
+				expect.objectContaining({ agentId: "python-poet", status: "idle" }),
+			);
+		});
+		runtime.cancelOutstandingWork("test_cleanup");
+	});
+
 	it("does not cancel idle teammates or work owned by another team runtime", async () => {
 		const activeAborts = vi.fn();
 		const idleAborts = vi.fn();

@@ -1273,6 +1273,9 @@ export class AgentTeamsRuntime {
 				taskId: run.taskId,
 				continueConversation: run.continueConversation,
 			});
+			if (this.runs.get(run.id)?.status !== "running") {
+				return;
+			}
 			const cancellationReason = this.members.get(run.agentId)?.abortReason;
 			if (cancellationReason !== undefined) {
 				this.cancelRun(run.id, cancellationReason);
@@ -1295,10 +1298,16 @@ export class AgentTeamsRuntime {
 				error instanceof Error
 					? error.message
 					: String(error ?? "Unknown error");
+			if (this.runs.get(run.id)?.status !== "running") {
+				return;
+			}
 			run.error = message;
 			run.endedAt = new Date();
 			const member = this.members.get(run.agentId);
-			if (isIntentionalTeammateAbort(member, error)) {
+			if (
+				isAbortLikeError(error) &&
+				isIntentionalTeammateAbort(member, error)
+			) {
 				this.cancelRun(run.id, member?.abortReason ?? message);
 			} else if (run.retryCount < run.maxRetries) {
 				run.retryCount++;
