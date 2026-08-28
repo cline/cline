@@ -6703,6 +6703,7 @@ describe("LocalRuntimeHost", () => {
 						onTeamEvent?.({
 							type: "task_end",
 							agentId: "providers-investigator",
+							status: "failed",
 							error: new Error("401 Unauthorized"),
 							messages: failedMessages,
 						});
@@ -6816,6 +6817,7 @@ describe("LocalRuntimeHost", () => {
 						onTeamEvent?.({
 							type: "task_end",
 							agentId: "providers-investigator",
+							status: "completed",
 							result: createResult(),
 						});
 						return createResult({ text: "lead handled progress" });

@@ -408,7 +408,9 @@ Design implication:
   agent and asks only that session's team runtime to cancel active synchronous
   teammate work plus running or queued async runs. Teammate definitions and
   conversation state remain available for later turns; idle and unrelated team
-  runtimes are not stopped.
+  runtimes are not stopped. Team task-end events carry an explicit completion,
+  failure, or cancellation status so persistence records intentional aborts as
+  cancelled rather than failed.
 - The usage service's `getAccumulatedUsage(sessionId)` method returns a summary
   with two explicit buckets: `usage` for the root/lead agent and
   `aggregateUsage` for root plus teammates/subagents. Local execution tracks

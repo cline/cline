@@ -366,7 +366,12 @@ describe("AgentTeamsRuntime teammate lifecycle events", () => {
 		).toHaveLength(0);
 		expect(
 			events.filter((event) => event.type === TeamMessageType.TaskEnd),
-		).toHaveLength(1);
+		).toEqual([
+			expect.objectContaining({
+				agentId: "python-poet",
+				status: "cancelled",
+			}),
+		]);
 	});
 
 	it("cancels running and queued async runs exactly once", async () => {
@@ -426,6 +431,14 @@ describe("AgentTeamsRuntime teammate lifecycle events", () => {
 		expect(
 			events.filter((event) => event.type === TeamMessageType.RunFailed),
 		).toHaveLength(0);
+		expect(events).not.toContainEqual(
+			expect.objectContaining({
+				type: TeamMessageType.TeamMissionLog,
+				entry: expect.objectContaining({
+					summary: expect.stringContaining("Completed a delegated run"),
+				}),
+			}),
+		);
 	});
 
 	it("does not cancel idle teammates or work owned by another team runtime", async () => {
@@ -914,6 +927,13 @@ describe("AgentTeamsRuntime run failure reporting", () => {
 			expect.objectContaining({
 				type: TeamMessageType.RunFailed,
 				run: expect.objectContaining({ id: run.id, status: "failed" }),
+			}),
+		);
+		expect(events).toContainEqual(
+			expect.objectContaining({
+				type: TeamMessageType.TaskEnd,
+				agentId: "alice",
+				status: "failed",
 			}),
 		);
 	});

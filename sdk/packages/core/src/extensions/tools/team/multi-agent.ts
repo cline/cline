@@ -82,11 +82,14 @@ export interface TaskResult {
 	metadata?: Record<string, unknown>;
 }
 
+type TeamTaskEndStatus = "completed" | "failed" | "cancelled";
+
 export type TeamEvent =
 	| { type: TeamMessageType.TaskStart; agentId: string; message: string }
 	| {
 			type: TeamMessageType.TaskEnd;
 			agentId: string;
+			status: TeamTaskEndStatus;
 			result?: AgentResult;
 			error?: Error;
 			messages?: AgentResult["messages"];
@@ -163,6 +166,12 @@ function isIntentionalTeammateAbort(
 		member?.abortRequested === true ||
 		(member?.status === "stopped" && isAbortLikeError(error))
 	);
+}
+
+function taskEndStatusFromResult(result: AgentResult): TeamTaskEndStatus {
+	if (result.finishReason === "aborted") return "cancelled";
+	if (result.finishReason === "error") return "failed";
+	return "completed";
 }
 
 // =============================================================================
@@ -246,13 +255,19 @@ export class AgentTeam {
 
 		try {
 			const result = await agent.run(message);
-			this.emitEvent({ type: TeamMessageType.TaskEnd, agentId, result });
+			this.emitEvent({
+				type: TeamMessageType.TaskEnd,
+				agentId,
+				status: taskEndStatusFromResult(result),
+				result,
+			});
 			return result;
 		} catch (error) {
 			const err = error instanceof Error ? error : new Error(String(error));
 			this.emitEvent({
 				type: TeamMessageType.TaskEnd,
 				agentId,
+				status: "failed",
 				error: err,
 				messages: agent.getMessages(),
 			});
@@ -270,13 +285,19 @@ export class AgentTeam {
 
 		try {
 			const result = await agent.continue(message);
-			this.emitEvent({ type: TeamMessageType.TaskEnd, agentId, result });
+			this.emitEvent({
+				type: TeamMessageType.TaskEnd,
+				agentId,
+				status: taskEndStatusFromResult(result),
+				result,
+			});
 			return result;
 		} catch (error) {
 			const err = error instanceof Error ? error : new Error(String(error));
 			this.emitEvent({
 				type: TeamMessageType.TaskEnd,
 				agentId,
+				status: "failed",
 				error: err,
 				messages: agent.getMessages(),
 			});
@@ -307,6 +328,7 @@ export class AgentTeam {
 				this.emitEvent({
 					type: TeamMessageType.TaskEnd,
 					agentId: task.agentId,
+					status: taskEndStatusFromResult(result),
 					result,
 				});
 				return {
@@ -319,6 +341,7 @@ export class AgentTeam {
 				this.emitEvent({
 					type: TeamMessageType.TaskEnd,
 					agentId: task.agentId,
+					status: "failed",
 					error: err,
 					messages: agent.getMessages(),
 				});
@@ -360,6 +383,7 @@ export class AgentTeam {
 				this.emitEvent({
 					type: TeamMessageType.TaskEnd,
 					agentId: task.agentId,
+					status: taskEndStatusFromResult(result),
 					result,
 				});
 				results.push({
@@ -372,6 +396,7 @@ export class AgentTeam {
 				this.emitEvent({
 					type: TeamMessageType.TaskEnd,
 					agentId: task.agentId,
+					status: "failed",
 					error: err,
 					messages: agent.getMessages(),
 				});
@@ -417,7 +442,12 @@ export class AgentTeam {
 
 			try {
 				const result = await agent.run(currentMessage);
-				this.emitEvent({ type: TeamMessageType.TaskEnd, agentId, result });
+				this.emitEvent({
+					type: TeamMessageType.TaskEnd,
+					agentId,
+					status: taskEndStatusFromResult(result),
+					result,
+				});
 				results.push({ agentId, result });
 
 				const nextIndex = pipeline.indexOf(agentId) + 1;
@@ -432,6 +462,7 @@ export class AgentTeam {
 				this.emitEvent({
 					type: TeamMessageType.TaskEnd,
 					agentId,
+					status: "failed",
 					error: err,
 					messages: agent.getMessages(),
 				});
@@ -1049,23 +1080,40 @@ export class AgentTeamsRuntime {
 			const result = options?.continueConversation
 				? await member.agent.continue(enrichedMessage)
 				: await member.agent.run(enrichedMessage);
-			this.emitEvent({ type: TeamMessageType.TaskEnd, agentId, result });
-			this.recordProgressStep(
-				agentId,
-				`Completed a delegated run (${result.iterations} iterations)`,
-				options?.taskId,
-				true,
-			);
-			return result;
-		} catch (error) {
-			const err = error instanceof Error ? error : new Error(String(error));
+			const taskEndStatus = taskEndStatusFromResult(result);
 			this.emitEvent({
 				type: TeamMessageType.TaskEnd,
 				agentId,
+				status: taskEndStatus,
+				result,
+			});
+			if (taskEndStatus === "completed") {
+				this.recordProgressStep(
+					agentId,
+					`Completed a delegated run (${result.iterations} iterations)`,
+					options?.taskId,
+					true,
+				);
+			} else if (taskEndStatus === "failed") {
+				this.appendMissionLog({
+					agentId,
+					taskId: options?.taskId,
+					kind: "error",
+					summary: result.text || "Teammate run failed",
+				});
+			}
+			return result;
+		} catch (error) {
+			const err = error instanceof Error ? error : new Error(String(error));
+			const intentionalAbort = isIntentionalTeammateAbort(member, err);
+			this.emitEvent({
+				type: TeamMessageType.TaskEnd,
+				agentId,
+				status: intentionalAbort ? "cancelled" : "failed",
 				error: err,
 				messages: member.agent.getMessages(),
 			});
-			if (!isIntentionalTeammateAbort(member, err)) {
+			if (!intentionalAbort) {
 				this.appendMissionLog({
 					agentId,
 					taskId: options?.taskId,
