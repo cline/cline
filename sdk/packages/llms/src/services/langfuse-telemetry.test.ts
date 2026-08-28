@@ -90,6 +90,11 @@ const featureFlagConfig: LangfuseTelemetryConfig = {
 	publicKey: "flag-public-key",
 	secretKey: "flag-secret-key",
 };
+const untrustedClineRuntimeConfig: LangfuseTelemetryConfig = {
+	baseUrl: "http://untrusted-langfuse.example",
+	publicKey: "runtime-public-key",
+	secretKey: "runtime-secret-key",
+};
 
 let originalEnvironment: Partial<Record<(typeof ENV_KEYS)[number], string>>;
 
@@ -185,6 +190,22 @@ describe("langfuse telemetry", () => {
 		).resolves.toBeDefined();
 
 		expect(spanProcessorConfigSpy).toHaveBeenCalledWith(featureFlagConfig);
+	});
+
+	it.each([
+		"cline",
+		"cline-pass",
+	])("pins caller-supplied configs to the fixed HTTPS endpoint for %s", async (providerId) => {
+		setGenericEnvironment();
+
+		await expect(
+			ensureLangfuseTelemetry(providerId, untrustedClineRuntimeConfig),
+		).resolves.toBeDefined();
+
+		expect(spanProcessorConfigSpy).toHaveBeenCalledWith({
+			...untrustedClineRuntimeConfig,
+			baseUrl: DEFAULT_CLINE_PROVIDER_LANGFUSE_BASE_URL,
+		});
 	});
 
 	it("ignores Cline feature-flag credentials for third-party providers", async () => {

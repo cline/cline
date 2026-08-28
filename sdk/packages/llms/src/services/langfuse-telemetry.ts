@@ -118,17 +118,21 @@ function readClineProviderLangfuseEnvironmentConfig(): LangfuseEnvironmentConfig
 
 function resolveLangfuseTelemetryConfig(
 	providerId: string,
-	featureFlagConfig: LangfuseTelemetryConfig | undefined,
+	clineProviderRuntimeConfig: LangfuseTelemetryConfig | undefined,
 ): LangfuseTelemetryConfig | undefined {
 	if (!isClineProvider(providerId)) {
 		return readLangfuseEnvironmentConfig(LANGFUSE_ENV).config;
 	}
 
-	// A feature-flag configuration is transported in memory across the Hub
-	// boundary. If it is present but malformed, fail closed instead of silently
-	// sending Cline-owned traces to an ambient exporter.
-	if (featureFlagConfig !== undefined) {
-		return normalizeLangfuseTelemetryConfig(featureFlagConfig);
+	// The runtime configuration is normally populated from the feature flag, but
+	// it is also part of the public provider contract. Never trust a caller-supplied
+	// endpoint for Cline-owned credentials or traces. If the credentials are
+	// malformed, fail closed instead of using an ambient exporter.
+	if (clineProviderRuntimeConfig !== undefined) {
+		return normalizeLangfuseTelemetryConfig({
+			...clineProviderRuntimeConfig,
+			baseUrl: DEFAULT_CLINE_PROVIDER_LANGFUSE_BASE_URL,
+		});
 	}
 
 	const clineProviderConfig = readClineProviderLangfuseEnvironmentConfig();
@@ -170,9 +174,12 @@ async function ensureLangfuseContextManager(): Promise<void> {
 
 export async function ensureLangfuseTelemetry(
 	providerId: string,
-	featureFlagConfig?: LangfuseTelemetryConfig,
+	clineProviderRuntimeConfig?: LangfuseTelemetryConfig,
 ): Promise<Telemetry | undefined> {
-	const config = resolveLangfuseTelemetryConfig(providerId, featureFlagConfig);
+	const config = resolveLangfuseTelemetryConfig(
+		providerId,
+		clineProviderRuntimeConfig,
+	);
 	if (!config) {
 		debugLangfuse(`configuration missing for provider ${providerId}`);
 		return undefined;
