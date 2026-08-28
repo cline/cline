@@ -36,7 +36,10 @@ import {
 	type ProviderAuthKind,
 } from "@/lib/provider-connection";
 import { getProviderApiKeyUrl } from "@/lib/provider-key-urls";
-import { loadProviderModels, supportsAudio } from "@/lib/provider-model-catalog";
+import {
+	loadProviderModels,
+	supportsAudio,
+} from "@/lib/provider-model-catalog";
 import type {
 	Provider,
 	ProviderConfigField,
@@ -45,6 +48,13 @@ import type {
 	ProviderSettingsUpdate,
 } from "@/lib/provider-schema";
 import { cn } from "@/lib/utils";
+
+// Inputs nested inside a composed bordered box (icon + input + buttons in
+// one rounded frame) must strip the Input component's own chrome — border,
+// dark-mode bg tint, shadow, focus ring — or the inner field reads as a
+// mismatched second box inside the frame.
+const EMBEDDED_INPUT_CLASS =
+	"h-7 flex-1 border-0 bg-transparent px-0 text-sm shadow-none outline-none placeholder:text-muted-foreground dark:bg-transparent focus-visible:ring-0";
 
 const FAVORITE_MODELS_STORAGE_KEY = "cline.favorite-provider-models.v1";
 
@@ -327,7 +337,7 @@ export function ProviderListContent({
 						<Search className="size-4 shrink-0 text-muted-foreground" />
 						<Input
 							aria-label="Search model providers"
-							className="h-7 border-0 bg-transparent px-0 text-sm"
+							className={EMBEDDED_INPUT_CLASS}
 							onChange={(event) => setProviderSearch(event.target.value)}
 							placeholder="Search providers"
 							value={providerSearch}
@@ -456,7 +466,7 @@ function ConfigFieldRow({
 						<LinkIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
 					) : null}
 					<Input
-						className="h-7 flex-1 border-0 bg-transparent px-0 text-sm text-foreground outline-none placeholder:text-muted-foreground"
+						className={EMBEDDED_INPUT_CLASS}
 						onBlur={() => onCommit(valueText)}
 						onChange={(event) => onDraftChange(event.target.value)}
 						placeholder={field.placeholder}
@@ -831,7 +841,9 @@ export function ProviderDetailContent({
 									/>
 								</Button>
 								{manualKeyExpanded ? (
-									<div className="mt-1">{renderConfigFieldRow(apiKeyField)}</div>
+									<div className="mt-1">
+										{renderConfigFieldRow(apiKeyField)}
+									</div>
 								) : null}
 							</div>
 						) : null}
@@ -877,7 +889,9 @@ export function ProviderDetailContent({
 		) : (
 			<section className={cn("mb-8", isPanel ? "max-w-none" : "max-w-344")}>
 				{configFields.length > 0 ? (
-					<div className="flex flex-col">{configFields.map(renderConfigFieldRow)}</div>
+					<div className="flex flex-col">
+						{configFields.map(renderConfigFieldRow)}
+					</div>
 				) : null}
 				<div className="mt-4 flex items-center justify-between gap-4">
 					{connected ? (
@@ -901,8 +915,8 @@ export function ProviderDetailContent({
 						<>
 							<p className="text-xs text-muted-foreground">
 								Saving an API key configures this provider automatically. Use
-								Connect if it reads credentials from your environment or a
-								local endpoint.
+								Connect if it reads credentials from your environment or a local
+								endpoint.
 							</p>
 							{onConnect ? (
 								<Button
@@ -929,22 +943,18 @@ export function ProviderDetailContent({
 					isPanel ? "px-6" : "px-18 max-[1200px]:px-8",
 				)}
 			>
-				{/* Back + title */}
+				{/* Back + title (the panel variant is always open, so no close button) */}
 				<div className="mb-8 flex items-center gap-3">
-					<Button
-						aria-label={
-							isPanel ? "Close provider details" : "Back to providers"
-						}
-						className="rounded-md p-1.5 text-muted-foreground hover:bg-surface-hover hover:text-foreground "
-						onClick={onBack}
-						variant="ghost"
-					>
-						{isPanel ? (
-							<X className="h-4 w-4" />
-						) : (
-							<ArrowLeft className="h-4 w-4" />
-						)}
-					</Button>
+					{isPanel ? null : (
+						<Button
+							aria-label="Back to providers"
+							className="rounded-md p-1.5 text-muted-foreground hover:bg-surface-hover hover:text-foreground "
+							onClick={onBack}
+							variant="ghost"
+						>
+							<ArrowLeft className="size-4" />
+						</Button>
+					)}
 					<h1
 						className={cn(
 							"min-w-0 flex-1 truncate font-semibold leading-[1.15] text-foreground",
@@ -1041,11 +1051,11 @@ export function ProviderDetailContent({
 					) : null}
 					{modelList.length > 0 ? (
 						<div className="space-y-3">
-							<div className="mx-4 mt-4 flex items-center gap-2 rounded border border-border bg-background px-3 py-2">
+							<div className="mx-4 mt-4 flex h-9 items-center gap-2 rounded border bg-background px-3">
 								<Search className="size-4 shrink-0 text-muted-foreground" />
 								<Input
 									aria-label="Search models"
-									className="h-7 flex-1 border-0 text-sm text-foreground placeholder:text-muted-foreground"
+									className={EMBEDDED_INPUT_CLASS}
 									onChange={(event) =>
 										setModelSearchState({
 											providerId: provider.id,
@@ -1058,7 +1068,7 @@ export function ProviderDetailContent({
 								/>
 							</div>
 							{filteredModelList.length > 0 ? (
-								<div className="max-h-125 overflow-y-scroll border-t">
+								<div className="border-t">
 									{filteredModelList.map((model) => (
 										<div
 											className="group flex min-h-16 items-center gap-3 border-b px-4 py-3 hover:bg-surface-hover-lighter"

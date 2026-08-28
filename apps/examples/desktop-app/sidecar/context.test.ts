@@ -210,6 +210,157 @@ describe("Code sidecar runtime capabilities", () => {
 		expect(connectMock).toHaveBeenCalledOnce();
 	});
 
+	it("returns indexed search results without listing every session", async () => {
+		const { handleCommand } = await import("./commands");
+		const { createSidecarContext } = await import("./context");
+		const ctx = createSidecarContext("/workspace/project");
+		const oversizedPrompt = `<user_input mode="act">${"generate an image ".repeat(3_000)}</user_input>`;
+		const hits = [
+			{
+				sessionId: "session-1",
+				documentId: "session-1:0",
+				ordinal: 0,
+				role: "user",
+				startedAt: "2026-08-27T12:00:00.000Z",
+				workspaceRoot: "/workspace/project",
+				title: oversizedPrompt,
+				snippet: oversizedPrompt,
+				score: -1,
+			},
+		];
+		const command = vi.fn(async () => ({ ok: true, payload: { hits } }));
+		const list = vi.fn(async () => []);
+		ctx.hubClient = { command } as never;
+		ctx.sessionManager = { list } as never;
+
+		const results = (await handleCommand(ctx, "search_sessions", {
+			query: "generate",
+		})) as Array<{ title: string; snippet: string }>;
+		expect(results).toEqual([
+			expect.objectContaining({
+				sessionId: "session-1",
+				documentId: "session-1:0",
+			}),
+		]);
+		expect(results[0]?.title.length).toBeLessThanOrEqual(240);
+		expect(results[0]?.snippet.length).toBeLessThanOrEqual(480);
+		expect(results[0]?.title).not.toContain("user_input");
+		expect(results[0]?.snippet).not.toContain("user_input");
+		expect(command).toHaveBeenCalledWith("session.search", {
+			query: "generate",
+			limit: 50,
+			workspaceRoot: undefined,
+		});
+		expect(list).not.toHaveBeenCalled();
+	});
+
+	it("falls back to session metadata while the index has no hits", async () => {
+		const { handleCommand } = await import("./commands");
+		const { createSidecarContext } = await import("./context");
+		const ctx = createSidecarContext("/workspace/project");
+		const command = vi.fn(async () => ({ ok: true, payload: { hits: [] } }));
+		const oversizedPrompt = `<user_input mode="act">${"generate an image ".repeat(3_000)}</user_input>`;
+		const list = vi.fn(async () => [
+			{
+				sessionId: "session-1",
+				startedAt: "2026-08-27T12:00:00.000Z",
+				workspaceRoot: "/workspace/project",
+				prompt: oversizedPrompt,
+				metadata: { title: oversizedPrompt },
+			},
+		]);
+		ctx.hubClient = { command } as never;
+		ctx.sessionManager = { list } as never;
+
+		const results = (await handleCommand(ctx, "search_sessions", {
+			query: "generate",
+		})) as Array<{ title: string; snippet: string }>;
+		expect(results).toEqual([
+			expect.objectContaining({
+				sessionId: "session-1",
+				documentId: "session-1:metadata",
+			}),
+		]);
+		expect(results[0]?.title.length).toBeLessThanOrEqual(240);
+		expect(results[0]?.snippet.length).toBeLessThanOrEqual(480);
+		expect(results[0]?.title).not.toContain("user_input");
+		expect(results[0]?.snippet).not.toContain("user_input");
+		expect(list).toHaveBeenCalledOnce();
+	});
+
+	it("falls back to session metadata when the hub search call rejects", async () => {
+		const { handleCommand } = await import("./commands");
+		const { createSidecarContext } = await import("./context");
+		const ctx = createSidecarContext("/workspace/project");
+		const command = vi.fn(async () => {
+			throw new Error("hub connection lost");
+		});
+		const list = vi.fn(async () => [
+			{
+				sessionId: "session-1",
+				startedAt: "2026-08-27T12:00:00.000Z",
+				workspaceRoot: "/workspace/project",
+				prompt: "generate an image of a puppy",
+				metadata: { title: "generate an image of a puppy" },
+			},
+		]);
+		ctx.hubClient = { command } as never;
+		ctx.sessionManager = { list } as never;
+
+		const results = (await handleCommand(ctx, "search_sessions", {
+			query: "generate",
+		})) as Array<{ sessionId: string; documentId: string }>;
+
+		expect(results).toEqual([
+			expect.objectContaining({
+				sessionId: "session-1",
+				documentId: "session-1:metadata",
+			}),
+		]);
+		expect(command).toHaveBeenCalledOnce();
+		expect(list).toHaveBeenCalledOnce();
+	});
+
+	it("falls back to session metadata when the hub search call exceeds the deadline", async () => {
+		vi.useFakeTimers();
+		try {
+			const { handleCommand } = await import("./commands");
+			const { createSidecarContext } = await import("./context");
+			const ctx = createSidecarContext("/workspace/project");
+			// Never resolves: exercises the withSearchDeadline race timing out
+			// rather than the hub call rejecting.
+			const command = vi.fn(() => new Promise(() => {}));
+			const list = vi.fn(async () => [
+				{
+					sessionId: "session-1",
+					startedAt: "2026-08-27T12:00:00.000Z",
+					workspaceRoot: "/workspace/project",
+					prompt: "generate an image of a puppy",
+					metadata: { title: "generate an image of a puppy" },
+				},
+			]);
+			ctx.hubClient = { command } as never;
+			ctx.sessionManager = { list } as never;
+
+			const pending = handleCommand(ctx, "search_sessions", {
+				query: "generate",
+			}) as Promise<Array<{ sessionId: string; documentId: string }>>;
+			await vi.advanceTimersByTimeAsync(750);
+			const results = await pending;
+
+			expect(results).toEqual([
+				expect.objectContaining({
+					sessionId: "session-1",
+					documentId: "session-1:metadata",
+				}),
+			]);
+			expect(command).toHaveBeenCalledOnce();
+			expect(list).toHaveBeenCalledOnce();
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	it("forwards raw hub tool updates to attached desktop sessions", async () => {
 		const { createSidecarContext, handleHubLiveEvent } = await import(
 			"./context"
@@ -929,6 +1080,7 @@ describe("Code sidecar runtime capabilities", () => {
 			schedule: { scheduleId: "schedule-1", enabled: false },
 		});
 		expect(hubCommandMock).toHaveBeenCalledWith("schedule.disable", {
+			allWorkspaces: true,
 			scheduleId: "schedule-1",
 		});
 	});

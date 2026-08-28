@@ -1,7 +1,6 @@
 "use client";
 
 import {
-	ArrowDownUp,
 	ArrowLeft,
 	ArrowRight,
 	Blocks,
@@ -9,8 +8,6 @@ import {
 	ChevronDown,
 	CircleUserRound,
 	Clock3,
-	Code,
-	FileText,
 	Filter,
 	FolderTree,
 	GitFork,
@@ -19,7 +16,6 @@ import {
 	PanelLeftOpen,
 	Pencil,
 	Pin,
-	Plug,
 	Plus,
 	Radio,
 	Search,
@@ -27,7 +23,6 @@ import {
 	SlidersHorizontal,
 	Store,
 	Trash2,
-	Wrench,
 } from "lucide-react";
 import {
 	type ReactNode,
@@ -51,13 +46,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-	CommandDialog,
-	CommandEmpty,
-	CommandInput,
-	CommandItem,
-	CommandList,
-} from "@/components/ui/command";
 import {
 	ContextMenu,
 	ContextMenuContent,
@@ -83,6 +71,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useSidebar } from "@/components/ui/sidebar";
 import { normalizeTitle } from "@/components/utils";
 import {
+	CUSTOMIZATION_SECTION_LABELS,
 	CUSTOMIZATION_SECTIONS,
 	SETTINGS_SECTIONS,
 	type SettingsSection,
@@ -152,13 +141,20 @@ const SETTINGS_SECTION_ICONS = {
 	Channels: Radio,
 	Schedules: Clock3,
 	Account: CircleUserRound,
-	Plugins: Plug,
+	Customize: Blocks,
 	Marketplace: Store,
-	Hooks: Code,
-	Rules: FileText,
-	Agents: Bot,
-	Tools: Wrench,
 } satisfies Record<SettingsSection, typeof Settings>;
+
+// The Customize section is the installed inventory, so its nav row reads
+// "Installed" (it sits under a "Customize" group header / next to the
+// Marketplace row, which supplies the context).
+function settingsSectionLabel(section: SettingsSection): string {
+	return (
+		CUSTOMIZATION_SECTION_LABELS[
+			section as keyof typeof CUSTOMIZATION_SECTION_LABELS
+		] ?? section
+	);
+}
 
 function SettingsSectionNavigation({
 	activeSection,
@@ -174,11 +170,12 @@ function SettingsSectionNavigation({
 	const hasConnectedProvider = useHasConnectedProvider();
 	const renderSectionButton = (section: SettingsSection) => {
 		const Icon = SETTINGS_SECTION_ICONS[section];
+		const label = settingsSectionLabel(section);
 		const disabled = section === "Voice" && hasConnectedProvider === false;
 		const button = (
 			<Button
 				aria-current={activeSection === section ? "page" : undefined}
-				aria-label={section}
+				aria-label={label}
 				className={cn(
 					"min-w-0 justify-start",
 					activeSection === section &&
@@ -189,12 +186,12 @@ function SettingsSectionNavigation({
 				disabled={disabled}
 				key={disabled ? undefined : section}
 				onClick={() => onSelect(section)}
-				title={section}
+				title={label}
 				type="button"
 				variant="sidebarItem"
 			>
 				<Icon className="size-4 shrink-0" />
-				{!collapsed ? <span className="truncate">{section}</span> : null}
+				{!collapsed ? <span className="truncate">{label}</span> : null}
 			</Button>
 		);
 		if (!disabled) {
@@ -226,15 +223,20 @@ function SettingsSectionNavigation({
 					Settings
 				</p>
 			) : null}
-			{SETTINGS_SECTIONS.map(renderSectionButton)}
-			{!collapsed ? (
-				<p className="px-2 pb-2 pt-4 text-sm font-medium text-muted-foreground">
-					Customizations
-				</p>
-			) : (
-				<div className="my-2 h-px w-6 shrink-0 bg-sidebar-border" />
-			)}
-			{CUSTOMIZATION_SECTIONS.map(renderSectionButton)}
+			{/* Schedules and Customize already have dedicated rows at the top of
+			    the expanded sidebar (Customize's Installed/Marketplace sub-tabs
+			    render under that row), so the section nav skips them there.
+			    The collapsed sidebar has no action rows and keeps them
+			    reachable. */}
+			{SETTINGS_SECTIONS.filter(
+				(section) => collapsed || section !== "Schedules",
+			).map(renderSectionButton)}
+			{collapsed ? (
+				<>
+					<div className="my-2 h-px w-6 shrink-0 bg-sidebar-border" />
+					{CUSTOMIZATION_SECTIONS.map(renderSectionButton)}
+				</>
+			) : null}
 		</nav>
 	);
 }
@@ -242,9 +244,11 @@ function SettingsSectionNavigation({
 export function AgentSidebar({
 	canNavigateBack = false,
 	canNavigateForward = false,
+	newTaskActive = false,
 	onHome,
 	onNavigateBack,
 	onNavigateForward,
+	onOpenSearch,
 	onSettingsSectionChange,
 	setView,
 	settingsSection,
@@ -254,9 +258,13 @@ export function AgentSidebar({
 }: {
 	canNavigateBack?: boolean;
 	canNavigateForward?: boolean;
+	/** Highlights the New row while the fresh, not-yet-started task page is showing. */
+	newTaskActive?: boolean;
 	onHome: () => void;
 	onNavigateBack?: () => void;
 	onNavigateForward?: () => void;
+	/** Opens the global session search command bar (also bound to Cmd/Ctrl+P). */
+	onOpenSearch?: () => void;
 	onSettingsSectionChange: (section: SettingsSection) => void;
 	setView: (view: AppView) => void;
 	settingsSection: SettingsSection;
@@ -279,7 +287,6 @@ export function AgentSidebar({
 		forkThread: forkHistoryThread,
 		hasLoadedHistory,
 		isLoadingMore,
-		loadAllSessions,
 		loadOlderSessions,
 		mayHaveMoreSessions,
 		openThread: openHistoryThread,
@@ -293,7 +300,6 @@ export function AgentSidebar({
 	const [filter, setFilter] = useState<FilterOption>("All");
 	const [sourceFilter, setSourceFilter] = useState(ALL_SESSION_SOURCES);
 	const [sortMode, setSortMode] = useState<SidebarSortMode>("time");
-	const [searchOpen, setSearchOpen] = useState(false);
 	const [showMoreCount, setShowMoreCount] = useState(
 		INITIAL_VISIBLE_THREAD_COUNT,
 	);
@@ -303,6 +309,14 @@ export function AgentSidebar({
 	const [collapsedSections, setCollapsedSections] = useState<
 		Set<SessionCategory>
 	>(() => new Set());
+	// Drives the gradient fade under the Sessions header once the list is
+	// scrolled, so rows fade out instead of clipping against the header.
+	const [sessionListScrolled, setSessionListScrolled] = useState(false);
+	// The session-detail hover card is controlled from up here so scrolling
+	// the list can dismiss it (Radix gets no pointer events during scroll).
+	const [hoverCardThreadId, setHoverCardThreadId] = useState<string | null>(
+		null,
+	);
 	const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
 	const [editingTitle, setEditingTitle] = useState("");
 	const [deleteConfirmThread, setDeleteConfirmThread] = useState<Thread | null>(
@@ -383,10 +397,12 @@ export function AgentSidebar({
 		setView("sessions");
 		closeMobileSidebar();
 	}, [closeMobileSidebar, setView]);
+	// The gear is a shortcut to the General settings page rather than a
+	// resume-last-section toggle.
 	const openSettings = useCallback(() => {
-		setView("settings");
+		onSettingsSectionChange("General");
 		closeMobileSidebar();
-	}, [closeMobileSidebar, setView]);
+	}, [closeMobileSidebar, onSettingsSectionChange]);
 	const openSettingsSection = useCallback(
 		(section: SettingsSection) => {
 			onSettingsSectionChange(section);
@@ -400,20 +416,6 @@ export function AgentSidebar({
 	const navigateForward = useCallback(() => {
 		onNavigateForward?.();
 	}, [onNavigateForward]);
-	const openSearch = useCallback(() => {
-		setSearchOpen(true);
-		// The sidebar only pages in recent history; pull the rest so older
-		// sessions are searchable too.
-		void loadAllSessions();
-	}, [loadAllSessions]);
-	const openSearchResult = useCallback(
-		(threadId: string) => {
-			setSearchOpen(false);
-			openThread(threadId);
-		},
-		[openThread],
-	);
-
 	const startRenameThread = useCallback((thread: Thread) => {
 		setEditingSessionId(thread.id);
 		setEditingTitle(normalizeTitle(thread.title));
@@ -516,15 +518,17 @@ export function AgentSidebar({
 		sortMode,
 		taskThreads.length,
 	]);
+	// Pinned threads lead the concatenation, and groupThreadsByProject keeps
+	// insertion order, so each project group reads pinned-by-recency first,
+	// then the rest by recency.
 	const projectGroups = useMemo(
 		() =>
 			groupThreadsByProject([
-				...pinnedThreads,
+				...filteredThreads.filter((t) => t.pinned),
 				...filteredThreads.filter((t) => !t.pinned),
 			]),
-		[filteredThreads, pinnedThreads],
+		[filteredThreads],
 	);
-
 	const toggleSection = useCallback((section: SessionCategory) => {
 		setCollapsedSections((current) => {
 			const next = new Set(current);
@@ -606,46 +610,43 @@ export function AgentSidebar({
 			</DropdownMenuContent>
 		</DropdownMenu>
 	);
-	const sortMenu = (
-		<DropdownMenu>
-			<DropdownMenuTrigger asChild>
-				<Button
-					aria-label={`Sort sessions: ${sortMode === "time" ? "Time" : "Project"}`}
-					className="m-0! inline-flex size-8 items-center justify-center rounded-md p-0! text-muted-foreground hover:bg-surface-hover hover:text-sidebar-foreground"
-					size="icon"
-					title={sortMode === "time" ? "Sort by time" : "Sort by project"}
-					variant="ghost"
-				>
-					<ArrowDownUp className="size-3.5" />
-				</Button>
-			</DropdownMenuTrigger>
-			<DropdownMenuContent align="end" className="w-44">
-				<DropdownMenuRadioGroup
-					onValueChange={(value) => {
-						if (value === "time" || value === "project") {
-							setSortMode(value);
-						}
-					}}
-					value={sortMode}
-				>
-					<DropdownMenuRadioItem value="time">
-						<Clock3 className="size-4" />
-						Sort by time
-					</DropdownMenuRadioItem>
-					<DropdownMenuRadioItem value="project">
-						<FolderTree className="size-4" />
-						Sort by project
-					</DropdownMenuRadioItem>
-				</DropdownMenuRadioGroup>
-			</DropdownMenuContent>
-		</DropdownMenu>
+	// A single click flips straight to the other mode (a dropdown here would
+	// cost an extra click for a two-option choice); the icon shows the mode
+	// that is currently active.
+	const sortToggle = (
+		<Button
+			aria-label={`Sort sessions: ${sortMode === "time" ? "Time" : "Project"}`}
+			className="m-0! inline-flex size-8 items-center justify-center rounded-md p-0! text-muted-foreground hover:bg-surface-hover hover:text-sidebar-foreground"
+			onClick={() =>
+				setSortMode((current) => (current === "time" ? "project" : "time"))
+			}
+			size="icon"
+			title={
+				sortMode === "time"
+					? "Sorted by time — click to group by project"
+					: "Grouped by project — click to sort by time"
+			}
+			variant="ghost"
+		>
+			{sortMode === "time" ? (
+				<Clock3 className="size-3.5" />
+			) : (
+				<FolderTree className="size-3.5" />
+			)}
+		</Button>
 	);
 	const threadItem = (thread: Thread) => (
 		<ThreadItem
 			editTitle={editingTitle}
 			editing={editingSessionId === thread.id}
+			hoverCardOpen={hoverCardThreadId === thread.id}
 			isActive={activeThread === thread.id}
 			key={thread.id}
+			onHoverCardOpenChange={(open) =>
+				setHoverCardThreadId((current) =>
+					open ? thread.id : current === thread.id ? null : current,
+				)
+			}
 			onCancelRename={cancelRenameThread}
 			onClick={() => openThread(thread.id)}
 			onCommitRename={() => void commitRenameThread(thread)}
@@ -661,13 +662,14 @@ export function AgentSidebar({
 			unread={unreadSessionIds.has(thread.id)}
 		/>
 	);
+	const customizeSectionOpen =
+		view === "settings" &&
+		(CUSTOMIZATION_SECTIONS as readonly SettingsSection[]).includes(
+			settingsSection,
+		);
 	const timeShowMoreButton = (
 		<Button
-			// `pl-0!`: the default button size adds
-			// `has-[>svg]:px-3`, and that modifier beats a plain
-			// `pl-0` on specificity, so the icon child was
-			// re-indenting the row.
-			className="pl-0!"
+			className="px-2!"
 			disabled={isLoadingMore}
 			onClick={() => {
 				// Raising the page size is enough: the page-fill effect fetches
@@ -685,14 +687,13 @@ export function AgentSidebar({
 					Loading...
 				</>
 			) : (
-				<div className="ml-2 flex items-center gap-1">
+				<>
 					Show more
 					<ChevronDown className="size-3" />
-				</div>
+				</>
 			)}
 		</Button>
 	);
-
 	return (
 		<>
 			<div className="flex h-full min-h-0 w-full min-w-0 shrink-0 flex-col overflow-hidden bg-sidebar text-sidebar-foreground">
@@ -766,6 +767,12 @@ export function AgentSidebar({
 							<HoverCardContent
 								align="start"
 								className="w-64 p-3"
+								// Clicking the trigger counts as a pointer-down outside the
+								// card, which dismisses it — and the button's focus event
+								// then reopens it, so the card flashes on every click.
+								// Suppress the dismissal; the card still closes on pointer
+								// leave like any hover card.
+								onPointerDownOutside={(event) => event.preventDefault()}
 								side="bottom"
 							>
 								<p className="text-sm font-medium">
@@ -813,8 +820,8 @@ export function AgentSidebar({
 							<Button
 								aria-label="Search sessions"
 								className="size-8 shrink-0 justify-center px-0"
-								onClick={openSearch}
-								title="Search sessions"
+								onClick={onOpenSearch}
+								title="Search sessions (Cmd/Ctrl+P)"
 								type="button"
 								variant="sidebarItem"
 							>
@@ -830,7 +837,11 @@ export function AgentSidebar({
 						className="mt-1 flex shrink-0 flex-col gap-0.5 px-2"
 					>
 						<Button
+							aria-current={newTaskActive ? "page" : undefined}
 							aria-label="New"
+							className={cn(
+								newTaskActive && "bg-surface-hover text-sidebar-foreground",
+							)}
 							onClick={openHome}
 							title="Start a new task"
 							type="button"
@@ -857,13 +868,10 @@ export function AgentSidebar({
 						<Button
 							aria-label="Customize"
 							className={cn(
-								view === "settings" &&
-									(
-										CUSTOMIZATION_SECTIONS as readonly SettingsSection[]
-									).includes(settingsSection) &&
-									"bg-surface-hover text-sidebar-foreground",
+								customizeSectionOpen &&
+									"bg-surface-hover-lighter text-sidebar-foreground",
 							)}
-							onClick={() => openSettingsSection("Plugins")}
+							onClick={() => openSettingsSection("Customize")}
 							title="Customize Cline with plugins, rules, and more"
 							type="button"
 							variant="sidebarItem"
@@ -871,6 +879,30 @@ export function AgentSidebar({
 							<Blocks className="size-4 shrink-0" />
 							<span className="truncate">Customize</span>
 						</Button>
+						{customizeSectionOpen
+							? CUSTOMIZATION_SECTIONS.map((section) => (
+									<Button
+										aria-current={
+											settingsSection === section ? "page" : undefined
+										}
+										aria-label={settingsSectionLabel(section)}
+										className={cn(
+											"pl-8!",
+											settingsSection === section &&
+												"bg-surface-hover text-sidebar-foreground",
+										)}
+										key={section}
+										onClick={() => openSettingsSection(section)}
+										title={settingsSectionLabel(section)}
+										type="button"
+										variant="sidebarItem"
+									>
+										<span className="truncate">
+											{settingsSectionLabel(section)}
+										</span>
+									</Button>
+								))
+							: null}
 					</nav>
 				) : null}
 
@@ -918,21 +950,37 @@ export function AgentSidebar({
 									{sortMode === "time" ? "Sessions" : "Projects"}
 								</button>
 								<div className="flex shrink-0 items-center gap-0.5">
-									{sortMenu}
+									{sortToggle}
 									{filterMenu}
 								</div>
 							</div>
 						</div>
 
-						<div className="mt-1 min-h-0 w-full flex-1">
-							<ScrollArea className="h-full min-h-0 w-full min-w-0">
+						<div className="relative mt-1 min-h-0 w-full flex-1">
+							<div
+								aria-hidden="true"
+								className={cn(
+									"pointer-events-none absolute inset-x-0 top-0 z-10 h-8 bg-gradient-to-b from-sidebar via-sidebar/70 to-transparent transition-opacity duration-200",
+									sessionListScrolled ? "opacity-100" : "opacity-0",
+								)}
+							/>
+							<ScrollArea
+								className="h-full min-h-0 w-full min-w-0"
+								onScrollCapture={(event) => {
+									const target = event.target as HTMLElement | null;
+									if (target?.dataset.slot === "scroll-area-viewport") {
+										setSessionListScrolled(target.scrollTop > 0);
+									}
+									setHoverCardThreadId(null);
+								}}
+							>
 								<div className="flex min-w-0 flex-col gap-0.5 pb-3 px-2">
 									{/* Empty-state copy is reserved for a definitive zero-
 									    session answer from the backend: before the first
 									    response (or while a failed fetch is being retried)
 									    "No sessions found" would read as lost history. */}
 									{!hasLoadedHistory && threads.length === 0 ? (
-										<div className="p-4 text-xs text-muted-foreground">
+										<div className="p-4 text-sm text-muted-foreground">
 											Loading session history...
 										</div>
 									) : (
@@ -963,7 +1011,7 @@ export function AgentSidebar({
 																{scheduledThreads.length >
 																scheduledVisibleCount ? (
 																	<Button
-																		className="pl-0!"
+																		className="px-2!"
 																		onClick={() =>
 																			setScheduledVisibleCount(
 																				(current) =>
@@ -974,10 +1022,8 @@ export function AgentSidebar({
 																		type="button"
 																		variant="sidebarText"
 																	>
-																		<div className="ml-2 flex items-center gap-1">
-																			Show more
-																			<ChevronDown className="size-3" />
-																		</div>
+																		Show more
+																		<ChevronDown className="size-3" />
 																	</Button>
 																) : null}
 															</CategorySection>
@@ -1016,12 +1062,14 @@ export function AgentSidebar({
 																.map(threadItem)}
 															{project.threads.length > visibleCount ? (
 																<Button
-																	className="pl-2!"
+																	className="max-w-full pl-2!"
 																	onClick={() => showMoreForProject(project.id)}
 																	type="button"
 																	variant="sidebarText"
 																>
-																	Show more in {project.label}
+																	<span className="min-w-0 truncate">
+																		Show more in {project.label}
+																	</span>
 																	<ChevronDown className="size-3" />
 																</Button>
 															) : null}
@@ -1033,7 +1081,7 @@ export function AgentSidebar({
 											{(sortMode === "time"
 												? filteredThreads.length === 0
 												: projectGroups.length === 0) && (
-												<div className="px-2 py-4 text-xs text-muted-foreground">
+												<div className="px-2 py-4 text-sm text-muted-foreground">
 													No sessions found in history.
 												</div>
 											)}
@@ -1047,7 +1095,7 @@ export function AgentSidebar({
 										filter === "All" &&
 										mayHaveMoreSessions && (
 											<Button
-												className="pl-0!"
+												className="px-2!"
 												disabled={isLoadingMore}
 												onClick={() => void loadOlderSessions()}
 												type="button"
@@ -1056,11 +1104,11 @@ export function AgentSidebar({
 												{isLoadingMore ? (
 													<>
 														<Loader2 className="size-3 animate-spin" />
-														Loading older projects...
+														Loading...
 													</>
 												) : (
 													<>
-														Load older projects
+														Show more
 														<ChevronDown className="size-3" />
 													</>
 												)}
@@ -1111,11 +1159,8 @@ export function AgentSidebar({
 								className={cn(
 									"size-9 shrink-0 justify-center px-0",
 									view === "settings" &&
-										(settingsSection !== "Account"
-											? "bg-surface-hover text-sidebar-foreground"
-											: // Clicking the gear is a no-op while the Account (profile)
-												// screen is open, so don't hint interactivity on hover.
-												"hover:bg-transparent hover:text-muted-foreground"),
+										settingsSection !== "Account" &&
+										"bg-surface-hover text-sidebar-foreground",
 								)}
 								onClick={openSettings}
 								title="Settings"
@@ -1145,35 +1190,6 @@ export function AgentSidebar({
 					)}
 				</div>
 			</div>
-			<CommandDialog
-				description="Search sessions by title, project, or path"
-				onOpenChange={setSearchOpen}
-				open={searchOpen}
-				title="Search sessions"
-			>
-				<CommandInput placeholder="Search sessions..." />
-				<CommandList>
-					<CommandEmpty>
-						{isLoadingMore
-							? "Searching older sessions..."
-							: "No sessions found."}
-					</CommandEmpty>
-					{threads.map((thread) => (
-						<CommandItem
-							key={thread.id}
-							onSelect={() => openSearchResult(thread.id)}
-							value={`${normalizeTitle(thread.title)} ${thread.codebase} ${thread.workspacePath} ${thread.id}`}
-						>
-							<span className="min-w-0 flex-1 truncate">
-								{normalizeTitle(thread.title)}
-							</span>
-							<span className="shrink-0 text-xs text-muted-foreground">
-								{thread.time}
-							</span>
-						</CommandItem>
-					))}
-				</CommandList>
-			</CommandDialog>
 			<AlertDialog
 				open={deleteConfirmThread !== null}
 				onOpenChange={(open) => {
@@ -1240,19 +1256,21 @@ function CategorySection({
 		<div className="mb-1 min-w-0">
 			<button
 				aria-expanded={!collapsed}
-				className="flex h-7 w-full min-w-0 items-center gap-1 rounded-md px-1 text-left text-xs font-medium text-muted-foreground hover:bg-surface-hover-lighter hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+				className="flex h-8 w-full min-w-0 items-center gap-1.5 rounded-md px-1 text-left text-sm font-medium text-sidebar-foreground hover:bg-surface-hover-lighter focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
 				onClick={onToggle}
 				title={label}
 				type="button"
 			>
 				<ChevronDown
 					className={cn(
-						"size-3 shrink-0 transition-transform",
+						"size-3.5 shrink-0 transition-transform",
 						collapsed && "-rotate-90",
 					)}
 				/>
 				<span className="block min-w-0 truncate">{label}</span>
-				<span className="ml-auto pr-1 text-[10px] tabular-nums">{count}</span>
+				<span className="ml-auto pr-1 text-xs tabular-nums text-muted-foreground">
+					{count}
+				</span>
 			</button>
 			{!collapsed ? (
 				<div className="flex min-w-0 flex-col gap-0.5">{children}</div>
@@ -1298,8 +1316,10 @@ function ThreadItem({
 	thread,
 	editTitle,
 	editing,
+	hoverCardOpen,
 	isActive,
 	onClick,
+	onHoverCardOpenChange,
 	onCancelRename,
 	onCommitRename,
 	onEditTitleChange,
@@ -1313,8 +1333,10 @@ function ThreadItem({
 	thread: Thread;
 	editTitle: string;
 	editing: boolean;
+	hoverCardOpen: boolean;
 	isActive: boolean;
 	onClick: () => void;
+	onHoverCardOpenChange: (open: boolean) => void;
 	onCancelRename: () => void;
 	onCommitRename: () => void;
 	onEditTitleChange: (title: string) => void;
@@ -1363,41 +1385,83 @@ function ThreadItem({
 
 	return (
 		<ContextMenu>
-			<HoverCard openDelay={0} closeDelay={100}>
+			<HoverCard
+				closeDelay={100}
+				onOpenChange={onHoverCardOpenChange}
+				open={hoverCardOpen}
+				openDelay={0}
+			>
 				<ContextMenuTrigger asChild>
 					<HoverCardTrigger asChild>
-						<button
-							className={cn(
-								"group grid h-8 w-full max-w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-1 overflow-hidden rounded-md px-2 text-left text-sm font-normal",
-								isActive
-									? "bg-surface-hover text-sidebar-foreground"
-									: "text-sidebar-foreground/80 hover:bg-surface-hover",
-							)}
-							disabled={pending}
-							onClick={onClick}
-							type="button"
-						>
-							<span className="block max-w-full min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-sm font-normal leading-tight">
-								{title}
-							</span>
-							<span className="flex shrink-0 items-center gap-1.5 text-[11px] text-muted-foreground">
-								{thread.pinned ? (
-									<Pin aria-label="Pinned" className="size-3 fill-current" />
-								) : statusDotClass ? (
-									<span
-										aria-hidden="true"
-										className={cn("size-1.5 rounded-full", statusDotClass)}
-									/>
-								) : null}
-								<span>{thread.time}</span>
-							</span>
-						</button>
+						{/* The delete affordance is a sibling of the row button
+						    (buttons cannot nest), overlaid where the timestamp
+						    sits; group/row hover swaps the two and keeps the
+						    row's hover background while the pointer is on the
+						    trash button. */}
+						<div className="group/row relative min-w-0">
+							<button
+								className={cn(
+									"group grid h-8 w-full max-w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-1 overflow-hidden rounded-md px-2 text-left text-sm font-normal",
+									isActive
+										? "bg-surface-hover text-sidebar-foreground"
+										: "text-sidebar-foreground/80 group-hover/row:bg-surface-hover",
+								)}
+								disabled={pending}
+								onClick={onClick}
+								type="button"
+							>
+								<span className="flex max-w-full min-w-0 items-center gap-1.5 overflow-hidden">
+									{thread.isScheduled ? (
+										<Clock3
+											aria-label="Scheduled"
+											className="size-3 shrink-0 text-muted-foreground"
+										/>
+									) : null}
+									<span className="block min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-sm font-normal leading-tight">
+										{title}
+									</span>
+								</span>
+								<span className="flex shrink-0 items-center gap-1.5 text-sm text-muted-foreground">
+									{statusDotClass ? (
+										<span
+											aria-hidden="true"
+											className={cn("size-1.5 rounded-full", statusDotClass)}
+										/>
+									) : null}
+									{thread.pinned ? (
+										<Pin aria-label="Pinned" className="size-3 fill-current" />
+									) : null}
+									<span className="group-hover/row:invisible">
+										{thread.time}
+									</span>
+								</span>
+							</button>
+							<Button
+								aria-label={`Delete ${title}`}
+								className="absolute top-1/2 right-1 size-6 -translate-y-1/2 justify-center px-0 text-muted-foreground opacity-0 group-hover/row:opacity-100 hover:text-destructive focus-visible:opacity-100"
+								disabled={pending}
+								onClick={(event) => {
+									event.stopPropagation();
+									onDelete();
+								}}
+								size="icon"
+								title="Delete session"
+								type="button"
+								variant="ghost"
+							>
+								<Trash2 className="size-3.5" />
+							</Button>
+						</div>
 					</HoverCardTrigger>
 				</ContextMenuTrigger>
 				<HoverCardContent
 					align="start"
 					avoidCollisions={false}
 					className="w-72 p-3"
+					// Same flash-on-click suppression as the logo hover card: a
+					// click on the row is a pointer-down outside the card, and the
+					// dismiss + refocus cycle makes the card blink.
+					onPointerDownOutside={(event) => event.preventDefault()}
 					side="right"
 					sideOffset={8}
 				>

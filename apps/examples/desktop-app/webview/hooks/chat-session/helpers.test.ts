@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ChatSessionConfig } from "@/lib/chat-schema";
-import { resolveCredentialError } from "./helpers";
+import { inferHydratedChatStatus, resolveCredentialError } from "./helpers";
 
 function makeConfig(overrides: Partial<ChatSessionConfig>): ChatSessionConfig {
 	return {
@@ -51,5 +51,32 @@ describe("resolveCredentialError", () => {
 		expect(
 			resolveCredentialError(makeConfig({ provider: "Cline-Pass" })),
 		).toBeNull();
+	});
+});
+
+describe("inferHydratedChatStatus", () => {
+	it("treats an assistant-answered running record as completed", () => {
+		// The stale-record heuristic: a "running" record whose transcript
+		// ends on an assistant answer is read as a session that died without
+		// a status flip. (The stale-stream poll deliberately bypasses this
+		// via mapSessionRecordStatus — see use-chat-session.)
+		expect(
+			inferHydratedChatStatus("running", [
+				{
+					id: "u",
+					sessionId: "s",
+					role: "user",
+					content: "prompt",
+					createdAt: 1,
+				},
+				{
+					id: "a",
+					sessionId: "s",
+					role: "assistant",
+					content: "answer",
+					createdAt: 2,
+				},
+			]),
+		).toBe("completed");
 	});
 });

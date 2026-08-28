@@ -3,6 +3,13 @@ import { Minus, Plus, RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogHeader,
+	DialogTitle,
+} from "@/components/ui/dialog";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { isBetaVersion, productNameForVersion } from "@/lib/app-channel";
@@ -25,7 +32,10 @@ import {
 } from "@/lib/app-icon";
 import { desktopClient } from "@/lib/desktop-client";
 import { resetOnboarding } from "@/lib/onboarding";
-import { getProviderAuthKind } from "@/lib/provider-connection";
+import {
+	getProviderAuthKind,
+	isProviderConnected,
+} from "@/lib/provider-connection";
 import {
 	fetchProviderCatalog,
 	invalidateProviderCatalogCache,
@@ -54,12 +64,8 @@ import { PageFrame, PageHeader } from "../page-layout";
 import { AccountView } from "./account-view";
 import { AddProviderContent, type AddProviderPayload } from "./add-provider";
 import { ChannelsContent } from "./channels-view";
-import {
-	CustomizationSectionView,
-	invalidateExtensionInventoryCache,
-} from "./extensions-view";
+import { CustomizeView } from "./customize-view";
 import { NotificationSettings } from "./notification-settings";
-import { PluginsHubView } from "./plugins-hub-view";
 import {
 	ProviderDetailContent,
 	ProviderListContent,
@@ -211,6 +217,31 @@ export function SettingsView({
 		return () => window.clearTimeout(timeoutId);
 	}, [activeNav, loadProviderCatalog]);
 
+	/**
+	 * Silently refreshes view state from the authoritative catalog after a
+	 * successful save, without toggling the loading screen. Optimistic
+	 * mutations can't know sidecar-computed fields (`configured`), so the
+	 * Configured badge would otherwise stay stale until a remount. Claims a
+	 * new generation like loadProviderCatalog, so overlapping resyncs, loads,
+	 * and edits always resolve to the newest snapshot: anything older still
+	 * in flight is discarded on arrival.
+	 */
+	const resyncProviderCatalog = useCallback(async () => {
+		const generation = ++catalogGenerationRef.current;
+		try {
+			const payload = await desktopClient.invoke<ProviderCatalogResponse>(
+				"list_provider_catalog",
+			);
+			if (generation !== catalogGenerationRef.current) {
+				return;
+			}
+			setProvidersWithCache(payload.providers);
+		} catch {
+			// Background refresh only; the optimistic state remains until the
+			// next full load.
+		}
+	}, [setProvidersWithCache]);
+
 	const persistProviderSettings = useCallback(
 		async (
 			id: string,
@@ -231,6 +262,10 @@ export function SettingsView({
 						? toSettingsPatch(updates.configValues)
 						: undefined,
 				});
+				// Pick up sidecar-computed readiness (`configured`) for the
+				// just-saved settings so the Configured badge and count update
+				// without a remount.
+				void resyncProviderCatalog();
 				return true;
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
@@ -255,7 +290,7 @@ export function SettingsView({
 				invalidateProviderCatalogCache();
 			}
 		},
-		[loadProviderCatalog],
+		[loadProviderCatalog, resyncProviderCatalog],
 	);
 
 	const connectProvider = useCallback(
@@ -384,8 +419,15 @@ export function SettingsView({
 		[loadProviderModels],
 	);
 
-	const selectedProvider = selectedProviderId
-		? (providers.find((p) => p.id === selectedProviderId) ?? null)
+	// The detail panel is always open: with no explicit selection, default to
+	// the first connected provider (the one in use), then the first provider.
+	const effectiveSelectedProviderId =
+		selectedProviderId ??
+		providers.find(isProviderConnected)?.id ??
+		providers[0]?.id ??
+		null;
+	const selectedProvider = effectiveSelectedProviderId
+		? (providers.find((p) => p.id === effectiveSelectedProviderId) ?? null)
 		: null;
 
 	const usesOAuth = (provider: Provider) =>
@@ -415,6 +457,11 @@ export function SettingsView({
 			// must learn about the new OAuth connection too, not just this
 			// view's local provider state.
 			invalidateProviderCatalogCache();
+			// Fetch the authoritative post-login snapshot. The resync claims a
+			// new generation, so an older load or resync still in flight can't
+			// arrive late and overwrite the just-connected state, and its own
+			// response also covers any provider saved moments earlier.
+			void resyncProviderCatalog();
 			setSelectedProviderId(id);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
@@ -430,14 +477,14 @@ export function SettingsView({
 	};
 
 	useEffect(() => {
-		if (!selectedProviderId) {
+		if (!effectiveSelectedProviderId) {
 			return;
 		}
 		const timeoutId = window.setTimeout(() => {
-			void loadProviderModels(selectedProviderId);
+			void loadProviderModels(effectiveSelectedProviderId);
 		}, 0);
 		return () => window.clearTimeout(timeoutId);
-	}, [loadProviderModels, selectedProviderId]);
+	}, [loadProviderModels, effectiveSelectedProviderId]);
 
 	const backToProviderList = () => {
 		onNavigateSection("Models");
@@ -469,17 +516,36 @@ export function SettingsView({
 
 	const openAddProvider = () => {
 		onNavigateSection("Models");
-		setSelectedProviderId(null);
 		setAddingProvider(true);
 	};
 
-	const providerContent = addingProvider ? (
-		<AddProviderContent
-			existingProviderIds={providers.map((provider) => provider.id)}
-			onBack={backToProviderList}
-			onSave={saveNewProvider}
-		/>
-	) : providersLoading ? (
+	const addProviderDialog = (
+		<Dialog
+			onOpenChange={(open) => {
+				if (!open) {
+					setAddingProvider(false);
+				}
+			}}
+			open={addingProvider}
+		>
+			<DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
+				<DialogHeader>
+					<DialogTitle>Add Provider</DialogTitle>
+					<DialogDescription>
+						Add an OpenAI-compatible provider and choose its available models.
+					</DialogDescription>
+				</DialogHeader>
+				<AddProviderContent
+					existingProviderIds={providers.map((provider) => provider.id)}
+					onBack={() => setAddingProvider(false)}
+					onSave={saveNewProvider}
+					variant="dialog"
+				/>
+			</DialogContent>
+		</Dialog>
+	);
+
+	const providerContent = providersLoading ? (
 		<div className="flex h-full items-center justify-center">
 			<p className="text-sm text-muted-foreground">Loading providers...</p>
 		</div>
@@ -491,13 +557,18 @@ export function SettingsView({
 		</div>
 	) : selectedProvider ? (
 		<div className="grid h-full grid-cols-[minmax(24rem,0.95fr)_minmax(28rem,1.05fr)] overflow-hidden max-[1100px]:grid-cols-1 max-[1100px]:grid-rows-[minmax(24rem,0.9fr)_minmax(26rem,1fr)]">
-			<ProviderListContent
-				onAddProvider={openAddProvider}
-				onConfigure={openProviderDetail}
-				providers={providers}
-				selectedProviderId={selectedProvider.id}
-				variant="panel"
-			/>
+			{/* min-h-0/min-w-0: grid items default to min-size auto, which lets
+			    the pane grow past its track and leaves the inner ScrollArea with
+			    nothing to scroll. */}
+			<div className="min-h-0 min-w-0 overflow-hidden">
+				<ProviderListContent
+					onAddProvider={openAddProvider}
+					onConfigure={openProviderDetail}
+					providers={providers}
+					selectedProviderId={selectedProvider.id}
+					variant="panel"
+				/>
+			</div>
 			<aside className="min-h-0 overflow-hidden border-l bg-background max-[1100px]:border-l-0 max-[1100px]:border-t">
 				<ProviderDetailContent
 					key={`${selectedProvider.id}:${detailResetToken}`}
@@ -532,28 +603,23 @@ export function SettingsView({
 
 	const content =
 		activeNav === "Models" ? (
-			providerContent
+			<>
+				{providerContent}
+				{addProviderDialog}
+			</>
 		) : activeNav === "Voice" ? (
 			<VoiceInputContent
 				onOpenModelProviders={() => onNavigateSection("Models")}
 			/>
-		) : activeNav === "Plugins" ? (
-			<PluginsHubView
+		) : activeNav === "Customize" ? (
+			<CustomizeView
 				onOpenMarketplace={() => onNavigateSection("Marketplace")}
 			/>
 		) : activeNav === "Marketplace" ? (
 			<MarketplaceView
-				onInstalledItemsChanged={invalidateExtensionInventoryCache}
+				onOpenInstalled={() => onNavigateSection("Customize")}
 				variant="directory"
 			/>
-		) : activeNav === "Hooks" ? (
-			<CustomizationSectionView section="Hooks" />
-		) : activeNav === "Rules" ? (
-			<CustomizationSectionView section="Rules" />
-		) : activeNav === "Agents" ? (
-			<CustomizationSectionView section="Agents" />
-		) : activeNav === "Tools" ? (
-			<CustomizationSectionView section="Tools" />
 		) : activeNav === "Channels" ? (
 			<ChannelsContent />
 		) : activeNav === "Schedules" ? (
@@ -573,9 +639,8 @@ export function SettingsView({
 		);
 
 	return (
-		<div className="grid h-full grid-rows-[3rem_minmax(0,1fr)] overflow-hidden bg-background md:block">
-			<div aria-hidden="true" className="md:hidden" />
-			<div className="min-h-0 overflow-hidden md:h-full">{content}</div>
+		<div className="h-full overflow-hidden bg-background">
+			<div className="h-full min-h-0 overflow-hidden">{content}</div>
 		</div>
 	);
 }

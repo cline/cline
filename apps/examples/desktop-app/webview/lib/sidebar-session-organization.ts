@@ -2,7 +2,10 @@ import { isChatWorkspacePath } from "@cline/shared/browser";
 import type { SessionThread } from "@/hooks/use-session-history";
 import { normalizeWorkspacePath } from "@/lib/workspace-paths";
 
-export const INITIAL_VISIBLE_THREAD_COUNT = 10;
+// One page of sidebar rows. Large enough to fill the sidebar on a tall
+// window (10 left a stub of rows over empty space); history fetches start at
+// 50, so the first page never needs an extra request.
+export const INITIAL_VISIBLE_THREAD_COUNT = 30;
 
 export type SidebarProjectGroup = {
 	id: string;
