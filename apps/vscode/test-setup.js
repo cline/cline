@@ -203,8 +203,16 @@ Module.prototype.require = function (id) {
 	}
 
 	if (id === "@cline/shared") {
+		// Mirrors USER_REJECTED_TOOL_REASON_SUFFIX / buildUserRejectedToolReason
+		// in sdk/packages/shared/src/llms/tools.ts (the ESM-only real package
+		// cannot be required from this CommonJS test host).
+		const USER_REJECTED_TOOL_REASON_SUFFIX =
+			"was rejected by the user and not performed (this was not a tool or system failure). Wait for the user to tell you how to proceed."
 		return {
 			buildClineSystemPrompt: () => "",
+			buildUserRejectedToolReason: (toolName) =>
+				`${toolName ? `The "${toolName}" tool call` : "This tool call"} ${USER_REJECTED_TOOL_REASON_SUFFIX}`,
+			USER_REJECTED_TOOL_REASON_SUFFIX,
 			createTool: (tool) => tool,
 			formatDisplayUserInput: (input) => (typeof input === "string" ? input : JSON.stringify(input)),
 		}
