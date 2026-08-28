@@ -103,6 +103,8 @@ export interface ProviderDefaults {
  */
 export interface ProviderModelCatalogOptions extends ModelCatalogConfig {
 	forceRefresh?: boolean;
+	/** Reuse the last successful live catalog without starting a request. */
+	useCachedLiveCatalog?: boolean;
 }
 
 function toRuntimeCapabilities(
@@ -135,6 +137,7 @@ const MODELS_CATALOG_IN_FLIGHT = new Map<
 	string,
 	Promise<Record<string, Record<string, ModelInfo>>>
 >();
+const MODELS_CATALOG_REQUEST_GENERATIONS = new Map<string, number>();
 const PRIVATE_MODELS_CACHE = new Map<
 	string,
 	{ expiresAt: number; data: Record<string, ModelInfo> }
@@ -823,10 +826,26 @@ async function getPrivateProviderModels(
 	return request;
 }
 
+function resolveLiveCatalogRequestKey(
+	url: string,
+	failOnModelsDevError: boolean,
+): string {
+	return `${failOnModelsDevError ? "strict" : "tolerant"}:${url}`;
+}
+
+function nextLiveCatalogRequestGeneration(url: string): number {
+	const generation = (MODELS_CATALOG_REQUEST_GENERATIONS.get(url) ?? 0) + 1;
+	MODELS_CATALOG_REQUEST_GENERATIONS.set(url, generation);
+	return generation;
+}
+
 async function fetchLiveModelsCatalog(
 	url: string,
+	failOnModelsDevError: boolean,
 ): Promise<Record<string, Record<string, ModelInfo>>> {
-	return Llms.fetchLiveProviderModels(url, globalThis.fetch);
+	return Llms.fetchLiveProviderModels(url, globalThis.fetch, {
+		failOnModelsDevError,
+	});
 }
 
 export async function getLiveModelsCatalog(
@@ -838,6 +857,8 @@ export async function getLiveModelsCatalog(
 	const url = options.url ?? DEFAULT_MODELS_CATALOG_URL;
 	const cacheTtlMs = options.cacheTtlMs ?? DEFAULT_MODELS_CATALOG_CACHE_TTL_MS;
 	const now = Date.now();
+	const failOnModelsDevError = options.forceRefresh === true;
+	const requestKey = resolveLiveCatalogRequestKey(url, failOnModelsDevError);
 
 	if (!options.forceRefresh) {
 		const cached = MODELS_CATALOG_CACHE.get(url);
@@ -846,31 +867,54 @@ export async function getLiveModelsCatalog(
 		}
 	}
 
-	const inFlight = MODELS_CATALOG_IN_FLIGHT.get(url);
+	const inFlight = MODELS_CATALOG_IN_FLIGHT.get(requestKey);
 	if (inFlight) {
 		return inFlight;
 	}
 
-	const request = fetchLiveModelsCatalog(url)
-		.then((data) => {
-			MODELS_CATALOG_CACHE.set(url, { data, expiresAt: now + cacheTtlMs });
-			return data;
-		})
-		.finally(() => {
-			MODELS_CATALOG_IN_FLIGHT.delete(url);
-		});
+	const requestGeneration = nextLiveCatalogRequestGeneration(url);
+	const request: Promise<Record<string, Record<string, ModelInfo>>> =
+		fetchLiveModelsCatalog(url, failOnModelsDevError)
+			.then((data) => {
+				if (MODELS_CATALOG_REQUEST_GENERATIONS.get(url) === requestGeneration) {
+					MODELS_CATALOG_CACHE.set(url, { data, expiresAt: now + cacheTtlMs });
+				}
+				return data;
+			})
+			.finally(() => {
+				if (MODELS_CATALOG_IN_FLIGHT.get(requestKey) === request) {
+					MODELS_CATALOG_IN_FLIGHT.delete(requestKey);
+				}
+			});
 
-	MODELS_CATALOG_IN_FLIGHT.set(url, request);
+	MODELS_CATALOG_IN_FLIGHT.set(requestKey, request);
 	return request;
+}
+
+/**
+ * Returns the last successfully fetched catalog even after its request TTL.
+ * Model pickers use this stale-while-idle view so navigation cannot replace a
+ * user-refreshed list with the older bundled snapshot. Only an explicit
+ * refresh starts a new request.
+ */
+export function peekLiveModelsCatalog(
+	url = DEFAULT_MODELS_CATALOG_URL,
+): Record<string, Record<string, ModelInfo>> | undefined {
+	return MODELS_CATALOG_CACHE.get(url)?.data;
 }
 
 export function clearLiveModelsCatalogCache(url?: string): void {
 	if (url) {
+		nextLiveCatalogRequestGeneration(url);
 		MODELS_CATALOG_CACHE.delete(url);
-		MODELS_CATALOG_IN_FLIGHT.delete(url);
+		MODELS_CATALOG_IN_FLIGHT.delete(resolveLiveCatalogRequestKey(url, false));
+		MODELS_CATALOG_IN_FLIGHT.delete(resolveLiveCatalogRequestKey(url, true));
 		return;
 	}
 
+	for (const catalogUrl of MODELS_CATALOG_REQUEST_GENERATIONS.keys()) {
+		nextLiveCatalogRequestGeneration(catalogUrl);
+	}
 	MODELS_CATALOG_CACHE.clear();
 	MODELS_CATALOG_IN_FLIGHT.clear();
 }
@@ -927,7 +971,9 @@ export async function resolveProviderConfig(
 	try {
 		const liveCatalog = modelCatalog?.loadLatestOnInit
 			? await getLiveModelsCatalog(modelCatalog)
-			: undefined;
+			: modelCatalog?.useCachedLiveCatalog
+				? peekLiveModelsCatalog(modelCatalog.url)
+				: undefined;
 		const liveModels = liveCatalog
 			? resolveCatalogModels(providerId, liveCatalog)
 			: {};
@@ -957,7 +1003,12 @@ export async function resolveProviderConfig(
 					providerId,
 					modelCatalog,
 					publicConfig,
-				).catch(() => ({}))
+				).catch((error) => {
+					if (modelCatalog?.failOnError) {
+						throw error;
+					}
+					return {};
+				})
 			: {};
 		const knownModels = await mergeKnownModels(
 			providerId,

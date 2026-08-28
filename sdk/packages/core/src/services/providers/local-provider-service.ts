@@ -22,7 +22,11 @@ import {
 	getCachedClineRecommendedModels,
 	peekClineRecommendedModels,
 } from "../../services/llms/cline-recommended-models";
-import { resolveProviderConfig } from "../../services/llms/provider-defaults";
+import {
+	isPrivateModelCatalogProvider,
+	peekLiveModelsCatalog,
+	resolveProviderConfig,
+} from "../../services/llms/provider-defaults";
 import {
 	type ModelInfo,
 	type ProviderClient,
@@ -167,12 +171,19 @@ async function resolveProviderModelMap(
 		LlmsModels.getModelsForProvider(providerId),
 		LlmsModels.getModelOverridesForProvider(providerId),
 	]);
+	const hasProviderSpecificCatalog =
+		isPrivateModelCatalogProvider(providerId) ||
+		Boolean(
+			LlmsModels.MODEL_COLLECTIONS_BY_PROVIDER_ID[providerId]?.provider
+				.modelsSourceUrl,
+		);
 	const shouldLoadLiveCatalog =
-		options.forceRefresh === true ||
 		providerId === CLINE_PROVIDER_ID ||
-		providerId === CLINE_PASS_PROVIDER_ID;
+		providerId === CLINE_PASS_PROVIDER_ID ||
+		(options.forceRefresh === true && !hasProviderSpecificCatalog);
 	const isClinePass = providerId === CLINE_PASS_PROVIDER_ID;
-	if (!config && !shouldLoadLiveCatalog) {
+	const hasCachedLiveCatalog = peekLiveModelsCatalog() !== undefined;
+	if (!config && !shouldLoadLiveCatalog && !hasCachedLiveCatalog) {
 		return registeredModels;
 	}
 
@@ -181,8 +192,9 @@ async function resolveProviderModelMap(
 		{
 			loadLatestOnInit: shouldLoadLiveCatalog,
 			loadPrivateOnAuth: true,
-			failOnError: false,
+			failOnError: options.forceRefresh === true,
 			forceRefresh: options.forceRefresh,
+			useCachedLiveCatalog: true,
 		},
 		config,
 	);

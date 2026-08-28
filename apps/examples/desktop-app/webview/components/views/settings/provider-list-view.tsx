@@ -62,6 +62,10 @@ const FAVORITE_MODELS_STORAGE_KEY = "cline.favorite-provider-models.v1";
 // applyClineFeaturedModels). Only these are worth a per-card list fetch.
 const FEATURED_PROVIDER_IDS = new Set(["cline", "cline-pass"]);
 
+export type ModelRefreshStatus =
+	| { kind: "success"; modelCount: number }
+	| { kind: "error"; message: string };
+
 /** Tier + feed tags rendered as small pills next to the model name. */
 function featuredBadges(model: ProviderModel): string[] {
 	const featured = model.featured;
@@ -520,6 +524,7 @@ export function ProviderDetailContent({
 	onUpdateModels,
 	modelsLoading = false,
 	modelsError,
+	modelsRefreshStatus,
 	onOAuthLogin,
 	oauthLoginPending = false,
 	onConnect,
@@ -533,6 +538,7 @@ export function ProviderDetailContent({
 	onUpdateModels?: (models: string[]) => void;
 	modelsLoading?: boolean;
 	modelsError?: string | null;
+	modelsRefreshStatus?: ModelRefreshStatus | null;
 	onOAuthLogin?: () => void;
 	oauthLoginPending?: boolean;
 	onConnect?: () => void;
@@ -1044,9 +1050,36 @@ export function ProviderDetailContent({
 						</div>
 					) : null}
 
-					{modelsError ? (
+					{modelsRefreshStatus ? (
+						<div
+							className={cn(
+								"border-t px-4 py-2",
+								modelsRefreshStatus.kind === "success"
+									? "border-emerald-500/30 bg-emerald-500/5"
+									: "border-destructive/30 bg-destructive/5",
+							)}
+						>
+							<p
+								className={cn(
+									"text-sm",
+									modelsRefreshStatus.kind === "success"
+										? "text-emerald-600 dark:text-emerald-400"
+										: "text-destructive",
+								)}
+								role={
+									modelsRefreshStatus.kind === "success" ? "status" : "alert"
+								}
+							>
+								{modelsRefreshStatus.kind === "success"
+									? `Refresh complete — ${modelsRefreshStatus.modelCount} ${modelsRefreshStatus.modelCount === 1 ? "model" : "models"} available.`
+									: `Refresh failed: ${modelsRefreshStatus.message}`}
+							</p>
+						</div>
+					) : modelsError ? (
 						<div className="border-t border-destructive/30 bg-destructive/5 px-4 py-2">
-							<p className="text-sm text-destructive">{modelsError}</p>
+							<p className="text-sm text-destructive" role="alert">
+								{modelsError}
+							</p>
 						</div>
 					) : null}
 					{modelList.length > 0 ? (
