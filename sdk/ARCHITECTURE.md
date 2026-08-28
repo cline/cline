@@ -568,9 +568,11 @@ and `AgendaTaskRunRecord`; orchestration and persistence remain in
 > **Status:** the agent-facing `kind: "todo"` half of the `tasks` tool and the
 > desktop Agenda UI are temporarily disabled while the Agenda UX is reworked
 > (`AGENDA_TODO_TOOL_ENABLED` in `hub-server-transport.ts` and
-> `AGENDA_UI_ENABLED` in the desktop webview). The backend described below —
-> the manager, storage, `task.*` Hub commands, and desktop plumbing — stays
-> fully wired, and the schedule kind remains active.
+> `AGENDA_UI_ENABLED` in the desktop webview). While the flag is off the Hub
+> also skips the agenda spec-file watchers — nothing consumes watcher-driven
+> task events, and `task.*` commands reconcile spec files on demand. The
+> backend described below — the manager, storage, `task.*` Hub commands, and
+> desktop plumbing — stays fully wired, and the schedule kind remains active.
 
 ### Authority and persistence
 

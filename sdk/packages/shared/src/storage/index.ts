@@ -19,6 +19,7 @@ export {
 	type ResolveTaskSpecsDirOptions,
 	RULES_CONFIG_DIRECTORY_NAME,
 	resolveAgentConfigSearchPaths,
+	resolveAgentSchedulesDir,
 	resolveAgentsConfigDirPath,
 	resolveChatWorkspacePath,
 	resolveClientSettingsPath,

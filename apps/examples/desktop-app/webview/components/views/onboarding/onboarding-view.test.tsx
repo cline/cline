@@ -458,6 +458,8 @@ describe("OnboardingView", () => {
 			if (command === "list_provider_catalog") {
 				return { providers: [makeProvider()], settingsPath: "/tmp/p.json" };
 			}
+			// get_feature_flags falls through to the empty snapshot, which is
+			// also what an unreachable sidecar resolves to: flag disabled.
 			return {};
 		});
 		await render();

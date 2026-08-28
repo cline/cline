@@ -191,6 +191,61 @@ describe("ChatMessages tool disclosures", () => {
 		);
 	});
 
+	it("auto-expands submit_and_exit and renders its summary as markdown", async () => {
+		const summary = "## Report\n\nChecked **3 feeds**, all healthy.";
+		await renderMessages([
+			{
+				id: "tool-submit",
+				sessionId: "session-1",
+				role: "tool",
+				content: JSON.stringify({
+					toolName: "submit_and_exit",
+					input: { summary, verified: true },
+					result: summary,
+				}),
+				createdAt: 1,
+			},
+		]);
+
+		// The final answer of the run is visible without a click…
+		const trigger = [...container.querySelectorAll("button")].find((element) =>
+			element.textContent?.includes("Scheduled task completed"),
+		);
+		expect(trigger?.getAttribute("aria-expanded")).toBe("true");
+		// …rendered as markdown structure, not a monospace code block.
+		const panel = document.getElementById(
+			trigger?.getAttribute("aria-controls") ?? "",
+		);
+		const markdown = panel?.querySelector(".cline-markdown");
+		expect(markdown?.querySelector("h2")?.textContent).toBe("Report");
+		expect(markdown?.textContent).toContain("3 feeds");
+		expect(markdown?.textContent).not.toContain("##");
+		expect(markdown?.textContent).not.toContain("**");
+		// The final answer renders in full foreground color, overriding the
+		// panel's muted tool-detail gray.
+		expect(markdown?.closest(".text-foreground")).not.toBeNull();
+	});
+
+	it("labels an errored submit_and_exit as failed", async () => {
+		await renderMessages([
+			{
+				id: "tool-submit-error",
+				sessionId: "session-1",
+				role: "tool",
+				content: JSON.stringify({
+					toolName: "submit_and_exit",
+					input: { summary: "Attempted report.", verified: false },
+					isError: true,
+					result: { error: "submit_and_exit timed out after 15000ms" },
+				}),
+				createdAt: 1,
+			},
+		]);
+
+		expect(container.textContent).toContain("Scheduled task failed");
+		expect(container.textContent).not.toContain("Scheduled task completed");
+	});
+
 	it("renders consecutive tool calls as individual rows", async () => {
 		const tools: ChatMessage[] = [
 			{
@@ -821,6 +876,107 @@ describe("ChatMessages tool disclosures", () => {
 
 		expect(writeText).toHaveBeenCalledOnce();
 		expect(writeText).toHaveBeenCalledWith("Original prompt");
+	});
+
+	it("hides runtime steering notes from the transcript", async () => {
+		await renderMessages([
+			{
+				id: "user-prompt",
+				sessionId: "session-1",
+				role: "user",
+				content: "tell me the current time",
+				createdAt: 1,
+			},
+			{
+				id: "steer-1",
+				sessionId: "session-1",
+				role: "user",
+				content:
+					"[SYSTEM] This run is not complete until you call one of these terminal completion tools: submit_and_exit.",
+				createdAt: 2,
+				meta: { userRunSpan: 0 },
+			},
+		]);
+
+		// Steering nudges are machinery talking to the model — not rendered
+		// at all, and never as a user bubble.
+		expect(container.textContent).toContain("tell me the current time");
+		expect(container.textContent).not.toContain("[SYSTEM]");
+		expect(container.textContent).not.toContain(
+			"This run is not complete until you call",
+		);
+	});
+
+	it("shows a genuine user prompt that happens to start with [SYSTEM]", async () => {
+		await renderMessages([
+			{
+				id: "user-prompt",
+				sessionId: "session-1",
+				role: "user",
+				content: "[SYSTEM] is a prefix I typed myself, explain it",
+				createdAt: 1,
+			},
+		]);
+
+		// Only injected reminders (userRunSpan 0) are steering; a person's
+		// own prompt stays visible.
+		expect(container.textContent).toContain(
+			"is a prefix I typed myself, explain it",
+		);
+	});
+
+	it("keeps steering notes hidden inside the expanded work block", async () => {
+		await renderMessages([
+			{
+				id: "user-prompt",
+				sessionId: "session-1",
+				role: "user",
+				content: "tell me the current time",
+				createdAt: 1,
+			},
+			{
+				id: "steer-1",
+				sessionId: "session-1",
+				role: "user",
+				content: "[SYSTEM] This run is not complete until you finish.",
+				createdAt: 2,
+				meta: { userRunSpan: 0 },
+			},
+			{
+				id: "tool-1",
+				sessionId: "session-1",
+				role: "tool",
+				content: JSON.stringify({
+					toolName: "run_commands",
+					input: {},
+					result: {},
+				}),
+				createdAt: 3,
+			},
+			{
+				id: "answer",
+				sessionId: "session-1",
+				role: "assistant",
+				content: "It is 12:28 PM PT.",
+				createdAt: 4,
+			},
+		]);
+
+		// The steering note is working-rows machinery grouped with the run,
+		// and stays hidden even when the work block is expanded.
+		expect(container.textContent).toContain("It is 12:28 PM PT.");
+		expect(container.textContent).not.toContain(
+			"This run is not complete until you finish.",
+		);
+
+		const trigger = [
+			...container.querySelectorAll<HTMLButtonElement>("button"),
+		].find((button) => button.textContent?.includes("Worked"));
+		expect(trigger).toBeDefined();
+		await act(async () => trigger?.click());
+		expect(container.textContent).not.toContain(
+			"This run is not complete until you finish.",
+		);
 	});
 
 	it("counts folded system-displayed runs before an editable user message", async () => {
@@ -1641,17 +1797,18 @@ describe("ChatMessages work collapse", () => {
 		expect(container.querySelectorAll(".cline-chat-tool")).toHaveLength(2);
 	});
 
-	it.each(["cancelled", "failed", "error"] as const)(
-		"keeps an interrupted run's rows visible even with partial trailing text (%s)",
-		async (status) => {
-			// Stop can land mid-answer, leaving partial assistant text after the
-			// tool calls; the run still must not fold into a summary.
-			await renderMessages(completedRun, { status });
+	it.each([
+		"cancelled",
+		"failed",
+		"error",
+	] as const)("keeps an interrupted run's rows visible even with partial trailing text (%s)", async (status) => {
+		// Stop can land mid-answer, leaving partial assistant text after the
+		// tool calls; the run still must not fold into a summary.
+		await renderMessages(completedRun, { status });
 
-			expect(container.querySelector(".cline-chat-work")).toBeNull();
-			expect(container.querySelectorAll(".cline-chat-tool")).toHaveLength(2);
-		},
-	);
+		expect(container.querySelector(".cline-chat-work")).toBeNull();
+		expect(container.querySelectorAll(".cline-chat-tool")).toHaveLength(2);
+	});
 });
 
 describe("ChatMessages thinking indicator", () => {
