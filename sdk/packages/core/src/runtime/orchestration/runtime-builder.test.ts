@@ -70,12 +70,7 @@ describe("DefaultRuntimeBuilder", () => {
 		setHomeDir(previousHome ?? "~");
 		process.env.CLINE_GLOBAL_SETTINGS_PATH = previousGlobalSettingsPath;
 		for (const dir of tempDirs.splice(0)) {
-			rmSync(dir, {
-				recursive: true,
-				force: true,
-				maxRetries: process.platform === "win32" ? 5 : 0,
-				retryDelay: 100,
-			});
+			rmSync(dir, { recursive: true, force: true });
 		}
 	});
 
