@@ -1138,9 +1138,15 @@ export class LocalRuntimeHost implements RuntimeHost {
 		if (session.drainingPendingPrompts) {
 			this.pendingPromptsController.discardQueue(session);
 		}
+		const teamRuntime = session.runtime.teamRuntime;
 		try {
-			session.runtime.teamRuntime?.cancelOutstandingWork(reason);
+			teamRuntime?.cancelOutstandingWork(reason);
 		} finally {
+			if (teamRuntime) {
+				session.activeTeamRunIds.clear();
+				session.pendingTeamRunUpdates.length = 0;
+				notifyTeamRunWaiters(session);
+			}
 			session.agent.abort(reason);
 		}
 	}

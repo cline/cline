@@ -321,16 +321,16 @@ describe("AgentTeamsRuntime teammate lifecycle events", () => {
 
 	it("cancels an active synchronous teammate run without shutting down the teammate", async () => {
 		const events: TeamEvent[] = [];
-		let rejectRun: ((error: Error) => void) | undefined;
+		let resolveRun: ((result: AgentResult) => void) | undefined;
 		const abort = vi.fn(() => {
-			rejectRun?.(new DOMException("This operation was aborted", "AbortError"));
+			resolveRun?.(createAbortedResult());
 		});
 		mockNextSessionRuntime({
 			abort,
 			run: vi.fn(
 				() =>
-					new Promise((_, reject) => {
-						rejectRun = reject;
+					new Promise((resolve) => {
+						resolveRun = resolve;
 					}),
 			),
 		});
@@ -344,7 +344,6 @@ describe("AgentTeamsRuntime teammate lifecycle events", () => {
 			"python-poet",
 			"write something",
 		);
-		const routeResult = routePromise.catch((error: unknown) => error);
 		await vi.waitFor(() => {
 			expect(
 				events.filter((event) => event.type === TeamMessageType.TaskStart),
@@ -353,8 +352,8 @@ describe("AgentTeamsRuntime teammate lifecycle events", () => {
 
 		runtime.cancelOutstandingWork("parent_session_abort");
 
-		expect(await routeResult).toEqual(
-			expect.objectContaining({ message: "This operation was aborted" }),
+		await expect(routePromise).resolves.toEqual(
+			expect.objectContaining({ finishReason: "aborted" }),
 		);
 		expect(abort).toHaveBeenCalledTimes(1);
 		expect(runtime.isTeammateActive("python-poet")).toBe(true);
@@ -372,6 +371,13 @@ describe("AgentTeamsRuntime teammate lifecycle events", () => {
 				status: "cancelled",
 			}),
 		]);
+		expect(
+			events.filter(
+				(event) =>
+					event.type === TeamMessageType.TeamMissionLog &&
+					event.entry.summary.includes("Completed a delegated run"),
+			),
+		).toHaveLength(0);
 	});
 
 	it("cancels running and queued async runs exactly once", async () => {

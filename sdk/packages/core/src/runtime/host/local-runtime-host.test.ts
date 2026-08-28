@@ -17,6 +17,8 @@ import {
 	type AgentRuntimeEvent,
 	type BasicLogger,
 	isChatWorkspacePath,
+	TeamMessageType,
+	type TeamRunRecord,
 } from "@cline/shared";
 import {
 	resolveChatWorkspacePath,
@@ -25,6 +27,7 @@ import {
 } from "@cline/shared/storage";
 import simpleGit from "simple-git";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { TeamEvent } from "../../extensions/tools/team";
 import { TelemetryService } from "../../services/telemetry/TelemetryService";
 import { createSessionCompactionState } from "../../session/models/session-compaction";
 import type { SessionManifest } from "../../session/models/session-manifest";
@@ -2962,25 +2965,79 @@ describe("LocalRuntimeHost", () => {
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 		};
-		const cancelOutstandingWork = vi.fn();
+		const makeTeamRun = (
+			id: string,
+			status: TeamRunRecord["status"],
+		): TeamRunRecord => ({
+			id,
+			agentId: "teammate-1",
+			status,
+			message: `${id} task`,
+			priority: 0,
+			retryCount: 0,
+			maxRetries: 0,
+			startedAt: new Date(),
+		});
+		const queuedRun = makeTeamRun("run_queued", "queued");
+		const runningRun = makeTeamRun("run_running", "running");
+		let onTeamEvent: ((event: TeamEvent) => void) | undefined;
+		const cancelOutstandingWork = vi.fn(() => {
+			onTeamEvent?.({
+				type: TeamMessageType.RunCancelled,
+				run: { ...queuedRun, status: "cancelled" },
+				reason: "user cancelled",
+			});
+			onTeamEvent?.({
+				type: TeamMessageType.RunCancelled,
+				run: { ...runningRun, status: "cancelled" },
+				reason: "user cancelled",
+			});
+		});
 		const runtimeBuilder = {
-			build: vi.fn().mockReturnValue({
-				tools: [],
-				teamRuntime: {
-					getTeamId: vi.fn().mockReturnValue("team_test-team"),
-					getTeamName: vi.fn().mockReturnValue("test-team"),
-					cancelOutstandingWork,
-				},
-				shutdown: vi.fn(),
-			}),
+			build: vi
+				.fn()
+				.mockImplementation((input: { onTeamEvent?: typeof onTeamEvent }) => {
+					onTeamEvent = input.onTeamEvent;
+					return {
+						tools: [],
+						teamRuntime: {
+							getTeamId: vi.fn().mockReturnValue("team_test-team"),
+							getTeamName: vi.fn().mockReturnValue("test-team"),
+							exportState: vi.fn().mockReturnValue({
+								teamId: "team_test-team",
+								teamName: "test-team",
+								members: [],
+								tasks: [],
+								mailbox: [],
+								missionLog: [],
+								runs: [],
+								outcomes: [],
+								outcomeFragments: [],
+							}),
+							cancelOutstandingWork,
+						},
+						shutdown: vi.fn(),
+					};
+				}),
 		};
+		let rejectRun: ((error: Error) => void) | undefined;
+		let markRunStarted: (() => void) | undefined;
+		const runStarted = new Promise<void>((resolve) => {
+			markRunStarted = resolve;
+		});
 		const agent = {
-			run: vi.fn().mockResolvedValue(createResult()),
+			run: vi.fn(
+				() =>
+					new Promise<AgentResult>((_resolve, reject) => {
+						rejectRun = reject;
+						markRunStarted?.();
+					}),
+			),
 			continue: vi.fn().mockResolvedValue(createResult()),
 			getMessages: vi.fn().mockReturnValue([]),
 			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
 			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
-			abort: vi.fn(),
+			abort: vi.fn(() => rejectRun?.(new Error("user cancelled"))),
 			subscribeEvents: vi.fn().mockReturnValue(() => {}),
 			canStartRun: vi.fn().mockReturnValue(true),
 			shutdown: vi.fn().mockResolvedValue(undefined),
@@ -2999,13 +3056,35 @@ describe("LocalRuntimeHost", () => {
 					interactive: true,
 				}),
 			);
+			onTeamEvent?.({ type: TeamMessageType.RunQueued, run: queuedRun });
+			onTeamEvent?.({ type: TeamMessageType.RunStarted, run: runningRun });
+			const rootTurn = manager.runTurn({ sessionId, prompt: "keep working" });
+			await runStarted;
 
 			const abortReason = new Error("user cancelled");
 			await manager.abort(sessionId, abortReason);
+			await expect(rootTurn).resolves.toMatchObject({
+				finishReason: "aborted",
+			});
 
 			expect(cancelOutstandingWork).toHaveBeenCalledOnce();
 			expect(cancelOutstandingWork).toHaveBeenCalledWith(abortReason);
 			expect(agent.abort).toHaveBeenCalledOnce();
+
+			const getSession = Reflect.get(
+				manager as object,
+				"getSessionOrThrow",
+			) as (sessionId: string) => {
+				aborting: boolean;
+				status: string;
+				activeTeamRunIds: Set<string>;
+				pendingTeamRunUpdates: unknown[];
+			};
+			const activeSession = Reflect.apply(getSession, manager, [sessionId]);
+			expect(activeSession.aborting).toBe(false);
+			expect(activeSession.status).toBe("idle");
+			expect(activeSession.activeTeamRunIds.size).toBe(0);
+			expect(activeSession.pendingTeamRunUpdates).toEqual([]);
 		} finally {
 			await manager.dispose();
 		}

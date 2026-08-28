@@ -1385,7 +1385,7 @@ export class AgentTeamsRuntime {
 		let firstAbortError: unknown;
 
 		for (const run of this.runs.values()) {
-			if (run.status === "queued") {
+			if (run.status === "queued" || run.status === "running") {
 				this.cancelRun(run.id, message);
 			}
 		}
@@ -1418,7 +1418,12 @@ export class AgentTeamsRuntime {
 		if (!run) {
 			throw new Error(`Run "${runId}" was not found`);
 		}
-		if (run.status === "completed" || run.status === "failed") {
+		if (
+			run.status === "completed" ||
+			run.status === "failed" ||
+			run.status === "cancelled" ||
+			run.status === "interrupted"
+		) {
 			return { ...run };
 		}
 		run.status = "cancelled";
