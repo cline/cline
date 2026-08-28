@@ -1,8 +1,8 @@
 "use client";
 
 import {
-	buildUserRejectedToolReason,
 	type GeneratedMedia,
+	USER_REJECTED_TOOL_REASON,
 } from "@cline/shared/browser";
 import { GeneratedMediaContent } from "@cline/ui";
 import {
@@ -1176,9 +1176,6 @@ export default function Chat({
 	};
 
 	const respondToApproval = (approvalId: string, approved: boolean) => {
-		const toolName = pendingApprovals.find(
-			(item) => item.approvalId === approvalId,
-		)?.toolName;
 		setPendingApprovals((current) =>
 			current.map((item) =>
 				item.approvalId === approvalId ? { ...item, responding: true } : item,
@@ -1188,9 +1185,7 @@ export default function Chat({
 			type: "approval_response",
 			approvalId,
 			approved,
-			reason: approved
-				? "Approved in Cline Hub."
-				: buildUserRejectedToolReason(toolName),
+			reason: approved ? "Approved in Cline Hub." : USER_REJECTED_TOOL_REASON,
 		});
 		setStatus(approved ? "Approval sent." : "Rejection sent.");
 	};

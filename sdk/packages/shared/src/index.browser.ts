@@ -247,9 +247,9 @@ export type {
 	ToolPolicy,
 } from "./llms/tools";
 export {
-	buildUserRejectedToolReason,
+	TOOL_REJECTION_SUFFIX,
 	ToolCallRecordSchema,
-	USER_REJECTED_TOOL_REASON_SUFFIX,
+	USER_REJECTED_TOOL_REASON,
 } from "./llms/tools";
 export {
 	type BasicLogger,

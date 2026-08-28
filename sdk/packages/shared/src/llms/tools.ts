@@ -87,18 +87,22 @@ export interface ToolApprovalResult {
 }
 
 /**
- * Shared tail of every user-rejection tool denial reason. Kept as one
- * contiguous string so hosts can detect user rejections regardless of which
- * tool name (if any) was interpolated at the front.
+ * Model-facing reason a client sends when the user rejects a tool approval.
+ * No tool name is interpolated: tool results are already paired with their
+ * tool call blocks. Hosts also match on this string to classify a tool
+ * result as a user rejection (vs. a timeout/disconnect/system rejection).
  */
-export const USER_REJECTED_TOOL_REASON_SUFFIX =
-	"was rejected by the user and not performed (this was not a tool or system failure). Wait for the user to tell you how to proceed.";
+export const USER_REJECTED_TOOL_REASON =
+	"This tool call was rejected by the user and not executed.";
 
-/** Model-facing reason for a tool call the user rejected. */
-export function buildUserRejectedToolReason(toolName?: string): string {
-	const subject = toolName ? `The "${toolName}" tool call` : "This tool call";
-	return `${subject} ${USER_REJECTED_TOOL_REASON_SUFFIX}`;
-}
+/**
+ * Guidance the agent runtime appends to every rejected tool approval reason
+ * so the model treats the rejection as deliberate instead of retrying it as
+ * a tool/system failure. Clients only supply the leading reason (who
+ * rejected and why); the runtime appends this suffix.
+ */
+export const TOOL_REJECTION_SUFFIX =
+	"NOT a tool or system failure. Clarify with user before proceeding.";
 
 export const ToolCallRecordSchema = z.object({
 	id: z.string(),
