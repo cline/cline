@@ -229,7 +229,11 @@ export class HubScheduleCommandService {
 		if (!pathWithin(workspaceRoot, cwd)) {
 			throw new Error("client cwd is outside its workspace scope");
 		}
-		return { workspaceRoot, cwd, crossWorkspace: authority.crossWorkspace === true };
+		return {
+			workspaceRoot,
+			cwd,
+			crossWorkspace: authority.crossWorkspace === true,
+		};
 	}
 
 	private requireScopedSchedule(

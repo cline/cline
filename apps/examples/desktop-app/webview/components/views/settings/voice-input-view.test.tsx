@@ -4,7 +4,10 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Provider } from "@/lib/provider-schema";
-import { defaultTranscriptionModel, VoiceInputContent } from "./voice-input-view";
+import {
+	defaultTranscriptionModel,
+	VoiceInputContent,
+} from "./voice-input-view";
 
 const { fetchProviderCatalogMock, invokeMock, notifyMock } = vi.hoisted(() => ({
 	fetchProviderCatalogMock: vi.fn(),
@@ -113,9 +116,9 @@ describe("VoiceInputContent", () => {
 		expect(container.textContent).toContain(
 			"Voice input needs a configured model provider",
 		);
-		const openProviders = Array.from(
-			container.querySelectorAll("button"),
-		).find((button) => button.textContent?.includes("Open Model Providers"));
+		const openProviders = Array.from(container.querySelectorAll("button")).find(
+			(button) => button.textContent?.includes("Open Model Providers"),
+		);
 		await act(async () => openProviders?.click());
 		expect(onOpenModelProviders).toHaveBeenCalledOnce();
 	});
@@ -165,7 +168,9 @@ describe("VoiceInputContent", () => {
 			model: "scribe_v2_realtime",
 		});
 		expect(notifyMock).toHaveBeenCalled();
-		const selected = container.querySelector('[role="radio"][aria-checked="true"]');
+		const selected = container.querySelector(
+			'[role="radio"][aria-checked="true"]',
+		);
 		expect(selected?.textContent).toContain("Scribe v2 Realtime");
 		expect(selected?.textContent).toContain("Default");
 	});
