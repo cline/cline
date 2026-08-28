@@ -750,14 +750,10 @@ export class AuthService {
 			const callbacks = createOAuthClientCallbacks({
 				onPrompt: async (prompt) => prompt.defaultValue ?? "",
 				openUrl: async (url: string) => {
-					// E2E drives the OAuth callback itself (codex-oauth.test.ts).
-					// Opening a real browser on the runner leaves an orphaned
-					// process holding the Playwright<->Electron pipes, which
-					// wedges the worker teardown until its 60s timeout fails
-					// the job.
-					if (process.env.E2E_TEST === "true") {
-						return
-					}
+					// The E2E harness sets CLINE_CAPTURE_BROWSER, so openExternal
+					// records the exact authorization URL without launching a real
+					// browser. The test uses its state parameter when replaying the
+					// provider callback.
 					await openExternal(url)
 				},
 				onOpenUrlError: ({ url, error }) => {
