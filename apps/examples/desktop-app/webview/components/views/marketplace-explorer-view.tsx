@@ -9,6 +9,7 @@ import {
 	Server,
 	Trash2,
 	User,
+	X,
 	Zap,
 } from "lucide-react";
 import { type CSSProperties, useEffect, useMemo, useState } from "react";
@@ -368,9 +369,11 @@ function MetaCell({
 function DetailPane({
 	directory,
 	entry,
+	onSelectTag,
 }: {
 	directory: MarketplaceDirectory;
 	entry: MarketplaceEntry;
+	onSelectTag: (tag: string) => void;
 }) {
 	const meta = TYPE_META[entry.type];
 	const key = entryKey(entry);
@@ -495,13 +498,19 @@ function DetailPane({
 					{entry.tags.length > 0 ? (
 						<div className="mt-1 flex flex-wrap gap-1.5">
 							{entry.tags.map((tag) => (
-								<Badge
-									className="text-muted-foreground"
+								<button
 									key={tag}
-									variant="outline"
+									onClick={() => onSelectTag(tag)}
+									title={`Filter by ${directory.tagLabels.get(tag) ?? tag}`}
+									type="button"
 								>
-									{directory.tagLabels.get(tag) ?? tag}
-								</Badge>
+									<Badge
+										className="cursor-pointer text-muted-foreground transition-colors hover:bg-surface-hover-lighter hover:text-foreground"
+										variant="outline"
+									>
+										{directory.tagLabels.get(tag) ?? tag}
+									</Badge>
+								</button>
 							))}
 						</div>
 					) : null}
@@ -575,9 +584,12 @@ export function MarketplaceExplorerView() {
 	const [typeFilter, setTypeFilter] = useState<MarketplacePrimitiveType | null>(
 		null,
 	);
+	const [selectedTag, setSelectedTag] = useState<string | null>(null);
 	const [selectedKey, setSelectedKey] = useState<string | null>(null);
 
-	const filteredEntries = useMemo(() => {
+	// Type + query filtering happens before tag filtering so the tag pill
+	// counts reflect what each tag would narrow the current list down to.
+	const typeAndQueryEntries = useMemo(() => {
 		const entries = directory.catalog?.entries ?? [];
 		const normalized = query.trim().toLowerCase();
 		return entries.filter(
@@ -587,6 +599,35 @@ export function MarketplaceExplorerView() {
 					entrySearchText(entry, directory.tagLabels).includes(normalized)),
 		);
 	}, [directory.catalog?.entries, directory.tagLabels, query, typeFilter]);
+
+	const tagCounts = useMemo(() => {
+		const counts = new Map<string, number>();
+		for (const entry of typeAndQueryEntries) {
+			for (const tag of entry.tags) {
+				counts.set(tag, (counts.get(tag) ?? 0) + 1);
+			}
+		}
+		return counts;
+	}, [typeAndQueryEntries]);
+
+	// Keep the selected tag's pill visible even when the current type/query
+	// has no matches for it, so an active filter can never silently empty the
+	// list while its pill is hidden.
+	const visibleTags = useMemo(
+		() =>
+			(directory.catalog?.tags ?? []).filter(
+				(tag) => (tagCounts.get(tag.id) ?? 0) > 0 || tag.id === selectedTag,
+			),
+		[directory.catalog?.tags, selectedTag, tagCounts],
+	);
+
+	const filteredEntries = useMemo(
+		() =>
+			typeAndQueryEntries.filter(
+				(entry) => !selectedTag || entry.tags.includes(selectedTag),
+			),
+		[typeAndQueryEntries, selectedTag],
+	);
 
 	const groups = useMemo(
 		() =>
@@ -677,6 +718,40 @@ export function MarketplaceExplorerView() {
 							</Button>
 						))}
 					</div>
+					{visibleTags.length > 0 ? (
+						<div className="flex flex-wrap gap-1">
+							{visibleTags.map((tag) => {
+								const active = selectedTag === tag.id;
+								return (
+									<button
+										aria-pressed={active}
+										className={cn(
+											"inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] transition-colors",
+											active
+												? "border-primary/50 bg-primary/10 text-primary"
+												: "border-border/70 text-muted-foreground hover:bg-surface-hover-lighter hover:text-foreground",
+										)}
+										key={tag.id}
+										onClick={() =>
+											setSelectedTag((current) =>
+												current === tag.id ? null : tag.id,
+											)
+										}
+										type="button"
+									>
+										{tag.label}
+										{active ? (
+											<X className="size-3" />
+										) : (
+											<span className="opacity-60">
+												{tagCounts.get(tag.id) ?? 0}
+											</span>
+										)}
+									</button>
+								);
+							})}
+						</div>
+					) : null}
 				</div>
 				<ScrollArea className="min-h-0 flex-1">
 					<div className="grid gap-4 p-2 pb-6">
@@ -724,7 +799,11 @@ export function MarketplaceExplorerView() {
 				</ScrollArea>
 			</aside>
 			{selectedEntry ? (
-				<DetailPane directory={directory} entry={selectedEntry} />
+				<DetailPane
+					directory={directory}
+					entry={selectedEntry}
+					onSelectTag={setSelectedTag}
+				/>
 			) : (
 				<div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
 					Select an entry to see details.
