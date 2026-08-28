@@ -557,6 +557,8 @@ export interface DefaultMcpServerClientFactoryOptions {
 	clientName?: string;
 	clientVersion?: string;
 	fetch?: FetchLike;
+	/** Keep literal configured headers on the declared MCP origin only. */
+	restrictConfiguredHeadersToOrigin?: boolean;
 }
 
 export interface ProbeMcpServerConnectionOptions
@@ -632,6 +634,8 @@ class SdkUrlMcpClient implements McpServerClient {
 				registration: this.registration,
 				oauthProvider,
 				fetch: this.options.fetch,
+				restrictConfiguredHeadersToOrigin:
+					this.options.restrictConfiguredHeadersToOrigin,
 			});
 			await client.connect(transport, {
 				timeout: this.connectAttemptTimeoutMs,

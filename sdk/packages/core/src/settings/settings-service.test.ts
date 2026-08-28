@@ -1,4 +1,11 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import {
+	mkdir,
+	mkdtemp,
+	readFile,
+	realpath,
+	rm,
+	writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setHomeDir } from "@cline/shared/storage";
@@ -172,6 +179,153 @@ Use the browser.`,
 			snapshot.plugins.find((plugin) => plugin.path === pluginPath)
 				?.contributions?.skills,
 		).toEqual(["test-plugin-skill-owner"]);
+	});
+
+	it("lists portable Agent Plugins, skills, and MCP servers from the hub-owned roots", async () => {
+		const tempRoot = await mkdtemp(
+			join(tmpdir(), "core-settings-agent-plugin-"),
+		);
+		tempRoots.push(tempRoot);
+		process.env.HOME = tempRoot;
+		setHomeDir(tempRoot);
+		process.env.CLINE_GLOBAL_SETTINGS_PATH = join(
+			tempRoot,
+			"global-settings.json",
+		);
+		const workspaceRoot = join(tempRoot, "workspace");
+		await mkdir(workspaceRoot, { recursive: true });
+		const pluginRoot = join(tempRoot, ".agents", "plugins", "portable-review");
+		const skillRoot = join(pluginRoot, "skills", "review");
+		await mkdir(skillRoot, { recursive: true });
+		await writeFile(
+			join(pluginRoot, "plugin.json"),
+			JSON.stringify({
+				$schema: "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+				name: "portable-review",
+				version: "1.2.3",
+				description: "Portable review helpers.",
+			}),
+		);
+		await writeFile(
+			join(skillRoot, "SKILL.md"),
+			`---
+name: review
+description: Review a change.
+---
+Review the change.`,
+		);
+		await writeFile(
+			join(pluginRoot, "mcp.json"),
+			JSON.stringify({
+				$schema: "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+				mcpServers: {
+					docs: {
+						type: "streamable-http",
+						url: "https://mcp.example.test/mcp",
+					},
+				},
+			}),
+		);
+		const resolvedPluginRoot = await realpath(pluginRoot);
+
+		const service = new CoreSettingsService();
+		const snapshot = await service.list({
+			cwd: workspaceRoot,
+			workspaceRoot,
+			includePluginTools: false,
+		});
+
+		expect(snapshot.plugins).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					id: "agent-plugin:portable-review",
+					name: "portable-review",
+					path: resolvedPluginRoot,
+					agentPlugin: true,
+					toggleable: true,
+					source: "global-plugin",
+					contributions: expect.objectContaining({
+						skills: ["review"],
+						mcpServers: ["portable-review.docs"],
+					}),
+				}),
+			]),
+		);
+
+		const disabled = await service.toggle({
+			type: "plugins",
+			id: "agent-plugin:portable-review",
+			enabled: false,
+			cwd: workspaceRoot,
+			workspaceRoot,
+			includePluginTools: false,
+		});
+
+		expect(disabled.changedTypes).toEqual(["plugins", "skills", "mcp"]);
+		expect(
+			disabled.snapshot.plugins.find(
+				(plugin) => plugin.id === "agent-plugin:portable-review",
+			),
+		).toMatchObject({
+			enabled: false,
+			contributions: { inspectionStatus: "disabled" },
+		});
+		expect(
+			disabled.snapshot.skills.some(
+				(skill) => skill.pluginName === "portable-review",
+			),
+		).toBe(false);
+		expect(
+			disabled.snapshot.mcp.some(
+				(server) => server.pluginName === "portable-review",
+			),
+		).toBe(false);
+		expect(
+			JSON.parse(
+				await readFile(process.env.CLINE_GLOBAL_SETTINGS_PATH, "utf8"),
+			),
+		).toMatchObject({ disabledAgentPlugins: ["portable-review"] });
+
+		const reenabled = await service.toggle({
+			type: "plugins",
+			path: resolvedPluginRoot,
+			enabled: true,
+			cwd: workspaceRoot,
+			workspaceRoot,
+			includePluginTools: false,
+		});
+		expect(
+			reenabled.snapshot.plugins.find(
+				(plugin) => plugin.id === "agent-plugin:portable-review",
+			)?.enabled,
+		).toBe(true);
+		expect(reenabled.snapshot.skills).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ id: "portable-review:review" }),
+			]),
+		);
+		expect(snapshot.skills).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					id: "portable-review:review",
+					name: "review",
+					pluginName: "portable-review",
+					agentPlugin: true,
+					toggleable: false,
+				}),
+			]),
+		);
+		expect(snapshot.mcp).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					id: "portable-review.docs",
+					name: "portable-review.docs",
+					pluginName: "portable-review",
+					agentPlugin: true,
+					toggleable: false,
+				}),
+			]),
+		);
 	});
 
 	it("does not list skills from disabled plugins", async () => {
