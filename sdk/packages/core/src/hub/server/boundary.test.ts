@@ -1,3 +1,6 @@
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { AgentToolContext, HubEventEnvelope } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -6,6 +9,7 @@ import {
 	type StartSessionResult,
 } from "../../runtime/host/runtime-host";
 import { createSessionCompactionState } from "../../session/models/session-compaction";
+import { SessionVersioningService } from "../../session/session-versioning-service";
 import { createLocalHubScheduleRuntimeHandlers } from "../daemon/runtime-handlers";
 import { HubServerTransport } from "../server";
 import {
@@ -97,6 +101,265 @@ describe("HubServerTransport boundaries", () => {
 			expect(payload.error).toContain("listener boom");
 		} finally {
 			errorSpy.mockRestore();
+		}
+	});
+
+	it("keeps the hub available when the session search index cannot initialize", async () => {
+		const dir = await mkdtemp(join(tmpdir(), "cline-hub-search-unavailable-"));
+		const dbPath = join(dir, "search.db");
+		await writeFile(dbPath, "not a sqlite database");
+		const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+		const transport = createTransport({
+			sessionSearchOptions: { dbPath },
+			taskOptions: { dbPath: ":memory:", watchFiles: false },
+		});
+
+		try {
+			expect(getContext(transport).sessionSearch.isAvailable()).toBe(false);
+			const reply = await transport.handleCommand({
+				version: "v1",
+				requestId: "search-with-unavailable-index",
+				command: "session.search",
+				payload: { query: "parser" },
+			});
+			expect(reply.ok).toBe(true);
+			expect(reply.payload?.hits).toEqual([]);
+		} finally {
+			await transport.stop();
+			errorSpy.mockRestore();
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	it("serves indexed history and evicts a deleted session immediately", async () => {
+		const session = {
+			sessionId: "searchable-session",
+			source: "core",
+			pid: 1,
+			startedAt: "2026-08-19T12:00:00.000Z",
+			endedAt: "2026-08-19T12:01:00.000Z",
+			exitCode: 0,
+			status: "completed",
+			interactive: true,
+			provider: "test",
+			model: "test-model",
+			cwd: "/tmp/project",
+			workspaceRoot: "/tmp/project",
+			enableTools: true,
+			enableSpawn: false,
+			enableTeams: false,
+			isSubagent: false,
+			prompt: "Investigate indexing",
+			metadata: { title: "Search prototype" },
+			updatedAt: "2026-08-19T12:01:00.000Z",
+		};
+		const listSessions = vi.fn().mockResolvedValue([session]);
+		const transport = createTransport({
+			sessionSearchOptions: { dbPath: ":memory:" },
+			taskOptions: { dbPath: ":memory:", watchFiles: false },
+			sessionHost: {
+				listSessions,
+				deleteSession: vi.fn().mockResolvedValue(true),
+				readSessionMessages: vi
+					.fn()
+					.mockResolvedValue([
+						{ role: "user", content: "Find the ultramarine regression" },
+					]),
+			},
+		});
+		await getContext(transport).sessionSearch.refreshNow();
+
+		const reply = await transport.handleCommand({
+			version: "v1",
+			requestId: "search-request",
+			command: "session.search",
+			payload: { query: "ultramarine" },
+		});
+
+		expect(reply.ok).toBe(true);
+		expect(reply.payload?.hits).toEqual([
+			expect.objectContaining({
+				sessionId: "searchable-session",
+				title: "Search prototype",
+				role: "user",
+			}),
+		]);
+
+		const deleteReply = await transport.handleCommand({
+			version: "v1",
+			requestId: "delete-searchable-session",
+			command: "session.delete",
+			payload: { sessionId: "searchable-session" },
+		});
+		const afterDelete = await transport.handleCommand({
+			version: "v1",
+			requestId: "search-after-delete",
+			command: "session.search",
+			payload: { query: "ultramarine" },
+		});
+
+		expect(deleteReply.payload?.deleted).toBe(true);
+		expect(afterDelete.payload?.hits).toEqual([]);
+		expect(listSessions).toHaveBeenCalledOnce();
+		await transport.stop();
+	});
+
+	it("preserves canonical deletion results when search eviction fails", async () => {
+		const deleteSession = vi.fn().mockResolvedValue(true);
+		const transport = createTransport({
+			sessionSearchOptions: { dbPath: ":memory:" },
+			taskOptions: { dbPath: ":memory:", watchFiles: false },
+			sessionHost: { deleteSession },
+		});
+		const ctx = getContext(transport);
+		ensureSessionState(ctx, "deleted-session", "client-1", "creator");
+		ensureSessionState(ctx, "restored-session", "client-1", "creator");
+		const eviction = vi
+			.spyOn(ctx.sessionSearch, "removeSession")
+			.mockImplementation(() => {
+				throw new Error("search index is unavailable");
+			});
+		const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+		const restoreCheckpoint = vi
+			.spyOn(SessionVersioningService.prototype, "restoreCheckpoint")
+			.mockImplementationOnce(async (input) => {
+				await input.cleanupStartedSession?.({
+					sessionId: "restored-session",
+				} as never);
+				throw new Error("original restoration failure");
+			});
+		try {
+			const deleteReply = await transport.handleCommand({
+				version: "v1",
+				requestId: "delete-with-failed-eviction",
+				command: "session.delete",
+				payload: { sessionId: "deleted-session" },
+			});
+
+			expect(deleteReply.ok).toBe(true);
+			expect(deleteReply.payload?.deleted).toBe(true);
+			expect(ctx.sessionState.has("deleted-session")).toBe(false);
+
+			const restoreReply = await transport.handleCommand({
+				version: "v1",
+				requestId: "restore-with-failed-eviction",
+				command: "session.restore",
+				payload: {
+					sessionId: "source-session",
+					checkpointRunCount: 1,
+					sessionConfig: {
+						providerId: "test",
+						modelId: "test-model",
+						cwd: "/tmp/project",
+						workspaceRoot: "/tmp/project",
+					},
+				},
+			});
+
+			expect(restoreReply.ok).toBe(false);
+			expect(restoreReply.error?.message).toContain(
+				"original restoration failure",
+			);
+			expect(restoreReply.error?.message).not.toContain(
+				"search index is unavailable",
+			);
+			expect(ctx.sessionState.has("restored-session")).toBe(false);
+			expect(deleteSession).toHaveBeenNthCalledWith(1, "deleted-session");
+			expect(deleteSession).toHaveBeenNthCalledWith(2, "restored-session");
+			expect(eviction).toHaveBeenCalledTimes(2);
+		} finally {
+			restoreCheckpoint.mockRestore();
+			eviction.mockRestore();
+			errorSpy.mockRestore();
+			await transport.stop();
+		}
+	});
+
+	it("evicts an indexed replacement when failed restoration cleans it up", async () => {
+		const replacement = {
+			sessionId: "restored-session",
+			source: "core",
+			pid: 1,
+			startedAt: "2026-08-19T12:00:00.000Z",
+			endedAt: "2026-08-19T12:01:00.000Z",
+			exitCode: 0,
+			status: "completed",
+			interactive: true,
+			provider: "test",
+			model: "test-model",
+			cwd: "/tmp/project",
+			workspaceRoot: "/tmp/project",
+			enableTools: true,
+			enableSpawn: false,
+			enableTeams: false,
+			isSubagent: false,
+			prompt: "Find the orphanmarker regression",
+			metadata: { title: "Orphanmarker replacement" },
+			updatedAt: "2026-08-19T12:01:00.000Z",
+		};
+		const sessions = [replacement];
+		const listSessions = vi.fn(async () => sessions);
+		const deleteSession = vi.fn(async (sessionId: string) => {
+			expect(sessionId).toBe(replacement.sessionId);
+			sessions.splice(0);
+			return true;
+		});
+		const transport = createTransport({
+			sessionSearchOptions: { dbPath: ":memory:" },
+			taskOptions: { dbPath: ":memory:", watchFiles: false },
+			sessionHost: {
+				listSessions,
+				deleteSession,
+				readSessionMessages: vi
+					.fn()
+					.mockResolvedValue([
+						{ role: "user", content: "Find the orphanmarker regression" },
+					]),
+			},
+		});
+		await getContext(transport).sessionSearch.refreshNow();
+		expect(
+			getContext(transport).sessionSearch.search({ query: "orphanmarker" }),
+		).toHaveLength(1);
+
+		const restoreCheckpoint = vi
+			.spyOn(SessionVersioningService.prototype, "restoreCheckpoint")
+			.mockImplementationOnce(async (input) => {
+				await input.cleanupStartedSession?.({
+					sessionId: replacement.sessionId,
+				} as never);
+				throw new Error("restore failed after replacement indexing");
+			});
+		try {
+			const restoreReply = await transport.handleCommand({
+				version: "v1",
+				requestId: "restore-with-indexed-replacement",
+				command: "session.restore",
+				payload: {
+					sessionId: "source-session",
+					checkpointRunCount: 1,
+					sessionConfig: {
+						providerId: "test",
+						modelId: "test-model",
+						cwd: "/tmp/project",
+						workspaceRoot: "/tmp/project",
+					},
+				},
+			});
+
+			expect(restoreReply.ok).toBe(false);
+			expect(restoreReply.error?.message).toContain(
+				"restore failed after replacement indexing",
+			);
+			expect(
+				getContext(transport).sessionSearch.search({ query: "orphanmarker" }),
+			).toEqual([]);
+			expect(deleteSession).toHaveBeenCalledOnce();
+			expect(listSessions).toHaveBeenCalledOnce();
+		} finally {
+			restoreCheckpoint.mockRestore();
+			await transport.stop();
 		}
 	});
 

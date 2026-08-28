@@ -3,6 +3,8 @@ export const FeatureFlag = {
 	CLINE_PASS: "ext-cline-pass",
 	/** Makes the Cloud sessions opt-in visible in the Cline Code desktop app. */
 	CODE_CLOUD_AGENTS: "code-cloud-agents",
+	/** Shows the GitHub integration step in the desktop app */
+	CODE_ONBOARDING_GITHUB: "code-onboarding-github",
 } as const;
 
 export type KnownFeatureFlag = (typeof FeatureFlag)[keyof typeof FeatureFlag];
@@ -37,8 +39,9 @@ type Primitive = string | number | boolean | bigint | symbol | null | undefined;
 type HasNonPrimitiveFieldNames<T> = {
 	[K in keyof T]-?: Exclude<T[K], Primitive> extends never ? never : K;
 }[keyof T];
-type HasOnlyPrimitiveFields<T> =
-	HasNonPrimitiveFieldNames<T> extends never ? true : false;
+type HasOnlyPrimitiveFields<T> = HasNonPrimitiveFieldNames<T> extends never
+	? true
+	: false;
 export type FeatureFlagsContextPrimitiveValued = AssertTrue<
 	HasOnlyPrimitiveFields<FeatureFlagsContext>
 >;
@@ -64,6 +67,8 @@ export const FeatureFlagDefaultValue: Partial<
 	Record<FeatureFlag, FeatureFlagPayload | undefined>
 > = {
 	[FeatureFlag.CLINE_PASS]: false,
+	[FeatureFlag.CODE_CLOUD_AGENTS]: false,
+	[FeatureFlag.CODE_ONBOARDING_GITHUB]: false,
 };
 
 export const FEATURE_FLAGS: readonly FeatureFlag[] = Object.values(FeatureFlag);
