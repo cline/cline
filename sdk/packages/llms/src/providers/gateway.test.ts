@@ -564,6 +564,80 @@ describe("sdk-gateway", () => {
 		);
 	});
 
+	it("passes AI SDK 7 telemetry and correlation context to streamText", async () => {
+		mockSuccessfulStream();
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "openrouter",
+					apiKey: "test-key",
+				},
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openrouter",
+				modelId: "anthropic/claude-test",
+				messages: baseMessages,
+				metadata: {
+					distinctId: "user-1",
+					sessionId: "session-1",
+					clientName: "cline-desktop",
+					clientVersion: "1.2.3",
+					clineCoreVersion: "4.5.6",
+					tags: ["nightly", "cline"],
+					conversationId: "conversation-1",
+					runId: "run-1",
+					iteration: 2,
+				},
+			}),
+		);
+
+		const call = streamTextSpy.mock.calls.at(-1)?.[0] as
+			| {
+					experimental_telemetry?: unknown;
+					telemetry?: unknown;
+					runtimeContext?: unknown;
+			  }
+			| undefined;
+		expect(call).not.toHaveProperty("experimental_telemetry");
+		expect(call?.telemetry).toEqual({
+			isEnabled: expect.any(Boolean),
+			functionId: "cline-agent-turn",
+			includeRuntimeContext: {
+				distinctId: true,
+				userId: true,
+				sessionId: true,
+				clientName: true,
+				clientVersion: true,
+				clineCoreVersion: true,
+				tags: true,
+				conversationId: true,
+				runId: true,
+				iteration: true,
+				providerId: true,
+				modelId: true,
+				resolvedModelId: true,
+			},
+		});
+		expect(call?.runtimeContext).toEqual({
+			distinctId: "user-1",
+			userId: "user-1",
+			sessionId: "session-1",
+			clientName: "cline-desktop",
+			clientVersion: "1.2.3",
+			clineCoreVersion: "4.5.6",
+			tags: ["nightly", "cline"],
+			conversationId: "conversation-1",
+			runId: "run-1",
+			iteration: 2,
+			providerId: "openrouter",
+			modelId: "anthropic/claude-test",
+			resolvedModelId: "anthropic/claude-test",
+		});
+	});
+
 	it("translates portable web_search intent into a native provider tool", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: makeStreamParts([
@@ -6001,11 +6075,8 @@ describe("sdk-gateway", () => {
 				reasoning: "medium",
 			}),
 		);
-		// The openrouter catalog advertises an explicitly empty
-		// reasoning_options list for z-ai/glm-4.7 ("no user-facing control"),
-		// so no reasoning provider options are forwarded either way.
-		for (const callIndex of [0, 1]) {
-			const call = streamTextSpy.mock.calls[callIndex]?.[0] as {
+		{
+			const call = streamTextSpy.mock.calls[0]?.[0] as {
 				providerOptions?: Record<string, Record<string, unknown> | undefined>;
 			};
 			expect(call.providerOptions?.openrouter).not.toEqual(
@@ -6015,6 +6086,22 @@ describe("sdk-gateway", () => {
 				expect.objectContaining({ reasoning: expect.anything() }),
 			);
 		}
+		// The OpenRouter catalog advertises a reasoning toggle for z-ai/glm-4.7,
+		// so explicit disablement is preserved and encoded in OpenRouter's wire
+		// shape. The compatible bucket retains the routed GLM exclusion shape.
+		expect(streamTextSpy).toHaveBeenNthCalledWith(
+			2,
+			expect.objectContaining({
+				providerOptions: expect.objectContaining({
+					openrouter: expect.objectContaining({
+						reasoning: { effort: "none" },
+					}),
+					openaiCompatible: expect.objectContaining({
+						reasoning: { exclude: true },
+					}),
+				}),
+			}),
+		);
 		expect(streamTextSpy).toHaveBeenNthCalledWith(
 			3,
 			expect.objectContaining({
