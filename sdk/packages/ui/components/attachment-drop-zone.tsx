@@ -124,7 +124,7 @@ export const AttachmentDropZone = forwardRef<
 			// biome-ignore lint/a11y/noStaticElementInteractions: The drop zone augments the consumer's accessible file picker.
 			<div
 				{...props}
-				className={clsx("cline-ui-attachment-drop-zone relative", className)}
+				className={clsx("relative", className)}
 				data-dragging-files={isDraggingFiles || undefined}
 				data-slot="attachment-drop-zone"
 				onDragEnter={handleDragEnter}
@@ -134,8 +134,8 @@ export const AttachmentDropZone = forwardRef<
 				ref={ref}
 			>
 				{isDraggingFiles ? (
-					<div className="cline-ui-attachment-drop-zone__overlay pointer-events-none absolute inset-0 z-50 flex items-center justify-center bg-cline-ui-background/80 backdrop-blur-sm">
-						<div className="cline-ui-attachment-drop-zone__panel flex flex-col items-center gap-2 rounded-cline-ui-xl border-2 border-cline-ui-primary/60 border-dashed bg-cline-ui-card px-10 py-8 shadow-lg">
+					<div className="pointer-events-none absolute inset-0 z-50 flex items-center justify-center bg-cline-ui-background/80 backdrop-blur-sm">
+						<div className="flex flex-col items-center gap-2 rounded-cline-ui-xl border-2 border-cline-ui-primary/60 border-dashed bg-cline-ui-card px-10 py-8 shadow-lg">
 							<ImagePlusIcon />
 							<p className="font-cline-ui-medium text-cline-ui-foreground text-cline-ui-sm">
 								{label}

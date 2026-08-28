@@ -27,7 +27,7 @@ Use `@cline/ui@next` only for deliberate previews. Monorepo consumers use
 
 | Import | Contents | Runtime requirement |
 | --- | --- | --- |
-| `@cline/ui` | Button, icon-button, attachment drop-zone, agent ask-question, approval-card, Aurora, hero-heading, prompt-queue, quick-action, search-combobox, and session-status React primitives | React 18.3 or 19 and Tailwind v4 |
+| `@cline/ui` | Reusable React primitives exported from [`components/index.ts`](./components/index.ts) | React 18.3 or 19 and Tailwind v4 |
 | `@cline/ui/components.css` | Styles, namespaced Tailwind mappings, and source registration for the root React primitives | Tailwind v4 and theme tokens |
 | `@cline/ui/theme/palette.css` | Cline-owned light/dark solid and alpha color scales | CSS |
 | `@cline/ui/theme/tokens.css` | Light/dark custom properties only | CSS |
@@ -45,18 +45,6 @@ for a host-specific status palette.
 
 `SearchCombobox` provides a searchable selector for repository and model lists.
 Its in-place panel requires ancestors that do not clip overflow.
-
-`AttachmentDropZone` wraps an existing attachment surface and passes dropped
-`File` objects to the host for validation and storage. It owns the shared drag
-overlay and cancels native file-drop behavior while disabled.
-
-```tsx
-import { AttachmentDropZone } from "@cline/ui";
-
-<AttachmentDropZone disabled={disabled} onAttachFiles={addFiles}>
-	<Composer />
-</AttachmentDropZone>;
-```
 
 Import `components.css` after Tailwind and either token entry point. It
 registers package-namespaced mappings and the packaged component sources so
