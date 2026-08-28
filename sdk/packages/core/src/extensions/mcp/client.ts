@@ -1,4 +1,5 @@
 import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
+import { mkdir } from "node:fs/promises";
 import { StringDecoder } from "node:string_decoder";
 import {
 	type AgentToolContext,
@@ -248,6 +249,7 @@ class StdioMcpClient implements McpServerClient {
 			capabilities: {},
 			clientInfo: { name: "@cline/core", version: "0.0.0" },
 		};
+		await this.ensureAgentPluginDataDirectory();
 		this.spawnProcess("newline");
 		try {
 			await this.request(
@@ -275,6 +277,22 @@ class StdioMcpClient implements McpServerClient {
 		}
 		this.notify("notifications/initialized");
 		this.connected = true;
+	}
+
+	/**
+	 * Agent Plugin discovery is intentionally read-only. Create the plugin's
+	 * persistent writable data directory only when its stdio server is about to
+	 * launch, as required by the Agent Plugins MCP runtime contract.
+	 */
+	private async ensureAgentPluginDataDirectory(): Promise<void> {
+		if (this.registration.metadata?.source !== "agent-plugin") {
+			return;
+		}
+		const pluginDataPath = this.registration.metadata.pluginDataPath;
+		if (typeof pluginDataPath !== "string" || pluginDataPath.length === 0) {
+			return;
+		}
+		await mkdir(pluginDataPath, { recursive: true });
 	}
 
 	async disconnect(): Promise<void> {

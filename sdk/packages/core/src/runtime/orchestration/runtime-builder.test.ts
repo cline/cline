@@ -1,4 +1,5 @@
 import {
+	existsSync,
 	mkdirSync,
 	mkdtempSync,
 	realpathSync,
@@ -645,7 +646,10 @@ process.stdin.on("data", (chunk) => {
 								args: [serverPath],
 								cwd: resolvedPluginRoot,
 							},
-							metadata: { source: "agent-plugin" },
+							metadata: {
+								source: "agent-plugin",
+								pluginDataPath: join(tempRoot, "plugin-data"),
+							},
 						},
 					},
 				],
@@ -654,6 +658,7 @@ process.stdin.on("data", (chunk) => {
 			const mcpTool = runtime.tools.find(
 				(tool) => tool.description === "Portable echo",
 			);
+			expect(existsSync(join(tempRoot, "plugin-data"))).toBe(true);
 			expect(mcpTool).toBeDefined();
 			const extensionTools = await collectExtensionTools(runtime.extensions);
 			const skillsTool = extensionTools.find((tool) => tool.name === "skills");

@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import {
 	mkdir,
 	mkdtemp,
@@ -151,6 +152,8 @@ describe("loadAgentPluginPackages", () => {
 		const local = report.mcpServers.find(
 			(server) => server.serverName === "local",
 		);
+		expect(local?.pluginDataPath).toBeDefined();
+		expect(existsSync(local?.pluginDataPath ?? "")).toBe(false);
 		expect(local?.registration.transport).toMatchObject({
 			type: "stdio",
 			command: join(pluginRoot, "bin", "server"),

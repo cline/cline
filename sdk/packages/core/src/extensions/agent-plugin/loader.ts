@@ -1,13 +1,6 @@
 import { createHash } from "node:crypto";
 import type { Dirent } from "node:fs";
-import {
-	lstat,
-	mkdir,
-	readdir,
-	readFile,
-	realpath,
-	stat,
-} from "node:fs/promises";
+import { lstat, readdir, readFile, realpath, stat } from "node:fs/promises";
 import { validateHeaderName, validateHeaderValue } from "node:http";
 import { isIP } from "node:net";
 import {
@@ -958,8 +951,9 @@ async function loadMcpServers(input: {
 			let transport: McpServerTransportConfig;
 			let dataPath: string | undefined;
 			if (rawServer.type === "stdio") {
-				await mkdir(pluginDataPath, { recursive: true });
-				dataPath = await resolveDirectory(pluginDataPath);
+				// Discovery must remain read-only. The dedicated data directory is
+				// created by the stdio client immediately before launch.
+				dataPath = pluginDataPath;
 				transport = await resolveStdioTransport({
 					server: rawServer,
 					pluginRoot: input.pluginRoot,
