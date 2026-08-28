@@ -410,8 +410,6 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 				shouldFallbackToTerminalSnapshot({
 					capturedOutput: this.fullOutput,
 					didSeeCommandExecuted,
-					executionEndObserved: eventExitCode !== undefined,
-					terminalClosed,
 				})
 			) {
 				// No output captured via shell integration, trying fallback
