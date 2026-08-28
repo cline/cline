@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import {
+	chmodSync,
 	existsSync,
 	mkdirSync,
 	readFileSync,
@@ -19,6 +20,12 @@ import {
 } from "@cline/shared";
 import { resolveMcpSettingsPath } from "@cline/shared/storage";
 import { z } from "zod";
+import {
+	areMcpOAuthScopePoliciesEqual,
+	assertMcpOAuthScopesAllowed,
+	MCP_OAUTH_SCOPE_TOKEN_PATTERN,
+	normalizeMcpOAuthAllowedScopes,
+} from "./oauth-scope-policy";
 import { resolveNativeMcpTransport } from "./remote-proxy";
 import type {
 	McpManager,
@@ -30,6 +37,25 @@ import type {
 
 const stringRecordSchema = z.record(z.string(), z.string());
 const metadataSchema = z.record(z.string(), z.unknown());
+const oauthAllowedScopesSchema = z
+	.array(
+		z
+			.string()
+			.regex(
+				MCP_OAUTH_SCOPE_TOKEN_PATTERN,
+				"OAuth scopes must be valid RFC 6749 scope tokens",
+			),
+	)
+	.min(1)
+	.superRefine((scopes, context) => {
+		if (new Set(scopes).size !== scopes.length) {
+			context.addIssue({
+				code: z.ZodIssueCode.custom,
+				message: "OAuth allowedScopes must not contain duplicates",
+			});
+		}
+	})
+	.transform((scopes) => [...scopes].sort());
 
 // Preserve omission and malformed values for the stdio initialize budget.
 // Finite numbers clamp through the shared resolver without rejecting otherwise
@@ -45,6 +71,7 @@ const oauthStateSchema = z
 	.object({
 		clientInformation: z.record(z.string(), z.unknown()).optional(),
 		tokens: z.record(z.string(), z.unknown()).optional(),
+		scopePolicy: oauthAllowedScopesSchema.optional(),
 		codeVerifier: z.string().optional(),
 		discoveryState: z.record(z.string(), z.unknown()).optional(),
 		redirectUrl: z.string().url().optional(),
@@ -57,6 +84,7 @@ const oauthClientSchema = z
 	.object({
 		clientId: z.string().min(1),
 		clientSecret: z.string().min(1).optional(),
+		allowedScopes: oauthAllowedScopesSchema.optional(),
 	})
 	.strip();
 
@@ -293,6 +321,33 @@ export function resolveDefaultMcpSettingsPath(): string {
 	return resolveMcpSettingsPath();
 }
 
+const PRIVATE_SETTINGS_FILE_MODE = 0o600;
+
+function privateSettingsFileMode(filePath: string): number {
+	try {
+		const existingMode = statSync(filePath).mode & 0o777;
+		if (process.platform === "win32") {
+			// Windows chmod only controls the coarse read-only attribute; preserve a
+			// read-only file without claiming that 0600 replaces user-profile ACLs.
+			return existingMode & 0o200 ? PRIVATE_SETTINGS_FILE_MODE : 0o400;
+		}
+		// Never carry group/other or execute permissions forward, and never add an
+		// owner permission that a deliberately stricter existing file omitted.
+		return existingMode & PRIVATE_SETTINGS_FILE_MODE;
+	} catch (error) {
+		if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+			return PRIVATE_SETTINGS_FILE_MODE;
+		}
+		throw error;
+	}
+}
+
+function applySettingsFileMode(filePath: string, mode: number): void {
+	// POSIX enforces the full mask. Windows uses this call only to preserve the
+	// read-only attribute; the enclosing user-profile ACL remains authoritative.
+	chmodSync(filePath, mode);
+}
+
 /**
  * Atomically write the MCP settings file using a temp file + rename.
  *
@@ -305,14 +360,25 @@ export function resolveDefaultMcpSettingsPath(): string {
  */
 function atomicWriteSettingsFile(filePath: string, contents: string): void {
 	mkdirSync(dirname(filePath), { recursive: true });
+	const finalMode = privateSettingsFileMode(filePath);
 	const tempPath = `${filePath}.tmp.${process.pid}.${Date.now()}.${Math.random()
 		.toString(36)
 		.slice(2)}`;
 	try {
-		writeFileSync(tempPath, contents, { encoding: "utf8", flag: "wx" });
+		writeFileSync(tempPath, contents, {
+			encoding: "utf8",
+			flag: "wx",
+			mode: PRIVATE_SETTINGS_FILE_MODE,
+		});
+		applySettingsFileMode(tempPath, finalMode);
 		renameSync(tempPath, filePath);
+		// The temp file already carried this mode. Re-apply after rename as a
+		// defensive check against platform/filesystem rename behavior.
+		applySettingsFileMode(filePath, finalMode);
 	} catch (error) {
 		try {
+			// A preserved read-only mode can otherwise block cleanup on Windows.
+			applySettingsFileMode(tempPath, PRIVATE_SETTINGS_FILE_MODE);
 			unlinkSync(tempPath);
 		} catch {
 			// Best-effort cleanup of the temp file.
@@ -708,6 +774,9 @@ export function normalizeMcpServerOAuthState(
 			? { clientInformation: value.clientInformation }
 			: {}),
 		...(value.tokens ? { tokens: value.tokens } : {}),
+		...(value.scopePolicy?.length
+			? { scopePolicy: normalizeMcpOAuthAllowedScopes(value.scopePolicy) }
+			: {}),
 		...(value.codeVerifier ? { codeVerifier: value.codeVerifier } : {}),
 		...(value.discoveryState ? { discoveryState: value.discoveryState } : {}),
 		...(value.redirectUrl ? { redirectUrl: value.redirectUrl } : {}),
@@ -871,7 +940,11 @@ function buildOAuthStateMutator(
 			const expectedClient = options.expectedOAuthClient ?? undefined;
 			if (
 				currentClient?.clientId !== expectedClient?.clientId ||
-				currentClient?.clientSecret !== expectedClient?.clientSecret
+				currentClient?.clientSecret !== expectedClient?.clientSecret ||
+				!areMcpOAuthScopePoliciesEqual(
+					currentClient?.allowedScopes,
+					expectedClient?.allowedScopes,
+				)
 			) {
 				throw new McpOAuthClientChangedError(serverName);
 			}
@@ -946,9 +1019,25 @@ export function getMcpServerOAuthStatus(
 			tokenClientInformation?.client_secret ===
 				registration.oauthClient.clientSecret
 		: true;
+	const tokensMatchScopePolicy = areMcpOAuthScopePoliciesEqual(
+		registration.oauthClient?.allowedScopes,
+		registration.oauth?.scopePolicy,
+	);
+	let tokenScopesAllowed = true;
+	try {
+		assertMcpOAuthScopesAllowed(
+			registration.oauth?.tokens?.scope,
+			registration.oauthClient?.allowedScopes,
+			"persisted token",
+		);
+	} catch {
+		tokenScopesAllowed = false;
+	}
 	const oauthConfigured =
 		oauthSupported &&
 		tokensMatchConfiguredClient &&
+		tokensMatchScopePolicy &&
+		tokenScopesAllowed &&
 		typeof accessToken === "string" &&
 		accessToken.trim().length > 0;
 	return {

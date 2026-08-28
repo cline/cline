@@ -28,6 +28,12 @@ import {
 	resolveDefaultMcpSettingsPath,
 	updateMcpServerOAuthStateAsync,
 } from "./config-loader";
+import {
+	areMcpOAuthScopePoliciesEqual,
+	assertMcpOAuthScopesAllowed,
+	createMcpOAuthScopePolicyFetch,
+	normalizeMcpOAuthAllowedScopes,
+} from "./oauth-scope-policy";
 import { augmentMcpTimeoutError, resolveMcpRequestTimeoutMs } from "./timeout";
 import type {
 	McpServerOAuthClientConfig,
@@ -49,6 +55,7 @@ export interface CreateMcpOAuthProviderContextOptions {
 	redirectUrl: string;
 	onAuthorizationUrl?: (url: string) => void | Promise<void>;
 	clientInformation?: OAuthClientInformationMixed;
+	allowedScopes?: readonly string[];
 }
 
 export interface McpOAuthProviderContext {
@@ -95,13 +102,17 @@ function toErrorMessage(error: unknown): string {
 	return String(error);
 }
 
-function createOAuthClientMetadata(redirectUrl: string): OAuthClientMetadata {
+function createOAuthClientMetadata(
+	redirectUrl: string,
+	allowedScopes: readonly string[] | undefined,
+): OAuthClientMetadata {
 	return {
 		client_name: "Cline",
 		redirect_uris: [redirectUrl],
 		grant_types: ["authorization_code", "refresh_token"],
 		response_types: ["code"],
 		token_endpoint_auth_method: "none",
+		...(allowedScopes ? { scope: allowedScopes.join(" ") } : {}),
 	};
 }
 
@@ -144,6 +155,7 @@ function assertOAuthClientUnchanged(
 export function createMcpOAuthProviderContext(
 	options: CreateMcpOAuthProviderContextOptions,
 ): McpOAuthProviderContext {
+	const allowedScopes = normalizeMcpOAuthAllowedScopes(options.allowedScopes);
 	let state: McpServerOAuthState = {};
 	try {
 		state =
@@ -164,6 +176,7 @@ export function createMcpOAuthProviderContext(
 				...(options.clientInformation.client_secret
 					? { clientSecret: options.clientInformation.client_secret }
 					: {}),
+				...(allowedScopes ? { allowedScopes } : {}),
 			}
 		: null;
 
@@ -196,6 +209,7 @@ export function createMcpOAuthProviderContext(
 		get clientMetadata() {
 			return createOAuthClientMetadata(
 				state.redirectUrl ?? options.redirectUrl,
+				allowedScopes,
 			);
 		},
 		state: () => {
@@ -221,22 +235,42 @@ export function createMcpOAuthProviderContext(
 					...current,
 					clientInformation: clientInformation as Record<string, unknown>,
 					...(clientChanged
-						? { tokens: undefined, lastAuthenticatedAt: undefined }
+						? {
+								tokens: undefined,
+								scopePolicy: undefined,
+								lastAuthenticatedAt: undefined,
+							}
 						: {}),
 					redirectUrl: options.redirectUrl,
 					lastError: undefined,
 				};
 			});
 		},
-		tokens: () =>
-			currentClientInformation()?.client_id &&
-			isSameOAuthClient(
-				state.clientInformation as OAuthClientInformationMixed | undefined,
-				currentClientInformation(),
-			)
-				? (state.tokens as OAuthTokens | undefined)
-				: undefined,
+		tokens: () => {
+			const tokens = state.tokens as OAuthTokens | undefined;
+			if (
+				!currentClientInformation()?.client_id ||
+				!isSameOAuthClient(
+					state.clientInformation as OAuthClientInformationMixed | undefined,
+					currentClientInformation(),
+				) ||
+				!areMcpOAuthScopePoliciesEqual(allowedScopes, state.scopePolicy)
+			) {
+				return undefined;
+			}
+			assertMcpOAuthScopesAllowed(
+				tokens?.scope,
+				allowedScopes,
+				"persisted token",
+			);
+			return tokens;
+		},
 		saveTokens: async (tokens) => {
+			assertMcpOAuthScopesAllowed(
+				tokens.scope,
+				allowedScopes,
+				"token response",
+			);
 			const lastAuthenticatedAt = Date.now();
 			const clientInformation = currentClientInformation();
 			if (!clientInformation?.client_id) {
@@ -256,6 +290,7 @@ export function createMcpOAuthProviderContext(
 				return {
 					...current,
 					tokens: tokens as Record<string, unknown>,
+					scopePolicy: allowedScopes ? [...allowedScopes] : undefined,
 					clientInformation: clientInformation as Record<string, unknown>,
 					redirectUrl: options.redirectUrl,
 					lastError: undefined,
@@ -312,6 +347,7 @@ export function createMcpOAuthProviderContext(
 					...(scope === "tokens"
 						? {
 								tokens: undefined,
+								scopePolicy: undefined,
 								lastAuthenticatedAt: undefined,
 							}
 						: {}),
@@ -355,6 +391,10 @@ export function createMcpOAuthProviderContext(
 							| undefined,
 						configuredClientInformation,
 					);
+				const scopePolicyChanged = !areMcpOAuthScopePoliciesEqual(
+					allowedScopes,
+					current.scopePolicy,
+				);
 				return {
 					...current,
 					...(configuredClientInformation
@@ -365,9 +405,10 @@ export function createMcpOAuthProviderContext(
 								>,
 							}
 						: {}),
-					...(configuredClientChanged
+					...(configuredClientChanged || scopePolicyChanged
 						? { tokens: undefined, lastAuthenticatedAt: undefined }
 						: {}),
+					scopePolicy: allowedScopes ? [...allowedScopes] : undefined,
 					codeVerifier: undefined,
 					discoveryState: undefined,
 					lastError: undefined,
@@ -422,14 +463,20 @@ export function createMcpSdkTransport(input: {
 				headers: transport.headers,
 			}
 		: undefined;
+	const oauthFetch = input.oauthProvider
+		? createMcpOAuthScopePolicyFetch(
+				input.fetch,
+				input.registration.oauthClient?.allowedScopes,
+			)
+		: input.fetch;
 	// The upstream transports only surface a typed UnauthorizedError for a 401
 	// when an OAuth provider is present. For passive connections without stored
 	// tokens, translate the response at the fetch boundary so callers can show
 	// an explicit sign-in action without starting discovery/registration/PKCE.
 	const transportFetch: FetchLike | undefined = input.oauthProvider
-		? input.fetch
+		? oauthFetch
 		: async (url, init) => {
-				const response = await (input.fetch ?? globalThis.fetch)(url, init);
+				const response = await (oauthFetch ?? globalThis.fetch)(url, init);
 				if (response.status === 401) {
 					await response.body?.cancel().catch(() => undefined);
 					throw new UnauthorizedError("MCP server requires authorization");
@@ -445,7 +492,7 @@ export function createMcpSdkTransport(input: {
 			// passed-through 401 fails the connection with an SseError carrying
 			// the HTTP code that isMcpUnauthorizedError recognizes.
 			eventSourceInit: {
-				fetch: (url, init) => (input.fetch ?? globalThis.fetch)(url, init),
+				fetch: (url, init) => (oauthFetch ?? globalThis.fetch)(url, init),
 			},
 			fetch: transportFetch,
 		});
@@ -548,6 +595,7 @@ export async function authorizeMcpServerOAuth(
 		clientInformation: createMcpOAuthClientInformation(
 			registration.oauthClient,
 		),
+		allowedScopes: registration.oauthClient?.allowedScopes,
 		onAuthorizationUrl: async (url) => {
 			await options.openUrl?.(url);
 		},

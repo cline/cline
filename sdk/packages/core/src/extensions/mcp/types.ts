@@ -64,6 +64,8 @@ export type McpServerTransportConfig =
 export interface McpServerOAuthState {
 	clientInformation?: Record<string, unknown>;
 	tokens?: Record<string, unknown>;
+	/** Scope policy that the persisted token set was issued under. */
+	scopePolicy?: string[];
 	codeVerifier?: string;
 	discoveryState?: Record<string, unknown>;
 	redirectUrl?: string;
@@ -75,6 +77,8 @@ export interface McpServerOAuthState {
 export interface McpServerOAuthClientConfig {
 	clientId: string;
 	clientSecret?: string;
+	/** Maximum OAuth scopes this pre-registered client may request or accept. */
+	allowedScopes?: string[];
 }
 
 export interface McpServerRegistration {

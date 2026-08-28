@@ -1,4 +1,5 @@
 import {
+	chmodSync,
 	existsSync,
 	mkdirSync,
 	readdirSync,
@@ -99,6 +100,48 @@ describe("mcp config loader", () => {
 				oauth: undefined,
 			},
 		]);
+	});
+
+	it("validates and canonicalizes pre-registered OAuth scope policies", () => {
+		const registration = parseMcpServerRegistration("slack", {
+			transport: {
+				type: "streamableHttp",
+				url: "https://mcp.slack.com/mcp",
+			},
+			oauthClient: {
+				clientId: "cline-internal-client",
+				allowedScopes: ["search:read.public", "channels:history"],
+			},
+		});
+
+		expect(registration.oauthClient?.allowedScopes).toEqual([
+			"channels:history",
+			"search:read.public",
+		]);
+		expect(() =>
+			parseMcpServerRegistration("slack", {
+				transport: {
+					type: "streamableHttp",
+					url: "https://mcp.slack.com/mcp",
+				},
+				oauthClient: {
+					clientId: "cline-internal-client",
+					allowedScopes: ["channels:history", "channels:history"],
+				},
+			}),
+		).toThrow(/Invalid MCP server/);
+		expect(() =>
+			parseMcpServerRegistration("slack", {
+				transport: {
+					type: "streamableHttp",
+					url: "https://mcp.slack.com/mcp",
+				},
+				oauthClient: {
+					clientId: "cline-internal-client",
+					allowedScopes: ["channels:history chat:write"],
+				},
+			}),
+		).toThrow(/Invalid MCP server/);
 	});
 
 	it("parses per-server timeout (seconds) in nested and legacy formats", async () => {
@@ -546,6 +589,73 @@ describe("mcp config loader", () => {
 		expect(written.mcpServers.linear.oauth?.lastAuthenticatedAt).toBe(123);
 	});
 
+	it("does not report tokens as configured outside their bound scope policy", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-"));
+		tempRoots.push(tempRoot);
+		const filePath = join(tempRoot, "cline_mcp_settings.json");
+		const server = {
+			transport: {
+				type: "streamableHttp",
+				url: "https://mcp.slack.com/mcp",
+			},
+			oauthClient: {
+				clientId: "cline-internal-client",
+				allowedScopes: ["channels:history"],
+			},
+			oauth: {
+				clientInformation: { client_id: "cline-internal-client" },
+				tokens: {
+					access_token: "stored-token",
+					token_type: "Bearer",
+					scope: "channels:history",
+				},
+			},
+		};
+		await writeFile(
+			filePath,
+			JSON.stringify({ mcpServers: { slack: server } }),
+			"utf8",
+		);
+
+		expect(listMcpServerOAuthStatuses({ filePath })[0]?.oauthConfigured).toBe(
+			false,
+		);
+		const policyBoundServer = {
+			...server,
+			oauth: {
+				...server.oauth,
+				scopePolicy: ["channels:history"],
+			},
+		};
+		await writeFile(
+			filePath,
+			JSON.stringify({ mcpServers: { slack: policyBoundServer } }),
+			"utf8",
+		);
+		expect(listMcpServerOAuthStatuses({ filePath })[0]?.oauthConfigured).toBe(
+			true,
+		);
+
+		const overScopedServer = {
+			...policyBoundServer,
+			oauth: {
+				...policyBoundServer.oauth,
+				tokens: {
+					...policyBoundServer.oauth.tokens,
+					scope: "channels:history chat:write",
+				},
+			},
+		};
+		await writeFile(
+			filePath,
+			JSON.stringify({ mcpServers: { slack: overScopedServer } }),
+			"utf8",
+		);
+		expect(listMcpServerOAuthStatuses({ filePath })[0]?.oauthConfigured).toBe(
+			false,
+		);
+	});
+
 	it("rejects inherited server names when updating oauth state", async () => {
 		const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-"));
 		tempRoots.push(tempRoot);
@@ -866,6 +976,54 @@ describe("updateMcpSettingsFile (async acquisition)", () => {
 		const written = JSON.parse(await readFile(filePath, "utf8"));
 		expect(Object.keys(written.mcpServers)).toEqual(["docs"]);
 	});
+
+	it.skipIf(process.platform === "win32")(
+		"creates settings privately even under a permissive umask",
+		async () => {
+			const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-mode-"));
+			tempRoots.push(tempRoot);
+			const filePath = join(tempRoot, "cline_mcp_settings.json");
+			const previousUmask = process.umask(0);
+			try {
+				updateMcpSettingsFileSync(filePath, (settings) => {
+					const servers = settings.mcpServers as Record<string, unknown>;
+					servers.docs = { transport: { type: "stdio", command: "node" } };
+				});
+			} finally {
+				process.umask(previousUmask);
+			}
+
+			expect(statSync(filePath).mode & 0o777).toBe(0o600);
+		},
+	);
+
+	it.skipIf(process.platform === "win32")(
+		"restricts permissive existing modes and preserves stricter owner modes",
+		async () => {
+			const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-mode-"));
+			tempRoots.push(tempRoot);
+			for (const [existingMode, expectedMode] of [
+				[0o644, 0o600],
+				[0o640, 0o600],
+				[0o600, 0o600],
+				[0o400, 0o400],
+			] as const) {
+				const filePath = join(
+					tempRoot,
+					`cline_mcp_settings_${existingMode.toString(8)}.json`,
+				);
+				await writeFile(filePath, JSON.stringify({ mcpServers: {} }), "utf8");
+				chmodSync(filePath, existingMode);
+
+				updateMcpSettingsFileSync(filePath, (settings) => {
+					const servers = settings.mcpServers as Record<string, unknown>;
+					servers.docs = { transport: { type: "stdio", command: "node" } };
+				});
+
+				expect(statSync(filePath).mode & 0o777).toBe(expectedMode);
+			}
+		},
+	);
 
 	it("reclaims a stale lock directory on the async path", async () => {
 		const filePath = await makeSettingsFile();
