@@ -11,6 +11,7 @@ import {
 	extractAssistantTurnDataFromRpcMessages,
 	inferHydratedChatStatus,
 	makeId,
+	mapSessionRecordStatus,
 	normalizeRuntimeConfig,
 	resolveCredentialError,
 } from "@/hooks/chat-session/helpers";
@@ -90,6 +91,12 @@ const BUSY_STATUSES = new Set<ChatSessionStatus>([
 	"running",
 	"stopping",
 ]);
+
+// Stale-stream fallback cadence for attached sessions (see the polling
+// effect below): only poll after the live stream has been quiet this long,
+// and re-check at this interval while it stays quiet.
+const STALE_STREAM_QUIET_MS = 5_000;
+const STALE_STREAM_POLL_INTERVAL_MS = 3_000;
 
 type PendingToolOutput = {
 	text: string;
@@ -382,6 +389,9 @@ export function useChatSession() {
 	>([]);
 	const [promptsInQueue, setPromptsInQueue] = useState<PromptInQueue[]>([]);
 	const messagesRef = useRef<ChatMessage[]>([]);
+	// When the last chat_event chunk for the active session arrived. The
+	// stale-stream fallback below only polls while this stays quiet.
+	const lastLiveChunkAtRef = useRef(0);
 	const promptsInQueueRef = useRef<PromptInQueue[]>([]);
 	const liveToolMessageIdsRef = useRef<Record<string, string>>({});
 	const pendingToolOutputRef = useRef(new Map<string, PendingToolOutput>());
@@ -1224,6 +1234,7 @@ export function useChatSession() {
 			if (!listeningSessionId || payload.sessionId !== listeningSessionId) {
 				return;
 			}
+			lastLiveChunkAtRef.current = Date.now();
 			if (abortedRef.current) {
 				return;
 			}
@@ -1799,6 +1810,119 @@ export function useChatSession() {
 			unsubscribeEnded();
 		};
 	}, [clearLiveToolRefs, finalizeSettledTurn]);
+
+	// ---- Stale-stream fallback for attached sessions ----
+	// Scheduled/automation runs execute on a session host whose events are
+	// not projected through the hub's live pipeline (and with several hub
+	// daemons sharing cron.db, a different daemon can claim the run
+	// entirely), so an attached session can sit at "running" with a dead
+	// event stream — stuck on the thinking shimmer until a remount re-reads
+	// history. While an attached session is busy and the stream is quiet,
+	// poll canonical history and the session record so the transcript and
+	// status heal in place. A locally driven turn keeps chunks flowing, so
+	// the quiet-window guard keeps this fallback out of the way there.
+	useEffect(() => {
+		if (!sessionId || hydratedHistorySessionId !== sessionId) {
+			return;
+		}
+		if (!BUSY_STATUSES.has(status)) {
+			return;
+		}
+		let cancelled = false;
+		let polling = false;
+		const poll = async () => {
+			if (cancelled || polling) {
+				return;
+			}
+			if (Date.now() - lastLiveChunkAtRef.current < STALE_STREAM_QUIET_MS) {
+				return;
+			}
+			// An assistant bubble mid-stream means the live pipeline works;
+			// canonical history could lag behind it.
+			if (activeAssistantMessageIdRef.current) {
+				return;
+			}
+			// A locally driven turn is in flight (submit/queue bumps the epoch;
+			// settling closes it). Its optimistic user bubble carries the raw
+			// prompt while canonical history stores it wrapped in a
+			// user_input envelope, so replacing state mid-turn desyncs the
+			// rekey bookkeeping and the stream then appends a duplicate
+			// bubble. The fallback exists for externally driven runs
+			// (schedules, other clients) — stay inert until the local turn
+			// settles.
+			if (
+				turnEpochRef.current !== turnSettledEpochRef.current ||
+				outstandingOptimisticUserIdsRef.current.size > 0
+			) {
+				return;
+			}
+			polling = true;
+			try {
+				const pollStartedAt = Date.now();
+				const [historyMessages, record] = await Promise.all([
+					desktopClient
+						.invoke<ChatMessage[]>("read_session_messages", {
+							sessionId,
+							maxMessages: MAX_MESSAGES,
+						})
+						.catch(() => null),
+					desktopClient
+						.invoke<{ status?: string } | null>("get_discovered_session", {
+							sessionId,
+						})
+						.catch(() => null),
+				]);
+				if (
+					cancelled ||
+					activeSessionIdRef.current !== sessionId ||
+					// The live stream resumed (or a local turn started) while
+					// the poll was in flight; live state is fresher than the
+					// snapshot we just read.
+					Date.now() - lastLiveChunkAtRef.current < STALE_STREAM_QUIET_MS ||
+					activeAssistantMessageIdRef.current ||
+					turnEpochRef.current !== turnSettledEpochRef.current ||
+					outstandingOptimisticUserIdsRef.current.size > 0
+				) {
+					return;
+				}
+				if (Array.isArray(historyMessages) && historyMessages.length > 0) {
+					const mergedMessages = mergeHydratedMessagesWithLive({
+						hydrated: historyMessages,
+						current: messagesRef.current,
+						sessionId,
+						hydrationStartedAt: pollStartedAt,
+					});
+					// Same as hydration: canonical rows may have replaced live
+					// tool rows, so rebuild the tool routing keys or later
+					// tool events would append instead of updating in place.
+					const liveToolState = deriveLiveToolState(mergedMessages);
+					liveToolMessageIdsRef.current = liveToolState.messageIds;
+					liveToolInputsRef.current = liveToolState.inputs;
+					setMessages(mergedMessages);
+				}
+				// The record is the authority here: the sessions this poll
+				// serves have a live host maintaining their record, and it
+				// flips to a terminal status when the run ends. Transcript
+				// inference (inferHydratedChatStatus) would misread a mid-run
+				// snapshot ending on assistant narration as finished, hiding
+				// the working indicator and disarming this poll.
+				const nextStatus = record?.status?.trim();
+				if (nextStatus) {
+					setStatus(mapSessionRecordStatus(nextStatus as SessionHistoryStatus));
+				}
+			} finally {
+				polling = false;
+			}
+		};
+		const interval = window.setInterval(
+			() => void poll(),
+			STALE_STREAM_POLL_INTERVAL_MS,
+		);
+		return () => {
+			cancelled = true;
+			window.clearInterval(interval);
+		};
+	}, [hydratedHistorySessionId, sessionId, status]);
 
 	// ---- Shared: start a new session via RPC ----
 
@@ -2742,6 +2866,10 @@ export function useChatSession() {
 			activeSessionIdRef.current = session.sessionId;
 			activeAssistantMessageIdRef.current = null;
 			setActiveAssistantMessageId(null);
+			// A freshly hydrated session has no local turn in flight; without
+			// this the mount defaults (epoch 0, settled -1) read as an open
+			// turn and keep the stale-stream fallback inert forever.
+			turnSettledEpochRef.current = turnEpochRef.current;
 			setHydratedHistorySessionId(session.sessionId);
 			setPendingToolApprovals([]);
 			setPendingAskQuestions([]);

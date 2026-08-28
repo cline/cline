@@ -1160,6 +1160,12 @@ const BUILTIN_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		modelsFactory: buildClaudeCodeModels,
 		defaults: { baseUrl: "" },
 		configFields: [],
+		// Claude Code is typically authenticated with a Pro/Max subscription,
+		// where any dollar figure would be an API-rate estimate rather than a
+		// real charge. The CLI does report a cost when it runs on API-key
+		// billing, but the provider cannot tell the two apart from here, so
+		// prefer not showing a number over showing a misleading one.
+		metadata: { usageCostDisplay: "subscription" },
 	},
 	{
 		id: "gemini",

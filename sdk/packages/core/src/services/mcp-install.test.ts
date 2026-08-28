@@ -127,6 +127,25 @@ describe("MCP install service", () => {
 		);
 	});
 
+	it("treats -- in marketplace args as the end of option parsing", () => {
+		// Marketplace catalog entries mark the start of the stdio command with
+		// "--" (matching the CLI form `cline mcp install name -- npx ...`).
+		// The separator must not become the command itself.
+		const parsed = parseMcpInstallArgs([
+			"aikido",
+			"--",
+			"npx",
+			"-y",
+			"@aikidosec/mcp@1.0.9",
+		]);
+		expect(parsed.targetArgs).toEqual(["npx", "-y", "@aikidosec/mcp@1.0.9"]);
+		expect(buildMcpInstallTransport(parsed).transport).toEqual({
+			type: "stdio",
+			command: "npx",
+			args: ["-y", "@aikidosec/mcp@1.0.9"],
+		});
+	});
+
 	it("keeps transport-like values as stdio command args for direct builder input", () => {
 		expect(
 			buildMcpInstallTransport({
