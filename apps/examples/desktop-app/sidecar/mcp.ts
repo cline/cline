@@ -7,16 +7,282 @@ import {
 import { resolveMcpSettingsPath } from "@cline/shared/storage";
 import type { JsonRecord } from "./types";
 
+interface StoredMcpOAuthClient {
+	clientId: string;
+	clientSecret?: string;
+	allowedScopes?: string[];
+}
+
+// RFC 6749 section 3.3 scope-token: printable ASCII excluding DQUOTE and "\\".
+const MCP_OAUTH_SCOPE_TOKEN_PATTERN = /^[\x21\x23-\x5B\x5D-\x7E]+$/;
+
+export interface McpOAuthClientUpdate {
+	oauthClient: unknown;
+	oauthClientUnchanged: boolean;
+}
+
+function parseMcpOAuthAllowedScopes(
+	value: unknown,
+	canonicalize: boolean,
+): string[] | undefined {
+	if (value === undefined) {
+		return undefined;
+	}
+	if (!Array.isArray(value)) {
+		throw new Error("OAuth allowedScopes must be an array");
+	}
+	if (value.length === 0) {
+		throw new Error("OAuth allowedScopes must contain at least one scope");
+	}
+	const scopes: string[] = [];
+	const seen = new Set<string>();
+	for (const scope of value) {
+		if (
+			typeof scope !== "string" ||
+			!MCP_OAUTH_SCOPE_TOKEN_PATTERN.test(scope)
+		) {
+			throw new Error(
+				"OAuth allowedScopes entries must be valid RFC 6749 scope tokens without whitespace",
+			);
+		}
+		if (seen.has(scope)) {
+			throw new Error(`Duplicate OAuth scope: ${scope}`);
+		}
+		seen.add(scope);
+		scopes.push(scope);
+	}
+	return canonicalize ? scopes.sort() : scopes;
+}
+
+function readStoredMcpOAuthClient(value: unknown): StoredMcpOAuthClient | null {
+	if (!value || typeof value !== "object" || Array.isArray(value)) {
+		return null;
+	}
+	const record = value as JsonRecord;
+	if (typeof record.clientId !== "string" || record.clientId.length === 0) {
+		return null;
+	}
+	if (
+		record.clientSecret !== undefined &&
+		(typeof record.clientSecret !== "string" ||
+			record.clientSecret.length === 0)
+	) {
+		return null;
+	}
+	let allowedScopes: string[] | undefined;
+	try {
+		allowedScopes = parseMcpOAuthAllowedScopes(record.allowedScopes, false);
+	} catch {
+		return null;
+	}
+	return {
+		clientId: record.clientId,
+		...(typeof record.clientSecret === "string"
+			? { clientSecret: record.clientSecret }
+			: {}),
+		...(allowedScopes ? { allowedScopes } : {}),
+	};
+}
+
+function mcpOAuthScopePoliciesEqual(
+	left: readonly string[] | undefined,
+	right: readonly string[] | undefined,
+): boolean {
+	if (left === undefined || right === undefined) {
+		return left === right;
+	}
+	if (left.length !== right.length) {
+		return false;
+	}
+	const leftSorted = [...left].sort();
+	const rightSorted = [...right].sort();
+	return leftSorted.every((scope, index) => scope === rightSorted[index]);
+}
+
+function mcpOAuthClientsEqual(left: unknown, right: unknown): boolean {
+	if (left === undefined || right === undefined) {
+		return left === right;
+	}
+	const leftClient = readStoredMcpOAuthClient(left);
+	const rightClient = readStoredMcpOAuthClient(right);
+	return Boolean(
+		leftClient &&
+			rightClient &&
+			leftClient.clientId === rightClient.clientId &&
+			leftClient.clientSecret === rightClient.clientSecret &&
+			mcpOAuthScopePoliciesEqual(
+				leftClient.allowedScopes,
+				rightClient.allowedScopes,
+			),
+	);
+}
+
+/**
+ * Resolve the editor's redacted OAuth-client update into the persisted shape.
+ * An omitted update preserves compatible existing settings for older callers;
+ * null clears them; and preserveClientSecret keeps a secret that was never sent
+ * to the webview.
+ */
+export function resolveMcpOAuthClientUpdate(options: {
+	requestedOAuthClient: unknown;
+	existingOAuthClient: unknown;
+	transportIdentityUnchanged: boolean;
+}): McpOAuthClientUpdate {
+	const {
+		requestedOAuthClient,
+		existingOAuthClient,
+		transportIdentityUnchanged,
+	} = options;
+	if (requestedOAuthClient === undefined) {
+		const oauthClient = transportIdentityUnchanged
+			? existingOAuthClient
+			: undefined;
+		return {
+			oauthClient,
+			oauthClientUnchanged: transportIdentityUnchanged
+				? true
+				: existingOAuthClient === undefined,
+		};
+	}
+	if (requestedOAuthClient === null) {
+		return {
+			oauthClient: undefined,
+			oauthClientUnchanged: existingOAuthClient === undefined,
+		};
+	}
+	if (
+		typeof requestedOAuthClient !== "object" ||
+		Array.isArray(requestedOAuthClient)
+	) {
+		throw new Error("oauthClient must be an object or null");
+	}
+
+	const requested = requestedOAuthClient as JsonRecord;
+	const allowedKeys = new Set([
+		"clientId",
+		"clientSecret",
+		"preserveClientSecret",
+		"allowedScopes",
+	]);
+	const unknownKey = Object.keys(requested).find(
+		(key) => !allowedKeys.has(key),
+	);
+	if (unknownKey) {
+		throw new Error(`unknown oauthClient field: ${unknownKey}`);
+	}
+	if (typeof requested.clientId !== "string" || !requested.clientId.trim()) {
+		throw new Error("OAuth client ID is required");
+	}
+	if (
+		requested.clientSecret !== undefined &&
+		(typeof requested.clientSecret !== "string" ||
+			requested.clientSecret.length === 0)
+	) {
+		throw new Error("OAuth client secret must be a non-empty string");
+	}
+	if (
+		requested.preserveClientSecret !== undefined &&
+		typeof requested.preserveClientSecret !== "boolean"
+	) {
+		throw new Error("preserveClientSecret must be a boolean");
+	}
+	if (
+		requested.preserveClientSecret === true &&
+		requested.clientSecret !== undefined
+	) {
+		throw new Error(
+			"OAuth client secret cannot be replaced and preserved at the same time",
+		);
+	}
+
+	const clientId = requested.clientId.trim();
+	const existing = readStoredMcpOAuthClient(existingOAuthClient);
+	const existingRecord =
+		existingOAuthClient &&
+		typeof existingOAuthClient === "object" &&
+		!Array.isArray(existingOAuthClient)
+			? (existingOAuthClient as JsonRecord)
+			: undefined;
+	const existingHasAllowedScopes =
+		existingRecord !== undefined &&
+		Object.hasOwn(existingRecord, "allowedScopes") &&
+		existingRecord.allowedScopes !== undefined;
+	let existingAllowedScopes: string[] | undefined;
+	if (existingHasAllowedScopes) {
+		try {
+			existingAllowedScopes = parseMcpOAuthAllowedScopes(
+				existingRecord?.allowedScopes,
+				false,
+			);
+		} catch {
+			if (requested.allowedScopes === undefined) {
+				throw new Error(
+					"The existing OAuth allowedScopes policy is invalid; replace or clear it explicitly",
+				);
+			}
+		}
+	}
+	let allowedScopes: string[] | undefined;
+	if (requested.allowedScopes === null) {
+		allowedScopes = undefined;
+	} else if (requested.allowedScopes !== undefined) {
+		allowedScopes = parseMcpOAuthAllowedScopes(requested.allowedScopes, true);
+	} else if (existingAllowedScopes) {
+		if (!transportIdentityUnchanged || existingRecord?.clientId !== clientId) {
+			throw new Error(
+				"Specify allowedScopes when changing an OAuth client's server endpoint or client ID",
+			);
+		}
+		// Older callers do not know about scope policy. Preserve the existing
+		// validated order losslessly unless the policy is explicitly edited.
+		allowedScopes = [...existingAllowedScopes];
+	}
+	let clientSecret: string | undefined;
+	if (requested.preserveClientSecret === true) {
+		if (!transportIdentityUnchanged) {
+			throw new Error(
+				"Re-enter the OAuth client secret after changing the server transport, URL, or headers",
+			);
+		}
+		if (!existing?.clientSecret || existing.clientId !== clientId) {
+			throw new Error(
+				"The saved OAuth client secret cannot be preserved for this client ID",
+			);
+		}
+		clientSecret = existing.clientSecret;
+	} else if (typeof requested.clientSecret === "string") {
+		clientSecret = requested.clientSecret;
+	}
+
+	const oauthClient: StoredMcpOAuthClient = {
+		clientId,
+		...(clientSecret !== undefined ? { clientSecret } : {}),
+		...(allowedScopes ? { allowedScopes } : {}),
+	};
+	return {
+		oauthClient,
+		oauthClientUnchanged: mcpOAuthClientsEqual(
+			existingOAuthClient,
+			oauthClient,
+		),
+	};
+}
+
 export function shouldProbeMcpServerAfterUpsert(options: {
 	isRemote: boolean;
 	requestedDisabled: boolean;
 	existingWasEnabled: boolean;
 	transportIdentityUnchanged: boolean;
+	oauthClientUnchanged?: boolean;
 }): boolean {
 	return (
 		options.isRemote &&
 		!options.requestedDisabled &&
-		!(options.existingWasEnabled && options.transportIdentityUnchanged)
+		!(
+			options.existingWasEnabled &&
+			options.transportIdentityUnchanged &&
+			options.oauthClientUnchanged !== false
+		)
 	);
 }
 
@@ -133,6 +399,18 @@ export function buildMcpServersResponse(
 						? record.headers
 						: undefined,
 			metadata: registration?.metadata ?? record.metadata,
+			oauthClient: registration?.oauthClient
+				? {
+						clientId: registration.oauthClient.clientId,
+						hasClientSecret:
+							typeof registration.oauthClient.clientSecret === "string",
+						...(registration.oauthClient.allowedScopes
+							? {
+									allowedScopes: [...registration.oauthClient.allowedScopes],
+								}
+							: {}),
+					}
+				: undefined,
 			...(configurationError ? { configurationError } : {}),
 			oauthStatus: oauthStatus
 				? {
