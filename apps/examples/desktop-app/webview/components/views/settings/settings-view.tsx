@@ -367,7 +367,7 @@ export function SettingsView({
 	);
 
 	const loadProviderModels = useCallback(
-		async (id: string) => {
+		async (id: string, options: { forceRefresh?: boolean } = {}) => {
 			setModelsLoadingByProvider((prev) => ({ ...prev, [id]: true }));
 			setModelsErrorByProvider((prev) => ({ ...prev, [id]: null }));
 			try {
@@ -375,6 +375,7 @@ export function SettingsView({
 					"list_provider_models",
 					{
 						provider: id,
+						...(options.forceRefresh ? { force_refresh: true } : {}),
 					},
 				);
 				setProvidersWithCache((prev) =>
@@ -578,7 +579,11 @@ export function SettingsView({
 					onBack={backToProviderList}
 					onConnect={() => connectProvider(selectedProvider.id)}
 					onDisconnect={() => void disconnectProvider(selectedProvider.id)}
-					onLoadModels={() => void loadProviderModels(selectedProvider.id)}
+					onLoadModels={() =>
+						void loadProviderModels(selectedProvider.id, {
+							forceRefresh: true,
+						})
+					}
 					onUpdateModels={(models) =>
 						void updateProviderModels(selectedProvider.id, models)
 					}

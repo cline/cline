@@ -96,6 +96,15 @@ export interface ProviderDefaults {
 	capabilities?: ProviderCapability[];
 }
 
+/**
+ * Per-request catalog behavior used while resolving provider defaults.
+ * `forceRefresh` is intentionally runtime-only: it represents an explicit
+ * user refresh, not a provider setting that should be persisted.
+ */
+export interface ProviderModelCatalogOptions extends ModelCatalogConfig {
+	forceRefresh?: boolean;
+}
+
 function toRuntimeCapabilities(
 	capabilities: readonly Llms.CatalogProviderCapability[] = [],
 ): ProviderCapability[] | undefined {
@@ -687,7 +696,7 @@ function resolvePublicCacheKey(
 
 async function getPublicProviderModels(
 	providerId: string,
-	modelCatalog: ModelCatalogConfig | undefined,
+	modelCatalog: ProviderModelCatalogOptions | undefined,
 	config: ProviderConfig,
 ): Promise<Record<string, ModelInfo>> {
 	const collection = Llms.MODEL_COLLECTIONS_BY_PROVIDER_ID[providerId];
@@ -704,9 +713,11 @@ async function getPublicProviderModels(
 	const cacheKey = resolvePublicCacheKey(providerId, config);
 	const now = Date.now();
 
-	const cached = PUBLIC_MODELS_CACHE.get(cacheKey);
-	if (cached && cached.expiresAt > now) {
-		return cached.data;
+	if (!modelCatalog?.forceRefresh) {
+		const cached = PUBLIC_MODELS_CACHE.get(cacheKey);
+		if (cached && cached.expiresAt > now) {
+			return cached.data;
+		}
 	}
 
 	const inFlight = PUBLIC_MODELS_IN_FLIGHT.get(cacheKey);
@@ -759,7 +770,7 @@ async function fetchPrivateProviderModels(
 
 function shouldLoadPrivateModels(
 	providerId: string,
-	modelCatalog: ModelCatalogConfig | undefined,
+	modelCatalog: ProviderModelCatalogOptions | undefined,
 	config: ProviderConfig | undefined,
 ): boolean {
 	if (!config) {
@@ -776,7 +787,7 @@ function shouldLoadPrivateModels(
 
 async function getPrivateProviderModels(
 	providerId: string,
-	modelCatalog: ModelCatalogConfig | undefined,
+	modelCatalog: ProviderModelCatalogOptions | undefined,
 	config: ProviderConfig,
 ): Promise<Record<string, ModelInfo>> {
 	const cacheTtlMs =
@@ -784,9 +795,11 @@ async function getPrivateProviderModels(
 	const cacheKey = resolvePrivateCacheKey(providerId, config);
 	const now = Date.now();
 
-	const cached = PRIVATE_MODELS_CACHE.get(cacheKey);
-	if (cached && cached.expiresAt > now) {
-		return cached.data;
+	if (!modelCatalog?.forceRefresh) {
+		const cached = PRIVATE_MODELS_CACHE.get(cacheKey);
+		if (cached && cached.expiresAt > now) {
+			return cached.data;
+		}
 	}
 
 	const inFlight = PRIVATE_MODELS_IN_FLIGHT.get(cacheKey);
@@ -817,15 +830,20 @@ async function fetchLiveModelsCatalog(
 }
 
 export async function getLiveModelsCatalog(
-	options: Pick<ModelCatalogConfig, "url" | "cacheTtlMs"> = {},
+	options: Pick<
+		ProviderModelCatalogOptions,
+		"url" | "cacheTtlMs" | "forceRefresh"
+	> = {},
 ): Promise<Record<string, Record<string, ModelInfo>>> {
 	const url = options.url ?? DEFAULT_MODELS_CATALOG_URL;
 	const cacheTtlMs = options.cacheTtlMs ?? DEFAULT_MODELS_CATALOG_CACHE_TTL_MS;
 	const now = Date.now();
 
-	const cached = MODELS_CATALOG_CACHE.get(url);
-	if (cached && cached.expiresAt > now) {
-		return cached.data;
+	if (!options.forceRefresh) {
+		const cached = MODELS_CATALOG_CACHE.get(url);
+		if (cached && cached.expiresAt > now) {
+			return cached.data;
+		}
 	}
 
 	const inFlight = MODELS_CATALOG_IN_FLIGHT.get(url);
@@ -898,7 +916,7 @@ export function getProviderConfig(
 
 export async function resolveProviderConfig(
 	providerId: string,
-	modelCatalog?: ModelCatalogConfig,
+	modelCatalog?: ProviderModelCatalogOptions,
 	config?: ProviderConfig,
 ): Promise<ProviderDefaults | undefined> {
 	const defaults = getProviderConfig(providerId);

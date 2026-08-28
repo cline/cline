@@ -379,6 +379,32 @@ describe("getCachedClineRecommendedModels", () => {
 		resetClineRecommendedModelsCacheForTests();
 	});
 
+	it("bypasses a warm feed cache when explicitly refreshed", async () => {
+		resetClineRecommendedModelsCacheForTests();
+		let calls = 0;
+		const options = {
+			baseUrl: BASE_URL,
+			fetchImpl: (async () => {
+				calls += 1;
+				return new Response(JSON.stringify(ENDPOINT_PAYLOAD), {
+					status: 200,
+					headers: { "Content-Type": "application/json" },
+				});
+			}) satisfies typeof fetch,
+			catalogLoader: async () => CATALOG,
+		};
+
+		await getCachedClineRecommendedModels(options);
+		await getCachedClineRecommendedModels(options);
+		await getCachedClineRecommendedModels({
+			...options,
+			forceRefresh: true,
+		});
+
+		expect(calls).toBe(2);
+		resetClineRecommendedModelsCacheForTests();
+	});
+
 	it("caches the bundled fallback so offline callers do not re-pay the timeout", async () => {
 		resetClineRecommendedModelsCacheForTests();
 		let calls = 0;

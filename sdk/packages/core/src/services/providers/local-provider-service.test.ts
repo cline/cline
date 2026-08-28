@@ -481,6 +481,77 @@ describe("addLocalProvider – model ID parsing via modelsSourceUrl", () => {
 		});
 	});
 
+	it("force refreshes the live catalog for any built-in provider", async () => {
+		let revision = 0;
+		const fetchMock = vi.fn(async (url: string) => {
+			if (url !== "https://models.dev/api.json") {
+				return new Response(
+					JSON.stringify({ recommended: [], free: [], clinePass: [] }),
+					{
+						status: 200,
+						headers: { "content-type": "application/json" },
+					},
+				);
+			}
+			revision += 1;
+			return new Response(
+				JSON.stringify({
+					"tencent-coding-plan": {
+						id: "tencent-coding-plan",
+						npm: "@ai-sdk/openai-compatible",
+						models: {
+							[`vendor/live-tencent-model-${revision}`]: {
+								name: `Live Tencent Model ${revision}`,
+								tool_call: true,
+							},
+						},
+					},
+				}),
+				{
+					status: 200,
+					headers: { "content-type": "application/json" },
+				},
+			);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const first = await getLocalProviderModels(
+			"tencent-coding-plan",
+			undefined,
+			{ forceRefresh: true },
+		);
+		const second = await getLocalProviderModels(
+			"tencent-coding-plan",
+			undefined,
+			{ forceRefresh: true },
+		);
+
+		expect(
+			fetchMock.mock.calls.filter(
+				([url]) => url === "https://models.dev/api.json",
+			),
+		).toHaveLength(2);
+		expect(first.models).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					id: "vendor/live-tencent-model-1",
+					name: "Live Tencent Model 1",
+				}),
+			]),
+		);
+		expect(second.models).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					id: "vendor/live-tencent-model-2",
+					name: "Live Tencent Model 2",
+				}),
+			]),
+		);
+		expect(
+			second.models.some((model) => model.id === "vendor/live-tencent-model-1"),
+		).toBe(false);
+	});
+
 	it("uses only live ClinePass models when live models are found", async () => {
 		const fetchMock = vi.fn(async (url: string) => {
 			if (url === "https://models.dev/api.json") {

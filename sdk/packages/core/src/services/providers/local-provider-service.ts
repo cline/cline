@@ -55,6 +55,11 @@ export interface ListLocalProvidersOptions {
 	isClinePassEnabled?: boolean;
 }
 
+export interface GetLocalProviderModelsOptions {
+	/** Bypass warm live-model caches for an explicit user refresh. */
+	forceRefresh?: boolean;
+}
+
 export interface UpdateLocalProviderRequest {
 	providerId: string;
 	name?: string;
@@ -156,13 +161,16 @@ function toSortedProviderModels(
 async function resolveProviderModelMap(
 	providerId: string,
 	config?: ProviderConfig,
+	options: GetLocalProviderModelsOptions = {},
 ): Promise<Record<string, ModelInfo>> {
 	const [registeredModels, registeredModelOverrides] = await Promise.all([
 		LlmsModels.getModelsForProvider(providerId),
 		LlmsModels.getModelOverridesForProvider(providerId),
 	]);
 	const shouldLoadLiveCatalog =
-		providerId === CLINE_PROVIDER_ID || providerId === CLINE_PASS_PROVIDER_ID;
+		options.forceRefresh === true ||
+		providerId === CLINE_PROVIDER_ID ||
+		providerId === CLINE_PASS_PROVIDER_ID;
 	const isClinePass = providerId === CLINE_PASS_PROVIDER_ID;
 	if (!config && !shouldLoadLiveCatalog) {
 		return registeredModels;
@@ -174,6 +182,7 @@ async function resolveProviderModelMap(
 			loadLatestOnInit: shouldLoadLiveCatalog,
 			loadPrivateOnAuth: true,
 			failOnError: false,
+			forceRefresh: options.forceRefresh,
 		},
 		config,
 	);
@@ -852,9 +861,10 @@ export async function listLocalProviders(
 export async function getLocalProviderModels(
 	providerId: string,
 	config?: ProviderConfig,
+	options: GetLocalProviderModelsOptions = {},
 ): Promise<{ providerId: string; models: ProviderModel[] }> {
 	const id = providerId.trim();
-	const modelMap = await resolveProviderModelMap(id, config);
+	const modelMap = await resolveProviderModelMap(id, config, options);
 	let models = toSortedProviderModels(modelMap);
 	if (id === CLINE_PROVIDER_ID || id === CLINE_PASS_PROVIDER_ID) {
 		// Stamp the recommended-feed tiers onto the list so every client's
@@ -864,7 +874,9 @@ export async function getLocalProviderModels(
 		models = applyClineFeaturedModels(
 			id,
 			models,
-			await getCachedClineRecommendedModels(),
+			await getCachedClineRecommendedModels({
+				forceRefresh: options.forceRefresh,
+			}),
 		);
 	}
 	return { providerId: id, models };

@@ -7,6 +7,7 @@ import {
 	APP_FONT_SIZE_STORAGE_KEY,
 	applyAppZoomAction,
 } from "@/lib/app-font-size";
+import type { Provider } from "@/lib/provider-schema";
 import { SettingsView } from "./settings-view";
 
 const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }));
@@ -100,5 +101,68 @@ describe("SettingsView font size", () => {
 		expect(container.textContent).toContain("20px");
 		expect(updatedSlider?.getAttribute("aria-valuenow")).toBe("20");
 		expect(increaseButton?.disabled).toBe(true);
+	});
+});
+
+describe("SettingsView provider models", () => {
+	it("requests a forced live refresh when the refresh button is clicked", async () => {
+		const provider: Provider = {
+			id: "tencent-coding-plan",
+			name: "Tencent Coding Plan (China)",
+			models: 1,
+			color: "#000000",
+			letter: "TC",
+			enabled: false,
+			baseUrl: "https://api.lkeap.cloud.tencent.com/coding/v3",
+			modelList: [{ id: "cached-model", name: "Cached Model" }],
+		};
+		invoke.mockImplementation(async (command: string) => {
+			if (command === "list_provider_catalog") {
+				return { providers: [provider], settingsPath: "/tmp/providers.json" };
+			}
+			if (command === "list_provider_models") {
+				return {
+					providerId: provider.id,
+					models: [{ id: "live-model", name: "Live Model" }],
+				};
+			}
+			return { telemetryOptOut: false, autoUpdateEnabled: true };
+		});
+
+		await act(async () => {
+			root.render(
+				<SettingsView onNavigateSection={vi.fn()} section="Models" />,
+			);
+		});
+		await act(async () => {
+			await new Promise((resolve) => window.setTimeout(resolve, 0));
+		});
+		await act(async () => {
+			await new Promise((resolve) => window.setTimeout(resolve, 0));
+		});
+
+		const refreshButton = container.querySelector<HTMLButtonElement>(
+			'button[aria-label="Refresh models"]',
+		);
+		expect(refreshButton).not.toBeNull();
+		expect(refreshButton?.disabled).toBe(false);
+		const initialModelCalls = invoke.mock.calls.filter(
+			([command]) => command === "list_provider_models",
+		);
+		expect(initialModelCalls).toHaveLength(1);
+
+		await act(async () => {
+			refreshButton?.click();
+			await new Promise((resolve) => window.setTimeout(resolve, 0));
+		});
+
+		const modelCalls = invoke.mock.calls.filter(
+			([command]) => command === "list_provider_models",
+		);
+		expect(modelCalls).toHaveLength(2);
+		expect(modelCalls.at(-1)).toEqual([
+			"list_provider_models",
+			{ provider: provider.id, force_refresh: true },
+		]);
 	});
 });
