@@ -215,7 +215,7 @@ The paths in `session.manifest` are the authoritative resolved workspace paths.
 
 ### Portable Agent Plugins
 
-`ClineCore` and Hub-backed SDK clients support [Agent Plugins v1](https://agent-plugins.org/specification) without a client-side loader. The execution host automatically discovers user-installed package directories under `~/.agents/plugins/*` on the Hub host. Workspace `.agents/plugins` directories are intentionally not scanned, so opening a repository cannot activate repository-controlled MCP servers.
+`ClineCore` and Hub-backed SDK clients support [Agent Plugins v1](https://agent-plugins.org/specification) without a client-side loader. The execution host automatically discovers user-installed package directories under `~/.agents/plugins/*` on the Hub host. Automatic discovery intentionally does not scan workspace `.agents/plugins` directories, so opening a repository does not implicitly activate repository-controlled MCP servers. Hosts may explicitly opt in to additional roots through `agentPluginPaths`; those caller-provided paths are resolved against the session `cwd` and remain subject to the same package-boundary validation.
 
 Each package is validated from its root `plugin.json`. Valid immediate-child Agent Skills under `skills/` are exposed through the `skills` tool as `plugin-name:skill-name`; valid servers from root `mcp.json` are connected without modifying `cline_mcp_settings.json`. Invalid packages, components, skills, and MCP entries fail at their specification-defined narrow boundaries.
 
