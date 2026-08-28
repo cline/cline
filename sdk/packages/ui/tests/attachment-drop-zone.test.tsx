@@ -85,13 +85,21 @@ describe("AttachmentDropZone", () => {
 		);
 		const zone = container.firstElementChild as HTMLElement;
 
+		let nonFileDrag: ReturnType<typeof dispatchDrag> | undefined;
+		let disabledDragOver: ReturnType<typeof dispatchDrag> | undefined;
+		let disabledDrop: ReturnType<typeof dispatchDrag> | undefined;
 		await act(async () => {
-			dispatchDrag(zone, "dragenter", [], ["text/plain"]);
-			dispatchDrag(zone, "drop", [new File(["x"], "file.txt")]);
+			nonFileDrag = dispatchDrag(zone, "dragenter", [], ["text/plain"]);
+			disabledDragOver = dispatchDrag(zone, "dragover");
+			disabledDrop = dispatchDrag(zone, "drop", [new File(["x"], "file.txt")]);
 		});
 
 		expect(zone.dataset.draggingFiles).toBeUndefined();
 		expect(onAttachFiles).not.toHaveBeenCalled();
+		expect(nonFileDrag?.event.defaultPrevented).toBe(false);
+		expect(disabledDragOver?.event.defaultPrevented).toBe(true);
+		expect(disabledDragOver?.dataTransfer.dropEffect).toBe("none");
+		expect(disabledDrop?.event.defaultPrevented).toBe(true);
 	});
 
 	it("supports consumer-specific overlay copy", async () => {

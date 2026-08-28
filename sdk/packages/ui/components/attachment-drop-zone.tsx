@@ -80,8 +80,9 @@ export const AttachmentDropZone = forwardRef<
 
 		const handleDragEnter = useCallback(
 			(event: React.DragEvent<HTMLDivElement>) => {
-				if (disabled || !includesFiles(event)) return;
+				if (!includesFiles(event)) return;
 				event.preventDefault();
+				if (disabled) return;
 				dragDepthRef.current += 1;
 				setIsDraggingFiles(true);
 			},
@@ -90,9 +91,9 @@ export const AttachmentDropZone = forwardRef<
 
 		const handleDragOver = useCallback(
 			(event: React.DragEvent<HTMLDivElement>) => {
-				if (disabled || !includesFiles(event)) return;
+				if (!includesFiles(event)) return;
 				event.preventDefault();
-				event.dataTransfer.dropEffect = "copy";
+				event.dataTransfer.dropEffect = disabled ? "none" : "copy";
 			},
 			[disabled],
 		);
@@ -108,10 +109,11 @@ export const AttachmentDropZone = forwardRef<
 
 		const handleDrop = useCallback(
 			(event: React.DragEvent<HTMLDivElement>) => {
-				if (disabled || !includesFiles(event)) return;
+				if (!includesFiles(event)) return;
 				event.preventDefault();
 				dragDepthRef.current = 0;
 				setIsDraggingFiles(false);
+				if (disabled) return;
 				const files = Array.from(event.dataTransfer.files);
 				if (files.length > 0) onAttachFiles(files);
 			},
