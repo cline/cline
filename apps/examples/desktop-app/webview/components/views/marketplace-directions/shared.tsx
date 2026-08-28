@@ -294,7 +294,7 @@ export function EntryGlyph({
 		return (
 			<span
 				className={cn(
-					"flex shrink-0 items-center justify-center overflow-hidden border border-border/60 bg-background p-[15%]",
+					"flex shrink-0 items-center justify-center overflow-hidden",
 					rounded,
 					className,
 				)}
