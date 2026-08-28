@@ -1803,7 +1803,7 @@ export async function handleCommand(
 		if (!operation) throw new Error("operation is required");
 		const manager = new ProviderSettingsManager();
 
-		const authToken = await resolveFreshClineAuthToken(ctx, manager);
+		const authToken = await resolveFreshClineAuthToken(manager, ctx);
 		if (!authToken) {
 			return CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT;
 		}
