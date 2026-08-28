@@ -33,7 +33,6 @@ import {
 	EMPTY_CONTENT_TEXT,
 } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
-import { CLINE_INTERNAL_TELEMETRY_METADATA_KEY } from "../../services/telemetry/tool-context";
 import { MESSAGE_BUILDER_LIMIT_ENV } from "../../session/services/message-builder";
 import {
 	SessionRuntime,
@@ -368,6 +367,57 @@ describe("SessionRuntime.getExtensionRegistry", () => {
 		expect(configs[0]?.systemPrompt).toBe(
 			"Base prompt.\n\nAlways preserve architectural boundaries.",
 		);
+	});
+
+	it("composes tool-conditional rules only when the tool is enabled", async () => {
+		const conditionalRuleExtension: AgentExtension = {
+			name: "conditional-tool-rule",
+			manifest: { capabilities: ["rules"] },
+			setup: (api) => {
+				api.registerRule({
+					id: "conditional-tool-rule:guidance",
+					content: "Use tasks for durable follow-up work.",
+					whenToolAvailable: "tasks",
+				});
+			},
+		};
+		const todoListTool: AgentTool = {
+			name: "tasks",
+			description: "Manage durable agenda items.",
+			inputSchema: { type: "object", properties: {} },
+			execute: async () => ({ ok: true }),
+		};
+
+		const enabledCapture = withCapturingFakeRuntime();
+		const enabledSession = new SessionRuntime(
+			makeAgentConfig({
+				systemPrompt: "Base prompt.",
+				tools: [todoListTool],
+				extensions: [conditionalRuleExtension],
+			}),
+			enabledCapture.deps,
+		);
+		await enabledSession.run("go");
+
+		expect(enabledCapture.configs[0]?.systemPrompt).toBe(
+			"Base prompt.\n\nUse tasks for durable follow-up work.",
+		);
+		expect(enabledCapture.configs[0]?.tools).toContainEqual(todoListTool);
+
+		const disabledCapture = withCapturingFakeRuntime();
+		const disabledSession = new SessionRuntime(
+			makeAgentConfig({
+				systemPrompt: "Base prompt.",
+				tools: [todoListTool],
+				extensions: [conditionalRuleExtension],
+				toolPolicies: { tasks: { enabled: false } },
+			}),
+			disabledCapture.deps,
+		);
+		await disabledSession.run("go");
+
+		expect(disabledCapture.configs[0]?.systemPrompt).toBe("Base prompt.");
+		expect(disabledCapture.configs[0]?.tools).toEqual([]);
 	});
 
 	it("passes session, caller, and logger context into extension setup()", async () => {
@@ -845,8 +895,13 @@ it("derives tool image support metadata from resolved provider model catalog", a
 	expect(runtimeConfig.toolContextMetadata).toEqual(
 		expect.objectContaining({
 			modelSupportsImages: true,
-			[CLINE_INTERNAL_TELEMETRY_METADATA_KEY]: telemetry,
 		}),
+	);
+	// The live telemetry service is a host object with cyclic internals; it
+	// must never ride on toolContextMetadata, which crosses process
+	// boundaries over JSON IPC (plugin sandbox, hub clients).
+	expect(Object.values(runtimeConfig.toolContextMetadata ?? {})).not.toContain(
+		telemetry,
 	);
 	expect(runtimeConfig.toolContextMetadata?.telemetry).toBeUndefined();
 });
@@ -867,6 +922,116 @@ describe("SessionRuntime.run", () => {
 		expect(result.startedAt).toBeInstanceOf(Date);
 		expect(result.endedAt).toBeInstanceOf(Date);
 		expect(typeof result.durationMs).toBe("number");
+	});
+
+	it("disables tools and completion-tool policy for dedicated image models", async () => {
+		const { deps, configs } = withCapturingFakeRuntime();
+		const modelId = "openai/gpt-5-image";
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				modelId,
+				knownModels: {
+					[modelId]: {
+						id: modelId,
+						operation: "image-generation",
+						capabilities: ["tools", "images"],
+						modalities: {
+							input: ["text", "image"],
+							output: ["image"],
+						},
+					},
+				},
+				tools: [
+					{
+						name: "read_files",
+						description: "Read files",
+						inputSchema: { type: "object" },
+						execute: async () => "contents",
+					},
+				],
+				completionPolicy: { requireCompletionTool: true },
+			}),
+			deps,
+		);
+
+		await session.run("Generate an image");
+
+		expect(configs).toHaveLength(1);
+		expect(configs[0]?.tools).toEqual([]);
+		expect(configs[0]?.completionPolicy).toBeUndefined();
+	});
+
+	it("preserves tools and completion-tool policy for mixed image models", async () => {
+		const { deps, configs } = withCapturingFakeRuntime();
+		const modelId = "openai/gpt-5-image";
+		const completionPolicy = { requireCompletionTool: true };
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				modelId,
+				knownModels: {
+					[modelId]: {
+						id: modelId,
+						capabilities: ["tools", "images"],
+						modalities: {
+							input: ["text", "image"],
+							output: ["image", "text"],
+						},
+					},
+				},
+				tools: [
+					{
+						name: "read_files",
+						description: "Read files",
+						inputSchema: { type: "object" },
+						execute: async () => "contents",
+					},
+				],
+				completionPolicy,
+			}),
+			deps,
+		);
+
+		await session.run("Answer normally or generate an image");
+
+		expect(configs).toHaveLength(1);
+		expect(configs[0]?.tools?.map((tool) => tool.name)).toEqual(["read_files"]);
+		expect(configs[0]?.completionPolicy).toEqual(completionPolicy);
+	});
+
+	it("disables tools and completion-tool policy for tool-less mixed image models", async () => {
+		const { deps, configs } = withCapturingFakeRuntime();
+		const modelId = "google/gemini-2.5-flash-image";
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				modelId,
+				knownModels: {
+					[modelId]: {
+						id: modelId,
+						capabilities: ["images"],
+						modalities: {
+							input: ["text", "image"],
+							output: ["text", "image"],
+						},
+					},
+				},
+				tools: [
+					{
+						name: "read_files",
+						description: "Read files",
+						inputSchema: { type: "object" },
+						execute: async () => "contents",
+					},
+				],
+				completionPolicy: { requireCompletionTool: true },
+			}),
+			deps,
+		);
+
+		await session.run("Generate an image");
+
+		expect(configs).toHaveLength(1);
+		expect(configs[0]?.tools).toEqual([]);
+		expect(configs[0]?.completionPolicy).toBeUndefined();
 	});
 
 	it("appends the user turn into the conversation store", async () => {

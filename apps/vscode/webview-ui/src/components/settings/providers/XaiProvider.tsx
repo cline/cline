@@ -1,17 +1,13 @@
 import { openAiModelInfoSafeDefaults } from "@shared/api"
 import { Mode } from "@shared/storage/types"
-import { VSCodeCheckbox, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
-import { useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useProviderConfig } from "@/hooks/useProviderConfig"
 import { useProviderModelSelection } from "@/hooks/useProviderModelSelection"
 import { useStaticProviderSelection } from "@/hooks/useStaticProviderSelection"
-import { DROPDOWN_Z_INDEX } from "../ApiOptions"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { ModelInfoView } from "../common/ModelInfoView"
-import { DropdownContainer, ModelSelector } from "../common/ModelSelector"
-import { getModeSpecificFields } from "../utils/providerUtils"
-import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+import { ModelSelector } from "../common/ModelSelector"
+import ReasoningEffortSelector from "../ReasoningEffortSelector"
 import { useProviderApiKeyField } from "../utils/useProviderApiKeyField"
 
 const PROVIDER_ID = "xai"
@@ -38,10 +34,7 @@ interface XaiProviderProps {
 
 export const XaiProvider = ({ showModelOptions, isPopup, currentMode }: XaiProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
-	const { handleModeFieldChange } = useApiConfigurationHandlers()
 	const { config, write, commitSelection } = useProviderConfig(PROVIDER_ID)
-
-	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
 
 	// Get the normalized configuration
 	const {
@@ -59,8 +52,6 @@ export const XaiProvider = ({ showModelOptions, isPopup, currentMode }: XaiProvi
 		fallbackModelInfo: legacySelectedModelInfo,
 	})
 
-	// Local state for reasoning effort toggle
-	const [reasoningEffortSelected, setReasoningEffortSelected] = useState(!!modeFields.reasoningEffort)
 	const { savedApiKeyMask, handleApiKeyChange } = useProviderApiKeyField({
 		apiKeyLength: config?.apiKeyLength,
 		providerName: "X AI",
@@ -82,17 +73,9 @@ export const XaiProvider = ({ showModelOptions, isPopup, currentMode }: XaiProvi
 	}
 
 	const handleReasoningEffortChange = (effort: string) => {
-		void write({ reasoning: { enabled: true, effort } }).catch((err) =>
-			console.error("Failed to update X AI reasoning effort:", err),
-		)
-		handleModeFieldChange({ plan: "planModeReasoningEffort", act: "actModeReasoningEffort" }, effort, currentMode)
-	}
-
-	const handleReasoningEffortDisabled = () => {
-		void write({ reasoning: { enabled: false, effort: "none" } }).catch((err) =>
-			console.error("Failed to disable X AI reasoning effort:", err),
-		)
-		handleModeFieldChange({ plan: "planModeReasoningEffort", act: "actModeReasoningEffort" }, "", currentMode)
+		void write({
+			reasoning: { enabled: effort !== "none", effort: effort !== "none" ? effort : undefined },
+		}).catch((err) => console.error("Failed to update X AI reasoning effort:", err))
 	}
 
 	return (
@@ -126,48 +109,8 @@ export const XaiProvider = ({ showModelOptions, isPopup, currentMode }: XaiProvi
 						selectedModelId={selectedModelId}
 					/>
 
-					{selectedModelId && selectedModelId.includes("3-mini") && (
-						<>
-							<VSCodeCheckbox
-								checked={reasoningEffortSelected}
-								onChange={(e: any) => {
-									const isChecked = e.target.checked === true
-									setReasoningEffortSelected(isChecked)
-									if (!isChecked) {
-										handleReasoningEffortDisabled()
-									}
-								}}
-								style={{ marginTop: 0 }}>
-								Modify reasoning effort
-							</VSCodeCheckbox>
-
-							{reasoningEffortSelected && (
-								<div>
-									<label htmlFor="reasoning-effort-dropdown">
-										<span style={{}}>Reasoning Effort</span>
-									</label>
-									<DropdownContainer className="dropdown-container" zIndex={DROPDOWN_Z_INDEX - 100}>
-										<VSCodeDropdown
-											id="reasoning-effort-dropdown"
-											onChange={(event) => handleReasoningEffortChange(getEventValue(event))}
-											style={{ width: "100%", marginTop: 3 }}
-											value={modeFields.reasoningEffort || "high"}>
-											<VSCodeOption value="low">low</VSCodeOption>
-											<VSCodeOption value="high">high</VSCodeOption>
-										</VSCodeDropdown>
-									</DropdownContainer>
-									<p
-										style={{
-											fontSize: "12px",
-											marginTop: 3,
-											marginBottom: 0,
-											color: "var(--vscode-descriptionForeground)",
-										}}>
-										High effort may produce more thorough analysis but takes longer and uses more tokens.
-									</p>
-								</div>
-							)}
-						</>
+					{selectedModelInfo.supportsReasoning === true && (
+						<ReasoningEffortSelector currentMode={currentMode} onEffortChange={handleReasoningEffortChange} />
 					)}
 
 					<ModelInfoView

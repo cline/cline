@@ -13,7 +13,6 @@ import { DEFAULT_FOCUS_CHAIN_SETTINGS, FocusChainSettings } from "@shared/FocusC
 import { HistoryItem } from "@shared/HistoryItem"
 import { DEFAULT_MCP_DISPLAY_MODE, McpDisplayMode } from "@shared/McpDisplayMode"
 import { toLegacyApiProvider } from "@shared/model-catalog/provider-helpers"
-import { WorkspaceRoot } from "@shared/multi-root/types"
 import { GlobalInstructionsFile } from "@shared/remote-config/schema"
 import { Mode } from "@shared/storage/types"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
@@ -76,20 +75,22 @@ const GLOBAL_STATE_FIELDS = {
 	mcpResponsesCollapsed: { default: false as boolean },
 	terminalReuseEnabled: { default: true as boolean },
 	vscodeTerminalExecutionMode: {
-		// Default to background execution to match the CLI's behavior. Users who
-		// previously chose a mode keep their saved value (we can't distinguish an
-		// explicit choice from a coincidentally-saved old default, so we honor it).
-		default: "backgroundExec" as "vscodeTerminal" | "backgroundExec",
+		// Defaults only apply when no value is stored, so users who previously
+		// chose either mode keep their saved preference.
+		default: "vscodeTerminal" as "vscodeTerminal" | "backgroundExec",
 	},
 	isNewUser: { default: true as boolean },
 	welcomeViewCompleted: { default: undefined as boolean | undefined },
 	mcpDisplayMode: { default: DEFAULT_MCP_DISPLAY_MODE as McpDisplayMode },
-	workspaceRoots: { default: undefined as WorkspaceRoot[] | undefined },
-	primaryRootIndex: { default: 0 as number },
 	multiRootEnabled: { default: true as boolean },
 	lastDismissedInfoBannerVersion: { default: 0 as number },
 	lastDismissedModelBannerVersion: { default: 0 as number },
 	lastDismissedCliBannerVersion: { default: 0 as number },
+	// Organization id of the last successful managed remote-config publish.
+	// Persistent evidence that this install is managed: the session gate uses it
+	// to fail closed when the user's identity cannot be resolved (API unreachable)
+	// instead of starting an unpoliced session. Cleared on explicit no-config.
+	lastManagedOrganizationId: { default: undefined as string | undefined },
 	remoteRulesToggles: { default: {} as ClineRulesToggles },
 	remoteWorkflowToggles: { default: {} as ClineRulesToggles },
 	remoteSkillsToggles: { default: {} as ClineRulesToggles },
@@ -273,9 +274,7 @@ const USER_SETTINGS_FIELDS = {
 	shellIntegrationTimeout: { default: 4000 as number },
 	defaultTerminalProfile: { default: "default" as string },
 	hooksEnabled: { default: true as boolean },
-	yoloModeToggled: { default: false as boolean },
-	autoApproveAllToggled: { default: false as boolean },
-	useAutoCondense: { default: false as boolean },
+	useAutoCondense: { default: true as boolean },
 	subagentsEnabled: { default: false as boolean },
 	worktreesEnabled: { default: false as boolean },
 	preferredLanguage: { default: "English" as string },
@@ -283,7 +282,7 @@ const USER_SETTINGS_FIELDS = {
 	focusChainSettings: { default: DEFAULT_FOCUS_CHAIN_SETTINGS as FocusChainSettings },
 	backgroundEditEnabled: { default: false as boolean },
 	optOutOfRemoteConfig: { default: false as boolean },
-	showFeatureTips: { default: true as boolean },
+	showFeatureTips: { default: false as boolean },
 
 	// OpenTelemetry configuration
 	openTelemetryEnabled: { default: true as boolean },

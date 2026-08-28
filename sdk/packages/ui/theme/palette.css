@@ -1,0 +1,347 @@
+/*
+ * Cline-owned palette values copied from Radix Colors 3.0.0.
+ *
+ * Source mapping: Slate → neutral, Violet → accent, Ruby → error,
+ * Green → success, Amber → warning, and Sky → info.
+ * This file intentionally includes the sRGB solid and alpha scales only.
+ */
+
+:root {
+	/* Neutral */
+	--neutral-1: #fcfcfd;
+	--neutral-2: #f9f9fb;
+	--neutral-3: #f0f0f3;
+	--neutral-4: #e8e8ec;
+	--neutral-5: #e0e1e6;
+	--neutral-6: #d9d9e0;
+	--neutral-7: #cdced6;
+	--neutral-8: #b9bbc6;
+	--neutral-9: #8b8d98;
+	--neutral-10: #80838d;
+	--neutral-11: #60646c;
+	--neutral-12: #1c2024;
+
+	/* Neutral alpha */
+	--neutral-a1: #00005503;
+	--neutral-a2: #00005506;
+	--neutral-a3: #0000330b;
+	--neutral-a4: #00002d17;
+	--neutral-a5: #0009321f;
+	--neutral-a6: #00002f26;
+	--neutral-a7: #00062e32;
+	--neutral-a8: #00083046;
+	--neutral-a9: #00051d74;
+	--neutral-a10: #00071b7f;
+	--neutral-a11: #0007149f;
+	--neutral-a12: #000509e3;
+
+	/* Accent */
+	--accent-1: #fdfcfe;
+	--accent-2: #faf8ff;
+	--accent-3: #f4f0fe;
+	--accent-4: #ebe4ff;
+	--accent-5: #e1d9ff;
+	--accent-6: #d4cafe;
+	--accent-7: #c2b5f5;
+	--accent-8: #aa99ec;
+	--accent-9: #6e56cf;
+	--accent-10: #654dc4;
+	--accent-11: #6550b9;
+	--accent-12: #2f265f;
+
+	/* Accent alpha */
+	--accent-a1: #5500aa03;
+	--accent-a2: #4900ff07;
+	--accent-a3: #4400ee0f;
+	--accent-a4: #4300ff1b;
+	--accent-a5: #3600ff26;
+	--accent-a6: #3100fb35;
+	--accent-a7: #2d01dd4a;
+	--accent-a8: #2b00d066;
+	--accent-a9: #2400b7a9;
+	--accent-a10: #2300abb2;
+	--accent-a11: #1f0099af;
+	--accent-a12: #0b0043d9;
+
+	/* Error */
+	--error-1: #fffcfd;
+	--error-2: #fff7f8;
+	--error-3: #feeaed;
+	--error-4: #ffdce1;
+	--error-5: #ffced6;
+	--error-6: #f8bfc8;
+	--error-7: #efacb8;
+	--error-8: #e592a3;
+	--error-9: #e54666;
+	--error-10: #dc3b5d;
+	--error-11: #ca244d;
+	--error-12: #64172b;
+
+	/* Error alpha */
+	--error-a1: #ff005503;
+	--error-a2: #ff002008;
+	--error-a3: #f3002515;
+	--error-a4: #ff002523;
+	--error-a5: #ff002a31;
+	--error-a6: #e4002440;
+	--error-a7: #ce002553;
+	--error-a8: #c300286d;
+	--error-a9: #db002cb9;
+	--error-a10: #d2002cc4;
+	--error-a11: #c10030db;
+	--error-a12: #550016e8;
+
+	/* Success */
+	--success-1: #fbfefc;
+	--success-2: #f4fbf6;
+	--success-3: #e6f6eb;
+	--success-4: #d6f1df;
+	--success-5: #c4e8d1;
+	--success-6: #adddc0;
+	--success-7: #8eceaa;
+	--success-8: #5bb98b;
+	--success-9: #30a46c;
+	--success-10: #2b9a66;
+	--success-11: #218358;
+	--success-12: #193b2d;
+
+	/* Success alpha */
+	--success-a1: #00c04004;
+	--success-a2: #00a32f0b;
+	--success-a3: #00a43319;
+	--success-a4: #00a83829;
+	--success-a5: #019c393b;
+	--success-a6: #00963c52;
+	--success-a7: #00914071;
+	--success-a8: #00924ba4;
+	--success-a9: #008f4acf;
+	--success-a10: #008647d4;
+	--success-a11: #00713fde;
+	--success-a12: #002616e6;
+
+	/* Warning */
+	--warning-1: #fefdfb;
+	--warning-2: #fefbe9;
+	--warning-3: #fff7c2;
+	--warning-4: #ffee9c;
+	--warning-5: #fbe577;
+	--warning-6: #f3d673;
+	--warning-7: #e9c162;
+	--warning-8: #e2a336;
+	--warning-9: #ffc53d;
+	--warning-10: #ffba18;
+	--warning-11: #ab6400;
+	--warning-12: #4f3422;
+
+	/* Warning alpha */
+	--warning-a1: #c0800004;
+	--warning-a2: #f4d10016;
+	--warning-a3: #ffde003d;
+	--warning-a4: #ffd40063;
+	--warning-a5: #f8cf0088;
+	--warning-a6: #eab5008c;
+	--warning-a7: #dc9b009d;
+	--warning-a8: #da8a00c9;
+	--warning-a9: #ffb300c2;
+	--warning-a10: #ffb300e7;
+	--warning-a11: #ab6400;
+	--warning-a12: #341500dd;
+
+	/* Info */
+	--info-1: #f9feff;
+	--info-2: #f1fafd;
+	--info-3: #e1f6fd;
+	--info-4: #d1f0fa;
+	--info-5: #bee7f5;
+	--info-6: #a9daed;
+	--info-7: #8dcae3;
+	--info-8: #60b3d7;
+	--info-9: #7ce2fe;
+	--info-10: #74daf8;
+	--info-11: #00749e;
+	--info-12: #1d3e56;
+
+	/* Info alpha */
+	--info-a1: #00d5ff06;
+	--info-a2: #00a4db0e;
+	--info-a3: #00b3ee1e;
+	--info-a4: #00ace42e;
+	--info-a5: #00a1d841;
+	--info-a6: #0092ca56;
+	--info-a7: #0089c172;
+	--info-a8: #0085bf9f;
+	--info-a9: #00c7fe83;
+	--info-a10: #00bcf38b;
+	--info-a11: #00749e;
+	--info-a12: #002540e2;
+}
+
+.dark {
+	/* Neutral */
+	--neutral-1: #121216;
+	--neutral-2: #18191b;
+	--neutral-3: #212225;
+	--neutral-4: #2f2f37;
+	--neutral-5: #2e3135;
+	--neutral-6: #363a3f;
+	--neutral-7: #43484e;
+	--neutral-8: #5a6169;
+	--neutral-9: #696e77;
+	--neutral-10: #777b84;
+	--neutral-11: #b0b4ba;
+	--neutral-12: #fcfcfd;
+
+	/* Neutral alpha */
+	--neutral-a1: #00000000;
+	--neutral-a2: #d8f4f609;
+	--neutral-a3: #ddeaf814;
+	--neutral-a4: #d3edf81d;
+	--neutral-a5: #d9edfe25;
+	--neutral-a6: #d6ebfd30;
+	--neutral-a7: #d9edff40;
+	--neutral-a8: #d9edff5d;
+	--neutral-a9: #dfebfd6d;
+	--neutral-a10: #e5edfd7b;
+	--neutral-a11: #f1f7feb5;
+	--neutral-a12: #fcfdffef;
+
+	/* Accent */
+	--accent-1: #14121f;
+	--accent-2: #1b1525;
+	--accent-3: #291f43;
+	--accent-4: #33255b;
+	--accent-5: #3c2e69;
+	--accent-6: #473876;
+	--accent-7: #56468b;
+	--accent-8: #6958ad;
+	--accent-9: #6e56cf;
+	--accent-10: #7d66d9;
+	--accent-11: #baa7ff;
+	--accent-12: #e2ddfe;
+
+	/* Accent alpha */
+	--accent-a1: #4422ff0f;
+	--accent-a2: #853ff916;
+	--accent-a3: #8354fe36;
+	--accent-a4: #7d51fd50;
+	--accent-a5: #845ffd5f;
+	--accent-a6: #8f6cfd6d;
+	--accent-a7: #9879ff83;
+	--accent-a8: #977dfea8;
+	--accent-a9: #8668ffcc;
+	--accent-a10: #9176fed7;
+	--accent-a11: #baa7ff;
+	--accent-a12: #e3defffe;
+
+	/* Error */
+	--error-1: #191113;
+	--error-2: #1e1517;
+	--error-3: #3a141e;
+	--error-4: #4e1325;
+	--error-5: #5e1a2e;
+	--error-6: #6f2539;
+	--error-7: #883447;
+	--error-8: #b3445a;
+	--error-9: #e54666;
+	--error-10: #ec5a72;
+	--error-11: #ff949d;
+	--error-12: #fed2e1;
+
+	/* Error alpha */
+	--error-a1: #f4124a09;
+	--error-a2: #fe5a7f0e;
+	--error-a3: #ff235d2c;
+	--error-a4: #fd195e42;
+	--error-a5: #fe2d6b53;
+	--error-a6: #ff447665;
+	--error-a7: #ff577d80;
+	--error-a8: #ff5c7cae;
+	--error-a9: #fe4c70e4;
+	--error-a10: #ff617beb;
+	--error-a11: #ff949d;
+	--error-a12: #ffd3e2fe;
+
+	/* Success */
+	--success-1: #0e1512;
+	--success-2: #121b17;
+	--success-3: #132d21;
+	--success-4: #113b29;
+	--success-5: #174933;
+	--success-6: #20573e;
+	--success-7: #28684a;
+	--success-8: #2f7c57;
+	--success-9: #30a46c;
+	--success-10: #33b074;
+	--success-11: #3dd68c;
+	--success-12: #b1f1cb;
+
+	/* Success alpha */
+	--success-a1: #00de4505;
+	--success-a2: #29f99d0b;
+	--success-a3: #22ff991e;
+	--success-a4: #11ff992d;
+	--success-a5: #2bffa23c;
+	--success-a6: #44ffaa4b;
+	--success-a7: #50fdac5e;
+	--success-a8: #54ffad73;
+	--success-a9: #44ffa49e;
+	--success-a10: #43fea4ab;
+	--success-a11: #46fea5d4;
+	--success-a12: #bbffd7f0;
+
+	/* Warning */
+	--warning-1: #16120c;
+	--warning-2: #1d180f;
+	--warning-3: #302008;
+	--warning-4: #3f2700;
+	--warning-5: #4d3000;
+	--warning-6: #5c3d05;
+	--warning-7: #714f19;
+	--warning-8: #8f6424;
+	--warning-9: #ffc53d;
+	--warning-10: #ffd60a;
+	--warning-11: #ffca16;
+	--warning-12: #ffe7b3;
+
+	/* Warning alpha */
+	--warning-a1: #e63c0006;
+	--warning-a2: #fd9b000d;
+	--warning-a3: #fa820022;
+	--warning-a4: #fc820032;
+	--warning-a5: #fd8b0041;
+	--warning-a6: #fd9b0051;
+	--warning-a7: #ffab2567;
+	--warning-a8: #ffae3587;
+	--warning-a9: #ffc53d;
+	--warning-a10: #ffd60a;
+	--warning-a11: #ffca16;
+	--warning-a12: #ffe7b3;
+
+	/* Info */
+	--info-1: #0d141f;
+	--info-2: #111a27;
+	--info-3: #112840;
+	--info-4: #113555;
+	--info-5: #154467;
+	--info-6: #1b537b;
+	--info-7: #1f6692;
+	--info-8: #197cae;
+	--info-9: #7ce2fe;
+	--info-10: #a8eeff;
+	--info-11: #75c7f0;
+	--info-12: #c2f3ff;
+
+	/* Info alpha */
+	--info-a1: #0044ff0f;
+	--info-a2: #1171fb18;
+	--info-a3: #1184fc33;
+	--info-a4: #128fff49;
+	--info-a5: #1c9dfd5d;
+	--info-a6: #28a5ff72;
+	--info-a7: #2badfe8b;
+	--info-a8: #1db2fea9;
+	--info-a9: #7ce3fffe;
+	--info-a10: #a8eeff;
+	--info-a11: #7cd3ffef;
+	--info-a12: #c2f3ff;
+}

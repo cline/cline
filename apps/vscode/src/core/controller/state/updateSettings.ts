@@ -1,12 +1,10 @@
-import { setCompactionStrategyGlobally } from "@cline/core"
+import { setCompactionStrategyGlobally, setModelToolEnabledGlobally } from "@cline/core"
 import { Empty } from "@shared/proto/cline/common"
 import { PlanActMode, McpDisplayMode as ProtoMcpDisplayMode, UpdateSettingsRequest } from "@shared/proto/cline/state"
 import { convertProtoToApiProvider } from "@shared/proto-conversions/models/api-configuration-conversion"
 import { OpenaiReasoningEffort } from "@shared/storage/types"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { ClineEnv } from "@/config"
-import { fetchRemoteConfig } from "@/core/storage/remote-config/fetch"
-import { clearRemoteConfig } from "@/core/storage/remote-config/utils"
 import { McpDisplayMode } from "@/shared/McpDisplayMode"
 import { Logger } from "@/shared/services/Logger"
 import { telemetryService } from "../../../services/telemetry"
@@ -138,14 +136,6 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 				telemetryService.captureFeatureToggle(controller.task.ulid, "hooks", isEnabled, controller.task.api.getModel().id)
 			}
 		}
-		// Update yolo mode setting
-		if (request.yoloModeToggled !== undefined) {
-			if (controller.task) {
-				telemetryService.captureYoloModeToggle(controller.task.ulid, request.yoloModeToggled)
-			}
-			controller.stateManager.setGlobalState("yoloModeToggled", request.yoloModeToggled)
-		}
-
 		// Update worktrees setting
 		if (request.worktreesEnabled !== undefined) {
 			controller.stateManager.setGlobalState("worktreesEnabled", request.worktreesEnabled)
@@ -173,6 +163,11 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 				)
 			}
 			controller.stateManager.setGlobalState("useAutoCondense", request.useAutoCondense)
+		}
+
+		// Update web search setting (stored in the SDK global settings file; applied when the next session is built)
+		if (request.webSearchEnabled !== undefined) {
+			setModelToolEnabledGlobally("web_search", !!request.webSearchEnabled)
 		}
 
 		if (request.compactionStrategy !== undefined) {
@@ -244,21 +239,15 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 		}
 
 		if (request.optOutOfRemoteConfig !== undefined) {
-			const hadOptedOut = controller.stateManager.getGlobalSettingsKey("optOutOfRemoteConfig")
+			const hadOptedOut = !!controller.stateManager.getGlobalSettingsKey("optOutOfRemoteConfig")
 			const isOptingOut = !!request.optOutOfRemoteConfig
-			const isReenablingRemoteConfig = !isOptingOut && hadOptedOut
 
-			// Update now so any subsequent function can access the updated value
+			// Update first so the authoritative refresh evaluates the new preference.
 			controller.stateManager.setGlobalState("optOutOfRemoteConfig", isOptingOut)
-
-			if (isOptingOut && !hadOptedOut) {
-				clearRemoteConfig()
-			} else if (isReenablingRemoteConfig) {
-				// Fire-and-forget: We don't need to await here
-				// The function catches any errors and posts the updated state to the webview
-				// The immediate state update below shows the user's intent (opted-in),
-				// and we apply the actual config afterwards without blocking the settings update
-				fetchRemoteConfig(controller)
+			if (isOptingOut !== hadOptedOut) {
+				// force: never coalesce onto an in-flight refresh that already
+				// evaluated the pre-change opt-out preference.
+				await controller.refreshRemoteConfig({ force: true })
 			}
 		}
 

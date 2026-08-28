@@ -10,12 +10,12 @@ import {
 	createTool,
 	getDefaultShell,
 	getShellKind,
+	type ITelemetryService,
 	type ShellKind,
 	validateWithZod,
 	zodToJsonSchema,
 } from "@cline/shared";
 import { captureRunCommandsTimeout } from "../../services/telemetry/core-events";
-import { getToolContextTelemetry } from "../../services/telemetry/tool-context";
 import { CommandExitError } from "./executors/bash";
 import {
 	MAX_COMMAND_OUTPUT_CHARS,
@@ -86,6 +86,7 @@ function getStringMetadata(
 }
 
 function captureRunCommandsTimeoutFromContext(
+	telemetry: ITelemetryService | undefined,
 	context: AgentToolContext,
 	properties: {
 		effectiveTimeoutMs: number;
@@ -94,7 +95,7 @@ function captureRunCommandsTimeoutFromContext(
 		durationMs: number;
 	},
 ): void {
-	captureRunCommandsTimeout(getToolContextTelemetry(context.metadata), {
+	captureRunCommandsTimeout(telemetry, {
 		tool_name: "run_commands",
 		effective_timeout_ms: properties.effectiveTimeoutMs,
 		timeout_source: properties.timeoutSource,
@@ -184,51 +185,71 @@ async function executeShellCommands(
 		context: AgentToolContext;
 		timeoutMs: number;
 		timeoutSource: "default_setting" | "configured_setting";
+		telemetry?: ITelemetryService;
 	},
 ): Promise<ToolOperationResult[]> {
-	const { executor, cwd, context, timeoutMs, timeoutSource } = options;
+	const { executor, cwd, context, timeoutMs, timeoutSource, telemetry } =
+		options;
 
 	return Promise.all(
-		commands.map(async (command): Promise<ToolOperationResult> => {
-			const startedAt = Date.now();
-			const query = formatRunCommandQueryPreview(command);
-			try {
-				const output = await withTimeout(
-					executor(command, cwd, context),
-					timeoutMs,
-					`Command timed out after ${timeoutMs}ms`,
-				);
-				return {
-					query,
-					result: output,
-					success: true,
-				};
-			} catch (error) {
-				if (error instanceof TimeoutError) {
-					captureRunCommandsTimeoutFromContext(context, {
-						effectiveTimeoutMs: error.timeoutMs,
-						timeoutSource,
-						commandCount: commands.length,
-						durationMs: Date.now() - startedAt,
-					});
-				}
-				if (error instanceof CommandExitError) {
+		commands.map(
+			async (command, commandIndex): Promise<ToolOperationResult> => {
+				const startedAt = Date.now();
+				const query = formatRunCommandQueryPreview(command);
+				const commandContext: AgentToolContext = context.emitUpdate
+					? {
+							...context,
+							emitUpdate: (update) => {
+								const payload =
+									update && typeof update === "object" && !Array.isArray(update)
+										? (update as Record<string, unknown>)
+										: { update };
+								context.emitUpdate?.({
+									...payload,
+									commandIndex,
+									query,
+								});
+							},
+						}
+					: context;
+				try {
+					const output = await withTimeout(
+						executor(command, cwd, commandContext),
+						timeoutMs,
+						`Command timed out after ${timeoutMs}ms`,
+					);
 					return {
 						query,
-						result: error.output,
-						error: error.message,
+						result: output,
+						success: true,
+					};
+				} catch (error) {
+					if (error instanceof TimeoutError) {
+						captureRunCommandsTimeoutFromContext(telemetry, context, {
+							effectiveTimeoutMs: error.timeoutMs,
+							timeoutSource,
+							commandCount: commands.length,
+							durationMs: Date.now() - startedAt,
+						});
+					}
+					if (error instanceof CommandExitError) {
+						return {
+							query,
+							result: error.output,
+							error: error.message,
+							success: false,
+						};
+					}
+					const msg = formatError(error);
+					return {
+						query,
+						result: "",
+						error: `Command failed: ${msg}`,
 						success: false,
 					};
 				}
-				const msg = formatError(error);
-				return {
-					query,
-					result: "",
-					error: `Command failed: ${msg}`,
-					success: false,
-				};
-			}
-		}),
+			},
+		),
 	);
 }
 
@@ -453,7 +474,7 @@ export function buildRunCommandsDescription(
  */
 export function createShellTool(
 	executor: ShellExecutor,
-	config: Pick<DefaultToolsConfig, "cwd" | "bashTimeoutMs"> & {
+	config: Pick<DefaultToolsConfig, "cwd" | "bashTimeoutMs" | "telemetry"> & {
 		shell?: string | (() => string);
 	} = {},
 ): AgentTool<unknown, ToolOperationResult[]> {
@@ -490,6 +511,7 @@ export function createShellTool(
 				context,
 				timeoutMs,
 				timeoutSource,
+				telemetry: config.telemetry,
 			});
 		},
 	});

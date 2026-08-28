@@ -1,4 +1,5 @@
 import * as Llms from "@cline/llms";
+import { ReasoningLevelSchema } from "@cline/shared";
 import { z } from "zod";
 import {
 	DEFAULT_EXTERNAL_OCA_BASE_URL,
@@ -67,8 +68,6 @@ export const AuthSettingsSchema = z.object({
 });
 
 export type AuthSettings = z.infer<typeof AuthSettingsSchema>;
-
-const ReasoningLevelSchema = z.enum(["none", "low", "medium", "high", "xhigh"]);
 
 export const ReasoningSettingsSchema = z.object({
 	enabled: z.boolean().optional(),
@@ -226,7 +225,10 @@ export function toProviderConfig(
 	// Qwen/Moonshot/Z.AI "china" vs "international") > provider default.
 	const resolvedBaseUrl =
 		settings.baseUrl ??
-		Llms.resolveProviderApiLineBaseUrl(normalizedProviderId, settings.apiLine) ??
+		Llms.resolveProviderApiLineBaseUrl(
+			normalizedProviderId,
+			settings.apiLine,
+		) ??
 		(normalizedProviderId === "oca"
 			? settings.oca?.mode === "internal"
 				? DEFAULT_INTERNAL_OCA_BASE_URL

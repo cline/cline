@@ -6,6 +6,11 @@
 
 // Zod Utilities
 export { validateWithZod, zodToJsonSchema } from "@cline/shared";
+export {
+	createPlanModeCommandGuardExtension,
+	PLAN_MODE_COMMAND_GUARD_EXTENSION_NAME,
+	type PlanModeCommandGuardOptions,
+} from "./command-guard-extension";
 // Constants
 export { ALL_DEFAULT_TOOL_NAMES, DefaultToolNames } from "./constants";
 // AgentTool Definitions
@@ -37,8 +42,11 @@ export {
 	type DefaultExecutorsOptions,
 	type EditorExecutorOptions,
 	type FileReadExecutorOptions,
+	PATCH_MARKERS,
 	PatchActionType,
 	type PatchFileChange,
+	RunCommandExecutionController,
+	type RunningCommandRegistration,
 	type SearchExecutorOptions,
 	type ShellExecutorOptions,
 	type WebFetchExecutorOptions,
@@ -67,8 +75,12 @@ export {
 	getCoreBuiltinToolCatalog,
 	getCoreDefaultEnabledToolIds,
 	getCoreHeadlessToolNames,
+	isCoreBuiltinToolAvailable,
+	isSkillsToolAvailable,
 	resolveCoreSelectedToolIds,
+	resolveToolClientType,
 	type ToolCatalogEntry,
+	type ToolClientType,
 } from "./runtime";
 // Schemas
 export {

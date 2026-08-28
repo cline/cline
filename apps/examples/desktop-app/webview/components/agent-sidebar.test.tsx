@@ -15,8 +15,13 @@ import type {
 	UseSessionHistoryResult,
 } from "@/hooks/use-session-history";
 
-const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }));
-vi.mock("@/lib/desktop-client", () => ({ desktopClient: { invoke } }));
+const desktopMocks = vi.hoisted(() => ({
+	invoke: vi.fn(),
+	subscribe: vi.fn(() => () => undefined),
+	subscribeTransportState: vi.fn(() => () => undefined),
+}));
+const { invoke } = desktopMocks;
+vi.mock("@/lib/desktop-client", () => ({ desktopClient: desktopMocks }));
 
 let container: HTMLDivElement;
 let root: Root;
@@ -31,6 +36,7 @@ function makeThread(project: string, index: number): SessionThread {
 		provider: "cline",
 		model: "test-model",
 		status: "completed",
+		isScheduled: false,
 	};
 }
 
@@ -40,13 +46,16 @@ function makeSessionHistory(
 	options: {
 		loadOlderSessions?: ReturnType<typeof vi.fn>;
 		mayHaveMoreSessions?: boolean;
+		hasLoadedHistory?: boolean;
+		isLoadingMore?: boolean;
 	} = {},
 ): UseSessionHistoryResult {
 	return {
 		deleteThread: vi.fn(),
 		forkThread: vi.fn(),
-		isLoadingHistory: false,
-		isLoadingMore: false,
+		hasLoadedHistory: options.hasLoadedHistory ?? true,
+		isLoadingMore: options.isLoadingMore ?? false,
+		loadAllSessions: vi.fn(async () => true),
 		loadOlderSessions: options.loadOlderSessions ?? vi.fn(),
 		loadMoreSessions,
 		mayHaveMoreSessions: options.mayHaveMoreSessions ?? false,
@@ -87,10 +96,30 @@ function buttonWithText(text: string, rootNode: ParentNode = container) {
 	return button as HTMLButtonElement;
 }
 
+async function switchToProjectSort(): Promise<void> {
+	// The sort control is a direct toggle: one click flips to project mode.
+	await click(
+		container.querySelector('[aria-label="Sort sessions: Time"]') as Element,
+	);
+	await vi.waitFor(() => {
+		expect(
+			container.querySelector('[aria-label="Sort sessions: Project"]'),
+		).not.toBeNull();
+	});
+}
+
 function sessionIsVisible(title: string): boolean {
 	return [...container.querySelectorAll<HTMLButtonElement>("button")].some(
 		(button) => button.querySelector("span")?.textContent === title,
 	);
+}
+
+function sessionRow(title: string): HTMLButtonElement {
+	const row = [...container.querySelectorAll<HTMLButtonElement>("button")].find(
+		(button) => button.querySelector("span")?.textContent === title,
+	);
+	expect(row).toBeDefined();
+	return row as HTMLButtonElement;
 }
 
 const signedInUser = {
@@ -116,6 +145,12 @@ beforeEach(() => {
 	window.localStorage.clear();
 	invoke.mockReset();
 	invoke.mockRejectedValue(new Error("No Cline account auth token found"));
+	desktopMocks.subscribe.mockReset();
+	desktopMocks.subscribe.mockImplementation(() => () => undefined);
+	desktopMocks.subscribeTransportState.mockReset();
+	desktopMocks.subscribeTransportState.mockImplementation(
+		() => () => undefined,
+	);
 	Object.defineProperty(window, "matchMedia", {
 		configurable: true,
 		value: vi.fn(() => ({
@@ -127,6 +162,17 @@ beforeEach(() => {
 	HTMLElement.prototype.hasPointerCapture = vi.fn(() => false);
 	HTMLElement.prototype.setPointerCapture = vi.fn();
 	HTMLElement.prototype.releasePointerCapture = vi.fn();
+	HTMLElement.prototype.scrollIntoView = vi.fn();
+	// cmdk (the search dialog) observes its list size; jsdom has no
+	// ResizeObserver implementation.
+	vi.stubGlobal(
+		"ResizeObserver",
+		class {
+			observe() {}
+			unobserve() {}
+			disconnect() {}
+		},
+	);
 	container = document.createElement("div");
 	document.body.appendChild(container);
 	root = createRoot(container);
@@ -139,12 +185,18 @@ afterEach(async () => {
 });
 
 describe("AgentSidebar session organization", () => {
-	it("filters scheduled sessions without changing their titles", async () => {
+	it("marks scheduled sessions with a clock icon in the row", async () => {
 		const scheduled = {
-			...makeThread("scheduled", 1),
-			source: "hub-schedule",
+			...makeThread("alpha", 1),
+			source: "core",
+			isScheduled: true,
 		};
-		const regular = makeThread("regular", 1);
+		const pinnedScheduled = {
+			...makeThread("alpha", 2),
+			isScheduled: true,
+			pinned: true,
+		};
+		const regular = { ...makeThread("alpha", 3), source: "core" };
 
 		await act(async () => {
 			root.render(
@@ -152,9 +204,11 @@ describe("AgentSidebar session organization", () => {
 					<AgentSidebar
 						activeSessionId={null}
 						onHome={vi.fn()}
-						onNewThread={vi.fn()}
 						onSettingsSectionChange={vi.fn()}
-						sessionHistory={makeSessionHistory([scheduled, regular], vi.fn())}
+						sessionHistory={makeSessionHistory(
+							[scheduled, pinnedScheduled, regular],
+							vi.fn(),
+						)}
 						setView={vi.fn()}
 						settingsSection="General"
 						view="chat"
@@ -163,24 +217,324 @@ describe("AgentSidebar session organization", () => {
 			);
 		});
 
-		expect(sessionIsVisible("scheduled session 1")).toBe(true);
-		expect(container.textContent).not.toContain("(schedule)");
+		// The clock marks scheduled rows inline; a pinned scheduled session
+		// shows both indicators at once.
+		expect(
+			sessionRow("alpha session 1").querySelector('[aria-label="Scheduled"]'),
+		).not.toBeNull();
+		// The clock leads the row: it renders before the title text.
+		// The innermost matching span is the title itself (the outer flex
+		// span also carries the title text plus the icon).
+		const scheduledTitle = [
+			...sessionRow("alpha session 1").querySelectorAll("span"),
+		]
+			.filter((span) => span.textContent === "alpha session 1")
+			.pop();
+		expect(scheduledTitle).toBeDefined();
+		expect(
+			(
+				sessionRow("alpha session 1").querySelector(
+					'[aria-label="Scheduled"]',
+				) as Element
+			).compareDocumentPosition(scheduledTitle as Element) &
+				Node.DOCUMENT_POSITION_FOLLOWING,
+		).toBeTruthy();
+		expect(
+			sessionRow("alpha session 1").querySelector('[aria-label="Pinned"]'),
+		).toBeNull();
+		expect(
+			sessionRow("alpha session 2").querySelector('[aria-label="Scheduled"]'),
+		).not.toBeNull();
+		expect(
+			sessionRow("alpha session 2").querySelector('[aria-label="Pinned"]'),
+		).not.toBeNull();
+		expect(
+			sessionRow("alpha session 3").querySelector('[aria-label="Scheduled"]'),
+		).toBeNull();
+
+		// The default time view groups these rows under category sections.
+		expect(buttonWithText("Pinned")).toBeDefined();
+		expect(buttonWithText("Scheduled")).toBeDefined();
+		expect(buttonWithText("Tasks")).toBeDefined();
+	});
+
+	it("defaults to Pinned, Scheduled, and Tasks sections sorted by time", async () => {
+		const pinned = { ...makeThread("alpha", 1), pinned: true };
+		const scheduled = { ...makeThread("beta", 1), isScheduled: true };
+		const regular = makeThread("gamma", 1);
+
+		await act(async () => {
+			root.render(
+				<SidebarProvider>
+					<AgentSidebar
+						activeSessionId={null}
+						onHome={vi.fn()}
+						onSettingsSectionChange={vi.fn()}
+						sessionHistory={makeSessionHistory(
+							[regular, scheduled, pinned],
+							vi.fn(),
+						)}
+						setView={vi.fn()}
+						settingsSection="General"
+						view="chat"
+					/>
+				</SidebarProvider>,
+			);
+		});
+
+		// Sections appear in Pinned, Scheduled, Tasks order.
+		const pinnedHeader = buttonWithText("Pinned");
+		const scheduledHeader = buttonWithText("Scheduled");
+		const tasksHeader = buttonWithText("Tasks");
+		expect(
+			pinnedHeader.compareDocumentPosition(scheduledHeader) &
+				Node.DOCUMENT_POSITION_FOLLOWING,
+		).toBeTruthy();
+		expect(
+			scheduledHeader.compareDocumentPosition(tasksHeader) &
+				Node.DOCUMENT_POSITION_FOLLOWING,
+		).toBeTruthy();
+		expect(sessionIsVisible("alpha session 1")).toBe(true);
+		expect(sessionIsVisible("beta session 1")).toBe(true);
+		expect(sessionIsVisible("gamma session 1")).toBe(true);
+
+		// Collapsing a section hides only its own rows.
+		await click(scheduledHeader);
+		expect(sessionIsVisible("beta session 1")).toBe(false);
+		expect(sessionIsVisible("alpha session 1")).toBe(true);
+		expect(sessionIsVisible("gamma session 1")).toBe(true);
+	});
+
+	it("deletes a session through the row's hover trash button", async () => {
+		const deleteThread = vi.fn(async () => undefined);
+		const sessionHistory = makeSessionHistory([makeThread("alpha", 1)], vi.fn());
+		(sessionHistory as { deleteThread: unknown }).deleteThread = deleteThread;
+
+		await act(async () => {
+			root.render(
+				<SidebarProvider>
+					<AgentSidebar
+						activeSessionId={null}
+						onHome={vi.fn()}
+						onSettingsSectionChange={vi.fn()}
+						sessionHistory={sessionHistory}
+						setView={vi.fn()}
+						settingsSection="General"
+						view="chat"
+					/>
+				</SidebarProvider>,
+			);
+		});
+
+		// The trash affordance is a sibling of the row button (buttons cannot
+		// nest) and opens the same confirmation dialog as the context menu.
+		const deleteButton = container.querySelector<HTMLButtonElement>(
+			'[aria-label="Delete alpha session 1"]',
+		);
+		expect(deleteButton).not.toBeNull();
+		expect(deleteButton?.closest("button")).toBe(deleteButton);
+		await click(deleteButton as HTMLButtonElement);
+
+		const confirm = await vi.waitFor(() => {
+			const button = [...document.body.querySelectorAll("button")].find(
+				(candidate) => candidate.textContent === "Delete",
+			);
+			expect(button).toBeDefined();
+			return button as HTMLButtonElement;
+		});
+		expect(document.body.textContent).toContain("Delete session?");
+		await click(confirm);
+		expect(deleteThread).toHaveBeenCalledWith("alpha-1");
+	});
+
+	it("pins sessions to the top of their project group in project sort", async () => {
+		const pinned = { ...makeThread("alpha", 3), pinned: true };
+		const threads = [makeThread("alpha", 1), makeThread("alpha", 2), pinned];
+
+		await act(async () => {
+			root.render(
+				<SidebarProvider>
+					<AgentSidebar
+						activeSessionId={null}
+						onHome={vi.fn()}
+						onSettingsSectionChange={vi.fn()}
+						sessionHistory={makeSessionHistory(threads, vi.fn())}
+						setView={vi.fn()}
+						settingsSection="General"
+						view="chat"
+					/>
+				</SidebarProvider>,
+			);
+		});
+
+		await switchToProjectSort();
+
+		// The pinned session leads its project group despite being the oldest
+		// entry in history order, and carries the pin icon inline; project
+		// sort has no Pinned section header.
+		const pinnedRow = sessionRow("alpha session 3");
+		expect(pinnedRow.querySelector('[aria-label="Pinned"]')).not.toBeNull();
+		for (const title of ["alpha session 1", "alpha session 2"]) {
+			expect(
+				pinnedRow.compareDocumentPosition(sessionRow(title)) &
+					Node.DOCUMENT_POSITION_FOLLOWING,
+			).toBeTruthy();
+		}
+		expect(container.textContent).not.toContain("Pinned");
+	});
+
+	it("loads older history only on explicit Show more clicks", async () => {
+		const tasks = Array.from({ length: 5 }, (_, index) =>
+			makeThread("plain", index + 1),
+		);
+		const loadOlderSessions = vi.fn(async () => false);
+		const renderSidebar = async (isLoadingMore: boolean) => {
+			await act(async () => {
+				root.render(
+					<SidebarProvider>
+						<AgentSidebar
+							activeSessionId={null}
+							onHome={vi.fn()}
+							onSettingsSectionChange={vi.fn()}
+							sessionHistory={makeSessionHistory(tasks, vi.fn(), {
+								isLoadingMore,
+								loadOlderSessions,
+								mayHaveMoreSessions: true,
+							})}
+							setView={vi.fn()}
+							settingsSection="General"
+							view="chat"
+						/>
+					</SidebarProvider>,
+				);
+			});
+		};
+
+		await renderSidebar(false);
+		await click(buttonWithText("Show more"));
+		expect(loadOlderSessions).toHaveBeenCalledOnce();
+
+		// A settled fetch never triggers an automatic follow-up request; only
+		// another explicit click asks for more history.
+		await renderSidebar(true);
+		await renderSidebar(false);
+		expect(loadOlderSessions).toHaveBeenCalledOnce();
+
+		await click(buttonWithText("Show more"));
+		expect(loadOlderSessions).toHaveBeenCalledTimes(2);
+	});
+
+	it("keeps a flat session list when nothing is pinned or scheduled", async () => {
+		await act(async () => {
+			root.render(
+				<SidebarProvider>
+					<AgentSidebar
+						activeSessionId={null}
+						onHome={vi.fn()}
+						onSettingsSectionChange={vi.fn()}
+						sessionHistory={makeSessionHistory(
+							[makeThread("plain", 1)],
+							vi.fn(),
+						)}
+						setView={vi.fn()}
+						settingsSection="General"
+						view="chat"
+					/>
+				</SidebarProvider>,
+			);
+		});
+
+		expect(sessionIsVisible("plain session 1")).toBe(true);
+		expect(container.textContent).not.toContain("Pinned");
+		expect(container.textContent).not.toContain("Scheduled");
+		expect(container.textContent).not.toContain("Tasks");
+	});
+
+	it("defaults to all sources and filters by the selected client source", async () => {
+		const desktop = { ...makeThread("desktop", 1), source: "desktop" };
+		const cli = { ...makeThread("cli", 1), source: "cli" };
+
+		await act(async () => {
+			root.render(
+				<SidebarProvider>
+					<AgentSidebar
+						activeSessionId={null}
+						onHome={vi.fn()}
+						onSettingsSectionChange={vi.fn()}
+						sessionHistory={makeSessionHistory([desktop, cli], vi.fn())}
+						setView={vi.fn()}
+						settingsSection="General"
+						view="chat"
+					/>
+				</SidebarProvider>,
+			);
+		});
+
+		expect(sessionIsVisible("desktop session 1")).toBe(true);
+		expect(sessionIsVisible("cli session 1")).toBe(true);
 
 		await click(
 			container.querySelector('[aria-label="Filter sessions"]') as Element,
 		);
-		expect(document.body.textContent).not.toContain("Recent");
-		const schedulesOption = await vi.waitFor(() => {
+		const cliOption = await vi.waitFor(() => {
 			const option = [
 				...document.querySelectorAll<HTMLElement>('[role="menuitemradio"]'),
-			].find((candidate) => candidate.textContent?.includes("Schedules"));
+			].find((candidate) => candidate.textContent === "CLI");
 			expect(option).toBeDefined();
 			return option as HTMLElement;
 		});
-		await click(schedulesOption);
+		await click(cliOption);
 
-		expect(sessionIsVisible("scheduled session 1")).toBe(true);
-		expect(sessionIsVisible("regular session 1")).toBe(false);
+		expect(sessionIsVisible("desktop session 1")).toBe(false);
+		expect(sessionIsVisible("cli session 1")).toBe(true);
+	});
+
+	it("keeps the loading state until the first history response arrives", async () => {
+		await act(async () => {
+			root.render(
+				<SidebarProvider>
+					<AgentSidebar
+						activeSessionId={null}
+						onHome={vi.fn()}
+						onSettingsSectionChange={vi.fn()}
+						sessionHistory={makeSessionHistory([], vi.fn(), {
+							hasLoadedHistory: false,
+						})}
+						setView={vi.fn()}
+						settingsSection="General"
+						view="chat"
+					/>
+				</SidebarProvider>,
+			);
+		});
+
+		// Before the backend has answered, an empty list means "still loading",
+		// never "no sessions": the definitive copy would read as lost history.
+		expect(container.textContent).toContain("Loading session history...");
+		expect(container.textContent).not.toContain("No sessions found in history");
+	});
+
+	it("shows the empty state only after the backend answered with zero sessions", async () => {
+		await act(async () => {
+			root.render(
+				<SidebarProvider>
+					<AgentSidebar
+						activeSessionId={null}
+						onHome={vi.fn()}
+						onSettingsSectionChange={vi.fn()}
+						sessionHistory={makeSessionHistory([], vi.fn(), {
+							hasLoadedHistory: true,
+						})}
+						setView={vi.fn()}
+						settingsSection="General"
+						view="chat"
+					/>
+				</SidebarProvider>,
+			);
+		});
+
+		expect(container.textContent).toContain("No sessions found in history");
+		expect(container.textContent).not.toContain("Loading session history...");
 	});
 
 	it("builds the hover overview with branch and secondary metadata last", () => {
@@ -199,8 +553,6 @@ describe("AgentSidebar session organization", () => {
 			["Model", "test-model"],
 			["Tokens", "3009k"],
 			["Cost", "$3.06"],
-			["ID", "cline-5"],
-			["Updated", "5m"],
 		]);
 		expect(getSessionOverviewItems(makeThread("cline", 5))).not.toContainEqual([
 			"Branch",
@@ -219,12 +571,12 @@ describe("AgentSidebar session organization", () => {
 		);
 	});
 
-	it("defaults to time and keeps project expansion scoped to one project", async () => {
+	it("defaults to a time-sorted list and groups by project after switching sort", async () => {
 		const threads = [
-			...Array.from({ length: 12 }, (_, index) =>
+			...Array.from({ length: 35 }, (_, index) =>
 				makeThread("alpha", index + 1),
 			),
-			...Array.from({ length: 12 }, (_, index) =>
+			...Array.from({ length: 35 }, (_, index) =>
 				makeThread("beta", index + 1),
 			),
 		];
@@ -241,7 +593,6 @@ describe("AgentSidebar session organization", () => {
 					<AgentSidebar
 						activeSessionId={null}
 						onHome={vi.fn()}
-						onNewThread={vi.fn()}
 						onSettingsSectionChange={vi.fn()}
 						sessionHistory={sessionHistory}
 						setView={vi.fn()}
@@ -252,44 +603,41 @@ describe("AgentSidebar session organization", () => {
 			);
 		});
 
+		// The default view is a flat time-sorted list showing the first page
+		// of 30 rows.
 		expect(
 			container.querySelector('[aria-label="Sort sessions: Time"]'),
 		).not.toBeNull();
-		expect(sessionIsVisible("alpha session 10")).toBe(true);
-		expect(sessionIsVisible("alpha session 11")).toBe(false);
+		expect(sessionIsVisible("alpha session 30")).toBe(true);
+		expect(sessionIsVisible("alpha session 31")).toBe(false);
 		expect(sessionIsVisible("beta session 1")).toBe(false);
 
+		// The first page grows purely from already-loaded sessions (70 loaded,
+		// 60 requested), so no history fetch is needed.
 		await click(buttonWithText("Show more"));
-		expect(sessionIsVisible("alpha session 11")).toBe(true);
-		expect(loadMoreSessions).toHaveBeenCalledWith(20);
+		expect(sessionIsVisible("alpha session 31")).toBe(true);
+		expect(loadMoreSessions).not.toHaveBeenCalled();
+		expect(loadOlderSessions).not.toHaveBeenCalled();
 
-		await click(
-			container.querySelector('[aria-label="Sort sessions: Time"]') as Element,
-		);
-		const projectOption = await vi.waitFor(() => {
-			const option = [
-				...document.querySelectorAll<HTMLElement>('[role="menuitemradio"]'),
-			].find((candidate) => candidate.textContent?.includes("Sort by project"));
-			expect(option).toBeDefined();
-			return option as HTMLElement;
-		});
-		await click(projectOption);
-
-		await vi.waitFor(() => {
-			expect(
-				container.querySelector('[aria-label="Sort sessions: Project"]'),
-			).not.toBeNull();
-		});
+		await switchToProjectSort();
 		expect(container.textContent).toContain("alpha");
 		expect(container.textContent).toContain("beta");
-		expect(sessionIsVisible("alpha session 11")).toBe(false);
-		expect(sessionIsVisible("beta session 11")).toBe(false);
+		expect(sessionIsVisible("beta session 30")).toBe(true);
+		expect(sessionIsVisible("beta session 31")).toBe(false);
+		expect(sessionIsVisible("alpha session 31")).toBe(false);
 
+		// Expanding one project leaves the others' pagination untouched.
 		await click(buttonWithText("Show more in alpha"));
-		expect(sessionIsVisible("alpha session 11")).toBe(true);
-		expect(sessionIsVisible("beta session 11")).toBe(false);
+		expect(sessionIsVisible("alpha session 31")).toBe(true);
+		expect(sessionIsVisible("beta session 31")).toBe(false);
+		expect(loadMoreSessions).not.toHaveBeenCalled();
 
-		await click(buttonWithText("Load older projects"));
+		// The trailing Show more button grows the loaded history window.
+		const globalShowMore = [
+			...container.querySelectorAll<HTMLButtonElement>("button"),
+		].find((button) => button.textContent?.trim() === "Show more");
+		expect(globalShowMore).toBeDefined();
+		await click(globalShowMore as HTMLButtonElement);
 		expect(loadOlderSessions).toHaveBeenCalledOnce();
 	});
 
@@ -303,7 +651,6 @@ describe("AgentSidebar session organization", () => {
 						<AgentSidebar
 							activeSessionId={null}
 							onHome={vi.fn()}
-							onNewThread={vi.fn()}
 							onSettingsSectionChange={vi.fn()}
 							sessionHistory={makeSessionHistory([], vi.fn())}
 							setView={vi.fn()}
@@ -349,7 +696,6 @@ describe("AgentSidebar session organization", () => {
 						<AgentSidebar
 							activeSessionId={null}
 							onHome={vi.fn()}
-							onNewThread={vi.fn()}
 							onSettingsSectionChange={onSettingsSectionChange}
 							sessionHistory={makeSessionHistory([], vi.fn())}
 							setView={setView}
@@ -370,6 +716,50 @@ describe("AgentSidebar session organization", () => {
 
 		expect(onSettingsSectionChange).toHaveBeenCalledWith("Account");
 		expect(setView).not.toHaveBeenCalled();
+	});
+
+	it("opens the General settings section from the gear in any section", async () => {
+		invoke.mockResolvedValue(signedInUser);
+		const onSettingsSectionChange = vi.fn();
+
+		const renderSidebar = async (settingsSection: "Account" | "General") => {
+			await act(async () => {
+				root.render(
+					<AccountProvider>
+						<SidebarProvider>
+							<AgentSidebar
+								activeSessionId={null}
+								onHome={vi.fn()}
+								onSettingsSectionChange={onSettingsSectionChange}
+								sessionHistory={makeSessionHistory([], vi.fn())}
+								setView={vi.fn()}
+								settingsSection={settingsSection}
+								view="settings"
+							/>
+						</SidebarProvider>
+					</AccountProvider>,
+				);
+			});
+			return vi.waitFor(() => {
+				const button = container.querySelector('[aria-label="Settings"]');
+				expect(button).not.toBeNull();
+				return button as HTMLButtonElement;
+			});
+		};
+
+		// The Account screen leaves the gear un-highlighted, but clicking it
+		// still navigates to General rather than acting as a no-op.
+		// (split on spaces: the variant's hover:bg-surface-hover would match a
+		// plain substring check)
+		const gearOnAccount = await renderSidebar("Account");
+		expect(gearOnAccount.className.split(" ")).not.toContain(
+			"bg-surface-hover",
+		);
+		await click(gearOnAccount);
+		expect(onSettingsSectionChange).toHaveBeenCalledWith("General");
+
+		const gearOnGeneral = await renderSidebar("General");
+		expect(gearOnGeneral.className.split(" ")).toContain("bg-surface-hover");
 	});
 
 	it("shows the desktop app version and connected Hub when the logo is hovered", async () => {
@@ -395,7 +785,6 @@ describe("AgentSidebar session organization", () => {
 						<AgentSidebar
 							activeSessionId={null}
 							onHome={onHome}
-							onNewThread={vi.fn()}
 							onSettingsSectionChange={vi.fn()}
 							sessionHistory={makeSessionHistory([], vi.fn())}
 							setView={vi.fn()}
@@ -444,7 +833,6 @@ describe("AgentSidebar session organization", () => {
 						<AgentSidebar
 							activeSessionId={null}
 							onHome={vi.fn()}
-							onNewThread={vi.fn()}
 							onSettingsSectionChange={vi.fn()}
 							sessionHistory={makeSessionHistory([], vi.fn())}
 							setView={vi.fn()}
@@ -483,7 +871,6 @@ describe("AgentSidebar session organization", () => {
 							onHome={vi.fn()}
 							onNavigateBack={onNavigateBack}
 							onNavigateForward={onNavigateForward}
-							onNewThread={vi.fn()}
 							onSettingsSectionChange={vi.fn()}
 							sessionHistory={makeSessionHistory([], vi.fn())}
 							setView={vi.fn()}
@@ -497,7 +884,7 @@ describe("AgentSidebar session organization", () => {
 
 		const titleBar = container.querySelector("[data-tauri-drag-region]");
 		expect(titleBar).not.toBeNull();
-		expect(titleBar?.textContent).not.toContain("Cline Code");
+		expect(titleBar?.textContent).not.toContain("Cline");
 
 		await click(
 			container.querySelector('[aria-label="Previous page"]') as Element,
@@ -507,17 +894,17 @@ describe("AgentSidebar session organization", () => {
 		expect(onNavigateForward).toHaveBeenCalledOnce();
 	});
 
-	it("places the logo and icon-only new-session action below the title bar", async () => {
-		const onNewThread = vi.fn();
+	it("stacks New, Schedule, and Customize as full-width rows below the logo", async () => {
+		const onHome = vi.fn();
+		const onSettingsSectionChange = vi.fn();
 		await act(async () => {
 			root.render(
 				<AccountProvider>
 					<SidebarProvider>
 						<AgentSidebar
 							activeSessionId={null}
-							onHome={vi.fn()}
-							onNewThread={onNewThread}
-							onSettingsSectionChange={vi.fn()}
+							onHome={onHome}
+							onSettingsSectionChange={onSettingsSectionChange}
 							sessionHistory={makeSessionHistory([], vi.fn())}
 							setView={vi.fn()}
 							settingsSection="General"
@@ -529,12 +916,162 @@ describe("AgentSidebar session organization", () => {
 		});
 
 		const logo = container.querySelector('[aria-label="Cline home"]');
-		const newSession = container.querySelector('[aria-label="New Session"]');
+		const actionsNav = container.querySelector(
+			'[aria-label="Sidebar actions"]',
+		);
 		expect(logo).not.toBeNull();
-		expect(newSession).not.toBeNull();
-		expect(newSession?.textContent).toBe("");
-		await click(newSession as Element);
-		expect(onNewThread).toHaveBeenCalledOnce();
+		expect(actionsNav).not.toBeNull();
+		// The rows read as labeled full-width entries stacked outside the
+		// logo row, not ambiguous icons in the header cluster.
+		const rows = [
+			...(actionsNav?.querySelectorAll<HTMLButtonElement>("button") ?? []),
+		];
+		expect(rows.map((row) => row.textContent)).toEqual([
+			"New",
+			"Schedule",
+			"Customize",
+		]);
+		for (const row of rows) {
+			expect(row.className).toContain("w-full");
+		}
+		expect(actionsNav?.contains(logo as Element)).toBe(false);
+
+		await click(buttonWithText("New", actionsNav as ParentNode));
+		expect(onHome).toHaveBeenCalledOnce();
+		await click(buttonWithText("Schedule", actionsNav as ParentNode));
+		expect(onSettingsSectionChange).toHaveBeenCalledWith("Schedules");
+		await click(buttonWithText("Customize", actionsNav as ParentNode));
+		expect(onSettingsSectionChange).toHaveBeenCalledWith("Customize");
+	});
+
+	it("shows Installed and Marketplace sub-tabs under the open Customize row", async () => {
+		const onSettingsSectionChange = vi.fn();
+		const renderSidebar = async (section: "Customize" | "Marketplace") => {
+			await act(async () => {
+				root.render(
+					<AccountProvider>
+						<SidebarProvider>
+							<AgentSidebar
+								activeSessionId={null}
+								onHome={vi.fn()}
+								onSettingsSectionChange={onSettingsSectionChange}
+								sessionHistory={makeSessionHistory([], vi.fn())}
+								setView={vi.fn()}
+								settingsSection={section}
+								view="settings"
+							/>
+						</SidebarProvider>
+					</AccountProvider>,
+				);
+			});
+		};
+
+		await renderSidebar("Customize");
+		const actionsNav = container.querySelector(
+			'[aria-label="Sidebar actions"]',
+		) as ParentNode;
+		const installedRow = buttonWithText("Installed", actionsNav);
+		const marketplaceRow = buttonWithText("Marketplace", actionsNav);
+		const customizeRow = buttonWithText("Customize", actionsNav);
+
+		// The active sub-tab carries the full selected background; the parent
+		// Customize row stays marked with a subtler highlight so the two
+		// simultaneous highlights read differently.
+		expect(installedRow.getAttribute("aria-current")).toBe("page");
+		expect(installedRow.className.split(" ")).toContain("bg-surface-hover");
+		expect(customizeRow.className.split(" ")).toContain(
+			"bg-surface-hover-lighter",
+		);
+		expect(customizeRow.className.split(" ")).not.toContain(
+			"bg-surface-hover",
+		);
+		// Sub-tabs are indented under the parent row.
+		expect(installedRow.className.split(" ")).toContain("pl-8!");
+
+		await click(marketplaceRow);
+		expect(onSettingsSectionChange).toHaveBeenCalledWith("Marketplace");
+		await renderSidebar("Marketplace");
+		expect(
+			buttonWithText("Marketplace", actionsNav).getAttribute("aria-current"),
+		).toBe("page");
+		expect(
+			buttonWithText("Installed", actionsNav).getAttribute("aria-current"),
+		).toBeNull();
+	});
+
+	it("highlights the New row only while the new-task page is active", async () => {
+		const renderSidebar = async (newTaskActive: boolean) => {
+			await act(async () => {
+				root.render(
+					<AccountProvider>
+						<SidebarProvider>
+							<AgentSidebar
+								activeSessionId={null}
+								newTaskActive={newTaskActive}
+								onHome={vi.fn()}
+								onSettingsSectionChange={vi.fn()}
+								sessionHistory={makeSessionHistory([], vi.fn())}
+								setView={vi.fn()}
+								settingsSection="General"
+								view="chat"
+							/>
+						</SidebarProvider>
+					</AccountProvider>,
+				);
+			});
+			return buttonWithText(
+				"New",
+				container.querySelector('[aria-label="Sidebar actions"]') as ParentNode,
+			);
+		};
+
+		const activeRow = await renderSidebar(true);
+		expect(activeRow.className.split(" ")).toContain("bg-surface-hover");
+		expect(activeRow.getAttribute("aria-current")).toBe("page");
+
+		const inactiveRow = await renderSidebar(false);
+		expect(inactiveRow.className.split(" ")).not.toContain("bg-surface-hover");
+		expect(inactiveRow.getAttribute("aria-current")).toBeNull();
+	});
+
+	it("opens the global search command bar from the logo-row icon without loading full history", async () => {
+		const sessionHistory = makeSessionHistory(
+			[makeThread("alpha", 1), makeThread("beta", 1)],
+			vi.fn(),
+		);
+		const onOpenSearch = vi.fn();
+		await act(async () => {
+			root.render(
+				<AccountProvider>
+					<SidebarProvider>
+						<AgentSidebar
+							activeSessionId={null}
+							onHome={vi.fn()}
+							onOpenSearch={onOpenSearch}
+							onSettingsSectionChange={vi.fn()}
+							sessionHistory={sessionHistory}
+							setView={vi.fn()}
+							settingsSection="General"
+							view="chat"
+						/>
+					</SidebarProvider>
+				</AccountProvider>,
+			);
+		});
+
+		// Search lives behind the logo-row icon, not an inline sidebar input.
+		expect(container.querySelector("input")).toBeNull();
+		const searchButton = container.querySelector(
+			'button[aria-label="Search sessions"]',
+		);
+		expect(searchButton).not.toBeNull();
+		await click(searchButton as Element);
+		// The icon opens the indexed command bar owned by the page shell...
+		expect(onOpenSearch).toHaveBeenCalledOnce();
+		// ...instead of a sidebar-local dialog that eagerly pulled the entire
+		// session history just to filter titles client-side.
+		expect(sessionHistory.loadAllSessions).not.toHaveBeenCalled();
+		expect(document.querySelector('[data-slot="command-input"]')).toBeNull();
 	});
 
 	it("uses only the Cline logo for home in the collapsed sidebar", async () => {
@@ -545,7 +1082,6 @@ describe("AgentSidebar session organization", () => {
 						<AgentSidebar
 							activeSessionId={null}
 							onHome={vi.fn()}
-							onNewThread={vi.fn()}
 							onSettingsSectionChange={vi.fn()}
 							sessionHistory={makeSessionHistory([], vi.fn())}
 							setView={vi.fn()}
@@ -558,7 +1094,9 @@ describe("AgentSidebar session organization", () => {
 		});
 
 		expect(container.querySelector('[aria-label="Cline home"]')).not.toBeNull();
-		expect(container.querySelector('[aria-label="New Session"]')).toBeNull();
+		expect(
+			container.querySelector('[aria-label="Sidebar actions"]'),
+		).toBeNull();
 		expect(
 			container.querySelector('[aria-label="Expand sidebar"]')?.className,
 		).toContain("mt-auto");
@@ -572,7 +1110,6 @@ describe("AgentSidebar session organization", () => {
 						<AgentSidebar
 							activeSessionId={null}
 							onHome={vi.fn()}
-							onNewThread={vi.fn()}
 							onSettingsSectionChange={vi.fn()}
 							sessionHistory={makeSessionHistory([], vi.fn())}
 							setView={vi.fn()}
@@ -621,7 +1158,6 @@ describe("AgentSidebar session organization", () => {
 						<AgentSidebar
 							activeSessionId={null}
 							onHome={vi.fn()}
-							onNewThread={vi.fn()}
 							onSettingsSectionChange={vi.fn()}
 							sessionHistory={makeSessionHistory([], vi.fn())}
 							setView={vi.fn()}

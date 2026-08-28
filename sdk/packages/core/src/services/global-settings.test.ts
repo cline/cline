@@ -5,19 +5,23 @@ import type { ITelemetryService } from "@cline/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	GlobalSettingsSchema,
+	isModelToolEnabledGlobally,
 	readCompactionModeGlobally,
 	readCompactionStrategyGlobally,
 	readGlobalSettings,
 	readPlanActModeGlobally,
 	readToolAutoApproveGlobally,
+	readTuiThemeGlobally,
 	setAutoUpdateEnabledGlobally,
 	setCompactionModeGlobally,
 	setCompactionStrategyGlobally,
 	setDisabledPlugin,
 	setDisabledTools,
+	setModelToolEnabledGlobally,
 	setPlanActModeGlobally,
 	setTelemetryOptOutGlobally,
 	setToolAutoApproveGlobally,
+	setTuiThemeGlobally,
 	writeGlobalSettings,
 } from "./global-settings";
 
@@ -162,6 +166,30 @@ describe("global-settings", () => {
 		}
 	});
 
+	it("stores provider-executed tool preferences in the scalable tools map", async () => {
+		const root = await mkdtemp(join(tmpdir(), "core-global-settings-"));
+		try {
+			process.env.CLINE_GLOBAL_SETTINGS_PATH = join(
+				root,
+				"global-settings.json",
+			);
+
+			expect(isModelToolEnabledGlobally("web_search")).toBe(false);
+			setModelToolEnabledGlobally("web_search", true);
+			expect(isModelToolEnabledGlobally("web_search")).toBe(true);
+			expect(readGlobalSettings().tools).toEqual({
+				web_search: { enabled: true },
+			});
+
+			setDisabledTools(["web_search"], true);
+			expect(readGlobalSettings().tools).toEqual({
+				web_search: { enabled: false },
+			});
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	it("records telemetry opt-out once when the setting changes to true", async () => {
 		const root = await mkdtemp(join(tmpdir(), "core-global-settings-"));
 		try {
@@ -282,6 +310,29 @@ describe("global-settings", () => {
 			expect(readToolAutoApproveGlobally()).toBe(false);
 			setToolAutoApproveGlobally(true);
 			expect(readToolAutoApproveGlobally()).toBe(true);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	it("reads and writes the TUI theme globally", async () => {
+		const root = await mkdtemp(join(tmpdir(), "core-global-settings-"));
+		try {
+			const settingsPath = join(root, "global-settings.json");
+			process.env.CLINE_GLOBAL_SETTINGS_PATH = settingsPath;
+
+			expect(readTuiThemeGlobally()).toBeUndefined();
+			setTuiThemeGlobally("tokyo-night");
+			expect(readTuiThemeGlobally()).toBe("tokyo-night");
+			expect(JSON.parse(await readFile(settingsPath, "utf8"))).toEqual({
+				autoUpdateEnabled: true,
+				telemetryOptOut: false,
+				tuiTheme: "tokyo-night",
+			});
+
+			// Blank values normalize to unset instead of persisting whitespace.
+			writeGlobalSettings({ tuiTheme: "  " });
+			expect(readTuiThemeGlobally()).toBeUndefined();
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}

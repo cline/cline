@@ -27,8 +27,9 @@ Use `@cline/ui@next` only for deliberate previews. Monorepo consumers use
 
 | Import | Contents | Runtime requirement |
 | --- | --- | --- |
-| `@cline/ui` | Session-status React primitive | React 18.3 or 19 |
-| `@cline/ui/components.css` | Styles for the root React primitives | Theme tokens |
+| `@cline/ui` | Button, icon-button, agent ask-question, approval-card, Aurora, hero-heading, prompt-queue, quick-action, search-combobox, and session-status React primitives | React 18.3 or 19 and Tailwind v4 |
+| `@cline/ui/components.css` | Styles, namespaced Tailwind mappings, and source registration for the root React primitives | Tailwind v4 and theme tokens |
+| `@cline/ui/theme/palette.css` | Cline-owned light/dark solid and alpha color scales | CSS |
 | `@cline/ui/theme/tokens.css` | Light/dark custom properties only | CSS |
 | `@cline/ui/theme/scoped-tokens.css` | Light/dark custom properties scoped to `.cline-ui-theme` | CSS |
 | `@cline/ui/theme/theme.css` | Tailwind v4 semantic mapping and dark variant | Tailwind v4 |
@@ -42,22 +43,69 @@ Use `@cline/ui@next` only for deliberate previews. Monorepo consumers use
 `--cline-ui-session-status-color` on the component to override its dot color
 for a host-specific status palette.
 
+`SearchCombobox` provides a searchable selector for repository and model lists.
+Its in-place panel requires ancestors that do not clip overflow.
+
+Import `components.css` after Tailwind and either token entry point. It
+registers package-namespaced mappings and the packaged component sources so
+their utilities are emitted without changing generic host utility names.
+
+`AgentQuickActions` renders prompt shortcuts and reports selection to the host.
+
+`Button` and `IconButton` share `fill`, `surface`, and `ghost` variants across
+accent, neutral, and destructive tones. Both default to `type="button"` so they
+are safe inside forms. `IconButton` requires an accessible `aria-label`, and
+both components support Radix-style composition through `asChild`.
+
+```tsx
+import { Button, IconButton } from "@cline/ui";
+
+<Button size="sm" tone="accent" variant="fill">
+	Continue
+</Button>;
+
+<IconButton aria-label="Close" size="sm">
+	<CloseIcon />
+</IconButton>;
+```
+
+`AgentAurora` fills its nearest positioned ancestor, which must have resolved
+dimensions.
+
+`AgentHeroHeading` renders the shared cycling “What would you like to …?”
+welcome heading and respects reduced-motion preferences.
+
+`AgentWelcomeHero` renders the interactive Cline bot and grid used on agent
+welcome surfaces. It supports bot-only and grid-only compositions and becomes
+static when reduced motion is requested.
+
+`AgentApprovalCard` is controlled presentation; the host owns approval state
+and submits its callbacks.
+
+`AgentAskQuestion` keeps option selection locally and submits explicitly. The
+host owns pending answers, errors, and response transport. Multiple-choice
+items set `multiple: true` and provide `onAnswers` for array submission.
+
+`AgentPromptQueue` renders queued prompts and reports edit, remove, and steer
+actions to the host.
+
 The token entry point has no React, Tailwind, font-package, or desktop runtime
-dependency. Apps provide Schibsted Grotesk and Azeret Mono themselves, which
+dependency. Apps provide Inter and Geist Mono themselves, which
 lets each bundler control font loading and asset emission.
 
-`tokens.css` is the canonical token source; `scoped-tokens.css` is generated
-from it. Contributors change `tokens.css` and run `bun run generate:theme`;
-tests and CI reject drift in the scoped output. Consumers may import either
-public entry point.
+`palette.css` and `tokens.css` are the canonical theme sources;
+`scoped-tokens.css` and the internal component Tailwind mapping are generated
+from them and `theme.css`. Contributors change the source theme files and run
+`bun run generate:theme`; tests and CI reject drift in either generated output.
+Consumers may import either public token entry point.
 
 ## Theme usage
 
 For a Tailwind v4 app, import framework and consumer dependencies first:
 
 ```css
-@import "@fontsource-variable/schibsted-grotesk";
-@import "@fontsource/azeret-mono/latin.css";
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/geist-mono";
 @import "tailwindcss";
 @import "@cline/ui/theme/index.css";
 ```
@@ -72,6 +120,7 @@ For an embedded surface, import scoped tokens and optional Markdown styles:
 
 ```css
 @import "@cline/ui/theme/scoped-tokens.css";
+@import "@cline/ui/components.css";
 @import "@cline/ui/components/markdown.css";
 ```
 
@@ -83,13 +132,31 @@ For an embedded surface, import scoped tokens and optional Markdown styles:
 
 Dark values activate when `.dark` is on the wrapper or an ancestor.
 
+Embedded hosts should not import `@cline/ui/theme/theme.css`; it intentionally
+maps generic Tailwind names such as `bg-background` for Cline-owned surfaces.
+
 The theme follows the standard shadcn semantic contract (`--background`,
 `--foreground`, `--card`, `--primary`, `--border`, `--ring`, charts, and
 sidebar surfaces) and Tailwind theme names. This means shadcn components and
 normal Tailwind utilities inherit Cline defaults without custom adapters.
 
-Brand artwork may use the small extension set (`--primary-emphasis` and the
-`--brand-*` palette). Product controls should prefer semantic variables.
+Theme authors work through three layers:
+
+1. Cline-owned 12-step solid and alpha palettes: Slate as `--neutral-*`,
+   Violet as `--accent-*`, Ruby as `--error-*`, Green as `--success-*`, Amber
+   as `--warning-*`, and Sky as `--info-*`.
+2. Readable visual roles such as `--surface-1`, `--text-2`, `--border-1`, and
+   `--success-surface`.
+3. Stable shadcn compatibility variables consumed by components.
+
+Prefer visual or status roles when authoring new framework-neutral component
+CSS. Continue using standard shadcn names in shadcn-compatible components.
+Tailwind exposes the role and compatibility layers, but intentionally does not
+register every raw palette step. Brand artwork may use the separate
+`--brand-*` colors.
+
+The palette values are derived from Radix Colors 3.0.0 under the included MIT
+license; `@cline/ui` does not depend on Radix Colors at runtime.
 
 ## Agent-chat usage
 
@@ -131,13 +198,29 @@ import {
 	ToolActivityContent,
 	ToolActivityDetails,
 	ToolActivityTrigger,
+	WorkActivity,
+	WorkActivityContent,
+	WorkActivityTrigger,
 } from "@cline/ui/components/agent-chat";
 ```
 
 `Conversation` owns sticky scrolling, `Message` owns role presentation,
-`Reasoning` and `ToolActivity` provide accessible disclosures, and the smaller
-action, empty-state, detail, and code primitives fill out common transcript
-states. Give each conversation a bounded height through an explicit height or
+`Reasoning` and `ToolActivity` provide accessible disclosures, `ThinkingBlock`
+is the standard thinking-trace row ("Thinking" shimmer while streaming,
+"Thought for Ns" once done), `WorkActivity` folds a finished run's working
+rows behind a "Worked for 4m 12s and made 14 tool calls" summary, and the
+smaller action, empty-state, detail, and code primitives fill out common
+transcript states.
+
+For assistant Markdown, `@cline/ui/components/markdown` exports the shared
+Streamdown configuration — `markdownCodeHighlighter` (lazy Shiki with GitHub
+light/dark themes) and `agentMarkdownControls` — and
+`@cline/ui/components/markdown.css` carries the matching chat styling (quiet
+single-box code blocks with a hover copy control, chat-scale headings, table
+cards). Import the CSS unlayered so it wins over Streamdown's Tailwind
+utilities, and keep `streamdown`, `shiki`, `@shikijs/langs`, and
+`@shikijs/themes` installed (optional peer dependencies). Products keep their
+own `<Streamdown>` wrapper for link and image policy. Give each conversation a bounded height through an explicit height or
 a complete flex/min-height chain so its viewport can scroll.
 
 These are presentation primitives, not an agent SDK. Consumers map their own

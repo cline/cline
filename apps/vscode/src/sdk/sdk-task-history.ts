@@ -1,7 +1,9 @@
+import { existsSync } from "node:fs"
 import path from "node:path"
 import type { ClineCoreListHistoryOptions, SessionHistoryRecord } from "@cline/core"
-import type { Message as SdkMessage } from "@cline/llms"
+import type { MessageWithMetadata as SdkMessage } from "@cline/llms"
 import { formatDisplayUserInput, parseUserInputMode } from "@cline/shared"
+import { resolveSessionDataDir } from "@cline/shared/storage"
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
 import getFolderSize from "get-folder-size"
@@ -112,7 +114,7 @@ function historyItemToSessionHistoryRecord(item: HistoryItem): SessionHistoryRec
 		exitCode: 0,
 		status: "completed",
 		interactive: true,
-		provider: "",
+		provider: item.apiProvider ?? "",
 		model: item.modelId ?? "",
 		cwd: item.cwdOnTaskInitialization ?? "",
 		workspaceRoot: item.cwdOnTaskInitialization ?? "",
@@ -187,6 +189,7 @@ export function sessionHistoryRecordToHistoryItem(item: SessionHistoryRecord): H
 		size: metadataNumber(metadata, "size"),
 		isFavorited: metadataBoolean(metadata, "isFavorited") ?? metadataBoolean(metadata, "is_favorited") ?? false,
 		modelId: item.model || metadataString(metadata, "modelId") || "",
+		apiProvider: item.provider || undefined,
 		cwdOnTaskInitialization: item.cwd ?? item.workspaceRoot,
 		isLegacy:
 			metadataBoolean(metadata, "legacyTask") === true || metadataBoolean(metadata, "migratedFromLegacyTask") === true,
@@ -410,8 +413,12 @@ export class SdkTaskHistory {
 		const legacyHistory = this.readAllLegacyTaskHistory()
 			.filter(({ item }) => item.task && !sdkIds.has(item.id))
 			.map(({ item }) => historyItemToSessionHistoryRecord(item))
+		// An SDK record with legacy metadata is a legacy task that was resumed,
+		// i.e. migrated (historyItemToSessionMetadata stamps legacyTask on resume).
 		const migratedSdkTaskCount = visibleSdkHistory.filter(
-			(item) => metadataBoolean(item.metadata, "migratedFromLegacyTask") === true,
+			(item) =>
+				metadataBoolean(item.metadata, "migratedFromLegacyTask") === true ||
+				metadataBoolean(item.metadata, "legacyTask") === true,
 		).length
 
 		const mergedHistory = [...visibleSdkHistory, ...legacyHistory].sort(compareSessionHistoryRecordsByRecencyDesc)
@@ -465,12 +472,53 @@ export class SdkTaskHistory {
 				// cannot be trusted as a clean ending. A missing record is likewise an unknown
 				// outcome, so it gets no completion styling either.
 				finalTurnCompleted: sdkRecord?.status === "completed",
+				// Relativize the absolute tool paths for display, same as the live path.
+				cwd: sdkRecord?.cwd || sdkRecord?.workspaceRoot || undefined,
 			},
 		)
 		if (sdkRecord && legacyTask) {
 			return mergeLegacyUiMessagesWithResumedSdkMessages(readUiMessages(taskId, legacyTask.dataDir), clineMessages)
 		}
 		return clineMessages
+	}
+
+	/**
+	 * Absolute path of the directory holding the task's on-disk artifacts: the SDK
+	 * session folder (manifest json + messages json) for SDK tasks, or the legacy
+	 * tasks/<id> folder for pre-SDK tasks. Undefined when the task is unknown.
+	 */
+	async getTaskDirPath(taskId: string): Promise<string | undefined> {
+		const sdkRecord = await this.getSdkRecord(taskId)
+		if (sdkRecord) {
+			const messagesPath = typeof sdkRecord.messagesPath === "string" ? sdkRecord.messagesPath.trim() : ""
+			if (messagesPath) {
+				return path.dirname(messagesPath)
+			}
+			// Older records may lack messagesPath; fall back to the canonical
+			// session directory when it exists on disk.
+			const sessionDir = path.join(resolveSessionDataDir(), taskId)
+			if (existsSync(sessionDir)) {
+				return sessionDir
+			}
+		}
+		return this.getLegacyTaskDirPath(taskId)
+	}
+
+	getLegacyTaskDirPath(taskId: string): string | undefined {
+		const legacyTask = this.findLegacyTask(taskId)
+		return legacyTask ? taskDirPath(taskId, legacyTask.dataDir) : undefined
+	}
+
+	/**
+	 * The persisted session status ("completed" | "cancelled" | "failed" | ...).
+	 * Persisted messages cannot distinguish a completed conversation from one
+	 * interrupted mid-stream (both just end with assistant text), so reopening a
+	 * task from History uses this status to decide between the Resume Task and
+	 * Start New Task affordances.
+	 */
+	async getSessionStatus(taskId: string): Promise<SessionHistoryRecord["status"] | undefined> {
+		const sdkRecord = await this.getSdkRecord(taskId).catch(() => undefined)
+		return sdkRecord?.status
 	}
 
 	async isLegacyTask(taskId: string): Promise<boolean> {
@@ -499,11 +547,6 @@ export class SdkTaskHistory {
 			return undefined
 		}
 		return appendLegacyResumeWarning(fallbackMessages as { role: string; content: unknown }[])
-	}
-
-	getLegacyTaskDirPath(taskId: string): string | undefined {
-		const legacyTask = this.findLegacyTask(taskId)
-		return legacyTask ? taskDirPath(taskId, legacyTask.dataDir) : undefined
 	}
 
 	private async updateSession(sessionId: string, item: HistoryItem): Promise<void> {

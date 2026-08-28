@@ -1,7 +1,16 @@
+import { randomUUID, timingSafeEqual } from "node:crypto";
+import { captureSdkError } from "@cline/shared";
 import type { DesktopTransportRequest } from "../webview/lib/desktop-transport";
+import { MAX_DESKTOP_TRANSPORT_PAYLOAD_BYTES } from "../webview/lib/voice-input-limits";
 import { handleCommand } from "./commands";
-import { sendEvent } from "./context";
+import {
+	cancelSidecarToolApprovalsForOwner,
+	encodeSidecarEvent,
+	sendEvent,
+	syncSidecarApprovalReadiness,
+} from "./context";
 import { fetchMarketplaceCatalog } from "./marketplace";
+import { cancelMcpOAuthAuthorizationsForOwner } from "./mcp-oauth";
 import { cancelProviderOAuthLoginsForOwner } from "./oauth-login";
 import {
 	BunRuntime,
@@ -14,7 +23,10 @@ import {
 
 type SidecarServer = {
 	port: number;
-	upgrade(req: Request): boolean;
+	upgrade(
+		req: Request,
+		options?: { data?: { canApproveTools?: boolean } },
+	): boolean;
 };
 
 // Comma-separated extra origins (e.g. a dev server on a nonstandard port when
@@ -36,6 +48,19 @@ const TRUSTED_BROWSER_ORIGINS = new Set([
 const JSON_HEADERS = {
 	"content-type": "application/json",
 };
+
+const APPROVAL_TOKEN_QUERY_PARAM = "approval_token";
+
+function hasValidApprovalToken(url: URL, expectedToken: string): boolean {
+	const candidate = url.searchParams.get(APPROVAL_TOKEN_QUERY_PARAM);
+	if (!candidate) return false;
+	const candidateBytes = Buffer.from(candidate);
+	const expectedBytes = Buffer.from(expectedToken);
+	return (
+		candidateBytes.length === expectedBytes.length &&
+		timingSafeEqual(candidateBytes, expectedBytes)
+	);
+}
 
 function readOrigin(req: Request): string | undefined {
 	const origin = req.headers.get("origin")?.trim();
@@ -104,6 +129,40 @@ const EMPTY_MARKETPLACE_CATALOG = {
 	entries: [],
 };
 
+type DesktopClientErrorReport = {
+	operation?: unknown;
+	errorMessage?: unknown;
+	errorType?: unknown;
+	handled?: unknown;
+	command?: unknown;
+	timeoutMs?: unknown;
+	transportState?: unknown;
+	sourceUrl?: unknown;
+	lineno?: unknown;
+	colno?: unknown;
+	stack?: unknown;
+};
+
+// Bound for free-form attribution strings (source URLs, stack traces);
+// matches ERROR_REPORT_FIELD_LIMIT in webview/lib/desktop-client.ts.
+const ERROR_REPORT_FIELD_LIMIT = 500;
+
+function captureDesktopError(
+	ctx: SidecarContext,
+	operation: string,
+	error: unknown,
+	context?: Record<string, string | number | boolean>,
+	handled = true,
+): void {
+	captureSdkError(ctx.telemetry, {
+		component: "desktop",
+		operation,
+		error,
+		handled,
+		context,
+	});
+}
+
 // ---------------------------------------------------------------------------
 // Bun HTTP + WebSocket server
 // ---------------------------------------------------------------------------
@@ -112,7 +171,9 @@ export function startServer(
 	ctx: SidecarContext,
 	preferredPort: number = SIDECAR_PORT,
 	onShutdown?: (reason?: string) => Promise<void>,
-): { port: number } {
+	approvalToken = process.env.CLINE_SIDECAR_APPROVAL_TOKEN?.trim() ||
+		randomUUID(),
+): { port: number; approvalToken: string } {
 	if (!BunRuntime) {
 		throw new Error("sidecar must be run with Bun");
 	}
@@ -127,7 +188,7 @@ export function startServer(
 			server = BunRuntime.serve({
 				hostname: SIDECAR_HOST,
 				port: candidate,
-				fetch: createFetchHandler(ctx, onShutdown),
+				fetch: createFetchHandler(ctx, onShutdown, approvalToken),
 				websocket: createWebSocketHandler(ctx),
 			}) as SidecarServer;
 			break;
@@ -140,12 +201,13 @@ export function startServer(
 		throw lastError ?? new Error("Failed to start sidecar server");
 	}
 
-	return { port: server.port };
+	return { port: server.port, approvalToken };
 }
 
 export function createFetchHandler(
 	ctx: SidecarContext,
 	onShutdown?: (reason?: string) => Promise<void>,
+	approvalToken = "",
 ) {
 	return async (req: Request, server: SidecarServer) => {
 		const url = new URL(req.url);
@@ -171,7 +233,15 @@ export function createFetchHandler(
 		if (
 			url.pathname === "/transport" &&
 			isTrustedRequestOrigin(req) &&
-			server.upgrade(req)
+			server.upgrade(req, {
+				data: {
+					// Originless clients remain supported for local integrations, but only
+					// the browser-hosted desktop UI may receive or resolve approvals.
+					canApproveTools:
+						Boolean(readOrigin(req)) &&
+						hasValidApprovalToken(url, approvalToken),
+				},
+			})
 		) {
 			return undefined;
 		}
@@ -180,6 +250,7 @@ export function createFetchHandler(
 			try {
 				return createJsonResponse(req, await fetchMarketplaceCatalog());
 			} catch (error) {
+				captureDesktopError(ctx, "marketplace.catalog", error);
 				return createJsonResponse(req, {
 					...EMPTY_MARKETPLACE_CATALOG,
 					error:
@@ -187,6 +258,74 @@ export function createFetchHandler(
 							? error.message
 							: "Failed to fetch marketplace catalog",
 				});
+			}
+		}
+
+		if (url.pathname === "/telemetry/error" && req.method === "POST") {
+			if (!isTrustedRequestOrigin(req)) {
+				return createJsonResponse(req, { ok: false }, 403);
+			}
+			try {
+				const report = (await req.json()) as DesktopClientErrorReport;
+				const operation =
+					typeof report.operation === "string" && report.operation.trim()
+						? report.operation.trim().slice(0, 100)
+						: "webview.unknown";
+				const error = Object.assign(
+					new Error(
+						typeof report.errorMessage === "string"
+							? report.errorMessage
+							: "Unknown desktop webview error",
+					),
+					{
+						name:
+							typeof report.errorType === "string"
+								? report.errorType.slice(0, 100)
+								: "Error",
+					},
+				);
+				const context: Record<string, string | number | boolean> = {};
+				if (typeof report.command === "string") {
+					context.command = report.command.slice(0, 100);
+				}
+				if (
+					typeof report.timeoutMs === "number" &&
+					Number.isFinite(report.timeoutMs)
+				) {
+					context.timeoutMs = report.timeoutMs;
+				}
+				if (typeof report.transportState === "string") {
+					context.transportState = report.transportState.slice(0, 30);
+				}
+				if (typeof report.sourceUrl === "string" && report.sourceUrl.trim()) {
+					context.sourceUrl = report.sourceUrl.slice(
+						0,
+						ERROR_REPORT_FIELD_LIMIT,
+					);
+				}
+				if (
+					typeof report.lineno === "number" &&
+					Number.isFinite(report.lineno)
+				) {
+					context.lineno = report.lineno;
+				}
+				if (typeof report.colno === "number" && Number.isFinite(report.colno)) {
+					context.colno = report.colno;
+				}
+				if (typeof report.stack === "string" && report.stack.trim()) {
+					context.stack = report.stack.slice(0, ERROR_REPORT_FIELD_LIMIT);
+				}
+				captureDesktopError(
+					ctx,
+					operation,
+					error,
+					context,
+					typeof report.handled === "boolean" ? report.handled : true,
+				);
+				return createJsonResponse(req, { ok: true }, 202);
+			} catch (error) {
+				captureDesktopError(ctx, "webview.error_report", error);
+				return createJsonResponse(req, { ok: false }, 400);
 			}
 		}
 
@@ -200,6 +339,7 @@ export function createFetchHandler(
 			queueMicrotask(() => {
 				void onShutdown?.("code_sidecar_shutdown_endpoint")
 					.catch((error) => {
+						captureDesktopError(ctx, "sidecar.shutdown", error);
 						ctx.logger?.error?.("Desktop sidecar shutdown failed", { error });
 					})
 					.finally(() => process.exit(0));
@@ -213,14 +353,21 @@ export function createFetchHandler(
 	};
 }
 
-function createWebSocketHandler(ctx: SidecarContext) {
+export function createWebSocketHandler(ctx: SidecarContext) {
 	return {
+		maxPayloadLength: MAX_DESKTOP_TRANSPORT_PAYLOAD_BYTES,
 		open(ws: SidecarWebSocketClient) {
 			ctx.wsClients.add(ws);
+			void syncSidecarApprovalReadiness(ctx).catch(() => {});
 			sendEvent(ctx, "host_ready", {
 				pid: process.pid,
 				mode: SIDECAR_MODE,
 			});
+			// Replay a pending mismatch so webviews that connect (or reload)
+			// after detection still prompt the user to update and restart.
+			if (ctx.hubBuildMismatch) {
+				ws.send(encodeSidecarEvent("hub_build_mismatch", ctx.hubBuildMismatch));
+			}
 		},
 		async message(ws: SidecarWebSocketClient, raw: string) {
 			let request: DesktopTransportRequest;
@@ -244,15 +391,21 @@ function createWebSocketHandler(ctx: SidecarContext) {
 				ws.send(jsonResponse(request.id, true, result));
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
+				captureDesktopError(ctx, "command.execute", error, {
+					command: request.command,
+				});
 				ws.send(jsonResponse(request.id, false, undefined, message));
 			}
 		},
 		close(ws: SidecarWebSocketClient) {
 			ctx.wsClients.delete(ws);
-			// OAuth logins are interactive: if the connection that started one
-			// goes away (webview reload, transport drop), cancel it so the
-			// abandoned browser flow can never persist credentials later.
+			cancelSidecarToolApprovalsForOwner(ctx, ws);
+			void syncSidecarApprovalReadiness(ctx).catch(() => {});
+			// Browser OAuth flows are interactive: if the connection that started
+			// one goes away (webview reload, transport drop), cancel its callback
+			// wait so the sidecar cannot retain an abandoned authorization attempt.
 			cancelProviderOAuthLoginsForOwner(ws);
+			cancelMcpOAuthAuthorizationsForOwner(ws);
 		},
 	};
 }

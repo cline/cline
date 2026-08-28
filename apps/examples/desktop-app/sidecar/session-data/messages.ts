@@ -1,6 +1,15 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import { validateImageMedia } from "@cline/shared";
+import {
+	getUserRunSpan,
+	projectSessionMessagesForDisplay,
+	resolveMessageDisplayRole,
+} from "@cline/core";
+import {
+	isGeneratedMedia,
+	type MessageWithMetadata,
+	validateImageMedia,
+} from "@cline/shared";
 import {
 	readSessionManifest,
 	sharedSessionMessagesPath,
@@ -46,24 +55,6 @@ function readMessageMetadata(message: JsonRecord): JsonRecord | undefined {
 		: undefined;
 }
 
-function resolveDisplayRole(
-	role: string,
-	metadata: JsonRecord | undefined,
-): string {
-	const displayRole =
-		typeof metadata?.displayRole === "string"
-			? metadata.displayRole.trim().toLowerCase()
-			: "";
-	if (
-		displayRole === "system" ||
-		displayRole === "status" ||
-		displayRole === "error"
-	) {
-		return displayRole;
-	}
-	return role;
-}
-
 function extractStoredMessageMeta(message: JsonRecord): JsonRecord | undefined {
 	const metadata = readMessageMetadata(message);
 	if (!metadata) {
@@ -77,7 +68,19 @@ function extractStoredMessageMeta(message: JsonRecord): JsonRecord | undefined {
 		typeof metadata.displayRole === "string" ? metadata.displayRole : undefined;
 	const reason =
 		typeof metadata.reason === "string" ? metadata.reason : undefined;
-	if (!hookEventName && !messageKind && !displayRole && !reason) {
+	const userRunSpan =
+		typeof metadata.userRunSpan === "number" &&
+		Number.isInteger(metadata.userRunSpan) &&
+		metadata.userRunSpan >= 0
+			? metadata.userRunSpan
+			: undefined;
+	if (
+		!hookEventName &&
+		!messageKind &&
+		!displayRole &&
+		!reason &&
+		userRunSpan === undefined
+	) {
 		return undefined;
 	}
 	return {
@@ -85,6 +88,7 @@ function extractStoredMessageMeta(message: JsonRecord): JsonRecord | undefined {
 		messageKind,
 		displayRole,
 		reason,
+		userRunSpan,
 	};
 }
 
@@ -148,15 +152,17 @@ function extractImageBlock(
 		: undefined;
 }
 
-export function readPersistedChatMessages(sessionId: string): unknown[] | null {
+export function readPersistedChatMessages(
+	sessionId: string,
+): MessageWithMetadata[] | null {
 	const path = sharedSessionMessagesPath(sessionId);
 	if (!existsSync(path)) {
 		return null;
 	}
 	try {
 		const parsed = JSON.parse(readFileSync(path, "utf8")) as
-			| { messages?: unknown[] }
-			| unknown[];
+			| { messages?: MessageWithMetadata[] }
+			| MessageWithMetadata[];
 		if (Array.isArray(parsed)) {
 			return parsed;
 		}
@@ -340,33 +346,81 @@ export async function readSessionMessages(
 			: (ctx.liveSessions.get(sessionId)?.messages ?? []);
 	const max = Math.max(1, maxMessages);
 	const start = Math.max(0, messages.length - max);
+	const displayMessages = projectSessionMessagesForDisplay(
+		messages.slice(start),
+	).map((entry) => ({
+		message: entry.message,
+		sourceIndex: start + entry.sourceIndex,
+	}));
 	const baseTs = nowMs() - messages.length;
 	const out: JsonRecord[] = [];
 	const checkpointsByRunCount = readCheckpointEntriesByRunCount(sessionId);
 	const pendingToolMessages = new Map<string, [number, string, unknown]>();
 	let userRunCount = 0;
-
-	for (let idx = start; idx < messages.length; idx += 1) {
+	for (let idx = 0; idx < start; idx += 1) {
 		const rawMessage = messages[idx];
 		if (!rawMessage || typeof rawMessage !== "object") {
 			continue;
 		}
-		const message = rawMessage as JsonRecord;
-		const createdAt = resolveMessageCreatedAt(message, baseTs + idx);
+		const message = rawMessage as unknown as JsonRecord;
+		const metadata = readMessageMetadata(message);
+		userRunCount += getUserRunSpan({
+			role: normalizeRole(message.role),
+			content: message.content,
+			metadata,
+		});
+	}
+
+	let previousCreatedAt: number | undefined;
+	for (const projectedMessage of displayMessages) {
+		const idx = projectedMessage.sourceIndex;
+		const rawMessage = projectedMessage.message;
+		if (!rawMessage || typeof rawMessage !== "object") {
+			continue;
+		}
+		const message = rawMessage as unknown as JsonRecord;
+		const storedCreatedAt = resolveMessageCreatedAt(message, baseTs + idx);
+		// Provider activity projects to messages immediately before its owning
+		// assistant answer. Give projected messages a stable chronological order
+		// even when they share the source timestamp: the webview sorts timestamp
+		// ties by id, which would otherwise put the answer before its tool card.
+		let partCreatedAt =
+			previousCreatedAt === undefined
+				? storedCreatedAt
+				: Math.max(storedCreatedAt, previousCreatedAt + 1);
+		const nextPartCreatedAt = () => {
+			const value = partCreatedAt;
+			partCreatedAt += 1;
+			previousCreatedAt = value;
+			return value;
+		};
 		let textMeta = extractMessageUsageMeta(message);
 		const storedMeta = extractStoredMessageMeta(message);
 		if (storedMeta) {
 			textMeta = { ...(textMeta ?? {}), ...storedMeta };
 		}
-		const role = resolveDisplayRole(
-			normalizeRole(message.role),
-			readMessageMetadata(message),
-		);
 		const metadata = readMessageMetadata(message);
-		const isRecoveryNotice =
-			typeof metadata?.kind === "string" && metadata.kind === "recovery_notice";
-		if (role === "user" && !isRecoveryNotice) {
-			userRunCount += 1;
+		const userRunSpan = getUserRunSpan({
+			role: normalizeRole(message.role),
+			content: message.content,
+			metadata,
+		});
+		userRunCount += userRunSpan;
+		const role = resolveMessageDisplayRole({
+			role: normalizeRole(message.role),
+			metadata,
+		});
+		if (role === "user" && userRunSpan !== 1) {
+			textMeta = {
+				...(textMeta ?? {}),
+				userRunSpan,
+			};
+		}
+		if (userRunSpan === 1 && role === "user") {
+			textMeta = {
+				...(textMeta ?? {}),
+				runCount: userRunCount,
+			};
 			const checkpoint = checkpointsByRunCount.get(userRunCount);
 			if (checkpoint) {
 				textMeta = {
@@ -374,6 +428,14 @@ export async function readSessionMessages(
 					checkpoint,
 				};
 			}
+		} else if (userRunCount > 0) {
+			// This also anchors truncated histories whose visible window starts
+			// with an assistant/tool/system message. The webview can then number
+			// a newly appended optimistic user message from the absolute count.
+			textMeta = {
+				...(textMeta ?? {}),
+				runCount: userRunCount,
+			};
 		}
 		const messageIdBase =
 			(typeof message.id === "string" && message.id.trim()) ||
@@ -392,7 +454,7 @@ export async function readSessionMessages(
 				sessionId,
 				role,
 				content,
-				createdAt,
+				createdAt: nextPartCreatedAt(),
 				meta: textMeta,
 			});
 			continue;
@@ -403,6 +465,11 @@ export async function readSessionMessages(
 		const reasoningParts: string[] = [];
 		let reasoningRedacted = false;
 		let textSegmentIndex = 0;
+		let reasoningSegmentIndex = 0;
+		// The text row pushed since the last reasoning flush. Reasoning that
+		// streamed alongside it (the classic [thinking, text] shape) attaches
+		// there instead of becoming a separate row.
+		let reasoningTextTarget: JsonRecord | undefined;
 		const outStartIndex = out.length;
 		const flushTextParts = () => {
 			if (textParts.length === 0) {
@@ -413,15 +480,59 @@ export async function readSessionMessages(
 			if (!joined.trim()) {
 				return;
 			}
-			out.push({
+			const textRow: JsonRecord = {
 				id: `${messageIdBase}_text_${textSegmentIndex}`,
 				sessionId,
 				role,
 				content: joined,
-				createdAt,
+				createdAt: nextPartCreatedAt(),
+				// A persisted user message can project into more than one text
+				// segment around tool blocks. Only its first segment represents
+				// the run; later segments must not acquire a fallback ordinal in
+				// the webview.
+				meta: textMeta ?? (role === "user" ? { userRunSpan: 0 } : undefined),
+			};
+			out.push(textRow);
+			reasoningTextTarget = textRow;
+			textSegmentIndex += 1;
+			textMeta = undefined;
+		};
+		const flushReasoningParts = () => {
+			const reasoning = reasoningParts.join("\n").trim();
+			const redacted = reasoningRedacted;
+			reasoningParts.length = 0;
+			reasoningRedacted = false;
+			// Consumed per flush: reasoning must only attach to a text row from
+			// its own segment, never to one emitted before an earlier tool call.
+			const target = reasoningTextTarget;
+			reasoningTextTarget = undefined;
+			if (!reasoning && !redacted) {
+				return;
+			}
+			if (target) {
+				if (reasoning) {
+					const existing =
+						typeof target.reasoning === "string" && target.reasoning
+							? `${target.reasoning}\n`
+							: "";
+					target.reasoning = `${existing}${reasoning}`;
+				}
+				if (redacted) {
+					target.reasoningRedacted = true;
+				}
+				return;
+			}
+			out.push({
+				id: `${messageIdBase}_reasoning_${reasoningSegmentIndex}`,
+				sessionId,
+				role,
+				content: "",
+				reasoning: reasoning || undefined,
+				reasoningRedacted: redacted || undefined,
+				createdAt: nextPartCreatedAt(),
 				meta: textMeta,
 			});
-			textSegmentIndex += 1;
+			reasoningSegmentIndex += 1;
 			textMeta = undefined;
 		};
 
@@ -438,6 +549,13 @@ export async function readSessionMessages(
 			const blockType = typeof record.type === "string" ? record.type : "";
 			if (blockType === "tool_use") {
 				flushTextParts();
+				// Everything the model emitted in this message — thinking
+				// included — happened before the tool executed. Flushing the
+				// reasoning here keeps the thinking row ahead of the tool row
+				// (matching the live-stream order) so the webview never attaches
+				// pre-tool reasoning to a later answer, which would drag the
+				// work summary's duration anchor back before the tool ran.
+				flushReasoningParts();
 				const toolName =
 					typeof record.name === "string" ? record.name : "tool_call";
 				const toolUseId = typeof record.id === "string" ? record.id : "";
@@ -448,9 +566,10 @@ export async function readSessionMessages(
 					sessionId,
 					role: "tool",
 					content: buildToolPayloadJson(toolName, input, null, false),
-					createdAt,
+					createdAt: nextPartCreatedAt(),
 					meta: {
 						toolName,
+						...(toolUseId ? { toolCallId: toolUseId } : {}),
 						hookEventName: "history_tool_use",
 					},
 				});
@@ -477,7 +596,11 @@ export async function readSessionMessages(
 							isError,
 						);
 						target.meta = {
+							...(target.meta && typeof target.meta === "object"
+								? (target.meta as JsonRecord)
+								: {}),
 							toolName,
+							...(toolUseId ? { toolCallId: toolUseId } : {}),
 							hookEventName: "history_tool_result",
 						};
 					}
@@ -488,9 +611,10 @@ export async function readSessionMessages(
 						sessionId,
 						role: "tool",
 						content: buildToolPayloadJson("tool_result", null, result, isError),
-						createdAt,
+						createdAt: nextPartCreatedAt(),
 						meta: {
 							toolName: "tool_result",
+							...(toolUseId ? { toolCallId: toolUseId } : {}),
 							hookEventName: "history_tool_result",
 						},
 					});
@@ -519,6 +643,20 @@ export async function readSessionMessages(
 				}
 				continue;
 			}
+			if (blockType === "media" && isGeneratedMedia(record.media)) {
+				flushTextParts();
+				out.push({
+					id: `${messageIdBase}_media_${blockIdx}`,
+					sessionId,
+					role,
+					content: "",
+					media: [record.media],
+					createdAt: nextPartCreatedAt(),
+					meta: textMeta,
+				});
+				textMeta = undefined;
+				continue;
+			}
 			const line = stringifyMessageContent(block);
 			if (line.trim()) {
 				textParts.push(line);
@@ -539,38 +677,13 @@ export async function readSessionMessages(
 					role,
 					content: "",
 					images,
-					createdAt,
+					createdAt: nextPartCreatedAt(),
 					meta: textMeta,
 				});
 				textMeta = undefined;
 			}
 		}
-		if (reasoningParts.length > 0 || reasoningRedacted) {
-			const reasoning = reasoningParts.join("\n").trim();
-			const target = out
-				.slice(outStartIndex)
-				.find((item) => item.role === role);
-			if (target) {
-				if (reasoning) {
-					target.reasoning = reasoning;
-				}
-				if (reasoningRedacted) {
-					target.reasoningRedacted = true;
-				}
-			} else {
-				out.push({
-					id: `${messageIdBase}_reasoning`,
-					sessionId,
-					role,
-					content: "",
-					reasoning: reasoning || undefined,
-					reasoningRedacted: reasoningRedacted || undefined,
-					createdAt,
-					meta: textMeta,
-				});
-				textMeta = undefined;
-			}
-		}
+		flushReasoningParts();
 		if (textMeta && out[outStartIndex]) {
 			out[outStartIndex].meta = {
 				...(typeof out[outStartIndex].meta === "object"

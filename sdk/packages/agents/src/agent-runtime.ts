@@ -1,4 +1,8 @@
-import { createGateway, type GatewayProviderSettings } from "@cline/llms";
+import {
+	classifyProviderError,
+	createGateway,
+	type GatewayProviderSettings,
+} from "@cline/llms";
 import type {
 	AgentAfterToolResult,
 	AgentBeforeModelResult,
@@ -9,6 +13,7 @@ import type {
 	AgentModelEvent,
 	AgentModelFinishReason,
 	AgentModelRequest,
+	AgentModelToolActivity,
 	AgentRunResult,
 	AgentRuntimeEvent,
 	AgentRuntimeHooks,
@@ -21,6 +26,7 @@ import type {
 	AgentUsage,
 	AgentRuntimeConfig as BaseAgentRuntimeConfig,
 	CaptureTaskLifecycleEventInput,
+	ProviderErrorClass,
 	TelemetryProperties,
 	ToolApprovalResult,
 	ToolPolicy,
@@ -44,6 +50,40 @@ import { nanoid } from "nanoid";
 
 const MAX_TOKENS_INCOMPLETE_TURN_MESSAGE =
 	"Model reached the maximum output token limit before completing the turn";
+
+/**
+ * Terminal message when a context-window overflow cannot be recovered because
+ * there is no conversation history to compact — the system prompt, tools, and
+ * current input alone exceed the window.
+ */
+export const CONTEXT_WINDOW_OVERFLOW_NOTHING_TO_COMPACT_MESSAGE =
+	"The request exceeds the model's context window and there is no conversation history to compact — the system prompt, tools, and current input alone are too large. Reduce attached content or switch to a model with a larger context window.";
+
+/**
+ * Terminal message when a context-window overflow persists after the runtime
+ * already compacted the conversation and retried once.
+ */
+export const CONTEXT_WINDOW_OVERFLOW_RECOVERY_FAILED_MESSAGE =
+	"The conversation still exceeds the model's context window after compacting it. Start a new session or switch to a model with a larger context window.";
+
+/**
+ * Terminal message when no compaction pipeline is available to recover from a
+ * context-window overflow (e.g. compaction disabled).
+ */
+export const CONTEXT_WINDOW_OVERFLOW_NO_RECOVERY_MESSAGE =
+	"The conversation exceeds the model's context window. Compact the conversation, start a new session, or switch to a model with a larger context window.";
+
+/** Thrown when overflow recovery cannot proceed; carries the terminal text. */
+class ContextWindowOverflowError extends Error {
+	constructor(message: string, providerError: string | undefined) {
+		super(
+			providerError?.trim()
+				? `${message} (provider reported: ${providerError.trim()})`
+				: message,
+		);
+		this.name = "ContextWindowOverflowError";
+	}
+}
 
 // Local `createUID` helper. The clinee source imports this from
 // `@cline/shared` (see `packages/shared/dist/identifier.ts`), but
@@ -289,6 +329,38 @@ function cloneUsage(usage: AgentUsage): AgentUsage {
 	return { ...usage };
 }
 
+const HOOK_ATTRIBUTE_ESCAPES: Record<string, string> = {
+	_: "__",
+	'"': "_q_",
+	"<": "_lt_",
+	">": "_gt_",
+};
+
+function sanitizeHookAttribute(value: string): string {
+	// The underscore escapes itself, which makes the encoding injective
+	// (uniquely decodable escape code): no two distinct ids can collapse to
+	// the same sanitized stamp.
+	return value.replace(/[_"<>]/g, (char) => HOOK_ATTRIBUTE_ESCAPES[char]);
+}
+
+function formatHookContextBlock(
+	source: "PreToolUse" | "PostToolUse",
+	toolCall: AgentToolCallPart,
+	text: string,
+): string {
+	// Tool identity keeps each block attributable to its call: contexts are
+	// batched into one message after the tool results, and parallel tool
+	// execution collects them in completion order, so position alone cannot
+	// identify the tool. Attribute values are sanitized and embedded
+	// hook_context tags (opening and closing) neutralized so neither
+	// provider-supplied ids nor hook output can corrupt or spoof the block
+	// markup.
+	const toolName = sanitizeHookAttribute(toolCall.toolName);
+	const toolCallId = sanitizeHookAttribute(toolCall.toolCallId);
+	const body = text.trim().replace(/<(\/?)hook_context/gi, "<\\$1hook_context");
+	return `<hook_context source="${source}" tool_name="${toolName}" tool_call_id="${toolCallId}">\n${body}\n</hook_context>`;
+}
+
 function cloneMessages(messages: readonly AgentMessage[]): AgentMessage[] {
 	return messages.map((message) => ({
 		...message,
@@ -408,6 +480,13 @@ export class AgentRuntime {
 		afterTool: [],
 		onEvent: [],
 	};
+	/**
+	 * `appendContext` blocks collected from beforeTool/afterTool hooks during
+	 * the current iteration's tool executions, flushed as one user message
+	 * after the tool results so tool-result parts stay contiguous for
+	 * providers that require them first in the following turn.
+	 */
+	private pendingHookContexts: string[] = [];
 	private readonly state = {
 		agentId: "",
 		agentRole: undefined as string | undefined,
@@ -419,7 +498,17 @@ export class AgentRuntime {
 		pendingToolCalls: [] as string[],
 		usage: cloneUsage(DEFAULT_USAGE),
 		lastError: undefined as string | undefined,
+		lastErrorClass: undefined as ProviderErrorClass | undefined,
+		/**
+		 * Whether the model layer already recorded `sdk.error` telemetry for
+		 * `lastError` (from `errorReported` on the stream's `finish` event).
+		 * Custom `AgentModel` implementations that do not record their own
+		 * telemetry leave this false, so their failures still get reported.
+		 */
+		lastErrorReported: false,
 	};
+	/** One automatic overflow-recovery attempt per run. */
+	private overflowRecoveryAttempted = false;
 	private initialization?: Promise<void>;
 	private abortController?: AbortController;
 	private readonly telemetryProviderId?: string;
@@ -495,6 +584,8 @@ export class AgentRuntime {
 		this.state.pendingToolCalls = [];
 		this.state.usage = cloneUsage(DEFAULT_USAGE);
 		this.state.lastError = undefined;
+		this.state.lastErrorClass = undefined;
+		this.state.lastErrorReported = false;
 		this.state.messages = cloneMessages(messages);
 		this.config = {
 			...this.config,
@@ -515,6 +606,7 @@ export class AgentRuntime {
 			pendingToolCalls: [...this.state.pendingToolCalls],
 			usage: cloneUsage(this.state.usage),
 			lastError: this.state.lastError,
+			lastErrorClass: this.state.lastErrorClass,
 		};
 	}
 
@@ -582,7 +674,9 @@ export class AgentRuntime {
 	}
 
 	private async addUserReminderMessage(text: string): Promise<AgentMessage> {
-		const reminderMessage = createMessage("user", [{ type: "text", text }]);
+		const reminderMessage = createMessage("user", [{ type: "text", text }], {
+			userRunSpan: 0,
+		});
 		this.state.messages.push(reminderMessage);
 		await this.emit({
 			type: "message-added",
@@ -604,7 +698,10 @@ export class AgentRuntime {
 		this.state.iteration = 0;
 		this.state.pendingToolCalls = [];
 		this.state.lastError = undefined;
+		this.state.lastErrorClass = undefined;
+		this.state.lastErrorReported = false;
 		this.state.usage = cloneUsage(DEFAULT_USAGE);
+		this.overflowRecoveryAttempted = false;
 
 		try {
 			await this.callBeforeRunHooks();
@@ -639,16 +736,28 @@ export class AgentRuntime {
 					iteration: this.state.iteration,
 				});
 
-				const { message, finishReason } = await this.generateAssistantMessage();
+				const { message, finishReason } =
+					await this.generateAssistantMessageWithOverflowRecovery();
 				if (finishReason === "aborted") {
 					throw this.normalizeAbortError();
 				}
 				if (message.content.length === 0) {
-					throw new Error(
-						finishReason === "error"
-							? (this.state.lastError ?? "Model stream failed")
-							: "Model returned empty response",
-					);
+					if (finishReason === "error") {
+						throw new Error(this.state.lastError ?? "Model stream failed");
+					}
+					// Provider-executed tool activity lives in message metadata, not
+					// content (projecting it into content would replay tool_use blocks
+					// the model never gets results for). A turn that is only such
+					// activity is not empty: keep the message so the transcript and
+					// display projection retain it. Replay stays safe — the codec
+					// renders empty content as its placeholder text block.
+					const modelToolActivities = message.metadata?.modelToolActivities;
+					const hasModelToolActivity =
+						Array.isArray(modelToolActivities) &&
+						modelToolActivities.length > 0;
+					if (!hasModelToolActivity) {
+						throw new Error("Model returned empty response");
+					}
 				}
 				const toolCalls = message.content.filter(
 					(part: AgentMessagePart): part is AgentToolCallPart =>
@@ -713,6 +822,24 @@ export class AgentRuntime {
 						message: toolMessage,
 					});
 				}
+				if (this.pendingHookContexts.length > 0) {
+					const hookContextText = this.pendingHookContexts.join("\n\n");
+					this.pendingHookContexts = [];
+					// displayRole "system" keeps the injected block out of user-facing
+					// transcripts (live and replayed) while it still reaches the model,
+					// mirroring how compaction summaries are handled.
+					const hookContextMessage = createMessage(
+						"user",
+						[{ type: "text", text: hookContextText }],
+						{ userRunSpan: 0, displayRole: "system" },
+					);
+					this.state.messages.push(hookContextMessage);
+					await this.emit({
+						type: "message-added",
+						snapshot: this.snapshot(),
+						message: hookContextMessage,
+					});
+				}
 				await this.emit({
 					type: "turn-finished",
 					snapshot: this.snapshot(),
@@ -748,8 +875,23 @@ export class AgentRuntime {
 			const isControlledStop = normalized instanceof ControlledStopError;
 			const isAborted = this.abortController.signal.aborted || isControlledStop;
 			const status = isAborted ? "aborted" : "failed";
+			// Read before overwriting lastError below: the class only applies
+			// when the run failed on the provider error it was recorded for.
+			const errorClass =
+				normalized instanceof ContextWindowOverflowError
+					? ("context_window_exceeded" as const)
+					: normalized.message === this.state.lastError
+						? this.state.lastErrorClass
+						: undefined;
+			// Same guard: the model layer's telemetry only covers this failure
+			// if the run failed on that exact recorded error.
+			const errorAlreadyReported =
+				normalized.message === this.state.lastError &&
+				this.state.lastErrorReported;
 			this.state.status = status;
 			this.state.lastError = normalized.message;
+			this.state.lastErrorClass = errorClass;
+			this.state.lastErrorReported = errorAlreadyReported;
 			const lastAssistantMessage = this.findLastAssistantMessage();
 			const result: AgentRunResult = {
 				agentId: this.state.agentId,
@@ -779,6 +921,7 @@ export class AgentRuntime {
 					type: "run-failed",
 					snapshot: this.snapshot(),
 					error: normalized,
+					errorClass,
 				});
 			} else {
 				await this.emit({
@@ -808,12 +951,84 @@ export class AgentRuntime {
 		}
 	}
 
-	private async generateAssistantMessage(): Promise<{
+	/**
+	 * Run a model turn, recovering once per run from a provider-rejected
+	 * context-window overflow: force a compaction through `prepareTurn` and
+	 * retry the request. Terminal (unrecoverable) overflow states throw with
+	 * an actionable message instead of the raw provider error.
+	 */
+	private async generateAssistantMessageWithOverflowRecovery(): Promise<{
+		message: AgentMessage;
+		finishReason: AgentModelFinishReason;
+	}> {
+		const first = await this.generateAssistantMessage();
+		if (!this.isRecoverableOverflowTurn(first)) {
+			return first;
+		}
+		this.overflowRecoveryAttempted = true;
+		const providerError = this.state.lastError;
+		if (!this.config.prepareTurn) {
+			throw new ContextWindowOverflowError(
+				CONTEXT_WINDOW_OVERFLOW_NO_RECOVERY_MESSAGE,
+				providerError,
+			);
+		}
+		await this.emit({
+			type: "status-notice",
+			snapshot: this.snapshot(),
+			message: "context window exceeded — compacting and retrying",
+			metadata: {
+				kind: "context_overflow_recovery",
+				reason: "context_overflow_recovery",
+				phase: "started",
+				iteration: this.state.iteration,
+				providerError,
+			},
+		});
+		const retry = await this.generateAssistantMessage({
+			overflowRecovery: true,
+		});
+		if (
+			retry.finishReason === "error" &&
+			this.state.lastErrorClass === "context_window_exceeded"
+		) {
+			throw new ContextWindowOverflowError(
+				CONTEXT_WINDOW_OVERFLOW_RECOVERY_FAILED_MESSAGE,
+				this.state.lastError,
+			);
+		}
+		return retry;
+	}
+
+	private isRecoverableOverflowTurn(turn: {
+		message: AgentMessage;
+		finishReason: AgentModelFinishReason;
+	}): boolean {
+		if (
+			turn.finishReason !== "error" ||
+			this.state.lastErrorClass !== "context_window_exceeded" ||
+			this.overflowRecoveryAttempted
+		) {
+			return false;
+		}
+		// An errored stream that still produced tool calls proceeds through the
+		// normal loop (matching existing behavior); a retry would discard that
+		// partial work.
+		return !turn.message.content.some((part) => part.type === "tool-call");
+	}
+
+	private async generateAssistantMessage(options?: {
+		overflowRecovery?: boolean;
+	}): Promise<{
 		message: AgentMessage;
 		finishReason: AgentModelFinishReason;
 	}> {
 		const usageBeforeModel = cloneUsage(this.state.usage);
 		const modelRequestMetadata = omitUndefinedValues({
+			distinctId: trimNonEmpty(this.config.distinctId),
+			clientName: trimNonEmpty(this.config.clientName),
+			clientVersion: trimNonEmpty(this.config.clientVersion),
+			clineCoreVersion: trimNonEmpty(this.config.clineCoreVersion),
 			sessionId: trimNonEmpty(this.config.sessionId),
 			agentId: this.state.agentId,
 			conversationId: trimNonEmpty(this.config.conversationId),
@@ -828,6 +1043,7 @@ export class AgentRuntime {
 				description: tool.description,
 				inputSchema: tool.inputSchema,
 			})),
+			modelTools: this.config.modelTools,
 			signal: this.abortController?.signal,
 			options: mergeModelOptions(this.config.modelOptions, {
 				metadata: modelRequestMetadata,
@@ -851,7 +1067,7 @@ export class AgentRuntime {
 			}
 		}
 
-		request = await this.prepareTurnForModelRequest(request);
+		request = await this.prepareTurnForModelRequest(request, options);
 		this.throwIfAborted();
 
 		for (const hook of this.hooks.beforeModel) {
@@ -901,6 +1117,7 @@ export class AgentRuntime {
 
 		const content: AgentMessagePart[] = [];
 		const toolAssemblies = new Map<string, PendingToolAssembly>();
+		const modelToolActivities = new Map<string, AgentModelToolActivity>();
 		const invalidToolCalls: InvalidToolCall[] = [];
 		const sequence: Array<
 			{ type: "tool"; key: string } | { type: "part"; part: AgentMessagePart }
@@ -930,6 +1147,22 @@ export class AgentRuntime {
 						iteration: this.state.iteration,
 						text: event.text,
 						accumulatedText,
+					});
+					break;
+				}
+				case "media": {
+					sequence.push({
+						type: "part",
+						part: {
+							type: "media",
+							media: event.media,
+						},
+					});
+					await this.emit({
+						type: "assistant-media",
+						snapshot: this.snapshot(),
+						iteration: this.state.iteration,
+						media: event.media,
 					});
 					break;
 				}
@@ -963,6 +1196,29 @@ export class AgentRuntime {
 					break;
 				}
 				case "tool-call-delta": {
+					if (event.execution) {
+						const toolCall: AgentToolCallPart = {
+							type: "tool-call",
+							toolCallId: event.toolCallId ?? createUID("model_tool"),
+							toolName: event.toolName ?? "tool",
+							input: event.input,
+							metadata: event.metadata,
+							execution: event.execution,
+						};
+						modelToolActivities.set(toolCall.toolCallId, {
+							toolCallId: toolCall.toolCallId,
+							toolName: toolCall.toolName,
+							execution: event.execution,
+							input: toolCall.input,
+						});
+						await this.emit({
+							type: "tool-started",
+							snapshot: this.snapshot(),
+							iteration: this.state.iteration,
+							toolCall,
+						});
+						break;
+					}
 					const key =
 						event.toolCallId ?? `tool_${event.index ?? nextToolIndex}`;
 					if (event.index == null && event.toolCallId == null) {
@@ -1000,6 +1256,43 @@ export class AgentRuntime {
 					}
 					break;
 				}
+				case "tool-result": {
+					const existing = modelToolActivities.get(event.toolCallId);
+					const activity = {
+						...existing,
+						toolCallId: event.toolCallId,
+						toolName: event.toolName,
+						execution: event.execution,
+						input: event.input === undefined ? existing?.input : event.input,
+						output: event.output,
+						isError: event.isError,
+					};
+					modelToolActivities.set(event.toolCallId, activity);
+					const toolCall: AgentToolCallPart = {
+						type: "tool-call",
+						toolCallId: event.toolCallId,
+						toolName: event.toolName,
+						input: activity.input,
+						execution: event.execution,
+					};
+					await this.emit({
+						type: "tool-finished",
+						snapshot: this.snapshot(),
+						iteration: this.state.iteration,
+						toolCall,
+						message: createMessage("tool", [
+							{
+								type: "tool-result",
+								toolCallId: event.toolCallId,
+								toolName: event.toolName,
+								output: event.output,
+								isError: event.isError,
+								execution: event.execution,
+							},
+						]),
+					});
+					break;
+				}
 				case "usage": {
 					await this.updateUsage(event.usage);
 					break;
@@ -1008,6 +1301,14 @@ export class AgentRuntime {
 					finishReason = event.reason;
 					if (event.error) {
 						this.state.lastError = event.error;
+						// Models that classify at their own error boundary (where the
+						// raw provider error is still structured) win. Anything else —
+						// custom `AgentModel` implementations, adapters that carry only
+						// a flattened message — is classified from the message so it
+						// stays eligible for overflow recovery.
+						this.state.lastErrorClass =
+							event.errorClass ?? classifyProviderError(event.error);
+						this.state.lastErrorReported = event.errorReported === true;
 					}
 					break;
 				}
@@ -1051,10 +1352,17 @@ export class AgentRuntime {
 			});
 		}
 
+		const messageMetadata: Record<string, unknown> = {};
+		if (invalidToolCalls.length > 0) {
+			messageMetadata.invalidToolCalls = invalidToolCalls;
+		}
+		if (modelToolActivities.size > 0) {
+			messageMetadata.modelToolActivities = [...modelToolActivities.values()];
+		}
 		const message = createMessage(
 			"assistant",
 			content,
-			invalidToolCalls.length > 0 ? { invalidToolCalls } : undefined,
+			Object.keys(messageMetadata).length > 0 ? messageMetadata : undefined,
 		);
 		const metrics = usageDelta(usageBeforeModel, this.state.usage);
 		if (metrics) {
@@ -1135,6 +1443,7 @@ export class AgentRuntime {
 		this.captureTaskLifecycle(TASK_PROVIDER_STREAM_FAILED_EVENT, {
 			durationMs,
 			error,
+			errorClass: classifyProviderError(error),
 			phase,
 		});
 	}
@@ -1207,11 +1516,13 @@ export class AgentRuntime {
 
 	private async prepareTurnForModelRequest(
 		request: AgentModelRequest,
+		options?: { overflowRecovery?: boolean },
 	): Promise<AgentModelRequest> {
 		if (!this.config.prepareTurn) {
 			return request;
 		}
 
+		const overflowRecovery = options?.overflowRecovery === true;
 		const result = await this.config.prepareTurn({
 			agentId: this.state.agentId,
 			conversationId: this.config.conversationId,
@@ -1225,6 +1536,7 @@ export class AgentRuntime {
 				provider: this.config.messageModelInfo?.provider,
 			},
 			signal: request.signal,
+			overflowRecovery: overflowRecovery || undefined,
 			emitStatusNotice: (message, metadata) => {
 				void this.emit({
 					type: "status-notice",
@@ -1234,6 +1546,30 @@ export class AgentRuntime {
 				});
 			},
 		});
+		if (overflowRecovery) {
+			// Only retry a provider-rejected overflow with a request that is
+			// actually smaller — anything else is guaranteed to fail again.
+			//
+			// Serialized length is a coarse proxy for tokens, which is all this
+			// backstop needs: it answers "did anything get removed at all" for
+			// arbitrary `prepareTurn` implementations, and the shared estimator
+			// is itself linear in character count, so switching units would not
+			// change the verdict. Authoritative token budgeting (against the
+			// model's limit) happens inside the compaction pipeline.
+			// TODO: have `prepareTurn` report the token estimates it already
+			// computed (before/after) so this decision can use real numbers
+			// instead of re-deriving a proxy here.
+			const shrunk =
+				result?.messages !== undefined &&
+				JSON.stringify(result.messages).length <
+					JSON.stringify(request.messages).length;
+			if (!shrunk) {
+				throw new ContextWindowOverflowError(
+					CONTEXT_WINDOW_OVERFLOW_NOTHING_TO_COMPACT_MESSAGE,
+					this.state.lastError,
+				);
+			}
+		}
 		if (!result) {
 			return request;
 		}
@@ -1258,7 +1594,9 @@ export class AgentRuntime {
 		if (!pending) {
 			return undefined;
 		}
-		const message = createMessage("user", [{ type: "text", text: pending }]);
+		const message = createMessage("user", [{ type: "text", text: pending }], {
+			userRunSpan: 0,
+		});
 		this.state.messages.push(message);
 		await this.emit({
 			type: "message-added",
@@ -1291,6 +1629,7 @@ export class AgentRuntime {
 	private async executeToolCalls(
 		toolCalls: AgentToolCallPart[],
 	): Promise<AgentMessage[]> {
+		this.pendingHookContexts = [];
 		const prepared: PreparedToolExecution[] = [];
 		for (const toolCall of toolCalls) {
 			prepared.push(await this.prepareToolExecution(toolCall));
@@ -1383,6 +1722,15 @@ export class AgentRuntime {
 						...policyOverride,
 						...result.policy,
 					};
+				}
+				if (result?.appendContext?.trim()) {
+					this.pendingHookContexts.push(
+						formatHookContextBlock(
+							"PreToolUse",
+							toolCall,
+							result.appendContext,
+						),
+					);
 				}
 				this.applyStopControl(result);
 				if (result?.skip) {
@@ -1531,6 +1879,15 @@ export class AgentRuntime {
 					endedAt,
 					durationMs,
 				})) as AgentAfterToolResult | undefined;
+				if (after?.appendContext?.trim()) {
+					this.pendingHookContexts.push(
+						formatHookContextBlock(
+							"PostToolUse",
+							prepared.toolCall,
+							after.appendContext,
+						),
+					);
+				}
 				this.applyStopControl(after);
 				if (after?.result) {
 					result = after.result;
@@ -1633,23 +1990,48 @@ export class AgentRuntime {
 					...metadata,
 					error: event.error,
 				});
-				captureSdkError(this.config.telemetry, {
-					component: "agents",
-					operation: "agent.run",
-					error: event.error,
-					severity: "error",
-					handled: false,
-					context: metadata as TelemetryProperties,
-				});
+				// Failures the model layer already recorded at its own error
+				// boundary (`provider.stream`, carried across the stream's
+				// string-flattening boundary as `finish.errorReported`) must not
+				// be re-reported here — that exactly doubled `sdk.error` volume.
+				// Everything else still reports: loop-originated failures, and
+				// failures from model implementations that do not record their
+				// own telemetry.
+				if (!this.state.lastErrorReported) {
+					captureSdkError(this.config.telemetry, {
+						component: "agents",
+						operation: "agent.run",
+						error: event.error,
+						severity: "error",
+						handled: false,
+						context: {
+							...(metadata as TelemetryProperties),
+							providerId: this.getTelemetryProviderId(),
+							modelId: this.getTelemetryModelId(),
+						},
+					});
+				}
 				break;
 			default:
 				this.config.logger?.debug?.("Agent event", metadata);
 				break;
 		}
-		this.config.telemetry?.capture({
-			event: `agent.${event.type}`,
-			properties: metadata as TelemetryProperties,
-		});
+		switch (event.type) {
+			// Per-token/per-chunk stream events are ~97% of agent.* telemetry
+			// volume and are never queried, so they are not mirrored to
+			// telemetry. Listeners and hooks below still receive them.
+			case "assistant-text-delta":
+			case "assistant-reasoning-delta":
+			case "assistant-media":
+			case "tool-updated":
+				break;
+			default:
+				this.config.telemetry?.capture({
+					event: `agent.${event.type}`,
+					properties: metadata as TelemetryProperties,
+				});
+				break;
+		}
 		for (const listener of this.listeners) {
 			listener(event);
 		}

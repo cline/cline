@@ -2,6 +2,7 @@ import { createMcpTools } from "@cline/core"
 import type { AgentTool, AgentToolContext } from "@cline/shared"
 import type { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
 import type { McpHub } from "@/services/mcp/McpHub"
+import { resolveMcpServerTimeoutMs } from "@/services/mcp/timeout"
 import { Logger } from "@/shared/services/Logger"
 import type { SdkForegroundCommandCoordinator } from "./sdk-foreground-command-coordinator"
 import { createVscodeRunCommandsTool, VSCODE_FOREGROUND_RUN_COMMANDS_TIMEOUT_MS } from "./vscode-run-commands-tool"
@@ -12,7 +13,7 @@ interface McpToolDescriptor {
 	inputSchema: Record<string, unknown>
 }
 
-class McpHubToolProvider {
+export class McpHubToolProvider {
 	constructor(private readonly mcpHub: McpHub) {}
 
 	async listTools(serverName: string): Promise<readonly McpToolDescriptor[]> {
@@ -40,7 +41,7 @@ class McpHubToolProvider {
 		context?: AgentToolContext
 	}): Promise<unknown> {
 		const ulid = `sdk-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`
-		return this.mcpHub.callTool(request.serverName, request.toolName, request.arguments ?? {}, ulid)
+		return this.mcpHub.callTool(request.serverName, request.toolName, request.arguments ?? {}, ulid, request.context?.signal)
 	}
 }
 
@@ -66,6 +67,9 @@ export async function createVscodeExtraTools(mcpHub: McpHub, options?: VscodeExt
 				return await createMcpTools({
 					serverName: server.name,
 					provider,
+					// Keep the tool wrapper timeout in agreement with the MCP
+					// request timeout: both derive from the server's config.
+					timeoutMs: resolveMcpServerTimeoutMs(server.config),
 				})
 			} catch (error) {
 				Logger.warn(
@@ -87,7 +91,7 @@ export async function createVscodeExtraTools(mcpHub: McpHub, options?: VscodeExt
 	// This replaces the SDK's built-in run_commands, which is suppressed via
 	// tool executor capabilities in VscodeSessionHost.
 	if (options?.getTerminalManager) {
-		const executionMode = options.vscodeTerminalExecutionMode ?? "backgroundExec"
+		const executionMode = options.vscodeTerminalExecutionMode ?? "vscodeTerminal"
 		tools.push(
 			createVscodeRunCommandsTool({
 				cwd: options.cwd ?? process.cwd(),

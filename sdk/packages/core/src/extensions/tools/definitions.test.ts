@@ -1,9 +1,5 @@
-import type { ITelemetryService } from "@cline/shared";
+import type { AgentToolContext, ITelemetryService } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
-import {
-	CLINE_INTERNAL_TELEMETRY_METADATA_KEY,
-	getToolContextTelemetry,
-} from "../../services/telemetry/tool-context";
 import {
 	buildRunCommandsDescription,
 	createDefaultTools,
@@ -572,17 +568,6 @@ describe("default run_commands tool", () => {
 			.filter((event) => event.event === "sdk.tool_timeout");
 	}
 
-	it("reads telemetry from the internal metadata key", () => {
-		const telemetry = createTelemetryStub();
-
-		expect(
-			getToolContextTelemetry({
-				telemetry: "user-defined-label",
-				[CLINE_INTERNAL_TELEMETRY_METADATA_KEY]: telemetry,
-			}),
-		).toBe(telemetry);
-	});
-
 	it("accepts object input with commands as a single string", async () => {
 		const execute = vi.fn(async (command: string | { command: string }) =>
 			typeof command === "string" ? `ran:${command}` : `ran:${command.command}`,
@@ -730,6 +715,49 @@ describe("default run_commands tool", () => {
 			process.cwd(),
 			expect.objectContaining({ iteration: 1 }),
 		);
+	});
+
+	it("identifies streamed updates from parallel commands", async () => {
+		const updates: unknown[] = [];
+		const execute = vi.fn(
+			async (
+				command: string | { command: string; args?: string[] },
+				_cwd: string,
+				context: AgentToolContext,
+			) => {
+				context.emitUpdate?.({
+					stream: "stdout",
+					chunk: typeof command === "string" ? command : command.command,
+				});
+				return "done";
+			},
+		);
+		const tool = createShellTool(execute);
+
+		await tool.execute(
+			{ commands: ["pwd", { command: "node", args: ["--version"] }] },
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+				emitUpdate: (update) => updates.push(update),
+			},
+		);
+
+		expect(updates).toEqual([
+			{
+				stream: "stdout",
+				chunk: "pwd",
+				commandIndex: 0,
+				query: "pwd",
+			},
+			{
+				stream: "stdout",
+				chunk: "node",
+				commandIndex: 1,
+				query: "node --version",
+			},
+		]);
 	});
 
 	it("rejects invalid text-object command entries", async () => {
@@ -1186,8 +1214,8 @@ describe("default run_commands tool", () => {
 		// race regardless of host load (a tight real-timer margin flaked under
 		// heavy parallel CI runs).
 		const execute = vi.fn((): Promise<string> => new Promise<string>(() => {}));
-		const tool = createShellTool(execute, { bashTimeoutMs: 5 });
 		const telemetry = createTelemetryStub();
+		const tool = createShellTool(execute, { bashTimeoutMs: 5, telemetry });
 
 		const result = await tool.execute(
 			{
@@ -1207,7 +1235,6 @@ describe("default run_commands tool", () => {
 				iteration: 1,
 				toolCallId: "tool-call-1",
 				metadata: {
-					[CLINE_INTERNAL_TELEMETRY_METADATA_KEY]: telemetry,
 					mode: "act",
 					source: "sdk-test",
 				},
@@ -1259,21 +1286,20 @@ describe("default run_commands tool", () => {
 
 		await createShellTool(executorTimeout, {
 			bashTimeoutMs: 5000,
+			telemetry,
 		}).execute({ commands: ["echo timeout"] } as never, {
 			agentId: "agent-1",
 			conversationId: "conv-1",
 			iteration: 1,
-			metadata: { [CLINE_INTERNAL_TELEMETRY_METADATA_KEY]: telemetry },
 		});
-		await createShellTool(plainFailure, { bashTimeoutMs: 5000 }).execute(
-			{ commands: ["echo not-timeout"] } as never,
-			{
-				agentId: "agent-1",
-				conversationId: "conv-1",
-				iteration: 2,
-				metadata: { [CLINE_INTERNAL_TELEMETRY_METADATA_KEY]: telemetry },
-			},
-		);
+		await createShellTool(plainFailure, {
+			bashTimeoutMs: 5000,
+			telemetry,
+		}).execute({ commands: ["echo not-timeout"] } as never, {
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			iteration: 2,
+		});
 
 		const timeoutCalls = capturedTimeoutEvents(telemetry);
 		expect(timeoutCalls).toHaveLength(1);
@@ -1290,7 +1316,7 @@ describe("default run_commands tool", () => {
 		// race regardless of host load (a tight real-timer margin flaked under
 		// heavy parallel CI runs).
 		const execute = vi.fn((): Promise<string> => new Promise<string>(() => {}));
-		const tool = createShellTool(execute, { bashTimeoutMs: 5 });
+		const tool = createShellTool(execute, { bashTimeoutMs: 5, telemetry });
 
 		const result = await tool.execute(
 			{ commands: ["echo secret-token", "pwd"] },
@@ -1302,7 +1328,6 @@ describe("default run_commands tool", () => {
 				iteration: 1,
 				toolCallId: "tool-call-1",
 				metadata: {
-					[CLINE_INTERNAL_TELEMETRY_METADATA_KEY]: telemetry,
 					mode: "act",
 					source: "sdk-test",
 				},
@@ -1342,14 +1367,13 @@ describe("default run_commands tool", () => {
 
 	it("does not emit timeout telemetry for normal command success", async () => {
 		const execute = vi.fn(async () => "ok");
-		const tool = createShellTool(execute, { bashTimeoutMs: 50 });
 		const telemetry = createTelemetryStub();
+		const tool = createShellTool(execute, { bashTimeoutMs: 50, telemetry });
 
 		await tool.execute({ commands: ["echo hi"] } as never, {
 			agentId: "agent-1",
 			conversationId: "conv-1",
 			iteration: 1,
-			metadata: { [CLINE_INTERNAL_TELEMETRY_METADATA_KEY]: telemetry },
 		});
 
 		expect(capturedTimeoutEvents(telemetry)).toEqual([]);

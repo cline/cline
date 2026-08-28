@@ -1,7 +1,8 @@
-@import "@fontsource-variable/schibsted-grotesk";
-@import "@fontsource/azeret-mono/latin.css";
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/geist-mono";
 @import "tailwindcss";
 @import "../theme/index.css";
+@import "../components.css";
 @import "../components/agent-chat/agent-chat.css";
 
 @source "../components";

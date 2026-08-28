@@ -42,6 +42,11 @@ export interface SdkInteractionCoordinatorOptions {
 	 * looking at the actual change. Must not throw; failures fall back to a plain ask.
 	 */
 	onToolApprovalAsk?: (request: ToolApprovalRequest) => Promise<void>
+	/**
+	 * The task's working directory, used to relativize the absolute filesystem paths
+	 * shown in tool-approval asks (display only). Optional for tests.
+	 */
+	getCwd?: () => string | undefined
 }
 
 export class SdkInteractionCoordinator {
@@ -101,7 +106,12 @@ export class SdkInteractionCoordinator {
 			Logger.warn(`[SdkController] onToolApprovalAsk failed; showing plain approval ask: ${error}`)
 		}
 
-		const toolAskMessage: ClineMessage = buildToolApprovalAskMessage(request.toolName, request.input, this.nextMessageTs())
+		const toolAskMessage: ClineMessage = buildToolApprovalAskMessage(
+			request.toolName,
+			request.input,
+			this.nextMessageTs(),
+			this.options.getCwd?.(),
+		)
 
 		this.options.messages.appendAndEmit([toolAskMessage], {
 			type: "status",
@@ -236,7 +246,13 @@ export class SdkInteractionCoordinator {
 	}
 
 	clearPending(reason: string): void {
+		const resolveAsk = this.pendingAskResolve
 		this.pendingAskResolve = undefined
+		// ask_question is awaiting this promise inside the outgoing agent run. Settle it
+		// before session teardown so the run can unwind instead of remaining suspended;
+		// use an empty answer so the lifecycle reason is not presented as user input.
+		resolveAsk?.("")
+
 		const pendingMessage = this.pendingToolApprovalMessage
 		this.pendingToolApprovalMessage = undefined
 		if (this.pendingToolApprovalResolve) {

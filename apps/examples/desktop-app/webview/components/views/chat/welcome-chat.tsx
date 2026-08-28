@@ -1,97 +1,41 @@
 "use client";
 
-import { ArrowRight } from "lucide-react";
+import type { AgendaTaskRecord } from "@cline/shared";
+import {
+	type AgentQuickAction,
+	AgentQuickActions,
+	AgentWelcomeHero,
+} from "@cline/ui";
 import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
-import { AuroraBackground } from "@/components/ui/aurora-bg";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { AgendaTaskReviewDialog } from "@/components/agenda-task-review-dialog";
 import { useWorkspace } from "@/contexts/workspace-context";
+import { isAgendaTaskExpired, useAgendaTasks } from "@/hooks/use-agenda-tasks";
+import { AGENDA_UI_ENABLED } from "@/lib/feature-flags";
 import { cn } from "@/lib/utils";
+import { SessionContent } from "./session-content";
 import { WelcomeWorkspaceControls } from "./welcome-workspace-controls";
-
-interface QuickAction {
-	id: string;
-	label: string;
-	description: string;
-	prompt: string;
-}
-
-const HERO_VERBS = ["build", "create", "fix", "know"] as const;
-const HERO_CYCLE_MS = 2600;
-
-const DEFAULT_QUICK_ACTIONS: QuickAction[] = [
-	{
-		id: "review-changes",
-		label: "Review changes",
-		description: "Review the current changes and call out anything risky.",
-		prompt: "Review the current changes and call out anything risky.",
-	},
-	{
-		id: "check-build",
-		label: "Check for build errors",
-		description: "Run the relevant checks and help me fix any failures.",
-		prompt: "Check this project for build errors and help me fix any failures.",
-	},
-];
-
-function HeroHeading() {
-	const [verbIndex, setVerbIndex] = useState(0);
-
-	useEffect(() => {
-		const media = window.matchMedia("(prefers-reduced-motion: reduce)");
-		if (media.matches) return;
-		const interval = setInterval(() => {
-			setVerbIndex((prev) => (prev + 1) % HERO_VERBS.length);
-		}, HERO_CYCLE_MS);
-		return () => clearInterval(interval);
-	}, []);
-
-	const verb = HERO_VERBS[verbIndex];
-
-	return (
-		<h1
-			id="hero-header"
-			className="text-balance text-left text-[clamp(2rem,3vw,2.6rem)] font-semibold leading-[1.12] tracking-tight text-foreground"
-		>
-			<span className="sr-only">What would you like to build?</span>
-			<span aria-hidden="true">
-				What would you like to{" "}
-				{/* key remounts the word each cycle so the chars re-trigger their entrance */}
-				<span key={verb}>
-					{verb.split("").map((char, index) => (
-						<span
-							className="hero-word-char"
-							// biome-ignore lint/suspicious/noArrayIndexKey: the word remounts via the parent key each cycle, so char position is a stable, non-reordering identity
-							key={`${verb}-${index}`}
-							style={{ animationDelay: `${index * 45}ms` }}
-						>
-							{char}
-						</span>
-					))}
-				</span>
-				?
-			</span>
-		</h1>
-	);
-}
 
 export function WelcomeScreen({
 	active,
 	body,
 	composer,
-	onStartChat,
-	quickActions,
+	notice,
 	gitBranch,
 	onListGitBranches,
 	onSwitchGitBranch,
+	onOpenSession,
 }: {
 	active: boolean;
 	body: ReactNode;
 	composer: ReactNode;
-	onStartChat: (prompt: string) => void;
-	quickActions: QuickAction[];
-	gitBranch: string;
+	/** Rendered above the composer on the welcome state (e.g. setup notice). */
+	notice?: ReactNode;
+	/** Branch name, "no-git" for a non-repo folder, null while discovery is pending. */
+	gitBranch: string | null;
 	onListGitBranches: () => Promise<{ current: string; branches: string[] }>;
 	onSwitchGitBranch: (branch: string) => Promise<boolean>;
+	onOpenSession?: (sessionId: string) => void | Promise<void>;
 }) {
 	const {
 		workspaceRoot,
@@ -101,8 +45,65 @@ export function WelcomeScreen({
 		pickWorkspaceDirectory,
 		selectChat,
 	} = useWorkspace();
-	const actions =
-		quickActions.length > 0 ? quickActions : DEFAULT_QUICK_ACTIONS;
+	const agenda = useAgendaTasks(
+		{
+			scope: "workspace",
+			workspaceRoot,
+			types: ["suggestion", "reminder", "follow-up"],
+			statuses: ["pending_approval", "approved", "in_progress", "failed"],
+			limit: 8,
+		},
+		AGENDA_UI_ENABLED && active && workspaceRoot.trim().length > 0,
+	);
+	const [runningTaskId, setRunningTaskId] = useState<string | null>(null);
+	const [reviewTask, setReviewTask] = useState<AgendaTaskRecord | null>(null);
+	const quickActionTasks = useMemo(
+		() => agenda.tasks.filter((task) => !isAgendaTaskExpired(task)).slice(0, 4),
+		[agenda.tasks],
+	);
+	const actions = useMemo<AgentQuickAction[]>(
+		() =>
+			quickActionTasks.map((task) => ({
+				id: task.taskId,
+				label: task.title,
+				description:
+					task.description ||
+					`${task.type === "follow-up" ? "Follow-up" : task.type === "reminder" ? "Reminder" : "Suggestion"} · P${task.priority}`,
+				value: task.instructions,
+			})),
+		[quickActionTasks],
+	);
+
+	const handleTaskAction = useCallback(
+		async (task: AgendaTaskRecord) => {
+			setRunningTaskId(task.taskId);
+			try {
+				if (task.status === "in_progress" && task.lastSessionId) {
+					await onOpenSession?.(task.lastSessionId);
+					return;
+				}
+				let runnable = task;
+				if (runnable.status === "pending_approval") {
+					runnable = await agenda.approveTask(runnable);
+				}
+				if (runnable.status === "in_progress" && runnable.lastSessionId) {
+					await onOpenSession?.(runnable.lastSessionId);
+					return;
+				}
+				if (runnable.status === "approved" || runnable.status === "failed") {
+					const started = await agenda.runTask(runnable);
+					if (started.lastSessionId) {
+						await onOpenSession?.(started.lastSessionId);
+					}
+				}
+			} catch {
+				// useAgendaTasks renders the command failure with the quick actions.
+			} finally {
+				setRunningTaskId(null);
+			}
+		},
+		[agenda.approveTask, agenda.runTask, onOpenSession],
+	);
 
 	useEffect(() => {
 		if (active) void refreshWorkspaces();
@@ -116,7 +117,6 @@ export function WelcomeScreen({
 					: "contents",
 			)}
 		>
-			{active ? <AuroraBackground /> : null}
 			<div
 				className={cn(
 					active
@@ -127,13 +127,14 @@ export function WelcomeScreen({
 				<div
 					className={cn(
 						active
-							? "mx-auto flex w-full max-w-240 flex-col px-6 pb-32 pt-[clamp(8rem,26vh,17rem)] max-[720px]:px-4 max-[720px]:pb-20 max-[720px]:pt-16"
+							? "mx-auto flex min-h-full w-full max-w-240 flex-col justify-center px-6 py-16 max-[720px]:px-4 max-[720px]:py-10"
 							: "contents",
 					)}
 				>
 					{active ? (
-						<>
-							<HeroHeading />
+						<div className="cline-view-enter">
+							<h1 className="sr-only">What would you like to build?</h1>
+							<AgentWelcomeHero />
 
 							<div className="mt-11 flex min-w-0 items-center">
 								<WelcomeWorkspaceControls
@@ -148,46 +149,66 @@ export function WelcomeScreen({
 									workspaces={workspaces}
 								/>
 							</div>
-						</>
+						</div>
 					) : null}
 
 					<div
-						className={active ? "hidden" : "h-full min-h-0 overflow-hidden"}
+						className={
+							active
+								? "hidden"
+								: "cline-view-enter h-full min-h-0 overflow-hidden"
+						}
 						key="conversation-body"
 					>
 						{body}
 					</div>
 
+					{active && notice ? notice : null}
+
 					<div
-						className={active ? "mt-4 w-full" : "z-20 shrink-0"}
+						className={active ? "mt-4 w-full" : "z-20 shrink-0 px-6 pb-6"}
 						key="persistent-composer"
 					>
-						{composer}
+						{active ? composer : <SessionContent>{composer}</SessionContent>}
 					</div>
 
-					{active ? (
-						<div className="mt-11 w-full divide-y divide-border/80 overflow-hidden rounded-xl border border-border/60 bg-background/95 px-2 shadow-sm">
-							{actions.map((action) => (
-								<button
-									className="group flex w-full items-center justify-between gap-5 px-3 py-3 text-left transition-colors hover:bg-background/55 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-									key={action.id}
-									onClick={() => onStartChat(action.prompt)}
-									type="button"
-								>
-									<span className="min-w-0">
-										<span className="block text-[15px] font-medium text-foreground">
-											{action.label}
-										</span>
-										<span className="mt-0.5 block truncate text-sm text-muted-foreground">
-											{action.description}
-										</span>
-									</span>
-									<span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
-										<ArrowRight className="size-3" />
-									</span>
-								</button>
-							))}
-						</div>
+					{active && AGENDA_UI_ENABLED ? (
+						<>
+							<AgentQuickActions
+								actions={actions}
+								className="cline-view-enter mt-11"
+								disabled={runningTaskId !== null}
+								onSelect={(action) => {
+									const task = quickActionTasks.find(
+										(candidate) => candidate.taskId === action.id,
+									);
+									if (!task) return;
+									if (task.status === "pending_approval") {
+										setReviewTask(task);
+									} else {
+										void handleTaskAction(task);
+									}
+								}}
+							/>
+							<AgendaTaskReviewDialog
+								confirmLabel="Approve and start"
+								onConfirm={async (task) => {
+									await handleTaskAction(task);
+									setReviewTask(null);
+								}}
+								onOpenChange={(open) => {
+									if (!open) setReviewTask(null);
+								}}
+								open={reviewTask !== null}
+								pending={runningTaskId === reviewTask?.taskId}
+								task={reviewTask}
+							/>
+							{agenda.error ? (
+								<p className="mt-2 text-xs text-destructive" role="alert">
+									{agenda.error}
+								</p>
+							) : null}
+						</>
 					) : null}
 				</div>
 			</div>

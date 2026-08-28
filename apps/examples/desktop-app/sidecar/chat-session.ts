@@ -7,14 +7,20 @@ import {
 	type ClineCore,
 	type ClineCoreStartConfig,
 	createSessionCompactionState,
+	createUserInstructionConfigService,
+	getCoreBuiltinToolCatalog,
+	isSkillsToolAvailable,
 	projectSessionCompactionState,
+	readGlobalSettings,
 	type SessionCompactionState,
 	type SessionPendingPrompt,
+	type SessionRecord,
 	SessionSource,
 	splitCoreSessionConfig,
+	trimMessagesBeforeUserRun,
 } from "@cline/core";
-import type { Message } from "@cline/llms";
-import { buildClineSystemPrompt } from "@cline/shared";
+import type { MessageWithMetadata } from "@cline/llms";
+import { buildClineSystemPrompt, formatUserCommandBlock } from "@cline/shared";
 import {
 	deleteMaterializedAttachments,
 	discardAllTrackedAttachments,
@@ -23,6 +29,7 @@ import {
 } from "./attachments";
 import { emitChunk, nowMs, sendEvent } from "./context";
 import { readSessionManifest, sharedSessionDataDir } from "./paths";
+import { persistSessionMessages } from "./session-data/messages";
 import type {
 	ChatSessionCommandRequest,
 	JsonRecord,
@@ -45,6 +52,192 @@ const workspaceMetadataPromises = new Map<
 	string,
 	WorkspaceMetadataCacheEntry
 >();
+const ACTIVE_WORKSPACE_SESSION_STATUSES = new Set([
+	"starting",
+	"pending",
+	"running",
+	"stopping",
+]);
+const WORKSPACE_RESTORE_SEND_ERROR =
+	"Cannot send a prompt while the session workspace is being restored";
+const WORKSPACE_RESTORE_BUSY_ERROR =
+	"Wait for all turns in this workspace to finish before restoring it";
+
+type WorkspacePathSource = {
+	cwd?: unknown;
+	workspaceRoot?: unknown;
+	workspace_root?: unknown;
+};
+
+function readWorkspacePath(
+	source: WorkspacePathSource | undefined,
+): string | undefined {
+	const cwd = typeof source?.cwd === "string" ? source.cwd.trim() : "";
+	if (cwd) return cwd;
+	const workspaceRoot =
+		typeof source?.workspaceRoot === "string"
+			? source.workspaceRoot.trim()
+			: "";
+	if (workspaceRoot) return workspaceRoot;
+	const snakeCaseWorkspaceRoot =
+		typeof source?.workspace_root === "string"
+			? source.workspace_root.trim()
+			: "";
+	return snakeCaseWorkspaceRoot || undefined;
+}
+
+function workspacePathKey(
+	source: WorkspacePathSource | undefined,
+): string | undefined {
+	const workspacePath = readWorkspacePath(source);
+	return workspacePath ? resolve(workspacePath) : undefined;
+}
+
+/**
+ * Built-in webview slash commands (chat-input-bar.tsx) keep their literal
+ * token: the slash menu hides same-named user commands, so expansion must
+ * not hijack them either.
+ */
+const BUILTIN_SLASH_COMMAND_NAMES = new Set(["fork", "team"]);
+
+/**
+ * Expand a leading `/skill` or `/workflow` token into its configured
+ * instructions before dispatching the prompt. Skill commands pass through as
+ * typed whenever the session registers the runtime's `skills` tool (its
+ * description requires the model to invoke it on slash-command references),
+ * so the instructions reach the model as a tool result instead of being
+ * pasted into the user message — where the transcript would render them as
+ * if the user had typed the whole skill body. Workflows, and skills in
+ * configurations without the tool (e.g. yolo mode), keep textual expansion.
+ * Returns the prompt unchanged when it is not a slash command, the token is
+ * a built-in, no command matches, or command discovery fails.
+ */
+async function expandRuntimeSlashCommand(
+	ctx: SidecarContext,
+	workspacePath: string | undefined,
+	prompt: string,
+	mode?: unknown,
+): Promise<string> {
+	if (!prompt.startsWith("/") || prompt.length < 2) {
+		return prompt;
+	}
+	const name = prompt.match(/^\/(\S+)/)?.[1]?.toLowerCase();
+	if (!name || BUILTIN_SLASH_COMMAND_NAMES.has(name)) {
+		return prompt;
+	}
+	const service = createUserInstructionConfigService({
+		skills: { workspacePath },
+		rules: { workspacePath },
+		workflows: { workspacePath },
+	});
+	try {
+		await service.start();
+		return service.resolveRuntimeSlashCommand(prompt, {
+			expandSkillCommands: !isSkillsToolAvailable({
+				mode: mode === "plan" || mode === "yolo" ? mode : "act",
+				disabledToolIds: new Set(readGlobalSettings().disabledTools ?? []),
+			}),
+		});
+	} catch (error) {
+		ctx.logger?.debug("Slash command expansion failed, sending raw prompt", {
+			error,
+		});
+		return prompt;
+	} finally {
+		service.stop();
+	}
+}
+
+type TeamPromptAvailability = {
+	/** Session mode as stored in config; anything but plan/yolo counts as act. */
+	mode?: unknown;
+	disabledTools?: ReadonlySet<string>;
+};
+
+export function rewriteDesktopTeamPrompt(
+	prompt: string,
+	availability: TeamPromptAvailability = {},
+): string {
+	const match = /^\/team\b([\s\S]*)$/i.exec(prompt.trim());
+	if (!match) return prompt;
+	const task = match[1]?.trim();
+	if (!task) {
+		throw new Error(
+			"Usage: /team <task description>. Starts a team of agents for the given task.",
+		);
+	}
+	const disabledTools =
+		availability.disabledTools ??
+		new Set(readGlobalSettings().disabledTools ?? []);
+	if (disabledTools.has("teams")) {
+		throw new Error(
+			"Agent teams are disabled. Enable the Teams tool in Customizations → Tools.",
+		);
+	}
+	// The runtime resolves tool availability from the mode's preset, so a
+	// preset without team tools must reject /team here rather than send the
+	// model an instruction it cannot act on.
+	const mode =
+		availability.mode === "plan" || availability.mode === "yolo"
+			? availability.mode
+			: "act";
+	const teamsAvailable = getCoreBuiltinToolCatalog({ mode }).some(
+		(entry) => entry.id === "teams" && entry.defaultEnabled,
+	);
+	if (!teamsAvailable) {
+		throw new Error(`Agent teams are not available in ${mode} mode.`);
+	}
+	return formatUserCommandBlock(
+		`spawn a team of agents for the following task: ${task}`,
+		"team",
+	);
+}
+
+async function resolveDesktopRuntimePrompt(
+	ctx: SidecarContext,
+	workspacePath: string | undefined,
+	prompt: string,
+	mode?: unknown,
+): Promise<string> {
+	return rewriteDesktopTeamPrompt(
+		await expandRuntimeSlashCommand(ctx, workspacePath, prompt, mode),
+		{ mode },
+	);
+}
+
+function hasActiveWorkspaceTurn(session: LiveSession): boolean {
+	return (
+		session.busy ||
+		session.transitioningProvider === true ||
+		ACTIVE_WORKSPACE_SESSION_STATUSES.has(session.status)
+	);
+}
+
+async function withWorkspaceRestoreLock<T>(
+	ctx: SidecarContext,
+	workspacePath: string,
+	work: () => Promise<T>,
+): Promise<T> {
+	const key = resolve(workspacePath);
+	if (ctx.restoringWorkspacePaths.has(key)) {
+		throw new Error(WORKSPACE_RESTORE_BUSY_ERROR);
+	}
+	for (const session of ctx.liveSessions.values()) {
+		if (
+			workspacePathKey(session.config) === key &&
+			hasActiveWorkspaceTurn(session)
+		) {
+			throw new Error(WORKSPACE_RESTORE_BUSY_ERROR);
+		}
+	}
+
+	ctx.restoringWorkspacePaths.add(key);
+	try {
+		return await work();
+	} finally {
+		ctx.restoringWorkspacePaths.delete(key);
+	}
+}
 
 function getWorkspaceMetadataPromise(
 	cwd: string,
@@ -102,7 +295,9 @@ export function refreshWorkspaceMetadata(cwd: string): void {
 // Session data helpers
 // ---------------------------------------------------------------------------
 
-function readPersistedChatMessages(sessionId: string): unknown[] | null {
+function readPersistedChatMessages(
+	sessionId: string,
+): MessageWithMetadata[] | null {
 	const path = join(
 		sharedSessionDataDir(),
 		sessionId,
@@ -111,8 +306,8 @@ function readPersistedChatMessages(sessionId: string): unknown[] | null {
 	if (!existsSync(path)) return null;
 	try {
 		const parsed = JSON.parse(readFileSync(path, "utf8").trim()) as
-			| { messages?: unknown[] }
-			| unknown[];
+			| { messages?: MessageWithMetadata[] }
+			| MessageWithMetadata[];
 		if (Array.isArray(parsed)) return parsed;
 		return Array.isArray(parsed.messages) ? parsed.messages : null;
 	} catch {
@@ -226,7 +421,7 @@ function buildCoreSessionConfig(config: JsonRecord): JsonRecord {
 		sessionId: config.sessionId ?? config.session_id,
 		providerId: config.provider ?? config.providerId ?? "",
 		modelId: config.model ?? config.modelId ?? "",
-		mode: config.mode ?? "act",
+		mode: resolveDesktopSessionMode(config),
 		apiKey: config.apiKey ?? config.api_key ?? "",
 		baseUrl: config.baseUrl,
 		headers: config.headers,
@@ -236,16 +431,6 @@ function buildCoreSessionConfig(config: JsonRecord): JsonRecord {
 		systemPrompt: config.systemPrompt ?? config.system_prompt ?? "",
 		maxIterations: config.maxIterations ?? config.max_iterations,
 		enableTools: config.enableTools ?? config.enable_tools ?? true,
-		enableSpawnAgent:
-			config.enableSpawn ??
-			config.enableSpawnAgent ??
-			config.enable_spawn ??
-			false,
-		enableAgentTeams:
-			config.enableTeams ??
-			config.enableAgentTeams ??
-			config.enable_teams ??
-			false,
 		...(thinking !== undefined ? { thinking } : {}),
 		...(reasoningEffort ? { reasoningEffort } : {}),
 		...(thinkingBudgetTokens !== undefined ? { thinkingBudgetTokens } : {}),
@@ -258,6 +443,17 @@ function buildCoreSessionConfig(config: JsonRecord): JsonRecord {
 		sessions: config.sessions,
 		initialMessages: config.initialMessages,
 	};
+}
+
+/** Auto-approval is a tool policy, not a request to change the tool preset. */
+export function resolveDesktopSessionMode(
+	config: JsonRecord,
+): "act" | "plan" | "yolo" {
+	return config.mode === "plan"
+		? "plan"
+		: config.mode === "yolo"
+			? "yolo"
+			: "act";
 }
 
 export function buildSessionConnectionUpdate(
@@ -368,11 +564,7 @@ async function resolveSystemPrompt(config: JsonRecord): Promise<string> {
 		return String(config.systemPrompt ?? config.system_prompt ?? "").trim();
 	}
 	const providerId = String(config.provider ?? config.providerId ?? "").trim();
-	const mode = config.autoApproveTools
-		? "yolo"
-		: config.mode === "plan"
-			? "plan"
-			: "act";
+	const mode = resolveDesktopSessionMode(config);
 	const metadata = await consumeWorkspaceMetadata(cwd);
 	const inlineRules =
 		typeof config.rules === "string" && config.rules.trim().length > 0
@@ -499,9 +691,7 @@ async function handleStart(
 		...splitCoreSessionConfig(coreConfig as unknown as ClineCoreStartConfig),
 		source: SessionSource.DESKTOP,
 		interactive: true,
-		...(initialMessages
-			? { initialMessages: initialMessages as Message[] }
-			: {}),
+		...(initialMessages ? { initialMessages } : {}),
 		toolPolicies: resolveToolPolicies(request.config),
 	});
 	const sessionId = startResult.sessionId;
@@ -605,7 +795,7 @@ async function startRebuiltSession(
 	sessionId: string,
 	config: JsonRecord,
 	systemPrompt: string,
-	messages: Message[],
+	messages: MessageWithMetadata[],
 	compactionState: SessionCompactionState | undefined,
 ): Promise<void> {
 	const projectedMessages = compactionState
@@ -723,9 +913,26 @@ async function handleSend(
 	}
 	const manager = getSessionManager(ctx);
 	const session = ctx.liveSessions.get(sessionId);
+	const lockedWorkspaceKey = workspacePathKey(
+		session?.config ?? request.config,
+	);
+	if (
+		lockedWorkspaceKey &&
+		ctx.restoringWorkspacePaths.has(lockedWorkspaceKey)
+	) {
+		throw new Error(WORKSPACE_RESTORE_SEND_ERROR);
+	}
 	if (session?.transitioningProvider) {
 		throw new Error("A provider switch is already in progress");
 	}
+	// Dispatch the expanded or rewritten instructions, but keep the raw
+	// `/command` token as the session's display prompt.
+	const runtimePrompt = await resolveDesktopRuntimePrompt(
+		ctx,
+		readWorkspacePath(session?.config ?? request.config) ?? ctx.workspaceRoot,
+		prompt,
+		request.config?.mode ?? session?.config?.mode,
+	);
 	let delivery = request.delivery;
 	if (!delivery && session?.busy) {
 		delivery = "queue";
@@ -786,13 +993,19 @@ async function handleSend(
 			sessionId,
 			request.attachments?.userFiles,
 		);
+		if (session?.attachedViaHub) {
+			// Once ClineCore sends a turn, its HubRuntimeHost owns the session
+			// subscription. Stop projecting the observer stream as well or every
+			// assistant/tool update (including command chunks) is emitted twice.
+			session.attachedViaHub = false;
+		}
 		if (delivery === "queue") {
 			if (session) {
 				session.prompt = prompt;
 			}
 			await manager.send({
 				sessionId,
-				prompt,
+				prompt: runtimePrompt,
 				delivery: "queue",
 				userImages: request.attachments?.userImages,
 				userFiles,
@@ -803,7 +1016,23 @@ async function handleSend(
 				sessionId,
 				ok: true,
 				queued: true,
-				promptsInQueue: applyPendingPrompts(ctx, sessionId, prompts),
+				// Response snapshot only — deliberately not routed through
+				// applyPendingPrompts. The list was taken at enqueue time and
+				// can already be stale when this response is written (the
+				// runtime may have drained the prompt meanwhile, e.g. the
+				// coerced first prompt of a fresh session); overwriting the
+				// event-maintained session.promptsInQueue and rebroadcasting
+				// prompts_in_queue_state here would resurrect a phantom queue
+				// entry for every connected webview.
+				promptsInQueue: prompts
+					.map(mapPendingPrompt)
+					.filter((item) => item.id)
+					.map(({ id, prompt, steer, attachmentCount }) => ({
+						id,
+						prompt,
+						steer,
+						attachmentCount,
+					})),
 			};
 		}
 
@@ -816,7 +1045,7 @@ async function handleSend(
 		try {
 			result = await manager.send({
 				sessionId,
-				prompt,
+				prompt: runtimePrompt,
 				delivery,
 				userImages: request.attachments?.userImages,
 				userFiles,
@@ -846,7 +1075,7 @@ async function handleSend(
 		});
 		if (session && ownsBusyState) {
 			session.status = "idle";
-			if (result?.messages) session.messages = result.messages as unknown[];
+			if (result?.messages) session.messages = result.messages;
 		}
 		return {
 			sessionId,
@@ -932,6 +1161,65 @@ async function handleFork(
 ): Promise<unknown> {
 	const sourceSessionId = request.sessionId?.trim();
 	if (!sourceSessionId) throw new Error("sessionId is required");
+	const forkBeforeRunCount = request.forkBeforeRunCount;
+	if (
+		forkBeforeRunCount !== undefined &&
+		(!Number.isInteger(forkBeforeRunCount) || forkBeforeRunCount < 1)
+	) {
+		throw new Error("forkBeforeRunCount must be a positive integer");
+	}
+	const manager = getSessionManager(ctx);
+	const liveSourceSession = ctx.liveSessions.get(sourceSessionId);
+	if (
+		forkBeforeRunCount !== undefined &&
+		liveSourceSession &&
+		hasActiveWorkspaceTurn(liveSourceSession)
+	) {
+		throw new Error(WORKSPACE_RESTORE_BUSY_ERROR);
+	}
+	const sourceSession = await manager.get(sourceSessionId);
+	if (
+		forkBeforeRunCount !== undefined &&
+		(sourceSession?.status === "running" || sourceSession?.status === "pending")
+	) {
+		throw new Error(WORKSPACE_RESTORE_BUSY_ERROR);
+	}
+	if (forkBeforeRunCount === undefined) {
+		return handleForkUnlocked(
+			ctx,
+			request,
+			sourceSessionId,
+			forkBeforeRunCount,
+			sourceSession,
+		);
+	}
+	const restoreWorkspacePath =
+		readWorkspacePath(sourceSession) ??
+		readWorkspacePath(liveSourceSession?.config) ??
+		readWorkspacePath(request.config);
+	if (!restoreWorkspacePath) {
+		throw new Error("cwd or workspaceRoot is required to edit a message");
+	}
+	return withWorkspaceRestoreLock(ctx, restoreWorkspacePath, () =>
+		handleForkUnlocked(
+			ctx,
+			request,
+			sourceSessionId,
+			forkBeforeRunCount,
+			sourceSession,
+			restoreWorkspacePath,
+		),
+	);
+}
+
+async function handleForkUnlocked(
+	ctx: SidecarContext,
+	request: ChatSessionCommandRequest,
+	sourceSessionId: string,
+	forkBeforeRunCount: number | undefined,
+	sourceSession: SessionRecord | undefined,
+	restoreWorkspacePath?: string,
+): Promise<unknown> {
 	const manager = getSessionManager(ctx);
 	const sourceMessages =
 		readPersistedChatMessages(sourceSessionId) ??
@@ -940,7 +1228,6 @@ async function handleFork(
 		throw new Error(`No messages found for session ${sourceSessionId}`);
 	}
 
-	const sourceSession = await manager.get(sourceSessionId);
 	const sourceMetadata =
 		(sourceSession?.metadata && typeof sourceSession.metadata === "object"
 			? (sourceSession.metadata as JsonRecord)
@@ -983,31 +1270,74 @@ async function handleFork(
 		sourceMetadata?.checkpoint !== undefined
 			? { checkpoints: sourceMetadata.checkpoint }
 			: {};
+	let forkMessages =
+		forkBeforeRunCount === undefined
+			? sourceMessages
+			: trimMessagesBeforeUserRun(sourceMessages, forkBeforeRunCount);
 	const forkMetadata: JsonRecord = {
 		...(sourceMetadata ?? {}),
 		fork: {
 			forkedFromSessionId: sourceSessionId,
 			forkedAt: new Date().toISOString(),
 			source: sourceSession?.source ?? "desktop",
+			...(forkBeforeRunCount !== undefined
+				? { beforeRunCount: forkBeforeRunCount }
+				: {}),
 			...checkpointMetadata,
 		},
 	};
 	const systemPrompt = await resolveSystemPrompt(forkConfig);
-	const startResult = await manager.start({
+	const startInput = {
 		...splitCoreSessionConfig(
 			buildCoreSessionConfig({
 				...forkConfig,
 				systemPrompt,
-				initialMessages: sourceMessages,
 			}) as unknown as ClineCoreStartConfig,
 		),
 		source: SessionSource.DESKTOP,
 		interactive: true,
-		initialMessages: sourceMessages as Message[],
 		sessionMetadata: forkMetadata,
 		toolPolicies: resolveToolPolicies(forkConfig),
-	});
-	const newSessionId = startResult.sessionId;
+	};
+	let newSessionId: string;
+	if (forkBeforeRunCount !== undefined) {
+		const cwd =
+			restoreWorkspacePath ||
+			(typeof forkConfig.cwd === "string" && forkConfig.cwd.trim()) ||
+			(typeof forkConfig.workspaceRoot === "string" &&
+				forkConfig.workspaceRoot.trim()) ||
+			"";
+		if (!cwd) {
+			throw new Error("cwd or workspaceRoot is required to edit a message");
+		}
+		const restored = await manager.restore({
+			sessionId: sourceSessionId,
+			checkpointRunCount: forkBeforeRunCount,
+			cwd,
+			restore: {
+				messages: true,
+				workspace: true,
+				omitCheckpointMessageFromSession: true,
+			},
+			start: startInput,
+		});
+		if (!restored.sessionId) {
+			throw new Error("Message edit restore did not return a new session");
+		}
+		newSessionId = restored.sessionId;
+	} else {
+		const started = await manager.start({
+			...startInput,
+			initialMessages: forkMessages,
+		});
+		newSessionId = started.sessionId;
+	}
+	try {
+		const read = await manager.readMessages(newSessionId);
+		if (forkBeforeRunCount !== undefined || read.length > 0) {
+			forkMessages = read;
+		}
+	} catch {}
 	discardAllTrackedAttachments(
 		sourceSessionId,
 		ctx.liveSessions.get(sourceSessionId),
@@ -1016,23 +1346,17 @@ async function handleFork(
 	ctx.liveSessions.set(
 		newSessionId,
 		createLiveSession(forkConfig, {
-			messages: sourceMessages,
-			prompt: derivePromptFromMessages(sourceMessages),
+			messages: forkMessages,
+			prompt: derivePromptFromMessages(forkMessages),
 			title: readSessionMetadataTitle(sourceSessionId),
 			status: "idle",
 		}),
 	);
 	sendPromptsInQueueSnapshot(ctx, sourceSessionId);
 	sendPromptsInQueueSnapshot(ctx, newSessionId);
-	let messages: unknown[] = sourceMessages;
-	try {
-		const read = await manager.readMessages(newSessionId);
-		if (read?.length > 0) messages = read;
-	} catch {}
 	return {
 		sessionId: newSessionId,
 		forkedFromSessionId: sourceSessionId,
-		messages,
 	};
 }
 
@@ -1071,63 +1395,63 @@ async function handleRestoreCheckpoint(
 		runCount < 1
 	)
 		throw new Error("checkpointRunCount must be a positive integer");
-	if (!request.config)
-		throw new Error("config is required to restore a checkpoint");
+	const config = request.config;
+	if (!config) throw new Error("config is required to restore a checkpoint");
 	const cwd =
-		(typeof request.config.cwd === "string" && request.config.cwd.trim()) ||
-		(typeof request.config.workspaceRoot === "string" &&
-			request.config.workspaceRoot.trim()) ||
+		(typeof config.cwd === "string" && config.cwd.trim()) ||
+		(typeof config.workspaceRoot === "string" && config.workspaceRoot.trim()) ||
 		"";
 	if (!cwd) throw new Error("config.cwd or config.workspaceRoot is required");
 	const manager = getSessionManager(ctx);
-	const restored = await manager.restore({
-		sessionId: sourceSessionId,
-		checkpointRunCount: runCount,
-		cwd,
-		restore: { messages: true, workspace: true },
-		start: {
-			...splitCoreSessionConfig(
-				buildCoreSessionConfig({
-					...request.config,
-					systemPrompt: await resolveSystemPrompt(request.config),
-				}) as unknown as ClineCoreStartConfig,
-			),
-			source: SessionSource.DESKTOP,
-			interactive: true,
-			toolPolicies: resolveToolPolicies(request.config),
-		},
+	return withWorkspaceRestoreLock(ctx, cwd, async () => {
+		const restored = await manager.restore({
+			sessionId: sourceSessionId,
+			checkpointRunCount: runCount,
+			cwd,
+			restore: { messages: true, workspace: true },
+			start: {
+				...splitCoreSessionConfig(
+					buildCoreSessionConfig({
+						...config,
+						systemPrompt: await resolveSystemPrompt(config),
+					}) as unknown as ClineCoreStartConfig,
+				),
+				source: SessionSource.DESKTOP,
+				interactive: true,
+				toolPolicies: resolveToolPolicies(config),
+			},
+		});
+		const sessionId = restored.sessionId;
+		const restoredMessages = restored.messages;
+		if (!sessionId || !restoredMessages) {
+			throw new Error("Checkpoint restore did not return a new session");
+		}
+		discardAllTrackedAttachments(
+			sourceSessionId,
+			ctx.liveSessions.get(sourceSessionId),
+		);
+		ctx.liveSessions.delete(sourceSessionId);
+		ctx.liveSessions.set(
+			sessionId,
+			createLiveSession(config, {
+				messages: restoredMessages,
+				prompt: derivePromptFromMessages(restoredMessages),
+				title: readSessionMetadataTitle(sourceSessionId),
+				status: "idle",
+			}),
+		);
+		// A restore that reuses the source session id leaves the persisted
+		// transcript describing the discarded turns, and read_session_messages
+		// prefers that file over the live session. Write the trimmed history so
+		// the transcript matches the workspace the restore just rolled back to.
+		persistSessionMessages(sessionId, restoredMessages);
+		sendPromptsInQueueSnapshot(ctx, sourceSessionId);
+		sendPromptsInQueueSnapshot(ctx, sessionId);
+		return {
+			sessionId,
+			restoredCheckpoint: restored.checkpoint,
+		};
 	});
-	const sessionId = restored.sessionId;
-	const restoredMessages = restored.messages;
-	if (!sessionId || !restoredMessages) {
-		throw new Error("Checkpoint restore did not return a new session");
-	}
-	discardAllTrackedAttachments(
-		sourceSessionId,
-		ctx.liveSessions.get(sourceSessionId),
-	);
-	ctx.liveSessions.delete(sourceSessionId);
-	ctx.liveSessions.set(
-		sessionId,
-		createLiveSession(request.config, {
-			messages: restoredMessages,
-			prompt: derivePromptFromMessages(restoredMessages),
-			title: readSessionMetadataTitle(sourceSessionId),
-			status: "idle",
-		}),
-	);
-	sendPromptsInQueueSnapshot(ctx, sourceSessionId);
-	sendPromptsInQueueSnapshot(ctx, sessionId);
-	let messages: unknown[] = restoredMessages;
-	try {
-		const read = await manager.readMessages(sessionId);
-		if (read?.length > 0) messages = read;
-	} catch {}
-	return {
-		sessionId,
-		messages,
-		restoredCheckpoint: restored.checkpoint,
-	};
 }
 
 async function handlePendingPrompts(
@@ -1180,10 +1504,19 @@ async function handleUpdatePendingPrompt(
 		throw new Error("prompt is required");
 	}
 	const manager = getSessionManager(ctx);
+	const sessionConfig = ctx.liveSessions.get(sessionId)?.config;
+	// Queued prompts are delivered by the runtime without another pass
+	// through handleSend, so resolve slash commands here too.
+	const runtimePrompt = await resolveDesktopRuntimePrompt(
+		ctx,
+		readWorkspacePath(sessionConfig) ?? ctx.workspaceRoot,
+		prompt,
+		sessionConfig?.mode,
+	);
 	const result = await manager.pendingPrompts.update({
 		sessionId,
 		promptId,
-		prompt,
+		prompt: runtimePrompt,
 	});
 	return {
 		sessionId,

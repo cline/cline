@@ -5,6 +5,7 @@ import type {
 	AgentHooks,
 	AgentTool,
 	BasicLogger,
+	ClientContext,
 	ExtensionContext,
 	ITelemetryService,
 	RuntimeConfigExtensionKind,
@@ -93,6 +94,25 @@ function logPluginDiagnostics(
 	}
 }
 
+/**
+ * Recover client identity from the Cline request headers baked into the
+ * session config. Hub-backed sessions do not transport `extensionContext`
+ * (it is local-only), but the hub client resolves `X-CLIENT-TYPE` /
+ * `X-CLIENT-VERSION` headers before `session.create`, so the daemon can
+ * rebuild `extensionContext.client` from them and keep trace metadata
+ * (Langfuse `clientName` / `clientVersion`) consistent with local runtimes.
+ */
+function resolveClientContextFromHeaders(
+	headers: Record<string, string> | undefined,
+): ClientContext | undefined {
+	const name = headers?.["X-CLIENT-TYPE"]?.trim();
+	if (!name) {
+		return undefined;
+	}
+	const version = headers?.["X-CLIENT-VERSION"]?.trim();
+	return { name, ...(version ? { version } : {}) };
+}
+
 function resolveReasoningSettings(
 	config: CoreSessionConfig,
 	storedReasoning: ProviderSettings["reasoning"],
@@ -112,25 +132,6 @@ function hasConfigExtension(
 	kind: RuntimeConfigExtensionKind,
 ): boolean {
 	return hasRuntimeConfigExtension(extensions, kind);
-}
-
-function countSeededRootRuns(
-	messages: ResolvedStartSessionInput["initialMessages"],
-): number {
-	let count = 0;
-	for (const message of messages ?? []) {
-		if (message.role !== "user") continue;
-		const metadata =
-			"metadata" in message &&
-			message.metadata &&
-			typeof message.metadata === "object" &&
-			!Array.isArray(message.metadata)
-				? (message.metadata as Record<string, unknown>)
-				: undefined;
-		if (metadata?.kind === "recovery_notice") continue;
-		count += 1;
-	}
-	return count;
 }
 
 function buildProviderConfig(
@@ -306,8 +307,12 @@ export async function prepareLocalRuntimeBootstrap(
 		initError,
 	} = await buildWorkspaceMetadataWithInfo(workspacePath);
 	const configuredExtensionContext = localConfig?.extensionContext;
+	const headerClientContext = configuredExtensionContext?.client
+		? undefined
+		: resolveClientContextFromHeaders(input.config.headers);
 	const extensionContext: ExtensionContext = {
 		...(configuredExtensionContext ?? {}),
+		...(headerClientContext ? { client: headerClientContext } : {}),
 		workspace: {
 			...workspaceInfo,
 			...(configuredExtensionContext?.workspace ?? {}),
@@ -336,13 +341,17 @@ export async function prepareLocalRuntimeBootstrap(
 		featureFlagEnabled: true,
 	});
 
-	const fileHookExtension = createHookConfigFileExtension({
-		cwd: input.config.cwd,
-		workspacePath,
-		rootSessionId: sessionId,
-		logger: localConfig?.logger,
-		workspaceInfo,
-	});
+	// Hosts with their own hook execution layer (the VS Code extension's
+	// hooks adapter) exclude "hooks" so file hooks run exactly once.
+	const fileHookExtension = hasConfigExtension(configExtensions, "hooks")
+		? createHookConfigFileExtension({
+				cwd: input.config.cwd,
+				workspacePath,
+				rootSessionId: sessionId,
+				logger: localConfig?.logger,
+				workspaceInfo,
+			})
+		: undefined;
 	const auditHooks = hasRuntimeHooks(localConfig?.hooks)
 		? undefined
 		: createHookAuditHooks({
@@ -422,7 +431,6 @@ export async function prepareLocalRuntimeBootstrap(
 					sessionId,
 					logger: baseConfig.logger,
 					createCheckpoint: baseConfig.checkpoint?.createCheckpoint,
-					initialRunCount: countSeededRootRuns(input.initialMessages),
 					readSessionMetadata,
 					writeSessionMetadata,
 				})

@@ -52,10 +52,13 @@ function SelectContent({
 	children,
 	position = "popper",
 	align = "center",
+	container,
 	...props
-}: React.ComponentProps<typeof SelectPrimitive.Content>) {
+}: React.ComponentProps<typeof SelectPrimitive.Content> & {
+	container?: React.ComponentProps<typeof SelectPrimitive.Portal>["container"]
+}) {
 	return (
-		<SelectPrimitive.Portal>
+		<SelectPrimitive.Portal container={container}>
 			<SelectPrimitive.Content
 				align={align}
 				className={cn(
