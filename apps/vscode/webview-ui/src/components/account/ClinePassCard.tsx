@@ -40,8 +40,8 @@ export const ClinePassCard = () => {
 			) : (
 				<>
 					<p className="m-0 text-sm text-description">
-						A $9.99/month subscription for the latest open-weights models, at much lower cost than paying for direct
-						API access.
+						A monthly subscription for the latest open-weights models, at much lower cost than paying for direct API
+						access.
 					</p>
 					<div className="w-full flex gap-2 flex-col min-[225px]:flex-row">
 						<div className="w-full min-[225px]:w-1/2">
@@ -78,8 +78,8 @@ export const ClinePassWelcomeCallout = () => {
 			data-testid="cline-pass-welcome-callout">
 			<Sparkles className="size-4 shrink-0 mt-0.5 text-[var(--vscode-charts-yellow)]" />
 			<p className="m-0 text-xs text-description">
-				<span className="font-semibold text-foreground">ClinePass</span> — a $9.99/month subscription for the latest
-				open-weights models, at much lower cost than direct API access. Sign up to subscribe from your dashboard.
+				<span className="font-semibold text-foreground">ClinePass</span> — a low-cost monthly subscription for the latest
+				open-weights models, much cheaper than direct API access. Sign up to subscribe from your dashboard.
 			</p>
 		</div>
 	)

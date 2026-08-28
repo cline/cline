@@ -239,8 +239,8 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 	}, [])
 
 	/**
-	 * Promotional banner for ClinePass. Shown until dismissed, and only while the
-	 * feature flag exposes the provider and the user isn't already on ClinePass.
+	 * Promotional banner for ClinePass. Shown until dismissed, and only while
+	 * promotions are enabled and the user isn't already on ClinePass.
 	 */
 	const clinePassPromoBanner = useMemo((): BannerData | undefined => {
 		if (
@@ -259,8 +259,8 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 			description: (
 				<div className="flex flex-col gap-2">
 					<p className="m-0">
-						A $9.99/month subscription for the latest open-weights models, at much lower cost than paying for direct
-						API access.
+						A monthly subscription for the latest open-weights models, at much lower cost than paying for direct API
+						access.
 					</p>
 					<div>
 						<Button onClick={openSubscribePage} size="sm">

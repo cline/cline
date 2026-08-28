@@ -1,30 +1,29 @@
 import { useCallback, useMemo } from "react"
 import { buildClinePassSubscribeUrl, buildClinePassSubscriptionPageUrl } from "@/components/onboarding/clinePassSubscribe"
 import { useApiConfigurationHandlers } from "@/components/settings/utils/useApiConfigurationHandlers"
-import { CLINE_PASS_FEATURE_FLAG } from "@/constants/featureFlags"
 import { useClineAuth } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { useHasFeatureFlag } from "@/hooks/useFeatureFlag"
 import { UiServiceClient } from "@/services/grpc-client"
 
 export const CLINE_PASS_PROVIDER_ID = "cline-pass"
 
 /**
  * Shared state + actions for the ClinePass promotional surfaces (home banner,
- * account page card, settings provider hint). Everything is gated behind the
- * ext-cline-pass feature flag, matching the provider dropdown exposure, and
- * behind org remote-config provider allowlists so promotions never offer a
- * provider the organization disallows.
+ * account page card, settings provider hint). Promotions are hidden in
+ * self-hosted mode (ClinePass is a cloud subscription) and behind org
+ * remote-config provider allowlists so they never offer a provider the
+ * organization disallows.
  */
 export function useClinePassPromo() {
-	const hasClinePassFeatureFlag = useHasFeatureFlag(CLINE_PASS_FEATURE_FLAG)
-	const { apiConfiguration, navigateToSettings, remoteConfigSettings, mode, planActSeparateModelsSetting } = useExtensionState()
+	const { apiConfiguration, environment, navigateToSettings, remoteConfigSettings, mode, planActSeparateModelsSetting } =
+		useExtensionState()
 	const { clineUser } = useClineAuth()
 	const { handleModeFieldChange } = useApiConfigurationHandlers()
 
+	const isSelfHostedOrUnknown = !environment || environment === "selfHosted"
 	const remoteProviders: string[] = remoteConfigSettings?.remoteConfiguredProviders || []
 	const isBlockedByRemoteConfig = remoteProviders.length > 0 && !remoteProviders.includes(CLINE_PASS_PROVIDER_ID)
-	const isClinePassEnabled = hasClinePassFeatureFlag && !isBlockedByRemoteConfig
+	const isClinePassEnabled = !isSelfHostedOrUnknown && !isBlockedByRemoteConfig
 
 	// Mirrors the switch action's scope: with separate plan/act models the
 	// promos only affect (and therefore only reflect) the current mode.

@@ -30,7 +30,7 @@ describe("ClinePassCard", () => {
 		vi.clearAllMocks()
 	})
 
-	it("renders nothing when the feature flag is off", () => {
+	it("renders nothing when ClinePass promotions are disabled", () => {
 		mockPromo({ isClinePassEnabled: false })
 		render(<ClinePassCard />)
 		expect(screen.queryByTestId("cline-pass-card")).not.toBeInTheDocument()
@@ -65,13 +65,13 @@ describe("ClinePassWelcomeCallout", () => {
 		vi.clearAllMocks()
 	})
 
-	it("renders nothing when the feature flag is off", () => {
+	it("renders nothing when ClinePass promotions are disabled", () => {
 		mockPromo({ isClinePassEnabled: false })
 		render(<ClinePassWelcomeCallout />)
 		expect(screen.queryByTestId("cline-pass-welcome-callout")).not.toBeInTheDocument()
 	})
 
-	it("mentions ClinePass when the feature flag is on", () => {
+	it("mentions ClinePass when promotions are enabled", () => {
 		mockPromo()
 		render(<ClinePassWelcomeCallout />)
 		expect(screen.getByTestId("cline-pass-welcome-callout")).toHaveTextContent("ClinePass")

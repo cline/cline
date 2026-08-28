@@ -2,15 +2,13 @@ import type { Mode } from "@shared/storage/types"
 import { Sparkles, XIcon } from "lucide-react"
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { CLINE_PASS_FEATURE_FLAG } from "@/constants/featureFlags"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { useHasFeatureFlag } from "@/hooks/useFeatureFlag"
+import { CLINE_PASS_PROVIDER_ID, useClinePassPromo } from "@/hooks/useClinePassPromo"
 import { StateServiceClient } from "@/services/grpc-client"
 import { isBannerDismissedForSession, markBannerDismissedForSession } from "@/utils/sessionBannerDismissals"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 
 const CLINE_PASS_SETTINGS_HINT_ID = "cline-pass-settings-hint-v1"
-const CLINE_PASS_PROVIDER_ID = "cline-pass"
 
 interface ClinePassHintProps {
 	selectedProvider: string
@@ -23,8 +21,9 @@ interface ClinePassHintProps {
  * so its settings render right below.
  */
 export const ClinePassHint = ({ selectedProvider, currentMode }: ClinePassHintProps) => {
-	const isClinePassEnabled = useHasFeatureFlag(CLINE_PASS_FEATURE_FLAG)
-	const { dismissedBanners, remoteConfigSettings } = useExtensionState()
+	// Covers self-hosted mode and org-managed provider allowlists.
+	const { isClinePassEnabled } = useClinePassPromo()
+	const { dismissedBanners } = useExtensionState()
 	const { handleModeFieldChange } = useApiConfigurationHandlers()
 	// Seeded from the session-scoped record so the dismissal survives unmounts.
 	const [locallyDismissed, setLocallyDismissed] = useState(() => isBannerDismissedForSession(CLINE_PASS_SETTINGS_HINT_ID))
@@ -32,11 +31,7 @@ export const ClinePassHint = ({ selectedProvider, currentMode }: ClinePassHintPr
 	const isDismissed =
 		locallyDismissed || (dismissedBanners ?? []).some((dismissed) => dismissed.bannerId === CLINE_PASS_SETTINGS_HINT_ID)
 
-	// Respect org-managed provider allowlists.
-	const remoteProviders: string[] = remoteConfigSettings?.remoteConfiguredProviders || []
-	const isBlockedByRemoteConfig = remoteProviders.length > 0 && !remoteProviders.includes(CLINE_PASS_PROVIDER_ID)
-
-	if (!isClinePassEnabled || selectedProvider === CLINE_PASS_PROVIDER_ID || isDismissed || isBlockedByRemoteConfig) {
+	if (!isClinePassEnabled || selectedProvider === CLINE_PASS_PROVIDER_ID || isDismissed) {
 		return null
 	}
 
@@ -62,7 +57,8 @@ export const ClinePassHint = ({ selectedProvider, currentMode }: ClinePassHintPr
 			data-testid="cline-pass-settings-hint">
 			<Sparkles className="size-3.5 shrink-0 mt-0.5 text-[var(--vscode-charts-yellow)]" />
 			<div className="grow text-xs text-description">
-				<span className="font-semibold text-foreground">ClinePass</span> — the latest open-weights models for $9.99/month.{" "}
+				<span className="font-semibold text-foreground">ClinePass</span> — a low-cost subscription for the latest
+				open-weights models.{" "}
 				<button
 					className="cursor-pointer border-0 bg-transparent p-0 text-xs text-[var(--vscode-textLink-foreground)] underline hover:text-[var(--vscode-textLink-activeForeground,var(--vscode-textLink-foreground))]"
 					onClick={handleTryIt}

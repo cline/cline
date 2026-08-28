@@ -1,15 +1,19 @@
 import { fireEvent, render, screen } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { useHasFeatureFlag } from "@/hooks/useFeatureFlag"
+import { useClinePassPromo } from "@/hooks/useClinePassPromo"
 import { StateServiceClient } from "@/services/grpc-client"
 import { clearSessionBannerDismissalsForTesting } from "@/utils/sessionBannerDismissals"
 import { ClinePassHint } from "../ClinePassHint"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
-vi.mock("@/hooks/useFeatureFlag", () => ({
-	useHasFeatureFlag: vi.fn(),
-}))
+vi.mock("@/hooks/useClinePassPromo", async (importOriginal) => {
+	const actual = await importOriginal()
+	return {
+		...(actual as Record<string, unknown>),
+		useClinePassPromo: vi.fn(),
+	}
+})
 
 vi.mock("@/context/ExtensionStateContext", () => ({
 	useExtensionState: vi.fn(),
@@ -30,7 +34,13 @@ const mockHandleModeFieldChange = vi.fn(() => Promise.resolve())
 const mockExtensionState = (overrides: Record<string, unknown> = {}) => {
 	vi.mocked(useExtensionState).mockReturnValue({
 		dismissedBanners: [],
-		remoteConfigSettings: undefined,
+		...overrides,
+	} as any)
+}
+
+const mockPromo = (overrides: Partial<ReturnType<typeof useClinePassPromo>> = {}) => {
+	vi.mocked(useClinePassPromo).mockReturnValue({
+		isClinePassEnabled: true,
 		...overrides,
 	} as any)
 }
@@ -39,7 +49,7 @@ describe("ClinePassHint", () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
 		clearSessionBannerDismissalsForTesting()
-		vi.mocked(useHasFeatureFlag).mockReturnValue(true)
+		mockPromo()
 		vi.mocked(useApiConfigurationHandlers).mockReturnValue({
 			handleModeFieldChange: mockHandleModeFieldChange,
 		} as any)
@@ -61,8 +71,8 @@ describe("ClinePassHint", () => {
 		)
 	})
 
-	it("hides the hint when the feature flag is off", () => {
-		vi.mocked(useHasFeatureFlag).mockReturnValue(false)
+	it("hides the hint when ClinePass promotions are disabled (self-hosted or org allowlist)", () => {
+		mockPromo({ isClinePassEnabled: false })
 		render(<ClinePassHint currentMode="plan" selectedProvider="anthropic" />)
 		expect(screen.queryByTestId("cline-pass-settings-hint")).not.toBeInTheDocument()
 	})
@@ -90,12 +100,6 @@ describe("ClinePassHint", () => {
 
 	it("stays hidden when a previous dismissal is in extension state", () => {
 		mockExtensionState({ dismissedBanners: [{ bannerId: "cline-pass-settings-hint-v1", dismissedAt: 1 }] })
-		render(<ClinePassHint currentMode="plan" selectedProvider="anthropic" />)
-		expect(screen.queryByTestId("cline-pass-settings-hint")).not.toBeInTheDocument()
-	})
-
-	it("hides the hint when remote config excludes cline-pass", () => {
-		mockExtensionState({ remoteConfigSettings: { remoteConfiguredProviders: ["anthropic"] } })
 		render(<ClinePassHint currentMode="plan" selectedProvider="anthropic" />)
 		expect(screen.queryByTestId("cline-pass-settings-hint")).not.toBeInTheDocument()
 	})

@@ -3,12 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { useApiConfigurationHandlers } from "@/components/settings/utils/useApiConfigurationHandlers"
 import { useClineAuth } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { useHasFeatureFlag } from "@/hooks/useFeatureFlag"
 import { useClinePassPromo } from "../useClinePassPromo"
-
-vi.mock("@/hooks/useFeatureFlag", () => ({
-	useHasFeatureFlag: vi.fn(),
-}))
 
 vi.mock("@/context/ExtensionStateContext", () => ({
 	useExtensionState: vi.fn(),
@@ -34,6 +29,7 @@ const mockHandleModeFieldChange = vi.fn(() => Promise.resolve())
 const mockExtensionState = (overrides: Record<string, unknown> = {}) => {
 	vi.mocked(useExtensionState).mockReturnValue({
 		apiConfiguration: { planModeApiProvider: "anthropic", actModeApiProvider: "anthropic" },
+		environment: "production",
 		navigateToSettings: mockNavigateToSettings,
 		remoteConfigSettings: undefined,
 		mode: "act",
@@ -45,7 +41,6 @@ const mockExtensionState = (overrides: Record<string, unknown> = {}) => {
 describe("useClinePassPromo", () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
-		vi.mocked(useHasFeatureFlag).mockReturnValue(true)
 		vi.mocked(useClineAuth).mockReturnValue({ clineUser: null } as any)
 		vi.mocked(useApiConfigurationHandlers).mockReturnValue({
 			handleModeFieldChange: mockHandleModeFieldChange,
@@ -53,13 +48,19 @@ describe("useClinePassPromo", () => {
 		mockExtensionState()
 	})
 
-	it("is enabled when the feature flag is on and no remote config restricts providers", () => {
+	it("is enabled when no remote config restricts providers", () => {
 		const { result } = renderHook(() => useClinePassPromo())
 		expect(result.current.isClinePassEnabled).toBe(true)
 	})
 
-	it("is disabled when the feature flag is off", () => {
-		vi.mocked(useHasFeatureFlag).mockReturnValue(false)
+	it("is disabled in self-hosted mode", () => {
+		mockExtensionState({ environment: "selfHosted" })
+		const { result } = renderHook(() => useClinePassPromo())
+		expect(result.current.isClinePassEnabled).toBe(false)
+	})
+
+	it("is disabled when the environment is unknown", () => {
+		mockExtensionState({ environment: undefined })
 		const { result } = renderHook(() => useClinePassPromo())
 		expect(result.current.isClinePassEnabled).toBe(false)
 	})
