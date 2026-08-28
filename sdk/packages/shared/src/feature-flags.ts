@@ -1,6 +1,13 @@
 export const FeatureFlag = {
 	/** Enables ClinePass provider/model list exposure in supported clients. */
 	CLINE_PASS: "ext-cline-pass",
+	/**
+	 * Enables Langfuse-compatible tracing for Cline-owned providers.
+	 *
+	 * This flag is deliberately boolean. Langfuse credentials belong on the
+	 * server-side OTLP collector and must never be returned to clients.
+	 */
+	LANGFUSE_TELEMETRY: "langfuse-telemetry",
 	/** Shows the GitHub integration step in the desktop app */
 	CODE_ONBOARDING_GITHUB: "code-onboarding-github",
 } as const;
@@ -37,9 +44,8 @@ type Primitive = string | number | boolean | bigint | symbol | null | undefined;
 type HasNonPrimitiveFieldNames<T> = {
 	[K in keyof T]-?: Exclude<T[K], Primitive> extends never ? never : K;
 }[keyof T];
-type HasOnlyPrimitiveFields<T> = HasNonPrimitiveFieldNames<T> extends never
-	? true
-	: false;
+type HasOnlyPrimitiveFields<T> =
+	HasNonPrimitiveFieldNames<T> extends never ? true : false;
 export type FeatureFlagsContextPrimitiveValued = AssertTrue<
 	HasOnlyPrimitiveFields<FeatureFlagsContext>
 >;
@@ -65,6 +71,7 @@ export const FeatureFlagDefaultValue: Partial<
 	Record<FeatureFlag, FeatureFlagPayload | undefined>
 > = {
 	[FeatureFlag.CLINE_PASS]: false,
+	[FeatureFlag.LANGFUSE_TELEMETRY]: false,
 	[FeatureFlag.CODE_ONBOARDING_GITHUB]: false,
 };
 

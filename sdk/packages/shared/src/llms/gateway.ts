@@ -193,6 +193,18 @@ export interface GatewayProviderSettings {
 	fetch?: typeof fetch;
 	options?: Record<string, unknown>;
 	metadata?: GatewayProviderMetadata;
+	/**
+	 * Managed telemetry selected by the host for this provider invocation.
+	 *
+	 * These are routing switches only. Exporter credentials are intentionally
+	 * absent: managed traces use the process's existing OpenTelemetry exporter.
+	 */
+	managedTelemetry?: GatewayManagedTelemetryConfig;
+}
+
+export interface GatewayManagedTelemetryConfig {
+	/** Emit AI SDK v7 Langfuse spans through the existing OTLP trace exporter. */
+	langfuse?: boolean;
 }
 
 export interface GatewayResolvedProviderConfig extends GatewayProviderSettings {

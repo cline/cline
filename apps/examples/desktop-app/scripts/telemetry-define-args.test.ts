@@ -13,9 +13,10 @@ function defineMap(args: string[]): Record<string, string> {
 }
 
 describe("telemetryDefineArgs", () => {
-	it("inlines every OTEL var getTelemetryBuildTimeConfig reads", () => {
+	it("inlines the managed Langfuse capability and every OTEL config variable", () => {
 		const defines = defineMap(
 			telemetryDefineArgs({
+				CLINE_PROVIDER_LANGFUSE_ENABLED: "true",
 				OTEL_TELEMETRY_ENABLED: "1",
 				OTEL_EXPORTER_OTLP_ENDPOINT: "https://otel.example.com:4318",
 				OTEL_EXPORTER_OTLP_PROTOCOL: "http/json",
@@ -25,6 +26,9 @@ describe("telemetryDefineArgs", () => {
 				OTEL_TRACES_EXPORTER: "otlp",
 				OTEL_METRIC_EXPORT_INTERVAL: "60000",
 			}),
+		);
+		expect(defines["process.env.CLINE_PROVIDER_LANGFUSE_ENABLED"]).toBe(
+			'"true"',
 		);
 		expect(defines["process.env.OTEL_TELEMETRY_ENABLED"]).toBe('"1"');
 		expect(defines["process.env.OTEL_EXPORTER_OTLP_ENDPOINT"]).toBe(
@@ -44,6 +48,7 @@ describe("telemetryDefineArgs", () => {
 
 	it("inlines unset OTEL vars as empty strings so binaries never fall back to runtime env", () => {
 		const defines = defineMap(telemetryDefineArgs({}));
+		expect(defines["process.env.CLINE_PROVIDER_LANGFUSE_ENABLED"]).toBe('""');
 		expect(defines["process.env.OTEL_TELEMETRY_ENABLED"]).toBe('""');
 		expect(defines["process.env.OTEL_EXPORTER_OTLP_ENDPOINT"]).toBe('""');
 	});

@@ -249,6 +249,7 @@ export function createAgentModelFromConfig(
 				headers: normalizedProviderConfig.headers,
 				timeoutMs: normalizedProviderConfig.timeoutMs,
 				fetch: normalizedProviderConfig.fetch,
+				managedTelemetry: normalizedProviderConfig.managedTelemetry,
 				options: buildGatewayProviderOptions(normalizedProviderConfig),
 				models: normalizedProviderConfig.knownModels
 					? Object.entries(normalizedProviderConfig.knownModels).map(

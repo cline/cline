@@ -267,9 +267,12 @@ jobs:
         env:
           TELEMETRY_SERVICE_API_KEY: ${{ secrets.TELEMETRY_SERVICE_API_KEY }}
           ERROR_SERVICE_API_KEY: ${{ secrets.ERROR_SERVICE_API_KEY }}
+          # Non-secret capability only. Langfuse credentials stay on the OTLP collector.
+          CLINE_PROVIDER_LANGFUSE_ENABLED: "true"
           OTEL_TELEMETRY_ENABLED: ${{ secrets.OTEL_TELEMETRY_ENABLED }}
           OTEL_LOGS_EXPORTER: otlp
           OTEL_METRICS_EXPORTER: otlp
+          OTEL_TRACES_EXPORTER: otlp
           OTEL_EXPORTER_OTLP_PROTOCOL: ${{ secrets.OTEL_EXPORTER_OTLP_PROTOCOL }}
           OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
@@ -301,9 +304,12 @@ jobs:
           # only way the shipped sidecar can ever report telemetry.
           TELEMETRY_SERVICE_API_KEY: ${{ secrets.TELEMETRY_SERVICE_API_KEY }}
           ERROR_SERVICE_API_KEY: ${{ secrets.ERROR_SERVICE_API_KEY }}
+          # Non-secret capability only. Langfuse credentials stay on the OTLP collector.
+          CLINE_PROVIDER_LANGFUSE_ENABLED: "true"
           OTEL_TELEMETRY_ENABLED: ${{ secrets.OTEL_TELEMETRY_ENABLED }}
           OTEL_LOGS_EXPORTER: otlp
           OTEL_METRICS_EXPORTER: otlp
+          OTEL_TRACES_EXPORTER: otlp
           OTEL_EXPORTER_OTLP_PROTOCOL: ${{ secrets.OTEL_EXPORTER_OTLP_PROTOCOL }}
           OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
@@ -415,6 +421,14 @@ jobs:
             echo "Check the OTEL_* / TELEMETRY_SERVICE_API_KEY env on the"
             echo "'Build, sign, and notarize desktop bundle' step and the"
             echo "--define inlining in scripts/build-sidecar-bin.ts."
+            exit 1
+          fi
+          if ! printf '%s' "$SELFCHECK" | grep -q '"cline_provider_langfuse_enabled":true'; then
+            echo "Packaged sidecar is missing managed Cline Langfuse enablement."
+            exit 1
+          fi
+          if ! printf '%s' "$SELFCHECK" | grep -q '"traces_exporter":"otlp"'; then
+            echo "Packaged sidecar is missing the OTLP trace exporter."
             exit 1
           fi
           if printf '%s' "$SELFCHECK" | grep -Eq '"otlp_endpoint_host":"(invalid-endpoint-url)?"'; then
@@ -550,9 +564,12 @@ jobs:
         env:
           TELEMETRY_SERVICE_API_KEY: ${{ secrets.TELEMETRY_SERVICE_API_KEY }}
           ERROR_SERVICE_API_KEY: ${{ secrets.ERROR_SERVICE_API_KEY }}
+          # Non-secret capability only. Langfuse credentials stay on the OTLP collector.
+          CLINE_PROVIDER_LANGFUSE_ENABLED: "true"
           OTEL_TELEMETRY_ENABLED: ${{ secrets.OTEL_TELEMETRY_ENABLED }}
           OTEL_LOGS_EXPORTER: otlp
           OTEL_METRICS_EXPORTER: otlp
+          OTEL_TRACES_EXPORTER: otlp
           OTEL_EXPORTER_OTLP_PROTOCOL: ${{ secrets.OTEL_EXPORTER_OTLP_PROTOCOL }}
           OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
@@ -598,9 +615,12 @@ jobs:
           # Telemetry inlined into the sidecar at compile time, same as macOS.
           TELEMETRY_SERVICE_API_KEY: ${{ secrets.TELEMETRY_SERVICE_API_KEY }}
           ERROR_SERVICE_API_KEY: ${{ secrets.ERROR_SERVICE_API_KEY }}
+          # Non-secret capability only. Langfuse credentials stay on the OTLP collector.
+          CLINE_PROVIDER_LANGFUSE_ENABLED: "true"
           OTEL_TELEMETRY_ENABLED: ${{ secrets.OTEL_TELEMETRY_ENABLED }}
           OTEL_LOGS_EXPORTER: otlp
           OTEL_METRICS_EXPORTER: otlp
+          OTEL_TRACES_EXPORTER: otlp
           OTEL_EXPORTER_OTLP_PROTOCOL: ${{ secrets.OTEL_EXPORTER_OTLP_PROTOCOL }}
           OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
@@ -669,6 +689,14 @@ jobs:
             echo "Check the OTEL_* / TELEMETRY_SERVICE_API_KEY env on the"
             echo "'Build and sign desktop bundle' step and the --define"
             echo "inlining in scripts/build-sidecar-bin.ts."
+            exit 1
+          fi
+          if ! printf '%s' "$SELFCHECK" | grep -q '"cline_provider_langfuse_enabled":true'; then
+            echo "Packaged sidecar is missing managed Cline Langfuse enablement."
+            exit 1
+          fi
+          if ! printf '%s' "$SELFCHECK" | grep -q '"traces_exporter":"otlp"'; then
+            echo "Packaged sidecar is missing the OTLP trace exporter."
             exit 1
           fi
           if printf '%s' "$SELFCHECK" | grep -Eq '"otlp_endpoint_host":"(invalid-endpoint-url)?"'; then

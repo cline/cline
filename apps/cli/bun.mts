@@ -99,6 +99,9 @@ const result = await Bun.build({
 					),
 				}
 			: {}),
+		"process.env.CLINE_PROVIDER_LANGFUSE_ENABLED": defineProcessEnv(
+			"CLINE_PROVIDER_LANGFUSE_ENABLED",
+		),
 		"process.env.OTEL_TELEMETRY_ENABLED": defineProcessEnv(
 			"OTEL_TELEMETRY_ENABLED",
 		),
@@ -109,6 +112,9 @@ const result = await Bun.build({
 			"OTEL_METRICS_EXPORTER",
 		),
 		"process.env.OTEL_LOGS_EXPORTER": defineProcessEnv("OTEL_LOGS_EXPORTER"),
+		"process.env.OTEL_TRACES_EXPORTER": defineProcessEnv(
+			"OTEL_TRACES_EXPORTER",
+		),
 		"process.env.OTEL_EXPORTER_OTLP_PROTOCOL": defineProcessEnv(
 			"OTEL_EXPORTER_OTLP_PROTOCOL",
 		),
