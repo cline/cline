@@ -564,6 +564,80 @@ describe("sdk-gateway", () => {
 		);
 	});
 
+	it("passes AI SDK 7 telemetry and correlation context to streamText", async () => {
+		mockSuccessfulStream();
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "openrouter",
+					apiKey: "test-key",
+				},
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openrouter",
+				modelId: "anthropic/claude-test",
+				messages: baseMessages,
+				metadata: {
+					distinctId: "user-1",
+					sessionId: "session-1",
+					clientName: "cline-desktop",
+					clientVersion: "1.2.3",
+					clineCoreVersion: "4.5.6",
+					tags: ["nightly", "cline"],
+					conversationId: "conversation-1",
+					runId: "run-1",
+					iteration: 2,
+				},
+			}),
+		);
+
+		const call = streamTextSpy.mock.calls.at(-1)?.[0] as
+			| {
+					experimental_telemetry?: unknown;
+					telemetry?: unknown;
+					runtimeContext?: unknown;
+			  }
+			| undefined;
+		expect(call).not.toHaveProperty("experimental_telemetry");
+		expect(call?.telemetry).toEqual({
+			isEnabled: expect.any(Boolean),
+			functionId: "cline-agent-turn",
+			includeRuntimeContext: {
+				distinctId: true,
+				userId: true,
+				sessionId: true,
+				clientName: true,
+				clientVersion: true,
+				clineCoreVersion: true,
+				tags: true,
+				conversationId: true,
+				runId: true,
+				iteration: true,
+				providerId: true,
+				modelId: true,
+				resolvedModelId: true,
+			},
+		});
+		expect(call?.runtimeContext).toEqual({
+			distinctId: "user-1",
+			userId: "user-1",
+			sessionId: "session-1",
+			clientName: "cline-desktop",
+			clientVersion: "1.2.3",
+			clineCoreVersion: "4.5.6",
+			tags: ["nightly", "cline"],
+			conversationId: "conversation-1",
+			runId: "run-1",
+			iteration: 2,
+			providerId: "openrouter",
+			modelId: "anthropic/claude-test",
+			resolvedModelId: "anthropic/claude-test",
+		});
+	});
+
 	it("translates portable web_search intent into a native provider tool", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: makeStreamParts([
