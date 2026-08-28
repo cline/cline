@@ -114,7 +114,7 @@ function historyItemToSessionHistoryRecord(item: HistoryItem): SessionHistoryRec
 		exitCode: 0,
 		status: "completed",
 		interactive: true,
-		provider: "",
+		provider: item.apiProvider ?? "",
 		model: item.modelId ?? "",
 		cwd: item.cwdOnTaskInitialization ?? "",
 		workspaceRoot: item.cwdOnTaskInitialization ?? "",
@@ -189,6 +189,7 @@ export function sessionHistoryRecordToHistoryItem(item: SessionHistoryRecord): H
 		size: metadataNumber(metadata, "size"),
 		isFavorited: metadataBoolean(metadata, "isFavorited") ?? metadataBoolean(metadata, "is_favorited") ?? false,
 		modelId: item.model || metadataString(metadata, "modelId") || "",
+		apiProvider: item.provider || undefined,
 		cwdOnTaskInitialization: item.cwd ?? item.workspaceRoot,
 		isLegacy:
 			metadataBoolean(metadata, "legacyTask") === true || metadataBoolean(metadata, "migratedFromLegacyTask") === true,

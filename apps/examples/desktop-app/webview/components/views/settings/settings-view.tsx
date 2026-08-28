@@ -217,6 +217,31 @@ export function SettingsView({
 		return () => window.clearTimeout(timeoutId);
 	}, [activeNav, loadProviderCatalog]);
 
+	/**
+	 * Silently refreshes view state from the authoritative catalog after a
+	 * successful save, without toggling the loading screen. Optimistic
+	 * mutations can't know sidecar-computed fields (`configured`), so the
+	 * Configured badge would otherwise stay stale until a remount. Claims a
+	 * new generation like loadProviderCatalog, so overlapping resyncs, loads,
+	 * and edits always resolve to the newest snapshot: anything older still
+	 * in flight is discarded on arrival.
+	 */
+	const resyncProviderCatalog = useCallback(async () => {
+		const generation = ++catalogGenerationRef.current;
+		try {
+			const payload = await desktopClient.invoke<ProviderCatalogResponse>(
+				"list_provider_catalog",
+			);
+			if (generation !== catalogGenerationRef.current) {
+				return;
+			}
+			setProvidersWithCache(payload.providers);
+		} catch {
+			// Background refresh only; the optimistic state remains until the
+			// next full load.
+		}
+	}, [setProvidersWithCache]);
+
 	const persistProviderSettings = useCallback(
 		async (
 			id: string,
@@ -237,6 +262,10 @@ export function SettingsView({
 						? toSettingsPatch(updates.configValues)
 						: undefined,
 				});
+				// Pick up sidecar-computed readiness (`configured`) for the
+				// just-saved settings so the Configured badge and count update
+				// without a remount.
+				void resyncProviderCatalog();
 				return true;
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
@@ -261,7 +290,7 @@ export function SettingsView({
 				invalidateProviderCatalogCache();
 			}
 		},
-		[loadProviderCatalog],
+		[loadProviderCatalog, resyncProviderCatalog],
 	);
 
 	const connectProvider = useCallback(
@@ -428,6 +457,11 @@ export function SettingsView({
 			// must learn about the new OAuth connection too, not just this
 			// view's local provider state.
 			invalidateProviderCatalogCache();
+			// Fetch the authoritative post-login snapshot. The resync claims a
+			// new generation, so an older load or resync still in flight can't
+			// arrive late and overwrite the just-connected state, and its own
+			// response also covers any provider saved moments earlier.
+			void resyncProviderCatalog();
 			setSelectedProviderId(id);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);

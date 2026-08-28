@@ -1,6 +1,6 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
 	AGENT_CONFIG_DIRECTORY_NAME,
@@ -8,13 +8,16 @@ import {
 	CLINE_CONNECTOR_SETTINGS_FILE_NAME,
 	CLINE_MCP_SETTINGS_FILE_NAME,
 	CLINE_WORKSPACES_DIRECTORY_NAME,
+	discoverPluginModulePaths,
 	getPluginDisplayName,
 	HOOKS_CONFIG_DIRECTORY_NAME,
+	isAgentPluginDirectory,
 	isChatWorkspacePath,
 	RULES_CONFIG_DIRECTORY_NAME,
 	resolveAgentsConfigDirPath,
 	resolveChatWorkspacePath,
 	resolveClineDataDir,
+	resolveConfiguredPluginModulePaths,
 	resolveConnectorDataDir,
 	resolveConnectorSettingsPath,
 	resolveDbDataDir,
@@ -22,6 +25,7 @@ import {
 	resolveGlobalSettingsPath,
 	resolveHooksConfigSearchPaths,
 	resolveMcpSettingsPath,
+	resolvePluginModuleEntries,
 	resolveProviderSettingsPath,
 	resolveRulesConfigSearchPaths,
 	resolveSessionDataDir,
@@ -204,6 +208,12 @@ describe("storage path resolution", () => {
 			expect.arrayContaining([
 				resolveGlobalAgentsRulesPath(),
 				join("/tmp/home", ".cline", RULES_CONFIG_DIRECTORY_NAME),
+				// xdg-user-dir's unconfigured Documents fallback (cline/cline#13542)
+				join(
+					dirname(dirname(resolveGlobalAgentsRulesPath())),
+					"Cline",
+					"Rules",
+				),
 			]),
 		);
 		expect(resolveRulesConfigSearchPaths()).not.toContain(
@@ -365,5 +375,170 @@ describe("getPluginDisplayName", () => {
 		writeFileSync(entryPath, "export default {};");
 
 		expect(getPluginDisplayName(entryPath, root)).toBe("index");
+	});
+});
+
+describe("Cline plugin discovery boundary", () => {
+	const tempRoots: string[] = [];
+
+	function createTempRoot(): string {
+		const root = mkdtempSync(join(tmpdir(), "cline-plugin-boundary-"));
+		tempRoots.push(root);
+		return root;
+	}
+
+	function writeFile(path: string, contents: string): string {
+		mkdirSync(dirname(path), { recursive: true });
+		writeFileSync(path, contents);
+		return path;
+	}
+
+	/**
+	 * A minimal conformant Agent Plugin: a skill with an executable script, a
+	 * second vendor's extension directory, and a vendored dependency. None of it
+	 * is a Cline plugin module.
+	 */
+	function writeAgentPlugin(pluginRoot: string): void {
+		writeFile(
+			join(pluginRoot, "plugin.json"),
+			JSON.stringify({
+				$schema: "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+				name: "summarizer",
+			}),
+		);
+		writeFile(
+			join(pluginRoot, "mcp.json"),
+			JSON.stringify({
+				$schema: "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+				mcpServers: {},
+			}),
+		);
+		writeFile(
+			join(pluginRoot, "skills", "summarize", "SKILL.md"),
+			"---\nname: summarize\n---\n",
+		);
+		writeFile(
+			join(pluginRoot, "skills", "summarize", "scripts", "fetch.js"),
+			"throw new Error('skill script must never be imported');",
+		);
+		writeFile(
+			join(pluginRoot, "skills", "summarize", "scripts", "build.ts"),
+			"export const helper = 1;",
+		);
+		writeFile(
+			join(pluginRoot, "com.example.client", "setup.js"),
+			"throw new Error('another vendor namespace must never be imported');",
+		);
+		writeFile(
+			join(pluginRoot, "node_modules", "left-pad", "package.json"),
+			JSON.stringify({ name: "left-pad", main: "index.js" }),
+		);
+		writeFile(
+			join(pluginRoot, "node_modules", "left-pad", "index.js"),
+			"module.exports = () => {};",
+		);
+	}
+
+	afterEach(() => {
+		for (const root of tempRoots.splice(0)) {
+			rmSync(root, { recursive: true, force: true });
+		}
+	});
+
+	it("claims nothing from an Agent Plugin dropped into a Cline plugin root", () => {
+		const root = createTempRoot();
+		writeAgentPlugin(join(root, "summarizer"));
+
+		expect(discoverPluginModulePaths(root)).toEqual([]);
+	});
+
+	it("claims nothing when the scan root is itself an Agent Plugin", () => {
+		const root = createTempRoot();
+		writeAgentPlugin(root);
+
+		expect(discoverPluginModulePaths(root)).toEqual([]);
+	});
+
+	it("never descends into node_modules", () => {
+		const root = createTempRoot();
+		const entryPath = writeFile(
+			join(root, "my-plugin", "index.ts"),
+			"export default {};",
+		);
+		writeFile(
+			join(root, "my-plugin", "node_modules", "dep", "index.js"),
+			"module.exports = {};",
+		);
+
+		expect(discoverPluginModulePaths(root)).toEqual([entryPath]);
+	});
+
+	it("never descends into dot directories", () => {
+		const root = createTempRoot();
+		const entryPath = writeFile(join(root, "plugin.ts"), "export default {};");
+		writeFile(
+			join(root, ".git", "hooks", "pre-commit.js"),
+			"module.exports={};",
+		);
+
+		expect(discoverPluginModulePaths(root)).toEqual([entryPath]);
+	});
+
+	it("still discovers bare Cline plugin modules", () => {
+		const root = createTempRoot();
+		const first = writeFile(join(root, "alpha.ts"), "export default {};");
+		const second = writeFile(
+			join(root, "nested", "beta.js"),
+			"export default {};",
+		);
+
+		expect(discoverPluginModulePaths(root)).toEqual([first, second]);
+	});
+
+	it("still honors package.json-declared Cline plugin entries", () => {
+		const root = createTempRoot();
+		const packageDir = join(root, "declared");
+		writeFile(
+			join(packageDir, "package.json"),
+			JSON.stringify({ cline: { plugins: [{ paths: ["entry.ts"] }] } }),
+		);
+		const entryPath = writeFile(
+			join(packageDir, "entry.ts"),
+			"export default {};",
+		);
+		writeFile(join(packageDir, "helper.ts"), "export const helper = 1;");
+
+		expect(discoverPluginModulePaths(root)).toEqual([entryPath]);
+	});
+
+	it("resolves no module entries for an Agent Plugin directory", () => {
+		const root = createTempRoot();
+		writeAgentPlugin(root);
+		// An index.ts at the root would otherwise be claimed as the Cline plugin
+		// entry point, so this asserts the manifest wins over the index fallback.
+		writeFile(join(root, "index.ts"), "export default {};");
+
+		expect(resolvePluginModuleEntries(root)).toBeNull();
+	});
+
+	it("resolves no modules for an explicitly configured Agent Plugin path", () => {
+		const root = createTempRoot();
+		writeAgentPlugin(join(root, "summarizer"));
+
+		expect(resolveConfiguredPluginModulePaths(["summarizer"], root)).toEqual(
+			[],
+		);
+	});
+
+	it("detects an Agent Plugin manifest only when it is a regular file", () => {
+		const root = createTempRoot();
+		expect(isAgentPluginDirectory(root)).toBe(false);
+
+		mkdirSync(join(root, "plugin.json"), { recursive: true });
+		expect(isAgentPluginDirectory(root)).toBe(false);
+
+		rmSync(join(root, "plugin.json"), { recursive: true, force: true });
+		writeFileSync(join(root, "plugin.json"), "{}");
+		expect(isAgentPluginDirectory(root)).toBe(true);
 	});
 });

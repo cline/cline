@@ -1,13 +1,13 @@
-import {
-	getProviderConfigFields,
-	type ProviderConfig,
-	type ProviderSettings,
-} from "@cline/core";
+import * as LlmsModels from "@cline/llms";
 import {
 	getPersistedProviderApiKey,
 	isOAuthProvider,
-	normalizeProviderId,
-} from "./provider-auth";
+} from "../../auth/provider-auth-registry";
+import type {
+	ProviderConfig,
+	ProviderSettings,
+} from "../llms/provider-settings";
+import { getProviderConfigFields } from "./provider-config-fields";
 
 function hasText(value: string | undefined): boolean {
 	return typeof value === "string" && value.trim().length > 0;
@@ -34,7 +34,7 @@ function hasAwsRegion(settings: ProviderSettings): boolean {
 function hasGcpCredentials(settings: ProviderSettings): boolean {
 	const gcp = settings.gcp;
 	// Vertex defaults to us-central1 at runtime when no region is stored, so keep
-	// existing project-only configs usable while new CLI saves include a region.
+	// existing project-only configs usable while new saves include a region.
 	return hasText(gcp?.projectId);
 }
 
@@ -52,6 +52,14 @@ function hasSapCredentials(settings: ProviderSettings): boolean {
 	);
 }
 
+/**
+ * Whether persisted provider settings hold enough real credentials or
+ * endpoint configuration for a turn to plausibly succeed. Unlike the mere
+ * existence of a settings entry (which migrations and empty "connect" saves
+ * can create), this requires provider-appropriate evidence: an API key or
+ * OAuth token, cloud credentials (AWS/GCP/Azure/SAP), a local-auth CLI, or a
+ * resolvable endpoint + model for keyless local providers.
+ */
 export function isProviderSettingsUsable(
 	providerId: string,
 	settings: ProviderSettings | undefined,
@@ -60,8 +68,10 @@ export function isProviderSettingsUsable(
 	if (!settings) {
 		return false;
 	}
-	const normalizedProviderId = normalizeProviderId(providerId);
-	if (normalizeProviderId(settings.provider) !== normalizedProviderId) {
+	const normalizedProviderId = LlmsModels.normalizeProviderId(providerId);
+	if (
+		LlmsModels.normalizeProviderId(settings.provider) !== normalizedProviderId
+	) {
 		return false;
 	}
 	if (normalizedProviderId === "bedrock") {
