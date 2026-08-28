@@ -24,6 +24,7 @@ export {
 	listMcpServerOAuthStatuses,
 	loadMcpSettingsFile,
 	McpOAuthClientChangedError,
+	McpOAuthTransportChangedError,
 	McpSettingsLockTimeoutError,
 	McpSettingsMutatorPurityError,
 	McpSettingsUpdateSkippedError,
@@ -45,8 +46,14 @@ export type {
 	CreateMcpOAuthProviderContextOptions,
 	McpOAuthProviderContext,
 } from "./oauth";
-export { authorizeMcpServerOAuth } from "./oauth";
+export {
+	authorizeMcpServerOAuth,
+	createMcpOAuthClientInformation,
+	createMcpOAuthProviderContext,
+} from "./oauth";
+export { createMcpOAuthClientPolicyBinding } from "./oauth-client-policy-binding";
 export { McpOAuthScopePolicyError } from "./oauth-scope-policy";
+export { createMcpOAuthTransportBinding } from "./oauth-transport-binding";
 export type { PluginMcpServerResolution } from "./plugin-server-registration";
 export {
 	normalizePluginMcpServerRegistration,
@@ -67,6 +74,7 @@ export type {
 	McpConnectionStatus,
 	McpManager,
 	McpManagerOptions,
+	McpOAuthLoopbackHostname,
 	McpServerClient,
 	McpServerClientFactory,
 	McpServerOAuthClientConfig,

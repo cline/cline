@@ -9,6 +9,29 @@ import { TYPE_ERROR_MESSAGE } from "./constants"
 
 const AutoApproveSchema = z.array(z.string()).default([])
 
+const OAuthScopeSchema = z.string().regex(/^[\x21\x23-\x5b\x5d-\x7e]+$/, "OAuth scopes must be valid RFC 6749 scope tokens")
+
+export const McpOAuthClientSchema = z
+	.object({
+		clientId: z.string().min(1),
+		clientSecret: z.string().min(1).optional(),
+		allowedScopes: z
+			.array(OAuthScopeSchema)
+			.min(1)
+			.superRefine((scopes, context) => {
+				if (new Set(scopes).size !== scopes.length) {
+					context.addIssue({
+						code: "custom",
+						message: "OAuth allowedScopes must not contain duplicates",
+					})
+				}
+			})
+			.transform((scopes) => [...scopes].sort())
+			.optional(),
+		loopbackHostname: z.enum(["127.0.0.1", "localhost"]).optional(),
+	})
+	.strip()
+
 // Settings reads are tolerant: a malformed optional timeout must not reject
 // every MCP server. Writes use the strict schema exported below.
 const ReadTimeoutSchema = z.preprocess(resolveMcpTimeoutSeconds, z.number()).optional().default(DEFAULT_MCP_TIMEOUT_SECONDS)
@@ -21,7 +44,12 @@ export const BaseConfigSchema = z.object({
 	// Marker for servers that were added by remote config sync.
 	// Used to identify which servers should be removed when they are no longer in the remote config.
 	remoteConfigured: z.boolean().optional(),
-	// OAuth state written by the CLI — preserved as-is (VSCode doesn't implement OAuth flows yet)
+	// Static OAuth client policy is connection-relevant and must survive
+	// validation/write-back so changing it replaces the cached auth provider.
+	oauthClient: McpOAuthClientSchema.optional(),
+	// OAuth state written by the shared Core flow is preserved as-is. It is
+	// intentionally excluded from ordinary restart comparisons except for token
+	// availability; reusable artifacts are validated by Core at read time.
 	oauth: z.unknown().optional(),
 	// Arbitrary metadata written by the CLI — preserved as-is
 	metadata: z.unknown().optional(),
@@ -74,6 +102,7 @@ const nestedTransportConfigSchema = z
 		autoApprove: AutoApproveSchema.optional(),
 		timeout: ReadTimeoutSchema,
 		remoteConfigured: z.boolean().optional(),
+		oauthClient: McpOAuthClientSchema.optional(),
 		oauth: z.unknown().optional(),
 		metadata: z.unknown().optional(),
 	})

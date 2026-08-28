@@ -1,6 +1,10 @@
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import {
+	createMcpOAuthClientPolicyBinding,
+	createMcpOAuthTransportBinding,
+} from "@cline/core";
 import { describe, expect, it } from "vitest";
 import { handleCommand } from "./commands";
 import {
@@ -31,15 +35,28 @@ describe("desktop MCP settings", () => {
 		const response = buildMcpServersResponse("/tmp/cline_mcp_settings.json", {
 			mcpServers: {
 				linear: {
-					command: "npx",
-					args: ["-y", "mcp-remote", "https://mcp.linear.app/mcp"],
+					transport: {
+						type: "streamableHttp",
+						url: "https://mcp.linear.app/mcp",
+					},
 					disabled: true,
 					oauthClient: {
 						clientId: "desktop-client",
 						clientSecret: "must-not-leave-the-sidecar",
 						allowedScopes: ["search:read.public", "channels:history"],
+						loopbackHostname: "localhost",
 					},
 					oauth: {
+						transportBinding: createMcpOAuthTransportBinding({
+							type: "streamableHttp",
+							url: "https://mcp.linear.app/mcp",
+						}),
+						clientPolicyBinding: createMcpOAuthClientPolicyBinding({
+							clientId: "desktop-client",
+							clientSecret: "must-not-leave-the-sidecar",
+							allowedScopes: ["search:read.public", "channels:history"],
+							loopbackHostname: "localhost",
+						}),
 						authorizationRequired: true,
 						lastError: "OAuth authorization required",
 					},
@@ -59,6 +76,7 @@ describe("desktop MCP settings", () => {
 				clientId: "desktop-client",
 				hasClientSecret: true,
 				allowedScopes: ["channels:history", "search:read.public"],
+				loopbackHostname: "localhost",
 			},
 			oauthStatus: {
 				authorizationRequired: true,
@@ -145,6 +163,7 @@ describe("desktop MCP settings", () => {
 			{ ...base, allowedScopes: ["channels:history chat:write"] },
 			{ ...base, allowedScopes: "channels:history" },
 			{ ...base, unexpected: true },
+			{ ...base, loopbackHostname: "example.com" },
 		]) {
 			expect(() =>
 				resolveMcpOAuthClientUpdate({
@@ -154,6 +173,41 @@ describe("desktop MCP settings", () => {
 				}),
 			).toThrow();
 		}
+	});
+
+	it("preserves, changes, and clears the closed loopback hostname choice", () => {
+		const existingOAuthClient = {
+			clientId: "desktop-client",
+			clientSecret: "saved-secret",
+			loopbackHostname: "localhost",
+		};
+		expect(
+			resolveMcpOAuthClientUpdate({
+				requestedOAuthClient: {
+					clientId: "desktop-client",
+					preserveClientSecret: true,
+				},
+				existingOAuthClient,
+				transportIdentityUnchanged: true,
+			}).oauthClient,
+		).toEqual(existingOAuthClient);
+		expect(
+			resolveMcpOAuthClientUpdate({
+				requestedOAuthClient: {
+					clientId: "desktop-client",
+					preserveClientSecret: true,
+					loopbackHostname: null,
+				},
+				existingOAuthClient,
+				transportIdentityUnchanged: true,
+			}),
+		).toEqual({
+			oauthClient: {
+				clientId: "desktop-client",
+				clientSecret: "saved-secret",
+			},
+			oauthClientUnchanged: false,
+		});
 	});
 
 	it("preserves a saved OAuth client secret and its current OAuth state", async () => {
@@ -525,6 +579,19 @@ describe("desktop MCP settings", () => {
 					expected: { clientId: "desktop-client" },
 				},
 				{
+					name: "change the loopback hostname",
+					oauthClient: {
+						clientId: "desktop-client",
+						preserveClientSecret: true,
+						loopbackHostname: "localhost",
+					},
+					expected: {
+						clientId: "desktop-client",
+						clientSecret: "saved-secret",
+						loopbackHostname: "localhost",
+					},
+				},
+				{
 					name: "clear the client",
 					oauthClient: null,
 					expected: undefined,
@@ -572,6 +639,73 @@ describe("desktop MCP settings", () => {
 				);
 				expect(written.mcpServers.slack.oauth, testCase.name).toBeUndefined();
 			}
+		} finally {
+			if (previousSettingsPath === undefined) {
+				delete process.env.CLINE_MCP_SETTINGS_PATH;
+			} else {
+				process.env.CLINE_MCP_SETTINGS_PATH = previousSettingsPath;
+			}
+			await rm(tempRoot, { recursive: true, force: true });
+		}
+	});
+
+	it("retains an explicit localhost callback while changing endpoints", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "desktop-mcp-oauth-"));
+		const settingsPath = join(tempRoot, "cline_mcp_settings.json");
+		const previousSettingsPath = process.env.CLINE_MCP_SETTINGS_PATH;
+		process.env.CLINE_MCP_SETTINGS_PATH = settingsPath;
+		try {
+			await writeFile(
+				settingsPath,
+				JSON.stringify({
+					mcpServers: {
+						slack: {
+							transport: {
+								type: "streamableHttp",
+								url: "https://mcp.slack.com/mcp",
+							},
+							disabled: true,
+							oauthClient: {
+								clientId: "desktop-client",
+								clientSecret: "saved-secret",
+								loopbackHostname: "localhost",
+							},
+							oauth: {
+								tokens: { access_token: "saved-token" },
+								loopbackHostname: "localhost",
+							},
+						},
+					},
+				}),
+				"utf8",
+			);
+
+			await handleCommand(createContext(tempRoot), "upsert_mcp_server", {
+				input: {
+					name: "slack",
+					previousName: "slack",
+					transportType: "streamableHttp",
+					url: "https://example.com/mcp",
+					disabled: true,
+					oauthClient: {
+						clientId: "desktop-client",
+						clientSecret: "replacement-secret",
+						allowedScopes: null,
+						loopbackHostname: "localhost",
+					},
+				},
+			});
+
+			const written = JSON.parse(await readFile(settingsPath, "utf8"));
+			expect(written.mcpServers.slack.transport.url).toBe(
+				"https://example.com/mcp",
+			);
+			expect(written.mcpServers.slack.oauthClient).toEqual({
+				clientId: "desktop-client",
+				clientSecret: "replacement-secret",
+				loopbackHostname: "localhost",
+			});
+			expect(written.mcpServers.slack.oauth).toBeUndefined();
 		} finally {
 			if (previousSettingsPath === undefined) {
 				delete process.env.CLINE_MCP_SETTINGS_PATH;

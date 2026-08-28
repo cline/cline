@@ -100,6 +100,29 @@ describe("McpSettingsSchema", () => {
 			;(result.data!.mcpServers["linear"] as any).oauth.should.deepEqual(oauthState)
 		})
 
+		it("validates and preserves oauthClient from CLI-authored nested format", () => {
+			const oauthClient = {
+				clientId: "cline-desktop",
+				clientSecret: "test-secret",
+				allowedScopes: ["search:write", "search:read"],
+				loopbackHostname: "localhost",
+			}
+			const result = McpSettingsSchema.safeParse({
+				mcpServers: {
+					slack: {
+						transport: { type: "streamableHttp", url: "https://mcp.slack.com/mcp" },
+						oauthClient,
+					},
+				},
+			})
+
+			result.success.should.be.true()
+			;(result.data!.mcpServers.slack as any).oauthClient.should.deepEqual({
+				...oauthClient,
+				allowedScopes: ["search:read", "search:write"],
+			})
+		})
+
 		it("preserves metadata field from CLI-authored nested format", () => {
 			const metadata = { addedBy: "cline-cli", version: "1.2.3" }
 			const input = {
@@ -224,6 +247,49 @@ describe("McpSettingsSchema", () => {
 			const result = McpSettingsSchema.safeParse(input)
 			result.success.should.be.true()
 			;(result.data!.mcpServers["myServer"] as any).oauth.should.deepEqual(oauthState)
+		})
+
+		it("preserves oauthClient on flat-format servers", () => {
+			const oauthClient = {
+				clientId: "static-client",
+				allowedScopes: ["read"],
+				loopbackHostname: "127.0.0.1",
+			}
+			const result = McpSettingsSchema.safeParse({
+				mcpServers: {
+					myServer: {
+						type: "sse",
+						url: "https://mcp.example.com/sse",
+						oauthClient,
+					},
+				},
+			})
+
+			result.success.should.be.true()
+			;(result.data!.mcpServers.myServer as any).oauthClient.should.deepEqual(oauthClient)
+		})
+
+		it("rejects malformed oauthClient policy", () => {
+			const makeInput = (oauthClient: unknown) => ({
+				mcpServers: {
+					myServer: {
+						type: "streamableHttp",
+						url: "https://mcp.example.com/mcp",
+						oauthClient,
+					},
+				},
+			})
+
+			McpSettingsSchema.safeParse(makeInput({ clientId: "" })).success.should.be.false()
+			McpSettingsSchema.safeParse(makeInput({ clientId: "client", clientSecret: "" })).success.should.be.false()
+			McpSettingsSchema.safeParse(makeInput({ clientId: "client", allowedScopes: [] })).success.should.be.false()
+			McpSettingsSchema.safeParse(
+				makeInput({ clientId: "client", allowedScopes: ["read", "read"] }),
+			).success.should.be.false()
+			McpSettingsSchema.safeParse(makeInput({ clientId: "client", allowedScopes: ["bad scope"] })).success.should.be.false()
+			McpSettingsSchema.safeParse(
+				makeInput({ clientId: "client", loopbackHostname: "example.com" }),
+			).success.should.be.false()
 		})
 	})
 

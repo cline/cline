@@ -62,10 +62,22 @@ export type McpServerTransportConfig =
 	| McpStreamableHttpTransportConfig;
 
 export interface McpServerOAuthState {
+	/**
+	 * SHA-256 identity of the remote transport allowed to reuse this OAuth state.
+	 * Legacy state without a binding is intentionally not reusable.
+	 */
+	transportBinding?: string;
+	/**
+	 * SHA-256 identity of dynamic registration or the exact static client policy
+	 * allowed to reuse every artifact in this state.
+	 */
+	clientPolicyBinding?: string;
 	clientInformation?: Record<string, unknown>;
 	tokens?: Record<string, unknown>;
 	/** Scope policy that the persisted token set was issued under. */
 	scopePolicy?: string[];
+	/** Loopback hostname that the persisted OAuth flow was issued under. */
+	loopbackHostname?: McpOAuthLoopbackHostname;
 	codeVerifier?: string;
 	discoveryState?: Record<string, unknown>;
 	redirectUrl?: string;
@@ -74,11 +86,19 @@ export interface McpServerOAuthState {
 	authorizationRequired?: boolean;
 }
 
+export type McpOAuthLoopbackHostname = "127.0.0.1" | "localhost";
+
 export interface McpServerOAuthClientConfig {
 	clientId: string;
 	clientSecret?: string;
 	/** Maximum OAuth scopes this pre-registered client may request or accept. */
 	allowedScopes?: string[];
+	/**
+	 * Hostname advertised in local OAuth callback URIs. The listener remains
+	 * bound to the IPv4 loopback interface. Omission preserves the 127.0.0.1
+	 * default; use localhost only for providers that require that exact host.
+	 */
+	loopbackHostname?: McpOAuthLoopbackHostname;
 }
 
 export interface McpServerRegistration {

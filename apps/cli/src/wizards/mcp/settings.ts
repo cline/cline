@@ -76,6 +76,51 @@ function getOwnServerRecord(
 	return value as Record<string, unknown>;
 }
 
+function canonicalRemoteHeaders(headers: unknown): string | undefined {
+	if (headers === undefined) {
+		return "omitted";
+	}
+	if (!headers || typeof headers !== "object" || Array.isArray(headers)) {
+		return undefined;
+	}
+	const entries = Object.entries(headers);
+	if (entries.some(([, value]) => typeof value !== "string")) {
+		return undefined;
+	}
+	entries.sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0));
+	return `present:${JSON.stringify(entries)}`;
+}
+
+export function hasSameOAuthTransportIdentity(
+	previousValue: unknown,
+	next: McpTransport,
+): boolean {
+	if (
+		!previousValue ||
+		typeof previousValue !== "object" ||
+		Array.isArray(previousValue)
+	) {
+		return false;
+	}
+	const previous = previousValue as Record<string, unknown>;
+	if (previous.type !== next.type) {
+		return false;
+	}
+	if (next.type === "stdio") {
+		return true;
+	}
+	if (previous.url !== next.url) {
+		return false;
+	}
+	const previousHeaders = canonicalRemoteHeaders(previous.headers);
+	const nextHeaders = canonicalRemoteHeaders(next.headers);
+	return (
+		previousHeaders !== undefined &&
+		nextHeaders !== undefined &&
+		previousHeaders === nextHeaders
+	);
+}
+
 /**
  * Mutate the MCP settings file through @cline/core's locked read-update-write
  * helper. The mutator must be synchronous and pure; the helper may call it more
@@ -125,10 +170,12 @@ export function removeServer(name: string): boolean {
 
 export function updateServer(name: string, transport: McpTransport): void {
 	mutateServers((servers) => {
-		const existing =
-			servers[name] && typeof servers[name] === "object"
-				? (servers[name] as Record<string, unknown>)
-				: {};
+		const existing = getOwnServerRecord(servers, name) ?? {};
+		const previousTransport = existing.transport ?? existing;
+		if (!hasSameOAuthTransportIdentity(previousTransport, transport)) {
+			delete existing.oauth;
+			delete existing.oauthClient;
+		}
 		servers[name] = { ...existing, transport };
 	});
 }
@@ -165,9 +212,15 @@ export function setServerOAuthClient(
 		const previous = existing.oauthClient as
 			| McpServerOAuthClientConfig
 			| undefined;
+		const previousScopes = [...(previous?.allowedScopes ?? [])].sort();
+		const nextScopes = [...(client?.allowedScopes ?? [])].sort();
 		if (
 			previous?.clientId !== client?.clientId ||
-			previous?.clientSecret !== client?.clientSecret
+			previous?.clientSecret !== client?.clientSecret ||
+			previousScopes.length !== nextScopes.length ||
+			previousScopes.some((scope, index) => scope !== nextScopes[index]) ||
+			(previous?.loopbackHostname ?? "127.0.0.1") !==
+				(client?.loopbackHostname ?? "127.0.0.1")
 		) {
 			delete existing.oauth;
 		}

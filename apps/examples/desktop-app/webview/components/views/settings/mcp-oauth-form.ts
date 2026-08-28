@@ -2,13 +2,17 @@ export interface McpOAuthClientSummary {
 	clientId: string;
 	hasClientSecret: boolean;
 	allowedScopes?: string[];
+	loopbackHostname?: McpOAuthLoopbackHostname;
 }
+
+export type McpOAuthLoopbackHostname = "127.0.0.1" | "localhost";
 
 export interface McpOAuthClientUpsert {
 	clientId: string;
 	clientSecret?: string;
 	preserveClientSecret?: boolean;
 	allowedScopes: string[] | null;
+	loopbackHostname?: McpOAuthLoopbackHostname | null;
 }
 
 export interface McpOAuthClientFormFields {
@@ -18,6 +22,8 @@ export interface McpOAuthClientFormFields {
 	hasSavedClientSecret: boolean;
 	preserveSavedClientSecret: boolean;
 	allowedScopesText: string;
+	loopbackHostname: McpOAuthLoopbackHostname;
+	originalLoopbackHostname: McpOAuthLoopbackHostname;
 	serverUrl: string;
 	originalServerUrl: string;
 	transportType: string;
@@ -29,9 +35,13 @@ export interface McpOAuthClientFormFields {
 // RFC 6749 section 3.3 scope-token: printable ASCII excluding DQUOTE and "\\".
 const MCP_OAUTH_SCOPE_TOKEN_PATTERN = /^[\x21\x23-\x5B\x5D-\x7E]+$/;
 
-export const MCP_OAUTH_REDIRECT_URIS = [1456, 1457, 1458].map(
-	(port) => `http://127.0.0.1:${port}/mcp/oauth/callback`,
-);
+export function buildMcpOAuthRedirectUris(
+	hostname: McpOAuthLoopbackHostname,
+): string[] {
+	return [1456, 1457, 1458].map(
+		(port) => `http://${hostname}:${port}/mcp/oauth/callback`,
+	);
+}
 
 export function createMcpOAuthClientFormFields(
 	existing?: McpOAuthClientSummary,
@@ -46,6 +56,8 @@ export function createMcpOAuthClientFormFields(
 		hasSavedClientSecret: existing?.hasClientSecret ?? false,
 		preserveSavedClientSecret: existing?.hasClientSecret ?? false,
 		allowedScopesText: existing?.allowedScopes?.join("\n") ?? "",
+		loopbackHostname: existing?.loopbackHostname ?? "127.0.0.1",
+		originalLoopbackHostname: existing?.loopbackHostname ?? "127.0.0.1",
 		serverUrl,
 		originalServerUrl: serverUrl,
 		transportType,
@@ -122,11 +134,20 @@ export function buildMcpOAuthClientUpsert(
 		return null;
 	}
 	const allowedScopes = parseMcpOAuthAllowedScopesText(form.allowedScopesText);
+	const loopbackHostnameUpdate =
+		form.loopbackHostname === "localhost"
+			? "localhost"
+			: form.originalLoopbackHostname === "localhost"
+				? null
+				: undefined;
 	if (form.clientSecret.length > 0) {
 		return {
 			clientId,
 			clientSecret: form.clientSecret,
 			allowedScopes: allowedScopes ?? null,
+			...(loopbackHostnameUpdate !== undefined
+				? { loopbackHostname: loopbackHostnameUpdate }
+				: {}),
 		};
 	}
 	const canPreserveSecret =
@@ -137,5 +158,8 @@ export function buildMcpOAuthClientUpsert(
 		clientId,
 		...(canPreserveSecret ? { preserveClientSecret: true } : {}),
 		allowedScopes: allowedScopes ?? null,
+		...(loopbackHostnameUpdate !== undefined
+			? { loopbackHostname: loopbackHostnameUpdate }
+			: {}),
 	};
 }

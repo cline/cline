@@ -2,7 +2,7 @@ import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import { sendMcpServersUpdate } from "@core/controller/mcp/subscribeToMcpServers"
 import { getMcpSettingsFilePath as getMcpSettingsFilePathHelper } from "@core/storage/disk"
 import { StateManager } from "@core/storage/StateManager"
-import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js"
+import { type OAuthClientProvider, UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js"
 import { Client } from "@modelcontextprotocol/sdk/client/index.js"
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js"
 import { getDefaultEnvironment, StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
@@ -41,7 +41,12 @@ import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
 import { expandEnvironmentVariables } from "@/utils/envExpansion"
 import type { TelemetryService } from "../telemetry/TelemetryService"
-import { McpOAuthManager } from "./McpOAuthManager"
+import {
+	computeMcpConnectionFingerprint,
+	configsRequireMcpRestart,
+	serializeMcpServerConfigForDisplay,
+} from "./connection-config"
+import { McpOAuthEffectiveTransportMismatchError, McpOAuthManager } from "./McpOAuthManager"
 import { StreamableHttpReconnectHandler } from "./StreamableHttpReconnectHandler"
 import { McpSettingsSchema, McpTimeoutSecondsSchema, ServerConfigSchema } from "./schemas"
 import { updateMcpSettingsFile } from "./settingsLock"
@@ -79,6 +84,7 @@ export class McpHub {
 	private clientVersion: string
 	private telemetryService: TelemetryService
 	private mcpOAuthManager: McpOAuthManager
+	private rawDisplayConfigs = new Map<string, { effective: McpServerConfig; raw: unknown }>()
 
 	private settingsWatcher?: FSWatcher
 	private fileWatchers: Map<string, FSWatcher> = new Map()
@@ -98,8 +104,7 @@ export class McpHub {
 	 *   - a write from any other process (CLI, another window) that does change
 	 *     something is processed normally;
 	 *   - whether an access token is present is part of the fingerprint, so an
-	 *     authorization completed elsewhere still triggers a reconnect via
-	 *     serverGainedOAuthTokens.
+	 *     authorization completed or revoked elsewhere still triggers a reconnect.
 	 *
 	 * Combined with atomic writes, a reader can never
 	 * observe a torn/empty file mid-write, so the worst case is a redundant
@@ -205,6 +210,7 @@ export class McpHub {
 			// Handle empty or minimal files silently - this is a valid state meaning "no MCP servers"
 			const trimmedContent = content.trim()
 			if (!trimmedContent || trimmedContent === "{}" || trimmedContent === '{"mcpServers":{}}') {
+				this.rawDisplayConfigs.clear()
 				return { mcpServers: {} }
 			}
 
@@ -231,6 +237,8 @@ export class McpHub {
 					})
 				return undefined
 			}
+
+			const rawConfig = config
 
 			// Expand environment variables before validation
 			// This allows ${env:VAR_NAME} syntax in URLs, headers, env vars, etc.
@@ -279,6 +287,19 @@ export class McpHub {
 				return undefined
 			}
 
+			const rawServers =
+				typeof rawConfig?.mcpServers === "object" && rawConfig.mcpServers !== null
+					? (rawConfig.mcpServers as Record<string, unknown>)
+					: {}
+			this.rawDisplayConfigs = new Map(
+				Object.entries(result.data.mcpServers).map(([name, effective]) => [
+					name,
+					{
+						effective: effective as McpServerConfig,
+						raw: rawServers[name],
+					},
+				]),
+			)
 			return result.data
 		} catch (error) {
 			Logger.error("Failed to read MCP settings:", error)
@@ -301,7 +322,7 @@ export class McpHub {
 		})
 
 		this.settingsWatcher.on("change", async () => {
-			const settings = await this.readAndValidateMcpSettingsFile()
+			let settings = await this.readAndValidateMcpSettingsFile()
 			if (settings) {
 				// Skip when nothing connection-relevant changed. This covers our own
 				// writes (callers pre-seed the fingerprint) as well as
@@ -320,40 +341,7 @@ export class McpHub {
 					// Re-add any remotely configured servers that were manually removed from the file
 					const remoteServers = StateManager.get().getRemoteConfigSettings().remoteMCPServers
 					if (remoteServers?.length) {
-						let fileNeedsUpdate = false
-						for (const rs of remoteServers) {
-							if (!settings.mcpServers[rs.name]) {
-								;(settings.mcpServers as Record<string, any>)[rs.name] = {
-									url: rs.url,
-									type: "streamableHttp",
-									disabled: false,
-									autoApprove: [],
-									remoteConfigured: true,
-								}
-								fileNeedsUpdate = true
-							}
-						}
-						if (fileNeedsUpdate) {
-							const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
-							const fresh = await updateMcpSettingsFile(settingsPath, (current) => {
-								const servers = current.mcpServers as Record<string, any>
-								for (const rs of remoteServers) {
-									if (!servers[rs.name]) {
-										servers[rs.name] = {
-											url: rs.url,
-											type: "streamableHttp",
-											disabled: false,
-											autoApprove: [],
-											remoteConfigured: true,
-										}
-									}
-								}
-								current.mcpServers = servers
-								return current
-							})
-							this.recordSettingsFingerprint(fresh.mcpServers as Record<string, McpServerConfig>)
-							settings.mcpServers = fresh.mcpServers as any
-						}
+						settings = await this.restoreMissingRemoteConfiguredServers(settings, remoteServers)
 					}
 					await this.updateServerConnections(settings.mcpServers)
 				} catch (error) {
@@ -365,6 +353,37 @@ export class McpHub {
 		this.settingsWatcher.on("error", (error) => {
 			Logger.error("Error watching MCP settings file:", error)
 		})
+	}
+
+	private async restoreMissingRemoteConfiguredServers(
+		settings: z.infer<typeof McpSettingsSchema>,
+		remoteServers: readonly { name: string; url: string }[],
+	): Promise<z.infer<typeof McpSettingsSchema>> {
+		if (!remoteServers.some((server) => !settings.mcpServers[server.name])) {
+			return settings
+		}
+		const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
+		await updateMcpSettingsFile(settingsPath, (current) => {
+			const servers = current.mcpServers as Record<string, any>
+			for (const server of remoteServers) {
+				if (!servers[server.name]) {
+					servers[server.name] = {
+						url: server.url,
+						type: "streamableHttp",
+						disabled: false,
+						autoApprove: [],
+						remoteConfigured: true,
+					}
+				}
+			}
+			current.mcpServers = servers
+			return current
+		})
+		// Re-read the exact persisted source after the atomic write. Besides schema
+		// normalization and environment expansion, this refreshes rawDisplayConfigs;
+		// without that provenance the public serializer must redact the URL and the
+		// webview can no longer match a locked remote server to enterprise config.
+		return this.readPostWriteMcpSettings()
 	}
 
 	private async initializeMcpServers(): Promise<void> {
@@ -381,6 +400,19 @@ export class McpHub {
 
 	private findConnection(name: string, _source: "rpc" | "internal"): McpConnection | undefined {
 		return this.connections.find((conn) => conn.server.name === name)
+	}
+
+	/** Returns the full extension-host-only config used by this connection. */
+	private getConnectionConfig(connection: McpConnection): McpServerConfig {
+		return connection.configSnapshot ?? ServerConfigSchema.parse(JSON.parse(connection.server.config))
+	}
+
+	private serializeConnectionConfig(name: string, config: McpServerConfig): string {
+		const rawDisplayConfig = this.rawDisplayConfigs.get(name)
+		return serializeMcpServerConfigForDisplay(
+			config,
+			rawDisplayConfig && deepEqual(rawDisplayConfig.effective, config) ? rawDisplayConfig.raw : undefined,
+		)
 	}
 
 	private async connectToServer(
@@ -442,20 +474,22 @@ export class McpHub {
 			const disabledConnection: McpConnection = {
 				server: {
 					name,
-					config: JSON.stringify(config),
+					config: this.serializeConnectionConfig(name, config),
 					status: "disconnected",
 					disabled: true,
 				},
 				client: null as unknown as Client,
 				transport: null as unknown as Transport,
+				configSnapshot: config,
 			}
 			this.connections.push(disabledConnection)
 			return
 		}
 
 		try {
-			// Store unexpanded config for display/comparison (keeps credentials out of stored config)
-			const configForStorage = JSON.stringify(config)
+			// Only a redacted representation may leave the extension host. The full
+			// connection config remains on McpConnection.configSnapshot.
+			const configForStorage = this.serializeConnectionConfig(name, config)
 
 			// Expand environment variables in config before using it
 			const expandedConfig = expandEnvironmentVariables(config)
@@ -473,11 +507,40 @@ export class McpHub {
 
 			let transport: StdioClientTransport | SSEClientTransport | StreamableHTTPClientTransport
 
-			// Create OAuth provider for remote transports (SSE and HTTP)
-			const authProvider =
-				expandedConfig.type === "sse" || expandedConfig.type === "streamableHttp"
-					? await this.mcpOAuthManager.getOrCreateProvider(name, expandedConfig.url)
-					: undefined
+			// Create an OAuth provider only when the exact effective transport can
+			// be guarded against the persisted registration. Environment-expanded
+			// URL/header/oauthClient values changed by environment expansion cannot
+			// currently be reproduced by Core while it holds the settings lock, so
+			// OAuth fails closed for that connection.
+			let authProvider: OAuthClientProvider | undefined
+			let oauthProviderError: McpOAuthEffectiveTransportMismatchError | undefined
+			if (config.type === "sse" || config.type === "streamableHttp") {
+				if (expandedConfig.type !== "sse" && expandedConfig.type !== "streamableHttp") {
+					throw new Error(`Environment expansion changed the MCP transport type for "${name}".`)
+				}
+				try {
+					authProvider = await this.mcpOAuthManager.getOrCreateProvider(
+						name,
+						{
+							type: config.type,
+							url: config.url,
+							headers: config.headers,
+						},
+						config.oauthClient,
+						{
+							type: expandedConfig.type,
+							url: expandedConfig.url,
+							headers: expandedConfig.headers,
+						},
+					)
+				} catch (error) {
+					if (!(error instanceof McpOAuthEffectiveTransportMismatchError)) {
+						throw error
+					}
+					oauthProviderError = error
+					Logger.warn(error.message)
+				}
+			}
 
 			switch (expandedConfig.type) {
 				case "stdio": {
@@ -668,6 +731,7 @@ export class McpHub {
 				client,
 				transport,
 				authProvider,
+				configSnapshot: config,
 			}
 			this.connections.push(connection)
 
@@ -676,13 +740,17 @@ export class McpHub {
 				const timeout = resolveMcpServerTimeoutMs(connection.server.config)
 				await client.connect(transport, { timeout })
 			} catch (error) {
+				if (oauthProviderError) {
+					await client.close().catch(() => {})
+					throw oauthProviderError
+				}
 				if (error instanceof UnauthorizedError) {
 					// Server requires OAuth authentication
 					Logger.log(`Server "${name}" requires OAuth authentication`)
 					const unauthConnection: McpConnection = {
 						server: {
 							name,
-							config: JSON.stringify(config),
+							config: configForStorage,
 							status: "disconnected",
 							disabled: false,
 							oauthRequired: true,
@@ -692,6 +760,7 @@ export class McpHub {
 						client,
 						transport,
 						authProvider, // CRITICAL: Keep authProvider so it's available when user authenticates!
+						configSnapshot: config,
 					}
 					// Replace the connection with unauthenticated version
 					this.connections = this.connections.filter((conn) => conn.server.name !== name)
@@ -798,12 +867,13 @@ export class McpHub {
 				connection = {
 					server: {
 						name,
-						config: JSON.stringify(config),
+						config: this.serializeConnectionConfig(name, config),
 						status: "disconnected",
 						disabled: config.disabled,
 					},
 					client: null as unknown as Client,
 					transport: null as unknown as Transport,
+					configSnapshot: config,
 				}
 				this.connections.push(connection)
 			}
@@ -1211,9 +1281,17 @@ export class McpHub {
 		const connection = this.connections.find((conn) => conn.server.name === name)
 		if (connection) {
 			try {
-				const config = JSON.parse(connection.server.config)
-				if (config.url) {
-					await this.mcpOAuthManager.clearServerAuth(name, config.url)
+				const config = this.getConnectionConfig(connection)
+				if (config.type === "sse" || config.type === "streamableHttp") {
+					await this.mcpOAuthManager.clearServerAuth(
+						name,
+						{
+							type: config.type,
+							url: config.url,
+							headers: config.headers,
+						},
+						config.oauthClient,
+					)
 				}
 			} catch (error) {
 				Logger.error(`Failed to clear OAuth data for ${name}:`, error)
@@ -1250,11 +1328,11 @@ export class McpHub {
 					Logger.error(`Failed to connect to new MCP server ${name}:`, error)
 				}
 			} else if (
-				this.configsRequireRestart(JSON.parse(currentConnection.server.config), config) ||
-				this.serverGainedOAuthTokens(currentConnection, config)
+				this.configsRequireRestart(this.getConnectionConfig(currentConnection), config) ||
+				this.serverOAuthAccessTokenPresenceChanged(currentConnection, config)
 			) {
 				// Existing server with changed connection config,
-				// or an unauthenticated server whose OAuth tokens just appeared (e.g. CLI authorized it)
+				// or whose OAuth token appeared/disappeared in another process.
 				try {
 					if (config.type === "stdio") {
 						this.setupFileWatcher(name, config)
@@ -1278,10 +1356,8 @@ export class McpHub {
 				// This handles the case where someone manually edits the MCP settings file -
 				// the file watcher triggers this code path, and we need to sync the in-memory
 				// config with the file without restarting the server.
-				const currentConfig = JSON.parse(currentConnection.server.config)
-				currentConfig.autoApprove = config.autoApprove
-				currentConfig.timeout = config.timeout
-				currentConnection.server.config = JSON.stringify(currentConfig)
+				currentConnection.configSnapshot = config
+				currentConnection.server.config = this.serializeConnectionConfig(name, config)
 			}
 		}
 
@@ -1330,12 +1406,12 @@ export class McpHub {
 					connectionChangesOccurred = true
 				}
 			} else if (
-				this.configsRequireRestart(JSON.parse(currentConnection.server.config), config) ||
-				this.serverGainedOAuthTokens(currentConnection, config)
+				this.configsRequireRestart(this.getConnectionConfig(currentConnection), config) ||
+				this.serverOAuthAccessTokenPresenceChanged(currentConnection, config)
 			) {
 				// Existing server with changed connection config,
-				// or an unauthenticated server whose OAuth tokens just appeared in the settings
-				// file (e.g. the CLI or another window completed authorization for it)
+				// or whose OAuth token appeared/disappeared in another process. Loss
+				// must close an already-authenticated live session immediately.
 				try {
 					// Set status to "connecting" and notify webview before restart (same pattern as restartConnection)
 					currentConnection.server.status = "connecting"
@@ -1366,10 +1442,8 @@ export class McpHub {
 					}))
 				}
 				// Also update Cline-specific settings in the stored config
-				const currentConfig = JSON.parse(currentConnection.server.config)
-				currentConfig.autoApprove = config.autoApprove
-				currentConfig.timeout = config.timeout
-				currentConnection.server.config = JSON.stringify(currentConfig)
+				currentConnection.configSnapshot = config
+				currentConnection.server.config = this.serializeConnectionConfig(name, config)
 			}
 		}
 
@@ -1390,7 +1464,7 @@ export class McpHub {
 	 * - `autoApprove`: tool approval list (UI setting)
 	 *
 	 * ## MCP client settings (require restart):
-	 * - `type`, `command`, `args`, `cwd`, `env`, `url`, `headers`, `disabled`, `timeout`
+	 * - `type`, `command`, `args`, `cwd`, `env`, `url`, `headers`, `disabled`, `timeout`, `oauthClient`
 	 *
 	 * ## Adding new Cline-specific settings:
 	 * When adding a new setting that doesn't require server restart:
@@ -1401,40 +1475,21 @@ export class McpHub {
 	 * 4. Update the schema in `src/services/mcp/schemas.ts` if needed
 	 */
 	private configsRequireRestart(oldConfig: McpServerConfig, newConfig: McpServerConfig): boolean {
-		// Exclude Cline-specific settings from comparison (add new ones here).
-		// `oauth` and `metadata` are also excluded: the server's oauth block is
-		// rewritten on every token save/refresh (by this process, the CLI, or
-		// another window), and restarting on each refresh would churn the
-		// connection. Token changes are picked up separately, by
-		// serverGainedOAuthTokens in updateServerConnections.
-		const {
-			autoApprove: _oldAutoApprove,
-			remoteConfigured: _oldRemoteConfigured,
-			oauth: _oldOauth,
-			metadata: _oldMetadata,
-			...oldConnectionConfig
-		} = oldConfig as McpServerConfig & { oauth?: unknown; metadata?: unknown }
-		const {
-			autoApprove: _newAutoApprove,
-			remoteConfigured: _newRemoteConfigured,
-			oauth: _newOauth,
-			metadata: _newMetadata,
-			...newConnectionConfig
-		} = newConfig as McpServerConfig & { oauth?: unknown; metadata?: unknown }
-		return !deepEqual(oldConnectionConfig, newConnectionConfig)
+		return configsRequireMcpRestart(oldConfig, newConfig)
 	}
 
 	/**
-	 * True when an unauthenticated server's settings entry now carries an access
-	 * token — e.g. the CLI or another window completed OAuth for it. The settings
-	 * watcher uses this to reconnect the server so it picks up the credentials.
+	 * True when access-token presence differs between the connection's private
+	 * config snapshot and current settings. Both directions require a restart:
+	 * gain adopts credentials written elsewhere, while loss closes a live session
+	 * that must no longer remain authorized locally.
 	 */
-	private serverGainedOAuthTokens(connection: McpConnection, newConfig: McpServerConfig): boolean {
-		if (connection.server.oauthAuthStatus !== "unauthenticated") {
-			return false
+	private serverOAuthAccessTokenPresenceChanged(connection: McpConnection, newConfig: McpServerConfig): boolean {
+		const hasAccessToken = (config: McpServerConfig): boolean => {
+			const oauth = (config as McpServerConfig & { oauth?: { tokens?: { access_token?: unknown } } }).oauth
+			return typeof oauth?.tokens?.access_token === "string" && oauth.tokens.access_token.length > 0
 		}
-		const oauth = (newConfig as McpServerConfig & { oauth?: { tokens?: { access_token?: unknown } } }).oauth
-		return typeof oauth?.tokens?.access_token === "string" && oauth.tokens.access_token.length > 0
+		return hasAccessToken(this.getConnectionConfig(connection)) !== hasAccessToken(newConfig)
 	}
 
 	/**
@@ -1450,18 +1505,7 @@ export class McpHub {
 	 * elsewhere (token appears or disappears) does change it.
 	 */
 	private computeConnectionFingerprint(mcpServers: Record<string, McpServerConfig>): string {
-		const normalized: Record<string, unknown> = {}
-		for (const name of Object.keys(mcpServers).sort()) {
-			const { oauth, ...connectionConfig } = mcpServers[name] as McpServerConfig & {
-				oauth?: { tokens?: { access_token?: unknown } }
-			}
-			const accessToken = oauth?.tokens?.access_token
-			normalized[name] = {
-				config: connectionConfig,
-				hasToken: typeof accessToken === "string" && accessToken.length > 0,
-			}
-		}
-		return JSON.stringify(normalized)
+		return computeMcpConnectionFingerprint(mcpServers)
 	}
 
 	private setupFileWatcher(name: string, config: Extract<McpServerConfig, { type: "stdio" }>) {
@@ -1495,15 +1539,15 @@ export class McpHub {
 
 		// Get existing connection and update its status
 		const connection = this.connections.find((conn) => conn.server.name === serverName)
-		const inMemoryConfig = connection?.server.config
-		if (inMemoryConfig) {
+		if (connection) {
+			const inMemoryConfig = this.getConnectionConfig(connection)
 			connection.server.status = "connecting"
 			connection.server.error = ""
 			await setTimeoutPromise(500) // artificial delay to show user that server is restarting
 			try {
 				await this.deleteConnection(serverName)
 				// Try to connect again using existing config
-				await this.connectToServer(serverName, JSON.parse(inMemoryConfig), "rpc")
+				await this.connectToServer(serverName, inMemoryConfig, "rpc")
 			} catch (error) {
 				Logger.error(`Failed to restart connection for ${serverName}:`, error)
 			}
@@ -1525,8 +1569,8 @@ export class McpHub {
 
 		// Get existing connection and update its status
 		const connection = this.connections.find((conn) => conn.server.name === serverName)
-		const config = connection?.server.config
-		if (config) {
+		if (connection) {
+			const config = this.getConnectionConfig(connection)
 			HostProvider.window.showMessage({
 				type: ShowMessageType.INFORMATION,
 				message: `Restarting ${serverName} MCP server...`,
@@ -1538,7 +1582,7 @@ export class McpHub {
 			try {
 				await this.deleteConnection(serverName)
 				// Try to connect again using existing config
-				await this.connectToServer(serverName, JSON.parse(config), "internal")
+				await this.connectToServer(serverName, config, "internal")
 				HostProvider.window.showMessage({
 					type: ShowMessageType.INFORMATION,
 					message: `${serverName} MCP server connected`,

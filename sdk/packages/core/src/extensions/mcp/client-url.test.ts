@@ -57,6 +57,8 @@ vi.mock("@modelcontextprotocol/sdk/client/index.js", () => ({
 
 import { createDefaultMcpServerClientFactory } from "./client";
 import { listMcpServerOAuthStatuses } from "./config-loader";
+import { createMcpOAuthClientPolicyBinding } from "./oauth-client-policy-binding";
+import { createMcpOAuthTransportBinding } from "./oauth-transport-binding";
 
 describe("SDK URL MCP client timeout", () => {
 	beforeEach(() => {
@@ -226,6 +228,9 @@ describe("SDK URL MCP client authorization persistence", () => {
 						transport,
 						oauthClient,
 						oauth: {
+							transportBinding: createMcpOAuthTransportBinding(transport),
+							clientPolicyBinding:
+								createMcpOAuthClientPolicyBinding(oauthClient),
 							clientInformation: {
 								client_id: "cline-internal-client",
 							},

@@ -1,9 +1,14 @@
 import * as p from "@clack/prompts";
+import type {
+	McpOAuthLoopbackHostname,
+	McpServerOAuthClientConfig,
+} from "@cline/core";
 import { authorizeMcpServerOAuthWithBrowser as authorizeOAuth } from "./oauth";
 import {
 	addServer,
 	clearServerOAuth,
 	getSettingsPath,
+	hasSameOAuthTransportIdentity,
 	loadServers,
 	type McpServerEntry,
 	type McpTransport,
@@ -50,8 +55,21 @@ type RemoteAuthMode = "none" | "headers" | "oauth";
 interface UrlServerConfig {
 	transport: McpTransport;
 	authMode: RemoteAuthMode;
-	oauthClient?: { clientId: string; clientSecret?: string };
+	oauthClient?: McpServerOAuthClientConfig;
 }
+
+interface UrlServerDefaults {
+	url?: string;
+	headers?: Record<string, string>;
+	authMode?: RemoteAuthMode;
+	oauthClient?: McpServerOAuthClientConfig;
+	transport?: McpTransport;
+}
+
+// @cline/core does not currently export its ordered fallback port list. Keep
+// this user-facing registration guidance aligned with the MCP OAuth defaults.
+const MCP_OAUTH_CALLBACK_PORTS = [1456, 1457, 1458] as const;
+const MCP_OAUTH_CALLBACK_PATH = "/mcp/oauth/callback";
 
 export interface McpAddDefaults {
 	name?: string;
@@ -111,6 +129,87 @@ export function parseStdioCommand(input: string): string[] {
 	return tokens;
 }
 
+function isOAuthScopeToken(value: string): boolean {
+	if (value.length === 0) return false;
+	for (const char of value) {
+		const code = char.charCodeAt(0);
+		if (code < 0x21 || code > 0x7e || code === 0x22 || code === 0x5c) {
+			return false;
+		}
+	}
+	return true;
+}
+
+export function parseOAuthAllowedScopes(input: string): string[] | undefined {
+	const normalized = input.trim();
+	if (!normalized) return undefined;
+	const scopes = normalized.split(/\s+/);
+	if (scopes.some((scope) => !isOAuthScopeToken(scope))) {
+		throw new Error(
+			"Scopes must be valid RFC 6749 scope tokens separated by spaces",
+		);
+	}
+	if (new Set(scopes).size !== scopes.length) {
+		throw new Error("Scopes must not contain duplicates");
+	}
+	return scopes.sort();
+}
+
+export function getMcpOAuthRedirectUris(
+	hostname: McpOAuthLoopbackHostname,
+): string[] {
+	return MCP_OAUTH_CALLBACK_PORTS.map(
+		(port) => `http://${hostname}:${port}${MCP_OAUTH_CALLBACK_PATH}`,
+	);
+}
+
+function remoteAuthMode(entry: McpServerEntry): RemoteAuthMode {
+	if (entry.oauthClient || entry.oauth) return "oauth";
+	if (
+		entry.transport.type !== "stdio" &&
+		entry.transport.headers &&
+		Object.keys(entry.transport.headers).length > 0
+	) {
+		return "headers";
+	}
+	return "none";
+}
+
+function formatHeaders(headers: Record<string, string> | undefined): string {
+	return Object.entries(headers ?? {})
+		.map(([name, value]) => `${name}:${value}`)
+		.join(", ");
+}
+
+function parseHeadersInput(
+	input: string,
+	options: { oauth: boolean },
+): Record<string, string> | undefined {
+	const normalized = input.trim();
+	if (!normalized) return undefined;
+	const headers: Record<string, string> = {};
+	for (const rawPair of normalized.split(",")) {
+		const colonIndex = rawPair.indexOf(":");
+		if (colonIndex <= 0) {
+			throw new Error("Headers must use comma-separated KEY:VALUE pairs");
+		}
+		const name = rawPair.slice(0, colonIndex).trim();
+		if (!name) {
+			throw new Error("Header names must not be empty");
+		}
+		if (options.oauth && name.toLowerCase() === "authorization") {
+			throw new Error(
+				"Authorization is managed by OAuth and cannot be an additional header",
+			);
+		}
+		if (Object.hasOwn(headers, name)) {
+			throw new Error(`Duplicate header: ${name}`);
+		}
+		headers[name] = rawPair.slice(colonIndex + 1).trim();
+	}
+	return headers;
+}
+
 async function collectStdioTransport(
 	defaultCommand?: string,
 ): Promise<McpTransport | null> {
@@ -159,12 +258,12 @@ async function collectStdioTransport(
 
 async function collectUrlTransport(
 	type: "sse" | "streamableHttp",
-	defaultUrl?: string,
+	defaults: UrlServerDefaults = {},
 ): Promise<UrlServerConfig | null> {
 	const url = await p.text({
 		message: "Server URL",
 		placeholder: "https://example.com/mcp",
-		initialValue: defaultUrl,
+		initialValue: defaults.url,
 		validate: (v) => {
 			if (!v?.trim()) return "URL is required";
 			try {
@@ -179,6 +278,7 @@ async function collectUrlTransport(
 
 	const authMode = await p.select({
 		message: "Authentication",
+		initialValue: defaults.authMode,
 		options: [
 			{
 				value: "oauth",
@@ -199,25 +299,134 @@ async function collectUrlTransport(
 	if (isCancel(authMode)) return null;
 
 	if (authMode === "oauth") {
+		const headersInput = await p.text({
+			message: "Additional OAuth request headers (KEY:VALUE, comma-separated)",
+			placeholder: "leave empty for none; Authorization is managed by OAuth",
+			initialValue: formatHeaders(defaults.headers),
+			validate: (value) => {
+				try {
+					parseHeadersInput(value ?? "", { oauth: true });
+					return undefined;
+				} catch (error) {
+					return error instanceof Error ? error.message : String(error);
+				}
+			},
+		});
+		if (isCancel(headersInput)) return null;
+		const headers = parseHeadersInput(headersInput as string, { oauth: true });
+		const transport: McpTransport = {
+			type,
+			url: (url as string).trim(),
+			...(headers ? { headers } : {}),
+		};
 		const clientId = await p.text({
 			message: "OAuth client ID (leave empty for dynamic registration)",
+			initialValue: defaults.oauthClient?.clientId,
 		});
 		if (isCancel(clientId)) return null;
 		const normalizedClientId = (clientId as string).trim();
+		if (!normalizedClientId) {
+			return {
+				transport,
+				authMode,
+			};
+		}
+
+		const previousSecret =
+			normalizedClientId === defaults.oauthClient?.clientId
+				? defaults.oauthClient.clientSecret
+				: undefined;
+		const mayKeepPreviousSecret = Boolean(
+			previousSecret &&
+				defaults.transport &&
+				hasSameOAuthTransportIdentity(defaults.transport, transport),
+		);
 		let clientSecret: string | undefined;
-		if (normalizedClientId) {
+		if (previousSecret) {
+			const secretAction = await p.select({
+				message: mayKeepPreviousSecret
+					? "OAuth client secret"
+					: "The endpoint changed; re-enter or explicitly clear the OAuth client secret",
+				initialValue: mayKeepPreviousSecret ? "keep" : "replace",
+				options: [
+					...(mayKeepPreviousSecret
+						? [{ value: "keep", label: "Keep saved secret" }]
+						: []),
+					{ value: "replace", label: "Replace saved secret" },
+					{ value: "clear", label: "Clear saved secret" },
+				],
+			});
+			if (isCancel(secretAction)) return null;
+			if (secretAction === "keep") {
+				clientSecret = previousSecret;
+			} else if (secretAction === "replace") {
+				const secret = await p.password({
+					message: "New OAuth client secret",
+					validate: (value) =>
+						value?.trim() ? undefined : "Client secret is required",
+				});
+				if (isCancel(secret)) return null;
+				clientSecret = (secret as string).trim();
+			}
+		} else {
 			const secret = await p.password({
 				message: "OAuth client secret (leave empty for public clients)",
 			});
 			if (isCancel(secret)) return null;
 			clientSecret = (secret as string).trim() || undefined;
 		}
+
+		const scopesInput = await p.text({
+			message: "OAuth allowed scopes (space-separated)",
+			placeholder: "leave empty to use provider defaults",
+			initialValue: defaults.oauthClient?.allowedScopes?.join(" "),
+			validate: (value) => {
+				try {
+					parseOAuthAllowedScopes(value ?? "");
+					return undefined;
+				} catch (error) {
+					return error instanceof Error ? error.message : String(error);
+				}
+			},
+		});
+		if (isCancel(scopesInput)) return null;
+		const allowedScopes = parseOAuthAllowedScopes(scopesInput as string);
+
+		const loopbackHostname = await p.select({
+			message: "OAuth redirect hostname",
+			initialValue: defaults.oauthClient?.loopbackHostname ?? "127.0.0.1",
+			options: [
+				{
+					value: "127.0.0.1",
+					label: "127.0.0.1",
+					hint: "default; recommended when the provider accepts IP callbacks",
+				},
+				{
+					value: "localhost",
+					label: "localhost",
+					hint: "use when the provider requires localhost redirect URIs",
+				},
+			],
+		});
+		if (isCancel(loopbackHostname)) return null;
+		p.log.info(
+			"Register all three redirect URIs with the OAuth provider; Cline uses the first available local port:",
+		);
+		for (const redirectUri of getMcpOAuthRedirectUris(
+			loopbackHostname as McpOAuthLoopbackHostname,
+		)) {
+			p.log.message(`  ${redirectUri}`);
+		}
+
 		return {
-			transport: { type, url: (url as string).trim() },
+			transport,
 			authMode,
-			oauthClient: normalizedClientId
-				? { clientId: normalizedClientId, clientSecret }
-				: undefined,
+			oauthClient: {
+				clientId: normalizedClientId,
+				...(clientSecret ? { clientSecret } : {}),
+				...(allowedScopes ? { allowedScopes } : {}),
+				loopbackHostname: loopbackHostname as McpOAuthLoopbackHostname,
+			},
 		};
 	}
 	if (authMode === "none") {
@@ -230,22 +439,18 @@ async function collectUrlTransport(
 	const headersInput = await p.text({
 		message: "Headers (KEY:VALUE, comma-separated)",
 		placeholder: "leave empty for none",
+		initialValue: formatHeaders(defaults.headers),
+		validate: (value) => {
+			try {
+				parseHeadersInput(value ?? "", { oauth: false });
+				return undefined;
+			} catch (error) {
+				return error instanceof Error ? error.message : String(error);
+			}
+		},
 	});
 	if (isCancel(headersInput)) return null;
-
-	let headers: Record<string, string> | undefined;
-	const headersStr = (headersInput as string).trim();
-	if (headersStr) {
-		headers = {};
-		for (const pair of headersStr.split(",")) {
-			const colonIdx = pair.indexOf(":");
-			if (colonIdx > 0) {
-				headers[pair.slice(0, colonIdx).trim()] = pair
-					.slice(colonIdx + 1)
-					.trim();
-			}
-		}
-	}
+	const headers = parseHeadersInput(headersInput as string, { oauth: false });
 
 	return {
 		transport: { type, url: (url as string).trim(), headers },
@@ -298,10 +503,9 @@ async function actionAdd(defaults?: McpAddDefaults): Promise<void> {
 	if (type === "stdio") {
 		transport = await collectStdioTransport(defaults?.command);
 	} else {
-		const config = await collectUrlTransport(
-			type as "sse" | "streamableHttp",
-			defaults?.url,
-		);
+		const config = await collectUrlTransport(type as "sse" | "streamableHttp", {
+			url: defaults?.url,
+		});
 		transport = config?.transport ?? null;
 		authMode = config?.authMode ?? "none";
 		oauthClient = config?.oauthClient;
@@ -406,7 +610,15 @@ async function actionEdit(): Promise<void> {
 	if (type === "stdio") {
 		transport = await collectStdioTransport();
 	} else {
-		const config = await collectUrlTransport(type as "sse" | "streamableHttp");
+		const currentRemote =
+			current.transport.type === "stdio" ? undefined : current.transport;
+		const config = await collectUrlTransport(type as "sse" | "streamableHttp", {
+			url: currentRemote?.url,
+			headers: currentRemote?.headers,
+			authMode: remoteAuthMode(current),
+			oauthClient: current.oauthClient,
+			transport: current.transport,
+		});
 		transport = config?.transport ?? null;
 		authMode = config?.authMode ?? "none";
 		oauthClient = config?.oauthClient;

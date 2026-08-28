@@ -1,18 +1,88 @@
 import { describe, expect, it } from "vitest";
 import {
 	buildMcpOAuthClientUpsert,
+	buildMcpOAuthRedirectUris,
 	createMcpOAuthClientFormFields,
-	MCP_OAUTH_REDIRECT_URIS,
 	parseMcpOAuthAllowedScopesText,
 } from "./mcp-oauth-form";
 
 describe("MCP OAuth client form", () => {
 	it("lists every local redirect URI in core bind order", () => {
-		expect(MCP_OAUTH_REDIRECT_URIS).toEqual([
+		expect(buildMcpOAuthRedirectUris("127.0.0.1")).toEqual([
 			"http://127.0.0.1:1456/mcp/oauth/callback",
 			"http://127.0.0.1:1457/mcp/oauth/callback",
 			"http://127.0.0.1:1458/mcp/oauth/callback",
 		]);
+		expect(buildMcpOAuthRedirectUris("localhost")).toEqual([
+			"http://localhost:1456/mcp/oauth/callback",
+			"http://localhost:1457/mcp/oauth/callback",
+			"http://localhost:1458/mcp/oauth/callback",
+		]);
+	});
+
+	it("surfaces and explicitly changes the loopback callback hostname", () => {
+		const existing = createMcpOAuthClientFormFields({
+			clientId: "desktop-client",
+			hasClientSecret: false,
+			loopbackHostname: "localhost",
+		});
+		expect(existing.loopbackHostname).toBe("localhost");
+		expect(buildMcpOAuthClientUpsert(existing)).toEqual({
+			clientId: "desktop-client",
+			allowedScopes: null,
+			loopbackHostname: "localhost",
+		});
+		expect(
+			buildMcpOAuthClientUpsert({
+				...existing,
+				loopbackHostname: "127.0.0.1",
+			}),
+		).toEqual({
+			clientId: "desktop-client",
+			allowedScopes: null,
+			loopbackHostname: null,
+		});
+
+		const fresh = createMcpOAuthClientFormFields();
+		expect(
+			buildMcpOAuthClientUpsert({
+				...fresh,
+				clientId: "desktop-client",
+				loopbackHostname: "localhost",
+			}),
+		).toEqual({
+			clientId: "desktop-client",
+			allowedScopes: null,
+			loopbackHostname: "localhost",
+		});
+	});
+
+	it("retains localhost explicitly across OAuth identity changes", () => {
+		const existing = createMcpOAuthClientFormFields(
+			{
+				clientId: "desktop-client",
+				hasClientSecret: true,
+				loopbackHostname: "localhost",
+			},
+			"https://mcp.slack.com/mcp",
+			"streamableHttp",
+			{ "X-Tenant": "one" },
+		);
+		for (const changed of [
+			{ ...existing, clientId: "replacement-client" },
+			{ ...existing, serverUrl: "https://example.com/mcp" },
+			{ ...existing, transportType: "sse" },
+			{ ...existing, headers: { "X-Tenant": "two" } },
+		]) {
+			expect(buildMcpOAuthClientUpsert(changed)).toMatchObject({
+				clientId: changed.clientId.trim(),
+				allowedScopes: null,
+				loopbackHostname: "localhost",
+			});
+			expect(buildMcpOAuthClientUpsert(changed)).not.toHaveProperty(
+				"preserveClientSecret",
+			);
+		}
 	});
 
 	it("preserves a saved secret without exposing it to the form", () => {

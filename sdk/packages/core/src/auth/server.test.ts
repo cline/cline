@@ -67,6 +67,57 @@ function get(url: string): Promise<{ status: number; body: string }> {
 	});
 }
 
+function getWithHeaders(url: string): Promise<{
+	status: number;
+	body: string;
+	headers: http.IncomingHttpHeaders;
+}> {
+	return new Promise((resolve, reject) => {
+		http
+			.get(url, (res) => {
+				let body = "";
+				res.on("data", (chunk: Buffer) => {
+					body += chunk.toString();
+				});
+				res.on("end", () =>
+					resolve({
+						status: res.statusCode ?? 0,
+						body,
+						headers: res.headers,
+					}),
+				);
+			})
+			.on("error", reject);
+	});
+}
+
+/** Make a GET request to the bound IPv4 socket with a controlled request target. */
+function getBoundCallback(input: {
+	port: number;
+	path: string;
+	hostHeader: string;
+}): Promise<{ status: number; body: string }> {
+	return new Promise((resolve, reject) => {
+		http
+			.get(
+				{
+					host: "127.0.0.1",
+					port: input.port,
+					path: input.path,
+					headers: { Host: input.hostHeader },
+				},
+				(res) => {
+					let body = "";
+					res.on("data", (chunk: Buffer) => {
+						body += chunk.toString();
+					});
+					res.on("end", () => resolve({ status: res.statusCode ?? 0, body }));
+				},
+			)
+			.on("error", reject);
+	});
+}
+
 /** Flush microtasks + a short macro-task delay for fire-and-forget promises. */
 function flushAsync(): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, 20));
@@ -77,6 +128,42 @@ function flushAsync(): Promise<void> {
 // ---------------------------------------------------------------------------
 
 describe("auth/server startLocalOAuthServer — onListening", () => {
+	socketIt(
+		"advertises localhost while keeping the listener on IPv4 loopback",
+		async () => {
+			const port = await getFreePort();
+			const onListening = vi.fn();
+			const server = await startLocalOAuthServer({
+				ports: [port],
+				callbackPath: "/callback",
+				callbackHostname: "localhost",
+				onListening,
+			});
+
+			expect(server.callbackUrl).toBe(`http://localhost:${port}/callback`);
+			expect(onListening).toHaveBeenCalledWith({
+				host: "127.0.0.1",
+				port,
+				callbackUrl: `http://localhost:${port}/callback`,
+			});
+			const waitPromise = server.waitForCallback();
+			const response = await get(`${server.callbackUrl}?code=localhost-code`);
+			expect(response.status).toBe(200);
+			expect((await waitPromise)?.code).toBe("localhost-code");
+		},
+	);
+
+	it("rejects a callback alias that could advertise a non-loopback listener", async () => {
+		await expect(
+			startLocalOAuthServer({
+				host: "0.0.0.0",
+				callbackHostname: "localhost",
+				ports: [1456],
+				callbackPath: "/callback",
+			}),
+		).rejects.toThrow("may only alias a 127.0.0.1 listener as localhost");
+	});
+
 	socketIt(
 		"is called with host, port, and callbackUrl when the server binds",
 		async () => {
@@ -155,6 +242,210 @@ describe("auth/server startLocalOAuthServer — onListening", () => {
 		expect(onListening).toHaveBeenCalledOnce();
 
 		server.close();
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Callback authority and state validation
+// ---------------------------------------------------------------------------
+
+describe("auth/server startLocalOAuthServer — callback validation", () => {
+	it("rejects an explicitly empty expected state before binding", async () => {
+		await expect(
+			startLocalOAuthServer({
+				ports: [1456],
+				callbackPath: "/callback",
+				expectedState: "",
+			}),
+		).rejects.toThrow("OAuth callback state cannot be empty");
+	});
+
+	socketIt(
+		"rejects an unadvertised Host and port without consuming the callback",
+		async () => {
+			const port = await getFreePort();
+			const server = await startLocalOAuthServer({
+				ports: [port],
+				callbackPath: "/callback",
+				callbackHostname: "localhost",
+				expectedState: "expected-state",
+			});
+			const waitPromise = server.waitForCallback();
+			let settled = false;
+			void waitPromise.then(() => {
+				settled = true;
+			});
+
+			for (const hostHeader of [`127.0.0.1:${port}`, `localhost:${port + 1}`]) {
+				const rejected = await getBoundCallback({
+					port,
+					path: "/callback?error=access_denied&state=expected-state",
+					hostHeader,
+				});
+				expect(rejected).toEqual({
+					status: 400,
+					body: "Invalid callback origin",
+				});
+			}
+
+			await flushAsync();
+			expect(settled).toBe(false);
+
+			const accepted = await getBoundCallback({
+				port,
+				path: "/callback?code=valid-code&state=expected-state",
+				hostHeader: `localhost:${port}`,
+			});
+			expect(accepted.status).toBe(200);
+			expect((await waitPromise)?.code).toBe("valid-code");
+		},
+	);
+
+	socketIt(
+		"rejects a mismatched absolute-form origin without consuming the callback",
+		async () => {
+			const port = await getFreePort();
+			const server = await startLocalOAuthServer({
+				ports: [port],
+				callbackPath: "/callback",
+				callbackHostname: "localhost",
+				expectedState: "expected-state",
+			});
+			const waitPromise = server.waitForCallback();
+			let settled = false;
+			void waitPromise.then(() => {
+				settled = true;
+			});
+
+			const malformed = await getBoundCallback({
+				port,
+				path: "http:/callback?error=access_denied&state=expected-state",
+				hostHeader: `localhost:${port}`,
+			});
+			// Node's HTTP parser may reject malformed absolute-form targets before
+			// dispatching to the callback handler. Either way, it cannot settle.
+			expect(malformed.status).toBe(400);
+
+			const mismatched = await getBoundCallback({
+				port,
+				path: `http://127.0.0.1:${port}/callback?error=access_denied&state=expected-state`,
+				hostHeader: `localhost:${port}`,
+			});
+			expect(mismatched).toEqual({
+				status: 400,
+				body: "Invalid callback origin",
+			});
+			await flushAsync();
+			expect(settled).toBe(false);
+
+			const accepted = await getBoundCallback({
+				port,
+				path: `http://localhost:${port}/callback?code=valid-code&state=expected-state`,
+				hostHeader: `localhost:${port}`,
+			});
+			expect(accepted.status).toBe(200);
+			expect((await waitPromise)?.code).toBe("valid-code");
+		},
+	);
+
+	socketIt(
+		"validates state before settling an OAuth error callback",
+		async () => {
+			const port = await getFreePort();
+			const server = await startLocalOAuthServer({
+				ports: [port],
+				callbackPath: "/callback",
+				expectedState: "expected-state",
+			});
+			const waitPromise = server.waitForCallback();
+			let settled = false;
+			void waitPromise.then(() => {
+				settled = true;
+			});
+
+			const rejected = await get(
+				`http://127.0.0.1:${port}/callback?error=access_denied&state=wrong-state`,
+			);
+			expect(rejected).toEqual({ status: 400, body: "State mismatch" });
+			await flushAsync();
+			expect(settled).toBe(false);
+
+			const accepted = await get(
+				`http://127.0.0.1:${port}/callback?error=access_denied&state=expected-state`,
+			);
+			expect(accepted).toEqual({
+				status: 400,
+				body: "Authentication failed: access_denied",
+			});
+			expect((await waitPromise)?.error).toBe("access_denied");
+		},
+	);
+
+	socketIt(
+		"fails closed until deferred state is configured exactly once",
+		async () => {
+			const port = await getFreePort();
+			const server = await startLocalOAuthServer({
+				ports: [port],
+				callbackPath: "/callback",
+				requireExpectedState: true,
+			});
+			const waitPromise = server.waitForCallback();
+			let settled = false;
+			void waitPromise.then(() => {
+				settled = true;
+			});
+
+			const premature = await get(
+				`http://127.0.0.1:${port}/callback?code=premature&state=unknown`,
+			);
+			expect(premature).toEqual({
+				status: 400,
+				body: "OAuth callback state is not ready",
+			});
+			await flushAsync();
+			expect(settled).toBe(false);
+
+			server.setExpectedState("expected-state");
+			expect(() => server.setExpectedState("replacement-state")).toThrow(
+				"OAuth callback state is already configured",
+			);
+
+			const wrongState = await get(
+				`http://127.0.0.1:${port}/callback?error=access_denied&state=wrong-state`,
+			);
+			expect(wrongState).toEqual({ status: 400, body: "State mismatch" });
+			await flushAsync();
+			expect(settled).toBe(false);
+
+			const accepted = await get(
+				`http://127.0.0.1:${port}/callback?code=valid-code&state=expected-state`,
+			);
+			expect(accepted.status).toBe(200);
+			expect((await waitPromise)?.code).toBe("valid-code");
+		},
+	);
+
+	socketIt("serves provider errors as non-sniffable plain text", async () => {
+		const port = await getFreePort();
+		const server = await startLocalOAuthServer({
+			ports: [port],
+			callbackPath: "/callback",
+			expectedState: "expected-state",
+		});
+		const waitPromise = server.waitForCallback();
+		const providerError = '<script>alert("oauth")</script>';
+
+		const response = await getWithHeaders(
+			`http://127.0.0.1:${port}/callback?error=${encodeURIComponent(providerError)}&state=expected-state`,
+		);
+		expect(response).toMatchObject({
+			status: 400,
+			body: `Authentication failed: ${providerError}`,
+		});
+		expect(response.headers["content-type"]).toBe("text/plain; charset=utf-8");
+		expect(response.headers["x-content-type-options"]).toBe("nosniff");
+		expect((await waitPromise)?.error).toBe(providerError);
 	});
 });
 

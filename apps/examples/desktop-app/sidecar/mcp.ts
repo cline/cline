@@ -11,6 +11,7 @@ interface StoredMcpOAuthClient {
 	clientId: string;
 	clientSecret?: string;
 	allowedScopes?: string[];
+	loopbackHostname?: "127.0.0.1" | "localhost";
 }
 
 // RFC 6749 section 3.3 scope-token: printable ASCII excluding DQUOTE and "\\".
@@ -75,13 +76,30 @@ function readStoredMcpOAuthClient(value: unknown): StoredMcpOAuthClient | null {
 	} catch {
 		return null;
 	}
+	if (
+		record.loopbackHostname !== undefined &&
+		record.loopbackHostname !== "127.0.0.1" &&
+		record.loopbackHostname !== "localhost"
+	) {
+		return null;
+	}
 	return {
 		clientId: record.clientId,
 		...(typeof record.clientSecret === "string"
 			? { clientSecret: record.clientSecret }
 			: {}),
 		...(allowedScopes ? { allowedScopes } : {}),
+		...(record.loopbackHostname === "127.0.0.1" ||
+		record.loopbackHostname === "localhost"
+			? { loopbackHostname: record.loopbackHostname }
+			: {}),
 	};
+}
+
+function resolveMcpOAuthLoopbackHostname(
+	value: StoredMcpOAuthClient["loopbackHostname"],
+): "127.0.0.1" | "localhost" {
+	return value ?? "127.0.0.1";
 }
 
 function mcpOAuthScopePoliciesEqual(
@@ -113,7 +131,9 @@ function mcpOAuthClientsEqual(left: unknown, right: unknown): boolean {
 			mcpOAuthScopePoliciesEqual(
 				leftClient.allowedScopes,
 				rightClient.allowedScopes,
-			),
+			) &&
+			resolveMcpOAuthLoopbackHostname(leftClient.loopbackHostname) ===
+				resolveMcpOAuthLoopbackHostname(rightClient.loopbackHostname),
 	);
 }
 
@@ -163,6 +183,7 @@ export function resolveMcpOAuthClientUpdate(options: {
 		"clientSecret",
 		"preserveClientSecret",
 		"allowedScopes",
+		"loopbackHostname",
 	]);
 	const unknownKey = Object.keys(requested).find(
 		(key) => !allowedKeys.has(key),
@@ -237,6 +258,42 @@ export function resolveMcpOAuthClientUpdate(options: {
 		// validated order losslessly unless the policy is explicitly edited.
 		allowedScopes = [...existingAllowedScopes];
 	}
+	const existingHasLoopbackHostname =
+		existingRecord !== undefined &&
+		Object.hasOwn(existingRecord, "loopbackHostname") &&
+		existingRecord.loopbackHostname !== undefined;
+	const existingLoopbackHostname = existing?.loopbackHostname;
+	if (existingHasLoopbackHostname && !existingLoopbackHostname) {
+		if (requested.loopbackHostname === undefined) {
+			throw new Error(
+				"The existing OAuth loopbackHostname is invalid; replace or clear it explicitly",
+			);
+		}
+	}
+	let loopbackHostname: StoredMcpOAuthClient["loopbackHostname"];
+	if (requested.loopbackHostname === null) {
+		loopbackHostname = undefined;
+	} else if (requested.loopbackHostname !== undefined) {
+		if (
+			requested.loopbackHostname !== "127.0.0.1" &&
+			requested.loopbackHostname !== "localhost"
+		) {
+			throw new Error(
+				'OAuth loopbackHostname must be "127.0.0.1", "localhost", or null',
+			);
+		}
+		loopbackHostname =
+			requested.loopbackHostname === "127.0.0.1"
+				? undefined
+				: requested.loopbackHostname;
+	} else if (existingLoopbackHostname === "localhost") {
+		if (!transportIdentityUnchanged || existingRecord?.clientId !== clientId) {
+			throw new Error(
+				"Specify loopbackHostname when changing an OAuth client's server endpoint or client ID",
+			);
+		}
+		loopbackHostname = existingLoopbackHostname;
+	}
 	let clientSecret: string | undefined;
 	if (requested.preserveClientSecret === true) {
 		if (!transportIdentityUnchanged) {
@@ -258,6 +315,7 @@ export function resolveMcpOAuthClientUpdate(options: {
 		clientId,
 		...(clientSecret !== undefined ? { clientSecret } : {}),
 		...(allowedScopes ? { allowedScopes } : {}),
+		...(loopbackHostname ? { loopbackHostname } : {}),
 	};
 	return {
 		oauthClient,
@@ -407,6 +465,11 @@ export function buildMcpServersResponse(
 						...(registration.oauthClient.allowedScopes
 							? {
 									allowedScopes: [...registration.oauthClient.allowedScopes],
+								}
+							: {}),
+						...(registration.oauthClient.loopbackHostname
+							? {
+									loopbackHostname: registration.oauthClient.loopbackHostname,
 								}
 							: {}),
 					}
