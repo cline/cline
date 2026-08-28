@@ -54,7 +54,10 @@ vi.mock("@opentelemetry/sdk-trace-node", () => ({
 	NodeTracerProvider: MockNodeTracerProvider,
 }));
 
-import type { LangfuseTelemetryConfig } from "@cline/shared";
+import {
+	DEFAULT_CLINE_PROVIDER_LANGFUSE_BASE_URL,
+	type LangfuseTelemetryConfig,
+} from "@cline/shared";
 import { generateText } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 import {
@@ -67,7 +70,6 @@ const ENV_KEYS = [
 	"LANGFUSE_BASE_URL",
 	"LANGFUSE_PUBLIC_KEY",
 	"LANGFUSE_SECRET_KEY",
-	"CLINE_PROVIDER_LANGFUSE_BASE_URL",
 	"CLINE_PROVIDER_LANGFUSE_PUBLIC_KEY",
 	"CLINE_PROVIDER_LANGFUSE_SECRET_KEY",
 	"OTEL_SERVICE_NAME",
@@ -79,7 +81,7 @@ const genericConfig: LangfuseTelemetryConfig = {
 	secretKey: "generic-secret-key",
 };
 const clineProviderConfig: LangfuseTelemetryConfig = {
-	baseUrl: "https://cline.langfuse.example",
+	baseUrl: DEFAULT_CLINE_PROVIDER_LANGFUSE_BASE_URL,
 	publicKey: "cline-public-key",
 	secretKey: "cline-secret-key",
 };
@@ -98,7 +100,6 @@ function setGenericEnvironment(): void {
 }
 
 function setClineProviderEnvironment(): void {
-	process.env.CLINE_PROVIDER_LANGFUSE_BASE_URL = clineProviderConfig.baseUrl;
 	process.env.CLINE_PROVIDER_LANGFUSE_PUBLIC_KEY =
 		clineProviderConfig.publicKey;
 	process.env.CLINE_PROVIDER_LANGFUSE_SECRET_KEY =
@@ -143,7 +144,7 @@ describe("langfuse telemetry", () => {
 	it.each([
 		"cline",
 		"cline-pass",
-	])("prefers the complete Cline-provider environment for %s", async (providerId) => {
+	])("uses the Cline-provider credential pair at the fixed endpoint for %s", async (providerId) => {
 		setGenericEnvironment();
 		setClineProviderEnvironment();
 
@@ -163,9 +164,12 @@ describe("langfuse telemetry", () => {
 		expect(spanProcessorConfigSpy).toHaveBeenCalledWith(genericConfig);
 	});
 
-	it("fails closed when the prefixed environment is partially configured", async () => {
+	it.each([
+		["CLINE_PROVIDER_LANGFUSE_PUBLIC_KEY", "partial-public-key"],
+		["CLINE_PROVIDER_LANGFUSE_SECRET_KEY", "partial-secret-key"],
+	] as const)("fails closed when only %s is configured", async (key, value) => {
 		setGenericEnvironment();
-		process.env.CLINE_PROVIDER_LANGFUSE_PUBLIC_KEY = "partial-public-key";
+		process.env[key] = value;
 
 		await expect(ensureLangfuseTelemetry("cline")).resolves.toBeUndefined();
 

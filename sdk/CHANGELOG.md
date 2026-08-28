@@ -30,7 +30,7 @@
 ## 0.0.77
 
 - The `tasks` tool (durable todos and one-time or recurring agent schedules) is now scoped to the clients that can service it. Hosts declare their client type and the core tool catalog resolves availability centrally, so CLI and VS Code sessions no longer register a tool they cannot act on; hub sessions resolve the same way from the requesting client's metadata
-- Added a sensitive `langfuse-telemetry` rollout for Cline and ClinePass using a `publicKey::secretKey` flag value and the fixed US Langfuse Cloud endpoint. Credentials remain memory-only across local and Hub execution. Cline-owned providers prefer `CLINE_PROVIDER_LANGFUSE_*` and fall back to `LANGFUSE_*` when that namespace is absent; third-party providers use only `LANGFUSE_*`
+- Added a sensitive `langfuse-telemetry` rollout for Cline and ClinePass using a `publicKey::secretKey` flag value and the fixed US Langfuse Cloud endpoint. Credentials remain memory-only across local and Hub execution. Cline-owned providers prefer the `CLINE_PROVIDER_LANGFUSE_PUBLIC_KEY` and `CLINE_PROVIDER_LANGFUSE_SECRET_KEY` pair at that fixed endpoint, and fall back to `LANGFUSE_*` when both are absent; third-party providers use only `LANGFUSE_*`
 
 ## 0.0.76
 

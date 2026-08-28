@@ -1,4 +1,8 @@
-import { isClineProvider, type LangfuseTelemetryConfig } from "@cline/shared";
+import {
+	DEFAULT_CLINE_PROVIDER_LANGFUSE_BASE_URL,
+	isClineProvider,
+	type LangfuseTelemetryConfig,
+} from "@cline/shared";
 import type { Telemetry } from "ai";
 
 type LangfuseTelemetryRuntime = {
@@ -14,6 +18,11 @@ type LangfuseEnvironmentKeys = {
 	publicKey: string;
 	secretKey: string;
 };
+
+type LangfuseCredentialEnvironmentKeys = Omit<
+	LangfuseEnvironmentKeys,
+	"baseUrl"
+>;
 
 type LangfuseEnvironmentConfig = {
 	present: boolean;
@@ -47,11 +56,11 @@ export async function withLangfuseTraceAttributes<T>(
 }
 
 const LANGFUSE_DEBUG_ENV = "CLINE_DEBUG_LANGFUSE";
-const CLINE_PROVIDER_LANGFUSE_ENV: LangfuseEnvironmentKeys = {
-	baseUrl: "CLINE_PROVIDER_LANGFUSE_BASE_URL",
-	publicKey: "CLINE_PROVIDER_LANGFUSE_PUBLIC_KEY",
-	secretKey: "CLINE_PROVIDER_LANGFUSE_SECRET_KEY",
-};
+const CLINE_PROVIDER_LANGFUSE_CREDENTIAL_ENV: LangfuseCredentialEnvironmentKeys =
+	{
+		publicKey: "CLINE_PROVIDER_LANGFUSE_PUBLIC_KEY",
+		secretKey: "CLINE_PROVIDER_LANGFUSE_SECRET_KEY",
+	};
 const LANGFUSE_ENV: LangfuseEnvironmentKeys = {
 	baseUrl: "LANGFUSE_BASE_URL",
 	publicKey: "LANGFUSE_PUBLIC_KEY",
@@ -92,6 +101,21 @@ function readLangfuseEnvironmentConfig(
 	};
 }
 
+function readClineProviderLangfuseEnvironmentConfig(): LangfuseEnvironmentConfig {
+	const values = {
+		publicKey: process.env[CLINE_PROVIDER_LANGFUSE_CREDENTIAL_ENV.publicKey],
+		secretKey: process.env[CLINE_PROVIDER_LANGFUSE_CREDENTIAL_ENV.secretKey],
+	};
+	const present = Object.values(values).some((value) => value !== undefined);
+	return {
+		present,
+		config: normalizeLangfuseTelemetryConfig({
+			baseUrl: DEFAULT_CLINE_PROVIDER_LANGFUSE_BASE_URL,
+			...values,
+		}),
+	};
+}
+
 function resolveLangfuseTelemetryConfig(
 	providerId: string,
 	featureFlagConfig: LangfuseTelemetryConfig | undefined,
@@ -107,12 +131,10 @@ function resolveLangfuseTelemetryConfig(
 		return normalizeLangfuseTelemetryConfig(featureFlagConfig);
 	}
 
-	const clineProviderConfig = readLangfuseEnvironmentConfig(
-		CLINE_PROVIDER_LANGFUSE_ENV,
-	);
+	const clineProviderConfig = readClineProviderLangfuseEnvironmentConfig();
 	if (clineProviderConfig.present) {
 		// Never mix variables across namespaces. A partially configured prefixed
-		// triplet disables Cline-provider tracing rather than falling back.
+		// credential pair disables Cline-provider tracing rather than falling back.
 		return clineProviderConfig.config;
 	}
 
