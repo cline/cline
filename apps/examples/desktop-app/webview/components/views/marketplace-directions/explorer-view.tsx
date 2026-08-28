@@ -22,7 +22,6 @@ import type {
 import { cn } from "@/lib/utils";
 import {
 	actionLabelFor,
-	EntryGlyph,
 	entryKey,
 	entrySearchText,
 	isBusy,
@@ -66,7 +65,6 @@ function ListRow({
 			onClick={onSelect}
 			type="button"
 		>
-			<EntryGlyph className="size-9 text-sm" entry={entry} />
 			<span className="min-w-0 flex-1">
 				<span className="flex min-w-0 items-center gap-1">
 					<span className="truncate text-sm font-medium text-foreground">
@@ -158,11 +156,6 @@ function DetailPane({
 		<ScrollArea className="h-full min-w-0 flex-1">
 			<div className="mx-auto grid max-w-3xl gap-6 px-8 py-8 max-[900px]:px-5">
 				<div className="flex items-start gap-5">
-					<EntryGlyph
-						className="size-20 text-3xl"
-						entry={entry}
-						rounded="rounded-2xl"
-					/>
 					<div className="min-w-0 flex-1">
 						<div className="flex min-w-0 flex-wrap items-center gap-2">
 							<h1 className="min-w-0 truncate text-2xl font-semibold text-foreground">
