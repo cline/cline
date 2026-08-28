@@ -9,13 +9,21 @@ import {
 	parseModelSelectionStorage,
 } from "@/lib/model-selection";
 import type { Provider } from "@/lib/provider-schema";
-import { OnboardingView, sortProvidersForApiKeySetup } from "./onboarding-view";
+import {
+	GITHUB_ONBOARDING_FEATURE_FLAG,
+	OnboardingView,
+	sortProvidersForApiKeySetup,
+} from "./onboarding-view";
 
 const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }));
 vi.mock("@/lib/desktop-client", () => ({
 	desktopClient: { invoke },
 	openExternalUrl: vi.fn(),
 }));
+
+const GITHUB_STEP_ENABLED_FLAGS = {
+	flags: { [GITHUB_ONBOARDING_FEATURE_FLAG]: true },
+};
 
 class StorageStub implements Storage {
 	readonly #values = new Map<string, string>();
@@ -140,6 +148,9 @@ describe("OnboardingView", () => {
 					],
 					settingsPath: "/tmp/providers.json",
 				};
+			}
+			if (command === "get_feature_flags") {
+				return GITHUB_STEP_ENABLED_FLAGS;
 			}
 			return {};
 		});
@@ -375,6 +386,9 @@ describe("OnboardingView", () => {
 			if (command === "list_provider_catalog") {
 				return { providers: [makeProvider()], settingsPath: "/tmp/p.json" };
 			}
+			if (command === "get_feature_flags") {
+				return GITHUB_STEP_ENABLED_FLAGS;
+			}
 			return {};
 		});
 		await render();
@@ -385,6 +399,11 @@ describe("OnboardingView", () => {
 
 		await act(async () => {
 			buttonByText("Continue").click();
+		});
+		// Connecting a Cline account routes through the GitHub integration step.
+		expect(container.textContent).toContain("Connect GitHub");
+		await act(async () => {
+			buttonByText("Skip for now").click();
 		});
 		// The redesigned completion step places transparent content over a static,
 		// wide version of the hero grid.
@@ -402,6 +421,57 @@ describe("OnboardingView", () => {
 				window.localStorage.getItem(MODEL_SELECTION_STORAGE_KEY),
 			).lastProvider,
 		).toBe("cline");
+	});
+
+	it("skips the GitHub step silently when the integration is already connected", async () => {
+		invoke.mockImplementation(async (command: string) => {
+			if (command === "cline_account") {
+				return { email: "dev@example.com", displayName: "Dev" };
+			}
+			if (command === "cline_integrations") {
+				return [{ provider: "github" }];
+			}
+			if (command === "list_provider_catalog") {
+				return { providers: [makeProvider()], settingsPath: "/tmp/p.json" };
+			}
+			if (command === "get_feature_flags") {
+				return GITHUB_STEP_ENABLED_FLAGS;
+			}
+			return {};
+		});
+		await render();
+		await act(async () => {
+			buttonByText("Get started").click();
+		});
+		await act(async () => {
+			buttonByText("Continue").click();
+		});
+		expect(container.textContent).not.toContain("Connect GitHub");
+		expect(container.textContent).toContain("You're all set");
+	});
+
+	it("bypasses the GitHub step when the rollout flag is off", async () => {
+		invoke.mockImplementation(async (command: string) => {
+			if (command === "cline_account") {
+				return { email: "dev@example.com", displayName: "Dev" };
+			}
+			if (command === "list_provider_catalog") {
+				return { providers: [makeProvider()], settingsPath: "/tmp/p.json" };
+			}
+			// get_feature_flags falls through to the empty snapshot, which is
+			// also what an unreachable sidecar resolves to: flag disabled.
+			return {};
+		});
+		await render();
+		await act(async () => {
+			buttonByText("Get started").click();
+		});
+		await act(async () => {
+			buttonByText("Continue").click();
+		});
+		expect(invoke).toHaveBeenCalledWith("get_feature_flags");
+		expect(container.textContent).not.toContain("Connect GitHub");
+		expect(container.textContent).toContain("You're all set");
 	});
 
 	it("lets the user cancel a pending browser sign-in", async () => {
@@ -481,6 +551,10 @@ describe("OnboardingView", () => {
 			provider: "cline",
 			enabled: true,
 			api_key: "cline_key_123",
+		});
+		expect(container.textContent).toContain("Connect GitHub");
+		await act(async () => {
+			buttonByText("Skip for now").click();
 		});
 		expect(container.textContent).toContain("You're all set");
 		expect(container.textContent).toContain("Your Cline account is connected");
@@ -582,6 +656,10 @@ describe("OnboardingView", () => {
 		});
 		expect(invoke).toHaveBeenCalledWith("run_provider_oauth_login", {
 			provider: "cline",
+		});
+		expect(container.textContent).toContain("Connect GitHub");
+		await act(async () => {
+			buttonByText("Skip for now").click();
 		});
 		expect(container.textContent).toContain("You're all set");
 		expect(
