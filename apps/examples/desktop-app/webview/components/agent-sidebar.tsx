@@ -47,13 +47,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-	CommandDialog,
-	CommandEmpty,
-	CommandInput,
-	CommandItem,
-	CommandList,
-} from "@/components/ui/command";
-import {
 	ContextMenu,
 	ContextMenuContent,
 	ContextMenuItem,
@@ -255,6 +248,7 @@ export function AgentSidebar({
 	onHome,
 	onNavigateBack,
 	onNavigateForward,
+	onOpenSearch,
 	onSettingsSectionChange,
 	setView,
 	settingsSection,
@@ -269,6 +263,8 @@ export function AgentSidebar({
 	onHome: () => void;
 	onNavigateBack?: () => void;
 	onNavigateForward?: () => void;
+	/** Opens the global session search command bar (also bound to Cmd/Ctrl+P). */
+	onOpenSearch?: () => void;
 	onSettingsSectionChange: (section: SettingsSection) => void;
 	setView: (view: AppView) => void;
 	settingsSection: SettingsSection;
@@ -291,7 +287,6 @@ export function AgentSidebar({
 		forkThread: forkHistoryThread,
 		hasLoadedHistory,
 		isLoadingMore,
-		loadAllSessions,
 		loadOlderSessions,
 		mayHaveMoreSessions,
 		openThread: openHistoryThread,
@@ -305,7 +300,6 @@ export function AgentSidebar({
 	const [filter, setFilter] = useState<FilterOption>("All");
 	const [sourceFilter, setSourceFilter] = useState(ALL_SESSION_SOURCES);
 	const [sortMode, setSortMode] = useState<SidebarSortMode>("time");
-	const [searchOpen, setSearchOpen] = useState(false);
 	const [showMoreCount, setShowMoreCount] = useState(
 		INITIAL_VISIBLE_THREAD_COUNT,
 	);
@@ -422,20 +416,6 @@ export function AgentSidebar({
 	const navigateForward = useCallback(() => {
 		onNavigateForward?.();
 	}, [onNavigateForward]);
-	const openSearch = useCallback(() => {
-		setSearchOpen(true);
-		// The sidebar only pages in recent history; pull the rest so older
-		// sessions are searchable too.
-		void loadAllSessions();
-	}, [loadAllSessions]);
-	const openSearchResult = useCallback(
-		(threadId: string) => {
-			setSearchOpen(false);
-			openThread(threadId);
-		},
-		[openThread],
-	);
-
 	const startRenameThread = useCallback((thread: Thread) => {
 		setEditingSessionId(thread.id);
 		setEditingTitle(normalizeTitle(thread.title));
@@ -840,8 +820,8 @@ export function AgentSidebar({
 							<Button
 								aria-label="Search sessions"
 								className="size-8 shrink-0 justify-center px-0"
-								onClick={openSearch}
-								title="Search sessions"
+								onClick={onOpenSearch}
+								title="Search sessions (Cmd/Ctrl+P)"
 								type="button"
 								variant="sidebarItem"
 							>
@@ -1210,35 +1190,6 @@ export function AgentSidebar({
 					)}
 				</div>
 			</div>
-			<CommandDialog
-				description="Search sessions by title, project, or path"
-				onOpenChange={setSearchOpen}
-				open={searchOpen}
-				title="Search sessions"
-			>
-				<CommandInput placeholder="Search sessions..." />
-				<CommandList>
-					<CommandEmpty>
-						{isLoadingMore
-							? "Searching older sessions..."
-							: "No sessions found."}
-					</CommandEmpty>
-					{threads.map((thread) => (
-						<CommandItem
-							key={thread.id}
-							onSelect={() => openSearchResult(thread.id)}
-							value={`${normalizeTitle(thread.title)} ${thread.codebase} ${thread.workspacePath} ${thread.id}`}
-						>
-							<span className="min-w-0 flex-1 truncate">
-								{normalizeTitle(thread.title)}
-							</span>
-							<span className="shrink-0 text-xs text-muted-foreground">
-								{thread.time}
-							</span>
-						</CommandItem>
-					))}
-				</CommandList>
-			</CommandDialog>
 			<AlertDialog
 				open={deleteConfirmThread !== null}
 				onOpenChange={(open) => {

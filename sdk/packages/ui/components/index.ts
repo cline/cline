@@ -44,6 +44,7 @@ export {
 	GeneratedMediaContent,
 	type GeneratedMediaContentProps,
 } from "./generated-media.js";
+export { GitHubIcon } from "./github-icon.js";
 export {
 	SearchCombobox,
 	type SearchComboboxOption,
