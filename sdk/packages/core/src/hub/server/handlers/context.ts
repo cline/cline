@@ -18,6 +18,7 @@ import type {
 	SessionConnectionRuntimeService,
 	SessionUsageRuntimeService,
 } from "../../../runtime/host/runtime-host";
+import type { SessionHistorySearchService } from "../../../session/search";
 import {
 	type CoreSessionSnapshot,
 	createCoreSessionSnapshot,
@@ -55,6 +56,7 @@ export type PendingCapabilityRequest = {
  * The transport class owns the maps; handlers get a stable read/write surface.
  */
 export interface HubTransportContext {
+	readonly sessionSearch: SessionHistorySearchService;
 	readonly clients: Map<string, HubClientRecord>;
 	readonly sessionState: Map<string, HubSessionState>;
 	readonly pendingApprovals: Map<string, PendingApproval>;
