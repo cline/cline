@@ -810,6 +810,17 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		defaults: { baseUrl: "https://api.sambanova.ai/v1" },
 	},
 	{
+		id: "scalattice",
+		name: "Scalattice",
+		description: "OpenAI-compatible marketplace for open-weight models",
+		family: "openai-compatible",
+		capabilities: ["tools"],
+		defaultModelId: "qwen-3-14b",
+		apiKeyEnv: ["SCALATTICE_API_KEY"],
+		docsUrl: "https://scalattice.cloud/docs/developers",
+		defaults: { baseUrl: "https://api.scalattice.cloud/v1" },
+	},
+	{
 		id: "litellm",
 		name: "LiteLLM",
 		description: "Self-hosted LLM proxy",
