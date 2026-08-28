@@ -55,6 +55,17 @@ const MCP_PROTOCOL_VERSION = "2024-11-05";
 // still fail fast through the spawn error/exit path; only an alive-but-silent
 // server waits out this budget.
 export const DEFAULT_MCP_CONNECT_TIMEOUT_MS = 3_000;
+// Connect budget for remote (SSE/streamable HTTP) servers when no timeout is
+// configured. Like the stdio initialize budget above, connect runs on the
+// session-create critical path capped by the hub at 30s
+// (HUB_DEFAULT_COMMAND_TIMEOUT_MS). Without its own budget an unreachable
+// server spends the full request timeout (60s by default, with the SSE
+// transport stuck in a reconnect loop), stalling session.create past the hub
+// deadline and tearing the whole session down. 10s is generous for a healthy
+// remote handshake (DNS, TLS, OAuth discovery) while staying far from the hub
+// cap; servers connect in parallel. An explicit `timeout` overrides this in
+// either direction.
+export const DEFAULT_HTTP_MCP_CONNECT_TIMEOUT_MS = 10_000;
 const DEFAULT_HTTP_MCP_REDIRECT_URL =
 	"http://127.0.0.1:1456/mcp/oauth/callback";
 
@@ -565,6 +576,7 @@ class SdkUrlMcpClient implements McpServerClient {
 	private client?: Client;
 	private authContext?: McpOAuthProviderContext;
 	private readonly requestTimeoutMs: number;
+	private readonly connectAttemptTimeoutMs: number;
 
 	constructor(
 		private readonly registration: McpServerRegistration,
@@ -573,6 +585,14 @@ class SdkUrlMcpClient implements McpServerClient {
 		this.requestTimeoutMs = resolveMcpRequestTimeoutMs(
 			registration.timeoutSeconds,
 		);
+		// Connect gets its own default budget so an offline server fails fast
+		// instead of stalling session.create; an explicit `timeout` overrides
+		// it in either direction.
+		this.connectAttemptTimeoutMs = isMcpTimeoutConfigured(
+			registration.timeoutSeconds,
+		)
+			? this.requestTimeoutMs
+			: DEFAULT_HTTP_MCP_CONNECT_TIMEOUT_MS;
 	}
 
 	async connect(): Promise<void> {
@@ -613,7 +633,9 @@ class SdkUrlMcpClient implements McpServerClient {
 				oauthProvider,
 				fetch: this.options.fetch,
 			});
-			await client.connect(transport, { timeout: this.requestTimeoutMs });
+			await client.connect(transport, {
+				timeout: this.connectAttemptTimeoutMs,
+			});
 			await authContext.clearError();
 			this.client = client;
 		} catch (error) {
@@ -621,7 +643,7 @@ class SdkUrlMcpClient implements McpServerClient {
 			const effectiveError = augmentMcpTimeoutError(
 				error,
 				this.registration.name,
-				this.requestTimeoutMs,
+				this.connectAttemptTimeoutMs,
 			);
 			const unauthorized = isMcpUnauthorizedError(error);
 			const message = unauthorized

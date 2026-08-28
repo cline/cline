@@ -9,6 +9,7 @@ function createContext(
 ): HubTransportContext & { events: HubEventEnvelope[] } {
 	const events: HubEventEnvelope[] = [];
 	return {
+		sessionSearch: { removeSession: vi.fn() } as never,
 		clients: new Map(),
 		sessionState: new Map(),
 		pendingApprovals: new Map(),
