@@ -1,7 +1,9 @@
 import { homedir } from "node:os";
 import {
 	createClineTelemetryServiceConfig,
+	readGlobalSettings,
 	setHomeDirIfUnset,
+	setModelToolEnabledGlobally,
 	watchManagedHubBuildMismatch,
 } from "@cline/core";
 import { captureSdkError, claimHubDaemonProcess } from "@cline/shared";
@@ -56,6 +58,12 @@ async function main() {
 
 	const workspaceRoot = resolveWorkspaceRoot(process.cwd());
 	setHomeDirIfUnset(homedir());
+	// Web search is opt-in elsewhere in Cline, but the desktop app defaults
+	// it to on. Seed the shared setting only when the user has never set it,
+	// so an explicit off (from any Cline app) stays off.
+	if (readGlobalSettings().tools?.web_search === undefined) {
+		setModelToolEnabledGlobally("web_search", true);
+	}
 	configureConnectorCliLaunch(workspaceRoot);
 	const observability = createDesktopObservability();
 	activeObservability = observability;
