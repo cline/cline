@@ -97,9 +97,21 @@ describe("HubRuntimeHost", () => {
 
 		const { HubRuntimeHost } = await import("./hub-runtime-host");
 		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+		const langfuse = {
+			baseUrl: "https://us.cloud.langfuse.com",
+			publicKey: "public-key",
+			secretKey: "secret-key",
+		};
 
 		const started = await host.startSession({
-			config: createConfig(),
+			config: {
+				...createConfig(),
+				providerConfig: {
+					providerId: "cline",
+					modelId: "anthropic/claude-haiku-4.5",
+					langfuse,
+				},
+			},
 			source: SessionSource.CLI,
 			localRuntime: {
 				extensionContext: {
@@ -126,6 +138,7 @@ describe("HubRuntimeHost", () => {
 				systemPrompt: "system",
 				mode: "act",
 				checkpoint: { enabled: true },
+				providerConfig: expect.objectContaining({ langfuse }),
 				enableTools: true,
 				enableSpawnAgent: true,
 				enableAgentTeams: true,
@@ -155,6 +168,9 @@ describe("HubRuntimeHost", () => {
 			toolPolicies: undefined,
 			initialMessages: undefined,
 		});
+		expect(commandMock.mock.calls[0]?.[1]?.metadata).not.toHaveProperty(
+			"langfuse",
+		);
 	});
 
 	it("reconstructs tool content updates from hub events", async () => {

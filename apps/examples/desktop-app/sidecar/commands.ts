@@ -49,6 +49,8 @@ import {
 import { resolveAudioTranscriptionRoute } from "@cline/llms";
 import {
 	CLINE_DEFAULT_MODEL_ID,
+	formatSessionSearchPreview,
+	formatSessionSearchTitle,
 	getClineEnvironmentConfig,
 	isCanonicalBase64,
 	ONE_TIME_SCHEDULE_CRON_PATTERN,
@@ -59,6 +61,11 @@ import { readFileSyncStrippingUtf8Bom } from "@cline/shared/node";
 import packageJson from "../package.json";
 import { CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT } from "../webview/lib/cline-account-state";
 import { MAX_RECORDED_AUDIO_BYTES } from "../webview/lib/voice-input-limits";
+import {
+	listClineGitHubRepositories,
+	listClineIntegrations,
+	resolveGitHubInstallUrl,
+} from "./commands-integrations";
 import {
 	connectorChannelsPayload,
 	startConnectorChannel,
@@ -534,6 +541,67 @@ async function listSessionsFromSidecarManager(
 		.slice(0, max);
 }
 
+async function withSearchDeadline<T>(
+	promise: Promise<T>,
+	timeoutMs: number,
+): Promise<T> {
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	try {
+		return await Promise.race([
+			promise,
+			new Promise<never>((_, reject) => {
+				timer = setTimeout(
+					() => reject(new Error("Session search timed out")),
+					timeoutMs,
+				);
+			}),
+		]);
+	} finally {
+		if (timer) clearTimeout(timer);
+	}
+}
+
+function metadataSessionSearchHits(
+	value: unknown,
+	query: string,
+): JsonRecord[] {
+	if (!Array.isArray(value)) return [];
+	const normalizedQuery = query.toLocaleLowerCase();
+	return value.flatMap((item) => {
+		if (!item || typeof item !== "object") return [];
+		const session = item as JsonRecord;
+		const metadata =
+			session.metadata && typeof session.metadata === "object"
+				? (session.metadata as JsonRecord)
+				: {};
+		const sessionId = String(session.sessionId ?? "").trim();
+		if (!sessionId) return [];
+		const rawTitle = String(
+			metadata.title ?? session.title ?? session.prompt ?? sessionId,
+		).trim();
+		const prompt = String(session.prompt ?? metadata.prompt ?? "");
+		const title = formatSessionSearchTitle(rawTitle) || sessionId;
+		const workspaceRoot = String(session.workspaceRoot ?? session.cwd ?? "");
+		const searchable = [rawTitle, prompt, workspaceRoot, session.model]
+			.join("\n")
+			.toLocaleLowerCase();
+		if (!searchable.includes(normalizedQuery)) return [];
+		return [
+			{
+				sessionId,
+				documentId: `${sessionId}:metadata`,
+				ordinal: -1,
+				role: "session",
+				startedAt: String(session.startedAt ?? session.createdAt ?? ""),
+				workspaceRoot,
+				title,
+				snippet: formatSessionSearchPreview("session", prompt || title),
+				score: 0,
+			},
+		];
+	});
+}
+
 // ---------------------------------------------------------------------------
 // Git helpers
 // ---------------------------------------------------------------------------
@@ -616,7 +684,15 @@ async function handleRoutineScheduleCommand(
 		hubCommand: string,
 		payload?: Record<string, unknown>,
 	) => {
-		const reply = await hubClient.command(hubCommand as never, payload);
+		// The desktop app runs chats (and therefore agent-created schedules)
+		// across many workspace folders, while this hub client is registered
+		// against the app's own launch directory. Ask the hub for schedules
+		// across all workspaces so the Schedules page manages every schedule
+		// on this machine, not just the launch-directory scope.
+		const reply = await hubClient.command(hubCommand as never, {
+			...payload,
+			allWorkspaces: true,
+		});
 		if (!reply.ok) {
 			throw new Error(
 				reply.error?.message ?? `hub command failed: ${hubCommand}`,
@@ -1390,6 +1466,49 @@ export async function handleCommand(
 			typeof args?.limit === "number" ? args.limit : 300,
 		);
 	}
+	if (command === "search_sessions") {
+		const query = String(args?.query ?? "").trim();
+		if (!query) return [];
+		const limit =
+			typeof args?.limit === "number" && Number.isFinite(args.limit)
+				? Math.max(1, Math.min(200, Math.trunc(args.limit)))
+				: 50;
+		const workspaceRoot =
+			typeof args?.workspaceRoot === "string"
+				? args.workspaceRoot.trim() || undefined
+				: undefined;
+		if (ctx.hubClient) {
+			try {
+				const reply = await withSearchDeadline(
+					ctx.hubClient.command("session.search", {
+						query,
+						limit,
+						workspaceRoot,
+					}),
+					750,
+				);
+				if (
+					reply.ok &&
+					Array.isArray(reply.payload?.hits) &&
+					reply.payload.hits.length > 0
+				) {
+					return reply.payload.hits.slice(0, limit).map((hit) => ({
+						...hit,
+						title: formatSessionSearchTitle(hit.title),
+						snippet: formatSessionSearchPreview(hit.role, hit.snippet),
+					}));
+				}
+			} catch {
+				// Fall back to metadata-only search when the index is unavailable.
+			}
+		}
+
+		const sessions = await withSearchDeadline(
+			listSessionsFromSidecarManager(ctx, 500),
+			1_000,
+		).catch(() => []);
+		return metadataSessionSearchHits(sessions, query).slice(0, limit);
+	}
 	if (command === "get_discovered_session") {
 		const sessionId = String(args?.sessionId ?? args?.session_id ?? "").trim();
 		if (!sessionId) throw new Error("session id is required");
@@ -1434,7 +1553,7 @@ export async function handleCommand(
 		const result = await backend.updateSession({ sessionId, metadata: merged });
 		if (!result.updated) throw new Error(`Session ${sessionId} not found`);
 		// Annotating a session is not session activity. updateSession stamps
-		// updated_at, which clients sort and label rows by, so a favorite would
+		// updated_at, which clients sort and label rows by, so a pin would
 		// otherwise make an old session look like it just ran.
 		if (existing?.updatedAt) {
 			store.run("UPDATE sessions SET updated_at = ? WHERE session_id = ?", [
@@ -1601,6 +1720,37 @@ export async function handleCommand(
 		);
 		syncFeatureFlagsAccountFromResult(ctx, operation, result);
 		return result;
+	}
+
+	// ── Cline integrations (GitHub App) ────────────────────────────────
+	if (command === "cline_integrations") {
+		const operation = String(args?.operation ?? "").trim();
+		if (!operation) throw new Error("operation is required");
+		const manager = new ProviderSettingsManager();
+
+		const authToken = await resolveFreshClineAuthToken(ctx, manager);
+		if (!authToken) {
+			return CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT;
+		}
+		const settings = manager.getProviderSettings("cline");
+		const environment = getClineEnvironmentConfig();
+		const requestOptions = {
+			apiBaseUrl: settings?.baseUrl?.trim() || environment.apiBaseUrl,
+			appBaseUrl: environment.appBaseUrl,
+			authToken,
+		};
+		switch (operation) {
+			case "list":
+				return await listClineIntegrations(requestOptions);
+			case "listGitHubRepositories":
+				return await listClineGitHubRepositories(requestOptions);
+			case "githubInstallUrl":
+				return await resolveGitHubInstallUrl(requestOptions);
+			default:
+				throw new Error(
+					`Unsupported Cline integrations operation: ${operation}`,
+				);
+		}
 	}
 
 	// ── Provider management ────────────────────────────────────────────

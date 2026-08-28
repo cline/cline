@@ -18,7 +18,7 @@ import { CORE_TELEMETRY_EVENTS } from "../telemetry/core-events";
 
 const DEFAULT_CACHE_TTL_MS = 60 * 60 * 1000;
 const DEFAULT_PERSISTENT_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
-const FEATURE_FLAGS_CACHE_FILE_VERSION = 1;
+const FEATURE_FLAGS_CACHE_FILE_VERSION = 2;
 
 type CacheInfo = {
 	updateTime: number;
@@ -342,7 +342,9 @@ export class FeatureFlagsService {
 					event: CORE_TELEMETRY_EVENTS.FEATURE_FLAGS.FLAG_CALLED,
 					properties: {
 						$feature_flag: flagName,
-						$feature_flag_response: flagValue,
+						...(isSensitiveFeatureFlag(flagName)
+							? {}
+							: { $feature_flag_response: flagValue }),
 					},
 				});
 			}

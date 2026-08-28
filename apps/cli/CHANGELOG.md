@@ -1,5 +1,30 @@
 # Cline CLI Changelog
 
+## 3.0.60
+
+- Fixed the background hub process ballooning in memory during long sessions — session status updates were broadcasting a full copy of the conversation transcript to every connected client, which on a large task could grow the process to tens of gigabytes. Upgrading retires the running hub so the fix takes effect on the next command
+- New files are now created with your platform's native line endings
+- Fixed the codebase search tool crashing on files that contain a single enormous line
+- Cost estimates are no longer shown for Claude Code. Its usage is typically covered by a Claude Pro/Max subscription, but its models reuse Anthropic API pricing, so Cline was showing charges you were not being billed
+- Credentials embedded in git remote URLs are now redacted from the workspace information sent to the model
+- Installing an MCP server no longer misreads a `--` separator in the install arguments as part of the server command
+- Refreshed the model catalog. Adds seven providers (Agnes AI, Aixy, IteraCompute, LLM Tech, NeoSmith, Pendra, and Standard Compute) and updates model lists and pricing across providers. The resolved default model changes for ClinePass (now GLM 5.3), Z.ai, Hugging Face, evroc, LLM Gateway, NanoGPT, and Weights & Biases, so if you use one of those without pinning a model you will get a different default
+
+## 3.0.58
+
+- The first-launch "Try ClinePass" dialog no longer advertises the $4.99 first-month promo, which is ending
+- The hub's event log is now capped at 64 MiB on disk. Events carrying full session snapshots could previously grow the log to tens of gigabytes on a long-running hub, since deleting rows never shrinks the file. Oldest events are dropped first and the space is returned, and pruning runs on volume as well as on a timer
+- Refreshed the model catalog. Adds two providers (AgentRouter and Opper) and updates model lists and pricing across providers. The resolved default model changes for Aki.io and NanoGPT, so if you use one of those without pinning a model you will get a different default
+
+## 3.0.57
+
+- Added `cline hub drain`, which stops a hub from accepting new mutating work while it finishes what it is already running, and `cline hub drain --off` to lift it
+- Added `cline hub upgrade`, which drains the hub, waits for it to go idle, stops it, and starts a fresh one on the current build. An aborted upgrade lifts the drain again, so the hub is never left refusing work
+- Sessions now survive a hub restart. A reconnecting client replays the events it missed while disconnected, deduped by event id so nothing is delivered twice
+- Fixed tool calling being silently disabled for custom OpenAI-Compatible models whose capability list was inferred from convenience flags like `supportsReasoning`. The inferred list read as an authoritative denial and stripped every tool from the request
+- Langfuse traces now carry session and client identity for hub-backed and delegated-agent runs, instead of arriving without their session grouping or client version
+- Refreshed the model catalog, which updates model lists and pricing across providers and changes the resolved default model for several of them (DeepSeek, Crof, CrossModel, Eden AI, Kilo, and NanoGPT)
+
 ## 3.0.56
 
 - Models that support image generation can now produce media during a turn. The TUI saves each generated file to a temporary path and prints it so you can open it with your usual tools, HTML session exports embed images inline, and ACP clients receive generated images as image content

@@ -77,6 +77,66 @@ describe("buildUpdateManifest", () => {
 		expect(Object.keys(manifest.platforms)).toHaveLength(2);
 	});
 
+	test("maps a Windows NSIS setup artifact to windows-x86_64", () => {
+		const dir = makeUniversalArtifactDir();
+		writeFileSync(path.join(dir, "Cline-Code_0.1.0_x64-setup.exe"), "nsis");
+		writeFileSync(
+			path.join(dir, "Cline-Code_0.1.0_x64-setup.exe.sig"),
+			"sig-windows-x64\n",
+		);
+		const manifest = buildUpdateManifest({
+			version: "0.1.0",
+			tag: "desktop-v0.1.0",
+			dir,
+			repo: "cline/cline",
+			notes: "notes",
+			pubDate: "2026-07-21T00:00:00.000Z",
+		});
+
+		expect(manifest.platforms["windows-x86_64"]).toEqual({
+			signature: "sig-windows-x64",
+			url: "https://github.com/cline/cline/releases/download/desktop-v0.1.0/Cline-Code_0.1.0_x64-setup.exe",
+		});
+		// darwin entries from the universal artifact are unaffected.
+		expect(Object.keys(manifest.platforms).sort()).toEqual([
+			"darwin-aarch64",
+			"darwin-x86_64",
+			"windows-x86_64",
+		]);
+	});
+
+	test("ignores non-updater exe files without a setup arch suffix", () => {
+		const dir = makeUniversalArtifactDir();
+		writeFileSync(path.join(dir, "Cline-Code_0.1.0_x64.exe"), "exe");
+		const manifest = buildUpdateManifest({
+			version: "0.1.0",
+			tag: "desktop-v0.1.0",
+			dir,
+			repo: "cline/cline",
+			notes: "notes",
+			pubDate: "2026-07-21T00:00:00.000Z",
+		});
+		expect(Object.keys(manifest.platforms).sort()).toEqual([
+			"darwin-aarch64",
+			"darwin-x86_64",
+		]);
+	});
+
+	test("throws when a Windows setup artifact is missing its signature", () => {
+		const dir = makeUniversalArtifactDir();
+		writeFileSync(path.join(dir, "Cline-Code_0.1.0_x64-setup.exe"), "nsis");
+		expect(() =>
+			buildUpdateManifest({
+				version: "0.1.0",
+				tag: "desktop-v0.1.0",
+				dir,
+				repo: "cline/cline",
+				notes: "notes",
+				pubDate: "2026-07-21T00:00:00.000Z",
+			}),
+		).toThrow();
+	});
+
 	test("throws when universal and per-arch artifacts claim the same platform", () => {
 		const dir = makePerArchArtifactDir();
 		writeFileSync(

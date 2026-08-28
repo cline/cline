@@ -3171,14 +3171,26 @@ describe("sdk-gateway", () => {
 			mockSuccessfulStream();
 
 			const gateway = createGateway({
-				providerConfigs: [{ providerId: "deepseek", apiKey: "deepseek-key" }],
+				providerConfigs: [
+					{
+						providerId: "deepseek",
+						apiKey: "deepseek-key",
+						models: [
+							{
+								id: "deepseek-text-only",
+								name: "DeepSeek Text Only",
+								// Advertises no "images" capability.
+								capabilities: ["text"],
+							},
+						],
+					},
+				],
 			});
 
 			await collect(
 				await gateway.stream({
 					providerId: "deepseek",
-					// Catalog entry advertises no "images" capability.
-					modelId: "deepseek-chat",
+					modelId: "deepseek-text-only",
 					messages: imageHistory,
 				}),
 			);
@@ -5714,7 +5726,13 @@ describe("sdk-gateway", () => {
 
 		expect(openaiCompatibleSpy).toHaveBeenCalledWith(modelId);
 		const call = streamTextSpy.mock.calls.at(-1)?.[0];
-		expect(JSON.stringify(call)).not.toContain("cache_control");
+		expect(
+			JSON.stringify({
+				messages: call?.messages,
+				providerOptions: call?.providerOptions,
+				system: call?.system,
+			}),
+		).not.toContain("cache_control");
 	});
 
 	it("does not rewrite non-anthropic messages with prompt cache provider options", async () => {

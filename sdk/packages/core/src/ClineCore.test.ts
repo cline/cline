@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ClineCoreStartInput } from "./cline-core/types";
 import type {
+	RestoreSessionInput,
 	StartSessionInput,
 	StartSessionResult,
 } from "./runtime/host/runtime-host";
@@ -19,6 +20,7 @@ vi.mock("./runtime/host/host", () => ({
 
 import {
 	type AgentResult,
+	DEFAULT_CLINE_PROVIDER_LANGFUSE_BASE_URL,
 	FeatureFlag,
 	type IFeatureFlagsProvider,
 } from "@cline/shared";
@@ -281,12 +283,17 @@ describe("ClineCore", () => {
 	it.each([
 		"cline",
 		"cline-pass",
-	])("threads enabled Langfuse flag configuration into the %s provider", async (providerId) => {
+	])("threads enabled Langfuse flag configuration into the %s provider at start and restore", async (providerId) => {
 		const host = {
 			runtimeAddress: undefined,
 			startSession: vi.fn(async (_input: StartSessionInput) =>
 				createStartResult("session-langfuse"),
 			),
+			restoreSession: vi.fn(async (_input: RestoreSessionInput) => ({
+				sessionId: "session-langfuse-restored",
+				startResult: createStartResult("session-langfuse-restored"),
+				messages: [],
+			})),
 			runTurn: vi.fn(),
 			getAccumulatedUsage: vi.fn(),
 			abort: vi.fn(),
@@ -301,16 +308,16 @@ describe("ClineCore", () => {
 			updateSessionModel: vi.fn(),
 		};
 		createRuntimeHostMock.mockResolvedValue(host);
-		const flagPayload = {
-			baseUrl: "https://langfuse.example",
+		const flagValue = "public-key::secret-key";
+		const expectedConfig = {
+			baseUrl: DEFAULT_CLINE_PROVIDER_LANGFUSE_BASE_URL,
 			publicKey: "public-key",
 			secretKey: "secret-key",
 		};
 		const featureFlagProvider: IFeatureFlagsProvider = {
 			getAllFlagsAndPayloads: vi.fn(async () => ({
-				featureFlags: { [FeatureFlag.LANGFUSE_TELEMETRY]: true },
-				featureFlagPayloads: {
-					[FeatureFlag.LANGFUSE_TELEMETRY]: flagPayload,
+				featureFlags: {
+					[FeatureFlag.LANGFUSE_TELEMETRY]: flagValue,
 				},
 			})),
 			enabled: true,
@@ -325,15 +332,42 @@ describe("ClineCore", () => {
 		const input = createStartInput();
 		input.config.providerId = providerId;
 		input.config.modelId = `${providerId}/test-model`;
+		input.config.compaction = {
+			summarizer: {
+				providerId,
+				modelId: `${providerId}/summary-model`,
+			},
+		};
 
 		await core.start(input);
+		await core.restore({
+			sessionId: "session-langfuse",
+			checkpointRunCount: 1,
+			start: input,
+		});
 
 		const forwarded = host.startSession.mock.calls[0]?.[0];
 		expect(forwarded?.config.providerConfig).toMatchObject({
 			providerId,
 			modelId: `${providerId}/test-model`,
-			langfuse: flagPayload,
+			langfuse: expectedConfig,
 		});
+		expect(
+			forwarded?.config.compaction?.summarizer?.providerConfig,
+		).toMatchObject({
+			providerId,
+			modelId: `${providerId}/summary-model`,
+			langfuse: expectedConfig,
+		});
+		expect(host.restoreSession.mock.calls[0]?.[0]?.start?.config).toMatchObject(
+			{
+				providerConfig: {
+					providerId,
+					modelId: `${providerId}/test-model`,
+					langfuse: expectedConfig,
+				},
+			},
+		);
 	});
 
 	it("does not thread Langfuse credentials into third-party providers", async () => {
@@ -359,13 +393,8 @@ describe("ClineCore", () => {
 		const featureFlags = new FeatureFlagsService({
 			provider: {
 				getAllFlagsAndPayloads: vi.fn(async () => ({
-					featureFlags: { [FeatureFlag.LANGFUSE_TELEMETRY]: true },
-					featureFlagPayloads: {
-						[FeatureFlag.LANGFUSE_TELEMETRY]: {
-							baseUrl: "https://langfuse.example",
-							publicKey: "public-key",
-							secretKey: "secret-key",
-						},
+					featureFlags: {
+						[FeatureFlag.LANGFUSE_TELEMETRY]: "public-key::secret-key",
 					},
 				})),
 				enabled: true,
@@ -380,6 +409,51 @@ describe("ClineCore", () => {
 
 		const forwarded = host.startSession.mock.calls[0]?.[0];
 		expect(forwarded?.config.providerConfig).toBeUndefined();
+	});
+
+	it("fails closed for a malformed Langfuse flag value", async () => {
+		const host = {
+			runtimeAddress: undefined,
+			startSession: vi.fn(async (_input: StartSessionInput) =>
+				createStartResult("session-invalid-langfuse"),
+			),
+			runTurn: vi.fn(),
+			getAccumulatedUsage: vi.fn(),
+			abort: vi.fn(),
+			stopSession: vi.fn(),
+			dispose: vi.fn(),
+			getSession: vi.fn(async () => undefined),
+			listSessions: vi.fn(),
+			deleteSession: vi.fn(),
+			readSessionMessages: vi.fn(),
+			dispatchHookEvent: vi.fn(),
+			subscribe: vi.fn(() => () => {}),
+			updateSessionModel: vi.fn(),
+		};
+		createRuntimeHostMock.mockResolvedValue(host);
+		const featureFlags = new FeatureFlagsService({
+			provider: {
+				getAllFlagsAndPayloads: vi.fn(async () => ({
+					featureFlags: {
+						[FeatureFlag.LANGFUSE_TELEMETRY]: "public-key-only",
+					},
+				})),
+				enabled: true,
+				getSettings: () => ({ enabled: true }),
+				dispose: vi.fn(async () => {}),
+			},
+		});
+		await featureFlags.poll();
+		const core = await ClineCore.create({ featureFlags });
+		const input = createStartInput();
+		input.config.providerId = "cline";
+		input.config.modelId = "cline/test-model";
+
+		await core.start(input);
+
+		expect(host.startSession.mock.calls[0]?.[0].config.providerConfig).toBe(
+			undefined,
+		);
 	});
 
 	it("preserves an omitted workspace until the execution host resolves it", async () => {

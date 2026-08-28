@@ -1,14 +1,23 @@
-import {
-	isClineProvider,
-	type LangfuseTelemetryConfig,
-	parseLangfuseTelemetryConfig,
-} from "@cline/shared";
+import { isClineProvider, type LangfuseTelemetryConfig } from "@cline/shared";
+import type { Telemetry } from "ai";
 
-type MutableTracerProvider = {
-	addSpanProcessor?: (spanProcessor: unknown) => void;
-	constructor?: {
-		name?: string;
+type LangfuseTelemetryRuntime = {
+	integration: Telemetry;
+	tracerProvider: {
+		forceFlush(): Promise<void>;
+		shutdown(): Promise<void>;
 	};
+};
+
+type LangfuseEnvironmentKeys = {
+	baseUrl: string;
+	publicKey: string;
+	secretKey: string;
+};
+
+type LangfuseEnvironmentConfig = {
+	present: boolean;
+	config?: LangfuseTelemetryConfig;
 };
 
 export type LangfuseTraceAttributes = {
@@ -38,79 +47,149 @@ export async function withLangfuseTraceAttributes<T>(
 }
 
 const LANGFUSE_DEBUG_ENV = "CLINE_DEBUG_LANGFUSE";
+const CLINE_PROVIDER_LANGFUSE_ENV: LangfuseEnvironmentKeys = {
+	baseUrl: "CLINE_PROVIDER_LANGFUSE_BASE_URL",
+	publicKey: "CLINE_PROVIDER_LANGFUSE_PUBLIC_KEY",
+	secretKey: "CLINE_PROVIDER_LANGFUSE_SECRET_KEY",
+};
+const LANGFUSE_ENV: LangfuseEnvironmentKeys = {
+	baseUrl: "LANGFUSE_BASE_URL",
+	publicKey: "LANGFUSE_PUBLIC_KEY",
+	secretKey: "LANGFUSE_SECRET_KEY",
+};
 
-let langfuseTelemetryReady: boolean | undefined;
-let langfuseTelemetryInitPromise: Promise<boolean> | undefined;
-let langfuseTelemetryConfigKey: string | undefined;
+let langfuseTelemetryRuntimes = new Map<
+	string,
+	Promise<LangfuseTelemetryRuntime | undefined>
+>();
+let langfuseDisposableRegistration: Promise<void> | undefined;
+let langfuseContextManagerInitialization: Promise<void> | undefined;
 
-export function hasLangfuseTelemetryConfig(
-	config: unknown,
-): config is LangfuseTelemetryConfig {
-	return parseLangfuseTelemetryConfig(config) !== undefined;
+function normalizeLangfuseTelemetryConfig(
+	config: Partial<LangfuseTelemetryConfig> | undefined,
+): LangfuseTelemetryConfig | undefined {
+	const baseUrl = config?.baseUrl?.trim();
+	const publicKey = config?.publicKey?.trim();
+	const secretKey = config?.secretKey?.trim();
+	if (!baseUrl || !publicKey || !secretKey) {
+		return undefined;
+	}
+	return { baseUrl, publicKey, secretKey };
+}
+
+function readLangfuseEnvironmentConfig(
+	keys: LangfuseEnvironmentKeys,
+): LangfuseEnvironmentConfig {
+	const values = {
+		baseUrl: process.env[keys.baseUrl],
+		publicKey: process.env[keys.publicKey],
+		secretKey: process.env[keys.secretKey],
+	};
+	const present = Object.values(values).some((value) => value !== undefined);
+	return {
+		present,
+		config: normalizeLangfuseTelemetryConfig(values),
+	};
+}
+
+function resolveLangfuseTelemetryConfig(
+	providerId: string,
+	featureFlagConfig: LangfuseTelemetryConfig | undefined,
+): LangfuseTelemetryConfig | undefined {
+	if (!isClineProvider(providerId)) {
+		return readLangfuseEnvironmentConfig(LANGFUSE_ENV).config;
+	}
+
+	// A feature-flag configuration is transported in memory across the Hub
+	// boundary. If it is present but malformed, fail closed instead of silently
+	// sending Cline-owned traces to an ambient exporter.
+	if (featureFlagConfig !== undefined) {
+		return normalizeLangfuseTelemetryConfig(featureFlagConfig);
+	}
+
+	const clineProviderConfig = readLangfuseEnvironmentConfig(
+		CLINE_PROVIDER_LANGFUSE_ENV,
+	);
+	if (clineProviderConfig.present) {
+		// Never mix variables across namespaces. A partially configured prefixed
+		// triplet disables Cline-provider tracing rather than falling back.
+		return clineProviderConfig.config;
+	}
+
+	return readLangfuseEnvironmentConfig(LANGFUSE_ENV).config;
+}
+
+async function registerLangfuseDisposable(): Promise<void> {
+	if (!langfuseDisposableRegistration) {
+		langfuseDisposableRegistration = import("@cline/shared").then(
+			({ registerDisposable }) => {
+				registerDisposable(disposeLangfuseTelemetry);
+			},
+		);
+	}
+	await langfuseDisposableRegistration;
+}
+
+async function ensureLangfuseContextManager(): Promise<void> {
+	if (!langfuseContextManagerInitialization) {
+		langfuseContextManagerInitialization = Promise.all([
+			import("@opentelemetry/api"),
+			import("@opentelemetry/context-async-hooks"),
+		]).then(([{ context }, { AsyncLocalStorageContextManager }]) => {
+			const contextManager = new AsyncLocalStorageContextManager().enable();
+			if (!context.setGlobalContextManager(contextManager)) {
+				// Another OpenTelemetry owner already installed a context manager.
+				contextManager.disable();
+			}
+		});
+	}
+	await langfuseContextManagerInitialization;
 }
 
 export async function ensureLangfuseTelemetry(
 	providerId: string,
-	config: LangfuseTelemetryConfig | undefined,
-): Promise<boolean> {
-	const normalizedConfig = parseLangfuseTelemetryConfig(config);
-	if (!isClineProvider(providerId) || !normalizedConfig) {
-		debugLangfuse(
-			`config missing or provider ${providerId} is not Cline-owned`,
+	featureFlagConfig?: LangfuseTelemetryConfig,
+): Promise<Telemetry | undefined> {
+	const config = resolveLangfuseTelemetryConfig(providerId, featureFlagConfig);
+	if (!config) {
+		debugLangfuse(`configuration missing for provider ${providerId}`);
+		return undefined;
+	}
+
+	const configKey = JSON.stringify(config);
+	let runtimePromise = langfuseTelemetryRuntimes.get(configKey);
+	if (!runtimePromise) {
+		runtimePromise = registerLangfuseDisposable().then(
+			async () => await initializeLangfuseTelemetry(config),
 		);
-		return false;
-	}
-	const configKey = JSON.stringify(normalizedConfig);
-	if (
-		langfuseTelemetryConfigKey !== undefined &&
-		langfuseTelemetryConfigKey !== configKey
-	) {
-		// OpenTelemetry does not support replacing a registered global tracer
-		// provider safely. Fail closed if a flag payload changes mid-process.
-		debugLangfuse("configuration changed after initialization began");
-		return false;
+		langfuseTelemetryRuntimes.set(configKey, runtimePromise);
 	}
 
-	if (langfuseTelemetryReady !== undefined) {
-		debugLangfuse(`cached readiness=${String(langfuseTelemetryReady)}`);
-		return langfuseTelemetryReady;
-	}
-
-	if (!langfuseTelemetryInitPromise) {
-		langfuseTelemetryConfigKey = configKey;
-		langfuseTelemetryInitPromise =
-			initializeLangfuseTelemetry(normalizedConfig);
-	}
-
-	langfuseTelemetryReady = await langfuseTelemetryInitPromise;
-	debugLangfuse(`initialized readiness=${String(langfuseTelemetryReady)}`);
-	return langfuseTelemetryReady;
+	const runtime = await runtimePromise;
+	debugLangfuse(
+		`resolved integration=${String(Boolean(runtime))} provider=${providerId}`,
+	);
+	return runtime?.integration;
 }
 
 async function initializeLangfuseTelemetry(
 	config: LangfuseTelemetryConfig,
-): Promise<boolean> {
-	// Register for cleanup once, when initialization begins.
-	const { registerDisposable } = await import("@cline/shared");
-	registerDisposable(disposeLangfuseTelemetry);
-
+): Promise<LangfuseTelemetryRuntime | undefined> {
 	try {
-		// Give Langfuse and any other OTEL exporter a stable resource identity.
-		// Respect an explicitly configured service name from the host.
+		// Give Langfuse a stable resource identity without replacing the process's
+		// global tracer provider. Each credential set gets an isolated provider and
+		// is selected through AI SDK's per-call telemetry integration.
 		if (!process.env.OTEL_SERVICE_NAME?.trim()) {
 			process.env.OTEL_SERVICE_NAME = "cline-sdk";
 		}
+		await ensureLangfuseContextManager();
 		const [
 			{ LangfuseSpanProcessor },
 			{ LangfuseVercelAiSdkIntegration },
-			{ registerTelemetry },
-			{ trace },
 			{ NodeTracerProvider },
 		] = await Promise.all([
 			import("@langfuse/otel"),
 			import("@langfuse/vercel-ai-sdk"),
-			import("ai"),
-			import("@opentelemetry/api"),
 			import("@opentelemetry/sdk-trace-node"),
 		]);
 
@@ -119,95 +198,56 @@ async function initializeLangfuseTelemetry(
 			publicKey: config.publicKey,
 			secretKey: config.secretKey,
 		});
-		debugLangfuse(`creating span processor baseUrl=${config.baseUrl}`);
-
-		const tracerProvider = trace.getTracerProvider() as MutableTracerProvider;
-		if (typeof tracerProvider?.addSpanProcessor === "function") {
-			tracerProvider.addSpanProcessor(spanProcessor);
-			const hasDelegate = hasActiveTracerDelegate(trace);
-			if (hasDelegate) {
-				registerTelemetry(new LangfuseVercelAiSdkIntegration());
-			}
-			debugLangfuse(
-				`attached processor to existing tracer provider delegateReady=${String(hasDelegate)}`,
-			);
-			return hasDelegate;
-		}
-
-		const providerName = tracerProvider?.constructor?.name;
-		if (
-			providerName &&
-			providerName !== "ProxyTracerProvider" &&
-			providerName !== "NoopTracerProvider"
-		) {
-			return false;
-		}
-
-		const nodeTracerProvider = new NodeTracerProvider({
+		const tracerProvider = new NodeTracerProvider({
 			spanProcessors: [spanProcessor],
 		} as unknown as ConstructorParameters<typeof NodeTracerProvider>[0]);
-		nodeTracerProvider.register();
-		const hasDelegate = hasActiveTracerDelegate(trace);
-		if (hasDelegate) {
-			registerTelemetry(new LangfuseVercelAiSdkIntegration());
-		}
-		debugLangfuse(
-			`registered NodeTracerProvider delegateReady=${String(hasDelegate)}`,
-		);
-		return hasDelegate;
+		const integration = new LangfuseVercelAiSdkIntegration({
+			tracer: tracerProvider.getTracer("cline-langfuse"),
+		});
+		debugLangfuse(`created isolated exporter baseUrl=${config.baseUrl}`);
+
+		return { integration, tracerProvider };
 	} catch (error) {
 		debugLangfuse(
 			`initialization failed error=${error instanceof Error ? error.message : String(error)}`,
 		);
-		return false;
-	}
-}
-
-function hasActiveTracerDelegate(traceApi: {
-	getTracerProvider: () => unknown;
-}): boolean {
-	const tracerProvider = traceApi.getTracerProvider() as {
-		getDelegate?: () => { constructor?: { name?: string } };
-	};
-	const delegate = tracerProvider.getDelegate?.();
-	const delegateName = delegate?.constructor?.name;
-
-	return Boolean(delegateName && delegateName !== "NoopTracerProvider");
-}
-
-async function flushLangfuseTelemetry(): Promise<void> {
-	try {
-		const { trace } = await import("@opentelemetry/api");
-		const tracerProvider = trace.getTracerProvider() as {
-			getDelegate?: () => {
-				forceFlush?: () => Promise<void>;
-			};
-		};
-		await tracerProvider.getDelegate?.()?.forceFlush?.();
-		debugLangfuse("forceFlush completed");
-	} catch (error) {
-		debugLangfuse(
-			`forceFlush failed error=${error instanceof Error ? error.message : String(error)}`,
-		);
+		return undefined;
 	}
 }
 
 export async function disposeLangfuseTelemetry(): Promise<void> {
-	try {
-		await flushLangfuseTelemetry();
-		const { trace } = await import("@opentelemetry/api");
-		const tracerProvider = trace.getTracerProvider() as {
-			getDelegate?: () => {
-				shutdown?: () => Promise<void>;
-			};
-		};
-		await tracerProvider.getDelegate?.()?.shutdown?.();
-		debugLangfuse("shutdown completed");
-	} catch (error) {
-		debugLangfuse(
-			`shutdown failed error=${error instanceof Error ? error.message : String(error)}`,
-		);
-	}
+	const pendingRuntimes = [...langfuseTelemetryRuntimes.values()];
+	langfuseTelemetryRuntimes.clear();
+	langfuseDisposableRegistration = undefined;
+	const settledRuntimes = await Promise.allSettled(pendingRuntimes);
+	const runtimes = settledRuntimes.flatMap((result) =>
+		result.status === "fulfilled" && result.value ? [result.value] : [],
+	);
+
+	await Promise.all(
+		runtimes.map(async ({ tracerProvider }) => {
+			try {
+				await tracerProvider.forceFlush();
+				debugLangfuse("forceFlush completed");
+			} catch (error) {
+				debugLangfuse(
+					`forceFlush failed error=${error instanceof Error ? error.message : String(error)}`,
+				);
+			}
+		}),
+	);
+	await Promise.all(
+		runtimes.map(async ({ tracerProvider }) => {
+			try {
+				await tracerProvider.shutdown();
+				debugLangfuse("shutdown completed");
+			} catch (error) {
+				debugLangfuse(
+					`shutdown failed error=${error instanceof Error ? error.message : String(error)}`,
+				);
+			}
+		}),
+	);
 }
 
 export function debugLangfuse(message: string): void {
@@ -227,7 +267,7 @@ function isLangfuseDebugEnabled(): boolean {
 }
 
 export function resetLangfuseTelemetryForTests(): void {
-	langfuseTelemetryReady = undefined;
-	langfuseTelemetryInitPromise = undefined;
-	langfuseTelemetryConfigKey = undefined;
+	langfuseTelemetryRuntimes = new Map();
+	langfuseDisposableRegistration = undefined;
+	langfuseContextManagerInitialization = undefined;
 }

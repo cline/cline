@@ -201,15 +201,9 @@ describe("buildFeatureFlagsSnapshot", () => {
 		});
 	});
 
-	it("never exposes sensitive payloads to the webview", () => {
+	it("never exposes sensitive values to the webview", () => {
 		mocks.getFlagPayload.mockImplementation((flag: unknown) =>
-			flag === "langfuse-telemetry"
-				? {
-						baseUrl: "https://cloud.langfuse.com",
-						publicKey: "pk-test",
-						secretKey: "sk-test",
-					}
-				: false,
+			flag === "langfuse-telemetry" ? "pk-test::sk-test" : false,
 		);
 
 		const snapshot = buildFeatureFlagsSnapshot(

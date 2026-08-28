@@ -1,6 +1,6 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
 	AGENT_CONFIG_DIRECTORY_NAME,
@@ -204,6 +204,12 @@ describe("storage path resolution", () => {
 			expect.arrayContaining([
 				resolveGlobalAgentsRulesPath(),
 				join("/tmp/home", ".cline", RULES_CONFIG_DIRECTORY_NAME),
+				// xdg-user-dir's unconfigured Documents fallback (cline/cline#13542)
+				join(
+					dirname(dirname(resolveGlobalAgentsRulesPath())),
+					"Cline",
+					"Rules",
+				),
 			]),
 		);
 		expect(resolveRulesConfigSearchPaths()).not.toContain(

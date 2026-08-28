@@ -130,12 +130,16 @@ Completion telemetry is anchored to the assistant's explicit completion
 declaration, not session shutdown. After each agent turn, the local
 runtime inspects `AgentResult.toolCalls` and emits `task.completed` the
 moment a successful `submit_and_exit` (the SDK analog of original
-Cline's `attempt_completion`) is observed. `shutdownSession(...)`
-retains a fallback emission for completed sessions that finished
-without an explicit completion-tool observation, so non-interactive
-runs not using the yolo preset still produce a `task.completed` signal.
-Each session emits at most one `task.completed`. See `DOC.md` for the
-event payload and `source` field.
+Cline's `attempt_completion`) is observed. A single teardown choke
+point (`emitTaskCompletedOnTeardown(...)`) retains a fallback emission
+for sessions whose final turn finished cleanly without an explicit
+completion-tool observation (non-interactive runs not using the yolo
+preset, or hosts that disable `submit_and_exit`). It is invoked from
+every session exit path — both `shutdownSession(...)` and
+`releaseSessionRuntime(...)` — so the emission never depends on which
+teardown branch a stop routes through. Each session emits at most one
+`task.completed`. See `DOC.md` for the event payload and `source`
+field.
 
 ### Hub-Backed Runtime
 
@@ -344,9 +348,10 @@ This keeps reusable remote-config behavior in `shared` while the session-specifi
 ### Feature-Flagged Provider Telemetry
 
 1. Hosts resolve shared SDK feature flags through `FeatureFlagsService` and pass the service to `ClineCore`.
-2. Sensitive payloads, such as the `langfuse-telemetry` credentials, remain in memory and are removed from persisted caches and host-facing snapshots.
-3. At session start or restore, `ClineCore` validates the payload and attaches it only to Cline-owned provider configurations (`cline` and `cline-pass`).
-4. The runtime configuration transports the validated settings through local or hub execution, and the LLM layer enables Langfuse tracing only for those providers.
+2. Sensitive values, such as the `langfuse-telemetry` `publicKey::secretKey` assignment, remain in memory and are removed from telemetry responses, persisted caches, and host-facing snapshots.
+3. At session start or restore, `ClineCore` validates the assignment, pairs it with the fixed US Langfuse Cloud endpoint, and attaches it only to Cline-owned provider configurations (`cline` and `cline-pass`).
+4. The runtime configuration transports the validated settings through local or Hub execution. Without a flag value, Cline-owned providers prefer a complete `CLINE_PROVIDER_LANGFUSE_*` environment triplet and fall back to `LANGFUSE_*` only when the prefixed namespace is absent; third-party providers use only `LANGFUSE_*`.
+5. The LLM layer creates an isolated exporter per credential set and selects it through AI SDK per-call telemetry, so Cline-owned and third-party destinations can coexist in one Hub process.
 
 This keeps rollout policy and credentials at the host/session boundary while provider instrumentation remains transport-neutral in `@cline/llms`.
 
@@ -562,6 +567,15 @@ separate from cron specs, queued prompts inside an existing session, and the
 agent-team task board. Shared, browser-safe contracts use `AgendaTaskRecord`
 and `AgendaTaskRunRecord`; orchestration and persistence remain in
 `@cline/core`.
+
+> **Status:** the agent-facing `kind: "todo"` half of the `tasks` tool and the
+> desktop Agenda UI are temporarily disabled while the Agenda UX is reworked
+> (`AGENDA_TODO_TOOL_ENABLED` in `hub-server-transport.ts` and
+> `AGENDA_UI_ENABLED` in the desktop webview). While the flag is off the Hub
+> also skips the agenda spec-file watchers — nothing consumes watcher-driven
+> task events, and `task.*` commands reconcile spec files on demand. The
+> backend described below — the manager, storage, `task.*` Hub commands, and
+> desktop plumbing — stays fully wired, and the schedule kind remains active.
 
 ### Authority and persistence
 

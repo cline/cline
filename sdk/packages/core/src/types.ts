@@ -11,11 +11,12 @@ export type {
 	WorkspaceManifest,
 } from "@cline/shared";
 export {
+	DEFAULT_CLINE_PROVIDER_LANGFUSE_BASE_URL,
 	FEATURE_FLAGS,
 	FeatureFlag,
 	FeatureFlagDefaultValue,
 	isSensitiveFeatureFlag,
-	parseLangfuseTelemetryConfig,
+	parseLangfuseTelemetryFeatureFlag,
 	SENSITIVE_FEATURE_FLAGS,
 } from "@cline/shared";
 export { ClineCore } from "./ClineCore";

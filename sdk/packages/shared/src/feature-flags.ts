@@ -4,10 +4,12 @@ export const FeatureFlag = {
 	/**
 	 * Enables Langfuse tracing for Cline-owned inference providers.
 	 *
-	 * The flag payload must be a valid {@link LangfuseTelemetryConfig}. Because
-	 * it contains a secret key, consumers must keep it in memory only.
+	 * The flag value must contain a `publicKey::secretKey` credential pair.
+	 * Because it contains a secret key, consumers must keep it in memory only.
 	 */
 	LANGFUSE_TELEMETRY: "langfuse-telemetry",
+	/** Shows the GitHub integration step in the desktop app */
+	CODE_ONBOARDING_GITHUB: "code-onboarding-github",
 } as const;
 
 export type KnownFeatureFlag = (typeof FeatureFlag)[keyof typeof FeatureFlag];
@@ -23,47 +25,45 @@ export type FeatureFlagJsonValue =
 
 export type FeatureFlagPayload = FeatureFlagJsonValue;
 
-/** Credentials supplied by the Langfuse feature-flag payload. */
+/** Langfuse exporter credentials transported to an inference runtime. */
 export interface LangfuseTelemetryConfig {
 	baseUrl: string;
 	publicKey: string;
 	secretKey: string;
 }
 
+export const DEFAULT_CLINE_PROVIDER_LANGFUSE_BASE_URL =
+	"https://us.cloud.langfuse.com";
+
 /**
- * Validate and normalize the Langfuse feature-flag payload.
+ * Parse the sensitive Langfuse feature-flag value.
  *
- * Returning `undefined` keeps malformed or partially configured flag
- * assignments fail-closed.
+ * PostHog returns the public and secret keys as one `publicKey::secretKey`
+ * string. The Cline-owned exporter always targets the fixed US cloud endpoint.
+ * Returning `undefined` keeps malformed assignments fail-closed.
  */
-export function parseLangfuseTelemetryConfig(
-	payload: unknown,
+export function parseLangfuseTelemetryFeatureFlag(
+	value: unknown,
 ): LangfuseTelemetryConfig | undefined {
-	if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
-		return undefined;
-	}
-	const record = payload as Record<string, unknown>;
-
-	const baseUrl =
-		typeof record.baseUrl === "string" ? record.baseUrl.trim() : "";
-	const publicKey =
-		typeof record.publicKey === "string" ? record.publicKey.trim() : "";
-	const secretKey =
-		typeof record.secretKey === "string" ? record.secretKey.trim() : "";
-	if (!baseUrl || !publicKey || !secretKey) {
+	if (typeof value !== "string") {
 		return undefined;
 	}
 
-	try {
-		const url = new URL(baseUrl);
-		if (url.protocol !== "https:" && url.protocol !== "http:") {
-			return undefined;
-		}
-	} catch {
+	const parts = value.split("::");
+	if (parts.length !== 2) {
+		return undefined;
+	}
+	const publicKey = parts[0]?.trim();
+	const secretKey = parts[1]?.trim();
+	if (!publicKey || !secretKey) {
 		return undefined;
 	}
 
-	return { baseUrl, publicKey, secretKey };
+	return {
+		baseUrl: DEFAULT_CLINE_PROVIDER_LANGFUSE_BASE_URL,
+		publicKey,
+		secretKey,
+	};
 }
 
 export type FeatureFlagsAndPayloads = {
@@ -113,11 +113,12 @@ export const FeatureFlagDefaultValue: Partial<
 > = {
 	[FeatureFlag.CLINE_PASS]: false,
 	[FeatureFlag.LANGFUSE_TELEMETRY]: false,
+	[FeatureFlag.CODE_ONBOARDING_GITHUB]: false,
 };
 
 export const FEATURE_FLAGS: readonly FeatureFlag[] = Object.values(FeatureFlag);
 
-/** Feature flags whose payloads must never be persisted or exposed to UI clients. */
+/** Feature flags whose assignments or payloads must never leave process memory. */
 export const SENSITIVE_FEATURE_FLAGS: readonly FeatureFlag[] = [
 	FeatureFlag.LANGFUSE_TELEMETRY,
 ];

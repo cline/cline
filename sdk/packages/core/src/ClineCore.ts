@@ -2,7 +2,7 @@ import type { BasicLogger, ITelemetryService } from "@cline/shared";
 import {
 	FeatureFlag,
 	isClineProvider,
-	parseLangfuseTelemetryConfig,
+	parseLangfuseTelemetryFeatureFlag,
 } from "@cline/shared";
 import {
 	ClineCoreAutomationController,
@@ -70,7 +70,7 @@ function applyLangfuseFeatureFlag(
 	if (!featureFlags.getBooleanFlagEnabled(FeatureFlag.LANGFUSE_TELEMETRY)) {
 		return input;
 	}
-	const langfuse = parseLangfuseTelemetryConfig(
+	const langfuse = parseLangfuseTelemetryFeatureFlag(
 		featureFlags.getFlagPayload(FeatureFlag.LANGFUSE_TELEMETRY),
 	);
 	if (!langfuse) {

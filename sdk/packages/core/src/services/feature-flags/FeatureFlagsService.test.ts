@@ -160,7 +160,7 @@ describe("FeatureFlagsService", () => {
 		writeFileSync(
 			cacheFilePath,
 			`${JSON.stringify({
-				version: 1,
+				version: 2,
 				updatedAt: Date.now(),
 				userId: "user-1",
 				flagsPayload: {
@@ -206,7 +206,7 @@ describe("FeatureFlagsService", () => {
 			};
 		};
 		expect(cache).toMatchObject({
-			version: 1,
+			version: 2,
 			updatedAt: Date.now(),
 			userId: "user-1",
 			flagsPayload: {
@@ -216,40 +216,54 @@ describe("FeatureFlagsService", () => {
 		});
 	});
 
-	it("never persists sensitive feature-flag assignments or payloads", async () => {
+	it("keeps sensitive feature-flag values memory-only and redacts them from telemetry", async () => {
 		vi.useFakeTimers();
 		vi.setSystemTime(new Date("2026-06-10T10:00:00Z"));
 		const cacheFilePath = join(
 			mkdtempSync(join(tmpdir(), "cline-feature-flags-")),
 			"feature-flags.json",
 		);
+		const credentialValue = "public-key::secret-key";
 		const getAllFlagsAndPayloads = vi.fn(async () => ({
 			featureFlags: {
-				[FeatureFlag.LANGFUSE_TELEMETRY]: true,
+				[FeatureFlag.LANGFUSE_TELEMETRY]: credentialValue,
 				[TEST_BOOLEAN_FLAG]: true,
-			},
-			featureFlagPayloads: {
-				[FeatureFlag.LANGFUSE_TELEMETRY]: {
-					baseUrl: "https://langfuse.example",
-					publicKey: "public-key",
-					secretKey: "secret-key",
-				},
 			},
 		}));
 		const provider = createProvider({ getAllFlagsAndPayloads });
-		const service = new FeatureFlagsService({ provider, cacheFilePath });
+		const telemetry = { capture: vi.fn() };
+		const service = new FeatureFlagsService({
+			provider,
+			cacheFilePath,
+			telemetry: telemetry as never,
+		});
 
 		await service.poll("user-1");
 
 		expect(service.getBooleanFlagEnabled(FeatureFlag.LANGFUSE_TELEMETRY)).toBe(
 			true,
 		);
-		expect(service.getFlagPayload(FeatureFlag.LANGFUSE_TELEMETRY)).toEqual(
-			expect.objectContaining({ secretKey: "secret-key" }),
+		expect(service.getFlagPayload(FeatureFlag.LANGFUSE_TELEMETRY)).toBe(
+			credentialValue,
 		);
 		const persisted = readFileSync(cacheFilePath, "utf8");
 		expect(persisted).not.toContain(FeatureFlag.LANGFUSE_TELEMETRY);
 		expect(persisted).not.toContain("secret-key");
+		const sensitiveCapture = telemetry.capture.mock.calls
+			.map(([event]) => event)
+			.find(
+				(event) =>
+					event.properties?.$feature_flag === FeatureFlag.LANGFUSE_TELEMETRY,
+			);
+		expect(sensitiveCapture).toEqual({
+			event: "$feature_flag_called",
+			properties: {
+				$feature_flag: FeatureFlag.LANGFUSE_TELEMETRY,
+			},
+		});
+		expect(JSON.stringify(telemetry.capture.mock.calls)).not.toContain(
+			"secret-key",
+		);
 
 		const nextProvider = createProvider();
 		const nextService = new FeatureFlagsService({

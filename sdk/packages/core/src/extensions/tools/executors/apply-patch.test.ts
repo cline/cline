@@ -131,6 +131,108 @@ describe("createApplyPatchExecutor", () => {
 		await expect(fs.readFile(filePath, "utf-8")).resolves.toBe("hello");
 	});
 
+	// The CRLF branch is exercised for real by Windows CI, where os.EOL is
+	// "\r\n" (github.com/cline/cline/issues/13504).
+	it("adds new files with the platform-native line ending", async () => {
+		const filePath = path.join(tempDir, "added.txt");
+		const execute = createApplyPatchExecutor();
+
+		await execute(
+			{
+				input: [
+					"*** Begin Patch",
+					"*** Add File: added.txt",
+					"+one",
+					"+two",
+					"*** End Patch",
+				].join("\n"),
+			},
+			tempDir,
+			{} as never,
+		);
+
+		await expect(fs.readFile(filePath, "utf-8")).resolves.toBe(
+			["one", "two"].join(os.EOL),
+		);
+	});
+
+	it("preserves CRLF line endings when updating a CRLF file", async () => {
+		const filePath = path.join(tempDir, "note.txt");
+		await fs.writeFile(filePath, "alpha\r\nbeta\r\ngamma", "utf-8");
+		const execute = createApplyPatchExecutor();
+
+		// Models emit LF-only patch text even for CRLF files.
+		await execute(
+			{
+				input: [
+					"*** Update File: note.txt",
+					"@@",
+					" alpha",
+					"-beta",
+					"+BETA",
+					"+inserted",
+					" gamma",
+				].join("\n"),
+			},
+			tempDir,
+			{} as never,
+		);
+
+		await expect(fs.readFile(filePath, "utf-8")).resolves.toBe(
+			"alpha\r\nBETA\r\ninserted\r\ngamma",
+		);
+	});
+
+	it("preserves CRLF line endings when a patch moves a CRLF file", async () => {
+		const filePath = path.join(tempDir, "old.txt");
+		await fs.writeFile(filePath, "one\r\ntwo", "utf-8");
+		const execute = createApplyPatchExecutor();
+
+		await execute(
+			{
+				input: [
+					"*** Update File: old.txt",
+					"*** Move to: new.txt",
+					"@@",
+					" one",
+					"-two",
+					"+TWO",
+				].join("\n"),
+			},
+			tempDir,
+			{} as never,
+		);
+
+		await expect(
+			fs.readFile(path.join(tempDir, "new.txt"), "utf-8"),
+		).resolves.toBe("one\r\nTWO");
+	});
+
+	it("updates a pure-LF file without introducing CRLF", async () => {
+		const filePath = path.join(tempDir, "lf.txt");
+		await fs.writeFile(filePath, "one\ntwo\nthree", "utf-8");
+		const execute = createApplyPatchExecutor();
+
+		await execute(
+			{
+				input: [
+					"*** Update File: lf.txt",
+					"@@",
+					" one",
+					"-two",
+					"+TWO",
+					" three",
+				].join("\n"),
+			},
+			tempDir,
+			{} as never,
+		);
+
+		await expect(fs.readFile(filePath, "utf-8")).resolves.toBe(
+			"one\nTWO\nthree",
+		);
+	});
+
 	it("rejects incomplete patch sentinels", async () => {
 		const execute = createApplyPatchExecutor();
 

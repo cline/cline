@@ -1,16 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { parseLangfuseTelemetryConfig } from "./feature-flags";
+import {
+	DEFAULT_CLINE_PROVIDER_LANGFUSE_BASE_URL,
+	parseLangfuseTelemetryFeatureFlag,
+} from "./feature-flags";
 
-describe("parseLangfuseTelemetryConfig", () => {
-	it("normalizes a complete feature-flag payload", () => {
+describe("parseLangfuseTelemetryFeatureFlag", () => {
+	it("normalizes a complete feature-flag credential pair", () => {
 		expect(
-			parseLangfuseTelemetryConfig({
-				baseUrl: " https://langfuse.example ",
-				publicKey: " public-key ",
-				secretKey: " secret-key ",
-			}),
+			parseLangfuseTelemetryFeatureFlag(" public-key :: secret-key "),
 		).toEqual({
-			baseUrl: "https://langfuse.example",
+			baseUrl: DEFAULT_CLINE_PROVIDER_LANGFUSE_BASE_URL,
 			publicKey: "public-key",
 			secretKey: "secret-key",
 		});
@@ -19,18 +18,12 @@ describe("parseLangfuseTelemetryConfig", () => {
 	it.each([
 		false,
 		{},
-		{ baseUrl: "https://langfuse.example", publicKey: "public-key" },
-		{
-			baseUrl: "not-a-url",
-			publicKey: "public-key",
-			secretKey: "secret-key",
-		},
-		{
-			baseUrl: "file:///tmp/langfuse",
-			publicKey: "public-key",
-			secretKey: "secret-key",
-		},
-	])("rejects an invalid payload: %j", (payload) => {
-		expect(parseLangfuseTelemetryConfig(payload)).toBeUndefined();
+		"",
+		"public-key",
+		"::secret-key",
+		"public-key::",
+		"public-key::secret-key::extra",
+	])("rejects an invalid value: %j", (value) => {
+		expect(parseLangfuseTelemetryFeatureFlag(value)).toBeUndefined();
 	});
 });

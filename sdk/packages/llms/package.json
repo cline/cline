@@ -1,6 +1,6 @@
 {
 	"name": "@cline/llms",
-	"version": "0.0.77",
+	"version": "0.0.81",
 	"description": "Config-driven SDK for selecting, extending, and instantiating LLM providers and models",
 	"repository": {
 		"type": "git",
@@ -69,6 +69,7 @@
 		"@langfuse/vercel-ai-sdk": "5.9.1",
 		"@openrouter/ai-sdk-provider": "^3",
 		"@opentelemetry/api": "^1.9.0",
+		"@opentelemetry/context-async-hooks": "^2.6.1",
 		"@opentelemetry/sdk-trace-node": "^2.6.1",
 		"@streamparser/json": "^0.0.21",
 		"ai": "^7.0.58",
