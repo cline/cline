@@ -224,10 +224,9 @@ async function loadConfiguredMcpTools(options: {
 	const agentPluginClientFactory = createDefaultMcpServerClientFactory({
 		restrictConfiguredHeadersToOrigin: true,
 	});
-	const registeredAgentPluginNames = new Set<string>();
 	const manager = new InMemoryMcpManager({
 		clientFactory: (registration) =>
-			registeredAgentPluginNames.has(registration.name)
+			registration.metadata?.source === "agent-plugin"
 				? agentPluginClientFactory(registration)
 				: settingsClientFactory(registration),
 	});
@@ -262,7 +261,6 @@ async function loadConfiguredMcpTools(options: {
 			await manager.registerServer(registration);
 			registrations.push(registration);
 			registeredNames.add(registration.name);
-			registeredAgentPluginNames.add(registration.name);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			options.logger?.log(
