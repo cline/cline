@@ -89,7 +89,7 @@ export type TeamEvent =
 	| {
 			type: TeamMessageType.TaskEnd;
 			agentId: string;
-			status: TeamTaskEndStatus;
+			status?: TeamTaskEndStatus;
 			result?: AgentResult;
 			error?: Error;
 			messages?: AgentResult["messages"];
@@ -255,19 +255,13 @@ export class AgentTeam {
 
 		try {
 			const result = await agent.run(message);
-			this.emitEvent({
-				type: TeamMessageType.TaskEnd,
-				agentId,
-				status: taskEndStatusFromResult(result),
-				result,
-			});
+			this.emitEvent({ type: TeamMessageType.TaskEnd, agentId, result });
 			return result;
 		} catch (error) {
 			const err = error instanceof Error ? error : new Error(String(error));
 			this.emitEvent({
 				type: TeamMessageType.TaskEnd,
 				agentId,
-				status: "failed",
 				error: err,
 				messages: agent.getMessages(),
 			});
@@ -285,19 +279,13 @@ export class AgentTeam {
 
 		try {
 			const result = await agent.continue(message);
-			this.emitEvent({
-				type: TeamMessageType.TaskEnd,
-				agentId,
-				status: taskEndStatusFromResult(result),
-				result,
-			});
+			this.emitEvent({ type: TeamMessageType.TaskEnd, agentId, result });
 			return result;
 		} catch (error) {
 			const err = error instanceof Error ? error : new Error(String(error));
 			this.emitEvent({
 				type: TeamMessageType.TaskEnd,
 				agentId,
-				status: "failed",
 				error: err,
 				messages: agent.getMessages(),
 			});
@@ -328,7 +316,6 @@ export class AgentTeam {
 				this.emitEvent({
 					type: TeamMessageType.TaskEnd,
 					agentId: task.agentId,
-					status: taskEndStatusFromResult(result),
 					result,
 				});
 				return {
@@ -341,7 +328,6 @@ export class AgentTeam {
 				this.emitEvent({
 					type: TeamMessageType.TaskEnd,
 					agentId: task.agentId,
-					status: "failed",
 					error: err,
 					messages: agent.getMessages(),
 				});
@@ -383,7 +369,6 @@ export class AgentTeam {
 				this.emitEvent({
 					type: TeamMessageType.TaskEnd,
 					agentId: task.agentId,
-					status: taskEndStatusFromResult(result),
 					result,
 				});
 				results.push({
@@ -396,7 +381,6 @@ export class AgentTeam {
 				this.emitEvent({
 					type: TeamMessageType.TaskEnd,
 					agentId: task.agentId,
-					status: "failed",
 					error: err,
 					messages: agent.getMessages(),
 				});
@@ -442,12 +426,7 @@ export class AgentTeam {
 
 			try {
 				const result = await agent.run(currentMessage);
-				this.emitEvent({
-					type: TeamMessageType.TaskEnd,
-					agentId,
-					status: taskEndStatusFromResult(result),
-					result,
-				});
+				this.emitEvent({ type: TeamMessageType.TaskEnd, agentId, result });
 				results.push({ agentId, result });
 
 				const nextIndex = pipeline.indexOf(agentId) + 1;
@@ -462,7 +441,6 @@ export class AgentTeam {
 				this.emitEvent({
 					type: TeamMessageType.TaskEnd,
 					agentId,
-					status: "failed",
 					error: err,
 					messages: agent.getMessages(),
 				});

@@ -96,7 +96,14 @@ export async function dispatchTeamEventToBackend(
 			);
 			break;
 		case "task_end": {
-			if (event.status === "cancelled") {
+			const status =
+				event.status ??
+				(event.error
+					? "failed"
+					: event.result?.finishReason === "aborted"
+						? "cancelled"
+						: "completed");
+			if (status === "cancelled") {
 				await invokeOptional(
 					"onTeamTaskEnd",
 					rootSessionId,
@@ -106,7 +113,7 @@ export async function dispatchTeamEventToBackend(
 					event.result,
 					event.result?.messages ?? event.messages,
 				);
-			} else if (event.status === "failed") {
+			} else if (status === "failed") {
 				const message =
 					event.error?.message || event.result?.text || "Teammate task failed";
 				await invokeOptional(

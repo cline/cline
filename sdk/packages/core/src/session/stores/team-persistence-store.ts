@@ -124,7 +124,6 @@ export class FileTeamPersistenceStore {
 			case "task_end":
 				task = {
 					agentId: event.agentId,
-					status: event.status,
 					finishReason: event.result?.finishReason,
 					error: event.error?.message,
 				};
