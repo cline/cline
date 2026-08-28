@@ -1240,21 +1240,19 @@ export function CustomizationSectionView({
 
 	const installedCatalogLocalItems =
 		catalogPrimitive === "skill"
-			? commandItems
-					.filter((item) => item.agentPlugin !== true)
-					.map(
-						(item): MarketplaceLocalInstalledItem => ({
-							key: `${item.type}:${item.path}`,
-							matchValues: getLocalMarketplaceMatchValues(
-								item.id,
-								item.name,
-								item.path,
-							),
-							render: (context) => renderSkillCard(item, context),
-						}),
-					)
+			? commandItems.map(
+					(item): MarketplaceLocalInstalledItem => ({
+						key: `${item.type}:${item.path}`,
+						matchValues: getLocalMarketplaceMatchValues(
+							item.id,
+							item.name,
+							item.path,
+						),
+						render: (context) => renderSkillCard(item, context),
+					}),
+				)
 			: catalogPrimitive === "plugin"
-				? clinePlugins.map(
+				? scopedPlugins.map(
 						(item): MarketplaceLocalInstalledItem => ({
 							key: item.plugin.path,
 							matchValues: getLocalMarketplaceMatchValues(
