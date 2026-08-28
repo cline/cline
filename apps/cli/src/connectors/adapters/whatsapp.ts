@@ -748,7 +748,6 @@ class WhatsAppConnector extends ConnectorBase<
 					client,
 					clientId,
 					pendingApprovals,
-					deniedReason: "Denied by WhatsApp user",
 				})
 			) {
 				return;
@@ -771,7 +770,6 @@ class WhatsAppConnector extends ConnectorBase<
 					client,
 					clientId,
 					pendingApprovals,
-					deniedReason: "Denied by WhatsApp user",
 				})
 			) {
 				return;

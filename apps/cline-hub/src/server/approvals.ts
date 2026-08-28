@@ -1,4 +1,8 @@
-import type { ToolApprovalRequest, ToolApprovalResult } from "@cline/shared";
+import {
+	buildUserRejectedToolReason,
+	type ToolApprovalRequest,
+	type ToolApprovalResult,
+} from "@cline/shared";
 import type { WebviewInboundMessage } from "../webview-protocol";
 import type { HubContext } from "./state";
 import { broadcastHubState } from "./state-payloads";
@@ -114,7 +118,9 @@ export function handleToolApprovalResponse(
 		approved: frame.approved,
 		reason:
 			frame.reason ??
-			(frame.approved ? "Approved in Cline Hub." : "Rejected in Cline Hub."),
+			(frame.approved
+				? "Approved in Cline Hub."
+				: buildUserRejectedToolReason()),
 	});
 	if (!resolved) {
 		console.warn(`Ignoring unknown tool approval response: ${approvalId}`);
