@@ -696,6 +696,88 @@ describe("tool output content", () => {
 		).toHaveLength(1);
 	});
 
+	it("extracts every distinct image from a multi-screenshot tool result", () => {
+		const raw = {
+			content: [
+				{ type: "image", data: "aGVsbG8=", mimeType: "image/png" },
+				{ type: "image", data: "d29ybGQ=", mimeType: "image/png" },
+				{ type: "image", data: "Zmlyc3Q=", mimeType: "image/jpeg" },
+			],
+		};
+		expect(extractOutputMedia(raw)).toEqual([
+			{ modality: "image", mediaType: "image/png", data: "aGVsbG8=" },
+			{ modality: "image", mediaType: "image/png", data: "d29ybGQ=" },
+			{ modality: "image", mediaType: "image/jpeg", data: "Zmlyc3Q=" },
+		]);
+		expect(
+			buildToolSummary({ toolName: "computer", result: raw }).outputMedia,
+		).toHaveLength(3);
+	});
+
+	it("extracts inline audio using the mime_type field", () => {
+		const raw = {
+			content: [{ type: "audio", data: "d29ybGQ=", mime_type: "audio/mpeg" }],
+		};
+		expect(extractOutputMedia(raw)).toEqual([
+			{ modality: "audio", mediaType: "audio/mpeg", data: "d29ybGQ=" },
+		]);
+	});
+
+	it("extracts canonical media blocks for video and file modalities", () => {
+		const raw = {
+			content: [
+				{
+					type: "media",
+					media: {
+						modality: "video",
+						mediaType: "video/mp4",
+						name: "clip.mp4",
+						source: { type: "base64", data: "d29ybGQ=" },
+					},
+				},
+				{
+					type: "media",
+					media: {
+						modality: "file",
+						mediaType: "application/pdf",
+						name: "report.pdf",
+						source: { type: "base64", data: "Zmlyc3Q=" },
+					},
+				},
+			],
+		};
+		expect(extractOutputMedia(raw)).toEqual([
+			{
+				modality: "video",
+				mediaType: "video/mp4",
+				data: "d29ybGQ=",
+				name: "clip.mp4",
+			},
+			{
+				modality: "file",
+				mediaType: "application/pdf",
+				data: "Zmlyc3Q=",
+				name: "report.pdf",
+			},
+		]);
+	});
+
+	it("rejects a canonical image media block with invalid base64", () => {
+		const raw = {
+			content: [
+				{
+					type: "media",
+					media: {
+						modality: "image",
+						mediaType: "image/png",
+						source: { type: "base64", data: "not-base64" },
+					},
+				},
+			],
+		};
+		expect(extractOutputMedia(raw)).toEqual([]);
+	});
+
 	it("extracts embedded resource text from MCP content", () => {
 		const raw = {
 			content: [
