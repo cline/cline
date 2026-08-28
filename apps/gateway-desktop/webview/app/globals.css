@@ -9,6 +9,25 @@
 
 @source "../../node_modules/streamdown/dist";
 
+@keyframes gwd-task-complete {
+	0% {
+		box-shadow: 0 0 0 0 rgb(16 185 129 / 0.35);
+		background-color: rgb(16 185 129 / 0.05);
+	}
+	45% {
+		box-shadow: 0 0 0 6px rgb(16 185 129 / 0.08);
+		background-color: rgb(16 185 129 / 0.16);
+	}
+	100% {
+		box-shadow: 0 0 0 0 rgb(16 185 129 / 0);
+		background-color: rgb(16 185 129 / 0.1);
+	}
+}
+
+.gwd-task-complete {
+	animation: gwd-task-complete 900ms ease-out both;
+}
+
 @layer base {
 	html,
 	body {

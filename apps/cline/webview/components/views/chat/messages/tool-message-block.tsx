@@ -23,6 +23,7 @@ export type OnCreateBot = (
 	name: string,
 	initialProjectPath?: string,
 	icon?: string,
+	systemPrompt?: string,
 ) => Promise<BotSummary>;
 
 function ToolLabel({
@@ -116,14 +117,16 @@ const ToolCallRow = memo(function ToolCallRow({
 			name?: string;
 			initialProjectPath?: string;
 			reason?: string;
+			systemPrompt?: string;
 		};
-		if (input.name) {
+		if (input.name?.trim()) {
 			return (
 				<ProposeNewBotCard
 					initialProjectPath={input.initialProjectPath}
-					name={input.name}
+					name={input.name.trim()}
 					onCreateBot={onCreateBot}
 					reason={input.reason}
+					systemPrompt={input.systemPrompt}
 				/>
 			);
 		}

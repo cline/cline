@@ -591,6 +591,22 @@ class DesktopClient {
 		});
 	}
 
+	/**
+	 * Recover the desktop connection, upgrading an older bundled Gateway when
+	 * the sidecar is still reachable. The update command is intentionally
+	 * best-effort: if the sidecar itself is unavailable, the regular retry still
+	 * gets a chance to reconnect it.
+	 */
+	async retryConnectionWithGatewayUpdate(): Promise<void> {
+		try {
+			await this.invoke("update_gateway_server");
+		} catch {
+			// A disconnected sidecar cannot service the update command. Refreshing
+			// the target below is the recovery path for that case.
+		}
+		this.retryConnection();
+	}
+
 	private dispatchEvent(message: DesktopTransportEvent) {
 		if (message.event.name === DESKTOP_DEBUG_LOG_EVENT) {
 			writeDesktopDebugLog(message.event.payload);

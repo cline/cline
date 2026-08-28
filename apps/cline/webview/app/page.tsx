@@ -1653,7 +1653,9 @@ function ChatThreadPane({
 
 	const isAppReady =
 		chatTransportState === "connected" && providersLoaded && workspacesLoaded;
-	const retryDesktopConnection = () => desktopClient.retryConnection();
+	const retryDesktopConnection = () => {
+		void desktopClient.retryConnectionWithGatewayUpdate();
+	};
 
 	if (!isAppReady) {
 		const connectionCopy = desktopConnectionCopy(

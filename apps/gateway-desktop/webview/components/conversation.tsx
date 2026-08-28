@@ -11,24 +11,46 @@ import {
 	MessageContent,
 } from "@cline/ui/components/agent-chat";
 import type { DesktopProjection, MessageProjection } from "@shared/projection";
-import {
-	Check,
-	CircleAlert,
-	Copy,
-	Loader2,
-	Wrench,
-} from "lucide-react";
-import { useCallback, useState } from "react";
+import { Check, CircleAlert, Copy, Loader2, Wrench } from "lucide-react";
+import { Fragment, useCallback, useState } from "react";
 import { Markdown } from "@/components/ui/markdown";
-import type { BridgeClient } from "@/lib/bridge-client";
 import { cn } from "@/lib/utils";
+
+function WaitingDots() {
+	return (
+		<span aria-hidden className="flex items-center gap-0.5">
+			<span className="size-1 animate-bounce rounded-full bg-current [animation-delay:-0.2s]" />
+			<span className="size-1 animate-bounce rounded-full bg-current [animation-delay:-0.1s]" />
+			<span className="size-1 animate-bounce rounded-full bg-current" />
+		</span>
+	);
+}
+
+function ToolStatus({
+	tool,
+}: {
+	tool: DesktopProjection["activeSession"]["tools"][number];
+}) {
+	return (
+		<div className="flex items-center gap-2 rounded-lg border bg-muted/30 px-3 py-2 text-xs">
+			<Wrench className="size-3.5 text-muted-foreground" />
+			<span className="font-medium">{tool.toolName}</span>
+			<span className="text-muted-foreground">{tool.state}</span>
+			{tool.state === "running" ? (
+				<Loader2 className="ml-auto size-3 animate-spin" />
+			) : null}
+		</div>
+	);
+}
 
 function MessageBubble({
 	message,
 	streaming = false,
+	completed = false,
 }: {
 	message: MessageProjection;
 	streaming?: boolean;
+	completed?: boolean;
 }) {
 	const [copied, setCopied] = useState(false);
 	const isUser = message.role === "user";
@@ -43,6 +65,8 @@ function MessageBubble({
 			className={cn(
 				"relative mb-7 flex flex-col gap-2 last:mb-0",
 				isUser && "mt-4 first:mt-0",
+				completed &&
+					"gwd-task-complete rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-4 py-3",
 			)}
 			from={isUser ? "user" : "assistant"}
 		>
@@ -85,15 +109,32 @@ function MessageBubble({
 }
 
 export function Conversation({
-	client,
 	projection,
 }: {
-	client: BridgeClient;
 	projection: DesktopProjection;
 }) {
 	const active = projection.activeSession;
 	const currentRun = active?.currentRun;
-	const messages = active?.messages ?? [];
+	const messages = (active?.messages ?? []).filter(
+		(message) => message.text.trim().length > 0,
+	);
+	const modelWorking = currentRun?.state === "running";
+	const botName =
+		projection.bots.find((bot) => bot.botId === projection.selectedBotId)
+			?.name ?? "Cline";
+	const pendingApprovalToolIds = new Set(
+		projection.approvals.flatMap((approval) =>
+			approval.toolCallId ? [approval.toolCallId] : [],
+		),
+	);
+	const visibleTools = (active?.tools ?? []).filter(
+		(tool) => !pendingApprovalToolIds.has(tool.toolCallId),
+	);
+	const completedMessageId =
+		currentRun?.state === "completed"
+			? [...messages].reverse().find((message) => message.role === "assistant")
+					?.id
+			: undefined;
 
 	return (
 		<div className="flex min-h-0 flex-1 flex-col" data-testid="conversation">
@@ -113,7 +154,7 @@ export function Conversation({
 										<span className="text-xl">✦</span>
 									</div>
 									<h2 className="text-lg font-semibold">
-										What can I help you build?
+										Hi! I&apos;m {botName}! What can I help you with today?
 									</h2>
 									<p className="mt-1 text-sm text-muted-foreground">
 										Gateway runs continue if this window closes.
@@ -122,9 +163,29 @@ export function Conversation({
 							</div>
 						) : (
 							<div className="flex min-w-0 flex-col gap-4">
-								{messages.map((message) => (
-									<MessageBubble key={message.id} message={message} />
-								))}
+								{messages.map((message) => {
+									const firstMessageForRun = message.runId
+										? messages.find((entry) => entry.runId === message.runId)
+										: undefined;
+									const toolsForMessage = visibleTools.filter(
+										(tool) =>
+											message.toolCallIds?.includes(tool.toolCallId) ||
+											(firstMessageForRun?.id === message.id &&
+												tool.runId !== undefined &&
+												tool.runId === message.runId),
+									);
+									return (
+										<Fragment key={message.id}>
+											<MessageBubble
+												completed={message.id === completedMessageId}
+												message={message}
+											/>
+											{toolsForMessage.map((tool) => (
+												<ToolStatus key={tool.toolCallId} tool={tool} />
+											))}
+										</Fragment>
+									);
+								})}
 								{active.streaming ? (
 									<MessageBubble
 										message={{
@@ -136,24 +197,19 @@ export function Conversation({
 										streaming
 									/>
 								) : null}
-								{active.tools.map((tool) => (
-									<div
-										className="flex items-center gap-2 rounded-lg border bg-muted/30 px-3 py-2 text-xs"
-										key={tool.toolCallId}
-									>
-										<Wrench className="size-3.5 text-muted-foreground" />
-										<span className="font-medium">{tool.toolName}</span>
-										<span className="text-muted-foreground">{tool.state}</span>
-										{tool.state === "running" ? (
-											<Loader2 className="ml-auto size-3 animate-spin" />
-										) : null}
-									</div>
-								))}
-								{currentRun?.state === "completed" && currentRun.outputPreview ? (
+								{visibleTools
+									.filter(
+										(tool) =>
+											!tool.runId ||
+											!messages.some((message) => message.runId === tool.runId),
+									)
+									.map((tool) => (
+										<ToolStatus key={tool.toolCallId} tool={tool} />
+									))}
+								{currentRun?.state === "completed" &&
+								currentRun.outputPreview &&
+								!completedMessageId ? (
 									<div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm">
-										<p className="mb-1 font-medium text-emerald-700 dark:text-emerald-300">
-											Task completed
-										</p>
 										<p className="cline-chat-selectable whitespace-pre-wrap text-muted-foreground">
 											{currentRun.outputPreview}
 										</p>
@@ -176,7 +232,16 @@ export function Conversation({
 						)}
 					</ConversationContent>
 				</ConversationViewport>
-				<ConversationScrollButton />
+				{modelWorking ? (
+					<output
+						aria-label="Waiting for model response"
+						className="cline-chat-scroll-button pointer-events-none !right-auto !left-1/2 -translate-x-1/2"
+					>
+						<WaitingDots />
+					</output>
+				) : (
+					<ConversationScrollButton className="!right-auto !left-1/2 -translate-x-1/2" />
+				)}
 			</AgentConversation>
 		</div>
 	);

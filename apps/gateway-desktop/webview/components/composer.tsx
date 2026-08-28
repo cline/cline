@@ -1,13 +1,169 @@
 "use client";
 
 import type { DesktopProjection } from "@shared/projection";
-import { ListPlus, Loader2, RotateCcw, Send, Square } from "lucide-react";
+import { SearchCombobox } from "@cline/ui";
+import {
+	CornerDownLeft,
+	Info,
+	ListPlus,
+	RotateCcw,
+	Square,
+} from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { ModelSelector } from "@/components/model-selector";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
 import type { BridgeClient } from "@/lib/bridge-client";
 import { createClientRequestId, planComposer } from "@/lib/composer";
+
+const DEFAULT_CONTEXT_WINDOW = 1_000_000;
+const OPEN_FOLDER_VALUE = "__open_folder__";
+
+function formatTokens(value: number): string {
+	if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+	if (value >= 1_000) return `${(value / 1_000).toFixed(1)}k`;
+	return value.toLocaleString();
+}
+
+function UsageRow({
+	label,
+	value,
+	muted = true,
+}: {
+	label: string;
+	value: string;
+	muted?: boolean;
+}) {
+	return (
+		<div className="flex items-center justify-between gap-3">
+			<span className={muted ? "text-muted-foreground" : ""}>{label}</span>
+			<span className="font-mono tabular-nums">{value}</span>
+		</div>
+	);
+}
+
+function ContextUsage({ projection }: { projection: DesktopProjection }) {
+	const [open, setOpen] = useState(false);
+	const session = projection.activeSession;
+	const usage = session?.usage;
+	const used = usage?.inputTokens ?? 0;
+	const limit = DEFAULT_CONTEXT_WINDOW;
+	const percent = Math.min(100, Math.round((used / limit) * 100));
+	const remaining = Math.max(0, limit - used);
+
+	return (
+		<div className="relative">
+			<button
+				aria-expanded={open}
+				aria-label="Show context window usage"
+				className="flex items-center gap-1.5 rounded-md px-1.5 py-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+				onClick={() => setOpen((value) => !value)}
+				type="button"
+			>
+				<span
+					className="size-3.5 rounded-full"
+					style={{
+						background: `conic-gradient(var(--color-ring) ${percent}%, var(--color-muted) ${percent}% 100%)`,
+					}}
+				/>
+			</button>
+			{open ? (
+				<div className="absolute right-0 bottom-full z-20 mb-2 w-72 rounded-lg border bg-popover p-3 text-xs text-popover-foreground shadow-lg">
+					<div className="mb-2 flex items-center justify-between">
+						<div className="flex items-center gap-1.5">
+							<span className="font-medium">Context window</span>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<button
+										aria-label="About context window usage"
+										className="rounded-full text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+										type="button"
+									>
+										<Info aria-hidden className="size-3.5" />
+									</button>
+								</TooltipTrigger>
+								<TooltipContent side="top">
+									The gateway currently reports aggregate input/output usage.
+									The input total is used as the context estimate.
+								</TooltipContent>
+							</Tooltip>
+						</div>
+						<span className="font-mono text-muted-foreground">
+							{formatTokens(used)} / {formatTokens(limit)} ({percent}%)
+						</span>
+					</div>
+					<div
+						aria-label={`${percent}% of context window used`}
+						aria-valuemax={100}
+						aria-valuemin={0}
+						aria-valuenow={percent}
+						className="mb-3 h-1.5 overflow-hidden rounded-full bg-muted"
+						role="progressbar"
+					>
+						<div
+							className="h-full rounded-full bg-ring transition-[width]"
+							style={{ width: `${percent}%` }}
+						/>
+					</div>
+					<div className="space-y-1.5">
+						<UsageRow label="Input tokens" value={formatTokens(used)} />
+						<UsageRow
+							label="Output tokens"
+							value={formatTokens(usage?.outputTokens ?? 0)}
+						/>
+						<UsageRow
+							label="Messages"
+							value={(session?.messages.length ?? 0).toLocaleString()}
+						/>
+						<UsageRow
+							label="Active tools"
+							value={(session?.tools.length ?? 0).toLocaleString()}
+						/>
+						<div className="my-1 border-t" />
+						<UsageRow
+							label="Free space"
+							value={formatTokens(remaining)}
+							muted={false}
+						/>
+					</div>
+				</div>
+			) : null}
+		</div>
+	);
+}
+
+function WorkspaceSelector({
+	projection,
+	onChange,
+}: {
+	projection: DesktopProjection;
+	onChange: (workspaceId: string) => void;
+}) {
+	if (projection.workspaces.length === 0) return null;
+	return (
+		<SearchCombobox
+			ariaLabel="Workspace for the next new chat"
+			className="max-w-48 text-xs"
+			emptyText="No workspaces found."
+			onValueChange={onChange}
+			options={[
+				...projection.workspaces.map((workspace) => ({
+					label: workspace.label,
+					value: workspace.workspaceId,
+				})),
+				{ label: "Open Folder…", value: OPEN_FOLDER_VALUE },
+			]}
+			placement="top"
+			searchPlaceholder="Search workspaces"
+			value={projection.selectedWorkspaceId ?? ""}
+		/>
+	);
+}
 
 /**
  * Composer semantics (validated by lib/composer tests):
@@ -27,7 +183,6 @@ export function Composer({
 	const botId = projection.selectedBotId;
 	const currentRun = projection.activeSession?.currentRun;
 	const running = currentRun?.state === "running";
-	const responding = running && Boolean(projection.activeSession?.streaming);
 	const [providerId, setProviderId] = useState(
 		projection.selectedProviderId ?? projection.providers[0]?.providerId ?? "",
 	);
@@ -56,6 +211,21 @@ export function Composer({
 			);
 		},
 		[projection.providers],
+	);
+
+	const selectWorkspace = useCallback(
+		(workspaceId: string) => {
+			const request =
+				workspaceId === OPEN_FOLDER_VALUE
+					? client.send({ command: "workspace.open" })
+					: client.send({ command: "workspace.select", workspaceId });
+			void request.catch((failure: { message?: string; code?: string }) => {
+				setError(
+					failure.message ?? failure.code ?? "Could not select workspace",
+				);
+			});
+		},
+		[client],
 	);
 
 	const submit = useCallback(
@@ -143,18 +313,12 @@ export function Composer({
 			data-testid="composer"
 		>
 			<div className="mx-auto flex max-w-(--breakpoint-lg) flex-col gap-2">
-				{running ? (
-					<div className="flex items-center gap-2 px-1 text-xs text-muted-foreground">
-						<Loader2 className="size-3 animate-spin" />
-						{responding ? "Model is responding…" : "Waiting for model response…"}
-					</div>
-				) : null}
 				{error && (
 					<p className="gwd-selectable text-xs text-destructive">{error}</p>
 				)}
-				<div className="flex items-end gap-2 rounded-2xl border bg-card p-2 shadow-sm focus-within:ring-1 focus-within:ring-ring">
+				<div className="flex items-end gap-1.5 rounded-xl border bg-card px-2 py-1.5 shadow-sm transition-colors focus-within:border-ring/70 focus-within:ring-1 focus-within:ring-ring/40">
 					<Textarea
-						className="max-h-40 min-h-13 flex-1 resize-none border-0 bg-transparent font-sans text-sm shadow-none focus-visible:ring-0"
+						className="max-h-[132px] min-h-9 flex-1 resize-none border-0 bg-card px-1.5 py-1.5 font-sans text-sm leading-5 shadow-none focus-visible:ring-0 dark:bg-card"
 						data-testid="composer-input"
 						disabled={Boolean(plan.disabledReason)}
 						onChange={(event) => setText(event.target.value)}
@@ -168,6 +332,7 @@ export function Composer({
 								submit("primary");
 							}
 						}}
+						rows={1}
 						placeholder={
 							plan.disabledReason ??
 							(plan.primary === "start_first_session"
@@ -204,13 +369,16 @@ export function Composer({
 						) : (
 							<Button
 								data-testid="composer-primary"
+								className={
+									text.trim() ? "text-foreground" : "text-muted-foreground"
+								}
 								disabled={Boolean(plan.disabledReason) || !text.trim()}
 								onClick={() => submit("primary")}
 								size="xs"
 								title={primaryLabel}
 								variant="ghost"
 							>
-								<Send aria-hidden className="size-3" />
+								<CornerDownLeft aria-hidden className="size-3.5" />
 							</Button>
 						)}
 						{plan.secondary === "queue_turn" && (
@@ -227,15 +395,22 @@ export function Composer({
 						)}
 					</div>
 				</div>
-				<div className="flex min-w-0 items-center px-1">
-					<ModelSelector
-						disabled={plan.primary === "steer_active_run"}
-						modelId={modelId}
-						onModelChange={setModelId}
-						onProviderChange={selectProvider}
-						providerId={providerId}
-						providers={projection.providers}
-					/>
+				<div className="flex min-w-0 items-center justify-between px-1">
+					<div className="flex min-w-0 items-center gap-2">
+						<WorkspaceSelector
+							onChange={selectWorkspace}
+							projection={projection}
+						/>
+						<ModelSelector
+							disabled={plan.primary === "steer_active_run"}
+							modelId={modelId}
+							onModelChange={setModelId}
+							onProviderChange={selectProvider}
+							providerId={providerId}
+							providers={projection.providers}
+						/>
+					</div>
+					<ContextUsage projection={projection} />
 				</div>
 			</div>
 		</div>

@@ -37,6 +37,10 @@ export {
 	shouldIncludeConnectorField,
 } from "./connectors/platforms";
 export type { AutomationEventEnvelope } from "./cron";
+export {
+	ONE_TIME_SCHEDULE_CRON_PATTERN,
+	ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY,
+} from "./automation/constants";
 export type {
 	ClientContext,
 	ClientName,

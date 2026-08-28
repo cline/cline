@@ -164,7 +164,11 @@ export function addWorkspace(
 	rootPath: string,
 ): string {
 	const workspaceId = workspaceIdForPath(context, rootPath);
-	if (!context.projection.workspaces.some((item) => item.workspaceId === workspaceId)) {
+	if (
+		!context.projection.workspaces.some(
+			(item) => item.workspaceId === workspaceId,
+		)
+	) {
 		context.projection.workspaces.push({
 			workspaceId,
 			label: workspaceLabel(rootPath),
@@ -323,19 +327,15 @@ export function flattenMessageText(message: unknown): {
 			parts.push(typed.text);
 		} else if (typed.type === "reasoning" && typeof typed.text === "string") {
 			parts.push(`(reasoning) ${typed.text}`);
-		} else if (
-			typed.type === "tool-call" &&
-			typeof typed.toolName === "string"
-		) {
-			parts.push(`[tool call: ${typed.toolName}]`);
-		} else if (
-			typed.type === "tool-result" &&
-			typeof typed.toolName === "string"
-		) {
-			parts.push(`[tool result: ${typed.toolName}]`);
 		}
 	}
-	return truncateForProjection(parts.join("\n"), MAX_PROJECTION_MESSAGE_CHARS);
+	return truncateForProjection(
+		parts
+			.join("\n")
+			.replace(/\[tool (?:call|result):[^\]]+\]/gi, "")
+			.trim(),
+		MAX_PROJECTION_MESSAGE_CHARS,
+	);
 }
 
 function messageProjectionFrom(
@@ -346,11 +346,19 @@ function messageProjectionFrom(
 		id?: unknown;
 		role?: unknown;
 		createdAt?: unknown;
+		content?: unknown;
 	};
 	if (typeof typed.id !== "string" || typeof typed.role !== "string") {
 		return undefined;
 	}
 	const { text, truncated } = flattenMessageText(message);
+	const toolCallIds = Array.isArray(typed.content)
+		? typed.content.flatMap((part) => {
+				if (typeof part !== "object" || part === null) return [];
+				const toolCallId = (part as { toolCallId?: unknown }).toolCallId;
+				return typeof toolCallId === "string" ? [toolCallId] : [];
+			})
+		: [];
 	return {
 		id: typed.id,
 		role: typed.role,
@@ -358,6 +366,7 @@ function messageProjectionFrom(
 		...(truncated ? { truncated: true } : {}),
 		createdAt: typeof typed.createdAt === "number" ? typed.createdAt : 0,
 		...(runId ? { runId } : {}),
+		...(toolCallIds.length > 0 ? { toolCallIds } : {}),
 	};
 }
 
@@ -703,6 +712,7 @@ export function applySnapshot(
 					toolCallId: typed.toolCallId,
 					toolName: typed.toolName,
 					state: "running",
+					runId: stored.runId,
 				});
 			}
 			if (
@@ -1072,6 +1082,7 @@ function applyEventBody(context: ReducerContext, event: GatewayEvent): void {
 						toolCallId: payload.toolCallId,
 						toolName: payload.toolName,
 						state: "running",
+						runId: event.scope.runId,
 					});
 					commit(context, "activeSession");
 				}

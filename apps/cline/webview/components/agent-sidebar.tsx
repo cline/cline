@@ -360,7 +360,7 @@ export function AgentSidebar({
 			webSocketProtocol: current?.webSocketProtocol ?? null,
 		}));
 		setCopiedGatewayAddress(false);
-		desktopClient.retryConnection();
+		void desktopClient.retryConnectionWithGatewayUpdate();
 	}, []);
 	const copyGatewayAddress = useCallback(async () => {
 		const address = gatewayStatus?.webSocketAddress;

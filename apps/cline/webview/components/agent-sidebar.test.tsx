@@ -15,16 +15,24 @@ import type {
 	UseSessionHistoryResult,
 } from "@/hooks/use-session-history";
 
-const { invoke, retryConnection, subscribeTransportState } = vi.hoisted(() => ({
+const {
+	invoke,
+	retryConnectionWithGatewayUpdate,
+	subscribeTransportState,
+} = vi.hoisted(() => ({
 	invoke: vi.fn(),
-	retryConnection: vi.fn(),
+	retryConnectionWithGatewayUpdate: vi.fn(),
 	subscribeTransportState: vi.fn((handler: (state: string) => void) => {
 		handler("connected");
 		return () => undefined;
 	}),
 }));
 vi.mock("@/lib/desktop-client", () => ({
-	desktopClient: { invoke, retryConnection, subscribeTransportState },
+	desktopClient: {
+		invoke,
+		retryConnectionWithGatewayUpdate,
+		subscribeTransportState,
+	},
 }));
 
 let container: HTMLDivElement;
@@ -120,7 +128,7 @@ beforeEach(() => {
 		value: { writeText: vi.fn(async () => undefined) },
 	});
 	invoke.mockReset();
-	retryConnection.mockReset();
+	retryConnectionWithGatewayUpdate.mockReset();
 	subscribeTransportState.mockClear();
 	invoke.mockRejectedValue(new Error("No Cline account auth token found"));
 	Object.defineProperty(window, "matchMedia", {
@@ -557,7 +565,7 @@ describe("AgentSidebar session organization", () => {
 		expect(document.body.textContent).toContain("Bundled Gateway v1.2.3");
 		expect(document.body.textContent).toContain("Gateway connection closed");
 		await click(buttonWithText("Retry connection", document.body));
-		expect(retryConnection).toHaveBeenCalledOnce();
+		expect(retryConnectionWithGatewayUpdate).toHaveBeenCalledOnce();
 	});
 
 	it("hosts back and forward navigation in the draggable sidebar title bar", async () => {

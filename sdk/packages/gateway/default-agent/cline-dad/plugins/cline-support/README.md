@@ -1,6 +1,6 @@
 # Cline Support for Gateway
 
-This Agent Plugin contributes five MCP tools to Cline Dad:
+This Agent Plugin contributes six MCP tools to Cline Dad:
 
 - `cline_doctor_report`: discovery, process, database, provider, plugin, and
   durable state summary.
@@ -9,6 +9,9 @@ This Agent Plugin contributes five MCP tools to Cline Dad:
 - `cline_read_logs`: redacted Gateway/Desktop log tails when persisted logs
   exist; otherwise it accurately reports that stderr is owned by the launcher.
 - `cline_list_schedules`: Gateway schedules and recent durable schedule jobs.
+- `propose_new_bot`: prepares a new worker-bot proposal for the user to review
+  and confirm in the Cline Bots desktop app. The tool never creates a bot by
+  itself.
 
 The plugin reads the active namespace selected by `CLINE_GATEWAY_DATA_ROOT` and
 `CLINE_GATEWAY_NAMESPACE` (default `~/.cline/gateway/default`). It opens

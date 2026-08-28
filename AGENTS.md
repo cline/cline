@@ -23,10 +23,11 @@ Toolchain is pre-installed and persisted in the VM: generated gRPC/proto code, t
 - **Test:** `bun run test:unit` (bun-based, ~984 tests, no VS Code host needed). `bun run test:integration` (`@vscode/test-electron`, downloads a VS Code build, runs under the GUI libs) and `bun run test:e2e` (Playwright) exercise a real extension host — heavier, and the GUI libs for them are already installed.
 - One-time deps (already installed, listed here in case they must be recreated): ripgrep via `bun run download-ripgrep`; VS Code test GUI libs per `CONTRIBUTING.md` (`libnss3`, `libatk*`, `libgbm1`, `xvfb`, etc.).
 
-### Desktop app (`apps/examples/desktop-app`, package `@cline/code`)
-A Tauri v2 (Rust) shell + Next.js webview + a Bun "sidecar" backend. Rust and the Tauri Linux system libs are pre-installed and persisted.
-- **Headless (no Rust/window):** run the backend and UI separately — `bun run dev:sidecar` (Bun backend on `127.0.0.1:3126`, serves `ws://.../transport`) and `bun run dev:web` (Next.js UI on `http://localhost:3125`).
-- **Native window:** `bun run dev` (`tauri dev`) — its `beforeDevCommand` builds the sidecar binary and starts `dev:web` (`:3125`), then Rust `main.rs` spawns the sidecar; so free ports `3125`/`3126` first. Launch with `DISPLAY=:1` to see the window. A `libEGL: DRI3 error` warning is benign (software rendering) — the WebKitGTK window still renders.
+### Desktop app (`apps/cline`, package `@cline/cline-app`)
+A Tauri v2 (Rust) shell + Next.js webview + a thin Bun Gateway bridge. Rust and the Tauri Linux system libs are pre-installed and persisted. The app has no `@cline/core`, `@cline/sdk`, or `@cline/cline-hub` dependency; run `bun -F @cline/cline-app test:architecture` to verify the boundary.
+- **Gateway stack prerequisite:** use `bun run build:gateway-stack`, which builds only the Gateway dependency closure. Do not use the legacy example desktop app or start a Hub for this app.
+- **Headless (no Rust/window):** run the bridge and UI separately — `bun run dev:sidecar` (bridge on `127.0.0.1:3126`) and `bun run dev:web` (Next.js UI on `http://localhost:3125`). The bridge discovers or idempotently starts the single `desktop` Gateway namespace.
+- **Native window:** `bun run dev` (`tauri dev`) — its `beforeDevCommand` verifies the architecture and starts `dev:web` (`:3125`), then Rust `main.rs` launches app-local bridge source on demand. Launch with `DISPLAY=:1` to see the window. A `libEGL: DRI3 error` warning is benign (software rendering) — the WebKitGTK window still renders.
 - **Rust version caveat:** the crate graph needs Cargo's `edition2024` feature, so **Rust ≥1.85** is required (the VM's base 1.83 fails with "feature `edition2024` is required"). The toolchain here was updated via `rustup default stable` (currently 1.97). First `cargo` build downloads/compiles the full Tauri crate graph (a few minutes); subsequent builds are cached.
 - **System libs (already installed):** `libwebkit2gtk-4.1-dev`, `libgtk-3-dev`, `libayatana-appindicator3-dev`, `librsvg2-dev`, `libxdo-dev`, `libssl-dev`, `build-essential`.
-- **Test/typecheck:** `bun run typecheck`, `bun run test:chat-ui` (Vitest). Both trigger `build:ui` first.
+- **Test/typecheck:** `bun run typecheck`, `bun run test`, and `cargo test` from `src-tauri`. TypeScript build/test entrypoints enforce the architecture guard.

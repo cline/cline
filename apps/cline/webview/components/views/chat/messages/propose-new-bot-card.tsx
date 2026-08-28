@@ -18,26 +18,37 @@ export function ProposeNewBotCard({
 	name,
 	initialProjectPath,
 	reason,
+	systemPrompt,
 	onCreateBot,
 }: {
 	name: string;
 	initialProjectPath?: string;
 	reason?: string;
+	systemPrompt?: string;
 	onCreateBot: (
 		name: string,
 		initialProjectPath?: string,
 		icon?: string,
+		systemPrompt?: string,
 	) => Promise<BotSummary>;
 }) {
 	const [isCreating, setIsCreating] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [created, setCreated] = useState<BotSummary | null>(null);
+	const projectPath = initialProjectPath?.trim() || undefined;
+	const explanation = reason?.trim() || undefined;
+	const instructions = systemPrompt?.trim() || undefined;
 
 	const handleCreate = useCallback(async () => {
 		setIsCreating(true);
 		setError(null);
 		try {
-			const result = await onCreateBot(name, initialProjectPath);
+			const result = await onCreateBot(
+				name.trim(),
+				projectPath,
+				undefined,
+				instructions,
+			);
 			setCreated(result);
 		} catch (err) {
 			setError(
@@ -46,16 +57,29 @@ export function ProposeNewBotCard({
 		} finally {
 			setIsCreating(false);
 		}
-	}, [name, initialProjectPath, onCreateBot]);
+	}, [name, projectPath, instructions, onCreateBot]);
 
 	return (
 		<div className="flex flex-col gap-2 rounded-md border border-border bg-surface-secondary p-3 text-sm">
 			<div className="font-medium">Proposed new bot: {name}</div>
-			{reason ? <p className="text-muted-foreground">{reason}</p> : null}
-			{initialProjectPath ? (
+			{explanation ? (
+				<p className="text-muted-foreground">{explanation}</p>
+			) : null}
+			{projectPath ? (
 				<p className="text-xs text-muted-foreground">
-					Opens into: {basenamePath(initialProjectPath)}
+					Opens into:{" "}
+					<span title={projectPath}>{basenamePath(projectPath)}</span>
 				</p>
+			) : null}
+			{instructions ? (
+				<div className="rounded border border-border/70 bg-background/50 p-2">
+					<div className="mb-1 text-xs font-medium text-muted-foreground">
+						Bot instructions
+					</div>
+					<p className="max-h-32 overflow-auto whitespace-pre-wrap text-xs">
+						{instructions}
+					</p>
+				</div>
 			) : null}
 			{created ? (
 				<div className="flex items-center gap-1.5 text-emerald-500">

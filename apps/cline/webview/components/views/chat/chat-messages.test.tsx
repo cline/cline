@@ -925,6 +925,7 @@ describe("ChatMessages propose_new_bot card", () => {
 		name: string;
 		initialProjectPath?: string;
 		reason?: string;
+		systemPrompt?: string;
 	}): ChatMessage {
 		return {
 			id: "propose-new-bot-1",
@@ -971,9 +972,46 @@ describe("ChatMessages propose_new_bot card", () => {
 		);
 		await act(async () => createButton?.click());
 
-		expect(onCreateBot).toHaveBeenCalledWith("Recipe Bot", "/Users/me/recipes");
+		expect(onCreateBot).toHaveBeenCalledWith(
+			"Recipe Bot",
+			"/Users/me/recipes",
+			undefined,
+			undefined,
+		);
 		expect(container.textContent).toContain(
 			'Created "Recipe Bot" and switched to it.',
+		);
+	});
+
+	it("shows and applies the proposed bot instructions", async () => {
+		const onCreateBot = vi
+			.fn()
+			.mockResolvedValue({ id: "review-bot", name: "Review Bot" });
+		await renderMessages(
+			[
+				proposeNewBotMessage({
+					name: "Review Bot",
+					systemPrompt: "Review changes carefully and explain every risk.",
+				}),
+			],
+			{ onCreateBot },
+		);
+
+		expect(container.textContent).toContain("Bot instructions");
+		expect(container.textContent).toContain(
+			"Review changes carefully and explain every risk.",
+		);
+
+		const createButton = [...container.querySelectorAll("button")].find(
+			(button) => button.textContent === "Create this bot",
+		);
+		await act(async () => createButton?.click());
+
+		expect(onCreateBot).toHaveBeenCalledWith(
+			"Review Bot",
+			undefined,
+			undefined,
+			"Review changes carefully and explain every risk.",
 		);
 	});
 

@@ -86,6 +86,8 @@ export interface MessageProjection {
 	truncated?: boolean;
 	createdAt: number;
 	runId?: string;
+	/** Tool calls/results contained in this message, for inline rendering. */
+	toolCallIds?: string[];
 }
 
 export interface QueuedTurnProjection {
@@ -120,6 +122,8 @@ export interface ToolProjection {
 	toolCallId: string;
 	toolName: string;
 	state: "running" | "finished" | "error";
+	/** Run that produced the tool call, used to keep the status inline. */
+	runId?: string;
 }
 
 export interface UsageProjection {
