@@ -84,6 +84,8 @@ type SkillItem = {
 	description?: string;
 	instructions: string;
 	path: string;
+	agentPlugin?: boolean;
+	pluginName?: string;
 };
 
 type CommandItem = {
@@ -94,6 +96,8 @@ type CommandItem = {
 	instructions: string;
 	path: string;
 	scope: ItemScope;
+	agentPlugin?: boolean;
+	pluginName?: string;
 };
 
 type ItemScope = "Global" | "Project";
@@ -104,9 +108,15 @@ type AgentItem = {
 };
 
 type PluginItem = {
+	id: string;
 	name: string;
 	path: string;
 	enabled: boolean;
+	source?: string;
+	toggleable?: boolean;
+	agentPlugin?: boolean;
+	description?: string;
+	loadError?: string;
 	contributions?: PluginContributions;
 };
 
@@ -774,6 +784,8 @@ export function CustomizationSectionView({
 			instructions: skill.instructions,
 			path: skill.path,
 			scope: getPathScope(skill.path, workspaceRoot),
+			agentPlugin: skill.agentPlugin,
+			pluginName: skill.pluginName,
 		}));
 		return [...workflowItems, ...skillItems].sort((a, b) =>
 			a.name.localeCompare(b.name),
@@ -825,9 +837,11 @@ export function CustomizationSectionView({
 		for (const plugin of plugins) {
 			const normalized = normalizePath(plugin.path);
 			if (
-				normalizedRoot &&
-				normalized.startsWith(`${normalizedRoot}/`) &&
-				normalized.includes("/.cline/plugins")
+				plugin.source === "workspace-plugin" ||
+				(normalizedRoot &&
+					normalized.startsWith(`${normalizedRoot}/`) &&
+					(normalized.includes("/.cline/plugins") ||
+						normalized.includes("/.agents/plugins")))
 			) {
 				project.push(plugin);
 			} else {
@@ -871,6 +885,14 @@ export function CustomizationSectionView({
 			})),
 		],
 		[globalPlugins, projectPlugins],
+	);
+	const clinePlugins = useMemo(
+		() => scopedPlugins.filter(({ plugin }) => plugin.agentPlugin !== true),
+		[scopedPlugins],
+	);
+	const agentPlugins = useMemo(
+		() => scopedPlugins.filter(({ plugin }) => plugin.agentPlugin === true),
+		[scopedPlugins],
 	);
 
 	const scopedRules = useMemo(
@@ -976,15 +998,17 @@ export function CustomizationSectionView({
 				key={key}
 				className="relative grid min-w-0 gap-2 rounded-lg border bg-card p-4"
 			>
-				<div className="absolute top-4 right-4">
-					{renderLocalActionButton({
-						key,
-						type: item.type,
-						id: item.id,
-						name: item.name,
-						path: item.path,
-					})}
-				</div>
+				{item.agentPlugin !== true ? (
+					<div className="absolute top-4 right-4">
+						{renderLocalActionButton({
+							key,
+							type: item.type,
+							id: item.id,
+							name: item.name,
+							path: item.path,
+						})}
+					</div>
+				) : null}
 				<div className="flex min-w-0 items-center gap-2 pr-28">
 					{item.type === "workflow" ? (
 						<Play className="h-4 w-4 shrink-0 text-primary" />
@@ -998,6 +1022,11 @@ export function CustomizationSectionView({
 					<Badge variant="outline" className="shrink-0 text-muted-foreground">
 						{item.type}
 					</Badge>
+					{item.agentPlugin === true ? (
+						<Badge variant="outline" className="shrink-0 text-muted-foreground">
+							Agent Plugin
+						</Badge>
+					) : null}
 					{context?.matchedEntries?.length ? (
 						<Badge variant="outline" className="shrink-0 text-muted-foreground">
 							Marketplace
@@ -1057,6 +1086,9 @@ export function CustomizationSectionView({
 						{plugin.name}
 					</h3>
 					<ScopeBadge scope={scope} />
+					<Badge variant="outline" className="shrink-0 text-muted-foreground">
+						{plugin.agentPlugin === true ? "Agent Plugin" : "Cline Plugin"}
+					</Badge>
 					{context?.matchedEntries?.length ? (
 						<Badge variant="outline" className="shrink-0 text-muted-foreground">
 							Marketplace
@@ -1071,18 +1103,33 @@ export function CustomizationSectionView({
 							void setPluginEnabled(plugin);
 						}}
 						onClick={(event) => event.stopPropagation()}
-						disabled={togglingPluginPaths.has(plugin.path)}
+						disabled={
+							plugin.toggleable === false ||
+							togglingPluginPaths.has(plugin.path)
+						}
 						aria-label={`Toggle ${plugin.name}`}
 					/>
-					{renderPluginMenu({
-						key,
-						type: "plugin",
-						id: plugin.name,
-						name: plugin.name,
-						path: plugin.path,
-					})}
+					{plugin.agentPlugin !== true
+						? renderPluginMenu({
+								key,
+								type: "plugin",
+								id: plugin.name,
+								name: plugin.name,
+								path: plugin.path,
+							})
+						: null}
 				</summary>
 				<div className="mt-3">
+					{plugin.description?.trim() ? (
+						<p className="mb-2 whitespace-pre-line text-xs text-muted-foreground">
+							{plugin.description}
+						</p>
+					) : null}
+					{plugin.loadError?.trim() ? (
+						<p className="mb-2 whitespace-pre-line text-xs text-destructive">
+							{plugin.loadError}
+						</p>
+					) : null}
 					{plugin.contributions?.inspectionStatus === "disabled" ? (
 						<p className="mb-2 text-xs text-muted-foreground">
 							Enable this plugin to inspect its dynamic contributions.
@@ -1193,19 +1240,21 @@ export function CustomizationSectionView({
 
 	const installedCatalogLocalItems =
 		catalogPrimitive === "skill"
-			? commandItems.map(
-					(item): MarketplaceLocalInstalledItem => ({
-						key: `${item.type}:${item.path}`,
-						matchValues: getLocalMarketplaceMatchValues(
-							item.id,
-							item.name,
-							item.path,
-						),
-						render: (context) => renderSkillCard(item, context),
-					}),
-				)
+			? commandItems
+					.filter((item) => item.agentPlugin !== true)
+					.map(
+						(item): MarketplaceLocalInstalledItem => ({
+							key: `${item.type}:${item.path}`,
+							matchValues: getLocalMarketplaceMatchValues(
+								item.id,
+								item.name,
+								item.path,
+							),
+							render: (context) => renderSkillCard(item, context),
+						}),
+					)
 			: catalogPrimitive === "plugin"
-				? scopedPlugins.map(
+				? clinePlugins.map(
 						(item): MarketplaceLocalInstalledItem => ({
 							key: item.plugin.path,
 							matchValues: getLocalMarketplaceMatchValues(
@@ -1520,68 +1569,19 @@ export function CustomizationSectionView({
 			{activeTab === "Plugins" && !catalogPrimitive && (
 				<div>
 					<p className="mb-6 text-sm leading-relaxed text-muted-foreground">
-						Plugins discovered from workspace and global plugin directories.
+						Cline and portable Agent Plugins discovered by the shared Hub.
+						Changes apply when a session is rebuilt or started.
 					</p>
 
 					<div className="mb-6">
 						<h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-							Global Plugins
+							Cline Plugins ({clinePlugins.length})
 						</h3>
 						<div className="flex flex-col gap-3">
-							{globalPlugins.map((plugin) => (
-								<div
-									key={plugin.path}
-									className="rounded-lg border border-border px-5 py-4"
-								>
-									<div className="flex items-center gap-3">
-										<h3 className="min-w-0 flex-1 text-sm font-semibold text-foreground">
-											{plugin.name}
-										</h3>
-										<span className="text-xs text-muted-foreground">
-											{plugin.enabled ? "Enabled" : "Disabled"}
-										</span>
-										<Switch
-											checked={plugin.enabled}
-											onCheckedChange={() => {
-												void setPluginEnabled(plugin);
-											}}
-											disabled={togglingPluginPaths.has(plugin.path)}
-											aria-label={`Toggle ${plugin.name}`}
-										/>
-									</div>
-									<div className="mt-3 ml-7 flex max-h-56 flex-col gap-2 overflow-y-auto">
-										{(pluginToolsByPluginKey.get(plugin.path) ?? []).map(
-											(tool) => {
-												return (
-													<div
-														key={tool.id}
-														className="flex items-center justify-between gap-4 rounded-md border border-border/70 px-3 py-2"
-													>
-														<div className="min-w-0">
-															<p className="text-xs font-medium text-foreground">
-																{tool.name}
-															</p>
-															<p className="text-xs text-muted-foreground">
-																{tool.description?.trim() ||
-																	"No description available."}
-															</p>
-														</div>
-													</div>
-												);
-											},
-										)}
-										{(pluginToolsByPluginKey.get(plugin.path)?.length ?? 0) ===
-											0 && (
-											<p className="text-xs text-muted-foreground">
-												No plugin tools found.
-											</p>
-										)}
-									</div>
-								</div>
-							))}
-							{globalPlugins.length === 0 && (
+							{clinePlugins.map((plugin) => renderPluginCard(plugin))}
+							{clinePlugins.length === 0 && (
 								<p className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
-									No global plugins found.
+									No Cline Plugins found.
 								</p>
 							)}
 						</div>
@@ -1589,63 +1589,13 @@ export function CustomizationSectionView({
 
 					<div>
 						<h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-							Project Plugins
+							Agent Plugins ({agentPlugins.length})
 						</h3>
 						<div className="flex flex-col gap-3">
-							{projectPlugins.map((plugin) => (
-								<div
-									key={plugin.path}
-									className="rounded-lg border border-border px-5 py-4"
-								>
-									<div className="flex items-center gap-3">
-										<h3 className="min-w-0 flex-1 text-sm font-semibold text-foreground">
-											{plugin.name}
-										</h3>
-										<span className="text-xs text-muted-foreground">
-											{plugin.enabled ? "Enabled" : "Disabled"}
-										</span>
-										<Switch
-											checked={plugin.enabled}
-											onCheckedChange={() => {
-												void setPluginEnabled(plugin);
-											}}
-											disabled={togglingPluginPaths.has(plugin.path)}
-											aria-label={`Toggle ${plugin.name}`}
-										/>
-									</div>
-									<div className="mt-3 ml-7 flex max-h-56 flex-col gap-2 overflow-y-auto">
-										{(pluginToolsByPluginKey.get(plugin.path) ?? []).map(
-											(tool) => {
-												return (
-													<div
-														key={tool.id}
-														className="flex items-center justify-between gap-4 rounded-md border border-border/70 px-3 py-2"
-													>
-														<div className="min-w-0">
-															<p className="text-xs font-medium text-foreground">
-																{tool.name}
-															</p>
-															<p className="text-xs text-muted-foreground">
-																{tool.description?.trim() ||
-																	"No description available."}
-															</p>
-														</div>
-													</div>
-												);
-											},
-										)}
-										{(pluginToolsByPluginKey.get(plugin.path)?.length ?? 0) ===
-											0 && (
-											<p className="text-xs text-muted-foreground">
-												No plugin tools found.
-											</p>
-										)}
-									</div>
-								</div>
-							))}
-							{projectPlugins.length === 0 && (
+							{agentPlugins.map((plugin) => renderPluginCard(plugin))}
+							{agentPlugins.length === 0 && (
 								<p className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
-									No project plugins found.
+									No Agent Plugins found.
 								</p>
 							)}
 						</div>
