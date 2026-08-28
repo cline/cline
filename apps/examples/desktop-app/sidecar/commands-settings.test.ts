@@ -57,6 +57,10 @@ describe("desktop settings commands", () => {
 		).resolves.toEqual({ cloudSessionsEnabled: false });
 		await expect(handleCommand(ctx, "get_feature_flags", {})).resolves.toEqual({
 			cloudAgents: false,
+			flags: {
+				"code-onboarding-github": false,
+				"ext-cline-pass": false,
+			},
 		});
 	});
 
@@ -89,6 +93,10 @@ describe("desktop settings commands", () => {
 		]);
 		await expect(handleCommand(ctx, "get_feature_flags", {})).resolves.toEqual({
 			cloudAgents: true,
+			flags: {
+				"code-onboarding-github": false,
+				"ext-cline-pass": false,
+			},
 		});
 
 		await handleCommand(ctx, "set_cloud_sessions_enabled", {
@@ -106,6 +114,10 @@ describe("desktop settings commands", () => {
 
 		await expect(handleCommand(ctx, "get_feature_flags", {})).resolves.toEqual({
 			cloudAgents: true,
+			flags: {
+				"code-onboarding-github": false,
+				"ext-cline-pass": false,
+			},
 		});
 		// The toggle's stored value is reported as-is; the override only
 		// affects the effective gate.

@@ -9,13 +9,21 @@ import {
 	parseModelSelectionStorage,
 } from "@/lib/model-selection";
 import type { Provider } from "@/lib/provider-schema";
-import { OnboardingView, sortProvidersForApiKeySetup } from "./onboarding-view";
+import {
+	GITHUB_ONBOARDING_FEATURE_FLAG,
+	OnboardingView,
+	sortProvidersForApiKeySetup,
+} from "./onboarding-view";
 
 const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }));
 vi.mock("@/lib/desktop-client", () => ({
 	desktopClient: { invoke },
 	openExternalUrl: vi.fn(),
 }));
+
+const GITHUB_STEP_ENABLED_FLAGS = {
+	flags: { [GITHUB_ONBOARDING_FEATURE_FLAG]: true },
+};
 
 class StorageStub implements Storage {
 	readonly #values = new Map<string, string>();
@@ -140,6 +148,9 @@ describe("OnboardingView", () => {
 					],
 					settingsPath: "/tmp/providers.json",
 				};
+			}
+			if (command === "get_feature_flags") {
+				return GITHUB_STEP_ENABLED_FLAGS;
 			}
 			return {};
 		});
@@ -375,6 +386,9 @@ describe("OnboardingView", () => {
 			if (command === "list_provider_catalog") {
 				return { providers: [makeProvider()], settingsPath: "/tmp/p.json" };
 			}
+			if (command === "get_feature_flags") {
+				return GITHUB_STEP_ENABLED_FLAGS;
+			}
 			return {};
 		});
 		await render();
@@ -420,6 +434,9 @@ describe("OnboardingView", () => {
 			if (command === "list_provider_catalog") {
 				return { providers: [makeProvider()], settingsPath: "/tmp/p.json" };
 			}
+			if (command === "get_feature_flags") {
+				return GITHUB_STEP_ENABLED_FLAGS;
+			}
 			return {};
 		});
 		await render();
@@ -429,6 +446,28 @@ describe("OnboardingView", () => {
 		await act(async () => {
 			buttonByText("Continue").click();
 		});
+		expect(container.textContent).not.toContain("Connect GitHub");
+		expect(container.textContent).toContain("You're all set");
+	});
+
+	it("bypasses the GitHub step when the rollout flag is off", async () => {
+		invoke.mockImplementation(async (command: string) => {
+			if (command === "cline_account") {
+				return { email: "dev@example.com", displayName: "Dev" };
+			}
+			if (command === "list_provider_catalog") {
+				return { providers: [makeProvider()], settingsPath: "/tmp/p.json" };
+			}
+			return {};
+		});
+		await render();
+		await act(async () => {
+			buttonByText("Get started").click();
+		});
+		await act(async () => {
+			buttonByText("Continue").click();
+		});
+		expect(invoke).toHaveBeenCalledWith("get_feature_flags");
 		expect(container.textContent).not.toContain("Connect GitHub");
 		expect(container.textContent).toContain("You're all set");
 	});
