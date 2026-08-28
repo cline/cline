@@ -26,9 +26,9 @@ vi.mock("@cline/core", async () => {
 		await vi.importActual<typeof import("@cline/core")>("@cline/core");
 	return {
 		...actual,
-		// Two known flags keep the snapshot assertions meaningful even as the
-		// real registry changes.
-		FEATURE_FLAGS: ["ext-cline-pass", "ext-demo-flag"],
+		// Known public and sensitive flags keep the snapshot assertions
+		// meaningful even as the real registry changes.
+		FEATURE_FLAGS: ["ext-cline-pass", "ext-demo-flag", "langfuse-telemetry"],
 		NoOpFeatureFlagsProvider: mocks.NoOpFeatureFlagsProvider,
 		resolveCoreDistinctId: mocks.resolveCoreDistinctId,
 		FeatureFlagsService: class {
@@ -199,6 +199,18 @@ describe("buildFeatureFlagsSnapshot", () => {
 			variant: "b",
 			limit: 3,
 		});
+	});
+
+	it("never exposes sensitive values to the webview", () => {
+		mocks.getFlagPayload.mockImplementation((flag: unknown) =>
+			flag === "langfuse-telemetry" ? "pk-test::sk-test" : false,
+		);
+
+		const snapshot = buildFeatureFlagsSnapshot(
+			getDesktopFeatureFlagsService() as never,
+		);
+
+		expect(snapshot.flags).not.toHaveProperty("langfuse-telemetry");
 	});
 });
 

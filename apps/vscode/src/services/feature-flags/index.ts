@@ -1,7 +1,13 @@
-export { FeatureFlagsService } from "./FeatureFlagsService"
+export { FeatureFlagsService } from "@cline/core"
 
+import { FeatureFlagsService, FEATURE_FLAGS as SDK_FEATURE_FLAGS } from "@cline/core"
+import { getDistinctId } from "@/services/logging/distinctId"
+import { telemetryService } from "@/services/telemetry"
+import { FEATURE_FLAGS as EXTENSION_FEATURE_FLAGS, FeatureFlagDefaultValue } from "@/shared/services/feature-flags/feature-flags"
+import { Logger } from "@/shared/services/Logger"
 import { FeatureFlagsProviderFactory } from "./FeatureFlagsProviderFactory"
-import { FeatureFlagsService } from "./FeatureFlagsService"
+
+const FEATURE_FLAGS = [...new Set([...SDK_FEATURE_FLAGS, ...EXTENSION_FEATURE_FLAGS])]
 
 let _featureFlagsServiceInstance: FeatureFlagsService | null = null
 
@@ -13,7 +19,17 @@ let _featureFlagsServiceInstance: FeatureFlagsService | null = null
 export function getFeatureFlagsService(): FeatureFlagsService {
 	if (!_featureFlagsServiceInstance) {
 		const provider = FeatureFlagsProviderFactory.createProvider(FeatureFlagsProviderFactory.getDefaultConfig())
-		_featureFlagsServiceInstance = new FeatureFlagsService(provider)
+		_featureFlagsServiceInstance = new FeatureFlagsService({
+			provider,
+			telemetry: telemetryService,
+			logger: Logger,
+			context: {
+				distinctId: getDistinctId(),
+				clientName: "vscode",
+			},
+			flagKeys: FEATURE_FLAGS,
+			defaultValues: FeatureFlagDefaultValue,
+		})
 	}
 	return _featureFlagsServiceInstance
 }

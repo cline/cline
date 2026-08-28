@@ -429,6 +429,29 @@ describe("sdk-gateway", () => {
 		).toBe(DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS);
 	});
 
+	it("uses the AI SDK 7 telemetry option", async () => {
+		mockSuccessfulStream();
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "openai-native", apiKey: "test" }],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openai-native",
+				modelId: "gpt-5-mini",
+				messages: baseMessages,
+			}),
+		);
+
+		const call = streamTextSpy.mock.calls.at(-1)?.[0] as
+			| Record<string, unknown>
+			| undefined;
+		expect(call?.telemetry).toMatchObject({
+			functionId: "cline-agent-turn",
+		});
+		expect(call).not.toHaveProperty("experimental_telemetry");
+	});
+
 	it("lifts the default output cap above an explicit reasoning budget", () => {
 		expect(
 			resolveGatewayRequestMaxTokens({
@@ -5726,7 +5749,13 @@ describe("sdk-gateway", () => {
 
 		expect(openaiCompatibleSpy).toHaveBeenCalledWith(modelId);
 		const call = streamTextSpy.mock.calls.at(-1)?.[0];
-		expect(JSON.stringify(call)).not.toContain("cache_control");
+		expect(
+			JSON.stringify({
+				messages: call?.messages,
+				providerOptions: call?.providerOptions,
+				system: call?.system,
+			}),
+		).not.toContain("cache_control");
 	});
 
 	it("does not rewrite non-anthropic messages with prompt cache provider options", async () => {
@@ -6485,6 +6514,53 @@ describe("sdk-gateway", () => {
 		await collect(
 			await gateway.stream({
 				providerId: "custom-fetch",
+				modelId: "alpha",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(createProvider).toHaveBeenCalledOnce();
+	});
+
+	it("forwards per-provider Langfuse configuration through the registry", async () => {
+		const langfuse = {
+			baseUrl: "https://langfuse.example",
+			publicKey: "public-key",
+			secretKey: "secret-key",
+		};
+		const createProvider = vi.fn((config: { langfuse?: typeof langfuse }) => ({
+			async *stream() {
+				expect(config.langfuse).toEqual(langfuse);
+				yield { type: "text-delta", text: "ok" } satisfies AgentModelEvent;
+				yield { type: "finish", reason: "stop" } satisfies AgentModelEvent;
+			},
+		}));
+
+		const gateway = createGateway({
+			builtins: false,
+			providers: [
+				{
+					manifest: {
+						id: "custom-langfuse",
+						name: "CustomLangfuse",
+						defaultModelId: "alpha",
+						models: [
+							{
+								id: "alpha",
+								name: "Alpha",
+								providerId: "custom-langfuse",
+							},
+						],
+					},
+					createProvider,
+				},
+			],
+			providerConfigs: [{ providerId: "custom-langfuse", langfuse }],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "custom-langfuse",
 				modelId: "alpha",
 				messages: baseMessages,
 			}),

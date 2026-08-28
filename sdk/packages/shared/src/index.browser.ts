@@ -76,14 +76,19 @@ export {
 } from "./extensions/contribution-registry";
 export { PLUGIN_FILE_EXTENSIONS } from "./extensions/plugin";
 export {
+	DEFAULT_CLINE_PROVIDER_LANGFUSE_BASE_URL,
 	FEATURE_FLAGS,
-	type FeatureFlag,
+	FeatureFlag,
 	FeatureFlagDefaultValue,
 	type FeatureFlagPayload,
 	type FeatureFlagsAndPayloads,
 	type FeatureFlagsContext,
 	type FeatureFlagsSettings,
 	type IFeatureFlagsProvider,
+	isSensitiveFeatureFlag,
+	type LangfuseTelemetryConfig,
+	parseLangfuseTelemetryFeatureFlag,
+	SENSITIVE_FEATURE_FLAGS,
 } from "./feature-flags";
 export type { HookControl } from "./hooks/contracts";
 export type {

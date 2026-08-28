@@ -27,6 +27,7 @@ import axios from "axios"
 import { ClineEnv } from "@/config"
 import type { Controller } from "@/core/controller"
 import { getRequestRegistry, type StreamingResponseHandler } from "@/core/controller/grpc-handler"
+import { clearOnboardingModelsCache } from "@/core/controller/models/getClineOnboardingModels"
 import { StateManager } from "@/core/storage/StateManager"
 import { HostProvider } from "@/hosts/host-provider"
 import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
@@ -1131,6 +1132,7 @@ export class AuthService {
 		}
 		const userId = authInfo?.userInfo?.id || null
 		await featureFlagsService.poll(userId)
+		clearOnboardingModelsCache()
 		for (const controller of uniqueControllers) {
 			controller.invalidateProviderListings()
 		}

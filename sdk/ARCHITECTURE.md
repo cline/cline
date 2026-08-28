@@ -345,6 +345,16 @@ different process.
 
 This keeps reusable remote-config behavior in `shared` while the session-specific bridge remains in `core`.
 
+### Feature-Flagged Provider Telemetry
+
+1. Hosts resolve shared SDK feature flags through `FeatureFlagsService` and pass the service to `ClineCore`.
+2. Sensitive values, such as the `langfuse-telemetry` `publicKey::secretKey` assignment, remain in memory and are removed from telemetry responses, persisted caches, and host-facing snapshots.
+3. At session start or restore, `ClineCore` validates the assignment, pairs it with the fixed US Langfuse Cloud endpoint, and attaches it only to Cline-owned provider configurations (`cline` and `cline-pass`).
+4. The runtime configuration transports the validated settings through local or Hub execution. Without a flag value, Cline-owned providers prefer the `CLINE_PROVIDER_LANGFUSE_PUBLIC_KEY` and `CLINE_PROVIDER_LANGFUSE_SECRET_KEY` credential pair at the same fixed US endpoint, and fall back to the generic `LANGFUSE_*` triplet only when both prefixed variables are absent; third-party providers use only `LANGFUSE_*`.
+5. The LLM layer creates an isolated exporter per credential set and selects it through AI SDK per-call telemetry, so Cline-owned and third-party destinations can coexist in one Hub process.
+
+This keeps rollout policy and credentials at the host/session boundary while provider instrumentation remains transport-neutral in `@cline/llms`.
+
 ## Design Seams
 
 The codebase relies on a few repeated seams instead of one-off integration paths.

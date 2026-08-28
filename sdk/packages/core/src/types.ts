@@ -1,18 +1,23 @@
 export type {
 	AgentRunResult,
 	AgentRunStatus,
-	FeatureFlag,
 	FeatureFlagPayload,
 	FeatureFlagsAndPayloads,
 	FeatureFlagsContext,
 	FeatureFlagsSettings,
 	IFeatureFlagsProvider,
+	LangfuseTelemetryConfig,
 	WorkspaceInfo,
 	WorkspaceManifest,
 } from "@cline/shared";
 export {
+	DEFAULT_CLINE_PROVIDER_LANGFUSE_BASE_URL,
 	FEATURE_FLAGS,
+	FeatureFlag,
 	FeatureFlagDefaultValue,
+	isSensitiveFeatureFlag,
+	parseLangfuseTelemetryFeatureFlag,
+	SENSITIVE_FEATURE_FLAGS,
 } from "@cline/shared";
 export { ClineCore } from "./ClineCore";
 export type {

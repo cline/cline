@@ -12,8 +12,9 @@ import {
 	FEATURE_FLAGS,
 	type FeatureFlag,
 	FeatureFlagDefaultValue,
+	isSensitiveFeatureFlag,
 } from "@cline/shared";
-import { CORE_TELEMETRY_EVENTS } from "../..";
+import { CORE_TELEMETRY_EVENTS } from "../telemetry/core-events";
 
 const DEFAULT_CACHE_TTL_MS = 60 * 60 * 1000;
 const DEFAULT_PERSISTENT_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -36,23 +37,32 @@ interface FeatureFlagsCacheFile {
 
 export interface FeatureFlagsServiceOptions {
 	provider: IFeatureFlagsProvider;
-	telemetry?: ITelemetryService;
+	telemetry?: Pick<ITelemetryService, "capture">;
 	logger?: BasicLogger;
 	cacheTtlMs?: number;
 	cacheFilePath?: string;
 	persistentCacheMaxAgeMs?: number;
 	context?: FeatureFlagsContext;
+	/** Flag keys requested from the provider. Defaults to the shared SDK flags. */
+	flagKeys?: readonly FeatureFlag[];
+	/** Host-specific defaults merged over the shared SDK defaults. */
+	defaultValues?: Partial<Record<FeatureFlag, FeatureFlagPayload | undefined>>;
 }
 
 export class FeatureFlagsService {
 	private readonly provider: IFeatureFlagsProvider;
-	private readonly telemetry?: ITelemetryService;
+	private readonly telemetry?: Pick<ITelemetryService, "capture">;
 	private readonly logger?: BasicLogger;
 	private readonly cacheTtlMs: number;
 	private readonly cacheFilePath?: string;
 	private readonly persistentCacheMaxAgeMs: number;
+	private readonly flagKeys: readonly FeatureFlag[];
+	private readonly defaultValues: Partial<
+		Record<FeatureFlag, FeatureFlagPayload | undefined>
+	>;
 	private context: FeatureFlagsContext;
 	private cache: Map<FeatureFlag, FeatureFlagPayload | undefined> = new Map();
+	private enabledCache = new Map<FeatureFlag, boolean>();
 	private cacheInfo: CacheInfo = { updateTime: 0, userId: null };
 
 	constructor(options: FeatureFlagsServiceOptions) {
@@ -63,6 +73,11 @@ export class FeatureFlagsService {
 		this.cacheFilePath = options.cacheFilePath;
 		this.persistentCacheMaxAgeMs =
 			options.persistentCacheMaxAgeMs ?? DEFAULT_PERSISTENT_CACHE_MAX_AGE_MS;
+		this.flagKeys = options.flagKeys ?? FEATURE_FLAGS;
+		this.defaultValues = {
+			...FeatureFlagDefaultValue,
+			...(options.defaultValues ?? {}),
+		};
 		this.context = { ...(options.context ?? {}) };
 		this.hydrateFromPersistentCache();
 	}
@@ -72,19 +87,25 @@ export class FeatureFlagsService {
 	}
 
 	hydrateCache(snapshot: FeatureFlagsCacheSnapshot): void {
+		const flagsPayload = this.withoutSensitiveFlags(snapshot.flagsPayload);
+		const requiresVolatileRefresh = this.flagKeys.some((flag) =>
+			isSensitiveFeatureFlag(flag),
+		);
 		this.cacheInfo = {
-			updateTime: snapshot.updateTime,
+			// Sensitive payloads are intentionally absent from persistent storage,
+			// so a hydrated cache cannot be considered fresh for this process.
+			updateTime: requiresVolatileRefresh ? 0 : snapshot.updateTime,
 			userId: snapshot.userId,
-			flagsPayload: snapshot.flagsPayload,
+			flagsPayload,
 		};
-		this.rebuildCacheFromSnapshot(snapshot.flagsPayload);
+		this.rebuildCacheFromSnapshot(flagsPayload);
 	}
 
 	getCacheSnapshot(): FeatureFlagsCacheSnapshot {
 		return {
 			updateTime: this.cacheInfo.updateTime,
 			userId: this.cacheInfo.userId,
-			flagsPayload: this.cacheInfo.flagsPayload,
+			flagsPayload: this.withoutSensitiveFlags(this.cacheInfo.flagsPayload),
 		};
 	}
 
@@ -102,7 +123,7 @@ export class FeatureFlagsService {
 
 		try {
 			const values = await this.provider.getAllFlagsAndPayloads({
-				flagKeys: FEATURE_FLAGS.length > 0 ? FEATURE_FLAGS : undefined,
+				flagKeys: this.flagKeys.length > 0 ? this.flagKeys : undefined,
 				context: { ...this.context, userId: resolvedUserId },
 			});
 
@@ -174,6 +195,31 @@ export class FeatureFlagsService {
 			record[key] = entryValue as FeatureFlagPayload;
 		}
 		return record;
+	}
+
+	private withoutSensitiveFlags(
+		values: FeatureFlagsAndPayloads | undefined,
+	): FeatureFlagsAndPayloads | undefined {
+		if (!values) {
+			return undefined;
+		}
+
+		const filterRecord = (
+			record: Record<string, FeatureFlagPayload> | undefined,
+		): Record<string, FeatureFlagPayload> | undefined => {
+			if (!record) {
+				return undefined;
+			}
+			const entries = Object.entries(record).filter(
+				([flag]) => !isSensitiveFeatureFlag(flag),
+			);
+			return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+		};
+
+		return {
+			featureFlags: filterRecord(values.featureFlags),
+			featureFlagPayloads: filterRecord(values.featureFlagPayloads),
+		};
 	}
 
 	private readPersistentCache(): FeatureFlagsCacheSnapshot | undefined {
@@ -254,6 +300,7 @@ export class FeatureFlagsService {
 	): FeatureFlag[] {
 		return [
 			...new Set([
+				...this.flagKeys,
 				...Object.keys(values?.featureFlags ?? {}),
 				...Object.keys(values?.featureFlagPayloads ?? {}),
 			]),
@@ -264,11 +311,20 @@ export class FeatureFlagsService {
 		values: FeatureFlagsAndPayloads | undefined,
 	): void {
 		const nextCache = new Map<FeatureFlag, FeatureFlagPayload | undefined>();
+		const nextEnabledCache = new Map<FeatureFlag, boolean>();
 		for (const flag of this.getReturnedFlagKeys(values)) {
 			const payload = this.getFeatureFlag(flag);
 			nextCache.set(flag, payload ?? false);
+			const flagValue = values?.featureFlags?.[flag];
+			nextEnabledCache.set(
+				flag,
+				flagValue === true ||
+					typeof flagValue === "string" ||
+					(flagValue === undefined && this.defaultValues[flag] === true),
+			);
 		}
 		this.cache = nextCache;
+		this.enabledCache = nextEnabledCache;
 	}
 
 	private getFeatureFlag(
@@ -279,14 +335,16 @@ export class FeatureFlagsService {
 				this.cacheInfo.flagsPayload?.featureFlagPayloads?.[flagName];
 			const flagValue = this.cacheInfo.flagsPayload?.featureFlags?.[flagName];
 			const value =
-				payload ?? flagValue ?? FeatureFlagDefaultValue[flagName] ?? undefined;
+				payload ?? flagValue ?? this.defaultValues[flagName] ?? undefined;
 
 			if (!this.cache.has(flagName) || this.cache.get(flagName) !== value) {
 				this.telemetry?.capture({
 					event: CORE_TELEMETRY_EVENTS.FEATURE_FLAGS.FLAG_CALLED,
 					properties: {
 						$feature_flag: flagName,
-						$feature_flag_response: flagValue,
+						...(isSensitiveFeatureFlag(flagName)
+							? {}
+							: { $feature_flag_response: flagValue }),
 					},
 				});
 			}
@@ -296,16 +354,16 @@ export class FeatureFlagsService {
 			this.logger?.error?.(`Error checking SDK feature flag ${flagName}`, {
 				error,
 			});
-			return FeatureFlagDefaultValue[flagName] ?? false;
+			return this.defaultValues[flagName] ?? false;
 		}
 	}
 
 	getBooleanFlagEnabled(flagName: FeatureFlag): boolean {
-		return this.cache.get(flagName) === true;
+		return this.enabledCache.get(flagName) === true;
 	}
 
 	getFlagPayload(flagName: FeatureFlag): FeatureFlagPayload | undefined {
-		return this.cache.get(flagName) ?? FeatureFlagDefaultValue[flagName];
+		return this.cache.get(flagName) ?? this.defaultValues[flagName];
 	}
 
 	getProvider(): IFeatureFlagsProvider {
@@ -320,9 +378,15 @@ export class FeatureFlagsService {
 		return this.provider.getSettings();
 	}
 
-	test(flagName: FeatureFlag, value: boolean): void {
+	test(flagName: FeatureFlag, value: FeatureFlagPayload): void {
 		if (process.env.NODE_ENV === "test" || process.env.IS_TEST === "true") {
 			this.cache.set(flagName, value);
+			this.enabledCache.set(
+				flagName,
+				value === true ||
+					typeof value === "string" ||
+					(typeof value === "object" && value !== null),
+			);
 		}
 	}
 

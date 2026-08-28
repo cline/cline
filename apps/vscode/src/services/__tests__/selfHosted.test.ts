@@ -44,8 +44,7 @@ describe("SelfHosted Mode - PostHog Disabling", () => {
 			const config = FeatureFlagsProviderFactory.getDefaultConfig()
 			const provider = FeatureFlagsProviderFactory.createProvider(config)
 
-			// NoOp provider should always be enabled (returns true for isEnabled)
-			assert.strictEqual(provider.isEnabled(), true, "NoOp provider should report as enabled")
+			assert.strictEqual(provider.enabled, false, "NoOp provider should report as disabled")
 		})
 	})
 

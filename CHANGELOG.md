@@ -53,6 +53,10 @@ Everything here lands through the SDK bundle, so it applies to windows running t
 
 Everything here lands through the SDK bundle, so it applies to windows running that bundle.
 
+### Added
+
+- Allow Langfuse tracing to be rolled out for Cline and ClinePass through a sensitive `publicKey::secretKey` feature-flag value without exposing credentials to client state or persistent caches. Cline-owned providers prefer the dedicated `CLINE_PROVIDER_LANGFUSE_PUBLIC_KEY` and `CLINE_PROVIDER_LANGFUSE_SECRET_KEY` pair at the fixed US endpoint, and fall back to `LANGFUSE_*` when both are absent; third-party providers continue to use only `LANGFUSE_*`.
+
 ### Fixed
 
 - Enforce enterprise MCP controls on the Customize marketplace. MCP entries are now hidden when remote config disables the marketplace, and limited to `allowedMCPServers` when an allowlist is configured.

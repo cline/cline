@@ -1,9 +1,9 @@
+import type { FeatureFlagsAndPayloads, FeatureFlagsContext, FeatureFlagsSettings, IFeatureFlagsProvider } from "@cline/core"
 import { PostHog } from "posthog-node"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { fetch } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
 import { posthogConfig } from "../../../shared/services/config/posthog-config"
-import type { FeatureFlagsAndPayloads, FeatureFlagsSettings, IFeatureFlagsProvider } from "./IFeatureFlagsProvider"
 
 /**
  * PostHog implementation of the feature flags provider interface
@@ -34,28 +34,30 @@ export class PostHogFeatureFlagsProvider implements IFeatureFlagsProvider {
 		// Initialize feature flags settings
 		this.settings = {
 			enabled: true,
-			timeout: 5000, // 5 second timeout for feature flag requests
+			timeoutMs: 5000, // 5 second timeout for feature flag requests
 		}
 	}
 
-	private get distinctId(): string {
-		return getDistinctId()
-	}
-
-	async getAllFlagsAndPayloads(options: { flagKeys?: string[] }): Promise<FeatureFlagsAndPayloads | undefined> {
-		if (!this.isEnabled()) {
+	async getAllFlagsAndPayloads(options: {
+		flagKeys?: readonly string[]
+		context: FeatureFlagsContext
+	}): Promise<FeatureFlagsAndPayloads | undefined> {
+		if (!this.enabled) {
 			return undefined
 		}
 
 		try {
-			return await this.client.getAllFlagsAndPayloads(this.distinctId, options)
+			const distinctId = options.context.userId?.trim() || options.context.distinctId?.trim() || getDistinctId()
+			return await this.client.getAllFlagsAndPayloads(distinctId, {
+				flagKeys: options.flagKeys ? [...options.flagKeys] : undefined,
+			})
 		} catch (error) {
 			Logger.error(`Error getting feature flags`, error)
 			return {}
 		}
 	}
 
-	public isEnabled(): boolean {
+	public get enabled(): boolean {
 		return this.settings.enabled
 	}
 

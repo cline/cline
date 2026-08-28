@@ -39,6 +39,7 @@ import {
 	NoSuchToolError,
 	stepCountIs,
 	streamText,
+	type Telemetry,
 	type ToolSet,
 	wrapLanguageModel,
 } from "ai";
@@ -590,12 +591,13 @@ function shouldIncludeReasoningHistory(
 
 async function ensureGatewayLangfuseTelemetry(
 	providerId: string,
-): Promise<boolean> {
+	config: GatewayProviderContext["config"]["langfuse"],
+): Promise<Telemetry | undefined> {
 	try {
 		const runtime = await import("../services/langfuse-telemetry");
-		return runtime.ensureLangfuseTelemetry(providerId);
+		return runtime.ensureLangfuseTelemetry(providerId, config);
 	} catch {
-		return false;
+		return undefined;
 	}
 }
 
@@ -2153,9 +2155,11 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					yield { type: "finish", reason: "stop" };
 					return;
 				}
-				const langfuse = await ensureGatewayLangfuseTelemetry(
+				const langfuseIntegration = await ensureGatewayLangfuseTelemetry(
 					config.providerId,
+					context.config.langfuse,
 				);
+				const langfuseEnabled = langfuseIntegration !== undefined;
 				const externalToolExecutionDisabled =
 					providerDisablesExternalToolExecution(context);
 				const toolCallingDisabled =
@@ -2206,7 +2210,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					},
 				});
 				stream = await withAiSdkLangfuseTraceContext(
-					langfuse,
+					langfuseEnabled,
 					request,
 					() =>
 						streamText({
@@ -2220,8 +2224,11 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 							...(tools ? { tools } : {}),
 							abortSignal: request.signal,
 							experimental_repairToolCall: repairMalformedToolCall as never,
-							experimental_telemetry: {
-								isEnabled: langfuse,
+							telemetry: {
+								isEnabled: langfuseEnabled,
+								...(langfuseIntegration
+									? { integrations: langfuseIntegration }
+									: {}),
 								functionId: "cline-agent-turn",
 								includeRuntimeContext: {
 									distinctId: true,

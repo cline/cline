@@ -1,6 +1,7 @@
 import { featureFlagsService } from "@/services/feature-flags"
 import { CLINE_ONBOARDING_MODELS } from "@/shared/cline/onboarding"
 import { OnboardingModel, OnboardingModelGroup } from "@/shared/proto/cline/state"
+import { FeatureFlag } from "@/shared/services/feature-flags/feature-flags"
 
 type OnboardingModelOverride = OnboardingModel & { hidden?: boolean }
 
@@ -11,7 +12,14 @@ export function getClineOnboardingModels(): OnboardingModelGroup {
 		return cached
 	}
 
-	const remoteOverrides = featureFlagsService.getOnboardingOverrides()
+	const payload = featureFlagsService.getFlagPayload(FeatureFlag.ONBOARDING_MODELS)
+	const remoteOverrides =
+		payload && typeof payload === "object" && !Array.isArray(payload)
+			? (payload.models as unknown as Record<string, OnboardingModelOverride>)
+			: undefined
+	if (!remoteOverrides) {
+		clearOnboardingModelsCache()
+	}
 	const models = [...CLINE_ONBOARDING_MODELS]
 
 	// Apply remote overrides if available
