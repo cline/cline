@@ -53,7 +53,6 @@ export type {
 	ClineAccountActionRequest,
 	ConnectorHookEvent,
 	ContentBlock,
-	FeatureFlag,
 	FeatureFlagPayload,
 	FeatureFlagsAndPayloads,
 	FeatureFlagsContext,
@@ -109,6 +108,7 @@ export {
 	createTool,
 	emptyWorkspaceManifest,
 	FEATURE_FLAGS,
+	FeatureFlag,
 	FeatureFlagDefaultValue,
 	formatDisplayUserInput,
 	noopBasicLogger,
@@ -200,6 +200,7 @@ export type {
 	OcaTokenResolution,
 } from "./auth/types";
 export { ClineCore } from "./ClineCore";
+export { enableManagedClineLangfuseTelemetry } from "./cline-core/provider-telemetry";
 export type {
 	ClineAutomationEventIngressResult,
 	ClineAutomationEventLog,

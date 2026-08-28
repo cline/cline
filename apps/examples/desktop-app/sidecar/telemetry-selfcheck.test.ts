@@ -9,6 +9,8 @@ describe("buildTelemetrySelfcheckReport", () => {
 				otlpEndpoint: "https://otel.example.com:4318",
 				logsExporter: "otlp",
 				metricsExporter: "otlp",
+				tracesExporter: "otlp",
+				clineProviderLangfuseEnabled: true,
 			}),
 		).toEqual({
 			telemetry_selfcheck: true,
@@ -16,6 +18,8 @@ describe("buildTelemetrySelfcheckReport", () => {
 			otlp_endpoint_host: "otel.example.com:4318",
 			logs_exporter: "otlp",
 			metrics_exporter: "otlp",
+			traces_exporter: "otlp",
+			cline_provider_langfuse_enabled: true,
 		});
 		expect(
 			buildTelemetrySelfcheckReport({

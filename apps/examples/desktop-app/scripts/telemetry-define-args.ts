@@ -16,11 +16,11 @@ const OPTIONAL_SECRET_ENV_VARS = [
 ] as const;
 
 /**
- * Every env var `getTelemetryBuildTimeConfig` reads
- * (sdk/packages/shared/src/services/telemetry-config.ts). Always inlined,
+ * Every non-secret managed telemetry and OTEL build variable. Always inlined,
  * defaulting to "", so a packaged binary never falls back to runtime env.
  */
-const OTEL_ENV_VARS = [
+const INLINED_TELEMETRY_ENV_VARS = [
+	"CLINE_PROVIDER_LANGFUSE_ENABLED",
 	"OTEL_TELEMETRY_ENABLED",
 	"OTEL_METRICS_EXPORTER",
 	"OTEL_LOGS_EXPORTER",
@@ -48,7 +48,7 @@ export function telemetryDefineArgs(
 			define(name, value);
 		}
 	}
-	for (const name of OTEL_ENV_VARS) {
+	for (const name of INLINED_TELEMETRY_ENV_VARS) {
 		define(name, env[name] ?? "");
 	}
 	return args;

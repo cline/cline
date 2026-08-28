@@ -8,6 +8,7 @@
 import type {
 	BasicLogger,
 	ExtensionContext,
+	GatewayManagedTelemetryConfig,
 	ReasoningEffort,
 } from "@cline/shared";
 import type { ModelInfo, ProviderClient } from "../catalog/types";
@@ -313,6 +314,12 @@ export interface ProviderConfig
 
 	/** Task/session ID for telemetry */
 	taskId?: string;
+
+	/**
+	 * Managed provider telemetry routing. This contains enablement only; exporter
+	 * credentials remain outside the provider configuration and client artifact.
+	 */
+	managedTelemetry?: GatewayManagedTelemetryConfig;
 
 	/** AbortSignal for cancelling requests */
 	abortSignal?: AbortSignal;

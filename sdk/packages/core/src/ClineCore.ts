@@ -1,4 +1,8 @@
-import type { BasicLogger, ITelemetryService } from "@cline/shared";
+import {
+	type BasicLogger,
+	FeatureFlag,
+	type ITelemetryService,
+} from "@cline/shared";
 import {
 	ClineCoreAutomationController,
 	createClineCoreAutomationExtensionContext,
@@ -6,6 +10,7 @@ import {
 	normalizeAutomationCronScope,
 	normalizeAutomationOptions,
 } from "./cline-core/automation";
+import { enableManagedClineLangfuseTelemetry } from "./cline-core/provider-telemetry";
 import {
 	createClineCorePendingPromptsApi,
 	createClineCoreSettingsApi,
@@ -290,8 +295,12 @@ export class ClineCore {
 			const preparedInput = bootstrap
 				? await bootstrap.applyToStartSessionInput(clineCoreInput)
 				: clineCoreInput;
+			const featureFlaggedInput = enableManagedClineLangfuseTelemetry(
+				preparedInput,
+				this.featureFlags.getBooleanFlagEnabled(FeatureFlag.LANGFUSE_TELEMETRY),
+			);
 			const result = await this.host.startSession(
-				normalizeClineCoreStartInput(preparedInput, {
+				normalizeClineCoreStartInput(featureFlaggedInput, {
 					defaultCapabilities: this.capabilities,
 					withExtensionContext: (context) =>
 						createClineCoreAutomationExtensionContext({
@@ -559,19 +568,27 @@ export class ClineCore {
 
 	async restore(input: RestoreInput): Promise<RestoreResult> {
 		const normalizedStart = input.start
-			? normalizeClineCoreStartInput(input.start, {
-					defaultCapabilities: this.capabilities,
-					withExtensionContext: (context) =>
-						createClineCoreAutomationExtensionContext({
-							automationService: this.automationService,
-							automation: this.automation,
-							context,
-							clientName: this.clientName,
-							distinctId: this.distinctId,
-							logger: this.logger,
-							telemetry: this.telemetry,
-						}),
-				})
+			? normalizeClineCoreStartInput(
+					enableManagedClineLangfuseTelemetry(
+						input.start,
+						this.featureFlags.getBooleanFlagEnabled(
+							FeatureFlag.LANGFUSE_TELEMETRY,
+						),
+					),
+					{
+						defaultCapabilities: this.capabilities,
+						withExtensionContext: (context) =>
+							createClineCoreAutomationExtensionContext({
+								automationService: this.automationService,
+								automation: this.automation,
+								context,
+								clientName: this.clientName,
+								distinctId: this.distinctId,
+								logger: this.logger,
+								telemetry: this.telemetry,
+							}),
+					},
+				)
 			: undefined;
 		return this.host.restoreSession({
 			sessionId: input.sessionId,

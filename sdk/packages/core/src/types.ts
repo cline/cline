@@ -1,7 +1,6 @@
 export type {
 	AgentRunResult,
 	AgentRunStatus,
-	FeatureFlag,
 	FeatureFlagPayload,
 	FeatureFlagsAndPayloads,
 	FeatureFlagsContext,
@@ -12,6 +11,7 @@ export type {
 } from "@cline/shared";
 export {
 	FEATURE_FLAGS,
+	FeatureFlag,
 	FeatureFlagDefaultValue,
 } from "@cline/shared";
 export { ClineCore } from "./ClineCore";

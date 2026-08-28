@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const mockClineCoreCreate = vi.hoisted(() => vi.fn())
 const mockCreateVscodeExtraTools = vi.hoisted(() => vi.fn(async () => []))
+const mockGetBooleanFlagEnabled = vi.hoisted(() => vi.fn(() => false))
 
 vi.mock("@cline/core", async () => {
 	const actual = await vi.importActual<typeof import("@cline/core")>("@cline/core")
@@ -16,6 +17,12 @@ vi.mock("@cline/core", async () => {
 
 vi.mock("@/services/logging/distinctId", () => ({
 	getDistinctId: () => "distinct-id",
+}))
+
+vi.mock("@/services/feature-flags", () => ({
+	featureFlagsService: {
+		getBooleanFlagEnabled: mockGetBooleanFlagEnabled,
+	},
 }))
 
 vi.mock("@/core/storage/StateManager", () => ({
@@ -37,6 +44,7 @@ describe("VscodeSessionHost telemetry wiring", () => {
 		mockClineCoreCreate.mockReset()
 		mockClineCoreCreate.mockResolvedValue({ runtimeAddress: undefined })
 		mockCreateVscodeExtraTools.mockReset().mockResolvedValue([])
+		mockGetBooleanFlagEnabled.mockReset().mockReturnValue(false)
 	})
 
 	it("passes shared telemetry to ClineCore.create", async () => {
@@ -103,6 +111,30 @@ describe("VscodeSessionHost telemetry wiring", () => {
 		})
 
 		expect(prepared.config.telemetry).toBe(remoteTelemetry)
+	})
+
+	it("routes Cline provider traces through managed OTLP when the boolean flag is enabled", async () => {
+		mockGetBooleanFlagEnabled.mockReturnValue(true)
+		await VscodeSessionHost.create({
+			// biome-ignore lint/suspicious/noExplicitAny: focused host unit test
+			mcpHub: {} as any,
+		})
+
+		const prepare = mockClineCoreCreate.mock.calls[0][0].prepare
+		const bootstrap = await prepare()
+		const prepared = await bootstrap.applyToStartSessionInput({
+			config: {
+				providerId: "cline",
+				modelId: "anthropic/claude-sonnet-4.6",
+				cwd: "/tmp/workspace",
+			},
+		})
+
+		expect(prepared.config.providerConfig).toMatchObject({
+			providerId: "cline",
+			managedTelemetry: { langfuse: true },
+		})
+		expect(JSON.stringify(prepared)).not.toContain("secretKey")
 	})
 
 	it("passes custom editor and apply_patch executors into tool executor capabilities", async () => {

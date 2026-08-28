@@ -174,9 +174,15 @@ async function main() {
  * never ship silently again.
  */
 function runTelemetrySelfcheck(): void {
-	const report = buildTelemetrySelfcheckReport(
-		createClineTelemetryServiceConfig(),
-	);
+	const managedLangfuseValue =
+		process.env.CLINE_PROVIDER_LANGFUSE_ENABLED?.trim().toLowerCase();
+	const report = buildTelemetrySelfcheckReport({
+		...createClineTelemetryServiceConfig(),
+		clineProviderLangfuseEnabled:
+			managedLangfuseValue === "1" ||
+			managedLangfuseValue === "true" ||
+			managedLangfuseValue === "yes",
+	});
 	process.stdout.write(`${JSON.stringify(report)}\n`);
 }
 

@@ -108,6 +108,9 @@ if (process.env.TELEMETRY_SERVICE_API_KEY) {
 if (process.env.ERROR_SERVICE_API_KEY) {
 	buildEnvVars["process.env.ERROR_SERVICE_API_KEY"] = JSON.stringify(process.env.ERROR_SERVICE_API_KEY)
 }
+if (process.env.CLINE_PROVIDER_LANGFUSE_ENABLED) {
+	buildEnvVars["process.env.CLINE_PROVIDER_LANGFUSE_ENABLED"] = JSON.stringify(process.env.CLINE_PROVIDER_LANGFUSE_ENABLED)
+}
 
 // OpenTelemetry configuration (injected at build time from GitHub secrets)
 // These provide production defaults that can be overridden at runtime via environment variables
@@ -119,6 +122,9 @@ if (process.env.OTEL_LOGS_EXPORTER) {
 }
 if (process.env.OTEL_METRICS_EXPORTER) {
 	buildEnvVars["process.env.OTEL_METRICS_EXPORTER"] = JSON.stringify(process.env.OTEL_METRICS_EXPORTER)
+}
+if (process.env.OTEL_TRACES_EXPORTER) {
+	buildEnvVars["process.env.OTEL_TRACES_EXPORTER"] = JSON.stringify(process.env.OTEL_TRACES_EXPORTER)
 }
 if (process.env.OTEL_EXPORTER_OTLP_PROTOCOL) {
 	buildEnvVars["process.env.OTEL_EXPORTER_OTLP_PROTOCOL"] = JSON.stringify(process.env.OTEL_EXPORTER_OTLP_PROTOCOL)

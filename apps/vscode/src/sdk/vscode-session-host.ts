@@ -13,6 +13,7 @@ import {
 	type CompareCheckpointResult,
 	type CoreSessionEvent,
 	type EditorExecutor,
+	enableManagedClineLangfuseTelemetry,
 	type HookEventPayload,
 	type ITelemetryService,
 	type PendingPromptMutationResult,
@@ -41,8 +42,10 @@ import {
 } from "@cline/shared"
 import { StateManager } from "@/core/storage/StateManager"
 import type { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
+import { featureFlagsService } from "@/services/feature-flags"
 import { getDistinctId } from "@/services/logging/distinctId"
 import type { McpHub } from "@/services/mcp/McpHub"
+import { FeatureFlag } from "@/shared/services/feature-flags/feature-flags"
 import { Logger } from "@/shared/services/Logger"
 import type { SdkForegroundCommandCoordinator } from "./sdk-foreground-command-coordinator"
 import type { SdkSessionHost } from "./session-host"
@@ -150,30 +153,34 @@ export class VscodeSessionHost implements SdkSessionHost {
 			const inputWithRemoteConfig = remoteConfigIntegration
 				? await remoteConfigIntegration.applyToStartSessionInput(input)
 				: input
+			const featureFlaggedInput = enableManagedClineLangfuseTelemetry(
+				inputWithRemoteConfig,
+				featureFlagsService.getBooleanFlagEnabled(FeatureFlag.LANGFUSE_TELEMETRY),
+			)
 			const requestedTerminalExecutionMode = StateManager.get().getGlobalStateKey("vscodeTerminalExecutionMode")
 			const extraTools = await createVscodeExtraTools(options.mcpHub, {
-				cwd: inputWithRemoteConfig.config.cwd,
+				cwd: featureFlaggedInput.config.cwd,
 				getTerminalManager: options.getTerminalManager,
 				vscodeTerminalExecutionMode: getEffectiveTerminalExecutionMode(requestedTerminalExecutionMode),
 				foregroundCommands: options.foregroundCommands,
 			})
 			return {
-				...inputWithRemoteConfig,
-				source: inputWithRemoteConfig.source ?? "vscode",
+				...featureFlaggedInput,
+				source: featureFlaggedInput.source ?? "vscode",
 				// The extension runs file hooks through its own hooks adapter
 				// (status chips, hooksEnabled setting, HookFactory discovery).
 				// Exclude the SDK core's file-hook extension or every hook
 				// would execute twice per event.
 				localRuntime: {
-					...(inputWithRemoteConfig.localRuntime ?? {}),
+					...(featureFlaggedInput.localRuntime ?? {}),
 					configExtensions: (
-						inputWithRemoteConfig.localRuntime?.configExtensions ?? RUNTIME_CONFIG_EXTENSION_KINDS
+						featureFlaggedInput.localRuntime?.configExtensions ?? RUNTIME_CONFIG_EXTENSION_KINDS
 					).filter((kind) => kind !== "hooks"),
 				},
 				config: {
-					...inputWithRemoteConfig.config,
-					telemetry: inputWithRemoteConfig.config.telemetry ?? options.telemetry,
-					extraTools: [...(inputWithRemoteConfig.config.extraTools ?? []), ...extraTools],
+					...featureFlaggedInput.config,
+					telemetry: featureFlaggedInput.config.telemetry ?? options.telemetry,
+					extraTools: [...(featureFlaggedInput.config.extraTools ?? []), ...extraTools],
 				},
 			}
 		}

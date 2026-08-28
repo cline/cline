@@ -139,10 +139,12 @@ export default defineConfig({
 		"process.env.TELEMETRY_SERVICE_API_KEY": JSON.stringify(process.env.TELEMETRY_SERVICE_API_KEY),
 		"process.env.ERROR_SERVICE_API_KEY": JSON.stringify(process.env.ERROR_SERVICE_API_KEY),
 		"process.env.ENABLE_ERROR_AUTOCAPTURE": JSON.stringify(process.env.ENABLE_ERROR_AUTOCAPTURE),
+		"process.env.CLINE_PROVIDER_LANGFUSE_ENABLED": JSON.stringify(process.env.CLINE_PROVIDER_LANGFUSE_ENABLED),
 		// OpenTelemetry environment variables
 		"process.env.OTEL_TELEMETRY_ENABLED": JSON.stringify(process.env.OTEL_TELEMETRY_ENABLED),
 		"process.env.OTEL_METRICS_EXPORTER": JSON.stringify(process.env.OTEL_METRICS_EXPORTER),
 		"process.env.OTEL_LOGS_EXPORTER": JSON.stringify(process.env.OTEL_LOGS_EXPORTER),
+		"process.env.OTEL_TRACES_EXPORTER": JSON.stringify(process.env.OTEL_TRACES_EXPORTER),
 		"process.env.OTEL_EXPORTER_OTLP_PROTOCOL": JSON.stringify(process.env.OTEL_EXPORTER_OTLP_PROTOCOL),
 		"process.env.OTEL_EXPORTER_OTLP_ENDPOINT": JSON.stringify(process.env.OTEL_EXPORTER_OTLP_ENDPOINT),
 		"process.env.OTEL_EXPORTER_OTLP_HEADERS": JSON.stringify(process.env.OTEL_EXPORTER_OTLP_HEADERS),

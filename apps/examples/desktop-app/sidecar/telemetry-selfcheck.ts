@@ -10,6 +10,8 @@ export type TelemetrySelfcheckConfig = {
 	otlpEndpoint?: string;
 	logsExporter?: string;
 	metricsExporter?: string;
+	tracesExporter?: string;
+	clineProviderLangfuseEnabled?: boolean;
 };
 
 export type TelemetrySelfcheckReport = {
@@ -24,6 +26,8 @@ export type TelemetrySelfcheckReport = {
 	otlp_endpoint_host: string;
 	logs_exporter: string;
 	metrics_exporter: string;
+	traces_exporter: string;
+	cline_provider_langfuse_enabled: boolean;
 };
 
 // The SDK's OTLP exporters are the http/json ones
@@ -54,5 +58,8 @@ export function buildTelemetrySelfcheckReport(
 		otlp_endpoint_host: otlpEndpointHost(config.otlpEndpoint),
 		logs_exporter: config.logsExporter ?? "",
 		metrics_exporter: config.metricsExporter ?? "",
+		traces_exporter: config.tracesExporter ?? "",
+		cline_provider_langfuse_enabled:
+			config.clineProviderLangfuseEnabled === true,
 	};
 }
