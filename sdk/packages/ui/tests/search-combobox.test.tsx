@@ -264,9 +264,7 @@ describe("SearchCombobox", () => {
 			...container.querySelectorAll<HTMLButtonElement>('[role="option"]'),
 		].at(-1);
 		await act(async () => {
-			lastOption?.dispatchEvent(
-				new MouseEvent("mousemove", { bubbles: true }),
-			);
+			lastOption?.dispatchEvent(new MouseEvent("mousemove", { bubbles: true }));
 		});
 		expect(lastOption?.dataset.active).toBe("true");
 		expect(scrollIntoView.mock.calls.length).toBe(keyboardCalls);
