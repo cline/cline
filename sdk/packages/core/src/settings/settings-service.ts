@@ -662,6 +662,16 @@ export class CoreSettingsService {
 		if (input.type === "skills") {
 			return await withUserInstructionService(input, async (service) => {
 				const record = findSkillRecord(service, input);
+				if (record?.item.source?.type === "agent-plugin") {
+					// Agent Plugin skills are only toggleable as part of their
+					// plugin (`type: "plugins"`). Writing `disabled` into the
+					// skill's frontmatter would corrupt it: the strict Agent
+					// Skills parser rejects any field outside its closed set,
+					// so the skill would fail to load on the very next refresh.
+					throw new Error(
+						`Skill '${record.item.name}' is contributed by the Agent Plugin '${record.item.source.pluginName}' and cannot be toggled individually; toggle the plugin instead.`,
+					);
+				}
 				const filePath = record?.filePath;
 				if (!filePath) {
 					throw new Error(

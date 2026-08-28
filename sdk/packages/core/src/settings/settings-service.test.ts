@@ -10,7 +10,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setHomeDir } from "@cline/shared/storage";
 import { afterEach, describe, expect, it } from "vitest";
-import type { UserInstructionConfigService } from "../extensions/config";
+import { loadAgentPluginPackages } from "../extensions/agent-plugin";
+import {
+	createUserInstructionConfigService,
+	type UserInstructionConfigService,
+} from "../extensions/config";
 import { listPluginToolsWithDiagnostics } from "../services/plugin-tools";
 import { CoreSettingsService } from "./settings-service";
 
@@ -343,6 +347,77 @@ Review the change.`,
 				}),
 			]),
 		);
+	});
+
+	it("rejects toggling an individual Agent Plugin skill instead of rewriting its frontmatter", async () => {
+		const tempRoot = await mkdtemp(
+			join(tmpdir(), "core-settings-agent-plugin-skill-toggle-"),
+		);
+		tempRoots.push(tempRoot);
+		process.env.HOME = tempRoot;
+		setHomeDir(tempRoot);
+		process.env.CLINE_GLOBAL_SETTINGS_PATH = join(
+			tempRoot,
+			"global-settings.json",
+		);
+		const workspaceRoot = join(tempRoot, "workspace");
+		await mkdir(workspaceRoot, { recursive: true });
+		const pluginRoot = join(tempRoot, ".agents", "plugins", "portable-review");
+		const skillRoot = join(pluginRoot, "skills", "review");
+		await mkdir(skillRoot, { recursive: true });
+		await writeFile(
+			join(pluginRoot, "plugin.json"),
+			JSON.stringify({
+				$schema: "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+				name: "portable-review",
+			}),
+		);
+		const skillMarkdown = `---
+name: review
+description: Review a change.
+---
+Review the change.`;
+		const skillPath = join(skillRoot, "SKILL.md");
+		await writeFile(skillPath, skillMarkdown);
+
+		// Mirrors how a host builds its shared instruction service once
+		// Agent Plugin skills are merged into it (e.g. runtime-builder's
+		// combineUserInstructionConfigServices), rather than the ad-hoc,
+		// agent-plugin-unaware service `toggle()` builds on its own when no
+		// `userInstructionService` is supplied.
+		const { skills: agentPluginSkills } = await loadAgentPluginPackages({
+			searchPaths: [join(tempRoot, ".agents", "plugins")],
+		});
+		expect(agentPluginSkills).toHaveLength(1);
+		const userInstructionService = createUserInstructionConfigService({
+			skills: { directories: [], agentPluginSkills },
+			rules: { directories: [] },
+			workflows: { directories: [] },
+		});
+		await userInstructionService.start();
+
+		const service = new CoreSettingsService();
+		try {
+			await expect(
+				service.toggle({
+					type: "skills",
+					id: "portable-review:review",
+					enabled: false,
+					cwd: workspaceRoot,
+					workspaceRoot,
+					userInstructionService,
+					includePluginTools: false,
+				}),
+			).rejects.toThrow(
+				"Skill 'review' is contributed by the Agent Plugin 'portable-review' and cannot be toggled individually; toggle the plugin instead.",
+			);
+		} finally {
+			userInstructionService.stop();
+		}
+
+		// The frontmatter must be untouched: writing a `disabled` key would fail
+		// the closed-field-set Agent Skills parser on the very next load.
+		expect(await readFile(skillPath, "utf8")).toBe(skillMarkdown);
 	});
 
 	it("does not list skills from disabled plugins", async () => {
