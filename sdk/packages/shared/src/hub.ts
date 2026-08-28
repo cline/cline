@@ -466,12 +466,31 @@ export interface HubTaskAutomationSetInput {
 	policy: Omit<AgendaAutomationPolicy, "updatedAt">;
 }
 
+export interface HubSessionSearchInput {
+	query: string;
+	limit?: number;
+	workspaceRoot?: string;
+}
+
+export interface HubSessionSearchHit {
+	sessionId: string;
+	documentId: string;
+	ordinal: number;
+	role: string;
+	startedAt: string;
+	workspaceRoot: string;
+	title: string;
+	snippet: string;
+	score: number;
+}
+
 /**
  * Strongly typed task command payloads. This map is intentionally extensible so
  * other Hub command families can adopt typed payloads without changing the wire
  * envelope.
  */
 export interface HubCommandInputMap {
+	"session.search": HubSessionSearchInput;
 	"task.create": HubTaskCreateInput;
 	"task.list": AgendaTaskListInput;
 	"task.get": HubTaskIdInput;
@@ -485,6 +504,7 @@ export interface HubCommandInputMap {
 
 /** Typed task command results returned in {@link HubReplyEnvelope.payload}. */
 export interface HubCommandOutputMap {
+	"session.search": { hits: HubSessionSearchHit[] };
 	"task.create": { task: AgendaTaskRecord };
 	"task.list": { tasks: AgendaTaskRecord[] };
 	"task.get": { task?: AgendaTaskRecord };
@@ -513,6 +533,7 @@ export type HubCommandName =
 	| "mention_files.search"
 	| "catalog.list"
 	| "session.list"
+	| "session.search"
 	| "session.create"
 	| "session.attach"
 	| "session.detach"

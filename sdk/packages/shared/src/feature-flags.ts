@@ -5,6 +5,8 @@ export const FeatureFlag = {
 	CODE_CLOUD_AGENTS: "code-cloud-agents",
 	/** Enables /handoff (local-to-cloud session handoff) in the Cline Code desktop app. */
 	CODE_CLOUD_HANDOFF: "code-cloud-handoff",
+	/** Shows the GitHub integration step in the desktop app */
+	CODE_ONBOARDING_GITHUB: "code-onboarding-github",
 } as const;
 
 export type KnownFeatureFlag = (typeof FeatureFlag)[keyof typeof FeatureFlag];
@@ -66,6 +68,7 @@ export const FeatureFlagDefaultValue: Partial<
 	Record<FeatureFlag, FeatureFlagPayload | undefined>
 > = {
 	[FeatureFlag.CLINE_PASS]: false,
+	[FeatureFlag.CODE_ONBOARDING_GITHUB]: false,
 };
 
 export const FEATURE_FLAGS: readonly FeatureFlag[] = Object.values(FeatureFlag);

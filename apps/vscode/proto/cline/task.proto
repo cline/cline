@@ -110,6 +110,9 @@ message TaskItem {
   int32 cache_reads = 10;
   string model_id = 11;
   bool is_legacy = 12;
+  // Provider id the task ran on. Empty for tasks recorded before this
+  // field existed and for legacy imports; consumers show cost in that case.
+  string api_provider = 13;
 }
 
 // Request for ask response operation
