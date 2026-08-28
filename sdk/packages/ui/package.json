@@ -47,6 +47,7 @@
 	},
 	"files": [
 		"components.css",
+		"components/attachment-drop-zone.tsx",
 		"components/badge.tsx",
 		"components/button.tsx",
 		"components/generated-media.tsx",
