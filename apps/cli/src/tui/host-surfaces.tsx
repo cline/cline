@@ -5,12 +5,12 @@ import type {
 	LoadInteractiveConfigDataOptions,
 	ResumedSessionEntries,
 } from "@cline/ui/tui";
-import { withLoadingDialog } from "@cline/ui/tui";
+import { HistoryDialogContent, withLoadingDialog } from "@cline/ui/tui";
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import type { HistoryExportFormat } from "../session/history-export";
+import { listSessions } from "../session/session";
 import type { Config } from "../utils/types";
 import type { ClineAccountSnapshot } from "./cline-account";
-import { HistoryDialogContent } from "./history-view";
 import { createAccountDialogOpener } from "./hooks/use-account-dialog";
 import { createMcpManagerOpener } from "./hooks/use-mcp-manager";
 import { createModelSelectorOpener } from "./hooks/use-model-selector";
@@ -77,6 +77,8 @@ export function createCliHostSurfaces(
 				content: (choiceCtx: ChoiceContext<string>) => (
 					<HistoryDialogContent
 						{...choiceCtx}
+						loadInitialRows={() => listSessions(50, { hydrate: true })}
+						refreshRows={() => listSessions(50, { hydrate: false })}
 						onExport={deps.onExportHistorySession}
 						onDelete={deps.onDeleteHistorySession}
 					/>

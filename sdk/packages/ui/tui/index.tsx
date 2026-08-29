@@ -14,6 +14,17 @@ export {
 	LoadingDialogContent,
 	withLoadingDialog,
 } from "./components/dialogs/loading-dialog";
+export type { HistoryExportFormat } from "./components/dialogs/history-export-picker";
+export {
+	HistoryDialogContent,
+	type HistorySessionRow,
+} from "./components/dialogs/history-view";
+export {
+	getMcpManagerFooterText,
+	type McpEntry,
+	McpManagerContent,
+	type McpServerToggleResult,
+} from "./components/dialogs/mcp-manager";
 export * from "./components/model-selector/model-selector";
 export { ProviderRow } from "./components/model-selector/provider-row";
 export * from "./components/searchable-list";

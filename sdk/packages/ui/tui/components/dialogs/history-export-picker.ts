@@ -1,4 +1,5 @@
-import type { HistoryExportFormat } from "../session/history-export";
+/** Export formats the session history dialog offers. */
+export type HistoryExportFormat = "html" | "json";
 
 export const HISTORY_EXPORT_OPTIONS = [
 	{

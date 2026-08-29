@@ -10,6 +10,7 @@ import type { ConsecutiveMistakeLimitContext } from "@cline/shared";
 import { createSessionId } from "@cline/shared";
 import {
 	formatCliErrorMessage,
+	formatUsd,
 	shouldShowCliUsageCost,
 } from "@cline/ui/tui/formatting";
 import { logCliError } from "../logging/errors";
@@ -30,7 +31,6 @@ import { createRuntimeHooks } from "../utils/hooks";
 import {
 	c,
 	emitJsonLine,
-	formatUsd,
 	getActiveCliSession,
 	setActiveCliSession,
 	writeErr,

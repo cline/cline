@@ -57,6 +57,10 @@ export {
 	loadImageAsDataUrl,
 	resolveExistingImagePath,
 } from "./image-attachments";
+export {
+	type HistoryStatusFields,
+	mergeHistoryStatusRows,
+} from "./history-rows";
 export { resolveNonCompactionStatusLabel } from "./status-labels";
 export {
 	formatStructuredCommand,
@@ -66,6 +70,7 @@ export {
 	truncate,
 } from "./tool-format";
 export {
+	formatUsd,
 	shouldShowCliUsageCost,
 	shouldShowCliUsageCoveredBySubscription,
 } from "./usage-cost-display";

@@ -1,34 +1,53 @@
 // @jsxImportSource @opentui/react
 
-import type { SessionHistoryRecord } from "@cline/core";
 import {
 	formatDisplayUserInput,
 	formatHumanReadableDate,
 	truncateStr,
 } from "@cline/shared";
-import { useDialogPalette } from "@cline/ui/tui";
-import { shouldShowCliUsageCost } from "@cline/ui/tui/formatting";
 import { useTerminalDimensions } from "@opentui/react";
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialogKeyboard } from "@opentui-ui/dialog/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { HistoryExportFormat } from "../session/history-export";
-import { listSessions } from "../session/session";
-import { mergeHistoryStatusRows } from "../utils/history-format";
-import { formatUsd } from "../utils/output";
+import { mergeHistoryStatusRows } from "../../formatting/history-rows";
+import {
+	formatUsd,
+	shouldShowCliUsageCost,
+} from "../../formatting/usage-cost-display";
+import { useDialogPalette } from "../../hooks/use-theme";
 import {
 	buildHistoryFooterText,
 	HISTORY_EXPORT_OPTIONS,
+	type HistoryExportFormat,
 	type HistoryExportPickerState,
 	resolveHistoryExportPickerAction,
 } from "./history-export-picker";
 
-function hasForkMetadata(row: SessionHistoryRecord): boolean {
+/**
+ * Structural view of a stored session row. Hosts pass their richer history
+ * records; only these fields are read.
+ */
+export interface HistorySessionRow {
+	sessionId: string;
+	startedAt: string;
+	updatedAt?: string;
+	endedAt?: string | null;
+	exitCode?: number | null;
+	status?: string;
+	prompt?: string;
+	provider: string;
+	metadata?: {
+		title?: string;
+		totalCost?: number;
+	} & Record<string, unknown>;
+}
+
+function hasForkMetadata(row: HistorySessionRow): boolean {
 	const fork = row.metadata?.fork;
 	return typeof fork === "object" && fork !== null && !Array.isArray(fork);
 }
 
-function formatTitle(row: SessionHistoryRecord, maxLen: number): string {
+function formatTitle(row: HistorySessionRow, maxLen: number): string {
 	const raw = row.metadata?.title?.trim() || row.prompt?.trim() || "Untitled";
 	const forkTitle =
 		hasForkMetadata(row) && !raw.endsWith(" (fork)") ? `${raw} (fork)` : raw;
@@ -72,12 +91,14 @@ type HistoryKeyEvent = {
 };
 
 type HistoryListContentProps = HistoryListActions & {
-	initialRows?: SessionHistoryRecord[];
+	initialRows?: HistorySessionRow[];
 	emptyMessage?: string;
 	footerText?: string;
 	title?: string;
-	loadRows?: boolean;
-	refreshRows?: () => Promise<SessionHistoryRecord[]>;
+	/** Host loader for the initial (hydrated) row set. */
+	loadInitialRows?: () => Promise<HistorySessionRow[]>;
+	/** Host loader for periodic lifecycle refreshes. */
+	refreshRows?: () => Promise<HistorySessionRow[]>;
 	refreshIntervalMs?: number;
 	registerKeyHandler?: (
 		handler: (key: HistoryKeyEvent | undefined) => void,
@@ -93,18 +114,18 @@ function HistoryListContent({
 	emptyMessage = "No sessions found",
 	footerText,
 	title = "Session History",
-	loadRows = false,
+	loadInitialRows,
 	refreshRows,
 	refreshIntervalMs = DEFAULT_REFRESH_INTERVAL_MS,
 	registerKeyHandler,
 }: HistoryListContentProps) {
 	const palette = useDialogPalette();
 	const { width } = useTerminalDimensions();
-	const [rows, setRows] = useState<SessionHistoryRecord[]>(
+	const [rows, setRows] = useState<HistorySessionRow[]>(
 		() => initialRows ?? [],
 	);
 	const [selected, setSelected] = useState(0);
-	const [loading, setLoading] = useState(loadRows);
+	const [loading, setLoading] = useState(loadInitialRows !== undefined);
 	const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 	const [statusMessage, setStatusMessage] = useState<string | null>(null);
 	const [exportPicker, setExportPickerState] =
@@ -119,16 +140,13 @@ function HistoryListContent({
 	};
 
 	useEffect(() => {
-		const loadInitialRows = () => listSessions(50, { hydrate: true });
-		const loadRefreshRows =
-			refreshRows ?? (() => listSessions(50, { hydrate: false }));
 		let disposed = false;
 		let refreshInFlight = false;
 		let interval: ReturnType<typeof setInterval> | undefined;
 
 		const refresh = async (
 			showLoading: boolean,
-			load: () => Promise<SessionHistoryRecord[]>,
+			load: () => Promise<HistorySessionRow[]>,
 		) => {
 			if (refreshInFlight) {
 				return;
@@ -160,20 +178,21 @@ function HistoryListContent({
 			}
 		};
 
-		if (!loadRows && !refreshRows) {
+		if (!loadInitialRows && !refreshRows) {
 			setRows(initialRows ?? []);
 			setLoading(false);
 			return;
 		}
 
-		if (loadRows) {
+		if (loadInitialRows) {
 			void refresh(true, loadInitialRows);
 		} else {
 			setRows(initialRows ?? []);
 			setLoading(false);
 		}
 
-		if (refreshIntervalMs > 0) {
+		const loadRefreshRows = refreshRows ?? loadInitialRows;
+		if (refreshIntervalMs > 0 && loadRefreshRows) {
 			interval = setInterval(() => {
 				void refresh(false, loadRefreshRows);
 			}, refreshIntervalMs);
@@ -185,7 +204,7 @@ function HistoryListContent({
 				clearInterval(interval);
 			}
 		};
-	}, [initialRows, loadRows, refreshIntervalMs, refreshRows]);
+	}, [initialRows, loadInitialRows, refreshIntervalMs, refreshRows]);
 
 	const safeSelected = Math.min(selected, Math.max(0, rows.length - 1));
 	const titleMaxLen = Math.max(20, width - 44);
@@ -501,9 +520,20 @@ function HistoryListContent({
 
 export function HistoryDialogContent(
 	props: ChoiceContext<string> &
-		Pick<HistoryListActions, "onExport" | "onDelete">,
+		Pick<HistoryListActions, "onExport" | "onDelete"> & {
+			loadInitialRows: () => Promise<HistorySessionRow[]>;
+			refreshRows: () => Promise<HistorySessionRow[]>;
+		},
 ) {
-	const { resolve, dismiss, dialogId, onExport, onDelete } = props;
+	const {
+		resolve,
+		dismiss,
+		dialogId,
+		onExport,
+		onDelete,
+		loadInitialRows,
+		refreshRows,
+	} = props;
 	const [keyHandler, setKeyHandler] = useState<
 		((key: HistoryKeyEvent | undefined) => void) | undefined
 	>();
@@ -518,7 +548,8 @@ export function HistoryDialogContent(
 
 	return (
 		<HistoryListContent
-			loadRows
+			loadInitialRows={loadInitialRows}
+			refreshRows={refreshRows}
 			onResolve={resolve}
 			onDismiss={dismiss}
 			onExport={onExport}

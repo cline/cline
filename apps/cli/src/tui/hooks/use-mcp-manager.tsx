@@ -1,13 +1,49 @@
+import {
+	resolveDefaultMcpSettingsPath,
+	setMcpServerDisabled,
+} from "@cline/core";
 import type {
 	InteractiveConfigData,
 	InteractiveConfigItem,
+	McpEntry,
+	McpServerToggleResult,
 } from "@cline/ui/tui";
+import { McpManagerContent } from "@cline/ui/tui";
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import type { DialogActions } from "@opentui-ui/dialog/react";
-import {
-	type McpEntry,
-	McpManagerContent,
-} from "../dialogs/mcp-manager-dialog";
+
+function stringifyError(error: unknown): string {
+	return error instanceof Error ? error.message : String(error);
+}
+
+export function toggleMcpServer(server: McpEntry): McpServerToggleResult {
+	if (server.pluginName) {
+		return {
+			ok: false,
+			message: `MCP server "${server.name}" is managed by plugin "${server.pluginName}". Disable the plugin to disable this server.`,
+		};
+	}
+	try {
+		const currentlyEnabled = server.enabled !== false;
+		setMcpServerDisabled({
+			filePath: server.path,
+			name: server.name,
+			disabled: currentlyEnabled,
+		});
+		return {
+			ok: true,
+			server: {
+				...server,
+				enabled: !currentlyEnabled,
+			},
+		};
+	} catch (error) {
+		return {
+			ok: false,
+			message: `Unable to toggle MCP server "${server.name}": ${stringifyError(error)}`,
+		};
+	}
+}
 
 function toMcpEntries(items: InteractiveConfigItem[]): McpEntry[] {
 	return items.map((item) => ({
@@ -34,7 +70,12 @@ export function createMcpManagerOpener(opts: {
 			style: { maxHeight: opts.termHeight - 2 },
 			closeOnEscape: false,
 			content: (ctx: ChoiceContext<boolean>) => (
-				<McpManagerContent {...ctx} servers={servers} />
+				<McpManagerContent
+					{...ctx}
+					servers={servers}
+					defaultSettingsPath={resolveDefaultMcpSettingsPath()}
+					onToggleServer={toggleMcpServer}
+				/>
 			),
 		});
 		if (changed) {

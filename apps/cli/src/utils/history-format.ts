@@ -1,35 +1,11 @@
 import type { SessionHistoryRecord } from "@cline/core";
 import { formatDisplayUserInput, truncateStr } from "@cline/shared";
-import { shouldShowCliUsageCost } from "@cline/ui/tui/formatting";
-import { formatUsd } from "./output";
+import { formatUsd, shouldShowCliUsageCost } from "@cline/ui/tui/formatting";
 
 export function formatSessionStatusLabel(
 	status: SessionHistoryRecord["status"] | undefined,
 ): string {
 	return status?.trim() || "unknown";
-}
-
-export function mergeHistoryStatusRows(
-	currentRows: SessionHistoryRecord[],
-	refreshedRows: SessionHistoryRecord[],
-): SessionHistoryRecord[] {
-	const currentById = new Map(
-		currentRows.map((row) => [row.sessionId, row] as const),
-	);
-
-	return refreshedRows.map((row) => {
-		const current = currentById.get(row.sessionId);
-		if (!current) {
-			return row;
-		}
-		return {
-			...current,
-			status: row.status,
-			endedAt: row.endedAt,
-			exitCode: row.exitCode,
-			updatedAt: row.updatedAt,
-		};
-	});
 }
 
 function formatHistoryTitle(

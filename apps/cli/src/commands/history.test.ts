@@ -2,12 +2,12 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { SessionHistoryRecord } from "@cline/core";
+import { mergeHistoryStatusRows } from "@cline/ui/tui/formatting";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { exportHistorySession } from "../session/history-export";
 import {
 	formatCheckpointDetail,
 	formatHistoryListLine,
-	mergeHistoryStatusRows,
 	runHistoryExport,
 	runHistoryList,
 } from "./history";

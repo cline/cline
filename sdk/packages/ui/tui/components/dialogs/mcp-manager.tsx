@@ -1,11 +1,9 @@
-import {
-	resolveDefaultMcpSettingsPath,
-	setMcpServerDisabled,
-} from "@cline/core";
-import { useDialogPalette } from "@cline/ui/tui";
+// @jsxImportSource @opentui/react
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialogKeyboard } from "@opentui-ui/dialog/react";
 import { useState } from "react";
+import { useDialogPalette } from "../../hooks/use-theme";
+import { getMcpManagerEntryStatus } from "../../views/config-view-helpers";
 
 export interface McpEntry {
 	name: string;
@@ -20,54 +18,19 @@ export type McpServerToggleResult =
 	| { ok: true; server: McpEntry }
 	| { ok: false; message: string };
 
-function stringifyError(error: unknown): string {
-	return error instanceof Error ? error.message : String(error);
-}
-
 export function getMcpManagerFooterText(hasServers: boolean): string {
 	return hasServers
 		? "Space toggle selected, Esc to go back"
 		: "Esc to go back";
 }
 
-export function getMcpManagerEntryStatus(
-	server: Pick<McpEntry, "description" | "lastError">,
-): string {
-	return server.lastError ? "oauth error" : (server.description ?? "");
-}
-
-export function toggleMcpServer(server: McpEntry): McpServerToggleResult {
-	if (server.pluginName) {
-		return {
-			ok: false,
-			message: `MCP server "${server.name}" is managed by plugin "${server.pluginName}". Disable the plugin to disable this server.`,
-		};
-	}
-	try {
-		const currentlyEnabled = server.enabled !== false;
-		setMcpServerDisabled({
-			filePath: server.path,
-			name: server.name,
-			disabled: currentlyEnabled,
-		});
-		return {
-			ok: true,
-			server: {
-				...server,
-				enabled: !currentlyEnabled,
-			},
-		};
-	} catch (error) {
-		return {
-			ok: false,
-			message: `Unable to toggle MCP server "${server.name}": ${stringifyError(error)}`,
-		};
-	}
-}
-
 export function McpManagerContent(
 	props: ChoiceContext<boolean> & {
 		servers: McpEntry[];
+		/** Shown when no loaded server carries a settings path. */
+		defaultSettingsPath: string;
+		/** Host-side persistence for enabling/disabling a server. */
+		onToggleServer: (server: McpEntry) => McpServerToggleResult;
 	},
 ) {
 	const palette = useDialogPalette();
@@ -76,7 +39,7 @@ export function McpManagerContent(
 	const [changed, setChanged] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 
-	const settingsPath = servers[0]?.path ?? resolveDefaultMcpSettingsPath();
+	const settingsPath = servers[0]?.path ?? props.defaultSettingsPath;
 	const itemCount = servers.length;
 	const selectedServer = servers[selected];
 	const hasPluginOwnedServers = servers.some((server) => server.pluginName);
@@ -103,7 +66,7 @@ export function McpManagerContent(
 			}
 			if (key.name === "space") {
 				const target = servers[selected];
-				const result = target ? toggleMcpServer(target) : undefined;
+				const result = target ? props.onToggleServer(target) : undefined;
 				if (result?.ok) {
 					setServers((current) =>
 						current.map((server, index) =>
