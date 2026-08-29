@@ -44,6 +44,10 @@
 		"./remote-config": {
 			"types": "./dist/remote-config/index.d.ts",
 			"import": "./dist/remote-config/index.js"
+		},
+		"./ui": {
+			"types": "./dist/ui/index.d.ts",
+			"import": "./dist/ui/index.js"
 		}
 	},
 	"files": [

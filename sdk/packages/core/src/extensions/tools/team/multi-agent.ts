@@ -19,7 +19,6 @@ import {
 	type TeamMailboxMessage,
 	type TeamMemberSnapshot,
 	TeamMessageType,
-	type TeammateLifecycleSpec,
 	type TeamOutcome,
 	type TeamOutcomeFragment,
 	type TeamOutcomeStatus,
@@ -30,6 +29,7 @@ import {
 	type TeamTask,
 	type TeamTaskListItem,
 	type TeamTaskStatus,
+	type TeamUiEvent,
 } from "@cline/shared";
 import { nanoid } from "nanoid";
 import { SessionRuntime } from "../../../runtime/orchestration/session-runtime-orchestrator";
@@ -84,7 +84,13 @@ export interface TaskResult {
 
 type TeamTaskEndStatus = "completed" | "failed" | "cancelled";
 
+/**
+ * Full runtime team event union: the presentation-facing subset
+ * (`TeamUiEvent`, canonical in @cline/shared) plus runtime-internal members
+ * that embed @cline/agents payloads and therefore cannot live in shared.
+ */
 export type TeamEvent =
+	| TeamUiEvent
 	| { type: TeamMessageType.TaskStart; agentId: string; message: string }
 	| {
 			type: TeamMessageType.TaskEnd;
@@ -94,38 +100,7 @@ export type TeamEvent =
 			error?: Error;
 			messages?: AgentResult["messages"];
 	  }
-	| { type: TeamMessageType.AgentEvent; agentId: string; event: AgentEvent }
-	| {
-			type: TeamMessageType.TeammateSpawned;
-			agentId: string;
-			role?: string;
-			teammate: TeammateLifecycleSpec;
-	  }
-	| { type: TeamMessageType.TeammateShutdown; agentId: string; reason?: string }
-	| { type: TeamMessageType.TeamTaskUpdated; task: TeamTask }
-	| { type: TeamMessageType.TeamMessage; message: TeamMailboxMessage }
-	| { type: TeamMessageType.TeamMissionLog; entry: MissionLogEntry }
-	| { type: TeamMessageType.RunQueued; run: TeamRunRecord }
-	| { type: TeamMessageType.RunStarted; run: TeamRunRecord }
-	| { type: TeamMessageType.RunProgress; run: TeamRunRecord; message: string }
-	| { type: TeamMessageType.RunCompleted; run: TeamRunRecord }
-	| { type: TeamMessageType.RunFailed; run: TeamRunRecord }
-	| { type: TeamMessageType.RunCancelled; run: TeamRunRecord; reason?: string }
-	| {
-			type: TeamMessageType.RunInterrupted;
-			run: TeamRunRecord;
-			reason?: string;
-	  }
-	| { type: TeamMessageType.OutcomeCreated; outcome: TeamOutcome }
-	| {
-			type: TeamMessageType.OutcomeFragmentAttached;
-			fragment: TeamOutcomeFragment;
-	  }
-	| {
-			type: TeamMessageType.OutcomeFragmentReviewed;
-			fragment: TeamOutcomeFragment;
-	  }
-	| { type: TeamMessageType.OutcomeFinalized; outcome: TeamOutcome };
+	| { type: TeamMessageType.AgentEvent; agentId: string; event: AgentEvent };
 
 export interface AgentTeamsRuntimeOptions {
 	teamName: string;

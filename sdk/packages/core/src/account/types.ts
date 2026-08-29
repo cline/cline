@@ -1,3 +1,5 @@
+import type { ClineSubscriptionPlan } from "@cline/shared";
+
 export interface ClineAccountOrganization {
 	active: boolean;
 	memberId: string;
@@ -83,19 +85,9 @@ export interface FeaturebaseTokenResponse {
 	featurebaseJwt: string;
 }
 
-export interface ClineSubscriptionPlan {
-	displayName?: string;
-	features?: {
-		included?: string[];
-		[key: string]: unknown;
-	};
-	id?: string;
-	interval?: string;
-	name?: string;
-	pricePerSeatCents?: number;
-	type?: string;
-	[key: string]: unknown;
-}
+// Canonical definition lives in the shared UI contracts (@cline/shared/ui)
+// so presentation packages can consume it without depending on @cline/core.
+export type { ClineSubscriptionPlan } from "@cline/shared";
 
 export interface UserCurrentPlan {
 	cancelAt?: string;

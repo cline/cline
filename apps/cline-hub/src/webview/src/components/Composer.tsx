@@ -1,3 +1,8 @@
+import type {
+	UiChatAttachments,
+	UiModelInfo,
+	UiReasonLevel,
+} from "@cline/shared";
 import {
 	CheckIcon,
 	HatGlassesIcon,
@@ -54,12 +59,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import type {
-	WebviewChatAttachments,
-	WebviewOutboundMessage,
-	WebviewProviderModel,
-	WebviewReasonLevel,
-} from "../../../webview-protocol";
+import type { WebviewOutboundMessage } from "../../../webview-protocol";
 
 type ProviderOption = Extract<
 	WebviewOutboundMessage,
@@ -113,7 +113,7 @@ function ComposerSettings({
 	maxIterations: string;
 	model: string;
 	modelSelectorOpen: boolean;
-	models: WebviewProviderModel[];
+	models: UiModelInfo[];
 	onAutoApproveToolsChange: (value: boolean) => void;
 	onEnableSpawnChange: (value: boolean) => void;
 	onEnableTeamsChange: (value: boolean) => void;
@@ -337,7 +337,7 @@ export function Composer({
 	model: string;
 	mode: "act" | "plan";
 	modelSelectorOpen: boolean;
-	models: WebviewProviderModel[];
+	models: UiModelInfo[];
 	onAbort: () => void;
 	onAutoApproveToolsChange: (value: boolean) => void;
 	onEnableSpawnChange: (value: boolean) => void;
@@ -350,17 +350,17 @@ export function Composer({
 	onProviderChange: (value: string) => void;
 	onSend: (input: {
 		prompt: string;
-		attachments?: WebviewChatAttachments;
+		attachments?: UiChatAttachments;
 		attachmentCount: number;
 	}) => void;
 	onSystemPromptChange: (value: string) => void;
-	onReasonLevelChange: (value: WebviewReasonLevel) => void;
+	onReasonLevelChange: (value: UiReasonLevel) => void;
 	provider: string;
 	providers: ProviderOption[];
 	sending: boolean;
 	status: string;
 	systemPrompt: string;
-	reasonLevel: WebviewReasonLevel;
+	reasonLevel: UiReasonLevel;
 	workspaceRoot: string;
 }) {
 	const [settingsOpen, setSettingsOpen] = useState(false);
@@ -390,7 +390,7 @@ export function Composer({
 						return;
 					}
 
-					let attachments: WebviewChatAttachments | undefined;
+					let attachments: UiChatAttachments | undefined;
 					if (message.files.length > 0) {
 						const userImages = (
 							await Promise.all(

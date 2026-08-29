@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
 import type { CoreSessionEvent } from "@cline/core";
+import { describe, expect, it, vi } from "vitest";
 import type { HubContext } from "./state";
 
 // agent-events.ts only needs these siblings at runtime; mocking them keeps the

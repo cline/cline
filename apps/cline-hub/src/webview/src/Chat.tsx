@@ -1,5 +1,15 @@
 "use client";
 
+import type {
+	UiChatAttachments,
+	UiChatMessage,
+	UiChatMessageBlock,
+	UiDefaults,
+	UiModelInfo,
+	UiReasonLevel,
+	UiSessionSummary,
+	UiToolEvent,
+} from "@cline/shared";
 import type { GeneratedMedia } from "@cline/shared/browser";
 import { GeneratedMediaContent } from "@cline/ui";
 import {
@@ -50,23 +60,13 @@ import {
 import TeamTasks, { type TeamToolEvent } from "@/components/TeamTasks";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import type {
-	WebviewChatAttachments,
-	WebviewChatMessage,
-	WebviewChatMessageBlock,
-	WebviewDefaults,
-	WebviewOutboundMessage,
-	WebviewProviderModel,
-	WebviewReasonLevel,
-	WebviewSessionSummary,
-	WebviewToolEvent,
-} from "../../webview-protocol";
+import type { WebviewOutboundMessage } from "../../webview-protocol";
 import { Composer } from "./components/Composer";
 import { getVsCodeApi, postToHost } from "./vscode";
 
-type ChatMessage = WebviewChatMessage;
-type ChatMessageBlock = WebviewChatMessageBlock;
-type ToolEvent = NonNullable<WebviewChatMessage["toolEvents"]>[number];
+type ChatMessage = UiChatMessage;
+type ChatMessageBlock = UiChatMessageBlock;
+type ToolEvent = NonNullable<UiChatMessage["toolEvents"]>[number];
 type ProviderOption = Extract<
 	WebviewOutboundMessage,
 	{ type: "providers" }
@@ -132,7 +132,7 @@ function createMessage(
 
 function buildUserMessageLabel(
 	prompt: string,
-	attachments?: WebviewChatAttachments,
+	attachments?: UiChatAttachments,
 	attachmentCount = 0,
 ): string {
 	const resolvedCount =
@@ -461,7 +461,7 @@ function deriveToolState(text: string): ToolEvent["state"] {
 }
 
 function mapToolEventState(
-	event?: WebviewToolEvent,
+	event?: UiToolEvent,
 	fallbackText?: string,
 ): ToolEvent["state"] {
 	if (event?.status === "failed") {
@@ -509,7 +509,7 @@ function upsertToolEvent(events: ToolEvent[], next: ToolEvent): ToolEvent[] {
 function appendToolEvent(
 	current: ChatMessage[],
 	text: string,
-	event: WebviewToolEvent | undefined,
+	event: UiToolEvent | undefined,
 	activeAssistantIdRef: MutableRefObject<string | undefined>,
 ): ChatMessage[] {
 	const activeAssistantId = activeAssistantIdRef.current;
@@ -712,7 +712,7 @@ function finalizeAssistantTurn(
 	];
 }
 
-function formatSessionLabel(session: WebviewSessionSummary): string {
+function formatSessionLabel(session: UiSessionSummary): string {
 	const title = session.title?.trim() || session.sessionId.slice(0, 12);
 	const workspaceName = session.workspaceRoot?.trim()
 		? session.workspaceRoot.trim().split("/").pop()
@@ -749,13 +749,13 @@ export default function Chat({
 	const [sending, setSending] = useState(false);
 	const [providers, setProviders] = useState<ProviderOption[]>([]);
 	const [modelsByProvider, setModelsByProvider] = useState<
-		Record<string, WebviewProviderModel[]>
+		Record<string, UiModelInfo[]>
 	>({});
-	const [defaults, setDefaults] = useState<WebviewDefaults>({
+	const [defaults, setDefaults] = useState<UiDefaults>({
 		workspaceRoot: "",
 		cwd: "",
 	});
-	const [sessions, setSessions] = useState<WebviewSessionSummary[]>([]);
+	const [sessions, setSessions] = useState<UiSessionSummary[]>([]);
 	const [sessionTitleDraft, setSessionTitleDraft] = useState("");
 	const [lastSelection, setLastSelection] =
 		useState<ModelSelectionStorage>(readModelSelection);
@@ -766,7 +766,7 @@ export default function Chat({
 	const [systemPrompt, setSystemPrompt] = useState("");
 	const [maxIterations, setMaxIterations] = useState("");
 	const [mode, setMode] = useState<"act" | "plan">("act");
-	const [reasonLevel, setReasonLevel] = useState<WebviewReasonLevel>("none");
+	const [reasonLevel, setReasonLevel] = useState<UiReasonLevel>("none");
 	const [enableTools, setEnableTools] = useState(true);
 	const [enableSpawn, setEnableSpawn] = useState(false);
 	const [enableTeams, setEnableTeams] = useState(true);

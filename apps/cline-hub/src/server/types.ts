@@ -1,9 +1,6 @@
 import type { SaveProviderSettingsActionRequest } from "@cline/core";
-import type { ToolApprovalResult } from "@cline/shared";
-import type {
-	WebviewInboundMessage,
-	WebviewReasonLevel,
-} from "../webview-protocol";
+import type { ToolApprovalResult, UiReasonLevel } from "@cline/shared";
+import type { WebviewInboundMessage } from "../webview-protocol";
 
 export type BrowserFrame = WebviewInboundMessage | { type: "restart_hub" };
 
@@ -66,4 +63,4 @@ export type PendingToolApproval = {
 
 export type JsonRecord = Record<string, unknown>;
 
-export type { WebviewReasonLevel };
+export type { UiReasonLevel };

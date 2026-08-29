@@ -38,29 +38,16 @@ export interface SessionTeamProgressEvent {
 	summary: import("@cline/shared").TeamProgressSummary;
 }
 
-export interface SessionPendingPrompt {
-	id: string;
-	prompt: string;
-	delivery: "queue" | "steer";
-	attachmentCount: number;
-	userImages?: string[];
-	userFiles?: string[];
-}
+// Canonical pending-prompt shapes live in the shared UI protocol
+// (@cline/shared/ui); these session-scoped names are core's stable API for
+// the same wire payloads.
+export type SessionPendingPrompt = import("@cline/shared").UiPendingPrompt;
 
-export interface SessionPendingPromptsEvent {
-	sessionId: string;
-	prompts: SessionPendingPrompt[];
-}
+export type SessionPendingPromptsEvent =
+	import("@cline/shared").UiPendingPromptsState;
 
-export interface SessionPendingPromptSubmittedEvent {
-	sessionId: string;
-	id: string;
-	prompt: string;
-	delivery: "queue" | "steer";
-	attachmentCount: number;
-	userImages?: string[];
-	userFiles?: string[];
-}
+export type SessionPendingPromptSubmittedEvent =
+	import("@cline/shared").UiPendingPromptSubmitted;
 
 export interface SessionSnapshotEvent {
 	sessionId: string;

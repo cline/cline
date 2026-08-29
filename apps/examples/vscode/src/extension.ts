@@ -37,11 +37,11 @@ import { displayName, version } from "../package.json";
 import { createVsCodeRuntimeCapabilities } from "./runtime-capabilities";
 import { createVscodeTelemetry } from "./telemetry";
 import type {
-	WebviewChatMessage,
-	WebviewInboundMessage,
-	WebviewOutboundMessage,
-	WebviewSessionSummary,
-} from "./webview-protocol";
+	UiChatMessage,
+	UiInboundMessage,
+	UiOutboundMessage,
+	UiSessionSummary,
+} from "@cline/shared";
 
 const SESSION_REFRESH_INTERVAL_MS = 4_000;
 const SESSION_HISTORY_LIMIT = 50;
@@ -354,10 +354,10 @@ function createVsCodeTerminalTool(defaultCwd: string): AgentTool {
 
 function readCheckpointEntriesByRunCount(
 	value: unknown,
-): Map<number, NonNullable<WebviewChatMessage["checkpoint"]>> {
+): Map<number, NonNullable<UiChatMessage["checkpoint"]>> {
 	const entries = new Map<
 		number,
-		NonNullable<WebviewChatMessage["checkpoint"]>
+		NonNullable<UiChatMessage["checkpoint"]>
 	>();
 	const history = asRecord(value)?.history;
 	if (!Array.isArray(history)) return entries;
@@ -390,10 +390,10 @@ function readCheckpointEntriesByRunCount(
 export function mapPersistedMessagesToWebviewMessages(
 	messages: MessageWithMetadata[],
 	checkpointMetadata?: unknown,
-): WebviewChatMessage[] {
+): UiChatMessage[] {
 	const checkpointsByRunCount =
 		readCheckpointEntriesByRunCount(checkpointMetadata);
-	const mapped: WebviewChatMessage[] = [];
+	const mapped: UiChatMessage[] = [];
 	const toolLocations = new Map<
 		string,
 		{ messageIndex: number; blockIndex: number }
@@ -406,10 +406,10 @@ export function mapPersistedMessagesToWebviewMessages(
 		const textParts: string[] = [];
 		const reasoningParts: string[] = [];
 		let reasoningRedacted = false;
-		const blocks: NonNullable<WebviewChatMessage["blocks"]> = [];
+		const blocks: NonNullable<UiChatMessage["blocks"]> = [];
 		const toolEvents = new Map<
 			string,
-			NonNullable<WebviewChatMessage["toolEvents"]>[number]
+			NonNullable<UiChatMessage["toolEvents"]>[number]
 		>();
 		const currentToolBlockIndexes = new Map<string, number>();
 		const userRunSpan = getUserRunSpan(message);
@@ -660,7 +660,7 @@ class CoreChatWebviewController implements vscode.Disposable {
 	) {
 		this.logger = createOutputChannelLogger(outputChannel);
 		this.disposables.push(
-			this.webview.onDidReceiveMessage((message: WebviewInboundMessage) => {
+			this.webview.onDidReceiveMessage((message: UiInboundMessage) => {
 				void this.handleMessage(message);
 			}),
 		);
@@ -709,7 +709,7 @@ class CoreChatWebviewController implements vscode.Disposable {
 		}
 	}
 
-	private async handleMessage(message: WebviewInboundMessage): Promise<void> {
+	private async handleMessage(message: UiInboundMessage): Promise<void> {
 		switch (message.type) {
 			case "ready":
 				return this.initialize();
@@ -1009,7 +1009,7 @@ class CoreChatWebviewController implements vscode.Disposable {
 					(parseSessionTimestamp(a.updatedAt) ?? 0),
 			)
 			.map(
-				(session): WebviewSessionSummary => ({
+				(session): UiSessionSummary => ({
 					sessionId: session.sessionId,
 					title:
 						typeof session.metadata?.title === "string"
@@ -1621,7 +1621,7 @@ class CoreChatWebviewController implements vscode.Disposable {
 		}
 	}
 
-	private async post(message: WebviewOutboundMessage): Promise<void> {
+	private async post(message: UiOutboundMessage): Promise<void> {
 		await this.webview.postMessage(message);
 	}
 
