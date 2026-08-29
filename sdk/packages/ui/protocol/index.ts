@@ -37,4 +37,4 @@ export {
 	reduceUiMessage,
 	type UiTranscriptBlock,
 	type UiTranscriptState,
-} from "./transcript";
+} from "./transcript.js";
