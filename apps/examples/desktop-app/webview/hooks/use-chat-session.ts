@@ -2110,16 +2110,20 @@ export function useChatSession() {
 					if (activeSessionIdRef.current !== targetSessionId) return;
 					if (turnEpochRef.current !== rehydrationEpoch) return;
 					const nextStatus = record.status?.trim();
+					// A locally submitted turn owns status and live routing until its RPC
+					// settles. A reconnect snapshot may describe the preceding turn.
+					const localSubmissionActive = activePromptSubmissionsRef.current > 0;
+					const snapshotBusy =
+						nextStatus === "running" || nextStatus === "pending";
 					applyCloudSnapshotMessages({
 						sessionId: targetSessionId,
 						messages: rehydratedMessages,
 						transcriptKnown: record.transcriptKnown,
-						preserveUnmatchedLive:
-							nextStatus === "running" || nextStatus === "pending",
-						preserveLiveRouting:
-							nextStatus === "running" || nextStatus === "pending",
+						preserveUnmatchedLive: snapshotBusy || localSubmissionActive,
+						preserveLiveRouting: snapshotBusy || localSubmissionActive,
 					});
-					if (nextStatus !== "running" && nextStatus !== "pending") {
+					if (!snapshotBusy && localSubmissionActive) return;
+					if (!snapshotBusy) {
 						clearLiveToolRefs();
 					}
 					const mappedStatus = mapCloudRuntimeStatus(nextStatus);

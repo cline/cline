@@ -4366,6 +4366,39 @@ describe("coerced-queue first turn vs stale send response", () => {
 		expect(current.status).toBe("completed");
 	});
 
+	it("keeps a local submission authoritative over a stale terminal rehydration", async () => {
+		const sendResolvers = mockTransport();
+		const { sendPromise } = await dispatchPrompt("Continue working");
+		const rehydratedHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "cloud_session_rehydrated",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+		const sid = current.sessionId;
+		expect(rehydratedHandler).toBeDefined();
+		expect(current.status).toBe("starting");
+
+		await act(async () => {
+			rehydratedHandler?.({
+				sessionId: sid,
+				status: "completed",
+				transcriptKnown: true,
+				messages: [],
+			});
+		});
+
+		expect(current.status).toBe("starting");
+		expect(
+			current.messages.some(
+				(message) =>
+					message.role === "user" && message.content === "Continue working",
+			),
+		).toBe(true);
+
+		await act(async () => {
+			sendResolvers[0]?.({ sessionId: sid, ok: true, queued: true });
+			await sendPromise;
+		});
+	});
+
 	it("ignores a rehydration read that resolves after a new turn starts", async () => {
 		mockTransport({ deferredSendCount: 0 });
 		const transport = invokeMock.getMockImplementation();
