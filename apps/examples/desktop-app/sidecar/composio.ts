@@ -83,6 +83,10 @@ type PendingConnection = {
 	connectedAccountId: string;
 	redirectUrl?: string;
 	startedAt: number;
+	/** The key/user the attempt was started under; finalization is dropped if
+	 * either changed while the browser flow was in flight. */
+	apiKey: string;
+	userId: string;
 };
 
 type ComposioConnectionRequest = {
@@ -164,6 +168,9 @@ type ComposioClient = {
 
 const pendingConnections = new Map<ComposioToolkitSlug, PendingConnection>();
 const lastConnectionErrors = new Map<ComposioToolkitSlug, string>();
+/** When each toolkit was last disconnected, so state snapshots taken before
+ * the disconnect cannot write it back. */
+const lastDisconnectedAt = new Map<ComposioToolkitSlug, number>();
 
 /** Usage-ranked toolkit catalog, cached per key since it changes rarely. */
 const CATALOG_TTL_MS = 60 * 60 * 1000;
@@ -365,7 +372,7 @@ function reconcileEnvApiKey(
 	}
 	if (changed) {
 		writeComposioState(state);
-		syncComposioPluginFile(state, logger);
+		syncComposioPluginFileQuietly(state, logger);
 		logger?.log?.(
 			state.apiKey
 				? "composio api key adopted from COMPOSIO_API_KEY environment variable"
@@ -445,6 +452,7 @@ export async function getComposioStatus(options?: {
 	// Reconcile with Composio: connections can be revoked (or added) from the
 	// Composio dashboard without this app knowing.
 	try {
+		const refreshStartedAt = Date.now();
 		const client = await getComposioClient(state.apiKey);
 		const accounts = await client.connectedAccounts.list({
 			userIds: [state.userId],
@@ -470,7 +478,10 @@ export async function getComposioStatus(options?: {
 			} else if (
 				remoteAccountId &&
 				(!stored || stored.connectedAccountId !== remoteAccountId) &&
-				!pendingConnections.has(slug)
+				!pendingConnections.has(slug) &&
+				// The remote snapshot predates a local disconnect of this
+				// toolkit; writing it back would resurrect the connection.
+				(lastDisconnectedAt.get(slug) ?? 0) < refreshStartedAt
 			) {
 				toolkits[slug] = {
 					connectedAccountId: remoteAccountId,
@@ -482,9 +493,21 @@ export async function getComposioStatus(options?: {
 			}
 		}
 		if (changed) {
-			state.toolkits = toolkits;
-			writeComposioState(state);
-			syncComposioPluginFile(state, options?.logger);
+			// Re-read before writing: the tool fetches above are slow enough
+			// for a disconnect or key change to have landed meanwhile.
+			const fresh = readComposioState();
+			if (fresh.apiKey !== state.apiKey || fresh.userId !== state.userId) {
+				return buildStatusResponse(fresh);
+			}
+			for (const slug of slugsToReconcile) {
+				if ((lastDisconnectedAt.get(slug) ?? 0) >= refreshStartedAt) {
+					delete toolkits[slug];
+				}
+			}
+			fresh.toolkits = toolkits;
+			writeComposioState(fresh);
+			syncComposioPluginFileQuietly(fresh, options?.logger);
+			return buildStatusResponse(fresh);
 		}
 	} catch (error) {
 		options?.logger?.log?.(
@@ -644,13 +667,26 @@ export async function setComposioApiKey(
 		);
 	}
 	const state = readComposioState();
+	if (state.apiKey !== trimmed) {
+		// In-flight OAuth attempts belong to the previous key's Composio
+		// project; finalizing them under the new key would bind foreign
+		// accounts to it.
+		pendingConnections.clear();
+		lastConnectionErrors.clear();
+	}
 	state.apiKey = trimmed;
 	state.apiKeySource = "user";
 	if (!state.userId) {
 		state.userId = `cline-desktop-${randomUUID()}`;
 	}
 	writeComposioState(state);
-	syncComposioPluginFile(state, logger);
+	try {
+		syncComposioPluginFile(state);
+	} catch (error) {
+		throw new Error(
+			`The key was saved, but updating the local tools plugin failed: ${error instanceof Error ? error.message : String(error)}`,
+		);
+	}
 	return await getComposioStatus({ refresh: true, logger });
 }
 
@@ -670,7 +706,13 @@ export async function clearComposioApiKey(
 	lastConnectionErrors.clear();
 	cachedClient = null;
 	catalogCache = null;
-	syncComposioPluginFile(state, logger);
+	try {
+		syncComposioPluginFile(state);
+	} catch (error) {
+		throw new Error(
+			`The key was removed, but deleting the local tools plugin failed: ${error instanceof Error ? error.message : String(error)}. Its tools may remain available to new sessions.`,
+		);
+	}
 	// A COMPOSIO_API_KEY env var immediately takes over as the fallback key;
 	// the response reflects that so the UI shows the environment source.
 	reconcileEnvApiKey(state, logger);
@@ -712,6 +754,7 @@ export async function connectComposioToolkit(
 		);
 	}
 	const redirectUrl = connectionRequest.redirectUrl?.trim() || undefined;
+	const guard = { apiKey: state.apiKey, userId: state.userId };
 	if (!redirectUrl) {
 		// No browser step needed (e.g. the account is already authorized on
 		// Composio's side) — finalize right away.
@@ -719,6 +762,7 @@ export async function connectComposioToolkit(
 			client,
 			toolkit,
 			connectionRequest.id,
+			guard,
 			logger,
 		);
 		return {
@@ -733,6 +777,7 @@ export async function connectComposioToolkit(
 		connectedAccountId: connectionRequest.id,
 		redirectUrl,
 		startedAt: Date.now(),
+		...guard,
 	});
 
 	// The OAuth flow finishes in the external browser, which cannot navigate
@@ -744,10 +789,14 @@ export async function connectComposioToolkit(
 			if (pendingConnections.get(toolkit)?.attemptId !== attemptId) {
 				return; // Cancelled or superseded while we waited.
 			}
+			// finalizeToolkitConnection re-checks the attempt and the key/user
+			// at write time, so a cancel, disconnect, or key change that lands
+			// during the tool fetch cannot be overwritten by this attempt.
 			await finalizeToolkitConnection(
 				client,
 				toolkit,
 				connectionRequest.id,
+				{ ...guard, attemptId },
 				logger,
 			);
 		} catch (error) {
@@ -797,8 +846,15 @@ export async function disconnectComposioToolkit(
 	if (state.toolkits) {
 		delete state.toolkits[toolkit];
 	}
+	lastDisconnectedAt.set(toolkit, Date.now());
 	writeComposioState(state);
-	syncComposioPluginFile(state, logger);
+	try {
+		syncComposioPluginFile(state);
+	} catch (error) {
+		throw new Error(
+			`The connector was removed, but updating the local tools plugin failed: ${error instanceof Error ? error.message : String(error)}. Its tools may remain available to new sessions.`,
+		);
+	}
 	return buildStatusResponse(state);
 }
 
@@ -838,14 +894,42 @@ async function fetchToolkitTools(
 	return tools;
 }
 
+type FinalizeGuard = {
+	/** Present for browser-flow attempts; the pending entry must still carry
+	 * this id at write time (cancel/disconnect/key changes clear it). */
+	attemptId?: string;
+	/** The key/user the connection was initiated under. */
+	apiKey: string;
+	userId: string;
+};
+
 async function finalizeToolkitConnection(
 	client: ComposioClient,
 	toolkit: ComposioToolkitSlug,
 	connectedAccountId: string,
+	guard: FinalizeGuard,
 	logger?: BasicLogger,
 ): Promise<void> {
 	const tools = await fetchToolkitTools(client, toolkit);
+	// Everything below runs synchronously (no awaits), so these write-time
+	// checks cannot be raced by a cancel, disconnect, or key change that
+	// happened while the tool fetch (or the browser flow) was in flight.
+	if (
+		guard.attemptId &&
+		pendingConnections.get(toolkit)?.attemptId !== guard.attemptId
+	) {
+		logger?.log?.(
+			`composio connect ${toolkit}: attempt superseded before finalize; dropping result`,
+		);
+		return;
+	}
 	const state = readComposioState();
+	if (state.apiKey !== guard.apiKey || state.userId !== guard.userId) {
+		logger?.log?.(
+			`composio connect ${toolkit}: API key or user changed mid-flow; dropping stale connection`,
+		);
+		return;
+	}
 	state.toolkits = {
 		...(state.toolkits ?? {}),
 		[toolkit]: {
@@ -856,8 +940,20 @@ async function finalizeToolkitConnection(
 		},
 	};
 	writeComposioState(state);
-	syncComposioPluginFile(state, logger);
 	logger?.log?.(`composio connected ${toolkit} with ${tools.length} tool(s)`);
+	try {
+		syncComposioPluginFile(state);
+	} catch (error) {
+		// The connection is recorded, but without the plugin file new sessions
+		// get no tools — keep the connector marked connected and surface why
+		// the tools are missing.
+		const reason = error instanceof Error ? error.message : String(error);
+		lastConnectionErrors.set(
+			toolkit,
+			`Connected, but writing the local tools plugin failed: ${reason}. New sessions will not see these tools until it succeeds.`,
+		);
+		logger?.log?.(`composio plugin sync failed after connect: ${reason}`);
+	}
 }
 
 // ── Plugin materialization ───────────────────────────────────────────────
@@ -870,23 +966,35 @@ export function resolveComposioPluginPath(): string {
 	);
 }
 
-function syncComposioPluginFile(
-	state: StoredComposioState,
-	logger?: BasicLogger,
-): void {
+/**
+ * Creates or removes the Hub-loaded plugin file to match the persisted state.
+ * Throws on filesystem failure — callers on user-initiated paths surface the
+ * error (a swallowed failure would report a connector as installed while new
+ * sessions receive no tools); passive read paths use
+ * {@link syncComposioPluginFileQuietly}.
+ */
+function syncComposioPluginFile(state: StoredComposioState): void {
 	const pluginPath = resolveComposioPluginPath();
 	const hasConnectedToolkit =
 		Boolean(state.apiKey) &&
 		Object.values(state.toolkits ?? {}).some(
 			(toolkit) => toolkit && toolkit.tools.length > 0,
 		);
+	if (!hasConnectedToolkit) {
+		rmSync(pluginPath, { force: true });
+		return;
+	}
+	mkdirSync(dirname(pluginPath), { recursive: true });
+	writeFileSync(pluginPath, COMPOSIO_PLUGIN_SOURCE);
+}
+
+/** For status-read reconciliation, which must not throw: log and move on. */
+function syncComposioPluginFileQuietly(
+	state: StoredComposioState,
+	logger?: BasicLogger,
+): void {
 	try {
-		if (!hasConnectedToolkit) {
-			rmSync(pluginPath, { force: true });
-			return;
-		}
-		mkdirSync(dirname(pluginPath), { recursive: true });
-		writeFileSync(pluginPath, COMPOSIO_PLUGIN_SOURCE);
+		syncComposioPluginFile(state);
 	} catch (error) {
 		logger?.log?.(
 			`composio plugin sync failed: ${error instanceof Error ? error.message : String(error)}`,
