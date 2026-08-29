@@ -33,6 +33,7 @@
 		"@base-ui/react": "^1.2.0",
 		"@cline/core": "workspace:*",
 		"@cline/llms": "workspace:*",
+		"@composio/core": "^0.18.0",
 		"@cline/shared": "workspace:*",
 		"@cline/ui": "workspace:*",
 		"@fontsource-variable/geist-mono": "^5.2.8",
