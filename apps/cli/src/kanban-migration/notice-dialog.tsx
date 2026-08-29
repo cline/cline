@@ -7,7 +7,7 @@ import {
 	type DialogDismissKey,
 	isAnyKeyDismiss,
 } from "../tui/utils/dialog-keys";
-import { getCliSubscriptionUrl } from "../utils/cline-pass-errors";
+import { getCliSubscriptionUrl } from "@cline/ui/tui/formatting";
 import open from "../utils/open";
 import type { CliMigrationNotice } from "./notice";
 

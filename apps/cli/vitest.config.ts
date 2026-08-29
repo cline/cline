@@ -8,6 +8,27 @@ export default defineConfig({
 	resolve: {
 		alias: [
 			{
+				find: /^@cline\/ui\/tui$/,
+				replacement: resolve(
+					rootDir,
+					"../../sdk/packages/ui/tui/index.tsx",
+				),
+			},
+			{
+				find: /^@cline\/ui\/tui\/formatting$/,
+				replacement: resolve(
+					rootDir,
+					"../../sdk/packages/ui/tui/formatting/index.ts",
+				),
+			},
+			{
+				find: /^@cline\/ui\/protocol$/,
+				replacement: resolve(
+					rootDir,
+					"../../sdk/packages/ui/protocol/index.ts",
+				),
+			},
+			{
 				find: /^@cline\/core\/telemetry$/,
 				replacement: resolve(
 					rootDir,

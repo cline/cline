@@ -35,7 +35,7 @@ import { getPersistedProviderApiKey } from "../commands/auth";
 import { resolveSystemPrompt } from "../runtime/prompt";
 import { subscribeToAgentEvents } from "../runtime/session-events";
 import { createCliCore } from "../session/session";
-import { isClineOrgIndividualInferenceSubscriptionErrorMessage } from "../utils/cline-pass-errors";
+import { isClineOrgIndividualInferenceSubscriptionErrorMessage } from "@cline/ui/tui/formatting";
 import { getCliBuildInfo } from "../utils/common";
 import { randomSessionId, resolveWorkspaceRoot } from "../utils/helpers";
 import type { Config } from "../utils/types";

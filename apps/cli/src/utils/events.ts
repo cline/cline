@@ -2,10 +2,10 @@ import type { AgentEvent, TeamEvent } from "@cline/core";
 import {
 	formatCompactionDividerLabel,
 	parseCompactionNoticeMetadata,
-} from "../tui/utils/compaction-status";
-import { formatCliErrorMessage } from "./cline-pass-errors";
-import { materializeGeneratedMedia } from "./generated-media";
-import { formatToolInput, formatToolOutput, truncate } from "./helpers";
+} from "@cline/ui/tui/formatting";
+import { formatCliErrorMessage } from "@cline/ui/tui/formatting";
+import { materializeGeneratedMedia } from "@cline/ui/tui/formatting";
+import { formatToolInput, formatToolOutput, truncate } from "@cline/ui/tui/formatting";
 import {
 	c,
 	emitJsonLine,

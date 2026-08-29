@@ -9,13 +9,14 @@ import type {
 	ToolPolicy,
 } from "@cline/core";
 import type { Message } from "@cline/shared";
+import type { CliCompactionMode } from "@cline/ui/tui/formatting";
 
 export type CliOutputMode = "text" | "json";
 export type CliAgentMode = AgentMode;
 export type CliReasoningEffort = NonNullable<
 	NonNullable<ProviderSettings["reasoning"]>["effort"]
 >;
-export type CliCompactionMode = "agentic" | "basic" | "off";
+export type { CliCompactionMode } from "@cline/ui/tui/formatting";
 
 export interface Config extends Omit<CoreSessionConfig, "apiKey" | "mode"> {
 	apiKey: string;

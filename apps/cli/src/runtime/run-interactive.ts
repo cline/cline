@@ -30,7 +30,7 @@ import {
 import { disableOpenTuiGraphicsProbe } from "../tui/opentui-env";
 import type { QueuedPromptItem, TuiStartupTarget } from "../tui/types";
 import { type ChatCommandState, chatCommandHost } from "../utils/chat-commands";
-import { applyCliCompactionMode } from "../utils/compaction-mode";
+import { applyCliCompactionMode } from "@cline/ui/tui/formatting";
 import {
 	shouldZeroClineFreeModelCost,
 	zeroCliAgentEventCost,

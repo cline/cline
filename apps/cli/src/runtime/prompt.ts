@@ -9,7 +9,7 @@ import {
 	type UserInstructionConfigService,
 } from "@cline/core";
 import { type AgentMode, buildClineSystemPrompt } from "@cline/shared";
-import { isImagePath, loadImageAsDataUrl } from "../utils/image-attachments";
+import { isImagePath, loadImageAsDataUrl } from "@cline/ui/tui/formatting";
 
 export async function resolveSystemPrompt(input: {
 	cwd: string;

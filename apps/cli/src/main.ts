@@ -22,7 +22,7 @@ import { getCliBuildInfo } from "./utils/common";
 import {
 	buildCliCompactionConfig,
 	CLI_COMPACTION_MODE_EXPECTED_TEXT,
-} from "./utils/compaction-mode";
+} from "@cline/ui/tui/formatting";
 import {
 	refreshCliFeatureFlagsInBackground,
 	setCliFeatureFlagsAccountContext,

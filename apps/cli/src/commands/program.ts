@@ -3,7 +3,7 @@ import { version } from "../../package.json";
 import {
 	CLI_COMPACTION_MODE_OPTION_DESCRIPTION,
 	parseCliCompactionMode,
-} from "../utils/compaction-mode";
+} from "@cline/ui/tui/formatting";
 import type { ParsedArgs } from "../utils/types";
 
 export { CommanderError };

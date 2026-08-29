@@ -37,6 +37,18 @@
 			"import": "./dist/components/markdown.js"
 		},
 		"./components/markdown.css": "./components/markdown.css",
+		"./protocol": {
+			"types": "./dist/protocol/index.d.ts",
+			"import": "./dist/protocol/index.js"
+		},
+		"./tui": {
+			"types": "./dist/tui/index.d.ts",
+			"import": "./dist/tui/index.js"
+		},
+		"./tui/formatting": {
+			"types": "./dist/tui/formatting/index.d.ts",
+			"import": "./dist/tui/formatting/index.js"
+		},
 		"./theme/index.css": "./theme/index.css",
 		"./theme/palette.css": "./theme/palette.css",
 		"./theme/scoped-tokens.css": "./theme/scoped-tokens.css",
@@ -99,26 +111,43 @@
 	],
 	"license": "Apache-2.0",
 	"scripts": {
-		"build": "bun run check:theme-generated && bun scripts/validate-theme.ts && bun tsc -p tsconfig.build.json",
+		"build": "bun run check:theme-generated && bun scripts/validate-theme.ts && bun tsc -p tsconfig.build.json && bun tsc -p tsconfig.tui.build.json",
 		"check:theme-generated": "bun scripts/generate-theme.ts --check",
 		"generate:theme": "bun scripts/generate-theme.ts",
 		"prepack": "bun run build",
 		"storybook": "storybook dev",
 		"build-storybook": "storybook build --output-dir tmp/storybook-static",
 		"test:package": "bun run build && bun scripts/smoke-package.ts",
-		"typecheck": "bun tsc -p tsconfig.json --noEmit",
+		"typecheck": "bun tsc -p tsconfig.json --noEmit && bun tsc -p tsconfig.tui.json --noEmit",
 		"test": "bun run check:theme-generated && vitest run --config vitest.config.ts"
 	},
 	"peerDependencies": {
+		"@cline/llms": "workspace:*",
+		"@opentui-ui/dialog": ">=0.1.2 <0.2",
+		"@opentui/core": ">=0.4.3 <0.5",
+		"@opentui/react": ">=0.4.3 <0.5",
 		"@pierre/diffs": "^1.3.0",
 		"@shikijs/langs": ">=4.0.0 <5",
 		"@shikijs/themes": ">=4.0.0 <5",
+		"opentui-spinner": ">=0.0.7 <0.1",
 		"react": ">=18.3.0 <20",
 		"shiki": ">=4.0.0 <5",
 		"streamdown": "^2.5.0",
 		"tailwindcss": ">=4.0.0 <5"
 	},
 	"peerDependenciesMeta": {
+		"@cline/llms": {
+			"optional": true
+		},
+		"@opentui-ui/dialog": {
+			"optional": true
+		},
+		"@opentui/core": {
+			"optional": true
+		},
+		"@opentui/react": {
+			"optional": true
+		},
 		"@pierre/diffs": {
 			"optional": true
 		},
@@ -126,6 +155,9 @@
 			"optional": true
 		},
 		"@shikijs/themes": {
+			"optional": true
+		},
+		"opentui-spinner": {
 			"optional": true
 		},
 		"react": {
@@ -142,8 +174,13 @@
 		}
 	},
 	"devDependencies": {
+		"@cline/llms": "workspace:*",
 		"@fontsource-variable/geist-mono": "^5.2.8",
 		"@fontsource-variable/inter": "^5.2.8",
+		"@opentui-ui/dialog": "^0.1.2",
+		"@opentui/core": "0.4.3",
+		"@opentui/react": "0.4.3",
+		"opentui-spinner": "^0.0.7",
 		"@pierre/diffs": "^1.3.0",
 		"@shikijs/langs": "^4.2.0",
 		"@shikijs/themes": "^4.2.0",

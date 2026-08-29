@@ -1,5 +1,5 @@
 import type { ToolKind } from "@agentclientprotocol/sdk";
-import { formatToolInput } from "../utils/helpers";
+import { formatToolInput } from "@cline/ui/tui/formatting";
 
 const TOOL_KIND_MAP: Record<string, ToolKind> = {
 	Read: "read",

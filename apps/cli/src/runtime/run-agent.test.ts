@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { getCliSubscriptionUrl } from "../utils/cline-pass-errors";
+import { getCliSubscriptionUrl } from "@cline/ui/tui/formatting";
 
 const sessionManagerMocks = vi.hoisted(() => ({
 	start: vi.fn(),

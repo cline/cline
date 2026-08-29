@@ -16,7 +16,7 @@ import {
 	requestToolApproval,
 	submitAndExitInTerminal,
 } from "../utils/approval";
-import { formatCliErrorMessage } from "../utils/cline-pass-errors";
+import { formatCliErrorMessage } from "@cline/ui/tui/formatting";
 import { handleEvent, handleTeamEvent } from "../utils/events";
 import {
 	shouldZeroClineFreeModelCost,
@@ -34,7 +34,7 @@ import {
 	writeln,
 } from "../utils/output";
 import type { Config } from "../utils/types";
-import { shouldShowCliUsageCost } from "../utils/usage-cost-display";
+import { shouldShowCliUsageCost } from "@cline/ui/tui/formatting";
 import { setActiveRuntimeAbort } from "./active-runtime";
 import {
 	CLI_DEFAULT_CHECKPOINT_CONFIG,
