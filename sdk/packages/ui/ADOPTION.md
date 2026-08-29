@@ -6,10 +6,17 @@ styles or adopting desktop product structure.
 
 ## The short version
 
-`@cline/ui` has two opt-in layers:
+`@cline/ui` has four opt-in layers:
 
 1. A shared CSS theme built around standard shadcn/Tailwind semantic names.
 2. Reusable React presentation primitives for common agent-chat interfaces.
+3. An OpenTUI-based terminal UI (`@cline/ui/tui`) with a protocol-driven
+   client and a host-driven interactive experience.
+4. Shared UI protocol contracts (`@cline/ui/protocol`, canonical in
+   `@cline/shared`) with a renderer-independent transcript accumulator.
+
+The browser layers (1–2) and terminal layers (3) never import each other;
+they share only the protocol contracts and semantic event models (4).
 
 The theme provides:
 
@@ -67,6 +74,46 @@ Shared modules like these keep read/edit/command rows identical across
 products while consumers still own their message schemas, icon assets, and
 overall rendering. Before hand-rolling presentation logic in an app, check
 whether it belongs here instead.
+
+## Terminal UI boundaries
+
+`@cline/ui/tui` follows the same ownership split as the browser layers:
+
+The package owns:
+
+- Transcript rendering (streaming text, reasoning with redaction, tool
+  lifecycle, compaction dividers, media, errors, turn completion)
+- Prompt input, cursor movement, local input-history navigation, paste
+  handling, autocomplete, and the slash-command menu
+- Keyboard routing, command palette, dialogs, theming, status bars, and the
+  queued-prompt presentation
+- Renderer-free formatting helpers (`@cline/ui/tui/formatting`) that headless
+  hosts reuse for non-interactive printing
+
+The host owns (and injects as plain data + callbacks):
+
+- Session lifecycle, runtime, provider configuration, and persistence
+- Tool approval and question orchestration (resolved through injected
+  handlers)
+- File search for `@` mentions, repo status, input-history and theme
+  persistence, external-link opening
+- Runtime-owned dialogs — provider/model picker, account, MCP manager,
+  session history, onboarding — supplied through `createHostSurfaces` and
+  composed from the primitives this entry exports
+
+Hard rules: `@cline/ui` never depends on `@cline/core`; the terminal UI never
+creates or persists runtime sessions; the browser root entry never receives
+OpenTUI or Node dependencies. `apps/cli` is the reference host adapter.
+
+## Protocol contracts
+
+The canonical `UiInboundMessage`/`UiOutboundMessage`/`UiConnection` contracts
+live in `@cline/shared` (single source of truth for hosts and SDK packages)
+and are re-exported by `@cline/ui/protocol` together with `reduceUiMessage`,
+a pure transcript accumulator. Hosts with additional needs extend the unions
+locally (see `apps/cline-hub/src/webview-protocol.ts`) instead of copying
+them. Where browser and terminal surfaces need the same concepts, share these
+contracts and semantic event models — not renderer-specific components.
 
 ## Current status
 

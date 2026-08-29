@@ -13,7 +13,7 @@ This directory is the single documentation source for package-level responsibili
 | `@cline/llms` | Model catalog + provider settings schema + handler creation SDK | `@cline/agents`, `@cline/core`, apps | None |
 | `@cline/agents` | Stateless agent runtime loop (tools, hooks, extensions, teams, streaming) | `@cline/core`, apps | `@cline/llms`, `@cline/shared` |
 | `@cline/core` | Stateful runtime orchestration (runtime composition, session lifecycle/storage, local and hub runtime services, hub discovery and client helpers) | CLI/Desktop apps | `@cline/agents`, `@cline/llms`, `@cline/shared` |
-| `@cline/ui` | Internal framework-neutral web theme, Tailwind adapter, and optional base styles | Cline web apps | None |
+| `@cline/ui` | Shared presentation: web theme + React primitives, OpenTUI terminal UI (`/tui`), and UI protocol re-exports (`/protocol`) | Cline web apps, CLI, terminal hosts | `@cline/shared` (`@cline/llms` peer for `/tui`) |
 
 ## How Packages Work Together
 
@@ -35,6 +35,11 @@ This directory is the single documentation source for package-level responsibili
 - Put remote-config schemas, materialization, telemetry normalization, and blob upload primitives in `@cline/shared/remote-config`.
 - Put shared web tokens and visual foundations in `@cline/ui`; keep fonts,
   shell layout, and product-specific animation with each consuming app.
+- Put reusable terminal presentation in `@cline/ui/tui`; keep runtime-owned
+  surfaces (provider auth, accounts, session history, onboarding) in the host
+  and inject them through the documented host interfaces.
+- Put canonical UI protocol contracts in `@cline/shared` (`src/ui/`); hosts
+  extend the unions locally instead of duplicating them.
 
 ## Runtime Entry Points
 
