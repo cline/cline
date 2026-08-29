@@ -56,6 +56,10 @@ export class GatewayToolSystem {
 			providerId: input.providerId,
 			modelId: input.modelId,
 			role: bot.identity.role,
+			defaultProfiles:
+				bot.config.profileId === "cline-dad"
+					? ["cline-dad"]
+					: [bot.identity.role],
 			global: this.configurations.get({ kind: "global" })?.config,
 			workspace: this.configurations.get({
 				kind: "workspace",
@@ -116,6 +120,10 @@ export class GatewayToolSystem {
 			modelManifestRevision: model.manifestRevision,
 			strictToolCalling: model.strictToolCalling,
 			role: bot.identity.role,
+			defaultProfiles:
+				bot.config.profileId === "cline-dad"
+					? ["cline-dad"]
+					: [bot.identity.role],
 			global: this.configurations.get({ kind: "global" })?.config,
 			workspace: this.configurations.get({
 				kind: "workspace",

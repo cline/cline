@@ -8,6 +8,7 @@
  * - `status`   read discovery, connect, report `gateway.status`
  * - `drain`    refuse new mutating work while runs finish
  * - `upgrade`  drain, wait idle, stop, start a fresh process
+ * - `restart`  interrupt active work, stop, start a fresh process
  * - `stop`     graceful stop
  *
  * A second `serve` against a held lock connects and diagnoses the live
@@ -33,6 +34,7 @@ export const GATEWAY_CLI_COMMANDS = [
 	"status",
 	"drain",
 	"upgrade",
+	"restart",
 	"stop",
 	"secret-put",
 ] as const;
@@ -242,7 +244,7 @@ async function commandServe(
 				paths,
 				// Gateway-owned tools, including constrained proactive connector
 				// messaging, are late-bound after the server is constructed.
-				tools: (invocation) => serverRef?.connectorTools(invocation),
+				tools: (invocation) => serverRef?.agentTools(invocation),
 				leadProfile,
 			}),
 		});
@@ -527,6 +529,15 @@ async function commandUpgrade(
 	return commandStart(args, io);
 }
 
+async function commandRestart(
+	args: ParsedArgs,
+	io: GatewayCliIo,
+): Promise<number> {
+	const stopExit = await commandAdmin(args, io, "gateway.stop");
+	if (stopExit !== 0) return stopExit;
+	return commandStart(args, io);
+}
+
 /**
  * Store a provider credential as an owner-only mode-0600 secret file.
  * The value is read from stdin and is never echoed, logged, audited, or
@@ -586,6 +597,8 @@ export async function runGatewayCli(
 			return commandAdmin(args, io, "gateway.stop");
 		case "upgrade":
 			return commandUpgrade(args, io);
+		case "restart":
+			return commandRestart(args, io);
 		case "secret-put":
 			return commandSecretPut(args, io);
 	}

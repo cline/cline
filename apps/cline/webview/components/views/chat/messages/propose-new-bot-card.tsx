@@ -84,7 +84,7 @@ export function ProposeNewBotCard({
 			{created ? (
 				<div className="flex items-center gap-1.5 text-emerald-500">
 					<CheckCircle2 className="size-4" />
-					<span>Created "{created.name}" and switched to it.</span>
+					<span>Created worker bot "{created.name}".</span>
 				</div>
 			) : (
 				<div className="flex items-center gap-2">

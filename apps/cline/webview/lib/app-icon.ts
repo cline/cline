@@ -1,29 +1,28 @@
+import { BOT_ICON_PRESETS } from "@/lib/bot-icons";
 import { desktopClient, isTauriAvailable } from "@/lib/desktop-client";
 
 export const APP_ICON_STORAGE_KEY = "cline.code.app-icon.v1";
 
 /**
  * App icon variants selectable in Settings. "midnight" is the icon bundled
- * with the app; the others live in webview/public/app-icons (picker +
- * browser favicon) and src-tauri/icons/dock (runtime dock icon resources).
+ * with the bot picker; they are shared with webview/public/bot-icons and the
+ * matching src-tauri/icons/dock runtime resources.
  */
-export const APP_ICONS = [
-	{ id: "classic", label: "Classic" },
-	{ id: "sunrise", label: "Sunrise" },
-	{ id: "steel", label: "Steel" },
-	{ id: "midnight", label: "Midnight" },
-] as const;
+export const APP_ICONS = BOT_ICON_PRESETS.map(({ id, label }) => ({
+	id,
+	label,
+}));
 
 export type AppIconId = (typeof APP_ICONS)[number]["id"];
 
-export const DEFAULT_APP_ICON: AppIconId = "midnight";
+export const DEFAULT_APP_ICON: AppIconId = "001";
 
 export function isAppIconId(value: unknown): value is AppIconId {
 	return APP_ICONS.some((icon) => icon.id === value);
 }
 
 export function appIconAssetPath(icon: AppIconId): string {
-	return `/app-icons/${icon}.png`;
+	return `/bot-icons/${icon}.png`;
 }
 
 export function readStoredAppIcon(): AppIconId {

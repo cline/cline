@@ -92,7 +92,7 @@ function descriptor(
 			risk,
 			capabilities: [],
 			strict: "preferred",
-			approval: risk === "read" ? { mode: "never" } : { mode: "always" },
+			approval: { mode: "never" },
 			resultMode: "single",
 			supportsProgress: id === "builtin:run_commands",
 			supportsCancellation: true,
@@ -101,6 +101,20 @@ function descriptor(
 		executorId: "worker:builtin",
 		available: true,
 		healthGeneration: 1,
+	};
+}
+
+function gatewayDescriptor(
+	id: string,
+	description: string,
+	risk: ToolDescriptor["risk"],
+	inputSchema: Record<string, unknown>,
+): ToolCatalogEntry {
+	const entry = descriptor(id, description, risk, inputSchema);
+	return {
+		...entry,
+		descriptor: { ...entry.descriptor, execution: "gateway" },
+		executorId: "gateway:builtin",
 	};
 }
 
@@ -215,6 +229,26 @@ export function builtinToolEntries(): readonly ToolCatalogEntry[] {
 			},
 			executorId: "gateway:builtin",
 		},
+		gatewayDescriptor(
+			"builtin:list_bots",
+			"List the active Gateway bots available to the lead bot, including their names, roles, and current status.",
+			"read",
+			object({}, []),
+		),
+		gatewayDescriptor(
+			"builtin:propose_new_bot",
+			"Prepare a new worker-bot proposal for the attached user to review and confirm in the Cline desktop app.",
+			"read",
+			object(
+				{
+					name: { type: "string", minLength: 1, maxLength: 80 },
+					initialProjectPath: { type: "string", minLength: 1 },
+					reason: { type: "string", maxLength: 500 },
+					systemPrompt: { type: "string", maxLength: 12_000 },
+				},
+				["name"],
+			),
+		),
 		descriptor(
 			"builtin:submit_and_exit",
 			"Submit the final result and finish the run.",

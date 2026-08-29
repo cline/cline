@@ -17,8 +17,6 @@ import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
-	DropdownMenuRadioGroup,
-	DropdownMenuRadioItem,
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -26,19 +24,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { BotSummary } from "@/hooks/use-bots";
 import { basenamePath } from "@/hooks/use-session-history";
+import { BOT_ICON_PRESETS } from "@/lib/bot-icons";
 import { desktopClient, isTauriAvailable } from "@/lib/desktop-client";
 import { cn } from "@/lib/utils";
-
-// Create the preset based on number of icons in the bot-icons folder
-const BOT_ICON_COUNT = 9;
-
-const BOT_ICON_PRESETS: Array<{ path: string; label: string }> = Array.from(
-	{ length: BOT_ICON_COUNT },
-	(_, i) => ({
-		path: `/bot-icons/${String(i + 1).padStart(3, "0")}.png`,
-		label: String(i + 1).padStart(3, "0"),
-	}),
-);
 
 /**
  * Resolves a bot's `icon` field to something an <img src> can load. It's one
@@ -213,17 +201,27 @@ export function BotSwitcher({
 					</button>
 				</DropdownMenuTrigger>
 				<DropdownMenuContent align="start" className="w-64">
-					<DropdownMenuRadioGroup
-						onValueChange={(botId) => void onSwitchBot(botId)}
-						value={activeBotId}
-					>
-						{bots.map((bot) => (
-							<DropdownMenuRadioItem key={bot.id} value={bot.id}>
-								<BotIcon className="size-5" icon={bot.icon} />
-								{bot.name}
-							</DropdownMenuRadioItem>
-						))}
-					</DropdownMenuRadioGroup>
+					{bots.map((bot) => (
+						<DropdownMenuItem
+							key={bot.id}
+							onSelect={() => void onSwitchBot(bot.id)}
+						>
+							<BotIcon className="size-5" icon={bot.icon} />
+							<span className="min-w-0 flex-1 truncate">{bot.name}</span>
+							<span
+								aria-label={`${bot.name}: ${bot.status ?? "offline"}`}
+								className={cn(
+									"size-2 shrink-0 rounded-full",
+									bot.status === "working"
+										? "bg-emerald-500"
+										: bot.status === "error"
+											? "bg-destructive"
+											: "bg-muted-foreground/50",
+								)}
+								role="img"
+							/>
+						</DropdownMenuItem>
+					))}
 					<DropdownMenuSeparator />
 					<DropdownMenuItem
 						disabled={!canCreateBot}

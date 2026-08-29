@@ -14,13 +14,28 @@ function context(
 	client: Record<string, unknown>,
 	overrides: Partial<SidecarContext> = {},
 ): SidecarContext {
+	const leadBotId = createBotId();
 	return {
 		client: {
 			listRuns: async () => ({ runs: [] }),
+			listBots: async () => ({
+				bots: [
+					{
+						identity: { botId: leadBotId, name: "Cline Dad", role: "lead" },
+						status: "active",
+					},
+				],
+			}),
+			getSession: async ({ sessionId }: { sessionId: string }) => ({
+				session: { botId: leadBotId, sessionId },
+				runs: [],
+				messages: [],
+			}),
 			...client,
 		} as unknown as SidecarContext["client"],
 		gatewayUpdateRequired: false,
 		updateGateway: vi.fn(async () => {}),
+		restartGateway: vi.fn(async () => {}),
 		workspaceRoot: "/workspace/project",
 		workspaceRootLocked: false,
 		webSocketAddress: "ws://127.0.0.1:3126/",
@@ -115,7 +130,18 @@ describe("Gateway desktop commands", () => {
 		expect(updateGateway).toHaveBeenCalledOnce();
 	});
 
-	it("reports the browser bridge and canonical history location without discovery credentials", async () => {
+	it("restarts a compatible Gateway after an explicit command", async () => {
+		const ctx = context({});
+		const restartGateway = vi.fn(async () => {});
+		ctx.restartGateway = restartGateway;
+
+		expect(await handleCommand(ctx, "restart_gateway_server")).toEqual({
+			restarted: true,
+		});
+		expect(restartGateway).toHaveBeenCalledOnce();
+	});
+
+	it("reports the browser bridge without discovery credentials", async () => {
 		const result = await handleCommand(
 			context({
 				getStatus: async () => ({
@@ -130,7 +156,6 @@ describe("Gateway desktop commands", () => {
 		expect(result).toMatchObject({
 			gateway: {
 				dataDir: "/Users/test/.cline/gateway/desktop",
-				historyDatabase: "/Users/test/.cline/gateway/desktop/gateway.db",
 				status: "connected",
 				webSocketAddress: "ws://127.0.0.1:3126/",
 				webSocketProtocol: "cline-desktop-v1",
@@ -189,7 +214,7 @@ describe("Gateway desktop commands", () => {
 		const leadBotId = createBotId();
 		const workerBotId = createBotId();
 		const mutate = vi.fn(async () => ({
-			identity: { botId: workerBotId, name: "Research" },
+			identity: { botId: workerBotId, name: "Research", role: "worker" },
 			revision: 0,
 		}));
 		const putBotSystemPrompt = vi.fn(async () => ({ revision: 1 }));
@@ -221,7 +246,11 @@ describe("Gateway desktop commands", () => {
 			content: "Investigate carefully.",
 			expectedRevision: 0,
 		});
-		expect(result).toEqual({ id: workerBotId, name: "Research" });
+		expect(result).toEqual({
+			id: workerBotId,
+			name: "Research",
+			role: "worker",
+		});
 	});
 
 	it("creates a session without requiring a prompt", async () => {
@@ -254,6 +283,54 @@ describe("Gateway desktop commands", () => {
 		expect(result).toMatchObject({ sessionId });
 	});
 
+	it("rejects user mutations for worker bot sessions", async () => {
+		const botId = createBotId();
+		const sessionId = createSessionId();
+		const startRun = vi.fn();
+		const updateSession = vi.fn();
+		const ctx = context({
+			listBots: async () => ({
+				bots: [
+					{
+						identity: { botId, name: "Research", role: "worker" },
+						status: "active",
+					},
+				],
+			}),
+			getSession: async () => ({
+				session: {
+					botId,
+					sessionId,
+					workspace: { rootPath: "/workspace/project" },
+					revision: 1,
+				},
+				runs: [],
+				messages: [],
+			}),
+			startRun,
+			updateSession,
+		});
+
+		await expect(
+			handleCommand(ctx, "chat_session_command", {
+				request: {
+					action: "send",
+					sessionId,
+					prompt: "Do more work",
+					config: { botId },
+				},
+			}),
+		).rejects.toThrow("Worker bot sessions are read-only");
+		await expect(
+			handleCommand(ctx, "update_chat_session_title", {
+				sessionId,
+				title: "Changed",
+			}),
+		).rejects.toThrow("Worker bot sessions are read-only");
+		expect(startRun).not.toHaveBeenCalled();
+		expect(updateSession).not.toHaveBeenCalled();
+	});
+
 	it("forks persisted Gateway history into an independent session", async () => {
 		const botId = createBotId();
 		const sourceSessionId = createSessionId();
@@ -273,6 +350,9 @@ describe("Gateway desktop commands", () => {
 		}));
 		const result = await handleCommand(
 			context({
+				listBots: async () => ({
+					bots: [{ identity: { botId, role: "lead" }, status: "active" }],
+				}),
 				getSession: async () => ({
 					session: {
 						sessionId: sourceSessionId,
@@ -1346,6 +1426,14 @@ describe("Gateway desktop commands", () => {
 			});
 		const deleteSession = vi.fn(async () => ({ deleted: true }));
 		const ctx = context({
+			listBots: async () => ({
+				bots: [
+					{
+						identity: { botId: session.botId, role: "lead" },
+						status: "active",
+					},
+				],
+			}),
 			getSession: async () => ({ session, messages: [], runs: [] }),
 			updateSession,
 			deleteSession,

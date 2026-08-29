@@ -94,6 +94,19 @@ describe("gatewaySpawnCwd", () => {
 		});
 	});
 
+	it("resolves an explicit restart lifecycle command", () => {
+		expect(
+			gatewayLifecycleInvocation(
+				"restart",
+				"/usr/local/bin/bun",
+				"/repo/apps/cline/sidecar",
+			),
+		).toMatchObject({
+			executable: "/usr/local/bin/bun",
+			args: expect.arrayContaining(["restart", "--namespace", "desktop"]),
+		});
+	});
+
 	it("preserves port zero for native per-workspace sidecars", () => {
 		expect(resolveSidecarPort("0")).toBe(0);
 		expect(resolveSidecarPort(undefined)).toBe(3126);

@@ -8,6 +8,7 @@ export interface SidecarContext {
 	client: GatewayClient;
 	gatewayUpdateRequired: boolean;
 	updateGateway(): Promise<void>;
+	restartGateway(): Promise<void>;
 	/** Native-host-selected bot for a per-bot desktop sidecar. */
 	botId?: string;
 	workspaceRoot: string;

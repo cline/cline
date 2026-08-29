@@ -19,6 +19,8 @@ export interface ToolResolutionInput {
 	modelCapabilities?: readonly string[];
 	modelManifestRevision?: string;
 	role: "lead" | "worker" | "contractor";
+	/** Host-selected profile defaults, used when no configuration layer overrides them. */
+	defaultProfiles?: readonly string[];
 	/** Admission source controls only the default approval policy. */
 	source?: "interactive" | "connector" | "automation";
 	global?: BotToolConfiguration;
@@ -70,7 +72,7 @@ function selectorMatches(
 
 function effectiveSelection(input: ToolResolutionInput): EffectiveSelection {
 	const selection: EffectiveSelection = {
-		profiles: [input.role],
+		profiles: [...(input.defaultProfiles ?? [input.role])],
 		tools: new Map(),
 		rules: [],
 	};

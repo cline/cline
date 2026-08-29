@@ -1,13 +1,17 @@
 import { resolve } from "node:path";
 import {
-	SERVER_REQUEST_METHODS,
 	type GatewayEvent,
 	type GatewayServerRequest,
+	SERVER_REQUEST_METHODS,
 } from "@cline/shared/gateway";
-import { listQueuedPrompts } from "./chat-runs";
 import { projectMessageToChatEvents } from "./chat-events";
+import { listQueuedPrompts } from "./chat-runs";
+import {
+	ensureGateway,
+	restartGateway as restartGatewayAuthority,
+	updateGateway,
+} from "./gateway";
 import { handleImmediateGatewayServerRequest } from "./gateway-server-requests";
-import { ensureGateway, updateGateway } from "./gateway";
 import { broadcast, startServer } from "./server";
 import { SIDECAR_HOST, SIDECAR_VERSION, type SidecarContext } from "./types";
 
@@ -35,31 +39,12 @@ async function main(): Promise<void> {
 	const gateway = await ensureGateway();
 	let replacingGateway = false;
 	let shuttingDown = false;
+	let replaceGateway: (mode: "restart" | "upgrade") => Promise<void>;
 	const ctx: SidecarContext = {
 		client: gateway.client,
 		gatewayUpdateRequired: gateway.updateRequired,
-		async updateGateway() {
-			replacingGateway = true;
-			try {
-				const replacement = await updateGateway(ctx.client);
-				ctx.client = replacement.client;
-				ctx.gatewayUpdateRequired = false;
-				bindClient(replacement.client);
-				await replacement.client.subscribe({});
-				broadcast(ctx, "gateway_updated", {});
-				broadcast(ctx, "gateway_status", { status: "connected" });
-			} catch (error) {
-				broadcast(ctx, "gateway_status", {
-					status: "unavailable",
-					error:
-						"The bundled Gateway upgrade failed. Restarting the desktop backend.",
-				});
-				setTimeout(() => process.exit(1), 250);
-				throw error;
-			} finally {
-				replacingGateway = false;
-			}
-		},
+		updateGateway: () => replaceGateway("upgrade"),
+		restartGateway: () => replaceGateway("restart"),
 		botId: process.env.CLINE_BOT_ID?.trim() || undefined,
 		workspaceRoot: resolve(
 			process.env.CLINE_WORKSPACE_ROOT?.trim() || process.cwd(),
@@ -78,13 +63,40 @@ async function main(): Promise<void> {
 				error:
 					"The bundled Gateway connection was lost. Restarting the desktop backend.",
 			});
-			// A sidecar must never stay alive behind a healthy WebSocket while its
-			// Gateway client is dead. Native debug mode and the packaged service
-			// both supervise this process and will start a fresh connection. The
-			// bridge never owns the Gateway process. Exiting asks the native or
-			// service supervisor to reconnect; the singleton authority stays alive.
 			setTimeout(() => process.exit(1), 250);
 		});
+		bindGatewayEvents(client);
+	};
+	replaceGateway = async (mode) => {
+		replacingGateway = true;
+		try {
+			const replacement = await (mode === "restart"
+				? restartGatewayAuthority(ctx.client)
+				: updateGateway(ctx.client));
+			ctx.client = replacement.client;
+			ctx.gatewayUpdateRequired = false;
+			ctx.activeRuns.clear();
+			ctx.pendingServerRequests.clear();
+			bindClient(replacement.client);
+			await replacement.client.subscribe({});
+			broadcast(
+				ctx,
+				mode === "restart" ? "gateway_restarted" : "gateway_updated",
+				{},
+			);
+			broadcast(ctx, "gateway_status", { status: "connected" });
+		} catch (error) {
+			broadcast(ctx, "gateway_status", {
+				status: "unavailable",
+				error: `The bundled Gateway ${mode} failed. Restarting the desktop backend.`,
+			});
+			setTimeout(() => process.exit(1), 250);
+			throw error;
+		} finally {
+			replacingGateway = false;
+		}
+	};
+	const bindGatewayEvents = (client: typeof ctx.client) => {
 		client.onEvent((event) => {
 			const sessionId = eventSession(event);
 			const runId = event.scope.runId;

@@ -151,7 +151,7 @@ describe("concurrent starters (real processes)", () => {
 		expect(isAlive(record.pid)).toBe(true);
 	});
 
-	it("start is idempotent, stop retires the instance and removes discovery", {
+	it("start is idempotent, restart replaces, and stop retires the instance", {
 		timeout: 40_000,
 	}, async () => {
 		const dataRoot = tempDataRoot();
@@ -161,7 +161,7 @@ describe("concurrent starters (real processes)", () => {
 		const start = runCli(["start"], dataRoot);
 		expect(await start.exit).toBe(0);
 		expect(parsedLines(start)[0]?.status).toBe("started");
-		const record = readDiscoveryRecord(paths.discoveryFile);
+		let record = readDiscoveryRecord(paths.discoveryFile);
 		if (!record) {
 			throw new Error("start published no discovery record");
 		}
@@ -174,6 +174,19 @@ describe("concurrent starters (real processes)", () => {
 		expect(readDiscoveryRecord(paths.discoveryFile)?.instanceId).toBe(
 			record.instanceId,
 		);
+
+		const restart = runCli(["restart"], dataRoot);
+		expect(await restart.exit).toBe(0);
+		await waitFor(
+			() =>
+				readDiscoveryRecord(paths.discoveryFile)?.instanceId !==
+				record?.instanceId,
+			{ timeoutMs: 20_000 },
+		);
+		await waitFor(() => !isAlive(record?.pid ?? -1), { timeoutMs: 20_000 });
+		record = readDiscoveryRecord(paths.discoveryFile);
+		if (!record) throw new Error("restart published no discovery record");
+		expect(isAlive(record.pid)).toBe(true);
 
 		// Drain, then stop through the wire (operator commands, not client
 		// daemon replacement).

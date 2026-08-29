@@ -15,18 +15,15 @@ import type {
 	UseSessionHistoryResult,
 } from "@/hooks/use-session-history";
 
-const {
-	invoke,
-	retryConnectionWithGatewayUpdate,
-	subscribeTransportState,
-} = vi.hoisted(() => ({
-	invoke: vi.fn(),
-	retryConnectionWithGatewayUpdate: vi.fn(),
-	subscribeTransportState: vi.fn((handler: (state: string) => void) => {
-		handler("connected");
-		return () => undefined;
-	}),
-}));
+const { invoke, retryConnectionWithGatewayUpdate, subscribeTransportState } =
+	vi.hoisted(() => ({
+		invoke: vi.fn(),
+		retryConnectionWithGatewayUpdate: vi.fn(),
+		subscribeTransportState: vi.fn((handler: (state: string) => void) => {
+			handler("connected");
+			return () => undefined;
+		}),
+	}));
 vi.mock("@/lib/desktop-client", () => ({
 	desktopClient: {
 		invoke,
@@ -437,13 +434,13 @@ describe("AgentSidebar session organization", () => {
 
 	it("shows the desktop app version and an actionable connected Gateway indicator", async () => {
 		invoke.mockImplementation(async (command: string) => {
+			if (command === "restart_gateway_server") return { restarted: true };
 			if (command === "get_process_context") {
 				return {
 					appVersion: "1.2.3",
 					gateway: {
 						dataDir: "/Users/test/.cline/gateway/desktop",
 						error: null,
-						historyDatabase: "/Users/test/.cline/gateway/desktop/gateway.db",
 						status: "connected",
 						namespace: "desktop",
 						webSocketAddress: "ws://127.0.0.1:3126/",
@@ -489,20 +486,12 @@ describe("AgentSidebar session organization", () => {
 			statusButton?.querySelector('[aria-hidden="true"]')?.className,
 		).toContain("bg-emerald-500");
 		await click(statusButton as Element);
-		expect(document.body.textContent).toContain("Bundled Gateway v1.2.3");
+		expect(document.body.textContent).toContain("Bundled Gateway");
+		expect(document.body.textContent).toContain("v1.2.3");
 		expect(document.body.textContent).not.toContain("Ready in the desktop");
 		expect(document.body.textContent).toContain("ws://127.0.0.1:3126/");
-		expect(document.body.textContent).toContain(
-			"/Users/test/.cline/gateway/desktop/gateway.db",
-		);
-		const checkAgainButton = buttonWithText("Check again", document.body);
-		const popoverSettingsButton = buttonWithText("Settings", document.body);
-		expect(checkAgainButton.className).toContain("w-full");
-		expect(popoverSettingsButton.className).toContain("w-full");
-		expect(checkAgainButton.parentElement).toBe(
-			popoverSettingsButton.parentElement,
-		);
-		expect(checkAgainButton.parentElement?.className).toContain("grid");
+		expect(document.body.textContent).not.toContain("Chat history database");
+		expect(document.body.textContent).not.toContain("Check again");
 		const copyAddressButton = document.body.querySelector(
 			'[aria-label="Copy Gateway WebSocket address"]',
 		);
@@ -511,6 +500,11 @@ describe("AgentSidebar session organization", () => {
 		expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
 			"ws://127.0.0.1:3126/",
 		);
+		const restartButton = buttonWithText("Restart Gateway", document.body);
+		expect(restartButton.className).toContain("h-7");
+		expect(restartButton.className).not.toContain("has-[>svg]:size-3");
+		await click(restartButton);
+		expect(invoke).toHaveBeenCalledWith("restart_gateway_server");
 	});
 
 	it("shows a disconnected Gateway reason and retries from the footer", async () => {
@@ -562,7 +556,8 @@ describe("AgentSidebar session organization", () => {
 			statusButton.querySelector('[aria-hidden="true"]')?.className,
 		).toContain("bg-destructive");
 		await click(statusButton);
-		expect(document.body.textContent).toContain("Bundled Gateway v1.2.3");
+		expect(document.body.textContent).toContain("Bundled Gateway");
+		expect(document.body.textContent).toContain("v1.2.3");
 		expect(document.body.textContent).toContain("Gateway connection closed");
 		await click(buttonWithText("Retry connection", document.body));
 		expect(retryConnectionWithGatewayUpdate).toHaveBeenCalledOnce();
@@ -767,6 +762,8 @@ describe("AgentSidebar session organization", () => {
 		expect(
 			container.querySelector('[aria-label="Settings"]')?.textContent,
 		).toBe("");
-		expect(container.textContent).toContain("Gateway");
+		expect(
+			container.querySelector('[aria-label="Gateway unavailable"]'),
+		).not.toBeNull();
 	});
 });

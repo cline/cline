@@ -921,17 +921,24 @@ describe("ChatMessages tool disclosures", () => {
 });
 
 describe("ChatMessages propose_new_bot card", () => {
-	function proposeNewBotMessage(input: {
-		name: string;
-		initialProjectPath?: string;
-		reason?: string;
-		systemPrompt?: string;
-	}): ChatMessage {
+	function proposeNewBotMessage(
+		input: {
+			name: string;
+			initialProjectPath?: string;
+			reason?: string;
+			systemPrompt?: string;
+		},
+		result?: unknown,
+	): ChatMessage {
 		return {
 			id: "propose-new-bot-1",
 			sessionId: "session-1",
 			role: "tool",
-			content: JSON.stringify({ toolName: "propose_new_bot", input }),
+			content: JSON.stringify({
+				toolName: "propose_new_bot",
+				input,
+				...(result === undefined ? {} : { result }),
+			}),
 			createdAt: 1,
 		};
 	}
@@ -978,9 +985,7 @@ describe("ChatMessages propose_new_bot card", () => {
 			undefined,
 			undefined,
 		);
-		expect(container.textContent).toContain(
-			'Created "Recipe Bot" and switched to it.',
-		);
+		expect(container.textContent).toContain('Created worker bot "Recipe Bot".');
 	});
 
 	it("shows and applies the proposed bot instructions", async () => {
@@ -1031,6 +1036,20 @@ describe("ChatMessages propose_new_bot card", () => {
 
 		expect(container.textContent).toContain("maximum of 5 bots reached");
 		expect(createButton()?.hasAttribute("disabled")).toBe(false);
+	});
+
+	it("does not show a create card for a rejected native proposal", async () => {
+		await renderMessages(
+			[
+				proposeNewBotMessage(
+					{ name: "One Too Many" },
+					{ error: "The maximum of 5 active bots has been reached." },
+				),
+			],
+			{ onCreateBot: vi.fn() },
+		);
+
+		expect(container.textContent).not.toContain("Create this bot");
 	});
 });
 

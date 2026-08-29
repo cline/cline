@@ -14,6 +14,40 @@ import { ToolConfigurationStore } from "./store";
 import { GatewayToolSystem } from "./system";
 
 describe("tool resolution", () => {
+	it("enables native bot tools for Cline Dad but not ordinary bots", () => {
+		const catalog = new ToolCatalog().current;
+		const lead = resolveToolSnapshot(catalog, {
+			providerId: "anthropic",
+			modelId: "claude",
+			role: "lead",
+			defaultProfiles: ["cline-dad"],
+		});
+		const worker = resolveToolSnapshot(catalog, {
+			providerId: "anthropic",
+			modelId: "claude",
+			role: "worker",
+		});
+
+		expect(lead.tools).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					id: "builtin:list_bots",
+					executorId: "gateway:builtin",
+				}),
+				expect.objectContaining({
+					id: "builtin:propose_new_bot",
+					executorId: "gateway:builtin",
+				}),
+			]),
+		);
+		expect(worker.tools.map((tool) => tool.id)).not.toContain(
+			"builtin:list_bots",
+		);
+		expect(worker.tools.map((tool) => tool.id)).not.toContain(
+			"builtin:propose_new_bot",
+		);
+	});
+
 	it("applies provider/model assignments and explains exclusions", () => {
 		const catalog = new ToolCatalog().current;
 		const preview = previewTools(catalog, {
@@ -109,9 +143,8 @@ describe("tool resolution", () => {
 			now: 10,
 		});
 		expect(
-			defaultSnapshot.tools.find(
-				(tool) => tool.id === "builtin:run_commands",
-			)?.approval,
+			defaultSnapshot.tools.find((tool) => tool.id === "builtin:run_commands")
+				?.approval,
 		).toEqual({ mode: "never" });
 
 		const configuredSnapshot = resolveToolSnapshot(catalog, {
@@ -132,9 +165,99 @@ describe("tool resolution", () => {
 			)?.approval,
 		).toEqual({ mode: "always" });
 	});
+
+	it("auto-approves interactive built-in tools by default", () => {
+		const snapshot = resolveToolSnapshot(new ToolCatalog().current, {
+			providerId: "cline",
+			modelId: "interactive-model",
+			role: "lead",
+			now: 10,
+		});
+		expect(
+			snapshot.tools.find((tool) => tool.id === "builtin:run_commands")
+				?.approval,
+		).toEqual({ mode: "never" });
+	});
 });
 
 describe("durable tool configuration and attempts", () => {
+	it("adds the Cline Dad profile to an existing profile database", () => {
+		const database = openGatewayDatabase(join(tempDataRoot(), "gateway.db"));
+		const configurations = new ToolConfigurationStore(database);
+		configurations.bootstrap(1);
+		database.db
+			.prepare("DELETE FROM tool_profiles WHERE name = ?")
+			.run("cline-dad");
+
+		configurations.bootstrap(2);
+
+		expect(configurations.listProfiles()).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					name: "cline-dad",
+					optional: ["builtin:list_bots", "builtin:propose_new_bot"],
+				}),
+			]),
+		);
+		database.close();
+	});
+
+	it("selects the Cline Dad profile from the bot profile id", () => {
+		const database = openGatewayDatabase(join(tempDataRoot(), "gateway.db"));
+		const stores = createGatewayStores(database, "gwi_cline_dad_tools");
+		const botId = createBotId();
+		stores.bots.save({
+			identity: {
+				botId,
+				name: "Cline Dad",
+				role: "lead",
+				parentBotId: null,
+				provenance: { createdBy: "bootstrap" },
+				createdAt: 1,
+			},
+			config: {
+				profileId: "cline-dad",
+				providerId: "anthropic",
+				modelId: "claude",
+			},
+			status: "active",
+			revision: 0,
+		});
+		const system = new GatewayToolSystem({
+			configurations: new ToolConfigurationStore(database),
+			attempts: stores.attempts,
+			getBot: (id) => stores.bots.get(id as never),
+			resolveModelSelection: () => ({
+				providerId: "anthropic",
+				modelId: "claude",
+			}),
+			clock: () => 10,
+		});
+		const runId = createRunId();
+		const attempt = stores.attempts.begin(runId, 10);
+
+		const prepared = system.prepareAttempt(
+			{
+				runId,
+				sessionId: createSessionId(),
+				botId,
+				input: "test",
+				workspaceRoot: "/workspace",
+				effectiveConfig: {
+					profileId: "cline-dad",
+					providerId: "anthropic",
+					modelId: "claude",
+				},
+			},
+			attempt.attempt,
+		);
+
+		expect(prepared.executionSnapshot?.tools.map((tool) => tool.id)).toEqual(
+			expect.arrayContaining(["builtin:list_bots", "builtin:propose_new_bot"]),
+		);
+		database.close();
+	});
+
 	it("uses optimistic revisions and reuses an immutable snapshot on retry", () => {
 		const database = openGatewayDatabase(join(tempDataRoot(), "gateway.db"));
 		const stores = createGatewayStores(database, "gwi_tools");

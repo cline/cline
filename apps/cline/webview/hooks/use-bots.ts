@@ -11,6 +11,8 @@ export const MAX_BOTS = 5;
 export interface BotSummary {
 	id: string;
 	name: string;
+	role?: "lead" | "worker";
+	status?: "working" | "error" | "offline";
 	/** Local filesystem path or URL to the bot's icon; unset falls back to
 	 * the default Cline logo. */
 	icon?: string;
@@ -25,9 +27,20 @@ async function syncDesktopBotPreferences(
 	state: BotRegistryState,
 ): Promise<BotRegistryState> {
 	if (!isTauriAvailable()) return state;
-	return desktopClient.invoke<BotRegistryState>("sync_gateway_bots", {
-		bots: state.bots,
-	});
+	const synced = await desktopClient.invoke<BotRegistryState>(
+		"sync_gateway_bots",
+		{
+			bots: state.bots,
+		},
+	);
+	const gatewayBots = new Map(state.bots.map((bot) => [bot.id, bot]));
+	return {
+		...synced,
+		bots: synced.bots.map((bot) => ({
+			...bot,
+			role: gatewayBots.get(bot.id)?.role ?? bot.role ?? "worker",
+		})),
+	};
 }
 
 export interface UseBotsResult {
@@ -43,7 +56,12 @@ export interface UseBotsResult {
 	switchBot: (botId: string) => Promise<void>;
 }
 
-const FALLBACK_BOT: BotSummary = { id: DEFAULT_BOT_ID, name: DEFAULT_BOT_NAME };
+const FALLBACK_BOT: BotSummary = {
+	id: DEFAULT_BOT_ID,
+	name: DEFAULT_BOT_NAME,
+	role: "lead",
+	status: "offline",
+};
 
 /**
  * Owns the top-level bot registry exposed by the active host transport. In a
@@ -104,16 +122,14 @@ export function useBotRegistry(): UseBotsResult {
 			});
 			let nextBots = [...bots, created];
 			if (isTauriAvailable()) {
-				const synced = await desktopClient.invoke<BotRegistryState>(
-					"sync_gateway_bots",
-					{
-						bots: nextBots.map((bot) =>
-							bot.id === created.id && icon?.trim()
-								? { ...bot, icon: icon.trim() }
-								: bot,
-						),
-					},
-				);
+				const synced = await syncDesktopBotPreferences({
+					activeBotId,
+					bots: nextBots.map((bot) =>
+						bot.id === created.id && icon?.trim()
+							? { ...bot, icon: icon.trim() }
+							: bot,
+					),
+				});
 				nextBots = synced.bots;
 				const projectPath = initialProjectPath?.trim();
 				if (projectPath) {
@@ -123,25 +139,12 @@ export function useBotRegistry(): UseBotsResult {
 					});
 				}
 			}
-			// Switching here (rather than leaving it to the caller) means
-			// createBot always leaves the registry and the active id in
-			// sync in one call - the same reason switchWorkspace adopts
-			// assign_project's returned path instead of trusting its own input.
-			await desktopClient.invoke<string>("switch_active_bot", {
-				botId: created.id,
-			});
-			if (isTauriAvailable()) {
-				await desktopClient.invoke<string>("switch_active_bot_preference", {
-					botId: created.id,
-				});
-			}
 			if (mountedRef.current) {
 				setBots(nextBots);
-				setActiveBotId(created.id);
 			}
 			return created;
 		},
-		[bots],
+		[activeBotId, bots],
 	);
 
 	const switchBot = useCallback(

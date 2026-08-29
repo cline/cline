@@ -34,6 +34,9 @@ describe("Gateway tool client surface", () => {
 		expect(catalog.entries.map((entry) => entry.descriptor.id)).toContain(
 			"builtin:read_files",
 		);
+		expect(catalog.entries.map((entry) => entry.descriptor.id)).toEqual(
+			expect.arrayContaining(["builtin:list_bots", "builtin:propose_new_bot"]),
+		);
 		const saved = await client.putToolConfiguration({
 			scope: { kind: "bot", botId },
 			config: {

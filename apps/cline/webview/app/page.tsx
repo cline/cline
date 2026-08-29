@@ -1,7 +1,7 @@
 "use client";
 
 import { isChatWorkspacePath } from "@cline/shared/browser";
-import { ImagePlus, Loader2, RefreshCw } from "lucide-react";
+import { ImagePlus, Loader2, LockKeyhole, RefreshCw } from "lucide-react";
 import dynamic from "next/dynamic";
 import {
 	useCallback,
@@ -42,7 +42,7 @@ import type { SettingsSection } from "@/components/views/settings/sections";
 import { AccountProvider } from "@/contexts/account-context";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
 import { useAppUpdate } from "@/hooks/use-app-update";
-import { useBotRegistry } from "@/hooks/use-bots";
+import { DEFAULT_BOT_ID, useBotRegistry } from "@/hooks/use-bots";
 import { useChatSession } from "@/hooks/use-chat-session";
 import { useMessageBotRelay } from "@/hooks/use-message-bot-relay";
 import { useSessionAgents } from "@/hooks/use-session-agents";
@@ -178,6 +178,13 @@ export default function Home() {
 	const { navigation, threads } = appState;
 	const { activeThreadId, settingsSection, view } = navigation.current;
 	const botRegistry = useBotRegistry();
+	const activeBot = botRegistry.bots.find(
+		(bot) => bot.id === botRegistry.activeBotId,
+	);
+	const activeBotReadOnly = activeBot
+		? activeBot.role === "worker" ||
+			(!activeBot.role && activeBot.id !== DEFAULT_BOT_ID)
+		: false;
 	const showNavigationControls = useTauriAvailability();
 	useMessageBotRelay();
 
@@ -226,13 +233,17 @@ export default function Home() {
 
 	useEffect(() => watchDesktopTrayStatus(), []);
 
-	const handleNewThread = useCallback((initialWorkspacePath?: string) => {
-		dispatchApp({
-			type: "new-thread",
-			threadId: makeThreadId(),
-			initialWorkspacePath,
-		});
-	}, []);
+	const handleNewThread = useCallback(
+		(initialWorkspacePath?: string) => {
+			if (activeBotReadOnly) return;
+			dispatchApp({
+				type: "new-thread",
+				threadId: makeThreadId(),
+				initialWorkspacePath,
+			});
+		},
+		[activeBotReadOnly],
+	);
 
 	const handleSwitchBot = useCallback(
 		async (botId: string) => {
@@ -244,9 +255,9 @@ export default function Home() {
 			// which is what actually re-points the transport at the new
 			// bot's own sandboxed process - see the activeBotId-keyed effect
 			// below.
-			handleNewThread();
+			dispatchApp({ type: "new-thread", threadId: makeThreadId() });
 		},
-		[botRegistry, handleNewThread],
+		[botRegistry],
 	);
 
 	const handleCreateBot = useCallback(
@@ -262,10 +273,9 @@ export default function Home() {
 				icon,
 				systemPrompt,
 			);
-			handleNewThread(initialProjectPath?.trim() || undefined);
 			return created;
 		},
-		[botRegistry, handleNewThread],
+		[botRegistry],
 	);
 
 	const completeOnboarding = useCallback(() => {
@@ -370,7 +380,7 @@ export default function Home() {
 			if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) {
 				return;
 			}
-			if (event.key === "n" || event.key === "N") {
+			if ((event.key === "n" || event.key === "N") && !activeBotReadOnly) {
 				event.preventDefault();
 				handleNewThread();
 			} else if (event.key === ",") {
@@ -380,7 +390,7 @@ export default function Home() {
 		};
 		window.addEventListener("keydown", handleKeyDown);
 		return () => window.removeEventListener("keydown", handleKeyDown);
-	}, [handleNewThread, handleViewChange, showOnboarding]);
+	}, [activeBotReadOnly, handleNewThread, handleViewChange, showOnboarding]);
 	const handleThreadStarted = useCallback((threadId: string) => {
 		dispatchApp({ type: "thread-started", threadId });
 	}, []);
@@ -467,6 +477,7 @@ export default function Home() {
 							activeBotId={botRegistry.activeBotId}
 							bots={botRegistry.bots}
 							canCreateBot={botRegistry.canCreateBot}
+							readOnly={activeBotReadOnly}
 							onCreateBot={handleCreateBot}
 							onNavigateBack={handleNavigateBack}
 							onNavigateForward={handleNavigateForward}
@@ -499,6 +510,8 @@ export default function Home() {
 								<ChatThreadPane
 									key={activeThread.id}
 									activeBotId={botRegistry.activeBotId}
+									readOnly={activeBotReadOnly}
+									readOnlyBotName={activeBot?.name}
 									historySession={activeThread.historySession}
 									initialPromptDraft={activeThread.initialPromptDraft}
 									initialWorkspacePath={activeThread.initialWorkspacePath}
@@ -563,6 +576,8 @@ let workspacesLoadedOnce = false;
 function ChatThreadPane({
 	threadId,
 	activeBotId,
+	readOnly,
+	readOnlyBotName,
 	historySession,
 	initialPromptDraft,
 	initialWorkspacePath,
@@ -583,6 +598,8 @@ function ChatThreadPane({
 }: {
 	threadId: string;
 	activeBotId: string;
+	readOnly: boolean;
+	readOnlyBotName?: string;
 	historySession?: SessionHistoryItem;
 	initialPromptDraft?: string;
 	initialWorkspacePath?: string;
@@ -1710,7 +1727,19 @@ function ChatThreadPane({
 		);
 	}
 
-	const composer = (
+	const composer = readOnly ? (
+		<div className="flex items-start gap-3 rounded-xl border border-border bg-card px-4 py-3 text-sm">
+			<LockKeyhole className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+			<div>
+				<p className="font-medium">Managed by Cline Dad</p>
+				<p className="mt-0.5 text-xs text-muted-foreground">
+					{readOnlyBotName || "This worker bot"} and its sessions are read-only.
+					Ask Cline Dad to create work or send follow-up instructions to this
+					bot.
+				</p>
+			</div>
+		</div>
+	) : (
 		<ChatInputBar
 			attachments={attachmentList}
 			onAbort={handleAbort}
@@ -1781,12 +1810,12 @@ function ChatThreadPane({
 							onOpenAgentSession={onOpenAgentSession}
 							onOpenParentSession={onOpenSessionById}
 							parentSession={hideDeletedSessionUi ? undefined : parentSession}
-							canEditTitle={Boolean(activeSessionForTitle)}
-							canDeleteSession={Boolean(activeSessionToDelete)}
+							canEditTitle={!readOnly && Boolean(activeSessionForTitle)}
+							canDeleteSession={!readOnly && Boolean(activeSessionToDelete)}
 							deletingSession={deletingSession}
 							diff={headerDiff}
-							onDeleteSession={requestDeleteSession}
-							onNewThread={onNewThread}
+							onDeleteSession={readOnly ? undefined : requestDeleteSession}
+							onNewThread={readOnly ? undefined : onNewThread}
 							onOpenDiff={handleOpenDiff}
 							onRenameTitle={handleRenameTitle}
 							renamingTitle={renamingSession}
@@ -1813,14 +1842,16 @@ function ChatThreadPane({
 								chatTransportError={chatTransportError}
 								error={displayedError}
 								messages={displayedMessages}
-								onEditMessage={handleEditMessage}
-								onRestoreCheckpoint={handleRestoreCheckpoint}
-								onForkSession={handleForkSession}
-								onAbort={handleAbort}
+								onEditMessage={readOnly ? undefined : handleEditMessage}
+								onRestoreCheckpoint={
+									readOnly ? undefined : handleRestoreCheckpoint
+								}
+								onForkSession={readOnly ? undefined : handleForkSession}
+								onAbort={readOnly ? undefined : handleAbort}
 								onOpenModelSettings={onOpenModelSettings}
 								onRetryConnection={retryDesktopConnection}
-								pendingToolApprovals={pendingToolApprovals}
-								pendingAskQuestions={pendingAskQuestions}
+								pendingToolApprovals={readOnly ? [] : pendingToolApprovals}
+								pendingAskQuestions={readOnly ? [] : pendingAskQuestions}
 								sessionId={displayedSessionId}
 								streamingMessageId={activeAssistantMessageId}
 								isSessionSwitching={displayedIsSwitching}

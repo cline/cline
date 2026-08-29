@@ -21,6 +21,13 @@ export const DEFAULT_TOOL_PROFILES: readonly ToolProfile[] = [
 		optional: [],
 	},
 	{
+		name: "cline-dad",
+		revision: 1,
+		extends: ["lead"],
+		required: [],
+		optional: ["builtin:list_bots", "builtin:propose_new_bot"],
+	},
+	{
 		name: "worker",
 		revision: 1,
 		extends: ["coding"],

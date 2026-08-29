@@ -118,11 +118,8 @@ type SidebarSortMode = "time" | "project";
 type DesktopProcessContext = {
 	appVersion?: unknown;
 	gateway?: {
-		dataDir?: unknown;
 		error?: unknown;
-		historyDatabase?: unknown;
 		status?: unknown;
-		namespace?: unknown;
 		webSocketAddress?: unknown;
 		webSocketProtocol?: unknown;
 	};
@@ -130,10 +127,7 @@ type DesktopProcessContext = {
 
 type GatewayStatus = {
 	connected: boolean;
-	dataDir: string | null;
 	error: string | null;
-	historyDatabase: string | null;
-	namespace: string | null;
 	webSocketAddress: string | null;
 	webSocketProtocol: string | null;
 };
@@ -219,6 +213,7 @@ export function AgentSidebar({
 	activeBotId,
 	bots,
 	canCreateBot,
+	readOnly = false,
 	onCreateBot,
 	onSwitchBot,
 	onNavigateBack,
@@ -237,6 +232,7 @@ export function AgentSidebar({
 	activeBotId: string;
 	bots: BotSummary[];
 	canCreateBot: boolean;
+	readOnly?: boolean;
 	onCreateBot: (
 		name: string,
 		initialProjectPath?: string,
@@ -295,6 +291,10 @@ export function AgentSidebar({
 	);
 	const [gatewayPopoverOpen, setGatewayPopoverOpen] = useState(false);
 	const [copiedGatewayAddress, setCopiedGatewayAddress] = useState(false);
+	const [restartingGateway, setRestartingGateway] = useState(false);
+	const [gatewayRestartError, setGatewayRestartError] = useState<string | null>(
+		null,
+	);
 
 	const loadProcessContext = useCallback(async () => {
 		try {
@@ -306,25 +306,12 @@ export function AgentSidebar({
 					? context.appVersion.trim()
 					: "";
 			setAppVersion(version || null);
-			const namespace =
-				typeof context?.gateway?.namespace === "string"
-					? context.gateway.namespace.trim() || null
-					: null;
 			setGatewayStatus({
 				connected: context?.gateway?.status === "connected",
-				dataDir:
-					typeof context?.gateway?.dataDir === "string"
-						? context.gateway.dataDir.trim() || null
-						: null,
 				error:
 					typeof context?.gateway?.error === "string"
 						? context.gateway.error.trim() || null
 						: null,
-				historyDatabase:
-					typeof context?.gateway?.historyDatabase === "string"
-						? context.gateway.historyDatabase.trim() || null
-						: null,
-				namespace,
 				webSocketAddress:
 					typeof context?.gateway?.webSocketAddress === "string"
 						? context.gateway.webSocketAddress.trim() || null
@@ -337,31 +324,35 @@ export function AgentSidebar({
 		} catch (error) {
 			setGatewayStatus({
 				connected: false,
-				dataDir: null,
 				error:
 					error instanceof Error
 						? error.message
 						: "Unable to read Gateway status.",
-				historyDatabase: null,
-				namespace: null,
 				webSocketAddress: null,
 				webSocketProtocol: null,
 			});
 		}
 	}, []);
 	const retryGatewayConnection = useCallback(() => {
-		setGatewayStatus((current) => ({
-			connected: false,
-			dataDir: current?.dataDir ?? null,
-			error: null,
-			historyDatabase: current?.historyDatabase ?? null,
-			namespace: current?.namespace ?? null,
-			webSocketAddress: current?.webSocketAddress ?? null,
-			webSocketProtocol: current?.webSocketProtocol ?? null,
-		}));
-		setCopiedGatewayAddress(false);
+		setGatewayRestartError(null);
 		void desktopClient.retryConnectionWithGatewayUpdate();
 	}, []);
+	const restartGateway = useCallback(async () => {
+		setRestartingGateway(true);
+		setGatewayRestartError(null);
+		try {
+			await desktopClient.invoke("restart_gateway_server");
+			await loadProcessContext();
+		} catch (error) {
+			setGatewayRestartError(
+				error instanceof Error
+					? error.message
+					: "Unable to restart the Gateway.",
+			);
+		} finally {
+			setRestartingGateway(false);
+		}
+	}, [loadProcessContext]);
 	const copyGatewayAddress = useCallback(async () => {
 		const address = gatewayStatus?.webSocketAddress;
 		if (!address || !navigator.clipboard?.writeText) return;
@@ -378,11 +369,8 @@ export function AgentSidebar({
 				}
 				setGatewayStatus((current) => ({
 					connected: false,
-					dataDir: current?.dataDir ?? null,
 					error:
 						state === "unavailable" ? desktopClient.getTransportError() : null,
-					historyDatabase: current?.historyDatabase ?? null,
-					namespace: current?.namespace ?? null,
 					webSocketAddress: current?.webSocketAddress ?? null,
 					webSocketProtocol: current?.webSocketProtocol ?? null,
 				}));
@@ -648,6 +636,7 @@ export function AgentSidebar({
 			pendingAction={
 				pendingAction?.sessionId === thread.id ? pendingAction.action : null
 			}
+			readOnly={readOnly}
 			thread={thread}
 			unread={unreadSessionIds.has(thread.id)}
 		/>
@@ -711,7 +700,7 @@ export function AgentSidebar({
 						{!isCollapsed ? <AppUpdateIndicator /> : null}
 						{!isCollapsed ? <GatewayUpdateIndicator /> : null}
 					</div>
-					{!isCollapsed ? (
+					{!isCollapsed && !readOnly ? (
 						<Button
 							aria-label="New Session"
 							className="size-8 shrink-0 justify-center px-0"
@@ -964,7 +953,6 @@ export function AgentSidebar({
 														: "animate-pulse bg-amber-500",
 											)}
 										/>
-										<span className="truncate">Gateway</span>
 										{appVersion ? (
 											<span className="truncate text-muted-foreground/50">
 												v{appVersion}
@@ -977,11 +965,14 @@ export function AgentSidebar({
 									className="w-96 max-w-[calc(100vw-1rem)]"
 									side="top"
 								>
-									<p className="text-sm font-semibold">
-										{appVersion
-											? `Bundled Gateway v${appVersion}`
-											: "Bundled Gateway"}
-									</p>
+									<div className="flex items-center justify-between gap-4">
+										<p className="text-sm font-semibold">Bundled Gateway</p>
+										{appVersion ? (
+											<span className="text-xs text-muted-foreground">
+												v{appVersion}
+											</span>
+										) : null}
+									</div>
 									{!gatewayStatus?.connected ? (
 										<p className="mt-1 text-xs text-muted-foreground">
 											{gatewayStatus
@@ -993,7 +984,7 @@ export function AgentSidebar({
 									gatewayStatus.webSocketAddress ? (
 										<div className="mt-3 rounded-md border border-border bg-muted/40 p-2.5">
 											<p className="text-xs font-medium">
-												Local web app WebSocket
+												Gateway WebSocket URL
 											</p>
 											<div className="mt-1.5 flex items-center gap-2">
 												<code className="cline-chat-selectable min-w-0 flex-1 break-all text-xs text-muted-foreground">
@@ -1001,7 +992,7 @@ export function AgentSidebar({
 												</code>
 												<Button
 													aria-label="Copy Gateway WebSocket address"
-													className="size-7 shrink-0"
+													className="size-6 shrink-0"
 													onClick={() => void copyGatewayAddress()}
 													size="icon"
 													type="button"
@@ -1021,47 +1012,51 @@ export function AgentSidebar({
 											</p>
 										</div>
 									) : null}
-									{gatewayStatus?.historyDatabase ? (
-										<div className="mt-3">
-											<p className="text-xs font-medium">
-												Chat history database
-											</p>
-											<code className="cline-chat-selectable mt-1 block break-all text-xs text-muted-foreground">
-												{gatewayStatus.historyDatabase}
-											</code>
-										</div>
-									) : null}
 									{gatewayStatus?.error ? (
 										<p className="cline-chat-selectable mt-2 break-words font-mono text-xs text-muted-foreground">
 											{gatewayStatus.error}
 										</p>
 									) : null}
+									{gatewayRestartError ? (
+										<p className="cline-chat-selectable mt-2 break-words text-xs text-destructive">
+											{gatewayRestartError}
+										</p>
+									) : null}
 									<div className="mt-3 grid gap-2">
-										<Button
-											className="w-full justify-center"
-											onClick={retryGatewayConnection}
-											size="xs"
-											type="button"
-										>
-											<span aria-hidden="true">
+										{gatewayStatus?.connected ? (
+											<>
+												<p className="text-[11px] text-muted-foreground">
+													Restarting interrupts active runs, then reloads the
+													bundled Gateway and its tools.
+												</p>
+												<Button
+													className="w-full justify-center"
+													disabled={restartingGateway}
+													onClick={() => void restartGateway()}
+													size="xs"
+													type="button"
+												>
+													{restartingGateway ? (
+														<Loader2 className="size-3 animate-spin" />
+													) : (
+														<RefreshCw className="size-3" />
+													)}
+													{restartingGateway
+														? "Restarting…"
+														: "Restart Gateway"}
+												</Button>
+											</>
+										) : (
+											<Button
+												className="w-full justify-center"
+												onClick={retryGatewayConnection}
+												size="xs"
+												type="button"
+											>
 												<RefreshCw className="size-3" />
-											</span>
-											{gatewayStatus?.connected
-												? "Check again"
-												: "Retry connection"}
-										</Button>
-										<Button
-											className="w-full justify-center"
-											onClick={() => {
-												setGatewayPopoverOpen(false);
-												openSettings();
-											}}
-											size="xs"
-											type="button"
-											variant="outline"
-										>
-											Settings
-										</Button>
+												Retry connection
+											</Button>
+										)}
 									</div>
 								</PopoverContent>
 							</Popover>
@@ -1179,6 +1174,7 @@ function ThreadItem({
 	onFork,
 	onDelete,
 	pendingAction,
+	readOnly,
 	unread,
 }: {
 	thread: Thread;
@@ -1194,6 +1190,7 @@ function ThreadItem({
 	onFork: () => void;
 	onDelete: () => void;
 	pendingAction: "rename" | "fork" | "delete" | null;
+	readOnly: boolean;
 	unread: boolean;
 }) {
 	const title = normalizeTitle(thread.title);
@@ -1302,6 +1299,7 @@ function ThreadItem({
 				onRename={onRename}
 				onToggleFavorite={onToggleFavorite}
 				pendingAction={pendingAction}
+				readOnly={readOnly}
 			/>
 		</ContextMenu>
 	);
@@ -1394,6 +1392,7 @@ function SessionContextMenuContent({
 	onFork,
 	onDelete,
 	pendingAction,
+	readOnly,
 }: {
 	favorited: boolean;
 	onRename: () => void;
@@ -1401,15 +1400,19 @@ function SessionContextMenuContent({
 	onFork: () => void;
 	onDelete: () => void;
 	pendingAction: "rename" | "fork" | "delete" | null;
+	readOnly: boolean;
 }) {
 	const pending = pendingAction !== null;
 	return (
 		<ContextMenuContent className="w-40">
-			<ContextMenuItem disabled={pending} onSelect={onToggleFavorite}>
+			<ContextMenuItem
+				disabled={pending || readOnly}
+				onSelect={onToggleFavorite}
+			>
 				<Star className={cn("size-4", favorited && "fill-current")} />
 				{favorited ? "Unfavorite" : "Favorite"}
 			</ContextMenuItem>
-			<ContextMenuItem disabled={pending} onSelect={onRename}>
+			<ContextMenuItem disabled={pending || readOnly} onSelect={onRename}>
 				{pendingAction === "rename" ? (
 					<Loader2 className="size-4 animate-spin" />
 				) : (
@@ -1417,7 +1420,7 @@ function SessionContextMenuContent({
 				)}
 				{pendingAction === "rename" ? "Renaming..." : "Rename"}
 			</ContextMenuItem>
-			<ContextMenuItem disabled={pending} onSelect={onFork}>
+			<ContextMenuItem disabled={pending || readOnly} onSelect={onFork}>
 				{pendingAction === "fork" ? (
 					<Loader2 className="size-4 animate-spin" />
 				) : (
@@ -1426,7 +1429,7 @@ function SessionContextMenuContent({
 				{pendingAction === "fork" ? "Forking..." : "Fork"}
 			</ContextMenuItem>
 			<ContextMenuItem
-				disabled={pending}
+				disabled={pending || readOnly}
 				onSelect={onDelete}
 				variant="destructive"
 			>

@@ -119,7 +119,11 @@ const ToolCallRow = memo(function ToolCallRow({
 			reason?: string;
 			systemPrompt?: string;
 		};
-		if (input.name?.trim()) {
+		const proposalRejected =
+			typeof payload?.result === "object" &&
+			payload.result !== null &&
+			"error" in payload.result;
+		if (input.name?.trim() && !proposalRejected) {
 			return (
 				<ProposeNewBotCard
 					initialProjectPath={input.initialProjectPath}

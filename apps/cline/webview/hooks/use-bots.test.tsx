@@ -67,7 +67,9 @@ describe("useBotRegistry", () => {
 			root.render(<HookHarness />);
 		});
 
-		expect(current.bots).toEqual([{ id: "cline", name: "Cline" }]);
+		expect(current.bots).toEqual([
+			{ id: "cline", name: "Cline", role: "lead", status: "offline" },
+		]);
 		expect(current.activeBotId).toBe("cline");
 
 		await act(async () => {
@@ -88,8 +90,8 @@ describe("useBotRegistry", () => {
 		expect(current.activeBotId).toBe("research");
 	});
 
-	it("creates then switches to a new bot, in order, adopting the server-returned summary", async () => {
-		invokeMock.mockImplementation((command: string, args?: unknown) => {
+	it("creates a worker bot without switching away from the lead", async () => {
+		invokeMock.mockImplementation((command: string) => {
 			if (command === "get_bots_state") {
 				return Promise.resolve({
 					bots: [{ id: "cline", name: "Cline" }],
@@ -98,10 +100,6 @@ describe("useBotRegistry", () => {
 			}
 			if (command === "create_bot") {
 				return Promise.resolve({ id: "marketing", name: "Marketing" });
-			}
-			if (command === "switch_active_bot") {
-				expect((args as { botId: string }).botId).toBe("marketing");
-				return Promise.resolve("marketing");
 			}
 			throw new Error(`unexpected command: ${command}`);
 		});
@@ -114,7 +112,7 @@ describe("useBotRegistry", () => {
 		const created = await act(async () => current.createBot("Marketing"));
 
 		expect(created).toEqual({ id: "marketing", name: "Marketing" });
-		expect(current.activeBotId).toBe("marketing");
+		expect(current.activeBotId).toBe("cline");
 		expect(current.bots).toEqual([
 			{ id: "cline", name: "Cline" },
 			{ id: "marketing", name: "Marketing" },
@@ -122,8 +120,11 @@ describe("useBotRegistry", () => {
 
 		const createOrder = invokeMock.mock.calls
 			.map((call) => call[0])
-			.filter((command) => command === "create_bot" || command === "switch_active_bot");
-		expect(createOrder).toEqual(["create_bot", "switch_active_bot"]);
+			.filter(
+				(command) =>
+					command === "create_bot" || command === "switch_active_bot",
+			);
+		expect(createOrder).toEqual(["create_bot"]);
 	});
 
 	it("passes the icon through to create_bot when given", async () => {
@@ -186,12 +187,7 @@ describe("useBotRegistry", () => {
 		await flush();
 
 		await act(async () =>
-			current.createBot(
-				"Recipes",
-				undefined,
-				undefined,
-				"You manage recipes.",
-			),
+			current.createBot("Recipes", undefined, undefined, "You manage recipes."),
 		);
 
 		expect(invokeMock).toHaveBeenCalledWith(
@@ -200,7 +196,7 @@ describe("useBotRegistry", () => {
 		);
 	});
 
-	it("mirrors Gateway bots into the desktop shell before switching a new bot", async () => {
+	it("mirrors Gateway bots into the desktop shell without selecting the worker", async () => {
 		isTauriAvailableMock.mockReturnValue(true);
 		invokeMock.mockImplementation((command: string, args?: unknown) => {
 			if (command === "get_bots_state") {
@@ -215,12 +211,6 @@ describe("useBotRegistry", () => {
 			if (command === "create_bot") {
 				return Promise.resolve({ id: "research", name: "Research" });
 			}
-			if (
-				command === "switch_active_bot" ||
-				command === "switch_active_bot_preference"
-			) {
-				return Promise.resolve("research");
-			}
 			throw new Error(`unexpected command: ${command}`);
 		});
 
@@ -229,12 +219,7 @@ describe("useBotRegistry", () => {
 		await act(async () => current.createBot("Research"));
 
 		const commands = invokeMock.mock.calls.map((call) => call[0]);
-		expect(commands.slice(-4)).toEqual([
-			"create_bot",
-			"sync_gateway_bots",
-			"switch_active_bot",
-			"switch_active_bot_preference",
-		]);
+		expect(commands.slice(-2)).toEqual(["create_bot", "sync_gateway_bots"]);
 	});
 
 	it("does not mutate local state when creation is rejected (e.g. the 5-bot cap)", async () => {

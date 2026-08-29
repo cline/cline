@@ -1,5 +1,4 @@
 import { homedir } from "node:os";
-import { join } from "node:path";
 import {
 	type GatewayMcpServerInput,
 	type MarketplacePrimitiveType,
@@ -193,6 +192,29 @@ async function chatBotId(
 		? (ctx.botId ?? "")
 		: desktopScope?.botId || configuredBotId || ctx.botId || "";
 	return resolveBotId(ctx, requestedBotId);
+}
+
+const WORKER_SESSION_READ_ONLY_ERROR =
+	"Worker bot sessions are read-only. Ask Cline Dad to send instructions to this bot.";
+
+async function assertDesktopBotIsInteractive(
+	ctx: SidecarContext,
+	botId: BotId,
+): Promise<void> {
+	const { bots } = await ctx.client.listBots();
+	const bot = bots.find((candidate) => candidate.identity.botId === botId);
+	if (!bot) throw new Error(`Gateway bot not found: ${botId}`);
+	if (bot.identity.role === "worker") {
+		throw new Error(WORKER_SESSION_READ_ONLY_ERROR);
+	}
+}
+
+async function assertDesktopSessionIsInteractive(
+	ctx: SidecarContext,
+	sessionId: SessionId,
+): Promise<void> {
+	const { session } = await ctx.client.getSession({ sessionId });
+	await assertDesktopBotIsInteractive(ctx, session.botId);
 }
 
 function chatWorkspaceRoot(
@@ -570,6 +592,7 @@ async function chatCommand(ctx: SidecarContext, request: RecordValue) {
 		const config = chatConfig(request);
 		const desktopScope = desktopChatScope(request);
 		const botId = await chatBotId(ctx, config, desktopScope);
+		await assertDesktopBotIsInteractive(ctx, botId);
 		const workspaceRoot = chatWorkspaceRoot(ctx, config, desktopScope);
 		const session = await ctx.client.createSession({
 			botId,
@@ -588,6 +611,7 @@ async function chatCommand(ctx: SidecarContext, request: RecordValue) {
 		const config = chatConfig(request);
 		const desktopScope = desktopChatScope(request);
 		const botId = await chatBotId(ctx, config, desktopScope);
+		await assertDesktopBotIsInteractive(ctx, botId);
 		const workspaceRoot = chatWorkspaceRoot(ctx, config, desktopScope);
 		if (sessionId && (ctx.workspaceRootLocked || desktopScope)) {
 			const snapshot = await ctx.client.getSession({
@@ -654,6 +678,9 @@ async function chatCommand(ctx: SidecarContext, request: RecordValue) {
 		};
 	}
 	if (action === "stop" || action === "abort") {
+		if (sessionId) {
+			await assertDesktopSessionIsInteractive(ctx, sessionId as SessionId);
+		}
 		const runId = sessionId
 			? await resolveInterruptibleRunId(ctx, sessionId)
 			: undefined;
@@ -663,6 +690,7 @@ async function chatCommand(ctx: SidecarContext, request: RecordValue) {
 	}
 	if (action === "reset") {
 		if (sessionId) {
+			await assertDesktopSessionIsInteractive(ctx, sessionId as SessionId);
 			const active = (await listSessionRuns(ctx, sessionId)).filter(
 				(run) => run.state === "running" || run.state === "queued",
 			);
@@ -682,6 +710,7 @@ async function chatCommand(ctx: SidecarContext, request: RecordValue) {
 		const source = await ctx.client.getSession({
 			sessionId: sessionId as SessionId,
 		});
+		await assertDesktopBotIsInteractive(ctx, source.session.botId);
 		if (ctx.workspaceRootLocked || desktopScope) {
 			const botId = await chatBotId(ctx, chatConfig(request), desktopScope);
 			if (source.session.botId !== botId) {
@@ -722,6 +751,7 @@ async function chatCommand(ctx: SidecarContext, request: RecordValue) {
 	}
 	if (action === "steer_prompt") {
 		if (!sessionId) throw new Error("sessionId is required");
+		await assertDesktopSessionIsInteractive(ctx, sessionId as SessionId);
 		const promptId = String(request.promptId ?? "").trim();
 		if (!promptId) throw new Error("promptId is required");
 		const runs = await listSessionRuns(ctx, sessionId);
@@ -740,6 +770,7 @@ async function chatCommand(ctx: SidecarContext, request: RecordValue) {
 	}
 	if (action === "update_pending_prompt") {
 		if (!sessionId) throw new Error("sessionId is required");
+		await assertDesktopSessionIsInteractive(ctx, sessionId as SessionId);
 		const promptId = String(request.promptId ?? "").trim();
 		const prompt = String(request.prompt ?? "").trim();
 		if (!promptId) throw new Error("promptId is required");
@@ -761,6 +792,7 @@ async function chatCommand(ctx: SidecarContext, request: RecordValue) {
 	}
 	if (action === "remove_pending_prompt") {
 		if (!sessionId) throw new Error("sessionId is required");
+		await assertDesktopSessionIsInteractive(ctx, sessionId as SessionId);
 		const promptId = String(request.promptId ?? "").trim();
 		if (!promptId) throw new Error("promptId is required");
 		const runs = await listSessionRuns(ctx, sessionId);
@@ -975,6 +1007,10 @@ export async function handleCommand(
 		if (ctx.gatewayUpdateRequired) await ctx.updateGateway();
 		return { updateRequired: false };
 	}
+	if (command === "restart_gateway_server") {
+		await ctx.restartGateway();
+		return { restarted: true };
+	}
 	if (ctx.gatewayUpdateRequired) {
 		throw new Error(
 			"The running Gateway must be updated before it can be used by this version of Cline Bots.",
@@ -1010,13 +1046,38 @@ export async function handleCommand(
 		return null;
 	}
 	if (command === "get_bots_state") {
-		const { bots } = await ctx.client.listBots();
+		const [{ bots }, { sessions }] = await Promise.all([
+			ctx.client.listBots(),
+			ctx.client.listSessions(),
+		]);
+		const statusByBot = new Map<string, "working" | "error">();
+		const sessionStates = await Promise.all(
+			sessions.map(async (session) => {
+				const snapshot = await ctx.client.getSession({
+					sessionId: session.sessionId,
+				});
+				return {
+					botId: session.botId,
+					state: snapshot.runs.at(-1)?.state ?? session.state,
+				};
+			}),
+		);
+		for (const session of sessionStates) {
+			if (statusByBot.has(session.botId)) continue;
+			if (session.state === "failed") {
+				statusByBot.set(session.botId, "error");
+			} else if (["running", "starting", "stopping"].includes(session.state)) {
+				statusByBot.set(session.botId, "working");
+			}
+		}
 		return {
 			bots: bots
 				.filter((bot) => bot.status === "active")
 				.map((bot) => ({
 					id: bot.identity.botId,
 					name: bot.identity.name,
+					role: bot.identity.role,
+					status: statusByBot.get(bot.identity.botId) ?? "offline",
 				})),
 		};
 	}
@@ -1043,7 +1104,11 @@ export async function handleCommand(
 				expectedRevision: created.revision,
 			});
 		}
-		return { id: created.identity.botId, name: created.identity.name };
+		return {
+			id: created.identity.botId,
+			name: created.identity.name,
+			role: created.identity.role,
+		};
 	}
 	if (command === "switch_active_bot") {
 		const botId = await resolveBotId(ctx, String(args.botId ?? ""));
@@ -1113,6 +1178,7 @@ export async function handleCommand(
 		) as SessionId;
 		if (!sessionId) throw new Error("sessionId is required");
 		const { session } = await ctx.client.getSession({ sessionId });
+		await assertDesktopBotIsInteractive(ctx, session.botId);
 		await ctx.client.updateSession({
 			sessionId,
 			title: String(args.title ?? ""),
@@ -1128,6 +1194,7 @@ export async function handleCommand(
 		const metadata = recordValue(args.metadata);
 		if (!metadata) throw new Error("metadata must be an object");
 		const { session } = await ctx.client.getSession({ sessionId });
+		await assertDesktopBotIsInteractive(ctx, session.botId);
 		const updated = await ctx.client.updateSession({
 			sessionId,
 			metadata,
@@ -1140,6 +1207,7 @@ export async function handleCommand(
 			args.sessionId ?? args.session_id,
 		) as SessionId;
 		if (!sessionId) throw new Error("sessionId is required");
+		await assertDesktopSessionIsInteractive(ctx, sessionId);
 		const result = await ctx.client.deleteSession({ sessionId });
 		if (result.deleted) ctx.activeRuns.delete(sessionId);
 		return result.deleted;
@@ -1234,7 +1302,6 @@ export async function handleCommand(
 				gatewayId: status.gatewayId,
 				namespace: status.namespace,
 				dataDir: status.dataDir,
-				historyDatabase: join(status.dataDir, "gateway.db"),
 				webSocketAddress: ctx.webSocketAddress,
 				webSocketProtocol: "cline-desktop-v1",
 			},
@@ -1268,6 +1335,13 @@ export async function handleCommand(
 		if (!pending || pending.method !== SERVER_REQUEST_METHODS.toolApproval) {
 			throw new Error("Gateway tool approval request was not found");
 		}
+		if (pending.scope.botId) {
+			await assertDesktopBotIsInteractive(ctx, pending.scope.botId);
+		} else if (pending.scope.sessionId) {
+			await assertDesktopSessionIsInteractive(ctx, pending.scope.sessionId);
+		} else {
+			throw new Error("Gateway approval is missing its bot/session scope");
+		}
 		ctx.client.resolveApproval(requestId, {
 			approved: Boolean(args.approved),
 			reason: typeof args.reason === "string" ? args.reason : undefined,
@@ -1284,6 +1358,13 @@ export async function handleCommand(
 		const pending = ctx.pendingServerRequests.get(requestId);
 		if (!pending || pending.method !== SERVER_REQUEST_METHODS.question) {
 			throw new Error("Gateway question request was not found");
+		}
+		if (pending.scope.botId) {
+			await assertDesktopBotIsInteractive(ctx, pending.scope.botId);
+		} else if (pending.scope.sessionId) {
+			await assertDesktopSessionIsInteractive(ctx, pending.scope.sessionId);
+		} else {
+			throw new Error("Gateway question is missing its bot/session scope");
 		}
 		ctx.client.resolveQuestion(requestId, answer);
 		// serverRequest.resolved is the authoritative acknowledgement.

@@ -189,91 +189,6 @@ const clineListSchedules = defineTool({
 	},
 });
 
-export interface ProposeNewBotInput {
-	name?: string;
-	initialProjectPath?: string;
-	reason?: string;
-	systemPrompt?: string;
-}
-
-function trimmedOptional(value: unknown): string | undefined {
-	if (typeof value !== "string") return undefined;
-	const trimmed = value.trim();
-	return trimmed || undefined;
-}
-
-/**
- * Creation intentionally remains a desktop-owned, user-confirmed action. The
- * tool call itself is the durable proposal that the desktop renders as a
- * review card; its structured result only tells the model that confirmation is
- * still outstanding.
- */
-export const proposeNewBot = defineTool({
-	name: "propose_new_bot",
-	description:
-		"Propose a new worker bot for the user to review and create in the Cline Bots desktop app. Use this when the user asks for a new bot or agrees that a separate specialist bot should be created. This tool does not create the bot: it displays a confirmation card, and the user must click Create this bot. Never claim the bot was created based only on this tool's result.",
-	inputSchema: {
-		type: "object",
-		properties: {
-			name: {
-				type: "string",
-				minLength: 1,
-				maxLength: 80,
-				description: "Short, user-facing name for the new bot.",
-			},
-			initialProjectPath: {
-				type: "string",
-				minLength: 1,
-				description:
-					"Optional absolute path to the project the user wants to grant to the new bot.",
-			},
-			reason: {
-				type: "string",
-				maxLength: 500,
-				description:
-					"Brief user-facing explanation of why this separate bot is useful.",
-			},
-			systemPrompt: {
-				type: "string",
-				maxLength: 12_000,
-				description:
-					"Optional durable instructions defining the new bot's role and behavior.",
-			},
-		},
-		required: ["name"],
-		additionalProperties: false,
-	},
-	async execute(input: unknown) {
-		const proposal =
-			typeof input === "object" && input !== null
-				? (input as ProposeNewBotInput)
-				: {};
-		const name = trimmedOptional(proposal.name);
-		if (!name) return { error: "Bot name is required." };
-		if (name.length > 80)
-			return { error: "Bot name must be 80 characters or fewer." };
-
-		const reason = trimmedOptional(proposal.reason);
-		const systemPrompt = trimmedOptional(proposal.systemPrompt);
-		const initialProjectPath = trimmedOptional(proposal.initialProjectPath);
-		if (reason && reason.length > 500)
-			return { error: "Proposal reason must be 500 characters or fewer." };
-		if (systemPrompt && systemPrompt.length > 12_000)
-			return { error: "Bot instructions must be 12,000 characters or fewer." };
-
-		return {
-			proposed: true,
-			requiresUserConfirmation: true,
-			name,
-			...(initialProjectPath ? { initialProjectPath } : {}),
-			...(reason ? { reason } : {}),
-			...(systemPrompt ? { systemPrompt } : {}),
-			message:
-				"The proposal is ready for review. The bot has not been created; wait for the user to use the confirmation card.",
-		};
-	},
-});
-
 const plugin: GatewaySupportPlugin = {
 	name: "cline-support",
 	manifest: { capabilities: ["tools", "commands", "rules"] },
@@ -284,14 +199,13 @@ const plugin: GatewaySupportPlugin = {
 			clineListSessions,
 			clineReadLogs,
 			clineListSchedules,
-			proposeNewBot,
 		])
 			api.registerTool(tool);
 		api.registerRule({
 			id: "cline-support-usage",
 			source: "cline-support",
 			content:
-				"Use cline_doctor_report first for Gateway failures. These tools target clinegate, not the legacy Hub, and never return credential values. When the user asks to create a bot, use propose_new_bot with a clear name and optional role instructions. The proposal requires the user to confirm creation in the desktop UI, so never say the bot exists until the user confirms it.",
+				"Use cline_doctor_report first for Gateway failures. These tools target clinegate, not the legacy Hub, and never return credential values.",
 		});
 		api.registerCommand({
 			name: "cline-support",

@@ -14,6 +14,7 @@ const LEAD_PROFILE =
 const DESKTOP_GATEWAY_REQUEST_TIMEOUT_MS = 15_000;
 const GATEWAY_START_TIMEOUT_MS = 25_000;
 const GATEWAY_UPGRADE_TIMEOUT_MS = 90_000;
+const GATEWAY_RESTART_TIMEOUT_MS = 45_000;
 const REQUIRED_GATEWAY_CAPABILITIES = [
 	"sessions.create",
 	"sessions.dedicated",
@@ -33,7 +34,7 @@ const REQUIRED_GATEWAY_CAPABILITIES = [
 	"connectors.slackMentionGate",
 ] as const;
 
-type GatewayLifecycleCommand = "start" | "upgrade";
+type GatewayLifecycleCommand = "start" | "upgrade" | "restart";
 
 export interface GatewayLifecycleInvocation {
 	executable: string;
@@ -156,7 +157,9 @@ async function runGatewayLifecycle(
 		const timeoutMs =
 			command === "upgrade"
 				? GATEWAY_UPGRADE_TIMEOUT_MS
-				: GATEWAY_START_TIMEOUT_MS;
+				: command === "restart"
+					? GATEWAY_RESTART_TIMEOUT_MS
+					: GATEWAY_START_TIMEOUT_MS;
 		const timer = setTimeout(() => {
 			child.kill("SIGTERM");
 			reject(new Error(`Gateway ${command} timed out after ${timeoutMs}ms`));
@@ -206,5 +209,13 @@ export async function updateGateway(client: GatewayClient): Promise<{
 	// gateway.stop and never owns or kills the authority process.
 	client.close();
 	await runGatewayLifecycle("upgrade");
+	return { client: await waitForGateway() };
+}
+
+export async function restartGateway(client: GatewayClient): Promise<{
+	client: GatewayClient;
+}> {
+	client.close();
+	await runGatewayLifecycle("restart");
 	return { client: await waitForGateway() };
 }

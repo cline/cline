@@ -20,7 +20,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:net";
 import { basename, dirname, join } from "node:path";
 import type { Duplex } from "node:stream";
-import type { EnginePort, SessionKind } from "@cline/bot";
+import type { EngineInvocation, EnginePort, SessionKind } from "@cline/bot";
 import type { VoiceInputSelection } from "@cline/shared";
 import type {
 	BotId,
@@ -109,6 +109,12 @@ import {
 import { Scheduler } from "./schedules/scheduler";
 import { readSecretFile, writeSecretFile } from "./secrets";
 import { createGatewayStores, type GatewayStores } from "./stores";
+import {
+	createListBotsTool,
+	createProposeNewBotTool,
+	LIST_BOTS_TOOL,
+	PROPOSE_NEW_BOT_TOOL,
+} from "./tools/bot-tools";
 import { ToolCatalog } from "./tools/catalog";
 import { ToolConfigurationStore } from "./tools/store";
 import { GatewayToolSystem } from "./tools/system";
@@ -121,6 +127,11 @@ const MAX_LINE_BYTES = Math.max(
 );
 const MAX_WORKSPACE_UPLOAD_BYTES = 5 * 1024 * 1024;
 const EVENT_PAGE_SIZE = 100;
+
+type GatewayAgentTool =
+	| ReturnType<typeof createListBotsTool>
+	| ReturnType<typeof createProposeNewBotTool>
+	| ReturnType<typeof createSendConnectorMessageTool>;
 
 export interface GatewayServerOptions extends GatewayPathsOptions {
 	/** Loopback only; the Gateway never listens on external interfaces. */
@@ -653,20 +664,31 @@ export class GatewayServer {
 	}
 
 	/**
-	 * Gateway-owned tools for one engine invocation (currently the
-	 * constrained `send_connector_message`). Wired into the engine binding
-	 * by the CLI's serve path.
+	 * Gateway-owned tools for one engine invocation. Native bot tools are
+	 * selected by the durable execution snapshot; connector messaging retains
+	 * its existing late-bound policy path.
 	 */
-	connectorTools(invocation: {
-		botId: BotId;
-		runId: RunId;
-	}): ReturnType<typeof createSendConnectorMessageTool>[] {
-		return [
+	agentTools(invocation: EngineInvocation): GatewayAgentTool[] {
+		const enabledGatewayTools = new Set(
+			invocation.executionSnapshot?.tools
+				.filter((tool) => tool.executorId === "gateway:builtin")
+				.map((tool) => tool.modelFacingName) ?? [],
+		);
+		const source = { listBots: () => this.stores.bots.list() };
+		const tools: GatewayAgentTool[] = [];
+		if (enabledGatewayTools.has(LIST_BOTS_TOOL)) {
+			tools.push(createListBotsTool(source));
+		}
+		if (enabledGatewayTools.has(PROPOSE_NEW_BOT_TOOL)) {
+			tools.push(createProposeNewBotTool(source));
+		}
+		tools.push(
 			createSendConnectorMessageTool(invocation, {
 				messenger: this.messenger,
 				deliveryWorker: this.delivery,
 			}),
-		];
+		);
+		return tools;
 	}
 
 	address(): { host: string; port: number } {
