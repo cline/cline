@@ -1,10 +1,11 @@
 "use client";
 
 import { ExternalLink, Loader2, Store } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { fetchComposioToolkitCatalog } from "@/lib/composio";
 import {
 	COMPOSIO_DASHBOARD_URL,
 	type ComposioIntegrationSummary,
@@ -45,6 +46,37 @@ export function ComposioConnectorsView({
 
 	const [apiKeyDraft, setApiKeyDraft] = useState("");
 	const [showKeyEditor, setShowKeyEditor] = useState(false);
+	// Official logos come from the Composio catalog; summaries only carry one
+	// once a toolkit is connected, so join the catalog for the rest.
+	const [logoBySlug, setLogoBySlug] = useState<Map<string, string>>(
+		() => new Map(),
+	);
+
+	useEffect(() => {
+		if (!configured) {
+			return;
+		}
+		let cancelled = false;
+		void fetchComposioToolkitCatalog()
+			.then((response) => {
+				if (cancelled) {
+					return;
+				}
+				const next = new Map<string, string>();
+				for (const entry of response.toolkits) {
+					if (entry.logo) {
+						next.set(entry.slug, entry.logo);
+					}
+				}
+				setLogoBySlug(next);
+			})
+			.catch(() => {
+				// Logos are cosmetic; the themed fallback icons cover this.
+			});
+		return () => {
+			cancelled = true;
+		};
+	}, [configured]);
 
 	if (loadError) {
 		return (
@@ -197,6 +229,7 @@ export function ComposioConnectorsView({
 							configured={configured}
 							integration={integration}
 							key={integration.toolkit}
+							logo={integration.logo ?? logoBySlug.get(integration.toolkit)}
 							onCancel={() => void cancelConnect(integration.toolkit)}
 							onConnect={() => void connect(integration.toolkit)}
 							onDisconnect={() => void disconnect(integration.toolkit)}
@@ -217,6 +250,7 @@ export function ComposioConnectorsView({
 								configured={configured}
 								integration={integration}
 								key={integration.toolkit}
+								logo={integration.logo ?? logoBySlug.get(integration.toolkit)}
 								onCancel={() => void cancelConnect(integration.toolkit)}
 								onConnect={() => void connect(integration.toolkit)}
 								onDisconnect={() => void disconnect(integration.toolkit)}
@@ -245,6 +279,7 @@ export function ComposioConnectorsView({
 
 function ConnectorCard({
 	integration,
+	logo,
 	configured,
 	busy,
 	onConnect,
@@ -252,6 +287,7 @@ function ConnectorCard({
 	onDisconnect,
 }: {
 	integration: ComposioIntegrationSummary;
+	logo?: string;
 	configured: boolean;
 	busy: boolean;
 	onConnect: () => void;
@@ -265,7 +301,7 @@ function ConnectorCard({
 				<div className="flex items-center gap-3">
 					<span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-secondary text-foreground">
 						<ConnectorLogo
-							logo={integration.logo}
+							logo={logo}
 							name={integration.name}
 							slug={integration.toolkit}
 						/>

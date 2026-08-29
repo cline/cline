@@ -2,7 +2,7 @@
 
 import { GitHubIcon } from "@cline/ui";
 import { CalendarDays, Loader2, Mail, Search } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -33,7 +33,7 @@ import { useComposioConnections } from "@/lib/use-composio-connections";
  */
 
 /** How many catalog entries to show before asking the user to search. */
-const CATALOG_PREVIEW_COUNT = 10;
+const CATALOG_PREVIEW_COUNT = 24;
 const CATALOG_SEARCH_RESULT_LIMIT = 50;
 
 const FALLBACK_ICONS: Record<
@@ -57,24 +57,24 @@ export function ConnectorLogo({
 	className?: string;
 }) {
 	const [failed, setFailed] = useState(false);
-	// Local themed icons win over remote logos: they follow the app theme,
-	// while several brand marks (GitHub's, for one) are near-black and vanish
-	// on the dark tile.
-	const LocalIcon = FALLBACK_ICONS[slug];
-	if (LocalIcon) {
-		return <LocalIcon className={className} />;
-	}
 	if (logo && !failed) {
 		return (
 			// biome-ignore lint/performance/noImgElement: Composio logos live on arbitrary remote hosts Next's optimizer is not configured for.
 			<img
 				alt=""
-				// The white backing keeps dark brand marks visible on dark tiles.
+				// The white backing keeps dark brand marks (GitHub's, for one)
+				// visible on dark tiles.
 				className={`${className} rounded-sm bg-white object-contain p-px`}
 				onError={() => setFailed(true)}
 				src={logo}
 			/>
 		);
+	}
+	// Themed fallbacks for the recommended toolkits when the catalog (and its
+	// official logos) has not loaded yet.
+	const LocalIcon = FALLBACK_ICONS[slug];
+	if (LocalIcon) {
+		return <LocalIcon className={className} />;
 	}
 	return (
 		<span className="text-xs font-semibold uppercase text-muted-foreground">
@@ -154,10 +154,19 @@ export function ConnectorActionButton({
 export function ComposioConnectorBrowser({
 	onChanged,
 	onOpenSetup,
+	query: externalQuery,
+	hideSearch = false,
+	onCatalogLoaded,
 }: {
 	onChanged?: () => void;
 	/** Navigate to Installed > Connectors, where the API key is managed. */
 	onOpenSetup?: () => void;
+	/** Externally controlled search text (e.g. the Marketplace search bar);
+	 * when provided the built-in search input is usually hidden. */
+	query?: string;
+	hideSearch?: boolean;
+	/** Reports the catalog size, e.g. for a count badge on a filter chip. */
+	onCatalogLoaded?: (count: number) => void;
 }) {
 	const {
 		status,
@@ -174,10 +183,16 @@ export function ComposioConnectorBrowser({
 	const [catalog, setCatalog] = useState<ComposioCatalogToolkit[] | null>(null);
 	const [catalogError, setCatalogError] = useState<string | null>(null);
 	const [catalogLoading, setCatalogLoading] = useState(false);
-	const [query, setQuery] = useState("");
+	const [ownQuery, setOwnQuery] = useState("");
 	const [detailSlug, setDetailSlug] = useState<ComposioToolkitSlug | null>(
 		null,
 	);
+	const query = externalQuery ?? ownQuery;
+
+	const onCatalogLoadedRef = useRef(onCatalogLoaded);
+	useEffect(() => {
+		onCatalogLoadedRef.current = onCatalogLoaded;
+	}, [onCatalogLoaded]);
 
 	const loadCatalog = useCallback(async () => {
 		setCatalogLoading(true);
@@ -185,6 +200,7 @@ export function ComposioConnectorBrowser({
 		try {
 			const response = await fetchComposioToolkitCatalog();
 			setCatalog(response.toolkits);
+			onCatalogLoadedRef.current?.(response.toolkits.length);
 		} catch (error) {
 			setCatalogError(error instanceof Error ? error.message : String(error));
 		} finally {
@@ -275,15 +291,17 @@ export function ComposioConnectorBrowser({
 					Connect your accounts to give Cline tools for your favorite apps.
 					Connected tools become available in new sessions.
 				</p>
-				<div className="relative">
-					<Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-					<Input
-						className="h-8 w-64 pl-8"
-						onChange={(event) => setQuery(event.target.value)}
-						placeholder="Search connectors"
-						value={query}
-					/>
-				</div>
+				{hideSearch ? null : (
+					<div className="relative">
+						<Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+						<Input
+							className="h-8 w-64 pl-8"
+							onChange={(event) => setOwnQuery(event.target.value)}
+							placeholder="Search connectors"
+							value={ownQuery}
+						/>
+					</div>
+				)}
 			</div>
 
 			{actionError ? (
@@ -315,7 +333,9 @@ export function ComposioConnectorBrowser({
 				</div>
 			) : (
 				<>
-					<div className="max-h-[420px] overflow-y-auto pr-1">
+					{/* Fill the remaining viewport below the marketplace header,
+					    search, and filter chips; scroll inside the box. */}
+					<div className="max-h-[calc(100dvh-370px)] min-h-80 overflow-y-auto pr-1">
 						<div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
 							{visibleCatalog.map((entry) => (
 								<ConnectorRow
@@ -453,7 +473,9 @@ function ConnectorDetailDialog({
 	const toolNames = summary?.toolNames ?? [];
 	return (
 		<Dialog onOpenChange={onOpenChange} open={entry !== null}>
-			<DialogContent className="max-w-lg">
+			{/* Fixed dimensions so every connector opens the same-sized window;
+			    the body scrolls when content overflows. */}
+			<DialogContent className="flex h-[480px] flex-col sm:max-w-lg">
 				{entry ? (
 					<>
 						<DialogHeader>
@@ -483,64 +505,67 @@ function ConnectorDetailDialog({
 									) : null}
 								</div>
 							</div>
+						</DialogHeader>
+
+						<div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto pr-1">
 							{entry.description ? (
-								<DialogDescription className="pt-2 text-left">
+								<DialogDescription className="text-left">
 									{entry.description}
 								</DialogDescription>
 							) : null}
-						</DialogHeader>
 
-						<dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1.5 text-sm">
-							{typeof entry.toolsCount === "number" ? (
-								<>
-									<dt className="text-muted-foreground">Tools</dt>
-									<dd className="text-foreground">{entry.toolsCount}</dd>
-								</>
-							) : null}
-							<dt className="text-muted-foreground">Slug</dt>
-							<dd className="font-mono text-xs leading-5 text-foreground">
-								{entry.slug}
-							</dd>
-							{summary?.connectedAt ? (
-								<>
-									<dt className="text-muted-foreground">Connected</dt>
-									<dd className="text-foreground">
-										{new Date(summary.connectedAt).toLocaleString()}
-									</dd>
-								</>
-							) : null}
-						</dl>
+							<dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1.5 text-sm">
+								{typeof entry.toolsCount === "number" ? (
+									<>
+										<dt className="text-muted-foreground">Tools</dt>
+										<dd className="text-foreground">{entry.toolsCount}</dd>
+									</>
+								) : null}
+								<dt className="text-muted-foreground">Slug</dt>
+								<dd className="font-mono text-xs leading-5 text-foreground">
+									{entry.slug}
+								</dd>
+								{summary?.connectedAt ? (
+									<>
+										<dt className="text-muted-foreground">Connected</dt>
+										<dd className="text-foreground">
+											{new Date(summary.connectedAt).toLocaleString()}
+										</dd>
+									</>
+								) : null}
+							</dl>
 
-						{status === "pending" ? (
-							<p className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-								<Loader2 className="size-4 animate-spin" />
-								Finish authorizing {entry.name} in your browser…
-							</p>
-						) : null}
-
-						{summary?.error ? (
-							<p className="text-xs text-destructive" role="alert">
-								{summary.error}
-							</p>
-						) : null}
-
-						{status === "connected" && toolNames.length > 0 ? (
-							<div>
-								<p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-									{toolNames.length} tool{toolNames.length === 1 ? "" : "s"}{" "}
-									available in new sessions
+							{status === "pending" ? (
+								<p className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+									<Loader2 className="size-4 animate-spin" />
+									Finish authorizing {entry.name} in your browser…
 								</p>
-								<ul className="flex max-h-32 flex-wrap gap-1.5 overflow-y-auto">
-									{toolNames.map((name) => (
-										<li key={name}>
-											<Badge className="font-normal" variant="outline">
-												{name}
-											</Badge>
-										</li>
-									))}
-								</ul>
-							</div>
-						) : null}
+							) : null}
+
+							{summary?.error ? (
+								<p className="text-xs text-destructive" role="alert">
+									{summary.error}
+								</p>
+							) : null}
+
+							{status === "connected" && toolNames.length > 0 ? (
+								<div>
+									<p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+										{toolNames.length} tool{toolNames.length === 1 ? "" : "s"}{" "}
+										available in new sessions
+									</p>
+									<ul className="flex flex-wrap gap-1.5">
+										{toolNames.map((name) => (
+											<li key={name}>
+												<Badge className="font-normal" variant="outline">
+													{name}
+												</Badge>
+											</li>
+										))}
+									</ul>
+								</div>
+							) : null}
+						</div>
 
 						<DialogFooter>
 							<ConnectorActionButton

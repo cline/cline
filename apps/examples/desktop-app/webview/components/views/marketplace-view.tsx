@@ -39,6 +39,7 @@ import {
 } from "@/lib/marketplace";
 import { cn } from "@/lib/utils";
 import { CommandBadge, PageFrame, PageHeader } from "./page-layout";
+import { ComposioConnectorBrowser } from "./settings/composio-connector-browser";
 
 type EntryActionState =
 	| { status: "idle" }
@@ -109,7 +110,7 @@ const primitivePageDetails = {
 const directoryPageDetails: MarketplacePageDetails = {
 	title: "Marketplace",
 	description:
-		"A curated set of plugins, MCP servers, and skills from the Cline community.",
+		"A curated set of plugins, MCP servers, skills, and connectors from the Cline community.",
 	emptyInstalled: "Nothing installed yet.",
 	emptyCatalog: "No marketplace entries match the current filters.",
 	icon: Store,
@@ -664,9 +665,10 @@ export function MarketplaceView({
 	const [errorMessage, setErrorMessage] = useState<string | null>(null);
 	const [query, setQuery] = useState("");
 	const [selectedTag, setSelectedTag] = useState<string | null>(null);
-	const [typeFilter, setTypeFilter] = useState<MarketplacePrimitiveType | null>(
-		defaultTypeFilter ?? null,
-	);
+	const [typeFilter, setTypeFilter] = useState<
+		MarketplacePrimitiveType | "connectors" | null
+	>(defaultTypeFilter ?? null);
+	const [connectorCount, setConnectorCount] = useState<number | null>(null);
 	const [expandedEntryKey, setExpandedEntryKey] = useState<string | null>(null);
 	const [installedEntryKeys, setInstalledEntryKeys] = useState<Set<string>>(
 		() => new Set(),
@@ -991,6 +993,24 @@ export function MarketplaceView({
 						</span>
 					</Button>
 				))}
+				<Button
+					aria-pressed={typeFilter === "connectors"}
+					onClick={() =>
+						setTypeFilter((current) =>
+							current === "connectors" ? null : "connectors",
+						)
+					}
+					size="sm"
+					type="button"
+					variant={typeFilter === "connectors" ? "default" : "outline"}
+				>
+					Connectors
+					{connectorCount !== null ? (
+						<span className="rounded bg-background/30 px-1.5 py-0.5 text-xs">
+							{connectorCount}
+						</span>
+					) : null}
+				</Button>
 			</div>
 		) : null;
 
@@ -1200,45 +1220,58 @@ export function MarketplaceView({
 					) : null}
 
 					{variant !== "installed" ? (
-						<MarketplaceSection
-							actionStates={actionStates}
-							emptyMessage={pageDetails.emptyCatalog}
-							entries={catalogEntries}
-							expandedEntryKey={expandedEntryKey}
-							headerContent={
-								typeFilterChips || marketplaceTagFilters ? (
-									variant === "directory" ? (
-										// Light rules separate the filter tiers from each
-										// other and from the results below.
-										<div className="grid min-w-0 gap-3">
-											{typeFilterChips}
-											{marketplaceTagFilters ? (
-												<>
-													<div
-														aria-hidden="true"
-														className="h-px bg-border/70"
-													/>
-													{marketplaceTagFilters}
-												</>
-											) : null}
-											<div aria-hidden="true" className="h-px bg-border/70" />
-										</div>
-									) : (
-										<div className="grid min-w-0 gap-2">
-											{typeFilterChips}
-											{marketplaceTagFilters}
-										</div>
-									)
-								) : null
-							}
-							installedEntryKeys={installedEntryKeys}
-							installedStatusReady={installedStatusReady}
-							onInstall={installEntry}
-							onToggleExpanded={toggleExpanded}
-							onUninstall={uninstallEntry}
-							tagLabels={tagLabels}
-							title={variant === "directory" ? undefined : "Browse"}
-						/>
+						typeFilter === "connectors" ? (
+							<div className="grid min-w-0 gap-3">
+								{typeFilterChips}
+								<div aria-hidden="true" className="h-px bg-border/70" />
+								<ComposioConnectorBrowser
+									hideSearch
+									onCatalogLoaded={setConnectorCount}
+									onOpenSetup={onOpenInstalled}
+									query={query}
+								/>
+							</div>
+						) : (
+							<MarketplaceSection
+								actionStates={actionStates}
+								emptyMessage={pageDetails.emptyCatalog}
+								entries={catalogEntries}
+								expandedEntryKey={expandedEntryKey}
+								headerContent={
+									typeFilterChips || marketplaceTagFilters ? (
+										variant === "directory" ? (
+											// Light rules separate the filter tiers from each
+											// other and from the results below.
+											<div className="grid min-w-0 gap-3">
+												{typeFilterChips}
+												{marketplaceTagFilters ? (
+													<>
+														<div
+															aria-hidden="true"
+															className="h-px bg-border/70"
+														/>
+														{marketplaceTagFilters}
+													</>
+												) : null}
+												<div aria-hidden="true" className="h-px bg-border/70" />
+											</div>
+										) : (
+											<div className="grid min-w-0 gap-2">
+												{typeFilterChips}
+												{marketplaceTagFilters}
+											</div>
+										)
+									) : null
+								}
+								installedEntryKeys={installedEntryKeys}
+								installedStatusReady={installedStatusReady}
+								onInstall={installEntry}
+								onToggleExpanded={toggleExpanded}
+								onUninstall={uninstallEntry}
+								tagLabels={tagLabels}
+								title={variant === "directory" ? undefined : "Browse"}
+							/>
+						)
 					) : null}
 				</div>
 			) : null}
