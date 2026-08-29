@@ -1,8 +1,5 @@
 import type { ProviderConfigFieldKey } from "@cline/core";
-import type {
-	ClineModelPickerEntry,
-	SearchableListState,
-} from "@cline/ui/tui";
+import type { ClineModelPickerEntry, SearchableListState } from "@cline/ui/tui";
 import { useKeyboard } from "@opentui/react";
 import type { Dispatch, SetStateAction } from "react";
 import {

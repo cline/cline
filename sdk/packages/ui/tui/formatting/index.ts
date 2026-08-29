@@ -56,16 +56,16 @@ export {
 	materializeGeneratedMedia,
 } from "./generated-media";
 export {
+	type HistoryStatusFields,
+	mergeHistoryStatusRows,
+} from "./history-rows";
+export {
 	bufferToImageDataUrl,
 	getImageMimeType,
 	isImagePath,
 	loadImageAsDataUrl,
 	resolveExistingImagePath,
 } from "./image-attachments";
-export {
-	type HistoryStatusFields,
-	mergeHistoryStatusRows,
-} from "./history-rows";
 export { resolveNonCompactionStatusLabel } from "./status-labels";
 export {
 	formatStructuredCommand,

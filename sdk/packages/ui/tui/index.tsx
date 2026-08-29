@@ -9,11 +9,6 @@
 // (provider pickers, account dialogs, onboarding flows, history browsers).
 export * from "./commands/slash-command-registry";
 export type { TranscriptScrollHandle } from "./components/chat-message-list";
-export type { CheckpointPickerItem } from "./components/dialogs/checkpoint-picker";
-export {
-	LoadingDialogContent,
-	withLoadingDialog,
-} from "./components/dialogs/loading-dialog";
 export {
 	type AccountDialogAction,
 	AccountDialogContent,
@@ -21,11 +16,16 @@ export {
 	type AccountDialogSnapshot,
 	isClineAccountAuthErrorMessage,
 } from "./components/dialogs/account-dialog";
+export type { CheckpointPickerItem } from "./components/dialogs/checkpoint-picker";
 export type { HistoryExportFormat } from "./components/dialogs/history-export-picker";
 export {
 	HistoryDialogContent,
 	type HistorySessionRow,
 } from "./components/dialogs/history-view";
+export {
+	LoadingDialogContent,
+	withLoadingDialog,
+} from "./components/dialogs/loading-dialog";
 export {
 	getMcpManagerFooterText,
 	type McpEntry,

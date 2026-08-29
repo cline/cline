@@ -217,16 +217,12 @@ export async function runInteractive(
 	let pluginChatCommandHostLoaded = false;
 	let pluginChatSlashCommands: SlashCommand[] = [];
 	let pluginChatCommandHostShutdown: (() => Promise<void>) | undefined;
-	let pluginChatCommandHostPromise:
-		| Promise<SlashCommand[]>
-		| undefined;
+	let pluginChatCommandHostPromise: Promise<SlashCommand[]> | undefined;
 	const configDataLoader = createInteractiveConfigDataLoader({
 		config,
 		userInstructionService,
 	});
-	const ensurePluginChatCommandHost = async (): Promise<
-		SlashCommand[]
-	> => {
+	const ensurePluginChatCommandHost = async (): Promise<SlashCommand[]> => {
 		if (pluginChatCommandHostLoaded) {
 			return pluginChatSlashCommands;
 		}
@@ -251,9 +247,8 @@ export async function runInteractive(
 			});
 		return await pluginChatCommandHostPromise;
 	};
-	const loadAdditionalSlashCommands = async (): Promise<
-		SlashCommand[]
-	> => await ensurePluginChatCommandHost();
+	const loadAdditionalSlashCommands = async (): Promise<SlashCommand[]> =>
+		await ensurePluginChatCommandHost();
 	const shouldTryPluginChatCommands = (prompt: string): boolean => {
 		return prompt.trimStart().startsWith("/");
 	};

@@ -1,6 +1,6 @@
 import {
-	captureProviderConfigured,
 	type ClineRecommendedModelsData,
+	captureProviderConfigured,
 	fetchClineRecommendedModels,
 	getLocalProviderModels,
 	getProviderConfigFields,
