@@ -15,7 +15,6 @@ import {
 	type UserCurrentPlan,
 } from "@cline/core";
 import { getClineEnvironmentConfig } from "@cline/shared";
-import { formatCreditBalance, normalizeCreditBalance } from "../utils/output";
 import { identifyTelemetryAccount } from "../utils/telemetry";
 import type { Config } from "../utils/types";
 
@@ -30,20 +29,6 @@ export interface ClineAccountSnapshot {
 	organizations: ClineAccountOrganization[];
 	activeOrganization: ClineAccountOrganization | null;
 	displayedBalance: number;
-}
-
-export function formatClineCredits(value: number): string {
-	return formatCreditBalance(normalizeCreditBalance(value));
-}
-
-// FIXME: These message checks are temporary until structured error types are
-// passed through to the CLI instead of plain error strings.
-export function isClineAccountAuthErrorMessage(message: string): boolean {
-	const normalized = message.trim().toLowerCase();
-	return (
-		normalized === "no cline account auth token found" ||
-		normalized.includes("requires re-authentication")
-	);
 }
 
 function resolveAccountApiBaseUrl(input: {

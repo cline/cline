@@ -14,6 +14,13 @@ export {
 	LoadingDialogContent,
 	withLoadingDialog,
 } from "./components/dialogs/loading-dialog";
+export {
+	type AccountDialogAction,
+	AccountDialogContent,
+	type AccountDialogOrganization,
+	type AccountDialogSnapshot,
+	isClineAccountAuthErrorMessage,
+} from "./components/dialogs/account-dialog";
 export type { HistoryExportFormat } from "./components/dialogs/history-export-picker";
 export {
 	HistoryDialogContent,

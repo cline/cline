@@ -46,6 +46,11 @@ export {
 	parseCompactionNoticeMetadata,
 } from "./compaction-status";
 export {
+	formatClineCredits,
+	formatCreditBalance,
+	normalizeCreditBalance,
+} from "./credits";
+export {
 	cleanupMaterializedGeneratedMedia,
 	type MaterializedGeneratedMedia,
 	materializeGeneratedMedia,

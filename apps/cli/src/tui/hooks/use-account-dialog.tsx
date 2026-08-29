@@ -1,12 +1,9 @@
 import type { OpenModelSelectorOptions } from "@cline/ui/tui";
+import { type AccountDialogAction, AccountDialogContent } from "@cline/ui/tui";
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import type { DialogActions } from "@opentui-ui/dialog/react";
 import open from "../../utils/open";
 import type { ClineAccountSnapshot } from "../cline-account";
-import {
-	type AccountDialogAction,
-	AccountDialogContent,
-} from "../dialogs/account-dialog";
 import {
 	OAuthLoginContent,
 	type OAuthLoginResult,

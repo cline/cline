@@ -1,8 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-	formatCreditBalance,
 	installStreamErrorGuards,
-	normalizeCreditBalance,
 	prepareTerminalForPostTuiOutput,
 	setCurrentOutputMode,
 } from "./output";
@@ -43,15 +41,6 @@ describe("installStreamErrorGuards", () => {
 		}).toThrow("exit:0");
 
 		expect(exitSpy).toHaveBeenCalledWith(0);
-	});
-});
-
-describe("credit balance formatting", () => {
-	it("normalizes Cline micro-credit balances before display", () => {
-		expect(formatCreditBalance(normalizeCreditBalance(500_000))).toBe("$0.50");
-		expect(formatCreditBalance(normalizeCreditBalance(5_000_000))).toBe(
-			"$5.00",
-		);
 	});
 });
 

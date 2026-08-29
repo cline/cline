@@ -4,9 +4,10 @@ import {
 	type UserInstructionConfigService,
 } from "@cline/core";
 import type { SlashCommand } from "@cline/ui/tui";
+import { formatClineCredits } from "@cline/ui/tui/formatting";
 import { byLengthAsc, Fzf, type FzfResultItem } from "fzf";
 import type { Config } from "../utils/types";
-import { formatClineCredits, loadClineAccountSnapshot } from "./cline-account";
+import { loadClineAccountSnapshot } from "./cline-account";
 
 function normalizeLimit(limit: number | undefined): number {
 	if (typeof limit !== "number" || Number.isNaN(limit)) {
