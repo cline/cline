@@ -1,5 +1,56 @@
 # Cline SDK Changelog
 
+## 0.0.81
+
+- Session snapshot events no longer carry the full conversation transcript. Every `session.updated` (and `session.created` / `session.detached` / `run.started`) event embedded the session's entire message history, so on a multi-megabyte task each status flip shipped megabytes to every subscriber, flooded the durable event log, and could grow the hub process by one transcript copy per event — reported as a 25 GB `cline` process on a 16 GB machine. Snapshots are now state-only (status, usage, model, workspace, checkpoint); transcripts are fetched with the `session.messages` command. Checkpoint-restore replies, which carry messages in their own field, are unaffected
+
+## 0.0.80
+
+- New files created by the file-writing tools now use the platform's native line endings
+- Fixed `search_codebase` crashing the process on files that contain a single enormous line
+- Credentials embedded in git remote URLs are now redacted from the workspace information included in the system prompt
+- Claude Code is now marked as a subscription-billed provider, so hosts suppress its per-token prices and API-rate cost estimates. Its models reuse Anthropic API pricing metadata, which produced dollar figures for usage that is covered by a Claude Pro/Max subscription
+- `installMcpServer` no longer treats a `--` separator in the install arguments as part of the stdio command
+- The `tasks` tool can now be configured to offer only scheduled work, disabling the Todo kind while leaving the Agenda backend intact
+- Refreshed the model catalog. Adds seven providers (Agnes AI, Aixy, IteraCompute, LLM Tech, NeoSmith, Pendra, and Standard Compute) and updates model lists and pricing across providers. The resolved default model changes for ClinePass (now GLM 5.3), Z.ai, Hugging Face, evroc, LLM Gateway, NanoGPT, and Weights & Biases, so if you use one of those without pinning a model you will get a different default
+
+## 0.0.79
+
+- The hub's durable event log is now capped at 64 MiB on disk. Event envelopes carrying full session snapshots could previously accumulate to tens of gigabytes, since row and time retention alone did not bound file size and deletes never shrink a SQLite file. Oldest events are dropped first and the file is vacuumed to return the space, and pruning now also runs after every 16 MiB appended instead of waiting for the hourly sweep
+- Fixed `task.completed` telemetry being dropped for most interactive sessions. The event is now emitted from every session teardown path, exactly once per session
+- Refreshed the model catalog. Adds two providers (AgentRouter and Opper) and updates model lists and pricing across providers. The resolved default model changes for Aki.io and NanoGPT, so if you use one of those without pinning a model you will get a different default
+
+## 0.0.78
+
+- The hub can now be drained and upgraded without losing work. A draining hub refuses new mutating work while it finishes what it is running, a durable event log lets a reconnecting client replay everything it missed, and durable runs are queued rather than dropped. Replayed events are deduped by event id, so an event that arrives on both the replay and the live stream is delivered once
+- Fixed tool calling being silently disabled for custom OpenAI-Compatible models whose capability list was synthesized from convenience flags like `supportsReasoning`. An inferred list read as an authoritative denial and stripped every tool from the request; explicitly authored capability lists still decide
+- Langfuse traces now carry session and client identity for hub-backed and delegated-agent runs. Hub sessions rebuild client name and version from request headers, and delegated agents group under their parent session instead of appearing as unattributed traces
+- Refreshed the model catalog, which updates model lists and pricing across providers and changes the resolved default model for several of them (DeepSeek, Crof, CrossModel, Eden AI, Kilo, and NanoGPT). If you use one of those providers without pinning a model, you will get a different default
+
+## 0.0.77
+
+- The `tasks` tool (durable todos and one-time or recurring agent schedules) is now scoped to the clients that can service it. Hosts declare their client type and the core tool catalog resolves availability centrally, so CLI and VS Code sessions no longer register a tool they cannot act on; hub sessions resolve the same way from the requesting client's metadata
+
+## 0.0.76
+
+- Added model-driven image generation. Models that support it can generate images during a turn, and generated images are persisted in session history and exports
+- Agents can now create and manage scheduled tasks and a durable todo agenda. Schedules are scoped to the workspace that registered them
+- Skill slash commands now load through the skills tool instead of being pasted into the user message. The persisted transcript records what you typed (`/my-skill ...`) rather than the whole SKILL.md body, and skill instructions arrive once instead of twice. Workflows keep textual expansion
+- Fixed provider-executed tool activity being dropped entirely — every tool the Claude Code provider ran inside its own session modified the workspace with no tool activity in runtime events, transcripts, or the UI. These now surface as observational tool events
+- Fixed `PreToolUse` hook `contextModification` never reaching the model on the next engine; it is delivered again as a `<hook_context>` block stamped with the tool name and call id, hidden from user-facing transcripts
+- Fixed `PostToolUse` hooks running fire-and-forget with their output discarded. They are awaited now (120s bound) and their `contextModification` and `cancel` controls are honored, matching legacy
+- Fixed `run_commands` failing with ENOENT for the structured `{ command }` form when the command contained a space; it routes through the shell when no `args` key is present
+- PowerShell commands now run fail-fast (`$ErrorActionPreference='Stop'`). A pipeline erroring per item no longer emits tens of thousands of stderr records and then reports success
+- Fixed Gemini custom base URLs configured as a host root
+- Image and voice models no longer appear in chat model pickers
+- Provider model lists now carry featured tiers (Recommended/Free, and Subscribed/Free for ClinePass) plus model descriptions, served from the SDK with a cached recommended-models feed and a bundled offline fallback, so clients no longer join the feed themselves
+- Fixed sessions reporting a bogus "running" status — interactive sessions that were never prompted, and snapshot-only session updates — which left clients that gate on turn activity (desktop checkpoint restore) stuck busy forever
+- Detached command output now streams live and survives hub restarts instead of being reaped
+- Gateway usage now displays the billed cost
+- Fixed Windows crashes from the agenda spec watcher when the specs directory resolved through an 8.3 short path
+- AI SDK telemetry spans now carry user, session, conversation, run, provider, and model context under a stable `cline-sdk` service name
+- Refreshed the model catalog, which adds AMD, Arcee, Echo, Jalapeno, Kosmik, LLM Gateway, RunInfra, and SCNet as providers, renames `scx` to `scx-ai`, and updates model lists and per-provider default models across the board
+
 ## 0.0.75
 
 - Added provider-executed web search. Models that support it can search the web during a turn, and the search calls and their results are persisted in session history so they replay on reload. Off by default; enable the `web_search` model tool in settings

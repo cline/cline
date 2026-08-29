@@ -169,9 +169,12 @@ jobs:
               if: matrix.runner != 'ubuntu'
               run: bun run test:e2e:optimal
 
+            # Repo-root relative: the job's `working-directory` default applies to `run`
+            # steps only, so an apps/vscode-relative path here silently matches nothing
+            # and every failing run uploads no recordings at all.
             - uses: actions/upload-artifact@v4
               if: ${{ failure() }}
               with:
                   name: playwright-recordings-${{ matrix.runner }}
                   path: |
-                      test-results/playwright/
+                      apps/vscode/test-results/

@@ -28,6 +28,16 @@ describe("builtin tool catalog", () => {
 				(entry) => entry.id === "tasks",
 			),
 		).toBe(false);
+		expect(
+			getCoreBuiltinToolCatalog({ mode: "act", clientType: "cli" }).some(
+				(entry) => entry.id === "tasks",
+			),
+		).toBe(false);
+		expect(
+			getCoreBuiltinToolCatalog({ mode: "act", clientType: "vscode" }).some(
+				(entry) => entry.id === "tasks",
+			),
+		).toBe(false);
 	});
 
 	it("always lists generate_media and requires an explicit opt-in", () => {

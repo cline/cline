@@ -26,6 +26,10 @@ import {
 	markQueuedAttachmentsSubmitted,
 	reconcileQueuedAttachments,
 } from "./attachments";
+import {
+	disposeDesktopFeatureFlagsService,
+	getDesktopFeatureFlagsService,
+} from "./feature-flags";
 import { sessionLogPath } from "./paths";
 import type {
 	LiveSession,
@@ -110,23 +114,25 @@ export function syncSidecarApprovalReadiness(
 	ctx: SidecarContext,
 ): Promise<void> {
 	const previous = approvalReadinessUpdates.get(ctx) ?? Promise.resolve();
-	const update = previous.catch(() => undefined).then(async () => {
-		const hubClient = ctx.hubClient;
-		if (!hubClient) return;
-		await hubClient.updateCapabilities(
-			[...ctx.wsClients].some(
-				(client) => client.data?.canApproveTools === true,
-			)
-				? [
-						{
-							name: HUB_CLIENT_TOOL_APPROVAL_CAPABILITY,
-							description:
-								"Cline Code has a live user surface for tool review.",
-						},
-					]
-				: [],
-		);
-	});
+	const update = previous
+		.catch(() => undefined)
+		.then(async () => {
+			const hubClient = ctx.hubClient;
+			if (!hubClient) return;
+			await hubClient.updateCapabilities(
+				[...ctx.wsClients].some(
+					(client) => client.data?.canApproveTools === true,
+				)
+					? [
+							{
+								name: HUB_CLIENT_TOOL_APPROVAL_CAPABILITY,
+								description:
+									"Cline Code has a live user surface for tool review.",
+							},
+						]
+					: [],
+			);
+		});
 	approvalReadinessUpdates.set(ctx, update);
 	return update.finally(() => {
 		if (approvalReadinessUpdates.get(ctx) === update) {
@@ -434,7 +440,7 @@ function emitQueuedPromptStart(
 	);
 }
 
-function handleCoreSessionEvent(
+export function handleCoreSessionEvent(
 	ctx: SidecarContext,
 	event: CoreSessionEvent,
 ): void {
@@ -626,6 +632,10 @@ export async function disposeSidecarContext(
 	if (sessionManager) {
 		cleanup.push(sessionManager.dispose(reason));
 	}
+
+	// Shuts down the PostHog client the feature flags service owns, flushing
+	// any pending $feature_flag_called events.
+	cleanup.push(disposeDesktopFeatureFlagsService());
 
 	const results = await Promise.allSettled(cleanup);
 	const firstFailure = results.find(
@@ -1021,6 +1031,10 @@ export async function initializeSessionManager(
 		capabilities: createSidecarRuntimeCapabilities(ctx),
 		logger: ctx.logger,
 		telemetry: ctx.telemetry,
+		featureFlags: getDesktopFeatureFlagsService({
+			logger: ctx.logger,
+			telemetry: ctx.telemetry,
+		}),
 		hub: {
 			strategy: "require-hub",
 			workspaceRoot: ctx.workspaceRoot,

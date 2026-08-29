@@ -130,12 +130,16 @@ Completion telemetry is anchored to the assistant's explicit completion
 declaration, not session shutdown. After each agent turn, the local
 runtime inspects `AgentResult.toolCalls` and emits `task.completed` the
 moment a successful `submit_and_exit` (the SDK analog of original
-Cline's `attempt_completion`) is observed. `shutdownSession(...)`
-retains a fallback emission for completed sessions that finished
-without an explicit completion-tool observation, so non-interactive
-runs not using the yolo preset still produce a `task.completed` signal.
-Each session emits at most one `task.completed`. See `DOC.md` for the
-event payload and `source` field.
+Cline's `attempt_completion`) is observed. A single teardown choke
+point (`emitTaskCompletedOnTeardown(...)`) retains a fallback emission
+for sessions whose final turn finished cleanly without an explicit
+completion-tool observation (non-interactive runs not using the yolo
+preset, or hosts that disable `submit_and_exit`). It is invoked from
+every session exit path — both `shutdownSession(...)` and
+`releaseSessionRuntime(...)` — so the emission never depends on which
+teardown branch a stop routes through. Each session emits at most one
+`task.completed`. See `DOC.md` for the event payload and `source`
+field.
 
 ### Hub-Backed Runtime
 
@@ -148,6 +152,19 @@ event payload and `source` field.
 7. Hub event forwarding preserves structured streaming lifecycle boundaries: text/reasoning deltas, final text/reasoning completion, tool start/update/finish, and agent done events are translated across the hub transport so host UIs can reliably close loading/streaming state. `run.started` is emitted only after the target session is resolved and carries the originating command's `requestId` and `clientId`, allowing multi-client hosts to correlate delivery acknowledgments.
 8. Hub client adapters exported from `@cline/core/hub` (`NodeHubClient`, `HubSessionClient`, `HubUIClient`, `connectToHub`) translate command/reply and event streams into host-facing APIs.
 9. Hub `session.get` records include both canonical root-session usage and explicit aggregate usage from the hub-owned `RuntimeHost`, so attached clients can intentionally render either root-only or root-plus-teammate costs without replaying event streams.
+
+Session status is reported, never fabricated. A session's initial status
+reflects whether a turn actually runs inside `start(...)`: prompt-bearing
+starts (one-shot or interactive) begin `running`, interactive starts without a
+prompt begin `idle` until their first turn, and resumed sessions report their
+persisted status. Each turn owns its `running` → `idle` transition. On the
+client side, `HubRuntimeHost` projects a status event only when the hub
+session record or the session snapshot actually carries one; snapshot-only
+`session.updated` events (asynchronous persistence updates, which can trail a
+turn's final idle update) report the snapshot's real status. Hosts that gate
+workspace-wide operations on busy sessions (for example the desktop's
+checkpoint-restore gate) depend on this: a defaulted `running` with no owning
+turn leaves such gates blocked with nothing to clear them.
 
 Command progress follows the same runtime event boundary as other agent output.
 Shell executors emit structured stdout/stderr chunks through
@@ -386,6 +403,13 @@ Design implication:
   model switching are also service-style capabilities exposed through
   `ClineCore` when the concrete transport implements them. These service APIs
   are intentionally outside the minimal `RuntimeHost` primitive vocabulary.
+- `session.abort` remains the cancellation boundary for a root session in both
+  local and hub-backed execution. The owning `LocalRuntimeHost` aborts the lead
+  agent and asks only that session's team runtime to cancel active synchronous
+  teammate work plus running or queued async runs. Teammate definitions and
+	conversation state remain available for later turns; idle and unrelated team
+	runtimes are not stopped. The team runtime marks intentional abort task-end
+	events as cancelled so persistence does not record them as failures.
 - The usage service's `getAccumulatedUsage(sessionId)` method returns a summary
   with two explicit buckets: `usage` for the root/lead agent and
   `aggregateUsage` for root plus teammates/subagents. Local execution tracks
@@ -540,6 +564,15 @@ separate from cron specs, queued prompts inside an existing session, and the
 agent-team task board. Shared, browser-safe contracts use `AgendaTaskRecord`
 and `AgendaTaskRunRecord`; orchestration and persistence remain in
 `@cline/core`.
+
+> **Status:** the agent-facing `kind: "todo"` half of the `tasks` tool and the
+> desktop Agenda UI are temporarily disabled while the Agenda UX is reworked
+> (`AGENDA_TODO_TOOL_ENABLED` in `hub-server-transport.ts` and
+> `AGENDA_UI_ENABLED` in the desktop webview). While the flag is off the Hub
+> also skips the agenda spec-file watchers — nothing consumes watcher-driven
+> task events, and `task.*` commands reconcile spec files on demand. The
+> backend described below — the manager, storage, `task.*` Hub commands, and
+> desktop plumbing — stays fully wired, and the schedule kind remains active.
 
 ### Authority and persistence
 

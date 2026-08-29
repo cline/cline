@@ -76,9 +76,12 @@ export {
 	getCoreBuiltinToolCatalog,
 	getCoreDefaultEnabledToolIds,
 	getCoreHeadlessToolNames,
+	isCoreBuiltinToolAvailable,
 	isSkillsToolAvailable,
 	resolveCoreSelectedToolIds,
+	resolveToolClientType,
 	type ToolCatalogEntry,
+	type ToolClientType,
 } from "./runtime";
 // Schemas
 export {

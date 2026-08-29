@@ -21,6 +21,10 @@ vi.mock("@/lib/desktop-client", () => ({
 		subscribeTransportState: vi.fn(() => () => undefined),
 	},
 }));
+// The Agenda UI ships hidden for now; these tests force the flag on so they
+// keep guarding the dormant feature. agenda-ui-hidden.test.tsx covers the
+// shipped (hidden) state.
+vi.mock("@/lib/feature-flags", () => ({ AGENDA_UI_ENABLED: true }));
 
 let container: HTMLDivElement;
 let root: Root;
@@ -208,12 +212,10 @@ describe("WelcomeScreen", () => {
 			workspaces,
 		});
 
-		expect(
-			container.querySelectorAll(".cline-ui-agent-aurora__star"),
-		).toHaveLength(32);
-		expect(
-			container.querySelector(".cline-ui-agent-hero-heading"),
-		).not.toBeNull();
+		const heading = container.querySelector("h1");
+		expect(heading?.textContent).toBe("What would you like to build?");
+		expect(heading?.classList.contains("sr-only")).toBe(true);
+		expect(container.querySelector("[data-welcome-hero]")).not.toBeNull();
 		await clickButton("project-1");
 
 		for (let index = 1; index <= workspaces.length; index += 1) {

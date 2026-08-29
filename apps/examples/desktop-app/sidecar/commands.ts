@@ -52,6 +52,8 @@ import {
 import { resolveAudioTranscriptionRoute } from "@cline/llms";
 import {
 	CLINE_DEFAULT_MODEL_ID,
+	formatSessionSearchPreview,
+	formatSessionSearchTitle,
 	getClineEnvironmentConfig,
 	isCanonicalBase64,
 	ONE_TIME_SCHEDULE_CRON_PATTERN,
@@ -63,6 +65,11 @@ import packageJson from "../package.json";
 import { CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT } from "../webview/lib/cline-account-state";
 import { MAX_RECORDED_AUDIO_BYTES } from "../webview/lib/voice-input-limits";
 import {
+	listClineGitHubRepositories,
+	listClineIntegrations,
+	resolveGitHubInstallUrl,
+} from "./commands-integrations";
+import {
 	connectorChannelsPayload,
 	startConnectorChannel,
 	stopConnectorChannel,
@@ -73,6 +80,10 @@ import {
 	resolveSidecarAskQuestion,
 	sendEventToClient,
 } from "./context";
+import {
+	identifyDesktopFeatureFlagsAccount,
+	refreshDesktopFeatureFlags,
+} from "./feature-flags";
 import {
 	installMarketplaceEntryForDesktopCommand,
 	listMarketplaceInstalledEntries,
@@ -297,6 +308,33 @@ function removePathIfExists(
 // refreshes would invalidate each other.
 let clineOAuthTokenManager: RuntimeOAuthTokenManager | undefined;
 
+function syncFeatureFlagsAccountFromResult(
+	ctx: SidecarContext,
+	operation: string,
+	result: unknown,
+): void {
+	if (operation === "fetchMe") {
+		const user = result as { id?: string; email?: string } | undefined;
+		if (user?.id) {
+			void identifyDesktopFeatureFlagsAccount(
+				{ id: user.id, email: user.email },
+				{ logger: ctx.logger, telemetry: ctx.telemetry },
+			);
+		}
+		return;
+	}
+}
+
+function syncFeatureFlagsAccountFromSettings(
+	ctx: SidecarContext,
+	manager: ProviderSettingsManager,
+): void {
+	void identifyDesktopFeatureFlagsAccount(
+		{ id: manager.getProviderSettings("cline")?.auth?.accountId },
+		{ logger: ctx.logger, telemetry: ctx.telemetry },
+	);
+}
+
 async function resolveFreshClineAuthToken(
 	ctx: SidecarContext,
 	manager: ProviderSettingsManager,
@@ -506,6 +544,67 @@ async function listSessionsFromSidecarManager(
 		.slice(0, max);
 }
 
+async function withSearchDeadline<T>(
+	promise: Promise<T>,
+	timeoutMs: number,
+): Promise<T> {
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	try {
+		return await Promise.race([
+			promise,
+			new Promise<never>((_, reject) => {
+				timer = setTimeout(
+					() => reject(new Error("Session search timed out")),
+					timeoutMs,
+				);
+			}),
+		]);
+	} finally {
+		if (timer) clearTimeout(timer);
+	}
+}
+
+function metadataSessionSearchHits(
+	value: unknown,
+	query: string,
+): JsonRecord[] {
+	if (!Array.isArray(value)) return [];
+	const normalizedQuery = query.toLocaleLowerCase();
+	return value.flatMap((item) => {
+		if (!item || typeof item !== "object") return [];
+		const session = item as JsonRecord;
+		const metadata =
+			session.metadata && typeof session.metadata === "object"
+				? (session.metadata as JsonRecord)
+				: {};
+		const sessionId = String(session.sessionId ?? "").trim();
+		if (!sessionId) return [];
+		const rawTitle = String(
+			metadata.title ?? session.title ?? session.prompt ?? sessionId,
+		).trim();
+		const prompt = String(session.prompt ?? metadata.prompt ?? "");
+		const title = formatSessionSearchTitle(rawTitle) || sessionId;
+		const workspaceRoot = String(session.workspaceRoot ?? session.cwd ?? "");
+		const searchable = [rawTitle, prompt, workspaceRoot, session.model]
+			.join("\n")
+			.toLocaleLowerCase();
+		if (!searchable.includes(normalizedQuery)) return [];
+		return [
+			{
+				sessionId,
+				documentId: `${sessionId}:metadata`,
+				ordinal: -1,
+				role: "session",
+				startedAt: String(session.startedAt ?? session.createdAt ?? ""),
+				workspaceRoot,
+				title,
+				snippet: formatSessionSearchPreview("session", prompt || title),
+				score: 0,
+			},
+		];
+	});
+}
+
 // ---------------------------------------------------------------------------
 // Git helpers
 // ---------------------------------------------------------------------------
@@ -588,7 +687,15 @@ async function handleRoutineScheduleCommand(
 		hubCommand: string,
 		payload?: Record<string, unknown>,
 	) => {
-		const reply = await hubClient.command(hubCommand as never, payload);
+		// The desktop app runs chats (and therefore agent-created schedules)
+		// across many workspace folders, while this hub client is registered
+		// against the app's own launch directory. Ask the hub for schedules
+		// across all workspaces so the Schedules page manages every schedule
+		// on this machine, not just the launch-directory scope.
+		const reply = await hubClient.command(hubCommand as never, {
+			...payload,
+			allWorkspaces: true,
+		});
 		if (!reply.ok) {
 			throw new Error(
 				reply.error?.message ?? `hub command failed: ${hubCommand}`,
@@ -1363,6 +1470,49 @@ export async function handleCommand(
 			typeof args?.limit === "number" ? args.limit : 300,
 		);
 	}
+	if (command === "search_sessions") {
+		const query = String(args?.query ?? "").trim();
+		if (!query) return [];
+		const limit =
+			typeof args?.limit === "number" && Number.isFinite(args.limit)
+				? Math.max(1, Math.min(200, Math.trunc(args.limit)))
+				: 50;
+		const workspaceRoot =
+			typeof args?.workspaceRoot === "string"
+				? args.workspaceRoot.trim() || undefined
+				: undefined;
+		if (ctx.hubClient) {
+			try {
+				const reply = await withSearchDeadline(
+					ctx.hubClient.command("session.search", {
+						query,
+						limit,
+						workspaceRoot,
+					}),
+					750,
+				);
+				if (
+					reply.ok &&
+					Array.isArray(reply.payload?.hits) &&
+					reply.payload.hits.length > 0
+				) {
+					return reply.payload.hits.slice(0, limit).map((hit) => ({
+						...hit,
+						title: formatSessionSearchTitle(hit.title),
+						snippet: formatSessionSearchPreview(hit.role, hit.snippet),
+					}));
+				}
+			} catch {
+				// Fall back to metadata-only search when the index is unavailable.
+			}
+		}
+
+		const sessions = await withSearchDeadline(
+			listSessionsFromSidecarManager(ctx, 500),
+			1_000,
+		).catch(() => []);
+		return metadataSessionSearchHits(sessions, query).slice(0, limit);
+	}
 	if (command === "get_discovered_session") {
 		const sessionId = String(args?.sessionId ?? args?.session_id ?? "").trim();
 		if (!sessionId) throw new Error("session id is required");
@@ -1407,7 +1557,7 @@ export async function handleCommand(
 		const result = await backend.updateSession({ sessionId, metadata: merged });
 		if (!result.updated) throw new Error(`Session ${sessionId} not found`);
 		// Annotating a session is not session activity. updateSession stamps
-		// updated_at, which clients sort and label rows by, so a favorite would
+		// updated_at, which clients sort and label rows by, so a pin would
 		// otherwise make an old session look like it just ran.
 		if (existing?.updatedAt) {
 			store.run("UPDATE sessions SET updated_at = ? WHERE session_id = ?", [
@@ -1552,6 +1702,14 @@ export async function handleCommand(
 		// would be captured as error telemetry and shown raw to the user.
 		const authToken = await resolveFreshClineAuthToken(ctx, manager);
 		if (!authToken) {
+			// Backstop for credentials that go away without a settings write —
+			// an expired or server-revoked token. Explicit sign-out is handled
+			// at its source in `save_provider_settings`; this catches the rest
+			// so a stale account never keeps serving its rollout cohort.
+			void identifyDesktopFeatureFlagsAccount(
+				{},
+				{ logger: ctx.logger, telemetry: ctx.telemetry },
+			);
 			return CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT;
 		}
 		const settings = manager.getProviderSettings("cline");
@@ -1560,10 +1718,43 @@ export async function handleCommand(
 				settings?.baseUrl?.trim() || getClineEnvironmentConfig().apiBaseUrl,
 			getAuthToken: async () => authToken,
 		});
-		return await executeClineAccountAction(
+		const result = await executeClineAccountAction(
 			args as ClineAccountActionRequest,
 			accountService,
 		);
+		syncFeatureFlagsAccountFromResult(ctx, operation, result);
+		return result;
+	}
+
+	// ── Cline integrations (GitHub App) ────────────────────────────────
+	if (command === "cline_integrations") {
+		const operation = String(args?.operation ?? "").trim();
+		if (!operation) throw new Error("operation is required");
+		const manager = new ProviderSettingsManager();
+
+		const authToken = await resolveFreshClineAuthToken(ctx, manager);
+		if (!authToken) {
+			return CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT;
+		}
+		const settings = manager.getProviderSettings("cline");
+		const environment = getClineEnvironmentConfig();
+		const requestOptions = {
+			apiBaseUrl: settings?.baseUrl?.trim() || environment.apiBaseUrl,
+			appBaseUrl: environment.appBaseUrl,
+			authToken,
+		};
+		switch (operation) {
+			case "list":
+				return await listClineIntegrations(requestOptions);
+			case "listGitHubRepositories":
+				return await listClineGitHubRepositories(requestOptions);
+			case "githubInstallUrl":
+				return await resolveGitHubInstallUrl(requestOptions);
+			default:
+				throw new Error(
+					`Unsupported Cline integrations operation: ${operation}`,
+				);
+		}
 	}
 
 	// ── Provider management ────────────────────────────────────────────
@@ -1747,13 +1938,21 @@ export async function handleCommand(
 	}
 	if (command === "save_provider_settings") {
 		const manager = new ProviderSettingsManager();
-		return saveLocalProviderSettings(manager, {
+		const saved = saveLocalProviderSettings(manager, {
 			...readProviderSettingsUpdate(args),
 			providerId: String(args?.provider ?? ""),
 			enabled: typeof args?.enabled === "boolean" ? args.enabled : undefined,
 			apiKey: typeof args?.api_key === "string" ? args.api_key : undefined,
 			baseUrl: typeof args?.base_url === "string" ? args.base_url : undefined,
 		});
+		// Sign-out is a `save_provider_settings` that blanks the cline auth block
+		// (see signOut in webview settings/account-view.tsx), so this is the
+		// authoritative signal — it fires the moment credentials are cleared
+		// rather than waiting for the next account fetch.
+		if (saved.providerId === "cline" || saved.providerId === "cline-pass") {
+			syncFeatureFlagsAccountFromSettings(ctx, manager);
+		}
+		return saved;
 	}
 	if (command === "add_provider") {
 		const manager = new ProviderSettingsManager();
@@ -1854,6 +2053,18 @@ export async function handleCommand(
 		}
 		setOptInToolEnabledGlobally("web_search", args.web_search_enabled);
 		return readGlobalSettings();
+	}
+
+	// ── Feature flags ──────────────────────────────────────────────────
+	// Flags are evaluated here, not in the webview: the sidecar already has
+	// the PostHog key inlined at build time and evaluates against the same
+	// distinct ID it reports telemetry with. The client just reads the
+	// resolved values.
+	if (command === "get_feature_flags") {
+		return await refreshDesktopFeatureFlags({
+			logger: ctx.logger,
+			telemetry: ctx.telemetry,
+		});
 	}
 
 	// ── Connector channels ─────────────────────────────────────────────

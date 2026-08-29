@@ -24,12 +24,12 @@ import {
 	UserCircleIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAccount } from "@/contexts/account-context";
 import { isClineAccountNotAuthenticatedResult } from "@/lib/cline-account-state";
 import { desktopClient, openExternalUrl } from "@/lib/desktop-client";
 import { invalidateProviderCatalogCache } from "@/lib/provider-model-catalog";
 import { cn } from "@/lib/utils";
+import { PageFrame, PageHeader } from "../page-layout";
 
 const DASHBOARD_URL = "https://app.cline.bot/dashboard";
 const USAGE_DASHBOARD_URL = "https://app.cline.bot/dashboard/usage";
@@ -554,12 +554,11 @@ export function AccountView() {
 	);
 
 	return (
-		<ScrollArea className="h-full">
-			<div className="mx-auto max-w-3xl px-8 py-6">
-				{/* Header */}
-				<div className="mb-6 flex items-center justify-between">
-					<h2 className="text-2xl font-semibold text-foreground">Account</h2>
-					{user && (
+		<PageFrame contentClassName="max-w-3xl">
+			<PageHeader
+				title="Account"
+				actions={
+					user ? (
 						<button
 							type="button"
 							disabled={accountActionPending !== null}
@@ -567,284 +566,284 @@ export function AccountView() {
 							className="flex items-center gap-2 rounded-lg border border-border px-3.5 py-2 text-sm font-medium text-muted-foreground hover:bg-surface-hover hover:text-foreground disabled:opacity-60"
 						>
 							{accountActionPending === "sign-out" ? (
-								<Loader2 className="h-4 w-4 animate-spin" />
+								<Loader2 className="size-4 animate-spin" />
 							) : (
-								<LogOut className="h-4 w-4" />
+								<LogOut className="size-4" />
 							)}
 							{accountActionPending === "sign-out" ? "Signing Out" : "Sign Out"}
 						</button>
-					)}
-				</div>
+					) : undefined
+				}
+			/>
 
-				{/* Tabs */}
-				<div className="mb-6 flex items-center gap-0 border-b border-border">
-					{tabs.map((tab) => {
-						const disabled = !user && tab !== "overview";
-						return (
-							<button
-								key={tab}
-								type="button"
-								disabled={disabled}
-								onClick={() => setActiveTab(tab)}
-								className={cn(
-									"relative px-4 py-2.5 text-sm font-medium capitalize transition-colors",
-									activeTab === tab
-										? "text-foreground"
-										: "text-muted-foreground hover:text-foreground",
-									disabled &&
-										"cursor-not-allowed opacity-45 hover:text-muted-foreground",
-								)}
-							>
-								{tab}
-								{activeTab === tab && (
-									<span className="absolute inset-x-0 -bottom-px h-0.5 bg-foreground" />
-								)}
-							</button>
-						);
-					})}
-				</div>
+			{/* Tabs */}
+			<div className="mb-6 flex items-center gap-0 border-b border-border">
+				{tabs.map((tab) => {
+					const disabled = !user && tab !== "overview";
+					return (
+						<button
+							key={tab}
+							type="button"
+							disabled={disabled}
+							onClick={() => setActiveTab(tab)}
+							className={cn(
+								"relative px-4 py-2.5 text-sm font-medium capitalize transition-colors",
+								activeTab === tab
+									? "text-foreground"
+									: "text-muted-foreground hover:text-foreground",
+								disabled &&
+									"cursor-not-allowed opacity-45 hover:text-muted-foreground",
+							)}
+						>
+							{tab}
+							{activeTab === tab && (
+								<span className="absolute inset-x-0 -bottom-px h-0.5 bg-foreground" />
+							)}
+						</button>
+					);
+				})}
+			</div>
 
-				{/* Overview Tab */}
-				{activeTab === "overview" && (
-					<div className="flex flex-col gap-6">
-						{overviewLoading && renderLoading()}
-						{!overviewLoading && signedOut && renderSignedOut()}
-						{overviewError && renderError(overviewError, loadOverview)}
-						{!overviewLoading && !signedOut && !overviewError && user && (
-							<>
-								{/* User Profile Card */}
-								<div className="rounded-lg border border-border p-5">
-									<div className="flex items-start gap-4">
-										<div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-(--accent-a3) text-2xl font-bold text-primary">
-											{user.displayName?.charAt(0) ??
-												user.email?.charAt(0) ??
-												"?"}
-										</div>
-										<div className="min-w-0 flex-1">
-											<h3 className="text-lg font-semibold text-foreground">
-												{user.displayName || user.email}
-											</h3>
-											<p className="mt-0.5 text-sm text-muted-foreground">
-												{user.email}
-											</p>
-											<p className="mt-2 text-xs text-muted-foreground">
-												Member since {formatDate(user.createdAt)}
-											</p>
-										</div>
-										<button
-											type="button"
-											title="Open dashboard"
-											onClick={() => void openExternalUrl(DASHBOARD_URL)}
-											className="rounded-md p-1.5 text-muted-foreground hover:bg-surface-hover hover:text-foreground"
-										>
-											<ExternalLink className="h-4 w-4" />
-										</button>
+			{/* Overview Tab */}
+			{activeTab === "overview" && (
+				<div className="flex flex-col gap-6">
+					{overviewLoading && renderLoading()}
+					{!overviewLoading && signedOut && renderSignedOut()}
+					{overviewError && renderError(overviewError, loadOverview)}
+					{!overviewLoading && !signedOut && !overviewError && user && (
+						<>
+							{/* User Profile Card */}
+							<div className="rounded-lg border border-border p-5">
+								<div className="flex items-start gap-4">
+									<div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-(--accent-a3) text-2xl font-bold text-primary">
+										{user.displayName?.charAt(0) ??
+											user.email?.charAt(0) ??
+											"?"}
 									</div>
+									<div className="min-w-0 flex-1">
+										<h3 className="text-lg font-semibold text-foreground">
+											{user.displayName || user.email}
+										</h3>
+										<p className="mt-0.5 text-sm text-muted-foreground">
+											{user.email}
+										</p>
+										<p className="mt-2 text-xs text-muted-foreground">
+											Member since {formatDate(user.createdAt)}
+										</p>
+									</div>
+									<button
+										type="button"
+										title="Open dashboard"
+										onClick={() => void openExternalUrl(DASHBOARD_URL)}
+										className="rounded-md p-1.5 text-muted-foreground hover:bg-surface-hover hover:text-foreground"
+									>
+										<ExternalLink className="h-4 w-4" />
+									</button>
 								</div>
+							</div>
 
-								{/* Balance Card */}
-								{displayedBalance !== null && (
-									<div className="rounded-lg border border-border p-5">
-										<div className="flex items-center justify-between mb-4">
-											<div className="flex items-center gap-3">
-												<CreditCard className="h-5 w-5 text-primary" />
-												<h3 className="text-sm font-semibold text-foreground">
-													{activeOrganization
-														? `${activeOrganization.name} Balance`
-														: "Credits Balance"}
-												</h3>
-											</div>
-											<button
-												type="button"
-												onClick={() =>
-													void openExternalUrl(
-														activeOrganization
-															? ORGANIZATION_CREDITS_URL
-															: USER_CREDITS_URL,
-													)
-												}
-												className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-surface-hover hover:text-foreground transition-colors"
-											>
-												<Plus className="h-3.5 w-3.5" />
-												Credit
-											</button>
-										</div>
-										<div className="flex items-baseline gap-2">
-											<span className="text-3xl font-bold text-foreground">
-												${formatCreditBalance(displayedBalance)}
-											</span>
-										</div>
-										{activeOrganization && balance && (
-											<p className="mt-2 text-xs text-muted-foreground">
-												Personal account: {formatCreditBalance(balance.balance)}{" "}
-												credits
-											</p>
-										)}
-									</div>
-								)}
-
-								{/* Organizations */}
+							{/* Balance Card */}
+							{displayedBalance !== null && (
 								<div className="rounded-lg border border-border p-5">
 									<div className="flex items-center justify-between mb-4">
 										<div className="flex items-center gap-3">
-											<Building className="h-5 w-5 text-muted-foreground" />
+											<CreditCard className="h-5 w-5 text-primary" />
 											<h3 className="text-sm font-semibold text-foreground">
-												Organizations
+												{activeOrganization
+													? `${activeOrganization.name} Balance`
+													: "Credits Balance"}
 											</h3>
 										</div>
 										<button
 											type="button"
 											onClick={() =>
-												void openExternalUrl(CREATE_ORGANIZATION_URL)
+												void openExternalUrl(
+													activeOrganization
+														? ORGANIZATION_CREDITS_URL
+														: USER_CREDITS_URL,
+												)
 											}
-											className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-surface-hover hover:text-foreground "
+											className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-surface-hover hover:text-foreground transition-colors"
 										>
 											<Plus className="h-3.5 w-3.5" />
-											Create
+											Credit
 										</button>
 									</div>
-									<div className="flex flex-col gap-2">
-										{renderAccountRow({
-											key: "personal",
-											name: "Personal",
-											subtitle: user.email ?? "Personal account",
-											icon: <User className="h-4 w-4" />,
-											active: !activeOrganization,
-											switching: switchTargetId === "",
-											onSelect: () => void switchAccount(null),
-										})}
-										{organizations.map((org) =>
-											renderAccountRow({
-												key: org.organizationId,
-												name: org.name,
-												subtitle: org.roles.join(", "),
-												icon: org.name.charAt(0),
-												active: org.active,
-												switching: switchTargetId === org.organizationId,
-												onSelect: () => void switchAccount(org.organizationId),
-											}),
-										)}
+									<div className="flex items-baseline gap-2">
+										<span className="text-3xl font-bold text-foreground">
+											${formatCreditBalance(displayedBalance)}
+										</span>
 									</div>
+									{activeOrganization && balance && (
+										<p className="mt-2 text-xs text-muted-foreground">
+											Personal account: {formatCreditBalance(balance.balance)}{" "}
+											credits
+										</p>
+									)}
 								</div>
-							</>
-						)}
-					</div>
-				)}
+							)}
 
-				{/* Usage Tab */}
-				{activeTab === "usage" && (
-					<div>
-						<p className="mb-6 text-sm text-muted-foreground">
-							{activeOrganization
-								? `Recent API usage and token consumption for ${activeOrganization.name}.`
-								: "Recent API usage and token consumption across all providers."}
-						</p>
-						{usageLoading && renderLoading()}
-						{usageError && renderError(usageError, loadUsage)}
-						{!usageLoading && !usageError && usageLoaded && (
-							<div className="overflow-hidden rounded-lg border border-border">
-								<div className="grid grid-cols-[minmax(0,1fr)_5.5rem_4.5rem_5.5rem] gap-4 border-b border-border bg-secondary/50 px-4 py-2.5 text-xs font-medium text-muted-foreground">
-									<span>Model</span>
-									<span className="text-right">Tokens</span>
-									<span className="text-right">Credits</span>
-									<span className="text-right">Time</span>
-								</div>
-								{usageTransactions.length === 0 ? (
-									<p className="px-4 py-8 text-center text-sm text-muted-foreground">
-										No usage transactions yet.
-									</p>
-								) : (
-									<div className="divide-y divide-border">
-										{usageTransactions.map((tx) => (
-											<div
-												key={tx.id}
-												className="grid grid-cols-[minmax(0,1fr)_5.5rem_4.5rem_5.5rem] gap-4 px-4 py-3 text-sm hover:bg-surface-hover"
-											>
-												<div className="min-w-0">
-													<p className="font-medium text-foreground truncate">
-														{tx.aiModelName}
-													</p>
-													<p className="text-xs text-muted-foreground">
-														{tx.aiInferenceProviderName}
-													</p>
-												</div>
-												<div className="text-right text-muted-foreground">
-													{tx.totalTokens.toLocaleString()}
-												</div>
-												<div className="text-right text-foreground font-medium">
-													{formatCreditBalance(tx.creditsUsed)}
-												</div>
-												<div className="text-right text-xs text-muted-foreground">
-													<p>{formatDate(tx.createdAt)}</p>
-													<p>{formatTime(tx.createdAt)}</p>
-												</div>
-											</div>
-										))}
+							{/* Organizations */}
+							<div className="rounded-lg border border-border p-5">
+								<div className="flex items-center justify-between mb-4">
+									<div className="flex items-center gap-3">
+										<Building className="h-5 w-5 text-muted-foreground" />
+										<h3 className="text-sm font-semibold text-foreground">
+											Organizations
+										</h3>
 									</div>
-								)}
-								<div className="flex justify-center border-t border-border px-4 py-3">
 									<button
 										type="button"
-										onClick={() => void openExternalUrl(USAGE_DASHBOARD_URL)}
-										className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground"
+										onClick={() =>
+											void openExternalUrl(CREATE_ORGANIZATION_URL)
+										}
+										className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-surface-hover hover:text-foreground "
 									>
-										See More
-										<ExternalLink className="h-3.5 w-3.5" />
+										<Plus className="h-3.5 w-3.5" />
+										Create
 									</button>
 								</div>
+								<div className="flex flex-col gap-2">
+									{renderAccountRow({
+										key: "personal",
+										name: "Personal",
+										subtitle: user.email ?? "Personal account",
+										icon: <User className="h-4 w-4" />,
+										active: !activeOrganization,
+										switching: switchTargetId === "",
+										onSelect: () => void switchAccount(null),
+									})}
+									{organizations.map((org) =>
+										renderAccountRow({
+											key: org.organizationId,
+											name: org.name,
+											subtitle: org.roles.join(", "),
+											icon: org.name.charAt(0),
+											active: org.active,
+											switching: switchTargetId === org.organizationId,
+											onSelect: () => void switchAccount(org.organizationId),
+										}),
+									)}
+								</div>
 							</div>
-						)}
-					</div>
-				)}
+						</>
+					)}
+				</div>
+			)}
 
-				{/* Billing Tab */}
-				{activeTab === "billing" && (
-					<div>
-						<p className="mb-6 text-sm text-muted-foreground">
-							Payment history and credit purchases.
-						</p>
-						{billingLoading && renderLoading()}
-						{billingError && renderError(billingError, loadBilling)}
-						{!billingLoading &&
-							!billingError &&
-							billingLoaded &&
-							(paymentTransactions.length === 0 ? (
-								<p className="py-8 text-center text-sm text-muted-foreground">
-									No payment transactions yet.
+			{/* Usage Tab */}
+			{activeTab === "usage" && (
+				<div>
+					<p className="mb-6 text-sm text-muted-foreground">
+						{activeOrganization
+							? `Recent API usage and token consumption for ${activeOrganization.name}.`
+							: "Recent API usage and token consumption across all providers."}
+					</p>
+					{usageLoading && renderLoading()}
+					{usageError && renderError(usageError, loadUsage)}
+					{!usageLoading && !usageError && usageLoaded && (
+						<div className="overflow-hidden rounded-lg border border-border">
+							<div className="grid grid-cols-[minmax(0,1fr)_5.5rem_4.5rem_5.5rem] gap-4 border-b border-border bg-secondary/50 px-4 py-2.5 text-xs font-medium text-muted-foreground">
+								<span>Model</span>
+								<span className="text-right">Tokens</span>
+								<span className="text-right">Credits</span>
+								<span className="text-right">Time</span>
+							</div>
+							{usageTransactions.length === 0 ? (
+								<p className="px-4 py-8 text-center text-sm text-muted-foreground">
+									No usage transactions yet.
 								</p>
 							) : (
-								<div className="rounded-lg border border-border overflow-hidden">
-									<div className="grid grid-cols-[1fr_auto_auto] gap-4 border-b border-border bg-secondary/50 px-4 py-2.5 text-xs font-medium text-muted-foreground">
-										<span>Date</span>
-										<span className="text-right">Amount</span>
-										<span className="text-right">Credits</span>
-									</div>
-									<div className="divide-y divide-border">
-										{paymentTransactions.map((tx) => (
-											<div
-												key={`${tx.paidAt}-${tx.amountCents}-${tx.credits}`}
-												className="grid grid-cols-[1fr_auto_auto] gap-4 px-4 py-3 text-sm hover:bg-surface-hover"
-											>
-												<div className="flex items-center gap-3">
-													<Receipt className="h-4 w-4 text-muted-foreground" />
-													<span className="text-foreground">
-														{formatDate(tx.paidAt)}
-													</span>
-												</div>
-												<div className="text-right text-foreground font-medium">
-													${(tx.amountCents / 100).toFixed(2)}
-												</div>
-												<div className="text-right text-primary font-medium">
-													+{formatCreditBalance(tx.credits)}
-												</div>
+								<div className="divide-y divide-border">
+									{usageTransactions.map((tx) => (
+										<div
+											key={tx.id}
+											className="grid grid-cols-[minmax(0,1fr)_5.5rem_4.5rem_5.5rem] gap-4 px-4 py-3 text-sm hover:bg-surface-hover"
+										>
+											<div className="min-w-0">
+												<p className="font-medium text-foreground truncate">
+													{tx.aiModelName}
+												</p>
+												<p className="text-xs text-muted-foreground">
+													{tx.aiInferenceProviderName}
+												</p>
 											</div>
-										))}
-									</div>
+											<div className="text-right text-muted-foreground">
+												{tx.totalTokens.toLocaleString()}
+											</div>
+											<div className="text-right text-foreground font-medium">
+												{formatCreditBalance(tx.creditsUsed)}
+											</div>
+											<div className="text-right text-xs text-muted-foreground">
+												<p>{formatDate(tx.createdAt)}</p>
+												<p>{formatTime(tx.createdAt)}</p>
+											</div>
+										</div>
+									))}
 								</div>
-							))}
-					</div>
-				)}
-			</div>
-		</ScrollArea>
+							)}
+							<div className="flex justify-center border-t border-border px-4 py-3">
+								<button
+									type="button"
+									onClick={() => void openExternalUrl(USAGE_DASHBOARD_URL)}
+									className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground"
+								>
+									See More
+									<ExternalLink className="h-3.5 w-3.5" />
+								</button>
+							</div>
+						</div>
+					)}
+				</div>
+			)}
+
+			{/* Billing Tab */}
+			{activeTab === "billing" && (
+				<div>
+					<p className="mb-6 text-sm text-muted-foreground">
+						Payment history and credit purchases.
+					</p>
+					{billingLoading && renderLoading()}
+					{billingError && renderError(billingError, loadBilling)}
+					{!billingLoading &&
+						!billingError &&
+						billingLoaded &&
+						(paymentTransactions.length === 0 ? (
+							<p className="py-8 text-center text-sm text-muted-foreground">
+								No payment transactions yet.
+							</p>
+						) : (
+							<div className="rounded-lg border border-border overflow-hidden">
+								<div className="grid grid-cols-[1fr_auto_auto] gap-4 border-b border-border bg-secondary/50 px-4 py-2.5 text-xs font-medium text-muted-foreground">
+									<span>Date</span>
+									<span className="text-right">Amount</span>
+									<span className="text-right">Credits</span>
+								</div>
+								<div className="divide-y divide-border">
+									{paymentTransactions.map((tx) => (
+										<div
+											key={`${tx.paidAt}-${tx.amountCents}-${tx.credits}`}
+											className="grid grid-cols-[1fr_auto_auto] gap-4 px-4 py-3 text-sm hover:bg-surface-hover"
+										>
+											<div className="flex items-center gap-3">
+												<Receipt className="h-4 w-4 text-muted-foreground" />
+												<span className="text-foreground">
+													{formatDate(tx.paidAt)}
+												</span>
+											</div>
+											<div className="text-right text-foreground font-medium">
+												${(tx.amountCents / 100).toFixed(2)}
+											</div>
+											<div className="text-right text-primary font-medium">
+												+{formatCreditBalance(tx.credits)}
+											</div>
+										</div>
+									))}
+								</div>
+							</div>
+						))}
+				</div>
+			)}
+		</PageFrame>
 	);
 }

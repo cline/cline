@@ -12,6 +12,7 @@ export function getToolCatalog(
 	availabilityContext?: BuiltinToolAvailabilityContext,
 ): ToolCatalogEntry[] {
 	return getCoreBuiltinToolCatalog({
+		clientType: "cli",
 		disabledToolIds: resolveDisabledToolNames(),
 		enabledOptInToolIds: resolveEnabledOptInToolNames(),
 		...availabilityContext,

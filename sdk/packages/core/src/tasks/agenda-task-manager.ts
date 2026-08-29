@@ -1,5 +1,5 @@
 import type { FSWatcher } from "node:fs";
-import { existsSync, statSync, watch } from "node:fs";
+import { existsSync, realpathSync, statSync, watch } from "node:fs";
 import { relative } from "node:path";
 import type {
 	AgendaAutomationPolicy,
@@ -80,6 +80,12 @@ export interface AgendaTaskManagerOptions {
 	globalSpecsDir?: string;
 	watcherDebounceMs?: number;
 	watchFiles?: boolean;
+	/**
+	 * Set to false to keep the automation pump idle regardless of persisted
+	 * automation policies. Policies stay stored untouched and manual approve/run
+	 * commands keep working; nothing is auto-approved or auto-started.
+	 */
+	automationEnabled?: boolean;
 	logger?: BasicLogger;
 	publish?: (
 		event: AgendaTaskManagerEventName,
@@ -272,6 +278,7 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 	private readonly backgroundRuns = new Set<Promise<void>>();
 	private maintenanceTimer?: ReturnType<typeof setInterval>;
 	private readonly queuedAutomationScopes = new Set<string>();
+	private readonly automationEnabled: boolean;
 	private automationPumping = false;
 	private automationPolicyGeneration = 0;
 	private started = false;
@@ -288,6 +295,7 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 			options.watcherDebounceMs ?? DEFAULT_WATCH_DEBOUNCE_MS,
 		);
 		this.watchFiles = options.watchFiles !== false;
+		this.automationEnabled = options.automationEnabled !== false;
 		this.logger = options.logger ?? noopBasicLogger;
 		this.publishEvent = options.publish ?? (() => {});
 	}
@@ -447,6 +455,19 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 
 	async updateTask(input: AgendaTaskUpdateInput): Promise<AgendaTaskRecord> {
 		this.assertUsable();
+		const known = this.requireTask(input.taskId);
+		// Without watchers there is no background reconciliation, so a spec
+		// edited outside the manager would fail the same-store signature check
+		// below on every retry. Reconcile first — except when the reconciler
+		// itself is applying a spec edit — so an external edit surfaces as a
+		// stale-revision conflict the caller can re-read and retry against.
+		if (input.updatedBy.id !== FILE_RECONCILER_ACTOR.id) {
+			await this.reconcileSourceForProjection(
+				known.scope,
+				known.workspaceRoot,
+				"update",
+			);
+		}
 		const current = this.requireTask(input.taskId);
 		if (current.revision !== input.expectedRevision) {
 			// Let the store produce its canonical conflict error and current record.
@@ -924,8 +945,11 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 		let cacheScope = true;
 		try {
 			store.ensureSpecsDir();
-			if (this.watchFiles) {
-				watched.watcher = watch(store.specsDir, (_event, filename) => {
+			const watchRoot = this.watchFiles
+				? this.resolveWatchRoot(store.specsDir)
+				: undefined;
+			if (watchRoot !== undefined) {
+				watched.watcher = watch(watchRoot, (_event, filename) => {
 					if (!filename || !String(filename).endsWith(".task.md")) return;
 					if (watched.timer) clearTimeout(watched.timer);
 					watched.timer = setTimeout(() => {
@@ -968,7 +992,7 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 	private async reconcileSourceForProjection(
 		scope: "global" | "workspace",
 		workspaceRoot: string | undefined,
-		phase: "startup" | "list" | "read",
+		phase: "startup" | "list" | "read" | "update",
 	): Promise<void> {
 		try {
 			await this.reconcileScope(scope, workspaceRoot);
@@ -1219,7 +1243,7 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 	}
 
 	private queueAutomation(scopeKey?: string): void {
-		if (this.disposed) return;
+		if (this.disposed || !this.automationEnabled) return;
 		if (scopeKey) {
 			this.queuedAutomationScopes.add(scopeKey);
 		} else {
@@ -1416,6 +1440,27 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 			{ task, ...(run ? { run } : {}) },
 			run?.sessionId ?? task.lastSessionId,
 		);
+	}
+
+	/**
+	 * fs.watch must be handed the fully resolved form of a path: on Windows,
+	 * libuv aborts the entire process (fs-event.c assertion) when the watched
+	 * path contains 8.3 short components such as C:\Users\RUNNER~1, because
+	 * event filenames come back in long form and fail its prefix check. When
+	 * the path cannot be resolved, going without the watcher is safer than
+	 * handing libuv the unresolved path.
+	 */
+	private resolveWatchRoot(specsDir: string): string | undefined {
+		try {
+			return realpathSync.native(specsDir);
+		} catch (error) {
+			this.logError(
+				"agenda task watcher disabled: specs dir could not be resolved",
+				error,
+				{ specsDir },
+			);
+			return undefined;
+		}
 	}
 
 	private logError(

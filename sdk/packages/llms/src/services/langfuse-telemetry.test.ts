@@ -20,8 +20,8 @@ vi.mock("ai", async (importOriginal) => {
 	};
 });
 
-vi.mock("@ai-sdk/otel", () => ({
-	OpenTelemetry: class MockOpenTelemetry {
+vi.mock("@langfuse/vercel-ai-sdk", () => ({
+	LangfuseVercelAiSdkIntegration: class MockLangfuseVercelAiSdkIntegration {
 		onStart = telemetryStartSpy;
 	},
 }));
@@ -116,7 +116,7 @@ describe("langfuse telemetry", () => {
 		);
 	});
 
-	it("connects an AI SDK call to the registered telemetry integration", async () => {
+	it("connects an AI SDK 7 call to the registered telemetry integration", async () => {
 		await expect(ensureLangfuseTelemetry("openrouter")).resolves.toBe(true);
 
 		await generateText({
@@ -137,7 +137,7 @@ describe("langfuse telemetry", () => {
 				},
 			}),
 			prompt: "say hello",
-			experimental_telemetry: { isEnabled: true },
+			telemetry: { isEnabled: true },
 		});
 
 		expect(telemetryStartSpy).toHaveBeenCalled();

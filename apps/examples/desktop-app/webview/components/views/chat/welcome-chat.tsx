@@ -2,16 +2,16 @@
 
 import type { AgendaTaskRecord } from "@cline/shared";
 import {
-	AgentAurora,
-	AgentHeroHeading,
 	type AgentQuickAction,
 	AgentQuickActions,
+	AgentWelcomeHero,
 } from "@cline/ui";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AgendaTaskReviewDialog } from "@/components/agenda-task-review-dialog";
 import { useWorkspace } from "@/contexts/workspace-context";
 import { isAgendaTaskExpired, useAgendaTasks } from "@/hooks/use-agenda-tasks";
+import { AGENDA_UI_ENABLED } from "@/lib/feature-flags";
 import { cn } from "@/lib/utils";
 import { SessionContent } from "./session-content";
 import { WelcomeWorkspaceControls } from "./welcome-workspace-controls";
@@ -53,7 +53,7 @@ export function WelcomeScreen({
 			statuses: ["pending_approval", "approved", "in_progress", "failed"],
 			limit: 8,
 		},
-		active && workspaceRoot.trim().length > 0,
+		AGENDA_UI_ENABLED && active && workspaceRoot.trim().length > 0,
 	);
 	const [runningTaskId, setRunningTaskId] = useState<string | null>(null);
 	const [reviewTask, setReviewTask] = useState<AgendaTaskRecord | null>(null);
@@ -117,7 +117,6 @@ export function WelcomeScreen({
 					: "contents",
 			)}
 		>
-			{active ? <AgentAurora /> : null}
 			<div
 				className={cn(
 					active
@@ -134,7 +133,8 @@ export function WelcomeScreen({
 				>
 					{active ? (
 						<div className="cline-view-enter">
-							<AgentHeroHeading />
+							<h1 className="sr-only">What would you like to build?</h1>
+							<AgentWelcomeHero />
 
 							<div className="mt-11 flex min-w-0 items-center">
 								<WelcomeWorkspaceControls
@@ -172,7 +172,7 @@ export function WelcomeScreen({
 						{active ? composer : <SessionContent>{composer}</SessionContent>}
 					</div>
 
-					{active ? (
+					{active && AGENDA_UI_ENABLED ? (
 						<>
 							<AgentQuickActions
 								actions={actions}
