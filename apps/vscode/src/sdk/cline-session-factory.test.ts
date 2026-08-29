@@ -661,6 +661,38 @@ describe("buildSessionConfig", () => {
 		resolveSpy.mockRestore()
 	})
 
+	it("uses the Act selection from the provider store when task state still has the Plan model", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "lmstudio",
+			actModeLmStudioModelId: "qwen-plan",
+		} as any)
+		mocks.providerSettingsManager.getProviderSettings.mockImplementation((providerId?: string) =>
+			providerId === "lmstudio" ? ({ provider: "lmstudio", model: "gemma-act" } as any) : undefined,
+		)
+		const resolveSpy = vi.spyOn(ClineCore, "resolveProviderConfig").mockResolvedValueOnce({
+			knownModels: {
+				"gemma-act": {
+					id: "gemma-act",
+					name: "gemma-act",
+					contextWindow: 40_000,
+					capabilities: ["streaming", "tools"],
+					status: "active",
+				},
+			},
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace", mode: "act" })
+
+		expect(config.modelId).toBe("gemma-act")
+		expect(config.providerConfig?.modelId).toBe("gemma-act")
+		expect(resolveSpy).toHaveBeenCalledWith(
+			"lmstudio",
+			expect.objectContaining({ cacheTtlMs: 0 }),
+			expect.objectContaining({ modelId: "gemma-act" }),
+		)
+		resolveSpy.mockRestore()
+	})
+
 	it("keeps LM Studio session creation non-fatal when the live model lookup fails", async () => {
 		mocks.stateManager.getApiConfiguration.mockReturnValue({
 			actModeApiProvider: "lmstudio",
