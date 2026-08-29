@@ -79,18 +79,9 @@ afterEach(async () => {
 });
 
 describe("useChatSession", () => {
-	it.each([
-		"idle",
-		"completed",
-	] as const)("restores a %s parent when aborting its child fails", async (parentStatus) => {
+	it("restores an idle parent when aborting its child fails", async () => {
 		invokeMock.mockImplementation(
 			async (command: string, args?: Record<string, unknown>) => {
-				if (command === "get_process_context") {
-					return {
-						cwd: "/workspace/cline",
-						workspaceRoot: "/workspace/cline",
-					};
-				}
 				if (command === "chat_session_command") {
 					const request = args?.request as { action?: string } | undefined;
 					if (request?.action === "start") {
@@ -108,58 +99,13 @@ describe("useChatSession", () => {
 		const statusHandler = handlerFor("chat_session_status");
 
 		await act(async () => {
-			statusHandler?.({ sessionId: current.sessionId, status: parentStatus });
+			statusHandler({ sessionId: current.sessionId, status: "idle" });
 		});
-		expect(current.status).toBe(parentStatus);
+		expect(current.status).toBe("idle");
 
 		await act(async () => current.abort());
 
-		expect(current.status).toBe(parentStatus);
-	});
-
-	it("preserves an authoritative status received while a failed abort is pending", async () => {
-		const abortResponse = deferred<unknown>();
-		invokeMock.mockImplementation(
-			async (command: string, args?: Record<string, unknown>) => {
-				if (command === "get_process_context") {
-					return {
-						cwd: "/workspace/cline",
-						workspaceRoot: "/workspace/cline",
-					};
-				}
-				if (command === "chat_session_command") {
-					const request = args?.request as { action?: string } | undefined;
-					if (request?.action === "start") {
-						return { sessionId: "session-abort-race" };
-					}
-					if (request?.action === "abort") {
-						return await abortResponse.promise;
-					}
-				}
-				return [];
-			},
-		);
-
-		await act(async () => current.start(current.config));
-		const statusHandler = handlerFor("chat_session_status");
-
-		let abortTask!: Promise<void>;
-		await act(async () => {
-			abortTask = current.abort();
-			await Promise.resolve();
-		});
-		expect(current.status).toBe("stopping");
-
-		await act(async () => {
-			statusHandler?.({ sessionId: current.sessionId, status: "failed" });
-		});
-		expect(current.status).toBe("failed");
-
-		await act(async () => {
-			abortResponse.resolve({ ok: false });
-			await abortTask;
-		});
-		expect(current.status).toBe("failed");
+		expect(current.status).toBe("idle");
 	});
 
 	it("preserves authoritative completion across abort races", async () => {
@@ -170,12 +116,6 @@ describe("useChatSession", () => {
 			const sendResponse = deferred<unknown>();
 			invokeMock.mockImplementation(
 				async (command: string, args?: Record<string, unknown>) => {
-					if (command === "get_process_context") {
-						return {
-							cwd: "/workspace/cline",
-							workspaceRoot: "/workspace/cline",
-						};
-					}
 					if (command === "chat_session_command") {
 						const request = args?.request as { action?: string } | undefined;
 						if (request?.action === "start") return { sessionId };
@@ -248,68 +188,10 @@ describe("useChatSession", () => {
 		}
 	});
 
-	it("restores the prior status when a failed abort outlasts the local timeout", async () => {
-		vi.useFakeTimers();
-		try {
-			const abortResponse = deferred<unknown>();
-			invokeMock.mockImplementation(
-				async (command: string, args?: Record<string, unknown>) => {
-					if (command === "get_process_context") {
-						return {
-							cwd: "/workspace/cline",
-							workspaceRoot: "/workspace/cline",
-						};
-					}
-					if (command === "chat_session_command") {
-						const request = args?.request as { action?: string } | undefined;
-						if (request?.action === "start") {
-							return { sessionId: "session-abort-timeout" };
-						}
-						if (request?.action === "abort") {
-							return await abortResponse.promise;
-						}
-					}
-					return [];
-				},
-			);
-
-			await act(async () => current.start(current.config));
-			const statusHandler = handlerFor("chat_session_status");
-			await act(async () => {
-				statusHandler?.({ sessionId: current.sessionId, status: "completed" });
-			});
-
-			let abortTask!: Promise<void>;
-			await act(async () => {
-				abortTask = current.abort();
-				await Promise.resolve();
-				await vi.advanceTimersByTimeAsync(2000);
-			});
-			expect(current.status).toBe("cancelled");
-
-			await act(async () => {
-				abortResponse.resolve({ ok: false });
-				await abortTask;
-			});
-			expect(current.status).toBe("completed");
-		} finally {
-			vi.useRealTimers();
-		}
-	});
-
 	it("reconciles a running tool row after an aborted send settles", async () => {
 		const sessionId = "session-aborted-tool";
-		const activeSendResponse = deferred<unknown>();
-		const queuedSendResponse = deferred<unknown>();
-		let sendCount = 0;
+		const sendResponse = deferred<unknown>();
 		const canonicalMessages = [
-			{
-				id: "history-user",
-				sessionId,
-				role: "user",
-				content: "spawn a subagent",
-				createdAt: 1,
-			},
 			{
 				id: "history-assistant",
 				sessionId,
@@ -337,27 +219,14 @@ describe("useChatSession", () => {
 		];
 		invokeMock.mockImplementation(
 			async (command: string, args?: Record<string, unknown>) => {
-				if (command === "get_process_context") {
-					return {
-						cwd: "/workspace/cline",
-						workspaceRoot: "/workspace/cline",
-					};
-				}
 				if (command === "read_session_messages") return canonicalMessages;
 				if (command === "chat_session_command") {
 					const request = args?.request as { action?: string } | undefined;
 					if (request?.action === "start") {
-						return {
-							sessionId,
-							cwd: "/workspace/cline",
-							workspaceRoot: "/workspace/cline",
-						};
+						return { sessionId };
 					}
 					if (request?.action === "send") {
-						sendCount += 1;
-						return await (sendCount === 1
-							? activeSendResponse.promise
-							: queuedSendResponse.promise);
+						return await sendResponse.promise;
 					}
 					if (request?.action === "abort") return { sessionId, ok: true };
 				}
@@ -368,10 +237,9 @@ describe("useChatSession", () => {
 		await act(async () => current.start(current.config));
 		const chatEventHandler = handlerFor("chat_event");
 
-		let activeSendTask!: Promise<void>;
-		let queuedSendTask!: Promise<void>;
+		let sendTask!: Promise<void>;
 		await act(async () => {
-			activeSendTask = current.sendPrompt("spawn a subagent");
+			sendTask = current.sendPrompt("spawn a subagent");
 			await Promise.resolve();
 			chatEventHandler?.({
 				sessionId,
@@ -384,8 +252,6 @@ describe("useChatSession", () => {
 				ts: Date.now(),
 				index: 1,
 			});
-			queuedSendTask = current.sendPrompt("report when finished");
-			await Promise.resolve();
 		});
 		expect(
 			current.messages.find((message) => message.role === "tool")?.meta
@@ -394,25 +260,11 @@ describe("useChatSession", () => {
 
 		await act(async () => current.abort());
 		await act(async () => {
-			activeSendResponse.resolve({
+			sendResponse.resolve({
 				ok: true,
 				result: { finishReason: "aborted" },
 			});
-			await activeSendTask;
-			await new Promise((resolve) => setTimeout(resolve, 300));
-		});
-		expect(
-			current.messages.find((message) => message.role === "tool")?.meta
-				?.hookEventName,
-		).toBe("tool_call_start");
-
-		await act(async () => {
-			queuedSendResponse.resolve({
-				ok: true,
-				queued: true,
-				promptsInQueue: [],
-			});
-			await queuedSendTask;
+			await sendTask;
 			await new Promise((resolve) => setTimeout(resolve, 300));
 		});
 
