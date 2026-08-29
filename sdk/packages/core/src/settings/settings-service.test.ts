@@ -349,6 +349,96 @@ Review the change.`,
 		);
 	});
 
+	it("reports a bot.cline extension's real contributions when inspection is on, and a static marker when it is off", async () => {
+		const tempRoot = await mkdtemp(
+			join(tmpdir(), "core-settings-agent-plugin-cline-ext-"),
+		);
+		tempRoots.push(tempRoot);
+		process.env.HOME = tempRoot;
+		setHomeDir(tempRoot);
+		process.env.CLINE_GLOBAL_SETTINGS_PATH = join(
+			tempRoot,
+			"global-settings.json",
+		);
+		const workspaceRoot = join(tempRoot, "workspace");
+		await mkdir(workspaceRoot, { recursive: true });
+		const pluginRoot = join(tempRoot, ".agents", "plugins", "with-extension");
+		await mkdir(join(pluginRoot, "bot.cline"), { recursive: true });
+		await writeFile(
+			join(pluginRoot, "plugin.json"),
+			JSON.stringify({
+				$schema: "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+				name: "with-extension",
+				extensions: {
+					"bot.cline": { extension: "bot.cline/extension.ts" },
+				},
+			}),
+		);
+		await writeFile(
+			join(pluginRoot, "bot.cline", "extension.ts"),
+			[
+				"export default {",
+				'	name: "with-extension-bot-cline",',
+				'	manifest: { capabilities: ["tools"] },',
+				"	setup(api) {",
+				"		api.registerTool({",
+				'			name: "distinctive_review_tool",',
+				'			description: "test tool",',
+				'			inputSchema: { type: "object", properties: {} },',
+				'			execute: async () => "ok",',
+				"		});",
+				"	},",
+				"};",
+			].join("\n"),
+		);
+
+		const service = new CoreSettingsService();
+		const inspected = await service.list({ cwd: workspaceRoot, workspaceRoot });
+		const inspectedPlugin = inspected.plugins.find(
+			(plugin) => plugin.id === "agent-plugin:with-extension",
+		);
+		expect(inspectedPlugin?.contributions).toMatchObject({
+			inspectionStatus: "available",
+			tools: ["distinctive_review_tool"],
+		});
+		expect(inspectedPlugin?.contributions?.capabilities).toEqual(
+			expect.arrayContaining(["cline-extension", "tools"]),
+		);
+
+		const uninspected = await service.list({
+			cwd: workspaceRoot,
+			workspaceRoot,
+			includePluginTools: false,
+		});
+		const uninspectedPlugin = uninspected.plugins.find(
+			(plugin) => plugin.id === "agent-plugin:with-extension",
+		);
+		expect(uninspectedPlugin?.contributions?.capabilities).toEqual([
+			"cline-extension",
+		]);
+		expect(uninspectedPlugin?.contributions?.tools).toEqual([]);
+
+		const disabled = await service.toggle({
+			type: "plugins",
+			id: "agent-plugin:with-extension",
+			enabled: false,
+			cwd: workspaceRoot,
+			workspaceRoot,
+			includePluginTools: false,
+		});
+		expect(
+			disabled.snapshot.plugins.find(
+				(plugin) => plugin.id === "agent-plugin:with-extension",
+			),
+		).toMatchObject({
+			enabled: false,
+			contributions: {
+				inspectionStatus: "disabled",
+				capabilities: ["cline-extension"],
+			},
+		});
+	});
+
 	it("rejects toggling an individual Agent Plugin skill instead of rewriting its frontmatter", async () => {
 		const tempRoot = await mkdtemp(
 			join(tmpdir(), "core-settings-agent-plugin-skill-toggle-"),

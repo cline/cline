@@ -180,11 +180,20 @@ export async function listPluginToolsWithDiagnostics(input: {
 	disabledToolNames?: ReadonlyArray<string>;
 	providerId?: string;
 	modelId?: string;
+	/**
+	 * Additional module entry paths to inspect alongside standalone Cline
+	 * plugins — e.g. an Agent Plugin's `bot.cline/extension.ts` entry, already
+	 * resolved and validated by the read-only Agent Plugin discovery pass.
+	 */
+	additionalPluginPaths?: ReadonlyArray<string>;
 }): Promise<ListPluginToolsResult> {
-	const pluginPaths = resolveAgentPluginPaths({
-		workspacePath: input.workspacePath,
-		cwd: input.cwd,
-	});
+	const pluginPaths = [
+		...resolveAgentPluginPaths({
+			workspacePath: input.workspacePath,
+			cwd: input.cwd,
+		}),
+		...(input.additionalPluginPaths ?? []),
+	];
 	const disabled = resolveDisabledToolNames(input.disabledToolNames);
 	if (pluginPaths.length === 0) {
 		return { tools: [], plugins: [], failures: [], warnings: [] };

@@ -311,6 +311,11 @@ function appendAgentPluginSettings(input: {
 				capabilities: [
 					...(skillNames.length > 0 ? ["skills"] : []),
 					...(mcpServerNames.length > 0 ? ["mcp"] : []),
+					// Cheap, static marker: "this plugin has a Cline extension",
+					// visible even when includePluginTools is off or fails. Real
+					// inspection (below, when it runs) adds the extension's actual
+					// declared capabilities/tools/rules/etc. on top of this.
+					...(plugin.clineExtension ? ["cline-extension"] : []),
 				],
 				tools: [],
 				skills: skillNames,
@@ -485,13 +490,14 @@ export class CoreSettingsService {
 				plugins.push(...supplied.plugins);
 				tools.push(...supplied.tools);
 			}
+			let agentPluginReport: AgentPluginPackageLoadReport | undefined;
 			try {
-				const report = await loadAgentPluginPackages({
+				agentPluginReport = await loadAgentPluginPackages({
 					pluginPaths: input.agentPluginPaths,
 					cwd: resolveCwd(input, workspaceRoot),
 				});
 				appendAgentPluginSettings({
-					report,
+					report: agentPluginReport,
 					workspaceRoot,
 					disabledPluginNames: resolveDisabledAgentPluginNames(),
 					plugins,
@@ -501,10 +507,29 @@ export class CoreSettingsService {
 			} catch {
 				// Portable package discovery is isolated from all other settings.
 			}
+			// bot.cline extension entry paths, keyed by the owning Agent Plugin's
+			// manifest name. A plugin's Cline extension is inspected/loaded as an
+			// ordinary Cline plugin module, so it needs its own path -- distinct
+			// from `plugin.path` (the plugin's root directory) -- everywhere this
+			// service talks to the standalone-plugin tool-inspection pipeline.
+			const clineExtensionEntryPathByPluginName = new Map(
+				(agentPluginReport?.plugins ?? [])
+					.filter((plugin) => plugin.clineExtension)
+					.map((plugin) => [
+						plugin.manifest.name,
+						// biome-ignore lint/style/noNonNullAssertion: filtered above
+						plugin.clineExtension!.entryPath,
+					]),
+			);
 			const enabledPluginPaths = new Set(
 				plugins
 					.filter((plugin) => plugin.enabled !== false)
-					.map((plugin) => plugin.path),
+					.flatMap((plugin) => {
+						const entryPath = plugin.pluginName
+							? clineExtensionEntryPathByPluginName.get(plugin.pluginName)
+							: undefined;
+						return entryPath ? [plugin.path, entryPath] : [plugin.path];
+					}),
 			);
 
 			if (service) {
@@ -568,6 +593,9 @@ export class CoreSettingsService {
 						cwd: input.cwd,
 						providerId: input.availabilityContext?.providerId,
 						modelId: input.availabilityContext?.modelId,
+						additionalPluginPaths: [
+							...clineExtensionEntryPathByPluginName.values(),
+						],
 					});
 					for (const pluginTool of pluginReport.tools) {
 						tools.push({
@@ -589,6 +617,34 @@ export class CoreSettingsService {
 					);
 					for (const plugin of plugins) {
 						if (plugin.agentPlugin === true) {
+							const entryPath = plugin.pluginName
+								? clineExtensionEntryPathByPluginName.get(plugin.pluginName)
+								: undefined;
+							const clineExtensionContribution = entryPath
+								? contributionByPath.get(entryPath)
+								: undefined;
+							if (!clineExtensionContribution || !plugin.contributions) {
+								continue;
+							}
+							// Merge the bot.cline extension's real, inspected
+							// contributions into the skills/mcp data
+							// appendAgentPluginSettings already populated -- this
+							// only adds detail, it never replaces what's there.
+							plugin.contributions = {
+								...plugin.contributions,
+								inspectionStatus: "available",
+								capabilities: [
+									...new Set([
+										...plugin.contributions.capabilities,
+										...clineExtensionContribution.capabilities,
+									]),
+								].sort(),
+								tools: clineExtensionContribution.tools,
+								rules: clineExtensionContribution.rules,
+								hooks: clineExtensionContribution.hooks,
+								commands: clineExtensionContribution.commands,
+								providers: clineExtensionContribution.providers,
+							};
 							continue;
 						}
 						const contribution = contributionByPath.get(plugin.path);

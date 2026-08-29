@@ -23,6 +23,7 @@ export type {
 	RemoteOptions,
 } from "./cline-core/types";
 export type {
+	AgentPluginPackageClineExtension,
 	AgentPluginPackageDiagnostic,
 	AgentPluginPackageDiagnosticScope,
 	AgentPluginPackageLoadReport,

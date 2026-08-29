@@ -381,13 +381,45 @@ export async function prepareLocalRuntimeBootstrap(
 			});
 	const baseHooks = mergeAgentHooks([localConfig?.hooks, auditHooks]);
 
+	// Discover Agent Plugins before standalone Cline plugins: a plugin's
+	// bot.cline extension is a Cline plugin module in its own right, and its
+	// resolved entry path needs to be in hand before the standalone-plugin
+	// load below can include it.
+	let loadedAgentPluginPackages:
+		| Awaited<ReturnType<typeof loadAgentPluginPackages>>
+		| undefined;
+	if (hasConfigExtension(configExtensions, "plugins")) {
+		try {
+			loadedAgentPluginPackages = await loadAgentPluginPackages({
+				pluginPaths: input.config.agentPluginPaths,
+				cwd: input.config.cwd,
+				disabledPluginNames: [...resolveDisabledAgentPluginNames()],
+			});
+			logAgentPluginDiagnostics(
+				loadedAgentPluginPackages.diagnostics,
+				extensionContext.logger,
+			);
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			extensionContext.logger?.log(
+				`[agent-plugins] Package discovery failed; continuing without Agent Plugins: ${message}`,
+				{ severity: "error" },
+			);
+		}
+	}
+
 	let loadedPlugins:
 		| Awaited<ReturnType<typeof resolveAndLoadAgentPlugins>>
 		| undefined;
 	if (hasConfigExtension(configExtensions, "plugins")) {
 		try {
 			loadedPlugins = await resolveAndLoadAgentPlugins({
-				pluginPaths: localConfig?.pluginPaths,
+				pluginPaths: [
+					...(loadedAgentPluginPackages?.clineExtensions.map(
+						(extension) => extension.entryPath,
+					) ?? []),
+					...(localConfig?.pluginPaths ?? []),
+				],
 				workspacePath,
 				cwd: input.config.cwd,
 				onEvent: onPluginEvent,
@@ -410,29 +442,6 @@ export async function prepareLocalRuntimeBootstrap(
 			const message = error instanceof Error ? error.message : String(error);
 			localConfig?.logger?.log?.(
 				`plugin loading failed; continuing without plugins (${message})`,
-			);
-		}
-	}
-
-	let loadedAgentPluginPackages:
-		| Awaited<ReturnType<typeof loadAgentPluginPackages>>
-		| undefined;
-	if (hasConfigExtension(configExtensions, "plugins")) {
-		try {
-			loadedAgentPluginPackages = await loadAgentPluginPackages({
-				pluginPaths: input.config.agentPluginPaths,
-				cwd: input.config.cwd,
-				disabledPluginNames: [...resolveDisabledAgentPluginNames()],
-			});
-			logAgentPluginDiagnostics(
-				loadedAgentPluginPackages.diagnostics,
-				extensionContext.logger,
-			);
-		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
-			extensionContext.logger?.log(
-				`[agent-plugins] Package discovery failed; continuing without Agent Plugins: ${message}`,
-				{ severity: "error" },
 			);
 		}
 	}

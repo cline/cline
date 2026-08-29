@@ -13,6 +13,7 @@ import {
 } from "node:path";
 import {
 	AGENT_PLUGIN_MANIFEST_FILE_NAME,
+	isPluginModulePath,
 	resolveAgentPluginSearchPaths,
 	resolveClineDataDir,
 	SKILLS_CONFIG_DIRECTORY_NAME,
@@ -20,6 +21,7 @@ import {
 import type { McpServerRegistration, McpServerTransportConfig } from "../mcp";
 import { parseAgentSkillMarkdown } from "./agent-skill";
 import type {
+	AgentPluginPackageClineExtension,
 	AgentPluginPackageDiagnostic,
 	AgentPluginPackageLoadReport,
 	AgentPluginPackageManifest,
@@ -49,6 +51,15 @@ const MANIFEST_FIELDS = new Set([
 const AUTHOR_FIELDS = new Set(["name", "email", "url"]);
 const PLUGIN_NAME_PATTERN =
 	/^(?!.*(?:--|\.\.))[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/;
+/**
+ * Cline's Agent Plugins client-extension namespace. Reverse-domain per the
+ * spec's convention (Cline's domain is cline.bot); a plugin points this at a
+ * single Cline plugin module under its own `bot.cline/` directory so it can
+ * carry Cline-specific tools/hooks/rules alongside the portable skills/MCP
+ * components every other client also understands.
+ */
+const CLINE_EXTENSION_NAMESPACE = "bot.cline";
+const CLINE_EXTENSION_FIELDS = new Set(["extension"]);
 // biome-ignore lint/suspicious/noTemplateCurlyInString: Agent Plugins defines this exact literal placeholder.
 const PLUGIN_ROOT_PLACEHOLDER = "${PLUGIN_ROOT}";
 // biome-ignore lint/suspicious/noTemplateCurlyInString: Agent Plugins defines this exact literal placeholder.
@@ -998,6 +1009,69 @@ async function loadMcpServers(input: {
 	return servers;
 }
 
+/**
+ * Resolve Cline's own client-extension namespace (`bot.cline`), if the plugin
+ * declares one. This is the only namespace Cline implements today: every other
+ * key under `manifest.extensions` stays exactly as `parseManifest` preserved
+ * it — opaque, unvalidated, and untouched, per the spec's requirement that a
+ * client ignore namespaces it does not implement without inspecting them.
+ *
+ * A failure here invalidates only this component; the plugin's skills and MCP
+ * servers still load. Discovery stays read-only: this resolves and validates
+ * the entry path but never imports it. The module itself is only imported
+ * later, through the same sandboxed Cline plugin pipeline any `.cline/plugins`
+ * module goes through.
+ */
+async function loadClineExtension(
+	pluginRoot: string,
+	manifest: AgentPluginPackageManifest,
+	diagnostics: AgentPluginPackageDiagnostic[],
+): Promise<AgentPluginPackageClineExtension | undefined> {
+	const raw = manifest.extensions?.[CLINE_EXTENSION_NAMESPACE];
+	if (raw === undefined) {
+		return undefined;
+	}
+	try {
+		if (!isRecord(raw)) {
+			throw new Error("extension data must be an object.");
+		}
+		assertExactFields(
+			raw,
+			CLINE_EXTENSION_FIELDS,
+			`'${CLINE_EXTENSION_NAMESPACE}' extension`,
+		);
+		if (typeof raw.extension !== "string" || !raw.extension.trim()) {
+			throw new Error("requires a non-empty 'extension' path.");
+		}
+
+		const namespaceRoot = await resolveContainedExistingPath(
+			pluginRoot,
+			join(pluginRoot, CLINE_EXTENSION_NAMESPACE),
+			"directory",
+		);
+		const entryPath = await resolveContainedExistingPath(
+			namespaceRoot,
+			resolve(pluginRoot, raw.extension),
+			"file",
+		);
+		if (!isPluginModulePath(entryPath)) {
+			throw new Error("extension entry must be a .js or .ts file.");
+		}
+
+		return { pluginName: manifest.name, pluginRoot, entryPath };
+	} catch (error) {
+		diagnostics.push(
+			diagnostic({
+				scope: "cline-extension",
+				pluginPath: pluginRoot,
+				pluginName: manifest.name,
+				message: `Skipping invalid '${CLINE_EXTENSION_NAMESPACE}' extension: ${errorMessage(error)}`,
+			}),
+		);
+		return undefined;
+	}
+}
+
 async function loadPackageManifest(
 	pluginRoot: string,
 	diagnostics: AgentPluginPackageDiagnostic[],
@@ -1037,7 +1111,7 @@ async function loadPackageComponents(
 	diagnostics: AgentPluginPackageDiagnostic[],
 ): Promise<LoadedAgentPluginPackage> {
 	const { rootPath: pluginRoot, manifest } = loadedManifest;
-	const [skills, mcpServers] = await Promise.all([
+	const [skills, mcpServers, clineExtension] = await Promise.all([
 		loadSkills(pluginRoot, manifest.name, diagnostics),
 		loadMcpServers({
 			pluginRoot,
@@ -1045,11 +1119,13 @@ async function loadPackageComponents(
 			pluginDataRoot,
 			diagnostics,
 		}),
+		loadClineExtension(pluginRoot, manifest, diagnostics),
 	]);
 	return {
 		...loadedManifest,
 		skills,
 		mcpServers,
+		...(clineExtension ? { clineExtension } : {}),
 	};
 }
 
@@ -1127,6 +1203,9 @@ export async function loadAgentPluginPackages(
 		plugins,
 		skills: plugins.flatMap((plugin) => plugin.skills),
 		mcpServers,
+		clineExtensions: plugins.flatMap((plugin) =>
+			plugin.clineExtension ? [plugin.clineExtension] : [],
+		),
 		diagnostics,
 	};
 }

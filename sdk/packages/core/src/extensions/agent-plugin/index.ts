@@ -7,6 +7,7 @@ export {
 	loadAgentPluginPackages,
 } from "./loader";
 export type {
+	AgentPluginPackageClineExtension,
 	AgentPluginPackageDiagnostic,
 	AgentPluginPackageDiagnosticScope,
 	AgentPluginPackageLoadReport,

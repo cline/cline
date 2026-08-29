@@ -34,13 +34,27 @@ export interface AgentPluginPackageMcpServer {
 	registration: McpServerRegistration;
 }
 
+/**
+ * The Cline client-extension namespace (`bot.cline`, Cline's domain reversed):
+ * a single Cline plugin module (`AgentExtension`) an Agent Plugin points at
+ * from its `bot.cline/` directory. Resolving it is read-only discovery, same
+ * as skills/MCP; the module itself is only imported when a session actually
+ * loads it, through the existing sandboxed Cline plugin pipeline.
+ */
+export interface AgentPluginPackageClineExtension {
+	pluginName: string;
+	pluginRoot: string;
+	entryPath: string;
+}
+
 export type AgentPluginPackageDiagnosticScope =
 	| "plugin"
 	| "manifest"
 	| "skills"
 	| "skill"
 	| "mcp"
-	| "mcp-server";
+	| "mcp-server"
+	| "cline-extension";
 
 export interface AgentPluginPackageDiagnostic {
 	level: "warning" | "error";
@@ -58,12 +72,14 @@ export interface LoadedAgentPluginPackage {
 	manifest: AgentPluginPackageManifest;
 	skills: AgentPluginPackageSkill[];
 	mcpServers: AgentPluginPackageMcpServer[];
+	clineExtension?: AgentPluginPackageClineExtension;
 }
 
 export interface AgentPluginPackageLoadReport {
 	plugins: LoadedAgentPluginPackage[];
 	skills: AgentPluginPackageSkill[];
 	mcpServers: AgentPluginPackageMcpServer[];
+	clineExtensions: AgentPluginPackageClineExtension[];
 	diagnostics: AgentPluginPackageDiagnostic[];
 }
 
