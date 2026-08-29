@@ -52,6 +52,14 @@ export {
 } from "./components/model-selector/cline-model-selector";
 export * from "./components/model-selector/model-selector";
 export { ProviderRow } from "./components/model-selector/provider-row";
+export {
+	getProviderSection,
+	isPopularProvider,
+	OTHER_PROVIDER_SECTION,
+	POPULAR_PROVIDER_SECTION,
+	type ProviderSection,
+	type ProviderSectionItem,
+} from "./components/model-selector/provider-sections";
 export * from "./components/searchable-list";
 export type { ToastState, ToastVariant } from "./components/toast";
 export * from "./components/tracked-robot";

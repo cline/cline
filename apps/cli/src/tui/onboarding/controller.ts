@@ -15,6 +15,7 @@ import { isClineProvider } from "@cline/shared";
 import {
 	buildFeaturedModelEntries,
 	type ClineModelPickerEntry,
+	getProviderSection,
 	type SearchableItem,
 	useSearchableList,
 	useTheme,
@@ -46,7 +47,6 @@ import {
 	resolveProviderConfigSap,
 	updateProviderConfigValue,
 } from "../provider-config-values";
-import { getProviderSection } from "../provider-sections";
 import {
 	isOnboardingOAuthProviderId,
 	type OnboardingOAuthProviderId,

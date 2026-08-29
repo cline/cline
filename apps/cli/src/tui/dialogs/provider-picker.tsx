@@ -12,6 +12,7 @@ import {
 } from "@cline/core";
 import { getClineEnvironmentConfig } from "@cline/shared";
 import {
+	getProviderSection,
 	getSearchableListRowsWindow,
 	type SearchableItem,
 	useDialogPalette,
@@ -36,7 +37,6 @@ import {
 	resolveProviderConfigSap,
 	updateProviderConfigValue,
 } from "../provider-config-values";
-import { getProviderSection } from "../provider-sections";
 import {
 	buildClinePassSubscriptionPageUrl,
 	resolveOAuthWaitKeyAction,
