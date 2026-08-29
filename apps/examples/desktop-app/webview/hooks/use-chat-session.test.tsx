@@ -104,6 +104,171 @@ describe("useChatSession", () => {
 		expect(current.status).toBe(parentStatus);
 	});
 
+	it("preserves an authoritative status received while a failed abort is pending", async () => {
+		let resolveAbort!: (value: unknown) => void;
+		const abortResponse = new Promise((resolve) => {
+			resolveAbort = resolve;
+		});
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return {
+						cwd: "/workspace/cline",
+						workspaceRoot: "/workspace/cline",
+					};
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string } | undefined;
+					if (request?.action === "start") {
+						return { sessionId: "session-abort-race" };
+					}
+					if (request?.action === "abort") {
+						return await abortResponse;
+					}
+				}
+				return [];
+			},
+		);
+
+		await act(async () => current.start(current.config));
+		const statusHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_session_status",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+		expect(statusHandler).toBeDefined();
+
+		let abortTask!: Promise<void>;
+		await act(async () => {
+			abortTask = current.abort();
+			await Promise.resolve();
+		});
+		expect(current.status).toBe("stopping");
+
+		await act(async () => {
+			statusHandler?.({ sessionId: current.sessionId, status: "failed" });
+		});
+		expect(current.status).toBe("failed");
+
+		await act(async () => {
+			resolveAbort({ ok: false });
+			await abortTask;
+		});
+		expect(current.status).toBe("failed");
+	});
+
+	it("keeps chat_done authoritative past the abort timeout and failure", async () => {
+		vi.useFakeTimers();
+		try {
+			const sessionId = "session-abort-chat-done";
+			let resolveAbort!: (value: unknown) => void;
+			const abortResponse = new Promise((resolve) => {
+				resolveAbort = resolve;
+			});
+			invokeMock.mockImplementation(
+				async (command: string, args?: Record<string, unknown>) => {
+					if (command === "get_process_context") {
+						return {
+							cwd: "/workspace/cline",
+							workspaceRoot: "/workspace/cline",
+						};
+					}
+					if (command === "chat_session_command") {
+						const request = args?.request as { action?: string } | undefined;
+						if (request?.action === "start") return { sessionId };
+						if (request?.action === "abort") return await abortResponse;
+					}
+					return [];
+				},
+			);
+
+			await act(async () => current.start(current.config));
+			const chatEventHandler = subscribeMock.mock.calls.find(
+				([eventName]) => eventName === "chat_event",
+			)?.[1] as ((payload: unknown) => void) | undefined;
+			expect(chatEventHandler).toBeDefined();
+
+			let abortTask!: Promise<void>;
+			await act(async () => {
+				abortTask = current.abort();
+				await Promise.resolve();
+				chatEventHandler?.({
+					sessionId,
+					stream: "chat_done",
+					chunk: JSON.stringify({ reason: "completed" }),
+					ts: Date.now(),
+					index: 1,
+				});
+			});
+			expect(current.status).toBe("completed");
+
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(2000);
+			});
+			expect(current.status).toBe("completed");
+
+			await act(async () => {
+				resolveAbort({ ok: false });
+				await abortTask;
+			});
+			expect(current.status).toBe("completed");
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("restores the prior status when a failed abort outlasts the local timeout", async () => {
+		vi.useFakeTimers();
+		try {
+			let resolveAbort!: (value: unknown) => void;
+			const abortResponse = new Promise((resolve) => {
+				resolveAbort = resolve;
+			});
+			invokeMock.mockImplementation(
+				async (command: string, args?: Record<string, unknown>) => {
+					if (command === "get_process_context") {
+						return {
+							cwd: "/workspace/cline",
+							workspaceRoot: "/workspace/cline",
+						};
+					}
+					if (command === "chat_session_command") {
+						const request = args?.request as { action?: string } | undefined;
+						if (request?.action === "start") {
+							return { sessionId: "session-abort-timeout" };
+						}
+						if (request?.action === "abort") {
+							return await abortResponse;
+						}
+					}
+					return [];
+				},
+			);
+
+			await act(async () => current.start(current.config));
+			const statusHandler = subscribeMock.mock.calls.find(
+				([eventName]) => eventName === "chat_session_status",
+			)?.[1] as ((payload: unknown) => void) | undefined;
+			await act(async () => {
+				statusHandler?.({ sessionId: current.sessionId, status: "completed" });
+			});
+
+			let abortTask!: Promise<void>;
+			await act(async () => {
+				abortTask = current.abort();
+				await Promise.resolve();
+				await vi.advanceTimersByTimeAsync(2000);
+			});
+			expect(current.status).toBe("cancelled");
+
+			await act(async () => {
+				resolveAbort({ ok: false });
+				await abortTask;
+			});
+			expect(current.status).toBe("completed");
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	it("reconciles a running tool row after an aborted send settles", async () => {
 		const sessionId = "session-aborted-tool";
 		let resolveActiveSend!: (value: unknown) => void;

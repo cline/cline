@@ -428,6 +428,9 @@ export function useChatSession() {
 	// trail chat_done; when no new turn has started since the turn settled
 	// (epoch unchanged), such a "running" must not reopen the turn.
 	const turnSettledEpochRef = useRef(-1);
+	// Server-projected status changes supersede any local status captured before
+	// an in-flight abort request.
+	const authoritativeStatusRevisionRef = useRef(0);
 	// Last error-level core log per session, used to explain failed turns.
 	const lastCoreErrorBySessionRef = useRef<Record<string, string>>({});
 	const [chatTransportState, setChatTransportState] =
@@ -1235,7 +1238,7 @@ export function useChatSession() {
 				return;
 			}
 			lastLiveChunkAtRef.current = Date.now();
-			if (abortedRef.current) {
+			if (abortedRef.current && payload.stream !== "chat_done") {
 				return;
 			}
 
@@ -1622,6 +1625,7 @@ export function useChatSession() {
 					verifyQueueStillBusy(listeningSessionId);
 				} else {
 					turnSettledEpochRef.current = turnEpochRef.current;
+					authoritativeStatusRevisionRef.current += 1;
 					finalizeSettledTurn(listeningSessionId);
 				}
 				return;
@@ -1777,6 +1781,7 @@ export function useChatSession() {
 				) {
 					return;
 				}
+				authoritativeStatusRevisionRef.current += 1;
 				setStatus(nextStatus as ChatSessionStatus);
 			},
 		);
@@ -1801,6 +1806,7 @@ export function useChatSession() {
 				setActiveAssistantMessageId(null);
 				clearLiveToolRefs();
 				turnSettledEpochRef.current = turnEpochRef.current;
+				authoritativeStatusRevisionRef.current += 1;
 				setStatus((record.reason?.trim() || "idle") as ChatSessionStatus);
 				finalizeSettledTurn(targetSessionId);
 			},
@@ -1908,6 +1914,7 @@ export function useChatSession() {
 				// the working indicator and disarming this poll.
 				const nextStatus = record?.status?.trim();
 				if (nextStatus) {
+					authoritativeStatusRevisionRef.current += 1;
 					setStatus(mapSessionRecordStatus(nextStatus as SessionHistoryStatus));
 				}
 			} finally {
@@ -2759,11 +2766,26 @@ export function useChatSession() {
 		if (!sessionId) return;
 		const fallbackStatus: ChatSessionStatus =
 			status === "stopping" ? "running" : status;
+		const statusRevisionAtAbort = authoritativeStatusRevisionRef.current;
+		const restoreFallbackStatus = () => {
+			abortedRef.current = false;
+			clearAbortFallbackTimeout();
+			if (
+				activeSessionIdRef.current === sessionId &&
+				authoritativeStatusRevisionRef.current === statusRevisionAtAbort
+			) {
+				setStatus(fallbackStatus);
+			}
+		};
 		abortedRef.current = true;
 		setStatus("stopping");
 		clearAbortFallbackTimeout();
 		abortFallbackTimeoutRef.current = setTimeout(() => {
-			if (abortedRef.current) {
+			if (
+				abortedRef.current &&
+				activeSessionIdRef.current === sessionId &&
+				authoritativeStatusRevisionRef.current === statusRevisionAtAbort
+			) {
 				setStatus("cancelled");
 			}
 			abortFallbackTimeoutRef.current = null;
@@ -2771,14 +2793,10 @@ export function useChatSession() {
 		try {
 			const response = await postSession({ action: "abort", sessionId });
 			if (!response.ok) {
-				abortedRef.current = false;
-				clearAbortFallbackTimeout();
-				setStatus(fallbackStatus);
+				restoreFallbackStatus();
 			}
 		} catch {
-			abortedRef.current = false;
-			clearAbortFallbackTimeout();
-			setStatus(fallbackStatus);
+			restoreFallbackStatus();
 		}
 	}, [clearAbortFallbackTimeout, postSession, sessionId, status]);
 

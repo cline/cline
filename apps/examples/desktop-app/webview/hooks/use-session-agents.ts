@@ -72,8 +72,8 @@ function parseAgentEntries(value: unknown): SessionAgentEntry[] {
 /**
  * Roster of the child agents a session started.
  *
- * Read once per displayed session and then polled only while that session is
- * active. Deliberately *not* gated on whether the header is currently showing
+ * Read once per displayed session and then polled while that session or one of
+ * its children is active. Deliberately *not* gated on whether the header shows
  * any agents: that tally is derived from the newest messages only, so gating on
  * it would deadlock — a session whose spawn calls have aged out of the message
  * window would report zero agents, never query the database that still
@@ -196,8 +196,13 @@ export function useSessionAgents({
 		if (!sessionId || (!sessionActive && !hasRunningAgents)) {
 			return;
 		}
+		let polling = false;
 		const timer = window.setInterval(() => {
-			void refresh(sessionId, { quiet: true });
+			if (polling) return;
+			polling = true;
+			void refresh(sessionId, { quiet: true }).finally(() => {
+				polling = false;
+			});
 		}, ACTIVE_POLL_INTERVAL_MS);
 		return () => {
 			window.clearInterval(timer);

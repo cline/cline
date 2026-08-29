@@ -419,6 +419,36 @@ describe("useSessionAgents", () => {
 		}
 	});
 
+	it("lets a slow poll settle an idle parent's completed child", async () => {
+		vi.useFakeTimers();
+		try {
+			let listCount = 0;
+			invokeMock.mockImplementation(async () => {
+				listCount += 1;
+				if (listCount === 1) return [runningRow("a", "one")];
+				return await new Promise((resolve) => {
+					setTimeout(() => resolve([agentRow("a", "one")]), 3000);
+				});
+			});
+
+			await render({ sessionId: "a", sessionActive: false });
+			expect(current.agents[0]?.status).toBe("running");
+
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(5500);
+			});
+			expect(current.agents[0]?.status).toBe("completed");
+
+			const settledCallCount = invokeMock.mock.calls.length;
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(10_000);
+			});
+			expect(invokeMock).toHaveBeenCalledTimes(settledCallCount);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	it("skips malformed rows rather than surfacing partial agents", async () => {
 		invokeMock.mockResolvedValue([
 			agentRow("a", "good"),
