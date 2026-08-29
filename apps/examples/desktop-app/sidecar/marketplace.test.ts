@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { installPlugin } from "@cline/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+	buildMarketplaceMcpInput,
 	getOfficialPluginInstallPath,
 	installMarketplaceEntry,
 	listMarketplaceInstalledEntries,
@@ -165,6 +166,114 @@ describe("official plugin install detection", () => {
 				process.env.CLINE_MCP_SETTINGS_PATH = previousSettingsPath;
 			}
 		}
+	});
+
+	it("persists forward-compatible Marketplace OAuth policy without authorizing", async () => {
+		// This synthetic entry locks the forward-compatible adapter contract
+		// without changing the live catalog; existing entries may omit the policy.
+		const settingsPath = join(tempClineDir, "cline_mcp_settings.json");
+		const previousSettingsPath = process.env.CLINE_MCP_SETTINGS_PATH;
+		process.env.CLINE_MCP_SETTINGS_PATH = settingsPath;
+		try {
+			const installArgs = [
+				"slack",
+				"--transport",
+				"http",
+				"--oauth-client-id",
+				"marketplace-public-client",
+				"--oauth-allowed-scope",
+				"search:read.public",
+				"--oauth-allowed-scope=channels:history",
+				"--oauth-loopback-hostname",
+				"localhost",
+				"https://mcp.slack.com/mcp",
+			];
+			expect(buildMarketplaceMcpInput(installArgs)).toMatchObject({
+				name: "slack",
+				transportType: "streamableHttp",
+				url: "https://mcp.slack.com/mcp",
+				oauthClient: {
+					clientId: "marketplace-public-client",
+					allowedScopes: ["channels:history", "search:read.public"],
+					loopbackHostname: "localhost",
+				},
+			});
+
+			await installMarketplaceEntry({
+				entry: {
+					id: "slack",
+					type: "mcp",
+					name: "Slack",
+					install: { args: installArgs },
+				},
+			});
+
+			const settings = JSON.parse(await readFile(settingsPath, "utf8")) as {
+				mcpServers: Record<
+					string,
+					{
+						oauth?: unknown;
+						oauthClient?: Record<string, unknown>;
+					}
+				>;
+			};
+			expect(settings.mcpServers.slack?.oauthClient).toEqual({
+				clientId: "marketplace-public-client",
+				allowedScopes: ["channels:history", "search:read.public"],
+				loopbackHostname: "localhost",
+			});
+			expect(settings.mcpServers.slack?.oauthClient).not.toHaveProperty(
+				"clientSecret",
+			);
+			expect(settings.mcpServers.slack?.oauth).toBeUndefined();
+		} finally {
+			if (previousSettingsPath === undefined) {
+				delete process.env.CLINE_MCP_SETTINGS_PATH;
+			} else {
+				process.env.CLINE_MCP_SETTINGS_PATH = previousSettingsPath;
+			}
+		}
+	});
+
+	it("rejects malformed or duplicate Marketplace OAuth install flags", () => {
+		const remote = ["--transport", "http", "https://mcp.example.com/mcp"];
+		expect(() =>
+			buildMarketplaceMcpInput([
+				"bad",
+				"--oauth-allowed-scope",
+				"read",
+				...remote,
+			]),
+		).toThrow(/client[- ]id/i);
+		expect(() =>
+			buildMarketplaceMcpInput([
+				"bad",
+				"--oauth-client-id",
+				"one",
+				"--oauth-client-id=two",
+				...remote,
+			]),
+		).toThrow(/oauth-client-id.*once|duplicate/i);
+		expect(() =>
+			buildMarketplaceMcpInput([
+				"bad",
+				"--oauth-client-id",
+				"public-client",
+				"--oauth-allowed-scope=read",
+				"--oauth-allowed-scope",
+				"read",
+				...remote,
+			]),
+		).toThrow(/duplicate/i);
+		expect(() =>
+			buildMarketplaceMcpInput([
+				"bad",
+				"--oauth-client-id",
+				"public-client",
+				"--oauth-loopback-hostname=example.com",
+				...remote,
+			]),
+		).toThrow(/loopback|hostname/i);
 	});
 
 	it("excludes partial install directories from the installed entries list", async () => {

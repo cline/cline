@@ -196,6 +196,67 @@ describe("MCP OAuth editor", () => {
 		).toThrow(/RFC 6749/);
 	});
 
+	it("uses public install policy as OAuth add defaults without prefilling a secret", async () => {
+		const dir = await mkdtemp(join(tmpdir(), "cline-mcp-install-defaults-"));
+		tempDirs.push(dir);
+		const settingsPath = join(dir, "cline_mcp_settings.json");
+		process.env.CLINE_MCP_SETTINGS_PATH = settingsPath;
+		promptMocks.text
+			.mockResolvedValueOnce("slack")
+			.mockResolvedValueOnce("https://mcp.slack.com/mcp")
+			.mockResolvedValueOnce("")
+			.mockResolvedValueOnce("public-client")
+			.mockResolvedValueOnce("channels:history search:read.public");
+		promptMocks.select
+			.mockResolvedValueOnce("streamableHttp")
+			.mockResolvedValueOnce("oauth")
+			.mockResolvedValueOnce("localhost");
+		promptMocks.password.mockResolvedValueOnce("");
+
+		await expect(
+			runMcpWizard({
+				initialAction: "add",
+				exitAfterInitialAction: true,
+				addDefaults: {
+					name: "slack",
+					type: "streamableHttp",
+					url: "https://mcp.slack.com/mcp",
+					oauthClient: {
+						clientId: "public-client",
+						allowedScopes: ["channels:history", "search:read.public"],
+						loopbackHostname: "localhost",
+					},
+				},
+			}),
+		).resolves.toBe(0);
+
+		const authPrompt = promptMocks.select.mock.calls.find(
+			([options]) => options.message === "Authentication",
+		)?.[0];
+		expect(authPrompt?.initialValue).toBe("oauth");
+		const clientIdPrompt = promptMocks.text.mock.calls.find(([options]) =>
+			options.message.startsWith("OAuth client ID"),
+		)?.[0];
+		expect(clientIdPrompt?.initialValue).toBe("public-client");
+		const secretPrompt = promptMocks.password.mock.calls[0]?.[0];
+		expect(secretPrompt?.initialValue).toBeUndefined();
+
+		const parsed = JSON.parse(await readFile(settingsPath, "utf8")) as {
+			mcpServers: {
+				slack: { oauthClient?: Record<string, unknown> };
+			};
+		};
+		expect(parsed.mcpServers.slack.oauthClient).toEqual({
+			clientId: "public-client",
+			allowedScopes: ["channels:history", "search:read.public"],
+			loopbackHostname: "localhost",
+		});
+		expect(parsed.mcpServers.slack.oauthClient).not.toHaveProperty(
+			"clientSecret",
+		);
+		expect(oauthMocks.authorize).toHaveBeenCalledWith("slack");
+	});
+
 	it("lists every exact callback URI for either supported redirect hostname", () => {
 		expect(getMcpOAuthRedirectUris("127.0.0.1")).toEqual([
 			"http://127.0.0.1:1456/mcp/oauth/callback",

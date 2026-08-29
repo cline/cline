@@ -767,6 +767,85 @@ Break work into clear steps.`,
 		);
 	});
 
+	it("routes public MCP OAuth install policy and exposes no secret flag", () => {
+		const tempRoot = mkdtempSync(path.join(os.tmpdir(), "cli-e2e-mcp-oauth-"));
+		tempDirs.push(tempRoot);
+		const settingsPath = path.join(tempRoot, "cline_mcp_settings.json");
+		const env = createIsolatedEnv({
+			CLINE_MCP_SETTINGS_PATH: settingsPath,
+		});
+		const help = runCli(["mcp", "install", "--help"], { env });
+		expect(help.status).toBe(0);
+		expect(asText(help.stdout)).toContain("--oauth-client-id");
+		expect(asText(help.stdout)).toContain("--oauth-allowed-scope");
+		expect(asText(help.stdout)).toContain("--oauth-loopback-hostname");
+		expect(asText(help.stdout)).not.toContain("oauth-client-secret");
+
+		const result = runCli(
+			[
+				"mcp",
+				"install",
+				"slack",
+				"--yes",
+				"--json",
+				"--transport",
+				"http",
+				"--oauth-client-id",
+				"public-client",
+				"--oauth-allowed-scope",
+				"search:read.public",
+				"--oauth-allowed-scope",
+				"channels:history",
+				"--oauth-loopback-hostname",
+				"localhost",
+				"https://mcp.slack.com/mcp",
+			],
+			{ env },
+		);
+
+		expect(result.status).toBe(0);
+		const output = JSON.parse(asText(result.stdout).trim()) as {
+			oauthClient?: Record<string, unknown>;
+		};
+		expect(output.oauthClient).toEqual({
+			clientId: "public-client",
+			allowedScopes: ["channels:history", "search:read.public"],
+			loopbackHostname: "localhost",
+		});
+		expect(output.oauthClient).not.toHaveProperty("clientSecret");
+		const settings = JSON.parse(readFileSync(settingsPath, "utf8")) as {
+			mcpServers: Record<
+				string,
+				{ oauth?: unknown; oauthClient?: Record<string, unknown> }
+			>;
+		};
+		expect(settings.mcpServers.slack?.oauthClient).toEqual(output.oauthClient);
+		expect(settings.mcpServers.slack?.oauth).toBeUndefined();
+	});
+
+	it("rejects duplicate singleton MCP OAuth install flags", () => {
+		const result = runCli(
+			[
+				"mcp",
+				"install",
+				"slack",
+				"--yes",
+				"--transport",
+				"http",
+				"--oauth-client-id",
+				"one",
+				"--oauth-client-id=two",
+				"https://mcp.slack.com/mcp",
+			],
+			{ env: createIsolatedEnv() },
+		);
+
+		expect(result.status).toBe(1);
+		expect(asText(result.stderr)).toContain(
+			"--oauth-client-id may only be specified once",
+		);
+	});
+
 	it("routes mcp uninstall and its rm alias", () => {
 		const tempRoot = mkdtempSync(path.join(os.tmpdir(), "cli-e2e-mcp-rm-"));
 		tempDirs.push(tempRoot);
