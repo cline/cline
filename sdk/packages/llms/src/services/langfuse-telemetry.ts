@@ -167,8 +167,17 @@ function hasActiveTracerDelegate(traceApi: {
 }): boolean {
 	const tracerProvider = traceApi.getTracerProvider() as {
 		getDelegate?: () => { constructor?: { name?: string } };
+		addSpanProcessor?: (spanProcessor: unknown) => void;
 	};
-	const delegate = tracerProvider.getDelegate?.();
+	if (typeof tracerProvider.getDelegate !== "function") {
+		// Some runtimes expose the registered tracer provider directly rather
+		// than through OpenTelemetry's ProxyTracerProvider. A direct provider
+		// has no delegate to inspect, but its addSpanProcessor API is sufficient
+		// evidence that it can receive and export spans.
+		return typeof tracerProvider.addSpanProcessor === "function";
+	}
+
+	const delegate = tracerProvider.getDelegate();
 	const delegateName = delegate?.constructor?.name;
 
 	return Boolean(delegateName && delegateName !== "NoopTracerProvider");

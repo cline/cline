@@ -26,13 +26,19 @@ vi.mock("@langfuse/vercel-ai-sdk", () => ({
 	},
 }));
 
-const { addSpanProcessorSpy, forceFlushSpy, shutdownSpy, getDelegateSpy } =
-	vi.hoisted(() => ({
-		addSpanProcessorSpy: vi.fn(),
-		forceFlushSpy: vi.fn(async () => undefined),
-		shutdownSpy: vi.fn(async () => undefined),
-		getDelegateSpy: vi.fn(),
-	}));
+const {
+	addSpanProcessorSpy,
+	forceFlushSpy,
+	shutdownSpy,
+	getDelegateSpy,
+	getTracerProviderSpy,
+} = vi.hoisted(() => ({
+	addSpanProcessorSpy: vi.fn(),
+	forceFlushSpy: vi.fn(async () => undefined),
+	shutdownSpy: vi.fn(async () => undefined),
+	getDelegateSpy: vi.fn(),
+	getTracerProviderSpy: vi.fn(),
+}));
 
 class MockNodeTracerProvider {
 	register = vi.fn();
@@ -48,10 +54,7 @@ vi.mock("@langfuse/otel", () => ({
 
 vi.mock("@opentelemetry/api", () => ({
 	trace: {
-		getTracerProvider: () => ({
-			addSpanProcessor: addSpanProcessorSpy,
-			getDelegate: getDelegateSpy,
-		}),
+		getTracerProvider: getTracerProviderSpy,
 	},
 }));
 
@@ -84,6 +87,10 @@ describe("langfuse telemetry", () => {
 			forceFlush: forceFlushSpy,
 			shutdown: shutdownSpy,
 		});
+		getTracerProviderSpy.mockReturnValue({
+			addSpanProcessor: addSpanProcessorSpy,
+			getDelegate: getDelegateSpy,
+		});
 		process.env.LANGFUSE_BASE_URL = "https://langfuse.example";
 		process.env.LANGFUSE_PUBLIC_KEY = "public-key";
 		process.env.LANGFUSE_SECRET_KEY = "secret-key";
@@ -114,6 +121,16 @@ describe("langfuse telemetry", () => {
 		expect(forceFlushSpy.mock.invocationCallOrder[0]).toBeLessThan(
 			shutdownSpy.mock.invocationCallOrder[0],
 		);
+	});
+
+	it("recognizes a directly registered tracer provider", async () => {
+		getTracerProviderSpy.mockReturnValue({
+			addSpanProcessor: addSpanProcessorSpy,
+		});
+
+		await expect(ensureLangfuseTelemetry("openrouter")).resolves.toBe(true);
+		expect(addSpanProcessorSpy).toHaveBeenCalledTimes(1);
+		expect(registerTelemetrySpy).toHaveBeenCalledTimes(1);
 	});
 
 	it("connects an AI SDK 7 call to the registered telemetry integration", async () => {
