@@ -5,6 +5,7 @@ import { createDelegatedAgentConfigProvider } from "./delegated-agent";
 type AgentExtension = NonNullable<AgentConfig["extensions"]>[number];
 
 const runMock = vi.fn();
+const shutdownMock = vi.fn();
 const getAgentIdMock = vi.fn(() => "sub-agent-1");
 const getConversationIdMock = vi.fn(() => "conv-sub-1");
 const agentConstructorSpy = vi.fn();
@@ -30,6 +31,10 @@ vi.mock("../../../runtime/orchestration/session-runtime-orchestrator", () => {
 
 			async run(input: string): Promise<unknown> {
 				return runMock(input);
+			}
+
+			async shutdown(): Promise<void> {
+				return shutdownMock();
 			}
 		},
 	};
@@ -88,6 +93,7 @@ describe("createSpawnAgentTool", () => {
 		expect(runMock).toHaveBeenCalledWith("Do delegated work");
 		expect(onSubAgentStart).toHaveBeenCalledTimes(1);
 		expect(onSubAgentEnd).toHaveBeenCalledTimes(1);
+		expect(shutdownMock).toHaveBeenCalledTimes(1);
 		expect(output).toEqual({
 			text: "sub-agent result",
 			iterations: 2,
@@ -193,6 +199,7 @@ describe("createSpawnAgentTool", () => {
 				error: expect.any(Error),
 			}),
 		);
+		expect(shutdownMock).toHaveBeenCalledTimes(1);
 	});
 
 	it("leaves maxIterations unset when neither input nor default is provided", async () => {

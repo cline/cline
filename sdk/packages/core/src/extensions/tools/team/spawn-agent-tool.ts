@@ -195,6 +195,8 @@ export function createSpawnAgentTool(
 					}
 				}
 				throw error;
+			} finally {
+				await subAgent.shutdown();
 			}
 		},
 		timeoutMs: 300000,
