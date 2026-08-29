@@ -922,10 +922,9 @@ export class SessionRuntime {
 		// Subscribe to runtime events; fan out legacy events to listeners
 		// and keep private book-keeping for tool-call records / usage.
 		const unsubscribe = runtime.subscribe((event: AgentRuntimeEvent) => {
-			// AgentRuntime creates its AbortController after asynchronous plugin
-			// initialization and immediately before emitting run-started. An
-			// external cancellation received during that startup window must be
-			// forwarded here; calling abort() before this event is a no-op.
+			// AgentRuntime does not accept abort() until run-started. Retain an abort
+			// requested during finite startup and forward it at that existing lifecycle
+			// boundary instead of adding a second initialization-cancellation path.
 			if (event.type === "run-started" && this.abortRequested) {
 				runtime.abort(this.abortReason);
 			}

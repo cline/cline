@@ -1728,9 +1728,13 @@ describe("SessionRuntime external abort signal", () => {
 	it.each([
 		"before",
 		"during",
-	] as const)("cancels a delegated run when the parent aborts %s startup", async (timing) => {
+	] as const)("retains a parent abort received %s delegated startup", async (timing) => {
 		const controller = new AbortController();
 		let releaseStartup: (() => void) | undefined;
+		// AgentRuntime plugin setup has no cancellation contract. Release this
+		// finite startup explicitly and verify the retained abort is applied before
+		// the model runs; making arbitrary plugin initialization abortable is not
+		// part of SessionRuntime cancellation propagation.
 		const startupGate = new Promise<void>((resolve) => {
 			releaseStartup = resolve;
 		});
