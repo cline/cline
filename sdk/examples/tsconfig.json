@@ -52,6 +52,13 @@
 			"@cline/shared/*": [
 				"../packages/shared/src/*",
 				"../packages/shared/src/*/index.ts"
+			],
+			// Resolve through compiled declarations: the TUI sources use the
+			// OpenTUI JSX runtime, which this example program does not enable.
+			"@cline/ui/protocol": ["../packages/ui/dist/protocol/index.d.ts"],
+			"@cline/ui/tui": ["../packages/ui/dist/tui/index.d.ts"],
+			"@cline/ui/tui/formatting": [
+				"../packages/ui/dist/tui/formatting/index.d.ts"
 			]
 		}
 	}
