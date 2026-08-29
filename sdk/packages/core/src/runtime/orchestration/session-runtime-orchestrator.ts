@@ -388,6 +388,9 @@ export class SessionRuntime {
 	private activeTrackerWork: Promise<void> = Promise.resolve();
 	/** True when tracker logic has issued an abort for the active run. */
 	private trackerAbortInFlight = false;
+	private readonly handleExternalAbort = (): void => {
+		this.abort(this.config.abortSignal?.reason);
+	};
 
 	constructor(config: AgentConfig, deps: SessionRuntimeOrchestratorDeps = {}) {
 		this.config = config;
@@ -467,6 +470,15 @@ export class SessionRuntime {
 				? undefined
 				: loopDetectionInput;
 		this.loopTracker = new LoopDetectionTracker(loopConfig);
+		if (config.abortSignal) {
+			if (config.abortSignal.aborted) {
+				this.handleExternalAbort();
+			} else {
+				config.abortSignal.addEventListener("abort", this.handleExternalAbort, {
+					once: true,
+				});
+			}
+		}
 	}
 
 	// -------------------------------------------------------------------
@@ -662,6 +674,10 @@ export class SessionRuntime {
 			return;
 		}
 		this.shutdownCalled = true;
+		this.config.abortSignal?.removeEventListener(
+			"abort",
+			this.handleExternalAbort,
+		);
 	}
 
 	// -------------------------------------------------------------------
@@ -785,6 +801,9 @@ export class SessionRuntime {
 		this.running = true;
 		this.abortRequested = false;
 		this.abortReason = undefined;
+		if (this.config.abortSignal?.aborted) {
+			this.handleExternalAbort();
+		}
 		this.activeRunId = `run_${Date.now()}_${Math.random()
 			.toString(36)
 			.slice(2, 8)}`;
@@ -899,13 +918,17 @@ export class SessionRuntime {
 		});
 		const runtime = this.createAgentRuntimeImpl(runtimeConfig);
 		this.activeRuntime = runtime;
-		if (this.abortRequested) {
-			runtime.abort(this.abortReason);
-		}
 
 		// Subscribe to runtime events; fan out legacy events to listeners
 		// and keep private book-keeping for tool-call records / usage.
 		const unsubscribe = runtime.subscribe((event: AgentRuntimeEvent) => {
+			// AgentRuntime creates its AbortController after asynchronous plugin
+			// initialization and immediately before emitting run-started. An
+			// external cancellation received during that startup window must be
+			// forwarded here; calling abort() before this event is a no-op.
+			if (event.type === "run-started" && this.abortRequested) {
+				runtime.abort(this.abortReason);
+			}
 			this.handleRuntimeEvent(event);
 		});
 
@@ -916,11 +939,9 @@ export class SessionRuntime {
 			// user message we already seeded via `initialMessages`. The
 			// runtime's `normalizeInput` treats `""`/`undefined` as
 			// "no extra messages".
-			if (input.isContinue) {
-				runResult = await runtime.continue(undefined);
-			} else {
-				runResult = await runtime.run("");
-			}
+			runResult = input.isContinue
+				? await runtime.continue(undefined)
+				: await runtime.run("");
 		} catch (error) {
 			thrownError = error instanceof Error ? error : new Error(String(error));
 		} finally {
