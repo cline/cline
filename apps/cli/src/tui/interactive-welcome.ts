@@ -3,16 +3,10 @@ import {
 	type ProviderSettings,
 	type UserInstructionConfigService,
 } from "@cline/core";
+import type { SlashCommand } from "@cline/ui/tui";
 import { byLengthAsc, Fzf, type FzfResultItem } from "fzf";
 import type { Config } from "../utils/types";
 import { formatClineCredits, loadClineAccountSnapshot } from "./cline-account";
-
-export interface InteractiveSlashCommand {
-	name: string;
-	instructions: string;
-	description?: string;
-	kind?: "skill" | "workflow";
-}
 
 function normalizeLimit(limit: number | undefined): number {
 	if (typeof limit !== "number" || Number.isNaN(limit)) {
@@ -111,7 +105,7 @@ export function rankMentionPaths(
 
 export function listInteractiveSlashCommands(
 	userInstructionService?: UserInstructionConfigService,
-): InteractiveSlashCommand[] {
+): SlashCommand[] {
 	const builtins = [
 		{
 			name: "config",

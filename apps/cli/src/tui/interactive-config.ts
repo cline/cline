@@ -33,86 +33,14 @@ import {
 	resolveMcpTimeoutSeconds,
 } from "@cline/shared";
 import { readFileSyncStrippingUtf8Bom } from "@cline/shared/node";
+// The interactive config panel's data model is owned by the shared terminal
+// UI; this module only assembles that data from the CLI runtime.
+import type {
+	InteractiveConfigData,
+	InteractiveConfigItem,
+} from "@cline/ui/tui";
 import { getToolCatalog } from "../runtime/tools";
-import {
-	type InteractiveSlashCommand,
-	listInteractiveSlashCommands,
-} from "./interactive-welcome";
-
-export type InteractiveConfigTab =
-	| "general"
-	| "tools"
-	| "workflows"
-	| "agents"
-	| "plugins"
-	| "hooks"
-	| "skills"
-	| "rules"
-	| "mcp";
-
-export type InteractiveConfigItemKind =
-	| "workflow"
-	| "rule"
-	| "skill"
-	| "hook"
-	| "agent"
-	| "plugin"
-	| "mcp"
-	| "tool";
-
-export interface InteractiveConfigItem {
-	id: string;
-	name: string;
-	path: string;
-	enabled?: boolean;
-	kind: InteractiveConfigItemKind;
-	enabledState?: "enabled" | "disabled" | "partial";
-	toolNames?: string[];
-	configKind?: "tool" | "plugin";
-	pluginName?: string;
-	pluginPath?: string;
-	loadError?: string;
-	loadErrorPhase?: PluginInitializationFailure["phase"];
-	source:
-		| "global"
-		| "workspace"
-		| "builtin"
-		| "global-plugin"
-		| "workspace-plugin";
-	description?: string;
-}
-
-export interface InteractiveConfigData {
-	workflows: InteractiveConfigItem[];
-	rules: InteractiveConfigItem[];
-	skills: InteractiveConfigItem[];
-	hooks: InteractiveConfigItem[];
-	agents: InteractiveConfigItem[];
-	plugins: InteractiveConfigItem[];
-	mcp: InteractiveConfigItem[];
-	tools: InteractiveConfigItem[];
-	workflowSlashCommands: InteractiveSlashCommand[];
-	pluginDiagnosticsLoaded?: boolean;
-}
-
-export interface LoadInteractiveConfigDataOptions {
-	includePluginTools?: boolean;
-}
-
-export function isToggleableInteractiveConfigItem(
-	item: Pick<InteractiveConfigItem, "kind" | "source" | "pluginName">,
-): boolean {
-	if (item.kind === "mcp") {
-		return !item.pluginName;
-	}
-	return (
-		item.kind === "skill" ||
-		item.kind === "plugin" ||
-		item.source === "builtin" ||
-		item.source === "workspace-plugin" ||
-		item.source === "global-plugin"
-	);
-}
+import { listInteractiveSlashCommands } from "./interactive-welcome";
 
 function detectSource(
 	path: string,

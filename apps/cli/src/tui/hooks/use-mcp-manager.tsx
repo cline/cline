@@ -1,9 +1,9 @@
-import type { ChoiceContext } from "@opentui-ui/dialog";
-import type { DialogActions } from "@opentui-ui/dialog/react";
 import type {
 	InteractiveConfigData,
 	InteractiveConfigItem,
-} from "../../tui/interactive-config";
+} from "@cline/ui/tui";
+import type { ChoiceContext } from "@opentui-ui/dialog";
+import type { DialogActions } from "@opentui-ui/dialog/react";
 import {
 	type McpEntry,
 	McpManagerContent,

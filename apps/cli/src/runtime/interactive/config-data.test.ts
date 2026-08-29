@@ -12,12 +12,10 @@ import type { UserInstructionConfigService } from "@cline/core";
 import {
 	buildSlashCommandRegistry,
 	expandUserCommandPrompt,
+	type InteractiveConfigItem,
 } from "@cline/ui/tui";
 import { afterEach, describe, expect, it } from "vitest";
-import {
-	applyPluginFailures,
-	type InteractiveConfigItem,
-} from "../../tui/interactive-config";
+import { applyPluginFailures } from "../../tui/interactive-config";
 import type { Config } from "../../utils/types";
 import { createInteractiveConfigDataLoader } from "./config-data";
 

@@ -7,12 +7,12 @@ import {
 	type UserInstructionConfigService,
 	uninstallPlugin,
 } from "@cline/core";
-import {
-	type InteractiveConfigData,
-	type InteractiveConfigItem,
-	type LoadInteractiveConfigDataOptions,
-	loadInteractiveConfigData,
-} from "../../tui/interactive-config";
+import type {
+	InteractiveConfigData,
+	InteractiveConfigItem,
+	LoadInteractiveConfigDataOptions,
+} from "@cline/ui/tui";
+import { loadInteractiveConfigData } from "../../tui/interactive-config";
 import type { Config } from "../../utils/types";
 
 export function createInteractiveConfigDataLoader(input: {
