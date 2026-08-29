@@ -643,6 +643,63 @@ async function fetchLiteLlmPrivateModels(
 	);
 }
 
+interface PublicProviderModelAdapter {
+	readonly requiresLiveRefresh: boolean;
+	fetch(sourceUrl: string): Promise<Record<string, ModelInfo>>;
+}
+
+const PUBLIC_PROVIDER_MODEL_ADAPTERS: Record<
+	string,
+	PublicProviderModelAdapter
+> = {
+	lmstudio: {
+		requiresLiveRefresh: true,
+		async fetch(sourceUrl) {
+			const entries = await Llms.fetchLmStudioModels(sourceUrl, (url) =>
+				fetchWithTimeout(url, { method: "GET" }),
+			);
+			return Object.fromEntries(
+				entries.map((model) => [
+					model.id,
+					buildModelFromPrivateSource(model.id, {
+						name: model.id,
+						contextWindow: model.loadedContextWindow ?? model.maxContextWindow,
+					}),
+				]),
+			);
+		},
+	},
+};
+
+export function providerModelInfoRequiresLiveRefresh(
+	providerId: string,
+): boolean {
+	return (
+		PUBLIC_PROVIDER_MODEL_ADAPTERS[providerId]?.requiresLiveRefresh ?? false
+	);
+}
+
+async function fetchPublicProviderModels(
+	providerId: string,
+	sourceUrl: string,
+): Promise<Record<string, ModelInfo>> {
+	const adapter = PUBLIC_PROVIDER_MODEL_ADAPTERS[providerId];
+	if (adapter) {
+		try {
+			const models = await adapter.fetch(sourceUrl);
+			if (Object.keys(models).length > 0) {
+				return models;
+			}
+		} catch {
+			// Fall back to the provider's generic model listing below.
+		}
+	}
+	const modelIds = await fetchModelIdsFromSource(sourceUrl, providerId);
+	return Object.fromEntries(
+		modelIds.map((id) => [id, buildModelFromPrivateSource(id, { name: id })]),
+	);
+}
+
 type PrivateProviderModelFetcher = (
 	config: ProviderConfig,
 	token: string,
@@ -714,14 +771,8 @@ async function getPublicProviderModels(
 		return inFlight;
 	}
 
-	const request = fetchModelIdsFromSource(sourceUrl, providerId)
-		.then((modelIds) => {
-			const data = Object.fromEntries(
-				modelIds.map((id) => [
-					id,
-					buildModelFromPrivateSource(id, { name: id }),
-				]),
-			);
+	const request = fetchPublicProviderModels(providerId, sourceUrl)
+		.then((data) => {
 			PUBLIC_MODELS_CACHE.set(cacheKey, {
 				data,
 				expiresAt: now + cacheTtlMs,
