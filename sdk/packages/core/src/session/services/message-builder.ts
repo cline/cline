@@ -24,8 +24,14 @@ import {
 	type ToolResultContent,
 	validateAndReserveImageMedia,
 } from "@cline/shared";
+import { MAX_COMMAND_OUTPUT_CHARS } from "../../extensions/tools/executors/output-limits";
 
-export const DEFAULT_MAX_TOOL_RESULT_CHARS = 8_000;
+// Executors append their truncation notice past their own budget, so a capped
+// result runs slightly over it; this headroom keeps the backstop clear of that
+// overshoot, preserving the notice.
+const EXECUTOR_TRUNCATION_NOTICE_HEADROOM_CHARS = 2_000;
+export const DEFAULT_MAX_TOOL_RESULT_CHARS =
+	MAX_COMMAND_OUTPUT_CHARS + EXECUTOR_TRUNCATION_NOTICE_HEADROOM_CHARS;
 export const DEFAULT_MAX_FILE_CONTENT_CHARS = 50_000;
 // The aggregate budget intentionally stays far above what the per-result cap
 // usually produces: budget truncation rewrites bytes mid-transcript, which

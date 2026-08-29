@@ -6,6 +6,10 @@ import {
 } from "@cline/shared";
 import { describe, expect, it } from "vitest";
 import {
+	MAX_COMMAND_OUTPUT_CHARS,
+	truncateCommandOutput,
+} from "../../extensions/tools/executors/output-limits";
+import {
 	agentMessagesToMessages,
 	messagesToAgentMessages,
 } from "../../runtime/config/agent-message-codec";
@@ -210,8 +214,25 @@ describe("MessageBuilder", () => {
 		expect(block.content).toContain("...[truncated");
 	});
 
-	it("uses an aggressive per-result cap and a loose aggregate budget", () => {
-		expect(DEFAULT_MAX_TOOL_RESULT_CHARS).toBe(8_000);
+	it("keeps the per-result cap clear of the executor budget and the aggregate budget loose", () => {
+		// The cap must clear the largest output a budgeted executor can emit.
+		// Measured here because the notice interpolates a character count, so a
+		// bigger input widens it.
+		const worstCaseBudgetedOutput = truncateCommandOutput(
+			"z".repeat(Number.MAX_SAFE_INTEGER.toString().length * 1_000_000),
+			{ maxChars: MAX_COMMAND_OUTPUT_CHARS },
+		);
+		expect(worstCaseBudgetedOutput.length).toBeGreaterThan(
+			MAX_COMMAND_OUTPUT_CHARS,
+		);
+		expect(DEFAULT_MAX_TOOL_RESULT_CHARS).toBeGreaterThan(
+			worstCaseBudgetedOutput.length,
+		);
+		// Bounded above too, so the headroom stays sized for the notice and the
+		// backstop keeps its reach over unbudgeted producers.
+		expect(DEFAULT_MAX_TOOL_RESULT_CHARS).toBeLessThanOrEqual(
+			MAX_COMMAND_OUTPUT_CHARS + 2_000,
+		);
 		expect(DEFAULT_MAX_FILE_CONTENT_CHARS).toBe(50_000);
 		// The aggregate budget stays loose on purpose: budget truncation
 		// rewrites mid-transcript bytes and breaks provider prefix caching, so
@@ -802,40 +823,87 @@ describe("MessageBuilder with structured ToolOperationResult content", () => {
 		);
 	});
 
-	it("materially shrinks provider-formatted payloads compared with previous defaults", () => {
-		const messages: Message[] = [];
-		for (let i = 0; i < 20; i++) {
-			messages.push(
-				toolUseMessage(`call_${i}`, "run_commands", {
-					commands: [`python noisy_task_${i}.py`],
-				}),
-				structuredToolResultMessage(`call_${i}`, "run_commands", [
-					{
-						query: `python noisy_task_${i}.py`,
-						result: hugeText(300_000),
-						success: true,
-						duration: 1000 + i,
-					},
-				]),
-			);
-		}
-		const previousDefaults = new MessageBuilder({
-			maxToolResultChars: 50_000,
-			maxTotalTextBytes: 6_000_000,
+	it("leaves output an executor already budgeted untouched", () => {
+		const builder = new MessageBuilder();
+		// Sitting exactly at the executor cap, so it passes through whole.
+		const executorSized = "y".repeat(MAX_COMMAND_OUTPUT_CHARS);
+		const messages: Message[] = [
+			toolUseMessage("call_1", "run_commands", {
+				commands: ["pytest -q"],
+			}),
+			structuredToolResultMessage("call_1", "run_commands", [
+				{
+					query: "pytest -q",
+					result: executorSized,
+					success: true,
+					duration: 1000,
+				},
+			]),
+		];
+
+		const built = builder.buildForApi(messages);
+
+		expect(firstToolOperationResult(built).result).toBe(executorSized);
+		// Survives all the way into the provider-formatted payload.
+		expect(serializeForAiSdk(built)).toContain(executorSized);
+	});
+
+	it("preserves the executor's truncation notice on an already-capped result", () => {
+		const builder = new MessageBuilder();
+		// Real executor output for an oversized command: elided to budget plus a
+		// notice, landing just past it. The headroom is what keeps the notice —
+		// now sitting mid-string — out of a second middle cut.
+		const executorOutput = truncateCommandOutput("z".repeat(206_639), {
+			maxChars: MAX_COMMAND_OUTPUT_CHARS,
 		});
-		const currentDefaults = new MessageBuilder();
+		expect(executorOutput.length).toBeGreaterThan(MAX_COMMAND_OUTPUT_CHARS);
 
-		const previousPayload = serializeForAiSdk(
-			previousDefaults.buildForApi(messages),
-		);
-		const currentPayload = serializeForAiSdk(
-			currentDefaults.buildForApi(messages),
-		);
+		const built = builder.buildForApi([
+			toolUseMessage("call_1", "run_commands", { commands: ["pytest -q"] }),
+			structuredToolResultMessage("call_1", "run_commands", [
+				{
+					query: "pytest -q",
+					result: executorOutput,
+					success: true,
+					duration: 1000,
+				},
+			]),
+		]);
+		const output = firstToolOperationResult(built).result;
 
-		expect(previousPayload.length).toBeGreaterThan(900_000);
-		expect(currentPayload.length).toBeLessThan(previousPayload.length * 0.25);
-		expect(currentPayload.length).toBeLessThan(250_000);
-		expect(currentPayload).not.toContain(MIDDLE_SENTINEL);
+		expect(output).toBe(executorOutput);
+		expect(output).toContain("output truncated");
+		expect(output).not.toContain("...[truncated");
+	});
+
+	it("still bounds output from producers that have no executor budget", () => {
+		const builder = new MessageBuilder();
+		const messages: Message[] = [
+			toolUseMessage("call_1", "mcp__warehouse__query", {
+				sql: "select * from events",
+			}),
+			structuredToolResultMessage("call_1", "mcp__warehouse__query", [
+				{
+					query: "select * from events",
+					result: hugeText(),
+					success: true,
+					duration: 1000,
+				},
+			]),
+		];
+
+		const operation = firstToolOperationResult(builder.buildForApi(messages));
+		const output = operation.result;
+
+		expect(typeof output).toBe("string");
+		if (typeof output !== "string") {
+			throw new Error("expected string result");
+		}
+		expect(output.length).toBeLessThanOrEqual(DEFAULT_MAX_TOOL_RESULT_CHARS);
+		expect(output).toContain("...[truncated");
+		expect(output).not.toContain(MIDDLE_SENTINEL);
+		expect(output).toContain(HEAD_MARKER);
+		expect(output).toContain(TAIL_MARKER);
 	});
 
 	it("truncates a huge nested `result` string in run_commands structured output", () => {
@@ -2019,7 +2087,7 @@ describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)
 	});
 
 	it("uses provider-bound stale bytes after per-result truncation", () => {
-		const builder = new MessageBuilder({ minOutdatedRewriteBytes: 20_000 });
+		const builder = new MessageBuilder({ minOutdatedRewriteBytes: 60_000 });
 		const messages: Message[] = [
 			{ role: "user", content: "task" },
 			readToolUse("t1"),
@@ -2030,8 +2098,8 @@ describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)
 
 		const result = builder.buildForApi(messages);
 
-		// Raw t1 history is ~140KB, but the provider-bound stale entry is capped
-		// near 8KB before threshold accounting. A 20KB threshold must defer.
+		// Threshold sits between the provider-bound stale entry (capped) and raw
+		// t1 history (~140KB), so only provider-bound accounting defers here.
 		expect(JSON.stringify(result[2])).not.toContain("outdated");
 		expect(JSON.stringify(result[2])).toContain("...[truncated");
 	});

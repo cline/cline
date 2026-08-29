@@ -8,10 +8,9 @@
  * reference them so the model pages or narrows instead of retrying.
  *
  * Truncation notices always live in the preserved head/tail of an entry,
- * never in the elided middle. Provider-request building may re-truncate
- * long strings with its own (possibly tighter) middle-cut backstop
- * (session/services/message-builder.ts); keeping the notices at the edges
- * means the recovery guidance survives that cut too.
+ * never in the elided middle, so they survive a later cut. Provider-request
+ * building keeps its own backstop (session/services/message-builder.ts) above
+ * these budgets, so an executor's own sizing stands.
  */
 
 /** Max characters of command output kept; beyond this the middle is elided. */
