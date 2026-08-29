@@ -104,6 +104,137 @@ describe("useChatSession", () => {
 		expect(current.status).toBe(parentStatus);
 	});
 
+	it("reconciles a running tool row after an aborted send settles", async () => {
+		const sessionId = "session-aborted-tool";
+		let resolveActiveSend!: (value: unknown) => void;
+		let resolveQueuedSend!: (value: unknown) => void;
+		const activeSendResponse = new Promise((resolve) => {
+			resolveActiveSend = resolve;
+		});
+		const queuedSendResponse = new Promise((resolve) => {
+			resolveQueuedSend = resolve;
+		});
+		let sendCount = 0;
+		const canonicalMessages = [
+			{
+				id: "history-user",
+				sessionId,
+				role: "user",
+				content: "spawn a subagent",
+				createdAt: 1,
+			},
+			{
+				id: "history-assistant",
+				sessionId,
+				role: "assistant",
+				content: "",
+				createdAt: 2,
+			},
+			{
+				id: "history-tool",
+				sessionId,
+				role: "tool",
+				content: JSON.stringify({
+					toolName: "spawn_agent",
+					input: { task: "sleep" },
+					result: { finishReason: "aborted" },
+					isError: false,
+				}),
+				createdAt: 3,
+				meta: {
+					toolName: "spawn_agent",
+					toolCallId: "call-spawn",
+					hookEventName: "history_tool_result",
+				},
+			},
+		];
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return {
+						cwd: "/workspace/cline",
+						workspaceRoot: "/workspace/cline",
+					};
+				}
+				if (command === "read_session_messages") return canonicalMessages;
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string } | undefined;
+					if (request?.action === "start") {
+						return {
+							sessionId,
+							cwd: "/workspace/cline",
+							workspaceRoot: "/workspace/cline",
+						};
+					}
+					if (request?.action === "send") {
+						sendCount += 1;
+						return await (sendCount === 1
+							? activeSendResponse
+							: queuedSendResponse);
+					}
+					if (request?.action === "abort") return { sessionId, ok: true };
+				}
+				return [];
+			},
+		);
+
+		await act(async () => current.start(current.config));
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+		expect(chatEventHandler).toBeDefined();
+
+		let activeSendTask!: Promise<void>;
+		let queuedSendTask!: Promise<void>;
+		await act(async () => {
+			activeSendTask = current.sendPrompt("spawn a subagent");
+			await Promise.resolve();
+			chatEventHandler?.({
+				sessionId,
+				stream: "chat_tool_call_start",
+				chunk: JSON.stringify({
+					toolCallId: "call-spawn",
+					toolName: "spawn_agent",
+					input: { task: "sleep" },
+				}),
+				ts: Date.now(),
+				index: 1,
+			});
+			queuedSendTask = current.sendPrompt("report when finished");
+			await Promise.resolve();
+		});
+		expect(
+			current.messages.find((message) => message.role === "tool")?.meta
+				?.hookEventName,
+		).toBe("tool_call_start");
+
+		await act(async () => current.abort());
+		await act(async () => {
+			resolveActiveSend({ ok: true, result: { finishReason: "aborted" } });
+			await activeSendTask;
+			await new Promise((resolve) => setTimeout(resolve, 300));
+		});
+		expect(
+			current.messages.find((message) => message.role === "tool")?.meta
+				?.hookEventName,
+		).toBe("tool_call_start");
+
+		await act(async () => {
+			resolveQueuedSend({ ok: true, queued: true, promptsInQueue: [] });
+			await queuedSendTask;
+			await new Promise((resolve) => setTimeout(resolve, 300));
+		});
+
+		expect(current.status).toBe("cancelled");
+		const toolMessage = current.messages.find(
+			(message) => message.role === "tool",
+		);
+		expect(toolMessage?.meta?.hookEventName).toBe("history_tool_result");
+		expect(JSON.parse(toolMessage?.content ?? "{}").result).toEqual({
+			finishReason: "aborted",
+		});
+	});
+
 	it("caps command output while preserving the newest tail", () => {
 		const result = appendCappedCommandOutput(
 			"head\n",

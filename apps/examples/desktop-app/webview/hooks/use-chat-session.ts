@@ -2242,9 +2242,16 @@ export function useChatSession() {
 				finishPromptSubmission();
 				return;
 			}
+			let abortedReconcileEpoch: number | undefined;
 			try {
 				const payload = await sendTask;
 				if (payload.ok && payload.queued) {
+					if (abortedRef.current) {
+						abortedReconcileEpoch = turnEpochRef.current;
+						turnSettledEpochRef.current = turnEpochRef.current;
+						setStatus("cancelled");
+						return;
+					}
 					if (turnEpochRef.current !== turnEpochAtDispatch) {
 						// The runtime already started consuming a queued prompt
 						// (chat_queued_prompt_start bumped the epoch) while this
@@ -2258,11 +2265,6 @@ export function useChatSession() {
 						return;
 					}
 					applyPromptsInQueue(payload.promptsInQueue);
-					if (abortedRef.current) {
-						turnSettledEpochRef.current = turnEpochRef.current;
-						setStatus("cancelled");
-						return;
-					}
 					setStatus("running");
 					return;
 				}
@@ -2270,6 +2272,7 @@ export function useChatSession() {
 				const result = payload.result as ChatApiResult | undefined;
 				applyPromptsInQueue(payload.promptsInQueue);
 				if (abortedRef.current) {
+					abortedReconcileEpoch = turnEpochRef.current;
 					turnSettledEpochRef.current = turnEpochRef.current;
 					setStatus("cancelled");
 					return;
@@ -2600,6 +2603,7 @@ export function useChatSession() {
 				void refreshSessionDiffSummary(activeSessionId);
 			} catch (err) {
 				if (abortedRef.current) {
+					abortedReconcileEpoch = turnEpochRef.current;
 					setStatus("cancelled");
 					return;
 				}
@@ -2617,6 +2621,13 @@ export function useChatSession() {
 					clearLiveToolRefs();
 				}
 				finishPromptSubmission();
+				if (
+					abortedReconcileEpoch !== undefined &&
+					activeSessionIdRef.current === activeSessionId &&
+					turnEpochRef.current === abortedReconcileEpoch
+				) {
+					finalizeSettledTurn(activeSessionId);
+				}
 			}
 		},
 		[
@@ -2627,6 +2638,7 @@ export function useChatSession() {
 			clearAbortFallbackTimeout,
 			clearLiveToolRefs,
 			config,
+			finalizeSettledTurn,
 			hydratedHistorySessionId,
 			materializeToolMessagesFromResult,
 			refreshSessionDiffSummary,
