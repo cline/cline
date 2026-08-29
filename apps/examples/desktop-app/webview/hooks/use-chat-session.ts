@@ -428,9 +428,10 @@ export function useChatSession() {
 	// trail chat_done; when no new turn has started since the turn settled
 	// (epoch unchanged), such a "running" must not reopen the turn.
 	const turnSettledEpochRef = useRef(-1);
-	// Server-projected status changes supersede any local status captured before
-	// an in-flight abort request.
+	// Runtime status changes supersede local status captured by an abort.
 	const authoritativeStatusRevisionRef = useRef(0);
+	// Snapshot used to keep a late send response from overwriting a newer status.
+	const abortStatusRevisionRef = useRef(0);
 	// Last error-level core log per session, used to explain failed turns.
 	const lastCoreErrorBySessionRef = useRef<Record<string, string>>({});
 	const [chatTransportState, setChatTransportState] =
@@ -1777,7 +1778,8 @@ export function useChatSession() {
 				// equals the settled epoch a "running" here can only be stale.
 				if (
 					nextStatus === "running" &&
-					turnEpochRef.current === turnSettledEpochRef.current
+					(abortedRef.current ||
+						turnEpochRef.current === turnSettledEpochRef.current)
 				) {
 					return;
 				}
@@ -1914,8 +1916,14 @@ export function useChatSession() {
 				// the working indicator and disarming this poll.
 				const nextStatus = record?.status?.trim();
 				if (nextStatus) {
+					const mappedStatus = mapSessionRecordStatus(
+						nextStatus as SessionHistoryStatus,
+					);
+					if (abortedRef.current && mappedStatus === "running") {
+						return;
+					}
 					authoritativeStatusRevisionRef.current += 1;
-					setStatus(mapSessionRecordStatus(nextStatus as SessionHistoryStatus));
+					setStatus(mappedStatus);
 				}
 			} finally {
 				polling = false;
@@ -2250,15 +2258,22 @@ export function useChatSession() {
 				return;
 			}
 			let abortedReconcileEpoch: number | undefined;
+			const settleAbortedSend = () => {
+				if (!abortedRef.current) return false;
+				if (
+					authoritativeStatusRevisionRef.current ===
+					abortStatusRevisionRef.current
+				) {
+					abortedReconcileEpoch = turnEpochRef.current;
+					turnSettledEpochRef.current = turnEpochRef.current;
+					setStatus("cancelled");
+				}
+				return true;
+			};
 			try {
 				const payload = await sendTask;
 				if (payload.ok && payload.queued) {
-					if (abortedRef.current) {
-						abortedReconcileEpoch = turnEpochRef.current;
-						turnSettledEpochRef.current = turnEpochRef.current;
-						setStatus("cancelled");
-						return;
-					}
+					if (settleAbortedSend()) return;
 					if (turnEpochRef.current !== turnEpochAtDispatch) {
 						// The runtime already started consuming a queued prompt
 						// (chat_queued_prompt_start bumped the epoch) while this
@@ -2278,12 +2293,7 @@ export function useChatSession() {
 
 				const result = payload.result as ChatApiResult | undefined;
 				applyPromptsInQueue(payload.promptsInQueue);
-				if (abortedRef.current) {
-					abortedReconcileEpoch = turnEpochRef.current;
-					turnSettledEpochRef.current = turnEpochRef.current;
-					setStatus("cancelled");
-					return;
-				}
+				if (settleAbortedSend()) return;
 				// On a failed run the runtime reports the error string in
 				// result.text — it is not assistant content and must not be
 				// rendered as an assistant bubble (canonical rehydration would
@@ -2580,10 +2590,8 @@ export function useChatSession() {
 				const hasQueuedFollowUps =
 					Array.isArray(payload.promptsInQueue) &&
 					payload.promptsInQueue.length > 0;
-				if (abortedRef.current) {
-					turnSettledEpochRef.current = turnEpochRef.current;
-					setStatus("cancelled");
-				} else if (result?.finishReason === "error") {
+				if (settleAbortedSend()) return;
+				if (result?.finishReason === "error") {
 					// On a failed run result.text is the runtime's error string
 					// (never assistant content — see isErrorResult above), so it
 					// is the best failure detail available. The reporter dedupes
@@ -2609,11 +2617,7 @@ export function useChatSession() {
 				}
 				void refreshSessionDiffSummary(activeSessionId);
 			} catch (err) {
-				if (abortedRef.current) {
-					abortedReconcileEpoch = turnEpochRef.current;
-					setStatus("cancelled");
-					return;
-				}
+				if (settleAbortedSend()) return;
 				if (optimisticQueuedPromptId) {
 					setPromptsInQueue((prev) =>
 						prev.filter((item) => item.id !== optimisticQueuedPromptId),
@@ -2767,6 +2771,7 @@ export function useChatSession() {
 		const fallbackStatus: ChatSessionStatus =
 			status === "stopping" ? "running" : status;
 		const statusRevisionAtAbort = authoritativeStatusRevisionRef.current;
+		abortStatusRevisionRef.current = statusRevisionAtAbort;
 		const restoreFallbackStatus = () => {
 			abortedRef.current = false;
 			clearAbortFallbackTimeout();
