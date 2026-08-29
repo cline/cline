@@ -6075,11 +6075,8 @@ describe("sdk-gateway", () => {
 				reasoning: "medium",
 			}),
 		);
-		// The openrouter catalog advertises an explicitly empty
-		// reasoning_options list for z-ai/glm-4.7 ("no user-facing control"),
-		// so no reasoning provider options are forwarded either way.
-		for (const callIndex of [0, 1]) {
-			const call = streamTextSpy.mock.calls[callIndex]?.[0] as {
+		{
+			const call = streamTextSpy.mock.calls[0]?.[0] as {
 				providerOptions?: Record<string, Record<string, unknown> | undefined>;
 			};
 			expect(call.providerOptions?.openrouter).not.toEqual(
@@ -6089,6 +6086,22 @@ describe("sdk-gateway", () => {
 				expect.objectContaining({ reasoning: expect.anything() }),
 			);
 		}
+		// The OpenRouter catalog advertises a reasoning toggle for z-ai/glm-4.7,
+		// so explicit disablement is preserved and encoded in OpenRouter's wire
+		// shape. The compatible bucket retains the routed GLM exclusion shape.
+		expect(streamTextSpy).toHaveBeenNthCalledWith(
+			2,
+			expect.objectContaining({
+				providerOptions: expect.objectContaining({
+					openrouter: expect.objectContaining({
+						reasoning: { effort: "none" },
+					}),
+					openaiCompatible: expect.objectContaining({
+						reasoning: { exclude: true },
+					}),
+				}),
+			}),
+		);
 		expect(streamTextSpy).toHaveBeenNthCalledWith(
 			3,
 			expect.objectContaining({
