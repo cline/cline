@@ -1,7 +1,7 @@
 import { validateWithZod } from "@cline/shared";
 import {
+	EDITOR_INPUT_CHAR_LIMIT,
 	type EditFileInput,
-	INPUT_ARG_CHAR_LIMIT,
 	type ReadFileRequest,
 	RunCommandsInputUnionSchema,
 	type StructuredCommandInput,
@@ -20,13 +20,13 @@ export function formatError(error: unknown): string {
 export function getEditorSizeError(input: EditFileInput): string | null {
 	if (
 		typeof input.old_text === "string" &&
-		input.old_text.length > INPUT_ARG_CHAR_LIMIT
+		input.old_text.length > EDITOR_INPUT_CHAR_LIMIT
 	) {
-		return `Editor input too large: old_text was ${input.old_text.length} characters, exceeding the recommended limit of ${INPUT_ARG_CHAR_LIMIT}. Split the edit into smaller tool calls so later tool calls are less likely to be truncated or time out.`;
+		return `Editor input too large: old_text was ${input.old_text.length} characters, over the ${EDITOR_INPUT_CHAR_LIMIT} limit. Target a smaller region, or edit the file in sections.`;
 	}
 
-	if (input.new_text.length > INPUT_ARG_CHAR_LIMIT) {
-		return `Editor input too large: new_text was ${input.new_text.length} characters, exceeding the recommended limit of ${INPUT_ARG_CHAR_LIMIT}. Split the edit into smaller tool calls so later tool calls are less likely to be truncated or time out.`;
+	if (input.new_text.length > EDITOR_INPUT_CHAR_LIMIT) {
+		return `Editor input too large: new_text was ${input.new_text.length} characters, over the ${EDITOR_INPUT_CHAR_LIMIT} limit. Target a smaller region, or edit the file in sections.`;
 	}
 
 	return null;

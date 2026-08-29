@@ -7,7 +7,13 @@
 
 import { z } from "zod";
 
-export const INPUT_ARG_CHAR_LIMIT = 6000;
+// Sized so a whole source file usually fits in one call; edits that arrive
+// complete are cheaper than the extra read/verify round-trips chunking costs.
+export const EDITOR_INPUT_CHAR_LIMIT = 50_000;
+
+// Long shell commands are typed into a terminal, where the cost of an oversized
+// input is a timeout rather than a rewrite.
+export const COMMAND_INPUT_CHAR_LIMIT = 12_000;
 
 /**
  * Schema for read tool input
@@ -127,7 +133,7 @@ export const SearchCodebaseUnionInputSchema = z.union([
 const CommandInputSchema = z
 	.string()
 	.describe(
-		`The non-interactive shell command to execute - MUST keep input short and concise (within ${INPUT_ARG_CHAR_LIMIT * 2} characters) to avoid timeouts.`,
+		`The non-interactive shell command to execute - MUST keep input short and concise (within ${COMMAND_INPUT_CHAR_LIMIT} characters) to avoid timeouts.`,
 	);
 
 export const StructuredCommandInputSchema = z.object({
@@ -202,12 +208,12 @@ export const EditFileInputSchema = z
 			.nullable()
 			.optional()
 			.describe(
-				`Exact text to replace (must match exactly once). Omit this when creating a missing file or inserting via insert_line. Keep this at or below ${INPUT_ARG_CHAR_LIMIT} characters when possible; larger payloads should be split across multiple tool calls to avoid timeouts.`,
+				`Exact text to replace (must match exactly once). Omit this when creating a missing file or inserting via insert_line. Send the whole block you are replacing, up to ${EDITOR_INPUT_CHAR_LIMIT} characters.`,
 			),
 		new_text: z
 			.string()
 			.describe(
-				`The new content to write when creating a missing file, the replacement text for edits, or the inserted text when insert_line is provided. Keep this at or below ${INPUT_ARG_CHAR_LIMIT} characters when possible; for large edits, use multiple calls with small chunks of old_text and new_text to iteratively edit the file.`,
+				`The new content to write when creating a missing file, the replacement text for edits, or the inserted text when insert_line is provided. Send the complete text for the region you are changing, up to ${EDITOR_INPUT_CHAR_LIMIT} characters; a call cut short by your own output limit is wasted, so split only when the content genuinely exceeds what you can emit in one response.`,
 			),
 		// See start_line above: coerced so a stringified line number still applies.
 		insert_line: z.coerce
