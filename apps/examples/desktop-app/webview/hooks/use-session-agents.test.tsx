@@ -403,6 +403,22 @@ describe("useSessionAgents", () => {
 		}
 	});
 
+	it("keeps polling while an idle parent still has a running child", async () => {
+		vi.useFakeTimers();
+		try {
+			invokeMock.mockResolvedValue([runningRow("a", "one")]);
+			await render({ sessionId: "a", sessionActive: false });
+			const afterFirst = invokeMock.mock.calls.length;
+
+			await act(async () => {
+				vi.advanceTimersByTime(2500);
+			});
+			expect(invokeMock.mock.calls.length).toBeGreaterThan(afterFirst);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	it("skips malformed rows rather than surfacing partial agents", async () => {
 		invokeMock.mockResolvedValue([
 			agentRow("a", "good"),

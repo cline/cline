@@ -63,6 +63,47 @@ afterEach(async () => {
 });
 
 describe("useChatSession", () => {
+	it.each([
+		"idle",
+		"completed",
+	] as const)("restores a %s parent when aborting its child fails", async (parentStatus) => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return {
+						cwd: "/workspace/cline",
+						workspaceRoot: "/workspace/cline",
+					};
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string } | undefined;
+					if (request?.action === "start") {
+						return { sessionId: "session-child-abort" };
+					}
+					if (request?.action === "abort") {
+						return { ok: false };
+					}
+				}
+				return [];
+			},
+		);
+
+		await act(async () => current.start(current.config));
+		const statusHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_session_status",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+		expect(statusHandler).toBeDefined();
+
+		await act(async () => {
+			statusHandler?.({ sessionId: current.sessionId, status: parentStatus });
+		});
+		expect(current.status).toBe(parentStatus);
+
+		await act(async () => current.abort());
+
+		expect(current.status).toBe(parentStatus);
+	});
+
 	it("caps command output while preserving the newest tail", () => {
 		const result = appendCappedCommandOutput(
 			"head\n",

@@ -2745,6 +2745,8 @@ export function useChatSession() {
 
 	const abort = useCallback(async () => {
 		if (!sessionId) return;
+		const fallbackStatus: ChatSessionStatus =
+			status === "stopping" ? "running" : status;
 		abortedRef.current = true;
 		setStatus("stopping");
 		clearAbortFallbackTimeout();
@@ -2759,14 +2761,14 @@ export function useChatSession() {
 			if (!response.ok) {
 				abortedRef.current = false;
 				clearAbortFallbackTimeout();
-				setStatus("running");
+				setStatus(fallbackStatus);
 			}
 		} catch {
 			abortedRef.current = false;
 			clearAbortFallbackTimeout();
-			setStatus("running");
+			setStatus(fallbackStatus);
 		}
-	}, [clearAbortFallbackTimeout, postSession, sessionId]);
+	}, [clearAbortFallbackTimeout, postSession, sessionId, status]);
 
 	const proceedWhileRunning = useCallback(
 		async (targetSessionId: string, toolCallId?: string) => {

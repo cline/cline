@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { desktopClient } from "@/lib/desktop-client";
-import type { SessionAgentEntry } from "@/lib/session-agents";
+import { agentEntryState, type SessionAgentEntry } from "@/lib/session-agents";
 
 /** While a turn runs, child agents come and go faster than a one-shot fetch sees. */
 const ACTIVE_POLL_INTERVAL_MS = 2500;
@@ -167,6 +167,9 @@ export function useSessionAgents({
 	const agents = isCurrent ? roster.entries : NO_AGENTS;
 	const loading = isCurrent && roster.loading;
 	const error = isCurrent ? roster.error : null;
+	const hasRunningAgents = agents.some(
+		(agent) => agentEntryState(agent.status) === "running",
+	);
 
 	// One read per displayed session, repeated when the session starts or stops
 	// running — a turn can finish up to a poll interval after the last read, so
@@ -190,7 +193,7 @@ export function useSessionAgents({
 	}, [panelOpen, refresh, sessionId]);
 
 	useEffect(() => {
-		if (!sessionId || !sessionActive) {
+		if (!sessionId || (!sessionActive && !hasRunningAgents)) {
 			return;
 		}
 		const timer = window.setInterval(() => {
@@ -199,7 +202,7 @@ export function useSessionAgents({
 		return () => {
 			window.clearInterval(timer);
 		};
-	}, [refresh, sessionActive, sessionId]);
+	}, [hasRunningAgents, refresh, sessionActive, sessionId]);
 
 	return { agents, loading, error, refresh };
 }
