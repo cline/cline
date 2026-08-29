@@ -9,11 +9,11 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { UserInstructionConfigService } from "@cline/core";
-import { afterEach, describe, expect, it } from "vitest";
 import {
 	buildSlashCommandRegistry,
 	expandUserCommandPrompt,
-} from "../../tui/commands/slash-command-registry";
+} from "@cline/ui/tui";
+import { afterEach, describe, expect, it } from "vitest";
 import {
 	applyPluginFailures,
 	type InteractiveConfigItem,

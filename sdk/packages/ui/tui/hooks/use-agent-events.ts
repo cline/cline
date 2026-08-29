@@ -1,21 +1,25 @@
 import type {
 	AgentEvent,
 	TeamUiEvent,
-	UiPendingPromptsState,
 	UiPendingPromptSubmitted,
+	UiPendingPromptsState,
 } from "@cline/shared";
 import { formatDisplayUserInput } from "@cline/shared";
 import { useCallback, useRef } from "react";
 import { formatCliErrorMessage } from "../formatting/cline-pass-errors";
-import { resolveNonCompactionStatusLabel } from "../formatting/status-labels";
+import { parseCompactionNoticeMetadata } from "../formatting/compaction-status";
 import { materializeGeneratedMedia } from "../formatting/generated-media";
+import { resolveNonCompactionStatusLabel } from "../formatting/status-labels";
 import {
 	formatToolInput,
 	formatToolOutput,
 	truncate,
 } from "../formatting/tool-format";
-import type { ChatEntry, InlineStream, InteractiveTerminalUiProps } from "../types";
-import { parseCompactionNoticeMetadata } from "../formatting/compaction-status";
+import type {
+	ChatEntry,
+	InlineStream,
+	InteractiveTerminalUiProps,
+} from "../types";
 
 interface AgentEventDeps {
 	appendEntry: (entry: ChatEntry) => void;

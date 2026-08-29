@@ -4,6 +4,11 @@ import { basename } from "node:path";
 import type { ToolPolicy } from "@cline/core";
 
 import { registerDisposable } from "@cline/shared";
+import type { TuiStartupTarget } from "@cline/ui/tui";
+import {
+	buildCliCompactionConfig,
+	CLI_COMPACTION_MODE_EXPECTED_TEXT,
+} from "@cline/ui/tui/formatting";
 import type { Command } from "commander";
 import { registerHistoryCommand } from "./commands/history-command";
 import {
@@ -16,13 +21,8 @@ import {
 	getPreferredKanbanInstaller,
 } from "./commands/update";
 import { CLI_DEFAULT_CHECKPOINT_CONFIG } from "./runtime/defaults";
-import type { TuiStartupTarget } from "./tui/types";
 import { filterChatModels } from "./utils/chat-models";
 import { getCliBuildInfo } from "./utils/common";
-import {
-	buildCliCompactionConfig,
-	CLI_COMPACTION_MODE_EXPECTED_TEXT,
-} from "@cline/ui/tui/formatting";
 import {
 	refreshCliFeatureFlagsInBackground,
 	setCliFeatureFlagsAccountContext,

@@ -3,10 +3,7 @@ import {
 	type ProviderSettingsManager,
 	saveLocalProviderSettings,
 } from "@cline/core";
-import {
-	type DialogDismissKey,
-	isAnyKeyDismiss,
-} from "../../utils/dialog-keys";
+import { type DialogDismissKey, isAnyKeyDismiss } from "@cline/ui/tui";
 
 const CLINE_PASS_SUBSCRIPTION_PATH = "/dashboard/subscription";
 const DEFAULT_APP_BASE_URL = "https://app.cline.bot";

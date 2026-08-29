@@ -6,8 +6,8 @@ import type {
 	ToolApprovalRequest,
 	ToolApprovalResult,
 	ToolPolicy,
-	UiPendingPromptsState,
 	UiPendingPromptSubmitted,
+	UiPendingPromptsState,
 } from "@cline/shared";
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import type { DialogActions } from "@opentui-ui/dialog/react";

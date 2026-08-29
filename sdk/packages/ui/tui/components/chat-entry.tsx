@@ -5,24 +5,22 @@ import type React from "react";
 import { useEffect, useState } from "react";
 import "opentui-spinner/react";
 import {
+	CLINE_CREDITS_DASHBOARD_URL,
 	getClineOrgIndividualInferenceSubscriptionMessage,
 	getClinePassLimitDetailMessage,
 	getCliSubscriptionUrl,
 	getIndividualPlanFeatures,
+	isClineAccountCreditsErrorMessage,
 	isClineFreeModelLimitErrorMessage,
 	isClineFreePromotionEndedErrorMessage,
 	isClineOrgIndividualInferenceSubscriptionErrorMessage,
 	isClinePassLimitErrorMessage,
 	isClinePassSubscriptionError,
 } from "../formatting/cline-pass-errors";
-import {
-	CLINE_CREDITS_DASHBOARD_URL,
-	isClineAccountCreditsErrorMessage,
-} from "../formatting/cline-pass-errors";
+import { formatCompactionDividerLabel } from "../formatting/compaction-status";
 import { getUserMessageBackground } from "../palette";
 import type { ResolvedTheme } from "../themes";
 import type { ChatEntry } from "../types";
-import { formatCompactionDividerLabel } from "../formatting/compaction-status";
 import { getSyntaxStyle, type SyntaxAccentMode } from "../utils/syntax-style";
 import { isWarningToolError } from "../utils/tool-errors";
 import {

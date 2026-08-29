@@ -1,6 +1,4 @@
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
-import { formatCliErrorMessage } from "../formatting/cline-pass-errors";
-import { shouldShowCliUsageCost } from "../formatting/usage-cost-display";
 import type { SlashCommandRegistry } from "../commands/slash-command-registry";
 import {
 	expandUserCommandPrompt,
@@ -8,6 +6,8 @@ import {
 } from "../commands/slash-command-registry";
 import type { TextareaHandle } from "../components/input-bar";
 import { useSession } from "../contexts/session-context";
+import { formatCliErrorMessage } from "../formatting/cline-pass-errors";
+import { shouldShowCliUsageCost } from "../formatting/usage-cost-display";
 import type { AppView, InteractiveTerminalUiProps } from "../types";
 import {
 	createUniquePastedTextSnippetMarker,
@@ -414,6 +414,7 @@ export function usePromptInputController(input: {
 			setAppView,
 			slashCommandRegistry,
 			turnErrorReportedRef,
+			shouldExpandSkillCommands,
 		],
 	);
 

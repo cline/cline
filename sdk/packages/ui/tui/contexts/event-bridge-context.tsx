@@ -1,8 +1,8 @@
 import type {
 	AgentEvent,
 	TeamUiEvent,
-	UiPendingPromptsState,
 	UiPendingPromptSubmitted,
+	UiPendingPromptsState,
 } from "@cline/shared";
 import type React from "react";
 import { createContext, useEffect, useRef } from "react";

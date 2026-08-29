@@ -130,8 +130,12 @@ export function useAutocomplete(opts: {
 	skillCommands: SlashCommandRegistryEntry[];
 	searchFilesForMention?: InteractiveTerminalUiProps["searchFilesForMention"];
 }) {
-	const { workspaceRoot, systemCommands, skillCommands, searchFilesForMention } =
-		opts;
+	const {
+		workspaceRoot,
+		systemCommands,
+		skillCommands,
+		searchFilesForMention,
+	} = opts;
 
 	const [mode, setMode] = useState<AutocompleteMode>(false);
 	const [filter, setFilter] = useState("");
@@ -257,7 +261,7 @@ export function useAutocomplete(opts: {
 			setMode(false);
 			setFilter("");
 		},
-		[workspaceRoot, getFilteredSlashOptions],
+		[workspaceRoot, getFilteredSlashOptions, searchFilesForMention],
 	);
 
 	const getFilteredOptions = useCallback((): AutocompleteOption[] => {

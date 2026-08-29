@@ -91,7 +91,10 @@ export function appendUserPrompt(
 	return {
 		...state,
 		running: true,
-		blocks: [...closeStreamingBlocks(state.blocks), { kind: "user", text: prompt }],
+		blocks: [
+			...closeStreamingBlocks(state.blocks),
+			{ kind: "user", text: prompt },
+		],
 	};
 }
 
@@ -226,7 +229,11 @@ export function reduceUiMessage(
 					redacted: message.redacted,
 				});
 			}
-			return { ...state, running: true, blocks: closeOtherStreams(blocks, "reasoning") };
+			return {
+				...state,
+				running: true,
+				blocks: closeOtherStreams(blocks, "reasoning"),
+			};
 		}
 		case "assistant_media":
 			return {

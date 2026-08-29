@@ -7,6 +7,14 @@ const rootDir = dirname(fileURLToPath(import.meta.url));
 export default defineConfig({
 	resolve: {
 		alias: [
+			// @opentui/react's dist imports this subpath without an extension;
+			// Node's ESM loader (used for externalized deps) requires the .js
+			// suffix. Applies when OpenTUI is inlined through the vite pipeline
+			// (see test.server.deps.inline below).
+			{
+				find: /^react-reconciler\/constants$/,
+				replacement: "react-reconciler/constants.js",
+			},
 			{
 				find: /^@cline\/ui\/tui$/,
 				replacement: resolve(
@@ -70,6 +78,14 @@ export default defineConfig({
 		],
 	},
 	test: {
+		server: {
+			deps: {
+				// The shared TUI source (aliased above) lives outside this
+				// project root, so its OpenTUI imports bypass the dep optimizer;
+				// inline them so the vite resolver (and the alias above) applies.
+				inline: [/@opentui\//, /@opentui-ui\//, /opentui-spinner/],
+			},
+		},
 		environment: "node",
 		setupFiles: ["./vitest.setup.ts"],
 		include: ["src/**/*.test.ts"],

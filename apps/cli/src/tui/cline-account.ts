@@ -46,7 +46,6 @@ export function isClineAccountAuthErrorMessage(message: string): boolean {
 	);
 }
 
-
 function resolveAccountApiBaseUrl(input: {
 	clineApiBaseUrl?: string;
 	clineProviderSettings?: ProviderSettings;

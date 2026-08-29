@@ -2,7 +2,7 @@ import { readFileSync, rmSync } from "node:fs";
 import { dirname } from "node:path";
 import type { Message, MessageWithMetadata } from "@cline/shared";
 import { describe, expect, it } from "vitest";
-import { ACT_MODE_CONTINUATION_PROMPT } from "../../runtime/interactive/mode";
+import { ACT_MODE_CONTINUATION_PROMPT } from "../runtime/interactive/mode";
 import { hydrateSessionMessages } from "./hydrate-messages";
 
 describe("hydrateSessionMessages", () => {

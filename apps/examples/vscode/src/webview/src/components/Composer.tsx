@@ -1,3 +1,8 @@
+import type {
+	UiChatAttachments,
+	UiModelInfo,
+	UiOutboundMessage,
+} from "@cline/shared";
 import {
 	BrainIcon,
 	CheckIcon,
@@ -50,11 +55,6 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import type {
-	UiChatAttachments,
-	UiOutboundMessage,
-	UiModelInfo,
-} from "@cline/shared";
 
 type ProviderOption = Extract<
 	UiOutboundMessage,

@@ -1,19 +1,18 @@
+import type { OpenModelSelectorOptions } from "@cline/ui/tui";
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import type { DialogActions } from "@opentui-ui/dialog/react";
-import { useCallback } from "react";
 import open from "../../utils/open";
 import type { ClineAccountSnapshot } from "../cline-account";
 import {
 	type AccountDialogAction,
 	AccountDialogContent,
-} from "../components/dialogs/account-dialog";
+} from "../dialogs/account-dialog";
 import {
 	OAuthLoginContent,
 	type OAuthLoginResult,
-} from "../components/dialogs/provider-picker";
-import type { OpenModelSelectorOptions } from "./use-model-selector";
+} from "../dialogs/provider-picker";
 
-export function useAccountDialog(opts: {
+export function createAccountDialogOpener(opts: {
 	dialog: DialogActions;
 	termHeight: number;
 	loadAccount: () => Promise<ClineAccountSnapshot>;
@@ -32,7 +31,7 @@ export function useAccountDialog(opts: {
 		refocusTextarea,
 	} = opts;
 
-	const openAccountDialog = useCallback(async () => {
+	const openAccountDialog = async (): Promise<void> => {
 		const action = await dialog.choice<AccountDialogAction>({
 			size: "large",
 			style: { maxHeight: termHeight - 2 },
@@ -77,15 +76,7 @@ export function useAccountDialog(opts: {
 			}
 		}
 		refocusTextarea();
-	}, [
-		dialog,
-		loadAccount,
-		onAccountChange,
-		openModelSelector,
-		refocusTextarea,
-		switchAccount,
-		termHeight,
-	]);
+	};
 
 	return openAccountDialog;
 }

@@ -228,7 +228,15 @@ function App(props: InteractiveTerminalUiProps) {
 		return createHostSurfaces(ctx);
 		// The context intentionally closes over refs and stable setters; the
 		// surfaces are recreated only when layout metrics change.
-	}, [createHostSurfaces, dialog, termWidth, termHeight, props.config, session, showToast]);
+	}, [
+		createHostSurfaces,
+		dialog,
+		termWidth,
+		termHeight,
+		props.config,
+		session,
+		showToast,
+	]);
 
 	const openModelSelector = useCallback(
 		async (options?: { startWithProviderChange?: boolean }) => {
@@ -265,7 +273,9 @@ function App(props: InteractiveTerminalUiProps) {
 		[dialog, termHeight],
 	);
 	const propsOnToggleConfigItem = props.onToggleConfigItem;
-	const onToggleConfigItem = useMemo<InteractiveTerminalUiProps["onToggleConfigItem"]>(() => {
+	const onToggleConfigItem = useMemo<
+		InteractiveTerminalUiProps["onToggleConfigItem"]
+	>(() => {
 		if (!propsOnToggleConfigItem) {
 			return undefined;
 		}
@@ -278,7 +288,9 @@ function App(props: InteractiveTerminalUiProps) {
 		};
 	}, [propsOnToggleConfigItem]);
 	const propsOnDeleteConfigItem = props.onDeleteConfigItem;
-	const onDeleteConfigItem = useMemo<InteractiveTerminalUiProps["onDeleteConfigItem"]>(() => {
+	const onDeleteConfigItem = useMemo<
+		InteractiveTerminalUiProps["onDeleteConfigItem"]
+	>(() => {
 		if (!propsOnDeleteConfigItem) {
 			return undefined;
 		}
@@ -474,7 +486,7 @@ function App(props: InteractiveTerminalUiProps) {
 				refocusTextareaRef.current();
 			}
 		},
-		[dialog, invokableSkillCommands, showToast, termHeight],
+		[dialog, invokableSkillCommands, showToast, termHeight, props.openExternal],
 	);
 
 	useEffect(() => {

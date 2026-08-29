@@ -22,6 +22,12 @@ import {
 	resolveSharedHubOwnerContext,
 	type ToolPolicy,
 } from "@cline/core";
+import type {
+	UiChatMessage,
+	UiInboundMessage,
+	UiOutboundMessage,
+	UiSessionSummary,
+} from "@cline/shared";
 import {
 	type AgentTool,
 	buildClineSystemPrompt,
@@ -36,12 +42,6 @@ import * as vscode from "vscode";
 import { displayName, version } from "../package.json";
 import { createVsCodeRuntimeCapabilities } from "./runtime-capabilities";
 import { createVscodeTelemetry } from "./telemetry";
-import type {
-	UiChatMessage,
-	UiInboundMessage,
-	UiOutboundMessage,
-	UiSessionSummary,
-} from "@cline/shared";
 
 const SESSION_REFRESH_INTERVAL_MS = 4_000;
 const SESSION_HISTORY_LIMIT = 50;
@@ -355,10 +355,7 @@ function createVsCodeTerminalTool(defaultCwd: string): AgentTool {
 function readCheckpointEntriesByRunCount(
 	value: unknown,
 ): Map<number, NonNullable<UiChatMessage["checkpoint"]>> {
-	const entries = new Map<
-		number,
-		NonNullable<UiChatMessage["checkpoint"]>
-	>();
+	const entries = new Map<number, NonNullable<UiChatMessage["checkpoint"]>>();
 	const history = asRecord(value)?.history;
 	if (!Array.isArray(history)) return entries;
 

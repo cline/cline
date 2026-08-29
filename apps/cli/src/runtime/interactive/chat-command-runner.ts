@@ -1,4 +1,4 @@
-import type { InteractiveTurnResult } from "../../tui/types";
+import type { InteractiveTurnResult } from "@cline/ui/tui";
 import type { ChatCommandHost } from "../../utils/chat-commands";
 import {
 	type ChatCommandState,

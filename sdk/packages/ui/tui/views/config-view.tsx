@@ -2,6 +2,7 @@ import { useTerminalDimensions } from "@opentui/react";
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialogKeyboard } from "@opentui-ui/dialog/react";
 import { useEffect, useMemo, useState } from "react";
+import { resolveModelDisplayName } from "../components/status-bar";
 import type {
 	InteractiveConfigData,
 	InteractiveConfigItem,
@@ -13,19 +14,18 @@ import {
 	formatCliCompactionMode,
 	getNextCliCompactionMode,
 } from "../formatting/compaction-mode";
-import type { InteractiveTerminalUiConfig } from "../types";
-import { resolveModelDisplayName } from "../components/status-bar";
 import { useDialogPalette, useThemeController } from "../hooks/use-theme";
 import { type DialogPalette, getThemeDefinition } from "../themes";
+import type { InteractiveTerminalUiConfig } from "../types";
 import {
 	type ConfigAction,
 	canDeleteConfigFooterRow,
 	canToggleConfigFooterRow,
 	getAdjacentConfigTab,
 	getConfigFooterText,
-	getMcpManagerEntryStatus,
 	getConfigItemDisplayName,
 	getConfigTabs,
+	getMcpManagerEntryStatus,
 	getPluginDiagnosticsLoadingText,
 	isInlineConfigAction,
 	isToggleableConfigItem,
@@ -551,7 +551,13 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 		}
 
 		return r;
-	}, [activeTab, configData, pluginToolsError, pluginToolsLoading]);
+	}, [
+		activeTab,
+		configData,
+		pluginToolsError,
+		pluginToolsLoading,
+		props.autoUpdateSetting,
+	]);
 
 	const navIndices = useMemo(
 		() => rows.map((r, i) => (isNavigable(r) ? i : -1)).filter((i) => i >= 0),

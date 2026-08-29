@@ -1,7 +1,13 @@
-import type { AgentMode } from "@cline/shared";
-import type { ToolApprovalRequest, ToolApprovalResult } from "@cline/shared";
+import type {
+	AgentMode,
+	ToolApprovalRequest,
+	ToolApprovalResult,
+} from "@cline/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { RuntimeToolInteraction, InteractiveTerminalUiProps } from "../types";
+import type {
+	InteractiveTerminalUiProps,
+	RuntimeToolInteraction,
+} from "../types";
 
 type PendingRuntimeToolInteraction =
 	| {

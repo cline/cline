@@ -10,35 +10,35 @@ import {
 	saveLocalProviderSettings,
 } from "@cline/core";
 import { isClineProvider } from "@cline/shared";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { isChatProviderModel } from "../../../utils/chat-models";
+import {
+	type SearchableItem,
+	useSearchableList,
+	useTheme,
+} from "@cline/ui/tui";
 import {
 	getCliSubscriptionUrl,
 	getIndividualPlanFeatures,
 } from "@cline/ui/tui/formatting";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { isChatProviderModel } from "../../utils/chat-models";
 import {
 	type CodexCliStatus,
 	checkCodexCliInstalled,
 	isOpenAICodexCliProvider,
-} from "../../../utils/codex-cli";
-import open from "../../../utils/open";
-import { getPersistedProviderApiKey } from "../../../utils/provider-auth";
-import { listLocalProviders } from "../../../utils/provider-catalog";
-import { getCliTelemetryService } from "../../../utils/telemetry";
+} from "../../utils/codex-cli";
+import open from "../../utils/open";
+import { getPersistedProviderApiKey } from "../../utils/provider-auth";
+import { listLocalProviders } from "../../utils/provider-catalog";
+import { getCliTelemetryService } from "../../utils/telemetry";
 import {
 	loadCurrentUserPlanFromProviderSettings,
 	loadIndividualSubscriptionPlansFromProviderSettings,
-} from "../../cline-account";
+} from "../cline-account";
 import {
 	buildFeaturedModelEntries,
 	type ClineModelPickerEntry,
 	useClineRecommendedModels,
-} from "../../components/model-selector/cline-model-picker";
-import {
-	type SearchableItem,
-	useSearchableList,
-} from "../../components/searchable-list";
-import { useTheme } from "../../hooks/use-theme";
+} from "../model-selector/cline-model-picker";
 import {
 	getDefaultAwsRegion,
 	type ProviderConfigValues,
@@ -46,8 +46,8 @@ import {
 	resolveProviderConfigAzure,
 	resolveProviderConfigSap,
 	updateProviderConfigValue,
-} from "../../utils/provider-config-values";
-import { getProviderSection } from "../../utils/provider-sections";
+} from "../provider-config-values";
+import { getProviderSection } from "../provider-sections";
 import {
 	isOnboardingOAuthProviderId,
 	type OnboardingOAuthProviderId,

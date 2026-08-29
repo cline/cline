@@ -24,9 +24,9 @@ import {
 } from "../palette";
 import { getThemeModeAccent } from "../themes";
 import type {
+	InteractiveTerminalUiProps,
 	QueuedPromptItem,
 	RuntimeToolInteraction,
-	InteractiveTerminalUiProps,
 } from "../types";
 
 export function ChatView(props: {

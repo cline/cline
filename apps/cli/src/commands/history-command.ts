@@ -1,5 +1,5 @@
+import type { TuiStartupTarget } from "@cline/ui/tui";
 import type { Command } from "commander";
-import type { TuiStartupTarget } from "../tui/types";
 import type { CliOutputMode } from "../utils/types";
 import {
 	runHistoryDelete,

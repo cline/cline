@@ -1,7 +1,4 @@
-import type {
-	UiInboundMessage,
-	UiOutboundMessage,
-} from "@cline/shared";
+import type { UiInboundMessage, UiOutboundMessage } from "@cline/shared";
 
 type VsCodeApi = {
 	postMessage(message: UiInboundMessage): void;

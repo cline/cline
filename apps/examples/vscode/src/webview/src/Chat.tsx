@@ -1,5 +1,15 @@
 "use client";
 
+import type {
+	UiChatAttachments,
+	UiChatMessage,
+	UiChatMessageBlock,
+	UiDefaults,
+	UiModelInfo,
+	UiOutboundMessage,
+	UiSessionSummary,
+	UiToolEvent,
+} from "@cline/shared";
 import type { GeneratedMedia } from "@cline/shared/browser";
 import { GeneratedMediaContent } from "@cline/ui";
 import { GitBranchIcon, Loader2Icon, PlusIcon, Trash2Icon } from "lucide-react";
@@ -42,16 +52,6 @@ import {
 import TeamTasks, { type TeamToolEvent } from "@/components/TeamTasks";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import type {
-	UiChatAttachments,
-	UiChatMessage,
-	UiChatMessageBlock,
-	UiDefaults,
-	UiOutboundMessage,
-	UiModelInfo,
-	UiSessionSummary,
-	UiToolEvent,
-} from "@cline/shared";
 import { Composer } from "./components/Composer";
 import { getVsCodeApi, postToHost } from "./vscode";
 

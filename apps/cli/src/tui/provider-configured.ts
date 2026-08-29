@@ -1,7 +1,9 @@
 import { isProviderSettingsUsable, ProviderSettingsManager } from "@cline/core";
-import type { TuiProps } from "../types";
 
-export function isProviderConfigured(config: TuiProps["config"]): boolean {
+export function isProviderConfigured(config: {
+	apiKey?: string;
+	providerId: string;
+}): boolean {
 	if (config.apiKey?.trim()) {
 		return true;
 	}

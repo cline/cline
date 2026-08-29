@@ -5,6 +5,9 @@
  * the terminal renderer.
  */
 
+// Environment preparation for hosts that boot an OpenTUI renderer later
+// (safe to import from headless code paths: sets an env var only).
+export { disableOpenTuiGraphicsProbe } from "../opentui-env";
 export {
 	formatCliErrorMessage,
 	getCliClineFreeModelLimitMessage,
@@ -35,6 +38,13 @@ export {
 	getNextCliCompactionMode,
 	parseCliCompactionMode,
 } from "./compaction-mode";
+export {
+	type CompactionDividerEntry,
+	formatCompactionDividerLabel,
+	formatCompactionStatus,
+	formatTokenCount,
+	parseCompactionNoticeMetadata,
+} from "./compaction-status";
 export {
 	cleanupMaterializedGeneratedMedia,
 	type MaterializedGeneratedMedia,

@@ -7,8 +7,8 @@ import {
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import "opentui-spinner/react";
-import { useDialogPalette } from "../../hooks/use-theme";
-import type { DialogPalette } from "../../themes";
+import type { DialogPalette } from "@cline/ui/tui";
+import { useDialogPalette } from "@cline/ui/tui";
 import {
 	CLINE_MODEL_PICKER_TIER_LABELS,
 	type ClineModelPickerEntry,

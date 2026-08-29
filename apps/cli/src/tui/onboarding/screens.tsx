@@ -1,26 +1,25 @@
 import "opentui-spinner/react";
+import {
+	getInputRuleColor,
+	getUserMessageBackground,
+	type SearchableItem,
+	SearchableList,
+	type SearchableListState,
+	TrackedRobot,
+	type useMouseTracker,
+	useTheme,
+} from "@cline/ui/tui";
 import type { ScrollBoxRenderable } from "@opentui/core";
 import type { ReactNode } from "react";
 import { useEffect, useRef } from "react";
 import {
 	CODEX_CLI_INSTALL_URL,
 	type CodexCliStatus,
-} from "../../../utils/codex-cli";
+} from "../../utils/codex-cli";
 import {
 	ClineModelPicker,
 	type ClineModelPickerEntry,
-} from "../../components/model-selector/cline-model-picker";
-import {
-	type SearchableItem,
-	SearchableList,
-	type SearchableListState,
-} from "../../components/searchable-list";
-import {
-	TrackedRobot,
-	type useMouseTracker,
-} from "../../components/tracked-robot";
-import { useTheme } from "../../hooks/use-theme";
-import { getInputRuleColor, getUserMessageBackground } from "../../palette";
+} from "../model-selector/cline-model-picker";
 import { FIELD_ORDER } from "./fields";
 import {
 	type ClinePassSubscriptionOption,

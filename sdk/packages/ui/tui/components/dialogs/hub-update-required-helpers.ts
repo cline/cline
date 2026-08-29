@@ -1,5 +1,5 @@
-import type { DialogDismissKey } from "../../utils/dialog-keys";
 import type { InteractiveTerminalUiConfig } from "../../types";
+import type { DialogDismissKey } from "../../utils/dialog-keys";
 
 /**
  * Enter starts the update-and-restart flow; Esc dismisses (the mismatch toast

@@ -6,16 +6,16 @@ import {
 	formatHumanReadableDate,
 	truncateStr,
 } from "@cline/shared";
+import { useDialogPalette } from "@cline/ui/tui";
+import { shouldShowCliUsageCost } from "@cline/ui/tui/formatting";
 import { useTerminalDimensions } from "@opentui/react";
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialogKeyboard } from "@opentui-ui/dialog/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { HistoryExportFormat } from "../../session/history-export";
-import { listSessions } from "../../session/session";
-import { mergeHistoryStatusRows } from "../../utils/history-format";
-import { formatUsd } from "../../utils/output";
-import { shouldShowCliUsageCost } from "@cline/ui/tui/formatting";
-import { useDialogPalette } from "../hooks/use-theme";
+import type { HistoryExportFormat } from "../session/history-export";
+import { listSessions } from "../session/session";
+import { mergeHistoryStatusRows } from "../utils/history-format";
+import { formatUsd } from "../utils/output";
 import {
 	buildHistoryFooterText,
 	HISTORY_EXPORT_OPTIONS,

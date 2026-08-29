@@ -1,7 +1,7 @@
 import type { SessionHistoryRecord } from "@cline/core";
 import { formatDisplayUserInput, truncateStr } from "@cline/shared";
+import { shouldShowCliUsageCost } from "@cline/ui/tui/formatting";
 import { formatUsd } from "./output";
-import { shouldShowCliUsageCost } from "./usage-cost-display";
 
 export function formatSessionStatusLabel(
 	status: SessionHistoryRecord["status"] | undefined,

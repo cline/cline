@@ -5,10 +5,12 @@ import {
 	type MessageWithMetadata,
 	parseUserInputMode,
 } from "@cline/shared";
-import { ACT_MODE_CONTINUATION_PROMPT } from "../../runtime/interactive/mode";
-import { materializeGeneratedMedia } from "@cline/ui/tui/formatting";
-import { formatToolInput } from "@cline/ui/tui/formatting";
-import type { ChatEntry } from "../types";
+import type { ChatEntry } from "@cline/ui/tui";
+import {
+	formatToolInput,
+	materializeGeneratedMedia,
+} from "@cline/ui/tui/formatting";
+import { ACT_MODE_CONTINUATION_PROMPT } from "../runtime/interactive/mode";
 
 function getDisplayRole(msg: MessageWithMetadata): string | undefined {
 	const role = msg.metadata?.displayRole;

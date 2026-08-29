@@ -2,18 +2,18 @@ import { getProvider } from "@cline/llms";
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import type { DialogActions } from "@opentui-ui/dialog/react";
 import { useCallback, useMemo } from "react";
-import type {
-	InteractiveConfigData,
-	InteractiveConfigItem,
-	InteractiveConfigTab,
-	LoadInteractiveConfigDataOptions,
-} from "../config-model";
 import {
 	ConfigErrorContent,
 	DeleteConfigItemConfirmContent,
 	ExtDetailContent,
 } from "../components/dialogs/config-dialogs";
 import { withLoadingDialog } from "../components/dialogs/loading-dialog";
+import type {
+	InteractiveConfigData,
+	InteractiveConfigItem,
+	InteractiveConfigTab,
+	LoadInteractiveConfigDataOptions,
+} from "../config-model";
 import type { CliCompactionMode } from "../formatting/compaction-mode";
 import type {
 	InteractiveTerminalUiConfig,

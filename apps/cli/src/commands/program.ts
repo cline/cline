@@ -1,9 +1,9 @@
-import { Command, CommanderError, Option } from "commander";
-import { version } from "../../package.json";
 import {
 	CLI_COMPACTION_MODE_OPTION_DESCRIPTION,
 	parseCliCompactionMode,
 } from "@cline/ui/tui/formatting";
+import { Command, CommanderError, Option } from "commander";
+import { version } from "../../package.json";
 import type { ParsedArgs } from "../utils/types";
 
 export { CommanderError };

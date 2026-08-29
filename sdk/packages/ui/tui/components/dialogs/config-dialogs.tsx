@@ -1,12 +1,12 @@
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialogKeyboard } from "@opentui-ui/dialog/react";
 import { useState } from "react";
-import { useDialogPalette } from "../../hooks/use-theme";
 import type {
 	InteractiveConfigData,
 	InteractiveConfigItem,
 	LoadInteractiveConfigDataOptions,
 } from "../../config-model";
+import { useDialogPalette } from "../../hooks/use-theme";
 import {
 	getExtDetailFooterText,
 	getExtDetailRows,

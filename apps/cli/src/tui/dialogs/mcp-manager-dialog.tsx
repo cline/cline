@@ -2,10 +2,10 @@ import {
 	resolveDefaultMcpSettingsPath,
 	setMcpServerDisabled,
 } from "@cline/core";
+import { useDialogPalette } from "@cline/ui/tui";
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialogKeyboard } from "@opentui-ui/dialog/react";
 import { useState } from "react";
-import { useDialogPalette } from "../../hooks/use-theme";
 
 export interface McpEntry {
 	name: string;

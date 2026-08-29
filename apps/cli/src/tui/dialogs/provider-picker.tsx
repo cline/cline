@@ -11,6 +11,11 @@ import {
 	startClineDeviceAuth,
 } from "@cline/core";
 import { getClineEnvironmentConfig } from "@cline/shared";
+import {
+	getSearchableListRowsWindow,
+	type SearchableItem,
+	useDialogPalette,
+} from "@cline/ui/tui";
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialogKeyboard } from "@opentui-ui/dialog/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -19,10 +24,9 @@ import {
 	type CodexCliStatus,
 	checkCodexCliInstalled,
 	isOpenAICodexCliProvider,
-} from "../../../utils/codex-cli";
-import open from "../../../utils/open";
-import { listLocalProviders } from "../../../utils/provider-catalog";
-import { useDialogPalette } from "../../hooks/use-theme";
+} from "../../utils/codex-cli";
+import open from "../../utils/open";
+import { listLocalProviders } from "../../utils/provider-catalog";
 import {
 	getDefaultAwsRegion,
 	type ProviderConfigValues,
@@ -31,12 +35,8 @@ import {
 	resolveProviderConfigGcp,
 	resolveProviderConfigSap,
 	updateProviderConfigValue,
-} from "../../utils/provider-config-values";
-import { getProviderSection } from "../../utils/provider-sections";
-import {
-	getSearchableListRowsWindow,
-	type SearchableItem,
-} from "../searchable-list";
+} from "../provider-config-values";
+import { getProviderSection } from "../provider-sections";
 import {
 	buildClinePassSubscriptionPageUrl,
 	resolveOAuthWaitKeyAction,

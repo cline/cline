@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
 	getPersistedProviderApiKey,
 	isProviderConfigured,
-} from "../../../utils/provider-auth";
+} from "../../utils/provider-auth";
 import {
 	buildClinePassSubscriptionPageUrl,
 	resolveOAuthWaitKeyAction,

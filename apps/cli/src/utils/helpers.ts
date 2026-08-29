@@ -53,7 +53,6 @@ export function resolveWorkspaceRoot(cwd: string): string {
 	return cwd;
 }
 
-
 export function unlinkIfExists(filePath: string | null | undefined): void {
 	if (!filePath) {
 		return;

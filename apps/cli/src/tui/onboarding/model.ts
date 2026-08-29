@@ -3,9 +3,9 @@ import type {
 	ModelModality,
 	ModelOperation,
 } from "@cline/shared";
-import { isChatProviderModel } from "../../../utils/chat-models";
-import { isOpenAICodexCliProvider } from "../../../utils/codex-cli";
-import { isOAuthProvider } from "../../../utils/provider-auth";
+import { isChatProviderModel } from "../../utils/chat-models";
+import { isOpenAICodexCliProvider } from "../../utils/codex-cli";
+import { isOAuthProvider } from "../../utils/provider-auth";
 
 export type OnboardingStep =
 	| "menu"

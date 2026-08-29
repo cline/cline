@@ -1,4 +1,4 @@
-import type { HistoryExportFormat } from "../../session/history-export";
+import type { HistoryExportFormat } from "../session/history-export";
 
 export const HISTORY_EXPORT_OPTIONS = [
 	{

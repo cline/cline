@@ -1,5 +1,5 @@
-import { useCallback, useState } from "react";
 import type { UiPendingPromptsState } from "@cline/shared";
+import { useCallback, useState } from "react";
 import type { QueuedPromptItem } from "../types";
 
 export function toQueuedPromptItems(

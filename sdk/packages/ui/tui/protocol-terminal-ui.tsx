@@ -149,9 +149,7 @@ function ProtocolStatusLine(props: {
 			paddingRight={1}
 		>
 			<text fg={"gray"}>{left}</text>
-			<text fg={state.running ? theme.accents.act : "gray"}>
-				{right}
-			</text>
+			<text fg={state.running ? theme.accents.act : "gray"}>{right}</text>
 		</box>
 	);
 }

@@ -309,4 +309,3 @@ describe("loadIndividualSubscriptionPlans", () => {
 		expect(result).toEqual(plans);
 	});
 });
-

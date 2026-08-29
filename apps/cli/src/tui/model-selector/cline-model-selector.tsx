@@ -1,16 +1,19 @@
 // @jsxImportSource @opentui/react
+
+import type { DialogPalette } from "@cline/ui/tui";
+import {
+	CHANGE_PROVIDER_ACTION,
+	ProviderRow,
+	useDialogPalette,
+} from "@cline/ui/tui";
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialogKeyboard } from "@opentui-ui/dialog/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useDialogPalette } from "../../hooks/use-theme";
-import type { DialogPalette } from "../../themes";
 import {
 	CLINE_MODEL_PICKER_TIER_LABELS,
 	type ClineModelPickerEntry,
 	freeTierDescriptionFor,
 } from "./cline-model-picker";
-import { CHANGE_PROVIDER_ACTION } from "./model-selector";
-import { ProviderRow } from "./provider-row";
 
 export const BROWSE_ALL_ACTION = "__browse_all__";
 

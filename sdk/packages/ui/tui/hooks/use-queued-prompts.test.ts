@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
 import type { UiPendingPromptsState } from "@cline/shared";
+import { describe, expect, it } from "vitest";
 import {
 	resolveQueuedPromptSelection,
 	toQueuedPromptItems,

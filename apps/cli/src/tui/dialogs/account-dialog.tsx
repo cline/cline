@@ -1,5 +1,6 @@
 // @jsxImportSource @opentui/react
 import type { ClineAccountOrganization } from "@cline/core";
+import { useDialogPalette } from "@cline/ui/tui";
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialogKeyboard } from "@opentui-ui/dialog/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -7,8 +8,7 @@ import {
 	type ClineAccountSnapshot,
 	formatClineCredits,
 	isClineAccountAuthErrorMessage,
-} from "../../cline-account";
-import { useDialogPalette } from "../../hooks/use-theme";
+} from "../cline-account";
 
 export type AccountDialogAction =
 	| "change-model"
