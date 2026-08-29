@@ -415,6 +415,26 @@ describe("COMPOSIO_API_KEY environment fallback", () => {
 		expect(readStateFile(dir).apiKey).toBe("ck_user");
 	});
 
+	it("status reads survive an unwritable plugins directory", async () => {
+		const dir = useTempDataDir();
+		writeState(dir, {
+			userId: "cline-desktop-env",
+			toolkits: {
+				github: {
+					connectedAccountId: "ca_github",
+					connectedAt: "2026-08-28T00:00:00.000Z",
+					tools: [{ slug: "GITHUB_CREATE_AN_ISSUE" }],
+				},
+			},
+		});
+		// A file where the plugins directory should be makes the plugin sync
+		// throw; the passive status path must log-and-continue instead.
+		writeFileSync(join(dir, "plugins"), "not a directory");
+		process.env.COMPOSIO_API_KEY = "ck_from_env";
+		const status = await getComposioStatus();
+		expect(status.configured).toBe(true);
+	});
+
 	it("materializes and removes the plugin file as the env key comes and goes", async () => {
 		const dir = useTempDataDir();
 		writeState(dir, {
