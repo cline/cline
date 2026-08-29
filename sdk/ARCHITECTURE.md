@@ -87,9 +87,11 @@ Design rules:
 
 `apps/cli` is the reference host: `src/runtime/run-interactive.ts` maps the
 session runtime onto `InteractiveTerminalUiProps`, and
-`src/tui/host-surfaces.tsx` supplies runtime-owned dialogs (provider/model
-picker, account, MCP manager, session history, onboarding) composed from
-`@cline/ui/tui` primitives.
+`src/tui/host-surfaces.tsx` supplies the runtime-owned surfaces. The dialog
+presentation (account, MCP manager, session history, Cline model selector)
+lives in `@cline/ui/tui` with structural data types; the CLI injects loaders
+and persistence callbacks. Provider auth/config flows and onboarding remain
+CLI-rendered because they drive OAuth and settings persistence directly.
 
 ### `@cline/llms`
 

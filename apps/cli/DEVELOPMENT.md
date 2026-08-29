@@ -148,12 +148,11 @@ apps/cli/src/
     hydrate-messages.ts  # MessageWithMetadata[] -> ChatEntry[] hydration
     checkpoint-picker-items.ts # Checkpoint picker rows from session data
     cline-account.ts     # Account/credits API access
-    dialogs/             # Runtime-owned dialogs (provider picker, account,
-                         # MCP manager) composed from @cline/ui/tui primitives
-    model-selector/      # Cline-provider model picker (catalog access)
+    dialogs/             # Provider picker + auth flows (OAuth, device code,
+                         # BYO config persistence)
     onboarding/          # First-run provider setup (auth flows)
-    hooks/               # Openers for the runtime-owned dialogs
-    history-view.tsx     # Session history browser (session store access)
+    hooks/               # Openers wiring runtime data into @cline/ui/tui
+                         # dialogs (model selector, account, MCP manager)
 
   session/               # Session state management
   commands/              # CLI subcommands (auth, config, history, etc.)
@@ -219,7 +218,8 @@ Root (@cline/ui/tui root.tsx)
           ChatView                  # Message list + input bar + status
           OnboardingView            # CLI-owned, injected via host surfaces
           ConfigView (dialog)       # Settings browser
-          HistoryView (dialog)      # CLI-owned, injected via host surfaces
+          HistoryView (dialog)      # Shared dialog; CLI injects row loaders
+                                    # and export/delete callbacks
 ```
 
 ### Context Providers
