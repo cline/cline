@@ -559,19 +559,26 @@ export class SessionRuntime {
 			);
 		}
 		const next = this.buildUpdatedConnectionConfig(overrides);
-		if (!this.activeRuntimeUsesModelSelection(next)) {
-			this.config = next;
-			this.activeConnectionRefreshPending = false;
-			return;
+		const activeSelection = this.activeRuntimeModelSelection;
+		if (!activeSelection) {
+			throw new Error("Active runtime is missing its model selection");
 		}
+		// `this.config` may already contain a provider/model selection deferred for
+		// the next fully rebuilt turn. Apply only the new connection/reasoning
+		// fields to the selection captured by the current turn, while retaining
+		// `next` as the authoritative config for the following run.
+		const activeConnectionConfig: AgentConfig = {
+			...next,
+			...activeSelection,
+		};
 		const activeModel = createAgentModelFromConfig(
-			next,
+			activeConnectionConfig,
 			this.logger,
 			this.telemetry,
 		);
 		activeRuntime.replaceModelBetweenRequests(activeModel, {
-			modelOptions: buildModelOptions(next),
-			messageModelInfo: buildMessageModelInfo(next),
+			modelOptions: buildModelOptions(activeConnectionConfig),
+			messageModelInfo: buildMessageModelInfo(activeConnectionConfig),
 		});
 		this.config = next;
 		this.activeConnectionRefreshPending = false;

@@ -1570,6 +1570,61 @@ describe("SessionRuntime.addTools / updateConnection / clearHistory / restore", 
 		expect((await session.run("again")).model.provider).toBe("openai");
 	});
 
+	it("refreshes the active connection after a model change is deferred", async () => {
+		let releaseRun: () => void = () => {};
+		const release = new Promise<void>((resolve) => {
+			releaseRun = resolve;
+		});
+		const firstRuntime = makeFakeAgentRuntime({ release });
+		const secondRuntime = makeFakeAgentRuntime();
+		const runtimeConfigs: AgentRuntimeConfig[] = [];
+		const session = new SessionRuntime(makeAgentConfig(), {
+			createAgentRuntimeImpl: (config) => {
+				const runtime =
+					runtimeConfigs.length === 0
+						? firstRuntime.runtime
+						: secondRuntime.runtime;
+				runtimeConfigs.push(config);
+				return runtime;
+			},
+		});
+
+		const firstRun = session.run("go");
+		await vi.waitFor(() => expect(runtimeConfigs).toHaveLength(1));
+		session.updateConnection({ modelId: "claude-4" });
+		session.updateSuspendedConnection({
+			apiKey: "new-key",
+			baseUrl: "http://new-endpoint",
+			reasoningEffort: "high",
+		});
+
+		expect(firstRuntime.calls.replaceModelBetweenRequests).toEqual([
+			[
+				expect.objectContaining({ stream: expect.any(Function) }),
+				expect.objectContaining({
+					modelOptions: expect.objectContaining({
+						reasoningEffort: "high",
+					}),
+					messageModelInfo: expect.objectContaining({
+						provider: "anthropic",
+						id: "claude-3-5-sonnet",
+					}),
+				}),
+			],
+		]);
+
+		releaseRun();
+		expect((await firstRun).model.id).toBe("claude-3-5-sonnet");
+
+		const secondResult = await session.run("again");
+		expect(runtimeConfigs).toHaveLength(2);
+		expect(runtimeConfigs[1]?.messageModelInfo).toMatchObject({
+			provider: "anthropic",
+			id: "claude-4",
+		});
+		expect(secondResult.model.id).toBe("claude-4");
+	});
+
 	it("dedicated suspended update replaces the active model", async () => {
 		let releaseRun: () => void = () => {};
 		const release = new Promise<void>((resolve) => {
