@@ -192,7 +192,6 @@ describe("useChatSession", () => {
 
 			await act(async () => current.start(current.config));
 			const chatEventHandler = handlerFor("chat_event");
-			const queueHandler = handlerFor("prompts_in_queue_state");
 			const statusHandler = handlerFor("chat_session_status");
 
 			await act(async () => {
@@ -217,9 +216,6 @@ describe("useChatSession", () => {
 			});
 			expect(current.status).toBe("cancelled");
 
-			await act(async () => {
-				queueHandler({ sessionId, items: [] });
-			});
 			await act(async () => {
 				chatEventHandler({
 					sessionId,

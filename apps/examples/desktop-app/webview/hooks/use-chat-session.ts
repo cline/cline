@@ -737,6 +737,7 @@ export function useChatSession() {
 					setPromptsInQueue(items);
 					if (items.length === 0) {
 						turnSettledEpochRef.current = turnEpochRef.current;
+						authoritativeStatusRevisionRef.current += 1;
 						setStatus((current) =>
 							current === "running" ? "completed" : current,
 						);
