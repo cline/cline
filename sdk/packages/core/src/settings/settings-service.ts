@@ -491,6 +491,7 @@ export class CoreSettingsService {
 				tools.push(...supplied.tools);
 			}
 			let agentPluginReport: AgentPluginPackageLoadReport | undefined;
+			const disabledAgentPluginNames = resolveDisabledAgentPluginNames();
 			try {
 				agentPluginReport = await loadAgentPluginPackages({
 					pluginPaths: input.agentPluginPaths,
@@ -499,7 +500,7 @@ export class CoreSettingsService {
 				appendAgentPluginSettings({
 					report: agentPluginReport,
 					workspaceRoot,
-					disabledPluginNames: resolveDisabledAgentPluginNames(),
+					disabledPluginNames: disabledAgentPluginNames,
 					plugins,
 					skills,
 					mcp,
@@ -512,9 +513,21 @@ export class CoreSettingsService {
 			// ordinary Cline plugin module, so it needs its own path -- distinct
 			// from `plugin.path` (the plugin's root directory) -- everywhere this
 			// service talks to the standalone-plugin tool-inspection pipeline.
+			//
+			// Disabled plugins are excluded here, and this map is the only route
+			// by which a bot.cline entry reaches the sandboxed inspection pass
+			// below. Discovery intentionally lists disabled plugins so they can
+			// be re-enabled, but disablement is the one trust control over this
+			// code: inspection imports the module and runs its setup(), so a
+			// disabled plugin's extension must never be handed to it. Its
+			// settings item keeps the static "cline-extension" marker instead.
 			const clineExtensionEntryPathByPluginName = new Map(
 				(agentPluginReport?.plugins ?? [])
-					.filter((plugin) => plugin.clineExtension)
+					.filter(
+						(plugin) =>
+							plugin.clineExtension &&
+							!disabledAgentPluginNames.has(plugin.manifest.name),
+					)
 					.map((plugin) => [
 						plugin.manifest.name,
 						// biome-ignore lint/style/noNonNullAssertion: filtered above

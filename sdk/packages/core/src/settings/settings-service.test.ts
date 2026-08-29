@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import {
 	mkdir,
 	mkdtemp,
@@ -374,9 +375,15 @@ Review the change.`,
 				},
 			}),
 		);
+		// Top-level side effect: fires the moment the module is imported, before
+		// any validation, so its presence/absence is direct proof of whether
+		// the sandbox ever loaded this file.
+		const canaryPath = join(tempRoot, "extension-executed.txt");
 		await writeFile(
 			join(pluginRoot, "bot.cline", "extension.ts"),
 			[
+				'import { writeFileSync } from "node:fs";',
+				`writeFileSync(${JSON.stringify(canaryPath)}, "executed");`,
 				"export default {",
 				'	name: "with-extension-bot-cline",',
 				'	manifest: { capabilities: ["tools"] },',
@@ -404,6 +411,18 @@ Review the change.`,
 		expect(inspectedPlugin?.contributions?.capabilities).toEqual(
 			expect.arrayContaining(["cline-extension", "tools"]),
 		);
+		// Sanity-check the canary mechanism itself so the non-execution
+		// assertion for the disabled case below cannot pass vacuously.
+		expect(existsSync(canaryPath)).toBe(true);
+		await rm(canaryPath);
+		// Bump the entry's mtime so the inspection pass's mtime-keyed
+		// descriptor cache cannot mask a re-execution: a later run that still
+		// receives this path is forced through the sandbox again.
+		const entrySource = await readFile(
+			join(pluginRoot, "bot.cline", "extension.ts"),
+			"utf8",
+		);
+		await writeFile(join(pluginRoot, "bot.cline", "extension.ts"), entrySource);
 
 		const uninspected = await service.list({
 			cwd: workspaceRoot,
@@ -437,6 +456,30 @@ Review the change.`,
 				capabilities: ["cline-extension"],
 			},
 		});
+
+		// Whole-plugin disablement is the only trust control over bot.cline
+		// code, so a disabled plugin's extension must never reach the sandboxed
+		// inspection pass -- even when inspection itself is on. The canary file
+		// staying absent proves the module was never imported, not merely that
+		// its contributions went unreported.
+		const disabledInspected = await service.list({
+			cwd: workspaceRoot,
+			workspaceRoot,
+		});
+		expect(existsSync(canaryPath)).toBe(false);
+		const disabledInspectedPlugin = disabledInspected.plugins.find(
+			(plugin) => plugin.id === "agent-plugin:with-extension",
+		);
+		expect(disabledInspectedPlugin?.contributions).toMatchObject({
+			inspectionStatus: "disabled",
+			capabilities: ["cline-extension"],
+			tools: [],
+		});
+		expect(
+			disabledInspected.tools.some(
+				(tool) => tool.name === "distinctive_review_tool",
+			),
+		).toBe(false);
 	});
 
 	it("rejects toggling an individual Agent Plugin skill instead of rewriting its frontmatter", async () => {
