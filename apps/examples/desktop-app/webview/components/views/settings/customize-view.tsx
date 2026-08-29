@@ -2,9 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { fetchComposioStatus } from "@/lib/composio";
 import { desktopClient } from "@/lib/desktop-client";
 import { cn } from "@/lib/utils";
 import { PageFrame, PageHeader } from "../page-layout";
+import { ComposioConnectorBrowser } from "./composio-connector-browser";
+import { ComposioConnectorsView } from "./composio-connectors-view";
 import { CustomizationSectionView } from "./extensions-view";
 import { McpServersContent } from "./mcp-view";
 
@@ -16,7 +19,14 @@ import { McpServersContent } from "./mcp-view";
  * there is no separate Marketplace page.
  */
 
-type CustomizeTab = "skills" | "mcp" | "plugins" | "rules" | "hooks" | "tools";
+type CustomizeTab =
+	| "skills"
+	| "mcp"
+	| "integrations"
+	| "plugins"
+	| "rules"
+	| "hooks"
+	| "tools";
 
 const CUSTOMIZE_TABS: { id: CustomizeTab; label: string }[] = [
 	{ id: "skills", label: "Skills" },
@@ -25,6 +35,7 @@ const CUSTOMIZE_TABS: { id: CustomizeTab; label: string }[] = [
 	{ id: "rules", label: "Rules" },
 	{ id: "hooks", label: "Hooks" },
 	{ id: "tools", label: "Tools" },
+	{ id: "integrations", label: "Connectors" },
 ];
 
 type TabCounts = Partial<Record<CustomizeTab, number>>;
@@ -48,15 +59,30 @@ export function CustomizeView() {
 	const [counts, setCounts] = useState<TabCounts>({});
 
 	const refreshCounts = useCallback(async () => {
-		const inventory = await desktopClient
-			.invoke<HubInventoryResponse>("list_user_instruction_configs")
-			.catch(() => null);
+		const [inventory, composioStatus] = await Promise.all([
+			desktopClient
+				.invoke<HubInventoryResponse>("list_user_instruction_configs")
+				.catch(() => null),
+			fetchComposioStatus().catch(() => null),
+		]);
+		const connectedIntegrations = composioStatus
+			? composioStatus.integrations.filter(
+					(integration) => integration.status === "connected",
+				).length
+			: undefined;
 		if (!inventory) {
+			if (connectedIntegrations !== undefined) {
+				setCounts((previous) => ({
+					...previous,
+					integrations: connectedIntegrations,
+				}));
+			}
 			return;
 		}
 		setCounts({
 			skills: asCount(inventory.skills) + asCount(inventory.workflows),
 			mcp: asCount(inventory.mcp?.servers),
+			integrations: connectedIntegrations,
 			plugins: asCount(inventory.plugins),
 			rules: asCount(inventory.rules),
 			hooks: asCount(inventory.hooks),
@@ -134,6 +160,19 @@ export function CustomizeView() {
 					chrome="embedded"
 					onInventoryChanged={handleInventoryChanged}
 				/>
+			) : tab === "integrations" ? (
+				// Installed connectors + key management, with the browsable
+				// catalog inline below — this branch has no separate
+				// Marketplace page, so the tab is the whole surface.
+				<div className="flex flex-col gap-8">
+					<ComposioConnectorsView onChanged={handleInventoryChanged} />
+					<section>
+						<h3 className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+							All connectors
+						</h3>
+						<ComposioConnectorBrowser onChanged={handleInventoryChanged} />
+					</section>
+				</div>
 			) : tab === "plugins" ? (
 				<CustomizationSectionView
 					catalogPrimitive="plugin"
