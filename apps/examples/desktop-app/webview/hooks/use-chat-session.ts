@@ -739,7 +739,9 @@ export function useChatSession() {
 						turnSettledEpochRef.current = turnEpochRef.current;
 						authoritativeStatusRevisionRef.current += 1;
 						setStatus((current) =>
-							current === "running" ? "completed" : current,
+							current === "running" || current === "stopping"
+								? "completed"
+								: current,
 						);
 						finalizeSettledTurn(sid);
 					}

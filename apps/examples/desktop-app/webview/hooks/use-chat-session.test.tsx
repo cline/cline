@@ -113,6 +113,7 @@ describe("useChatSession", () => {
 		try {
 			const sessionId = "session-abort-chat-done";
 			const abortResponse = deferred<unknown>();
+			const pendingResponse = deferred<unknown>();
 			const sendResponse = deferred<unknown>();
 			invokeMock.mockImplementation(
 				async (command: string, args?: Record<string, unknown>) => {
@@ -124,6 +125,9 @@ describe("useChatSession", () => {
 						}
 						if (request?.action === "abort") {
 							return await abortResponse.promise;
+						}
+						if (request?.action === "pending_prompts") {
+							return await pendingResponse.promise;
 						}
 					}
 					return [];
@@ -143,6 +147,17 @@ describe("useChatSession", () => {
 				for (let i = 0; i < 5; i += 1) await Promise.resolve();
 			});
 
+			await act(async () => {
+				chatEventHandler({
+					sessionId,
+					stream: "chat_done",
+					chunk: JSON.stringify({ reason: "completed" }),
+					ts: Date.now(),
+					index: 1,
+				});
+			});
+			expect(current.status).toBe("running");
+
 			let abortTask!: Promise<void>;
 			await act(async () => {
 				abortTask = current.abort();
@@ -152,18 +167,21 @@ describe("useChatSession", () => {
 
 			await act(async () => {
 				statusHandler({ sessionId, status: "running" });
-				await vi.advanceTimersByTimeAsync(2000);
 			});
-			expect(current.status).toBe("cancelled");
+			expect(current.status).toBe("stopping");
 
 			await act(async () => {
-				chatEventHandler({
+				pendingResponse.resolve({
 					sessionId,
-					stream: "chat_done",
-					chunk: JSON.stringify({ reason: "completed" }),
-					ts: Date.now(),
-					index: 1,
+					ok: true,
+					promptsInQueue: [],
 				});
+				for (let i = 0; i < 5; i += 1) await Promise.resolve();
+			});
+			expect(current.status).toBe("completed");
+
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(2000);
 			});
 			expect(current.status).toBe("completed");
 
