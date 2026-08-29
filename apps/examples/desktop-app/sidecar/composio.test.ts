@@ -11,6 +11,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+	buildConnectableCatalog,
 	COMPOSIO_PLUGIN_SOURCE,
 	getComposioStatus,
 	initiateToolkitConnection,
@@ -199,6 +200,64 @@ describe("getComposioStatus", () => {
 		expect(
 			status.integrations.filter((entry) => entry.recommended),
 		).toHaveLength(3);
+	});
+});
+
+describe("buildConnectableCatalog", () => {
+	it("keeps managed toolkits and drops unmanaged ones without an auth config", () => {
+		const entries = buildConnectableCatalog(
+			[
+				{
+					slug: "gmail",
+					name: "Gmail",
+					composio_managed_auth_schemes: ["OAUTH2"],
+					meta: {
+						description: "Email",
+						logo: "https://logos/gmail.png",
+						tools_count: 20,
+						categories: [{ slug: "email", name: "Email" }],
+					},
+				},
+				// No managed credentials and no project auth config — a Connect
+				// click would fail, so it is hidden.
+				{ slug: "canvas", name: "Canvas", composio_managed_auth_schemes: [] },
+				// Unmanaged, but the project configured its own OAuth app.
+				{ slug: "internaltool", name: "Internal Tool" },
+			],
+			new Set(["internaltool"]),
+		);
+		expect(entries.map((entry) => entry.slug)).toEqual([
+			"gmail",
+			"internaltool",
+		]);
+		const gmail = entries[0];
+		expect(gmail.recommended).toBe(true);
+		expect(gmail.toolsCount).toBe(20);
+		expect(gmail.categories).toEqual(["Email"]);
+	});
+
+	it("dedupes and drops malformed slugs", () => {
+		const entries = buildConnectableCatalog(
+			[
+				{
+					slug: "GitHub",
+					name: "GitHub",
+					composio_managed_auth_schemes: ["OAUTH2"],
+				},
+				{
+					slug: "github",
+					name: "GitHub dup",
+					composio_managed_auth_schemes: ["OAUTH2"],
+				},
+				{
+					slug: "bad slug!",
+					name: "Broken",
+					composio_managed_auth_schemes: ["OAUTH2"],
+				},
+			],
+			new Set(),
+		);
+		expect(entries.map((entry) => entry.slug)).toEqual(["github"]);
 	});
 });
 

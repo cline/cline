@@ -323,6 +323,7 @@ function ConnectorCard({
 					onCancel={onCancel}
 					onConnect={onConnect}
 					onDisconnect={onDisconnect}
+					showUninstall
 					status={integration.status}
 					variant="default"
 				/>

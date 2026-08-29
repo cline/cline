@@ -91,36 +91,40 @@ type ComposioConnectionRequest = {
 	waitForConnection: (timeout?: number) => Promise<unknown>;
 };
 
-/** Minimal surface of the `@composio/core` client this module uses; the SDK is
- * loaded lazily so sidecar startup does not pay its import cost. */
-type ComposioToolkitCatalogItem = {
+/** One toolkit from the raw catalog endpoint (`GET /api/v3/toolkits`). The
+ * SDK's wrapper strips the auth-availability fields we filter on, so the
+ * catalog is fetched over REST directly. */
+type RawComposioToolkitItem = {
 	slug: string;
 	name: string;
 	meta?: {
 		description?: string;
 		logo?: string;
-		toolsCount?: number;
+		tools_count?: number;
 		categories?: Array<{ slug: string; name: string }>;
 	};
+	/** Auth methods Composio manages credentials for; empty/absent means the
+	 * org must bring its own auth config for this toolkit. */
+	composio_managed_auth_schemes?: string[];
+	no_auth?: boolean;
 };
 
+/** Minimal surface of the `@composio/core` client this module uses; the SDK is
+ * loaded lazily so sidecar startup does not pay its import cost. */
 type ComposioClient = {
 	toolkits: {
 		authorize: (
 			userId: string,
 			toolkitSlug: string,
 		) => Promise<ComposioConnectionRequest>;
-		/** Catalog listing (the SDK overloads `get`; the query form returns an
-		 * array of toolkits). */
-		get: (query: {
-			sortBy?: "usage" | "alphabetically";
-			limit?: number;
-			category?: string;
-		}) => Promise<ComposioToolkitCatalogItem[]>;
 	};
 	authConfigs: {
 		list: (query?: { toolkit?: string }) => Promise<{
-			items: Array<{ id: string; isComposioManaged?: boolean }>;
+			items: Array<{
+				id: string;
+				isComposioManaged?: boolean;
+				toolkit?: { slug: string };
+			}>;
 		}>;
 		create: (
 			toolkit: string,
@@ -500,6 +504,83 @@ function lookupCatalogDisplayInfo(slug: ComposioToolkitSlug): {
 	return { name: entry?.name, logo: entry?.logo };
 }
 
+const COMPOSIO_BASE_URL = (
+	process.env.COMPOSIO_BASE_URL || "https://backend.composio.dev"
+).replace(/\/+$/, "");
+
+/** The SDK's catalog wrapper strips `composio_managed_auth_schemes`, which
+ * the connectable filter needs, so fetch the same endpoint over REST. */
+async function fetchRawToolkitCatalog(
+	apiKey: string,
+): Promise<RawComposioToolkitItem[]> {
+	const url = new URL(`${COMPOSIO_BASE_URL}/api/v3/toolkits`);
+	url.searchParams.set("sort_by", "usage");
+	url.searchParams.set("limit", String(CATALOG_FETCH_LIMIT));
+	const response = await fetch(url, { headers: { "x-api-key": apiKey } });
+	if (!response.ok) {
+		throw new Error(`toolkit catalog request failed (HTTP ${response.status})`);
+	}
+	const parsed = (await response.json()) as {
+		items?: RawComposioToolkitItem[];
+	};
+	return parsed.items ?? [];
+}
+
+async function listConfiguredToolkitSlugs(
+	client: ComposioClient,
+): Promise<Set<string>> {
+	const configured = new Set<string>();
+	try {
+		const response = await client.authConfigs.list();
+		for (const item of response.items ?? []) {
+			const slug = item.toolkit?.slug?.trim().toLowerCase();
+			if (slug) {
+				configured.add(slug);
+			}
+		}
+	} catch {
+		// Best-effort: without the list, only managed toolkits are shown.
+	}
+	return configured;
+}
+
+/**
+ * Maps the raw catalog onto browsable entries, keeping only toolkits a
+ * Connect click can actually finish: Composio manages credentials for them,
+ * or the project already has an auth config (e.g. the org's own OAuth app).
+ * Exported for tests.
+ */
+export function buildConnectableCatalog(
+	items: RawComposioToolkitItem[],
+	configuredSlugs: ReadonlySet<string>,
+): ComposioCatalogToolkit[] {
+	const seen = new Set<string>();
+	const entries: ComposioCatalogToolkit[] = [];
+	for (const item of items ?? []) {
+		const slug = item?.slug?.trim().toLowerCase();
+		if (!slug || seen.has(slug) || !isComposioToolkitSlug(slug)) {
+			continue;
+		}
+		seen.add(slug);
+		const managed = (item.composio_managed_auth_schemes?.length ?? 0) > 0;
+		if (!managed && !configuredSlugs.has(slug)) {
+			continue;
+		}
+		entries.push({
+			slug,
+			name: item.name?.trim() || slug,
+			description: item.meta?.description?.trim() || undefined,
+			logo: item.meta?.logo || undefined,
+			categories: item.meta?.categories
+				?.map((category) => category.name)
+				.filter(Boolean),
+			toolsCount: item.meta?.tools_count,
+			recommended: Boolean(findRecommendedToolkit(slug)),
+		});
+	}
+	return entries;
+}
+
 async function ensureToolkitCatalog(
 	client: ComposioClient,
 	apiKey: string,
@@ -511,30 +592,11 @@ async function ensureToolkitCatalog(
 	) {
 		return catalogCache.entries;
 	}
-	const items = await client.toolkits.get({
-		sortBy: "usage",
-		limit: CATALOG_FETCH_LIMIT,
-	});
-	const seen = new Set<string>();
-	const entries: ComposioCatalogToolkit[] = [];
-	for (const item of items ?? []) {
-		const slug = item?.slug?.trim().toLowerCase();
-		if (!slug || seen.has(slug) || !isComposioToolkitSlug(slug)) {
-			continue;
-		}
-		seen.add(slug);
-		entries.push({
-			slug,
-			name: item.name?.trim() || slug,
-			description: item.meta?.description?.trim() || undefined,
-			logo: item.meta?.logo || undefined,
-			categories: item.meta?.categories
-				?.map((category) => category.name)
-				.filter(Boolean),
-			toolsCount: item.meta?.toolsCount,
-			recommended: Boolean(findRecommendedToolkit(slug)),
-		});
-	}
+	const [items, configuredSlugs] = await Promise.all([
+		fetchRawToolkitCatalog(apiKey),
+		listConfiguredToolkitSlugs(client),
+	]);
+	const entries = buildConnectableCatalog(items, configuredSlugs);
 	catalogCache = { apiKey, fetchedAt: Date.now(), entries };
 	return entries;
 }

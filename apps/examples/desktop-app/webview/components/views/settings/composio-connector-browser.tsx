@@ -36,6 +36,23 @@ import { useComposioConnections } from "@/lib/use-composio-connections";
 const CATALOG_PREVIEW_COUNT = 24;
 const CATALOG_SEARCH_RESULT_LIMIT = 50;
 
+/** Shared with the Marketplace filter chips so connector counts follow the
+ * same search semantics as the list itself. */
+export function connectorMatchesQuery(
+	entry: ComposioCatalogToolkit,
+	trimmedQuery: string,
+): boolean {
+	return (
+		entry.slug.includes(trimmedQuery) ||
+		entry.name.toLowerCase().includes(trimmedQuery) ||
+		entry.description?.toLowerCase().includes(trimmedQuery) ||
+		entry.categories?.some((category) =>
+			category.toLowerCase().includes(trimmedQuery),
+		) ||
+		false
+	);
+}
+
 const FALLBACK_ICONS: Record<
 	string,
 	(props: { className?: string }) => React.ReactNode
@@ -88,20 +105,43 @@ export function ConnectorActionButton({
 	configured,
 	busy,
 	variant = "ghost",
+	showUninstall = false,
 	onConnect,
 	onCancel,
 	onDisconnect,
+	onView,
 }: {
 	status: ComposioIntegrationStatus;
 	configured: boolean;
 	busy: boolean;
-	/** Visual weight of the Connect button; state buttons stay subtle. */
+	/** Visual weight of the Install button; state buttons stay subtle. */
 	variant?: "ghost" | "default";
+	/** Installed connectors show an Uninstall action where management is
+	 * expected (the detail dialog, Installed > Connectors); list rows show a
+	 * View button that opens the detail dialog instead. */
+	showUninstall?: boolean;
 	onConnect: () => void;
 	onCancel: () => void;
 	onDisconnect: () => void;
+	/** Opens the detail dialog; used by the View state in list rows. */
+	onView?: () => void;
 }) {
 	if (status === "connected") {
+		if (!showUninstall) {
+			return (
+				<Button
+					onClick={(event) => {
+						event.stopPropagation();
+						onView?.();
+					}}
+					size="sm"
+					type="button"
+					variant={variant}
+				>
+					View
+				</Button>
+			);
+		}
 		return (
 			<Button
 				disabled={busy}
@@ -111,10 +151,10 @@ export function ConnectorActionButton({
 				}}
 				size="sm"
 				type="button"
-				variant="outline"
+				variant="destructive"
 			>
 				{busy ? <Loader2 className="size-4 animate-spin" /> : null}
-				Disconnect
+				Uninstall
 			</Button>
 		);
 	}
@@ -146,7 +186,7 @@ export function ConnectorActionButton({
 			variant={variant}
 		>
 			{busy ? <Loader2 className="size-4 animate-spin" /> : null}
-			Connect
+			Install
 		</Button>
 	);
 }
@@ -224,15 +264,7 @@ export function ComposioConnectorBrowser({
 			return entries.slice(0, CATALOG_PREVIEW_COUNT);
 		}
 		return entries
-			.filter(
-				(entry) =>
-					entry.slug.includes(trimmedQuery) ||
-					entry.name.toLowerCase().includes(trimmedQuery) ||
-					entry.description?.toLowerCase().includes(trimmedQuery) ||
-					entry.categories?.some((category) =>
-						category.toLowerCase().includes(trimmedQuery),
-					),
-			)
+			.filter((entry) => connectorMatchesQuery(entry, trimmedQuery))
 			.slice(0, CATALOG_SEARCH_RESULT_LIMIT);
 	}, [catalog, trimmedQuery]);
 
@@ -446,6 +478,7 @@ function ConnectorRow({
 				onCancel={onCancel}
 				onConnect={onConnect}
 				onDisconnect={onDisconnect}
+				onView={onOpenDetails}
 				status={status}
 			/>
 		</div>
@@ -574,6 +607,7 @@ function ConnectorDetailDialog({
 								onCancel={onCancel}
 								onConnect={onConnect}
 								onDisconnect={onDisconnect}
+								showUninstall
 								status={status}
 								variant="default"
 							/>

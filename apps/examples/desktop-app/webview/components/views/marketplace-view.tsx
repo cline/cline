@@ -29,6 +29,8 @@ import {
 } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
+import { fetchComposioToolkitCatalog } from "@/lib/composio";
+import type { ComposioCatalogToolkit } from "@/lib/composio-types";
 import { desktopClient, openExternalUrl } from "@/lib/desktop-client";
 import {
 	fetchMarketplaceCatalog,
@@ -39,7 +41,10 @@ import {
 } from "@/lib/marketplace";
 import { cn } from "@/lib/utils";
 import { CommandBadge, PageFrame, PageHeader } from "./page-layout";
-import { ComposioConnectorBrowser } from "./settings/composio-connector-browser";
+import {
+	ComposioConnectorBrowser,
+	connectorMatchesQuery,
+} from "./settings/composio-connector-browser";
 
 type EntryActionState =
 	| { status: "idle" }
@@ -668,7 +673,12 @@ export function MarketplaceView({
 	const [typeFilter, setTypeFilter] = useState<
 		MarketplacePrimitiveType | "connectors" | null
 	>(defaultTypeFilter ?? null);
-	const [connectorCount, setConnectorCount] = useState<number | null>(null);
+	// Connector catalog (Composio) prefetched for the filter-chip counts; the
+	// fetch is served from the sidecar's hourly cache. Null while unavailable
+	// (no API key, request failed), in which case the chips omit connectors.
+	const [connectorEntries, setConnectorEntries] = useState<
+		ComposioCatalogToolkit[] | null
+	>(null);
 	const [expandedEntryKey, setExpandedEntryKey] = useState<string | null>(null);
 	const [installedEntryKeys, setInstalledEntryKeys] = useState<Set<string>>(
 		() => new Set(),
@@ -705,6 +715,25 @@ export function MarketplaceView({
 			cancelled = true;
 		};
 	}, []);
+
+	useEffect(() => {
+		if (variant !== "directory" || primitive) {
+			return;
+		}
+		let cancelled = false;
+		void fetchComposioToolkitCatalog()
+			.then((response) => {
+				if (!cancelled && response.configured) {
+					setConnectorEntries(response.toolkits);
+				}
+			})
+			.catch(() => {
+				// Counts are cosmetic; the Connectors chip works without them.
+			});
+		return () => {
+			cancelled = true;
+		};
+	}, [variant, primitive]);
 
 	// Recheck installed status whenever the locally installed items change (e.g.
 	// after a server is deleted through its own card controls) so marketplace
@@ -961,6 +990,19 @@ export function MarketplaceView({
 
 	const installedStatusReady = installedStatusState === "ready";
 
+	const filteredConnectorCount = useMemo(() => {
+		if (!connectorEntries) {
+			return null;
+		}
+		const trimmedQuery = query.trim().toLowerCase();
+		if (!trimmedQuery) {
+			return connectorEntries.length;
+		}
+		return connectorEntries.filter((entry) =>
+			connectorMatchesQuery(entry, trimmedQuery),
+		).length;
+	}, [connectorEntries, query]);
+
 	const typeFilterChips =
 		variant === "directory" && !primitive ? (
 			<div className="flex min-w-0 flex-wrap gap-2">
@@ -973,7 +1015,7 @@ export function MarketplaceView({
 				>
 					All
 					<span className="rounded bg-background/30 px-1.5 py-0.5 text-xs">
-						{queryFilteredEntries.length}
+						{queryFilteredEntries.length + (filteredConnectorCount ?? 0)}
 					</span>
 				</Button>
 				{TYPE_FILTER_ORDER.map((type) => (
@@ -1005,9 +1047,9 @@ export function MarketplaceView({
 					variant={typeFilter === "connectors" ? "default" : "outline"}
 				>
 					Connectors
-					{connectorCount !== null ? (
+					{filteredConnectorCount !== null ? (
 						<span className="rounded bg-background/30 px-1.5 py-0.5 text-xs">
-							{connectorCount}
+							{filteredConnectorCount}
 						</span>
 					) : null}
 				</Button>
@@ -1226,7 +1268,20 @@ export function MarketplaceView({
 								<div aria-hidden="true" className="h-px bg-border/70" />
 								<ComposioConnectorBrowser
 									hideSearch
-									onCatalogLoaded={setConnectorCount}
+									onCatalogLoaded={() => {
+										if (connectorEntries) {
+											return;
+										}
+										// The prefetch missed (key configured later); the
+										// sidecar cache is warm now, so this is instant.
+										void fetchComposioToolkitCatalog()
+											.then((response) => {
+												if (response.configured) {
+													setConnectorEntries(response.toolkits);
+												}
+											})
+											.catch(() => {});
+									}}
 									onOpenSetup={onOpenInstalled}
 									query={query}
 								/>
