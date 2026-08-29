@@ -32,6 +32,24 @@ export {
 	McpManagerContent,
 	type McpServerToggleResult,
 } from "./components/dialogs/mcp-manager";
+export {
+	buildFeaturedModelEntries,
+	CLINE_MODEL_PICKER_TIER_LABELS,
+	CLINE_PASS_FREE_SECTION_DESCRIPTION,
+	type ClineFeaturedModel,
+	type ClineFeaturedModelsData,
+	ClineModelPicker,
+	type ClineModelPickerBrowse,
+	type ClineModelPickerEntry,
+	type ClineModelPickerItem,
+	type ClineModelPickerTier,
+	freeTierDescriptionFor,
+} from "./components/model-selector/cline-model-picker";
+export {
+	BROWSE_ALL_ACTION,
+	ClineModelSelectorContent,
+	ClineModelSelectorDialogContent,
+} from "./components/model-selector/cline-model-selector";
 export * from "./components/model-selector/model-selector";
 export { ProviderRow } from "./components/model-selector/provider-row";
 export * from "./components/searchable-list";

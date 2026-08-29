@@ -1,5 +1,7 @@
 import "opentui-spinner/react";
 import {
+	ClineModelPicker,
+	type ClineModelPickerEntry,
 	getInputRuleColor,
 	getUserMessageBackground,
 	type SearchableItem,
@@ -16,10 +18,6 @@ import {
 	CODEX_CLI_INSTALL_URL,
 	type CodexCliStatus,
 } from "../../utils/codex-cli";
-import {
-	ClineModelPicker,
-	type ClineModelPickerEntry,
-} from "../model-selector/cline-model-picker";
 import { FIELD_ORDER } from "./fields";
 import {
 	type ClinePassSubscriptionOption,

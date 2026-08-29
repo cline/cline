@@ -8,8 +8,11 @@ import {
 } from "@cline/core";
 import { isClineProvider } from "@cline/shared";
 import {
+	BROWSE_ALL_ACTION,
+	buildFeaturedModelEntries,
 	buildModelOptions,
 	CHANGE_PROVIDER_ACTION,
+	ClineModelSelectorDialogContent,
 	ModelIdInputContent,
 	type ModelOption,
 	ModelSelectorContent,
@@ -37,11 +40,6 @@ import {
 	ProviderPickerContent,
 	UseExistingOrReconfigureContent,
 } from "../dialogs/provider-picker";
-import { buildFeaturedModelEntries } from "../model-selector/cline-model-picker";
-import {
-	BROWSE_ALL_ACTION,
-	ClineModelSelectorDialogContent,
-} from "../model-selector/cline-model-selector";
 
 export type { OpenModelSelectorOptions } from "@cline/ui/tui";
 

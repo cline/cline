@@ -1,8 +1,10 @@
 import type { ProviderConfigFieldKey } from "@cline/core";
-import type { SearchableListState } from "@cline/ui/tui";
+import type {
+	ClineModelPickerEntry,
+	SearchableListState,
+} from "@cline/ui/tui";
 import { useKeyboard } from "@opentui/react";
 import type { Dispatch, SetStateAction } from "react";
-import type { ClineModelPickerEntry } from "../model-selector/cline-model-picker";
 import {
 	isOnboardingOAuthProviderId,
 	type OnboardingOAuthProviderId,

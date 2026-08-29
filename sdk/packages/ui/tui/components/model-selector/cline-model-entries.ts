@@ -1,13 +1,26 @@
-import type {
-	ClineRecommendedModel,
-	ClineRecommendedModelsData,
-} from "@cline/core";
+/**
+ * Structural view of a Cline recommended-models feed entry. Hosts fetch the
+ * feed (e.g. via @cline/core's fetchClineRecommendedModels) and pass the
+ * data in; names arrive display-ready.
+ */
+export interface ClineFeaturedModel {
+	id: string;
+	name: string;
+	description: string;
+	tags: string[];
+}
+
+export interface ClineFeaturedModelsData {
+	recommended: ClineFeaturedModel[];
+	free: ClineFeaturedModel[];
+	clinePass: ClineFeaturedModel[];
+}
 
 export type ClineModelPickerTier = "recommended" | "subscribed" | "free";
 
 export interface ClineModelPickerItem {
 	kind: "model";
-	model: ClineRecommendedModel;
+	model: ClineFeaturedModel;
 	tier: ClineModelPickerTier;
 }
 
@@ -33,7 +46,7 @@ export const CLINE_MODEL_PICKER_TIER_LABELS: Record<
 // gets Subscribed/Free (see buildClinePassModelEntries for why no browse-all).
 export function buildFeaturedModelEntries(
 	providerId: string,
-	data: ClineRecommendedModelsData,
+	data: ClineFeaturedModelsData,
 ): ClineModelPickerEntry[] {
 	return providerId === "cline-pass"
 		? buildClinePassModelEntries(data)
@@ -41,7 +54,7 @@ export function buildFeaturedModelEntries(
 }
 
 function buildClineModelEntries(
-	data: ClineRecommendedModelsData,
+	data: ClineFeaturedModelsData,
 ): ClineModelPickerEntry[] {
 	const entries: ClineModelPickerEntry[] = [];
 	for (const m of data.recommended) {
@@ -68,7 +81,7 @@ export const CLINE_PASS_FREE_SECTION_DESCRIPTION =
 // escape into the full catalog a subscriber could only pick free models, so
 // browse-all comes back in that degraded mode.
 function buildClinePassModelEntries(
-	data: ClineRecommendedModelsData,
+	data: ClineFeaturedModelsData,
 ): ClineModelPickerEntry[] {
 	const entries: ClineModelPickerEntry[] = [];
 	for (const m of data.clinePass) {
