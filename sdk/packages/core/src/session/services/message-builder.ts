@@ -24,32 +24,34 @@ import {
 	type ToolResultContent,
 	validateAndReserveImageMedia,
 } from "@cline/shared";
-import { MAX_COMMAND_OUTPUT_CHARS } from "../../extensions/tools/executors/output-limits";
+import {
+	DEFAULT_CONTEXT_LIMITS,
+	MESSAGE_LIMIT_ENV,
+	resolveContextLimits,
+} from "../../settings/context-limits";
 
-// Executors append their truncation notice past their own budget, so a capped
-// result runs slightly over it; this headroom keeps the backstop clear of that
-// overshoot, preserving the notice.
-const EXECUTOR_TRUNCATION_NOTICE_HEADROOM_CHARS = 2_000;
 export const DEFAULT_MAX_TOOL_RESULT_CHARS =
-	MAX_COMMAND_OUTPUT_CHARS + EXECUTOR_TRUNCATION_NOTICE_HEADROOM_CHARS;
-export const DEFAULT_MAX_FILE_CONTENT_CHARS = 50_000;
-// The aggregate budget intentionally stays far above what the per-result cap
-// usually produces: budget truncation rewrites bytes mid-transcript, which
-// invalidates provider prefix caches from the first rewritten block onward,
-// so it must remain a rare overflow valve rather than the steady state.
-export const DEFAULT_MAX_TOTAL_TEXT_BYTES = 6_000_000;
-export const DEFAULT_MAX_ASSISTANT_TEXT_CHARS = 200_000;
-export const DEFAULT_MAX_ASSISTANT_TOOL_MARKUP_CHARS = 12_000;
-// Batch stale-read rewrites to avoid breaking provider prefix caches on every re-read.
-// 64KB is roughly 8 provider-capped read results; set to 0 for eager rewriting.
-export const DEFAULT_MIN_OUTDATED_REWRITE_BYTES = 65_536;
+	DEFAULT_CONTEXT_LIMITS.message.toolResultChars;
+export const DEFAULT_MAX_FILE_CONTENT_CHARS =
+	DEFAULT_CONTEXT_LIMITS.message.fileContentChars;
+export const DEFAULT_MAX_TOTAL_TEXT_BYTES =
+	DEFAULT_CONTEXT_LIMITS.message.totalTextBytes;
+export const DEFAULT_MAX_ASSISTANT_TEXT_CHARS =
+	DEFAULT_CONTEXT_LIMITS.message.assistantTextChars;
+export const DEFAULT_MAX_ASSISTANT_TOOL_MARKUP_CHARS =
+	DEFAULT_CONTEXT_LIMITS.message.assistantToolMarkupChars;
+export const DEFAULT_MIN_OUTDATED_REWRITE_BYTES =
+	DEFAULT_CONTEXT_LIMITS.message.minOutdatedRewriteBytes;
 const MIN_TOTAL_BUDGET_TOOL_RESULT_BYTES = 2_000;
 const MIN_TOTAL_BUDGET_ASSISTANT_TEXT_BYTES = 40_000;
 const REPEATED_TOOL_CALL_MARKUP_THRESHOLD = 8;
 export const MESSAGE_BUILDER_LIMIT_ENV = {
-	maxToolResultChars: "CLINE_MESSAGE_BUILDER_MAX_TOOL_RESULT_CHARS",
-	maxTotalTextBytes: "CLINE_MESSAGE_BUILDER_MAX_TOTAL_TEXT_BYTES",
-	minOutdatedRewriteBytes: "CLINE_MESSAGE_BUILDER_MIN_OUTDATED_REWRITE_BYTES",
+	maxToolResultChars: MESSAGE_LIMIT_ENV.toolResultChars,
+	maxFileContentChars: MESSAGE_LIMIT_ENV.fileContentChars,
+	maxTotalTextBytes: MESSAGE_LIMIT_ENV.totalTextBytes,
+	maxAssistantTextChars: MESSAGE_LIMIT_ENV.assistantTextChars,
+	maxAssistantToolMarkupChars: MESSAGE_LIMIT_ENV.assistantToolMarkupChars,
+	minOutdatedRewriteBytes: MESSAGE_LIMIT_ENV.minOutdatedRewriteBytes,
 } as const;
 const READ_TOOL_NAMES = new Set(["read", "read_files"]);
 const OUTDATED_FILE_CONTENT = "[outdated - see the latest file content]";
@@ -93,18 +95,14 @@ export interface MessageBuilderOptions {
 export function getMessageBuilderOptionsFromEnv(
 	env: Record<string, string | undefined> = process.env,
 ): MessageBuilderOptions {
-	// Size caps reject zero/negative overrides; stale-read batching accepts 0
-	// for eager mode and "disable"/"Infinity" for rollback.
+	const { message } = resolveContextLimits({}, env);
 	return {
-		maxToolResultChars: parsePositiveIntegerEnv(
-			env[MESSAGE_BUILDER_LIMIT_ENV.maxToolResultChars],
-		),
-		maxTotalTextBytes: parsePositiveIntegerEnv(
-			env[MESSAGE_BUILDER_LIMIT_ENV.maxTotalTextBytes],
-		),
-		minOutdatedRewriteBytes: parseNonNegativeLimitEnv(
-			env[MESSAGE_BUILDER_LIMIT_ENV.minOutdatedRewriteBytes],
-		),
+		maxToolResultChars: message.toolResultChars,
+		maxFileContentChars: message.fileContentChars,
+		maxTotalTextBytes: message.totalTextBytes,
+		maxAssistantTextChars: message.assistantTextChars,
+		maxAssistantToolMarkupChars: message.assistantToolMarkupChars,
+		minOutdatedRewriteBytes: message.minOutdatedRewriteBytes,
 	};
 }
 
@@ -1493,30 +1491,6 @@ const TOOL_CALL_MARKUP_PATTERN = new RegExp(
 
 function utf8ByteLength(text: string): number {
 	return Buffer.byteLength(text, "utf8");
-}
-
-function parsePositiveIntegerEnv(
-	value: string | undefined,
-): number | undefined {
-	if (value === undefined) {
-		return undefined;
-	}
-	const parsed = Number.parseInt(value, 10);
-	return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
-}
-
-function parseNonNegativeLimitEnv(
-	value: string | undefined,
-): number | undefined {
-	if (value === undefined) {
-		return undefined;
-	}
-	const normalized = value.trim().toLowerCase();
-	if (normalized === "infinity" || normalized === "disable") {
-		return Number.POSITIVE_INFINITY;
-	}
-	const parsed = Number.parseInt(value, 10);
-	return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
 }
 
 function normalizePositiveLimit(

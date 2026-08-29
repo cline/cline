@@ -15,9 +15,10 @@ import {
 	CommandExitError,
 	createShellExecutor,
 	createShellTool,
-	MAX_COMMAND_OUTPUT_CHARS,
+	resolveContextLimits,
 	type ShellExecutor,
 	type StructuredCommandInput,
+	type ToolContextLimits,
 	truncateCommandOutput,
 } from "@cline/core"
 import type { AgentTool } from "@cline/shared"
@@ -528,9 +529,11 @@ function takeShellSnapshot(): ShellSnapshot {
  */
 export function createVscodeRunCommandsTool(options: VscodeRunCommandsToolOptions): AgentTool {
 	const state = { snapshot: takeShellSnapshot() }
-	return createShellTool(createVscodeShellExecutor(options, state), {
+	const limits = resolveContextLimits().tool
+	return createShellTool(createVscodeShellExecutor(options, state, limits), {
 		cwd: options.cwd,
 		bashTimeoutMs: options.bashTimeoutMs,
+		limits,
 		shell: () => {
 			state.snapshot = takeShellSnapshot()
 			return state.snapshot.shell
@@ -538,7 +541,11 @@ export function createVscodeRunCommandsTool(options: VscodeRunCommandsToolOption
 	})
 }
 
-function createVscodeShellExecutor(options: VscodeRunCommandsToolOptions, state: { snapshot: ShellSnapshot }): ShellExecutor {
+function createVscodeShellExecutor(
+	options: VscodeRunCommandsToolOptions,
+	state: { snapshot: ShellSnapshot },
+	limits: ToolContextLimits,
+): ShellExecutor {
 	const { cwd, getTerminalManager } = options
 	const executionMode = options.vscodeTerminalExecutionMode ?? "vscodeTerminal"
 
@@ -563,6 +570,7 @@ function createVscodeShellExecutor(options: VscodeRunCommandsToolOptions, state:
 				bgExecutorShell = shell
 				bgExecutor = createShellExecutor({
 					shell,
+					maxOutputChars: limits.commandOutputChars,
 					// Set SHELL env to match the shell we're spawning so child
 					// processes see the correct value instead of the inherited parent's.
 					env: { SHELL: shell },
@@ -595,7 +603,7 @@ function createVscodeShellExecutor(options: VscodeRunCommandsToolOptions, state:
 			command,
 			commandCwd || cwd,
 			terminalManager,
-			MAX_COMMAND_OUTPUT_CHARS,
+			limits.commandOutputChars,
 			context.signal,
 			options.foregroundCommands,
 			profileId,

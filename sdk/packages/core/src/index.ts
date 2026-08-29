@@ -874,6 +874,16 @@ export {
 	CoreSettingsService,
 	createCoreSettingsService,
 } from "./settings";
+export {
+	type ContextLimitOverrides,
+	type ContextLimits,
+	DEFAULT_CONTEXT_LIMITS,
+	MESSAGE_LIMIT_ENV,
+	type MessageContextLimits,
+	resolveContextLimits,
+	TOOL_LIMIT_ENV,
+	type ToolContextLimits,
+} from "./settings/context-limits";
 export * from "./tasks";
 export type {
 	ChatMessage,

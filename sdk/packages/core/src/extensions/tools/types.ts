@@ -10,6 +10,7 @@ import type {
 	ITelemetryService,
 	TextContent,
 } from "@cline/shared";
+import type { ToolContextLimits } from "../../settings/context-limits";
 import type {
 	ApplyPatchInput,
 	EditFileInput,
@@ -239,6 +240,12 @@ export type DefaultToolName =
  * Configuration for enabling/disabling default tools
  */
 export interface DefaultToolsConfig {
+	/**
+	 * Resolved output and input caps. Tool descriptions quote these, so the
+	 * numbers the model is told always match the ones enforced.
+	 */
+	limits?: ToolContextLimits;
+
 	/**
 	 * Host telemetry service, injected at tool construction time. Tools that
 	 * emit operational telemetry (e.g. run_commands timeouts) close over this

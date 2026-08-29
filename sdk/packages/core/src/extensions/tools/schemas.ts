@@ -130,11 +130,14 @@ export const SearchCodebaseUnionInputSchema = z.union([
 	z.object({ queries: z.string() }),
 ]);
 
-const CommandInputSchema = z
-	.string()
-	.describe(
-		`The non-interactive shell command to execute - MUST keep input short and concise (within ${COMMAND_INPUT_CHAR_LIMIT} characters) to avoid timeouts.`,
-	);
+const commandInputSchemaFor = (limit: number) =>
+	z
+		.string()
+		.describe(
+			`The non-interactive shell command to execute - MUST keep input short and concise (within ${limit} characters) to avoid timeouts.`,
+		);
+
+const CommandInputSchema = commandInputSchemaFor(COMMAND_INPUT_CHAR_LIMIT);
 
 export const StructuredCommandInputSchema = z.object({
 	command: z
@@ -152,11 +155,17 @@ export const StructuredCommandEntrySchema = z.union([
 	StructuredCommandInputSchema,
 ]);
 
-export const RunCommandsInputSchema = z.object({
-	commands: z
-		.array(CommandInputSchema)
-		.describe("Array of complete shell command strings to execute."),
-});
+export function createRunCommandsInputSchema(
+	commandInputChars: number = COMMAND_INPUT_CHAR_LIMIT,
+) {
+	return z.object({
+		commands: z
+			.array(commandInputSchemaFor(commandInputChars))
+			.describe("Array of complete shell command strings to execute."),
+	});
+}
+
+export const RunCommandsInputSchema = createRunCommandsInputSchema();
 
 const StructuredCommandsInputSchema = z.object({
 	commands: z.array(StructuredCommandEntrySchema),
@@ -197,37 +206,43 @@ export const FetchWebContentInputSchema = z.object({
 /**
  * Schema for editor tool input
  */
-export const EditFileInputSchema = z
-	.object({
-		path: z
-			.string()
-			.min(1)
-			.describe("The absolute path for the action to be performed on"),
-		old_text: z
-			.string()
-			.nullable()
-			.optional()
-			.describe(
-				`Exact text to replace (must match exactly once). Omit this when creating a missing file or inserting via insert_line. Send the whole block you are replacing, up to ${EDITOR_INPUT_CHAR_LIMIT} characters.`,
-			),
-		new_text: z
-			.string()
-			.describe(
-				`The new content to write when creating a missing file, the replacement text for edits, or the inserted text when insert_line is provided. Send the complete text for the region you are changing, up to ${EDITOR_INPUT_CHAR_LIMIT} characters; a call cut short by your own output limit is wasted, so split only when the content genuinely exceeds what you can emit in one response.`,
-			),
-		// See start_line above: coerced so a stringified line number still applies.
-		insert_line: z.coerce
-			.number()
-			.int()
-			.nullable()
-			.optional()
-			.describe(
-				"Optional positive one-based boundary line. When provided, the tool inserts new_text before that line instead of performing a replacement edit; use line_count + 1 to append at EOF.",
-			),
-	})
-	.describe(
-		"Edit a text file by replacing old_text with new_text, create the file with new_text if it does not exist, or insert new_text at insert_line when insert_line is provided. Prefer using this tool for file edits over shell commands. IMPORTANT: large edits can time out, so use small chunks and multiple calls when possible.",
-	);
+export function createEditFileInputSchema(
+	editorInputChars: number = EDITOR_INPUT_CHAR_LIMIT,
+) {
+	return z
+		.object({
+			path: z
+				.string()
+				.min(1)
+				.describe("The absolute path for the action to be performed on"),
+			old_text: z
+				.string()
+				.nullable()
+				.optional()
+				.describe(
+					`Exact text to replace (must match exactly once). Omit this when creating a missing file or inserting via insert_line. Send the whole block you are replacing, up to ${editorInputChars} characters.`,
+				),
+			new_text: z
+				.string()
+				.describe(
+					`The new content to write when creating a missing file, the replacement text for edits, or the inserted text when insert_line is provided. Send the complete text for the region you are changing, up to ${editorInputChars} characters; a call cut short by your own output limit is wasted, so split only when the content genuinely exceeds what you can emit in one response.`,
+				),
+			// See start_line above: coerced so a stringified line number still applies.
+			insert_line: z.coerce
+				.number()
+				.int()
+				.nullable()
+				.optional()
+				.describe(
+					"Optional positive one-based boundary line. When provided, the tool inserts new_text before that line instead of performing a replacement edit; use line_count + 1 to append at EOF.",
+				),
+		})
+		.describe(
+			"Edit a text file by replacing old_text with new_text, create the file with new_text if it does not exist, or insert new_text at insert_line when insert_line is provided. Prefer using this tool for file edits over shell commands.",
+		);
+}
+
+export const EditFileInputSchema = createEditFileInputSchema();
 
 /**
  * Schema for apply_patch tool input

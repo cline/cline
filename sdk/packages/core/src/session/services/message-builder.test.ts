@@ -375,8 +375,28 @@ describe("MessageBuilder", () => {
 			CLINE_MESSAGE_BUILDER_MAX_TOOL_RESULT_CHARS: "0",
 			CLINE_MESSAGE_BUILDER_MAX_TOTAL_TEXT_BYTES: "0",
 		});
-		expect(options.maxToolResultChars).toBeUndefined();
-		expect(options.maxTotalTextBytes).toBeUndefined();
+		expect(options.maxToolResultChars).toBe(DEFAULT_MAX_TOOL_RESULT_CHARS);
+		expect(options.maxTotalTextBytes).toBe(DEFAULT_MAX_TOTAL_TEXT_BYTES);
+	});
+
+	it("reads an env override for every message-builder limit", () => {
+		const options = getMessageBuilderOptionsFromEnv({
+			CLINE_MESSAGE_BUILDER_MAX_TOOL_RESULT_CHARS: "111000",
+			CLINE_MESSAGE_BUILDER_MAX_FILE_CONTENT_CHARS: "112000",
+			CLINE_MESSAGE_BUILDER_MAX_TOTAL_TEXT_BYTES: "113000",
+			CLINE_MESSAGE_BUILDER_MAX_ASSISTANT_TEXT_CHARS: "114000",
+			CLINE_MESSAGE_BUILDER_MAX_ASSISTANT_TOOL_MARKUP_CHARS: "115000",
+			CLINE_MESSAGE_BUILDER_MIN_OUTDATED_REWRITE_BYTES: "116000",
+		});
+
+		expect(options).toMatchObject({
+			maxToolResultChars: 111_000,
+			maxFileContentChars: 112_000,
+			maxTotalTextBytes: 113_000,
+			maxAssistantTextChars: 114_000,
+			maxAssistantToolMarkupChars: 115_000,
+			minOutdatedRewriteBytes: 116_000,
+		});
 	});
 
 	it("applies an aggregate text budget across targeted tool results", () => {
