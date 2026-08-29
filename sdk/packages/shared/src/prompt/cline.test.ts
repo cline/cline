@@ -107,9 +107,7 @@ describe("buildClineSystemPrompt mode instructions", () => {
 			workspaces: {
 				"/workspace/project": {
 					hint: "project",
-					associatedRemoteUrls: [
-						"origin: https://github.com/cline/cline.git",
-					],
+					associatedRemoteUrls: ["origin: https://github.com/cline/cline.git"],
 					latestGitCommitHash: "abc123",
 				},
 			},
