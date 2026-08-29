@@ -470,15 +470,6 @@ export class SessionRuntime {
 				? undefined
 				: loopDetectionInput;
 		this.loopTracker = new LoopDetectionTracker(loopConfig);
-		if (config.abortSignal) {
-			if (config.abortSignal.aborted) {
-				this.handleExternalAbort();
-			} else {
-				config.abortSignal.addEventListener("abort", this.handleExternalAbort, {
-					once: true,
-				});
-			}
-		}
 	}
 
 	// -------------------------------------------------------------------
@@ -674,10 +665,6 @@ export class SessionRuntime {
 			return;
 		}
 		this.shutdownCalled = true;
-		this.config.abortSignal?.removeEventListener(
-			"abort",
-			this.handleExternalAbort,
-		);
 	}
 
 	// -------------------------------------------------------------------
@@ -801,9 +788,6 @@ export class SessionRuntime {
 		this.running = true;
 		this.abortRequested = false;
 		this.abortReason = undefined;
-		if (this.config.abortSignal?.aborted) {
-			this.handleExternalAbort();
-		}
 		this.activeRunId = `run_${Date.now()}_${Math.random()
 			.toString(36)
 			.slice(2, 8)}`;
@@ -930,6 +914,17 @@ export class SessionRuntime {
 			}
 			this.handleRuntimeEvent(event);
 		});
+		if (this.config.abortSignal) {
+			if (this.config.abortSignal.aborted) {
+				this.handleExternalAbort();
+			} else {
+				this.config.abortSignal.addEventListener(
+					"abort",
+					this.handleExternalAbort,
+					{ once: true },
+				);
+			}
+		}
 
 		let runResult: AgentRunResult | undefined;
 		let thrownError: Error | undefined;
@@ -938,13 +933,19 @@ export class SessionRuntime {
 			// user message we already seeded via `initialMessages`. The
 			// runtime's `normalizeInput` treats `""`/`undefined` as
 			// "no extra messages".
-			runResult = input.isContinue
-				? await runtime.continue(undefined)
-				: await runtime.run("");
+			if (input.isContinue) {
+				runResult = await runtime.continue(undefined);
+			} else {
+				runResult = await runtime.run("");
+			}
 		} catch (error) {
 			thrownError = error instanceof Error ? error : new Error(String(error));
 		} finally {
 			unsubscribe();
+			this.config.abortSignal?.removeEventListener(
+				"abort",
+				this.handleExternalAbort,
+			);
 			// Drain any in-flight tracker work (mistake/loop side-effects
 			// queued from handleRuntimeEvent) before we clear state so a
 			// late abort can still reach the runtime if needed.

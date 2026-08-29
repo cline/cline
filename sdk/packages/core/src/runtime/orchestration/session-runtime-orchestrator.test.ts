@@ -1725,6 +1725,50 @@ describe("SessionRuntime real AgentRuntime smoke", () => {
 // ---------------------------------------------------------------------------
 
 describe("SessionRuntime external abort signal", () => {
+	it("observes the parent signal only while a run is active", async () => {
+		const controller = new AbortController();
+		const addEventListener = vi.spyOn(controller.signal, "addEventListener");
+		const removeEventListener = vi.spyOn(
+			controller.signal,
+			"removeEventListener",
+		);
+		const { deps } = withFakeRuntime();
+		const session = new SessionRuntime(
+			makeAgentConfig({ abortSignal: controller.signal }),
+			deps,
+		);
+
+		expect(addEventListener).not.toHaveBeenCalled();
+		await session.run("delegated task");
+
+		expect(addEventListener).toHaveBeenCalledOnce();
+		expect(removeEventListener).toHaveBeenCalledOnce();
+	});
+
+	it("does not retain the parent signal when extension startup fails", async () => {
+		const controller = new AbortController();
+		const addEventListener = vi.spyOn(controller.signal, "addEventListener");
+		const extension: AgentExtension = {
+			name: "failing-startup",
+			manifest: { capabilities: ["tools"] },
+			setup: () => {
+				throw new Error("startup failed");
+			},
+		};
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				abortSignal: controller.signal,
+				extensions: [extension],
+				hookErrorMode: "throw",
+			}),
+		);
+
+		await expect(session.run("delegated task")).rejects.toThrow(
+			"startup failed",
+		);
+		expect(addEventListener).not.toHaveBeenCalled();
+	});
+
 	it.each([
 		"before",
 		"during",
