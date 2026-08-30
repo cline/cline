@@ -23,6 +23,101 @@ describe("resolveWorkspaceRootPath", () => {
 	})
 })
 
+describe("SDK follow-up rebuild coordination", () => {
+	it("makes the restored approval phase and anchor visible after queued guidance", async () => {
+		let turnState = { phase: "awaiting_approval", anchorTs: 42 }
+		const postedStates: Array<typeof turnState> = []
+		const setTurnState = vi.fn((phase: string, anchorTs?: number) => {
+			turnState = { phase, anchorTs: anchorTs ?? 0 }
+		})
+		const postStateToWebview = vi.fn(async () => {
+			postedStates.push({ ...turnState })
+		})
+		const followupAskResponse = vi.fn(async (_prompt, _images, _files, responseType, turnPhaseAtSubmit) => {
+			expect(responseType).toBe("messageResponse")
+			expect(turnPhaseAtSubmit).toBe("awaiting_approval")
+			setTurnState("awaiting_approval", 42)
+			await postStateToWebview()
+		})
+		const controller = {
+			pendingClineAuthRetryPrompt: undefined,
+			task: { taskState: { askResponse: "messageResponse" } },
+			turnStateTracker: {
+				get: vi.fn(() => turnState),
+				set: setTurnState,
+			},
+			messageTranslatorState: { clearTurnOutcome: vi.fn() },
+			postStateToWebview,
+			followups: {
+				askResponse: followupAskResponse,
+			},
+		}
+
+		await SdkController.prototype.askResponse.call(controller as never, "queued guidance")
+
+		expect(controller.turnStateTracker.set).toHaveBeenNthCalledWith(1, "streaming")
+		expect(controller.turnStateTracker.set).toHaveBeenNthCalledWith(2, "awaiting_approval", 42)
+		expect(postedStates.at(-1)).toEqual({ phase: "awaiting_approval", anchorTs: 42 })
+	})
+
+	it("flushes provider field changes before waiting for rebuild settlement", async () => {
+		const events: string[] = []
+		const controller = {
+			providerChanges: {
+				flushPendingProviderFieldsRebuild: vi.fn(() => events.push("flush-provider")),
+			},
+			mode: {
+				waitForPendingRebuild: vi.fn(async () => events.push("wait-mode")),
+			},
+			sessionRebuilds: {
+				waitUntilSettled: vi.fn(async () => events.push("wait-scheduler")),
+			},
+		}
+
+		await SdkController.prototype["flushPendingProviderChangesAndWaitForRebuilds"].call(controller as never)
+
+		expect(events).toEqual(["flush-provider", "wait-mode", "wait-scheduler"])
+	})
+
+	it("restores streaming state after a rebuild barrier observes the preceding turn completion", async () => {
+		const events: string[] = []
+		const controller = {
+			turnStateTracker: {
+				currentPhase: "awaiting_followup",
+				set: vi.fn((phase: string) => events.push(`phase:${phase}`)),
+			},
+			messageTranslatorState: {
+				clearTurnOutcome: vi.fn(() => events.push("clear-outcome")),
+			},
+			postStateToWebview: vi.fn(async () => events.push("post-state")),
+		}
+
+		SdkController.prototype["ensureFollowUpStartingState"].call(controller as never)
+		await Promise.resolve()
+
+		expect(events).toEqual(["phase:streaming", "clear-outcome", "post-state"])
+	})
+
+	it("does not duplicate the initial streaming state post when no rebuild delayed the follow-up", async () => {
+		const controller = {
+			turnStateTracker: {
+				currentPhase: "streaming",
+				set: vi.fn(),
+			},
+			messageTranslatorState: {
+				clearTurnOutcome: vi.fn(),
+			},
+			postStateToWebview: vi.fn().mockResolvedValue(undefined),
+		}
+
+		SdkController.prototype["ensureFollowUpStartingState"].call(controller as never)
+
+		expect(controller.turnStateTracker.set).not.toHaveBeenCalled()
+		expect(controller.messageTranslatorState.clearTurnOutcome).not.toHaveBeenCalled()
+		expect(controller.postStateToWebview).not.toHaveBeenCalled()
+	})
+})
+
 vi.mock("@/services/telemetry", () => ({
 	telemetryService: {
 		captureRemoteConfigSessionGate: vi.fn(),

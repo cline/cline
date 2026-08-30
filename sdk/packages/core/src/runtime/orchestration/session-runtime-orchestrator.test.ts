@@ -61,6 +61,8 @@ interface FakeAgentRuntimeScript {
 	readonly result?: Partial<AgentRunResult>;
 	/** If true, reject with the provided error instead of returning. */
 	readonly throwError?: Error;
+	/** Optional gate that keeps the fake run active until the test releases it. */
+	readonly release?: Promise<void>;
 }
 
 /**
@@ -69,7 +71,12 @@ interface FakeAgentRuntimeScript {
  */
 function makeFakeAgentRuntime(script: FakeAgentRuntimeScript = {}): {
 	runtime: AgentRuntime;
-	calls: { run: unknown[]; continue: unknown[]; abort: unknown[] };
+	calls: {
+		run: unknown[];
+		continue: unknown[];
+		abort: unknown[];
+		replaceModelBetweenRequests: unknown[];
+	};
 	listeners: Set<(event: AgentRuntimeEvent) => void>;
 } {
 	const listeners = new Set<(event: AgentRuntimeEvent) => void>();
@@ -77,6 +84,7 @@ function makeFakeAgentRuntime(script: FakeAgentRuntimeScript = {}): {
 		run: [] as unknown[],
 		continue: [] as unknown[],
 		abort: [] as unknown[],
+		replaceModelBetweenRequests: [] as unknown[],
 	};
 
 	const baseResult: AgentRunResult = {
@@ -108,6 +116,7 @@ function makeFakeAgentRuntime(script: FakeAgentRuntimeScript = {}): {
 		async run(input: unknown) {
 			calls.run.push(input);
 			emit();
+			await script.release;
 			if (script.throwError) {
 				throw script.throwError;
 			}
@@ -116,6 +125,7 @@ function makeFakeAgentRuntime(script: FakeAgentRuntimeScript = {}): {
 		async continue(input: unknown) {
 			calls.continue.push(input);
 			emit();
+			await script.release;
 			if (script.throwError) {
 				throw script.throwError;
 			}
@@ -123,6 +133,9 @@ function makeFakeAgentRuntime(script: FakeAgentRuntimeScript = {}): {
 		},
 		abort(reason?: string) {
 			calls.abort.push(reason);
+		},
+		replaceModelBetweenRequests(...args: unknown[]) {
+			calls.replaceModelBetweenRequests.push(args);
 		},
 		subscribe(listener: (event: AgentRuntimeEvent) => void) {
 			listeners.add(listener);
@@ -1373,6 +1386,273 @@ describe("SessionRuntime.addTools / updateConnection / clearHistory / restore", 
 		const result = await session.run("go");
 		expect(result.model.id).toBe("claude-4");
 		expect(calls.run).toHaveLength(1);
+	});
+
+	it("generic updateConnection waits for a safe boundary in an active run", async () => {
+		let releaseRun: () => void = () => {};
+		const release = new Promise<void>((resolve) => {
+			releaseRun = resolve;
+		});
+		const { deps, calls } = withFakeRuntime({ release });
+		const session = new SessionRuntime(makeAgentConfig(), deps);
+
+		const runPromise = session.run("go");
+		await vi.waitFor(() => expect(calls.run).toHaveLength(1));
+		session.updateConnection({
+			apiKey: "new-key",
+			baseUrl: "http://new-endpoint",
+		});
+
+		expect(calls.replaceModelBetweenRequests).toHaveLength(0);
+
+		releaseRun();
+		await runPromise;
+	});
+
+	it("applies a queued active connection update at the next pre-request boundary", async () => {
+		let releaseRun: () => void = () => {};
+		const release = new Promise<void>((resolve) => {
+			releaseRun = resolve;
+		});
+		const fake = makeFakeAgentRuntime({ release });
+		let runtimeConfig: AgentRuntimeConfig | undefined;
+		const session = new SessionRuntime(makeAgentConfig(), {
+			createAgentRuntimeImpl: (config) => {
+				runtimeConfig = config;
+				return fake.runtime;
+			},
+		});
+
+		const runPromise = session.run("go");
+		await vi.waitFor(() => expect(fake.calls.run).toHaveLength(1));
+		session.updateConnection({
+			apiKey: "new-key",
+			baseUrl: "http://new-endpoint",
+		});
+
+		expect(fake.calls.replaceModelBetweenRequests).toHaveLength(0);
+		await runtimeConfig?.beforeModelRequest?.();
+
+		expect(fake.calls.replaceModelBetweenRequests).toHaveLength(1);
+		expect(fake.calls.replaceModelBetweenRequests).toEqual([
+			[
+				expect.objectContaining({ stream: expect.any(Function) }),
+				expect.objectContaining({
+					messageModelInfo: expect.objectContaining({
+						provider: "anthropic",
+						id: "claude-3-5-sonnet",
+					}),
+				}),
+			],
+		]);
+
+		releaseRun();
+		await runPromise;
+	});
+
+	it("defers active model changes until the next run rebuilds model-dependent state", async () => {
+		let releaseRun: () => void = () => {};
+		const release = new Promise<void>((resolve) => {
+			releaseRun = resolve;
+		});
+		const firstRuntime = makeFakeAgentRuntime({ release });
+		const secondRuntime = makeFakeAgentRuntime();
+		const runtimeConfigs: AgentRuntimeConfig[] = [];
+		const prepareTurn = vi.fn(() => undefined);
+		const imageModelId = "openai/gpt-5-image";
+		const completionPolicy = { requireCompletionTool: true };
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				knownModels: {
+					"claude-3-5-sonnet": {
+						id: "claude-3-5-sonnet",
+						capabilities: ["tools"],
+					},
+					[imageModelId]: {
+						id: imageModelId,
+						operation: "image-generation",
+						capabilities: ["tools", "images"],
+						modalities: {
+							input: ["text", "image"],
+							output: ["image"],
+						},
+					},
+				},
+				tools: [echoTool],
+				completionPolicy,
+				prepareTurn,
+			}),
+			{
+				createAgentRuntimeImpl: (config) => {
+					const runtime =
+						runtimeConfigs.length === 0
+							? firstRuntime.runtime
+							: secondRuntime.runtime;
+					runtimeConfigs.push(config);
+					return runtime;
+				},
+			},
+		);
+
+		const firstRun = session.run("go");
+		await vi.waitFor(() => expect(runtimeConfigs).toHaveLength(1));
+		session.updateConnection({ modelId: imageModelId, apiKey: "next-key" });
+
+		await runtimeConfigs[0]?.beforeModelRequest?.();
+		expect(firstRuntime.calls.replaceModelBetweenRequests).toHaveLength(0);
+		expect(runtimeConfigs[0]?.tools).toEqual([echoTool]);
+		expect(runtimeConfigs[0]?.completionPolicy).toEqual(completionPolicy);
+
+		await runtimeConfigs[0]?.prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conversation-1",
+			parentAgentId: null,
+			iteration: 1,
+			messages: [],
+			systemPrompt: "system",
+			tools: [echoTool],
+			model: {},
+		});
+		expect(prepareTurn).toHaveBeenCalledWith(
+			expect.objectContaining({
+				tools: [echoTool],
+				model: expect.objectContaining({
+					id: "claude-3-5-sonnet",
+					provider: "anthropic",
+				}),
+			}),
+		);
+
+		releaseRun();
+		const firstResult = await firstRun;
+		expect(firstResult.model).toMatchObject({
+			id: "claude-3-5-sonnet",
+			provider: "anthropic",
+		});
+
+		const secondResult = await session.run("again");
+		expect(runtimeConfigs).toHaveLength(2);
+		expect(runtimeConfigs[1]?.tools).toEqual([]);
+		expect(runtimeConfigs[1]?.completionPolicy).toBeUndefined();
+		expect(secondResult.model).toMatchObject({
+			id: imageModelId,
+			provider: "anthropic",
+		});
+	});
+
+	it("defers active provider changes until the next run", async () => {
+		let releaseRun: () => void = () => {};
+		const release = new Promise<void>((resolve) => {
+			releaseRun = resolve;
+		});
+		const firstRuntime = makeFakeAgentRuntime({ release });
+		const secondRuntime = makeFakeAgentRuntime();
+		const runtimeConfigs: AgentRuntimeConfig[] = [];
+		const session = new SessionRuntime(makeAgentConfig(), {
+			createAgentRuntimeImpl: (config) => {
+				const runtime =
+					runtimeConfigs.length === 0
+						? firstRuntime.runtime
+						: secondRuntime.runtime;
+				runtimeConfigs.push(config);
+				return runtime;
+			},
+		});
+
+		const firstRun = session.run("go");
+		await vi.waitFor(() => expect(runtimeConfigs).toHaveLength(1));
+		session.updateConnection({ providerId: "openai" });
+		await runtimeConfigs[0]?.beforeModelRequest?.();
+
+		expect(firstRuntime.calls.replaceModelBetweenRequests).toHaveLength(0);
+		releaseRun();
+		expect((await firstRun).model.provider).toBe("anthropic");
+		expect((await session.run("again")).model.provider).toBe("openai");
+	});
+
+	it("refreshes the active connection after a model change is deferred", async () => {
+		let releaseRun: () => void = () => {};
+		const release = new Promise<void>((resolve) => {
+			releaseRun = resolve;
+		});
+		const firstRuntime = makeFakeAgentRuntime({ release });
+		const secondRuntime = makeFakeAgentRuntime();
+		const runtimeConfigs: AgentRuntimeConfig[] = [];
+		const session = new SessionRuntime(makeAgentConfig(), {
+			createAgentRuntimeImpl: (config) => {
+				const runtime =
+					runtimeConfigs.length === 0
+						? firstRuntime.runtime
+						: secondRuntime.runtime;
+				runtimeConfigs.push(config);
+				return runtime;
+			},
+		});
+
+		const firstRun = session.run("go");
+		await vi.waitFor(() => expect(runtimeConfigs).toHaveLength(1));
+		session.updateConnection({ modelId: "claude-4" });
+		session.updateSuspendedConnection({
+			apiKey: "new-key",
+			baseUrl: "http://new-endpoint",
+			reasoningEffort: "high",
+		});
+
+		expect(firstRuntime.calls.replaceModelBetweenRequests).toEqual([
+			[
+				expect.objectContaining({ stream: expect.any(Function) }),
+				expect.objectContaining({
+					modelOptions: expect.objectContaining({
+						reasoningEffort: "high",
+					}),
+					messageModelInfo: expect.objectContaining({
+						provider: "anthropic",
+						id: "claude-3-5-sonnet",
+					}),
+				}),
+			],
+		]);
+
+		releaseRun();
+		expect((await firstRun).model.id).toBe("claude-3-5-sonnet");
+
+		const secondResult = await session.run("again");
+		expect(runtimeConfigs).toHaveLength(2);
+		expect(runtimeConfigs[1]?.messageModelInfo).toMatchObject({
+			provider: "anthropic",
+			id: "claude-4",
+		});
+		expect(secondResult.model.id).toBe("claude-4");
+	});
+
+	it("dedicated suspended update replaces the active model", async () => {
+		let releaseRun: () => void = () => {};
+		const release = new Promise<void>((resolve) => {
+			releaseRun = resolve;
+		});
+		const { deps, calls } = withFakeRuntime({ release });
+		const session = new SessionRuntime(makeAgentConfig(), deps);
+
+		const runPromise = session.run("go");
+		await vi.waitFor(() => expect(calls.run).toHaveLength(1));
+		session.updateSuspendedConnection({
+			apiKey: "new-key",
+			baseUrl: "http://new-endpoint",
+		});
+
+		expect(calls.replaceModelBetweenRequests).toHaveLength(1);
+		expect(calls.replaceModelBetweenRequests[0]).toEqual([
+			expect.objectContaining({ stream: expect.any(Function) }),
+			expect.objectContaining({
+				messageModelInfo: expect.objectContaining({
+					provider: "anthropic",
+					id: "claude-3-5-sonnet",
+				}),
+			}),
+		]);
+
+		releaseRun();
+		await runPromise;
 	});
 
 	it("updateConnection clears stale reasoning fields for next run", async () => {

@@ -105,8 +105,12 @@ export function readSessionConnectionUpdate(
 	if (modelId) updates.modelId = modelId;
 	const apiKey = readConnectionString(record.apiKey);
 	if (apiKey !== undefined) updates.apiKey = apiKey;
-	const baseUrl = readConnectionString(record.baseUrl);
-	if (baseUrl !== undefined) updates.baseUrl = baseUrl;
+	if (record.baseUrl === null) {
+		updates.baseUrl = null;
+	} else {
+		const baseUrl = readConnectionString(record.baseUrl);
+		if (baseUrl !== undefined) updates.baseUrl = baseUrl;
+	}
 	if (record.headers && typeof record.headers === "object") {
 		updates.headers = record.headers as Record<string, string>;
 	}

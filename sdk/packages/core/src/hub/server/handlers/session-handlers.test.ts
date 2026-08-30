@@ -39,6 +39,12 @@ describe("selectSessionTools", () => {
 });
 
 describe("readSessionConnectionUpdate", () => {
+	it("preserves an explicit base URL reset marker", () => {
+		expect(readSessionConnectionUpdate({ baseUrl: null })).toEqual({
+			baseUrl: null,
+		});
+	});
+
 	it("enables thinking when a positive budget is supplied without thinking", () => {
 		expect(readSessionConnectionUpdate({ thinkingBudgetTokens: 2048 })).toEqual(
 			{

@@ -2103,6 +2103,70 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect(result?.messages.length).toBeLessThan(messages.length);
 	});
 
+	it("resolves live provider settings before agentic compaction", async () => {
+		createHandlerMock.mockReturnValue({
+			createMessage: vi.fn(() =>
+				streamChunks([
+					{ type: "text", id: "summary-live", text: "Live summary" },
+					{ type: "done", id: "summary-live", success: true },
+				]),
+			),
+		});
+		let liveProviderConfig = {
+			providerId: "openai",
+			modelId: "model",
+			apiKey: "old-key",
+			baseUrl: "https://old.example/v1",
+		} as LlmsProviders.ProviderConfig;
+		const prepareTurn = createContextCompactionPrepareTurn(
+			{
+				providerId: "openai",
+				modelId: "model",
+				providerConfig: liveProviderConfig,
+				compaction: {
+					enabled: true,
+					strategy: "agentic",
+					preserveRecentTokens: 1,
+				},
+			},
+			{ getProviderConfig: () => liveProviderConfig },
+		);
+		liveProviderConfig = {
+			...liveProviderConfig,
+			apiKey: "new-key",
+			baseUrl: "https://new.example/v1",
+		};
+		const messages: MessageWithMetadata[] = [
+			{ role: "user", content: "Old request" },
+			{ role: "assistant", content: "Old answer" },
+			{ role: "user", content: "Latest request" },
+		];
+
+		await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 2,
+			abortSignal: new AbortController().signal,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages,
+			apiMessages: messages,
+			model: {
+				id: "model",
+				provider: "openai",
+				info: { id: "model", maxInputTokens: 10 },
+			},
+		});
+
+		expect(createHandlerMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				apiKey: "new-key",
+				baseUrl: "https://new.example/v1",
+			}),
+		);
+	});
+
 	it("uses the configured summarizer model for compaction", async () => {
 		createHandlerMock.mockReturnValue({
 			createMessage: vi.fn(() =>

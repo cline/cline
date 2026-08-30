@@ -29,7 +29,10 @@ import type { TeamEvent } from "../../extensions/tools/team";
 import type { HookEventPayload } from "../../hooks";
 import { buildTelemetryAgentIdentity } from "../../services/agent-events";
 import { resolveWorkspacePath } from "../../services/config";
-import { prepareLocalRuntimeBootstrap } from "../../services/local-runtime-bootstrap";
+import {
+	buildProviderConfig,
+	prepareLocalRuntimeBootstrap,
+} from "../../services/local-runtime-bootstrap";
 import { nowIso } from "../../services/session-artifacts";
 import {
 	toSessionRecord,
@@ -94,7 +97,10 @@ import type { ActiveSession, PreparedTurnInput } from "../../types/session";
 import type { SessionRecord } from "../../types/sessions";
 import type { RuntimeCapabilities } from "../capabilities";
 import { normalizeRuntimeCapabilities } from "../capabilities";
-import { normalizeConnectionUpdate } from "../config/connection-update";
+import {
+	type ConnectionUpdate,
+	normalizeConnectionUpdate,
+} from "../config/connection-update";
 import { DefaultRuntimeBuilder } from "../orchestration/runtime-builder";
 import {
 	OAuthReauthRequiredError,
@@ -648,7 +654,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 		const extensions = runtime.extensions ?? bootstrap.extensions;
 		const explicitInitialCompactionState = startInput.initialCompactionState;
 		let activeSessionRef: ActiveSession | undefined;
-		const compact = createContextCompactionPrepareTurn(configWithProvider);
+		const compact = createContextCompactionPrepareTurn(configWithProvider, {
+			getProviderConfig: () => configWithProvider.providerConfig,
+		});
 		const rawInitialCompactionState =
 			explicitInitialCompactionState ?? resumedCompactionState;
 		// A compaction sidecar must keep projecting into the working context even
@@ -738,6 +746,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			tools,
 			modelTools: runtime.modelTools,
 			hooks: bootstrap.hooks,
+			beforeModelRequest: configWithProvider.beforeModelRequest,
 			extensions,
 			hookErrorMode: configWithProvider.hookErrorMode,
 			initialMessages: bootstrap.effectiveInput.initialMessages,
@@ -1543,13 +1552,18 @@ export class LocalRuntimeHost implements RuntimeHost {
 		sessionId: string,
 		rawUpdates: SessionConnectionUpdate,
 	): Promise<void> {
-		const updates = normalizeConnectionUpdate(rawUpdates);
 		const session = this.getSessionOrThrow(sessionId);
+		const updates = this.resolveProviderConfigForConnectionUpdate(
+			session,
+			normalizeConnectionUpdate(rawUpdates),
+		);
 		if (updates.providerId !== undefined)
 			session.config.providerId = updates.providerId;
 		if (updates.modelId !== undefined) session.config.modelId = updates.modelId;
 		if (updates.apiKey !== undefined) session.config.apiKey = updates.apiKey;
-		if (updates.baseUrl !== undefined) session.config.baseUrl = updates.baseUrl;
+		if (Object.hasOwn(updates, "baseUrl")) {
+			session.config.baseUrl = updates.baseUrl ?? undefined;
+		}
 		if (updates.headers !== undefined) session.config.headers = updates.headers;
 		if (updates.providerConfig !== undefined)
 			session.config.providerConfig = updates.providerConfig;
@@ -1573,7 +1587,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 				: {}),
 			...(updates.modelId !== undefined ? { modelId: updates.modelId } : {}),
 			...(updates.apiKey !== undefined ? { apiKey: updates.apiKey } : {}),
-			...(updates.baseUrl !== undefined ? { baseUrl: updates.baseUrl } : {}),
+			...(Object.hasOwn(updates, "baseUrl")
+				? { baseUrl: updates.baseUrl ?? undefined }
+				: {}),
 			...(updates.headers !== undefined ? { headers: updates.headers } : {}),
 			...(updates.providerConfig !== undefined
 				? { providerConfig: updates.providerConfig }
@@ -1594,8 +1610,22 @@ export class LocalRuntimeHost implements RuntimeHost {
 		}
 		const teammateUpdates = {
 			...(updates.apiKey !== undefined ? { apiKey: updates.apiKey } : {}),
-			...(updates.baseUrl !== undefined ? { baseUrl: updates.baseUrl } : {}),
+			...(Object.hasOwn(updates, "baseUrl")
+				? { baseUrl: updates.baseUrl ?? undefined }
+				: {}),
 			...(updates.headers !== undefined ? { headers: updates.headers } : {}),
+			...(updates.providerConfig !== undefined
+				? { providerConfig: updates.providerConfig }
+				: {}),
+			...(Object.hasOwn(updates, "reasoningEffort")
+				? { reasoningEffort: updates.reasoningEffort ?? undefined }
+				: {}),
+			...(Object.hasOwn(updates, "thinking")
+				? { thinking: updates.thinking ?? undefined }
+				: {}),
+			...(Object.hasOwn(updates, "thinkingBudgetTokens")
+				? { thinkingBudgetTokens: updates.thinkingBudgetTokens ?? undefined }
+				: {}),
 		};
 		session.runtime.delegatedAgentConfigProvider?.updateConnectionDefaults(
 			delegatedUpdates,
@@ -1610,6 +1640,147 @@ export class LocalRuntimeHost implements RuntimeHost {
 				if (updates.modelId) manifest.model = updates.modelId;
 			});
 		}
+	}
+
+	async updateSuspendedSessionConnection(
+		sessionId: string,
+		rawUpdates: SessionConnectionUpdate,
+	): Promise<void> {
+		const normalizedUpdates = normalizeConnectionUpdate(rawUpdates);
+		if (
+			normalizedUpdates.providerId !== undefined ||
+			normalizedUpdates.modelId !== undefined
+		) {
+			throw new Error(
+				"Suspended connection updates cannot change provider or model",
+			);
+		}
+
+		const session = this.getSessionOrThrow(sessionId);
+		const updates = this.resolveProviderConfigForConnectionUpdate(
+			session,
+			normalizedUpdates,
+		);
+		// The agent boundary validates that the run is currently between model
+		// requests. Apply there first so a rejected boundary leaves host state
+		// and persistence untouched.
+		session.agent.updateSuspendedConnection(updates);
+
+		if (updates.apiKey !== undefined) session.config.apiKey = updates.apiKey;
+		if (Object.hasOwn(updates, "baseUrl")) {
+			session.config.baseUrl = updates.baseUrl ?? undefined;
+		}
+		if (updates.headers !== undefined) session.config.headers = updates.headers;
+		if (updates.providerConfig !== undefined)
+			session.config.providerConfig = updates.providerConfig;
+		if (Object.hasOwn(updates, "reasoningEffort")) {
+			session.config.reasoningEffort = updates.reasoningEffort ?? undefined;
+		}
+		if (Object.hasOwn(updates, "thinkingBudgetTokens")) {
+			session.config.thinkingBudgetTokens =
+				updates.thinkingBudgetTokens ?? undefined;
+		}
+		if (Object.hasOwn(updates, "thinking")) {
+			session.config.thinking = updates.thinking ?? undefined;
+			if (updates.thinking === false || updates.thinking === null) {
+				session.config.reasoningEffort = undefined;
+				session.config.thinkingBudgetTokens = undefined;
+			}
+		}
+
+		const delegatedUpdates = {
+			...(updates.apiKey !== undefined ? { apiKey: updates.apiKey } : {}),
+			...(Object.hasOwn(updates, "baseUrl")
+				? { baseUrl: updates.baseUrl ?? undefined }
+				: {}),
+			...(updates.headers !== undefined ? { headers: updates.headers } : {}),
+			...(updates.providerConfig !== undefined
+				? { providerConfig: updates.providerConfig }
+				: {}),
+			...(Object.hasOwn(updates, "reasoningEffort")
+				? { reasoningEffort: updates.reasoningEffort ?? undefined }
+				: {}),
+			...(Object.hasOwn(updates, "thinking")
+				? { thinking: updates.thinking ?? undefined }
+				: {}),
+			...(Object.hasOwn(updates, "thinkingBudgetTokens")
+				? { thinkingBudgetTokens: updates.thinkingBudgetTokens ?? undefined }
+				: {}),
+		};
+		session.runtime.delegatedAgentConfigProvider?.updateConnectionDefaults(
+			delegatedUpdates,
+		);
+		session.runtime.teamRuntime?.updateTeammateConnections({
+			...(updates.apiKey !== undefined ? { apiKey: updates.apiKey } : {}),
+			...(Object.hasOwn(updates, "baseUrl")
+				? { baseUrl: updates.baseUrl ?? undefined }
+				: {}),
+			...(updates.headers !== undefined ? { headers: updates.headers } : {}),
+			...(updates.providerConfig !== undefined
+				? { providerConfig: updates.providerConfig }
+				: {}),
+			...(Object.hasOwn(updates, "reasoningEffort")
+				? { reasoningEffort: updates.reasoningEffort ?? undefined }
+				: {}),
+			...(Object.hasOwn(updates, "thinking")
+				? { thinking: updates.thinking ?? undefined }
+				: {}),
+			...(Object.hasOwn(updates, "thinkingBudgetTokens")
+				? { thinkingBudgetTokens: updates.thinkingBudgetTokens ?? undefined }
+				: {}),
+		});
+	}
+
+	private resolveProviderConfigForConnectionUpdate(
+		session: ActiveSession,
+		updates: ConnectionUpdate,
+	): ConnectionUpdate {
+		const resetsBaseUrl = updates.baseUrl === null;
+		if (updates.providerConfig === undefined && !resetsBaseUrl) {
+			return updates;
+		}
+		const providerConfigInput =
+			updates.providerConfig ?? session.config.providerConfig;
+		let providerConfigForBuild = providerConfigInput;
+		if (
+			providerConfigInput &&
+			(resetsBaseUrl ||
+				updates.apiKey !== undefined ||
+				updates.headers !== undefined)
+		) {
+			providerConfigForBuild = { ...providerConfigInput };
+			if (resetsBaseUrl) delete providerConfigForBuild.baseUrl;
+			if (updates.apiKey !== undefined) delete providerConfigForBuild.apiKey;
+			if (updates.headers !== undefined) delete providerConfigForBuild.headers;
+		}
+
+		const nextConfig: CoreSessionConfig = {
+			...session.config,
+			providerId: updates.providerId ?? session.config.providerId,
+			modelId: updates.modelId ?? session.config.modelId,
+			apiKey: updates.apiKey ?? session.config.apiKey,
+			baseUrl: resetsBaseUrl
+				? undefined
+				: (updates.baseUrl ?? session.config.baseUrl),
+			providerConfig: providerConfigForBuild,
+			...(updates.headers !== undefined ? { headers: updates.headers } : {}),
+		};
+		const providerConfig = buildProviderConfig(
+			nextConfig,
+			session.sessionId,
+			session.source,
+			this.providerSettingsManager,
+			undefined,
+			this.defaultFetch,
+		);
+
+		return {
+			...updates,
+			providerConfig,
+			...(updates.headers !== undefined
+				? { headers: providerConfig.headers ?? {} }
+				: {}),
+		};
 	}
 
 	/**

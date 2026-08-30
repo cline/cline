@@ -5,6 +5,31 @@ import {
 } from "./delegated-agent";
 
 describe("buildDelegatedAgentConfig", () => {
+	it("versions complete connection snapshots for active delegated refreshes", () => {
+		const configProvider = createDelegatedAgentConfigProvider({
+			providerId: "lmstudio",
+			modelId: "local-model",
+			apiKey: "old-key",
+			baseUrl: "http://custom-endpoint",
+		});
+		const initial = configProvider.getConnectionSnapshot();
+
+		configProvider.updateConnectionDefaults({
+			apiKey: "new-key",
+			baseUrl: undefined,
+		});
+
+		expect(configProvider.getConnectionSnapshot()).toEqual({
+			version: initial.version + 1,
+			config: expect.objectContaining({
+				providerId: "lmstudio",
+				modelId: "local-model",
+				apiKey: "new-key",
+				baseUrl: undefined,
+			}),
+		});
+	});
+
 	it("inherits the parent distinctId and sessionId for telemetry grouping", () => {
 		const configProvider = createDelegatedAgentConfigProvider({
 			providerId: "anthropic",

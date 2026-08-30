@@ -126,6 +126,54 @@ Design rules:
 6. `@cline/agents` runs the loop using `@cline/llms` handlers.
 7. `@cline/core` persists state, artifacts, and metadata.
 
+#### Mid-Run Connection Refresh
+
+Provider-field edits have two coordinated paths in the VS Code host:
+
+1. The normal idle-session rebuild remains authoritative for the complete
+   session configuration, including system-prompt and model metadata that
+   cannot be changed in place.
+2. While a turn is running, the host retains the latest connection-scoped
+   edit and uses a host-local root-runtime callback to apply it before request
+   preparation and recheck it immediately before the provider stream opens.
+   The second check rebases request options when an edit lands during slow
+   preparation or hooks. This includes provider-backed compaction and requests
+   that follow auto-approved tools, not only tools suspended for approval or
+   `ask_question`. Clearing a custom base URL carries an explicit reset marker,
+   so core rebuilds the provider config with its configured default instead of
+   treating an empty URL as that default. Delegated runtimes do not inherit the
+   root callback; shared versioned defaults and session-owned pre-request
+   boundaries refresh already-running subagents, while teammate updates queue
+   the same safe refresh on their existing `SessionRuntime`.
+   The callback is split into host-local bootstrap config; hub and remote
+   runtime hosts reject it instead of silently dropping a function at the JSON
+   transport boundary.
+3. The update travels through `ClineCore` and `LocalRuntimeHost` to
+   `SessionRuntime`. Connection and reasoning edits can replace the active
+   agent model without replacing conversation or tool state, but a changed
+   `providerId` or `modelId` is retained for the next fully rebuilt turn. The
+   active turn keeps its original tools, completion policy, system prompt,
+   tool metadata, `prepareTurn` model context, and result metadata. Host and
+   persisted state can record a deferred selection immediately; the dedicated
+   suspended-connection path updates its host projection only after the agent
+   accepts the in-place replacement.
+4. `AgentRuntime` owns the final safety boundary. Replacement is valid while
+   an interactive tool is suspended between requests or synchronously inside
+   the root pre-request callback; it is rejected during request preparation,
+   while a provider request is streaming, or when no run is active.
+5. Any idle full-session replacement temporarily removes the active-session
+   reference, whether it uses the explicit replacement helper or a direct
+   `startNewSession` path for a new task, history resume, or edit/regenerate.
+   The shared VS Code lifecycle brackets every such gap so the provider
+   coordinator can retain edits, rebind them to a matching installed
+   replacement, and schedule another rebuild while keeping the pre-request hot
+   update available. A stale `startInput` therefore cannot silently discard a
+   newer API key or base URL.
+
+These invariants keep runtime safety owned by `agents`, stateful connection
+projection owned by `core`, and provider-watcher/rebuild coordination owned by
+the host.
+
 Completion telemetry is anchored to the assistant's explicit completion
 declaration, not session shutdown. After each agent turn, the local
 runtime inspects `AgentResult.toolCalls` and emits `task.completed` the

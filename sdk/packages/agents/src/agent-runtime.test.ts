@@ -1213,6 +1213,207 @@ describe("AgentRuntime", () => {
 		});
 	});
 
+	it("uses a replacement model for the request after a suspended approval resolves", async () => {
+		let resolveApproval: (result: { approved: boolean }) => void = () => {};
+		const requestToolApproval = vi.fn(
+			() =>
+				new Promise<{ approved: boolean }>((resolve) => {
+					resolveApproval = resolve;
+				}),
+		);
+		const oldModel = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "call_approval",
+					toolName: "echo",
+					inputText: '{"text":"hi"}',
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+		]);
+		const newModel = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "continued with new credentials" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({
+			model: oldModel,
+			tools: [createEchoTool()],
+			toolPolicies: { "*": { autoApprove: false } },
+			requestToolApproval,
+		});
+
+		const runPromise = runtime.run("Start");
+		await vi.waitFor(() => expect(requestToolApproval).toHaveBeenCalledOnce());
+
+		runtime.replaceModelBetweenRequests(newModel, {
+			messageModelInfo: { provider: "lmstudio", id: "new-model" },
+		});
+		resolveApproval({ approved: true });
+
+		const result = await runPromise;
+		expect(oldModel.requests).toHaveLength(1);
+		expect(newModel.requests).toHaveLength(1);
+		expect(result.outputText).toBe("continued with new credentials");
+		expect(result.messages.at(-1)?.modelInfo).toEqual({
+			provider: "lmstudio",
+			id: "new-model",
+		});
+	});
+
+	it("refreshes the model before preparation and later hooks after an automatic tool", async () => {
+		const oldModel = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "call_auto",
+					toolName: "echo",
+					inputText: '{"text":"hi"}',
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+		]);
+		const newModel = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "continued with refreshed credentials" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		let runtime: AgentRuntime;
+		let requestNumber = 0;
+		const callOrder: string[] = [];
+		const beforeModelRequest = vi.fn(() => {
+			requestNumber += 1;
+			callOrder.push(`refresh-${requestNumber}`);
+			if (requestNumber === 3) {
+				runtime.replaceModelBetweenRequests(newModel, {
+					modelOptions: { thinking: true, reasoningEffort: "high" },
+					messageModelInfo: { provider: "lmstudio", id: "new-model" },
+				});
+			}
+		});
+		const prepareTurn = vi.fn(({ iteration, model }) => {
+			callOrder.push(`prepare-${iteration}`);
+			if (iteration === 2) {
+				expect(model).toEqual({
+					id: "new-model",
+					provider: "lmstudio",
+				});
+			}
+		});
+		const beforeModel = vi.fn(({ snapshot, request }) => {
+			callOrder.push(`hook-${snapshot.iteration}`);
+			if (snapshot.iteration === 2) {
+				expect(request.options).toMatchObject({
+					thinking: true,
+					reasoningEffort: "high",
+				});
+				return { options: { metadata: { hookValue: "kept" } } };
+			}
+		});
+		runtime = new AgentRuntime({
+			model: oldModel,
+			modelOptions: { thinking: false, reasoningEffort: "low" },
+			tools: [createEchoTool()],
+			beforeModelRequest,
+			prepareTurn,
+			hooks: { beforeModel },
+		});
+
+		const result = await runtime.run("Start");
+
+		expect(beforeModelRequest).toHaveBeenCalledTimes(4);
+		expect(prepareTurn).toHaveBeenCalledTimes(2);
+		expect(beforeModel).toHaveBeenCalledTimes(2);
+		expect(callOrder).toEqual([
+			"refresh-1",
+			"prepare-1",
+			"hook-1",
+			"refresh-2",
+			"refresh-3",
+			"prepare-2",
+			"hook-2",
+			"refresh-4",
+		]);
+		expect(oldModel.requests).toHaveLength(1);
+		expect(newModel.requests).toHaveLength(1);
+		expect(newModel.requests[0]?.options).toMatchObject({
+			thinking: true,
+			reasoningEffort: "high",
+			metadata: { hookValue: "kept", iteration: 2 },
+		});
+		expect(result.outputText).toBe("continued with refreshed credentials");
+	});
+
+	it("rebases the request when the connection changes during preparation", async () => {
+		const oldModel = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "call_auto",
+					toolName: "echo",
+					inputText: '{"text":"hi"}',
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+		]);
+		const newModel = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "used the edit from preparation" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		let runtime: AgentRuntime;
+		let refreshPending = false;
+		const beforeModelRequest = vi.fn(() => {
+			if (!refreshPending) return;
+			refreshPending = false;
+			runtime.replaceModelBetweenRequests(newModel, {
+				modelOptions: { thinking: true, reasoningEffort: "high" },
+				messageModelInfo: { provider: "lmstudio", id: "new-model" },
+			});
+		});
+		const prepareTurn = vi.fn(({ iteration }) => {
+			if (iteration === 2) refreshPending = true;
+		});
+		const beforeModel = vi.fn(({ snapshot }) =>
+			snapshot.iteration === 2
+				? { options: { metadata: { hookValue: "kept" } } }
+				: undefined,
+		);
+		runtime = new AgentRuntime({
+			model: oldModel,
+			modelOptions: { thinking: false, reasoningEffort: "low" },
+			tools: [createEchoTool()],
+			beforeModelRequest,
+			prepareTurn,
+			hooks: { beforeModel },
+		});
+
+		const result = await runtime.run("Start");
+
+		expect(beforeModelRequest).toHaveBeenCalledTimes(4);
+		expect(oldModel.requests).toHaveLength(1);
+		expect(newModel.requests).toHaveLength(1);
+		expect(newModel.requests[0]?.options).toMatchObject({
+			thinking: true,
+			reasoningEffort: "high",
+			metadata: { hookValue: "kept", iteration: 2 },
+		});
+		expect(result.outputText).toBe("used the edit from preparation");
+	});
+
+	it("rejects model replacement outside the verified between-request boundary", () => {
+		const model = new ScriptedModel([]);
+		const runtime = new AgentRuntime({ model });
+
+		expect(() => runtime.replaceModelBetweenRequests(model)).toThrow(
+			"only allowed at a verified boundary between model requests",
+		);
+	});
+
 	it("applies beforeTool approval policy overrides before executing tools", async () => {
 		const executeTool = vi.fn(async () => ({ echoed: "hi" }));
 		const requestToolApproval = vi.fn(async () => ({

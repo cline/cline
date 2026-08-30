@@ -51,6 +51,7 @@ export interface SdkInteractionCoordinatorOptions {
 
 export class SdkInteractionCoordinator {
 	private pendingAskResolve: ((answer: string) => void) | undefined
+	private pendingAskMessageTs: number | undefined
 	private pendingToolApprovalResolve: ((result: { approved: boolean; reason?: string }) => void) | undefined
 	private pendingToolApprovalMessage:
 		| {
@@ -61,6 +62,34 @@ export class SdkInteractionCoordinator {
 		| undefined
 
 	constructor(private readonly options: SdkInteractionCoordinatorOptions) {}
+
+	/**
+	 * Returns the suspended SDK interaction that this response would resume.
+	 * A message typed while a tool approval is open is a queued follow-up, not
+	 * an approval decision, so it deliberately falls through to normal routing.
+	 */
+	getPendingInteractionToResolve(responseType: ClineAskResponse | undefined): "toolApproval" | "askQuestion" | undefined {
+		if (this.pendingToolApprovalResolve && responseType !== "messageResponse") {
+			return "toolApproval"
+		}
+		if (this.pendingAskResolve) {
+			return "askQuestion"
+		}
+		return undefined
+	}
+
+	/** Reassert the authoritative phase and anchor for a still-pending ask. */
+	restorePendingInteractionTurnPhase(): "toolApproval" | "askQuestion" | undefined {
+		if (this.pendingToolApprovalResolve) {
+			this.options.setTurnPhase?.("awaiting_approval", this.pendingToolApprovalMessage?.messageTs)
+			return "toolApproval"
+		}
+		if (this.pendingAskResolve) {
+			this.options.setTurnPhase?.("awaiting_followup", this.pendingAskMessageTs)
+			return "askQuestion"
+		}
+		return undefined
+	}
 
 	/**
 	 * CLI-parity mistake-limit handling: show an error row and stop the run
@@ -152,6 +181,7 @@ export class SdkInteractionCoordinator {
 
 		return new Promise<string>((resolve) => {
 			this.pendingAskResolve = resolve
+			this.pendingAskMessageTs = askMessage.ts
 		})
 	}
 
@@ -222,6 +252,7 @@ export class SdkInteractionCoordinator {
 
 		const resolve = this.pendingAskResolve
 		this.pendingAskResolve = undefined
+		this.pendingAskMessageTs = undefined
 		const responseText = prompt ?? ""
 		Logger.log(`[SdkController] Resolving pending ask_question with: "${responseText.substring(0, 80)}"`)
 
@@ -248,6 +279,7 @@ export class SdkInteractionCoordinator {
 	clearPending(reason: string): void {
 		const resolveAsk = this.pendingAskResolve
 		this.pendingAskResolve = undefined
+		this.pendingAskMessageTs = undefined
 		// ask_question is awaiting this promise inside the outgoing agent run. Settle it
 		// before session teardown so the run can unwind instead of remaining suspended;
 		// use an empty answer so the lifecycle reason is not presented as user input.

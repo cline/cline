@@ -198,6 +198,14 @@ describe("LocalRuntimeHost", () => {
 		rmSync(isolatedHomeDir, { recursive: true, force: true });
 	});
 
+	it("keeps the pre-request callback in host-local session config", () => {
+		const beforeModelRequest = vi.fn();
+		const split = splitCoreSessionConfig(createConfig({ beforeModelRequest }));
+
+		expect(split.config).not.toHaveProperty("beforeModelRequest");
+		expect(split.localRuntime?.beforeModelRequest).toBe(beforeModelRequest);
+	});
+
 	it("recovers stale detached command logs for non-daemon hosts", async () => {
 		const detachedLogDirectory = mkdtempSync(
 			join(tmpdir(), "cline-command-local-host-recovery-"),
@@ -621,6 +629,173 @@ describe("LocalRuntimeHost", () => {
 		sessionService.writeSessionManifest.mockClear();
 		await manager.updateSessionConnection(sessionId, { thinking: true });
 		expect(sessionService.writeSessionManifest).not.toHaveBeenCalled();
+	});
+
+	it("updates a suspended connection without persistence and leaves host state unchanged on boundary rejection", async () => {
+		const sessionId = "sess-suspended-connection-update";
+		const manifest = createManifest(sessionId);
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest.json",
+				messagesPath: "/tmp/messages.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const updateTeammateConnections = vi.fn();
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({
+				tools: [],
+				teamRuntime: {
+					getTeamId: () => "team-1",
+					getTeamName: () => "test-team",
+					updateTeammateConnections,
+				},
+				shutdown: vi.fn(),
+			}),
+		};
+		const agent = {
+			run: vi.fn().mockResolvedValue(createResult()),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			getMessages: vi.fn().mockReturnValue([]),
+			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			updateConnection: vi.fn(),
+			updateSuspendedConnection: vi.fn(),
+			canStartRun: vi.fn().mockReturnValue(true),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		};
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent: vi.fn(() => agent as never),
+			providerSettingsManager: {
+				getProviderSettings: vi.fn().mockReturnValue({
+					provider: "mock-provider",
+					baseUrl: "http://provider-default",
+				}),
+			} as never,
+		});
+
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({
+					sessionId,
+					apiKey: "old-key",
+					headers: { "x-proxy-auth": "proxy-token" },
+				}),
+				prompt: "hello",
+				interactive: true,
+			}),
+		);
+		sessionService.writeSessionManifest.mockClear();
+
+		await manager.updateSuspendedSessionConnection(sessionId, {
+			apiKey: "new-key",
+			baseUrl: "http://new-endpoint",
+			providerConfig: {
+				providerId: "mock-provider",
+				modelId: "mock-model",
+				apiKey: "new-key",
+				baseUrl: "http://new-endpoint",
+			},
+		});
+
+		const getSessionOrThrow = Reflect.get(
+			manager as object,
+			"getSessionOrThrow",
+		) as (sessionId: string) => { config: CoreSessionConfig };
+		const session = Reflect.apply(getSessionOrThrow, manager, [sessionId]) as {
+			config: CoreSessionConfig;
+		};
+		expect(agent.updateSuspendedConnection).toHaveBeenCalledWith(
+			expect.objectContaining({
+				apiKey: "new-key",
+				baseUrl: "http://new-endpoint",
+				providerConfig: expect.objectContaining({
+					providerId: "mock-provider",
+					apiKey: "new-key",
+					baseUrl: "http://new-endpoint",
+					headers: expect.objectContaining({
+						"x-proxy-auth": "proxy-token",
+					}),
+				}),
+			}),
+		);
+		expect(session.config.apiKey).toBe("new-key");
+		expect(session.config.baseUrl).toBe("http://new-endpoint");
+		expect(session.config.providerConfig?.headers).toEqual(
+			expect.objectContaining({ "x-proxy-auth": "proxy-token" }),
+		);
+		expect(sessionService.writeSessionManifest).not.toHaveBeenCalled();
+
+		await manager.updateSuspendedSessionConnection(sessionId, {
+			apiKey: "",
+			baseUrl: null,
+			headers: {},
+		});
+		expect(agent.updateSuspendedConnection).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				apiKey: "",
+				baseUrl: null,
+				headers: {},
+				providerConfig: expect.objectContaining({
+					baseUrl: "http://provider-default",
+					headers: {},
+				}),
+			}),
+		);
+		expect(session.config.providerConfig).toEqual(
+			expect.objectContaining({
+				baseUrl: "http://provider-default",
+				headers: {},
+			}),
+		);
+		expect(session.config.baseUrl).toBeUndefined();
+		expect(session.config.providerConfig?.apiKey).not.toBe("new-key");
+		expect(updateTeammateConnections).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				baseUrl: undefined,
+				providerConfig: expect.objectContaining({
+					baseUrl: "http://provider-default",
+				}),
+			}),
+		);
+
+		agent.updateSuspendedConnection.mockImplementationOnce(() => {
+			throw new Error("not suspended");
+		});
+		await expect(
+			manager.updateSuspendedSessionConnection(sessionId, {
+				apiKey: "rejected-key",
+				baseUrl: "http://rejected-endpoint",
+			}),
+		).rejects.toThrow("not suspended");
+
+		expect(session.config.apiKey).toBe("");
+		expect(session.config.baseUrl).toBeUndefined();
+		expect(sessionService.writeSessionManifest).not.toHaveBeenCalled();
+	});
+
+	it("rejects provider switches through the suspended connection path", async () => {
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: {} as never,
+		});
+
+		await expect(
+			manager.updateSuspendedSessionConnection("unused", {
+				providerId: "deepseek",
+			}),
+		).rejects.toThrow("cannot change provider or model");
 	});
 
 	it("persists thinking budget token connection updates", async () => {

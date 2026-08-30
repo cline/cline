@@ -803,6 +803,12 @@ export interface AgentConfig {
 	 */
 	hooks?: AgentHooks;
 	/**
+	 * Host-owned callback invoked by the root runtime before request preparation.
+	 * It is intentionally not inherited by delegated agents because it may route
+	 * updates through a host session handle owned by the root runtime.
+	 */
+	beforeModelRequest?: () => void | Promise<void>;
+	/**
 	 * Optional parent agent ID for spawned/delegated runs.
 	 * Root agents should leave this undefined.
 	 */

@@ -863,6 +863,11 @@ export class HubRuntimeHost implements RuntimeHost {
 	}
 
 	async startSession(input: StartSessionInput): Promise<StartSessionResult> {
+		if (input.localRuntime?.beforeModelRequest) {
+			throw new Error(
+				"beforeModelRequest is only supported by the local runtime host",
+			);
+		}
 		const capabilities = this.resolveCapabilities(input);
 		const clientContributions = buildClientContributionRegistration(
 			input.localRuntime,
@@ -960,6 +965,11 @@ export class HubRuntimeHost implements RuntimeHost {
 		const sessionId = input.sessionId.trim();
 		if (!sessionId) {
 			throw new Error("sessionId is required");
+		}
+		if (input.start?.localRuntime?.beforeModelRequest) {
+			throw new Error(
+				"beforeModelRequest is only supported by the local runtime host",
+			);
 		}
 		const restoreMessages = input.restore?.messages !== false;
 		if (restoreMessages && !input.start) {
