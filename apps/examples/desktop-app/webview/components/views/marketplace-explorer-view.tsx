@@ -43,7 +43,6 @@ type TypeMeta = {
 	label: string;
 	plural: string;
 	icon: typeof Server;
-	maturity: string;
 };
 
 const TYPE_META: Record<MarketplacePrimitiveType, TypeMeta> = {
@@ -51,19 +50,16 @@ const TYPE_META: Record<MarketplacePrimitiveType, TypeMeta> = {
 		label: "Skill",
 		plural: "Skills",
 		icon: Zap,
-		maturity: "Most mature",
 	},
 	mcp: {
 		label: "MCP Server",
 		plural: "MCP",
 		icon: Server,
-		maturity: "Maturing",
 	},
 	plugin: {
 		label: "Plugin",
 		plural: "Plugins",
 		icon: Puzzle,
-		maturity: "Early",
 	},
 };
 
@@ -519,18 +515,6 @@ function DetailPane({
 					) : null}
 				</section>
 
-				<section className="grid gap-2">
-					<h2 className="text-sm font-semibold text-foreground">
-						Install via CLI
-					</h2>
-					<pre
-						className="overflow-x-auto rounded-lg border bg-muted/40 p-3 text-xs text-foreground"
-						style={CODE_FONT_STYLE}
-					>
-						{entry.install.command}
-					</pre>
-				</section>
-
 				{requiredEnv.length > 0 || optionalEnv.length > 0 ? (
 					<section className="grid gap-2">
 						<h2 className="text-sm font-semibold text-foreground">
@@ -799,9 +783,6 @@ export function MarketplaceExplorerView() {
 										<span className="text-xs text-muted-foreground/70">
 											{group.entries.length}
 										</span>
-										<Badge className="ml-auto border border-emerald-500/20 bg-emerald-500/10 text-[10px] text-emerald-700 dark:text-emerald-300">
-											{meta.maturity}
-										</Badge>
 									</div>
 									{group.entries.map((entry) => {
 										const key = entryKey(entry);
