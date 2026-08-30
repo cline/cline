@@ -678,6 +678,97 @@ const PUBLIC_MODELS_IN_FLIGHT = new Map<
 	Promise<Record<string, ModelInfo>>
 >();
 
+interface LmStudioNativeModelResponse {
+	id?: string;
+	type?: string;
+	capabilities?: unknown;
+	max_context_length?: number;
+	loaded_context_length?: number;
+}
+
+/** Map the OpenAI-compat `/v1/models` source URL to LM Studio's native REST listing. */
+function deriveLmStudioNativeModelsUrl(sourceUrl: string): string {
+	const url = new URL(sourceUrl);
+	const suffix = "/v1/models";
+	url.pathname = url.pathname.endsWith(suffix)
+		? `${url.pathname.slice(0, -suffix.length)}/api/v0/models`
+		: "/api/v0/models";
+	url.search = "";
+	url.hash = "";
+	return url.toString();
+}
+
+/**
+ * LM Studio's OpenAI-compat `/v1/models` reports only model ids, so models
+ * discovered from it were stamped text-only and user images were replaced
+ * with an "unsupported" placeholder even for vision-capable models. The
+ * native REST endpoint additionally reports modality (`type: "vlm"`, newer
+ * builds a `capabilities` list) and context length, so prefer it.
+ */
+async function fetchLmStudioPublicModels(
+	sourceUrl: string,
+): Promise<Record<string, ModelInfo>> {
+	const response = await fetchWithTimeout(
+		deriveLmStudioNativeModelsUrl(sourceUrl),
+		{ method: "GET" },
+	);
+	if (!response.ok) {
+		throw new Error(
+			`LM Studio native model listing failed: HTTP ${response.status}`,
+		);
+	}
+
+	const payload = (await response.json()) as {
+		data?: LmStudioNativeModelResponse[];
+	};
+	const entries = Array.isArray(payload?.data) ? payload.data : [];
+	const models: Record<string, ModelInfo> = {};
+	for (const model of entries) {
+		const id = model.id?.trim();
+		if (!id) {
+			continue;
+		}
+		const capabilities = Array.isArray(model.capabilities)
+			? model.capabilities.filter(
+					(value): value is string => typeof value === "string",
+				)
+			: [];
+		const contextWindow = [
+			model.loaded_context_length,
+			model.max_context_length,
+		].find((value) => typeof value === "number" && value > 0);
+		models[id] = buildModelFromPrivateSource(id, {
+			name: id,
+			contextWindow,
+			maxInputTokens: contextWindow,
+			supportsImages: model.type === "vlm" || capabilities.includes("vision"),
+		});
+	}
+	return models;
+}
+
+async function fetchPublicModelsFromSource(
+	providerId: string,
+	sourceUrl: string,
+): Promise<Record<string, ModelInfo>> {
+	if (providerId === "lmstudio") {
+		try {
+			const models = await fetchLmStudioPublicModels(sourceUrl);
+			if (Object.keys(models).length > 0) {
+				return models;
+			}
+		} catch {
+			// Older LM Studio builds (or proxies) without the native REST API:
+			// fall back to the OpenAI-compat id list below.
+		}
+	}
+
+	const modelIds = await fetchModelIdsFromSource(sourceUrl, providerId);
+	return Object.fromEntries(
+		modelIds.map((id) => [id, buildModelFromPrivateSource(id, { name: id })]),
+	);
+}
+
 function resolvePublicCacheKey(
 	providerId: string,
 	config: ProviderConfig,
@@ -714,14 +805,8 @@ async function getPublicProviderModels(
 		return inFlight;
 	}
 
-	const request = fetchModelIdsFromSource(sourceUrl, providerId)
-		.then((modelIds) => {
-			const data = Object.fromEntries(
-				modelIds.map((id) => [
-					id,
-					buildModelFromPrivateSource(id, { name: id }),
-				]),
-			);
+	const request = fetchPublicModelsFromSource(providerId, sourceUrl)
+		.then((data) => {
 			PUBLIC_MODELS_CACHE.set(cacheKey, {
 				data,
 				expiresAt: now + cacheTtlMs,

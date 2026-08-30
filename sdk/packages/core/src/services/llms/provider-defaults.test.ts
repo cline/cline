@@ -527,6 +527,100 @@ describe("resolveProviderConfig", () => {
 		expect(Object.keys(resolved?.knownModels ?? {})).toEqual(["local-llama"]);
 	});
 
+	it("detects vision-capable LM Studio models from the native REST API", async () => {
+		const fetchMock = vi.fn(async (input: string | URL | Request) => {
+			expect(String(input)).toBe("http://lmstudio-host:1234/api/v0/models");
+			return new Response(
+				JSON.stringify({
+					object: "list",
+					data: [
+						{
+							id: "qwen/qwen3-vl-8b",
+							object: "model",
+							type: "vlm",
+							state: "loaded",
+							max_context_length: 32_768,
+						},
+						{
+							id: "qwen/qwen3-27b",
+							object: "model",
+							type: "llm",
+							state: "not-loaded",
+							capabilities: ["tool_use", "vision"],
+							max_context_length: 262_144,
+						},
+						{
+							id: "meta-llama-3.1-8b-instruct",
+							object: "model",
+							type: "llm",
+							state: "not-loaded",
+							capabilities: ["tool_use"],
+							max_context_length: 131_072,
+						},
+					],
+				}),
+				{ status: 200, headers: { "content-type": "application/json" } },
+			);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const resolved = await resolveProviderConfig(
+			"lmstudio",
+			{ failOnError: false, cacheTtlMs: 0 },
+			{
+				providerId: "lmstudio",
+				modelId: "",
+				baseUrl: "http://lmstudio-host:1234/v1",
+			},
+		);
+
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		expect(resolved?.knownModels?.["qwen/qwen3-vl-8b"]).toMatchObject({
+			contextWindow: 32_768,
+			maxInputTokens: 32_768,
+		});
+		expect(resolved?.knownModels?.["qwen/qwen3-vl-8b"]?.capabilities).toContain(
+			"images",
+		);
+		expect(resolved?.knownModels?.["qwen/qwen3-27b"]?.capabilities).toContain(
+			"images",
+		);
+		expect(
+			resolved?.knownModels?.["meta-llama-3.1-8b-instruct"]?.capabilities,
+		).not.toContain("images");
+	});
+
+	it("falls back to the OpenAI-compat LM Studio model list when the native API is unavailable", async () => {
+		const fetchMock = vi.fn(async (input: string | URL | Request) => {
+			if (String(input) === "http://lmstudio-legacy:1234/api/v0/models") {
+				return new Response("not found", { status: 404 });
+			}
+			expect(String(input)).toBe("http://lmstudio-legacy:1234/v1/models");
+			return new Response(
+				JSON.stringify({ data: [{ id: "some-local-model" }] }),
+				{ status: 200, headers: { "content-type": "application/json" } },
+			);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const resolved = await resolveProviderConfig(
+			"lmstudio",
+			{ failOnError: false, cacheTtlMs: 0 },
+			{
+				providerId: "lmstudio",
+				modelId: "",
+				baseUrl: "http://lmstudio-legacy:1234/v1",
+			},
+		);
+
+		expect(Object.keys(resolved?.knownModels ?? {})).toEqual([
+			"some-local-model",
+		]);
+		expect(
+			resolved?.knownModels?.["some-local-model"]?.capabilities,
+		).not.toContain("images");
+	});
+
 	it("loads Poolside models from the authenticated models endpoint", async () => {
 		const fetchMock = vi.fn(async () => {
 			return new Response(
