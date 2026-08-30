@@ -1,5 +1,6 @@
 export { CLINE_DEFAULT_MODEL_ID } from "@cline/shared";
 export type {
+	GetModelsForProviderOptions,
 	ModelCollection,
 	ModelIdAliasRule,
 	ModelInfo,
@@ -7,16 +8,19 @@ export type {
 	ProviderCapability as CatalogProviderCapability,
 	ProviderClient,
 	ProviderInfo,
+	ProviderModelFilter,
 	ProviderProtocol,
 } from "./models";
 export {
 	CODEX_EFFECTIVE_CONTEXT_WINDOW_PERCENT,
 	fetchLiveProviderModels,
 	fetchModelsDevProviderModels,
+	filterImageOutputModels,
 	filterOpenAICodexModels,
 	getAllProviders,
 	getGeneratedModelsForProvider,
 	getGeneratedProviderModels,
+	getModelOverridesForProvider,
 	getModelsForProvider,
 	getProvider,
 	getProviderCollection,
@@ -110,6 +114,7 @@ export {
 export {
 	type ModelToolSupportInput,
 	providerManifestSupportsModelTool,
+	providerOffersModelTool,
 	supportsModelTool,
 } from "./providers/model-tools";
 export { resolveProviderModelCatalogKeys } from "./providers/provider-keys";

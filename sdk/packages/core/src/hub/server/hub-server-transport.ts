@@ -1,20 +1,35 @@
+import { resolve } from "node:path";
 import type {
+	AgendaTaskRecord,
+	AgendaTaskRunRecord,
+	AgentExtension,
+	AgentTool,
 	HubClientRecord,
 	HubCommandEnvelope,
 	HubEventEnvelope,
 	HubReplyEnvelope,
 	ToolApprovalRequest,
 } from "@cline/shared";
-import { captureSdkError, createSessionId } from "@cline/shared";
+import {
+	CLINE_DEFAULT_MODEL_ID,
+	captureSdkError,
+	createSessionId,
+	HUB_CLIENT_TOOL_APPROVAL_CAPABILITY,
+} from "@cline/shared";
+import { isChatWorkspacePath } from "@cline/shared/storage";
 import { CronService } from "../../cron/service/cron-service";
 import { HubScheduleCommandService } from "../../cron/service/schedule-command-service";
 import { HubScheduleService } from "../../cron/service/schedule-service";
 import { LocalRuntimeHost } from "../../runtime/host/local-runtime-host";
 import type {
+	CommandExecutionRuntimeService,
 	PendingPromptsRuntimeService,
 	RuntimeHost,
 } from "../../runtime/host/runtime-host";
 import { SqliteSessionStore } from "../../services/storage/sqlite-session-store";
+import { ensureAgentSchedulesWorkspace } from "../../services/workspace/agent-schedules-workspace";
+import { withSessionHistoryOriginMetadata } from "../../session/history-origin";
+import { SessionHistorySearchService } from "../../session/search";
 import { CoreSessionService } from "../../session/services/session-service";
 import {
 	type CoreSettingsListInput,
@@ -22,9 +37,18 @@ import {
 	type CoreSettingsToggleInput,
 	type CoreSettingsType,
 } from "../../settings";
+import {
+	AgendaTaskManager,
+	type AgendaTaskRuntimeResult,
+	createTasksPromptExtension,
+	createTasksTool,
+} from "../../tasks";
+import { SessionSource } from "../../types/common";
 import type { CoreSessionEvent } from "../../types/events";
+import type { HubConnectionAuthority } from "./command-transport";
 import {
 	handleApprovalRespond,
+	pendingApprovalEvents,
 	requestToolApproval as requestToolApprovalHandler,
 	resolvePendingApproval,
 } from "./handlers/approval-handlers";
@@ -51,9 +75,17 @@ import {
 } from "./handlers/context";
 import {
 	handleRunAbort,
+	handleRunProceedWhileRunning,
 	handleSessionHook,
 	handleSessionInput,
 } from "./handlers/run-handlers";
+import {
+	drainingReply,
+	HubRunExecutor,
+	handleRunEnqueue,
+	handleRunList,
+	isDrainRefusedCommand,
+} from "./handlers/run-queue-handlers";
 import { projectSessionEvent } from "./handlers/session-event-projector";
 import {
 	handleSessionAttach,
@@ -68,15 +100,37 @@ import {
 	handleSessionPendingPrompts,
 	handleSessionRemovePendingPrompt,
 	handleSessionRestore,
+	handleSessionSearch,
 	handleSessionUpdate,
 	handleSessionUpdateConnection,
 	handleSessionUpdatePendingPrompt,
 } from "./handlers/session-handlers";
+import { HubEventLogStore } from "./hub-event-log";
+import { HubRunQueue } from "./hub-run-queue";
 import { eventNameForScheduleCommand } from "./hub-schedule-events";
-import { logHubBoundaryError } from "./hub-server-logging";
+import { logHubBoundaryError, logHubMessage } from "./hub-server-logging";
 import type { HubWebSocketServerOptions } from "./hub-server-options";
 import type { HubSessionState } from "./hub-session-records";
 import type { NativeHubTransport } from "./native-transport";
+import {
+	HubAgendaTaskCommandService,
+	isAgendaTaskCommand,
+} from "./task-command-service";
+
+/**
+ * The agent-facing `kind: "todo"` half of the `tasks` tool and the Agenda
+ * automation pump are temporarily disabled while the Agenda UX is reworked;
+ * the desktop Agenda UI is hidden for the same reason. Automation must stay
+ * off with the UI hidden: a previously persisted `auto_start`/`unattended`
+ * policy would otherwise keep starting eligible tasks with no surface left to
+ * inspect, pause, or cancel them. The agenda spec-file watchers stay off for
+ * the same reason: with the tool, UI, and automation all idle, nothing
+ * consumes watcher-driven task events, and the `task.*` commands reconcile
+ * spec files on demand anyway. The Agenda backend (manager, `task.*` Hub
+ * commands, storage, persisted policies) stays fully wired so flipping this
+ * back on restores the feature.
+ */
+const AGENDA_TODO_TOOL_ENABLED = false;
 
 const SETTINGS_TYPES = new Set<CoreSettingsType>([
 	"skills",
@@ -178,12 +232,24 @@ export class HubServerTransport implements NativeHubTransport {
 	private readonly activeRpcTurnCountBySession = new Map<string, number>();
 	private readonly schedules: HubScheduleService;
 	private readonly scheduleCommands: HubScheduleCommandService;
+	private readonly tasks: AgendaTaskManager;
+	private readonly taskCommands: HubAgendaTaskCommandService;
+	private readonly sessionTools: AgentTool[] = [];
+	private readonly sessionExtensions: AgentExtension[] = [];
 	private readonly settings: CoreSettingsService;
+	private readonly sessionSearch: SessionHistorySearchService;
 	private readonly cronService?: CronService;
 	private readonly sessionHost: RuntimeHost &
-		Partial<PendingPromptsRuntimeService>;
+		Partial<PendingPromptsRuntimeService & CommandExecutionRuntimeService>;
 	private readonly hubId = createSessionId("hub_");
 	private readonly ctx: HubTransportContext;
+	/** Durable event log; created on start(), absent in never-started tests. */
+	private eventLog?: HubEventLogStore;
+	private eventLogPruneTimer?: ReturnType<typeof setInterval>;
+	/** Durable run queue + serial per-session executor (run.enqueue). */
+	private runQueue?: HubRunQueue;
+	private runExecutor?: HubRunExecutor;
+	private draining = false;
 
 	constructor(readonly options: HubWebSocketServerOptions) {
 		this.sessionHost =
@@ -194,7 +260,22 @@ export class HubServerTransport implements NativeHubTransport {
 				logger: options.logger,
 				telemetry: options.telemetry,
 			});
+		this.sessionSearch = new SessionHistorySearchService(
+			this.sessionHost,
+			options.sessionSearchOptions ??
+				(process.env.NODE_ENV === "test" ? { dbPath: ":memory:" } : {}),
+		);
+		const sessionSearchInitializationError =
+			this.sessionSearch.getInitializationError();
+		if (sessionSearchInitializationError !== undefined) {
+			logHubBoundaryError(
+				"session search is unavailable",
+				sessionSearchInitializationError,
+			);
+		}
 		this.ctx = {
+			isDraining: () => this.draining,
+			sessionSearch: this.sessionSearch,
 			clients: this.clients,
 			sessionState: this.sessionState,
 			pendingApprovals: this.pendingApprovals,
@@ -203,6 +284,8 @@ export class HubServerTransport implements NativeHubTransport {
 				this.suppressNextTerminalEventBySession,
 			activeRpcTurnCountBySession: this.activeRpcTurnCountBySession,
 			telemetry: options.telemetry,
+			sessionTools: this.sessionTools,
+			sessionExtensions: this.sessionExtensions,
 			sessionHost: this.sessionHost,
 			publish: (event) => this.publish(event),
 			buildEvent: buildHubEvent,
@@ -222,6 +305,38 @@ export class HubServerTransport implements NativeHubTransport {
 					onProgress,
 				),
 		};
+		this.tasks = new AgendaTaskManager({
+			...options.taskOptions,
+			automationEnabled: AGENDA_TODO_TOOL_ENABLED,
+			watchFiles:
+				AGENDA_TODO_TOOL_ENABLED && options.taskOptions?.watchFiles !== false,
+			runtime: {
+				isInteractiveClientAvailable: () =>
+					[...this.clients.values()].some((client) =>
+						client.capabilities.some(
+							(capability) =>
+								capability.name === HUB_CLIENT_TOOL_APPROVAL_CAPABILITY,
+						),
+					),
+				startSession: (task, run, requestedByClientId, runtimeOptions) =>
+					this.startAgendaTaskSession(
+						task,
+						run,
+						requestedByClientId,
+						runtimeOptions?.unattended === true,
+					),
+				runSession: (sessionId, task, run) =>
+					this.runAgendaTaskSession(sessionId, task, run),
+				abortSession: async (sessionId, reason) => {
+					await this.sessionHost.abort(sessionId, reason);
+				},
+			},
+			logger: options.taskOptions?.logger ?? options.logger,
+			publish: (event, payload, sessionId) => {
+				this.publish(buildHubEvent(event, payload, sessionId));
+			},
+		});
+		this.taskCommands = new HubAgendaTaskCommandService(this.tasks);
 		this.schedules = new HubScheduleService({
 			...options.scheduleOptions,
 			runtimeHandlers: options.runtimeHandlers,
@@ -246,6 +361,65 @@ export class HubServerTransport implements NativeHubTransport {
 			},
 		});
 		this.scheduleCommands = new HubScheduleCommandService(this.schedules);
+		this.sessionTools.push(
+			createTasksTool({
+				todo: AGENDA_TODO_TOOL_ENABLED
+					? {
+							manager: this.tasks,
+							telemetry: options.telemetry,
+							resolveSessionDefaults: async (sessionId) => {
+								const session = await this.sessionHost.getSession(sessionId);
+								if (!session) return undefined;
+								const projectWorkspace = !isChatWorkspacePath(
+									session.workspaceRoot,
+								)
+									? session.workspaceRoot
+									: undefined;
+								return {
+									workspaceRoot: projectWorkspace,
+									cwd: projectWorkspace ? session.cwd : undefined,
+									modelSelection: {
+										providerId: session.provider,
+										modelId: session.model,
+									},
+									originTaskId:
+										typeof session.metadata?.agendaTaskId === "string"
+											? session.metadata.agendaTaskId
+											: undefined,
+								};
+							},
+						}
+					: undefined,
+				scheduled: {
+					schedules: this.schedules,
+					telemetry: options.telemetry,
+					publish: (event, payload, sessionId) => {
+						this.publish(buildHubEvent(event, payload, sessionId));
+					},
+					resolveSessionDefaults: async (sessionId) => {
+						const session = await this.sessionHost.getSession(sessionId);
+						if (!session) return undefined;
+						// Agent-created schedules are user-level routines: anchor
+						// them (and run their unattended sessions) in the stable
+						// ~/.cline/schedules home instead of whichever chat
+						// workspace created them, so they survive chat cleanup and
+						// every chat manages the same set. Prompts must carry
+						// absolute paths to any project they operate on.
+						return {
+							workspaceRoot: await ensureAgentSchedulesWorkspace(),
+							modelSelection: {
+								providerId: session.provider,
+								modelId: session.model,
+							},
+							interactive: session.interactive,
+						};
+					},
+				},
+			}) as AgentTool,
+		);
+		this.sessionExtensions.push(
+			createTasksPromptExtension({ todoEnabled: AGENDA_TODO_TOOL_ENABLED }),
+		);
 		this.settings = options.settingsService ?? new CoreSettingsService();
 		if (options.cronOptions) {
 			this.cronService = new CronService({
@@ -268,7 +442,158 @@ export class HubServerTransport implements NativeHubTransport {
 					},
 				});
 			});
+			if (event.type === "ended") {
+				void this.sessionSearch.refreshNow().catch((error) => {
+					logHubBoundaryError("session search indexing failed", error);
+				});
+			}
 		});
+	}
+
+	private async startAgendaTaskSession(
+		task: AgendaTaskRecord,
+		run: AgendaTaskRunRecord,
+		requestedByClientId?: string,
+		unattended = false,
+	): Promise<{ sessionId: string }> {
+		const originSession = task.originSessionId
+			? await this.sessionHost.getSession(task.originSessionId)
+			: undefined;
+		const inheritedAutoApproveTools =
+			originSession?.metadata?.autoApproveTools === true;
+		const autoApproveTools = unattended || inheritedAutoApproveTools;
+		const providerId = task.modelSelection?.providerId?.trim() || "cline";
+		const modelId =
+			task.modelSelection?.modelId?.trim() ||
+			(providerId === "cline" ? CLINE_DEFAULT_MODEL_ID : "");
+		const metadata = withSessionHistoryOriginMetadata(
+			{
+				title: task.title,
+				agendaTaskId: task.taskId,
+				agendaTaskRunId: run.runId,
+				agendaTaskAssignee: task.assignee,
+				interactive: !unattended,
+				source: SessionSource.CORE,
+			},
+			{ mode: "task", trigger: "agenda_task" },
+		);
+		const clientId = requestedByClientId?.trim() || "agenda-task-manager";
+		const reply = await handleSessionCreate(
+			this.ctx,
+			{
+				version: "v1",
+				command: "session.create",
+				requestId: createSessionId("task_session_"),
+				clientId,
+				payload: {
+					workspaceRoot: task.workspaceRoot,
+					cwd: task.cwd,
+					sessionConfig: {
+						providerId,
+						modelId,
+						systemPrompt: task.systemPrompt ?? "",
+						mode: task.mode ?? "act",
+						maxIterations: task.maxIterations,
+						enableTools: true,
+						enableSpawnAgent: true,
+						enableAgentTeams: true,
+					},
+					metadata,
+					runtimeOptions: {
+						mode: task.mode ?? "act",
+						maxIterations: task.maxIterations,
+						enableTools: true,
+						enableSpawn: true,
+						enableTeams: true,
+					},
+					toolPolicies: {
+						"*": { autoApprove: autoApproveTools, enabled: true },
+					},
+				},
+			},
+			(request) => requestToolApprovalHandler(this.ctx, request),
+		);
+		if (!reply.ok) {
+			throw new Error(reply.error?.message ?? "failed to create task session");
+		}
+		const session = reply.payload?.session as
+			| { sessionId?: unknown }
+			| undefined;
+		const snapshot = reply.payload?.snapshot as
+			| { sessionId?: unknown }
+			| undefined;
+		const sessionId =
+			typeof snapshot?.sessionId === "string"
+				? snapshot.sessionId
+				: typeof session?.sessionId === "string"
+					? session.sessionId
+					: "";
+		if (!sessionId) throw new Error("task session did not return a session id");
+		return { sessionId };
+	}
+
+	private async runAgendaTaskSession(
+		sessionId: string,
+		task: AgendaTaskRecord,
+		run: AgendaTaskRunRecord,
+	): Promise<AgendaTaskRuntimeResult> {
+		const resources = task.resourcePaths.length
+			? `\n\nRelevant resources (paths are relative to workspace root ${task.workspaceRoot}):\n${task.resourcePaths
+					.map(
+						(path) =>
+							`- ${path} (absolute: ${resolve(task.workspaceRoot ?? task.cwd ?? "", path)})`,
+					)
+					.join("\n")}`
+			: "";
+		const assignment = task.assignee
+			? `\nAssigned agent: ${task.assignee}. If a configured agent or subagent with this name is available, delegate the work to it and oversee completion; otherwise execute it directly and mention the fallback in the summary.`
+			: "";
+		const prompt = `Execute this approved agenda task.\n\nTitle: ${task.title}\nType: ${task.type}\nPriority: P${task.priority}${assignment}\n\n${task.instructions}${resources}`;
+		const reply = await handleSessionInput(this.ctx, {
+			version: "v1",
+			command: "run.start",
+			requestId: createSessionId("task_run_"),
+			clientId: run.requestedByClientId ?? "agenda-task-manager",
+			sessionId,
+			payload: {
+				sessionId,
+				input: prompt,
+				mode: task.mode ?? "act",
+				timeoutSeconds: task.timeoutSeconds,
+			},
+		});
+		if (!reply.ok) {
+			return {
+				status: "failed",
+				error: reply.error?.message ?? "task session run failed",
+			};
+		}
+		const result = reply.payload?.result as
+			| { finishReason?: unknown; text?: unknown }
+			| undefined;
+		const finishReason =
+			typeof result?.finishReason === "string"
+				? result.finishReason
+				: undefined;
+		const summary =
+			typeof result?.text === "string" && result.text.trim()
+				? result.text.trim()
+				: undefined;
+		if (finishReason === "completed") {
+			return { status: "completed", summary };
+		}
+		if (finishReason === "aborted") {
+			return { status: "cancelled", summary };
+		}
+		return {
+			status: "failed",
+			summary,
+			error:
+				summary ??
+				(finishReason
+					? `Task session ended with ${finishReason}`
+					: "Task session did not return a completion result"),
+		};
 	}
 
 	getCronService(): CronService | undefined {
@@ -280,6 +605,8 @@ export class HubServerTransport implements NativeHubTransport {
 	}
 
 	async start(): Promise<void> {
+		this.sessionSearch.start();
+		await this.tasks.start();
 		await this.schedules.start();
 		if (this.cronService) {
 			try {
@@ -288,9 +615,83 @@ export class HubServerTransport implements NativeHubTransport {
 				console.error("[hub] cron service start failed", err);
 			}
 		}
+		this.startEventLog();
+		this.startRunQueue();
+	}
+
+	private startEventLog(): void {
+		if (this.options.eventLog === false || this.eventLog) {
+			return;
+		}
+		try {
+			const eventLog = new HubEventLogStore({
+				ownerId: this.options.owner?.ownerId,
+				...(this.options.eventLog ?? {}),
+			});
+			eventLog.prune();
+			this.eventLog = eventLog;
+			this.eventLogPruneTimer = setInterval(
+				() => {
+					try {
+						eventLog.prune();
+					} catch {
+						// A failed sweep retries on the next interval.
+					}
+				},
+				60 * 60 * 1000,
+			);
+			this.eventLogPruneTimer.unref?.();
+		} catch (error) {
+			// Degrade to live-only fan-out (the pre-log behavior) rather than
+			// refusing to serve; replay cursors are then best-effort no-ops.
+			logHubMessage("error", "event_log.start_failed", { error });
+		}
+	}
+
+	private startRunQueue(): void {
+		if (this.options.runQueue === false || this.runQueue) {
+			return;
+		}
+		try {
+			this.runQueue = new HubRunQueue({
+				ownerId: this.options.owner?.ownerId,
+				...(this.options.runQueue ?? {}),
+			});
+			this.runExecutor = new HubRunExecutor(this.ctx, this.runQueue);
+			const recovered = this.runQueue.recoverOnStartup();
+			for (const run of recovered.interrupted) {
+				this.publish(
+					buildHubEvent(
+						"run.interrupted",
+						{
+							runId: run.runId,
+							error: run.error,
+							reason: "hub_restart",
+						},
+						run.sessionId,
+					),
+				);
+			}
+			const sessions = new Set(recovered.requeued.map((run) => run.sessionId));
+			for (const sessionId of sessions) {
+				this.runExecutor.pump(sessionId);
+			}
+			if (recovered.interrupted.length > 0 || recovered.requeued.length > 0) {
+				logHubMessage("info", "run.queue.recovered", {
+					interrupted: recovered.interrupted.length,
+					requeued: recovered.requeued.length,
+				});
+			}
+		} catch (error) {
+			logHubMessage("error", "run.queue.start_failed", { error });
+		}
 	}
 
 	async stop(): Promise<void> {
+		if (this.eventLogPruneTimer) {
+			clearInterval(this.eventLogPruneTimer);
+			this.eventLogPruneTimer = undefined;
+		}
 		for (const approvalId of this.pendingApprovals.keys()) {
 			resolvePendingApproval(this.ctx, approvalId, {
 				approved: false,
@@ -302,6 +703,8 @@ export class HubServerTransport implements NativeHubTransport {
 			() => true,
 			"Hub shutting down before capability request was resolved.",
 		);
+		await this.sessionSearch.dispose();
+		await this.tasks.dispose();
 		await this.sessionHost.dispose("hub_server_stop");
 		await this.schedules.dispose();
 		if (this.cronService) {
@@ -311,11 +714,35 @@ export class HubServerTransport implements NativeHubTransport {
 				console.error("[hub] cron service stop failed", err);
 			}
 		}
+		this.eventLog?.close();
+		this.eventLog = undefined;
+		this.runQueue?.close();
+		this.runQueue = undefined;
+		this.runExecutor = undefined;
 	}
 
-	async handleCommand(envelope: HubCommandEnvelope): Promise<HubReplyEnvelope> {
+	async handleCommand(
+		envelope: HubCommandEnvelope,
+		authority?: HubConnectionAuthority | null,
+	): Promise<HubReplyEnvelope> {
 		try {
-			const reply = await this.dispatchCommand(envelope);
+			const clientId = envelope.clientId?.trim();
+			// Omitted authority is reserved for trusted in-process callers. A remote
+			// transport passes null until registration so caller-controlled envelope
+			// fields can never acquire daemon workspace authority implicitly.
+			const effectiveAuthority =
+				authority === undefined
+					? this.options.workspaceRoot?.trim() && clientId
+						? {
+								clientId,
+								workspaceContext: {
+									workspaceRoot: this.options.workspaceRoot,
+									cwd: this.options.workspaceRoot,
+								},
+							}
+						: undefined
+					: (authority ?? undefined);
+			const reply = await this.dispatchCommand(envelope, effectiveAuthority);
 			this.captureFailedReply(envelope, reply);
 			return reply;
 		} catch (error) {
@@ -333,17 +760,33 @@ export class HubServerTransport implements NativeHubTransport {
 
 	private async dispatchCommand(
 		envelope: HubCommandEnvelope,
+		authority?: HubConnectionAuthority,
 	): Promise<HubReplyEnvelope> {
+		if (this.draining && isDrainRefusedCommand(envelope.command)) {
+			return drainingReply(envelope);
+		}
+		if (isAgendaTaskCommand(envelope.command)) {
+			return await this.taskCommands.handleCommand(envelope, authority);
+		}
 		switch (envelope.command) {
-			case "client.register":
-				return handleClientRegister(this.ctx, envelope);
-			case "client.update":
-				return handleClientUpdate(this.ctx, envelope);
-			case "client.unregister":
-				return handleClientUnregister(this.ctx, envelope, (clientId) => {
+			case "client.register": {
+				const reply = handleClientRegister(this.ctx, envelope);
+				this.tasks.notifyAutomationReadinessChanged();
+				return reply;
+			}
+			case "client.update": {
+				const reply = handleClientUpdate(this.ctx, envelope);
+				this.tasks.notifyAutomationReadinessChanged();
+				return reply;
+			}
+			case "client.unregister": {
+				const reply = handleClientUnregister(this.ctx, envelope, (clientId) => {
 					this.listeners.delete(clientId);
 					this.detachClientFromSessions(clientId);
 				});
+				this.tasks.notifyAutomationReadinessChanged();
+				return reply;
+			}
 			case "client.list":
 				return handleClientList(this.ctx, envelope);
 			case "session.create":
@@ -372,6 +815,8 @@ export class HubServerTransport implements NativeHubTransport {
 				return await handleSessionCompactionGet(this.ctx, envelope);
 			case "session.list":
 				return await handleSessionList(this.ctx, envelope);
+			case "session.search":
+				return await handleSessionSearch(this.ctx, envelope);
 			case "session.update":
 				return await handleSessionUpdate(this.ctx, envelope);
 			case "session.update_connection":
@@ -391,8 +836,40 @@ export class HubServerTransport implements NativeHubTransport {
 			case "run.start":
 			case "session.send_input":
 				return await handleSessionInput(this.ctx, envelope);
+			case "run.enqueue": {
+				if (!this.runQueue || !this.runExecutor) {
+					return {
+						version: envelope.version,
+						requestId: envelope.requestId,
+						ok: false,
+						error: {
+							code: "run_queue_unavailable",
+							message:
+								"This hub has no durable run queue; use run.start instead.",
+						},
+					};
+				}
+				return handleRunEnqueue(
+					this.ctx,
+					envelope,
+					this.runQueue,
+					this.runExecutor,
+				);
+			}
+			case "run.list": {
+				if (!this.runQueue) {
+					return okReply(envelope, { runs: [] });
+				}
+				return handleRunList(envelope, this.runQueue);
+			}
+			case "hub.drain":
+				return this.handleHubDrain(envelope);
+			case "hub.status":
+				return this.handleHubStatus(envelope);
 			case "run.abort":
 				return await handleRunAbort(this.ctx, envelope);
+			case "run.proceed_while_running":
+				return await handleRunProceedWhileRunning(this.ctx, envelope);
 			case "capability.request":
 				return await handleCapabilityRequest(this.ctx, envelope);
 			case "approval.respond":
@@ -430,7 +907,10 @@ export class HubServerTransport implements NativeHubTransport {
 					},
 				};
 			default: {
-				const reply = await this.scheduleCommands.handleCommand(envelope);
+				const reply = await this.scheduleCommands.handleCommand(
+					envelope,
+					authority,
+				);
 				if (reply.ok) {
 					const event = eventNameForScheduleCommand(envelope.command);
 					if (event) {
@@ -539,6 +1019,79 @@ export class HubServerTransport implements NativeHubTransport {
 		}
 	}
 
+	/**
+	 * Explicit drain: refuse new mutating work while accepted runs finish.
+	 * This is the graceful half of an upgrade — replacement happens at a
+	 * boundary an operator chose, never as an ambush under a live turn.
+	 */
+	private handleHubDrain(envelope: HubCommandEnvelope): HubReplyEnvelope {
+		const requested = envelope.payload?.draining !== false;
+		const reason =
+			typeof envelope.payload?.reason === "string"
+				? envelope.payload.reason
+				: undefined;
+		if (this.draining !== requested) {
+			this.draining = requested;
+			this.publish(
+				buildHubEvent("hub.drain_changed", {
+					draining: this.draining,
+					...(reason ? { reason } : {}),
+				}),
+			);
+			logHubMessage("info", "hub.drain_changed", {
+				draining: this.draining,
+				reason,
+			});
+		}
+		return okReply(envelope, this.describeStatus());
+	}
+
+	private handleHubStatus(envelope: HubCommandEnvelope): HubReplyEnvelope {
+		return okReply(envelope, this.describeStatus());
+	}
+
+	private describeStatus(): Record<string, unknown> {
+		let activeRpcTurns = 0;
+		for (const count of this.activeRpcTurnCountBySession.values()) {
+			activeRpcTurns += count;
+		}
+		return {
+			hubId: this.hubId,
+			draining: this.draining,
+			activeRpcTurns,
+			pendingRuns: this.runQueue?.countPending() ?? 0,
+			eventLog: this.eventLog
+				? { lastSequence: this.eventLog.lastSequence() }
+				: undefined,
+			// Idle = safe to stop: nothing executing and nothing accepted-but-unstarted.
+			idle: activeRpcTurns === 0 && (this.runQueue?.countPending() ?? 0) === 0,
+		};
+	}
+
+	/** Whether the hub is currently draining (exposed for the HTTP status). */
+	isDraining(): boolean {
+		return this.draining;
+	}
+
+	/** Durable events after a cursor — the adapter's replay source. */
+	replayEventsAfter(
+		sinceSequence: number,
+		options: { sessionId?: string; limit: number },
+	): HubEventEnvelope[] {
+		if (!this.eventLog) {
+			return [];
+		}
+		return this.eventLog.listAfter(
+			sinceSequence,
+			{ sessionId: options.sessionId },
+			options.limit,
+		);
+	}
+
+	lastEventSequence(): number {
+		return this.eventLog?.lastSequence() ?? 0;
+	}
+
 	subscribe(
 		clientId: string,
 		listener: (event: HubEventEnvelope) => void,
@@ -548,6 +1101,27 @@ export class HubServerTransport implements NativeHubTransport {
 		const entry = { sessionId: options?.sessionId, listener };
 		current.add(entry);
 		this.listeners.set(clientId, current);
+		// Re-issue pending approvals so a (re)connecting client can answer a
+		// request raised while it was away instead of leaving the turn parked.
+		const pending = pendingApprovalEvents(this.ctx, options?.sessionId);
+		if (pending.length > 0) {
+			queueMicrotask(() => {
+				const listeners = this.listeners.get(clientId);
+				if (!listeners?.has(entry)) {
+					return;
+				}
+				for (const event of pending) {
+					try {
+						entry.listener(event);
+					} catch (error) {
+						logHubBoundaryError(
+							"listener threw while re-issuing pending approval",
+							error,
+						);
+					}
+				}
+			});
+		}
 		return () => {
 			const listeners = this.listeners.get(clientId);
 			if (!listeners) {
@@ -578,6 +1152,19 @@ export class HubServerTransport implements NativeHubTransport {
 	}
 
 	private publish(event: HubEventEnvelope): void {
+		// Durability before delivery: append to the event log and fan out the
+		// sequence-stamped envelope, so live listeners and replaying clients
+		// observe identical frames and the cursor is always meaningful.
+		if (this.eventLog) {
+			try {
+				event = this.eventLog.append(event);
+			} catch (error) {
+				logHubBoundaryError(
+					`event log append failed for ${event.event}`,
+					error,
+				);
+			}
+		}
 		for (const entries of this.listeners.values()) {
 			for (const entry of entries) {
 				if (entry.sessionId && entry.sessionId !== event.sessionId) {

@@ -564,6 +564,80 @@ describe("sdk-gateway", () => {
 		);
 	});
 
+	it("passes AI SDK 7 telemetry and correlation context to streamText", async () => {
+		mockSuccessfulStream();
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "openrouter",
+					apiKey: "test-key",
+				},
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openrouter",
+				modelId: "anthropic/claude-test",
+				messages: baseMessages,
+				metadata: {
+					distinctId: "user-1",
+					sessionId: "session-1",
+					clientName: "cline-desktop",
+					clientVersion: "1.2.3",
+					clineCoreVersion: "4.5.6",
+					tags: ["nightly", "cline"],
+					conversationId: "conversation-1",
+					runId: "run-1",
+					iteration: 2,
+				},
+			}),
+		);
+
+		const call = streamTextSpy.mock.calls.at(-1)?.[0] as
+			| {
+					experimental_telemetry?: unknown;
+					telemetry?: unknown;
+					runtimeContext?: unknown;
+			  }
+			| undefined;
+		expect(call).not.toHaveProperty("experimental_telemetry");
+		expect(call?.telemetry).toEqual({
+			isEnabled: expect.any(Boolean),
+			functionId: "cline-agent-turn",
+			includeRuntimeContext: {
+				distinctId: true,
+				userId: true,
+				sessionId: true,
+				clientName: true,
+				clientVersion: true,
+				clineCoreVersion: true,
+				tags: true,
+				conversationId: true,
+				runId: true,
+				iteration: true,
+				providerId: true,
+				modelId: true,
+				resolvedModelId: true,
+			},
+		});
+		expect(call?.runtimeContext).toEqual({
+			distinctId: "user-1",
+			userId: "user-1",
+			sessionId: "session-1",
+			clientName: "cline-desktop",
+			clientVersion: "1.2.3",
+			clineCoreVersion: "4.5.6",
+			tags: ["nightly", "cline"],
+			conversationId: "conversation-1",
+			runId: "run-1",
+			iteration: 2,
+			providerId: "openrouter",
+			modelId: "anthropic/claude-test",
+			resolvedModelId: "anthropic/claude-test",
+		});
+	});
+
 	it("translates portable web_search intent into a native provider tool", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: makeStreamParts([
@@ -633,6 +707,144 @@ describe("sdk-gateway", () => {
 				}),
 			}),
 		);
+	});
+
+	it("surfaces provider-executed tool activity as observational events", async () => {
+		// Providers like the Claude Code CLI execute their own tools inside the
+		// inference request and mark every part providerExecuted. That activity
+		// must surface as execution-tagged events (visible in the transcript)
+		// without ever entering AgentRuntime's local execution/approval loop.
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{
+					type: "tool-call",
+					toolCallId: "cli_read_1",
+					toolName: "Read",
+					input: { file_path: "/tmp/a.txt" },
+					providerExecuted: true,
+				},
+				{
+					type: "tool-result",
+					toolCallId: "cli_read_1",
+					toolName: "Read",
+					input: { file_path: "/tmp/a.txt" },
+					output: { content: "hello" },
+					providerExecuted: true,
+				},
+				{ type: "text-delta", text: "done" },
+				{ type: "finish", finishReason: "stop" },
+			]),
+		});
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "anthropic", apiKey: "anthropic-key" }],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-5",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(events).toContainEqual(
+			expect.objectContaining({
+				type: "tool-call-delta",
+				toolCallId: "cli_read_1",
+				toolName: "Read",
+				execution: "provider",
+			}),
+		);
+		expect(events).toContainEqual(
+			expect.objectContaining({
+				type: "tool-result",
+				toolCallId: "cli_read_1",
+				toolName: "Read",
+				execution: "provider",
+				output: { content: "hello" },
+			}),
+		);
+		// Never the runtime-execution path: no execution-less tool events, and
+		// the turn finishes as a normal completion, not a tool-call handoff.
+		expect(
+			events.filter(
+				(event) =>
+					event.type === "tool-call-delta" && event.execution === undefined,
+			),
+		).toHaveLength(0);
+		expect(events.at(-1)).toEqual({ type: "finish", reason: "stop" });
+	});
+
+	it("matches flag-less results and errors to observational provider tool calls by ID", async () => {
+		// Some provider packages set providerExecuted only on the call half of
+		// the pair. Results and errors are matched by tool-call ID so the
+		// activity still completes observationally instead of being dropped or
+		// misread as a runtime tool call.
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{
+					type: "tool-call",
+					toolCallId: "cli_bash_1",
+					toolName: "Bash",
+					input: { command: "ls" },
+					providerExecuted: true,
+				},
+				{
+					type: "tool-result",
+					toolCallId: "cli_bash_1",
+					toolName: "Bash",
+					output: { stdout: "a.txt" },
+				},
+				{
+					type: "tool-call",
+					toolCallId: "cli_bash_2",
+					toolName: "Bash",
+					input: { command: "boom" },
+					providerExecuted: true,
+				},
+				{
+					type: "tool-error",
+					toolCallId: "cli_bash_2",
+					toolName: "Bash",
+					error: new Error("command failed"),
+				},
+				// Deliberately no trailing text: a tool-only stream must still
+				// surface the activity and finish cleanly.
+				{ type: "finish", finishReason: "stop" },
+			]),
+		});
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "anthropic", apiKey: "anthropic-key" }],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-5",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(events).toContainEqual(
+			expect.objectContaining({
+				type: "tool-result",
+				toolCallId: "cli_bash_1",
+				toolName: "Bash",
+				execution: "provider",
+				output: { stdout: "a.txt" },
+			}),
+		);
+		expect(events).toContainEqual(
+			expect.objectContaining({
+				type: "tool-result",
+				toolCallId: "cli_bash_2",
+				toolName: "Bash",
+				execution: "provider",
+				isError: true,
+				output: { error: "command failed" },
+			}),
+		);
+		expect(events.at(-1)).toEqual({ type: "finish", reason: "stop" });
 	});
 
 	it("rejects model tools not declared by the provider manifest", async () => {
@@ -3033,14 +3245,26 @@ describe("sdk-gateway", () => {
 			mockSuccessfulStream();
 
 			const gateway = createGateway({
-				providerConfigs: [{ providerId: "deepseek", apiKey: "deepseek-key" }],
+				providerConfigs: [
+					{
+						providerId: "deepseek",
+						apiKey: "deepseek-key",
+						models: [
+							{
+								id: "deepseek-text-only",
+								name: "DeepSeek Text Only",
+								// Advertises no "images" capability.
+								capabilities: ["text"],
+							},
+						],
+					},
+				],
 			});
 
 			await collect(
 				await gateway.stream({
 					providerId: "deepseek",
-					// Catalog entry advertises no "images" capability.
-					modelId: "deepseek-chat",
+					modelId: "deepseek-text-only",
 					messages: imageHistory,
 				}),
 			);
@@ -3216,7 +3440,7 @@ describe("sdk-gateway", () => {
 		expect(events.at(-1)).toEqual({ type: "finish", reason: "stop" });
 	});
 
-	it("preserves usage cost from market cost fields", async () => {
+	it("uses discounted billed cost instead of Vercel market cost", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: makeStreamParts([
 				{
@@ -3224,12 +3448,12 @@ describe("sdk-gateway", () => {
 					usage: {
 						prompt_tokens: 3793,
 						completion_tokens: 1250,
-						cost: 0,
+						cost: 0.009145675,
 						market_cost: 0.01829135,
 					},
 					providerMetadata: {
 						gateway: {
-							cost: "0.01829135",
+							cost: "0.009145675",
 							marketCost: "0.01829135",
 						},
 					},
@@ -3270,7 +3494,7 @@ describe("sdk-gateway", () => {
 				outputTokens: 1250,
 				cacheReadTokens: 0,
 				cacheWriteTokens: 0,
-				totalCost: 0.01829135,
+				totalCost: 0.009145675,
 			},
 		});
 	});
@@ -5851,11 +6075,8 @@ describe("sdk-gateway", () => {
 				reasoning: "medium",
 			}),
 		);
-		// The openrouter catalog advertises an explicitly empty
-		// reasoning_options list for z-ai/glm-4.7 ("no user-facing control"),
-		// so no reasoning provider options are forwarded either way.
-		for (const callIndex of [0, 1]) {
-			const call = streamTextSpy.mock.calls[callIndex]?.[0] as {
+		{
+			const call = streamTextSpy.mock.calls[0]?.[0] as {
 				providerOptions?: Record<string, Record<string, unknown> | undefined>;
 			};
 			expect(call.providerOptions?.openrouter).not.toEqual(
@@ -5865,6 +6086,22 @@ describe("sdk-gateway", () => {
 				expect.objectContaining({ reasoning: expect.anything() }),
 			);
 		}
+		// The OpenRouter catalog advertises a reasoning toggle for z-ai/glm-4.7,
+		// so explicit disablement is preserved and encoded in OpenRouter's wire
+		// shape. The compatible bucket retains the routed GLM exclusion shape.
+		expect(streamTextSpy).toHaveBeenNthCalledWith(
+			2,
+			expect.objectContaining({
+				providerOptions: expect.objectContaining({
+					openrouter: expect.objectContaining({
+						reasoning: { effort: "none" },
+					}),
+					openaiCompatible: expect.objectContaining({
+						reasoning: { exclude: true },
+					}),
+				}),
+			}),
+		);
 		expect(streamTextSpy).toHaveBeenNthCalledWith(
 			3,
 			expect.objectContaining({

@@ -83,6 +83,75 @@ export const Default: Story = {
 	),
 };
 
+const sectionedModelOptions: SearchComboboxOption[] = [
+	{
+		badge: "NEW",
+		description: "Most intelligent model for agents and coding",
+		label: "Claude Opus 5",
+		section: "recommended",
+		value: "anthropic/claude-opus-5",
+	},
+	{
+		badge: "NEW",
+		description: "Moonshot AI's flagship MoE model for agentic coding",
+		label: "Kimi K3",
+		section: "recommended",
+		value: "moonshotai/kimi-k3",
+	},
+	{
+		description: "Fast and efficient with 1M context window",
+		label: "DeepSeek V4 Flash",
+		section: "free",
+		value: "deepseek/deepseek-v4-flash",
+	},
+	{
+		description: "Latest coding agent model from Poolside",
+		label: "Laguna S 2.1",
+		section: "free",
+		value: "poolside/laguna-s-2.1:free",
+	},
+	{
+		label: "Claude Sonnet 4.6",
+		section: "all",
+		value: "anthropic/claude-sonnet-4.6",
+	},
+	{ label: "GPT-5.5", section: "all", value: "openai/gpt-5.5" },
+	{ label: "Gemini 3 Pro", section: "all", value: "google/gemini-3-pro" },
+];
+
+export const ModelPicker: Story = {
+	args: {
+		ariaLabel: "Model",
+		options: sectionedModelOptions,
+		panelWidth: "20rem",
+		placeholder: "Select model",
+		searchPlaceholder: "Search models…",
+		sections: [
+			{ id: "recommended", label: "Recommended" },
+			{
+				description: "Try with limited usage at no cost",
+				id: "free",
+				label: "Free",
+			},
+			{ id: "all", label: "All models" },
+		],
+		value: "anthropic/claude-opus-5",
+	},
+	parameters: {
+		docs: {
+			description: {
+				story:
+					"Sectioned model picker: recommended and free tiers first, the full catalog after. Searching flattens the sections into one ranked list.",
+			},
+		},
+	},
+	render: (args) => (
+		<div className="flex min-h-[420px] items-start p-6">
+			<InteractiveCombobox {...args} initialValue={args.value} />
+		</div>
+	),
+};
+
 export const PlacementTop: Story = {
 	args: {
 		ariaLabel: "Model",

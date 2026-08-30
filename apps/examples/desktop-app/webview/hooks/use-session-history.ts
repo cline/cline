@@ -492,12 +492,24 @@ export function useSessionHistory({
 }: UseSessionHistoryOptions) {
 	const [sessions, setSessions] = useState<SessionHistoryItem[]>([]);
 	const [threads, setThreads] = useState<SessionThread[]>([]);
-	const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+	// False until the backend has answered a history request at least once.
+	// Consumers use this to tell "still loading" apart from "loaded, zero
+	// sessions": an empty-state copy shown before the first response reads as
+	// lost history whenever fetching takes more than an instant.
+	const [hasLoadedHistory, setHasLoadedHistory] = useState(false);
 	const [isLoadingMore, setIsLoadingMore] = useState(false);
 	const [mayHaveMoreSessions, setMayHaveMoreSessions] = useState(false);
 	const [pendingAction, setPendingAction] =
 		useState<SessionPendingAction>(null);
 	const [unreadSessionIds, setUnreadSessionIds] = useState<Set<string>>(
+		() => new Set(),
+	);
+	// Session ids that schedule executions report as their own. Scheduled runs
+	// executed by the local hub do not reliably carry the "hub-schedule"
+	// origin trigger in their session metadata (the runtime that claims the
+	// run doesn't always stamp provenance), so the metadata check alone would
+	// miss them; the executions list is the authoritative link.
+	const [scheduledSessionIds, setScheduledSessionIds] = useState<Set<string>>(
 		() => new Set(),
 	);
 	const fetchLimitRef = useRef(INITIAL_HISTORY_FETCH_LIMIT);
@@ -522,6 +534,10 @@ export function useSessionHistory({
 	const refreshLimitRef = useRef(0);
 	const loadAllPromiseRef = useRef<Promise<boolean> | null>(null);
 	const lastRefreshStartedAtRef = useRef(0);
+	// Guards scheduleRefresh against continuations that settle after unmount
+	// (e.g. the fast retry of a failed initial fetch), which would otherwise
+	// re-arm a timer the cleanup has already cleared and poll forever.
+	const disposedRef = useRef(false);
 
 	useEffect(() => {
 		sessionsRef.current = sessions;
@@ -545,6 +561,52 @@ export function useSessionHistory({
 		});
 	}, [activeSessionId]);
 
+	useEffect(() => {
+		let cancelled = false;
+		const collectScheduledSessionIds = async () => {
+			const response = await desktopClient
+				.invoke<{
+					activeExecutions?: Array<{ sessionId?: unknown }>;
+					lastExecutions?: Array<{ sessionId?: unknown }>;
+				}>("list_routine_schedules")
+				.catch(() => null);
+			if (cancelled || !response) {
+				return;
+			}
+			const ids = new Set<string>();
+			for (const execution of [
+				...(response.activeExecutions ?? []),
+				...(response.lastExecutions ?? []),
+			]) {
+				const sessionId =
+					typeof execution?.sessionId === "string"
+						? execution.sessionId.trim()
+						: "";
+				if (sessionId) {
+					ids.add(sessionId);
+				}
+			}
+			setScheduledSessionIds((current) => {
+				// Merge instead of replace: the executions list is a rolling
+				// window, so ids that fell out of it are still scheduled runs.
+				const next = new Set(current);
+				for (const id of ids) {
+					next.add(id);
+				}
+				return next.size === current.size ? current : next;
+			});
+		};
+		void collectScheduledSessionIds();
+		const interval = window.setInterval(
+			() => void collectScheduledSessionIds(),
+			2 * 60 * 1000,
+		);
+		return () => {
+			cancelled = true;
+			window.clearInterval(interval);
+		};
+	}, []);
+
 	const refreshSessions = useCallback(async () => {
 		// Reuse an in-flight refresh only when it already asked for at least as
 		// many sessions as we need now. "Load more" raises the limit and then
@@ -562,12 +624,6 @@ export function useSessionHistory({
 			lastRefreshStartedAtRef.current = Date.now();
 			const limit = fetchLimitRef.current;
 			refreshLimitRef.current = limit;
-			// Only surface the loading state before anything has been fetched:
-			// consumers only render it for an empty list, and toggling it on
-			// every background poll re-rendered the whole app twice per refresh.
-			if (sessionsRef.current.length === 0) {
-				setIsLoadingHistory(true);
-			}
 			try {
 				const discovered = await desktopClient
 					.invoke<CliDiscoveredSession[]>("list_discovered_sessions", { limit })
@@ -655,12 +711,11 @@ export function useSessionHistory({
 					return areThreadsEquivalent(current, next) ? current : next;
 				});
 				loadedLimitRef.current = Math.max(loadedLimitRef.current, limit);
+				setHasLoadedHistory(true);
 				return true;
 			} catch {
 				// Ignore in browser mode or when tauri command is unavailable.
 				return false;
-			} finally {
-				setIsLoadingHistory(false);
 			}
 		})();
 
@@ -678,6 +733,9 @@ export function useSessionHistory({
 
 	const scheduleRefresh = useCallback(
 		(delayMs = 0, options: { force?: boolean } = {}) => {
+			if (disposedRef.current) {
+				return;
+			}
 			const now = Date.now();
 			const minTarget = options.force
 				? now
@@ -699,7 +757,16 @@ export function useSessionHistory({
 				() => {
 					refreshTimeoutRef.current = null;
 					scheduledRefreshAtRef.current = null;
-					void refreshSessions();
+					void refreshSessions().then((loaded) => {
+						// Until something has loaded the UI has nothing but a
+						// loading state to show, so a failed fetch (e.g. the
+						// websocket losing the race with a webview reload) retries
+						// on the short event cadence instead of stranding the
+						// sidebar until the periodic poll fires.
+						if (!loaded && loadedLimitRef.current === 0) {
+							scheduleRefresh(MIN_EVENT_HISTORY_REFRESH_INTERVAL_MS);
+						}
+					});
 				},
 				Math.max(0, target - now),
 			);
@@ -709,6 +776,7 @@ export function useSessionHistory({
 
 	useEffect(() => {
 		let disposed = false;
+		disposedRef.current = false;
 
 		const runRefresh = () => {
 			if (!disposed) {
@@ -726,6 +794,7 @@ export function useSessionHistory({
 
 		return () => {
 			disposed = true;
+			disposedRef.current = true;
 			window.clearInterval(interval);
 			if (refreshTimeoutRef.current !== null) {
 				window.clearTimeout(refreshTimeoutRef.current);
@@ -1194,7 +1263,7 @@ export function useSessionHistory({
 				);
 			};
 
-			// Favoriting is a single click, so apply it locally first and roll back
+			// Pinning is a single click, so apply it locally first and roll back
 			// if the write fails rather than blocking the row on a round trip.
 			applyPinned(pinned);
 			try {
@@ -1213,7 +1282,7 @@ export function useSessionHistory({
 				applyPinned(!pinned);
 				toast({
 					variant: "destructive",
-					title: pinned ? "Favorite failed" : "Unfavorite failed",
+					title: pinned ? "Pin failed" : "Unpin failed",
 					description:
 						error instanceof Error
 							? error.message
@@ -1414,9 +1483,20 @@ export function useSessionHistory({
 		[sessions],
 	);
 
+	const threadsWithScheduled = useMemo(() => {
+		if (scheduledSessionIds.size === 0) {
+			return threads;
+		}
+		return threads.map((thread) =>
+			!thread.isScheduled && scheduledSessionIds.has(thread.id)
+				? { ...thread, isScheduled: true }
+				: thread,
+		);
+	}, [scheduledSessionIds, threads]);
+
 	return {
 		getSessionByThreadId,
-		isLoadingHistory,
+		hasLoadedHistory,
 		isLoadingMore,
 		loadAllSessions,
 		loadOlderSessions,
@@ -1431,7 +1511,7 @@ export function useSessionHistory({
 		forkThread,
 		sessionById,
 		sessions,
-		threads,
+		threads: threadsWithScheduled,
 		unreadSessionIds,
 	};
 }

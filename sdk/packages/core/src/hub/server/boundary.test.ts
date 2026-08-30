@@ -1,3 +1,6 @@
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { AgentToolContext, HubEventEnvelope } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -6,6 +9,7 @@ import {
 	type StartSessionResult,
 } from "../../runtime/host/runtime-host";
 import { createSessionCompactionState } from "../../session/models/session-compaction";
+import { SessionVersioningService } from "../../session/session-versioning-service";
 import { createLocalHubScheduleRuntimeHandlers } from "../daemon/runtime-handlers";
 import { HubServerTransport } from "../server";
 import {
@@ -97,6 +101,265 @@ describe("HubServerTransport boundaries", () => {
 			expect(payload.error).toContain("listener boom");
 		} finally {
 			errorSpy.mockRestore();
+		}
+	});
+
+	it("keeps the hub available when the session search index cannot initialize", async () => {
+		const dir = await mkdtemp(join(tmpdir(), "cline-hub-search-unavailable-"));
+		const dbPath = join(dir, "search.db");
+		await writeFile(dbPath, "not a sqlite database");
+		const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+		const transport = createTransport({
+			sessionSearchOptions: { dbPath },
+			taskOptions: { dbPath: ":memory:", watchFiles: false },
+		});
+
+		try {
+			expect(getContext(transport).sessionSearch.isAvailable()).toBe(false);
+			const reply = await transport.handleCommand({
+				version: "v1",
+				requestId: "search-with-unavailable-index",
+				command: "session.search",
+				payload: { query: "parser" },
+			});
+			expect(reply.ok).toBe(true);
+			expect(reply.payload?.hits).toEqual([]);
+		} finally {
+			await transport.stop();
+			errorSpy.mockRestore();
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	it("serves indexed history and evicts a deleted session immediately", async () => {
+		const session = {
+			sessionId: "searchable-session",
+			source: "core",
+			pid: 1,
+			startedAt: "2026-08-19T12:00:00.000Z",
+			endedAt: "2026-08-19T12:01:00.000Z",
+			exitCode: 0,
+			status: "completed",
+			interactive: true,
+			provider: "test",
+			model: "test-model",
+			cwd: "/tmp/project",
+			workspaceRoot: "/tmp/project",
+			enableTools: true,
+			enableSpawn: false,
+			enableTeams: false,
+			isSubagent: false,
+			prompt: "Investigate indexing",
+			metadata: { title: "Search prototype" },
+			updatedAt: "2026-08-19T12:01:00.000Z",
+		};
+		const listSessions = vi.fn().mockResolvedValue([session]);
+		const transport = createTransport({
+			sessionSearchOptions: { dbPath: ":memory:" },
+			taskOptions: { dbPath: ":memory:", watchFiles: false },
+			sessionHost: {
+				listSessions,
+				deleteSession: vi.fn().mockResolvedValue(true),
+				readSessionMessages: vi
+					.fn()
+					.mockResolvedValue([
+						{ role: "user", content: "Find the ultramarine regression" },
+					]),
+			},
+		});
+		await getContext(transport).sessionSearch.refreshNow();
+
+		const reply = await transport.handleCommand({
+			version: "v1",
+			requestId: "search-request",
+			command: "session.search",
+			payload: { query: "ultramarine" },
+		});
+
+		expect(reply.ok).toBe(true);
+		expect(reply.payload?.hits).toEqual([
+			expect.objectContaining({
+				sessionId: "searchable-session",
+				title: "Search prototype",
+				role: "user",
+			}),
+		]);
+
+		const deleteReply = await transport.handleCommand({
+			version: "v1",
+			requestId: "delete-searchable-session",
+			command: "session.delete",
+			payload: { sessionId: "searchable-session" },
+		});
+		const afterDelete = await transport.handleCommand({
+			version: "v1",
+			requestId: "search-after-delete",
+			command: "session.search",
+			payload: { query: "ultramarine" },
+		});
+
+		expect(deleteReply.payload?.deleted).toBe(true);
+		expect(afterDelete.payload?.hits).toEqual([]);
+		expect(listSessions).toHaveBeenCalledOnce();
+		await transport.stop();
+	});
+
+	it("preserves canonical deletion results when search eviction fails", async () => {
+		const deleteSession = vi.fn().mockResolvedValue(true);
+		const transport = createTransport({
+			sessionSearchOptions: { dbPath: ":memory:" },
+			taskOptions: { dbPath: ":memory:", watchFiles: false },
+			sessionHost: { deleteSession },
+		});
+		const ctx = getContext(transport);
+		ensureSessionState(ctx, "deleted-session", "client-1", "creator");
+		ensureSessionState(ctx, "restored-session", "client-1", "creator");
+		const eviction = vi
+			.spyOn(ctx.sessionSearch, "removeSession")
+			.mockImplementation(() => {
+				throw new Error("search index is unavailable");
+			});
+		const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+		const restoreCheckpoint = vi
+			.spyOn(SessionVersioningService.prototype, "restoreCheckpoint")
+			.mockImplementationOnce(async (input) => {
+				await input.cleanupStartedSession?.({
+					sessionId: "restored-session",
+				} as never);
+				throw new Error("original restoration failure");
+			});
+		try {
+			const deleteReply = await transport.handleCommand({
+				version: "v1",
+				requestId: "delete-with-failed-eviction",
+				command: "session.delete",
+				payload: { sessionId: "deleted-session" },
+			});
+
+			expect(deleteReply.ok).toBe(true);
+			expect(deleteReply.payload?.deleted).toBe(true);
+			expect(ctx.sessionState.has("deleted-session")).toBe(false);
+
+			const restoreReply = await transport.handleCommand({
+				version: "v1",
+				requestId: "restore-with-failed-eviction",
+				command: "session.restore",
+				payload: {
+					sessionId: "source-session",
+					checkpointRunCount: 1,
+					sessionConfig: {
+						providerId: "test",
+						modelId: "test-model",
+						cwd: "/tmp/project",
+						workspaceRoot: "/tmp/project",
+					},
+				},
+			});
+
+			expect(restoreReply.ok).toBe(false);
+			expect(restoreReply.error?.message).toContain(
+				"original restoration failure",
+			);
+			expect(restoreReply.error?.message).not.toContain(
+				"search index is unavailable",
+			);
+			expect(ctx.sessionState.has("restored-session")).toBe(false);
+			expect(deleteSession).toHaveBeenNthCalledWith(1, "deleted-session");
+			expect(deleteSession).toHaveBeenNthCalledWith(2, "restored-session");
+			expect(eviction).toHaveBeenCalledTimes(2);
+		} finally {
+			restoreCheckpoint.mockRestore();
+			eviction.mockRestore();
+			errorSpy.mockRestore();
+			await transport.stop();
+		}
+	});
+
+	it("evicts an indexed replacement when failed restoration cleans it up", async () => {
+		const replacement = {
+			sessionId: "restored-session",
+			source: "core",
+			pid: 1,
+			startedAt: "2026-08-19T12:00:00.000Z",
+			endedAt: "2026-08-19T12:01:00.000Z",
+			exitCode: 0,
+			status: "completed",
+			interactive: true,
+			provider: "test",
+			model: "test-model",
+			cwd: "/tmp/project",
+			workspaceRoot: "/tmp/project",
+			enableTools: true,
+			enableSpawn: false,
+			enableTeams: false,
+			isSubagent: false,
+			prompt: "Find the orphanmarker regression",
+			metadata: { title: "Orphanmarker replacement" },
+			updatedAt: "2026-08-19T12:01:00.000Z",
+		};
+		const sessions = [replacement];
+		const listSessions = vi.fn(async () => sessions);
+		const deleteSession = vi.fn(async (sessionId: string) => {
+			expect(sessionId).toBe(replacement.sessionId);
+			sessions.splice(0);
+			return true;
+		});
+		const transport = createTransport({
+			sessionSearchOptions: { dbPath: ":memory:" },
+			taskOptions: { dbPath: ":memory:", watchFiles: false },
+			sessionHost: {
+				listSessions,
+				deleteSession,
+				readSessionMessages: vi
+					.fn()
+					.mockResolvedValue([
+						{ role: "user", content: "Find the orphanmarker regression" },
+					]),
+			},
+		});
+		await getContext(transport).sessionSearch.refreshNow();
+		expect(
+			getContext(transport).sessionSearch.search({ query: "orphanmarker" }),
+		).toHaveLength(1);
+
+		const restoreCheckpoint = vi
+			.spyOn(SessionVersioningService.prototype, "restoreCheckpoint")
+			.mockImplementationOnce(async (input) => {
+				await input.cleanupStartedSession?.({
+					sessionId: replacement.sessionId,
+				} as never);
+				throw new Error("restore failed after replacement indexing");
+			});
+		try {
+			const restoreReply = await transport.handleCommand({
+				version: "v1",
+				requestId: "restore-with-indexed-replacement",
+				command: "session.restore",
+				payload: {
+					sessionId: "source-session",
+					checkpointRunCount: 1,
+					sessionConfig: {
+						providerId: "test",
+						modelId: "test-model",
+						cwd: "/tmp/project",
+						workspaceRoot: "/tmp/project",
+					},
+				},
+			});
+
+			expect(restoreReply.ok).toBe(false);
+			expect(restoreReply.error?.message).toContain(
+				"restore failed after replacement indexing",
+			);
+			expect(
+				getContext(transport).sessionSearch.search({ query: "orphanmarker" }),
+			).toEqual([]);
+			expect(deleteSession).toHaveBeenCalledOnce();
+			expect(listSessions).toHaveBeenCalledOnce();
+		} finally {
+			restoreCheckpoint.mockRestore();
+			await transport.stop();
 		}
 	});
 
@@ -462,7 +725,12 @@ describe("HubServerTransport boundaries", () => {
 		});
 
 		expect(snapshotReply.payload).toHaveProperty("snapshot");
-		expect(readSessionMessages).toHaveBeenCalledWith("session-1");
+		// Snapshots are state notifications: even when requested they never
+		// carry (or read) the transcript — that's session.messages' job.
+		expect(readSessionMessages).not.toHaveBeenCalled();
+		expect(
+			snapshotReply.payload?.snapshot as Record<string, unknown>,
+		).not.toHaveProperty("messages");
 	});
 
 	it("keeps interactive approval requests pending until a response arrives", async () => {
@@ -532,6 +800,61 @@ describe("HubServerTransport boundaries", () => {
 		} finally {
 			vi.useRealTimers();
 		}
+	});
+
+	it("replays a pending approval to a client that (re)subscribes after it was raised", async () => {
+		const transport = createTransport();
+		const ctx = getContext(transport);
+		ensureSessionState(ctx, "session-1", "client-1", "creator", {
+			interactive: true,
+		});
+
+		// No subscriber is attached yet: the approval is raised into the void.
+		const resultPromise = requestToolApproval(ctx, {
+			sessionId: "session-1",
+			agentId: "agent-1",
+			conversationId: "conversation-1",
+			iteration: 1,
+			toolCallId: "call-1",
+			toolName: "run_commands",
+			input: { commands: ["echo hi"] },
+			policy: { autoApprove: false },
+		});
+
+		// Let the request actually publish (it awaits ctx.sessionHost.getSession
+		// first) before anyone subscribes, so this exercises replay-on-subscribe
+		// rather than catching a live broadcast in that async gap.
+		for (let i = 0; i < 50 && ctx.pendingApprovals.size === 0; i += 1) {
+			await Promise.resolve();
+		}
+		expect(ctx.pendingApprovals.size).toBe(1);
+
+		// A client subscribing after the fact must still see the request.
+		const events: HubEventEnvelope[] = [];
+		transport.subscribe("late-client", (event) => events.push(event));
+		await Promise.resolve();
+		await Promise.resolve();
+
+		const requested = events.find(
+			(event) => event.event === "approval.requested",
+		);
+		expect(requested?.payload).toMatchObject({
+			sessionId: "session-1",
+			conversationId: "conversation-1",
+			toolCallId: "call-1",
+		});
+
+		const approvalId = requested?.payload?.approvalId as string;
+		await handleApprovalRespond(ctx, {
+			version: "v1",
+			requestId: "req-late",
+			command: "approval.respond",
+			payload: { approvalId, approved: true },
+		});
+		await expect(resultPromise).resolves.toEqual({
+			approved: true,
+			reason: undefined,
+		});
 	});
 
 	it("rejects pending tool approvals when a run is aborted", async () => {
@@ -903,6 +1226,7 @@ describe("HubServerTransport boundaries", () => {
 			payload: {
 				metadata: {
 					hubCapabilityOwnerClientId: "attacker-client",
+					autoApproveTools: true,
 					title: "safe title",
 				},
 			},
@@ -1180,6 +1504,78 @@ describe("HubServerTransport boundaries", () => {
 			error: { code: "invalid_compaction_state" },
 		});
 		expect(updateSessionCompactionState).not.toHaveBeenCalled();
+	});
+
+	it("never captures the transcript into event or reply snapshots", async () => {
+		const transcript = [
+			{ role: "user", content: [{ type: "text", text: "hello" }] },
+			{ role: "assistant", content: [{ type: "text", text: "world" }] },
+		];
+		let capturedSessionListener:
+			| ((event: Record<string, unknown>) => void)
+			| undefined;
+		const readSessionMessages = vi.fn().mockResolvedValue(transcript);
+		const transport = createTransport({
+			sessionHost: {
+				subscribe: vi.fn(
+					(listener: (event: Record<string, unknown>) => void) => {
+						capturedSessionListener = listener;
+						return () => {};
+					},
+				),
+				updateSession: vi.fn().mockResolvedValue({ updated: true }),
+				readSessionMessages,
+			},
+		});
+		const ctx = getContext(transport);
+		const events: HubEventEnvelope[] = [];
+		ensureSessionState(ctx, "session-1", "owner-client", "creator");
+		transport.subscribe("owner-client", (event) => events.push(event));
+
+		// A status change projects a session.updated whose snapshot carries
+		// state (status, usage, ...) but never the conversation — the session
+		// host's transcript must not even be read for it.
+		capturedSessionListener?.({
+			type: "status",
+			payload: { sessionId: "session-1", status: "running" },
+		});
+		await vi.waitFor(() => {
+			expect(events.some((event) => event.event === "session.updated")).toBe(
+				true,
+			);
+		});
+		const statusEvent = events.find(
+			(event) => event.event === "session.updated",
+		);
+		const statusSnapshot = statusEvent?.payload?.snapshot as Record<
+			string,
+			unknown
+		>;
+		expect(statusSnapshot.status).toBe("completed");
+		expect(statusSnapshot).not.toHaveProperty("messages");
+
+		// A session.update command: neither the published event nor the reply
+		// snapshot contains messages (clients fetch them via session.messages).
+		events.length = 0;
+		const reply = await transport.handleCommand({
+			version: "v1",
+			requestId: "req-update-no-transcript",
+			command: "session.update",
+			clientId: "owner-client",
+			sessionId: "session-1",
+			payload: { metadata: { title: "renamed" } },
+		});
+		const replySnapshot = reply.payload?.snapshot as Record<string, unknown>;
+		expect(replySnapshot).not.toHaveProperty("messages");
+		const updated = events.find((event) => event.event === "session.updated");
+		expect(updated).toBeDefined();
+		const updatedSnapshot = updated?.payload?.snapshot as Record<
+			string,
+			unknown
+		>;
+		expect(updatedSnapshot).not.toHaveProperty("messages");
+		expect(updatedSnapshot.status).toBe("completed");
+		expect(readSessionMessages).not.toHaveBeenCalled();
 	});
 
 	it("publishes session updates after successful compaction sidecar updates", async () => {
@@ -1517,6 +1913,65 @@ describe("HubServerTransport boundaries", () => {
 		});
 
 		expect(published).toEqual(["iteration.started", "iteration.finished"]);
+	});
+
+	it("projects in-flight tool updates onto the hub stream", async () => {
+		const transport = createTransport();
+		const events: HubEventEnvelope[] = [];
+		transport.subscribe("test", (event) => events.push(event));
+
+		await projectSessionEvent(getContext(transport), {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "content_update",
+					contentType: "tool",
+					toolCallId: "call-1",
+					toolName: "run_commands",
+					update: {
+						stream: "stdout",
+						chunk: "\u001b[32mpassed\u001b[0m\n",
+					},
+				},
+			},
+		});
+
+		expect(events).toContainEqual(
+			expect.objectContaining({
+				event: "tool.updated",
+				sessionId: "session-1",
+				payload: {
+					toolCallId: "call-1",
+					toolName: "run_commands",
+					update: {
+						stream: "stdout",
+						chunk: "\u001b[32mpassed\u001b[0m\n",
+					},
+				},
+			}),
+		);
+	});
+
+	it("detaches a running command through the hub command boundary", async () => {
+		const proceedWhileRunning = vi.fn().mockResolvedValue(2);
+		const transport = createTransport({
+			sessionHost: { proceedWhileRunning },
+		});
+
+		const reply = await transport.handleCommand({
+			version: "v1",
+			requestId: "req-proceed",
+			command: "run.proceed_while_running",
+			sessionId: "session-1",
+			payload: { sessionId: "session-1", toolCallId: "call-1" },
+		});
+
+		expect(reply).toMatchObject({
+			ok: true,
+			payload: { detachedCount: 2 },
+		});
+		expect(proceedWhileRunning).toHaveBeenCalledWith("session-1", "call-1");
 	});
 
 	it("projects an unreported non-recoverable agent error as run.failed", async () => {

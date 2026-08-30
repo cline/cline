@@ -4,6 +4,11 @@ import path from "node:path";
 import * as LlmsModels from "@cline/llms";
 import { CLINE_DEFAULT_MODEL_ID } from "@cline/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+	FALLBACK_CLINE_RECOMMENDED_MODELS,
+	getCachedClineRecommendedModels,
+	resetClineRecommendedModelsCacheForTests,
+} from "../llms/cline-recommended-models";
 import { clearLiveModelsCatalogCache } from "../llms/provider-defaults";
 import { ProviderSettingsManager } from "../storage/provider-settings-manager";
 import {
@@ -57,6 +62,7 @@ function makeTempManager(): {
 
 afterEach(() => {
 	clearLiveModelsCatalogCache();
+	resetClineRecommendedModelsCacheForTests();
 	LlmsModels.resetRegistry();
 	vi.restoreAllMocks();
 	vi.unstubAllGlobals();
@@ -178,6 +184,108 @@ describe("models registry parsing", () => {
 		expect(model).not.toHaveProperty("contextWindow");
 		expect(model).not.toHaveProperty("maxInputTokens");
 		expect(model).not.toHaveProperty("temperature");
+	});
+
+	it("seeds tool calling when capabilities are synthesized purely from boolean flags", async () => {
+		const parsed = parseModelsFile({
+			version: 1,
+			providers: {
+				"boolean-only-provider": {
+					provider: {
+						name: "Boolean Only Provider",
+						baseUrl: "https://boolean-only.example.invalid/v1",
+					},
+					models: {
+						// No explicit capabilities list: the entry only carries the
+						// boolean convenience flag. The synthesized list must include
+						// "tools", otherwise a non-empty list without it reads as an
+						// authoritative denial to modelSupportsToolCalling (#13463).
+						reasoner: {
+							contextWindow: 16000,
+							supportsReasoning: true,
+						},
+						// No flags at all: the capability list must stay absent so the
+						// runtime keeps its fail-open behavior.
+						bare: {
+							contextWindow: 16000,
+						},
+						// Explicit partial list on a non-catalog model: nothing can
+						// author a "no tools" stored entry (the VS Code legacy
+						// migration writes exactly this shape), so "tools" must be
+						// seeded here too.
+						"partial-list": {
+							capabilities: ["prompt-cache"],
+						},
+						// Non-language models must not gain a tools claim.
+						"image-gen": {
+							operation: "image-generation",
+							capabilities: ["images"],
+						},
+					},
+				},
+			},
+		});
+
+		const entry = parsed.providers["boolean-only-provider"];
+		if (!entry) {
+			throw new Error("expected boolean-only provider entry");
+		}
+
+		registerCustomProvider("boolean-only-provider", entry);
+
+		const models = await LlmsModels.getModelsForProvider(
+			"boolean-only-provider",
+		);
+		expect(models.reasoner?.capabilities).toEqual(
+			expect.arrayContaining(["reasoning", "tools"]),
+		);
+		expect(models.bare).not.toHaveProperty("capabilities");
+		expect(models["partial-list"]?.capabilities).toEqual(
+			expect.arrayContaining(["prompt-cache", "tools"]),
+		);
+		expect(models["image-gen"]?.capabilities).not.toContain("tools");
+	});
+
+	it("keeps generated tool support when stale OpenCode Go metadata shadows a catalog model", async () => {
+		const generatedModel =
+			LlmsModels.getGeneratedModelsForProvider("opencode-go")["glm-5.3"];
+		expect(generatedModel?.capabilities).toContain("tools");
+
+		const parsed = parseModelsFile({
+			version: 1,
+			providers: {
+				"opencode-go": {
+					models: {
+						"glm-5.3": {
+							// Older clients persisted only capability projections they
+							// understood. Once v4.1.11 began gating tools, this partial
+							// list shadowed the catalog's "tools" capability and disabled
+							// every edit/read tool for the model.
+							capabilities: ["reasoning", "prompt-cache"],
+						},
+					},
+				},
+			},
+		});
+
+		const entry = parsed.providers["opencode-go"];
+		if (!entry) {
+			throw new Error("expected OpenCode Go provider entry");
+		}
+
+		registerCustomProvider("opencode-go", entry);
+
+		const model = (await LlmsModels.getModelsForProvider("opencode-go"))[
+			"glm-5.3"
+		];
+		expect(model?.capabilities).toEqual(
+			expect.arrayContaining([
+				"tools",
+				"reasoning",
+				"prompt-cache",
+				"structured_output",
+			]),
+		);
 	});
 
 	it("skips malformed provider entries while preserving valid providers", () => {
@@ -310,6 +418,69 @@ describe("addLocalProvider – model ID parsing via modelsSourceUrl", () => {
 		expect(models.map((m) => m.id).sort()).toEqual(["llama3.1", "qwen3:8b"]);
 	});
 
+	it("merges live Cline models into the registered catalog", async () => {
+		const liveModelId = "vendor/live-cline-model";
+		const fetchMock = vi.fn(async (url: string) => {
+			if (url === "https://models.dev/api.json") {
+				return new Response(
+					JSON.stringify({
+						openrouter: {
+							models: {
+								[liveModelId]: {
+									name: "Live Cline Model",
+									tool_call: true,
+									reasoning: true,
+									limit: {
+										context: 256_000,
+										input: 200_000,
+										output: 32_000,
+									},
+								},
+							},
+						},
+					}),
+					{
+						status: 200,
+						headers: { "content-type": "application/json" },
+					},
+				);
+			}
+
+			return new Response(
+				JSON.stringify({
+					recommended: [
+						{
+							id: liveModelId,
+							name: liveModelId,
+							description: "Fresh from the live catalog",
+							tags: ["NEW"],
+						},
+					],
+					free: [],
+					clinePass: [],
+				}),
+				{
+					status: 200,
+					headers: { "content-type": "application/json" },
+				},
+			);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const { models } = await getLocalProviderModels("cline");
+
+		// models.dev and the recommended feed populate the live catalog; the
+		// recommended feed is fetched once more for the featured-tier overlay.
+		expect(fetchMock).toHaveBeenCalledTimes(3);
+		expect(models.find((model) => model.id === liveModelId)).toMatchObject({
+			id: liveModelId,
+			name: "Live Cline Model",
+			supportsReasoning: true,
+			description: "Fresh from the live catalog",
+			featured: { tier: "recommended", rank: 0, tags: ["NEW"] },
+		});
+	});
+
 	it("uses only live ClinePass models when live models are found", async () => {
 		const fetchMock = vi.fn(async (url: string) => {
 			if (url === "https://models.dev/api.json") {
@@ -359,7 +530,10 @@ describe("addLocalProvider – model ID parsing via modelsSourceUrl", () => {
 
 		const { models } = await getLocalProviderModels("cline-pass");
 
-		expect(fetchMock).toHaveBeenCalledTimes(2);
+		// models.dev, the recommended-models feed via the live catalog, and
+		// the recommended-models feed again for the featured-tier overlay
+		// (separately cached; both caches are cold here).
+		expect(fetchMock).toHaveBeenCalledTimes(3);
 		expect(models.map((model) => model.id)).toEqual(
 			expect.arrayContaining([
 				"cline-pass/live-pass-model",
@@ -412,7 +586,10 @@ describe("addLocalProvider – model ID parsing via modelsSourceUrl", () => {
 
 		const { models } = await getLocalProviderModels("cline-pass");
 
-		expect(fetchMock).toHaveBeenCalledTimes(2);
+		// models.dev, the recommended-models feed via the live catalog, and
+		// the recommended-models feed again for the featured-tier overlay
+		// (separately cached; both caches are cold here).
+		expect(fetchMock).toHaveBeenCalledTimes(3);
 		expect(models.map((model) => model.id)).toContain(
 			"cline-pass/mimo-v2.5-pro",
 		);
@@ -1077,6 +1254,15 @@ describe("audio transcription", () => {
 
 describe("models.json model overlays", () => {
 	it("loads model-only entries for built-in providers", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn().mockResolvedValue(
+				new Response(JSON.stringify({}), {
+					status: 200,
+					headers: { "content-type": "application/json" },
+				}),
+			),
+		);
 		const dir = mkdtempSync(
 			path.join(os.tmpdir(), "local-provider-overlay-test-"),
 		);
@@ -1537,6 +1723,68 @@ describe("listLocalProviders", () => {
 		});
 
 		expect(providers.map((p) => p.id)).toContain("cline-pass");
+	});
+
+	it("stamps featured tiers from the bundled fallback without a feed fetch", async () => {
+		const fetchMock = vi.fn();
+		vi.stubGlobal("fetch", fetchMock);
+
+		const { providers } = await listLocalProviders(manager);
+		const modelList =
+			providers.find((provider) => provider.id === "cline")?.modelList ?? [];
+		const stampedIds = modelList
+			.filter((model) => model.featured?.tier === "recommended")
+			.map((model) => model.id);
+		const expectedIds = FALLBACK_CLINE_RECOMMENDED_MODELS.recommended
+			.map((model) => model.id)
+			.filter((id) => modelList.some((model) => model.id === id));
+
+		// A cold boot must still paint tiered sections: the catalog stamps
+		// synchronously from the bundled fallback instead of waiting on (or
+		// triggering) a feed fetch.
+		expect(stampedIds.length).toBeGreaterThan(0);
+		expect(new Set(stampedIds)).toEqual(new Set(expectedIds));
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it("stamps featured tiers from the cached live feed once warmed", async () => {
+		const clineModelIds = Object.keys(
+			await LlmsModels.getModelsForProvider("cline"),
+		);
+		const [recommendedId, freeId] = clineModelIds;
+		await getCachedClineRecommendedModels({
+			baseUrl: "https://api.example.test",
+			fetchImpl: async () =>
+				new Response(
+					JSON.stringify({
+						recommended: [
+							{
+								id: recommendedId,
+								name: "Live Pick",
+								description: "Live description",
+								tags: ["NEW"],
+							},
+						],
+						free: [{ id: freeId, name: "Live Free", description: "" }],
+						clinePass: [],
+					}),
+					{ status: 200, headers: { "Content-Type": "application/json" } },
+				),
+			catalogLoader: async () => ({}),
+		});
+
+		const { providers } = await listLocalProviders(manager);
+		const modelList =
+			providers.find((provider) => provider.id === "cline")?.modelList ?? [];
+
+		expect(
+			modelList.find((model) => model.id === recommendedId)?.featured,
+		).toEqual({ tier: "recommended", rank: 0, tags: ["NEW"] });
+		expect(modelList.find((model) => model.id === freeId)?.featured).toEqual({
+			tier: "free",
+			rank: 0,
+			tags: [],
+		});
 	});
 
 	it("marks enabled providers correctly", async () => {

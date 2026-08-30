@@ -45,17 +45,19 @@ function renderView({
 	loadOlderSessions = vi.fn(),
 	mayHaveMoreSessions = false,
 	threads = [thread],
+	hasLoadedHistory = true,
 }: {
 	openThread?: ReturnType<typeof vi.fn>;
 	loadAllSessions?: ReturnType<typeof vi.fn>;
 	loadOlderSessions?: ReturnType<typeof vi.fn>;
 	mayHaveMoreSessions?: boolean;
 	threads?: SessionThread[];
+	hasLoadedHistory?: boolean;
 } = {}) {
 	const history = {
 		deleteThread: vi.fn(),
 		forkThread: vi.fn(),
-		isLoadingHistory: false,
+		hasLoadedHistory,
 		isLoadingMore: false,
 		loadAllSessions,
 		loadOlderSessions,
@@ -150,19 +152,19 @@ describe("SessionsView table", () => {
 		expect(row?.parentElement?.className).not.toContain("min-h-14");
 	});
 
-	it("marks favorited sessions with a star", async () => {
+	it("marks pinned sessions with a pin icon", async () => {
 		const plain = renderView();
 		await plain.render();
-		expect(container.querySelector('[aria-label="Favorited"]')).toBeNull();
+		expect(container.querySelector('[aria-label="Pinned"]')).toBeNull();
 
 		await act(async () => root.unmount());
 		root = createRoot(container);
 
-		const favorited = renderView({
+		const pinned = renderView({
 			threads: [{ ...thread, pinned: true }],
 		});
-		await favorited.render();
-		expect(container.querySelector('[aria-label="Favorited"]')).not.toBeNull();
+		await pinned.render();
+		expect(container.querySelector('[aria-label="Pinned"]')).not.toBeNull();
 	});
 
 	it("opens a session on click but not while text is selected", async () => {
@@ -187,6 +189,21 @@ describe("SessionsView table", () => {
 			row?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 		});
 		expect(view.openThread).toHaveBeenCalledWith(thread.id);
+	});
+
+	it("keeps loading until the first response and only then shows the empty state", async () => {
+		const loading = renderView({ threads: [], hasLoadedHistory: false });
+		await loading.render();
+		expect(container.textContent).toContain("Loading session history...");
+		expect(container.textContent).not.toContain("No sessions yet.");
+
+		await act(async () => root.unmount());
+		root = createRoot(container);
+
+		const empty = renderView({ threads: [], hasLoadedHistory: true });
+		await empty.render();
+		expect(container.textContent).toContain("No sessions yet.");
+		expect(container.textContent).not.toContain("Loading session history...");
 	});
 
 	it("loads complete history before treating search results as exhaustive", async () => {
