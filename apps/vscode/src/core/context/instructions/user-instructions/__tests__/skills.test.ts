@@ -54,15 +54,7 @@ mock.module("@/core/storage/skill-directories", skillDirsMock)
 mock.module("fs/promises", fsPromisesMock)
 mock.module("node:fs/promises", fsPromisesMock)
 
-import { parseYamlFrontmatter } from "../frontmatter"
-import {
-	discoverSkills,
-	getAvailableSkills,
-	getSkillContent,
-	parseRemoteSkillEntries,
-	setSkillDisabledInFrontmatter,
-	updateSkillMarkdownDisabledState,
-} from "../skills"
+import { discoverSkills, getAvailableSkills, getSkillContent, parseRemoteSkillEntries, setSkillDisabledInFrontmatter } from "../skills"
 
 describe("Skills Utility Functions", () => {
 	let sandbox: sinon.SinonSandbox
@@ -741,76 +733,6 @@ description: Test
 				sinon.assert.notCalled(readFileStub)
 			})
 		})
-	})
-})
-
-describe("updateSkillMarkdownDisabledState", () => {
-	it("adds disabled: true when disabling a skill with existing frontmatter", () => {
-		const input = ["---", "name: my-skill", "description: A skill", "---", "Body here"].join("\n")
-		const output = updateSkillMarkdownDisabledState(input, false)
-		expect(output).to.contain("disabled: true")
-		expect(output).to.contain("name: my-skill")
-		expect(output).to.contain("Body here")
-	})
-
-	it("removes disabled flag when enabling a previously-disabled skill", () => {
-		const input = ["---", "name: my-skill", "description: A skill", "disabled: true", "---", "Body"].join("\n")
-		const output = updateSkillMarkdownDisabledState(input, true)
-		expect(output).to.not.contain("disabled")
-		expect(output).to.contain("name: my-skill")
-		expect(output).to.contain("Body")
-	})
-
-	it("also clears a stale enabled: false when enabling", () => {
-		const input = ["---", "name: my-skill", "enabled: false", "---", "Body"].join("\n")
-		const output = updateSkillMarkdownDisabledState(input, true)
-		expect(output).to.not.contain("enabled: false")
-	})
-
-	it("drops the frontmatter block entirely when enabling leaves it empty", () => {
-		const input = ["---", "disabled: true", "---", "Body only"].join("\n")
-		const output = updateSkillMarkdownDisabledState(input, true)
-		expect(output).to.equal("Body only")
-	})
-
-	it("returns content unchanged when enabling a doc with no frontmatter", () => {
-		const input = "Just body, no frontmatter"
-		expect(updateSkillMarkdownDisabledState(input, true)).to.equal(input)
-	})
-
-	it("is idempotent: disabling an already-disabled skill keeps disabled: true once", () => {
-		const input = ["---", "name: s", "disabled: true", "---", "B"].join("\n")
-		const output = updateSkillMarkdownDisabledState(input, false)
-		expect(output.match(/disabled: true/g)).to.have.lengthOf(1)
-	})
-
-	// Frontmatter block whose YAML is genuinely invalid (asserted below). The
-	// `---` markers are well-formed so parseYamlFrontmatter detects frontmatter
-	// and then fails to parse it, exercising the parseError branch.
-	const MALFORMED_FRONTMATTER = ["---", "name: s", "description: : : bad", "  - nope", "---", "Body"].join("\n")
-
-	it("uses a fixture whose frontmatter YAML is actually invalid", () => {
-		// Guards the two tests below from rotting into false positives: if this
-		// fixture ever became valid YAML, updateSkillMarkdownDisabledState would
-		// take a different (rewriting) path and the "untouched" assertions could
-		// pass for the wrong reason.
-		const parsed = parseYamlFrontmatter(MALFORMED_FRONTMATTER)
-		expect(parsed.hadFrontmatter).to.be.true
-		expect(parsed.parseError, "fixture frontmatter should be invalid YAML").to.be.a("string")
-	})
-
-	it("leaves malformed-frontmatter files untouched when disabling (no double header)", () => {
-		// parseYamlFrontmatter fails open and returns the full original document
-		// as the body. Disabling must not prepend a second `---` block and corrupt
-		// the file.
-		const output = updateSkillMarkdownDisabledState(MALFORMED_FRONTMATTER, false)
-		expect(output).to.equal(MALFORMED_FRONTMATTER)
-		// Exactly one frontmatter opener/closer pair, not two.
-		expect(output.match(/^---$/gm)).to.have.lengthOf(2)
-	})
-
-	it("leaves malformed-frontmatter files untouched when enabling", () => {
-		expect(updateSkillMarkdownDisabledState(MALFORMED_FRONTMATTER, true)).to.equal(MALFORMED_FRONTMATTER)
 	})
 })
 

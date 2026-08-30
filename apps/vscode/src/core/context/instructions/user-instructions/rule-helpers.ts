@@ -4,8 +4,42 @@ import { fileExistsAtPath, isDirectory, readDirectory } from "@utils/fs"
 import fs from "fs/promises"
 import * as path from "path"
 import { Logger } from "@/shared/services/Logger"
-import { parseYamlFrontmatter } from "./frontmatter"
+import { parseYamlFrontmatter, updateMarkdownDisabledState } from "./frontmatter"
 import { evaluateRuleConditionals, RuleEvaluationContext } from "./rule-conditionals"
+
+// File types the SDK loads as rules (see createRulesConfigDefinition in @cline/core):
+// markdown-like files plus the legacy single-file `.clinerules`.
+const RULE_MARKDOWN_EXTENSIONS = new Set([".md", ".markdown", ".txt"])
+
+/**
+ * Persist a rule's enabled/disabled state to its frontmatter on disk.
+ *
+ * The SDK builds the system prompt from rule files on disk and reads a rule's
+ * enabled state from the frontmatter `disabled` field, not from the extension's
+ * UI toggle state. Toggling a rule in the Rules panel must therefore also write
+ * this flag so the change actually excludes/includes the rule for the model
+ * (cline/cline#13695). This mirrors setSkillDisabledInFrontmatter (ENG-1995).
+ *
+ * No-op (returns false) for files the SDK does not load as rules, so we never
+ * inject YAML frontmatter into non-markdown files.
+ */
+export async function setRuleDisabledInFrontmatter(rulePath: string, enabled: boolean): Promise<boolean> {
+	const fileName = path.basename(rulePath)
+	if (fileName !== ".clinerules" && !RULE_MARKDOWN_EXTENSIONS.has(path.extname(fileName).toLowerCase())) {
+		return false
+	}
+	try {
+		const content = await fs.readFile(rulePath, "utf8")
+		const updated = updateMarkdownDisabledState(content, enabled)
+		if (updated !== content) {
+			await fs.writeFile(rulePath, updated)
+		}
+		return true
+	} catch (error) {
+		Logger.warn(`Failed to update rule frontmatter at ${rulePath}:`, error)
+		return false
+	}
+}
 
 /**
  * Recursively traverses directory and finds all files, including checking for optional whitelisted file extension

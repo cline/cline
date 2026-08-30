@@ -1,3 +1,4 @@
+import { setRuleDisabledInFrontmatter } from "@core/context/instructions/user-instructions/rule-helpers"
 import { getWorkspaceBasename } from "@core/workspace"
 import type { ToggleClineRuleRequest } from "@shared/proto/cline/file"
 import { RuleScope, ToggleClineRules } from "@shared/proto/cline/file"
@@ -23,18 +24,23 @@ export async function toggleClineRule(controller: Controller, request: ToggleCli
 		throw new Error("Missing or invalid parameters for toggleClineRule")
 	}
 
-	// Handle the three different scopes
+	// Handle the three different scopes. For file-backed rules (global/local) the
+	// enabled state is also persisted to the rule file's frontmatter: the SDK
+	// composes the system prompt from rule files on disk and only honors the
+	// frontmatter `disabled` flag, not the extension's toggle state (#13695).
 	switch (scope) {
 		case RuleScope.GLOBAL: {
 			const toggles = controller.stateManager.getGlobalSettingsKey("globalClineRulesToggles")
 			toggles[rulePath] = enabled
 			controller.stateManager.setGlobalState("globalClineRulesToggles", toggles)
+			await setRuleDisabledInFrontmatter(rulePath, enabled)
 			break
 		}
 		case RuleScope.LOCAL: {
 			const toggles = controller.stateManager.getWorkspaceStateKey("localClineRulesToggles")
 			toggles[rulePath] = enabled
 			controller.stateManager.setWorkspaceState("localClineRulesToggles", toggles)
+			await setRuleDisabledInFrontmatter(rulePath, enabled)
 			break
 		}
 		case RuleScope.REMOTE: {

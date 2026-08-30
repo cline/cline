@@ -57,3 +57,54 @@ export function parseYamlFrontmatter(markdown: string): FrontmatterParseResult {
 		return { data: {}, body: normalizedMarkdown, hadFrontmatter: true, parseError: message }
 	}
 }
+
+/**
+ * Update the `disabled` frontmatter flag of a markdown document (skill, rule, ...).
+ *
+ * The SDK reads a document's enabled state from the frontmatter `disabled` field,
+ * not from the extension's UI toggle state, so UI toggles must also write this
+ * flag for the change to be reflected for the model. This mirrors the SDK's
+ * updateSkillMarkdownEnabledState but lives in the extension and uses js-yaml
+ * (the extension's frontmatter parser).
+ *
+ * - enabled=false → sets `disabled: true`.
+ * - enabled=true  → removes `disabled` (and a stale `enabled: false`), dropping
+ *   the frontmatter block entirely if it becomes empty.
+ *
+ * Returns the original content unchanged when enabling a document that has no
+ * frontmatter (nothing to clear).
+ */
+export function updateMarkdownDisabledState(content: string, enabled: boolean): string {
+	const { data, body, hadFrontmatter, parseError } = parseYamlFrontmatter(content)
+
+	if (!hadFrontmatter && enabled) {
+		return content
+	}
+
+	// parseYamlFrontmatter fails open on malformed YAML: it returns data={} and
+	// body=<full original content> (frontmatter block included). Serializing here
+	// would prepend a second `---` block and corrupt the file, so leave it
+	// untouched and let the user fix the frontmatter.
+	if (parseError) {
+		return content
+	}
+
+	if (enabled) {
+		delete data.disabled
+		if (data.enabled === false) {
+			delete data.enabled
+		}
+		if (Object.keys(data).length === 0) {
+			return body
+		}
+		return serializeFrontmatter(data, body)
+	}
+
+	data.disabled = true
+	return serializeFrontmatter(data, body)
+}
+
+function serializeFrontmatter(data: Record<string, unknown>, body: string): string {
+	const yamlText = yaml.dump(data, { schema: yaml.JSON_SCHEMA }).trimEnd()
+	return `---\n${yamlText}\n---\n${body}`
+}

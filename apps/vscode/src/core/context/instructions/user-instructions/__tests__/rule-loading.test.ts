@@ -3,7 +3,7 @@ import { expect } from "chai"
 import fs from "fs/promises"
 import os from "os"
 import path from "path"
-import { getRuleFilesTotalContentWithMetadata } from "../rule-helpers"
+import { getRuleFilesTotalContentWithMetadata, setRuleDisabledInFrontmatter } from "../rule-helpers"
 
 describe("rule loading with paths frontmatter", () => {
 	it("filters rules by evaluationContext.paths", async () => {
@@ -114,5 +114,76 @@ describe("rule loading with paths frontmatter", () => {
 		} finally {
 			await fs.rm(tmp, { recursive: true, force: true })
 		}
+	})
+})
+
+// Regression tests for https://github.com/cline/cline/issues/13695: toggling a
+// rule OFF must be persisted to the rule file's frontmatter, since the SDK
+// builds the system prompt from files on disk and ignores extension toggle state.
+describe("setRuleDisabledInFrontmatter", () => {
+	it("writes disabled: true when disabling a plain markdown rule with no frontmatter", async () => {
+		const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "cline-rules-test-"))
+		try {
+			const rulePath = path.join(tmp, "memory-bank.md")
+			await fs.writeFile(rulePath, "Always remember the memory bank")
+
+			const ok = await setRuleDisabledInFrontmatter(rulePath, false)
+
+			expect(ok).to.be.true
+			const written = await fs.readFile(rulePath, "utf8")
+			expect(written).to.equal("---\ndisabled: true\n---\nAlways remember the memory bank")
+		} finally {
+			await fs.rm(tmp, { recursive: true, force: true })
+		}
+	})
+
+	it("removes the disabled flag when re-enabling, restoring the original content", async () => {
+		const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "cline-rules-test-"))
+		try {
+			const rulePath = path.join(tmp, "rule.md")
+			await fs.writeFile(rulePath, "---\ndisabled: true\n---\nRule body")
+
+			const ok = await setRuleDisabledInFrontmatter(rulePath, true)
+
+			expect(ok).to.be.true
+			expect(await fs.readFile(rulePath, "utf8")).to.equal("Rule body")
+		} finally {
+			await fs.rm(tmp, { recursive: true, force: true })
+		}
+	})
+
+	it("supports the legacy single-file .clinerules", async () => {
+		const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "cline-rules-test-"))
+		try {
+			const rulePath = path.join(tmp, ".clinerules")
+			await fs.writeFile(rulePath, "Legacy rules")
+
+			const ok = await setRuleDisabledInFrontmatter(rulePath, false)
+
+			expect(ok).to.be.true
+			expect(await fs.readFile(rulePath, "utf8")).to.contain("disabled: true")
+		} finally {
+			await fs.rm(tmp, { recursive: true, force: true })
+		}
+	})
+
+	it("does not touch files the SDK does not load as rules", async () => {
+		const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "cline-rules-test-"))
+		try {
+			const rulePath = path.join(tmp, "rules.json")
+			await fs.writeFile(rulePath, `{"not": "markdown"}`)
+
+			const ok = await setRuleDisabledInFrontmatter(rulePath, false)
+
+			expect(ok).to.be.false
+			expect(await fs.readFile(rulePath, "utf8")).to.equal(`{"not": "markdown"}`)
+		} finally {
+			await fs.rm(tmp, { recursive: true, force: true })
+		}
+	})
+
+	it("returns false when the rule file does not exist", async () => {
+		const ok = await setRuleDisabledInFrontmatter(path.join(os.tmpdir(), "does-not-exist.md"), false)
+		expect(ok).to.be.false
 	})
 })
