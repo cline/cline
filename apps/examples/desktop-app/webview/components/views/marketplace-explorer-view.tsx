@@ -74,6 +74,9 @@ const CODE_FONT_STYLE: CSSProperties = {
 
 const INSTALL_TIMEOUT_MS = 300_000;
 
+/** Tag pills shown while the category row is collapsed. */
+const COLLAPSED_TAG_COUNT = 4;
+
 function entryKey(entry: Pick<MarketplaceEntry, "id" | "type">): string {
 	return `${entry.type}:${entry.id}`;
 }
@@ -585,6 +588,7 @@ export function MarketplaceExplorerView() {
 		null,
 	);
 	const [selectedTag, setSelectedTag] = useState<string | null>(null);
+	const [tagsExpanded, setTagsExpanded] = useState(false);
 	const [selectedKey, setSelectedKey] = useState<string | null>(null);
 
 	// Type + query filtering happens before tag filtering so the tag pill
@@ -612,14 +616,32 @@ export function MarketplaceExplorerView() {
 
 	// Keep the selected tag's pill visible even when the current type/query
 	// has no matches for it, so an active filter can never silently empty the
-	// list while its pill is hidden.
+	// list while its pill is hidden. Sorted by the catalog's global tag count
+	// (static) so the collapsed row surfaces the most useful categories
+	// without pills reordering as filters change.
 	const visibleTags = useMemo(
 		() =>
-			(directory.catalog?.tags ?? []).filter(
-				(tag) => (tagCounts.get(tag.id) ?? 0) > 0 || tag.id === selectedTag,
-			),
+			(directory.catalog?.tags ?? [])
+				.filter(
+					(tag) => (tagCounts.get(tag.id) ?? 0) > 0 || tag.id === selectedTag,
+				)
+				.sort((a, b) => b.count - a.count),
 		[directory.catalog?.tags, selectedTag, tagCounts],
 	);
+
+	// Collapsed, the pill row shows only the top categories (plus the active
+	// tag if it would otherwise be hidden) and a "+N more" toggle.
+	const displayedTags = useMemo(() => {
+		if (tagsExpanded) return visibleTags;
+		const slice = visibleTags.slice(0, COLLAPSED_TAG_COUNT);
+		if (selectedTag && !slice.some((tag) => tag.id === selectedTag)) {
+			const selected = visibleTags.find((tag) => tag.id === selectedTag);
+			if (selected) slice.push(selected);
+		}
+		return slice;
+	}, [selectedTag, tagsExpanded, visibleTags]);
+
+	const hiddenTagCount = visibleTags.length - displayedTags.length;
 
 	const filteredEntries = useMemo(
 		() =>
@@ -720,7 +742,7 @@ export function MarketplaceExplorerView() {
 					</div>
 					{visibleTags.length > 0 ? (
 						<div className="flex flex-wrap gap-1">
-							{visibleTags.map((tag) => {
+							{displayedTags.map((tag) => {
 								const active = selectedTag === tag.id;
 								return (
 									<button
@@ -750,6 +772,15 @@ export function MarketplaceExplorerView() {
 									</button>
 								);
 							})}
+							{hiddenTagCount > 0 || tagsExpanded ? (
+								<button
+									className="inline-flex items-center rounded-full border border-dashed border-border/70 px-2 py-0.5 text-[11px] text-muted-foreground transition-colors hover:bg-surface-hover-lighter hover:text-foreground"
+									onClick={() => setTagsExpanded((current) => !current)}
+									type="button"
+								>
+									{tagsExpanded ? "Show less" : `+${hiddenTagCount} more`}
+								</button>
+							) : null}
 						</div>
 					) : null}
 				</div>
