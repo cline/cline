@@ -54,7 +54,13 @@ mock.module("@/core/storage/skill-directories", skillDirsMock)
 mock.module("fs/promises", fsPromisesMock)
 mock.module("node:fs/promises", fsPromisesMock)
 
-import { discoverSkills, getAvailableSkills, getSkillContent, parseRemoteSkillEntries, setSkillDisabledInFrontmatter } from "../skills"
+import {
+	discoverSkills,
+	getAvailableSkills,
+	getSkillContent,
+	parseRemoteSkillEntries,
+	setSkillDisabledInFrontmatter,
+} from "../skills"
 
 describe("Skills Utility Functions", () => {
 	let sandbox: sinon.SinonSandbox
