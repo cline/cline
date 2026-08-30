@@ -9,6 +9,7 @@ const getAgentIdMock = vi.fn(() => "sub-agent-1");
 const getConversationIdMock = vi.fn(() => "conv-sub-1");
 const agentConstructorSpy = vi.fn();
 const updateConnectionMock = vi.fn();
+const updateSuspendedConnectionMock = vi.fn();
 
 vi.mock("../../../runtime/orchestration/session-runtime-orchestrator", () => {
 	return {
@@ -27,6 +28,10 @@ vi.mock("../../../runtime/orchestration/session-runtime-orchestrator", () => {
 
 			updateConnection(overrides: unknown): void {
 				updateConnectionMock(overrides);
+			}
+
+			updateSuspendedConnection(overrides: unknown): void {
+				updateSuspendedConnectionMock(overrides);
 			}
 
 			subscribeEvents(): () => void {
@@ -383,7 +388,7 @@ describe("createSpawnAgentTool", () => {
 		);
 	});
 
-	it("refreshes an already-active delegated runtime from versioned defaults", async () => {
+	it("refreshes the active connection while deferring a selected model", async () => {
 		const { createSpawnAgentTool } = await import("./spawn-agent-tool.js");
 		runMock.mockResolvedValue({
 			text: "ok",
@@ -413,19 +418,47 @@ describe("createSpawnAgentTool", () => {
 		const delegatedConfig = agentConstructorSpy.mock.calls.at(-1)?.[0] as
 			| AgentConfig
 			| undefined;
-
-		configProvider.updateConnectionDefaults({
-			apiKey: "new-key",
-			baseUrl: undefined,
-		});
-		await delegatedConfig?.beforeModelRequest?.();
-
-		expect(updateConnectionMock).toHaveBeenCalledWith(
+		expect(delegatedConfig).toEqual(
 			expect.objectContaining({
 				providerId: "lmstudio",
 				modelId: "local-model",
+				apiKey: "old-key",
+				baseUrl: "http://custom-endpoint",
+			}),
+		);
+
+		configProvider.updateConnectionDefaults({
+			modelId: "selected-model",
+			apiKey: "new-key",
+			baseUrl: "http://new-endpoint",
+		});
+		await delegatedConfig?.beforeModelRequest?.();
+
+		expect(updateSuspendedConnectionMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				providerId: "lmstudio",
+				modelId: "selected-model",
 				apiKey: "new-key",
-				baseUrl: null,
+				baseUrl: "http://new-endpoint",
+			}),
+		);
+		expect(updateConnectionMock).not.toHaveBeenCalled();
+
+		await tool.execute(
+			{ systemPrompt: "System", task: "Do next task" },
+			{
+				agentId: "parent-8",
+				conversationId: "conv-parent",
+				iteration: 1,
+			},
+		);
+
+		expect(agentConstructorSpy.mock.calls.at(-1)?.[0]).toEqual(
+			expect.objectContaining({
+				providerId: "lmstudio",
+				modelId: "selected-model",
+				apiKey: "new-key",
+				baseUrl: "http://new-endpoint",
 			}),
 		);
 	});

@@ -173,7 +173,7 @@ export function createDelegatedAgent(
 			return;
 		}
 		const connection = snapshot.config;
-		session.updateConnection({
+		session.updateSuspendedConnection({
 			providerId: connection.providerId,
 			modelId: connection.modelId,
 			apiKey: connection.apiKey ?? "",
