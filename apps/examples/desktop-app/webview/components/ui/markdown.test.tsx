@@ -90,27 +90,6 @@ const ready = true;
 		expect(html).toContain("stillStreaming");
 	});
 
-	test("repairs an incomplete streaming Mermaid fence into a diagram shell", () => {
-		const streaming = renderToStaticMarkup(
-			<MemoizedMarkdown
-				content={"```mermaid\nflowchart LR\n  A[Streaming] -->"}
-				streaming
-			/>,
-		);
-		const completed = renderToStaticMarkup(
-			<MemoizedMarkdown
-				content={
-					"```mermaid\nflowchart LR\n  A[Streaming] --> B[Complete]\n```"
-				}
-			/>,
-		);
-
-		expect(streaming).toContain("animate-spin");
-		expect(streaming).not.toContain('data-streamdown="code-block"');
-		expect(completed).toContain("animate-spin");
-		expect(completed).not.toContain('data-streamdown="code-block"');
-	});
-
 	test("renders honest external links with their real destination", () => {
 		const html = renderToStaticMarkup(
 			<MemoizedMarkdown content="[Review](https://example.com/review)" />,

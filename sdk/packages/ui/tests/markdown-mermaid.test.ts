@@ -104,4 +104,24 @@ describe("createLazyMermaidPlugin", () => {
 			expect.objectContaining({ securityLevel: "strict" }),
 		);
 	});
+
+	test("retries the lazy import after a chunk load failure", async () => {
+		const renderer = createRenderer();
+		const error = new Error("chunk unavailable");
+		const loader = vi
+			.fn<MermaidModuleLoader>()
+			.mockRejectedValueOnce(error)
+			.mockResolvedValueOnce({ default: renderer });
+		const instance = createLazyMermaidPlugin(loader).getMermaid();
+
+		await expect(
+			instance.render("first", "flowchart LR\nA --> B"),
+		).rejects.toBe(error);
+		await expect(
+			instance.render("second", "flowchart LR\nA --> B"),
+		).resolves.toEqual({
+			svg: '<svg data-id="second">flowchart LR\nA --> B</svg>',
+		});
+		expect(loader).toHaveBeenCalledTimes(2);
+	});
 });

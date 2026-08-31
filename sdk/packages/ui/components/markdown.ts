@@ -76,9 +76,8 @@ export type MermaidModuleLoader = () => Promise<MermaidModule>;
 const loadMermaid: MermaidModuleLoader = () => import("mermaid");
 
 /**
- * Creates an isolated Streamdown Mermaid plugin that loads the renderer only
- * after a `mermaid` fence is encountered. Each host gets its own instance, so
- * host-specific config cannot leak between surfaces.
+ * Creates a Streamdown Mermaid plugin with host-local loading and config state.
+ * The renderer is loaded only after a `mermaid` fence is encountered.
  */
 export function createLazyMermaidPlugin(
 	loader: MermaidModuleLoader = loadMermaid,
@@ -86,7 +85,10 @@ export function createLazyMermaidPlugin(
 	let config: MermaidConfig = DEFAULT_MERMAID_CONFIG;
 	let modulePromise: Promise<MermaidModule> | undefined;
 	const getModule = () => {
-		modulePromise ??= loader();
+		modulePromise ??= loader().catch((error: unknown) => {
+			modulePromise = undefined;
+			throw error;
+		});
 		return modulePromise;
 	};
 
