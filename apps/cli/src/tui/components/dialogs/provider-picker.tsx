@@ -16,7 +16,7 @@ import { useDialogKeyboard } from "@opentui-ui/dialog/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
 	checkLocalCliInstalled,
-	isLocalCliProvider,
+	getLocalCliProvider,
 	type LocalCliProvider,
 	type LocalCliStatus,
 } from "../../../utils/local-cli-providers";
@@ -82,7 +82,7 @@ export function ProviderPickerContent(
 					// just a model id and base URL) still render as configured.
 					isConfigured: p.enabled === true,
 					isOAuth: isOAuthProvider(p.id),
-					isLocalAuth: isLocalCliProvider(p.id),
+					isLocalAuth: getLocalCliProvider(p.id) !== undefined,
 					capabilities: p.capabilities,
 				}));
 				setProviders(providerItems);
@@ -670,12 +670,6 @@ export function LocalCliStatusContent(
 		setChecking(true);
 		checkLocalCliInstalled(cli)
 			.then(setStatus)
-			.catch((error: unknown) => {
-				setStatus({
-					installed: false,
-					reason: error instanceof Error ? error.message : String(error),
-				});
-			})
 			.finally(() => setChecking(false));
 	}, [cli]);
 

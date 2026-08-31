@@ -104,6 +104,10 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 	const [authError, setAuthError] = useState("");
 	const [activeProviderId, setActiveProviderId] = useState("");
 	const [activeProviderName, setActiveProviderName] = useState("");
+	const localCli = useMemo(
+		() => getLocalCliProvider(activeProviderId),
+		[activeProviderId],
+	);
 	const [byoFields, setByoFields] = useState<ProviderConfigFields["fields"]>(
 		{},
 	);
@@ -111,7 +115,6 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 	const [byoValues, setByoValues] = useState<ProviderConfigValues>({});
 	const [byoFocusedField, setByoFocusedField] =
 		useState<ProviderConfigFieldKey>("apiKey");
-	const [localCli, setLocalCli] = useState<LocalCliProvider | undefined>();
 	const [localCliStatus, setLocalCliStatus] = useState<
 		LocalCliStatus | undefined
 	>();
@@ -503,13 +506,6 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 			.then((status) => {
 				if (isCurrentProbe()) setLocalCliStatus(status);
 			})
-			.catch((error: unknown) => {
-				if (!isCurrentProbe()) return;
-				setLocalCliStatus({
-					installed: false,
-					reason: error instanceof Error ? error.message : String(error),
-				});
-			})
 			.finally(() => {
 				if (isCurrentProbe()) setLocalCliChecking(false);
 			});
@@ -529,8 +525,6 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 			if (localCliProvider) {
 				setActiveProviderId(provider.id);
 				setActiveProviderName(provider.name);
-				setLocalCli(localCliProvider);
-				setLocalCliStatus(undefined);
 				setStep("local_cli_setup");
 				refreshLocalCliStatus(localCliProvider);
 				return;
