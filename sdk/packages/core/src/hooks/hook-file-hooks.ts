@@ -77,9 +77,12 @@ type HookCommandSessionShutdownContext = HookContextBase & {
 };
 
 /**
- * Reports how long a fire-and-forget hook actually ran. Hosts use it to learn
- * the real runtime distribution of detached hooks — unmeasurable while nothing
- * awaits them — before deciding to run any of them blocking.
+ * Reports how long a fire-and-forget hook actually ran, once per hook. Hosts
+ * use it to learn the real runtime distribution of detached hooks —
+ * unmeasurable while nothing awaits them — before deciding to run any of them
+ * blocking. `exited: false` is a censored observation (the hook was still
+ * running after the observation window, so it ran at least `durationMs`),
+ * which is what keeps the sample from covering only hooks that finish.
  */
 export type HookRuntimeObserver = (event: {
 	hookName: HookEventName;
