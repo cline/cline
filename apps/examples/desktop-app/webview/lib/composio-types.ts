@@ -39,9 +39,9 @@ export type ComposioIntegrationSummary = {
 
 export type ComposioStatusResponse = {
 	/**
-	 * True when this build carries a managed Composio API key (inlined at
-	 * build time, or the COMPOSIO_API_KEY env var in dev). The Connectors
-	 * feature is hidden entirely when false — there is no user-entered key.
+	 * True when the sidecar has a managed Composio API key (the
+	 * COMPOSIO_API_KEY environment variable). The Connectors feature is
+	 * hidden entirely when false — there is no user-entered key.
 	 */
 	configured: boolean;
 	/**

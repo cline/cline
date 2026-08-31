@@ -294,11 +294,11 @@ export function ComposioConnectorBrowser({
 	}
 
 	if (!configured) {
-		// Normally unreachable — the Connectors filter chip is hidden in builds
-		// without a managed key — but reachable transiently while status loads.
+		// Normally unreachable — the Connectors filter chip is hidden without a
+		// managed key — but reachable transiently while status loads.
 		return (
 			<p className="text-sm text-muted-foreground">
-				Connectors aren&apos;t available in this build.
+				Connectors aren&apos;t available.
 			</p>
 		);
 	}

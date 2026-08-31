@@ -680,7 +680,7 @@ export function MarketplaceView({
 		ComposioCatalogToolkit[] | null
 	>(null);
 	// Connectors are an org-provisioned feature: the filter chip only exists
-	// in builds that carry a managed Composio API key.
+	// when the sidecar has a managed Composio API key.
 	const [connectorsConfigured, setConnectorsConfigured] = useState(false);
 	const [expandedEntryKey, setExpandedEntryKey] = useState<string | null>(null);
 	const [installedEntryKeys, setInstalledEntryKeys] = useState<Set<string>>(

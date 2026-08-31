@@ -64,10 +64,9 @@ type StoredComposioToolkit = {
 
 type StoredComposioState = {
 	/**
-	 * Copy of the managed COMPOSIO_API_KEY (inlined into packaged sidecar
-	 * binaries at build time, a plain env var in dev), persisted so the
-	 * generated plugin — which runs in the Hub process without this process's
-	 * bundle or environment — can execute tools. Re-synced on every read:
+	 * Copy of the managed COMPOSIO_API_KEY environment variable, persisted so
+	 * the generated plugin — which runs in the Hub process without this
+	 * process's environment — can execute tools. Re-synced on every read:
 	 * rotated when the managed key changes, dropped when it disappears. There
 	 * is no user-entered key.
 	 */
@@ -365,11 +364,13 @@ function updateComposioState(
 }
 
 /**
- * The managed Composio API key. In packaged builds the value is inlined into
- * the compiled sidecar binary at build time via `--define`
- * (scripts/composio-define-args.ts, fed by CI secrets); in dev it is the
- * plain environment variable. There is no user-entered key: builds without a
- * managed key ship with connectors hidden.
+ * The managed Composio API key: the COMPOSIO_API_KEY environment variable
+ * exported to the sidecar process. There is no user-entered key, and the key
+ * is deliberately NOT baked into shipped binaries — a client-embedded secret
+ * is extractable by anyone with the artifact. Installs without the variable
+ * keep connectors hidden; the intended interim rollout is internal users
+ * exporting the key locally, until a Cline-platform proxy holds it
+ * server-side.
  */
 function resolveManagedComposioApiKey(): string | undefined {
 	return process.env.COMPOSIO_API_KEY?.trim() || undefined;
