@@ -1,6 +1,8 @@
 "use client";
 
-import { ImagePlus } from "lucide-react";
+import { AttachmentDropZone } from "@cline/ui";
+import { Loader2 } from "lucide-react";
+import dynamic from "next/dynamic";
 import {
 	useCallback,
 	useEffect,
@@ -11,6 +13,8 @@ import {
 } from "react";
 import { AgentHeader } from "@/components/agent-header";
 import { AgentSidebar } from "@/components/agent-sidebar";
+import { HubUpdateRequiredDialog } from "@/components/hub-update-required-dialog";
+import { SessionCommandBar } from "@/components/session-command-bar";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -30,14 +34,15 @@ import {
 } from "@/components/ui/sidebar";
 import { ChatInputBar } from "@/components/views/chat/chat-input-bar";
 import { ChatMessages } from "@/components/views/chat/chat-messages";
-import { DiffView } from "@/components/views/chat/diff-view";
 import { WelcomeScreen } from "@/components/views/chat/welcome-chat";
-import { OnboardingView } from "@/components/views/onboarding/onboarding-view";
-import { SessionsView } from "@/components/views/sessions/sessions-view";
+import { WelcomeSetupNotice } from "@/components/views/chat/welcome-setup-notice";
+import type { OnboardingStep } from "@/components/views/onboarding/onboarding-view";
+import type { SettingsSection } from "@/components/views/settings/sections";
 import {
-	type SettingsSection,
-	SettingsView,
-} from "@/components/views/settings/settings-view";
+	WindowTitleBar,
+	WindowTitleBarContent,
+	WindowTitleBarProvider,
+} from "@/components/window-title-bar";
 import { AccountProvider } from "@/contexts/account-context";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
 import { useAppUpdate } from "@/hooks/use-app-update";
@@ -45,6 +50,7 @@ import { useChatSession } from "@/hooks/use-chat-session";
 import { useSessionAgents } from "@/hooks/use-session-agents";
 import { useSessionHistory } from "@/hooks/use-session-history";
 import { toast } from "@/hooks/use-toast";
+import { applyAppZoomAction, syncAppFontSize } from "@/lib/app-font-size";
 import { syncAppIcon } from "@/lib/app-icon";
 import type { ChatSessionConfig } from "@/lib/chat-schema";
 import {
@@ -54,8 +60,9 @@ import {
 	desktopAppReducer,
 } from "@/lib/desktop-app-state";
 import { desktopClient } from "@/lib/desktop-client";
+import { watchDesktopNotifications } from "@/lib/desktop-notifications";
 import {
-	subscribeToDesktopMenuActions,
+	subscribeToDesktopActions,
 	watchDesktopTrayStatus,
 } from "@/lib/desktop-tray";
 import { syncDesktopWindowTitle } from "@/lib/desktop-window-title";
@@ -65,7 +72,14 @@ import {
 	markOnboardingCompleted,
 	ONBOARDING_RESET_EVENT,
 } from "@/lib/onboarding";
-import { fetchProviderCatalog } from "@/lib/provider-model-catalog";
+import { requestPromptInputFocus } from "@/lib/prompt-input-focus";
+import { isProviderConnected } from "@/lib/provider-connection";
+import {
+	fetchProviderCatalog,
+	readProviderCatalogSnapshot,
+	subscribeToProviderCatalogInvalidation,
+	writeProviderCatalogSnapshot,
+} from "@/lib/provider-model-catalog";
 import {
 	buildSessionAgentActivity,
 	mergeAgentActivity,
@@ -84,6 +98,51 @@ import {
 	workspacePathsFromSessions,
 	writeWorkspaceSelectionToWindow,
 } from "@/lib/workspace-paths";
+
+// Lazily loaded views: none of these are needed for the first paint of the
+// chat shell, so keeping them out of the entry chunk shortens app startup.
+// Each fallback paints the same background as the loaded view so switching
+// never flashes.
+const viewLoading = () => (
+	<div className="flex h-full flex-1 items-center justify-center bg-background">
+		<Loader2 className="size-5 animate-spin text-muted-foreground" />
+	</div>
+);
+
+const SettingsView = dynamic(
+	() =>
+		import("@/components/views/settings/settings-view").then(
+			(module) => module.SettingsView,
+		),
+	{ loading: viewLoading, ssr: false },
+);
+
+const SessionsView = dynamic(
+	() =>
+		import("@/components/views/sessions/sessions-view").then(
+			(module) => module.SessionsView,
+		),
+	{ loading: viewLoading, ssr: false },
+);
+
+const OnboardingView = dynamic(
+	() =>
+		import("@/components/views/onboarding/onboarding-view").then(
+			(module) => module.OnboardingView,
+		),
+	{
+		loading: () => <div className="h-full w-full bg-background" />,
+		ssr: false,
+	},
+);
+
+const DiffView = dynamic(
+	() =>
+		import("@/components/views/chat/diff-view").then(
+			(module) => module.DiffView,
+		),
+	{ loading: viewLoading, ssr: false },
+);
 
 function makeThreadId(): string {
 	return `thread_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
@@ -113,6 +172,14 @@ export default function Home() {
 	// Starts false on both server and first client render (hydration-safe);
 	// the effect below reads the persisted state right after mount.
 	const [showOnboarding, setShowOnboarding] = useState(false);
+	const [commandBarOpen, setCommandBarOpen] = useState(false);
+	// Shared by the sidebar search icon and the Cmd/Ctrl+P shortcut.
+	const handleOpenCommandBar = useCallback(() => setCommandBarOpen(true), []);
+	// "welcome" for the full first-run flow; "connect" when re-entered from
+	// the in-app "connect a model" notice, which should land directly on the
+	// provider setup step.
+	const [onboardingInitialStep, setOnboardingInitialStep] =
+		useState<OnboardingStep>("welcome");
 	const { navigation, threads } = appState;
 	const { activeThreadId, settingsSection, view } = navigation.current;
 
@@ -145,6 +212,7 @@ export default function Home() {
 	useEffect(() => {
 		syncHubTheme();
 		syncHubAccent();
+		syncAppFontSize();
 		return watchSystemHubTheme();
 	}, []);
 
@@ -159,18 +227,26 @@ export default function Home() {
 	}, []);
 
 	useEffect(() => watchDesktopTrayStatus(), []);
+	useEffect(() => watchDesktopNotifications(), []);
 
 	const handleNewThread = useCallback(() => {
 		dispatchApp({ type: "new-thread", threadId: makeThreadId() });
+		requestPromptInputFocus();
 	}, []);
 
 	const completeOnboarding = useCallback(() => {
 		markOnboardingCompleted();
 		setShowOnboarding(false);
+		setOnboardingInitialStep("welcome");
 		// A fresh thread remounts the chat pane so it picks up credentials and
 		// the provider/model selection configured during onboarding.
 		handleNewThread();
 	}, [handleNewThread]);
+
+	const handleOpenSetup = useCallback(() => {
+		setOnboardingInitialStep("connect");
+		setShowOnboarding(true);
+	}, []);
 
 	const handleOpenSession = useCallback(
 		(session: SessionHistoryItem, initialPromptDraft?: string) => {
@@ -225,6 +301,7 @@ export default function Home() {
 			return;
 		}
 		navigateWith({ view: "chat" });
+		requestPromptInputFocus();
 	}, [activeThread, handleNewThread, navigateWith]);
 	const handleViewChange = useCallback(
 		(nextView: DesktopAppView) => {
@@ -232,26 +309,43 @@ export default function Home() {
 		},
 		[navigateWith],
 	);
+	// The sidebar's New row reads as selected while the fresh, not-yet-started
+	// task page is showing; once the task starts the session row takes over.
+	const newTaskActive =
+		view === "chat" &&
+		activeThread !== undefined &&
+		!activeThread.hasStarted &&
+		!activeThread.historySession;
 	const handleSettingsSectionChange = useCallback(
 		(section: SettingsSection) => {
 			navigateWith({ settingsSection: section, view: "settings" });
 		},
 		[navigateWith],
 	);
-	useEffect(
-		() =>
-			subscribeToDesktopMenuActions((action) => {
-				switch (action) {
-					case "new-session":
-						handleNewThread();
-						break;
-					case "open-settings":
-						handleViewChange("settings");
-						break;
-				}
-			}),
-		[handleNewThread, handleViewChange],
-	);
+	// Standard app shortcuts: Cmd/Ctrl+P for session search, Cmd/Ctrl+N for a
+	// new session, and Cmd/Ctrl+, for settings.
+	useEffect(() => {
+		const handleKeyDown = (event: KeyboardEvent) => {
+			if (showOnboarding) {
+				return;
+			}
+			if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) {
+				return;
+			}
+			if (event.key === "n" || event.key === "N") {
+				event.preventDefault();
+				handleNewThread();
+			} else if (event.key === "p" || event.key === "P") {
+				event.preventDefault();
+				setCommandBarOpen((current) => !current);
+			} else if (event.key === ",") {
+				event.preventDefault();
+				handleViewChange("settings");
+			}
+		};
+		window.addEventListener("keydown", handleKeyDown);
+		return () => window.removeEventListener("keydown", handleKeyDown);
+	}, [handleNewThread, handleViewChange, showOnboarding]);
 	const handleThreadStarted = useCallback((threadId: string) => {
 		dispatchApp({ type: "thread-started", threadId });
 	}, []);
@@ -264,9 +358,13 @@ export default function Home() {
 		onOpenSession: handleOpenSession,
 		onUpdateSessionMetadata: handleUpdateSessionMetadata,
 	});
+	const sessionHistoryRef = useRef(sessionHistory.sessions);
+	useEffect(() => {
+		sessionHistoryRef.current = sessionHistory.sessions;
+	}, [sessionHistory.sessions]);
 	const handleOpenSessionById = useCallback(
 		async (sessionId: string) => {
-			const cachedSession = sessionHistory.sessions.find(
+			const cachedSession = sessionHistoryRef.current.find(
 				(session) => session.sessionId === sessionId,
 			);
 			if (cachedSession) {
@@ -276,7 +374,7 @@ export default function Home() {
 			try {
 				const session = await desktopClient.invoke<SessionHistoryItem | null>(
 					"get_discovered_session",
-					{ session_id: sessionId },
+					{ sessionId },
 				);
 				if (!session) {
 					throw new Error("The session for this run is no longer available.");
@@ -290,7 +388,29 @@ export default function Home() {
 				});
 			}
 		},
-		[handleOpenSession, sessionHistory.sessions],
+		[handleOpenSession],
+	);
+	useEffect(
+		() =>
+			subscribeToDesktopActions((action) => {
+				switch (action.type) {
+					case "new-session":
+						handleNewThread();
+						break;
+					case "open-settings":
+						handleViewChange("settings");
+						break;
+					case "open-session":
+						void handleOpenSessionById(action.sessionId);
+						break;
+					case "zoom-in":
+					case "zoom-out":
+					case "zoom-reset":
+						applyAppZoomAction(action.type);
+						break;
+				}
+			}),
+		[handleNewThread, handleOpenSessionById, handleViewChange],
 	);
 	const historyWorkspacePaths = useMemo(
 		() => workspacePathsFromSessions(sessionHistory.sessions),
@@ -313,90 +433,127 @@ export default function Home() {
 	return (
 		<AccountProvider>
 			<SidebarProvider>
-				<div
-					aria-hidden={showOnboarding ? true : undefined}
-					className="flex h-screen w-full overflow-hidden bg-background text-foreground"
-					// The onboarding overlay is opaque and sits on top of the whole
-					// shell; hiding the shell keeps its aurora + animations from
-					// being composited every frame underneath while it still mounts
-					// and loads (providers, history, transport) in the background.
-					// `inert` additionally keeps the covered controls out of the
-					// keyboard tab order and assistive tech while it is hidden.
-					inert={showOnboarding ? true : undefined}
-					style={showOnboarding ? { visibility: "hidden" } : undefined}
+				<WindowTitleBarProvider
+					contentEnabled={!showOnboarding && view === "chat"}
 				>
-					<Sidebar
-						className="border-r border-sidebar-border"
-						collapsible="icon"
+					<div
+						aria-hidden={showOnboarding ? true : undefined}
+						className="flex h-screen w-full overflow-hidden bg-background text-foreground"
+						// The onboarding overlay is opaque and sits on top of the whole
+						// shell; hiding the shell keeps its aurora + animations from
+						// being composited every frame underneath while it still mounts
+						// and loads (providers, history, transport) in the background.
+						// `inert` additionally keeps the covered controls out of the
+						// keyboard tab order and assistive tech while it is hidden.
+						inert={showOnboarding ? true : undefined}
+						style={showOnboarding ? { visibility: "hidden" } : undefined}
 					>
-						<AgentSidebar
-							activeSessionId={activeHistorySessionId}
-							onHome={handleHome}
-							onNavigateBack={handleNavigateBack}
-							onNavigateForward={handleNavigateForward}
-							onNewThread={handleNewThread}
-							onSettingsSectionChange={handleSettingsSectionChange}
-							sessionHistory={sessionHistory}
-							setView={handleViewChange}
-							settingsSection={settingsSection}
-							view={view}
-							canNavigateBack={navigation.back.length > 0}
-							canNavigateForward={navigation.forward.length > 0}
-						/>
-						<SidebarRail />
-					</Sidebar>
-					<SidebarInset className="min-h-0 min-w-0 overflow-hidden">
-						<SidebarTrigger className="absolute left-20 top-0 z-40 md:hidden" />
-						{view === "sessions" ? (
-							<SessionsView
+						<Sidebar
+							className="border-r border-sidebar-border"
+							collapsible="icon"
+						>
+							<AgentSidebar
 								activeSessionId={activeHistorySessionId}
-								history={sessionHistory}
+								newTaskActive={newTaskActive}
+								onHome={handleHome}
+								onNavigateBack={handleNavigateBack}
+								onNavigateForward={handleNavigateForward}
+								onOpenSearch={handleOpenCommandBar}
+								onSettingsSectionChange={handleSettingsSectionChange}
+								sessionHistory={sessionHistory}
+								setView={handleViewChange}
+								settingsSection={settingsSection}
+								view={view}
+								canNavigateBack={navigation.back.length > 0}
+								canNavigateForward={navigation.forward.length > 0}
 							/>
-						) : activeThread ? (
-							<div
-								aria-hidden={view === "settings" ? true : undefined}
-								className="flex min-h-0 flex-1 flex-col"
-								inert={view === "settings" ? true : undefined}
-							>
-								<ChatThreadPane
-									key={activeThread.id}
-									historySession={activeThread.historySession}
-									initialPromptDraft={activeThread.initialPromptDraft}
-									knownWorkspacePaths={historyWorkspacePaths}
-									onInitialPromptDraftConsumed={
-										handleInitialPromptDraftConsumed
-									}
-									onUpdateSessionMetadata={handleUpdateSessionMetadata}
-									threadId={activeThread.id}
-									onDeleteSession={handleDeleteSession}
-									onNewThread={handleNewThread}
-									onOpenSession={handleOpenSession}
-									onOpenSessionById={handleOpenSessionById}
-									parentSession={activeParentSession}
-									onThreadStarted={handleThreadStarted}
+							<SidebarRail />
+						</Sidebar>
+						<SidebarInset className="min-h-0 min-w-0 overflow-hidden">
+							<SidebarTrigger className="absolute left-20 top-0 z-40 md:hidden" />
+							<WindowTitleBar />
+							<div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+								{view === "sessions" ? (
+									<SessionsView
+										activeSessionId={activeHistorySessionId}
+										history={sessionHistory}
+									/>
+								) : activeThread ? (
+									<div
+										aria-hidden={view === "settings" ? true : undefined}
+										className="flex min-h-0 flex-1 flex-col"
+										inert={view === "settings" ? true : undefined}
+									>
+										<ChatThreadPane
+											key={activeThread.id}
+											historySession={activeThread.historySession}
+											initialPromptDraft={activeThread.initialPromptDraft}
+											knownWorkspacePaths={historyWorkspacePaths}
+											onInitialPromptDraftConsumed={
+												handleInitialPromptDraftConsumed
+											}
+											onUpdateSessionMetadata={handleUpdateSessionMetadata}
+											threadId={activeThread.id}
+											onDeleteSession={handleDeleteSession}
+											onNewThread={handleNewThread}
+											onOpenSession={handleOpenSession}
+											onOpenSessionById={handleOpenSessionById}
+											onOpenSetup={handleOpenSetup}
+											onOpenModelSettings={() =>
+												handleSettingsSectionChange("Models")
+											}
+											parentSession={activeParentSession}
+											onOpenVoiceInputSettings={() =>
+												handleSettingsSectionChange("Voice")
+											}
+											onThreadStarted={handleThreadStarted}
+										/>
+									</div>
+								) : null}
+								{view === "settings" ? (
+									<div className="absolute inset-0 z-30 bg-background text-foreground">
+										<SettingsView
+											onNavigateSection={handleSettingsSectionChange}
+											onOpenSession={handleOpenSessionById}
+											section={settingsSection}
+										/>
+									</div>
+								) : null}
+							</div>
+						</SidebarInset>
+					</div>
+					{showOnboarding ? (
+						<div className="fixed inset-0 z-50 bg-background">
+							<WindowTitleBar
+								className="absolute inset-x-0 top-0 z-10"
+								hostContent={false}
+							/>
+							<div className="h-full">
+								<OnboardingView
+									initialStep={onboardingInitialStep}
+									onComplete={completeOnboarding}
 								/>
 							</div>
-						) : null}
-						{view === "settings" ? (
-							<div className="absolute inset-0 z-30 bg-background text-foreground">
-								<SettingsView
-									onNavigateSection={handleSettingsSectionChange}
-									onOpenSession={handleOpenSessionById}
-									section={settingsSection}
-								/>
-							</div>
-						) : null}
-					</SidebarInset>
-				</div>
+						</div>
+					) : null}
+				</WindowTitleBarProvider>
 			</SidebarProvider>
-			{showOnboarding ? (
-				<div className="fixed inset-0 z-50">
-					<OnboardingView onComplete={completeOnboarding} />
-				</div>
-			) : null}
+			<HubUpdateRequiredDialog />
+			<SessionCommandBar
+				onOpenChange={setCommandBarOpen}
+				onOpenSession={handleOpenSessionById}
+				open={commandBarOpen && !showOnboarding}
+			/>
 		</AccountProvider>
 	);
 }
+
+// "+ new chat" remounts ChatThreadPane with a fresh thread id, and the pane
+// blocks on the provider catalog (a large fetch) before rendering anything.
+// Seed remounts from the last successful load (kept in the catalog module,
+// where credential changes invalidate it) so only the first-ever mount shows
+// the boot spinner; the effect still refreshes in the background.
+let workspacesLoadedOnce = false;
 
 function ChatThreadPane({
 	threadId,
@@ -409,7 +566,10 @@ function ChatThreadPane({
 	onNewThread,
 	onOpenSession,
 	onOpenSessionById,
+	onOpenSetup,
+	onOpenModelSettings,
 	parentSession,
+	onOpenVoiceInputSettings,
 	onThreadStarted,
 }: {
 	threadId: string;
@@ -428,7 +588,10 @@ function ChatThreadPane({
 		initialPromptDraft?: string,
 	) => void;
 	onOpenSessionById?: (sessionId: string) => void | Promise<void>;
+	onOpenSetup?: () => void;
+	onOpenModelSettings?: () => void;
 	parentSession?: { sessionId: string; title?: string };
+	onOpenVoiceInputSettings?: () => void;
 	onThreadStarted?: (threadId: string) => void;
 }) {
 	const {
@@ -457,6 +620,7 @@ function ChatThreadPane({
 		answerAskQuestion,
 		restoreCheckpoint,
 		forkSession,
+		proceedWhileRunning,
 		reset,
 		abort,
 		hydrateSession,
@@ -474,8 +638,6 @@ function ChatThreadPane({
 		promptInputRef.current = value;
 	}, []);
 	const [pendingAttachments, setPendingAttachments] = useState<File[]>([]);
-	const [isDraggingFiles, setIsDraggingFiles] = useState(false);
-	const dragDepthRef = useRef(0);
 	const [showDiffView, setShowDiffView] = useState(false);
 	const [deletingSession, setDeletingSession] = useState(false);
 	const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -484,13 +646,23 @@ function ChatThreadPane({
 	const [dismissedHistorySessionId, setDismissedHistorySessionId] = useState<
 		string | null
 	>(null);
-	const [gitBranch, setGitBranch] = useState("no-git");
+	// Branch name, "no-git" once the folder is confirmed to not be a git
+	// repository, or null while branch discovery is pending.
+	const [gitBranch, setGitBranch] = useState<string | null>(null);
 	const [providerCredentials, setProviderCredentials] = useState<
 		Record<string, { apiKey: string }>
-	>({});
+	>(() => readProviderCatalogSnapshot()?.credentials ?? {});
 	const [providerModelContextWindows, setProviderModelContextWindows] =
-		useState<Record<string, Record<string, number>>>({});
-	const [providersLoaded, setProvidersLoaded] = useState(false);
+		useState<Record<string, Record<string, number>>>(
+			() => readProviderCatalogSnapshot()?.contextWindows ?? {},
+		);
+	const [providersLoaded, setProvidersLoaded] = useState(
+		() => readProviderCatalogSnapshot() !== null,
+	);
+	// null = unknown (catalog unavailable): never nag in that case.
+	const [hasConnectedProvider, setHasConnectedProvider] = useState<
+		boolean | null
+	>(null);
 	// History paths lead each merge: they are ordered by session recency, so
 	// stored or stale entries only append after them.
 	const [workspaces, setWorkspaces] = useState<string[]>(() =>
@@ -501,7 +673,9 @@ function ChatThreadPane({
 			),
 		),
 	);
-	const [workspacesLoaded, setWorkspacesLoaded] = useState(false);
+	const [workspacesLoaded, setWorkspacesLoaded] = useState(
+		() => workspacesLoadedOnce,
+	);
 	const hydratedSessionRef = useRef<string | null>(null);
 	const resetThreadRef = useRef<string | null>(null);
 	const manualTitleSessionRef = useRef<string | null>(null);
@@ -537,52 +711,66 @@ function ChatThreadPane({
 		});
 	}, [config.cwd, config.workspaceRoot, workspaces]);
 
-	useEffect(() => {
-		let cancelled = false;
-
-		async function loadProviderCredentials() {
-			try {
-				const payload = await fetchProviderCatalog();
-				if (cancelled) {
-					return;
+	const providerCredentialsRequestRef = useRef(0);
+	const loadProviderCredentials = useCallback(async () => {
+		const requestId = ++providerCredentialsRequestRef.current;
+		try {
+			const payload = await fetchProviderCatalog();
+			if (providerCredentialsRequestRef.current !== requestId) {
+				return;
+			}
+			const next: Record<string, { apiKey: string }> = {};
+			const nextContextWindows: Record<string, Record<string, number>> = {};
+			let anyConnected = false;
+			for (const provider of payload.providers ?? []) {
+				const id = provider.id?.trim();
+				if (!id) {
+					continue;
 				}
-				const next: Record<string, { apiKey: string }> = {};
-				const nextContextWindows: Record<string, Record<string, number>> = {};
-				for (const provider of payload.providers ?? []) {
-					const id = provider.id?.trim();
-					if (!id) {
-						continue;
-					}
-					next[id] = {
-						apiKey: provider.apiKey?.trim() ?? "",
-					};
-					const contextWindows: Record<string, number> = {};
-					for (const model of provider.modelList ?? []) {
-						if (
-							model.id &&
-							typeof model.contextWindow === "number" &&
-							Number.isFinite(model.contextWindow) &&
-							model.contextWindow > 0
-						) {
-							contextWindows[model.id] = model.contextWindow;
-						}
-					}
-					nextContextWindows[id] = contextWindows;
+				next[id] = {
+					apiKey: provider.apiKey?.trim() ?? "",
+				};
+				if (isProviderConnected(provider)) {
+					anyConnected = true;
 				}
-				setProviderCredentials(next);
-				setProviderModelContextWindows(nextContextWindows);
-			} catch {
-				// Keep current config if provider catalog cannot be read.
-			} finally {
-				if (!cancelled) setProvidersLoaded(true);
+				const contextWindows: Record<string, number> = {};
+				for (const model of provider.modelList ?? []) {
+					if (
+						model.id &&
+						typeof model.contextWindow === "number" &&
+						Number.isFinite(model.contextWindow) &&
+						model.contextWindow > 0
+					) {
+						contextWindows[model.id] = model.contextWindow;
+					}
+				}
+				nextContextWindows[id] = contextWindows;
+			}
+			writeProviderCatalogSnapshot({
+				credentials: next,
+				contextWindows: nextContextWindows,
+			});
+			setProviderCredentials(next);
+			setProviderModelContextWindows(nextContextWindows);
+			setHasConnectedProvider(anyConnected);
+		} catch {
+			// Keep current config if provider catalog cannot be read.
+		} finally {
+			if (providerCredentialsRequestRef.current === requestId) {
+				setProvidersLoaded(true);
 			}
 		}
-
-		void loadProviderCredentials();
-		return () => {
-			cancelled = true;
-		};
 	}, []);
+
+	useEffect(() => {
+		void loadProviderCredentials();
+		// Credentials saved elsewhere (settings, onboarding, OAuth) invalidate
+		// the catalog cache; reload so the setup notice reflects reality
+		// without waiting for a pane remount.
+		return subscribeToProviderCatalogInvalidation(() => {
+			void loadProviderCredentials();
+		});
+	}, [loadProviderCredentials]);
 
 	const modelContextWindow =
 		providerModelContextWindows[config.provider.trim()]?.[config.model.trim()];
@@ -636,7 +824,9 @@ function ChatThreadPane({
 
 	const invalidateGitBranch = useCallback(() => {
 		gitBranchRequestGateRef.current.invalidate();
-		setGitBranch("no-git");
+		// Back to pending: the next workspace hasn't been classified yet, so
+		// don't report it as a confirmed non-repo in the meantime.
+		setGitBranch(null);
 	}, []);
 
 	const listGitBranches = useCallback(async (): Promise<{
@@ -713,6 +903,7 @@ function ChatThreadPane({
 						: merged;
 				});
 			} finally {
+				workspacesLoadedOnce = true;
 				setWorkspacesLoaded(true);
 			}
 		},
@@ -738,10 +929,13 @@ function ChatThreadPane({
 				return true;
 			}
 			const validation = await desktopClient
-				.invoke<{ valid?: boolean }>("validate_workspace_directory", {
+				.invoke<{
+					valid?: boolean;
+					path?: string;
+				}>("validate_workspace_directory", {
 					path: nextWorkspace,
 				})
-				.catch(() => ({ valid: false }));
+				.catch(() => ({ valid: false, path: undefined }));
 			if (validation.valid !== true) {
 				return false;
 			}
@@ -749,14 +943,21 @@ function ChatThreadPane({
 				return false;
 			}
 
+			// The sidecar may resolve shorthand input (e.g. "~/projects/app")
+			// into an absolute path; adopt the resolved form.
+			const resolvedWorkspace =
+				typeof validation.path === "string" && validation.path.trim()
+					? validation.path.trim()
+					: nextWorkspace;
+
 			invalidateGitBranch();
-			setWorkspacePath(nextWorkspace);
+			setWorkspacePath(resolvedWorkspace);
 			setWorkspaces((prev) =>
-				filterWorkspacePaths(mergeWorkspacePaths(prev, [nextWorkspace])),
+				filterWorkspacePaths(mergeWorkspacePaths(prev, [resolvedWorkspace])),
 			);
 
 			// Refresh the merged history, stored, and current workspace catalog.
-			void refreshWorkspaces(nextWorkspace);
+			void refreshWorkspaces(resolvedWorkspace);
 
 			return true;
 		},
@@ -772,6 +973,9 @@ function ChatThreadPane({
 
 	const pickWorkspaceDirectory = useCallback(
 		async (initialPath?: string): Promise<string | null> => {
+			// Resolves to null when the user cancels; rethrows picker failures
+			// (e.g. no zenity/kdialog on Linux) so callers can surface an error
+			// and offer manual path entry instead of a silent no-op.
 			try {
 				const selected = await desktopClient.invoke<string | null>(
 					"pick_workspace_directory",
@@ -784,8 +988,12 @@ function ChatThreadPane({
 				}
 				const trimmed = selected.trim();
 				return trimmed.length > 0 ? trimmed : null;
-			} catch {
-				return null;
+			} catch (error) {
+				throw new Error(
+					error instanceof Error && error.message.trim()
+						? error.message
+						: "The folder picker could not be opened.",
+				);
 			}
 		},
 		[],
@@ -1009,17 +1217,11 @@ function ChatThreadPane({
 		}
 		setDeletingSession(true);
 		try {
-			console.error(
-				`[webview:delete] invoke delete_chat_session sessionId=${activeSessionToDelete}`,
-			);
 			const deleted = await desktopClient.invoke<boolean>(
 				"delete_chat_session",
 				{
 					sessionId: activeSessionToDelete,
 				},
-			);
-			console.error(
-				`[webview:delete] invoke result sessionId=${activeSessionToDelete} deleted=${deleted}`,
 			);
 			if (!deleted) {
 				toast({
@@ -1046,9 +1248,6 @@ function ChatThreadPane({
 			setShowDiffView(false);
 			void reset();
 		} catch (error) {
-			console.error(
-				`[webview:delete] invoke error sessionId=${activeSessionToDelete} error=${error instanceof Error ? error.message : String(error)}`,
-			);
 			const description =
 				error instanceof Error
 					? error.message
@@ -1088,57 +1287,61 @@ function ChatThreadPane({
 		});
 	}, []);
 
-	// Drag-and-drop file attachments. Requires `dragDropEnabled: false` on the
-	// Tauri window — otherwise the native shell swallows OS file drags and these
-	// HTML5 events never fire.
-	const handleDragEnter = useCallback((event: React.DragEvent) => {
-		if (!event.dataTransfer.types.includes("Files")) {
-			return;
-		}
-		event.preventDefault();
-		dragDepthRef.current += 1;
-		setIsDraggingFiles(true);
-	}, []);
-
-	const handleDragOver = useCallback((event: React.DragEvent) => {
-		if (!event.dataTransfer.types.includes("Files")) {
-			return;
-		}
-		event.preventDefault();
-		event.dataTransfer.dropEffect = "copy";
-	}, []);
-
-	const handleDragLeave = useCallback((event: React.DragEvent) => {
-		if (!event.dataTransfer.types.includes("Files")) {
-			return;
-		}
-		dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
-		if (dragDepthRef.current === 0) {
-			setIsDraggingFiles(false);
-		}
-	}, []);
-
-	const handleDrop = useCallback(
-		(event: React.DragEvent) => {
-			if (!event.dataTransfer.types.includes("Files")) {
-				return;
-			}
-			event.preventDefault();
-			dragDepthRef.current = 0;
-			setIsDraggingFiles(false);
-			const files = Array.from(event.dataTransfer.files);
-			if (files.length > 0) {
-				handleAttachFiles(files);
-			}
-		},
-		[handleAttachFiles],
+	const attachmentList = useMemo(
+		() =>
+			pendingAttachments.map((file, index) => ({
+				id: `${file.name}:${file.size}:${file.lastModified}:${index}`,
+				name: file.name,
+				isImage: file.type.startsWith("image/"),
+			})),
+		[pendingAttachments],
 	);
-
-	const attachmentList = pendingAttachments.map((file, index) => ({
-		id: `${file.name}:${file.size}:${file.lastModified}:${index}`,
-		name: file.name,
-		isImage: file.type.startsWith("image/"),
-	}));
+	const handleRemoveAttachment = useCallback((id: string) => {
+		setPendingAttachments((prev) =>
+			prev.filter((file, index) => {
+				const fileId = `${file.name}:${file.size}:${file.lastModified}:${index}`;
+				return fileId !== id;
+			}),
+		);
+	}, []);
+	const handleAbort = useCallback(() => {
+		void abort();
+	}, [abort]);
+	const handleModelChange = useCallback(
+		(nextModel: string) =>
+			setConfig((prev) =>
+				prev.model === nextModel ? prev : { ...prev, model: nextModel },
+			),
+		[setConfig],
+	);
+	const handleModeToggle = useCallback(
+		() =>
+			setConfig((prev) => ({
+				...prev,
+				mode: prev.mode === "plan" ? "act" : "plan",
+			})),
+		[setConfig],
+	);
+	const handleProviderChange = useCallback(
+		(nextProvider: string) =>
+			setConfig((prev) => {
+				const selected = providerCredentials[nextProvider];
+				const nextApiKey = selected?.apiKey ?? "";
+				if (prev.provider === nextProvider && prev.apiKey === nextApiKey) {
+					return prev;
+				}
+				return {
+					...prev,
+					provider: nextProvider,
+					apiKey: nextApiKey,
+				};
+			}),
+		[providerCredentials, setConfig],
+	);
+	const handleSendPrompt = useCallback(
+		(prompt: string) => void handleSend(prompt),
+		[handleSend],
+	);
 
 	const firstUserMessage = messages.find(
 		(message) => message.role === "user",
@@ -1152,6 +1355,18 @@ function ChatThreadPane({
 			: (visibleHistorySession?.prompt ?? firstUserMessage),
 	});
 	const hasDiffChanges = summary.additions + summary.deletions > 0;
+	const headerDiff = useMemo(
+		() => ({
+			additions: summary.additions,
+			deletions: summary.deletions,
+		}),
+		[summary.additions, summary.deletions],
+	);
+	const handleOpenDiff = useCallback(() => {
+		if (summary.additions + summary.deletions > 0) {
+			setShowDiffView(true);
+		}
+	}, [summary.additions, summary.deletions]);
 
 	const activeSessionForTitle = hideDeletedSessionUi
 		? null
@@ -1295,53 +1510,21 @@ function ChatThreadPane({
 	const composer = (
 		<ChatInputBar
 			attachments={attachmentList}
-			onAbort={() => void abort()}
+			onAbort={handleAbort}
 			onAttachFiles={handleAttachFiles}
 			onListGitBranches={listGitBranches}
-			onRemoveAttachment={(id) => {
-				setPendingAttachments((prev) =>
-					prev.filter((file, index) => {
-						const fileId = `${file.name}:${file.size}:${file.lastModified}:${index}`;
-						return fileId !== id;
-					}),
-				);
-			}}
+			onRemoveAttachment={handleRemoveAttachment}
 			onSwitchGitBranch={switchGitBranch}
-			onModelChange={(nextModel) =>
-				setConfig((prev) =>
-					prev.model === nextModel ? prev : { ...prev, model: nextModel },
-				)
-			}
-			onModeToggle={() =>
-				setConfig((prev) => ({
-					...prev,
-					mode: prev.mode === "plan" ? "act" : "plan",
-				}))
-			}
+			onModelChange={handleModelChange}
+			onModeToggle={handleModeToggle}
 			onPromptInputChange={handlePromptInputChange}
+			onOpenVoiceInputSettings={onOpenVoiceInputSettings}
 			onReasoningChange={handleReasoningChange}
-			onSteerPromptInQueue={(promptId) => {
-				void steerPromptInQueue(promptId);
-			}}
-			onEditPromptInQueue={(promptId, prompt) => {
-				void updatePromptInQueue(promptId, prompt);
-			}}
+			onSteerPromptInQueue={steerPromptInQueue}
+			onEditPromptInQueue={updatePromptInQueue}
 			onRemovePromptInQueue={handleRemoveQueuedPrompt}
-			onProviderChange={(nextProvider) =>
-				setConfig((prev) => {
-					const selected = providerCredentials[nextProvider];
-					const nextApiKey = selected?.apiKey ?? "";
-					if (prev.provider === nextProvider && prev.apiKey === nextApiKey) {
-						return prev;
-					}
-					return {
-						...prev,
-						provider: nextProvider,
-						apiKey: nextApiKey,
-					};
-				})
-			}
-			onSend={(prompt) => void handleSend(prompt)}
+			onProviderChange={handleProviderChange}
+			onSend={handleSendPrompt}
 			gitBranch={gitBranch}
 			model={config.model}
 			modelContextWindow={modelContextWindow}
@@ -1359,60 +1542,41 @@ function ChatThreadPane({
 
 	return (
 		<WorkspaceProvider value={workspaceContextValue}>
-			{/* biome-ignore lint/a11y/noStaticElementInteractions: Drag-and-drop target only; the paperclip button is the accessible attach path. */}
-			<div
+			{/* Requires `dragDropEnabled: false` on the Tauri window so the native shell does not swallow OS file drags. */}
+			<AttachmentDropZone
 				className={
 					isWelcomeState
-						? "relative grid h-full min-h-0 flex-1 grid-rows-[minmax(0,1fr)] overflow-hidden"
-						: "relative grid h-full min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden"
+						? "grid h-full min-h-0 flex-1 grid-rows-[minmax(0,1fr)] overflow-hidden"
+						: "grid h-full min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto] overflow-hidden"
 				}
-				onDragEnter={handleDragEnter}
-				onDragLeave={handleDragLeave}
-				onDragOver={handleDragOver}
-				onDrop={handleDrop}
+				onAttachFiles={handleAttachFiles}
 			>
-				{isDraggingFiles ? (
-					<div className="pointer-events-none absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
-						<div className="flex flex-col items-center gap-2 rounded-xl border-2 border-dashed border-primary/60 bg-card px-10 py-8 shadow-lg">
-							<ImagePlus className="h-8 w-8 text-primary" />
-							<p className="text-sm font-medium text-foreground">
-								Drop to attach
-							</p>
-							<p className="text-xs text-muted-foreground">
-								Screenshots and files will be added to your next message
-							</p>
-						</div>
-					</div>
-				) : null}
 				{!isWelcomeState ? (
-					<div className="z-20 border-b border-border/70 bg-background/85 backdrop-blur-sm">
-						<AgentHeader
-							agentActivity={agentActivity}
-							agents={agents}
-							agentsError={agentsError}
-							agentsLoading={agentsLoading}
-							onAgentsOpenChange={setAgentPanelOpen}
-							onOpenAgentSession={onOpenAgentSession}
-							onOpenParentSession={onOpenSessionById}
-							parentSession={hideDeletedSessionUi ? undefined : parentSession}
-							canEditTitle={Boolean(activeSessionForTitle)}
-							canDeleteSession={Boolean(activeSessionToDelete)}
-							deletingSession={deletingSession}
-							diff={{
-								additions: summary.additions,
-								deletions: summary.deletions,
-							}}
-							onDeleteSession={requestDeleteSession}
-							onNewThread={onNewThread}
-							onOpenDiff={() => {
-								if (hasDiffChanges) setShowDiffView(true);
-							}}
-							onRenameTitle={handleRenameTitle}
-							renamingTitle={renamingSession}
-							status={status}
-							title={threadTitle}
-						/>
-					</div>
+					<WindowTitleBarContent>
+						<div className="cline-view-enter z-20 border-b border-border/70 bg-background/85 backdrop-blur-sm">
+							<AgentHeader
+								agentActivity={agentActivity}
+								agents={agents}
+								agentsError={agentsError}
+								agentsLoading={agentsLoading}
+								onAgentsOpenChange={setAgentPanelOpen}
+								onOpenAgentSession={onOpenAgentSession}
+								onOpenParentSession={onOpenSessionById}
+								parentSession={hideDeletedSessionUi ? undefined : parentSession}
+								canEditTitle={Boolean(activeSessionForTitle)}
+								canDeleteSession={Boolean(activeSessionToDelete)}
+								deletingSession={deletingSession}
+								diff={headerDiff}
+								onDeleteSession={requestDeleteSession}
+								onNewThread={onNewThread}
+								onOpenDiff={handleOpenDiff}
+								onRenameTitle={handleRenameTitle}
+								renamingTitle={renamingSession}
+								status={status}
+								title={threadTitle}
+							/>
+						</div>
+					</WindowTitleBarContent>
 				) : null}
 				<WelcomeScreen
 					active={isWelcomeState}
@@ -1434,6 +1598,7 @@ function ChatThreadPane({
 								onEditMessage={handleEditMessage}
 								onRestoreCheckpoint={handleRestoreCheckpoint}
 								onForkSession={handleForkSession}
+								onProceedWhileRunning={proceedWhileRunning}
 								pendingToolApprovals={pendingToolApprovals}
 								pendingAskQuestions={pendingAskQuestions}
 								sessionId={displayedSessionId}
@@ -1445,22 +1610,27 @@ function ChatThreadPane({
 					}
 					composer={composer}
 					gitBranch={gitBranch}
+					notice={
+						providersLoaded &&
+						hasConnectedProvider === false &&
+						onOpenSetup &&
+						onOpenModelSettings ? (
+							<WelcomeSetupNotice
+								onOpenModelSettings={onOpenModelSettings}
+								onOpenSetup={onOpenSetup}
+							/>
+						) : undefined
+					}
 					onListGitBranches={listGitBranches}
-					onStartChat={setPromptInput}
+					onOpenSession={onOpenSessionById}
 					onSwitchGitBranch={switchGitBranch}
-					quickActions={[]}
 				/>
-			</div>
+			</AttachmentDropZone>
 			<AlertDialog
 				open={deleteConfirmOpen}
 				onOpenChange={(open) => {
 					if (deletingSession) {
 						return;
-					}
-					if (!open) {
-						console.error(
-							`[webview:delete] cancelled sessionId=${activeSessionToDelete ?? "null"}`,
-						);
 					}
 					setDeleteConfirmOpen(open);
 				}}

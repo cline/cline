@@ -26,6 +26,8 @@ export type ChatUsageEvent = {
 	inputTokens?: number;
 	/** Tokens produced by the latest model request. */
 	outputTokens?: number;
+	/** Input tokens served from the provider's prompt cache. */
+	cacheReadTokens?: number;
 	/** Cost of the latest model request. */
 	cost?: number;
 };
@@ -45,6 +47,12 @@ export type ToolCallEndEvent = {
 	durationMs?: number;
 };
 
+export type ToolCallUpdateEvent = {
+	toolCallId?: string;
+	toolName?: string;
+	update?: unknown;
+};
+
 export type ToolApprovalRequestItem = {
 	requestId: string;
 	sessionId: string;
@@ -59,6 +67,7 @@ export type ToolApprovalRequestItem = {
 
 export type AskQuestionRequestItem = {
 	requestId: string;
+	sessionId: string;
 	createdAt: string;
 	question: string;
 	options: string[];

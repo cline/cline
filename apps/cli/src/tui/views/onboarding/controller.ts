@@ -11,6 +11,7 @@ import {
 } from "@cline/core";
 import { isClineProvider } from "@cline/shared";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { isChatProviderModel } from "../../../utils/chat-models";
 import {
 	getCliSubscriptionUrl,
 	getIndividualPlanFeatures,
@@ -37,7 +38,7 @@ import {
 	type SearchableItem,
 	useSearchableList,
 } from "../../components/searchable-list";
-import { palette } from "../../palette";
+import { useTheme } from "../../hooks/use-theme";
 import {
 	getDefaultAwsRegion,
 	type ProviderConfigValues,
@@ -82,6 +83,7 @@ export interface OnboardingControllerProps {
 
 export function useOnboardingController(props: OnboardingControllerProps) {
 	const { onComplete } = props;
+	const theme = useTheme();
 	const providerSettingsManager = useMemo(
 		() => props.providerSettingsManager ?? new ProviderSettingsManager(),
 		[props.providerSettingsManager],
@@ -147,9 +149,9 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 						: undefined,
 				searchText: `${p.name} ${p.id}`,
 				rightLabel: p.hasAuth ? "\u25cf" : undefined,
-				rightLabelColor: palette.success,
+				rightLabelColor: theme.accents.success,
 			})),
-		[providers],
+		[providers, theme.accents.success],
 	);
 
 	const providerList = useSearchableList(providerItems);
@@ -232,7 +234,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 			const ids = new Set<string>();
 			for (const result of results) {
 				if (result.status !== "fulfilled") continue;
-				for (const m of result.value.models) {
+				for (const m of result.value.models.filter(isChatProviderModel)) {
 					if (m.supportsReasoning) ids.add(m.id);
 				}
 			}
@@ -282,7 +284,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 						providerId,
 						providerConfig,
 					);
-					return models.map(toModelEntry);
+					return models.filter(isChatProviderModel).map(toModelEntry);
 				})
 				.then((models) => {
 					setModelEntries(models);

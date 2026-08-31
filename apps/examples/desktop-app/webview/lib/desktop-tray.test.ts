@@ -8,11 +8,12 @@ const mocks = vi.hoisted(() => ({
 	invoke: vi.fn(),
 	isTauriAvailable: false,
 	listen: vi.fn(),
+	subscribe: vi.fn(),
 	unlisten: vi.fn(),
 }));
 
 vi.mock("@/lib/desktop-client", () => ({
-	desktopClient: { invoke: mocks.invoke },
+	desktopClient: { invoke: mocks.invoke, subscribe: mocks.subscribe },
 	isTauriAvailable: () => mocks.isTauriAvailable,
 }));
 
@@ -29,14 +30,15 @@ beforeEach(() => {
 	mocks.isTauriAvailable = false;
 	mocks.invoke.mockReset();
 	mocks.listen.mockReset();
+	mocks.subscribe.mockReset().mockReturnValue(() => {});
 	mocks.unlisten.mockReset();
 });
 
 describe("desktop tray", () => {
 	it("does not subscribe outside the Tauri shell", async () => {
-		const { subscribeToDesktopMenuActions } = await importFresh();
+		const { subscribeToDesktopActions } = await importFresh();
 
-		subscribeToDesktopMenuActions(vi.fn());
+		subscribeToDesktopActions(vi.fn());
 
 		expect(mocks.listen).not.toHaveBeenCalled();
 	});
@@ -45,8 +47,14 @@ describe("desktop tray", () => {
 		mocks.isTauriAvailable = true;
 		let eventHandler: MenuEventHandler | undefined;
 		const pendingBatches: unknown[][] = [
-			["new-session", "unexpected"],
-			["open-settings"],
+			[{ type: "new-session" }, { type: "unexpected" }],
+			[
+				{ type: "open-session", sessionId: "session-1" },
+				{ type: "open-settings" },
+				{ type: "zoom-in" },
+				{ type: "zoom-out" },
+				{ type: "zoom-reset" },
+			],
 		];
 		mocks.listen.mockImplementation(
 			async (_eventName: string, handler: MenuEventHandler) => {
@@ -55,30 +63,37 @@ describe("desktop tray", () => {
 			},
 		);
 		mocks.invoke.mockImplementation(async (command: string) => {
-			if (command === "drain_desktop_menu_actions") {
+			if (command === "drain_desktop_actions") {
 				return pendingBatches.shift() ?? [];
 			}
 			return undefined;
 		});
 		const onAction = vi.fn();
-		const { DESKTOP_MENU_ACTION_PENDING_EVENT, subscribeToDesktopMenuActions } =
+		const { DESKTOP_ACTION_PENDING_EVENT, subscribeToDesktopActions } =
 			await importFresh();
 
-		const unsubscribe = subscribeToDesktopMenuActions(onAction);
+		const unsubscribe = subscribeToDesktopActions(onAction);
 		await vi.waitFor(() =>
 			expect(mocks.listen).toHaveBeenCalledWith(
-				DESKTOP_MENU_ACTION_PENDING_EVENT,
+				DESKTOP_ACTION_PENDING_EVENT,
 				expect.any(Function),
 			),
 		);
 		await vi.waitFor(() =>
-			expect(onAction.mock.calls).toEqual([["new-session"]]),
+			expect(onAction.mock.calls).toEqual([[{ type: "new-session" }]]),
 		);
 
 		eventHandler?.({ payload: undefined });
 
 		await vi.waitFor(() =>
-			expect(onAction.mock.calls).toEqual([["new-session"], ["open-settings"]]),
+			expect(onAction.mock.calls).toEqual([
+				[{ type: "new-session" }],
+				[{ type: "open-session", sessionId: "session-1" }],
+				[{ type: "open-settings" }],
+				[{ type: "zoom-in" }],
+				[{ type: "zoom-out" }],
+				[{ type: "zoom-reset" }],
+			]),
 		);
 		unsubscribe();
 		expect(mocks.unlisten).toHaveBeenCalledOnce();

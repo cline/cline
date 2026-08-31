@@ -7,6 +7,13 @@ import type { BasicLogger } from "../logging/logger";
 import type { ProviderCapability, ProviderConfigField } from "../rpc/runtime";
 import type { ITelemetryService } from "../services/telemetry";
 import type {
+	ModelModalities,
+	ModelModality,
+	ModelOperation,
+	ModelOperationMode,
+} from "./model-info";
+import type { ModelTool, ModelToolName } from "./model-tools";
+import type {
 	ModelReasoningOption,
 	ReasoningEffort,
 } from "./reasoning-options";
@@ -39,13 +46,23 @@ export type GatewayModelCapability =
 export type GatewayPromptCacheStrategy = "anthropic-automatic";
 export const USAGE_COST_DISPLAYS = ["show", "hide", "subscription"] as const;
 export type GatewayUsageCostDisplay = (typeof USAGE_COST_DISPLAYS)[number];
-export type GatewayPromptCacheFormat = "anthropic-cache-control";
+export type GatewayPromptCacheFormat =
+	| "anthropic-cache-control"
+	| "bedrock-cache-point";
 export type GatewayReasoningFormat =
 	| "anthropic-thinking"
 	| "glm-thinking"
 	| "minimax-thinking";
 export type GatewayModelRoute =
 	| { matcher: "anthropic-compatible" }
+	| {
+			matcher: "model-operation";
+			operation: ModelOperation;
+	  }
+	| {
+			matcher: "model-output-modality";
+			modality: ModelModality;
+	  }
 	| {
 			matcher: "model-family";
 			family: string;
@@ -56,6 +73,30 @@ export type GatewayModelRoute =
 			modelId: string;
 			requiredCapability?: GatewayModelCapability;
 	  };
+
+/**
+ * A provider-executed model tool exposed for matching models.
+ *
+ * Omitted `routes` means the tool is supported by every model on the provider.
+ * Exclusion routes take precedence so mixed transports such as Vertex can
+ * disable a tool for one model family while retaining a provider-level default.
+ */
+export interface GatewayModelToolCapability {
+	name: ModelToolName;
+	routes?: readonly GatewayModelRoute[];
+	excludeRoutes?: readonly GatewayModelRoute[];
+}
+
+/** A provider transport capable of executing a matching model operation. */
+export interface GatewayModelOperationCapability {
+	operation: ModelOperation;
+	modes?: readonly ModelOperationMode[];
+	inputModalities?: readonly ModelModality[];
+	outputModalities?: readonly ModelModality[];
+	routes?: readonly GatewayModelRoute[];
+	excludeRoutes?: readonly GatewayModelRoute[];
+}
+
 export interface GatewayProviderRouting {
 	promptCache?: {
 		format: GatewayPromptCacheFormat;
@@ -85,6 +126,22 @@ export interface GatewayProviderMetadata {
 	usageCostDisplay?: GatewayUsageCostDisplay;
 	routing?: GatewayProviderRouting;
 	stickySession?: GatewayStickySessionMetadata;
+	/**
+	 * Provider-specific transport used for models whose output includes images.
+	 * OpenRouter-compatible image responses require a richer schema than the
+	 * generic OpenAI-compatible adapter exposes.
+	 */
+	imageTransport?: "openrouter";
+	/** Provider-owned implementation used for the transcription operation. */
+	transcriptionTransport?:
+		| "openai-compatible"
+		| "vercel-ai-gateway"
+		| "elevenlabs";
+	/**
+	 * Successful JSON responses are wrapped by the provider before reaching
+	 * the protocol adapter. `success-data` represents `{ success, data }`.
+	 */
+	responseEnvelope?: "success-data";
 	configFields?: readonly ProviderConfigField[];
 	[key: string]:
 		| JsonValue
@@ -102,6 +159,9 @@ export interface GatewayModelDefinition {
 	contextWindow?: number;
 	maxInputTokens?: number;
 	maxOutputTokens?: number;
+	operation?: ModelOperation;
+	operationModes?: readonly ModelOperationMode[];
+	modalities?: ModelModalities;
 	capabilities?: readonly GatewayModelCapability[];
 	reasoningOptions?: readonly ModelReasoningOption[];
 	metadata?: Record<string, JsonValue | undefined>;
@@ -113,6 +173,8 @@ export interface GatewayProviderManifest {
 	description?: string;
 	defaultModelId: string;
 	models: readonly GatewayModelDefinition[];
+	modelOperationCapabilities?: readonly GatewayModelOperationCapability[];
+	modelToolCapabilities?: readonly GatewayModelToolCapability[];
 	capabilities?: readonly ProviderCapability[];
 	env?: readonly ("browser" | "node")[];
 	api?: string;
@@ -169,6 +231,8 @@ export interface GatewayStreamRequest {
 	systemPrompt?: string;
 	messages: readonly AgentMessage[];
 	tools?: readonly AgentToolDefinition[];
+	/** Provider-executed tools requested independently of runtime tools. */
+	modelTools?: readonly ModelTool[];
 	temperature?: number;
 	maxTokens?: number;
 	/**
@@ -210,6 +274,7 @@ export interface GatewayProviderRegistration {
 
 export interface GatewayModelHandleOptions {
 	tools?: readonly AgentToolDefinition[];
+	modelTools?: readonly ModelTool[];
 	temperature?: number;
 	maxTokens?: number;
 	metadata?: Record<string, unknown>;

@@ -3,9 +3,11 @@ import type {
 	BasicLogger,
 	ClineCore,
 	ITelemetryService,
+	ManagedHubBuildMismatchEvent,
 	NodeHubClient,
 	ToolApprovalResult,
 } from "@cline/core";
+import type { MessageWithMetadata } from "@cline/llms";
 
 export type JsonRecord = Record<string, unknown>;
 
@@ -48,7 +50,7 @@ export type PromptInQueue = {
 
 export type LiveSession = {
 	config: JsonRecord;
-	messages: unknown[];
+	messages: MessageWithMetadata[];
 	promptsInQueue: PromptInQueue[];
 	busy: boolean;
 	startedAt: number;
@@ -60,6 +62,8 @@ export type LiveSession = {
 	attachedViaHub?: boolean;
 	/** Materialized attachment files for prompts still waiting in the queue. */
 	queuedAttachmentFiles?: Map<string, string[]>;
+	/** Last prompt id announced via chat_queued_prompt_start, to dedupe emits. */
+	lastQueuedPromptStartId?: string;
 	/** Materialized attachment files whose prompt was submitted; deleted when the turn ends. */
 	consumedAttachmentFiles?: Map<string, string[]>;
 };
@@ -78,11 +82,13 @@ export type ToolApprovalRequestItem = {
 
 export type PendingToolApproval = {
 	item: ToolApprovalRequestItem;
+	owner: SidecarWebSocketClient;
 	resolve: (result: ToolApprovalResult) => void;
 };
 
 export type AskQuestionRequestItem = {
 	requestId: string;
+	sessionId: string;
 	createdAt: string;
 	question: string;
 	options: string[];
@@ -100,6 +106,7 @@ export type PendingAskQuestion = {
 };
 
 export type SidecarWebSocketClient = {
+	data?: { canApproveTools?: boolean };
 	send: (message: string) => void;
 	close?: () => void;
 };
@@ -117,6 +124,11 @@ export type SidecarContext = {
 	logger?: BasicLogger;
 	telemetry?: ITelemetryService;
 	unsubscribeSessionEvents: (() => void) | null;
+	/**
+	 * Latest managed Hub build mismatch, broadcast as `hub_build_mismatch` and
+	 * replayed to webviews that connect after the event fired.
+	 */
+	hubBuildMismatch: ManagedHubBuildMismatchEvent | null;
 };
 export type BunRuntimeApi = {
 	serve: (options: unknown) => { port: number; stop?: () => void };

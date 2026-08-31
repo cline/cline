@@ -40,6 +40,7 @@ import type {
 	UserInstructionConfigService,
 	UserInstructionConfigType,
 } from "../../extensions/config";
+import { normalizeRuntimeCommandName } from "../../extensions/config/runtime-commands";
 import type { ToolExecutors } from "../../extensions/tools";
 import {
 	createSkillsTool,
@@ -220,9 +221,12 @@ function serializeToolContext(
 ): Record<string, unknown> {
 	const metadata = context.metadata ? { ...context.metadata } : undefined;
 	return {
+		sessionId: context.sessionId,
 		agentId: context.agentId,
 		conversationId: context.conversationId,
+		runId: context.runId,
 		iteration: context.iteration,
+		toolCallId: context.toolCallId,
 		metadata:
 			metadata && Object.keys(metadata).length > 0 ? metadata : undefined,
 	};
@@ -363,17 +367,23 @@ function createUserInstructionServiceProxy(
 			type: UserInstructionConfigType,
 		) => [...snapshot.records[type]] as UserInstructionConfigRecord<TConfig>[],
 		listRuntimeCommands: () => [...snapshot.runtimeCommands],
-		resolveRuntimeSlashCommand: (input) => {
+		resolveRuntimeSlashCommand: (input, options) => {
 			if (!input.startsWith("/") || input.length < 2) return input;
 			const match = input.match(/^\/(\S+)/);
-			const name = match?.[1];
-			if (!name) return input;
+			const rawName = match?.[1];
+			if (!rawName) return input;
+			const name = normalizeRuntimeCommandName(rawName);
+			// Normalize the snapshot side too: older clients serve snapshots
+			// with raw configured names (e.g. "Ship"), which would otherwise
+			// never match the normalized typed token.
 			const command = snapshot.runtimeCommands.find(
-				(item) => item.name === name,
+				(item) => normalizeRuntimeCommandName(item.name) === name,
 			);
-			return command
-				? `${command.instructions}${input.slice(name.length + 1)}`
-				: input;
+			if (!command) return input;
+			if (command.kind === "skill" && options?.expandSkillCommands === false) {
+				return input;
+			}
+			return `${command.instructions}${input.slice(rawName.length + 1)}`;
 		},
 		hasConfiguredSkills: (allowedSkillNames) =>
 			configuredSkills(snapshot, allowedSkillNames).some(
@@ -455,6 +465,11 @@ function createToolExecutorProxy(
 					context: serializeToolContext(context),
 				},
 				targetClientId,
+				context.emitUpdate
+					? (payload) => {
+							context.emitUpdate?.(asToolUpdate(payload));
+						}
+					: undefined,
 			);
 			return response?.result;
 		},

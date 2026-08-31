@@ -1,6 +1,15 @@
 "use client";
 
 import type {
+	AgendaAutomationPolicy,
+	AgendaTaskListInput,
+	AgendaTaskRecord,
+	AgendaTaskRunRecord,
+	DesktopDebugLogPayload,
+	HubTaskCreateInput,
+	HubTaskUpdateInput,
+} from "@cline/shared";
+import type {
 	DesktopTransportEvent,
 	DesktopTransportMessage,
 	DesktopTransportRequest,
@@ -101,9 +110,56 @@ export type DesktopInvokeOptions = {
 	timeoutMs?: number | null;
 };
 
+export type AgendaTaskIdInput = {
+	taskId: string;
+};
+
+export type AgendaTaskRevisionInput = AgendaTaskIdInput & {
+	expectedRevision: number;
+};
+
+export type AgendaTaskCancelInput = AgendaTaskRevisionInput & {
+	reason?: string;
+};
+
+export type AgendaAutomationSetInput = {
+	policy: Omit<AgendaAutomationPolicy, "updatedAt">;
+};
+
+export type DesktopErrorReport = {
+	operation: string;
+	error: unknown;
+	handled?: boolean;
+	command?: string;
+	timeoutMs?: number;
+	/** Failing resource URL from an ErrorEvent's `filename`. */
+	sourceUrl?: string;
+	lineno?: number;
+	colno?: number;
+};
+
+/**
+ * Upper bound for free-form attribution strings (source URLs, stack traces)
+ * so a single report stays small on the wire and in telemetry storage.
+ */
+const ERROR_REPORT_FIELD_LIMIT = 500;
+
+function boundedReportString(value: unknown): string | undefined {
+	return typeof value === "string" && value.trim()
+		? value.slice(0, ERROR_REPORT_FIELD_LIMIT)
+		: undefined;
+}
+
+function finiteReportNumber(value: unknown): number | undefined {
+	return typeof value === "number" && Number.isFinite(value)
+		? value
+		: undefined;
+}
+
 const REQUEST_TIMEOUT_MS = 120_000;
 const RECONNECT_BASE_DELAY_MS = 400;
 const RECONNECT_MAX_DELAY_MS = 4_000;
+const DESKTOP_DEBUG_LOG_EVENT = "desktop_debug_log";
 // Commands that should be routed to Tauri's native invoke bridge instead of
 // the WebSocket transport — only applicable in the full Tauri app shell.
 // In sidecar/web mode these commands are handled by the sidecar over WebSocket.
@@ -111,13 +167,76 @@ export function isTauriAvailable(): boolean {
 	return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function parseDesktopDebugLogPayload(
+	payload: unknown,
+): DesktopDebugLogPayload | null {
+	if (!isRecord(payload)) return null;
+	const { level, message, metadata, scope, timestamp } = payload;
+	if (
+		(level !== "debug" && level !== "info" && level !== "error") ||
+		typeof message !== "string" ||
+		typeof scope !== "string" ||
+		typeof timestamp !== "string"
+	) {
+		return null;
+	}
+	return {
+		level,
+		message,
+		scope,
+		timestamp,
+		metadata: isRecord(metadata) ? metadata : undefined,
+	};
+}
+
+function webviewDebugLoggingEnabled(): boolean {
+	let runtimeEnabled = false;
+	try {
+		runtimeEnabled =
+			typeof window !== "undefined" &&
+			window.localStorage.getItem("cline.debugLogs") === "1";
+	} catch {
+		// Some embedded/privacy contexts deny localStorage access.
+	}
+	return (
+		process.env.NODE_ENV !== "production" ||
+		process.env.NEXT_PUBLIC_CLINE_DEBUG_LOGS === "1" ||
+		runtimeEnabled
+	);
+}
+
+export function writeDesktopDebugLog(payload: unknown): void {
+	const entry = parseDesktopDebugLogPayload(payload);
+	if (!entry || !webviewDebugLoggingEnabled()) {
+		return;
+	}
+	const prefix = `[desktop:${entry.scope}] ${entry.message}`;
+	const details = {
+		timestamp: entry.timestamp,
+		...(entry.metadata ?? {}),
+	};
+	if (entry.level === "error") {
+		console.error("%s %o", prefix, details);
+	} else if (entry.level === "info") {
+		console.info("%s %o", prefix, details);
+	} else {
+		console.debug("%s %o", prefix, details);
+	}
+}
+
 const NATIVE_COMMANDS = new Set([
 	"pick_workspace_directory",
 	"open_mcp_settings_file",
 	"get_update_status",
 	"restart_to_apply_update",
+	"check_for_update_now",
 	"set_app_icon",
-	"drain_desktop_menu_actions",
+	"show_session_notification",
+	"drain_desktop_actions",
 	"set_tray_status",
 ]);
 
@@ -133,6 +252,81 @@ class DesktopClient {
 	private transportError: string | null = null;
 	private hasConnectedOnce = false;
 	private endpoint: string | null = null;
+	private recentErrorReports = new Map<string, number>();
+	private reportedErrorObjects = new WeakSet<object>();
+	private errorObjectDeliveries = new WeakMap<object, Promise<boolean>>();
+
+	reportError(report: DesktopErrorReport): void {
+		const error = report.error;
+		if (typeof error === "object" && error !== null) {
+			if (this.reportedErrorObjects.has(error)) {
+				return;
+			}
+			const pendingDelivery = this.errorObjectDeliveries.get(error);
+			if (pendingDelivery) {
+				void pendingDelivery.then((delivered) => {
+					if (!delivered) this.reportError(report);
+				});
+				return;
+			}
+		}
+
+		const delivery = this.deliverErrorReport(report);
+		if (typeof error === "object" && error !== null) {
+			this.errorObjectDeliveries.set(error, delivery);
+			void delivery.then((delivered) => {
+				if (delivered) this.reportedErrorObjects.add(error);
+				if (this.errorObjectDeliveries.get(error) === delivery) {
+					this.errorObjectDeliveries.delete(error);
+				}
+			});
+		}
+	}
+
+	private async deliverErrorReport(
+		report: DesktopErrorReport,
+	): Promise<boolean> {
+		const error = report.error;
+		const errorMessage = error instanceof Error ? error.message : String(error);
+		const errorType = error instanceof Error ? error.name : "Error";
+		const dedupeKey = `${report.operation}:${report.command ?? ""}:${errorType}:${errorMessage}`;
+		const now = Date.now();
+		if ((this.recentErrorReports.get(dedupeKey) ?? 0) > now - 10_000) {
+			return true;
+		}
+		for (const [key, timestamp] of this.recentErrorReports) {
+			if (timestamp <= now - 10_000) this.recentErrorReports.delete(key);
+		}
+
+		try {
+			const endpoint = await resolveDesktopBackendHttpEndpoint();
+			const response = await fetch(`${endpoint}/telemetry/error`, {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({
+					operation: report.operation,
+					errorMessage,
+					errorType,
+					handled: report.handled ?? true,
+					command: report.command,
+					timeoutMs: report.timeoutMs,
+					transportState: this.transportState,
+					sourceUrl: boundedReportString(report.sourceUrl),
+					lineno: finiteReportNumber(report.lineno),
+					colno: finiteReportNumber(report.colno),
+					stack: boundedReportString(
+						error instanceof Error ? error.stack : undefined,
+					),
+				}),
+			});
+			if (!response.ok) return false;
+			this.recentErrorReports.set(dedupeKey, Date.now());
+			return true;
+		} catch {
+			// Error reporting must never affect the desktop UI error path.
+			return false;
+		}
+	}
 
 	private setTransportState(next: DesktopTransportState) {
 		this.transportState = next;
@@ -163,12 +357,23 @@ class DesktopClient {
 	}
 
 	private rejectPending(errorMessage: string) {
+		// Only report closures that actually drop in-flight requests; a clean
+		// transport close (app quit, sidecar restart) is not an error.
+		if (this.pending.size > 0) {
+			this.reportError({
+				operation: "webview.transport_closed",
+				error: new Error(errorMessage),
+			});
+		}
 		for (const requestId of this.pending.keys()) {
 			this.takePending(requestId)?.reject(new Error(errorMessage));
 		}
 	}
 
 	private dispatchEvent(message: DesktopTransportEvent) {
+		if (message.event.name === DESKTOP_DEBUG_LOG_EVENT) {
+			writeDesktopDebugLog(message.event.payload);
+		}
 		const handlers = this.handlers.get(message.event.name);
 		if (!handlers || handlers.size === 0) {
 			return;
@@ -182,7 +387,11 @@ class DesktopClient {
 		let parsed: DesktopTransportMessage;
 		try {
 			parsed = JSON.parse(raw) as DesktopTransportMessage;
-		} catch {
+		} catch (error) {
+			this.reportError({
+				operation: "webview.transport_message_parse",
+				error,
+			});
 			return;
 		}
 
@@ -269,6 +478,10 @@ class DesktopClient {
 			.catch((error) => {
 				const message = error instanceof Error ? error.message : String(error);
 				this.transportError = message;
+				this.reportError({
+					operation: "webview.transport_connect",
+					error,
+				});
 				if (!this.hasConnectedOnce) {
 					this.setTransportState("unavailable");
 				}
@@ -290,13 +503,28 @@ class DesktopClient {
 		// only when running inside the full Tauri app shell. In sidecar/web mode
 		// these are handled by the sidecar over WebSocket.
 		if (NATIVE_COMMANDS.has(command) && isTauriAvailable()) {
-			return await tryTauriInvoke<T>(command, args);
+			try {
+				return await tryTauriInvoke<T>(command, args);
+			} catch (error) {
+				this.reportError({
+					operation: "webview.native_command",
+					error,
+					command,
+				});
+				throw error;
+			}
 		}
 
 		await this.ensureConnected();
 		const socket = this.socket;
 		if (!socket || socket.readyState !== WebSocket.OPEN) {
-			throw new Error("Desktop backend transport unavailable");
+			const error = new Error("Desktop backend transport unavailable");
+			this.reportError({
+				operation: "webview.transport_unavailable",
+				error,
+				command,
+			});
+			throw error;
 		}
 
 		const id = `desktop_${Date.now()}_${this.requestCounter++}`;
@@ -320,9 +548,16 @@ class DesktopClient {
 							if (!pending) {
 								return;
 							}
-							pending.reject(
-								new Error(`Desktop command timed out waiting for ${command}`),
+							const error = new Error(
+								`Desktop command timed out waiting for ${command}`,
 							);
+							this.reportError({
+								operation: "webview.command_timeout",
+								error,
+								command,
+								timeoutMs,
+							});
+							pending.reject(error);
 						}, timeoutMs);
 			this.pending.set(id, {
 				resolve: (value) => resolve(value as T),
@@ -333,6 +568,11 @@ class DesktopClient {
 				socket.send(JSON.stringify(request));
 			} catch (error) {
 				this.takePending(id);
+				this.reportError({
+					operation: "webview.command_send",
+					error,
+					command,
+				});
 				throw error;
 			}
 		});
@@ -374,6 +614,89 @@ class DesktopClient {
 
 	getTransportError(): string | null {
 		return this.transportError;
+	}
+
+	async createAgendaTask(input: HubTaskCreateInput): Promise<AgendaTaskRecord> {
+		const response = await this.invoke<{ task: AgendaTaskRecord }>(
+			"task.create",
+			{ ...input },
+		);
+		return response.task;
+	}
+
+	async listAgendaTasks(
+		input: AgendaTaskListInput = {},
+	): Promise<AgendaTaskRecord[]> {
+		const response = await this.invoke<{ tasks: AgendaTaskRecord[] }>(
+			"task.list",
+			{ ...input },
+		);
+		return response.tasks ?? [];
+	}
+
+	async getAgendaTask(taskId: string): Promise<AgendaTaskRecord | undefined> {
+		const response = await this.invoke<{ task?: AgendaTaskRecord }>(
+			"task.get",
+			{
+				taskId,
+			},
+		);
+		return response.task;
+	}
+
+	async updateAgendaTask(input: HubTaskUpdateInput): Promise<AgendaTaskRecord> {
+		const response = await this.invoke<{ task: AgendaTaskRecord }>(
+			"task.update",
+			{ ...input },
+		);
+		return response.task;
+	}
+
+	async approveAgendaTask(
+		input: AgendaTaskRevisionInput,
+	): Promise<AgendaTaskRecord> {
+		const response = await this.invoke<{ task: AgendaTaskRecord }>(
+			"task.approve",
+			{ ...input },
+		);
+		return response.task;
+	}
+
+	async cancelAgendaTask(
+		input: AgendaTaskCancelInput,
+	): Promise<AgendaTaskRecord> {
+		const response = await this.invoke<{ task: AgendaTaskRecord }>(
+			"task.cancel",
+			{ ...input },
+		);
+		return response.task;
+	}
+
+	async runAgendaTask(input: AgendaTaskRevisionInput): Promise<{
+		task: AgendaTaskRecord;
+		run?: AgendaTaskRunRecord;
+	}> {
+		return await this.invoke<{
+			task: AgendaTaskRecord;
+			run?: AgendaTaskRunRecord;
+		}>("task.run", { ...input });
+	}
+
+	async getAgendaAutomationPolicy(): Promise<AgendaAutomationPolicy> {
+		const response = await this.invoke<{ policy: AgendaAutomationPolicy }>(
+			"task.automation.get",
+		);
+		return response.policy;
+	}
+
+	async setAgendaAutomationPolicy(
+		input: AgendaAutomationSetInput,
+	): Promise<AgendaAutomationPolicy> {
+		const response = await this.invoke<{ policy: AgendaAutomationPolicy }>(
+			"task.automation.set",
+			{ ...input },
+		);
+		return response.policy;
 	}
 }
 

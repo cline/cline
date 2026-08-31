@@ -102,6 +102,9 @@ function toGatewayModelDefinition(
 		contextWindow: model.contextWindow,
 		maxInputTokens: model.maxInputTokens,
 		maxOutputTokens: model.maxTokens,
+		operation: model.operation,
+		operationModes: model.operationModes,
+		modalities: model.modalities,
 		capabilities: toGatewayCapabilities(model.capabilities),
 		reasoningOptions: model.reasoningOptions,
 		metadata: {
@@ -384,6 +387,8 @@ export function toGatewayRequestMessages(
 										mediaType: part.mediaType,
 									},
 								];
+							case "media":
+								return [{ type: "media" as const, media: part.media }];
 							case "file":
 								return [{ type: "text" as const, text: part.content }];
 							case "redacted_thinking":
@@ -546,10 +551,20 @@ function buildGatewayConfig(config: ProviderConfig) {
 	};
 }
 
-function toApiStreamChunk(id: string, event: AgentModelEvent): ApiStreamChunk {
+function toApiStreamChunk(
+	id: string,
+	event: AgentModelEvent,
+): ApiStreamChunk | undefined {
 	switch (event.type) {
 		case "text-delta":
 			return { type: "text", id, text: event.text };
+		case "media":
+			return { type: "media", id, media: event.media };
+		case "tool-result":
+			// Model-tool activity is available through the AgentModel/AgentRuntime
+			// event path. The legacy ApiStream contract has no observational tool
+			// event that would not imply caller-owned execution.
+			return undefined;
 		case "reasoning-delta": {
 			const metadata = event.metadata as Record<string, unknown> | undefined;
 			return {
@@ -665,7 +680,10 @@ class GatewayApiHandler implements ApiHandler {
 		const id = `gw_${nanoid(10)}`;
 		const stream = (async function* () {
 			for await (const event of await gateway.stream(request)) {
-				yield toApiStreamChunk(id, event);
+				const chunk = toApiStreamChunk(id, event);
+				if (chunk) {
+					yield chunk;
+				}
 			}
 		})() as ApiStream;
 		stream.id = id;
@@ -721,7 +739,10 @@ export async function createGatewayApiHandlerAsync(
 			const id = `gw_${nanoid(10)}`;
 			const stream = (async function* () {
 				for await (const event of await gateway.stream(request)) {
-					yield toApiStreamChunk(id, event);
+					const chunk = toApiStreamChunk(id, event);
+					if (chunk) {
+						yield chunk;
+					}
 				}
 			})() as ApiStream;
 			stream.id = id;

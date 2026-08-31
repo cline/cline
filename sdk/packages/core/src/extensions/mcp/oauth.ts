@@ -5,7 +5,10 @@ import type {
 } from "@modelcontextprotocol/sdk/client/auth.js";
 import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
+import {
+	SSEClientTransport,
+	SseError,
+} from "@modelcontextprotocol/sdk/client/sse.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import type {
 	OAuthClientInformationMixed,
@@ -20,11 +23,17 @@ import {
 } from "../../auth/server";
 import {
 	getMcpServerOAuthState,
+	McpOAuthClientChangedError,
 	normalizeMcpServerOAuthState,
-	updateMcpServerOAuthState,
+	resolveDefaultMcpSettingsPath,
+	updateMcpServerOAuthStateAsync,
 } from "./config-loader";
 import { augmentMcpTimeoutError, resolveMcpRequestTimeoutMs } from "./timeout";
-import type { McpServerOAuthState, McpServerRegistration } from "./types";
+import type {
+	McpServerOAuthClientConfig,
+	McpServerOAuthState,
+	McpServerRegistration,
+} from "./types";
 
 const DEFAULT_MCP_OAUTH_CALLBACK_PATH = "/mcp/oauth/callback";
 const DEFAULT_MCP_OAUTH_CALLBACK_PORTS = [1456, 1457, 1458];
@@ -39,6 +48,7 @@ export interface CreateMcpOAuthProviderContextOptions {
 	serverName: string;
 	redirectUrl: string;
 	onAuthorizationUrl?: (url: string) => void | Promise<void>;
+	clientInformation?: OAuthClientInformationMixed;
 }
 
 export interface McpOAuthProviderContext {
@@ -47,6 +57,8 @@ export interface McpOAuthProviderContext {
 	getLastOAuthState(): string | undefined;
 	resetInteractiveState(): Promise<void>;
 	markError(errorMessage: string): Promise<void>;
+	markConnectionError(errorMessage: string): Promise<void>;
+	markAuthorizationRequired(errorMessage: string): Promise<void>;
 	clearError(): Promise<void>;
 }
 
@@ -64,6 +76,7 @@ export interface AuthorizeMcpServerOAuthOptions {
 	successHtml?: string;
 	onServerListening?: (info: OAuthServerListeningInfo) => void | Promise<void>;
 	onServerClose?: (info: OAuthServerCloseInfo) => void | Promise<void>;
+	signal?: AbortSignal;
 }
 
 export interface AuthorizeMcpServerOAuthResult {
@@ -92,6 +105,42 @@ function createOAuthClientMetadata(redirectUrl: string): OAuthClientMetadata {
 	};
 }
 
+export function createMcpOAuthClientInformation(
+	config: McpServerOAuthClientConfig | undefined,
+): OAuthClientInformationMixed | undefined {
+	return config
+		? {
+				client_id: config.clientId,
+				...(config.clientSecret ? { client_secret: config.clientSecret } : {}),
+			}
+		: undefined;
+}
+
+function isSameOAuthClient(
+	left: OAuthClientInformationMixed | undefined,
+	right: OAuthClientInformationMixed | undefined,
+): boolean {
+	return (
+		left?.client_id === right?.client_id &&
+		left?.client_secret === right?.client_secret
+	);
+}
+
+function assertOAuthClientUnchanged(
+	serverName: string,
+	current: McpServerOAuthState,
+	expected: OAuthClientInformationMixed | undefined,
+): void {
+	if (
+		!isSameOAuthClient(
+			current.clientInformation as OAuthClientInformationMixed | undefined,
+			expected,
+		)
+	) {
+		throw new McpOAuthClientChangedError(serverName);
+	}
+}
+
 export function createMcpOAuthProviderContext(
 	options: CreateMcpOAuthProviderContextOptions,
 ): McpOAuthProviderContext {
@@ -106,17 +155,37 @@ export function createMcpOAuthProviderContext(
 	}
 	let lastAuthorizationUrl: string | undefined;
 	let lastOAuthState: string | undefined;
+	const currentClientInformation = () =>
+		options.clientInformation ??
+		(state.clientInformation as OAuthClientInformationMixed | undefined);
+	const expectedOAuthClient = options.clientInformation
+		? {
+				clientId: options.clientInformation.client_id,
+				...(options.clientInformation.client_secret
+					? { clientSecret: options.clientInformation.client_secret }
+					: {}),
+			}
+		: null;
 
 	const patch = async (
 		updater: (current: McpServerOAuthState) => McpServerOAuthState,
 	): Promise<void> => {
-		const nextState = normalizeMcpServerOAuthState(updater(state)) ?? {};
 		try {
-			state = updateMcpServerOAuthState(options.serverName, () => nextState, {
-				filePath: options.settingsPath,
-			});
-		} catch {
-			state = nextState;
+			state = await updateMcpServerOAuthStateAsync(
+				options.serverName,
+				updater,
+				{
+					filePath: options.settingsPath,
+					expectedOAuthClient,
+				},
+			);
+		} catch (error) {
+			if (options.settingsPath || error instanceof McpOAuthClientChangedError) {
+				throw error;
+			}
+			// Programmatically supplied registrations may not have a settings file.
+			// They still need a functional in-memory provider context.
+			state = normalizeMcpServerOAuthState(updater(state)) ?? {};
 		}
 	};
 
@@ -133,37 +202,85 @@ export function createMcpOAuthProviderContext(
 			lastOAuthState = randomUUID();
 			return lastOAuthState;
 		},
-		clientInformation: () =>
-			state.clientInformation as OAuthClientInformationMixed | undefined,
+		clientInformation: currentClientInformation,
 		saveClientInformation: async (clientInformation) => {
-			await patch((current) => ({
-				...current,
-				clientInformation: clientInformation as Record<string, unknown>,
-				redirectUrl: options.redirectUrl,
-				lastError: undefined,
-			}));
+			const previousClientInformation = state.clientInformation as
+				| OAuthClientInformationMixed
+				| undefined;
+			await patch((current) => {
+				assertOAuthClientUnchanged(
+					options.serverName,
+					current,
+					previousClientInformation,
+				);
+				const clientChanged = !isSameOAuthClient(
+					current.clientInformation as OAuthClientInformationMixed | undefined,
+					clientInformation,
+				);
+				return {
+					...current,
+					clientInformation: clientInformation as Record<string, unknown>,
+					...(clientChanged
+						? { tokens: undefined, lastAuthenticatedAt: undefined }
+						: {}),
+					redirectUrl: options.redirectUrl,
+					lastError: undefined,
+				};
+			});
 		},
-		tokens: () => state.tokens as OAuthTokens | undefined,
+		tokens: () =>
+			currentClientInformation()?.client_id &&
+			isSameOAuthClient(
+				state.clientInformation as OAuthClientInformationMixed | undefined,
+				currentClientInformation(),
+			)
+				? (state.tokens as OAuthTokens | undefined)
+				: undefined,
 		saveTokens: async (tokens) => {
 			const lastAuthenticatedAt = Date.now();
-			await patch((current) => ({
-				...current,
-				tokens: tokens as Record<string, unknown>,
-				redirectUrl: options.redirectUrl,
-				lastError: undefined,
-				lastAuthenticatedAt,
-			}));
+			const clientInformation = currentClientInformation();
+			if (!clientInformation?.client_id) {
+				throw new Error("Cannot save MCP OAuth tokens without a client ID.");
+			}
+			await patch((current) => {
+				// A pre-registered client is already bound by the guarded oauthClient
+				// setting, so its first token write may establish clientInformation.
+				// Dynamically registered clients must already be persisted and match.
+				if (current.clientInformation || !options.clientInformation) {
+					assertOAuthClientUnchanged(
+						options.serverName,
+						current,
+						clientInformation,
+					);
+				}
+				return {
+					...current,
+					tokens: tokens as Record<string, unknown>,
+					clientInformation: clientInformation as Record<string, unknown>,
+					redirectUrl: options.redirectUrl,
+					lastError: undefined,
+					lastAuthenticatedAt,
+				};
+			});
 		},
 		redirectToAuthorization: async (authorizationUrl) => {
 			lastAuthorizationUrl = authorizationUrl.toString();
 			await options.onAuthorizationUrl?.(lastAuthorizationUrl);
 		},
 		saveCodeVerifier: async (codeVerifier) => {
-			await patch((current) => ({
-				...current,
-				codeVerifier,
-				redirectUrl: options.redirectUrl,
-			}));
+			const clientInformation = currentClientInformation();
+			await patch((current) => {
+				assertOAuthClientUnchanged(
+					options.serverName,
+					current,
+					clientInformation,
+				);
+				return {
+					...current,
+					codeVerifier,
+					redirectUrl: options.redirectUrl,
+				};
+			});
 		},
 		codeVerifier: () => {
 			if (!state.codeVerifier) {
@@ -174,7 +291,15 @@ export function createMcpOAuthProviderContext(
 			return state.codeVerifier;
 		},
 		invalidateCredentials: async (scope) => {
+			const clientInformation = state.clientInformation as
+				| OAuthClientInformationMixed
+				| undefined;
 			await patch((current) => {
+				assertOAuthClientUnchanged(
+					options.serverName,
+					current,
+					clientInformation,
+				);
 				if (scope === "all") {
 					return {
 						lastError: current.lastError,
@@ -185,7 +310,10 @@ export function createMcpOAuthProviderContext(
 					...current,
 					...(scope === "client" ? { clientInformation: undefined } : {}),
 					...(scope === "tokens"
-						? { tokens: undefined, lastAuthenticatedAt: undefined }
+						? {
+								tokens: undefined,
+								lastAuthenticatedAt: undefined,
+							}
 						: {}),
 					...(scope === "verifier" ? { codeVerifier: undefined } : {}),
 					...(scope === "discovery" ? { discoveryState: undefined } : {}),
@@ -193,10 +321,20 @@ export function createMcpOAuthProviderContext(
 			});
 		},
 		saveDiscoveryState: async (discoveryState) => {
-			await patch((current) => ({
-				...current,
-				discoveryState: discoveryState as unknown as Record<string, unknown>,
-			}));
+			const clientInformation = state.clientInformation as
+				| OAuthClientInformationMixed
+				| undefined;
+			await patch((current) => {
+				assertOAuthClientUnchanged(
+					options.serverName,
+					current,
+					clientInformation,
+				);
+				return {
+					...current,
+					discoveryState: discoveryState as unknown as Record<string, unknown>,
+				};
+			});
 		},
 		discoveryState: () =>
 			state.discoveryState as OAuthDiscoveryState | undefined,
@@ -207,14 +345,35 @@ export function createMcpOAuthProviderContext(
 		getLastAuthorizationUrl: () => lastAuthorizationUrl,
 		getLastOAuthState: () => lastOAuthState,
 		resetInteractiveState: async () => {
-			await patch((current) => ({
-				...current,
-				clientInformation: undefined,
-				codeVerifier: undefined,
-				discoveryState: undefined,
-				lastError: undefined,
-				redirectUrl: options.redirectUrl,
-			}));
+			await patch((current) => {
+				const configuredClientInformation = options.clientInformation;
+				const configuredClientChanged =
+					configuredClientInformation !== undefined &&
+					!isSameOAuthClient(
+						current.clientInformation as
+							| OAuthClientInformationMixed
+							| undefined,
+						configuredClientInformation,
+					);
+				return {
+					...current,
+					...(configuredClientInformation
+						? {
+								clientInformation: configuredClientInformation as Record<
+									string,
+									unknown
+								>,
+							}
+						: {}),
+					...(configuredClientChanged
+						? { tokens: undefined, lastAuthenticatedAt: undefined }
+						: {}),
+					codeVerifier: undefined,
+					discoveryState: undefined,
+					lastError: undefined,
+					redirectUrl: options.redirectUrl,
+				};
+			});
 		},
 		markError: async (errorMessage) => {
 			await patch((current) => ({
@@ -222,10 +381,25 @@ export function createMcpOAuthProviderContext(
 				lastError: errorMessage,
 			}));
 		},
+		markConnectionError: async (errorMessage) => {
+			await patch((current) => ({
+				...current,
+				lastError: errorMessage,
+				authorizationRequired: undefined,
+			}));
+		},
+		markAuthorizationRequired: async (errorMessage) => {
+			await patch((current) => ({
+				...current,
+				lastError: errorMessage,
+				authorizationRequired: true,
+			}));
+		},
 		clearError: async () => {
 			await patch((current) => ({
 				...current,
 				lastError: undefined,
+				authorizationRequired: undefined,
 			}));
 		},
 	};
@@ -248,19 +422,54 @@ export function createMcpSdkTransport(input: {
 				headers: transport.headers,
 			}
 		: undefined;
+	// The upstream transports only surface a typed UnauthorizedError for a 401
+	// when an OAuth provider is present. For passive connections without stored
+	// tokens, translate the response at the fetch boundary so callers can show
+	// an explicit sign-in action without starting discovery/registration/PKCE.
+	const transportFetch: FetchLike | undefined = input.oauthProvider
+		? input.fetch
+		: async (url, init) => {
+				const response = await (input.fetch ?? globalThis.fetch)(url, init);
+				if (response.status === 401) {
+					await response.body?.cancel().catch(() => undefined);
+					throw new UnauthorizedError("MCP server requires authorization");
+				}
+				return response;
+			};
 	if (transport.type === "sse") {
 		return new SSEClientTransport(new URL(transport.url), {
 			authProvider: input.oauthProvider,
 			requestInit,
-			fetch: input.fetch,
+			// The stream request must see the raw response: EventSource flattens
+			// a thrown fetch error into a status-less error event, while a
+			// passed-through 401 fails the connection with an SseError carrying
+			// the HTTP code that isMcpUnauthorizedError recognizes.
+			eventSourceInit: {
+				fetch: (url, init) => (input.fetch ?? globalThis.fetch)(url, init),
+			},
+			fetch: transportFetch,
 		});
 	}
 
 	return new StreamableHTTPClientTransport(new URL(transport.url), {
 		authProvider: input.oauthProvider,
 		requestInit,
-		fetch: input.fetch,
+		fetch: transportFetch,
 	});
+}
+
+/**
+ * Recognizes a 401 from a remote MCP server across transports. The streamable
+ * HTTP transport (and SSE message POSTs) reject with the typed
+ * UnauthorizedError raised at the fetch boundary, but the SSE stream request
+ * runs inside EventSource, which consumes the response and reports the HTTP
+ * status only through SseError's code.
+ */
+export function isMcpUnauthorizedError(error: unknown): boolean {
+	return (
+		error instanceof UnauthorizedError ||
+		(error instanceof SseError && error.code === 401)
+	);
 }
 
 function buildClient(input: {
@@ -280,22 +489,32 @@ export async function authorizeMcpServerOAuth(
 	if (!serverName) {
 		throw new Error("MCP server name cannot be empty.");
 	}
+	if (options.signal?.aborted) {
+		throw new Error(
+			`MCP server "${serverName}" OAuth authorization was cancelled.`,
+		);
+	}
 
-	const { resolveMcpServerRegistrations } = await import("./config-loader");
-	const registration = resolveMcpServerRegistrations({
-		filePath: options.filePath,
-	}).find((entry) => entry.name === serverName);
+	const { resolveMcpServerRegistration } = await import("./config-loader");
+	const settingsPath = options.filePath ?? resolveDefaultMcpSettingsPath();
+	const registration = resolveMcpServerRegistration(serverName, {
+		filePath: settingsPath,
+	});
 	if (!registration) {
 		throw new Error(`MCP server "${serverName}" is not configured.`);
-	}
-	if (registration.disabled) {
-		throw new Error(
-			`MCP server "${serverName}" is disabled. Enable it before running OAuth.`,
-		);
 	}
 	if (registration.transport.type === "stdio") {
 		throw new Error(
 			`MCP server "${serverName}" uses stdio transport and does not support OAuth browser flow.`,
+		);
+	}
+	if (
+		Object.keys(registration.transport.headers ?? {}).some(
+			(name) => name.toLowerCase() === "authorization",
+		)
+	) {
+		throw new Error(
+			`MCP server "${serverName}" has a static Authorization header. Remove it before starting OAuth.`,
 		);
 	}
 	const requestTimeoutMs = resolveMcpRequestTimeoutMs(
@@ -316,11 +535,19 @@ export async function authorizeMcpServerOAuth(
 	if (!callbackServer.callbackUrl) {
 		throw new Error("Unable to bind local MCP OAuth callback server.");
 	}
+	const cancelCallbackWait = () => callbackServer.cancelWait();
+	options.signal?.addEventListener("abort", cancelCallbackWait, { once: true });
+	if (options.signal?.aborted) {
+		cancelCallbackWait();
+	}
 
 	const oauthContext = createMcpOAuthProviderContext({
-		settingsPath: options.filePath,
+		settingsPath,
 		serverName,
 		redirectUrl: callbackServer.callbackUrl,
+		clientInformation: createMcpOAuthClientInformation(
+			registration.oauthClient,
+		),
 		onAuthorizationUrl: async (url) => {
 			await options.openUrl?.(url);
 		},
@@ -336,8 +563,14 @@ export async function authorizeMcpServerOAuth(
 			fetch: options.fetch,
 		});
 		try {
-			await client.connect(transport, { timeout: requestTimeoutMs });
-			await client.listTools(undefined, { timeout: requestTimeoutMs });
+			await client.connect(transport, {
+				timeout: requestTimeoutMs,
+				signal: options.signal,
+			});
+			await client.listTools(undefined, {
+				timeout: requestTimeoutMs,
+				signal: options.signal,
+			});
 			await oauthContext.clearError();
 			return {
 				serverName,
@@ -345,9 +578,12 @@ export async function authorizeMcpServerOAuth(
 				message: `MCP server "${serverName}" is already authorized.`,
 			};
 		} catch (error) {
-			if (!(error instanceof UnauthorizedError)) {
+			if (!isMcpUnauthorizedError(error)) {
 				throw error;
 			}
+			await oauthContext.markAuthorizationRequired(
+				`MCP server "${serverName}" requires OAuth authorization.`,
+			);
 			const authUrl = oauthContext.getLastAuthorizationUrl();
 			if (!authUrl) {
 				throw new Error(
@@ -356,6 +592,11 @@ export async function authorizeMcpServerOAuth(
 			}
 			const callback = await callbackServer.waitForCallback();
 			if (!callback) {
+				if (options.signal?.aborted) {
+					throw new Error(
+						`MCP server "${serverName}" OAuth authorization was cancelled.`,
+					);
+				}
 				throw new Error(
 					"Timed out waiting for MCP OAuth authorization callback.",
 				);
@@ -387,8 +628,12 @@ export async function authorizeMcpServerOAuth(
 			});
 			await retryClient.connect(retryTransport, {
 				timeout: requestTimeoutMs,
+				signal: options.signal,
 			});
-			await retryClient.listTools(undefined, { timeout: requestTimeoutMs });
+			await retryClient.listTools(undefined, {
+				timeout: requestTimeoutMs,
+				signal: options.signal,
+			});
 			await oauthContext.clearError();
 			return {
 				serverName,
@@ -397,12 +642,18 @@ export async function authorizeMcpServerOAuth(
 			};
 		}
 	} catch (error) {
-		const message = toErrorMessage(
-			augmentMcpTimeoutError(error, serverName, requestTimeoutMs),
-		);
-		await oauthContext.markError(message);
+		const cancelled = options.signal?.aborted === true;
+		const message = cancelled
+			? `MCP server "${serverName}" OAuth authorization was cancelled.`
+			: toErrorMessage(
+					augmentMcpTimeoutError(error, serverName, requestTimeoutMs),
+				);
+		if (!cancelled) {
+			await oauthContext.markError(message);
+		}
 		throw new Error(message);
 	} finally {
+		options.signal?.removeEventListener("abort", cancelCallbackWait);
 		await client.close().catch(() => undefined);
 		await retryClient?.close().catch(() => undefined);
 		callbackServer.close();

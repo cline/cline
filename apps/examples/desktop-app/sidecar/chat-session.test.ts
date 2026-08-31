@@ -1,7 +1,14 @@
-import { existsSync, readFileSync, rmSync } from "node:fs";
+import {
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { materializeUserFiles } from "./attachments";
 import {
 	buildSessionConnectionUpdate,
@@ -10,10 +17,67 @@ import {
 	hasProviderChanged,
 	mergeSessionConfig,
 	prewarmWorkspaceMetadata,
+	resolveDesktopSessionMode,
+	rewriteDesktopTeamPrompt,
 	shouldUpdateSessionConnection,
 	WORKSPACE_METADATA_PREWARM_TTL_MS,
 } from "./chat-session";
+import { handleCoreSessionEvent } from "./context";
 import type { SidecarContext } from "./types";
+
+describe("resolveDesktopSessionMode", () => {
+	it("does not turn auto-approved Act sessions into Yolo sessions", () => {
+		expect(
+			resolveDesktopSessionMode({ mode: "act", autoApproveTools: true }),
+		).toBe("act");
+		expect(resolveDesktopSessionMode({ autoApproveTools: true })).toBe("act");
+	});
+
+	it("preserves explicit Plan and Yolo modes", () => {
+		expect(resolveDesktopSessionMode({ mode: "plan" })).toBe("plan");
+		expect(resolveDesktopSessionMode({ mode: "yolo" })).toBe("yolo");
+	});
+});
+
+describe("rewriteDesktopTeamPrompt", () => {
+	it("rewrites /team for the core runtime", () => {
+		expect(
+			rewriteDesktopTeamPrompt("/team inspect the app", {
+				disabledTools: new Set(),
+			}),
+		).toBe(
+			'<user_command slash="team">spawn a team of agents for the following task: inspect the app</user_command>',
+		);
+	});
+
+	it("rejects /team when the Teams tool is disabled", () => {
+		expect(() =>
+			rewriteDesktopTeamPrompt("/team inspect the app", {
+				disabledTools: new Set(["teams"]),
+			}),
+		).toThrow("Agent teams are disabled");
+	});
+
+	it("rejects /team when the mode's tool preset has no team tools", () => {
+		expect(() =>
+			rewriteDesktopTeamPrompt("/team inspect the app", {
+				mode: "yolo",
+				disabledTools: new Set(),
+			}),
+		).toThrow("Agent teams are not available in yolo mode");
+	});
+
+	it("accepts /team in act and plan modes", () => {
+		for (const mode of ["act", "plan", undefined]) {
+			expect(
+				rewriteDesktopTeamPrompt("/team inspect the app", {
+					mode,
+					disabledTools: new Set(),
+				}),
+			).toContain('<user_command slash="team">');
+		}
+	});
+});
 
 describe("buildSessionConnectionUpdate", () => {
 	it("does not clear reasoning settings when config omits reasoning fields", () => {
@@ -134,6 +198,8 @@ describe("pathless session starts", () => {
 		const start = vi.fn(async (input: { config: Record<string, unknown> }) => {
 			expect(input.config).not.toHaveProperty("cwd");
 			expect(input.config).not.toHaveProperty("workspaceRoot");
+			expect(input.config).not.toHaveProperty("enableSpawnAgent");
+			expect(input.config).not.toHaveProperty("enableAgentTeams");
 			return {
 				sessionId: "session-pathless",
 				manifest: {
@@ -156,6 +222,10 @@ describe("pathless session starts", () => {
 				provider: "cline",
 				model: "anthropic/claude-sonnet-4.6",
 				enableTools: true,
+				// Legacy desktop capability flags must not override the SDK's
+				// current tool preset or global tool customizations.
+				enableSpawn: false,
+				enableTeams: false,
 			},
 		})) as {
 			sessionId: string;
@@ -276,7 +346,6 @@ describe("session forks", () => {
 		expect(result).toEqual({
 			sessionId: "edited-fork",
 			forkedFromSessionId: sourceSessionId,
-			messages: expectedMessages,
 		});
 		expect(ctx.liveSessions.get("edited-fork")?.messages).toEqual(
 			expectedMessages,
@@ -572,6 +641,81 @@ describe("session forks", () => {
 		).rejects.toThrow("Wait for all turns in this workspace to finish");
 		expect(restore).not.toHaveBeenCalled();
 		expect(ctx.restoringWorkspacePaths.size).toBe(0);
+	});
+
+	it("allows a workspace restore after a queued turn completes through the event stream", async () => {
+		const sessionId = `queued-turn-session-${Date.now()}`;
+		const dataDir = mkdtempSync(join(tmpdir(), "cline-queued-restore-"));
+		const originalDataDir = process.env.CLINE_SESSION_DATA_DIR;
+		process.env.CLINE_SESSION_DATA_DIR = dataDir;
+		try {
+			const restore = vi.fn(async () => ({
+				sessionId,
+				messages: [{ role: "user", content: "first prompt" }],
+				checkpoint: { ref: "first", createdAt: 1, runCount: 1 },
+			}));
+			const ctx = {
+				liveSessions: new Map([
+					[
+						sessionId,
+						{
+							config: { cwd: "/workspace/project" },
+							messages: [{ role: "user", content: "first prompt" }],
+							promptsInQueue: [],
+							// A drained queued turn is running: no send() RPC owns
+							// this turn's busy flag, only the event stream does.
+							busy: true,
+							startedAt: Date.now(),
+							status: "running",
+						},
+					],
+				]),
+				restoringWorkspacePaths: new Set(),
+				streamIndices: new Map(),
+				wsClients: new Set(),
+				sessionManager: { restore },
+			} as unknown as SidecarContext;
+			const restoreRequest = {
+				action: "restore_checkpoint" as const,
+				sessionId,
+				checkpointRunCount: 1,
+				config: {
+					cwd: "/workspace/project",
+					provider: "cline",
+					model: "test-model",
+				},
+			};
+
+			// While the queued turn is still running the workspace stays locked.
+			await expect(
+				handleChatSessionCommand(ctx, restoreRequest),
+			).rejects.toThrow("Wait for all turns in this workspace to finish");
+			expect(restore).not.toHaveBeenCalled();
+
+			// The queued turn settles through the event stream: the runtime
+			// host reports the session back at idle (there is no send() RPC
+			// response to clear the busy flag for event-settled turns).
+			handleCoreSessionEvent(ctx, {
+				type: "status",
+				payload: { sessionId, status: "idle" },
+			});
+			expect(ctx.liveSessions.get(sessionId)).toMatchObject({
+				busy: false,
+				status: "idle",
+			});
+
+			await expect(
+				handleChatSessionCommand(ctx, restoreRequest),
+			).resolves.toMatchObject({ sessionId });
+			expect(restore).toHaveBeenCalledTimes(1);
+		} finally {
+			if (originalDataDir === undefined) {
+				delete process.env.CLINE_SESSION_DATA_DIR;
+			} else {
+				process.env.CLINE_SESSION_DATA_DIR = originalDataDir;
+			}
+			rmSync(dataDir, { force: true, recursive: true });
+		}
 	});
 
 	it("blocks sends from sibling sessions while their workspace is restored", async () => {
@@ -1239,6 +1383,7 @@ describe("first-send connection updates", () => {
 		});
 
 		expect(updateSessionConnection).toHaveBeenCalledTimes(1);
+		expect(ctx.liveSessions.get(sessionId)?.attachedViaHub).toBe(false);
 	});
 });
 
@@ -1308,5 +1453,220 @@ describe("workspace metadata prewarming", () => {
 			),
 		).resolves.toBe("current metadata");
 		expect(load).toHaveBeenCalledTimes(2);
+	});
+});
+
+describe("runtime slash command expansion on send", () => {
+	const tempRoots: string[] = [];
+
+	afterEach(() => {
+		for (const dir of tempRoots) {
+			rmSync(dir, { recursive: true, force: true });
+		}
+		tempRoots.length = 0;
+	});
+
+	function createWorkspaceWithSkill(): string {
+		const workspace = mkdtempSync(join(tmpdir(), "desktop-slash-send-"));
+		tempRoots.push(workspace);
+		const skillDir = join(workspace, ".cline", "skills", "desktop-send-skill");
+		mkdirSync(skillDir, { recursive: true });
+		writeFileSync(
+			join(skillDir, "SKILL.md"),
+			`---
+name: desktop-send-skill
+---
+Follow the desktop send skill instructions.`,
+		);
+		const workflowsDir = join(workspace, ".cline", "workflows");
+		mkdirSync(workflowsDir, { recursive: true });
+		writeFileSync(
+			join(workflowsDir, "desktop-send-workflow.md"),
+			`---
+name: desktop-send-workflow
+---
+Follow the desktop send workflow instructions.`,
+		);
+		return workspace;
+	}
+
+	function createContext(workspace: string) {
+		const sessionId = "slash-expansion-session";
+		const send = vi.fn(async (_input?: unknown) => ({
+			text: "done",
+			finishReason: "completed",
+			messages: [],
+		}));
+		const session = {
+			config: { provider: "cline", model: "test-model", cwd: workspace },
+			messages: [],
+			promptsInQueue: [],
+			busy: false,
+			startedAt: Date.now(),
+			status: "idle",
+			prompt: undefined as string | undefined,
+		};
+		const updatePendingPrompt = vi.fn(
+			async (input: { promptId: string; prompt?: string }) => ({
+				updated: true,
+				prompt: { id: input.promptId, prompt: input.prompt },
+				prompts: [],
+			}),
+		);
+		const ctx = {
+			workspaceRoot: workspace,
+			liveSessions: new Map([[sessionId, session]]),
+			restoringWorkspacePaths: new Set(),
+			streamIndices: new Map(),
+			wsClients: new Set(),
+			sessionManager: {
+				send,
+				pendingPrompts: {
+					list: vi.fn(async () => []),
+					update: updatePendingPrompt,
+				},
+			},
+		} as unknown as SidecarContext;
+		return { ctx, send, session, sessionId, updatePendingPrompt };
+	}
+
+	it("sends a skill command through as typed for the skills tool", async () => {
+		const workspace = createWorkspaceWithSkill();
+		const { ctx, send, session, sessionId } = createContext(workspace);
+
+		await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "/desktop-send-skill write the docs",
+		});
+
+		// Skills are not expanded into the user message: the runtime's skills
+		// tool loads the instructions, and the persisted transcript keeps the
+		// typed command.
+		expect(send).toHaveBeenCalledWith(
+			expect.objectContaining({
+				prompt: "/desktop-send-skill write the docs",
+			}),
+		);
+		expect(session.prompt).toBe("/desktop-send-skill write the docs");
+	});
+
+	it("expands a skill command in yolo mode, where the skills tool is unavailable", async () => {
+		const workspace = createWorkspaceWithSkill();
+		const { ctx, send, session, sessionId } = createContext(workspace);
+		(session.config as Record<string, unknown>).mode = "yolo";
+
+		await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "/desktop-send-skill write the docs",
+		});
+
+		// The yolo preset has no skills tool, so textual expansion is the only
+		// way the instructions reach the model.
+		expect(send).toHaveBeenCalledWith(
+			expect.objectContaining({
+				prompt: "Follow the desktop send skill instructions. write the docs",
+			}),
+		);
+	});
+
+	it("expands a leading workflow command into its instructions", async () => {
+		const workspace = createWorkspaceWithSkill();
+		const { ctx, send, session, sessionId } = createContext(workspace);
+
+		await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "/desktop-send-workflow ship it",
+		});
+
+		// Workflows are not served by the skills tool, so they keep textual
+		// expansion.
+		expect(send).toHaveBeenCalledWith(
+			expect.objectContaining({
+				prompt: "Follow the desktop send workflow instructions. ship it",
+			}),
+		);
+		// The session's display prompt keeps the raw token.
+		expect(session.prompt).toBe("/desktop-send-workflow ship it");
+	});
+
+	it("keeps a skill command as typed when a queued prompt is edited", async () => {
+		const workspace = createWorkspaceWithSkill();
+		const { ctx, sessionId, updatePendingPrompt } = createContext(workspace);
+
+		await handleChatSessionCommand(ctx, {
+			action: "update_pending_prompt",
+			sessionId,
+			promptId: "queued-1",
+			prompt: "/desktop-send-skill later please",
+		});
+
+		expect(updatePendingPrompt).toHaveBeenCalledWith({
+			sessionId,
+			promptId: "queued-1",
+			prompt: "/desktop-send-skill later please",
+		});
+	});
+
+	it("expands a workflow command when a queued prompt is edited", async () => {
+		const workspace = createWorkspaceWithSkill();
+		const { ctx, sessionId, updatePendingPrompt } = createContext(workspace);
+
+		await handleChatSessionCommand(ctx, {
+			action: "update_pending_prompt",
+			sessionId,
+			promptId: "queued-2",
+			prompt: "/desktop-send-workflow later please",
+		});
+
+		expect(updatePendingPrompt).toHaveBeenCalledWith({
+			sessionId,
+			promptId: "queued-2",
+			prompt: "Follow the desktop send workflow instructions. later please",
+		});
+	});
+
+	it("rewrites a team command when a queued prompt is edited", async () => {
+		const workspace = createWorkspaceWithSkill();
+		const { ctx, sessionId, updatePendingPrompt } = createContext(workspace);
+
+		await handleChatSessionCommand(ctx, {
+			action: "update_pending_prompt",
+			sessionId,
+			promptId: "queued-team",
+			prompt: "/team inspect the app",
+		});
+
+		expect(updatePendingPrompt).toHaveBeenCalledWith({
+			sessionId,
+			promptId: "queued-team",
+			prompt:
+				'<user_command slash="team">spawn a team of agents for the following task: inspect the app</user_command>',
+		});
+	});
+
+	it("leaves built-in and unknown slash commands untouched", async () => {
+		const workspace = createWorkspaceWithSkill();
+		const { ctx, send, sessionId } = createContext(workspace);
+
+		await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "/fork",
+		});
+		expect(send).toHaveBeenLastCalledWith(
+			expect.objectContaining({ prompt: "/fork" }),
+		);
+
+		await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "/not-a-real-command hello",
+		});
+		expect(send).toHaveBeenLastCalledWith(
+			expect.objectContaining({ prompt: "/not-a-real-command hello" }),
+		);
 	});
 });
