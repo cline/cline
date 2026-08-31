@@ -843,6 +843,14 @@ export async function connectComposioToolkit(
 	toolkit: ComposioToolkitSlug,
 	logger?: BasicLogger,
 ): Promise<ComposioConnectResponse> {
+	// Anchor the disconnect race at function entry, BEFORE any await: a
+	// disconnect whose marker lands at or after this instant overlapped this
+	// attempt somewhere (including during the connection-initiation round
+	// trip) and must win at finalize time (see FinalizeGuard.startedAt).
+	// Disconnect sets its marker after its awaited remote deletion, i.e. at
+	// the latest point of its execution, so every overlapping interleaving
+	// yields marker >= startedAt.
+	const startedAt = Date.now();
 	const state = readReconciledComposioState(logger);
 	if (!state.apiKey || !state.userId) {
 		throw new Error(
@@ -872,13 +880,7 @@ export async function connectComposioToolkit(
 		);
 	}
 	const redirectUrl = connectionRequest.redirectUrl?.trim() || undefined;
-	// startedAt anchors the disconnect race: a disconnect that lands after
-	// this attempt began is the newer user intent and must win at write time.
-	const guard = {
-		apiKey: state.apiKey,
-		userId: state.userId,
-		startedAt: Date.now(),
-	};
+	const guard = { apiKey: state.apiKey, userId: state.userId, startedAt };
 	if (!redirectUrl) {
 		// No browser step needed (e.g. the account is already authorized on
 		// Composio's side) — finalize right away. There is no pending entry on

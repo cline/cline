@@ -1026,6 +1026,73 @@ describe("disconnectComposioToolkit", () => {
 		expect(readStateFile(dir).cancelledAccountIds).toBeUndefined();
 	});
 
+	it("a disconnect completing during connection initiation also wins over redirect-less finalization", async () => {
+		const dir = useTempDataDir();
+		process.env.COMPOSIO_API_KEY = "ck_init_race";
+		writeState(dir, {
+			apiKey: "ck_init_race",
+			userId: "u_init_race",
+			toolkits: {
+				github: {
+					connectedAccountId: "ca_old_init",
+					connectedAt: "2026-08-28T00:00:00.000Z",
+					tools: [{ slug: "GITHUB_CREATE_AN_ISSUE" }],
+				},
+			},
+		});
+		let releaseAuthorize: (() => void) | undefined;
+		const remoteDelete = vi.fn(async () => ({}));
+		const client = {
+			toolkits: {
+				// The disconnect runs entirely inside this authorize round trip,
+				// so its marker lands BEFORE the initiation completes.
+				authorize: vi.fn(
+					() =>
+						new Promise<{
+							id: string;
+							redirectUrl: null;
+							waitForConnection: () => Promise<unknown>;
+						}>((resolve) => {
+							releaseAuthorize = () =>
+								resolve({
+									id: "ca_new_init",
+									redirectUrl: null,
+									waitForConnection: async () => ({}),
+								});
+						}),
+				),
+			},
+			authConfigs: {
+				list: vi.fn(async () => ({ items: [] })),
+				create: vi.fn(),
+			},
+			tools: {
+				getRawComposioTools: vi.fn(async () => [
+					{ slug: "GITHUB_CREATE_AN_ISSUE" },
+				]),
+			},
+			connectedAccounts: {
+				list: vi.fn(async () => ({ items: [] })),
+				link: vi.fn(),
+				delete: remoteDelete,
+			},
+		};
+		createMockComposioClient = () => client;
+		const connectPromise = connectComposioToolkit("github");
+		await vi.waitFor(() => {
+			expect(client.toolkits.authorize).toHaveBeenCalled();
+		});
+		const disconnected = await disconnectComposioToolkit("github");
+		expect(
+			disconnected.integrations.find((entry) => entry.toolkit === "github")
+				?.status,
+		).toBe("not_connected");
+		releaseAuthorize?.();
+		await connectPromise;
+		expect(readStateFile(dir).toolkits?.github).toBeUndefined();
+		expect(remoteDelete).toHaveBeenCalledWith("ca_new_init");
+	});
+
 	it("treats an account that is already gone remotely as revoked", async () => {
 		const dir = useTempDataDir();
 		process.env.COMPOSIO_API_KEY = "ck_gone_404";
