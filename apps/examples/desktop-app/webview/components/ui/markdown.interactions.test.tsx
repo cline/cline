@@ -44,6 +44,9 @@ beforeEach(() => {
 	Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 	// jsdom has no scrollTo; streamdown >=2.6 auto-scrolls streaming code blocks.
 	HTMLElement.prototype.scrollTo = vi.fn();
+	// jsdom has no pointer capture; Streamdown's pan surface calls it on press.
+	HTMLElement.prototype.setPointerCapture = vi.fn();
+	HTMLElement.prototype.releasePointerCapture = vi.fn();
 	container = document.createElement("div");
 	document.body.appendChild(container);
 	root = createRoot(container);
@@ -349,6 +352,146 @@ describe("MemoizedMarkdown interactions", () => {
 				container.querySelector('[data-testid="stale-mermaid"]'),
 			).toBeNull();
 		});
+	});
+
+	// Desktop webview tests colocate beside the component under test (unlike
+	// `@cline/ui`, which keeps a package-level `tests/` directory), so this
+	// coverage lives next to `markdown.tsx`.
+	//
+	// Mermaid renders `click <node> "https://…"` directives as live anchors
+	// inside the SVG, and Streamdown injects that SVG with
+	// `dangerouslySetInnerHTML` — so those anchors never pass through
+	// SafeMarkdownLink. @cline/ui strips the navigable href; these assert the
+	// desktop surface reattaches them to the confirmation flow instead of
+	// letting a diagram click navigate the webview away from the app.
+	async function renderDiagramWithLink(
+		href = "https://evil.example.com/harvest?t=1",
+	): Promise<Element> {
+		const render = deferredRender();
+		mermaidMocks.render.mockReturnValueOnce(render.promise);
+		await renderMarkdown({ content: "```mermaid\nflowchart LR\nA --> B\n```" });
+		await waitFor(() => {
+			expect(mermaidMocks.render).toHaveBeenCalled();
+		});
+		await act(async () => {
+			render.resolve({
+				svg: `<svg xmlns="http://www.w3.org/2000/svg"><a xlink:href="${href}" data-testid="diagram-link"><text>Official Cline Docs</text></a></svg>`,
+			});
+			await render.promise;
+		});
+		return await vi.waitFor(() => {
+			const anchor = container.querySelector('[data-testid="diagram-link"]');
+			expect(anchor).not.toBeNull();
+			return anchor as Element;
+		});
+	}
+
+	test("renders a diagram link with no navigable href", async () => {
+		const anchor = await renderDiagramWithLink();
+
+		expect(anchor.getAttribute("xlink:href")).toBeNull();
+		expect(anchor.getAttribute("href")).toBeNull();
+		expect(anchor.getAttribute("data-cline-diagram-href")).toBe(
+			"https://evil.example.com/harvest?t=1",
+		);
+	});
+
+	test("confirms before opening a diagram link, then opens it externally", async () => {
+		const anchor = await renderDiagramWithLink();
+
+		await click(anchor);
+		await vi.waitFor(() => {
+			expect(document.querySelector('[role="alertdialog"]')).not.toBeNull();
+			expect(document.body.textContent).toContain(
+				"https://evil.example.com/harvest?t=1",
+			);
+		});
+		// The label is authored independently of the destination, so the real
+		// destination must be what the user is shown before anything opens.
+		expect(openWindow).not.toHaveBeenCalled();
+
+		await click(getButton("Open link"));
+		expect(openWindow).toHaveBeenCalledTimes(1);
+		expect(openWindow).toHaveBeenCalledWith(
+			"https://evil.example.com/harvest?t=1",
+			"_blank",
+			"noopener,noreferrer",
+		);
+	});
+
+	test("opens nothing when a diagram link confirmation is cancelled", async () => {
+		const anchor = await renderDiagramWithLink();
+
+		await click(anchor);
+		await vi.waitFor(() => {
+			expect(document.querySelector('[role="alertdialog"]')).not.toBeNull();
+		});
+		await click(getButton("Cancel"));
+
+		await vi.waitFor(() => {
+			expect(document.querySelector('[role="alertdialog"]')).toBeNull();
+		});
+		expect(openWindow).not.toHaveBeenCalled();
+	});
+
+	// Streamdown's pan/zoom surface calls setPointerCapture on pointerdown, so
+	// in a real browser the click lands on that surface, not the anchor. jsdom
+	// has no PointerEvent; React only needs the event type and coordinates.
+	async function pressAndRelease(
+		pressed: Element,
+		released: Element,
+		dragPx = 0,
+	): Promise<void> {
+		await act(async () => {
+			pressed.dispatchEvent(
+				new MouseEvent("pointerdown", {
+					bubbles: true,
+					clientX: 10,
+					clientY: 10,
+				}),
+			);
+			released.dispatchEvent(
+				new MouseEvent("click", {
+					bubbles: true,
+					cancelable: true,
+					clientX: 10 + dragPx,
+					clientY: 10,
+				}),
+			);
+			await new Promise((resolve) => setTimeout(resolve, 0));
+		});
+	}
+
+	test("confirms a diagram link when pointer capture retargets the click", async () => {
+		const anchor = await renderDiagramWithLink();
+		const panSurface = anchor.closest("svg")?.parentElement as Element;
+
+		await pressAndRelease(anchor, panSurface);
+		await vi.waitFor(() => {
+			expect(document.querySelector('[role="alertdialog"]')).not.toBeNull();
+			expect(document.body.textContent).toContain(
+				"https://evil.example.com/harvest?t=1",
+			);
+		});
+		expect(openWindow).not.toHaveBeenCalled();
+	});
+
+	test("treats a drag that starts on a diagram link as a pan", async () => {
+		const anchor = await renderDiagramWithLink();
+		const panSurface = anchor.closest("svg")?.parentElement as Element;
+
+		await pressAndRelease(anchor, panSurface, 40);
+		expect(document.querySelector('[role="alertdialog"]')).toBeNull();
+		expect(openWindow).not.toHaveBeenCalled();
+	});
+
+	test("never surfaces a non-http(s) diagram destination", async () => {
+		const anchor = await renderDiagramWithLink("javascript:alert(1)");
+
+		expect(anchor.getAttribute("data-cline-diagram-href")).toBeNull();
+		await click(anchor);
+		expect(document.querySelector('[role="alertdialog"]')).toBeNull();
+		expect(openWindow).not.toHaveBeenCalled();
 	});
 
 	test("confirms and closes an external link dialog exactly once", async () => {

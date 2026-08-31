@@ -243,6 +243,19 @@ Products keep their own `<Streamdown>` wrapper for link and image policy. Give
 each conversation a bounded height through an explicit height or a complete
 flex/min-height chain so its viewport can scroll.
 
+Diagram links need host handling. Mermaid's strict mode blocks scripts and
+dangerous URL schemes, but a `click <node> "https://…"` directive still renders
+a live anchor inside the SVG, and Streamdown injects that SVG with
+`dangerouslySetInnerHTML` — so it never passes through the `a` component a
+product supplies. The plugin therefore runs `neutralizeDiagramLinks` over
+rendered output: navigable `href` / `xlink:href` / `target` attributes are
+removed, and an http(s) destination is preserved on the attribute exported as
+`DIAGRAM_LINK_HREF_ATTRIBUTE` (`data-cline-diagram-href`). Diagram links are
+inert by default; a host that wants them clickable should read that attribute
+and route the destination through its own link policy. Treat them as untrusted:
+a diagram's visible label is authored independently of its destination, so
+confirm before opening rather than reusing a "looks honest" heuristic.
+
 These are presentation primitives, not an agent SDK. Consumers map their own
 message and tool schemas into the components and retain their own Markdown,
 transport, approvals, persistence, and product actions.

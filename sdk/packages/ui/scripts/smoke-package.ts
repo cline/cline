@@ -44,6 +44,8 @@ import { buildToolSummary } from "@cline/ui/components/agent-chat/tool-summary";
 import {
 	agentMarkdownControlsWithMermaid,
 	createLazyMermaidPlugin,
+	DIAGRAM_LINK_HREF_ATTRIBUTE,
+	neutralizeDiagramLinks,
 } from "@cline/ui/components/markdown";
 
 for (const specifier of [
@@ -85,11 +87,35 @@ if (summary.label !== "Read file app.tsx (10–80)" || summary.kind !== "read") 
 if (typeof ToolFileDiff !== "function") {
 	throw new Error("tool-diff subpath did not export ToolFileDiff");
 }
+// Assert the control shape rather than a "not false" check, which would also
+// accept undefined or an empty object and silently ship diagrams without their
+// controls. (This block lives inside the importCheck template literal above, so
+// it must avoid backticks and dollar-brace sequences.)
+const mermaidControls = agentMarkdownControlsWithMermaid.mermaid;
 if (
 	typeof createLazyMermaidPlugin !== "function" ||
-	agentMarkdownControlsWithMermaid.mermaid === false
+	typeof mermaidControls !== "object" ||
+	mermaidControls === null ||
+	mermaidControls.copy !== true ||
+	mermaidControls.download !== true ||
+	mermaidControls.fullscreen !== true ||
+	mermaidControls.panZoom !== true
 ) {
 	throw new Error("markdown subpath did not export Mermaid opt-in controls");
+}
+// A substring check for the original href would also match the preserved
+// data-cline-diagram-href attribute, so assert on attribute boundaries instead.
+const neutralizedDiagram =
+	typeof neutralizeDiagramLinks === "function"
+		? neutralizeDiagramLinks('<svg><a href="https://example.com/">x</a></svg>')
+		: "";
+if (
+	DIAGRAM_LINK_HREF_ATTRIBUTE !== "data-cline-diagram-href" ||
+	neutralizedDiagram.includes(" href=") ||
+	neutralizedDiagram.includes(" xlink:href=") ||
+	!neutralizedDiagram.includes('data-cline-diagram-href="https://example.com/"')
+) {
+	throw new Error("markdown subpath did not export diagram link neutralization");
 }
 if (
 	!AgentConversationHeader ||

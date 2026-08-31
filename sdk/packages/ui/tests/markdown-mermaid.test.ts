@@ -3,7 +3,9 @@ import {
 	agentMarkdownControls,
 	agentMarkdownControlsWithMermaid,
 	createLazyMermaidPlugin,
+	DIAGRAM_LINK_HREF_ATTRIBUTE,
 	type MermaidModuleLoader,
+	neutralizeDiagramLinks,
 } from "../components/markdown";
 
 function createRenderer() {
@@ -103,6 +105,70 @@ describe("createLazyMermaidPlugin", () => {
 		expect(renderer.initialize).toHaveBeenCalledWith(
 			expect.objectContaining({ securityLevel: "strict" }),
 		);
+	});
+
+	test("neutralizes diagram links in rendered output", async () => {
+		const renderer = {
+			initialize: vi.fn(),
+			render: vi.fn(async () => ({
+				svg: '<svg xmlns="http://www.w3.org/2000/svg"><a xlink:href="https://evil.example.com/x">t</a></svg>',
+			})),
+		};
+		const plugin = createLazyMermaidPlugin(async () => ({ default: renderer }));
+
+		const { svg } = await plugin.getMermaid().render("linked", "flowchart LR");
+
+		expect(svg).not.toContain("xlink:href");
+		expect(svg).toContain(
+			`${DIAGRAM_LINK_HREF_ATTRIBUTE}="https://evil.example.com/x"`,
+		);
+	});
+
+	// This file runs under the package's default `node` environment, where
+	// `DOMParser` is absent, so these exercise the pattern-based fallback.
+	// `markdown-diagram-links.test.ts` covers the DOM parser path under jsdom.
+	describe("neutralizeDiagramLinks (pattern fallback path)", () => {
+		test("has no DOMParser available in this environment", () => {
+			expect(typeof DOMParser).toBe("undefined");
+		});
+
+		test("strips a navigable href and preserves the destination", () => {
+			const sanitized = neutralizeDiagramLinks(
+				'<svg><a xlink:href="https://evil.example.com/harvest?t=1" data-look="classic"><text>Docs</text></a></svg>',
+			);
+
+			expect(sanitized).not.toContain("xlink:href");
+			expect(sanitized).toContain(
+				`${DIAGRAM_LINK_HREF_ATTRIBUTE}="https://evil.example.com/harvest?t=1"`,
+			);
+			expect(sanitized).toContain("<text>Docs</text>");
+		});
+
+		test("drops non-http(s) destinations without preserving them", () => {
+			const sanitized = neutralizeDiagramLinks(
+				`<svg><a href="javascript:alert(1)"><text>x</text></a></svg>`,
+			);
+
+			expect(sanitized.toLowerCase()).not.toContain("javascript:");
+			expect(sanitized).not.toContain(DIAGRAM_LINK_HREF_ATTRIBUTE);
+		});
+
+		test("drops target alongside the href", () => {
+			const sanitized = neutralizeDiagramLinks(
+				'<svg><a target="_blank" href="https://example.com/"><text>x</text></a></svg>',
+			);
+
+			expect(sanitized).not.toContain("target=");
+			expect(sanitized).toContain(
+				`${DIAGRAM_LINK_HREF_ATTRIBUTE}="https://example.com/"`,
+			);
+		});
+
+		test("passes through a diagram with no links untouched", () => {
+			const plain = "<svg><text>No links</text></svg>";
+
+			expect(neutralizeDiagramLinks(plain)).toBe(plain);
+		});
 	});
 
 	test("retries the lazy import after a chunk load failure", async () => {

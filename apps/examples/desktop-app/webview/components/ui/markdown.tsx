@@ -1,12 +1,18 @@
 import {
 	agentMarkdownControlsWithMermaid,
 	createLazyMermaidPlugin,
+	DIAGRAM_LINK_HREF_ATTRIBUTE,
 	type MermaidModuleLoader,
 	markdownCodeHighlighter,
 } from "@cline/ui/components/markdown";
 import { cjk } from "@streamdown/cjk";
-import type { ComponentProps, MouseEvent, ReactNode } from "react";
-import { isValidElement, memo, useState } from "react";
+import type {
+	ComponentProps,
+	MouseEvent,
+	PointerEvent,
+	ReactNode,
+} from "react";
+import { isValidElement, memo, useRef, useState } from "react";
 import {
 	type Components,
 	type ExtraProps,
@@ -303,6 +309,63 @@ const markdownComponents = {
 	img: MarkdownImage,
 } satisfies Components;
 
+/**
+ * Diagram links never reach {@link SafeMarkdownLink}: Streamdown injects the
+ * rendered Mermaid SVG with `dangerouslySetInnerHTML`, so React component
+ * overrides do not apply inside it. `@cline/ui` strips the navigable href from
+ * those anchors and leaves the destination on
+ * {@link DIAGRAM_LINK_HREF_ATTRIBUTE}, so they cannot navigate the webview on
+ * their own. Re-attach them here to the same confirmation the deceptive-link
+ * path uses — a diagram label is authored independently of its destination, so
+ * every diagram link warrants confirmation rather than a direct open.
+ */
+const DIAGRAM_LINK_MAX_DRAG_PX = 5;
+
+function diagramLinkUrl(target: EventTarget | null): string | null {
+	if (!(target instanceof Element)) return null;
+	return (
+		target
+			.closest(`[${DIAGRAM_LINK_HREF_ATTRIBUTE}]`)
+			?.getAttribute(DIAGRAM_LINK_HREF_ATTRIBUTE) ?? null
+	);
+}
+
+function useDiagramLinkTarget() {
+	const [pendingUrl, setPendingUrl] = useState<string | null>(null);
+	// Streamdown's pan/zoom surface takes pointer capture on pointerdown, so the
+	// browser retargets the resulting click to that surface instead of the
+	// anchor. Remember the anchor under the pointer at press time.
+	const pressRef = useRef<{ url: string; x: number; y: number } | null>(null);
+
+	const recordDiagramLinkPress = (event: PointerEvent<HTMLDivElement>) => {
+		const url = diagramLinkUrl(event.target);
+		pressRef.current = url ? { url, x: event.clientX, y: event.clientY } : null;
+	};
+
+	const captureDiagramLink = (event: MouseEvent<HTMLDivElement>) => {
+		const press = pressRef.current;
+		pressRef.current = null;
+		// A press that turned into a pan is not a link click.
+		const pressedUrl =
+			press &&
+			Math.hypot(event.clientX - press.x, event.clientY - press.y) <=
+				DIAGRAM_LINK_MAX_DRAG_PX
+				? press.url
+				: null;
+		const url = diagramLinkUrl(event.target) ?? pressedUrl;
+		if (!url) return;
+		event.preventDefault();
+		setPendingUrl(url);
+	};
+
+	return {
+		captureDiagramLink,
+		pendingUrl,
+		recordDiagramLinkPress,
+		setPendingUrl,
+	};
+}
+
 export const MemoizedMarkdown = memo(
 	({
 		content,
@@ -312,22 +375,50 @@ export const MemoizedMarkdown = memo(
 		content: string;
 		streaming?: boolean;
 		classNames?: string;
-	}) => (
-		<Streamdown
-			className={cn("cline-markdown", classNames)}
-			components={markdownComponents}
-			controls={agentMarkdownControlsWithMermaid}
-			dir="auto"
-			isAnimating={streaming}
-			lineNumbers={false}
-			mode={streaming ? "streaming" : "static"}
-			normalizeHtmlIndentation
-			parseIncompleteMarkdown={streaming}
-			plugins={streamdownPlugins}
-		>
-			{content}
-		</Streamdown>
-	),
+	}) => {
+		const {
+			captureDiagramLink,
+			pendingUrl,
+			recordDiagramLinkPress,
+			setPendingUrl,
+		} = useDiagramLinkTarget();
+
+		return (
+			// `contents` keeps the wrapper out of layout while still receiving
+			// events from the diagram subtree. Capture phase is required: the
+			// anchors are injected SVG markup, so they cannot carry their own
+			// React handlers.
+			<div
+				className="contents"
+				onClickCapture={captureDiagramLink}
+				onPointerDownCapture={recordDiagramLinkPress}
+			>
+				<Streamdown
+					className={cn("cline-markdown", classNames)}
+					components={markdownComponents}
+					controls={agentMarkdownControlsWithMermaid}
+					dir="auto"
+					isAnimating={streaming}
+					lineNumbers={false}
+					mode={streaming ? "streaming" : "static"}
+					normalizeHtmlIndentation
+					parseIncompleteMarkdown={streaming}
+					plugins={streamdownPlugins}
+				>
+					{content}
+				</Streamdown>
+				<MarkdownLinkSafetyModal
+					isOpen={pendingUrl !== null}
+					onClose={() => setPendingUrl(null)}
+					onConfirm={() => {
+						if (pendingUrl) void openExternalUrl(pendingUrl);
+						setPendingUrl(null);
+					}}
+					url={pendingUrl ?? ""}
+				/>
+			</div>
+		);
+	},
 );
 
 MemoizedMarkdown.displayName = "MemoizedMarkdown";
