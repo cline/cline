@@ -1109,10 +1109,14 @@ export class AgentRuntime {
 			}
 			// Close the recovery's telemetry before rethrowing so every started
 			// phase has a terminal phase; the thrown error itself is surfaced by
-			// the run's own failure path, so no notice here.
+			// the run's own failure path, so no notice here. The error rides along
+			// so `error_type` separates a deliberate stop (ControlledStopError,
+			// AgentRuntimeAbortError) from a genuine recovery failure without
+			// restating how the run loop classifies either.
 			this.captureTaskLifecycle(TASK_MAX_TOKENS_RECOVERY_EVENT, {
 				phase: "failed",
 				eventType: "recovery_threw",
+				error,
 			});
 			throw error;
 		}
