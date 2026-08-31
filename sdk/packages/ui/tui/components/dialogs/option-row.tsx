@@ -15,10 +15,23 @@ export function DialogOptionRow(props: {
 	labelColor?: string;
 	/** Description color when the row is not selected (defaults to gray). */
 	descriptionColor?: string;
+	/**
+	 * Show the ❯ selection marker before the label (default). Lists whose
+	 * labels carry their own leading glyph (e.g. the MCP status dot) disable
+	 * it and rely on the selection highlight alone.
+	 */
+	showMarker?: boolean;
 	onMouseDown?: () => void;
 }) {
 	const palette = useDialogPalette();
-	const { selected, label, description, labelColor, descriptionColor } = props;
+	const {
+		selected,
+		label,
+		description,
+		labelColor,
+		descriptionColor,
+		showMarker = true,
+	} = props;
 	return (
 		<box
 			flexDirection="column"
@@ -27,7 +40,7 @@ export function DialogOptionRow(props: {
 			onMouseDown={props.onMouseDown}
 		>
 			<text fg={selected ? palette.textOnSelection : labelColor}>
-				{selected ? "\u276f " : "  "}
+				{showMarker ? (selected ? "\u276f " : "  ") : ""}
 				{label}
 			</text>
 			{description ? (

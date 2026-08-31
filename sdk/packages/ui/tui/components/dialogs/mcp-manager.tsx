@@ -116,6 +116,7 @@ export function McpManagerContent(
 							<DialogOptionRow
 								key={srv.name}
 								selected={i === selected}
+								showMarker={false}
 								label={`${enabledIcon}${srv.name}${srv.pluginName ? " *" : ""}`}
 								description={status || undefined}
 								labelColor={labelColor}
