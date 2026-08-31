@@ -1057,8 +1057,9 @@ export class AgentRuntime {
 	 *
 	 * The retried turn is handed back unjudged: the run loop remains the only
 	 * place that decides whether a turn is acceptable. Telemetry here is purely
-	 * observational — whether the recovery ran, and what the retry finished
-	 * with — so it cannot contradict the run outcome.
+	 * observational — `started`, then `retried` with the retry's finish reason
+	 * when the attempt ran, or `failed` when it could not — so it never claims
+	 * anything about the run outcome and cannot contradict it.
 	 */
 	private async retryTruncatedTurnWithCompaction(first: {
 		message: AgentMessage;
@@ -1115,11 +1116,12 @@ export class AgentRuntime {
 			});
 			throw error;
 		}
-		// `completed` means the recovery itself ran, not that the run succeeds:
-		// the retry's finish reason rides along as an observed fact, and the
-		// loop decides what happens to the turn.
+		// `retried` states only that the compaction and retry ran — it makes no
+		// claim about the run, which may still reject this turn. The retry's
+		// finish reason rides along as an observed fact; pair it with the run
+		// outcome to see what became of the turn.
 		this.captureTaskLifecycle(TASK_MAX_TOKENS_RECOVERY_EVENT, {
-			phase: "completed",
+			phase: "retried",
 			eventType: retry.finishReason,
 		});
 		return retry;
