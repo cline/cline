@@ -750,7 +750,17 @@ export class AgentRuntime {
 					if (finishReason === "error") {
 						throw new Error(this.state.lastError ?? "Model stream failed");
 					}
-					if (!this.hasRenderableTurnOutput(message)) {
+					// Provider-executed tool activity lives in message metadata, not
+					// content (projecting it into content would replay tool_use blocks
+					// the model never gets results for). A turn that is only such
+					// activity is not empty: keep the message so the transcript and
+					// display projection retain it. Replay stays safe — the codec
+					// renders empty content as its placeholder text block.
+					const modelToolActivities = message.metadata?.modelToolActivities;
+					const hasModelToolActivity =
+						Array.isArray(modelToolActivities) &&
+						modelToolActivities.length > 0;
+					if (!hasModelToolActivity) {
 						throw new Error("Model returned empty response");
 					}
 				}
@@ -1042,9 +1052,13 @@ export class AgentRuntime {
 	 * LM Studio) cap generation at whatever context remains, regardless of the
 	 * requested output budget. Compacting the conversation frees that room, so
 	 * one forced compaction + retry rescues those turns. When compaction has
-	 * nothing to remove, or the retried turn is truncated again, the original
-	 * turn is surfaced (the loop throws the max-tokens error with the partial
-	 * content already persisted).
+	 * nothing to remove the original turn is returned, so the loop surfaces the
+	 * max-tokens error with the partial content already persisted.
+	 *
+	 * The retried turn is handed back unjudged: the run loop remains the only
+	 * place that decides whether a turn is acceptable. Telemetry here is purely
+	 * observational — whether the recovery ran, and what the retry finished
+	 * with — so it cannot contradict the run outcome.
 	 */
 	private async retryTruncatedTurnWithCompaction(first: {
 		message: AgentMessage;
@@ -1092,57 +1106,21 @@ export class AgentRuntime {
 				});
 				return first;
 			}
-			// Close the recovery's telemetry before rethrowing so every
-			// started phase has a terminal phase; the thrown error itself is
-			// surfaced by the run's own failure path, so no notice here.
+			// Close the recovery's telemetry before rethrowing so every started
+			// phase has a terminal phase; the thrown error itself is surfaced by
+			// the run's own failure path, so no notice here.
 			this.captureTaskLifecycle(TASK_MAX_TOKENS_RECOVERY_EVENT, {
 				phase: "failed",
-				eventType: this.isRunStopError(error) ? "aborted" : "retry_threw",
+				eventType: "recovery_threw",
 			});
 			throw error;
 		}
-		// Only a retry the loop will accept counts as recovered, so the
-		// outcome can never contradict the run result: an aborted retry
-		// throws, a turn without renderable output is rejected by the
-		// emptiness check, and an errored or re-truncated retry survives
-		// only when it produced tool calls for the loop to execute.
-		const cleanFinish =
-			retry.finishReason === "stop" || retry.finishReason === "tool-calls";
-		const succeeded = this.loopAcceptsTurn(retry);
-		try {
-			// Emitted before the outcome capture: a throwing listener fails
-			// the run, so recording success first would contradict the result.
-			await this.emit({
-				type: "status-notice",
-				snapshot: this.snapshot(),
-				message: succeeded
-					? "recovered from the output token limit after compaction"
-					: retry.finishReason === "max-tokens"
-						? "output-token-limit recovery failed: response truncated again"
-						: cleanFinish
-							? "output-token-limit recovery failed: model returned an empty response"
-							: `output-token-limit recovery failed: retry ${retry.finishReason}`,
-				metadata: {
-					...noticeMetadata,
-					phase: succeeded ? "succeeded" : "failed",
-				},
-			});
-		} catch (error) {
-			this.captureTaskLifecycle(TASK_MAX_TOKENS_RECOVERY_EVENT, {
-				phase: "failed",
-				eventType: this.isRunStopError(error) ? "aborted" : "notice_threw",
-			});
-			throw error;
-		}
+		// `completed` means the recovery itself ran, not that the run succeeds:
+		// the retry's finish reason rides along as an observed fact, and the
+		// loop decides what happens to the turn.
 		this.captureTaskLifecycle(TASK_MAX_TOKENS_RECOVERY_EVENT, {
-			phase: succeeded ? "succeeded" : "failed",
-			eventType: succeeded
-				? undefined
-				: retry.finishReason === "max-tokens"
-					? "truncated_again"
-					: cleanFinish
-						? "empty_response"
-						: retry.finishReason,
+			phase: "completed",
+			eventType: retry.finishReason,
 		});
 		return retry;
 	}
@@ -1615,57 +1593,6 @@ export class AgentRuntime {
 			error instanceof AgentRuntimeAbortError ||
 			this.abortController?.signal.aborted === true
 		);
-	}
-
-	/**
-	 * True for errors the run loop classifies as an aborted run rather than a
-	 * failure: user aborts and hook-initiated controlled stops. Mirrors the
-	 * `isAborted` classification in `run()`'s catch.
-	 */
-	private isRunStopError(error: unknown): boolean {
-		return error instanceof ControlledStopError || this.isAbortError(error);
-	}
-
-	/**
-	 * The run loop's acceptance rule for a finished turn. Provider-executed
-	 * tool activity lives in message metadata, not content (projecting it
-	 * into content would replay tool_use blocks the model never gets results
-	 * for), so a turn with empty content but such activity is not empty: the
-	 * transcript and display projection keep it, and replay stays safe — the
-	 * codec renders empty content as its placeholder text block. Recovery
-	 * outcome classification uses the same rule so the metric can never
-	 * contradict what the loop accepts.
-	 */
-	private hasRenderableTurnOutput(message: AgentMessage): boolean {
-		if (message.content.length > 0) {
-			return true;
-		}
-		const modelToolActivities = message.metadata?.modelToolActivities;
-		return Array.isArray(modelToolActivities) && modelToolActivities.length > 0;
-	}
-
-	/**
-	 * Whether the run loop proceeds with this turn instead of throwing.
-	 * Mirrors the loop's decision chain: an aborted finish throws, a turn
-	 * without renderable output is rejected as empty, and an errored or
-	 * max-tokens finish survives only when the turn produced tool calls for
-	 * the loop to execute. Recovery outcome classification uses this so the
-	 * metric can never contradict the run result.
-	 */
-	private loopAcceptsTurn(turn: {
-		message: AgentMessage;
-		finishReason: AgentModelFinishReason;
-	}): boolean {
-		if (turn.finishReason === "aborted") {
-			return false;
-		}
-		if (!this.hasRenderableTurnOutput(turn.message)) {
-			return false;
-		}
-		if (turn.finishReason === "stop" || turn.finishReason === "tool-calls") {
-			return true;
-		}
-		return turn.message.content.some((part) => part.type === "tool-call");
 	}
 
 	private captureUnexpectedReasoningTokens(

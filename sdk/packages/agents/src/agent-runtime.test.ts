@@ -433,8 +433,12 @@ describe("AgentRuntime", () => {
 			.filter((input) => input.event === TASK_MAX_TOKENS_RECOVERY_EVENT);
 		expect(recoveryEvents.map((input) => input.properties?.phase)).toEqual([
 			"started",
-			"succeeded",
+			"completed",
 		]);
+		// Observational only: the finish reason rides along, the loop judges.
+		expect(recoveryEvents[1]?.properties).toEqual(
+			expect.objectContaining({ eventType: "stop" }),
+		);
 	});
 
 	it("surfaces the max-tokens error when the retried turn is truncated again", async () => {
@@ -473,10 +477,14 @@ describe("AgentRuntime", () => {
 		const recoveryEvents = capture.mock.calls
 			.map(([input]) => input)
 			.filter((input) => input.event === TASK_MAX_TOKENS_RECOVERY_EVENT);
+		// The recovery itself completed; the loop is what fails the run.
 		expect(recoveryEvents.map((input) => input.properties?.phase)).toEqual([
 			"started",
-			"failed",
+			"completed",
 		]);
+		expect(recoveryEvents[1]?.properties).toEqual(
+			expect.objectContaining({ eventType: "max-tokens" }),
+		);
 	});
 
 	it("surfaces the max-tokens error when compaction has nothing to remove", async () => {
@@ -541,277 +549,8 @@ describe("AgentRuntime", () => {
 			"failed",
 		]);
 		expect(recoveryEvents[1]?.properties).toEqual(
-			expect.objectContaining({ eventType: "retry_threw" }),
+			expect.objectContaining({ eventType: "recovery_threw" }),
 		);
-	});
-
-	it("closes recovery telemetry as failed when a listener throws on the recovery notice", async () => {
-		const model = new ScriptedModel([
-			() => [
-				{ type: "text-delta", text: "truncated..." },
-				{ type: "finish", reason: "max-tokens" },
-			],
-		]);
-		const prepareTurn = vi.fn(async () => undefined);
-		const { capture, telemetry } = createTelemetryMock();
-		const runtime = new AgentRuntime({ model, prepareTurn, telemetry });
-		runtime.subscribe((event) => {
-			if (
-				event.type === "status-notice" &&
-				event.metadata?.kind === "max_tokens_recovery" &&
-				event.metadata?.phase === "started"
-			) {
-				throw new Error("listener exploded");
-			}
-		});
-
-		const result = await runtime.run("Hi");
-
-		expect(result.status).toBe("failed");
-		expect(result.error?.message).toBe("listener exploded");
-		const recoveryEvents = capture.mock.calls
-			.map(([input]) => input)
-			.filter((input) => input.event === TASK_MAX_TOKENS_RECOVERY_EVENT);
-		expect(recoveryEvents.map((input) => input.properties?.phase)).toEqual([
-			"started",
-			"failed",
-		]);
-	});
-
-	it("records a failed recovery when a listener throws on the terminal notice", async () => {
-		const longPrompt = `Please review this: ${"lots of context ".repeat(50)}`;
-		const model = new ScriptedModel([
-			() => [
-				{ type: "text-delta", text: "truncated..." },
-				{ type: "finish", reason: "max-tokens" },
-			],
-			() => [
-				{ type: "text-delta", text: "recovered" },
-				{ type: "finish", reason: "stop" },
-			],
-		]);
-		const compactedMessages: AgentMessage[] = [
-			{ role: "user", content: [{ type: "text", text: "compacted" }] },
-		];
-		const prepareTurn = vi.fn(
-			async (context: { overflowRecovery?: boolean }) =>
-				context.overflowRecovery ? { messages: compactedMessages } : undefined,
-		);
-		const { capture, telemetry } = createTelemetryMock();
-		const runtime = new AgentRuntime({ model, prepareTurn, telemetry });
-		runtime.subscribe((event) => {
-			if (
-				event.type === "status-notice" &&
-				event.metadata?.kind === "max_tokens_recovery" &&
-				event.metadata?.phase === "succeeded"
-			) {
-				throw new Error("terminal listener exploded");
-			}
-		});
-
-		const result = await runtime.run(longPrompt);
-
-		// The throwing listener fails the run, so telemetry must not have
-		// recorded the recovery as succeeded.
-		expect(result.status).toBe("failed");
-		expect(result.error?.message).toBe("terminal listener exploded");
-		const recoveryEvents = capture.mock.calls
-			.map(([input]) => input)
-			.filter((input) => input.event === TASK_MAX_TOKENS_RECOVERY_EVENT);
-		expect(recoveryEvents.map((input) => input.properties?.phase)).toEqual([
-			"started",
-			"failed",
-		]);
-		expect(recoveryEvents[1]?.properties).toEqual(
-			expect.objectContaining({ eventType: "notice_threw" }),
-		);
-	});
-
-	it("records a hook-stopped compacted retry as an aborted recovery", async () => {
-		const longPrompt = `Please review this: ${"lots of context ".repeat(50)}`;
-		const model = new ScriptedModel([
-			() => [
-				{ type: "text-delta", text: "truncated..." },
-				{ type: "finish", reason: "max-tokens" },
-			],
-		]);
-		const compactedMessages: AgentMessage[] = [
-			{ role: "user", content: [{ type: "text", text: "compacted" }] },
-		];
-		const prepareTurn = vi.fn(
-			async (context: { overflowRecovery?: boolean }) =>
-				context.overflowRecovery ? { messages: compactedMessages } : undefined,
-		);
-		const { capture, telemetry } = createTelemetryMock();
-		let modelCalls = 0;
-		const runtime = new AgentRuntime({
-			model,
-			prepareTurn,
-			telemetry,
-			hooks: {
-				// Let the first model call through; stop the compacted retry.
-				beforeModel: () => {
-					modelCalls += 1;
-					return modelCalls > 1
-						? { stop: true, reason: "approval required" }
-						: undefined;
-				},
-			},
-		});
-
-		const result = await runtime.run(longPrompt);
-
-		expect(result.status).toBe("aborted");
-		const recoveryEvents = capture.mock.calls
-			.map(([input]) => input)
-			.filter((input) => input.event === TASK_MAX_TOKENS_RECOVERY_EVENT);
-		expect(recoveryEvents.map((input) => input.properties?.phase)).toEqual([
-			"started",
-			"failed",
-		]);
-		// A deliberate stop is not a recovery defect — it must not be
-		// classified as retry_threw in the failure breakdown.
-		expect(recoveryEvents[1]?.properties).toEqual(
-			expect.objectContaining({ eventType: "aborted" }),
-		);
-	});
-
-	it("records a failed recovery when the compacted retry returns an empty response", async () => {
-		const longPrompt = `Please review this: ${"lots of context ".repeat(50)}`;
-		const model = new ScriptedModel([
-			() => [
-				{ type: "text-delta", text: "truncated..." },
-				{ type: "finish", reason: "max-tokens" },
-			],
-			// Clean stop finish but no content: the run loop rejects this as
-			// an empty response, so the recovery must not count as succeeded.
-			() => [{ type: "finish", reason: "stop" }],
-		]);
-		const compactedMessages: AgentMessage[] = [
-			{ role: "user", content: [{ type: "text", text: "compacted" }] },
-		];
-		const prepareTurn = vi.fn(
-			async (context: { overflowRecovery?: boolean }) =>
-				context.overflowRecovery ? { messages: compactedMessages } : undefined,
-		);
-		const { capture, telemetry } = createTelemetryMock();
-		const runtime = new AgentRuntime({ model, prepareTurn, telemetry });
-
-		const result = await runtime.run(longPrompt);
-
-		expect(result.status).toBe("failed");
-		expect(result.error?.message).toBe("Model returned empty response");
-		const recoveryEvents = capture.mock.calls
-			.map(([input]) => input)
-			.filter((input) => input.event === TASK_MAX_TOKENS_RECOVERY_EVENT);
-		expect(recoveryEvents.map((input) => input.properties?.phase)).toEqual([
-			"started",
-			"failed",
-		]);
-		expect(recoveryEvents[1]?.properties).toEqual(
-			expect.objectContaining({ eventType: "empty_response" }),
-		);
-	});
-
-	it("counts a retry with only model-tool activity as a recovered turn", async () => {
-		const longPrompt = `Please review this: ${"lots of context ".repeat(50)}`;
-		const model = new ScriptedModel([
-			() => [
-				{ type: "text-delta", text: "truncated..." },
-				{ type: "finish", reason: "max-tokens" },
-			],
-			// Empty assistant content, but provider-executed tool activity in
-			// metadata — the run loop accepts this turn, so the recovery must
-			// count as succeeded, not empty_response.
-			() => [
-				{
-					type: "tool-call-delta",
-					toolCallId: "search_1",
-					toolName: "web_search",
-					execution: "client",
-					input: { query: "current weather" },
-				},
-				{
-					type: "tool-result",
-					toolCallId: "search_1",
-					toolName: "web_search",
-					execution: "client",
-					output: { results: [] },
-				},
-				{ type: "finish", reason: "stop" },
-			],
-		]);
-		const compactedMessages: AgentMessage[] = [
-			{ role: "user", content: [{ type: "text", text: "compacted" }] },
-		];
-		const prepareTurn = vi.fn(
-			async (context: { overflowRecovery?: boolean }) =>
-				context.overflowRecovery ? { messages: compactedMessages } : undefined,
-		);
-		const { capture, telemetry } = createTelemetryMock();
-		const runtime = new AgentRuntime({ model, prepareTurn, telemetry });
-
-		const result = await runtime.run(longPrompt);
-
-		expect(result.status).toBe("completed");
-		const recoveryEvents = capture.mock.calls
-			.map(([input]) => input)
-			.filter((input) => input.event === TASK_MAX_TOKENS_RECOVERY_EVENT);
-		expect(recoveryEvents.map((input) => input.properties?.phase)).toEqual([
-			"started",
-			"succeeded",
-		]);
-	});
-
-	it("counts an errored retry that produced tool calls as a recovered turn", async () => {
-		const longPrompt = `Please review this: ${"lots of context ".repeat(50)}`;
-		const model = new ScriptedModel([
-			() => [
-				{ type: "text-delta", text: "truncated..." },
-				{ type: "finish", reason: "max-tokens" },
-			],
-			// The retry errors mid-stream but already produced a tool call —
-			// the loop executes it and continues, so the recovery succeeded.
-			() => [
-				{
-					type: "tool-call-delta",
-					toolCallId: "call_1",
-					toolName: "echo",
-					inputText: '{"text":"hi"}',
-				},
-				{ type: "finish", reason: "error", error: "stream dropped" },
-			],
-			() => [
-				{ type: "text-delta", text: "done" },
-				{ type: "finish", reason: "stop" },
-			],
-		]);
-		const compactedMessages: AgentMessage[] = [
-			{ role: "user", content: [{ type: "text", text: "compacted" }] },
-		];
-		const prepareTurn = vi.fn(
-			async (context: { overflowRecovery?: boolean }) =>
-				context.overflowRecovery ? { messages: compactedMessages } : undefined,
-		);
-		const { capture, telemetry } = createTelemetryMock();
-		const runtime = new AgentRuntime({
-			model,
-			prepareTurn,
-			telemetry,
-			tools: [createEchoTool()],
-		});
-
-		const result = await runtime.run(longPrompt);
-
-		expect(result.status).toBe("completed");
-		expect(result.outputText).toBe("done");
-		const recoveryEvents = capture.mock.calls
-			.map(([input]) => input)
-			.filter((input) => input.event === TASK_MAX_TOKENS_RECOVERY_EVENT);
-		expect(recoveryEvents.map((input) => input.properties?.phase)).toEqual([
-			"started",
-			"succeeded",
-		]);
 	});
 
 	it("does not persist an empty assistant message when the model stream fails", async () => {
