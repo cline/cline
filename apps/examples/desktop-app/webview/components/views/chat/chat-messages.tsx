@@ -8,6 +8,21 @@ import {
 	ConversationViewport,
 	useConversation,
 } from "@cline/ui/components/agent-chat";
+import {
+	buildPreviousTimestampMap,
+	buildToolPresentation,
+	buildUserRunCountMap,
+	ChatImageLightbox,
+	collapseCompletedWork,
+	getThoughtDurationMilliseconds,
+	groupChatMessages,
+	MessageBubble,
+	STREAMING_TITLE_CLASS,
+	ToolApprovalPanel,
+	type ToolApprovalRequestItem,
+	ToolMessageBlock,
+	WorkBlock,
+} from "@cline/ui/components/agent-chat/messages";
 import { Loader2 } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -27,23 +42,7 @@ import type {
 	ChatSessionStatus,
 } from "@/lib/chat-schema";
 import { cn } from "@/lib/utils";
-import { STREAMING_TITLE_CLASS } from "./messages/constants";
-import {
-	buildPreviousTimestampMap,
-	buildUserRunCountMap,
-	collapseCompletedWork,
-	getThoughtDurationMilliseconds,
-	groupChatMessages,
-} from "./messages/group-messages";
-import { ChatImageLightbox } from "./messages/image-lightbox";
-import { MessageBubble } from "./messages/message-bubble";
-import {
-	ToolApprovalPanel,
-	type ToolApprovalRequestItem,
-} from "./messages/tool-approval-panel";
-import { ToolMessageBlock } from "./messages/tool-message-block";
-import { buildToolPresentation } from "./messages/tool-summaries";
-import { WorkBlock } from "./messages/work-block";
+import { MemoizedMarkdown } from "../../ui/markdown";
 import { SessionContent } from "./session-content";
 
 type ChatMessagesProps = {
@@ -544,6 +543,7 @@ function ChatMessagesImpl({
 											return (
 												<ToolMessageBlock
 													key={`tools_${child.messages[0]?.id ?? "empty"}`}
+													markdown={MemoizedMarkdown}
 													messages={child.messages}
 													onExpandImage={handleExpandImage}
 													onProceedWhileRunning={onProceedWhileRunning}
@@ -562,6 +562,7 @@ function ChatMessagesImpl({
 												}
 												isStreaming={streamingMessageId === child.message.id}
 												key={child.message.id}
+												markdown={MemoizedMarkdown}
 												message={child.message}
 												onCopyMessage={handleCopyMessage}
 												onExpandImage={handleExpandImage}
@@ -612,6 +613,7 @@ function ChatMessagesImpl({
 											}
 											isStreaming={streamingMessageId === message.id}
 											key={message.id}
+											markdown={MemoizedMarkdown}
 											message={message}
 											runCount={userRunCountByMessage.get(message)}
 											onExpandImage={handleExpandImage}
