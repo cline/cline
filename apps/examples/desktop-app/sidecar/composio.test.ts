@@ -806,6 +806,89 @@ describe("disconnectComposioToolkit", () => {
 		).toBe("connected");
 	});
 
+	it("does not treat a non-404 failure mentioning 'not found' as a successful revocation", async () => {
+		const dir = useTempDataDir();
+		process.env.COMPOSIO_API_KEY = "ck_misclassify";
+		writeState(dir, storedGithubState("ck_misclassify"));
+		const remoteDelete = vi.fn(async () => {
+			// A 500 whose body happens to contain "not found" must NOT count
+			// as the account being gone.
+			throw new Error(
+				'500 {"error":{"message":"backend dependency not found"}}',
+			);
+		});
+		createMockComposioClient = () => clientWithDelete(remoteDelete);
+		await expect(disconnectComposioToolkit("github")).rejects.toThrow(
+			/still connected/,
+		);
+		expect(readStateFile(dir).toolkits?.github).toBeTruthy();
+	});
+
+	it("a disconnect in flight does not clobber a tombstone written by a concurrent cancel", async () => {
+		const dir = useTempDataDir();
+		process.env.COMPOSIO_API_KEY = "ck_write_race";
+		writeState(dir, {
+			apiKey: "ck_write_race",
+			userId: "u_write_race",
+			toolkits: {
+				slack: {
+					connectedAccountId: "ca_slack",
+					connectedAt: "2026-08-28T00:00:00.000Z",
+					tools: [{ slug: "SLACK_SEND_MESSAGE" }],
+				},
+			},
+		});
+		let releaseSlackDelete: (() => void) | undefined;
+		const remoteDelete = vi.fn((accountId: string) => {
+			if (accountId === "ca_slack") {
+				return new Promise((resolve) => {
+					releaseSlackDelete = () => resolve({});
+				});
+			}
+			// The cancelled attempt's revocation fails, so its tombstone must
+			// stay unconfirmed (and persisted).
+			return Promise.reject(new Error("500 internal error"));
+		});
+		const client = {
+			toolkits: {
+				authorize: vi.fn(async () => ({
+					id: "ca_github_pending",
+					redirectUrl: "https://connect.example/ca_github_pending",
+					waitForConnection: () => new Promise(() => {}),
+				})),
+			},
+			authConfigs: {
+				list: vi.fn(async () => ({ items: [] })),
+				create: vi.fn(),
+			},
+			tools: { getRawComposioTools: vi.fn(async () => []) },
+			connectedAccounts: {
+				list: vi.fn(async () => ({ items: [] })),
+				link: vi.fn(),
+				delete: remoteDelete,
+			},
+		};
+		createMockComposioClient = () => client;
+		const disconnectPromise = disconnectComposioToolkit("slack");
+		await vi.waitFor(() => {
+			expect(remoteDelete).toHaveBeenCalledWith("ca_slack");
+		});
+		// While the disconnect is suspended on the remote delete, a cancel for
+		// a different toolkit persists a tombstone.
+		await connectComposioToolkit("github");
+		await cancelComposioConnect("github");
+		expect(readStateFile(dir).cancelledAccountIds).toContain(
+			"ca_github_pending",
+		);
+		releaseSlackDelete?.();
+		await disconnectPromise;
+		// The disconnect's completion must not erase the concurrent tombstone.
+		expect(readStateFile(dir).cancelledAccountIds).toContain(
+			"ca_github_pending",
+		);
+		expect(readStateFile(dir).toolkits?.slack).toBeUndefined();
+	});
+
 	it("treats an account that is already gone remotely as revoked", async () => {
 		const dir = useTempDataDir();
 		process.env.COMPOSIO_API_KEY = "ck_gone_404";

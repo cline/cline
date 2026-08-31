@@ -347,6 +347,24 @@ function writeComposioState(state: StoredComposioState): void {
 }
 
 /**
+ * The single mutation path for the persisted state: read the current file,
+ * apply `mutate`, persist the result — with no await anywhere between read
+ * and write, so the event loop serializes every mutation in this process. A
+ * writer can therefore never clobber a tombstone or connection that another
+ * path persisted while this one was suspended on network I/O. Callers must
+ * apply changes inside `mutate` on the freshly read state — never by
+ * persisting a snapshot they held across an await.
+ */
+function updateComposioState(
+	mutate: (state: StoredComposioState) => void,
+): StoredComposioState {
+	const state = readComposioState();
+	mutate(state);
+	writeComposioState(state);
+	return state;
+}
+
+/**
  * The managed Composio API key. In packaged builds the value is inlined into
  * the compiled sidecar binary at build time via `--define`
  * (scripts/composio-define-args.ts, fed by CI secrets); in dev it is the
@@ -397,10 +415,9 @@ function forgetCancelledAccountId(
  * nothing left to guard. Confirmed deletion is the only way tombstones are
  * removed. */
 function pruneConfirmedCancelledAccount(accountId: string): void {
-	const state = readComposioState();
-	if (forgetCancelledAccountId(state, accountId)) {
-		writeComposioState(state);
-	}
+	updateComposioState((state) => {
+		forgetCancelledAccountId(state, accountId);
+	});
 }
 
 /**
@@ -629,29 +646,36 @@ export async function getComposioStatus(options?: {
 			}
 		}
 		if (changed) {
-			// Re-read before writing: the tool fetches above are slow enough
-			// for a disconnect or key change to have landed meanwhile.
-			const fresh = readComposioState();
-			if (fresh.apiKey !== state.apiKey || fresh.userId !== state.userId) {
-				return buildStatusResponse(fresh);
-			}
-			for (const slug of slugsToReconcile) {
-				if ((lastDisconnectedAt.get(slug) ?? 0) >= refreshStartedAt) {
-					delete toolkits[slug];
+			// The tool fetches above are slow enough for a disconnect, cancel,
+			// or key change to have landed meanwhile; apply this refresh's
+			// result onto the freshly read state (inside the serialized write
+			// path) and re-honor those concurrent effects instead of
+			// overwriting them.
+			let aborted = false;
+			const next = updateComposioState((fresh) => {
+				if (fresh.apiKey !== state.apiKey || fresh.userId !== state.userId) {
+					aborted = true;
+					return;
 				}
-			}
-			// A cancel that landed while the tool fetches above were in flight
-			// shows up in the re-read state's tombstones; honor it the same way.
-			const freshCancelled = new Set(fresh.cancelledAccountIds ?? []);
-			for (const [slug, stored] of Object.entries(toolkits)) {
-				if (stored && freshCancelled.has(stored.connectedAccountId)) {
-					delete toolkits[slug];
+				for (const slug of slugsToReconcile) {
+					if ((lastDisconnectedAt.get(slug) ?? 0) >= refreshStartedAt) {
+						delete toolkits[slug];
+					}
 				}
+				// A cancel that landed mid-refresh shows up in the re-read
+				// state's tombstones; honor it the same way.
+				const freshCancelled = new Set(fresh.cancelledAccountIds ?? []);
+				for (const [slug, stored] of Object.entries(toolkits)) {
+					if (stored && freshCancelled.has(stored.connectedAccountId)) {
+						delete toolkits[slug];
+					}
+				}
+				fresh.toolkits = toolkits;
+			});
+			if (!aborted) {
+				syncComposioPluginFileQuietly(next, options?.logger);
 			}
-			fresh.toolkits = toolkits;
-			writeComposioState(fresh);
-			syncComposioPluginFileQuietly(fresh, options?.logger);
-			return buildStatusResponse(fresh);
+			return buildStatusResponse(next);
 		}
 	} catch (error) {
 		options?.logger?.log?.(
@@ -906,9 +930,9 @@ export async function cancelComposioConnect(
 	// the account can linger on Composio's side until a later status refresh
 	// retries the delete — the tombstone keeps it from ever materializing
 	// tools here, and is only pruned once the delete is confirmed.
-	const state = readComposioState();
-	rememberCancelledAccountId(state, pending.connectedAccountId);
-	writeComposioState(state);
+	updateComposioState((state) => {
+		rememberCancelledAccountId(state, pending.connectedAccountId);
+	});
 	const confirmedGone = await revokeConnectedAccountQuietly(
 		pending.apiKey,
 		pending.connectedAccountId,
@@ -919,11 +943,30 @@ export async function cancelComposioConnect(
 	}
 }
 
-/** Remote deletion signals 404 when the account is already gone (revoked
- * from the Composio dashboard, or an attempt that never completed). */
+/**
+ * Whether a remote deletion failed because the account is ALREADY gone
+ * (revoked from the Composio dashboard, or an attempt that never completed) —
+ * the only failure that may be treated as a successful revocation. Trust a
+ * structured HTTP status when the error carries one; otherwise accept only a
+ * message that STARTS with "404" (the Composio SDK surfaces errors as
+ * "<status> <raw response json>"). Anything looser — e.g. a "not found"
+ * substring — would misclassify unrelated failures (a 500 whose body mentions
+ * "not found", a "user not found" auth error) as confirmed revocation and
+ * delete local state or prune a tombstone while the remote authorization is
+ * still live. Unrecognized errors therefore fail CLOSED: the revocation
+ * counts as unconfirmed, local state is kept, and reconciliation retries.
+ */
 function isAccountAlreadyGoneError(error: unknown): boolean {
+	if (typeof error === "object" && error !== null) {
+		const status =
+			(error as { status?: unknown }).status ??
+			(error as { statusCode?: unknown }).statusCode;
+		if (typeof status === "number") {
+			return status === 404;
+		}
+	}
 	const message = error instanceof Error ? error.message : String(error);
-	return /\b404\b/.test(message) || /not[ _-]?found/i.test(message);
+	return /^\s*404\b/.test(message);
 }
 
 export async function disconnectComposioToolkit(
@@ -933,21 +976,22 @@ export async function disconnectComposioToolkit(
 	const pending = pendingConnections.get(toolkit);
 	pendingConnections.delete(toolkit);
 	lastConnectionErrors.delete(toolkit);
+	// Snapshot for decisions only — every persisted change below goes through
+	// updateComposioState so a concurrent writer is never clobbered.
 	const state = readReconciledComposioState(logger);
 	if (pending) {
 		// A still-open browser flow for this toolkit could complete after the
 		// disconnect; treat the attempt exactly like an explicit cancel.
-		rememberCancelledAccountId(state, pending.connectedAccountId);
-		writeComposioState(state);
+		updateComposioState((s) => {
+			rememberCancelledAccountId(s, pending.connectedAccountId);
+		});
 		const confirmedGone = await revokeConnectedAccountQuietly(
 			pending.apiKey,
 			pending.connectedAccountId,
 			logger,
 		);
 		if (confirmedGone) {
-			// `state` is persisted again below; drop the tombstone from this
-			// snapshot so that write does not resurrect it.
-			forgetCancelledAccountId(state, pending.connectedAccountId);
+			pruneConfirmedCancelledAccount(pending.connectedAccountId);
 		}
 	}
 	const stored = state.toolkits?.[toolkit];
@@ -976,19 +1020,20 @@ export async function disconnectComposioToolkit(
 			);
 		}
 	}
-	if (state.toolkits) {
-		delete state.toolkits[toolkit];
-	}
+	const next = updateComposioState((s) => {
+		if (s.toolkits) {
+			delete s.toolkits[toolkit];
+		}
+	});
 	lastDisconnectedAt.set(toolkit, Date.now());
-	writeComposioState(state);
 	try {
-		syncComposioPluginFile(state);
+		syncComposioPluginFile(next);
 	} catch (error) {
 		throw new Error(
 			`The connector was removed, but updating the local tools plugin failed: ${error instanceof Error ? error.message : String(error)}. Its tools may remain available to new sessions.`,
 		);
 	}
-	return buildStatusResponse(state);
+	return buildStatusResponse(next);
 }
 
 // ── Tool materialization ─────────────────────────────────────────────────
@@ -1063,19 +1108,22 @@ async function finalizeToolkitConnection(
 		);
 		return;
 	}
-	state.toolkits = {
-		...(state.toolkits ?? {}),
-		[toolkit]: {
-			connectedAccountId,
-			connectedAt: new Date().toISOString(),
-			...lookupCatalogDisplayInfo(toolkit),
-			tools,
-		},
-	};
-	writeComposioState(state);
+	// No await separates the guard checks above from this write, so the
+	// checked state cannot go stale in between.
+	const next = updateComposioState((s) => {
+		s.toolkits = {
+			...(s.toolkits ?? {}),
+			[toolkit]: {
+				connectedAccountId,
+				connectedAt: new Date().toISOString(),
+				...lookupCatalogDisplayInfo(toolkit),
+				tools,
+			},
+		};
+	});
 	logger?.log?.(`composio connected ${toolkit} with ${tools.length} tool(s)`);
 	try {
-		syncComposioPluginFile(state);
+		syncComposioPluginFile(next);
 	} catch (error) {
 		// The connection is recorded, but without the plugin file new sessions
 		// get no tools — keep the connector marked connected and surface why
