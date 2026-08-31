@@ -580,6 +580,137 @@ describe("cancelComposioConnect", () => {
 		).toBe("not_connected");
 		expect(remoteDelete).toHaveBeenCalledTimes(2);
 		expect(readStateFile(dir).toolkits).toEqual({});
+		// The deletion is still unconfirmed, so the tombstone must survive.
+		expect(readStateFile(dir).cancelledAccountIds).toContain("ca_cancelled");
+	});
+
+	it("prunes the tombstone once the revocation is confirmed", async () => {
+		const dir = useTempDataDir();
+		process.env.COMPOSIO_API_KEY = "ck_prune";
+		writeState(dir, { apiKey: "ck_prune", userId: "u_prune", toolkits: {} });
+		const client = {
+			toolkits: {
+				authorize: vi.fn(async () => ({
+					id: "ca_pruned",
+					redirectUrl: "https://connect.example/ca_pruned",
+					waitForConnection: () => new Promise(() => {}),
+				})),
+			},
+			authConfigs: {
+				list: vi.fn(async () => ({ items: [] })),
+				create: vi.fn(),
+			},
+			tools: { getRawComposioTools: vi.fn(async () => []) },
+			connectedAccounts: {
+				list: vi.fn(async () => ({ items: [] })),
+				link: vi.fn(),
+				delete: vi.fn(async () => ({})),
+			},
+		};
+		createMockComposioClient = () => client;
+		await connectComposioToolkit("github");
+		await cancelComposioConnect("github");
+		// The delete succeeded, so the account can never turn ACTIVE and the
+		// tombstone has nothing left to guard.
+		expect(readStateFile(dir).cancelledAccountIds).toBeUndefined();
+	});
+
+	it("retains every unconfirmed tombstone with no count bound, so an old cancelled flow that completes late is still refused", async () => {
+		const dir = useTempDataDir();
+		process.env.COMPOSIO_API_KEY = "ck_no_evict";
+		writeState(dir, {
+			apiKey: "ck_no_evict",
+			userId: "u_no_evict",
+			toolkits: {},
+		});
+		const CANCELLED_ATTEMPTS = 55;
+		let attempt = 0;
+		const remoteDelete = vi.fn(async () => {
+			// Every revocation fails, so no tombstone is ever confirmed gone.
+			throw new Error("500 internal error");
+		});
+		const client = {
+			toolkits: {
+				authorize: vi.fn(async () => {
+					const id = `ca_evict_${attempt++}`;
+					return {
+						id,
+						redirectUrl: `https://connect.example/${id}`,
+						waitForConnection: () => new Promise(() => {}),
+					};
+				}),
+			},
+			authConfigs: {
+				list: vi.fn(async () => ({ items: [] })),
+				create: vi.fn(),
+			},
+			tools: { getRawComposioTools: vi.fn(async () => []) },
+			connectedAccounts: {
+				list: vi.fn(async () => ({
+					// The OLDEST cancelled attempt completes long after the
+					// others were cancelled.
+					items: [
+						{
+							id: "ca_evict_0",
+							status: "ACTIVE",
+							toolkit: { slug: "github" },
+						},
+					],
+				})),
+				link: vi.fn(),
+				delete: remoteDelete,
+			},
+		};
+		createMockComposioClient = () => client;
+		for (let i = 0; i < CANCELLED_ATTEMPTS; i++) {
+			await connectComposioToolkit("github");
+			await cancelComposioConnect("github");
+		}
+		expect(readStateFile(dir).cancelledAccountIds).toHaveLength(
+			CANCELLED_ATTEMPTS,
+		);
+		const status = await getComposioStatus({ refresh: true });
+		expect(
+			status.integrations.find((entry) => entry.toolkit === "github")?.status,
+		).toBe("not_connected");
+		expect(readStateFile(dir).toolkits).toEqual({});
+		expect(readStateFile(dir).cancelledAccountIds).toContain("ca_evict_0");
+	});
+
+	it("reconciliation prunes a tombstone after a confirmed retry revocation", async () => {
+		const dir = useTempDataDir();
+		process.env.COMPOSIO_API_KEY = "ck_refresh_prune";
+		writeState(dir, {
+			apiKey: "ck_refresh_prune",
+			userId: "u_refresh_prune",
+			toolkits: {},
+			cancelledAccountIds: ["ca_zombie"],
+		});
+		const remoteDelete = vi.fn(async () => ({}));
+		const client = {
+			toolkits: { authorize: vi.fn() },
+			authConfigs: {
+				list: vi.fn(async () => ({ items: [] })),
+				create: vi.fn(),
+			},
+			tools: { getRawComposioTools: vi.fn(async () => []) },
+			connectedAccounts: {
+				list: vi.fn(async () => ({
+					items: [
+						{ id: "ca_zombie", status: "ACTIVE", toolkit: { slug: "gmail" } },
+					],
+				})),
+				link: vi.fn(),
+				delete: remoteDelete,
+			},
+		};
+		createMockComposioClient = () => client;
+		const status = await getComposioStatus({ refresh: true });
+		expect(
+			status.integrations.find((entry) => entry.toolkit === "gmail")?.status,
+		).toBe("not_connected");
+		expect(remoteDelete).toHaveBeenCalledWith("ca_zombie");
+		expect(readStateFile(dir).cancelledAccountIds).toBeUndefined();
 	});
 
 	it("a cancelled toolkit can still be reconnected under a fresh account", async () => {

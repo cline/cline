@@ -44,8 +44,6 @@ const CONNECT_WAIT_TIMEOUT_MS = 5 * 60 * 1000;
 /** Cap on tools materialized per toolkit; Composio orders by importance. */
 const TOOLS_PER_TOOLKIT_LIMIT = 20;
 const MAX_TOOL_DESCRIPTION_LENGTH = 1024;
-/** Cap on remembered cancelled-attempt account ids (oldest dropped first). */
-const MAX_CANCELLED_ACCOUNT_IDS = 50;
 
 type StoredComposioTool = {
 	slug: string;
@@ -82,7 +80,11 @@ type StoredComposioState = {
 	 * disconnect / key change abandoned) while the browser flow could still
 	 * complete. Reconciliation refuses to import these and keeps trying to
 	 * revoke them remotely. Persisted so a sidecar restart cannot forget a
-	 * cancellation; bounded FIFO.
+	 * cancellation, and kept until the account is confirmed deleted on
+	 * Composio's side — never evicted on a count or age bound, because an
+	 * abandoned browser flow can complete arbitrarily late. Growth is
+	 * therefore limited to attempts whose remote deletion has not been
+	 * confirmed yet.
 	 */
 	cancelledAccountIds?: string[];
 };
@@ -356,46 +358,86 @@ function resolveManagedComposioApiKey(): string | undefined {
 }
 
 /** Remembers a cancelled/abandoned OAuth attempt's connected-account id so
- * reconciliation can never import it. Mutates `state`; callers persist it. */
+ * reconciliation can never import it. Entries are never evicted on a count
+ * or age bound (the abandoned browser flow can complete arbitrarily late);
+ * they are dropped only via {@link pruneConfirmedCancelledAccount} once the
+ * account is confirmed gone remotely. Mutates `state`; callers persist it. */
 function rememberCancelledAccountId(
 	state: StoredComposioState,
 	accountId: string,
 ): void {
-	const ids = (state.cancelledAccountIds ?? []).filter(
+	const ids = state.cancelledAccountIds ?? [];
+	if (!ids.includes(accountId)) {
+		state.cancelledAccountIds = [...ids, accountId];
+	}
+}
+
+/** Mutating counterpart of {@link rememberCancelledAccountId}; returns
+ * whether the tombstone was present. Callers persist `state`. */
+function forgetCancelledAccountId(
+	state: StoredComposioState,
+	accountId: string,
+): boolean {
+	const remaining = (state.cancelledAccountIds ?? []).filter(
 		(id) => id !== accountId,
 	);
-	ids.push(accountId);
-	state.cancelledAccountIds = ids.slice(-MAX_CANCELLED_ACCOUNT_IDS);
+	if (remaining.length === (state.cancelledAccountIds?.length ?? 0)) {
+		return false;
+	}
+	if (remaining.length > 0) {
+		state.cancelledAccountIds = remaining;
+	} else {
+		delete state.cancelledAccountIds;
+	}
+	return true;
+}
+
+/** Drops a tombstone whose account is confirmed gone on Composio's side: a
+ * deleted connected account can never turn ACTIVE, so the tombstone has
+ * nothing left to guard. Confirmed deletion is the only way tombstones are
+ * removed. */
+function pruneConfirmedCancelledAccount(accountId: string): void {
+	const state = readComposioState();
+	if (forgetCancelledAccountId(state, accountId)) {
+		writeComposioState(state);
+	}
 }
 
 /**
- * Best-effort remote revocation for cancelled/abandoned OAuth attempts. A
- * failure is logged, not thrown: the persisted tombstone keeps the account
- * from ever materializing tools locally, and the status-refresh
- * reconciliation retries the deletion whenever Composio still reports the
- * account.
+ * Best-effort remote revocation for cancelled/abandoned OAuth attempts.
+ * Returns true when the account is confirmed gone (deleted now, or already
+ * deleted) — the caller then prunes its tombstone. A failure is logged, not
+ * thrown: the persisted tombstone keeps the account from ever materializing
+ * tools locally, and the status-refresh reconciliation retries the deletion
+ * whenever Composio still reports the account.
  */
 async function revokeConnectedAccountQuietly(
 	apiKey: string,
 	accountId: string,
 	logger?: BasicLogger,
-): Promise<void> {
+): Promise<boolean> {
 	try {
 		const client = await getComposioClient(apiKey);
 		await client.connectedAccounts.delete(accountId);
+		return true;
 	} catch (error) {
+		if (isAccountAlreadyGoneError(error)) {
+			return true;
+		}
 		logger?.log?.(
 			`composio: revoking cancelled account ${accountId} failed: ${error instanceof Error ? error.message : String(error)}`,
 		);
+		return false;
 	}
 }
 
 /**
  * Abandon every in-flight OAuth attempt: tombstone the attempts' account ids
  * (their browser flows may still complete afterwards) and revoke them
- * remotely in the background. The tombstones are what guarantee the accounts
- * can never materialize local tools; the revocations are best-effort cleanup.
- * Mutates `state`; the caller persists it.
+ * remotely in the background, pruning each tombstone once its revocation is
+ * confirmed. The tombstones are what guarantee the accounts can never
+ * materialize local tools; the revocations are best-effort cleanup. Mutates
+ * `state`; the caller persists it.
  */
 function abandonPendingConnections(
 	state: StoredComposioState,
@@ -407,7 +449,11 @@ function abandonPendingConnections(
 			pending.apiKey,
 			pending.connectedAccountId,
 			logger,
-		);
+		).then((confirmedGone) => {
+			if (confirmedGone) {
+				pruneConfirmedCancelledAccount(pending.connectedAccountId);
+			}
+		});
 	}
 	pendingConnections.clear();
 }
@@ -537,12 +583,16 @@ export async function getComposioStatus(options?: {
 			if (cancelledIds.has(account.id)) {
 				// A cancelled attempt Composio still knows about — its browser
 				// flow may have completed after the cancel. Retry the revocation
-				// instead of importing it.
-				await revokeConnectedAccountQuietly(
+				// instead of importing it; once the delete is confirmed the
+				// tombstone has nothing left to guard and is pruned.
+				const confirmedGone = await revokeConnectedAccountQuietly(
 					state.apiKey,
 					account.id,
 					options?.logger,
 				);
+				if (confirmedGone) {
+					pruneConfirmedCancelledAccount(account.id);
+				}
 				continue;
 			}
 			if (account.status === "ACTIVE" && !account.isDisabled) {
@@ -854,16 +904,19 @@ export async function cancelComposioConnect(
 	// Tombstone the attempt first (persisted, so a sidecar restart cannot
 	// forget it), then revoke the account remotely. If the revocation fails,
 	// the account can linger on Composio's side until a later status refresh
-	// retries the delete — but the tombstone keeps it from ever materializing
-	// tools here.
+	// retries the delete — the tombstone keeps it from ever materializing
+	// tools here, and is only pruned once the delete is confirmed.
 	const state = readComposioState();
 	rememberCancelledAccountId(state, pending.connectedAccountId);
 	writeComposioState(state);
-	await revokeConnectedAccountQuietly(
+	const confirmedGone = await revokeConnectedAccountQuietly(
 		pending.apiKey,
 		pending.connectedAccountId,
 		logger,
 	);
+	if (confirmedGone) {
+		pruneConfirmedCancelledAccount(pending.connectedAccountId);
+	}
 }
 
 /** Remote deletion signals 404 when the account is already gone (revoked
@@ -886,11 +939,16 @@ export async function disconnectComposioToolkit(
 		// disconnect; treat the attempt exactly like an explicit cancel.
 		rememberCancelledAccountId(state, pending.connectedAccountId);
 		writeComposioState(state);
-		await revokeConnectedAccountQuietly(
+		const confirmedGone = await revokeConnectedAccountQuietly(
 			pending.apiKey,
 			pending.connectedAccountId,
 			logger,
 		);
+		if (confirmedGone) {
+			// `state` is persisted again below; drop the tombstone from this
+			// snapshot so that write does not resurrect it.
+			forgetCancelledAccountId(state, pending.connectedAccountId);
+		}
 	}
 	const stored = state.toolkits?.[toolkit];
 	if (stored && state.apiKey) {
