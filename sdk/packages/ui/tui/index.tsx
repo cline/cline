@@ -43,13 +43,16 @@ export {
 	type ClineModelPickerEntry,
 	type ClineModelPickerItem,
 	type ClineModelPickerTier,
+	type ClineModelSearchRow,
 	freeTierDescriptionFor,
+	searchFeaturedModels,
 } from "./components/model-selector/cline-model-picker";
 export {
 	BROWSE_ALL_ACTION,
 	ClineModelSelectorContent,
 	ClineModelSelectorDialogContent,
 } from "./components/model-selector/cline-model-selector";
+export type { ModelSearchCandidate } from "./components/model-selector/model-search";
 export * from "./components/model-selector/model-selector";
 export { ProviderRow } from "./components/model-selector/provider-row";
 export {

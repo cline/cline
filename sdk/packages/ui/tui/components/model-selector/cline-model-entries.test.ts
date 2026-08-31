@@ -3,6 +3,7 @@ import {
 	buildFeaturedModelEntries,
 	CLINE_PASS_FREE_SECTION_DESCRIPTION,
 	freeTierDescriptionFor,
+	searchFeaturedModels,
 } from "./cline-model-entries";
 
 const model = (id: string) => ({ id, name: id, description: "", tags: [] });
@@ -84,5 +85,65 @@ describe("cline model picker entries", () => {
 		expect(
 			freeTierDescriptionFor(buildFeaturedModelEntries("cline", data)),
 		).toBe(undefined);
+	});
+});
+
+describe("searchFeaturedModels", () => {
+	const namedModel = (id: string, name: string, tags: string[] = []) => ({
+		id,
+		name,
+		description: "",
+		tags,
+	});
+	const entries = buildFeaturedModelEntries("cline", {
+		recommended: [
+			namedModel("anthropic/claude-sonnet-5", "Claude Sonnet 5", ["NEW"]),
+		],
+		free: [namedModel("cline-free/claude-haiku-4", "Claude Haiku 4", ["FREE"])],
+		clinePass: [],
+	});
+	const allModels = [
+		{ key: "anthropic/claude-opus-5", name: "Claude Opus 5" },
+		{ key: "anthropic/claude-sonnet-5", name: "Claude Sonnet 5" },
+		{ key: "deepseek/deepseek-v4", name: "DeepSeek V4" },
+	];
+
+	it("returns nothing for an empty query", () => {
+		expect(searchFeaturedModels({ entries, allModels, query: "  " })).toEqual(
+			[],
+		);
+	});
+
+	it("searches the full catalog, not just the featured entries", () => {
+		const rows = searchFeaturedModels({ entries, allModels, query: "opus" });
+		// The catalog-only Opus appears; the recommended Sonnet also matches
+		// (fuzzy id match) and stays on top per the featured-first ordering.
+		expect(rows.map((row) => row.id)).toEqual([
+			"anthropic/claude-sonnet-5",
+			"anthropic/claude-opus-5",
+		]);
+	});
+
+	it("keeps recommended matches on top and deduplicates catalog matches", () => {
+		const rows = searchFeaturedModels({ entries, allModels, query: "claude" });
+		expect(rows.map((row) => row.id)).toEqual([
+			// Featured matches first, in section order (recommended before free)
+			"anthropic/claude-sonnet-5",
+			"cline-free/claude-haiku-4",
+			// Then remaining catalog matches; the featured sonnet is not repeated
+			"anthropic/claude-opus-5",
+		]);
+		expect(rows[0]?.tier).toBe("recommended");
+		expect(rows[0]?.tags).toEqual(["NEW"]);
+		expect(rows[2]?.tier).toBeUndefined();
+	});
+
+	it("ignores browse-all entries and misses", () => {
+		const rows = searchFeaturedModels({
+			entries,
+			allModels,
+			query: "deepseek",
+		});
+		expect(rows.map((row) => row.id)).toEqual(["deepseek/deepseek-v4"]);
 	});
 });

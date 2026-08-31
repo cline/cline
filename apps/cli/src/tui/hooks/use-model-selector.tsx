@@ -438,6 +438,7 @@ export function createModelSelectorOpener(opts: {
 							{...ctx}
 							currentModel={config.modelId}
 							currentProviderName={providerDisplayName}
+							allModels={modelOptions}
 							loadEntries={async () =>
 								buildFeaturedModelEntries(
 									featuredProviderId,

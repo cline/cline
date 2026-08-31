@@ -20,7 +20,9 @@ export {
 	type ClineModelPickerEntry,
 	type ClineModelPickerItem,
 	type ClineModelPickerTier,
+	type ClineModelSearchRow,
 	freeTierDescriptionFor,
+	searchFeaturedModels,
 } from "./cline-model-entries";
 
 function tagColor(tag: string, palette: DialogPalette): string {

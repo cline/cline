@@ -1,3 +1,5 @@
+import { fuzzyScore, type ModelSearchCandidate } from "./model-search";
+
 /**
  * Structural view of a Cline recommended-models feed entry. Hosts fetch the
  * feed (e.g. via @cline/core's fetchClineRecommendedModels) and pass the
@@ -105,4 +107,64 @@ export function freeTierDescriptionFor(
 		(entry) => entry.kind === "model" && entry.tier === "subscribed",
 	);
 	return isClinePassPicker ? CLINE_PASS_FREE_SECTION_DESCRIPTION : undefined;
+}
+
+/** A row in the featured picker's search results. */
+export interface ClineModelSearchRow {
+	id: string;
+	name: string;
+	tags: string[];
+	/** Set when the row came from the featured sections. */
+	tier?: ClineModelPickerTier;
+}
+
+/**
+ * Search across the featured entries and the full model catalog. Featured
+ * matches come first in their section order — recommended on top — followed
+ * by remaining catalog matches ranked by fuzzy score. Catalog models already
+ * shown as featured matches are deduplicated by id.
+ */
+export function searchFeaturedModels(input: {
+	entries: ClineModelPickerEntry[];
+	allModels: ModelSearchCandidate[];
+	query: string;
+}): ClineModelSearchRow[] {
+	const query = input.query.trim().toLowerCase();
+	if (!query) {
+		return [];
+	}
+
+	const featuredMatches: ClineModelSearchRow[] = [];
+	const featuredMatchIds = new Set<string>();
+	for (const entry of input.entries) {
+		if (entry.kind !== "model") continue;
+		const score = fuzzyScore(
+			{ key: entry.model.id, name: entry.model.name || entry.model.id },
+			query,
+		);
+		if (score > 0) {
+			featuredMatches.push({
+				id: entry.model.id,
+				name: entry.model.name || entry.model.id,
+				tags: entry.model.tags,
+				tier: entry.tier,
+			});
+			featuredMatchIds.add(entry.model.id);
+		}
+	}
+
+	const catalogMatches = input.allModels
+		.filter((model) => !featuredMatchIds.has(model.key))
+		.map((model) => ({ model, score: fuzzyScore(model, query) }))
+		.filter((result) => result.score > 0);
+	catalogMatches.sort((a, b) => b.score - a.score);
+
+	return [
+		...featuredMatches,
+		...catalogMatches.map(({ model }) => ({
+			id: model.key,
+			name: model.name,
+			tags: [],
+		})),
+	];
 }
