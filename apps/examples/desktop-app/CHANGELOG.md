@@ -1,5 +1,12 @@
 # Cline Desktop Changelog
 
+## 0.0.21-beta.1
+
+- Beta: hand off local sessions to Cline Cloud and continue working from cloud workspaces, with recovery for interrupted transfers and preservation of the prompt, attachments, and session state.
+- Beta: choose between local, SSH remote, and Cloud environments from the desktop app, with the experimental realtime voice and avatar overlay experiences included.
+- Beta: the GitHub onboarding step is available behind the `code-onboarding-github` feature flag and remains disabled by default.
+- Includes all stable desktop improvements through 0.0.20, including the Windows release, full-history session search, scheduled-task fixes, inline tool-result images, and the latest provider and Marketplace updates.
+
 ## 0.0.20
 
 - Cline Desktop now ships on Windows: releases include a code-signed x64 installer, and installed apps auto-update on the same feed macOS does
