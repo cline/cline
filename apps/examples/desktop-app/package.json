@@ -17,6 +17,7 @@
 		"build:binary": "tauri build",
 		"dmg:background": "bun run scripts/dmg-background.ts",
 		"test:dmg-background": "bun test scripts/dmg-background.test.ts",
+		"test:bun-cross-compile-runtime": "bun test scripts/bun-cross-compile-runtime.test.ts",
 		"package": "bun run package:desktop",
 		"package:desktop": "bun run scripts/package-desktop.ts",
 		"package:desktop:mac": "bun run scripts/package-desktop.ts --platform mac",

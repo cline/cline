@@ -1,4 +1,5 @@
 import { $ } from "bun";
+import { prepareWindowsCrossCompileRuntime } from "./bun-cross-compile-runtime";
 import { telemetryDefineArgs } from "./telemetry-define-args";
 
 const resolveTargetTriple = async (): Promise<string> => {
@@ -62,6 +63,7 @@ const buildSidecar = async (
 		"--no-compile-autoload-bunfig",
 	];
 	if (bunTarget) {
+		await prepareWindowsCrossCompileRuntime(bunTarget);
 		await $`bun build ${entrypoint} --compile --target=${bunTarget} ${runtimeIsolationArgs} ${optimizationArgs} ${defines} --outfile ${outfile}`;
 	} else {
 		await $`bun build ${entrypoint} --compile ${runtimeIsolationArgs} ${optimizationArgs} ${defines} --outfile ${outfile}`;
