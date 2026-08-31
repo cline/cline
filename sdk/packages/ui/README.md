@@ -40,6 +40,7 @@ Use `@cline/ui@next` only for deliberate previews. Monorepo consumers use
 | `@cline/ui/theme/index.css` | Complete theme: tokens, Tailwind mapping, and base styles | Tailwind v4 |
 | `@cline/ui/components/agent-chat` | Conversation, message, reasoning, action, and tool-activity React primitives | React 18.3 or 19 |
 | `@cline/ui/components/agent-chat.css` | Framework-neutral styles for the agent-chat primitives | Theme tokens |
+| `@cline/ui/components/agent-chat/messages` | Chat transcript presentation: message bubbles, tool rows, run grouping/collapsing, approvals, image viewers | React 18.3 or 19, `lucide-react`, `ansi-to-react` for `ToolMessageBlock` |
 | `@cline/ui/protocol` | Canonical UI protocol contracts (re-exported from `@cline/shared`) plus a renderer-independent transcript accumulator | None (plain data) |
 | `@cline/ui/tui` | Terminal UI: `runInteractiveTerminalUi`, `runProtocolTerminalUi`, and OpenTUI presentation primitives | Bun/Node, React 19, OpenTUI peers |
 | `@cline/ui/tui/formatting` | Renderer-free terminal formatting (tool summaries, error presentation, compaction status) | Node, `@cline/llms` |
@@ -236,6 +237,25 @@ a complete flex/min-height chain so its viewport can scroll.
 These are presentation primitives, not an agent SDK. Consumers map their own
 message and tool schemas into the components and retain their own Markdown,
 transport, approvals, persistence, and product actions.
+
+### Transcript components
+
+`@cline/ui/components/agent-chat/messages` layers a complete transcript
+presentation over those primitives: `MessageBubble` (user/assistant rows with
+reasoning, attachments, copy/edit/restore/fork actions), `ToolMessageBlock`
+(tool call rows with shared summaries, file diffs, ANSI command output, and
+generated media), `WorkBlock`, `ToolApprovalPanel`, `MessageImageCarousel`,
+`ChatImageLightbox`, and the pure grouping pipeline (`groupChatMessages`,
+`collapseCompletedWork`, run-count/timestamp helpers). Messages are structural
+`ChatMessage` view models, so hosts pass their own validated transport
+payloads directly.
+
+Hosts stay in charge of the runtime: every component takes data plus
+callbacks, and prose rendering is injected through the `markdown` component
+prop (`ChatMarkdownComponent`), keeping link/image policy with the host. This
+subpath additionally requires the optional `lucide-react` peer (icons) and,
+for `ToolMessageBlock`, the optional `ansi-to-react` peer. The desktop app
+(`apps/examples/desktop-app`) is the reference consumer.
 
 ## Terminal UI usage
 
