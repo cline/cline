@@ -433,7 +433,7 @@ describe("AgentRuntime", () => {
 			.filter((input) => input.event === TASK_MAX_TOKENS_RECOVERY_EVENT);
 		expect(recoveryEvents.map((input) => input.properties?.phase)).toEqual([
 			"started",
-			"completed",
+			"retried",
 		]);
 		// Observational only: the finish reason rides along, the loop judges.
 		expect(recoveryEvents[1]?.properties).toEqual(
@@ -480,7 +480,7 @@ describe("AgentRuntime", () => {
 		// The recovery itself completed; the loop is what fails the run.
 		expect(recoveryEvents.map((input) => input.properties?.phase)).toEqual([
 			"started",
-			"completed",
+			"retried",
 		]);
 		expect(recoveryEvents[1]?.properties).toEqual(
 			expect.objectContaining({ eventType: "max-tokens" }),
