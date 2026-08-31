@@ -52,6 +52,7 @@ import { resolveWorkspacePath } from "./config";
 import { filterExtensionToolRegistrations } from "./global-settings";
 import { hasRuntimeHooks, mergeAgentExtensions } from "./session-data";
 import type { ProviderSettingsManager } from "./storage/provider-settings-manager";
+import { captureDetachedHookRuntime } from "./telemetry/core-events";
 import { InMemoryWorkspaceManager } from "./workspace/workspace-manager";
 import type { GitWorkspaceState } from "./workspace/workspace-manifest";
 import { buildWorkspaceMetadataWithInfo } from "./workspace/workspace-manifest";
@@ -350,6 +351,11 @@ export async function prepareLocalRuntimeBootstrap(
 				rootSessionId: sessionId,
 				logger: localConfig?.logger,
 				workspaceInfo,
+				// Detached hooks are never awaited, so their runtime is
+				// invisible today. Measuring it is what tells us whether
+				// run-start hooks could safely become blocking.
+				onHookRuntime: (event) =>
+					captureDetachedHookRuntime(extensionContext.telemetry, event),
 			})
 		: undefined;
 	const auditHooks = hasRuntimeHooks(localConfig?.hooks)

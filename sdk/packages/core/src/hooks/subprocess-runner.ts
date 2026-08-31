@@ -15,6 +15,19 @@ export interface RunSubprocessEventOptions {
 		pid?: number;
 		detached: boolean;
 	}) => void;
+	/**
+	 * Called when a detached hook process exits, with how long it ran. The run
+	 * never waits on this: detached hooks are fire-and-forget by contract, and
+	 * this only observes them so hosts can measure how long they actually take.
+	 * Not called if the parent exits first — a hook still running at that point
+	 * is itself the signal, reported as `exited: false`.
+	 */
+	onDetachedSettled?: (event: {
+		command: string[];
+		durationMs: number;
+		exitCode: number | null;
+		exited: boolean;
+	}) => void;
 }
 
 export interface RunSubprocessEventResult {
@@ -227,6 +240,23 @@ export async function runSubprocessEvent(
 	]);
 
 	if (detached) {
+		if (options.onDetachedSettled) {
+			const startedAt = Date.now();
+			const report = options.onDetachedSettled;
+			// Observe only: `completed` is already wired, and the listener is
+			// not what keeps the process alive (the child is unref'd below), so
+			// a hook that outlives the parent simply never reports.
+			void completed
+				.then((result) =>
+					report({
+						command,
+						durationMs: Date.now() - startedAt,
+						exitCode: result.exitCode,
+						exited: true,
+					}),
+				)
+				.catch(() => undefined);
+		}
 		child.unref();
 		return;
 	}

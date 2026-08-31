@@ -90,6 +90,7 @@ export const CORE_TELEMETRY_EVENTS = {
 	},
 	HOOKS: {
 		DISCOVERY_COMPLETED: "hooks.discovery_completed",
+		DETACHED_RUNTIME: "hooks.detached_runtime",
 	},
 	WORKSPACE: {
 		INITIALIZED: "workspace.initialized",
@@ -724,6 +725,29 @@ export function captureSubagentExecution(
 			timestamp: new Date().toISOString(),
 		},
 	);
+}
+
+/**
+ * Records how long a fire-and-forget hook ran. Detached hooks are never
+ * awaited, so their runtime is otherwise invisible — this is the evidence for
+ * whether any of them could safely be made blocking.
+ */
+export function captureDetachedHookRuntime(
+	telemetry: ITelemetryService | undefined,
+	event: {
+		hookName: string;
+		durationMs: number;
+		exitCode: number | null;
+		exited: boolean;
+	},
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.HOOKS.DETACHED_RUNTIME, {
+		hookName: event.hookName,
+		durationMs: event.durationMs,
+		exitCode: event.exitCode ?? undefined,
+		exited: event.exited,
+		timestamp: new Date().toISOString(),
+	});
 }
 
 export function captureHookDiscovery(
