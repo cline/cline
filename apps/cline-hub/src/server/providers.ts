@@ -9,11 +9,9 @@ import {
 	normalizeOAuthProvider,
 	saveLocalProviderSettings,
 } from "@cline/core";
+import type { UiModelInfo } from "@cline/shared";
 import { isChatCompatibleModel } from "@cline/shared";
-import type {
-	WebviewInboundMessage,
-	WebviewProviderModel,
-} from "../webview-protocol";
+import type { WebviewInboundMessage } from "../webview-protocol";
 import { providerSettingsManager, workspaceRoot } from "./deps";
 import type { HubContext } from "./state";
 import type { BrowserPeer } from "./types";
@@ -87,7 +85,7 @@ export async function loadModels(
 		provider,
 		providerSettingsManager.getProviderConfig(provider),
 	);
-	const models: WebviewProviderModel[] = payload.models
+	const models: UiModelInfo[] = payload.models
 		.filter((model) =>
 			isChatCompatibleModel({
 				operation: model.operation,

@@ -1,3 +1,4 @@
+import type { UiSessionSummary } from "@cline/shared";
 import {
 	ActivityIcon,
 	ArrowUpDownIcon,
@@ -59,7 +60,6 @@ import type {
 	WebviewHubEvent,
 	WebviewHubState,
 	WebviewOutboundMessage,
-	WebviewSessionSummary,
 } from "../../webview-protocol";
 import { PageFrame, PageHeader } from "./components/views/page-layout";
 import type { CustomizationSection } from "./components/views/settings/extensions-view";
@@ -331,14 +331,14 @@ function connectorLabel(connector: WebviewActiveConnector): string {
 	return shortId(connector.id);
 }
 
-function formatSessionModel(session: WebviewSessionSummary): string {
+function formatSessionModel(session: UiSessionSummary): string {
 	if (session.providerId && session.model) {
 		return `${session.providerId}:${session.model}`;
 	}
 	return session.model ?? session.providerId ?? "No model";
 }
 
-function sessionFilterDetails(session: WebviewSessionSummary): string[] {
+function sessionFilterDetails(session: UiSessionSummary): string[] {
 	const name = workspaceName(session.workspaceRoot);
 	return [
 		name ? `workspace:${name}` : undefined,
@@ -483,7 +483,7 @@ function HomeView({
 	onRestartHub: () => void;
 	onViewSessions: () => void;
 	restartPending: boolean;
-	recentSessions: WebviewSessionSummary[];
+	recentSessions: UiSessionSummary[];
 }) {
 	const activeSessions = hubState.sessionSummaries ?? [];
 	const connectedClients = hubState.clients ?? [];
@@ -740,7 +740,7 @@ function SessionsView({
 	onDeleteSession: (sessionId: string) => Promise<void> | void;
 	onOpenSession: (sessionId: string) => void;
 	onRenameSession: (sessionId: string, title: string) => Promise<void> | void;
-	sessions: WebviewSessionSummary[];
+	sessions: UiSessionSummary[];
 }) {
 	type SearchHit = {
 		sessionId: string;
@@ -757,7 +757,7 @@ function SessionsView({
 	const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
 	const [editingTitle, setEditingTitle] = useState("");
 	const [deleteSessionCandidate, setDeleteSessionCandidate] =
-		useState<WebviewSessionSummary | null>(null);
+		useState<UiSessionSummary | null>(null);
 	const [sortDirection, setSortDirection] = useState<"newest" | "oldest">(
 		"newest",
 	);
@@ -813,7 +813,7 @@ function SessionsView({
 		};
 	}, [searchQuery]);
 
-	const startRenameSession = (session: WebviewSessionSummary) => {
+	const startRenameSession = (session: UiSessionSummary) => {
 		setEditingSessionId(session.sessionId);
 		setEditingTitle(session.title || shortId(session.sessionId));
 	};
@@ -823,7 +823,7 @@ function SessionsView({
 		setEditingTitle("");
 	};
 
-	const submitRenameSession = (session: WebviewSessionSummary) => {
+	const submitRenameSession = (session: UiSessionSummary) => {
 		const currentTitle = session.title || shortId(session.sessionId);
 		const nextTitle = editingTitle.trim();
 		if (!nextTitle || nextTitle === currentTitle) {
@@ -1209,9 +1209,7 @@ function App() {
 	const [selectedSessionId, setSelectedSessionId] = useState<
 		string | undefined
 	>(() => readCurrentChatSessionId());
-	const [recentSessions, setRecentSessions] = useState<WebviewSessionSummary[]>(
-		[],
-	);
+	const [recentSessions, setRecentSessions] = useState<UiSessionSummary[]>([]);
 
 	useEffect(() => {
 		syncHubTheme();

@@ -1,8 +1,10 @@
 # `@cline/ui`
 
-Shared visual foundations and reusable React presentation primitives for Cline
-web products. The package lets teams adopt the same semantic theme and agent
-chat language without adopting another product's routes, state, or runtime.
+Shared presentation package for Cline user interfaces: visual foundations and
+reusable React primitives for web products, an OpenTUI-based terminal UI, and
+the shared UI protocol contracts both consume. The package lets teams adopt
+the same semantic theme, agent chat language, and terminal experience without
+adopting another product's routes, state, or runtime.
 
 The package is configured for public npm releases on its own version and
 release cycle. Its API is still pre-stable, so consumers should pin an exact
@@ -38,6 +40,14 @@ Use `@cline/ui@next` only for deliberate previews. Monorepo consumers use
 | `@cline/ui/theme/index.css` | Complete theme: tokens, Tailwind mapping, and base styles | Tailwind v4 |
 | `@cline/ui/components/agent-chat` | Conversation, message, reasoning, action, and tool-activity React primitives | React 18.3 or 19 |
 | `@cline/ui/components/agent-chat.css` | Framework-neutral styles for the agent-chat primitives | Theme tokens |
+| `@cline/ui/protocol` | Canonical UI protocol contracts (re-exported from `@cline/shared`) plus a renderer-independent transcript accumulator | None (plain data) |
+| `@cline/ui/tui` | Terminal UI: `runInteractiveTerminalUi`, `runProtocolTerminalUi`, and OpenTUI presentation primitives | Bun/Node, React 19, OpenTUI peers |
+| `@cline/ui/tui/formatting` | Renderer-free terminal formatting (tool summaries, error presentation, compaction status) | Node, `@cline/llms` |
+
+The browser root entry never imports OpenTUI, Node builtins, or terminal
+code, and the terminal entries never import the browser components; the
+boundary is enforced by `tests/entry-isolation.test.ts` and the packaged
+smoke test.
 
 `SessionStatus` uses semantic tone colors by default. Set
 `--cline-ui-session-status-color` on the component to override its dot color
@@ -226,6 +236,49 @@ a complete flex/min-height chain so its viewport can scroll.
 These are presentation primitives, not an agent SDK. Consumers map their own
 message and tool schemas into the components and retain their own Markdown,
 transport, approvals, persistence, and product actions.
+
+## Terminal UI usage
+
+`@cline/ui/tui` ships the OpenTUI-based terminal UI with two integration
+modes. In both, the package owns rendering, keyboard interaction, input
+history navigation, autocomplete, slash-command presentation, theming, and
+transcript accumulation; the host owns the runtime (sessions, providers,
+persistence, approvals, transport, agent lifecycle).
+
+**Protocol-driven** — a thin terminal client over a `UiConnection` (the
+canonical contract from `@cline/shared`, re-exported by `@cline/ui/protocol`).
+The host adapts its transport (in-process events, WebSocket, postMessage) to
+`send`/`subscribe`; the UI renders `UiOutboundMessage`s and emits
+`UiInboundMessage`s:
+
+```ts
+import { runProtocolTerminalUi } from "@cline/ui/tui";
+
+const ui = await runProtocolTerminalUi({ connection, title: "My host" });
+await ui.waitUntilExit();
+```
+
+**Host-driven interactive** — the full Cline terminal experience configured
+with plain data and callbacks (`InteractiveTerminalUiProps`). Runtime-owned
+surfaces (provider picker, account dialog, MCP manager, session history,
+onboarding) are optional host injections through `createHostSurfaces`, built
+from the OpenTUI primitives this entry also exports:
+
+```ts
+import { runInteractiveTerminalUi } from "@cline/ui/tui";
+
+const ui = await runInteractiveTerminalUi({ config, subscribeToEvents, onSubmit /* ... */ });
+await ui.waitUntilExit();
+```
+
+Runnable examples for both modes live in
+[`sdk/examples/terminal-ui`](../../examples/terminal-ui/); the production host
+adapter is `apps/cli/src/runtime/run-interactive.ts`.
+
+`@cline/ui/protocol` also exports `reduceUiMessage`, a pure accumulator that
+folds `UiOutboundMessage`s into a semantic transcript state (streaming text,
+reasoning with redaction, tool lifecycle, pending prompts), shared by the
+terminal client and available to browser hosts.
 
 ## Storybook
 

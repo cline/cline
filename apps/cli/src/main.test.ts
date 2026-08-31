@@ -370,7 +370,12 @@ describe("runCli lightweight command dispatch", () => {
 		expect(historyListCalls[0]?.[0]).not.toHaveProperty("workspaceRoot");
 		expect(mockState.runAgentImports).toBe(0);
 		expect(mockState.runInteractiveImports).toBe(0);
-	}, 30_000);
+		// This test guards module-loading behavior, not latency: it is often the
+		// first in the file to execute the full main.ts graph, paying the whole
+		// cold vite transform (core/llms/shared sources) while the root `bun run
+		// test` runs six package suites in parallel on shared CI runners. Keep
+		// the budget generous so contention never masquerades as a regression.
+	}, 60_000);
 
 	it("routes connector restart arguments through the restart lifecycle", async () => {
 		process.argv = [

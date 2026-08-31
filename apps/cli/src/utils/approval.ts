@@ -1,6 +1,6 @@
 import { createInterface } from "node:readline";
 import type { ToolApprovalRequest, ToolApprovalResult } from "@cline/shared";
-import { truncate } from "./helpers";
+import { truncate } from "@cline/ui/tui/formatting";
 import { c, getActiveCliSession, write } from "./output";
 
 const SHOW_TERMINAL_CURSOR = "\x1b[?25h";

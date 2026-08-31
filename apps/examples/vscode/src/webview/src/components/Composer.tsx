@@ -1,3 +1,8 @@
+import type {
+	UiChatAttachments,
+	UiModelInfo,
+	UiOutboundMessage,
+} from "@cline/shared";
 import {
 	BrainIcon,
 	CheckIcon,
@@ -50,14 +55,9 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import type {
-	WebviewChatAttachments,
-	WebviewOutboundMessage,
-	WebviewProviderModel,
-} from "../../../webview-protocol";
 
 type ProviderOption = Extract<
-	WebviewOutboundMessage,
+	UiOutboundMessage,
 	{ type: "providers" }
 >["providers"][number];
 
@@ -108,7 +108,7 @@ function ComposerSettings({
 	maxIterations: string;
 	model: string;
 	modelSelectorOpen: boolean;
-	models: WebviewProviderModel[];
+	models: UiModelInfo[];
 	onAutoApproveToolsChange: (value: boolean) => void;
 	onEnableSpawnChange: (value: boolean) => void;
 	onEnableTeamsChange: (value: boolean) => void;
@@ -316,7 +316,7 @@ export function Composer({
 	model: string;
 	mode: "act" | "plan";
 	modelSelectorOpen: boolean;
-	models: WebviewProviderModel[];
+	models: UiModelInfo[];
 	onAbort: () => void;
 	onAutoApproveToolsChange: (value: boolean) => void;
 	onEnableSpawnChange: (value: boolean) => void;
@@ -329,7 +329,7 @@ export function Composer({
 	onProviderChange: (value: string) => void;
 	onSend: (input: {
 		prompt: string;
-		attachments?: WebviewChatAttachments;
+		attachments?: UiChatAttachments;
 		attachmentCount: number;
 	}) => void;
 	onSystemPromptChange: (value: string) => void;
@@ -363,7 +363,7 @@ export function Composer({
 						return;
 					}
 
-					let attachments: WebviewChatAttachments | undefined;
+					let attachments: UiChatAttachments | undefined;
 					if (message.files.length > 0) {
 						const userImages = (
 							await Promise.all(

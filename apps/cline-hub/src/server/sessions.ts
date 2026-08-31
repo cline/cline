@@ -5,7 +5,7 @@ import {
 	SessionSource,
 } from "@cline/core";
 import type { MessageWithMetadata } from "@cline/llms";
-import type { WebviewConfig, WebviewReasonLevel } from "../webview-protocol";
+import type { UiReasonLevel, UiSessionConfig } from "@cline/shared";
 import { rejectPendingApprovalsForSession } from "./approvals";
 import { providerSettingsManager, workspaceRoot } from "./deps";
 import {
@@ -24,14 +24,14 @@ import type { BrowserPeer, SessionContext } from "./types";
 import { asNumber, asString } from "./utils";
 
 function toRuntimeReasoningOptions(
-	reasonLevel?: WebviewReasonLevel,
+	reasonLevel?: UiReasonLevel,
 ): Pick<ClineCoreStartInput["config"], "reasoningEffort" | "thinking"> {
 	if (reasonLevel === undefined) return {};
 	if (reasonLevel === "none") return { thinking: false };
 	return { thinking: true, reasoningEffort: reasonLevel };
 }
 
-function asWebviewReasonLevel(value: unknown): WebviewReasonLevel | undefined {
+function asWebviewReasonLevel(value: unknown): UiReasonLevel | undefined {
 	return value === "none" ||
 		value === "low" ||
 		value === "medium" ||
@@ -42,7 +42,7 @@ function asWebviewReasonLevel(value: unknown): WebviewReasonLevel | undefined {
 
 export function resolveLaunchContext(
 	ctx: HubContext,
-	override?: Partial<SessionContext> & WebviewConfig,
+	override?: Partial<SessionContext> & UiSessionConfig,
 ): SessionContext {
 	const providerId =
 		override?.provider ??
@@ -81,7 +81,7 @@ function buildSessionStartInput(
 		mode?: "act" | "plan";
 		systemPrompt?: string;
 		maxIterations?: number;
-		reasonLevel?: WebviewReasonLevel;
+		reasonLevel?: UiReasonLevel;
 		enableTools?: boolean;
 		enableSpawn?: boolean;
 		enableTeams?: boolean;
@@ -208,7 +208,7 @@ export async function createSession(
 	ctx: HubContext,
 	peer: BrowserPeer,
 	prompt: string,
-	config?: WebviewConfig,
+	config?: UiSessionConfig,
 	attachments?: { userImages?: string[] },
 ): Promise<void> {
 	if (!ctx.cline) throw new Error("Hub is not connected.");
@@ -265,7 +265,7 @@ export async function sendMessage(
 	ctx: HubContext,
 	peer: BrowserPeer,
 	text: string,
-	config?: WebviewConfig,
+	config?: UiSessionConfig,
 	attachments?: { userImages?: string[] },
 ): Promise<void> {
 	if (!ctx.cline) throw new Error("Hub is not connected.");

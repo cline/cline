@@ -53,10 +53,43 @@ Owns reusable low-level contracts and infrastructure:
 - prompt and parsing helpers
 - storage path helpers
 - remote-config schemas, managed instruction materialization, telemetry normalization, and blob upload primitives
+- the canonical UI protocol (`src/ui/`): `UiInboundMessage`, `UiOutboundMessage`,
+  `UiConnection`, pending-prompt shapes, the `TeamUiEvent` presentation subset,
+  and UI-facing account contracts (`ClineSubscriptionPlan`)
 
 Design rule:
 
 - `shared` should not depend on higher-level runtime packages.
+
+### `@cline/ui`
+
+Owns shared presentation for every Cline surface, split into isolated entry
+points:
+
+- root entry: browser React primitives and the CSS theme (no OpenTUI/Node)
+- `./tui`: the OpenTUI terminal UI — `runInteractiveTerminalUi` (host-driven,
+  plain data + callbacks via `InteractiveTerminalUiProps`) and
+  `runProtocolTerminalUi` (a thin client over `UiConnection`) plus the
+  primitives host adapters compose into runtime-owned dialogs
+- `./tui/formatting`: renderer-free terminal formatting reused by headless
+  hosts (tool summaries, error presentation, compaction status)
+- `./protocol`: re-exports the `@cline/shared` UI contracts and adds
+  `reduceUiMessage`, a renderer-independent transcript accumulator
+
+Design rules:
+
+- never depends on `@cline/core`; may depend on `@cline/shared` and (for the
+  terminal entries) `@cline/llms`
+- never creates, resumes, or persists runtime sessions; hosts inject session
+  behavior, persistence, approvals, and provider configuration
+- browser and terminal entries never import each other; they share protocol
+  contracts and semantic event models only
+
+`apps/cli` is the reference host: `src/runtime/run-interactive.ts` maps the
+session runtime onto `InteractiveTerminalUiProps`, and
+`src/tui/host-surfaces.tsx` supplies runtime-owned dialogs (provider/model
+picker, account, MCP manager, session history, onboarding) composed from
+`@cline/ui/tui` primitives.
 
 ### `@cline/llms`
 
@@ -558,6 +591,19 @@ Optional higher-level integrations may depend on lower layers.
 Lower layers should not depend on optional feature packages.
 
 For remote config, that means shared owns the reusable bundle/materialization/blob primitives and core owns only the session-oriented wrapper exported to apps.
+
+### Keep `ui` Runtime-Free
+
+Do not move these concerns into `@cline/ui`:
+
+- session creation, resumption, or persistence
+- provider credential storage or OAuth flows
+- transport ownership (the UI consumes a `UiConnection` or injected callbacks)
+- approval/question policy (the UI renders them; hosts resolve them)
+
+Keep the UI protocol canonical in `@cline/shared`; hosts extend the message
+unions locally (as `apps/cline-hub` does) rather than defining incompatible
+copies.
 
 ## Hub-Owned Agenda Task Queue
 

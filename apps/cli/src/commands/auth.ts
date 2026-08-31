@@ -9,9 +9,9 @@ import {
 	type ProviderSettingsManager,
 	saveProviderOAuthCredentials,
 } from "@cline/core";
+import { disableOpenTuiGraphicsProbe } from "@cline/ui/tui/formatting";
 import { Command } from "commander";
 import React from "react";
-import { disableOpenTuiGraphicsProbe } from "../tui/opentui-env";
 import open from "../utils/open";
 import {
 	getPersistedProviderApiKey,
@@ -319,7 +319,7 @@ export async function loadAuthTuiRuntime() {
 	disableOpenTuiGraphicsProbe();
 	const { createCliRenderer } = await import("@opentui/core");
 	const { createRoot } = await import("@opentui/react");
-	const { OnboardingView } = await import("../tui/views/onboarding");
+	const { OnboardingView } = await import("../tui/onboarding");
 	return { createCliRenderer, createRoot, OnboardingView };
 }
 

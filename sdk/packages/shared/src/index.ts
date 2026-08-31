@@ -586,4 +586,5 @@ export * from "./team";
 export { createTool } from "./tools/create";
 export * from "./types";
 export { AUTH_ERROR_PATTERNS, isLikelyAuthError } from "./types/auth";
+export type * from "./ui";
 export { initVcr } from "./vcr";

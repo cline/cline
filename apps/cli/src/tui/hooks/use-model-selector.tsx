@@ -7,9 +7,18 @@ import {
 	resolveProviderConfig,
 } from "@cline/core";
 import { isClineProvider } from "@cline/shared";
+import {
+	buildModelOptions,
+	CHANGE_PROVIDER_ACTION,
+	ModelIdInputContent,
+	type ModelOption,
+	ModelSelectorContent,
+	type ThinkingLevel,
+	ThinkingLevelContent,
+	withLoadingDialog,
+} from "@cline/ui/tui";
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import type { DialogActions } from "@opentui-ui/dialog/react";
-import { useCallback } from "react";
 import { isOpenAICodexCliProvider } from "../../utils/codex-cli";
 import {
 	getPersistedProviderApiKey,
@@ -17,7 +26,6 @@ import {
 	isProviderConfigured,
 } from "../../utils/provider-auth";
 import type { Config } from "../../utils/types";
-import { withLoadingDialog } from "../components/dialogs/loading-dialog";
 import {
 	ClinePassSubscriptionContent,
 	CodexCliStatusContent,
@@ -28,26 +36,16 @@ import {
 	ProviderConfigInputContent,
 	ProviderPickerContent,
 	UseExistingOrReconfigureContent,
-} from "../components/dialogs/provider-picker";
-import { buildFeaturedModelEntries } from "../components/model-selector/cline-model-picker";
+} from "../dialogs/provider-picker";
+import { buildFeaturedModelEntries } from "../model-selector/cline-model-picker";
 import {
 	BROWSE_ALL_ACTION,
 	ClineModelSelectorDialogContent,
-} from "../components/model-selector/cline-model-selector";
-import {
-	buildModelOptions,
-	CHANGE_PROVIDER_ACTION,
-	ModelIdInputContent,
-	type ModelOption,
-	ModelSelectorContent,
-	type ThinkingLevel,
-	ThinkingLevelContent,
-} from "../components/model-selector/model-selector";
+} from "../model-selector/cline-model-selector";
 
-export interface OpenModelSelectorOptions {
-	onCancel?: () => Promise<void> | void;
-	startWithProviderChange?: boolean;
-}
+export type { OpenModelSelectorOptions } from "@cline/ui/tui";
+
+import type { OpenModelSelectorOptions } from "@cline/ui/tui";
 
 async function getProviderDisplayName(providerId: string): Promise<string> {
 	const info = await Llms.getProvider(providerId);
@@ -322,7 +320,7 @@ async function runProviderChange(
 	return true;
 }
 
-export function useModelSelector(opts: {
+export function createModelSelectorOpener(opts: {
 	dialog: DialogActions;
 	config: Config;
 	termHeight: number;
@@ -331,299 +329,295 @@ export function useModelSelector(opts: {
 }) {
 	const { dialog, config, termHeight, onModelChange, refocusTextarea } = opts;
 
-	const openModelSelector = useCallback(
-		async (options?: OpenModelSelectorOptions) => {
-			const handleCancel = async () => {
-				if (options?.onCancel) {
-					await options.onCancel();
-					return;
-				}
-				refocusTextarea();
-			};
+	const openModelSelector = async (
+		options?: OpenModelSelectorOptions,
+	): Promise<void> => {
+		const handleCancel = async () => {
+			if (options?.onCancel) {
+				await options.onCancel();
+				return;
+			}
+			refocusTextarea();
+		};
 
-			let modelOptions = buildModelOptions(
+		let modelOptions = buildModelOptions(
+			config.knownModels as Record<string, Llms.ModelInfo>,
+		);
+		let providerDisplayName = config.providerId;
+		let endpointModelOptions: ModelOption[] = [];
+
+		const refreshProviderContext = async () => {
+			modelOptions = buildModelOptions(
 				config.knownModels as Record<string, Llms.ModelInfo>,
 			);
-			let providerDisplayName = config.providerId;
-			let endpointModelOptions: ModelOption[] = [];
-
-			const refreshProviderContext = async () => {
-				modelOptions = buildModelOptions(
-					config.knownModels as Record<string, Llms.ModelInfo>,
-				);
-				providerDisplayName = await getProviderDisplayName(config.providerId);
-				// Free-text providers (openai-compatible) can still suggest model
-				// ids when their endpoint answers /models; otherwise they keep the
-				// manual input.
-				endpointModelOptions = usesModelIdInput(config.providerId)
-					? buildModelOptions(
-							Object.fromEntries(
-								(await fetchOpenAiCompatibleModelIds(config.providerId)).map(
-									(id) => [id, { id, name: id }],
-								),
+			providerDisplayName = await getProviderDisplayName(config.providerId);
+			// Free-text providers (openai-compatible) can still suggest model
+			// ids when their endpoint answers /models; otherwise they keep the
+			// manual input.
+			endpointModelOptions = usesModelIdInput(config.providerId)
+				? buildModelOptions(
+						Object.fromEntries(
+							(await fetchOpenAiCompatibleModelIds(config.providerId)).map(
+								(id) => [id, { id, name: id }],
 							),
-						)
-					: [];
-				if (endpointModelOptions.length > 0) {
-					modelOptions = endpointModelOptions;
-				}
-			};
+						),
+					)
+				: [];
+			if (endpointModelOptions.length > 0) {
+				modelOptions = endpointModelOptions;
+			}
+		};
 
-			if (!options?.startWithProviderChange) {
+		if (!options?.startWithProviderChange) {
+			await withLoadingDialog(dialog, "Loading models...", async () => {
+				await refreshCurrentProviderModels(config);
+				await refreshProviderContext();
+			});
+		}
+
+		const changeProvider = async (): Promise<boolean> => {
+			const changed = await runProviderChange(
+				dialog,
+				config,
+				termHeight,
+				onModelChange,
+			);
+			if (changed) {
 				await withLoadingDialog(dialog, "Loading models...", async () => {
-					await refreshCurrentProviderModels(config);
 					await refreshProviderContext();
 				});
 			}
+			return changed;
+		};
 
-			const changeProvider = async (): Promise<boolean> => {
-				const changed = await runProviderChange(
-					dialog,
-					config,
-					termHeight,
-					onModelChange,
-				);
-				if (changed) {
-					await withLoadingDialog(dialog, "Loading models...", async () => {
-						await refreshProviderContext();
-					});
-				}
-				return changed;
-			};
+		if (options?.startWithProviderChange) {
+			const changed = await changeProvider();
+			if (!changed) {
+				await handleCancel();
+				return;
+			}
+		}
 
-			if (options?.startWithProviderChange) {
-				const changed = await changeProvider();
-				if (!changed) {
+		let pickingModel = true;
+
+		while (pickingModel) {
+			if (
+				usesModelIdInput(config.providerId) &&
+				endpointModelOptions.length === 0
+			) {
+				const modelId = await dialog.choice<string>({
+					style: { maxHeight: termHeight - 2 },
+					content: (ctx: ChoiceContext<string>) => (
+						<ModelIdInputContent
+							{...ctx}
+							currentModel={config.modelId}
+							currentProviderName={providerDisplayName}
+						/>
+					),
+				});
+				if (!modelId) {
 					await handleCancel();
 					return;
 				}
-			}
-
-			let pickingModel = true;
-
-			while (pickingModel) {
-				if (
-					usesModelIdInput(config.providerId) &&
-					endpointModelOptions.length === 0
-				) {
-					const modelId = await dialog.choice<string>({
-						style: { maxHeight: termHeight - 2 },
-						content: (ctx: ChoiceContext<string>) => (
-							<ModelIdInputContent
-								{...ctx}
-								currentModel={config.modelId}
-								currentProviderName={providerDisplayName}
-							/>
-						),
-					});
-					if (!modelId) {
-						await handleCancel();
-						return;
-					}
-					if (modelId === CHANGE_PROVIDER_ACTION) {
-						await changeProvider();
-						continue;
-					}
-					config.modelId = modelId;
-					clearReasoningConfig(config);
-					pickingModel = false;
+				if (modelId === CHANGE_PROVIDER_ACTION) {
+					await changeProvider();
 					continue;
 				}
+				config.modelId = modelId;
+				clearReasoningConfig(config);
+				pickingModel = false;
+				continue;
+			}
 
-				if (
-					config.providerId === "cline" ||
-					config.providerId === "cline-pass"
-				) {
-					// ClinePass gets the same sectioned picker with Subscribed/Free
-					// sections — free models are selectable while staying on ClinePass
-					const featuredProviderId = config.providerId;
-					const clineResult = await dialog.choice<string>({
+			if (config.providerId === "cline" || config.providerId === "cline-pass") {
+				// ClinePass gets the same sectioned picker with Subscribed/Free
+				// sections — free models are selectable while staying on ClinePass
+				const featuredProviderId = config.providerId;
+				const clineResult = await dialog.choice<string>({
+					style: { maxHeight: termHeight - 2 },
+					content: (ctx: ChoiceContext<string>) => (
+						<ClineModelSelectorDialogContent
+							{...ctx}
+							currentModel={config.modelId}
+							currentProviderName={providerDisplayName}
+							loadEntries={async () =>
+								buildFeaturedModelEntries(
+									featuredProviderId,
+									await fetchClineRecommendedModels(),
+								)
+							}
+						/>
+					),
+				});
+				if (!clineResult) {
+					await handleCancel();
+					return;
+				}
+				if (clineResult === CHANGE_PROVIDER_ACTION) {
+					await changeProvider();
+					continue;
+				}
+				if (clineResult === BROWSE_ALL_ACTION) {
+					const browseResult = await dialog.choice<string>({
 						style: { maxHeight: termHeight - 2 },
 						content: (ctx: ChoiceContext<string>) => (
-							<ClineModelSelectorDialogContent
+							<ModelSelectorContent
 								{...ctx}
 								currentModel={config.modelId}
 								currentProviderName={providerDisplayName}
-								loadEntries={async () =>
-									buildFeaturedModelEntries(
-										featuredProviderId,
-										await fetchClineRecommendedModels(),
-									)
-								}
+								models={modelOptions}
+								showCustomModelId={config.providerId !== "cline-pass"}
 							/>
 						),
 					});
-					if (!clineResult) {
-						await handleCancel();
-						return;
-					}
-					if (clineResult === CHANGE_PROVIDER_ACTION) {
+					if (!browseResult) continue;
+					if (browseResult === CHANGE_PROVIDER_ACTION) {
 						await changeProvider();
 						continue;
 					}
-					if (clineResult === BROWSE_ALL_ACTION) {
-						const browseResult = await dialog.choice<string>({
-							style: { maxHeight: termHeight - 2 },
-							content: (ctx: ChoiceContext<string>) => (
-								<ModelSelectorContent
-									{...ctx}
-									currentModel={config.modelId}
-									currentProviderName={providerDisplayName}
-									models={modelOptions}
-									showCustomModelId={config.providerId !== "cline-pass"}
-								/>
-							),
-						});
-						if (!browseResult) continue;
-						if (browseResult === CHANGE_PROVIDER_ACTION) {
-							await changeProvider();
-							continue;
-						}
-						config.modelId = browseResult;
-						const browseModel = modelOptions.find(
-							(m: ModelOption) => m.key === browseResult,
-						);
-						if (browseModel?.supportsReasoning) {
-							const lvl: ThinkingLevel = config.reasoningEffort
-								? (config.reasoningEffort as ThinkingLevel)
-								: config.thinking
-									? "medium"
-									: "none";
-							const pick = await dialog.choice<ThinkingLevel>({
-								style: { maxHeight: termHeight - 2 },
-								content: (ctx: ChoiceContext<ThinkingLevel>) => (
-									<ThinkingLevelContent
-										{...ctx}
-										modelName={browseModel.name}
-										currentLevel={lvl}
-									/>
-								),
-							});
-							if (pick !== undefined) {
-								if (pick === "none") {
-									config.thinking = false;
-									config.reasoningEffort = undefined;
-								} else {
-									config.thinking = true;
-									config.reasoningEffort = pick;
-								}
-							}
-						}
-						if (!browseModel?.supportsReasoning) {
-							clearReasoningConfig(config);
-						}
-						pickingModel = false;
-						continue;
-					}
-
-					config.modelId = clineResult;
-					const selectedModel = modelOptions.find(
-						(m: ModelOption) => m.key === clineResult,
+					config.modelId = browseResult;
+					const browseModel = modelOptions.find(
+						(m: ModelOption) => m.key === browseResult,
 					);
-					if (selectedModel?.supportsReasoning) {
-						const currentLevel: ThinkingLevel = config.reasoningEffort
+					if (browseModel?.supportsReasoning) {
+						const lvl: ThinkingLevel = config.reasoningEffort
 							? (config.reasoningEffort as ThinkingLevel)
 							: config.thinking
 								? "medium"
 								: "none";
-						const thinkingLevel = await dialog.choice<ThinkingLevel>({
+						const pick = await dialog.choice<ThinkingLevel>({
 							style: { maxHeight: termHeight - 2 },
 							content: (ctx: ChoiceContext<ThinkingLevel>) => (
 								<ThinkingLevelContent
 									{...ctx}
-									modelName={selectedModel.name}
-									currentLevel={currentLevel}
+									modelName={browseModel.name}
+									currentLevel={lvl}
 								/>
 							),
 						});
-						if (thinkingLevel !== undefined) {
-							if (thinkingLevel === "none") {
+						if (pick !== undefined) {
+							if (pick === "none") {
 								config.thinking = false;
 								config.reasoningEffort = undefined;
 							} else {
 								config.thinking = true;
-								config.reasoningEffort = thinkingLevel;
+								config.reasoningEffort = pick;
 							}
 						}
 					}
-					if (!selectedModel?.supportsReasoning) {
+					if (!browseModel?.supportsReasoning) {
 						clearReasoningConfig(config);
 					}
 					pickingModel = false;
 					continue;
 				}
 
-				const selectedKey = await dialog.choice<string>({
-					style: { maxHeight: termHeight - 2 },
-					content: (ctx: ChoiceContext<string>) => (
-						<ModelSelectorContent
-							{...ctx}
-							currentModel={config.modelId}
-							currentProviderName={providerDisplayName}
-							models={modelOptions}
-							showCustomModelId={config.providerId !== "cline-pass"}
-						/>
-					),
-				});
-				if (!selectedKey) {
-					await handleCancel();
-					return;
-				}
-
-				if (selectedKey === CHANGE_PROVIDER_ACTION) {
-					await changeProvider();
-					continue;
-				}
-
-				config.modelId = selectedKey;
-
+				config.modelId = clineResult;
 				const selectedModel = modelOptions.find(
-					(m: ModelOption) => m.key === selectedKey,
+					(m: ModelOption) => m.key === clineResult,
 				);
+				if (selectedModel?.supportsReasoning) {
+					const currentLevel: ThinkingLevel = config.reasoningEffort
+						? (config.reasoningEffort as ThinkingLevel)
+						: config.thinking
+							? "medium"
+							: "none";
+					const thinkingLevel = await dialog.choice<ThinkingLevel>({
+						style: { maxHeight: termHeight - 2 },
+						content: (ctx: ChoiceContext<ThinkingLevel>) => (
+							<ThinkingLevelContent
+								{...ctx}
+								modelName={selectedModel.name}
+								currentLevel={currentLevel}
+							/>
+						),
+					});
+					if (thinkingLevel !== undefined) {
+						if (thinkingLevel === "none") {
+							config.thinking = false;
+							config.reasoningEffort = undefined;
+						} else {
+							config.thinking = true;
+							config.reasoningEffort = thinkingLevel;
+						}
+					}
+				}
 				if (!selectedModel?.supportsReasoning) {
 					clearReasoningConfig(config);
-					pickingModel = false;
-					break;
-				}
-
-				const currentLevel: ThinkingLevel = config.reasoningEffort
-					? (config.reasoningEffort as ThinkingLevel)
-					: config.thinking
-						? "medium"
-						: "none";
-
-				const thinkingLevel = await dialog.choice<ThinkingLevel>({
-					style: { maxHeight: termHeight - 2 },
-					content: (ctx: ChoiceContext<ThinkingLevel>) => (
-						<ThinkingLevelContent
-							{...ctx}
-							modelName={selectedModel.name}
-							currentLevel={currentLevel}
-						/>
-					),
-				});
-
-				if (thinkingLevel === undefined) {
-					continue;
-				}
-
-				if (thinkingLevel === "none") {
-					config.thinking = false;
-					config.reasoningEffort = undefined;
-				} else {
-					config.thinking = true;
-					config.reasoningEffort = thinkingLevel;
 				}
 				pickingModel = false;
+				continue;
 			}
 
-			await withLoadingDialog(dialog, "Applying model...", async () => {
-				await onModelChange();
+			const selectedKey = await dialog.choice<string>({
+				style: { maxHeight: termHeight - 2 },
+				content: (ctx: ChoiceContext<string>) => (
+					<ModelSelectorContent
+						{...ctx}
+						currentModel={config.modelId}
+						currentProviderName={providerDisplayName}
+						models={modelOptions}
+						showCustomModelId={config.providerId !== "cline-pass"}
+					/>
+				),
 			});
-			refocusTextarea();
-		},
-		[dialog, config, termHeight, onModelChange, refocusTextarea],
-	);
+			if (!selectedKey) {
+				await handleCancel();
+				return;
+			}
+
+			if (selectedKey === CHANGE_PROVIDER_ACTION) {
+				await changeProvider();
+				continue;
+			}
+
+			config.modelId = selectedKey;
+
+			const selectedModel = modelOptions.find(
+				(m: ModelOption) => m.key === selectedKey,
+			);
+			if (!selectedModel?.supportsReasoning) {
+				clearReasoningConfig(config);
+				pickingModel = false;
+				break;
+			}
+
+			const currentLevel: ThinkingLevel = config.reasoningEffort
+				? (config.reasoningEffort as ThinkingLevel)
+				: config.thinking
+					? "medium"
+					: "none";
+
+			const thinkingLevel = await dialog.choice<ThinkingLevel>({
+				style: { maxHeight: termHeight - 2 },
+				content: (ctx: ChoiceContext<ThinkingLevel>) => (
+					<ThinkingLevelContent
+						{...ctx}
+						modelName={selectedModel.name}
+						currentLevel={currentLevel}
+					/>
+				),
+			});
+
+			if (thinkingLevel === undefined) {
+				continue;
+			}
+
+			if (thinkingLevel === "none") {
+				config.thinking = false;
+				config.reasoningEffort = undefined;
+			} else {
+				config.thinking = true;
+				config.reasoningEffort = thinkingLevel;
+			}
+			pickingModel = false;
+		}
+
+		await withLoadingDialog(dialog, "Applying model...", async () => {
+			await onModelChange();
+		});
+		refocusTextarea();
+	};
 
 	return openModelSelector;
 }

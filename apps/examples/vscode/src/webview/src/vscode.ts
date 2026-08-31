@@ -1,10 +1,7 @@
-import type {
-	WebviewInboundMessage,
-	WebviewOutboundMessage,
-} from "../../webview-protocol";
+import type { UiInboundMessage, UiOutboundMessage } from "@cline/shared";
 
 type VsCodeApi = {
-	postMessage(message: WebviewInboundMessage): void;
+	postMessage(message: UiInboundMessage): void;
 	getState(): unknown;
 	setState(state: unknown): void;
 };
@@ -28,8 +25,8 @@ export function getVsCodeApi(): VsCodeApi | undefined {
 	return cachedApi;
 }
 
-export function postToHost(message: WebviewInboundMessage): void {
+export function postToHost(message: UiInboundMessage): void {
 	getVsCodeApi()?.postMessage(message);
 }
 
-export type { WebviewOutboundMessage };
+export type { UiOutboundMessage };

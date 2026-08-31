@@ -1,0 +1,16 @@
+{
+	"extends": "../tsconfig.base.json",
+	"compilerOptions": {
+		"jsx": "react-jsx",
+		"jsxImportSource": "@opentui/react",
+		"lib": ["ES2022"],
+		"noEmit": true,
+		"types": ["bun", "node"]
+	},
+	"include": [
+		"protocol/**/*.ts",
+		"tui/**/*.ts",
+		"tui/**/*.tsx",
+		"tui/**/*.json"
+	]
+}

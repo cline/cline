@@ -18,25 +18,28 @@ Run SDK commands from `sdk/`, not from the legacy repository root. Do not run di
 
 ### Published SDK Packages
 
-- `@cline/shared`: shared contracts, schemas, path helpers, hook engine, extension registry, low-level utilities
+- `@cline/shared`: shared contracts, schemas, path helpers, hook engine, extension registry, low-level utilities. Owns the canonical UI protocol (`src/ui/`): `UiInboundMessage`/`UiOutboundMessage`/`UiConnection`, `TeamUiEvent`, `ClineSubscriptionPlan`
 - `@cline/llms`: provider settings/config, model catalogs, provider manifests, gateway contracts, handler creation
 - `@cline/agents`: stateless agent loop, tool orchestration, hook/extension runtime, event streaming
 - `@cline/core`: stateful orchestration, session lifecycle, storage, config watching, plugin loading, default tools, telemetry. Exposes `@cline/core/hub` for discovery, the detached daemon entry, WebSocket clients, and session/UI client adapters, plus `@cline/core/hub/daemon-entry` for launching the shared daemon
+- `@cline/ui`: shared presentation only — browser React primitives + theme (root entry), OpenTUI terminal UI (`./tui`, `./tui/formatting`), and UI protocol re-exports plus the transcript accumulator (`./protocol`). Never depends on `@cline/core`; hosts inject runtime behavior as plain data + callbacks
 
 ### Dependency Direction
 
 ```mermaid
 flowchart TD
-  shared["@cline/shared"] --> llms["@cline/llms"] & agents["@cline/agents"] & core["@cline/core"]
-  llms --> agents & core
+  shared["@cline/shared"] --> llms["@cline/llms"] & agents["@cline/agents"] & core["@cline/core"] & ui["@cline/ui"]
+  llms --> agents & core & ui
   agents --> core
   core --> apps["CLI / VS Code / Desktop App"]
+  ui --> apps
 ```
 
 Rules:
 - `shared` stays low-level and reusable
 - `agents` stays stateless — no session/storage/config concerns
 - `core` owns stateful orchestration, including the shared-hub daemon, server, and client adapters under `src/hub/`
+- `ui` stays presentation-only: no `@cline/core` dependency, no session creation or persistence; hosts (e.g. `apps/cli`) adapt runtime state into its props and host-surface interfaces
 
 ## Change Routing
 
@@ -46,6 +49,9 @@ Route changes to the package that owns the concern:
 - stateless loop, tool orchestration, streaming, hook/extension runtime: `@cline/agents`
 - session lifecycle, storage, config watching, default tools, plugin loading, telemetry, hub runtime services, hub discovery, hub daemon spawn, and session-oriented client helpers (`HubSessionClient`, `HubUIClient`, `connectToHub`): `@cline/core` (hub pieces live under `src/hub/`)
 - remote-config schemas, managed instruction materialization, blob upload metadata, and OpenTelemetry config normalization: `@cline/shared/src/remote-config`
+- UI protocol message shapes shared by hosts: `@cline/shared/src/ui`
+- reusable browser or terminal presentation (transcript rendering, prompt input, dialogs, theming, terminal formatting): `@cline/ui` (`components/` for web, `tui/` for terminal, `protocol/` for shared transcript accumulation)
+- runtime-owned UX surfaces (provider auth, accounts, MCP management, session history, onboarding) and runtime→UI adapters: app package (e.g. `apps/cli/src/runtime/run-interactive.ts`, `apps/cli/src/tui/host-surfaces.tsx`)
 - host-specific UX or shell behavior: app package
 
 ## Verifying Changes

@@ -8,6 +8,10 @@ import {
 } from "@cline/core";
 import type { ConsecutiveMistakeLimitContext } from "@cline/shared";
 import { createSessionId } from "@cline/shared";
+import {
+	formatCliErrorMessage,
+	shouldShowCliUsageCost,
+} from "@cline/ui/tui/formatting";
 import { logCliError } from "../logging/errors";
 import { createCliCore } from "../session/session";
 import { resolveClineWelcomeLine } from "../tui/interactive-welcome";
@@ -16,7 +20,6 @@ import {
 	requestToolApproval,
 	submitAndExitInTerminal,
 } from "../utils/approval";
-import { formatCliErrorMessage } from "../utils/cline-pass-errors";
 import { handleEvent, handleTeamEvent } from "../utils/events";
 import {
 	shouldZeroClineFreeModelCost,
@@ -34,7 +37,6 @@ import {
 	writeln,
 } from "../utils/output";
 import type { Config } from "../utils/types";
-import { shouldShowCliUsageCost } from "../utils/usage-cost-display";
 import { setActiveRuntimeAbort } from "./active-runtime";
 import {
 	CLI_DEFAULT_CHECKPOINT_CONFIG,

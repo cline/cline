@@ -1,15 +1,20 @@
 // @jsxImportSource @opentui/react
-import type { ChoiceContext } from "@opentui-ui/dialog";
-import { useDialogKeyboard } from "@opentui-ui/dialog/react";
-import { useCallback, useMemo, useState } from "react";
-import { useDialogPalette } from "../tui/hooks/use-theme";
+
 import {
 	type DialogDismissKey,
 	isAnyKeyDismiss,
-} from "../tui/utils/dialog-keys";
-import { getCliSubscriptionUrl } from "../utils/cline-pass-errors";
+	type StartupNotice,
+	useDialogPalette,
+} from "@cline/ui/tui";
+import { getCliSubscriptionUrl } from "@cline/ui/tui/formatting";
+import type { ChoiceContext } from "@opentui-ui/dialog";
+import { useDialogKeyboard } from "@opentui-ui/dialog/react";
+import { useCallback, useMemo, useState } from "react";
 import open from "../utils/open";
-import type { CliMigrationNotice } from "./notice";
+import {
+	type CliMigrationNotice,
+	shouldSuppressClineCliMigrationNoticeForActiveProvider,
+} from "./notice";
 
 /**
  * Enter opens the subscription page; any other (unmodified) key dismisses the
@@ -27,6 +32,25 @@ export function resolveMigrationNoticeKeyAction(
 ): "open" | "dismiss" | "ignore" {
 	if (!isAnyKeyDismiss(key)) return "ignore";
 	return key.name === "return" || key.name === "enter" ? "open" : "dismiss";
+}
+
+/**
+ * Adapt a CLI migration notice into the shared UI's startup-notice contract:
+ * the UI shows the dialog once over the home view; suppression policy and
+ * dialog content stay CLI-owned.
+ */
+export function createMigrationStartupNotice(
+	notice: CliMigrationNotice,
+	onShown?: (notice: CliMigrationNotice) => void | Promise<void>,
+): StartupNotice {
+	return {
+		shouldShowForProvider: (providerId) =>
+			!shouldSuppressClineCliMigrationNoticeForActiveProvider(providerId),
+		content: (ctx: ChoiceContext<boolean>) => (
+			<MigrationNoticeContent {...ctx} notice={notice} />
+		),
+		onShown: () => onShown?.(notice),
+	};
 }
 
 export function MigrationNoticeContent(

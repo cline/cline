@@ -1,4 +1,5 @@
 import { projectSessionMessagesForDisplay } from "@cline/core";
+import type { UiChatMessage, UiSessionSummary } from "@cline/shared";
 import {
 	formatDisplayUserInput,
 	isGeneratedMedia,
@@ -7,10 +8,8 @@ import {
 } from "@cline/shared";
 import type {
 	WebviewActionSessionSummary,
-	WebviewChatMessage,
 	WebviewClientSummary,
 	WebviewOutboundMessage,
-	WebviewSessionSummary,
 } from "../webview-protocol";
 import type { HubContext } from "./state";
 import type { SessionContext, TrackedClient, TrackedSession } from "./types";
@@ -160,7 +159,7 @@ function isErrorToolResult(block: Record<string, unknown>): boolean {
 }
 
 function pushTextBlock(
-	blocks: NonNullable<WebviewChatMessage["blocks"]>,
+	blocks: NonNullable<UiChatMessage["blocks"]>,
 	textParts: string[],
 	messageKey: string | number,
 	partIndex: number,
@@ -176,7 +175,7 @@ function pushTextBlock(
 }
 
 function pushReasoningBlock(
-	blocks: NonNullable<WebviewChatMessage["blocks"]>,
+	blocks: NonNullable<UiChatMessage["blocks"]>,
 	reasoningParts: string[],
 	messageKey: string | number,
 	partIndex: number,
@@ -196,8 +195,8 @@ function pushReasoningBlock(
 
 export function mapHistoryToWebviewMessages(
 	history: unknown[],
-): WebviewChatMessage[] {
-	const mapped: WebviewChatMessage[] = [];
+): UiChatMessage[] {
+	const mapped: UiChatMessage[] = [];
 	const toolLocations = new Map<string, HistoryToolLocation>();
 	const displayHistory = projectSessionMessagesForDisplay(
 		history as MessageWithMetadata[],
@@ -211,16 +210,16 @@ export function mapHistoryToWebviewMessages(
 				: { content: message };
 		const messageKey = asString(record.id) ?? `history-${sourceIndex}`;
 		const rawRole = asString(record.role)?.toLowerCase();
-		let role: WebviewChatMessage["role"] =
+		let role: UiChatMessage["role"] =
 			rawRole === "user" || rawRole === "assistant" || rawRole === "error"
 				? rawRole
 				: "meta";
-		const blocks: NonNullable<WebviewChatMessage["blocks"]> = [];
+		const blocks: NonNullable<UiChatMessage["blocks"]> = [];
 		const textParts: string[] = [];
 		const reasoningParts: string[] = [];
 		const toolEvents = new Map<
 			string,
-			NonNullable<WebviewChatMessage["toolEvents"]>[number]
+			NonNullable<UiChatMessage["toolEvents"]>[number]
 		>();
 		const currentToolBlockIndexes = new Map<string, number>();
 		let reasoningRedacted = false;
@@ -538,7 +537,7 @@ export function clientSummariesPayload(
 
 export function toWebviewSessionSummary(
 	session: TrackedSession,
-): WebviewSessionSummary {
+): UiSessionSummary {
 	return {
 		sessionId: session.sessionId,
 		title: session.title,

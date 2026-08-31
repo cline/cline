@@ -1,7 +1,7 @@
 import type { SessionAccumulatedUsage, SessionRecord } from "@cline/core";
 import type { Message } from "@cline/shared";
+import { shouldShowCliUsageCost } from "@cline/ui/tui/formatting";
 import { c, formatUsd } from "../../utils/output";
-import { shouldShowCliUsageCost } from "../../utils/usage-cost-display";
 
 export interface InteractiveExitSummary {
 	sessionId: string;

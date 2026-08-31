@@ -139,17 +139,21 @@ apps/cli/src/
     prompt.ts            # System prompt and user input assembly
     defaults.ts          # Default config values
 
-  tui/                   # Terminal UI (OpenTUI + React)
-    index.tsx            # Renderer entry point
-    root.tsx             # Provider tree, view routing, global keyboard
-    types.ts             # ChatEntry union, TuiProps, shared constants
-    interactive-config.ts  # Config data loading
-    interactive-welcome.ts # Welcome line, slash command resolution
-    components/          # Reusable UI components
-    contexts/            # React context providers
-    hooks/               # Custom React hooks
-    views/               # Full-screen view components
-    utils/               # TUI-specific utilities
+  tui/                   # CLI-owned TUI host surfaces (the shared
+                         # presentation now lives in @cline/ui/tui)
+    host-surfaces.tsx    # createCliHostSurfaces: provider/model picker,
+                         # account, MCP manager, history, onboarding openers
+    interactive-config.ts  # Config data loading (fs, plugins, MCP, tools)
+    interactive-welcome.ts # Welcome line, @-mention file search (FZF)
+    hydrate-messages.ts  # MessageWithMetadata[] -> ChatEntry[] hydration
+    checkpoint-picker-items.ts # Checkpoint picker rows from session data
+    cline-account.ts     # Account/credits API access
+    dialogs/             # Runtime-owned dialogs (provider picker, account,
+                         # MCP manager) composed from @cline/ui/tui primitives
+    model-selector/      # Cline-provider model picker (catalog access)
+    onboarding/          # First-run provider setup (auth flows)
+    hooks/               # Openers for the runtime-owned dialogs
+    history-view.tsx     # Session history browser (session store access)
 
   session/               # Session state management
   commands/              # CLI subcommands (auth, config, history, etc.)
@@ -161,30 +165,28 @@ apps/cli/src/
 
 ## TUI Architecture
 
-The TUI lives at `src/tui/` and uses React with OpenTUI's reconciler. Every `.tsx` file in this directory uses a per-file JSX pragma:
+The shared terminal UI lives in `@cline/ui/tui` (`sdk/packages/ui/tui`); the
+CLI is a host adapter. Presentation — transcript rendering, prompt input and
+history, autocomplete, slash-command menu, dialogs, theming, keyboard routing
+— belongs to the package. Runtime behavior — sessions, provider auth,
+persistence, approvals — stays in this app and is injected as plain data and
+callbacks. Both use React with OpenTUI's reconciler; `.tsx` files use the
+OpenTUI JSX runtime (`jsxImportSource: "@opentui/react"` in `tsconfig.json`,
+often with an explicit per-file pragma).
+
+### Entry Point: `runInteractiveTerminalUi()`
+
+The TUI boots through `runInteractiveTerminalUi()` from `@cline/ui/tui`:
 
 ```tsx
-// @jsxImportSource @opentui/react
+const ui = await runInteractiveTerminalUi(props);
+// ...
+ui.destroy();
+await ui.waitUntilExit();
 ```
 
-This tells TypeScript to use OpenTUI's JSX runtime instead of React DOM. The `tsconfig.json` sets `jsxImportSource: "@opentui/react"` globally, but the per-file pragma makes the intent explicit and avoids conflicts with any non-TUI React code.
-
-### Entry Point: `index.tsx`
-
-The TUI boots through `renderOpenTui()`:
-
-```tsx
-const renderer = await createCliRenderer({
-  exitOnCtrlC: false,    // We handle Ctrl+C ourselves
-  autoFocus: false,      // Prevents click-anywhere from stealing focus
-  enableMouseMovement: true,
-});
-
-const root = createRoot(renderer);
-root.render(<Root {...props} />);
-```
-
-The renderer returns `destroy()` and `waitUntilExit()` methods. The runtime calls `destroy()` on exit and awaits `waitUntilExit()` for cleanup.
+The handle exposes `destroy()` and `waitUntilExit()`. The runtime calls
+`destroy()` on exit and awaits `waitUntilExit()` for cleanup.
 
 ### Runtime Bridge: `run-interactive.ts`
 
@@ -194,22 +196,30 @@ This file is the bridge between the SDK and the TUI. It:
 2. Sets up event subscriptions (agent events, pending prompts, team events)
 3. Passes callbacks to the TUI as props (`onSubmit`, `onAbort`, `onModelChange`, etc.)
 4. Manages session lifecycle (start, stop, restart, resume, compact)
+5. Injects host services: repo status refresh, `@`-mention file search,
+   input-history and theme persistence, hub build-mismatch watching, and the
+   auto-update setting
+6. Supplies runtime-owned dialogs through `createCliHostSurfaces`
+   (`src/tui/host-surfaces.tsx`): provider/model picker, account dialog, MCP
+   manager, session history, and onboarding
 
-The TUI never talks to the SDK directly. All communication flows through the callback props defined in `TuiProps` (see `types.ts`).
+The TUI never talks to the SDK directly. All communication flows through the
+callback props defined in `InteractiveTerminalUiProps`
+(`sdk/packages/ui/tui/types.ts`).
 
 ### Component Tree
 
 ```
-Root (root.tsx)
+Root (@cline/ui/tui root.tsx)
   DialogProvider                    # Modal dialog system
     SessionProvider                 # Chat entries, running state, mode
-      EventBridgeProvider           # Subscribes to SDK events
+      EventBridgeProvider           # Subscribes to host events
         View Router
           HomeView                  # Welcome screen (before first prompt)
           ChatView                  # Message list + input bar + status
-          OnboardingView            # First-run provider setup
+          OnboardingView            # CLI-owned, injected via host surfaces
           ConfigView (dialog)       # Settings browser
-          HistoryView (dialog)      # Session history
+          HistoryView (dialog)      # CLI-owned, injected via host surfaces
 ```
 
 ### Context Providers
@@ -276,6 +286,8 @@ Dialog content components receive `resolve` and `dismiss` callbacks through the 
 Important gotcha: async data loading inside a dialog (via useEffect/useState) causes layout gaps between flex children in OpenTUI. Always fetch data before opening the dialog and pass it as props.
 
 ### Key Components
+
+The component paths below live in `sdk/packages/ui/tui/`.
 
 `components/input-bar.tsx` - Text input with submit handling:
 - Uncontrolled `<textarea>` with `key={inputKey}` for reset

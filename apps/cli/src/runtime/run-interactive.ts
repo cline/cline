@@ -2,22 +2,37 @@ import {
 	getCurrentContextSize,
 	type ProviderSettings,
 	ProviderSettingsManager,
+	readGlobalSettings,
+	readTuiThemeGlobally,
+	setAutoUpdateEnabledGlobally,
 	setCompactionModeGlobally,
 	setPlanActModeGlobally,
 	setToolAutoApproveGlobally,
+	setTuiThemeGlobally,
+	type TeamEvent,
 	type UserInstructionConfigService,
+	watchManagedHubBuildMismatch,
 } from "@cline/core";
-import { formatModeSwitchNotice } from "@cline/shared";
+import { formatModeSwitchNotice, TeamMessageType } from "@cline/shared";
+import type { QueuedPromptItem, TuiStartupTarget } from "@cline/ui/tui";
+import {
+	applyCliCompactionMode,
+	disableOpenTuiGraphicsProbe,
+} from "@cline/ui/tui/formatting";
 import type { CliMigrationNotice } from "../kanban-migration/notice";
+import { createMigrationStartupNotice } from "../kanban-migration/notice-dialog";
 import { logCliError } from "../logging/errors";
 import { exportHistorySession } from "../session/history-export";
 import { deleteSession } from "../session/session";
+import { buildCheckpointPickerItems } from "../tui/checkpoint-picker-items";
 import {
 	loadClineAccountSnapshot,
 	loadIndividualSubscriptionPlans,
 	onProviderChange,
 	switchClineAccount,
 } from "../tui/cline-account";
+import { createCliHostSurfaces } from "../tui/host-surfaces";
+import { hydrateSessionMessages } from "../tui/hydrate-messages";
 import type {
 	InteractiveConfigItem,
 	LoadInteractiveConfigDataOptions,
@@ -26,16 +41,17 @@ import {
 	type InteractiveSlashCommand,
 	listInteractiveSlashCommands,
 	resolveClineWelcomeLine,
+	searchWorkspaceFilesForMention,
 } from "../tui/interactive-welcome";
-import { disableOpenTuiGraphicsProbe } from "../tui/opentui-env";
-import type { QueuedPromptItem, TuiStartupTarget } from "../tui/types";
+import { isProviderConfigured } from "../tui/provider-configured";
 import { type ChatCommandState, chatCommandHost } from "../utils/chat-commands";
-import { applyCliCompactionMode } from "../utils/compaction-mode";
 import {
 	shouldZeroClineFreeModelCost,
 	zeroCliAgentEventCost,
 	zeroCliUsageCost,
 } from "../utils/free-model-cost";
+import { appendInputHistory, loadInputHistory } from "../utils/input-history";
+import open from "../utils/open";
 import {
 	prepareTerminalForPostTuiOutput,
 	writeErr,
@@ -67,7 +83,10 @@ import {
 } from "./interactive/mode";
 import { assertInteractivePreflight } from "./interactive/preflight";
 import { createInteractiveSessionRuntime } from "./interactive/session-runtime";
-import { buildUserInputMessage } from "./prompt";
+import {
+	buildUserInputMessage,
+	shouldExpandSkillSlashCommands,
+} from "./prompt";
 import { getUIEventEmitter } from "./session-events";
 
 type ModelChangeReasoningConfig = {
@@ -482,16 +501,16 @@ export async function runInteractive(
 	process.on("SIGTERM", handleSigterm);
 
 	disableOpenTuiGraphicsProbe();
-	const { renderOpenTui } = await import("../tui/index");
+	const { runInteractiveTerminalUi } = await import("@cline/ui/tui");
 
 	// eslint-disable-next-line prefer-const
-	let tuiApp: Awaited<ReturnType<typeof renderOpenTui>> | undefined;
+	let tuiApp: Awaited<ReturnType<typeof runInteractiveTerminalUi>> | undefined;
 	setActiveRuntimeCleanup(() => {
 		tuiApp?.destroy();
 	});
 	let startupErrorReported = false;
 	let updateCliAfterExit = false;
-	const loadDeferredInitialMessages = resumeSessionId?.trim()
+	const loadDeferredInitialEntries = resumeSessionId?.trim()
 		? async () => {
 				try {
 					await sessionRuntime.ensureReady();
@@ -501,7 +520,7 @@ export async function runInteractive(
 						outputTokens: 0,
 					});
 					return {
-						messages,
+						entries: hydrateSessionMessages(messages),
 						totalCost: usage.totalCost,
 						currentContextSize: getCurrentContextSize(messages),
 					};
@@ -513,14 +532,22 @@ export async function runInteractive(
 			}
 		: undefined;
 
-	tuiApp = await renderOpenTui({
+	tuiApp = await runInteractiveTerminalUi({
 		config,
 		startupTarget: options?.startupTarget,
 		initialPrompt: options?.initialPrompt,
-		initialNotice: options?.initialNotice,
-		onInitialNoticeShown: options?.onInitialNoticeShown,
-		loadDeferredInitialMessages,
+		startInOnboarding:
+			process.env.CLINE_FORCE_ONBOARDING === "1" ||
+			!isProviderConfigured(config),
+		startupNotice: options?.initialNotice
+			? createMigrationStartupNotice(
+					options.initialNotice,
+					options?.onInitialNoticeShown,
+				)
+			: undefined,
+		loadDeferredInitialEntries,
 		initialRepoStatus,
+		refreshRepoStatus: () => readRepoStatus(config.cwd),
 		workflowSlashCommands,
 		loadAdditionalSlashCommands,
 		loadWelcomeLine: async () =>
@@ -529,39 +556,128 @@ export async function runInteractive(
 				clineApiBaseUrl: options?.clineApiBaseUrl,
 				clineProviderSettings: options?.clineProviderSettings,
 			}),
-		loadClineAccount: async () =>
-			await loadClineAccountSnapshot({
-				config,
-				clineApiBaseUrl: options?.clineApiBaseUrl,
-			}),
 		loadIndividualSubscriptionPlans: async () =>
 			await loadIndividualSubscriptionPlans({
 				config,
 				clineApiBaseUrl: options?.clineApiBaseUrl,
 				clineProviderSettings: options?.clineProviderSettings,
 			}),
-		switchClineAccount: async (organizationId) =>
-			await switchClineAccount({
-				config,
-				organizationId,
-				clineApiBaseUrl: options?.clineApiBaseUrl,
-			}),
 		loadConfigData: configDataLoader.loadConfigData,
 		onToggleConfigItem,
 		onDeleteConfigItem,
+		autoUpdateSetting: {
+			load: () => readGlobalSettings().autoUpdateEnabled,
+			save: (enabled) => setAutoUpdateEnabledGlobally(enabled),
+		},
+		searchFilesForMention: searchWorkspaceFilesForMention,
+		inputHistory: {
+			load: loadInputHistory,
+			append: appendInputHistory,
+		},
+		themePreference: {
+			load: readTuiThemeGlobally,
+			save: setTuiThemeGlobally,
+		},
+		openExternal: async (url) => {
+			await open(url, { wait: false });
+		},
+		watchHubBuildMismatch: (handlers) =>
+			watchManagedHubBuildMismatch({
+				onMismatch: (mismatch) => handlers.onMismatch(mismatch),
+			}),
+		shouldExpandSkillCommands: shouldExpandSkillSlashCommands,
+		createHostSurfaces: createCliHostSurfaces({
+			config,
+			loadConfigData: configDataLoader.loadConfigData,
+			onSessionRestart: async () => {
+				await sessionRuntime.ensureReady();
+				await sessionRuntime.restartEmpty();
+			},
+			onModelChange: () =>
+				applyInteractiveModelChange({
+					config,
+					providerSettingsManager,
+					sessionRuntime,
+				}),
+			loadAccount: async () =>
+				await loadClineAccountSnapshot({
+					config,
+					clineApiBaseUrl: options?.clineApiBaseUrl,
+				}),
+			switchAccount: async (organizationId) =>
+				await switchClineAccount({
+					config,
+					organizationId,
+					clineApiBaseUrl: options?.clineApiBaseUrl,
+				}),
+			onAccountChange: async () => {
+				await sessionRuntime.ensureReady();
+				await loadClineAccountSnapshot({
+					config,
+					clineApiBaseUrl: options?.clineApiBaseUrl,
+				}).catch((error) => {
+					logCliError(
+						config.logger,
+						"Cline account refresh after account change failed",
+						{ error },
+					);
+				});
+				await sessionRuntime.restartWithCurrentMessages();
+			},
+			// resumeSession initializes the manager and starts the selected
+			// session directly. Ensuring a session first would mint an empty
+			// history entry when the TUI was launched through `cline history`.
+			onResumeSession: async (sessionId: string) => {
+				const result = await resumeInteractiveSession(
+					sessionRuntime,
+					sessionId,
+				);
+				return {
+					entries: hydrateSessionMessages(result.messages),
+					totalCost: result.totalCost,
+					currentContextSize: result.currentContextSize,
+				};
+			},
+			onExportHistorySession: async (sessionId, format) =>
+				await exportHistorySession({
+					sessionId,
+					format,
+					outputDirectory: config.cwd,
+				}),
+			onDeleteHistorySession: async (sessionId) => {
+				assertHistorySessionIsDeletable(
+					sessionId,
+					sessionRuntime.getActiveSessionId(),
+				);
+				return (await deleteSession(sessionId)).deleted;
+			},
+		}),
 		subscribeToEvents: ({
 			onAgentEvent: onAgent,
 			onTeamEvent: onTeam,
 			onPendingPrompts,
 			onPendingPromptSubmitted,
 		}) => {
+			// Runtime-internal team members (task_start/task_end/agent_event)
+			// embed agent payloads and are not part of the shared UI event
+			// model; the adapter filters them before events reach the UI.
+			const onTeamFiltered = (event: TeamEvent): void => {
+				if (
+					event.type === TeamMessageType.TaskStart ||
+					event.type === TeamMessageType.TaskEnd ||
+					event.type === TeamMessageType.AgentEvent
+				) {
+					return;
+				}
+				onTeam(event);
+			};
 			uiEvents.on("agent", onAgent);
-			uiEvents.on("team", onTeam);
+			uiEvents.on("team", onTeamFiltered);
 			uiEvents.on("pending-prompts", onPendingPrompts);
 			uiEvents.on("pending-prompt-submitted", onPendingPromptSubmitted);
 			return () => {
 				uiEvents.off("agent", onAgent);
-				uiEvents.off("team", onTeam);
+				uiEvents.off("team", onTeamFiltered);
 				uiEvents.off("pending-prompts", onPendingPrompts);
 				uiEvents.off("pending-prompt-submitted", onPendingPromptSubmitted);
 			};
@@ -801,38 +917,6 @@ export async function runInteractive(
 			await sessionRuntime.ensureReady();
 			await sessionRuntime.restartEmpty();
 		},
-		onAccountChange: async () => {
-			await sessionRuntime.ensureReady();
-			await loadClineAccountSnapshot({
-				config,
-				clineApiBaseUrl: options?.clineApiBaseUrl,
-			}).catch((error) => {
-				logCliError(
-					config.logger,
-					"Cline account refresh after account change failed",
-					{ error },
-				);
-			});
-			await sessionRuntime.restartWithCurrentMessages();
-		},
-		// resumeSession initializes the manager and starts the selected session
-		// directly. Ensuring a session first would mint an empty history entry
-		// when the TUI was launched through `cline history`.
-		onResumeSession: async (sessionId: string) =>
-			await resumeInteractiveSession(sessionRuntime, sessionId),
-		onExportHistorySession: async (sessionId, format) =>
-			await exportHistorySession({
-				sessionId,
-				format,
-				outputDirectory: config.cwd,
-			}),
-		onDeleteHistorySession: async (sessionId) => {
-			assertHistorySessionIsDeletable(
-				sessionId,
-				sessionRuntime.getActiveSessionId(),
-			);
-			return (await deleteSession(sessionId)).deleted;
-		},
 		onCompact: async () => {
 			await sessionRuntime.ensureReady();
 			return await sessionRuntime.compactCurrentSession();
@@ -841,13 +925,22 @@ export async function runInteractive(
 			await sessionRuntime.ensureReady();
 			return await sessionRuntime.forkCurrentSession();
 		},
-		getCheckpointData: async () => {
+		loadCheckpointItems: async () => {
 			await sessionRuntime.ensureReady();
-			return await sessionRuntime.getCheckpointData();
+			const data = await sessionRuntime.getCheckpointData();
+			if (!data) return undefined;
+			const { messages, checkpointHistory } = data;
+			if (checkpointHistory.length === 0) return [];
+			return buildCheckpointPickerItems(messages, checkpointHistory);
 		},
 		onRestoreCheckpoint: async (runCount, restoreWorkspace) => {
 			await sessionRuntime.ensureReady();
-			return await sessionRuntime.restoreCheckpoint(runCount, restoreWorkspace);
+			const result = await sessionRuntime.restoreCheckpoint(
+				runCount,
+				restoreWorkspace,
+			);
+			if (!result) return undefined;
+			return { entries: hydrateSessionMessages(result.messages) };
 		},
 		setToolApprover: (fn) => {
 			tuiToolApprover.current = fn;
@@ -860,7 +953,7 @@ export async function runInteractive(
 		},
 	});
 
-	if (!loadDeferredInitialMessages && options?.startupTarget !== "history") {
+	if (!loadDeferredInitialEntries && options?.startupTarget !== "history") {
 		setTimeout(() => {
 			void sessionRuntime.ensureReady().catch((error) => {
 				if (sessionRuntime.isShutdownRequested() || startupErrorReported) {

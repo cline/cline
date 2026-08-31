@@ -28,16 +28,35 @@ import {
 import { Conversation, Message } from "@cline/ui/components/agent-chat";
 import { ToolFileDiff } from "@cline/ui/components/agent-chat/tool-diff";
 import { buildToolSummary } from "@cline/ui/components/agent-chat/tool-summary";
+import {
+	createUiTranscriptState,
+	reduceUiMessage,
+} from "@cline/ui/protocol";
 
 for (const specifier of [
 	"@cline/ui/components.css",
 	"@cline/ui/components/markdown.css",
 	"@cline/ui/theme/palette.css",
 	"@cline/ui/theme/scoped-tokens.css",
+	// Terminal entries need the OpenTUI peers to load; browsers must never
+	// import them, so the smoke only asserts the exports resolve.
+	"@cline/ui/tui",
+	"@cline/ui/tui/formatting",
 ]) {
 	if (!existsSync(fileURLToPath(import.meta.resolve(specifier)))) {
-		throw new Error("packed CSS export does not exist: " + specifier);
+		throw new Error("packed export does not exist: " + specifier);
 	}
+}
+
+const transcript = reduceUiMessage(createUiTranscriptState(), {
+	type: "assistant_delta",
+	text: "hi",
+});
+if (
+	transcript.blocks.length !== 1 ||
+	transcript.blocks[0].kind !== "assistant_text"
+) {
+	throw new Error("protocol subpath did not accumulate assistant deltas");
 }
 
 const packageJsonUrl = import.meta.resolve("@cline/ui/package.json");
@@ -267,6 +286,10 @@ try {
 			"--ignore-scripts",
 			"--no-audit",
 			"--no-fund",
+			// The optional OpenTUI peers are Bun-first packages whose own peer
+			// ranges conflict under npm's automatic peer installation; browser
+			// consumers never load the terminal entries, so skip auto peers.
+			"--legacy-peer-deps",
 			archive,
 			"react@18.3.1",
 			"react-dom@18.3.1",

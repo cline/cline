@@ -1,6 +1,5 @@
 import type { CoreSessionEvent } from "@cline/core";
-import type { AgentEvent } from "@cline/shared";
-import type { WebviewToolEvent } from "../webview-protocol";
+import type { AgentEvent, UiToolEvent } from "@cline/shared";
 import { rejectPendingApprovalsForSession } from "./approvals";
 import type { HubContext } from "./state";
 import { broadcastHubState } from "./state-payloads";
@@ -58,7 +57,7 @@ function forwardAgentEvent(
 		return;
 	}
 	if (event.type === "content_update" && event.contentType === "tool") {
-		const toolEvent: WebviewToolEvent = {
+		const toolEvent: UiToolEvent = {
 			toolCallId: event.toolCallId,
 			toolName: event.toolName,
 			status: "running",

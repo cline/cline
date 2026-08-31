@@ -6,7 +6,7 @@ import {
 	type ToolResultContent,
 	type ToolUseContent,
 } from "@cline/shared";
-import { formatStructuredCommand } from "../utils/helpers";
+import { formatStructuredCommand } from "@cline/ui/tui/formatting";
 
 export interface ConversationHistory {
 	version: number;

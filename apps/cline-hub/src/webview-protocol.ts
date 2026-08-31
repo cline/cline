@@ -1,127 +1,18 @@
 import type {
-	ChatMessage as CoreChatMessage,
 	ProviderListItem,
-	ProviderModel,
-} from "@cline/core";
-import type { GeneratedMedia } from "@cline/shared";
+	UiInboundMessage,
+	UiOutboundMessage,
+} from "@cline/shared";
 
-export type WebviewUsage = {
-	inputTokens?: number;
-	outputTokens?: number;
-	cacheCreationInputTokens?: number;
-	cacheReadInputTokens?: number;
-	totalCost?: number;
-};
-
-export type WebviewProviderModel = Pick<
-	ProviderModel,
-	| "id"
-	| "name"
-	| "operation"
-	| "supportsReasoning"
-	| "inputModalities"
-	| "outputModalities"
-> & {
-	supportsThinking?: boolean;
-};
+/**
+ * Hub-specific webview protocol: the canonical UI protocol from
+ * `@cline/shared` (UiInboundMessage / UiOutboundMessage) extended with
+ * hub-only messages (hub state, connectors, desktop command bridging,
+ * provider catalog management). Common chat/session/tool types are imported
+ * from `@cline/shared` directly by both the server and the webview.
+ */
 
 export type WebviewProviderCatalogItem = ProviderListItem;
-
-export type WebviewReasonLevel = "none" | "low" | "medium" | "high";
-
-export type WebviewToolEvent = {
-	toolCallId?: string;
-	toolName?: string;
-	status: "running" | "completed" | "failed";
-	input?: unknown;
-	output?: unknown;
-	error?: string;
-};
-
-export type WebviewChatMessageBlock =
-	| { id: string; type: "text"; text: string }
-	| { id: string; type: "reasoning"; text: string; redacted?: boolean }
-	| { id: string; type: "media"; media: GeneratedMedia }
-	| {
-			id: string;
-			type: "tool";
-			toolEvent: NonNullable<WebviewChatMessage["toolEvents"]>[number];
-	  };
-
-export type WebviewChatMessage = Omit<
-	CoreChatMessage,
-	"content" | "createdAt" | "meta" | "role" | "sessionId"
-> & {
-	role:
-		| Extract<CoreChatMessage["role"], "user" | "assistant" | "error">
-		| "meta";
-	text: string;
-	reasoning?: string;
-	reasoningRedacted?: boolean;
-	checkpoint?: NonNullable<CoreChatMessage["meta"]>["checkpoint"];
-	toolEvents?: Array<{
-		id: string;
-		toolCallId?: string;
-		name: string;
-		text: string;
-		state: "input-available" | "output-available" | "output-error";
-		input?: unknown;
-		output?: unknown;
-		error?: string;
-	}>;
-	blocks?: WebviewChatMessageBlock[];
-};
-
-export type WebviewConfig = {
-	provider?: string;
-	model?: string;
-	mode?: "act" | "plan";
-	systemPrompt?: string;
-	maxIterations?: number;
-	reasonLevel?: WebviewReasonLevel;
-	enableTools?: boolean;
-	enableSpawn?: boolean;
-	enableTeams?: boolean;
-	autoApproveTools?: boolean;
-};
-
-export type WebviewChatAttachments = {
-	userImages?: string[];
-};
-
-export type WebviewToolApprovalRequest = {
-	approvalId: string;
-	sessionId: string;
-	agentId: string;
-	conversationId: string;
-	iteration: number;
-	toolCallId: string;
-	toolName: string;
-	input: unknown;
-	policy?: Record<string, unknown>;
-};
-
-export type WebviewDefaults = {
-	provider?: string;
-	model?: string;
-	workspaceRoot: string;
-	cwd: string;
-};
-
-export type WebviewSessionSummary = {
-	sessionId: string;
-	title?: string;
-	status?: string;
-	source?: string;
-	providerId?: string;
-	model?: string;
-	workspaceRoot?: string;
-	createdAt?: number;
-	updatedAt?: number;
-	inputTokens?: number;
-	outputTokens?: number;
-	totalCost?: number;
-};
 
 export type WebviewConnectedClient = {
 	clientId: string;
@@ -235,7 +126,7 @@ export type WebviewHubState = {
 };
 
 export type WebviewInboundMessage =
-	| { type: "ready" }
+	| UiInboundMessage
 	| { type: "restart_hub" }
 	| {
 			type: "desktopCommand";
@@ -243,21 +134,6 @@ export type WebviewInboundMessage =
 			command: string;
 			args?: Record<string, unknown>;
 	  }
-	| {
-			type: "send";
-			prompt: string;
-			config?: WebviewConfig;
-			attachments?: WebviewChatAttachments;
-	  }
-	| { type: "abort" }
-	| { type: "reset" }
-	| {
-			type: "approval_response";
-			approvalId: string;
-			approved: boolean;
-			reason?: string;
-	  }
-	| { type: "loadModels"; providerId: string }
 	| { type: "loadProviderCatalog" }
 	| {
 			type: "saveProviderSettings";
@@ -266,26 +142,10 @@ export type WebviewInboundMessage =
 			apiKey?: string;
 			baseUrl?: string;
 	  }
-	| { type: "runProviderOAuthLogin"; providerId: string }
-	| { type: "attachSession"; sessionId: string }
-	| { type: "deleteSession"; sessionId: string }
-	| {
-			type: "updateSessionMetadata";
-			sessionId: string;
-			metadata: Record<string, unknown>;
-	  }
-	| { type: "restore"; checkpointRunCount: number }
-	| { type: "forkSession" };
+	| { type: "runProviderOAuthLogin"; providerId: string };
 
 export type WebviewOutboundMessage =
-	| { type: "status"; text: string }
-	/**
-	 * `recoverable: true` marks an in-run notice (e.g. a MistakeTracker
-	 * mistake such as a plan-mode guard-blocked command) — the run continues,
-	 * so peers should not treat it as the turn's outcome. Absent/false means
-	 * a genuine failure.
-	 */
-	| { type: "error"; text: string; recoverable?: boolean }
+	| UiOutboundMessage
 	| {
 			type: "desktopCommandResult";
 			id: string;
@@ -297,38 +157,6 @@ export type WebviewOutboundMessage =
 			id: string;
 			ok: false;
 			error: string;
-	  }
-	| { type: "session_started"; sessionId: string }
-	| {
-			type: "session_hydrated";
-			sessionId: string;
-			status?: string;
-			providerId?: string;
-			modelId?: string;
-			messages: WebviewChatMessage[];
-	  }
-	| { type: "assistant_delta"; text: string }
-	| { type: "reasoning_delta"; text: string; redacted?: boolean }
-	| { type: "assistant_media"; media: GeneratedMedia }
-	| { type: "tool_event"; text: string; event?: WebviewToolEvent }
-	| ({ type: "approval_request" } & WebviewToolApprovalRequest)
-	| {
-			type: "approval_resolved";
-			approvalId: string;
-			approved: boolean;
-			reason?: string;
-	  }
-	| {
-			type: "turn_done";
-			finishReason: string;
-			iterations: number;
-			usage?: WebviewUsage;
-	  }
-	| {
-			type: "providers";
-			providers: Array<
-				Pick<ProviderListItem, "defaultModelId" | "enabled" | "id" | "name">
-			>;
 	  }
 	| {
 			type: "provider_catalog";
@@ -345,14 +173,4 @@ export type WebviewOutboundMessage =
 			providerId: string;
 			accessTokenPresent: boolean;
 	  }
-	| { type: "models"; providerId: string; models: WebviewProviderModel[] }
-	| { type: "sessions"; sessions: WebviewSessionSummary[] }
-	| WebviewHubState
-	| { type: "defaults"; defaults: WebviewDefaults }
-	| { type: "reset_done" }
-	| {
-			type: "fork_done";
-			forkedFromSessionId: string;
-			newSessionId: string;
-	  }
-	| { type: "fork_error"; text: string };
+	| WebviewHubState;

@@ -2,7 +2,7 @@ import type { CheckpointEntry } from "@cline/core";
 import { getUserRunSpan } from "@cline/core";
 import type { Message } from "@cline/shared";
 import { formatDisplayUserInput, truncateStr } from "@cline/shared";
-import type { CheckpointPickerItem } from "./components/dialogs/checkpoint-picker";
+import type { CheckpointPickerItem } from "@cline/ui/tui";
 
 /** Highest checkpoint recorded at or before `runCount`. */
 function checkpointForRun(
