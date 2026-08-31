@@ -22,6 +22,7 @@ import {
 	type HistoryExportPickerState,
 	resolveHistoryExportPickerAction,
 } from "./history-export-picker";
+import { DialogOptionRow } from "./option-row";
 
 /**
  * Structural view of a stored session row. Hosts pass their richer history
@@ -371,28 +372,14 @@ function HistoryListContent({
 				</text>
 
 				<box flexDirection="column" marginTop={1}>
-					{HISTORY_EXPORT_OPTIONS.map((option, index) => {
-						const isSelected = index === exportPicker.selectedIndex;
-						return (
-							<box
-								key={option.format}
-								flexDirection="column"
-								paddingX={1}
-								backgroundColor={isSelected ? palette.selection : undefined}
-							>
-								<text fg={isSelected ? palette.textOnSelection : undefined}>
-									{isSelected ? "\u276f " : "  "}
-									{option.label}
-								</text>
-								<text
-									fg={isSelected ? palette.textOnSelection : "gray"}
-									paddingLeft={2}
-								>
-									{option.description}
-								</text>
-							</box>
-						);
-					})}
+					{HISTORY_EXPORT_OPTIONS.map((option, index) => (
+						<DialogOptionRow
+							key={option.format}
+							selected={index === exportPicker.selectedIndex}
+							label={option.label}
+							description={option.description}
+						/>
+					))}
 				</box>
 
 				<text fg="gray" marginTop={1}>

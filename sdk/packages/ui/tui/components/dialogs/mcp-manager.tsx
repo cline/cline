@@ -4,6 +4,7 @@ import { useDialogKeyboard } from "@opentui-ui/dialog/react";
 import { useState } from "react";
 import { useDialogPalette } from "../../hooks/use-theme";
 import { getMcpManagerEntryStatus } from "../../views/config-view-helpers";
+import { DialogOptionRow } from "./option-row";
 
 export interface McpEntry {
 	name: string;
@@ -99,37 +100,27 @@ export function McpManagerContent(
 			{servers.length > 0 && (
 				<box flexDirection="column" marginTop={1}>
 					{servers.map((srv, i) => {
-						const isSel = i === selected;
 						const enabled =
 							typeof srv.enabled === "boolean" ? srv.enabled : true;
 						const enabledIcon =
 							typeof srv.enabled === "boolean" ? (enabled ? "● " : "○ ") : "";
 						const status = getMcpManagerEntryStatus(srv);
-						let rowColor = isSel ? palette.act : "gray";
+						let labelColor = "gray";
 						if (enabled && typeof srv.enabled === "boolean") {
-							rowColor = palette.success;
+							labelColor = palette.success;
 						}
 						if (srv.lastError) {
-							rowColor = palette.error;
+							labelColor = palette.error;
 						}
 						return (
-							<box
+							<DialogOptionRow
 								key={srv.name}
-								flexDirection="row"
-								justifyContent="space-between"
-							>
-								<text fg={rowColor}>
-									{isSel ? "\u25b8 " : "  "}
-									{enabledIcon}
-									{srv.name}
-									{srv.pluginName ? " *" : ""}
-								</text>
-								{status && (
-									<text fg={srv.lastError ? palette.error : "gray"}>
-										{status}
-									</text>
-								)}
-							</box>
+								selected={i === selected}
+								label={`${enabledIcon}${srv.name}${srv.pluginName ? " *" : ""}`}
+								description={status || undefined}
+								labelColor={labelColor}
+								descriptionColor={srv.lastError ? palette.error : "gray"}
+							/>
 						);
 					})}
 				</box>
