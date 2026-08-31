@@ -22,6 +22,7 @@ import {
 	truncateHookContext,
 } from "./subprocess";
 import {
+	type RunSubprocessEventOptions,
 	type RunSubprocessEventResult,
 	runSubprocessEvent,
 } from "./subprocess-runner";
@@ -75,6 +76,18 @@ type HookCommandSessionShutdownContext = HookContextBase & {
 	reason?: string;
 };
 
+/**
+ * Reports how long a fire-and-forget hook actually ran. Hosts use it to learn
+ * the real runtime distribution of detached hooks — unmeasurable while nothing
+ * awaits them — before deciding to run any of them blocking.
+ */
+export type HookRuntimeObserver = (event: {
+	hookName: HookEventName;
+	durationMs: number;
+	exitCode: number | null;
+	exited: boolean;
+}) => void;
+
 type HookRuntimeOptions = {
 	cwd: string;
 	workspacePath: string;
@@ -93,6 +106,8 @@ type HookRuntimeOptions = {
 	 * detached child and exit).
 	 */
 	blockingRunStartHooks?: boolean;
+	/** Observes how long detached hooks run. See {@link HookRuntimeObserver}. */
+	onHookRuntime?: HookRuntimeObserver;
 	/** Structured git + path metadata forwarded into every hook payload. */
 	workspaceInfo?: WorkspaceInfo;
 };
@@ -245,6 +260,7 @@ async function runHookCommand(
 		env?: NodeJS.ProcessEnv;
 		detached: boolean;
 		timeoutMs?: number;
+		onDetachedSettled?: RunSubprocessEventOptions["onDetachedSettled"];
 	},
 ): Promise<RunSubprocessEventResult | undefined> {
 	if (options.command.length === 0) {
@@ -440,8 +456,11 @@ async function runAsyncHookCommands(options: {
 	cwd: string;
 	logger?: BasicLogger;
 	detached: boolean;
+	onHookRuntime?: HookRuntimeObserver;
 }): Promise<void> {
 	if (options.detached) {
+		const observer = options.onHookRuntime;
+		const hookName = options.payload.hookName;
 		for (const command of options.commands) {
 			const commandLabel = command.join(" ");
 			void runHookCommand(options.payload, {
@@ -449,6 +468,15 @@ async function runAsyncHookCommands(options: {
 				cwd: options.cwd,
 				env: process.env,
 				detached: true,
+				onDetachedSettled: observer
+					? (event) =>
+							observer({
+								hookName,
+								durationMs: event.durationMs,
+								exitCode: event.exitCode,
+								exited: event.exited,
+							})
+					: undefined,
 			}).catch((error) => {
 				logHookError(
 					options.logger,
@@ -771,6 +799,7 @@ export function createHookConfigFileHooks(
 				cwd: options.cwd,
 				logger: options.logger,
 				detached: options.detachAsyncHooks ?? true,
+				onHookRuntime: options.onHookRuntime,
 				payload,
 			});
 			return undefined;
@@ -794,6 +823,7 @@ export function createHookConfigFileHooks(
 				cwd: options.cwd,
 				logger: options.logger,
 				detached: options.detachAsyncHooks ?? true,
+				onHookRuntime: options.onHookRuntime,
 				payload: {
 					...createPayloadBase(ctx, options),
 					hookName: "prompt_submit",
@@ -876,6 +906,7 @@ export function createHookConfigFileHooks(
 			cwd: options.cwd,
 			logger: options.logger,
 			detached: options.detachAsyncHooks ?? true,
+			onHookRuntime: options.onHookRuntime,
 			payload: {
 				...createPayloadBase(ctx, options),
 				hookName: "agent_end",
@@ -898,6 +929,7 @@ export function createHookConfigFileHooks(
 			cwd: options.cwd,
 			logger: options.logger,
 			detached: options.detachAsyncHooks ?? true,
+			onHookRuntime: options.onHookRuntime,
 			payload: {
 				...createPayloadBase(ctx, options),
 				hookName: "agent_error",
@@ -922,6 +954,7 @@ export function createHookConfigFileHooks(
 					cwd: options.cwd,
 					logger: options.logger,
 					detached: options.detachAsyncHooks ?? true,
+					onHookRuntime: options.onHookRuntime,
 					payload: {
 						...createPayloadBase(ctx, options),
 						hookName: "agent_abort",
@@ -940,6 +973,7 @@ export function createHookConfigFileHooks(
 			cwd: options.cwd,
 			logger: options.logger,
 			detached: options.detachAsyncHooks ?? true,
+			onHookRuntime: options.onHookRuntime,
 			payload: {
 				...createPayloadBase(ctx, options),
 				hookName: "session_shutdown",
