@@ -29,6 +29,8 @@ import {
 } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
+import { fetchComposioToolkitCatalog } from "@/lib/composio";
+import type { ComposioCatalogToolkit } from "@/lib/composio-types";
 import { desktopClient, openExternalUrl } from "@/lib/desktop-client";
 import {
 	fetchMarketplaceCatalog,
@@ -39,6 +41,10 @@ import {
 } from "@/lib/marketplace";
 import { cn } from "@/lib/utils";
 import { CommandBadge, PageFrame, PageHeader } from "./page-layout";
+import {
+	ComposioConnectorBrowser,
+	connectorMatchesQuery,
+} from "./settings/composio-connector-browser";
 
 type EntryActionState =
 	| { status: "idle" }
@@ -109,7 +115,7 @@ const primitivePageDetails = {
 const directoryPageDetails: MarketplacePageDetails = {
 	title: "Marketplace",
 	description:
-		"A curated set of plugins, MCP servers, and skills from the Cline community.",
+		"Browse and install plugins, MCP servers, skills, and connectors from the Cline marketplace.",
 	emptyInstalled: "Nothing installed yet.",
 	emptyCatalog: "No marketplace entries match the current filters.",
 	icon: Store,
@@ -664,9 +670,15 @@ export function MarketplaceView({
 	const [errorMessage, setErrorMessage] = useState<string | null>(null);
 	const [query, setQuery] = useState("");
 	const [selectedTag, setSelectedTag] = useState<string | null>(null);
-	const [typeFilter, setTypeFilter] = useState<MarketplacePrimitiveType | null>(
-		defaultTypeFilter ?? null,
-	);
+	const [typeFilter, setTypeFilter] = useState<
+		MarketplacePrimitiveType | "connectors" | null
+	>(defaultTypeFilter ?? null);
+	// Connector catalog (Composio) prefetched for the filter-chip counts; the
+	// fetch is served from the sidecar's hourly cache. Null while unavailable
+	// (no API key, request failed), in which case the chips omit connectors.
+	const [connectorEntries, setConnectorEntries] = useState<
+		ComposioCatalogToolkit[] | null
+	>(null);
 	const [expandedEntryKey, setExpandedEntryKey] = useState<string | null>(null);
 	const [installedEntryKeys, setInstalledEntryKeys] = useState<Set<string>>(
 		() => new Set(),
@@ -703,6 +715,25 @@ export function MarketplaceView({
 			cancelled = true;
 		};
 	}, []);
+
+	useEffect(() => {
+		if (variant !== "directory" || primitive) {
+			return;
+		}
+		let cancelled = false;
+		void fetchComposioToolkitCatalog()
+			.then((response) => {
+				if (!cancelled && response.configured) {
+					setConnectorEntries(response.toolkits);
+				}
+			})
+			.catch(() => {
+				// Counts are cosmetic; the Connectors chip works without them.
+			});
+		return () => {
+			cancelled = true;
+		};
+	}, [variant, primitive]);
 
 	// Recheck installed status whenever the locally installed items change (e.g.
 	// after a server is deleted through its own card controls) so marketplace
@@ -959,6 +990,19 @@ export function MarketplaceView({
 
 	const installedStatusReady = installedStatusState === "ready";
 
+	const filteredConnectorCount = useMemo(() => {
+		if (!connectorEntries) {
+			return null;
+		}
+		const trimmedQuery = query.trim().toLowerCase();
+		if (!trimmedQuery) {
+			return connectorEntries.length;
+		}
+		return connectorEntries.filter((entry) =>
+			connectorMatchesQuery(entry, trimmedQuery),
+		).length;
+	}, [connectorEntries, query]);
+
 	const typeFilterChips =
 		variant === "directory" && !primitive ? (
 			<div className="flex min-w-0 flex-wrap gap-2">
@@ -971,7 +1015,7 @@ export function MarketplaceView({
 				>
 					All
 					<span className="rounded bg-background/30 px-1.5 py-0.5 text-xs">
-						{queryFilteredEntries.length}
+						{queryFilteredEntries.length + (filteredConnectorCount ?? 0)}
 					</span>
 				</Button>
 				{TYPE_FILTER_ORDER.map((type) => (
@@ -991,6 +1035,24 @@ export function MarketplaceView({
 						</span>
 					</Button>
 				))}
+				<Button
+					aria-pressed={typeFilter === "connectors"}
+					onClick={() =>
+						setTypeFilter((current) =>
+							current === "connectors" ? null : "connectors",
+						)
+					}
+					size="sm"
+					type="button"
+					variant={typeFilter === "connectors" ? "default" : "outline"}
+				>
+					Connectors
+					{filteredConnectorCount !== null ? (
+						<span className="rounded bg-background/30 px-1.5 py-0.5 text-xs">
+							{filteredConnectorCount}
+						</span>
+					) : null}
+				</Button>
 			</div>
 		) : null;
 
@@ -1200,45 +1262,71 @@ export function MarketplaceView({
 					) : null}
 
 					{variant !== "installed" ? (
-						<MarketplaceSection
-							actionStates={actionStates}
-							emptyMessage={pageDetails.emptyCatalog}
-							entries={catalogEntries}
-							expandedEntryKey={expandedEntryKey}
-							headerContent={
-								typeFilterChips || marketplaceTagFilters ? (
-									variant === "directory" ? (
-										// Light rules separate the filter tiers from each
-										// other and from the results below.
-										<div className="grid min-w-0 gap-3">
-											{typeFilterChips}
-											{marketplaceTagFilters ? (
-												<>
-													<div
-														aria-hidden="true"
-														className="h-px bg-border/70"
-													/>
-													{marketplaceTagFilters}
-												</>
-											) : null}
-											<div aria-hidden="true" className="h-px bg-border/70" />
-										</div>
-									) : (
-										<div className="grid min-w-0 gap-2">
-											{typeFilterChips}
-											{marketplaceTagFilters}
-										</div>
-									)
-								) : null
-							}
-							installedEntryKeys={installedEntryKeys}
-							installedStatusReady={installedStatusReady}
-							onInstall={installEntry}
-							onToggleExpanded={toggleExpanded}
-							onUninstall={uninstallEntry}
-							tagLabels={tagLabels}
-							title={variant === "directory" ? undefined : "Browse"}
-						/>
+						typeFilter === "connectors" ? (
+							<div className="grid min-w-0 gap-3">
+								{typeFilterChips}
+								<div aria-hidden="true" className="h-px bg-border/70" />
+								<ComposioConnectorBrowser
+									hideSearch
+									onCatalogLoaded={() => {
+										if (connectorEntries) {
+											return;
+										}
+										// The prefetch missed (key configured later); the
+										// sidecar cache is warm now, so this is instant.
+										void fetchComposioToolkitCatalog()
+											.then((response) => {
+												if (response.configured) {
+													setConnectorEntries(response.toolkits);
+												}
+											})
+											.catch(() => {});
+									}}
+									onOpenSetup={onOpenInstalled}
+									query={query}
+								/>
+							</div>
+						) : (
+							<MarketplaceSection
+								actionStates={actionStates}
+								emptyMessage={pageDetails.emptyCatalog}
+								entries={catalogEntries}
+								expandedEntryKey={expandedEntryKey}
+								headerContent={
+									typeFilterChips || marketplaceTagFilters ? (
+										variant === "directory" ? (
+											// Light rules separate the filter tiers from each
+											// other and from the results below.
+											<div className="grid min-w-0 gap-3">
+												{typeFilterChips}
+												{marketplaceTagFilters ? (
+													<>
+														<div
+															aria-hidden="true"
+															className="h-px bg-border/70"
+														/>
+														{marketplaceTagFilters}
+													</>
+												) : null}
+												<div aria-hidden="true" className="h-px bg-border/70" />
+											</div>
+										) : (
+											<div className="grid min-w-0 gap-2">
+												{typeFilterChips}
+												{marketplaceTagFilters}
+											</div>
+										)
+									) : null
+								}
+								installedEntryKeys={installedEntryKeys}
+								installedStatusReady={installedStatusReady}
+								onInstall={installEntry}
+								onToggleExpanded={toggleExpanded}
+								onUninstall={uninstallEntry}
+								tagLabels={tagLabels}
+								title={variant === "directory" ? undefined : "Browse"}
+							/>
+						)
 					) : null}
 				</div>
 			) : null}
