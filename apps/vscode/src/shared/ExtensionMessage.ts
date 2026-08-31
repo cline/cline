@@ -142,6 +142,7 @@ export interface ExtensionState {
 	remoteConfigAvailable?: boolean
 	showFeatureTips?: boolean
 	autoRetryFailedRequests?: boolean
+	autoRetryIndefinitely?: boolean
 	banners?: BannerCardData[]
 	welcomeBanners?: BannerCardData[]
 	openAiCodexIsAuthenticated?: boolean

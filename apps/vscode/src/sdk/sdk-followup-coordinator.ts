@@ -70,6 +70,8 @@ export class SdkFollowupCoordinator {
 		files?: string[],
 		askResponse?: ClineAskResponse,
 		turnPhaseAtSubmit?: TurnPhase,
+		/** Abandon the follow-up instead of sending once this flips true (auto-retry cancellation). */
+		isCancelled?: () => boolean,
 	): Promise<void> {
 		if (this.options.interactions.resolvePendingToolApproval(prompt, askResponse, images, files)) {
 			return
@@ -90,8 +92,16 @@ export class SdkFollowupCoordinator {
 		// Rebuilds replace idle sessions. Wait before acquiring the shared
 		// prepare/start boundary so this follow-up cannot target a replaced host.
 		await this.options.waitForPendingRebuilds()
+		if (isCancelled?.()) {
+			Logger.log("[SdkController] askResponse: Follow-up cancelled before send")
+			return
+		}
 
 		await this.options.runExclusive(async () => {
+			if (isCancelled?.()) {
+				Logger.log("[SdkController] askResponse: Follow-up cancelled before send")
+				return
+			}
 			// Task navigation does not use the rebuild scheduler. Do not deliver a
 			// prompt submitted from one task into a task selected while we waited.
 			// Compare by taskId: reloading the same task allocates a new TaskProxy,
@@ -128,26 +138,6 @@ export class SdkFollowupCoordinator {
 			Logger.error("[SdkController] askResponse: No active session")
 			await this.abandonFollowUp("askResponse: No active session to receive the follow-up")
 		})
-	}
-
-	/**
-	 * Re-drive an idle live session after a failed turn (auto-retry). Unlike
-	 * askResponse, this bypasses approval resolution and the running-session
-	 * queue on purpose: the failed turn's send has settled, so the retry must
-	 * start a real new turn via the synthetic resumption prompt. Routing it
-	 * through the queue path (empty prompt, "queue" delivery) drives no turn
-	 * and strands the session — see the lifecycle send-settle comment.
-	 *
-	 * @returns true when a new turn was started for `sessionId`.
-	 */
-	async retryIdleSession(sessionId: string): Promise<boolean> {
-		const activeSession = this.options.sessions.getActiveSession()
-		if (!activeSession || activeSession.sessionId !== sessionId || activeSession.isRunning) {
-			Logger.log(`[SdkController] Auto-retry cannot re-drive session ${sessionId}: not an idle active session`)
-			return false
-		}
-		await this.continueIdleSession(activeSession)
-		return true
 	}
 
 	/** Queue a follow-up onto a session whose turn is still running. */

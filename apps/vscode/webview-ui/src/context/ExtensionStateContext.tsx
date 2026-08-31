@@ -315,6 +315,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		backgroundEditEnabled: false,
 		showFeatureTips: false,
 		autoRetryFailedRequests: true,
+		autoRetryIndefinitely: false,
 		globalSkillsToggles: {},
 		localSkillsToggles: {},
 

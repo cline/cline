@@ -287,6 +287,7 @@ message Settings {
   optional string act_mode_cline_pass_model_id = 185;
   optional OpenRouterModelInfo act_mode_cline_pass_model_info = 186;
   optional bool auto_retry_failed_requests = 187;
+  optional bool auto_retry_indefinitely = 188;
 }
 
 message State {
@@ -431,6 +432,8 @@ message UpdateSettingsRequest {
   optional string compaction_strategy = 44;
   optional bool web_search_enabled = 45;
   optional bool auto_retry_failed_requests = 46;
+  // Explicit opt-in: remove the bounded retry attempt budget (unattended tasks)
+  optional bool auto_retry_indefinitely = 47;
 }
 
 message UpdateTerminalConnectionTimeoutRequest {

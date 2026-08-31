@@ -1,32 +1,32 @@
-import { describe, expect, it, vi } from "bun:test"
+import { describe, expect, it, vi } from "vitest"
 import {
-	getFibonacciBackoffSeconds,
-	isPermanentApiErrorMessage,
+	DEFAULT_MAX_RETRY_ATTEMPTS,
+	getExponentialBackoffSeconds,
 	MAX_RETRY_DELAY_SECONDS,
 	SdkApiRetryCoordinator,
 	type SdkApiRetryCoordinatorOptions,
 } from "./sdk-api-retry-coordinator"
 
-describe("getFibonacciBackoffSeconds", () => {
-	it("produces the Fibonacci sequence 1,1,2,3,5,8,13…", () => {
-		const expected = [1, 1, 2, 3, 5, 8, 13, 21, 34, 55]
+describe("getExponentialBackoffSeconds", () => {
+	it("doubles per attempt (1,2,4,8,16…)", () => {
+		const expected = [1, 2, 4, 8, 16, 32, 64, 128, 256]
 		expected.forEach((seconds, i) => {
-			expect(getFibonacciBackoffSeconds(i + 1)).toBe(seconds)
+			expect(getExponentialBackoffSeconds(i + 1)).toBe(seconds)
 		})
 	})
 
 	it("caps at MAX_RETRY_DELAY_SECONDS (300)", () => {
-		// F(14) = 377 > 300, F(13) = 233 < 300
-		expect(getFibonacciBackoffSeconds(13)).toBe(233)
-		expect(getFibonacciBackoffSeconds(14)).toBe(MAX_RETRY_DELAY_SECONDS)
-		expect(getFibonacciBackoffSeconds(100)).toBe(MAX_RETRY_DELAY_SECONDS)
+		// 2^9 = 256 < 300, 2^10 = 512 > 300
+		expect(getExponentialBackoffSeconds(9)).toBe(256)
+		expect(getExponentialBackoffSeconds(10)).toBe(MAX_RETRY_DELAY_SECONDS)
+		expect(getExponentialBackoffSeconds(100)).toBe(MAX_RETRY_DELAY_SECONDS)
 	})
 
 	it("returns 0 for non-positive / non-integer attempts", () => {
-		expect(getFibonacciBackoffSeconds(0)).toBe(0)
-		expect(getFibonacciBackoffSeconds(-1)).toBe(0)
-		expect(getFibonacciBackoffSeconds(2.5)).toBe(0)
-		expect(getFibonacciBackoffSeconds(Number.NaN)).toBe(0)
+		expect(getExponentialBackoffSeconds(0)).toBe(0)
+		expect(getExponentialBackoffSeconds(-1)).toBe(0)
+		expect(getExponentialBackoffSeconds(2.5)).toBe(0)
+		expect(getExponentialBackoffSeconds(Number.NaN)).toBe(0)
 	})
 })
 
@@ -42,12 +42,15 @@ function makeCoordinator(overrides: Partial<SdkApiRetryCoordinatorOptions> = {})
 	const emitRetryScheduled = vi.fn()
 	const isSessionActive = vi.fn(() => true)
 	const isAutoRetryEnabled = vi.fn(() => true)
+	const isRetryIndefinite = vi.fn(() => false)
 
 	const coordinator = new SdkApiRetryCoordinator({
 		isAutoRetryEnabled,
+		isRetryIndefinite,
 		isSessionActive,
 		sendTurn,
 		emitRetryScheduled,
+		random: () => 0,
 		scheduleTimer: (fn, delayMs) => {
 			const handle: FakeTimer = { fn, delayMs, cancelled: false }
 			timers.push(handle)
@@ -68,51 +71,98 @@ function makeCoordinator(overrides: Partial<SdkApiRetryCoordinatorOptions> = {})
 		pending?.fn()
 	}
 
-	return { coordinator, timers, sendTurn, emitRetryScheduled, isSessionActive, isAutoRetryEnabled, fire }
+	// Guard handed to the most recent sendTurn call.
+	const lastGuard = () => sendTurn.mock.calls.at(-1)?.[1] as () => boolean
+
+	return {
+		coordinator,
+		timers,
+		sendTurn,
+		emitRetryScheduled,
+		isSessionActive,
+		isAutoRetryEnabled,
+		fire,
+		lastGuard,
+	}
 }
 
 describe("SdkApiRetryCoordinator", () => {
-	it("schedules a retry with the first Fibonacci delay and emits status", () => {
+	it("schedules a retry with jittered exponential backoff and emits status", () => {
 		const { coordinator, timers, emitRetryScheduled, sendTurn, fire } = makeCoordinator()
 
 		expect(coordinator.handleSendError(new Error("boom"), "s1")).toBe(true)
 
 		expect(timers).toHaveLength(1)
-		expect(timers[0].delayMs).toBe(1000) // F(1) = 1s
+		// Equal jitter with random()=0 → exactly half the schedule (0.5s).
+		expect(timers[0].delayMs).toBe(500)
 		expect(emitRetryScheduled).toHaveBeenCalledWith(
-			expect.objectContaining({ attempt: 1, delaySeconds: 1, error: expect.any(Error) }),
+			expect.objectContaining({
+				attempt: 1,
+				delaySeconds: 0.5,
+				maxAttempts: DEFAULT_MAX_RETRY_ATTEMPTS,
+				error: expect.any(Error),
+			}),
 		)
 		expect(sendTurn).not.toHaveBeenCalled()
 
 		fire()
-		expect(sendTurn).toHaveBeenCalledWith("s1")
+		expect(sendTurn).toHaveBeenCalledWith("s1", expect.any(Function))
 	})
 
-	it("increments the Fibonacci backoff across consecutive failures", () => {
-		const { coordinator, timers, emitRetryScheduled, fire } = makeCoordinator()
+	it("grows the delay exponentially across consecutive failures", () => {
+		const { coordinator, timers, fire } = makeCoordinator({ random: () => 1 })
 
-		for (let attempt = 1; attempt <= 6; attempt++) {
+		// The default budget allows exactly DEFAULT_MAX_RETRY_ATTEMPTS retries.
+		for (let attempt = 1; attempt <= DEFAULT_MAX_RETRY_ATTEMPTS; attempt++) {
 			coordinator.handleSendError(new Error("boom"), "s1")
-			expect(timers.at(-1)?.delayMs).toBe(getFibonacciBackoffSeconds(attempt) * 1000)
-			expect(emitRetryScheduled).toHaveBeenLastCalledWith(
-				expect.objectContaining({ attempt, delaySeconds: getFibonacciBackoffSeconds(attempt) }),
-			)
-			fire() // the retry itself "fails" → next handleSendError
+			// Equal jitter with random()=1 → the full schedule.
+			expect(timers.at(-1)?.delayMs).toBe(getExponentialBackoffSeconds(attempt) * 1000)
+			fire() // the retried turn fails again
 		}
 	})
 
-	it("does not schedule when auto-retry is disabled", () => {
-		// Use vi.fn so we can assert the coordinator actually consulted it.
-		const isAutoRetryEnabled = vi.fn(() => false)
-		const { coordinator, timers } = makeCoordinator({ isAutoRetryEnabled })
+	it("applies equal jitter: the delay lands in [half, full] of the schedule", () => {
+		const at = (randomValue: number) => {
+			const { coordinator, timers } = makeCoordinator({ random: () => randomValue })
+			coordinator.handleSendError(new Error("boom"), "s1")
+			return timers[0].delayMs
+		}
 
-		expect(coordinator.handleSendError(new Error("boom"), "s1")).toBe(false)
-		expect(timers).toHaveLength(0)
-		expect(isAutoRetryEnabled).toHaveBeenCalled()
+		expect(at(0)).toBe(500) // attempt 1 schedule is 1s → exactly half
+		expect(at(0.5)).toBe(750) // midpoint
+		expect(at(1)).toBe(1000) // exactly full
 	})
 
-	it("does not schedule when the session is no longer active", () => {
-		const { coordinator, timers } = makeCoordinator({ isSessionActive: () => false })
+	it("stops after the default attempt budget and leaves recovery to the user", () => {
+		const { coordinator, timers, emitRetryScheduled, fire } = makeCoordinator()
+
+		for (let attempt = 1; attempt <= DEFAULT_MAX_RETRY_ATTEMPTS; attempt++) {
+			expect(coordinator.handleSendError(new Error("boom"), "s1")).toBe(true)
+			fire()
+		}
+		expect(emitRetryScheduled).toHaveBeenCalledTimes(DEFAULT_MAX_RETRY_ATTEMPTS)
+
+		// The budget is exhausted: no 6th retry is scheduled.
+		expect(coordinator.handleSendError(new Error("boom"), "s1")).toBe(false)
+		expect(timers).toHaveLength(DEFAULT_MAX_RETRY_ATTEMPTS)
+		expect(coordinator.currentRetryCount).toBe(0)
+	})
+
+	it("retries without a ceiling when the indefinite opt-in is enabled", () => {
+		const { coordinator, emitRetryScheduled, fire } = makeCoordinator({ isRetryIndefinite: () => true })
+
+		for (let attempt = 1; attempt <= DEFAULT_MAX_RETRY_ATTEMPTS + 3; attempt++) {
+			expect(coordinator.handleSendError(new Error("boom"), "s1")).toBe(true)
+			expect(emitRetryScheduled).toHaveBeenLastCalledWith(expect.objectContaining({ attempt, maxAttempts: undefined }))
+			fire()
+		}
+	})
+
+	it.each([
+		["auto-retry is disabled", { isAutoRetryEnabled: () => false }],
+		["the session is no longer active", { isSessionActive: () => false }],
+	] as const)("does not schedule when %s", (_, overrides) => {
+		const { coordinator, timers } = makeCoordinator(overrides)
 
 		expect(coordinator.handleSendError(new Error("boom"), "s1")).toBe(false)
 		expect(timers).toHaveLength(0)
@@ -132,7 +182,7 @@ describe("SdkApiRetryCoordinator", () => {
 	})
 
 	it("cancel() stops a pending retry so it never fires", () => {
-		const { coordinator, sendTurn, fire } = makeCoordinator()
+		const { coordinator, timers, sendTurn, fire } = makeCoordinator()
 
 		coordinator.handleSendError(new Error("boom"), "s1")
 		expect(coordinator.hasPendingRetry).toBe(true)
@@ -140,26 +190,17 @@ describe("SdkApiRetryCoordinator", () => {
 		expect(coordinator.hasPendingRetry).toBe(false)
 
 		fire() // timer was cancelled; nothing should run
+		timers[0].fn() // a straggler firing of the cancelled timer must also be a no-op
 		expect(sendTurn).not.toHaveBeenCalled()
 		expect(coordinator.currentRetryCount).toBe(0)
 	})
 
-	it("skips the send if the session became inactive between schedule and fire", () => {
-		const { coordinator, sendTurn, isSessionActive, fire } = makeCoordinator()
-
-		coordinator.handleSendError(new Error("boom"), "s1")
-		isSessionActive.mockReturnValue(false) // session replaced/cleared while waiting
-		fire()
-
-		expect(sendTurn).not.toHaveBeenCalled()
-	})
-
-	it("notifies onRetryAbandoned when the session died while waiting", () => {
+	it("skips the send and reports abandonment when the session died while waiting", () => {
 		const onRetryAbandoned = vi.fn()
 		const { coordinator, sendTurn, isSessionActive, fire } = makeCoordinator({ onRetryAbandoned })
 
 		coordinator.handleSendError(new Error("boom"), "s1")
-		isSessionActive.mockReturnValue(false)
+		isSessionActive.mockReturnValue(false) // session replaced/cleared while waiting
 		fire()
 
 		expect(sendTurn).not.toHaveBeenCalled()
@@ -182,68 +223,70 @@ describe("SdkApiRetryCoordinator", () => {
 		expect(sendTurn).toHaveBeenCalledTimes(1)
 	})
 
-	// Regression: "Cannot connect to API:: AggregateError: connect ETIMEDOUT …"
-	// (and every other transient transport/network error) must be retried
-	// continuously — the coordinator never gives up on connectivity failures.
-	it("retries ETIMEDOUT / 'Cannot connect to API' network failures continuously (non-stopping)", () => {
-		const { coordinator, timers, sendTurn, emitRetryScheduled, fire } = makeCoordinator()
+	// Retry-After replaces the jittered schedule — the provider explicitly cleared that wait.
+	it("honors a server-provided Retry-After over the backoff schedule", () => {
+		const { coordinator, timers, emitRetryScheduled } = makeCoordinator({ random: () => 1 })
 
-		// Exact shape observed in production: a plain Error whose message embeds
-		// the raw AggregateError + ETIMEDOUT text from Node's fetch layer.
-		const etimedout = new Error("Cannot connect to API:: AggregateError: connect ETIMEDOUT 43.159.106.97:443 (ETIMEDOUT)")
+		expect(coordinator.handleSendError(new Error("rate limited"), "s1", 42)).toBe(true)
 
-		// Simulate a persistent outage: the endpoint stays down across many turns,
-		// each retry fails again. The coordinator must keep going — there is no
-		// max-attempts ceiling.
-		const consecutiveFailures = 8
-		for (let attempt = 1; attempt <= consecutiveFailures; attempt++) {
-			expect(coordinator.handleSendError(etimedout, "s1")).toBe(true)
-			expect(coordinator.currentRetryCount).toBe(attempt)
-			expect(timers.at(-1)?.delayMs).toBe(getFibonacciBackoffSeconds(attempt) * 1000)
-			expect(emitRetryScheduled).toHaveBeenLastCalledWith(
-				expect.objectContaining({ attempt, delaySeconds: getFibonacciBackoffSeconds(attempt) }),
-			)
-			fire() // the retried turn fails again → next handleSendError
-			expect(sendTurn).toHaveBeenCalledTimes(attempt)
-		}
-
-		// After 8 consecutive failures the streak is still alive and incrementing —
-		// proof the mechanism does not give up on a prolonged network outage.
-		expect(coordinator.hasPendingRetry).toBe(false) // last fire consumed the timer
-		expect(coordinator.currentRetryCount).toBe(consecutiveFailures)
-		// ...and the very next failure schedules attempt 9, not a reset.
-		expect(coordinator.handleSendError(etimedout, "s1")).toBe(true)
-		expect(coordinator.currentRetryCount).toBe(consecutiveFailures + 1)
-	})
-})
-
-describe("isPermanentApiErrorMessage", () => {
-	it("flags errors that can never succeed by retrying", () => {
-		const permanent = [
-			"Input validation error: Prompt is too long: 243120 tokens > 200000 maximum",
-			"context_length_exceeded: This model's maximum context length is 128000 tokens",
-			"exceeds the model's context window",
-			"The input token count exceeds the maximum number of tokens allowed",
-			"Incorrect API key provided: sk-foo",
-			"Request failed with status code 401 Unauthorized",
-			"insufficient_quota: You exceeded your current quota, please check your plan and billing details",
-			"model_not_found: The model does not exist",
-		]
-		for (const message of permanent) {
-			expect(isPermanentApiErrorMessage(message)).toBe(true)
-		}
+		expect(timers[0].delayMs).toBe(42_000) // random()=1 would otherwise jitter to the full 1s
+		expect(emitRetryScheduled).toHaveBeenCalledWith(
+			expect.objectContaining({ attempt: 1, delaySeconds: 42, error: expect.any(Error) }),
+		)
 	})
 
-	it("keeps transient connection errors retryable", () => {
-		const transient = [
-			"Cannot connect to API:: AggregateError: connect ETIMEDOUT 43.159.106.97:443 (ETIMEDOUT)",
-			"fetch failed",
-			"ECONNRESET",
-			"overloaded_error",
-			"Rate limit reached for requests",
-		]
-		for (const message of transient) {
-			expect(isPermanentApiErrorMessage(message)).toBe(false)
-		}
+	it("hands the re-drive a guard that flips once cancel() lands", () => {
+		const { coordinator, sendTurn, fire, lastGuard } = makeCoordinator()
+
+		coordinator.handleSendError(new Error("boom"), "s1")
+		fire()
+		expect(sendTurn).toHaveBeenCalledTimes(1)
+		expect(lastGuard()()).toBe(false)
+		coordinator.cancel()
+		expect(lastGuard()()).toBe(true)
+	})
+
+	it("reset() also invalidates an in-flight re-drive", () => {
+		const { coordinator, fire, lastGuard } = makeCoordinator()
+
+		coordinator.handleSendError(new Error("boom"), "s1")
+		fire()
+		// e.g. a later turn succeeded while the re-drive was still queued in the funnel
+		coordinator.reset()
+		expect(lastGuard()()).toBe(true)
+	})
+
+	it("a newer scheduled retry invalidates the older re-drive's guard", () => {
+		const { coordinator, sendTurn, fire, lastGuard } = makeCoordinator()
+
+		coordinator.handleSendError(new Error("boom"), "s1")
+		fire()
+		const staleGuard = lastGuard()
+		coordinator.handleSendError(new Error("boom2"), "s1")
+		expect(staleGuard()).toBe(true)
+		fire()
+		expect(sendTurn).toHaveBeenCalledTimes(2)
+		expect(lastGuard()()).toBe(false)
+	})
+
+	it("marks the guard cancelled when the session was replaced mid-re-drive", () => {
+		const { coordinator, isSessionActive, fire, lastGuard } = makeCoordinator()
+
+		coordinator.handleSendError(new Error("boom"), "s1")
+		fire()
+		isSessionActive.mockReturnValue(false)
+		expect(lastGuard()()).toBe(true)
+	})
+
+	it("does not fire a re-drive when auto-retry was disabled during the countdown", () => {
+		const onRetryAbandoned = vi.fn()
+		const { coordinator, sendTurn, isAutoRetryEnabled, fire } = makeCoordinator({ onRetryAbandoned })
+
+		coordinator.handleSendError(new Error("boom"), "s1")
+		isAutoRetryEnabled.mockReturnValue(false)
+		fire()
+
+		expect(sendTurn).not.toHaveBeenCalled()
+		expect(onRetryAbandoned).toHaveBeenCalledTimes(1)
 	})
 })

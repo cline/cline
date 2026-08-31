@@ -182,6 +182,7 @@ export async function getStateToPostToWebview(controller: {
 		remoteConfigAvailable: controller.isRemoteConfigAvailable ?? false,
 		showFeatureTips,
 		autoRetryFailedRequests: stateManager.getGlobalSettingsKey("autoRetryFailedRequests"),
+		autoRetryIndefinitely: stateManager.getGlobalSettingsKey("autoRetryIndefinitely"),
 		banners,
 		welcomeBanners,
 		openAiCodexIsAuthenticated,

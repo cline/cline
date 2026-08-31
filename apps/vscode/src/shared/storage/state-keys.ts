@@ -284,6 +284,8 @@ const USER_SETTINGS_FIELDS = {
 	optOutOfRemoteConfig: { default: false as boolean },
 	showFeatureTips: { default: false as boolean },
 	autoRetryFailedRequests: { default: true as boolean },
+	/** Explicit opt-in: lift the bounded retry budget for unattended tasks. */
+	autoRetryIndefinitely: { default: false as boolean },
 
 	// OpenTelemetry configuration
 	openTelemetryEnabled: { default: true as boolean },

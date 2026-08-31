@@ -42,12 +42,24 @@ const agentFeatures: FeatureToggle[] = [
 		label: "Auto-Retry Failed Requests",
 		description: (
 			<>
-				Automatically retry failed API requests with increasing delays (1s, 1s, 2s, 3s, 5s, 8s…) until they succeed or you
-				cancel. Failed requests cost no tokens.
+				Automatically retry transient API failures (connection errors, timeouts, rate limits, server errors) with
+				exponential backoff, honoring Retry-After. Bounded to 5 attempts by default. Failed requests cost no tokens.
 			</>
 		),
 		stateKey: "autoRetryFailedRequests",
 		settingKey: "autoRetryFailedRequests",
+	},
+	{
+		id: "auto-retry-indefinite",
+		label: "Retry Indefinitely",
+		description: (
+			<>
+				Remove the 5-attempt auto-retry budget for unattended tasks — retries continue until they succeed or you cancel.
+				Retried requests can consume billable tokens.
+			</>
+		),
+		stateKey: "autoRetryIndefinitely",
+		settingKey: "autoRetryIndefinitely",
 	},
 ]
 
@@ -161,6 +173,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		backgroundEditEnabled,
 		showFeatureTips,
 		autoRetryFailedRequests,
+		autoRetryIndefinitely,
 	} = useExtensionState()
 
 	// State lookup for mapped features
@@ -173,6 +186,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		worktreesEnabled: worktreesEnabled?.user,
 		backgroundEditEnabled,
 		autoRetryFailedRequests,
+		autoRetryIndefinitely,
 	}
 
 	// Visibility lookup for features with feature flags
