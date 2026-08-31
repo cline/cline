@@ -1756,9 +1756,8 @@ export class AgentRuntime {
 					policy,
 				);
 				if (!approval.approved) {
-					const reason =
-						approval.reason ?? `Tool "${toolCall.toolName}" was not approved.`;
-					skipReason = `${reason} ${TOOL_REJECTION_SUFFIX}`;
+					const reason = approval.reason ?? "Tool was not executed";
+					skipReason = `${reason} -- ${TOOL_REJECTION_SUFFIX}`;
 				}
 			}
 		}

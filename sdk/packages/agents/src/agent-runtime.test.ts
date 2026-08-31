@@ -1172,7 +1172,7 @@ describe("AgentRuntime", () => {
 				expect(toolMessage.content[0]).toMatchObject({
 					type: "tool-result",
 					isError: true,
-					output: { error: `denied by test. ${TOOL_REJECTION_SUFFIX}` },
+					output: { error: `denied by test. -- ${TOOL_REJECTION_SUFFIX}` },
 				});
 				return [
 					{ type: "text-delta", text: "approval handled" },
@@ -1236,7 +1236,7 @@ describe("AgentRuntime", () => {
 				expect(toolMessage.content[0]).toMatchObject({
 					type: "tool-result",
 					isError: true,
-					output: { error: `live policy denied. ${TOOL_REJECTION_SUFFIX}` },
+					output: { error: `live policy denied. -- ${TOOL_REJECTION_SUFFIX}` },
 				});
 				return [
 					{ type: "text-delta", text: "live policy handled" },
