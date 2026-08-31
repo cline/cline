@@ -470,6 +470,23 @@ describe("OpenAICompatibleProvider", () => {
 		})
 	})
 
+	it("writes an explicit false vision override when image support is unchecked", async () => {
+		setCommittedSelection({}, { supportsImages: true })
+		renderProvider()
+		await act(async () => {})
+		fireEvent.click(screen.getByText("Model Configuration"))
+
+		const checkbox = screen.getByRole("checkbox", { name: "Supports Images" })
+		expect(checkbox).toBeChecked()
+		fireEvent.click(checkbox)
+
+		expect(mocks.commitSelection).toHaveBeenCalledWith("act", {
+			providerId: "custom-openai",
+			modelId: "custom-model",
+			overrides: { supportsVision: false },
+		})
+	})
+
 	it("persists a temperature edit without adding resolved defaults", async () => {
 		renderProvider()
 		await act(async () => {})

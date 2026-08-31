@@ -853,6 +853,11 @@ describe("createProviderConfigStore", () => {
 		const { createProviderConfigStore } = await import("./store")
 		const store = createProviderConfigStore()
 		const providerId = parseProviderId("openai")
+		const baseModelInfo: ModelInfo = {
+			...openAiModelInfoSafeDefaults,
+			capabilities: ["tools", "images"],
+		}
+		mocks.setGeneratedModels("openai-compatible", { "custom-model": baseModelInfo })
 
 		store.commitSelection(providerId, "act", {
 			providerId,
@@ -871,6 +876,11 @@ describe("createProviderConfigStore", () => {
 			supportsReasoning: false,
 			apiFormat: ApiFormat.OPENAI_RESPONSES,
 		})
+		expect(selection?.baseModelInfo.capabilities).toEqual(["tools", "images"])
+		expect(
+			selection?.modelInfo.capabilities,
+			"explicit false supportsVision must remove images capability",
+		).not.toContain("images")
 
 		store.commitSelection(providerId, "act", {
 			providerId,
