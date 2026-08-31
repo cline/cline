@@ -872,10 +872,18 @@ export async function connectComposioToolkit(
 		);
 	}
 	const redirectUrl = connectionRequest.redirectUrl?.trim() || undefined;
-	const guard = { apiKey: state.apiKey, userId: state.userId };
+	// startedAt anchors the disconnect race: a disconnect that lands after
+	// this attempt began is the newer user intent and must win at write time.
+	const guard = {
+		apiKey: state.apiKey,
+		userId: state.userId,
+		startedAt: Date.now(),
+	};
 	if (!redirectUrl) {
 		// No browser step needed (e.g. the account is already authorized on
-		// Composio's side) — finalize right away.
+		// Composio's side) — finalize right away. There is no pending entry on
+		// this path, so the disconnect defense lives entirely in the guard's
+		// startedAt check inside finalizeToolkitConnection.
 		await finalizeToolkitConnection(
 			client,
 			toolkit,
@@ -894,7 +902,6 @@ export async function connectComposioToolkit(
 		attemptId,
 		connectedAccountId: connectionRequest.id,
 		redirectUrl,
-		startedAt: Date.now(),
 		...guard,
 	});
 
@@ -1103,7 +1110,36 @@ type FinalizeGuard = {
 	/** The key/user the connection was initiated under. */
 	apiKey: string;
 	userId: string;
+	/** When the connection attempt began. A disconnect of this toolkit that
+	 * lands at or after this instant is the newer user intent: the finalize
+	 * result is dropped and its account revoked instead of written. This is
+	 * the only disconnect defense on the redirect-less path, which never has
+	 * a pending entry for the disconnect to clear. */
+	startedAt: number;
 };
+
+/** A completed connection that must not be persisted (superseded by a
+ * disconnect or a key change) leaves a fully authorized account behind on
+ * Composio's side that nothing references. Tombstone it so reconciliation
+ * can never import it, then revoke it — the same lifecycle as a cancelled
+ * attempt. */
+async function abandonFinalizedConnection(
+	connectedAccountId: string,
+	apiKey: string,
+	logger?: BasicLogger,
+): Promise<void> {
+	updateComposioState((s) => {
+		rememberCancelledAccountId(s, connectedAccountId);
+	});
+	const confirmedGone = await revokeConnectedAccountQuietly(
+		apiKey,
+		connectedAccountId,
+		logger,
+	);
+	if (confirmedGone) {
+		pruneConfirmedCancelledAccount(connectedAccountId);
+	}
+}
 
 async function finalizeToolkitConnection(
 	client: ComposioClient,
@@ -1113,13 +1149,16 @@ async function finalizeToolkitConnection(
 	logger?: BasicLogger,
 ): Promise<void> {
 	const tools = await fetchToolkitTools(client, toolkit);
-	// Everything below runs synchronously (no awaits), so these write-time
-	// checks cannot be raced by a cancel, disconnect, or key change that
-	// happened while the tool fetch (or the browser flow) was in flight.
+	// Everything below (up to the state write) runs synchronously, so these
+	// write-time checks cannot be raced by a cancel, disconnect, or key
+	// change that happened while the tool fetch (or the browser flow) was in
+	// flight.
 	if (
 		guard.attemptId &&
 		pendingConnections.get(toolkit)?.attemptId !== guard.attemptId
 	) {
+		// Whoever cleared the attempt (cancel, disconnect, key change) already
+		// tombstoned and revoked its account.
 		logger?.log?.(
 			`composio connect ${toolkit}: attempt superseded before finalize; dropping result`,
 		);
@@ -1130,6 +1169,17 @@ async function finalizeToolkitConnection(
 		logger?.log?.(
 			`composio connect ${toolkit}: API key or user changed mid-flow; dropping stale connection`,
 		);
+		await abandonFinalizedConnection(connectedAccountId, guard.apiKey, logger);
+		return;
+	}
+	if ((lastDisconnectedAt.get(toolkit) ?? 0) >= guard.startedAt) {
+		// The user disconnected this toolkit after the attempt began (and, on
+		// the redirect-less path, reported success with nothing to revoke yet);
+		// writing the result now would resurrect the connector they removed.
+		logger?.log?.(
+			`composio connect ${toolkit}: disconnected mid-finalize; dropping and revoking the new account`,
+		);
+		await abandonFinalizedConnection(connectedAccountId, guard.apiKey, logger);
 		return;
 	}
 	// No await separates the guard checks above from this write, so the

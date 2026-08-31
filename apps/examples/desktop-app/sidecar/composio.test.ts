@@ -952,6 +952,80 @@ describe("disconnectComposioToolkit", () => {
 		expect(readStateFile(dir).toolkits?.slack).toBeUndefined();
 	});
 
+	it("a disconnect during a redirect-less connect wins: the finalize result is dropped and its account revoked", async () => {
+		const dir = useTempDataDir();
+		process.env.COMPOSIO_API_KEY = "ck_relink_race";
+		writeState(dir, {
+			apiKey: "ck_relink_race",
+			userId: "u_relink_race",
+			toolkits: {
+				github: {
+					connectedAccountId: "ca_old",
+					connectedAt: "2026-08-28T00:00:00.000Z",
+					tools: [{ slug: "GITHUB_CREATE_AN_ISSUE" }],
+				},
+			},
+		});
+		let releaseToolFetch: (() => void) | undefined;
+		const remoteDelete = vi.fn(async () => ({}));
+		const client = {
+			toolkits: {
+				// Redirect-less: Composio reports the account as already
+				// authorized, so finalize starts immediately with no pending
+				// entry for a disconnect to clear.
+				authorize: vi.fn(async () => ({
+					id: "ca_relink",
+					redirectUrl: null,
+					waitForConnection: async () => ({}),
+				})),
+			},
+			authConfigs: {
+				list: vi.fn(async () => ({ items: [] })),
+				create: vi.fn(),
+			},
+			tools: {
+				getRawComposioTools: vi.fn(
+					() =>
+						new Promise<{ slug: string }[]>((resolve) => {
+							releaseToolFetch = () =>
+								resolve([{ slug: "GITHUB_CREATE_AN_ISSUE" }]);
+						}),
+				),
+			},
+			connectedAccounts: {
+				list: vi.fn(async () => ({ items: [] })),
+				link: vi.fn(),
+				delete: remoteDelete,
+			},
+		};
+		createMockComposioClient = () => client;
+		const connectPromise = connectComposioToolkit("github");
+		await vi.waitFor(() => {
+			expect(client.tools.getRawComposioTools).toHaveBeenCalled();
+		});
+		// While finalize is suspended on the tool fetch, the user disconnects —
+		// and is told the disconnect succeeded.
+		const disconnected = await disconnectComposioToolkit("github");
+		expect(
+			disconnected.integrations.find((entry) => entry.toolkit === "github")
+				?.status,
+		).toBe("not_connected");
+		releaseToolFetch?.();
+		await connectPromise;
+		// The finalize result must not resurrect the connector…
+		expect(readStateFile(dir).toolkits?.github).toBeUndefined();
+		const status = await getComposioStatus();
+		expect(
+			status.integrations.find((entry) => entry.toolkit === "github")?.status,
+		).toBe("not_connected");
+		// …and the orphaned account is revoked (old account by the disconnect,
+		// new account by the dropped finalize), with its tombstone pruned once
+		// the revocation is confirmed.
+		expect(remoteDelete).toHaveBeenCalledWith("ca_old");
+		expect(remoteDelete).toHaveBeenCalledWith("ca_relink");
+		expect(readStateFile(dir).cancelledAccountIds).toBeUndefined();
+	});
+
 	it("treats an account that is already gone remotely as revoked", async () => {
 		const dir = useTempDataDir();
 		process.env.COMPOSIO_API_KEY = "ck_gone_404";
