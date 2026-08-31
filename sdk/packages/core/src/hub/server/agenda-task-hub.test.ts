@@ -6,16 +6,28 @@ import type {
 	ToolApprovalRequest,
 	ToolApprovalResult,
 } from "@cline/shared";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 
 vi.mock("@ai-sdk/provider-utils", () => ({
 	createProviderDefinedToolFactory: vi.fn(() => vi.fn()),
 }));
 
+const fsWatchSpy = vi.hoisted(() => vi.fn());
+
+vi.mock("node:fs", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("node:fs")>();
+	fsWatchSpy.mockImplementation(actual.watch as never);
+	return { ...actual, watch: fsWatchSpy };
+});
+
 import type {
 	StartSessionInput,
 	StartSessionResult,
 } from "../../runtime/host/runtime-host";
+import {
+	AgendaTaskManager,
+	type AgendaTaskRuntime,
+} from "../../tasks/agenda-task-manager";
 import { HubServerTransport } from "./hub-server-transport";
 
 describe("Hub agenda task vertical slice", () => {
@@ -24,6 +36,21 @@ describe("Hub agenda task vertical slice", () => {
 		const chatWorkspace = join(root, "chat-workspace");
 		mkdirSync(chatWorkspace);
 		const canonicalChatWorkspace = realpathSync.native(chatWorkspace);
+		// Agent-created schedules anchor in the ~/.cline/schedules home; point
+		// the Cline dir at the test root so that home stays inside this test.
+		// Restore via onTestFinished so an early throw (before the try below)
+		// cannot leave the override behind for later tests in this worker.
+		const clineHome = join(root, "cline-home");
+		mkdirSync(clineHome);
+		const previousClineDir = process.env.CLINE_DIR;
+		process.env.CLINE_DIR = clineHome;
+		onTestFinished(() => {
+			if (previousClineDir === undefined) {
+				delete process.env.CLINE_DIR;
+			} else {
+				process.env.CLINE_DIR = previousClineDir;
+			}
+		});
 		const sessions = new Map<string, Record<string, unknown>>();
 		let capturedStart: StartSessionInput | undefined;
 		let requestToolApproval:
@@ -234,12 +261,18 @@ describe("Hub agenda task vertical slice", () => {
 					iteration: 2,
 				},
 			);
+			// Agent-created schedules anchor in the user's schedules home, not
+			// the chat workspace that created them.
+			expect((scheduled as { error?: unknown })?.error).toBeUndefined();
+			const canonicalSchedulesHome = realpathSync.native(
+				join(clineHome, "schedules"),
+			);
 			expect(scheduled).toMatchObject({
 				ok: true,
 				kind: "scheduled",
 				schedule: {
 					name: "Review task output",
-					workspaceRoot: canonicalChatWorkspace,
+					workspaceRoot: canonicalSchedulesHome,
 					timezone: "America/Los_Angeles",
 					createdBy: "agent:task-agent",
 				},
@@ -268,8 +301,8 @@ describe("Hub agenda task vertical slice", () => {
 					clientType: "test-client",
 					transport: "native",
 					workspaceContext: {
-						workspaceRoot: canonicalChatWorkspace,
-						cwd: canonicalChatWorkspace,
+						workspaceRoot: canonicalSchedulesHome,
+						cwd: canonicalSchedulesHome,
 					},
 				},
 			});
@@ -278,7 +311,26 @@ describe("Hub agenda task vertical slice", () => {
 					version: "v1",
 					command: "schedule.list",
 					clientId: "schedule-client",
-					payload: { workspaceRoot: canonicalChatWorkspace },
+					payload: { workspaceRoot: canonicalSchedulesHome },
+				},
+				{
+					clientId: "schedule-client",
+					workspaceContext: {
+						workspaceRoot: canonicalSchedulesHome,
+						cwd: canonicalSchedulesHome,
+					},
+				},
+			);
+			expect(listedSchedules.payload?.schedules).toEqual([
+				expect.objectContaining({ name: "Review task output" }),
+			]);
+			// A client scoped to the chat workspace no longer owns the
+			// agent-created schedule.
+			const chatScopedSchedules = await transport.handleCommand(
+				{
+					version: "v1",
+					command: "schedule.list",
+					clientId: "schedule-client",
 				},
 				{
 					clientId: "schedule-client",
@@ -288,9 +340,7 @@ describe("Hub agenda task vertical slice", () => {
 					},
 				},
 			);
-			expect(listedSchedules.payload?.schedules).toEqual([
-				expect.objectContaining({ name: "Review task output" }),
-			]);
+			expect(chatScopedSchedules.payload?.schedules).toEqual([]);
 
 			await vi.waitFor(async () => {
 				const listed = await transport.handleCommand({
@@ -386,6 +436,96 @@ describe("Hub agenda task vertical slice", () => {
 				status: "approved",
 			});
 			expect(startSession).toHaveBeenCalledTimes(1);
+		} finally {
+			await transport.stop();
+		}
+	});
+
+	it("keeps agenda spec watchers off while the todo tool is disabled", async () => {
+		const root = mkdtempSync(join(tmpdir(), "cline-hub-agenda-watch-"));
+		const canonicalRoot = realpathSync.native(root);
+		const specWatchTargets = () =>
+			fsWatchSpy.mock.calls
+				.map(([target]) => String(target))
+				.filter((target) => target.startsWith(canonicalRoot));
+
+		// Positive control: a manager with file watching left at its default
+		// registers an fs.watch on its specs dir, proving the spy observes
+		// agenda watchers at all.
+		const controlDir = join(root, "control");
+		mkdirSync(controlDir, { recursive: true });
+		const controlRuntime: AgendaTaskRuntime = {
+			isInteractiveClientAvailable: vi.fn(() => true),
+			startSession: vi.fn(async () => ({ sessionId: "control-session" })),
+			runSession: vi.fn(async () => ({ status: "completed" as const })),
+			abortSession: vi.fn(async () => {}),
+		};
+		const control = new AgendaTaskManager({
+			runtime: controlRuntime,
+			dbPath: join(controlDir, "tasks.db"),
+			globalSpecsDir: join(controlDir, "specs"),
+		});
+		try {
+			await control.start();
+			expect(specWatchTargets()).not.toEqual([]);
+		} finally {
+			await control.dispose();
+		}
+		fsWatchSpy.mockClear();
+
+		// The transport must force watchers off on its own while the todo tool
+		// is disabled, even when the host leaves watchFiles unset.
+		const workspace = join(root, "workspace");
+		mkdirSync(workspace);
+		const transport = new HubServerTransport({
+			workspaceRoot: realpathSync.native(workspace),
+			runtimeHandlers: {
+				startSession: vi.fn(),
+				sendSession: vi.fn(),
+				abortSession: vi.fn(),
+				stopSession: vi.fn(),
+			},
+			scheduleOptions: { dbPath: ":memory:" },
+			taskOptions: {
+				dbPath: join(root, "tasks.db"),
+				globalSpecsDir: join(root, "specs"),
+			},
+			sessionHost: {
+				subscribe: vi.fn(() => () => {}),
+				startSession: vi.fn(),
+				runTurn: vi.fn(),
+				stopSession: vi.fn(async () => {}),
+				abort: vi.fn(async () => {}),
+				dispose: vi.fn(async () => {}),
+				getSession: vi.fn(async () => undefined),
+				getAccumulatedUsage: vi.fn(async () => undefined),
+				listSessions: vi.fn(async () => []),
+				deleteSession: vi.fn(async () => false),
+				updateSession: vi.fn(async () => ({ updated: false })),
+				updateSessionCompactionState: vi.fn(async () => ({
+					updated: false,
+				})),
+				readSessionCompactionState: vi.fn(async () => undefined),
+				readSessionMessages: vi.fn(async () => []),
+				dispatchHookEvent: vi.fn(async () => {}),
+				restoreSession: vi.fn(),
+			} as never,
+		});
+		try {
+			await transport.start();
+			const created = await transport.handleCommand({
+				version: "v1",
+				command: "task.create",
+				clientId: "desktop",
+				payload: {
+					type: "follow-up",
+					title: "Watcherless todo",
+					instructions: "Verify agenda spec watchers stay off.",
+					expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
+				},
+			});
+			expect(created.ok).toBe(true);
+			expect(specWatchTargets()).toEqual([]);
 		} finally {
 			await transport.stop();
 		}
