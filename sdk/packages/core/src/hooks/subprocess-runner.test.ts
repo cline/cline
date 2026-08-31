@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { runSubprocessEvent } from "./subprocess-runner";
 
 describe("runSubprocessEvent", () => {
@@ -39,6 +39,47 @@ describe("runSubprocessEvent", () => {
 			},
 		);
 		expect(result?.timedOut).toBe(true);
+	});
+
+	it("reports a detached hook's runtime once it exits", async () => {
+		const observed: Array<{ durationMs: number; exited: boolean }> = [];
+		await runSubprocessEvent(
+			{},
+			{
+				command: [process.execPath, "-e", "setTimeout(() => {}, 20)"],
+				detached: true,
+				detachedObservationMs: 5_000,
+				onDetachedSettled: (event) => observed.push(event),
+			},
+		);
+		await vi.waitFor(() => expect(observed).toHaveLength(1), {
+			timeout: 5_000,
+		});
+		expect(observed[0].exited).toBe(true);
+	});
+
+	it("reports a censored observation for a detached hook that never exits", async () => {
+		const observed: Array<{ durationMs: number; exited: boolean }> = [];
+		await runSubprocessEvent(
+			{},
+			{
+				command: [process.execPath, "-e", "setInterval(() => {}, 1_000)"],
+				detached: true,
+				detachedObservationMs: 100,
+				onDetachedSettled: (event) => observed.push(event),
+			},
+		);
+		// The hook is still running: without the censored observation this
+		// sample would silently contain only hooks that finish.
+		await vi.waitFor(() => expect(observed).toHaveLength(1), {
+			timeout: 5_000,
+		});
+		expect(observed[0].exited).toBe(false);
+		expect(observed[0].durationMs).toBeGreaterThanOrEqual(100);
+
+		// Exactly one observation per hook, even after it is killed.
+		await new Promise((resolve) => setTimeout(resolve, 200));
+		expect(observed).toHaveLength(1);
 	});
 
 	it("settles after exit even when a spawned child keeps the stdio pipes open", async () => {
