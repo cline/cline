@@ -39,7 +39,3 @@ export function buildSubagentToolName(agentName: string): string {
 	const body = sanitized.slice(0, Math.max(1, maxBodyLength))
 	return trimToolNameToMax(`${SUBAGENT_TOOL_NAME_PREFIX}${body}_${hashSuffix}`)
 }
-
-export function isSubagentToolName(toolName: string): boolean {
-	return toolName.startsWith(SUBAGENT_TOOL_NAME_PREFIX)
-}

@@ -3,8 +3,8 @@ import {
 	type EditFileInput,
 	INPUT_ARG_CHAR_LIMIT,
 	type ReadFileRequest,
+	RunCommandsInputUnionSchema,
 	type StructuredCommandInput,
-	StructuredCommandsInputUnionSchema,
 } from "./schemas";
 
 /**
@@ -77,10 +77,67 @@ export function getReadFileRangeError(request: ReadFileRequest): string | null {
 	return `start_line must be less than or equal to end_line (received start_line: ${start_line}, end_line: ${end_line})`;
 }
 
+const READ_RANGE_KEYS = new Set(["start_line", "end_line"]);
+
+function isOrphanReadRangeEntry(
+	value: unknown,
+): value is Record<string, unknown> {
+	if (value === null || typeof value !== "object" || Array.isArray(value)) {
+		return false;
+	}
+	const keys = Object.keys(value);
+	return keys.length > 0 && keys.every((key) => READ_RANGE_KEYS.has(key));
+}
+
+function coalesceOrphanReadRangeEntries(entries: unknown[]): unknown[] {
+	const coalesced: unknown[] = [];
+	for (const entry of entries) {
+		if (isOrphanReadRangeEntry(entry)) {
+			const previous = coalesced[coalesced.length - 1];
+			if (typeof previous === "string") {
+				coalesced[coalesced.length - 1] = { path: previous, ...entry };
+				continue;
+			}
+			if (
+				previous !== null &&
+				typeof previous === "object" &&
+				!Array.isArray(previous) &&
+				"path" in previous &&
+				Object.keys(entry).every((key) => !(key in previous))
+			) {
+				coalesced[coalesced.length - 1] = { ...previous, ...entry };
+				continue;
+			}
+		}
+		coalesced.push(entry);
+	}
+	return coalesced;
+}
+
+/**
+ * Some models emit a file's line range as a separate array element instead of
+ * placing start_line/end_line on the same object as its path. Fold such
+ * orphan range entries into the preceding file entry before validation.
+ */
+export function coalesceOrphanReadRanges(input: unknown): unknown {
+	if (Array.isArray(input)) {
+		return coalesceOrphanReadRangeEntries(input);
+	}
+	if (input !== null && typeof input === "object") {
+		for (const key of ["files", "paths"] as const) {
+			const value = (input as Record<string, unknown>)[key];
+			if (Array.isArray(value)) {
+				return { ...input, [key]: coalesceOrphanReadRangeEntries(value) };
+			}
+		}
+	}
+	return input;
+}
+
 export function normalizeRunCommandsInput(
 	input: unknown,
 ): Array<string | StructuredCommandInput> {
-	const validate = validateWithZod(StructuredCommandsInputUnionSchema, input);
+	const validate = validateWithZod(RunCommandsInputUnionSchema, input);
 
 	if (typeof validate === "string") {
 		return [validate];
@@ -123,4 +180,28 @@ export function formatRunCommandQuery(
 		/[\s"]/u.test(arg) ? JSON.stringify(arg) : arg,
 	);
 	return `${command.command} ${renderedArgs.join(" ")}`;
+}
+
+/**
+ * Max characters of the executed command echoed back in the tool result's
+ * `query` field. The full command already exists in the assistant tool-call
+ * input, so repeating it in the result only duplicates tokens in the
+ * provider request (expensive for large heredoc/file-generation commands).
+ */
+export const RUN_COMMAND_QUERY_PREVIEW_LIMIT = 200;
+
+/**
+ * Bound the command echo placed in a provider-facing tool result.
+ * Short commands pass through unchanged; long commands keep a short
+ * prefix plus a truncation note so the result is still identifiable.
+ */
+export function formatRunCommandQueryPreview(
+	command: string | StructuredCommandInput,
+): string {
+	const rendered = formatRunCommandQuery(command);
+	if (rendered.length <= RUN_COMMAND_QUERY_PREVIEW_LIMIT) {
+		return rendered;
+	}
+	const truncatedChars = rendered.length - RUN_COMMAND_QUERY_PREVIEW_LIMIT;
+	return `${rendered.slice(0, RUN_COMMAND_QUERY_PREVIEW_LIMIT)} ... [command truncated: ${truncatedChars} more chars; full command is in the tool call input]`;
 }

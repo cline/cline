@@ -1,4 +1,10 @@
 import type { AgentEvent, TeamEvent } from "@cline/core";
+import {
+	formatCompactionDividerLabel,
+	parseCompactionNoticeMetadata,
+} from "../tui/utils/compaction-status";
+import { formatCliErrorMessage } from "./cline-pass-errors";
+import { materializeGeneratedMedia } from "./generated-media";
 import { formatToolInput, formatToolOutput, truncate } from "./helpers";
 import {
 	c,
@@ -27,8 +33,31 @@ export function resolveStatusNoticeLabel(
 	if (event.type !== "notice" || event.displayRole !== "status") {
 		return undefined;
 	}
-	if (event.reason === "auto_compaction") {
-		return "auto-compacting";
+	const compaction = parseCompactionNoticeMetadata(event.metadata);
+	if (compaction) {
+		return formatCompactionDividerLabel({ kind: "compaction", ...compaction });
+	}
+	return resolveNonCompactionStatusLabel(event);
+}
+
+/**
+ * Label for a status notice already known not to be a compaction notice.
+ * Callers that have parsed the compaction metadata themselves use this to
+ * avoid re-parsing.
+ */
+export function resolveNonCompactionStatusLabel(
+	event: AgentEvent,
+): string | undefined {
+	if (event.type !== "notice" || event.displayRole !== "status") {
+		return undefined;
+	}
+	switch (event.reason) {
+		case "auto_compaction":
+			return "auto-compacting";
+		case "manual_compaction":
+			return "compacting";
+		case "compaction_budget_emergency":
+			return "context budget adjusted";
 	}
 	return event.message.trim() || undefined;
 }
@@ -156,6 +185,30 @@ export function handleEvent(event: AgentEvent, config: Config): void {
 					}
 					shouldPrefixNextTextWithBlankLine = false;
 					break;
+				case "media": {
+					closeInlineStreamIfNeeded();
+					const media = event.media;
+					if (!media) break;
+					const saved = materializeGeneratedMedia(media);
+					if (saved) {
+						write(
+							`${c.dim}[generated ${media.modality}]${c.reset} ${saved.path}\n`,
+						);
+					} else if (media.source.type === "url") {
+						write(
+							`${c.dim}[generated ${media.modality}]${c.reset} ${media.source.url}\n`,
+						);
+					} else if (media.source.type === "artifact") {
+						write(
+							`${c.dim}[generated ${media.modality}]${c.reset} artifact:${media.source.artifactId}\n`,
+						);
+					} else {
+						write(
+							`${c.dim}[generated ${media.modality}]${c.reset} ${media.mediaType} could not be saved\n`,
+						);
+					}
+					break;
+				}
 			}
 			break;
 
@@ -176,7 +229,9 @@ export function handleEvent(event: AgentEvent, config: Config): void {
 		case "error":
 			closeInlineStreamIfNeeded();
 			if (!event.recoverable || config.verbose) {
-				writeErr(event.error.message);
+				writeErr(
+					formatCliErrorMessage(event.error, { modelId: config.modelId }),
+				);
 			}
 			break;
 		case "notice":

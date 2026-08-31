@@ -52,6 +52,7 @@ describe("computeContentHash", () => {
 			expect(r.triggerKind).toBe("one_off");
 			expect(r.spec?.title).toBe("Clean");
 			expect(r.spec?.prompt).toBe("Remove stale files.");
+			expect(r.spec?.mode).toBe("act");
 		});
 
 		it("defaults to yolo and parses cron runtime fields", () => {

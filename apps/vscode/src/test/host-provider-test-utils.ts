@@ -1,13 +1,7 @@
-import {
-	CommentReviewControllerCreator,
-	DiffViewProviderCreator,
-	HostProvider,
-	TerminalManagerCreator,
-	WebviewProviderCreator,
-} from "@/hosts/host-provider"
+import type sinon from "sinon"
+import { CommentReviewControllerCreator, EditPreviewCreator, HostProvider, WebviewProviderCreator } from "@/hosts/host-provider"
 import { HostBridgeClientProvider } from "@/hosts/host-provider-types"
 import { vscodeHostBridgeClient } from "@/hosts/vscode/hostbridge/client/host-grpc-client"
-import { ITerminalManager } from "@/integrations/terminal/types"
 
 /**
  * Initializes the HostProvider with test defaults.
@@ -17,9 +11,8 @@ import { ITerminalManager } from "@/integrations/terminal/types"
  */
 export function setVscodeHostProviderMock(options?: {
 	webviewProviderCreator?: WebviewProviderCreator
-	diffViewProviderCreator?: DiffViewProviderCreator
+	editPreviewCreator?: EditPreviewCreator
 	commentReviewControllerCreator?: CommentReviewControllerCreator
-	terminalManagerCreator?: TerminalManagerCreator
 	hostBridgeClient?: HostBridgeClientProvider
 	logToChannel?: (message: string) => void
 	getCallbackUri?: (path: string) => Promise<string>
@@ -30,9 +23,8 @@ export function setVscodeHostProviderMock(options?: {
 	HostProvider.reset()
 	HostProvider.initialize(
 		options?.webviewProviderCreator ?? ((() => {}) as WebviewProviderCreator),
-		options?.diffViewProviderCreator ?? ((() => {}) as DiffViewProviderCreator),
+		options?.editPreviewCreator ?? ((() => {}) as EditPreviewCreator),
 		options?.commentReviewControllerCreator ?? ((() => {}) as CommentReviewControllerCreator),
-		options?.terminalManagerCreator ?? ((() => ({}) as ITerminalManager) as TerminalManagerCreator),
 		options?.hostBridgeClient ?? vscodeHostBridgeClient,
 		options?.logToChannel ?? ((_: string) => {}),
 		options?.getCallbackUri ?? (async (path: string) => `http://example.com:1234${path}`),
@@ -40,4 +32,14 @@ export function setVscodeHostProviderMock(options?: {
 		options?.extensionFsPath ?? "/mock/path/to/extension",
 		options?.globalStorageFsPath ?? "/mock/path/to/globalstorage",
 	)
+}
+
+/**
+ * Stubs HostProvider.workspace so code under test resolves the given paths as
+ * this window's workspace roots.
+ */
+export function stubWorkspacePaths(sandbox: sinon.SinonSandbox, paths: string[]): void {
+	sandbox.stub(HostProvider, "workspace").get(() => ({
+		getWorkspacePaths: async () => ({ paths }),
+	}))
 }

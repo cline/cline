@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	applyInteractiveAutoApproveOverride,
 	cloneToolPolicies,
+	resolveInteractiveAutoApprovePolicy,
 } from "./tool-policies";
 
 describe("tool policy helpers", () => {
@@ -53,9 +54,9 @@ describe("tool policy helpers", () => {
 		});
 	});
 
-	it("restores the baseline policies when toggled back on", () => {
+	it("forces all baseline policies to auto-approve when toggled back on", () => {
 		const baseline = {
-			"*": { autoApprove: true },
+			"*": { autoApprove: false },
 			run_commands: { autoApprove: true, enabled: true },
 			editor: { autoApprove: false, enabled: true },
 		};
@@ -72,6 +73,40 @@ describe("tool policy helpers", () => {
 			enabled: true,
 		});
 
-		expect(target).toEqual(baseline);
+		expect(target).toEqual({
+			"*": { autoApprove: true },
+			run_commands: { autoApprove: true, enabled: true },
+			editor: { autoApprove: true, enabled: true },
+		});
+	});
+
+	it("resolves live per-tool policies from the interactive auto-approve state", () => {
+		const baseline = {
+			"*": { autoApprove: false },
+			read_files: { enabled: true },
+			editor: { autoApprove: false, enabled: true },
+		};
+
+		expect(
+			resolveInteractiveAutoApprovePolicy({
+				toolName: "editor",
+				baselinePolicies: baseline,
+				enabled: true,
+			}),
+		).toEqual({ autoApprove: true, enabled: true });
+		expect(
+			resolveInteractiveAutoApprovePolicy({
+				toolName: "run_commands",
+				baselinePolicies: baseline,
+				enabled: false,
+			}),
+		).toEqual({ autoApprove: false });
+		expect(
+			resolveInteractiveAutoApprovePolicy({
+				toolName: "read_files",
+				baselinePolicies: baseline,
+				enabled: false,
+			}),
+		).toEqual({ autoApprove: true, enabled: true });
 	});
 });

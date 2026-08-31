@@ -1,11 +1,22 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import {
+	existsSync,
+	mkdirSync,
+	readFileSync,
+	renameSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import * as LlmsModels from "@cline/llms";
 import {
+	ApiFormatSchema,
 	type ModelCapability,
 	ModelCapabilitySchema,
 	type ModelInfo,
+	ModelModalitiesSchema,
+	ModelOperationModeSchema,
+	ModelOperationSchema,
 	type ProviderCapability,
 	ProviderCapabilitySchema,
 	type ProviderClient,
@@ -15,23 +26,46 @@ import {
 	ProviderProtocolSchema,
 } from "@cline/shared";
 import { z } from "zod";
+import { sdkDebug } from "../../logging/early-logger";
 import type {
 	ProviderSettings,
 	StoredProviderSettings,
 } from "../../types/provider-settings";
 import type { ProviderSettingsManager } from "../storage/provider-settings-manager";
 
+const OptionalPositiveFiniteNumberSchema = z
+	.number()
+	.finite()
+	.positive()
+	.optional()
+	.catch(undefined);
+const OptionalNonNegativeFiniteNumberSchema = z
+	.number()
+	.finite()
+	.nonnegative()
+	.optional()
+	.catch(undefined);
+
 export const StoredModelEntrySchema = z
 	.object({
 		id: z.string().optional(),
 		name: z.string().optional(),
-		maxTokens: z.number().optional(),
-		contextWindow: z.number().optional(),
-		maxInputTokens: z.number().optional(),
+		maxTokens: OptionalPositiveFiniteNumberSchema,
+		contextWindow: OptionalPositiveFiniteNumberSchema,
+		maxInputTokens: OptionalPositiveFiniteNumberSchema,
 		capabilities: z.array(ModelCapabilitySchema).optional(),
 		supportsVision: z.boolean().optional(),
 		supportsAttachments: z.boolean().optional(),
 		supportsReasoning: z.boolean().optional(),
+		operation: ModelOperationSchema.optional(),
+		operationModes: z.array(ModelOperationModeSchema).optional(),
+		modalities: ModelModalitiesSchema.optional(),
+		inputPrice: OptionalNonNegativeFiniteNumberSchema,
+		outputPrice: OptionalNonNegativeFiniteNumberSchema,
+		cacheReadsPrice: OptionalNonNegativeFiniteNumberSchema,
+		cacheWritesPrice: OptionalNonNegativeFiniteNumberSchema,
+		temperature: OptionalNonNegativeFiniteNumberSchema,
+		apiFormat: ApiFormatSchema.optional(),
 	})
 	.passthrough();
 
@@ -93,6 +127,9 @@ export function emptyModelsFile(): StoredModelsFile {
 export function parseModelsFile(input: unknown): StoredModelsFile {
 	const result = StoredModelsFileEnvelopeSchema.safeParse(input);
 	if (!result.success) {
+		sdkDebug(
+			"models.json content is not a valid models file envelope; starting from an empty registry",
+		);
 		return emptyModelsFile();
 	}
 
@@ -101,6 +138,10 @@ export function parseModelsFile(input: unknown): StoredModelsFile {
 		const provider = StoredProviderEntrySchema.safeParse(entry);
 		if (provider.success) {
 			providers[providerId] = provider.data;
+		} else {
+			sdkDebug(
+				`models.json: dropping invalid entry for provider=${providerId}`,
+			);
 		}
 	}
 	return { version: 1, providers };
@@ -114,7 +155,13 @@ export function readModelsFileSync(filePath: string): StoredModelsFile {
 		const raw = readFileSync(filePath, "utf8");
 		return parseModelsFile(JSON.parse(raw) as unknown);
 	} catch {
-		// Invalid or missing files fall back to an empty registry.
+		// The file exists but could not be read/parsed. Falling back to an
+		// empty registry is required for reads, but callers that then WRITE
+		// the empty state back would permanently destroy the user's data —
+		// leave a trace so that is diagnosable.
+		sdkDebug(
+			`models.json at ${filePath} exists but is unreadable or invalid JSON; treating as an empty registry`,
+		);
 	}
 	return emptyModelsFile();
 }
@@ -125,19 +172,35 @@ export async function readModelsFile(
 	try {
 		const raw = await readFile(filePath, "utf8");
 		return parseModelsFile(JSON.parse(raw) as unknown);
-	} catch {
-		// Invalid or missing files fall back to an empty registry.
+	} catch (error) {
+		if ((error as NodeJS.ErrnoException | undefined)?.code !== "ENOENT") {
+			sdkDebug(
+				`models.json at ${filePath} exists but is unreadable or invalid JSON; treating as an empty registry`,
+			);
+		}
 	}
 	return emptyModelsFile();
 }
 
+// Stage to a pid-unique temp file and rename into place (mirrors
+// ProviderSettingsManager.write). Concurrent Cline processes (CLI, extension,
+// hub) share models.json; a bare writeFileSync lets readers catch a partial
+// file, which read paths treat as an empty registry — and the next
+// read-modify-write would persist that loss.
 export function writeModelsFileSync(
 	filePath: string,
 	state: StoredModelsFile,
 ): void {
 	mkdirSync(dirname(filePath), { recursive: true });
 	const parsed = StoredModelsFileSchema.parse(state);
-	writeFileSync(filePath, `${JSON.stringify(parsed, null, 2)}\n`, "utf8");
+	const tempPath = `${filePath}.${process.pid}.tmp`;
+	try {
+		writeFileSync(tempPath, `${JSON.stringify(parsed, null, 2)}\n`, "utf8");
+		renameSync(tempPath, filePath);
+	} catch (error) {
+		rmSync(tempPath, { force: true });
+		throw error;
+	}
 }
 
 export async function writeModelsFile(
@@ -146,24 +209,45 @@ export async function writeModelsFile(
 ): Promise<void> {
 	await mkdir(dirname(filePath), { recursive: true });
 	const parsed = StoredModelsFileSchema.parse(state);
-	await writeFile(filePath, `${JSON.stringify(parsed, null, 2)}\n`, "utf8");
+	const tempPath = `${filePath}.${process.pid}.tmp`;
+	try {
+		await writeFile(tempPath, `${JSON.stringify(parsed, null, 2)}\n`, "utf8");
+		await rename(tempPath, filePath);
+	} catch (error) {
+		await rm(tempPath, { force: true }).catch(() => {});
+		throw error;
+	}
 }
 
 export function toProviderModel(
 	modelId: string,
-	info: {
-		name?: string;
-		capabilities?: string[];
-		thinkingConfig?: unknown;
-	},
+	info: Pick<
+		ModelInfo,
+		| "name"
+		| "description"
+		| "contextWindow"
+		| "capabilities"
+		| "thinkingConfig"
+		| "operation"
+		| "operationModes"
+		| "modalities"
+	>,
 ): ProviderModel {
 	return {
 		id: modelId,
 		name: info.name ?? modelId,
+		...(info.description ? { description: info.description } : {}),
+		operation: info.operation,
+		...(info.contextWindow !== undefined
+			? { contextWindow: info.contextWindow }
+			: {}),
 		supportsAttachments: info.capabilities?.includes("files"),
 		supportsVision: info.capabilities?.includes("images"),
 		supportsReasoning:
 			info.capabilities?.includes("reasoning") || info.thinkingConfig != null,
+		operationModes: info.operationModes,
+		inputModalities: info.modalities?.input,
+		outputModalities: info.modalities?.output,
 	};
 }
 
@@ -241,21 +325,88 @@ function toStoredModelInfo(
 	modelId: string,
 	model: StoredModelEntry | undefined,
 	fallbackCapabilities?: ModelInfo["capabilities"],
+	capabilitiesAreAuthoritative = false,
 ): ModelInfo {
 	const capabilities = new Set<ModelCapability>(
 		model?.capabilities ?? fallbackCapabilities ?? [],
 	);
-	if (model?.supportsVision) capabilities.add("images");
-	if (model?.supportsAttachments) capabilities.add("files");
-	if (model?.supportsReasoning) capabilities.add("reasoning");
+	if (model?.supportsVision !== undefined) {
+		if (model.supportsVision) capabilities.add("images");
+		else capabilities.delete("images");
+	}
+	if (model?.supportsAttachments !== undefined) {
+		if (model.supportsAttachments) capabilities.add("files");
+		else capabilities.delete("files");
+	}
+	if (model?.supportsReasoning !== undefined) {
+		if (model.supportsReasoning) capabilities.add("reasoning");
+		else capabilities.delete("reasoning");
+	}
+	// An unspecified capability list fails open for tool calling
+	// (modelSupportsToolCalling), but any populated list is treated as
+	// authoritative — a partial one without "tools" silently revokes every
+	// tool definition (#13463). Stored entries and user-authored provider
+	// metadata cannot declare "cannot call tools" (there is no supportsTools
+	// field, and no writer intentionally omits "tools"): their lists are
+	// partial overlays, not authoritative catalogs. Seed "tools" into any
+	// non-empty list for a language model unless the list is anchored on
+	// generated catalog metadata, which IS authoritative (a genuine no-tools
+	// catalog model must stay that way). An empty set stays absent so every
+	// gate keeps its own fail-open default.
+	if (
+		!capabilitiesAreAuthoritative &&
+		capabilities.size > 0 &&
+		(model?.operation === undefined || model.operation === "language")
+	) {
+		capabilities.add("tools");
+	}
 
+	const apiFormat = model?.apiFormat;
+	const hasPricing =
+		model?.inputPrice !== undefined ||
+		model?.outputPrice !== undefined ||
+		model?.cacheReadsPrice !== undefined ||
+		model?.cacheWritesPrice !== undefined;
 	return {
 		id: modelId,
 		name: model?.name ?? modelId,
-		maxTokens: model?.maxTokens,
-		contextWindow: model?.contextWindow,
-		maxInputTokens: model?.maxInputTokens,
-		capabilities: capabilities.size > 0 ? [...capabilities] : undefined,
+		...(model?.maxTokens !== undefined ? { maxTokens: model.maxTokens } : {}),
+		...(model?.contextWindow !== undefined
+			? { contextWindow: model.contextWindow }
+			: {}),
+		...(model?.maxInputTokens !== undefined
+			? { maxInputTokens: model.maxInputTokens }
+			: {}),
+		...(capabilities.size > 0 ? { capabilities: [...capabilities] } : {}),
+		...(model?.temperature !== undefined
+			? { temperature: model.temperature }
+			: {}),
+		...(apiFormat !== undefined ? { apiFormat } : {}),
+		...(model?.operation !== undefined ? { operation: model.operation } : {}),
+		...(model?.operationModes !== undefined
+			? { operationModes: model.operationModes }
+			: {}),
+		...(model?.modalities !== undefined
+			? { modalities: model.modalities }
+			: {}),
+		...(hasPricing
+			? {
+					pricing: {
+						...(model?.inputPrice !== undefined
+							? { input: model.inputPrice }
+							: {}),
+						...(model?.outputPrice !== undefined
+							? { output: model.outputPrice }
+							: {}),
+						...(model?.cacheReadsPrice !== undefined
+							? { cacheRead: model.cacheReadsPrice }
+							: {}),
+						...(model?.cacheWritesPrice !== undefined
+							? { cacheWrite: model.cacheWritesPrice }
+							: {}),
+					},
+				}
+			: {}),
 	};
 }
 
@@ -263,15 +414,35 @@ function registerCustomModels(
 	providerId: string,
 	models: StoredProviderEntry["models"] | undefined,
 ): void {
+	const generatedModels = getGeneratedModelsForProvider(providerId);
 	for (const [modelKey, model] of Object.entries(models ?? {})) {
 		const modelId = model.id?.trim() || modelKey.trim();
 		if (!modelId) {
 			continue;
 		}
+		const generatedCapabilities = generatedModels[modelId]?.capabilities;
+		const storedModel =
+			generatedCapabilities && model.capabilities
+				? {
+						...model,
+						// Stored capability lists are additive overrides for catalog
+						// models. Preserve generated capabilities such as "tools"
+						// when loading metadata written by older clients that only
+						// persisted their boolean projections.
+						capabilities: [
+							...new Set([...generatedCapabilities, ...model.capabilities]),
+						],
+					}
+				: model;
 		LlmsModels.registerModel(
 			providerId,
 			modelId,
-			toStoredModelInfo(modelId, model),
+			toStoredModelInfo(
+				modelId,
+				storedModel,
+				generatedCapabilities,
+				generatedCapabilities !== undefined,
+			),
 		);
 	}
 }
@@ -439,6 +610,60 @@ export function registerCustomProvider(
 	});
 }
 
+/**
+ * Apply a single provider's updated models.json entry to the live @cline/llms
+ * registry. Unlike {@link ensureCustomProvidersLoadedSync}, which loads a
+ * models.json path at most once per process, this applies on every call so
+ * writes made after startup are reflected immediately: models removed from the
+ * entry are unregistered, and the remaining entry is (re-)registered.
+ */
+export function syncStoredProviderRegistration(
+	providerId: string,
+	previous: StoredProviderEntry | undefined,
+	next: StoredProviderEntry | undefined,
+): void {
+	const nextModels = next?.models ?? {};
+	const removedModelIds = new Set<string>();
+	for (const [modelKey, model] of Object.entries(previous?.models ?? {})) {
+		if (Object.hasOwn(nextModels, modelKey)) {
+			continue;
+		}
+		const modelId = model.id?.trim() || modelKey.trim();
+		if (modelId) {
+			removedModelIds.add(modelId);
+			LlmsModels.unregisterModel(providerId, modelId);
+		}
+	}
+	if (!next) {
+		return;
+	}
+	const liveCollection = LlmsModels.getProviderCollectionSync(providerId);
+	registerCustomProvider(providerId, next);
+	// For entries with complete provider metadata, registerCustomProvider
+	// replaces the live collection with one built from models.json alone.
+	// Merge back models that came from other sources (generated catalog,
+	// providers.json settings), letting the fresh models.json entries win and
+	// dropping models removed by this write.
+	const registered = LlmsModels.getProviderCollectionSync(providerId);
+	if (liveCollection && registered && registered !== liveCollection) {
+		const preservedModels = Object.fromEntries(
+			Object.entries(liveCollection.models).filter(
+				([modelId]) => !removedModelIds.has(modelId),
+			),
+		);
+		LlmsModels.registerProvider({
+			...registered,
+			models: { ...preservedModels, ...registered.models },
+		});
+	}
+}
+
+/**
+ * Load models.json into the @cline/llms registry at most once per path per
+ * process; subsequent calls are no-ops. It does NOT re-read the file after
+ * writes — use {@link syncStoredProviderRegistration} to reflect a write in
+ * the live registry.
+ */
 export function ensureCustomProvidersLoadedSync(
 	manager: ProviderSettingsManager,
 ): void {

@@ -1,28 +1,37 @@
 import * as LlmsModels from "@cline/llms";
-import {
-	type AddProviderActionRequest,
-	getClineEnvironmentConfig,
-	type ITelemetryService,
-	type OAuthProviderId,
-	type ProviderCapability,
-	type ProviderConfigField,
-	type ProviderConfigFieldPrimitive,
-	type ProviderListItem,
-	type ProviderModel,
-	type SaveProviderSettingsActionRequest,
+import type {
+	AddProviderActionRequest,
+	ITelemetryService,
+	ProviderCapability,
+	ProviderConfigField,
+	ProviderConfigFieldPrimitive,
+	ProviderListItem,
+	ProviderModel,
+	SaveProviderSettingsActionRequest,
+	VoiceInputSelection,
 } from "@cline/shared";
 import { createOAuthClientCallbacks } from "../../auth/client";
-import { loginClineOAuth } from "../../auth/cline";
-import { loginOpenAICodex } from "../../auth/codex";
-import { loginOcaOAuth } from "../../auth/oca";
+import {
+	getProviderAuthHandler,
+	loginAndSaveProviderOAuthCredentials,
+	type ProviderOAuthCredentials,
+	saveProviderOAuthCredentials,
+} from "../../auth/provider-auth-registry";
+import {
+	applyClineFeaturedModels,
+	getCachedClineRecommendedModels,
+	peekClineRecommendedModels,
+} from "../../services/llms/cline-recommended-models";
 import { resolveProviderConfig } from "../../services/llms/provider-defaults";
-import type {
-	ModelInfo,
-	ProviderClient,
-	ProviderConfig,
-	ProviderProtocol,
-	ProviderSettings,
+import {
+	type ModelInfo,
+	type ProviderClient,
+	type ProviderConfig,
+	type ProviderProtocol,
+	type ProviderSettings,
+	toProviderConfig,
 } from "../../services/llms/provider-settings";
+import type { ProviderTokenSource } from "../../types/provider-settings";
 import type { ProviderSettingsManager } from "../storage/provider-settings-manager";
 import {
 	readModelsFile,
@@ -35,8 +44,16 @@ import {
 	fetchModelIdsFromSource,
 	resolveModelsSourceUrl,
 } from "./model-source";
+import { isProviderSettingsUsable } from "./provider-readiness";
 
 export { ensureCustomProvidersLoaded } from "./local-provider-registry";
+
+const CLINE_PROVIDER_ID = "cline";
+const CLINE_PASS_PROVIDER_ID = "cline-pass";
+
+export interface ListLocalProvidersOptions {
+	isClinePassEnabled?: boolean;
+}
 
 export interface UpdateLocalProviderRequest {
 	providerId: string;
@@ -55,6 +72,25 @@ export interface UpdateLocalProviderRequest {
 
 export interface DeleteLocalProviderRequest {
 	providerId: string;
+}
+
+export interface TranscribeLocalAudioRequest {
+	providerId: string;
+	modelId: string;
+	audio: Uint8Array;
+	mediaType?: string;
+	abortSignal?: AbortSignal;
+}
+
+export interface TranscribeConfiguredVoiceInputRequest {
+	audio: Uint8Array;
+	mediaType?: string;
+	abortSignal?: AbortSignal;
+}
+
+export interface CreateConfiguredStreamingTranscriptionSessionRequest {
+	expiresAfterSeconds?: number;
+	abortSignal?: AbortSignal;
 }
 
 // --- Small pure helpers ---
@@ -103,6 +139,12 @@ function stableColor(id: string): string {
 	return palette[hash % palette.length];
 }
 
+export function isDedicatedTranscriptionModel(
+	model: Pick<ProviderModel, "operation">,
+): boolean {
+	return model.operation === "transcription";
+}
+
 function toSortedProviderModels(
 	modelMap: Record<string, ModelInfo>,
 ): ProviderModel[] {
@@ -115,24 +157,39 @@ async function resolveProviderModelMap(
 	providerId: string,
 	config?: ProviderConfig,
 ): Promise<Record<string, ModelInfo>> {
-	const registeredModels = await LlmsModels.getModelsForProvider(providerId);
-	if (!config) {
+	const [registeredModels, registeredModelOverrides] = await Promise.all([
+		LlmsModels.getModelsForProvider(providerId),
+		LlmsModels.getModelOverridesForProvider(providerId),
+	]);
+	const shouldLoadLiveCatalog =
+		providerId === CLINE_PROVIDER_ID || providerId === CLINE_PASS_PROVIDER_ID;
+	const isClinePass = providerId === CLINE_PASS_PROVIDER_ID;
+	if (!config && !shouldLoadLiveCatalog) {
 		return registeredModels;
 	}
 
 	const resolved = await resolveProviderConfig(
 		providerId,
 		{
+			loadLatestOnInit: shouldLoadLiveCatalog,
 			loadPrivateOnAuth: true,
 			failOnError: false,
 		},
 		config,
 	);
 
+	if (providerId === "litellm" && resolved?.knownModels) {
+		return resolved.knownModels;
+	}
+	if (isClinePass && resolved?.knownModels) {
+		return resolved.knownModels;
+	}
+
 	return resolved?.knownModels
 		? {
 				...registeredModels,
 				...resolved.knownModels,
+				...registeredModelOverrides,
 			}
 		: registeredModels;
 }
@@ -329,6 +386,10 @@ function removeProviderFromSettingsState(
 		delete state.lastUsedProvider;
 		mutated = true;
 	}
+	if (state.modes.voiceInput?.providerId === providerId) {
+		delete state.modes.voiceInput;
+		mutated = true;
+	}
 	if (mutated) manager.write(state);
 	LlmsModels.unregisterProvider(providerId);
 }
@@ -462,6 +523,10 @@ export async function updateLocalProvider(
 	let existingEntry = modelsState.providers[providerId];
 	if (!existingEntry) {
 		const existingSettings = manager.getProviderSettings(providerId);
+		const registeredCollection = LlmsModels.MODEL_COLLECTIONS_BY_PROVIDER_ID[
+			providerId
+		] as LlmsModels.ModelCollection | undefined;
+		const registeredProvider = registeredCollection?.provider;
 		if (!existingSettings) {
 			throw new Error(`provider "${providerId}" does not exist`);
 		}
@@ -478,13 +543,21 @@ export async function updateLocalProvider(
 		// Ephemeral seed for the existing update path; final state is computed and written below.
 		existingEntry = {
 			provider: {
-				name: request.name?.trim() || titleCaseFromId(providerId),
+				name:
+					request.name?.trim() ||
+					registeredProvider?.name ||
+					titleCaseFromId(providerId),
 				baseUrl:
-					request.baseUrl?.trim() ?? existingSettings.baseUrl?.trim() ?? "",
-				defaultModelId: seedModelId,
-				protocol: existingSettings.protocol,
-				client: existingSettings.client,
-				capabilities: existingSettings.capabilities,
+					request.baseUrl?.trim() ??
+					existingSettings.baseUrl?.trim() ??
+					registeredProvider?.baseUrl?.trim() ??
+					"",
+				defaultModelId: seedModelId ?? registeredProvider?.defaultModelId,
+				protocol: existingSettings.protocol ?? registeredProvider?.protocol,
+				client: existingSettings.client ?? registeredProvider?.client,
+				capabilities:
+					existingSettings.capabilities ?? registeredProvider?.capabilities,
+				modelsSourceUrl: registeredProvider?.modelsSourceUrl,
 			},
 			models: seedModelId
 				? buildProviderModels([seedModelId], existingSettings.capabilities)
@@ -636,11 +709,43 @@ export async function deleteLocalProvider(
 	};
 }
 
+export function markLocalProviderEnabled(
+	manager: ProviderSettingsManager,
+	providerId: string,
+	options: { tokenSource?: ProviderTokenSource } = {},
+): { providerId: string; enabled: true; settingsPath: string } {
+	const id = providerId.trim();
+	if (!id) throw new Error("providerId is required");
+
+	const directSettings = manager.read().providers[id]?.settings;
+	manager.saveProviderSettings(
+		{
+			...(directSettings ?? {}),
+			provider: id,
+		},
+		{ setLastUsed: false, tokenSource: options.tokenSource },
+	);
+
+	return { providerId: id, enabled: true, settingsPath: manager.getFilePath() };
+}
+
 export async function listLocalProviders(
 	manager: ProviderSettingsManager,
-): Promise<{ providers: ProviderListItem[]; settingsPath: string }> {
+	options: ListLocalProvidersOptions = {},
+): Promise<{
+	providers: ProviderListItem[];
+	settingsPath: string;
+	voiceInput?: VoiceInputSelection;
+}> {
 	const state = manager.read();
 	const ids = LlmsModels.getProviderIds();
+
+	// The catalog is built for every provider at startup and must not wait on
+	// the network, so featured tiers come from a synchronous peek (cached live
+	// feed, else the bundled fallback). This keeps even the very first picker
+	// paint after a cold boot sectioned; the per-provider model-list path
+	// (getLocalProviderModels) then refreshes with live feed data.
+	const featuredData = peekClineRecommendedModels();
 
 	const providerEntries = await Promise.all(
 		ids.map(
@@ -649,8 +754,13 @@ export async function listLocalProviders(
 					LlmsModels.getProvider(id),
 					LlmsModels.getModelsForProvider(id),
 				]);
-				const modelList = toSortedProviderModels(registeredModels);
-				const persistedSettings = state.providers[id]?.settings;
+				const modelList = applyClineFeaturedModels(
+					id,
+					toSortedProviderModels(registeredModels),
+					featuredData,
+				);
+				const directSettings = state.providers[id]?.settings;
+				const persistedSettings = manager.getProviderSettings(id);
 				const name = info?.name ?? titleCaseFromId(id);
 				const capabilities = resolveProviderCapabilities(
 					info?.capabilities,
@@ -666,7 +776,20 @@ export async function listLocalProviders(
 						models: modelList.length,
 						color: stableColor(id),
 						letter: createLetter(name),
-						enabled: Boolean(persistedSettings),
+						enabled: Boolean(directSettings),
+						// Distinct from `enabled` (any persisted entry, which
+						// migrations and empty saves can create): true only when
+						// the saved settings hold real credentials or a usable
+						// keyless endpoint, mirroring the CLI's readiness check.
+						configured: isProviderSettingsUsable(
+							id,
+							persistedSettings,
+							persistedSettings
+								? toProviderConfig(persistedSettings, {
+										includeKnownModels: false,
+									})
+								: undefined,
+						),
 						apiKey: persistedSettings
 							? resolveVisibleApiKey(persistedSettings)
 							: undefined,
@@ -701,9 +824,29 @@ export async function listLocalProviders(
 			a.provider.id.localeCompare(b.provider.id)
 		);
 	});
-	const providers = providerEntries.map((entry) => entry.provider);
+	let providers = providerEntries.map((entry) => entry.provider);
+	if (options.isClinePassEnabled !== true) {
+		providers = providers.filter(
+			(provider) => provider.id !== CLINE_PASS_PROVIDER_ID,
+		);
+	}
 
-	return { providers, settingsPath: manager.getFilePath() };
+	const configuredVoiceInput = manager.getVoiceInputSettings();
+	const voiceProvider = configuredVoiceInput
+		? providers.find(
+				(provider) =>
+					provider.id === configuredVoiceInput.providerId && provider.enabled,
+			)
+		: undefined;
+	const voiceModel = voiceProvider?.modelList?.find(
+		(model) =>
+			model.id === configuredVoiceInput?.modelId &&
+			isDedicatedTranscriptionModel(model),
+	);
+	const voiceInput =
+		configuredVoiceInput && voiceModel ? configuredVoiceInput : undefined;
+
+	return { providers, settingsPath: manager.getFilePath(), voiceInput };
 }
 
 export async function getLocalProviderModels(
@@ -712,8 +855,143 @@ export async function getLocalProviderModels(
 ): Promise<{ providerId: string; models: ProviderModel[] }> {
 	const id = providerId.trim();
 	const modelMap = await resolveProviderModelMap(id, config);
-	const models = toSortedProviderModels(modelMap);
+	let models = toSortedProviderModels(modelMap);
+	if (id === CLINE_PROVIDER_ID || id === CLINE_PASS_PROVIDER_ID) {
+		// Stamp the recommended-feed tiers onto the list so every client's
+		// picker gets Recommended/Free/Subscribed data without fetching and
+		// joining the feed itself. Cached; falls back to a bundled list, so
+		// a failure only means models without tier decoration.
+		models = applyClineFeaturedModels(
+			id,
+			models,
+			await getCachedClineRecommendedModels(),
+		);
+	}
 	return { providerId: id, models };
+}
+
+export async function transcribeLocalAudio(
+	manager: ProviderSettingsManager,
+	request: TranscribeLocalAudioRequest,
+): Promise<LlmsModels.AudioTranscriptionResult> {
+	const providerId = request.providerId.trim();
+	const modelId = request.modelId.trim();
+	const config = manager.getProviderConfig(providerId, {
+		includeKnownModels: false,
+	});
+	if (!config) {
+		throw new Error(
+			`Transcription provider "${providerId}" is not configured in providers.json`,
+		);
+	}
+
+	const { models } = await getLocalProviderModels(providerId, config);
+	const model = models.find((candidate) => candidate.id === modelId);
+	if (!model || !isDedicatedTranscriptionModel(model)) {
+		throw new Error(
+			`Model "${modelId}" is not a dedicated audio-to-text transcription model`,
+		);
+	}
+	if (model.operationModes?.includes("streaming")) {
+		throw new Error(
+			`Model "${modelId}" requires streaming transcription and cannot transcribe a completed recording`,
+		);
+	}
+
+	return LlmsModels.transcribeAudio({
+		providerConfig: config,
+		modelId,
+		audio: request.audio,
+		mediaType: request.mediaType,
+		abortSignal: request.abortSignal,
+	});
+}
+
+export async function saveVoiceInputSettings(
+	manager: ProviderSettingsManager,
+	selection: VoiceInputSelection | undefined,
+): Promise<{ settingsPath: string; voiceInput?: VoiceInputSelection }> {
+	if (!selection) {
+		manager.setVoiceInputSettings(undefined);
+		return { settingsPath: manager.getFilePath() };
+	}
+
+	const providerId = selection.providerId.trim();
+	const modelId = selection.modelId.trim();
+	if (!providerId || !modelId) {
+		throw new Error("Voice input provider and model are required");
+	}
+	const state = manager.read();
+	if (!state.providers[providerId]) {
+		throw new Error(
+			`Voice input provider "${providerId}" must be enabled and configured`,
+		);
+	}
+	const config = manager.getProviderConfig(providerId, {
+		includeKnownModels: false,
+	});
+	const { models } = await getLocalProviderModels(providerId, config);
+	const model = models.find((candidate) => candidate.id === modelId);
+	if (!model || !isDedicatedTranscriptionModel(model)) {
+		throw new Error(
+			`Model "${modelId}" is not a dedicated audio-to-text transcription model`,
+		);
+	}
+
+	const voiceInput = { providerId, modelId };
+	manager.setVoiceInputSettings(voiceInput);
+	return { settingsPath: manager.getFilePath(), voiceInput };
+}
+
+export async function transcribeConfiguredVoiceInput(
+	manager: ProviderSettingsManager,
+	request: TranscribeConfiguredVoiceInputRequest,
+): Promise<LlmsModels.AudioTranscriptionResult> {
+	const selection = manager.getVoiceInputSettings();
+	if (!selection) {
+		throw new Error("Configure a voice input provider and model in Settings");
+	}
+	return transcribeLocalAudio(manager, {
+		...selection,
+		audio: request.audio,
+		mediaType: request.mediaType,
+		abortSignal: request.abortSignal,
+	});
+}
+
+export async function createConfiguredStreamingTranscriptionSession(
+	manager: ProviderSettingsManager,
+	request: CreateConfiguredStreamingTranscriptionSessionRequest = {},
+): Promise<LlmsModels.StreamingAudioTranscriptionSession> {
+	const selection = manager.getVoiceInputSettings();
+	if (!selection) {
+		throw new Error("Configure a voice input provider and model in Settings");
+	}
+	const config = manager.getProviderConfig(selection.providerId, {
+		includeKnownModels: false,
+	});
+	if (!config) {
+		throw new Error(
+			`Transcription provider "${selection.providerId}" is not configured in providers.json`,
+		);
+	}
+	const { models } = await getLocalProviderModels(selection.providerId, config);
+	const model = models.find((candidate) => candidate.id === selection.modelId);
+	if (
+		!model ||
+		!isDedicatedTranscriptionModel(model) ||
+		!model.operationModes?.includes("streaming")
+	) {
+		throw new Error(
+			`Model "${selection.modelId}" does not support streaming transcription`,
+		);
+	}
+	return LlmsModels.createStreamingAudioTranscriptionSession({
+		providerConfig: config,
+		modelId: selection.modelId,
+		expiresAfterSeconds: request.expiresAfterSeconds,
+		abortSignal: request.abortSignal,
+	});
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -759,6 +1037,9 @@ export function saveLocalProviderSettings(
 		const state = manager.read();
 		delete state.providers[providerId];
 		if (state.lastUsedProvider === providerId) delete state.lastUsedProvider;
+		if (state.modes.voiceInput?.providerId === providerId) {
+			delete state.modes.voiceInput;
+		}
 		manager.write(state);
 		return { providerId, enabled: false, settingsPath: manager.getFilePath() };
 	}
@@ -849,39 +1130,23 @@ export async function refreshProviderModelsFromSource(
 	return { providerId: id, refreshed: true, modelsCount: result.modelsCount };
 }
 
-export function normalizeOAuthProvider(provider: string): OAuthProviderId {
+export function normalizeOAuthProvider(provider: string): string {
 	const normalized = provider.trim().toLowerCase();
-	if (normalized === "codex" || normalized === "openai-codex")
-		return "openai-codex";
-	if (normalized === "cline" || normalized === "oca") return normalized;
-	throw new Error(
-		`provider "${provider}" does not support OAuth login (supported: cline, oca, openai-codex)`,
-	);
-}
-
-function toProviderApiKey(
-	providerId: OAuthProviderId,
-	credentials: { access: string },
-): string {
-	if (providerId === "cline") {
-		return credentials.access.startsWith("workos:")
-			? credentials.access
-			: `workos:${credentials.access}`;
-	}
-	return credentials.access;
+	const handler = getProviderAuthHandler(normalized);
+	if (handler) return handler.providerId;
+	throw new Error(`provider "${provider}" does not support OAuth login`);
 }
 
 export async function loginLocalProvider(
-	providerId: OAuthProviderId,
+	providerId: string,
 	existing: ProviderSettings | undefined,
 	openUrl: (url: string) => void,
 	telemetry?: ITelemetryService,
-): Promise<{
-	access: string;
-	refresh: string;
-	expires: number;
-	accountId?: string;
-}> {
+): Promise<ProviderOAuthCredentials> {
+	const handler = getProviderAuthHandler(providerId);
+	if (!handler) {
+		throw new Error(`provider "${providerId}" does not support OAuth login`);
+	}
 	const callbacks = createOAuthClientCallbacks({
 		onPrompt: async (prompt) => prompt.defaultValue ?? "",
 		openUrl,
@@ -889,55 +1154,42 @@ export async function loginLocalProvider(
 			throw error instanceof Error ? error : new Error(String(error));
 		},
 	});
-
-	if (providerId === "cline") {
-		return loginClineOAuth({
-			apiBaseUrl:
-				existing?.baseUrl?.trim() || getClineEnvironmentConfig().apiBaseUrl,
-			useWorkOSDeviceAuth: true,
-			callbacks,
-			telemetry,
-		});
-	}
-	if (providerId === "oca")
-		return loginOcaOAuth({ mode: existing?.oca?.mode, callbacks, telemetry });
-	return loginOpenAICodex({
-		onAuth: callbacks.onAuth,
-		onPrompt: callbacks.onPrompt,
-		onProgress: callbacks.onProgress,
-		onManualCodeInput: callbacks.onManualCodeInput,
-		telemetry,
-	});
+	return handler.login({ settings: existing, callbacks, telemetry });
 }
 
 export function saveLocalProviderOAuthCredentials(
 	manager: ProviderSettingsManager,
-	providerId: OAuthProviderId,
+	providerId: string,
 	existing: ProviderSettings | undefined,
-	credentials: {
-		access: string;
-		refresh: string;
-		expires: number;
-		accountId?: string;
-	},
+	credentials: ProviderOAuthCredentials,
+	options?: { setLastUsed?: boolean },
 ): ProviderSettings {
-	const auth = {
-		...(existing?.auth ?? {}),
-		accessToken: toProviderApiKey(providerId, credentials),
-		refreshToken: credentials.refresh,
-		accountId: credentials.accountId,
-		expiresAt: credentials.expires,
-	} as ProviderSettings["auth"] & { expiresAt?: number };
+	return saveProviderOAuthCredentials({
+		manager,
+		providerId,
+		settings: existing,
+		credentials,
+		setLastUsed: options?.setLastUsed,
+	});
+}
 
-	const merged: ProviderSettings = {
-		...(existing ?? {
-			provider: providerId as ProviderSettings["provider"],
-		}),
-		provider: providerId as ProviderSettings["provider"],
-		auth,
-	};
-	manager.saveProviderSettings(merged, { tokenSource: "oauth" });
-	return merged;
+export async function loginAndSaveLocalProviderOAuthCredentials(
+	manager: ProviderSettingsManager,
+	providerId: string,
+	openUrl: (url: string) => void,
+	telemetry?: ITelemetryService,
+): Promise<ProviderSettings> {
+	const callbacks = createOAuthClientCallbacks({
+		onPrompt: async (prompt) => prompt.defaultValue ?? "",
+		openUrl,
+		onOpenUrlError: ({ error }) => {
+			throw error instanceof Error ? error : new Error(String(error));
+		},
+	});
+	return loginAndSaveProviderOAuthCredentials(manager, providerId, {
+		callbacks,
+		telemetry,
+	});
 }
 
 export function resolveLocalClineAuthToken(

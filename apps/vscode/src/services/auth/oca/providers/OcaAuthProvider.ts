@@ -14,7 +14,7 @@ type PkceState = {
 	redirect_uri: string
 }
 
-export class OcaRefreshError extends Error {
+class OcaRefreshError extends Error {
 	status?: number
 	code?: string
 	invalidGrant?: boolean

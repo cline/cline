@@ -1,0 +1,4191 @@
+import type { CoreSessionEvent } from "@cline/core"
+import type { Message as SdkMessage } from "@cline/llms"
+import type { AgentEvent, MessageWithMetadata } from "@cline/shared"
+import type { ClineAskUseMcpServer, ClineSayTool } from "@shared/ExtensionMessage"
+import { describe, expect, it } from "vitest"
+import { getDesktopDir } from "@/utils/path"
+import {
+	buildToolApprovalAskMessage,
+	extractToolOutputText,
+	historyItemToSessionFields,
+	MessageTranslatorState,
+	sdkMessagesToClineMessages,
+	translateSessionEvent,
+} from "./message-translator"
+
+// ---------------------------------------------------------------------------
+// MessageTranslatorState
+// ---------------------------------------------------------------------------
+
+describe("MessageTranslatorState", () => {
+	it("generates unique timestamps", () => {
+		const state = new MessageTranslatorState()
+		const ts1 = state.nextTs()
+		const ts2 = state.nextTs()
+		expect(ts2).toBeGreaterThan(ts1)
+	})
+
+	it("tracks streaming text timestamps", () => {
+		const state = new MessageTranslatorState()
+		const ts1 = state.getStreamingTextTs()
+		const ts2 = state.getStreamingTextTs()
+		// Same ts while streaming
+		expect(ts2).toBe(ts1)
+	})
+
+	it("clears streaming text and returns the ts", () => {
+		const state = new MessageTranslatorState()
+		const ts = state.getStreamingTextTs()
+		const cleared = state.clearStreamingText()
+		expect(cleared).toBe(ts)
+
+		// Next call should get a new ts
+		const newTs = state.getStreamingTextTs()
+		expect(newTs).toBeGreaterThan(ts)
+	})
+
+	it("clearStreamingText without prior get returns a new ts", () => {
+		const state = new MessageTranslatorState()
+		const ts = state.clearStreamingText()
+		expect(typeof ts).toBe("number")
+	})
+
+	it("tracks streaming reasoning timestamps", () => {
+		const state = new MessageTranslatorState()
+		const ts1 = state.getStreamingReasoningTs()
+		const ts2 = state.getStreamingReasoningTs()
+		expect(ts2).toBe(ts1)
+
+		const cleared = state.clearStreamingReasoning()
+		expect(cleared).toBe(ts1)
+
+		const newTs = state.getStreamingReasoningTs()
+		expect(newTs).toBeGreaterThan(ts1)
+	})
+
+	it("tracks streaming tool timestamps", () => {
+		const state = new MessageTranslatorState()
+		const ts1 = state.getStreamingToolTs()
+		const ts2 = state.getStreamingToolTs()
+		expect(ts2).toBe(ts1)
+
+		const cleared = state.clearStreamingTool()
+		expect(cleared).toBe(ts1)
+
+		const newTs = state.getStreamingToolTs()
+		expect(newTs).toBeGreaterThan(ts1)
+	})
+
+	it("reset clears all streaming state", () => {
+		const state = new MessageTranslatorState()
+		const textTs = state.getStreamingTextTs()
+		const reasoningTs = state.getStreamingReasoningTs()
+		const toolTs = state.getStreamingToolTs()
+
+		state.reset()
+
+		// After reset, new streaming ts should be different
+		const newTextTs = state.getStreamingTextTs()
+		const newReasoningTs = state.getStreamingReasoningTs()
+		const newToolTs = state.getStreamingToolTs()
+
+		expect(newTextTs).toBeGreaterThan(textTs)
+		expect(newReasoningTs).toBeGreaterThan(reasoningTs)
+		expect(newToolTs).toBeGreaterThan(toolTs)
+	})
+
+	it("reset clears stale approved tool prompt rows", () => {
+		const state = new MessageTranslatorState()
+		state.recordApprovedToolMessageTs("approved-call", 42)
+
+		state.reset()
+
+		expect(state.consumeApprovedToolMessageTs("approved-call")).toBeUndefined()
+	})
+
+	it("reset() (per-iteration) does NOT clear attemptCompletionSeen — it is turn-scoped", () => {
+		// The agent can call the completion tool in one iteration and the loop then emits another
+		// `iteration_start` → state.reset() before the turn's `done` event. The completion signal
+		// is turn-scoped and must survive per-iteration resets; otherwise the turn-end phase
+		// resolves to awaiting_followup instead of completed and the footer shows no
+		// "Start New Task" button despite the green "Task Completed" box.
+		const state = new MessageTranslatorState()
+		state.setAttemptCompletionSeen()
+		expect(state.wasAttemptCompletionSeen()).toBe(true)
+
+		state.reset() // simulates the next iteration_start mid-turn
+
+		expect(state.wasAttemptCompletionSeen()).toBe(true)
+	})
+
+	it("clearTurnOutcome() clears attemptCompletionSeen for a genuinely new turn/task", () => {
+		const state = new MessageTranslatorState()
+		state.setAttemptCompletionSeen()
+		state.clearTurnOutcome()
+		expect(state.wasAttemptCompletionSeen()).toBe(false)
+	})
+})
+
+// ---------------------------------------------------------------------------
+// translateSessionEvent — chunk events
+// ---------------------------------------------------------------------------
+
+describe("translateSessionEvent — chunk events", () => {
+	it("ignores agent stream chunks (raw model output not displayed)", () => {
+		// Chunk events contain raw model output which may include JSON,
+		// tool call fragments, etc. The structured agent_event system
+		// (content_start/update/end) is used for displayable content.
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "chunk",
+			payload: {
+				sessionId: "session-1",
+				stream: "agent",
+				chunk: '{"type":"iteration_start",...}',
+				ts: Date.now(),
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		expect(result.messages).toHaveLength(0)
+		expect(result.sessionEnded).toBe(false)
+		expect(result.turnComplete).toBe(false)
+	})
+
+	it("ignores stdout/stderr chunks", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "chunk",
+			payload: {
+				sessionId: "session-1",
+				stream: "stdout",
+				chunk: "some output",
+				ts: Date.now(),
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		expect(result.messages).toHaveLength(0)
+	})
+})
+
+// ---------------------------------------------------------------------------
+// translateSessionEvent — pending prompts
+// ---------------------------------------------------------------------------
+
+describe("translateSessionEvent — pending prompts", () => {
+	it("renders a submitted queued prompt as user feedback", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "pending_prompt_submitted",
+			payload: {
+				sessionId: "session-1",
+				id: "pending-1",
+				prompt: "please just finish",
+				delivery: "queue",
+				attachmentCount: 2,
+				userImages: ["image.png"],
+				userFiles: ["notes.txt"],
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+
+		expect(result.messages).toEqual([
+			expect.objectContaining({
+				type: "say",
+				say: "user_feedback",
+				text: "please just finish",
+				images: ["image.png"],
+				files: ["notes.txt"],
+				partial: false,
+			}),
+		])
+	})
+
+	it("strips runtime-generated mode notices from the queued prompt echo", () => {
+		// The webview shows what the user typed; the <mode_notice> element the
+		// mode coordinator stamps onto outbound prompts is model-facing context
+		// and must never render as user text.
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "pending_prompt_submitted",
+			payload: {
+				sessionId: "session-1",
+				id: "pending-1",
+				prompt: "<mode_notice>The user switched from plan mode to act mode before sending this message.</mode_notice>\nplease just finish",
+				delivery: "queue",
+				attachmentCount: 0,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+
+		expect(result.messages).toEqual([
+			expect.objectContaining({
+				say: "user_feedback",
+				text: "please just finish",
+			}),
+		])
+	})
+
+	it("does not echo a synthetic resumption prompt that was auto-queued behind a settling abort", () => {
+		// A bare Resume that races the abort settling is auto-queued by the
+		// runtime; when it drains, the submitted-prompt echo must not leak the
+		// synthetic [TASK RESUMPTION] text as a visible user bubble (it is
+		// hidden from every other transcript surface, and a visible bubble
+		// would shift edit/regenerate ordinal mapping).
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "pending_prompt_submitted",
+			payload: {
+				sessionId: "session-1",
+				id: "pending-1",
+				prompt: "[TASK RESUMPTION] Please continue where you left off.",
+				delivery: "queue",
+				attachmentCount: 0,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+
+		expect(result.messages).toEqual([])
+	})
+
+	it("still renders attachments carried by a synthetic resumption prompt, without the synthetic text", () => {
+		// Attachment-only follow-ups ride on the synthetic prompt; the user's
+		// images/files are real content and must stay visible (matching
+		// isSyntheticSdkUserMessage, which counts such messages as visible).
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "pending_prompt_submitted",
+			payload: {
+				sessionId: "session-1",
+				id: "pending-1",
+				prompt: '<user_input mode="act">[TASK RESUMPTION] Please continue where you left off.</user_input>',
+				delivery: "queue",
+				attachmentCount: 1,
+				userImages: ["image.png"],
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+
+		expect(result.messages).toEqual([
+			expect.objectContaining({
+				say: "user_feedback",
+				text: "",
+				images: ["image.png"],
+			}),
+		])
+	})
+})
+
+// ---------------------------------------------------------------------------
+// translateSessionEvent — agent_event (content_start)
+// ---------------------------------------------------------------------------
+
+describe("translateSessionEvent — agent_event content_start", () => {
+	it("reuses the approved tool prompt row for the matching tool lifecycle", () => {
+		const state = new MessageTranslatorState()
+		const approvedMessageTs = 42
+		state.recordApprovedToolMessageTs("approved-call", approvedMessageTs)
+
+		const startResult = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "editor",
+						toolCallId: "approved-call",
+						input: {
+							path: "/src/app.ts",
+							old_text: "return false",
+							new_text: "return true",
+						},
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+
+		expect(startResult.messages).toHaveLength(1)
+		expect(startResult.messages[0]).toMatchObject({
+			ts: approvedMessageTs,
+			type: "say",
+			say: "tool",
+			partial: true,
+		})
+
+		const endResult = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "content_end",
+						contentType: "tool",
+						toolName: "editor",
+						toolCallId: "approved-call",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+
+		expect(endResult.messages).toHaveLength(1)
+		expect(endResult.messages[0]).toMatchObject({
+			ts: approvedMessageTs,
+			type: "say",
+			say: "tool",
+			partial: false,
+		})
+		expect(JSON.parse(endResult.messages[0].text ?? "{}")).toMatchObject({
+			tool: "editedExistingFile",
+			path: "/src/app.ts",
+		})
+	})
+
+	it("reuses the approved command prompt row for the matching command lifecycle", () => {
+		const state = new MessageTranslatorState()
+		const approvedMessageTs = state.nextTs()
+		state.recordApprovedToolMessageTs("command-call", approvedMessageTs)
+
+		const startResult = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "execute_command",
+						toolCallId: "command-call",
+						input: { command: "npm test" },
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+
+		expect(startResult.messages[0]).toMatchObject({
+			ts: approvedMessageTs,
+			type: "say",
+			say: "command",
+			partial: true,
+		})
+
+		const endResult = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "content_end",
+						contentType: "tool",
+						toolName: "execute_command",
+						toolCallId: "command-call",
+						output: [{ result: "passed", success: true }],
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+
+		expect(endResult.messages[0]).toMatchObject({
+			ts: approvedMessageTs,
+			type: "say",
+			say: "command",
+			partial: false,
+			commandCompleted: true,
+		})
+	})
+
+	it("reuses the approved MCP prompt row for the matching MCP tool lifecycle", () => {
+		const state = new MessageTranslatorState()
+		const approvedMessageTs = state.nextTs()
+		state.recordApprovedToolMessageTs("mcp-call", approvedMessageTs)
+
+		const startResult = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "notion__notion-get-users",
+						toolCallId: "mcp-call",
+						input: { user_id: "self" },
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+
+		expect(startResult.messages[0]).toMatchObject({
+			ts: approvedMessageTs,
+			type: "say",
+			say: "use_mcp_server",
+			partial: true,
+		})
+
+		const endResult = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "content_end",
+						contentType: "tool",
+						toolName: "notion__notion-get-users",
+						toolCallId: "mcp-call",
+						output: "ok",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+
+		expect(endResult.messages[0]).toMatchObject({
+			ts: approvedMessageTs,
+			type: "say",
+			say: "use_mcp_server",
+			partial: false,
+		})
+	})
+
+	it("consumes an approved prompt row only once", () => {
+		const state = new MessageTranslatorState()
+		const approvedMessageTs = state.nextTs()
+		state.recordApprovedToolMessageTs("approved-call", approvedMessageTs)
+
+		const firstStart = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "editor",
+						toolCallId: "approved-call",
+						input: { path: "/src/app.ts", old_text: "a", new_text: "b" },
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "content_end",
+						contentType: "tool",
+						toolName: "editor",
+						toolCallId: "approved-call",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+
+		const secondStart = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "editor",
+						toolCallId: "approved-call",
+						input: { path: "/src/app.ts", old_text: "b", new_text: "c" },
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+
+		expect(firstStart.messages[0].ts).toBe(approvedMessageTs)
+		expect(secondStart.messages[0].ts).not.toBe(approvedMessageTs)
+	})
+
+	it("translates text content_start to partial text message", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "content_start",
+					contentType: "text",
+					text: "Hello",
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		expect(result.messages).toHaveLength(1)
+		expect(result.messages[0].say).toBe("text")
+		expect(result.messages[0].text).toBe("Hello")
+		expect(result.messages[0].partial).toBe(true)
+	})
+
+	it("translates reasoning content_start to partial reasoning message", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "content_start",
+					contentType: "reasoning",
+					reasoning: "Let me think...",
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		expect(result.messages).toHaveLength(1)
+		expect(result.messages[0].say).toBe("reasoning")
+		expect(result.messages[0].text).toBe("Let me think...")
+		expect(result.messages[0].reasoning).toBe("Let me think...")
+		expect(result.messages[0].partial).toBe(true)
+	})
+
+	it("translates tool content_start to partial tool message", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "content_start",
+					contentType: "tool",
+					toolName: "read_files",
+					toolCallId: "call-1",
+					input: { path: "/src/index.ts" },
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		expect(result.messages).toHaveLength(1)
+		expect(result.messages[0].say).toBe("tool")
+		expect(result.messages[0].partial).toBe(true)
+		// sdkToolToClineSayTool converts "read_files" → "readFile" and
+		// the text is JSON.stringify(ClineSayTool)
+		expect(result.messages[0].text).toContain("readFile")
+		expect(result.messages[0].text).toContain("/src/index.ts")
+	})
+})
+
+// ---------------------------------------------------------------------------
+// translateSessionEvent — agent_event (content_end)
+// ---------------------------------------------------------------------------
+
+describe("translateSessionEvent — agent_event content_end", () => {
+	it("translates text content_end to complete text message", () => {
+		const state = new MessageTranslatorState()
+		// First, start streaming
+		const startEvent: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "content_start",
+					contentType: "text",
+					text: "Hello",
+				} as AgentEvent,
+			},
+		}
+		translateSessionEvent(startEvent, state)
+
+		// Then end it
+		const endEvent: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "content_end",
+					contentType: "text",
+					text: "Hello world",
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(endEvent, state)
+		expect(result.messages).toHaveLength(1)
+		expect(result.messages[0].say).toBe("text")
+		expect(result.messages[0].text).toBe("Hello world")
+		expect(result.messages[0].partial).toBe(false)
+	})
+
+	it("translates generated media content_end to the shared media payload", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "content_end",
+					contentType: "media",
+					media: {
+						id: "generated-1",
+						modality: "image",
+						mediaType: "image/png",
+						source: { type: "base64", data: "aGVsbG8=" },
+					},
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		expect(result.messages).toEqual([
+			expect.objectContaining({
+				type: "say",
+				say: "text",
+				text: "",
+				media: [
+					{
+						id: "generated-1",
+						modality: "image",
+						mediaType: "image/png",
+						source: { type: "base64", data: "aGVsbG8=" },
+					},
+				],
+				partial: false,
+			}),
+		])
+	})
+
+	it("translates tool content_end with error", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "content_end",
+					contentType: "tool",
+					toolName: "read_files",
+					toolCallId: "call-1",
+					error: "Command not found",
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		// Error produces two messages: the tool message + an error message
+		expect(result.messages).toHaveLength(2)
+		expect(result.messages[0].say).toBe("tool")
+		expect(result.messages[0].partial).toBe(false)
+		expect(result.messages[1].say).toBe("error")
+		expect(result.messages[1].text).toBe("Command not found")
+		expect(result.messages[1].partial).toBe(false)
+	})
+
+	it("translates tool content_end with output", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "content_end",
+					contentType: "tool",
+					toolName: "read_files",
+					toolCallId: "call-1",
+					output: "file contents here",
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		expect(result.messages).toHaveLength(1)
+		// Tool content_end produces a ClineSayTool JSON with the tool name
+		expect(result.messages[0].say).toBe("tool")
+		expect(result.messages[0].text).toContain("readFile")
+		expect(result.messages[0].partial).toBe(false)
+	})
+
+	it("content_end preserves tool input from content_start (S6-24 fix)", () => {
+		const state = new MessageTranslatorState()
+		const expectedDiff = "------- SEARCH\nconsole.log('world')\n=======\nconsole.log('hello')\n+++++++ REPLACE"
+
+		// 1. content_start with editor tool input
+		const startEvent: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "content_start",
+					contentType: "tool",
+					toolName: "editor",
+					toolCallId: "call-1",
+					input: {
+						path: "/src/app.ts",
+						new_text: "console.log('hello')",
+						old_text: "console.log('world')",
+					},
+				} as AgentEvent,
+			},
+		}
+		const startResult = translateSessionEvent(startEvent, state)
+		expect(startResult.messages).toHaveLength(1)
+		const startTool = JSON.parse(startResult.messages[0].text!)
+		expect(startTool.tool).toBe("editedExistingFile")
+		expect(startTool.path).toBe("/src/app.ts")
+		// S6-48: when both old_text and new_text are provided, content is a search/replace diff
+		expect(startTool.content).toBe(expectedDiff)
+
+		// 2. content_end — should preserve the input from content_start
+		const endEvent: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "content_end",
+					contentType: "tool",
+					toolName: "editor",
+					toolCallId: "call-1",
+				} as AgentEvent,
+			},
+		}
+		const endResult = translateSessionEvent(endEvent, state)
+		expect(endResult.messages).toHaveLength(1)
+		expect(endResult.messages[0].partial).toBe(false)
+		const endTool = JSON.parse(endResult.messages[0].text!)
+		// The finalized message should have the same content as the partial
+		expect(endTool.tool).toBe("editedExistingFile")
+		expect(endTool.path).toBe("/src/app.ts")
+		expect(endTool.content).toBe(expectedDiff)
+	})
+
+	it("content_end for newFileCreated preserves content from content_start (S6-24)", () => {
+		const state = new MessageTranslatorState()
+
+		// content_start with editor tool (no old_text → newFileCreated)
+		translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "editor",
+						toolCallId: "c1",
+						input: { path: "/new-file.ts", new_text: "export const x = 1" },
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+
+		// content_end
+		const endResult = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_end",
+						contentType: "tool",
+						toolName: "editor",
+						toolCallId: "c1",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+
+		const endTool = JSON.parse(endResult.messages[0].text!)
+		expect(endTool.tool).toBe("newFileCreated")
+		expect(endTool.path).toBe("/new-file.ts")
+		expect(endTool.content).toBe("export const x = 1")
+	})
+
+	it("content_end for read_files preserves path from content_start (S6-24)", () => {
+		const state = new MessageTranslatorState()
+
+		// content_start
+		translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "read_files",
+						toolCallId: "c1",
+						input: { files: [{ path: "/src/config.ts" }] },
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+
+		// content_end (no input)
+		const endResult = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_end",
+						contentType: "tool",
+						toolName: "read_files",
+						toolCallId: "c1",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+
+		const endTool = JSON.parse(endResult.messages[0].text!)
+		expect(endTool.tool).toBe("readFile")
+		expect(endTool.path).toBe("/src/config.ts")
+	})
+
+	it("content_end for read_files emits one tool message per file when multiple files are read", () => {
+		const state = new MessageTranslatorState()
+
+		translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "read_files",
+						toolCallId: "c1",
+						input: {
+							files: [{ path: "/src/README.md" }, { path: "/src/package.json" }],
+						},
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+
+		const endResult = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_end",
+						contentType: "tool",
+						toolName: "read_files",
+						toolCallId: "c1",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+
+		expect(endResult.messages).toHaveLength(2)
+		const first = JSON.parse(endResult.messages[0].text!)
+		const second = JSON.parse(endResult.messages[1].text!)
+		expect(first.tool).toBe("readFile")
+		expect(second.tool).toBe("readFile")
+		expect(first.path).toBe("/src/README.md")
+		expect(second.path).toBe("/src/package.json")
+	})
+
+	it("content_end for read_files carries the requested line range into the readFile payload", () => {
+		const state = new MessageTranslatorState()
+
+		translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "read_files",
+						toolCallId: "c1",
+						input: { files: [{ path: "/src/big-file.ts", start_line: 100, end_line: 200 }] },
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+
+		const endResult = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_end",
+						contentType: "tool",
+						toolName: "read_files",
+						toolCallId: "c1",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+
+		const endTool = JSON.parse(endResult.messages[0].text!)
+		expect(endTool.tool).toBe("readFile")
+		expect(endTool.path).toBe("/src/big-file.ts")
+		expect(endTool.readLineStart).toBe(100)
+		expect(endTool.readLineEnd).toBe(200)
+	})
+
+	it("content_end for read_files treats a start_line-only read as open-ended and defaults a missing start_line to 1", () => {
+		const state = new MessageTranslatorState()
+
+		translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "read_files",
+						toolCallId: "c1",
+						input: {
+							files: [
+								{ path: "/src/paged.ts", start_line: 500, end_line: null },
+								{ path: "/src/head.ts", end_line: 50 },
+								{ path: "/src/whole.ts" },
+							],
+						},
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+
+		const endResult = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_end",
+						contentType: "tool",
+						toolName: "read_files",
+						toolCallId: "c1",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+
+		expect(endResult.messages).toHaveLength(3)
+		const [paged, head, whole] = endResult.messages.map((m) => JSON.parse(m.text!))
+		expect(paged.readLineStart).toBe(500)
+		expect(paged.readLineEnd).toBeUndefined()
+		expect(head.readLineStart).toBe(1)
+		expect(head.readLineEnd).toBe(50)
+		expect(whole.readLineStart).toBeUndefined()
+		expect(whole.readLineEnd).toBeUndefined()
+	})
+
+	it("content_end without prior content_start still works (graceful fallback)", () => {
+		const state = new MessageTranslatorState()
+
+		// content_end with no prior content_start — stored input is undefined
+		const endResult = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_end",
+						contentType: "tool",
+						toolName: "editor",
+						toolCallId: "c1",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+
+		// Should still produce a message, just with empty fields
+		expect(endResult.messages).toHaveLength(1)
+		const endTool = JSON.parse(endResult.messages[0].text!)
+		expect(endTool.tool).toBe("newFileCreated") // no old_text → newFileCreated
+		expect(endTool.path).toBe("")
+	})
+})
+
+// ---------------------------------------------------------------------------
+// translateSessionEvent — agent_event (done)
+// ---------------------------------------------------------------------------
+
+describe("translateSessionEvent — agent_event done", () => {
+	it("translates done event to ask completion_result with empty text (no green rectangle)", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "done",
+					reason: "completed",
+					text: "Task completed successfully",
+					iterations: 1,
+				} as AgentEvent,
+			},
+		}
+
+		// done emits no transcript message and only signals turnComplete; the authoritative UI
+		// mode comes from TurnState set by the session-event coordinator.
+		const result = translateSessionEvent(event, state)
+		expect(result.messages).toHaveLength(0)
+		expect(result.turnComplete).toBe(true)
+	})
+
+	it("done emits no synthetic ask even when attempt_completion was seen (green box from content_end)", () => {
+		const state = new MessageTranslatorState()
+
+		// Simulate attempt_completion being called (content_start)
+		translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "attempt_completion",
+						input: { result: "All done!" },
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+
+		// Simulate content_end for attempt_completion
+		const endResult = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "content_end",
+						contentType: "tool",
+						toolName: "attempt_completion",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+
+		// content_end emits say:"completion_result" (the green box) but never ask:"completion_result";
+		// UI mode is TurnState-driven, so no terminal ask is needed.
+		const sayMessages = endResult.messages.filter((m) => m.type === "say" && m.say === "completion_result")
+		const askMessages = endResult.messages.filter((m) => m.type === "ask" && m.ask === "completion_result")
+		expect(sayMessages).toHaveLength(1)
+		expect(askMessages).toHaveLength(0)
+
+		// The done event emits NO message now (the green box already rendered at content_end);
+		// it only signals turnComplete. The webview reads phase=completed from TurnState.
+		const doneResult = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "done",
+						reason: "completed",
+						text: "All done!",
+						iterations: 1,
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		expect(doneResult.messages).toHaveLength(0)
+		expect(doneResult.turnComplete).toBe(true)
+	})
+
+	it("recognizes the SDK completion tool submit_and_exit (summary field) → completion_result + completed phase", () => {
+		// The SDK's built-in completion tool is `submit_and_exit` with a `summary` input field
+		// (see sdk/packages/core/.../tools/constants.ts + definitions.ts); the VSCode extra tool
+		// `attempt_completion` uses `result`. The translator recognizes both names and either
+		// field so completion renders the green "Task Completed" box and sets the completed phase.
+		const state = new MessageTranslatorState()
+
+		const startResult = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "submit_and_exit",
+						input: { summary: "All done — issue resolved." },
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+
+		// content_start emits a partial say:"completion_result" with the summary text.
+		const startSay = startResult.messages.find((m) => m.type === "say" && m.say === "completion_result")
+		expect(startSay?.text).toBe("All done — issue resolved.")
+		expect(state.wasAttemptCompletionSeen()).toBe(true)
+
+		const endResult = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "content_end",
+						contentType: "tool",
+						toolName: "submit_and_exit",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+
+		// content_end finalizes the green "Task Completed" box (non-partial completion_result).
+		const finalSay = endResult.messages.find((m) => m.type === "say" && m.say === "completion_result")
+		expect(finalSay?.partial).toBe(false)
+		expect(finalSay?.text).toBe("All done — issue resolved.")
+	})
+})
+
+// ---------------------------------------------------------------------------
+// translateSessionEvent — inferred turn-final completion retag
+// ---------------------------------------------------------------------------
+
+describe("translateSessionEvent — inferred turn-final completion", () => {
+	const agentEvent = (event: Partial<AgentEvent> & { type: string }): CoreSessionEvent =>
+		({
+			type: "agent_event",
+			payload: { sessionId: "session-1", event: event as AgentEvent },
+		}) as CoreSessionEvent
+
+	const endText = (state: MessageTranslatorState, text: string) =>
+		translateSessionEvent(agentEvent({ type: "content_end", contentType: "text", text }), state)
+
+	const done = (state: MessageTranslatorState, reason: "completed" | "aborted" | "error" = "completed") =>
+		translateSessionEvent(agentEvent({ type: "done", reason, text: "", iterations: 1 }), state)
+
+	it("retags the turn-final text to plan_completion_result in plan mode", () => {
+		const state = new MessageTranslatorState(undefined, undefined, () => "plan")
+		const textResult = endText(state, "Here is the plan.")
+
+		const doneResult = done(state)
+
+		expect(doneResult.messages).toHaveLength(1)
+		expect(doneResult.messages[0]).toMatchObject({
+			ts: textResult.messages[0].ts,
+			type: "say",
+			say: "plan_completion_result",
+			text: "Here is the plan.",
+			partial: false,
+		})
+	})
+
+	it("does not retag when the turn ends on a tool call after the text", () => {
+		const state = new MessageTranslatorState()
+		endText(state, "Wrapping up now.")
+
+		// The translator is tool-agnostic: any tool whose lifecycle.completesRun
+		// ends the run after its result (a host extraTool, or yolo's
+		// submit_and_exit) leaves the trailing text as a non-final say.
+		translateSessionEvent(
+			agentEvent({ type: "content_start", contentType: "tool", toolName: "completing_extra_tool", input: {} }),
+			state,
+		)
+		translateSessionEvent(
+			agentEvent({ type: "content_end", contentType: "tool", toolName: "completing_extra_tool", output: "ok" }),
+			state,
+		)
+
+		expect(done(state).messages).toHaveLength(0)
+	})
+
+	it("does not retag an aborted or errored turn", () => {
+		const state = new MessageTranslatorState()
+		endText(state, "Halfway through...")
+		expect(done(state, "aborted").messages).toHaveLength(0)
+
+		// The abort cleared the candidate — a later stray done must not resurrect it.
+		expect(done(state).messages).toHaveLength(0)
+
+		endText(state, "Almost there...")
+		const errorResult = translateSessionEvent(
+			agentEvent({ type: "error", error: new Error("boom"), recoverable: false }),
+			state,
+		)
+		expect(errorResult.messages.some((m) => m.say === "completion_result")).toBe(false)
+		expect(done(state).messages.filter((m) => m.say === "completion_result")).toHaveLength(0)
+	})
+
+	it("retags only the last finalized text of the turn (text → tool → text)", () => {
+		const state = new MessageTranslatorState()
+		endText(state, "Let me check the file first.")
+		translateSessionEvent(
+			agentEvent({
+				type: "content_start",
+				contentType: "tool",
+				toolName: "read_files",
+				toolCallId: "call-1",
+				input: { path: "/a.ts" },
+			}),
+			state,
+		)
+		translateSessionEvent(
+			agentEvent({
+				type: "content_end",
+				contentType: "tool",
+				toolName: "read_files",
+				toolCallId: "call-1",
+				output: "contents",
+			}),
+			state,
+		)
+		const finalText = endText(state, "All done — the file looks good.")
+
+		const doneResult = done(state)
+		expect(doneResult.messages).toHaveLength(1)
+		expect(doneResult.messages[0]).toMatchObject({
+			ts: finalText.messages[0].ts,
+			say: "completion_result",
+			text: "All done — the file looks good.",
+		})
+	})
+
+	it("does not retag when the completion tool already rendered the green box", () => {
+		const state = new MessageTranslatorState()
+		endText(state, "Wrapping up.")
+		translateSessionEvent(
+			agentEvent({
+				type: "content_start",
+				contentType: "tool",
+				toolName: "attempt_completion",
+				input: { result: "Done!" },
+			}),
+			state,
+		)
+		translateSessionEvent(agentEvent({ type: "content_end", contentType: "tool", toolName: "attempt_completion" }), state)
+
+		expect(done(state).messages).toHaveLength(0)
+	})
+
+	it("clearTurnOutcome drops a stale candidate from the previous turn", () => {
+		const state = new MessageTranslatorState()
+		endText(state, "Previous turn's answer.")
+		state.clearTurnOutcome() // new user turn begins
+
+		expect(done(state).messages).toHaveLength(0)
+	})
+})
+
+// ---------------------------------------------------------------------------
+// translateSessionEvent — agent_event (error)
+// ---------------------------------------------------------------------------
+
+describe("translateSessionEvent — agent_event error", () => {
+	it("translates error event to api_req_started + api_req_failed messages", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "error",
+					error: { message: "API rate limit exceeded" },
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		expect(result.messages).toHaveLength(2)
+		// First message: api_req_started with streamingFailedMessage
+		expect(result.messages[0].say).toBe("api_req_started")
+		const apiReqInfo = JSON.parse(result.messages[0].text!)
+		expect(apiReqInfo.streamingFailedMessage).toBe("API rate limit exceeded")
+		expect(result.messages[0].partial).toBe(false)
+		// Second message: ask api_req_failed
+		expect(result.messages[1].type).toBe("ask")
+		expect(result.messages[1].ask).toBe("api_req_failed")
+		expect(result.messages[1].text).toBe("API rate limit exceeded")
+		expect(result.messages[1].partial).toBe(false)
+		expect(result.turnComplete).toBe(true)
+	})
+
+	it("appends region-switch guidance when Vertex rejects a model on the global endpoint", () => {
+		const state = new MessageTranslatorState(undefined, () => "vertex")
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "error",
+					error: { message: "model not available in region: global" },
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		expect(result.messages[1].ask).toBe("api_req_failed")
+		expect(result.messages[1].text).toContain("model not available in region: global")
+		expect(result.messages[1].text).toContain("does not support the Vertex AI global endpoint")
+		expect(result.messages[1].text).toContain("us-east5")
+	})
+
+	it("appends the same guidance for Google's Publisher Model not-found body on the global location", () => {
+		const state = new MessageTranslatorState(undefined, () => "vertex")
+		const message =
+			"Publisher Model `projects/test-project/locations/global/publishers/anthropic/models/claude-fable-5` was not found or your project does not have access to it."
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "error",
+					error: { message },
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		expect(result.messages[1].text).toContain(message)
+		expect(result.messages[1].text).toContain("does not support the Vertex AI global endpoint")
+	})
+
+	it("leaves region errors from other providers untouched", () => {
+		const state = new MessageTranslatorState(undefined, () => "bedrock")
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "error",
+					error: { message: "model not available in region: global" },
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		expect(result.messages[1].text).toBe("model not available in region: global")
+	})
+
+	it("leaves unrelated Vertex errors untouched", () => {
+		const state = new MessageTranslatorState(undefined, () => "vertex")
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "error",
+					error: { message: "Quota exceeded for metric: generate_requests" },
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		expect(result.messages[1].text).toBe("Quota exceeded for metric: generate_requests")
+	})
+
+	it("treats recoverable errors as in-run notices: no messages, no turn end, no error phase", () => {
+		// The MistakeTracker emits a recoverable error event for every recorded
+		// mistake (e.g. a plan-mode guard-blocked command as the turn's only
+		// tool call) while the run keeps going. It must not surface the error
+		// recovery UI or mark the turn errored/complete.
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "error",
+					error: new Error('1 tool call(s) failed: [run_commands] {"error":"Command not executed"}'),
+					recoverable: true,
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		expect(result.messages).toHaveLength(0)
+		expect(result.turnComplete).toBe(false)
+		expect(state.wasErrorSeen()).toBe(false)
+	})
+
+	it("still retags the plan completion when a recoverable mistake happened mid-turn", () => {
+		// Regression: a plan-mode turn whose blocked run_commands call fed the
+		// MistakeTracker used to end in the error phase with the plan text left
+		// as a plain say, so the plan→act toggle never auto-continued.
+		const state = new MessageTranslatorState(undefined, undefined, () => "plan")
+		const agentEvent = (event: Partial<AgentEvent> & { type: string }): CoreSessionEvent =>
+			({
+				type: "agent_event",
+				payload: { sessionId: "session-1", event: event as AgentEvent },
+			}) as CoreSessionEvent
+
+		// Mid-turn recoverable mistake (blocked tool call was the only tool).
+		translateSessionEvent(
+			agentEvent({ type: "error", error: new Error("1 tool call(s) failed: [run_commands]"), recoverable: true }),
+			state,
+		)
+		// The model recovers and presents the plan, then the turn completes.
+		const textResult = translateSessionEvent(
+			agentEvent({ type: "content_end", contentType: "text", text: "Here is the plan." }),
+			state,
+		)
+		const doneResult = translateSessionEvent(
+			agentEvent({ type: "done", reason: "completed", text: "", iterations: 2 }),
+			state,
+		)
+
+		expect(state.wasErrorSeen()).toBe(false)
+		expect(doneResult.messages).toContainEqual({
+			ts: textResult.messages[0].ts,
+			type: "say",
+			say: "plan_completion_result",
+			text: "Here is the plan.",
+			partial: false,
+		})
+	})
+
+	it("records the error outcome when the turn terminates with done(reason:'error')", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "done",
+					reason: "error",
+					text: "stream failed before assistant output",
+					iterations: 1,
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		expect(result.turnComplete).toBe(true)
+		expect(state.wasErrorSeen()).toBe(true)
+	})
+
+	it("does not record an error outcome for a successful done event", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "done",
+					reason: "completed",
+					text: "",
+					iterations: 1,
+				} as AgentEvent,
+			},
+		}
+
+		translateSessionEvent(event, state)
+		expect(state.wasErrorSeen()).toBe(false)
+	})
+
+	it("reshapes insufficient_credits error into ClineError-compatible format", () => {
+		const state = new MessageTranslatorState()
+		const errorJson = JSON.stringify({
+			code: "insufficient_credits",
+			current_balance: -0.14,
+			message: "Not enough credits available",
+		})
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "error",
+					error: { message: errorJson },
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		expect(result.messages).toHaveLength(2)
+
+		// The api_req_failed text should be structured JSON that ClineError.parse() can handle
+		const failedText = result.messages[1].text!
+		const parsed = JSON.parse(failedText)
+		expect(parsed.code).toBe("insufficient_credits")
+		expect(parsed.providerId).toBe("cline")
+		expect(parsed.details.current_balance).toBe(-0.14)
+		expect(parsed.details.message).toBe("Not enough credits available")
+	})
+
+	it("preserves the active provider when reshaping insufficient_credits errors", () => {
+		const state = new MessageTranslatorState(undefined, () => "zai")
+		const errorJson = JSON.stringify({
+			code: "insufficient_credits",
+			current_balance: 0,
+			message: "账户余额不足，请充值后重试",
+		})
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "error",
+					error: { message: errorJson },
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		const parsed = JSON.parse(result.messages[1].text!)
+		expect(parsed.code).toBe("insufficient_credits")
+		expect(parsed.providerId).toBe("zai")
+		expect(parsed.details.current_balance).toBe(0)
+	})
+
+	it("reshapes SPEND_LIMIT_EXCEEDED error into ClineError-compatible format", () => {
+		const state = new MessageTranslatorState()
+		const errorJson = JSON.stringify({
+			code: "SPEND_LIMIT_EXCEEDED",
+			limit_scope: "user",
+			budget_period: "daily",
+			limit_usd: 20.0,
+			spent_usd: 20.5,
+			resets_at: "2026-05-01T00:00:00Z",
+			message: "Your daily spend limit of $20.00 has been reached.",
+		})
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "error",
+					error: { message: errorJson },
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		expect(result.messages).toHaveLength(2)
+
+		const failedText = result.messages[1].text!
+		const parsed = JSON.parse(failedText)
+		expect(parsed.code).toBe("SPEND_LIMIT_EXCEEDED")
+		expect(parsed.providerId).toBe("cline")
+		expect(parsed.details.budget_period).toBe("daily")
+		expect(parsed.details.limit_usd).toBe(20.0)
+	})
+
+	it("reshapes plain-text insufficient credits error into ClineError-compatible format", () => {
+		const state = new MessageTranslatorState()
+		// The SDK often extracts human-readable text from the API response,
+		// losing the structured JSON. This tests that plain-text balance errors
+		// are still detected and reshaped.
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "error",
+					error: {
+						message: "Insufficient balance. Your Cline Credits balance is $-0.14",
+					},
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		expect(result.messages).toHaveLength(2)
+
+		const failedText = result.messages[1].text!
+		const parsed = JSON.parse(failedText)
+		expect(parsed.code).toBe("insufficient_credits")
+		expect(parsed.providerId).toBe("cline")
+		expect(parsed.details.current_balance).toBe(-0.14)
+		expect(parsed.details.message).toContain("Insufficient balance")
+	})
+
+	it("reshapes plain-text 'Not enough credits' error into ClineError-compatible format", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "error",
+					error: { message: "Not enough credits available" },
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		expect(result.messages).toHaveLength(2)
+
+		const failedText = result.messages[1].text!
+		const parsed = JSON.parse(failedText)
+		expect(parsed.code).toBe("insufficient_credits")
+		expect(parsed.providerId).toBe("cline")
+		expect(parsed.details.current_balance).toBe(0)
+	})
+
+	it("reshapes plain-text spend limit error into ClineError-compatible format", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "error",
+					error: {
+						message: "Your daily spend limit of $20.00 has been reached.",
+					},
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		expect(result.messages).toHaveLength(2)
+
+		const failedText = result.messages[1].text!
+		const parsed = JSON.parse(failedText)
+		expect(parsed.code).toBe("SPEND_LIMIT_EXCEEDED")
+		expect(parsed.providerId).toBe("cline")
+	})
+
+	it("preserves ClinePass period limit errors for specialized webview rendering", () => {
+		const state = new MessageTranslatorState(undefined, () => "cline-pass")
+		const message = "You have reached your weekly Clinepass limit. The limit resets in 7d, please try again later."
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "error",
+					error: { message },
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		expect(result.messages).toHaveLength(2)
+		expect(result.messages[1].text).toBe(message)
+	})
+
+	it("rewrites Anthropic bare 'model: <id>' 404 into an actionable message", () => {
+		const state = new MessageTranslatorState(undefined, () => "anthropic")
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "error",
+					error: { message: "model: claude-3-haiku-20240307" },
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		expect(result.messages).toHaveLength(2)
+
+		const failedText = result.messages[1].text!
+		expect(failedText).toContain("claude-3-haiku-20240307")
+		expect(failedText).toContain("was not found")
+		expect(failedText).toContain("API Configuration settings")
+	})
+
+	it("rewrites a 'model not found' message into an actionable message", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "error",
+					error: { message: "The model `gpt-foo` does not exist" },
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		expect(result.messages).toHaveLength(2)
+
+		const failedText = result.messages[1].text!
+		expect(failedText).toContain("gpt-foo")
+		expect(failedText).toContain("API Configuration settings")
+	})
+
+	it("does not rewrite an unrelated error that merely mentions a model", () => {
+		const state = new MessageTranslatorState()
+		const rawMessage = "The requested feature model is not available in your plan"
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "error",
+					error: { message: rawMessage },
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		const failedText = result.messages[1].text!
+		expect(failedText).toBe(rawMessage)
+		expect(failedText).not.toContain("API Configuration settings")
+	})
+
+	it("leaves an auth error mentioning a model untouched", () => {
+		const state = new MessageTranslatorState()
+		const rawMessage = "Invalid API key for model gpt-4"
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "error",
+					error: { message: rawMessage },
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		const failedText = result.messages[1].text!
+		expect(failedText).toBe(rawMessage)
+		expect(failedText).not.toContain("API Configuration settings")
+	})
+})
+
+// ---------------------------------------------------------------------------
+// translateSessionEvent — ended event
+// ---------------------------------------------------------------------------
+
+describe("translateSessionEvent — ended event", () => {
+	it("marks session as ended and turn as complete", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "ended",
+			payload: {
+				sessionId: "session-1",
+				reason: "completed",
+				ts: Date.now(),
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		expect(result.messages).toHaveLength(0)
+		expect(result.sessionEnded).toBe(true)
+		expect(result.turnComplete).toBe(true)
+	})
+})
+
+// ---------------------------------------------------------------------------
+// translateSessionEvent — hook events
+// ---------------------------------------------------------------------------
+
+describe("translateSessionEvent — hook events", () => {
+	it("translates tool_call hook to hook_status message", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "hook",
+			payload: {
+				sessionId: "session-1",
+				hookEventName: "tool_call",
+				toolName: "write_to_file",
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		expect(result.messages).toHaveLength(1)
+		expect(result.messages[0].say).toBe("hook_status")
+		expect(result.messages[0].text).toContain("write_to_file")
+	})
+
+	it("translates tool_result hook to hook_status message", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "hook",
+			payload: {
+				sessionId: "session-1",
+				hookEventName: "tool_result",
+				toolName: "read_files",
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		expect(result.messages).toHaveLength(1)
+		expect(result.messages[0].text).toContain("completed")
+	})
+})
+
+// ---------------------------------------------------------------------------
+// translateSessionEvent — status event
+// ---------------------------------------------------------------------------
+
+describe("translateSessionEvent — status event", () => {
+	it("produces no messages for status events", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "status",
+			payload: {
+				sessionId: "session-1",
+				status: "running",
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		expect(result.messages).toHaveLength(0)
+		expect(result.sessionEnded).toBe(false)
+		expect(result.turnComplete).toBe(false)
+	})
+})
+
+// ---------------------------------------------------------------------------
+// translateSessionEvent — streaming flow
+// ---------------------------------------------------------------------------
+
+describe("translateSessionEvent — full streaming flow", () => {
+	it("handles a complete text streaming flow", () => {
+		const state = new MessageTranslatorState()
+
+		// 1. Start streaming text
+		const startResult = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_start",
+						contentType: "text",
+						text: "Hello",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		expect(startResult.messages).toHaveLength(1)
+		expect(startResult.messages[0].partial).toBe(true)
+		expect(startResult.messages[0].text).toBe("Hello")
+
+		// 2. End streaming text
+		const endResult = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_end",
+						contentType: "text",
+						text: "Hello world!",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		expect(endResult.messages).toHaveLength(1)
+		expect(endResult.messages[0].partial).toBe(false)
+		expect(endResult.messages[0].text).toBe("Hello world!")
+
+		// 3. Done — the turn ended cleanly on a text response, so the final text row is
+		// retagged in place (same ts) to say:"completion_result" for the green
+		// "Task Completed" box (act mode is the default when no mode source is provided).
+		const doneResult = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "done",
+						reason: "completed",
+						text: "Done",
+						iterations: 1,
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		expect(doneResult.messages).toHaveLength(1)
+		expect(doneResult.messages[0]).toMatchObject({
+			ts: endResult.messages[0].ts,
+			type: "say",
+			say: "completion_result",
+			text: "Hello world!",
+			partial: false,
+		})
+		expect(doneResult.turnComplete).toBe(true)
+	})
+
+	it("handles text → tool → text flow", () => {
+		const state = new MessageTranslatorState()
+
+		// 1. Text start
+		const textStart = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_start",
+						contentType: "text",
+						text: "Let me read that file",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		expect(textStart.messages[0].say).toBe("text")
+
+		// 2. Text end
+		translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_end",
+						contentType: "text",
+						text: "Let me read that file",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+
+		// 3. Tool start
+		const toolStart = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "read_files",
+						toolCallId: "call-1",
+						input: { path: "/src/main.ts" },
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		expect(toolStart.messages[0].say).toBe("tool")
+		expect(toolStart.messages[0].partial).toBe(true)
+
+		// 4. Tool end
+		const toolEnd = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_end",
+						contentType: "tool",
+						toolName: "read_files",
+						toolCallId: "call-1",
+						output: "file contents",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		expect(toolEnd.messages[0].say).toBe("tool")
+		expect(toolEnd.messages[0].partial).toBe(false)
+
+		// 5. Second text start (after tool)
+		const text2Start = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_start",
+						contentType: "text",
+						text: "Here's what I found:",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		expect(text2Start.messages[0].say).toBe("text")
+	})
+})
+
+// ---------------------------------------------------------------------------
+// translateSessionEvent — notice event
+// ---------------------------------------------------------------------------
+
+describe("translateSessionEvent — agent_event notice", () => {
+	it("translates notice event to info message", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "notice",
+					message: "Retrying API request...",
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		expect(result.messages).toHaveLength(1)
+		expect(result.messages[0].say).toBe("info")
+		expect(result.messages[0].text).toBe("Retrying API request...")
+		expect(result.messages[0].partial).toBe(false)
+	})
+
+	function noticeEvent(message: string, metadata?: Record<string, unknown>): CoreSessionEvent {
+		return {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "notice",
+					noticeType: "status",
+					displayRole: "status",
+					message,
+					metadata,
+				} as AgentEvent,
+			},
+		}
+	}
+
+	it("translates compaction status notices into a divider row updated in place", () => {
+		const state = new MessageTranslatorState()
+
+		const started = translateSessionEvent(
+			noticeEvent("auto-compacting", { kind: "auto_compaction", phase: "started" }),
+			state,
+		).messages
+		expect(started).toHaveLength(1)
+		expect(started[0].say).toBe("compaction")
+		expect(JSON.parse(started[0].text ?? "{}")).toMatchObject({ status: "started", mode: "auto" })
+
+		const completed = translateSessionEvent(
+			noticeEvent("auto-compacted", {
+				kind: "auto_compaction",
+				phase: "completed",
+				tokensBefore: 120_000,
+				tokensAfter: 40_000,
+				messagesBefore: 80,
+				messagesAfter: 12,
+			}),
+			state,
+		).messages
+		expect(completed).toHaveLength(1)
+		expect(completed[0].say).toBe("compaction")
+		// Same ts: the webview replaces the "started" spinner row in place.
+		expect(completed[0].ts).toBe(started[0].ts)
+		expect(JSON.parse(completed[0].text ?? "{}")).toMatchObject({
+			status: "completed",
+			mode: "auto",
+			tokensBefore: 120_000,
+			tokensAfter: 40_000,
+			messagesBefore: 80,
+			messagesAfter: 12,
+		})
+	})
+
+	it("suppresses known-internal status notices instead of rendering raw slugs", () => {
+		const state = new MessageTranslatorState()
+		const result = translateSessionEvent(
+			noticeEvent("compaction-budget-adjusted", { kind: "compaction_budget_emergency", actionCount: 1 }),
+			state,
+		)
+		expect(result.messages).toHaveLength(0)
+	})
+
+	it("renders an unrecognized status notice as an info row rather than dropping it", () => {
+		// Only the known-internal set is suppressed; a status notice added to the
+		// SDK later should surface (even as a raw slug) instead of vanishing.
+		const state = new MessageTranslatorState()
+		const result = translateSessionEvent(noticeEvent("some-future-status", { kind: "something_new" }), state)
+		expect(result.messages).toHaveLength(1)
+		expect(result.messages[0].say).toBe("info")
+		expect(result.messages[0].text).toBe("some-future-status")
+	})
+
+	it("finalizes a dangling compaction divider as failed when the turn errors", () => {
+		const state = new MessageTranslatorState()
+		const started = translateSessionEvent(
+			noticeEvent("auto-compacting", { kind: "auto_compaction", phase: "started" }),
+			state,
+		).messages
+
+		const errored = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: { type: "error", error: new Error("boom"), recoverable: false } as unknown as AgentEvent,
+				},
+			},
+			state,
+		).messages
+
+		const divider = errored.find((message) => message.say === "compaction")
+		expect(divider).toBeDefined()
+		expect(divider?.ts).toBe(started[0].ts)
+		expect(JSON.parse(divider?.text ?? "{}")).toMatchObject({ status: "failed" })
+	})
+
+	it("finalizes a dangling compaction divider as cancelled when the turn ends", () => {
+		const state = new MessageTranslatorState()
+		const started = translateSessionEvent(
+			noticeEvent("auto-compacting", { kind: "auto_compaction", phase: "started" }),
+			state,
+		).messages
+
+		const done = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: { type: "done", reason: "aborted" } as unknown as AgentEvent,
+				},
+			},
+			state,
+		).messages
+
+		const divider = done.find((message) => message.say === "compaction")
+		expect(divider).toBeDefined()
+		expect(divider?.ts).toBe(started[0].ts)
+		expect(JSON.parse(divider?.text ?? "{}")).toMatchObject({ status: "cancelled" })
+	})
+})
+
+// ---------------------------------------------------------------------------
+// translateSessionEvent — content_update
+// ---------------------------------------------------------------------------
+
+describe("translateSessionEvent — agent_event content_update", () => {
+	it("skips tool content_update (webview uses content_start partial until content_end)", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "content_update",
+					contentType: "tool",
+					toolName: "execute_command",
+					toolCallId: "call-1",
+					update: "Running npm install...",
+				} as AgentEvent,
+			},
+		}
+
+		// content_update is intentionally not forwarded to the webview —
+		// the content_start message with partial=true is sufficient until
+		// content_end finalizes it. This avoids flooding the webview.
+		const result = translateSessionEvent(event, state)
+		expect(result.messages).toHaveLength(0)
+	})
+})
+
+// ---------------------------------------------------------------------------
+// translateSessionEvent — agent_event (usage)
+// ---------------------------------------------------------------------------
+
+describe("translateSessionEvent — agent_event usage", () => {
+	it("splits SDK inclusive input tokens into classic disjoint usage buckets", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "usage",
+					inputTokens: 24481,
+					outputTokens: 261,
+					cacheReadTokens: 24478,
+					cacheWriteTokens: 0,
+					cost: 0.0112674,
+					totalInputTokens: 24481,
+					totalOutputTokens: 261,
+					totalCacheReadTokens: 24478,
+					totalCacheWriteTokens: 0,
+					totalCost: 0.0112674,
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		expect(result.messages).toHaveLength(1)
+		expect(result.messages[0].say).toBe("api_req_started")
+		expect(JSON.parse(result.messages[0].text ?? "{}")).toMatchObject({
+			tokensIn: 3,
+			tokensOut: 261,
+			cacheReads: 24478,
+			cacheWrites: 0,
+			cost: 0.0112674,
+		})
+		expect(result.usage).toEqual({
+			tokensIn: 3,
+			tokensOut: 261,
+			cacheReads: 24478,
+			cacheWrites: 0,
+			totalCost: 0.0112674,
+		})
+	})
+})
+
+// ---------------------------------------------------------------------------
+// historyItemToSessionFields
+// ---------------------------------------------------------------------------
+
+describe("historyItemToSessionFields", () => {
+	it("maps HistoryItem to session fields", () => {
+		const result = historyItemToSessionFields({
+			id: "task-123",
+			task: "Fix the bug",
+			ts: 1700000000000,
+			tokensIn: 500,
+			tokensOut: 250,
+			totalCost: 0.05,
+			modelId: "claude-sonnet-4-6",
+		})
+
+		expect(result.sessionId).toBe("task-123")
+		expect(result.prompt).toBe("Fix the bug")
+		expect(result.usage.tokensIn).toBe(500)
+		expect(result.usage.tokensOut).toBe(250)
+		expect(result.usage.totalCost).toBe(0.05)
+		expect(result.modelId).toBe("claude-sonnet-4-6")
+		expect(result.startedAt).toBe(new Date(1700000000000).toISOString())
+	})
+
+	it("handles missing optional fields", () => {
+		const result = historyItemToSessionFields({
+			id: "task-456",
+			task: "Simple task",
+			ts: 1700000000000,
+			tokensIn: 0,
+			tokensOut: 0,
+			totalCost: 0,
+		})
+
+		expect(result.sessionId).toBe("task-456")
+		expect(result.modelId).toBeUndefined()
+	})
+})
+
+describe("translateSessionEvent — accumulated text streaming (S6-21 fix)", () => {
+	it("uses accumulated text for smooth streaming instead of delta", () => {
+		const state = new MessageTranslatorState()
+
+		// First chunk: text="Hello ", accumulated="Hello "
+		const chunk1 = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_start",
+						contentType: "text",
+						text: "Hello ",
+						accumulated: "Hello ",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		expect(chunk1.messages).toHaveLength(1)
+		expect(chunk1.messages[0].text).toBe("Hello ")
+		expect(chunk1.messages[0].partial).toBe(true)
+		const streamingTs = chunk1.messages[0].ts
+
+		// Second chunk: text="world" (delta), accumulated="Hello world" (full)
+		// The message should use accumulated, NOT text (delta)
+		const chunk2 = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_start",
+						contentType: "text",
+						text: "world",
+						accumulated: "Hello world",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		expect(chunk2.messages).toHaveLength(1)
+		// CRITICAL: Must be "Hello world" (accumulated), NOT "world" (delta)
+		// Using delta would cause "flip book" effect in the webview
+		expect(chunk2.messages[0].text).toBe("Hello world")
+		expect(chunk2.messages[0].partial).toBe(true)
+		// Same timestamp — webview updates in-place
+		expect(chunk2.messages[0].ts).toBe(streamingTs)
+
+		// Third chunk: more text
+		const chunk3 = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_start",
+						contentType: "text",
+						text: "!",
+						accumulated: "Hello world!",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		expect(chunk3.messages).toHaveLength(1)
+		expect(chunk3.messages[0].text).toBe("Hello world!")
+		expect(chunk3.messages[0].ts).toBe(streamingTs)
+
+		// content_end finalizes
+		const end = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_end",
+						contentType: "text",
+						text: "Hello world!",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		expect(end.messages).toHaveLength(1)
+		expect(end.messages[0].text).toBe("Hello world!")
+		expect(end.messages[0].partial).toBe(false)
+		expect(end.messages[0].ts).toBe(streamingTs)
+	})
+
+	it("accumulates reasoning deltas into text for webview rendering", () => {
+		const state = new MessageTranslatorState()
+
+		const chunk1 = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_start",
+						contentType: "reasoning",
+						reasoning: "Thinking ",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		const streamingTs = chunk1.messages[0].ts
+		expect(chunk1.messages[0].text).toBe("Thinking ")
+		expect(chunk1.messages[0].reasoning).toBe("Thinking ")
+
+		const chunk2 = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_start",
+						contentType: "reasoning",
+						reasoning: "through it",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		expect(chunk2.messages[0].ts).toBe(streamingTs)
+		expect(chunk2.messages[0].text).toBe("Thinking through it")
+		expect(chunk2.messages[0].reasoning).toBe("Thinking through it")
+
+		const end = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_end",
+						contentType: "reasoning",
+						reasoning: "Thinking through it",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		expect(end.messages[0].ts).toBe(streamingTs)
+		expect(end.messages[0].text).toBe("Thinking through it")
+		expect(end.messages[0].partial).toBe(false)
+	})
+
+	it("falls back to text when accumulated is not provided", () => {
+		const state = new MessageTranslatorState()
+
+		// Some SDK events may not have accumulated (e.g., first chunk)
+		const result = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_start",
+						contentType: "text",
+						text: "Hello",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		expect(result.messages).toHaveLength(1)
+		expect(result.messages[0].text).toBe("Hello")
+	})
+
+	it("all streaming chunks share the same timestamp for in-place updates", () => {
+		const state = new MessageTranslatorState()
+		const timestamps: number[] = []
+
+		for (let i = 0; i < 5; i++) {
+			const result = translateSessionEvent(
+				{
+					type: "agent_event",
+					payload: {
+						sessionId: "s1",
+						event: {
+							type: "content_start",
+							contentType: "text",
+							text: `chunk${i}`,
+							accumulated: `accumulated${i}`,
+						} as AgentEvent,
+					},
+				},
+				state,
+			)
+			timestamps.push(result.messages[0].ts)
+		}
+
+		// All timestamps should be identical
+		expect(new Set(timestamps).size).toBe(1)
+	})
+
+	// ---------------------------------------------------------------------------
+	// extractToolOutputText
+	// ---------------------------------------------------------------------------
+
+	describe("extractToolOutputText", () => {
+		it("returns empty string for null/undefined", () => {
+			expect(extractToolOutputText(null)).toBe("")
+			expect(extractToolOutputText(undefined)).toBe("")
+		})
+
+		it("returns string output as-is", () => {
+			expect(extractToolOutputText("hello world\nline 2")).toBe("hello world\nline 2")
+		})
+
+		it("returns empty string for empty string", () => {
+			expect(extractToolOutputText("")).toBe("")
+		})
+
+		it("extracts result text from ToolOperationResult array (single command)", () => {
+			const output = [{ query: "ls -la", result: "file1\nfile2\nfile3", success: true }]
+			expect(extractToolOutputText(output)).toBe("file1\nfile2\nfile3")
+		})
+
+		it("extracts result text from ToolOperationResult array (multiple commands)", () => {
+			const output = [
+				{ query: "echo hello", result: "hello", success: true },
+				{ query: "echo world", result: "world", success: true },
+			]
+			expect(extractToolOutputText(output)).toBe("hello\nworld")
+		})
+
+		it("extracts error text from failed ToolOperationResult", () => {
+			const output = [
+				{
+					query: "bad-command",
+					result: "",
+					error: "Command failed: not found",
+					success: false,
+				},
+			]
+			expect(extractToolOutputText(output)).toBe("Command failed: not found")
+		})
+
+		it("extracts mixed success and error results", () => {
+			const output = [
+				{ query: "echo ok", result: "ok", success: true },
+				{
+					query: "fail",
+					result: "",
+					error: "Command failed: exit 1",
+					success: false,
+				},
+			]
+			expect(extractToolOutputText(output)).toBe("ok\nCommand failed: exit 1")
+		})
+
+		it("handles array of plain strings", () => {
+			expect(extractToolOutputText(["line 1", "line 2"])).toBe("line 1\nline 2")
+		})
+
+		it("falls back to JSON.stringify for unknown structured output", () => {
+			expect(extractToolOutputText({ foo: "bar" })).toBe('{"foo":"bar"}')
+		})
+
+		it("falls back to JSON.stringify for empty array", () => {
+			expect(extractToolOutputText([])).toBe("[]")
+		})
+
+		it("skips ToolOperationResult entries with empty result and no error", () => {
+			const output = [
+				{ query: "noop", result: "", success: true },
+				{ query: "echo hi", result: "hi", success: true },
+			]
+			expect(extractToolOutputText(output)).toBe("hi")
+		})
+	})
+
+	// ---------------------------------------------------------------------------
+	// command content_end — output formatting
+	// ---------------------------------------------------------------------------
+
+	describe("translateSessionEvent — command content_end output formatting", () => {
+		it("formats ToolOperationResult[] as raw text, not JSON", () => {
+			const state = new MessageTranslatorState()
+			const startEvent: CoreSessionEvent = {
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "run_commands",
+						toolCallId: "c1",
+						input: { commands: ["ls -la"] },
+					} as AgentEvent,
+				},
+			}
+			translateSessionEvent(startEvent, state)
+
+			const endEvent: CoreSessionEvent = {
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_end",
+						contentType: "tool",
+						toolName: "run_commands",
+						toolCallId: "c1",
+						output: [
+							{
+								query: "ls -la",
+								result: "total 42\nfile1\nfile2",
+								success: true,
+							},
+						],
+					} as AgentEvent,
+				},
+			}
+			const result = translateSessionEvent(endEvent, state)
+			expect(result.messages).toHaveLength(1)
+			const msg = result.messages[0]
+			expect(msg.say).toBe("command")
+			expect(msg.text).toContain("ls -la")
+			expect(msg.text).toContain("Output:")
+			expect(msg.text).toContain("total 42")
+			// Should NOT contain JSON artifacts
+			expect(msg.text).not.toContain('"query"')
+			expect(msg.text).not.toContain('"success"')
+		})
+
+		it("formats string output directly", () => {
+			const state = new MessageTranslatorState()
+			translateSessionEvent(
+				{
+					type: "agent_event",
+					payload: {
+						sessionId: "s1",
+						event: {
+							type: "content_start",
+							contentType: "tool",
+							toolName: "run_commands",
+							toolCallId: "c2",
+							input: { commands: ["echo hello"] },
+						} as AgentEvent,
+					},
+				},
+				state,
+			)
+
+			const result = translateSessionEvent(
+				{
+					type: "agent_event",
+					payload: {
+						sessionId: "s1",
+						event: {
+							type: "content_end",
+							contentType: "tool",
+							toolName: "run_commands",
+							toolCallId: "c2",
+							output: "hello\n",
+						} as AgentEvent,
+					},
+				},
+				state,
+			)
+
+			const msg = result.messages[0]
+			expect(msg.text).toContain("echo hello")
+			expect(msg.text).toContain("Output:")
+			expect(msg.text).toContain("hello")
+		})
+
+		it("formats error output", () => {
+			const state = new MessageTranslatorState()
+			translateSessionEvent(
+				{
+					type: "agent_event",
+					payload: {
+						sessionId: "s1",
+						event: {
+							type: "content_start",
+							contentType: "tool",
+							toolName: "run_commands",
+							toolCallId: "c3",
+							input: { commands: ["bad-cmd"] },
+						} as AgentEvent,
+					},
+				},
+				state,
+			)
+
+			const result = translateSessionEvent(
+				{
+					type: "agent_event",
+					payload: {
+						sessionId: "s1",
+						event: {
+							type: "content_end",
+							contentType: "tool",
+							toolName: "run_commands",
+							toolCallId: "c3",
+							error: "command not found",
+						} as AgentEvent,
+					},
+				},
+				state,
+			)
+
+			const msg = result.messages[0]
+			expect(msg.text).toContain("Error: command not found")
+		})
+	})
+})
+
+// ---------------------------------------------------------------------------
+// ENG-1867: run_commands with bare array input renders command text
+// ---------------------------------------------------------------------------
+
+describe("translateSessionEvent — run_commands bare array/string input (ENG-1867)", () => {
+	it("content_start with bare array input shows command text", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "s1",
+				event: {
+					type: "content_start",
+					contentType: "tool",
+					toolName: "run_commands",
+					toolCallId: "c1",
+					input: ["biome check --write src/"],
+				} as AgentEvent,
+			},
+		}
+		const result = translateSessionEvent(event, state)
+		expect(result.messages).toHaveLength(1)
+		const msg = result.messages[0]
+		expect(msg.say).toBe("command")
+		// The running command row carries the "Output:" marker so ChatRow renders it as executing.
+		expect(msg.text).toBe("biome check --write src/\nOutput:")
+		expect(msg.partial).toBe(true)
+	})
+
+	it("content_start with multi-element bare array joins with &&", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "s1",
+				event: {
+					type: "content_start",
+					contentType: "tool",
+					toolName: "run_commands",
+					toolCallId: "c1",
+					input: ["npm install", "npm run build"],
+				} as AgentEvent,
+			},
+		}
+		const result = translateSessionEvent(event, state)
+		// The running command row carries the "Output:" marker so ChatRow renders it as executing.
+		expect(result.messages[0].text).toBe("npm install && npm run build\nOutput:")
+	})
+
+	it("content_start with bare string input shows command text", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "s1",
+				event: {
+					type: "content_start",
+					contentType: "tool",
+					toolName: "execute_command",
+					toolCallId: "c1",
+					input: "ls -la",
+				} as AgentEvent,
+			},
+		}
+		const result = translateSessionEvent(event, state)
+		expect(result.messages[0].say).toBe("command")
+		// The running command row carries the "Output:" marker so ChatRow renders it as executing.
+		expect(result.messages[0].text).toBe("ls -la\nOutput:")
+	})
+
+	it("content_end preserves bare array input from content_start", () => {
+		const state = new MessageTranslatorState()
+		// content_start with bare array
+		translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "run_commands",
+						toolCallId: "c1",
+						input: ["biome check --write src/"],
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		// content_end
+		const endResult = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_end",
+						contentType: "tool",
+						toolName: "run_commands",
+						toolCallId: "c1",
+						output: "Checked 2 files in 108ms. No fixes applied.",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		expect(endResult.messages).toHaveLength(1)
+		const msg = endResult.messages[0]
+		expect(msg.say).toBe("command")
+		expect(msg.text).toContain("biome check --write src/")
+		expect(msg.text).toContain("Output:")
+		expect(msg.text).toContain("Checked 2 files")
+		expect(msg.partial).toBe(false)
+	})
+
+	it("content_end with bare string input from content_start preserves command", () => {
+		const state = new MessageTranslatorState()
+		translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "execute_command",
+						toolCallId: "c1",
+						input: "echo hello",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		const endResult = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_end",
+						contentType: "tool",
+						toolName: "execute_command",
+						toolCallId: "c1",
+						output: "hello\n",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		const msg = endResult.messages[0]
+		expect(msg.text).toContain("echo hello")
+		expect(msg.text).toContain("hello")
+	})
+
+	it("wrapped object input { commands: [...] } still works (regression)", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "s1",
+				event: {
+					type: "content_start",
+					contentType: "tool",
+					toolName: "run_commands",
+					toolCallId: "c1",
+					input: { commands: ["npm test"] },
+				} as AgentEvent,
+			},
+		}
+		const result = translateSessionEvent(event, state)
+		// The running command row carries the "Output:" marker so ChatRow renders it as executing.
+		expect(result.messages[0].text).toBe("npm test\nOutput:")
+	})
+
+	it("structured command array input renders command and args, not [object Object]", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "s1",
+				event: {
+					type: "content_start",
+					contentType: "tool",
+					toolName: "run_commands",
+					toolCallId: "c1",
+					input: { commands: [{ command: "ls", args: ["-la", "/tmp"] }] },
+				} as AgentEvent,
+			},
+		}
+		const result = translateSessionEvent(event, state)
+		expect(result.messages[0].text).toBe("ls -la /tmp\nOutput:")
+		expect(result.messages[0].text).not.toContain("[object Object]")
+	})
+
+	it("direct structured command input renders command and args, not [object Object]", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "s1",
+				event: {
+					type: "content_start",
+					contentType: "tool",
+					toolName: "run_commands",
+					toolCallId: "c1",
+					input: { command: "ls", args: ["-la", "/tmp"] },
+				} as AgentEvent,
+			},
+		}
+		const result = translateSessionEvent(event, state)
+		expect(result.messages[0].text).toBe("ls -la /tmp\nOutput:")
+		expect(result.messages[0].text).not.toContain("[object Object]")
+	})
+})
+
+// ---------------------------------------------------------------------------
+// S6-39: fetch_web_content renders URL (SDK input: { requests: [{ url, prompt }] })
+// S6-40: skills tool renders skill name (SDK input: { skill: "name" })
+// ---------------------------------------------------------------------------
+
+describe("sdkToolToClineSayTool — fetch_web_content and skills (S6-39, S6-40)", () => {
+	it("S6-39: fetch_web_content extracts URL from SDK requests array", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "s1",
+				event: {
+					type: "content_start",
+					contentType: "tool",
+					toolName: "fetch_web_content",
+					toolCallId: "c1",
+					input: {
+						requests: [{ url: "https://example.com/docs", prompt: "Summarize" }],
+					},
+				} as AgentEvent,
+			},
+		}
+		const result = translateSessionEvent(event, state)
+		const tool = JSON.parse(result.messages[0].text!)
+		expect(tool.tool).toBe("webFetch")
+		expect(tool.path).toBe("https://example.com/docs")
+	})
+
+	it("S6-39: content_end preserves URL from content_start", () => {
+		const state = new MessageTranslatorState()
+		translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "fetch_web_content",
+						toolCallId: "c1",
+						input: {
+							requests: [{ url: "https://example.com", prompt: "Read" }],
+						},
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		const endResult = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_end",
+						contentType: "tool",
+						toolName: "fetch_web_content",
+						toolCallId: "c1",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		const endTool = JSON.parse(endResult.messages[0].text!)
+		expect(endTool.tool).toBe("webFetch")
+		expect(endTool.path).toBe("https://example.com")
+	})
+
+	it("S6-39: classic web_fetch with flat url field still works", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "s1",
+				event: {
+					type: "content_start",
+					contentType: "tool",
+					toolName: "web_fetch",
+					toolCallId: "c1",
+					input: { url: "https://classic.com", prompt: "Read" },
+				} as AgentEvent,
+			},
+		}
+		const tool = JSON.parse(translateSessionEvent(event, state).messages[0].text!)
+		expect(tool.tool).toBe("webFetch")
+		expect(tool.path).toBe("https://classic.com")
+	})
+
+	it("S6-39: multiple requests extracts first URL", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "s1",
+				event: {
+					type: "content_start",
+					contentType: "tool",
+					toolName: "fetch_web_content",
+					toolCallId: "c1",
+					input: {
+						requests: [
+							{ url: "https://first.com", prompt: "p1" },
+							{ url: "https://second.com", prompt: "p2" },
+						],
+					},
+				} as AgentEvent,
+			},
+		}
+		const tool = JSON.parse(translateSessionEvent(event, state).messages[0].text!)
+		expect(tool.path).toBe("https://first.com")
+	})
+
+	it("S6-40: skills tool extracts name from SDK 'skill' field", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "s1",
+				event: {
+					type: "content_start",
+					contentType: "tool",
+					toolName: "skills",
+					toolCallId: "c1",
+					input: { skill: "commit", args: null },
+				} as AgentEvent,
+			},
+		}
+		const result = translateSessionEvent(event, state)
+		const tool = JSON.parse(result.messages[0].text!)
+		expect(tool.tool).toBe("useSkill")
+		expect(tool.path).toBe("commit")
+	})
+
+	it("S6-40: skills content_end preserves skill name from content_start", () => {
+		const state = new MessageTranslatorState()
+		translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "skills",
+						toolCallId: "c1",
+						input: { skill: "review-pr", args: "123" },
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		const endResult = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_end",
+						contentType: "tool",
+						toolName: "skills",
+						toolCallId: "c1",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		const endTool = JSON.parse(endResult.messages[0].text!)
+		expect(endTool.tool).toBe("useSkill")
+		expect(endTool.path).toBe("review-pr")
+	})
+
+	it("S6-40: classic use_skill with skill_name field still works", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "s1",
+				event: {
+					type: "content_start",
+					contentType: "tool",
+					toolName: "use_skill",
+					toolCallId: "c1",
+					input: { skill_name: "kanban" },
+				} as AgentEvent,
+			},
+		}
+		const tool = JSON.parse(translateSessionEvent(event, state).messages[0].text!)
+		expect(tool.tool).toBe("useSkill")
+		expect(tool.path).toBe("kanban")
+	})
+})
+
+// ---------------------------------------------------------------------------
+// S6-47: search_codebase renders query and path correctly
+// ---------------------------------------------------------------------------
+
+describe("sdkToolToClineSayTool — search_codebase (S6-47)", () => {
+	it("S6-47: search_codebase with { queries: ['TODO', 'FIXME'] } extracts regex", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "s1",
+				event: {
+					type: "content_start",
+					contentType: "tool",
+					toolName: "search_codebase",
+					toolCallId: "c1",
+					input: { queries: ["TODO", "FIXME"] },
+				} as AgentEvent,
+			},
+		}
+		const result = translateSessionEvent(event, state)
+		const tool = JSON.parse(result.messages[0].text!)
+		expect(tool.tool).toBe("searchFiles")
+		expect(tool.regex).toBe("TODO, FIXME")
+	})
+
+	it("S6-47: search_codebase with stringified JSON input extracts regex", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "s1",
+				event: {
+					type: "content_start",
+					contentType: "tool",
+					toolName: "search_codebase",
+					toolCallId: "c1",
+					input: JSON.stringify({ queries: ["TODO"] }),
+				} as AgentEvent,
+			},
+		}
+		const result = translateSessionEvent(event, state)
+		const tool = JSON.parse(result.messages[0].text!)
+		expect(tool.tool).toBe("searchFiles")
+		expect(tool.regex).toBe("TODO")
+	})
+
+	it("S6-47: search_codebase with bare array input extracts regex", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "s1",
+				event: {
+					type: "content_start",
+					contentType: "tool",
+					toolName: "search_codebase",
+					toolCallId: "c1",
+					input: ["TODO", "FIXME"],
+				} as AgentEvent,
+			},
+		}
+		const result = translateSessionEvent(event, state)
+		const tool = JSON.parse(result.messages[0].text!)
+		expect(tool.tool).toBe("searchFiles")
+		expect(tool.regex).toBe("TODO, FIXME")
+	})
+
+	it("S6-47: search_codebase with bare string input extracts regex", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "s1",
+				event: {
+					type: "content_start",
+					contentType: "tool",
+					toolName: "search_codebase",
+					toolCallId: "c1",
+					input: "TODO",
+				} as AgentEvent,
+			},
+		}
+		const result = translateSessionEvent(event, state)
+		const tool = JSON.parse(result.messages[0].text!)
+		expect(tool.tool).toBe("searchFiles")
+		expect(tool.regex).toBe("TODO")
+	})
+
+	it("S6-47: search_codebase with { queries: 'single' } (string, not array) extracts regex", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "s1",
+				event: {
+					type: "content_start",
+					contentType: "tool",
+					toolName: "search_codebase",
+					toolCallId: "c1",
+					input: { queries: "TODO" },
+				} as AgentEvent,
+			},
+		}
+		const result = translateSessionEvent(event, state)
+		const tool = JSON.parse(result.messages[0].text!)
+		expect(tool.tool).toBe("searchFiles")
+		expect(tool.regex).toBe("TODO")
+	})
+
+	it("S6-47: content_end preserves search queries from content_start", () => {
+		const state = new MessageTranslatorState()
+		// content_start
+		translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "search_codebase",
+						toolCallId: "c1",
+						input: { queries: ["TODO", "FIXME"] },
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		// content_end (no input — S6-24 pattern)
+		const endResult = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_end",
+						contentType: "tool",
+						toolName: "search_codebase",
+						toolCallId: "c1",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		const endTool = JSON.parse(endResult.messages[0].text!)
+		expect(endTool.tool).toBe("searchFiles")
+		expect(endTool.regex).toBe("TODO, FIXME")
+	})
+
+	it("S6-47: content_end preserves bare array input from content_start", () => {
+		const state = new MessageTranslatorState()
+		translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "search_codebase",
+						toolCallId: "c1",
+						input: ["searchPattern"],
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		const endResult = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_end",
+						contentType: "tool",
+						toolName: "search_codebase",
+						toolCallId: "c1",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		const endTool = JSON.parse(endResult.messages[0].text!)
+		expect(endTool.tool).toBe("searchFiles")
+		expect(endTool.regex).toBe("searchPattern")
+	})
+
+	it("S6-47: search_codebase path is undefined when SDK has no path param", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "s1",
+				event: {
+					type: "content_start",
+					contentType: "tool",
+					toolName: "search_codebase",
+					toolCallId: "c1",
+					input: { queries: ["TODO"] },
+				} as AgentEvent,
+			},
+		}
+		const result = translateSessionEvent(event, state)
+		const tool = JSON.parse(result.messages[0].text!)
+		expect(tool.tool).toBe("searchFiles")
+		// Path should be undefined since SDK search_codebase has no path parameter
+		expect(tool.path).toBeUndefined()
+	})
+})
+
+// ---------------------------------------------------------------------------
+// S6-48: Editor diff rendering — search/replace format for old_text+new_text
+// ---------------------------------------------------------------------------
+
+describe("sdkToolToClineSayTool — editor diff rendering (S6-48)", () => {
+	it("S6-48: editor with old_text and new_text builds search/replace diff in content", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "content_start",
+					contentType: "tool",
+					toolName: "editor",
+					toolCallId: "call-1",
+					input: {
+						path: "/src/app.ts",
+						old_text: "console.log('world')",
+						new_text: "console.log('hello')",
+					},
+				} as AgentEvent,
+			},
+		}
+		const result = translateSessionEvent(event, state)
+		const tool = JSON.parse(result.messages[0].text!)
+		expect(tool.tool).toBe("editedExistingFile")
+		expect(tool.path).toBe("/src/app.ts")
+		expect(tool.content).toBe("------- SEARCH\nconsole.log('world')\n=======\nconsole.log('hello')\n+++++++ REPLACE")
+	})
+
+	it("S6-48: editor with only new_text keeps raw new_text in content", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "content_start",
+					contentType: "tool",
+					toolName: "editor",
+					toolCallId: "call-2",
+					input: { path: "/src/new-file.ts", new_text: "export const x = 1" },
+				} as AgentEvent,
+			},
+		}
+		const result = translateSessionEvent(event, state)
+		const tool = JSON.parse(result.messages[0].text!)
+		expect(tool.tool).toBe("newFileCreated")
+		expect(tool.content).toBe("export const x = 1")
+	})
+
+	it("editor with insert_line is an edit of an existing file, not a new-file creation", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "content_start",
+					contentType: "tool",
+					toolName: "editor",
+					toolCallId: "call-insert",
+					// A prepend/insert: new_text present, no old_text, but insert_line set.
+					// The SDK editor executor requires the file to already exist for insert,
+					// so this must map to editedExistingFile (not newFileCreated).
+					input: { path: "/src/existing.ts", new_text: "// prepended", insert_line: 1 },
+				} as AgentEvent,
+			},
+		}
+		const result = translateSessionEvent(event, state)
+		const tool = JSON.parse(result.messages[0].text!)
+		expect(tool.tool).toBe("editedExistingFile")
+		expect(tool.path).toBe("/src/existing.ts")
+	})
+
+	it("S6-48: editor with old_str/new_str also builds search/replace diff", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "content_start",
+					contentType: "tool",
+					toolName: "editor",
+					toolCallId: "call-3",
+					input: {
+						path: "/src/file.ts",
+						old_str: "return false",
+						new_str: "return true",
+					},
+				} as AgentEvent,
+			},
+		}
+		const result = translateSessionEvent(event, state)
+		const tool = JSON.parse(result.messages[0].text!)
+		expect(tool.tool).toBe("editedExistingFile")
+		expect(tool.content).toBe("------- SEARCH\nreturn false\n=======\nreturn true\n+++++++ REPLACE")
+	})
+
+	it("S6-48: multiline old_text/new_text preserved in search/replace diff", () => {
+		const state = new MessageTranslatorState()
+		const oldText = "function foo() {\n\treturn 1\n}"
+		const newText = "function foo() {\n\treturn 2\n}"
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "content_start",
+					contentType: "tool",
+					toolName: "editor",
+					toolCallId: "call-4",
+					input: { path: "/src/file.ts", old_text: oldText, new_text: newText },
+				} as AgentEvent,
+			},
+		}
+		const result = translateSessionEvent(event, state)
+		const tool = JSON.parse(result.messages[0].text!)
+		expect(tool.content).toBe(`------- SEARCH\n${oldText}\n=======\n${newText}\n+++++++ REPLACE`)
+		expect(tool.content).toContain("------- SEARCH")
+		expect(tool.content).toContain("+++++++ REPLACE")
+	})
+
+	// ---------------------------------------------------------------------------
+	// S6-48: apply_patch tool — content populated from SDK input field
+	// ---------------------------------------------------------------------------
+
+	describe("sdkToolToClineSayTool — apply_patch content (S6-48)", () => {
+		it("S6-48: apply_patch with SDK { input: '...' } populates both content and diff", () => {
+			const state = new MessageTranslatorState()
+			const patchContent = "*** Begin Patch\n*** Update File: src/file.ts\n@@\n-old\n+new\n*** End Patch"
+			const event: CoreSessionEvent = {
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "apply_patch",
+						toolCallId: "call-1",
+						input: { input: patchContent },
+					} as AgentEvent,
+				},
+			}
+			const result = translateSessionEvent(event, state)
+			const tool = JSON.parse(result.messages[0].text!)
+			expect(tool.tool).toBe("editedExistingFile")
+			expect(tool.content).toBe(patchContent)
+			expect(tool.diff).toBe(patchContent)
+		})
+
+		it("S6-48: apply_patch with classic { patch: '...' } populates both content and diff", () => {
+			const state = new MessageTranslatorState()
+			const patchContent = "*** Begin Patch\n*** Update File: src/file.ts\n@@\n-old\n+new\n*** End Patch"
+			const event: CoreSessionEvent = {
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "apply_patch",
+						toolCallId: "call-2",
+						input: { patch: patchContent },
+					} as AgentEvent,
+				},
+			}
+			const result = translateSessionEvent(event, state)
+			const tool = JSON.parse(result.messages[0].text!)
+			expect(tool.tool).toBe("editedExistingFile")
+			expect(tool.content).toBe(patchContent)
+			expect(tool.diff).toBe(patchContent)
+		})
+
+		it("S6-48: apply_patch prefers 'patch' field over 'input' field", () => {
+			const state = new MessageTranslatorState()
+			const event: CoreSessionEvent = {
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "apply_patch",
+						toolCallId: "call-3",
+						input: { patch: "the-patch-content", input: "the-input-content" },
+					} as AgentEvent,
+				},
+			}
+			const result = translateSessionEvent(event, state)
+			const tool = JSON.parse(result.messages[0].text!)
+			expect(tool.content).toBe("the-patch-content")
+			expect(tool.diff).toBe("the-patch-content")
+		})
+	})
+})
+
+describe("apply_patch multi-file split (cline#9904)", () => {
+	const startEvent = (patch: string, callId: string): CoreSessionEvent => ({
+		type: "agent_event",
+		payload: {
+			sessionId: "session-1",
+			event: {
+				type: "content_start",
+				contentType: "tool",
+				toolName: "apply_patch",
+				toolCallId: callId,
+				input: { input: patch },
+			} as AgentEvent,
+		},
+	})
+
+	const endEvent = (callId: string): CoreSessionEvent => ({
+		type: "agent_event",
+		payload: {
+			sessionId: "session-1",
+			event: {
+				type: "content_end",
+				contentType: "tool",
+				toolName: "apply_patch",
+				toolCallId: callId,
+			} as AgentEvent,
+		},
+	})
+
+	const TWO_FILE = [
+		"*** Begin Patch",
+		"*** Update File: src/a.ts",
+		"@@",
+		"-const a = 1",
+		"+const a = 2",
+		"*** Add File: src/b.ts",
+		"+export const b = 3",
+		"*** End Patch",
+	].join("\n")
+
+	const DELETE_UPDATE = [
+		"*** Begin Patch",
+		"*** Delete File: src/gone.ts",
+		"*** Update File: src/keep.ts",
+		"@@",
+		"-old",
+		"+new",
+		"*** End Patch",
+	].join("\n")
+
+	const SINGLE_FILE = ["*** Begin Patch", "*** Update File: src/file.ts", "@@", "-old", "+new", "*** End Patch"].join("\n")
+
+	it("content_start streams a single whole-patch preview row for a multi-file patch", () => {
+		const state = new MessageTranslatorState()
+		const result = translateSessionEvent(startEvent(TWO_FILE, "call-1"), state)
+
+		// Streaming preview is intentionally one row (the whole patch); the per-file
+		// split happens only at content_end so the finalized ids match (cline#9904).
+		expect(result.messages).toHaveLength(1)
+		expect(result.messages[0].partial).toBe(true)
+		const tool = JSON.parse(result.messages[0].text!)
+		expect(tool.tool).toBe("editedExistingFile")
+		expect(tool.content).toBe(TWO_FILE)
+	})
+
+	it("content_end finalizes one per-file message for a multi-file patch", () => {
+		const state = new MessageTranslatorState()
+		translateSessionEvent(startEvent(TWO_FILE, "call-1"), state)
+		const result = translateSessionEvent(endEvent("call-1"), state)
+
+		expect(result.messages).toHaveLength(2)
+		expect(result.messages[0].partial).toBe(false)
+		expect(result.messages[1].partial).toBe(false)
+		const a = JSON.parse(result.messages[0].text!)
+		const b = JSON.parse(result.messages[1].text!)
+		expect(a.tool).toBe("editedExistingFile")
+		expect(a.path).toBe("src/a.ts")
+		expect(b.tool).toBe("newFileCreated")
+		expect(b.path).toBe("src/b.ts")
+		expect(a.content).not.toContain("src/b.ts")
+		expect(b.content).not.toContain("src/a.ts")
+	})
+
+	it("reconciles start→end by ts: N rows, none left partial (cline#9904 orphan guard)", () => {
+		const state = new MessageTranslatorState()
+		const startResult = translateSessionEvent(startEvent(TWO_FILE, "call-1"), state)
+		const endResult = translateSessionEvent(endEvent("call-1"), state)
+
+		// Merge both batches by ts the way MessageStateHandler.addMessages does:
+		// a later message with an existing ts replaces the earlier one.
+		const byTs = new Map<number, (typeof startResult.messages)[number]>()
+		for (const message of [...startResult.messages, ...endResult.messages]) {
+			byTs.set(message.ts, message)
+		}
+		const survivors = [...byTs.values()]
+
+		// Exactly one row per file, and no orphaned streaming (partial) row survives.
+		expect(survivors).toHaveLength(2)
+		expect(survivors.every((m) => m.partial === false)).toBe(true)
+		const paths = survivors.map((m) => JSON.parse(m.text!).path).sort()
+		expect(paths).toEqual(["src/a.ts", "src/b.ts"])
+	})
+
+	const bareStartEvent = (patch: string, callId: string): CoreSessionEvent => ({
+		type: "agent_event",
+		payload: {
+			sessionId: "session-1",
+			event: {
+				type: "content_start",
+				contentType: "tool",
+				toolName: "apply_patch",
+				toolCallId: callId,
+				input: patch,
+			} as AgentEvent,
+		},
+	})
+
+	it("reconciles start→end by ts for a bare-string multi-file patch (no { input } wrapper)", () => {
+		const state = new MessageTranslatorState()
+		const startResult = translateSessionEvent(bareStartEvent(TWO_FILE, "call-1"), state)
+
+		expect(startResult.messages).toHaveLength(1)
+		expect(startResult.messages[0].partial).toBe(true)
+		expect(JSON.parse(startResult.messages[0].text!).content).toBe(TWO_FILE)
+
+		const endResult = translateSessionEvent(endEvent("call-1"), state)
+
+		const byTs = new Map<number, (typeof startResult.messages)[number]>()
+		for (const message of [...startResult.messages, ...endResult.messages]) {
+			byTs.set(message.ts, message)
+		}
+		const survivors = [...byTs.values()]
+
+		expect(survivors).toHaveLength(2)
+		expect(survivors.every((m) => m.partial === false)).toBe(true)
+		const paths = survivors.map((m) => JSON.parse(m.text!).path).sort()
+		expect(paths).toEqual(["src/a.ts", "src/b.ts"])
+	})
+
+	it("each per-file sub-patch keeps the Begin/End Patch wrapper", () => {
+		const state = new MessageTranslatorState()
+		translateSessionEvent(startEvent(TWO_FILE, "call-1"), state)
+		const result = translateSessionEvent(endEvent("call-1"), state)
+		for (const message of result.messages) {
+			const tool = JSON.parse(message.text!)
+			expect(tool.content.startsWith("*** Begin Patch")).toBe(true)
+			expect(tool.content.trimEnd().endsWith("*** End Patch")).toBe(true)
+		}
+	})
+
+	it("maps delete and update actions to fileDeleted and editedExistingFile", () => {
+		const state = new MessageTranslatorState()
+		translateSessionEvent(startEvent(DELETE_UPDATE, "call-1"), state)
+		const result = translateSessionEvent(endEvent("call-1"), state)
+
+		expect(result.messages).toHaveLength(2)
+		const del = JSON.parse(result.messages[0].text!)
+		const upd = JSON.parse(result.messages[1].text!)
+		expect(del.tool).toBe("fileDeleted")
+		expect(del.path).toBe("src/gone.ts")
+		expect(upd.tool).toBe("editedExistingFile")
+		expect(upd.path).toBe("src/keep.ts")
+		expect(upd.content).not.toContain("src/gone.ts")
+	})
+
+	it("leaves a single-file patch as one message at content_end (S6-48 unchanged)", () => {
+		const state = new MessageTranslatorState()
+		translateSessionEvent(startEvent(SINGLE_FILE, "call-1"), state)
+		const result = translateSessionEvent(endEvent("call-1"), state)
+
+		expect(result.messages).toHaveLength(1)
+		const tool = JSON.parse(result.messages[0].text!)
+		expect(tool.tool).toBe("editedExistingFile")
+		expect(tool.content).toBe(SINGLE_FILE)
+		expect(tool.diff).toBe(SINGLE_FILE)
+	})
+})
+
+// ---------------------------------------------------------------------------
+// MCP tool handling — say="use_mcp_server" + say="mcp_server_response"
+// ---------------------------------------------------------------------------
+
+describe("MCP tool rendering (serverName__toolName convention)", () => {
+	it("content_start for MCP tool emits say='use_mcp_server' with ClineAskUseMcpServer payload", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "s1",
+				event: {
+					type: "content_start",
+					contentType: "tool",
+					toolName: "notion__notion-get-users",
+					toolCallId: "c1",
+					input: { user_id: "self" },
+				} as AgentEvent,
+			},
+		}
+		const result = translateSessionEvent(event, state)
+		expect(result.messages).toHaveLength(1)
+		const msg = result.messages[0]
+		expect(msg.type).toBe("say")
+		expect(msg.say).toBe("use_mcp_server")
+		expect(msg.partial).toBe(true)
+		const payload = JSON.parse(msg.text!) as ClineAskUseMcpServer
+		expect(payload.type).toBe("use_mcp_tool")
+		expect(payload.serverName).toBe("notion")
+		expect(payload.toolName).toBe("notion-get-users")
+		expect(payload.arguments).toContain('"user_id"')
+	})
+
+	it("content_end for MCP tool emits finalized use_mcp_server + mcp_server_response", () => {
+		const state = new MessageTranslatorState()
+		// content_start to set up state
+		translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "notion__notion-get-users",
+						toolCallId: "c1",
+						input: { user_id: "self" },
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		// content_end with output
+		const result = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_end",
+						contentType: "tool",
+						toolName: "notion__notion-get-users",
+						toolCallId: "c1",
+						output: "User: Max (self)",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		expect(result.messages).toHaveLength(2)
+		expect(result.messages[0].say).toBe("use_mcp_server")
+		expect(result.messages[0].partial).toBe(false)
+		expect(result.messages[1].say).toBe("mcp_server_response")
+		expect(result.messages[1].text).toBe("User: Max (self)")
+	})
+
+	it("content_end for MCP tool with error shows error in response", () => {
+		const state = new MessageTranslatorState()
+		translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "github__search-repos",
+						toolCallId: "c2",
+						input: { query: "cline" },
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		const result = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_end",
+						contentType: "tool",
+						toolName: "github__search-repos",
+						toolCallId: "c2",
+						error: "Auth failed",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		expect(result.messages).toHaveLength(2)
+		expect(result.messages[1].say).toBe("mcp_server_response")
+		expect(result.messages[1].text).toBe("Error: Auth failed")
+	})
+
+	it("MCP tool with empty input omits arguments", () => {
+		const state = new MessageTranslatorState()
+		const result = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "notion__list-databases",
+						toolCallId: "c3",
+						input: {},
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		const payload = JSON.parse(result.messages[0].text!) as ClineAskUseMcpServer
+		expect(payload.serverName).toBe("notion")
+		expect(payload.toolName).toBe("list-databases")
+		expect(payload.arguments).toBeUndefined()
+	})
+
+	it("non-MCP tool (no __ separator) still emits say='tool'", () => {
+		const state = new MessageTranslatorState()
+		const result = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "read_files",
+						toolCallId: "c4",
+						input: { files: [{ path: "/tmp/test.ts" }] },
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		expect(result.messages[0].say).toBe("tool")
+	})
+
+	it("tool starting with __ (empty server) is not MCP", () => {
+		const state = new MessageTranslatorState()
+		const result = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "__orphan",
+						toolCallId: "c5",
+						input: {},
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		expect(result.messages[0].say).toBe("tool")
+	})
+
+	it("content_end with no output omits mcp_server_response", () => {
+		const state = new MessageTranslatorState()
+		translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "notion__update-page",
+						toolCallId: "c6",
+						input: { page_id: "123" },
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		const result = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_end",
+						contentType: "tool",
+						toolName: "notion__update-page",
+						toolCallId: "c6",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		expect(result.messages).toHaveLength(1)
+		expect(result.messages[0].say).toBe("use_mcp_server")
+		expect(result.messages[0].partial).toBe(false)
+	})
+})
+
+// ---------------------------------------------------------------------------
+// Display-path relativization — tool paths shown in the chat view render
+// relative to the task's cwd instead of as full absolute paths.
+// ---------------------------------------------------------------------------
+
+describe("tool display paths are relativized to the cwd", () => {
+	const CWD = "/home/user/project"
+	const stateWithCwd = () => new MessageTranslatorState(undefined, undefined, undefined, () => CWD)
+
+	const toolEvent = (
+		type: "content_start" | "content_end",
+		toolName: string,
+		input?: unknown,
+		callId = "call-1",
+	): CoreSessionEvent => ({
+		type: "agent_event",
+		payload: {
+			sessionId: "s1",
+			event: { type, contentType: "tool", toolName, toolCallId: callId, input } as AgentEvent,
+		},
+	})
+
+	const parseTool = (text: string | undefined) => JSON.parse(text ?? "{}") as ClineSayTool
+
+	it("renders a readFile path inside the cwd as relative, keeping the absolute click-to-open target", () => {
+		const state = stateWithCwd()
+		const result = translateSessionEvent(toolEvent("content_start", "read_files", { path: `${CWD}/src/index.ts` }), state)
+		const tool = parseTool(result.messages[0].text)
+		expect(tool.tool).toBe("readFile")
+		expect(tool.path).toBe("src/index.ts")
+		// The webview's readFile card opens `content` in the editor on click.
+		expect(tool.content).toBe(`${CWD}/src/index.ts`)
+	})
+
+	it("keeps paths outside the cwd absolute", () => {
+		const state = stateWithCwd()
+		const result = translateSessionEvent(toolEvent("content_start", "read_files", { path: "/etc/hosts" }), state)
+		expect(parseTool(result.messages[0].text).path).toBe("/etc/hosts")
+	})
+
+	it("treats an in-cwd entry named with a '..' prefix as inside the cwd", () => {
+		const state = stateWithCwd()
+		const result = translateSessionEvent(toolEvent("content_start", "read_files", { path: `${CWD}/..config/x.ts` }), state)
+		expect(parseTool(result.messages[0].text).path).toBe("..config/x.ts")
+	})
+
+	it("keeps paths absolute when the cwd is the no-workspace Desktop fallback", () => {
+		// With no workspace open, getWorkspaceRoot() falls back to the Desktop;
+		// classic getReadablePath keeps full absolute paths in that case.
+		const desktop = getDesktopDir()
+		const state = new MessageTranslatorState(undefined, undefined, undefined, () => desktop)
+		const absolutePath = `${desktop}/project/file.ts`
+		const result = translateSessionEvent(toolEvent("content_start", "read_files", { path: absolutePath }), state)
+		expect(parseTool(result.messages[0].text).path).toBe(absolutePath.replace(/\\/g, "/"))
+	})
+
+	it("relativizes '*** Move to:' destinations in apply_patch payloads", () => {
+		const state = stateWithCwd()
+		const patch = [
+			"*** Begin Patch",
+			`*** Update File: ${CWD}/src/old.ts`,
+			`*** Move to: ${CWD}/src/new.ts`,
+			"@@",
+			"-old",
+			"+new",
+			"*** End Patch",
+		].join("\n")
+		const result = translateSessionEvent(toolEvent("content_start", "apply_patch", { patch }), state)
+		const tool = parseTool(result.messages[0].text)
+		expect(tool.content).toContain("*** Update File: src/old.ts")
+		expect(tool.content).toContain("*** Move to: src/new.ts")
+		expect(tool.content).not.toContain(CWD)
+	})
+
+	it("renders the cwd itself as its basename", () => {
+		const state = stateWithCwd()
+		const result = translateSessionEvent(toolEvent("content_start", "list_files", { path: CWD }), state)
+		expect(parseTool(result.messages[0].text).path).toBe("project")
+	})
+
+	it("relativizes editor and delete_file paths", () => {
+		const editState = stateWithCwd()
+		const editResult = translateSessionEvent(
+			toolEvent("content_start", "editor", { path: `${CWD}/a/b.ts`, old_text: "x", new_text: "y" }),
+			editState,
+		)
+		const editTool = parseTool(editResult.messages[0].text)
+		expect(editTool.tool).toBe("editedExistingFile")
+		expect(editTool.path).toBe("a/b.ts")
+
+		const deleteState = stateWithCwd()
+		const deleteResult = translateSessionEvent(
+			toolEvent("content_start", "delete_file", { path: `${CWD}/a/b.ts` }),
+			deleteState,
+		)
+		expect(parseTool(deleteResult.messages[0].text).path).toBe("a/b.ts")
+	})
+
+	it("rewrites apply_patch file markers so the diff view shows relative paths", () => {
+		const state = stateWithCwd()
+		const patch = `*** Begin Patch\n*** Update File: ${CWD}/src/app.ts\n@@\n-old\n+new\n*** End Patch`
+		const result = translateSessionEvent(toolEvent("content_start", "apply_patch", { patch }), state)
+		const tool = parseTool(result.messages[0].text)
+		expect(tool.content).toContain("*** Update File: src/app.ts")
+		expect(tool.content).not.toContain(`*** Update File: ${CWD}`)
+	})
+
+	it("splits multi-file apply_patch into rows with relativized paths and markers", () => {
+		const state = stateWithCwd()
+		const patch = [
+			"*** Begin Patch",
+			`*** Update File: ${CWD}/src/a.ts`,
+			`*** Move to: ${CWD}/src/a-renamed.ts`,
+			"@@",
+			"-old",
+			"+new",
+			`*** Add File: ${CWD}/src/b.ts`,
+			"+added",
+			"*** End Patch",
+		].join("\n")
+		translateSessionEvent(toolEvent("content_start", "apply_patch", { patch }), state)
+		const result = translateSessionEvent(toolEvent("content_end", "apply_patch"), state)
+
+		expect(result.messages).toHaveLength(2)
+		const first = parseTool(result.messages[0].text)
+		const second = parseTool(result.messages[1].text)
+		expect(first.path).toBe("src/a.ts")
+		expect(first.content).toContain("*** Update File: src/a.ts")
+		expect(first.content).toContain("*** Move to: src/a-renamed.ts")
+		expect(second.path).toBe("src/b.ts")
+		expect(second.content).toContain("*** Add File: src/b.ts")
+	})
+
+	it("relativizes each row of a multi-file read_files finalize", () => {
+		const state = stateWithCwd()
+		const input = { files: [{ path: `${CWD}/src/a.ts` }, { path: "/outside/b.ts" }] }
+		translateSessionEvent(toolEvent("content_start", "read_files", input), state)
+		const result = translateSessionEvent(toolEvent("content_end", "read_files"), state)
+
+		expect(result.messages).toHaveLength(2)
+		const first = parseTool(result.messages[0].text)
+		const second = parseTool(result.messages[1].text)
+		expect(first.path).toBe("src/a.ts")
+		expect(first.content).toBe(`${CWD}/src/a.ts`)
+		expect(second.path).toBe("/outside/b.ts")
+	})
+
+	it("does not touch web url / search query / skill-name pseudo-paths", () => {
+		const state = stateWithCwd()
+		const result = translateSessionEvent(toolEvent("content_start", "web_fetch", { url: "https://example.com/a/b" }), state)
+		expect(parseTool(result.messages[0].text).path).toBe("https://example.com/a/b")
+	})
+
+	it("leaves paths untouched when no cwd source is configured", () => {
+		const state = new MessageTranslatorState()
+		const result = translateSessionEvent(
+			toolEvent("content_start", "read_files", { path: "/home/user/project/src/index.ts" }),
+			state,
+		)
+		expect(parseTool(result.messages[0].text).path).toBe("/home/user/project/src/index.ts")
+	})
+
+	it("relativizes the path in tool-approval ask messages", () => {
+		const message = buildToolApprovalAskMessage("editor", { path: `${CWD}/src/index.ts`, content: "x" }, 1, CWD)
+		expect(parseTool(message.text).path).toBe("src/index.ts")
+	})
+
+	it("reconstructs hook status chips from injected hook context and keeps the completion retag", () => {
+		const messages: SdkMessage[] = [
+			{ role: "user", content: '<user_input mode="act">read the readme</user_input>' } as SdkMessage,
+			{
+				role: "assistant",
+				content: [
+					{ type: "text", text: "I'll read it." },
+					{ type: "tool_use", id: "t1", name: "read_files", input: { path: "README.md" } },
+				],
+			} as SdkMessage,
+			{ role: "user", content: [{ type: "tool_result", tool_use_id: "t1", content: "hello" }] } as SdkMessage,
+			{
+				role: "user",
+				content: [
+					{
+						type: "text",
+						text: '<hook_context source="PreToolUse" tool_name="read_files" tool_call_id="t1">\nNOTE\n</hook_context>\n\n<hook_context source="PostToolUse" tool_name="read_files" tool_call_id="t1">\nNOTE2\n</hook_context>',
+					},
+				],
+				metadata: { displayRole: "system", userRunSpan: 0 },
+			} as SdkMessage,
+			{ role: "assistant", content: [{ type: "text", text: "The readme says hello." }] } as SdkMessage,
+		]
+
+		const clineMessages = sdkMessagesToClineMessages(messages)
+
+		const hookRows = clineMessages.filter((m) => m.say === "hook_status").map((m) => JSON.parse(m.text ?? "{}"))
+		expect(hookRows).toEqual([
+			{ hookName: "PreToolUse", toolName: "read_files", status: "completed" },
+			{ hookName: "PostToolUse", toolName: "read_files", status: "completed" },
+		])
+
+		// The injected context never renders as a user bubble.
+		expect(clineMessages.some((m) => m.text?.includes("<hook_context"))).toBe(false)
+
+		// The hidden injection is not a turn boundary: the final text keeps the
+		// inferred completion retag.
+		expect(clineMessages.some((m) => m.say === "completion_result" || m.ask === "completion_result")).toBe(true)
+	})
+
+	it("relativizes persisted-history tool paths via options.cwd", () => {
+		const messages: SdkMessage[] = [
+			{
+				role: "assistant",
+				content: [{ type: "tool_use", id: "t1", name: "read_files", input: { path: `${CWD}/src/index.ts` } }],
+			} as SdkMessage,
+		]
+		const clineMessages = sdkMessagesToClineMessages(messages, undefined, { cwd: CWD })
+		const toolMessage = clineMessages.find((m) => m.say === "tool")
+		expect(toolMessage).toBeDefined()
+		expect(parseTool(toolMessage?.text).path).toBe("src/index.ts")
+	})
+
+	it("rehydrates generated images from persisted SDK history", () => {
+		const messages: SdkMessage[] = [
+			{
+				role: "assistant",
+				content: [{ type: "image", data: "aGVsbG8=", mediaType: "image/webp" }],
+			} as SdkMessage,
+		]
+
+		const clineMessages = sdkMessagesToClineMessages(messages)
+		const imageMessage = clineMessages.find((message) => message.media?.length)
+		expect(imageMessage).toEqual(
+			expect.objectContaining({
+				type: "say",
+				say: "text",
+				media: [
+					expect.objectContaining({
+						modality: "image",
+						mediaType: "image/webp",
+						source: { type: "base64", data: "aGVsbG8=" },
+					}),
+				],
+			}),
+		)
+	})
+
+	it("renders provider model activities through the persisted local-tool path", () => {
+		const messages: MessageWithMetadata[] = [
+			{
+				role: "assistant",
+				content: "Bun 1.3.14 is current.",
+				metadata: {
+					modelToolActivities: [
+						{
+							toolCallId: "search-1",
+							toolName: "web_search",
+							execution: "provider",
+							input: { query: "latest Bun release" },
+							output: "Bun 1.3.14",
+						},
+					],
+				},
+			},
+		]
+
+		const clineMessages = sdkMessagesToClineMessages(messages)
+		const toolMessage = clineMessages.find((message) => message.say === "tool")
+
+		expect(toolMessage).toBeDefined()
+		expect(parseTool(toolMessage?.text)).toMatchObject({
+			tool: "webSearch",
+		})
+		expect(clineMessages).toContainEqual(
+			expect.objectContaining({
+				type: "say",
+				text: "Bun 1.3.14 is current.",
+			}),
+		)
+	})
+})

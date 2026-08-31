@@ -6,6 +6,8 @@ import {
 	E2E_MOCK_API_RESPONSES,
 	E2E_MOCK_CLINE_MODELS,
 	E2E_MOCK_CLINE_RECOMMENDED_MODELS,
+	E2E_MOCK_EDITOR_TOOL_CALL,
+	E2E_MOCK_POWERSHELL_TOOL_CALL,
 	E2E_REGISTERED_MOCK_ENDPOINTS,
 } from "./api"
 import { ClineDataMock } from "./data"
@@ -171,11 +173,11 @@ export class ClineApiServerMock {
 
 			// Authentication middleware
 			const authHeader = req.headers.authorization
-			const isPublicApiRoute =
-				path === "/api/v1/auth/token" ||
-				path === "/api/v1/ai/cline/models" ||
-				path === "/api/v1/ai/cline/recommended-models"
-			const isAuthRequired = !path.startsWith("/.test/") && path !== "/health" && !isPublicApiRoute
+			const isAuthRequired =
+				!path.startsWith("/.test/") &&
+				path !== "/health" &&
+				path !== "/api/v1/auth/token" &&
+				path !== "/api/v1/auth/register"
 
 			if (isAuthRequired && (!authHeader || !authHeader.startsWith("Bearer "))) {
 				return sendApiError("Unauthorized", 401)
@@ -186,7 +188,8 @@ export class ClineApiServerMock {
 			// Authenticate the token and set current user
 			if (isAuthRequired && authToken) {
 				log(`Authenticating token: ${authToken}`)
-				const user = ClineApiServerMock.globalSharedServer!.API_USER.getUserByToken(authToken)
+				const normalizedAuthToken = authToken.replace(/^workos:/i, "")
+				const user = ClineApiServerMock.globalSharedServer!.API_USER.getUserByToken(normalizedAuthToken)
 				if (!user) {
 					return sendApiError("Invalid token", 401)
 				}
@@ -332,11 +335,43 @@ export class ClineApiServerMock {
 						return sendApiResponse("Account switched successfully")
 					}
 
+					// Auth token registration endpoint used by WorkOS device auth.
+					if (endpoint === "/auth/register" && method === "POST") {
+						const body = await readBody()
+						const parsed = JSON.parse(body)
+						const { accessToken, refreshToken } = parsed
+
+						if (!accessToken || !refreshToken) {
+							return sendApiError("Invalid request", 400)
+						}
+
+						const user = controller.API_USER.getUserByToken(accessToken)
+						if (!user) {
+							return sendApiError("Invalid WorkOS token", 400)
+						}
+
+						return sendApiResponse({
+							accessToken: accessToken + "_access",
+							refreshToken,
+							tokenType: "Bearer",
+							expiresAt: new Date(Date.now() + 3600 * 1000).toISOString(),
+							userInfo: {
+								subject: user.id,
+								email: user.email,
+								name: user.displayName,
+								clineUserId: user.id,
+								accounts: null,
+								organizations: user.organizations,
+							},
+						})
+					}
+
 					// Auth token exchange endpoint
 					if (endpoint === "/auth/token" && method === "POST") {
 						const body = await readBody()
 						const parsed = JSON.parse(body)
-						const { code, grantType } = parsed
+						const { code } = parsed
+						const grantType = parsed.grantType ?? parsed.grant_type
 
 						if (grantType !== "authorization_code" || !code) {
 							return sendApiError("Invalid request", 400)
@@ -439,21 +474,41 @@ export class ClineApiServerMock {
 
 						const body = await readBody()
 						const parsed = JSON.parse(body)
-						const { _messages, model = "claude-3-5-sonnet-20241022", stream = true } = parsed
-						let responseText = E2E_MOCK_API_RESPONSES.DEFAULT
-						if (body.includes("[replace_in_file for 'test.ts'] Result:")) {
-							responseText = E2E_MOCK_API_RESPONSES.REPLACE_REQUEST
-						}
-						if (body.includes("edit_request")) {
-							responseText = E2E_MOCK_API_RESPONSES.EDIT_REQUEST
-						}
-						if (body.includes("[diff.test.ts] Hello, Cline!")) {
-							// The playwright test in diff.test.ts needs the "API Request..." text
-							// to be on the screen long enough to detect it.  This worked at 100ms
-							// too, but setting to 500ms to cover slower CI boxes.
-							await new Promise((resolve) => setTimeout(resolve, 500))
-						}
+						const { messages, model = "claude-3-5-sonnet-20241022", stream = true } = parsed
 
+						// The SDK runtime executes structured tool calls and then sends a
+						// follow-up /chat/completions request containing the tool result as
+						// a `role: "tool"` message. Detect that follow-up first — the
+						// original "edit_request" user prompt is still present in the
+						// conversation history of the follow-up request, so order matters.
+						// Scope tool-result routing to the mock scenarios that issued a tool
+						// call so unrelated conversations retain the default response.
+						const hasToolResult =
+							(body.includes("edit_request") || body.includes("powershell_background_request")) &&
+							Array.isArray(messages) &&
+							messages.some((m: { role?: string }) => m?.role === "tool")
+
+						let responseText = E2E_MOCK_API_RESPONSES.DEFAULT
+						let toolCall: typeof E2E_MOCK_EDITOR_TOOL_CALL | typeof E2E_MOCK_POWERSHELL_TOOL_CALL | undefined
+						log("Chat completion mock selection:", {
+							isEditRequest: body.includes("edit_request"),
+							isPowerShellRequest: body.includes("powershell_background_request"),
+							hasToolResult,
+						})
+						if (hasToolResult) {
+							responseText = body.includes("powershell_background_request")
+								? E2E_MOCK_API_RESPONSES.POWERSHELL_REQUEST_COMPLETE
+								: E2E_MOCK_API_RESPONSES.EDIT_REQUEST_COMPLETE
+						} else if (body.includes("edit_request")) {
+							// Stream lead-in text followed by a structured `editor` tool
+							// call (OpenAI tool_calls deltas) — the only tool-call syntax
+							// the SDK runtime executes.
+							responseText = E2E_MOCK_API_RESPONSES.EDIT_REQUEST_LEAD_IN
+							toolCall = E2E_MOCK_EDITOR_TOOL_CALL
+						} else if (body.includes("powershell_background_request")) {
+							responseText = E2E_MOCK_API_RESPONSES.POWERSHELL_REQUEST_LEAD_IN
+							toolCall = E2E_MOCK_POWERSHELL_TOOL_CALL
+						}
 						const generationId = `gen_${++controller.generationCounter}_${Date.now()}`
 
 						if (stream) {
@@ -469,6 +524,39 @@ export class ClineApiServerMock {
 
 							const chunks = responseText.split(" ")
 							let chunkIndex = 0
+
+							// OpenAI-format streamed tool call deltas, matching what the
+							// AI SDK's openai-compatible client expects: the first delta
+							// for a tool_calls index must carry `id` + `function.name`;
+							// `function.arguments` accumulates as string fragments. Split
+							// the arguments JSON to exercise fragment reassembly.
+							const argumentsJson = toolCall ? JSON.stringify(toolCall.arguments) : ""
+							const argsSplitAt = Math.floor(argumentsJson.length / 2)
+							const toolCallDeltas = toolCall
+								? [
+										[
+											{
+												index: 0,
+												id: toolCall.id,
+												type: "function",
+												function: { name: toolCall.name, arguments: "" },
+											},
+										],
+										[
+											{
+												index: 0,
+												function: { arguments: argumentsJson.slice(0, argsSplitAt) },
+											},
+										],
+										[
+											{
+												index: 0,
+												function: { arguments: argumentsJson.slice(argsSplitAt) },
+											},
+										],
+									]
+								: []
+							let toolCallDeltaIndex = 0
 
 							const sendChunk = () => {
 								if (chunkIndex < chunks.length) {
@@ -490,6 +578,25 @@ export class ClineApiServerMock {
 									res.write(`data: ${JSON.stringify(chunk)}\n\n`)
 									chunkIndex++
 									setTimeout(sendChunk, 10)
+								} else if (toolCallDeltaIndex < toolCallDeltas.length) {
+									const chunk = {
+										id: generationId,
+										object: "chat.completion.chunk",
+										created: Math.floor(Date.now() / 1000),
+										model,
+										choices: [
+											{
+												index: 0,
+												delta: {
+													tool_calls: toolCallDeltas[toolCallDeltaIndex],
+												},
+												finish_reason: null,
+											},
+										],
+									}
+									res.write(`data: ${JSON.stringify(chunk)}\n\n`)
+									toolCallDeltaIndex++
+									setTimeout(sendChunk, 10)
 								} else {
 									const finalChunk = {
 										id: generationId,
@@ -500,7 +607,7 @@ export class ClineApiServerMock {
 											{
 												index: 0,
 												delta: {},
-												finish_reason: "stop",
+												finish_reason: toolCall ? "tool_calls" : "stop",
 											},
 										],
 										usage: {
@@ -611,7 +718,11 @@ export class ClineApiServerMock {
 
 			handleRequest().catch((err) => {
 				console.error("Request handling error:", err)
-				sendApiError("Internal server error", 500)
+				if (!res.headersSent) {
+					sendApiError("Internal server error", 500)
+				} else if (!res.writableEnded) {
+					res.end()
+				}
 			})
 		})
 

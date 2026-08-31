@@ -1,8 +1,8 @@
 import type { McpServer } from "@shared/mcp"
-import type { SlashCommand } from "@/utils/slash-commands"
 import React, { useCallback, useEffect, useRef } from "react"
 import ScreenReaderAnnounce from "@/components/common/ScreenReaderAnnounce"
 import { useMenuAnnouncement } from "@/hooks/useMenuAnnouncement"
+import type { SlashCommand } from "@/utils/slash-commands"
 import { getMatchingSlashCommands } from "@/utils/slash-commands"
 
 interface SlashCommandMenuProps {
@@ -112,7 +112,12 @@ const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({
 								<span className="ph-no-capture">/{command.name}</span>
 							</div>
 							{showDescriptions && command.description && (
-								<div className="text-[0.85em] text-(--vscode-descriptionForeground) whitespace-normal overflow-hidden text-ellipsis">
+								<div
+									className={`text-[0.85em] ${
+										itemIndex === selectedIndex
+											? "text-(--vscode-quickInputList-focusForeground)"
+											: "text-(--vscode-descriptionForeground)"
+									} whitespace-normal overflow-hidden text-ellipsis`}>
 									<span className="ph-no-capture">{command.description}</span>
 								</div>
 							)}
@@ -140,12 +145,7 @@ const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({
 					<>
 						{renderCommandSection(defaultCommands, "Default Commands", 0, true)}
 						{renderCommandSection(workflowCommands, "Workflow Commands", defaultCommands.length, false)}
-						{renderCommandSection(
-							mcpCommands,
-							"MCP Prompts",
-							defaultCommands.length + workflowCommands.length,
-							true,
-						)}
+						{renderCommandSection(mcpCommands, "MCP Prompts", defaultCommands.length + workflowCommands.length, true)}
 					</>
 				) : (
 					<div aria-selected="false" className="py-2 px-3 cursor-default flex flex-col" role="option">

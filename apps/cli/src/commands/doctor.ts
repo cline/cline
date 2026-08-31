@@ -1,26 +1,32 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, readFileSync, readlinkSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import {
 	clearHubDiscovery,
 	ensureFileExists,
+	listActiveConnectors,
 	probeHubServer,
 	readHubDiscovery,
+	readSupersededHubDiscovery,
 	resolveClineDataDir,
+	resolveProductionHubOwnerContext,
 	resolveSharedHubOwnerContext,
 	stopLocalHubServerGracefully,
 } from "@cline/core";
-import { formatUptime } from "@cline/shared";
-import { Command } from "commander";
-import open from "open";
-import { isProcessRunning } from "../connectors/common";
 import {
 	type ActiveConnectorRecord,
-	listActiveConnectors,
-} from "../connectors/status";
+	formatUptime,
+	resolveClineBuildEnv,
+	type SupervisedConnectorRecord,
+} from "@cline/shared";
+import { Command } from "commander";
+import { version as cliVersion } from "../../package.json";
+import { isProcessRunning } from "../connectors/common";
 import { getCliBuildInfo } from "../utils/common";
+import open from "../utils/open";
 import { c, writeln } from "../utils/output";
 import { stopAllConnectors } from "./connect";
+import { listSupervisedConnectorsViaHub } from "./connect-via-hub";
 
 type DoctorIo = {
 	writeln: (text?: string) => void;
@@ -48,16 +54,21 @@ type SpawnedProcessRecord = {
 
 type DoctorStatus = {
 	cwd: string;
+	cliVersion: string;
+	coreVersion?: string;
 	hubUrl?: string;
 	hubHealthy: boolean;
 	hubPid?: number;
 	hubStartedAt?: string;
 	hubUptime?: string;
 	listeningPids: number[];
+	staleHubPids: number[];
 	hubStartupLocks: StartupArtifact[];
 	staleCliPids: number[];
 	staleSidecarPids: number[];
 	activeConnectors: ActiveConnectorRecord[];
+	/** Undefined when the running hub cannot report supervision. */
+	supervisedConnectors?: SupervisedConnectorRecord[];
 	recentSpawnedProcesses: SpawnedProcessRecord[];
 };
 
@@ -66,6 +77,13 @@ type ProcessRecord = {
 	command: string;
 };
 
+// Container id inside a cgroup path, e.g.
+// "0::/system.slice/docker-<64-hex>.scope" (docker/containerd/podman) or
+// "/kubepods/.../<64-hex>" (kubernetes). Captures the id so two different
+// containers can be told apart, not merely "is containerised".
+const CONTAINER_CGROUP_PATTERN =
+	/(?:docker[-/]|containerd[-/]|libpod[-/]|crio[-/]|lxc[-/.])([0-9a-f]{12,64})/;
+
 function parsePids(raw: string): number[] {
 	return raw
 		.split(/\r?\n/)
@@ -73,11 +91,86 @@ function parsePids(raw: string): number[] {
 		.filter((pid) => Number.isInteger(pid) && pid > 0);
 }
 
+function tryReadLink(target: string): string | undefined {
+	try {
+		return readlinkSync(target);
+	} catch {
+		return undefined;
+	}
+}
+
+function readContainerCgroupId(pid: number | "self"): string | undefined {
+	let raw: string;
+	try {
+		raw = readFileSync(`/proc/${pid}/cgroup`, "utf8");
+	} catch {
+		return undefined;
+	}
+	return raw.match(CONTAINER_CGROUP_PATTERN)?.[1];
+}
+
+/**
+ * Decide whether a process belongs to a container other than our own.
+ *
+ * Namespace identity is the reliable signal: a containerised process has
+ * different PID/mount namespaces than the host process running the scan.
+ * Container ids parsed from cgroup paths are the fallback for kernels where the
+ * namespace links are unreadable. Unknown on both sides means "assume ours",
+ * preserving the previous behaviour rather than silently dropping processes the
+ * user does want cleaned up.
+ */
+function decideForeignContainer(input: {
+	platform: string;
+	namespacePairs: Array<[string | undefined, string | undefined]>;
+	ownContainerId: string | undefined;
+	otherContainerId: string | undefined;
+}): boolean {
+	// /proc/<pid>/ns exists only on Linux. Elsewhere containers run inside a VM
+	// and never share a pid space with us, so there is nothing to disambiguate.
+	if (input.platform !== "linux") {
+		return false;
+	}
+	for (const [own, other] of input.namespacePairs) {
+		if (own && other && own !== other) {
+			return true;
+		}
+	}
+	return (
+		Boolean(input.otherContainerId) &&
+		input.otherContainerId !== input.ownContainerId
+	);
+}
+
+/**
+ * True when `pid` belongs to a container other than this process's own.
+ *
+ * `pgrep` sees every process on the host, containers included: a Docker agent's
+ * hub daemon shows up beside ours, and when the container shares our uid `kill`
+ * on it succeeds. Those daemons are emphatically not stale — they belong to a
+ * live agent with its own data dir — so reporting them, and killing them in
+ * `doctor fix`, takes down an unrelated agent.
+ */
+function isForeignContainerPid(pid: number): boolean {
+	return decideForeignContainer({
+		platform: process.platform,
+		namespacePairs: (["pid", "mnt"] as const).map((namespace) => [
+			tryReadLink(`/proc/self/ns/${namespace}`),
+			tryReadLink(`/proc/${pid}/ns/${namespace}`),
+		]),
+		ownContainerId: readContainerCgroupId("self"),
+		otherContainerId: readContainerCgroupId(pid),
+	});
+}
+
 function listMatchingProcesses(pattern: string): ProcessRecord[] {
 	if (process.platform === "win32") {
 		return [];
 	}
-	const result = spawnSync("pgrep", ["-fal", pattern], { encoding: "utf8" });
+	// "--" stops pgrep's option parsing so patterns that start with dashes
+	// (e.g. the "--cline-hub-daemon" marker) are treated as patterns.
+	const result = spawnSync("pgrep", ["-fal", "--", pattern], {
+		encoding: "utf8",
+	});
 	if (result.status !== 0 && result.status !== 1) {
 		return [];
 	}
@@ -98,7 +191,8 @@ function listMatchingProcesses(pattern: string): ProcessRecord[] {
 			pid <= 0 ||
 			!command ||
 			pid === process.pid ||
-			pid === process.ppid
+			pid === process.ppid ||
+			isForeignContainerPid(pid)
 		) {
 			continue;
 		}
@@ -146,6 +240,25 @@ function listStaleCliPids(): number[] {
 			(record) => !/(?:^|\s)(?:hub|rpc|connect)(?:\s|$)/.test(record.command),
 		)
 		.map((record) => record.pid);
+}
+
+function listStaleHubPids(currentHubPids: number[]): number[] {
+	const current = new Set(currentHubPids.filter((pid) => pid > 0));
+	const patterns = [
+		"/sdk/packages/core/src/hub/daemon/entry.ts",
+		"/sdk/packages/core/dist/hub/daemon/entry.js",
+		"--cline-hub-daemon",
+	];
+	const records = new Map<number, ProcessRecord>();
+	for (const pattern of patterns) {
+		for (const record of listMatchingProcesses(pattern)) {
+			if (current.has(record.pid) || /\bpgrep\s+-fal\b/.test(record.command)) {
+				continue;
+			}
+			records.set(record.pid, record);
+		}
+	}
+	return [...records.values()].map((record) => record.pid);
 }
 
 function listStaleSidecarPids(): number[] {
@@ -235,7 +348,7 @@ function readStartupArtifact(path: string): StartupArtifact | undefined {
 }
 
 function listHubStartupLocks(_cwd: string): StartupArtifact[] {
-	const owner = resolveSharedHubOwnerContext();
+	const owner = resolveCliHubOwnerContext();
 	const ownerPath = join(`${owner.discoveryPath}.lock`, "owner.json");
 	if (!existsSync(ownerPath)) {
 		return [];
@@ -259,7 +372,7 @@ async function clearHubStartupArtifacts(
 	_cwd: string,
 	options?: { clearDiscovery?: boolean },
 ): Promise<{ startupLocks: number; discovery: number }> {
-	const owner = resolveSharedHubOwnerContext();
+	const owner = resolveCliHubOwnerContext();
 	const startupLocks = listHubStartupLocks(_cwd);
 	let clearedStartupLocks = 0;
 	for (const artifact of startupLocks) {
@@ -271,6 +384,12 @@ async function clearHubStartupArtifacts(
 	if (options?.clearDiscovery && existsSync(owner.discoveryPath)) {
 		await clearHubDiscovery(owner.discoveryPath);
 		clearedDiscovery = 1;
+	}
+	if (options?.clearDiscovery) {
+		// The set-aside copy the npm postinstall shield leaves behind. Once
+		// doctor has deliberately stopped everything, keeping it risks a much
+		// later launch SIGTERMing whatever process has recycled its pid.
+		clearPathIfExists(`${owner.discoveryPath}.superseded`);
 	}
 	return {
 		startupLocks: clearedStartupLocks,
@@ -291,26 +410,59 @@ function formatHubUptimeFromStartedAt(
 	return formatUptime(Date.now() - timestamp);
 }
 
+function resolveCliHubOwnerContext() {
+	return resolveClineBuildEnv() === "production"
+		? resolveProductionHubOwnerContext()
+		: resolveSharedHubOwnerContext();
+}
+
 async function collectDoctorStatus(cwd: string): Promise<DoctorStatus> {
-	const owner = resolveSharedHubOwnerContext();
-	const discovery = await readHubDiscovery(owner.discoveryPath);
+	const owner = resolveCliHubOwnerContext();
+	// The npm postinstall shield sets the discovery record aside (see
+	// readSupersededHubDiscovery) while an older hub finishes serving its
+	// sessions. Without the fallback, doctor cannot see that hub, classifies
+	// the live daemon as stale, and its "run doctor fix" advice kills the
+	// sessions the shield exists to protect.
+	const recorded = await readHubDiscovery(owner.discoveryPath);
+	// The set-aside record carries only url/token/pid; widen so the two
+	// sources read uniformly below.
+	const discovery:
+		| {
+				url?: string;
+				authToken?: string;
+				pid?: number;
+				port?: number;
+				coreVersion?: string;
+		  }
+		| undefined = recorded?.url
+		? recorded
+		: readSupersededHubDiscovery(owner.discoveryPath);
 	const health = discovery?.url
-		? await probeHubServer(discovery.url)
+		? await probeHubServer(discovery.url, { authToken: discovery.authToken })
 		: undefined;
 	const current = health ?? discovery;
 	const hubUptime = formatHubUptimeFromStartedAt(health?.startedAt);
+	const listeningPids = listListeningPids(current?.port);
+	const currentHubPids = [
+		...(current?.pid ? [current.pid] : []),
+		...listeningPids,
+	];
 	return {
 		cwd,
+		cliVersion,
+		coreVersion: health?.coreVersion ?? discovery?.coreVersion,
 		hubUrl: current?.url,
 		hubHealthy: !!health?.url,
 		hubPid: current?.pid,
 		hubStartedAt: health?.startedAt,
 		hubUptime,
-		listeningPids: listListeningPids(current?.port),
+		listeningPids,
+		staleHubPids: listStaleHubPids(currentHubPids),
 		hubStartupLocks: listHubStartupLocks(cwd),
 		staleCliPids: listStaleCliPids(),
 		staleSidecarPids: listStaleSidecarPids(),
 		activeConnectors: listActiveConnectors(),
+		...((await listSupervisedConnectorsSafely()) ?? {}),
 		recentSpawnedProcesses: readRecentSpawnedProcesses(),
 	};
 }
@@ -320,6 +472,80 @@ function formatPidList(label: string, pids: number[]): string {
 		return `${label} ${c.dim}0${c.reset}`;
 	}
 	return `${label} ${c.dim}${pids.join(", ")}${c.reset}`;
+}
+
+function readParentPid(pid: number): number | undefined {
+	try {
+		const output = spawnSync("ps", ["-o", "ppid=", "-p", String(pid)], {
+			encoding: "utf8",
+		});
+		const parsed = Number(output.stdout?.trim());
+		return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+function liveParentPid(pid: number): number | undefined {
+	const parent = readParentPid(pid);
+	return parent && isProcessRunning(parent) ? parent : undefined;
+}
+
+/**
+ * A daemon whose parent is still running was almost certainly just spawned by
+ * that parent, and killing it only invites the parent to spawn another. Naming
+ * the parent points at the process the user actually has to stop.
+ */
+function formatDaemonPidList(label: string, pids: number[]): string {
+	if (pids.length === 0) {
+		return `${label} ${c.dim}0${c.reset}`;
+	}
+	const described = pids.map((pid) => {
+		const parent = liveParentPid(pid);
+		return parent ? `${pid} (spawned by ${parent})` : String(pid);
+	});
+	return `${label} ${c.dim}${described.join(", ")}${c.reset}`;
+}
+
+/**
+ * Advice for processes first seen during the fix. Only a process with a live
+ * parent is known to have been respawned by it; anything else may have been
+ * started independently (a user opening a new session mid-repair), so it gets
+ * a statement of fact rather than an instruction to go kill something.
+ */
+export function describeProcessesStartedDuringFix(
+	pids: number[],
+	resolveLiveParent: (pid: number) => number | undefined,
+): string | undefined {
+	if (pids.length === 0) {
+		return undefined;
+	}
+	const respawned = pids.filter((pid) => resolveLiveParent(pid) !== undefined);
+	if (respawned.length === 0) {
+		return "\nThese processes started after the fix began, so they were not targeted. Re-run to see whether they persist.";
+	}
+	if (respawned.length === pids.length) {
+		return "\nThese processes were respawned by a live parent. Stop the parent process listed above, then re-run.";
+	}
+	return `\nSome of these were respawned by a live parent (${respawned.join(", ")}); stop the parent process listed above, then re-run. The rest started after the fix began and were not targeted.`;
+}
+
+function formatStartupLockList(
+	label: string,
+	locks: StartupArtifact[],
+): string {
+	const described = locks
+		.map((lock) => {
+			if (lock.pid === undefined) {
+				return "unreadable";
+			}
+			return lock.stale ? `${lock.pid} (stale)` : `${lock.pid} (held, live)`;
+		})
+		.filter((entry) => entry.length > 0);
+	if (described.length === 0) {
+		return `${label} ${c.dim}0${c.reset}`;
+	}
+	return `${label} ${c.dim}${described.join(", ")}${c.reset}`;
 }
 
 function formatRecentSpawnedProcess(record: SpawnedProcessRecord): string {
@@ -333,6 +559,39 @@ function formatRecentSpawnedProcess(record: SpawnedProcessRecord): string {
 		record.command,
 	].filter(Boolean);
 	return pieces.join(" | ");
+}
+
+/**
+ * Supervision is reported by the running hub, so it is unavailable whenever
+ * there is no hub or it predates supervision. Diagnostics must degrade quietly
+ * rather than fail.
+ */
+async function listSupervisedConnectorsSafely(): Promise<
+	{ supervisedConnectors: SupervisedConnectorRecord[] } | undefined
+> {
+	try {
+		const supervised = await listSupervisedConnectorsViaHub();
+		return supervised ? { supervisedConnectors: supervised } : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+function formatSupervisedConnector(record: SupervisedConnectorRecord): string {
+	const pieces = [
+		record.channel,
+		`instance=${record.instanceId}`,
+		`state=${record.state}`,
+		`origin=${record.origin}`,
+		record.pid === undefined ? undefined : `pid=${record.pid}`,
+		record.restarts > 0 ? `restarts=${record.restarts}` : undefined,
+		record.nextRestartAt ? `nextRestart=${record.nextRestartAt}` : undefined,
+		record.lastExitCode === undefined
+			? undefined
+			: `lastExit=${record.lastExitCode}`,
+		record.lastError ? `error=${record.lastError}` : undefined,
+	];
+	return pieces.filter(Boolean).join(" | ");
 }
 
 function formatActiveConnector(record: ActiveConnectorRecord): string {
@@ -368,6 +627,13 @@ function killPids(pids: number[]): number {
 	return killed;
 }
 
+export const __test__ = {
+	decideForeignContainer,
+	CONTAINER_CGROUP_PATTERN,
+	describeProcessesStartedDuringFix,
+	formatSupervisedConnector,
+};
+
 export async function runDoctorCommand(
 	opts: { cwd: string; json?: boolean; fix?: boolean; verbose?: boolean },
 	io: DoctorIo,
@@ -382,18 +648,16 @@ export async function runDoctorCommand(
 			io.writeln(JSON.stringify(before));
 			return 0;
 		}
+		writeln(`cli version ${c.dim}${before.cliVersion}${c.reset}`);
+		writeln(`core version ${c.dim}${before.coreVersion ?? "n/a"}${c.reset}`);
 		writeln(`hub url ${c.dim}${before.hubUrl ?? "none"}${c.reset}`);
 		writeln(
 			`hub healthy ${c.dim}${before.hubHealthy ? "yes" : "no"}${before.hubPid ? ` (pid=${before.hubPid})` : ""}${c.reset}`,
 		);
 		writeln(`hub uptime ${c.dim}${before.hubUptime ?? "n/a"}${c.reset}`);
 		writeln(formatPidList("hub listeners", before.listeningPids));
-		writeln(
-			formatPidList(
-				"hub startup locks",
-				before.hubStartupLocks.map((a) => a.pid ?? -1).filter((pid) => pid > 0),
-			),
-		);
+		writeln(formatDaemonPidList("stale hub daemons", before.staleHubPids));
+		writeln(formatStartupLockList("hub startup locks", before.hubStartupLocks));
 		writeln(formatPidList("cli processes", before.staleCliPids));
 		writeln(formatPidList("sidecar processes", before.staleSidecarPids));
 		if (before.activeConnectors.length === 0) {
@@ -404,6 +668,12 @@ export async function runDoctorCommand(
 				writeln(`- ${c.dim}${formatActiveConnector(record)}${c.reset}`);
 			}
 		}
+		if (before.supervisedConnectors?.length) {
+			writeln("hub-supervised connectors:");
+			for (const record of before.supervisedConnectors) {
+				writeln(`- ${c.dim}${formatSupervisedConnector(record)}${c.reset}`);
+			}
+		}
 		if (verbose && before.recentSpawnedProcesses.length > 0) {
 			writeln("recent spawned processes:");
 			for (const record of before.recentSpawnedProcesses) {
@@ -412,6 +682,7 @@ export async function runDoctorCommand(
 		}
 		if (
 			before.listeningPids.length > 0 ||
+			before.staleHubPids.length > 0 ||
 			before.staleCliPids.length > 0 ||
 			before.staleSidecarPids.length > 0
 		) {
@@ -423,7 +694,9 @@ export async function runDoctorCommand(
 	}
 
 	const gracefullyStoppedHub = before.hubHealthy
-		? await stopLocalHubServerGracefully().catch(() => false)
+		? await stopLocalHubServerGracefully(resolveCliHubOwnerContext()).catch(
+				() => false,
+			)
 		: false;
 	const refreshedAfterGracefulStop = gracefullyStoppedHub
 		? await collectDoctorStatus(opts.cwd)
@@ -431,13 +704,20 @@ export async function runDoctorCommand(
 	const killedHub = gracefullyStoppedHub
 		? 0
 		: killPids(refreshedAfterGracefulStop.listeningPids);
-	const staleCliTargets = before.staleCliPids.filter(
+	const staleHubTargets = before.staleHubPids.filter(
 		(pid) => !refreshedAfterGracefulStop.listeningPids.includes(pid),
+	);
+	const killedStaleHubs = killPids(staleHubTargets);
+	const staleCliTargets = before.staleCliPids.filter(
+		(pid) =>
+			!refreshedAfterGracefulStop.listeningPids.includes(pid) &&
+			!staleHubTargets.includes(pid),
 	);
 	const killedCli = killPids(staleCliTargets);
 	const staleSidecarTargets = before.staleSidecarPids.filter(
 		(pid) =>
 			!refreshedAfterGracefulStop.listeningPids.includes(pid) &&
+			!staleHubTargets.includes(pid) &&
 			!staleCliTargets.includes(pid),
 	);
 	const killedSidecars = killPids(staleSidecarTargets);
@@ -459,6 +739,7 @@ export async function runDoctorCommand(
 				after,
 				killed: {
 					hubListeners: killedHub,
+					staleHubDaemons: killedStaleHubs,
 					cliProcesses: killedCli,
 					sidecarProcesses: killedSidecars,
 					connectorProcesses: stoppedConnectors.stoppedProcesses,
@@ -471,6 +752,7 @@ export async function runDoctorCommand(
 		return 0;
 	}
 	writeln(`killed hub listeners ${c.dim}${killedHub}${c.reset}`);
+	writeln(`killed stale hub daemons ${c.dim}${killedStaleHubs}${c.reset}`);
 	writeln(`killed cli processes ${c.dim}${killedCli}${c.reset}`);
 	writeln(`killed sidecar processes ${c.dim}${killedSidecars}${c.reset}`);
 	writeln(
@@ -486,15 +768,56 @@ export async function runDoctorCommand(
 		`cleared hub discovery records ${c.dim}${clearedArtifacts.discovery}${c.reset}`,
 	);
 	writeln(`hub healthy after fix: ${after.hubHealthy ? "yes" : "no"}`);
-	writeln(formatPidList("remaining hub listeners", after.listeningPids));
+	// "Remaining" means a process this run tried to kill and failed to. A
+	// re-scan alone cannot tell that apart from a process that appeared while
+	// the fix was running, and reporting the two together reads as a failure
+	// to kill something that was never targeted.
+	const survived = (targets: number[], remaining: number[]) =>
+		remaining.filter((pid) => targets.includes(pid));
+	const appeared = (targets: number[], remaining: number[]) =>
+		remaining.filter((pid) => !targets.includes(pid));
 	writeln(
 		formatPidList(
-			"remaining hub startup locks",
-			after.hubStartupLocks.map((a) => a.pid ?? -1).filter((pid) => pid > 0),
+			"remaining hub listeners",
+			survived(refreshedAfterGracefulStop.listeningPids, after.listeningPids),
 		),
 	);
-	writeln(formatPidList("remaining cli processes", after.staleCliPids));
-	writeln(formatPidList("remaining sidecar processes", after.staleSidecarPids));
+	writeln(
+		formatDaemonPidList(
+			"remaining stale hub daemons",
+			survived(staleHubTargets, after.staleHubPids),
+		),
+	);
+	writeln(
+		formatStartupLockList("remaining hub startup locks", after.hubStartupLocks),
+	);
+	writeln(
+		formatPidList(
+			"remaining cli processes",
+			survived(staleCliTargets, after.staleCliPids),
+		),
+	);
+	writeln(
+		formatPidList(
+			"remaining sidecar processes",
+			survived(staleSidecarTargets, after.staleSidecarPids),
+		),
+	);
+	const spawnedDuringFix = [
+		...appeared(staleHubTargets, after.staleHubPids),
+		...appeared(staleCliTargets, after.staleCliPids),
+		...appeared(staleSidecarTargets, after.staleSidecarPids),
+	];
+	if (spawnedDuringFix.length > 0) {
+		writeln(formatDaemonPidList("started during fix", spawnedDuringFix));
+		const advice = describeProcessesStartedDuringFix(
+			spawnedDuringFix,
+			liveParentPid,
+		);
+		if (advice) {
+			io.writeln(advice);
+		}
+	}
 	return 0;
 }
 

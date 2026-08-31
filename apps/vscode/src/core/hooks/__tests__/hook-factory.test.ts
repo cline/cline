@@ -1,10 +1,11 @@
-import { afterEach, beforeEach, describe, it } from "mocha"
+import { afterEach, beforeEach, describe, it } from "bun:test"
 import "should"
 import fs from "fs/promises"
 import path from "path"
 import sinon from "sinon"
 import { setDistinctId } from "@/services/logging/distinctId"
-import { HookFactory } from "../hook-factory"
+import { stubWorkspacePaths } from "../../../test/host-provider-test-utils"
+import { HookFactory, isPathWithin } from "../hook-factory"
 import { createHookTestEnv, HookTestEnv, stubHookDirs, withPlatform, writeHookScriptForPlatform } from "./test-utils"
 
 describe("Hook System", () => {
@@ -20,16 +21,12 @@ describe("Hook System", () => {
 	}
 
 	beforeEach(async () => {
+		if (process.platform === "win32") {
+		}
 		setDistinctId("test-id")
 		hookTestEnv = await createHookTestEnv()
 		tempDir = hookTestEnv.tempDir
 		sandbox = hookTestEnv.sandbox
-	})
-
-	beforeEach(function () {
-		if (process.platform === "win32") {
-			this.timeout(WINDOWS_TEST_TIMEOUT_MS)
-		}
 	})
 
 	afterEach(async () => {
@@ -40,6 +37,8 @@ describe("Hook System", () => {
 		it("should return success without executing anything when no hooks found", async () => {
 			const factory = new HookFactory()
 			const runner = await factory.create("PreToolUse")
+
+			runner.isNoOp.should.be.true()
 
 			const result = await runner.run({
 				taskId: "test-task",
@@ -55,14 +54,15 @@ describe("Hook System", () => {
 	})
 
 	describe("StdioHookRunner", () => {
-		it("should execute workspace hook from its respective workspace root directory", async function () {
-			if (process.platform === "win32") {
-				this.timeout(WINDOWS_HOOK_TEST_TIMEOUT_MS)
-			}
+		it(
+			"should execute workspace hook from its respective workspace root directory",
+			async () => {
+				if (process.platform === "win32") {
+				}
 
-			// Create a test hook script that outputs the current working directory
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "PreToolUse")
-			const hookScript = `#!/usr/bin/env node
+				// Create a test hook script that outputs the current working directory
+				const hookPath = path.join(tempDir, ".clinerules", "hooks", "PreToolUse")
+				const hookScript = `#!/usr/bin/env node
 const input = require('fs').readFileSync(0, 'utf-8');
 // Output the current working directory
 console.log(JSON.stringify({
@@ -70,28 +70,72 @@ console.log(JSON.stringify({
   contextModification: "CWD: " + process.cwd()
 }))`
 
-			await writeHookScript(hookPath, hookScript)
+				await writeHookScript(hookPath, hookScript)
 
-			// Test execution
-			const factory = new HookFactory()
-			const runner = await factory.create("PreToolUse")
+				// Test execution
+				const factory = new HookFactory()
+				const runner = await factory.create("PreToolUse")
 
-			const result = await runner.run({
-				taskId: "test-task",
-				preToolUse: {
-					toolName: "test_tool",
-					parameters: {},
-				},
-			})
+				const result = await runner.run({
+					taskId: "test-task",
+					preToolUse: {
+						toolName: "test_tool",
+						parameters: {},
+					},
+				})
 
-			result.cancel.should.be.false()
-			// The hook should execute from its workspace root (tempDir)
-			// Use fs.realpath to normalize paths (handles macOS /private prefix)
-			const cwdFromHook = result.contextModification?.replace("CWD: ", "")
-			const normalizedCwd = await fs.realpath(cwdFromHook)
-			const normalizedTempDir = await fs.realpath(tempDir)
-			normalizedCwd.should.equal(normalizedTempDir)
-		})
+				result.cancel.should.be.false()
+				// The hook should execute from its workspace root (tempDir)
+				// Use fs.realpath to normalize paths (handles macOS /private prefix)
+				const cwdFromHook = result.contextModification?.replace("CWD: ", "")
+				const normalizedCwd = await fs.realpath(cwdFromHook)
+				const normalizedTempDir = await fs.realpath(tempDir)
+				normalizedCwd.should.equal(normalizedTempDir)
+			},
+			WINDOWS_HOOK_TEST_TIMEOUT_MS,
+		)
+
+		it(
+			"should fail open without crashing when the workspace root no longer exists",
+			async () => {
+				const hookPath = path.join(tempDir, ".clinerules", "hooks", "PreToolUse")
+				const hookScript = `#!/usr/bin/env node
+console.log(JSON.stringify({
+  cancel: false
+}))`
+
+				await writeHookScript(hookPath, hookScript)
+
+				// Point the host-reported workspace roots at a directory that no
+				// longer exists on disk (deleted, renamed, or unmounted since the
+				// host resolved it). Spawning with that path as cwd used to fail
+				// with a misleading "spawn /bin/sh ENOENT" whose unlistened
+				// "error" emit crashed the whole host process.
+				sandbox.restore()
+				stubWorkspacePaths(sandbox, [path.join(tempDir, "deleted-workspace-root")])
+
+				const factory = new HookFactory()
+				const runner = await factory.create("PreToolUse")
+
+				try {
+					await runner.run({
+						taskId: "test-task",
+						preToolUse: {
+							toolName: "test_tool",
+							parameters: {},
+						},
+					})
+					throw new Error("Expected hook run to fail")
+				} catch (error: any) {
+					// The failure must be a catchable hook error that names the
+					// missing directory - not an uncaught exception killing the
+					// process, and not a run from an unrelated working directory.
+					error.message.should.not.equal("Expected hook run to fail")
+					String(error.errorInfo?.stderr ?? "").should.containEql("deleted-workspace-root")
+				}
+			},
+			WINDOWS_HOOK_TEST_TIMEOUT_MS,
+		)
 
 		it("should execute hook script and parse output", async () => {
 			// Create a test hook script
@@ -108,6 +152,8 @@ console.log(JSON.stringify({
 			// Test execution
 			const factory = new HookFactory()
 			const runner = await factory.create("PreToolUse")
+
+			runner.isNoOp.should.be.false()
 
 			const result = await runner.run({
 				taskId: "test-task",
@@ -620,42 +666,45 @@ console.log(JSON.stringify({
 			result.errorMessage?.should.match(/Workspace error/)
 		})
 
-		it("should execute global hook from primary workspace root directory", async function () {
-			if (process.platform === "win32") {
-				this.timeout(WINDOWS_HOOK_TEST_TIMEOUT_MS)
-			}
+		it(
+			"should execute global hook from primary workspace root directory",
+			async () => {
+				if (process.platform === "win32") {
+				}
 
-			// Create a global hook script that outputs the current working directory
-			const globalHookPath = path.join(globalHooksDir, "PreToolUse")
-			const globalHookScript = `#!/usr/bin/env node
+				// Create a global hook script that outputs the current working directory
+				const globalHookPath = path.join(globalHooksDir, "PreToolUse")
+				const globalHookScript = `#!/usr/bin/env node
 const input = require('fs').readFileSync(0, 'utf-8');
 // Output the current working directory
 console.log(JSON.stringify({
   cancel: false,
   contextModification: "CWD: " + process.cwd()
 }))`
-			await writeHookScript(globalHookPath, globalHookScript)
+				await writeHookScript(globalHookPath, globalHookScript)
 
-			// Test execution
-			const factory = new HookFactory()
-			const runner = await factory.create("PreToolUse")
+				// Test execution
+				const factory = new HookFactory()
+				const runner = await factory.create("PreToolUse")
 
-			const result = await runner.run({
-				taskId: "test-task",
-				preToolUse: {
-					toolName: "test_tool",
-					parameters: {},
-				},
-			})
+				const result = await runner.run({
+					taskId: "test-task",
+					preToolUse: {
+						toolName: "test_tool",
+						parameters: {},
+					},
+				})
 
-			result.cancel.should.be.false()
-			// Global hooks should execute from the primary workspace root (tempDir)
-			// Use fs.realpath to normalize paths (handles macOS /private prefix)
-			const cwdFromHook = result.contextModification?.replace("CWD: ", "")
-			const normalizedCwd = await fs.realpath(cwdFromHook)
-			const normalizedTempDir = await fs.realpath(tempDir)
-			normalizedCwd.should.equal(normalizedTempDir)
-		})
+				result.cancel.should.be.false()
+				// Global hooks should execute from the primary workspace root (tempDir)
+				// Use fs.realpath to normalize paths (handles macOS /private prefix)
+				const cwdFromHook = result.contextModification?.replace("CWD: ", "")
+				const normalizedCwd = await fs.realpath(cwdFromHook)
+				const normalizedTempDir = await fs.realpath(tempDir)
+				normalizedCwd.should.equal(normalizedTempDir)
+			},
+			WINDOWS_HOOK_TEST_TIMEOUT_MS,
+		)
 
 		it("should work with global PostToolUse hooks", async () => {
 			// Create global PostToolUse hook
@@ -682,6 +731,42 @@ console.log(JSON.stringify({
 			})
 
 			result.contextModification?.should.equal("Global observed: true")
+		})
+	})
+
+	describe("workspace root matching", () => {
+		it("isPathWithin requires a whole path-segment boundary", () => {
+			const root = path.join(path.sep, "repo", "app")
+			const sibling = path.join(path.sep, "repo", "app-web", "x")
+			const child = path.join(root, "x")
+
+			isPathWithin(root, root).should.be.true()
+			isPathWithin(root, child).should.be.true()
+			isPathWithin(root, sibling).should.be.false()
+			isPathWithin(root + path.sep, child).should.be.true()
+		})
+
+		it("determineHookCwd picks the owning root for prefix-sharing and nested roots", () => {
+			const factory = new HookFactory() as any
+			const app = path.join(path.sep, "repo", "app")
+			const appWeb = path.join(path.sep, "repo", "app-web")
+			const hooksDir = (root: string) => path.join(root, ".clinerules", "hooks")
+			const script = (root: string) => path.join(hooksDir(root), "PreToolUse")
+
+			// Prefix-sharing sibling roots: the hook must run from its own root,
+			// not the root that happens to be a string prefix of it.
+			factory.determineHookCwd(script(appWeb), [hooksDir(app), hooksDir(appWeb)], [app, appWeb]).should.equal(appWeb)
+
+			// Nested roots: the innermost matching root wins regardless of order.
+			const outer = path.join(path.sep, "repo")
+			const inner = path.join(path.sep, "repo", "packages", "x")
+			factory.determineHookCwd(script(inner), [hooksDir(outer), hooksDir(inner)], [outer, inner]).should.equal(inner)
+
+			// Global hooks (and unplaceable scripts) fall back to the primary root.
+			const globalScript = path.join(path.sep, "home", "Documents", "Cline", "Hooks", "PreToolUse")
+			factory
+				.determineHookCwd(globalScript, [path.join(path.sep, "home", "Documents", "Cline", "Hooks")], [app, appWeb])
+				.should.equal(app)
 		})
 	})
 })

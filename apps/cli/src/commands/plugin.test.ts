@@ -17,6 +17,7 @@ import {
 } from "@cline/shared/storage";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+	collectPluginMcpOAuthCandidates,
 	installPlugin,
 	isOfficialPluginSlug,
 	parsePluginSource,
@@ -35,6 +36,7 @@ describe("plugin install command", () => {
 	let originalHome: string | undefined;
 	let originalClineDir: string | undefined;
 	let originalClineDataDir: string | undefined;
+	let originalMcpSettingsPath: string | undefined;
 
 	beforeEach(() => {
 		root = mkdtempSync(join(tmpdir(), "cli-plugin-install-"));
@@ -43,6 +45,7 @@ describe("plugin install command", () => {
 		originalHome = process.env.HOME;
 		originalClineDir = process.env.CLINE_DIR;
 		originalClineDataDir = process.env.CLINE_DATA_DIR;
+		originalMcpSettingsPath = process.env.CLINE_MCP_SETTINGS_PATH;
 		process.env.HOME = home;
 		process.env.CLINE_DIR = join(home, ".cline");
 		process.env.CLINE_DATA_DIR = join(home, ".cline", "data");
@@ -90,6 +93,11 @@ describe("plugin install command", () => {
 			delete process.env.CLINE_DATA_DIR;
 		} else {
 			process.env.CLINE_DATA_DIR = originalClineDataDir;
+		}
+		if (originalMcpSettingsPath === undefined) {
+			delete process.env.CLINE_MCP_SETTINGS_PATH;
+		} else {
+			process.env.CLINE_MCP_SETTINGS_PATH = originalMcpSettingsPath;
 		}
 		rmSync(root, { recursive: true, force: true });
 	});
@@ -676,9 +684,339 @@ describe("plugin install command", () => {
 			expect(code).toBe(0);
 			const parsed = JSON.parse(stdout.join("")) as { installPath: string };
 			expect(parsed.installPath).toContain(join(home, ".cline", "plugins"));
+			expect("mcpOAuthCandidates" in parsed).toBe(false);
 		} finally {
 			process.stdout.write = originalWrite;
 		}
+	});
+
+	it("does not run MCP OAuth follow-up for JSON plugin installs", async () => {
+		process.env.CLINE_MCP_SETTINGS_PATH = join(root, "mcp-settings.json");
+		const source = join(root, "json-oauth-mcp-plugin.js");
+		writeFileSync(
+			source,
+			`
+export default {
+  name: "json-oauth-mcp-plugin",
+  manifest: { capabilities: ["mcp"] },
+  setup(api) {
+    api.registerMcpServer({
+      name: "json-oauth-docs",
+      transport: { type: "streamableHttp", url: "https://example.com/mcp" },
+    })
+  },
+}
+`,
+			"utf8",
+		);
+		const stdout: string[] = [];
+		const originalWrite = process.stdout.write;
+		const authorize = vi.fn();
+		process.stdout.write = ((chunk: string | Uint8Array) => {
+			stdout.push(String(chunk));
+			return true;
+		}) as typeof process.stdout.write;
+		try {
+			const code = await runPluginInstallCommand({
+				source,
+				json: true,
+				io: {
+					writeln: () => {},
+					writeErr: () => {},
+				},
+				mcpOAuth: {
+					interactive: true,
+					selectCandidates: async (candidates) => candidates,
+					authorize,
+				},
+			});
+			expect(code).toBe(0);
+			expect(authorize).not.toHaveBeenCalled();
+			const parsed = JSON.parse(stdout.join("")) as {
+				installPath: string;
+				mcpOAuthCandidates?: unknown;
+			};
+			expect(parsed.installPath).toContain(join(home, ".cline", "plugins"));
+			expect(parsed.mcpOAuthCandidates).toBeUndefined();
+		} finally {
+			process.stdout.write = originalWrite;
+		}
+	});
+
+	it("warns when plugin MCP settings sync fails after install", async () => {
+		const source = join(root, "mcp-plugin.js");
+		writeFileSync(
+			source,
+			`
+export default {
+  name: "mcp-plugin",
+  manifest: { capabilities: ["mcp"] },
+  setup(api) {
+    api.registerMcpServer({
+      name: "mcp-plugin",
+      transport: { type: "streamableHttp", url: "https://example.com/mcp" },
+    })
+  },
+}
+`,
+			"utf8",
+		);
+		const blockedDirectory = join(root, "not-a-directory");
+		writeFileSync(blockedDirectory, "file", "utf8");
+		const originalSettingsPath = process.env.CLINE_MCP_SETTINGS_PATH;
+		process.env.CLINE_MCP_SETTINGS_PATH = join(
+			blockedDirectory,
+			"cline_mcp_settings.json",
+		);
+		const output: string[] = [];
+		try {
+			const code = await runPluginInstallCommand({
+				source,
+				io: {
+					writeln: (text = "") => output.push(text),
+					writeErr: (text) => output.push(text),
+				},
+			});
+
+			expect(code).toBe(0);
+			expect(output.join("\n")).toContain("Installed plugin from");
+			expect(output.join("\n")).toContain(
+				"Warning: failed to sync plugin MCP servers",
+			);
+			expect(output.join("\n")).toContain("mcp-plugin");
+		} finally {
+			if (originalSettingsPath === undefined) {
+				delete process.env.CLINE_MCP_SETTINGS_PATH;
+			} else {
+				process.env.CLINE_MCP_SETTINGS_PATH = originalSettingsPath;
+			}
+		}
+	});
+
+	it("detects plugin-owned remote MCP servers as OAuth candidates", async () => {
+		process.env.CLINE_MCP_SETTINGS_PATH = join(root, "mcp-settings.json");
+		const source = join(root, "oauth-mcp-plugin.js");
+		writeFileSync(
+			source,
+			`
+export default {
+  name: "oauth-mcp-plugin",
+  manifest: { capabilities: ["mcp"] },
+  setup(api) {
+    api.registerMcpServer({
+      name: "oauth-docs",
+      transport: { type: "streamableHttp", url: "https://example.com/mcp" },
+    })
+  },
+}
+`,
+			"utf8",
+		);
+
+		const result = await installPlugin({ source });
+
+		expect(result.mcpOAuthCandidates).toEqual([
+			expect.objectContaining({
+				name: "oauth-docs",
+				pluginName: "oauth-mcp-plugin",
+				transportType: "streamableHttp",
+			}),
+		]);
+	});
+
+	it("does not treat remote MCP servers with static headers as OAuth candidates", async () => {
+		process.env.CLINE_MCP_SETTINGS_PATH = join(root, "mcp-settings.json");
+		const source = join(root, "headers-mcp-plugin.js");
+		writeFileSync(
+			source,
+			`
+export default {
+  name: "headers-mcp-plugin",
+  manifest: { capabilities: ["mcp"] },
+  setup(api) {
+    api.registerMcpServer({
+      name: "headers-docs",
+      transport: {
+        type: "streamableHttp",
+        url: "https://example.com/mcp",
+        headers: { Authorization: "Bearer token" },
+      },
+    })
+  },
+}
+`,
+			"utf8",
+		);
+
+		const result = await installPlugin({ source });
+
+		expect(result.mcpOAuthCandidates).toEqual([]);
+	});
+
+	it("skips plugin MCP OAuth candidates that already have tokens", async () => {
+		const settingsPath = join(root, "mcp-settings.json");
+		process.env.CLINE_MCP_SETTINGS_PATH = settingsPath;
+		const source = join(root, "authorized-mcp-plugin.js");
+		writeFileSync(
+			source,
+			`
+export default {
+  name: "authorized-mcp-plugin",
+  manifest: { capabilities: ["mcp"] },
+  setup(api) {
+    api.registerMcpServer({
+      name: "authorized-docs",
+      transport: { type: "streamableHttp", url: "https://example.com/mcp" },
+    })
+  },
+}
+`,
+			"utf8",
+		);
+		const result = await installPlugin({ source });
+		const settings = JSON.parse(readFileSync(settingsPath, "utf8")) as {
+			mcpServers?: Record<string, { oauth?: unknown }>;
+		};
+		const server = settings.mcpServers?.["authorized-docs"];
+		if (!server) {
+			throw new Error("Expected authorized-docs MCP server to be written");
+		}
+		server.oauth = { tokens: { access_token: "oauth-token" } };
+		writeFileSync(settingsPath, JSON.stringify(settings, null, 2), "utf8");
+
+		expect(
+			collectPluginMcpOAuthCandidates({
+				pluginPaths: result.entryPaths,
+				settingsPath,
+			}),
+		).toEqual([]);
+	});
+
+	it("authorizes selected plugin MCP OAuth candidates during interactive installs", async () => {
+		process.env.CLINE_MCP_SETTINGS_PATH = join(root, "mcp-settings.json");
+		const source = join(root, "interactive-mcp-plugin.js");
+		writeFileSync(
+			source,
+			`
+export default {
+  name: "interactive-mcp-plugin",
+  manifest: { capabilities: ["mcp"] },
+  setup(api) {
+    api.registerMcpServer({
+      name: "interactive-docs",
+      transport: { type: "streamableHttp", url: "https://example.com/mcp" },
+    })
+  },
+}
+`,
+			"utf8",
+		);
+		const authorized: string[] = [];
+		const output: string[] = [];
+
+		const code = await runPluginInstallCommand({
+			source,
+			io: {
+				writeln: (text = "") => output.push(text),
+				writeErr: (text) => output.push(text),
+			},
+			mcpOAuth: {
+				interactive: true,
+				selectCandidates: async (candidates) => candidates,
+				authorize: async (candidate) => {
+					authorized.push(candidate.name);
+				},
+			},
+		});
+
+		expect(code).toBe(0);
+		expect(authorized).toEqual(["interactive-docs"]);
+		expect(output.join("\n")).toContain("Installed plugin from");
+	});
+
+	it("keeps plugin install successful when MCP OAuth authorization fails", async () => {
+		process.env.CLINE_MCP_SETTINGS_PATH = join(root, "mcp-settings.json");
+		const source = join(root, "failing-oauth-mcp-plugin.js");
+		writeFileSync(
+			source,
+			`
+export default {
+  name: "failing-oauth-mcp-plugin",
+  manifest: { capabilities: ["mcp"] },
+  setup(api) {
+    api.registerMcpServer({
+      name: "failing-docs",
+      transport: { type: "streamableHttp", url: "https://example.com/mcp" },
+    })
+  },
+}
+`,
+			"utf8",
+		);
+		const output: string[] = [];
+
+		const code = await runPluginInstallCommand({
+			source,
+			io: {
+				writeln: (text = "") => output.push(text),
+				writeErr: (text) => output.push(text),
+			},
+			mcpOAuth: {
+				interactive: true,
+				selectCandidates: async (candidates) => candidates,
+				authorize: async () => {
+					throw new Error("oauth unavailable");
+				},
+			},
+		});
+
+		expect(code).toBe(0);
+		expect(output.join("\n")).toContain(
+			"Warning: failed to authorize MCP server failing-docs: oauth unavailable",
+		);
+	});
+
+	it("prints guidance for plugin MCP OAuth candidates in non-interactive installs", async () => {
+		process.env.CLINE_MCP_SETTINGS_PATH = join(root, "mcp-settings.json");
+		const source = join(root, "non-interactive-mcp-plugin.js");
+		writeFileSync(
+			source,
+			`
+export default {
+  name: "non-interactive-mcp-plugin",
+  manifest: { capabilities: ["mcp"] },
+  setup(api) {
+    api.registerMcpServer({
+      name: "non-interactive-docs",
+      transport: { type: "streamableHttp", url: "https://example.com/mcp" },
+    })
+  },
+}
+`,
+			"utf8",
+		);
+		const output: string[] = [];
+		const authorize = vi.fn();
+
+		const code = await runPluginInstallCommand({
+			source,
+			io: {
+				writeln: (text = "") => output.push(text),
+				writeErr: (text) => output.push(text),
+			},
+			mcpOAuth: {
+				interactive: false,
+				authorize,
+			},
+		});
+
+		expect(code).toBe(0);
+		expect(authorize).not.toHaveBeenCalled();
+		expect(output.join("\n")).toContain(
+			"Plugin MCP servers may require OAuth authorization",
+		);
+		expect(output.join("\n")).toContain("non-interactive-docs");
+		expect(output.join("\n")).toContain('Run "cline mcp"');
 	});
 
 	it("prints JSON output for official plugin installs", async () => {

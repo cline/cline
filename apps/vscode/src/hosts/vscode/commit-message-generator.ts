@@ -1,8 +1,8 @@
-import { buildApiHandler } from "@core/api"
 import * as path from "path"
 import * as vscode from "vscode"
 import { Controller } from "@/core/controller"
 import { HostProvider } from "@/hosts/host-provider"
+import { buildApiHandler } from "@/sdk/sdk-api-handler"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
 import { getGitDiff } from "@/utils/git"
@@ -25,6 +25,30 @@ export async function getGitDiffStagedFirst(cwd: string): Promise<string> {
 
 let commitGenerationAbortController: AbortController | undefined
 
+type GitRepositoryInputBox = {
+	value: string
+}
+
+type GitRepository = {
+	rootUri: vscode.Uri
+	inputBox: GitRepositoryInputBox
+}
+
+type GitApi = {
+	repositories: GitRepository[]
+	getRepository(uri: vscode.Uri): GitRepository | null | undefined
+}
+
+type GitExtensionExports = {
+	getAPI(version: 1): GitApi
+}
+
+type RepoSelectionItem = {
+	label: string
+	description: string
+	repo: GitRepository | null
+}
+
 const PROMPT = {
 	system: "You are a helpful assistant that generates informative git commit messages based on git diffs output. Skip preamble and remove all backticks surrounding the commit message.",
 	user: "Notes from developer (ignore if not relevant): {{USER_CURRENT_INPUT}}",
@@ -39,7 +63,7 @@ The commit message should:
 
 export async function generateCommitMsg(controller: Controller, scm?: vscode.SourceControl) {
 	try {
-		const gitExtension = vscode.extensions.getExtension("vscode.git")?.exports
+		const gitExtension = vscode.extensions.getExtension<GitExtensionExports>("vscode.git")?.exports
 		if (!gitExtension) {
 			throw new Error("Git extension not found")
 		}
@@ -50,7 +74,7 @@ export async function generateCommitMsg(controller: Controller, scm?: vscode.Sou
 		}
 
 		// If scm is provided, then the user specified one repository by clicking the "Source Control" menu button
-		if (scm) {
+		if (scm?.rootUri) {
 			const repository = git.getRepository(scm.rootUri)
 
 			if (!repository) {
@@ -71,7 +95,7 @@ export async function generateCommitMsg(controller: Controller, scm?: vscode.Sou
 	}
 }
 
-async function orchestrateWorkspaceCommitMsgGeneration(controller: Controller, repos: any[]) {
+async function orchestrateWorkspaceCommitMsgGeneration(controller: Controller, repos: GitRepository[]) {
 	const reposWithChanges = await filterForReposWithChanges(repos)
 
 	if (reposWithChanges.length === 0) {
@@ -111,8 +135,8 @@ async function orchestrateWorkspaceCommitMsgGeneration(controller: Controller, r
 	}
 }
 
-async function filterForReposWithChanges(repos: any[]) {
-	const reposWithChanges = []
+async function filterForReposWithChanges(repos: GitRepository[]): Promise<GitRepository[]> {
+	const reposWithChanges: GitRepository[] = []
 
 	// Check which repositories have changes (prefer staged, fall back to all)
 	for (const repo of repos) {
@@ -128,18 +152,18 @@ async function filterForReposWithChanges(repos: any[]) {
 	return reposWithChanges
 }
 
-async function promptRepoSelection(repos: any[]) {
+async function promptRepoSelection(repos: GitRepository[]): Promise<RepoSelectionItem | undefined> {
 	// Multiple repos with changes - ask user to choose
-	const repoItems = repos.map((repo) => ({
+	const repoItems: RepoSelectionItem[] = repos.map((repo) => ({
 		label: repo.rootUri.fsPath.split(path.sep).pop() || repo.rootUri.fsPath,
 		description: repo.rootUri.fsPath,
-		repo: repo,
+		repo,
 	}))
 
 	repoItems.unshift({
 		label: "$(git-commit) Generate for all repositories with changes",
 		description: `Generate commit messages for ${repos.length} repositories`,
-		repo: null as any,
+		repo: null,
 	})
 
 	return await vscode.window.showQuickPick(repoItems, {
@@ -147,7 +171,7 @@ async function promptRepoSelection(repos: any[]) {
 	})
 }
 
-async function generateCommitMsgForRepository(controller: Controller, repository: any) {
+async function generateCommitMsgForRepository(controller: Controller, repository: GitRepository) {
 	const inputBox = repository.inputBox
 	const repoPath = repository.rootUri.fsPath
 	const gitDiff = await getGitDiffStagedFirst(repoPath)
@@ -166,26 +190,18 @@ async function generateCommitMsgForRepository(controller: Controller, repository
 	)
 }
 
-async function performCommitMsgGeneration(controller: Controller, gitDiff: string, inputBox: any) {
+async function performCommitMsgGeneration(controller: Controller, gitDiff: string, inputBox: GitRepositoryInputBox) {
 	try {
 		vscode.commands.executeCommand("setContext", "cline.isGeneratingCommit", true)
 
 		const prompts = [PROMPT.instruction]
-
-		const workspaceManager = await controller.ensureWorkspaceManager()
-		if (workspaceManager) {
-			const workspacesJson = await workspaceManager.buildWorkspacesJson()
-			if (workspacesJson) {
-				prompts.push(`# Workspace Configuration\n${workspacesJson}`)
-			}
-		}
 
 		const currentInput = inputBox.value?.trim() || ""
 		if (currentInput) {
 			prompts.push(PROMPT.user.replace("{{USER_CURRENT_INPUT}}", currentInput))
 		}
 
-		const truncatedDiff = gitDiff.length > 5000 ? gitDiff.substring(0, 5000) + "\n\n[Diff truncated due to size]" : gitDiff
+		const truncatedDiff = gitDiff.length > 5000 ? `${gitDiff.substring(0, 5000)}\n\n[Diff truncated due to size]` : gitDiff
 		prompts.push(truncatedDiff)
 
 		const prompt = prompts.join("\n\n")
@@ -195,8 +211,11 @@ async function performCommitMsgGeneration(controller: Controller, gitDiff: strin
 		const apiConfiguration = controller.stateManager.getApiConfiguration()
 		const currentMode = "act"
 
-		// Build the API handler
-		const apiHandler = buildApiHandler(apiConfiguration, currentMode)
+		// Build the API handler. Commit message generation is a fast one-shot
+		// transform that doesn't need extended thinking; disabling reasoning also
+		// avoids sending both reasoning.effort and reasoning.max_tokens, which
+		// some providers (e.g. OpenRouter) reject.
+		const apiHandler = buildApiHandler(apiConfiguration, currentMode, { disableReasoning: true })
 
 		// Create a system prompt
 		const systemPrompt = PROMPT.system
@@ -208,16 +227,26 @@ async function performCommitMsgGeneration(controller: Controller, gitDiff: strin
 		const stream = apiHandler.createMessage(systemPrompt, messages)
 
 		let response = ""
+		let streamError: string | undefined
 		for await (const chunk of stream) {
 			commitGenerationAbortController.signal.throwIfAborted()
 			if (chunk.type === "text") {
 				response += chunk.text
 				inputBox.value = extractCommitMessage(response)
+			} else if (chunk.type === "done" && chunk.success === false) {
+				// The SDK stream finished with a provider/auth error. Capture it so
+				// we can surface the real reason instead of a generic empty response.
+				streamError = chunk.error
 			}
 		}
 
 		if (!inputBox.value) {
-			throw new Error("empty API response")
+			if (streamError) {
+				throw new Error(streamError)
+			}
+			throw new Error(
+				"The model returned an empty response. Check that the selected provider and model are configured correctly.",
+			)
 		}
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : String(error)

@@ -14,6 +14,15 @@ export type ChatCommandState = {
 export type ForkSessionResult = {
 	forkedFromSessionId: string;
 	newSessionId: string;
+	/**
+	 * Present when the source session had valid compaction state that was
+	 * re-anchored onto the forked session, so the UI can surface why the
+	 * next request is smaller than the canonical history.
+	 */
+	carriedWorkingContext?: {
+		workingContextMessages: number;
+		canonicalMessages: number;
+	};
 };
 
 export type MuteCommandInput = {
@@ -28,6 +37,7 @@ export type ChatCommandContext = {
 	getState: () => Promise<ChatCommandState> | ChatCommandState;
 	setState: (next: ChatCommandState) => Promise<void> | void;
 	reply: (text: string) => Promise<void> | void;
+	submitPrompt?: (prompt: string) => Promise<void> | void;
 	reset?: () => Promise<void> | void;
 	abort?: () => Promise<void> | void;
 	stop?: () => Promise<void> | void;

@@ -1,8 +1,9 @@
-import type { ITelemetryService } from "@cline/shared";
+import { decodeJwtPayload, type ITelemetryService } from "@cline/shared";
 import { nanoid } from "nanoid";
 import {
 	captureAuthFailed,
 	captureAuthLoggedOut,
+	captureAuthRefreshSoftFailure,
 	captureAuthStarted,
 	captureAuthSucceeded,
 	identifyAccount,
@@ -12,15 +13,12 @@ import { startLocalOAuthServer } from "./server";
 import type {
 	OAuthCredentials,
 	OAuthLoginCallbacks,
-	OAuthProviderInterface,
-	OcaClientMetadata,
 	OcaMode,
 	OcaOAuthConfig,
 	OcaOAuthProviderOptions,
 	OcaTokenResolution,
 } from "./types";
 import {
-	decodeJwtPayload,
 	getProofKey,
 	isCredentialLikelyExpired,
 	normalizeBaseUrl,
@@ -515,74 +513,34 @@ export async function getValidOcaCredentials(
 	try {
 		return await refreshOcaToken(currentCredentials, providerOptions);
 	} catch (error) {
+		const telemetry = providerOptions?.telemetry ?? options?.telemetry;
+		const failureDetails = {
+			status: error instanceof OcaOAuthTokenError ? error.status : undefined,
+			errorCode:
+				error instanceof OcaOAuthTokenError ? error.errorCode : undefined,
+			errorName: error instanceof Error ? error.name : undefined,
+		};
 		if (error instanceof OcaOAuthTokenError && error.isLikelyInvalidGrant()) {
-			captureAuthLoggedOut(providerOptions?.telemetry, "oca", "invalid_grant");
+			captureAuthLoggedOut(telemetry, "oca", "invalid_grant", {
+				status: error.status,
+				errorCode: error.errorCode,
+			});
 			return null;
 		}
-		if (currentCredentials.expires - Date.now() > retryableTokenGraceMs) {
+		const tokenExpired =
+			currentCredentials.expires - Date.now() <= retryableTokenGraceMs;
+		captureAuthRefreshSoftFailure(telemetry, "oca", {
+			...failureDetails,
+			tokenExpired,
+		});
+		if (!tokenExpired) {
 			return currentCredentials;
 		}
-		return null;
+		// Rethrow instead of returning null. A null from this function means the
+		// refresh token was REJECTED (re-auth required); a network blip or server
+		// error that happens to land after expiry must not be mistaken for that —
+		// callers turn null into a forced "requires re-authentication" stop even
+		// though the very next refresh attempt would likely succeed.
+		throw error;
 	}
-}
-
-export function createOcaOAuthProvider(
-	options: OcaOAuthProviderOptions = {},
-): OAuthProviderInterface {
-	return {
-		id: "oca",
-		name: "Oracle Code Assist",
-		usesCallbackServer: true,
-		async login(callbacks) {
-			return loginOcaOAuth({ ...options, callbacks });
-		},
-		async refreshToken(credentials) {
-			return refreshOcaToken(credentials, options);
-		},
-		getApiKey(credentials) {
-			return credentials.access;
-		},
-	};
-}
-
-export async function generateOcaOpcRequestId(
-	taskId: string,
-	token: string,
-): Promise<string> {
-	const encoder = new TextEncoder();
-	const hash8 = async (value: string): Promise<string> => {
-		const digest = await crypto.subtle.digest("SHA-256", encoder.encode(value));
-		return Array.from(new Uint8Array(digest).slice(0, 4), (byte) =>
-			byte.toString(16).padStart(2, "0"),
-		).join("");
-	};
-
-	const [tokenHex, taskHex] = await Promise.all([hash8(token), hash8(taskId)]);
-	const timestampHex = Math.floor(Date.now() / 1000)
-		.toString(16)
-		.padStart(8, "0");
-	const randomPart = new Uint32Array(1);
-	crypto.getRandomValues(randomPart);
-	const randomHex = (randomPart[0] ?? 0).toString(16).padStart(8, "0");
-	return tokenHex + taskHex + timestampHex + randomHex;
-}
-
-export async function createOcaRequestHeaders(input: {
-	accessToken: string;
-	taskId: string;
-	metadata?: OcaClientMetadata;
-}): Promise<Record<string, string>> {
-	const opcRequestId = await generateOcaOpcRequestId(
-		input.taskId,
-		input.accessToken,
-	);
-	return {
-		Authorization: `Bearer ${input.accessToken}`,
-		"Content-Type": "application/json",
-		client: input.metadata?.client ?? "Cline",
-		"client-version": input.metadata?.clientVersion ?? "unknown",
-		"client-ide": input.metadata?.clientIde ?? "unknown",
-		"client-ide-version": input.metadata?.clientIdeVersion ?? "unknown",
-		[OCI_HEADER_OPC_REQUEST_ID]: opcRequestId,
-	};
 }

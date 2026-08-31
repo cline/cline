@@ -9,6 +9,7 @@ import {
 	TelemetryLoggerSink,
 } from "@cline/core";
 import { getCliBuildInfo } from "./common";
+import { identifyFeatureFlagsAccount } from "./feature-flags";
 import {
 	markActivationCaptured,
 	wasActivationCaptured,
@@ -102,11 +103,12 @@ export interface CliTelemetryAccountContext {
  * Safe to call multiple times; the latest values win, mirroring the legacy
  * singleton-based behavior.
  */
-export function identifyCliTelemetryAccount(
+export function identifyTelemetryAccount(
 	account: CliTelemetryAccountContext,
 	logger?: BasicLogger,
 ): void {
 	identifyAccount(getCliTelemetryService(logger), account);
+	void identifyFeatureFlagsAccount(account, logger);
 }
 
 /**
@@ -134,6 +136,7 @@ export function captureCliExtensionActivated(
 	const telemetry = getCliTelemetryService(logger);
 	if (account) {
 		identifyAccount(telemetry, account);
+		void identifyFeatureFlagsAccount(account, logger);
 	}
 	captureExtensionActivated(telemetry);
 }

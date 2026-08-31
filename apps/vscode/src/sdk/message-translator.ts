@@ -1,0 +1,2780 @@
+// Replaces classic message streaming from src/core/task/index.ts (see origin/main)
+//
+// Translates SDK session events into ClineMessage[] for webview consumption.
+// The webview expects ClineMessage objects with ask/say types; this module
+// maps SDK CoreSessionEvent and AgentEvent types to that format.
+//
+// Key mappings:
+// - SDK "chunk" event (agent stream) → ClineMessage say="text" with partial=true
+// - SDK "agent_event" content_start (text) → ClineMessage say="text" with partial=true
+// - SDK "agent_event" content_start (reasoning) → ClineMessage say="reasoning" with partial=true
+// - SDK "agent_event" content_start (tool) → ClineMessage say="tool" with partial=true
+//   IMPORTANT: The webview's ChatRow.tsx parses message.text as JSON when
+//   say==="tool", expecting ClineSayTool format: {tool, path, content, ...}.
+//   We must convert SDK tool names (read_files, editor, run_commands, etc.)
+//   and their inputs to this format.
+// - SDK "agent_event" content_start (tool: MCP) → ClineMessage say="use_mcp_server" with partial=true
+//   MCP tools use serverName__toolName naming convention. The webview renders
+//   MCP tool calls via say/ask="use_mcp_server" with ClineAskUseMcpServer JSON.
+// - SDK "agent_event" content_end (tool: MCP) → say="use_mcp_server" + say="mcp_server_response"
+// - SDK "agent_event" content_end → ClineMessage with partial=false
+// - SDK "agent_event" content_start (tool: attempt_completion) → ClineMessage say="completion_result"
+// - SDK "agent_event" content_end (tool: attempt_completion) → ClineMessage say="completion_result" (final)
+// - SDK "agent_event" done (reason "completed", turn ended on text) → retags that final
+//   say="text" row in place to say="completion_result" (act) / say="plan_completion_result" (plan)
+// - SDK "agent_event" error → ClineMessage say="error"
+// - SDK "agent_event" usage → ClineMessage say="api_req_started" with ClineApiReqInfo JSON
+// - SDK "ended" event → finalizes the session
+
+import type { CoreSessionEvent } from "@cline/core"
+import { PATCH_MARKERS, projectSessionMessagesForDisplay } from "@cline/core"
+import type { MessageWithMetadata as SdkMessage } from "@cline/llms"
+import { type AgentEvent, formatDisplayUserInput } from "@cline/shared"
+import { COMMAND_OUTPUT_STRING } from "@shared/combineCommandSequences"
+import type {
+	ClineApiReqInfo,
+	ClineAskUseMcpServer,
+	ClineAskUseSubagents,
+	ClineCompactionInfo,
+	ClineMessage,
+	ClineSay,
+	ClineSaySubagentStatus,
+	ClineSayTool,
+	ClineSubagentUsageInfo,
+	SubagentStatusItem,
+} from "@shared/ExtensionMessage"
+import { Logger } from "@shared/services/Logger"
+import * as path from "path"
+import { arePathsEqual, getDesktopDir } from "@/utils/path"
+import { CLINE_FREE_PROMOTION_ENDED_ERROR_CODE, isClineFreePromotionEndedMessage } from "../services/error/ClineError"
+import { MessageIdMinter } from "./message-id-minter"
+import { describeMissingCredentialError } from "./provider-credential-error"
+import { extractPersistedHookContextChips, isSyntheticSdkUserMessage, isSyntheticUserPrompt } from "./sdk-user-message-mapping"
+import { isDeniedToolApprovalMistake, isKnownToolApprovalDenial } from "./tool-approval-denial"
+
+// ---------------------------------------------------------------------------
+// Translation result
+// ---------------------------------------------------------------------------
+
+/**
+ * Result of translating a single SDK event into ClineMessages.
+ * May produce zero or more messages.
+ */
+export interface TranslationResult {
+	/** Messages produced by this event */
+	messages: ClineMessage[]
+	/** Whether the session has ended */
+	sessionEnded: boolean
+	/** Whether the agent turn is complete */
+	turnComplete: boolean
+	/** Whether a tool call ended with an error (content_end with event.error) */
+	toolError?: boolean
+	/** Whether a tool call ended successfully (content_end without error) */
+	toolSuccess?: boolean
+	/** Usage info if available */
+	usage?: {
+		tokensIn: number
+		tokensOut: number
+		cacheWrites?: number
+		cacheReads?: number
+		totalCost?: number
+	}
+}
+
+type NormalizedUsage = NonNullable<TranslationResult["usage"]>
+
+function normalizeUsageEvent(usageEvent: {
+	inputTokens?: number
+	outputTokens?: number
+	cacheReadTokens?: number
+	cacheWriteTokens?: number
+	cost?: number
+	totalCost?: number
+}): NormalizedUsage {
+	const inputTokens = usageEvent.inputTokens ?? 0
+	const cacheReads = usageEvent.cacheReadTokens ?? 0
+	const cacheWrites = usageEvent.cacheWriteTokens ?? 0
+
+	// SDK provider usage reports inputTokens as the full request size, with
+	// cache reads/writes included. Classic Cline/webview metrics expect
+	// tokensIn, cacheReads, and cacheWrites to be disjoint buckets.
+	const uncachedInputTokens = Math.max(0, inputTokens - cacheReads - cacheWrites)
+
+	return {
+		tokensIn: uncachedInputTokens,
+		tokensOut: usageEvent.outputTokens ?? 0,
+		cacheWrites,
+		cacheReads,
+		totalCost: usageEvent.cost ?? usageEvent.totalCost ?? 0,
+	}
+}
+
+// ---------------------------------------------------------------------------
+// State tracking for partial messages
+// ---------------------------------------------------------------------------
+
+/**
+ * Tracks the state of streaming content to properly handle
+ * partial message updates.
+ */
+export class MessageTranslatorState {
+	/** Current streaming text message timestamp (used for dedup) */
+	private streamingTextTs: number | undefined
+	/** Current streaming reasoning message timestamp */
+	private streamingReasoningTs: number | undefined
+	/** Accumulated streaming reasoning text (SDK reasoning events are deltas) */
+	private streamingReasoningText = ""
+	/** Current streaming tool message timestamp */
+	private streamingToolTs: number | undefined
+	/** Stored tool input from content_start — used at content_end which doesn't carry input */
+	private streamingToolInput: unknown | undefined
+	/** Stored tool name from content_start — used at content_end for consistency */
+	private streamingToolName: string | undefined
+	/** Approved tool-call ids mapped to the approval row that should be updated in place. */
+	private approvedToolMessageTsByCallId = new Map<string, number>()
+	/**
+	 * The in-flight compaction divider's ts, so the "completed"/"skipped" notice
+	 * (or a turn error/abort) updates the same row in place. Deliberately NOT
+	 * cleared by the per-iteration `reset()`: the started/completed notices both
+	 * fire inside prepareTurn, before the next `iteration_start`, but an error
+	 * or abort mid-compaction must still be able to finalize the open row.
+	 */
+	private openCompactionTs: number | undefined
+	/** Tool calls rejected by the user; they should not render as red tool failures. */
+	private deniedToolApprovalsByCallId = new Map<string, { toolName: string; reason: string }>()
+	/**
+	 * Process-wide id/seq/epoch authority. Shared with the interaction coordinator and history
+	 * rendering so that message ids never collide across generators. See message-id-minter.ts.
+	 */
+	private readonly minter: MessageIdMinter
+
+	constructor(
+		minter: MessageIdMinter = new MessageIdMinter(),
+		private readonly getActiveProviderId?: () => string | undefined,
+		private readonly getUiMode?: () => "plan" | "act" | "yolo" | undefined,
+		private readonly getCwd?: () => string | undefined,
+		private readonly getActiveModelId?: () => string | undefined,
+	) {
+		this.minter = minter
+	}
+
+	/** Provider backing the active turn, if the host can supply it. */
+	activeProviderId(): string | undefined {
+		return this.getActiveProviderId?.()
+	}
+
+	/** Model backing the active turn, if the host can supply it. */
+	activeModelId(): string | undefined {
+		return this.getActiveModelId?.()
+	}
+
+	/**
+	 * The task's working directory, used to relativize the absolute filesystem
+	 * paths in tool inputs before they reach the webview. Undefined when the
+	 * host doesn't supply a cwd source (paths are then displayed as-is).
+	 */
+	currentCwd(): string | undefined {
+		return this.getCwd?.()
+	}
+
+	/**
+	 * Plan/act mode governing the current turn, used to style the inferred turn-final
+	 * response (plan → yellow plan box, act/yolo → green completion box).
+	 * Defaults to act when the host doesn't supply a mode source.
+	 */
+	currentUiMode(): "plan" | "act" {
+		return this.getUiMode?.() === "plan" ? "plan" : "act"
+	}
+
+	/** The shared minter, exposed so coordinators and history rendering mint from the same source. */
+	getMinter(): MessageIdMinter {
+		return this.minter
+	}
+
+	/** Generate a unique message id (identity). Pure monotonic counter; never reads the clock. */
+	nextTs(): number {
+		return this.minter.nextId()
+	}
+
+	/** Mint and remember the ts of an in-flight compaction divider. */
+	beginCompaction(): number {
+		this.openCompactionTs = this.nextTs()
+		return this.openCompactionTs
+	}
+
+	/** Take (and clear) the in-flight compaction divider's ts, if any. */
+	takeOpenCompactionTs(): number | undefined {
+		const ts = this.openCompactionTs
+		this.openCompactionTs = undefined
+		return ts
+	}
+
+	/** Get and increment for streaming text */
+	getStreamingTextTs(): number {
+		if (!this.streamingTextTs) {
+			this.streamingTextTs = this.nextTs()
+		}
+		return this.streamingTextTs
+	}
+
+	/** Clear streaming text (content ended) */
+	clearStreamingText(): number {
+		const ts = this.streamingTextTs ?? this.nextTs()
+		this.streamingTextTs = undefined
+		return ts
+	}
+
+	/** Get and increment for streaming reasoning */
+	getStreamingReasoningTs(): number {
+		if (!this.streamingReasoningTs) {
+			this.streamingReasoningTs = this.nextTs()
+		}
+		return this.streamingReasoningTs
+	}
+
+	/** Append a reasoning delta and return the accumulated reasoning text */
+	appendStreamingReasoning(reasoningDelta: string): string {
+		this.streamingReasoningText += reasoningDelta
+		return this.streamingReasoningText
+	}
+
+	/** Clear streaming reasoning (content ended) */
+	clearStreamingReasoning(): number {
+		const ts = this.streamingReasoningTs ?? this.nextTs()
+		this.streamingReasoningTs = undefined
+		this.streamingReasoningText = ""
+		return ts
+	}
+
+	/** Get streaming tool ts */
+	getStreamingToolTs(): number {
+		if (!this.streamingToolTs) {
+			this.streamingToolTs = this.nextTs()
+		}
+		return this.streamingToolTs
+	}
+
+	/** Store tool input from content_start for use at content_end */
+	setStreamingToolContext(toolName: string, input: unknown): void {
+		this.streamingToolName = toolName
+		this.streamingToolInput = input
+	}
+
+	/** Remember the approval prompt row for a tool call after the user approves it. */
+	recordApprovedToolMessageTs(toolCallId: string, messageTs: number): void {
+		this.approvedToolMessageTsByCallId.set(toolCallId, messageTs)
+	}
+
+	/** Clear approved prompt rows that no longer have a live tool event to consume them. */
+	clearApprovedToolMessageTs(): void {
+		this.approvedToolMessageTsByCallId.clear()
+	}
+
+	recordDeniedToolApproval(toolCallId: string, toolName: string, reason: string): void {
+		this.deniedToolApprovalsByCallId.set(toolCallId, { toolName, reason })
+	}
+
+	isToolApprovalDenied(toolCallId: string | undefined): boolean {
+		return toolCallId !== undefined && this.deniedToolApprovalsByCallId.has(toolCallId)
+	}
+
+	/**
+	 * Returns true when the given toolCallId was previously denied and its events should be
+	 * suppressed. This intentionally does not remove the entry because the denial must persist
+	 * past content_end so the follow-on error event can also be suppressed.
+	 */
+	checkDeniedToolApproval(toolCallId: string | undefined): boolean {
+		if (toolCallId === undefined || !this.deniedToolApprovalsByCallId.has(toolCallId)) {
+			return false
+		}
+		return true
+	}
+
+	isSuppressedToolApprovalDenial(value: unknown): boolean {
+		return isDeniedToolApprovalMistake(value, this.deniedToolApprovalsByCallId.values())
+	}
+
+	/** Reuse and remove a previously-approved prompt row for the matching tool event. */
+	consumeApprovedToolMessageTs(toolCallId: string | undefined): number | undefined {
+		if (!toolCallId) {
+			return undefined
+		}
+		const messageTs = this.approvedToolMessageTsByCallId.get(toolCallId)
+		if (messageTs !== undefined) {
+			this.approvedToolMessageTsByCallId.delete(toolCallId)
+		}
+		return messageTs
+	}
+
+	/** Force the active tool stream to update a known row instead of minting a new row. */
+	setStreamingToolTs(ts: number): void {
+		this.streamingToolTs = ts
+	}
+
+	/** Get the stored tool input (from content_start) */
+	getStreamingToolInput(): unknown | undefined {
+		return this.streamingToolInput
+	}
+
+	/** Get the stored tool name (from content_start) */
+	getStreamingToolName(): string | undefined {
+		return this.streamingToolName
+	}
+
+	/** Clear streaming tool */
+	clearStreamingTool(): number {
+		const ts = this.streamingToolTs ?? this.nextTs()
+		this.streamingToolTs = undefined
+		this.streamingToolInput = undefined
+		this.streamingToolName = undefined
+		return ts
+	}
+
+	/** Whether attempt_completion tool was called in this turn */
+	private attemptCompletionSeen = false
+
+	/** Mark that attempt_completion was called */
+	setAttemptCompletionSeen(): void {
+		this.attemptCompletionSeen = true
+	}
+
+	/** Check if attempt_completion was called in this turn */
+	wasAttemptCompletionSeen(): boolean {
+		return this.attemptCompletionSeen
+	}
+
+	/** Whether a provider/agent error surfaced in this turn (ask:"api_req_failed" emitted) */
+	private errorSeen = false
+
+	/** Mark that this turn surfaced an error */
+	setErrorSeen(): void {
+		this.errorSeen = true
+	}
+
+	/** Check if this turn surfaced an error — drives the "error" turn phase (Retry / New Task) */
+	wasErrorSeen(): boolean {
+		return this.errorSeen
+	}
+
+	// -----------------------------------------------------------------------
+	// Turn-final text tracking — the SDK agent usually ends a turn with a plain
+	// text response instead of a completion tool. When a turn ends cleanly with
+	// text as its last content, that text row is retagged in place (same ts) to
+	// say:"completion_result" (act) or say:"plan_completion_result" (plan) so
+	// the webview shows the legacy-style completion feedback box.
+	// -----------------------------------------------------------------------
+
+	/** ts of the last finalized (non-partial, non-empty) text message of the current turn */
+	private turnFinalTextTs: number | undefined
+	/** Text of the message tracked by turnFinalTextTs */
+	private turnFinalText = ""
+
+	/** Remember the most recent finalized text as the candidate turn-final response. */
+	recordTurnFinalText(ts: number, text: string): void {
+		this.turnFinalTextTs = ts
+		this.turnFinalText = text
+	}
+
+	/** Forget the candidate turn-final text (tool activity means the turn didn't end on it). */
+	clearTurnFinalText(): void {
+		this.turnFinalTextTs = undefined
+		this.turnFinalText = ""
+	}
+
+	/** Take (and clear) the candidate turn-final text, if any. */
+	takeTurnFinalText(): { ts: number; text: string } | undefined {
+		if (this.turnFinalTextTs === undefined) {
+			return undefined
+		}
+		const result = { ts: this.turnFinalTextTs, text: this.turnFinalText }
+		this.clearTurnFinalText()
+		return result
+	}
+
+	// -----------------------------------------------------------------------
+	// spawn_agent tracking — aggregates parallel spawn_agent tool calls into
+	// the rich SubagentStatusRow UI (use_subagents + subagent messages).
+	// -----------------------------------------------------------------------
+
+	/** Active spawn_agent entries keyed by toolCallId */
+	private spawnAgentEntries = new Map<string, SubagentStatusItem>()
+	/** Stable timestamp for the combined say:"use_subagents" prompts message */
+	private spawnAgentPromptsTs: number | undefined
+	/** Stable timestamp for the combined say:"subagent" status message */
+	private spawnAgentStatusTs: number | undefined
+	/** Counter for assigning index to new spawn_agent entries */
+	private spawnAgentNextIndex = 0
+
+	/** Register a new spawn_agent call. Returns the entry for this call. */
+	addSpawnAgent(toolCallId: string, prompt: string): SubagentStatusItem {
+		const entry: SubagentStatusItem = {
+			index: ++this.spawnAgentNextIndex,
+			prompt,
+			status: "running",
+			toolCalls: 0,
+			inputTokens: 0,
+			outputTokens: 0,
+			totalCost: 0,
+			contextTokens: 0,
+			contextWindow: 0,
+			contextUsagePercentage: 0,
+		}
+		this.spawnAgentEntries.set(toolCallId, entry)
+		return entry
+	}
+
+	/** Get a spawn_agent entry by toolCallId */
+	getSpawnAgent(toolCallId: string): SubagentStatusItem | undefined {
+		return this.spawnAgentEntries.get(toolCallId)
+	}
+
+	/** Whether there are any active spawn_agent calls */
+	hasSpawnAgents(): boolean {
+		return this.spawnAgentEntries.size > 0
+	}
+
+	/** Whether any registered spawn_agent call has not finished yet. */
+	hasRunningSpawnAgents(): boolean {
+		return this.getSpawnAgentItems().some((entry) => entry.status === "running" || entry.status === "pending")
+	}
+
+	/** Get all spawn_agent entries as an ordered array */
+	getSpawnAgentItems(): SubagentStatusItem[] {
+		return Array.from(this.spawnAgentEntries.values()).sort((a, b) => a.index - b.index)
+	}
+
+	/** Get or create the stable timestamp for say:"use_subagents" prompts messages */
+	getSpawnAgentPromptsTs(): number {
+		if (!this.spawnAgentPromptsTs) {
+			this.spawnAgentPromptsTs = this.nextTs()
+		}
+		return this.spawnAgentPromptsTs
+	}
+
+	/** Force the aggregated spawn-agent prompt row to update a known approval row. */
+	setSpawnAgentPromptsTs(ts: number): void {
+		this.spawnAgentPromptsTs = ts
+	}
+
+	/** Get or create the stable timestamp for subagent status messages */
+	getSpawnAgentStatusTs(): number {
+		if (!this.spawnAgentStatusTs) {
+			this.spawnAgentStatusTs = this.nextTs()
+		}
+		return this.spawnAgentStatusTs
+	}
+
+	/** Build a ClineSaySubagentStatus from the current entries */
+	buildSubagentStatus(overallStatus: ClineSaySubagentStatus["status"]): ClineSaySubagentStatus {
+		const items = this.getSpawnAgentItems()
+		const completed = items.filter((e) => e.status === "completed" || e.status === "failed").length
+		const successes = items.filter((e) => e.status === "completed").length
+		const failures = items.filter((e) => e.status === "failed").length
+		return {
+			status: overallStatus,
+			total: items.length,
+			completed,
+			successes,
+			failures,
+			toolCalls: items.reduce((acc, e) => acc + (e.toolCalls || 0), 0),
+			inputTokens: items.reduce((acc, e) => acc + (e.inputTokens || 0), 0),
+			outputTokens: items.reduce((acc, e) => acc + (e.outputTokens || 0), 0),
+			contextWindow: items.reduce((acc, e) => Math.max(acc, e.contextWindow || 0), 0),
+			maxContextTokens: items.reduce((acc, e) => Math.max(acc, e.contextTokens || 0), 0),
+			maxContextUsagePercentage: items.reduce((acc, e) => Math.max(acc, e.contextUsagePercentage || 0), 0),
+			items,
+		}
+	}
+
+	/** Clear all spawn_agent state (called at iteration_start) */
+	clearSpawnAgents(): void {
+		this.spawnAgentEntries.clear()
+		this.spawnAgentPromptsTs = undefined
+		this.spawnAgentStatusTs = undefined
+		this.spawnAgentNextIndex = 0
+	}
+
+	/**
+	 * Reset per-iteration STREAMING state: the open text/reasoning/tool stream pointers and the
+	 * spawn-agent aggregation. Called on each `iteration_start`, which is mid-turn within the same
+	 * conversation, so it deliberately does NOT touch turn-outcome signals such as
+	 * `attemptCompletionSeen` — those are scoped to the whole turn and survive its iterations.
+	 */
+	reset(): void {
+		this.streamingTextTs = undefined
+		this.streamingReasoningTs = undefined
+		this.streamingToolTs = undefined
+		this.streamingToolInput = undefined
+		this.streamingToolName = undefined
+		this.clearApprovedToolMessageTs()
+		this.deniedToolApprovalsByCallId.clear()
+		this.clearSpawnAgents()
+	}
+
+	/**
+	 * Clear turn-outcome signals (`attemptCompletionSeen`, the turn-final text candidate).
+	 * Called at a new user turn / task boundary so each turn's phase is computed fresh; it is
+	 * intentionally separate from the per-iteration `reset()` so the completion signal persists
+	 * across the iterations of one turn.
+	 */
+	clearTurnOutcome(): void {
+		this.attemptCompletionSeen = false
+		this.errorSeen = false
+		this.clearTurnFinalText()
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Display-path relativization
+// ---------------------------------------------------------------------------
+
+/**
+ * Tools whose ClineSayTool.path is a filesystem path. webFetch/webSearch/
+ * useSkill and MCP tools reuse `path` for URLs, queries, and names, so they
+ * are deliberately excluded.
+ */
+const FILESYSTEM_PATH_TOOLS: ReadonlySet<ClineSayTool["tool"]> = new Set([
+	"readFile",
+	"listFilesTopLevel",
+	"listFilesRecursive",
+	"listCodeDefinitionNames",
+	"editedExistingFile",
+	"newFileCreated",
+	"fileDeleted",
+	"searchFiles",
+])
+
+/**
+ * Relativize a ClineSayTool's filesystem paths against the task cwd before it
+ * is shown in the chat view, restoring the classic extension's getReadablePath
+ * display behavior that was lost in the SDK migration (the SDK works with
+ * absolute paths). Display-only — executors receive the raw tool input.
+ */
+function toDisplaySayTool(sayTool: ClineSayTool, cwd: string | undefined): ClineSayTool {
+	if (!cwd || !FILESYSTEM_PATH_TOOLS.has(sayTool.tool)) {
+		return sayTool
+	}
+	if (sayTool.tool === "readFile") {
+		// The webview's readFile card opens `content` in the editor on click, so it
+		// carries the absolute path (classic-extension behavior). Already-absolute
+		// paths pass through untouched — path.resolve would rewrite a drive-less
+		// absolute path onto the current drive on Windows.
+		const openTarget = sayTool.path
+			? path.isAbsolute(sayTool.path)
+				? sayTool.path
+				: path.resolve(cwd, sayTool.path)
+			: sayTool.content
+		return {
+			...sayTool,
+			path: toDisplayPath(sayTool.path, cwd),
+			content: openTarget,
+		}
+	}
+	return {
+		...sayTool,
+		path: toDisplayPath(sayTool.path, cwd),
+		// apply_patch payloads carry "*** Update File: <path>" markers that
+		// DiffEditRow renders as the diff headers, so relativize those too.
+		content: relativizePatchPaths(sayTool.content, cwd),
+		diff: relativizePatchPaths(sayTool.diff, cwd),
+	}
+}
+
+/**
+ * Mirror the classic getReadablePath: paths inside the cwd render relative,
+ * the cwd itself renders as its basename, and anything outside the cwd stays
+ * absolute so the user still sees exactly where the operation happened.
+ */
+function toDisplayPath(rawPath: string | undefined, cwd: string): string | undefined {
+	if (!rawPath || !path.isAbsolute(rawPath)) {
+		return rawPath
+	}
+	// User opened VS Code without a workspace, so the cwd fell back to the
+	// Desktop. Keep full absolute paths so the user stays aware of where
+	// operations occur (classic getReadablePath behavior).
+	if (arePathsEqual(cwd, getDesktopDir())) {
+		return rawPath.replace(/\\/g, "/")
+	}
+	const relative = path.relative(cwd, rawPath)
+	if (relative === "") {
+		return path.basename(rawPath).replace(/\\/g, "/")
+	}
+	// Outside the cwd (or on another drive on Windows) — keep the absolute path.
+	// Match ".." only as a whole segment so an in-cwd entry literally named
+	// "..config" is not misclassified as outside.
+	if (relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+		return rawPath.replace(/\\/g, "/")
+	}
+	return relative.replace(/\\/g, "/")
+}
+
+/** Rewrite the "*** Add/Update/Delete File:" and "*** Move to:" markers inside a patch payload. */
+function relativizePatchPaths(patch: string | undefined, cwd: string): string | undefined {
+	if (!patch) {
+		return patch
+	}
+	const fileMarkers = [PATCH_MARKERS.ADD, PATCH_MARKERS.UPDATE, PATCH_MARKERS.DELETE, PATCH_MARKERS.MOVE]
+	return patch
+		.split("\n")
+		.map((line) => {
+			const marker = fileMarkers.find((m) => line.startsWith(m))
+			return marker ? marker + (toDisplayPath(line.substring(marker.length).trim(), cwd) ?? "") : line
+		})
+		.join("\n")
+}
+
+// ---------------------------------------------------------------------------
+// SDK tool name → classic ClineSayTool mapping
+// ---------------------------------------------------------------------------
+
+/**
+ * Map an SDK tool name and its input to a ClineSayTool object that the
+ * webview's ChatRow.tsx can render.
+ *
+ * The webview does `JSON.parse(message.text) as ClineSayTool` when
+ * `say === "tool"`, so the text MUST be valid ClineSayTool JSON.
+ *
+ * SDK tool names → classic tool names:
+ *   read_files/read_file               → readFile
+ *   list_files                         → listFilesTopLevel / listFilesRecursive
+ *   list_code_definition_names         → listCodeDefinitionNames
+ *   editor/replace_in_file             → editedExistingFile
+ *   write_to_file                      → newFileCreated
+ *   apply_patch                        → editedExistingFile
+ *   delete_file                        → fileDeleted
+ *   run_commands/execute_command       → (uses say="command", NOT say="tool")
+ *   search_codebase/search_files       → searchFiles
+ *   fetch_web_content/web_fetch        → webFetch
+ *   web_search                         → webSearch
+ *   skills/use_skill                   → useSkill
+ *   ask_question/ask_followup_question → (not a visual tool — handled by askQuestion executor in SdkController)
+ *   MCP tools (serverName__toolName)   → (handled before reaching sdkToolToClineSayTool — emitted as say="use_mcp_server")
+ */
+function sdkToolToClineSayTool(toolName: string, input?: unknown): ClineSayTool {
+	// Parse input if it's a string (some SDK tools pass stringified JSON)
+	const parsedInput = parseToolInput(input)
+
+	switch (toolName) {
+		case "read_files":
+		case "read_file": {
+			const fileRead = extractFileReads(parsedInput)[0]
+			return {
+				tool: "readFile",
+				path: fileRead?.path ?? "",
+				...readLineRangeFields(fileRead),
+			}
+		}
+
+		case "list_files": {
+			const dirPath = getStringField(parsedInput, "path") ?? ""
+			const recursive = getBooleanField(parsedInput, "recursive") ?? false
+			return {
+				tool: recursive ? "listFilesRecursive" : "listFilesTopLevel",
+				path: dirPath,
+			}
+		}
+
+		case "list_code_definition_names": {
+			const dirPath = getStringField(parsedInput, "path") ?? ""
+			return {
+				tool: "listCodeDefinitionNames",
+				path: dirPath,
+			}
+		}
+
+		case "editor":
+		case "replace_in_file": {
+			const filePath = getStringField(parsedInput, "path") ?? ""
+			const newText =
+				getStringField(parsedInput, "new_text") ??
+				getStringField(parsedInput, "new_str") ??
+				getStringField(parsedInput, "content")
+			const patch = getStringField(parsedInput, "patch") ?? getStringField(parsedInput, "diff")
+			const oldText = getStringField(parsedInput, "old_text") ?? getStringField(parsedInput, "old_str")
+			// `insert_line` inserts into an existing file (the SDK editor executor requires
+			// the file to already exist), so it is an edit — not a new-file creation. Without
+			// this the card mislabels a prepend/insert as "Cline wants to create a new file".
+			const insertLine = getNumberField(parsedInput, "insert_line")
+			const isEdit = toolName === "replace_in_file" || !!oldText || insertLine != null
+
+			// When the SDK provides both old and new text, build a search/replace
+			// diff in the format DiffEditRow expects. ChatRow passes `content` to
+			// DiffEditRow's `patch` prop, so the formatted diff must go into `content`.
+			const diffContent = oldText && newText ? `------- SEARCH\n${oldText}\n=======\n${newText}\n+++++++ REPLACE` : newText
+
+			return {
+				tool: isEdit ? "editedExistingFile" : "newFileCreated",
+				path: filePath,
+				content: diffContent,
+				diff: patch,
+			}
+		}
+
+		case "write_to_file": {
+			const filePath = getStringField(parsedInput, "path") ?? ""
+			const content = getStringField(parsedInput, "content") ?? getStringField(parsedInput, "new_text")
+			return {
+				tool: "newFileCreated",
+				path: filePath,
+				content,
+			}
+		}
+
+		case "apply_patch": {
+			const filePath = getStringField(parsedInput, "path") ?? ""
+			const patch = getApplyPatchString(input)
+			return {
+				tool: "editedExistingFile",
+				path: filePath,
+				content: patch,
+				diff: patch,
+			}
+		}
+
+		case "delete_file": {
+			const filePath = getStringField(parsedInput, "path") ?? ""
+			return {
+				tool: "fileDeleted",
+				path: filePath,
+			}
+		}
+
+		case "search_codebase":
+		case "search_files": {
+			// The SDK's SearchCodebaseUnionInputSchema accepts multiple formats:
+			//   1. { queries: string[] }  — standard object (parsedInput handles this)
+			//   2. { queries: string }    — queries as single string
+			//   3. string[]               — bare array (parseToolInput returns undefined for arrays)
+			//   4. string                 — bare string (parseToolInput tries JSON.parse, returns undefined if not an object)
+			// We must handle all four to avoid showing empty regex in the UI.
+			let regex = ""
+			if (parsedInput) {
+				// Cases 1 & 2: input was an object with a "queries" field
+				const queries = getArrayField(parsedInput, "queries")
+				regex =
+					queries?.join(", ") ?? getStringField(parsedInput, "queries") ?? getStringField(parsedInput, "regex") ?? ""
+			} else if (Array.isArray(input)) {
+				// Case 3: bare array of query strings
+				regex = input.map(String).join(", ")
+			} else if (typeof input === "string") {
+				// Case 4: bare string query
+				regex = input
+			}
+			const path = getStringField(parsedInput, "path")
+			const filePattern = getStringField(parsedInput, "file_pattern") ?? getStringField(parsedInput, "filePattern")
+			return {
+				tool: "searchFiles",
+				regex,
+				path,
+				filePattern,
+			}
+		}
+
+		case "fetch_web_content":
+		case "web_fetch": {
+			// fetch_web_content carries { requests: [{ url, prompt }] };
+			// web_fetch carries { url, prompt } directly.
+			let url = getStringField(parsedInput, "url") ?? ""
+			if (!url && parsedInput) {
+				const requests = parsedInput.requests
+				if (Array.isArray(requests) && requests.length > 0) {
+					const firstRequest = requests[0]
+					if (typeof firstRequest === "object" && firstRequest !== null) {
+						url = ((firstRequest as Record<string, unknown>).url as string) ?? ""
+					}
+				}
+			}
+			return {
+				tool: "webFetch",
+				path: url,
+			}
+		}
+
+		case "web_search": {
+			const query = getStringField(parsedInput, "query") ?? getStringField(parsedInput, "q") ?? ""
+			return {
+				tool: "webSearch",
+				path: query,
+			}
+		}
+
+		case "skills":
+		case "use_skill": {
+			// skills carries { skill: "name", args?: "..." };
+			// use_skill carries { skill_name: "name" }.
+			const skillName =
+				getStringField(parsedInput, "skill_name") ??
+				getStringField(parsedInput, "skill") ??
+				getStringField(parsedInput, "name") ??
+				""
+			return {
+				tool: "useSkill",
+				path: skillName,
+			}
+		}
+
+		default: {
+			// MCP tools and unknown tools — pass through with the raw tool name.
+			const filePath =
+				getStringField(parsedInput, "path") ??
+				getStringField(parsedInput, "url") ??
+				getStringField(parsedInput, "command") ??
+				""
+			return {
+				tool: toolName as ClineSayTool["tool"],
+				path: filePath,
+			}
+		}
+	}
+}
+
+/**
+ * Parse tool input into a record if it's a string or object.
+ */
+function parseToolInput(input: unknown): Record<string, unknown> | undefined {
+	if (!input) return undefined
+	if (typeof input === "object" && !Array.isArray(input)) {
+		return input as Record<string, unknown>
+	}
+	if (typeof input === "string") {
+		try {
+			const parsed = JSON.parse(input)
+			if (typeof parsed === "object" && !Array.isArray(parsed)) {
+				return parsed
+			}
+		} catch {
+			// Not JSON — return undefined
+		}
+	}
+	return undefined
+}
+
+/**
+ * Whether a tool name is the agent's completion tool — the one that declares the task done and
+ * drives the green completion box plus the `completed` turn phase. Two names are accepted:
+ * the legacy VSCode extra tool `attempt_completion` (no longer registered for new sessions,
+ * but still present in persisted transcripts) and the SDK's built-in `submit_and_exit`
+ * (DefaultToolNames.SUBMIT_AND_EXIT, lifecycle.completesRun=true).
+ */
+function isCompletionTool(toolName: string): boolean {
+	return toolName === "submit_and_exit" || toolName === "attempt_completion"
+}
+
+/**
+ * Extract the completion summary text from a completion-tool input. `attempt_completion` carries
+ * it in `result`; `submit_and_exit` carries it in `summary`. Either renders the same completion UI.
+ */
+function getCompletionResultText(input: unknown): string {
+	const parsed = parseToolInput(input)
+	return getStringField(parsed, "summary") ?? getStringField(parsed, "result") ?? ""
+}
+
+/** A single file read request parsed from a read_files/read_file input */
+interface FileReadRequest {
+	path: string
+	startLine?: number
+	endLine?: number
+}
+
+/** Extract file read requests (path + optional one-based inclusive line range) from a read_files/read_file input */
+function extractFileReads(input: Record<string, unknown> | undefined): FileReadRequest[] {
+	if (!input) return []
+	const files = input.files
+	if (Array.isArray(files) && files.length > 0) {
+		const reads = files
+			.map((f): FileReadRequest => {
+				if (typeof f === "string") return { path: f }
+				if (typeof f === "object" && f !== null) {
+					const entry = f as Record<string, unknown>
+					return {
+						path: (entry.path as string) ?? "",
+						startLine: getNumberField(entry, "start_line"),
+						endLine: getNumberField(entry, "end_line"),
+					}
+				}
+				return { path: "" }
+			})
+			.filter((read) => read.path)
+		if (reads.length > 0) {
+			return reads
+		}
+	}
+	const singlePath =
+		(input.path as string) ?? (input.file_path as string) ?? (input.filePath as string) ?? (input.filename as string) ?? ""
+	return singlePath
+		? [{ path: singlePath, startLine: getNumberField(input, "start_line"), endLine: getNumberField(input, "end_line") }]
+		: []
+}
+
+/**
+ * Map a read request's line range onto ClineSayTool fields. An omitted start_line with an
+ * explicit end_line means the read began at line 1; an omitted end_line stays undefined
+ * (open-ended read — the UI renders it as "start+").
+ */
+function readLineRangeFields(read: FileReadRequest | undefined): Pick<ClineSayTool, "readLineStart" | "readLineEnd"> {
+	if (!read || (read.startLine == null && read.endLine == null)) {
+		return {}
+	}
+	return { readLineStart: read.startLine ?? 1, readLineEnd: read.endLine }
+}
+
+/** Get a string field from a parsed input object */
+function getStringField(input: Record<string, unknown> | undefined, field: string): string | undefined {
+	if (!input) return undefined
+	const value = input[field]
+	if (typeof value === "string") return value
+	return undefined
+}
+
+/** Get a finite number field from a parsed input object (null/non-number → undefined) */
+function getNumberField(input: Record<string, unknown> | undefined, field: string): number | undefined {
+	if (!input) return undefined
+	const value = input[field]
+	if (typeof value === "number" && Number.isFinite(value)) return value
+	return undefined
+}
+
+function getApplyPatchString(input: unknown): string | undefined {
+	const parsed = parseToolInput(input)
+	const fromFields = getStringField(parsed, "patch") ?? getStringField(parsed, "diff") ?? getStringField(parsed, "input")
+	if (fromFields !== undefined) {
+		return fromFields
+	}
+	return typeof input === "string" ? input : undefined
+}
+
+/**
+ * Split a multi-file apply_patch string into one ClineSayTool per file so each
+ * "Cline wants to edit this file" row renders only that file's diff (cline#9904).
+ *
+ * Returns [] for single-file (or unparseable) patches so callers keep the existing
+ * single-message behavior — only genuinely multi-file patches are split.
+ */
+function splitApplyPatchByFile(patch: string): ClineSayTool[] {
+	const lines = patch.split("\n")
+	const blocks: { tool: ClineSayTool["tool"]; path: string; lines: string[] }[] = []
+	let current: { tool: ClineSayTool["tool"]; path: string; lines: string[] } | undefined
+
+	for (const line of lines) {
+		if (line === PATCH_MARKERS.END) {
+			break
+		}
+		const marker = [PATCH_MARKERS.ADD, PATCH_MARKERS.UPDATE, PATCH_MARKERS.DELETE].find((m) => line.startsWith(m))
+		if (marker) {
+			if (current) {
+				blocks.push(current)
+			}
+			const tool: ClineSayTool["tool"] =
+				marker === PATCH_MARKERS.ADD
+					? "newFileCreated"
+					: marker === PATCH_MARKERS.DELETE
+						? "fileDeleted"
+						: "editedExistingFile"
+			current = { tool, path: line.substring(marker.length).trim(), lines: [line] }
+		} else if (current) {
+			current.lines.push(line)
+		}
+	}
+	if (current) {
+		blocks.push(current)
+	}
+
+	// Only split genuine multi-file patches. Bail out (→ single whole-patch
+	// message) if fewer than two files, or if any block has an empty path — a
+	// pathless row can't route to the per-file diff view (cline#9904).
+	if (blocks.length < 2 || blocks.some((block) => block.path === "")) {
+		return []
+	}
+
+	return blocks.map((block) => {
+		if (block.tool === "fileDeleted") {
+			return { tool: block.tool, path: block.path }
+		}
+		const subPatch = [PATCH_MARKERS.BEGIN, ...block.lines, PATCH_MARKERS.END].join("\n")
+		return { tool: block.tool, path: block.path, content: subPatch, diff: subPatch }
+	})
+}
+
+/** Get an array field from a parsed input object */
+function getArrayField(input: Record<string, unknown> | undefined, field: string): string[] | undefined {
+	if (!input) return undefined
+	const value = input[field]
+	if (Array.isArray(value)) return value.map(String)
+	return undefined
+}
+
+function formatStructuredCommand(command: unknown): string {
+	if (typeof command === "string") return command
+	if (command && typeof command === "object" && !Array.isArray(command)) {
+		const record = command as Record<string, unknown>
+		if (typeof record.command === "string") {
+			const args = Array.isArray(record.args) ? record.args.map(String) : []
+			return args.length > 0 ? `${record.command} ${args.join(" ")}` : record.command
+		}
+	}
+	return String(command)
+}
+
+function getCommandArrayField(input: Record<string, unknown> | undefined, field: string): string[] | undefined {
+	if (!input) return undefined
+	const value = input[field]
+	if (Array.isArray(value)) return value.map(formatStructuredCommand)
+	return undefined
+}
+
+/** Get a boolean field from a parsed input object */
+function getBooleanField(input: Record<string, unknown> | undefined, field: string): boolean | undefined {
+	if (!input) return undefined
+	const value = input[field]
+	if (typeof value === "boolean") return value
+	return undefined
+}
+
+/**
+ * Extract raw text output from an SDK tool's output.
+ *
+ * The SDK's run_commands tool returns `ToolOperationResult[]` where each
+ * result has `{ query, result, success, error? }`. The `result` field
+ * contains the raw terminal output as a string. If the output is already
+ * a string, it is returned as-is. If it's an array of ToolOperationResult
+ * objects, extract and join the text from each result.
+ */
+export function extractToolOutputText(output: unknown): string {
+	if (output == null) return ""
+	if (typeof output === "string") return output
+
+	// Handle ToolOperationResult[] from SDK tools (run_commands, search_codebase, etc.)
+	if (Array.isArray(output)) {
+		const parts: string[] = []
+		for (const item of output) {
+			if (typeof item === "string") {
+				parts.push(item)
+			} else if (typeof item === "object" && item !== null) {
+				const record = item as Record<string, unknown>
+				// ToolOperationResult has { query, result, success, error? }
+				if ("result" in record && typeof record.result === "string" && record.result) {
+					parts.push(record.result)
+				} else if ("error" in record && typeof record.error === "string" && record.error) {
+					parts.push(record.error)
+				}
+			}
+		}
+		if (parts.length > 0) {
+			return parts.join("\n")
+		}
+	}
+
+	// Fallback for unknown structured output
+	return JSON.stringify(output)
+}
+
+// ---------------------------------------------------------------------------
+// MCP tool detection
+// ---------------------------------------------------------------------------
+
+/**
+ * MCP tools created by `createMcpTools()` use `serverName__toolName` format
+ * (double underscore separator). This function detects MCP tools and parses
+ * the server name and tool name.
+ *
+ * Returns undefined if the tool name doesn't match the MCP naming convention.
+ */
+function parseMcpToolName(toolName: string): { serverName: string; toolName: string } | undefined {
+	const separatorIndex = toolName.indexOf("__")
+	if (separatorIndex <= 0) return undefined
+	const serverName = toolName.substring(0, separatorIndex)
+	const mcpToolName = toolName.substring(separatorIndex + 2)
+	if (!mcpToolName) return undefined
+	return { serverName, toolName: mcpToolName }
+}
+
+/**
+ * Build a ClineAskUseMcpServer JSON payload for MCP tool calls.
+ * This is what the webview's ChatRow expects when rendering MCP tool calls
+ * (message.ask === "use_mcp_server" or message.say === "use_mcp_server").
+ */
+function buildMcpToolPayload(mcpInfo: { serverName: string; toolName: string }, input?: unknown): string {
+	const parsedInput = parseToolInput(input)
+	// Format arguments as a JSON string (matching classic ClineAskUseMcpServer.arguments)
+	let argumentsStr: string | undefined
+	if (parsedInput && Object.keys(parsedInput).length > 0) {
+		argumentsStr = JSON.stringify(parsedInput, null, 2)
+	} else if (typeof input === "string" && input.trim()) {
+		argumentsStr = input
+	}
+
+	return JSON.stringify({
+		type: "use_mcp_tool",
+		serverName: mcpInfo.serverName,
+		toolName: mcpInfo.toolName,
+		arguments: argumentsStr,
+	} satisfies ClineAskUseMcpServer)
+}
+
+function extractCommandText(input: unknown): string {
+	if (Array.isArray(input)) {
+		return input.map(formatStructuredCommand).join(" && ")
+	}
+	if (typeof input === "string") {
+		return input
+	}
+	const parsedInput = parseToolInput(input)
+	const commands = getCommandArrayField(parsedInput, "commands")
+	return (
+		commands?.join(" && ") ??
+		(typeof parsedInput?.commands === "object" ? formatStructuredCommand(parsedInput.commands) : undefined) ??
+		getStringField(parsedInput, "commands") ??
+		(typeof parsedInput?.command === "string" ? formatStructuredCommand(parsedInput) : undefined) ??
+		""
+	)
+}
+
+/**
+ * Build the Cline approval ask message for an SDK tool approval request.
+ * Keeps approval prompts aligned with the SDK event translator so the webview
+ * can render specialized rows (MCP, commands, subagents) instead of a generic
+ * tool approval with missing context.
+ */
+export function buildToolApprovalAskMessage(toolName: string, input: unknown, ts: number, cwd?: string): ClineMessage {
+	const mcpInfo = parseMcpToolName(toolName)
+	if (mcpInfo) {
+		return {
+			ts,
+			type: "ask",
+			ask: "use_mcp_server",
+			text: buildMcpToolPayload(mcpInfo, input),
+			partial: false,
+		}
+	}
+
+	if (toolName === "run_commands" || toolName === "execute_command") {
+		return {
+			ts,
+			type: "ask",
+			ask: "command",
+			text: extractCommandText(input),
+			partial: false,
+		}
+	}
+
+	if (toolName === "spawn_agent") {
+		const parsedInput = parseToolInput(input)
+		const taskPrompt = getStringField(parsedInput, "task") ?? ""
+		return {
+			ts,
+			type: "ask",
+			ask: "use_subagents",
+			text: JSON.stringify({
+				prompts: [taskPrompt],
+			} satisfies ClineAskUseSubagents),
+			partial: false,
+		}
+	}
+
+	return {
+		ts,
+		type: "ask",
+		ask: "tool",
+		text: JSON.stringify(toDisplaySayTool(sdkToolToClineSayTool(toolName, input), cwd)),
+		partial: false,
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Agent event translation
+// ---------------------------------------------------------------------------
+
+/**
+ * Translate an SDK AgentEvent into ClineMessage(s).
+ */
+/**
+ * Extract a compaction divider payload from a status notice's metadata.
+ * Mirrors the CLI's parseCompactionNoticeMetadata
+ * (apps/cli/src/tui/utils/compaction-status.ts). Returns undefined for
+ * non-compaction status notices.
+ */
+export function parseCompactionNoticeMetadata(metadata: Record<string, unknown> | undefined): ClineCompactionInfo | undefined {
+	if (!metadata || (metadata.phase !== "started" && metadata.phase !== "completed" && metadata.phase !== "skipped")) {
+		return undefined
+	}
+	const kind = metadata.kind ?? metadata.reason
+	if (kind !== "auto_compaction" && kind !== "manual_compaction") {
+		return undefined
+	}
+	const mode = kind === "manual_compaction" ? "manual" : "auto"
+	if (metadata.phase === "started") {
+		return { status: "started", mode }
+	}
+	if (metadata.phase === "skipped") {
+		return { status: "skipped", mode }
+	}
+	return {
+		status: "completed",
+		mode,
+		tokensBefore: asFiniteNumber(metadata.tokensBefore),
+		tokensAfter: asFiniteNumber(metadata.tokensAfter),
+		messagesBefore: asFiniteNumber(metadata.messagesBefore),
+		messagesAfter: asFiniteNumber(metadata.messagesAfter),
+	}
+}
+
+function asFiniteNumber(value: unknown): number | undefined {
+	return typeof value === "number" && Number.isFinite(value) ? value : undefined
+}
+
+/**
+ * Status notices that are internal diagnostics with no user-facing copy — their
+ * `message` is a slug, not prose. Only these are suppressed; an unlisted status
+ * notice renders as an info row so it doesn't vanish silently. Keep in sync
+ * with the `emitStatusNotice` call sites in
+ * sdk/packages/core/src/extensions/context/compaction.ts (the compaction phase
+ * slugs are handled above via parseCompactionNoticeMetadata instead).
+ */
+const INTERNAL_STATUS_NOTICES = new Set(["compaction-budget-adjusted"])
+
+/** Build the say:"compaction" divider message for a compaction status payload. */
+export function buildCompactionMessage(info: ClineCompactionInfo, ts: number): ClineMessage {
+	return {
+		ts,
+		type: "say",
+		say: "compaction",
+		text: JSON.stringify(info),
+		partial: false,
+	}
+}
+
+/**
+ * Finalize a dangling "started" compaction divider when the turn ends without
+ * the completed/skipped notice (mid-compaction abort or error).
+ *
+ * This covers auto compaction (driven by turn events). Manual compaction runs
+ * outside a turn, so SdkCompactionCoordinator.runCompaction finalizes its own
+ * dangling divider in its catch block — if the terminal-state rules change
+ * here, change them there too.
+ */
+function finalizeDanglingCompaction(
+	state: MessageTranslatorState,
+	messages: ClineMessage[],
+	status: "cancelled" | "failed",
+): void {
+	const ts = state.takeOpenCompactionTs()
+	if (ts === undefined) {
+		return
+	}
+	messages.push(buildCompactionMessage({ status, mode: "auto" }, ts))
+}
+
+function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): ClineMessage[] {
+	const messages: ClineMessage[] = []
+
+	switch (event.type) {
+		case "content_start": {
+			switch (event.contentType) {
+				case "text": {
+					// The SDK emits MULTIPLE content_start events for streaming text.
+					// Each has `text` (the delta) and `accumulated` (full text so far).
+					// We use `accumulated` so the webview can update the message in-place
+					// with the growing text, giving smooth streaming. Using `text` (delta)
+					// would cause a "flip book" effect where each update replaces the
+					// previous content with just the new chunk.
+					const ts = state.getStreamingTextTs()
+					messages.push({
+						ts,
+						type: "say",
+						say: "text",
+						text: event.accumulated ?? event.text ?? "",
+						partial: true,
+					})
+					break
+				}
+				case "reasoning": {
+					// SDK reasoning content_start events are deltas. The webview renders
+					// reasoning from `text`, so keep `text` and `reasoning` populated with
+					// the accumulated content for smooth in-place streaming.
+					const ts = state.getStreamingReasoningTs()
+					const reasoning = state.appendStreamingReasoning(event.reasoning ?? "")
+					messages.push({
+						ts,
+						type: "say",
+						say: "reasoning",
+						text: reasoning,
+						reasoning,
+						partial: true,
+					})
+					break
+				}
+				case "tool": {
+					const toolName = event.toolName ?? "unknown"
+					const input = event.input
+
+					// Tool activity after a text block means that text wasn't the
+					// turn-final response — drop the retag candidate.
+					state.clearTurnFinalText()
+
+					if (state.isToolApprovalDenied(event.toolCallId)) {
+						break
+					}
+
+					// Store tool context so content_end can use it
+					// (content_end doesn't carry the input)
+					state.setStreamingToolContext(toolName, input)
+					const approvedToolMessageTs = state.consumeApprovedToolMessageTs(event.toolCallId)
+					if (approvedToolMessageTs !== undefined) {
+						state.setStreamingToolTs(approvedToolMessageTs)
+					}
+
+					// ask_question (and ask_followup_question) is NOT a visual tool row: the
+					// SdkInteractionCoordinator services it and emits the proper ask:"followup"
+					// message. Emitting a generic say:"tool" here would leave an orphan partial
+					// row that never finalizes. Suppress it (the CLI does the same).
+					if (toolName === "ask_question" || toolName === "ask_followup_question") {
+						break
+					}
+
+					// The completion tool (attempt_completion / submit_and_exit) is handled specially:
+					// it drives the green completion box. We emit say:"completion_result"
+					// here (partial) and finalize it at content_end. Recording attemptCompletionSeen
+					// makes the turn end in the "completed" phase ("Start New Task") rather than
+					// "awaiting_followup".
+					if (isCompletionTool(toolName)) {
+						state.setAttemptCompletionSeen()
+						const resultText = getCompletionResultText(input)
+						messages.push({
+							ts: state.getStreamingToolTs(),
+							type: "say",
+							say: "completion_result",
+							text: resultText,
+							partial: true,
+						})
+						break
+					}
+
+					// command tools use say="command" (not say="tool")
+					// because the webview renders commands differently
+					if (toolName === "run_commands" || toolName === "execute_command") {
+						const commandText = extractCommandText(input)
+						// ChatRow treats a command row as "executing" while the COMMAND_OUTPUT_STRING
+						// marker is present in the text (and the row isn't yet completed). Include the
+						// marker on the running row so it reflects the executing state. content_end
+						// rebuilds the full text (command + marker + output) and sets commandCompleted.
+						messages.push({
+							ts: state.getStreamingToolTs(),
+							type: "say",
+							say: "command",
+							text: `${commandText}\n${COMMAND_OUTPUT_STRING}`,
+							partial: true,
+						})
+						break
+					}
+					// spawn_agent → rich subagent UI (SubagentStatusRow)
+					// Emit say:"use_subagents" with prompts list, then say:"subagent"
+					// with running status. Multiple parallel spawn_agent calls in the
+					// same iteration are aggregated into a single status message.
+					if (toolName === "spawn_agent") {
+						const parsedInput = parseToolInput(input)
+						const taskPrompt = getStringField(parsedInput, "task") ?? ""
+						const callId = event.toolCallId ?? `spawn-${state.nextTs()}`
+						state.addSpawnAgent(callId, taskPrompt)
+						if (approvedToolMessageTs !== undefined) {
+							state.setSpawnAgentPromptsTs(approvedToolMessageTs)
+						}
+
+						// Emit the combined prompts list (replaces itself on each new spawn_agent)
+						const allPrompts = state.getSpawnAgentItems().map((e) => e.prompt)
+						const approvalPayload: ClineAskUseSubagents = {
+							prompts: allPrompts,
+						}
+						messages.push({
+							ts: state.getSpawnAgentPromptsTs(),
+							type: "say",
+							say: "use_subagents" as ClineSay,
+							text: JSON.stringify(approvalPayload),
+							partial: true,
+						})
+
+						// Clear the generic streaming tool so it doesn't also emit say:"tool"
+						state.clearStreamingTool()
+						break
+					}
+
+					// MCP tools use serverName__toolName naming convention.
+					// The webview renders MCP tool calls via say/ask="use_mcp_server"
+					// with ClineAskUseMcpServer JSON, not generic say="tool".
+					const mcpInfo = parseMcpToolName(toolName)
+					if (mcpInfo) {
+						const mcpPayload = buildMcpToolPayload(mcpInfo, input)
+						messages.push({
+							ts: state.getStreamingToolTs(),
+							type: "say",
+							say: "use_mcp_server" as ClineSay,
+							text: mcpPayload,
+							partial: true,
+						})
+						break
+					}
+
+					// All other tools → say="tool" with ClineSayTool JSON
+					// apply_patch is intentionally NOT split per-file here: the streaming
+					// (partial) row shows the whole patch, and the per-file split happens
+					// only at content_end (see below), mirroring read_files. Splitting at
+					// content_start would mint streaming ids that content_end cannot
+					// reproduce for files ≥2, orphaning those partial rows (cline#9904).
+					const sayTool = toDisplaySayTool(sdkToolToClineSayTool(toolName, input), state.currentCwd())
+					messages.push({
+						ts: state.getStreamingToolTs(),
+						type: "say",
+						say: "tool",
+						text: JSON.stringify(sayTool),
+						partial: true,
+					})
+					break
+				}
+			}
+			break
+		}
+
+		case "content_update": {
+			// spawn_agent progress updates → emit say:"subagent" with live stats.
+			// The SDK's spawn_agent tool may emit content_update events with
+			// sub-agent progress (iterations, tool calls, usage). We translate
+			// these into the ClineSaySubagentStatus format for the rich UI.
+			const updateToolName = event.toolName ?? state.getStreamingToolName()
+			if (updateToolName === "spawn_agent" && state.hasSpawnAgents()) {
+				const callId = event.toolCallId ?? ""
+				const entry = callId ? state.getSpawnAgent(callId) : undefined
+				if (entry) {
+					// Apply progress from the update payload if available
+					const updateData = event.update as Record<string, unknown> | undefined
+					if (updateData) {
+						if (typeof updateData.toolCalls === "number") entry.toolCalls = updateData.toolCalls
+						if (typeof updateData.inputTokens === "number") entry.inputTokens = updateData.inputTokens
+						if (typeof updateData.outputTokens === "number") entry.outputTokens = updateData.outputTokens
+						if (typeof updateData.totalCost === "number") entry.totalCost = updateData.totalCost
+						if (typeof updateData.contextTokens === "number") entry.contextTokens = updateData.contextTokens
+						if (typeof updateData.contextWindow === "number") entry.contextWindow = updateData.contextWindow
+						if (typeof updateData.contextUsagePercentage === "number")
+							entry.contextUsagePercentage = updateData.contextUsagePercentage
+						if (typeof updateData.latestToolCall === "string") entry.latestToolCall = updateData.latestToolCall
+					}
+				}
+				// Emit a running status update
+				const status = state.buildSubagentStatus("running")
+				messages.push({
+					ts: state.getSpawnAgentStatusTs(),
+					type: "say",
+					say: "subagent" as ClineSay,
+					text: JSON.stringify(status),
+					partial: true,
+				})
+				break
+			}
+
+			// For all other tools, content_update is ignored — the
+			// content_start message with partial=true is sufficient until
+			// content_end finalizes it.
+			break
+		}
+
+		case "content_end": {
+			switch (event.contentType) {
+				case "text": {
+					const ts = state.clearStreamingText()
+					const finalText = event.text ?? ""
+					messages.push({
+						ts,
+						type: "say",
+						say: "text",
+						text: finalText,
+						partial: false,
+					})
+					// Candidate for the turn-final response: if the turn ends cleanly with
+					// this text as its last content, `done` retags it as a completion row.
+					if (finalText.trim()) {
+						state.recordTurnFinalText(ts, finalText)
+					}
+					break
+				}
+				case "reasoning": {
+					const ts = state.clearStreamingReasoning()
+					const reasoning = event.reasoning ?? ""
+					messages.push({
+						ts,
+						type: "say",
+						say: "reasoning",
+						text: reasoning,
+						reasoning,
+						partial: false,
+					})
+					break
+				}
+				case "media": {
+					const media = event.media
+					if (!media) {
+						break
+					}
+					messages.push({
+						ts: state.nextTs(),
+						type: "say",
+						say: "text",
+						text: "",
+						media: [media],
+						partial: false,
+					})
+					break
+				}
+				case "tool": {
+					const toolName = event.toolName ?? "unknown"
+
+					// A completed tool call after a text block means that text wasn't the
+					// turn-final response — drop the retag candidate.
+					state.clearTurnFinalText()
+
+					if (state.checkDeniedToolApproval(event.toolCallId) || isKnownToolApprovalDenial(event.error)) {
+						state.clearStreamingTool()
+						break
+					}
+
+					// ask_question is serviced by the interaction coordinator (see content_start);
+					// it produces no transcript row of its own, so its content_end is a no-op.
+					if (toolName === "ask_question" || toolName === "ask_followup_question") {
+						break
+					}
+
+					// spawn_agent → finalize the subagent entry and emit
+					// say:"subagent" (completed/failed) + say:"subagent_usage".
+					// When all spawn_agent calls in this iteration finish, the
+					// final say:"subagent" has partial=false.
+					if (toolName === "spawn_agent") {
+						const callId = event.toolCallId ?? ""
+						const entry = callId ? state.getSpawnAgent(callId) : undefined
+						if (entry) {
+							// Extract output stats from SpawnAgentOutput
+							const output = event.output as Record<string, unknown> | undefined
+							if (output) {
+								entry.result = typeof output.text === "string" ? output.text : undefined
+								const usage = output.usage as Record<string, unknown> | undefined
+								if (usage) {
+									if (typeof usage.inputTokens === "number") entry.inputTokens = usage.inputTokens
+									if (typeof usage.outputTokens === "number") entry.outputTokens = usage.outputTokens
+								}
+							}
+							if (event.error) {
+								entry.status = "failed"
+								entry.error = event.error
+							} else {
+								entry.status = "completed"
+							}
+						}
+
+						// Determine overall status — all done when every entry is completed/failed
+						const items = state.getSpawnAgentItems()
+						const allDone = items.every((e) => e.status === "completed" || e.status === "failed")
+						const hasFailed = items.some((e) => e.status === "failed")
+						const overallStatus: ClineSaySubagentStatus["status"] = allDone
+							? hasFailed
+								? "failed"
+								: "completed"
+							: "running"
+
+						const status = state.buildSubagentStatus(overallStatus)
+						messages.push({
+							ts: state.getSpawnAgentStatusTs(),
+							type: "say",
+							say: "subagent" as ClineSay,
+							text: JSON.stringify(status),
+							partial: !allDone,
+						})
+
+						// When all done, emit subagent_usage for cost accounting
+						if (allDone) {
+							const usagePayload: ClineSubagentUsageInfo = {
+								source: "subagents",
+								tokensIn: items.reduce((acc, e) => acc + (e.inputTokens || 0), 0),
+								tokensOut: items.reduce((acc, e) => acc + (e.outputTokens || 0), 0),
+								cacheWrites: 0,
+								cacheReads: 0,
+								cost: items.reduce((acc, e) => acc + (e.totalCost || 0), 0),
+							}
+							messages.push({
+								ts: state.nextTs(),
+								type: "say",
+								say: "subagent_usage" as ClineSay,
+								text: JSON.stringify(usagePayload),
+								partial: false,
+							})
+						}
+
+						// Don't clear the generic streaming tool — spawn_agent
+						// didn't use it (we cleared it at content_start)
+						break
+					}
+
+					// Completion tool (attempt_completion / submit_and_exit) → finalize the green
+					// completion box. The partial say:"completion_result" was emitted at
+					// content_start; here we emit the non-partial version.
+					if (isCompletionTool(toolName)) {
+						const storedInput = state.getStreamingToolInput()
+						const ts = state.clearStreamingTool()
+						const resultText = getCompletionResultText(storedInput)
+						// Finalize the say:"completion_result" (non-partial)
+						// This renders the green completion box.
+						messages.push({
+							ts,
+							type: "say",
+							say: "completion_result",
+							text: resultText,
+							partial: false,
+						})
+						// Only the say:"completion_result" is emitted (the green box). No
+						// ask:"completion_result" is produced — the webview's footer/buttons read
+						// the authoritative TurnState (phase "completed") rather than the message
+						// tail, so the completion UI is immune to trailing bookkeeping events such as
+						// the usage say:"api_req_started" that arrives between content_end and done.
+						break
+					}
+
+					// command tools finalize as say="command" with commandCompleted=true.
+					// We keep the same timestamp to replace the streaming partial command row
+					// in-place, so it doesn't disappear (command_output rows are filtered out
+					// by combineCommandSequences in the chat pipeline).
+					if (toolName === "run_commands" || toolName === "execute_command") {
+						const storedInput = state.getStreamingToolInput()
+						const commandText = extractCommandText(storedInput)
+						const outputStr = event.error ? `Error: ${event.error}` : extractToolOutputText(event.output)
+						const ts = state.clearStreamingTool()
+						messages.push({
+							ts,
+							type: "say",
+							say: "command",
+							text: outputStr ? `${commandText}\n${COMMAND_OUTPUT_STRING}\n${outputStr}` : commandText,
+							partial: false,
+							commandCompleted: true,
+						})
+						break
+					}
+
+					// MCP tools → finalize as say="use_mcp_server" + say="mcp_server_response"
+					// The classic extension emits:
+					//   1. say/ask: "use_mcp_server" (tool call display with args)
+					//   2. say: "mcp_server_request_started" (spinner)
+					//   3. say: "mcp_server_response" (tool output)
+					// In the SDK path, by content_end the tool has already executed,
+					// so we emit the finalized tool call + response together.
+					const mcpInfoEnd = parseMcpToolName(toolName)
+					if (mcpInfoEnd) {
+						const storedMcpInput = state.getStreamingToolInput()
+						const mcpTs = state.clearStreamingTool()
+						const mcpPayload = buildMcpToolPayload(mcpInfoEnd, storedMcpInput)
+
+						// Finalize the use_mcp_server message (non-partial)
+						messages.push({
+							ts: mcpTs,
+							type: "say",
+							say: "use_mcp_server" as ClineSay,
+							text: mcpPayload,
+							partial: false,
+						})
+
+						// Emit the MCP server response with the tool output
+						const mcpOutputStr = event.error ? `Error: ${event.error}` : extractToolOutputText(event.output)
+						if (mcpOutputStr) {
+							messages.push({
+								ts: state.nextTs(),
+								type: "say",
+								say: "mcp_server_response" as ClineSay,
+								text: mcpOutputStr,
+								partial: false,
+							})
+						}
+						break
+					}
+
+					// All other tools → finalize the say="tool" message
+					// Use the stored input from content_start since content_end
+					// doesn't carry the input (S6-24 fix)
+					const storedInput = state.getStreamingToolInput()
+					const ts = state.clearStreamingTool()
+
+					// Special handling: read_files may read multiple files in one tool call.
+					// Emit one readFile UI message per file so the tool group summary and
+					// list reflect what was actually read.
+					if (toolName === "read_files" || toolName === "read_file") {
+						const parsedInput = parseToolInput(storedInput)
+						const fileReads = extractFileReads(parsedInput)
+						if (fileReads.length > 1) {
+							const cwd = state.currentCwd()
+							fileReads.forEach((fileRead, index) => {
+								const sayTool: ClineSayTool = {
+									tool: "readFile",
+									path: fileRead.path,
+									...readLineRangeFields(fileRead),
+								}
+								messages.push({
+									ts: index === 0 ? ts : state.nextTs(),
+									type: "say",
+									say: "tool",
+									text: JSON.stringify(toDisplaySayTool(sayTool, cwd)),
+									partial: false,
+								})
+							})
+							break
+						}
+					}
+
+					// apply_patch may edit multiple files in one call. Emit one tool
+					// message per file so each diff row shows only that file's changes
+					// instead of the whole multi-file patch (cline#9904). Single-file
+					// patches fall through to the single-message path below.
+					if (toolName === "apply_patch" && !event.error) {
+						const patch = getApplyPatchString(storedInput)
+						const perFileTools = patch ? splitApplyPatchByFile(patch) : []
+						if (perFileTools.length > 1) {
+							const cwd = state.currentCwd()
+							perFileTools.forEach((sayTool, index) => {
+								messages.push({
+									ts: index === 0 ? ts : state.nextTs(),
+									type: "say",
+									say: "tool",
+									text: JSON.stringify(toDisplaySayTool(sayTool, cwd)),
+									partial: false,
+								})
+							})
+							break
+						}
+					}
+
+					const sayTool = toDisplaySayTool(sdkToolToClineSayTool(toolName, storedInput), state.currentCwd())
+					// If there's an error, include it in the tool message
+					if (event.error) {
+						messages.push({
+							ts,
+							type: "say",
+							say: "tool",
+							text: JSON.stringify(sayTool),
+							partial: false,
+						})
+						// Also push an error message
+						messages.push({
+							ts: state.nextTs(),
+							type: "say",
+							say: "error",
+							text: event.error,
+							partial: false,
+						})
+					} else {
+						messages.push({
+							ts,
+							type: "say",
+							say: "tool",
+							text: JSON.stringify(sayTool),
+							partial: false,
+						})
+					}
+					break
+				}
+			}
+			break
+		}
+
+		case "iteration_start": {
+			// New iteration — reset streaming state for the new turn
+			state.reset()
+
+			// Emit an api_req_started message before each API request so the
+			// webview shows its request spinner and cost display.
+			messages.push({
+				ts: state.nextTs(),
+				type: "say",
+				say: "api_req_started",
+				text: JSON.stringify({
+					request: undefined, // Will be filled in by usage event
+				} satisfies ClineApiReqInfo),
+				partial: false,
+			})
+			break
+		}
+
+		case "iteration_end": {
+			// Iteration ended — no specific message needed
+			break
+		}
+
+		case "notice": {
+			// Status notices carry structured runtime progress. Compaction ones
+			// become a live divider row that is updated in place from "started" to
+			// its terminal state; the known-internal ones are diagnostics with no
+			// user-facing copy, so drop them explicitly. Any other status notice
+			// falls through to the info row below so a future one surfaces (as its
+			// raw slug) instead of silently vanishing.
+			if (event.noticeType === "status") {
+				const compaction = parseCompactionNoticeMetadata(event.metadata)
+				if (compaction) {
+					const ts =
+						compaction.status === "started"
+							? state.beginCompaction()
+							: (state.takeOpenCompactionTs() ?? state.nextTs())
+					messages.push(buildCompactionMessage(compaction, ts))
+					break
+				}
+				if (INTERNAL_STATUS_NOTICES.has(event.message ?? "")) {
+					break
+				}
+			}
+
+			// Non-status agent notices (and unrecognized status notices) are informational
+			messages.push({
+				ts: state.nextTs(),
+				type: "say",
+				say: "info",
+				text: event.message ?? "",
+				partial: false,
+			})
+			break
+		}
+
+		case "usage": {
+			// Usage events carry token counts. The webview reads them from an
+			// api_req_started message's ClineApiReqInfo, so emit a follow-up
+			// api_req_started update carrying the usage data for cost display.
+			const usageEvent = normalizeUsageEvent(event)
+			const apiReqInfo: ClineApiReqInfo = {
+				tokensIn: usageEvent.tokensIn,
+				tokensOut: usageEvent.tokensOut,
+				cacheWrites: usageEvent.cacheWrites,
+				cacheReads: usageEvent.cacheReads,
+				cost: usageEvent.totalCost,
+			}
+			messages.push({
+				ts: state.nextTs(),
+				type: "say",
+				say: "api_req_started",
+				text: JSON.stringify(apiReqInfo),
+				partial: false,
+			})
+			break
+		}
+
+		case "done": {
+			// Agent turn is complete. Footer/buttons come from the authoritative TurnState the
+			// session-event coordinator sets on turn end (completed when the completion tool was
+			// used this turn, otherwise awaiting_followup) — never from the message tail.
+			// A compaction divider still open here means the turn was aborted mid-compaction.
+			finalizeDanglingCompaction(state, messages, "cancelled")
+
+			// A turn can terminate with done(reason:"error") without a separate
+			// "error" event — record the error outcome here too so turn end still
+			// resolves to the "error" phase (Retry / Start New Task).
+			if (event.reason === "error") {
+				state.setErrorSeen()
+			}
+
+			// Inferred completion feedback: the SDK agent normally ends a turn with a plain
+			// text response rather than a completion tool. When the turn ended cleanly and its
+			// last content was text, retag that text row in place (same ts → upserted by the
+			// message store / webview reducer) so the user gets the legacy-style "done" visual:
+			// green box in act mode, yellow plan box in plan mode. Turns
+			// that ended via the completion tool already rendered their green box at the tool's
+			// content_end; aborted/errored turns keep their plain text.
+			if (event.reason === "completed" && !state.wasAttemptCompletionSeen()) {
+				const finalText = state.takeTurnFinalText()
+				if (finalText) {
+					messages.push({
+						ts: finalText.ts,
+						type: "say",
+						say: state.currentUiMode() === "plan" ? "plan_completion_result" : "completion_result",
+						text: finalText.text,
+						partial: false,
+					})
+				}
+			} else {
+				state.clearTurnFinalText()
+			}
+			break
+		}
+
+		case "error": {
+			// Recoverable errors are in-run notices, not turn outcomes: the
+			// MistakeTracker emits one for every recorded mistake (e.g.
+			// "1 tool call(s) failed: [run_commands] ..." when a plan-mode
+			// guard-blocked command was the turn's only tool call) and the run
+			// keeps going. Treating them as terminal put turns that afterwards
+			// completed cleanly into the "error" phase (Retry / Start New Task)
+			// and cleared the pending completion retag — which broke the
+			// plan→act toggle's auto-continue on a presented plan. The turn's
+			// outcome is decided by how it actually ends (done/error), so keep
+			// these out of the chat: any tool failure involved is already shown
+			// inline on its tool row, and provider-failure telemetry already
+			// ignores recoverable events for the same reason.
+			if (event.recoverable) {
+				Logger.warn(`[MessageTranslator] Recoverable agent error (run continues): ${event.error?.message ?? event.error}`)
+				break
+			}
+
+			finalizeDanglingCompaction(state, messages, "failed")
+			// An errored turn didn't end on its text response — no completion retag.
+			state.clearTurnFinalText()
+			if (state.isSuppressedToolApprovalDenial(event.error)) {
+				break
+			}
+
+			// Record the error outcome so turn end resolves to the "error" phase
+			// (footer shows Retry / Start New Task) instead of awaiting_followup.
+			state.setErrorSeen()
+
+			// Serialize the error message for the webview's ErrorRow to parse.
+			// The webview uses ClineError.parse() on the `api_req_failed` text to
+			// detect special error types (insufficient credits, spend limit, auth,
+			// quota exceeded) and render appropriate UI (e.g. "Add Credits" button).
+			//
+			// The error object from the SDK is a standard JS Error. Its `message`
+			// may contain JSON from the API (e.g. Cline provider's 402 response with
+			// `code: "insufficient_credits"`). We try to reshape it into the
+			// ClineError-serialized format the webview expects so that ErrorRow
+			// can render the correct UI (Buy Credits button, etc.).
+			const errorPayload = reshapeErrorForWebview(event.error, state.activeProviderId(), state.activeModelId())
+
+			// Emit an api_req_started with streamingFailedMessage so the
+			// RequestStartRow renders the error via ErrorRow. This replaces
+			// the spinner on the last API request row.
+			messages.push({
+				ts: state.nextTs(),
+				type: "say",
+				say: "api_req_started",
+				text: JSON.stringify({
+					streamingFailedMessage: errorPayload,
+				} satisfies ClineApiReqInfo),
+				partial: false,
+			})
+
+			// Emit ask:"api_req_failed" as the LAST message so the webview
+			// shows error recovery UI (Retry button, Add Credits button,
+			// Sign In button, etc.) instead of a stuck "Thinking..." spinner.
+			messages.push({
+				ts: state.nextTs(),
+				type: "ask",
+				ask: "api_req_failed",
+				text: errorPayload,
+				partial: false,
+			})
+			break
+		}
+
+		default: {
+			// Log unhandled event types for debugging
+			Logger.warn(`[MessageTranslator] Unhandled agent event type: ${(event as AgentEvent).type}`)
+			break
+		}
+	}
+
+	return messages
+}
+
+// ---------------------------------------------------------------------------
+// Core session event translation
+// ---------------------------------------------------------------------------
+
+/**
+ * Translate an SDK CoreSessionEvent into a TranslationResult.
+ *
+ * This is the primary entry point for event translation. It handles
+ * both top-level session events (chunk, ended, status) and nested
+ * agent events.
+ */
+export function translateSessionEvent(event: CoreSessionEvent, state: MessageTranslatorState): TranslationResult {
+	const result: TranslationResult = {
+		messages: [],
+		sessionEnded: false,
+		turnComplete: false,
+	}
+
+	switch (event.type) {
+		case "chunk": {
+			// Raw chunk events from the session stream.
+			// IMPORTANT: We do NOT emit these as text messages. The SDK sends
+			// raw model output (which may contain JSON, tool call fragments, etc.)
+			// as chunk events. The structured agent_event system (content_start,
+			// content_update, content_end) is the proper way to get displayable
+			// content. Emitting raw chunks would show JSON like
+			// {"type":"iteration_start",...} in the webview.
+			//
+			// The chunk events are useful for logging but should not be
+			// displayed to the user.
+			break
+		}
+
+		case "agent_event": {
+			// Sub-agent events should NOT produce ClineMessages in the main chat.
+			// The sub-agent's work is represented by the parent's spawn_agent tool
+			// events (content_start/update/end), which we translate into the rich
+			// SubagentStatusRow UI. Without this filter, every sub-agent tool call,
+			// text output, iteration, and usage event floods the main chat.
+			const agentEvent = event.payload.event
+			const isToolLifecycleEvent =
+				agentEvent.type === "content_start" || agentEvent.type === "content_update" || agentEvent.type === "content_end"
+			const isSpawnAgentToolEvent =
+				isToolLifecycleEvent && agentEvent.contentType === "tool" && agentEvent.toolName === "spawn_agent"
+
+			// Newer SDK events carry parentAgentId on sub-agent events. Older/local
+			// RuntimeEventAdapter output does not, so while spawn_agent calls are in
+			// flight we also suppress every non-spawn_agent event. This preserves the
+			// parent spawn_agent status updates while hiding sub-agent internals.
+			if (agentEvent.parentAgentId || (state.hasRunningSpawnAgents() && !isSpawnAgentToolEvent)) {
+				break
+			}
+
+			// Agent events contain structured content (text, reasoning, tools)
+			const agentMessages = translateAgentEvent(agentEvent, state)
+			result.messages.push(...agentMessages)
+
+			// Check for done/error events
+			if (agentEvent.type === "done") {
+				result.turnComplete = true
+			}
+			// Recoverable errors don't end the turn — the run continues (see the
+			// translator's "error" case), so they must not resolve the turn phase.
+			if (
+				agentEvent.type === "error" &&
+				!agentEvent.recoverable &&
+				!state.isSuppressedToolApprovalDenial(agentEvent.error)
+			) {
+				result.turnComplete = true
+			}
+
+			// Track tool success/error for consecutive mistake counting.
+			// A content_end event with contentType "tool" signals a completed
+			// tool call — if event.error is set, the tool failed.
+			if (agentEvent.type === "content_end" && agentEvent.contentType === "tool") {
+				if (
+					agentEvent.error &&
+					!isKnownToolApprovalDenial(agentEvent.error) &&
+					!state.isToolApprovalDenied(agentEvent.toolCallId)
+				) {
+					result.toolError = true
+				} else if (!agentEvent.error) {
+					result.toolSuccess = true
+				}
+			}
+
+			// Extract usage from usage events
+			if (agentEvent.type === "usage") {
+				result.usage = normalizeUsageEvent(agentEvent)
+			}
+			break
+		}
+
+		case "ended": {
+			result.sessionEnded = true
+			result.turnComplete = true
+			state.reset()
+			break
+		}
+
+		case "hook": {
+			// Sub-agent hook events are internal progress and should not pollute the
+			// main chat. Their aggregate progress is shown by SubagentStatusRow.
+			if (event.payload.parentAgentId) {
+				break
+			}
+
+			// Tool hook events — translate to hook_status messages
+			const payload = event.payload
+			const hookName = payload.hookEventName
+			const toolName = payload.toolName
+
+			if (hookName === "tool_call") {
+				result.messages.push({
+					ts: state.nextTs(),
+					type: "say",
+					say: "hook_status" as ClineSay,
+					text: toolName ? `Running ${toolName}...` : "Running tool...",
+					partial: false,
+				})
+			} else if (hookName === "tool_result") {
+				result.messages.push({
+					ts: state.nextTs(),
+					type: "say",
+					say: "hook_status" as ClineSay,
+					text: toolName ? `${toolName} completed` : "Tool completed",
+					partial: false,
+				})
+			}
+			break
+		}
+
+		case "status": {
+			// Status updates — informational
+			Logger.log(`[MessageTranslator] Session status: ${event.payload.status}`)
+			break
+		}
+
+		case "pending_prompt_submitted": {
+			const { prompt, userImages, userFiles } = event.payload
+			// Synthetic prompts (task resumption, plan -> act auto-continue) are
+			// hidden from every other transcript surface, and this echo must
+			// hide them too: a send that races a settling abort is auto-queued
+			// by the runtime, so a bare Resume can arrive here carrying the
+			// synthetic resumption prompt. Echoing it would leak model-facing
+			// text as a user bubble and shift the visible-user-message ordinals
+			// that edit/regenerate mapping relies on. Attachments the user
+			// supplied alongside a synthetic prompt still render (matching
+			// isSyntheticSdkUserMessage, which counts those as visible).
+			// Display boundary: formatDisplayUserInput strips runtime-generated
+			// notice elements (e.g. mode_notice) that normalizeUserInput must
+			// preserve, since the latter also sanitizes model-bound prompts.
+			const displayPrompt = isSyntheticUserPrompt(prompt) ? "" : formatDisplayUserInput(prompt)
+			const hasPrompt = displayPrompt.trim().length > 0
+			const hasImages = (userImages?.length ?? 0) > 0
+			const hasFiles = (userFiles?.length ?? 0) > 0
+			if (hasPrompt || hasImages || hasFiles) {
+				result.messages.push({
+					ts: state.nextTs(),
+					type: "say",
+					say: "user_feedback",
+					text: displayPrompt,
+					images: userImages,
+					files: userFiles,
+					partial: false,
+				})
+			}
+			break
+		}
+
+		case "team_progress":
+		case "pending_prompts": {
+			// These are handled by the team/subagent system, not translated
+			// to ClineMessages at this layer
+			break
+		}
+
+		default: {
+			Logger.warn(`[MessageTranslator] Unhandled session event type: ${(event as CoreSessionEvent).type}`)
+			break
+		}
+	}
+
+	return result
+}
+
+// ---------------------------------------------------------------------------
+// Persisted SDK message history translation
+// ---------------------------------------------------------------------------
+
+type SdkContentBlock = Exclude<SdkMessage["content"], string>[number]
+type SdkToolUseBlock = Extract<SdkContentBlock, { type: "tool_use" }>
+type SdkMessageWithMetrics = SdkMessage & {
+	/**
+	 * Plan/act mode recovered from the persisted <user_input mode="..."> wrapper before display
+	 * sanitization strips it (see sanitizeSdkUserMessagesForDisplay in sdk-task-history.ts).
+	 * Only meaningful on user messages; governs the turn that follows.
+	 */
+	uiMode?: "plan" | "act" | "yolo"
+}
+
+function textContentBlocksToText(content: SdkMessage["content"]): string {
+	if (typeof content === "string") {
+		return content.trim()
+	}
+
+	const text: string[] = []
+	for (const block of content) {
+		if (block.type === "text" && block.text.trim()) {
+			text.push(block.text.trim())
+		} else if (block.type === "file" && block.content.trim()) {
+			text.push(block.content.trim())
+		}
+	}
+	return text.join("\n").trim()
+}
+
+function agentEventToMessages(event: AgentEvent, state: MessageTranslatorState): ClineMessage[] {
+	return translateSessionEvent(
+		{
+			type: "agent_event",
+			payload: {
+				sessionId: "history",
+				event,
+			},
+		},
+		state,
+	).messages
+}
+
+function appendPersistedMetricsMessage(
+	clineMessages: ClineMessage[],
+	message: SdkMessageWithMetrics,
+	state: MessageTranslatorState,
+): void {
+	if (!message.metrics) {
+		return
+	}
+
+	const usage = normalizeUsageEvent({
+		inputTokens: message.metrics.inputTokens,
+		outputTokens: message.metrics.outputTokens,
+		cacheReadTokens: message.metrics.cacheReadTokens,
+		cacheWriteTokens: message.metrics.cacheWriteTokens,
+		cost: message.metrics.cost,
+	})
+
+	if (
+		usage.tokensIn === 0 &&
+		usage.tokensOut === 0 &&
+		(usage.cacheWrites ?? 0) === 0 &&
+		(usage.cacheReads ?? 0) === 0 &&
+		(usage.totalCost ?? 0) === 0
+	) {
+		return
+	}
+
+	clineMessages.push({
+		ts: state.nextTs(),
+		type: "say",
+		say: "api_req_started",
+		text: JSON.stringify({
+			tokensIn: usage.tokensIn,
+			tokensOut: usage.tokensOut,
+			cacheWrites: usage.cacheWrites,
+			cacheReads: usage.cacheReads,
+			cost: usage.totalCost,
+		} satisfies ClineApiReqInfo),
+		partial: false,
+	})
+}
+
+function finalizePersistedToolUse(
+	toolUse: SdkToolUseBlock,
+	state: MessageTranslatorState,
+	output?: unknown,
+	isError?: boolean,
+): ClineMessage[] {
+	// Reuse the same content_start → content_end path as live SDK events. The
+	// start event seeds MessageTranslatorState with the tool input; the end event
+	// produces the final non-partial ClineMessage shape the webview expects.
+	agentEventToMessages(
+		{
+			type: "content_start",
+			contentType: "tool",
+			toolName: toolUse.name,
+			toolCallId: toolUse.id,
+			input: toolUse.input,
+		} as AgentEvent,
+		state,
+	)
+
+	return agentEventToMessages(
+		{
+			type: "content_end",
+			contentType: "tool",
+			toolName: toolUse.name,
+			toolCallId: toolUse.id,
+			output,
+			error: isError ? extractToolOutputText(output) : undefined,
+		} as AgentEvent,
+		state,
+	)
+}
+
+export interface SdkMessagesToClineMessagesOptions {
+	/**
+	 * Whether the transcript's LAST agent turn ended cleanly (per the session record's status).
+	 * Only that final turn is ever retagged into the inferred completion row — persisted
+	 * transcripts carry no per-turn outcome, so earlier turns always render as plain text —
+	 * and the terminal text of a session that failed, was cancelled, or died mid-run must not
+	 * be retagged either, or a reopened broken task would render its dangling response as a
+	 * green/plan "done" box. Defaults to true.
+	 */
+	finalTurnCompleted?: boolean
+	/**
+	 * The task's working directory (as recorded on the session record), used to
+	 * relativize the absolute filesystem paths in persisted tool inputs for
+	 * display, matching the live streaming path.
+	 */
+	cwd?: string
+}
+
+/**
+ * Convert SDK-persisted LLM messages back into the ClineMessage format used by
+ * the webview. Keep this in the live message translator so history rendering
+ * and streaming rendering share the same SDK tool → Cline UI mapping.
+ */
+export function sdkMessagesToClineMessages(
+	messages: SdkMessageWithMetrics[],
+	minter?: MessageIdMinter,
+	options?: SdkMessagesToClineMessagesOptions,
+): ClineMessage[] {
+	const clineMessages: ClineMessage[] = []
+	// Plan/act mode of the turn currently being replayed, recovered from each user message's
+	// persisted <user_input mode="..."> wrapper (stamped as `uiMode` before sanitization).
+	let currentMode: "plan" | "act" | "yolo" | undefined
+	// Use the process-wide minter when provided so regenerated history ids are globally unique
+	// and never overlap live-session ids. Falls back to a private minter for standalone tests.
+	const state = new MessageTranslatorState(
+		minter,
+		undefined,
+		() => currentMode,
+		() => options?.cwd,
+	)
+	const pendingToolUses = new Map<string, SdkToolUseBlock>()
+
+	const flushUnmatchedToolUses = () => {
+		for (const toolUse of pendingToolUses.values()) {
+			clineMessages.push(...finalizePersistedToolUse(toolUse, state))
+		}
+		pendingToolUses.clear()
+	}
+
+	// Add or update by ts — the synthesized turn-end `done` below retags an already-emitted
+	// text row in place (same ts), mirroring the live path's upsert-by-ts message store.
+	const upsertClineMessages = (updates: ClineMessage[]) => {
+		for (const update of updates) {
+			const existingIndex = clineMessages.findIndex((m) => m.ts === update.ts)
+			if (existingIndex !== -1) {
+				clineMessages[existingIndex] = update
+			} else {
+				clineMessages.push(update)
+			}
+		}
+	}
+
+	// Close out the transcript's FINAL agent turn by replaying the same `done` translation as
+	// the live path, so a final turn that ended on a text response gets the inferred completion
+	// retag (green box in act mode, yellow plan box in plan mode) when rehydrated from SDK
+	// history. Only the final turn is eligible: persisted transcripts carry no per-turn
+	// outcome, so an earlier turn that the user cancelled mid-response and then followed up on
+	// is indistinguishable from one that ended cleanly — retagging it would present an
+	// interrupted response as a deliberate turn end. The final turn's outcome IS known (the
+	// caller gates it on the session record's status via `finalTurnCompleted`).
+	const endFinalTurn = () => {
+		upsertClineMessages(
+			agentEventToMessages({ type: "done", reason: "completed", text: "", iterations: 0 } as AgentEvent, state),
+		)
+		state.clearTurnOutcome()
+	}
+
+	for (const { message, sourceIndex } of projectSessionMessagesForDisplay(messages)) {
+		const sourceMessage = messages[sourceIndex]
+		if (message.role === "assistant") {
+			flushUnmatchedToolUses()
+
+			if (typeof message.content === "string") {
+				const text = message.content.trim()
+				if (text) {
+					clineMessages.push(
+						...agentEventToMessages({ type: "content_end", contentType: "text", text } as AgentEvent, state),
+					)
+				}
+				appendPersistedMetricsMessage(clineMessages, message, state)
+				continue
+			}
+
+			for (const [blockIndex, block] of message.content.entries()) {
+				switch (block.type) {
+					case "text":
+						if (block.text.trim()) {
+							clineMessages.push(
+								...agentEventToMessages(
+									{
+										type: "content_end",
+										contentType: "text",
+										text: block.text.trim(),
+									} as AgentEvent,
+									state,
+								),
+							)
+						}
+						break
+					case "thinking":
+						if (block.thinking.trim()) {
+							clineMessages.push(
+								...agentEventToMessages(
+									{
+										type: "content_end",
+										contentType: "reasoning",
+										reasoning: block.thinking.trim(),
+									} as AgentEvent,
+									state,
+								),
+							)
+						}
+						break
+					case "image":
+						if (block.data && block.mediaType.startsWith("image/")) {
+							clineMessages.push(
+								...agentEventToMessages(
+									{
+										type: "content_end",
+										contentType: "media",
+										media: {
+											id: `${message.id ?? `history-${sourceIndex}`}:media:${blockIndex}`,
+											modality: "image",
+											mediaType: block.mediaType,
+											source: { type: "base64", data: block.data },
+										},
+									} as AgentEvent,
+									state,
+								),
+							)
+						}
+						break
+					case "media":
+						clineMessages.push(
+							...agentEventToMessages(
+								{
+									type: "content_end",
+									contentType: "media",
+									media: block.media,
+								} as AgentEvent,
+								state,
+							),
+						)
+						break
+					case "tool_use":
+						// Tool activity after a text block means that text wasn't the
+						// turn-final response (also covers dangling tool_use blocks whose
+						// results never arrived — an aborted turn must not retag).
+						state.clearTurnFinalText()
+						pendingToolUses.set(block.id, block)
+						break
+				}
+			}
+			appendPersistedMetricsMessage(clineMessages, message, state)
+			continue
+		}
+
+		// Runtime-injected hook context is not a user turn: reconstruct the hook
+		// status rows shown live and leave turn/mode state untouched, so the
+		// final turn's completion retag survives the injection.
+		const hookChips = extractPersistedHookContextChips(message)
+		if (hookChips.length > 0) {
+			for (const chip of hookChips) {
+				clineMessages.push({
+					ts: state.nextTs(),
+					type: "say",
+					say: "hook_status",
+					text: JSON.stringify(chip),
+					partial: false,
+				})
+			}
+			continue
+		}
+
+		if (typeof message.content === "string") {
+			const text = message.content.trim()
+			if (text) {
+				// User text marks a turn boundary: drop the preceding turn's outcome
+				// signals (its text is NOT retagged — see endFinalTurn) and pick up the mode
+				// of the NEW turn from this message's wrapper. Synthetic runtime prompts
+				// (task resumption, plan -> act auto-continue) still advance the turn/mode
+				// state but never had a visible bubble live, so don't emit one here either.
+				state.clearTurnOutcome()
+				currentMode = sourceMessage.uiMode ?? currentMode
+				if (!isSyntheticSdkUserMessage(message)) {
+					clineMessages.push({
+						ts: state.nextTs(),
+						type: "say",
+						say: clineMessages.length === 0 ? "task" : "user_feedback",
+						text,
+						partial: false,
+					})
+				}
+			}
+			continue
+		}
+
+		const userText = textContentBlocksToText(message.content)
+		if (userText) {
+			state.clearTurnOutcome()
+			currentMode = sourceMessage.uiMode ?? currentMode
+			if (!isSyntheticSdkUserMessage(message)) {
+				clineMessages.push({
+					ts: state.nextTs(),
+					type: "say",
+					say: clineMessages.length === 0 ? "task" : "user_feedback",
+					text: userText,
+					partial: false,
+				})
+			}
+		}
+
+		for (const block of message.content) {
+			if (block.type !== "tool_result") {
+				continue
+			}
+
+			const toolUse = pendingToolUses.get(block.tool_use_id)
+			if (!toolUse) {
+				continue
+			}
+
+			pendingToolUses.delete(block.tool_use_id)
+			clineMessages.push(...finalizePersistedToolUse(toolUse, state, block.content, block.is_error))
+		}
+	}
+
+	// Close out the transcript's final agent turn so its terminal text (if the turn ended on
+	// text) gets the inferred completion retag. Skipped when the session record says the last
+	// run failed, was cancelled, or died mid-turn: its terminal text is a dangling partial
+	// response, not a completion, and must stay a plain text row.
+	if (options?.finalTurnCompleted !== false) {
+		endFinalTurn()
+	}
+
+	// Always emit ask:"completion_result"
+	// as the LAST message so it comes after the usage event's
+	// say:"api_req_started". This is critical: the webview uses
+	// the last raw message to determine UI state. If the usage
+	// event is last, the webview shows "Thinking..." instead of
+	// the completion UI
+	clineMessages.push({
+		ts: state.nextTs(),
+		type: "ask",
+		ask: "completion_result",
+		text: "",
+		partial: false,
+	})
+
+	flushUnmatchedToolUses()
+	return clineMessages
+}
+
+// ---------------------------------------------------------------------------
+// HistoryItem ↔ SessionRecord mapping
+// ---------------------------------------------------------------------------
+
+/**
+ * Map a HistoryItem (classic format) to a partial SessionRecord-like object.
+ * Used when loading tasks from legacy storage.
+ */
+export function historyItemToSessionFields(item: {
+	id: string
+	task: string
+	ts: number
+	tokensIn: number
+	tokensOut: number
+	totalCost: number
+	modelId?: string
+}): {
+	sessionId: string
+	prompt: string
+	startedAt: string
+	usage: { tokensIn: number; tokensOut: number; totalCost: number }
+	modelId?: string
+} {
+	return {
+		sessionId: item.id,
+		prompt: item.task,
+		startedAt: new Date(item.ts).toISOString(),
+		usage: {
+			tokensIn: item.tokensIn,
+			tokensOut: item.tokensOut,
+			totalCost: item.totalCost,
+		},
+		modelId: item.modelId,
+	}
+}
+
+const MODEL_NOT_FOUND_GUIDANCE =
+	"This model may be retired or unavailable on your account. Switch to a different model in API Configuration settings, then retry."
+
+const VERTEX_GLOBAL_REGION_GUIDANCE =
+	'This model does not support the Vertex AI global endpoint. Switch Google Cloud Region from "global" to a specific region (e.g. "us-east5") in API Configuration settings, or choose a different model, then retry.'
+
+/**
+ * Rewrite a model-not-found error into actionable guidance, or undefined if the
+ * message is not one. The provider's HTTP status is stripped upstream, so this
+ * matches on text rather than a status code.
+ */
+function describeModelNotFoundError(rawMessage: string): string | undefined {
+	// Anthropic's 404 body collapses to a bare "model: <id>" label.
+	const bareModelLabel = rawMessage.match(/^\s*model:\s*(\S+)\s*$/i)
+	if (bareModelLabel) {
+		return `Model "${bareModelLabel[1]}" was not found. ${MODEL_NOT_FOUND_GUIDANCE}`
+	}
+
+	// Keep the not-found signal in the same clause as "model" so errors that
+	// merely mention one (plan gating, deprecated features) are left untouched.
+	const modelNotFound = /\bmodel\b[^.,;:]*\b(not[ _]?found|does not exist|no such model|unknown model)\b/i
+	if (modelNotFound.test(rawMessage)) {
+		return `${rawMessage} ${MODEL_NOT_FOUND_GUIDANCE}`
+	}
+
+	return undefined
+}
+
+/**
+ * Rewrite a Vertex "model not available on the global endpoint" rejection into
+ * recovery guidance, or undefined for anything else. The picker intentionally
+ * no longer filters the catalog by endpoint capability — endpoint support
+ * changes faster than any host-maintained allowlist — so an unsupported pick
+ * under `vertexRegion: "global"` surfaces here, loud and actionable, instead
+ * of hiding models from the picker.
+ *
+ * Observed shapes: AnthropicVertex's bare `model not available in region:
+ * global`, and Google's `Publisher Model `projects/.../locations/global/...`
+ * was not found / no access` body. The HTTP status is stripped upstream, so
+ * this matches on text.
+ */
+function describeVertexGlobalRegionError(rawMessage: string, providerId?: string): string | undefined {
+	if (providerId !== "vertex") {
+		return undefined
+	}
+	const rejectedFromGlobalRegion =
+		/not (?:available|supported|found) in (?:region|location)\b[^.\n]*\bglobal\b/i.test(rawMessage) ||
+		/\bregion:\s*global\b/i.test(rawMessage) ||
+		(/\blocations\/global\b/.test(rawMessage) && /not found|does not have access|permission denied/i.test(rawMessage))
+	if (!rejectedFromGlobalRegion) {
+		return undefined
+	}
+	return `${rawMessage} ${VERTEX_GLOBAL_REGION_GUIDANCE}`
+}
+
+/**
+ * Reshape an SDK error into the serialized ClineError JSON the webview's
+ * ErrorRow expects (`code`, `providerId`, `details`), extracting structured
+ * info from the error message when present and falling back to raw text.
+ */
+export function reshapeErrorForWebview(
+	error: { message?: string; status?: number; code?: string },
+	providerId?: string,
+	modelId?: string,
+): string {
+	// The ClineError-JSON branches below are cline-provider flows (balance,
+	// spend limit), so "cline" stays their fallback id. The missing-credential
+	// message instead gets the raw value: defaulting there would name the wrong
+	// provider when the active provider id is unknown.
+	const clineErrorProviderId = providerId ?? "cline"
+	const rawMessage = error.message ?? "Unknown error"
+
+	// A retired cline-free/ model answers "model not found" once its free
+	// promotion ends and the id is removed from the catalog. Stamp the payload
+	// with a dedicated code so the webview renders the promotion-ended card
+	// instead of the generic model-not-found guidance below.
+	if (isClineFreePromotionEndedMessage(rawMessage, modelId)) {
+		return JSON.stringify({
+			message: rawMessage,
+			code: CLINE_FREE_PROMOTION_ENDED_ERROR_CODE,
+			providerId: clineErrorProviderId,
+			modelId,
+			details: {
+				code: CLINE_FREE_PROMOTION_ENDED_ERROR_CODE,
+				message: rawMessage,
+			},
+		})
+	}
+
+	// Vertex global-endpoint rejections get recovery guidance before the
+	// generic model-not-found rewrite can claim them (Google's Publisher
+	// Model "was not found" body also matches the not-found pattern).
+	const vertexGlobalRegionMessage = describeVertexGlobalRegionError(rawMessage, providerId)
+	if (vertexGlobalRegionMessage) {
+		return vertexGlobalRegionMessage
+	}
+
+	// Try to extract structured error info from the error message.
+	// The SDK often wraps API error JSON in the Error.message field.
+	let parsed: Record<string, unknown> | undefined
+	try {
+		parsed = JSON.parse(rawMessage)
+	} catch {
+		// Not JSON — try to find JSON embedded in the message
+		// (e.g. "Error: {\"code\":\"insufficient_credits\",...}")
+		const jsonMatch = rawMessage.match(/\{[\s\S]*"code"[\s\S]*\}/)
+		if (jsonMatch) {
+			try {
+				parsed = JSON.parse(jsonMatch[0])
+			} catch {
+				// ignore
+			}
+		}
+	}
+
+	if (!parsed) {
+		// Plain-text error — the SDK sometimes strips structured API error JSON
+		// and delivers only a human-readable string such as
+		// "Not enough credits available" or "Your daily spend limit of $20.00
+		// has been reached." Detect these by keyword and synthesize the
+		// ClineError-compatible JSON the webview expects.
+		const lower = rawMessage.toLowerCase()
+		if (
+			lower.includes("insufficient_credits") ||
+			lower.includes("insufficient credits") ||
+			lower.includes("insufficient balance") ||
+			lower.includes("not enough credits") ||
+			lower.includes("run out of credits") ||
+			lower.includes("out of credits")
+		) {
+			// Extract balance from text like "balance is $-0.14" if present
+			const balanceMatch = rawMessage.match(/\$(-?\d+(?:\.\d+)?)/)
+			const balance = balanceMatch ? Number.parseFloat(balanceMatch[1]) : 0
+			return JSON.stringify({
+				message: rawMessage,
+				code: "insufficient_credits",
+				providerId: clineErrorProviderId,
+				details: {
+					current_balance: balance,
+					message: rawMessage,
+				},
+			})
+		}
+		if (lower.includes("spend_limit_exceeded") || lower.includes("spend limit")) {
+			return JSON.stringify({
+				message: rawMessage,
+				code: "SPEND_LIMIT_EXCEEDED",
+				providerId: clineErrorProviderId,
+				details: {
+					code: "SPEND_LIMIT_EXCEEDED",
+					message: rawMessage,
+				},
+			})
+		}
+		const credentialMessage = describeMissingCredentialError(rawMessage, providerId)
+		if (credentialMessage) {
+			return credentialMessage
+		}
+		const notFoundMessage = describeModelNotFoundError(rawMessage)
+		if (notFoundMessage) {
+			return notFoundMessage
+		}
+		return rawMessage
+	}
+
+	// Detect insufficient credits (402) — needs code + current_balance for
+	// ClineError.getErrorType() to return ClineErrorType.Balance
+	const code = (parsed.code as string) ?? error.code
+	if (code === "insufficient_credits" && typeof parsed.current_balance === "number") {
+		return JSON.stringify({
+			message: (parsed.message as string) ?? rawMessage,
+			code: "insufficient_credits",
+			providerId: clineErrorProviderId,
+			details: {
+				current_balance: parsed.current_balance,
+				total_spent: parsed.total_spent,
+				total_promotions: parsed.total_promotions,
+				message: (parsed.message as string) ?? "You have run out of credits.",
+				buy_credits_url: parsed.buy_credits_url,
+			},
+		})
+	}
+
+	// Detect spend limit exceeded (429)
+	if (code === "SPEND_LIMIT_EXCEEDED") {
+		return JSON.stringify({
+			message: (parsed.message as string) ?? rawMessage,
+			code: "SPEND_LIMIT_EXCEEDED",
+			providerId: clineErrorProviderId,
+			details: {
+				code: "SPEND_LIMIT_EXCEEDED",
+				limit_scope: parsed.limit_scope,
+				budget_period: parsed.budget_period,
+				limit_usd: parsed.limit_usd,
+				spent_usd: parsed.spent_usd,
+				resets_at: parsed.resets_at,
+				message: parsed.message,
+			},
+		})
+	}
+
+	// For other structured errors, pass through the parsed JSON so
+	// ClineError.parse() can still extract what it can.
+	return JSON.stringify(parsed)
+}

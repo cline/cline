@@ -6,6 +6,15 @@ import { runDashboardCommand, waitForProcessShutdown } from "./dashboard";
 
 const ENV_KEYS = [
 	"WORKSPACE_ROOT",
+	"CLINE_DIR",
+	"CLINE_SANDBOX",
+	"CLINE_SANDBOX_DATA_DIR",
+	"CLINE_DATA_DIR",
+	"CLINE_DB_DATA_DIR",
+	"CLINE_SESSION_DATA_DIR",
+	"CLINE_TEAM_DATA_DIR",
+	"CLINE_PROVIDER_SETTINGS_PATH",
+	"CLINE_HOOKS_LOG_PATH",
 	"HOST",
 	"CLINE_HUB_DASHBOARD_PORT",
 	"PUBLIC_URL",
@@ -38,6 +47,9 @@ describe("runDashboardCommand", () => {
 		let observedEnv:
 			| {
 					workspaceRoot: string | undefined;
+					clineDir: string | undefined;
+					clineDataDir: string | undefined;
+					providerSettingsPath: string | undefined;
 					host: string | undefined;
 					port: string | undefined;
 					publicUrl: string | undefined;
@@ -50,7 +62,9 @@ describe("runDashboardCommand", () => {
 		process.env.CLINE_HUB_WEBVIEW_DIST_DIR = webviewDistDir;
 
 		const exitCode = await runDashboardCommand({
+			configDir: "/tmp/cline-config",
 			cwd: "sdk",
+			dataDir: ".cline-dashboard-data",
 			host: "127.0.0.1",
 			port: "9090",
 			publicUrl: "http://127.0.0.1:9090",
@@ -62,6 +76,9 @@ describe("runDashboardCommand", () => {
 			startServer: async () => {
 				observedEnv = {
 					workspaceRoot: process.env.WORKSPACE_ROOT,
+					clineDir: process.env.CLINE_DIR,
+					clineDataDir: process.env.CLINE_DATA_DIR,
+					providerSettingsPath: process.env.CLINE_PROVIDER_SETTINGS_PATH,
 					host: process.env.HOST,
 					port: process.env.CLINE_HUB_DASHBOARD_PORT,
 					publicUrl: process.env.PUBLIC_URL,
@@ -87,6 +104,13 @@ describe("runDashboardCommand", () => {
 		expect(exitCode).toBe(0);
 		expect(observedEnv).toEqual({
 			workspaceRoot: resolve("sdk"),
+			clineDir: "/tmp/cline-config",
+			clineDataDir: resolve("sdk", ".cline-dashboard-data"),
+			providerSettingsPath: join(
+				resolve("sdk", ".cline-dashboard-data"),
+				"settings",
+				"providers.json",
+			),
 			host: "127.0.0.1",
 			port: "9090",
 			publicUrl: "http://127.0.0.1:9090",

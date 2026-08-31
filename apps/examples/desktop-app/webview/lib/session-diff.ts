@@ -1,3 +1,5 @@
+import { resolveWorkspaceFilePath } from "./workspace-paths";
+
 export type SessionHookEvent = {
 	hookEventName?:
 		| "tool_call"
@@ -59,6 +61,39 @@ function toStringValue(value: unknown): string | undefined {
 	return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
+/**
+ * Tool outputs arrive in several shapes depending on the source: a plain
+ * record (live hook events), a JSON-encoded string, or a list of content
+ * blocks such as [{ type: "text", text: "<json>" }] (persisted history).
+ */
+function normalizeToolOutput(value: unknown): Record<string, unknown> | null {
+	if (typeof value === "string") {
+		try {
+			return asRecord(JSON.parse(value));
+		} catch {
+			return null;
+		}
+	}
+	if (Array.isArray(value)) {
+		for (const entry of value) {
+			const record = asRecord(entry);
+			if (!record) {
+				continue;
+			}
+			if (typeof record.text === "string") {
+				const inner = normalizeToolOutput(record.text);
+				if (inner) {
+					return inner;
+				}
+				continue;
+			}
+			return record;
+		}
+		return null;
+	}
+	return asRecord(value);
+}
+
 function getHookEventName(event: SessionHookEvent): string {
 	return event.hookEventName ?? event.hookName ?? "";
 }
@@ -101,7 +136,7 @@ function stripApplyPatchWrapperLines(lines: string[]): string[] {
 	return result;
 }
 
-function parseApplyPatchInput(input: string): SessionFileDiff[] {
+export function parseApplyPatchInput(input: string): SessionFileDiff[] {
 	const lines = stripApplyPatchWrapperLines(
 		input.split("\n").map((line) => line.replace(/\r$/, "")),
 	);
@@ -332,12 +367,20 @@ function parseEditorFileDiff(event: SessionHookEvent): SessionFileDiff | null {
 	}
 
 	const input = asRecord(event.toolInput);
-	const output = asRecord(event.toolOutput);
+	const output = normalizeToolOutput(event.toolOutput);
 	if (!input || !output || output.success === false) {
 		return null;
 	}
 
-	const command = toStringValue(input.command);
+	// Current editor schema has no `command` field; derive the operation from
+	// the input shape (legacy `command` values still take precedence).
+	const command =
+		toStringValue(input.command) ??
+		(input.insert_line != null
+			? "insert"
+			: toStringValue(input.old_text) != null
+				? "str_replace"
+				: "create");
 	const pathFromInput = toStringValue(input.path);
 	const query = toStringValue(output.query);
 	const pathFromQuery = query?.includes(":")
@@ -348,10 +391,10 @@ function parseEditorFileDiff(event: SessionHookEvent): SessionFileDiff | null {
 		return null;
 	}
 
-	if (command === "str_replace") {
-		const parsed = parseDiffFromEditorResult(
-			toStringValue(output.result) ?? "",
-		);
+	const resultText = toStringValue(output.result) ?? "";
+
+	if (command === "str_replace" && !resultText.startsWith("File created")) {
+		const parsed = parseDiffFromEditorResult(resultText);
 		return {
 			path,
 			additions: parsed.additions,
@@ -360,9 +403,16 @@ function parseEditorFileDiff(event: SessionHookEvent): SessionFileDiff | null {
 		};
 	}
 
-	if (command === "create" || command === "insert") {
+	if (
+		command === "create" ||
+		command === "insert" ||
+		command === "str_replace"
+	) {
 		const newContent =
-			toStringValue(input.file_text) ?? toStringValue(input.new_str) ?? "";
+			toStringValue(input.new_text) ??
+			toStringValue(input.file_text) ??
+			toStringValue(input.new_str) ??
+			"";
 		return {
 			path,
 			additions: countAddedLines(newContent),
@@ -392,13 +442,15 @@ function parseApplyPatchFileDiffs(event: SessionHookEvent): SessionFileDiff[] {
 		return [];
 	}
 
-	const input = asRecord(event.toolInput);
-	const output = asRecord(event.toolOutput);
-	if (!input || !output || output.success === false) {
+	const output = normalizeToolOutput(event.toolOutput);
+	if (!output || output.success === false) {
 		return [];
 	}
 
-	const patchInput = toStringValue(input.input);
+	// apply_patch accepts either { input: string } or a raw patch string.
+	const patchInput =
+		toStringValue(event.toolInput) ??
+		toStringValue(asRecord(event.toolInput)?.input);
 	if (!patchInput) {
 		return [];
 	}
@@ -406,7 +458,90 @@ function parseApplyPatchFileDiffs(event: SessionHookEvent): SessionFileDiff[] {
 	return parseApplyPatchInput(patchInput);
 }
 
-export function mergeToolDiffs(events: SessionHookEvent[]): SessionFileDiff[] {
+/**
+ * Collapses "." and ".." segments and rebuilds the path with the given
+ * separator. The webview has no `node:path`, so this is a string-level
+ * equivalent; both separator styles are treated as separators, matching
+ * `resolveWorkspaceFilePath`. ".." segments that would climb above an
+ * absolute root are dropped; on relative paths leading ".." is kept.
+ */
+function collapsePathSegments(path: string, separator: string): string {
+	const rootMatch = path.match(/^(?:\\\\|[A-Za-z]:[\\/]|[\\/])/);
+	const rawRoot = rootMatch?.[0] ?? "";
+	const root =
+		rawRoot === ""
+			? ""
+			: rawRoot === "\\\\"
+				? "\\\\"
+				: /^[A-Za-z]:/.test(rawRoot)
+					? rawRoot.slice(0, 2) + separator
+					: separator;
+	const segments: string[] = [];
+	for (const segment of path.slice(rawRoot.length).split(/[\\/]+/)) {
+		if (!segment || segment === ".") {
+			continue;
+		}
+		if (segment === "..") {
+			if (segments.length > 0 && segments[segments.length - 1] !== "..") {
+				segments.pop();
+			} else if (!root) {
+				segments.push("..");
+			}
+			continue;
+		}
+		segments.push(segment);
+	}
+	return root + segments.join(separator);
+}
+
+/**
+ * Tool calls address the same file inconsistently across a session — one
+ * edit uses "journal.txt", a later one "/tmp/workspace/journal.txt". Keying
+ * diffs by the raw string would list that file twice with split counts, so
+ * paths are canonicalized against the session cwd first: resolved against
+ * the cwd with "." and ".." segments collapsed, so "../shared/file.txt"
+ * and its absolute spelling share one key, and a filesystem-root cwd such
+ * as "/" still canonicalizes. Windows sessions (drive-letter or UNC cwd)
+ * compare case-insensitively, matching `normalizeWorkspacePath`. Files
+ * inside the cwd display as workspace-relative paths; everything else
+ * displays as the resolved path, both in the first spelling seen.
+ */
+function canonicalizeDiffPath(
+	path: string,
+	cwd?: string,
+): { key: string; display: string } {
+	const trimmed = path.trim().replace(/^\.\//, "");
+	const baseRaw = (cwd ?? "").trim();
+	if (!baseRaw) {
+		return { key: trimmed, display: trimmed };
+	}
+	const separator =
+		baseRaw.includes("\\") && !baseRaw.includes("/") ? "\\" : "/";
+	const base = collapsePathSegments(baseRaw, separator);
+	if (!base) {
+		return { key: trimmed, display: trimmed };
+	}
+	const resolved = collapsePathSegments(
+		resolveWorkspaceFilePath(trimmed, base),
+		separator,
+	);
+	const caseInsensitive = /^[A-Za-z]:/.test(base) || base.startsWith("\\\\");
+	const comparable = (value: string) =>
+		caseInsensitive ? value.toLowerCase() : value;
+	const basePrefix = base.endsWith(separator) ? base : base + separator;
+	const withinBase =
+		resolved.length > basePrefix.length &&
+		comparable(resolved).startsWith(comparable(basePrefix));
+	return {
+		key: comparable(resolved),
+		display: withinBase ? resolved.slice(basePrefix.length) : resolved,
+	};
+}
+
+export function mergeToolDiffs(
+	events: SessionHookEvent[],
+	cwd?: string,
+): SessionFileDiff[] {
 	const byPath = new Map<string, SessionFileDiff>();
 
 	for (const event of events) {
@@ -421,13 +556,14 @@ export function mergeToolDiffs(events: SessionHookEvent[]): SessionFileDiff[] {
 		}
 
 		for (const diff of diffs) {
-			const existing = byPath.get(diff.path);
+			const { key, display } = canonicalizeDiffPath(diff.path, cwd);
+			const existing = byPath.get(key);
 			if (!existing) {
-				byPath.set(diff.path, diff);
+				byPath.set(key, { ...diff, path: display });
 				continue;
 			}
 
-			byPath.set(diff.path, {
+			byPath.set(key, {
 				...existing,
 				additions: existing.additions + diff.additions,
 				deletions: existing.deletions + diff.deletions,
@@ -454,8 +590,9 @@ export function summarizeFileDiffs(
 
 export function buildSessionDiffState(
 	events: SessionHookEvent[],
+	cwd?: string,
 ): SessionDiffState {
-	const fileDiffs = mergeToolDiffs(events);
+	const fileDiffs = mergeToolDiffs(events, cwd);
 	return {
 		fileDiffs,
 		summary: summarizeFileDiffs(fileDiffs),

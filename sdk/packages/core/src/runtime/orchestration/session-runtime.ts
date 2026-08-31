@@ -1,17 +1,26 @@
 import type {
 	AgentConfig,
+	AgentEvent,
 	AgentHooks,
 	AgentResult,
 	AgentTool,
 	BasicLogger,
 	ITelemetryService,
+	ModelTool,
 	RuntimeConfigExtensionKind,
+	ToolApprovalRequest,
+	ToolApprovalResult,
 } from "@cline/shared";
 import type { UserInstructionConfigService } from "../../extensions/config";
-import type { ToolExecutors } from "../../extensions/tools";
+import type {
+	RunCommandExecutionController,
+	ToolExecutors,
+} from "../../extensions/tools";
 import type {
 	AgentTeamsRuntime,
 	DelegatedAgentConfigProvider,
+	SubAgentEndContext,
+	SubAgentStartContext,
 	TeamEvent,
 } from "../../extensions/tools/team";
 import type { WorkspaceManager } from "../../services/workspace/workspace-manager";
@@ -32,6 +41,7 @@ type LeadAgentHandle = {
 
 export interface BuiltRuntime {
 	tools: AgentTool[];
+	modelTools?: ModelTool[];
 	hooks?: AgentHooks;
 	logger?: BasicLogger;
 	telemetry?: ITelemetryService;
@@ -46,18 +56,31 @@ export interface BuiltRuntime {
 
 export interface RuntimeBuilderInput {
 	config: CoreSessionConfig;
+	/**
+	 * Host-resolved stable end-user identity, forwarded so delegated agents
+	 * (sub-agents / teammates) emit the same telemetry `userId` as the lead.
+	 */
+	distinctId?: string;
 	hooks?: AgentHooks;
 	extensions?: AgentConfig["extensions"];
 	onTeamEvent?: (event: TeamEvent) => void;
+	onSubAgentEvent?: (event: AgentEvent) => void;
+	onSubAgentStart?: (context: SubAgentStartContext) => void | Promise<void>;
+	onSubAgentEnd?: (context: SubAgentEndContext) => void | Promise<void>;
 	createSpawnTool?: () => AgentTool;
 	onTeamRestored?: () => void;
 	userInstructionService?: UserInstructionConfigService;
 	pluginSkillDirectories?: ReadonlyArray<string>;
 	configExtensions?: RuntimeConfigExtensionKind[];
 	toolExecutors?: Partial<ToolExecutors>;
+	runCommandExecutionController?: RunCommandExecutionController;
+	toolPolicies?: CoreSessionConfig["toolPolicies"];
 	workspaceManager?: WorkspaceManager;
 	logger?: BasicLogger;
 	telemetry?: ITelemetryService;
+	requestToolApproval?: (
+		request: ToolApprovalRequest,
+	) => Promise<ToolApprovalResult> | ToolApprovalResult;
 }
 
 export interface RuntimeBuilder {

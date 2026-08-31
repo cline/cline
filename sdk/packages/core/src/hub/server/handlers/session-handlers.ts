@@ -1,15 +1,30 @@
 import type {
 	HubCommandEnvelope,
+	HubCommandInput,
 	HubReplyEnvelope,
 	JsonValue,
 	ToolApprovalRequest,
 } from "@cline/shared";
-import { createSessionId, parseRuntimeConfigExtensions } from "@cline/shared";
-import type { RuntimeSessionConfig } from "../../../runtime/host/runtime-host";
+import {
+	createSessionId,
+	parseRuntimeConfigExtensions,
+	ReasoningEffortSchema,
+} from "@cline/shared";
+import {
+	isCoreBuiltinToolAvailable,
+	resolveToolClientType,
+} from "../../../extensions/tools/runtime";
+import { normalizeConnectionUpdate } from "../../../runtime/config/connection-update";
+import type {
+	RuntimeSessionConfig,
+	SessionConnectionUpdate,
+} from "../../../runtime/host/runtime-host";
+import { parseSessionCompactionState } from "../../../session/models/session-compaction";
 import {
 	SessionVersioningError,
 	SessionVersioningService,
 } from "../../../session/session-versioning-service";
+import { TASKS_TOOL_NAME } from "../../../tasks/task-tool";
 import {
 	createHubClientContributionRuntime,
 	parseHubClientContributions,
@@ -19,6 +34,7 @@ import { toHubSessionRecord } from "../hub-session-records";
 import { cancelPendingCapabilityRequests } from "./capability-handlers";
 import {
 	asPlainRecord,
+	ensureSessionParticipant,
 	ensureSessionState,
 	errorReply,
 	extractSessionId,
@@ -30,18 +46,162 @@ import {
 
 const CAPABILITY_OWNER_METADATA_KEY = "hubCapabilityOwnerClientId";
 
-function setCapabilityOwner(
-	metadata: Record<string, unknown>,
-	clientId: string,
-): void {
-	metadata[CAPABILITY_OWNER_METADATA_KEY] = clientId;
+async function deleteSessionAndCleanDerivedState(
+	ctx: HubTransportContext,
+	sessionId: string,
+): Promise<boolean> {
+	const deleted = await ctx.sessionHost.deleteSession(sessionId);
+	ctx.sessionState.delete(sessionId);
+	// False means canonical history was already absent. Eviction is still safe
+	// and repairs any index left stale by an earlier deletion.
+	try {
+		ctx.sessionSearch.removeSession(sessionId);
+	} catch (error) {
+		// Search is disposable derived state. A failed eviction must not reverse a
+		// completed canonical deletion; reconciliation will retry the cleanup.
+		logHubMessage("warn", "session search eviction failed", {
+			error,
+			sessionId,
+		});
+	}
+	return deleted;
+}
+
+export function selectSessionTools<T extends { name: string }>(
+	tools: readonly T[],
+	mode: string,
+	source?: string,
+): T[] {
+	const clientType = resolveToolClientType(source);
+	return tools.filter(
+		(tool) =>
+			(mode !== "yolo" || tool.name !== TASKS_TOOL_NAME) &&
+			isCoreBuiltinToolAvailable(tool.name, clientType),
+	);
+}
+
+function readConnectionString(value: unknown): string | undefined {
+	return typeof value === "string" && value.trim().length > 0
+		? value.trim()
+		: undefined;
+}
+
+function readConnectionReasoningEffort(
+	value: unknown,
+): SessionConnectionUpdate["reasoningEffort"] | undefined {
+	if (value === null) return null;
+	const result = ReasoningEffortSchema.safeParse(value);
+	return result.success ? result.data : undefined;
+}
+
+export function readSessionConnectionUpdate(
+	value: unknown,
+): SessionConnectionUpdate {
+	const record = asPlainRecord(value) ?? {};
+	const updates: SessionConnectionUpdate = {};
+	const providerId = readConnectionString(record.providerId);
+	if (providerId) updates.providerId = providerId;
+	const modelId = readConnectionString(record.modelId);
+	if (modelId) updates.modelId = modelId;
+	const apiKey = readConnectionString(record.apiKey);
+	if (apiKey !== undefined) updates.apiKey = apiKey;
+	const baseUrl = readConnectionString(record.baseUrl);
+	if (baseUrl !== undefined) updates.baseUrl = baseUrl;
+	if (record.headers && typeof record.headers === "object") {
+		updates.headers = record.headers as Record<string, string>;
+	}
+	if (record.providerConfig && typeof record.providerConfig === "object") {
+		updates.providerConfig =
+			record.providerConfig as unknown as SessionConnectionUpdate["providerConfig"];
+	}
+	if (Object.hasOwn(record, "thinking")) {
+		if (typeof record.thinking === "boolean" || record.thinking === null) {
+			updates.thinking = record.thinking;
+		}
+	}
+	if (Object.hasOwn(record, "reasoningEffort")) {
+		const reasoningEffort = readConnectionReasoningEffort(
+			record.reasoningEffort,
+		);
+		if (reasoningEffort !== undefined) {
+			updates.reasoningEffort = reasoningEffort;
+		}
+	}
+	if (Object.hasOwn(record, "thinkingBudgetTokens")) {
+		if (
+			typeof record.thinkingBudgetTokens === "number" &&
+			Number.isFinite(record.thinkingBudgetTokens) &&
+			record.thinkingBudgetTokens > 0
+		) {
+			updates.thinkingBudgetTokens = Math.trunc(record.thinkingBudgetTokens);
+		} else if (record.thinkingBudgetTokens === null) {
+			updates.thinkingBudgetTokens = null;
+		}
+	}
+	return normalizeConnectionUpdate(updates);
 }
 
 function getCapabilityOwnerClientId(
-	metadata: Record<string, unknown> | undefined,
+	ctx: HubTransportContext,
+	sessionId: string,
 ): string | undefined {
-	const owner = metadata?.[CAPABILITY_OWNER_METADATA_KEY];
-	return typeof owner === "string" && owner.trim() ? owner.trim() : undefined;
+	// Sidecar access follows the live hub owner, not persisted metadata clients
+	// can replay or edit.
+	return ctx.sessionState.get(sessionId)?.createdByClientId;
+}
+
+function stripServerOwnedSessionMetadata(
+	metadata: Record<string, JsonValue | undefined> | undefined,
+): Record<string, JsonValue | undefined> | undefined {
+	// Clients may echo old records back through session.update; keep ownership
+	// and approval policy on server-created session state only.
+	if (
+		!metadata ||
+		(!("autoApproveTools" in metadata) &&
+			!(CAPABILITY_OWNER_METADATA_KEY in metadata))
+	) {
+		return metadata;
+	}
+	const sanitized = { ...metadata };
+	delete sanitized[CAPABILITY_OWNER_METADATA_KEY];
+	delete sanitized.autoApproveTools;
+	return sanitized;
+}
+
+export function resolveSessionAutoApproveTools(
+	toolPolicies: unknown,
+	runtimeOptions: Record<string, unknown>,
+): boolean {
+	const policies = asPlainRecord(toolPolicies);
+	const globalPolicy = asPlainRecord(policies?.["*"]);
+	if (typeof globalPolicy?.autoApprove === "boolean") {
+		return globalPolicy.autoApprove;
+	}
+	return runtimeOptions.autoApproveTools === true;
+}
+
+function authorizeSessionCompactionAccess(input: {
+	sessionId: string;
+	ctx: HubTransportContext;
+	clientId: string;
+	envelope: HubCommandEnvelope;
+}): HubReplyEnvelope | undefined {
+	const ownerClientId = getCapabilityOwnerClientId(input.ctx, input.sessionId);
+	if (!ownerClientId) {
+		return errorReply(
+			input.envelope,
+			"session_wrong_client",
+			`Session ${input.sessionId} has no owner`,
+		);
+	}
+	if (ownerClientId !== input.clientId) {
+		return errorReply(
+			input.envelope,
+			"session_wrong_client",
+			`Session ${input.sessionId} is owned by ${ownerClientId}`,
+		);
+	}
+	return undefined;
 }
 
 export async function handleSessionCreate(
@@ -77,6 +237,9 @@ export async function handleSessionCreate(
 		payload.runtimeOptions && typeof payload.runtimeOptions === "object"
 			? (payload.runtimeOptions as Record<string, unknown>)
 			: {};
+	const initialCompactionState = parseSessionCompactionState(
+		payload.initialCompactionState,
+	);
 	if (typeof sessionConfig?.mode === "string") {
 		metadata.mode = sessionConfig.mode;
 	} else if (typeof runtimeOptions.mode === "string") {
@@ -92,6 +255,10 @@ export async function handleSessionCreate(
 	} else if (runtimeOptions.checkpointEnabled === true) {
 		metadata.checkpointEnabled = true;
 	}
+	metadata.autoApproveTools = resolveSessionAutoApproveTools(
+		payload.toolPolicies,
+		runtimeOptions,
+	);
 	const modelSelection =
 		payload.modelSelection && typeof payload.modelSelection === "object"
 			? (payload.modelSelection as Record<string, unknown>)
@@ -101,18 +268,7 @@ export async function handleSessionCreate(
 			? payload.workspaceRoot.trim()
 			: typeof payload.cwd === "string" && payload.cwd.trim()
 				? payload.cwd.trim()
-				: "";
-	if (!workspaceRoot) {
-		logHubMessage("warn", "session.create.invalid", {
-			...baseLogContext,
-			reason: "missing_workspace_root",
-		});
-		return errorReply(
-			envelope,
-			"invalid_session_create",
-			"session.create requires workspaceRoot or cwd",
-		);
-	}
+				: undefined;
 	const clientId = envelope.clientId?.trim() || "hub-client";
 	const clientContributions = parseHubClientContributions(
 		runtimeOptions.clientContributions,
@@ -124,9 +280,6 @@ export async function handleSessionCreate(
 		cwd: typeof payload.cwd === "string" ? payload.cwd : undefined,
 		contributionCount: clientContributions.length,
 	});
-	if (clientContributions.length > 0) {
-		setCapabilityOwner(metadata as Record<string, unknown>, clientId);
-	}
 	const requestedSessionId =
 		typeof sessionConfig?.sessionId === "string"
 			? sessionConfig.sessionId.trim()
@@ -165,6 +318,11 @@ export async function handleSessionCreate(
 					? metadata.model
 					: "hub"),
 	});
+	const sessionMode =
+		sessionConfig?.mode ??
+		(runtimeOptions.mode === "plan" || runtimeOptions.mode === "yolo"
+			? runtimeOptions.mode
+			: "act");
 	const started = await ctx.sessionHost.startSession({
 		source: typeof metadata.source === "string" ? metadata.source : undefined,
 		interactive: metadata.interactive !== false,
@@ -175,6 +333,7 @@ export async function handleSessionCreate(
 		initialMessages: Array.isArray(payload.initialMessages)
 			? (payload.initialMessages as never[])
 			: undefined,
+		initialCompactionState,
 		localRuntime: {
 			modelCatalogDefaults: {
 				loadLatestOnInit: true,
@@ -182,6 +341,18 @@ export async function handleSessionCreate(
 			},
 			configExtensions,
 			...clientContributionRuntime.localRuntime,
+			extensions: [
+				...(ctx.sessionExtensions ?? []),
+				...(clientContributionRuntime.localRuntime.extensions ?? []),
+			],
+			extraTools: selectSessionTools(
+				[
+					...(ctx.sessionTools ?? []),
+					...(clientContributionRuntime.localRuntime.extraTools ?? []),
+				],
+				sessionMode,
+				typeof metadata.source === "string" ? metadata.source : undefined,
+			),
 		},
 		capabilities: {
 			toolExecutors: clientContributionRuntime.toolExecutors,
@@ -220,11 +391,7 @@ export async function handleSessionCreate(
 				(typeof runtimeOptions.systemPrompt === "string"
 					? runtimeOptions.systemPrompt
 					: ""),
-			mode:
-				sessionConfig?.mode ??
-				(runtimeOptions.mode === "plan" || runtimeOptions.mode === "yolo"
-					? runtimeOptions.mode
-					: "act"),
+			mode: sessionMode,
 			maxIterations:
 				sessionConfig?.maxIterations ??
 				(typeof runtimeOptions.maxIterations === "number"
@@ -352,6 +519,9 @@ export async function handleSessionRestore(
 			payload.runtimeOptions && typeof payload.runtimeOptions === "object"
 				? (payload.runtimeOptions as Record<string, unknown>)
 				: {};
+		const initialCompactionState = parseSessionCompactionState(
+			payload.initialCompactionState,
+		);
 		const metadata =
 			payload.metadata && typeof payload.metadata === "object"
 				? JSON.parse(JSON.stringify(payload.metadata))
@@ -371,6 +541,10 @@ export async function handleSessionRestore(
 		} else if (runtimeOptions.checkpointEnabled === true) {
 			metadata.checkpointEnabled = true;
 		}
+		metadata.autoApproveTools = resolveSessionAutoApproveTools(
+			payload.toolPolicies,
+			runtimeOptions,
+		);
 
 		const modelSelection =
 			payload.modelSelection && typeof payload.modelSelection === "object"
@@ -380,9 +554,6 @@ export async function handleSessionRestore(
 		const clientContributions = parseHubClientContributions(
 			runtimeOptions.clientContributions,
 		);
-		if (clientContributions.length > 0) {
-			setCapabilityOwner(metadata as Record<string, unknown>, clientId);
-		}
 		const requestedSessionId =
 			typeof sessionConfig?.sessionId === "string"
 				? sessionConfig.sessionId.trim()
@@ -429,6 +600,11 @@ export async function handleSessionRestore(
 							? payload.cwd.trim()
 							: context.sourceSession.workspaceRoot ||
 								context.sourceSession.cwd;
+				const sessionMode =
+					sessionConfig?.mode ??
+					(runtimeOptions.mode === "plan" || runtimeOptions.mode === "yolo"
+						? runtimeOptions.mode
+						: "act");
 				return {
 					source:
 						typeof metadata.source === "string" ? metadata.source : undefined,
@@ -439,6 +615,7 @@ export async function handleSessionRestore(
 						restoredCheckpointRunCount: checkpointRunCount,
 					},
 					initialMessages: context.initialMessages,
+					initialCompactionState,
 					localRuntime: {
 						modelCatalogDefaults: {
 							loadLatestOnInit: true,
@@ -446,6 +623,18 @@ export async function handleSessionRestore(
 						},
 						configExtensions,
 						...clientContributionRuntime.localRuntime,
+						extensions: [
+							...(ctx.sessionExtensions ?? []),
+							...(clientContributionRuntime.localRuntime.extensions ?? []),
+						],
+						extraTools: selectSessionTools(
+							[
+								...(ctx.sessionTools ?? []),
+								...(clientContributionRuntime.localRuntime.extraTools ?? []),
+							],
+							sessionMode,
+							typeof metadata.source === "string" ? metadata.source : undefined,
+						),
 					},
 					capabilities: {
 						toolExecutors: clientContributionRuntime.toolExecutors,
@@ -476,11 +665,7 @@ export async function handleSessionRestore(
 							(typeof runtimeOptions.systemPrompt === "string"
 								? runtimeOptions.systemPrompt
 								: ""),
-						mode:
-							sessionConfig?.mode ??
-							(runtimeOptions.mode === "plan" || runtimeOptions.mode === "yolo"
-								? runtimeOptions.mode
-								: "act"),
+						mode: sessionMode,
 						maxIterations:
 							sessionConfig?.maxIterations ??
 							(typeof runtimeOptions.maxIterations === "number"
@@ -521,6 +706,15 @@ export async function handleSessionRestore(
 			},
 			startSession: (startInput) => ctx.sessionHost.startSession(startInput),
 			getStartedSessionId: (started) => started.sessionId,
+			cleanupStartedSession: async (started) => {
+				if (
+					!(await deleteSessionAndCleanDerivedState(ctx, started.sessionId))
+				) {
+					throw new Error(
+						`Failed to clean up restored session ${started.sessionId}`,
+					);
+				}
+			},
 			readRestoredSession: (sessionId) => ctx.sessionHost.getSession(sessionId),
 		});
 		if (!restoreMessages) {
@@ -586,23 +780,29 @@ export async function handleSessionAttach(
 			"session.attach requires a session id",
 		);
 	}
-	ensureSessionState(
+	const session = await readHubSessionRecord(ctx, sessionId);
+	if (!session) {
+		return errorReply(
+			envelope,
+			"session_not_found",
+			`Unknown session: ${sessionId}`,
+		);
+	}
+	ensureSessionParticipant(
 		ctx,
 		sessionId,
 		envelope.clientId?.trim() || "hub-client",
 		"participant",
 	);
-	const session = await readHubSessionRecord(ctx, sessionId);
-	if (session) {
-		ctx.publish(ctx.buildEvent("session.attached", { session }, sessionId));
-	}
-	return session
-		? okReply(envelope, { session })
-		: errorReply(
-				envelope,
-				"session_not_found",
-				`Unknown session: ${sessionId}`,
-			);
+	const attachedSession = await readHubSessionRecord(ctx, sessionId);
+	ctx.publish(
+		ctx.buildEvent(
+			"session.attached",
+			{ session: attachedSession ?? session },
+			sessionId,
+		),
+	);
+	return okReply(envelope, { session: attachedSession ?? session });
 }
 
 export async function handleSessionDetach(
@@ -618,18 +818,11 @@ export async function handleSessionDetach(
 		);
 	}
 	const clientId = envelope.clientId?.trim() || "hub-client";
-	const [existingSession] = await Promise.all([
-		readHubSessionRecord(ctx, sessionId),
-	]);
-	const ownerClientId =
-		getCapabilityOwnerClientId(
-			existingSession?.metadata as Record<string, unknown> | undefined,
-		) ?? clientId;
 	const state = ctx.sessionState.get(sessionId);
 	if (state) {
 		state.participants.delete(clientId);
 		if (state.createdByClientId === clientId) {
-			state.createdByClientId = ownerClientId;
+			state.createdByClientId = undefined;
 		}
 		if (state.participants.size === 0) {
 			ctx.sessionState.delete(sessionId);
@@ -702,6 +895,40 @@ export async function handleSessionMessages(
 	return okReply(envelope, { sessionId, messages });
 }
 
+export async function handleSessionCompactionGet(
+	ctx: HubTransportContext,
+	envelope: HubCommandEnvelope,
+): Promise<HubReplyEnvelope> {
+	const sessionId = extractSessionId(envelope);
+	if (!sessionId) {
+		return errorReply(
+			envelope,
+			"invalid_session_id",
+			"session.compaction.get requires a session id",
+		);
+	}
+	const session = await readHubSessionRecord(ctx, sessionId);
+	if (!session) {
+		return errorReply(
+			envelope,
+			"session_not_found",
+			`Unknown session: ${sessionId}`,
+		);
+	}
+	const clientId = envelope.clientId?.trim() || "hub-client";
+	const unauthorized = authorizeSessionCompactionAccess({
+		sessionId,
+		ctx,
+		clientId,
+		envelope,
+	});
+	if (unauthorized) {
+		return unauthorized;
+	}
+	const state = await ctx.sessionHost.readSessionCompactionState(sessionId);
+	return okReply(envelope, { sessionId, state });
+}
+
 export async function handleSessionList(
 	ctx: HubTransportContext,
 	envelope: HubCommandEnvelope,
@@ -717,12 +944,36 @@ export async function handleSessionList(
 	});
 }
 
+export async function handleSessionSearch(
+	ctx: HubTransportContext,
+	envelope: HubCommandEnvelope,
+): Promise<HubReplyEnvelope> {
+	const payload = (envelope.payload ??
+		{}) as unknown as HubCommandInput<"session.search">;
+	if (typeof payload.query !== "string" || !payload.query.trim()) {
+		return errorReply(
+			envelope,
+			"invalid_search_query",
+			"session.search requires a non-empty query",
+		);
+	}
+	return okReply(envelope, {
+		hits: ctx.sessionSearch.search({
+			query: payload.query,
+			limit: payload.limit,
+			workspaceRoot: payload.workspaceRoot,
+		}),
+	});
+}
+
 export async function handleSessionUpdate(
 	ctx: HubTransportContext,
 	envelope: HubCommandEnvelope,
 ): Promise<HubReplyEnvelope> {
 	const sessionId = extractSessionId(envelope);
-	const metadata = asPlainRecord(envelope.payload?.metadata);
+	const metadata = stripServerOwnedSessionMetadata(
+		asPlainRecord(envelope.payload?.metadata),
+	);
 	const updated = await ctx.sessionHost.updateSession(sessionId, { metadata });
 	const [session, snapshot] = await Promise.all([
 		readHubSessionRecord(ctx, sessionId),
@@ -749,13 +1000,114 @@ export async function handleSessionUpdate(
 	};
 }
 
+export async function handleSessionUpdateConnection(
+	ctx: HubTransportContext,
+	envelope: HubCommandEnvelope,
+): Promise<HubReplyEnvelope> {
+	const sessionId = extractSessionId(envelope);
+	if (!sessionId) {
+		return errorReply(
+			envelope,
+			"invalid_session_update_connection",
+			"session.update_connection requires a session id",
+		);
+	}
+	const updateSessionConnection = ctx.sessionHost.updateSessionConnection;
+	if (!updateSessionConnection) {
+		return errorReply(
+			envelope,
+			"unsupported_session_update_connection",
+			"runtime host does not support session connection updates",
+		);
+	}
+	const payload = asPlainRecord(envelope.payload);
+	const updates = readSessionConnectionUpdate(payload?.updates);
+	await updateSessionConnection.call(ctx.sessionHost, sessionId, updates);
+	return okReply(envelope, { sessionId, updated: true });
+}
+
+export async function handleSessionCompactionUpdate(
+	ctx: HubTransportContext,
+	envelope: HubCommandEnvelope,
+): Promise<HubReplyEnvelope> {
+	const sessionId = extractSessionId(envelope);
+	if (!sessionId) {
+		return errorReply(
+			envelope,
+			"invalid_session_id",
+			"session.compaction.update requires a session id",
+		);
+	}
+	const clientId = envelope.clientId?.trim() || "hub-client";
+	const session = await readHubSessionRecord(ctx, sessionId);
+	if (!session) {
+		return errorReply(
+			envelope,
+			"session_not_found",
+			`Unknown session: ${sessionId}`,
+		);
+	}
+	const unauthorized = authorizeSessionCompactionAccess({
+		sessionId,
+		ctx,
+		clientId,
+		envelope,
+	});
+	if (unauthorized) {
+		return unauthorized;
+	}
+	const payload =
+		envelope.payload && typeof envelope.payload === "object"
+			? envelope.payload
+			: {};
+	const state = parseSessionCompactionState(payload.state);
+	if (!state) {
+		return errorReply(
+			envelope,
+			"invalid_compaction_state",
+			"session.compaction.update requires a valid compaction state",
+		);
+	}
+	const updated = await ctx.sessionHost.updateSessionCompactionState(
+		sessionId,
+		state,
+	);
+	const [updatedSession, snapshot] = updated.updated
+		? await Promise.all([
+				readHubSessionRecord(ctx, sessionId),
+				readCoreSessionSnapshot(ctx, sessionId),
+			])
+		: [session, undefined];
+	if (updated.updated) {
+		ctx.publish(
+			ctx.buildEvent(
+				"session.updated",
+				{
+					session: updatedSession ?? session,
+					...(snapshot ? { snapshot } : {}),
+				},
+				sessionId,
+			),
+		);
+	}
+	return {
+		version: envelope.version,
+		requestId: envelope.requestId,
+		ok: true,
+		payload: {
+			updated: updated.updated,
+			session: updatedSession ?? session,
+			...(snapshot ? { snapshot } : {}),
+		},
+	};
+}
+
 export async function handleSessionDelete(
 	ctx: HubTransportContext,
 	envelope: HubCommandEnvelope,
 ): Promise<HubReplyEnvelope> {
 	const sessionId = extractSessionId(envelope);
-	const deleted = await ctx.sessionHost.deleteSession(sessionId);
-	ctx.sessionState.delete(sessionId);
+	const deleted = await deleteSessionAndCleanDerivedState(ctx, sessionId);
 	return okReply(envelope, { deleted });
 }
 

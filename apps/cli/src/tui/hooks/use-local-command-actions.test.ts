@@ -9,11 +9,13 @@ function makeActions(
 	overrides: Partial<Omit<LocalSlashCommandActionInput, "name">> = {},
 ): Omit<LocalSlashCommandActionInput, "name"> {
 	return {
+		isRunning: false,
 		openAccount: vi.fn(),
 		openConfig: vi.fn(),
 		openMcpManager: vi.fn(async () => false),
 		openModelSelector: vi.fn(),
 		openSkills: vi.fn(),
+		openThemePicker: vi.fn(),
 		runCompact: vi.fn(),
 		runFork: vi.fn(),
 		runUndo: vi.fn(async () => {}),
@@ -56,6 +58,32 @@ describe("runLocalSlashCommandAction", () => {
 
 		expect(handled).toBe(true);
 		expect(openConfig).toHaveBeenCalledWith({ initialTab: "plugins" });
+	});
+
+	it("does not start compaction while a turn is running", () => {
+		const runCompact = vi.fn();
+		const actions = makeActions({ isRunning: true, runCompact });
+
+		const handled = runLocalSlashCommandAction({
+			name: "compact",
+			...actions,
+		});
+
+		expect(handled).toBe(true);
+		expect(runCompact).not.toHaveBeenCalled();
+	});
+
+	it("starts compaction while the session is idle", () => {
+		const runCompact = vi.fn();
+		const actions = makeActions({ runCompact });
+
+		const handled = runLocalSlashCommandAction({
+			name: "compact",
+			...actions,
+		});
+
+		expect(handled).toBe(true);
+		expect(runCompact).toHaveBeenCalledOnce();
 	});
 
 	it("waits for clear to reset the runtime session", async () => {
@@ -161,7 +189,7 @@ describe("formatCompactionStatus", () => {
 				messagesAfter: 300,
 				compacted: true,
 			}),
-		).toBe("Compacted context; message count stayed at 300.");
+		).toBe("Compacted context; message count stayed at 300 messages.");
 	});
 
 	it("reports empty sessions separately", () => {

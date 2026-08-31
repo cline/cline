@@ -21,11 +21,23 @@ export type DesktopTransportEvent = {
 	};
 };
 
+export type DesktopDebugLogPayload = {
+	scope: string;
+	level: "debug" | "info" | "error";
+	message: string;
+	timestamp: string;
+	metadata?: Record<string, unknown>;
+};
+
 export type DesktopTransportMessage =
 	| DesktopTransportResponse
 	| DesktopTransportEvent;
 
-export type DesktopTransportState = "connecting" | "reconnecting" | "connected";
+export type DesktopTransportState =
+	| "connecting"
+	| "reconnecting"
+	| "connected"
+	| "unavailable";
 
 export type DesktopBackendReadyPayload = {
 	endpoint: string;

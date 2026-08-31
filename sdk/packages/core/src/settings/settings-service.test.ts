@@ -1,21 +1,34 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { setHomeDir } from "@cline/shared/storage";
 import { afterEach, describe, expect, it } from "vitest";
 import type { UserInstructionConfigService } from "../extensions/config";
+import { listPluginToolsWithDiagnostics } from "../services/plugin-tools";
 import { CoreSettingsService } from "./settings-service";
 
 describe("CoreSettingsService", () => {
 	const tempRoots: string[] = [];
 	const envSnapshot = {
+		HOME: process.env.HOME,
 		CLINE_GLOBAL_SETTINGS_PATH: process.env.CLINE_GLOBAL_SETTINGS_PATH,
 		CLINE_MCP_SETTINGS_PATH: process.env.CLINE_MCP_SETTINGS_PATH,
 	};
 
 	afterEach(async () => {
-		process.env.CLINE_GLOBAL_SETTINGS_PATH =
-			envSnapshot.CLINE_GLOBAL_SETTINGS_PATH;
-		process.env.CLINE_MCP_SETTINGS_PATH = envSnapshot.CLINE_MCP_SETTINGS_PATH;
+		process.env.HOME = envSnapshot.HOME;
+		setHomeDir(envSnapshot.HOME ?? "~");
+		if (envSnapshot.CLINE_GLOBAL_SETTINGS_PATH === undefined) {
+			delete process.env.CLINE_GLOBAL_SETTINGS_PATH;
+		} else {
+			process.env.CLINE_GLOBAL_SETTINGS_PATH =
+				envSnapshot.CLINE_GLOBAL_SETTINGS_PATH;
+		}
+		if (envSnapshot.CLINE_MCP_SETTINGS_PATH === undefined) {
+			delete process.env.CLINE_MCP_SETTINGS_PATH;
+		} else {
+			process.env.CLINE_MCP_SETTINGS_PATH = envSnapshot.CLINE_MCP_SETTINGS_PATH;
+		}
 		await Promise.all(
 			tempRoots.map((dir) => rm(dir, { recursive: true, force: true })),
 		);
@@ -103,6 +116,278 @@ Use this skill.`,
 				}),
 			]),
 		);
+	});
+
+	it("lists bundled plugin skills with plugin ownership metadata", async () => {
+		const tempRoot = await mkdtemp(
+			join(tmpdir(), "core-settings-plugin-skills-"),
+		);
+		tempRoots.push(tempRoot);
+		const installRoot = join(
+			tempRoot,
+			".cline",
+			"plugins",
+			"_installed",
+			"local",
+			"test-plugin-skill-owner",
+		);
+		const packageRoot = join(installRoot, "package");
+		const pluginPath = join(packageRoot, "index.ts");
+		const skillDir = join(packageRoot, "skills", "test-plugin-skill-owner");
+		await mkdir(skillDir, { recursive: true });
+		await writeFile(
+			join(installRoot, "package.json"),
+			JSON.stringify({
+				name: "test-plugin-skill-owner",
+				cline: {
+					plugins: [{ paths: ["./package/index.ts"] }],
+				},
+			}),
+		);
+		await writeFile(pluginPath, "export default {};");
+		await writeFile(
+			join(skillDir, "SKILL.md"),
+			`---
+name: test-plugin-skill-owner
+description: Browser agent
+---
+Use the browser.`,
+		);
+
+		const snapshot = await new CoreSettingsService().list({ cwd: tempRoot });
+
+		expect(snapshot.skills).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					id: "test-plugin-skill-owner",
+					name: "test-plugin-skill-owner",
+					source: "workspace-plugin",
+					pluginName: "test-plugin-skill-owner",
+					pluginPath,
+					enabled: true,
+				}),
+			]),
+		);
+		expect(
+			snapshot.plugins.find((plugin) => plugin.path === pluginPath)
+				?.contributions?.skills,
+		).toEqual(["test-plugin-skill-owner"]);
+	});
+
+	it("does not list skills from disabled plugins", async () => {
+		const tempRoot = await mkdtemp(
+			join(tmpdir(), "core-settings-plugin-skills-"),
+		);
+		tempRoots.push(tempRoot);
+		const settingsPath = join(tempRoot, "global-settings.json");
+		process.env.CLINE_GLOBAL_SETTINGS_PATH = settingsPath;
+		const installRoot = join(
+			tempRoot,
+			".cline",
+			"plugins",
+			"_installed",
+			"local",
+			"test-plugin-skill-disabled",
+		);
+		const packageRoot = join(installRoot, "package");
+		const pluginPath = join(packageRoot, "index.ts");
+		const skillDir = join(packageRoot, "skills", "test-plugin-skill-disabled");
+		await mkdir(skillDir, { recursive: true });
+		await writeFile(
+			join(installRoot, "package.json"),
+			JSON.stringify({
+				name: "test-plugin-skill-disabled",
+				cline: {
+					plugins: [{ paths: ["./package/index.ts"] }],
+				},
+			}),
+		);
+		await writeFile(
+			pluginPath,
+			'throw new Error("disabled plugin executed"); export default {};',
+		);
+		await writeFile(
+			join(skillDir, "SKILL.md"),
+			`---
+name: test-plugin-skill-disabled
+description: Browser agent
+---
+Use the browser.`,
+		);
+		await writeFile(
+			settingsPath,
+			JSON.stringify({ disabledPlugins: [pluginPath] }),
+		);
+
+		const snapshot = await new CoreSettingsService().list({ cwd: tempRoot });
+		const diagnostics = await listPluginToolsWithDiagnostics({
+			workspacePath: tempRoot,
+			cwd: tempRoot,
+		});
+
+		expect(snapshot.skills).not.toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					id: "test-plugin-skill-disabled",
+					pluginPath,
+				}),
+			]),
+		);
+		expect(diagnostics.tools.some((tool) => tool.path === pluginPath)).toBe(
+			false,
+		);
+		expect(
+			diagnostics.plugins.some((plugin) => plugin.path === pluginPath),
+		).toBe(false);
+		expect(
+			diagnostics.failures.some((failure) => failure.pluginPath === pluginPath),
+		).toBe(false);
+	});
+
+	it("lists package plugins by canonical name and toggles them", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "core-settings-plugins-"));
+		tempRoots.push(tempRoot);
+		process.env.HOME = tempRoot;
+		setHomeDir(tempRoot);
+		const settingsPath = join(tempRoot, "global-settings.json");
+		process.env.CLINE_GLOBAL_SETTINGS_PATH = settingsPath;
+		const installRoot = join(
+			tempRoot,
+			".cline",
+			"plugins",
+			"_installed",
+			"local",
+			"canonical-plugin",
+		);
+		const packageRoot = join(installRoot, "package");
+		const pluginPath = join(packageRoot, "src", "index.ts");
+		await mkdir(join(packageRoot, "src"), { recursive: true });
+		await writeFile(
+			join(installRoot, "package.json"),
+			JSON.stringify({
+				name: "canonical-plugin",
+				cline: {
+					plugins: [
+						{
+							paths: ["./package/src/index.ts"],
+							capabilities: ["tools", "rules", "hooks"],
+						},
+					],
+				},
+			}),
+		);
+		await writeFile(
+			join(packageRoot, "package.json"),
+			JSON.stringify({ name: "canonical-plugin", type: "module" }),
+		);
+		await mkdir(join(packageRoot, "skills"), { recursive: true });
+		await writeFile(
+			join(packageRoot, "skills", "code-review.md"),
+			"# Code review\n",
+		);
+		await writeFile(
+			pluginPath,
+			[
+				'export default { name: "canonical-plugin", manifest: { capabilities: ["tools", "rules", "hooks"] },',
+				"setup(api) { api.registerTool({",
+				'name: "canonical_tool", description: "Canonical tool",',
+				'inputSchema: { type: "object", properties: {} },',
+				"execute: async () => ({ ok: true }),",
+				'}); api.registerRule({ id: "canonical_rule", content: "Rule" }); },',
+				"hooks: { beforeRun() {} } };",
+			].join("\n"),
+		);
+		const service = new CoreSettingsService();
+
+		const listed = await service.list({ cwd: tempRoot });
+		expect(listed.plugins).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					id: pluginPath,
+					name: "canonical-plugin",
+					path: pluginPath,
+					kind: "plugin",
+					source: "workspace-plugin",
+					enabled: true,
+					toggleable: true,
+					contributions: expect.objectContaining({
+						capabilities: ["hooks", "rules", "tools"],
+						tools: ["canonical_tool"],
+						skills: ["code-review"],
+						rules: ["canonical_rule"],
+						hooks: ["beforeRun"],
+					}),
+				}),
+			]),
+		);
+		expect(listed.tools).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					name: "canonical_tool",
+					pluginName: "canonical-plugin",
+					pluginPath,
+					enabled: true,
+				}),
+			]),
+		);
+
+		const disabled = await service.toggle({
+			type: "plugins",
+			path: pluginPath,
+			enabled: false,
+			cwd: tempRoot,
+		});
+		expect(disabled.changedTypes).toEqual(["plugins"]);
+		expect(
+			disabled.snapshot.plugins.find((plugin) => plugin.path === pluginPath)
+				?.enabled,
+		).toBe(false);
+		expect(
+			disabled.snapshot.tools.find((tool) => tool.pluginPath === pluginPath),
+		).toBeUndefined();
+		expect(
+			disabled.snapshot.plugins.find((plugin) => plugin.path === pluginPath)
+				?.contributions,
+		).toMatchObject({
+			inspectionStatus: "disabled",
+			skills: ["code-review"],
+			tools: [],
+		});
+		expect(JSON.parse(await readFile(settingsPath, "utf8"))).toMatchObject({
+			disabledPlugins: [pluginPath],
+		});
+
+		const enabled = await service.toggle({
+			type: "plugins",
+			path: pluginPath,
+			cwd: tempRoot,
+		});
+		expect(
+			enabled.snapshot.plugins.find((plugin) => plugin.path === pluginPath)
+				?.enabled,
+		).toBe(true);
+	});
+
+	it("does not use a shared plugin search-root package name for standalone plugins", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "core-settings-plugins-"));
+		tempRoots.push(tempRoot);
+		process.env.HOME = tempRoot;
+		setHomeDir(tempRoot);
+		const pluginRoot = join(tempRoot, ".cline", "plugins");
+		await mkdir(pluginRoot, { recursive: true });
+		await writeFile(
+			join(pluginRoot, "package.json"),
+			JSON.stringify({ name: "shared-plugin-root" }),
+		);
+		await writeFile(join(pluginRoot, "alpha.ts"), "export default {};");
+		await writeFile(join(pluginRoot, "beta.ts"), "export default {};");
+
+		const snapshot = await new CoreSettingsService().list({ cwd: tempRoot });
+
+		expect(snapshot.plugins.map((plugin) => plugin.name).sort()).toEqual([
+			"alpha",
+			"beta",
+		]);
 	});
 
 	it("lists and toggles MCP server disabled state", async () => {
@@ -287,6 +572,7 @@ Use this skill.`,
 				await readFile(process.env.CLINE_GLOBAL_SETTINGS_PATH, "utf8"),
 			),
 		).toEqual({
+			autoUpdateEnabled: true,
 			disabledTools: ["plugin-tool"],
 			telemetryOptOut: false,
 		});
@@ -297,6 +583,6 @@ Use this skill.`,
 			JSON.parse(
 				await readFile(process.env.CLINE_GLOBAL_SETTINGS_PATH, "utf8"),
 			),
-		).toEqual({ telemetryOptOut: false });
+		).toEqual({ autoUpdateEnabled: true, telemetryOptOut: false });
 	});
 });

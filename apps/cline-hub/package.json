@@ -12,6 +12,7 @@
 		"dev": "bun run src/dev.ts",
 		"start": "bun run src/server.ts",
 		"smoke:options": "bun run src/validate-options.ts",
+		"test": "bunx vitest run --config vitest.config.ts",
 		"typecheck": "bun tsc -p tsconfig.json --noEmit"
 	},
 	"dependencies": {

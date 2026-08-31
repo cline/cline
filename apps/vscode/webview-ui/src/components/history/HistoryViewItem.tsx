@@ -14,6 +14,7 @@ import {
 } from "lucide-react"
 import { memo, useCallback, useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
+import { useUsageCostVisibility } from "@/hooks/useUsageCostVisibility"
 import { cn } from "@/lib/utils"
 import { TaskServiceClient } from "@/services/grpc-client"
 import { formatLargeNumber, formatSize } from "@/utils/format"
@@ -37,6 +38,7 @@ const HistoryViewItem = ({
 	selectedItems,
 }: HistoryViewItemProps) => {
 	const [expanded, setExpanded] = useState(false)
+	const isCostVisible = useUsageCostVisibility()
 
 	const isFavoritedItem = useMemo(
 		() => pendingFavoriteToggles[item.id] ?? item.isFavorited,
@@ -98,6 +100,11 @@ const HistoryViewItem = ({
 					<div className="line-clamp-1 overflow-hidden break-words whitespace-pre-wrap flex-1 min-w-0">
 						<span className="ph-no-capture">{item.task}</span>
 					</div>
+					{item.isLegacy && (
+						<span className="text-xs uppercase rounded px-1.5 py-0.5 bg-accent/20 text-description flex-shrink-0">
+							Legacy
+						</span>
+					)}
 					<div className="flex gap-2 flex-shrink-0">
 						<Button
 							aria-label="Delete"
@@ -140,7 +147,9 @@ const HistoryViewItem = ({
 					<div className="flex items-center justify-between w-full">
 						<div className="text-description text-xs uppercase">{formatDate(item.ts)}</div>
 						<div className="self-end flex items-center text-xs">
-							<span className="text-description">${item.totalCost?.toFixed(4) ?? 0}</span>
+							{isCostVisible(item.apiProvider) && (
+								<span className="text-description">${item.totalCost?.toFixed(4) ?? 0}</span>
+							)}
 							{expanded ? (
 								<ChevronsDownUpIcon className="text-description" />
 							) : (

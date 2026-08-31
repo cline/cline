@@ -2,23 +2,37 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import * as LlmsModels from "@cline/llms";
+import { CLINE_DEFAULT_MODEL_ID } from "@cline/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+	FALLBACK_CLINE_RECOMMENDED_MODELS,
+	getCachedClineRecommendedModels,
+	resetClineRecommendedModelsCacheForTests,
+} from "../llms/cline-recommended-models";
+import { clearLiveModelsCatalogCache } from "../llms/provider-defaults";
 import { ProviderSettingsManager } from "../storage/provider-settings-manager";
 import {
 	parseModelsFile,
 	readModelsFile,
 	registerCustomProvider,
 	resolveModelsRegistryPath,
+	toProviderModel,
 } from "./local-provider-registry";
 import {
 	addLocalProvider,
+	createConfiguredStreamingTranscriptionSession,
 	deleteLocalProvider,
 	getLocalProviderModels,
+	isDedicatedTranscriptionModel,
 	listLocalProviders,
+	markLocalProviderEnabled,
 	normalizeOAuthProvider,
 	refreshProviderModelsFromSource,
 	resolveLocalClineAuthToken,
 	saveLocalProviderSettings,
+	saveVoiceInputSettings,
+	transcribeConfiguredVoiceInput,
+	transcribeLocalAudio,
 	updateLocalProvider,
 } from "./local-provider-service";
 
@@ -47,6 +61,8 @@ function makeTempManager(): {
 // ---------------------------------------------------------------------------
 
 afterEach(() => {
+	clearLiveModelsCatalogCache();
+	resetClineRecommendedModelsCacheForTests();
 	LlmsModels.resetRegistry();
 	vi.restoreAllMocks();
 	vi.unstubAllGlobals();
@@ -68,6 +84,11 @@ describe("models registry parsing", () => {
 						alpha: {
 							name: "Alpha",
 							capabilities: ["reasoning"],
+							inputPrice: 1.25,
+							outputPrice: 3.5,
+							cacheReadsPrice: 0.25,
+							cacheWritesPrice: 1.5,
+							temperature: 0.2,
 						},
 					},
 				},
@@ -91,7 +112,180 @@ describe("models registry parsing", () => {
 		});
 		await expect(
 			LlmsModels.getModelsForProvider("schema-provider"),
-		).resolves.toHaveProperty("alpha");
+		).resolves.toMatchObject({
+			alpha: {
+				pricing: {
+					input: 1.25,
+					output: 3.5,
+					cacheRead: 0.25,
+					cacheWrite: 1.5,
+				},
+				temperature: 0.2,
+			},
+		});
+	});
+
+	it("drops invalid model numbers and lets explicit capability booleans win", async () => {
+		const parsed = parseModelsFile({
+			version: 1,
+			providers: {
+				"normalized-provider": {
+					provider: {
+						name: "Normalized Provider",
+						baseUrl: "https://normalized.example.invalid/v1",
+					},
+					models: {
+						alpha: {
+							maxTokens: -1,
+							contextWindow: Number.POSITIVE_INFINITY,
+							maxInputTokens: 0,
+							capabilities: ["images", "files", "reasoning", "tools"],
+							supportsVision: false,
+							supportsAttachments: false,
+							supportsReasoning: false,
+							inputPrice: Number.NaN,
+							outputPrice: 2,
+							cacheReadsPrice: -1,
+							temperature: -1,
+							apiFormat: "openai-responses",
+						},
+					},
+				},
+			},
+		});
+
+		const entry = parsed.providers["normalized-provider"];
+		expect(entry?.models?.alpha).toEqual({
+			capabilities: ["images", "files", "reasoning", "tools"],
+			supportsVision: false,
+			supportsAttachments: false,
+			supportsReasoning: false,
+			outputPrice: 2,
+			apiFormat: "openai-responses",
+		});
+		if (!entry) {
+			throw new Error("expected normalized provider entry");
+		}
+
+		registerCustomProvider("normalized-provider", entry);
+
+		await expect(
+			LlmsModels.getModelsForProvider("normalized-provider"),
+		).resolves.toMatchObject({
+			alpha: {
+				capabilities: ["tools"],
+				apiFormat: "openai-responses",
+				pricing: { output: 2 },
+			},
+		});
+		const model = (await LlmsModels.getModelsForProvider("normalized-provider"))
+			.alpha;
+		expect(model).not.toHaveProperty("maxTokens");
+		expect(model).not.toHaveProperty("contextWindow");
+		expect(model).not.toHaveProperty("maxInputTokens");
+		expect(model).not.toHaveProperty("temperature");
+	});
+
+	it("seeds tool calling when capabilities are synthesized purely from boolean flags", async () => {
+		const parsed = parseModelsFile({
+			version: 1,
+			providers: {
+				"boolean-only-provider": {
+					provider: {
+						name: "Boolean Only Provider",
+						baseUrl: "https://boolean-only.example.invalid/v1",
+					},
+					models: {
+						// No explicit capabilities list: the entry only carries the
+						// boolean convenience flag. The synthesized list must include
+						// "tools", otherwise a non-empty list without it reads as an
+						// authoritative denial to modelSupportsToolCalling (#13463).
+						reasoner: {
+							contextWindow: 16000,
+							supportsReasoning: true,
+						},
+						// No flags at all: the capability list must stay absent so the
+						// runtime keeps its fail-open behavior.
+						bare: {
+							contextWindow: 16000,
+						},
+						// Explicit partial list on a non-catalog model: nothing can
+						// author a "no tools" stored entry (the VS Code legacy
+						// migration writes exactly this shape), so "tools" must be
+						// seeded here too.
+						"partial-list": {
+							capabilities: ["prompt-cache"],
+						},
+						// Non-language models must not gain a tools claim.
+						"image-gen": {
+							operation: "image-generation",
+							capabilities: ["images"],
+						},
+					},
+				},
+			},
+		});
+
+		const entry = parsed.providers["boolean-only-provider"];
+		if (!entry) {
+			throw new Error("expected boolean-only provider entry");
+		}
+
+		registerCustomProvider("boolean-only-provider", entry);
+
+		const models = await LlmsModels.getModelsForProvider(
+			"boolean-only-provider",
+		);
+		expect(models.reasoner?.capabilities).toEqual(
+			expect.arrayContaining(["reasoning", "tools"]),
+		);
+		expect(models.bare).not.toHaveProperty("capabilities");
+		expect(models["partial-list"]?.capabilities).toEqual(
+			expect.arrayContaining(["prompt-cache", "tools"]),
+		);
+		expect(models["image-gen"]?.capabilities).not.toContain("tools");
+	});
+
+	it("keeps generated tool support when stale OpenCode Go metadata shadows a catalog model", async () => {
+		const generatedModel =
+			LlmsModels.getGeneratedModelsForProvider("opencode-go")["glm-5.3"];
+		expect(generatedModel?.capabilities).toContain("tools");
+
+		const parsed = parseModelsFile({
+			version: 1,
+			providers: {
+				"opencode-go": {
+					models: {
+						"glm-5.3": {
+							// Older clients persisted only capability projections they
+							// understood. Once v4.1.11 began gating tools, this partial
+							// list shadowed the catalog's "tools" capability and disabled
+							// every edit/read tool for the model.
+							capabilities: ["reasoning", "prompt-cache"],
+						},
+					},
+				},
+			},
+		});
+
+		const entry = parsed.providers["opencode-go"];
+		if (!entry) {
+			throw new Error("expected OpenCode Go provider entry");
+		}
+
+		registerCustomProvider("opencode-go", entry);
+
+		const model = (await LlmsModels.getModelsForProvider("opencode-go"))[
+			"glm-5.3"
+		];
+		expect(model?.capabilities).toEqual(
+			expect.arrayContaining([
+				"tools",
+				"reasoning",
+				"prompt-cache",
+				"structured_output",
+			]),
+		);
 	});
 
 	it("skips malformed provider entries while preserving valid providers", () => {
@@ -222,6 +416,186 @@ describe("addLocalProvider – model ID parsing via modelsSourceUrl", () => {
 
 		const { models } = await getLocalProviderModels("ollama-shaped-provider");
 		expect(models.map((m) => m.id).sort()).toEqual(["llama3.1", "qwen3:8b"]);
+	});
+
+	it("merges live Cline models into the registered catalog", async () => {
+		const liveModelId = "vendor/live-cline-model";
+		const fetchMock = vi.fn(async (url: string) => {
+			if (url === "https://models.dev/api.json") {
+				return new Response(
+					JSON.stringify({
+						openrouter: {
+							models: {
+								[liveModelId]: {
+									name: "Live Cline Model",
+									tool_call: true,
+									reasoning: true,
+									limit: {
+										context: 256_000,
+										input: 200_000,
+										output: 32_000,
+									},
+								},
+							},
+						},
+					}),
+					{
+						status: 200,
+						headers: { "content-type": "application/json" },
+					},
+				);
+			}
+
+			return new Response(
+				JSON.stringify({
+					recommended: [
+						{
+							id: liveModelId,
+							name: liveModelId,
+							description: "Fresh from the live catalog",
+							tags: ["NEW"],
+						},
+					],
+					free: [],
+					clinePass: [],
+				}),
+				{
+					status: 200,
+					headers: { "content-type": "application/json" },
+				},
+			);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const { models } = await getLocalProviderModels("cline");
+
+		// models.dev and the recommended feed populate the live catalog; the
+		// recommended feed is fetched once more for the featured-tier overlay.
+		expect(fetchMock).toHaveBeenCalledTimes(3);
+		expect(models.find((model) => model.id === liveModelId)).toMatchObject({
+			id: liveModelId,
+			name: "Live Cline Model",
+			supportsReasoning: true,
+			description: "Fresh from the live catalog",
+			featured: { tier: "recommended", rank: 0, tags: ["NEW"] },
+		});
+	});
+
+	it("uses only live ClinePass models when live models are found", async () => {
+		const fetchMock = vi.fn(async (url: string) => {
+			if (url === "https://models.dev/api.json") {
+				return new Response(
+					JSON.stringify({
+						openrouter: {
+							models: {
+								"vendor/live-pass-model": {
+									name: "Live Pass Model",
+									tool_call: true,
+									reasoning: true,
+									limit: { context: 256_000, input: 200_000, output: 32_000 },
+								},
+								"vendor/live-free-model": {
+									name: "Live Free Model",
+									tool_call: true,
+									reasoning: true,
+									limit: { context: 512_000, input: 400_000, output: 64_000 },
+								},
+							},
+						},
+					}),
+					{
+						status: 200,
+						headers: { "content-type": "application/json" },
+					},
+				);
+			}
+
+			return new Response(
+				JSON.stringify({
+					clinePass: [
+						{
+							id: "cline-pass/live-pass-model",
+							name: "vendor/live-pass-model",
+						},
+					],
+					free: [{ id: "cline-free/live-free-model" }],
+				}),
+				{
+					status: 200,
+					headers: { "content-type": "application/json" },
+				},
+			);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const { models } = await getLocalProviderModels("cline-pass");
+
+		// models.dev, the recommended-models feed via the live catalog, and
+		// the recommended-models feed again for the featured-tier overlay
+		// (separately cached; both caches are cold here).
+		expect(fetchMock).toHaveBeenCalledTimes(3);
+		expect(models.map((model) => model.id)).toEqual(
+			expect.arrayContaining([
+				"cline-pass/live-pass-model",
+				"cline-free/live-free-model",
+			]),
+		);
+		expect(
+			models.find((model) => model.id === "cline-pass/live-pass-model"),
+		).toMatchObject({
+			id: "cline-pass/live-pass-model",
+			name: "Live Pass Model",
+			supportsReasoning: true,
+		});
+		expect(
+			models.find((model) => model.id === "cline-free/live-free-model"),
+		).toMatchObject({
+			id: "cline-free/live-free-model",
+			name: "Live Free Model (free)",
+			supportsReasoning: true,
+		});
+	});
+
+	it("falls back to generated ClinePass models when no live ClinePass models are found", async () => {
+		const fetchMock = vi.fn(async (url: string) => {
+			if (url === "https://models.dev/api.json") {
+				return new Response(
+					JSON.stringify({
+						openrouter: {
+							models: {
+								"vendor/live-openrouter-model": {
+									name: "Live OpenRouter Model",
+									tool_call: true,
+								},
+							},
+						},
+					}),
+					{
+						status: 200,
+						headers: { "content-type": "application/json" },
+					},
+				);
+			}
+
+			return new Response(JSON.stringify({ clinePass: [] }), {
+				status: 200,
+				headers: { "content-type": "application/json" },
+			});
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const { models } = await getLocalProviderModels("cline-pass");
+
+		// models.dev, the recommended-models feed via the live catalog, and
+		// the recommended-models feed again for the featured-tier overlay
+		// (separately cached; both caches are cold here).
+		expect(fetchMock).toHaveBeenCalledTimes(3);
+		expect(models.map((model) => model.id)).toContain(
+			"cline-pass/mimo-v2.5-pro",
+		);
+		expect(models.map((model) => model.id)).not.toContain(
+			"vendor/live-openrouter-model",
+		);
 	});
 
 	it("parses a { models: { id1: {}, id2: {} } } object-keyed payload", async () => {
@@ -556,6 +930,35 @@ describe("addLocalProvider – capabilities", () => {
 
 	afterEach(() => cleanup());
 
+	it("exposes the model context window to provider catalog consumers", () => {
+		expect(
+			toProviderModel("wide-model", {
+				name: "Wide Model",
+				contextWindow: 1_000_000,
+			}),
+		).toMatchObject({
+			id: "wide-model",
+			name: "Wide Model",
+			contextWindow: 1_000_000,
+		});
+	});
+
+	it("preserves operation routing facts for provider catalog consumers", () => {
+		expect(
+			toProviderModel("realtime-whisper", {
+				name: "Realtime Whisper",
+				operation: "transcription",
+				operationModes: ["streaming"],
+				modalities: { input: ["audio"], output: ["text"] },
+			}),
+		).toMatchObject({
+			operation: "transcription",
+			operationModes: ["streaming"],
+			inputModalities: ["audio"],
+			outputModalities: ["text"],
+		});
+	});
+
 	it("sets supportsVision and supportsAttachments when capability is 'vision'", async () => {
 		await addLocalProvider(manager, {
 			providerId: "vision-provider",
@@ -598,7 +1001,7 @@ describe("addLocalProvider – capabilities", () => {
 		expect(models[0].supportsReasoning).toBeFalsy();
 	});
 
-	it("merges LiteLLM private models into the provider model listing when auth is configured", async () => {
+	it("uses LiteLLM private models as the authoritative provider model listing when auth is configured", async () => {
 		manager.saveProviderSettings(
 			{
 				provider: "litellm",
@@ -632,14 +1035,216 @@ describe("addLocalProvider – capabilities", () => {
 			manager.getProviderConfig("litellm"),
 		);
 
-		expect(models.map((model) => model.id)).toContain("private-proxy-model");
-		expect(models.map((model) => model.id)).toContain("openai/gpt-4o-mini");
+		expect(models.map((model) => model.id).sort()).toEqual([
+			"openai/gpt-4o-mini",
+			"private-proxy-model",
+		]);
+		expect(models.map((model) => model.id)).not.toContain("gpt-5.4");
 		expect(
 			models.find((model) => model.id === "private-proxy-model"),
 		).toMatchObject({
 			supportsVision: true,
 			supportsReasoning: true,
 		});
+	});
+
+	it("uses an empty LiteLLM model list when no private model list is fetched", async () => {
+		manager.saveProviderSettings(
+			{
+				provider: "litellm",
+				baseUrl: "http://localhost:4010",
+				model: "gpt-4o",
+			},
+			{ setLastUsed: false },
+		);
+		const fetchMock = vi.fn();
+		vi.stubGlobal("fetch", fetchMock);
+
+		const { models } = await getLocalProviderModels(
+			"litellm",
+			manager.getProviderConfig("litellm"),
+		);
+
+		expect(fetchMock).not.toHaveBeenCalled();
+		expect(models).toEqual([]);
+	});
+});
+
+describe("audio transcription", () => {
+	let manager: ProviderSettingsManager;
+	let cleanup: () => void;
+
+	beforeEach(async () => {
+		({ manager, cleanup } = makeTempManager());
+		await addLocalProvider(manager, {
+			providerId: "audio-provider",
+			name: "Audio Provider",
+			baseUrl: "https://audio.example.invalid/v1",
+			apiKey: "audio-key",
+			models: ["whisper-large-v3"],
+		});
+		LlmsModels.registerModel("audio-provider", "whisper-large-v3", {
+			id: "whisper-large-v3",
+			name: "Whisper Large v3",
+			operation: "transcription",
+			operationModes: ["batch"],
+			modalities: { input: ["audio"], output: ["text"] },
+		});
+	});
+
+	afterEach(() => cleanup());
+
+	it("recognizes only the explicit transcription operation", () => {
+		expect(
+			isDedicatedTranscriptionModel({
+				operation: "transcription",
+			}),
+		).toBe(true);
+		expect(
+			isDedicatedTranscriptionModel({
+				operation: "speech-generation",
+			}),
+		).toBe(false);
+		expect(
+			isDedicatedTranscriptionModel({
+				operation: "language",
+			}),
+		).toBe(false);
+	});
+
+	it("transcribes with the configured provider and requested model", async () => {
+		const transcribeSpy = vi
+			.spyOn(LlmsModels, "transcribeAudio")
+			.mockResolvedValue({ text: "transcribed text" });
+
+		await expect(
+			transcribeLocalAudio(manager, {
+				providerId: "audio-provider",
+				modelId: "whisper-large-v3",
+				audio: new Uint8Array([1, 2, 3]),
+				mediaType: "audio/webm",
+			}),
+		).resolves.toEqual({ text: "transcribed text" });
+		expect(transcribeSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				modelId: "whisper-large-v3",
+				audio: new Uint8Array([1, 2, 3]),
+				mediaType: "audio/webm",
+				providerConfig: expect.objectContaining({
+					providerId: "audio-provider",
+					apiKey: "audio-key",
+				}),
+			}),
+		);
+	});
+
+	it("persists and uses the configured voice input model", async () => {
+		await expect(
+			saveVoiceInputSettings(manager, {
+				providerId: "audio-provider",
+				modelId: "whisper-large-v3",
+			}),
+		).resolves.toMatchObject({
+			voiceInput: {
+				providerId: "audio-provider",
+				modelId: "whisper-large-v3",
+			},
+		});
+
+		const transcribeSpy = vi
+			.spyOn(LlmsModels, "transcribeAudio")
+			.mockResolvedValue({ text: "configured transcript" });
+		await expect(
+			transcribeConfiguredVoiceInput(manager, {
+				audio: new Uint8Array([4, 5, 6]),
+				mediaType: "audio/webm",
+			}),
+		).resolves.toEqual({ text: "configured transcript" });
+		expect(transcribeSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				modelId: "whisper-large-v3",
+				providerConfig: expect.objectContaining({
+					providerId: "audio-provider",
+				}),
+			}),
+		);
+	});
+
+	it("creates a streaming session only for a streaming transcription model", async () => {
+		LlmsModels.registerModel("audio-provider", "realtime-whisper", {
+			id: "realtime-whisper",
+			name: "Realtime Whisper",
+			operation: "transcription",
+			operationModes: ["streaming"],
+			modalities: { input: ["audio"], output: ["text"] },
+		});
+		await saveVoiceInputSettings(manager, {
+			providerId: "audio-provider",
+			modelId: "realtime-whisper",
+		});
+		const createSessionSpy = vi
+			.spyOn(LlmsModels, "createStreamingAudioTranscriptionSession")
+			.mockResolvedValue({
+				token: "short-lived-token",
+				url: "wss://audio.example.invalid/transcription",
+			});
+
+		await expect(
+			createConfiguredStreamingTranscriptionSession(manager),
+		).resolves.toMatchObject({ token: "short-lived-token" });
+		expect(createSessionSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				modelId: "realtime-whisper",
+				providerConfig: expect.objectContaining({
+					providerId: "audio-provider",
+				}),
+			}),
+		);
+	});
+
+	it("rejects a voice input selection that is not an audio-to-text model", async () => {
+		await expect(
+			saveVoiceInputSettings(manager, {
+				providerId: "audio-provider",
+				modelId: "missing-model",
+			}),
+		).rejects.toThrow(
+			'Model "missing-model" is not a dedicated audio-to-text transcription model',
+		);
+		expect(manager.getVoiceInputSettings()).toBeUndefined();
+	});
+
+	it("resolves the built-in ElevenLabs endpoint from providers.json", async () => {
+		manager.saveProviderSettings(
+			{
+				provider: "elevenlabs",
+				model: "scribe_v2",
+				apiKey: "eleven-key",
+			},
+			{ setLastUsed: false },
+		);
+		const transcribeSpy = vi
+			.spyOn(LlmsModels, "transcribeAudio")
+			.mockResolvedValue({ text: "ElevenLabs transcript" });
+
+		await expect(
+			transcribeLocalAudio(manager, {
+				providerId: "elevenlabs",
+				modelId: "scribe_v2",
+				audio: new Uint8Array([1, 2, 3]),
+				mediaType: "audio/webm",
+			}),
+		).resolves.toEqual({ text: "ElevenLabs transcript" });
+		expect(transcribeSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				modelId: "scribe_v2",
+				providerConfig: expect.objectContaining({
+					providerId: "elevenlabs",
+					apiKey: "eleven-key",
+					baseUrl: "https://api.elevenlabs.io/v1",
+				}),
+			}),
+		);
 	});
 });
 
@@ -649,6 +1254,15 @@ describe("addLocalProvider – capabilities", () => {
 
 describe("models.json model overlays", () => {
 	it("loads model-only entries for built-in providers", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn().mockResolvedValue(
+				new Response(JSON.stringify({}), {
+					status: 200,
+					headers: { "content-type": "application/json" },
+				}),
+			),
+		);
 		const dir = mkdtempSync(
 			path.join(os.tmpdir(), "local-provider-overlay-test-"),
 		);
@@ -684,7 +1298,7 @@ describe("models.json model overlays", () => {
 			expect(provider).toMatchObject({
 				id: "cline",
 				baseUrl: "https://api.cline.bot/api/v1",
-				defaultModelId: "anthropic/claude-sonnet-4.6",
+				defaultModelId: CLINE_DEFAULT_MODEL_ID,
 			});
 
 			const { models } = await getLocalProviderModels("cline");
@@ -725,6 +1339,10 @@ describe("saveLocalProviderSettings", () => {
 	afterEach(() => cleanup());
 
 	it("disabling a provider removes it from settings", () => {
+		manager.setVoiceInputSettings({
+			providerId: "test-provider",
+			modelId: "m1",
+		});
 		const result = saveLocalProviderSettings(manager, {
 			providerId: "test-provider",
 			enabled: false,
@@ -732,6 +1350,7 @@ describe("saveLocalProviderSettings", () => {
 
 		expect(result.enabled).toBe(false);
 		expect(manager.getProviderSettings("test-provider")).toBeUndefined();
+		expect(manager.getVoiceInputSettings()).toBeUndefined();
 	});
 
 	it("updates apiKey", () => {
@@ -1090,6 +1709,84 @@ describe("listLocalProviders", () => {
 		expect(ids).toContain("list-provider-b");
 	});
 
+	it("hides ClinePass when the ClinePass feature flag is disabled", async () => {
+		const { providers } = await listLocalProviders(manager, {
+			isClinePassEnabled: false,
+		});
+
+		expect(providers.map((p) => p.id)).not.toContain("cline-pass");
+	});
+
+	it("includes ClinePass when the ClinePass feature flag is enabled", async () => {
+		const { providers } = await listLocalProviders(manager, {
+			isClinePassEnabled: true,
+		});
+
+		expect(providers.map((p) => p.id)).toContain("cline-pass");
+	});
+
+	it("stamps featured tiers from the bundled fallback without a feed fetch", async () => {
+		const fetchMock = vi.fn();
+		vi.stubGlobal("fetch", fetchMock);
+
+		const { providers } = await listLocalProviders(manager);
+		const modelList =
+			providers.find((provider) => provider.id === "cline")?.modelList ?? [];
+		const stampedIds = modelList
+			.filter((model) => model.featured?.tier === "recommended")
+			.map((model) => model.id);
+		const expectedIds = FALLBACK_CLINE_RECOMMENDED_MODELS.recommended
+			.map((model) => model.id)
+			.filter((id) => modelList.some((model) => model.id === id));
+
+		// A cold boot must still paint tiered sections: the catalog stamps
+		// synchronously from the bundled fallback instead of waiting on (or
+		// triggering) a feed fetch.
+		expect(stampedIds.length).toBeGreaterThan(0);
+		expect(new Set(stampedIds)).toEqual(new Set(expectedIds));
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it("stamps featured tiers from the cached live feed once warmed", async () => {
+		const clineModelIds = Object.keys(
+			await LlmsModels.getModelsForProvider("cline"),
+		);
+		const [recommendedId, freeId] = clineModelIds;
+		await getCachedClineRecommendedModels({
+			baseUrl: "https://api.example.test",
+			fetchImpl: async () =>
+				new Response(
+					JSON.stringify({
+						recommended: [
+							{
+								id: recommendedId,
+								name: "Live Pick",
+								description: "Live description",
+								tags: ["NEW"],
+							},
+						],
+						free: [{ id: freeId, name: "Live Free", description: "" }],
+						clinePass: [],
+					}),
+					{ status: 200, headers: { "Content-Type": "application/json" } },
+				),
+			catalogLoader: async () => ({}),
+		});
+
+		const { providers } = await listLocalProviders(manager);
+		const modelList =
+			providers.find((provider) => provider.id === "cline")?.modelList ?? [];
+
+		expect(
+			modelList.find((model) => model.id === recommendedId)?.featured,
+		).toEqual({ tier: "recommended", rank: 0, tags: ["NEW"] });
+		expect(modelList.find((model) => model.id === freeId)?.featured).toEqual({
+			tier: "free",
+			rank: 0,
+			tags: [],
+		});
+	});
+
 	it("marks enabled providers correctly", async () => {
 		await addLocalProvider(manager, {
 			providerId: "enabled-check-provider",
@@ -1101,6 +1798,79 @@ describe("listLocalProviders", () => {
 		const { providers } = await listLocalProviders(manager);
 		const p = providers.find((x) => x.id === "enabled-check-provider");
 		expect(p?.enabled).toBe(true);
+	});
+
+	it("returns the configured voice input selection", async () => {
+		await addLocalProvider(manager, {
+			providerId: "voice-list-provider",
+			name: "Voice List Provider",
+			baseUrl: "https://example.invalid/v1",
+			models: ["whisper"],
+		});
+		LlmsModels.registerModel("voice-list-provider", "whisper", {
+			id: "whisper",
+			name: "Whisper",
+			operation: "transcription",
+			operationModes: ["batch"],
+			modalities: { input: ["audio"], output: ["text"] },
+		});
+		await saveVoiceInputSettings(manager, {
+			providerId: "voice-list-provider",
+			modelId: "whisper",
+		});
+
+		const catalog = await listLocalProviders(manager);
+		expect(catalog.voiceInput).toEqual({
+			providerId: "voice-list-provider",
+			modelId: "whisper",
+		});
+	});
+
+	it("marks alias providers enabled without copying shared OAuth credentials", async () => {
+		manager.saveProviderSettings(
+			{
+				provider: "cline",
+				auth: {
+					accessToken: "shared-token",
+					refreshToken: "shared-refresh",
+				},
+			},
+			{ setLastUsed: false, tokenSource: "oauth" },
+		);
+
+		markLocalProviderEnabled(manager, "cline-pass", { tokenSource: "oauth" });
+
+		const state = manager.read();
+		expect(state.providers["cline-pass"]?.settings).toEqual({
+			provider: "cline-pass",
+		});
+		expect(state.providers["cline-pass"]?.tokenSource).toBe("oauth");
+	});
+
+	it("resolves shared OAuth metadata for ClinePass catalog entries", async () => {
+		manager.saveProviderSettings(
+			{
+				provider: "cline",
+				auth: {
+					accessToken: "shared-token",
+					refreshToken: "shared-refresh",
+				},
+			},
+			{ setLastUsed: false, tokenSource: "oauth" },
+		);
+		markLocalProviderEnabled(manager, "cline-pass", { tokenSource: "oauth" });
+
+		const { providers } = await listLocalProviders(manager, {
+			isClinePassEnabled: true,
+		});
+		const clinePass = providers.find(
+			(provider) => provider.id === "cline-pass",
+		);
+
+		expect(clinePass).toMatchObject({
+			enabled: true,
+			oauthAccessTokenPresent: true,
+		});
 	});
 
 	it("exposes model count", async () => {
@@ -1177,7 +1947,7 @@ describe("listLocalProviders", () => {
 		).toBe(false);
 	});
 
-	it("uses the same built-in model list for cline as openrouter", async () => {
+	it("uses Cline-specific Z.ai aliases in the built-in model list", async () => {
 		manager.saveProviderSettings(
 			{
 				provider: "cline",
@@ -1193,9 +1963,17 @@ describe("listLocalProviders", () => {
 		const openrouter = providers.find(
 			(provider) => provider.id === "openrouter",
 		);
+		const clineModelIds = new Set(
+			cline?.modelList?.map((model) => model.id) ?? [],
+		);
+		const openrouterModelIds = new Set(
+			openrouter?.modelList?.map((model) => model.id) ?? [],
+		);
 
 		expect(cline?.modelList?.length).toBeGreaterThan(0);
-		expect(cline?.modelList).toEqual(openrouter?.modelList);
+		expect(clineModelIds).toContain("zai/glm-5.2");
+		expect(clineModelIds).not.toContain("z-ai/glm-5.2");
+		expect(openrouterModelIds).toContain("z-ai/glm-5.2");
 	});
 
 	it("does not eagerly fetch LiteLLM private models while listing providers", async () => {
@@ -1248,8 +2026,7 @@ describe("normalizeOAuthProvider", () => {
 		expect(normalizeOAuthProvider("OCA")).toBe("oca");
 	});
 
-	it("normalizes 'codex' and 'openai-codex' to 'openai-codex'", () => {
-		expect(normalizeOAuthProvider("codex")).toBe("openai-codex");
+	it("normalizes 'openai-codex' to 'openai-codex'", () => {
 		expect(normalizeOAuthProvider("openai-codex")).toBe("openai-codex");
 		expect(normalizeOAuthProvider("OPENAI-CODEX")).toBe("openai-codex");
 	});

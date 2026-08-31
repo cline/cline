@@ -27,21 +27,51 @@ export function cloneToolPolicies(
 	);
 }
 
+export function resolveInteractiveAutoApprovePolicy(input: {
+	toolName: string;
+	baselinePolicies: Record<string, ToolPolicy>;
+	enabled: boolean;
+}): ToolPolicy {
+	const toolPolicy = input.baselinePolicies[input.toolName] ?? {};
+	const baselinePolicy = {
+		...(input.baselinePolicies["*"] ?? {}),
+		...toolPolicy,
+	};
+	return {
+		...baselinePolicy,
+		autoApprove: input.enabled
+			? true
+			: SAFE_AUTO_APPROVE_TOOLS.has(input.toolName)
+				? (toolPolicy.autoApprove ?? true)
+				: false,
+	};
+}
+
 export function applyInteractiveAutoApproveOverride(input: {
 	targetPolicies: Record<string, ToolPolicy>;
 	baselinePolicies: Record<string, ToolPolicy>;
 	enabled: boolean;
 }): void {
 	const nextPolicies: Record<string, ToolPolicy> = input.enabled
-		? cloneToolPolicies(input.baselinePolicies)
+		? Object.fromEntries(
+				Object.entries(input.baselinePolicies).map(([name, policy]) => [
+					name,
+					{
+						...policy,
+						autoApprove: true,
+					},
+				]),
+			)
 		: Object.fromEntries(
 				Object.entries(input.baselinePolicies).map(([name, policy]) => [
 					name,
 					{
 						...policy,
-						autoApprove: SAFE_AUTO_APPROVE_TOOLS.has(name)
-							? (policy.autoApprove ?? true)
-							: false,
+						autoApprove: resolveInteractiveAutoApprovePolicy({
+							toolName: name,
+							baselinePolicies: input.baselinePolicies,
+							enabled: false,
+						}).autoApprove,
 					},
 				]),
 			);
@@ -53,9 +83,7 @@ export function applyInteractiveAutoApproveOverride(input: {
 	}
 
 	const globalPolicy = clonePolicy(nextPolicies["*"]);
-	globalPolicy.autoApprove = input.enabled
-		? (input.baselinePolicies["*"]?.autoApprove ?? true)
-		: false;
+	globalPolicy.autoApprove = input.enabled;
 	nextPolicies["*"] = globalPolicy;
 
 	for (const key of Object.keys(input.targetPolicies)) {

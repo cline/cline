@@ -1,6 +1,7 @@
 import { StringRequest } from "@shared/proto/cline/common"
 import { memo } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useUsageCostVisibility } from "@/hooks/useUsageCostVisibility"
 import { TaskServiceClient } from "@/services/grpc-client"
 
 type HistoryPreviewProps = {
@@ -9,6 +10,7 @@ type HistoryPreviewProps = {
 
 const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 	const { taskHistory } = useExtensionState()
+	const isCostVisible = useUsageCostVisibility()
 	const handleHistorySelect = (id: string) => {
 		TaskServiceClient.showTaskWithId(StringRequest.create({ value: id })).catch((error) =>
 			console.error("Error showing task:", error),
@@ -118,7 +120,8 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 						style={{
 							marginRight: "4px",
 							transform: "scale(0.9)",
-						}}></span>
+						}}
+					/>
 					<span
 						style={{
 							fontWeight: 500,
@@ -160,10 +163,11 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 											/>
 										)}
 										<div className="history-task-description ph-no-capture">{item.task}</div>
+										{item.isLegacy && <span className="history-cost-chip">Legacy</span>}
 									</div>
 									<div className="history-meta-stack">
 										<span className="history-date">{formatDate(item.ts)}</span>
-										{item.totalCost != null && (
+										{item.totalCost != null && isCostVisible(item.apiProvider) && (
 											<span className="history-cost-chip">${item.totalCost.toFixed(2)}</span>
 										)}
 									</div>

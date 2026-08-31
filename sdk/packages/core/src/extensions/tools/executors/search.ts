@@ -10,6 +10,17 @@ import * as path from "node:path";
 import type { AgentToolContext } from "@cline/shared";
 import { getFileIndex } from "../../../services/workspace";
 import type { SearchExecutor } from "../types";
+import { MAX_LINE_CHARS, MAX_SEARCH_OUTPUT_CHARS } from "./output-limits";
+
+/**
+ * Cap on buffered `rg --json` stdout. Each event embeds the full text of its
+ * matched line, so one match in a giant single-line file (e.g. a serialized
+ * trace dump) can produce a multi-hundred-MB event; buffering unbounded can
+ * exceed the engine's max string length and crash the whole process with an
+ * uncaught RangeError from the stream data handler. Results are capped to
+ * MAX_SEARCH_OUTPUT_CHARS anyway, so output past this is never shown.
+ */
+const MAX_RG_STDOUT_CHARS = 10 * 1024 * 1024;
 
 /**
  * Options for the search executor
@@ -129,6 +140,8 @@ function checkRipgrepAvailable(): Promise<boolean> {
 	return new Promise((resolve) => {
 		const child = spawn("rg", ["--version"], {
 			stdio: ["ignore", "pipe", "pipe"],
+			// Prevent a console window from flashing on Windows.
+			windowsHide: true,
 		});
 
 		child.on("close", (code) => {
@@ -168,6 +181,8 @@ function searchWithRipgrep(
 			{
 				cwd,
 				stdio: ["ignore", "pipe", "pipe"],
+				// Prevent a console window from flashing on Windows.
+				windowsHide: true,
 			},
 		);
 
@@ -208,6 +223,9 @@ function searchWithRipgrep(
 		});
 
 		child.stdout.on("data", (chunk: Buffer | string) => {
+			if (stdout.length > MAX_RG_STDOUT_CHARS) {
+				return;
+			}
 			stdout += chunk.toString();
 		});
 
@@ -219,7 +237,11 @@ function searchWithRipgrep(
 			if (code === 0 || code === 1) {
 				try {
 					const matches: SearchMatch[] = [];
-					const lines = stdout.split("\n").filter((line) => line.trim());
+					// Drop the trailing partial event left behind by the stdout cap.
+					const lines = stdout
+						.slice(0, stdout.lastIndexOf("\n") + 1)
+						.split("\n")
+						.filter((line) => line.trim());
 
 					for (const line of lines) {
 						if (matches.length >= maxResults) break;
@@ -359,7 +381,7 @@ export function createSearchExecutor(
 				);
 			}
 
-			return resultLines.join("\n");
+			return capSearchOutput(resultLines.join("\n"));
 		}
 
 		// Fallback to manual regex search
@@ -422,7 +444,9 @@ export function createSearchExecutor(
 
 						for (let i = contextStart; i <= contextEnd; i++) {
 							const prefix = i === lineIdx ? ">" : " ";
-							contextLinesArr.push(`${prefix} ${i + 1}: ${lines[i]}`);
+							contextLinesArr.push(
+								`${prefix} ${i + 1}: ${lines[i].slice(0, MAX_LINE_CHARS)}`,
+							);
 						}
 
 						matches.push({
@@ -466,6 +490,27 @@ export function createSearchExecutor(
 			);
 		}
 
-		return resultLines.join("\n");
+		return capSearchOutput(resultLines.join("\n"));
 	};
+}
+
+/**
+ * Middle-truncate oversized search output. Matches with long context lines
+ * can blow past the per-query cap even within the maxResults bound; the
+ * head (earliest matches plus the result count) and tail (the refine hint)
+ * are preserved and the middle is elided with a notice teaching the model
+ * to narrow the pattern instead of retrying.
+ */
+function capSearchOutput(text: string): string {
+	if (text.length <= MAX_SEARCH_OUTPUT_CHARS) {
+		return text;
+	}
+	const headLimit = Math.ceil(MAX_SEARCH_OUTPUT_CHARS / 2);
+	const tailLimit = Math.max(1, MAX_SEARCH_OUTPUT_CHARS - headLimit);
+	return (
+		`${text.slice(0, headLimit)}\n` +
+		`[... search output truncated: ${text.length} chars total. ` +
+		"Narrow the pattern or scope to view the elided matches ...]\n" +
+		text.slice(-tailLimit)
+	);
 }

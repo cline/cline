@@ -107,12 +107,13 @@ describe("copyTextToSystemClipboard", () => {
 
 		expect(spawnMock).toHaveBeenNthCalledWith(1, "wl-copy", [], {
 			stdio: ["pipe", "ignore", "ignore"],
+			windowsHide: true,
 		});
 		expect(spawnMock).toHaveBeenNthCalledWith(
 			2,
 			"xclip",
 			["-selection", "clipboard"],
-			{ stdio: ["pipe", "ignore", "ignore"] },
+			{ stdio: ["pipe", "ignore", "ignore"], windowsHide: true },
 		);
 		expect(failed.getInput()).toBe("selected text");
 		expect(succeeded.getInput()).toBe("selected text");
@@ -134,6 +135,7 @@ describe("copyTextToSystemClipboard", () => {
 		expect(spawnMock).toHaveBeenCalledTimes(1);
 		expect(spawnMock).toHaveBeenCalledWith("wl-copy", [], {
 			stdio: ["pipe", "ignore", "ignore"],
+			windowsHide: true,
 		});
 		expect(wlcopy.getInput()).toBe("plain linux");
 	});

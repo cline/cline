@@ -1,11 +1,11 @@
-import { openAiNativeModels } from "@shared/api"
 import { Mode } from "@shared/storage/types"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useStaticProviderSelection } from "@/hooks/useStaticProviderSelection"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { ModelSelector } from "../common/ModelSelector"
 import ReasoningEffortSelector from "../ReasoningEffortSelector"
-import { normalizeApiConfiguration, supportsReasoningEffortForModelId } from "../utils/providerUtils"
+import { supportsReasoningEffortForModelId } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 /**
@@ -25,7 +25,11 @@ export const OpenAINativeProvider = ({ showModelOptions, isPopup, currentMode }:
 	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
 
 	// Get the normalized configuration
-	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
+	const { models, selectedModelId, selectedModelInfo, hideUsageCost } = useStaticProviderSelection(
+		"openai-native",
+		apiConfiguration,
+		currentMode,
+	)
 	const showReasoningEffort = supportsReasoningEffortForModelId(selectedModelId, true)
 
 	return (
@@ -41,7 +45,7 @@ export const OpenAINativeProvider = ({ showModelOptions, isPopup, currentMode }:
 				<>
 					<ModelSelector
 						label="Model"
-						models={openAiNativeModels}
+						models={models}
 						onChange={(e: any) =>
 							handleModeFieldChange(
 								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
@@ -53,7 +57,12 @@ export const OpenAINativeProvider = ({ showModelOptions, isPopup, currentMode }:
 					/>
 					{showReasoningEffort && <ReasoningEffortSelector currentMode={currentMode} />}
 
-					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
+					<ModelInfoView
+						hideUsageCost={hideUsageCost}
+						isPopup={isPopup}
+						modelInfo={selectedModelInfo}
+						selectedModelId={selectedModelId}
+					/>
 				</>
 			)}
 		</div>

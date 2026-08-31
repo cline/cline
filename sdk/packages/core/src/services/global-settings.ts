@@ -1,6 +1,13 @@
 import { mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import type { AgentConfig, AgentTool, ITelemetryService } from "@cline/shared";
+import {
+	type AgentConfig,
+	type AgentTool,
+	CONFIGURABLE_MODEL_TOOL_NAMES,
+	type ConfigurableModelToolName,
+	type ITelemetryService,
+	type ModelToolSettings,
+} from "@cline/shared";
 import { resolveGlobalSettingsPath } from "@cline/shared/storage";
 import { z } from "zod";
 import { captureTelemetryOptOut } from "./telemetry/core-events";
@@ -29,23 +36,78 @@ const GlobalSettingsStringListSchema = z
 		return normalized.length > 0 ? normalized : undefined;
 	});
 
+const GlobalCompactionStrategySchema = z
+	.enum(["basic", "agentic"])
+	.catch("agentic");
+
+const ModelToolSettingsSchema = z
+	.partialRecord(
+		z.enum(CONFIGURABLE_MODEL_TOOL_NAMES),
+		z.object({ enabled: z.boolean() }).strip(),
+	)
+	.optional();
+
+export type GlobalCompactionStrategy = z.infer<
+	typeof GlobalCompactionStrategySchema
+>;
+
+/** Compaction strategy plus the "off" state surfaced by the CLI settings UI. */
+export type GlobalCompactionMode = GlobalCompactionStrategy | "off";
+
+const GlobalPlanActModeSchema = z.enum(["plan", "act"]);
+
+export type GlobalPlanActMode = z.infer<typeof GlobalPlanActModeSchema>;
+
 export const GlobalSettingsSchema = z
 	.object({
 		telemetryOptOut: z.boolean().default(false).catch(false),
+		autoUpdateEnabled: z.boolean().default(true).catch(true),
+		compactionStrategy: GlobalCompactionStrategySchema.optional(),
+		compactionEnabled: z.boolean().optional().catch(undefined),
+		planActMode: GlobalPlanActModeSchema.optional().catch(undefined),
+		toolAutoApprove: z.boolean().optional().catch(undefined),
+		tuiTheme: z.string().optional().catch(undefined),
 		disabledTools: GlobalSettingsStringListSchema.optional(),
+		tools: ModelToolSettingsSchema,
 		disabledPlugins: GlobalSettingsStringListSchema.optional(),
 	})
 	.strip()
 	.transform((settings) => {
 		const normalized: {
 			telemetryOptOut: boolean;
+			autoUpdateEnabled: boolean;
+			compactionStrategy?: GlobalCompactionStrategy;
+			compactionEnabled?: boolean;
+			planActMode?: GlobalPlanActMode;
+			toolAutoApprove?: boolean;
+			tuiTheme?: string;
 			disabledTools?: string[];
+			tools?: ModelToolSettings;
 			disabledPlugins?: string[];
 		} = {
+			autoUpdateEnabled: settings.autoUpdateEnabled,
 			telemetryOptOut: settings.telemetryOptOut,
 		};
+		if (settings.compactionStrategy) {
+			normalized.compactionStrategy = settings.compactionStrategy;
+		}
+		if (settings.compactionEnabled !== undefined) {
+			normalized.compactionEnabled = settings.compactionEnabled;
+		}
+		if (settings.planActMode) {
+			normalized.planActMode = settings.planActMode;
+		}
+		if (settings.toolAutoApprove !== undefined) {
+			normalized.toolAutoApprove = settings.toolAutoApprove;
+		}
+		if (settings.tuiTheme?.trim()) {
+			normalized.tuiTheme = settings.tuiTheme.trim();
+		}
 		if (settings.disabledTools?.length) {
 			normalized.disabledTools = settings.disabledTools;
+		}
+		if (settings.tools && Object.keys(settings.tools).length > 0) {
+			normalized.tools = settings.tools;
 		}
 		if (settings.disabledPlugins?.length) {
 			normalized.disabledPlugins = settings.disabledPlugins;
@@ -79,6 +141,12 @@ function invalidateSettingsCache(): void {
 function freezeSettings(value: GlobalSettings): GlobalSettings {
 	if (value.disabledTools) {
 		Object.freeze(value.disabledTools);
+	}
+	if (value.tools) {
+		for (const setting of Object.values(value.tools)) {
+			Object.freeze(setting);
+		}
+		Object.freeze(value.tools);
 	}
 	if (value.disabledPlugins) {
 		Object.freeze(value.disabledPlugins);
@@ -160,6 +228,90 @@ export function setTelemetryOptOutGlobally(
 	);
 }
 
+export function isAutoUpdateEnabledGlobally(): boolean {
+	return readGlobalSettings().autoUpdateEnabled;
+}
+
+export function setAutoUpdateEnabledGlobally(
+	autoUpdateEnabled: boolean,
+	options: WriteGlobalSettingsOptions = {},
+): void {
+	writeGlobalSettings(
+		{
+			...readGlobalSettings(),
+			autoUpdateEnabled,
+		},
+		options,
+	);
+}
+
+export function readCompactionStrategyGlobally(): GlobalCompactionStrategy {
+	return readGlobalSettings().compactionStrategy ?? "agentic";
+}
+
+export function setCompactionStrategyGlobally(
+	compactionStrategy: GlobalCompactionStrategy,
+): void {
+	writeGlobalSettings({ ...readGlobalSettings(), compactionStrategy });
+}
+
+/**
+ * Returns the persisted compaction mode including the disabled state, or
+ * undefined when the user never chose one (callers apply their own default).
+ */
+export function readCompactionModeGlobally(): GlobalCompactionMode | undefined {
+	const settings = readGlobalSettings();
+	if (settings.compactionEnabled === false) {
+		return "off";
+	}
+	return settings.compactionStrategy;
+}
+
+/**
+ * Persists the full compaction mode. Selecting "off" keeps the previously
+ * chosen strategy so re-enabling compaction restores it.
+ */
+export function setCompactionModeGlobally(mode: GlobalCompactionMode): void {
+	const settings = readGlobalSettings();
+	if (mode === "off") {
+		writeGlobalSettings({ ...settings, compactionEnabled: false });
+		return;
+	}
+	writeGlobalSettings({
+		...settings,
+		compactionEnabled: true,
+		compactionStrategy: mode,
+	});
+}
+
+export function readPlanActModeGlobally(): GlobalPlanActMode | undefined {
+	return readGlobalSettings().planActMode;
+}
+
+export function setPlanActModeGlobally(planActMode: GlobalPlanActMode): void {
+	writeGlobalSettings({ ...readGlobalSettings(), planActMode });
+}
+
+export function readToolAutoApproveGlobally(): boolean | undefined {
+	return readGlobalSettings().toolAutoApprove;
+}
+
+/**
+ * Returns the persisted TUI theme id, or undefined when the user never chose
+ * one (callers apply their own default, typically terminal auto-detection).
+ */
+export function readTuiThemeGlobally(): string | undefined {
+	return readGlobalSettings().tuiTheme;
+}
+
+export function setTuiThemeGlobally(tuiTheme: string): void {
+	writeGlobalSettings({ ...readGlobalSettings(), tuiTheme });
+}
+
+export function setToolAutoApproveGlobally(toolAutoApprove: boolean): void {
+	writeGlobalSettings({ ...readGlobalSettings(), toolAutoApprove });
+}
+
 export function resolveDisabledToolNames(
 	disabledToolNames?: ReadonlyArray<string>,
 ): Set<string> {
@@ -175,10 +327,43 @@ export function resolveDisabledPluginPaths(
 }
 
 export function isToolDisabledGlobally(toolName: string): boolean {
+	if (isModelToolName(toolName)) {
+		return !isModelToolEnabledGlobally(toolName);
+	}
 	return resolveDisabledToolNames().has(toolName);
 }
 
+function isModelToolName(value: string): value is ConfigurableModelToolName {
+	return (CONFIGURABLE_MODEL_TOOL_NAMES as readonly string[]).includes(value);
+}
+
+export function resolveModelToolSettings(): ModelToolSettings {
+	return readGlobalSettings().tools ?? {};
+}
+
+export function isModelToolEnabledGlobally(
+	name: ConfigurableModelToolName,
+): boolean {
+	return resolveModelToolSettings()[name]?.enabled === true;
+}
+
+export function setModelToolEnabledGlobally(
+	name: ConfigurableModelToolName,
+	enabled: boolean,
+): void {
+	const settings = readGlobalSettings();
+	writeGlobalSettings({
+		...settings,
+		tools: { ...settings.tools, [name]: { enabled } },
+	});
+}
+
 export function toggleDisabledTool(toolName: string): boolean {
+	if (isModelToolName(toolName)) {
+		const disabled = isModelToolEnabledGlobally(toolName);
+		setModelToolEnabledGlobally(toolName, !disabled);
+		return disabled;
+	}
 	const settings = readGlobalSettings();
 	const disabled = new Set(settings.disabledTools ?? []);
 	const wasDisabled = disabled.has(toolName);
@@ -204,14 +389,19 @@ export function setDisabledTools(
 
 	const settings = readGlobalSettings();
 	const disabled = resolveDisabledToolNames(settings.disabledTools);
+	const tools: ModelToolSettings = { ...settings.tools };
 	for (const name of names) {
+		if (isModelToolName(name)) {
+			tools[name] = { enabled: !disabledValue };
+			continue;
+		}
 		if (disabledValue) {
 			disabled.add(name);
 		} else {
 			disabled.delete(name);
 		}
 	}
-	writeGlobalSettings({ ...settings, disabledTools: [...disabled] });
+	writeGlobalSettings({ ...settings, disabledTools: [...disabled], tools });
 }
 
 export function setToolDisabledGlobally(

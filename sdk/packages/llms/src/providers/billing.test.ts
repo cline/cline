@@ -7,10 +7,19 @@ import { getProviderCollectionSync } from "./model-registry";
 
 describe("provider usage cost display", () => {
 	it("hides usage cost for subscription-backed Codex providers", () => {
-		expect(resolveProviderUsageCostDisplay("openai-codex")).toBe("hide");
-		expect(resolveProviderUsageCostDisplay("openai-codex-cli")).toBe("hide");
+		expect(resolveProviderUsageCostDisplay("openai-codex")).toBe(
+			"subscription",
+		);
+		expect(resolveProviderUsageCostDisplay("openai-codex-cli")).toBe(
+			"subscription",
+		);
 		expect(shouldShowProviderUsageCost("openai-codex")).toBe(false);
 		expect(shouldShowProviderUsageCost("openai-codex-cli")).toBe(false);
+	});
+
+	it("hides usage cost for the Claude Code subscription provider", () => {
+		expect(resolveProviderUsageCostDisplay("claude-code")).toBe("subscription");
+		expect(shouldShowProviderUsageCost("claude-code")).toBe(false);
 	});
 
 	it("shows usage cost by default for usage-billed providers", () => {
@@ -23,6 +32,6 @@ describe("provider usage cost display", () => {
 	it("stores the display policy on provider metadata", () => {
 		expect(
 			getProviderCollectionSync("openai-codex")?.provider.metadata,
-		).toMatchObject({ usageCostDisplay: "hide" });
+		).toMatchObject({ usageCostDisplay: "subscription" });
 	});
 });

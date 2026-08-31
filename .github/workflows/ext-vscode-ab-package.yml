@@ -1,0 +1,581 @@
+name: ext-vscode-ab-package
+
+# Build (and optionally publish) the combined A/B VSIX: a tiny loader plus two
+# complete extension bundles — `next/` from the SDK-based apps/vscode on main,
+# `legacy/` from the legacy-extension branch. Cohort selection happens at
+# runtime via PostHog flags; see apps/vscode-rollout/README.md for the design
+# and the rollout runbook.
+#
+# Job layout: cheap input gates (preflight) and the two bundle test suites run
+# ungated; the build job packages the VSIX with no environment attached, so
+# publish=false rehearsals complete without any approval; only the publish job
+# — Marketplace + Open VSX + bookkeeping — waits on the `publish` environment.
+
+on:
+    workflow_dispatch:
+        inputs:
+            version:
+                description: "Combined VSIX version — must exceed every previously published version (e.g. 4.1.0)"
+                required: true
+                type: string
+            next-ref:
+                description: "Ref to build the next (SDK) bundle from"
+                required: true
+                default: "main"
+                type: string
+            publish:
+                description: "Publish to the VS Code Marketplace and Open VSX (unchecked: just build the .vsix artifact)"
+                required: true
+                default: false
+                type: boolean
+
+permissions:
+    contents: read
+
+concurrency:
+    group: ext-vscode-ab-package-${{ github.event.inputs.version }}
+    cancel-in-progress: false
+
+jobs:
+    # Input gates that need no checkout: fail in seconds — before the test
+    # suites, the ~20-minute build, and the environment approval — instead of
+    # at publish time.
+    preflight:
+        name: Validate inputs
+        runs-on: ubuntu-latest
+        steps:
+            # The input reaches the shell ONLY via env here (never inline
+            # expression interpolation, which is evaluated before bash runs and
+            # would allow script injection from the dispatch form). Because
+            # every later job `needs` preflight, passing this regex is what
+            # makes the plain-string `${{ inputs.version }}` interpolations
+            # downstream safe.
+            - name: Validate version format
+              env:
+                  VERSION: ${{ github.event.inputs.version }}
+              run: |
+                  if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+                    echo "Error: version must be plain X.Y.Z with no leading 'v' and no suffix (got '$VERSION')."
+                    echo "It is stamped verbatim into the union manifest and both bundle manifests."
+                    exit 1
+                  fi
+                  echo "Version format ok: $VERSION"
+
+            # The reusable bun suite tests the dispatch revision (main), so
+            # publishing any other next-ref would ship an untested bundle.
+            # Build-only runs (publish=false) may still use arbitrary next-refs
+            # for artifact rehearsals.
+            - name: Refuse to publish an untested next-ref
+              if: ${{ github.event.inputs.publish == 'true' && github.event.inputs.next-ref != 'main' }}
+              run: |
+                  echo "Error: publish=true requires next-ref=main — the test gate only covers main."
+                  exit 1
+
+            # Marketplace versions are monotonic and cannot be unpublished:
+            # every publish must exceed the highest version ever published to
+            # the claude-dev listing FROM ANY BRANCH (combined stable or legacy
+            # hotfix). The publish job re-checks right before publishing — the
+            # environment-approval wait can last days and a legacy hotfix can
+            # land in between. Keep both copies of this check in sync.
+            - name: Verify version exceeds the live Marketplace version
+              if: ${{ github.event.inputs.publish == 'true' }}
+              env:
+                  VERSION: ${{ github.event.inputs.version }}
+              run: |
+                  LIVE=$(curl -sf --retry 3 -X POST "https://marketplace.visualstudio.com/_apis/public/gallery/extensionquery" \
+                    -H "Content-Type: application/json" -H "Accept: application/json;api-version=3.0-preview.1" \
+                    --data '{"filters":[{"criteria":[{"filterType":7,"value":"saoudrizwan.claude-dev"}]}],"flags":16}' \
+                    | node -e 'let d="";process.stdin.on("data",c=>d+=c);process.stdin.on("end",()=>{process.stdout.write(JSON.parse(d).results[0].extensions[0].versions[0].version)})')
+                  if [[ -z "$LIVE" ]]; then
+                    echo "Error: could not resolve the live Marketplace version for saoudrizwan.claude-dev."
+                    exit 1
+                  fi
+                  node -e '
+                    const [next, live] = process.argv.slice(1).map((v) => v.split(".").map(Number));
+                    for (let i = 0; i < 3; i++) {
+                      if (next[i] > live[i]) process.exit(0);
+                      if (next[i] < live[i]) break;
+                    }
+                    console.error(`Error: version ${process.argv[1]} does not exceed the live Marketplace version ${process.argv[2]}.`);
+                    process.exit(1);
+                  ' "$VERSION" "$LIVE"
+                  echo "Version ok: $VERSION exceeds live Marketplace version $LIVE"
+
+    # Gate the build/publish on BOTH bundles' own test suites, mirroring the two
+    # standalone publish paths (nightly gates on the bun suite via the same
+    # reusable workflow; the legacy publish inlines the npm suite).
+    #
+    # Caveat (shared with the nightly workflow): the reusable bun suite tests the
+    # DISPATCH revision — main's tip at dispatch, since this workflow is only
+    # dispatched from main — not `next-ref`. The build job therefore pins the
+    # default next-ref checkout to that same revision (tested == built) and
+    # preflight refuses publish=true for any other next-ref; build-only artifact
+    # runs may still build untested refs.
+    test-next:
+        name: Test next (SDK) bundle
+        permissions:
+            contents: read
+            pull-requests: read
+        uses: ./.github/workflows/ext-vscode-test.yml
+
+    # The legacy branch is the npm codebase, so the bun-based reusable workflow
+    # cannot test it. Inlined npm steps, kept in sync with the `test` job in
+    # ext-vscode-publish-legacy.yml (same suite, different ref input name).
+    test-legacy:
+        name: Test legacy bundle
+        runs-on: ubuntu-latest
+        # The tested revision, exported so the build job builds EXACTLY what
+        # this suite ran against. legacy-extension is a mutable branch name and
+        # the build job starts later — re-resolving the name there could pick
+        # up commits this gate never saw.
+        outputs:
+            tested-sha: ${{ steps.rev.outputs.sha }}
+        defaults:
+            run:
+                working-directory: apps/vscode
+        steps:
+            # Always the protected legacy-extension branch — deliberately not
+            # an input. An arbitrary ref here would be built into the published
+            # VSIX by the environment-less build job, and the publish
+            # environment approver only ever sees an opaque prebuilt artifact:
+            # the approval would protect the marketplace PAT but not the
+            # shipped bytes. Hardcoding the branch makes its protection rules
+            # load-bearing for releases. Legacy hotfix testing has its own
+            # workflow (ext-vscode-publish-legacy.yml).
+            - uses: actions/checkout@v4
+              with:
+                  ref: legacy-extension
+
+            - name: Record tested revision
+              id: rev
+              run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+            # Deliberately no dependency cache here: publish workflows do clean
+            # installs and should not restore actions caches.
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+
+            - name: Install extension dependencies
+              working-directory: ${{ github.workspace }}
+              run: npm --prefix apps/vscode ci
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Install webview-ui dependencies
+              working-directory: ${{ github.workspace }}
+              run: npm --prefix apps/vscode/webview-ui ci
+
+            - name: Run Quality Checks (lint + typecheck)
+              run: npm run ci:check-all
+
+            - name: Build Tests and Extension
+              id: build_step
+              run: npm run ci:build
+
+            - name: Unit Tests
+              if: ${{ !cancelled() && steps.build_step.outcome == 'success' }}
+              run: npm run test:unit
+
+            - name: Extension Integration Tests
+              if: ${{ !cancelled() && steps.build_step.outcome == 'success' }}
+              run: xvfb-run -a npm run test:coverage
+
+            - name: Webview Tests
+              if: ${{ !cancelled() && steps.build_step.outcome == 'success' }}
+              run: |
+                  cd webview-ui
+                  npm run test:coverage
+
+    build:
+        name: Build combined (legacy + next) VSIX
+        needs: [preflight, test-next, test-legacy]
+        runs-on: ubuntu-latest
+        steps:
+            # For the default next-ref (main), pin the checkout to the exact
+            # revision the test-next gate ran against: a moving branch name could
+            # otherwise drift past the tested commit during the test phase.
+            - name: Checkout next (SDK) source
+              uses: actions/checkout@v4
+              with:
+                  ref: ${{ github.event.inputs.next-ref == 'main' && github.sha || github.event.inputs.next-ref }}
+                  path: next-src
+                  lfs: true
+
+            # Fail fast (before the ~20-min build) if a real publish is missing
+            # its changelog entry — same contract the standalone publish
+            # workflows enforce. Build-only rehearsals are exempt.
+            - name: Verify changelog entry
+              if: ${{ github.event.inputs.publish == 'true' }}
+              working-directory: next-src
+              run: |
+                  EXPECTED_HEADING="## [${{ github.event.inputs.version }}]"
+                  FIRST_HEADING=$(grep -m 1 '^## \[' CHANGELOG.md || true)
+                  if [[ "$FIRST_HEADING" != "$EXPECTED_HEADING" ]]; then
+                    echo "Error: CHANGELOG.md must start with '$EXPECTED_HEADING' before publishing (found '$FIRST_HEADING')."
+                    exit 1
+                  fi
+                  echo "Found changelog entry for ${{ github.event.inputs.version }}"
+
+            # Pin to the revision test-legacy actually tested (see that job's
+            # outputs comment) — never re-resolve the mutable branch name here.
+            - name: Checkout legacy source
+              uses: actions/checkout@v4
+              with:
+                  ref: ${{ needs.test-legacy.outputs.tested-sha }}
+                  path: legacy-src
+                  lfs: true
+
+            - uses: oven-sh/setup-bun@v2
+              with:
+                  bun-version: 1.3.14
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+
+            # --frozen-lockfile so the built bundle resolves the exact
+            # dependency set the test-next gate ran against (the reusable suite
+            # installs frozen too) — a bare install could silently re-resolve.
+            - name: Install next workspace dependencies
+              working-directory: next-src
+              run: bun install --frozen-lockfile
+
+            # @cline/* are local workspace symlinks to source packages; apps/vscode's
+            # `package` script does NOT build them, so without this the esbuild step
+            # fails on a fresh checkout. (The nightly workflow already does this.)
+            - name: Build SDK packages
+              working-directory: next-src
+              run: bun run build:sdk
+
+            - name: Assert better-sqlite3 native binary present
+              working-directory: next-src/apps/vscode
+              run: |
+                  NODE_FILE="node_modules/better-sqlite3/build/Release/better_sqlite3.node"
+                  if [ ! -f "$NODE_FILE" ]; then
+                    echo "ERROR: better-sqlite3 native binary missing at apps/vscode/$NODE_FILE"
+                    echo "(bun trustedDependencies postinstall likely did not run)"
+                    exit 1
+                  fi
+                  echo "Found better-sqlite3 native binary: $NODE_FILE"
+
+            # Stamp the combined version into each bundle's package.json AFTER
+            # install and BEFORE its build: the About tab and telemetry
+            # extension_version read the bundle's own manifest, so without this
+            # the VSIX reports three different versions depending on where you
+            # look. (The nightly workflow gets the same alignment via nightlify.mjs.)
+            - name: Align next bundle version
+              working-directory: next-src/apps/vscode-rollout
+              run: node scripts/set-version.mjs --dir "$GITHUB_WORKSPACE/next-src/apps/vscode" --version "${{ github.event.inputs.version }}"
+
+            - name: Build next bundle
+              working-directory: next-src/apps/vscode
+              env:
+                  CLINE_ENVIRONMENT: production
+                  TELEMETRY_SERVICE_API_KEY: ${{ secrets.TELEMETRY_SERVICE_API_KEY }}
+                  ERROR_SERVICE_API_KEY: ${{ secrets.ERROR_SERVICE_API_KEY }}
+                  # Inlined by esbuild: attributes every telemetry event with
+                  # extension_variant and unlocks the bundle's authoritative
+                  # extension.rollout.bundle_activated capture. Rollout builds only.
+                  CLINE_ROLLOUT_VARIANT: next
+                  # Match the stable publish workflow's OpenTelemetry production defaults.
+                  OTEL_TELEMETRY_ENABLED: ${{ secrets.OTEL_TELEMETRY_ENABLED }}
+                  OTEL_LOGS_EXPORTER: otlp
+                  OTEL_METRICS_EXPORTER: otlp
+                  OTEL_EXPORTER_OTLP_PROTOCOL: ${{ secrets.OTEL_EXPORTER_OTLP_PROTOCOL }}
+                  OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
+                  OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
+              run: bun run package
+
+            - name: Install legacy dependencies
+              working-directory: legacy-src
+              run: |
+                  npm --prefix apps/vscode install --include=optional
+                  npm --prefix apps/vscode/webview-ui install --include=optional
+
+            - name: Align legacy bundle version
+              working-directory: next-src/apps/vscode-rollout
+              run: node scripts/set-version.mjs --dir "$GITHUB_WORKSPACE/legacy-src/apps/vscode" --version "${{ github.event.inputs.version }}"
+
+            - name: Build legacy bundle
+              working-directory: legacy-src/apps/vscode
+              env:
+                  CLINE_ENVIRONMENT: production
+                  TELEMETRY_SERVICE_API_KEY: ${{ secrets.TELEMETRY_SERVICE_API_KEY }}
+                  ERROR_SERVICE_API_KEY: ${{ secrets.ERROR_SERVICE_API_KEY }}
+                  CLINE_ROLLOUT_VARIANT: legacy
+                  # Match the stable publish workflow's OpenTelemetry production defaults.
+                  OTEL_TELEMETRY_ENABLED: ${{ secrets.OTEL_TELEMETRY_ENABLED }}
+                  OTEL_LOGS_EXPORTER: otlp
+                  OTEL_METRICS_EXPORTER: otlp
+                  OTEL_EXPORTER_OTLP_PROTOCOL: ${{ secrets.OTEL_EXPORTER_OTLP_PROTOCOL }}
+                  OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
+                  OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
+              run: npm run package
+
+            - name: Build loader and run rollout tests
+              working-directory: next-src/apps/vscode-rollout
+              env:
+                  TELEMETRY_SERVICE_API_KEY: ${{ secrets.TELEMETRY_SERVICE_API_KEY }}
+              run: |
+                  bun run typecheck
+                  bun run test
+                  bun run build:production
+
+            - name: Stitch combined VSIX staging
+              working-directory: next-src/apps/vscode-rollout
+              run: |
+                  node scripts/stitch.mjs \
+                    --next "$GITHUB_WORKSPACE/next-src/apps/vscode" \
+                    --legacy "$GITHUB_WORKSPACE/legacy-src/apps/vscode" \
+                    --loader dist/extension.js \
+                    --version "${{ github.event.inputs.version }}" \
+                    --out "$GITHUB_WORKSPACE/staging"
+
+            - name: Smoke-test loader against staging
+              working-directory: next-src/apps/vscode-rollout
+              run: node scripts/smoke-loader.mjs "$GITHUB_WORKSPACE/staging"
+
+            # This workflow publishes the STABLE identity. If nightlify ever leaks
+            # into this path the union manifest would ship under the wrong name.
+            # The bundle sub-manifest checks guard the set-version.mjs stamping:
+            # the About tab and telemetry extension_version read those files.
+            - name: Assert stable manifest identity
+              working-directory: staging
+              env:
+                  EXPECTED_VERSION: ${{ github.event.inputs.version }}
+              run: |
+                  node -e '
+                    const assert = require("node:assert");
+                    const expected = process.env.EXPECTED_VERSION;
+                    const pkg = require("./package.json");
+                    assert.equal(pkg.name, "claude-dev", `unexpected name ${pkg.name}`);
+                    assert.equal(pkg.publisher, "saoudrizwan", `unexpected publisher ${pkg.publisher}`);
+                    assert.equal(pkg.version, expected, `unexpected union version ${pkg.version}`);
+                    for (const bundle of ["next", "legacy"]) {
+                      const sub = require(`./${bundle}/package.json`);
+                      assert.equal(sub.version, expected, `unexpected ${bundle} bundle version ${sub.version}`);
+                    }
+                    console.log(`stable identity ok: ${pkg.publisher}.${pkg.name}@${pkg.version} (bundle versions aligned)`);
+                  '
+
+            - name: Package VSIX
+              working-directory: staging
+              run: |
+                  npm install -g @vscode/vsce
+                  # Preserve the narrowly scoped VSCE `sendgrid` scanner exemption used by
+                  # both standalone bundle workflows. No SendGrid credential is intentionally
+                  # supplied here; inspect the reported artifact before widening the exemption.
+                  vsce package --no-dependencies --allow-package-secrets sendgrid --out "claude-dev-${{ github.event.inputs.version }}.vsix"
+
+            - name: Upload VSIX artifact
+              uses: actions/upload-artifact@v4
+              with:
+                  name: claude-dev-${{ github.event.inputs.version }}
+                  path: staging/claude-dev-${{ github.event.inputs.version }}.vsix
+                  if-no-files-found: error
+
+    publish:
+        name: Publish to Marketplace and Open VSX
+        needs: build
+        if: ${{ github.event.inputs.publish == 'true' }}
+        runs-on: ubuntu-latest
+        environment: publish
+        # contents: write is required by the post-publish bookkeeping (tag +
+        # GitHub Release), mirroring the standalone publish workflows.
+        permissions:
+            contents: write
+        steps:
+            # The built next revision: preflight refused publish=true for any
+            # next-ref other than main, and the build job pinned main to the
+            # dispatch SHA — so github.sha IS the published commit. Used for the
+            # changelog, the release tag, and the previous-tag lookup.
+            - uses: actions/checkout@v4
+              with:
+                  ref: ${{ github.sha }}
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+
+            - name: Download VSIX artifact
+              uses: actions/download-artifact@v4
+              with:
+                  name: claude-dev-${{ github.event.inputs.version }}
+                  path: staging
+
+            - name: Install Publishing Tools
+              run: npm install -g @vscode/vsce ovsx
+
+            # Re-check monotonicity at the last moment: the environment-approval
+            # wait can last days, and a legacy hotfix published in the meantime
+            # would otherwise be silently superseded by this older code line.
+            # Keep in sync with the preflight copy of this check.
+            - name: Re-verify version exceeds the live Marketplace version
+              env:
+                  VERSION: ${{ github.event.inputs.version }}
+              run: |
+                  LIVE=$(curl -sf --retry 3 -X POST "https://marketplace.visualstudio.com/_apis/public/gallery/extensionquery" \
+                    -H "Content-Type: application/json" -H "Accept: application/json;api-version=3.0-preview.1" \
+                    --data '{"filters":[{"criteria":[{"filterType":7,"value":"saoudrizwan.claude-dev"}]}],"flags":16}' \
+                    | node -e 'let d="";process.stdin.on("data",c=>d+=c);process.stdin.on("end",()=>{process.stdout.write(JSON.parse(d).results[0].extensions[0].versions[0].version)})')
+                  if [[ -z "$LIVE" ]]; then
+                    echo "Error: could not resolve the live Marketplace version for saoudrizwan.claude-dev."
+                    exit 1
+                  fi
+                  node -e '
+                    const [next, live] = process.argv.slice(1).map((v) => v.split(".").map(Number));
+                    for (let i = 0; i < 3; i++) {
+                      if (next[i] > live[i]) process.exit(0);
+                      if (next[i] < live[i]) break;
+                    }
+                    console.error(`Error: version ${process.argv[1]} does not exceed the live Marketplace version ${process.argv[2]}.`);
+                    process.exit(1);
+                  ' "$VERSION" "$LIVE"
+                  echo "Version ok: $VERSION exceeds live Marketplace version $LIVE"
+
+            # Both PATs are verified BEFORE the first irreversible publish so a
+            # missing Open VSX token can't strand us half-published. The two
+            # registries are separate steps: if Open VSX fails after the
+            # Marketplace accepted the VSIX, the run goes red (so the operator
+            # notices Open VSX lagged) but the bookkeeping below still runs —
+            # it is keyed off the Marketplace outcome, which is what "shipped"
+            # means for this listing.
+            - name: Publish to Marketplace
+              id: publish_marketplace
+              working-directory: staging
+              env:
+                  VSCE_PAT: ${{ secrets.VSCE_PAT }}
+                  OVSX_PAT: ${{ secrets.OVSX_PAT }}
+              run: |
+                  if [[ -z "$VSCE_PAT" ]]; then
+                    echo "Error: VSCE_PAT is required to publish."
+                    exit 1
+                  fi
+                  if [[ -z "$OVSX_PAT" ]]; then
+                    echo "Error: OVSX_PAT is required to publish to Open VSX."
+                    exit 1
+                  fi
+                  vsce publish --no-dependencies --packagePath "claude-dev-${{ github.event.inputs.version }}.vsix"
+
+            - name: Publish to Open VSX
+              working-directory: staging
+              env:
+                  OVSX_PAT: ${{ secrets.OVSX_PAT }}
+              run: npx ovsx publish --packagePath "claude-dev-${{ github.event.inputs.version }}.vsix" --pat "$OVSX_PAT"
+
+            # ---- Post-publish bookkeeping (tag / GitHub Release / Slack) ----
+            # Mirrors the standalone publish workflows. Every step here is
+            # continue-on-error, and gated on the MARKETPLACE outcome rather
+            # than plain step ordering: the Marketplace publish already
+            # happened, so bookkeeping must still run when only the Open VSX
+            # step failed, and a red run after a successful publish is exactly
+            # the confusion the nightly workflow taught us to avoid (tag pushes
+            # fail whenever the built commit touches .github/workflows/** — no
+            # grantable permission fixes that; push the tag manually in that
+            # case, see the publish-extension skill).
+
+            - name: Extract changelog entry
+              id: changelog
+              if: ${{ !cancelled() && steps.publish_marketplace.outcome == 'success' }}
+              continue-on-error: true
+              run: |
+                  CONTENT=$(awk '/^## \[/{if(found) exit; found=1; next} found{print}' CHANGELOG.md)
+                  {
+                    echo "content<<CHANGELOG_EOF"
+                    echo "$CONTENT"
+                    echo "CHANGELOG_EOF"
+                  } >> "$GITHUB_OUTPUT"
+
+                  # Slack section blocks reject text longer than 3000 characters, and
+                  # the Slack action logs that rejection WITHOUT failing the step - so
+                  # an over-long changelog silently drops the release announcement
+                  # while the run stays green. Post a trimmed copy to Slack and link
+                  # out to the full notes. The GitHub release body stays whole.
+                  RELEASE_URL="https://github.com/${GITHUB_REPOSITORY}/releases/tag/v${{ github.event.inputs.version }}"
+                  SLACK_CONTENT=$(CONTENT="$CONTENT" RELEASE_URL="$RELEASE_URL" python3 -c '
+                  import os
+                  content = os.environ["CONTENT"]
+                  more = "\n\n… <%s|Read the full release notes>" % os.environ["RELEASE_URL"]
+                  if len(content) <= 3000:
+                      print(content, end="")
+                  else:
+                      budget = 3000 - len(more)
+                      kept, used = [], 0
+                      for line in content.splitlines(keepends=True):
+                          if used + len(line) > budget:
+                              break
+                          kept.append(line)
+                          used += len(line)
+                      body = "".join(kept).rstrip() if kept else content[:budget].rstrip()
+                      print(body + more, end="")
+                  ')
+                  {
+                    echo "slack_content<<CHANGELOG_EOF"
+                    echo "$SLACK_CONTENT"
+                    echo "CHANGELOG_EOF"
+                  } >> "$GITHUB_OUTPUT"
+
+            - name: Resolve previous release tag
+              id: prev_tag
+              if: ${{ !cancelled() && steps.publish_marketplace.outcome == 'success' }}
+              continue-on-error: true
+              run: |
+                  # ls-remote needs no local tag objects; take the highest v* tag
+                  # below the one being released.
+                  PREV=$(git ls-remote --tags origin 'v*' \
+                    | awk -F/ '{print $NF}' | grep -v '\^{}' \
+                    | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' \
+                    | grep -vx "v${{ github.event.inputs.version }}" \
+                    | sort -V | tail -1)
+                  echo "prev_tag=$PREV" >> "$GITHUB_OUTPUT"
+
+            - name: Create and push release tag
+              if: ${{ !cancelled() && steps.publish_marketplace.outcome == 'success' }}
+              continue-on-error: true
+              run: |
+                  TAG="v${{ github.event.inputs.version }}"
+                  git tag "$TAG" HEAD
+                  git push origin "refs/tags/$TAG"
+                  echo "Pushed $TAG at $(git rev-parse HEAD)"
+
+            - name: Create GitHub Release
+              if: ${{ !cancelled() && steps.publish_marketplace.outcome == 'success' }}
+              continue-on-error: true
+              uses: softprops/action-gh-release@v1
+              with:
+                  tag_name: v${{ github.event.inputs.version }}
+                  files: staging/claude-dev-${{ github.event.inputs.version }}.vsix
+                  body: |
+                      ${{ steps.changelog.outputs.content }}
+
+                      **Full Changelog**: https://github.com/${{ github.repository }}/compare/${{ steps.prev_tag.outputs.prev_tag }}...v${{ github.event.inputs.version }}
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Post release to Slack
+              if: ${{ !cancelled() && steps.publish_marketplace.outcome == 'success' }}
+              continue-on-error: true
+              uses: slackapi/slack-github-action@v3.0.1
+              with:
+                  method: chat.postMessage
+                  token: ${{ secrets.SLACK_RELEASE_BOT_TOKEN }}
+                  payload: |
+                    channel: "C0APVKGGZFC"
+                    text: "Cline v${{ github.event.inputs.version }}"
+                    blocks:
+                      - type: "section"
+                        text:
+                          type: "mrkdwn"
+                          text: "*Cline v${{ github.event.inputs.version }}*"
+                      - type: "section"
+                        text:
+                          type: "mrkdwn"
+                          text: ${{ toJSON(steps.changelog.outputs.slack_content) }}
+                      - type: "context"
+                        elements:
+                          - type: "mrkdwn"
+                            text: "Full Changelog: https://github.com/${{ github.repository }}/compare/${{ steps.prev_tag.outputs.prev_tag }}...v${{ github.event.inputs.version }}"

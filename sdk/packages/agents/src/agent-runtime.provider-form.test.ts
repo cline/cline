@@ -73,12 +73,39 @@ describe("AgentRuntime (provider-form config + Agent alias)", () => {
 					apiKey: "test-key",
 					baseUrl: undefined,
 					headers: undefined,
+					options: undefined,
 				},
 			],
 		});
 		expect(createAgentModel).toHaveBeenCalledWith({
 			providerId: "openai",
 			modelId: "gpt-5",
+		});
+	});
+
+	it("passes provider options through to the llms gateway", () => {
+		const model = new ScriptedModel([]);
+		createAgentModel.mockReturnValue(model);
+
+		new Agent({
+			providerId: "openai-compatible",
+			modelId: "gpt-4.1",
+			apiKey: "test-key",
+			baseUrl: "https://example.openai.azure.com/openai/deployments/gpt-4.1",
+			options: { apiVersion: "2025-01-01-preview" },
+		});
+
+		expect(createGateway).toHaveBeenCalledWith({
+			providerConfigs: [
+				{
+					providerId: "openai-compatible",
+					apiKey: "test-key",
+					baseUrl:
+						"https://example.openai.azure.com/openai/deployments/gpt-4.1",
+					headers: undefined,
+					options: { apiVersion: "2025-01-01-preview" },
+				},
+			],
 		});
 	});
 
@@ -206,5 +233,57 @@ describe("AgentRuntime (provider-form config + Agent alias)", () => {
 		unsubscribe();
 		await agent.run("again");
 		expect(received).toHaveLength(countAfterRun);
+	});
+
+	it("derives messageModelInfo from providerId/modelId so assistant messages carry model tags", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "hi" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		createAgentModel.mockReturnValue(model);
+
+		const agent = new Agent({
+			providerId: "anthropic",
+			modelId: "claude-sonnet-4-6",
+		});
+
+		const result = await agent.run("hello");
+
+		const assistant = result.messages.find((m) => m.role === "assistant");
+		expect(assistant?.modelInfo).toEqual({
+			id: "claude-sonnet-4-6",
+			provider: "anthropic",
+		});
+	});
+
+	it("prefers an explicit messageModelInfo over the derived provider/model", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "hi" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		createAgentModel.mockReturnValue(model);
+
+		const agent = new Agent({
+			providerId: "anthropic",
+			modelId: "claude-sonnet-4-6",
+			messageModelInfo: {
+				id: "explicit-model",
+				provider: "explicit-provider",
+				family: "explicit-family",
+			},
+		});
+
+		const result = await agent.run("hello");
+
+		const assistant = result.messages.find((m) => m.role === "assistant");
+		expect(assistant?.modelInfo).toEqual({
+			id: "explicit-model",
+			provider: "explicit-provider",
+			family: "explicit-family",
+		});
 	});
 });

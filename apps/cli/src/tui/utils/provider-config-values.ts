@@ -6,6 +6,7 @@ export type ProviderConfigValues = Partial<
 >;
 
 const DEFAULT_AWS_REGION = "us-east-1";
+const DEFAULT_GCP_REGION = "us-central1";
 
 export function getDefaultAwsRegion(profile?: string): string {
 	return (
@@ -18,6 +19,20 @@ export function resolveProviderConfigAwsRegion(
 	values: ProviderConfigValues,
 ): string {
 	return values.awsRegion?.trim() || getDefaultAwsRegion(values.awsProfile);
+}
+
+export function resolveProviderConfigGcp(values: ProviderConfigValues):
+	| {
+			projectId?: string;
+			region?: string;
+	  }
+	| undefined {
+	const projectId = values.gcpProjectId?.trim() || undefined;
+	if (!projectId) return undefined;
+	return {
+		projectId,
+		region: values.gcpRegion?.trim() || DEFAULT_GCP_REGION,
+	};
 }
 
 export function resolveProviderConfigSap(values: ProviderConfigValues):
@@ -39,6 +54,12 @@ export function resolveProviderConfigSap(values: ProviderConfigValues):
 	return Object.values(sap).some((value) => value !== undefined)
 		? sap
 		: undefined;
+}
+
+export function resolveProviderConfigAzure(values: ProviderConfigValues): {
+	apiVersion?: string;
+} {
+	return { apiVersion: values.azureApiVersion?.trim() ?? "" };
 }
 
 export function updateProviderConfigValue(

@@ -62,6 +62,31 @@ describe("enrichPromptWithMentions", () => {
 		}
 	});
 
+	it("strips trailing punctuation without backtracking", async () => {
+		const cwd = await createTempWorkspace();
+		try {
+			await writeFile(path.join(cwd, "file.ts"), "export {}\n", "utf8");
+			// A non-matching punctuation run is the worst case for the former
+			// unanchored /...+$/ expression.
+			const punctuationRun = "!".repeat(25_000);
+			const result = await enrichPromptWithMentions(
+				`Review @${punctuationRun}file.ts and @file.ts${punctuationRun}`,
+				cwd,
+			);
+
+			expect(result.mentions).toHaveLength(2);
+			expect(result.mentions[0]).toHaveLength(
+				punctuationRun.length + "file.ts".length,
+			);
+			expect(result.mentions[0]?.endsWith("file.ts")).toBe(true);
+			expect(result.mentions[1]).toBe("file.ts");
+			expect(result.matchedFiles).toEqual(["file.ts"]);
+			expect(result.ignoredMentions).toHaveLength(1);
+		} finally {
+			await rm(cwd, { recursive: true, force: true });
+		}
+	});
+
 	it("respects maxTotalBytes while keeping prompt unchanged", async () => {
 		const cwd = await createTempWorkspace();
 		try {

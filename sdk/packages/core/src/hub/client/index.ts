@@ -5,21 +5,28 @@ import {
 	type HubEventEnvelope,
 	type HubReplyEnvelope,
 	type HubTransportFrame,
+	isHubProtocolCompatible,
+	resolveClineBuildEnv,
 	resolveHubCommandTimeoutMs,
 } from "@cline/shared";
 import {
 	SESSION_NOT_FOUND_ERROR_CODE,
 	SessionNotFoundError,
 } from "../../runtime/host/runtime-host";
-import { spawnDetachedHubServerWithRetry } from "../daemon";
+import { ensureDetachedHubServer } from "../daemon";
 import {
 	clearHubDiscovery,
+	getManagedHubCompatibility,
 	type HubOwnerContext,
+	isManagedHubReusable,
 	probeHubServer,
 	readHubDiscovery,
 	resolveHubBuildId,
 } from "../discovery";
-import { resolveSharedHubOwnerContext } from "../discovery/workspace";
+import {
+	resolveProductionHubOwnerContext,
+	resolveSharedHubOwnerContext,
+} from "../discovery/workspace";
 
 type PendingReply = {
 	resolve: (reply: HubReplyEnvelope) => void;
@@ -30,6 +37,12 @@ type SubscriptionEntry = {
 	listener: (event: HubEventEnvelope) => void;
 	sessionId?: string;
 };
+
+function resolveDefaultHubOwnerContext(): HubOwnerContext {
+	return resolveClineBuildEnv() === "production"
+		? resolveProductionHubOwnerContext()
+		: resolveSharedHubOwnerContext();
+}
 
 type WebSocketLike = {
 	readyState: number;
@@ -159,6 +172,7 @@ export interface HubClientOptions {
 	workspaceRoot?: string;
 	cwd?: string;
 	authToken?: string;
+	capabilities?: HubClientRegistration["capabilities"];
 }
 
 export interface LocalHubResolutionOptions {
@@ -168,8 +182,6 @@ export interface LocalHubResolutionOptions {
 	cwd?: string;
 }
 
-const HUB_STARTUP_TIMEOUT_MS = 8_000;
-const HUB_STARTUP_POLL_MS = 200;
 const GLOBAL_SUBSCRIPTION_KEY = "*";
 const HUB_CONNECT_TIMEOUT_MS = 8_000;
 const HUB_AUTH_PROTOCOL_PREFIX = "cline-hub-auth.";
@@ -288,6 +300,14 @@ export class NodeHubClient {
 	private readonly pendingReplies = new Map<string, PendingReply>();
 	private readonly listeners = new Set<SubscriptionEntry>();
 	private readonly subscriptionCounts = new Map<string, number>();
+	/**
+	 * Highest durable event sequence observed per subscription key. Sent as
+	 * `sinceSequence` when a subscription frame is (re)issued, so a hub with a
+	 * durable event log replays exactly what this client missed while
+	 * disconnected. Hubs without a log ignore the cursor (live-only, the
+	 * legacy behavior).
+	 */
+	private readonly lastEventSequenceByKey = new Map<string, number>();
 	private reconnectTimer: ReturnType<typeof setTimeout> | undefined;
 	private reconnectAttempt = 0;
 	private closedByClient = false;
@@ -297,12 +317,14 @@ export class NodeHubClient {
 	);
 	private sawSocketClose = false;
 	private registered = false;
+	private capabilities: NonNullable<HubClientRegistration["capabilities"]>;
 
 	constructor(private readonly options: HubClientOptions) {
 		this.clientId =
 			options.clientId ??
 			`core-${Math.random().toString(36).slice(2, 10)}-${Date.now().toString(36)}`;
 		this.currentUrl = options.url;
+		this.capabilities = [...(options.capabilities ?? [])];
 	}
 
 	getClientId(): string {
@@ -311,6 +333,24 @@ export class NodeHubClient {
 
 	getUrl(): string {
 		return this.currentUrl;
+	}
+
+	isConnected(): boolean {
+		return this.socket?.readyState === 1 && this.registered;
+	}
+
+	getConnectionError(): HubTransportError | null {
+		return this.isConnected() ? null : this.lastCloseError;
+	}
+
+	async updateCapabilities(
+		capabilities: NonNullable<HubClientRegistration["capabilities"]>,
+	): Promise<void> {
+		this.capabilities = capabilities.map((capability) => ({ ...capability }));
+		if (!this.registered) return;
+		await this.command("client.update", {
+			capabilities: this.capabilities,
+		});
 	}
 
 	async connect(): Promise<void> {
@@ -423,6 +463,7 @@ export class NodeHubClient {
 			displayName: this.options.displayName ?? "core",
 			transport: "native",
 			actorKind: "client",
+			capabilities: this.capabilities,
 			workspaceContext: {
 				workspaceRoot: this.options.workspaceRoot,
 				cwd: this.options.cwd,
@@ -712,10 +753,17 @@ export class NodeHubClient {
 		kind: "stream.subscribe" | "stream.unsubscribe",
 		sessionId?: string,
 	): void {
+		const sinceSequence =
+			kind === "stream.subscribe"
+				? this.lastEventSequenceByKey.get(
+						this.subscriptionKeyForSessionId(sessionId),
+					)
+				: undefined;
 		this.sendFrame({
 			kind,
 			clientId: this.clientId,
 			...(sessionId ? { sessionId } : {}),
+			...(sinceSequence !== undefined ? { sinceSequence } : {}),
 		});
 	}
 
@@ -764,7 +812,20 @@ export class NodeHubClient {
 				pending.resolve(frame.envelope);
 				return;
 			}
-			case "event":
+			case "event": {
+				const sequence = frame.envelope.sequence;
+				if (typeof sequence === "number") {
+					const eventSessionKey = frame.envelope.sessionId?.trim();
+					for (const key of [GLOBAL_SUBSCRIPTION_KEY, eventSessionKey]) {
+						if (!key || !this.subscriptionCounts.has(key)) {
+							continue;
+						}
+						const previous = this.lastEventSequenceByKey.get(key) ?? 0;
+						if (sequence > previous) {
+							this.lastEventSequenceByKey.set(key, sequence);
+						}
+					}
+				}
 				for (const entry of this.listeners) {
 					if (
 						entry.sessionId &&
@@ -775,6 +836,7 @@ export class NodeHubClient {
 					entry.listener(frame.envelope);
 				}
 				return;
+			}
 			case "command":
 			case "stream.subscribe":
 			case "stream.unsubscribe":
@@ -821,7 +883,7 @@ type HubProbeResult =
 			url: string;
 	  }
 	| {
-			status: "unreachable" | "build_mismatch";
+			status: "unreachable" | "protocol_mismatch" | "build_mismatch";
 			url: string;
 	  };
 
@@ -832,21 +894,38 @@ async function probeCompatibleHubUrl(
 		workspaceRoot?: string;
 		cwd?: string;
 		authToken?: string;
+		requireCurrentBuild?: boolean;
 	},
 ): Promise<HubProbeResult> {
 	const normalized = normalizeHubWebSocketUrl(url);
-	const record = await probeHubServer(normalized);
+	const record = await probeHubServer(normalized, {
+		authToken: options?.authToken,
+	});
 	if (!record) {
 		return {
 			status: "unreachable",
 			url: normalized,
 		};
 	}
-	const buildId = resolveHubBuildId();
-	const recordBuildId = record.buildId?.trim();
-	if (!recordBuildId || recordBuildId !== buildId) {
+	if (options?.requireCurrentBuild) {
+		// Managed Hubs: reusable unless this build is strictly newer than the
+		// Hub's. A Hub that is newer or unorderable is attached over the
+		// compatible wire protocol and left to the build-mismatch watcher to
+		// prompt about, so two installations can never retire each other.
+		const expectedBuildId = resolveHubBuildId();
+		const compatibility = getManagedHubCompatibility(record, expectedBuildId);
+		if (!compatibility.compatible && !isManagedHubReusable(record)) {
+			return {
+				status:
+					compatibility.reason === "unsupported_protocol"
+						? "protocol_mismatch"
+						: "build_mismatch",
+				url: normalized,
+			};
+		}
+	} else if (!isHubProtocolCompatible(record).compatible) {
 		return {
-			status: "build_mismatch",
+			status: "protocol_mismatch",
 			url: normalized,
 		};
 	}
@@ -867,26 +946,6 @@ async function probeCompatibleHubUrl(
 		status: "compatible",
 		url: normalized,
 	};
-}
-
-async function waitForCompatibleHubUrl(
-	owner: HubOwnerContext,
-): Promise<string | undefined> {
-	const deadline = Date.now() + HUB_STARTUP_TIMEOUT_MS;
-	while (Date.now() < deadline) {
-		const record = await readHubDiscovery(owner.discoveryPath);
-		if (record?.url) {
-			const compatible = await probeCompatibleHubUrl(record.url, {
-				verifyConnection: true,
-				authToken: record.authToken,
-			});
-			if (compatible.status === "compatible") {
-				return rememberRecoverableLocalHubUrl(compatible.url, record.authToken);
-			}
-		}
-		await new Promise((resolve) => setTimeout(resolve, HUB_STARTUP_POLL_MS));
-	}
-	return undefined;
 }
 
 async function waitForHubToRetire(url: string): Promise<boolean> {
@@ -911,7 +970,20 @@ function sameNormalizedHubUrl(left: string, right: string): boolean {
 	}
 }
 
-function hasActiveHubSessions(payload: unknown): boolean {
+/**
+ * Whether any client is attached to a session on the hub - the one signal
+ * that cannot go stale, because participants are live socket subscriptions
+ * the hub drops the moment a client's connection closes.
+ *
+ * Deliberately NOT based on session status: a client that dies without
+ * stopping its session leaves the hub-side runtime behind in a non-terminal
+ * status forever, and counting those "ghost" sessions as busy pins an
+ * outdated hub as "serving sessions" until the machine reboots. The cost of
+ * ignoring status is that a participant-less background run executing at the
+ * exact moment of a hub swap dies with the old hub - rare, and its next
+ * scheduled tick runs normally on the replacement.
+ */
+export function hasActiveHubSessions(payload: unknown): boolean {
 	const sessions =
 		payload &&
 		typeof payload === "object" &&
@@ -922,22 +994,12 @@ function hasActiveHubSessions(payload: unknown): boolean {
 		if (!session || typeof session !== "object") {
 			return false;
 		}
-		const record = session as {
-			status?: unknown;
-			participants?: unknown;
-		};
-		if (
-			record.status === "running" ||
-			record.status === "idle" ||
-			record.status === "pending"
-		) {
-			return true;
-		}
+		const record = session as { participants?: unknown };
 		return Array.isArray(record.participants) && record.participants.length > 0;
 	});
 }
 
-async function localHubHasNoActiveSessions(
+export async function localHubHasNoActiveSessions(
 	url: string,
 	authToken?: string,
 	options?: Pick<HubClientOptions, "workspaceRoot" | "cwd">,
@@ -965,6 +1027,32 @@ async function localHubHasNoActiveSessions(
 	}
 }
 
+async function recoverSupersededLocalHubUrl(
+	owner: HubOwnerContext,
+	options: LocalHubResolutionOptions,
+): Promise<string | undefined> {
+	const supersededPath = `${owner.discoveryPath}.superseded`;
+	const superseded = await readHubDiscovery(supersededPath);
+	if (!superseded?.url || !superseded.authToken) {
+		return undefined;
+	}
+	const compatible = await probeCompatibleHubUrl(superseded.url, {
+		authToken: superseded.authToken,
+	});
+	if (compatible.status !== "compatible") {
+		return undefined;
+	}
+	const hasNoActiveSessions = await localHubHasNoActiveSessions(
+		compatible.url,
+		superseded.authToken,
+		options,
+	);
+	if (hasNoActiveSessions) {
+		return undefined;
+	}
+	return rememberRecoverableLocalHubUrl(compatible.url, superseded.authToken);
+}
+
 export async function resolveCompatibleLocalHubUrl(
 	options: LocalHubResolutionOptions = {},
 ): Promise<string | undefined> {
@@ -973,16 +1061,19 @@ export async function resolveCompatibleLocalHubUrl(
 		return compatible.status === "compatible" ? compatible.url : undefined;
 	}
 
-	const owner = resolveSharedHubOwnerContext();
+	const owner = resolveDefaultHubOwnerContext();
 	const record = await readHubDiscovery(owner.discoveryPath);
 	if (!record?.url) {
-		return undefined;
+		return await recoverSupersededLocalHubUrl(owner, options);
 	}
-	const compatible = await probeCompatibleHubUrl(record.url);
+	const compatible = await probeCompatibleHubUrl(record.url, {
+		authToken: record.authToken,
+		requireCurrentBuild: true,
+	});
 	if (compatible.status === "compatible") {
 		return rememberRecoverableLocalHubUrl(compatible.url, record.authToken);
 	}
-	if (compatible.status === "build_mismatch") {
+	if (compatible.status === "protocol_mismatch") {
 		await clearHubDiscovery(owner.discoveryPath).catch(() => undefined);
 	}
 	return undefined;
@@ -1004,9 +1095,54 @@ export async function ensureCompatibleLocalHubUrl(
 	if (options.endpoint?.trim()) {
 		return undefined;
 	}
-	const owner = resolveSharedHubOwnerContext();
-	await spawnDetachedHubServerWithRetry(options.workspaceRoot ?? process.cwd());
-	return await waitForCompatibleHubUrl(owner);
+	try {
+		const ensured = await ensureDetachedHubServer(
+			options.workspaceRoot ?? process.cwd(),
+		);
+		return ensured.url;
+	} catch {
+		return undefined;
+	}
+}
+
+/**
+ * Ask a hub to stop admitting new mutating work (sessions, runs) while its
+ * accepted work finishes. Best-effort: pre-drain hubs answer 404 and the
+ * caller proceeds without it.
+ *
+ * Pass `{ off: true }` to lift a drain (`POST /drain?off`): an aborted
+ * upgrade must be able to hand the hub back instead of leaving it refusing
+ * work until a restart.
+ */
+export async function requestHubDrain(
+	url: string,
+	authToken?: string,
+	reason?: string,
+	options?: { off?: boolean },
+): Promise<boolean> {
+	const parsed = new URL(url);
+	const resolvedAuthToken =
+		authToken?.trim() || resolveLocalHubAuthToken(parsed);
+	if (parsed.protocol === "ws:") {
+		parsed.protocol = "http:";
+	} else if (parsed.protocol === "wss:") {
+		parsed.protocol = "https:";
+	}
+	parsed.pathname = "/drain";
+	parsed.hash = "";
+	if (reason) {
+		parsed.searchParams.set("reason", reason);
+	}
+	if (options?.off) {
+		parsed.searchParams.set("off", "1");
+	}
+	const response = await fetch(parsed, {
+		method: "POST",
+		headers: resolvedAuthToken
+			? { authorization: `Bearer ${resolvedAuthToken}` }
+			: undefined,
+	});
+	return response.ok;
 }
 
 export async function requestHubShutdown(
@@ -1032,8 +1168,9 @@ export async function requestHubShutdown(
 	return response.ok;
 }
 
-export async function stopLocalHubServerGracefully(): Promise<boolean> {
-	const owner = resolveSharedHubOwnerContext();
+export async function stopLocalHubServerGracefully(
+	owner: HubOwnerContext = resolveDefaultHubOwnerContext(),
+): Promise<boolean> {
 	const discovery = await readHubDiscovery(owner.discoveryPath);
 	if (!discovery?.url) {
 		return false;
@@ -1060,7 +1197,7 @@ export async function restartLocalHubIfIdleAfterStartupTimeout(options: {
 	if (!isRecoverableLocalHubUrl(options.url)) {
 		return undefined;
 	}
-	const owner = resolveSharedHubOwnerContext();
+	const owner = resolveDefaultHubOwnerContext();
 	const discovery = await readHubDiscovery(owner.discoveryPath);
 	if (!discovery?.url || !sameNormalizedHubUrl(discovery.url, options.url)) {
 		return undefined;

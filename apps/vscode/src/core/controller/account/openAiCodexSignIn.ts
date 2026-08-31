@@ -1,27 +1,22 @@
 import { Empty, EmptyRequest } from "@shared/proto/cline/common"
 import { ShowMessageType } from "@shared/proto/host/window"
 import { HostProvider } from "@/hosts/host-provider"
-import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
+import { AuthService } from "@/sdk/auth-service"
 import { Logger } from "@/shared/services/Logger"
-import { openExternal } from "@/utils/env"
 import { Controller } from ".."
 
 /**
- * Initiates OpenAI Codex OAuth authentication flow
- * Opens the authorization URL in the user's browser
+ * Initiates OpenAI Codex OAuth authentication flow.
+ * Uses the SDK-backed AuthService which delegates to @cline/core's
+ * loginOpenAICodex() function.
  */
 export async function openAiCodexSignIn(controller: Controller, _: EmptyRequest): Promise<Empty> {
 	try {
-		// Start the authorization flow and get the auth URL
-		const authUrl = openAiCodexOAuthManager.startAuthorizationFlow()
+		const authService = AuthService.getInstance()
 
-		// Open the auth URL in the browser
-		await openExternal(authUrl)
-
-		// Wait for the OAuth callback in the background
-		// The callback will save credentials when complete
-		openAiCodexOAuthManager
-			.waitForCallback()
+		// Start the OAuth flow in the background
+		authService
+			.openAiCodexLogin()
 			.then(async () => {
 				HostProvider.window.showMessage({
 					type: ShowMessageType.INFORMATION,
@@ -30,11 +25,13 @@ export async function openAiCodexSignIn(controller: Controller, _: EmptyRequest)
 				await controller.postStateToWebview()
 			})
 			.catch((error) => {
-				Logger.error("[openAiCodexSignIn] OAuth callback failed:", error)
-				openAiCodexOAuthManager.cancelAuthorizationFlow()
-				// Don't show notification for timeouts (user likely just abandoned)
+				Logger.error("[openAiCodexSignIn] OAuth flow failed:", error)
 				const errorMessage = error instanceof Error ? error.message : String(error)
-				if (!errorMessage.includes("timed out")) {
+				// "Missing authorization code" is the abandoned-flow shape of a
+				// timeout here: the webview provides no manual code entry, so it
+				// only occurs when the callback wait expires without a redirect.
+				const isAbandonedFlow = errorMessage.includes("timed out") || errorMessage.includes("Missing authorization code")
+				if (!isAbandonedFlow) {
 					HostProvider.window.showMessage({
 						type: ShowMessageType.ERROR,
 						message: `OpenAI Codex sign in failed: ${errorMessage}`,
@@ -43,7 +40,6 @@ export async function openAiCodexSignIn(controller: Controller, _: EmptyRequest)
 			})
 	} catch (error) {
 		Logger.error("[openAiCodexSignIn] Failed to start OAuth flow:", error)
-		openAiCodexOAuthManager.cancelAuthorizationFlow()
 		throw error
 	}
 

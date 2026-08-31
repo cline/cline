@@ -1,8 +1,14 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
+import {
+	type CronScheduleSpec,
+	ONE_TIME_SCHEDULE_CRON_PATTERN,
+	ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY,
+} from "@cline/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { SqliteCronStore } from "../store/sqlite-cron-store";
 import { HubScheduleCommandService } from "./schedule-command-service";
 import { HubScheduleService } from "./schedule-service";
 
@@ -43,6 +49,7 @@ describe("HubScheduleService", () => {
 		}> = [];
 		const service = new HubScheduleService({
 			dbPath,
+			specs: { cronSpecsDir: join(dirname(dbPath), "cron") },
 			runtimeHandlers: {
 				startSession: vi.fn(async () => ({ sessionId: "session-1" })),
 				sendSession: vi.fn(async () => ({
@@ -76,6 +83,7 @@ describe("HubScheduleService", () => {
 				timeoutSeconds: 30,
 				metadata: { delivery: { threadId: "thread-1" } },
 			});
+			expect(created.mode).toBe("yolo");
 
 			const execution = await service.triggerScheduleNow(created.scheduleId);
 			expect(execution?.status).toBe("success");
@@ -106,6 +114,58 @@ describe("HubScheduleService", () => {
 		}
 	});
 
+	sqliteIt(
+		"maps missing and unknown stored modes to yolo while preserving act",
+		async () => {
+			const dbPath = await createTempDbPath();
+			cleanupPaths.push(dbPath);
+			const store = new SqliteCronStore({ dbPath });
+			for (const [scheduleId, mode] of [
+				["sched-missing", undefined],
+				["sched-unknown", "unknown"],
+				["sched-act", "act"],
+			] as const) {
+				store.upsertSpec({
+					externalId: scheduleId,
+					sourcePath: `hub/schedules/${scheduleId}.cron.md`,
+					triggerKind: "schedule",
+					sourceHash: `hash-${scheduleId}`,
+					parseStatus: "valid",
+					spec: {
+						triggerKind: "schedule",
+						id: scheduleId,
+						title: scheduleId,
+						prompt: "Do the work",
+						workspaceRoot: "/workspace",
+						schedule: "0 * * * *",
+						enabled: true,
+						mode: mode as CronScheduleSpec["mode"],
+						source: "hub-schedule",
+					},
+				});
+			}
+			store.close();
+
+			const service = new HubScheduleService({
+				dbPath,
+				specs: { cronSpecsDir: join(dirname(dbPath), "cron") },
+				runtimeHandlers: {
+					startSession: vi.fn(async () => ({ sessionId: "unused" })),
+					sendSession: vi.fn(async () => ({ result: { text: "unused" } })),
+					abortSession: vi.fn(async () => ({ applied: true })),
+					stopSession: vi.fn(async () => ({ applied: true })),
+				},
+			});
+			try {
+				expect(service.getSchedule("sched-missing")?.mode).toBe("yolo");
+				expect(service.getSchedule("sched-unknown")?.mode).toBe("yolo");
+				expect(service.getSchedule("sched-act")?.mode).toBe("act");
+			} finally {
+				await service.dispose();
+			}
+		},
+	);
+
 	sqliteIt("publishes failed schedule execution events", async () => {
 		const dbPath = await createTempDbPath();
 		cleanupPaths.push(dbPath);
@@ -115,6 +175,7 @@ describe("HubScheduleService", () => {
 		}> = [];
 		const service = new HubScheduleService({
 			dbPath,
+			specs: { cronSpecsDir: join(dirname(dbPath), "cron") },
 			runtimeHandlers: {
 				startSession: vi.fn(async () => ({ sessionId: "session-failed" })),
 				sendSession: vi.fn(async () => {
@@ -159,12 +220,114 @@ describe("HubScheduleService", () => {
 	});
 
 	sqliteIt(
+		"schedules a one-time run for an exact future timestamp",
+		async () => {
+			const dbPath = await createTempDbPath();
+			cleanupPaths.push(dbPath);
+			const service = new HubScheduleService({
+				dbPath,
+				specs: { cronSpecsDir: join(dirname(dbPath), "cron") },
+				runtimeHandlers: {
+					startSession: vi.fn(async () => ({ sessionId: "session-once" })),
+					sendSession: vi.fn(async () => ({ result: { text: "done" } })),
+					abortSession: vi.fn(async () => ({ applied: true })),
+					stopSession: vi.fn(async () => ({ applied: true })),
+				},
+			});
+			try {
+				const runAt = Date.now() + 60_000;
+				const created = service.createSchedule({
+					name: "One time routine",
+					cronPattern: ONE_TIME_SCHEDULE_CRON_PATTERN,
+					prompt: "Run once",
+					workspaceRoot: "/workspace",
+					metadata: { [ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY]: runAt },
+				});
+
+				expect(created.cronPattern).toBe(ONE_TIME_SCHEDULE_CRON_PATTERN);
+				expect(created.metadata).toEqual({
+					[ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY]: runAt,
+				});
+				expect(created.nextRunAt).toBe(runAt);
+				await service.start();
+				expect(
+					service.listScheduleExecutions({ scheduleId: created.scheduleId }),
+				).toEqual([
+					expect.objectContaining({ status: "pending", triggeredAt: runAt }),
+				]);
+			} finally {
+				await service.dispose();
+			}
+		},
+	);
+
+	sqliteIt("persists and validates recurring schedule timezones", async () => {
+		const dbPath = await createTempDbPath();
+		cleanupPaths.push(dbPath);
+		const service = new HubScheduleService({
+			dbPath,
+			specs: { cronSpecsDir: join(dirname(dbPath), "cron") },
+			runtimeHandlers: {
+				startSession: vi.fn(async () => ({ sessionId: "unused" })),
+				sendSession: vi.fn(async () => ({ result: { text: "unused" } })),
+				abortSession: vi.fn(async () => ({ applied: true })),
+				stopSession: vi.fn(async () => ({ applied: true })),
+			},
+		});
+		try {
+			const created = service.createSchedule({
+				name: "Pacific morning",
+				cronPattern: "0 9 * * 1-5",
+				timezone: "America/Los_Angeles",
+				prompt: "Review open pull requests.",
+				workspaceRoot: "/workspace",
+			});
+			expect(created.timezone).toBe("America/Los_Angeles");
+			service.createSchedule({
+				name: "Other workspace",
+				cronPattern: "0 9 * * *",
+				prompt: "Do other work.",
+				workspaceRoot: "/other-workspace",
+			});
+			expect(service.listSchedules({ workspaceRoot: "/workspace" })).toEqual([
+				expect.objectContaining({ scheduleId: created.scheduleId }),
+			]);
+
+			const updated = service.updateSchedule(created.scheduleId, {
+				scheduleId: created.scheduleId,
+				timezone: "UTC",
+			});
+			expect(updated?.timezone).toBe("UTC");
+			expect(updated?.nextRunAt).not.toBe(created.nextRunAt);
+
+			const cleared = service.updateSchedule(created.scheduleId, {
+				scheduleId: created.scheduleId,
+				timezone: null,
+			});
+			expect(cleared?.timezone).toBeUndefined();
+
+			expect(() =>
+				service.createSchedule({
+					name: "Invalid timezone",
+					cronPattern: "0 9 * * *",
+					timezone: "Not/A_Timezone",
+					prompt: "Do work.",
+					workspaceRoot: "/workspace",
+				}),
+			).toThrow();
+		} finally {
+			await service.dispose();
+		}
+	});
+
+	sqliteIt(
 		"handles schedule commands through the hub command adapter",
 		async () => {
 			const dbPath = await createTempDbPath();
 			cleanupPaths.push(dbPath);
 			const service = new HubScheduleService({
 				dbPath,
+				specs: { cronSpecsDir: join(dirname(dbPath), "cron") },
 				runtimeHandlers: {
 					startSession: vi.fn(async () => ({ sessionId: "session-2" })),
 					sendSession: vi.fn(async () => ({ result: { text: "done" } })),
@@ -174,37 +337,296 @@ describe("HubScheduleService", () => {
 			});
 			try {
 				const commands = new HubScheduleCommandService(service);
+				const workspaceAuthority = {
+					clientId: "workspace-client",
+					workspaceContext: { workspaceRoot: "/workspace", cwd: "/workspace" },
+				};
 
-				const createdReply = await commands.handleCommand({
-					version: "v1",
-					command: "schedule.create",
-					payload: {
-						name: "Command routine",
-						cronPattern: "15 * * * *",
-						prompt: "Run from command",
-						workspaceRoot: "/workspace",
-						modelSelection: {
-							providerId: "openai",
-							modelId: "gpt-5.3-codex",
+				const createdReply = await commands.handleCommand(
+					{
+						version: "v1",
+						command: "schedule.create",
+						clientId: "workspace-client",
+						payload: {
+							name: "Command routine",
+							cronPattern: "15 * * * *",
+							prompt: "Run from command",
+							workspaceRoot: "/workspace",
+							modelSelection: {
+								providerId: "openai",
+								modelId: "gpt-5.3-codex",
+							},
 						},
 					},
-				});
+					workspaceAuthority,
+				);
 				expect(createdReply.ok).toBe(true);
 				const created = createdReply.payload?.schedule as {
 					scheduleId: string;
+					mode: string;
 				};
+				expect(created.mode).toBe("yolo");
 
-				const listReply = await commands.handleCommand({
-					version: "v1",
-					command: "schedule.list",
-					payload: { limit: 10 },
-				});
-				expect(listReply.ok).toBe(true);
+				const planReply = await commands.handleCommand(
+					{
+						version: "v1",
+						command: "schedule.update",
+						clientId: "workspace-client",
+						payload: { scheduleId: created.scheduleId, mode: "plan" },
+					},
+					workspaceAuthority,
+				);
+				expect(planReply.ok).toBe(true);
+				expect((planReply.payload?.schedule as { mode: string }).mode).toBe(
+					"plan",
+				);
+
+				const omittedModeReply = await commands.handleCommand(
+					{
+						version: "v1",
+						command: "schedule.update",
+						clientId: "workspace-client",
+						payload: {
+							scheduleId: created.scheduleId,
+							name: "Renamed routine",
+						},
+					},
+					workspaceAuthority,
+				);
+				expect(omittedModeReply.ok).toBe(true);
 				expect(
-					(listReply.payload?.schedules as Array<{ scheduleId: string }>).some(
-						(item) => item.scheduleId === created.scheduleId,
-					),
-				).toBe(true);
+					(omittedModeReply.payload?.schedule as { mode: string }).mode,
+				).toBe("plan");
+
+				for (const invalidMode of [null, "", "invalid"]) {
+					const invalidUpdateReply = await commands.handleCommand(
+						{
+							version: "v1",
+							command: "schedule.update",
+							clientId: "workspace-client",
+							payload: { scheduleId: created.scheduleId, mode: invalidMode },
+						},
+						workspaceAuthority,
+					);
+					expect(invalidUpdateReply).toMatchObject({
+						ok: false,
+						error: {
+							code: "schedule_command_failed",
+							message: "mode must be one of: act, plan, yolo",
+						},
+					});
+				}
+
+				const invalidCreateReply = await commands.handleCommand(
+					{
+						version: "v1",
+						command: "schedule.create",
+						clientId: "workspace-client",
+						payload: {
+							name: "Invalid routine",
+							cronPattern: "30 * * * *",
+							prompt: "Do not create",
+							workspaceRoot: "/workspace",
+							mode: "invalid",
+						},
+					},
+					workspaceAuthority,
+				);
+				expect(invalidCreateReply).toMatchObject({
+					ok: false,
+					error: {
+						code: "schedule_command_failed",
+						message: "mode must be one of: act, plan, yolo",
+					},
+				});
+
+				const listReply = await commands.handleCommand(
+					{
+						version: "v1",
+						command: "schedule.list",
+						clientId: "workspace-client",
+						payload: { limit: 10 },
+					},
+					workspaceAuthority,
+				);
+				expect(listReply.ok).toBe(true);
+				const listedSchedule = (
+					listReply.payload?.schedules as Array<{
+						scheduleId: string;
+						mode: string;
+					}>
+				).find((item) => item.scheduleId === created.scheduleId);
+				expect(listedSchedule).toMatchObject({ mode: "plan" });
+
+				const foreignGet = await commands.handleCommand(
+					{
+						version: "v1",
+						command: "schedule.get",
+						clientId: "other-client",
+						payload: { scheduleId: created.scheduleId },
+					},
+					{
+						clientId: "other-client",
+						workspaceContext: { workspaceRoot: "/other-workspace" },
+					},
+				);
+				expect(foreignGet).toMatchObject({
+					ok: false,
+					error: {
+						code: "schedule_command_failed",
+						message: "schedule does not exist in this workspace",
+					},
+				});
+
+				const spoofedCreate = await commands.handleCommand(
+					{
+						version: "v1",
+						command: "schedule.create",
+						clientId: "workspace-client",
+						payload: {
+							name: "Scoped routine",
+							cronPattern: "30 * * * *",
+							prompt: "Stay in scope",
+							workspaceRoot: "/other-workspace",
+						},
+					},
+					workspaceAuthority,
+				);
+				expect(spoofedCreate.payload?.schedule).toMatchObject({
+					workspaceRoot: resolve("/workspace"),
+				});
+			} finally {
+				await service.dispose();
+			}
+		},
+	);
+
+	sqliteIt(
+		"grants explicit cross-workspace schedule access to authorized clients",
+		async () => {
+			const dbPath = await createTempDbPath();
+			cleanupPaths.push(dbPath);
+			const service = new HubScheduleService({
+				dbPath,
+				specs: { cronSpecsDir: join(dirname(dbPath), "cron") },
+				runtimeHandlers: {
+					startSession: vi.fn(async () => ({ sessionId: "session-3" })),
+					sendSession: vi.fn(async () => ({ result: { text: "done" } })),
+					abortSession: vi.fn(async () => ({ applied: true })),
+					stopSession: vi.fn(async () => ({ applied: true })),
+				},
+			});
+			try {
+				const commands = new HubScheduleCommandService(service);
+				// Like an agent-created schedule: written directly through the
+				// service with the chat session's workspace, not the client's.
+				const agentSchedule = service.createSchedule({
+					name: "Agent routine",
+					cronPattern: "0 * * * *",
+					prompt: "Created from a chat session",
+					workspaceRoot: "/chat-workspace",
+					cwd: "/chat-workspace",
+					createdBy: "agent:agent-1",
+				});
+				const scopedAuthority = {
+					clientId: "scoped-client",
+					workspaceContext: { workspaceRoot: "/desktop", cwd: "/desktop" },
+				};
+				const crossAuthority = { ...scopedAuthority, crossWorkspace: true };
+
+				// allWorkspaces is ignored without cross-workspace authority.
+				const scopedList = await commands.handleCommand(
+					{
+						version: "v1",
+						command: "schedule.list",
+						clientId: "scoped-client",
+						payload: { allWorkspaces: true },
+					},
+					scopedAuthority,
+				);
+				expect(scopedList.payload?.schedules).toEqual([]);
+				const scopedGet = await commands.handleCommand(
+					{
+						version: "v1",
+						command: "schedule.get",
+						clientId: "scoped-client",
+						payload: {
+							scheduleId: agentSchedule.scheduleId,
+							allWorkspaces: true,
+						},
+					},
+					scopedAuthority,
+				);
+				expect(scopedGet).toMatchObject({
+					ok: false,
+					error: { message: "schedule does not exist in this workspace" },
+				});
+
+				// Cross-workspace authority still stays scoped by default.
+				const defaultList = await commands.handleCommand(
+					{
+						version: "v1",
+						command: "schedule.list",
+						clientId: "scoped-client",
+					},
+					crossAuthority,
+				);
+				expect(defaultList.payload?.schedules).toEqual([]);
+
+				// With the explicit flag, the schedule is visible and editable.
+				const allList = await commands.handleCommand(
+					{
+						version: "v1",
+						command: "schedule.list",
+						clientId: "scoped-client",
+						payload: { allWorkspaces: true },
+					},
+					crossAuthority,
+				);
+				expect(allList.payload?.schedules).toMatchObject([
+					{ scheduleId: agentSchedule.scheduleId },
+				]);
+				const renamed = await commands.handleCommand(
+					{
+						version: "v1",
+						command: "schedule.update",
+						clientId: "scoped-client",
+						payload: {
+							scheduleId: agentSchedule.scheduleId,
+							name: "Renamed agent routine",
+							allWorkspaces: true,
+						},
+					},
+					crossAuthority,
+				);
+				expect(renamed.payload?.schedule).toMatchObject({
+					name: "Renamed agent routine",
+					// The update keeps the schedule in its own workspace instead
+					// of pulling it into the client's connection scope.
+					workspaceRoot: resolve("/chat-workspace"),
+				});
+
+				// Cross-workspace creates honor the requested workspace.
+				const created = await commands.handleCommand(
+					{
+						version: "v1",
+						command: "schedule.create",
+						clientId: "scoped-client",
+						payload: {
+							name: "Cross-workspace routine",
+							cronPattern: "30 * * * *",
+							prompt: "Run elsewhere",
+							workspaceRoot: "/another-workspace",
+							cwd: "/another-workspace",
+							allWorkspaces: true,
+						},
+					},
+					crossAuthority,
+				);
+				expect(created.payload?.schedule).toMatchObject({
+					workspaceRoot: resolve("/another-workspace"),
+					cwd: resolve("/another-workspace"),
+				});
 			} finally {
 				await service.dispose();
 			}
