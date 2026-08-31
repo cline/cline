@@ -1,11 +1,20 @@
-import { join } from "node:path";
+import {
+	existsSync,
+	mkdirSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
+import { dirname, join } from "node:path";
 import {
 	type BasicLogger,
 	FEATURE_FLAGS,
 	type FeatureFlagPayload,
 	type FeatureFlagsContext,
 	FeatureFlagsService,
+	type InternalFeature,
 	type ITelemetryService,
+	isInternalFeatureEnabled,
 	NoOpFeatureFlagsProvider,
 	resolveCoreDistinctId,
 } from "@cline/core";
@@ -16,14 +25,93 @@ import {
 import { resolveClineDataDir } from "@cline/shared/storage";
 
 const DESKTOP_FEATURE_FLAGS_CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+const DESKTOP_ACCOUNT_CONTEXT_FILE_VERSION = 1;
 
 let desktopFeatureFlagsContext: FeatureFlagsContext = {
 	clientName: "cline-code",
 };
 let desktopFeatureFlagsService: FeatureFlagsService | undefined;
+let desktopAccountContextHydrated = false;
 
 function resolveDesktopFeatureFlagsCachePath(): string {
 	return join(resolveClineDataDir(), "cache", "feature-flags.cline-code.json");
+}
+
+/**
+ * Where the last-known account identity ({@link setDesktopFeatureFlagsAccountContext})
+ * is remembered between launches. The account email only reaches the sidecar
+ * when the webview fetches the account; without this file, internal-feature
+ * gates would open only after that fetch on every launch.
+ */
+function resolveDesktopAccountContextPath(): string {
+	return join(
+		resolveClineDataDir(),
+		"cache",
+		"feature-flags-account.cline-code.json",
+	);
+}
+
+function hydrateDesktopAccountContextOnce(): void {
+	if (desktopAccountContextHydrated) {
+		return;
+	}
+	desktopAccountContextHydrated = true;
+	try {
+		const path = resolveDesktopAccountContextPath();
+		if (!existsSync(path)) {
+			return;
+		}
+		const parsed = JSON.parse(readFileSync(path, "utf8")) as {
+			version?: unknown;
+			userId?: unknown;
+			email?: unknown;
+		};
+		if (
+			parsed?.version !== DESKTOP_ACCOUNT_CONTEXT_FILE_VERSION ||
+			typeof parsed.userId !== "string" ||
+			!parsed.userId
+		) {
+			return;
+		}
+		desktopFeatureFlagsContext = {
+			...desktopFeatureFlagsContext,
+			distinctId: parsed.userId,
+			userId: parsed.userId,
+			email:
+				typeof parsed.email === "string" && parsed.email
+					? parsed.email
+					: undefined,
+		};
+	} catch {
+		// A missing or corrupt file only delays gating until the account fetch.
+	}
+}
+
+function persistDesktopAccountContext(logger?: BasicLogger): void {
+	try {
+		const path = resolveDesktopAccountContextPath();
+		const { userId, email } = desktopFeatureFlagsContext;
+		if (!userId) {
+			rmSync(path, { force: true });
+			return;
+		}
+		mkdirSync(dirname(path), { recursive: true });
+		writeFileSync(
+			path,
+			`${JSON.stringify(
+				{
+					version: DESKTOP_ACCOUNT_CONTEXT_FILE_VERSION,
+					userId,
+					email: email ?? undefined,
+				},
+				null,
+				2,
+			)}\n`,
+			{ mode: 0o600 },
+		);
+	} catch (error) {
+		logger?.error?.("Error persisting desktop account context", { error });
+	}
 }
 
 function ensureDesktopDistinctId(): string {
@@ -37,8 +125,28 @@ function ensureDesktopDistinctId(): string {
 }
 
 export function getDesktopFeatureFlagsContext(): FeatureFlagsContext {
+	hydrateDesktopAccountContextOnce();
 	ensureDesktopDistinctId();
 	return { ...desktopFeatureFlagsContext };
+}
+
+/**
+ * Whether this install may use an internal-only feature: the signed-in
+ * account has an internal (`@cline.bot`) email — learned from the account
+ * fetch and remembered across launches — or the feature's own flag was
+ * enabled for the account (the PostHog escape hatch). Signed-out and
+ * never-fetched accounts fail closed.
+ */
+export function isDesktopInternalFeatureEnabled(
+	feature: InternalFeature,
+	options?: { logger?: BasicLogger; telemetry?: ITelemetryService },
+): boolean {
+	hydrateDesktopAccountContextOnce();
+	return isInternalFeatureEnabled(feature, {
+		email: desktopFeatureFlagsContext.email,
+		isFlagEnabled: (flagKey) =>
+			getDesktopFeatureFlagsService(options).getBooleanFlagEnabled(flagKey),
+	});
 }
 
 export function getDesktopFeatureFlagsService(options?: {
@@ -82,13 +190,25 @@ export async function disposeDesktopFeatureFlagsService(): Promise<void> {
 	await current.dispose();
 }
 
-export function setDesktopFeatureFlagsAccountContext(account: {
-	id?: string;
-	email?: string;
-}): boolean {
-	const accountId = account.id?.trim();
+export function setDesktopFeatureFlagsAccountContext(
+	account: {
+		id?: string;
+		email?: string;
+	},
+	options?: { logger?: BasicLogger },
+): boolean {
+	hydrateDesktopAccountContextOnce();
+	const accountId = account.id?.trim() || undefined;
 	const previousUserId = desktopFeatureFlagsContext.userId ?? undefined;
-	if (previousUserId === (accountId || undefined)) {
+	const previousEmail = desktopFeatureFlagsContext.email ?? undefined;
+	// Callers that only know the account ID (e.g. provider-settings syncs)
+	// must not erase an email a full account fetch already provided — the
+	// email is what internal-feature gating keys on. A different account (or
+	// sign-out) always drops it.
+	const email =
+		account.email?.trim() ||
+		(accountId && accountId === previousUserId ? previousEmail : undefined);
+	if (previousUserId === accountId && previousEmail === email) {
 		return false;
 	}
 
@@ -97,18 +217,21 @@ export function setDesktopFeatureFlagsAccountContext(account: {
 			...desktopFeatureFlagsContext,
 			distinctId: accountId,
 			userId: accountId,
+			email,
 		};
 	} else {
-		// Drop both identifiers; ensureDesktopDistinctId re-resolves the device
+		// Drop the identifiers; ensureDesktopDistinctId re-resolves the device
 		// ID on the next read rather than leaving the old account's ID behind.
 		const {
 			distinctId: _distinctId,
 			userId: _userId,
+			email: _email,
 			...rest
 		} = desktopFeatureFlagsContext;
 		desktopFeatureFlagsContext = rest;
 	}
 
+	persistDesktopAccountContext(options?.logger);
 	desktopFeatureFlagsService?.setContext(getDesktopFeatureFlagsContext());
 	return true;
 }
@@ -152,7 +275,7 @@ export async function identifyDesktopFeatureFlagsAccount(
 	options?: { logger?: BasicLogger; telemetry?: ITelemetryService },
 ): Promise<void> {
 	if (
-		!setDesktopFeatureFlagsAccountContext(account) ||
+		!setDesktopFeatureFlagsAccountContext(account, options) ||
 		!desktopFeatureFlagsService
 	) {
 		return;
@@ -168,4 +291,5 @@ export async function identifyDesktopFeatureFlagsAccount(
 export function resetDesktopFeatureFlagsForTesting(): void {
 	desktopFeatureFlagsService = undefined;
 	desktopFeatureFlagsContext = { clientName: "cline-code" };
+	desktopAccountContextHydrated = false;
 }
