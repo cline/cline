@@ -677,6 +677,69 @@ describe("cancelComposioConnect", () => {
 		expect(readStateFile(dir).cancelledAccountIds).toContain("ca_evict_0");
 	});
 
+	it("a connection finalized mid-refresh survives the reconciliation write", async () => {
+		const dir = useTempDataDir();
+		process.env.COMPOSIO_API_KEY = "ck_mid_refresh";
+		writeState(dir, {
+			apiKey: "ck_mid_refresh",
+			userId: "u_mid_refresh",
+			toolkits: {
+				// Revoked on Composio's side: the refresh should remove it.
+				gmail: {
+					connectedAccountId: "ca_gmail_revoked",
+					connectedAt: "2026-08-28T00:00:00.000Z",
+					tools: [{ slug: "GMAIL_SEND_EMAIL" }],
+				},
+			},
+		});
+		let releaseList: ((value: { items: unknown[] }) => void) | undefined;
+		const list = vi.fn(
+			() =>
+				new Promise<{ items: unknown[] }>((resolve) => {
+					releaseList = resolve;
+				}),
+		);
+		const client = {
+			toolkits: {
+				// No redirect URL: the connect finalizes inline.
+				authorize: vi.fn(async () => ({
+					id: "ca_github_new",
+					redirectUrl: null,
+					waitForConnection: async () => ({}),
+				})),
+			},
+			authConfigs: {
+				list: vi.fn(async () => ({ items: [] })),
+				create: vi.fn(),
+			},
+			tools: {
+				getRawComposioTools: vi.fn(async () => [
+					{ slug: "GITHUB_CREATE_AN_ISSUE" },
+				]),
+			},
+			connectedAccounts: { list, link: vi.fn(), delete: vi.fn() },
+		};
+		createMockComposioClient = () => client;
+		const statusPromise = getComposioStatus({ refresh: true });
+		await vi.waitFor(() => {
+			expect(list).toHaveBeenCalled();
+		});
+		// While the refresh is suspended on the account list, a connect for a
+		// different toolkit completes and persists its connection.
+		const connectResult = await connectComposioToolkit("github");
+		expect(connectResult.alreadyConnected).toBe(true);
+		expect(readStateFile(dir).toolkits?.github).toBeTruthy();
+		releaseList?.({ items: [] });
+		const status = await statusPromise;
+		// The refresh removes the genuinely revoked toolkit…
+		expect(readStateFile(dir).toolkits?.gmail).toBeUndefined();
+		// …but must not discard the connection that landed mid-refresh.
+		expect(readStateFile(dir).toolkits?.github).toBeTruthy();
+		expect(
+			status.integrations.find((entry) => entry.toolkit === "github")?.status,
+		).toBe("connected");
+	});
+
 	it("reconciliation prunes a tombstone after a confirmed retry revocation", async () => {
 		const dir = useTempDataDir();
 		process.env.COMPOSIO_API_KEY = "ck_refresh_prune";

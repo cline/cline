@@ -616,18 +616,25 @@ export async function getComposioStatus(options?: {
 				activeByToolkit.set(account.toolkit.slug.toLowerCase(), account.id);
 			}
 		}
-		let changed = false;
-		const toolkits = { ...(state.toolkits ?? {}) };
+		// Reconciliation is computed as per-slug DELTAS against the state
+		// snapshot taken when this refresh started (the baseline), never as a
+		// whole toolkit map to assign: an OAuth connection that finalizes
+		// while the tool fetches below are in flight lives only in the fresh
+		// state, and replacing the map wholesale would silently discard it.
+		const startToolkits = state.toolkits ?? {};
+		const baselineIdBySlug = new Map<ComposioToolkitSlug, string | undefined>();
+		const removals: ComposioToolkitSlug[] = [];
+		const imports = new Map<ComposioToolkitSlug, StoredComposioToolkit>();
 		const slugsToReconcile = new Set<ComposioToolkitSlug>([
-			...Object.keys(toolkits),
+			...Object.keys(startToolkits),
 			...activeByToolkit.keys(),
 		]);
 		for (const slug of slugsToReconcile) {
 			const remoteAccountId = activeByToolkit.get(slug);
-			const stored = toolkits[slug];
+			const stored = startToolkits[slug];
+			baselineIdBySlug.set(slug, stored?.connectedAccountId);
 			if (stored && !remoteAccountId) {
-				delete toolkits[slug];
-				changed = true;
+				removals.push(slug);
 			} else if (
 				remoteAccountId &&
 				(!stored || stored.connectedAccountId !== remoteAccountId) &&
@@ -636,41 +643,58 @@ export async function getComposioStatus(options?: {
 				// toolkit; writing it back would resurrect the connection.
 				(lastDisconnectedAt.get(slug) ?? 0) < refreshStartedAt
 			) {
-				toolkits[slug] = {
+				imports.set(slug, {
 					connectedAccountId: remoteAccountId,
 					connectedAt: new Date().toISOString(),
 					...lookupCatalogDisplayInfo(slug),
 					tools: await fetchToolkitTools(client, slug),
-				};
-				changed = true;
+				});
 			}
 		}
-		if (changed) {
-			// The tool fetches above are slow enough for a disconnect, cancel,
-			// or key change to have landed meanwhile; apply this refresh's
-			// result onto the freshly read state (inside the serialized write
-			// path) and re-honor those concurrent effects instead of
-			// overwriting them.
+		if (removals.length > 0 || imports.size > 0) {
+			// The tool fetches above are slow enough for a connect, disconnect,
+			// cancel, or key change to have landed meanwhile. Each delta is
+			// applied to the freshly read state only if that slug still matches
+			// the baseline it was decided against (per-slug compare-and-swap),
+			// so concurrent changes survive this write.
 			let aborted = false;
 			const next = updateComposioState((fresh) => {
 				if (fresh.apiKey !== state.apiKey || fresh.userId !== state.userId) {
 					aborted = true;
 					return;
 				}
-				for (const slug of slugsToReconcile) {
-					if ((lastDisconnectedAt.get(slug) ?? 0) >= refreshStartedAt) {
-						delete toolkits[slug];
-					}
-				}
-				// A cancel that landed mid-refresh shows up in the re-read
-				// state's tombstones; honor it the same way.
+				const freshToolkits = { ...(fresh.toolkits ?? {}) };
 				const freshCancelled = new Set(fresh.cancelledAccountIds ?? []);
-				for (const [slug, stored] of Object.entries(toolkits)) {
-					if (stored && freshCancelled.has(stored.connectedAccountId)) {
-						delete toolkits[slug];
+				for (const slug of removals) {
+					// Remove only the exact account this refresh saw missing; a
+					// connection finalized mid-refresh has a different id and
+					// must survive.
+					if (
+						freshToolkits[slug]?.connectedAccountId ===
+						baselineIdBySlug.get(slug)
+					) {
+						delete freshToolkits[slug];
 					}
 				}
-				fresh.toolkits = toolkits;
+				for (const [slug, imported] of imports) {
+					if (
+						freshToolkits[slug]?.connectedAccountId !==
+						baselineIdBySlug.get(slug)
+					) {
+						continue; // The slug changed mid-refresh; keep the newer state.
+					}
+					if ((lastDisconnectedAt.get(slug) ?? 0) >= refreshStartedAt) {
+						continue; // Disconnected mid-refresh.
+					}
+					if (pendingConnections.has(slug)) {
+						continue; // A new attempt started mid-refresh; let it finish.
+					}
+					if (freshCancelled.has(imported.connectedAccountId)) {
+						continue; // Cancelled mid-refresh.
+					}
+					freshToolkits[slug] = imported;
+				}
+				fresh.toolkits = freshToolkits;
 			});
 			if (!aborted) {
 				syncComposioPluginFileQuietly(next, options?.logger);
