@@ -214,7 +214,7 @@ All hooks must return:
 ## Hook Execution Limits
 
 - **Timeout**: Hooks must complete within 30 seconds in the VS Code extension (configurable via `HOOK_EXECUTION_TIMEOUT_MS`); the CLI/SDK hook layers allow up to 120 seconds per hook command
-- **Blocking**: Run-start hooks (TaskStart, TaskResume) and tool hooks run blocking — their JSON output is read, and `cancel`/`contextModification` are honored. Their runtime delays the turn, so keep them fast; a hook that never exits stalls the run until the timeout
+- **Blocking**: Tool hooks run blocking everywhere — their JSON output is read, and `cancel`/`contextModification` are honored. Run-start hooks (TaskStart, TaskResume) run blocking in the VS Code extension; in the CLI/SDK hook layers they stay fire-and-forget unless the host opts into blocking, in which case a long-running run-start hook must background itself (spawn a detached child and exit). Blocking hooks delay the turn, so keep them fast; one that never exits stalls the run until the timeout
 - **Context Size**: Context modifications are limited to 50KB (configurable via `MAX_CONTEXT_MODIFICATION_SIZE`)
 - **Error Handling**: Expected errors (file not found, permission denied, not a directory) are handled silently; unexpected file system errors are propagated
 
