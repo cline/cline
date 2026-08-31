@@ -157,6 +157,16 @@ export interface SubprocessHooksOptions {
 	workspaceInfo?: WorkspaceInfo;
 	env?: NodeJS.ProcessEnv;
 	timeoutMs?: number;
+	/**
+	 * Run agent_start/agent_resume hooks blocking, honoring their control
+	 * output (cancel, contextModification). Off by default: these hooks have
+	 * always been fire-and-forget with stdio ignored, so an existing
+	 * long-running script would otherwise stall every run start until the
+	 * timeout. A host that flips this on must tell hook authors that
+	 * long-running run-start hooks need to background themselves (spawn a
+	 * detached child and exit).
+	 */
+	blockingRunStartHooks?: boolean;
 	onDispatchError?: (error: Error, payload: HookEventPayload) => void;
 	onDispatch?: (event: {
 		payload: HookEventPayload;
@@ -397,9 +407,11 @@ async function dispatchDetached(
 export function createSubprocessHooks(
 	options: SubprocessHooksOptions = {},
 ): SubprocessHookControl {
-	// Run-start hooks execute blocking so their output is collected: like the
-	// tool hooks, they may cancel the run or inject context, neither of which
-	// is possible from a detached spawn with ignored stdio.
+	// With blockingRunStartHooks, run-start hooks execute blocking so their
+	// output is collected: like the tool hooks, they may cancel the run or
+	// inject context, neither of which is possible from a detached spawn with
+	// ignored stdio. The default stays fire-and-forget so existing
+	// long-running run-start scripts don't stall every run until the timeout.
 	const beforeRun = async (
 		ctx: AgentRunLifecycleContext,
 	): Promise<
@@ -422,6 +434,10 @@ export function createSubprocessHooks(
 					hookName: "agent_start",
 					taskStart: { taskMetadata: {} },
 				};
+		if (!options.blockingRunStartHooks) {
+			await dispatchDetached(payload, options);
+			return undefined;
+		}
 		try {
 			const result = await runHook(payload, {
 				command: options.command,

@@ -83,6 +83,16 @@ type HookRuntimeOptions = {
 	toolCallTimeoutMs?: number;
 	/** Keep asynchronous hooks attached until exit. Intended for deterministic tests. */
 	detachAsyncHooks?: boolean;
+	/**
+	 * Run agent_start/agent_resume hooks blocking, honoring their control
+	 * output (cancel, contextModification). Off by default: these hooks have
+	 * always been fire-and-forget with stdio ignored, so an existing
+	 * long-running script would otherwise stall every run start until the
+	 * timeout. A host that flips this on must tell hook authors that
+	 * long-running run-start hooks need to background themselves (spawn a
+	 * detached child and exit).
+	 */
+	blockingRunStartHooks?: boolean;
 	/** Structured git + path metadata forwarded into every hook payload. */
 	workspaceInfo?: WorkspaceInfo;
 };
@@ -727,9 +737,11 @@ export function createHookConfigFileHooks(
 		return undefined;
 	}
 
-	// Run-start hooks execute blocking so their output is collected: like the
-	// tool hooks, they may cancel the run or inject context, neither of which
-	// is possible from a detached spawn with ignored stdio.
+	// With blockingRunStartHooks, run-start hooks execute blocking so their
+	// output is collected: like the tool hooks, they may cancel the run or
+	// inject context, neither of which is possible from a detached spawn with
+	// ignored stdio. The default stays fire-and-forget so existing
+	// long-running run-start scripts don't stall every run until the timeout.
 	const runAgentStart = async (
 		ctx: HookContextBase,
 		hookName: "agent_start" | "agent_resume",
@@ -738,26 +750,37 @@ export function createHookConfigFileHooks(
 		if (commandPaths.length === 0) {
 			return undefined;
 		}
+		const payload =
+			hookName === "agent_resume"
+				? {
+						...createPayloadBase(ctx, options),
+						hookName,
+						taskResume: {
+							taskMetadata: {},
+							previousState: {},
+						},
+					}
+				: {
+						...createPayloadBase(ctx, options),
+						hookName,
+						taskStart: { taskMetadata: {} },
+					};
+		if (!options.blockingRunStartHooks) {
+			await runAsyncHookCommands({
+				commands: commandPaths,
+				cwd: options.cwd,
+				logger: options.logger,
+				detached: options.detachAsyncHooks ?? true,
+				payload,
+			});
+			return undefined;
+		}
 		return runBlockingHookCommands({
 			commands: commandPaths,
 			cwd: options.cwd,
 			logger: options.logger,
 			timeoutMs: options.toolCallTimeoutMs ?? 120000,
-			payload:
-				hookName === "agent_resume"
-					? {
-							...createPayloadBase(ctx, options),
-							hookName,
-							taskResume: {
-								taskMetadata: {},
-								previousState: {},
-							},
-						}
-					: {
-							...createPayloadBase(ctx, options),
-							hookName,
-							taskStart: { taskMetadata: {} },
-						},
+			payload,
 		});
 	};
 
