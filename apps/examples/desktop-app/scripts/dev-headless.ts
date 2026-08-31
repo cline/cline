@@ -15,9 +15,7 @@ async function reserveAvailablePort(): Promise<number> {
 				reject(new Error("Failed to reserve a sidecar port"));
 				return;
 			}
-			server.close((error) =>
-				error ? reject(error) : resolve(address.port),
-			);
+			server.close((error) => (error ? reject(error) : resolve(address.port)));
 		});
 	});
 }

@@ -1,57 +1,68 @@
 #!/usr/bin/env node
 
-import path from "path"
-import { fileURLToPath } from "url"
-import { writeFileWithMkdirs } from "./file-utils.mjs"
-import { getFqn, loadServicesFromProtoDescriptor } from "./proto-utils.mjs"
+import path from "path";
+import { fileURLToPath } from "url";
+import { writeFileWithMkdirs } from "./file-utils.mjs";
+import { getFqn, loadServicesFromProtoDescriptor } from "./proto-utils.mjs";
 
-const WEBVIEW_CLIENTS_FILE = path.resolve("webview-ui/src/services/grpc-client.ts")
-const VSCODE_SERVICES_FILE = path.resolve("src/generated/hosts/vscode/protobus-services.ts")
-const VSCODE_SERVICE_TYPES_FILE = path.resolve("src/generated/hosts/vscode/protobus-service-types.ts")
-const STANDALONE_SERVER_SETUP_FILE = path.resolve("src/generated/hosts/standalone/protobus-server-setup.ts")
+const WEBVIEW_CLIENTS_FILE = path.resolve(
+	"webview-ui/src/services/grpc-client.ts",
+);
+const VSCODE_SERVICES_FILE = path.resolve(
+	"src/generated/hosts/vscode/protobus-services.ts",
+);
+const VSCODE_SERVICE_TYPES_FILE = path.resolve(
+	"src/generated/hosts/vscode/protobus-service-types.ts",
+);
+const STANDALONE_SERVER_SETUP_FILE = path.resolve(
+	"src/generated/hosts/standalone/protobus-server-setup.ts",
+);
 
-const SCRIPT_NAME = path.relative(process.cwd(), fileURLToPath(import.meta.url))
+const SCRIPT_NAME = path.relative(
+	process.cwd(),
+	fileURLToPath(import.meta.url),
+);
 
 export async function main() {
-	const { protobusServices } = await loadServicesFromProtoDescriptor()
-	await generateWebviewProtobusClients(protobusServices)
-	await generateVscodeServiceTypes(protobusServices)
-	await generateVscodeProtobusServers(protobusServices)
-	await generateStandaloneProtobusServiceSetup(protobusServices)
+	const { protobusServices } = await loadServicesFromProtoDescriptor();
+	await generateWebviewProtobusClients(protobusServices);
+	await generateVscodeServiceTypes(protobusServices);
+	await generateVscodeProtobusServers(protobusServices);
+	await generateStandaloneProtobusServiceSetup(protobusServices);
 
-	console.log(`Generated ProtoBus files at:`)
-	console.log(`- ${WEBVIEW_CLIENTS_FILE}`)
-	console.log(`- ${VSCODE_SERVICE_TYPES_FILE}`)
-	console.log(`- ${VSCODE_SERVICES_FILE}`)
-	console.log(`- ${STANDALONE_SERVER_SETUP_FILE}`)
+	console.log(`Generated ProtoBus files at:`);
+	console.log(`- ${WEBVIEW_CLIENTS_FILE}`);
+	console.log(`- ${VSCODE_SERVICE_TYPES_FILE}`);
+	console.log(`- ${VSCODE_SERVICES_FILE}`);
+	console.log(`- ${STANDALONE_SERVER_SETUP_FILE}`);
 }
 
 async function generateWebviewProtobusClients(protobusServices) {
-	const clients = []
+	const clients = [];
 
 	for (const [serviceName, def] of Object.entries(protobusServices)) {
-		const rpcs = []
+		const rpcs = [];
 		for (const [rpcName, rpc] of Object.entries(def.service)) {
-			const requestType = getFqn(rpc.requestType.type.name)
-			const responseType = getFqn(rpc.responseType.type.name)
+			const requestType = getFqn(rpc.requestType.type.name);
+			const responseType = getFqn(rpc.responseType.type.name);
 
 			if (rpc.requestStream) {
-				throw new Error("Request streaming is not supported")
+				throw new Error("Request streaming is not supported");
 			}
 			if (!rpc.responseStream) {
 				rpcs.push(`    static async ${rpcName}(request: ${requestType}): Promise<${responseType}> {
 		return this.makeUnaryRequest("${rpcName}", request, ${requestType}.toJSON, ${responseType}.fromJSON)
-	}`)
+	}`);
 			} else {
 				rpcs.push(`    static ${rpcName}(request: ${requestType}, callbacks: Callbacks<${responseType}>): ()=>void {
 		return this.makeStreamingRequest("${rpcName}", request, ${requestType}.toJSON, ${responseType}.fromJSON, callbacks)
-	}`)
+	}`);
 			}
 		}
 		clients.push(`export class ${serviceName}Client extends ProtoBusClient {
 	static override serviceName: string = "cline.${serviceName}"
 ${rpcs.join("\n")}
-}`)
+}`);
 	}
 
 	// Create output file
@@ -61,36 +72,38 @@ import * as proto from "@shared/proto/index"
 import { ProtoBusClient, Callbacks } from "./grpc-client-base"
 
 ${clients.join("\n")}
-`
+`;
 	// Write output file
-	await writeFileWithMkdirs(WEBVIEW_CLIENTS_FILE, output)
+	await writeFileWithMkdirs(WEBVIEW_CLIENTS_FILE, output);
 }
 
 /**
  * Generate imports and function to add all the handlers to the server for all services defined in the proto files.
  */
 async function generateVscodeServiceTypes(protobusServices) {
-	const servers = []
+	const servers = [];
 
 	for (const [serviceName, def] of Object.entries(protobusServices)) {
-		const domain = getDomainName(serviceName)
-		servers.push(`// ${domain} Service Handler Types`)
-		servers.push(`export type ${serviceName}Handlers = {`)
+		const domain = getDomainName(serviceName);
+		servers.push(`// ${domain} Service Handler Types`);
+		servers.push(`export type ${serviceName}Handlers = {`);
 		for (const [rpcName, rpc] of Object.entries(def.service)) {
-			const requestType = getFqn(rpc.requestType.type.name)
-			const responseType = getFqn(rpc.responseType.type.name)
+			const requestType = getFqn(rpc.requestType.type.name);
+			const responseType = getFqn(rpc.responseType.type.name);
 			if (rpc.requestStream) {
-				throw new Error("Request streaming is not supported")
+				throw new Error("Request streaming is not supported");
 			}
 			if (!rpc.responseStream) {
-				servers.push(`     ${rpcName}:(controller: Controller, request: ${requestType}) => Promise<${responseType}>`)
+				servers.push(
+					`     ${rpcName}:(controller: Controller, request: ${requestType}) => Promise<${responseType}>`,
+				);
 			} else {
 				servers.push(
 					`     ${rpcName}:(controller: Controller, request: ${requestType}, responseStream: StreamingResponseHandler<${responseType}>, requestId?: string) => Promise<void>`,
-				)
+				);
 			}
 		}
-		servers.push(`}\n`)
+		servers.push(`}\n`);
 	}
 
 	// Create output file
@@ -101,30 +114,38 @@ import { Controller } from "@core/controller"
 import { StreamingResponseHandler } from "@/core/controller/grpc-handler"
 
 ${servers.join("\n")}
-`
+`;
 	// Write output file
-	await writeFileWithMkdirs(VSCODE_SERVICE_TYPES_FILE, output)
+	await writeFileWithMkdirs(VSCODE_SERVICE_TYPES_FILE, output);
 }
 
 /**
  * Generate imports and function to add all the handlers to the server for all services defined in the proto files.
  */
 async function generateVscodeProtobusServers(protobusServices) {
-	const imports = []
-	const servers = []
-	const serviceMap = []
+	const imports = [];
+	const servers = [];
+	const serviceMap = [];
+	const streamingMethods = [];
 	for (const [serviceName, def] of Object.entries(protobusServices)) {
-		const domain = getDomainName(serviceName)
-		const dir = getDirName(serviceName)
-		imports.push(`// ${domain} Service`)
-		servers.push(`const ${serviceName}Handlers: serviceTypes.${serviceName}Handlers = {`)
-		for (const [rpcName, _rpc] of Object.entries(def.service)) {
-			imports.push(`import { ${rpcName} } from "@core/controller/${dir}/${rpcName}"`)
-			servers.push(`    ${rpcName}: ${rpcName},`)
+		const domain = getDomainName(serviceName);
+		const dir = getDirName(serviceName);
+		imports.push(`// ${domain} Service`);
+		servers.push(
+			`const ${serviceName}Handlers: serviceTypes.${serviceName}Handlers = {`,
+		);
+		for (const [rpcName, rpc] of Object.entries(def.service)) {
+			imports.push(
+				`import { ${rpcName} } from "@core/controller/${dir}/${rpcName}"`,
+			);
+			servers.push(`    ${rpcName}: ${rpcName},`);
+			if (rpc.responseStream) {
+				streamingMethods.push(`    "cline.${serviceName}.${rpcName}",`);
+			}
 		}
-		servers.push(`} \n`)
-		serviceMap.push(`    "cline.${serviceName}": ${serviceName}Handlers,`)
-		imports.push("")
+		servers.push(`} \n`);
+		serviceMap.push(`    "cline.${serviceName}": ${serviceName}Handlers,`);
+		imports.push("");
 	}
 
 	// Create output file
@@ -137,42 +158,51 @@ ${servers.join("\n")}
 export const serviceHandlers: Record<string, any> = {
 ${serviceMap.join("\n")}
 }
-`
+
+/** Fully-qualified response-streaming methods, derived from the proto descriptors. */
+export const responseStreamingMethods: ReadonlySet<string> = new Set([
+${streamingMethods.join("\n")}
+])
+`;
 	// Write output file
-	await writeFileWithMkdirs(VSCODE_SERVICES_FILE, output)
+	await writeFileWithMkdirs(VSCODE_SERVICES_FILE, output);
 }
 
 /**
  * Generate imports and function to add all the handlers to the server for all services defined in the proto files.
  */
 async function generateStandaloneProtobusServiceSetup(protobusServices) {
-	const imports = []
-	const handlerSetup = []
+	const imports = [];
+	const handlerSetup = [];
 
 	for (const [name, def] of Object.entries(protobusServices)) {
-		const domain = getDomainName(name)
-		const dir = getDirName(name)
-		imports.push(`// ${domain} Service`)
-		handlerSetup.push(`    // ${domain} Service`)
-		handlerSetup.push(`    server.addService(cline.${name}Service, {`)
+		const domain = getDomainName(name);
+		const dir = getDirName(name);
+		imports.push(`// ${domain} Service`);
+		handlerSetup.push(`    // ${domain} Service`);
+		handlerSetup.push(`    server.addService(cline.${name}Service, {`);
 		for (const [rpcName, rpc] of Object.entries(def.service)) {
-			imports.push(`import { ${rpcName} } from "@core/controller/${dir}/${rpcName}"`)
-			const requestType = "cline." + rpc.requestType.type.name
-			const responseType = "cline." + rpc.responseType.type.name
+			imports.push(
+				`import { ${rpcName} } from "@core/controller/${dir}/${rpcName}"`,
+			);
+			const requestType = "cline." + rpc.requestType.type.name;
+			const responseType = "cline." + rpc.responseType.type.name;
 			if (rpc.requestStream) {
-				throw new Error("Request streaming is not supported")
+				throw new Error("Request streaming is not supported");
 			}
 			if (rpc.responseStream) {
 				handlerSetup.push(
 					`        ${rpcName}: wrapStreamingResponse<${requestType},${responseType}>(${rpcName}, controller),`,
-				)
+				);
 			} else {
-				handlerSetup.push(`         ${rpcName}: wrapper<${requestType},${responseType}>(${rpcName}, controller),`)
+				handlerSetup.push(
+					`         ${rpcName}: wrapper<${requestType},${responseType}>(${rpcName}, controller),`,
+				);
 			}
 		}
-		handlerSetup.push(`    });`)
-		imports.push("")
-		handlerSetup.push("")
+		handlerSetup.push(`    });`);
+		imports.push("");
+		handlerSetup.push("");
 	}
 
 	// Create output file
@@ -192,23 +222,23 @@ export function addProtobusServices(
 ): void {
 ${handlerSetup.join("\n")}
 }
-`
+`;
 	// Write output file
-	await writeFileWithMkdirs(STANDALONE_SERVER_SETUP_FILE, output)
+	await writeFileWithMkdirs(STANDALONE_SERVER_SETUP_FILE, output);
 }
 
 function getDomainName(serviceName) {
-	return serviceName.replace(/Service$/, "")
+	return serviceName.replace(/Service$/, "");
 }
 function getDirName(serviceName) {
-	const domain = getDomainName(serviceName)
-	return domain.charAt(0).toLowerCase() + domain.slice(1)
+	const domain = getDomainName(serviceName);
+	return domain.charAt(0).toLowerCase() + domain.slice(1);
 }
 
 // Only run main if this script is executed directly
 if (import.meta.url === `file://${process.argv[1]}`) {
 	main().catch((error) => {
-		console.error(chalk.red("Error:"), error)
-		process.exit(1)
-	})
+		console.error(chalk.red("Error:"), error);
+		process.exit(1);
+	});
 }

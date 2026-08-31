@@ -22,6 +22,15 @@ export {
 	AgentQuickActions,
 	type AgentQuickActionsProps,
 } from "./agent-quick-actions.js";
+export {
+	AgentWelcomeHero,
+	type AgentWelcomeHeroLayout,
+	type AgentWelcomeHeroProps,
+} from "./agent-welcome-hero.js";
+export {
+	AttachmentDropZone,
+	type AttachmentDropZoneProps,
+} from "./attachment-drop-zone.js";
 export { Badge, type BadgeProps } from "./badge.js";
 export {
 	Button,
@@ -39,6 +48,7 @@ export {
 	GeneratedMediaContent,
 	type GeneratedMediaContentProps,
 } from "./generated-media.js";
+export { GitHubIcon } from "./github-icon.js";
 export {
 	SearchCombobox,
 	type SearchComboboxOption,
