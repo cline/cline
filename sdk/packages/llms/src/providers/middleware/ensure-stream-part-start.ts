@@ -74,16 +74,3 @@ export const ensureStreamPartStartMiddleware: LanguageModelV3Middleware = {
 		return { stream: normalized, ...rest };
 	},
 };
-
-export function isRecoverableAiSdkStreamPartError(error: unknown): boolean {
-	const message =
-		error instanceof Error
-			? error.message
-			: typeof error === "string"
-				? error
-				: "";
-	return (
-		/^text part .+ not found$/.test(message) ||
-		/^reasoning part .+ not found$/.test(message)
-	);
-}
