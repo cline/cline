@@ -80,6 +80,42 @@ describe("entry point isolation", () => {
 		}
 	});
 
+	it("the messages barrel never imports the optional ANSI peer", () => {
+		// ToolMessageBlock (and only it) needs ansi-to-react; it ships from its
+		// own subpath so that consumers of the barrel's pure helpers and other
+		// components are never forced to install the optional peer.
+		const seen = new Set<string>();
+		const queue = [
+			join(packageRoot, "components/agent-chat/messages/index.ts"),
+		];
+		while (queue.length > 0) {
+			const file = queue.pop();
+			if (!file || seen.has(file)) continue;
+			seen.add(file);
+			for (const spec of importsOf(file)) {
+				expect(spec, `${file} imports ${spec}`).not.toBe("ansi-to-react");
+				if (spec.startsWith(".")) {
+					const base = join(file, "..", spec).replace(/\.js$/, "");
+					for (const candidate of [
+						`${base}.ts`,
+						`${base}.tsx`,
+						join(base, "index.ts"),
+						join(base, "index.tsx"),
+					]) {
+						try {
+							readFileSync(candidate);
+							queue.push(candidate);
+							break;
+						} catch {
+							// try next candidate
+						}
+					}
+				}
+			}
+		}
+		expect(seen.size).toBeGreaterThan(5);
+	});
+
 	it("the formatting subpath never imports the OpenTUI renderer", () => {
 		const seen = new Set<string>();
 		const queue = [join(packageRoot, "tui/formatting/index.ts")];

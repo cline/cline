@@ -1,12 +1,15 @@
 /**
- * Chat transcript presentation for browser hosts: message bubbles, tool call
- * rows, run grouping/collapsing, approvals, and image viewers built on the
- * agent-chat primitives. Hosts own the runtime — transport, approval policy,
- * clipboard, confirmation dialogs, and the Markdown renderer (passed in via
- * the `markdown` component prop).
+ * Chat transcript presentation for browser hosts: message bubbles, run
+ * grouping/collapsing, approvals, and image viewers built on the agent-chat
+ * primitives. Hosts own the runtime — transport, approval policy, clipboard,
+ * confirmation dialogs, and the Markdown renderer (passed in via the
+ * `markdown` component prop).
  *
- * Requires the optional `lucide-react` peer (tool/action icons) and, for
- * `ToolMessageBlock`, the optional `ansi-to-react` peer (command output).
+ * Requires the optional `lucide-react` peer (tool/action icons). The tool
+ * call row presentation lives at
+ * `@cline/ui/components/agent-chat/messages/tool-message-block` so that its
+ * optional `ansi-to-react` peer (ANSI command output) stays a requirement of
+ * that subpath only — this barrel never loads it.
  */
 export type {
 	ChatMarkdownComponent,
@@ -51,7 +54,6 @@ export {
 	TOOL_KIND_ICONS,
 	TOOL_NAME_ICONS,
 } from "./tool-icons.js";
-export { ToolMessageBlock } from "./tool-message-block.js";
 export type { ToolPayload, ToolPresentation } from "./tool-summaries.js";
 export {
 	buildToolPresentation,

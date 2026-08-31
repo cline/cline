@@ -70,14 +70,17 @@ are expected over time. Three exist today:
   (optional peer dependency) that renders a tool-summary file item as a
   syntax-highlighted, theme-aware diff with consistent defaults.
 - `@cline/ui/components/agent-chat/messages` — the transcript presentation
-  layer built on the agent-chat primitives: `MessageBubble`,
-  `ToolMessageBlock`, `WorkBlock`, `ReasoningBlock`, `ToolApprovalPanel`,
-  image carousel/lightbox, and the pure grouping pipeline
-  (`groupChatMessages`, `collapseCompletedWork`). Hosts pass structurally
-  compatible `ChatMessage` view models and inject their Markdown renderer
-  through the `markdown` component prop; approval decisions, clipboard,
-  confirmation dialogs, and transport stay with the host. Requires the
-  optional `lucide-react` peer, plus `ansi-to-react` for `ToolMessageBlock`.
+  layer built on the agent-chat primitives: `MessageBubble`, `WorkBlock`,
+  `ReasoningBlock`, `ToolApprovalPanel`, image carousel/lightbox, and the
+  pure grouping pipeline (`groupChatMessages`, `collapseCompletedWork`).
+  Hosts pass structurally compatible `ChatMessage` view models and inject
+  their Markdown renderer through the `markdown` component prop; approval
+  decisions, clipboard, confirmation dialogs, and transport stay with the
+  host. Requires the optional `lucide-react` peer. `ToolMessageBlock` (tool
+  call rows with ANSI command output) ships from the sibling
+  `.../messages/tool-message-block` subpath so its optional `ansi-to-react`
+  peer stays scoped to that subpath, the same way `tool-diff` isolates
+  `@pierre/diffs`.
 
 Shared modules like these keep read/edit/command rows identical across
 products while consumers still own their message schemas, icon assets, and

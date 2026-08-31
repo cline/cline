@@ -20,9 +20,9 @@ import {
 	STREAMING_TITLE_CLASS,
 	ToolApprovalPanel,
 	type ToolApprovalRequestItem,
-	ToolMessageBlock,
 	WorkBlock,
 } from "@cline/ui/components/agent-chat/messages";
+import { ToolMessageBlock } from "@cline/ui/components/agent-chat/messages/tool-message-block";
 import { Loader2 } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {

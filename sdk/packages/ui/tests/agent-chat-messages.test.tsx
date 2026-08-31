@@ -10,8 +10,8 @@ import {
 	MessageBubble,
 	MessageImageCarousel,
 	ToolApprovalPanel,
-	ToolMessageBlock,
 } from "../components/agent-chat/messages/index.js";
+import { ToolMessageBlock } from "../components/agent-chat/messages/tool-message-block.js";
 
 // @pierre/diffs' custom element adopts constructable stylesheets, which jsdom
 // does not implement.

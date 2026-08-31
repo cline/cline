@@ -29,8 +29,8 @@ import { Conversation, Message } from "@cline/ui/components/agent-chat";
 import {
 	groupChatMessages,
 	MessageBubble,
-	ToolMessageBlock,
 } from "@cline/ui/components/agent-chat/messages";
+import { ToolMessageBlock } from "@cline/ui/components/agent-chat/messages/tool-message-block";
 import { ToolFileDiff } from "@cline/ui/components/agent-chat/tool-diff";
 import { buildToolSummary } from "@cline/ui/components/agent-chat/tool-summary";
 import {
@@ -299,6 +299,39 @@ try {
 		"x",
 		"tailwindcss",
 	]);
+
+	// The messages barrel must stay importable without the optional
+	// ansi-to-react peer; only the tool-message-block subpath needs it.
+	const minimalConsumer = join(temporaryRoot, "minimal-messages-consumer");
+	createConsumer(minimalConsumer);
+	await run(
+		[
+			process.execPath,
+			"add",
+			"--ignore-scripts",
+			archive,
+			"react@19.2.4",
+			"react-dom@19.2.4",
+			"lucide-react@0.564.0",
+		],
+		minimalConsumer,
+	);
+	await run(
+		[
+			process.execPath,
+			"-e",
+			`
+import { groupChatMessages, MessageBubble } from "@cline/ui/components/agent-chat/messages";
+const grouped = groupChatMessages([
+	{ id: "m1", sessionId: "s1", role: "assistant", content: "hi", createdAt: 1 },
+]);
+if (grouped.length !== 1 || grouped[0].type !== "message" || !MessageBubble) {
+	throw new Error("messages barrel failed without ansi-to-react installed");
+}
+`,
+		],
+		minimalConsumer,
+	);
 
 	const npmConsumer = join(temporaryRoot, "npm-consumer");
 	createConsumer(npmConsumer);

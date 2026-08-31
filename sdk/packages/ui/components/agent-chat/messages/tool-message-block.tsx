@@ -1,5 +1,12 @@
 "use client";
 
+/**
+ * Tool call row presentation. Exported from its own subpath
+ * (`@cline/ui/components/agent-chat/messages/tool-message-block`) rather than
+ * the messages barrel because the ANSI command-output rendering below needs
+ * the optional `ansi-to-react` peer; consumers of the barrel's pure helpers
+ * and other components must not be forced to install it.
+ */
 import Ansi from "ansi-to-react";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { memo, useCallback, useEffect, useRef, useState } from "react";

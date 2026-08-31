@@ -31,6 +31,10 @@
 			"types": "./dist/components/agent-chat/messages/index.d.ts",
 			"import": "./dist/components/agent-chat/messages/index.js"
 		},
+		"./components/agent-chat/messages/tool-message-block": {
+			"types": "./dist/components/agent-chat/messages/tool-message-block.d.ts",
+			"import": "./dist/components/agent-chat/messages/tool-message-block.js"
+		},
 		"./components/agent-chat/tool-diff": {
 			"types": "./dist/components/agent-chat/tool-diff.d.ts",
 			"import": "./dist/components/agent-chat/tool-diff.js"
