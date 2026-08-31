@@ -1,0 +1,733 @@
+import {
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { loadSqliteDb } from "@cline/shared/db";
+import { afterEach, describe, expect, it } from "vitest";
+import { CoreSessionService } from "../../session/services/session-service";
+import { SqliteSessionStore } from "../storage/sqlite-session-store";
+import { ClaudeCodeImportAdapter } from "./claude-code";
+import { CodexImportAdapter } from "./codex";
+import { OpencodeImportAdapter } from "./opencode";
+import {
+	IMPORT_MISSING_TOOL_RESULT_TEXT,
+	sanitizeImportedMessages,
+} from "./sanitize";
+import { SessionImportService } from "./service";
+
+const tempDirs: string[] = [];
+
+function tempDir(prefix: string): string {
+	const dir = mkdtempSync(join(tmpdir(), prefix));
+	tempDirs.push(dir);
+	return dir;
+}
+
+afterEach(() => {
+	while (tempDirs.length > 0) {
+		const dir = tempDirs.pop();
+		if (dir) rmSync(dir, { recursive: true, force: true });
+	}
+});
+
+function jsonl(lines: unknown[]): string {
+	return `${lines.map((line) => JSON.stringify(line)).join("\n")}\n`;
+}
+
+// ---------------------------------------------------------------------------
+// Claude Code fixtures
+// ---------------------------------------------------------------------------
+
+function writeClaudeCodeFixture(projectsDir: string): string {
+	const dir = join(projectsDir, "-workspace-demo");
+	mkdirSync(dir, { recursive: true });
+	const base = {
+		cwd: "/workspace/demo",
+		gitBranch: "main",
+		isSidechain: false,
+		sessionId: "abc",
+		version: "2.0.0",
+	};
+	const lines = [
+		{ type: "mode", mode: "normal", sessionId: "abc" },
+		{
+			...base,
+			type: "user",
+			uuid: "u1",
+			parentUuid: null,
+			timestamp: "2026-01-02T10:00:00.000Z",
+			message: { role: "user", content: "fix the bug in parser.ts" },
+		},
+		{
+			...base,
+			type: "assistant",
+			uuid: "a1",
+			parentUuid: "u1",
+			timestamp: "2026-01-02T10:00:05.000Z",
+			message: {
+				id: "msg_1",
+				role: "assistant",
+				model: "claude-fable-5",
+				content: [
+					{ type: "thinking", thinking: "let me look", signature: "sig-abc" },
+					{ type: "text", text: "Looking at the parser now." },
+				],
+				usage: { input_tokens: 100, output_tokens: 20 },
+			},
+		},
+		// Same API turn continues on a second line sharing message.id.
+		{
+			...base,
+			type: "assistant",
+			uuid: "a2",
+			parentUuid: "a1",
+			timestamp: "2026-01-02T10:00:06.000Z",
+			message: {
+				id: "msg_1",
+				role: "assistant",
+				model: "claude-fable-5",
+				content: [
+					{
+						type: "tool_use",
+						id: "toolu_1",
+						name: "Read",
+						input: { file_path: "/workspace/demo/parser.ts" },
+						caller: { type: "direct" },
+					},
+				],
+				usage: { input_tokens: 100, output_tokens: 30 },
+			},
+		},
+		{
+			...base,
+			type: "user",
+			uuid: "u2",
+			parentUuid: "a2",
+			timestamp: "2026-01-02T10:00:07.000Z",
+			message: {
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: "toolu_1",
+						content: "export function parse() {}",
+					},
+				],
+			},
+		},
+		// Sidechain (subagent) traffic must be ignored.
+		{
+			...base,
+			isSidechain: true,
+			type: "user",
+			uuid: "s1",
+			parentUuid: null,
+			message: { role: "user", content: "sidechain prompt" },
+		},
+		// Abandoned branch: an earlier retry off a1 that nothing continues.
+		{
+			...base,
+			type: "assistant",
+			uuid: "dead1",
+			parentUuid: "u1",
+			timestamp: "2026-01-02T10:00:04.000Z",
+			message: {
+				id: "msg_dead",
+				role: "assistant",
+				model: "claude-fable-5",
+				content: [{ type: "text", text: "abandoned branch answer" }],
+			},
+		},
+		// Meta/command lines must not become conversation.
+		{
+			...base,
+			type: "user",
+			uuid: "m1",
+			parentUuid: "u2",
+			isMeta: true,
+			message: { role: "user", content: "<local-command-caveat>noise" },
+		},
+		{
+			...base,
+			type: "assistant",
+			uuid: "a3",
+			parentUuid: "m1",
+			timestamp: "2026-01-02T10:00:10.000Z",
+			message: {
+				id: "msg_2",
+				role: "assistant",
+				model: "claude-fable-5",
+				content: [{ type: "text", text: "Fixed. The parser now handles it." }],
+				usage: {
+					input_tokens: 200,
+					output_tokens: 40,
+					cache_read_input_tokens: 50,
+				},
+			},
+		},
+		{ type: "ai-title", aiTitle: "Fix parser bug", sessionId: "abc" },
+	];
+	writeFileSync(join(dir, "abc.jsonl"), jsonl(lines));
+	return dir;
+}
+
+describe("ClaudeCodeImportAdapter", () => {
+	it("discovers, walks the active branch, merges turns, and strips noise", () => {
+		const projectsDir = tempDir("cc-import-");
+		writeClaudeCodeFixture(projectsDir);
+		const adapter = new ClaudeCodeImportAdapter({ projectsDir });
+
+		const discovered = adapter.discover();
+		expect(discovered).toHaveLength(1);
+		expect(discovered[0].title).toBe("Fix parser bug");
+		expect(discovered[0].cwd).toBe("/workspace/demo");
+		expect(discovered[0].preview).toBe("fix the bug in parser.ts");
+
+		const converted = adapter.convert("abc");
+		expect(converted.provider).toBe("anthropic");
+		expect(converted.model).toBe("claude-fable-5");
+		expect(converted.gitBranch).toBe("main");
+
+		const roles = converted.messages.map((message) => message.role);
+		expect(roles).toEqual(["user", "assistant", "user", "assistant"]);
+
+		// Turn merge: thinking + text + tool_use in one assistant message.
+		const firstAssistant = converted.messages[1];
+		expect(Array.isArray(firstAssistant.content)).toBe(true);
+		const types = (firstAssistant.content as Array<{ type: string }>).map(
+			(block) => block.type,
+		);
+		expect(types).toEqual(["thinking", "text", "tool_use"]);
+		expect(firstAssistant.modelInfo).toEqual({
+			id: "claude-fable-5",
+			provider: "anthropic",
+		});
+		expect(firstAssistant.metrics?.inputTokens).toBe(100);
+
+		// The abandoned branch and sidechain never appear.
+		const allText = JSON.stringify(converted.messages);
+		expect(allText).not.toContain("abandoned branch answer");
+		expect(allText).not.toContain("sidechain prompt");
+		expect(allText).not.toContain("local-command-caveat");
+		// Thinking signatures are session-scoped; adapters drop them.
+		expect(allText).not.toContain("sig-abc");
+	});
+
+	it("skips slash-command-only sessions in discovery", () => {
+		const projectsDir = tempDir("cc-import-");
+		const dir = join(projectsDir, "-workspace-empty");
+		mkdirSync(dir, { recursive: true });
+		writeFileSync(
+			join(dir, "empty.jsonl"),
+			jsonl([
+				{
+					type: "user",
+					uuid: "u1",
+					parentUuid: null,
+					isSidechain: false,
+					message: {
+						role: "user",
+						content: "<command-name>/fast</command-name>",
+					},
+				},
+			]),
+		);
+		const adapter = new ClaudeCodeImportAdapter({ projectsDir });
+		expect(adapter.discover()).toHaveLength(0);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Codex fixtures
+// ---------------------------------------------------------------------------
+
+function writeCodexFixture(codexHome: string): void {
+	const dayDir = join(codexHome, "sessions", "2026", "01", "05");
+	mkdirSync(dayDir, { recursive: true });
+	const lines = [
+		{
+			timestamp: "2026-01-05T09:00:00.000Z",
+			type: "session_meta",
+			payload: {
+				id: "cdx-1",
+				cwd: "/workspace/api",
+				model_provider: "openai",
+				git: { branch: "feat/x" },
+			},
+		},
+		{
+			timestamp: "2026-01-05T09:00:00.100Z",
+			type: "turn_context",
+			payload: { model: "gpt-5.5", cwd: "/workspace/api" },
+		},
+		// Injected context arrives as a user response_item — never imported.
+		{
+			timestamp: "2026-01-05T09:00:00.200Z",
+			type: "response_item",
+			payload: {
+				type: "message",
+				role: "user",
+				content: [
+					{
+						type: "input_text",
+						text: "<user_instructions>be nice</user_instructions>",
+					},
+				],
+			},
+		},
+		{
+			timestamp: "2026-01-05T09:00:01.000Z",
+			type: "event_msg",
+			payload: { type: "user_message", message: "add a healthcheck endpoint" },
+		},
+		{
+			timestamp: "2026-01-05T09:00:02.000Z",
+			type: "response_item",
+			payload: {
+				type: "reasoning",
+				summary: [{ type: "summary_text", text: "Need to add a route." }],
+				encrypted_content: "opaque",
+			},
+		},
+		{
+			timestamp: "2026-01-05T09:00:03.000Z",
+			type: "response_item",
+			payload: {
+				type: "function_call",
+				name: "exec_command",
+				call_id: "call_1",
+				arguments: JSON.stringify({ cmd: "ls src/routes" }),
+			},
+		},
+		{
+			timestamp: "2026-01-05T09:00:04.000Z",
+			type: "response_item",
+			payload: {
+				type: "function_call_output",
+				call_id: "call_1",
+				output: "health.ts\nusers.ts",
+			},
+		},
+		{
+			timestamp: "2026-01-05T09:00:05.000Z",
+			type: "response_item",
+			payload: {
+				type: "message",
+				role: "assistant",
+				content: [{ type: "output_text", text: "Added the /health route." }],
+			},
+		},
+		{
+			timestamp: "2026-01-05T09:00:05.500Z",
+			type: "event_msg",
+			payload: {
+				type: "token_count",
+				info: {
+					last_token_usage: {
+						input_tokens: 900,
+						cached_input_tokens: 400,
+						output_tokens: 80,
+					},
+				},
+			},
+		},
+	];
+	writeFileSync(
+		join(dayDir, "rollout-2026-01-05T09-00-00-cdx-1.jsonl"),
+		jsonl(lines),
+	);
+	writeFileSync(
+		join(codexHome, "session_index.jsonl"),
+		jsonl([
+			{
+				id: "cdx-1",
+				thread_name: "healthcheck endpoint",
+				updated_at: "2026-01-05T09:10:00Z",
+			},
+		]),
+	);
+}
+
+describe("CodexImportAdapter", () => {
+	it("imports prompts from user_message events and pairs tool calls", () => {
+		const codexHome = tempDir("codex-import-");
+		writeCodexFixture(codexHome);
+		const adapter = new CodexImportAdapter({ codexHome });
+
+		const discovered = adapter.discover();
+		expect(discovered).toHaveLength(1);
+		expect(discovered[0].title).toBe("healthcheck endpoint");
+		expect(discovered[0].cwd).toBe("/workspace/api");
+
+		const converted = adapter.convert("cdx-1");
+		expect(converted.provider).toBe("openai");
+		expect(converted.model).toBe("gpt-5.5");
+		expect(converted.gitBranch).toBe("feat/x");
+
+		const roles = converted.messages.map((message) => message.role);
+		expect(roles).toEqual(["user", "assistant", "user", "assistant"]);
+
+		const allText = JSON.stringify(converted.messages);
+		expect(allText).not.toContain("user_instructions");
+		expect(allText).not.toContain("opaque");
+
+		const firstAssistant = converted.messages[1];
+		const types = (firstAssistant.content as Array<{ type: string }>).map(
+			(block) => block.type,
+		);
+		expect(types).toEqual(["thinking", "tool_use"]);
+
+		const toolResultMsg = converted.messages[2];
+		const toolResult = (
+			toolResultMsg.content as Array<Record<string, unknown>>
+		)[0];
+		expect(toolResult.type).toBe("tool_result");
+		expect(toolResult.tool_use_id).toBe("call_1");
+		expect(toolResult.name).toBe("exec_command");
+
+		// token_count usage lands on the final assistant message.
+		const lastAssistant = converted.messages[3];
+		expect(lastAssistant.metrics).toEqual({
+			inputTokens: 900,
+			outputTokens: 80,
+			cacheReadTokens: 400,
+			cacheWriteTokens: 0,
+			cost: 0,
+		});
+	});
+
+	it("dedupes resumed rollouts sharing one session id, keeping the richer file", () => {
+		const codexHome = tempDir("codex-import-");
+		writeCodexFixture(codexHome);
+		// A resumed rollout for the same session with more conversation.
+		const dayDir = join(codexHome, "sessions", "2026", "01", "06");
+		mkdirSync(dayDir, { recursive: true });
+		writeFileSync(
+			join(dayDir, "rollout-2026-01-06T09-00-00-resume.jsonl"),
+			jsonl([
+				{
+					timestamp: "2026-01-06T09:00:00.000Z",
+					type: "session_meta",
+					payload: { id: "cdx-1", cwd: "/workspace/api" },
+				},
+				{
+					timestamp: "2026-01-06T09:00:01.000Z",
+					type: "event_msg",
+					payload: {
+						type: "user_message",
+						message: "add a healthcheck endpoint",
+					},
+				},
+				{
+					timestamp: "2026-01-06T09:00:02.000Z",
+					type: "event_msg",
+					payload: { type: "user_message", message: "now add tests for it" },
+				},
+				{
+					timestamp: "2026-01-06T09:00:03.000Z",
+					type: "response_item",
+					payload: {
+						type: "message",
+						role: "assistant",
+						content: [{ type: "output_text", text: "Tests added." }],
+					},
+				},
+			]),
+		);
+		const adapter = new CodexImportAdapter({ codexHome });
+		const discovered = adapter.discover();
+		expect(discovered).toHaveLength(1);
+		expect(discovered[0].sourcePath).toContain("resume");
+
+		const converted = adapter.convert("cdx-1");
+		const text = JSON.stringify(converted.messages);
+		expect(text).toContain("now add tests for it");
+	});
+});
+
+// ---------------------------------------------------------------------------
+// opencode fixtures
+// ---------------------------------------------------------------------------
+
+function writeOpencodeFixture(dataDir: string): void {
+	mkdirSync(dataDir, { recursive: true });
+	const db = loadSqliteDb(join(dataDir, "opencode.db"));
+	db.exec(`
+		CREATE TABLE session (id TEXT PRIMARY KEY, project_id TEXT, parent_id TEXT,
+			slug TEXT, directory TEXT, title TEXT, version TEXT,
+			time_created INTEGER, time_updated INTEGER);
+		CREATE TABLE message (id TEXT PRIMARY KEY, session_id TEXT,
+			time_created INTEGER, time_updated INTEGER, data TEXT);
+		CREATE TABLE part (id TEXT PRIMARY KEY, message_id TEXT, session_id TEXT,
+			time_created INTEGER, time_updated INTEGER, data TEXT);
+	`);
+	const t0 = 1767600000000;
+	db.prepare(
+		`INSERT INTO session (id, project_id, parent_id, slug, directory, title, version, time_created, time_updated)
+		 VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?)`,
+	).run(
+		"ses_1",
+		"prj",
+		"slug",
+		"/workspace/web",
+		"Refactor navbar",
+		"1.0",
+		t0,
+		t0 + 60000,
+	);
+	// Child (subagent) session must be ignored.
+	db.prepare(
+		`INSERT INTO session (id, project_id, parent_id, slug, directory, title, version, time_created, time_updated)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+	).run(
+		"ses_child",
+		"prj",
+		"ses_1",
+		"s",
+		"/workspace/web",
+		"child",
+		"1.0",
+		t0,
+		t0,
+	);
+
+	const insertMessage = db.prepare(
+		`INSERT INTO message (id, session_id, time_created, time_updated, data) VALUES (?, ?, ?, ?, ?)`,
+	);
+	const insertPart = db.prepare(
+		`INSERT INTO part (id, message_id, session_id, time_created, time_updated, data) VALUES (?, ?, ?, ?, ?, ?)`,
+	);
+	insertMessage.run(
+		"msg_1",
+		"ses_1",
+		t0,
+		t0,
+		JSON.stringify({ role: "user", time: { created: t0 } }),
+	);
+	insertPart.run(
+		"prt_1",
+		"msg_1",
+		"ses_1",
+		t0,
+		t0,
+		JSON.stringify({ type: "text", text: "make the navbar sticky" }),
+	);
+	insertPart.run(
+		"prt_2",
+		"msg_1",
+		"ses_1",
+		t0,
+		t0,
+		JSON.stringify({ type: "text", text: "AGENTS ctx", synthetic: true }),
+	);
+	insertMessage.run(
+		"msg_2",
+		"ses_1",
+		t0 + 1000,
+		t0 + 1000,
+		JSON.stringify({
+			role: "assistant",
+			providerID: "anthropic",
+			modelID: "claude-sonnet-5",
+			cost: 0.12,
+			tokens: { input: 500, output: 60, cache: { read: 100, write: 5 } },
+			time: { created: t0 + 1000 },
+		}),
+	);
+	insertPart.run(
+		"prt_3",
+		"msg_2",
+		"ses_1",
+		t0,
+		t0,
+		JSON.stringify({ type: "reasoning", text: "css change" }),
+	);
+	insertPart.run(
+		"prt_4",
+		"msg_2",
+		"ses_1",
+		t0,
+		t0,
+		JSON.stringify({
+			type: "tool",
+			tool: "edit",
+			callID: "call_a",
+			state: {
+				status: "completed",
+				input: { filePath: "nav.css" },
+				output: "edited",
+			},
+		}),
+	);
+	insertPart.run(
+		"prt_5",
+		"msg_2",
+		"ses_1",
+		t0,
+		t0,
+		JSON.stringify({ type: "text", text: "Done — navbar is sticky." }),
+	);
+	db.close?.();
+}
+
+describe("OpencodeImportAdapter", () => {
+	it("splits inline tool parts into tool_use/tool_result and skips children", () => {
+		const dataDir = tempDir("oc-import-");
+		writeOpencodeFixture(dataDir);
+		const adapter = new OpencodeImportAdapter({ dataDir });
+
+		const discovered = adapter.discover();
+		expect(discovered).toHaveLength(1);
+		expect(discovered[0].sourceId).toBe("ses_1");
+		expect(discovered[0].title).toBe("Refactor navbar");
+
+		const converted = adapter.convert("ses_1");
+		expect(converted.provider).toBe("anthropic");
+		expect(converted.model).toBe("claude-sonnet-5");
+
+		const roles = converted.messages.map((message) => message.role);
+		expect(roles).toEqual(["user", "assistant", "user", "assistant"]);
+
+		const allText = JSON.stringify(converted.messages);
+		expect(allText).not.toContain("AGENTS ctx");
+
+		const firstAssistant = converted.messages[1].content as Array<{
+			type: string;
+		}>;
+		expect(firstAssistant.map((block) => block.type)).toEqual([
+			"thinking",
+			"tool_use",
+		]);
+		const toolResult = (
+			converted.messages[2].content as Array<Record<string, unknown>>
+		)[0];
+		expect(toolResult.tool_use_id).toBe("call_a");
+		expect(toolResult.content).toBe("edited");
+
+		const lastAssistant = converted.messages[3];
+		expect(lastAssistant.metrics).toEqual({
+			inputTokens: 500,
+			outputTokens: 60,
+			cacheReadTokens: 100,
+			cacheWriteTokens: 5,
+			cost: 0.12,
+		});
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Sanitizer
+// ---------------------------------------------------------------------------
+
+describe("sanitizeImportedMessages", () => {
+	it("repairs orphaned tool_use, drops orphaned tool_result and empty text", () => {
+		const sanitized = sanitizeImportedMessages([
+			{ role: "user", content: [{ type: "text", text: "   " }] },
+			{ role: "user", content: "do the thing" },
+			{
+				role: "assistant",
+				content: [
+					{ type: "text", text: "on it", signature: "gemini-sig" },
+					{ type: "tool_use", id: "t1", name: "bash", input: {} },
+				],
+			},
+			// No tool_result for t1; and an orphan result for a nonexistent id.
+			{
+				role: "user",
+				content: [
+					{ type: "tool_result", tool_use_id: "ghost", name: "", content: "x" },
+				],
+			},
+		]);
+
+		expect(sanitized.map((message) => message.role)).toEqual([
+			"user",
+			"assistant",
+			"user",
+		]);
+		const repair = sanitized[2].content as Array<Record<string, unknown>>;
+		expect(repair[0].type).toBe("tool_result");
+		expect(repair[0].tool_use_id).toBe("t1");
+		expect(repair[0].content).toBe(IMPORT_MISSING_TOOL_RESULT_TEXT);
+		expect(JSON.stringify(sanitized)).not.toContain("ghost");
+		expect(JSON.stringify(sanitized)).not.toContain("gemini-sig");
+	});
+});
+
+// ---------------------------------------------------------------------------
+// End-to-end: service writes listable, gate-passing sessions
+// ---------------------------------------------------------------------------
+
+describe("SessionImportService", () => {
+	it("imports a discovered session into a listable completed Cline session", async () => {
+		const projectsDir = tempDir("cc-import-");
+		writeClaudeCodeFixture(projectsDir);
+		const dbDir = tempDir("cline-db-");
+		const artifactsDir = tempDir("cline-sessions-");
+
+		const store = new SqliteSessionStore({ sessionsDir: dbDir });
+		store.init();
+		const sessions = new CoreSessionService(store, {
+			sessionArtifactsDir: artifactsDir,
+		});
+		const importer = new SessionImportService(sessions, [
+			new ClaudeCodeImportAdapter({ projectsDir }),
+		]);
+
+		const discovered = await importer.discover();
+		expect(discovered).toHaveLength(1);
+		expect(discovered[0].alreadyImportedSessionId).toBeUndefined();
+
+		const [result] = await importer.importMany([
+			{ tool: "claude-code", sourceId: discovered[0].sourceId },
+		]);
+		expect(result.ok).toBe(true);
+		const sessionId = result.sessionId as string;
+		// Chronology: id epoch prefix comes from the source session start.
+		expect(sessionId.startsWith(String(discovered[0].startedAtMs))).toBe(true);
+
+		// Row passes every history-visibility gate.
+		const row = store.get(sessionId);
+		expect(row?.status).toBe("completed");
+		expect(row?.exitCode).toBe(0);
+		expect(row?.provider).toBe("anthropic");
+		expect(row?.model).toBe("claude-fable-5");
+		expect(row?.isSubagent).toBe(false);
+		expect(row?.cwd).toBe("/workspace/demo");
+		expect((row?.metadata as Record<string, unknown>)?.title).toBe(
+			"Fix parser bug",
+		);
+		const importedFrom = (
+			row?.metadata as Record<string, Record<string, unknown>>
+		)?.importedFrom;
+		expect(importedFrom?.tool).toBe("claude-code");
+		expect(importedFrom?.sourceSessionId).toBe("abc");
+		// No fabricated checkpoint refs.
+		expect(
+			(row?.metadata as Record<string, unknown>)?.checkpoint,
+		).toBeUndefined();
+
+		// Messages artifact is a valid v1 payload with ≥1 message.
+		const payload = JSON.parse(readFileSync(row?.messagesPath ?? "", "utf8"));
+		expect(payload.version).toBe(1);
+		expect(payload.messages.length).toBeGreaterThan(0);
+		for (const message of payload.messages) {
+			expect(typeof message.id).toBe("string");
+		}
+
+		// Manifest carries terminal status and source-era timestamps.
+		const manifest = sessions.readSessionManifest(sessionId);
+		expect(manifest?.status).toBe("completed");
+		expect(manifest?.ended_at).toBe("2026-01-02T10:00:10.000Z");
+		expect(manifest?.metadata?.title).toBe("Fix parser bug");
+
+		// Re-discovery flags the import instead of duplicating it.
+		const rediscovered = await importer.discover();
+		expect(rediscovered[0].alreadyImportedSessionId).toBe(sessionId);
+	});
+});
