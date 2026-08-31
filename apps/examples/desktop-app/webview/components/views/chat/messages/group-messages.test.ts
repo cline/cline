@@ -420,6 +420,116 @@ describe("collapseCompletedWork", () => {
 		expect(work.durationMilliseconds).toBe(4_000);
 	});
 
+	function makeSubmitTool(id: string, createdAt: number): ChatMessage {
+		return makeMessage({
+			id,
+			role: "tool",
+			content: JSON.stringify({
+				toolName: "submit_and_exit",
+				input: { summary: "Report ready." },
+				result: "Report ready.",
+			}),
+			createdAt,
+		});
+	}
+
+	it("keeps a trailing submit_and_exit row visible as the collapsed run's answer", () => {
+		// Scheduled runs end on submit_and_exit — its row carries the final
+		// report, so it must not fold into the work summary.
+		const items = collapse(
+			[
+				makeMessage({
+					id: "u1",
+					role: "user",
+					content: "go",
+					createdAt: 1_000,
+				}),
+				makeTool("t1", 2_000),
+				makeSubmitTool("submit", 5_000),
+			],
+			true,
+		);
+
+		expect(items.map((item) => item.type)).toEqual([
+			"message",
+			"work",
+			"tools",
+		]);
+		const work = items[1];
+		if (work?.type !== "work") throw new Error("expected work item");
+		expect(work.toolCallCount).toBe(1);
+		expect(work.durationMilliseconds).toBe(4_000);
+		const submit = items[2];
+		if (submit?.type !== "tools") throw new Error("expected tools item");
+		expect(submit.messages.map((message) => message.id)).toEqual(["submit"]);
+	});
+
+	it("keeps the submit_and_exit row visible once a later user message exists", () => {
+		// A follow-up prompt in a finished scheduled session settles the run's
+		// span; the report row must survive the collapse instead of hiding
+		// inside the work summary.
+		const items = collapse(
+			[
+				makeMessage({
+					id: "u1",
+					role: "user",
+					content: "go",
+					createdAt: 1_000,
+				}),
+				makeTool("t1", 2_000),
+				makeSubmitTool("submit", 5_000),
+				makeMessage({
+					id: "u2",
+					role: "user",
+					content: "thanks, one more thing",
+					createdAt: 9_000,
+				}),
+			],
+			false,
+		);
+
+		expect(items.map((item) => item.type)).toEqual([
+			"message",
+			"work",
+			"tools",
+			"message",
+		]);
+		const submit = items[2];
+		if (submit?.type !== "tools") throw new Error("expected tools item");
+		expect(submit.messages.map((message) => message.id)).toEqual(["submit"]);
+	});
+
+	it("keeps a live run's trailing submit_and_exit with its working rows", () => {
+		const items = collapse(
+			[
+				makeMessage({
+					id: "u1",
+					role: "user",
+					content: "go",
+					createdAt: 1_000,
+				}),
+				makeMessage({
+					id: "r1",
+					reasoning: "wrapping up",
+					createdAt: 1_500,
+				}),
+				makeTool("t1", 2_000),
+				makeSubmitTool("submit", 3_000),
+			],
+			false,
+		);
+
+		expect(items.map((item) => item.type)).toEqual(["message", "run"]);
+		const run = items[1];
+		if (run?.type !== "run") throw new Error("expected run item");
+		const tools = run.items.at(-1);
+		if (tools?.type !== "tools") throw new Error("expected tools item");
+		expect(tools.messages.map((message) => message.id)).toEqual([
+			"t1",
+			"submit",
+		]);
+	});
+
 	it("measures duration from the first working row when no user message precedes it", () => {
 		const items = collapse(
 			[
