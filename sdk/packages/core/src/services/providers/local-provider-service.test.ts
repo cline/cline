@@ -418,6 +418,69 @@ describe("addLocalProvider – model ID parsing via modelsSourceUrl", () => {
 		expect(models.map((m) => m.id).sort()).toEqual(["llama3.1", "qwen3:8b"]);
 	});
 
+	it("merges live Cline models into the registered catalog", async () => {
+		const liveModelId = "vendor/live-cline-model";
+		const fetchMock = vi.fn(async (url: string) => {
+			if (url === "https://models.dev/api.json") {
+				return new Response(
+					JSON.stringify({
+						openrouter: {
+							models: {
+								[liveModelId]: {
+									name: "Live Cline Model",
+									tool_call: true,
+									reasoning: true,
+									limit: {
+										context: 256_000,
+										input: 200_000,
+										output: 32_000,
+									},
+								},
+							},
+						},
+					}),
+					{
+						status: 200,
+						headers: { "content-type": "application/json" },
+					},
+				);
+			}
+
+			return new Response(
+				JSON.stringify({
+					recommended: [
+						{
+							id: liveModelId,
+							name: liveModelId,
+							description: "Fresh from the live catalog",
+							tags: ["NEW"],
+						},
+					],
+					free: [],
+					clinePass: [],
+				}),
+				{
+					status: 200,
+					headers: { "content-type": "application/json" },
+				},
+			);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const { models } = await getLocalProviderModels("cline");
+
+		// models.dev and the recommended feed populate the live catalog; the
+		// recommended feed is fetched once more for the featured-tier overlay.
+		expect(fetchMock).toHaveBeenCalledTimes(3);
+		expect(models.find((model) => model.id === liveModelId)).toMatchObject({
+			id: liveModelId,
+			name: "Live Cline Model",
+			supportsReasoning: true,
+			description: "Fresh from the live catalog",
+			featured: { tier: "recommended", rank: 0, tags: ["NEW"] },
+		});
+	});
+
 	it("uses only live ClinePass models when live models are found", async () => {
 		const fetchMock = vi.fn(async (url: string) => {
 			if (url === "https://models.dev/api.json") {
@@ -1191,6 +1254,15 @@ describe("audio transcription", () => {
 
 describe("models.json model overlays", () => {
 	it("loads model-only entries for built-in providers", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn().mockResolvedValue(
+				new Response(JSON.stringify({}), {
+					status: 200,
+					headers: { "content-type": "application/json" },
+				}),
+			),
+		);
 		const dir = mkdtempSync(
 			path.join(os.tmpdir(), "local-provider-overlay-test-"),
 		);

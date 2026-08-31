@@ -157,16 +157,21 @@ async function resolveProviderModelMap(
 	providerId: string,
 	config?: ProviderConfig,
 ): Promise<Record<string, ModelInfo>> {
-	const registeredModels = await LlmsModels.getModelsForProvider(providerId);
+	const [registeredModels, registeredModelOverrides] = await Promise.all([
+		LlmsModels.getModelsForProvider(providerId),
+		LlmsModels.getModelOverridesForProvider(providerId),
+	]);
+	const shouldLoadLiveCatalog =
+		providerId === CLINE_PROVIDER_ID || providerId === CLINE_PASS_PROVIDER_ID;
 	const isClinePass = providerId === CLINE_PASS_PROVIDER_ID;
-	if (!config && !isClinePass) {
+	if (!config && !shouldLoadLiveCatalog) {
 		return registeredModels;
 	}
 
 	const resolved = await resolveProviderConfig(
 		providerId,
 		{
-			loadLatestOnInit: isClinePass,
+			loadLatestOnInit: shouldLoadLiveCatalog,
 			loadPrivateOnAuth: true,
 			failOnError: false,
 		},
@@ -184,6 +189,7 @@ async function resolveProviderModelMap(
 		? {
 				...registeredModels,
 				...resolved.knownModels,
+				...registeredModelOverrides,
 			}
 		: registeredModels;
 }

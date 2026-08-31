@@ -27,7 +27,7 @@ Use `@cline/ui@next` only for deliberate previews. Monorepo consumers use
 
 | Import | Contents | Runtime requirement |
 | --- | --- | --- |
-| `@cline/ui` | Button, icon-button, agent ask-question, approval-card, Aurora, hero-heading, prompt-queue, quick-action, search-combobox, and session-status React primitives | React 18.3 or 19 and Tailwind v4 |
+| `@cline/ui` | Reusable React primitives exported from [`components/index.ts`](./components/index.ts) | React 18.3 or 19 and Tailwind v4 |
 | `@cline/ui/components.css` | Styles, namespaced Tailwind mappings, and source registration for the root React primitives | Tailwind v4 and theme tokens |
 | `@cline/ui/theme/palette.css` | Cline-owned light/dark solid and alpha color scales | CSS |
 | `@cline/ui/theme/tokens.css` | Light/dark custom properties only | CSS |

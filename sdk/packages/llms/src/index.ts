@@ -20,6 +20,7 @@ export {
 	getAllProviders,
 	getGeneratedModelsForProvider,
 	getGeneratedProviderModels,
+	getModelOverridesForProvider,
 	getModelsForProvider,
 	getProvider,
 	getProviderCollection,
