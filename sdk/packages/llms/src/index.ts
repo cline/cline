@@ -107,6 +107,10 @@ export type * from "./providers/gateway";
 export { createGateway, DefaultGateway } from "./providers/gateway";
 export { toGatewayModelCapabilities } from "./providers/model-capabilities";
 export {
+	type ProviderLocalCli,
+	resolveProviderLocalCli,
+} from "./providers/local-cli";
+export {
 	BUILTIN_MODEL_OPERATION_CAPABILITIES,
 	builtinProviderSupportsModelOperation,
 	providerManifestSupportsModelOperation,

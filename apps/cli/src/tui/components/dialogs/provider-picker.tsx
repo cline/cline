@@ -1,6 +1,7 @@
 import {
 	completeClineDeviceAuth,
 	getProviderConfigFields,
+	isLocalAuthProvider,
 	isOAuthProvider,
 	loginLocalProvider,
 	type ProviderConfigFieldKey,
@@ -16,10 +17,9 @@ import { useDialogKeyboard } from "@opentui-ui/dialog/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
 	checkLocalCliInstalled,
-	getLocalCliProvider,
-	type LocalCliProvider,
 	type LocalCliStatus,
-} from "../../../utils/local-cli-providers";
+	type ProviderLocalCli,
+} from "../../../utils/local-cli";
 import open from "../../../utils/open";
 import { listLocalProviders } from "../../../utils/provider-catalog";
 import { useDialogPalette } from "../../hooks/use-theme";
@@ -82,7 +82,7 @@ export function ProviderPickerContent(
 					// just a model id and base URL) still render as configured.
 					isConfigured: p.enabled === true,
 					isOAuth: isOAuthProvider(p.id),
-					isLocalAuth: getLocalCliProvider(p.id) !== undefined,
+					isLocalAuth: isLocalAuthProvider(p.id),
 					capabilities: p.capabilities,
 				}));
 				setProviders(providerItems);
@@ -656,7 +656,7 @@ export function ProviderConfigInputContent(
 
 export function LocalCliStatusContent(
 	props: ChoiceContext<boolean> & {
-		cli: LocalCliProvider;
+		cli: ProviderLocalCli;
 		providerName: string;
 	},
 ) {
@@ -697,12 +697,12 @@ export function LocalCliStatusContent(
 				<strong>{providerName}</strong>
 			</text>
 
-			{checking && <text fg="gray">Checking for {cli.cliName}...</text>}
+			{checking && <text fg="gray">Checking for {providerName}...</text>}
 
 			{status?.installed && (
 				<box flexDirection="column" gap={1}>
 					<text fg={palette.success}>
-						{"\u25cf"} {cli.cliName} installed
+						{"\u25cf"} {providerName} installed
 					</text>
 					<text fg="gray">{status.version}</text>
 				</box>
@@ -710,11 +710,11 @@ export function LocalCliStatusContent(
 
 			{status && !status.installed && (
 				<box flexDirection="column" gap={1}>
-					<text fg="yellow">{cli.cliName} was not found</text>
+					<text fg="yellow">{providerName} was not found</text>
 					<text fg="gray">{status.reason}</text>
-					<text fg="gray">Install {cli.cliName} from:</text>
+					<text fg="gray">Install {providerName} from:</text>
 					<text fg={palette.act} selectable>
-						{cli.installUrl}
+						{cli.docsUrl}
 					</text>
 				</box>
 			)}

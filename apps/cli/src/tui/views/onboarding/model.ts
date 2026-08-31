@@ -4,8 +4,10 @@ import type {
 	ModelOperation,
 } from "@cline/shared";
 import { isChatProviderModel } from "../../../utils/chat-models";
-import { getLocalCliProvider } from "../../../utils/local-cli-providers";
-import { isOAuthProvider } from "../../../utils/provider-auth";
+import {
+	isLocalAuthProvider,
+	isOAuthProvider,
+} from "../../../utils/provider-auth";
 
 export type OnboardingStep =
 	| "menu"
@@ -174,7 +176,7 @@ export function toProviderEntry(provider: ProviderCatalogItem): ProviderEntry {
 		id: provider.id,
 		name: provider.name,
 		isOAuth: isOAuthProvider(provider.id),
-		isLocalAuth: getLocalCliProvider(provider.id) !== undefined,
+		isLocalAuth: isLocalAuthProvider(provider.id),
 		hasAuth:
 			Boolean(provider.apiKey) || provider.oauthAccessTokenPresent === true,
 		...(provider.capabilities ? { capabilities: provider.capabilities } : {}),

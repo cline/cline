@@ -10,7 +10,7 @@ import { isClineProvider } from "@cline/shared";
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import type { DialogActions } from "@opentui-ui/dialog/react";
 import { useCallback } from "react";
-import { getLocalCliProvider } from "../../utils/local-cli-providers";
+import { getLocalCliInfo } from "../../utils/local-cli";
 import {
 	getPersistedProviderApiKey,
 	isOAuthProvider,
@@ -178,7 +178,7 @@ async function runProviderChange(
 		async () => await getProviderDisplayName(newProviderId),
 	);
 	const existingSettings = manager.getProviderSettings(newProviderId);
-	const localCliProvider = getLocalCliProvider(newProviderId);
+	const localCliProvider = getLocalCliInfo(newProviderId);
 
 	// Manual API key entry is the escape hatch for when OAuth login isn't
 	// working; only the Cline providers accept a dashboard API key.

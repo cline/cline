@@ -46,13 +46,6 @@ export interface BuiltinSpec {
 	modelsFactory?: () => Record<string, ModelInfo>;
 	env?: readonly ("browser" | "node")[];
 	apiKeyEnv?: readonly string[];
-	/**
-	 * Command probed on PATH for providers whose transport is a locally
-	 * installed CLI (the `local-auth` providers). It is the CLI analogue of
-	 * `defaults.baseUrl`: the vendor-defined name of the thing we run, not a
-	 * resolved path, which stays a per-machine detail of the readiness probe.
-	 */
-	executable?: string;
 	modelsSourceUrl?: string;
 	docsUrl?: string;
 	defaults?: GatewayProviderSettings;

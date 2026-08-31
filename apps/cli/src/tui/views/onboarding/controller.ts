@@ -18,10 +18,10 @@ import {
 } from "../../../utils/cline-pass-errors";
 import {
 	checkLocalCliInstalled,
-	getLocalCliProvider,
-	type LocalCliProvider,
+	getLocalCliInfo,
 	type LocalCliStatus,
-} from "../../../utils/local-cli-providers";
+	type ProviderLocalCli,
+} from "../../../utils/local-cli";
 import open from "../../../utils/open";
 import { getPersistedProviderApiKey } from "../../../utils/provider-auth";
 import { listLocalProviders } from "../../../utils/provider-catalog";
@@ -105,7 +105,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 	const [activeProviderId, setActiveProviderId] = useState("");
 	const [activeProviderName, setActiveProviderName] = useState("");
 	const localCli = useMemo(
-		() => getLocalCliProvider(activeProviderId),
+		() => getLocalCliInfo(activeProviderId),
 		[activeProviderId],
 	);
 	const [byoFields, setByoFields] = useState<ProviderConfigFields["fields"]>(
@@ -492,7 +492,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		}
 	}, [step, clinePassSubscriptionStatus, transitionToModelPicker]);
 
-	const refreshLocalCliStatus = useCallback((provider: LocalCliProvider) => {
+	const refreshLocalCliStatus = useCallback((provider: ProviderLocalCli) => {
 		// Probing spawns the provider's CLI, so a result can land long after the
 		// user moved on. Two local-CLI providers share this single status, so an
 		// unlabelled result could mark the selected provider ready off a probe of
@@ -521,7 +521,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 				}
 				return;
 			}
-			const localCliProvider = getLocalCliProvider(provider.id);
+			const localCliProvider = getLocalCliInfo(provider.id);
 			if (localCliProvider) {
 				setActiveProviderId(provider.id);
 				setActiveProviderName(provider.name);
@@ -596,7 +596,9 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 	}, [localCli, refreshLocalCliStatus]);
 
 	const saveLocalCliConfig = useCallback(() => {
-		if (!localCliStatus?.installed) {
+		// Nothing to probe for a local-auth provider that names no CLI, so
+		// connecting is always available; otherwise wait for a good probe.
+		if (localCli && !localCliStatus?.installed) {
 			return;
 		}
 		saveLocalProviderSettings(providerSettingsManager, {
