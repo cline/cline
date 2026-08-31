@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { formatChatMessageContent } from "./message-content";
+import { formatChatMessageContent } from "../components/agent-chat/messages/index.js";
 
 describe("formatChatMessageContent", () => {
 	test("unwraps transport envelopes only for user messages", () => {

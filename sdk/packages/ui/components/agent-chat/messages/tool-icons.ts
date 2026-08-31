@@ -1,9 +1,4 @@
 import {
-	classifyTool,
-	normalizeToolName,
-	type ToolKind,
-} from "@cline/ui/components/agent-chat/tool-summary";
-import {
 	BlocksIcon,
 	BoxIcon,
 	FilesIcon,
@@ -19,6 +14,11 @@ import {
 	UsersIcon,
 	WrenchIcon,
 } from "lucide-react";
+import {
+	classifyTool,
+	normalizeToolName,
+	type ToolKind,
+} from "../tool-summary/index.js";
 
 // Overrides for tools whose kind-based icon would be misleading.
 export const TOOL_NAME_ICONS: Record<string, LucideIcon> = {

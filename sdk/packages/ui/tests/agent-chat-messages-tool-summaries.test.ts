@@ -1,16 +1,16 @@
-import { buildGroupedToolLabel } from "@cline/ui/components/agent-chat/tool-summary";
 import { describe, expect, it } from "vitest";
-import type { ChatMessage } from "@/lib/chat-schema";
 import {
 	buildToolPresentation,
+	type ChatMessage,
 	extractSubmitSummaryText,
 	formatToolValue,
 	parseToolPayload,
-} from "./tool-summaries";
+} from "../components/agent-chat/messages/index.js";
+import { buildGroupedToolLabel } from "../components/agent-chat/tool-summary/index.js";
 
-// Label/parser/team behavior lives in the shared module and is covered by
-// sdk/packages/ui/tests/tool-summary.test.ts; these tests cover the app-local
-// layer: payload parsing, hook-event conventions, and display formatting.
+// Label/parser/team behavior lives in the tool-summary module and is covered
+// by tool-summary.test.ts; these tests cover the transcript adapter layer:
+// payload parsing, hook-event conventions, and display formatting.
 
 function makeToolMessage(
 	payload: unknown,

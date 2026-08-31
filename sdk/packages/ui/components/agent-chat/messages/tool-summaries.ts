@@ -1,8 +1,5 @@
-import {
-	buildToolSummary,
-	type ToolSummary,
-} from "@cline/ui/components/agent-chat/tool-summary";
-import type { ChatMessage } from "@/lib/chat-schema";
+import { buildToolSummary, type ToolSummary } from "../tool-summary/index.js";
+import type { ChatMessage } from "./chat-message.js";
 
 /**
  * Thin presentation layer between the desktop chat transcript and the shared

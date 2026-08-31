@@ -1,41 +1,83 @@
 "use client";
 
-import { GeneratedMediaContent } from "@cline/ui";
+/**
+ * Tool call row presentation. Exported from its own subpath
+ * (`@cline/ui/components/agent-chat/messages/tool-message-block`) rather than
+ * the messages barrel because the ANSI command-output rendering below needs
+ * the optional `ansi-to-react` peer; consumers of the barrel's pure helpers
+ * and other components must not be forced to install it.
+ */
+import Ansi from "ansi-to-react";
+import { AlertCircle, Loader2 } from "lucide-react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { Button } from "../../button.js";
+import { GeneratedMediaContent } from "../../generated-media.js";
 import {
 	ToolActivity,
 	ToolActivityCode,
 	ToolActivityContent,
 	ToolActivityDetails,
 	ToolActivityTrigger,
-} from "@cline/ui/components/agent-chat";
-import { ToolFileDiff } from "@cline/ui/components/agent-chat/tool-diff";
-import type { ToolLabelPart } from "@cline/ui/components/agent-chat/tool-summary";
-import Ansi from "ansi-to-react";
-import { AlertCircle, Loader2 } from "lucide-react";
-import { memo, useCallback, useEffect, useRef, useState } from "react";
-import { Button } from "@/components/ui/button";
-import {
-	type ChatMessage,
-	type ChatMessageImage,
-	ChatMessageImageSchema,
-} from "@/lib/chat-schema";
-import { appendCappedCommandOutput } from "@/lib/command-output";
-import { cn } from "@/lib/utils";
-import { MemoizedMarkdown } from "../../../ui/markdown";
-import { IS_DEBUG, STREAMING_TITLE_CLASS } from "./constants";
-import { MessageImageCarousel } from "./image-carousel";
-import { getToolNameIcon } from "./tool-icons";
+} from "../index.js";
+import { ToolFileDiff } from "../tool-diff.js";
+import type { ToolLabelPart } from "../tool-summary/index.js";
+import type {
+	ChatMarkdownComponent,
+	ChatMessage,
+	ChatMessageImage,
+	ChatMessageImageMediaType,
+} from "./chat-message.js";
+import { STREAMING_TITLE_CLASS } from "./chat-message.js";
+import { appendCappedCommandOutput } from "./command-output.js";
+import { MessageImageCarousel } from "./image-carousel.js";
+import { getToolNameIcon } from "./tool-icons.js";
 import {
 	buildToolPresentation,
 	extractRunCommandOutput,
 	extractSubmitSummaryText,
 	formatToolValue,
-} from "./tool-summaries";
+} from "./tool-summaries.js";
 
 type ProceedWhileRunningHandler = (
 	sessionId: string,
 	toolCallId?: string,
 ) => void | Promise<void>;
+
+type ToolSummaryFileItem = Extract<
+	ReturnType<typeof buildToolPresentation>["summary"]["items"][number],
+	{ type: "file" }
+>;
+
+type FileDiffEntry =
+	| {
+			key: string;
+			kind: "rich";
+			item: ToolSummaryFileItem;
+			hunk: { oldText?: string; newText: string };
+	  }
+	| { key: string; kind: "text"; item: ToolSummaryFileItem; hunk: null };
+
+function classNames(...values: Array<string | undefined | false>): string {
+	return values.filter(Boolean).join(" ");
+}
+
+const CHAT_IMAGE_MEDIA_TYPES: ReadonlySet<string> = new Set([
+	"image/png",
+	"image/jpeg",
+	"image/gif",
+	"image/webp",
+]);
+
+function toChatMessageImage(
+	id: string,
+	mediaType: string,
+	data: string,
+): ChatMessageImage | null {
+	if (!id || !data || !CHAT_IMAGE_MEDIA_TYPES.has(mediaType)) {
+		return null;
+	}
+	return { id, mediaType: mediaType as ChatMessageImageMediaType, data };
+}
 
 function ToolLabel({
 	parts,
@@ -45,10 +87,10 @@ function ToolLabel({
 	isRunning: boolean;
 }) {
 	return (
-		<span className={cn(isRunning && STREAMING_TITLE_CLASS)}>
+		<span className={classNames(isRunning && STREAMING_TITLE_CLASS)}>
 			{parts.map((part, index) =>
 				part.code ? (
-					<span className="font-mono" key={`${index}_${part.text}`}>
+					<span className="font-cline-ui-mono" key={`${index}_${part.text}`}>
 						{part.text}
 					</span>
 				) : (
@@ -60,13 +102,17 @@ function ToolLabel({
 }
 
 const ToolCallRow = memo(function ToolCallRow({
+	markdown: Markdown,
 	message,
 	onExpandImage,
 	onProceedWhileRunning,
+	showRawInput = false,
 }: {
+	markdown: ChatMarkdownComponent;
 	message: ChatMessage;
 	onExpandImage?: (image: ChatMessageImage) => void;
 	onProceedWhileRunning?: ProceedWhileRunningHandler;
+	showRawInput?: boolean;
 }) {
 	const { payload, toolName, inProgress, summary } =
 		buildToolPresentation(message);
@@ -109,7 +155,7 @@ const ToolCallRow = memo(function ToolCallRow({
 			toolSessionId &&
 			onProceedWhileRunning,
 	);
-	const fileDiffs = summary.items.flatMap((item, index) => {
+	const fileDiffs = summary.items.flatMap((item, index): FileDiffEntry[] => {
 		if (item.type !== "file") return [];
 		const hunks =
 			item.hunks ??
@@ -138,12 +184,12 @@ const ToolCallRow = memo(function ToolCallRow({
 	const hasFileDiffs = fileDiffs.length > 0;
 	const outputImages = summary.outputMedia.flatMap((media, index) => {
 		if (media.modality !== "image") return [];
-		const image = ChatMessageImageSchema.safeParse({
-			id: `${message.id}_tool_image_${index}`,
-			mediaType: media.mediaType,
-			data: media.data,
-		});
-		return image.success ? [image.data] : [];
+		const image = toChatMessageImage(
+			`${message.id}_tool_image_${index}`,
+			media.mediaType,
+			media.data,
+		);
+		return image ? [image] : [];
 	});
 	const otherOutputMedia = summary.outputMedia.filter(
 		(media) => media.modality !== "image",
@@ -188,7 +234,7 @@ const ToolCallRow = memo(function ToolCallRow({
 		key: `${message.id}_${index}`,
 	}));
 	const inputPreview =
-		IS_DEBUG && payload ? formatToolValue(payload.input) : "";
+		showRawInput && payload ? formatToolValue(payload.input) : "";
 	const hasExpandedSections =
 		details.length > 0 ||
 		fileDiffs.length > 0 ||
@@ -211,7 +257,7 @@ const ToolCallRow = memo(function ToolCallRow({
 				deletions={summary.diff?.deletions || undefined}
 				icon={
 					hasError ? (
-						<AlertCircle className="size-4 text-destructive/80" />
+						<AlertCircle className="size-4 text-cline-ui-destructive/80" />
 					) : (
 						<Icon className="size-4" />
 					)
@@ -223,9 +269,9 @@ const ToolCallRow = memo(function ToolCallRow({
 			<ToolActivityContent presentation="rail">
 				{details.length > 0 ? (
 					<ToolActivityDetails
-						className={cn(
+						className={classNames(
 							"whitespace-pre-wrap",
-							isCommand && "font-mono text-xs",
+							isCommand && "font-cline-ui-mono text-cline-ui-xs",
 						)}
 					>
 						{details.map(({ detail, key }) => (
@@ -245,7 +291,7 @@ const ToolCallRow = memo(function ToolCallRow({
 						/>
 					) : (
 						<ToolActivityCode
-							className="mt-1 overflow-x-auto text-xs"
+							className="mt-1 overflow-x-auto text-cline-ui-xs"
 							key={entry.key}
 						>
 							{entry.item.diff}
@@ -260,11 +306,11 @@ const ToolCallRow = memo(function ToolCallRow({
 				) : submitText ? (
 					// The summary is the run's final answer: full foreground color,
 					// not the panel's muted tool-detail gray.
-					<div className="mt-1 min-w-0 max-w-full wrap-break-word text-foreground">
-						<MemoizedMarkdown content={submitText} />
+					<div className="mt-1 min-w-0 max-w-full wrap-break-word text-cline-ui-foreground">
+						<Markdown content={submitText} />
 					</div>
 				) : summary.outputText ? (
-					<ToolActivityCode className="mt-1 max-h-64 overflow-auto whitespace-pre-wrap break-words font-mono text-xs">
+					<ToolActivityCode className="mt-1 max-h-64 overflow-auto whitespace-pre-wrap break-words font-cline-ui-mono text-cline-ui-xs">
 						{summary.outputText}
 					</ToolActivityCode>
 				) : null}
@@ -282,10 +328,10 @@ const ToolCallRow = memo(function ToolCallRow({
 							<GeneratedMediaContent
 								classNames={{
 									audio: "w-full",
-									video: "max-h-96 max-w-full rounded-lg",
-									file: "text-sm underline",
+									video: "max-h-96 max-w-full rounded-cline-ui-lg",
+									file: "text-cline-ui-sm underline",
 									unavailable:
-										"rounded-lg border border-border bg-muted p-3 text-sm",
+										"rounded-cline-ui-lg border border-cline-ui-border bg-cline-ui-muted p-3 text-cline-ui-sm",
 								}}
 								key={`${message.id}_tool_media_${index}`}
 								media={{
@@ -301,16 +347,16 @@ const ToolCallRow = memo(function ToolCallRow({
 				) : null}
 				{inputPreview ? (
 					<div className="space-y-1">
-						<div className="text-[11px] uppercase tracking-wide text-muted-foreground/80">
+						<div className="text-[11px] uppercase tracking-wide text-cline-ui-muted-foreground/80">
 							Input
 						</div>
-						<ToolActivityCode className="text-sm">
+						<ToolActivityCode className="text-cline-ui-sm">
 							{inputPreview}
 						</ToolActivityCode>
 					</div>
 				) : null}
 				{summary.errorText ? (
-					<div className="mt-1 break-words text-destructive">
+					<div className="mt-1 break-words text-cline-ui-destructive">
 						{summary.errorText}
 					</div>
 				) : null}
@@ -320,8 +366,9 @@ const ToolCallRow = memo(function ToolCallRow({
 							disabled={isProceeding}
 							onClick={() => void handleProceedWhileRunning()}
 							size="sm"
+							tone="neutral"
 							type="button"
-							variant="outline"
+							variant="surface"
 						>
 							{isProceeding ? (
 								<Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
@@ -329,7 +376,9 @@ const ToolCallRow = memo(function ToolCallRow({
 							Proceed while running
 						</Button>
 						{proceedError ? (
-							<div className="text-xs text-destructive">{proceedError}</div>
+							<div className="text-cline-ui-xs text-cline-ui-destructive">
+								{proceedError}
+							</div>
 						) : null}
 					</div>
 				) : null}
@@ -356,13 +405,13 @@ function CommandOutputTerminal({
 
 	return (
 		<div className="mt-2 space-y-1">
-			<div className="text-[11px] uppercase tracking-wide text-muted-foreground/80">
+			<div className="text-[11px] uppercase tracking-wide text-cline-ui-muted-foreground/80">
 				Output
 			</div>
 			<div
 				aria-label="Command output"
 				aria-live="off"
-				className="max-h-64 overflow-auto rounded-md border border-border/70 bg-black/90 p-3 font-mono text-xs leading-relaxed text-zinc-100"
+				className="max-h-64 overflow-auto rounded-cline-ui-md border border-cline-ui-border/70 bg-black/90 p-3 font-cline-ui-mono text-cline-ui-xs leading-relaxed text-zinc-100"
 				onScroll={(event) => {
 					const container = event.currentTarget;
 					shouldAutoScrollRef.current =
@@ -390,13 +439,19 @@ function CommandOutputTerminal({
 
 export const ToolMessageBlock = memo(
 	function ToolMessageBlock({
+		markdown,
 		messages,
 		onExpandImage,
 		onProceedWhileRunning,
+		showRawInput,
 	}: {
+		/** Host-owned Markdown renderer (link/image policy stays with the host). */
+		markdown: ChatMarkdownComponent;
 		messages: ChatMessage[];
 		onExpandImage?: (image: ChatMessageImage) => void;
 		onProceedWhileRunning?: ProceedWhileRunningHandler;
+		/** Renders each call's raw input payload (debug affordance). */
+		showRawInput?: boolean;
 	}) {
 		if (messages.length === 0) return null;
 		return (
@@ -404,17 +459,21 @@ export const ToolMessageBlock = memo(
 				{messages.map((message) => (
 					<ToolCallRow
 						key={message.id}
+						markdown={markdown}
 						message={message}
 						onExpandImage={onExpandImage}
 						onProceedWhileRunning={onProceedWhileRunning}
+						showRawInput={showRawInput}
 					/>
 				))}
 			</div>
 		);
 	},
 	(prev, next) =>
+		prev.markdown === next.markdown &&
 		prev.messages.length === next.messages.length &&
 		prev.messages.every((message, index) => message === next.messages[index]) &&
 		prev.onExpandImage === next.onExpandImage &&
-		prev.onProceedWhileRunning === next.onProceedWhileRunning,
+		prev.onProceedWhileRunning === next.onProceedWhileRunning &&
+		prev.showRawInput === next.showRawInput,
 );

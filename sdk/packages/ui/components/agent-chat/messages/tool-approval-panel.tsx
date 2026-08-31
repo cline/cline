@@ -1,7 +1,7 @@
 "use client";
 
-import { AgentApprovalCard } from "@cline/ui";
 import { Clock3, ShieldAlert } from "lucide-react";
+import { AgentApprovalCard } from "../../agent-approval-card.js";
 
 export type ToolApprovalRequestItem = {
 	requestId: string;
@@ -51,12 +51,12 @@ export function ToolApprovalPanel({
 	onReject: (requestId: string) => void;
 }) {
 	return (
-		<section className="rounded-xl border border-amber-400/40 bg-amber-500/5 p-3">
-			<div className="flex items-center gap-2 text-sm font-medium text-foreground">
+		<section className="rounded-cline-ui-xl border border-amber-400/40 bg-amber-500/5 p-3">
+			<div className="flex items-center gap-2 text-cline-ui-sm font-cline-ui-medium text-cline-ui-foreground">
 				<ShieldAlert className="h-4 w-4 text-amber-500" />
 				Tool approval required
 			</div>
-			<p className="mt-1 text-xs text-muted-foreground">
+			<p className="mt-1 text-cline-ui-xs text-cline-ui-muted-foreground">
 				Review each tool call and approve or reject it before execution.
 			</p>
 			<div className="mt-3 flex flex-col gap-2">

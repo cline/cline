@@ -1,13 +1,5 @@
 "use client";
 
-import { GeneratedMediaContent } from "@cline/ui";
-import {
-	Message as AgentMessage,
-	type AgentMessageRole,
-	MessageAction,
-	MessageActions,
-	MessageContent,
-} from "@cline/ui/components/agent-chat";
 import {
 	Check,
 	Copy,
@@ -17,17 +9,28 @@ import {
 	UndoIcon,
 } from "lucide-react";
 import { memo } from "react";
+import { GeneratedMediaContent } from "../../generated-media.js";
+import {
+	Message as AgentMessage,
+	type AgentMessageRole,
+	MessageAction,
+	MessageActions,
+	MessageContent,
+} from "../index.js";
 import type {
+	ChatMarkdownComponent,
 	ChatMessage,
 	ChatMessageImage,
 	ChatMessageMedia,
-} from "@/lib/chat-schema";
-import { cn } from "@/lib/utils";
-import { MemoizedMarkdown } from "../../../ui/markdown";
-import { formatChatMessageContent } from "../message-content";
-import { isSystemSteeringMessage } from "./group-messages";
-import { MessageImageCarousel } from "./image-carousel";
-import { ReasoningBlock } from "./reasoning-block";
+} from "./chat-message.js";
+import { isSystemSteeringMessage } from "./group-messages.js";
+import { MessageImageCarousel } from "./image-carousel.js";
+import { formatChatMessageContent } from "./message-content.js";
+import { ReasoningBlock } from "./reasoning-block.js";
+
+function classNames(...values: Array<string | undefined | false>): string {
+	return values.filter(Boolean).join(" ");
+}
 
 function MessageImages({
 	images,
@@ -49,12 +52,11 @@ function MessageImages({
 			{images.map((image, index) => (
 				<button
 					aria-label={`Expand attachment ${index + 1}`}
-					className="cursor-zoom-in overflow-hidden rounded-lg border border-border bg-muted text-left transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+					className="cursor-zoom-in overflow-hidden rounded-cline-ui-lg border border-cline-ui-border bg-cline-ui-muted text-left transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cline-ui-ring"
 					key={image.id}
 					onClick={() => onExpandImage?.(image)}
 					type="button"
 				>
-					{/* biome-ignore lint/performance/noImgElement: In-memory data URLs do not have dimensions and cannot use Next's optimizer. */}
 					<img
 						alt={`Attachment ${index + 1}`}
 						className="max-h-56.25 max-w-56.25 object-contain"
@@ -73,11 +75,12 @@ function MessageMedia({ media }: { media: ChatMessageMedia[] }) {
 				<GeneratedMediaContent
 					classNames={{
 						image:
-							"max-h-96 max-w-full rounded-lg border border-border bg-muted object-contain",
+							"max-h-96 max-w-full rounded-cline-ui-lg border border-cline-ui-border bg-cline-ui-muted object-contain",
 						audio: "w-full",
-						video: "max-h-96 max-w-full rounded-lg",
-						file: "text-sm underline",
-						unavailable: "rounded-lg border border-border bg-muted p-3 text-sm",
+						video: "max-h-96 max-w-full rounded-cline-ui-lg",
+						file: "text-cline-ui-sm underline",
+						unavailable:
+							"rounded-cline-ui-lg border border-cline-ui-border bg-cline-ui-muted p-3 text-cline-ui-sm",
 					}}
 					key={item.id}
 					media={item}
@@ -92,6 +95,7 @@ function MessageMedia({ media }: { media: ChatMessageMedia[] }) {
 // re-rendering (and re-running their Markdown pipeline) per flush.
 export const MessageBubble = memo(function MessageBubble({
 	agentRole,
+	markdown: Markdown,
 	message,
 	runCount,
 	isStreaming = false,
@@ -117,6 +121,8 @@ export const MessageBubble = memo(function MessageBubble({
 	thoughtDurationMilliseconds,
 }: {
 	agentRole: AgentMessageRole;
+	/** Host-owned Markdown renderer (link/image policy stays with the host). */
+	markdown: ChatMarkdownComponent;
 	message: ChatMessage;
 	runCount?: number;
 	isStreaming?: boolean;
@@ -196,7 +202,7 @@ export const MessageBubble = memo(function MessageBubble({
 		: null;
 	const messageTimestamp = messageTime ? (
 		<time
-			className="shrink-0 whitespace-nowrap text-xs leading-none text-muted-foreground/70"
+			className="shrink-0 whitespace-nowrap text-cline-ui-xs leading-none text-cline-ui-muted-foreground/70"
 			dateTime={messageDate.toISOString()}
 			title={messageDate.toLocaleString()}
 		>
@@ -210,7 +216,7 @@ export const MessageBubble = memo(function MessageBubble({
 	// rows pulls itself closer to them.
 	return (
 		<AgentMessage
-			className={cn(
+			className={classNames(
 				"relative flex flex-col gap-2",
 				isUser && "mt-4 first:mt-0",
 				followsWorkingRows && "-mt-2",
@@ -222,6 +228,7 @@ export const MessageBubble = memo(function MessageBubble({
 					<ReasoningBlock
 						content={reasoningContent}
 						durationMilliseconds={thoughtDurationMilliseconds}
+						markdown={Markdown}
 						redacted={reasoningRedacted}
 						streaming={isStreaming}
 					/>
@@ -239,7 +246,7 @@ export const MessageBubble = memo(function MessageBubble({
 
 				{displayContent ? (
 					<div className="min-w-0 max-w-full wrap-break-word">
-						<MemoizedMarkdown
+						<Markdown
 							content={displayContent}
 							streaming={isStreaming && message.role === "assistant"}
 						/>
@@ -298,12 +305,12 @@ export const MessageBubble = memo(function MessageBubble({
 						{messageTimestamp}
 					</MessageActions>
 					{restoreError ? (
-						<div className="text-right text-xs text-destructive">
+						<div className="text-right text-cline-ui-xs text-cline-ui-destructive">
 							{restoreError}
 						</div>
 					) : null}
 					{editError ? (
-						<div className="text-right text-xs text-destructive">
+						<div className="text-right text-cline-ui-xs text-cline-ui-destructive">
 							{editError}
 						</div>
 					) : null}
@@ -345,7 +352,9 @@ export const MessageBubble = memo(function MessageBubble({
 					) : null}
 					{messageTimestamp}
 					{forkError ? (
-						<span className="text-[11px] text-destructive">{forkError}</span>
+						<span className="text-[11px] text-cline-ui-destructive">
+							{forkError}
+						</span>
 					) : null}
 				</MessageActions>
 			) : null}

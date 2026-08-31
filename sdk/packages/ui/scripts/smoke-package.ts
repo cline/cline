@@ -26,6 +26,11 @@ import {
 	SessionStatus,
 } from "@cline/ui";
 import { Conversation, Message } from "@cline/ui/components/agent-chat";
+import {
+	groupChatMessages,
+	MessageBubble,
+} from "@cline/ui/components/agent-chat/messages";
+import { ToolMessageBlock } from "@cline/ui/components/agent-chat/messages/tool-message-block";
 import { ToolFileDiff } from "@cline/ui/components/agent-chat/tool-diff";
 import { buildToolSummary } from "@cline/ui/components/agent-chat/tool-summary";
 import {
@@ -81,6 +86,21 @@ if (summary.label !== "Read file app.tsx (10–80)" || summary.kind !== "read") 
 }
 if (typeof ToolFileDiff !== "function") {
 	throw new Error("tool-diff subpath did not export ToolFileDiff");
+}
+const grouped = groupChatMessages([
+	{
+		id: "m1",
+		sessionId: "s1",
+		role: "assistant",
+		content: "hi",
+		createdAt: 1,
+	},
+]);
+if (grouped.length !== 1 || grouped[0].type !== "message") {
+	throw new Error("messages subpath did not group a transcript");
+}
+if (!MessageBubble || !ToolMessageBlock) {
+	throw new Error("messages subpath did not export transcript components");
 }
 if (
 	!AgentApprovalCard ||
@@ -180,6 +200,7 @@ async function verifyTailwindContract(
 	);
 	for (const candidate of [
 		"bg-cline-ui-background/95",
+		"bg-cline-ui-muted",
 		"border-cline-ui-border/60",
 		"text-cline-ui-muted-foreground",
 		"bg-cline-ui-primary/10",
@@ -265,6 +286,8 @@ try {
 			"react@19.2.4",
 			"react-dom@19.2.4",
 			"@pierre/diffs@1.3.2",
+			"ansi-to-react@6.2.6",
+			"lucide-react@0.564.0",
 			"tailwindcss@4.2.0",
 			"@tailwindcss/cli@4.2.0",
 		],
@@ -276,6 +299,39 @@ try {
 		"x",
 		"tailwindcss",
 	]);
+
+	// The messages barrel must stay importable without the optional
+	// ansi-to-react peer; only the tool-message-block subpath needs it.
+	const minimalConsumer = join(temporaryRoot, "minimal-messages-consumer");
+	createConsumer(minimalConsumer);
+	await run(
+		[
+			process.execPath,
+			"add",
+			"--ignore-scripts",
+			archive,
+			"react@19.2.4",
+			"react-dom@19.2.4",
+			"lucide-react@0.564.0",
+		],
+		minimalConsumer,
+	);
+	await run(
+		[
+			process.execPath,
+			"-e",
+			`
+import { groupChatMessages, MessageBubble } from "@cline/ui/components/agent-chat/messages";
+const grouped = groupChatMessages([
+	{ id: "m1", sessionId: "s1", role: "assistant", content: "hi", createdAt: 1 },
+]);
+if (grouped.length !== 1 || grouped[0].type !== "message" || !MessageBubble) {
+	throw new Error("messages barrel failed without ansi-to-react installed");
+}
+`,
+		],
+		minimalConsumer,
+	);
 
 	const npmConsumer = join(temporaryRoot, "npm-consumer");
 	createConsumer(npmConsumer);
@@ -294,6 +350,8 @@ try {
 			"react@18.3.1",
 			"react-dom@18.3.1",
 			"@pierre/diffs@1.3.2",
+			"ansi-to-react@6.2.6",
+			"lucide-react@0.564.0",
 			"tailwindcss@4.2.0",
 			"@tailwindcss/cli@4.2.0",
 		],

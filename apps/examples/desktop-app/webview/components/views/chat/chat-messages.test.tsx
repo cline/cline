@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 
+import { MAX_LIVE_COMMAND_OUTPUT_CHARS } from "@cline/ui/components/agent-chat/messages";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatMessage } from "@/lib/chat-schema";
-import { MAX_LIVE_COMMAND_OUTPUT_CHARS } from "@/lib/command-output";
 import { ChatMessages } from "./chat-messages";
 
 // @pierre/diffs' custom element adopts constructable stylesheets, which jsdom
@@ -308,7 +308,7 @@ describe("ChatMessages tool disclosures", () => {
 		expect(markdown?.textContent).not.toContain("**");
 		// The final answer renders in full foreground color, overriding the
 		// panel's muted tool-detail gray.
-		expect(markdown?.closest(".text-foreground")).not.toBeNull();
+		expect(markdown?.closest(".text-cline-ui-foreground")).not.toBeNull();
 	});
 
 	it("labels an errored submit_and_exit as failed", async () => {

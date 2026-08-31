@@ -1,5 +1,6 @@
 "use client";
 
+import { appendCappedCommandOutput } from "@cline/ui/components/agent-chat/messages";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
 	serializeAttachments,
@@ -40,7 +41,6 @@ import {
 	ChatSessionConfigSchema,
 	type ChatSessionStatus,
 } from "@/lib/chat-schema";
-import { appendCappedCommandOutput } from "@/lib/command-output";
 import { desktopClient } from "@/lib/desktop-client";
 import {
 	buildSessionDiffState,

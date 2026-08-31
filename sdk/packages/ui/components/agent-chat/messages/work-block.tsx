@@ -1,11 +1,11 @@
 "use client";
 
+import { memo, type ReactNode } from "react";
 import {
 	WorkActivity,
 	WorkActivityContent,
 	WorkActivityTrigger,
-} from "@cline/ui/components/agent-chat";
-import { memo, type ReactNode } from "react";
+} from "../index.js";
 
 /**
  * Collapsed summary row for a finished run's working rows. Expanding re-shows

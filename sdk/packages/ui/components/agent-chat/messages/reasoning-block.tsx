@@ -1,17 +1,20 @@
 "use client";
 
-import { ThinkingBlock } from "@cline/ui/components/agent-chat";
-import { MemoizedMarkdown } from "../../../ui/markdown";
+import { ThinkingBlock } from "../index.js";
+import type { ChatMarkdownComponent } from "./chat-message.js";
 
-/** The shared ThinkingBlock with the app's Markdown pipeline as its body. */
+/** The shared ThinkingBlock with the host's Markdown pipeline as its body. */
 export function ReasoningBlock({
 	content,
 	durationMilliseconds,
+	markdown: Markdown,
 	redacted,
 	streaming = false,
 }: {
 	content: string;
 	durationMilliseconds?: number;
+	/** Host-owned Markdown renderer (link/image policy stays with the host). */
+	markdown: ChatMarkdownComponent;
 	redacted: boolean;
 	streaming?: boolean;
 }) {
@@ -27,8 +30,8 @@ export function ReasoningBlock({
 			isStreaming={streaming}
 			redacted={redacted}
 		>
-			<MemoizedMarkdown
-				classNames="text-sm"
+			<Markdown
+				classNames="text-cline-ui-sm"
 				content={displayContent}
 				streaming={streaming}
 			/>

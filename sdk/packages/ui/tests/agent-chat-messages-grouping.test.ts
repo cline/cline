@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
-import type { ChatMessage } from "@/lib/chat-schema";
 import {
 	buildPreviousTimestampMap,
 	buildUserRunCountMap,
+	type ChatMessage,
 	type ChatRenderItem,
 	collapseCompletedWork,
 	formatThoughtLabel,
 	getThoughtDurationMilliseconds,
 	groupChatMessages,
-} from "./group-messages";
+} from "../components/agent-chat/messages/index.js";
 
 function makeMessage(
 	overrides: Partial<ChatMessage> & { id: string },
@@ -489,7 +489,7 @@ describe("buildUserRunCountMap", () => {
 			role: "user",
 			content: "checkpointed",
 			meta: {
-				checkpoint: { ref: "abc", createdAt: 1, runCount: 3, kind: "auto" },
+				checkpoint: { ref: "abc", createdAt: 1, runCount: 3, kind: "stash" },
 			},
 		});
 

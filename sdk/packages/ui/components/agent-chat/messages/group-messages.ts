@@ -1,5 +1,5 @@
-import type { AgentMessageRole } from "@cline/ui/components/agent-chat";
-import type { ChatMessage } from "@/lib/chat-schema";
+import type { AgentMessageRole } from "../index.js";
+import type { ChatMessage } from "./chat-message.js";
 
 export type ChatRenderItem =
 	| {
@@ -120,7 +120,7 @@ export function getThoughtDurationMilliseconds(
 	return thinkingTimestamp - previousTimestamp;
 }
 
-export { formatThoughtLabel } from "@cline/ui/components/agent-chat";
+export { formatThoughtLabel } from "../index.js";
 
 export type CollapseWorkOptions = {
 	/**

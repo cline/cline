@@ -1,8 +1,8 @@
 import { formatDisplayUserInput } from "@cline/shared/browser";
-import type { ChatMessage } from "@/lib/chat-schema";
+import type { ChatMessageRole } from "./chat-message.js";
 
 export function formatChatMessageContent(
-	role: ChatMessage["role"],
+	role: ChatMessageRole,
 	content: string,
 ): string {
 	const trimmed = content.trim();
