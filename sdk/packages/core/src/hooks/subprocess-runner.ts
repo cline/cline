@@ -4,6 +4,14 @@ import {
 	withResolvedClineBuildEnv,
 } from "@cline/shared";
 
+/**
+ * How long to watch a detached hook before recording it as still running.
+ * Past this point the hook would already have been a serious stall had it run
+ * blocking, so the exact runtime stops mattering and the observation is
+ * censored instead.
+ */
+const DEFAULT_DETACHED_OBSERVATION_MS = 30_000;
+
 export interface RunSubprocessEventOptions {
 	command: string[];
 	cwd?: string;
@@ -16,11 +24,18 @@ export interface RunSubprocessEventOptions {
 		detached: boolean;
 	}) => void;
 	/**
-	 * Called when a detached hook process exits, with how long it ran. The run
-	 * never waits on this: detached hooks are fire-and-forget by contract, and
-	 * this only observes them so hosts can measure how long they actually take.
-	 * Not called if the parent exits first — a hook still running at that point
-	 * is itself the signal, reported as `exited: false`.
+	 * Reports a detached hook's runtime exactly once. The run never waits on
+	 * this: detached hooks are fire-and-forget by contract, and this only
+	 * observes them so hosts can measure how long they actually take.
+	 *
+	 * `exited: true` means the hook finished and `durationMs` is its runtime.
+	 * `exited: false` is a censored observation: the hook was still running
+	 * after the observation window, so it ran *at least* `durationMs` — the
+	 * case that matters most, since those are the hooks that would stall a
+	 * blocking run. Without it the sample would only contain hooks that
+	 * finished.
+	 *
+	 * Nothing is reported if the parent exits before either happens.
 	 */
 	onDetachedSettled?: (event: {
 		command: string[];
@@ -28,6 +43,8 @@ export interface RunSubprocessEventOptions {
 		exitCode: number | null;
 		exited: boolean;
 	}) => void;
+	/** Overrides the censoring window for `onDetachedSettled`. */
+	detachedObservationMs?: number;
 }
 
 export interface RunSubprocessEventResult {
@@ -243,18 +260,34 @@ export async function runSubprocessEvent(
 		if (options.onDetachedSettled) {
 			const startedAt = Date.now();
 			const report = options.onDetachedSettled;
-			// Observe only: `completed` is already wired, and the listener is
-			// not what keeps the process alive (the child is unref'd below), so
-			// a hook that outlives the parent simply never reports.
+			let reported = false;
+			let censorTimer: NodeJS.Timeout | undefined;
+			// Observe only: `completed` is already wired, and neither the
+			// listener nor the timer keeps the process alive (the child is
+			// unref'd below, the timer is unref'd here), so a hook that
+			// outlives the parent simply never reports.
+			const reportOnce = (exitCode: number | null, exited: boolean) => {
+				if (reported) {
+					return;
+				}
+				reported = true;
+				if (censorTimer) {
+					clearTimeout(censorTimer);
+				}
+				report({
+					command,
+					durationMs: Date.now() - startedAt,
+					exitCode,
+					exited,
+				});
+			};
+			censorTimer = setTimeout(
+				() => reportOnce(null, false),
+				options.detachedObservationMs ?? DEFAULT_DETACHED_OBSERVATION_MS,
+			);
+			censorTimer.unref?.();
 			void completed
-				.then((result) =>
-					report({
-						command,
-						durationMs: Date.now() - startedAt,
-						exitCode: result.exitCode,
-						exited: true,
-					}),
-				)
+				.then((result) => reportOnce(result.exitCode, true))
 				.catch(() => undefined);
 		}
 		child.unref();
