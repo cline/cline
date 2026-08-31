@@ -1,6 +1,6 @@
 # Cline Desktop Changelog
 
-## 0.0.21-beta.1
+## 0.0.21-beta.2
 
 - Beta: hand off local sessions to Cline Cloud and continue working from cloud workspaces, with recovery for interrupted transfers and preservation of the prompt, attachments, and session state.
 - Beta: choose between local, SSH remote, and Cloud environments from the desktop app, with the experimental realtime voice and avatar overlay experiences included.
