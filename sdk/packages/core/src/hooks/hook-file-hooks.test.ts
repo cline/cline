@@ -354,6 +354,7 @@ describe("createHookConfigFileHooks", () => {
 				cwd: workspace,
 				workspacePath: workspace,
 				detachAsyncHooks: false,
+				blockingRunStartHooks: true,
 			});
 			expect(hooks?.beforeRun).toBeTypeOf("function");
 			const result = await hooks?.beforeRun?.({
@@ -362,6 +363,32 @@ describe("createHookConfigFileHooks", () => {
 			expect(result).toEqual({
 				appendContext: "RUN_NOTE: injected at start.",
 			});
+		} finally {
+			await rm(workspace, {
+				recursive: true,
+				force: true,
+				maxRetries: 3,
+				retryDelay: 250,
+			});
+		}
+	});
+
+	it("keeps TaskStart fire-and-forget by default, ignoring its control", async () => {
+		const { workspace } = await createWorkspaceWithHook(
+			"TaskStart.js",
+			`console.log('HOOK_CONTROL\t' + JSON.stringify({ cancel: true, contextModification: "never honored by default" }))\n`,
+		);
+		try {
+			const hooks = createHookConfigFileHooks({
+				cwd: workspace,
+				workspacePath: workspace,
+				detachAsyncHooks: false,
+			});
+			expect(hooks?.beforeRun).toBeTypeOf("function");
+			const result = await hooks?.beforeRun?.({
+				snapshot: beforeToolContext().snapshot,
+			});
+			expect(result).toBeUndefined();
 		} finally {
 			await rm(workspace, {
 				recursive: true,
@@ -382,6 +409,7 @@ describe("createHookConfigFileHooks", () => {
 				cwd: workspace,
 				workspacePath: workspace,
 				detachAsyncHooks: false,
+				blockingRunStartHooks: true,
 			});
 			const result = await hooks?.beforeRun?.({
 				snapshot: beforeToolContext().snapshot,
