@@ -549,7 +549,13 @@ describe("AgentRuntime", () => {
 			"failed",
 		]);
 		expect(recoveryEvents[1]?.properties).toEqual(
-			expect.objectContaining({ eventType: "recovery_threw" }),
+			expect.objectContaining({
+				eventType: "recovery_threw",
+				// error_type distinguishes a genuine failure from a deliberate
+				// stop (ControlledStopError / AgentRuntimeAbortError).
+				error_type: "Error",
+				error_message: "prepareTurn exploded",
+			}),
 		);
 	});
 
