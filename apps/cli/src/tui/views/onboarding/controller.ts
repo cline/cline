@@ -607,6 +607,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		transitionToModelPicker(activeProviderId);
 	}, [
 		activeProviderId,
+		localCli,
 		localCliStatus,
 		providerSettingsManager,
 		transitionToModelPicker,
