@@ -209,6 +209,7 @@ export {
 	ModelStatusSchema,
 	modelHasCapability,
 	modelProducesImages,
+	modelSupportsImageInput,
 	modelSupportsToolCalling,
 	supportsChatModalities,
 	type ThinkingConfig,
