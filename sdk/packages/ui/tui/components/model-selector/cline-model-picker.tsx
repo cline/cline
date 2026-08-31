@@ -1,14 +1,9 @@
 // @jsxImportSource @opentui/react
 
-import {
-	type ClineRecommendedModelsData,
-	fetchClineRecommendedModels,
-} from "@cline/core";
 import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
 import "opentui-spinner/react";
-import type { DialogPalette } from "@cline/ui/tui";
-import { useDialogPalette } from "@cline/ui/tui";
+import { useDialogPalette } from "../../hooks/use-theme";
+import type { DialogPalette } from "../../themes";
 import {
 	CLINE_MODEL_PICKER_TIER_LABELS,
 	type ClineModelPickerEntry,
@@ -18,38 +13,22 @@ import {
 export {
 	buildFeaturedModelEntries,
 	CLINE_MODEL_PICKER_TIER_LABELS,
+	CLINE_PASS_FREE_SECTION_DESCRIPTION,
+	type ClineFeaturedModel,
+	type ClineFeaturedModelsData,
 	type ClineModelPickerBrowse,
 	type ClineModelPickerEntry,
 	type ClineModelPickerItem,
 	type ClineModelPickerTier,
+	type ClineModelSearchRow,
 	freeTierDescriptionFor,
+	searchFeaturedModels,
 } from "./cline-model-entries";
 
 function tagColor(tag: string, palette: DialogPalette): string {
 	if (tag === "FREE") return palette.success;
 	if (tag === "BEST") return "magenta";
 	return palette.act;
-}
-
-export function useClineRecommendedModels() {
-	const [data, setData] = useState<ClineRecommendedModelsData | null>(null);
-	const [loading, setLoading] = useState(true);
-
-	useEffect(() => {
-		let cancelled = false;
-		fetchClineRecommendedModels()
-			.then((result) => {
-				if (!cancelled) setData(result);
-			})
-			.finally(() => {
-				if (!cancelled) setLoading(false);
-			});
-		return () => {
-			cancelled = true;
-		};
-	}, []);
-
-	return { data, loading };
 }
 
 export function ClineModelPicker(props: {
@@ -103,7 +82,7 @@ export function ClineModelPicker(props: {
 			}
 
 			const tags = entry.model.tags;
-			// Names arrive display-ready from fetchClineRecommendedModels
+			// Names arrive display-ready from the host's recommended-models feed
 			const name = entry.model.name || entry.model.id;
 			const isCurrent = currentModelId === entry.model.id;
 			rows.push(

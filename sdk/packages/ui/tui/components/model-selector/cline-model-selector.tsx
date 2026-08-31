@@ -1,21 +1,24 @@
 // @jsxImportSource @opentui/react
 
-import type { DialogPalette } from "@cline/ui/tui";
-import {
-	CHANGE_PROVIDER_ACTION,
-	ProviderRow,
-	useDialogPalette,
-} from "@cline/ui/tui";
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialogKeyboard } from "@opentui-ui/dialog/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useDialogPalette } from "../../hooks/use-theme";
+import type { DialogPalette } from "../../themes";
 import {
 	CLINE_MODEL_PICKER_TIER_LABELS,
 	type ClineModelPickerEntry,
+	type ClineModelSearchRow,
 	freeTierDescriptionFor,
-} from "./cline-model-picker";
+	searchFeaturedModels,
+} from "./cline-model-entries";
+import type { ModelSearchCandidate } from "./model-search";
+import { CHANGE_PROVIDER_ACTION } from "./model-selector";
+import { ProviderRow } from "./provider-row";
 
 export const BROWSE_ALL_ACTION = "__browse_all__";
+
+const MAX_VISIBLE_SEARCH_RESULTS = 10;
 
 type ClineModelEntriesState =
 	| { status: "loading"; message: string }
@@ -28,11 +31,53 @@ function tagColor(tag: string, palette: DialogPalette): string {
 	return palette.act;
 }
 
+function SearchResultRow(props: {
+	row: ClineModelSearchRow;
+	selected: boolean;
+	isCurrent: boolean;
+}) {
+	const { row, selected, isCurrent } = props;
+	const palette = useDialogPalette();
+	return (
+		<box
+			paddingX={1}
+			flexDirection="row"
+			gap={1}
+			backgroundColor={selected ? palette.selection : undefined}
+			overflow="hidden"
+			height={1}
+		>
+			<text fg={selected ? palette.textOnSelection : "gray"} flexShrink={0}>
+				{selected ? "\u276f" : " "}
+			</text>
+			<text fg={selected ? palette.textOnSelection : undefined}>
+				{row.name}
+			</text>
+			{row.tags.map((tag) => (
+				<text
+					key={tag}
+					fg={selected ? palette.textOnSelection : tagColor(tag, palette)}
+					flexShrink={0}
+				>
+					{tag}
+				</text>
+			))}
+			{isCurrent && (
+				<text fg={selected ? palette.textOnSelection : "gray"} flexShrink={0}>
+					(current)
+				</text>
+			)}
+		</box>
+	);
+}
+
 export function ClineModelSelectorContent(
 	props: ChoiceContext<string> & {
 		currentModel: string;
 		currentProviderName: string;
 		entries: ClineModelPickerEntry[];
+		/** Full catalog searched alongside the featured entries. */
+		allModels?: ModelSearchCandidate[];
 	},
 ) {
 	const {
@@ -42,10 +87,24 @@ export function ClineModelSelectorContent(
 		currentModel,
 		currentProviderName,
 		entries,
+		allModels,
 	} = props;
 	const palette = useDialogPalette();
 	const [selected, setSelected] = useState(0);
 	const [onProvider, setOnProvider] = useState(false);
+	const [search, setSearch] = useState("");
+
+	const searchResults = useMemo(
+		() =>
+			search.trim()
+				? searchFeaturedModels({
+						entries,
+						allModels: allModels ?? [],
+						query: search,
+					})
+				: null,
+		[search, entries, allModels],
+	);
 
 	const displayRows = useMemo(() => {
 		const rows: {
@@ -79,7 +138,7 @@ export function ClineModelSelectorContent(
 				rows.push({
 					key: entry.model.id,
 					kind: "model",
-					// Names arrive display-ready from fetchClineRecommendedModels
+					// Names arrive display-ready from the host's recommended-models feed
 					label: entry.model.name || entry.model.id,
 					tags: entry.model.tags,
 					isCurrent: currentModel === entry.model.id,
@@ -113,6 +172,11 @@ export function ClineModelSelectorContent(
 				resolve(CHANGE_PROVIDER_ACTION);
 				return;
 			}
+			if (searchResults) {
+				const row = searchResults[selected];
+				if (row) resolve(row.id);
+				return;
+			}
 			const entry = entries[selected];
 			if (!entry) return;
 			if (entry.kind === "model") {
@@ -122,7 +186,7 @@ export function ClineModelSelectorContent(
 			}
 			return;
 		}
-		const total = entries.length;
+		const total = searchResults ? searchResults.length : entries.length;
 		if (total === 0) return;
 		if (key.name === "up" || (key.ctrl && key.name === "p")) {
 			if (!onProvider) {
@@ -138,6 +202,29 @@ export function ClineModelSelectorContent(
 		}
 	}, dialogId);
 
+	const searchWindow = useMemo(() => {
+		if (!searchResults) {
+			return null;
+		}
+		if (searchResults.length <= MAX_VISIBLE_SEARCH_RESULTS) {
+			return { items: searchResults, startIndex: 0 };
+		}
+		const safeSelected = Math.min(
+			selected,
+			Math.max(0, searchResults.length - 1),
+		);
+		const half = Math.floor(MAX_VISIBLE_SEARCH_RESULTS / 2);
+		let start = Math.max(0, safeSelected - half);
+		const end = Math.min(
+			searchResults.length,
+			start + MAX_VISIBLE_SEARCH_RESULTS,
+		);
+		if (end - start < MAX_VISIBLE_SEARCH_RESULTS) {
+			start = Math.max(0, end - MAX_VISIBLE_SEARCH_RESULTS);
+		}
+		return { items: searchResults.slice(start, end), startIndex: start };
+	}, [searchResults, selected]);
+
 	return (
 		<box flexDirection="column" gap={1}>
 			<text>
@@ -146,74 +233,125 @@ export function ClineModelSelectorContent(
 
 			<ProviderRow providerName={currentProviderName} focused={onProvider} />
 
-			<box flexDirection="column">
-				{displayRows.map((row, idx) => {
-					if (row.kind === "header") {
-						const isFirst = idx === 0;
+			<box border borderStyle="rounded" borderColor="gray" paddingX={1}>
+				<input
+					onInput={(value: string) => {
+						setSearch(value);
+						setSelected(0);
+						setOnProvider(false);
+					}}
+					placeholder="Search models..."
+					flexGrow={1}
+					focused
+				/>
+			</box>
+
+			{searchResults && searchWindow ? (
+				<box flexDirection="column">
+					{searchResults.length === 0 && <text fg="gray">No models match</text>}
+					{searchWindow.startIndex > 0 && (
+						<box paddingX={1} justifyContent="center">
+							<text fg="gray">
+								{"\u25b2"} {searchWindow.startIndex} more
+							</text>
+						</box>
+					)}
+					{searchWindow.items.map((row, i) => (
+						<SearchResultRow
+							key={row.id}
+							row={row}
+							selected={searchWindow.startIndex + i === selected}
+							isCurrent={currentModel === row.id}
+						/>
+					))}
+					{searchWindow.startIndex + searchWindow.items.length <
+						searchResults.length && (
+						<box paddingX={1} justifyContent="center">
+							<text fg="gray">
+								{"\u25bc"}{" "}
+								{searchResults.length -
+									searchWindow.startIndex -
+									searchWindow.items.length}{" "}
+								more
+							</text>
+						</box>
+					)}
+				</box>
+			) : (
+				<box flexDirection="column">
+					{displayRows.map((row, idx) => {
+						if (row.kind === "header") {
+							const isFirst = idx === 0;
+							return (
+								<box
+									key={row.key}
+									paddingX={1}
+									marginTop={isFirst ? 0 : 1}
+									flexDirection="column"
+								>
+									<text fg="gray">{row.label}</text>
+									{row.description && (
+										<text fg="gray">
+											<em>{row.description}</em>
+										</text>
+									)}
+								</box>
+							);
+						}
+						const isSel = row.entryIndex === selected && !onProvider;
+						const isGray = row.kind === "browse";
 						return (
 							<box
 								key={row.key}
 								paddingX={1}
-								marginTop={isFirst ? 0 : 1}
-								flexDirection="column"
+								flexDirection="row"
+								gap={1}
+								backgroundColor={isSel ? palette.selection : undefined}
+								marginTop={row.kind === "browse" ? 1 : 0}
 							>
-								<text fg="gray">{row.label}</text>
-								{row.description && (
-									<text fg="gray">
-										<em>{row.description}</em>
-									</text>
-								)}
-							</box>
-						);
-					}
-					const isSel = row.entryIndex === selected && !onProvider;
-					const isGray = row.kind === "browse";
-					return (
-						<box
-							key={row.key}
-							paddingX={1}
-							flexDirection="row"
-							gap={1}
-							backgroundColor={isSel ? palette.selection : undefined}
-							marginTop={row.kind === "browse" ? 1 : 0}
-						>
-							<text
-								fg={isSel ? palette.textOnSelection : "gray"}
-								flexShrink={0}
-							>
-								{isSel ? "\u276f" : " "}
-							</text>
-							<text
-								fg={
-									isSel ? palette.textOnSelection : isGray ? "gray" : undefined
-								}
-							>
-								{row.label}
-							</text>
-							{row.tags.map((t) => (
-								<text
-									key={t}
-									fg={isSel ? palette.textOnSelection : tagColor(t, palette)}
-									flexShrink={0}
-								>
-									{t}
-								</text>
-							))}
-							{row.isCurrent && (
 								<text
 									fg={isSel ? palette.textOnSelection : "gray"}
 									flexShrink={0}
 								>
-									(current)
+									{isSel ? "\u276f" : " "}
 								</text>
-							)}
-						</box>
-					);
-				})}
-			</box>
+								<text
+									fg={
+										isSel
+											? palette.textOnSelection
+											: isGray
+												? "gray"
+												: undefined
+									}
+								>
+									{row.label}
+								</text>
+								{row.tags.map((t) => (
+									<text
+										key={t}
+										fg={isSel ? palette.textOnSelection : tagColor(t, palette)}
+										flexShrink={0}
+									>
+										{t}
+									</text>
+								))}
+								{row.isCurrent && (
+									<text
+										fg={isSel ? palette.textOnSelection : "gray"}
+										flexShrink={0}
+									>
+										(current)
+									</text>
+								)}
+							</box>
+						);
+					})}
+				</box>
+			)}
 
 			<text fg="gray">
-				↑/↓ navigate, Enter to select, Tab to change provider, Esc to go back
+				Type to search, ↑/↓ navigate, Enter to select, Tab to change provider,
+				Esc to go back
 			</text>
 		</box>
 	);
@@ -224,6 +362,8 @@ export function ClineModelSelectorDialogContent(
 		currentModel: string;
 		currentProviderName: string;
 		loadEntries: () => Promise<ClineModelPickerEntry[]>;
+		/** Full catalog searched alongside the featured entries. */
+		allModels?: ModelSearchCandidate[];
 	},
 ) {
 	const { dismiss, dialogId, loadEntries } = props;

@@ -7,7 +7,6 @@ import type { CliOutputMode } from "../utils/types";
 export {
 	formatCheckpointDetail,
 	formatHistoryListLine,
-	mergeHistoryStatusRows,
 } from "../utils/history-format";
 
 type HistoryIo = {

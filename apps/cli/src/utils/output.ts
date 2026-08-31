@@ -191,37 +191,3 @@ export function writeErr(text: string): void {
 	}
 	console.error(`${c.red}error:${c.reset} ${text}`);
 }
-
-// =============================================================================
-// Formatting helpers
-// =============================================================================
-
-export function formatUsd(value: number, fixed = 6): string {
-	if (!Number.isFinite(value) || value <= 0) {
-		return "$0.00";
-	}
-	if (value >= 1) {
-		return `$${value.toFixed(fixed)}`;
-	}
-	if (value >= 0.01) {
-		return `$${value.toFixed(fixed)}`;
-	}
-	return `$${value.toFixed(fixed)}`;
-}
-
-export function formatCreditBalance(value: number, decimalPlaces = 2): string {
-	if (!Number.isFinite(value)) {
-		return "$0.00";
-	}
-	return `$${value.toLocaleString("en-US", {
-		minimumFractionDigits: decimalPlaces,
-		maximumFractionDigits: decimalPlaces,
-	})}`;
-}
-
-export function normalizeCreditBalance(value: number): number {
-	if (!Number.isFinite(value)) {
-		return 0;
-	}
-	return value / 1_000_000;
-}

@@ -1,13 +1,28 @@
-import type {
-	ClineRecommendedModel,
-	ClineRecommendedModelsData,
-} from "@cline/core";
+import { fuzzyScore, type ModelSearchCandidate } from "./model-search";
+
+/**
+ * Structural view of a Cline recommended-models feed entry. Hosts fetch the
+ * feed (e.g. via @cline/core's fetchClineRecommendedModels) and pass the
+ * data in; names arrive display-ready.
+ */
+export interface ClineFeaturedModel {
+	id: string;
+	name: string;
+	description: string;
+	tags: string[];
+}
+
+export interface ClineFeaturedModelsData {
+	recommended: ClineFeaturedModel[];
+	free: ClineFeaturedModel[];
+	clinePass: ClineFeaturedModel[];
+}
 
 export type ClineModelPickerTier = "recommended" | "subscribed" | "free";
 
 export interface ClineModelPickerItem {
 	kind: "model";
-	model: ClineRecommendedModel;
+	model: ClineFeaturedModel;
 	tier: ClineModelPickerTier;
 }
 
@@ -33,7 +48,7 @@ export const CLINE_MODEL_PICKER_TIER_LABELS: Record<
 // gets Subscribed/Free (see buildClinePassModelEntries for why no browse-all).
 export function buildFeaturedModelEntries(
 	providerId: string,
-	data: ClineRecommendedModelsData,
+	data: ClineFeaturedModelsData,
 ): ClineModelPickerEntry[] {
 	return providerId === "cline-pass"
 		? buildClinePassModelEntries(data)
@@ -41,7 +56,7 @@ export function buildFeaturedModelEntries(
 }
 
 function buildClineModelEntries(
-	data: ClineRecommendedModelsData,
+	data: ClineFeaturedModelsData,
 ): ClineModelPickerEntry[] {
 	const entries: ClineModelPickerEntry[] = [];
 	for (const m of data.recommended) {
@@ -68,7 +83,7 @@ export const CLINE_PASS_FREE_SECTION_DESCRIPTION =
 // escape into the full catalog a subscriber could only pick free models, so
 // browse-all comes back in that degraded mode.
 function buildClinePassModelEntries(
-	data: ClineRecommendedModelsData,
+	data: ClineFeaturedModelsData,
 ): ClineModelPickerEntry[] {
 	const entries: ClineModelPickerEntry[] = [];
 	for (const m of data.clinePass) {
@@ -92,4 +107,64 @@ export function freeTierDescriptionFor(
 		(entry) => entry.kind === "model" && entry.tier === "subscribed",
 	);
 	return isClinePassPicker ? CLINE_PASS_FREE_SECTION_DESCRIPTION : undefined;
+}
+
+/** A row in the featured picker's search results. */
+export interface ClineModelSearchRow {
+	id: string;
+	name: string;
+	tags: string[];
+	/** Set when the row came from the featured sections. */
+	tier?: ClineModelPickerTier;
+}
+
+/**
+ * Search across the featured entries and the full model catalog. Featured
+ * matches come first in their section order — recommended on top — followed
+ * by remaining catalog matches ranked by fuzzy score. Catalog models already
+ * shown as featured matches are deduplicated by id.
+ */
+export function searchFeaturedModels(input: {
+	entries: ClineModelPickerEntry[];
+	allModels: ModelSearchCandidate[];
+	query: string;
+}): ClineModelSearchRow[] {
+	const query = input.query.trim().toLowerCase();
+	if (!query) {
+		return [];
+	}
+
+	const featuredMatches: ClineModelSearchRow[] = [];
+	const featuredMatchIds = new Set<string>();
+	for (const entry of input.entries) {
+		if (entry.kind !== "model") continue;
+		const score = fuzzyScore(
+			{ key: entry.model.id, name: entry.model.name || entry.model.id },
+			query,
+		);
+		if (score > 0) {
+			featuredMatches.push({
+				id: entry.model.id,
+				name: entry.model.name || entry.model.id,
+				tags: entry.model.tags,
+				tier: entry.tier,
+			});
+			featuredMatchIds.add(entry.model.id);
+		}
+	}
+
+	const catalogMatches = input.allModels
+		.filter((model) => !featuredMatchIds.has(model.key))
+		.map((model) => ({ model, score: fuzzyScore(model, query) }))
+		.filter((result) => result.score > 0);
+	catalogMatches.sort((a, b) => b.score - a.score);
+
+	return [
+		...featuredMatches,
+		...catalogMatches.map(({ model }) => ({
+			id: model.key,
+			name: model.name,
+			tags: [],
+		})),
+	];
 }

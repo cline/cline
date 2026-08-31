@@ -249,13 +249,16 @@ function App(props: InteractiveTerminalUiProps) {
 		[hostSurfaces, showToast],
 	);
 
-	const openMcpManager = useCallback(async () => {
-		if (!hostSurfaces.openMcpManager) {
-			showToast("MCP management is not available in this host", "info");
-			return false;
-		}
-		return await hostSurfaces.openMcpManager();
-	}, [hostSurfaces, showToast]);
+	const openMcpManager = useCallback(
+		async (options?: { refocus?: boolean }) => {
+			if (!hostSurfaces.openMcpManager) {
+				showToast("MCP management is not available in this host", "info");
+				return false;
+			}
+			return await hostSurfaces.openMcpManager(options);
+		},
+		[hostSurfaces, showToast],
+	);
 
 	const openThemePicker = useCallback(
 		async (options?: { refocus?: boolean }) => {
@@ -377,7 +380,7 @@ function App(props: InteractiveTerminalUiProps) {
 				return;
 			}
 			if (items.length === 0) {
-				showToast("No checkpoints to restore", "info");
+				showToast("No checkpoints available", "info");
 				return;
 			}
 

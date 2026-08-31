@@ -9,13 +9,60 @@
 // (provider pickers, account dialogs, onboarding flows, history browsers).
 export * from "./commands/slash-command-registry";
 export type { TranscriptScrollHandle } from "./components/chat-message-list";
+export {
+	type AccountDialogAction,
+	AccountDialogContent,
+	type AccountDialogOrganization,
+	type AccountDialogSnapshot,
+	isClineAccountAuthErrorMessage,
+} from "./components/dialogs/account-dialog";
 export type { CheckpointPickerItem } from "./components/dialogs/checkpoint-picker";
+export type { HistoryExportFormat } from "./components/dialogs/history-export-picker";
+export {
+	HistoryDialogContent,
+	type HistorySessionRow,
+} from "./components/dialogs/history-view";
 export {
 	LoadingDialogContent,
 	withLoadingDialog,
 } from "./components/dialogs/loading-dialog";
+export {
+	getMcpManagerFooterText,
+	type McpEntry,
+	McpManagerContent,
+	type McpServerToggleResult,
+} from "./components/dialogs/mcp-manager";
+export {
+	buildFeaturedModelEntries,
+	CLINE_MODEL_PICKER_TIER_LABELS,
+	CLINE_PASS_FREE_SECTION_DESCRIPTION,
+	type ClineFeaturedModel,
+	type ClineFeaturedModelsData,
+	ClineModelPicker,
+	type ClineModelPickerBrowse,
+	type ClineModelPickerEntry,
+	type ClineModelPickerItem,
+	type ClineModelPickerTier,
+	type ClineModelSearchRow,
+	freeTierDescriptionFor,
+	searchFeaturedModels,
+} from "./components/model-selector/cline-model-picker";
+export {
+	BROWSE_ALL_ACTION,
+	ClineModelSelectorContent,
+	ClineModelSelectorDialogContent,
+} from "./components/model-selector/cline-model-selector";
+export type { ModelSearchCandidate } from "./components/model-selector/model-search";
 export * from "./components/model-selector/model-selector";
 export { ProviderRow } from "./components/model-selector/provider-row";
+export {
+	getProviderSection,
+	isPopularProvider,
+	OTHER_PROVIDER_SECTION,
+	POPULAR_PROVIDER_SECTION,
+	type ProviderSection,
+	type ProviderSectionItem,
+} from "./components/model-selector/provider-sections";
 export * from "./components/searchable-list";
 export type { ToastState, ToastVariant } from "./components/toast";
 export * from "./components/tracked-robot";

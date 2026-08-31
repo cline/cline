@@ -278,7 +278,11 @@ export interface OpenModelSelectorOptions {
  */
 export interface HostSurfaces {
 	openModelSelector?: (options?: OpenModelSelectorOptions) => Promise<void>;
-	openMcpManager?: () => Promise<boolean>;
+	/**
+	 * `refocus: false` defers the textarea refocus to the caller (the config
+	 * panel keeps its own dialog loop in the foreground).
+	 */
+	openMcpManager?: (options?: { refocus?: boolean }) => Promise<boolean>;
 	openAccountDialog?: () => Promise<void>;
 	openHistory?: () => Promise<void>;
 	renderOnboarding?: (props: {

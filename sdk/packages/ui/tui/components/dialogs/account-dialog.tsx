@@ -1,14 +1,35 @@
 // @jsxImportSource @opentui/react
-import type { ClineAccountOrganization } from "@cline/core";
-import { useDialogPalette } from "@cline/ui/tui";
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialogKeyboard } from "@opentui-ui/dialog/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-	type ClineAccountSnapshot,
-	formatClineCredits,
-	isClineAccountAuthErrorMessage,
-} from "../cline-account";
+import { formatClineCredits } from "../../formatting/credits";
+import { useDialogPalette } from "../../hooks/use-theme";
+
+/**
+ * Structural view of a Cline account organization. Hosts pass their richer
+ * account records; only these fields are read.
+ */
+export interface AccountDialogOrganization {
+	organizationId: string;
+	name: string;
+	roles: string[];
+	active: boolean;
+}
+
+/** Structural account snapshot the dialog renders. */
+export interface AccountDialogSnapshot {
+	user: {
+		displayName?: string;
+		email: string;
+		createdAt: string;
+	};
+	balance: { balance: number };
+	organizationBalance: { balance: number } | null;
+	organizations: AccountDialogOrganization[];
+	activeOrganization: AccountDialogOrganization | null;
+	/** Raw balance to display, already resolved between personal and org. */
+	displayedBalance: number;
+}
 
 export type AccountDialogAction =
 	| "change-model"
@@ -20,7 +41,7 @@ type AccountView = "overview" | "organizations";
 
 type AccountState =
 	| { status: "loading"; message: string }
-	| { status: "loaded"; snapshot: ClineAccountSnapshot }
+	| { status: "loaded"; snapshot: AccountDialogSnapshot }
 	| { status: "unauthenticated"; message: string }
 	| { status: "error"; message: string };
 
@@ -80,6 +101,16 @@ const UNAUTHENTICATED_ACTIONS: AccountAction[] = [
 	},
 ];
 
+// FIXME: These message checks are temporary until structured error types are
+// passed through to hosts instead of plain error strings.
+export function isClineAccountAuthErrorMessage(message: string): boolean {
+	const normalized = message.trim().toLowerCase();
+	return (
+		normalized === "no cline account auth token found" ||
+		normalized.includes("requires re-authentication")
+	);
+}
+
 function clampIndex(index: number, total: number): number {
 	if (total <= 0) return 0;
 	if (index < 0) return total - 1;
@@ -99,7 +130,7 @@ function formatDate(dateStr: string): string {
 	});
 }
 
-function userInitial(snapshot: ClineAccountSnapshot): string {
+function userInitial(snapshot: AccountDialogSnapshot): string {
 	const candidate =
 		snapshot.user.displayName?.trim() || snapshot.user.email?.trim() || "?";
 	return candidate.charAt(0).toUpperCase();
@@ -202,7 +233,7 @@ function OrganizationRow(props: {
 	);
 }
 
-function accountActions(snapshot: ClineAccountSnapshot): AccountAction[] {
+function accountActions(snapshot: AccountDialogSnapshot): AccountAction[] {
 	return LOADED_ACTIONS.map((action) => {
 		if (action.id !== "change-account") {
 			return action;
@@ -216,14 +247,14 @@ function accountActions(snapshot: ClineAccountSnapshot): AccountAction[] {
 	});
 }
 
-function organizationDescription(org: ClineAccountOrganization): string {
+function organizationDescription(org: AccountDialogOrganization): string {
 	const roles = org.roles.length > 0 ? org.roles.join(", ") : "member";
 	return roles;
 }
 
 export function AccountDialogContent(
 	props: ChoiceContext<AccountDialogAction> & {
-		loadAccount: () => Promise<ClineAccountSnapshot>;
+		loadAccount: () => Promise<AccountDialogSnapshot>;
 		switchAccount: (organizationId?: string | null) => Promise<void>;
 		onAccountChange?: () => Promise<void>;
 	},

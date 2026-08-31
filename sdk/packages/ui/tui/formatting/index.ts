@@ -46,10 +46,19 @@ export {
 	parseCompactionNoticeMetadata,
 } from "./compaction-status";
 export {
+	formatClineCredits,
+	formatCreditBalance,
+	normalizeCreditBalance,
+} from "./credits";
+export {
 	cleanupMaterializedGeneratedMedia,
 	type MaterializedGeneratedMedia,
 	materializeGeneratedMedia,
 } from "./generated-media";
+export {
+	type HistoryStatusFields,
+	mergeHistoryStatusRows,
+} from "./history-rows";
 export {
 	bufferToImageDataUrl,
 	getImageMimeType,
@@ -66,6 +75,7 @@ export {
 	truncate,
 } from "./tool-format";
 export {
+	formatUsd,
 	shouldShowCliUsageCost,
 	shouldShowCliUsageCoveredBySubscription,
 } from "./usage-cost-display";

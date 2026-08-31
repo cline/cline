@@ -87,6 +87,10 @@ The package owns:
   handling, autocomplete, and the slash-command menu
 - Keyboard routing, command palette, dialogs, theming, status bars, and the
   queued-prompt presentation
+- Dialog presentation for the runtime-owned surfaces — account
+  (`AccountDialogContent`), MCP manager (`McpManagerContent`), session
+  history (`HistoryDialogContent`), and the Cline featured model selector —
+  driven by structural data types and host-injected loaders/callbacks
 - Renderer-free formatting helpers (`@cline/ui/tui/formatting`) that headless
   hosts reuse for non-interactive printing
 
@@ -97,9 +101,10 @@ The host owns (and injects as plain data + callbacks):
   handlers)
 - File search for `@` mentions, repo status, input-history and theme
   persistence, external-link opening
-- Runtime-owned dialogs — provider/model picker, account, MCP manager,
-  session history, onboarding — supplied through `createHostSurfaces` and
-  composed from the primitives this entry exports
+- Runtime-owned surfaces supplied through `createHostSurfaces`: openers that
+  load account/MCP/history/model data and pass it to the dialogs above, plus
+  fully host-rendered flows that drive auth and settings persistence
+  directly (provider picker, onboarding)
 
 Hard rules: `@cline/ui` never depends on `@cline/core`; the terminal UI never
 creates or persists runtime sessions; the browser root entry never receives

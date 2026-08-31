@@ -3,11 +3,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import {
-	getMcpManagerEntryStatus,
-	getMcpManagerFooterText,
-	toggleMcpServer,
-} from "./mcp-manager-dialog";
+import { toggleMcpServer } from "./use-mcp-manager";
 
 interface SetMcpServerDisabledOptions {
 	filePath?: string;
@@ -43,15 +39,11 @@ vi.mock("@cline/core", () => ({
 	},
 }));
 
-vi.mock("@opentui-ui/dialog/react", () => ({
-	useDialogKeyboard: () => undefined,
-}));
-
 async function readSettings(filePath: string): Promise<TestMcpSettings> {
 	return JSON.parse(await readFile(filePath, "utf8")) as TestMcpSettings;
 }
 
-describe("mcp manager dialog helpers", () => {
+describe("toggleMcpServer", () => {
 	const tempRoots: string[] = [];
 	const envSnapshot = {
 		CLINE_MCP_SETTINGS_PATH: process.env.CLINE_MCP_SETTINGS_PATH,
@@ -162,27 +154,5 @@ describe("mcp manager dialog helpers", () => {
 		if (!result.ok) {
 			expect(result.message).toContain('Unable to toggle MCP server "docs"');
 		}
-	});
-
-	it("keeps the footer focused on toggling", () => {
-		expect(getMcpManagerFooterText(true)).toBe(
-			"Space toggle selected, Esc to go back",
-		);
-		expect(getMcpManagerFooterText(true)).not.toContain("delete");
-		expect(getMcpManagerFooterText(false)).toBe("Esc to go back");
-	});
-
-	it("shows OAuth errors before general MCP status", () => {
-		expect(
-			getMcpManagerEntryStatus({
-				description: "streamableHttp, oauth authorized",
-			}),
-		).toBe("streamableHttp, oauth authorized");
-		expect(
-			getMcpManagerEntryStatus({
-				description: "streamableHttp, oauth authorized",
-				lastError: "OAuth authorization failed",
-			}),
-		).toBe("oauth error");
 	});
 });

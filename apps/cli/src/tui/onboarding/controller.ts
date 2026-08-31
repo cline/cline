@@ -1,5 +1,7 @@
 import {
+	type ClineRecommendedModelsData,
 	captureProviderConfigured,
+	fetchClineRecommendedModels,
 	getLocalProviderModels,
 	getProviderConfigFields,
 	type ProviderConfigFieldKey,
@@ -11,6 +13,9 @@ import {
 } from "@cline/core";
 import { isClineProvider } from "@cline/shared";
 import {
+	buildFeaturedModelEntries,
+	type ClineModelPickerEntry,
+	getProviderSection,
 	type SearchableItem,
 	useSearchableList,
 	useTheme,
@@ -35,11 +40,6 @@ import {
 	loadIndividualSubscriptionPlansFromProviderSettings,
 } from "../cline-account";
 import {
-	buildFeaturedModelEntries,
-	type ClineModelPickerEntry,
-	useClineRecommendedModels,
-} from "../model-selector/cline-model-picker";
-import {
 	getDefaultAwsRegion,
 	type ProviderConfigValues,
 	resolveProviderConfigAwsRegion,
@@ -47,7 +47,6 @@ import {
 	resolveProviderConfigSap,
 	updateProviderConfigValue,
 } from "../provider-config-values";
-import { getProviderSection } from "../provider-sections";
 import {
 	isOnboardingOAuthProviderId,
 	type OnboardingOAuthProviderId,
@@ -74,6 +73,28 @@ import {
 } from "./model";
 
 const CUSTOM_MODEL_ID_ACTION = "__custom_model_id__";
+
+/** Loads the Cline recommended-models feed for the featured picker. */
+function useClineRecommendedModels() {
+	const [data, setData] = useState<ClineRecommendedModelsData | null>(null);
+	const [loading, setLoading] = useState(true);
+
+	useEffect(() => {
+		let cancelled = false;
+		fetchClineRecommendedModels()
+			.then((result) => {
+				if (!cancelled) setData(result);
+			})
+			.finally(() => {
+				if (!cancelled) setLoading(false);
+			});
+		return () => {
+			cancelled = true;
+		};
+	}, []);
+
+	return { data, loading };
+}
 
 export interface OnboardingControllerProps {
 	onComplete: (result: OnboardingResult) => void;

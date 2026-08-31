@@ -14,7 +14,13 @@ import {
 	watchManagedHubBuildMismatch,
 } from "@cline/core";
 import { formatModeSwitchNotice, TeamMessageType } from "@cline/shared";
-import type { QueuedPromptItem, TuiStartupTarget } from "@cline/ui/tui";
+import type {
+	InteractiveConfigItem,
+	LoadInteractiveConfigDataOptions,
+	QueuedPromptItem,
+	SlashCommand,
+	TuiStartupTarget,
+} from "@cline/ui/tui";
 import {
 	applyCliCompactionMode,
 	disableOpenTuiGraphicsProbe,
@@ -33,12 +39,7 @@ import {
 } from "../tui/cline-account";
 import { createCliHostSurfaces } from "../tui/host-surfaces";
 import { hydrateSessionMessages } from "../tui/hydrate-messages";
-import type {
-	InteractiveConfigItem,
-	LoadInteractiveConfigDataOptions,
-} from "../tui/interactive-config";
 import {
-	type InteractiveSlashCommand,
 	listInteractiveSlashCommands,
 	resolveClineWelcomeLine,
 	searchWorkspaceFilesForMention,
@@ -214,18 +215,14 @@ export async function runInteractive(
 	);
 	let interactiveChatCommandHost = chatCommandHost;
 	let pluginChatCommandHostLoaded = false;
-	let pluginChatSlashCommands: InteractiveSlashCommand[] = [];
+	let pluginChatSlashCommands: SlashCommand[] = [];
 	let pluginChatCommandHostShutdown: (() => Promise<void>) | undefined;
-	let pluginChatCommandHostPromise:
-		| Promise<InteractiveSlashCommand[]>
-		| undefined;
+	let pluginChatCommandHostPromise: Promise<SlashCommand[]> | undefined;
 	const configDataLoader = createInteractiveConfigDataLoader({
 		config,
 		userInstructionService,
 	});
-	const ensurePluginChatCommandHost = async (): Promise<
-		InteractiveSlashCommand[]
-	> => {
+	const ensurePluginChatCommandHost = async (): Promise<SlashCommand[]> => {
 		if (pluginChatCommandHostLoaded) {
 			return pluginChatSlashCommands;
 		}
@@ -250,9 +247,8 @@ export async function runInteractive(
 			});
 		return await pluginChatCommandHostPromise;
 	};
-	const loadAdditionalSlashCommands = async (): Promise<
-		InteractiveSlashCommand[]
-	> => await ensurePluginChatCommandHost();
+	const loadAdditionalSlashCommands = async (): Promise<SlashCommand[]> =>
+		await ensurePluginChatCommandHost();
 	const shouldTryPluginChatCommands = (prompt: string): boolean => {
 		return prompt.trimStart().startsWith("/");
 	};
