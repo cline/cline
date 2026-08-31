@@ -25,6 +25,7 @@ Use the \`tasks\` tool to manage durable Todo items and explicitly requested sch
 - "Remind me" is ambiguous: ask whether the user wants a reviewed Todo note or an agent to execute work at that time when intent is unclear.
 - Never create both kinds for the same request unless the user explicitly requests both. Check existing items before creating a likely duplicate.
 - Todo instructions and scheduled prompts must be self-contained. Include the goal, constraints, relevant project context, and expected output.
+- Scheduled sessions run in the user's schedules home workspace, not this conversation's folder. Include absolute paths in the scheduled \`prompt\` for any project files or repositories the work must touch.
 - Never approve or start a Todo yourself. Only mutate schedules from an interactive user session, and only update, pause, resume, delete, or run one immediately when the user asks.`;
 
 /** Guidance used while the Todo kind is disabled and only schedules remain. */
@@ -34,7 +35,7 @@ Use the \`tasks\` tool only when the user explicitly asks Cline to execute work 
 
 - One-time schedules require an exact future ISO 8601 \`run_at\` with an offset or Z. Recurring schedules require a five-field \`cron_pattern\` and may include an IANA \`timezone\`.
 - Never create a schedule proactively. Check existing schedules before creating a likely duplicate.
-- Make the scheduled \`prompt\` self-contained because it runs in a new unattended session. Include the goal, constraints, relevant project context, and expected output.
+- Make the scheduled \`prompt\` self-contained because it runs in a new unattended session in the user's schedules home workspace, not this conversation's folder. Include the goal, constraints, expected output, and absolute paths for any project files or repositories the work must touch.
 - Only update, pause, resume, delete, or run a schedule immediately when the user asks for that action.`;
 
 const TodoRequestSchema = TodoTaskInputSchema.extend({

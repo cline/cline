@@ -254,11 +254,41 @@ function mapHistoryStatusToChatStatus(
 
 export function inferHydratedChatStatus(
 	fallback: SessionHistoryStatus,
-	_messages: ChatMessage[],
+	messages: ChatMessage[],
 ): ChatSessionStatus {
-	// The persisted runtime status is authoritative. A running turn can emit an
-	// assistant message and then continue into reasoning or tool execution, so
-	// transcript shape cannot prove completion. Dead-process rows are reconciled
-	// by the session persistence layer before they reach this hydration path.
+	if (fallback === "failed") {
+		return "failed";
+	}
+	if (fallback === "cancelled") {
+		return "cancelled";
+	}
+	const meaningfulMessages = messages.filter((message) => {
+		if (message.role !== "user" && message.role !== "assistant") {
+			return false;
+		}
+		return message.content.trim().length > 0;
+	});
+	if (meaningfulMessages.length === 0) {
+		return mapHistoryStatusToChatStatus(fallback);
+	}
+	if (fallback === "running") {
+		const lastMeaningful = meaningfulMessages[meaningfulMessages.length - 1];
+		if (lastMeaningful?.role === "assistant") {
+			return "completed";
+		}
+	}
 	return mapHistoryStatusToChatStatus(fallback);
+}
+
+/**
+ * The session record's status mapped verbatim — no transcript inference. For
+ * callers observing a session whose record is actively maintained by the
+ * executing host (the stale-stream poll), the record is the authority;
+ * inferHydratedChatStatus's stale-record heuristic would misread a mid-run
+ * snapshot that happens to end on assistant narration as a finished session.
+ */
+export function mapSessionRecordStatus(
+	status: SessionHistoryStatus,
+): ChatSessionStatus {
+	return mapHistoryStatusToChatStatus(status);
 }

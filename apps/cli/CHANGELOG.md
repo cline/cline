@@ -1,5 +1,15 @@
 # Cline CLI Changelog
 
+## 3.0.60
+
+- Fixed the background hub process ballooning in memory during long sessions — session status updates were broadcasting a full copy of the conversation transcript to every connected client, which on a large task could grow the process to tens of gigabytes. Upgrading retires the running hub so the fix takes effect on the next command
+- New files are now created with your platform's native line endings
+- Fixed the codebase search tool crashing on files that contain a single enormous line
+- Cost estimates are no longer shown for Claude Code. Its usage is typically covered by a Claude Pro/Max subscription, but its models reuse Anthropic API pricing, so Cline was showing charges you were not being billed
+- Credentials embedded in git remote URLs are now redacted from the workspace information sent to the model
+- Installing an MCP server no longer misreads a `--` separator in the install arguments as part of the server command
+- Refreshed the model catalog. Adds seven providers (Agnes AI, Aixy, IteraCompute, LLM Tech, NeoSmith, Pendra, and Standard Compute) and updates model lists and pricing across providers. The resolved default model changes for ClinePass (now GLM 5.3), Z.ai, Hugging Face, evroc, LLM Gateway, NanoGPT, and Weights & Biases, so if you use one of those without pinning a model you will get a different default
+
 ## 3.0.58
 
 - The first-launch "Try ClinePass" dialog no longer advertises the $4.99 first-month promo, which is ending

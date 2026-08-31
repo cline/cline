@@ -15,6 +15,8 @@
 		"build:sidecar": "mkdir -p dist/sidecar && bun build ./sidecar/index.ts --outfile ./dist/sidecar/index.js --target bun",
 		"build:sidecar:bin": "bun run scripts/build-sidecar-bin.ts",
 		"build:binary": "tauri build",
+		"dmg:background": "bun run scripts/dmg-background.ts",
+		"test:dmg-background": "bun test scripts/dmg-background.test.ts",
 		"package": "bun run package:desktop",
 		"package:desktop": "bun run scripts/package-desktop.ts",
 		"package:desktop:mac": "bun run scripts/package-desktop.ts --platform mac",

@@ -15,6 +15,7 @@ export {
 	filterOpenAICodexModels,
 	getAllProviders,
 	getGeneratedModelsForProvider,
+	getModelOverridesForProvider,
 	getModelsForProvider,
 	getProvider,
 	getProviderCollection,

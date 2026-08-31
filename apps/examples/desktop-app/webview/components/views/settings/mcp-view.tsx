@@ -209,10 +209,13 @@ function createServerFormState(existing?: McpServer): McpServerFormState {
 
 export function McpServersContent({
 	chrome = "page",
+	marketplaceVariant = "full",
 	onInventoryChanged,
 }: {
 	/** "embedded" renders without the page frame/header for use inside the Plugins hub. */
 	chrome?: "page" | "embedded";
+	/** Which marketplace sections the embedded MarketplaceView shows. */
+	marketplaceVariant?: "full" | "installed";
 	/** Invoked whenever the server list is (re)loaded or mutated. */
 	onInventoryChanged?: () => void;
 } = {}) {
@@ -814,7 +817,7 @@ export function McpServersContent({
 				installedItems={installedItems}
 				onInstalledItemsChanged={() => refreshServers()}
 				primitive="mcp"
-				variant="full"
+				variant={marketplaceVariant}
 			/>
 			<Dialog
 				open={editorOpen}

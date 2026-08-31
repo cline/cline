@@ -1,5 +1,50 @@
 # Cline Desktop Changelog
 
+## 0.0.20
+
+- Cline Desktop now ships on Windows: releases include a code-signed x64 installer, and installed apps auto-update on the same feed macOS does
+- Windows shell fixes: background processes (the sidecar, git) no longer pop visible console windows; updates now download in the background and install when you restart the app; the MCP settings path falls back to `USERPROFILE` when `HOME` is unset
+- Tool results that return images — screenshots from browser or MCP tools — now render as inline images you can click to expand, with a carousel for stepping through multiple images, instead of raw base64 text
+- Session search now covers your full indexed history. The sidebar search icon opens the command bar (Cmd/Ctrl+P) with server-ranked results, instead of a sidebar-local dialog that first loaded every session into memory
+- Onboarding has a new GitHub integration step
+- Fixed scheduled tasks disappearing after the app updated — hub-managed schedules were being wiped by cron reconciliation on restart
+- Agent-created schedules now live in one user-level home (`~/.cline/schedules`) instead of being scattered across whichever chat folder created them, and they now appear on the Schedules page
+- A finished scheduled session now surfaces its final answer: the completing step auto-expands, is labeled "Scheduled task completed" (or failed), and its summary renders as markdown
+- Suggested routine templates now ask for a specific final report, so a scheduled run ends with something readable
+- Providers no longer show as "Configured" on the strength of a leftover settings entry with no real credentials, and the badge now updates live after connecting or saving credentials instead of waiting for a remount
+- Fixed OpenAI Codex (ChatGPT subscription) sign-in silently dead-ending when callback port 1455 was already in use — it now fails immediately with an actionable error, and OAuth redirect errors surface instead of a confusing "Missing authorization code"
+- Codex and OCA sign-ins are no longer dropped when a token refresh hits a transient network failure or server error
+- Checkpoint restore now refuses to reset your workspace when commits were made after the checkpoint, instead of silently knocking them off the branch
+- Fixed an enabled-but-offline remote MCP server stalling session startup until the session was torn down
+- Global rules stored at `~/Cline/Rules` are now discovered (previously only `~/Documents/Cline/Rules`), fixing rules that never reached the model on WSL and headless installs
+- `apply_patch` now preserves a file's own CRLF line endings
+- The window title bar stays draggable across every view
+- Voice input's Live and After recording badges now have tooltips explaining them
+- Removed the box shadow from the chat message actions row
+- The hub no longer watches agenda spec directories while the todo tool is disabled, dropping an OS watch handle per known workspace
+
+## 0.0.19
+
+- Fixed the background Cline process ballooning in memory during long sessions — session status updates were carrying a full copy of the conversation transcript to every connected client, which on a multi-megabyte task could grow the process to tens of gigabytes. Status updates now carry only state (status, usage, model, workspace, checkpoint); the transcript is fetched on demand
+- Refreshed the model catalog. Adds seven providers (Agnes AI, Aixy, IteraCompute, LLM Tech, NeoSmith, Pendra, and Standard Compute) and updates model lists and pricing across providers. The resolved default model changes for ClinePass (now GLM 5.3), Z.ai, Hugging Face, evroc, LLM Gateway, NanoGPT, and Weights & Biases, so if you use one of those without pinning a model you will get a different default
+
+## 0.0.18
+
+- The sidebar is time-sorted again by default, with collapsible Pinned / Scheduled / Tasks sections and a one-click toggle to switch to project grouping (the old dropdown is gone). Scheduled sessions are marked with a clock icon, and the list starts taller and grows to fill the sidebar instead of stranding rows over empty space
+- Session rows now show a trash button on hover for quick deletion, with the same confirmation the row's context menu uses
+- Customize is now your installed inventory only. Browsing moved to a dedicated Marketplace page — one list across plugins, MCP servers, and skills with type-filter and tag chips — and the two pages link to each other from their headers and from sidebar sub-tabs
+- Schedule cards are now click targets: clicking a card anywhere outside its controls opens its details, the redundant eye button is gone, and the edit / run / pause / delete buttons are large enough to hit
+- Schedule details are one scrollable view instead of Overview/Runs tabs, showing the meta grid, the configuration, and the most recent runs with a "Show all N runs" expander
+- "Run now" now hands you into the session it starts
+- Scheduled and automation runs no longer render their internal `[SYSTEM]` steering messages as if you had typed them — a finished scheduled session reads as prompt, work summary, answer
+- Fixed opening a scheduled session while it runs leaving it stuck on the thinking shimmer until you switched away and back
+- Fixed installing plugins and MCP servers from the Marketplace failing with `Executable not found in $PATH: "cline"` — installs now run in-process and no longer require a Cline CLI on your machine
+- Fixed quitting the app beach-balling for several seconds
+- Cost estimates are no longer shown for subscription-billed providers (ClinePass, ChatGPT via Codex, and Claude Code), where an API-rate dollar figure read as a real charge on top of your subscription
+- Fixed hover cards flashing closed and reopening when clicked
+- The macOS DMG install window now has custom Cline artwork and layout
+- Credentials embedded in git remote URLs are now redacted from the workspace information sent to the model
+
 ## 0.0.17
 
 - Plugins, MCP, Skills, Rules, Hooks, and Tools are now one Customize hub with tabbed sections and live counts. Catalog-backed tabs show what you have installed followed by an inline Browse section, so installing something from the catalog immediately appears above — the separate Marketplace page is gone

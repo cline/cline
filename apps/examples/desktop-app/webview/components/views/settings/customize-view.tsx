@@ -1,5 +1,6 @@
 "use client";
 
+import { Store } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { fetchComposioStatus } from "@/lib/composio";
@@ -12,11 +13,10 @@ import { CustomizationSectionView } from "./extensions-view";
 import { McpServersContent } from "./mcp-view";
 
 /**
- * Unified Customize hub: one page for everything that extends Cline —
- * skills, MCP servers, plugins, rules, hooks, and tools — as sub-tabs with
- * live counts. Tabs with a marketplace catalog (skills, MCP, plugins) show
- * installed items followed by an inline browsable marketplace section, so
- * there is no separate Marketplace page.
+ * Unified Customize hub: the installed inventory of everything that extends
+ * Cline — skills, MCP servers, plugins, rules, hooks, and tools — as sub-tabs
+ * with live counts. Browsing happens on the dedicated Marketplace page,
+ * reached from the sidebar or the header button here.
  */
 
 type CustomizeTab =
@@ -54,7 +54,11 @@ function asCount(value: unknown): number {
 	return Array.isArray(value) ? value.length : 0;
 }
 
-export function CustomizeView() {
+export function CustomizeView({
+	onOpenMarketplace,
+}: {
+	onOpenMarketplace?: () => void;
+}) {
 	const [tab, setTab] = useState<CustomizeTab>("skills");
 	const [counts, setCounts] = useState<TabCounts>({});
 
@@ -104,7 +108,20 @@ export function CustomizeView() {
 	return (
 		<PageFrame>
 			<PageHeader
-				description="Extend what Cline can do and change how it works. Manage what's installed and browse the marketplace for more options."
+				actions={
+					onOpenMarketplace ? (
+						<Button
+							onClick={onOpenMarketplace}
+							size="sm"
+							type="button"
+							variant="outline"
+						>
+							<Store className="size-4" />
+							Marketplace
+						</Button>
+					) : undefined
+				}
+				description="Extend what Cline can do and change how it works. Manage what's installed, or browse the marketplace for more options."
 				title="Customize"
 			/>
 
@@ -151,13 +168,14 @@ export function CustomizeView() {
 				<CustomizationSectionView
 					catalogPrimitive="skill"
 					chrome="embedded"
-					marketplaceVariant="full"
+					marketplaceVariant="installed"
 					onInventoryChanged={handleInventoryChanged}
 					section="Skills"
 				/>
 			) : tab === "mcp" ? (
 				<McpServersContent
 					chrome="embedded"
+					marketplaceVariant="installed"
 					onInventoryChanged={handleInventoryChanged}
 				/>
 			) : tab === "integrations" ? (
@@ -177,7 +195,7 @@ export function CustomizeView() {
 				<CustomizationSectionView
 					catalogPrimitive="plugin"
 					chrome="embedded"
-					marketplaceVariant="full"
+					marketplaceVariant="installed"
 					onInventoryChanged={handleInventoryChanged}
 					section="Plugins"
 				/>
