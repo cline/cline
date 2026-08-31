@@ -288,6 +288,79 @@ describe("Code sidecar runtime capabilities", () => {
 		expect(list).toHaveBeenCalledOnce();
 	});
 
+	it("falls back to session metadata when the hub search call rejects", async () => {
+		const { handleCommand } = await import("./commands");
+		const { createSidecarContext } = await import("./context");
+		const ctx = createSidecarContext("/workspace/project");
+		const command = vi.fn(async () => {
+			throw new Error("hub connection lost");
+		});
+		const list = vi.fn(async () => [
+			{
+				sessionId: "session-1",
+				startedAt: "2026-08-27T12:00:00.000Z",
+				workspaceRoot: "/workspace/project",
+				prompt: "generate an image of a puppy",
+				metadata: { title: "generate an image of a puppy" },
+			},
+		]);
+		ctx.hubClient = { command } as never;
+		ctx.sessionManager = { list } as never;
+
+		const results = (await handleCommand(ctx, "search_sessions", {
+			query: "generate",
+		})) as Array<{ sessionId: string; documentId: string }>;
+
+		expect(results).toEqual([
+			expect.objectContaining({
+				sessionId: "session-1",
+				documentId: "session-1:metadata",
+			}),
+		]);
+		expect(command).toHaveBeenCalledOnce();
+		expect(list).toHaveBeenCalledOnce();
+	});
+
+	it("falls back to session metadata when the hub search call exceeds the deadline", async () => {
+		vi.useFakeTimers();
+		try {
+			const { handleCommand } = await import("./commands");
+			const { createSidecarContext } = await import("./context");
+			const ctx = createSidecarContext("/workspace/project");
+			// Never resolves: exercises the withSearchDeadline race timing out
+			// rather than the hub call rejecting.
+			const command = vi.fn(() => new Promise(() => {}));
+			const list = vi.fn(async () => [
+				{
+					sessionId: "session-1",
+					startedAt: "2026-08-27T12:00:00.000Z",
+					workspaceRoot: "/workspace/project",
+					prompt: "generate an image of a puppy",
+					metadata: { title: "generate an image of a puppy" },
+				},
+			]);
+			ctx.hubClient = { command } as never;
+			ctx.sessionManager = { list } as never;
+
+			const pending = handleCommand(ctx, "search_sessions", {
+				query: "generate",
+			}) as Promise<Array<{ sessionId: string; documentId: string }>>;
+			await vi.advanceTimersByTimeAsync(750);
+			const results = await pending;
+
+			expect(results).toEqual([
+				expect.objectContaining({
+					sessionId: "session-1",
+					documentId: "session-1:metadata",
+				}),
+			]);
+			expect(command).toHaveBeenCalledOnce();
+			expect(list).toHaveBeenCalledOnce();
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	it("forwards raw hub tool updates to attached desktop sessions", async () => {
 		const { createSidecarContext, handleHubLiveEvent } = await import(
 			"./context"
