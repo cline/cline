@@ -399,11 +399,19 @@ function buildOpenAICodexModels(): Record<string, ModelInfo> {
 	return filterOpenAICodexModels(generatedModels("openai-native"));
 }
 
-// Static catalog: CoralBricks is not on models.dev yet
-// (anomalyco/models.dev#4040). Switch to modelsProviderId once that lands.
+// Static catalog: CoralBricks is on models.dev (anomalyco/models.dev#4040,
+// merged). Switch to modelsProviderId once Cline regenerates its catalog snapshot.
 // Pricing is USD per 1M tokens; cached input is not billed on this gateway.
 function buildCoralBricksModels(): Record<string, ModelInfo> {
 	return {
+		"glm-5.3-fp4": {
+			id: "glm-5.3-fp4",
+			name: "GLM 5.3",
+			contextWindow: 1_048_576,
+			maxTokens: 32_768,
+			capabilities: ["tools", "reasoning", "prompt-cache"],
+			pricing: { input: 1.12, output: 4.4, cacheRead: 0 },
+		},
 		"glm-5.2-fp4": {
 			id: "glm-5.2-fp4",
 			name: "GLM 5.2",
@@ -704,7 +712,7 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 			"CoralBricks open-model inference — GLM and Kimi with up to 1M context",
 		family: "openai-compatible",
 		capabilities: ["prompt-cache", "tools", "reasoning"],
-		defaultModelId: "glm-5.2-fp4",
+		defaultModelId: "glm-5.3-fp4",
 		apiKeyEnv: ["CORAL_API_KEY"],
 		modelsFactory: buildCoralBricksModels,
 		docsUrl: "https://www.coralbricks.ai/docs/cline",
