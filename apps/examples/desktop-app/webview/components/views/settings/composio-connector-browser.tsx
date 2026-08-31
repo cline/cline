@@ -193,14 +193,11 @@ export function ConnectorActionButton({
 
 export function ComposioConnectorBrowser({
 	onChanged,
-	onOpenSetup,
 	query: externalQuery,
 	hideSearch = false,
 	onCatalogLoaded,
 }: {
 	onChanged?: () => void;
-	/** Navigate to Installed > Connectors, where the API key is managed. */
-	onOpenSetup?: () => void;
 	/** Externally controlled search text (e.g. the Marketplace search bar);
 	 * when provided the built-in search input is usually hidden. */
 	query?: string;
@@ -297,22 +294,12 @@ export function ComposioConnectorBrowser({
 	}
 
 	if (!configured) {
+		// Normally unreachable — the Connectors filter chip is hidden in builds
+		// without a managed key — but reachable transiently while status loads.
 		return (
-			<div className="flex flex-col items-start gap-3">
-				<p className="text-sm text-muted-foreground">
-					Add your Composio API key to browse and connect connectors.
-				</p>
-				{onOpenSetup ? (
-					<Button
-						onClick={onOpenSetup}
-						size="sm"
-						type="button"
-						variant="outline"
-					>
-						Set up in Installed › Connectors
-					</Button>
-				) : null}
-			</div>
+			<p className="text-sm text-muted-foreground">
+				Connectors aren&apos;t available in this build.
+			</p>
 		);
 	}
 

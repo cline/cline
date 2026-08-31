@@ -38,14 +38,12 @@ export type ComposioIntegrationSummary = {
 };
 
 export type ComposioStatusResponse = {
-	/** True once a Composio API key is available. */
-	configured: boolean;
 	/**
-	 * Where the active key came from: entered in Settings ("user") or the
-	 * sidecar's COMPOSIO_API_KEY environment variable ("environment").
-	 * Absent when unconfigured.
+	 * True when this build carries a managed Composio API key (inlined at
+	 * build time, or the COMPOSIO_API_KEY env var in dev). The Connectors
+	 * feature is hidden entirely when false — there is no user-entered key.
 	 */
-	keySource?: "user" | "environment";
+	configured: boolean;
 	/**
 	 * The recommended toolkits (always present) plus any other toolkit that
 	 * is currently connected or mid-connection.
@@ -73,9 +71,9 @@ export type ComposioCatalogToolkit = {
 };
 
 export type ComposioCatalogResponse = {
-	/** True once a Composio API key is available. */
+	/** True when this build carries a managed Composio API key. */
 	configured: boolean;
-	/** Usage-ranked toolkit catalog; empty until a key is configured. */
+	/** Usage-ranked toolkit catalog; empty when unconfigured. */
 	toolkits: ComposioCatalogToolkit[];
 };
 
@@ -109,6 +107,3 @@ export function findRecommendedToolkit(
 ): ComposioRecommendedToolkit | undefined {
 	return COMPOSIO_RECOMMENDED_TOOLKITS.find((entry) => entry.slug === slug);
 }
-
-/** Where users create a Composio API key. */
-export const COMPOSIO_DASHBOARD_URL = "https://platform.composio.dev";

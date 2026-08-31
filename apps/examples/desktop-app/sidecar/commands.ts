@@ -68,13 +68,11 @@ import {
 } from "./commands-integrations";
 import {
 	cancelComposioConnect,
-	clearComposioApiKey,
 	connectComposioToolkit,
 	disconnectComposioToolkit,
 	getComposioStatus,
 	listComposioToolkits,
 	parseComposioToolkitSlug,
-	setComposioApiKey,
 } from "./composio";
 import {
 	connectorChannelsPayload,
@@ -1775,13 +1773,6 @@ export async function handleCommand(
 				});
 			case "listToolkits":
 				return await listComposioToolkits(ctx.logger);
-			case "setApiKey": {
-				const apiKey = String(args?.apiKey ?? "").trim();
-				if (!apiKey) throw new Error("apiKey is required");
-				return await setComposioApiKey(apiKey, ctx.logger);
-			}
-			case "clearApiKey":
-				return await clearComposioApiKey(ctx.logger);
 			case "connect": {
 				const toolkit = parseComposioToolkitSlug(args?.toolkit);
 				const result = await connectComposioToolkit(toolkit, ctx.logger);
@@ -1792,7 +1783,7 @@ export async function handleCommand(
 			}
 			case "cancelConnect": {
 				const toolkit = parseComposioToolkitSlug(args?.toolkit);
-				cancelComposioConnect(toolkit);
+				await cancelComposioConnect(toolkit, ctx.logger);
 				return await getComposioStatus({ logger: ctx.logger });
 			}
 			case "disconnect": {

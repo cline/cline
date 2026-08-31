@@ -1,4 +1,5 @@
 import { $ } from "bun";
+import { composioDefineArgs } from "./composio-define-args";
 import { telemetryDefineArgs } from "./telemetry-define-args";
 
 const resolveTargetTriple = async (): Promise<string> => {
@@ -45,7 +46,9 @@ const buildSidecar = async (targetTriple: string): Promise<string> => {
 	// app launched from Finder/the Dock has no OTEL_* env at runtime, so
 	// without this the sidecar silently ships with telemetry disabled.
 	// Verify with `<binary> --telemetry-selfcheck` after building.
-	const defines = telemetryDefineArgs();
+	// The managed Composio key rides the same mechanism (connectors are
+	// hidden in builds without it).
+	const defines = [...telemetryDefineArgs(), ...composioDefineArgs()];
 	if (bunTarget) {
 		await $`bun build ./sidecar/index.ts --compile --target=${bunTarget} ${defines} --outfile ${outfile}`;
 	} else {

@@ -60,6 +60,9 @@ export function CustomizeView({
 }) {
 	const [tab, setTab] = useState<CustomizeTab>("skills");
 	const [counts, setCounts] = useState<TabCounts>({});
+	// Connectors are an org-provisioned feature: the tab only exists in builds
+	// that carry a managed Composio API key.
+	const [connectorsAvailable, setConnectorsAvailable] = useState(false);
 
 	const refreshCounts = useCallback(async () => {
 		const [inventory, composioStatus] = await Promise.all([
@@ -68,6 +71,7 @@ export function CustomizeView({
 				.catch(() => null),
 			fetchComposioStatus().catch(() => null),
 		]);
+		setConnectorsAvailable(composioStatus?.configured === true);
 		const connectedIntegrations = composioStatus
 			? composioStatus.integrations.filter(
 					(integration) => integration.status === "connected",
@@ -125,7 +129,10 @@ export function CustomizeView({
 			/>
 
 			<div className="mb-6 flex items-center gap-0 border-b border-border">
-				{CUSTOMIZE_TABS.map((customizeTab) => {
+				{CUSTOMIZE_TABS.filter(
+					(customizeTab) =>
+						customizeTab.id !== "integrations" || connectorsAvailable,
+				).map((customizeTab) => {
 					const count = counts[customizeTab.id];
 					const active = tab === customizeTab.id;
 					return (

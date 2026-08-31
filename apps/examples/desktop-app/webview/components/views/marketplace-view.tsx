@@ -675,10 +675,13 @@ export function MarketplaceView({
 	>(defaultTypeFilter ?? null);
 	// Connector catalog (Composio) prefetched for the filter-chip counts; the
 	// fetch is served from the sidecar's hourly cache. Null while unavailable
-	// (no API key, request failed), in which case the chips omit connectors.
+	// (request failed), in which case the chips omit the count.
 	const [connectorEntries, setConnectorEntries] = useState<
 		ComposioCatalogToolkit[] | null
 	>(null);
+	// Connectors are an org-provisioned feature: the filter chip only exists
+	// in builds that carry a managed Composio API key.
+	const [connectorsConfigured, setConnectorsConfigured] = useState(false);
 	const [expandedEntryKey, setExpandedEntryKey] = useState<string | null>(null);
 	const [installedEntryKeys, setInstalledEntryKeys] = useState<Set<string>>(
 		() => new Set(),
@@ -723,7 +726,11 @@ export function MarketplaceView({
 		let cancelled = false;
 		void fetchComposioToolkitCatalog()
 			.then((response) => {
-				if (!cancelled && response.configured) {
+				if (cancelled) {
+					return;
+				}
+				setConnectorsConfigured(response.configured);
+				if (response.configured) {
 					setConnectorEntries(response.toolkits);
 				}
 			})
@@ -1035,24 +1042,26 @@ export function MarketplaceView({
 						</span>
 					</Button>
 				))}
-				<Button
-					aria-pressed={typeFilter === "connectors"}
-					onClick={() =>
-						setTypeFilter((current) =>
-							current === "connectors" ? null : "connectors",
-						)
-					}
-					size="sm"
-					type="button"
-					variant={typeFilter === "connectors" ? "default" : "outline"}
-				>
-					Connectors
-					{filteredConnectorCount !== null ? (
-						<span className="rounded bg-background/30 px-1.5 py-0.5 text-xs">
-							{filteredConnectorCount}
-						</span>
-					) : null}
-				</Button>
+				{connectorsConfigured ? (
+					<Button
+						aria-pressed={typeFilter === "connectors"}
+						onClick={() =>
+							setTypeFilter((current) =>
+								current === "connectors" ? null : "connectors",
+							)
+						}
+						size="sm"
+						type="button"
+						variant={typeFilter === "connectors" ? "default" : "outline"}
+					>
+						Connectors
+						{filteredConnectorCount !== null ? (
+							<span className="rounded bg-background/30 px-1.5 py-0.5 text-xs">
+								{filteredConnectorCount}
+							</span>
+						) : null}
+					</Button>
+				) : null}
 			</div>
 		) : null;
 
@@ -1282,7 +1291,6 @@ export function MarketplaceView({
 											})
 											.catch(() => {});
 									}}
-									onOpenSetup={onOpenInstalled}
 									query={query}
 								/>
 							</div>

@@ -307,6 +307,10 @@ jobs:
           OTEL_EXPORTER_OTLP_PROTOCOL: ${{ secrets.OTEL_EXPORTER_OTLP_PROTOCOL }}
           OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
+          # Managed Composio key for the Connectors feature, inlined into the
+          # sidecar binary the same way (scripts/composio-define-args.ts).
+          # Builds without the secret ship with connectors hidden.
+          COMPOSIO_API_KEY: ${{ secrets.COMPOSIO_API_KEY }}
           # Developer ID signing (Tauri imports the cert into a temp keychain)
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
@@ -424,6 +428,26 @@ jobs:
             echo "OTEL_EXPORTER_OTLP_ENDPOINT secret."
             exit 1
           fi
+
+      # A missing/misspelled COMPOSIO_API_KEY secret would silently ship a
+      # build with connectors hidden; assert the key bytes made it into the
+      # binary (the key itself is never printed).
+      - name: Verify sidecar Composio key was inlined
+        working-directory: apps/examples/desktop-app
+        env:
+          COMPOSIO_API_KEY: ${{ secrets.COMPOSIO_API_KEY }}
+        run: |
+          if [ -z "$COMPOSIO_API_KEY" ]; then
+            echo "COMPOSIO_API_KEY secret not set; shipping with connectors hidden."
+            exit 0
+          fi
+          if ! LC_ALL=C grep -aqF -- "$COMPOSIO_API_KEY" ./src-tauri/bin/code-sidecar-universal-apple-darwin; then
+            echo "COMPOSIO_API_KEY is set but was not inlined into the sidecar"
+            echo "binary; check scripts/composio-define-args.ts and the env on"
+            echo "the 'Build, sign, and notarize desktop bundle' step."
+            exit 1
+          fi
+          echo "Composio key inlined; connectors enabled in this build."
 
       - name: Collect artifacts
         working-directory: apps/examples/desktop-app
@@ -604,6 +628,9 @@ jobs:
           OTEL_EXPORTER_OTLP_PROTOCOL: ${{ secrets.OTEL_EXPORTER_OTLP_PROTOCOL }}
           OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
+          # Managed Composio key for the Connectors feature, inlined into the
+          # sidecar binary at compile time, same as macOS.
+          COMPOSIO_API_KEY: ${{ secrets.COMPOSIO_API_KEY }}
           # Authenticode signing via scripts/tauri-sign-windows.ps1 (jsign +
           # Azure Trusted Signing; the token comes from the azure/login session)
           AZURE_TRUSTED_SIGNING_ENDPOINT: ${{ secrets.AZURE_TRUSTED_SIGNING_ENDPOINT }}
@@ -677,6 +704,26 @@ jobs:
             echo "Check the OTEL_EXPORTER_OTLP_ENDPOINT secret."
             exit 1
           fi
+
+      # Same guardrail as the macOS job: a missing COMPOSIO_API_KEY secret
+      # would silently ship a build with connectors hidden.
+      - name: Verify sidecar Composio key was inlined
+        shell: bash
+        working-directory: apps/examples/desktop-app
+        env:
+          COMPOSIO_API_KEY: ${{ secrets.COMPOSIO_API_KEY }}
+        run: |
+          if [ -z "$COMPOSIO_API_KEY" ]; then
+            echo "COMPOSIO_API_KEY secret not set; shipping with connectors hidden."
+            exit 0
+          fi
+          if ! LC_ALL=C grep -aqF -- "$COMPOSIO_API_KEY" ./src-tauri/bin/code-sidecar-x86_64-pc-windows-msvc.exe; then
+            echo "COMPOSIO_API_KEY is set but was not inlined into the sidecar"
+            echo "binary; check scripts/composio-define-args.ts and the env on"
+            echo "the 'Build and sign desktop bundle' step."
+            exit 1
+          fi
+          echo "Composio key inlined; connectors enabled in this build."
 
       - name: Collect artifacts
         shell: bash
