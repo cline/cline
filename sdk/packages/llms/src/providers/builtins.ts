@@ -412,14 +412,6 @@ function buildCoralBricksModels(): Record<string, ModelInfo> {
 			capabilities: ["tools", "reasoning", "prompt-cache"],
 			pricing: { input: 1.12, output: 4.4, cacheRead: 0 },
 		},
-		"glm-5.2-fp4": {
-			id: "glm-5.2-fp4",
-			name: "GLM 5.2",
-			contextWindow: 1_048_576,
-			maxTokens: 32_768,
-			capabilities: ["tools", "reasoning", "prompt-cache"],
-			pricing: { input: 1.12, output: 4.4, cacheRead: 0 },
-		},
 		"kimi-k3": {
 			id: "kimi-k3",
 			name: "Kimi K3",

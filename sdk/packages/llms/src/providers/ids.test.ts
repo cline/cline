@@ -234,7 +234,6 @@ describe("provider-ids", () => {
 
 		const coralbricksModels = await getModelsForProvider("coralbricks");
 		expect(coralbricksModels).toHaveProperty("glm-5.3-fp4");
-		expect(coralbricksModels).toHaveProperty("glm-5.2-fp4");
 
 		const registration = BUILTIN_PROVIDER_REGISTRATIONS.find(
 			(item) => item.manifest.id === "coralbricks",
