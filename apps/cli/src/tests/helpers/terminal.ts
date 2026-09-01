@@ -26,18 +26,19 @@ async function expectTextVisibility(
 	options: { timeout?: number } = { timeout: maxTimeoutMs },
 ): Promise<void> {
 	const items = Array.isArray(text) ? text : [text];
-	const timeoutOpt =
-		options.timeout !== undefined ? { timeout: options.timeout } : undefined;
 	await Promise.all(
 		items.map((t) => {
 			const pattern = t instanceof RegExp ? regexSource(t) : t;
-			return terminal.expectText(pattern, {
-				regex: t instanceof RegExp,
-				full: true,
-				strict: false,
-				not: !visible,
-				timeout: timeoutOpt?.timeout,
-			});
+			return terminal
+				.getByText(pattern, {
+					regex: t instanceof RegExp,
+					full: true,
+				})
+				.any()
+				.expect({
+					not: !visible,
+					timeout: options.timeout,
+				});
 		}),
 	);
 }

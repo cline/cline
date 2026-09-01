@@ -55,7 +55,7 @@
       "devDependencies": {
         "@cline/core": "workspace:*",
         "@cline/shared": "workspace:*",
-        "@microsoft/tui-test": "0.1.0-beta.1",
+        "@microsoft/tui-test": "0.1.0-beta.3",
         "@types/bun": "^1.3.10",
         "@types/react": "19.2.14",
         "tuistory": "^0.10.1",
@@ -447,7 +447,7 @@
       "devDependencies": {
         "@biomejs/biome": "^2.3.14",
         "@bufbuild/buf": "^1.54.0",
-        "@microsoft/tui-test": "0.1.0-beta.1",
+        "@microsoft/tui-test": "0.1.0-beta.3",
         "@types/better-sqlite3": "^7.6.13",
         "@types/chai": "^5.0.1",
         "@types/clone-deep": "^4.0.4",
@@ -1634,23 +1634,21 @@
 
     "@microsoft/fast-web-utilities": ["@microsoft/fast-web-utilities@5.4.1", "", { "dependencies": { "exenv-es6": "^1.1.1" } }, "sha512-ReWYncndjV3c8D8iq9tp7NcFNc1vbVHvcBFPME2nNFKNbS1XCesYZGlIlf3ot5EmuOXPlrzUHOWzQ2vFpIkqDg=="],
 
-    "@microsoft/tui-test": ["@microsoft/tui-test@0.1.0-beta.1", "", { "optionalDependencies": { "@microsoft/tui-test-darwin-arm64": "0.1.0-beta.1", "@microsoft/tui-test-darwin-x64": "0.1.0-beta.1", "@microsoft/tui-test-linux-arm64-gnu": "0.1.0-beta.1", "@microsoft/tui-test-linux-arm64-musl": "0.1.0-beta.1", "@microsoft/tui-test-linux-x64-gnu": "0.1.0-beta.1", "@microsoft/tui-test-linux-x64-musl": "0.1.0-beta.1", "@microsoft/tui-test-win32-arm64-msvc": "0.1.0-beta.1", "@microsoft/tui-test-win32-x64-msvc": "0.1.0-beta.1" } }, "sha512-fIE21rBPnCRvXCiPUtUnOO1movhePK3EJdl+1IAfqn76jJcwYANsjWOs0UlkVVU/9uyZZZeU+aBSPLfI/6a0ww=="],
+    "@microsoft/tui-test": ["@microsoft/tui-test@0.1.0-beta.3", "", { "optionalDependencies": { "@microsoft/tui-test-darwin-arm64": "0.1.0-beta.3", "@microsoft/tui-test-darwin-x64": "0.1.0-beta.3", "@microsoft/tui-test-linux-arm64-gnu": "0.1.0-beta.3", "@microsoft/tui-test-linux-arm64-musl": "0.1.0-beta.3", "@microsoft/tui-test-linux-x64-gnu": "0.1.0-beta.3", "@microsoft/tui-test-linux-x64-musl": "0.1.0-beta.3", "@microsoft/tui-test-win32-x64-msvc": "0.1.0-beta.3" } }, "sha512-/u8ibGEI2eGdCsXgWEkwMUo8tiHlJca3B4WZXePZ6HS25zevcEGWDc1GCfZjzQiLBjE9v7j37WvRIy6KC6MR1Q=="],
 
-    "@microsoft/tui-test-darwin-arm64": ["@microsoft/tui-test-darwin-arm64@0.1.0-beta.1", "", { "os": "darwin", "cpu": "arm64" }, "sha512-3n20csmP/KkHUziCaGVQFw41k2scRzhdnV9BODNSNgZsHj8EKeH2sbc58TERZnT/ROkk8nKAsxYBx2U7fGZvMQ=="],
+    "@microsoft/tui-test-darwin-arm64": ["@microsoft/tui-test-darwin-arm64@0.1.0-beta.3", "", { "os": "darwin", "cpu": "arm64" }, "sha512-aDjYC64bs6XtDCt9N/DjHW4/ZUxTusj/3fwiluahKCg7xRA74G2wxcUMSOvq2fQMK1cQh44AO5z32ZWbdGsZfA=="],
 
-    "@microsoft/tui-test-darwin-x64": ["@microsoft/tui-test-darwin-x64@0.1.0-beta.1", "", { "os": "darwin", "cpu": "x64" }, "sha512-Buded586hJcYTcP5TQ0kF6fmfP5WBYZNf2PdtDSrYpGMV4oMzL1pFBisWIOGiwWXh9ji8/GVGOLyzAETBwuR5g=="],
+    "@microsoft/tui-test-darwin-x64": ["@microsoft/tui-test-darwin-x64@0.1.0-beta.3", "", { "os": "darwin", "cpu": "x64" }, "sha512-ChAiDjtC5MuPbGD8UJJJYBVGZwioRC3yXeFx6slJFykQ70YNgwe0d9NPDy0SjICOaoFYAclSYZBnWjfsxH8vIA=="],
 
-    "@microsoft/tui-test-linux-arm64-gnu": ["@microsoft/tui-test-linux-arm64-gnu@0.1.0-beta.1", "", { "os": "linux", "cpu": "arm64" }, "sha512-GnBK5rI5VtoTWRCkwMkPOXKa73P7ZHPzJ9wIbqiFB5mjTe2/8DMOAwpuCeubuA0OQeRDpXJCjBpeNjgQjmU/hQ=="],
+    "@microsoft/tui-test-linux-arm64-gnu": ["@microsoft/tui-test-linux-arm64-gnu@0.1.0-beta.3", "", { "os": "linux", "cpu": "arm64" }, "sha512-ThrTLCjiojP24CFCUIpfZOF0SUvjCIuF6HGFHBUofWAzwv8Q7YGrRaUvF+yFpJdtkrGe8aSIcA+IaUeYKIWBag=="],
 
-    "@microsoft/tui-test-linux-arm64-musl": ["@microsoft/tui-test-linux-arm64-musl@0.1.0-beta.1", "", { "os": "linux", "cpu": "arm64" }, "sha512-9axDbXlb6FBxWYdQoTbUtxtxu8J9ET/7BaFCxBm40gYcXGGgDmYLuLesKo/N4lwVyScKB2C+4jkHd9BirpGL9A=="],
+    "@microsoft/tui-test-linux-arm64-musl": ["@microsoft/tui-test-linux-arm64-musl@0.1.0-beta.3", "", { "os": "linux", "cpu": "arm64" }, "sha512-Cr+ARnQYXygJi5qPOcDDCMHIqjGJK65XzE6uKZpWwjrUsgJX282LBXWzxe6U5E7aDRIplhz1XyVzV1VCx50Ylg=="],
 
-    "@microsoft/tui-test-linux-x64-gnu": ["@microsoft/tui-test-linux-x64-gnu@0.1.0-beta.1", "", { "os": "linux", "cpu": "x64" }, "sha512-I+6ubEKN4Oyx1BC0UR1qgqcvQ6xDn3DHcWyzBNCSgyXD0RvVr2EaUzfmW6tItLMoeoRUpmg6sMAN4HbS4UT91Q=="],
+    "@microsoft/tui-test-linux-x64-gnu": ["@microsoft/tui-test-linux-x64-gnu@0.1.0-beta.3", "", { "os": "linux", "cpu": "x64" }, "sha512-4xbJQI7wAwYzp3YSh+gfnZ9B2b5ldazcEf9Wbm/anSsJ5lvXNWLnFvMLwF7kgq+RwwPUGQoR3ZPlZBrTk6+WgA=="],
 
-    "@microsoft/tui-test-linux-x64-musl": ["@microsoft/tui-test-linux-x64-musl@0.1.0-beta.1", "", { "os": "linux", "cpu": "x64" }, "sha512-1JKO28ySSXNRwO6jWF7yD8IbBRFw0v99VV4qxcJHDAf0Tn1f0Lhk64ZdJXsMN4AvkLzMr8E8poZxW54P9urZ0w=="],
+    "@microsoft/tui-test-linux-x64-musl": ["@microsoft/tui-test-linux-x64-musl@0.1.0-beta.3", "", { "os": "linux", "cpu": "x64" }, "sha512-krVn4AZbBr7/pzgJj8Ce+UGueNZqMAdlY1yb+Eyv6tH5MFmClHCcG0LnRpjPWBV7w1xbAPEMg8pkwBVf6xH5eQ=="],
 
-    "@microsoft/tui-test-win32-arm64-msvc": ["@microsoft/tui-test-win32-arm64-msvc@0.1.0-beta.1", "", { "os": "win32", "cpu": "arm64" }, "sha512-eq60oM10cotjF/jCIUg0dHZmtU6XTmsYtVhFm878IDaedrm21T4n2IUiotIEPrnYgMb1HAE1INKMr+tyPyDESg=="],
-
-    "@microsoft/tui-test-win32-x64-msvc": ["@microsoft/tui-test-win32-x64-msvc@0.1.0-beta.1", "", { "os": "win32", "cpu": "x64" }, "sha512-6IrRbokQVO0ubkwiC1AzkbvXpq+mYbx7HpKXryDb7t1GrnYynEe/n5J8tDS+gDtZlcakC2wiyDyQ8caQSJl6Yg=="],
+    "@microsoft/tui-test-win32-x64-msvc": ["@microsoft/tui-test-win32-x64-msvc@0.1.0-beta.3", "", { "os": "win32", "cpu": "x64" }, "sha512-pkGMR/T4wy1s2dPAVqhWx6m+QsBMFoQCSfLiwQ/5l03jVt3zf3iPiKlsz+ZEODk0eilgCVJYZvgEhZG23peRrg=="],
 
     "@mixmark-io/domino": ["@mixmark-io/domino@2.2.0", "", {}, "sha512-Y28PR25bHXUg88kCV7nivXrP2Nj2RueZ3/l/jdx6J9f8J4nsEGcgX0Qe6lt7Pa+J79+kPiJU3LguR6O/6zrLOw=="],
 
