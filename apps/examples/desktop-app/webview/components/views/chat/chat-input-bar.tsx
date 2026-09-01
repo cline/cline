@@ -279,6 +279,7 @@ export type PromptDraft = {
 type ChatInputBarProps = {
 	variant?: "conversation" | "welcome";
 	status: ChatSessionStatus;
+	hasRunningAgents?: boolean;
 	provider: string;
 	model: string;
 	modelContextWindow?: number;
@@ -322,6 +323,7 @@ type ChatInputBarProps = {
 function ChatInputBarImpl({
 	variant = "conversation",
 	status,
+	hasRunningAgents = false,
 	provider,
 	model,
 	modelContextWindow,
@@ -416,7 +418,8 @@ function ChatInputBarImpl({
 	}, [promptDraft, setPromptInput]);
 	const isBusy =
 		status === "starting" || status === "running" || status === "stopping";
-	const canAbort = status === "running" || status === "stopping";
+	const canAbort =
+		status === "running" || status === "stopping" || hasRunningAgents;
 	const hasDraft = promptInput.trim().length > 0 || attachments.length > 0;
 	const [speechInputActive, setSpeechInputActive] = useState(false);
 	const speechInputActiveRef = useRef(false);
