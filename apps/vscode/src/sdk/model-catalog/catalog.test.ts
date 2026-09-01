@@ -23,6 +23,7 @@ vi.mock("@cline/core", async (importOriginal: any) => {
 	const actual = await importOriginal()
 	return {
 		...actual,
+		areMcpOAuthClientConfigurationsEqual: vi.fn(() => false),
 		resolveProviderConfig: mocks.resolveProviderConfig,
 		listLocalProviders: mocks.listLocalProviders,
 	}

@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { areMcpOAuthClientConfigurationsEqual } from "./oauth-client-policy";
-import { createMcpOAuthClientPolicyBinding } from "./oauth-client-policy-binding";
+import {
+	createMcpOAuthClientPolicyBinding,
+	MCP_OAUTH_CLIENT_POLICY_BINDING_PREFIX,
+} from "./oauth-client-policy-binding";
 
 describe("MCP OAuth client policy binding", () => {
 	it("canonicalizes scope order without exposing a client secret", () => {
@@ -17,9 +20,13 @@ describe("MCP OAuth client policy binding", () => {
 		});
 
 		expect(first).toBe(reordered);
-		expect(first).toMatch(/^sha256:[a-f\d]{64}$/);
-		expect(first).not.toContain("static-client");
-		expect(first).not.toContain("fixed-secret");
+		expect(first).toMatch(/^mcp-oauth-client-policy-v2-public:[A-Za-z\d_-]+$/);
+		const publicPolicy = Buffer.from(
+			first.slice(MCP_OAUTH_CLIENT_POLICY_BINDING_PREFIX.length),
+			"base64url",
+		).toString("utf8");
+		expect(publicPolicy).toContain("static-client");
+		expect(publicPolicy).not.toContain("fixed-secret");
 	});
 
 	it("distinguishes dynamic registration and every public static policy field", () => {
