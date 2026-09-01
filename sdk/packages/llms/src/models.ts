@@ -28,6 +28,7 @@ export type {
 } from "./providers/model-registry";
 export {
 	getAllProviders,
+	getModelOverridesForProvider,
 	getModelsForProvider,
 	getProvider,
 	getProviderCollection,

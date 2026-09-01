@@ -35,6 +35,13 @@ const RATE_LIMIT_PATTERNS = [/rate[\s_-]?limit/i, /per[\s_-]?minute\b/i];
 /** Overflow rejections arrive as invalid-request-family statuses. */
 const CONTEXT_WINDOW_STATUSES = new Set([400, 413, 422]);
 const RATE_LIMIT_STATUS = 429;
+/**
+ * Credential rejections. Status-only on purpose: matching message text
+ * ("unauthorized", "forbidden") would misfire on provider bodies that merely
+ * quote such words, and every provider that rejects credentials does say so
+ * in the HTTP layer.
+ */
+const AUTH_STATUSES = new Set([401, 403]);
 
 const MAX_WALK_DEPTH = 8;
 
@@ -156,6 +163,10 @@ function verdictFromSignals(signals: ErrorSignals): ProviderErrorClass {
 		return "context_window_exceeded";
 	}
 
+	if ([...signals.statuses].some((status) => AUTH_STATUSES.has(status))) {
+		return "auth";
+	}
+
 	if (signals.statuses.has(RATE_LIMIT_STATUS)) {
 		return "unknown";
 	}
@@ -236,6 +247,9 @@ function classifyTypedError(
 		// out-votes the HTTP layer. Absent a statusCode, the payload decides.
 		const status =
 			typeof error.statusCode === "number" ? error.statusCode : undefined;
+		if (status !== undefined && AUTH_STATUSES.has(status)) {
+			return "auth";
+		}
 		if (status !== undefined && !CONTEXT_WINDOW_STATUSES.has(status)) {
 			return "unknown";
 		}
@@ -249,13 +263,14 @@ function classifyTypedError(
 	}
 	if (TypeValidationError.isInstance(error)) {
 		// `value` holds the payload that failed validation — for gateway
-		// streams, the upstream provider rejection.
+		// streams, the upstream provider rejection. Only a definitive verdict
+		// counts; "unknown" defers to the caller's structural walk.
 		const verdict = verdictFromSignals(collectSignalsFrom([error.value]));
-		return verdict === "context_window_exceeded" ? verdict : undefined;
+		return verdict !== "unknown" ? verdict : undefined;
 	}
 	if (AISDKError.isInstance(error)) {
 		const verdict = classifyTypedError(error.cause, depth + 1);
-		return verdict === "context_window_exceeded" ? verdict : undefined;
+		return verdict !== undefined && verdict !== "unknown" ? verdict : undefined;
 	}
 	return undefined;
 }
