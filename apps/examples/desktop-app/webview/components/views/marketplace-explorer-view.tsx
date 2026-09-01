@@ -643,10 +643,15 @@ export function MarketplaceExplorerView() {
 		[filteredEntries],
 	);
 
-	const selectedEntry = useMemo(() => {
-		const flat = groups.flatMap((group) => group.entries);
-		return flat.find((entry) => entryKey(entry) === selectedKey) ?? null;
-	}, [groups, selectedKey]);
+	// Resolved against the full catalog so an open panel stays open while the
+	// list is filtered, rather than closing and reopening as filters change.
+	const selectedEntry = useMemo(
+		() =>
+			directory.catalog?.entries.find(
+				(entry) => entryKey(entry) === selectedKey,
+			) ?? null,
+		[directory.catalog?.entries, selectedKey],
+	);
 
 	const typeCounts = useMemo(() => {
 		const counts = new Map<MarketplacePrimitiveType, number>();
