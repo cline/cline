@@ -1386,6 +1386,13 @@ export async function handleCommand(
 
 	// ── Managed hub upgrade ───────────────────────────────────────────
 	if (command === "hub_upgrade") {
+		// Replacing the shared Hub interrupts other clients' sessions, so it
+		// carries the same per-connection gate as the tool-approval commands:
+		// only the webview connection dialed with the approval token may ask,
+		// never an arbitrary local WebSocket client.
+		if (!options?.connection?.data?.canApproveTools) {
+			throw new Error("hub upgrade requires a trusted desktop connection");
+		}
 		// Only reached after the user accepted the blocking "Hub update
 		// required" dialog, so force: the old Hub is replaced even though it
 		// is still serving other clients' sessions. Drain-first semantics

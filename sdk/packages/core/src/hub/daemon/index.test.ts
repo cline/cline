@@ -1003,6 +1003,73 @@ describe("upgradeManagedHub", () => {
 		expect(requestHubShutdown).not.toHaveBeenCalled();
 	});
 
+	it("refuses to replace a busy hub when the drain request fails, even when forced", async () => {
+		requestHubDrain.mockResolvedValue(false);
+		queryHubSessionActivity.mockResolvedValue({
+			activeSessionCount: 2,
+			participantClientCount: 1,
+		});
+		readHubDiscovery.mockResolvedValueOnce({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "old-token",
+		});
+		probeHubServer.mockResolvedValueOnce({
+			url: "ws://127.0.0.1:25463/hub",
+			protocolVersion: "v1",
+			buildId: "old-build",
+			buildEpochMs: 500,
+		});
+
+		const { upgradeManagedHub } = await import(".");
+		await expect(upgradeManagedHub({ force: true })).rejects.toThrow(
+			/did not accept a drain request/,
+		);
+		// Only the initial drain attempt: nothing to un-drain, nothing retired.
+		expect(requestHubDrain).toHaveBeenCalledTimes(1);
+		expect(requestHubShutdown).not.toHaveBeenCalled();
+		expect(spawn).not.toHaveBeenCalled();
+	});
+
+	it("still replaces an idle hub when the drain request fails (pre-drain hubs answer 404)", async () => {
+		requestHubDrain.mockResolvedValue(false);
+		readHubDiscovery
+			.mockResolvedValueOnce({
+				url: "ws://127.0.0.1:25463/hub",
+				authToken: "old-token",
+				pid: 12345,
+			})
+			.mockResolvedValueOnce({
+				url: "ws://127.0.0.1:25463/hub",
+				authToken: "new-token",
+			});
+		probeHubServer
+			.mockResolvedValueOnce({
+				url: "ws://127.0.0.1:25463/hub",
+				protocolVersion: "v1",
+				buildId: "old-build",
+				buildEpochMs: 500,
+				pid: 12345,
+			})
+			.mockResolvedValueOnce(undefined)
+			.mockResolvedValueOnce({
+				url: "ws://127.0.0.1:25463/hub",
+				protocolVersion: "v1",
+				buildId: "current-build",
+			});
+		verifyHubConnection.mockResolvedValue(true);
+
+		const { upgradeManagedHub } = await import(".");
+		const result = await upgradeManagedHub({ workspaceRoot: "/workspace" });
+
+		expect(result).toEqual({
+			outcome: "replaced",
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "new-token",
+			activeSessionCount: 0,
+		});
+		expect(requestHubShutdown).toHaveBeenCalled();
+	});
+
 	it("un-drains and reports failure when the old hub survives the retire ladder", async () => {
 		queryHubSessionActivity.mockResolvedValue({
 			activeSessionCount: 1,

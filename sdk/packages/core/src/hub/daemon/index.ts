@@ -706,6 +706,9 @@ export interface UpgradeManagedHubOptions {
 	/**
 	 * Replace the hub even if sessions are still live once the wait expires.
 	 * Only set this on a user-consented path: those sessions die mid-turn.
+	 * Honored only once the hub has accepted the drain - a busy hub that
+	 * refused the drain is never replaced, because the drain is what protects
+	 * work started during the wait window.
 	 */
 	force?: boolean;
 	/** Recorded as the hub's drain reason, visible in `hub.status`. */
@@ -748,7 +751,9 @@ export interface UpgradeManagedHubResult {
  * replacement in `ensureDetachedHubServer`, which defers while the older hub
  * is serving sessions: drain first (the hub refuses new work while in-flight
  * turns get `waitForIdleMs` to finish), then the shared graceful retire
- * ladder, then a fresh daemon.
+ * ladder, then a fresh daemon. Drain-first is a guarantee, not a courtesy:
+ * a hub that refuses the drain is replaced only if it is observed idle, and
+ * a busy one makes the upgrade fail instead - `force` does not override that.
  *
  * Never replaces a hub this build is not strictly newer than - the build
  * total order guarantees at most one side of any install pair can reach the
@@ -803,8 +808,13 @@ export async function upgradeManagedHub(
 		}).catch(() => false);
 	};
 	let activeSessionCount = 0;
-	const deadline =
-		Date.now() + (options.waitForIdleMs ?? HUB_UPGRADE_DEFAULT_WAIT_MS);
+	// The wait window is only meaningful under an established drain: an
+	// undrained hub keeps admitting new sessions and runs, so waiting would
+	// widen what a replacement kills instead of letting work finish. Without
+	// the drain, take a single busy reading and decide from that.
+	const deadline = drained
+		? Date.now() + (options.waitForIdleMs ?? HUB_UPGRADE_DEFAULT_WAIT_MS)
+		: Date.now();
 	// Check at least once so waitForIdleMs: 0 still observes an idle hub.
 	for (;;) {
 		try {
@@ -821,6 +831,15 @@ export async function upgradeManagedHub(
 		}
 		await new Promise((resolve) =>
 			setTimeout(resolve, HUB_UPGRADE_IDLE_POLL_MS),
+		);
+	}
+	// A busy hub that never entered the drained state is not replaced, forced
+	// or not: the drain is the guarantee that nothing new starts between the
+	// busy reading and the retire, and without it a forced replacement would
+	// kill work the user never saw in the consent prompt.
+	if (activeSessionCount > 0 && !drained) {
+		throw new Error(
+			`The running Cline Hub at ${record.url} did not accept a drain request and is still serving sessions, so it was not replaced. Finish those sessions or run 'cline doctor fix', then try again.`,
 		);
 	}
 	if (activeSessionCount > 0 && options.force !== true) {
