@@ -13,6 +13,13 @@ vi.mock("../providers/GenericProviderSettings", () => ({
 	GenericProviderSettings: vi.fn((props) => <div data-testid="generic-provider-settings">{props.providerName}</div>),
 }))
 
+// ClinePassHint pulls in useClinePassPromo (auth context, grpc clients); these
+// tests exercise provider forms, so keep the promo surface inert.
+vi.mock("@/hooks/useClinePassPromo", () => ({
+	CLINE_PASS_PROVIDER_ID: "cline-pass",
+	useClinePassPromo: vi.fn(() => ({ isClinePassEnabled: false })),
+}))
+
 const mockProviderListings = (
 	providers: Array<{ id: string; name: string; protocol: string; allowsCustomModelIds: boolean }>,
 ) => {
