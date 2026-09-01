@@ -30,7 +30,8 @@ export interface RunSubprocessEventOptions {
 	 *
 	 * `exited: true` means the hook finished and `durationMs` is its runtime.
 	 * `exited: false` is a censored observation: the hook was still running
-	 * after the observation window, so it ran *at least* `durationMs` — the
+	 * after the observation window, and `durationMs` is that window, so read
+	 * it as "ran at least this long" and count these separately — the
 	 * case that matters most, since those are the hooks that would stall a
 	 * blocking run. Without it the sample would only contain hooks that
 	 * finished.
@@ -266,7 +267,11 @@ export async function runSubprocessEvent(
 			// listener nor the timer keeps the process alive (the child is
 			// unref'd below, the timer is unref'd here), so a hook that
 			// outlives the parent simply never reports.
-			const reportOnce = (exitCode: number | null, exited: boolean) => {
+			const reportOnce = (event: {
+				durationMs: number;
+				exitCode: number | null;
+				exited: boolean;
+			}) => {
 				if (reported) {
 					return;
 				}
@@ -274,20 +279,31 @@ export async function runSubprocessEvent(
 				if (censorTimer) {
 					clearTimeout(censorTimer);
 				}
-				report({
-					command,
-					durationMs: Date.now() - startedAt,
-					exitCode,
-					exited,
-				});
+				report({ command, ...event });
 			};
+			const observationMs =
+				options.detachedObservationMs ?? DEFAULT_DETACHED_OBSERVATION_MS;
 			censorTimer = setTimeout(
-				() => reportOnce(null, false),
-				options.detachedObservationMs ?? DEFAULT_DETACHED_OBSERVATION_MS,
+				() =>
+					// The window itself is the reported duration: a censored
+					// sample means "ran at least this long", and the timer's own
+					// firing time is both noisy and meaningless here.
+					reportOnce({
+						durationMs: observationMs,
+						exitCode: null,
+						exited: false,
+					}),
+				observationMs,
 			);
 			censorTimer.unref?.();
 			void completed
-				.then((result) => reportOnce(result.exitCode, true))
+				.then((result) =>
+					reportOnce({
+						durationMs: Date.now() - startedAt,
+						exitCode: result.exitCode,
+						exited: true,
+					}),
+				)
 				.catch(() => undefined);
 		}
 		child.unref();
