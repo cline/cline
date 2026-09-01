@@ -55,20 +55,52 @@ const buildOptions = parseBuildOptions(process.argv.slice(2));
 
 const allTargets: {
 	os: string;
-	arch: "arm64" | "x64";
+	arch: "arm64" | "x64" | "x64-baseline";
 }[] = [
 	{ os: "linux", arch: "arm64" },
 	{ os: "linux", arch: "x64" },
+	{ os: "linux", arch: "x64-baseline" },
 	{ os: "darwin", arch: "arm64" },
 	{ os: "darwin", arch: "x64" },
+	{ os: "darwin", arch: "x64-baseline" },
 	{ os: "win32", arch: "x64" },
 	{ os: "win32", arch: "arm64" },
+	{ os: "win32", arch: "x64-baseline" },
 ];
 
+// Bun's default x64 compile target emits AVX2 instructions, so the compiled
+// binary crashes with SIGILL on AVX-only x64 CPUs (Intel pre-Haswell, e.g.
+// Sandy/Ivy Bridge). Detect AVX2 via /proc/cpuinfo so --single builds the
+// baseline target when the host needs it.
+function supportsAvx2(): boolean {
+	if (process.platform !== "linux") {
+		return true;
+	}
+	try {
+		const cpuinfo = readFileSync("/proc/cpuinfo", "utf-8");
+		return /(^|\s)avx2(\s|$)/m.test(cpuinfo);
+	} catch {
+		return true;
+	}
+}
+
+const hostNeedsBaseline = process.arch === "x64" && !supportsAvx2();
+
 const targets = buildOptions.single
-	? allTargets.filter(
-			(item) => item.os === process.platform && item.arch === process.arch,
-		)
+	? allTargets.filter((item) => {
+			if (item.os !== process.platform) {
+				return false;
+			}
+			// On x64 pick the baseline OR the default target, never both:
+			// building both would smoke test the AVX2 binary first, which
+			// SIGILLs on an AVX-only host before the baseline binary runs.
+			if (process.arch === "x64") {
+				return hostNeedsBaseline
+					? item.arch === "x64-baseline"
+					: item.arch === "x64";
+			}
+			return item.arch === process.arch;
+		})
 	: allTargets;
 
 const opentuiVersion = pkg.dependencies["@opentui/core"];
@@ -167,6 +199,19 @@ function getBunTarget(
 	return `bun-${targetOs}-${item.arch}` as Bun.Build.CompileTarget;
 }
 
+// A compiled binary can only be smoke-tested if it can execute on this host:
+// matching arch runs, except the default x64 build needs AVX2; x64-baseline
+// binaries run on every x64 CPU, AVX2 or not.
+function canRunSmokeTestOnHost(item: (typeof allTargets)[number]): boolean {
+	if (item.os !== process.platform) {
+		return false;
+	}
+	if (item.arch === process.arch) {
+		return item.arch !== "x64" || supportsAvx2();
+	}
+	return item.arch === "x64-baseline" && process.arch === "x64";
+}
+
 async function buildCompiledBinary(input: {
 	bunTarget: Bun.Build.CompileTarget;
 	dirName: string;
@@ -238,8 +283,8 @@ for (const item of targets) {
 
 	await buildCompiledBinary({ bunTarget, dirName, outfile });
 
-	// Smoke test: only run on current platform
-	if (item.os === process.platform && item.arch === process.arch) {
+	// Smoke test: only binaries that can execute on this host
+	if (canRunSmokeTestOnHost(item)) {
 		console.log(`  Smoke test: ${outfile} --version`);
 		try {
 			const output = await $`${outfile} --version`.text();
@@ -283,9 +328,10 @@ for (const item of targets) {
 			{
 				name,
 				version,
-				description: `Cline CLI binary for ${displayOs} ${item.arch}`,
 				os: [item.os],
-				cpu: [item.arch],
+				// npm's cpu field has no "x64-baseline" value; the baseline
+				// binary runs on any x64 CPU.
+				cpu: [item.arch === "x64-baseline" ? "x64" : item.arch],
 				...(repository ? { repository } : {}),
 				bin: {
 					cline: `bin/${binaryName}`,

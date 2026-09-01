@@ -184,7 +184,7 @@ From `apps/cli/`:
 
 ```bash
 bun run build:platforms:single  # build only current platform
-bun run build:platforms         # build all 6 platform binaries
+bun run build:platforms         # build all 9 platform binaries
 bun run publish:npm:dry         # preview generated npm package publishing
 ```
 
