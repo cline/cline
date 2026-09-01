@@ -1003,12 +1003,8 @@ describe("upgradeManagedHub", () => {
 		expect(requestHubShutdown).not.toHaveBeenCalled();
 	});
 
-	it("refuses to replace a busy hub when the drain request fails, even when forced", async () => {
+	it("fails fast when the hub does not accept the drain, even when idle and forced", async () => {
 		requestHubDrain.mockResolvedValue(false);
-		queryHubSessionActivity.mockResolvedValue({
-			activeSessionCount: 2,
-			participantClientCount: 1,
-		});
 		readHubDiscovery.mockResolvedValueOnce({
 			url: "ws://127.0.0.1:25463/hub",
 			authToken: "old-token",
@@ -1024,86 +1020,13 @@ describe("upgradeManagedHub", () => {
 		await expect(upgradeManagedHub({ force: true })).rejects.toThrow(
 			/did not accept a drain request/,
 		);
-		// Only the initial drain attempt: nothing to un-drain, nothing retired.
+		// No admission barrier means no upgrade at all: the failure comes
+		// before the wait window (no activity readings), nothing is un-drained
+		// (only the initial drain attempt), and nothing is retired or spawned.
+		// Even an idle snapshot would not help - a session admitted right
+		// after it would die in a retire the consent prompt never covered.
+		expect(queryHubSessionActivity).not.toHaveBeenCalled();
 		expect(requestHubDrain).toHaveBeenCalledTimes(1);
-		expect(requestHubShutdown).not.toHaveBeenCalled();
-		expect(spawn).not.toHaveBeenCalled();
-	});
-
-	it("hands an undrained idle hub to the ensure path instead of retiring it directly (pre-drain hubs answer 404)", async () => {
-		requestHubDrain.mockResolvedValue(false);
-		readHubDiscovery
-			.mockResolvedValueOnce({
-				url: "ws://127.0.0.1:25463/hub",
-				authToken: "old-token",
-				pid: 12345,
-			})
-			// The ensure path observes the already-swapped record.
-			.mockResolvedValueOnce({
-				url: "ws://127.0.0.1:25463/hub",
-				authToken: "new-token",
-			});
-		probeHubServer
-			.mockResolvedValueOnce({
-				url: "ws://127.0.0.1:25463/hub",
-				protocolVersion: "v1",
-				buildId: "old-build",
-				buildEpochMs: 500,
-				pid: 12345,
-			})
-			// The ensure probe and the post-ensure discriminator probe both
-			// see a current-build hub.
-			.mockResolvedValue({
-				url: "ws://127.0.0.1:25463/hub",
-				protocolVersion: "v1",
-				buildId: "current-build",
-			});
-		verifyHubConnection.mockResolvedValue(true);
-
-		const { upgradeManagedHub } = await import(".");
-		const result = await upgradeManagedHub({ workspaceRoot: "/workspace" });
-
-		expect(result).toEqual({
-			outcome: "replaced",
-			url: "ws://127.0.0.1:25463/hub",
-			authToken: "new-token",
-			activeSessionCount: 0,
-		});
-		// The delegation is the point: the swap ran under the ensure path's
-		// startup lock, and upgradeManagedHub issued no retirement of its own.
-		expect(withHubStartupLock).toHaveBeenCalled();
-		expect(requestHubShutdown).not.toHaveBeenCalled();
-	});
-
-	it("defers when the ensure re-check finds the undrained hub busy again after the idle snapshot", async () => {
-		requestHubDrain.mockResolvedValue(false);
-		// Idle at the upgrade's snapshot, busy again by the time the ensure
-		// path re-checks - the race the delegation exists to close.
-		queryHubSessionActivity
-			.mockResolvedValueOnce({
-				activeSessionCount: 0,
-				participantClientCount: 0,
-			})
-			.mockResolvedValue({ activeSessionCount: 1, participantClientCount: 1 });
-		readHubDiscovery.mockResolvedValue({
-			url: "ws://127.0.0.1:25463/hub",
-			authToken: "old-token",
-		});
-		probeHubServer.mockResolvedValue({
-			url: "ws://127.0.0.1:25463/hub",
-			protocolVersion: "v1",
-			buildId: "old-build",
-			buildEpochMs: 500,
-		});
-		verifyHubConnection.mockResolvedValue(true);
-
-		const { upgradeManagedHub } = await import(".");
-		const result = await upgradeManagedHub({ workspaceRoot: "/workspace" });
-
-		expect(result).toMatchObject({
-			outcome: "still_busy",
-			url: "ws://127.0.0.1:25463/hub",
-		});
 		expect(requestHubShutdown).not.toHaveBeenCalled();
 		expect(spawn).not.toHaveBeenCalled();
 	});
