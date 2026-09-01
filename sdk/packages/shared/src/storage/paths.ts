@@ -160,6 +160,10 @@ export function resolveClineDir(): string {
 }
 
 export function resolveDocumentsClineDirectoryPath(): string {
+	const explicitDir = process.env.CLINE_DOCUMENTS_DIR?.trim();
+	if (explicitDir) {
+		return explicitDir;
+	}
 	return join(HOME_DIR, "Documents", "Cline");
 }
 

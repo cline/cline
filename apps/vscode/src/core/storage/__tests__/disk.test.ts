@@ -7,6 +7,7 @@ import path from "path"
 import sinon from "sinon"
 import { HostProvider } from "@/hosts/host-provider"
 import { setVscodeHostProviderMock, stubWorkspacePaths } from "@/test/host-provider-test-utils"
+import * as actualDocumentsPath from "../documents-path"
 
 // bun loads real ESM, so sinon cannot stub the `@utils/fs` namespace export
 // ("ES Modules cannot be stubbed"). Inject a module-level sinon stub for
@@ -19,7 +20,23 @@ const fsUtilsMock = () => ({ ...actualFsUtils, isDirectory: isDirectoryStub })
 mock.module("@utils/fs", fsUtilsMock)
 mock.module("@/utils/fs", fsUtilsMock)
 
-import { getAllHooksDirs, getWindowWorkspaceRoots, getWorkspaceHooksDirs, setRuntimeHooksDir } from "../disk"
+// Same treatment for `getDocumentsPath`, which shells out to PowerShell on Windows.
+// Defaults to the real implementation; only the default-location test overrides it.
+const realGetDocumentsPath = actualDocumentsPath.getDocumentsPath
+const getDocumentsPathStub: sinon.SinonStub = sinon.stub()
+getDocumentsPathStub.callsFake(() => realGetDocumentsPath())
+mock.module("../documents-path", () => ({ ...actualDocumentsPath, getDocumentsPath: getDocumentsPathStub }))
+
+import {
+	ensureHooksDirectoryExists,
+	ensureMcpServersDirectoryExists,
+	ensureRulesDirectoryExists,
+	ensureWorkflowsDirectoryExists,
+	getAllHooksDirs,
+	getWindowWorkspaceRoots,
+	getWorkspaceHooksDirs,
+	setRuntimeHooksDir,
+} from "../disk"
 
 describe("disk - hooks functionality", () => {
 	let sandbox: sinon.SinonSandbox
@@ -231,6 +248,69 @@ describe("disk - hooks functionality", () => {
 			const result = await getAllHooksDirs()
 			result.should.not.containEql(runtimeHooksDir)
 		})
+	})
+})
+
+describe("disk - global config directory location", () => {
+	let tempDir: string
+	let originalClineDocumentsDir: string | undefined
+
+	beforeEach(async () => {
+		originalClineDocumentsDir = process.env.CLINE_DOCUMENTS_DIR
+		tempDir = path.join(os.tmpdir(), `disk-docs-${Date.now()}-${Math.random().toString(36).slice(2)}`)
+		await fs.mkdir(tempDir, { recursive: true })
+	})
+
+	afterEach(async () => {
+		if (originalClineDocumentsDir === undefined) {
+			delete process.env.CLINE_DOCUMENTS_DIR
+		} else {
+			process.env.CLINE_DOCUMENTS_DIR = originalClineDocumentsDir
+		}
+		getDocumentsPathStub.resetBehavior()
+		getDocumentsPathStub.callsFake(() => realGetDocumentsPath())
+		try {
+			await fs.rm(tempDir, { recursive: true, force: true })
+		} catch (_error) {
+			// Ignore cleanup errors
+		}
+	})
+
+	const cases: Array<[string, () => Promise<string>]> = [
+		["Rules", ensureRulesDirectoryExists],
+		["Workflows", ensureWorkflowsDirectoryExists],
+		["MCP", ensureMcpServersDirectoryExists],
+		["Hooks", ensureHooksDirectoryExists],
+	]
+
+	for (const [name, ensureDirectoryExists] of cases) {
+		it(`should create ${name} under CLINE_DOCUMENTS_DIR when it is set`, async () => {
+			process.env.CLINE_DOCUMENTS_DIR = tempDir
+
+			const result = await ensureDirectoryExists()
+
+			result.should.equal(path.join(tempDir, name))
+			;(await fs.stat(result)).isDirectory().should.be.true()
+		})
+	}
+
+	it("should ignore a blank CLINE_DOCUMENTS_DIR and use the documents location", async () => {
+		process.env.CLINE_DOCUMENTS_DIR = "   "
+		getDocumentsPathStub.resolves(tempDir)
+
+		const result = await ensureRulesDirectoryExists()
+
+		result.should.equal(path.join(tempDir, "Cline", "Rules"))
+	})
+
+	it("should default to <documents>/Cline when CLINE_DOCUMENTS_DIR is unset", async () => {
+		delete process.env.CLINE_DOCUMENTS_DIR
+		getDocumentsPathStub.resolves(tempDir)
+
+		const result = await ensureRulesDirectoryExists()
+
+		result.should.equal(path.join(tempDir, "Cline", "Rules"))
+		;(await fs.stat(result)).isDirectory().should.be.true()
 	})
 })
 

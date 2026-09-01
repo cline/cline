@@ -42,6 +42,16 @@ Additional global search paths supported by the code:
   Workflows/                   # Additional global workflows
 ```
 
+Set the `CLINE_DOCUMENTS_DIR` environment variable to move this directory somewhere else, for example
+`CLINE_DOCUMENTS_DIR=/home/you/.config/cline`. Cline then reads and creates `Rules/`, `Hooks/`,
+`Plugins/`, `Workflows/` and `MCP/` under that path instead of `~/Documents/Cline/`.
+
+Give it an absolute path. Like the other `CLINE_*` path variables, the value is used verbatim, so a
+leading `~` is only expanded if whatever sets the variable expands it: a shell does, but a VS Code
+settings entry, a `.env` file, or a Windows environment variable dialog does not, and Cline would
+then create a directory literally named `~`. Existing files are not moved for you, so relocate them
+yourself when you set the variable.
+
 Project-level configuration lives in `.cline/` at your repository root:
 
 ```text
@@ -60,6 +70,7 @@ Notes:
 - Global workflows resolve from `~/.cline/data/workflows/`.
 - Global rules, hooks, skills, agents, plugins, and cron specs resolve directly under `~/.cline/`.
 - Rules, hooks, plugins, and workflows may also be discovered from `~/Documents/Cline/` for compatibility.
+- `CLINE_DOCUMENTS_DIR` overrides that `~/Documents/Cline/` location.
 
 ## What Goes Where?
 

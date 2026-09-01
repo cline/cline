@@ -21,6 +21,7 @@ import {
 	resolveConnectorDataDir,
 	resolveConnectorSettingsPath,
 	resolveDbDataDir,
+	resolveDocumentsClineDirectoryPath,
 	resolveGlobalAgentsRulesPath,
 	resolveGlobalSettingsPath,
 	resolveHooksConfigSearchPaths,
@@ -39,6 +40,7 @@ type EnvSnapshot = {
 	CLINE_CONNECTOR_DATA_DIR: string | undefined;
 	CLINE_CONNECTOR_SETTINGS_PATH: string | undefined;
 	CLINE_DB_DATA_DIR: string | undefined;
+	CLINE_DOCUMENTS_DIR: string | undefined;
 	CLINE_GLOBAL_SETTINGS_PATH: string | undefined;
 	CLINE_MCP_SETTINGS_PATH: string | undefined;
 	CLINE_PROVIDER_SETTINGS_PATH: string | undefined;
@@ -53,6 +55,7 @@ function captureEnv(): EnvSnapshot {
 		CLINE_CONNECTOR_DATA_DIR: process.env.CLINE_CONNECTOR_DATA_DIR,
 		CLINE_CONNECTOR_SETTINGS_PATH: process.env.CLINE_CONNECTOR_SETTINGS_PATH,
 		CLINE_DB_DATA_DIR: process.env.CLINE_DB_DATA_DIR,
+		CLINE_DOCUMENTS_DIR: process.env.CLINE_DOCUMENTS_DIR,
 		CLINE_GLOBAL_SETTINGS_PATH: process.env.CLINE_GLOBAL_SETTINGS_PATH,
 		CLINE_MCP_SETTINGS_PATH: process.env.CLINE_MCP_SETTINGS_PATH,
 		CLINE_PROVIDER_SETTINGS_PATH: process.env.CLINE_PROVIDER_SETTINGS_PATH,
@@ -68,6 +71,13 @@ function restoreEnv(snapshot: EnvSnapshot): void {
 		snapshot.CLINE_CONNECTOR_SETTINGS_PATH;
 	process.env.CLINE_DIR = snapshot.CLINE_DIR;
 	process.env.CLINE_DB_DATA_DIR = snapshot.CLINE_DB_DATA_DIR;
+	// assigning undefined stores the literal string "undefined", which reads as a real
+	// override and would break the default-path assertions in later tests
+	if (snapshot.CLINE_DOCUMENTS_DIR === undefined) {
+		delete process.env.CLINE_DOCUMENTS_DIR;
+	} else {
+		process.env.CLINE_DOCUMENTS_DIR = snapshot.CLINE_DOCUMENTS_DIR;
+	}
 	process.env.CLINE_GLOBAL_SETTINGS_PATH = snapshot.CLINE_GLOBAL_SETTINGS_PATH;
 	process.env.CLINE_MCP_SETTINGS_PATH = snapshot.CLINE_MCP_SETTINGS_PATH;
 	process.env.CLINE_PROVIDER_SETTINGS_PATH =
@@ -234,6 +244,40 @@ describe("storage path resolution", () => {
 			join("/tmp/home", ".cline", "workflows"),
 			join(workspacePath, ".cline", "workflows"),
 		]);
+	});
+
+	it("uses CLINE_DOCUMENTS_DIR as-is when set", () => {
+		snapshot = captureEnv();
+		process.env.CLINE_DOCUMENTS_DIR = "/tmp/cline-docs";
+
+		expect(resolveDocumentsClineDirectoryPath()).toBe("/tmp/cline-docs");
+	});
+
+	it("falls back to Documents/Cline when CLINE_DOCUMENTS_DIR is unset", () => {
+		snapshot = captureEnv();
+		delete process.env.CLINE_DOCUMENTS_DIR;
+
+		expect(resolveDocumentsClineDirectoryPath()).toEqual(
+			expect.stringContaining(join("Documents", "Cline")),
+		);
+	});
+
+	it("routes rules and workflows through CLINE_DOCUMENTS_DIR when set", () => {
+		snapshot = captureEnv();
+		process.env.CLINE_DIR = "/tmp/home/.cline";
+		process.env.CLINE_DOCUMENTS_DIR = "/tmp/cline-docs";
+
+		expect(resolveRulesConfigSearchPaths()).toContain(
+			join("/tmp/cline-docs", "Rules"),
+		);
+		expect(resolveWorkflowsConfigSearchPaths()).toContain(
+			join("/tmp/cline-docs", "Workflows"),
+		);
+		expect(resolveWorkflowsConfigSearchPaths()).not.toEqual(
+			expect.arrayContaining([
+				expect.stringContaining(join("Documents", "Cline", "Workflows")),
+			]),
+		);
 	});
 });
 
