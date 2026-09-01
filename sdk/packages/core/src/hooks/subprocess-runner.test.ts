@@ -58,27 +58,29 @@ describe("runSubprocessEvent", () => {
 		expect(observed[0].exited).toBe(true);
 	});
 
-	it("reports a censored observation for a detached hook that never exits", async () => {
+	it("reports a censored observation for a hook still running at the window", async () => {
 		const observed: Array<{ durationMs: number; exited: boolean }> = [];
+		// Outlives the observation window, then exits on its own: a hook that
+		// never exits would leave an orphan process behind the test.
 		await runSubprocessEvent(
 			{},
 			{
-				command: [process.execPath, "-e", "setInterval(() => {}, 1_000)"],
+				command: [process.execPath, "-e", "setTimeout(() => {}, 600)"],
 				detached: true,
 				detachedObservationMs: 100,
 				onDetachedSettled: (event) => observed.push(event),
 			},
 		);
-		// The hook is still running: without the censored observation this
-		// sample would silently contain only hooks that finish.
+		// Without the censored observation, a hook like this contributes
+		// nothing and the sample covers only hooks that finish quickly.
 		await vi.waitFor(() => expect(observed).toHaveLength(1), {
 			timeout: 5_000,
 		});
 		expect(observed[0].exited).toBe(false);
 		expect(observed[0].durationMs).toBeGreaterThanOrEqual(100);
 
-		// Exactly one observation per hook, even after it is killed.
-		await new Promise((resolve) => setTimeout(resolve, 200));
+		// Its later exit must not add a second observation for the same hook.
+		await new Promise((resolve) => setTimeout(resolve, 1_000));
 		expect(observed).toHaveLength(1);
 	});
 
@@ -88,7 +90,7 @@ describe("runSubprocessEvent", () => {
 		// the caller waiting on the grandchild.
 		const script = [
 			`const { spawn } = require("child_process");`,
-			`const child = spawn(process.execPath, ["-e", "setTimeout(() => {}, 30_000)"], { stdio: ["ignore", "inherit", "ignore"], detached: true });`,
+			`const child = spawn(process.execPath, ["-e", "setTimeout(() => {}, 3_000)"], { stdio: ["ignore", "inherit", "ignore"], detached: true });`,
 			`child.unref();`,
 			`process.stdout.write('HOOK_CONTROL\\t{"cancel":false}\\n');`,
 		].join("\n");
