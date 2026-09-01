@@ -456,6 +456,122 @@ describe("managed COMPOSIO_API_KEY", () => {
 	});
 });
 
+describe("connectComposioToolkit", () => {
+	it("overlapping connects are single-flight: only one remote account is ever created", async () => {
+		const dir = useTempDataDir();
+		process.env.COMPOSIO_API_KEY = "ck_overlap";
+		writeState(dir, { apiKey: "ck_overlap", userId: "u_overlap", toolkits: {} });
+		let releaseAuthorize: (() => void) | undefined;
+		const authorize = vi.fn(
+			() =>
+				new Promise<{
+					id: string;
+					redirectUrl: string;
+					waitForConnection: () => Promise<unknown>;
+				}>((resolve) => {
+					releaseAuthorize = () =>
+						resolve({
+							id: "ca_single",
+							redirectUrl: "https://connect.example/ca_single",
+							waitForConnection: () => new Promise(() => {}),
+						});
+				}),
+		);
+		const remoteDelete = vi.fn(async () => ({}));
+		const client = {
+			toolkits: { authorize },
+			authConfigs: {
+				list: vi.fn(async () => ({ items: [] })),
+				create: vi.fn(),
+			},
+			tools: { getRawComposioTools: vi.fn(async () => []) },
+			connectedAccounts: {
+				list: vi.fn(async () => ({ items: [] })),
+				link: vi.fn(),
+				delete: remoteDelete,
+			},
+		};
+		createMockComposioClient = () => client;
+
+		const first = connectComposioToolkit("github");
+		await vi.waitFor(() => {
+			expect(authorize).toHaveBeenCalledTimes(1);
+		});
+		// A second connect lands while the first is still inside the
+		// initiation round trip — before any pending entry exists. It must
+		// not start a second attempt (whose account nothing would ever
+		// revoke) or overwrite the first attempt's pending entry.
+		const second = await connectComposioToolkit("github");
+		expect(second.redirectUrl).toBeUndefined();
+		expect(authorize).toHaveBeenCalledTimes(1);
+
+		releaseAuthorize?.();
+		const firstResult = await first;
+		expect(firstResult.redirectUrl).toContain("ca_single");
+		// The surviving pending attempt is the first one; a third call now
+		// reports it instead of starting over.
+		const third = await connectComposioToolkit("github");
+		expect(third.redirectUrl).toContain("ca_single");
+		expect(authorize).toHaveBeenCalledTimes(1);
+		// Clean up the pending attempt so it cannot leak into other tests.
+		await cancelComposioConnect("github");
+	});
+
+	it("a connect overlapping a redirect-less finalize is also single-flight", async () => {
+		const dir = useTempDataDir();
+		process.env.COMPOSIO_API_KEY = "ck_overlap_rl";
+		writeState(dir, {
+			apiKey: "ck_overlap_rl",
+			userId: "u_overlap_rl",
+			toolkits: {},
+		});
+		let releaseToolFetch: (() => void) | undefined;
+		const authorize = vi.fn(async () => ({
+			id: "ca_rl_single",
+			redirectUrl: null,
+			waitForConnection: async () => ({}),
+		}));
+		const client = {
+			toolkits: { authorize },
+			authConfigs: {
+				list: vi.fn(async () => ({ items: [] })),
+				create: vi.fn(),
+			},
+			tools: {
+				getRawComposioTools: vi.fn(
+					() =>
+						new Promise<{ slug: string }[]>((resolve) => {
+							releaseToolFetch = () => resolve([{ slug: "GITHUB_LIST_ISSUES" }]);
+						}),
+				),
+			},
+			connectedAccounts: {
+				list: vi.fn(async () => ({ items: [] })),
+				link: vi.fn(),
+				delete: vi.fn(async () => ({})),
+			},
+		};
+		createMockComposioClient = () => client;
+
+		const first = connectComposioToolkit("github");
+		await vi.waitFor(() => {
+			expect(client.tools.getRawComposioTools).toHaveBeenCalledTimes(1);
+		});
+		// The redirect-less path never has a pending entry, so the in-flight
+		// guard is the only thing preventing a duplicate attempt here.
+		const second = await connectComposioToolkit("github");
+		expect(second.alreadyConnected).toBeUndefined();
+		expect(authorize).toHaveBeenCalledTimes(1);
+
+		releaseToolFetch?.();
+		const firstResult = await first;
+		expect(firstResult.alreadyConnected).toBe(true);
+		expect(readStateFile(dir).toolkits?.github?.connectedAccountId).toBe(
+			"ca_rl_single",
+		);
+	});
+});
+
 describe("cancelComposioConnect", () => {
 	it("revokes the cancelled attempt and never imports it, even when the browser flow completes later", async () => {
 		const dir = useTempDataDir();

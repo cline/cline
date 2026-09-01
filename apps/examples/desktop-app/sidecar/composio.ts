@@ -204,6 +204,15 @@ type ConnectedAccountListItem = {
 };
 
 const pendingConnections = new Map<ComposioToolkitSlug, PendingConnection>();
+/**
+ * Toolkits whose connect call is inside its initiation round trip. The
+ * pending entry only exists once Composio has returned the connected-account
+ * id, so this set is what makes connects single-flight across that window —
+ * without it, two overlapping calls would each create a remote account and
+ * the second `pendingConnections.set` would overwrite the first, leaving the
+ * superseded account unrevoked and eligible for a later import.
+ */
+const connectInitiationsInFlight = new Set<ComposioToolkitSlug>();
 const lastConnectionErrors = new Map<ComposioToolkitSlug, string>();
 /** When each toolkit was last disconnected, so state snapshots taken before
  * the disconnect cannot write it back. */
@@ -984,115 +993,126 @@ export async function connectComposioToolkit(
 			status: buildStatusResponse(state),
 		};
 	}
-	lastConnectionErrors.delete(toolkit);
-	const client = await getComposioClient(state.apiKey);
-	let connectionRequest: ComposioConnectionRequest;
+	if (connectInitiationsInFlight.has(toolkit)) {
+		// Another connect for this toolkit is mid-initiation (see the set's
+		// doc). Single-flight: the first call owns the attempt and already
+		// received its redirect; this one just reports current status.
+		return { status: buildStatusResponse(state) };
+	}
+	connectInitiationsInFlight.add(toolkit);
 	try {
-		connectionRequest = await initiateToolkitConnection(
-			client,
-			state.userId,
-			toolkit,
-			logger,
-		);
-	} catch (error) {
-		throw new Error(
-			`Could not start the ${toolkit} connection: ${formatComposioError(error)}`,
-		);
-	}
-	const redirectUrl = connectionRequest.redirectUrl?.trim() || undefined;
-	const guard = { apiKey: state.apiKey, userId: state.userId, startedAt };
-	if (!redirectUrl) {
-		// No browser step needed (e.g. the account is already authorized on
-		// Composio's side) — finalize right away. There is no pending entry on
-		// this path, so the disconnect defense lives entirely in the guard's
-		// startedAt check inside finalizeToolkitConnection.
-		let persisted: boolean;
+		lastConnectionErrors.delete(toolkit);
+		const client = await getComposioClient(state.apiKey);
+		let connectionRequest: ComposioConnectionRequest;
 		try {
-			persisted = await finalizeToolkitConnection(
+			connectionRequest = await initiateToolkitConnection(
 				client,
+				state.userId,
 				toolkit,
-				connectionRequest.id,
-				guard,
 				logger,
 			);
 		} catch (error) {
-			// The attempt failed from the app's point of view, but the freshly
-			// created account is authorized on Composio's side and nothing
-			// references it — left alone, the next reconciliation would import
-			// it and a connection the user was told failed would silently
-			// appear as installed. Abandon it like a cancel before surfacing
-			// the error.
-			await abandonFinalizedConnection(
-				connectionRequest.id,
-				guard.apiKey,
-				logger,
+			throw new Error(
+				`Could not start the ${toolkit} connection: ${formatComposioError(error)}`,
 			);
-			throw error;
 		}
-		// A dropped result (a disconnect won the race, or the key changed
-		// mid-flow) must not report success: the connector is NOT connected,
-		// and the status below already reflects that.
-		return {
-			...(persisted ? { alreadyConnected: true } : {}),
-			status: buildStatusResponse(readComposioState()),
-		};
+		const redirectUrl = connectionRequest.redirectUrl?.trim() || undefined;
+		const guard = { apiKey: state.apiKey, userId: state.userId, startedAt };
+		if (!redirectUrl) {
+			// No browser step needed (e.g. the account is already authorized on
+			// Composio's side) — finalize right away. There is no pending entry on
+			// this path, so the disconnect defense lives entirely in the guard's
+			// startedAt check inside finalizeToolkitConnection.
+			let persisted: boolean;
+			try {
+				persisted = await finalizeToolkitConnection(
+					client,
+					toolkit,
+					connectionRequest.id,
+					guard,
+					logger,
+				);
+			} catch (error) {
+				// The attempt failed from the app's point of view, but the freshly
+				// created account is authorized on Composio's side and nothing
+				// references it — left alone, the next reconciliation would import
+				// it and a connection the user was told failed would silently
+				// appear as installed. Abandon it like a cancel before surfacing
+				// the error.
+				await abandonFinalizedConnection(
+					connectionRequest.id,
+					guard.apiKey,
+					logger,
+				);
+				throw error;
+			}
+			// A dropped result (a disconnect won the race, or the key changed
+			// mid-flow) must not report success: the connector is NOT connected,
+			// and the status below already reflects that.
+			return {
+				...(persisted ? { alreadyConnected: true } : {}),
+				status: buildStatusResponse(readComposioState()),
+			};
+		}
+
+		const attemptId = randomUUID();
+		pendingConnections.set(toolkit, {
+			attemptId,
+			connectedAccountId: connectionRequest.id,
+			redirectUrl,
+			...guard,
+		});
+
+		// The OAuth flow finishes in the external browser, which cannot navigate
+		// the app back. Wait for Composio to report the connection in the
+		// background; the webview polls `status` to observe the flip.
+		void (async () => {
+			try {
+				await connectionRequest.waitForConnection(CONNECT_WAIT_TIMEOUT_MS);
+				if (pendingConnections.get(toolkit)?.attemptId !== attemptId) {
+					return; // Cancelled or superseded while we waited.
+				}
+				// finalizeToolkitConnection re-checks the attempt and the key/user
+				// at write time, so a cancel, disconnect, or key change that lands
+				// during the tool fetch cannot be overwritten by this attempt.
+				await finalizeToolkitConnection(
+					client,
+					toolkit,
+					connectionRequest.id,
+					{ ...guard, attemptId },
+					logger,
+				);
+			} catch (error) {
+				if (pendingConnections.get(toolkit)?.attemptId !== attemptId) {
+					return; // Cancel/disconnect/key change already abandoned it.
+				}
+				const reason = formatComposioError(error);
+				lastConnectionErrors.set(
+					toolkit,
+					`Connection was not completed: ${reason}`,
+				);
+				logger?.log?.(`composio connect ${toolkit} failed: ${reason}`);
+				// The attempt is dead from the app's point of view (timeout, wait
+				// error, or a failed finalize), but the browser flow can still turn
+				// the remote account ACTIVE later — where reconciliation would
+				// import it, materializing a connection the user was told failed.
+				// Abandon it like a cancel: tombstone first, revoke best-effort.
+				await abandonFinalizedConnection(
+					connectionRequest.id,
+					guard.apiKey,
+					logger,
+				);
+			} finally {
+				if (pendingConnections.get(toolkit)?.attemptId === attemptId) {
+					pendingConnections.delete(toolkit);
+				}
+			}
+		})();
+
+		return { redirectUrl, status: buildStatusResponse(state) };
+	} finally {
+		connectInitiationsInFlight.delete(toolkit);
 	}
-
-	const attemptId = randomUUID();
-	pendingConnections.set(toolkit, {
-		attemptId,
-		connectedAccountId: connectionRequest.id,
-		redirectUrl,
-		...guard,
-	});
-
-	// The OAuth flow finishes in the external browser, which cannot navigate
-	// the app back. Wait for Composio to report the connection in the
-	// background; the webview polls `status` to observe the flip.
-	void (async () => {
-		try {
-			await connectionRequest.waitForConnection(CONNECT_WAIT_TIMEOUT_MS);
-			if (pendingConnections.get(toolkit)?.attemptId !== attemptId) {
-				return; // Cancelled or superseded while we waited.
-			}
-			// finalizeToolkitConnection re-checks the attempt and the key/user
-			// at write time, so a cancel, disconnect, or key change that lands
-			// during the tool fetch cannot be overwritten by this attempt.
-			await finalizeToolkitConnection(
-				client,
-				toolkit,
-				connectionRequest.id,
-				{ ...guard, attemptId },
-				logger,
-			);
-		} catch (error) {
-			if (pendingConnections.get(toolkit)?.attemptId !== attemptId) {
-				return; // Cancel/disconnect/key change already abandoned it.
-			}
-			const reason = formatComposioError(error);
-			lastConnectionErrors.set(
-				toolkit,
-				`Connection was not completed: ${reason}`,
-			);
-			logger?.log?.(`composio connect ${toolkit} failed: ${reason}`);
-			// The attempt is dead from the app's point of view (timeout, wait
-			// error, or a failed finalize), but the browser flow can still turn
-			// the remote account ACTIVE later — where reconciliation would
-			// import it, materializing a connection the user was told failed.
-			// Abandon it like a cancel: tombstone first, revoke best-effort.
-			await abandonFinalizedConnection(
-				connectionRequest.id,
-				guard.apiKey,
-				logger,
-			);
-		} finally {
-			if (pendingConnections.get(toolkit)?.attemptId === attemptId) {
-				pendingConnections.delete(toolkit);
-			}
-		}
-	})();
-
-	return { redirectUrl, status: buildStatusResponse(state) };
 }
 
 export async function cancelComposioConnect(
