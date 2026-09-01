@@ -1,11 +1,4 @@
-import {
-	closeSync,
-	existsSync,
-	openSync,
-	readdirSync,
-	readFileSync,
-	readSync,
-} from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type * as LlmsProviders from "@cline/llms";
@@ -213,49 +206,16 @@ export class CodexImportAdapter implements SessionImportAdapter {
 		return (b.meta.endedAtMs ?? 0) > (a.meta.endedAtMs ?? 0);
 	}
 
-	private findSessionFile(sourceId: string): string | undefined {
-		let best: { file: string; meta: CodexFileMeta } | undefined;
-		for (const file of this.sessionFiles()) {
-			// Rollout filenames embed their own id (rollout-<ts>-<id>.jsonl);
-			// resumed rollouts only carry the original id in session_meta.
-			if (!file.includes(sourceId) && !this.firstLineHasId(file, sourceId)) {
-				continue;
-			}
-			try {
-				const meta = scanFileMeta(readFileSync(file, "utf8"));
-				if (meta.sessionId !== sourceId) continue;
-				const candidate = { file, meta };
-				if (!best || CodexImportAdapter.pickRicherFile(best, candidate)) {
-					best = candidate;
-				}
-			} catch {
-				// Skip unreadable candidates.
-			}
-		}
-		return best?.file;
-	}
+	/**
+	 * Session id → richest rollout file. Building it means reading every
+	 * rollout once (resumed rollouts only carry the original id inside
+	 * session_meta, not in their filename), so it is cached for the batch:
+	 * without the cache, importing N sessions re-read the whole store N times.
+	 */
+	private index?: Map<string, { file: string; meta: CodexFileMeta }>;
 
-	private firstLineHasId(file: string, sourceId: string): boolean {
-		try {
-			const fd = openSync(file, "r");
-			try {
-				// session_meta is the first line; base_instructions makes it
-				// large, so read a generous head instead of the whole file.
-				const buffer = Buffer.alloc(262144);
-				const bytes = readSync(fd, buffer, 0, buffer.length, 0);
-				const head = buffer.toString("utf8", 0, bytes);
-				const firstLine = head.split("\n", 1)[0] ?? head;
-				return firstLine.includes(`"${sourceId}"`);
-			} finally {
-				closeSync(fd);
-			}
-		} catch {
-			return false;
-		}
-	}
-
-	discover(): ImportableSessionSummary[] {
-		const titles = this.readTitleIndex();
+	private buildIndex(): Map<string, { file: string; meta: CodexFileMeta }> {
+		if (this.index) return this.index;
 		const best = new Map<string, { file: string; meta: CodexFileMeta }>();
 		for (const file of this.sessionFiles()) {
 			try {
@@ -271,8 +231,22 @@ export class CodexImportAdapter implements SessionImportAdapter {
 				// A single corrupt rollout never blocks discovery.
 			}
 		}
+		this.index = best;
+		return best;
+	}
+
+	dispose(): void {
+		this.index = undefined;
+	}
+
+	private findSessionFile(sourceId: string): string | undefined {
+		return this.buildIndex().get(sourceId)?.file;
+	}
+
+	discover(): ImportableSessionSummary[] {
+		const titles = this.readTitleIndex();
 		const out: ImportableSessionSummary[] = [];
-		for (const [sessionId, { file, meta }] of best) {
+		for (const [sessionId, { file, meta }] of this.buildIndex()) {
 			const userCount = meta.userMessageCount || meta.fallbackUserCount;
 			const preview = truncateForDisplay(meta.firstUserText);
 			out.push({
@@ -323,7 +297,7 @@ export class CodexImportAdapter implements SessionImportAdapter {
 				role: "assistant",
 				content: assistantBlocks,
 				...(currentModel
-					? { modelInfo: { id: currentModel, provider: "openai" } }
+					? { modelInfo: { id: currentModel, provider: "openai-native" } }
 					: {}),
 				...(pendingMetrics ? { metrics: pendingMetrics } : {}),
 				...(assistantTs ? { ts: assistantTs } : {}),
@@ -508,7 +482,7 @@ export class CodexImportAdapter implements SessionImportAdapter {
 				truncateForDisplay(meta.firstUserText, 120) ??
 				"Untitled session",
 			...(prompt ? { prompt } : {}),
-			provider: "openai",
+			provider: "openai-native",
 			model: currentModel ?? "gpt-5",
 			cwd: meta.cwd,
 			...(meta.gitBranch ? { gitBranch: meta.gitBranch } : {}),

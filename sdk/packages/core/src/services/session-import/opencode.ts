@@ -32,6 +32,16 @@ function asMs(value: unknown): number | undefined {
 	return Number.isFinite(num) && num > 0 ? num : undefined;
 }
 
+/** opencode provider ids that differ from Cline's for the same vendor. */
+const OPENCODE_TO_CLINE_PROVIDER: Record<string, string> = {
+	openai: "openai-native",
+	google: "gemini",
+};
+
+function toClineProviderId(providerId: string): string {
+	return OPENCODE_TO_CLINE_PROVIDER[providerId] ?? providerId;
+}
+
 export interface OpencodeAdapterOptions {
 	/** Defaults to $XDG_DATA_HOME/opencode or ~/.local/share/opencode */
 	dataDir?: string;
@@ -58,9 +68,14 @@ export class OpencodeImportAdapter implements SessionImportAdapter {
 	/**
 	 * opencode keeps its database open in WAL mode while the app runs.
 	 * Snapshot the db (+ WAL/SHM) into a temp dir and read the copy so we
-	 * never contend with — or corrupt — the live store.
+	 * never contend with — or corrupt — the live store. The snapshot is kept
+	 * for the batch (a large db copied once per imported session was the
+	 * dominant cost) and released by dispose().
 	 */
-	private withDbCopy<T>(fn: (db: SqliteDb) => T): T {
+	private snapshot?: { dir: string; db: SqliteDb };
+
+	private openSnapshot(): SqliteDb {
+		if (this.snapshot) return this.snapshot.db;
 		const dir = mkdtempSync(join(tmpdir(), "cline-opencode-import-"));
 		try {
 			const copied = join(dir, "opencode.db");
@@ -72,14 +87,27 @@ export class OpencodeImportAdapter implements SessionImportAdapter {
 				}
 			}
 			const db = loadSqliteDb(copied);
-			try {
-				return fn(db);
-			} finally {
-				db.close?.();
-			}
-		} finally {
+			this.snapshot = { dir, db };
+			return db;
+		} catch (error) {
 			rmSync(dir, { recursive: true, force: true });
+			throw error;
 		}
+	}
+
+	dispose(): void {
+		const snapshot = this.snapshot;
+		this.snapshot = undefined;
+		if (!snapshot) return;
+		try {
+			snapshot.db.close?.();
+		} finally {
+			rmSync(snapshot.dir, { recursive: true, force: true });
+		}
+	}
+
+	private withDbCopy<T>(fn: (db: SqliteDb) => T): T {
+		return fn(this.openSnapshot());
 	}
 
 	discover(): ImportableSessionSummary[] {
@@ -246,7 +274,7 @@ export class OpencodeImportAdapter implements SessionImportAdapter {
 				// tool_result forms the next user message) to keep the
 				// user/assistant structure providers expect.
 				if (typeof data.providerID === "string" && data.providerID.trim()) {
-					provider = data.providerID.trim();
+					provider = toClineProviderId(data.providerID.trim());
 				}
 				if (typeof data.modelID === "string" && data.modelID.trim()) {
 					model = data.modelID.trim();

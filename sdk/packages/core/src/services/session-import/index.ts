@@ -22,6 +22,7 @@ export {
 	SESSION_IMPORT_TOOL_LABELS,
 	SESSION_IMPORT_TOOLS,
 	type SessionImportAdapter,
+	type SessionImportOptions,
 	type SessionImportRequest,
 	type SessionImportResult,
 	type SessionImportTool,

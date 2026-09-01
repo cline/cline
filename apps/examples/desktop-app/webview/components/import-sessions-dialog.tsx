@@ -24,6 +24,7 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { basenamePath, formatRelativeTime } from "@/hooks/use-session-history";
 import { desktopClient } from "@/lib/desktop-client";
+import { readModelSelectionStorageFromWindow } from "@/lib/model-selection";
 import {
 	type ImportableSession,
 	importSelectionKey,
@@ -43,6 +44,20 @@ type ImportSessionsDialogProps = {
 	/** Called after at least one session imported successfully. */
 	onImported?: () => void;
 };
+
+/**
+ * Provider/model a new chat would start with right now. Imported sessions
+ * are stamped with it so "continue this in Cline" runs on something the user
+ * has actually configured instead of the source tool's provider.
+ */
+function resumeTarget(): { provider?: string; model?: string } {
+	const selection = readModelSelectionStorageFromWindow();
+	const provider = selection.lastProvider.trim();
+	const model = provider
+		? (selection.lastModelByProvider[provider] ?? "").trim()
+		: "";
+	return provider && model ? { provider, model } : {};
+}
 
 function matchesQuery(session: ImportableSession, query: string): boolean {
 	if (!query) return true;
@@ -169,7 +184,11 @@ export function ImportSessionsDialog({
 		try {
 			const response = await desktopClient.invoke<{
 				results: SessionImportResult[];
-			}>("import_sessions", { selections }, { timeoutMs: null });
+			}>(
+				"import_sessions",
+				{ selections, ...resumeTarget() },
+				{ timeoutMs: null },
+			);
 			// The progress events already streamed results; trust the final
 			// response as the authoritative list.
 			setResults(response.results ?? []);

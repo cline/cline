@@ -63,11 +63,30 @@ export interface SessionImportAdapter {
 	discover(): ImportableSessionSummary[];
 	/** Throws if the source session cannot be found or parsed. */
 	convert(sourceId: string): ConvertedImportedSession;
+	/**
+	 * Releases per-batch caches (file indexes, database snapshots). Called by
+	 * the service after each discover/import batch; adapters stay usable after.
+	 */
+	dispose?(): void;
 }
 
 export interface SessionImportRequest {
 	tool: SessionImportTool;
 	sourceId: string;
+}
+
+export interface SessionImportOptions {
+	/**
+	 * Cline provider/model the imported sessions should resume with. Opening a
+	 * history session adopts the row's provider/model, so without this the
+	 * session would try to run on the source tool's provider (openai-native,
+	 * or an opencode provider id Cline doesn't know) which the user may never
+	 * have configured. Both must be set to take effect; the source tool's own
+	 * provider/model are always preserved in metadata.importedFrom and in
+	 * per-message modelInfo.
+	 */
+	provider?: string;
+	model?: string;
 }
 
 export interface SessionImportResult {

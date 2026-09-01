@@ -36,8 +36,8 @@ import {
 	resolveSessionBackend,
 	resolveAgentConfigSearchPaths as resolveSharedAgentConfigSearchPaths,
 	SESSION_IMPORT_TOOLS,
-	SessionImportService,
 	type SessionImportRequest,
+	SessionImportService,
 	type SessionImportTool,
 	SqliteSessionStore,
 	saveLocalProviderSettings,
@@ -1548,13 +1548,22 @@ export async function handleCommand(
 		}
 		const backend = await resolveSessionBackend({ backendMode: "local" });
 		const importer = new SessionImportService(backend);
-		const results = await importer.importMany(requests, (result, index) => {
-			broadcastEvent(ctx, "session_import_progress", {
-				index,
-				total: requests.length,
-				result,
-			});
-		});
+		// Opening a history session resumes on the row's provider/model, so the
+		// UI passes what a new chat would run on; the source tool's own
+		// provider/model stay in metadata.importedFrom.
+		const provider = asTrimmedString(args?.provider);
+		const model = asTrimmedString(args?.model);
+		const results = await importer.importMany(
+			requests,
+			(result, index) => {
+				broadcastEvent(ctx, "session_import_progress", {
+					index,
+					total: requests.length,
+					result,
+				});
+			},
+			{ ...(provider ? { provider } : {}), ...(model ? { model } : {}) },
+		);
 		return { results };
 	}
 	if (command === "update_chat_session_title") {

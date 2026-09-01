@@ -365,7 +365,7 @@ describe("CodexImportAdapter", () => {
 		expect(discovered[0].cwd).toBe("/workspace/api");
 
 		const converted = adapter.convert("cdx-1");
-		expect(converted.provider).toBe("openai");
+		expect(converted.provider).toBe("openai-native");
 		expect(converted.model).toBe("gpt-5.5");
 		expect(converted.gitBranch).toBe("feat/x");
 
@@ -657,6 +657,53 @@ describe("sanitizeImportedMessages", () => {
 		expect(JSON.stringify(sanitized)).not.toContain("ghost");
 		expect(JSON.stringify(sanitized)).not.toContain("gemini-sig");
 	});
+
+	it("consolidates a turn's tool_results into the message right after the tool_use", () => {
+		const sanitized = sanitizeImportedMessages([
+			{ role: "user", content: "run both" },
+			{
+				role: "assistant",
+				content: [
+					{ type: "tool_use", id: "a", name: "bash", input: {} },
+					{ type: "tool_use", id: "b", name: "bash", input: {} },
+					{ type: "tool_use", id: "c", name: "bash", input: {} },
+				],
+			},
+			// Results split across messages, out of order, one missing (c),
+			// plus a real follow-up prompt mixed into the span.
+			{
+				role: "user",
+				content: [
+					{ type: "tool_result", tool_use_id: "b", name: "bash", content: "B" },
+				],
+			},
+			{
+				role: "user",
+				content: [
+					{ type: "tool_result", tool_use_id: "a", name: "bash", content: "A" },
+					{ type: "text", text: "also do this next" },
+				],
+			},
+			{ role: "assistant", content: "ok" },
+		]);
+
+		expect(sanitized.map((message) => message.role)).toEqual([
+			"user",
+			"assistant",
+			"user",
+			"user",
+			"assistant",
+		]);
+		const consolidated = sanitized[2].content as Array<Record<string, unknown>>;
+		expect(consolidated.map((block) => block.tool_use_id)).toEqual([
+			"a",
+			"b",
+			"c",
+		]);
+		expect(consolidated[2].content).toBe(IMPORT_MISSING_TOOL_RESULT_TEXT);
+		const leftovers = sanitized[3].content as Array<Record<string, unknown>>;
+		expect(leftovers).toEqual([{ type: "text", text: "also do this next" }]);
+	});
 });
 
 // ---------------------------------------------------------------------------
@@ -729,5 +776,54 @@ describe("SessionImportService", () => {
 		// Re-discovery flags the import instead of duplicating it.
 		const rediscovered = await importer.discover();
 		expect(rediscovered[0].alreadyImportedSessionId).toBe(sessionId);
+	});
+
+	it("stamps the resume provider/model on the row and keeps the source in metadata", async () => {
+		const projectsDir = tempDir("cc-import-");
+		writeClaudeCodeFixture(projectsDir);
+		const dbDir = tempDir("cline-db-");
+		const artifactsDir = tempDir("cline-sessions-");
+		const store = new SqliteSessionStore({ sessionsDir: dbDir });
+		store.init();
+		const sessions = new CoreSessionService(store, {
+			sessionArtifactsDir: artifactsDir,
+		});
+		const importer = new SessionImportService(sessions, [
+			new ClaudeCodeImportAdapter({ projectsDir }),
+		]);
+
+		const [result] = await importer.importMany(
+			[{ tool: "claude-code", sourceId: "abc" }],
+			undefined,
+			{ provider: "cline", model: "anthropic/claude-sonnet-5" },
+		);
+		expect(result.ok).toBe(true);
+		const row = store.get(result.sessionId as string);
+		// Opening the session resumes on the row's provider/model.
+		expect(row?.provider).toBe("cline");
+		expect(row?.model).toBe("anthropic/claude-sonnet-5");
+		const importedFrom = (
+			row?.metadata as Record<string, Record<string, unknown>>
+		)?.importedFrom;
+		expect(importedFrom?.sourceProvider).toBe("anthropic");
+		expect(importedFrom?.sourceModel).toBe("claude-fable-5");
+		// Per-message model info still reflects what actually produced it.
+		const payload = JSON.parse(readFileSync(row?.messagesPath ?? "", "utf8"));
+		const assistant = payload.messages.find(
+			(message: { role: string }) => message.role === "assistant",
+		);
+		expect(assistant.modelInfo).toEqual({
+			id: "claude-fable-5",
+			provider: "anthropic",
+		});
+
+		// A half-specified target is ignored rather than mixing provider and
+		// model from different worlds.
+		const [partial] = await importer.importMany(
+			[{ tool: "claude-code", sourceId: "abc" }],
+			undefined,
+			{ provider: "cline" },
+		);
+		expect(store.get(partial.sessionId as string)?.provider).toBe("anthropic");
 	});
 });
