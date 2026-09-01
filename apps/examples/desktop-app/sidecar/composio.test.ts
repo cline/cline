@@ -740,6 +740,81 @@ describe("cancelComposioConnect", () => {
 		).toBe("connected");
 	});
 
+	it("re-fetches schemas for a connected toolkit stored with zero tools", async () => {
+		const dir = useTempDataDir();
+		process.env.COMPOSIO_API_KEY = "ck_self_heal";
+		// A wedged connector: connected, same account still ACTIVE remotely,
+		// but the schema fetch came back empty at connect time.
+		writeState(dir, {
+			apiKey: "ck_self_heal",
+			userId: "u_self_heal",
+			toolkits: {
+				googlecalendar: {
+					connectedAccountId: "ca_wedged",
+					connectedAt: "2026-08-28T00:00:00.000Z",
+					name: "Google Calendar",
+					tools: [],
+				},
+			},
+		});
+		const client = {
+			toolkits: { authorize: vi.fn() },
+			authConfigs: {
+				list: vi.fn(async () => ({ items: [] })),
+				create: vi.fn(),
+			},
+			tools: {
+				getRawComposioTools: vi.fn(async () => [
+					{ slug: "GOOGLECALENDAR_CREATE_EVENT" },
+					{ slug: "GOOGLECALENDAR_LIST_EVENTS" },
+				]),
+			},
+			connectedAccounts: {
+				list: vi.fn(async () => ({
+					items: [
+						{
+							id: "ca_wedged",
+							status: "ACTIVE",
+							toolkit: { slug: "googlecalendar" },
+						},
+					],
+				})),
+				link: vi.fn(),
+				delete: vi.fn(),
+			},
+		};
+		createMockComposioClient = () => client;
+
+		// Without a refresh, the wedge is at least visible on the card.
+		const before = await getComposioStatus();
+		expect(
+			before.integrations.find((entry) => entry.toolkit === "googlecalendar")
+				?.error,
+		).toMatch(/no tools were retrieved/);
+
+		const status = await getComposioStatus({ refresh: true });
+		const healed = status.integrations.find(
+			(entry) => entry.toolkit === "googlecalendar",
+		);
+		expect(healed?.status).toBe("connected");
+		expect(healed?.toolNames).toEqual([
+			"GOOGLECALENDAR_CREATE_EVENT",
+			"GOOGLECALENDAR_LIST_EVENTS",
+		]);
+		expect(healed?.error).toBeUndefined();
+		const persisted = readStateFile(dir).toolkits?.googlecalendar as {
+			connectedAccountId?: string;
+			connectedAt?: string;
+			tools?: unknown[];
+		};
+		expect(persisted?.tools).toHaveLength(2);
+		// The account did not change, so the connection metadata is kept.
+		expect(persisted?.connectedAccountId).toBe("ca_wedged");
+		expect(persisted?.connectedAt).toBe("2026-08-28T00:00:00.000Z");
+		// The plugin materializes now that a toolkit actually has tools.
+		expect(existsSync(join(dir, "plugins", "composio-tools.ts"))).toBe(true);
+	});
+
 	it("reconciliation prunes a tombstone after a confirmed retry revocation", async () => {
 		const dir = useTempDataDir();
 		process.env.COMPOSIO_API_KEY = "ck_refresh_prune";

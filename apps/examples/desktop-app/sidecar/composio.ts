@@ -545,6 +545,14 @@ function summarizeToolkit(
 	const catalogEntry = catalogCache?.entries.find(
 		(entry) => entry.slug === slug,
 	);
+	// A connected toolkit with zero materialized tools is a wedge, not a
+	// healthy state (sessions get nothing) — surface it instead of letting
+	// the card look fine. Reconciliation re-fetches the schemas on the next
+	// status refresh (see the self-heal arm in getComposioStatus).
+	const zeroToolsWarning =
+		status === "connected" && stored && stored.tools.length === 0
+			? "Connected, but no tools were retrieved from Composio yet. They are re-fetched automatically; if this persists, disconnect and reconnect."
+			: undefined;
 	return {
 		toolkit: slug,
 		name: recommended?.name ?? stored?.name ?? catalogEntry?.name ?? slug,
@@ -555,7 +563,7 @@ function summarizeToolkit(
 		connectedAccountId: stored?.connectedAccountId,
 		connectedAt: stored?.connectedAt,
 		toolNames: stored?.tools.map((tool) => tool.name?.trim() || tool.slug),
-		error: lastConnectionErrors.get(slug),
+		error: lastConnectionErrors.get(slug) ?? zeroToolsWarning,
 	};
 }
 
@@ -638,16 +646,33 @@ export async function getComposioStatus(options?: {
 				removals.push(slug);
 			} else if (
 				remoteAccountId &&
-				(!stored || stored.connectedAccountId !== remoteAccountId) &&
+				(!stored ||
+					stored.connectedAccountId !== remoteAccountId ||
+					// Self-heal: a toolkit persisted with zero tools (the schema
+					// fetch returned empty at connect time — a transient Composio
+					// hiccup, or state written by an older build) would otherwise
+					// stay wedged forever: reported as connected while sessions
+					// get no tools, with nothing ever re-fetching. Re-fetch
+					// instead of trusting the empty cache.
+					stored.tools.length === 0) &&
 				!pendingConnections.has(slug) &&
 				// The remote snapshot predates a local disconnect of this
 				// toolkit; writing it back would resurrect the connection.
 				(lastDisconnectedAt.get(slug) ?? 0) < refreshStartedAt
 			) {
+				// A same-account re-fetch keeps the original connection metadata.
+				const sameAccount = Boolean(
+					stored && stored.connectedAccountId === remoteAccountId,
+				);
 				imports.set(slug, {
 					connectedAccountId: remoteAccountId,
-					connectedAt: new Date().toISOString(),
+					connectedAt:
+						sameAccount && stored?.connectedAt
+							? stored.connectedAt
+							: new Date().toISOString(),
 					...lookupCatalogDisplayInfo(slug),
+					...(sameAccount && stored?.name ? { name: stored.name } : {}),
+					...(sameAccount && stored?.logo ? { logo: stored.logo } : {}),
 					tools: await fetchToolkitTools(client, slug),
 				});
 			}
