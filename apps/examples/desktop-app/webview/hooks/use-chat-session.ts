@@ -2090,6 +2090,7 @@ export function useChatSession(environmentId: string) {
 		[
 			addMessage,
 			appendTurnFailureMessage,
+			clearAbortFallbackTimeout,
 			clearLiveToolRefs,
 			finalizeSettledTurn,
 			flushPendingStream,
@@ -2279,7 +2280,6 @@ export function useChatSession(environmentId: string) {
 	}, [
 		appendTurnFailureMessage,
 		applyCloudSnapshotMessages,
-		clearAbortFallbackTimeout,
 		clearLiveToolRefs,
 		finalizeSettledTurn,
 	]);
