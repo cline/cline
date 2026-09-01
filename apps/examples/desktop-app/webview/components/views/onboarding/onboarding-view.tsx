@@ -834,18 +834,36 @@ function ConnectStep({
 }
 
 /**
- * Offers to bring session history over from other coding tools. Scans on
- * entry and silently advances when there is nothing to import, so only
+ * Offers to bring session history over from other coding tools. Scans once
+ * on entry and silently advances when there is nothing to import, so only
  * people who actually have Claude Code / Codex / opencode history ever see
- * this step.
+ * this step. After a successful import, onFinish closes onboarding directly
+ * — a second "you're all set" screen right after the import confirmation
+ * reads as a loop, not a finish.
  */
-function ImportHistoryStep({ onContinue }: { onContinue: () => void }) {
+function ImportHistoryStep({
+	onContinue,
+	onFinish,
+}: {
+	onContinue: () => void;
+	onFinish: () => void;
+}) {
 	const [found, setFound] = useState<{
 		count: number;
 		tools: SessionImportTool[];
 	} | null>(null);
 	const [dialogOpen, setDialogOpen] = useState(false);
 	const [imported, setImported] = useState(false);
+
+	// The parent recreates onContinue every render, and importing itself
+	// re-renders the app shell (history refresh). Keep the callback in a ref
+	// so the scan effect runs exactly once per step entry: a re-scan after
+	// importing would see zero remaining sessions and auto-advance out from
+	// under the user's own import confirmation.
+	const skipRef = useRef(onContinue);
+	useEffect(() => {
+		skipRef.current = onContinue;
+	});
 
 	useEffect(() => {
 		let cancelled = false;
@@ -862,7 +880,7 @@ function ImportHistoryStep({ onContinue }: { onContinue: () => void }) {
 					(session) => !session.alreadyImportedSessionId,
 				);
 				if (sessions.length === 0) {
-					onContinue();
+					skipRef.current();
 					return;
 				}
 				const tools = SESSION_IMPORT_TOOL_ORDER.filter((tool) =>
@@ -871,13 +889,13 @@ function ImportHistoryStep({ onContinue }: { onContinue: () => void }) {
 				setFound({ count: sessions.length, tools });
 			} catch {
 				// Onboarding must never dead-end on a scan failure.
-				if (!cancelled) onContinue();
+				if (!cancelled) skipRef.current();
 			}
 		})();
 		return () => {
 			cancelled = true;
 		};
-	}, [onContinue]);
+	}, []);
 
 	if (!found) {
 		return (
@@ -923,13 +941,13 @@ function ImportHistoryStep({ onContinue }: { onContinue: () => void }) {
 				{imported ? (
 					<Button
 						className="mt-8 w-full max-w-64"
-						onClick={onContinue}
+						onClick={onFinish}
 						size="lg"
 						tone="accent"
 						type="button"
 						variant="fill"
 					>
-						Continue
+						Start building
 					</Button>
 				) : (
 					<>
@@ -1054,7 +1072,10 @@ export function OnboardingView({
 						<GitHubConnectStep onContinue={() => setStep("import")} />
 					</OnboardingContent>
 				) : step === "import" ? (
-					<ImportHistoryStep onContinue={() => setStep("done")} />
+					<ImportHistoryStep
+						onContinue={() => setStep("done")}
+						onFinish={onComplete}
+					/>
 				) : (
 					<DoneStep connection={connection} onFinish={onComplete} />
 				)}
