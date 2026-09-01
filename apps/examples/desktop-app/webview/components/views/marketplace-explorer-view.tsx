@@ -28,12 +28,12 @@ import {
 import { cn } from "@/lib/utils";
 
 /**
- * Marketplace explorer: a two-pane master/detail directory in the spirit of
- * an IDE extensions panel. The left rail lists every catalog entry grouped by
- * primitive maturity (Skills, then MCP, then plugins); the right pane is a
- * full detail page for the selected entry with the catalog's metadata
- * (author, license, verified state, tags, install command, env setup) and
- * links out to the entry's homepage and repository.
+ * Marketplace explorer: a master/detail directory in the spirit of an IDE
+ * extensions panel. Initially the catalog list fills the view, grouped by
+ * primitive maturity (Skills, then MCP, then plugins); clicking an entry
+ * opens a detail panel with the catalog's metadata (author, license,
+ * verified state, tags, install command, env setup) and links out to the
+ * entry's homepage and repository.
  */
 
 /** Ordered most-mature first: skills > MCP servers > plugins. */
@@ -368,10 +368,12 @@ function MetaCell({
 function DetailPane({
 	directory,
 	entry,
+	onClose,
 	onSelectTag,
 }: {
 	directory: MarketplaceDirectory;
 	entry: MarketplaceEntry;
+	onClose: () => void;
 	onSelectTag: (tag: string) => void;
 }) {
 	const meta = TYPE_META[entry.type];
@@ -392,7 +394,7 @@ function DetailPane({
 
 	return (
 		<ScrollArea className="h-full min-w-0 flex-1">
-			<div className="mx-auto grid max-w-3xl gap-6 px-8 py-8 max-[900px]:px-5">
+			<div className="grid max-w-3xl gap-6 px-8 py-8 max-[900px]:px-5">
 				<div className="flex items-start gap-5">
 					<div className="min-w-0 flex-1">
 						<div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -466,6 +468,16 @@ function DetailPane({
 							</output>
 						) : null}
 					</div>
+					<Button
+						aria-label="Close details"
+						className="shrink-0 text-muted-foreground"
+						onClick={onClose}
+						size="icon"
+						type="button"
+						variant="ghost"
+					>
+						<X className="size-4" />
+					</Button>
 				</div>
 
 				<div className="grid grid-cols-3 gap-4 rounded-xl border bg-card p-4 max-[720px]:grid-cols-2">
@@ -650,9 +662,7 @@ export function MarketplaceExplorerView() {
 
 	const selectedEntry = useMemo(() => {
 		const flat = groups.flatMap((group) => group.entries);
-		return (
-			flat.find((entry) => entryKey(entry) === selectedKey) ?? flat[0] ?? null
-		);
+		return flat.find((entry) => entryKey(entry) === selectedKey) ?? null;
 	}, [groups, selectedKey]);
 
 	const typeCounts = useMemo(() => {
@@ -684,7 +694,14 @@ export function MarketplaceExplorerView() {
 
 	return (
 		<div className="flex h-full min-h-0 min-w-0">
-			<aside className="flex w-85 shrink-0 flex-col border-r max-[900px]:w-72">
+			<aside
+				className={cn(
+					"flex flex-col",
+					selectedEntry
+						? "w-85 shrink-0 border-r max-[900px]:w-72"
+						: "min-w-0 flex-1",
+				)}
+			>
 				<div className="grid gap-2.5 border-b p-3">
 					<div className="relative">
 						<Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -814,13 +831,10 @@ export function MarketplaceExplorerView() {
 				<DetailPane
 					directory={directory}
 					entry={selectedEntry}
+					onClose={() => setSelectedKey(null)}
 					onSelectTag={setSelectedTag}
 				/>
-			) : (
-				<div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
-					Select an entry to see details.
-				</div>
-			)}
+			) : null}
 		</div>
 	);
 }
