@@ -123,19 +123,20 @@ export function buildAgentHooks(
 					return undefined
 				}
 
+				const taskId = taskIdFromSnapshot(ctx.snapshot)
+				const toolName = ctx.toolCall.toolName
 				const factory = createFactory()
-				const runner = await factory.create("PreToolUse")
+				const runner = await factory.create("PreToolUse", taskId, toolName)
 				if (runner.isNoOp) {
 					return undefined
 				}
 
-				const toolName = ctx.toolCall.toolName
 				const runningMsg = buildHookStatusMessage({ hookName: "PreToolUse", toolName, status: "running" })
 				runningTs = runningMsg.ts
 				emitHookMessage?.(runningMsg)
 
 				const result = await runner.run({
-					taskId: taskIdFromSnapshot(ctx.snapshot),
+					taskId,
 					preToolUse: {
 						toolName,
 						parameters: toStringRecord(ctx.input),
@@ -182,19 +183,20 @@ export function buildAgentHooks(
 					return undefined
 				}
 
+				const taskId = taskIdFromSnapshot(ctx.snapshot)
+				const toolName = ctx.toolCall.toolName
 				const factory = createFactory()
-				const runner = await factory.create("PostToolUse")
+				const runner = await factory.create("PostToolUse", taskId, toolName)
 				if (runner.isNoOp) {
 					return undefined
 				}
 
-				const toolName = ctx.toolCall.toolName
 				const runningMsg = buildHookStatusMessage({ hookName: "PostToolUse", toolName, status: "running" })
 				runningTs = runningMsg.ts
 				emitHookMessage?.(runningMsg)
 
 				const result = await runner.run({
-					taskId: taskIdFromSnapshot(ctx.snapshot),
+					taskId,
 					postToolUse: {
 						toolName,
 						parameters: toStringRecord(ctx.input),
@@ -253,13 +255,13 @@ export function buildAgentHooks(
 					return
 				}
 
+				const taskId = taskIdFromSnapshot(ctx.snapshot)
 				const factory = createFactory()
-				const runner = await factory.create(hookName)
+				const runner = await factory.create(hookName, taskId)
 				if (runner.isNoOp) {
 					return
 				}
 
-				const taskId = taskIdFromSnapshot(ctx.snapshot)
 				const runningMsg = buildHookStatusMessage({ hookName, status: "running" })
 				runningTs = runningMsg.ts
 				emitHookMessage?.(runningMsg)
@@ -313,8 +315,9 @@ async function runTaskStart(
 			return undefined
 		}
 
+		const taskId = taskIdFromSnapshot(ctx.snapshot)
 		const factory = createFactory()
-		const runner = await factory.create("TaskStart")
+		const runner = await factory.create("TaskStart", taskId)
 		if (runner.isNoOp) {
 			return undefined
 		}
@@ -323,7 +326,6 @@ async function runTaskStart(
 		runningTs = runningMsg.ts
 		emitHookMessage?.(runningMsg)
 
-		const taskId = taskIdFromSnapshot(ctx.snapshot)
 		const result = await runner.run({
 			taskId,
 			taskStart: {
@@ -362,8 +364,9 @@ async function runUserPromptSubmit(
 			return undefined
 		}
 
+		const taskId = taskIdFromSnapshot(ctx.snapshot)
 		const factory = createFactory()
-		const runner = await factory.create("UserPromptSubmit")
+		const runner = await factory.create("UserPromptSubmit", taskId)
 		if (runner.isNoOp) {
 			return undefined
 		}
@@ -373,7 +376,7 @@ async function runUserPromptSubmit(
 		emitHookMessage?.(runningMsg)
 
 		const result = await runner.run({
-			taskId: taskIdFromSnapshot(ctx.snapshot),
+			taskId,
 			userPromptSubmit: {
 				prompt: latestUserPrompt(ctx),
 				attachments: [],
