@@ -59,7 +59,7 @@ import {
 	setStoredHubTheme,
 } from "@/lib/theme";
 import { cn } from "@/lib/utils";
-import { MarketplaceView } from "../marketplace-view";
+import { MarketplaceExplorerView } from "../marketplace-explorer-view";
 import { PageFrame, PageHeader } from "../page-layout";
 import { AccountView } from "./account-view";
 import { AddProviderContent, type AddProviderPayload } from "./add-provider";
@@ -616,10 +616,7 @@ export function SettingsView({
 				onOpenMarketplace={() => onNavigateSection("Marketplace")}
 			/>
 		) : activeNav === "Marketplace" ? (
-			<MarketplaceView
-				onOpenInstalled={() => onNavigateSection("Customize")}
-				variant="directory"
-			/>
+			<MarketplaceExplorerView />
 		) : activeNav === "Channels" ? (
 			<ChannelsContent />
 		) : activeNav === "Schedules" ? (
