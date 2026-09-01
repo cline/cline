@@ -76,7 +76,6 @@ export function HubOutdatedContent(
 		activeSessionCount,
 		dialogId,
 		dismiss,
-		hubCoreVersion,
 		participantClientCount,
 		resolve,
 	} = props;
@@ -97,9 +96,7 @@ export function HubOutdatedContent(
 			<text fg="yellow">Cline Hub update required</text>
 			<box flexDirection="column">
 				<text selectable>
-					This CLI needs a newer Cline Hub than the one currently running
-					{hubCoreVersion ? ` (core ${hubCoreVersion})` : ""}. It was left
-					running because it is still serving{" "}
+					This CLI needs a newer Cline Hub, but the running one is still serving{" "}
 					{describeOutdatedHubSessions({
 						activeSessionCount,
 						participantClientCount,
@@ -107,17 +104,16 @@ export function HubOutdatedContent(
 					.
 				</text>
 				<text selectable>
-					Updating now stops that Hub and interrupts those sessions. Dismiss to
-					keep it running and update later.
+					Updating stops that Hub and interrupts its sessions.
 				</text>
 			</box>
 			<box flexDirection="row">
 				<box paddingX={1} backgroundColor={palette.act}>
-					<text fg={palette.textOnSelection}>Update Hub now</text>
+					<text fg={palette.textOnSelection}>Update Now</text>
 				</box>
 			</box>
 			<text fg={palette.muted}>
-				Press Enter to update the Hub now, Esc to keep it running
+				Press Enter to update now, Esc to keep the Hub running
 			</text>
 		</box>
 	);

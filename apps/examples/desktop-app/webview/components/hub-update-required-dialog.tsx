@@ -148,17 +148,13 @@ export function HubUpdateRequiredDialog() {
 					<AlertDialogHeader>
 						<AlertDialogTitle>Cline Hub update required</AlertDialogTitle>
 						<AlertDialogDescription>
-							This version of Cline needs a newer Cline Hub than the one
-							currently running
-							{mismatch.hubCoreVersion
-								? ` (core ${mismatch.hubCoreVersion})`
-								: ""}
-							. The running Hub was left in place because it is still serving{" "}
-							{describeOutdatedHubSessions(mismatch)}.
+							Cline needs a newer Cline Hub, but the running one is still
+							serving {describeOutdatedHubSessions(mismatch)}.
 						</AlertDialogDescription>
 						<AlertDialogDescription>
-							Updating now stops the running Hub and interrupts those sessions.
-							Quitting keeps it running so you can update later.
+							Update Now stops that Hub and interrupts its sessions. Quit Cline
+							closes this app and leaves the Hub running, so you can update
+							later.
 						</AlertDialogDescription>
 						{updateHint ? (
 							<AlertDialogDescription>{updateHint}</AlertDialogDescription>
@@ -184,10 +180,10 @@ export function HubUpdateRequiredDialog() {
 							{phase === "restarting"
 								? "Restarting…"
 								: phase === "updating"
-									? "Updating Hub…"
+									? "Updating…"
 									: updateHint
 										? "Try again"
-										: "Update Hub now"}
+										: "Update Now"}
 						</AlertDialogAction>
 					</AlertDialogFooter>
 				</AlertDialogContent>
