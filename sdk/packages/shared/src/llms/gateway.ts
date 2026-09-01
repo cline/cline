@@ -244,6 +244,8 @@ export interface GatewayStreamRequest {
 	 */
 	defaultedMaxTokens?: boolean;
 	metadata?: Record<string, unknown>;
+	/** OpenAI request service tier. */
+	serviceTier?: "fast";
 	reasoning?: {
 		enabled?: boolean;
 		effort?: ReasoningEffort;

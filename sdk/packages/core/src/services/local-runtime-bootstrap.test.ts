@@ -80,6 +80,35 @@ describe("prepareLocalRuntimeBootstrap", () => {
 		});
 	});
 
+	it("applies the session OpenAI service tier to provider config", async () => {
+		const { prepareLocalRuntimeBootstrap } = await import(
+			"./local-runtime-bootstrap"
+		);
+		const input = createStartInput() as ReturnType<typeof createStartInput> & {
+			config: ReturnType<typeof createStartInput>["config"] & {
+				serviceTier?: "fast";
+			};
+		};
+		input.config.providerId = "openai-native";
+		input.config.modelId = "gpt-5.6-sol";
+		input.config.serviceTier = "fast";
+
+		const bootstrap = await prepareLocalRuntimeBootstrap({
+			input,
+			sessionId: "sess-fast-mode",
+			providerSettingsManager: createProviderSettingsManager() as never,
+			defaultTelemetry: undefined,
+			defaultToolPolicies: undefined,
+			onPluginEvent: () => {},
+			onTeamEvent: () => {},
+			createSpawnTool,
+			readSessionMetadata: async () => undefined,
+			writeSessionMetadata: async () => {},
+		});
+
+		expect(bootstrap.providerConfig.serviceTier).toBe("fast");
+	});
+
 	it("lets stored provider model catalog settings override hub defaults", async () => {
 		const { prepareLocalRuntimeBootstrap } = await import(
 			"./local-runtime-bootstrap"

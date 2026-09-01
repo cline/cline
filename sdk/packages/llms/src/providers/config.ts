@@ -114,6 +114,8 @@ export interface ModelConfig {
 	modelInfo?: ModelInfo;
 	/** Known models for this provider with their info */
 	knownModels?: Record<string, ModelInfo>;
+	/** OpenAI request service tier. */
+	serviceTier?: "fast";
 }
 
 /**

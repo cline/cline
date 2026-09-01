@@ -49,6 +49,10 @@ export interface CoreModelConfig {
 	 * Sampling temperature per API call.
 	 */
 	temperature?: number;
+	/**
+	 * OpenAI request service tier.
+	 */
+	serviceTier?: ProviderConfig["serviceTier"];
 }
 
 export interface CoreRuntimeFeatures {

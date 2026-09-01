@@ -118,6 +118,7 @@ function makeRequest(overrides: RequestOverrides): GatewayStreamRequest {
 		systemPrompt: overrides.systemPrompt,
 		temperature: overrides.temperature,
 		maxTokens: overrides.maxTokens,
+		serviceTier: overrides.serviceTier,
 		reasoning: overrides.reasoning,
 		signal: overrides.signal,
 		tools: overrides.tools,
@@ -2284,6 +2285,40 @@ describe("composeAiSdkProviderOptions: provider-specific overlays", () => {
 			expect.objectContaining({ store: false }),
 		);
 		expect(result.openaiCodex).not.toHaveProperty("truncation");
+	});
+
+	it.each([
+		"openai-native",
+		"openai-codex",
+	])("emits OpenAI Fast mode for %s", (providerId) => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId,
+				modelId: "gpt-5.6-sol",
+				serviceTier: "fast",
+			}),
+			makeContext({ providerId, modelId: "gpt-5.6-sol" }),
+		);
+
+		expect(result.openai).toEqual(
+			expect.objectContaining({ serviceTier: "fast" }),
+		);
+	});
+
+	it("does not emit OpenAI Fast mode for non-OpenAI providers", () => {
+		for (const { providerId, modelId } of [
+			{ providerId: "anthropic", modelId: "claude-sonnet-4-6" },
+			{ providerId: "openai", modelId: "gpt-5.6-sol" },
+			{ providerId: "custom-openai-adapter", modelId: "gpt-5.6-sol" },
+		]) {
+			const result = composeAiSdkProviderOptions(
+				makeRequest({ providerId, modelId, serviceTier: "fast" }),
+				makeContext({ providerId, modelId }),
+				"openai",
+			);
+
+			expect(result.openai).not.toHaveProperty("serviceTier");
+		}
 	});
 
 	it("keeps portable OpenAI Codex effort out of every provider bucket", () => {

@@ -419,6 +419,36 @@ describe("createAgentModelFromConfig", () => {
 		);
 	});
 
+	it("forwards the OpenAI service tier to gateway provider options", async () => {
+		const { createAgentModelFromConfig } = await import("./handler-factory");
+
+		createAgentModelFromConfig(
+			{
+				providerId: "openai-native",
+				modelId: "gpt-5.6-sol",
+				systemPrompt: "",
+				tools: [],
+				providerConfig: {
+					providerId: "openai-native",
+					modelId: "gpt-5.6-sol",
+					serviceTier: "fast",
+				},
+			},
+			undefined,
+		);
+
+		expect(gatewayMock.createGateway).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				providerConfigs: [
+					expect.objectContaining({
+						providerId: "openai-native",
+						options: expect.objectContaining({ serviceTier: "fast" }),
+					}),
+				],
+			}),
+		);
+	});
+
 	it("projects providers.json contextWindow (maxInputTokens) onto the selected gateway model", async () => {
 		const { createAgentModelFromConfig } = await import("./handler-factory");
 

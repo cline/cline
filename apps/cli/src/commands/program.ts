@@ -35,6 +35,10 @@ export function addRootOptions(cmd: Command): Command {
 				"--thinking <level>",
 				"Set reasoning effort: none|low|medium|high|xhigh. Bare --thinking uses medium; omitted leaves provider default.",
 			)
+			.option(
+				"--fast",
+				"Use OpenAI Fast mode with OpenAI or ChatGPT subscription providers (higher per-token cost)",
+			)
 			.option("--compaction <mode>", CLI_COMPACTION_MODE_OPTION_DESCRIPTION)
 			.option(
 				"-i, --tui",
@@ -138,6 +142,7 @@ export function commanderToParsedArgs(program: Command): ParsedArgs {
 		acpMode: !!opts.acp,
 		thinking: false,
 		reasoningEffort: undefined,
+		fast: !!opts.fast,
 		defaultToolAutoApprove: true,
 		id: opts.id,
 	};

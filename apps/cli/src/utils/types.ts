@@ -80,6 +80,7 @@ export interface ParsedArgs {
 	thinkingExplicitlySet?: boolean;
 	reasoningEffort?: CliReasoningEffort;
 	invalidThinkingLevel?: string;
+	fast: boolean;
 	compactionMode?: CliCompactionMode;
 	invalidCompactionMode?: string;
 	invalidAutoApprove?: string;

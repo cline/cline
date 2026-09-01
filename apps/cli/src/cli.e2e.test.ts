@@ -126,6 +126,7 @@ describe("cli e2e", () => {
 		expect(asText(result.stdout)).toContain("--auto-approve [value]");
 		expect(asText(result.stdout)).toContain("--data-dir");
 		expect(asText(result.stdout)).toContain("--thinking [level]");
+		expect(asText(result.stdout)).toContain("--fast");
 		expect(asText(result.stdout)).not.toContain("--reasoning-effort");
 		expect(asText(result.stdout)).not.toContain("--act");
 		expect(asText(result.stdout)).toContain("Show current configuration");

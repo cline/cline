@@ -51,6 +51,16 @@ function buildBaseProviderOptionsPatch(
 	};
 }
 
+function buildOpenAIServiceTierPatch(
+	request: GatewayStreamRequest,
+): ProviderOptionsPatch | undefined {
+	return request.serviceTier === "fast" &&
+		(request.providerId === "openai-native" ||
+			request.providerId === "openai-codex")
+		? { openai: { serviceTier: "fast" } }
+		: undefined;
+}
+
 /**
  * Compose AI SDK `providerOptions` from named provider/model-family rules.
  *
@@ -109,5 +119,6 @@ export function composeAiSdkProviderOptions(
 	return mergeProviderOptionPatches([
 		buildBaseProviderOptionsPatch(compatibleOptions, anthropicOptions),
 		...buildProviderOptionRulePatches(matchedRules, buildInput),
+		buildOpenAIServiceTierPatch(normalizedRequest),
 	]);
 }
