@@ -21,6 +21,11 @@ interface SpeechRecognitionEvent extends Event {
 	resultIndex: number;
 }
 
+interface SpeechRecognitionErrorEvent extends Event {
+	error: string;
+	message?: string;
+}
+
 interface SpeechRecognitionResultList {
 	readonly length: number;
 	[index: number]: SpeechRecognitionResult;
@@ -35,6 +40,20 @@ interface SpeechRecognitionResult {
 interface SpeechRecognitionAlternative {
 	transcript: string;
 	confidence: number;
+}
+
+function errorFromEvent(event: Event, fallbackMessage: string): Error {
+	const eventError = (event as Event & { error?: unknown }).error;
+	if (eventError instanceof Error) return eventError;
+
+	const eventMessage = (event as Event & { message?: unknown }).message;
+	if (typeof eventMessage === "string" && eventMessage.trim()) {
+		return new Error(eventMessage.trim());
+	}
+	if (typeof eventError === "string" && eventError.trim()) {
+		return new Error(`${fallbackMessage}: ${eventError.trim()}`);
+	}
+	return new Error(fallbackMessage);
 }
 
 declare global {
@@ -191,7 +210,10 @@ export function SpeechInput({
 		};
 		const handleError = (event: Event) => {
 			setIsListening(false);
-			onErrorRef.current?.(event);
+			const speechError = event as SpeechRecognitionErrorEvent;
+			onErrorRef.current?.(
+				errorFromEvent(speechError, "Speech recognition failed"),
+			);
 		};
 
 		recognition.addEventListener("start", handleStart);
@@ -302,7 +324,7 @@ export function SpeechInput({
 				for (const track of stream.getTracks()) track.stop();
 				streamRef.current = null;
 				mediaRecorderRef.current = null;
-				onErrorRef.current?.(event);
+				onErrorRef.current?.(errorFromEvent(event, "Audio recording failed"));
 			});
 			recorder.addEventListener("stop", async () => {
 				for (const track of stream.getTracks()) track.stop();

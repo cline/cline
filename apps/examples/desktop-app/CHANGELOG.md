@@ -1,5 +1,16 @@
 # Cline Desktop Changelog
 
+## 0.0.21
+
+- Marketplace is now a two-pane explorer: a browsable list on the left and full catalog metadata for the selected item on the right, with category tag filters that collapse behind a "more" toggle
+- Stopping a session now actually stops everything it started. Stop stays available while child agents are running, and an abort propagates to delegated subagents and to teammates instead of leaving orphaned work running in the background; cancelled teammate tasks now persist as cancelled
+- Fixed the ask-a-question tool's option text overflowing instead of wrapping
+- You can now drop file attachments anywhere over the chat input, not just on the small attach target
+- Cline provider models now refresh from the live catalog, so newly released models show up without waiting for an app update
+- Provider 401/403 responses are now classified as authentication errors rather than generic request failures, so a bad or missing API key is distinguishable from a real provider outage
+- Fixed Langfuse tracing never initializing in release builds — the minified bundle broke tracer detection, so telemetry worked in dev and silently did nothing in the shipped app. Also updated for AI SDK 7's telemetry API
+- Refreshed the model catalog. Adds TokenGo and Volcengine Ark, and updates model lists, pricing, and the resolved default model for ~36 providers (including Hugging Face, Mistral, OpenRouter, Together, NanoGPT, Requesty, Baseten, Cloudflare Workers AI, and DigitalOcean) — if you use one of those without pinning a model, you will get a different default
+
 ## 0.0.20
 
 - Cline Desktop now ships on Windows: releases include a code-signed x64 installer, and installed apps auto-update on the same feed macOS does
