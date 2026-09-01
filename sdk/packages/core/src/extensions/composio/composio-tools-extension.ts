@@ -162,22 +162,35 @@ export function createComposioToolsExtension(options?: {
 						continue;
 					}
 					registered.add(toolName);
-					api.registerTool(
-						createTool({
-							name: toolName,
-							description: `${tool.description || tool.name || tool.slug} (${toolkitSlug} account connected via Composio)`,
-							inputSchema: (tool.inputParameters ?? {
-								type: "object",
-								properties: {},
-							}) as never,
-							timeoutMs: COMPOSIO_TOOL_TIMEOUT_MS,
-							// Composio tools can have side effects (send an email,
-							// open an issue); never auto-retry them.
-							retryable: false,
-							execute: (input: unknown) =>
-								executeComposioTool(apiKey, userId, tool, input),
-						}),
-					);
+					try {
+						api.registerTool(
+							createTool({
+								name: toolName,
+								description: `${tool.description || tool.name || tool.slug} (${toolkitSlug} account connected via Composio)`,
+								inputSchema: (tool.inputParameters ?? {
+									type: "object",
+									properties: {},
+								}) as never,
+								timeoutMs: COMPOSIO_TOOL_TIMEOUT_MS,
+								// Composio tools can have side effects (send an email,
+								// open an issue); never auto-retry them.
+								retryable: false,
+								execute: (input: unknown) =>
+									executeComposioTool(apiKey, userId, tool, input),
+							}),
+						);
+					} catch (error) {
+						// The schemas are external data persisted at connect time;
+						// createTool rejects shapes it cannot represent (e.g. an
+						// unsupported top-level allOf/oneOf/anyOf). One malformed
+						// schema must cost only its own tool — a throw here would
+						// propagate out of extension setup and block session
+						// initialization for every tool and toolkit.
+						registered.delete(toolName);
+						options?.logger?.log?.(
+							`composio-tools: skipping ${tool.slug}: ${error instanceof Error ? error.message : String(error)}`,
+						);
+					}
 				}
 			}
 			options?.logger?.log?.(

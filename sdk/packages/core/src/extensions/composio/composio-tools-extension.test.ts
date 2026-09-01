@@ -119,6 +119,33 @@ describe("createComposioToolsExtension", () => {
 		expect(sendEmail?.retryable).toBe(false);
 	});
 
+	it("skips a tool whose stored schema createTool rejects instead of failing setup", async () => {
+		writeState({
+			apiKey: "ck_test",
+			userId: "u_test",
+			toolkits: {
+				github: {
+					connectedAccountId: "ca_github",
+					tools: [
+						{
+							slug: "GITHUB_BROKEN_TOOL",
+							// A top-level allOf with no object-shaped branch is a shape
+							// createTool rejects loudly. Schemas are external data, so
+							// one bad entry must cost only its own tool — a throw here
+							// would block session initialization entirely.
+							inputParameters: {
+								allOf: [{ type: "string" }, { type: "number" }],
+							},
+						},
+						{ slug: "GITHUB_CREATE_AN_ISSUE" },
+					],
+				},
+			},
+		});
+		const tools = await setupTools();
+		expect(tools.map((tool) => tool.name)).toEqual(["github_create_an_issue"]);
+	});
+
 	it("executes tools against the Composio REST API with the pinned version", async () => {
 		writeState({
 			apiKey: "ck_test",
