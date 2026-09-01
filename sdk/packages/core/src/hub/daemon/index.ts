@@ -15,7 +15,7 @@ import {
 	withResolvedClineBuildEnv,
 } from "@cline/shared";
 import {
-	localHubHasNoActiveSessions,
+	queryHubSessionActivity,
 	rememberRecoverableLocalHubUrl,
 	requestHubDrain,
 	requestHubShutdown,
@@ -23,7 +23,9 @@ import {
 } from "../client";
 import {
 	clearHubDiscovery,
+	compareHubBuilds,
 	createHubServerUrl,
+	getManagedHubCompatibility,
 	type HubOwnerContext,
 	type HubServerDiscoveryRecord,
 	type HubServerProbeRecord,
@@ -31,6 +33,7 @@ import {
 	probeHubServer,
 	readHubDiscovery,
 	resolveClineDataDir,
+	resolveHubBuildIdentity,
 	withHubStartupLock,
 	writeHubDiscovery,
 } from "../discovery";
@@ -264,7 +267,11 @@ export async function hubHasLiveSessions(
 	record: Pick<HubServerProbeRecord, "url" | "authToken">,
 ): Promise<boolean> {
 	try {
-		return !(await localHubHasNoActiveSessions(record.url, record.authToken));
+		const activity = await queryHubSessionActivity(
+			record.url,
+			record.authToken,
+		);
+		return activity.activeSessionCount > 0;
 	} catch {
 		return false;
 	}
@@ -684,4 +691,153 @@ export async function ensureDetachedHubServer(
 	return await withHubStartupLock(owner.discoveryPath, async () =>
 		ensureDetachedHubServerLocked(owner, workspaceRoot, endpointOverrides),
 	);
+}
+
+const HUB_UPGRADE_DEFAULT_WAIT_MS = 5_000;
+const HUB_UPGRADE_IDLE_POLL_MS = 500;
+
+export interface UpgradeManagedHubOptions {
+	workspaceRoot?: string;
+	/**
+	 * How long to wait, after draining, for the hub's live sessions to finish
+	 * before replacing it (`force`) or giving up (`still_busy`).
+	 */
+	waitForIdleMs?: number;
+	/**
+	 * Replace the hub even if sessions are still live once the wait expires.
+	 * Only set this on a user-consented path: those sessions die mid-turn.
+	 */
+	force?: boolean;
+	/** Recorded as the hub's drain reason, visible in `hub.status`. */
+	reason?: string;
+}
+
+export type UpgradeManagedHubOutcome =
+	/** The running older hub was retired and a current-build hub is up. */
+	| "replaced"
+	/** No live hub was found; a current-build hub was started. */
+	| "started"
+	/** The running hub already matches this build; nothing to do. */
+	| "already_current"
+	/**
+	 * The running hub is newer than (or unorderable against) this build.
+	 * Replacing it would downgrade another install's hub and reopen the
+	 * mutual-retire loop (#13145), so it is refused; updating this client is
+	 * the fix.
+	 */
+	| "hub_not_older"
+	/** `force` was not set and sessions never finished; the hub was un-drained
+	 * and left running. */
+	| "still_busy";
+
+export interface UpgradeManagedHubResult {
+	outcome: UpgradeManagedHubOutcome;
+	url?: string;
+	authToken?: string;
+	/**
+	 * Live sessions observed on the old hub at decision time: the sessions
+	 * that were interrupted (`replaced`) or that kept it running
+	 * (`still_busy`).
+	 */
+	activeSessionCount?: number;
+}
+
+/**
+ * Replace the managed local hub with one running this build, on the user's
+ * explicit say-so. This is the deliberate counterpart to the automatic
+ * replacement in `ensureDetachedHubServer`, which defers while the older hub
+ * is serving sessions: drain first (the hub refuses new work while in-flight
+ * turns get `waitForIdleMs` to finish), then the shared graceful retire
+ * ladder, then a fresh daemon.
+ *
+ * Never replaces a hub this build is not strictly newer than - the build
+ * total order guarantees at most one side of any install pair can reach the
+ * retire step, which is what keeps two mixed installs from taking turns
+ * "upgrading" the hub to their own build.
+ */
+export async function upgradeManagedHub(
+	options: UpgradeManagedHubOptions = {},
+): Promise<UpgradeManagedHubResult> {
+	const owner = resolveDefaultHubOwnerContext();
+	const workspaceRoot = options.workspaceRoot ?? process.cwd();
+	const discovered = await readHubDiscovery(owner.discoveryPath);
+	const live = discovered?.url
+		? await safeProbeHubServer(discovered.url, discovered.authToken)
+		: undefined;
+	if (!live?.url) {
+		const ensured = await ensureDetachedHubServer(workspaceRoot);
+		return { outcome: "started", ...ensured };
+	}
+	const record = {
+		...live,
+		authToken: live.authToken ?? discovered?.authToken,
+		pid: live.pid ?? discovered?.pid,
+	};
+	if (getManagedHubCompatibility(live).compatible) {
+		return {
+			outcome: "already_current",
+			url: live.url,
+			authToken: record.authToken,
+		};
+	}
+	if (compareHubBuilds(resolveHubBuildIdentity(), live) <= 0) {
+		return {
+			outcome: "hub_not_older",
+			url: live.url,
+			authToken: record.authToken,
+		};
+	}
+	const drained = await requestHubDrain(
+		record.url,
+		record.authToken,
+		options.reason ?? "hub upgrade requested",
+	).catch(() => false);
+	// An aborted upgrade must hand the hub back: leaving it draining refuses
+	// all new mutating work until a restart.
+	const undrain = async (): Promise<void> => {
+		if (!drained) {
+			return;
+		}
+		await requestHubDrain(record.url, record.authToken, "hub upgrade aborted", {
+			off: true,
+		}).catch(() => false);
+	};
+	let activeSessionCount = 0;
+	const deadline =
+		Date.now() + (options.waitForIdleMs ?? HUB_UPGRADE_DEFAULT_WAIT_MS);
+	// Check at least once so waitForIdleMs: 0 still observes an idle hub.
+	for (;;) {
+		try {
+			activeSessionCount = (
+				await queryHubSessionActivity(record.url, record.authToken)
+			).activeSessionCount;
+		} catch {
+			// Same fail-open as the automatic retire path: a hub that cannot
+			// answer is not pinned alive by sessions nobody can observe.
+			activeSessionCount = 0;
+		}
+		if (activeSessionCount === 0 || Date.now() >= deadline) {
+			break;
+		}
+		await new Promise((resolve) =>
+			setTimeout(resolve, HUB_UPGRADE_IDLE_POLL_MS),
+		);
+	}
+	if (activeSessionCount > 0 && options.force !== true) {
+		await undrain();
+		return {
+			outcome: "still_busy",
+			url: record.url,
+			authToken: record.authToken,
+			activeSessionCount,
+		};
+	}
+	if (!(await retireDiscoveredHub(record, owner.discoveryPath))) {
+		await undrain();
+		throw new Error(
+			`The running Cline Hub at ${record.url} could not be stopped. Run 'cline doctor fix' to stop stale hub daemons, then try again.`,
+		);
+	}
+	const ensured = await ensureDetachedHubServer(workspaceRoot);
+	return { outcome: "replaced", ...ensured, activeSessionCount };
 }
