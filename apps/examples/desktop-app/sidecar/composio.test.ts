@@ -1190,7 +1190,14 @@ describe("disconnectComposioToolkit", () => {
 				?.status,
 		).toBe("not_connected");
 		releaseToolFetch?.();
-		await connectPromise;
+		const connectResult = await connectPromise;
+		// A dropped result must not claim success on the wire either.
+		expect(connectResult.alreadyConnected).toBeUndefined();
+		expect(
+			connectResult.status.integrations.find(
+				(entry) => entry.toolkit === "github",
+			)?.status,
+		).toBe("not_connected");
 		// The finalize result must not resurrect the connector…
 		expect(readStateFile(dir).toolkits?.github).toBeUndefined();
 		const status = await getComposioStatus();
@@ -1267,7 +1274,8 @@ describe("disconnectComposioToolkit", () => {
 				?.status,
 		).toBe("not_connected");
 		releaseAuthorize?.();
-		await connectPromise;
+		const connectResult = await connectPromise;
+		expect(connectResult.alreadyConnected).toBeUndefined();
 		expect(readStateFile(dir).toolkits?.github).toBeUndefined();
 		expect(remoteDelete).toHaveBeenCalledWith("ca_new_init");
 	});

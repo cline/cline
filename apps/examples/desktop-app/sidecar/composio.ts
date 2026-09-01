@@ -912,8 +912,9 @@ export async function connectComposioToolkit(
 		// Composio's side) — finalize right away. There is no pending entry on
 		// this path, so the disconnect defense lives entirely in the guard's
 		// startedAt check inside finalizeToolkitConnection.
+		let persisted: boolean;
 		try {
-			await finalizeToolkitConnection(
+			persisted = await finalizeToolkitConnection(
 				client,
 				toolkit,
 				connectionRequest.id,
@@ -930,8 +931,11 @@ export async function connectComposioToolkit(
 			await abandonFinalizedConnection(connectionRequest.id, guard.apiKey, logger);
 			throw error;
 		}
+		// A dropped result (a disconnect won the race, or the key changed
+		// mid-flow) must not report success: the connector is NOT connected,
+		// and the status below already reflects that.
 		return {
-			alreadyConnected: true,
+			...(persisted ? { alreadyConnected: true } : {}),
 			status: buildStatusResponse(readComposioState()),
 		};
 	}
@@ -1191,13 +1195,16 @@ async function abandonFinalizedConnection(
 	}
 }
 
+/** Returns whether the connection was actually persisted — a dropped result
+ * (superseded attempt, key change, or a disconnect that won the race) must
+ * not be reported as a successful connect by callers. */
 async function finalizeToolkitConnection(
 	client: ComposioClient,
 	toolkit: ComposioToolkitSlug,
 	connectedAccountId: string,
 	guard: FinalizeGuard,
 	logger?: BasicLogger,
-): Promise<void> {
+): Promise<boolean> {
 	const tools = await fetchToolkitTools(client, toolkit);
 	// Everything below (up to the state write) runs synchronously, so these
 	// write-time checks cannot be raced by a cancel, disconnect, or key
@@ -1212,7 +1219,7 @@ async function finalizeToolkitConnection(
 		logger?.log?.(
 			`composio connect ${toolkit}: attempt superseded before finalize; dropping result`,
 		);
-		return;
+		return false;
 	}
 	const state = readComposioState();
 	if (state.apiKey !== guard.apiKey || state.userId !== guard.userId) {
@@ -1220,17 +1227,16 @@ async function finalizeToolkitConnection(
 			`composio connect ${toolkit}: API key or user changed mid-flow; dropping stale connection`,
 		);
 		await abandonFinalizedConnection(connectedAccountId, guard.apiKey, logger);
-		return;
+		return false;
 	}
 	if ((lastDisconnectedAt.get(toolkit) ?? 0) >= guard.startedAt) {
-		// The user disconnected this toolkit after the attempt began (and, on
-		// the redirect-less path, reported success with nothing to revoke yet);
-		// writing the result now would resurrect the connector they removed.
+		// The user disconnected this toolkit after the attempt began; writing
+		// the result now would resurrect the connector they removed.
 		logger?.log?.(
 			`composio connect ${toolkit}: disconnected mid-finalize; dropping and revoking the new account`,
 		);
 		await abandonFinalizedConnection(connectedAccountId, guard.apiKey, logger);
-		return;
+		return false;
 	}
 	// No await separates the guard checks above from this write, so the
 	// checked state cannot go stale in between.
@@ -1259,6 +1265,7 @@ async function finalizeToolkitConnection(
 		);
 		logger?.log?.(`composio plugin sync failed after connect: ${reason}`);
 	}
+	return true;
 }
 
 // ── Plugin materialization ───────────────────────────────────────────────
