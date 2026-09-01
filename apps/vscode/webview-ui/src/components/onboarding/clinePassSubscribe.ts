@@ -34,7 +34,10 @@ export function openClinePassSubscriptionIfPending(appBaseUrl: string | undefine
 }
 
 export function buildClinePassSubscriptionPageUrl(appBaseUrl: string | undefined): string {
-	return joinAppBaseUrl(appBaseUrl, CLINE_PASS_USAGE_PATH)
+	// ClinePass always bills the personal account, so force the personal
+	// dashboard context for org-context users (matches EntitlementError and
+	// the CLI's subscription links).
+	return `${joinAppBaseUrl(appBaseUrl, CLINE_PASS_USAGE_PATH)}?personal=true`
 }
 
 // Signup/subscribe page for users who don't have a ClinePass subscription yet.

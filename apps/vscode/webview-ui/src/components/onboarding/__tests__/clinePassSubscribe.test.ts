@@ -11,7 +11,7 @@ import { buildClinePassSubscribeUrl, buildClinePassSubscriptionPageUrl } from ".
 describe("ClinePass subscription URLs", () => {
 	it("falls back to the default app base URL", () => {
 		expect(buildClinePassSubscribeUrl(undefined)).toBe("https://app.cline.bot/onboarding/individual-plan")
-		expect(buildClinePassSubscriptionPageUrl(undefined)).toBe("https://app.cline.bot/dashboard/subscription")
+		expect(buildClinePassSubscriptionPageUrl(undefined)).toBe("https://app.cline.bot/dashboard/subscription?personal=true")
 	})
 
 	it("preserves a path-prefixed app base URL", () => {
@@ -19,7 +19,7 @@ describe("ClinePass subscription URLs", () => {
 			"https://proxy.example.com/cline/onboarding/individual-plan",
 		)
 		expect(buildClinePassSubscriptionPageUrl("https://proxy.example.com/cline")).toBe(
-			"https://proxy.example.com/cline/dashboard/subscription",
+			"https://proxy.example.com/cline/dashboard/subscription?personal=true",
 		)
 	})
 
