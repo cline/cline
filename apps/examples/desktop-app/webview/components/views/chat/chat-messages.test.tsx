@@ -191,6 +191,91 @@ describe("ChatMessages tool disclosures", () => {
 		);
 	});
 
+	it("renders image content returned by a tool instead of raw base64", async () => {
+		const screenshotData = "aGVsbG8=";
+		await renderMessages([
+			{
+				id: "tool-screenshot",
+				sessionId: "session-1",
+				role: "tool",
+				content: JSON.stringify({
+					toolName: "computer_use",
+					input: { action: "screenshot" },
+					result: [
+						{
+							type: "text",
+							text: "Screenshot captured at /tmp/screenshot.png",
+						},
+						{
+							type: "image",
+							data: screenshotData,
+							mimeType: "image/png",
+						},
+					],
+				}),
+				createdAt: 1,
+			},
+		]);
+
+		const trigger = [...container.querySelectorAll("button")].find((element) =>
+			element.textContent?.includes("Computer use"),
+		);
+		expect(trigger?.getAttribute("aria-expanded")).toBe("true");
+		expect(container.textContent).toContain(
+			"Screenshot captured at /tmp/screenshot.png",
+		);
+		expect(container.textContent).not.toContain(screenshotData);
+
+		const image = container.querySelector<HTMLImageElement>(
+			'img[alt="Generated result 1"]',
+		);
+		expect(image?.src).toBe(`data:image/png;base64,${screenshotData}`);
+
+		await act(async () => image?.closest("button")?.click());
+		expect(
+			container.querySelector(
+				'[role="dialog"][aria-label="Expanded attachment"]',
+			),
+		).not.toBeNull();
+	});
+
+	it("navigates multiple images returned by a single tool call", async () => {
+		await renderMessages([
+			{
+				id: "tool-multi-screenshot",
+				sessionId: "session-1",
+				role: "tool",
+				content: JSON.stringify({
+					toolName: "computer_use",
+					input: { action: "screenshot" },
+					result: [
+						{ type: "image", data: "Zmlyc3Q=", mimeType: "image/png" },
+						{ type: "image", data: "c2Vjb25k", mimeType: "image/png" },
+					],
+				}),
+				createdAt: 1,
+			},
+		]);
+
+		expect(
+			container.querySelector<HTMLImageElement>('img[alt="Generated result 1"]')
+				?.src,
+		).toBe("data:image/png;base64,Zmlyc3Q=");
+		expect(container.querySelector('img[alt="Generated result 2"]')).toBeNull();
+		expect(container.textContent).toContain("1 / 2");
+
+		const next = container.querySelector<HTMLButtonElement>(
+			'button[aria-label="Next generated image"]',
+		);
+		await act(async () => next?.click());
+
+		expect(
+			container.querySelector<HTMLImageElement>('img[alt="Generated result 2"]')
+				?.src,
+		).toBe("data:image/png;base64,c2Vjb25k");
+		expect(container.textContent).toContain("2 / 2");
+	});
+
 	it("auto-expands submit_and_exit and renders its summary as markdown", async () => {
 		const summary = "## Report\n\nChecked **3 feeds**, all healthy.";
 		await renderMessages([

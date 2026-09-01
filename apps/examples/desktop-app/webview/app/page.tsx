@@ -1,6 +1,7 @@
 "use client";
 
-import { ImagePlus, Loader2 } from "lucide-react";
+import { AttachmentDropZone } from "@cline/ui";
+import { Loader2 } from "lucide-react";
 import dynamic from "next/dynamic";
 import {
 	useCallback,
@@ -13,6 +14,7 @@ import {
 import { AgentHeader } from "@/components/agent-header";
 import { AgentSidebar } from "@/components/agent-sidebar";
 import { HubUpdateRequiredDialog } from "@/components/hub-update-required-dialog";
+import { SessionCommandBar } from "@/components/session-command-bar";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -170,6 +172,9 @@ export default function Home() {
 	// Starts false on both server and first client render (hydration-safe);
 	// the effect below reads the persisted state right after mount.
 	const [showOnboarding, setShowOnboarding] = useState(false);
+	const [commandBarOpen, setCommandBarOpen] = useState(false);
+	// Shared by the sidebar search icon and the Cmd/Ctrl+P shortcut.
+	const handleOpenCommandBar = useCallback(() => setCommandBarOpen(true), []);
 	// "welcome" for the full first-run flow; "connect" when re-entered from
 	// the in-app "connect a model" notice, which should land directly on the
 	// provider setup step.
@@ -317,8 +322,8 @@ export default function Home() {
 		},
 		[navigateWith],
 	);
-	// Standard app shortcuts: Cmd/Ctrl+N for a new session, Cmd/Ctrl+, for
-	// settings — matching the tray menu actions.
+	// Standard app shortcuts: Cmd/Ctrl+P for session search, Cmd/Ctrl+N for a
+	// new session, and Cmd/Ctrl+, for settings.
 	useEffect(() => {
 		const handleKeyDown = (event: KeyboardEvent) => {
 			if (showOnboarding) {
@@ -330,6 +335,9 @@ export default function Home() {
 			if (event.key === "n" || event.key === "N") {
 				event.preventDefault();
 				handleNewThread();
+			} else if (event.key === "p" || event.key === "P") {
+				event.preventDefault();
+				setCommandBarOpen((current) => !current);
 			} else if (event.key === ",") {
 				event.preventDefault();
 				handleViewChange("settings");
@@ -450,6 +458,7 @@ export default function Home() {
 								onHome={handleHome}
 								onNavigateBack={handleNavigateBack}
 								onNavigateForward={handleNavigateForward}
+								onOpenSearch={handleOpenCommandBar}
 								onSettingsSectionChange={handleSettingsSectionChange}
 								sessionHistory={sessionHistory}
 								setView={handleViewChange}
@@ -530,6 +539,11 @@ export default function Home() {
 				</WindowTitleBarProvider>
 			</SidebarProvider>
 			<HubUpdateRequiredDialog />
+			<SessionCommandBar
+				onOpenChange={setCommandBarOpen}
+				onOpenSession={handleOpenSessionById}
+				open={commandBarOpen && !showOnboarding}
+			/>
 		</AccountProvider>
 	);
 }
@@ -624,8 +638,6 @@ function ChatThreadPane({
 		promptInputRef.current = value;
 	}, []);
 	const [pendingAttachments, setPendingAttachments] = useState<File[]>([]);
-	const [isDraggingFiles, setIsDraggingFiles] = useState(false);
-	const dragDepthRef = useRef(0);
 	const [showDiffView, setShowDiffView] = useState(false);
 	const [deletingSession, setDeletingSession] = useState(false);
 	const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -1275,52 +1287,6 @@ function ChatThreadPane({
 		});
 	}, []);
 
-	// Drag-and-drop file attachments. Requires `dragDropEnabled: false` on the
-	// Tauri window — otherwise the native shell swallows OS file drags and these
-	// HTML5 events never fire.
-	const handleDragEnter = useCallback((event: React.DragEvent) => {
-		if (!event.dataTransfer.types.includes("Files")) {
-			return;
-		}
-		event.preventDefault();
-		dragDepthRef.current += 1;
-		setIsDraggingFiles(true);
-	}, []);
-
-	const handleDragOver = useCallback((event: React.DragEvent) => {
-		if (!event.dataTransfer.types.includes("Files")) {
-			return;
-		}
-		event.preventDefault();
-		event.dataTransfer.dropEffect = "copy";
-	}, []);
-
-	const handleDragLeave = useCallback((event: React.DragEvent) => {
-		if (!event.dataTransfer.types.includes("Files")) {
-			return;
-		}
-		dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
-		if (dragDepthRef.current === 0) {
-			setIsDraggingFiles(false);
-		}
-	}, []);
-
-	const handleDrop = useCallback(
-		(event: React.DragEvent) => {
-			if (!event.dataTransfer.types.includes("Files")) {
-				return;
-			}
-			event.preventDefault();
-			dragDepthRef.current = 0;
-			setIsDraggingFiles(false);
-			const files = Array.from(event.dataTransfer.files);
-			if (files.length > 0) {
-				handleAttachFiles(files);
-			}
-		},
-		[handleAttachFiles],
-	);
-
 	const attachmentList = useMemo(
 		() =>
 			pendingAttachments.map((file, index) => ({
@@ -1544,6 +1510,7 @@ function ChatThreadPane({
 	const composer = (
 		<ChatInputBar
 			attachments={attachmentList}
+			hasRunningAgents={agentActivity.running > 0}
 			onAbort={handleAbort}
 			onAttachFiles={handleAttachFiles}
 			onListGitBranches={listGitBranches}
@@ -1576,31 +1543,15 @@ function ChatThreadPane({
 
 	return (
 		<WorkspaceProvider value={workspaceContextValue}>
-			{/* biome-ignore lint/a11y/noStaticElementInteractions: Drag-and-drop target only; the paperclip button is the accessible attach path. */}
-			<div
+			{/* Requires `dragDropEnabled: false` on the Tauri window so the native shell does not swallow OS file drags. */}
+			<AttachmentDropZone
 				className={
 					isWelcomeState
-						? "relative grid h-full min-h-0 flex-1 grid-rows-[minmax(0,1fr)] overflow-hidden"
-						: "relative grid h-full min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto] overflow-hidden"
+						? "grid h-full min-h-0 flex-1 grid-rows-[minmax(0,1fr)] overflow-hidden"
+						: "grid h-full min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto] overflow-hidden"
 				}
-				onDragEnter={handleDragEnter}
-				onDragLeave={handleDragLeave}
-				onDragOver={handleDragOver}
-				onDrop={handleDrop}
+				onAttachFiles={handleAttachFiles}
 			>
-				{isDraggingFiles ? (
-					<div className="pointer-events-none absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
-						<div className="flex flex-col items-center gap-2 rounded-xl border-2 border-dashed border-primary/60 bg-card px-10 py-8 shadow-lg">
-							<ImagePlus className="h-8 w-8 text-primary" />
-							<p className="text-sm font-medium text-foreground">
-								Drop to attach
-							</p>
-							<p className="text-xs text-muted-foreground">
-								Screenshots and files will be added to your next message
-							</p>
-						</div>
-					</div>
-				) : null}
 				{!isWelcomeState ? (
 					<WindowTitleBarContent>
 						<div className="cline-view-enter z-20 border-b border-border/70 bg-background/85 backdrop-blur-sm">
@@ -1675,7 +1626,7 @@ function ChatThreadPane({
 					onOpenSession={onOpenSessionById}
 					onSwitchGitBranch={switchGitBranch}
 				/>
-			</div>
+			</AttachmentDropZone>
 			<AlertDialog
 				open={deleteConfirmOpen}
 				onOpenChange={(open) => {

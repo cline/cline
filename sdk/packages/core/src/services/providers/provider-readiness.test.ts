@@ -1,5 +1,5 @@
-import type { ProviderSettings } from "@cline/core";
 import { describe, expect, it } from "vitest";
+import type { ProviderSettings } from "../llms/provider-settings";
 import { isProviderSettingsUsable } from "./provider-readiness";
 
 describe("provider readiness", () => {
@@ -164,6 +164,26 @@ describe("provider readiness", () => {
 					clientSecret: "secret",
 					tokenUrl: "https://example.com/token",
 				},
+			} satisfies ProviderSettings),
+		).toBe(false);
+	});
+
+	it("rejects migrated placeholder entries that only hold a default model", () => {
+		// The legacy VS Code migration can seed entries with a catalog-default
+		// model and no credentials (e.g. qwen-code from a plan/act provider
+		// selection, sapaicore from a persisted orchestration-mode default).
+		// These must not read as configured.
+		expect(
+			isProviderSettingsUsable("qwen-code", {
+				provider: "qwen-code",
+				model: "qwen3-coder-plus",
+			} satisfies ProviderSettings),
+		).toBe(false);
+		expect(
+			isProviderSettingsUsable("sapaicore", {
+				provider: "sapaicore",
+				model: "anthropic--claude-4-sonnet",
+				sap: { useOrchestrationMode: true },
 			} satisfies ProviderSettings),
 		).toBe(false);
 	});
