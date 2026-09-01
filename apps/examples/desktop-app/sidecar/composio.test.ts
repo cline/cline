@@ -851,6 +851,110 @@ describe("cancelComposioConnect", () => {
 		expect(readStateFile(dir).cancelledAccountIds).toBeUndefined();
 	});
 
+	it("a rejected OAuth wait abandons the attempt so a late browser completion is never imported", async () => {
+		const dir = useTempDataDir();
+		process.env.COMPOSIO_API_KEY = "ck_wait_fail";
+		writeState(dir, {
+			apiKey: "ck_wait_fail",
+			userId: "u_wait_fail",
+			toolkits: {},
+		});
+		let rejectWait: ((error: Error) => void) | undefined;
+		const remoteDelete = vi.fn(async () => {
+			// Revocation fails too, so only the tombstone protects.
+			throw new Error("500 internal error");
+		});
+		const client = {
+			toolkits: {
+				authorize: vi.fn(async () => ({
+					id: "ca_timed_out",
+					redirectUrl: "https://connect.example/ca_timed_out",
+					waitForConnection: () =>
+						new Promise((_resolve, reject) => {
+							rejectWait = reject;
+						}),
+				})),
+			},
+			authConfigs: {
+				list: vi.fn(async () => ({ items: [] })),
+				create: vi.fn(),
+			},
+			tools: { getRawComposioTools: vi.fn(async () => []) },
+			connectedAccounts: {
+				list: vi.fn(async () => ({
+					items: [
+						{
+							id: "ca_timed_out",
+							status: "ACTIVE",
+							toolkit: { slug: "github" },
+						},
+					],
+				})),
+				link: vi.fn(),
+				delete: remoteDelete,
+			},
+		};
+		createMockComposioClient = () => client;
+		await connectComposioToolkit("github");
+		// The wait times out / errors before the browser flow completes.
+		rejectWait?.(new Error("wait timed out"));
+		await vi.waitFor(() => {
+			expect(remoteDelete).toHaveBeenCalledWith("ca_timed_out");
+		});
+		expect(readStateFile(dir).cancelledAccountIds).toContain("ca_timed_out");
+		// The user completes the still-open browser tab afterwards; a refresh
+		// sees the account ACTIVE but must not import it.
+		const status = await getComposioStatus({ refresh: true });
+		expect(
+			status.integrations.find((entry) => entry.toolkit === "github")?.status,
+		).toBe("not_connected");
+		expect(readStateFile(dir).toolkits).toEqual({});
+	});
+
+	it("a failed redirect-less finalize abandons its freshly authorized account", async () => {
+		const dir = useTempDataDir();
+		process.env.COMPOSIO_API_KEY = "ck_finalize_fail";
+		writeState(dir, {
+			apiKey: "ck_finalize_fail",
+			userId: "u_finalize_fail",
+			toolkits: {},
+		});
+		const remoteDelete = vi.fn(async () => ({}));
+		const client = {
+			toolkits: {
+				authorize: vi.fn(async () => ({
+					id: "ca_fetch_broke",
+					redirectUrl: null,
+					waitForConnection: async () => ({}),
+				})),
+			},
+			authConfigs: {
+				list: vi.fn(async () => ({ items: [] })),
+				create: vi.fn(),
+			},
+			tools: {
+				getRawComposioTools: vi.fn(async () => {
+					throw new Error("500 tools endpoint exploded");
+				}),
+			},
+			connectedAccounts: {
+				list: vi.fn(async () => ({ items: [] })),
+				link: vi.fn(),
+				delete: remoteDelete,
+			},
+		};
+		createMockComposioClient = () => client;
+		await expect(connectComposioToolkit("github")).rejects.toThrow(
+			/tools endpoint exploded/,
+		);
+		// The account was authorized remotely; it must be revoked rather than
+		// left for reconciliation to import as an installed connector.
+		expect(remoteDelete).toHaveBeenCalledWith("ca_fetch_broke");
+		// Revocation succeeded, so the tombstone was pruned again.
+		expect(readStateFile(dir).cancelledAccountIds).toBeUndefined();
+		expect(readStateFile(dir).toolkits ?? {}).toEqual({});
+	});
+
 	it("a cancelled toolkit can still be reconnected under a fresh account", async () => {
 		const dir = useTempDataDir();
 		process.env.COMPOSIO_API_KEY = "ck_reconnect";

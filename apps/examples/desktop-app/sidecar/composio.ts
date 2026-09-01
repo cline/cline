@@ -912,13 +912,24 @@ export async function connectComposioToolkit(
 		// Composio's side) — finalize right away. There is no pending entry on
 		// this path, so the disconnect defense lives entirely in the guard's
 		// startedAt check inside finalizeToolkitConnection.
-		await finalizeToolkitConnection(
-			client,
-			toolkit,
-			connectionRequest.id,
-			guard,
-			logger,
-		);
+		try {
+			await finalizeToolkitConnection(
+				client,
+				toolkit,
+				connectionRequest.id,
+				guard,
+				logger,
+			);
+		} catch (error) {
+			// The attempt failed from the app's point of view, but the freshly
+			// created account is authorized on Composio's side and nothing
+			// references it — left alone, the next reconciliation would import
+			// it and a connection the user was told failed would silently
+			// appear as installed. Abandon it like a cancel before surfacing
+			// the error.
+			await abandonFinalizedConnection(connectionRequest.id, guard.apiKey, logger);
+			throw error;
+		}
 		return {
 			alreadyConnected: true,
 			status: buildStatusResponse(readComposioState()),
@@ -954,7 +965,7 @@ export async function connectComposioToolkit(
 			);
 		} catch (error) {
 			if (pendingConnections.get(toolkit)?.attemptId !== attemptId) {
-				return;
+				return; // Cancel/disconnect/key change already abandoned it.
 			}
 			const reason = formatComposioError(error);
 			lastConnectionErrors.set(
@@ -962,6 +973,16 @@ export async function connectComposioToolkit(
 				`Connection was not completed: ${reason}`,
 			);
 			logger?.log?.(`composio connect ${toolkit} failed: ${reason}`);
+			// The attempt is dead from the app's point of view (timeout, wait
+			// error, or a failed finalize), but the browser flow can still turn
+			// the remote account ACTIVE later — where reconciliation would
+			// import it, materializing a connection the user was told failed.
+			// Abandon it like a cancel: tombstone first, revoke best-effort.
+			await abandonFinalizedConnection(
+				connectionRequest.id,
+				guard.apiKey,
+				logger,
+			);
 		} finally {
 			if (pendingConnections.get(toolkit)?.attemptId === attemptId) {
 				pendingConnections.delete(toolkit);
@@ -1146,11 +1167,12 @@ type FinalizeGuard = {
 	startedAt: number;
 };
 
-/** A completed connection that must not be persisted (superseded by a
- * disconnect or a key change) leaves a fully authorized account behind on
- * Composio's side that nothing references. Tombstone it so reconciliation
- * can never import it, then revoke it — the same lifecycle as a cancelled
- * attempt. */
+/** An attempt whose result must not be persisted — superseded by a
+ * disconnect or key change, or failed from the app's point of view (wait
+ * timeout/error, failed finalize) — can still leave an authorized account
+ * behind on Composio's side that nothing references, and its browser flow
+ * may even complete later. Tombstone it so reconciliation can never import
+ * it, then revoke it — the same lifecycle as a cancelled attempt. */
 async function abandonFinalizedConnection(
 	connectedAccountId: string,
 	apiKey: string,
