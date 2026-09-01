@@ -618,12 +618,19 @@ function App(props: TuiProps) {
 							force: true,
 							reason: "cline TUI hub update",
 						});
-						showToast(
-							result.outcome === "replaced" || result.outcome === "started"
-								? "Cline Hub updated."
-								: "Cline Hub is already up to date.",
-							"success",
-						);
+						if (result.outcome === "still_busy") {
+							showToast(
+								"The Hub picked up new sessions before it could be replaced. Try again in a moment.",
+								"info",
+							);
+						} else {
+							showToast(
+								result.outcome === "replaced" || result.outcome === "started"
+									? "Cline Hub updated."
+									: "Cline Hub is already up to date.",
+								"success",
+							);
+						}
 					} catch (error) {
 						showToast(
 							error instanceof Error && error.message

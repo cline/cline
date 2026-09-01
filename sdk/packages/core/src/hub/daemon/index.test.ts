@@ -1030,7 +1030,7 @@ describe("upgradeManagedHub", () => {
 		expect(spawn).not.toHaveBeenCalled();
 	});
 
-	it("still replaces an idle hub when the drain request fails (pre-drain hubs answer 404)", async () => {
+	it("hands an undrained idle hub to the ensure path instead of retiring it directly (pre-drain hubs answer 404)", async () => {
 		requestHubDrain.mockResolvedValue(false);
 		readHubDiscovery
 			.mockResolvedValueOnce({
@@ -1038,6 +1038,7 @@ describe("upgradeManagedHub", () => {
 				authToken: "old-token",
 				pid: 12345,
 			})
+			// The ensure path observes the already-swapped record.
 			.mockResolvedValueOnce({
 				url: "ws://127.0.0.1:25463/hub",
 				authToken: "new-token",
@@ -1050,8 +1051,9 @@ describe("upgradeManagedHub", () => {
 				buildEpochMs: 500,
 				pid: 12345,
 			})
-			.mockResolvedValueOnce(undefined)
-			.mockResolvedValueOnce({
+			// The ensure probe and the post-ensure discriminator probe both
+			// see a current-build hub.
+			.mockResolvedValue({
 				url: "ws://127.0.0.1:25463/hub",
 				protocolVersion: "v1",
 				buildId: "current-build",
@@ -1067,7 +1069,43 @@ describe("upgradeManagedHub", () => {
 			authToken: "new-token",
 			activeSessionCount: 0,
 		});
-		expect(requestHubShutdown).toHaveBeenCalled();
+		// The delegation is the point: the swap ran under the ensure path's
+		// startup lock, and upgradeManagedHub issued no retirement of its own.
+		expect(withHubStartupLock).toHaveBeenCalled();
+		expect(requestHubShutdown).not.toHaveBeenCalled();
+	});
+
+	it("defers when the ensure re-check finds the undrained hub busy again after the idle snapshot", async () => {
+		requestHubDrain.mockResolvedValue(false);
+		// Idle at the upgrade's snapshot, busy again by the time the ensure
+		// path re-checks - the race the delegation exists to close.
+		queryHubSessionActivity
+			.mockResolvedValueOnce({
+				activeSessionCount: 0,
+				participantClientCount: 0,
+			})
+			.mockResolvedValue({ activeSessionCount: 1, participantClientCount: 1 });
+		readHubDiscovery.mockResolvedValue({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "old-token",
+		});
+		probeHubServer.mockResolvedValue({
+			url: "ws://127.0.0.1:25463/hub",
+			protocolVersion: "v1",
+			buildId: "old-build",
+			buildEpochMs: 500,
+		});
+		verifyHubConnection.mockResolvedValue(true);
+
+		const { upgradeManagedHub } = await import(".");
+		const result = await upgradeManagedHub({ workspaceRoot: "/workspace" });
+
+		expect(result).toMatchObject({
+			outcome: "still_busy",
+			url: "ws://127.0.0.1:25463/hub",
+		});
+		expect(requestHubShutdown).not.toHaveBeenCalled();
+		expect(spawn).not.toHaveBeenCalled();
 	});
 
 	it("treats a failed activity reading as unknown and keeps polling instead of concluding idle", async () => {

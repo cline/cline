@@ -1407,6 +1407,11 @@ export async function handleCommand(
 				"The running Cline Hub is newer than this app, so it was not replaced. Update Cline instead.",
 			);
 		}
+		if (result.outcome === "still_busy") {
+			throw new Error(
+				"The running Cline Hub picked up new sessions before it could be replaced, so it was left running. Try again.",
+			);
+		}
 		// The mismatch is resolved: a null broadcast closes the dialog in
 		// every connected webview and stops the replay-on-connect.
 		ctx.hubBuildMismatch = null;

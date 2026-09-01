@@ -753,11 +753,15 @@ export interface UpgradeManagedHubResult {
  * is serving sessions: drain first (the hub refuses new work while in-flight
  * turns get `waitForIdleMs` to finish), then the shared graceful retire
  * ladder, then a fresh daemon. Drain-first is a guarantee, not a courtesy:
- * a hub that refuses the drain is replaced only if it is positively observed
- * idle, and a busy one makes the upgrade fail instead - `force` does not
- * override that. Activity readings that fail are treated as unknown, not
- * idle: they never shorten the wait window, and without `force` an
- * unconfirmed hub is handed back un-drained rather than retired.
+ * this function retires a hub only under an accepted drain, because the
+ * drain is the admission barrier that makes an idle or consented-busy
+ * reading trustworthy through the retire. A hub that refuses the drain
+ * fails the upgrade while it has (or may have) sessions - `force` does not
+ * override that - and when observed idle it is handed to the locked ensure
+ * path, which re-checks activity right before its own retire ladder.
+ * Activity readings that fail are treated as unknown, not idle: they never
+ * shorten the wait window, and without `force` an unconfirmed hub is handed
+ * back un-drained rather than retired.
  *
  * Never replaces a hub this build is not strictly newer than - the build
  * total order guarantees at most one side of any install pair can reach the
@@ -844,20 +848,41 @@ export async function upgradeManagedHub(
 		);
 	}
 	const confirmedIdle = observedSessionCount === 0;
-	// A hub that never entered the drained state is not replaced unless it
-	// was positively observed idle, forced or not: the drain is the guarantee
-	// that nothing new starts between the busy reading and the retire, and
-	// without it a forced replacement would kill work the user never saw in
-	// the consent prompt.
-	if (!confirmedIdle && !drained) {
-		throw new Error(
-			`The running Cline Hub at ${record.url} did not accept a drain request and was not observed idle, so it was not replaced. Finish its sessions or run 'cline doctor fix', then try again.`,
+	if (!drained) {
+		// A hub that never entered the drained state has no admission
+		// barrier, so this function never retires it directly: busy (or
+		// unconfirmed) activity fails the upgrade, and even an idle reading
+		// is only a snapshot - a session admitted right after it would die in
+		// a retire the user's consent prompt never covered. Hand the idle
+		// case to the locked ensure path instead: it re-checks activity
+		// immediately before its own retire ladder and attaches (deferring
+		// the swap) when new work arrived in the meantime.
+		if (!confirmedIdle) {
+			throw new Error(
+				`The running Cline Hub at ${record.url} did not accept a drain request and was not observed idle, so it was not replaced. Finish its sessions or run 'cline doctor fix', then try again.`,
+			);
+		}
+		const ensured = await ensureDetachedHubServer(workspaceRoot);
+		const replacement = await safeProbeHubServer(
+			ensured.url,
+			ensured.authToken,
 		);
+		if (
+			replacement?.url &&
+			getManagedHubCompatibility(replacement).compatible
+		) {
+			return { outcome: "replaced", ...ensured, activeSessionCount: 0 };
+		}
+		// The ensure path found the hub serving sessions again and attached
+		// to it instead of replacing it (or the replacement cannot be
+		// confirmed right now, which reports the same way and self-corrects
+		// on the next mismatch check).
+		return { outcome: "still_busy", ...ensured };
 	}
 	// Without force, only a positively idle hub may be replaced: a busy or
 	// unanswerable hub is handed back un-drained. With force, the user has
 	// already consented to interrupting the sessions the prompt showed them,
-	// and the accepted drain has kept new work out during the window.
+	// and the accepted drain keeps new work out from here through the retire.
 	if (!confirmedIdle && options.force !== true) {
 		await undrain();
 		return {
