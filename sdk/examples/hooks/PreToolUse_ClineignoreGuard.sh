@@ -104,15 +104,36 @@ case "$tool" in
     ;;
 esac
 
-# Make paths workspace-relative. Absolute paths outside the workspace are
-# not covered by .clineignore, so they pass through.
+# Lexically collapse ".", "..", and empty segments of an absolute path, so
+# noncanonical forms like ./.clineignore or secrets/../.env cannot slip
+# past the checks below.
+normalize_abs() {
+  local out="" seg rest="$1/"
+  while [ -n "$rest" ]; do
+    seg="${rest%%/*}"
+    rest="${rest#*/}"
+    case "$seg" in
+      ""|".") ;;
+      "..") out="${out%/*}" ;;
+      *) out="$out/$seg" ;;
+    esac
+  done
+  printf '%s\n' "${out:-/}"
+}
+
+# Make paths canonical and workspace-relative. Paths that resolve outside
+# the workspace are not covered by .clineignore, so they pass through.
+root=$(normalize_abs "$root")
 rel_paths=""
 while IFS= read -r p; do
   [ -n "$p" ] || continue
   case "$p" in
-    "$root"/*) rel_paths+="${p#"$root"/}"$'\n' ;;
     /*) ;;
-    *) rel_paths+="$p"$'\n' ;;
+    *) p="$root/$p" ;;
+  esac
+  p=$(normalize_abs "$p")
+  case "$p" in
+    "$root"/*) rel_paths+="${p#"$root"/}"$'\n' ;;
   esac
 done <<< "$paths"
 
