@@ -2792,6 +2792,7 @@ function ChatThreadPane({
 		<ChatInputBar
 			attachments={attachmentList}
 			cloudHandoffAvailable={cloudAgentsEnabled}
+			hasRunningAgents={agentActivity.running > 0}
 			onAbort={handleAbort}
 			onAttachFiles={handleAttachFiles}
 			onListGitBranches={listGitBranches}

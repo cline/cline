@@ -597,6 +597,10 @@ export function useChatSession(environmentId: string) {
 	const activeAssistantMessageIdRef = useRef<string | null>(null);
 	const lastStreamIndexBySessionRef = useRef<Record<string, number>>({});
 	const abortedRef = useRef(false);
+	// A projected running status can race ahead of the queued-turn start event
+	// after an abort. Require both signals before resuming so a stale running
+	// status cannot undo the local stopping state by itself.
+	const resumeAfterAbortSignaledRef = useRef(false);
 	const abortFallbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
 		null,
 	);
@@ -617,6 +621,10 @@ export function useChatSession(environmentId: string) {
 	// trail chat_done; when no new turn has started since the turn settled
 	// (epoch unchanged), such a "running" must not reopen the turn.
 	const turnSettledEpochRef = useRef(-1);
+	// Runtime status changes supersede local status captured by an abort.
+	const authoritativeStatusRevisionRef = useRef(0);
+	// Snapshot used to keep a late send response from overwriting a newer status.
+	const abortStatusRevisionRef = useRef(0);
 	// Last error-level core log per session, used to explain failed turns.
 	const lastCoreErrorBySessionRef = useRef<Record<string, string>>({});
 	const [chatTransportState, setChatTransportState] =
@@ -967,8 +975,11 @@ export function useChatSession(environmentId: string) {
 					setPromptsInQueue(items);
 					if (items.length === 0) {
 						turnSettledEpochRef.current = turnEpochRef.current;
+						authoritativeStatusRevisionRef.current += 1;
 						setStatus((current) =>
-							current === "running" ? "completed" : current,
+							current === "running" || current === "stopping"
+								? "completed"
+								: current,
 						);
 						finalizeSettledTurn(sid);
 					}
@@ -1485,8 +1496,18 @@ export function useChatSession(environmentId: string) {
 				return;
 			}
 			lastLiveChunkAtRef.current = Date.now();
-			if (abortedRef.current) {
-				return;
+			if (abortedRef.current && payload.stream !== "chat_done") {
+				if (
+					payload.stream !== "chat_queued_prompt_start" ||
+					!resumeAfterAbortSignaledRef.current
+				) {
+					return;
+				}
+				resumeAfterAbortSignaledRef.current = false;
+				abortedRef.current = false;
+				clearAbortFallbackTimeout();
+				authoritativeStatusRevisionRef.current += 1;
+				setStatus("running");
 			}
 
 			// --- Text stream (buffered) ---
@@ -1979,6 +2000,7 @@ export function useChatSession(environmentId: string) {
 					verifyQueueStillBusy(listeningSessionId);
 				} else {
 					turnSettledEpochRef.current = turnEpochRef.current;
+					authoritativeStatusRevisionRef.current += 1;
 					finalizeSettledTurn(listeningSessionId);
 				}
 				return;
@@ -2122,11 +2144,9 @@ export function useChatSession(environmentId: string) {
 				if (!nextStatus) {
 					return;
 				}
-				const resumedAfterAbort =
-					nextStatus === "running" && abortedRef.current;
-				if (resumedAfterAbort) {
-					abortedRef.current = false;
-					clearAbortFallbackTimeout();
+				if (nextStatus === "running" && abortedRef.current) {
+					resumeAfterAbortSignaledRef.current = true;
+					return;
 				}
 				// Status events are projected asynchronously from the hub's
 				// session record and can deliver a stale "running" after the
@@ -2136,11 +2156,11 @@ export function useChatSession(environmentId: string) {
 				// equals the settled epoch a "running" here can only be stale.
 				if (
 					nextStatus === "running" &&
-					!resumedAfterAbort &&
 					turnEpochRef.current === turnSettledEpochRef.current
 				) {
 					return;
 				}
+				authoritativeStatusRevisionRef.current += 1;
 				setStatus(
 					(nextStatus === "aborted"
 						? "cancelled"
@@ -2178,6 +2198,7 @@ export function useChatSession(environmentId: string) {
 				if (endReason === "error" || endReason === "failed") {
 					appendTurnFailureMessage(targetSessionId, "");
 				}
+				authoritativeStatusRevisionRef.current += 1;
 				setStatus(
 					(endReason === "aborted"
 						? "cancelled"
@@ -2360,7 +2381,14 @@ export function useChatSession(environmentId: string) {
 				// the working indicator and disarming this poll.
 				const nextStatus = record?.status?.trim();
 				if (nextStatus) {
-					setStatus(mapSessionRecordStatus(nextStatus as SessionHistoryStatus));
+					const mappedStatus = mapSessionRecordStatus(
+						nextStatus as SessionHistoryStatus,
+					);
+					if (abortedRef.current && mappedStatus === "running") {
+						return;
+					}
+					authoritativeStatusRevisionRef.current += 1;
+					setStatus(mappedStatus);
 				}
 			} finally {
 				polling = false;
@@ -2774,9 +2802,23 @@ export function useChatSession(environmentId: string) {
 				finishPromptSubmission();
 				return;
 			}
+			let abortedReconcileEpoch: number | undefined;
+			const settleAbortedSend = () => {
+				if (!abortedRef.current) return false;
+				if (
+					authoritativeStatusRevisionRef.current ===
+					abortStatusRevisionRef.current
+				) {
+					abortedReconcileEpoch = turnEpochRef.current;
+					turnSettledEpochRef.current = turnEpochRef.current;
+					setStatus("cancelled");
+				}
+				return true;
+			};
 			try {
 				const payload = await sendTask;
 				if (payload.ok && payload.queued) {
+					if (settleAbortedSend()) return;
 					if (turnEpochRef.current !== turnEpochAtDispatch) {
 						// The runtime already started consuming a queued prompt
 						// (chat_queued_prompt_start bumped the epoch) while this
@@ -2790,11 +2832,6 @@ export function useChatSession(environmentId: string) {
 						return;
 					}
 					applyPromptsInQueue(payload.promptsInQueue);
-					if (abortedRef.current) {
-						turnSettledEpochRef.current = turnEpochRef.current;
-						setStatus("cancelled");
-						return;
-					}
 					setStatus("running");
 					return {
 						sessionId: activeSessionId,
@@ -2804,11 +2841,7 @@ export function useChatSession(environmentId: string) {
 
 				const result = payload.result as ChatApiResult | undefined;
 				applyPromptsInQueue(payload.promptsInQueue);
-				if (abortedRef.current) {
-					turnSettledEpochRef.current = turnEpochRef.current;
-					setStatus("cancelled");
-					return;
-				}
+				if (settleAbortedSend()) return;
 				// On a failed run the runtime reports the error string in
 				// result.text — it is not assistant content and must not be
 				// rendered as an assistant bubble (canonical rehydration would
@@ -3119,10 +3152,8 @@ export function useChatSession(environmentId: string) {
 				const hasQueuedFollowUps =
 					Array.isArray(payload.promptsInQueue) &&
 					payload.promptsInQueue.length > 0;
-				if (abortedRef.current) {
-					turnSettledEpochRef.current = turnEpochRef.current;
-					setStatus("cancelled");
-				} else if (payload.recoveredAfterDisconnect) {
+				if (settleAbortedSend()) return;
+				if (payload.recoveredAfterDisconnect) {
 					const recoveredStatus = mapCloudRuntimeStatus(payload.status);
 					if (recoveredStatus) {
 						setStatus(recoveredStatus);
@@ -3159,10 +3190,7 @@ export function useChatSession(environmentId: string) {
 					result,
 				};
 			} catch (err) {
-				if (abortedRef.current) {
-					setStatus("cancelled");
-					return;
-				}
+				if (settleAbortedSend()) return;
 				if (optimisticQueuedPromptId) {
 					setPromptsInQueue((prev) =>
 						prev.filter((item) => item.id !== optimisticQueuedPromptId),
@@ -3179,6 +3207,13 @@ export function useChatSession(environmentId: string) {
 					clearLiveToolRefs();
 				}
 				finishPromptSubmission();
+				if (
+					abortedReconcileEpoch !== undefined &&
+					activeSessionIdRef.current === activeSessionId &&
+					turnEpochRef.current === abortedReconcileEpoch
+				) {
+					finalizeSettledTurn(activeSessionId);
+				}
 			}
 		},
 		[
@@ -3191,6 +3226,7 @@ export function useChatSession(environmentId: string) {
 			clearLiveToolRefs,
 			config,
 			environmentId,
+			finalizeSettledTurn,
 			hydratedHistorySessionId,
 			materializeToolMessagesFromResult,
 			refreshSessionDiffSummary,
@@ -3316,11 +3352,31 @@ export function useChatSession(environmentId: string) {
 
 	const abort = useCallback(async () => {
 		if (!sessionId) return;
+		const fallbackStatus: ChatSessionStatus =
+			status === "stopping" ? "running" : status;
+		const statusRevisionAtAbort = authoritativeStatusRevisionRef.current;
+		abortStatusRevisionRef.current = statusRevisionAtAbort;
+		const restoreFallbackStatus = () => {
+			abortedRef.current = false;
+			resumeAfterAbortSignaledRef.current = false;
+			clearAbortFallbackTimeout();
+			if (
+				activeSessionIdRef.current === sessionId &&
+				authoritativeStatusRevisionRef.current === statusRevisionAtAbort
+			) {
+				setStatus(fallbackStatus);
+			}
+		};
+		resumeAfterAbortSignaledRef.current = false;
 		abortedRef.current = true;
 		setStatus("stopping");
 		clearAbortFallbackTimeout();
 		abortFallbackTimeoutRef.current = setTimeout(() => {
-			if (abortedRef.current) {
+			if (
+				abortedRef.current &&
+				activeSessionIdRef.current === sessionId &&
+				authoritativeStatusRevisionRef.current === statusRevisionAtAbort
+			) {
 				setStatus("cancelled");
 			}
 			abortFallbackTimeoutRef.current = null;
@@ -3328,16 +3384,12 @@ export function useChatSession(environmentId: string) {
 		try {
 			const response = await postSession({ action: "abort", sessionId });
 			if (!response.ok) {
-				abortedRef.current = false;
-				clearAbortFallbackTimeout();
-				setStatus("running");
+				restoreFallbackStatus();
 			}
 		} catch {
-			abortedRef.current = false;
-			clearAbortFallbackTimeout();
-			setStatus("running");
+			restoreFallbackStatus();
 		}
-	}, [clearAbortFallbackTimeout, postSession, sessionId]);
+	}, [clearAbortFallbackTimeout, postSession, sessionId, status]);
 
 	const proceedWhileRunning = useCallback(
 		async (targetSessionId: string, toolCallId?: string) => {

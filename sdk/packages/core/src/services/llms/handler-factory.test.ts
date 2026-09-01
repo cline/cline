@@ -15,7 +15,7 @@ const gatewayMock = vi.hoisted(() => {
 	};
 });
 
-vi.mock("@cline/llms", () => ({
+vi.mock("@cline/llms", async (importOriginal) => ({
 	createGateway: gatewayMock.createGateway,
 	MODEL_COLLECTIONS_BY_PROVIDER_ID: {},
 	hasRegisteredHandler: gatewayMock.hasRegisteredHandler,
@@ -24,6 +24,12 @@ vi.mock("@cline/llms", () => ({
 	resolveProviderModelCatalogKeys: (id: string) => [id],
 	getGeneratedModelsForProvider: (id: string) =>
 		gatewayMock.generatedModelsByProvider[id] ?? {},
+	// Capability translation is the behaviour under test in the gateway model
+	// assertions below, so use the real translator rather than a stub that
+	// would re-implement (and could disagree with) it.
+	toGatewayModelCapabilities: (
+		await importOriginal<typeof import("@cline/llms")>()
+	).toGatewayModelCapabilities,
 }));
 
 describe("createAgentModelFromConfig", () => {
