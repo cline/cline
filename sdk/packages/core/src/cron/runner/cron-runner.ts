@@ -145,6 +145,7 @@ export class CronRunner {
 	private readonly options: CronRunnerOptions;
 	private readonly limiter: ResourceLimiter;
 	private readonly claimLeaseMs: number;
+	private readonly pollIntervalMs: number;
 	private timer: ReturnType<typeof setInterval> | undefined;
 	private started = false;
 	private ticking = false;
@@ -166,6 +167,10 @@ export class CronRunner {
 			5_000,
 			(options.claimLeaseSeconds ?? DEFAULT_CLAIM_LEASE_SECONDS) * 1000,
 		);
+		this.pollIntervalMs = Math.max(
+			2_000,
+			options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS,
+		);
 	}
 
 	public async start(): Promise<void> {
@@ -173,12 +178,8 @@ export class CronRunner {
 		if (this.started) return;
 		this.stopping = false;
 		this.started = true;
-		const interval = Math.max(
-			2_000,
-			this.options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS,
-		);
 		await this.tick();
-		this.timer = setInterval(() => void this.tick(), interval);
+		this.timer = setInterval(() => void this.tick(), this.pollIntervalMs);
 	}
 
 	public async stop(): Promise<void> {
@@ -224,9 +225,14 @@ export class CronRunner {
 		// system sleep, so after a long gap (or on a fresh runner sharing
 		// cron.db with a live one) expired `running` rows likely still have a
 		// live owner about to renew. Hold reclaims for one lease period so we
-		// don't start a duplicate session for the same run.
+		// don't start a duplicate session for the same run. The threshold stays
+		// above the normal poll cadence so routine ticks never re-arm the hold.
 		const now = Date.now();
-		if (now - this.lastTickAtMs > this.claimLeaseMs / 2) {
+		const gapThresholdMs = Math.max(
+			this.claimLeaseMs / 2,
+			this.pollIntervalMs * 2,
+		);
+		if (now - this.lastTickAtMs > gapThresholdMs) {
 			this.holdReclaimsUntilMs = now + this.claimLeaseMs;
 		}
 		this.lastTickAtMs = now;
