@@ -881,6 +881,42 @@ describe("SessionImportService", () => {
 		expect(store.list(50)).toHaveLength(1);
 	});
 
+	it("never marks a session as imported unless every write succeeded", async () => {
+		const projectsDir = tempDir("cc-import-");
+		writeClaudeCodeFixture(projectsDir);
+		const store = new SqliteSessionStore({ sessionsDir: tempDir("cline-db-") });
+		store.init();
+		const sessions = new CoreSessionService(store, {
+			sessionArtifactsDir: tempDir("cline-sessions-"),
+		});
+		// Worst case: the messages write fails AND the rollback delete fails,
+		// so a row survives. It must not carry the importedFrom marker.
+		sessions.persistSessionMessages = async () => {
+			throw new Error("disk full");
+		};
+		sessions.deleteSession = async () => {
+			throw new Error("also broken");
+		};
+		const importer = new SessionImportService(sessions, [
+			new ClaudeCodeImportAdapter({ projectsDir }),
+		]);
+
+		const [failed] = await importer.importMany([
+			{ tool: "claude-code", sourceId: "abc" },
+		]);
+		expect(failed.ok).toBe(false);
+		const survivor = store.list(50)[0];
+		expect(survivor).toBeDefined();
+		expect(
+			(survivor.metadata as Record<string, unknown> | undefined)?.importedFrom,
+		).toBeUndefined();
+		// Rows are created terminal — never a running/pid-0 state that the
+		// stale-session reconciler could flip to failed mid-import.
+		expect(survivor.status).toBe("completed");
+		const rediscovered = await importer.discover();
+		expect(rediscovered[0].alreadyImportedSessionId).toBeUndefined();
+	});
+
 	it("never duplicates a source session that was already imported", async () => {
 		const projectsDir = tempDir("cc-import-");
 		writeClaudeCodeFixture(projectsDir);

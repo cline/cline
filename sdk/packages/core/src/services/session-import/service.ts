@@ -255,7 +255,19 @@ export class SessionImportService {
 		const resumeModel = options.model?.trim();
 		const useResumeTarget = Boolean(resumeProvider && resumeModel);
 
-		const artifacts = await this.sessions.createRootSessionWithArtifacts({
+		const endedAtMs = Number.isFinite(converted.endedAtMs)
+			? converted.endedAtMs
+			: startedAtMs;
+		const baseMetadata: Record<string, unknown> = {
+			title: converted.title,
+			...(converted.gitBranch ? { git: { branch: converted.gitBranch } } : {}),
+		};
+
+		// Created already completed: an imported session is history from
+		// birth, and a transient running/pid-0 row is exactly what the
+		// stale-session reconciler — running in the hub daemon against the
+		// same DB — would flip to failed mid-import.
+		await this.sessions.createRootSessionWithArtifacts({
 			sessionId,
 			source: SessionSource.DESKTOP,
 			pid: 0,
@@ -270,47 +282,37 @@ export class SessionImportService {
 			enableSpawn: false,
 			enableTeams: false,
 			...(converted.prompt ? { prompt: converted.prompt } : {}),
-			metadata: {
-				title: converted.title,
-				importedFrom: {
-					tool: converted.tool,
-					sourceSessionId: converted.sourceId,
-					sourcePath: converted.sourcePath,
-					importedAt: new Date().toISOString(),
-					sourceProvider: converted.provider,
-					sourceModel: converted.model,
-				} satisfies ImportedFromMetadata,
-				...(converted.gitBranch
-					? { git: { branch: converted.gitBranch } }
-					: {}),
-			},
+			metadata: baseMetadata,
 			startedAt: new Date(startedAtMs).toISOString(),
+			status: "completed",
+			endedAt: new Date(endedAtMs).toISOString(),
+			exitCode: 0,
 		});
 
 		try {
 			await this.sessions.persistSessionMessages(sessionId, messages);
 
-			// Imported sessions are history from the moment they land: terminal
-			// status, or the stale-session reconciler flips pid-0 rows to failed.
-			await this.sessions.updateSessionStatus(sessionId, "completed", 0);
-			const endedAtMs = Number.isFinite(converted.endedAtMs)
-				? converted.endedAtMs
-				: startedAtMs;
-			const manifest = artifacts.manifest;
-			manifest.status = "completed";
-			manifest.ended_at = new Date(endedAtMs).toISOString();
-			manifest.exit_code = 0;
-			this.sessions.writeSessionManifest(artifacts.manifestPath, manifest);
-
-			// Session creation derives metadata.title from the prompt; restore
-			// the source tool's own title on both the row and the manifest.
+			// Last step on purpose: the importedFrom marker means "this import
+			// finished", so a session that fails before this point can never
+			// claim the source and block a retry, whatever happens to the row.
+			// (updateSession also restores the source tool's title, which
+			// creation replaced with a prompt-derived one.)
+			const importedFrom: ImportedFromMetadata = {
+				tool: converted.tool,
+				sourceSessionId: converted.sourceId,
+				sourcePath: converted.sourcePath,
+				importedAt: new Date().toISOString(),
+				sourceProvider: converted.provider,
+				sourceModel: converted.model,
+			};
 			await this.sessions.updateSession({
 				sessionId,
 				title: converted.title,
+				metadata: { ...baseMetadata, importedFrom },
 			});
 		} catch (error) {
-			// A half-written session would show up as a broken history entry
-			// and its importedFrom marker would block retrying the source.
+			// Remove the half-written session so history never shows a broken
+			// entry; even if this fails, the row carries no importedFrom marker.
 			try {
 				await this.sessions.deleteSession(sessionId);
 			} catch {
