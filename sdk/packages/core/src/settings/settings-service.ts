@@ -498,8 +498,12 @@ export class CoreSettingsService {
 					skills,
 					mcp,
 				});
-			} catch {
+			} catch (error) {
 				// Portable package discovery is isolated from all other settings.
+				const message = error instanceof Error ? error.message : String(error);
+				console.warn(
+					`[agent-plugins] Package discovery failed; listing settings without Agent Plugins: ${message}`,
+				);
 			}
 			const enabledPluginPaths = new Set(
 				plugins

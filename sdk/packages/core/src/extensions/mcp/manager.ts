@@ -180,8 +180,18 @@ export class InMemoryMcpManager implements McpManager {
 
 	async dispose(): Promise<void> {
 		const names = [...this.servers.keys()];
+		// One wedged server (e.g. a stdio child that never exits) must not stop
+		// the remaining servers from being disconnected.
+		const errors: unknown[] = [];
 		for (const name of names) {
-			await this.unregisterServer(name);
+			try {
+				await this.unregisterServer(name);
+			} catch (error) {
+				errors.push(error);
+			}
+		}
+		if (errors.length > 0) {
+			throw new AggregateError(errors, "MCP manager dispose failed");
 		}
 	}
 
