@@ -60,10 +60,10 @@ describe("runSubprocessEvent", () => {
 
 	it("reports a censored observation for a hook still running at the window", async () => {
 		const observed: Array<{ durationMs: number; exited: boolean }> = [];
-		// The child must still be running when the window closes, by a wide
-		// margin: a loaded CI worker can fire the unref'd timer well after its
-		// nominal delay, and if the child exits first the exit path reports
-		// instead. It still exits on its own so the test leaves no orphan.
+		// The child never reads stdin, which is what fire-and-forget hooks
+		// typically do and what kept the observation window from arming on
+		// Windows. It outlives the window by a wide margin, then exits on its
+		// own so the test leaves no orphan.
 		await runSubprocessEvent(
 			{},
 			{
@@ -87,6 +87,31 @@ describe("runSubprocessEvent", () => {
 		// covered by the exits-cleanly case above.)
 		await new Promise((resolve) => setTimeout(resolve, 500));
 		expect(observed).toHaveLength(1);
+	});
+
+	it("censors a hook whose stdin write is still pending", async () => {
+		const observed: Array<{ durationMs: number; exited: boolean }> = [];
+		// A payload past the pipe buffer sent to a hook that never reads stdin
+		// leaves the write pending for the hook's whole life — the shape that
+		// made the observation window arm too late on Windows. (The call below
+		// only returns once that write settles; the run itself never awaits a
+		// detached hook, so this costs the agent nothing.)
+		await runSubprocessEvent(
+			{ payload: "x".repeat(512 * 1024) },
+			{
+				command: [process.execPath, "-e", "setTimeout(() => {}, 5_000)"],
+				detached: true,
+				detachedObservationMs: 100,
+				onDetachedSettled: (event) => observed.push(event),
+			},
+		);
+		await vi.waitFor(() => expect(observed).toHaveLength(1), {
+			timeout: 5_000,
+		});
+		// Censored at the window rather than reported as a clean exit, which
+		// is what the pre-fix ordering produced here.
+		expect(observed[0].exited).toBe(false);
+		expect(observed[0].durationMs).toBe(100);
 	});
 
 	it("settles after exit even when a spawned child keeps the stdio pipes open", async () => {
