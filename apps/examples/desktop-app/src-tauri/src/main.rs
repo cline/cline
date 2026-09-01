@@ -1238,6 +1238,16 @@ mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     #[test]
+    fn macos_bundle_declares_voice_input_permissions() {
+        let info_plist = include_str!("../Info.plist");
+        assert!(info_plist.contains("<key>NSMicrophoneUsageDescription</key>"));
+        assert!(info_plist.contains("<key>NSSpeechRecognitionUsageDescription</key>"));
+
+        let entitlements = include_str!("../entitlements.plist");
+        assert!(entitlements.contains("<key>com.apple.security.device.audio-input</key>"));
+    }
+
+    #[test]
     fn desktop_actions_are_buffered_in_order_until_drained() {
         let state = DesktopActionState::default();
         state.enqueue(DesktopAction::NewSession);
