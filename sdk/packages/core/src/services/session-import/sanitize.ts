@@ -107,8 +107,13 @@ export function sanitizeImportedMessages(messages: Message[]): Message[] {
 		);
 	}
 
-	// Pass 3: every assistant tool_use must be answered by a tool_result in
-	// the consecutive user messages that follow it.
+	// Pass 3: every assistant tool_use must be answered by a tool_result, and
+	// providers (Anthropic strictly) want all of a turn's results in the user
+	// message immediately following it. Whenever the span of user messages
+	// after an assistant turn is incomplete or split across messages, rebuild
+	// it as one consolidated results message (tool_use order, placeholders
+	// for anything missing) followed by a message with whatever else was
+	// there, mirroring the legacy migration sanitizer.
 	const repaired: Message[] = [];
 	for (let i = 0; i < paired.length; i++) {
 		const message = paired[i];
@@ -117,28 +122,56 @@ export function sanitizeImportedMessages(messages: Message[]): Message[] {
 		const toolUses = getToolUses(message);
 		if (toolUses.length === 0) continue;
 
-		const answered = new Set<string>();
-		let scan = i + 1;
-		while (scan < paired.length && paired[scan].role === "user") {
-			const content = paired[scan].content;
-			if (Array.isArray(content)) {
-				for (const block of content) {
-					if (block.type === "tool_result") answered.add(block.tool_use_id);
+		const toolUseIds = new Set(toolUses.map((toolUse) => toolUse.id));
+		const results = new Map<string, Block>();
+		const otherBlocks: Block[] = [];
+		let spanEnd = i + 1;
+		while (spanEnd < paired.length && paired[spanEnd].role === "user") {
+			const content = paired[spanEnd].content;
+			const blocks: Block[] =
+				typeof content === "string"
+					? [{ type: "text", text: content }]
+					: content;
+			for (const block of blocks) {
+				if (
+					block.type === "tool_result" &&
+					toolUseIds.has(block.tool_use_id) &&
+					!results.has(block.tool_use_id)
+				) {
+					results.set(block.tool_use_id, block);
+				} else if (
+					block.type !== "tool_result" ||
+					!toolUseIds.has(block.tool_use_id)
+				) {
+					otherBlocks.push(block);
 				}
+				// Duplicate results for an already-answered id are dropped.
 			}
-			scan++;
+			spanEnd++;
 		}
-		const missing = toolUses.filter((toolUse) => !answered.has(toolUse.id));
-		if (missing.length === 0) continue;
+		const span = paired.slice(i + 1, spanEnd);
+		const missing = toolUses.filter((toolUse) => !results.has(toolUse.id));
+		const alreadyConsolidated =
+			missing.length === 0 && span.length === 1 && otherBlocks.length === 0;
+		if (alreadyConsolidated) continue;
+
 		repaired.push({
+			...(span[0] ?? {}),
 			role: "user",
-			content: missing.map((toolUse) => ({
-				type: "tool_result" as const,
-				tool_use_id: toolUse.id,
-				name: toolUse.name,
-				content: IMPORT_MISSING_TOOL_RESULT_TEXT,
-			})),
+			content: toolUses.map(
+				(toolUse) =>
+					results.get(toolUse.id) ?? {
+						type: "tool_result" as const,
+						tool_use_id: toolUse.id,
+						name: toolUse.name,
+						content: IMPORT_MISSING_TOOL_RESULT_TEXT,
+					},
+			),
 		});
+		if (otherBlocks.length > 0) {
+			repaired.push({ role: "user", content: otherBlocks });
+		}
+		i = spanEnd - 1;
 	}
 
 	return repaired;
