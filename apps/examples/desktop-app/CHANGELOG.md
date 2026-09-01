@@ -1,5 +1,11 @@
 # Cline Desktop Changelog
 
+## 0.0.22-beta.1
+
+- Beta: Composio connectors now register tools directly in the packaged desktop runtime for eligible internal accounts, with safer OAuth revocation and more resilient connect, disconnect, and reconciliation behavior.
+- Web search is enabled by default for new desktop sessions.
+- Includes all stable desktop improvements through 0.0.21, including the two-pane Marketplace explorer, reliable cancellation of child agents and teammates, full-composer attachment drops, live Cline model catalog refreshes, and clearer provider authentication errors.
+
 ## 0.0.21
 
 - Marketplace is now a two-pane explorer: a browsable list on the left and full catalog metadata for the selected item on the right, with category tag filters that collapse behind a "more" toggle
