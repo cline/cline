@@ -1,6 +1,13 @@
 "use client";
 
-import { AlertCircle, CheckCircle2, Loader2, Search } from "lucide-react";
+import {
+	AlertCircle,
+	CheckCircle2,
+	ChevronDown,
+	ChevronRight,
+	Loader2,
+	Search,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -56,6 +63,7 @@ export function ImportSessionsDialog({
 	const [scanError, setScanError] = useState<string | null>(null);
 	const [sessions, setSessions] = useState<ImportableSession[]>([]);
 	const [selected, setSelected] = useState<Set<string>>(new Set());
+	const [collapsedTools, setCollapsedTools] = useState<Set<string>>(new Set());
 	const [query, setQuery] = useState("");
 	const [progress, setProgress] = useState<{ done: number; total: number }>({
 		done: 0,
@@ -87,6 +95,7 @@ export function ImportSessionsDialog({
 	useEffect(() => {
 		if (!open) return;
 		setSelected(new Set());
+		setCollapsedTools(new Set());
 		setQuery("");
 		setResults([]);
 		setProgress({ done: 0, total: 0 });
@@ -126,6 +135,15 @@ export function ImportSessionsDialog({
 				.map((session) => importSelectionKey(session.tool, session.sourceId)),
 		[],
 	);
+
+	const isFiltering = query.trim().length > 0;
+	const visibleSelectableKeys = selectableKeys(visibleSessions);
+	const selectedVisibleCount = visibleSelectableKeys.filter((key) =>
+		selected.has(key),
+	).length;
+	const allVisibleSelected =
+		visibleSelectableKeys.length > 0 &&
+		selectedVisibleCount === visibleSelectableKeys.length;
 
 	const toggleAll = (items: ImportableSession[], checked: boolean) => {
 		setSelected((previous) => {
@@ -232,6 +250,33 @@ export function ImportSessionsDialog({
 										value={query}
 									/>
 								</div>
+								<div className="flex items-center gap-2 border-b pb-2">
+									<Checkbox
+										aria-label="Select all sessions"
+										checked={
+											allVisibleSelected
+												? true
+												: selectedVisibleCount > 0
+													? "indeterminate"
+													: false
+										}
+										disabled={visibleSelectableKeys.length === 0}
+										id="import-select-all"
+										onCheckedChange={(checked) =>
+											toggleAll(visibleSessions, checked === true)
+										}
+									/>
+									<label
+										className="cursor-pointer text-sm text-foreground"
+										htmlFor="import-select-all"
+									>
+										Select all
+									</label>
+									<span className="ml-auto text-xs text-muted-foreground">
+										{selectedVisibleCount} of {visibleSelectableKeys.length}{" "}
+										selected
+									</span>
+								</div>
 								<div className="min-h-0 flex-1 overflow-y-auto pr-1">
 									{groups.map((group) => {
 										const keys = selectableKeys(group.sessions);
@@ -240,6 +285,10 @@ export function ImportSessionsDialog({
 										).length;
 										const allChecked =
 											keys.length > 0 && selectedInGroup === keys.length;
+										// A collapsed section would hide filter matches, so
+										// filtering forces every section open.
+										const collapsed =
+											!isFiltering && collapsedTools.has(group.tool);
 										return (
 											<section className="mb-4" key={group.tool}>
 												<div className="sticky top-0 z-10 flex items-center gap-2 border-b bg-background py-1.5">
@@ -257,14 +306,39 @@ export function ImportSessionsDialog({
 															toggleAll(group.sessions, checked === true)
 														}
 													/>
-													<h3 className="text-sm font-semibold text-foreground">
-														{SESSION_IMPORT_TOOL_LABELS[group.tool]}
-													</h3>
-													<span className="text-xs text-muted-foreground">
-														{group.sessions.length}
-													</span>
+													<button
+														aria-expanded={!collapsed}
+														className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-sm py-0.5 text-left hover:text-foreground"
+														onClick={() =>
+															setCollapsedTools((previous) => {
+																const next = new Set(previous);
+																if (next.has(group.tool)) {
+																	next.delete(group.tool);
+																} else {
+																	next.add(group.tool);
+																}
+																return next;
+															})
+														}
+														type="button"
+													>
+														<h3 className="text-sm font-semibold text-foreground">
+															{SESSION_IMPORT_TOOL_LABELS[group.tool]}
+														</h3>
+														<span className="text-xs text-muted-foreground">
+															{group.sessions.length}
+															{selectedInGroup > 0
+																? ` · ${selectedInGroup} selected`
+																: ""}
+														</span>
+														{collapsed ? (
+															<ChevronRight className="ml-auto size-4 shrink-0 text-muted-foreground" />
+														) : (
+															<ChevronDown className="ml-auto size-4 shrink-0 text-muted-foreground" />
+														)}
+													</button>
 												</div>
-												<ul>
+												<ul hidden={collapsed}>
 													{group.sessions.map((session) => {
 														const key = importSelectionKey(
 															session.tool,
@@ -301,8 +375,8 @@ export function ImportSessionsDialog({
 																		}
 																	/>
 																	<span className="min-w-0 flex-1">
-																		<span className="flex items-center gap-2">
-																			<span className="truncate text-sm text-foreground">
+																		<span className="flex min-w-0 items-start gap-2">
+																			<span className="line-clamp-2 min-w-0 break-words text-sm text-foreground">
 																				{session.title}
 																			</span>
 																			{alreadyImported ? (
@@ -314,8 +388,8 @@ export function ImportSessionsDialog({
 																				</Badge>
 																			) : null}
 																		</span>
-																		<span className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
-																			<span>
+																		<span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+																			<span className="shrink-0">
 																				{formatRelativeTime(
 																					new Date(
 																						session.updatedAtMs,
@@ -323,14 +397,14 @@ export function ImportSessionsDialog({
 																				)}
 																			</span>
 																			<span aria-hidden>·</span>
-																			<span>
+																			<span className="shrink-0">
 																				{session.messageCount} message
 																				{session.messageCount === 1 ? "" : "s"}
 																			</span>
 																			{session.cwd ? (
 																				<>
 																					<span aria-hidden>·</span>
-																					<span className="truncate">
+																					<span className="min-w-0 truncate">
 																						{basenamePath(session.cwd)}
 																					</span>
 																				</>
@@ -384,7 +458,7 @@ export function ImportSessionsDialog({
 									) : (
 										<AlertCircle className="size-4 shrink-0 text-destructive" />
 									)}
-									<span className="truncate text-muted-foreground">
+									<span className="min-w-0 truncate text-muted-foreground">
 										{result.title ?? result.sourceId}
 									</span>
 								</li>
