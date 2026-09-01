@@ -282,6 +282,15 @@ export async function hubHasLiveSessions(
  * dies mid-turn with an abnormal close. Defer instead while it is busy: the
  * caller attaches to the older Hub, the build-mismatch watcher tells the user a
  * newer build is waiting, and the swap happens at a boundary they choose.
+ *
+ * The drain comes BEFORE the busy check, not after: an idle reading is only
+ * a snapshot, and a session admitted between it and the shutdown would die
+ * in a retirement that "idle" was supposed to rule out. With the drain
+ * accepted first, the hub admits no new work, so the reading stays true
+ * through the retire. A hub that does not accept the drain (builds that
+ * predate /drain answer 404; a wedged one may not answer at all) keeps the
+ * historical best-effort snapshot - never replacing such a hub would strand
+ * every client on it permanently, the very failure this path exists to fix.
  */
 async function retireIncompatibleHub(
 	record: HubServerProbeRecord,
@@ -290,12 +299,37 @@ async function retireIncompatibleHub(
 	if (isReusableHubRecord(record)) {
 		return "reusable";
 	}
+	const drained = await requestHubDrain(
+		record.url,
+		record.authToken,
+		"retired by newer install",
+	).catch(() => false);
 	if (await hubHasLiveSessions(record)) {
+		// Deferring means the hub keeps serving its sessions, so hand it back:
+		// a deferred hub left draining would refuse all new work until restart.
+		if (drained) {
+			await requestHubDrain(
+				record.url,
+				record.authToken,
+				"hub retirement deferred",
+				{ off: true },
+			).catch(() => false);
+		}
 		return "deferred_busy";
 	}
-	return (await retireDiscoveredHub(record, discoveryPath))
-		? "retired"
-		: "failed";
+	const retired = await retireDiscoveredHub(record, discoveryPath);
+	// A hub that survived the ladder (or was skipped by the retire circuit
+	// breaker) keeps running, so hand it back too - drained-but-alive is a
+	// limbo that refuses all new work until something restarts it.
+	if (!retired && drained) {
+		await requestHubDrain(
+			record.url,
+			record.authToken,
+			"hub retirement failed",
+			{ off: true },
+		).catch(() => false);
+	}
+	return retired ? "retired" : "failed";
 }
 
 /**

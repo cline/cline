@@ -481,6 +481,23 @@ describe("ensureDetachedHubServer", () => {
 			expect(kill).not.toHaveBeenCalled();
 			expect(clearHubDiscovery).not.toHaveBeenCalled();
 			expect(spawn).not.toHaveBeenCalled();
+			// The admission barrier is requested BEFORE the busy reading, so an
+			// idle result could not be invalidated by a session admitted right
+			// after it - and deferring hands the drained hub back to its work.
+			expect(requestHubDrain).toHaveBeenCalledWith(
+				"ws://127.0.0.1:25463/hub",
+				"busy-token",
+				"retired by newer install",
+			);
+			expect(requestHubDrain.mock.invocationCallOrder[0]).toBeLessThan(
+				queryHubSessionActivity.mock.invocationCallOrder[0] ?? 0,
+			);
+			expect(requestHubDrain).toHaveBeenCalledWith(
+				"ws://127.0.0.1:25463/hub",
+				"busy-token",
+				"hub retirement deferred",
+				{ off: true },
+			);
 		} finally {
 			kill.mockRestore();
 		}
