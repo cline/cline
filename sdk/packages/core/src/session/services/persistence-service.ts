@@ -531,6 +531,24 @@ export class UnifiedSessionPersistenceService {
 		});
 	}
 
+	/**
+	 * Lightweight, effectively unbounded listing of session ids + metadata
+	 * (no manifest reads, no dead-session reconciliation). listSessions caps
+	 * its scan at 2000 rows; callers that must see every row — e.g. import
+	 * dedup markers — use this instead.
+	 */
+	async listSessionMetadata(
+		limit = 100_000,
+	): Promise<Array<{ sessionId: string; metadata?: Record<string, unknown> }>> {
+		const rows = await this.adapter.listSessions({
+			limit: Math.max(1, Math.floor(limit)),
+		});
+		return rows.map((row) => ({
+			sessionId: row.sessionId,
+			metadata: sanitizeMetadata(row.metadata ?? undefined),
+		}));
+	}
+
 	async reconcileDeadSessions(limit = 2000): Promise<number> {
 		const requestedLimit = Math.max(1, Math.floor(limit));
 		const rows = (

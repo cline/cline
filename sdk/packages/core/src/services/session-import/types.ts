@@ -97,6 +97,9 @@ export interface SessionImportResult {
 	sessionId?: string;
 	title?: string;
 	error?: string;
+	/** Set when the source session had already been imported; sessionId is
+	 * the existing Cline session and nothing new was written. */
+	alreadyImported?: boolean;
 }
 
 export function truncateForDisplay(

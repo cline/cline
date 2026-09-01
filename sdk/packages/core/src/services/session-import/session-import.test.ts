@@ -818,12 +818,96 @@ describe("SessionImportService", () => {
 		});
 
 		// A half-specified target is ignored rather than mixing provider and
-		// model from different worlds.
-		const [partial] = await importer.importMany(
+		// model from different worlds. (Fresh store: the same source is never
+		// imported twice into one store.)
+		const partialStore = new SqliteSessionStore({
+			sessionsDir: tempDir("cline-db-"),
+		});
+		partialStore.init();
+		const partialImporter = new SessionImportService(
+			new CoreSessionService(partialStore, {
+				sessionArtifactsDir: tempDir("cline-sessions-"),
+			}),
+			[new ClaudeCodeImportAdapter({ projectsDir })],
+		);
+		const [partial] = await partialImporter.importMany(
 			[{ tool: "claude-code", sourceId: "abc" }],
 			undefined,
 			{ provider: "cline" },
 		);
-		expect(store.get(partial.sessionId as string)?.provider).toBe("anthropic");
+		expect(partialStore.get(partial.sessionId as string)?.provider).toBe(
+			"anthropic",
+		);
+	});
+
+	it("rolls back a half-written session when a later write fails", async () => {
+		const projectsDir = tempDir("cc-import-");
+		writeClaudeCodeFixture(projectsDir);
+		const dbDir = tempDir("cline-db-");
+		const artifactsDir = tempDir("cline-sessions-");
+		const store = new SqliteSessionStore({ sessionsDir: dbDir });
+		store.init();
+		const sessions = new CoreSessionService(store, {
+			sessionArtifactsDir: artifactsDir,
+		});
+		const original = sessions.persistSessionMessages.bind(sessions);
+		let failNext = true;
+		sessions.persistSessionMessages = async (...args) => {
+			if (failNext) {
+				failNext = false;
+				throw new Error("disk full");
+			}
+			return original(...args);
+		};
+		const importer = new SessionImportService(sessions, [
+			new ClaudeCodeImportAdapter({ projectsDir }),
+		]);
+
+		const [failed] = await importer.importMany([
+			{ tool: "claude-code", sourceId: "abc" },
+		]);
+		expect(failed.ok).toBe(false);
+		expect(failed.error).toContain("disk full");
+		// Nothing persisted: no row, no importedFrom marker blocking a retry.
+		expect(store.list(50)).toHaveLength(0);
+		const rediscovered = await importer.discover();
+		expect(rediscovered[0].alreadyImportedSessionId).toBeUndefined();
+
+		// The retry succeeds normally.
+		const [retried] = await importer.importMany([
+			{ tool: "claude-code", sourceId: "abc" },
+		]);
+		expect(retried.ok).toBe(true);
+		expect(store.list(50)).toHaveLength(1);
+	});
+
+	it("never duplicates a source session that was already imported", async () => {
+		const projectsDir = tempDir("cc-import-");
+		writeClaudeCodeFixture(projectsDir);
+		const dbDir = tempDir("cline-db-");
+		const artifactsDir = tempDir("cline-sessions-");
+		const store = new SqliteSessionStore({ sessionsDir: dbDir });
+		store.init();
+		const sessions = new CoreSessionService(store, {
+			sessionArtifactsDir: artifactsDir,
+		});
+		const importer = new SessionImportService(sessions, [
+			new ClaudeCodeImportAdapter({ projectsDir }),
+		]);
+
+		const [first] = await importer.importMany([
+			{ tool: "claude-code", sourceId: "abc" },
+		]);
+		// Same request again — from a stale picker, a double click, whatever —
+		// resolves to the existing session instead of writing a second copy.
+		const [second, third] = await importer.importMany([
+			{ tool: "claude-code", sourceId: "abc" },
+			{ tool: "claude-code", sourceId: "abc" },
+		]);
+		expect(second.ok).toBe(true);
+		expect(second.alreadyImported).toBe(true);
+		expect(second.sessionId).toBe(first.sessionId);
+		expect(third.sessionId).toBe(first.sessionId);
+		expect(store.list(50)).toHaveLength(1);
 	});
 });

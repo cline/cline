@@ -78,11 +78,15 @@ export class SessionImportService {
 			.map((adapter) => adapter.tool);
 	}
 
-	/** `tool:sourceId` → existing Cline session id, from prior imports. */
+	/**
+	 * `tool:sourceId` → existing Cline session id, from prior imports. Reads
+	 * every row's metadata (not the 2000-row listSessions window) so a marker
+	 * on an old session still prevents a duplicate.
+	 */
 	private async existingImports(): Promise<Map<string, string>> {
 		const existing = new Map<string, string>();
 		try {
-			for (const row of await this.sessions.listSessions(2000)) {
+			for (const row of await this.sessions.listSessionMetadata()) {
 				const imported = readImportedFromMetadata(row.metadata);
 				if (imported) {
 					existing.set(
@@ -139,16 +143,14 @@ export class SessionImportService {
 		request: SessionImportRequest,
 		options: SessionImportOptions = {},
 	): Promise<SessionImportResult> {
-		try {
-			return await this.importOneUnmanaged(request, options);
-		} finally {
-			this.disposeAdapters();
-		}
+		const [result] = await this.importMany([request], undefined, options);
+		return result;
 	}
 
 	private async importOneUnmanaged(
 		request: SessionImportRequest,
 		options: SessionImportOptions,
+		existing: Map<string, string>,
 	): Promise<SessionImportResult> {
 		const adapter = this.adapters.find(
 			(candidate) => candidate.tool === request.tool,
@@ -161,9 +163,24 @@ export class SessionImportService {
 				error: `No importer for tool "${request.tool}"`,
 			};
 		}
+		// Idempotency at import time, not only at discovery: a stale picker or
+		// a repeated request must never produce a second copy.
+		const existingSessionId = existing.get(
+			importKey(request.tool, request.sourceId),
+		);
+		if (existingSessionId) {
+			return {
+				tool: request.tool,
+				sourceId: request.sourceId,
+				ok: true,
+				sessionId: existingSessionId,
+				alreadyImported: true,
+			};
+		}
 		try {
 			const converted = adapter.convert(request.sourceId);
 			const sessionId = await this.persistConverted(converted, options);
+			existing.set(importKey(request.tool, request.sourceId), sessionId);
 			return {
 				tool: request.tool,
 				sourceId: request.sourceId,
@@ -187,12 +204,17 @@ export class SessionImportService {
 		options: SessionImportOptions = {},
 	): Promise<SessionImportResult[]> {
 		const results: SessionImportResult[] = [];
+		const existing = await this.existingImports();
 		try {
 			for (const [index, request] of requests.entries()) {
 				// Per-session transactional: one bad source session fails one
 				// item. Adapter caches (file indexes, db snapshots) live for the
 				// whole batch and are released once at the end.
-				const result = await this.importOneUnmanaged(request, options);
+				const result = await this.importOneUnmanaged(
+					request,
+					options,
+					existing,
+				);
 				results.push(result);
 				onProgress?.(result, index);
 			}
@@ -265,23 +287,37 @@ export class SessionImportService {
 			startedAt: new Date(startedAtMs).toISOString(),
 		});
 
-		await this.sessions.persistSessionMessages(sessionId, messages);
+		try {
+			await this.sessions.persistSessionMessages(sessionId, messages);
 
-		// Imported sessions are history from the moment they land: terminal
-		// status, or the stale-session reconciler flips pid-0 rows to failed.
-		await this.sessions.updateSessionStatus(sessionId, "completed", 0);
-		const endedAtMs = Number.isFinite(converted.endedAtMs)
-			? converted.endedAtMs
-			: startedAtMs;
-		const manifest = artifacts.manifest;
-		manifest.status = "completed";
-		manifest.ended_at = new Date(endedAtMs).toISOString();
-		manifest.exit_code = 0;
-		this.sessions.writeSessionManifest(artifacts.manifestPath, manifest);
+			// Imported sessions are history from the moment they land: terminal
+			// status, or the stale-session reconciler flips pid-0 rows to failed.
+			await this.sessions.updateSessionStatus(sessionId, "completed", 0);
+			const endedAtMs = Number.isFinite(converted.endedAtMs)
+				? converted.endedAtMs
+				: startedAtMs;
+			const manifest = artifacts.manifest;
+			manifest.status = "completed";
+			manifest.ended_at = new Date(endedAtMs).toISOString();
+			manifest.exit_code = 0;
+			this.sessions.writeSessionManifest(artifacts.manifestPath, manifest);
 
-		// Session creation derives metadata.title from the prompt; restore the
-		// source tool's own title on both the row and the manifest.
-		await this.sessions.updateSession({ sessionId, title: converted.title });
+			// Session creation derives metadata.title from the prompt; restore
+			// the source tool's own title on both the row and the manifest.
+			await this.sessions.updateSession({
+				sessionId,
+				title: converted.title,
+			});
+		} catch (error) {
+			// A half-written session would show up as a broken history entry
+			// and its importedFrom marker would block retrying the source.
+			try {
+				await this.sessions.deleteSession(sessionId);
+			} catch {
+				// Best-effort; the original failure is what the caller needs.
+			}
+			throw error;
+		}
 
 		return sessionId;
 	}

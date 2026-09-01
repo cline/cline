@@ -44,6 +44,8 @@ export interface SessionImportResult {
 	sessionId?: string;
 	title?: string;
 	error?: string;
+	/** The source was already imported; sessionId is the existing session. */
+	alreadyImported?: boolean;
 }
 
 export interface SessionImportProgressEvent {
