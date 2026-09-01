@@ -204,7 +204,13 @@ export function ImportSessionsDialog({
 			}}
 			open={open}
 		>
-			<DialogContent className="grid h-[min(680px,calc(100dvh-2rem))] w-[min(620px,calc(100vw-2rem))] max-w-none grid-rows-[auto_minmax(0,1fr)_auto] gap-4 overflow-hidden">
+			{/* The single column must be minmax(0,1fr): with the default auto
+			    track, one unbreakable string in a session title widens the
+			    column's min-content beyond the fixed dialog width and
+			    overflow-hidden clips the header and search field. The explicit
+			    sm:max-w-none is needed because the primitive's sm:max-w-lg
+			    survives class merging across variants. */}
+			<DialogContent className="grid h-[min(680px,calc(100dvh-2rem))] w-[min(620px,calc(100vw-2rem))] max-w-none grid-cols-[minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)_auto] gap-4 overflow-hidden sm:max-w-none">
 				<DialogHeader>
 					<DialogTitle>Import sessions</DialogTitle>
 					<DialogDescription>
@@ -240,7 +246,7 @@ export function ImportSessionsDialog({
 						) : null}
 						{sessions.length > 0 ? (
 							<>
-								<div className="relative">
+								<div className="relative shrink-0">
 									<Search className="-translate-y-1/2 pointer-events-none absolute left-2.5 top-1/2 size-4 text-muted-foreground" />
 									<Input
 										aria-label="Filter sessions"
@@ -250,7 +256,7 @@ export function ImportSessionsDialog({
 										value={query}
 									/>
 								</div>
-								<div className="flex items-center gap-2 border-b pb-2">
+								<div className="flex shrink-0 items-center gap-2 border-b pb-2">
 									<Checkbox
 										aria-label="Select all sessions"
 										checked={
