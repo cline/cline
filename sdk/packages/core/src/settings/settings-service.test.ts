@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import {
 	mkdir,
 	mkdtemp,
@@ -347,6 +348,138 @@ Review the change.`,
 				}),
 			]),
 		);
+	});
+
+	it("reports a bot.cline extension's real contributions when inspection is on, and a static marker when it is off", async () => {
+		const tempRoot = await mkdtemp(
+			join(tmpdir(), "core-settings-agent-plugin-cline-ext-"),
+		);
+		tempRoots.push(tempRoot);
+		process.env.HOME = tempRoot;
+		setHomeDir(tempRoot);
+		process.env.CLINE_GLOBAL_SETTINGS_PATH = join(
+			tempRoot,
+			"global-settings.json",
+		);
+		const workspaceRoot = join(tempRoot, "workspace");
+		await mkdir(workspaceRoot, { recursive: true });
+		const pluginRoot = join(tempRoot, ".agents", "plugins", "with-extension");
+		await mkdir(join(pluginRoot, "bot.cline"), { recursive: true });
+		await writeFile(
+			join(pluginRoot, "plugin.json"),
+			JSON.stringify({
+				$schema: "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+				name: "with-extension",
+				extensions: {
+					"bot.cline": { extension: "bot.cline/extension.ts" },
+				},
+			}),
+		);
+		// Top-level side effect: fires the moment the module is imported, before
+		// any validation, so its presence/absence is direct proof of whether
+		// the sandbox ever loaded this file.
+		const canaryPath = join(tempRoot, "extension-executed.txt");
+		await writeFile(
+			join(pluginRoot, "bot.cline", "extension.ts"),
+			[
+				'import { writeFileSync } from "node:fs";',
+				`writeFileSync(${JSON.stringify(canaryPath)}, "executed");`,
+				"export default {",
+				'	name: "with-extension-bot-cline",',
+				'	manifest: { capabilities: ["tools"] },',
+				"	setup(api) {",
+				"		api.registerTool({",
+				'			name: "distinctive_review_tool",',
+				'			description: "test tool",',
+				'			inputSchema: { type: "object", properties: {} },',
+				'			execute: async () => "ok",',
+				"		});",
+				"	},",
+				"};",
+			].join("\n"),
+		);
+
+		const service = new CoreSettingsService();
+		const inspected = await service.list({ cwd: workspaceRoot, workspaceRoot });
+		const inspectedPlugin = inspected.plugins.find(
+			(plugin) => plugin.id === "agent-plugin:with-extension",
+		);
+		expect(inspectedPlugin?.contributions).toMatchObject({
+			inspectionStatus: "available",
+			tools: ["distinctive_review_tool"],
+		});
+		expect(inspectedPlugin?.contributions?.capabilities).toEqual(
+			expect.arrayContaining(["cline-extension", "tools"]),
+		);
+		// Sanity-check the canary mechanism itself so the non-execution
+		// assertion for the disabled case below cannot pass vacuously.
+		expect(existsSync(canaryPath)).toBe(true);
+		await rm(canaryPath);
+		// Bump the entry's mtime so the inspection pass's mtime-keyed
+		// descriptor cache cannot mask a re-execution: a later run that still
+		// receives this path is forced through the sandbox again.
+		const entrySource = await readFile(
+			join(pluginRoot, "bot.cline", "extension.ts"),
+			"utf8",
+		);
+		await writeFile(join(pluginRoot, "bot.cline", "extension.ts"), entrySource);
+
+		const uninspected = await service.list({
+			cwd: workspaceRoot,
+			workspaceRoot,
+			includePluginTools: false,
+		});
+		const uninspectedPlugin = uninspected.plugins.find(
+			(plugin) => plugin.id === "agent-plugin:with-extension",
+		);
+		expect(uninspectedPlugin?.contributions?.capabilities).toEqual([
+			"cline-extension",
+		]);
+		expect(uninspectedPlugin?.contributions?.tools).toEqual([]);
+
+		const disabled = await service.toggle({
+			type: "plugins",
+			id: "agent-plugin:with-extension",
+			enabled: false,
+			cwd: workspaceRoot,
+			workspaceRoot,
+			includePluginTools: false,
+		});
+		expect(
+			disabled.snapshot.plugins.find(
+				(plugin) => plugin.id === "agent-plugin:with-extension",
+			),
+		).toMatchObject({
+			enabled: false,
+			contributions: {
+				inspectionStatus: "disabled",
+				capabilities: ["cline-extension"],
+			},
+		});
+
+		// Whole-plugin disablement is the only trust control over bot.cline
+		// code, so a disabled plugin's extension must never reach the sandboxed
+		// inspection pass -- even when inspection itself is on. The canary file
+		// staying absent proves the module was never imported, not merely that
+		// its contributions went unreported.
+		const disabledInspected = await service.list({
+			cwd: workspaceRoot,
+			workspaceRoot,
+		});
+		expect(existsSync(canaryPath)).toBe(false);
+		const disabledInspectedPlugin = disabledInspected.plugins.find(
+			(plugin) => plugin.id === "agent-plugin:with-extension",
+		);
+		expect(disabledInspectedPlugin?.contributions).toMatchObject({
+			inspectionStatus: "disabled",
+			capabilities: ["cline-extension"],
+			tools: [],
+		});
+		expect(
+			disabledInspected.tools.some(
+				(tool) => tool.name === "distinctive_review_tool",
+			),
+		).toBe(false);
 	});
 
 	it("rejects toggling an individual Agent Plugin skill instead of rewriting its frontmatter", async () => {

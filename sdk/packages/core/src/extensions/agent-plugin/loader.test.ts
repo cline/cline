@@ -63,6 +63,20 @@ async function writeSkill(
 	return skillRoot;
 }
 
+async function writeClineExtension(
+	pluginRoot: string,
+	relativeEntryPath = join("bot.cline", "extension.ts"),
+): Promise<string> {
+	const entryPath = join(pluginRoot, relativeEntryPath);
+	await mkdir(join(entryPath, ".."), { recursive: true });
+	await writeFile(
+		entryPath,
+		'export default { name: "cline-ext", manifest: { capabilities: ["tools"] }, setup() {} };',
+		"utf8",
+	);
+	return entryPath;
+}
+
 afterEach(async () => {
 	await Promise.all(
 		temporaryRoots
@@ -78,9 +92,13 @@ describe("loadAgentPluginPackages", () => {
 		const searchRoot = join(workspacePath, ".agents", "plugins");
 		const pluginRoot = await createPlugin(searchRoot, "acme.tools", {
 			description: "Portable tools",
-			extensions: { "com.unknown.client": "left unvalidated" },
+			extensions: {
+				"com.unknown.client": "left unvalidated",
+				"bot.cline": { extension: join("bot.cline", "extension.ts") },
+			},
 			futureField: true,
 		});
+		const clineExtensionPath = await writeClineExtension(pluginRoot);
 		const validSkillRoot = await writeSkill(
 			pluginRoot,
 			"review-code",
@@ -149,6 +167,18 @@ describe("loadAgentPluginPackages", () => {
 			"local",
 			"remote",
 		]);
+		expect(report.clineExtensions).toEqual([
+			{
+				pluginName: "acme.tools",
+				pluginRoot,
+				entryPath: clineExtensionPath,
+			},
+		]);
+		// The bot.cline namespace is the only one Cline validates or acts on;
+		// every other namespace stays exactly as parseManifest preserved it.
+		expect(report.plugins[0].manifest.extensions?.["com.unknown.client"]).toBe(
+			"left unvalidated",
+		);
 		const local = report.mcpServers.find(
 			(server) => server.serverName === "local",
 		);
@@ -374,4 +404,99 @@ describe("loadAgentPluginPackages", () => {
 			);
 		},
 	);
+
+	describe("bot.cline extension", () => {
+		it("skips the component, but still loads skills and MCP, when the declared entry is missing", async () => {
+			const root = await createTemporaryRoot();
+			const pluginRoot = await createPlugin(root, "missing-entry", {
+				extensions: {
+					"bot.cline": { extension: join("bot.cline", "extension.ts") },
+				},
+			});
+			await writeSkill(
+				pluginRoot,
+				"still-loads",
+				"name: still-loads\ndescription: Still loads",
+			);
+
+			const report = await loadAgentPluginPackages({ searchPaths: [root] });
+
+			expect(report.clineExtensions).toEqual([]);
+			expect(report.skills.map((skill) => skill.metadata.name)).toEqual([
+				"still-loads",
+			]);
+			expect(report.diagnostics).toContainEqual(
+				expect.objectContaining({
+					scope: "cline-extension",
+					pluginName: "missing-entry",
+				}),
+			);
+		});
+
+		it("rejects an entry path that escapes the bot.cline directory", async () => {
+			const root = await createTemporaryRoot();
+			const pluginRoot = await createPlugin(root, "escaping-entry", {
+				extensions: { "bot.cline": { extension: "mcp.json" } },
+			});
+			await writeJson(join(pluginRoot, "mcp.json"), {
+				$schema: AGENT_PLUGINS_V1_MCP_SCHEMA,
+				mcpServers: {},
+			});
+
+			const report = await loadAgentPluginPackages({ searchPaths: [root] });
+
+			expect(report.clineExtensions).toEqual([]);
+			expect(report.diagnostics).toContainEqual(
+				expect.objectContaining({
+					scope: "cline-extension",
+					pluginName: "escaping-entry",
+				}),
+			);
+		});
+
+		it("rejects an entry with an unsupported file extension", async () => {
+			const root = await createTemporaryRoot();
+			const pluginRoot = await createPlugin(root, "wrong-extension", {
+				extensions: {
+					"bot.cline": { extension: join("bot.cline", "extension.json") },
+				},
+			});
+			await mkdir(join(pluginRoot, "bot.cline"), { recursive: true });
+			await writeJson(join(pluginRoot, "bot.cline", "extension.json"), {});
+
+			const report = await loadAgentPluginPackages({ searchPaths: [root] });
+
+			expect(report.clineExtensions).toEqual([]);
+			expect(report.diagnostics).toContainEqual(
+				expect.objectContaining({
+					scope: "cline-extension",
+					pluginName: "wrong-extension",
+				}),
+			);
+		});
+
+		it("rejects an unknown field alongside a valid extension path", async () => {
+			const root = await createTemporaryRoot();
+			const pluginRoot = await createPlugin(root, "unknown-field", {
+				extensions: {
+					"bot.cline": {
+						extension: join("bot.cline", "extension.ts"),
+						capabilities: ["tools"],
+					},
+				},
+			});
+			await writeClineExtension(pluginRoot);
+
+			const report = await loadAgentPluginPackages({ searchPaths: [root] });
+
+			expect(report.clineExtensions).toEqual([]);
+			expect(report.diagnostics).toContainEqual(
+				expect.objectContaining({
+					scope: "cline-extension",
+					pluginName: "unknown-field",
+					message: expect.stringContaining("capabilities"),
+				}),
+			);
+		});
+	});
 });

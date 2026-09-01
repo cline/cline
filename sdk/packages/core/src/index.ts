@@ -225,6 +225,7 @@ export type {
 	RestoreResult,
 } from "./cline-core/types";
 export type {
+	AgentPluginPackageClineExtension,
 	AgentPluginPackageDiagnostic,
 	AgentPluginPackageDiagnosticScope,
 	AgentPluginPackageLoadReport,

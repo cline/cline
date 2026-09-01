@@ -1,4 +1,5 @@
 export type {
+	AgentPluginPackageClineExtension,
 	AgentPluginPackageDiagnostic,
 	AgentPluginPackageDiagnosticScope,
 	AgentPluginPackageLoadReport,

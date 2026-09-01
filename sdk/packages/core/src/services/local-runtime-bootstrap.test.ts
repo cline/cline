@@ -107,7 +107,29 @@ describe("prepareLocalRuntimeBootstrap", () => {
 				JSON.stringify({
 					$schema: "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
 					name: "portable",
+					extensions: {
+						"bot.cline": { extension: "bot.cline/extension.ts" },
+					},
 				}),
+				"utf8",
+			);
+			mkdirSync(join(pluginRoot, "bot.cline"), { recursive: true });
+			writeFileSync(
+				join(pluginRoot, "bot.cline", "extension.ts"),
+				[
+					"export default {",
+					'	name: "portable-bot-cline",',
+					'	manifest: { capabilities: ["tools"] },',
+					"	setup(api) {",
+					"		api.registerTool({",
+					'			name: "portable_review_tool",',
+					'			description: "test tool",',
+					'			inputSchema: { type: "object", properties: {} },',
+					'			execute: async () => "ok",',
+					"		});",
+					"	},",
+					"};",
+				].join("\n"),
 				"utf8",
 			);
 			const workspacePluginRoot = join(
@@ -199,6 +221,11 @@ describe("prepareLocalRuntimeBootstrap", () => {
 					(server) => server.pluginName === "workspace-owned",
 				),
 			).toBe(false);
+			expect(bootstrap.extensions).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({ name: "portable-bot-cline" }),
+				]),
+			);
 
 			writeFileSync(
 				globalSettingsPath,
@@ -229,7 +256,103 @@ describe("prepareLocalRuntimeBootstrap", () => {
 			expect(
 				disabledBootstrap.runtimeBuilderInput.agentPluginMcpServers,
 			).toEqual([]);
+			expect(disabledBootstrap.extensions).not.toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({ name: "portable-bot-cline" }),
+				]),
+			);
 		} finally {
+			setHomeDir(previousHome ?? "~");
+			rmSync(root, { recursive: true, force: true });
+		}
+	});
+
+	it("orders Agent-Plugin-derived plugin paths before explicit local config paths", async () => {
+		vi.resetModules();
+		resetModulesAfterEach = true;
+		const root = realpathSync(
+			mkdtempSync(join(tmpdir(), "core-agent-plugin-order-")),
+		);
+		const previousHome = process.env.HOME;
+		const homeRoot = join(root, "home");
+		// vi.resetModules() below forces a fresh @cline/shared/storage instance
+		// for the dynamic import, which recomputes its home dir from
+		// process.env.HOME at load time — setHomeDir() alone would only mutate
+		// the stale, already-imported instance this test file holds a reference
+		// to, and the fresh instance would never see it.
+		process.env.HOME = homeRoot;
+		setHomeDir(homeRoot);
+		try {
+			const pluginRoot = join(homeRoot, ".agents", "plugins", "ordered");
+			mkdirSync(join(pluginRoot, "bot.cline"), { recursive: true });
+			writeFileSync(
+				join(pluginRoot, "plugin.json"),
+				JSON.stringify({
+					$schema: "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+					name: "ordered",
+					extensions: {
+						"bot.cline": { extension: "bot.cline/extension.ts" },
+					},
+				}),
+				"utf8",
+			);
+			writeFileSync(
+				join(pluginRoot, "bot.cline", "extension.ts"),
+				'export default { name: "ordered-bot-cline", manifest: { capabilities: ["tools"] }, setup() {} };',
+				"utf8",
+			);
+			const expectedEntryPath = realpathSync.native(
+				join(pluginRoot, "bot.cline", "extension.ts"),
+			);
+			const explicitPluginPath = "/tmp/explicit-plugin.js";
+
+			let capturedPluginPaths: string[] | undefined;
+			vi.doMock("../extensions/plugin/plugin-config-loader", () => ({
+				resolveAndLoadAgentPlugins: vi.fn(
+					async (options: { pluginPaths?: string[] }) => {
+						capturedPluginPaths = options.pluginPaths;
+						return {
+							extensions: [],
+							failures: [],
+							pluginPaths: [],
+							warnings: [],
+						};
+					},
+				),
+				resolvePluginSkillDirectoriesFromPaths: vi.fn(() => []),
+			}));
+
+			const { prepareLocalRuntimeBootstrap } = await import(
+				"./local-runtime-bootstrap"
+			);
+			// `pluginPaths` isn't part of the public LocalRuntimeStartOptions
+			// contract (it's outside LocalOnlyCoreSessionConfigKeys), but the
+			// bootstrap code still reads it off the same object at runtime; the
+			// cast below only exists to poke a value into that slot for this test.
+			await prepareLocalRuntimeBootstrap({
+				input: createStartInput(),
+				localRuntime: {
+					pluginPaths: [explicitPluginPath],
+					configExtensions: ["plugins"],
+				} as never,
+				sessionId: "sess-order",
+				providerSettingsManager: createProviderSettingsManager() as never,
+				onPluginEvent: () => {},
+				onTeamEvent: () => {},
+				createSpawnTool,
+				readSessionMetadata: async () => undefined,
+				writeSessionMetadata: async () => {},
+			});
+
+			// Agent-Plugin-derived entries first, explicit local config last: a
+			// declared-name collision must resolve in favor of explicit config,
+			// matching the outer mergeAgentExtensions layer's own first-wins bias.
+			expect(capturedPluginPaths).toEqual([
+				expectedEntryPath,
+				explicitPluginPath,
+			]);
+		} finally {
+			process.env.HOME = previousHome;
 			setHomeDir(previousHome ?? "~");
 			rmSync(root, { recursive: true, force: true });
 		}
