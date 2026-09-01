@@ -1008,6 +1008,62 @@ describe("buildSessionConfig", () => {
 		expect(knownModel).not.toHaveProperty("temperature", -1)
 	})
 
+	it("prefers a per-model reasoning override over the provider-level setting", async () => {
+		mocks.providerSettingsManager.getProviderSettings.mockReturnValue({
+			provider: "openai-compatible",
+			reasoning: { enabled: true, effort: "medium" },
+		} as any)
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "openai",
+			actModeOpenAiModelId: "custom-reasoner",
+			openAiApiKey: "openai-compatible-key",
+			actModeOpenAiModelInfo: { supportsPromptCache: false },
+		} as any)
+		createProviderConfigStore().commitSelection(parseProviderId("openai"), "act", {
+			providerId: parseProviderId("openai"),
+			modelId: "custom-reasoner",
+			overrides: { reasoningEffort: "high" },
+		})
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.thinking).toBe(true)
+		expect(config.reasoningEffort).toBe("high")
+	})
+
+	it("pins reasoning off for a per-model none override and falls back without one", async () => {
+		mocks.providerSettingsManager.getProviderSettings.mockReturnValue({
+			provider: "openai-compatible",
+			reasoning: { enabled: true, effort: "medium" },
+		} as any)
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "openai",
+			actModeOpenAiModelId: "no-think-model",
+			openAiApiKey: "openai-compatible-key",
+			actModeOpenAiModelInfo: { supportsPromptCache: false },
+		} as any)
+		createProviderConfigStore().commitSelection(parseProviderId("openai"), "act", {
+			providerId: parseProviderId("openai"),
+			modelId: "no-think-model",
+			overrides: { reasoningEffort: "none" },
+		})
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+		expect(config.thinking).toBe(false)
+		expect(config.reasoningEffort).toBeUndefined()
+
+		// A model without an override inherits the provider-level setting.
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "openai",
+			actModeOpenAiModelId: "plain-model",
+			openAiApiKey: "openai-compatible-key",
+			actModeOpenAiModelInfo: { supportsPromptCache: false },
+		} as any)
+		const fallbackConfig = await buildSessionConfig({ cwd: "/tmp/workspace" })
+		expect(fallbackConfig.thinking).toBe(true)
+		expect(fallbackConfig.reasoningEffort).toBe("medium")
+	})
+
 	it("passes OCA reasoning effort from legacy mode settings to SDK sessions", async () => {
 		mocks.stateManager.getApiConfiguration.mockReturnValue({
 			actModeApiProvider: "oca",

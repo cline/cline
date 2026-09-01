@@ -66,6 +66,8 @@ export const StoredModelEntrySchema = z
 		cacheWritesPrice: OptionalNonNegativeFiniteNumberSchema,
 		temperature: OptionalNonNegativeFiniteNumberSchema,
 		apiFormat: ApiFormatSchema.optional(),
+		// Per-model reasoning override; "none" pins thinking off, absent inherits the provider setting.
+		reasoningEffort: z.enum(["none", "low", "medium", "high", "xhigh"]).optional().catch(undefined),
 	})
 	.passthrough();
 

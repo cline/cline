@@ -2,7 +2,7 @@ import { TooltipContent, TooltipTrigger } from "@radix-ui/react-tooltip"
 import { azureOpenAiDefaultApiVersion, type OpenAiCompatibleModelInfo, openAiModelInfoSafeDefaults } from "@shared/api"
 import { OpenAiModelsRequest } from "@shared/proto/cline/models"
 import { fromProtobufModelInfo } from "@shared/proto-conversions/models/typeConversion"
-import type { Mode } from "@shared/storage/types"
+import { isOpenaiReasoningEffort, type Mode } from "@shared/storage/types"
 import { VSCodeButton, VSCodeCheckbox, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { Tooltip } from "@/components/ui/tooltip"
@@ -116,6 +116,13 @@ export const OpenAICompatibleProvider = ({
 		}
 		selectedModelOverridesRef.current[currentMode] = { modelId: selectedModelId, overrides: selectedModelOverrides }
 	}, [committedSelection?.overrides, selectedModelId, currentMode])
+
+	// Per-model reasoning display value; prefer this mode's pending (in-flight) override so
+	// the selector doesn't flick back to the committed value during a commit round-trip.
+	const pendingSelection = selectedModelOverridesRef.current[currentMode]
+	const reasoningEffortOverride =
+		(pendingSelection.modelId === selectedModelId?.trim() ? pendingSelection.overrides.reasoningEffort : undefined) ??
+		selectedModelOverrides.reasoningEffort
 
 	const commitOpenAiSelection = useCallback(
 		(modelId: string, overrides?: ProviderModelOverrides) => {
@@ -280,8 +287,10 @@ export const OpenAICompatibleProvider = ({
 			// edit like it did when the legacy extension kept it in a single
 			// id-independent blob. Recommit the displayed overrides under the
 			// new id; otherwise an unknown id resolves to safe defaults whose
-			// zero prices misbill paid requests as $0.
-			const overrides = selectedModelOverridesRef.current[currentMode].overrides
+			// zero prices misbill paid requests as $0. Reasoning effort is the
+			// exception: it is strictly per-model, so it must never follow a
+			// model switch (the host preserves the target model's stored value).
+			const { reasoningEffort: _carried, ...overrides } = selectedModelOverridesRef.current[currentMode].overrides
 			const hasOverrides = Object.keys(overrides).length > 0
 			selectedModelOverridesRef.current[currentMode] = { modelId, overrides }
 			commitOpenAiSelection(modelId, hasOverrides ? overrides : undefined)
@@ -632,6 +641,9 @@ export const OpenAICompatibleProvider = ({
 						currentMode={currentMode}
 						defaultEffort="none"
 						onEffortChange={(effort) => {
+							// Persist per model (models.json); the provider-level write below
+							// stays as the fallback for models without an override.
+							updateModelOverride("reasoningEffort", effort)
 							void write({
 								reasoning: {
 									enabled: effort !== "none",
@@ -639,6 +651,7 @@ export const OpenAICompatibleProvider = ({
 								},
 							}).catch((err) => console.error("Failed to update OpenAI Compatible reasoning effort:", err))
 						}}
+						value={isOpenaiReasoningEffort(reasoningEffortOverride) ? reasoningEffortOverride : undefined}
 					/>
 					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
 				</>

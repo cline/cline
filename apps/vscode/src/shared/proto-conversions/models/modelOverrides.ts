@@ -32,6 +32,8 @@ export interface ProviderModelOverrides {
 	cacheWritesPrice?: number
 	temperature?: number
 	apiFormat?: ModelInfo["apiFormat"]
+	/** Per-model reasoning effort; "none" pins thinking off, absent inherits the provider-level setting. */
+	reasoningEffort?: string
 }
 
 export function toProtobufModelOverrides(overrides: ProviderModelOverrides): ModelOverrides {
@@ -50,6 +52,7 @@ export function toProtobufModelOverrides(overrides: ProviderModelOverrides): Mod
 		cacheWritesPrice: overrides.cacheWritesPrice,
 		temperature: overrides.temperature,
 		apiFormat: overrides.apiFormat,
+		reasoningEffort: overrides.reasoningEffort,
 	})
 }
 
@@ -76,5 +79,6 @@ export function fromProtobufModelOverrides(overrides: ModelOverrides | undefined
 		...(overrides.cacheWritesPrice !== undefined ? { cacheWritesPrice: overrides.cacheWritesPrice } : {}),
 		...(overrides.temperature !== undefined ? { temperature: overrides.temperature } : {}),
 		...(overrides.apiFormat !== undefined ? { apiFormat: overrides.apiFormat } : {}),
+		...(overrides.reasoningEffort !== undefined ? { reasoningEffort: overrides.reasoningEffort } : {}),
 	}
 }

@@ -156,7 +156,13 @@ vi.mock("../common/DebouncedTextField", () => ({
 }))
 
 vi.mock("../common/ModelInfoView", () => ({ ModelInfoView: () => null }))
-vi.mock("../ReasoningEffortSelector", () => ({ default: () => null }))
+vi.mock("../ReasoningEffortSelector", () => ({
+	default: ({ onEffortChange, value }: { onEffortChange?: (effort: string) => void; value?: string }) => (
+		<button onClick={() => onEffortChange?.("high")} type="button">
+			{`Reasoning Effort: ${value ?? "unset"}`}
+		</button>
+	),
+}))
 
 function deferred<T>() {
 	let resolve!: (value: T) => void
@@ -667,6 +673,36 @@ describe("OpenAICompatibleProvider", () => {
 		expect(screen.getByRole("button", { name: "Add Header" })).toBeDisabled()
 		expect(screen.getByLabelText("Set Azure API version")).toBeDisabled()
 		expect(screen.getByRole("checkbox", { name: "Use Azure Identity Authentication" })).toBeChecked()
+	})
+
+	it("displays and commits reasoning effort as a per-model override", async () => {
+		setCommittedSelection({ inputPrice: 3, reasoningEffort: "low" })
+		render(<OpenAICompatibleProvider currentMode="act" providerId="custom-openai" showModelOptions={true} />)
+		await act(async () => {})
+
+		fireEvent.click(screen.getByRole("button", { name: "Reasoning Effort: low" }))
+
+		expect(mocks.commitSelection).toHaveBeenCalledWith("act", {
+			providerId: "custom-openai",
+			modelId: "custom-model",
+			overrides: { inputPrice: 3, reasoningEffort: "high" },
+		})
+		expect(mocks.write).toHaveBeenCalledWith({ reasoning: { enabled: true, effort: "high" } })
+	})
+
+	it("does not carry the reasoning effort override when only the model id changes", async () => {
+		mocks.refreshOpenAiModels.mockResolvedValue({ values: ["custom-model", "listed-model"] })
+		setCommittedSelection({ inputPrice: 3, reasoningEffort: "high" })
+		renderProvider()
+		await act(async () => {})
+
+		fireEvent.change(screen.getByLabelText("Model ID"), { target: { value: "listed-model" } })
+
+		expect(mocks.commitSelection).toHaveBeenCalledWith("act", {
+			providerId: "custom-openai",
+			modelId: "listed-model",
+			overrides: { inputPrice: 3 },
+		})
 	})
 
 	it("writes editable Azure settings through the legacy handlers", async () => {

@@ -219,6 +219,13 @@ function resolveProviderReasoningConfig(providerId: string): SessionReasoningCon
 	}
 }
 
+/** Per-model reasoning override (models.json); wins over the provider-level reasoning setting. */
+function resolveModelReasoningConfig(selection: ResolvedModelSelection | undefined): SessionReasoningConfig | undefined {
+	const effort = selection?.overrides?.reasoningEffort
+	if (effort === "none") return { thinking: false }
+	return isReasoningEffort(effort) ? { thinking: true, reasoningEffort: effort } : undefined
+}
+
 function resolveOcaReasoningConfig(mode: Mode, apiConfig: ApiConfiguration | undefined): SessionReasoningConfig | undefined {
 	const rawEffort = mode === "plan" ? apiConfig?.planModeOcaReasoningEffort : apiConfig?.actModeOcaReasoningEffort
 	const effort = rawEffort?.trim().toLowerCase()
@@ -898,9 +905,10 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		(providerId === "openai" ? resolveOpenAiCompatibleMaxTokens(apiConfig, mode) : undefined)
 	const temperature = nonNegativeFiniteNumber(committedRuntimeModel?.overrides?.temperature)
 	const reasoningConfig =
-		providerId === "oca"
+		resolveModelReasoningConfig(committedRuntimeModel) ??
+		(providerId === "oca"
 			? (resolveOcaReasoningConfig(mode, apiConfig) ?? resolveProviderReasoningConfig(providerId))
-			: resolveProviderReasoningConfig(providerId)
+			: resolveProviderReasoningConfig(providerId))
 
 	// Include rich workspace metadata so Cline API observability can extract
 	// git remotes and the latest commit hash from the system message.

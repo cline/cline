@@ -176,6 +176,8 @@ export interface ModelSelectionOverrides {
 	readonly cacheWritesPrice?: number
 	readonly temperature?: number
 	readonly apiFormat?: ModelInfo["apiFormat"]
+	/** Per-model reasoning effort; "none" pins thinking off, absent inherits the provider-level setting. */
+	readonly reasoningEffort?: string
 }
 
 /**

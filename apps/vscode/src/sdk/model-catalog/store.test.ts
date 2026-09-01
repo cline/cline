@@ -750,6 +750,32 @@ describe("createProviderConfigStore", () => {
 		expect(store.readSelection(providerId, "act")?.overrides).toEqual({ temperature: 0.4 })
 	})
 
+	it("keeps reasoning effort overrides model-scoped and preserves them across carried replacements", async () => {
+		const { createProviderConfigStore } = await import("./store")
+		const store = createProviderConfigStore()
+		const providerId = parseProviderId("openai")
+
+		store.commitSelection(providerId, "act", { providerId, modelId: "model-a", overrides: { reasoningEffort: "low" } })
+		store.commitSelection(providerId, "act", { providerId, modelId: "model-b", overrides: { reasoningEffort: "high" } })
+		expect(mocks.getModelsFile().providers["openai-compatible"]?.models).toMatchObject({
+			"model-a": { reasoningEffort: "low" },
+			"model-b": { reasoningEffort: "high" },
+		})
+
+		// Switching back restores the model's own setting.
+		store.commitSelection(providerId, "act", { providerId, modelId: "model-a" })
+		expect(store.readSelection(providerId, "act")?.overrides).toEqual({ reasoningEffort: "low" })
+
+		// The UI strips reasoningEffort from overrides carried across a model-id switch;
+		// the omission must preserve the stored value instead of deleting it.
+		store.commitSelection(providerId, "act", { providerId, modelId: "model-a", overrides: { inputPrice: 3 } })
+		expect(store.readSelection(providerId, "act")?.overrides).toEqual({ inputPrice: 3, reasoningEffort: "low" })
+
+		// Unknown values are dropped at the storage boundary.
+		store.commitSelection(providerId, "act", { providerId, modelId: "model-b", overrides: { reasoningEffort: "ultra" } })
+		expect(mocks.getModelsFile().providers["openai-compatible"]?.models?.["model-b"]).toBeUndefined()
+	})
+
 	it.each([
 		[ApiFormat.OPENAI_CHAT, "default"],
 		[ApiFormat.R1_CHAT, "r1"],
@@ -1165,6 +1191,7 @@ describe("createProviderConfigStore", () => {
 				cacheWritesPrice: 0.2,
 				temperature: 0.7,
 				apiFormat: ApiFormat.OPENAI_RESPONSES,
+				reasoningEffort: "high",
 			},
 		})
 

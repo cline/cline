@@ -14,6 +14,8 @@ interface ReasoningEffortSelectorProps {
 	defaultEffort?: OpenaiReasoningEffort
 	/** Optional callback invoked after the effort value changes. Use to persist to provider-specific stores. */
 	onEffortChange?: (effort: OpenaiReasoningEffort) => void
+	/** Controlled display value; wins over the mode-level state fields (for per-model reasoning). */
+	value?: OpenaiReasoningEffort
 }
 
 const ReasoningEffortSelector = ({
@@ -23,14 +25,17 @@ const ReasoningEffortSelector = ({
 	allowedEfforts = OPENAI_REASONING_EFFORT_OPTIONS,
 	defaultEffort = "medium",
 	onEffortChange,
+	value,
 }: ReasoningEffortSelectorProps) => {
 	const { apiConfiguration } = useExtensionState()
 	const { handleModeFieldChange } = useApiConfigurationHandlers()
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
 	const selectedEffort =
-		isOpenaiReasoningEffort(modeFields.reasoningEffort) && allowedEfforts.includes(modeFields.reasoningEffort)
-			? modeFields.reasoningEffort
-			: defaultEffort
+		value !== undefined && allowedEfforts.includes(value)
+			? value
+			: isOpenaiReasoningEffort(modeFields.reasoningEffort) && allowedEfforts.includes(modeFields.reasoningEffort)
+				? modeFields.reasoningEffort
+				: defaultEffort
 
 	return (
 		<div style={{ marginTop: 10, marginBottom: 5 }}>
