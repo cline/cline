@@ -7,12 +7,10 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	buildConnectableCatalog,
-	COMPOSIO_PLUGIN_SOURCE,
 	cancelComposioConnect,
 	connectComposioToolkit,
 	disconnectComposioToolkit,
@@ -20,11 +18,6 @@ import {
 	initiateToolkitConnection,
 	parseComposioToolkitSlug,
 } from "./composio";
-
-const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
-// The generated plugin imports @cline/core, so the copy under test must live
-// inside the workspace tree where node module resolution can find it.
-const PLUGIN_TMP_ROOT = join(MODULE_DIR, ".vitest-composio-tmp");
 
 /**
  * The sidecar module loads `@composio/core` lazily and caches one client per
@@ -43,21 +36,13 @@ vi.mock("@composio/core", () => ({
 	},
 }));
 
-type RegisteredTool = {
-	name: string;
-	description: string;
-	inputSchema: Record<string, unknown>;
-	retryable?: boolean;
-	execute: (input: unknown, context?: unknown) => Promise<unknown>;
-};
-
 const originalDataDir = process.env.CLINE_DATA_DIR;
 const originalClineDir = process.env.CLINE_DIR;
 const originalEnvApiKey = process.env.COMPOSIO_API_KEY;
 const cleanupPaths: string[] = [];
 
-// Sandboxes both the state file (CLINE_DATA_DIR) and the plugin directory
-// (CLINE_DIR), since env-key reconciliation can write the plugin file.
+// Sandboxes both the state file (CLINE_DATA_DIR) and the legacy plugin
+// directory (CLINE_DIR), which reconciled reads clean up.
 function useTempDataDir(): string {
 	const dir = mkdtempSync(join(tmpdir(), "composio-test-"));
 	cleanupPaths.push(dir);
@@ -84,38 +69,6 @@ function readStateFile(dataDir: string): {
 	return JSON.parse(
 		readFileSync(join(dataDir, "settings", "composio.json"), "utf8"),
 	);
-}
-
-async function loadGeneratedPlugin(): Promise<{
-	setup: (api: unknown, ctx?: unknown) => void | Promise<void>;
-	name: string;
-	manifest: { capabilities: string[] };
-}> {
-	mkdirSync(PLUGIN_TMP_ROOT, { recursive: true });
-	cleanupPaths.push(PLUGIN_TMP_ROOT);
-	// Unique file name per import: module caches are keyed by path.
-	const pluginPath = join(
-		PLUGIN_TMP_ROOT,
-		`composio-tools-${Date.now()}-${Math.random().toString(36).slice(2)}.ts`,
-	);
-	writeFileSync(pluginPath, COMPOSIO_PLUGIN_SOURCE);
-	const module = (await import(pluginPath)) as {
-		default: {
-			setup: (api: unknown, ctx?: unknown) => void | Promise<void>;
-			name: string;
-			manifest: { capabilities: string[] };
-		};
-	};
-	return module.default;
-}
-
-async function setupPluginTools(): Promise<RegisteredTool[]> {
-	const plugin = await loadGeneratedPlugin();
-	const tools: RegisteredTool[] = [];
-	await plugin.setup({
-		registerTool: (tool: RegisteredTool) => tools.push(tool),
-	});
-	return tools;
 }
 
 beforeEach(() => {
@@ -424,14 +377,14 @@ describe("managed COMPOSIO_API_KEY", () => {
 				},
 			},
 		});
-		// The plugin file as a connect would have materialized it.
-		const pluginPath = join(dir, "plugins", "composio-tools.ts");
+		// A leftover drop-in plugin from a pre–in-process-registration build.
+		const legacyPluginPath = join(dir, "plugins", "composio-tools.ts");
 		mkdirSync(join(dir, "plugins"), { recursive: true });
-		writeFileSync(pluginPath, COMPOSIO_PLUGIN_SOURCE);
+		writeFileSync(legacyPluginPath, "// legacy generated plugin");
 		// The new key belongs to a different Composio project. Even with no
 		// successful refresh afterwards, the old project's connectors must not
-		// stay reported as installed under the new key — the plugin would
-		// execute their tools against the wrong project.
+		// stay reported as installed under the new key — their tools would
+		// execute against the wrong project.
 		process.env.COMPOSIO_API_KEY = "ck_second";
 		const rotated = await getComposioStatus();
 		expect(rotated.configured).toBe(true);
@@ -441,7 +394,8 @@ describe("managed COMPOSIO_API_KEY", () => {
 		const persisted = readStateFile(dir);
 		expect(persisted.apiKey).toBe("ck_second");
 		expect(persisted.toolkits).toEqual({});
-		expect(existsSync(pluginPath)).toBe(false);
+		// The legacy plugin file is cleaned up on any reconciled read.
+		expect(existsSync(legacyPluginPath)).toBe(false);
 	});
 
 	it("dropping the managed key drops the stored key and materialized connections", async () => {
@@ -463,7 +417,6 @@ describe("managed COMPOSIO_API_KEY", () => {
 		const persisted = readStateFile(dir);
 		expect(persisted.apiKey).toBeUndefined();
 		expect(persisted.toolkits).toEqual({});
-		expect(existsSync(join(dir, "plugins", "composio-tools.ts"))).toBe(false);
 	});
 
 	it("status reads survive an unwritable plugins directory", async () => {
@@ -484,36 +437,6 @@ describe("managed COMPOSIO_API_KEY", () => {
 		process.env.COMPOSIO_API_KEY = "ck_from_env";
 		const status = await getComposioStatus();
 		expect(status.configured).toBe(true);
-	});
-
-	it("plugin execute falls back to the Hub process env when the state file has no key", async () => {
-		const dir = useTempDataDir();
-		writeState(dir, {
-			userId: "cline-desktop-env",
-			toolkits: {
-				github: {
-					connectedAccountId: "ca_github",
-					tools: [{ slug: "GITHUB_CREATE_AN_ISSUE" }],
-				},
-			},
-		});
-		process.env.COMPOSIO_API_KEY = "ck_hub_env";
-		const fetchMock = vi.fn(
-			async () =>
-				new Response(JSON.stringify({ successful: true, data: {} }), {
-					status: 200,
-				}),
-		);
-		vi.stubGlobal("fetch", fetchMock);
-
-		const tools = await setupPluginTools();
-		expect(tools).toHaveLength(1);
-		await tools[0].execute({ title: "bug" });
-		const [, init] = fetchMock.mock.calls[0] as unknown as [
-			string,
-			{ headers: Record<string, string> },
-		];
-		expect(init.headers["x-api-key"]).toBe("ck_hub_env");
 	});
 });
 
@@ -811,8 +734,6 @@ describe("cancelComposioConnect", () => {
 		// The account did not change, so the connection metadata is kept.
 		expect(persisted?.connectedAccountId).toBe("ca_wedged");
 		expect(persisted?.connectedAt).toBe("2026-08-28T00:00:00.000Z");
-		// The plugin materializes now that a toolkit actually has tools.
-		expect(existsSync(join(dir, "plugins", "composio-tools.ts"))).toBe(true);
 	});
 
 	it("reconciliation prunes a tombstone after a confirmed retry revocation", async () => {
@@ -1295,175 +1216,5 @@ describe("disconnectComposioToolkit", () => {
 			status.integrations.find((entry) => entry.toolkit === "github")?.status,
 		).toBe("not_connected");
 		expect(readStateFile(dir).toolkits).toEqual({});
-	});
-});
-
-describe("generated composio plugin", () => {
-	it("declares the tools capability and registers nothing when unconfigured", async () => {
-		useTempDataDir();
-		const plugin = await loadGeneratedPlugin();
-		expect(plugin.name).toBe("composio-tools");
-		expect(plugin.manifest.capabilities).toEqual(["tools"]);
-		const tools: RegisteredTool[] = [];
-		await plugin.setup({
-			registerTool: (tool: RegisteredTool) => tools.push(tool),
-		});
-		expect(tools).toHaveLength(0);
-	});
-
-	it("registers one snake_case tool per stored tool schema", async () => {
-		const dataDir = useTempDataDir();
-		writeState(dataDir, {
-			apiKey: "ck_test",
-			userId: "cline-desktop-test",
-			toolkits: {
-				gmail: {
-					connectedAccountId: "ca_gmail",
-					tools: [
-						{
-							slug: "GMAIL_SEND_EMAIL",
-							description: "Send an email.",
-							version: "20250101_00",
-							inputParameters: {
-								type: "object",
-								properties: { to: { type: "string" } },
-								required: ["to"],
-							},
-						},
-						{ slug: "GMAIL_FETCH_EMAILS" },
-					],
-				},
-				github: {
-					connectedAccountId: "ca_github",
-					tools: [{ slug: "GITHUB_CREATE_AN_ISSUE" }],
-				},
-			},
-		});
-		const tools = await setupPluginTools();
-		expect(tools.map((tool) => tool.name).sort()).toEqual([
-			"github_create_an_issue",
-			"gmail_fetch_emails",
-			"gmail_send_email",
-		]);
-		const sendEmail = tools.find((tool) => tool.name === "gmail_send_email");
-		expect(sendEmail?.description).toContain("Send an email.");
-		expect(sendEmail?.inputSchema).toMatchObject({
-			type: "object",
-			required: ["to"],
-		});
-		expect(sendEmail?.retryable).toBe(false);
-	});
-
-	it("executes tools against the Composio REST API with the pinned version", async () => {
-		const dataDir = useTempDataDir();
-		writeState(dataDir, {
-			apiKey: "ck_test",
-			userId: "cline-desktop-test",
-			toolkits: {
-				gmail: {
-					connectedAccountId: "ca_gmail",
-					tools: [{ slug: "GMAIL_SEND_EMAIL", version: "20250101_00" }],
-				},
-			},
-		});
-		const fetchMock = vi.fn(
-			async () =>
-				new Response(
-					JSON.stringify({
-						successful: true,
-						data: { messageId: "msg_1" },
-						error: null,
-					}),
-					{ status: 200 },
-				),
-		);
-		vi.stubGlobal("fetch", fetchMock);
-
-		const tools = await setupPluginTools();
-		const result = await tools[0].execute({
-			to: "someone@example.com",
-			subject: "hi",
-		});
-
-		expect(fetchMock).toHaveBeenCalledTimes(1);
-		const [url, init] = fetchMock.mock.calls[0] as unknown as [
-			string,
-			{ method: string; headers: Record<string, string>; body: string },
-		];
-		expect(url).toBe(
-			"https://backend.composio.dev/api/v3.1/tools/execute/GMAIL_SEND_EMAIL",
-		);
-		expect(init.method).toBe("POST");
-		expect(init.headers["x-api-key"]).toBe("ck_test");
-		expect(JSON.parse(init.body)).toEqual({
-			user_id: "cline-desktop-test",
-			arguments: { to: "someone@example.com", subject: "hi" },
-			version: "20250101_00",
-		});
-		expect(result).toEqual({
-			successful: true,
-			data: { messageId: "msg_1" },
-			error: null,
-		});
-	});
-
-	it("returns structured errors instead of throwing on HTTP failures", async () => {
-		const dataDir = useTempDataDir();
-		writeState(dataDir, {
-			apiKey: "ck_test",
-			userId: "cline-desktop-test",
-			toolkits: {
-				github: {
-					connectedAccountId: "ca_github",
-					tools: [{ slug: "GITHUB_CREATE_AN_ISSUE" }],
-				},
-			},
-		});
-		vi.stubGlobal(
-			"fetch",
-			vi.fn(
-				async () =>
-					new Response(JSON.stringify({ error: "connection expired" }), {
-						status: 401,
-					}),
-			),
-		);
-
-		const tools = await setupPluginTools();
-		const result = (await tools[0].execute({ title: "bug" })) as {
-			successful: boolean;
-			error: string;
-		};
-		expect(result.successful).toBe(false);
-		expect(result.error).toContain("HTTP 401");
-		expect(result.error).toContain("GITHUB_CREATE_AN_ISSUE");
-	});
-
-	it("returns structured errors when the network is unreachable", async () => {
-		const dataDir = useTempDataDir();
-		writeState(dataDir, {
-			apiKey: "ck_test",
-			userId: "cline-desktop-test",
-			toolkits: {
-				gmail: {
-					connectedAccountId: "ca_gmail",
-					tools: [{ slug: "GMAIL_FETCH_EMAILS" }],
-				},
-			},
-		});
-		vi.stubGlobal(
-			"fetch",
-			vi.fn(async () => {
-				throw new Error("network down");
-			}),
-		);
-
-		const tools = await setupPluginTools();
-		const result = (await tools[0].execute({})) as {
-			successful: boolean;
-			error: string;
-		};
-		expect(result.successful).toBe(false);
-		expect(result.error).toContain("network down");
 	});
 });

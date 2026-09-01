@@ -28,17 +28,18 @@ import {
  *
  * The sidecar owns the OAuth handshake and connection bookkeeping, but agent
  * sessions run in the shared Hub daemon, so the sidecar cannot register tools
- * in-process. Instead, connection state plus the fetched tool schemas are
- * persisted to `<cline-data>/settings/composio.json`, and a single-file plugin
- * is materialized into `~/.cline/plugins/` that reads that file at session
- * start and registers one tool per connected Composio tool. New sessions pick
- * the plugin up automatically; running sessions keep their frozen tool set.
+ * directly. Instead, connection state plus the fetched tool schemas are
+ * persisted to `<cline-data>/settings/composio.json`, which core's built-in
+ * `composio-tools` extension (`@cline/core`, composio-tools-extension.ts)
+ * reads at session start to register one tool per connected Composio tool.
+ * New sessions pick state changes up automatically; running sessions keep
+ * their frozen tool set.
  */
 
 const COMPOSIO_STATE_FILE_NAME = "composio.json";
-const COMPOSIO_PLUGIN_FILE_NAME = "composio-tools.ts";
-/** Mirrors `PLUGINS_DIRECTORY_NAME` in `@cline/shared` (not exported). */
-const PLUGINS_DIRECTORY_NAME = "plugins";
+/** Where pre–in-process-registration builds materialized a drop-in plugin;
+ * kept only so those legacy files can be cleaned up. */
+const LEGACY_COMPOSIO_PLUGIN_RELATIVE_PATH = ["plugins", "composio-tools.ts"];
 /** How long the background waiter gives the user to finish the browser flow. */
 const CONNECT_WAIT_TIMEOUT_MS = 5 * 60 * 1000;
 /** Cap on tools materialized per toolkit; Composio orders by importance. */
@@ -65,10 +66,10 @@ type StoredComposioToolkit = {
 type StoredComposioState = {
 	/**
 	 * Copy of the managed COMPOSIO_API_KEY environment variable, persisted so
-	 * the generated plugin — which runs in the Hub process without this
-	 * process's environment — can execute tools. Re-synced on every read:
-	 * rotated when the managed key changes, dropped when it disappears. There
-	 * is no user-entered key.
+	 * core's composio-tools extension — which runs in the Hub process without
+	 * this process's environment — can execute tools. Re-synced on every
+	 * read: rotated when the managed key changes, dropped when it disappears.
+	 * There is no user-entered key.
 	 */
 	apiKey?: string;
 	/** Stable per-install Composio user id; generated on first configuration. */
@@ -512,7 +513,6 @@ function reconcileManagedApiKey(
 	lastConnectionErrors.clear();
 	catalogCache = null;
 	writeComposioState(state);
-	syncComposioPluginFileQuietly(state, logger);
 	logger?.log?.(
 		managedKey
 			? "composio: managed api key adopted; connections will re-import from Composio on refresh"
@@ -520,9 +520,30 @@ function reconcileManagedApiKey(
 	);
 }
 
+/**
+ * Earlier builds materialized a drop-in plugin at
+ * `~/.cline/plugins/composio-tools.ts`; connector tools now register inside
+ * core at session start, so a leftover file would double-register the tools
+ * on hosts that can load drop-in plugins (and fail noisily on hosts that
+ * cannot). Best-effort removal on every reconciled read — a forced unlink
+ * of a missing file is a single cheap syscall.
+ */
+function removeLegacyComposioPluginQuietly(logger?: BasicLogger): void {
+	try {
+		rmSync(join(resolveClineDir(), ...LEGACY_COMPOSIO_PLUGIN_RELATIVE_PATH), {
+			force: true,
+		});
+	} catch (error) {
+		logger?.log?.(
+			`composio: removing the legacy tools plugin failed: ${error instanceof Error ? error.message : String(error)}`,
+		);
+	}
+}
+
 function readReconciledComposioState(
 	logger?: BasicLogger,
 ): StoredComposioState {
+	removeLegacyComposioPluginQuietly(logger);
 	const state = readComposioState();
 	reconcileManagedApiKey(state, logger);
 	return state;
@@ -683,11 +704,9 @@ export async function getComposioStatus(options?: {
 			// applied to the freshly read state only if that slug still matches
 			// the baseline it was decided against (per-slug compare-and-swap),
 			// so concurrent changes survive this write.
-			let aborted = false;
 			const next = updateComposioState((fresh) => {
 				if (fresh.apiKey !== state.apiKey || fresh.userId !== state.userId) {
-					aborted = true;
-					return;
+					return; // Key changed mid-refresh; keep the fresh state as-is.
 				}
 				const freshToolkits = { ...(fresh.toolkits ?? {}) };
 				const freshCancelled = new Set(fresh.cancelledAccountIds ?? []);
@@ -722,9 +741,6 @@ export async function getComposioStatus(options?: {
 				}
 				fresh.toolkits = freshToolkits;
 			});
-			if (!aborted) {
-				syncComposioPluginFileQuietly(next, options?.logger);
-			}
 			return buildStatusResponse(next);
 		}
 	} catch (error) {
@@ -928,7 +944,11 @@ export async function connectComposioToolkit(
 			// it and a connection the user was told failed would silently
 			// appear as installed. Abandon it like a cancel before surfacing
 			// the error.
-			await abandonFinalizedConnection(connectionRequest.id, guard.apiKey, logger);
+			await abandonFinalizedConnection(
+				connectionRequest.id,
+				guard.apiKey,
+				logger,
+			);
 			throw error;
 		}
 		// A dropped result (a disconnect won the race, or the key changed
@@ -1110,13 +1130,6 @@ export async function disconnectComposioToolkit(
 		}
 	});
 	lastDisconnectedAt.set(toolkit, Date.now());
-	try {
-		syncComposioPluginFile(next);
-	} catch (error) {
-		throw new Error(
-			`The connector was removed, but updating the local tools plugin failed: ${error instanceof Error ? error.message : String(error)}. Its tools may remain available to new sessions.`,
-		);
-	}
 	return buildStatusResponse(next);
 }
 
@@ -1252,241 +1265,5 @@ async function finalizeToolkitConnection(
 		};
 	});
 	logger?.log?.(`composio connected ${toolkit} with ${tools.length} tool(s)`);
-	try {
-		syncComposioPluginFile(next);
-	} catch (error) {
-		// The connection is recorded, but without the plugin file new sessions
-		// get no tools — keep the connector marked connected and surface why
-		// the tools are missing.
-		const reason = error instanceof Error ? error.message : String(error);
-		lastConnectionErrors.set(
-			toolkit,
-			`Connected, but writing the local tools plugin failed: ${reason}. New sessions will not see these tools until it succeeds.`,
-		);
-		logger?.log?.(`composio plugin sync failed after connect: ${reason}`);
-	}
 	return true;
 }
-
-// ── Plugin materialization ───────────────────────────────────────────────
-
-export function resolveComposioPluginPath(): string {
-	return join(
-		resolveClineDir(),
-		PLUGINS_DIRECTORY_NAME,
-		COMPOSIO_PLUGIN_FILE_NAME,
-	);
-}
-
-/**
- * Creates or removes the Hub-loaded plugin file to match the persisted state.
- * Throws on filesystem failure — callers on user-initiated paths surface the
- * error (a swallowed failure would report a connector as installed while new
- * sessions receive no tools); passive read paths use
- * {@link syncComposioPluginFileQuietly}.
- */
-function syncComposioPluginFile(state: StoredComposioState): void {
-	const pluginPath = resolveComposioPluginPath();
-	const hasConnectedToolkit =
-		Boolean(state.apiKey) &&
-		Object.values(state.toolkits ?? {}).some(
-			(toolkit) => toolkit && toolkit.tools.length > 0,
-		);
-	if (!hasConnectedToolkit) {
-		rmSync(pluginPath, { force: true });
-		return;
-	}
-	mkdirSync(dirname(pluginPath), { recursive: true });
-	writeFileSync(pluginPath, COMPOSIO_PLUGIN_SOURCE);
-}
-
-/** For status-read reconciliation, which must not throw: log and move on. */
-function syncComposioPluginFileQuietly(
-	state: StoredComposioState,
-	logger?: BasicLogger,
-): void {
-	try {
-		syncComposioPluginFile(state);
-	} catch (error) {
-		logger?.log?.(
-			`composio plugin sync failed: ${error instanceof Error ? error.message : String(error)}`,
-		);
-	}
-}
-
-/**
- * Source of the single-file plugin the Hub loads into every new session. It
- * is static: all dynamic state (API key, user id, tool schemas) is read from
- * composio.json at session start, so connecting or disconnecting a toolkit
- * never needs to rewrite this file — only create or remove it.
- *
- * The plugin executes tools against Composio's REST API directly (the
- * `@composio/core` package is not resolvable from `~/.cline/plugins/`); the
- * endpoint below is the same one the official SDK calls.
- */
-export const COMPOSIO_PLUGIN_SOURCE = `// AUTO-GENERATED by the Cline desktop app — do not edit.
-// Exposes Composio-connected integrations (Gmail, Google Calendar, GitHub)
-// as agent tools. Manage connections from the desktop app under
-// Settings -> Customize -> Connectors. Connection state and tool schemas
-// live in <cline-data>/settings/composio.json; deleting that file (or
-// disconnecting every integration) turns these tools off.
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
-import { type AgentPlugin, createTool } from "@cline/core";
-import { resolveClineDataDir } from "@cline/shared/storage";
-
-const COMPOSIO_BASE_URL = (
-	process.env.COMPOSIO_BASE_URL || "https://backend.composio.dev"
-).replace(/\\/+$/, "");
-
-type StoredTool = {
-	slug: string;
-	name?: string;
-	description?: string;
-	version?: string;
-	inputParameters?: Record<string, unknown>;
-};
-
-type StoredState = {
-	apiKey?: string;
-	userId?: string;
-	toolkits?: Record<
-		string,
-		{ connectedAccountId?: string; tools?: StoredTool[] } | undefined
-	>;
-};
-
-function loadComposioState(): StoredState | undefined {
-	try {
-		const path = join(resolveClineDataDir(), "settings", "composio.json");
-		if (!existsSync(path)) {
-			return undefined;
-		}
-		const parsed = JSON.parse(readFileSync(path, "utf8"));
-		return typeof parsed === "object" && parsed !== null
-			? (parsed as StoredState)
-			: undefined;
-	} catch {
-		return undefined;
-	}
-}
-
-async function executeComposioTool(
-	apiKey: string,
-	userId: string,
-	tool: StoredTool,
-	input: unknown,
-): Promise<unknown> {
-	const url =
-		COMPOSIO_BASE_URL +
-		"/api/v3.1/tools/execute/" +
-		encodeURIComponent(tool.slug);
-	const body: Record<string, unknown> = {
-		user_id: userId,
-		arguments: input && typeof input === "object" ? input : {},
-	};
-	if (tool.version) {
-		body.version = tool.version;
-	}
-	let response: Response;
-	try {
-		response = await fetch(url, {
-			method: "POST",
-			headers: {
-				"x-api-key": apiKey,
-				"content-type": "application/json",
-			},
-			body: JSON.stringify(body),
-		});
-	} catch (error) {
-		return {
-			successful: false,
-			error:
-				"Composio request failed: " +
-				(error instanceof Error ? error.message : String(error)),
-		};
-	}
-	const text = await response.text();
-	let parsed: unknown;
-	try {
-		parsed = text ? JSON.parse(text) : undefined;
-	} catch {
-		parsed = undefined;
-	}
-	if (!response.ok) {
-		const preview =
-			parsed !== undefined
-				? JSON.stringify(parsed).slice(0, 600)
-				: text.slice(0, 600);
-		return {
-			successful: false,
-			error:
-				"Composio returned HTTP " +
-				String(response.status) +
-				" for " +
-				tool.slug +
-				(preview ? ": " + preview : ""),
-		};
-	}
-	return parsed ?? { successful: true };
-}
-
-const plugin: AgentPlugin = {
-	name: "composio-tools",
-	manifest: { capabilities: ["tools"] },
-	setup(api) {
-		const state = loadComposioState();
-		// The desktop app persists the effective key into composio.json, but a
-		// COMPOSIO_API_KEY exported to this (Hub) process works as a fallback.
-		const apiKey =
-			state?.apiKey || (process.env.COMPOSIO_API_KEY || "").trim() || undefined;
-		const userId = state?.userId;
-		if (!state || !apiKey || !userId || !state.toolkits) {
-			return;
-		}
-		const registered = new Set<string>();
-		for (const [toolkitSlug, toolkitState] of Object.entries(
-			state.toolkits,
-		)) {
-			if (!toolkitState || !toolkitState.connectedAccountId) {
-				continue;
-			}
-			for (const tool of toolkitState.tools ?? []) {
-				if (!tool || !tool.slug) {
-					continue;
-				}
-				const toolName = tool.slug
-					.toLowerCase()
-					.replace(/[^a-z0-9_]/g, "_");
-				if (registered.has(toolName)) {
-					continue;
-				}
-				registered.add(toolName);
-				api.registerTool(
-					createTool({
-						name: toolName,
-						description:
-							(tool.description || tool.name || tool.slug) +
-							" (" +
-							toolkitSlug +
-							" account connected via Composio)",
-						inputSchema: (tool.inputParameters ?? {
-							type: "object",
-							properties: {},
-						}) as never,
-						timeoutMs: 120_000,
-						// Composio tools can have side effects (send an email,
-						// open an issue); never auto-retry them.
-						retryable: false,
-						execute: (input: unknown) =>
-							executeComposioTool(apiKey, userId, tool, input),
-					}),
-				);
-			}
-		}
-	},
-};
-
-export { plugin };
-export default plugin;
-`;
