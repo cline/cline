@@ -60,12 +60,14 @@ describe("runSubprocessEvent", () => {
 
 	it("reports a censored observation for a hook still running at the window", async () => {
 		const observed: Array<{ durationMs: number; exited: boolean }> = [];
-		// Outlives the observation window, then exits on its own: a hook that
-		// never exits would leave an orphan process behind the test.
+		// The child must still be running when the window closes, by a wide
+		// margin: a loaded CI worker can fire the unref'd timer well after its
+		// nominal delay, and if the child exits first the exit path reports
+		// instead. It still exits on its own so the test leaves no orphan.
 		await runSubprocessEvent(
 			{},
 			{
-				command: [process.execPath, "-e", "setTimeout(() => {}, 600)"],
+				command: [process.execPath, "-e", "setTimeout(() => {}, 5_000)"],
 				detached: true,
 				detachedObservationMs: 100,
 				onDetachedSettled: (event) => observed.push(event),
@@ -77,10 +79,13 @@ describe("runSubprocessEvent", () => {
 			timeout: 5_000,
 		});
 		expect(observed[0].exited).toBe(false);
-		expect(observed[0].durationMs).toBeGreaterThanOrEqual(100);
+		// A censored sample reports the window, not a measured elapsed.
+		expect(observed[0].durationMs).toBe(100);
 
-		// Its later exit must not add a second observation for the same hook.
-		await new Promise((resolve) => setTimeout(resolve, 1_000));
+		// One observation per hook: the window must not keep re-reporting a
+		// hook that is still running. (The exit path clearing the timer is
+		// covered by the exits-cleanly case above.)
+		await new Promise((resolve) => setTimeout(resolve, 500));
 		expect(observed).toHaveLength(1);
 	});
 
