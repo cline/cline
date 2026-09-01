@@ -43,6 +43,7 @@ export function createVscodeSdkTelemetryHandle(options: CreateVscodeSdkTelemetry
 					platform_version: "unknown",
 					os_type: process.platform,
 					os_version: os.version(),
+					os_arch: process.arch,
 					is_dev: process.env.IS_DEV,
 					...options.metadata,
 				},

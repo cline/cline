@@ -103,6 +103,10 @@ export interface TelemetryMetadata {
 	platform_version: string;
 	os_type: string;
 	os_version: string;
+	/** The CPU architecture of the running JS runtime, e.g. x64, arm64.
+	 * The value of process.arch / os.arch(). Note: a runtime running under OS-level
+	 * emulation (e.g. an x64 node on Windows-on-ARM) reports the emulated arch. */
+	os_arch?: string;
 	is_dev?: string;
 	is_remote_workspace?: boolean;
 }

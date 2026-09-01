@@ -119,6 +119,9 @@ export type TelemetryMetadata = {
 	/** The operating system version e.g. 'Windows 10 Pro', 'Darwin Kernel Version 21.6.0...'
 	 * This is the value returned by os.version() */
 	os_version: string
+	/** The CPU architecture of the running JS runtime, e.g. x64, arm64. The value of
+	 * os.arch(). A runtime under OS-level emulation reports the emulated arch. */
+	os_arch?: string
 	/** Whether the current workspace is a VS Code remote workspace */
 	is_remote_workspace: boolean
 	/** Whether the extension is running in development mode */
@@ -358,6 +361,7 @@ export class TelemetryService {
 			cline_type: hostVersion.clineType || "unknown",
 			os_type: os.platform(),
 			os_version: os.version(),
+			os_arch: os.arch(),
 			// `remoteName` is normalized by the host bridge to `undefined` for local workspaces.
 			is_remote_workspace: !!hostVersion.remoteName,
 			is_dev: process.env.IS_DEV,

@@ -39,6 +39,7 @@ export function createClineTelemetryServiceMetadata(
 		platform: "terminal",
 		platform_version: process?.version || "unknown",
 		os_type: process?.platform || "unknown",
+		os_arch: process?.arch || "unknown",
 		os_version:
 			process?.platform === "win32"
 				? (process?.env?.OS ?? "unknown")
