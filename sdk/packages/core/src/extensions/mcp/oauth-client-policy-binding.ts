@@ -29,6 +29,9 @@ export function createMcpOAuthClientPolicyBinding(
 		JSON.stringify(canonicalPolicy),
 		"utf8",
 	).toString("base64url");
+	// Reversibility is intentional: this is public identity metadata, not a
+	// credential or password verifier. A tagged encoding avoids suggesting that a
+	// fast digest authenticates a confidential client.
 	return `${MCP_OAUTH_CLIENT_POLICY_BINDING_PREFIX}${encodedPolicy}`;
 }
 

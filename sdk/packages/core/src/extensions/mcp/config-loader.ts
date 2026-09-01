@@ -358,6 +358,8 @@ export function resolveDefaultMcpSettingsPath(): string {
 }
 
 const PRIVATE_SETTINGS_FILE_MODE = 0o600;
+const WINDOWS_ATOMIC_RENAME_ATTEMPTS = 20;
+const WINDOWS_ATOMIC_RENAME_RETRY_MS = 10;
 
 function privateSettingsFileMode(filePath: string): number {
 	try {
@@ -384,6 +386,31 @@ function applySettingsFileMode(filePath: string, mode: number): void {
 	chmodSync(filePath, mode);
 }
 
+function renameSettingsTempIntoPlace(tempPath: string, filePath: string): void {
+	for (let attempt = 1; ; attempt += 1) {
+		try {
+			renameSync(tempPath, filePath);
+			return;
+		} catch (error) {
+			const code = (error as NodeJS.ErrnoException).code;
+			const retryableWindowsSharingViolation =
+				process.platform === "win32" &&
+				(code === "EPERM" || code === "EACCES" || code === "EBUSY");
+			if (
+				!retryableWindowsSharingViolation ||
+				attempt >= WINDOWS_ATOMIC_RENAME_ATTEMPTS
+			) {
+				throw error;
+			}
+			// Windows can briefly deny replacement while antivirus, a watcher, or a
+			// concurrent reader is closing its handle. The cross-process settings lock
+			// still belongs to this process, so retrying this same staged file preserves
+			// the atomic old-or-new visibility guarantee without rerunning the mutator.
+			sleepSync(WINDOWS_ATOMIC_RENAME_RETRY_MS);
+		}
+	}
+}
+
 /**
  * Atomically write the MCP settings file using a temp file + rename.
  *
@@ -407,7 +434,7 @@ function atomicWriteSettingsFile(filePath: string, contents: string): void {
 			mode: PRIVATE_SETTINGS_FILE_MODE,
 		});
 		applySettingsFileMode(tempPath, finalMode);
-		renameSync(tempPath, filePath);
+		renameSettingsTempIntoPlace(tempPath, filePath);
 		// The temp file already carried this mode. Re-apply after rename as a
 		// defensive check against platform/filesystem rename behavior.
 		applySettingsFileMode(filePath, finalMode);
@@ -1016,6 +1043,9 @@ function buildOAuthStateMutator(
 			throw new Error(`Unknown MCP server: ${serverName}`);
 		}
 		if (options.expectedTransportBinding !== undefined) {
+			// Re-resolve the transport from the object held under the lock. A value
+			// checked before lock acquisition may already be stale by the time an OAuth
+			// callback or refresh tries to persist credentials.
 			const parsedRegistration = mcpRegistrationBodySchema.safeParse(server);
 			const currentTransport = parsedRegistration.success
 				? resolveNativeMcpTransport(parsedRegistration.data.transport)
@@ -1030,6 +1060,9 @@ function buildOAuthStateMutator(
 			}
 		}
 		if (options.expectedOAuthClient !== undefined) {
+			// The client secret is intentionally absent from the persisted public-policy
+			// binding, so this exact configuration comparison is the confidential-client
+			// guard. Do not replace it with binding equality alone.
 			const parsedClient = oauthClientSchema.safeParse(server.oauthClient);
 			const currentClient = parsedClient.success
 				? parsedClient.data
@@ -1062,6 +1095,9 @@ function buildOAuthStateMutator(
 				stored.transportBinding === options.expectedTransportBinding) &&
 			(expectedClientPolicyBinding === undefined ||
 				stored.clientPolicyBinding === expectedClientPolicyBinding);
+		// Never pass stale state to the caller's updater. Starting from only the
+		// current guards prevents an updater that spreads `current` from carrying old
+		// tokens, verifier, or discovery state into a new transport/client identity.
 		const current = storedMatchesGuards ? stored : guardedBindings;
 		const candidate = updater(current);
 		const updated = normalizeMcpServerOAuthState({
@@ -1153,6 +1189,9 @@ export function getMcpServerOAuthStatus(
 				registration.oauthClient.clientSecret
 		: typeof tokenClientInformation?.client_id === "string" &&
 			tokenClientInformation.client_id.trim().length > 0;
+	// Each predicate below is independent defense in depth. In particular, a
+	// syntactically valid access token is not "configured" when it belongs to a
+	// prior endpoint, client, scope maximum, or callback identity.
 	const tokensMatchScopePolicy = areMcpOAuthScopePoliciesEqual(
 		registration.oauthClient?.allowedScopes,
 		registration.oauth?.scopePolicy,

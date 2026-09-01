@@ -267,6 +267,9 @@ export function createMcpOAuthProviderContext(
 			state.clientInformation as OAuthClientInformationMixed | undefined,
 			options.clientInformation,
 		);
+	// Credential-bearing fields are reusable only when every independently stored
+	// identity dimension still matches. Keeping this conjunction centralized also
+	// prevents individual provider getters from accidentally applying weaker rules.
 	const stateMatchesProviderConfiguration = () =>
 		stateMatchesTransport() &&
 		stateMatchesClientPolicy() &&
@@ -310,6 +313,8 @@ export function createMcpOAuthProviderContext(
 			}
 			// Programmatically supplied registrations may not have a settings file.
 			// They still need a functional in-memory provider context.
+			// A caller that supplied settingsPath never receives this fallback: disk
+			// failures and stale locked-write guards must remain observable and fail closed.
 			refreshFromSettings = false;
 			const current =
 				stateMatchesTransport() && stateMatchesClientPolicy()
@@ -548,6 +553,9 @@ export function createMcpOAuthProviderContext(
 						? loopbackHostname !== DEFAULT_MCP_OAUTH_LOOPBACK_HOSTNAME
 						: current.loopbackHostname !== loopbackHostname
 					: current.loopbackHostname !== undefined;
+				// Discovery metadata can be recomputed, but tokens cannot be translated
+				// between client, scope, redirect, or callback identities. Clear them before
+				// the next browser flow rather than waiting for a provider rejection.
 				return {
 					...current,
 					...(dynamicRedirectChanged ? { clientInformation: undefined } : {}),

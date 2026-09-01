@@ -84,6 +84,8 @@ export class McpHub {
 	private clientVersion: string
 	private telemetryService: TelemetryService
 	private mcpOAuthManager: McpOAuthManager
+	// Effective config is used for connections; raw config is retained separately
+	// only to prove which display fields were literal and therefore safe to expose.
 	private rawDisplayConfigs = new Map<string, { effective: McpServerConfig; raw: unknown }>()
 
 	private settingsWatcher?: FSWatcher
@@ -541,6 +543,10 @@ export class McpHub {
 					Logger.warn(error.message)
 				}
 			}
+			// Build the transport even after a binding mismatch so ordinary unauthenticated
+			// MCP capability detection keeps its historical behavior. If connection then
+			// requires OAuth, surface the stored mismatch instead of starting a flow with
+			// credentials that Core cannot bind to the persisted registration.
 
 			switch (expandedConfig.type) {
 				case "stdio": {

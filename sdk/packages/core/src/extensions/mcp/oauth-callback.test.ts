@@ -533,6 +533,9 @@ describe("interactive MCP OAuth callback validation", () => {
 			const expectedState = new URL(await authorizationUrl).searchParams.get(
 				"state",
 			);
+			// Poll through the public file boundary rather than internal callbacks. On
+			// Windows this reader can briefly overlap the writer's atomic rename, which
+			// exercises the bounded sharing-violation retry in the settings writer.
 			await vi.waitFor(async () => {
 				const written = JSON.parse(await readFile(filePath, "utf8"));
 				expect(written.mcpServers.remote.oauth.authorizationRequired).toBe(

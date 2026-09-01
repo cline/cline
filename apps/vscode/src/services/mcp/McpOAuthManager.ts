@@ -60,6 +60,10 @@ export interface McpOAuthManagerDependencies {
 }
 
 const defaultDependencies: McpOAuthManagerDependencies = {
+	// Keep Core operations injectable as one unit. Besides making the adapter
+	// testable without browser/network effects, this prevents tests from mixing a
+	// source-level helper with stale workspace-dist implementations of the state
+	// mutators that enforce the same bindings.
 	areMcpOAuthClientConfigurationsEqual,
 	authorizeMcpServerOAuth,
 	createMcpOAuthClientInformation,
@@ -136,6 +140,9 @@ export class McpOAuthManager {
 			throw new McpOAuthEffectiveTransportMismatchError(serverName)
 		}
 		const existing = this.providers.get(serverName)
+		// Cache identity includes the exact secret even though persisted public
+		// policy metadata does not. A secret-only rotation must replace the provider
+		// before any token or clientInformation read can occur.
 		if (
 			existing?.transportBinding === transportBinding &&
 			this.dependencies.areMcpOAuthClientConfigurationsEqual(existing.oauthClient, oauthClient)

@@ -51,6 +51,9 @@ export function serializeMcpServerConfigForDisplay(config: McpServerConfig, rawC
 		metadata?: unknown
 	}
 	const redactedConfig: Record<string, unknown> = { ...publicConfig }
+	// Raw provenance is retained only inside the extension host. It lets us
+	// distinguish a literal safe URL from an effective URL that may contain an
+	// environment-expanded secret; without it the only safe display is redaction.
 	const raw = flattenRawServerConfig(rawConfig)
 
 	if (config.type === "stdio") {
@@ -113,6 +116,9 @@ export function computeMcpConnectionFingerprint(mcpServers: Record<string, McpSe
 		const accessToken = oauth?.tokens?.access_token
 		normalized[name] = {
 			config: connectionConfig,
+			// Token bytes and refresh churn are deliberately excluded. Presence alone
+			// is enough to reconnect when another process grants or revokes access while
+			// avoiding a watcher loop for every token rewrite.
 			hasToken: typeof accessToken === "string" && accessToken.length > 0,
 		}
 	}

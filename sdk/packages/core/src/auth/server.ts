@@ -154,6 +154,9 @@ export async function startLocalOAuthServer(
 
 	const host = options.host ?? "127.0.0.1";
 	const callbackHostname = options.callbackHostname ?? host;
+	// The advertised hostname is provider policy; the socket bind is the network
+	// boundary. Supporting Slack's literal `localhost` redirect must never turn a
+	// loopback listener into an all-interface listener.
 	if (
 		callbackHostname !== host &&
 		!(host === "127.0.0.1" && callbackHostname === "localhost")
@@ -242,6 +245,9 @@ export async function startLocalOAuthServer(
 					callbackOrigin,
 				);
 				const hostHeaders = getHostHeaderValues(req);
+				// Validate both HTTP authority representations. Proxies and absolute-form
+				// request targets can disagree with Host; accepting either independently
+				// would let an unrelated local origin feed state/code into this listener.
 				if (
 					!requestUrl ||
 					hostHeaders.length !== 1 ||
