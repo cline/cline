@@ -1,10 +1,8 @@
 import {
 	ArrowUpRight,
 	BadgeCheck,
-	Github,
 	Globe,
 	Puzzle,
-	Scale,
 	Search,
 	Server,
 	Trash2,
@@ -31,9 +29,8 @@ import { cn } from "@/lib/utils";
  * Marketplace explorer: a master/detail directory in the spirit of an IDE
  * extensions panel. Initially the catalog list fills the view, grouped by
  * primitive maturity (Skills, then MCP, then plugins); clicking an entry
- * opens a detail panel with the catalog's metadata (author, license,
- * verified state, tags, install command, env setup) and links out to the
- * entry's homepage and repository.
+ * opens a detail panel with the catalog's metadata (author, verified state,
+ * tags, install command, env setup) and a link out to the entry's homepage.
  */
 
 /** Ordered most-mature first: skills > MCP servers > plugins. */
@@ -381,6 +378,9 @@ function DetailPane({
 	const state = directory.actionStates.get(key);
 	const installed = directory.installedKeys.has(key);
 	const busy = isBusy(state);
+	// Homepage is usually the entry's docs/product page; the repo is the
+	// fallback since many entries set both to the same GitHub URL anyway.
+	const learnMoreUrl = entry.homepage ?? entry.repo;
 	const requiredEnv =
 		entry.install.env?.filter((env) => env.required !== false) ?? [];
 	const optionalEnv =
@@ -430,27 +430,15 @@ function DetailPane({
 								{installed && !busy ? <Trash2 className="size-4" /> : null}
 								{actionLabelFor(state, installed, directory.installedReady)}
 							</Button>
-							{entry.homepage ? (
+							{learnMoreUrl ? (
 								<Button
-									onClick={() => void openExternalUrl(entry.homepage as string)}
+									onClick={() => void openExternalUrl(learnMoreUrl)}
 									size="sm"
 									type="button"
 									variant="outline"
 								>
 									<Globe className="size-4" />
 									Learn more
-									<ArrowUpRight className="size-3.5 text-muted-foreground" />
-								</Button>
-							) : null}
-							{entry.repo ? (
-								<Button
-									onClick={() => void openExternalUrl(entry.repo as string)}
-									size="sm"
-									type="button"
-									variant="outline"
-								>
-									<Github className="size-4" />
-									Repository
 									<ArrowUpRight className="size-3.5 text-muted-foreground" />
 								</Button>
 							) : null}
@@ -480,7 +468,7 @@ function DetailPane({
 					</Button>
 				</div>
 
-				<div className="grid grid-cols-3 gap-4 rounded-xl border bg-card p-4 max-[720px]:grid-cols-2">
+				<div className="grid grid-cols-2 gap-4 rounded-xl border bg-card p-4">
 					{entry.author ? (
 						<MetaCell
 							icon={User}
@@ -493,11 +481,6 @@ function DetailPane({
 							value={entry.author.name}
 						/>
 					) : null}
-					<MetaCell
-						icon={Scale}
-						label="License"
-						value={entry.license ?? "Not specified"}
-					/>
 					<MetaCell icon={meta.icon} label="Type" value={meta.plural} />
 				</div>
 
