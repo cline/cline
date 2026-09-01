@@ -958,8 +958,11 @@ export {
 	PATCH_MARKERS,
 	PatchActionType,
 	type PatchFileChange,
+	type RunCommandDetachKind,
+	RunCommandExecutionController,
 	resolveCoreSelectedToolIds,
 	resolveToolClientType,
+	type ShellExecutionLimits,
 	type ShellExecutor,
 	type ShellExecutorOptions,
 	type StructuredCommandInput,
@@ -1087,6 +1090,8 @@ export type {
 } from "./types/config";
 export type {
 	CoreSessionEvent,
+	DetachedCommandCompletedEvent,
+	DetachedCommandOutcome,
 	SessionChunkEvent,
 	SessionEndedEvent,
 	SessionPendingPrompt,

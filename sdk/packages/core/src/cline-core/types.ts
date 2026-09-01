@@ -11,6 +11,7 @@ import type {
 	CronRunRecord,
 	CronSpecRecord,
 } from "../cron/store/sqlite-cron-store";
+import type { RunCommandExecutionController } from "../extensions/tools";
 import type { CheckpointEntry } from "../hooks/checkpoint-hooks";
 import type { RuntimeCapabilities } from "../runtime/capabilities";
 import type { SessionHistoryListOptions } from "../runtime/host/history";
@@ -210,6 +211,11 @@ export interface ClineCoreOptions {
 	 * selected runtime backend so apps implement interactive behavior once.
 	 */
 	capabilities?: RuntimeCapabilities;
+	/**
+	 * Host-scoped command controller shared by public proceed requests and local
+	 * built-in/custom shell executors.
+	 */
+	runCommandExecutionController?: RunCommandExecutionController;
 	/**
 	 * Telemetry service instance to use for capturing events and usage.
 	 * If omitted, telemetry is a no-op.

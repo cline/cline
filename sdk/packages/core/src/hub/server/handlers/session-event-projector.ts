@@ -106,6 +106,15 @@ export async function projectSessionEvent(
 				),
 			);
 			return;
+		case "detached_command_completed":
+			ctx.publish(
+				ctx.buildEvent(
+					"command.detached_completed",
+					event.payload as unknown as Record<string, unknown>,
+					event.payload.sessionId,
+				),
+			);
+			return;
 		case "status": {
 			const [session, snapshot] = await Promise.all([
 				readHubSessionRecord(ctx, event.payload.sessionId),

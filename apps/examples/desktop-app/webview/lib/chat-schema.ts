@@ -66,6 +66,10 @@ export const ChatMessageSchema = z.object({
 			toolOutput: z.string().optional(),
 			toolOutputTruncated: z.boolean().optional(),
 			toolDetachable: z.boolean().optional(),
+			toolBackgroundStatus: z
+				.enum(["running", "completed", "failed", "killed"])
+				.optional(),
+			toolBackgroundLogPath: z.string().optional(),
 			iteration: z.number().int().nonnegative().optional(),
 			agentId: z.string().optional(),
 			conversationId: z.string().optional(),

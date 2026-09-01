@@ -399,6 +399,110 @@ describe("useChatSession", () => {
 		});
 	});
 
+	it("keeps a detached command running until its process completes", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string } | undefined;
+					if (request?.action === "start") {
+						return {
+							sessionId: "session-detached",
+							cwd: "/workspace/cline",
+							workspaceRoot: "/workspace/cline",
+						};
+					}
+				}
+				return [];
+			},
+		);
+		await act(async () => current.start(current.config));
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+		const send = (stream: string, body: unknown, index: number) =>
+			chatEventHandler?.({
+				sessionId: "session-detached",
+				stream,
+				chunk: JSON.stringify(body),
+				ts: Date.now(),
+				index,
+			});
+
+		await act(async () => {
+			send(
+				"chat_tool_call_start",
+				{
+					toolCallId: "call-detached",
+					toolName: "run_commands",
+					input: { commands: ["sleep 60"] },
+				},
+				1,
+			);
+			send(
+				"chat_tool_call_update",
+				{
+					toolCallId: "call-detached",
+					toolName: "run_commands",
+					update: {
+						executionId: "execution-detached",
+						detached: true,
+						detachable: false,
+						logPath: "/tmp/output.log",
+					},
+				},
+				2,
+			);
+			send(
+				"chat_tool_call_end",
+				{
+					toolCallId: "call-detached",
+					toolName: "run_commands",
+					output: "[Command is still running]",
+				},
+				3,
+			);
+			await new Promise((resolve) => setTimeout(resolve, 60));
+		});
+
+		expect(
+			current.messages.find((message) => message.role === "tool")?.meta,
+		).toMatchObject({
+			toolBackgroundStatus: "running",
+			toolBackgroundLogPath: "/tmp/output.log",
+			hookEventName: "tool_call_start",
+		});
+
+		await act(async () => {
+			send(
+				"chat_tool_call_update",
+				{
+					toolCallId: "call-detached",
+					toolName: "run_commands",
+					update: {
+						executionId: "execution-detached",
+						detached: true,
+						completed: true,
+						logPath: "/tmp/output.log",
+						outcome: { kind: "exited", exitCode: 0 },
+					},
+				},
+				4,
+			);
+			await new Promise((resolve) => setTimeout(resolve, 60));
+		});
+
+		expect(
+			current.messages.find((message) => message.role === "tool")?.meta,
+		).toMatchObject({
+			toolBackgroundStatus: "completed",
+			toolBackgroundLogPath: "/tmp/output.log",
+			hookEventName: "tool_call_end",
+		});
+	});
+
 	it("heals a running attached session with a dead event stream by polling history", async () => {
 		// Scheduled runs can execute on a host whose live events never reach
 		// this client; the transcript must still settle without a remount.

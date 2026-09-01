@@ -102,6 +102,8 @@ type PendingToolOutput = {
 	text: string;
 	truncated: boolean;
 	detachable?: boolean;
+	backgroundStatus?: "running" | "completed" | "failed" | "killed";
+	backgroundLogPath?: string;
 };
 
 // ---------------------------------------------------------------------------
@@ -394,6 +396,12 @@ export function useChatSession() {
 	const lastLiveChunkAtRef = useRef(0);
 	const promptsInQueueRef = useRef<PromptInQueue[]>([]);
 	const liveToolMessageIdsRef = useRef<Record<string, string>>({});
+	const detachedToolMessageIdsRef = useRef<Record<string, string>>({});
+	const detachedExecutionIdsRef = useRef<Record<string, Set<string>>>({});
+	const detachedToolEndedRef = useRef<Set<string>>(new Set());
+	const detachedOutcomeStatusRef = useRef<
+		Record<string, "completed" | "failed" | "killed">
+	>({});
 	const pendingToolOutputRef = useRef(new Map<string, PendingToolOutput>());
 	// Optimistic user bubbles whose prompt is still in flight, by message id.
 	// A chat_queued_prompt_start event may only re-key one of these — never a
@@ -613,6 +621,38 @@ export function useChatSession() {
 				const sessionMessages = prev.filter(
 					(message) => message.sessionId === sid,
 				);
+				const detachedOverlays = new Map(
+					sessionMessages
+						.filter(
+							(message) =>
+								message.meta?.toolCallId &&
+								message.meta.toolBackgroundStatus === "running",
+						)
+						.map(
+							(message) =>
+								[message.meta?.toolCallId as string, message] as const,
+						),
+				);
+				const canonicalWithDetachedOverlays = historyMessages.map((message) => {
+					const toolCallId = message.meta?.toolCallId;
+					const overlay = toolCallId
+						? detachedOverlays.get(toolCallId)
+						: undefined;
+					if (!overlay) return message;
+					detachedToolMessageIdsRef.current[toolCallId] = message.id;
+					return {
+						...message,
+						meta: {
+							...message.meta,
+							toolOutput: overlay.meta?.toolOutput,
+							toolOutputTruncated: overlay.meta?.toolOutputTruncated,
+							toolDetachable: false,
+							toolBackgroundStatus: "running" as const,
+							toolBackgroundLogPath: overlay.meta?.toolBackgroundLogPath,
+							hookEventName: "tool_call_start",
+						},
+					};
+				});
 				let tailErrorStart = sessionMessages.length;
 				while (
 					tailErrorStart > 0 &&
@@ -622,9 +662,12 @@ export function useChatSession() {
 				}
 				const preservedErrors = sessionMessages.slice(tailErrorStart);
 				if (preservedErrors.length === 0) {
-					return historyMessages;
+					return canonicalWithDetachedOverlays;
 				}
-				return sliceMessages([...historyMessages, ...preservedErrors]);
+				return sliceMessages([
+					...canonicalWithDetachedOverlays,
+					...preservedErrors,
+				]);
 			});
 		},
 		[],
@@ -953,11 +996,17 @@ export function useChatSession() {
 					);
 					const toolDetachable =
 						pending.detachable ?? message.meta?.toolDetachable;
+					const toolBackgroundStatus =
+						pending.backgroundStatus ?? message.meta?.toolBackgroundStatus;
+					const toolBackgroundLogPath =
+						pending.backgroundLogPath ?? message.meta?.toolBackgroundLogPath;
 					if (
 						merged.output === (message.meta?.toolOutput ?? "") &&
 						toolOutputTruncated ===
 							Boolean(message.meta?.toolOutputTruncated) &&
-						toolDetachable === message.meta?.toolDetachable
+						toolDetachable === message.meta?.toolDetachable &&
+						toolBackgroundStatus === message.meta?.toolBackgroundStatus &&
+						toolBackgroundLogPath === message.meta?.toolBackgroundLogPath
 					) {
 						return message;
 					}
@@ -968,6 +1017,18 @@ export function useChatSession() {
 							toolOutput: merged.output,
 							toolOutputTruncated,
 							...(toolDetachable !== undefined ? { toolDetachable } : {}),
+							...(toolBackgroundStatus !== undefined
+								? { toolBackgroundStatus }
+								: {}),
+							...(toolBackgroundLogPath !== undefined
+								? { toolBackgroundLogPath }
+								: {}),
+							hookEventName:
+								toolBackgroundStatus === "running"
+									? "tool_call_start"
+									: toolBackgroundStatus !== undefined
+										? "tool_call_end"
+										: message.meta?.hookEventName,
 						},
 					};
 				}),
@@ -1312,7 +1373,8 @@ export function useChatSession() {
 				}
 				const toolCallId = parsed.toolCallId;
 				const messageId = toolCallId
-					? liveToolMessageIdsRef.current[toolCallId]
+					? (liveToolMessageIdsRef.current[toolCallId] ??
+						detachedToolMessageIdsRef.current[toolCallId])
 					: undefined;
 				if (!messageId) return;
 				const update =
@@ -1333,7 +1395,73 @@ export function useChatSession() {
 						? update.detachable
 						: undefined;
 				const sourceTruncated = update.truncated === true;
-				if (!chunk && detachable === undefined && !sourceTruncated) return;
+				const detached = update.detached === true;
+				const completed = update.completed === true;
+				const executionId =
+					typeof update.executionId === "string"
+						? update.executionId
+						: undefined;
+				const logPath =
+					typeof update.logPath === "string" ? update.logPath : undefined;
+				const outcome =
+					update.outcome &&
+					typeof update.outcome === "object" &&
+					!Array.isArray(update.outcome)
+						? (update.outcome as Record<string, unknown>)
+						: undefined;
+				if (toolCallId && executionId && detached && !completed) {
+					(detachedExecutionIdsRef.current[toolCallId] ??= new Set()).add(
+						executionId,
+					);
+				}
+				if (toolCallId && executionId && completed) {
+					detachedExecutionIdsRef.current[toolCallId]?.delete(executionId);
+					const nextStatus =
+						outcome?.kind === "exited" && outcome.exitCode === 0
+							? "completed"
+							: outcome?.kind === "hard_killed"
+								? "killed"
+								: "failed";
+					const previousStatus = detachedOutcomeStatusRef.current[toolCallId];
+					detachedOutcomeStatusRef.current[toolCallId] =
+						previousStatus === "killed" || nextStatus === "killed"
+							? "killed"
+							: previousStatus === "failed" || nextStatus === "failed"
+								? "failed"
+								: "completed";
+				}
+				const hasPendingExecutions = Boolean(
+					toolCallId &&
+						(detachedExecutionIdsRef.current[toolCallId]?.size ?? 0) > 0,
+				);
+				const lifecycleComplete =
+					completed &&
+					!hasPendingExecutions &&
+					Boolean(toolCallId && detachedToolEndedRef.current.has(toolCallId));
+				const backgroundStatus = lifecycleComplete
+					? ((toolCallId
+							? detachedOutcomeStatusRef.current[toolCallId]
+							: undefined) ?? "failed")
+					: detached
+						? "running"
+						: undefined;
+				if (toolCallId && messageId && detached && !completed) {
+					detachedToolMessageIdsRef.current[toolCallId] = messageId;
+				}
+				if (toolCallId && lifecycleComplete) {
+					delete detachedToolMessageIdsRef.current[toolCallId];
+					delete detachedExecutionIdsRef.current[toolCallId];
+					detachedToolEndedRef.current.delete(toolCallId);
+					delete detachedOutcomeStatusRef.current[toolCallId];
+				}
+				if (
+					!chunk &&
+					detachable === undefined &&
+					!sourceTruncated &&
+					backgroundStatus === undefined &&
+					!logPath
+				)
+					return;
 				const pending = pendingToolOutputRef.current;
 				const existing = pending.get(messageId);
 				const appended = appendCappedCommandOutput(existing?.text ?? "", chunk);
@@ -1343,6 +1471,8 @@ export function useChatSession() {
 						existing?.truncated || appended.truncated || sourceTruncated,
 					),
 					detachable: detachable ?? existing?.detachable,
+					backgroundStatus: backgroundStatus ?? existing?.backgroundStatus,
+					backgroundLogPath: logPath ?? existing?.backgroundLogPath,
 				});
 				schedulePendingStreamFlush();
 				return;
@@ -1692,6 +1822,21 @@ export function useChatSession() {
 				output: parsed.output,
 				error: parsed.error,
 			});
+			if (toolCallId) detachedToolEndedRef.current.add(toolCallId);
+			const remainsDetached = Boolean(
+				toolCallId &&
+					detachedToolMessageIdsRef.current[toolCallId] === messageId &&
+					(detachedExecutionIdsRef.current[toolCallId]?.size ?? 0) > 0,
+			);
+			const terminalBackgroundStatus = toolCallId
+				? detachedOutcomeStatusRef.current[toolCallId]
+				: undefined;
+			if (toolCallId && !remainsDetached) {
+				delete detachedToolMessageIdsRef.current[toolCallId];
+				delete detachedExecutionIdsRef.current[toolCallId];
+				detachedToolEndedRef.current.delete(toolCallId);
+				delete detachedOutcomeStatusRef.current[toolCallId];
+			}
 			if (toolCallId) {
 				delete liveToolMessageIdsRef.current[toolCallId];
 				delete liveToolInputsRef.current[toolCallId];
@@ -1707,7 +1852,14 @@ export function useChatSession() {
 							toolName,
 							toolCallId,
 							toolDetachable: false,
-							hookEventName: "tool_call_end",
+							...(remainsDetached
+								? { toolBackgroundStatus: "running" as const }
+								: terminalBackgroundStatus
+									? { toolBackgroundStatus: terminalBackgroundStatus }
+									: {}),
+							hookEventName: remainsDetached
+								? "tool_call_start"
+								: "tool_call_end",
 						},
 					})),
 				);

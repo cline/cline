@@ -12,9 +12,9 @@ import type { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTermin
 import { McpHub } from "@/services/mcp/McpHub"
 import { Logger } from "@/shared/services/Logger"
 import type { ActiveSession } from "./cline-session-factory"
-import type { SdkForegroundCommandCoordinator } from "./sdk-foreground-command-coordinator"
 import { buildToolPolicies } from "./sdk-tool-policies"
 import type { SdkSessionHost } from "./session-host"
+import type { VscodeRunCommandExecutionController } from "./vscode-run-command-execution-controller"
 import { VscodeSessionHost } from "./vscode-session-host"
 
 type RequestToolApprovalHandler = NonNullable<Parameters<typeof VscodeSessionHost.create>[0]["requestToolApproval"]>
@@ -36,8 +36,8 @@ export interface SdkSessionLifecycleOptions {
 	onSessionEvent: (event: CoreSessionEvent) => void
 	/** Lazy factory for the VscodeTerminalManager (foreground terminal support). */
 	getTerminalManager?: () => VscodeTerminalManager
-	/** Registry of in-flight foreground executions for "Proceed While Running". */
-	foregroundCommands?: SdkForegroundCommandCoordinator
+	/** Shared SDK registry for foreground and background command executions. */
+	commandExecutions?: VscodeRunCommandExecutionController
 	/** Resolves once the applicable remote config is ready for a new SDK session. */
 	beforeStartSession?: () => Promise<void>
 	/** Returns the latest prepared remote-config integration, if remote config is active. */
@@ -342,7 +342,7 @@ export class SdkSessionLifecycle {
 				applyPatchExecutor: this.options.applyPatchExecutor,
 				readFileExecutor: this.options.readFileExecutor,
 				getTerminalManager: this.options.getTerminalManager,
-				foregroundCommands: this.options.foregroundCommands,
+				commandExecutions: this.options.commandExecutions,
 				beforeStartSession: this.options.beforeStartSession,
 				getRemoteConfigIntegration: this.options.getRemoteConfigIntegration,
 				telemetry: this.options.telemetry,

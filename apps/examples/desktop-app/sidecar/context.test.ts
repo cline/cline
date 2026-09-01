@@ -408,6 +408,58 @@ describe("Code sidecar runtime capabilities", () => {
 		});
 	});
 
+	it("forwards detached command completion to the original tool row", async () => {
+		const { createSidecarContext, handleHubLiveEvent } = await import(
+			"./context"
+		);
+		const ctx = createSidecarContext("/workspace/project");
+		ctx.wsClients.add({ send: vi.fn() });
+		ctx.liveSessions.set("session-1", {
+			config: {},
+			messages: [],
+			promptsInQueue: [],
+			busy: false,
+			startedAt: Date.now(),
+			status: "completed",
+			attachedViaHub: true,
+		});
+
+		handleHubLiveEvent(ctx, {
+			event: "command.detached_completed",
+			sessionId: "session-1",
+			payload: {
+				executionId: "execution-1",
+				toolCallId: "call-1",
+				logPath: "/tmp/output.log",
+				detachKind: "implicit",
+				outcome: { kind: "exited", exitCode: 0 },
+			},
+		});
+
+		const forwarded = readEvents(ctx).find(
+			(message) =>
+				message.event.name === "chat_event" &&
+				(message.event.payload as { stream?: string }).stream ===
+					"chat_tool_call_update",
+		);
+		expect(
+			JSON.parse(
+				String((forwarded?.event.payload as { chunk?: string }).chunk),
+			),
+		).toEqual({
+			toolCallId: "call-1",
+			toolName: "run_commands",
+			update: {
+				executionId: "execution-1",
+				detached: true,
+				completed: true,
+				detachKind: "implicit",
+				logPath: "/tmp/output.log",
+				outcome: { kind: "exited", exitCode: 0 },
+			},
+		});
+	});
+
 	it("forwards proceed-while-running requests to the hub", async () => {
 		const { createSidecarContext, initializeSessionManager } = await import(
 			"./context"

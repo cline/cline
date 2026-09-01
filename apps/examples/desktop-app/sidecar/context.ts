@@ -894,6 +894,29 @@ export function handleHubLiveEvent(
 			);
 			return;
 		}
+		case "command.detached_completed": {
+			emitChunk(
+				ctx,
+				sessionId,
+				"chat_tool_call_update",
+				JSON.stringify({
+					toolCallId:
+						typeof event.payload?.toolCallId === "string"
+							? event.payload.toolCallId
+							: undefined,
+					toolName: "run_commands",
+					update: {
+						executionId: event.payload?.executionId,
+						detached: true,
+						completed: true,
+						detachKind: event.payload?.detachKind,
+						logPath: event.payload?.logPath,
+						outcome: event.payload?.outcome,
+					},
+				}),
+			);
+			return;
+		}
 		case "tool.finished": {
 			emitChunk(
 				ctx,

@@ -36,6 +36,7 @@ import { normalizeRuntimeCapabilities } from "./runtime/capabilities";
 import { listSessionHistory } from "./runtime/host/history";
 import { createRuntimeHost } from "./runtime/host/host";
 import type {
+	CommandExecutionRuntimeService,
 	PendingPromptsServiceApi,
 	RuntimeHost,
 	RuntimeHostSubscribeOptions,
@@ -341,6 +342,17 @@ export class ClineCore {
 	 * ```
 	 */
 	send: RuntimeHost["runTurn"] = (...args) => this.host.runTurn(...args);
+	/** Releases matching foreground shell commands while they continue running. */
+	proceedWhileRunning: CommandExecutionRuntimeService["proceedWhileRunning"] = (
+		...args
+	) => {
+		if (!this.host.proceedWhileRunning) {
+			throw new Error(
+				"This runtime does not support proceeding while a command is running.",
+			);
+		}
+		return this.host.proceedWhileRunning(...args);
+	};
 	/**
 	 * Retrieves accumulated token and cost usage for a session.
 	 *

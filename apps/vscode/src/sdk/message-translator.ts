@@ -27,7 +27,7 @@
 // - SDK "ended" event → finalizes the session
 
 import type { CoreSessionEvent } from "@cline/core"
-import { PATCH_MARKERS, projectSessionMessagesForDisplay } from "@cline/core"
+import { MAX_COMMAND_OUTPUT_CHARS, PATCH_MARKERS, projectSessionMessagesForDisplay, truncateCommandOutput } from "@cline/core"
 import type { MessageWithMetadata as SdkMessage } from "@cline/llms"
 import { type AgentEvent, formatDisplayUserInput, type ProviderErrorClass } from "@cline/shared"
 import { COMMAND_OUTPUT_STRING } from "@shared/combineCommandSequences"
@@ -131,6 +131,23 @@ export class MessageTranslatorState {
 	private streamingToolInput: unknown | undefined
 	/** Stored tool name from content_start — used at content_end for consistency */
 	private streamingToolName: string | undefined
+	/** Bounded live output for the active run_commands tool call. */
+	private streamingCommandOutput = ""
+	/** Detached processes are tracked individually because one run_commands call may launch several in parallel. */
+	private detachedCommandRows = new Map<
+		string,
+		{
+			ts: number
+			commandText: string
+			output: string
+			pendingExecutionIds: Set<string>
+			completedExecutionIds: Set<string>
+			logPaths: Set<string>
+			completionNotes: string[]
+			terminalStatus: "succeeded" | "failed" | "killed" | "indeterminate"
+			toolEnded: boolean
+		}
+	>()
 	/** Approved tool-call ids mapped to the approval row that should be updated in place. */
 	private approvedToolMessageTsByCallId = new Map<string, number>()
 	/**
@@ -322,12 +339,96 @@ export class MessageTranslatorState {
 		return this.streamingToolName
 	}
 
+	appendStreamingCommandOutput(chunk: string): string {
+		this.streamingCommandOutput = truncateCommandOutput(`${this.streamingCommandOutput}${chunk}`, {
+			maxChars: MAX_COMMAND_OUTPUT_CHARS,
+		})
+		return this.streamingCommandOutput
+	}
+
+	getStreamingCommandOutput(): string {
+		return this.streamingCommandOutput
+	}
+
+	recordDetachedCommand(
+		toolCallId: string,
+		executionId: string,
+		logPath: string,
+		row: { ts: number; commandText: string; output: string },
+	): void {
+		const existing = this.detachedCommandRows.get(toolCallId)
+		if (existing) {
+			existing.pendingExecutionIds.add(executionId)
+			existing.logPaths.add(logPath)
+			existing.output = row.output
+			return
+		}
+		this.detachedCommandRows.set(toolCallId, {
+			...row,
+			pendingExecutionIds: new Set([executionId]),
+			completedExecutionIds: new Set(),
+			logPaths: new Set([logPath]),
+			completionNotes: [],
+			terminalStatus: "succeeded",
+			toolEnded: false,
+		})
+	}
+
+	markDetachedToolEnded(
+		toolCallId: string | undefined,
+	): { row: NonNullable<ReturnType<MessageTranslatorState["getDetachedCommand"]>>; complete: boolean } | undefined {
+		const row = this.getDetachedCommand(toolCallId)
+		if (!row) return undefined
+		row.toolEnded = true
+		const complete = row.pendingExecutionIds.size === 0
+		if (complete && toolCallId) this.detachedCommandRows.delete(toolCallId)
+		return { row, complete }
+	}
+
+	completeDetachedCommand(
+		toolCallId: string | undefined,
+		executionId: string,
+		note: string,
+		status: "succeeded" | "failed" | "killed" | "indeterminate",
+	): { row: NonNullable<ReturnType<MessageTranslatorState["getDetachedCommand"]>>; complete: boolean } | undefined {
+		const row = this.getDetachedCommand(toolCallId)
+		if (!row || row.completedExecutionIds.has(executionId)) return undefined
+		row.completedExecutionIds.add(executionId)
+		row.pendingExecutionIds.delete(executionId)
+		row.completionNotes.push(note)
+		const rank = { succeeded: 0, indeterminate: 1, failed: 2, killed: 3 } as const
+		if (rank[status] > rank[row.terminalStatus]) row.terminalStatus = status
+		const complete = row.toolEnded && row.pendingExecutionIds.size === 0
+		if (complete && toolCallId) this.detachedCommandRows.delete(toolCallId)
+		return { row, complete }
+	}
+
+	getDetachedCommand(toolCallId: string | undefined) {
+		return toolCallId ? this.detachedCommandRows.get(toolCallId) : undefined
+	}
+
+	formatDetachedCommandOutput(toolCallId: string | undefined, row = this.getDetachedCommand(toolCallId)): string {
+		if (!row) return ""
+		return [
+			...Array.from(row.logPaths, (path) => `[Command is still running. Output will continue in ${path}]`),
+			row.output,
+			...row.completionNotes,
+		]
+			.filter(Boolean)
+			.join("\n")
+	}
+
+	clearDetachedCommands(): void {
+		this.detachedCommandRows.clear()
+	}
+
 	/** Clear streaming tool */
 	clearStreamingTool(): number {
 		const ts = this.streamingToolTs ?? this.nextTs()
 		this.streamingToolTs = undefined
 		this.streamingToolInput = undefined
 		this.streamingToolName = undefined
+		this.streamingCommandOutput = ""
 		return ts
 	}
 
@@ -507,9 +608,11 @@ export class MessageTranslatorState {
 		this.streamingToolTs = undefined
 		this.streamingToolInput = undefined
 		this.streamingToolName = undefined
+		this.streamingCommandOutput = ""
 		this.clearApprovedToolMessageTs()
 		this.deniedToolApprovalsByCallId.clear()
 		this.clearSpawnAgents()
+		// Detached rows outlive the iteration whose tool call released them.
 	}
 
 	/**
@@ -1440,6 +1543,41 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 			// sub-agent progress (iterations, tool calls, usage). We translate
 			// these into the ClineSaySubagentStatus format for the rich UI.
 			const updateToolName = event.toolName ?? state.getStreamingToolName()
+			if (updateToolName === "run_commands" || updateToolName === "execute_command") {
+				const update = event.update
+				if (!update || typeof update !== "object" || Array.isArray(update)) {
+					break
+				}
+				const updateData = update as Record<string, unknown>
+				const executionId = typeof updateData.executionId === "string" ? updateData.executionId : undefined
+				const chunk = typeof updateData.chunk === "string" ? updateData.chunk : ""
+				const output = chunk ? state.appendStreamingCommandOutput(chunk) : state.getStreamingCommandOutput()
+				const logPath = typeof updateData.logPath === "string" ? updateData.logPath : undefined
+				const retainedDetachedRow = state.getDetachedCommand(event.toolCallId)
+				const detachNotice = logPath ? `[Command is still running. Output will continue in ${logPath}]` : ""
+				const visibleOutput = [detachNotice, output || retainedDetachedRow?.output].filter(Boolean).join("\n")
+				const commandText = retainedDetachedRow?.commandText ?? extractCommandText(state.getStreamingToolInput())
+				if (logPath && event.toolCallId && executionId) {
+					state.recordDetachedCommand(event.toolCallId, executionId, logPath, {
+						ts: state.getStreamingToolTs(),
+						commandText,
+						output: visibleOutput,
+					})
+				}
+				const detachedOutput = state.formatDetachedCommandOutput(event.toolCallId)
+				messages.push({
+					ts: retainedDetachedRow?.ts ?? state.getStreamingToolTs(),
+					type: "say",
+					say: "command",
+					text: `${commandText}\n${COMMAND_OUTPUT_STRING}${
+						detachedOutput || visibleOutput ? `\n${detachedOutput || visibleOutput}` : ""
+					}`,
+					partial: updateData.completed !== true,
+					commandCompleted: updateData.completed === true,
+					commandStatus: updateData.completed === true ? "succeeded" : "running",
+				})
+				break
+			}
 			if (updateToolName === "spawn_agent" && state.hasSpawnAgents()) {
 				const callId = event.toolCallId ?? ""
 				const entry = callId ? state.getSpawnAgent(callId) : undefined
@@ -1642,14 +1780,29 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 						const storedInput = state.getStreamingToolInput()
 						const commandText = extractCommandText(storedInput)
 						const outputStr = event.error ? `Error: ${event.error}` : extractToolOutputText(event.output)
+						const detachedState = state.markDetachedToolEnded(event.toolCallId)
+						const detachedRow = detachedState?.row
 						const ts = state.clearStreamingTool()
 						messages.push({
-							ts,
+							ts: detachedRow?.ts ?? ts,
 							type: "say",
 							say: "command",
-							text: outputStr ? `${commandText}\n${COMMAND_OUTPUT_STRING}\n${outputStr}` : commandText,
-							partial: false,
-							commandCompleted: true,
+							text: detachedRow
+								? `${detachedRow.commandText}\n${COMMAND_OUTPUT_STRING}\n${[
+										state.formatDetachedCommandOutput(event.toolCallId, detachedRow),
+									]
+										.filter(Boolean)
+										.join("\n")}`
+								: outputStr
+									? `${commandText}\n${COMMAND_OUTPUT_STRING}\n${outputStr}`
+									: commandText,
+							partial: detachedRow !== undefined && !detachedState?.complete,
+							commandCompleted: detachedRow === undefined || detachedState?.complete === true,
+							commandStatus: event.error
+								? "failed"
+								: detachedRow !== undefined && !detachedState?.complete
+									? "running"
+									: (detachedRow?.terminalStatus ?? "succeeded"),
 						})
 						break
 					}
@@ -2072,6 +2225,52 @@ export function translateSessionEvent(event: CoreSessionEvent, state: MessageTra
 			result.sessionEnded = true
 			result.turnComplete = true
 			state.reset()
+			break
+		}
+
+		case "detached_command_completed": {
+			const outcome = event.payload.outcome
+			const completion =
+				outcome.kind === "exited"
+					? `[Detached command completed with exit code ${outcome.exitCode}]`
+					: outcome.kind === "signaled"
+						? `[Detached command ended from signal ${outcome.signal}]`
+						: outcome.kind === "hard_killed"
+							? "[Detached command reached its hard deadline and was terminated]"
+							: `[Detached command failed: ${outcome.error}]`
+			const status =
+				outcome.kind === "exited"
+					? outcome.exitCode === 0
+						? "succeeded"
+						: "failed"
+					: outcome.kind === "hard_killed"
+						? "killed"
+						: outcome.kind === "signaled"
+							? "indeterminate"
+							: "failed"
+			const completed = state.completeDetachedCommand(
+				event.payload.toolCallId,
+				event.payload.executionId,
+				completion,
+				status,
+			)
+			if (!completed) break
+			const { row, complete } = completed
+			result.messages.push({
+				ts: row.ts,
+				type: "say",
+				say: "command",
+				text: `${row.commandText}\n${COMMAND_OUTPUT_STRING}\n${[
+					...Array.from(row.logPaths, (path) => `[Command output log: ${path}]`),
+					row.output,
+					...row.completionNotes,
+				]
+					.filter(Boolean)
+					.join("\n")}`,
+				partial: !complete,
+				commandCompleted: complete,
+				commandStatus: complete ? row.terminalStatus : "running",
+			})
 			break
 		}
 

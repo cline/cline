@@ -194,6 +194,8 @@ export function convertClineMessageToProto(message: AppClineMessage): ProtoCline
 		// Convergent-replica fields (default 0 = unstamped, e.g. classic/legacy path).
 		seq: message.seq ?? 0,
 		epoch: message.epoch ?? 0,
+		commandCompleted: message.commandCompleted ?? false,
+		commandStatus: message.commandStatus ?? "",
 		lastCheckpointHash: message.lastCheckpointHash ?? "",
 		isCheckpointCheckedOut: message.isCheckpointCheckedOut ?? false,
 		isOperationOutsideWorkspace: message.isOperationOutsideWorkspace ?? false,
@@ -259,6 +261,18 @@ export function convertProtoToClineMessage(protoMessage: ProtoClineMessage): App
 	}
 	if (protoMessage.partial) {
 		message.partial = protoMessage.partial
+	}
+	if (protoMessage.commandCompleted) {
+		message.commandCompleted = true
+	}
+	if (
+		protoMessage.commandStatus === "running" ||
+		protoMessage.commandStatus === "succeeded" ||
+		protoMessage.commandStatus === "failed" ||
+		protoMessage.commandStatus === "killed" ||
+		protoMessage.commandStatus === "indeterminate"
+	) {
+		message.commandStatus = protoMessage.commandStatus
 	}
 	if (protoMessage.lastCheckpointHash !== "") {
 		message.lastCheckpointHash = protoMessage.lastCheckpointHash

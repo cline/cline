@@ -81,7 +81,15 @@ export type ShellExecutor = (
 	command: string | StructuredCommandInput,
 	cwd: string,
 	context: AgentToolContext,
+	limits?: ShellExecutionLimits,
 ) => Promise<string>;
+
+export interface ShellExecutionLimits {
+	/** Release the tool call after this duration while the process keeps running. */
+	detachAfterMs?: number;
+	/** Forcefully terminate the process tree after this duration. */
+	killAfterMs?: number;
+}
 
 /**
  * Executor for fetching web content

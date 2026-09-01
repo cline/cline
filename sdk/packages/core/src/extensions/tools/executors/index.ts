@@ -42,6 +42,7 @@ export {
 	type FileReadExecutorOptions,
 } from "./file-read";
 export {
+	type RunCommandDetachKind,
 	RunCommandExecutionController,
 	type RunningCommandRegistration,
 } from "./run-command-execution-controller";

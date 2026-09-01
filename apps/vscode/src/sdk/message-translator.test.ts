@@ -404,6 +404,179 @@ describe("translateSessionEvent — agent_event content_start", () => {
 		})
 	})
 
+	it("streams command output into one row and finalizes a detached command on process completion", () => {
+		const state = new MessageTranslatorState()
+		const start = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "run_commands",
+						toolCallId: "command-call",
+						input: { commands: ["bun test"] },
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		const rowTs = start.messages[0].ts
+
+		const output = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "content_update",
+						contentType: "tool",
+						toolName: "run_commands",
+						toolCallId: "command-call",
+						update: { stream: "stdout", chunk: "running\n", detachable: true },
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		expect(output.messages[0]).toMatchObject({ ts: rowTs, partial: true, commandCompleted: false })
+		expect(output.messages[0].text).toContain("running")
+
+		translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "content_update",
+						contentType: "tool",
+						toolName: "run_commands",
+						toolCallId: "command-call",
+						update: {
+							executionId: "execution-1",
+							detached: true,
+							detachKind: "implicit",
+							logPath: "/tmp/output.log",
+							detachable: false,
+						},
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+
+		const toolEnd = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "content_end",
+						contentType: "tool",
+						toolName: "run_commands",
+						toolCallId: "command-call",
+						output: "detached",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		expect(toolEnd.messages[0]).toMatchObject({ ts: rowTs, partial: true, commandCompleted: false })
+
+		const completed = translateSessionEvent(
+			{
+				type: "detached_command_completed",
+				payload: {
+					sessionId: "session-1",
+					executionId: "execution-1",
+					toolCallId: "command-call",
+					logPath: "/tmp/output.log",
+					detachKind: "implicit",
+					outcome: { kind: "exited", exitCode: 0 },
+					ts: 1,
+				},
+			},
+			state,
+		)
+		expect(completed.messages[0]).toMatchObject({ ts: rowTs, partial: false, commandCompleted: true })
+		expect(completed.messages[0].text).toContain("completed with exit code 0")
+	})
+
+	it("waits for every detached execution in a parallel command call", () => {
+		const state = new MessageTranslatorState()
+		const agentEvent = (event: AgentEvent) => ({
+			type: "agent_event" as const,
+			payload: { sessionId: "session-1", event },
+		})
+		translateSessionEvent(
+			agentEvent({
+				type: "content_start",
+				contentType: "tool",
+				toolName: "run_commands",
+				toolCallId: "parallel-call",
+				input: { commands: ["first", "second"] },
+			} as AgentEvent),
+			state,
+		)
+		for (const executionId of ["execution-1", "execution-2"]) {
+			translateSessionEvent(
+				agentEvent({
+					type: "content_update",
+					contentType: "tool",
+					toolName: "run_commands",
+					toolCallId: "parallel-call",
+					update: { executionId, detached: true, logPath: `/tmp/${executionId}.log` },
+				} as AgentEvent),
+				state,
+			)
+		}
+		translateSessionEvent(
+			agentEvent({
+				type: "content_end",
+				contentType: "tool",
+				toolName: "run_commands",
+				toolCallId: "parallel-call",
+				output: "detached",
+			} as AgentEvent),
+			state,
+		)
+
+		const first = translateSessionEvent(
+			{
+				type: "detached_command_completed",
+				payload: {
+					sessionId: "session-1",
+					executionId: "execution-2",
+					toolCallId: "parallel-call",
+					logPath: "/tmp/execution-2.log",
+					detachKind: "implicit",
+					outcome: { kind: "exited", exitCode: 0 },
+					ts: 1,
+				},
+			},
+			state,
+		)
+		expect(first.messages[0]).toMatchObject({ partial: true, commandStatus: "running" })
+
+		const second = translateSessionEvent(
+			{
+				type: "detached_command_completed",
+				payload: {
+					sessionId: "session-1",
+					executionId: "execution-1",
+					toolCallId: "parallel-call",
+					logPath: "/tmp/execution-1.log",
+					detachKind: "implicit",
+					outcome: { kind: "hard_killed" },
+					ts: 2,
+				},
+			},
+			state,
+		)
+		expect(second.messages[0]).toMatchObject({ partial: false, commandCompleted: true, commandStatus: "killed" })
+	})
+
 	it("reuses the approved MCP prompt row for the matching MCP tool lifecycle", () => {
 		const state = new MessageTranslatorState()
 		const approvedMessageTs = state.nextTs()

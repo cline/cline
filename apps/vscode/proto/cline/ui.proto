@@ -233,6 +233,8 @@ message ClineMessage {
   // epoch = conversation/replica fence (older epoch is dropped by the webview)
   int64 seq = 24;
   int64 epoch = 25;
+  bool command_completed = 26;
+  string command_status = 27;
 }
 
 message ShowWebviewEvent {

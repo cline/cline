@@ -679,6 +679,7 @@ export type HubEventName =
 	| "tool.started"
 	| "tool.updated"
 	| "tool.finished"
+	| "command.detached_completed"
 	| "approval.requested"
 	| "approval.resolved"
 	| "capability.requested"

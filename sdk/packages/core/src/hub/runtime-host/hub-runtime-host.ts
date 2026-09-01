@@ -71,6 +71,7 @@ import {
 } from "../../types/common";
 import type {
 	CoreSessionEvent,
+	DetachedCommandCompletedEvent,
 	SessionPendingPrompt,
 } from "../../types/events";
 import type { SessionRecord } from "../../types/sessions";
@@ -124,6 +125,46 @@ function serializeSettingsInput(
 	const { userInstructionService: _userInstructionService, ...serializable } =
 		input;
 	return JSON.parse(JSON.stringify(serializable)) as Record<string, unknown>;
+}
+
+function parseDetachedCommandCompletedEvent(
+	sessionId: string,
+	payload: Record<string, unknown> | undefined,
+	ts: number,
+): DetachedCommandCompletedEvent | undefined {
+	if (
+		typeof payload?.executionId !== "string" ||
+		typeof payload.logPath !== "string" ||
+		payload.logPath.length === 0 ||
+		(payload.detachKind !== "user" && payload.detachKind !== "implicit") ||
+		!payload.outcome ||
+		typeof payload.outcome !== "object" ||
+		Array.isArray(payload.outcome)
+	) {
+		return undefined;
+	}
+	const outcome = payload.outcome as Record<string, unknown>;
+	const parsedOutcome =
+		outcome.kind === "exited" && typeof outcome.exitCode === "number"
+			? { kind: "exited" as const, exitCode: outcome.exitCode }
+			: outcome.kind === "signaled" && typeof outcome.signal === "string"
+				? { kind: "signaled" as const, signal: outcome.signal }
+				: outcome.kind === "hard_killed"
+					? { kind: "hard_killed" as const }
+					: outcome.kind === "failed" && typeof outcome.error === "string"
+						? { kind: "failed" as const, error: outcome.error }
+						: undefined;
+	if (!parsedOutcome) return undefined;
+	return {
+		sessionId,
+		executionId: payload.executionId,
+		toolCallId:
+			typeof payload.toolCallId === "string" ? payload.toolCallId : undefined,
+		logPath: payload.logPath,
+		detachKind: payload.detachKind,
+		outcome: parsedOutcome,
+		ts: typeof payload.ts === "number" ? payload.ts : ts,
+	};
 }
 
 function buildCommandSessionConfig(
@@ -1903,6 +1944,17 @@ export class HubRuntimeHost implements RuntimeHost {
 						},
 					},
 				});
+				return;
+			}
+			case "command.detached_completed": {
+				const payload = parseDetachedCommandCompletedEvent(
+					sessionId,
+					event.payload,
+					event.timestamp ?? Date.now(),
+				);
+				if (payload) {
+					this.events.emit({ type: "detached_command_completed", payload });
+				}
 				return;
 			}
 			case "session.created":
