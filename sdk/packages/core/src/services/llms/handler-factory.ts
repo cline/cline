@@ -4,6 +4,7 @@ import {
 	hasRegisteredHandler,
 	MODEL_COLLECTIONS_BY_PROVIDER_ID,
 	normalizeProviderId,
+	toGatewayModelCapabilities,
 } from "@cline/llms";
 import type {
 	AgentConfig,
@@ -139,36 +140,6 @@ export function resolveKnownModelsFromConfig(
 	};
 }
 
-function toGatewayCapabilities(
-	capabilities: ModelInfo["capabilities"],
-): GatewayModelDefinition["capabilities"] {
-	if (!capabilities?.length) {
-		return undefined;
-	}
-
-	const mapped = new Set<
-		NonNullable<GatewayModelDefinition["capabilities"]>[number]
-	>();
-	for (const capability of capabilities) {
-		switch (capability) {
-			case "tools":
-			case "reasoning":
-			case "prompt-cache":
-			case "images":
-				mapped.add(capability);
-				break;
-			case "structured_output":
-				mapped.add("structured-output");
-				break;
-			default:
-				mapped.add("text");
-		}
-	}
-
-	mapped.add("text");
-	return [...mapped];
-}
-
 function toGatewayConfiguredModel(
 	id: string,
 	model: ModelInfo,
@@ -183,7 +154,7 @@ function toGatewayConfiguredModel(
 		operation: model.operation,
 		operationModes: model.operationModes,
 		modalities: model.modalities,
-		capabilities: toGatewayCapabilities(model.capabilities),
+		capabilities: toGatewayModelCapabilities(model.capabilities),
 		reasoningOptions: model.reasoningOptions,
 		metadata: {
 			family: model.family,

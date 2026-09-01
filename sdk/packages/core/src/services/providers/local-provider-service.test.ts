@@ -959,6 +959,37 @@ describe("addLocalProvider – capabilities", () => {
 		});
 	});
 
+	it.each([
+		["absent", undefined],
+		["empty", [] as const],
+	])("leaves capability support undeclared when the list is %s", (_label, capabilities) => {
+		expect(
+			toProviderModel("sparse-model", {
+				name: "Sparse Model",
+				...(capabilities === undefined
+					? {}
+					: { capabilities: [...capabilities] }),
+			}),
+		).toMatchObject({
+			supportsVision: undefined,
+			supportsAttachments: undefined,
+			supportsReasoning: undefined,
+		});
+	});
+
+	it("reports a populated capability list as authoritative", () => {
+		expect(
+			toProviderModel("vision-only", {
+				name: "Vision Only",
+				capabilities: ["images"],
+			}),
+		).toMatchObject({
+			supportsVision: true,
+			supportsAttachments: false,
+			supportsReasoning: false,
+		});
+	});
+
 	it("sets supportsVision and supportsAttachments when capability is 'vision'", async () => {
 		await addLocalProvider(manager, {
 			providerId: "vision-provider",
