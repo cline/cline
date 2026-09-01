@@ -150,6 +150,8 @@ export class CronRunner {
 	private ticking = false;
 	private disposed = false;
 	private stopping = false;
+	private lastTickAtMs = 0;
+	private holdReclaimsUntilMs = 0;
 	private readonly activeRuns = new Map<
 		string,
 		{ claimToken: string; sessionId?: string }
@@ -218,6 +220,16 @@ export class CronRunner {
 	}
 
 	public async tick(): Promise<void> {
+		// Leases age in wall-clock time but heartbeat timers freeze during
+		// system sleep, so after a long gap (or on a fresh runner sharing
+		// cron.db with a live one) expired `running` rows likely still have a
+		// live owner about to renew. Hold reclaims for one lease period so we
+		// don't start a duplicate session for the same run.
+		const now = Date.now();
+		if (now - this.lastTickAtMs > this.claimLeaseMs / 2) {
+			this.holdReclaimsUntilMs = now + this.claimLeaseMs;
+		}
+		this.lastTickAtMs = now;
 		if (this.ticking) return;
 		this.ticking = true;
 		try {
@@ -225,6 +237,7 @@ export class CronRunner {
 			const claims = this.store.claimDueRuns({
 				nowIso: nowIso(),
 				leaseMs: this.claimLeaseMs,
+				reclaimExpiredRunning: now >= this.holdReclaimsUntilMs,
 			});
 			await Promise.allSettled(claims.map((claim) => this.executeClaim(claim)));
 		} catch (err) {

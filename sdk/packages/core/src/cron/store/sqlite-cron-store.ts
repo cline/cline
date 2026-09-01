@@ -568,6 +568,8 @@ export interface ClaimRunOptions {
 	nowIso: string;
 	leaseMs: number;
 	limit?: number;
+	/** When false, only `queued` runs are claimed; expired `running` leases are left alone. */
+	reclaimExpiredRunning?: boolean;
 }
 
 export interface ClaimedCronRun {
@@ -1574,6 +1576,9 @@ export class SqliteCronStore {
 			new Date(referenceIso).getTime() + boundedLease,
 		).toISOString();
 		const limit = Math.max(1, Math.floor(options.limit ?? 25));
+		// "" sorts before every ISO timestamp, so no running lease can match.
+		const expiredLeaseIso =
+			options.reclaimExpiredRunning === false ? "" : referenceIso;
 		const claimed: ClaimedCronRun[] = [];
 		this.db.exec("BEGIN IMMEDIATE;");
 		try {
@@ -1593,7 +1598,7 @@ export class SqliteCronStore {
 						ORDER BY COALESCE(scheduled_for, created_at) ASC
 						LIMIT ?`,
 				)
-				.all(referenceIso, referenceIso, limit);
+				.all(expiredLeaseIso, referenceIso, limit);
 			for (const row of rows) {
 				const runId = asString(row.run_id);
 				if (!runId) continue;
@@ -1631,7 +1636,7 @@ export class SqliteCronStore {
 							referenceIso,
 							referenceIso,
 							runId,
-							referenceIso,
+							expiredLeaseIso,
 						).changes ?? 0;
 				if (changes !== 1) continue;
 				const run = this.getRun(runId);
