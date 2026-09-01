@@ -1070,6 +1070,111 @@ describe("upgradeManagedHub", () => {
 		expect(requestHubShutdown).toHaveBeenCalled();
 	});
 
+	it("treats a failed activity reading as unknown and keeps polling instead of concluding idle", async () => {
+		queryHubSessionActivity
+			.mockRejectedValueOnce(new Error("session.list timed out"))
+			.mockResolvedValue({ activeSessionCount: 2, participantClientCount: 1 });
+		readHubDiscovery.mockResolvedValueOnce({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "old-token",
+		});
+		probeHubServer.mockResolvedValueOnce({
+			url: "ws://127.0.0.1:25463/hub",
+			protocolVersion: "v1",
+			buildId: "old-build",
+			buildEpochMs: 500,
+		});
+
+		const { upgradeManagedHub } = await import(".");
+		const result = await upgradeManagedHub({ waitForIdleMs: 600 });
+
+		// The transient failure neither ended the wait window nor read as
+		// idle: the loop polled again, saw the real busy reading, and handed
+		// the hub back un-drained.
+		expect(result).toMatchObject({
+			outcome: "still_busy",
+			activeSessionCount: 2,
+		});
+		expect(queryHubSessionActivity.mock.calls.length).toBeGreaterThan(1);
+		expect(requestHubDrain).toHaveBeenCalledWith(
+			"ws://127.0.0.1:25463/hub",
+			"old-token",
+			"hub upgrade aborted",
+			{ off: true },
+		);
+		expect(requestHubShutdown).not.toHaveBeenCalled();
+	});
+
+	it("never retires a hub whose activity could not be confirmed unless forced", async () => {
+		queryHubSessionActivity.mockRejectedValue(
+			new Error("session.list unavailable"),
+		);
+		readHubDiscovery.mockResolvedValueOnce({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "old-token",
+		});
+		probeHubServer.mockResolvedValueOnce({
+			url: "ws://127.0.0.1:25463/hub",
+			protocolVersion: "v1",
+			buildId: "old-build",
+			buildEpochMs: 500,
+		});
+
+		const { upgradeManagedHub } = await import(".");
+		const result = await upgradeManagedHub({ waitForIdleMs: 0 });
+
+		expect(result.outcome).toBe("still_busy");
+		// Unknown, not zero: no count is reported for a hub that never answered.
+		expect(result.activeSessionCount).toBeUndefined();
+		expect(requestHubShutdown).not.toHaveBeenCalled();
+		expect(spawn).not.toHaveBeenCalled();
+	});
+
+	it("replaces an unanswerable hub only under force with an accepted drain", async () => {
+		queryHubSessionActivity.mockRejectedValue(
+			new Error("session.list unavailable"),
+		);
+		readHubDiscovery
+			.mockResolvedValueOnce({
+				url: "ws://127.0.0.1:25463/hub",
+				authToken: "old-token",
+				pid: 12345,
+			})
+			.mockResolvedValueOnce({
+				url: "ws://127.0.0.1:25463/hub",
+				authToken: "new-token",
+			});
+		probeHubServer
+			.mockResolvedValueOnce({
+				url: "ws://127.0.0.1:25463/hub",
+				protocolVersion: "v1",
+				buildId: "old-build",
+				buildEpochMs: 500,
+				pid: 12345,
+			})
+			.mockResolvedValueOnce(undefined)
+			.mockResolvedValueOnce({
+				url: "ws://127.0.0.1:25463/hub",
+				protocolVersion: "v1",
+				buildId: "current-build",
+			});
+		verifyHubConnection.mockResolvedValue(true);
+
+		const { upgradeManagedHub } = await import(".");
+		const result = await upgradeManagedHub({
+			workspaceRoot: "/workspace",
+			force: true,
+			waitForIdleMs: 0,
+		});
+
+		expect(result).toEqual({
+			outcome: "replaced",
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "new-token",
+			activeSessionCount: 0,
+		});
+	});
+
 	it("un-drains and reports failure when the old hub survives the retire ladder", async () => {
 		queryHubSessionActivity.mockResolvedValue({
 			activeSessionCount: 1,
