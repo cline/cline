@@ -58,6 +58,7 @@ import {
 	formatSessionSearchPreview,
 	formatSessionSearchTitle,
 	getClineEnvironmentConfig,
+	InternalFeature,
 	isCanonicalBase64,
 	ONE_TIME_SCHEDULE_CRON_PATTERN,
 	ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY,
@@ -82,6 +83,14 @@ import {
 	resolveGitHubInstallUrl,
 } from "./commands-integrations";
 import {
+	cancelComposioConnect,
+	connectComposioToolkit,
+	disconnectComposioToolkit,
+	getComposioStatus,
+	listComposioToolkits,
+	parseComposioToolkitSlug,
+} from "./composio";
+import {
 	connectorChannelsPayload,
 	startConnectorChannel,
 	stopConnectorChannel,
@@ -103,6 +112,7 @@ import {
 import {
 	identifyDesktopFeatureFlagsAccount,
 	isCloudAgentsEnabled,
+	isDesktopInternalFeatureEnabled,
 	refreshDesktopFeatureFlags,
 } from "./feature-flags";
 import {
@@ -2466,6 +2476,68 @@ export async function handleCommand(
 			default:
 				throw new Error(
 					`Unsupported Cline integrations operation: ${operation}`,
+				);
+		}
+	}
+
+	// ── Composio connectors (Gmail / Google Calendar / GitHub / catalog) ─
+	if (command === "composio_integrations") {
+		const operation = String(args?.operation ?? "").trim();
+		if (!operation) throw new Error("operation is required");
+		// Connectors are an internal-only feature (@cline.bot accounts, or the
+		// internal-composio-connectors flag). Without access, the read surface
+		// reports the same "unconfigured" shapes the UI already hides on, and
+		// starting a connection is refused. cancelConnect and disconnect stay
+		// available so cleanup of pre-existing state is never blocked by a
+		// gate change; tools already materialized in composio.json also keep
+		// working in sessions until they are disconnected.
+		if (
+			!isDesktopInternalFeatureEnabled(InternalFeature.COMPOSIO_CONNECTORS, {
+				logger: ctx.logger,
+				telemetry: ctx.telemetry,
+			})
+		) {
+			switch (operation) {
+				case "status":
+					return { configured: false, integrations: [] };
+				case "listToolkits":
+					return { configured: false, toolkits: [] };
+				case "connect":
+					throw new Error(
+						"Composio connectors are not available on this account.",
+					);
+				default:
+					break;
+			}
+		}
+		switch (operation) {
+			case "status":
+				return await getComposioStatus({
+					refresh: args?.refresh === true,
+					logger: ctx.logger,
+				});
+			case "listToolkits":
+				return await listComposioToolkits(ctx.logger);
+			case "connect": {
+				const toolkit = parseComposioToolkitSlug(args?.toolkit);
+				const result = await connectComposioToolkit(toolkit, ctx.logger);
+				if (result.redirectUrl) {
+					await openUrlInDefaultBrowser(result.redirectUrl);
+				}
+				return result;
+			}
+			case "cancelConnect": {
+				const toolkit = parseComposioToolkitSlug(args?.toolkit);
+				await cancelComposioConnect(toolkit, ctx.logger);
+				return await getComposioStatus({ logger: ctx.logger });
+			}
+			case "disconnect": {
+				const toolkit = parseComposioToolkitSlug(args?.toolkit);
+				return await disconnectComposioToolkit(toolkit, ctx.logger);
+			}
+			default:
+				throw new Error(
+					`Unsupported Composio integrations operation: ${operation}`,
 				);
 		}
 	}

@@ -115,6 +115,12 @@ export {
 	parseHookEventPayload,
 } from "./hooks/events";
 export * from "./hub";
+export {
+	INTERNAL_USER_EMAIL_DOMAINS,
+	InternalFeature,
+	isInternalFeatureEnabled,
+	isInternalUserEmail,
+} from "./internal-features";
 export type {
 	AiSdkFormatterMessage,
 	AiSdkFormatterMessageRole,
