@@ -188,7 +188,7 @@ export function AgentAskQuestion({
 								<Button
 									aria-pressed={selected.includes(option)}
 									autoFocus={itemIndex === 0 && index === 0 && !isPending}
-									className="cline-ui-agent-ask-question__option h-auto min-h-9.5 w-full max-w-full justify-start gap-3 whitespace-normal rounded-cline-ui-md p-2 text-left text-cline-ui-sm wrap-anywhere"
+									className="cline-ui-agent-ask-question__option h-auto min-h-9.5 w-full max-w-full justify-start gap-3 rounded-cline-ui-md p-2 text-left text-cline-ui-sm"
 									disabled={isPending}
 									key={option}
 									onClick={() => selectOption(option)}
