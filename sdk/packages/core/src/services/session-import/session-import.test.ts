@@ -39,6 +39,11 @@ function jsonl(lines: unknown[]): string {
 	return `${lines.map((line) => JSON.stringify(line)).join("\n")}\n`;
 }
 
+/** Message content as loosely-typed blocks for assertions on raw fields. */
+function blocks(message: { content: unknown }): Array<Record<string, unknown>> {
+	return message.content as Array<Record<string, unknown>>;
+}
+
 // ---------------------------------------------------------------------------
 // Claude Code fixtures
 // ---------------------------------------------------------------------------
@@ -382,10 +387,7 @@ describe("CodexImportAdapter", () => {
 		);
 		expect(types).toEqual(["thinking", "tool_use"]);
 
-		const toolResultMsg = converted.messages[2];
-		const toolResult = (
-			toolResultMsg.content as Array<Record<string, unknown>>
-		)[0];
+		const toolResult = blocks(converted.messages[2])[0];
 		expect(toolResult.type).toBe("tool_result");
 		expect(toolResult.tool_use_id).toBe("call_1");
 		expect(toolResult.name).toBe("exec_command");
@@ -603,9 +605,7 @@ describe("OpencodeImportAdapter", () => {
 			"thinking",
 			"tool_use",
 		]);
-		const toolResult = (
-			converted.messages[2].content as Array<Record<string, unknown>>
-		)[0];
+		const toolResult = blocks(converted.messages[2])[0];
 		expect(toolResult.tool_use_id).toBe("call_a");
 		expect(toolResult.content).toBe("edited");
 
@@ -650,7 +650,7 @@ describe("sanitizeImportedMessages", () => {
 			"assistant",
 			"user",
 		]);
-		const repair = sanitized[2].content as Array<Record<string, unknown>>;
+		const repair = blocks(sanitized[2]);
 		expect(repair[0].type).toBe("tool_result");
 		expect(repair[0].tool_use_id).toBe("t1");
 		expect(repair[0].content).toBe(IMPORT_MISSING_TOOL_RESULT_TEXT);
@@ -694,14 +694,14 @@ describe("sanitizeImportedMessages", () => {
 			"user",
 			"assistant",
 		]);
-		const consolidated = sanitized[2].content as Array<Record<string, unknown>>;
+		const consolidated = blocks(sanitized[2]);
 		expect(consolidated.map((block) => block.tool_use_id)).toEqual([
 			"a",
 			"b",
 			"c",
 		]);
 		expect(consolidated[2].content).toBe(IMPORT_MISSING_TOOL_RESULT_TEXT);
-		const leftovers = sanitized[3].content as Array<Record<string, unknown>>;
+		const leftovers = blocks(sanitized[3]);
 		expect(leftovers).toEqual([{ type: "text", text: "also do this next" }]);
 	});
 });
