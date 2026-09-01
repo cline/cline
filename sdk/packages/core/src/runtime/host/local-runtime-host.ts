@@ -62,7 +62,10 @@ import {
 	readGitWorkspaceState,
 	withSessionGitMetadata,
 } from "../../services/workspace/workspace-manifest";
-import { withSessionHistoryOriginMetadata } from "../../session/history-origin";
+import {
+	readSessionHistoryOriginMetadata,
+	withSessionHistoryOriginMetadata,
+} from "../../session/history-origin";
 import {
 	projectSessionCompactionState,
 	type SessionCompactionState,
@@ -609,6 +612,15 @@ export class LocalRuntimeHost implements RuntimeHost {
 			{
 				mode: startInput.mode,
 				version: bootstrap.config.extensionContext?.client?.version,
+				// The shallow spread above replaces the stored
+				// sessionHistoryOrigin wholesale whenever the start boundary
+				// fabricated its own (every client resume does), silently
+				// dropping the trigger that marks scheduled runs. The trigger
+				// records how the session was first initiated, so restore it
+				// from the resumed manifest.
+				trigger: readSessionHistoryOriginMetadata(
+					resumedArtifacts?.manifest.metadata,
+				)?.trigger,
 			},
 		);
 		if (!resumedArtifacts) manifest.metadata = initialSessionMetadata;

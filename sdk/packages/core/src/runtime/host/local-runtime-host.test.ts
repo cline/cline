@@ -4407,6 +4407,7 @@ describe("LocalRuntimeHost", () => {
 				title: "saved title",
 				totalCost: 0.25,
 				aggregatedAgentsCost: 0.37,
+				sessionHistoryOrigin: { mode: "automation", trigger: "hub-schedule" },
 				checkpoint: {
 					latest: { ref: "checkpoint-1", createdAt: 1, runCount: 1 },
 					history: [{ ref: "checkpoint-1", createdAt: 1, runCount: 1 }],
@@ -4497,6 +4498,10 @@ describe("LocalRuntimeHost", () => {
 			sessionMetadata: {
 				title: "updated title",
 				modelId: "anthropic/claude-haiku-4.5",
+				// Client resume boundaries always fabricate their own origin
+				// (normalizeClineCoreStartInput / the hub session.create path),
+				// which used to clobber the stored automation trigger.
+				sessionHistoryOrigin: { mode: "user" },
 			},
 		});
 
@@ -4516,6 +4521,7 @@ describe("LocalRuntimeHost", () => {
 			expect.objectContaining({
 				title: "updated title",
 				modelId: "anthropic/claude-haiku-4.5",
+				sessionHistoryOrigin: { mode: "user", trigger: "hub-schedule" },
 				checkpoint: manifest.metadata.checkpoint,
 			}),
 		);
