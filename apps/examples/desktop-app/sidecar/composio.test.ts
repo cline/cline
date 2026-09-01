@@ -7,37 +7,58 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	buildConnectableCatalog,
-	COMPOSIO_PLUGIN_SOURCE,
+	cancelComposioConnect,
+	connectComposioToolkit,
+	disconnectComposioToolkit,
 	getComposioStatus,
 	initiateToolkitConnection,
 	parseComposioToolkitSlug,
 } from "./composio";
 
-const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
-// The generated plugin imports @cline/core, so the copy under test must live
-// inside the workspace tree where node module resolution can find it.
-const PLUGIN_TMP_ROOT = join(MODULE_DIR, ".vitest-composio-tmp");
-
-type RegisteredTool = {
-	name: string;
-	description: string;
-	inputSchema: Record<string, unknown>;
-	retryable?: boolean;
-	execute: (input: unknown, context?: unknown) => Promise<unknown>;
+/**
+ * The sidecar module loads `@composio/core` lazily and caches one client per
+ * API key, so tests that exercise network-touching flows swap in a mock
+ * client here and each use a unique API key to bypass that cache.
+ */
+let createMockComposioClient: (apiKey: string) => unknown = () => {
+	throw new Error("createMockComposioClient is not configured for this test");
 };
+vi.mock("@composio/core", () => ({
+	Composio: class {
+		constructor(options: { apiKey: string }) {
+			const client = createMockComposioClient(options.apiKey) as Record<
+				string,
+				// biome-ignore lint/suspicious/noExplicitAny: test double bridging two mock shapes.
+				any
+			>;
+			// Tests declare a flat `connectedAccounts.delete` mock; the module
+			// deletes through the raw client (getClient) so revoke_on_delete is
+			// sent. Bridge the shapes here once instead of in every mock.
+			if (client && !client.getClient) {
+				client.getClient = () => ({
+					connectedAccounts: {
+						delete: (id: string, params: unknown) =>
+							client.connectedAccounts?.delete?.(id, params),
+					},
+				});
+			}
+			// biome-ignore lint/correctness/noConstructorReturn: returning an object from the constructor is how the mock substitutes the per-test client for `this`.
+			return client as object;
+		}
+	},
+}));
 
 const originalDataDir = process.env.CLINE_DATA_DIR;
 const originalClineDir = process.env.CLINE_DIR;
 const originalEnvApiKey = process.env.COMPOSIO_API_KEY;
 const cleanupPaths: string[] = [];
 
-// Sandboxes both the state file (CLINE_DATA_DIR) and the plugin directory
-// (CLINE_DIR), since env-key reconciliation can write the plugin file.
+// Sandboxes both the state file (CLINE_DATA_DIR) and the legacy plugin
+// directory (CLINE_DIR), which reconciled reads clean up.
 function useTempDataDir(): string {
 	const dir = mkdtempSync(join(tmpdir(), "composio-test-"));
 	cleanupPaths.push(dir);
@@ -55,36 +76,15 @@ function writeState(dataDir: string, state: unknown): void {
 	);
 }
 
-async function loadGeneratedPlugin(): Promise<{
-	setup: (api: unknown, ctx?: unknown) => void | Promise<void>;
-	name: string;
-	manifest: { capabilities: string[] };
-}> {
-	mkdirSync(PLUGIN_TMP_ROOT, { recursive: true });
-	cleanupPaths.push(PLUGIN_TMP_ROOT);
-	// Unique file name per import: module caches are keyed by path.
-	const pluginPath = join(
-		PLUGIN_TMP_ROOT,
-		`composio-tools-${Date.now()}-${Math.random().toString(36).slice(2)}.ts`,
+function readStateFile(dataDir: string): {
+	apiKey?: string;
+	userId?: string;
+	toolkits?: Record<string, { connectedAccountId?: string } | undefined>;
+	cancelledAccountIds?: string[];
+} {
+	return JSON.parse(
+		readFileSync(join(dataDir, "settings", "composio.json"), "utf8"),
 	);
-	writeFileSync(pluginPath, COMPOSIO_PLUGIN_SOURCE);
-	const module = (await import(pluginPath)) as {
-		default: {
-			setup: (api: unknown, ctx?: unknown) => void | Promise<void>;
-			name: string;
-			manifest: { capabilities: string[] };
-		};
-	};
-	return module.default;
-}
-
-async function setupPluginTools(): Promise<RegisteredTool[]> {
-	const plugin = await loadGeneratedPlugin();
-	const tools: RegisteredTool[] = [];
-	await plugin.setup({
-		registerTool: (tool: RegisteredTool) => tools.push(tool),
-	});
-	return tools;
 }
 
 beforeEach(() => {
@@ -97,6 +97,9 @@ afterEach(() => {
 	restoreEnv("CLINE_DATA_DIR", originalDataDir);
 	restoreEnv("CLINE_DIR", originalClineDir);
 	restoreEnv("COMPOSIO_API_KEY", originalEnvApiKey);
+	createMockComposioClient = () => {
+		throw new Error("createMockComposioClient is not configured for this test");
+	};
 	vi.unstubAllGlobals();
 	for (const path of cleanupPaths.splice(0)) {
 		rmSync(path, { recursive: true, force: true });
@@ -150,6 +153,7 @@ describe("getComposioStatus", () => {
 
 	it("reports connected toolkits from persisted state without hitting the network", async () => {
 		const dataDir = useTempDataDir();
+		process.env.COMPOSIO_API_KEY = "ck_test";
 		writeState(dataDir, {
 			apiKey: "ck_test",
 			userId: "cline-desktop-test",
@@ -177,6 +181,7 @@ describe("getComposioStatus", () => {
 
 	it("includes connected non-recommended toolkits alongside the recommended set", async () => {
 		const dataDir = useTempDataDir();
+		process.env.COMPOSIO_API_KEY = "ck_test";
 		writeState(dataDir, {
 			apiKey: "ck_test",
 			userId: "cline-desktop-test",
@@ -363,56 +368,71 @@ describe("initiateToolkitConnection", () => {
 	});
 });
 
-describe("COMPOSIO_API_KEY environment fallback", () => {
-	function readStateFile(dir: string): {
-		apiKey?: string;
-		apiKeySource?: string;
-		userId?: string;
-	} {
-		return JSON.parse(
-			readFileSync(join(dir, "settings", "composio.json"), "utf8"),
-		);
-	}
-
-	it("adopts the env key, persists it for the plugin, and reports the source", async () => {
+describe("managed COMPOSIO_API_KEY", () => {
+	it("adopts the managed key and persists it for the plugin", async () => {
 		const dir = useTempDataDir();
 		process.env.COMPOSIO_API_KEY = "ck_from_env";
 		const status = await getComposioStatus();
 		expect(status.configured).toBe(true);
-		expect(status.keySource).toBe("environment");
 		const persisted = readStateFile(dir);
 		expect(persisted.apiKey).toBe("ck_from_env");
-		expect(persisted.apiKeySource).toBe("environment");
 		expect(persisted.userId).toMatch(/^cline-desktop-/);
 	});
 
-	it("rotates the persisted copy when the env var changes and drops it when unset", async () => {
+	it("rotating the managed key drops the previous project's toolkits and plugin", async () => {
 		const dir = useTempDataDir();
 		process.env.COMPOSIO_API_KEY = "ck_first";
-		await getComposioStatus();
+		writeState(dir, {
+			apiKey: "ck_first",
+			userId: "cline-desktop-rotate",
+			toolkits: {
+				github: {
+					connectedAccountId: "ca_github",
+					connectedAt: "2026-08-28T00:00:00.000Z",
+					tools: [{ slug: "GITHUB_CREATE_AN_ISSUE" }],
+				},
+			},
+		});
+		// A leftover drop-in plugin from a pre–in-process-registration build.
+		const legacyPluginPath = join(dir, "plugins", "composio-tools.ts");
+		mkdirSync(join(dir, "plugins"), { recursive: true });
+		writeFileSync(legacyPluginPath, "// legacy generated plugin");
+		// The new key belongs to a different Composio project. Even with no
+		// successful refresh afterwards, the old project's connectors must not
+		// stay reported as installed under the new key — their tools would
+		// execute against the wrong project.
 		process.env.COMPOSIO_API_KEY = "ck_second";
 		const rotated = await getComposioStatus();
-		expect(rotated.keySource).toBe("environment");
-		expect(readStateFile(dir).apiKey).toBe("ck_second");
-		delete process.env.COMPOSIO_API_KEY;
-		const dropped = await getComposioStatus();
-		expect(dropped.configured).toBe(false);
-		expect(dropped.keySource).toBeUndefined();
-		expect(readStateFile(dir).apiKey).toBeUndefined();
+		expect(rotated.configured).toBe(true);
+		expect(
+			rotated.integrations.find((entry) => entry.toolkit === "github")?.status,
+		).toBe("not_connected");
+		const persisted = readStateFile(dir);
+		expect(persisted.apiKey).toBe("ck_second");
+		expect(persisted.toolkits).toEqual({});
+		// The legacy plugin file is cleaned up on any reconciled read.
+		expect(existsSync(legacyPluginPath)).toBe(false);
 	});
 
-	it("keeps a user-entered key over the env var", async () => {
+	it("dropping the managed key drops the stored key and materialized connections", async () => {
 		const dir = useTempDataDir();
 		writeState(dir, {
-			apiKey: "ck_user",
-			apiKeySource: "user",
-			userId: "cline-desktop-user",
-			toolkits: {},
+			apiKey: "ck_gone",
+			userId: "cline-desktop-drop",
+			toolkits: {
+				github: {
+					connectedAccountId: "ca_github",
+					connectedAt: "2026-08-28T00:00:00.000Z",
+					tools: [{ slug: "GITHUB_CREATE_AN_ISSUE" }],
+				},
+			},
 		});
-		process.env.COMPOSIO_API_KEY = "ck_from_env";
-		const status = await getComposioStatus();
-		expect(status.keySource).toBe("user");
-		expect(readStateFile(dir).apiKey).toBe("ck_user");
+		// beforeEach cleared COMPOSIO_API_KEY, so no managed key is available.
+		const dropped = await getComposioStatus();
+		expect(dropped.configured).toBe(false);
+		const persisted = readStateFile(dir);
+		expect(persisted.apiKey).toBeUndefined();
+		expect(persisted.toolkits).toEqual({});
 	});
 
 	it("status reads survive an unwritable plugins directory", async () => {
@@ -434,225 +454,954 @@ describe("COMPOSIO_API_KEY environment fallback", () => {
 		const status = await getComposioStatus();
 		expect(status.configured).toBe(true);
 	});
+});
 
-	it("materializes and removes the plugin file as the env key comes and goes", async () => {
+describe("cancelComposioConnect", () => {
+	it("revokes the cancelled attempt and never imports it, even when the browser flow completes later", async () => {
 		const dir = useTempDataDir();
+		process.env.COMPOSIO_API_KEY = "ck_cancel";
+		writeState(dir, { apiKey: "ck_cancel", userId: "u_cancel", toolkits: {} });
+		let resolveWait: ((value: unknown) => void) | undefined;
+		const remoteDelete = vi.fn(async () => {
+			// Even a failed revocation must not let the account back in.
+			throw new Error("500 internal error");
+		});
+		const client = {
+			toolkits: {
+				authorize: vi.fn(async () => ({
+					id: "ca_cancelled",
+					redirectUrl: "https://connect.example/ca_cancelled",
+					waitForConnection: () =>
+						new Promise((resolve) => {
+							resolveWait = resolve;
+						}),
+				})),
+			},
+			authConfigs: {
+				list: vi.fn(async () => ({ items: [] })),
+				create: vi.fn(),
+			},
+			tools: { getRawComposioTools: vi.fn(async () => []) },
+			connectedAccounts: {
+				list: vi.fn(async () => ({
+					items: [
+						{
+							id: "ca_cancelled",
+							status: "ACTIVE",
+							toolkit: { slug: "github" },
+						},
+					],
+				})),
+				link: vi.fn(),
+				delete: remoteDelete,
+			},
+		};
+		createMockComposioClient = () => client;
+
+		const connect = await connectComposioToolkit("github");
+		expect(connect.redirectUrl).toContain("ca_cancelled");
+		await cancelComposioConnect("github");
+		// Cancel revokes the pending account remotely…
+		expect(remoteDelete).toHaveBeenCalledWith("ca_cancelled", {
+			revoke_on_delete: true,
+		});
+		// …and tombstones it so no later snapshot can bring it back.
+		expect(readStateFile(dir).cancelledAccountIds).toContain("ca_cancelled");
+
+		// The user completes the still-open browser tab afterwards…
+		resolveWait?.({});
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(client.tools.getRawComposioTools).not.toHaveBeenCalled();
+
+		// …and a dashboard reconciliation sees the account as ACTIVE. It must
+		// retry the revocation instead of importing the connector.
+		const status = await getComposioStatus({ refresh: true });
+		expect(
+			status.integrations.find((entry) => entry.toolkit === "github")?.status,
+		).toBe("not_connected");
+		expect(remoteDelete).toHaveBeenCalledTimes(2);
+		expect(readStateFile(dir).toolkits).toEqual({});
+		// The deletion is still unconfirmed, so the tombstone must survive.
+		expect(readStateFile(dir).cancelledAccountIds).toContain("ca_cancelled");
+	});
+
+	it("prunes the tombstone once the revocation is confirmed", async () => {
+		const dir = useTempDataDir();
+		process.env.COMPOSIO_API_KEY = "ck_prune";
+		writeState(dir, { apiKey: "ck_prune", userId: "u_prune", toolkits: {} });
+		const client = {
+			toolkits: {
+				authorize: vi.fn(async () => ({
+					id: "ca_pruned",
+					redirectUrl: "https://connect.example/ca_pruned",
+					waitForConnection: () => new Promise(() => {}),
+				})),
+			},
+			authConfigs: {
+				list: vi.fn(async () => ({ items: [] })),
+				create: vi.fn(),
+			},
+			tools: { getRawComposioTools: vi.fn(async () => []) },
+			connectedAccounts: {
+				list: vi.fn(async () => ({ items: [] })),
+				link: vi.fn(),
+				delete: vi.fn(async () => ({})),
+			},
+		};
+		createMockComposioClient = () => client;
+		await connectComposioToolkit("github");
+		await cancelComposioConnect("github");
+		// The delete succeeded, so the account can never turn ACTIVE and the
+		// tombstone has nothing left to guard.
+		expect(readStateFile(dir).cancelledAccountIds).toBeUndefined();
+	});
+
+	it("retains every unconfirmed tombstone with no count bound, so an old cancelled flow that completes late is still refused", async () => {
+		const dir = useTempDataDir();
+		process.env.COMPOSIO_API_KEY = "ck_no_evict";
 		writeState(dir, {
-			userId: "cline-desktop-env",
+			apiKey: "ck_no_evict",
+			userId: "u_no_evict",
+			toolkits: {},
+		});
+		const CANCELLED_ATTEMPTS = 55;
+		let attempt = 0;
+		const remoteDelete = vi.fn(async () => {
+			// Every revocation fails, so no tombstone is ever confirmed gone.
+			throw new Error("500 internal error");
+		});
+		const client = {
+			toolkits: {
+				authorize: vi.fn(async () => {
+					const id = `ca_evict_${attempt++}`;
+					return {
+						id,
+						redirectUrl: `https://connect.example/${id}`,
+						waitForConnection: () => new Promise(() => {}),
+					};
+				}),
+			},
+			authConfigs: {
+				list: vi.fn(async () => ({ items: [] })),
+				create: vi.fn(),
+			},
+			tools: { getRawComposioTools: vi.fn(async () => []) },
+			connectedAccounts: {
+				list: vi.fn(async () => ({
+					// The OLDEST cancelled attempt completes long after the
+					// others were cancelled.
+					items: [
+						{
+							id: "ca_evict_0",
+							status: "ACTIVE",
+							toolkit: { slug: "github" },
+						},
+					],
+				})),
+				link: vi.fn(),
+				delete: remoteDelete,
+			},
+		};
+		createMockComposioClient = () => client;
+		for (let i = 0; i < CANCELLED_ATTEMPTS; i++) {
+			await connectComposioToolkit("github");
+			await cancelComposioConnect("github");
+		}
+		expect(readStateFile(dir).cancelledAccountIds).toHaveLength(
+			CANCELLED_ATTEMPTS,
+		);
+		const status = await getComposioStatus({ refresh: true });
+		expect(
+			status.integrations.find((entry) => entry.toolkit === "github")?.status,
+		).toBe("not_connected");
+		expect(readStateFile(dir).toolkits).toEqual({});
+		expect(readStateFile(dir).cancelledAccountIds).toContain("ca_evict_0");
+	});
+
+	it("a connection finalized mid-refresh survives the reconciliation write", async () => {
+		const dir = useTempDataDir();
+		process.env.COMPOSIO_API_KEY = "ck_mid_refresh";
+		writeState(dir, {
+			apiKey: "ck_mid_refresh",
+			userId: "u_mid_refresh",
+			toolkits: {
+				// Revoked on Composio's side: the refresh should remove it.
+				gmail: {
+					connectedAccountId: "ca_gmail_revoked",
+					connectedAt: "2026-08-28T00:00:00.000Z",
+					tools: [{ slug: "GMAIL_SEND_EMAIL" }],
+				},
+			},
+		});
+		let releaseList: ((value: { items: unknown[] }) => void) | undefined;
+		const list = vi.fn(
+			() =>
+				new Promise<{ items: unknown[] }>((resolve) => {
+					releaseList = resolve;
+				}),
+		);
+		const client = {
+			toolkits: {
+				// No redirect URL: the connect finalizes inline.
+				authorize: vi.fn(async () => ({
+					id: "ca_github_new",
+					redirectUrl: null,
+					waitForConnection: async () => ({}),
+				})),
+			},
+			authConfigs: {
+				list: vi.fn(async () => ({ items: [] })),
+				create: vi.fn(),
+			},
+			tools: {
+				getRawComposioTools: vi.fn(async () => [
+					{ slug: "GITHUB_CREATE_AN_ISSUE" },
+				]),
+			},
+			connectedAccounts: { list, link: vi.fn(), delete: vi.fn() },
+		};
+		createMockComposioClient = () => client;
+		const statusPromise = getComposioStatus({ refresh: true });
+		await vi.waitFor(() => {
+			expect(list).toHaveBeenCalled();
+		});
+		// While the refresh is suspended on the account list, a connect for a
+		// different toolkit completes and persists its connection.
+		const connectResult = await connectComposioToolkit("github");
+		expect(connectResult.alreadyConnected).toBe(true);
+		expect(readStateFile(dir).toolkits?.github).toBeTruthy();
+		releaseList?.({ items: [] });
+		const status = await statusPromise;
+		// The refresh removes the genuinely revoked toolkit…
+		expect(readStateFile(dir).toolkits?.gmail).toBeUndefined();
+		// …but must not discard the connection that landed mid-refresh.
+		expect(readStateFile(dir).toolkits?.github).toBeTruthy();
+		expect(
+			status.integrations.find((entry) => entry.toolkit === "github")?.status,
+		).toBe("connected");
+	});
+
+	it("re-fetches schemas for a connected toolkit stored with zero tools", async () => {
+		const dir = useTempDataDir();
+		process.env.COMPOSIO_API_KEY = "ck_self_heal";
+		// A wedged connector: connected, same account still ACTIVE remotely,
+		// but the schema fetch came back empty at connect time.
+		writeState(dir, {
+			apiKey: "ck_self_heal",
+			userId: "u_self_heal",
+			toolkits: {
+				googlecalendar: {
+					connectedAccountId: "ca_wedged",
+					connectedAt: "2026-08-28T00:00:00.000Z",
+					name: "Google Calendar",
+					tools: [],
+				},
+			},
+		});
+		const client = {
+			toolkits: { authorize: vi.fn() },
+			authConfigs: {
+				list: vi.fn(async () => ({ items: [] })),
+				create: vi.fn(),
+			},
+			tools: {
+				getRawComposioTools: vi.fn(async () => [
+					{ slug: "GOOGLECALENDAR_CREATE_EVENT" },
+					{ slug: "GOOGLECALENDAR_LIST_EVENTS" },
+				]),
+			},
+			connectedAccounts: {
+				list: vi.fn(async () => ({
+					items: [
+						{
+							id: "ca_wedged",
+							status: "ACTIVE",
+							toolkit: { slug: "googlecalendar" },
+						},
+					],
+				})),
+				link: vi.fn(),
+				delete: vi.fn(),
+			},
+		};
+		createMockComposioClient = () => client;
+
+		// Without a refresh, the wedge is at least visible on the card.
+		const before = await getComposioStatus();
+		expect(
+			before.integrations.find((entry) => entry.toolkit === "googlecalendar")
+				?.error,
+		).toMatch(/no tools were retrieved/);
+
+		const status = await getComposioStatus({ refresh: true });
+		const healed = status.integrations.find(
+			(entry) => entry.toolkit === "googlecalendar",
+		);
+		expect(healed?.status).toBe("connected");
+		expect(healed?.toolNames).toEqual([
+			"GOOGLECALENDAR_CREATE_EVENT",
+			"GOOGLECALENDAR_LIST_EVENTS",
+		]);
+		expect(healed?.error).toBeUndefined();
+		const persisted = readStateFile(dir).toolkits?.googlecalendar as {
+			connectedAccountId?: string;
+			connectedAt?: string;
+			tools?: unknown[];
+		};
+		expect(persisted?.tools).toHaveLength(2);
+		// The account did not change, so the connection metadata is kept.
+		expect(persisted?.connectedAccountId).toBe("ca_wedged");
+		expect(persisted?.connectedAt).toBe("2026-08-28T00:00:00.000Z");
+	});
+
+	it("follows account-list pagination so accounts on later pages are not treated as revoked", async () => {
+		const dir = useTempDataDir();
+		process.env.COMPOSIO_API_KEY = "ck_paginated";
+		writeState(dir, {
+			apiKey: "ck_paginated",
+			userId: "u_paginated",
 			toolkits: {
 				github: {
-					connectedAccountId: "ca_github",
+					connectedAccountId: "ca_page1",
+					connectedAt: "2026-08-28T00:00:00.000Z",
+					tools: [{ slug: "GITHUB_CREATE_AN_ISSUE" }],
+				},
+				slack: {
+					connectedAccountId: "ca_page2",
+					connectedAt: "2026-08-28T00:00:00.000Z",
+					tools: [{ slug: "SLACK_SEND_MESSAGE" }],
+				},
+			},
+		});
+		const list = vi.fn(async (query?: { cursor?: string }) =>
+			query?.cursor === "page2"
+				? {
+						items: [
+							{ id: "ca_page2", status: "ACTIVE", toolkit: { slug: "slack" } },
+						],
+						nextCursor: null,
+					}
+				: {
+						items: [
+							{ id: "ca_page1", status: "ACTIVE", toolkit: { slug: "github" } },
+						],
+						nextCursor: "page2",
+					},
+		);
+		const client = {
+			toolkits: { authorize: vi.fn() },
+			authConfigs: {
+				list: vi.fn(async () => ({ items: [] })),
+				create: vi.fn(),
+			},
+			tools: { getRawComposioTools: vi.fn(async () => []) },
+			connectedAccounts: { list, link: vi.fn(), delete: vi.fn() },
+		};
+		createMockComposioClient = () => client;
+		const status = await getComposioStatus({ refresh: true });
+		// The slack account lives on page 2; a first-page-only listing would
+		// have removed it locally as "revoked remotely".
+		expect(
+			status.integrations.find((entry) => entry.toolkit === "slack")?.status,
+		).toBe("connected");
+		expect(
+			status.integrations.find((entry) => entry.toolkit === "github")?.status,
+		).toBe("connected");
+		expect(list).toHaveBeenCalledTimes(2);
+		expect(list.mock.calls[1]?.[0]).toMatchObject({ cursor: "page2" });
+		expect(readStateFile(dir).toolkits?.slack?.connectedAccountId).toBe(
+			"ca_page2",
+		);
+	});
+
+	it("reconciliation prunes a tombstone after a confirmed retry revocation", async () => {
+		const dir = useTempDataDir();
+		process.env.COMPOSIO_API_KEY = "ck_refresh_prune";
+		writeState(dir, {
+			apiKey: "ck_refresh_prune",
+			userId: "u_refresh_prune",
+			toolkits: {},
+			cancelledAccountIds: ["ca_zombie"],
+		});
+		const remoteDelete = vi.fn(async () => ({}));
+		const client = {
+			toolkits: { authorize: vi.fn() },
+			authConfigs: {
+				list: vi.fn(async () => ({ items: [] })),
+				create: vi.fn(),
+			},
+			tools: { getRawComposioTools: vi.fn(async () => []) },
+			connectedAccounts: {
+				list: vi.fn(async () => ({
+					items: [
+						{ id: "ca_zombie", status: "ACTIVE", toolkit: { slug: "gmail" } },
+					],
+				})),
+				link: vi.fn(),
+				delete: remoteDelete,
+			},
+		};
+		createMockComposioClient = () => client;
+		const status = await getComposioStatus({ refresh: true });
+		expect(
+			status.integrations.find((entry) => entry.toolkit === "gmail")?.status,
+		).toBe("not_connected");
+		expect(remoteDelete).toHaveBeenCalledWith("ca_zombie", {
+			revoke_on_delete: true,
+		});
+		expect(readStateFile(dir).cancelledAccountIds).toBeUndefined();
+	});
+
+	it("a rejected OAuth wait abandons the attempt so a late browser completion is never imported", async () => {
+		const dir = useTempDataDir();
+		process.env.COMPOSIO_API_KEY = "ck_wait_fail";
+		writeState(dir, {
+			apiKey: "ck_wait_fail",
+			userId: "u_wait_fail",
+			toolkits: {},
+		});
+		let rejectWait: ((error: Error) => void) | undefined;
+		const remoteDelete = vi.fn(async () => {
+			// Revocation fails too, so only the tombstone protects.
+			throw new Error("500 internal error");
+		});
+		const client = {
+			toolkits: {
+				authorize: vi.fn(async () => ({
+					id: "ca_timed_out",
+					redirectUrl: "https://connect.example/ca_timed_out",
+					waitForConnection: () =>
+						new Promise((_resolve, reject) => {
+							rejectWait = reject;
+						}),
+				})),
+			},
+			authConfigs: {
+				list: vi.fn(async () => ({ items: [] })),
+				create: vi.fn(),
+			},
+			tools: { getRawComposioTools: vi.fn(async () => []) },
+			connectedAccounts: {
+				list: vi.fn(async () => ({
+					items: [
+						{
+							id: "ca_timed_out",
+							status: "ACTIVE",
+							toolkit: { slug: "github" },
+						},
+					],
+				})),
+				link: vi.fn(),
+				delete: remoteDelete,
+			},
+		};
+		createMockComposioClient = () => client;
+		await connectComposioToolkit("github");
+		// The wait times out / errors before the browser flow completes.
+		rejectWait?.(new Error("wait timed out"));
+		await vi.waitFor(() => {
+			expect(remoteDelete).toHaveBeenCalledWith("ca_timed_out", {
+				revoke_on_delete: true,
+			});
+		});
+		expect(readStateFile(dir).cancelledAccountIds).toContain("ca_timed_out");
+		// The user completes the still-open browser tab afterwards; a refresh
+		// sees the account ACTIVE but must not import it.
+		const status = await getComposioStatus({ refresh: true });
+		expect(
+			status.integrations.find((entry) => entry.toolkit === "github")?.status,
+		).toBe("not_connected");
+		expect(readStateFile(dir).toolkits).toEqual({});
+	});
+
+	it("a failed redirect-less finalize abandons its freshly authorized account", async () => {
+		const dir = useTempDataDir();
+		process.env.COMPOSIO_API_KEY = "ck_finalize_fail";
+		writeState(dir, {
+			apiKey: "ck_finalize_fail",
+			userId: "u_finalize_fail",
+			toolkits: {},
+		});
+		const remoteDelete = vi.fn(async () => ({}));
+		const client = {
+			toolkits: {
+				authorize: vi.fn(async () => ({
+					id: "ca_fetch_broke",
+					redirectUrl: null,
+					waitForConnection: async () => ({}),
+				})),
+			},
+			authConfigs: {
+				list: vi.fn(async () => ({ items: [] })),
+				create: vi.fn(),
+			},
+			tools: {
+				getRawComposioTools: vi.fn(async () => {
+					throw new Error("500 tools endpoint exploded");
+				}),
+			},
+			connectedAccounts: {
+				list: vi.fn(async () => ({ items: [] })),
+				link: vi.fn(),
+				delete: remoteDelete,
+			},
+		};
+		createMockComposioClient = () => client;
+		await expect(connectComposioToolkit("github")).rejects.toThrow(
+			/tools endpoint exploded/,
+		);
+		// The account was authorized remotely; it must be revoked rather than
+		// left for reconciliation to import as an installed connector.
+		expect(remoteDelete).toHaveBeenCalledWith("ca_fetch_broke", {
+			revoke_on_delete: true,
+		});
+		// Revocation succeeded, so the tombstone was pruned again.
+		expect(readStateFile(dir).cancelledAccountIds).toBeUndefined();
+		expect(readStateFile(dir).toolkits ?? {}).toEqual({});
+	});
+
+	it("a cancelled toolkit can still be reconnected under a fresh account", async () => {
+		const dir = useTempDataDir();
+		process.env.COMPOSIO_API_KEY = "ck_reconnect";
+		writeState(dir, {
+			apiKey: "ck_reconnect",
+			userId: "u_reconnect",
+			toolkits: {},
+			// A previously cancelled attempt; it must not block new attempts.
+			cancelledAccountIds: ["ca_old_attempt"],
+		});
+		const client = {
+			toolkits: {
+				authorize: vi.fn(async () => ({
+					id: "ca_fresh",
+					redirectUrl: "https://connect.example/ca_fresh",
+					waitForConnection: async () => ({}),
+				})),
+			},
+			authConfigs: {
+				list: vi.fn(async () => ({ items: [] })),
+				create: vi.fn(),
+			},
+			tools: {
+				getRawComposioTools: vi.fn(async () => [{ slug: "GMAIL_SEND_EMAIL" }]),
+			},
+			connectedAccounts: {
+				list: vi.fn(async () => ({ items: [] })),
+				link: vi.fn(),
+				delete: vi.fn(async () => ({})),
+			},
+		};
+		createMockComposioClient = () => client;
+		await connectComposioToolkit("gmail");
+		await vi.waitFor(() => {
+			expect(readStateFile(dir).toolkits?.gmail).toBeTruthy();
+		});
+		const status = await getComposioStatus();
+		expect(
+			status.integrations.find((entry) => entry.toolkit === "gmail")?.status,
+		).toBe("connected");
+	});
+});
+
+describe("disconnectComposioToolkit", () => {
+	const storedGithubState = (apiKey: string) => ({
+		apiKey,
+		userId: "u_disconnect",
+		toolkits: {
+			github: {
+				connectedAccountId: "ca_github",
+				connectedAt: "2026-08-28T00:00:00.000Z",
+				tools: [{ slug: "GITHUB_CREATE_AN_ISSUE" }],
+			},
+		},
+	});
+
+	function clientWithDelete(remoteDelete: ReturnType<typeof vi.fn>) {
+		return {
+			toolkits: { authorize: vi.fn() },
+			authConfigs: {
+				list: vi.fn(async () => ({ items: [] })),
+				create: vi.fn(),
+			},
+			tools: { getRawComposioTools: vi.fn(async () => []) },
+			connectedAccounts: {
+				list: vi.fn(async () => ({ items: [] })),
+				link: vi.fn(),
+				delete: remoteDelete,
+			},
+		};
+	}
+
+	it("keeps the connector installed and surfaces the failure when remote revocation fails", async () => {
+		const dir = useTempDataDir();
+		process.env.COMPOSIO_API_KEY = "ck_revoke_fail";
+		writeState(dir, storedGithubState("ck_revoke_fail"));
+		const remoteDelete = vi.fn(async () => {
+			throw new Error('500 {"error":{"message":"internal error"}}');
+		});
+		createMockComposioClient = () => clientWithDelete(remoteDelete);
+		await expect(disconnectComposioToolkit("github")).rejects.toThrow(
+			/still connected/,
+		);
+		// The account is still authorized on Composio's side (and running Hub
+		// sessions keep executing against it), so the local state must keep
+		// reporting it as installed instead of claiming a clean uninstall.
+		expect(readStateFile(dir).toolkits?.github).toBeTruthy();
+		const status = await getComposioStatus();
+		expect(
+			status.integrations.find((entry) => entry.toolkit === "github")?.status,
+		).toBe("connected");
+	});
+
+	it("does not treat a non-404 failure mentioning 'not found' as a successful revocation", async () => {
+		const dir = useTempDataDir();
+		process.env.COMPOSIO_API_KEY = "ck_misclassify";
+		writeState(dir, storedGithubState("ck_misclassify"));
+		const remoteDelete = vi.fn(async () => {
+			// A 500 whose body happens to contain "not found" must NOT count
+			// as the account being gone.
+			throw new Error(
+				'500 {"error":{"message":"backend dependency not found"}}',
+			);
+		});
+		createMockComposioClient = () => clientWithDelete(remoteDelete);
+		await expect(disconnectComposioToolkit("github")).rejects.toThrow(
+			/still connected/,
+		);
+		expect(readStateFile(dir).toolkits?.github).toBeTruthy();
+	});
+
+	it("a disconnect in flight does not clobber a tombstone written by a concurrent cancel", async () => {
+		const dir = useTempDataDir();
+		process.env.COMPOSIO_API_KEY = "ck_write_race";
+		writeState(dir, {
+			apiKey: "ck_write_race",
+			userId: "u_write_race",
+			toolkits: {
+				slack: {
+					connectedAccountId: "ca_slack",
+					connectedAt: "2026-08-28T00:00:00.000Z",
+					tools: [{ slug: "SLACK_SEND_MESSAGE" }],
+				},
+			},
+		});
+		let releaseSlackDelete: (() => void) | undefined;
+		const remoteDelete = vi.fn((accountId: string) => {
+			if (accountId === "ca_slack") {
+				return new Promise((resolve) => {
+					releaseSlackDelete = () => resolve({});
+				});
+			}
+			// The cancelled attempt's revocation fails, so its tombstone must
+			// stay unconfirmed (and persisted).
+			return Promise.reject(new Error("500 internal error"));
+		});
+		const client = {
+			toolkits: {
+				authorize: vi.fn(async () => ({
+					id: "ca_github_pending",
+					redirectUrl: "https://connect.example/ca_github_pending",
+					waitForConnection: () => new Promise(() => {}),
+				})),
+			},
+			authConfigs: {
+				list: vi.fn(async () => ({ items: [] })),
+				create: vi.fn(),
+			},
+			tools: { getRawComposioTools: vi.fn(async () => []) },
+			connectedAccounts: {
+				list: vi.fn(async () => ({ items: [] })),
+				link: vi.fn(),
+				delete: remoteDelete,
+			},
+		};
+		createMockComposioClient = () => client;
+		const disconnectPromise = disconnectComposioToolkit("slack");
+		await vi.waitFor(() => {
+			expect(remoteDelete).toHaveBeenCalledWith("ca_slack", {
+				revoke_on_delete: true,
+			});
+		});
+		// While the disconnect is suspended on the remote delete, a cancel for
+		// a different toolkit persists a tombstone.
+		await connectComposioToolkit("github");
+		await cancelComposioConnect("github");
+		expect(readStateFile(dir).cancelledAccountIds).toContain(
+			"ca_github_pending",
+		);
+		releaseSlackDelete?.();
+		await disconnectPromise;
+		// The disconnect's completion must not erase the concurrent tombstone.
+		expect(readStateFile(dir).cancelledAccountIds).toContain(
+			"ca_github_pending",
+		);
+		expect(readStateFile(dir).toolkits?.slack).toBeUndefined();
+	});
+
+	it("a disconnect during a redirect-less connect wins: the finalize result is dropped and its account revoked", async () => {
+		const dir = useTempDataDir();
+		process.env.COMPOSIO_API_KEY = "ck_relink_race";
+		writeState(dir, {
+			apiKey: "ck_relink_race",
+			userId: "u_relink_race",
+			toolkits: {
+				github: {
+					connectedAccountId: "ca_old",
 					connectedAt: "2026-08-28T00:00:00.000Z",
 					tools: [{ slug: "GITHUB_CREATE_AN_ISSUE" }],
 				},
 			},
 		});
-		const pluginPath = join(dir, "plugins", "composio-tools.ts");
-		process.env.COMPOSIO_API_KEY = "ck_from_env";
-		await getComposioStatus();
-		expect(existsSync(pluginPath)).toBe(true);
-		delete process.env.COMPOSIO_API_KEY;
-		await getComposioStatus();
-		expect(existsSync(pluginPath)).toBe(false);
-	});
-
-	it("plugin execute falls back to the Hub process env when the state file has no key", async () => {
-		const dir = useTempDataDir();
-		writeState(dir, {
-			userId: "cline-desktop-env",
+		let releaseToolFetch: (() => void) | undefined;
+		const remoteDelete = vi.fn(async () => ({}));
+		const client = {
 			toolkits: {
-				github: {
-					connectedAccountId: "ca_github",
-					tools: [{ slug: "GITHUB_CREATE_AN_ISSUE" }],
-				},
+				// Redirect-less: Composio reports the account as already
+				// authorized, so finalize starts immediately with no pending
+				// entry for a disconnect to clear.
+				authorize: vi.fn(async () => ({
+					id: "ca_relink",
+					redirectUrl: null,
+					waitForConnection: async () => ({}),
+				})),
 			},
-		});
-		process.env.COMPOSIO_API_KEY = "ck_hub_env";
-		const fetchMock = vi.fn(
-			async () =>
-				new Response(JSON.stringify({ successful: true, data: {} }), {
-					status: 200,
-				}),
-		);
-		vi.stubGlobal("fetch", fetchMock);
-
-		const tools = await setupPluginTools();
-		expect(tools).toHaveLength(1);
-		await tools[0].execute({ title: "bug" });
-		const [, init] = fetchMock.mock.calls[0] as unknown as [
-			string,
-			{ headers: Record<string, string> },
-		];
-		expect(init.headers["x-api-key"]).toBe("ck_hub_env");
-	});
-});
-
-describe("generated composio plugin", () => {
-	it("declares the tools capability and registers nothing when unconfigured", async () => {
-		useTempDataDir();
-		const plugin = await loadGeneratedPlugin();
-		expect(plugin.name).toBe("composio-tools");
-		expect(plugin.manifest.capabilities).toEqual(["tools"]);
-		const tools: RegisteredTool[] = [];
-		await plugin.setup({
-			registerTool: (tool: RegisteredTool) => tools.push(tool),
-		});
-		expect(tools).toHaveLength(0);
-	});
-
-	it("registers one snake_case tool per stored tool schema", async () => {
-		const dataDir = useTempDataDir();
-		writeState(dataDir, {
-			apiKey: "ck_test",
-			userId: "cline-desktop-test",
-			toolkits: {
-				gmail: {
-					connectedAccountId: "ca_gmail",
-					tools: [
-						{
-							slug: "GMAIL_SEND_EMAIL",
-							description: "Send an email.",
-							version: "20250101_00",
-							inputParameters: {
-								type: "object",
-								properties: { to: { type: "string" } },
-								required: ["to"],
-							},
-						},
-						{ slug: "GMAIL_FETCH_EMAILS" },
-					],
-				},
-				github: {
-					connectedAccountId: "ca_github",
-					tools: [{ slug: "GITHUB_CREATE_AN_ISSUE" }],
-				},
+			authConfigs: {
+				list: vi.fn(async () => ({ items: [] })),
+				create: vi.fn(),
 			},
-		});
-		const tools = await setupPluginTools();
-		expect(tools.map((tool) => tool.name).sort()).toEqual([
-			"github_create_an_issue",
-			"gmail_fetch_emails",
-			"gmail_send_email",
-		]);
-		const sendEmail = tools.find((tool) => tool.name === "gmail_send_email");
-		expect(sendEmail?.description).toContain("Send an email.");
-		expect(sendEmail?.inputSchema).toMatchObject({
-			type: "object",
-			required: ["to"],
-		});
-		expect(sendEmail?.retryable).toBe(false);
-	});
-
-	it("executes tools against the Composio REST API with the pinned version", async () => {
-		const dataDir = useTempDataDir();
-		writeState(dataDir, {
-			apiKey: "ck_test",
-			userId: "cline-desktop-test",
-			toolkits: {
-				gmail: {
-					connectedAccountId: "ca_gmail",
-					tools: [{ slug: "GMAIL_SEND_EMAIL", version: "20250101_00" }],
-				},
-			},
-		});
-		const fetchMock = vi.fn(
-			async () =>
-				new Response(
-					JSON.stringify({
-						successful: true,
-						data: { messageId: "msg_1" },
-						error: null,
-					}),
-					{ status: 200 },
+			tools: {
+				getRawComposioTools: vi.fn(
+					() =>
+						new Promise<{ slug: string }[]>((resolve) => {
+							releaseToolFetch = () =>
+								resolve([{ slug: "GITHUB_CREATE_AN_ISSUE" }]);
+						}),
 				),
-		);
-		vi.stubGlobal("fetch", fetchMock);
-
-		const tools = await setupPluginTools();
-		const result = await tools[0].execute({
-			to: "someone@example.com",
-			subject: "hi",
+			},
+			connectedAccounts: {
+				list: vi.fn(async () => ({ items: [] })),
+				link: vi.fn(),
+				delete: remoteDelete,
+			},
+		};
+		createMockComposioClient = () => client;
+		const connectPromise = connectComposioToolkit("github");
+		await vi.waitFor(() => {
+			expect(client.tools.getRawComposioTools).toHaveBeenCalled();
 		});
-
-		expect(fetchMock).toHaveBeenCalledTimes(1);
-		const [url, init] = fetchMock.mock.calls[0] as unknown as [
-			string,
-			{ method: string; headers: Record<string, string>; body: string },
-		];
-		expect(url).toBe(
-			"https://backend.composio.dev/api/v3.1/tools/execute/GMAIL_SEND_EMAIL",
-		);
-		expect(init.method).toBe("POST");
-		expect(init.headers["x-api-key"]).toBe("ck_test");
-		expect(JSON.parse(init.body)).toEqual({
-			user_id: "cline-desktop-test",
-			arguments: { to: "someone@example.com", subject: "hi" },
-			version: "20250101_00",
+		// While finalize is suspended on the tool fetch, the user disconnects —
+		// and is told the disconnect succeeded.
+		const disconnected = await disconnectComposioToolkit("github");
+		expect(
+			disconnected.integrations.find((entry) => entry.toolkit === "github")
+				?.status,
+		).toBe("not_connected");
+		releaseToolFetch?.();
+		const connectResult = await connectPromise;
+		// A dropped result must not claim success on the wire either.
+		expect(connectResult.alreadyConnected).toBeUndefined();
+		expect(
+			connectResult.status.integrations.find(
+				(entry) => entry.toolkit === "github",
+			)?.status,
+		).toBe("not_connected");
+		// The finalize result must not resurrect the connector…
+		expect(readStateFile(dir).toolkits?.github).toBeUndefined();
+		const status = await getComposioStatus();
+		expect(
+			status.integrations.find((entry) => entry.toolkit === "github")?.status,
+		).toBe("not_connected");
+		// …and the orphaned account is revoked (old account by the disconnect,
+		// new account by the dropped finalize), with its tombstone pruned once
+		// the revocation is confirmed.
+		expect(remoteDelete).toHaveBeenCalledWith("ca_old", {
+			revoke_on_delete: true,
 		});
-		expect(result).toEqual({
-			successful: true,
-			data: { messageId: "msg_1" },
-			error: null,
+		expect(remoteDelete).toHaveBeenCalledWith("ca_relink", {
+			revoke_on_delete: true,
 		});
+		expect(readStateFile(dir).cancelledAccountIds).toBeUndefined();
 	});
 
-	it("returns structured errors instead of throwing on HTTP failures", async () => {
-		const dataDir = useTempDataDir();
-		writeState(dataDir, {
-			apiKey: "ck_test",
-			userId: "cline-desktop-test",
+	it("a disconnect completing during connection initiation also wins over redirect-less finalization", async () => {
+		const dir = useTempDataDir();
+		process.env.COMPOSIO_API_KEY = "ck_init_race";
+		writeState(dir, {
+			apiKey: "ck_init_race",
+			userId: "u_init_race",
 			toolkits: {
 				github: {
-					connectedAccountId: "ca_github",
+					connectedAccountId: "ca_old_init",
+					connectedAt: "2026-08-28T00:00:00.000Z",
 					tools: [{ slug: "GITHUB_CREATE_AN_ISSUE" }],
 				},
 			},
 		});
-		vi.stubGlobal(
-			"fetch",
-			vi.fn(
-				async () =>
-					new Response(JSON.stringify({ error: "connection expired" }), {
-						status: 401,
-					}),
-			),
-		);
-
-		const tools = await setupPluginTools();
-		const result = (await tools[0].execute({ title: "bug" })) as {
-			successful: boolean;
-			error: string;
+		let releaseAuthorize: (() => void) | undefined;
+		const remoteDelete = vi.fn(async () => ({}));
+		const client = {
+			toolkits: {
+				// The disconnect runs entirely inside this authorize round trip,
+				// so its marker lands BEFORE the initiation completes.
+				authorize: vi.fn(
+					() =>
+						new Promise<{
+							id: string;
+							redirectUrl: null;
+							waitForConnection: () => Promise<unknown>;
+						}>((resolve) => {
+							releaseAuthorize = () =>
+								resolve({
+									id: "ca_new_init",
+									redirectUrl: null,
+									waitForConnection: async () => ({}),
+								});
+						}),
+				),
+			},
+			authConfigs: {
+				list: vi.fn(async () => ({ items: [] })),
+				create: vi.fn(),
+			},
+			tools: {
+				getRawComposioTools: vi.fn(async () => [
+					{ slug: "GITHUB_CREATE_AN_ISSUE" },
+				]),
+			},
+			connectedAccounts: {
+				list: vi.fn(async () => ({ items: [] })),
+				link: vi.fn(),
+				delete: remoteDelete,
+			},
 		};
-		expect(result.successful).toBe(false);
-		expect(result.error).toContain("HTTP 401");
-		expect(result.error).toContain("GITHUB_CREATE_AN_ISSUE");
+		createMockComposioClient = () => client;
+		const connectPromise = connectComposioToolkit("github");
+		await vi.waitFor(() => {
+			expect(client.toolkits.authorize).toHaveBeenCalled();
+		});
+		const disconnected = await disconnectComposioToolkit("github");
+		expect(
+			disconnected.integrations.find((entry) => entry.toolkit === "github")
+				?.status,
+		).toBe("not_connected");
+		releaseAuthorize?.();
+		const connectResult = await connectPromise;
+		expect(connectResult.alreadyConnected).toBeUndefined();
+		expect(readStateFile(dir).toolkits?.github).toBeUndefined();
+		expect(remoteDelete).toHaveBeenCalledWith("ca_new_init", {
+			revoke_on_delete: true,
+		});
 	});
 
-	it("returns structured errors when the network is unreachable", async () => {
-		const dataDir = useTempDataDir();
-		writeState(dataDir, {
-			apiKey: "ck_test",
-			userId: "cline-desktop-test",
+	it("a reconnect that finalizes during the disconnect's remote revocation survives", async () => {
+		const dir = useTempDataDir();
+		process.env.COMPOSIO_API_KEY = "ck_reconnect_race";
+		writeState(dir, {
+			apiKey: "ck_reconnect_race",
+			userId: "u_reconnect_race",
 			toolkits: {
-				gmail: {
-					connectedAccountId: "ca_gmail",
-					tools: [{ slug: "GMAIL_FETCH_EMAILS" }],
+				github: {
+					connectedAccountId: "ca_old_acct",
+					connectedAt: "2026-08-28T00:00:00.000Z",
+					tools: [{ slug: "GITHUB_CREATE_AN_ISSUE" }],
 				},
 			},
 		});
-		vi.stubGlobal(
-			"fetch",
-			vi.fn(async () => {
-				throw new Error("network down");
-			}),
-		);
-
-		const tools = await setupPluginTools();
-		const result = (await tools[0].execute({})) as {
-			successful: boolean;
-			error: string;
+		let releaseOldDelete: (() => void) | undefined;
+		const remoteDelete = vi.fn((accountId: string) => {
+			if (accountId === "ca_old_acct") {
+				return new Promise((resolve) => {
+					releaseOldDelete = () => resolve({});
+				});
+			}
+			return Promise.resolve({});
+		});
+		const client = {
+			toolkits: {
+				// Redirect-less reconnect: finalizes without a pending entry.
+				authorize: vi.fn(async () => ({
+					id: "ca_new_acct",
+					redirectUrl: null,
+					waitForConnection: async () => ({}),
+				})),
+			},
+			authConfigs: {
+				list: vi.fn(async () => ({ items: [] })),
+				create: vi.fn(),
+			},
+			tools: {
+				getRawComposioTools: vi.fn(async () => [
+					{ slug: "GITHUB_CREATE_AN_ISSUE" },
+				]),
+			},
+			connectedAccounts: {
+				list: vi.fn(async () => ({
+					items: [
+						{
+							id: "ca_new_acct",
+							status: "ACTIVE",
+							toolkit: { slug: "github" },
+						},
+					],
+					nextCursor: null,
+				})),
+				link: vi.fn(),
+				delete: remoteDelete,
+			},
 		};
-		expect(result.successful).toBe(false);
-		expect(result.error).toContain("network down");
+		createMockComposioClient = () => client;
+		const disconnectPromise = disconnectComposioToolkit("github");
+		await vi.waitFor(() => {
+			expect(remoteDelete).toHaveBeenCalledWith("ca_old_acct", {
+				revoke_on_delete: true,
+			});
+		});
+		// While the disconnect awaits the old account's revocation, the user
+		// reconnects and the redirect-less finalize completes.
+		const reconnect = await connectComposioToolkit("github");
+		expect(reconnect.alreadyConnected).toBe(true);
+		expect(readStateFile(dir).toolkits?.github?.connectedAccountId).toBe(
+			"ca_new_acct",
+		);
+		releaseOldDelete?.();
+		const disconnected = await disconnectPromise;
+		// The disconnect only revoked ca_old_acct; blindly deleting the slot
+		// would orphan ca_new_acct (authorized remotely, no local record) for
+		// the next refresh to import as a resurrection. The newer reconnect
+		// must survive instead.
+		expect(readStateFile(dir).toolkits?.github?.connectedAccountId).toBe(
+			"ca_new_acct",
+		);
+		expect(
+			disconnected.integrations.find((entry) => entry.toolkit === "github")
+				?.status,
+		).toBe("connected");
+		expect(remoteDelete).toHaveBeenCalledTimes(1);
+		// And a later refresh keeps it, rather than re-importing an orphan.
+		const refreshed = await getComposioStatus({ refresh: true });
+		expect(
+			refreshed.integrations.find((entry) => entry.toolkit === "github")
+				?.status,
+		).toBe("connected");
+		expect(readStateFile(dir).toolkits?.github?.connectedAccountId).toBe(
+			"ca_new_acct",
+		);
+	});
+
+	it("treats an account that is already gone remotely as revoked", async () => {
+		const dir = useTempDataDir();
+		process.env.COMPOSIO_API_KEY = "ck_gone_404";
+		writeState(dir, storedGithubState("ck_gone_404"));
+		const remoteDelete = vi.fn(async () => {
+			throw new Error(
+				'404 {"error":{"message":"Connected account not found"}}',
+			);
+		});
+		createMockComposioClient = () => clientWithDelete(remoteDelete);
+		const status = await disconnectComposioToolkit("github");
+		expect(
+			status.integrations.find((entry) => entry.toolkit === "github")?.status,
+		).toBe("not_connected");
+		expect(readStateFile(dir).toolkits).toEqual({});
 	});
 });

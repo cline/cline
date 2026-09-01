@@ -32,22 +32,6 @@ export function fetchComposioToolkitCatalog(): Promise<ComposioCatalogResponse> 
 	);
 }
 
-export function saveComposioApiKey(
-	apiKey: string,
-): Promise<ComposioStatusResponse> {
-	return desktopClient.invoke<ComposioStatusResponse>(
-		"composio_integrations",
-		{ operation: "setApiKey", apiKey },
-		{ timeoutMs: CONNECT_TIMEOUT_MS },
-	);
-}
-
-export function clearComposioApiKey(): Promise<ComposioStatusResponse> {
-	return desktopClient.invoke<ComposioStatusResponse>("composio_integrations", {
-		operation: "clearApiKey",
-	});
-}
-
 export function connectComposioIntegration(
 	toolkit: ComposioToolkitSlug,
 ): Promise<ComposioConnectResponse> {

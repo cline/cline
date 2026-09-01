@@ -3,11 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
 	cancelComposioConnect,
-	clearComposioApiKey,
 	connectComposioIntegration,
 	disconnectComposioIntegration,
 	fetchComposioStatus,
-	saveComposioApiKey,
 } from "./composio";
 import type {
 	ComposioStatusResponse,
@@ -36,7 +34,6 @@ export function useComposioConnections({
 	const [busyToolkit, setBusyToolkit] = useState<ComposioToolkitSlug | null>(
 		null,
 	);
-	const [savingKey, setSavingKey] = useState(false);
 
 	const onChangedRef = useRef(onChanged);
 	useEffect(() => {
@@ -107,39 +104,6 @@ export function useComposioConnections({
 		};
 	}, [hasPending, applyStatus]);
 
-	const saveKey = useCallback(
-		async (apiKey: string): Promise<boolean> => {
-			const trimmed = apiKey.trim();
-			if (!trimmed) {
-				return false;
-			}
-			setSavingKey(true);
-			setActionError(null);
-			try {
-				applyStatus(await saveComposioApiKey(trimmed));
-				return true;
-			} catch (error) {
-				setActionError(error instanceof Error ? error.message : String(error));
-				return false;
-			} finally {
-				setSavingKey(false);
-			}
-		},
-		[applyStatus],
-	);
-
-	const removeKey = useCallback(async () => {
-		setSavingKey(true);
-		setActionError(null);
-		try {
-			applyStatus(await clearComposioApiKey());
-		} catch (error) {
-			setActionError(error instanceof Error ? error.message : String(error));
-		} finally {
-			setSavingKey(false);
-		}
-	}, [applyStatus]);
-
 	const connect = useCallback(
 		async (toolkit: ComposioToolkitSlug) => {
 			setBusyToolkit(toolkit);
@@ -200,9 +164,6 @@ export function useComposioConnections({
 		loadError,
 		actionError,
 		busyToolkit,
-		savingKey,
-		saveKey,
-		removeKey,
 		connect,
 		cancelConnect,
 		disconnect,

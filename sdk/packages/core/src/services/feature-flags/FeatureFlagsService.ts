@@ -12,6 +12,8 @@ import {
 	FEATURE_FLAGS,
 	type FeatureFlag,
 	FeatureFlagDefaultValue,
+	type InternalFeature,
+	isInternalFeatureEnabled as resolveInternalFeatureAccess,
 } from "@cline/shared";
 import { CORE_TELEMETRY_EVENTS } from "../..";
 
@@ -68,7 +70,25 @@ export class FeatureFlagsService {
 	}
 
 	setContext(context: FeatureFlagsContext): void {
+		const previousUserId = this.context.userId ?? null;
 		this.context = { ...context };
+		const nextUserId = this.context.userId ?? null;
+		if (previousUserId !== nextUserId) {
+			// Flag values are evaluated per identity. Keeping the previous
+			// identity's cached values would let the next account inherit them
+			// until its own poll succeeds — which can be never (offline, or a
+			// failing provider) — so an identity change falls back to flag
+			// defaults until a successful poll for the new identity. This also
+			// covers a failed poll right after the switch: poll() restores the
+			// pre-poll cacheInfo, which is now the cleared one, never the
+			// previous identity's values.
+			this.resetCacheForIdentityChange();
+		}
+	}
+
+	private resetCacheForIdentityChange(): void {
+		this.cache = new Map();
+		this.cacheInfo = { updateTime: 0, userId: null };
 	}
 
 	hydrateCache(snapshot: FeatureFlagsCacheSnapshot): void {
@@ -130,9 +150,21 @@ export class FeatureFlagsService {
 
 	private hydrateFromPersistentCache(): void {
 		const snapshot = this.readPersistentCache();
-		if (snapshot) {
-			this.hydrateCache(snapshot);
+		if (!snapshot) {
+			return;
 		}
+		// A persisted snapshot from a DIFFERENT known identity must not seed
+		// this identity's flags. When either side is unresolved the fallback
+		// stays — starting before the account id is known is the documented,
+		// deliberate case (setContext resolves it and clears on mismatch).
+		if (
+			snapshot.userId &&
+			this.context.userId &&
+			snapshot.userId !== this.context.userId
+		) {
+			return;
+		}
+		this.hydrateCache(snapshot);
 	}
 
 	private isFeatureFlagPayload(value: unknown): value is FeatureFlagPayload {
@@ -302,6 +334,21 @@ export class FeatureFlagsService {
 
 	getBooleanFlagEnabled(flagName: FeatureFlag): boolean {
 		return this.cache.get(flagName) === true;
+	}
+
+	/**
+	 * Whether an internal-only feature is available to the current account:
+	 * the context email belongs to an internal user (`@cline.bot`), or the
+	 * feature's own flag is enabled for it (the PostHog escape hatch that
+	 * widens access without a release). The email comes from the context the
+	 * host client set — without one, only the flag can grant access, so the
+	 * gate fails closed for signed-out and unknown accounts.
+	 */
+	isInternalFeatureEnabled(feature: InternalFeature): boolean {
+		return resolveInternalFeatureAccess(feature, {
+			email: this.context.email,
+			isFlagEnabled: (flagKey) => this.getBooleanFlagEnabled(flagKey),
+		});
 	}
 
 	getFlagPayload(flagName: FeatureFlag): FeatureFlagPayload | undefined {

@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -22,6 +22,7 @@ const mocks = vi.hoisted(() => ({
 	dispose: vi.fn(async () => {}),
 	setContext: vi.fn(),
 	getFlagPayload: vi.fn((_flag: unknown): unknown => undefined),
+	getBooleanFlagEnabled: vi.fn((_flag: unknown): boolean => false),
 }));
 
 vi.mock("@cline/core", async () => {
@@ -43,6 +44,7 @@ vi.mock("@cline/core", async () => {
 			dispose = mocks.dispose;
 			setContext = mocks.setContext;
 			getFlagPayload = mocks.getFlagPayload;
+			getBooleanFlagEnabled = mocks.getBooleanFlagEnabled;
 		},
 	};
 });
@@ -52,6 +54,7 @@ vi.mock("@cline/core/services/feature-flags/posthog", () => ({
 	PostHogFeatureFlagsProvider: mocks.PostHogFeatureFlagsProvider,
 }));
 
+import { InternalFeature } from "@cline/shared";
 import { setCloudSessionsEnabled } from "./desktop-settings";
 import {
 	buildFeatureFlagsSnapshot,
@@ -59,6 +62,7 @@ import {
 	getDesktopFeatureFlagsContext,
 	getDesktopFeatureFlagsService,
 	isCloudAgentsEnabled,
+	isDesktopInternalFeatureEnabled,
 	refreshDesktopFeatureFlags,
 	resetDesktopFeatureFlagsForTesting,
 	setDesktopFeatureFlagsAccountContext,
@@ -67,6 +71,10 @@ import {
 const originalApiKey = process.env.TELEMETRY_SERVICE_API_KEY;
 const originalIsTest = process.env.IS_TEST;
 let dataDir: string;
+
+function accountContextPath(): string {
+	return join(dataDir, "cache", "feature-flags-account.cline-code.json");
+}
 
 beforeEach(() => {
 	dataDir = mkdtempSync(join(tmpdir(), "cline-feature-flags-"));
@@ -181,6 +189,126 @@ describe("feature flags context", () => {
 		const context = getDesktopFeatureFlagsContext();
 		expect(context.userId).toBe("acct-2");
 		expect(context.distinctId).toBe("acct-2");
+	});
+
+	it("keeps the known email when an ID-only sync re-confirms the same account", () => {
+		setDesktopFeatureFlagsAccountContext({
+			id: "acct-1",
+			email: "beatrix@cline.bot",
+		});
+		// e.g. syncFeatureFlagsAccountFromSettings only knows the account ID.
+		expect(setDesktopFeatureFlagsAccountContext({ id: "acct-1" })).toBe(false);
+		expect(getDesktopFeatureFlagsContext().email).toBe("beatrix@cline.bot");
+	});
+
+	it("drops the email when the account changes or signs out", () => {
+		setDesktopFeatureFlagsAccountContext({
+			id: "acct-1",
+			email: "beatrix@cline.bot",
+		});
+		setDesktopFeatureFlagsAccountContext({ id: "acct-2" });
+		expect(getDesktopFeatureFlagsContext().email).toBeUndefined();
+
+		setDesktopFeatureFlagsAccountContext({
+			id: "acct-2",
+			email: "other@cline.bot",
+		});
+		setDesktopFeatureFlagsAccountContext({});
+		expect(getDesktopFeatureFlagsContext().email).toBeUndefined();
+	});
+});
+
+describe("account context persistence", () => {
+	it("remembers the account identity across a sidecar restart", () => {
+		setDesktopFeatureFlagsAccountContext({
+			id: "acct-1",
+			email: "beatrix@cline.bot",
+		});
+		expect(existsSync(accountContextPath())).toBe(true);
+
+		// Simulate a fresh sidecar process: in-memory state gone, file kept.
+		resetDesktopFeatureFlagsForTesting();
+
+		const context = getDesktopFeatureFlagsContext();
+		expect(context.userId).toBe("acct-1");
+		expect(context.distinctId).toBe("acct-1");
+		expect(context.email).toBe("beatrix@cline.bot");
+	});
+
+	it("deletes the persisted identity on sign-out", () => {
+		setDesktopFeatureFlagsAccountContext({
+			id: "acct-1",
+			email: "beatrix@cline.bot",
+		});
+		setDesktopFeatureFlagsAccountContext({});
+		expect(existsSync(accountContextPath())).toBe(false);
+
+		resetDesktopFeatureFlagsForTesting();
+		expect(getDesktopFeatureFlagsContext().userId).toBeUndefined();
+	});
+
+	it("a fetched account wins over a stale hydrated one", () => {
+		setDesktopFeatureFlagsAccountContext({
+			id: "acct-old",
+			email: "old@cline.bot",
+		});
+		resetDesktopFeatureFlagsForTesting();
+		setDesktopFeatureFlagsAccountContext({
+			id: "acct-new",
+			email: "new@example.com",
+		});
+		const context = getDesktopFeatureFlagsContext();
+		expect(context.userId).toBe("acct-new");
+		expect(context.email).toBe("new@example.com");
+	});
+});
+
+describe("isDesktopInternalFeatureEnabled", () => {
+	it("grants access to @cline.bot accounts", () => {
+		setDesktopFeatureFlagsAccountContext({
+			id: "acct-1",
+			email: "beatrix@cline.bot",
+		});
+		expect(
+			isDesktopInternalFeatureEnabled(InternalFeature.COMPOSIO_CONNECTORS),
+		).toBe(true);
+	});
+
+	it("fails closed for external and signed-out accounts", () => {
+		expect(
+			isDesktopInternalFeatureEnabled(InternalFeature.COMPOSIO_CONNECTORS),
+		).toBe(false);
+		setDesktopFeatureFlagsAccountContext({
+			id: "acct-1",
+			email: "user@example.com",
+		});
+		expect(
+			isDesktopInternalFeatureEnabled(InternalFeature.COMPOSIO_CONNECTORS),
+		).toBe(false);
+	});
+
+	it("grants access to external accounts via the feature flag", () => {
+		setDesktopFeatureFlagsAccountContext({
+			id: "acct-1",
+			email: "user@example.com",
+		});
+		mocks.getBooleanFlagEnabled.mockImplementation(
+			(flag: unknown) => flag === InternalFeature.COMPOSIO_CONNECTORS,
+		);
+		expect(
+			isDesktopInternalFeatureEnabled(InternalFeature.COMPOSIO_CONNECTORS),
+		).toBe(true);
+	});
+
+	it("survives a restart via the persisted account identity", () => {
+		setDesktopFeatureFlagsAccountContext({
+			id: "acct-1",
+			email: "beatrix@cline.bot",
+		});
+		resetDesktopFeatureFlagsForTesting();
+		expect(
+			isDesktopInternalFeatureEnabled(InternalFeature.COMPOSIO_CONNECTORS),
+		).toBe(true);
 	});
 });
 

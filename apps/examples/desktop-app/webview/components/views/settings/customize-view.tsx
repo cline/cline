@@ -7,7 +7,6 @@ import { fetchComposioStatus } from "@/lib/composio";
 import { desktopClient } from "@/lib/desktop-client";
 import { cn } from "@/lib/utils";
 import { PageFrame, PageHeader } from "../page-layout";
-import { ComposioConnectorBrowser } from "./composio-connector-browser";
 import { ComposioConnectorsView } from "./composio-connectors-view";
 import { CustomizationSectionView } from "./extensions-view";
 import { McpServersContent } from "./mcp-view";
@@ -61,6 +60,9 @@ export function CustomizeView({
 }) {
 	const [tab, setTab] = useState<CustomizeTab>("skills");
 	const [counts, setCounts] = useState<TabCounts>({});
+	// Connectors are an org-provisioned feature: the tab only exists when the
+	// sidecar has a managed Composio API key.
+	const [connectorsAvailable, setConnectorsAvailable] = useState(false);
 
 	const refreshCounts = useCallback(async () => {
 		const [inventory, composioStatus] = await Promise.all([
@@ -69,6 +71,7 @@ export function CustomizeView({
 				.catch(() => null),
 			fetchComposioStatus().catch(() => null),
 		]);
+		setConnectorsAvailable(composioStatus?.configured === true);
 		const connectedIntegrations = composioStatus
 			? composioStatus.integrations.filter(
 					(integration) => integration.status === "connected",
@@ -126,7 +129,10 @@ export function CustomizeView({
 			/>
 
 			<div className="mb-6 flex items-center gap-0 border-b border-border">
-				{CUSTOMIZE_TABS.map((customizeTab) => {
+				{CUSTOMIZE_TABS.filter(
+					(customizeTab) =>
+						customizeTab.id !== "integrations" || connectorsAvailable,
+				).map((customizeTab) => {
 					const count = counts[customizeTab.id];
 					const active = tab === customizeTab.id;
 					return (
@@ -179,18 +185,10 @@ export function CustomizeView({
 					onInventoryChanged={handleInventoryChanged}
 				/>
 			) : tab === "integrations" ? (
-				// Installed connectors + key management, with the browsable
-				// catalog inline below — this branch has no separate
-				// Marketplace page, so the tab is the whole surface.
-				<div className="flex flex-col gap-8">
-					<ComposioConnectorsView onChanged={handleInventoryChanged} />
-					<section>
-						<h3 className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-							All connectors
-						</h3>
-						<ComposioConnectorBrowser onChanged={handleInventoryChanged} />
-					</section>
-				</div>
+				<ComposioConnectorsView
+					onChanged={handleInventoryChanged}
+					onOpenMarketplace={onOpenMarketplace}
+				/>
 			) : tab === "plugins" ? (
 				<CustomizationSectionView
 					catalogPrimitive="plugin"

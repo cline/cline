@@ -1,16 +1,11 @@
 "use client";
 
-import { ExternalLink, Loader2, Store } from "lucide-react";
+import { Loader2, Store } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { fetchComposioToolkitCatalog } from "@/lib/composio";
-import {
-	COMPOSIO_DASHBOARD_URL,
-	type ComposioIntegrationSummary,
-} from "@/lib/composio-types";
-import { openExternalUrl } from "@/lib/desktop-client";
+import type { ComposioIntegrationSummary } from "@/lib/composio-types";
 import { useComposioConnections } from "@/lib/use-composio-connections";
 import {
 	ConnectorActionButton,
@@ -18,9 +13,11 @@ import {
 } from "./composio-connector-browser";
 
 /**
- * Installed > Connectors: manage the Composio API key and the connected
- * accounts. Gmail, Google Calendar, and GitHub are pinned as recommended;
- * the full catalog is browsed from the Marketplace's Connectors tab.
+ * Installed > Connectors: the connected accounts. Gmail, Google Calendar,
+ * and GitHub are pinned as recommended; the full catalog is browsed from the
+ * Marketplace's Connectors tab. The Composio API key comes from the
+ * sidecar's COMPOSIO_API_KEY environment variable — there is nothing
+ * key-related to manage here, and the whole tab is hidden without one.
  */
 
 export function ComposioConnectorsView({
@@ -36,16 +33,11 @@ export function ComposioConnectorsView({
 		loadError,
 		actionError,
 		busyToolkit,
-		savingKey,
-		saveKey,
-		removeKey,
 		connect,
 		cancelConnect,
 		disconnect,
 	} = useComposioConnections({ onChanged });
 
-	const [apiKeyDraft, setApiKeyDraft] = useState("");
-	const [showKeyEditor, setShowKeyEditor] = useState(false);
 	// Official logos come from the Composio catalog; summaries only carry one
 	// once a toolkit is connected, so join the catalog for the rest.
 	const [logoBySlug, setLogoBySlug] = useState<Map<string, string>>(
@@ -97,8 +89,16 @@ export function ComposioConnectorsView({
 		);
 	}
 
-	const envSourced = status.keySource === "environment";
-	const keyEditorOpen = !configured || showKeyEditor;
+	if (!configured) {
+		// Normally unreachable — the Connectors tab is hidden without a managed
+		// key — but reachable transiently while status loads.
+		return (
+			<p className="text-sm text-muted-foreground">
+				Connectors aren&apos;t available.
+			</p>
+		);
+	}
+
 	const recommended = status.integrations.filter(
 		(integration) => integration.recommended,
 	);
@@ -111,106 +111,10 @@ export function ComposioConnectorsView({
 		<div className="flex flex-col gap-6">
 			<div>
 				<p className="text-sm text-muted-foreground">
-					Connect your accounts through{" "}
-					<button
-						className="inline-flex items-center gap-1 text-foreground underline decoration-muted-foreground/50 underline-offset-2 transition-colors hover:decoration-foreground"
-						onClick={() => void openExternalUrl(COMPOSIO_DASHBOARD_URL)}
-						type="button"
-					>
-						Composio
-						<ExternalLink className="size-3" />
-					</button>{" "}
-					to give Cline tools for your favorite apps. Connected tools become
-					available in new sessions.
+					Connect your accounts to give Cline tools for your favorite apps.
+					Connected tools become available in new sessions.
 				</p>
 			</div>
-
-			<section className="rounded-2xl border border-border/70 bg-background/60 p-4">
-				<div className="flex flex-wrap items-center justify-between gap-3">
-					<div>
-						<p className="text-sm font-semibold text-foreground">
-							Composio API key
-						</p>
-						<p className="mt-0.5 text-xs text-muted-foreground">
-							{envSourced
-								? "Using the COMPOSIO_API_KEY environment variable. Save a key here to override it."
-								: configured
-									? "A key is configured. Tool calls run through your Composio account."
-									: "Create a key in the Composio dashboard, then paste it here to enable connectors."}
-						</p>
-					</div>
-					{configured && !showKeyEditor ? (
-						<div className="flex items-center gap-2">
-							<Badge className="bg-primary/15 text-primary" variant="secondary">
-								{envSourced ? "From environment" : "Configured"}
-							</Badge>
-							<Button
-								onClick={() => setShowKeyEditor(true)}
-								size="sm"
-								type="button"
-								variant="outline"
-							>
-								{envSourced ? "Use custom key" : "Replace key"}
-							</Button>
-							{envSourced ? null : (
-								<Button
-									disabled={savingKey}
-									onClick={() => void removeKey()}
-									size="sm"
-									type="button"
-									variant="ghost"
-								>
-									Remove
-								</Button>
-							)}
-						</div>
-					) : null}
-				</div>
-				{keyEditorOpen ? (
-					<form
-						className="mt-3 flex flex-wrap items-center gap-2"
-						onSubmit={(event) => {
-							event.preventDefault();
-							void saveKey(apiKeyDraft).then((saved) => {
-								if (saved) {
-									setApiKeyDraft("");
-									setShowKeyEditor(false);
-								}
-							});
-						}}
-					>
-						<Input
-							autoComplete="off"
-							className="max-w-sm"
-							onChange={(event) => setApiKeyDraft(event.target.value)}
-							placeholder="Composio API key"
-							type="password"
-							value={apiKeyDraft}
-						/>
-						<Button
-							disabled={savingKey || !apiKeyDraft.trim()}
-							size="sm"
-							type="submit"
-						>
-							{savingKey ? <Loader2 className="size-4 animate-spin" /> : null}
-							Save key
-						</Button>
-						{configured ? (
-							<Button
-								onClick={() => {
-									setShowKeyEditor(false);
-									setApiKeyDraft("");
-								}}
-								size="sm"
-								type="button"
-								variant="ghost"
-							>
-								Cancel
-							</Button>
-						) : null}
-					</form>
-				) : null}
-			</section>
 
 			{actionError ? (
 				<p className="text-xs text-destructive" role="alert">
