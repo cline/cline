@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import http from "node:http";
 import net from "node:net";
@@ -533,11 +534,12 @@ describe("interactive MCP OAuth callback validation", () => {
 			const expectedState = new URL(await authorizationUrl).searchParams.get(
 				"state",
 			);
-			// Poll through the public file boundary rather than internal callbacks. On
-			// Windows this reader can briefly overlap the writer's atomic rename, which
-			// exercises the bounded sharing-violation retry in the settings writer.
-			await vi.waitFor(async () => {
-				const written = JSON.parse(await readFile(filePath, "utf8"));
+			// Poll through the public file boundary rather than internal callbacks. Keep
+			// this read synchronous so its Windows handle is closed before the same event
+			// loop advances the writer's atomic rename; this test targets the transport
+			// race, not file-sharing behavior.
+			await vi.waitFor(() => {
+				const written = JSON.parse(readFileSync(filePath, "utf8"));
 				expect(written.mcpServers.remote.oauth.authorizationRequired).toBe(
 					true,
 				);

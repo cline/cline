@@ -358,8 +358,6 @@ export function resolveDefaultMcpSettingsPath(): string {
 }
 
 const PRIVATE_SETTINGS_FILE_MODE = 0o600;
-const WINDOWS_ATOMIC_RENAME_ATTEMPTS = 20;
-const WINDOWS_ATOMIC_RENAME_RETRY_MS = 10;
 
 function privateSettingsFileMode(filePath: string): number {
 	try {
@@ -386,31 +384,6 @@ function applySettingsFileMode(filePath: string, mode: number): void {
 	chmodSync(filePath, mode);
 }
 
-function renameSettingsTempIntoPlace(tempPath: string, filePath: string): void {
-	for (let attempt = 1; ; attempt += 1) {
-		try {
-			renameSync(tempPath, filePath);
-			return;
-		} catch (error) {
-			const code = (error as NodeJS.ErrnoException).code;
-			const retryableWindowsSharingViolation =
-				process.platform === "win32" &&
-				(code === "EPERM" || code === "EACCES" || code === "EBUSY");
-			if (
-				!retryableWindowsSharingViolation ||
-				attempt >= WINDOWS_ATOMIC_RENAME_ATTEMPTS
-			) {
-				throw error;
-			}
-			// Windows can briefly deny replacement while antivirus, a watcher, or a
-			// concurrent reader is closing its handle. The cross-process settings lock
-			// still belongs to this process, so retrying this same staged file preserves
-			// the atomic old-or-new visibility guarantee without rerunning the mutator.
-			sleepSync(WINDOWS_ATOMIC_RENAME_RETRY_MS);
-		}
-	}
-}
-
 /**
  * Atomically write the MCP settings file using a temp file + rename.
  *
@@ -434,7 +407,7 @@ function atomicWriteSettingsFile(filePath: string, contents: string): void {
 			mode: PRIVATE_SETTINGS_FILE_MODE,
 		});
 		applySettingsFileMode(tempPath, finalMode);
-		renameSettingsTempIntoPlace(tempPath, filePath);
+		renameSync(tempPath, filePath);
 		// The temp file already carried this mode. Re-apply after rename as a
 		// defensive check against platform/filesystem rename behavior.
 		applySettingsFileMode(filePath, finalMode);
