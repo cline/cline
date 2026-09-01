@@ -1,7 +1,9 @@
 import { homedir } from "node:os";
 import {
 	createClineTelemetryServiceConfig,
+	readGlobalSettings,
 	setHomeDirIfUnset,
+	setModelToolEnabledGlobally,
 	watchManagedHubBuildMismatch,
 } from "@cline/core";
 import { captureSdkError, claimHubDaemonProcess } from "@cline/shared";
@@ -64,6 +66,20 @@ async function main() {
 		workspaceRoot,
 		pid: process.pid,
 	});
+
+	// Web search is opt-in elsewhere in Cline, but the desktop app defaults
+	// it to on. Seed the shared setting only when the user has never set it,
+	// so an explicit off (from any Cline app) stays off. Best-effort: an
+	// unwritable settings file must not block startup over a default.
+	try {
+		if (readGlobalSettings().tools?.web_search === undefined) {
+			setModelToolEnabledGlobally("web_search", true);
+		}
+	} catch (error) {
+		observability.logger.error?.("Failed to seed web search default", {
+			error,
+		});
+	}
 
 	prewarmWorkspaceMetadata(workspaceRoot);
 	observability.logger.log(
