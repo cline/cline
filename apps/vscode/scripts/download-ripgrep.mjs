@@ -18,6 +18,9 @@ import { createGunzip } from "zlib"
 const execAsync = promisify(exec)
 
 const RIPGREP_VERSION = "14.1.1"
+// Upstream first published aarch64-pc-windows-msvc archives in 15.0.0, so the
+// Windows/ARM64 binary uses its own newer version until the others are bumped.
+const RIPGREP_WIN_ARM64_VERSION = "15.2.0"
 const OUTPUT_DIR = "dist-standalone/ripgrep-binaries"
 
 // Platform configurations
@@ -54,6 +57,13 @@ const PLATFORMS = [
 		name: "win-x64",
 		archiveName: `ripgrep-${RIPGREP_VERSION}-x86_64-pc-windows-msvc.zip`,
 		url: `https://github.com/BurntSushi/ripgrep/releases/download/${RIPGREP_VERSION}/ripgrep-${RIPGREP_VERSION}-x86_64-pc-windows-msvc.zip`,
+		binaryPath: "rg.exe",
+		isZip: true,
+	},
+	{
+		name: "win-arm64",
+		archiveName: `ripgrep-${RIPGREP_WIN_ARM64_VERSION}-aarch64-pc-windows-msvc.zip`,
+		url: `https://github.com/BurntSushi/ripgrep/releases/download/${RIPGREP_WIN_ARM64_VERSION}/ripgrep-${RIPGREP_WIN_ARM64_VERSION}-aarch64-pc-windows-msvc.zip`,
 		binaryPath: "rg.exe",
 		isZip: true,
 	},

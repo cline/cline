@@ -19,6 +19,10 @@ const IS_DEBUG_BUILD = process.env.IS_DEBUG_BUILD === "true"
 const TARGET_NODE_VERSION = "22.15.0"
 const TARGET_PLATFORMS = [
 	{ platform: "win32", arch: "x64", targetDir: "win-x64" },
+	// Native ARM64 Windows (e.g. Snapdragon X laptops). better-sqlite3 publishes
+	// win32-arm64 prebuilds for the target Node ABI, so prebuild-install below
+	// resolves this like every other platform. Consumed by the JetBrains plugin.
+	{ platform: "win32", arch: "arm64", targetDir: "win-arm64" },
 	{ platform: "darwin", arch: "x64", targetDir: "darwin-x64" },
 	{ platform: "darwin", arch: "arm64", targetDir: "darwin-arm64" },
 	{ platform: "linux", arch: "x64", targetDir: "linux-x64" },
