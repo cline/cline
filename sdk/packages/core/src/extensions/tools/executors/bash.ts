@@ -327,7 +327,7 @@ export class CommandExitError extends Error {
 export interface ShellExecutorOptions {
 	/**
 	 * Shell to use for execution
-	 * @default "/bin/bash" on Unix, "powershell" on Windows
+	 * @default "bash" on Unix, "powershell" on Windows
 	 */
 	shell?: string;
 

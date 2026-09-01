@@ -57,6 +57,27 @@ describe("createShellExecutor", () => {
 		expect(output.trim()).toBe("hello");
 	});
 
+	it.skipIf(process.platform === "win32")(
+		"resolves the default shell through PATH",
+		async () => {
+			// NixOS ships no /bin/bash — bash lives in the Nix store and is only
+			// reachable through PATH, so an absolute default never starts. Point
+			// PATH at a directory whose only `bash` is a shim: an absolute
+			// /bin/bash would ignore PATH and run the real shell instead.
+			const dir = await mkdtemp(join(tmpdir(), "cline-shell-path-"));
+			try {
+				await writeFile(join(dir, "bash"), "#!/bin/sh\necho shim-on-path\n", {
+					mode: 0o755,
+				});
+				const shell = createShellExecutor({ env: { PATH: dir } });
+				const output = await shell("echo hello", process.cwd(), ctx);
+				expect(output.trim()).toBe("shim-on-path");
+			} finally {
+				await rm(dir, { recursive: true, force: true });
+			}
+		},
+	);
+
 	it("streams stdout and stderr with ANSI escapes before completion", async () => {
 		const updates: Array<Record<string, unknown>> = [];
 		let resolveBothStreams: (() => void) | undefined;
