@@ -161,20 +161,46 @@ type ComposioClient = {
 		>;
 	};
 	connectedAccounts: {
-		list: (query?: { userIds?: string[]; toolkitSlugs?: string[] }) => Promise<{
+		list: (query?: {
+			userIds?: string[];
+			toolkitSlugs?: string[];
+			cursor?: string;
+		}) => Promise<{
 			items: Array<{
 				id: string;
 				status: string;
 				isDisabled?: boolean;
 				toolkit: { slug: string };
 			}>;
+			nextCursor?: string | null;
 		}>;
 		link: (
 			userId: string,
 			authConfigId: string,
 		) => Promise<ComposioConnectionRequest>;
-		delete: (id: string) => Promise<unknown>;
 	};
+	/**
+	 * The underlying REST client. Account deletions go through it because the
+	 * high-level wrapper's `connectedAccounts.delete` never sends
+	 * `revoke_on_delete` and the API defaults it to false — a soft delete
+	 * that removes the Composio record while leaving the upstream OAuth grant
+	 * (the Gmail/Calendar/GitHub token itself) authorized.
+	 */
+	getClient: () => {
+		connectedAccounts: {
+			delete: (
+				id: string,
+				params: { revoke_on_delete: boolean },
+			) => Promise<unknown>;
+		};
+	};
+};
+
+type ConnectedAccountListItem = {
+	id: string;
+	status: string;
+	isDisabled?: boolean;
+	toolkit: { slug: string };
 };
 
 const pendingConnections = new Map<ComposioToolkitSlug, PendingConnection>();
@@ -437,7 +463,7 @@ async function revokeConnectedAccountQuietly(
 ): Promise<boolean> {
 	try {
 		const client = await getComposioClient(apiKey);
-		await client.connectedAccounts.delete(accountId);
+		await deleteConnectedAccountWithRevocation(client, accountId);
 		return true;
 	} catch (error) {
 		if (isAccountAlreadyGoneError(error)) {
@@ -448,6 +474,55 @@ async function revokeConnectedAccountQuietly(
 		);
 		return false;
 	}
+}
+
+/**
+ * Deletes a connected account AND revokes its upstream OAuth credentials.
+ * Without `revoke_on_delete=true` the API only soft-deletes the Composio
+ * record: tool execution stops, but the provider-side grant (the actual
+ * Gmail/Calendar/GitHub token) stays authorized — a disconnect the UI
+ * reports as done would leave live credentials behind. The high-level SDK
+ * wrapper never sends the flag, so this goes through the raw client.
+ */
+async function deleteConnectedAccountWithRevocation(
+	client: ComposioClient,
+	accountId: string,
+): Promise<unknown> {
+	return await client.getClient().connectedAccounts.delete(accountId, {
+		revoke_on_delete: true,
+	});
+}
+
+/** Defensive cap; a user has roughly one connected account per toolkit, so
+ * real lists fit in one or two pages. */
+const CONNECTED_ACCOUNTS_MAX_PAGES = 20;
+
+/**
+ * Lists the user's connected accounts following pagination to the end. The
+ * reconciliation removal logic treats absence from this list as "revoked
+ * remotely", so a truncated listing would locally disconnect accounts that
+ * merely live on a later page. `complete` is false only when the page cap
+ * was hit — callers must then skip absence-based removals.
+ */
+async function listAllConnectedAccounts(
+	client: ComposioClient,
+	userId: string,
+): Promise<{ items: ConnectedAccountListItem[]; complete: boolean }> {
+	const items: ConnectedAccountListItem[] = [];
+	let cursor: string | undefined;
+	for (let page = 0; page < CONNECTED_ACCOUNTS_MAX_PAGES; page++) {
+		const response = await client.connectedAccounts.list({
+			userIds: [userId],
+			...(cursor ? { cursor } : {}),
+		});
+		items.push(...(response.items ?? []));
+		const nextCursor = response.nextCursor ?? undefined;
+		if (!nextCursor) {
+			return { items, complete: true };
+		}
+		cursor = nextCursor;
+	}
+	return { items, complete: false };
 }
 
 /**
@@ -621,9 +696,7 @@ export async function getComposioStatus(options?: {
 	try {
 		const refreshStartedAt = Date.now();
 		const client = await getComposioClient(state.apiKey);
-		const accounts = await client.connectedAccounts.list({
-			userIds: [state.userId],
-		});
+		const accounts = await listAllConnectedAccounts(client, state.userId);
 		const cancelledIds = new Set(state.cancelledAccountIds ?? []);
 		const activeByToolkit = new Map<string, string>();
 		for (const account of accounts.items ?? []) {
@@ -664,7 +737,12 @@ export async function getComposioStatus(options?: {
 			const stored = startToolkits[slug];
 			baselineIdBySlug.set(slug, stored?.connectedAccountId);
 			if (stored && !remoteAccountId) {
-				removals.push(slug);
+				// Absence-based removal is only sound when the whole account
+				// list was seen; a capped (incomplete) listing proves nothing
+				// about accounts past the cap.
+				if (accounts.complete) {
+					removals.push(slug);
+				}
 			} else if (
 				remoteAccountId &&
 				(!stored ||
@@ -1102,7 +1180,10 @@ export async function disconnectComposioToolkit(
 	if (stored && state.apiKey) {
 		try {
 			const client = await getComposioClient(state.apiKey);
-			await client.connectedAccounts.delete(stored.connectedAccountId);
+			await deleteConnectedAccountWithRevocation(
+				client,
+				stored.connectedAccountId,
+			);
 		} catch (error) {
 			if (!isAccountAlreadyGoneError(error)) {
 				// Revocation did NOT happen: the account is still authorized on
@@ -1124,12 +1205,31 @@ export async function disconnectComposioToolkit(
 			);
 		}
 	}
+	let slotEmptyAfterRemoval = false;
 	const next = updateComposioState((s) => {
-		if (s.toolkits) {
+		const current = s.toolkits?.[toolkit];
+		// Remove only the account this disconnect actually revoked. A
+		// connection finalized while the awaited revocation above was in
+		// flight is the newer user intent: it carries a different account id
+		// and its remote account was never touched — blindly deleting it here
+		// would leave that account authorized with no local record, for the
+		// next refresh to import as a resurrected connector.
+		if (
+			current &&
+			stored &&
+			current.connectedAccountId === stored.connectedAccountId &&
+			s.toolkits
+		) {
 			delete s.toolkits[toolkit];
 		}
+		slotEmptyAfterRemoval = !s.toolkits?.[toolkit];
 	});
-	lastDisconnectedAt.set(toolkit, Date.now());
+	if (slotEmptyAfterRemoval) {
+		// Only an effective disconnect stamps the marker; stamping over a
+		// surviving newer connection would make later refreshes and
+		// finalizations treat it as disconnected.
+		lastDisconnectedAt.set(toolkit, Date.now());
+	}
 	return buildStatusResponse(next);
 }
 
@@ -1253,7 +1353,7 @@ async function finalizeToolkitConnection(
 	}
 	// No await separates the guard checks above from this write, so the
 	// checked state cannot go stale in between.
-	const next = updateComposioState((s) => {
+	updateComposioState((s) => {
 		s.toolkits = {
 			...(s.toolkits ?? {}),
 			[toolkit]: {
