@@ -530,6 +530,114 @@ describe("collapseCompletedWork", () => {
 		]);
 	});
 
+	it("treats a mid-run submit_and_exit as ordinary work", () => {
+		// Only a submit the run actually ended on is its deliverable; one
+		// followed by more work folds with everything else.
+		const items = collapse(
+			[
+				makeMessage({
+					id: "u1",
+					role: "user",
+					content: "go",
+					createdAt: 1_000,
+				}),
+				makeSubmitTool("submit", 2_000),
+				makeTool("t1", 3_000),
+				makeMessage({ id: "a1", content: "Done.", createdAt: 5_000 }),
+			],
+			true,
+		);
+
+		expect(items.map((item) => item.type)).toEqual([
+			"message",
+			"work",
+			"message",
+		]);
+		const work = items[1];
+		if (work?.type !== "work") throw new Error("expected work item");
+		expect(work.toolCallCount).toBe(2);
+	});
+
+	it("prefers trailing assistant text over an earlier submit as the answer", () => {
+		// When the model narrates after submitting, the narration is the
+		// answer and the run folds exactly as it did before the submit
+		// special-case existed.
+		const items = collapse(
+			[
+				makeMessage({
+					id: "u1",
+					role: "user",
+					content: "go",
+					createdAt: 1_000,
+				}),
+				makeTool("t1", 2_000),
+				makeSubmitTool("submit", 3_000),
+				makeMessage({ id: "a1", content: "All wrapped up.", createdAt: 4_000 }),
+			],
+			true,
+		);
+
+		expect(items.map((item) => item.type)).toEqual([
+			"message",
+			"work",
+			"message",
+		]);
+		const work = items[1];
+		if (work?.type !== "work") throw new Error("expected work item");
+		expect(work.toolCallCount).toBe(2);
+		const answer = items[2];
+		if (answer?.type !== "message") throw new Error("expected message item");
+		expect(answer.message.id).toBe("a1");
+	});
+
+	it("detects submit_and_exit from message meta when the content is not JSON", () => {
+		const items = collapse(
+			[
+				makeMessage({
+					id: "u1",
+					role: "user",
+					content: "go",
+					createdAt: 1_000,
+				}),
+				makeTool("t1", 2_000),
+				makeMessage({
+					id: "submit-meta",
+					role: "tool",
+					content: "not-json",
+					meta: { toolName: "submit_and_exit" },
+					createdAt: 3_000,
+				}),
+			],
+			true,
+		);
+
+		expect(items.map((item) => item.type)).toEqual([
+			"message",
+			"work",
+			"tools",
+		]);
+	});
+
+	it("does not treat other trailing tool calls as the run's answer", () => {
+		// A finished tail ending on an ordinary tool call still reads as an
+		// interrupted run: rows stay visible, nothing collapses.
+		const items = collapse(
+			[
+				makeMessage({
+					id: "u1",
+					role: "user",
+					content: "go",
+					createdAt: 1_000,
+				}),
+				makeTool("t1", 2_000),
+				makeTool("t2", 3_000),
+			],
+			true,
+		);
+
+		expect(items.map((item) => item.type)).toEqual(["message", "tools"]);
+	});
+
 	it("measures duration from the first working row when no user message precedes it", () => {
 		const items = collapse(
 			[
