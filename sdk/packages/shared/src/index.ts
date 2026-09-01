@@ -248,6 +248,7 @@ export {
 	ModelStatusSchema,
 	modelHasCapability,
 	modelProducesImages,
+	modelSupportsImageInput,
 	modelSupportsToolCalling,
 	supportsChatModalities,
 	type ThinkingConfig,
@@ -285,7 +286,11 @@ export type {
 	ToolCallRecord,
 	ToolPolicy,
 } from "./llms/tools";
-export { ToolCallRecordSchema } from "./llms/tools";
+export {
+	TOOL_REJECTION_SUFFIX,
+	ToolCallRecordSchema,
+	USER_REJECTED_TOOL_REASON,
+} from "./llms/tools";
 export {
 	type BasicLogger,
 	type BasicLogMetadata,

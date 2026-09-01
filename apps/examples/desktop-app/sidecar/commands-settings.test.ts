@@ -60,6 +60,7 @@ describe("desktop settings commands", () => {
 			flags: {
 				"code-onboarding-github": false,
 				"ext-cline-pass": false,
+				"internal-composio-connectors": false,
 			},
 		});
 	});
@@ -96,6 +97,7 @@ describe("desktop settings commands", () => {
 			flags: {
 				"code-onboarding-github": false,
 				"ext-cline-pass": false,
+				"internal-composio-connectors": false,
 			},
 		});
 
@@ -117,6 +119,7 @@ describe("desktop settings commands", () => {
 			flags: {
 				"code-onboarding-github": false,
 				"ext-cline-pass": false,
+				"internal-composio-connectors": false,
 			},
 		});
 		// The toggle's stored value is reported as-is; the override only

@@ -303,6 +303,9 @@ describe("cline_account keeps feature-flag identity in sync", () => {
 	it("falls back to the device distinct ID after logout", async () => {
 		const { ctx } = createContext();
 		const { getDesktopFeatureFlagsContext } = await import("./feature-flags");
+		resolveProviderApiKeyMock.mockResolvedValue(null);
+		getProviderSettingsMock.mockReturnValue(undefined);
+		await runOperation(ctx, "fetchMe");
 		const deviceId = getDesktopFeatureFlagsContext().distinctId;
 
 		resolveProviderApiKeyMock.mockResolvedValue({ apiKey: "token" });
