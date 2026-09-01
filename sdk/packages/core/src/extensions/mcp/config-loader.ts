@@ -20,6 +20,7 @@ import {
 } from "@cline/shared";
 import { resolveMcpSettingsPath } from "@cline/shared/storage";
 import { z } from "zod";
+import { areMcpOAuthClientConfigurationsEqual } from "./oauth-client-policy";
 import {
 	createMcpOAuthClientPolicyBinding,
 	MCP_OAUTH_CLIENT_POLICY_BINDING_PATTERN,
@@ -984,12 +985,18 @@ export function getMcpServerOAuthState(
 	}
 	const state = normalizeMcpServerOAuthState(registration.oauth);
 	try {
-		return state?.transportBinding ===
-			createMcpOAuthTransportBinding(registration.transport) &&
+		const bindingsMatch =
+			state?.transportBinding ===
+				createMcpOAuthTransportBinding(registration.transport) &&
 			state.clientPolicyBinding ===
-				createMcpOAuthClientPolicyBinding(registration.oauthClient)
-			? state
-			: undefined;
+				createMcpOAuthClientPolicyBinding(registration.oauthClient);
+		const configuredClientMatches = registration.oauthClient
+			? state?.clientInformation?.client_id ===
+					registration.oauthClient.clientId &&
+				state.clientInformation.client_secret ===
+					registration.oauthClient.clientSecret
+			: true;
+		return bindingsMatch && configuredClientMatches ? state : undefined;
 	} catch {
 		// Ambiguous case-insensitive header duplicates are an invalid OAuth
 		// transport identity. State reads fail closed without breaking status UIs.
@@ -1029,14 +1036,7 @@ function buildOAuthStateMutator(
 				: undefined;
 			const expectedClient = options.expectedOAuthClient ?? undefined;
 			if (
-				currentClient?.clientId !== expectedClient?.clientId ||
-				currentClient?.clientSecret !== expectedClient?.clientSecret ||
-				!areMcpOAuthScopePoliciesEqual(
-					currentClient?.allowedScopes,
-					expectedClient?.allowedScopes,
-				) ||
-				resolveMcpOAuthLoopbackHostname(currentClient?.loopbackHostname) !==
-					resolveMcpOAuthLoopbackHostname(expectedClient?.loopbackHostname)
+				!areMcpOAuthClientConfigurationsEqual(currentClient, expectedClient)
 			) {
 				throw new McpOAuthClientChangedError(serverName);
 			}

@@ -51,6 +51,7 @@ export {
 	createMcpOAuthClientInformation,
 	createMcpOAuthProviderContext,
 } from "./oauth";
+export { areMcpOAuthClientConfigurationsEqual } from "./oauth-client-policy";
 export { createMcpOAuthClientPolicyBinding } from "./oauth-client-policy-binding";
 export { McpOAuthScopePolicyError } from "./oauth-scope-policy";
 export { createMcpOAuthTransportBinding } from "./oauth-transport-binding";

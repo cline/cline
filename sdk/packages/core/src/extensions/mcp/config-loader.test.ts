@@ -694,6 +694,47 @@ describe("mcp config loader", () => {
 		});
 	});
 
+	it("does not expose static OAuth state after only the client secret changes", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-"));
+		tempRoots.push(tempRoot);
+		const filePath = join(tempRoot, "cline_mcp_settings.json");
+		const oauthClient = {
+			clientId: "static-client",
+			clientSecret: "replacement-secret",
+			allowedScopes: ["read"],
+		};
+		await writeFile(
+			filePath,
+			JSON.stringify({
+				mcpServers: {
+					linear: {
+						transport: LINEAR_TRANSPORT,
+						oauthClient,
+						oauth: {
+							transportBinding: LINEAR_TRANSPORT_BINDING,
+							clientPolicyBinding:
+								createMcpOAuthClientPolicyBinding(oauthClient),
+							clientInformation: {
+								client_id: "static-client",
+								client_secret: "stale-secret",
+							},
+							tokens: { access_token: "stale-token", scope: "read" },
+							scopePolicy: ["read"],
+							lastAuthenticatedAt: 123,
+						},
+					},
+				},
+			}),
+			"utf8",
+		);
+
+		expect(getMcpServerOAuthState("linear", { filePath })).toBeUndefined();
+		expect(listMcpServerOAuthStatuses({ filePath })[0]).toMatchObject({
+			oauthConfigured: false,
+			lastAuthenticatedAt: undefined,
+		});
+	});
+
 	it("keeps oauth status across header reordering but invalidates semantic transport changes", async () => {
 		const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-"));
 		tempRoots.push(tempRoot);

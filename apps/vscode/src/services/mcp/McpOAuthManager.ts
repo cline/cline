@@ -1,7 +1,7 @@
 import {
+	areMcpOAuthClientConfigurationsEqual,
 	authorizeMcpServerOAuth,
 	createMcpOAuthClientInformation,
-	createMcpOAuthClientPolicyBinding,
 	createMcpOAuthProviderContext,
 	createMcpOAuthTransportBinding,
 	type McpServerOAuthClientConfig,
@@ -45,14 +45,14 @@ const MCP_OAUTH_FLOW_TIMEOUT_MS = 10 * 60 * 1000 // 10 minutes
 
 type CachedOAuthProvider = {
 	transportBinding: string
-	clientBinding: string
+	oauthClient: McpServerOAuthClientConfig | undefined
 	provider: OAuthClientProvider
 }
 
 export interface McpOAuthManagerDependencies {
+	areMcpOAuthClientConfigurationsEqual: typeof areMcpOAuthClientConfigurationsEqual
 	authorizeMcpServerOAuth: typeof authorizeMcpServerOAuth
 	createMcpOAuthClientInformation: typeof createMcpOAuthClientInformation
-	createMcpOAuthClientPolicyBinding: typeof createMcpOAuthClientPolicyBinding
 	createMcpOAuthProviderContext: typeof createMcpOAuthProviderContext
 	createMcpOAuthTransportBinding: typeof createMcpOAuthTransportBinding
 	resolveMcpServerRegistration: typeof resolveMcpServerRegistration
@@ -60,9 +60,9 @@ export interface McpOAuthManagerDependencies {
 }
 
 const defaultDependencies: McpOAuthManagerDependencies = {
+	areMcpOAuthClientConfigurationsEqual,
 	authorizeMcpServerOAuth,
 	createMcpOAuthClientInformation,
-	createMcpOAuthClientPolicyBinding,
 	createMcpOAuthProviderContext,
 	createMcpOAuthTransportBinding,
 	resolveMcpServerRegistration,
@@ -132,12 +132,14 @@ export class McpOAuthManager {
 			throw new McpOAuthEffectiveTransportMismatchError(serverName)
 		}
 		const oauthClient = registration?.oauthClient
-		const clientBinding = this.dependencies.createMcpOAuthClientPolicyBinding(oauthClient)
-		if (this.dependencies.createMcpOAuthClientPolicyBinding(effectiveOAuthClient) !== clientBinding) {
+		if (!this.dependencies.areMcpOAuthClientConfigurationsEqual(effectiveOAuthClient, oauthClient)) {
 			throw new McpOAuthEffectiveTransportMismatchError(serverName)
 		}
 		const existing = this.providers.get(serverName)
-		if (existing?.transportBinding === transportBinding && existing.clientBinding === clientBinding) {
+		if (
+			existing?.transportBinding === transportBinding &&
+			this.dependencies.areMcpOAuthClientConfigurationsEqual(existing.oauthClient, oauthClient)
+		) {
 			return existing.provider
 		}
 
@@ -156,7 +158,16 @@ export class McpOAuthManager {
 			},
 		})
 		const provider = context.provider
-		this.providers.set(serverName, { transportBinding, clientBinding, provider })
+		this.providers.set(serverName, {
+			transportBinding,
+			oauthClient: oauthClient
+				? {
+						...oauthClient,
+						...(oauthClient.allowedScopes ? { allowedScopes: [...oauthClient.allowedScopes] } : {}),
+					}
+				: undefined,
+			provider,
+		})
 		return provider
 	}
 

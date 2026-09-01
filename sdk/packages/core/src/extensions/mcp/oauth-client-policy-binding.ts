@@ -6,9 +6,10 @@ export const MCP_OAUTH_CLIENT_POLICY_BINDING_PATTERN = /^sha256:[a-f\d]{64}$/;
 
 /**
  * Binds OAuth artifacts to either dynamic registration or one exact static
- * client policy. The digest covers the client secret without persisting it a
- * second time, and canonicalizes only fields whose configuration semantics are
- * order-insensitive.
+ * public-client policy. Client secrets are deliberately excluded: this digest
+ * is persisted identity metadata, not a password verifier, and must not create
+ * an offline guessing oracle. Callers compare the configured secret exactly
+ * before reusing credentials or an in-memory provider.
  */
 export function createMcpOAuthClientPolicyBinding(
 	client: McpServerOAuthClientConfig | undefined,
@@ -17,13 +18,12 @@ export function createMcpOAuthClientPolicyBinding(
 		? [
 				"static",
 				client.clientId,
-				client.clientSecret ?? null,
 				normalizeMcpOAuthAllowedScopes(client.allowedScopes) ?? null,
 				client.loopbackHostname ?? "127.0.0.1",
 			]
 		: ["dynamic"];
 	const canonicalIdentity = JSON.stringify([
-		"cline-mcp-oauth-client-policy-v1",
+		"cline-mcp-oauth-client-policy-v2-public",
 		canonicalPolicy,
 	]);
 	return `sha256:${createHash("sha256").update(canonicalIdentity).digest("hex")}`;

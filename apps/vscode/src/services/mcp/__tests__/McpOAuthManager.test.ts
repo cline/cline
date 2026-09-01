@@ -22,29 +22,37 @@ function coreSourceModuleUrl(fileName: string): string {
 // adapter tests. Load the shared source modules under their file URLs and inject
 // the exact dependencies this integration suite exercises instead of changing
 // process-global preload behavior based on a test filename.
-const [oauthModule, configLoaderModule, transportBindingModule, clientPolicyBindingModule, scopePolicyModule] =
-	(await Promise.all([
-		import(coreSourceModuleUrl("oauth.ts")),
-		import(coreSourceModuleUrl("config-loader.ts")),
-		import(coreSourceModuleUrl("oauth-transport-binding.ts")),
-		import(coreSourceModuleUrl("oauth-client-policy-binding.ts")),
-		import(coreSourceModuleUrl("oauth-scope-policy.ts")),
-	])) as [
-		Pick<CoreApi, "authorizeMcpServerOAuth" | "createMcpOAuthClientInformation" | "createMcpOAuthProviderContext">,
-		Pick<CoreApi, "McpOAuthTransportChangedError" | "resolveMcpServerRegistration" | "updateMcpServerOAuthStateAsync">,
-		Pick<CoreApi, "createMcpOAuthTransportBinding">,
-		Pick<CoreApi, "createMcpOAuthClientPolicyBinding">,
-		Pick<CoreApi, "McpOAuthScopePolicyError">,
-	]
+const [
+	oauthModule,
+	configLoaderModule,
+	transportBindingModule,
+	clientPolicyBindingModule,
+	clientPolicyModule,
+	scopePolicyModule,
+] = (await Promise.all([
+	import(coreSourceModuleUrl("oauth.ts")),
+	import(coreSourceModuleUrl("config-loader.ts")),
+	import(coreSourceModuleUrl("oauth-transport-binding.ts")),
+	import(coreSourceModuleUrl("oauth-client-policy-binding.ts")),
+	import(coreSourceModuleUrl("oauth-client-policy.ts")),
+	import(coreSourceModuleUrl("oauth-scope-policy.ts")),
+])) as [
+	Pick<CoreApi, "authorizeMcpServerOAuth" | "createMcpOAuthClientInformation" | "createMcpOAuthProviderContext">,
+	Pick<CoreApi, "McpOAuthTransportChangedError" | "resolveMcpServerRegistration" | "updateMcpServerOAuthStateAsync">,
+	Pick<CoreApi, "createMcpOAuthTransportBinding">,
+	Pick<CoreApi, "createMcpOAuthClientPolicyBinding">,
+	Pick<CoreApi, "areMcpOAuthClientConfigurationsEqual">,
+	Pick<CoreApi, "McpOAuthScopePolicyError">,
+]
 
 const createMcpOAuthTransportBinding = transportBindingModule.createMcpOAuthTransportBinding
 const createMcpOAuthClientPolicyBinding = clientPolicyBindingModule.createMcpOAuthClientPolicyBinding
 const McpOAuthScopePolicyError = scopePolicyModule.McpOAuthScopePolicyError
 const McpOAuthTransportChangedError = configLoaderModule.McpOAuthTransportChangedError
 const dependencies: McpOAuthManagerDependencies = {
+	areMcpOAuthClientConfigurationsEqual: clientPolicyModule.areMcpOAuthClientConfigurationsEqual,
 	authorizeMcpServerOAuth: oauthModule.authorizeMcpServerOAuth,
 	createMcpOAuthClientInformation: oauthModule.createMcpOAuthClientInformation,
-	createMcpOAuthClientPolicyBinding: clientPolicyBindingModule.createMcpOAuthClientPolicyBinding,
 	createMcpOAuthProviderContext: oauthModule.createMcpOAuthProviderContext,
 	createMcpOAuthTransportBinding,
 	resolveMcpServerRegistration: configLoaderModule.resolveMcpServerRegistration,
@@ -233,9 +241,14 @@ describe("McpOAuthManager transport-bound providers", () => {
 		const third = await manager.getOrCreateProvider("test", changedHeader, replacementClient)
 		expect(third).not.toBe(second)
 
+		const changedSecretClient = { ...replacementClient, clientSecret: "second-replacement-secret" }
+		await writeServer({ transport: changedHeader, oauthClient: changedSecretClient })
+		const changedSecret = await manager.getOrCreateProvider("test", changedHeader, changedSecretClient)
+		expect(changedSecret).not.toBe(third)
+
 		await writeServer({ transport: changedHeader })
 		const removed = await manager.getOrCreateProvider("test", changedHeader, undefined)
-		expect(removed).not.toBe(third)
+		expect(removed).not.toBe(changedSecret)
 
 		await writeServer({
 			transport: changedHeader,

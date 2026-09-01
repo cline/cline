@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { areMcpOAuthClientConfigurationsEqual } from "./oauth-client-policy";
 import { createMcpOAuthClientPolicyBinding } from "./oauth-client-policy-binding";
 
 describe("MCP OAuth client policy binding", () => {
@@ -21,7 +22,7 @@ describe("MCP OAuth client policy binding", () => {
 		expect(first).not.toContain("fixed-secret");
 	});
 
-	it("distinguishes dynamic registration and every static policy field", () => {
+	it("distinguishes dynamic registration and every public static policy field", () => {
 		const baseline = createMcpOAuthClientPolicyBinding({
 			clientId: "client-a",
 			clientSecret: "secret-a",
@@ -32,11 +33,6 @@ describe("MCP OAuth client policy binding", () => {
 			{
 				clientId: "client-b",
 				clientSecret: "secret-a",
-				allowedScopes: ["read"],
-			},
-			{
-				clientId: "client-a",
-				clientSecret: "secret-b",
 				allowedScopes: ["read"],
 			},
 			{
@@ -55,5 +51,28 @@ describe("MCP OAuth client policy binding", () => {
 		for (const variant of variants) {
 			expect(createMcpOAuthClientPolicyBinding(variant)).not.toBe(baseline);
 		}
+	});
+
+	it("excludes secrets from persisted identity while comparing them exactly", () => {
+		const first = {
+			clientId: "client-a",
+			clientSecret: "secret-a",
+			allowedScopes: ["read"],
+		};
+		const changedSecret = { ...first, clientSecret: "secret-b" };
+
+		expect(createMcpOAuthClientPolicyBinding(changedSecret)).toBe(
+			createMcpOAuthClientPolicyBinding(first),
+		);
+		expect(areMcpOAuthClientConfigurationsEqual(first, changedSecret)).toBe(
+			false,
+		);
+		expect(
+			areMcpOAuthClientConfigurationsEqual(first, {
+				...first,
+				allowedScopes: ["read"],
+				loopbackHostname: "127.0.0.1",
+			}),
+		).toBe(true);
 	});
 });

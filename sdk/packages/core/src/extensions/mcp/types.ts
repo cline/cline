@@ -68,8 +68,9 @@ export interface McpServerOAuthState {
 	 */
 	transportBinding?: string;
 	/**
-	 * SHA-256 identity of dynamic registration or the exact static client policy
-	 * allowed to reuse every artifact in this state.
+	 * SHA-256 identity of dynamic registration or the static client's public
+	 * policy. Confidential secrets are compared exactly against clientInformation
+	 * before any credential-bearing artifact is reused.
 	 */
 	clientPolicyBinding?: string;
 	clientInformation?: Record<string, unknown>;
