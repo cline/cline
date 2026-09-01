@@ -252,11 +252,10 @@ export async function runSubprocessEvent(
 		}, options.timeoutMs);
 	}
 
-	await Promise.race([
-		Promise.all([spawned, writeToChildStdin(child, JSON.stringify(payload))]),
-		completed,
-	]);
-
+	// Armed before the stdin write is awaited: a hook that never reads stdin
+	// can leave that write pending until it exits (seen on Windows), and an
+	// observation window that only starts afterwards would never censor
+	// anything — the sample would silently fall back to hooks that finished.
 	if (detached) {
 		if (options.onDetachedSettled) {
 			const startedAt = Date.now();
@@ -264,9 +263,9 @@ export async function runSubprocessEvent(
 			let reported = false;
 			let censorTimer: NodeJS.Timeout | undefined;
 			// Observe only: `completed` is already wired, and neither the
-			// listener nor the timer keeps the process alive (the child is
-			// unref'd below, the timer is unref'd here), so a hook that
-			// outlives the parent simply never reports.
+			// listener nor the timer keeps the process alive (the child and
+			// the timer are both unref'd), so a hook that outlives the parent
+			// simply never reports.
 			const reportOnce = (event: {
 				durationMs: number;
 				exitCode: number | null;
@@ -306,6 +305,14 @@ export async function runSubprocessEvent(
 				)
 				.catch(() => undefined);
 		}
+	}
+
+	await Promise.race([
+		Promise.all([spawned, writeToChildStdin(child, JSON.stringify(payload))]),
+		completed,
+	]);
+
+	if (detached) {
 		child.unref();
 		return;
 	}
