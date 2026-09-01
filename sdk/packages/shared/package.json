@@ -35,7 +35,9 @@
 		},
 		"./node": {
 			"types": "./dist/node.d.ts",
-			"import": "./dist/node.js"
+			"import": "./dist/node.js",
+			"require": "./dist/node.js",
+			"default": "./dist/node.js"
 		},
 		"./automation": {
 			"types": "./dist/automation/index.d.ts",

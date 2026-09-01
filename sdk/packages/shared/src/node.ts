@@ -2,6 +2,15 @@ import { readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { stripUtf8Bom } from "./parse/string";
 
+export {
+	type ResolveWindowsSpawnOptions,
+	resolveNpmInvocation,
+	resolveNpxInvocation,
+	resolveShellFreeInvocation,
+	resolveWindowsExecutable,
+	type ShellFreeInvocation,
+} from "./spawn";
+
 type ReadFileSyncPath = Parameters<typeof readFileSync>[0];
 type ReadFilePath = Parameters<typeof readFile>[0];
 

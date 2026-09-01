@@ -8,7 +8,7 @@ import {
 } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join, sep } from "node:path";
 import {
 	discoverPluginModulePaths,
 	resolvePluginConfigSearchPaths,
@@ -28,6 +28,85 @@ import {
 type FetchCall = (
 	...args: Parameters<typeof fetch>
 ) => ReturnType<typeof fetch>;
+
+const IS_WINDOWS = process.platform === "win32";
+
+/**
+ * Write an executable fake `npm` for `installPlugin({ npmCommand })`.
+ *
+ * The body is Node so both platforms run identical logic. On POSIX a shebang
+ * makes the script directly spawnable. On Windows nothing is directly
+ * spawnable, so we also emit an npm-shaped `.cmd` shim — the same
+ * `node "%~dp0<script>" %*` form npm generates — and hand that to the caller.
+ * That makes the test cross the real resolution boundary: plugin-install has to
+ * rewrite the shim to a shell-free `node <script>` invocation for this to run
+ * at all, exactly as it must for the real `npm.cmd`.
+ */
+function writeFakeNpm(
+	basePath: string,
+	behavior: {
+		logTo?: string;
+		logCwd?: boolean;
+		stderr?: string;
+		exitCode?: number;
+		materializePrefix?: boolean;
+	} = {},
+): string {
+	const {
+		logTo,
+		logCwd = true,
+		stderr,
+		exitCode = 0,
+		materializePrefix = false,
+	} = behavior;
+	const scriptPath = `${basePath}.js`;
+	const body = [
+		'const { appendFileSync, mkdirSync, writeFileSync } = require("node:fs");',
+		'const { join } = require("node:path");',
+		"const args = process.argv.slice(2);",
+	];
+	if (logTo) {
+		body.push(
+			logCwd
+				? "const logged = process.cwd() + ' ' + args.join(' ');"
+				: "const logged = args.join(' ');",
+			`appendFileSync(${JSON.stringify(logTo)}, logged + "\\n", "utf8");`,
+		);
+	}
+	if (materializePrefix) {
+		body.push(
+			'const prefixIndex = args.indexOf("--prefix");',
+			'const prefix = prefixIndex >= 0 ? args[prefixIndex + 1] : "";',
+			'const pluginDir = join(prefix, "node_modules", "published-plugin");',
+			'const sdkDir = join(prefix, "node_modules", "@cline", "core");',
+			"mkdirSync(pluginDir, { recursive: true });",
+			"mkdirSync(sdkDir, { recursive: true });",
+			'writeFileSync(join(pluginDir, "package.json"), JSON.stringify({ name: "published-plugin", type: "module", cline: { plugins: ["index.ts"] } }), "utf8");',
+			'writeFileSync(join(pluginDir, "index.ts"), "export default { name: \'published-plugin\', manifest: { capabilities: [\'tools\'] } };\\n", "utf8");',
+			'writeFileSync(join(sdkDir, "package.json"), JSON.stringify({ name: "@cline/core" }), "utf8");',
+		);
+	}
+	if (stderr) {
+		body.push(`process.stderr.write(${JSON.stringify(stderr)});`);
+	}
+	body.push(`process.exit(${exitCode});`);
+
+	if (IS_WINDOWS) {
+		writeFileSync(scriptPath, `${body.join("\n")}\n`, { encoding: "utf8" });
+		const shimPath = `${basePath}.cmd`;
+		writeFileSync(
+			shimPath,
+			`@echo off\r\nnode "%~dp0${basename(scriptPath)}" %*\r\n`,
+			{ encoding: "utf8" },
+		);
+		return shimPath;
+	}
+	writeFileSync(scriptPath, `#!/usr/bin/env node\n${body.join("\n")}\n`, {
+		encoding: "utf8",
+		mode: 0o755,
+	});
+	return scriptPath;
+}
 
 describe("plugin install command", () => {
 	let root = "";
@@ -282,12 +361,9 @@ describe("plugin install command", () => {
 			},
 		});
 		const npmLogPath = join(root, "official-npm-install.log");
-		const npmCommandPath = join(root, "official-fake-npm.sh");
-		writeFileSync(
-			npmCommandPath,
-			`#!/bin/sh\nprintf '%s\\n' "$PWD $*" >> "${npmLogPath}"\nexit 0\n`,
-			{ encoding: "utf8", mode: 0o755 },
-		);
+		const npmCommandPath = writeFakeNpm(join(root, "official-fake-npm"), {
+			logTo: npmLogPath,
+		});
 
 		const result = await installPlugin({
 			source: "package-plugin",
@@ -415,12 +491,9 @@ describe("plugin install command", () => {
 	it("installs into cwd plugin root when cwd is provided", async () => {
 		const source = join(root, "plugin-package");
 		const npmLogPath = join(root, "npm-install.log");
-		const npmCommandPath = join(root, "fake-npm.sh");
-		writeFileSync(
-			npmCommandPath,
-			`#!/bin/sh\nprintf '%s\\n' "$PWD $*" >> "${npmLogPath}"\nexit 0\n`,
-			{ encoding: "utf8", mode: 0o755 },
-		);
+		const npmCommandPath = writeFakeNpm(join(root, "fake-npm"), {
+			logTo: npmLogPath,
+		});
 		await mkdir(join(source, "node_modules", "dependency"), {
 			recursive: true,
 		});
@@ -489,7 +562,7 @@ describe("plugin install command", () => {
 		expect(packageManifest.peerDependencies).toEqual({ bun: ">=1.0.0" });
 		expect(packageManifest.peerDependenciesMeta).toBeUndefined();
 		const npmLog = readFileSync(npmLogPath, "utf8");
-		expect(npmLog).toContain(`${join(".tmp")}/`);
+		expect(npmLog).toContain(`.tmp${sep}`);
 		expect(npmLog).toContain(
 			"package install --omit=dev --omit=peer --legacy-peer-deps --no-audit --no-fund --package-lock=false",
 		);
@@ -506,29 +579,11 @@ describe("plugin install command", () => {
 
 	it("omits and removes host SDK packages from npm-sourced installs", async () => {
 		const npmLogPath = join(root, "npm-source-install.log");
-		const npmCommandPath = join(root, "fake-npm-source.sh");
-		writeFileSync(
-			npmCommandPath,
-			[
-				"#!/bin/sh",
-				`printf '%s\\n' "$*" >> "${npmLogPath}"`,
-				"prefix=''",
-				"while [ $# -gt 0 ]; do",
-				"  if [ \"$1\" = '--prefix' ]; then",
-				"    shift",
-				'    prefix="$1"',
-				"  fi",
-				"  shift",
-				"done",
-				'mkdir -p "$prefix/node_modules/published-plugin"',
-				'mkdir -p "$prefix/node_modules/@cline/core"',
-				'printf \'%s\\n\' \'{"name":"published-plugin","type":"module","cline":{"plugins":["index.ts"]}}\' > "$prefix/node_modules/published-plugin/package.json"',
-				"printf '%s\\n' \"export default { name: 'published-plugin', manifest: { capabilities: ['tools'] } };\" > \"$prefix/node_modules/published-plugin/index.ts\"",
-				'printf \'%s\\n\' \'{"name":"@cline/core"}\' > "$prefix/node_modules/@cline/core/package.json"',
-				"exit 0",
-			].join("\n"),
-			{ encoding: "utf8", mode: 0o755 },
-		);
+		const npmCommandPath = writeFakeNpm(join(root, "fake-npm-source"), {
+			logTo: npmLogPath,
+			logCwd: false,
+			materializePrefix: true,
+		});
 
 		const result = await installPlugin({
 			source: "npm:published-plugin@1.0.0",
@@ -564,7 +619,7 @@ describe("plugin install command", () => {
 
 	it("keeps an existing install when a forced replacement fails during staging", async () => {
 		const source = join(root, "replace-package");
-		const npmCommandPath = join(root, "fake-npm.sh");
+		const npmCommandBase = join(root, "fake-npm");
 		await mkdir(source, { recursive: true });
 		await writeFile(
 			join(source, "package.json"),
@@ -585,10 +640,7 @@ describe("plugin install command", () => {
 			"export default { name: 'installed-v1', manifest: { capabilities: ['tools'] } };",
 			"utf8",
 		);
-		writeFileSync(npmCommandPath, "#!/bin/sh\nexit 0\n", {
-			encoding: "utf8",
-			mode: 0o755,
-		});
+		const npmCommandPath = writeFakeNpm(npmCommandBase);
 
 		const first = await installPlugin({ source, npmCommand: npmCommandPath });
 		await writeFile(
@@ -596,10 +648,7 @@ describe("plugin install command", () => {
 			"export default { name: 'installed-v2', manifest: { capabilities: ['tools'] } };",
 			"utf8",
 		);
-		writeFileSync(npmCommandPath, "#!/bin/sh\nprintf 'offline' >&2\nexit 1\n", {
-			encoding: "utf8",
-			mode: 0o755,
-		});
+		writeFakeNpm(npmCommandBase, { stderr: "offline", exitCode: 1 });
 
 		await expect(
 			installPlugin({ source, force: true, npmCommand: npmCommandPath }),
@@ -613,7 +662,6 @@ describe("plugin install command", () => {
 
 	it("uninstalls a package plugin by package name", async () => {
 		const source = join(root, "uninstall-package");
-		const npmCommandPath = join(root, "fake-npm.sh");
 		await mkdir(source, { recursive: true });
 		await writeFile(
 			join(source, "package.json"),
@@ -634,10 +682,7 @@ describe("plugin install command", () => {
 			"export default { name: 'cli-uninstall-plugin', manifest: { capabilities: ['tools'] } };",
 			"utf8",
 		);
-		writeFileSync(npmCommandPath, "#!/bin/sh\nexit 0\n", {
-			encoding: "utf8",
-			mode: 0o755,
-		});
+		const npmCommandPath = writeFakeNpm(join(root, "fake-npm"));
 
 		const installed = await installPlugin({
 			source,

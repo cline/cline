@@ -21,6 +21,7 @@ import {
 	resolve,
 	sep,
 } from "node:path";
+import { resolveShellFreeInvocation } from "@cline/shared/node";
 import {
 	isPluginModulePath,
 	resolveClineDir,
@@ -571,6 +572,31 @@ async function runCommand(
 	});
 }
 
+/**
+ * Run npm without a shell.
+ *
+ * On Windows `npm` is a `.cmd` shim that `spawn()` cannot execute, so spawning
+ * it directly fails with ENOENT. Do not "fix" that with `shell: true`: cmd.exe
+ * re-parses the joined command line, so a semver range in a package spec is
+ * read as redirection. `pkg@<3` fails outright and `pkg@>=1.1.0` writes npm's
+ * output to a file named `1.1.0` and exits 0 — a failed install reported as a
+ * success. Resolving to a directly-spawnable invocation keeps every argument a
+ * distinct argv item. Non-Windows platforms pass through unchanged.
+ */
+async function runNpmCommand(
+	npmCommand: string,
+	args: string[],
+	options: { cwd?: string } = {},
+): Promise<void> {
+	const invocation = resolveShellFreeInvocation(npmCommand, args);
+	if (!invocation) {
+		throw new Error(
+			`Could not resolve "${npmCommand}" to a runnable command. Cline launches npm without a shell, so a batch shim such as npm.cmd is not enough on its own — npm's CLI script (npm-cli.js) must be present in the Node.js install on PATH. Reinstall Node.js, or set CLINE_NPM_COMMAND to an npm that runs without a shell.`,
+		);
+	}
+	await runCommand(invocation.command, invocation.args, options);
+}
+
 function readPackageManifest(
 	packageRoot: string,
 ): PluginPackageManifest | null {
@@ -769,7 +795,7 @@ async function installNpmPackage(
 		JSON.stringify({ name: "cline-plugin-install", private: true }, null, 2),
 		"utf8",
 	);
-	await runCommand(npmCommand, [
+	await runNpmCommand(npmCommand, [
 		"install",
 		parsed.spec,
 		"--prefix",
@@ -793,7 +819,7 @@ async function installPackageDependencies(
 		return;
 	}
 	await removeHostProvidedSdkDependencies(packageRoot);
-	await runCommand(
+	await runNpmCommand(
 		npmCommand,
 		[
 			"install",
@@ -1128,6 +1154,28 @@ export function collectPluginMcpOAuthCandidates(input: {
 	return candidates.sort((left, right) => left.name.localeCompare(right.name));
 }
 
+/**
+ * Remove a failed install's staging directory without masking why it failed.
+ *
+ * On Windows a scanner or indexer often still holds a handle to files npm just
+ * wrote, so this can fail with EPERM/EBUSY. Unguarded, that error replaces the
+ * install error we were about to throw — which is how `spawn npm ENOENT` gets
+ * reported as "EPERM, Permission denied" on the staging path. A leftover
+ * directory is a smaller problem than an unexplainable error.
+ */
+function discardStagingDirectory(stagingRoot: string): void {
+	try {
+		rmSync(stagingRoot, {
+			recursive: true,
+			force: true,
+			maxRetries: 5,
+			retryDelay: 100,
+		});
+	} catch {
+		// Best effort: the install error matters more than the leftover.
+	}
+}
+
 export async function installPlugin(
 	options: PluginInstallOptions,
 ): Promise<PluginInstallResult> {
@@ -1212,7 +1260,7 @@ export async function installPlugin(
 		});
 		return result;
 	} catch (error) {
-		rmSync(stagingRoot, { recursive: true, force: true });
+		discardStagingDirectory(stagingRoot);
 		throw error;
 	}
 }
