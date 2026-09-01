@@ -2183,7 +2183,6 @@ export function useChatSession() {
 	}, [
 		appendTurnFailureMessage,
 		applyCloudSnapshotMessages,
-		clearAbortFallbackTimeout,
 		clearLiveToolRefs,
 		finalizeSettledTurn,
 	]);
