@@ -24,6 +24,7 @@ import { toast } from "@/hooks/use-toast";
 import type {
 	ChatMessage,
 	ChatMessageImage,
+	ChatMessageMedia,
 	ChatSessionStatus,
 } from "@/lib/chat-schema";
 import { cn } from "@/lib/utils";
@@ -38,11 +39,16 @@ import {
 import { ChatImageLightbox } from "./messages/image-lightbox";
 import { MessageBubble } from "./messages/message-bubble";
 import {
+	resolveSessionArtifactUrl,
+	videoArtifactId,
+} from "./messages/message-videos";
+import {
 	ToolApprovalPanel,
 	type ToolApprovalRequestItem,
 } from "./messages/tool-approval-panel";
 import { ToolMessageBlock } from "./messages/tool-message-block";
 import { buildToolPresentation } from "./messages/tool-summaries";
+import { ChatVideoLightbox } from "./messages/video-lightbox";
 import { WorkBlock } from "./messages/work-block";
 import { SessionContent } from "./session-content";
 
@@ -185,12 +191,19 @@ function ChatMessagesImpl({
 		sessionId: string | null;
 		image: ChatMessageImage;
 	} | null>(null);
+	const [expandedVideo, setExpandedVideo] = useState<{
+		sessionId: string;
+		video: ChatMessageMedia;
+		source: string;
+	} | null>(null);
 	const sessionVersioningPending =
 		editingMessageId !== null ||
 		forkingMessageId !== null ||
 		Object.values(checkpointActions).includes("undoing");
 	const visibleExpandedImage =
 		expandedImage?.sessionId === sessionId ? expandedImage.image : null;
+	const visibleExpandedVideo =
+		expandedVideo?.sessionId === sessionId ? expandedVideo : null;
 	const showIdleDetails =
 		!hasMessages && !isSessionSwitching && !showSwitchTransition;
 	// The live run keeps rendering its rows while the session is active, and an
@@ -243,17 +256,18 @@ function ChatMessagesImpl({
 	}, [sessionId]);
 
 	useEffect(() => {
-		if (!visibleExpandedImage) {
+		if (!visibleExpandedImage && !visibleExpandedVideo) {
 			return;
 		}
 		const handleKeyDown = (event: KeyboardEvent) => {
 			if (event.key === "Escape") {
 				setExpandedImage(null);
+				setExpandedVideo(null);
 			}
 		};
 		window.addEventListener("keydown", handleKeyDown);
 		return () => window.removeEventListener("keydown", handleKeyDown);
-	}, [visibleExpandedImage]);
+	}, [visibleExpandedImage, visibleExpandedVideo]);
 
 	useEffect(() => {
 		if (!isSessionSwitching) {
@@ -453,6 +467,18 @@ function ChatMessagesImpl({
 		[sessionId],
 	);
 
+	const handleExpandVideo = useCallback(
+		async (video: ChatMessageMedia) => {
+			const artifactId = videoArtifactId(video);
+			if (!sessionId || !artifactId) {
+				return;
+			}
+			const source = await resolveSessionArtifactUrl(sessionId, artifactId);
+			setExpandedVideo({ sessionId, video, source });
+		},
+		[sessionId],
+	);
+
 	const getReasoningProps = useCallback(
 		(reasoningMessages: ChatMessage[]) => {
 			const firstReasoningMessage = reasoningMessages[0];
@@ -565,6 +591,7 @@ function ChatMessagesImpl({
 												message={child.message}
 												onCopyMessage={handleCopyMessage}
 												onExpandImage={handleExpandImage}
+												onExpandVideo={handleExpandVideo}
 												wasCopied={copiedMessageId === child.message.id}
 												{...getReasoningProps(child.reasoningMessages)}
 											/>
@@ -615,6 +642,7 @@ function ChatMessagesImpl({
 											message={message}
 											runCount={userRunCountByMessage.get(message)}
 											onExpandImage={handleExpandImage}
+											onExpandVideo={handleExpandVideo}
 											onCopyMessage={handleCopyMessage}
 											onEditMessage={
 												onEditMessage ? requestEditMessage : undefined
@@ -756,6 +784,13 @@ function ChatMessagesImpl({
 				<ChatImageLightbox
 					image={visibleExpandedImage}
 					onClose={() => setExpandedImage(null)}
+				/>
+			) : null}
+			{visibleExpandedVideo ? (
+				<ChatVideoLightbox
+					onClose={() => setExpandedVideo(null)}
+					source={visibleExpandedVideo.source}
+					video={visibleExpandedVideo.video}
 				/>
 			) : null}
 			<AlertDialog

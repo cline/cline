@@ -27,6 +27,7 @@ import { MemoizedMarkdown } from "../../../ui/markdown";
 import { formatChatMessageContent } from "../message-content";
 import { isSystemSteeringMessage } from "./group-messages";
 import { MessageImageCarousel } from "./image-carousel";
+import { MessageVideos, videoArtifactId } from "./message-videos";
 import { ReasoningBlock } from "./reasoning-block";
 
 function MessageImages({
@@ -66,10 +67,31 @@ function MessageImages({
 	);
 }
 
-function MessageMedia({ media }: { media: ChatMessageMedia[] }) {
+function MessageMedia({
+	media,
+	sessionId,
+	onExpandVideo,
+}: {
+	media: ChatMessageMedia[];
+	sessionId?: string | null;
+	onExpandVideo?: (video: ChatMessageMedia) => void;
+}) {
+	// Artifact-backed videos are served by the session host over the byte-range
+	// artifact endpoint; everything else renders from validated inline bytes.
+	const artifactVideos = sessionId
+		? media.filter((item) => videoArtifactId(item) !== undefined)
+		: [];
+	const inlineMedia = media.filter((item) => !artifactVideos.includes(item));
 	return (
 		<div className="flex max-w-2xl flex-col gap-2">
-			{media.map((item) => (
+			{artifactVideos.length && sessionId ? (
+				<MessageVideos
+					onExpandVideo={onExpandVideo}
+					sessionId={sessionId}
+					videos={artifactVideos}
+				/>
+			) : null}
+			{inlineMedia.map((item) => (
 				<GeneratedMediaContent
 					classNames={{
 						image:
@@ -97,6 +119,7 @@ export const MessageBubble = memo(function MessageBubble({
 	isStreaming = false,
 	onCopyMessage,
 	onExpandImage,
+	onExpandVideo,
 	onEditMessage,
 	editDisabled = false,
 	editPending = false,
@@ -122,6 +145,7 @@ export const MessageBubble = memo(function MessageBubble({
 	isStreaming?: boolean;
 	onCopyMessage?: (messageId: string, content: string) => void | Promise<void>;
 	onExpandImage?: (image: ChatMessageImage) => void;
+	onExpandVideo?: (video: ChatMessageMedia) => void;
 	onEditMessage?: (
 		messageId: string,
 		content: string,
@@ -235,7 +259,13 @@ export const MessageBubble = memo(function MessageBubble({
 					/>
 				) : null}
 
-				{message.media?.length ? <MessageMedia media={message.media} /> : null}
+				{message.media?.length ? (
+					<MessageMedia
+						media={message.media}
+						onExpandVideo={onExpandVideo}
+						sessionId={message.sessionId}
+					/>
+				) : null}
 
 				{displayContent ? (
 					<div className="min-w-0 max-w-full wrap-break-word">
