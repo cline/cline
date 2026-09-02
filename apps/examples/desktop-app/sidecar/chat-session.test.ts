@@ -22,7 +22,10 @@ import {
 	combineCloudHandoffModels,
 	consumeWorkspaceMetadata,
 	copySessionGeneratedArtifacts,
+<<<<<<< HEAD
 	formatPendingHandoffVerificationError,
+=======
+>>>>>>> 473aabf1e (feat(desktop): serve and play generated audio artifacts)
 	handleChatSessionCommand,
 	hasProviderChanged,
 	mergeSessionConfig,
