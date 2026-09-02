@@ -43,6 +43,28 @@ function messageText(payload: JsonRecord): string {
 		.join("\n");
 }
 
+/**
+ * Tool outputs are a plain string in older rollouts, but newer Codex writes
+ * custom_tool_call_output.output as Responses-API content blocks
+ * ({type:"input_text", text}). Flatten those to text so the transcript holds
+ * the real output instead of a JSON-encoded block list.
+ */
+function toolOutputText(output: unknown): string {
+	if (typeof output === "string") return output;
+	if (Array.isArray(output)) {
+		const parts: string[] = [];
+		for (const item of output) {
+			if (typeof item === "string") {
+				parts.push(item);
+			} else if (isRecord(item) && typeof item.text === "string") {
+				parts.push(item.text);
+			}
+		}
+		if (parts.length > 0 || output.length === 0) return parts.join("");
+	}
+	return JSON.stringify(output ?? "");
+}
+
 /** Context Codex injects as user-role response items, not typed by a person. */
 function isInjectedUserContext(text: string): boolean {
 	const trimmed = text.trimStart();
@@ -450,10 +472,7 @@ export class CodexImportAdapter implements SessionImportAdapter {
 					const callId =
 						typeof payload.call_id === "string" ? payload.call_id : undefined;
 					if (!callId) break;
-					const output =
-						typeof payload.output === "string"
-							? payload.output
-							: JSON.stringify(payload.output ?? "");
+					const output = toolOutputText(payload.output);
 					flushAssistant();
 					pendingToolResults.push({
 						type: "tool_result",

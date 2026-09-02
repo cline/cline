@@ -403,6 +403,68 @@ describe("CodexImportAdapter", () => {
 		});
 	});
 
+	it("flattens content-block tool outputs from newer rollouts into text", () => {
+		const codexHome = tempDir("codex-import-blocks-");
+		const dayDir = join(codexHome, "sessions", "2026", "02", "01");
+		mkdirSync(dayDir, { recursive: true });
+		writeFileSync(
+			join(dayDir, "rollout-2026-02-01T09-00-00-cdx-2.jsonl"),
+			jsonl([
+				{
+					timestamp: "2026-02-01T09:00:00.000Z",
+					type: "session_meta",
+					payload: { id: "cdx-2", cwd: "/workspace/api" },
+				},
+				{
+					timestamp: "2026-02-01T09:00:01.000Z",
+					type: "event_msg",
+					payload: { type: "user_message", message: "list the routes" },
+				},
+				{
+					timestamp: "2026-02-01T09:00:02.000Z",
+					type: "response_item",
+					payload: {
+						type: "custom_tool_call",
+						name: "exec",
+						call_id: "call_blocks",
+						input: 'const r = await tools.exec_command({"cmd":"ls"});',
+					},
+				},
+				{
+					timestamp: "2026-02-01T09:00:03.000Z",
+					type: "response_item",
+					payload: {
+						type: "custom_tool_call_output",
+						call_id: "call_blocks",
+						output: [
+							{ type: "input_text", text: "Script completed\nOutput:\n" },
+							{ type: "input_text", text: "health.ts\nusers.ts\n" },
+						],
+					},
+				},
+				{
+					timestamp: "2026-02-01T09:00:04.000Z",
+					type: "response_item",
+					payload: {
+						type: "message",
+						role: "assistant",
+						content: [{ type: "output_text", text: "Two routes." }],
+					},
+				},
+			]),
+		);
+		const adapter = new CodexImportAdapter({ codexHome });
+		const converted = adapter.convert("cdx-2");
+		const toolResult = (
+			converted.messages[2].content as unknown as Array<Record<string, unknown>>
+		)[0];
+		expect(toolResult.type).toBe("tool_result");
+		expect(toolResult.content).toBe(
+			"Script completed\nOutput:\nhealth.ts\nusers.ts\n",
+		);
+		expect(JSON.stringify(converted.messages)).not.toContain("input_text");
+	});
+
 	it("dedupes resumed rollouts sharing one session id, keeping the richer file", () => {
 		const codexHome = tempDir("codex-import-");
 		writeCodexFixture(codexHome);
