@@ -8,7 +8,6 @@ import { desktopClient } from "@/lib/desktop-client";
 import type {
 	Provider,
 	ProviderCatalogResponse,
-	ProviderMode,
 	ProviderModel,
 	ProviderModelsResponse,
 	ProviderModesSettings,

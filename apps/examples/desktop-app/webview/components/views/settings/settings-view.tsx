@@ -319,7 +319,15 @@ export function SettingsView({
 			if (generation !== catalogGenerationRef.current) {
 				return;
 			}
-			setProvidersWithCache(payload.providers);
+			setProvidersWithCache(payload.providers, payload.mediaGenerationModels);
+			setMediaGenerationModels(payload.mediaGenerationModels);
+			const modes =
+				payload.modes ??
+				(payload.voiceInput ? { voiceInput: payload.voiceInput } : {});
+			modeSettingsCache = modes;
+			setModeSettings(modes);
+			mediaGenerationCache = payload.mediaGeneration;
+			setMediaGeneration(payload.mediaGeneration);
 		} catch {
 			// Background refresh only; the optimistic state remains until the
 			// next full load.

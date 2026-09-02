@@ -10,6 +10,7 @@ import {
 	type MediaGenerationType,
 	type MediaModelSelection,
 	modelProducesImages,
+	PROVIDER_MODE_IDS,
 	type ProviderCapability,
 	type ProviderCatalogResponse,
 	type ProviderConfigField,
@@ -26,7 +27,6 @@ import {
 	type TextContent,
 	type VoiceInputSelection,
 } from "@cline/shared";
-import { PROVIDER_MODE_IDS } from "@cline/shared";
 import { createOAuthClientCallbacks } from "../../auth/client";
 import {
 	getProviderAuthHandler,

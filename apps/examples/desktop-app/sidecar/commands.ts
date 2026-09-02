@@ -39,7 +39,6 @@ import {
 	readGlobalSettings,
 	resolveDisabledToolNames,
 	resolveEnabledOptInToolNames,
-	resolveLocalClineAuthToken,
 	resolveMcpServerRegistration,
 	resolveSessionBackend,
 	resolveAgentConfigSearchPaths as resolveSharedAgentConfigSearchPaths,
