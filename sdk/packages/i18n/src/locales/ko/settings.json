@@ -1,0 +1,11 @@
+{
+	"preferredLanguage": {
+		"description": "Cline이 대화할 때 사용할 언어입니다.",
+		"label": "선호 언어"
+	},
+	"uiLanguage": {
+		"auto": "자동(VS Code 언어에 맞춤)",
+		"description": "Cline 인터페이스에 사용할 언어입니다.",
+		"label": "표시 언어"
+	}
+}

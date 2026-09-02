@@ -1,0 +1,38 @@
+{
+	"addToFavorites": "Добавить в избранное",
+	"clearSearch": "Очистить поиск",
+	"deleteAll": "Удалить всю историю",
+	"deleteAllAria": "Удалить всю историю",
+	"deleteSelectedAria": "Удалить выбранные элементы",
+	"deleteSelected_one": "Удалить {{count}} выбранный",
+	"deleteSelected_few": "Удалить {{count}} выбранных",
+	"deleteSelected_many": "Удалить {{count}} выбранных",
+	"deleteSelected_other": "Удалить {{count}} выбранных",
+	"favorited": "В избранном",
+	"filters": {
+		"favoritesOnly": "Только избранное",
+		"mostExpensive": "Самые дорогие",
+		"mostRelevant": "Самые релевантные",
+		"mostTokens": "Больше всего токенов",
+		"newest": "Сначала новые",
+		"oldest": "Сначала старые",
+		"workspaceOnly": "Только текущее рабочее пространство"
+	},
+	"groups": {
+		"older": "Ранее",
+		"today": "Сегодня"
+	},
+	"legacy": "Устаревшая",
+	"modelLabel": "Модель",
+	"noRecentTasks": "Нет недавних задач",
+	"recent": "Недавние",
+	"removeFromFavorites": "Убрать из избранного",
+	"searchPlaceholder": "Нечёткий поиск по истории...",
+	"selectAll": "Выбрать все",
+	"selectNone": "Снять выбор",
+	"sizeLabel": "Размер",
+	"title": "История",
+	"tokensLabel": "Токены",
+	"viewAll": "Показать все",
+	"viewAllAria": "Показать всю историю"
+}

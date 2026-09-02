@@ -1,0 +1,11 @@
+{
+	"preferredLanguage": {
+		"description": "El idioma que Cline debe usar para comunicarse.",
+		"label": "Idioma preferido"
+	},
+	"uiLanguage": {
+		"auto": "Automático (según VS Code)",
+		"description": "El idioma de la interfaz de Cline.",
+		"label": "Idioma de la interfaz"
+	}
+}

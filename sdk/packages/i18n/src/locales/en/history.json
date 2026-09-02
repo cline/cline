@@ -1,0 +1,36 @@
+{
+	"addToFavorites": "Add to favorites",
+	"clearSearch": "Clear search",
+	"deleteAll": "Delete All History",
+	"deleteAllAria": "Delete all history",
+	"deleteSelectedAria": "Delete selected items",
+	"deleteSelected_one": "Delete Selected",
+	"deleteSelected_other": "Delete {{count}} Selected",
+	"favorited": "Favorited",
+	"filters": {
+		"favoritesOnly": "Favorites Only",
+		"mostExpensive": "Most Expensive",
+		"mostRelevant": "Most Relevant",
+		"mostTokens": "Most Tokens",
+		"newest": "Newest",
+		"oldest": "Oldest",
+		"workspaceOnly": "Workspace Only"
+	},
+	"groups": {
+		"older": "Older",
+		"today": "Today"
+	},
+	"legacy": "Legacy",
+	"modelLabel": "Model",
+	"noRecentTasks": "No recent tasks",
+	"recent": "Recent",
+	"removeFromFavorites": "Remove from favorites",
+	"searchPlaceholder": "Fuzzy search history...",
+	"selectAll": "Select All",
+	"selectNone": "Select None",
+	"sizeLabel": "Size",
+	"title": "History",
+	"tokensLabel": "Tokens",
+	"viewAll": "View All",
+	"viewAllAria": "View all history"
+}

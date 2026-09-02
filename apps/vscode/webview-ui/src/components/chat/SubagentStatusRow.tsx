@@ -16,6 +16,7 @@ import {
 	NetworkIcon,
 } from "lucide-react"
 import { useEffect, useMemo, useRef, useState } from "react"
+import { uiLocale } from "@/utils/format"
 import MarkdownBlock from "../common/MarkdownBlock"
 
 interface SubagentStatusRowProps {
@@ -58,13 +59,13 @@ const formatCount = (value: number | undefined): string => {
 		return "0"
 	}
 
-	return Intl.NumberFormat("en-US").format(value || 0)
+	return Intl.NumberFormat(uiLocale()).format(value || 0)
 }
 
 const formatCost = (value: number | undefined): string => {
 	const normalized = Number.isFinite(value) ? Math.max(0, value || 0) : 0
 	const maximumFractionDigits = normalized >= 0.01 ? 2 : 4
-	return Intl.NumberFormat("en-US", {
+	return Intl.NumberFormat(uiLocale(), {
 		style: "currency",
 		currency: "USD",
 		minimumFractionDigits: 2,
