@@ -1,9 +1,11 @@
 import {
 	createGateway,
 	createHandlerAsync,
+	getGeneratedModelsForProvider,
 	hasRegisteredHandler,
 	MODEL_COLLECTIONS_BY_PROVIDER_ID,
 	normalizeProviderId,
+	resolveProviderModelCatalogKeys,
 	toGatewayModelCapabilities,
 } from "@cline/llms";
 import type {
@@ -99,15 +101,44 @@ function readPositiveInteger(value: unknown): number | undefined {
 		: undefined;
 }
 
+function isGeneratedMediaModel(model: ModelInfo): boolean {
+	return (
+		model.operation === "image-generation" ||
+		model.operation === "video-generation" ||
+		model.modalities?.output.includes("image") === true ||
+		model.modalities?.output.includes("video") === true
+	);
+}
+
+function resolveFallbackKnownModels(
+	providerId: string,
+): Record<string, ModelInfo> | undefined {
+	const generatedMediaModels = Object.fromEntries(
+		resolveProviderModelCatalogKeys(providerId)
+			.flatMap((catalogKey) =>
+				Object.entries(getGeneratedModelsForProvider(catalogKey)),
+			)
+			.filter(([, model]) => isGeneratedMediaModel(model)),
+	);
+	const curatedModels = MODEL_COLLECTIONS_BY_PROVIDER_ID[providerId]?.models;
+	// Curated collections enforce transport-specific allowlists and limits
+	// (notably Codex, Claude Code, and local model providers). Generated catalog
+	// metadata may fill visual-media gaps, but must never overwrite those rules.
+	const knownModels = {
+		...generatedMediaModels,
+		...curatedModels,
+	};
+	return Object.keys(knownModels).length > 0 ? knownModels : undefined;
+}
+
 export function resolveKnownModelsFromConfig(
 	config: AgentConfig,
 ): Record<string, ModelInfo> | undefined {
 	const pc = config.providerConfig as ProviderConfig | undefined;
-	const knownModels = pc?.knownModels
-		? pc.knownModels
-		: (config.knownModels ??
-			MODEL_COLLECTIONS_BY_PROVIDER_ID[config.providerId]?.models ??
-			undefined);
+	const knownModels =
+		pc?.knownModels ??
+		config.knownModels ??
+		resolveFallbackKnownModels(config.providerId);
 	// Caller-configured limits are authoritative for the selected model —
 	// surface them to the gateway so the resolved model definition carries
 	// the right limits (e.g. Ollama's num_ctx derives from the resolved
