@@ -1,7 +1,7 @@
 import { describe, it } from "bun:test"
 import { strict as assert } from "node:assert"
-import type { ClineMessage } from "./ExtensionMessage"
 import { combineApiRequests } from "./combineApiRequests"
+import type { ClineMessage } from "./ExtensionMessage"
 
 function started(ts: number, text: string) {
 	return { ts, type: "say", say: "api_req_started", text } as ClineMessage
@@ -52,10 +52,7 @@ describe("combineApiRequests", () => {
 	})
 
 	it("does not throw on a malformed api_req_finished payload", () => {
-		const messages: ClineMessage[] = [
-			started(1, JSON.stringify({ request: "A", cost: 0.1 })),
-			finished(2, "{not-json"),
-		]
+		const messages: ClineMessage[] = [started(1, JSON.stringify({ request: "A", cost: 0.1 })), finished(2, "{not-json")]
 
 		const combined = combineApiRequests(messages)
 

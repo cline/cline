@@ -191,6 +191,146 @@ describe("ChatMessages tool disclosures", () => {
 		);
 	});
 
+	it("renders image content returned by a tool instead of raw base64", async () => {
+		const screenshotData = "aGVsbG8=";
+		await renderMessages([
+			{
+				id: "tool-screenshot",
+				sessionId: "session-1",
+				role: "tool",
+				content: JSON.stringify({
+					toolName: "computer_use",
+					input: { action: "screenshot" },
+					result: [
+						{
+							type: "text",
+							text: "Screenshot captured at /tmp/screenshot.png",
+						},
+						{
+							type: "image",
+							data: screenshotData,
+							mimeType: "image/png",
+						},
+					],
+				}),
+				createdAt: 1,
+			},
+		]);
+
+		const trigger = [...container.querySelectorAll("button")].find((element) =>
+			element.textContent?.includes("Computer use"),
+		);
+		expect(trigger?.getAttribute("aria-expanded")).toBe("true");
+		expect(container.textContent).toContain(
+			"Screenshot captured at /tmp/screenshot.png",
+		);
+		expect(container.textContent).not.toContain(screenshotData);
+
+		const image = container.querySelector<HTMLImageElement>(
+			'img[alt="Generated result 1"]',
+		);
+		expect(image?.src).toBe(`data:image/png;base64,${screenshotData}`);
+
+		await act(async () => image?.closest("button")?.click());
+		expect(
+			container.querySelector(
+				'[role="dialog"][aria-label="Expanded attachment"]',
+			),
+		).not.toBeNull();
+	});
+
+	it("navigates multiple images returned by a single tool call", async () => {
+		await renderMessages([
+			{
+				id: "tool-multi-screenshot",
+				sessionId: "session-1",
+				role: "tool",
+				content: JSON.stringify({
+					toolName: "computer_use",
+					input: { action: "screenshot" },
+					result: [
+						{ type: "image", data: "Zmlyc3Q=", mimeType: "image/png" },
+						{ type: "image", data: "c2Vjb25k", mimeType: "image/png" },
+					],
+				}),
+				createdAt: 1,
+			},
+		]);
+
+		expect(
+			container.querySelector<HTMLImageElement>('img[alt="Generated result 1"]')
+				?.src,
+		).toBe("data:image/png;base64,Zmlyc3Q=");
+		expect(container.querySelector('img[alt="Generated result 2"]')).toBeNull();
+		expect(container.textContent).toContain("1 / 2");
+
+		const next = container.querySelector<HTMLButtonElement>(
+			'button[aria-label="Next generated image"]',
+		);
+		await act(async () => next?.click());
+
+		expect(
+			container.querySelector<HTMLImageElement>('img[alt="Generated result 2"]')
+				?.src,
+		).toBe("data:image/png;base64,c2Vjb25k");
+		expect(container.textContent).toContain("2 / 2");
+	});
+
+	it("auto-expands submit_and_exit and renders its summary as markdown", async () => {
+		const summary = "## Report\n\nChecked **3 feeds**, all healthy.";
+		await renderMessages([
+			{
+				id: "tool-submit",
+				sessionId: "session-1",
+				role: "tool",
+				content: JSON.stringify({
+					toolName: "submit_and_exit",
+					input: { summary, verified: true },
+					result: summary,
+				}),
+				createdAt: 1,
+			},
+		]);
+
+		// The final answer of the run is visible without a click…
+		const trigger = [...container.querySelectorAll("button")].find((element) =>
+			element.textContent?.includes("Scheduled task completed"),
+		);
+		expect(trigger?.getAttribute("aria-expanded")).toBe("true");
+		// …rendered as markdown structure, not a monospace code block.
+		const panel = document.getElementById(
+			trigger?.getAttribute("aria-controls") ?? "",
+		);
+		const markdown = panel?.querySelector(".cline-markdown");
+		expect(markdown?.querySelector("h2")?.textContent).toBe("Report");
+		expect(markdown?.textContent).toContain("3 feeds");
+		expect(markdown?.textContent).not.toContain("##");
+		expect(markdown?.textContent).not.toContain("**");
+		// The final answer renders in full foreground color, overriding the
+		// panel's muted tool-detail gray.
+		expect(markdown?.closest(".text-foreground")).not.toBeNull();
+	});
+
+	it("labels an errored submit_and_exit as failed", async () => {
+		await renderMessages([
+			{
+				id: "tool-submit-error",
+				sessionId: "session-1",
+				role: "tool",
+				content: JSON.stringify({
+					toolName: "submit_and_exit",
+					input: { summary: "Attempted report.", verified: false },
+					isError: true,
+					result: { error: "submit_and_exit timed out after 15000ms" },
+				}),
+				createdAt: 1,
+			},
+		]);
+
+		expect(container.textContent).toContain("Scheduled task failed");
+		expect(container.textContent).not.toContain("Scheduled task completed");
+	});
+
 	it("renders consecutive tool calls as individual rows", async () => {
 		const tools: ChatMessage[] = [
 			{

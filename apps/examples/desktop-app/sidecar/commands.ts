@@ -35,6 +35,10 @@ import {
 	resolveMcpServerRegistration,
 	resolveSessionBackend,
 	resolveAgentConfigSearchPaths as resolveSharedAgentConfigSearchPaths,
+	SESSION_IMPORT_TOOLS,
+	type SessionImportRequest,
+	SessionImportService,
+	type SessionImportTool,
 	SqliteSessionStore,
 	saveLocalProviderSettings,
 	saveVoiceInputSettings,
@@ -45,10 +49,13 @@ import {
 	transcribeConfiguredVoiceInput,
 	updateLocalProvider,
 	updateMcpSettingsFileSync,
+	upgradeManagedHub,
 } from "@cline/core";
 import { resolveAudioTranscriptionRoute } from "@cline/llms";
 import {
 	CLINE_DEFAULT_MODEL_ID,
+	formatSessionSearchPreview,
+	formatSessionSearchTitle,
 	getClineEnvironmentConfig,
 	isCanonicalBase64,
 	ONE_TIME_SCHEDULE_CRON_PATTERN,
@@ -59,6 +66,11 @@ import { readFileSyncStrippingUtf8Bom } from "@cline/shared/node";
 import packageJson from "../package.json";
 import { CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT } from "../webview/lib/cline-account-state";
 import { MAX_RECORDED_AUDIO_BYTES } from "../webview/lib/voice-input-limits";
+import {
+	listClineGitHubRepositories,
+	listClineIntegrations,
+	resolveGitHubInstallUrl,
+} from "./commands-integrations";
 import {
 	connectorChannelsPayload,
 	startConnectorChannel,
@@ -534,6 +546,67 @@ async function listSessionsFromSidecarManager(
 		.slice(0, max);
 }
 
+async function withSearchDeadline<T>(
+	promise: Promise<T>,
+	timeoutMs: number,
+): Promise<T> {
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	try {
+		return await Promise.race([
+			promise,
+			new Promise<never>((_, reject) => {
+				timer = setTimeout(
+					() => reject(new Error("Session search timed out")),
+					timeoutMs,
+				);
+			}),
+		]);
+	} finally {
+		if (timer) clearTimeout(timer);
+	}
+}
+
+function metadataSessionSearchHits(
+	value: unknown,
+	query: string,
+): JsonRecord[] {
+	if (!Array.isArray(value)) return [];
+	const normalizedQuery = query.toLocaleLowerCase();
+	return value.flatMap((item) => {
+		if (!item || typeof item !== "object") return [];
+		const session = item as JsonRecord;
+		const metadata =
+			session.metadata && typeof session.metadata === "object"
+				? (session.metadata as JsonRecord)
+				: {};
+		const sessionId = String(session.sessionId ?? "").trim();
+		if (!sessionId) return [];
+		const rawTitle = String(
+			metadata.title ?? session.title ?? session.prompt ?? sessionId,
+		).trim();
+		const prompt = String(session.prompt ?? metadata.prompt ?? "");
+		const title = formatSessionSearchTitle(rawTitle) || sessionId;
+		const workspaceRoot = String(session.workspaceRoot ?? session.cwd ?? "");
+		const searchable = [rawTitle, prompt, workspaceRoot, session.model]
+			.join("\n")
+			.toLocaleLowerCase();
+		if (!searchable.includes(normalizedQuery)) return [];
+		return [
+			{
+				sessionId,
+				documentId: `${sessionId}:metadata`,
+				ordinal: -1,
+				role: "session",
+				startedAt: String(session.startedAt ?? session.createdAt ?? ""),
+				workspaceRoot,
+				title,
+				snippet: formatSessionSearchPreview("session", prompt || title),
+				score: 0,
+			},
+		];
+	});
+}
+
 // ---------------------------------------------------------------------------
 // Git helpers
 // ---------------------------------------------------------------------------
@@ -616,7 +689,15 @@ async function handleRoutineScheduleCommand(
 		hubCommand: string,
 		payload?: Record<string, unknown>,
 	) => {
-		const reply = await hubClient.command(hubCommand as never, payload);
+		// The desktop app runs chats (and therefore agent-created schedules)
+		// across many workspace folders, while this hub client is registered
+		// against the app's own launch directory. Ask the hub for schedules
+		// across all workspaces so the Schedules page manages every schedule
+		// on this machine, not just the launch-directory scope.
+		const reply = await hubClient.command(hubCommand as never, {
+			...payload,
+			allWorkspaces: true,
+		});
 		if (!reply.ok) {
 			throw new Error(
 				reply.error?.message ?? `hub command failed: ${hubCommand}`,
@@ -1307,6 +1388,45 @@ export async function handleCommand(
 		return "";
 	}
 
+	// ── Managed hub upgrade ───────────────────────────────────────────
+	if (command === "hub_upgrade") {
+		// Replacing the shared Hub interrupts other clients' sessions, so it
+		// carries the same per-connection gate as the tool-approval commands:
+		// only the webview connection dialed with the approval token may ask,
+		// never an arbitrary local WebSocket client.
+		if (!options?.connection?.data?.canApproveTools) {
+			throw new Error("hub upgrade requires a trusted desktop connection");
+		}
+		// Only reached after the user accepted the blocking "Hub update
+		// required" dialog, so force: the old Hub is replaced even though it
+		// is still serving other clients' sessions. Drain-first semantics
+		// still give in-flight turns the wait window to finish.
+		const result = await upgradeManagedHub({
+			workspaceRoot: ctx.workspaceRoot,
+			force: true,
+			reason: "Cline Desktop hub update",
+		});
+		if (result.outcome === "hub_not_older") {
+			throw new Error(
+				"The running Cline Hub is newer than this app, so it was not replaced. Update Cline instead.",
+			);
+		}
+		if (result.outcome === "still_busy") {
+			throw new Error(
+				"The running Cline Hub picked up new sessions before it could be replaced, so it was left running. Try again.",
+			);
+		}
+		// The mismatch is resolved: a null broadcast closes the dialog in
+		// every connected webview and stops the replay-on-connect.
+		ctx.hubBuildMismatch = null;
+		broadcastEvent(ctx, "hub_build_mismatch", null);
+		return {
+			outcome: result.outcome,
+			url: result.url ?? null,
+			interruptedSessionCount: result.activeSessionCount ?? 0,
+		};
+	}
+
 	// ── Tool approvals (in-memory) ────────────────────────────────────
 	if (command === "poll_tool_approvals") {
 		const sessionId = String(args?.sessionId ?? "").trim();
@@ -1390,10 +1510,104 @@ export async function handleCommand(
 			typeof args?.limit === "number" ? args.limit : 300,
 		);
 	}
+	if (command === "search_sessions") {
+		const query = String(args?.query ?? "").trim();
+		if (!query) return [];
+		const limit =
+			typeof args?.limit === "number" && Number.isFinite(args.limit)
+				? Math.max(1, Math.min(200, Math.trunc(args.limit)))
+				: 50;
+		const workspaceRoot =
+			typeof args?.workspaceRoot === "string"
+				? args.workspaceRoot.trim() || undefined
+				: undefined;
+		if (ctx.hubClient) {
+			try {
+				const reply = await withSearchDeadline(
+					ctx.hubClient.command("session.search", {
+						query,
+						limit,
+						workspaceRoot,
+					}),
+					750,
+				);
+				if (
+					reply.ok &&
+					Array.isArray(reply.payload?.hits) &&
+					reply.payload.hits.length > 0
+				) {
+					return reply.payload.hits.slice(0, limit).map((hit) => ({
+						...hit,
+						title: formatSessionSearchTitle(hit.title),
+						snippet: formatSessionSearchPreview(hit.role, hit.snippet),
+					}));
+				}
+			} catch {
+				// Fall back to metadata-only search when the index is unavailable.
+			}
+		}
+
+		const sessions = await withSearchDeadline(
+			listSessionsFromSidecarManager(ctx, 500),
+			1_000,
+		).catch(() => []);
+		return metadataSessionSearchHits(sessions, query).slice(0, limit);
+	}
 	if (command === "get_discovered_session") {
 		const sessionId = String(args?.sessionId ?? args?.session_id ?? "").trim();
 		if (!sessionId) throw new Error("session id is required");
 		return (await getSessionFromSidecarManager(ctx, sessionId)) ?? null;
+	}
+
+	// ── Session import from other coding tools ────────────────────────
+	if (command === "list_importable_sessions") {
+		const backend = await resolveSessionBackend({ backendMode: "local" });
+		const importer = new SessionImportService(backend);
+		return {
+			installedTools: importer.installedTools(),
+			sessions: await importer.discover(),
+		};
+	}
+	if (command === "import_sessions") {
+		const rawSelections = Array.isArray(args?.selections)
+			? args.selections
+			: [];
+		const requests: SessionImportRequest[] = [];
+		for (const selection of rawSelections) {
+			if (!selection || typeof selection !== "object") continue;
+			const tool = String((selection as JsonRecord).tool ?? "").trim();
+			const sourceId = String((selection as JsonRecord).sourceId ?? "").trim();
+			if (!sourceId) continue;
+			if (!(SESSION_IMPORT_TOOLS as readonly string[]).includes(tool)) {
+				continue;
+			}
+			requests.push({ tool: tool as SessionImportTool, sourceId });
+		}
+		if (requests.length === 0) {
+			throw new Error("at least one { tool, sourceId } selection is required");
+		}
+		const backend = await resolveSessionBackend({ backendMode: "local" });
+		const importer = new SessionImportService(backend);
+		// Opening a history session resumes on the row's provider/model, so the
+		// UI passes what a new chat would run on; the source tool's own
+		// provider/model stay in metadata.importedFrom.
+		// Never let the source tool's provider become the resume target: when
+		// the caller sends no selection, use the app default like other
+		// server-started sessions do.
+		const provider = asTrimmedString(args?.provider) ?? "cline";
+		const model = asTrimmedString(args?.model) ?? CLINE_DEFAULT_MODEL_ID;
+		const results = await importer.importMany(
+			requests,
+			(result, index) => {
+				broadcastEvent(ctx, "session_import_progress", {
+					index,
+					total: requests.length,
+					result,
+				});
+			},
+			{ provider, model },
+		);
+		return { results };
 	}
 	if (command === "update_chat_session_title") {
 		const sessionId = String(args?.sessionId ?? "").trim();
@@ -1601,6 +1815,37 @@ export async function handleCommand(
 		);
 		syncFeatureFlagsAccountFromResult(ctx, operation, result);
 		return result;
+	}
+
+	// ── Cline integrations (GitHub App) ────────────────────────────────
+	if (command === "cline_integrations") {
+		const operation = String(args?.operation ?? "").trim();
+		if (!operation) throw new Error("operation is required");
+		const manager = new ProviderSettingsManager();
+
+		const authToken = await resolveFreshClineAuthToken(ctx, manager);
+		if (!authToken) {
+			return CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT;
+		}
+		const settings = manager.getProviderSettings("cline");
+		const environment = getClineEnvironmentConfig();
+		const requestOptions = {
+			apiBaseUrl: settings?.baseUrl?.trim() || environment.apiBaseUrl,
+			appBaseUrl: environment.appBaseUrl,
+			authToken,
+		};
+		switch (operation) {
+			case "list":
+				return await listClineIntegrations(requestOptions);
+			case "listGitHubRepositories":
+				return await listClineGitHubRepositories(requestOptions);
+			case "githubInstallUrl":
+				return await resolveGitHubInstallUrl(requestOptions);
+			default:
+				throw new Error(
+					`Unsupported Cline integrations operation: ${operation}`,
+				);
+		}
 	}
 
 	// ── Provider management ────────────────────────────────────────────

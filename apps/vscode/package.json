@@ -2,7 +2,7 @@
 	"name": "claude-dev",
 	"displayName": "Cline",
 	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
-	"version": "4.1.16",
+	"version": "4.1.17",
 	"icon": "assets/icons/icon.png",
 	"engines": {
 		"vscode": "^1.101.0"
@@ -538,7 +538,7 @@
 		"ts-morph": "^25.0.1",
 		"turndown": "^7.2.0",
 		"ulid": "^2.4.0",
-		"undici": "^7.26.0",
+		"undici": "^7.29.0",
 		"uuid": "^11.1.0",
 		"vscode-uri": "^3.1.0",
 		"zod": "^4.3.6"
