@@ -288,6 +288,12 @@ export interface PendingPromptsUpdateInput {
 	prompt?: string;
 	mode?: AgentMode;
 	delivery?: "queue" | "steer";
+	/**
+	 * Target index within the pending-prompt queue (0-based, clamped). When set,
+	 * the prompt is moved to this position instead of using the delivery-based
+	 * auto-reordering. Used by drag-and-drop reordering in the chat UI.
+	 */
+	position?: number;
 }
 
 export interface PendingPromptsDeleteInput {
