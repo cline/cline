@@ -725,6 +725,77 @@ describe("cancelComposioConnect", () => {
 		expect(readStateFile(dir).cancelledAccountIds).toContain("ca_cancelled");
 	});
 
+	it("a cancel whose revocation is confirmed mid-refresh still drops the refresh's prepared import", async () => {
+		const dir = useTempDataDir();
+		process.env.COMPOSIO_API_KEY = "ck_cancel_refresh";
+		writeState(dir, {
+			apiKey: "ck_cancel_refresh",
+			userId: "u_cancel_refresh",
+			toolkits: {},
+		});
+		let releaseImportFetch: (() => void) | undefined;
+		const client = {
+			toolkits: {
+				// Used only by the connect started mid-refresh (a different
+				// account than the one the refresh is importing).
+				authorize: vi.fn(async () => ({
+					id: "ca_pending",
+					redirectUrl: "https://connect.example/ca_pending",
+					waitForConnection: () => new Promise(() => {}),
+				})),
+			},
+			authConfigs: {
+				list: vi.fn(async () => ({ items: [] })),
+				create: vi.fn(),
+			},
+			tools: {
+				// The refresh's import tool fetch — suspended so a cancel can land
+				// during it.
+				getRawComposioTools: vi.fn(
+					() =>
+						new Promise<{ slug: string }[]>((resolve) => {
+							releaseImportFetch = () => resolve([{ slug: "GITHUB_LIST" }]);
+						}),
+				),
+			},
+			connectedAccounts: {
+				// ca_import is ACTIVE at snapshot time (no pending yet), so the
+				// refresh prepares an import for it.
+				list: vi.fn(async () => ({
+					items: [
+						{ id: "ca_import", status: "ACTIVE", toolkit: { slug: "github" } },
+					],
+					nextCursor: null,
+				})),
+				link: vi.fn(),
+				delete: vi.fn(async () => ({})), // revocation SUCCEEDS -> tombstone pruned
+			},
+		};
+		createMockComposioClient = () => client;
+
+		// The refresh prepares an import for ca_import and suspends in its tool
+		// fetch (no pending exists at decision time).
+		const refreshPromise = getComposioStatus({ refresh: true });
+		await vi.waitFor(() => {
+			expect(client.tools.getRawComposioTools).toHaveBeenCalled();
+		});
+		// Now a connect starts and is cancelled while the refresh is suspended.
+		// The cancel's revoke succeeds and prunes its tombstone, so only the
+		// entry-time lastDisconnectedAt marker can save the write-time check.
+		await connectComposioToolkit("github");
+		await cancelComposioConnect("github");
+		expect(readStateFile(dir).cancelledAccountIds).toBeUndefined();
+		releaseImportFetch?.();
+		const status = await refreshPromise;
+		// The refresh's prepared import must be dropped: a cancel for this
+		// toolkit landed after the refresh began, so its stale snapshot must
+		// not restore the connector.
+		expect(
+			status.integrations.find((entry) => entry.toolkit === "github")?.status,
+		).toBe("not_connected");
+		expect(readStateFile(dir).toolkits ?? {}).toEqual({});
+	});
+
 	it("prunes the tombstone once the revocation is confirmed", async () => {
 		const dir = useTempDataDir();
 		process.env.COMPOSIO_API_KEY = "ck_prune";

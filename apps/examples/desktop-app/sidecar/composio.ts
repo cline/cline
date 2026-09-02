@@ -1145,6 +1145,13 @@ export async function cancelComposioConnect(
 	if (!pending) {
 		return;
 	}
+	// Record the cancel intent BEFORE any await, so a status refresh that
+	// snapshotted this account as ACTIVE and is mid-import drops it at its
+	// write-time check (lastDisconnectedAt >= refreshStartedAt). The tombstone
+	// alone is not enough for that: a successful revocation prunes it before
+	// the refresh's write, so the timestamp is the durable "cancelled during
+	// this refresh" signal. Mirrors the disconnect entry marker.
+	lastDisconnectedAt.set(toolkit, Date.now());
 	// Deleting the local marker alone is not enough: the OAuth tab may still
 	// be open, and completing it later would turn the remote account ACTIVE,
 	// where the next dashboard reconciliation would import it right back.
