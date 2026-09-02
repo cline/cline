@@ -176,6 +176,7 @@ export {
 	type GeneratedMediaSource,
 	GeneratedMediaSourceSchema,
 	generatedMediaModalityFromMediaType,
+	GENERATED_MEDIA_OMITTED_PLACEHOLDER,
 	IMAGE_OMITTED_PLACEHOLDER,
 	IMAGE_UNSUPPORTED_PLACEHOLDER,
 	type ImageMediaLimits,
