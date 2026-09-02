@@ -10,6 +10,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+	abandonComposioConnectsForOwner,
 	buildConnectableCatalog,
 	cancelComposioConnect,
 	connectComposioToolkit,
@@ -456,6 +457,205 @@ describe("managed COMPOSIO_API_KEY", () => {
 	});
 });
 
+describe("connectComposioToolkit", () => {
+	it("overlapping connects are single-flight: only one remote account is ever created", async () => {
+		const dir = useTempDataDir();
+		process.env.COMPOSIO_API_KEY = "ck_overlap";
+		writeState(dir, {
+			apiKey: "ck_overlap",
+			userId: "u_overlap",
+			toolkits: {},
+		});
+		let releaseAuthorize: (() => void) | undefined;
+		const authorize = vi.fn(
+			() =>
+				new Promise<{
+					id: string;
+					redirectUrl: string;
+					waitForConnection: () => Promise<unknown>;
+				}>((resolve) => {
+					releaseAuthorize = () =>
+						resolve({
+							id: "ca_single",
+							redirectUrl: "https://connect.example/ca_single",
+							waitForConnection: () => new Promise(() => {}),
+						});
+				}),
+		);
+		const remoteDelete = vi.fn(async () => ({}));
+		const client = {
+			toolkits: { authorize },
+			authConfigs: {
+				list: vi.fn(async () => ({ items: [] })),
+				create: vi.fn(),
+			},
+			tools: { getRawComposioTools: vi.fn(async () => []) },
+			connectedAccounts: {
+				list: vi.fn(async () => ({ items: [] })),
+				link: vi.fn(),
+				delete: remoteDelete,
+			},
+		};
+		createMockComposioClient = () => client;
+
+		const first = connectComposioToolkit("github");
+		await vi.waitFor(() => {
+			expect(authorize).toHaveBeenCalledTimes(1);
+		});
+		// A second connect lands while the first is still inside the
+		// initiation round trip — before any pending entry exists. It must
+		// not start a second attempt (whose account nothing would ever
+		// revoke) or overwrite the first attempt's pending entry.
+		const second = await connectComposioToolkit("github");
+		expect(second.redirectUrl).toBeUndefined();
+		expect(authorize).toHaveBeenCalledTimes(1);
+
+		releaseAuthorize?.();
+		const firstResult = await first;
+		expect(firstResult.redirectUrl).toContain("ca_single");
+		// The surviving pending attempt is the first one; a third call now
+		// reports it instead of starting over.
+		const third = await connectComposioToolkit("github");
+		expect(third.redirectUrl).toContain("ca_single");
+		expect(authorize).toHaveBeenCalledTimes(1);
+		// Clean up the pending attempt so it cannot leak into other tests.
+		await cancelComposioConnect("github");
+	});
+
+	it("a refresh racing a redirect-less attempt cannot leave a failed connection installed", async () => {
+		const dir = useTempDataDir();
+		process.env.COMPOSIO_API_KEY = "ck_refresh_race";
+		writeState(dir, {
+			apiKey: "ck_refresh_race",
+			userId: "u_refresh_race",
+			toolkits: {},
+		});
+		let rejectConnectFetch: ((error: Error) => void) | undefined;
+		const getRawComposioTools = vi.fn(() =>
+			// First call is the connect's finalize: suspended, then failed.
+			// Any later call (a refresh import) resolves immediately.
+			getRawComposioTools.mock.calls.length <= 1
+				? new Promise<{ slug: string }[]>((_resolve, reject) => {
+						rejectConnectFetch = reject;
+					})
+				: Promise.resolve([{ slug: "GITHUB_LIST_ISSUES" }]),
+		);
+		const remoteDelete = vi.fn(async () => ({}));
+		const client = {
+			toolkits: {
+				// Redirect-less: the account is ACTIVE remotely from creation,
+				// which is what lets a concurrent refresh see it.
+				authorize: vi.fn(async () => ({
+					id: "ca_race_import",
+					redirectUrl: null,
+					waitForConnection: async () => ({}),
+				})),
+			},
+			authConfigs: {
+				list: vi.fn(async () => ({ items: [] })),
+				create: vi.fn(),
+			},
+			tools: { getRawComposioTools },
+			connectedAccounts: {
+				list: vi.fn(async () => ({
+					items: [
+						{
+							id: "ca_race_import",
+							status: "ACTIVE",
+							toolkit: { slug: "github" },
+						},
+					],
+					nextCursor: null,
+				})),
+				link: vi.fn(),
+				delete: remoteDelete,
+			},
+		};
+		createMockComposioClient = () => client;
+
+		const connectPromise = connectComposioToolkit("github");
+		await vi.waitFor(() => {
+			expect(getRawComposioTools).toHaveBeenCalledTimes(1);
+		});
+		// A refresh runs while the attempt is mid-finalize and sees the
+		// account as ACTIVE. The in-flight guard must keep it from importing
+		// the connector out from under the attempt.
+		const refreshed = await getComposioStatus({ refresh: true });
+		expect(
+			refreshed.integrations.find((entry) => entry.toolkit === "github")
+				?.status,
+		).toBe("not_connected");
+		expect(readStateFile(dir).toolkits ?? {}).toEqual({});
+		// The attempt's tool fetch then fails; the account is abandoned.
+		rejectConnectFetch?.(new Error("500 tools endpoint exploded"));
+		await expect(connectPromise).rejects.toThrow(/tools endpoint exploded/);
+		expect(remoteDelete).toHaveBeenCalledWith("ca_race_import", {
+			revoke_on_delete: true,
+		});
+		// Nothing may report the failed connection as installed afterwards.
+		expect(readStateFile(dir).toolkits ?? {}).toEqual({});
+		const after = await getComposioStatus();
+		expect(
+			after.integrations.find((entry) => entry.toolkit === "github")?.status,
+		).toBe("not_connected");
+	});
+
+	it("a connect overlapping a redirect-less finalize is also single-flight", async () => {
+		const dir = useTempDataDir();
+		process.env.COMPOSIO_API_KEY = "ck_overlap_rl";
+		writeState(dir, {
+			apiKey: "ck_overlap_rl",
+			userId: "u_overlap_rl",
+			toolkits: {},
+		});
+		let releaseToolFetch: (() => void) | undefined;
+		const authorize = vi.fn(async () => ({
+			id: "ca_rl_single",
+			redirectUrl: null,
+			waitForConnection: async () => ({}),
+		}));
+		const client = {
+			toolkits: { authorize },
+			authConfigs: {
+				list: vi.fn(async () => ({ items: [] })),
+				create: vi.fn(),
+			},
+			tools: {
+				getRawComposioTools: vi.fn(
+					() =>
+						new Promise<{ slug: string }[]>((resolve) => {
+							releaseToolFetch = () =>
+								resolve([{ slug: "GITHUB_LIST_ISSUES" }]);
+						}),
+				),
+			},
+			connectedAccounts: {
+				list: vi.fn(async () => ({ items: [] })),
+				link: vi.fn(),
+				delete: vi.fn(async () => ({})),
+			},
+		};
+		createMockComposioClient = () => client;
+
+		const first = connectComposioToolkit("github");
+		await vi.waitFor(() => {
+			expect(client.tools.getRawComposioTools).toHaveBeenCalledTimes(1);
+		});
+		// The redirect-less path never has a pending entry, so the in-flight
+		// guard is the only thing preventing a duplicate attempt here.
+		const second = await connectComposioToolkit("github");
+		expect(second.alreadyConnected).toBeUndefined();
+		expect(authorize).toHaveBeenCalledTimes(1);
+
+		releaseToolFetch?.();
+		const firstResult = await first;
+		expect(firstResult.alreadyConnected).toBe(true);
+		expect(readStateFile(dir).toolkits?.github?.connectedAccountId).toBe(
+			"ca_rl_single",
+		);
+	});
+});
+
 describe("cancelComposioConnect", () => {
 	it("revokes the cancelled attempt and never imports it, even when the browser flow completes later", async () => {
 		const dir = useTempDataDir();
@@ -523,6 +723,77 @@ describe("cancelComposioConnect", () => {
 		expect(readStateFile(dir).toolkits).toEqual({});
 		// The deletion is still unconfirmed, so the tombstone must survive.
 		expect(readStateFile(dir).cancelledAccountIds).toContain("ca_cancelled");
+	});
+
+	it("a cancel whose revocation is confirmed mid-refresh still drops the refresh's prepared import", async () => {
+		const dir = useTempDataDir();
+		process.env.COMPOSIO_API_KEY = "ck_cancel_refresh";
+		writeState(dir, {
+			apiKey: "ck_cancel_refresh",
+			userId: "u_cancel_refresh",
+			toolkits: {},
+		});
+		let releaseImportFetch: (() => void) | undefined;
+		const client = {
+			toolkits: {
+				// Used only by the connect started mid-refresh (a different
+				// account than the one the refresh is importing).
+				authorize: vi.fn(async () => ({
+					id: "ca_pending",
+					redirectUrl: "https://connect.example/ca_pending",
+					waitForConnection: () => new Promise(() => {}),
+				})),
+			},
+			authConfigs: {
+				list: vi.fn(async () => ({ items: [] })),
+				create: vi.fn(),
+			},
+			tools: {
+				// The refresh's import tool fetch — suspended so a cancel can land
+				// during it.
+				getRawComposioTools: vi.fn(
+					() =>
+						new Promise<{ slug: string }[]>((resolve) => {
+							releaseImportFetch = () => resolve([{ slug: "GITHUB_LIST" }]);
+						}),
+				),
+			},
+			connectedAccounts: {
+				// ca_import is ACTIVE at snapshot time (no pending yet), so the
+				// refresh prepares an import for it.
+				list: vi.fn(async () => ({
+					items: [
+						{ id: "ca_import", status: "ACTIVE", toolkit: { slug: "github" } },
+					],
+					nextCursor: null,
+				})),
+				link: vi.fn(),
+				delete: vi.fn(async () => ({})), // revocation SUCCEEDS -> tombstone pruned
+			},
+		};
+		createMockComposioClient = () => client;
+
+		// The refresh prepares an import for ca_import and suspends in its tool
+		// fetch (no pending exists at decision time).
+		const refreshPromise = getComposioStatus({ refresh: true });
+		await vi.waitFor(() => {
+			expect(client.tools.getRawComposioTools).toHaveBeenCalled();
+		});
+		// Now a connect starts and is cancelled while the refresh is suspended.
+		// The cancel's revoke succeeds and prunes its tombstone, so only the
+		// entry-time lastDisconnectedAt marker can save the write-time check.
+		await connectComposioToolkit("github");
+		await cancelComposioConnect("github");
+		expect(readStateFile(dir).cancelledAccountIds).toBeUndefined();
+		releaseImportFetch?.();
+		const status = await refreshPromise;
+		// The refresh's prepared import must be dropped: a cancel for this
+		// toolkit landed after the refresh began, so its stale snapshot must
+		// not restore the connector.
+		expect(
+			status.integrations.find((entry) => entry.toolkit === "github")?.status,
+		).toBe("not_connected");
+		expect(readStateFile(dir).toolkits ?? {}).toEqual({});
 	});
 
 	it("prunes the tombstone once the revocation is confirmed", async () => {
@@ -960,6 +1231,76 @@ describe("cancelComposioConnect", () => {
 		expect(readStateFile(dir).toolkits ?? {}).toEqual({});
 	});
 
+	it("abandons pending attempts owned by a departed webview and refuses their later completion", async () => {
+		const dir = useTempDataDir();
+		process.env.COMPOSIO_API_KEY = "ck_owner";
+		writeState(dir, { apiKey: "ck_owner", userId: "u_owner", toolkits: {} });
+		let resolveWait: ((value: unknown) => void) | undefined;
+		const remoteDelete = vi.fn(async () => ({}));
+		const client = {
+			toolkits: {
+				authorize: vi.fn(async () => ({
+					id: "ca_owner_attempt",
+					redirectUrl: "https://connect.example/ca_owner_attempt",
+					waitForConnection: () =>
+						new Promise((resolve) => {
+							resolveWait = resolve;
+						}),
+				})),
+			},
+			authConfigs: {
+				list: vi.fn(async () => ({ items: [] })),
+				create: vi.fn(),
+			},
+			tools: { getRawComposioTools: vi.fn(async () => []) },
+			connectedAccounts: {
+				list: vi.fn(async () => ({
+					items: [
+						{
+							id: "ca_owner_attempt",
+							status: "ACTIVE",
+							toolkit: { slug: "github" },
+						},
+					],
+					nextCursor: null,
+				})),
+				link: vi.fn(),
+				delete: remoteDelete,
+			},
+		};
+		createMockComposioClient = () => client;
+
+		const owner = {}; // stands in for the webview connection
+		const connect = await connectComposioToolkit("github", undefined, {
+			owner,
+		});
+		expect(connect.redirectUrl).toContain("ca_owner_attempt");
+
+		// The webview closes: server.ts calls this for the departing owner.
+		const abandoned = abandonComposioConnectsForOwner(owner);
+		expect(abandoned).toBe(1);
+		await vi.waitFor(() => {
+			expect(remoteDelete).toHaveBeenCalledWith("ca_owner_attempt", {
+				revoke_on_delete: true,
+			});
+		});
+		// The revoke was confirmed, so the tombstone is pruned again — the
+		// account is gone remotely and needs no further guarding.
+		await vi.waitFor(() => {
+			expect(readStateFile(dir).cancelledAccountIds).toBeUndefined();
+		});
+
+		// The user finishes the still-open browser tab afterward; the waiter's
+		// finalize must not materialize tools for the abandoned attempt.
+		resolveWait?.({});
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(client.tools.getRawComposioTools).not.toHaveBeenCalled();
+		const status = await getComposioStatus();
+		expect(
+			status.integrations.find((entry) => entry.toolkit === "github")?.status,
+		).toBe("not_connected");
+	});
+
 	it("a cancelled toolkit can still be reconnected under a fresh account", async () => {
 		const dir = useTempDataDir();
 		process.env.COMPOSIO_API_KEY = "ck_reconnect";
@@ -1307,15 +1648,23 @@ describe("disconnectComposioToolkit", () => {
 				},
 			},
 		});
-		let releaseOldDelete: (() => void) | undefined;
+		// ca_old_acct is revoked by the disconnect AND by the reconnect's
+		// finalize (which supersedes it); collect every resolver so releasing
+		// unblocks all of them regardless of order.
+		const oldDeleteResolvers: Array<() => void> = [];
 		const remoteDelete = vi.fn((accountId: string) => {
 			if (accountId === "ca_old_acct") {
 				return new Promise((resolve) => {
-					releaseOldDelete = () => resolve({});
+					oldDeleteResolvers.push(() => resolve({}));
 				});
 			}
 			return Promise.resolve({});
 		});
+		const releaseOldDelete = () => {
+			for (const resolve of oldDeleteResolvers.splice(0)) {
+				resolve();
+			}
+		};
 		const client = {
 			toolkits: {
 				// Redirect-less reconnect: finalizes without a pending entry.
@@ -1363,7 +1712,12 @@ describe("disconnectComposioToolkit", () => {
 		expect(readStateFile(dir).toolkits?.github?.connectedAccountId).toBe(
 			"ca_new_acct",
 		);
-		releaseOldDelete?.();
+		// Wait until the reconnect's finalize has also issued its supersession
+		// revoke of ca_old_acct, then release every ca_old_acct delete.
+		await vi.waitFor(() => {
+			expect(remoteDelete.mock.calls.length).toBeGreaterThanOrEqual(2);
+		});
+		releaseOldDelete();
 		const disconnected = await disconnectPromise;
 		// The disconnect only revoked ca_old_acct; blindly deleting the slot
 		// would orphan ca_new_acct (authorized remotely, no local record) for
@@ -1376,7 +1730,11 @@ describe("disconnectComposioToolkit", () => {
 			disconnected.integrations.find((entry) => entry.toolkit === "github")
 				?.status,
 		).toBe("connected");
-		expect(remoteDelete).toHaveBeenCalledTimes(1);
+		// The surviving connection's own account is never revoked.
+		expect(remoteDelete).not.toHaveBeenCalledWith(
+			"ca_new_acct",
+			expect.anything(),
+		);
 		// And a later refresh keeps it, rather than re-importing an orphan.
 		const refreshed = await getComposioStatus({ refresh: true });
 		expect(
@@ -1386,6 +1744,168 @@ describe("disconnectComposioToolkit", () => {
 		expect(readStateFile(dir).toolkits?.github?.connectedAccountId).toBe(
 			"ca_new_acct",
 		);
+	});
+
+	it("a failed revocation whose slot was replaced hands the old account to the tombstone machinery", async () => {
+		const dir = useTempDataDir();
+		process.env.COMPOSIO_API_KEY = "ck_orphan_race";
+		writeState(dir, {
+			apiKey: "ck_orphan_race",
+			userId: "u_orphan_race",
+			toolkits: {
+				github: {
+					connectedAccountId: "ca_stale",
+					connectedAt: "2026-08-28T00:00:00.000Z",
+					tools: [{ slug: "GITHUB_CREATE_AN_ISSUE" }],
+				},
+			},
+		});
+		// ca_stale is revoked by the disconnect AND by the reconnect's finalize
+		// (which supersedes it); both fail. Collect every rejecter.
+		const staleRejecters: Array<(error: Error) => void> = [];
+		const remoteDelete = vi.fn((accountId: string) => {
+			if (accountId === "ca_stale") {
+				return new Promise((_resolve, reject) => {
+					staleRejecters.push(reject);
+				});
+			}
+			return Promise.resolve({});
+		});
+		const rejectStaleDelete = (error: Error) => {
+			for (const reject of staleRejecters.splice(0)) {
+				reject(error);
+			}
+		};
+		const client = {
+			toolkits: {
+				authorize: vi.fn(async () => ({
+					id: "ca_fresh_replace",
+					redirectUrl: null,
+					waitForConnection: async () => ({}),
+				})),
+			},
+			authConfigs: {
+				list: vi.fn(async () => ({ items: [] })),
+				create: vi.fn(),
+			},
+			tools: {
+				getRawComposioTools: vi.fn(async () => [
+					{ slug: "GITHUB_CREATE_AN_ISSUE" },
+				]),
+			},
+			connectedAccounts: {
+				list: vi.fn(async () => ({ items: [], nextCursor: null })),
+				link: vi.fn(),
+				delete: remoteDelete,
+			},
+		};
+		createMockComposioClient = () => client;
+
+		const disconnectPromise = disconnectComposioToolkit("github");
+		await vi.waitFor(() => {
+			expect(remoteDelete).toHaveBeenCalledWith("ca_stale", {
+				revoke_on_delete: true,
+			});
+		});
+		// A redirect-less reconnect replaces the slot while the disconnect is
+		// suspended on the (about to fail) revocation. The replacement also
+		// tombstones ca_stale defensively.
+		const reconnect = await connectComposioToolkit("github");
+		expect(reconnect.alreadyConnected).toBe(true);
+		// Wait for the finalize's own supersession revoke of ca_stale to be in
+		// flight too, then fail every ca_stale revocation at once.
+		await vi.waitFor(() => {
+			expect(remoteDelete.mock.calls.length).toBeGreaterThanOrEqual(2);
+		});
+		// The disconnect's revocation now fails. Throwing "still connected —
+		// try again" would be a lie (the slot holds the new account) and would
+		// leave ca_stale authorized with no local reference; instead it must
+		// stay tombstoned so reconciliation keeps retrying the revocation.
+		rejectStaleDelete(new Error("500 internal error"));
+		const disconnected = await disconnectPromise;
+		expect(
+			disconnected.integrations.find((entry) => entry.toolkit === "github")
+				?.status,
+		).toBe("connected");
+		expect(readStateFile(dir).toolkits?.github?.connectedAccountId).toBe(
+			"ca_fresh_replace",
+		);
+		expect(readStateFile(dir).cancelledAccountIds).toContain("ca_stale");
+	});
+
+	it("a disconnect started after a redirect-less connect wins over the finalize", async () => {
+		const dir = useTempDataDir();
+		process.env.COMPOSIO_API_KEY = "ck_disc_wins";
+		writeState(dir, {
+			apiKey: "ck_disc_wins",
+			userId: "u_disc_wins",
+			toolkits: {
+				github: {
+					connectedAccountId: "ca_prev",
+					connectedAt: "2026-08-28T00:00:00.000Z",
+					tools: [{ slug: "GITHUB_CREATE_AN_ISSUE" }],
+				},
+			},
+		});
+		let releaseConnectFetch: (() => void) | undefined;
+		const remoteDelete = vi.fn(async () => ({}));
+		const client = {
+			toolkits: {
+				authorize: vi.fn(async () => ({
+					id: "ca_connect_new",
+					redirectUrl: null,
+					waitForConnection: async () => ({}),
+				})),
+			},
+			authConfigs: {
+				list: vi.fn(async () => ({ items: [] })),
+				create: vi.fn(),
+			},
+			tools: {
+				getRawComposioTools: vi.fn(
+					() =>
+						new Promise<{ slug: string }[]>((resolve) => {
+							releaseConnectFetch = () =>
+								resolve([{ slug: "GITHUB_CREATE_AN_ISSUE" }]);
+						}),
+				),
+			},
+			connectedAccounts: {
+				list: vi.fn(async () => ({ items: [], nextCursor: null })),
+				link: vi.fn(),
+				delete: remoteDelete,
+			},
+		};
+		createMockComposioClient = () => client;
+
+		// The connect starts first and is suspended inside its finalize's tool
+		// fetch.
+		const connectPromise = connectComposioToolkit("github");
+		await vi.waitFor(() => {
+			expect(client.tools.getRawComposioTools).toHaveBeenCalledTimes(1);
+		});
+		// The user then clicks disconnect — the newer intent. It must win even
+		// though the connect finalizes afterward.
+		const disconnected = await disconnectComposioToolkit("github");
+		expect(
+			disconnected.integrations.find((entry) => entry.toolkit === "github")
+				?.status,
+		).toBe("not_connected");
+		// The connect's tool fetch completes last; its finalize must be dropped
+		// (disconnect marker predates nothing — the connect started earlier, so
+		// its startedAt is before the disconnect marker) and its new account
+		// revoked.
+		releaseConnectFetch?.();
+		const connectResult = await connectPromise;
+		expect(connectResult.alreadyConnected).toBeUndefined();
+		expect(readStateFile(dir).toolkits ?? {}).toEqual({});
+		expect(remoteDelete).toHaveBeenCalledWith("ca_connect_new", {
+			revoke_on_delete: true,
+		});
+		const after = await getComposioStatus();
+		expect(
+			after.integrations.find((entry) => entry.toolkit === "github")?.status,
+		).toBe("not_connected");
 	});
 
 	it("treats an account that is already gone remotely as revoked", async () => {

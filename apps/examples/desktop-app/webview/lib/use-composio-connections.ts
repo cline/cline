@@ -30,7 +30,12 @@ export function useComposioConnections({
 } = {}) {
 	const [status, setStatus] = useState<ComposioStatusResponse | null>(null);
 	const [loadError, setLoadError] = useState<string | null>(null);
-	const [actionError, setActionError] = useState<string | null>(null);
+	// Scoped to the toolkit the failed action targeted, so one connector's
+	// failure is never rendered as another connector's error.
+	const [actionError, setActionError] = useState<{
+		toolkit: ComposioToolkitSlug;
+		message: string;
+	} | null>(null);
 	const [busyToolkit, setBusyToolkit] = useState<ComposioToolkitSlug | null>(
 		null,
 	);
@@ -112,7 +117,10 @@ export function useComposioConnections({
 				const result = await connectComposioIntegration(toolkit);
 				applyStatus(result.status);
 			} catch (error) {
-				setActionError(error instanceof Error ? error.message : String(error));
+				setActionError({
+					toolkit,
+					message: error instanceof Error ? error.message : String(error),
+				});
 			} finally {
 				setBusyToolkit(null);
 			}
@@ -138,7 +146,10 @@ export function useComposioConnections({
 			try {
 				applyStatus(await disconnectComposioIntegration(toolkit));
 			} catch (error) {
-				setActionError(error instanceof Error ? error.message : String(error));
+				setActionError({
+					toolkit,
+					message: error instanceof Error ? error.message : String(error),
+				});
 			} finally {
 				setBusyToolkit(null);
 			}

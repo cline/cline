@@ -116,12 +116,6 @@ export function ComposioConnectorsView({
 				</p>
 			</div>
 
-			{actionError ? (
-				<p className="text-xs text-destructive" role="alert">
-					{actionError}
-				</p>
-			) : null}
-
 			<section>
 				<h3 className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
 					Recommended
@@ -129,6 +123,11 @@ export function ComposioConnectorsView({
 				<div className="flex flex-col gap-3">
 					{recommended.map((integration) => (
 						<ConnectorCard
+							actionError={
+								actionError?.toolkit === integration.toolkit
+									? actionError.message
+									: undefined
+							}
 							busy={busyToolkit === integration.toolkit}
 							configured={configured}
 							integration={integration}
@@ -185,6 +184,7 @@ function ConnectorCard({
 	integration,
 	logo,
 	configured,
+	actionError,
 	busy,
 	onConnect,
 	onCancel,
@@ -193,6 +193,8 @@ function ConnectorCard({
 	integration: ComposioIntegrationSummary;
 	logo?: string;
 	configured: boolean;
+	/** Already scoped by the caller to THIS card's connector. */
+	actionError?: string;
 	busy: boolean;
 	onConnect: () => void;
 	onCancel: () => void;
@@ -240,9 +242,9 @@ function ConnectorCard({
 				</p>
 			) : null}
 
-			{integration.error ? (
+			{(actionError ?? integration.error) ? (
 				<p className="mt-2 text-xs text-destructive" role="alert">
-					{integration.error}
+					{actionError ?? integration.error}
 				</p>
 			) : null}
 
