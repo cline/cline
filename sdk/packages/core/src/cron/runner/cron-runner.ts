@@ -135,6 +135,7 @@ export interface CronRunnerOptions {
 	specs?: ResolveCronSpecsDirOptions;
 	logger?: BasicLogger;
 	pollIntervalMs?: number;
+	/** Effective lease is at least 4x `pollIntervalMs` so sleep detection stays reliable. */
 	claimLeaseSeconds?: number;
 	globalMaxConcurrency?: number;
 }
