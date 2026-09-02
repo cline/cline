@@ -1,5 +1,6 @@
 "use client";
 
+import { describeOutdatedHubSessions } from "@cline/shared";
 import { useCallback, useEffect, useState } from "react";
 import {
 	AlertDialog,
@@ -16,10 +17,7 @@ import {
 	restartToApplyUpdate,
 } from "@/hooks/use-app-update";
 import { desktopClient } from "@/lib/desktop-client";
-import {
-	describeOutdatedHubSessions,
-	resolveHubUpdateRestartDecision,
-} from "./hub-update-required-helpers";
+import { resolveHubUpdateRestartDecision } from "./hub-update-required-helpers";
 
 type HubBuildMismatchPayload = {
 	hubBuildId?: string;
