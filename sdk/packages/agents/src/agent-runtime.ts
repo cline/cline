@@ -44,6 +44,7 @@ import {
 	TASK_PROVIDER_REQUEST_STARTED_EVENT,
 	TASK_PROVIDER_STREAM_FAILED_EVENT,
 	TASK_PROVIDER_STREAM_STARTED_EVENT,
+	TOOL_REJECTION_SUFFIX,
 	trimNonEmpty,
 } from "@cline/shared";
 import { nanoid } from "nanoid";
@@ -1755,8 +1756,8 @@ export class AgentRuntime {
 					policy,
 				);
 				if (!approval.approved) {
-					skipReason =
-						approval.reason ?? `Tool "${toolCall.toolName}" was not approved`;
+					const reason = approval.reason ?? "Tool was not executed";
+					skipReason = `${reason} -- ${TOOL_REJECTION_SUFFIX}`;
 				}
 			}
 		}

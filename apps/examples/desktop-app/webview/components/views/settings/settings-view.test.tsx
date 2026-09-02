@@ -110,7 +110,7 @@ describe("SettingsView generate media configuration", () => {
 		expect(isProviderCatalogFresh(undefined, 61_000)).toBe(false);
 	});
 
-	it("loads Tools provider data, expands from the card, and saves before enabling", async () => {
+	it("loads Customize tool provider data, expands from the card, and saves before enabling", async () => {
 		const disabledTool = {
 			id: "generate_media",
 			name: "generate_media",
@@ -180,9 +180,19 @@ describe("SettingsView generate media configuration", () => {
 		});
 
 		await act(async () => {
-			root.render(<SettingsView onNavigateSection={vi.fn()} section="Tools" />);
+			root.render(
+				<SettingsView onNavigateSection={vi.fn()} section="Customize" />,
+			);
 		});
 		await act(async () => {
+			await new Promise((resolve) => setTimeout(resolve, 20));
+		});
+		const toolsTab = [
+			...container.querySelectorAll<HTMLButtonElement>("button"),
+		].find((button) => button.textContent?.trim().startsWith("Tools"));
+		expect(toolsTab).not.toBeUndefined();
+		await act(async () => {
+			toolsTab?.click();
 			await new Promise((resolve) => setTimeout(resolve, 20));
 		});
 

@@ -70,6 +70,7 @@ export const GlobalSettingsSchema = z
 		disabledTools: GlobalSettingsStringListSchema.optional(),
 		tools: OptInToolSettingsSchema,
 		disabledPlugins: GlobalSettingsStringListSchema.optional(),
+		disabledAgentPlugins: GlobalSettingsStringListSchema.optional(),
 	})
 	.strip()
 	.transform((settings) => {
@@ -87,6 +88,7 @@ export const GlobalSettingsSchema = z
 			disabledTools?: string[];
 			tools?: OptInToolSettings;
 			disabledPlugins?: string[];
+			disabledAgentPlugins?: string[];
 		} = {
 			autoUpdateEnabled: settings.autoUpdateEnabled,
 			telemetryOptOut: settings.telemetryOptOut,
@@ -114,6 +116,9 @@ export const GlobalSettingsSchema = z
 		}
 		if (settings.disabledPlugins?.length) {
 			normalized.disabledPlugins = settings.disabledPlugins;
+		}
+		if (settings.disabledAgentPlugins?.length) {
+			normalized.disabledAgentPlugins = settings.disabledAgentPlugins;
 		}
 		return normalized;
 	});
@@ -153,6 +158,9 @@ function freezeSettings(value: GlobalSettings): GlobalSettings {
 	}
 	if (value.disabledPlugins) {
 		Object.freeze(value.disabledPlugins);
+	}
+	if (value.disabledAgentPlugins) {
+		Object.freeze(value.disabledAgentPlugins);
 	}
 	return Object.freeze(value);
 }
@@ -337,6 +345,14 @@ export function resolveDisabledPluginPaths(
 	);
 }
 
+export function resolveDisabledAgentPluginNames(
+	disabledPluginNames?: ReadonlyArray<string>,
+): Set<string> {
+	return new Set(
+		disabledPluginNames ?? readGlobalSettings().disabledAgentPlugins ?? [],
+	);
+}
+
 export function isToolDisabledGlobally(toolName: string): boolean {
 	if (isOptInToolName(toolName)) {
 		return !isOptInToolEnabledGlobally(toolName);
@@ -450,6 +466,34 @@ export function setDisabledPlugin(
 		disabled.delete(path);
 	}
 	writeGlobalSettings({ ...settings, disabledPlugins: [...disabled] });
+}
+
+export function isAgentPluginDisabledGlobally(pluginName: string): boolean {
+	return resolveDisabledAgentPluginNames().has(pluginName);
+}
+
+export function setDisabledAgentPlugin(
+	pluginName: string,
+	disabledValue: boolean,
+): void {
+	const name = pluginName.trim();
+	if (!name) {
+		return;
+	}
+
+	const settings = readGlobalSettings();
+	const disabled = resolveDisabledAgentPluginNames(
+		settings.disabledAgentPlugins,
+	);
+	if (disabledValue) {
+		disabled.add(name);
+	} else {
+		disabled.delete(name);
+	}
+	writeGlobalSettings({
+		...settings,
+		disabledAgentPlugins: [...disabled],
+	});
 }
 
 export function filterDisabledPluginPaths(

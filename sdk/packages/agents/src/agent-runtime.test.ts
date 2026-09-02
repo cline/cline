@@ -16,6 +16,7 @@ import {
 	TASK_PROVIDER_REQUEST_STARTED_EVENT,
 	TASK_PROVIDER_STREAM_FAILED_EVENT,
 	TASK_PROVIDER_STREAM_STARTED_EVENT,
+	TOOL_REJECTION_SUFFIX,
 } from "@cline/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AgentRuntime } from "./index";
@@ -1203,7 +1204,7 @@ describe("AgentRuntime", () => {
 		const executeTool = vi.fn(async () => ({ echoed: "hi" }));
 		const requestToolApproval = vi.fn(async () => ({
 			approved: false,
-			reason: "denied by test",
+			reason: "denied by test.",
 		}));
 		const model = new ScriptedModel([
 			() => [
@@ -1221,7 +1222,7 @@ describe("AgentRuntime", () => {
 				expect(toolMessage.content[0]).toMatchObject({
 					type: "tool-result",
 					isError: true,
-					output: { error: "denied by test" },
+					output: { error: `denied by test. -- ${TOOL_REJECTION_SUFFIX}` },
 				});
 				return [
 					{ type: "text-delta", text: "approval handled" },
@@ -1267,7 +1268,7 @@ describe("AgentRuntime", () => {
 		const executeTool = vi.fn(async () => ({ echoed: "hi" }));
 		const requestToolApproval = vi.fn(async () => ({
 			approved: false,
-			reason: "live policy denied",
+			reason: "live policy denied.",
 		}));
 		const model = new ScriptedModel([
 			() => [
@@ -1285,7 +1286,7 @@ describe("AgentRuntime", () => {
 				expect(toolMessage.content[0]).toMatchObject({
 					type: "tool-result",
 					isError: true,
-					output: { error: "live policy denied" },
+					output: { error: `live policy denied. -- ${TOOL_REJECTION_SUFFIX}` },
 				});
 				return [
 					{ type: "text-delta", text: "live policy handled" },

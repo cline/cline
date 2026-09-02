@@ -535,6 +535,7 @@ describe("UnifiedSessionPersistenceService", () => {
 
 		const childSessions = await service.listSessions(10);
 		const row = childSessions.find((item) => item.agentId === "plain-worker");
+		expect(row?.pid).toBe(process.pid);
 		expect(row?.status).toBe("completed");
 		expect(row?.messagesPath).toBeTruthy();
 		const payload = JSON.parse(

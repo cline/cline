@@ -1,5 +1,40 @@
 import { describe, expect, it } from "vitest";
-import { resolveHubUpdateRestartDecision } from "./hub-update-required-helpers";
+import {
+	describeOutdatedHubSessions,
+	resolveHubUpdateRestartDecision,
+} from "./hub-update-required-helpers";
+
+describe("describeOutdatedHubSessions", () => {
+	it("quantifies sessions and clients when the hub reported both", () => {
+		expect(
+			describeOutdatedHubSessions({
+				activeSessionCount: 2,
+				participantClientCount: 1,
+			}),
+		).toBe("2 active sessions from 1 connected Cline client");
+		expect(
+			describeOutdatedHubSessions({
+				activeSessionCount: 1,
+				participantClientCount: 3,
+			}),
+		).toBe("1 active session from 3 connected Cline clients");
+	});
+
+	it("omits the client clause when participant ids were unavailable", () => {
+		expect(
+			describeOutdatedHubSessions({
+				activeSessionCount: 4,
+				participantClientCount: 0,
+			}),
+		).toBe("4 active sessions");
+	});
+
+	it("falls back to an unquantified phrase when the hub could not answer", () => {
+		expect(describeOutdatedHubSessions({})).toBe(
+			"active sessions from other Cline clients",
+		);
+	});
+});
 
 describe("resolveHubUpdateRestartDecision", () => {
 	it("restarts only once an update is staged", () => {

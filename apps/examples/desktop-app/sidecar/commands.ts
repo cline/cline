@@ -37,6 +37,10 @@ import {
 	resolveMcpServerRegistration,
 	resolveSessionBackend,
 	resolveAgentConfigSearchPaths as resolveSharedAgentConfigSearchPaths,
+	SESSION_IMPORT_TOOLS,
+	type SessionImportRequest,
+	SessionImportService,
+	type SessionImportTool,
 	SqliteSessionStore,
 	saveLocalProviderSettings,
 	saveMediaGenerationSettings,
@@ -48,6 +52,7 @@ import {
 	transcribeConfiguredVoiceInput,
 	updateLocalProvider,
 	updateMcpSettingsFileSync,
+	upgradeManagedHub,
 } from "@cline/core";
 import { resolveAudioTranscriptionRoute } from "@cline/llms";
 import {
@@ -1387,6 +1392,45 @@ export async function handleCommand(
 		return "";
 	}
 
+	// ── Managed hub upgrade ───────────────────────────────────────────
+	if (command === "hub_upgrade") {
+		// Replacing the shared Hub interrupts other clients' sessions, so it
+		// carries the same per-connection gate as the tool-approval commands:
+		// only the webview connection dialed with the approval token may ask,
+		// never an arbitrary local WebSocket client.
+		if (!options?.connection?.data?.canApproveTools) {
+			throw new Error("hub upgrade requires a trusted desktop connection");
+		}
+		// Only reached after the user accepted the blocking "Hub update
+		// required" dialog, so force: the old Hub is replaced even though it
+		// is still serving other clients' sessions. Drain-first semantics
+		// still give in-flight turns the wait window to finish.
+		const result = await upgradeManagedHub({
+			workspaceRoot: ctx.workspaceRoot,
+			force: true,
+			reason: "Cline Desktop hub update",
+		});
+		if (result.outcome === "hub_not_older") {
+			throw new Error(
+				"The running Cline Hub is newer than this app, so it was not replaced. Update Cline instead.",
+			);
+		}
+		if (result.outcome === "still_busy") {
+			throw new Error(
+				"The running Cline Hub picked up new sessions before it could be replaced, so it was left running. Try again.",
+			);
+		}
+		// The mismatch is resolved: a null broadcast closes the dialog in
+		// every connected webview and stops the replay-on-connect.
+		ctx.hubBuildMismatch = null;
+		broadcastEvent(ctx, "hub_build_mismatch", null);
+		return {
+			outcome: result.outcome,
+			url: result.url ?? null,
+			interruptedSessionCount: result.activeSessionCount ?? 0,
+		};
+	}
+
 	// ── Tool approvals (in-memory) ────────────────────────────────────
 	if (command === "poll_tool_approvals") {
 		const sessionId = String(args?.sessionId ?? "").trim();
@@ -1517,6 +1561,57 @@ export async function handleCommand(
 		const sessionId = String(args?.sessionId ?? args?.session_id ?? "").trim();
 		if (!sessionId) throw new Error("session id is required");
 		return (await getSessionFromSidecarManager(ctx, sessionId)) ?? null;
+	}
+
+	// ── Session import from other coding tools ────────────────────────
+	if (command === "list_importable_sessions") {
+		const backend = await resolveSessionBackend({ backendMode: "local" });
+		const importer = new SessionImportService(backend);
+		return {
+			installedTools: importer.installedTools(),
+			sessions: await importer.discover(),
+		};
+	}
+	if (command === "import_sessions") {
+		const rawSelections = Array.isArray(args?.selections)
+			? args.selections
+			: [];
+		const requests: SessionImportRequest[] = [];
+		for (const selection of rawSelections) {
+			if (!selection || typeof selection !== "object") continue;
+			const tool = String((selection as JsonRecord).tool ?? "").trim();
+			const sourceId = String((selection as JsonRecord).sourceId ?? "").trim();
+			if (!sourceId) continue;
+			if (!(SESSION_IMPORT_TOOLS as readonly string[]).includes(tool)) {
+				continue;
+			}
+			requests.push({ tool: tool as SessionImportTool, sourceId });
+		}
+		if (requests.length === 0) {
+			throw new Error("at least one { tool, sourceId } selection is required");
+		}
+		const backend = await resolveSessionBackend({ backendMode: "local" });
+		const importer = new SessionImportService(backend);
+		// Opening a history session resumes on the row's provider/model, so the
+		// UI passes what a new chat would run on; the source tool's own
+		// provider/model stay in metadata.importedFrom.
+		// Never let the source tool's provider become the resume target: when
+		// the caller sends no selection, use the app default like other
+		// server-started sessions do.
+		const provider = asTrimmedString(args?.provider) ?? "cline";
+		const model = asTrimmedString(args?.model) ?? CLINE_DEFAULT_MODEL_ID;
+		const results = await importer.importMany(
+			requests,
+			(result, index) => {
+				broadcastEvent(ctx, "session_import_progress", {
+					index,
+					total: requests.length,
+					result,
+				});
+			},
+			{ provider, model },
+		);
+		return { results };
 	}
 	if (command === "update_chat_session_title") {
 		const sessionId = String(args?.sessionId ?? "").trim();
