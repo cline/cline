@@ -1220,23 +1220,45 @@ export async function disconnectComposioToolkit(
 			);
 		} catch (error) {
 			if (!isAccountAlreadyGoneError(error)) {
-				// Revocation did NOT happen: the account is still authorized on
-				// Composio's side, and running Hub sessions that loaded this
-				// connector keep executing against it until the delete lands.
-				// Removing only the local state would report an uninstall that
-				// never took effect remotely — keep the connector installed and
-				// surface the failure so the user retries. (Revoking from the
-				// Composio dashboard works too: the next status refresh drops
-				// the local state once the account is gone.)
-				throw new Error(
-					`Could not revoke the ${toolkit} connection: ${formatComposioError(error)}. The connector is still connected — try again, or revoke it from the Composio dashboard.`,
+				const current =
+					readComposioState().toolkits?.[toolkit]?.connectedAccountId;
+				if (
+					current === stored.connectedAccountId &&
+					!connectInitiationsInFlight.has(toolkit)
+				) {
+					// Revocation did NOT happen: the account is still authorized
+					// on Composio's side, and running Hub sessions that loaded
+					// this connector keep executing against it until the delete
+					// lands. Removing only the local state would report an
+					// uninstall that never took effect remotely — keep the
+					// connector installed (it is the retry vehicle) and surface
+					// the failure. (Revoking from the Composio dashboard works
+					// too: the next status refresh drops the local state once
+					// the account is gone.)
+					throw new Error(
+						`Could not revoke the ${toolkit} connection: ${formatComposioError(error)}. The connector is still connected — try again, or revoke it from the Composio dashboard.`,
+					);
+				}
+				// The slot was replaced by a newer connect (or one is mid-flight
+				// and may replace it), so the stored entry can no longer serve
+				// as the retry vehicle for this still-authorized account —
+				// throwing here would orphan it with no local reference at all.
+				// Tombstone it instead: reconciliation retries the revocation on
+				// every refresh and prunes once it is confirmed.
+				updateComposioState((s) => {
+					rememberCancelledAccountId(s, stored.connectedAccountId);
+				});
+				logger?.log?.(
+					`composio disconnect ${toolkit}: revocation failed after the slot changed; retrying via tombstone (${formatComposioError(error)})`,
 				);
 			}
-			// Already deleted on Composio's side; local removal is all that is
-			// left to do.
-			logger?.log?.(
-				`composio disconnect ${toolkit}: account already gone remotely`,
-			);
+			if (isAccountAlreadyGoneError(error)) {
+				// Already deleted on Composio's side; local removal is all that
+				// is left to do.
+				logger?.log?.(
+					`composio disconnect ${toolkit}: account already gone remotely`,
+				);
+			}
 		}
 	}
 	let slotEmptyAfterRemoval = false;
@@ -1396,7 +1418,17 @@ async function finalizeToolkitConnection(
 	}
 	// No await separates the guard checks above from this write, so the
 	// checked state cannot go stale in between.
+	let replacedAccountId: string | undefined;
 	updateComposioState((s) => {
+		const previous = s.toolkits?.[toolkit];
+		if (previous && previous.connectedAccountId !== connectedAccountId) {
+			// Superseded by this connection: nothing references the previous
+			// account anymore, so it must not stay authorized remotely. The
+			// tombstone also covers a concurrent disconnect whose own
+			// revocation of it fails after this write.
+			replacedAccountId = previous.connectedAccountId;
+			rememberCancelledAccountId(s, previous.connectedAccountId);
+		}
 		s.toolkits = {
 			...(s.toolkits ?? {}),
 			[toolkit]: {
@@ -1407,6 +1439,16 @@ async function finalizeToolkitConnection(
 			},
 		};
 	});
+	if (replacedAccountId) {
+		const superseded = replacedAccountId;
+		void revokeConnectedAccountQuietly(guard.apiKey, superseded, logger).then(
+			(confirmedGone) => {
+				if (confirmedGone) {
+					pruneConfirmedCancelledAccount(superseded);
+				}
+			},
+		);
+	}
 	logger?.log?.(`composio connected ${toolkit} with ${tools.length} tool(s)`);
 	return true;
 }
