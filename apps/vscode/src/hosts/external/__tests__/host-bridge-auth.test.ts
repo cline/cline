@@ -20,7 +20,6 @@ async function runMiddleware(options: Record<string, unknown>): Promise<any> {
 		request: { some: "request" },
 		requestStream: false,
 		responseStream: false,
-		// eslint-disable-next-line require-yield
 		next: async function* (_request: unknown, nextOptions: unknown) {
 			forwarded = nextOptions
 			return "response"
