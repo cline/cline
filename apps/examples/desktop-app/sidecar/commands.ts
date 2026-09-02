@@ -95,6 +95,7 @@ import {
 import {
 	ensureMcpSettingsFile,
 	readMcpServersResponse,
+	resolveMcpOAuthClientUpdate,
 	shouldProbeMcpServerAfterUpsert,
 } from "./mcp";
 import {
@@ -255,6 +256,21 @@ function readProviderSettingsUpdate(
 		: {};
 }
 
+function mcpRemoteHeadersIdentity(headers: unknown): string {
+	if (headers === undefined) {
+		return "omitted";
+	}
+	if (!headers || typeof headers !== "object" || Array.isArray(headers)) {
+		return "invalid";
+	}
+	const entries = Object.entries(headers);
+	if (entries.some(([, value]) => typeof value !== "string")) {
+		return "invalid";
+	}
+	entries.sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0));
+	return `present:${JSON.stringify(entries)}`;
+}
+
 /**
  * Transport type + URL a server record actually points at, tolerating both
  * the nested `transport` shape and legacy flat fields (mirrors
@@ -265,7 +281,7 @@ function mcpTransportIdentity(name: string, record: JsonRecord): string {
 		const resolved = parseMcpServerRegistration(name, record).transport;
 		return resolved.type === "stdio"
 			? "stdio\u0000"
-			: `${resolved.type}\u0000${resolved.url}`;
+			: `${resolved.type}\u0000${resolved.url}\u0000${mcpRemoteHeadersIdentity(resolved.headers)}`;
 	} catch {
 		// Preserve a best-effort identity for malformed entries so the editor can
 		// still repair them without requiring the entire settings file to parse.
@@ -286,7 +302,11 @@ function mcpTransportIdentity(name: string, record: JsonRecord): string {
 	const rawType = transport?.type ?? record.transportType ?? record.type;
 	const type = String(rawType ?? (url ? "sse" : "stdio")).trim();
 	const normalizedType = type === "http" ? "streamableHttp" : type;
-	return `${normalizedType}\u0000${url}`;
+	const headers =
+		transport && Object.hasOwn(transport, "headers")
+			? transport.headers
+			: record.headers;
+	return `${normalizedType}\u0000${url}\u0000${mcpRemoteHeadersIdentity(headers)}`;
 }
 
 function removePathIfExists(
@@ -2237,6 +2257,11 @@ export async function handleCommand(
 		).trim();
 		const requestedDisabled = Boolean(input.disabled);
 		const isRemote = transportType !== "stdio";
+		if (!isRemote && input.oauthClient != null) {
+			throw new Error(
+				"OAuth clients are only supported for remote MCP servers",
+			);
+		}
 		const next: JsonRecord =
 			transportType === "stdio"
 				? {
@@ -2270,10 +2295,12 @@ export async function handleCommand(
 				const existingName =
 					previousName && servers[previousName] ? previousName : name;
 				const existing = servers[existingName];
+				let existingRecord: JsonRecord | undefined;
 				let existingTransportIdentity: string | undefined;
 				let existingWasEnabled = false;
 				if (existing && typeof existing === "object") {
 					const record = existing as JsonRecord;
+					existingRecord = record;
 					existingTransportIdentity = mcpTransportIdentity(
 						existingName,
 						record,
@@ -2283,16 +2310,26 @@ export async function handleCommand(
 				const nextTransportIdentity = mcpTransportIdentity(name, next);
 				const transportIdentityUnchanged =
 					existingTransportIdentity === nextTransportIdentity;
+				const { oauthClient, oauthClientUnchanged } =
+					resolveMcpOAuthClientUpdate({
+						requestedOAuthClient: input.oauthClient,
+						existingOAuthClient: existingRecord?.oauthClient,
+						transportIdentityUnchanged,
+					});
 				const shouldProbe = shouldProbeMcpServerAfterUpsert({
 					isRemote,
 					requestedDisabled,
 					existingWasEnabled,
 					transportIdentityUnchanged,
+					oauthClientUnchanged,
 				});
 				const upserted: JsonRecord = {
 					...next,
 					disabled: requestedDisabled || shouldProbe,
 				};
+				if (oauthClient !== undefined) {
+					upserted.oauthClient = oauthClient;
+				}
 				if (existing && typeof existing === "object") {
 					const record = existing as JsonRecord;
 					if (
@@ -2301,14 +2338,14 @@ export async function handleCommand(
 					) {
 						upserted.metadata = record.metadata;
 					}
-					// OAuth tokens were issued for a specific endpoint; carrying them
-					// onto an edited transport or URL would send the old server's
-					// credentials to a different endpoint.
-					if (record.oauth !== undefined && transportIdentityUnchanged) {
+					// OAuth state is bound to both endpoint and client identity. Never
+					// carry tokens or discovery state across either kind of change.
+					if (
+						record.oauth !== undefined &&
+						transportIdentityUnchanged &&
+						oauthClientUnchanged
+					) {
 						upserted.oauth = record.oauth;
-					}
-					if (record.oauthClient !== undefined && transportIdentityUnchanged) {
-						upserted.oauthClient = record.oauthClient;
 					}
 				}
 				if (previousName && previousName !== name) {

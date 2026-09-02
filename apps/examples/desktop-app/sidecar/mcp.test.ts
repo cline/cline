@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { handleCommand } from "./commands";
 import {
 	buildMcpServersResponse,
+	resolveMcpOAuthClientUpdate,
 	shouldProbeMcpServerAfterUpsert,
 } from "./mcp";
 import type { JsonRecord, SidecarContext } from "./types";
@@ -33,6 +34,11 @@ describe("desktop MCP settings", () => {
 					command: "npx",
 					args: ["-y", "mcp-remote", "https://mcp.linear.app/mcp"],
 					disabled: true,
+					oauthClient: {
+						clientId: "desktop-client",
+						clientSecret: "must-not-leave-the-sidecar",
+						allowedScopes: ["search:read.public", "channels:history"],
+					},
 					oauth: {
 						authorizationRequired: true,
 						lastError: "OAuth authorization required",
@@ -49,6 +55,11 @@ describe("desktop MCP settings", () => {
 			transportType: "streamableHttp",
 			url: "https://mcp.linear.app/mcp",
 			disabled: true,
+			oauthClient: {
+				clientId: "desktop-client",
+				hasClientSecret: true,
+				allowedScopes: ["channels:history", "search:read.public"],
+			},
 			oauthStatus: {
 				authorizationRequired: true,
 				lastError: "OAuth authorization required",
@@ -60,6 +71,9 @@ describe("desktop MCP settings", () => {
 		});
 		expect(String(servers[1]?.configurationError)).toContain(
 			'Invalid MCP server "broken"',
+		);
+		expect(JSON.stringify(response)).not.toContain(
+			"must-not-leave-the-sidecar",
 		);
 	});
 
@@ -80,6 +94,492 @@ describe("desktop MCP settings", () => {
 				transportIdentityUnchanged: false,
 			}),
 		).toBe(true);
+		expect(
+			shouldProbeMcpServerAfterUpsert({
+				isRemote: true,
+				requestedDisabled: false,
+				existingWasEnabled: true,
+				transportIdentityUnchanged: true,
+				oauthClientUnchanged: false,
+			}),
+		).toBe(true);
+	});
+
+	it("validates requests to preserve a redacted OAuth client secret", () => {
+		expect(() =>
+			resolveMcpOAuthClientUpdate({
+				requestedOAuthClient: {
+					clientId: "replacement-client",
+					preserveClientSecret: true,
+				},
+				existingOAuthClient: {
+					clientId: "desktop-client",
+					clientSecret: "saved-secret",
+				},
+				transportIdentityUnchanged: true,
+			}),
+		).toThrow("cannot be preserved for this client ID");
+		expect(() =>
+			resolveMcpOAuthClientUpdate({
+				requestedOAuthClient: {
+					clientId: "desktop-client",
+					preserveClientSecret: true,
+				},
+				existingOAuthClient: {
+					clientId: "desktop-client",
+					clientSecret: "saved-secret",
+				},
+				transportIdentityUnchanged: false,
+			}),
+		).toThrow("server transport, URL, or headers");
+	});
+
+	it("fails closed on malformed or unknown OAuth scope policy input", () => {
+		const base = {
+			clientId: "desktop-client",
+			allowedScopes: ["channels:history"],
+		};
+		for (const requestedOAuthClient of [
+			{ ...base, allowedScopes: [] },
+			{ ...base, allowedScopes: ["channels:history", "channels:history"] },
+			{ ...base, allowedScopes: ["channels:history chat:write"] },
+			{ ...base, allowedScopes: "channels:history" },
+			{ ...base, unexpected: true },
+		]) {
+			expect(() =>
+				resolveMcpOAuthClientUpdate({
+					requestedOAuthClient,
+					existingOAuthClient: undefined,
+					transportIdentityUnchanged: false,
+				}),
+			).toThrow();
+		}
+	});
+
+	it("preserves a saved OAuth client secret and its current OAuth state", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "desktop-mcp-oauth-"));
+		const settingsPath = join(tempRoot, "cline_mcp_settings.json");
+		const previousSettingsPath = process.env.CLINE_MCP_SETTINGS_PATH;
+		process.env.CLINE_MCP_SETTINGS_PATH = settingsPath;
+		try {
+			await writeFile(
+				settingsPath,
+				JSON.stringify({
+					mcpServers: {
+						slack: {
+							transport: {
+								type: "streamableHttp",
+								url: "https://mcp.slack.com/mcp",
+							},
+							disabled: true,
+							oauthClient: {
+								clientId: "desktop-client",
+								clientSecret: "saved-secret",
+								allowedScopes: ["search:read.public", "channels:history"],
+							},
+							oauth: {
+								tokens: { access_token: "saved-token" },
+							},
+						},
+					},
+				}),
+				"utf8",
+			);
+
+			const response = (await handleCommand(
+				createContext(tempRoot),
+				"upsert_mcp_server",
+				{
+					input: {
+						name: "slack",
+						previousName: "slack",
+						transportType: "streamableHttp",
+						url: "https://mcp.slack.com/mcp",
+						disabled: true,
+						oauthClient: {
+							clientId: "desktop-client",
+							preserveClientSecret: true,
+						},
+					},
+				},
+			)) as JsonRecord;
+			expect(response.servers).toEqual([
+				expect.objectContaining({
+					name: "slack",
+					oauthClient: {
+						clientId: "desktop-client",
+						hasClientSecret: true,
+						allowedScopes: ["channels:history", "search:read.public"],
+					},
+				}),
+			]);
+			expect(JSON.stringify(response)).not.toContain("saved-secret");
+			expect(JSON.stringify(response)).not.toContain("saved-token");
+
+			const written = JSON.parse(await readFile(settingsPath, "utf8"));
+			expect(written.mcpServers.slack.oauthClient).toEqual({
+				clientId: "desktop-client",
+				clientSecret: "saved-secret",
+				allowedScopes: ["search:read.public", "channels:history"],
+			});
+			expect(written.mcpServers.slack.oauth).toEqual({
+				tokens: { access_token: "saved-token" },
+			});
+		} finally {
+			if (previousSettingsPath === undefined) {
+				delete process.env.CLINE_MCP_SETTINGS_PATH;
+			} else {
+				process.env.CLINE_MCP_SETTINGS_PATH = previousSettingsPath;
+			}
+			await rm(tempRoot, { recursive: true, force: true });
+		}
+	});
+
+	it("canonicalizes scope edits and invalidates OAuth state only for policy changes", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "desktop-mcp-scopes-"));
+		const settingsPath = join(tempRoot, "cline_mcp_settings.json");
+		const previousSettingsPath = process.env.CLINE_MCP_SETTINGS_PATH;
+		process.env.CLINE_MCP_SETTINGS_PATH = settingsPath;
+		try {
+			const writeScopedServer = async () =>
+				writeFile(
+					settingsPath,
+					JSON.stringify({
+						mcpServers: {
+							slack: {
+								transport: {
+									type: "streamableHttp",
+									url: "https://mcp.slack.com/mcp",
+								},
+								disabled: true,
+								oauthClient: {
+									clientId: "desktop-client",
+									clientSecret: "saved-secret",
+									allowedScopes: ["search:read.public", "channels:history"],
+								},
+								oauth: {
+									tokens: { access_token: "saved-token" },
+								},
+							},
+						},
+					}),
+					"utf8",
+				);
+
+			await writeScopedServer();
+			await handleCommand(createContext(tempRoot), "upsert_mcp_server", {
+				input: {
+					name: "slack",
+					previousName: "slack",
+					transportType: "streamableHttp",
+					url: "https://mcp.slack.com/mcp",
+					disabled: true,
+					oauthClient: {
+						clientId: "desktop-client",
+						preserveClientSecret: true,
+						allowedScopes: ["channels:history", "search:read.public"],
+					},
+				},
+			});
+			let written = JSON.parse(await readFile(settingsPath, "utf8"));
+			expect(written.mcpServers.slack.oauthClient.allowedScopes).toEqual([
+				"channels:history",
+				"search:read.public",
+			]);
+			expect(written.mcpServers.slack.oauth).toEqual({
+				tokens: { access_token: "saved-token" },
+			});
+
+			await writeScopedServer();
+			await handleCommand(createContext(tempRoot), "upsert_mcp_server", {
+				input: {
+					name: "slack",
+					previousName: "slack",
+					transportType: "streamableHttp",
+					url: "https://mcp.slack.com/mcp",
+					disabled: true,
+					oauthClient: {
+						clientId: "desktop-client",
+						preserveClientSecret: true,
+						allowedScopes: ["channels:history"],
+					},
+				},
+			});
+			written = JSON.parse(await readFile(settingsPath, "utf8"));
+			expect(written.mcpServers.slack.oauthClient).toEqual({
+				clientId: "desktop-client",
+				clientSecret: "saved-secret",
+				allowedScopes: ["channels:history"],
+			});
+			expect(written.mcpServers.slack.oauth).toBeUndefined();
+			expect(
+				shouldProbeMcpServerAfterUpsert({
+					isRemote: true,
+					requestedDisabled: false,
+					existingWasEnabled: true,
+					transportIdentityUnchanged: true,
+					oauthClientUnchanged: false,
+				}),
+			).toBe(true);
+
+			await writeScopedServer();
+			await handleCommand(createContext(tempRoot), "upsert_mcp_server", {
+				input: {
+					name: "slack",
+					previousName: "slack",
+					transportType: "streamableHttp",
+					url: "https://mcp.slack.com/mcp",
+					disabled: true,
+					oauthClient: {
+						clientId: "desktop-client",
+						preserveClientSecret: true,
+						allowedScopes: null,
+					},
+				},
+			});
+			written = JSON.parse(await readFile(settingsPath, "utf8"));
+			expect(written.mcpServers.slack.oauthClient).toEqual({
+				clientId: "desktop-client",
+				clientSecret: "saved-secret",
+			});
+			expect(written.mcpServers.slack.oauth).toBeUndefined();
+		} finally {
+			if (previousSettingsPath === undefined) {
+				delete process.env.CLINE_MCP_SETTINGS_PATH;
+			} else {
+				process.env.CLINE_MCP_SETTINGS_PATH = previousSettingsPath;
+			}
+			await rm(tempRoot, { recursive: true, force: true });
+		}
+	});
+
+	it("binds OAuth state and saved secrets to canonical remote headers", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "desktop-mcp-headers-"));
+		const settingsPath = join(tempRoot, "cline_mcp_settings.json");
+		const previousSettingsPath = process.env.CLINE_MCP_SETTINGS_PATH;
+		process.env.CLINE_MCP_SETTINGS_PATH = settingsPath;
+		const originalHeaders = {
+			Authorization: "Bearer fixed-test-header",
+			"X-Tenant": "one",
+		};
+		const reorderedHeaders = {
+			"X-Tenant": "one",
+			Authorization: "Bearer fixed-test-header",
+		};
+		const changedHeaders = {
+			Authorization: "Bearer fixed-test-header",
+			"X-Tenant": "two",
+		};
+		const writeServer = async () =>
+			writeFile(
+				settingsPath,
+				JSON.stringify({
+					mcpServers: {
+						proxied: {
+							transport: {
+								type: "streamableHttp",
+								url: "http://127.0.0.1:1/mcp",
+								headers: originalHeaders,
+							},
+							disabled: false,
+							oauthClient: {
+								clientId: "desktop-client",
+								clientSecret: "saved-secret",
+							},
+							oauth: {
+								clientInformation: {
+									client_id: "desktop-client",
+									client_secret: "saved-secret",
+								},
+								tokens: { access_token: "saved-token" },
+							},
+						},
+					},
+				}),
+				"utf8",
+			);
+		try {
+			await writeServer();
+			await handleCommand(createContext(tempRoot), "upsert_mcp_server", {
+				input: {
+					name: "proxied",
+					previousName: "proxied",
+					transportType: "streamableHttp",
+					url: "http://127.0.0.1:1/mcp",
+					headers: reorderedHeaders,
+					disabled: false,
+					oauthClient: {
+						clientId: "desktop-client",
+						preserveClientSecret: true,
+						allowedScopes: null,
+					},
+				},
+			});
+			let written = JSON.parse(await readFile(settingsPath, "utf8"));
+			expect(written.mcpServers.proxied.disabled).toBe(false);
+			expect(written.mcpServers.proxied.oauthClient.clientSecret).toBe(
+				"saved-secret",
+			);
+			expect(written.mcpServers.proxied.oauth.tokens.access_token).toBe(
+				"saved-token",
+			);
+
+			await writeServer();
+			await expect(
+				handleCommand(createContext(tempRoot), "upsert_mcp_server", {
+					input: {
+						name: "proxied",
+						previousName: "proxied",
+						transportType: "streamableHttp",
+						url: "http://127.0.0.1:1/mcp",
+						headers: changedHeaders,
+						disabled: false,
+						oauthClient: {
+							clientId: "desktop-client",
+							preserveClientSecret: true,
+							allowedScopes: null,
+						},
+					},
+				}),
+			).rejects.toThrow("server transport, URL, or headers");
+			written = JSON.parse(await readFile(settingsPath, "utf8"));
+			expect(written.mcpServers.proxied.transport.headers).toEqual(
+				originalHeaders,
+			);
+			expect(written.mcpServers.proxied.oauth.tokens.access_token).toBe(
+				"saved-token",
+			);
+
+			await writeServer();
+			const response = (await handleCommand(
+				createContext(tempRoot),
+				"upsert_mcp_server",
+				{
+					input: {
+						name: "proxied",
+						previousName: "proxied",
+						transportType: "streamableHttp",
+						url: "http://127.0.0.1:1/mcp",
+						headers: changedHeaders,
+						disabled: false,
+						oauthClient: {
+							clientId: "desktop-client",
+							allowedScopes: null,
+						},
+					},
+				},
+			)) as JsonRecord;
+			const server = (response.servers as JsonRecord[]).find(
+				(candidate) => candidate.name === "proxied",
+			);
+			expect(server).toMatchObject({
+				disabled: true,
+				oauthClient: {
+					clientId: "desktop-client",
+					hasClientSecret: false,
+				},
+			});
+			expect(
+				typeof (server?.oauthStatus as JsonRecord | undefined)?.lastError,
+			).toBe("string");
+			written = JSON.parse(await readFile(settingsPath, "utf8"));
+			expect(written.mcpServers.proxied.disabled).toBe(true);
+			expect(written.mcpServers.proxied.transport.headers).toEqual(
+				changedHeaders,
+			);
+			expect(written.mcpServers.proxied.oauthClient).toEqual({
+				clientId: "desktop-client",
+			});
+			expect(written.mcpServers.proxied.oauth?.tokens).toBeUndefined();
+		} finally {
+			if (previousSettingsPath === undefined) {
+				delete process.env.CLINE_MCP_SETTINGS_PATH;
+			} else {
+				process.env.CLINE_MCP_SETTINGS_PATH = previousSettingsPath;
+			}
+			await rm(tempRoot, { recursive: true, force: true });
+		}
+	});
+
+	it("invalidates OAuth state when the OAuth client changes or clears", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "desktop-mcp-oauth-"));
+		const settingsPath = join(tempRoot, "cline_mcp_settings.json");
+		const previousSettingsPath = process.env.CLINE_MCP_SETTINGS_PATH;
+		process.env.CLINE_MCP_SETTINGS_PATH = settingsPath;
+		try {
+			const cases = [
+				{
+					name: "replace client and secret",
+					oauthClient: {
+						clientId: "replacement-client",
+						clientSecret: "replacement-secret",
+					},
+					expected: {
+						clientId: "replacement-client",
+						clientSecret: "replacement-secret",
+					},
+				},
+				{
+					name: "clear only the secret",
+					oauthClient: { clientId: "desktop-client" },
+					expected: { clientId: "desktop-client" },
+				},
+				{
+					name: "clear the client",
+					oauthClient: null,
+					expected: undefined,
+				},
+			] as const;
+
+			for (const testCase of cases) {
+				await writeFile(
+					settingsPath,
+					JSON.stringify({
+						mcpServers: {
+							slack: {
+								transport: {
+									type: "streamableHttp",
+									url: "https://mcp.slack.com/mcp",
+								},
+								disabled: true,
+								oauthClient: {
+									clientId: "desktop-client",
+									clientSecret: "saved-secret",
+								},
+								oauth: {
+									tokens: { access_token: "saved-token" },
+								},
+							},
+						},
+					}),
+					"utf8",
+				);
+
+				await handleCommand(createContext(tempRoot), "upsert_mcp_server", {
+					input: {
+						name: "slack",
+						previousName: "slack",
+						transportType: "streamableHttp",
+						url: "https://mcp.slack.com/mcp",
+						disabled: true,
+						oauthClient: testCase.oauthClient,
+					},
+				});
+
+				const written = JSON.parse(await readFile(settingsPath, "utf8"));
+				expect(written.mcpServers.slack.oauthClient, testCase.name).toEqual(
+					testCase.expected,
+				);
+				expect(written.mcpServers.slack.oauth, testCase.name).toBeUndefined();
+			}
+		} finally {
+			if (previousSettingsPath === undefined) {
+				delete process.env.CLINE_MCP_SETTINGS_PATH;
+			} else {
+				process.env.CLINE_MCP_SETTINGS_PATH = previousSettingsPath;
+			}
+			await rm(tempRoot, { recursive: true, force: true });
+		}
 	});
 
 	it("keeps an unchanged enabled remote server enabled when saving metadata", async () => {

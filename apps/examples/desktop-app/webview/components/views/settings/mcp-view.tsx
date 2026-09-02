@@ -57,6 +57,14 @@ import {
 } from "../marketplace-view";
 import { CommandBadge, PageFrame, PageHeader } from "../page-layout";
 import { subscribeToExtensionInventoryInvalidation } from "./extensions-view";
+import {
+	buildMcpOAuthClientUpsert,
+	createMcpOAuthClientFormFields,
+	isMcpOAuthClientIdentityUnchanged,
+	MCP_OAUTH_REDIRECT_URIS,
+	type McpOAuthClientSummary,
+	type McpOAuthClientUpsert,
+} from "./mcp-oauth-form";
 
 type McpTransportType = "stdio" | "sse" | "streamableHttp";
 
@@ -83,6 +91,7 @@ interface McpServer {
 	url?: string;
 	headers?: Record<string, string>;
 	metadata?: unknown;
+	oauthClient?: McpOAuthClientSummary;
 	configurationError?: string;
 	oauthStatus?: {
 		supported: boolean;
@@ -111,6 +120,7 @@ interface McpServerUpsertInput {
 	headers?: Record<string, string>;
 	disabled?: boolean;
 	metadata?: unknown;
+	oauthClient?: McpOAuthClientUpsert | null;
 }
 
 type McpServerFormState = {
@@ -125,6 +135,15 @@ type McpServerFormState = {
 	headersText: string;
 	disabled: boolean;
 	metadataText: string;
+	oauthClientId: string;
+	oauthClientSecret: string;
+	originalOauthClientId: string;
+	hasSavedOauthClientSecret: boolean;
+	preserveSavedOauthClientSecret: boolean;
+	oauthAllowedScopesText: string;
+	originalOauthServerUrl: string;
+	originalOauthTransportType: McpTransportType;
+	originalOauthHeaders?: Record<string, string>;
 };
 
 function splitCsv(text: string): string[] {
@@ -189,6 +208,12 @@ function createEnvEntries(
 }
 
 function createServerFormState(existing?: McpServer): McpServerFormState {
+	const oauthClient = createMcpOAuthClientFormFields(
+		existing?.oauthClient,
+		existing?.url ?? "",
+		existing?.transportType ?? "streamableHttp",
+		existing?.headers,
+	);
 	return {
 		name: existing?.name ?? "",
 		previousName: existing?.name ?? "",
@@ -204,6 +229,16 @@ function createServerFormState(existing?: McpServer): McpServerFormState {
 			existing?.metadata === undefined
 				? ""
 				: JSON.stringify(existing.metadata, null, 2),
+		oauthClientId: oauthClient.clientId,
+		oauthClientSecret: oauthClient.clientSecret,
+		originalOauthClientId: oauthClient.originalClientId,
+		hasSavedOauthClientSecret: oauthClient.hasSavedClientSecret,
+		preserveSavedOauthClientSecret: oauthClient.preserveSavedClientSecret,
+		oauthAllowedScopesText: oauthClient.allowedScopesText,
+		originalOauthServerUrl: oauthClient.originalServerUrl,
+		originalOauthTransportType:
+			oauthClient.originalTransportType as McpTransportType,
+		originalOauthHeaders: oauthClient.originalHeaders,
 	};
 }
 
@@ -428,6 +463,7 @@ export function McpServersContent({
 				env: Object.keys(env).length > 0 ? env : undefined,
 				disabled: form.disabled,
 				metadata,
+				oauthClient: null,
 			} satisfies McpServerUpsertInput;
 		}
 		const url = form.url.trim();
@@ -442,6 +478,20 @@ export function McpServersContent({
 			headers: parseKeyValuePairs(form.headersText),
 			disabled: form.disabled,
 			metadata,
+			oauthClient: buildMcpOAuthClientUpsert({
+				clientId: form.oauthClientId,
+				clientSecret: form.oauthClientSecret,
+				originalClientId: form.originalOauthClientId,
+				hasSavedClientSecret: form.hasSavedOauthClientSecret,
+				preserveSavedClientSecret: form.preserveSavedOauthClientSecret,
+				allowedScopesText: form.oauthAllowedScopesText,
+				serverUrl: form.url,
+				originalServerUrl: form.originalOauthServerUrl,
+				transportType: form.transportType,
+				originalTransportType: form.originalOauthTransportType,
+				headers: parseKeyValuePairs(form.headersText),
+				originalHeaders: form.originalOauthHeaders,
+			}),
 		} satisfies McpServerUpsertInput;
 	}, []);
 
@@ -463,12 +513,18 @@ export function McpServersContent({
 		setEditorOpen(true);
 	};
 
+	const closeEditorDialog = () => {
+		setEditorOpen(false);
+		setFormState(createServerFormState());
+		setFormErrorMessage(null);
+	};
+
 	const handleSaveServer = async () => {
 		setFormErrorMessage(null);
 		try {
 			const input = buildServerInput(formState);
 			await upsertServer(input);
-			setEditorOpen(false);
+			closeEditorDialog();
 		} catch (error) {
 			setFormErrorMessage(
 				error instanceof Error ? error.message : String(error),
@@ -502,6 +558,20 @@ export function McpServersContent({
 			),
 		[servers],
 	);
+	const savedOauthSecretMatchesIdentity = isMcpOAuthClientIdentityUnchanged({
+		clientId: formState.oauthClientId,
+		clientSecret: formState.oauthClientSecret,
+		originalClientId: formState.originalOauthClientId,
+		hasSavedClientSecret: formState.hasSavedOauthClientSecret,
+		preserveSavedClientSecret: formState.preserveSavedOauthClientSecret,
+		allowedScopesText: formState.oauthAllowedScopesText,
+		serverUrl: formState.url,
+		originalServerUrl: formState.originalOauthServerUrl,
+		transportType: formState.transportType,
+		originalTransportType: formState.originalOauthTransportType,
+		headers: parseKeyValuePairs(formState.headersText),
+		originalHeaders: formState.originalOauthHeaders,
+	});
 
 	const updateEnvEntry = (
 		id: string,
@@ -599,6 +669,19 @@ export function McpServersContent({
 					<span className="text-muted-foreground/70">URL:</span> {server.url}
 				</p>
 			)}
+			{server.oauthClient && (
+				<p>
+					<span className="text-muted-foreground/70">OAuth client:</span>{" "}
+					{server.oauthClient.clientId}
+					{server.oauthClient.hasClientSecret ? " · secret saved" : ""}
+				</p>
+			)}
+			{server.oauthClient?.allowedScopes?.length ? (
+				<p>
+					<span className="text-muted-foreground/70">OAuth scope maximum:</span>{" "}
+					{server.oauthClient.allowedScopes.join(", ")}
+				</p>
+			) : null}
 			{server.env && Object.keys(server.env).length > 0 && (
 				<p>
 					<span className="text-muted-foreground/70">Env:</span>{" "}
@@ -822,10 +905,8 @@ export function McpServersContent({
 			<Dialog
 				open={editorOpen}
 				onOpenChange={(open) => {
-					setEditorOpen(open);
-					if (!open) {
-						setFormErrorMessage(null);
-					}
+					if (open) setEditorOpen(true);
+					else closeEditorDialog();
 				}}
 			>
 				<DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
@@ -1025,6 +1106,132 @@ export function McpServersContent({
 										placeholder="Authorization=Bearer token"
 									/>
 								</div>
+								<div className="grid gap-3 rounded-md border border-border px-3 py-3">
+									<div className="grid gap-1">
+										<p className="text-sm font-medium text-foreground">
+											OAuth client
+										</p>
+										<p className="text-xs text-muted-foreground">
+											Optional pre-registered client credentials for servers
+											that do not support dynamic client registration.
+										</p>
+									</div>
+									<div className="grid gap-2">
+										<p className="text-sm font-medium text-foreground">
+											Redirect URIs
+										</p>
+										<p className="text-xs text-muted-foreground">
+											Register all three redirect URIs with the OAuth provider.
+											Cline uses the first available local port.
+										</p>
+										<div className="grid gap-1 rounded-md bg-muted/40 px-3 py-2">
+											{MCP_OAUTH_REDIRECT_URIS.map((redirectUri) => (
+												<code
+													className="select-all break-all font-mono text-xs text-foreground"
+													key={redirectUri}
+												>
+													{redirectUri}
+												</code>
+											))}
+										</div>
+									</div>
+									<div className="grid gap-2">
+										<Label htmlFor="mcp-oauth-client-id">Client ID</Label>
+										<Input
+											id="mcp-oauth-client-id"
+											value={formState.oauthClientId}
+											onChange={(event) => {
+												setFormState((current) => ({
+													...current,
+													oauthClientId: event.target.value,
+												}));
+											}}
+											placeholder="OAuth client ID"
+										/>
+									</div>
+									<div className="grid gap-2">
+										<Label htmlFor="mcp-oauth-client-secret">
+											Client secret (optional)
+										</Label>
+										<Input
+											autoComplete="off"
+											id="mcp-oauth-client-secret"
+											type="password"
+											value={formState.oauthClientSecret}
+											onChange={(event) => {
+												setFormState((current) => ({
+													...current,
+													oauthClientSecret: event.target.value,
+												}));
+											}}
+											placeholder={
+												formState.hasSavedOauthClientSecret &&
+												savedOauthSecretMatchesIdentity
+													? "Saved; leave blank to keep it"
+													: formState.hasSavedOauthClientSecret
+														? "Re-enter for the changed client, transport, URL, or headers"
+														: "OAuth client secret"
+											}
+										/>
+										<p className="text-xs text-muted-foreground">
+											Saved locally in the MCP settings file and not displayed
+											again after this dialog closes.
+										</p>
+									</div>
+									<div className="grid gap-2">
+										<Label htmlFor="mcp-oauth-allowed-scopes">
+											Allowed scopes (optional)
+										</Label>
+										<Textarea
+											id="mcp-oauth-allowed-scopes"
+											value={formState.oauthAllowedScopesText}
+											onChange={(event) =>
+												setFormState((current) => ({
+													...current,
+													oauthAllowedScopesText: event.target.value,
+												}))
+											}
+											placeholder={"channels:history\nsearch:read.public"}
+										/>
+										<p className="text-xs text-muted-foreground">
+											One RFC 6749 scope token per line. This is the maximum the
+											client may request or accept. Leave blank for no local
+											scope maximum.
+										</p>
+									</div>
+									{formState.hasSavedOauthClientSecret ? (
+										<div className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2">
+											<div>
+												<p className="text-sm font-medium text-foreground">
+													Keep saved client secret
+												</p>
+												<p className="text-xs text-muted-foreground">
+													{savedOauthSecretMatchesIdentity
+														? "Turn this off to remove the saved secret."
+														: "Re-enter the secret after changing the client ID, server transport, URL, or headers."}
+												</p>
+											</div>
+											<Switch
+												aria-label="Keep saved OAuth client secret"
+												checked={
+													formState.preserveSavedOauthClientSecret &&
+													formState.oauthClientSecret.length === 0 &&
+													savedOauthSecretMatchesIdentity
+												}
+												disabled={
+													formState.oauthClientSecret.length > 0 ||
+													!savedOauthSecretMatchesIdentity
+												}
+												onCheckedChange={(preserve) =>
+													setFormState((current) => ({
+														...current,
+														preserveSavedOauthClientSecret: preserve,
+													}))
+												}
+											/>
+										</div>
+									) : null}
+								</div>
 								<div className="grid gap-2">
 									<Label>Transport</Label>
 									<Select
@@ -1132,7 +1339,7 @@ export function McpServersContent({
 					<DialogFooter>
 						<Button
 							variant="outline"
-							onClick={() => setEditorOpen(false)}
+							onClick={closeEditorDialog}
 							disabled={busyServerName !== null}
 						>
 							Cancel
