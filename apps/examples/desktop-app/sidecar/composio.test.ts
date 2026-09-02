@@ -10,6 +10,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+	abandonComposioConnectsForOwner,
 	buildConnectableCatalog,
 	cancelComposioConnect,
 	connectComposioToolkit,
@@ -1157,6 +1158,76 @@ describe("cancelComposioConnect", () => {
 		// Revocation succeeded, so the tombstone was pruned again.
 		expect(readStateFile(dir).cancelledAccountIds).toBeUndefined();
 		expect(readStateFile(dir).toolkits ?? {}).toEqual({});
+	});
+
+	it("abandons pending attempts owned by a departed webview and refuses their later completion", async () => {
+		const dir = useTempDataDir();
+		process.env.COMPOSIO_API_KEY = "ck_owner";
+		writeState(dir, { apiKey: "ck_owner", userId: "u_owner", toolkits: {} });
+		let resolveWait: ((value: unknown) => void) | undefined;
+		const remoteDelete = vi.fn(async () => ({}));
+		const client = {
+			toolkits: {
+				authorize: vi.fn(async () => ({
+					id: "ca_owner_attempt",
+					redirectUrl: "https://connect.example/ca_owner_attempt",
+					waitForConnection: () =>
+						new Promise((resolve) => {
+							resolveWait = resolve;
+						}),
+				})),
+			},
+			authConfigs: {
+				list: vi.fn(async () => ({ items: [] })),
+				create: vi.fn(),
+			},
+			tools: { getRawComposioTools: vi.fn(async () => []) },
+			connectedAccounts: {
+				list: vi.fn(async () => ({
+					items: [
+						{
+							id: "ca_owner_attempt",
+							status: "ACTIVE",
+							toolkit: { slug: "github" },
+						},
+					],
+					nextCursor: null,
+				})),
+				link: vi.fn(),
+				delete: remoteDelete,
+			},
+		};
+		createMockComposioClient = () => client;
+
+		const owner = {}; // stands in for the webview connection
+		const connect = await connectComposioToolkit("github", undefined, {
+			owner,
+		});
+		expect(connect.redirectUrl).toContain("ca_owner_attempt");
+
+		// The webview closes: server.ts calls this for the departing owner.
+		const abandoned = abandonComposioConnectsForOwner(owner);
+		expect(abandoned).toBe(1);
+		await vi.waitFor(() => {
+			expect(remoteDelete).toHaveBeenCalledWith("ca_owner_attempt", {
+				revoke_on_delete: true,
+			});
+		});
+		// The revoke was confirmed, so the tombstone is pruned again — the
+		// account is gone remotely and needs no further guarding.
+		await vi.waitFor(() => {
+			expect(readStateFile(dir).cancelledAccountIds).toBeUndefined();
+		});
+
+		// The user finishes the still-open browser tab afterward; the waiter's
+		// finalize must not materialize tools for the abandoned attempt.
+		resolveWait?.({});
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(client.tools.getRawComposioTools).not.toHaveBeenCalled();
+		const status = await getComposioStatus();
+		expect(
+			status.integrations.find((entry) => entry.toolkit === "github")?.status,
+		).toBe("not_connected");
 	});
 
 	it("a cancelled toolkit can still be reconnected under a fresh account", async () => {

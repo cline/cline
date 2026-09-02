@@ -98,6 +98,11 @@ type PendingConnection = {
 	 * either changed while the browser flow was in flight. */
 	apiKey: string;
 	userId: string;
+	/** The webview connection that started this attempt, if any. When that
+	 * connection goes away (webview closed/reloaded, transport drop) the
+	 * attempt is abandoned — matching how provider and MCP OAuth waits are
+	 * cancelled for a departing owner. Identity only; never dereferenced. */
+	owner?: object;
 };
 
 type ComposioConnectionRequest = {
@@ -985,6 +990,7 @@ export async function listComposioToolkits(
 export async function connectComposioToolkit(
 	toolkit: ComposioToolkitSlug,
 	logger?: BasicLogger,
+	options?: { owner?: object },
 ): Promise<ComposioConnectResponse> {
 	// Anchor the disconnect race at function entry, BEFORE any await: a
 	// disconnect whose marker lands at or after this instant overlapped this
@@ -1074,6 +1080,7 @@ export async function connectComposioToolkit(
 			attemptId,
 			connectedAccountId: connectionRequest.id,
 			redirectUrl,
+			owner: options?.owner,
 			...guard,
 		});
 
@@ -1157,6 +1164,32 @@ export async function cancelComposioConnect(
 	if (confirmedGone) {
 		pruneConfirmedCancelledAccount(pending.connectedAccountId);
 	}
+}
+
+/**
+ * Abandon every pending OAuth attempt started by `owner` — the webview
+ * connection that initiated it. Called when that connection goes away
+ * (webview closed/reloaded, transport drop), mirroring how provider and MCP
+ * OAuth waits are cancelled for a departing owner: an interactive attempt the
+ * user walked away from must not complete in the background and materialize
+ * credential-bearing tools afterward. Each is abandoned exactly like an
+ * explicit cancel (tombstone + best-effort revoke). Returns the count
+ * abandoned.
+ */
+export function abandonComposioConnectsForOwner(
+	owner: object,
+	logger?: BasicLogger,
+): number {
+	const toolkits: ComposioToolkitSlug[] = [];
+	for (const [toolkit, pending] of pendingConnections) {
+		if (pending.owner === owner) {
+			toolkits.push(toolkit);
+		}
+	}
+	for (const toolkit of toolkits) {
+		void cancelComposioConnect(toolkit, logger);
+	}
+	return toolkits.length;
 }
 
 /**
