@@ -17,6 +17,8 @@ import {
 	type AgentRuntimeEvent,
 	type BasicLogger,
 	isChatWorkspacePath,
+	TeamMessageType,
+	type TeamRunRecord,
 } from "@cline/shared";
 import {
 	resolveChatWorkspacePath,
@@ -25,6 +27,7 @@ import {
 } from "@cline/shared/storage";
 import simpleGit from "simple-git";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { TeamEvent } from "../../extensions/tools/team";
 import { TelemetryService } from "../../services/telemetry/TelemetryService";
 import { createSessionCompactionState } from "../../session/models/session-compaction";
 import type { SessionManifest } from "../../session/models/session-manifest";
@@ -193,6 +196,25 @@ describe("LocalRuntimeHost", () => {
 		setHomeDir(envSnapshot.HOME ?? "~");
 		setClineDir(envSnapshot.CLINE_DIR ?? join("~", ".cline"));
 		rmSync(isolatedHomeDir, { recursive: true, force: true });
+	});
+
+	it("recovers stale detached command logs for non-daemon hosts", async () => {
+		const detachedLogDirectory = mkdtempSync(
+			join(tmpdir(), "cline-command-local-host-recovery-"),
+		);
+		writeFileSync(join(detachedLogDirectory, "output.log"), "stale output");
+		writeFileSync(join(detachedLogDirectory, "completed-at"), "0");
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: new FileSessionService(join(isolatedHomeDir, "sessions")),
+		});
+
+		try {
+			await expect.poll(() => existsSync(detachedLogDirectory)).toBe(false);
+		} finally {
+			await manager.dispose();
+			rmSync(detachedLogDirectory, { recursive: true, force: true });
+		}
 	});
 
 	it.each([
@@ -2927,6 +2949,147 @@ describe("LocalRuntimeHost", () => {
 		});
 	});
 
+	it("propagates a parent session abort to its team runtime", async () => {
+		const sessionId = "sess-team-abort";
+		const manifest = createManifest(sessionId);
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest.json",
+				messagesPath: "/tmp/messages.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const makeTeamRun = (
+			id: string,
+			status: TeamRunRecord["status"],
+		): TeamRunRecord => ({
+			id,
+			agentId: "teammate-1",
+			status,
+			message: `${id} task`,
+			priority: 0,
+			retryCount: 0,
+			maxRetries: 0,
+			startedAt: new Date(),
+		});
+		const queuedRun = makeTeamRun("run_queued", "queued");
+		const runningRun = makeTeamRun("run_running", "running");
+		let onTeamEvent: ((event: TeamEvent) => void) | undefined;
+		const cancelOutstandingWork = vi.fn(() => {
+			onTeamEvent?.({
+				type: TeamMessageType.RunCancelled,
+				run: { ...queuedRun, status: "cancelled" },
+				reason: "user cancelled",
+			});
+			onTeamEvent?.({
+				type: TeamMessageType.RunCancelled,
+				run: { ...runningRun, status: "cancelled" },
+				reason: "user cancelled",
+			});
+		});
+		const runtimeBuilder = {
+			build: vi
+				.fn()
+				.mockImplementation((input: { onTeamEvent?: typeof onTeamEvent }) => {
+					onTeamEvent = input.onTeamEvent;
+					return {
+						tools: [],
+						teamRuntime: {
+							getTeamId: vi.fn().mockReturnValue("team_test-team"),
+							getTeamName: vi.fn().mockReturnValue("test-team"),
+							exportState: vi.fn().mockReturnValue({
+								teamId: "team_test-team",
+								teamName: "test-team",
+								members: [],
+								tasks: [],
+								mailbox: [],
+								missionLog: [],
+								runs: [],
+								outcomes: [],
+								outcomeFragments: [],
+							}),
+							cancelOutstandingWork,
+						},
+						shutdown: vi.fn(),
+					};
+				}),
+		};
+		let rejectRun: ((error: Error) => void) | undefined;
+		let markRunStarted: (() => void) | undefined;
+		const runStarted = new Promise<void>((resolve) => {
+			markRunStarted = resolve;
+		});
+		const agent = {
+			run: vi.fn(
+				() =>
+					new Promise<AgentResult>((_resolve, reject) => {
+						rejectRun = reject;
+						markRunStarted?.();
+					}),
+			),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			getMessages: vi.fn().mockReturnValue([]),
+			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+			abort: vi.fn(() => rejectRun?.(new Error("user cancelled"))),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			canStartRun: vi.fn().mockReturnValue(true),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		};
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent: () => agent as never,
+		});
+
+		try {
+			await manager.startSession(
+				normalizeStartInput({
+					config: createConfig({ sessionId }),
+					interactive: true,
+				}),
+			);
+			onTeamEvent?.({ type: TeamMessageType.RunQueued, run: queuedRun });
+			onTeamEvent?.({ type: TeamMessageType.RunStarted, run: runningRun });
+			const rootTurn = manager.runTurn({ sessionId, prompt: "keep working" });
+			await runStarted;
+
+			const abortReason = new Error("user cancelled");
+			await manager.abort(sessionId, abortReason);
+			await expect(rootTurn).resolves.toMatchObject({
+				finishReason: "aborted",
+			});
+
+			expect(cancelOutstandingWork).toHaveBeenCalledOnce();
+			expect(cancelOutstandingWork).toHaveBeenCalledWith(abortReason);
+			expect(agent.abort).toHaveBeenCalledOnce();
+
+			const getSession = Reflect.get(
+				manager as object,
+				"getSessionOrThrow",
+			) as (sessionId: string) => {
+				aborting: boolean;
+				status: string;
+				activeTeamRunIds: Set<string>;
+				pendingTeamRunUpdates: unknown[];
+			};
+			const activeSession = Reflect.apply(getSession, manager, [sessionId]);
+			expect(activeSession.aborting).toBe(false);
+			expect(activeSession.status).toBe("idle");
+			expect(activeSession.activeTeamRunIds.size).toBe(0);
+			expect(activeSession.pendingTeamRunUpdates).toEqual([]);
+		} finally {
+			await manager.dispose();
+		}
+	});
+
 	it("drains queued prompts after a turn that self-aborts (loop detector / mistake limit)", async () => {
 		const sessionId = "sess-self-abort-drains-prompts";
 		const manifest = createManifest(sessionId);
@@ -3455,6 +3618,87 @@ describe("LocalRuntimeHost", () => {
 		).toEqual([{ prompt: "second queued", delivery: "queue" }]);
 	});
 
+	it("starts interactive sessions without a prompt as idle until their first turn", async () => {
+		const sessionId = "sess-idle-until-first-turn";
+		const manifest = createManifest(sessionId);
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest.json",
+				messagesPath: "/tmp/messages.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({ tools: [], shutdown: vi.fn() }),
+		};
+		const agent = {
+			run: vi.fn().mockResolvedValue(createResult()),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			getMessages: vi.fn().mockReturnValue([]),
+			getAgentId: vi.fn().mockReturnValue("agent-idle-1"),
+			getConversationId: vi.fn().mockReturnValue("conv-idle-1"),
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			canStartRun: vi.fn().mockReturnValue(true),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		};
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent: () => agent as never,
+		});
+		const events: unknown[] = [];
+		manager.subscribe((event) => events.push(event));
+
+		// The desktop host starts interactive sessions without a prompt and
+		// dispatches turns through separate send calls. Reporting such a
+		// session as "running" wedged clients that gate workspace operations
+		// (e.g. checkpoint restores) on active turns.
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				interactive: true,
+			}),
+		);
+
+		await expect(manager.getSession(sessionId)).resolves.toMatchObject({
+			sessionId,
+			status: "idle",
+		});
+		expect(events).toContainEqual(
+			expect.objectContaining({
+				type: "status",
+				payload: { sessionId, status: "idle" },
+			}),
+		);
+		expect(events).not.toContainEqual(
+			expect.objectContaining({
+				type: "status",
+				payload: { sessionId, status: "running" },
+			}),
+		);
+
+		// The first turn still transitions through running and back to idle.
+		await manager.runTurn({ sessionId, prompt: "first turn" });
+		expect(events).toContainEqual(
+			expect.objectContaining({
+				type: "status",
+				payload: { sessionId, status: "running" },
+			}),
+		);
+		await expect(manager.getSession(sessionId)).resolves.toMatchObject({
+			sessionId,
+			status: "idle",
+		});
+	});
+
 	it("keeps the same live interactive session usable after aborting before the first response", async () => {
 		const sessionId = "sess-abort-then-next-turn";
 		const manifest = createManifest(sessionId);
@@ -3558,20 +3802,28 @@ describe("LocalRuntimeHost", () => {
 		expect(continueTurn).toHaveBeenCalledTimes(1);
 		expect(agent.shutdown).not.toHaveBeenCalled();
 		expect(runtime.shutdown).not.toHaveBeenCalled();
+		// Interactive sessions now start idle (no turn runs inside start), so
+		// each turn records its own running → idle transition.
 		expect(sessionService.updateSessionStatus).toHaveBeenNthCalledWith(
 			1,
-			sessionId,
-			"idle",
-			null,
-		);
-		expect(sessionService.updateSessionStatus).toHaveBeenNthCalledWith(
-			2,
 			sessionId,
 			"running",
 			null,
 		);
 		expect(sessionService.updateSessionStatus).toHaveBeenNthCalledWith(
+			2,
+			sessionId,
+			"idle",
+			null,
+		);
+		expect(sessionService.updateSessionStatus).toHaveBeenNthCalledWith(
 			3,
+			sessionId,
+			"running",
+			null,
+		);
+		expect(sessionService.updateSessionStatus).toHaveBeenNthCalledWith(
+			4,
 			sessionId,
 			"idle",
 			null,
@@ -6737,6 +6989,18 @@ describe("LocalRuntimeHost", () => {
 				.map(([, payload]) => payload as Record<string, unknown>);
 		}
 
+		function getActiveSession(
+			manager: RuntimeHostUnderTest,
+			sessionId: string,
+		): { status: string } {
+			const sessions = (
+				manager as unknown as { sessions: Map<string, { status: string }> }
+			).sessions;
+			const session = sessions.get(sessionId);
+			if (!session) throw new Error("session was not registered");
+			return session;
+		}
+
 		it("emits task.completed once with source=submit_and_exit when the assistant calls the completion tool in a non-interactive run", async () => {
 			const sessionId = "sess-task-completed-submit-non-interactive";
 			const manifest = createManifest(sessionId);
@@ -7008,6 +7272,287 @@ describe("LocalRuntimeHost", () => {
 			const emissions = countTaskCompletedEmissions(adapter);
 			expect(emissions).toHaveLength(1);
 			expect(emissions[0]).toMatchObject({ source: "shutdown" });
+		});
+
+		it("emits task.completed exactly once when a stopped interactive session takes the release path after a clean final turn", async () => {
+			const sessionId = "sess-task-completed-release-path";
+			const manifest = createManifest(sessionId);
+			const adapter = createTaskCompletedAdapter();
+			const telemetry = new TelemetryService({
+				adapters: [adapter],
+				distinctId,
+			});
+			const sessionService = createMockSessionService(manifest);
+			const runtimeBuilder = {
+				build: vi.fn().mockReturnValue({
+					tools: [],
+					shutdown: vi.fn(),
+				}),
+			};
+			const agent = {
+				// Clean final turn without submit_and_exit — records
+				// lastInteractiveTurnFinishReason === "completed".
+				run: vi.fn().mockResolvedValue(createResult({ toolCalls: [] })),
+				continue: vi.fn(),
+				getMessages: vi.fn().mockReturnValue([]),
+				getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+				getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+				abort: vi.fn(),
+				subscribeEvents: vi.fn().mockReturnValue(() => {}),
+				canStartRun: vi.fn().mockReturnValue(true),
+				shutdown: vi.fn().mockResolvedValue(undefined),
+			};
+			const manager = new RuntimeHostUnderTest({
+				distinctId,
+				sessionService: sessionService as never,
+				runtimeBuilder: runtimeBuilder as never,
+				createAgent: () => agent as never,
+				telemetry,
+			});
+
+			await manager.startSession(
+				normalizeStartInput({
+					config: createConfig({ telemetry, sessionId }),
+					prompt: "finish the task cleanly",
+					interactive: true,
+				}),
+			);
+
+			// Truthful status reporting can leave a resident interactive session
+			// with a terminal reported status (e.g. adopted from a resumed
+			// manifest), which routes stopSession through releaseSessionRuntime
+			// instead of shutdownSession.
+			getActiveSession(manager, sessionId).status = "completed";
+			const statusWritesBeforeStop =
+				sessionService.updateSessionStatus.mock.calls.length;
+			await manager.stopSession(sessionId);
+			// The release branch never writes a session status — this proves the
+			// stop really took the path that used to drop the emission.
+			expect(sessionService.updateSessionStatus.mock.calls.length).toBe(
+				statusWritesBeforeStop,
+			);
+
+			const emissions = countTaskCompletedEmissions(adapter);
+			expect(emissions).toHaveLength(1);
+			expect(emissions[0]).toMatchObject({
+				ulid: sessionId,
+				source: "shutdown",
+				provider: "mock-provider",
+				modelId: "mock-model",
+			});
+		});
+
+		it("emits nothing when a released interactive session's final turn aborted", async () => {
+			const sessionId = "sess-task-completed-release-aborted";
+			const manifest = createManifest(sessionId);
+			const adapter = createTaskCompletedAdapter();
+			const telemetry = new TelemetryService({
+				adapters: [adapter],
+				distinctId,
+			});
+			const sessionService = createMockSessionService(manifest);
+			const runtimeBuilder = {
+				build: vi.fn().mockReturnValue({
+					tools: [],
+					shutdown: vi.fn(),
+				}),
+			};
+			const agent = {
+				run: vi
+					.fn()
+					.mockResolvedValue(
+						createResult({ finishReason: "aborted", toolCalls: [] }),
+					),
+				continue: vi.fn(),
+				getMessages: vi.fn().mockReturnValue([]),
+				getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+				getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+				abort: vi.fn(),
+				subscribeEvents: vi.fn().mockReturnValue(() => {}),
+				canStartRun: vi.fn().mockReturnValue(true),
+				shutdown: vi.fn().mockResolvedValue(undefined),
+			};
+			const manager = new RuntimeHostUnderTest({
+				distinctId,
+				sessionService: sessionService as never,
+				runtimeBuilder: runtimeBuilder as never,
+				createAgent: () => agent as never,
+				telemetry,
+			});
+
+			await manager.startSession(
+				normalizeStartInput({
+					config: createConfig({ telemetry, sessionId }),
+					prompt: "turn that gets aborted",
+					interactive: true,
+				}),
+			);
+
+			getActiveSession(manager, sessionId).status = "cancelled";
+			await manager.stopSession(sessionId);
+
+			expect(countTaskCompletedEmissions(adapter)).toHaveLength(0);
+		});
+
+		it("emits nothing when a session's final turn errors after an earlier clean turn", async () => {
+			const sessionId = "sess-task-completed-late-error";
+			const manifest = createManifest(sessionId);
+			const adapter = createTaskCompletedAdapter();
+			const telemetry = new TelemetryService({
+				adapters: [adapter],
+				distinctId,
+			});
+			const sessionService = createMockSessionService(manifest);
+			const runtimeBuilder = {
+				build: vi.fn().mockReturnValue({
+					tools: [],
+					shutdown: vi.fn(),
+				}),
+			};
+			const agent = {
+				// First turn completes cleanly, second turn throws — the errored
+				// turn is the session's final turn, so no task.completed may be
+				// emitted from the stale "completed" of the first turn.
+				run: vi.fn().mockResolvedValue(createResult({ toolCalls: [] })),
+				continue: vi.fn().mockRejectedValue(new Error("provider exploded")),
+				getMessages: vi.fn().mockReturnValue([]),
+				getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+				getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+				abort: vi.fn(),
+				subscribeEvents: vi.fn().mockReturnValue(() => {}),
+				canStartRun: vi.fn().mockReturnValue(true),
+				shutdown: vi.fn().mockResolvedValue(undefined),
+			};
+			const manager = new RuntimeHostUnderTest({
+				distinctId,
+				sessionService: sessionService as never,
+				runtimeBuilder: runtimeBuilder as never,
+				createAgent: () => agent as never,
+				telemetry,
+			});
+
+			await manager.startSession(
+				normalizeStartInput({
+					config: createConfig({ telemetry, sessionId }),
+					prompt: "first turn finishes cleanly",
+					interactive: true,
+				}),
+			);
+			await expect(
+				manager.runTurn({ sessionId, prompt: "second turn blows up" }),
+			).rejects.toThrow("provider exploded");
+
+			expect(countTaskCompletedEmissions(adapter)).toHaveLength(0);
+		});
+
+		it("does not double-fire from the release path after submit_and_exit already emitted", async () => {
+			const sessionId = "sess-task-completed-release-no-double-fire";
+			const manifest = createManifest(sessionId);
+			const adapter = createTaskCompletedAdapter();
+			const telemetry = new TelemetryService({
+				adapters: [adapter],
+				distinctId,
+			});
+			const sessionService = createMockSessionService(manifest);
+			const runtimeBuilder = {
+				build: vi.fn().mockReturnValue({
+					tools: [],
+					shutdown: vi.fn(),
+				}),
+			};
+			const agent = {
+				run: vi.fn().mockResolvedValue(
+					createResult({
+						toolCalls: [createSubmitAndExitToolCall()],
+					}),
+				),
+				continue: vi.fn(),
+				getMessages: vi.fn().mockReturnValue([]),
+				getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+				getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+				abort: vi.fn(),
+				subscribeEvents: vi.fn().mockReturnValue(() => {}),
+				canStartRun: vi.fn().mockReturnValue(true),
+				shutdown: vi.fn().mockResolvedValue(undefined),
+			};
+			const manager = new RuntimeHostUnderTest({
+				distinctId,
+				sessionService: sessionService as never,
+				runtimeBuilder: runtimeBuilder as never,
+				createAgent: () => agent as never,
+				telemetry,
+			});
+
+			await manager.startSession(
+				normalizeStartInput({
+					config: createConfig({ telemetry, sessionId }),
+					prompt: "complete via submit_and_exit",
+					interactive: true,
+				}),
+			);
+
+			getActiveSession(manager, sessionId).status = "completed";
+			await manager.stopSession(sessionId);
+
+			const emissions = countTaskCompletedEmissions(adapter);
+			expect(emissions).toHaveLength(1);
+			expect(emissions[0]).toMatchObject({
+				ulid: sessionId,
+				source: "submit_and_exit",
+			});
+		});
+
+		it("emits task.completed exactly once when dispose() releases a cleanly finished interactive session", async () => {
+			const sessionId = "sess-task-completed-dispose-release";
+			const manifest = createManifest(sessionId);
+			const adapter = createTaskCompletedAdapter();
+			const telemetry = new TelemetryService({
+				adapters: [adapter],
+				distinctId,
+			});
+			const sessionService = createMockSessionService(manifest);
+			const runtimeBuilder = {
+				build: vi.fn().mockReturnValue({
+					tools: [],
+					shutdown: vi.fn(),
+				}),
+			};
+			const agent = {
+				run: vi.fn().mockResolvedValue(createResult({ toolCalls: [] })),
+				continue: vi.fn(),
+				getMessages: vi.fn().mockReturnValue([]),
+				getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+				getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+				abort: vi.fn(),
+				subscribeEvents: vi.fn().mockReturnValue(() => {}),
+				canStartRun: vi.fn().mockReturnValue(true),
+				shutdown: vi.fn().mockResolvedValue(undefined),
+			};
+			const manager = new RuntimeHostUnderTest({
+				distinctId,
+				sessionService: sessionService as never,
+				runtimeBuilder: runtimeBuilder as never,
+				createAgent: () => agent as never,
+				telemetry,
+			});
+
+			await manager.startSession(
+				normalizeStartInput({
+					config: createConfig({ telemetry, sessionId }),
+					prompt: "finish then get disposed",
+					interactive: true,
+				}),
+			);
+
+			getActiveSession(manager, sessionId).status = "completed";
+			await manager.dispose("hub_restart");
+
+			const emissions = countTaskCompletedEmissions(adapter);
+			expect(emissions).toHaveLength(1);
+			expect(emissions[0]).toMatchObject({
+				ulid: sessionId,
+				source: "shutdown",
+			});
 		});
 	});
 

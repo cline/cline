@@ -7,6 +7,7 @@ import type {
 	NodeHubClient,
 	ToolApprovalResult,
 } from "@cline/core";
+import type { MessageWithMetadata } from "@cline/llms";
 
 export type JsonRecord = Record<string, unknown>;
 
@@ -49,7 +50,7 @@ export type PromptInQueue = {
 
 export type LiveSession = {
 	config: JsonRecord;
-	messages: unknown[];
+	messages: MessageWithMetadata[];
 	promptsInQueue: PromptInQueue[];
 	busy: boolean;
 	startedAt: number;
@@ -81,11 +82,13 @@ export type ToolApprovalRequestItem = {
 
 export type PendingToolApproval = {
 	item: ToolApprovalRequestItem;
+	owner: SidecarWebSocketClient;
 	resolve: (result: ToolApprovalResult) => void;
 };
 
 export type AskQuestionRequestItem = {
 	requestId: string;
+	sessionId: string;
 	createdAt: string;
 	question: string;
 	options: string[];
@@ -103,6 +106,7 @@ export type PendingAskQuestion = {
 };
 
 export type SidecarWebSocketClient = {
+	data?: { canApproveTools?: boolean };
 	send: (message: string) => void;
 	close?: () => void;
 };

@@ -363,6 +363,37 @@ export async function handleRunAbort(
 	return okReply(envelope, { applied: true });
 }
 
+export async function handleRunProceedWhileRunning(
+	ctx: HubTransportContext,
+	envelope: HubCommandEnvelope,
+): Promise<HubReplyEnvelope> {
+	const sessionId = extractSessionId(envelope);
+	if (!sessionId) {
+		return errorReply(
+			envelope,
+			"invalid_session_id",
+			"run.proceed_while_running requires a sessionId",
+		);
+	}
+	if (typeof ctx.sessionHost.proceedWhileRunning !== "function") {
+		return errorReply(
+			envelope,
+			"unsupported_command",
+			"This runtime does not support proceeding while commands are running.",
+		);
+	}
+	const toolCallId =
+		typeof envelope.payload?.toolCallId === "string" &&
+		envelope.payload.toolCallId.trim().length > 0
+			? envelope.payload.toolCallId.trim()
+			: undefined;
+	const detachedCount = await ctx.sessionHost.proceedWhileRunning(
+		sessionId,
+		toolCallId,
+	);
+	return okReply(envelope, { detachedCount });
+}
+
 export async function handleSessionHook(
 	ctx: HubTransportContext,
 	envelope: HubCommandEnvelope,

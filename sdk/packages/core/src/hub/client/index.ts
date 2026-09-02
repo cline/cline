@@ -172,6 +172,7 @@ export interface HubClientOptions {
 	workspaceRoot?: string;
 	cwd?: string;
 	authToken?: string;
+	capabilities?: HubClientRegistration["capabilities"];
 }
 
 export interface LocalHubResolutionOptions {
@@ -299,6 +300,14 @@ export class NodeHubClient {
 	private readonly pendingReplies = new Map<string, PendingReply>();
 	private readonly listeners = new Set<SubscriptionEntry>();
 	private readonly subscriptionCounts = new Map<string, number>();
+	/**
+	 * Highest durable event sequence observed per subscription key. Sent as
+	 * `sinceSequence` when a subscription frame is (re)issued, so a hub with a
+	 * durable event log replays exactly what this client missed while
+	 * disconnected. Hubs without a log ignore the cursor (live-only, the
+	 * legacy behavior).
+	 */
+	private readonly lastEventSequenceByKey = new Map<string, number>();
 	private reconnectTimer: ReturnType<typeof setTimeout> | undefined;
 	private reconnectAttempt = 0;
 	private closedByClient = false;
@@ -308,12 +317,14 @@ export class NodeHubClient {
 	);
 	private sawSocketClose = false;
 	private registered = false;
+	private capabilities: NonNullable<HubClientRegistration["capabilities"]>;
 
 	constructor(private readonly options: HubClientOptions) {
 		this.clientId =
 			options.clientId ??
 			`core-${Math.random().toString(36).slice(2, 10)}-${Date.now().toString(36)}`;
 		this.currentUrl = options.url;
+		this.capabilities = [...(options.capabilities ?? [])];
 	}
 
 	getClientId(): string {
@@ -330,6 +341,16 @@ export class NodeHubClient {
 
 	getConnectionError(): HubTransportError | null {
 		return this.isConnected() ? null : this.lastCloseError;
+	}
+
+	async updateCapabilities(
+		capabilities: NonNullable<HubClientRegistration["capabilities"]>,
+	): Promise<void> {
+		this.capabilities = capabilities.map((capability) => ({ ...capability }));
+		if (!this.registered) return;
+		await this.command("client.update", {
+			capabilities: this.capabilities,
+		});
 	}
 
 	async connect(): Promise<void> {
@@ -442,6 +463,7 @@ export class NodeHubClient {
 			displayName: this.options.displayName ?? "core",
 			transport: "native",
 			actorKind: "client",
+			capabilities: this.capabilities,
 			workspaceContext: {
 				workspaceRoot: this.options.workspaceRoot,
 				cwd: this.options.cwd,
@@ -731,10 +753,17 @@ export class NodeHubClient {
 		kind: "stream.subscribe" | "stream.unsubscribe",
 		sessionId?: string,
 	): void {
+		const sinceSequence =
+			kind === "stream.subscribe"
+				? this.lastEventSequenceByKey.get(
+						this.subscriptionKeyForSessionId(sessionId),
+					)
+				: undefined;
 		this.sendFrame({
 			kind,
 			clientId: this.clientId,
 			...(sessionId ? { sessionId } : {}),
+			...(sinceSequence !== undefined ? { sinceSequence } : {}),
 		});
 	}
 
@@ -783,7 +812,20 @@ export class NodeHubClient {
 				pending.resolve(frame.envelope);
 				return;
 			}
-			case "event":
+			case "event": {
+				const sequence = frame.envelope.sequence;
+				if (typeof sequence === "number") {
+					const eventSessionKey = frame.envelope.sessionId?.trim();
+					for (const key of [GLOBAL_SUBSCRIPTION_KEY, eventSessionKey]) {
+						if (!key || !this.subscriptionCounts.has(key)) {
+							continue;
+						}
+						const previous = this.lastEventSequenceByKey.get(key) ?? 0;
+						if (sequence > previous) {
+							this.lastEventSequenceByKey.set(key, sequence);
+						}
+					}
+				}
 				for (const entry of this.listeners) {
 					if (
 						entry.sessionId &&
@@ -794,6 +836,7 @@ export class NodeHubClient {
 					entry.listener(frame.envelope);
 				}
 				return;
+			}
 			case "command":
 			case "stream.subscribe":
 			case "stream.unsubscribe":
@@ -865,15 +908,13 @@ async function probeCompatibleHubUrl(
 		};
 	}
 	if (options?.requireCurrentBuild) {
-		// Managed Hubs: reusable when the build matches or the Hub is a newer
-		// build (another installation upgraded it - attach and let the
-		// build-mismatch watcher prompt the user instead of downgrading it).
+		// Managed Hubs: reusable unless this build is strictly newer than the
+		// Hub's. A Hub that is newer or unorderable is attached over the
+		// compatible wire protocol and left to the build-mismatch watcher to
+		// prompt about, so two installations can never retire each other.
 		const expectedBuildId = resolveHubBuildId();
 		const compatibility = getManagedHubCompatibility(record, expectedBuildId);
-		if (
-			!compatibility.compatible &&
-			!isManagedHubReusable(record, { expectedBuildId })
-		) {
+		if (!compatibility.compatible && !isManagedHubReusable(record)) {
 			return {
 				status:
 					compatibility.reason === "unsupported_protocol"
@@ -929,37 +970,77 @@ function sameNormalizedHubUrl(left: string, right: string): boolean {
 	}
 }
 
-function hasActiveHubSessions(payload: unknown): boolean {
+export interface HubSessionActivity {
+	/** Sessions with at least one live participant attached. */
+	activeSessionCount: number;
+	/** Distinct client ids attached to those sessions. */
+	participantClientCount: number;
+}
+
+/**
+ * Summarize live activity from a `session.list` payload. A session counts as
+ * active only while a client is attached to it - the one signal that cannot
+ * go stale, because participants are live socket subscriptions the hub drops
+ * the moment a client's connection closes.
+ *
+ * Deliberately NOT based on session status: a client that dies without
+ * stopping its session leaves the hub-side runtime behind in a non-terminal
+ * status forever, and counting those "ghost" sessions as busy pins an
+ * outdated hub as "serving sessions" until the machine reboots. The cost of
+ * ignoring status is that a participant-less background run executing at the
+ * exact moment of a hub swap dies with the old hub - rare, and its next
+ * scheduled tick runs normally on the replacement.
+ */
+export function summarizeHubSessionActivity(
+	payload: unknown,
+): HubSessionActivity {
 	const sessions =
 		payload &&
 		typeof payload === "object" &&
 		Array.isArray((payload as { sessions?: unknown }).sessions)
 			? (payload as { sessions: unknown[] }).sessions
 			: [];
-	return sessions.some((session) => {
+	let activeSessionCount = 0;
+	const clientIds = new Set<string>();
+	for (const session of sessions) {
 		if (!session || typeof session !== "object") {
-			return false;
+			continue;
 		}
-		const record = session as {
-			status?: unknown;
-			participants?: unknown;
-		};
-		if (
-			record.status === "running" ||
-			record.status === "idle" ||
-			record.status === "pending"
-		) {
-			return true;
+		const participants = (session as { participants?: unknown }).participants;
+		if (!Array.isArray(participants) || participants.length === 0) {
+			continue;
 		}
-		return Array.isArray(record.participants) && record.participants.length > 0;
-	});
+		activeSessionCount += 1;
+		for (const participant of participants) {
+			const clientId =
+				participant && typeof participant === "object"
+					? (participant as { clientId?: unknown }).clientId
+					: undefined;
+			if (typeof clientId === "string" && clientId.trim()) {
+				clientIds.add(clientId);
+			}
+		}
+	}
+	return { activeSessionCount, participantClientCount: clientIds.size };
 }
 
-async function localHubHasNoActiveSessions(
+export function hasActiveHubSessions(payload: unknown): boolean {
+	return summarizeHubSessionActivity(payload).activeSessionCount > 0;
+}
+
+/**
+ * Ask a hub how much live work it is serving. Throws when the hub cannot
+ * answer (unreachable, auth rejected, or too old to serve `session.list`),
+ * because the safe default points in opposite directions per caller: a
+ * replacement path treats an unanswerable hub as idle and retires it, while
+ * a recovery path treats it as busy and leaves it alone. Callers pick their
+ * own fallback instead of inheriting a hidden one.
+ */
+export async function queryHubSessionActivity(
 	url: string,
 	authToken?: string,
 	options?: Pick<HubClientOptions, "workspaceRoot" | "cwd">,
-): Promise<boolean> {
+): Promise<HubSessionActivity> {
 	const client = new NodeHubClient({
 		url,
 		authToken,
@@ -975,12 +1056,51 @@ async function localHubHasNoActiveSessions(
 			undefined,
 			{ timeoutMs: HUB_RECOVERY_SESSION_LIST_TIMEOUT_MS },
 		);
-		return !hasActiveHubSessions(reply.payload);
-	} catch {
-		return false;
+		return summarizeHubSessionActivity(reply.payload);
 	} finally {
 		await client.dispose().catch(() => undefined);
 	}
+}
+
+export async function localHubHasNoActiveSessions(
+	url: string,
+	authToken?: string,
+	options?: Pick<HubClientOptions, "workspaceRoot" | "cwd">,
+): Promise<boolean> {
+	try {
+		const activity = await queryHubSessionActivity(url, authToken, options);
+		return activity.activeSessionCount === 0;
+	} catch {
+		// Recovery callers must not treat a hub they cannot positively observe
+		// idle as safe to stop, so an unanswerable hub reports as busy here.
+		return false;
+	}
+}
+
+async function recoverSupersededLocalHubUrl(
+	owner: HubOwnerContext,
+	options: LocalHubResolutionOptions,
+): Promise<string | undefined> {
+	const supersededPath = `${owner.discoveryPath}.superseded`;
+	const superseded = await readHubDiscovery(supersededPath);
+	if (!superseded?.url || !superseded.authToken) {
+		return undefined;
+	}
+	const compatible = await probeCompatibleHubUrl(superseded.url, {
+		authToken: superseded.authToken,
+	});
+	if (compatible.status !== "compatible") {
+		return undefined;
+	}
+	const hasNoActiveSessions = await localHubHasNoActiveSessions(
+		compatible.url,
+		superseded.authToken,
+		options,
+	);
+	if (hasNoActiveSessions) {
+		return undefined;
+	}
+	return rememberRecoverableLocalHubUrl(compatible.url, superseded.authToken);
 }
 
 export async function resolveCompatibleLocalHubUrl(
@@ -994,7 +1114,7 @@ export async function resolveCompatibleLocalHubUrl(
 	const owner = resolveDefaultHubOwnerContext();
 	const record = await readHubDiscovery(owner.discoveryPath);
 	if (!record?.url) {
-		return undefined;
+		return await recoverSupersededLocalHubUrl(owner, options);
 	}
 	const compatible = await probeCompatibleHubUrl(record.url, {
 		authToken: record.authToken,
@@ -1033,6 +1153,46 @@ export async function ensureCompatibleLocalHubUrl(
 	} catch {
 		return undefined;
 	}
+}
+
+/**
+ * Ask a hub to stop admitting new mutating work (sessions, runs) while its
+ * accepted work finishes. Best-effort: pre-drain hubs answer 404 and the
+ * caller proceeds without it.
+ *
+ * Pass `{ off: true }` to lift a drain (`POST /drain?off`): an aborted
+ * upgrade must be able to hand the hub back instead of leaving it refusing
+ * work until a restart.
+ */
+export async function requestHubDrain(
+	url: string,
+	authToken?: string,
+	reason?: string,
+	options?: { off?: boolean },
+): Promise<boolean> {
+	const parsed = new URL(url);
+	const resolvedAuthToken =
+		authToken?.trim() || resolveLocalHubAuthToken(parsed);
+	if (parsed.protocol === "ws:") {
+		parsed.protocol = "http:";
+	} else if (parsed.protocol === "wss:") {
+		parsed.protocol = "https:";
+	}
+	parsed.pathname = "/drain";
+	parsed.hash = "";
+	if (reason) {
+		parsed.searchParams.set("reason", reason);
+	}
+	if (options?.off) {
+		parsed.searchParams.set("off", "1");
+	}
+	const response = await fetch(parsed, {
+		method: "POST",
+		headers: resolvedAuthToken
+			? { authorization: `Bearer ${resolvedAuthToken}` }
+			: undefined,
+	});
+	return response.ok;
 }
 
 export async function requestHubShutdown(

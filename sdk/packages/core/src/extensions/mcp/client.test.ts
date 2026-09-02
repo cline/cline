@@ -11,6 +11,7 @@ import { HUB_DEFAULT_COMMAND_TIMEOUT_MS } from "@cline/shared";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
 	createDefaultMcpServerClientFactory,
+	DEFAULT_HTTP_MCP_CONNECT_TIMEOUT_MS,
 	DEFAULT_MCP_CONNECT_TIMEOUT_MS,
 	probeMcpServerConnection,
 } from "./client";
@@ -423,6 +424,36 @@ describe("mcp client request timeout", () => {
 		await waitFor(() => !isProcessRunning(pid));
 	}, 30_000);
 
+	it("waits for the stdio child to close before disconnect resolves", async () => {
+		const serverCwd = mkdtempSync(join(tempRoot, "disconnect-cwd-"));
+		const pidFile = join(tempRoot, `disconnect-${Date.now()}.pid`);
+		const registration = fakeServerRegistration({
+			delayMs: 0,
+			pidFile,
+		});
+		if (registration.transport.type !== "stdio") {
+			throw new Error("Expected stdio registration.");
+		}
+		registration.transport.cwd = serverCwd;
+		const client = await createDefaultMcpServerClientFactory()(registration);
+
+		try {
+			await client.connect();
+			await waitFor(() => existsSync(pidFile));
+			const pid = Number(readFileSync(pidFile, "utf8"));
+			expect(isProcessRunning(pid)).toBe(true);
+
+			await client.disconnect();
+
+			expect(isProcessRunning(pid)).toBe(false);
+			expect(() =>
+				rmSync(serverCwd, { recursive: true, force: true }),
+			).not.toThrow();
+		} finally {
+			await client.disconnect().catch(() => {});
+		}
+	}, 30_000);
+
 	it("aborts a long stdio tool call without waiting for its timeout", async () => {
 		const factory = createDefaultMcpServerClientFactory();
 		const client = await factory(
@@ -545,6 +576,16 @@ describe("default connect budget", () => {
 		// the whole session is torn down (a hung server used to kill the CLI
 		// this way). Keep headroom for the rest of session creation.
 		expect(DEFAULT_MCP_CONNECT_TIMEOUT_MS * 2).toBeLessThanOrEqual(
+			HUB_DEFAULT_COMMAND_TIMEOUT_MS / 2,
+		);
+	});
+
+	it("keeps the remote connect budget well under the hub command timeout", () => {
+		// Remote (SSE/streamable HTTP) connect also runs on the session.create
+		// critical path. Without this bound an offline remote server stalls
+		// session.create past the hub deadline and takes the whole session
+		// down (this crashed the CLI).
+		expect(DEFAULT_HTTP_MCP_CONNECT_TIMEOUT_MS).toBeLessThanOrEqual(
 			HUB_DEFAULT_COMMAND_TIMEOUT_MS / 2,
 		);
 	});

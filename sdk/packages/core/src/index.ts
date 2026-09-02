@@ -65,6 +65,10 @@ export type {
 	ImageContent,
 	ITelemetryService,
 	ListProvidersActionRequest,
+	MediaGenerationModelCatalog,
+	MediaGenerationSettings,
+	MediaGenerationType,
+	MediaModelSelection,
 	Message,
 	MessageWithMetadata,
 	ProviderActionRequest,
@@ -111,6 +115,7 @@ export {
 	FEATURE_FLAGS,
 	FeatureFlagDefaultValue,
 	formatDisplayUserInput,
+	MEDIA_GENERATION_TYPES,
 	noopBasicLogger,
 	normalizeSdkError,
 	normalizeUserInput,
@@ -225,18 +230,32 @@ export type {
 	RestoreResult,
 } from "./cline-core/types";
 export type {
+	AgentPluginPackageDiagnostic,
+	AgentPluginPackageDiagnosticScope,
+	AgentPluginPackageLoadReport,
+	AgentPluginPackageManifest,
+	AgentPluginPackageMcpServer,
+	AgentPluginPackageSkill,
+	AgentSkillMetadata,
 	LoadAgentPluginFromPathOptions,
+	LoadAgentPluginPackagesOptions,
+	LoadedAgentPluginPackage,
+	ParsedAgentSkill,
 	PluginInitializationFailure,
 	PluginInitializationWarning,
 	PluginLoadDiagnostics,
 	ResolveAgentPluginPathsOptions,
 } from "./extensions";
 export {
+	AGENT_PLUGINS_V1_MANIFEST_SCHEMA,
+	AGENT_PLUGINS_V1_MCP_SCHEMA,
 	discoverPluginModulePaths,
 	getPluginDisplayName,
 	loadAgentPluginFromPath,
+	loadAgentPluginPackages,
 	loadAgentPluginsFromPaths,
 	loadAgentPluginsFromPathsWithDiagnostics,
+	parseAgentSkillMarkdown,
 	resolveAgentPluginPaths,
 	resolveAndLoadAgentPlugins,
 	resolvePluginConfigSearchPaths,
@@ -250,6 +269,7 @@ export type {
 	CreateUserInstructionConfigServiceOptions,
 	CreateWorkflowsConfigDefinitionOptions,
 	ParseMarkdownFrontmatterResult,
+	ResolveRuntimeSlashCommandOptions,
 	RuleConfig,
 	SkillConfig,
 	UnifiedConfigDefinition,
@@ -265,6 +285,7 @@ export type {
 	WorkflowConfig,
 } from "./extensions/config";
 export {
+	combineUserInstructionConfigServices,
 	createRulesConfigDefinition,
 	createSkillsConfigDefinition,
 	createUserInstructionConfigService,
@@ -450,6 +471,7 @@ export {
 } from "./runtime/host/host";
 export { LocalRuntimeHost } from "./runtime/host/local-runtime-host";
 export type {
+	CommandExecutionRuntimeService,
 	PendingPromptMutationResult,
 	PendingPromptsDeleteInput,
 	PendingPromptsListInput,
@@ -491,6 +513,13 @@ export type {
 	RuntimeBuilderInput,
 	SessionRuntime,
 } from "./runtime/orchestration/session-runtime";
+export {
+	getProcessStartToken,
+	getProcessStartTokenAsync,
+	type ProcessStartTokenProbeResult,
+	probeProcessStartToken,
+	probeProcessStartTokenAsync,
+} from "./runtime/process-start-token";
 export {
 	formatRulesForSystemPrompt,
 	isRuleEnabled,
@@ -547,7 +576,9 @@ export {
 	filterDisabledTools,
 	filterExtensionToolRegistrations,
 	GlobalSettingsSchema,
+	isAgentPluginDisabledGlobally,
 	isAutoUpdateEnabledGlobally,
+	isOptInToolEnabledGlobally,
 	isPluginDisabledGlobally,
 	isTelemetryOptedOutGlobally,
 	isToolDisabledGlobally,
@@ -557,13 +588,18 @@ export {
 	readPlanActModeGlobally,
 	readToolAutoApproveGlobally,
 	readTuiThemeGlobally,
+	resolveDisabledAgentPluginNames,
 	resolveDisabledPluginPaths,
 	resolveDisabledToolNames,
+	resolveEnabledOptInToolNames,
+	resolveOptInToolSettings,
 	setAutoUpdateEnabledGlobally,
 	setCompactionModeGlobally,
 	setCompactionStrategyGlobally,
+	setDisabledAgentPlugin,
 	setDisabledPlugin,
 	setDisabledTools,
+	setOptInToolEnabledGlobally,
 	setPlanActModeGlobally,
 	setTelemetryOptOutGlobally,
 	setToolAutoApproveGlobally,
@@ -652,19 +688,34 @@ export {
 } from "./services/providers/local-provider-registry";
 export {
 	addLocalProvider,
+	type CreateConfiguredStreamingTranscriptionSessionRequest,
+	createConfiguredStreamingTranscriptionSession,
 	type DeleteLocalProviderRequest,
 	deleteLocalProvider,
 	ensureCustomProvidersLoaded,
+	type GenerateConfiguredMediaRequest,
+	type GenerateConfiguredMediaResult,
+	generateConfiguredMedia,
 	getLocalProviderModels,
+	isDedicatedTranscriptionModel,
+	isUsableImageGenerationModel,
 	listLocalProviders,
 	loginAndSaveLocalProviderOAuthCredentials,
 	loginLocalProvider,
 	markLocalProviderEnabled,
 	normalizeOAuthProvider,
+	type ResolvedMediaGenerationTarget,
 	refreshProviderModelsFromSource,
+	resolveConfiguredMediaGenerationTarget,
 	resolveLocalClineAuthToken,
 	saveLocalProviderOAuthCredentials,
 	saveLocalProviderSettings,
+	saveMediaGenerationSettings,
+	saveVoiceInputSettings,
+	type TranscribeConfiguredVoiceInputRequest,
+	type TranscribeLocalAudioRequest,
+	transcribeConfiguredVoiceInput,
+	transcribeLocalAudio,
 	type UpdateLocalProviderRequest,
 	updateLocalProvider,
 } from "./services/providers/local-provider-service";
@@ -674,6 +725,8 @@ export {
 	type ProviderConfigFieldRequirement,
 	type ProviderConfigFields,
 } from "./services/providers/provider-config-fields";
+export { isProviderSettingsUsable } from "./services/providers/provider-readiness";
+export * from "./services/session-import";
 export {
 	type MigrateLegacyProviderSettingsOptions,
 	type MigrateLegacyProviderSettingsResult,
@@ -793,6 +846,10 @@ export {
 	trimMessagesBeforeUserRun,
 } from "./session/checkpoint-restore";
 export {
+	projectSessionMessagesForDisplay,
+	type SessionDisplayMessage,
+} from "./session/display-messages";
+export {
 	deriveSubsessionStatus,
 	makeSubSessionId,
 	makeTeamTaskSubSessionId,
@@ -800,6 +857,7 @@ export {
 } from "./session/models/session-graph";
 export type { SessionManifest } from "./session/models/session-manifest";
 export type { SessionRow } from "./session/models/session-row";
+export * from "./session/search";
 export type {
 	CreateRootSessionWithArtifactsInput,
 	RootSessionArtifacts,
@@ -848,10 +906,10 @@ export {
 	CoreSettingsService,
 	createCoreSettingsService,
 } from "./settings";
+export * from "./tasks";
 export type {
 	ChatMessage,
 	ChatMessageImage,
-	ChatMessageVideo,
 	ChatSessionConfig,
 	ChatSessionStatus,
 	ChatSummary,
@@ -861,7 +919,6 @@ export {
 	ChatMessageImageSchema,
 	ChatMessageRoleSchema,
 	ChatMessageSchema,
-	ChatMessageVideoSchema,
 	ChatSessionConfigSchema,
 	ChatSessionStatusSchema,
 	ChatSummarySchema,
@@ -894,6 +951,7 @@ export {
 	createDefaultTools,
 	createDefaultToolsWithPreset,
 	createEditorExecutor,
+	createGenerateMediaTool,
 	createShellExecutor,
 	createShellTool,
 	createToolPoliciesWithPreset,
@@ -904,21 +962,30 @@ export {
 	type EditFileInput,
 	type EditorExecutor,
 	type EditorExecutorOptions,
+	type GenerateMediaContent,
+	type GenerateMediaExecutor,
+	type GenerateMediaInput,
+	GenerateMediaInputSchema,
+	type GenerateMediaResult,
 	getCoreAcpToolNames,
 	getCoreBuiltinToolCatalog,
 	getCoreDefaultEnabledToolIds,
 	getCoreHeadlessToolNames,
+	isCoreBuiltinToolAvailable,
+	isSkillsToolAvailable,
 	MAX_COMMAND_OUTPUT_CHARS,
 	PATCH_MARKERS,
 	PatchActionType,
 	type PatchFileChange,
 	resolveCoreSelectedToolIds,
+	resolveToolClientType,
 	type ShellExecutor,
 	type ShellExecutorOptions,
 	type StructuredCommandInput,
 	StructuredCommandInputSchema,
 	TEAM_TOOL_NAMES,
 	type ToolCatalogEntry,
+	type ToolClientType,
 	type ToolExecutors,
 	type ToolPolicyPresetName,
 	type ToolPresetName,
@@ -926,11 +993,15 @@ export {
 	truncateCommandOutput,
 } from "./extensions/tools";
 export {
+	applyClineFeaturedModels,
 	type ClineRecommendedModel,
 	type ClineRecommendedModelsData,
 	FALLBACK_CLINE_RECOMMENDED_MODELS,
 	type FetchClineRecommendedModelsOptions,
 	fetchClineRecommendedModels,
+	getCachedClineRecommendedModels,
+	peekClineRecommendedModels,
+	resetClineRecommendedModelsCacheForTests,
 } from "./services/llms/cline-recommended-models";
 export {
 	clearLiveModelsCatalogCache,
@@ -938,6 +1009,7 @@ export {
 	DEFAULT_MODELS_CATALOG_URL,
 	getLiveModelsCatalog,
 	getProviderConfig,
+	isPrivateModelCatalogProvider,
 	OPENAI_COMPATIBLE_PROVIDERS,
 	resolveProviderConfig,
 } from "./services/llms/provider-defaults";
@@ -1044,11 +1116,15 @@ export type {
 } from "./types/events";
 export type {
 	ProviderTokenSource,
+	StoredProviderModes,
 	StoredProviderSettings,
 	StoredProviderSettingsEntry,
 } from "./types/provider-settings";
 export {
 	emptyStoredProviderSettings,
+	MediaGenerationSettingsSchema,
+	MediaModelSelectionSchema,
+	StoredProviderModesSchema,
 	StoredProviderSettingsEntrySchema,
 	StoredProviderSettingsSchema,
 } from "./types/provider-settings";

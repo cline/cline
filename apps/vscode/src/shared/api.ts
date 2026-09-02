@@ -1,3 +1,4 @@
+import type { ModelModalities, ModelOperation, ModelOperationMode } from "@cline/shared"
 import { ApiFormat } from "./proto/cline/models"
 import type { ApiHandlerSettings } from "./storage/state-keys"
 
@@ -71,6 +72,8 @@ export interface ModelInfo {
 	name?: string
 	maxTokens?: number
 	contextWindow?: number
+	/** Prompt/input token budget reported by the provider. Kept separate from the total context window. */
+	maxInputTokens?: number
 	supportsImages?: boolean
 	supportsPromptCache: boolean // this value is hardcoded for now
 	supportsReasoning?: boolean // Whether the model supports reasoning/thinking mode
@@ -104,6 +107,12 @@ export interface ModelInfo {
 	 * means "capabilities unknown", which SDK checks fail open on.
 	 */
 	capabilities?: readonly string[]
+	/** SDK input/output modalities preserved for runtime model routing. */
+	modalities?: ModelModalities
+	/** SDK provider operation preserved for endpoint routing. */
+	operation?: ModelOperation
+	/** SDK execution modes preserved for operation-specific clients. */
+	operationModes?: readonly ModelOperationMode[]
 }
 
 export interface OpenAiCompatibleModelInfo extends ModelInfo {

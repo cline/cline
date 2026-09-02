@@ -1,13 +1,47 @@
-import { mkdtempSync, writeFileSync } from "node:fs";
+import {
+	mkdirSync,
+	mkdtempSync,
+	realpathSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import * as LlmsModels from "@cline/llms";
+import { setHomeDir } from "@cline/shared/storage";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { version as corePackageVersion } from "../../package.json";
-import type { ProviderSettings } from "../types/provider-settings";
+import type {
+	MediaGenerationSettings,
+	ProviderSettings,
+} from "../types/provider-settings";
 
-function createProviderSettingsManager(settings?: ProviderSettings) {
+function createProviderSettingsManager(
+	settings?: ProviderSettings,
+	mediaGeneration?: MediaGenerationSettings,
+) {
+	const mediaProviderId = mediaGeneration?.image?.providerId;
 	return {
 		getProviderSettings: vi.fn(() => settings),
+		getMediaGenerationSettings: vi.fn(() => mediaGeneration),
+		getProviderConfig: vi.fn((providerId: string) =>
+			providerId === mediaProviderId
+				? { providerId, apiKey: "server-only-key" }
+				: undefined,
+		),
+		read: vi.fn(() => ({
+			version: 1 as const,
+			modes: mediaGeneration ? { mediaGeneration } : {},
+			providers: mediaProviderId
+				? {
+						[mediaProviderId]: {
+							settings: { provider: mediaProviderId },
+							updatedAt: "2026-01-01T00:00:00.000Z",
+							tokenSource: "manual" as const,
+						},
+					}
+				: {},
+		})),
 	};
 }
 
@@ -37,6 +71,21 @@ function createSpawnTool() {
 	};
 }
 
+const BOOTSTRAP_MEDIA_MODEL_IDS = [
+	"bootstrap-configured-image-model",
+	"bootstrap-host-image-model",
+	"bootstrap-test-image-model",
+] as const;
+
+function registerBootstrapImageModel(modelId: string): void {
+	LlmsModels.registerModel("openrouter", modelId, {
+		id: modelId,
+		name: "Bootstrap Test Image Model",
+		operation: "image-generation",
+		modalities: { input: ["text"], output: ["image"] },
+	});
+}
+
 describe("prepareLocalRuntimeBootstrap", () => {
 	const previousGlobalSettingsPath = process.env.CLINE_GLOBAL_SETTINGS_PATH;
 	let resetModulesAfterEach = false;
@@ -44,6 +93,9 @@ describe("prepareLocalRuntimeBootstrap", () => {
 	afterEach(() => {
 		process.env.CLINE_GLOBAL_SETTINGS_PATH = previousGlobalSettingsPath;
 		vi.doUnmock("../extensions/plugin/plugin-config-loader");
+		for (const modelId of BOOTSTRAP_MEDIA_MODEL_IDS) {
+			LlmsModels.unregisterModel("openrouter", modelId);
+		}
 		if (resetModulesAfterEach) {
 			vi.resetModules();
 			resetModulesAfterEach = false;
@@ -78,6 +130,154 @@ describe("prepareLocalRuntimeBootstrap", () => {
 			loadLatestOnInit: true,
 			loadPrivateOnAuth: true,
 		});
+	});
+
+	it("discovers user Agent Plugins on the execution host and ignores workspace packages", async () => {
+		const root = realpathSync(
+			mkdtempSync(join(tmpdir(), "core-agent-plugin-bootstrap-")),
+		);
+		const previousHome = process.env.HOME;
+		const homeRoot = join(root, "home");
+		setHomeDir(homeRoot);
+		try {
+			const globalSettingsPath = join(root, "global-settings.json");
+			process.env.CLINE_GLOBAL_SETTINGS_PATH = globalSettingsPath;
+			const workspaceRoot = join(root, "workspace");
+			mkdirSync(workspaceRoot, { recursive: true });
+			const pluginRoot = join(homeRoot, ".agents", "plugins", "portable");
+			const skillRoot = join(pluginRoot, "skills", "review");
+			mkdirSync(skillRoot, { recursive: true });
+			writeFileSync(
+				join(pluginRoot, "plugin.json"),
+				JSON.stringify({
+					$schema: "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+					name: "portable",
+				}),
+				"utf8",
+			);
+			const workspacePluginRoot = join(
+				workspaceRoot,
+				".agents",
+				"plugins",
+				"workspace-owned",
+			);
+			mkdirSync(workspacePluginRoot, { recursive: true });
+			writeFileSync(
+				join(workspacePluginRoot, "plugin.json"),
+				JSON.stringify({
+					$schema: "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+					name: "workspace-owned",
+				}),
+				"utf8",
+			);
+			writeFileSync(
+				join(workspacePluginRoot, "mcp.json"),
+				JSON.stringify({
+					$schema: "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+					mcpServers: {
+						untrusted: {
+							type: "streamable-http",
+							url: "https://workspace.example.test/mcp",
+						},
+					},
+				}),
+				"utf8",
+			);
+			const resolvedSkillRoot = realpathSync.native(skillRoot);
+			writeFileSync(
+				join(skillRoot, "SKILL.md"),
+				"---\nname: review\ndescription: Review code\n---\nReview carefully.",
+				"utf8",
+			);
+			writeFileSync(
+				join(pluginRoot, "mcp.json"),
+				JSON.stringify({
+					$schema: "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+					mcpServers: {
+						tools: {
+							type: "streamable-http",
+							url: "https://example.com/mcp",
+						},
+					},
+				}),
+				"utf8",
+			);
+
+			const { prepareLocalRuntimeBootstrap } = await import(
+				"./local-runtime-bootstrap"
+			);
+			const bootstrap = await prepareLocalRuntimeBootstrap({
+				input: {
+					...createStartInput(),
+					config: {
+						...createStartInput().config,
+						cwd: workspaceRoot,
+						workspaceRoot,
+					},
+				},
+				sessionId: "agent-plugin-session",
+				providerSettingsManager: createProviderSettingsManager() as never,
+				onPluginEvent: () => {},
+				onTeamEvent: () => {},
+				createSpawnTool,
+				readSessionMetadata: async () => undefined,
+				writeSessionMetadata: async () => {},
+			});
+
+			expect(bootstrap.runtimeBuilderInput.agentPluginSkills).toEqual([
+				expect.objectContaining({
+					pluginName: "portable",
+					directoryPath: resolvedSkillRoot,
+				}),
+			]);
+			expect(bootstrap.runtimeBuilderInput.agentPluginMcpServers).toEqual([
+				expect.objectContaining({
+					pluginName: "portable",
+					serverName: "tools",
+					registration: expect.objectContaining({
+						name: "portable.tools",
+					}),
+				}),
+			]);
+			expect(
+				bootstrap.runtimeBuilderInput.agentPluginMcpServers?.some(
+					(server) => server.pluginName === "workspace-owned",
+				),
+			).toBe(false);
+
+			writeFileSync(
+				globalSettingsPath,
+				JSON.stringify({ disabledAgentPlugins: ["portable"] }),
+				"utf8",
+			);
+			const disabledBootstrap = await prepareLocalRuntimeBootstrap({
+				input: {
+					...createStartInput(),
+					config: {
+						...createStartInput().config,
+						cwd: workspaceRoot,
+						workspaceRoot,
+					},
+				},
+				sessionId: "disabled-agent-plugin-session",
+				providerSettingsManager: createProviderSettingsManager() as never,
+				onPluginEvent: () => {},
+				onTeamEvent: () => {},
+				createSpawnTool,
+				readSessionMetadata: async () => undefined,
+				writeSessionMetadata: async () => {},
+			});
+
+			expect(disabledBootstrap.runtimeBuilderInput.agentPluginSkills).toEqual(
+				[],
+			);
+			expect(
+				disabledBootstrap.runtimeBuilderInput.agentPluginMcpServers,
+			).toEqual([]);
+		} finally {
+			setHomeDir(previousHome ?? "~");
+			rmSync(root, { recursive: true, force: true });
+		}
 	});
 
 	it("lets stored provider model catalog settings override hub defaults", async () => {
@@ -115,6 +315,209 @@ describe("prepareLocalRuntimeBootstrap", () => {
 			loadLatestOnInit: false,
 			loadPrivateOnAuth: false,
 		});
+	});
+
+	it("injects the configured media executor only when an image model is selected", async () => {
+		registerBootstrapImageModel("bootstrap-configured-image-model");
+		const { prepareLocalRuntimeBootstrap } = await import(
+			"./local-runtime-bootstrap"
+		);
+		const withoutSelection = await prepareLocalRuntimeBootstrap({
+			input: createStartInput(),
+			sessionId: "sess-without-media",
+			providerSettingsManager: createProviderSettingsManager() as never,
+			defaultTelemetry: undefined,
+			defaultToolPolicies: undefined,
+			onPluginEvent: () => {},
+			onTeamEvent: () => {},
+			createSpawnTool,
+			readSessionMetadata: async () => undefined,
+			writeSessionMetadata: async () => {},
+		});
+		expect(
+			withoutSelection.runtimeBuilderInput.toolExecutors?.generateMedia,
+		).toBeUndefined();
+
+		const withSelection = await prepareLocalRuntimeBootstrap({
+			input: createStartInput(),
+			sessionId: "sess-with-media",
+			providerSettingsManager: createProviderSettingsManager(undefined, {
+				image: {
+					providerId: "openrouter",
+					modelId: "bootstrap-configured-image-model",
+				},
+			}) as never,
+			defaultTelemetry: undefined,
+			defaultToolPolicies: undefined,
+			onPluginEvent: () => {},
+			onTeamEvent: () => {},
+			createSpawnTool,
+			readSessionMetadata: async () => undefined,
+			writeSessionMetadata: async () => {},
+		});
+		expect(
+			withSelection.runtimeBuilderInput.toolExecutors?.generateMedia,
+		).toBeTypeOf("function");
+	});
+
+	it("does not inject the media executor for a stale stored selection", async () => {
+		const mediaGeneration: MediaGenerationSettings = {
+			image: {
+				providerId: "openrouter",
+				modelId: "missing-image-model",
+			},
+		};
+		const providerSettingsManager = createProviderSettingsManager(
+			undefined,
+			mediaGeneration,
+		);
+		const { prepareLocalRuntimeBootstrap } = await import(
+			"./local-runtime-bootstrap"
+		);
+		const bootstrap = await prepareLocalRuntimeBootstrap({
+			input: createStartInput(),
+			sessionId: "sess-stale-media",
+			providerSettingsManager: providerSettingsManager as never,
+			defaultTelemetry: undefined,
+			defaultToolPolicies: undefined,
+			onPluginEvent: () => {},
+			onTeamEvent: () => {},
+			createSpawnTool,
+			readSessionMetadata: async () => undefined,
+			writeSessionMetadata: async () => {},
+		});
+
+		expect(
+			bootstrap.runtimeBuilderInput.toolExecutors?.generateMedia,
+		).toBeUndefined();
+		expect(providerSettingsManager.getMediaGenerationSettings()).toEqual(
+			mediaGeneration,
+		);
+	});
+
+	it("lets a host media executor override the configured executor", async () => {
+		registerBootstrapImageModel("bootstrap-host-image-model");
+		const { prepareLocalRuntimeBootstrap } = await import(
+			"./local-runtime-bootstrap"
+		);
+		const hostGenerateMedia = vi.fn(async () => []);
+		const bootstrap = await prepareLocalRuntimeBootstrap({
+			input: {
+				...createStartInput(),
+				capabilities: {
+					toolExecutors: { generateMedia: hostGenerateMedia },
+				},
+			},
+			sessionId: "sess-host-media",
+			providerSettingsManager: createProviderSettingsManager(undefined, {
+				image: {
+					providerId: "openrouter",
+					modelId: "bootstrap-host-image-model",
+				},
+			}) as never,
+			defaultTelemetry: undefined,
+			defaultToolPolicies: undefined,
+			onPluginEvent: () => {},
+			onTeamEvent: () => {},
+			createSpawnTool,
+			readSessionMetadata: async () => undefined,
+			writeSessionMetadata: async () => {},
+		});
+
+		expect(bootstrap.runtimeBuilderInput.toolExecutors?.generateMedia).toBe(
+			hostGenerateMedia,
+		);
+	});
+
+	it("forwards the tool abort signal through the configured media executor", async () => {
+		const modelId = "bootstrap-test-image-model";
+		registerBootstrapImageModel(modelId);
+		const generateSpy = vi
+			.spyOn(LlmsModels, "generateMedia")
+			.mockResolvedValue({
+				media: [
+					{
+						id: "bootstrap-image",
+						modality: "image",
+						mediaType: "image/png",
+						source: { type: "base64", data: "aGVsbG8=" },
+					},
+				],
+				usage: {
+					inputTokens: 7,
+					outputTokens: 3,
+					cacheReadTokens: 0,
+					cacheWriteTokens: 0,
+				},
+			});
+		const providerSettingsManager = {
+			getProviderSettings: vi.fn(() => undefined),
+			getMediaGenerationSettings: vi.fn(() => ({
+				image: { providerId: "openrouter", modelId },
+			})),
+			read: vi.fn(() => ({
+				version: 1 as const,
+				modes: {
+					mediaGeneration: {
+						image: { providerId: "openrouter", modelId },
+					},
+				},
+				providers: {
+					openrouter: {
+						settings: { provider: "openrouter" },
+						updatedAt: "2026-01-01T00:00:00.000Z",
+						tokenSource: "manual" as const,
+					},
+				},
+			})),
+			getProviderConfig: vi.fn(() => ({
+				providerId: "openrouter",
+				apiKey: "server-only-key",
+			})),
+		};
+		const { prepareLocalRuntimeBootstrap } = await import(
+			"./local-runtime-bootstrap"
+		);
+		const bootstrap = await prepareLocalRuntimeBootstrap({
+			input: createStartInput(),
+			sessionId: "sess-media-abort",
+			providerSettingsManager: providerSettingsManager as never,
+			defaultTelemetry: undefined,
+			defaultToolPolicies: undefined,
+			onPluginEvent: () => {},
+			onTeamEvent: () => {},
+			createSpawnTool,
+			readSessionMetadata: async () => undefined,
+			writeSessionMetadata: async () => {},
+		});
+		const abortController = new AbortController();
+		const reportUsage = vi.fn();
+
+		await bootstrap.runtimeBuilderInput.toolExecutors?.generateMedia?.(
+			{ media_type: "image", prompt: "A lighthouse" },
+			{
+				agentId: "agent-1",
+				iteration: 1,
+				signal: abortController.signal,
+				reportUsage,
+			},
+		);
+
+		expect(generateSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				abortSignal: abortController.signal,
+				providerConfig: expect.objectContaining({
+					apiKey: "server-only-key",
+				}),
+			}),
+		);
+		expect(reportUsage).toHaveBeenCalledWith({
+			inputTokens: 7,
+			outputTokens: 3,
+			cacheReadTokens: 0,
+			cacheWriteTokens: 0,
+		});
+		generateSpy.mockRestore();
 	});
 
 	it("filters globally disabled plugin tools before extension setup", async () => {
@@ -471,6 +874,82 @@ describe("prepareLocalRuntimeBootstrap", () => {
 			"x-provider-config": "provider-config",
 			"x-shared": "config-wins",
 			"x-stored": "stored",
+		});
+	});
+
+	it("rebuilds extensionContext.client from hub-baked request headers", async () => {
+		const { prepareLocalRuntimeBootstrap } = await import(
+			"./local-runtime-bootstrap"
+		);
+
+		const input = createStartInput();
+		const config = input.config as typeof input.config & {
+			headers: Record<string, string>;
+		};
+		config.headers = {
+			"X-CLIENT-TYPE": "cline-cli",
+			"X-CLIENT-VERSION": "3.0.38",
+		};
+
+		const bootstrap = await prepareLocalRuntimeBootstrap({
+			input,
+			sessionId: "sess-hub-client",
+			providerSettingsManager: createProviderSettingsManager() as never,
+			defaultTelemetry: undefined,
+			defaultToolPolicies: undefined,
+			onPluginEvent: () => {},
+			onTeamEvent: () => {},
+			createSpawnTool,
+			readSessionMetadata: async () => undefined,
+			writeSessionMetadata: async () => {},
+		});
+
+		expect(bootstrap.config.extensionContext?.client).toEqual({
+			name: "cline-cli",
+			version: "3.0.38",
+		});
+		expect(bootstrap.providerConfig.headers).toMatchObject({
+			"User-Agent": "Cline/3.0.38",
+			"X-CLIENT-TYPE": "cline-cli",
+			"X-CLIENT-VERSION": "3.0.38",
+		});
+	});
+
+	it("prefers configured extensionContext.client over header-derived identity", async () => {
+		const { prepareLocalRuntimeBootstrap } = await import(
+			"./local-runtime-bootstrap"
+		);
+
+		const input = createStartInput();
+		const config = input.config as typeof input.config & {
+			headers: Record<string, string>;
+		};
+		config.headers = {
+			"X-CLIENT-TYPE": "header-client",
+			"X-CLIENT-VERSION": "0.0.1",
+		};
+
+		const bootstrap = await prepareLocalRuntimeBootstrap({
+			input,
+			localRuntime: {
+				extensionContext: {
+					client: { name: "cline-vscode", version: "9.9.9" },
+				},
+			},
+			sessionId: "sess-local-client",
+			providerSettingsManager: createProviderSettingsManager() as never,
+			defaultTelemetry: undefined,
+			defaultToolPolicies: undefined,
+			onPluginEvent: () => {},
+			onTeamEvent: () => {},
+			createSpawnTool,
+			readSessionMetadata: async () => undefined,
+			writeSessionMetadata: async () => {},
+		});
+
+		expect(bootstrap.config.extensionContext?.client).toEqual({
+			name: "cline-vscode",
+			version: "9.9.9",
 		});
 	});
 

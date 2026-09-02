@@ -1,17 +1,6 @@
 "use client";
 
 export {
-	Button,
-	type ButtonProps,
-	type ButtonSize,
-	type ButtonTone,
-	buttonVariants,
-	type ButtonVariant,
-	IconButton,
-	iconButtonVariants,
-	type IconButtonProps,
-} from "./button.js";
-export {
 	type AgentApprovalAction,
 	AgentApprovalCard,
 	type AgentApprovalCardProps,
@@ -34,9 +23,37 @@ export {
 	type AgentQuickActionsProps,
 } from "./agent-quick-actions.js";
 export {
+	AgentWelcomeHero,
+	type AgentWelcomeHeroLayout,
+	type AgentWelcomeHeroProps,
+} from "./agent-welcome-hero.js";
+export {
+	AttachmentDropZone,
+	type AttachmentDropZoneProps,
+} from "./attachment-drop-zone.js";
+export { Badge, type BadgeProps } from "./badge.js";
+export {
+	Button,
+	type ButtonProps,
+	type ButtonSize,
+	type ButtonTone,
+	type ButtonVariant,
+	buttonVariants,
+	IconButton,
+	type IconButtonProps,
+	iconButtonVariants,
+} from "./button.js";
+export {
+	type GeneratedMediaClassNames,
+	GeneratedMediaContent,
+	type GeneratedMediaContentProps,
+} from "./generated-media.js";
+export { GitHubIcon } from "./github-icon.js";
+export {
 	SearchCombobox,
 	type SearchComboboxOption,
 	type SearchComboboxProps,
+	type SearchComboboxSection,
 } from "./search-combobox.js";
 export {
 	SessionStatus,

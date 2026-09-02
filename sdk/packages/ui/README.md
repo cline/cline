@@ -27,7 +27,7 @@ Use `@cline/ui@next` only for deliberate previews. Monorepo consumers use
 
 | Import | Contents | Runtime requirement |
 | --- | --- | --- |
-| `@cline/ui` | Button, icon-button, agent ask-question, approval-card, Aurora, hero-heading, prompt-queue, quick-action, search-combobox, and session-status React primitives | React 18.3 or 19 and Tailwind v4 |
+| `@cline/ui` | Reusable React primitives exported from [`components/index.ts`](./components/index.ts) | React 18.3 or 19 and Tailwind v4 |
 | `@cline/ui/components.css` | Styles, namespaced Tailwind mappings, and source registration for the root React primitives | Tailwind v4 and theme tokens |
 | `@cline/ui/theme/palette.css` | Cline-owned light/dark solid and alpha color scales | CSS |
 | `@cline/ui/theme/tokens.css` | Light/dark custom properties only | CSS |
@@ -75,11 +75,16 @@ dimensions.
 `AgentHeroHeading` renders the shared cycling “What would you like to …?”
 welcome heading and respects reduced-motion preferences.
 
+`AgentWelcomeHero` renders the interactive Cline bot and grid used on agent
+welcome surfaces. It supports bot-only and grid-only compositions and becomes
+static when reduced motion is requested.
+
 `AgentApprovalCard` is controlled presentation; the host owns approval state
 and submits its callbacks.
 
-`AgentAskQuestion` is controlled presentation; the host owns pending answers,
-errors, and response transport.
+`AgentAskQuestion` keeps option selection locally and submits explicitly. The
+host owns pending answers, errors, and response transport. Multiple-choice
+items set `multiple: true` and provide `onAnswers` for array submission.
 
 `AgentPromptQueue` renders queued prompts and reports edit, remove, and steer
 actions to the host.
@@ -193,13 +198,29 @@ import {
 	ToolActivityContent,
 	ToolActivityDetails,
 	ToolActivityTrigger,
+	WorkActivity,
+	WorkActivityContent,
+	WorkActivityTrigger,
 } from "@cline/ui/components/agent-chat";
 ```
 
 `Conversation` owns sticky scrolling, `Message` owns role presentation,
-`Reasoning` and `ToolActivity` provide accessible disclosures, and the smaller
-action, empty-state, detail, and code primitives fill out common transcript
-states. Give each conversation a bounded height through an explicit height or
+`Reasoning` and `ToolActivity` provide accessible disclosures, `ThinkingBlock`
+is the standard thinking-trace row ("Thinking" shimmer while streaming,
+"Thought for Ns" once done), `WorkActivity` folds a finished run's working
+rows behind a "Worked for 4m 12s and made 14 tool calls" summary, and the
+smaller action, empty-state, detail, and code primitives fill out common
+transcript states.
+
+For assistant Markdown, `@cline/ui/components/markdown` exports the shared
+Streamdown configuration — `markdownCodeHighlighter` (lazy Shiki with GitHub
+light/dark themes) and `agentMarkdownControls` — and
+`@cline/ui/components/markdown.css` carries the matching chat styling (quiet
+single-box code blocks with a hover copy control, chat-scale headings, table
+cards). Import the CSS unlayered so it wins over Streamdown's Tailwind
+utilities, and keep `streamdown`, `shiki`, `@shikijs/langs`, and
+`@shikijs/themes` installed (optional peer dependencies). Products keep their
+own `<Streamdown>` wrapper for link and image policy. Give each conversation a bounded height through an explicit height or
 a complete flex/min-height chain so its viewport can scroll.
 
 These are presentation primitives, not an agent SDK. Consumers map their own

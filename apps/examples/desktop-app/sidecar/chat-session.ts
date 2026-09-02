@@ -1,7 +1,5 @@
-import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
-import { copyFile, mkdir, readdir, rename, rm } from "node:fs/promises";
-import { basename, dirname, extname, join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import {
 	buildConnectionUpdate,
@@ -10,9 +8,12 @@ import {
 	type ClineCoreStartConfig,
 	createSessionCompactionState,
 	createUserInstructionConfigService,
+	findCheckpointForRun,
 	getCoreBuiltinToolCatalog,
+	isSkillsToolAvailable,
 	projectSessionCompactionState,
 	readGlobalSettings,
+	readSessionCheckpointHistory,
 	type SessionCompactionState,
 	type SessionPendingPrompt,
 	type SessionRecord,
@@ -20,7 +21,7 @@ import {
 	splitCoreSessionConfig,
 	trimMessagesBeforeUserRun,
 } from "@cline/core";
-import type { Message } from "@cline/llms";
+import type { MessageWithMetadata } from "@cline/llms";
 import { buildClineSystemPrompt, formatUserCommandBlock } from "@cline/shared";
 import {
 	deleteMaterializedAttachments,
@@ -30,6 +31,7 @@ import {
 } from "./attachments";
 import { emitChunk, nowMs, sendEvent } from "./context";
 import { readSessionManifest, sharedSessionDataDir } from "./paths";
+import { persistSessionMessages } from "./session-data/messages";
 import type {
 	ChatSessionCommandRequest,
 	JsonRecord,
@@ -102,15 +104,21 @@ const BUILTIN_SLASH_COMMAND_NAMES = new Set(["fork", "team"]);
 
 /**
  * Expand a leading `/skill` or `/workflow` token into its configured
- * instructions before dispatching the prompt, mirroring the CLI's
- * `buildUserInputMessage`. Returns the prompt unchanged when it is not a
- * slash command, the token is a built-in, no command matches, or command
- * discovery fails.
+ * instructions before dispatching the prompt. Skill commands pass through as
+ * typed whenever the session registers the runtime's `skills` tool (its
+ * description requires the model to invoke it on slash-command references),
+ * so the instructions reach the model as a tool result instead of being
+ * pasted into the user message — where the transcript would render them as
+ * if the user had typed the whole skill body. Workflows, and skills in
+ * configurations without the tool (e.g. yolo mode), keep textual expansion.
+ * Returns the prompt unchanged when it is not a slash command, the token is
+ * a built-in, no command matches, or command discovery fails.
  */
 async function expandRuntimeSlashCommand(
 	ctx: SidecarContext,
 	workspacePath: string | undefined,
 	prompt: string,
+	mode?: unknown,
 ): Promise<string> {
 	if (!prompt.startsWith("/") || prompt.length < 2) {
 		return prompt;
@@ -126,7 +134,12 @@ async function expandRuntimeSlashCommand(
 	});
 	try {
 		await service.start();
-		return service.resolveRuntimeSlashCommand(prompt);
+		return service.resolveRuntimeSlashCommand(prompt, {
+			expandSkillCommands: !isSkillsToolAvailable({
+				mode: mode === "plan" || mode === "yolo" ? mode : "act",
+				disabledToolIds: new Set(readGlobalSettings().disabledTools ?? []),
+			}),
+		});
 	} catch (error) {
 		ctx.logger?.debug("Slash command expansion failed, sending raw prompt", {
 			error,
@@ -189,7 +202,7 @@ async function resolveDesktopRuntimePrompt(
 	mode?: unknown,
 ): Promise<string> {
 	return rewriteDesktopTeamPrompt(
-		await expandRuntimeSlashCommand(ctx, workspacePath, prompt),
+		await expandRuntimeSlashCommand(ctx, workspacePath, prompt, mode),
 		{ mode },
 	);
 }
@@ -284,7 +297,9 @@ export function refreshWorkspaceMetadata(cwd: string): void {
 // Session data helpers
 // ---------------------------------------------------------------------------
 
-function readPersistedChatMessages(sessionId: string): unknown[] | null {
+function readPersistedChatMessages(
+	sessionId: string,
+): MessageWithMetadata[] | null {
 	const path = join(
 		sharedSessionDataDir(),
 		sessionId,
@@ -293,98 +308,12 @@ function readPersistedChatMessages(sessionId: string): unknown[] | null {
 	if (!existsSync(path)) return null;
 	try {
 		const parsed = JSON.parse(readFileSync(path, "utf8").trim()) as
-			| { messages?: unknown[] }
-			| unknown[];
+			| { messages?: MessageWithMetadata[] }
+			| MessageWithMetadata[];
 		if (Array.isArray(parsed)) return parsed;
 		return Array.isArray(parsed.messages) ? parsed.messages : null;
 	} catch {
 		return null;
-	}
-}
-
-const GENERATED_VIDEO_EXTENSIONS = new Set([".mp4", ".webm", ".mov", ".mpeg"]);
-
-/**
- * Clone generated videos when a new session inherits history from another
- * session. The webview resolves artifacts against the current session ID, so
- * the bytes must follow the copied message history.
- *
- * Files are prepared in a sibling staging directory and published with one
- * directory rename. A failed copy therefore leaves no partially populated
- * artifact directory behind.
- */
-export async function copySessionGeneratedVideoArtifacts(
-	sourceSessionId: string,
-	targetSessionId: string,
-): Promise<void> {
-	if (sourceSessionId === targetSessionId) return;
-	const sourceDir = join(sharedSessionDataDir(), sourceSessionId, "artifacts");
-	const entries = await readdir(sourceDir, { withFileTypes: true }).catch(
-		(error: NodeJS.ErrnoException) => {
-			if (error.code === "ENOENT") return [];
-			throw error;
-		},
-	);
-	const videoEntries = entries.filter(
-		(entry) =>
-			entry.isFile() &&
-			GENERATED_VIDEO_EXTENSIONS.has(extname(entry.name).toLowerCase()),
-	);
-	if (videoEntries.length === 0) return;
-
-	const targetDir = join(sharedSessionDataDir(), targetSessionId, "artifacts");
-	if (existsSync(targetDir)) {
-		throw new Error(
-			`Generated video artifact destination already exists for session ${targetSessionId}`,
-		);
-	}
-
-	const targetSessionDir = dirname(targetDir);
-	const stagingDir = join(
-		targetSessionDir,
-		`.video-artifacts-${randomUUID()}.tmp`,
-	);
-	await mkdir(targetSessionDir, { recursive: true });
-	try {
-		await mkdir(stagingDir);
-		await Promise.all(
-			videoEntries.map((entry) =>
-				copyFile(join(sourceDir, entry.name), join(stagingDir, entry.name)),
-			),
-		);
-		if (existsSync(targetDir)) {
-			throw new Error(
-				`Generated video artifact destination already exists for session ${targetSessionId}`,
-			);
-		}
-		await rename(stagingDir, targetDir);
-	} finally {
-		await rm(stagingDir, { recursive: true, force: true });
-	}
-}
-
-async function copySessionGeneratedVideoArtifactsWithRollback(
-	manager: Pick<ClineCore, "delete">,
-	sourceSessionId: string,
-	targetSessionId: string,
-): Promise<void> {
-	try {
-		await copySessionGeneratedVideoArtifacts(sourceSessionId, targetSessionId);
-	} catch (copyError) {
-		try {
-			const deleted = await manager.delete(targetSessionId);
-			if (!deleted) {
-				throw new Error(
-					`Failed to delete replacement session ${targetSessionId}`,
-				);
-			}
-		} catch (rollbackError) {
-			throw new AggregateError(
-				[copyError, rollbackError],
-				`Failed to copy generated videos and roll back replacement session ${targetSessionId}`,
-			);
-		}
-		throw copyError;
 	}
 }
 
@@ -494,7 +423,7 @@ function buildCoreSessionConfig(config: JsonRecord): JsonRecord {
 		sessionId: config.sessionId ?? config.session_id,
 		providerId: config.provider ?? config.providerId ?? "",
 		modelId: config.model ?? config.modelId ?? "",
-		mode: config.mode ?? "act",
+		mode: resolveDesktopSessionMode(config),
 		apiKey: config.apiKey ?? config.api_key ?? "",
 		baseUrl: config.baseUrl,
 		headers: config.headers,
@@ -516,6 +445,17 @@ function buildCoreSessionConfig(config: JsonRecord): JsonRecord {
 		sessions: config.sessions,
 		initialMessages: config.initialMessages,
 	};
+}
+
+/** Auto-approval is a tool policy, not a request to change the tool preset. */
+export function resolveDesktopSessionMode(
+	config: JsonRecord,
+): "act" | "plan" | "yolo" {
+	return config.mode === "plan"
+		? "plan"
+		: config.mode === "yolo"
+			? "yolo"
+			: "act";
 }
 
 export function buildSessionConnectionUpdate(
@@ -626,11 +566,7 @@ async function resolveSystemPrompt(config: JsonRecord): Promise<string> {
 		return String(config.systemPrompt ?? config.system_prompt ?? "").trim();
 	}
 	const providerId = String(config.provider ?? config.providerId ?? "").trim();
-	const mode = config.autoApproveTools
-		? "yolo"
-		: config.mode === "plan"
-			? "plan"
-			: "act";
+	const mode = resolveDesktopSessionMode(config);
 	const metadata = await consumeWorkspaceMetadata(cwd);
 	const inlineRules =
 		typeof config.rules === "string" && config.rules.trim().length > 0
@@ -757,9 +693,7 @@ async function handleStart(
 		...splitCoreSessionConfig(coreConfig as unknown as ClineCoreStartConfig),
 		source: SessionSource.DESKTOP,
 		interactive: true,
-		...(initialMessages
-			? { initialMessages: initialMessages as Message[] }
-			: {}),
+		...(initialMessages ? { initialMessages } : {}),
 		toolPolicies: resolveToolPolicies(request.config),
 	});
 	const sessionId = startResult.sessionId;
@@ -863,7 +797,7 @@ async function startRebuiltSession(
 	sessionId: string,
 	config: JsonRecord,
 	systemPrompt: string,
-	messages: Message[],
+	messages: MessageWithMetadata[],
 	compactionState: SessionCompactionState | undefined,
 ): Promise<void> {
 	const projectedMessages = compactionState
@@ -1061,6 +995,12 @@ async function handleSend(
 			sessionId,
 			request.attachments?.userFiles,
 		);
+		if (session?.attachedViaHub) {
+			// Once ClineCore sends a turn, its HubRuntimeHost owns the session
+			// subscription. Stop projecting the observer stream as well or every
+			// assistant/tool update (including command chunks) is emitted twice.
+			session.attachedViaHub = false;
+		}
 		if (delivery === "queue") {
 			if (session) {
 				session.prompt = prompt;
@@ -1137,7 +1077,7 @@ async function handleSend(
 		});
 		if (session && ownsBusyState) {
 			session.status = "idle";
-			if (result?.messages) session.messages = result.messages as unknown[];
+			if (result?.messages) session.messages = result.messages;
 		}
 		return {
 			sessionId,
@@ -1335,10 +1275,7 @@ async function handleForkUnlocked(
 	let forkMessages =
 		forkBeforeRunCount === undefined
 			? sourceMessages
-			: trimMessagesBeforeUserRun(
-					sourceMessages as Message[],
-					forkBeforeRunCount,
-				);
+			: trimMessagesBeforeUserRun(sourceMessages, forkBeforeRunCount);
 	const forkMetadata: JsonRecord = {
 		...(sourceMetadata ?? {}),
 		fork: {
@@ -1364,8 +1301,18 @@ async function handleForkUnlocked(
 		sessionMetadata: forkMetadata,
 		toolPolicies: resolveToolPolicies(forkConfig),
 	};
+	// Sessions without a checkpoint at or before the edited run (imported
+	// transcripts, checkpoints disabled) have no workspace state to roll back,
+	// so fork the trimmed messages onto the current workspace instead of
+	// failing the edit.
+	const canRestoreWorkspace =
+		forkBeforeRunCount !== undefined &&
+		findCheckpointForRun(
+			readSessionCheckpointHistory({ metadata: sourceMetadata }),
+			forkBeforeRunCount,
+		) !== undefined;
 	let newSessionId: string;
-	if (forkBeforeRunCount !== undefined) {
+	if (forkBeforeRunCount !== undefined && canRestoreWorkspace) {
 		const cwd =
 			restoreWorkspacePath ||
 			(typeof forkConfig.cwd === "string" && forkConfig.cwd.trim()) ||
@@ -1393,15 +1340,10 @@ async function handleForkUnlocked(
 	} else {
 		const started = await manager.start({
 			...startInput,
-			initialMessages: forkMessages as Message[],
+			initialMessages: forkMessages,
 		});
 		newSessionId = started.sessionId;
 	}
-	await copySessionGeneratedVideoArtifactsWithRollback(
-		manager,
-		sourceSessionId,
-		newSessionId,
-	);
 	try {
 		const read = await manager.readMessages(newSessionId);
 		if (forkBeforeRunCount !== undefined || read.length > 0) {
@@ -1427,7 +1369,6 @@ async function handleForkUnlocked(
 	return {
 		sessionId: newSessionId,
 		forkedFromSessionId: sourceSessionId,
-		messages: forkMessages,
 	};
 }
 
@@ -1497,11 +1438,6 @@ async function handleRestoreCheckpoint(
 		if (!sessionId || !restoredMessages) {
 			throw new Error("Checkpoint restore did not return a new session");
 		}
-		await copySessionGeneratedVideoArtifactsWithRollback(
-			manager,
-			sourceSessionId,
-			sessionId,
-		);
 		discardAllTrackedAttachments(
 			sourceSessionId,
 			ctx.liveSessions.get(sourceSessionId),
@@ -1516,16 +1452,15 @@ async function handleRestoreCheckpoint(
 				status: "idle",
 			}),
 		);
+		// A restore that reuses the source session id leaves the persisted
+		// transcript describing the discarded turns, and read_session_messages
+		// prefers that file over the live session. Write the trimmed history so
+		// the transcript matches the workspace the restore just rolled back to.
+		persistSessionMessages(sessionId, restoredMessages);
 		sendPromptsInQueueSnapshot(ctx, sourceSessionId);
 		sendPromptsInQueueSnapshot(ctx, sessionId);
-		let messages: unknown[] = restoredMessages;
-		try {
-			const read = await manager.readMessages(sessionId);
-			if (read?.length > 0) messages = read;
-		} catch {}
 		return {
 			sessionId,
-			messages,
 			restoredCheckpoint: restored.checkpoint,
 		};
 	});

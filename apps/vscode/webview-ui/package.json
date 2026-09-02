@@ -16,6 +16,8 @@
 		"build-storybook": "storybook build"
 	},
 	"dependencies": {
+		"@cline/shared": "workspace:*",
+		"@cline/ui": "workspace:*",
 		"@floating-ui/react": "^0.27.4",
 		"@fontsource-variable/geist-mono": "^5.2.8",
 		"@heroui/react": "^2.8.0-beta.2",
@@ -45,7 +47,7 @@
 		"lucide-react": "^0.511.0",
 		"magic-string": "^0.30.21",
 		"marked": "^15.0.12",
-		"mermaid": "11.16.0",
+		"mermaid": "11.16.1",
 		"posthog-js": "^1.224.0",
 		"pretty-bytes": "^6.1.1",
 		"react": "^18.3.1",

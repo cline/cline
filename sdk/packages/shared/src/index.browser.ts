@@ -130,11 +130,22 @@ export {
 } from "./llms/ai-sdk-format";
 export * from "./llms/gateway";
 export {
+	type Base64MediaValidationFailure,
+	type Base64MediaValidationResult,
+	type Base64MediaValidationSuccess,
 	createMediaBudgetState,
 	DEFAULT_MAX_IMAGE_BASE64_BYTES,
 	DEFAULT_MAX_IMAGE_DECODED_BYTES,
 	DEFAULT_MAX_IMAGE_ENCODED_BYTES,
 	DEFAULT_MAX_TOTAL_MEDIA_BYTES,
+	type GeneratedMedia,
+	type GeneratedMediaModality,
+	GeneratedMediaModalitySchema,
+	GeneratedMediaSchema,
+	type GeneratedMediaSource,
+	GeneratedMediaSourceSchema,
+	generatedMediaModalityFromMediaType,
+	GENERATED_MEDIA_OMITTED_PLACEHOLDER,
 	IMAGE_OMITTED_PLACEHOLDER,
 	IMAGE_UNSUPPORTED_PLACEHOLDER,
 	type ImageMediaLimits,
@@ -147,12 +158,14 @@ export {
 	imageFileMaxDecodedBytesForBase64Limit,
 	isBase64Char,
 	isCanonicalBase64,
+	isGeneratedMedia,
 	type MediaBudgetOptions,
 	type MediaBudgetState,
 	type ResolvedMediaBudget,
 	reserveImageMediaBytes,
 	resolveMediaBudget,
 	SUPPORTED_IMAGE_MEDIA_TYPES,
+	validateAndReserveBase64Media,
 	validateAndReserveImageMedia,
 	validateImageMedia,
 } from "./llms/media";
@@ -160,6 +173,7 @@ export type {
 	ContentBlock,
 	FileContent,
 	ImageContent,
+	MediaContent,
 	Message,
 	MessageRole,
 	MessageWithMetadata,
@@ -169,15 +183,13 @@ export type {
 	ToolDefinition,
 	ToolResultContent,
 	ToolUseContent,
-	VideoContent,
 } from "./llms/messages";
 export {
 	ApiFormat,
 	ApiFormatSchema,
-	isDedicatedImageGenerationModel,
-	isDedicatedVideoGenerationModel,
-	isImageGenerationModel,
-	isVideoGenerationModel,
+	type ChatCompatibleModelDescriptor,
+	type ChatModelModalities,
+	isChatCompatibleModel,
 	type ModelCapability,
 	ModelCapabilitySchema,
 	type ModelInfo,
@@ -188,16 +200,25 @@ export {
 	ModelModalitiesSchema,
 	type ModelModality,
 	ModelModalitySchema,
+	type ModelOperation,
+	type ModelOperationMode,
+	ModelOperationModeSchema,
+	ModelOperationSchema,
 	type ModelPricing,
 	ModelPricingSchema,
 	type ModelStatus,
 	ModelStatusSchema,
 	modelHasCapability,
+	modelProducesImages,
+	modelSupportsImageInput,
 	modelSupportsToolCalling,
+	supportsChatModalities,
 	type ThinkingConfig,
 	ThinkingConfigSchema,
+	usesImageGenerationOperation,
 } from "./llms/model-info";
 export { mergeModelOptions } from "./llms/model-options";
+export * from "./llms/model-tools";
 export {
 	DEFAULT_REASONING_EFFORT,
 	REASONING_EFFORT_RATIOS,
@@ -227,7 +248,11 @@ export type {
 	ToolCallRecord,
 	ToolPolicy,
 } from "./llms/tools";
-export { ToolCallRecordSchema } from "./llms/tools";
+export {
+	TOOL_REJECTION_SUFFIX,
+	ToolCallRecordSchema,
+	USER_REJECTED_TOOL_REASON,
+} from "./llms/tools";
 export {
 	type BasicLogger,
 	type BasicLogMetadata,
@@ -277,10 +302,14 @@ export {
 	formatDisplayUserInput,
 	formatFileContentBlock,
 	formatModeSwitchNotice,
+	formatSessionSearchPreview,
+	formatSessionSearchTitle,
 	formatUserCommandBlock,
 	formatUserInputBlock,
 	normalizeUserInput,
 	parseUserCommandEnvelope,
+	SESSION_SEARCH_PREVIEW_MAX_LENGTH,
+	SESSION_SEARCH_TITLE_MAX_LENGTH,
 	stripModeNotices,
 	xmlTagsRemoval,
 } from "./prompt/format";
@@ -353,6 +382,10 @@ export type {
 	EnterpriseSyncResponse,
 	GetProviderModelsActionRequest,
 	ListProvidersActionRequest,
+	MediaGenerationModelCatalog,
+	MediaGenerationSettings,
+	MediaGenerationType,
+	MediaModelSelection,
 	ProviderActionRequest,
 	ProviderCapability,
 	ProviderCatalogResponse,
@@ -363,14 +396,18 @@ export type {
 	ProviderConfigFieldType,
 	ProviderListItem,
 	ProviderModel,
+	ProviderModelFeatured,
+	ProviderModelFeaturedTier,
 	ProviderModelsResponse,
 	ProviderOAuthLoginResponse,
 	ProviderProtocol,
 	ProviderSettingsActionRequest,
 	RuntimeLoggerConfig,
 	SaveProviderSettingsActionRequest,
+	VoiceInputSelection,
 } from "./rpc/runtime";
 export {
+	MEDIA_GENERATION_TYPES,
 	ProviderCapabilitySchema,
 	ProviderClientSchema,
 	ProviderProtocolSchema,
@@ -476,8 +513,10 @@ export {
 	CLINE_WORKSPACES_DIRECTORY_NAME,
 	isChatWorkspacePath,
 } from "./storage/chat-workspace-paths";
+export * from "./tasks";
 export * from "./team";
 export { createTool } from "./tools/create";
+export * from "./tools/settings";
 export { AUTH_ERROR_PATTERNS, isLikelyAuthError } from "./types/auth";
 // VCR is Node-only (uses node:fs, node:path), excluded from browser build
 export type { VcrRecording } from "./types/vcr";

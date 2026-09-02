@@ -1,6 +1,7 @@
 "use client";
 
-import { ImagePlus, Loader2 } from "lucide-react";
+import { AttachmentDropZone } from "@cline/ui";
+import { Loader2 } from "lucide-react";
 import dynamic from "next/dynamic";
 import {
 	useCallback,
@@ -13,6 +14,7 @@ import {
 import { AgentHeader } from "@/components/agent-header";
 import { AgentSidebar } from "@/components/agent-sidebar";
 import { HubUpdateRequiredDialog } from "@/components/hub-update-required-dialog";
+import { SessionCommandBar } from "@/components/session-command-bar";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -36,6 +38,11 @@ import { WelcomeScreen } from "@/components/views/chat/welcome-chat";
 import { WelcomeSetupNotice } from "@/components/views/chat/welcome-setup-notice";
 import type { OnboardingStep } from "@/components/views/onboarding/onboarding-view";
 import type { SettingsSection } from "@/components/views/settings/sections";
+import {
+	WindowTitleBar,
+	WindowTitleBarContent,
+	WindowTitleBarProvider,
+} from "@/components/window-title-bar";
 import { AccountProvider } from "@/contexts/account-context";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
 import { useAppUpdate } from "@/hooks/use-app-update";
@@ -43,6 +50,7 @@ import { useChatSession } from "@/hooks/use-chat-session";
 import { useSessionAgents } from "@/hooks/use-session-agents";
 import { useSessionHistory } from "@/hooks/use-session-history";
 import { toast } from "@/hooks/use-toast";
+import { applyAppZoomAction, syncAppFontSize } from "@/lib/app-font-size";
 import { syncAppIcon } from "@/lib/app-icon";
 import type { ChatSessionConfig } from "@/lib/chat-schema";
 import {
@@ -52,8 +60,9 @@ import {
 	desktopAppReducer,
 } from "@/lib/desktop-app-state";
 import { desktopClient } from "@/lib/desktop-client";
+import { watchDesktopNotifications } from "@/lib/desktop-notifications";
 import {
-	subscribeToDesktopMenuActions,
+	subscribeToDesktopActions,
 	watchDesktopTrayStatus,
 } from "@/lib/desktop-tray";
 import { syncDesktopWindowTitle } from "@/lib/desktop-window-title";
@@ -63,6 +72,7 @@ import {
 	markOnboardingCompleted,
 	ONBOARDING_RESET_EVENT,
 } from "@/lib/onboarding";
+import { requestPromptInputFocus } from "@/lib/prompt-input-focus";
 import { isProviderConnected } from "@/lib/provider-connection";
 import {
 	fetchProviderCatalog,
@@ -162,6 +172,9 @@ export default function Home() {
 	// Starts false on both server and first client render (hydration-safe);
 	// the effect below reads the persisted state right after mount.
 	const [showOnboarding, setShowOnboarding] = useState(false);
+	const [commandBarOpen, setCommandBarOpen] = useState(false);
+	// Shared by the sidebar search icon and the Cmd/Ctrl+P shortcut.
+	const handleOpenCommandBar = useCallback(() => setCommandBarOpen(true), []);
 	// "welcome" for the full first-run flow; "connect" when re-entered from
 	// the in-app "connect a model" notice, which should land directly on the
 	// provider setup step.
@@ -199,6 +212,7 @@ export default function Home() {
 	useEffect(() => {
 		syncHubTheme();
 		syncHubAccent();
+		syncAppFontSize();
 		return watchSystemHubTheme();
 	}, []);
 
@@ -213,9 +227,11 @@ export default function Home() {
 	}, []);
 
 	useEffect(() => watchDesktopTrayStatus(), []);
+	useEffect(() => watchDesktopNotifications(), []);
 
 	const handleNewThread = useCallback(() => {
 		dispatchApp({ type: "new-thread", threadId: makeThreadId() });
+		requestPromptInputFocus();
 	}, []);
 
 	const completeOnboarding = useCallback(() => {
@@ -285,6 +301,7 @@ export default function Home() {
 			return;
 		}
 		navigateWith({ view: "chat" });
+		requestPromptInputFocus();
 	}, [activeThread, handleNewThread, navigateWith]);
 	const handleViewChange = useCallback(
 		(nextView: DesktopAppView) => {
@@ -292,28 +309,21 @@ export default function Home() {
 		},
 		[navigateWith],
 	);
+	// The sidebar's New row reads as selected while the fresh, not-yet-started
+	// task page is showing; once the task starts the session row takes over.
+	const newTaskActive =
+		view === "chat" &&
+		activeThread !== undefined &&
+		!activeThread.hasStarted &&
+		!activeThread.historySession;
 	const handleSettingsSectionChange = useCallback(
 		(section: SettingsSection) => {
 			navigateWith({ settingsSection: section, view: "settings" });
 		},
 		[navigateWith],
 	);
-	useEffect(
-		() =>
-			subscribeToDesktopMenuActions((action) => {
-				switch (action) {
-					case "new-session":
-						handleNewThread();
-						break;
-					case "open-settings":
-						handleViewChange("settings");
-						break;
-				}
-			}),
-		[handleNewThread, handleViewChange],
-	);
-	// Standard app shortcuts: Cmd/Ctrl+N for a new session, Cmd/Ctrl+, for
-	// settings — matching the tray menu actions.
+	// Standard app shortcuts: Cmd/Ctrl+P for session search, Cmd/Ctrl+N for a
+	// new session, and Cmd/Ctrl+, for settings.
 	useEffect(() => {
 		const handleKeyDown = (event: KeyboardEvent) => {
 			if (showOnboarding) {
@@ -325,6 +335,9 @@ export default function Home() {
 			if (event.key === "n" || event.key === "N") {
 				event.preventDefault();
 				handleNewThread();
+			} else if (event.key === "p" || event.key === "P") {
+				event.preventDefault();
+				setCommandBarOpen((current) => !current);
 			} else if (event.key === ",") {
 				event.preventDefault();
 				handleViewChange("settings");
@@ -345,9 +358,13 @@ export default function Home() {
 		onOpenSession: handleOpenSession,
 		onUpdateSessionMetadata: handleUpdateSessionMetadata,
 	});
+	const sessionHistoryRef = useRef(sessionHistory.sessions);
+	useEffect(() => {
+		sessionHistoryRef.current = sessionHistory.sessions;
+	}, [sessionHistory.sessions]);
 	const handleOpenSessionById = useCallback(
 		async (sessionId: string) => {
-			const cachedSession = sessionHistory.sessions.find(
+			const cachedSession = sessionHistoryRef.current.find(
 				(session) => session.sessionId === sessionId,
 			);
 			if (cachedSession) {
@@ -357,7 +374,7 @@ export default function Home() {
 			try {
 				const session = await desktopClient.invoke<SessionHistoryItem | null>(
 					"get_discovered_session",
-					{ session_id: sessionId },
+					{ sessionId },
 				);
 				if (!session) {
 					throw new Error("The session for this run is no longer available.");
@@ -371,7 +388,29 @@ export default function Home() {
 				});
 			}
 		},
-		[handleOpenSession, sessionHistory.sessions],
+		[handleOpenSession],
+	);
+	useEffect(
+		() =>
+			subscribeToDesktopActions((action) => {
+				switch (action.type) {
+					case "new-session":
+						handleNewThread();
+						break;
+					case "open-settings":
+						handleViewChange("settings");
+						break;
+					case "open-session":
+						void handleOpenSessionById(action.sessionId);
+						break;
+					case "zoom-in":
+					case "zoom-out":
+					case "zoom-reset":
+						applyAppZoomAction(action.type);
+						break;
+				}
+			}),
+		[handleNewThread, handleOpenSessionById, handleViewChange],
 	);
 	const historyWorkspacePaths = useMemo(
 		() => workspacePathsFromSessions(sessionHistory.sessions),
@@ -394,95 +433,117 @@ export default function Home() {
 	return (
 		<AccountProvider>
 			<SidebarProvider>
-				<div
-					aria-hidden={showOnboarding ? true : undefined}
-					className="flex h-screen w-full overflow-hidden bg-background text-foreground"
-					// The onboarding overlay is opaque and sits on top of the whole
-					// shell; hiding the shell keeps its aurora + animations from
-					// being composited every frame underneath while it still mounts
-					// and loads (providers, history, transport) in the background.
-					// `inert` additionally keeps the covered controls out of the
-					// keyboard tab order and assistive tech while it is hidden.
-					inert={showOnboarding ? true : undefined}
-					style={showOnboarding ? { visibility: "hidden" } : undefined}
+				<WindowTitleBarProvider
+					contentEnabled={!showOnboarding && view === "chat"}
 				>
-					<Sidebar
-						className="border-r border-sidebar-border"
-						collapsible="icon"
+					<div
+						aria-hidden={showOnboarding ? true : undefined}
+						className="flex h-screen w-full overflow-hidden bg-background text-foreground"
+						// The onboarding overlay is opaque and sits on top of the whole
+						// shell; hiding the shell keeps its aurora + animations from
+						// being composited every frame underneath while it still mounts
+						// and loads (providers, history, transport) in the background.
+						// `inert` additionally keeps the covered controls out of the
+						// keyboard tab order and assistive tech while it is hidden.
+						inert={showOnboarding ? true : undefined}
+						style={showOnboarding ? { visibility: "hidden" } : undefined}
 					>
-						<AgentSidebar
-							activeSessionId={activeHistorySessionId}
-							onHome={handleHome}
-							onNavigateBack={handleNavigateBack}
-							onNavigateForward={handleNavigateForward}
-							onNewThread={handleNewThread}
-							onSettingsSectionChange={handleSettingsSectionChange}
-							sessionHistory={sessionHistory}
-							setView={handleViewChange}
-							settingsSection={settingsSection}
-							view={view}
-							canNavigateBack={navigation.back.length > 0}
-							canNavigateForward={navigation.forward.length > 0}
-						/>
-						<SidebarRail />
-					</Sidebar>
-					<SidebarInset className="min-h-0 min-w-0 overflow-hidden">
-						<SidebarTrigger className="absolute left-20 top-0 z-40 md:hidden" />
-						{view === "sessions" ? (
-							<SessionsView
+						<Sidebar
+							className="border-r border-sidebar-border"
+							collapsible="icon"
+						>
+							<AgentSidebar
 								activeSessionId={activeHistorySessionId}
-								history={sessionHistory}
+								newTaskActive={newTaskActive}
+								onHome={handleHome}
+								onNavigateBack={handleNavigateBack}
+								onNavigateForward={handleNavigateForward}
+								onOpenSearch={handleOpenCommandBar}
+								onSettingsSectionChange={handleSettingsSectionChange}
+								sessionHistory={sessionHistory}
+								setView={handleViewChange}
+								settingsSection={settingsSection}
+								view={view}
+								canNavigateBack={navigation.back.length > 0}
+								canNavigateForward={navigation.forward.length > 0}
 							/>
-						) : activeThread ? (
-							<div
-								aria-hidden={view === "settings" ? true : undefined}
-								className="flex min-h-0 flex-1 flex-col"
-								inert={view === "settings" ? true : undefined}
-							>
-								<ChatThreadPane
-									key={activeThread.id}
-									historySession={activeThread.historySession}
-									initialPromptDraft={activeThread.initialPromptDraft}
-									knownWorkspacePaths={historyWorkspacePaths}
-									onInitialPromptDraftConsumed={
-										handleInitialPromptDraftConsumed
-									}
-									onUpdateSessionMetadata={handleUpdateSessionMetadata}
-									threadId={activeThread.id}
-									onDeleteSession={handleDeleteSession}
-									onNewThread={handleNewThread}
-									onOpenSession={handleOpenSession}
-									onOpenSessionById={handleOpenSessionById}
-									onOpenSetup={handleOpenSetup}
-									onOpenModelSettings={() =>
-										handleSettingsSectionChange("Models")
-									}
-									parentSession={activeParentSession}
-									onThreadStarted={handleThreadStarted}
+							<SidebarRail />
+						</Sidebar>
+						<SidebarInset className="min-h-0 min-w-0 overflow-hidden">
+							<SidebarTrigger className="absolute left-20 top-0 z-40 md:hidden" />
+							<WindowTitleBar />
+							<div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+								{view === "sessions" ? (
+									<SessionsView
+										activeSessionId={activeHistorySessionId}
+										history={sessionHistory}
+									/>
+								) : activeThread ? (
+									<div
+										aria-hidden={view === "settings" ? true : undefined}
+										className="flex min-h-0 flex-1 flex-col"
+										inert={view === "settings" ? true : undefined}
+									>
+										<ChatThreadPane
+											key={activeThread.id}
+											historySession={activeThread.historySession}
+											initialPromptDraft={activeThread.initialPromptDraft}
+											knownWorkspacePaths={historyWorkspacePaths}
+											onInitialPromptDraftConsumed={
+												handleInitialPromptDraftConsumed
+											}
+											onUpdateSessionMetadata={handleUpdateSessionMetadata}
+											threadId={activeThread.id}
+											onDeleteSession={handleDeleteSession}
+											onNewThread={handleNewThread}
+											onOpenSession={handleOpenSession}
+											onOpenSessionById={handleOpenSessionById}
+											onOpenSetup={handleOpenSetup}
+											onOpenModelSettings={() =>
+												handleSettingsSectionChange("Models")
+											}
+											parentSession={activeParentSession}
+											onOpenVoiceInputSettings={() =>
+												handleSettingsSectionChange("Voice")
+											}
+											onThreadStarted={handleThreadStarted}
+										/>
+									</div>
+								) : null}
+								{view === "settings" ? (
+									<div className="absolute inset-0 z-30 bg-background text-foreground">
+										<SettingsView
+											onNavigateSection={handleSettingsSectionChange}
+											onOpenSession={handleOpenSessionById}
+											section={settingsSection}
+										/>
+									</div>
+								) : null}
+							</div>
+						</SidebarInset>
+					</div>
+					{showOnboarding ? (
+						<div className="fixed inset-0 z-50 bg-background">
+							<WindowTitleBar
+								className="absolute inset-x-0 top-0 z-10"
+								hostContent={false}
+							/>
+							<div className="h-full">
+								<OnboardingView
+									initialStep={onboardingInitialStep}
+									onComplete={completeOnboarding}
 								/>
 							</div>
-						) : null}
-						{view === "settings" ? (
-							<div className="absolute inset-0 z-30 bg-background text-foreground">
-								<SettingsView
-									onNavigateSection={handleSettingsSectionChange}
-									onOpenSession={handleOpenSessionById}
-									section={settingsSection}
-								/>
-							</div>
-						) : null}
-					</SidebarInset>
-				</div>
+						</div>
+					) : null}
+				</WindowTitleBarProvider>
 			</SidebarProvider>
-			{showOnboarding ? (
-				<div className="fixed inset-0 z-50">
-					<OnboardingView
-						initialStep={onboardingInitialStep}
-						onComplete={completeOnboarding}
-					/>
-				</div>
-			) : null}
 			<HubUpdateRequiredDialog />
+			<SessionCommandBar
+				onOpenChange={setCommandBarOpen}
+				onOpenSession={handleOpenSessionById}
+				open={commandBarOpen && !showOnboarding}
+			/>
 		</AccountProvider>
 	);
 }
@@ -508,6 +569,7 @@ function ChatThreadPane({
 	onOpenSetup,
 	onOpenModelSettings,
 	parentSession,
+	onOpenVoiceInputSettings,
 	onThreadStarted,
 }: {
 	threadId: string;
@@ -529,6 +591,7 @@ function ChatThreadPane({
 	onOpenSetup?: () => void;
 	onOpenModelSettings?: () => void;
 	parentSession?: { sessionId: string; title?: string };
+	onOpenVoiceInputSettings?: () => void;
 	onThreadStarted?: (threadId: string) => void;
 }) {
 	const {
@@ -557,6 +620,7 @@ function ChatThreadPane({
 		answerAskQuestion,
 		restoreCheckpoint,
 		forkSession,
+		proceedWhileRunning,
 		reset,
 		abort,
 		hydrateSession,
@@ -574,8 +638,6 @@ function ChatThreadPane({
 		promptInputRef.current = value;
 	}, []);
 	const [pendingAttachments, setPendingAttachments] = useState<File[]>([]);
-	const [isDraggingFiles, setIsDraggingFiles] = useState(false);
-	const dragDepthRef = useRef(0);
 	const [showDiffView, setShowDiffView] = useState(false);
 	const [deletingSession, setDeletingSession] = useState(false);
 	const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -1225,52 +1287,6 @@ function ChatThreadPane({
 		});
 	}, []);
 
-	// Drag-and-drop file attachments. Requires `dragDropEnabled: false` on the
-	// Tauri window — otherwise the native shell swallows OS file drags and these
-	// HTML5 events never fire.
-	const handleDragEnter = useCallback((event: React.DragEvent) => {
-		if (!event.dataTransfer.types.includes("Files")) {
-			return;
-		}
-		event.preventDefault();
-		dragDepthRef.current += 1;
-		setIsDraggingFiles(true);
-	}, []);
-
-	const handleDragOver = useCallback((event: React.DragEvent) => {
-		if (!event.dataTransfer.types.includes("Files")) {
-			return;
-		}
-		event.preventDefault();
-		event.dataTransfer.dropEffect = "copy";
-	}, []);
-
-	const handleDragLeave = useCallback((event: React.DragEvent) => {
-		if (!event.dataTransfer.types.includes("Files")) {
-			return;
-		}
-		dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
-		if (dragDepthRef.current === 0) {
-			setIsDraggingFiles(false);
-		}
-	}, []);
-
-	const handleDrop = useCallback(
-		(event: React.DragEvent) => {
-			if (!event.dataTransfer.types.includes("Files")) {
-				return;
-			}
-			event.preventDefault();
-			dragDepthRef.current = 0;
-			setIsDraggingFiles(false);
-			const files = Array.from(event.dataTransfer.files);
-			if (files.length > 0) {
-				handleAttachFiles(files);
-			}
-		},
-		[handleAttachFiles],
-	);
-
 	const attachmentList = useMemo(
 		() =>
 			pendingAttachments.map((file, index) => ({
@@ -1494,6 +1510,7 @@ function ChatThreadPane({
 	const composer = (
 		<ChatInputBar
 			attachments={attachmentList}
+			hasRunningAgents={agentActivity.running > 0}
 			onAbort={handleAbort}
 			onAttachFiles={handleAttachFiles}
 			onListGitBranches={listGitBranches}
@@ -1502,6 +1519,7 @@ function ChatThreadPane({
 			onModelChange={handleModelChange}
 			onModeToggle={handleModeToggle}
 			onPromptInputChange={handlePromptInputChange}
+			onOpenVoiceInputSettings={onOpenVoiceInputSettings}
 			onReasoningChange={handleReasoningChange}
 			onSteerPromptInQueue={steerPromptInQueue}
 			onEditPromptInQueue={updatePromptInQueue}
@@ -1525,55 +1543,41 @@ function ChatThreadPane({
 
 	return (
 		<WorkspaceProvider value={workspaceContextValue}>
-			{/* biome-ignore lint/a11y/noStaticElementInteractions: Drag-and-drop target only; the paperclip button is the accessible attach path. */}
-			<div
+			{/* Requires `dragDropEnabled: false` on the Tauri window so the native shell does not swallow OS file drags. */}
+			<AttachmentDropZone
 				className={
 					isWelcomeState
-						? "relative grid h-full min-h-0 flex-1 grid-rows-[minmax(0,1fr)] overflow-hidden"
-						: "relative grid h-full min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden"
+						? "grid h-full min-h-0 flex-1 grid-rows-[minmax(0,1fr)] overflow-hidden"
+						: "grid h-full min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto] overflow-hidden"
 				}
-				onDragEnter={handleDragEnter}
-				onDragLeave={handleDragLeave}
-				onDragOver={handleDragOver}
-				onDrop={handleDrop}
+				onAttachFiles={handleAttachFiles}
 			>
-				{isDraggingFiles ? (
-					<div className="pointer-events-none absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
-						<div className="flex flex-col items-center gap-2 rounded-xl border-2 border-dashed border-primary/60 bg-card px-10 py-8 shadow-lg">
-							<ImagePlus className="h-8 w-8 text-primary" />
-							<p className="text-sm font-medium text-foreground">
-								Drop to attach
-							</p>
-							<p className="text-xs text-muted-foreground">
-								Screenshots and files will be added to your next message
-							</p>
-						</div>
-					</div>
-				) : null}
 				{!isWelcomeState ? (
-					<div className="cline-view-enter z-20 border-b border-border/70 bg-background/85 backdrop-blur-sm">
-						<AgentHeader
-							agentActivity={agentActivity}
-							agents={agents}
-							agentsError={agentsError}
-							agentsLoading={agentsLoading}
-							onAgentsOpenChange={setAgentPanelOpen}
-							onOpenAgentSession={onOpenAgentSession}
-							onOpenParentSession={onOpenSessionById}
-							parentSession={hideDeletedSessionUi ? undefined : parentSession}
-							canEditTitle={Boolean(activeSessionForTitle)}
-							canDeleteSession={Boolean(activeSessionToDelete)}
-							deletingSession={deletingSession}
-							diff={headerDiff}
-							onDeleteSession={requestDeleteSession}
-							onNewThread={onNewThread}
-							onOpenDiff={handleOpenDiff}
-							onRenameTitle={handleRenameTitle}
-							renamingTitle={renamingSession}
-							status={status}
-							title={threadTitle}
-						/>
-					</div>
+					<WindowTitleBarContent>
+						<div className="cline-view-enter z-20 border-b border-border/70 bg-background/85 backdrop-blur-sm">
+							<AgentHeader
+								agentActivity={agentActivity}
+								agents={agents}
+								agentsError={agentsError}
+								agentsLoading={agentsLoading}
+								onAgentsOpenChange={setAgentPanelOpen}
+								onOpenAgentSession={onOpenAgentSession}
+								onOpenParentSession={onOpenSessionById}
+								parentSession={hideDeletedSessionUi ? undefined : parentSession}
+								canEditTitle={Boolean(activeSessionForTitle)}
+								canDeleteSession={Boolean(activeSessionToDelete)}
+								deletingSession={deletingSession}
+								diff={headerDiff}
+								onDeleteSession={requestDeleteSession}
+								onNewThread={onNewThread}
+								onOpenDiff={handleOpenDiff}
+								onRenameTitle={handleRenameTitle}
+								renamingTitle={renamingSession}
+								status={status}
+								title={threadTitle}
+							/>
+						</div>
+					</WindowTitleBarContent>
 				) : null}
 				<WelcomeScreen
 					active={isWelcomeState}
@@ -1595,6 +1599,7 @@ function ChatThreadPane({
 								onEditMessage={handleEditMessage}
 								onRestoreCheckpoint={handleRestoreCheckpoint}
 								onForkSession={handleForkSession}
+								onProceedWhileRunning={proceedWhileRunning}
 								pendingToolApprovals={pendingToolApprovals}
 								pendingAskQuestions={pendingAskQuestions}
 								sessionId={displayedSessionId}
@@ -1618,9 +1623,10 @@ function ChatThreadPane({
 						) : undefined
 					}
 					onListGitBranches={listGitBranches}
+					onOpenSession={onOpenSessionById}
 					onSwitchGitBranch={switchGitBranch}
 				/>
-			</div>
+			</AttachmentDropZone>
 			<AlertDialog
 				open={deleteConfirmOpen}
 				onOpenChange={(open) => {

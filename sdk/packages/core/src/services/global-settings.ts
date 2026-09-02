@@ -1,6 +1,13 @@
 import { mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import type { AgentConfig, AgentTool, ITelemetryService } from "@cline/shared";
+import {
+	type AgentConfig,
+	type AgentTool,
+	type ITelemetryService,
+	OPT_IN_TOOL_NAMES,
+	type OptInToolName,
+	type OptInToolSettings,
+} from "@cline/shared";
 import { resolveGlobalSettingsPath } from "@cline/shared/storage";
 import { z } from "zod";
 import { captureTelemetryOptOut } from "./telemetry/core-events";
@@ -33,6 +40,13 @@ const GlobalCompactionStrategySchema = z
 	.enum(["basic", "agentic"])
 	.catch("agentic");
 
+const OptInToolSettingsSchema = z
+	.partialRecord(
+		z.enum(OPT_IN_TOOL_NAMES),
+		z.object({ enabled: z.boolean() }).strip(),
+	)
+	.optional();
+
 export type GlobalCompactionStrategy = z.infer<
 	typeof GlobalCompactionStrategySchema
 >;
@@ -54,10 +68,15 @@ export const GlobalSettingsSchema = z
 		toolAutoApprove: z.boolean().optional().catch(undefined),
 		tuiTheme: z.string().optional().catch(undefined),
 		disabledTools: GlobalSettingsStringListSchema.optional(),
+		tools: OptInToolSettingsSchema,
 		disabledPlugins: GlobalSettingsStringListSchema.optional(),
+		disabledAgentPlugins: GlobalSettingsStringListSchema.optional(),
 	})
 	.strip()
 	.transform((settings) => {
+		const disabledTools = settings.disabledTools?.filter(
+			(name) => !(OPT_IN_TOOL_NAMES as readonly string[]).includes(name),
+		);
 		const normalized: {
 			telemetryOptOut: boolean;
 			autoUpdateEnabled: boolean;
@@ -67,7 +86,9 @@ export const GlobalSettingsSchema = z
 			toolAutoApprove?: boolean;
 			tuiTheme?: string;
 			disabledTools?: string[];
+			tools?: OptInToolSettings;
 			disabledPlugins?: string[];
+			disabledAgentPlugins?: string[];
 		} = {
 			autoUpdateEnabled: settings.autoUpdateEnabled,
 			telemetryOptOut: settings.telemetryOptOut,
@@ -87,11 +108,17 @@ export const GlobalSettingsSchema = z
 		if (settings.tuiTheme?.trim()) {
 			normalized.tuiTheme = settings.tuiTheme.trim();
 		}
-		if (settings.disabledTools?.length) {
-			normalized.disabledTools = settings.disabledTools;
+		if (disabledTools?.length) {
+			normalized.disabledTools = disabledTools;
+		}
+		if (settings.tools && Object.keys(settings.tools).length > 0) {
+			normalized.tools = settings.tools;
 		}
 		if (settings.disabledPlugins?.length) {
 			normalized.disabledPlugins = settings.disabledPlugins;
+		}
+		if (settings.disabledAgentPlugins?.length) {
+			normalized.disabledAgentPlugins = settings.disabledAgentPlugins;
 		}
 		return normalized;
 	});
@@ -123,8 +150,17 @@ function freezeSettings(value: GlobalSettings): GlobalSettings {
 	if (value.disabledTools) {
 		Object.freeze(value.disabledTools);
 	}
+	if (value.tools) {
+		for (const setting of Object.values(value.tools)) {
+			Object.freeze(setting);
+		}
+		Object.freeze(value.tools);
+	}
 	if (value.disabledPlugins) {
 		Object.freeze(value.disabledPlugins);
+	}
+	if (value.disabledAgentPlugins) {
+		Object.freeze(value.disabledAgentPlugins);
 	}
 	return Object.freeze(value);
 }
@@ -290,7 +326,15 @@ export function setToolAutoApproveGlobally(toolAutoApprove: boolean): void {
 export function resolveDisabledToolNames(
 	disabledToolNames?: ReadonlyArray<string>,
 ): Set<string> {
-	return new Set(disabledToolNames ?? readGlobalSettings().disabledTools ?? []);
+	const settings = readGlobalSettings();
+	const disabled = new Set(disabledToolNames ?? settings.disabledTools ?? []);
+	for (const name of OPT_IN_TOOL_NAMES) {
+		disabled.delete(name);
+		if (settings.tools?.[name]?.enabled !== true) {
+			disabled.add(name);
+		}
+	}
+	return disabled;
 }
 
 export function resolveDisabledPluginPaths(
@@ -301,11 +345,57 @@ export function resolveDisabledPluginPaths(
 	);
 }
 
+export function resolveDisabledAgentPluginNames(
+	disabledPluginNames?: ReadonlyArray<string>,
+): Set<string> {
+	return new Set(
+		disabledPluginNames ?? readGlobalSettings().disabledAgentPlugins ?? [],
+	);
+}
+
 export function isToolDisabledGlobally(toolName: string): boolean {
+	if (isOptInToolName(toolName)) {
+		return !isOptInToolEnabledGlobally(toolName);
+	}
 	return resolveDisabledToolNames().has(toolName);
 }
 
+function isOptInToolName(value: string): value is OptInToolName {
+	return (OPT_IN_TOOL_NAMES as readonly string[]).includes(value);
+}
+
+export function resolveOptInToolSettings(): OptInToolSettings {
+	return readGlobalSettings().tools ?? {};
+}
+
+export function resolveEnabledOptInToolNames(): Set<OptInToolName> {
+	const settings = resolveOptInToolSettings();
+	return new Set(
+		OPT_IN_TOOL_NAMES.filter((name) => settings[name]?.enabled === true),
+	);
+}
+
+export function isOptInToolEnabledGlobally(name: OptInToolName): boolean {
+	return resolveOptInToolSettings()[name]?.enabled === true;
+}
+
+export function setOptInToolEnabledGlobally(
+	name: OptInToolName,
+	enabled: boolean,
+): void {
+	const settings = readGlobalSettings();
+	writeGlobalSettings({
+		...settings,
+		tools: { ...settings.tools, [name]: { enabled } },
+	});
+}
+
 export function toggleDisabledTool(toolName: string): boolean {
+	if (isOptInToolName(toolName)) {
+		const wasEnabled = isOptInToolEnabledGlobally(toolName);
+		setOptInToolEnabledGlobally(toolName, !wasEnabled);
+		return wasEnabled;
+	}
 	const settings = readGlobalSettings();
 	const disabled = new Set(settings.disabledTools ?? []);
 	const wasDisabled = disabled.has(toolName);
@@ -330,15 +420,21 @@ export function setDisabledTools(
 	}
 
 	const settings = readGlobalSettings();
-	const disabled = resolveDisabledToolNames(settings.disabledTools);
+	const disabled = new Set(settings.disabledTools ?? []);
+	const tools: OptInToolSettings = { ...settings.tools };
 	for (const name of names) {
+		if (isOptInToolName(name)) {
+			tools[name] = { enabled: !disabledValue };
+			disabled.delete(name);
+			continue;
+		}
 		if (disabledValue) {
 			disabled.add(name);
 		} else {
 			disabled.delete(name);
 		}
 	}
-	writeGlobalSettings({ ...settings, disabledTools: [...disabled] });
+	writeGlobalSettings({ ...settings, disabledTools: [...disabled], tools });
 }
 
 export function setToolDisabledGlobally(
@@ -370,6 +466,34 @@ export function setDisabledPlugin(
 		disabled.delete(path);
 	}
 	writeGlobalSettings({ ...settings, disabledPlugins: [...disabled] });
+}
+
+export function isAgentPluginDisabledGlobally(pluginName: string): boolean {
+	return resolveDisabledAgentPluginNames().has(pluginName);
+}
+
+export function setDisabledAgentPlugin(
+	pluginName: string,
+	disabledValue: boolean,
+): void {
+	const name = pluginName.trim();
+	if (!name) {
+		return;
+	}
+
+	const settings = readGlobalSettings();
+	const disabled = resolveDisabledAgentPluginNames(
+		settings.disabledAgentPlugins,
+	);
+	if (disabledValue) {
+		disabled.add(name);
+	} else {
+		disabled.delete(name);
+	}
+	writeGlobalSettings({
+		...settings,
+		disabledAgentPlugins: [...disabled],
+	});
 }
 
 export function filterDisabledPluginPaths(

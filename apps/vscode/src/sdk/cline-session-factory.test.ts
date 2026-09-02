@@ -355,6 +355,8 @@ describe("buildSessionConfig", () => {
 
 		expect(config.providerId).toBe("cline")
 		expect(config.apiKey).toBe("workos:test-access-token")
+		expect(config.systemPrompt).toContain("# Workspace Configuration")
+		expect(config.systemPrompt).toContain(JSON.stringify("/tmp/workspace"))
 	})
 
 	it("resolves ClinePass from the shared Cline OAuth credentials", async () => {
@@ -713,6 +715,80 @@ describe("buildSessionConfig", () => {
 		expect(knownModel.family).toBe(expectedModel.family)
 	})
 
+	it("injects cached LiteLLM max input tokens when the dynamic model is absent from the SDK registry", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "litellm",
+			actModeLiteLlmModelId: "openai/grok-4.6",
+			liteLlmApiKey: "litellm-key",
+			actModeLiteLlmModelInfo: {
+				name: "xai/grok-4.6",
+				contextWindow: 500_000,
+				maxInputTokens: 500_000,
+				maxTokens: 64_000,
+				supportsPromptCache: false,
+			},
+		} as any)
+		const getModelsSpy = vi.spyOn(LlmsModels, "getModelsForProvider").mockResolvedValueOnce({})
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+		const knownModel = (config.providerConfig as any).knownModels["openai/grok-4.6"]
+
+		expect(config.providerId).toBe("litellm")
+		expect(knownModel).toMatchObject({
+			id: "openai/grok-4.6",
+			name: "xai/grok-4.6",
+			contextWindow: 500_000,
+			maxInputTokens: 500_000,
+			maxTokens: 64_000,
+		})
+		expect(config.knownModels?.["openai/grok-4.6"]).toEqual(knownModel)
+		getModelsSpy.mockRestore()
+	})
+
+	it("keeps an explicit max-input override ahead of cached LiteLLM metadata", async () => {
+		const providerId = parseProviderId("litellm")
+		const modelId = "openai/grok-4.6"
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "litellm",
+			actModeLiteLlmModelId: modelId,
+			liteLlmApiKey: "litellm-key",
+			actModeLiteLlmModelInfo: {
+				name: "xai/grok-4.6",
+				contextWindow: 500_000,
+				maxInputTokens: 500_000,
+				supportsPromptCache: false,
+			},
+		} as any)
+		createProviderConfigStore().commitSelection(providerId, "act", {
+			providerId,
+			modelId,
+			overrides: { maxInputTokens: 300_000 },
+		})
+		const getModelsSpy = vi.spyOn(LlmsModels, "getModelsForProvider").mockResolvedValueOnce({})
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+		const knownModel = (config.providerConfig as any).knownModels[modelId]
+
+		expect(knownModel.contextWindow).toBe(500_000)
+		expect(knownModel.maxInputTokens).toBe(300_000)
+		getModelsSpy.mockRestore()
+	})
+
+	it("does not inject fabricated max input metadata for an unknown LiteLLM model", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "litellm",
+			actModeLiteLlmModelId: "custom/no-metadata",
+			liteLlmApiKey: "litellm-key",
+		} as any)
+		const getModelsSpy = vi.spyOn(LlmsModels, "getModelsForProvider").mockResolvedValueOnce({})
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.knownModels).toBeUndefined()
+		expect(config.providerConfig).not.toHaveProperty("knownModels")
+		getModelsSpy.mockRestore()
+	})
+
 	it("keeps session creation non-fatal when known-model lookup fails", async () => {
 		const lookupError = new Error("registry unavailable")
 		const getModelsSpy = vi.spyOn(LlmsModels, "getModelsForProvider").mockRejectedValueOnce(lookupError)
@@ -821,6 +897,7 @@ describe("buildSessionConfig", () => {
 				contextWindow: 16_000,
 				supportsImages: true,
 				supportsPromptCache: true,
+				modalities: { input: ["text", "image"], output: ["text", "image"] },
 				inputPrice: 0,
 				outputPrice: 0,
 			},
@@ -830,6 +907,36 @@ describe("buildSessionConfig", () => {
 		const knownModel = (config.providerConfig as any).knownModels["mock/custom-model"]
 
 		expect(knownModel.capabilities).toEqual(expect.arrayContaining(["images", "prompt-cache", "tools"]))
+		expect(knownModel.modalities).toEqual({ input: ["text", "image"], output: ["text", "image"] })
+	})
+
+	it("defaults tool-calling on when the preserved capability list is defined but empty", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "openrouter",
+			actModeOpenRouterModelId: "mock/empty-capabilities-model",
+			openRouterApiKey: "openrouter-key",
+			// A capabilities field that round-tripped through a boundary
+			// defaulting the missing array to [] — same "no signal" state as
+			// an absent one (modelHasCapability treats both as unspecified).
+			// Before the fix, the strict `=== undefined` guard skipped the
+			// tools seeding, supportsReasoning populated the array, and the
+			// runtime gate silently dropped every tool definition (#13463).
+			actModeOpenRouterModelInfo: {
+				name: "Empty Capabilities Model",
+				contextWindow: 16_000,
+				// Required by the store's isModelInfo gate: without a boolean
+				// supportsPromptCache the state snapshot is rejected and the
+				// model never reaches knownModels at all.
+				supportsPromptCache: false,
+				supportsReasoning: true,
+				capabilities: [],
+			},
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+		const knownModel = (config.providerConfig as any).knownModels["mock/empty-capabilities-model"]
+
+		expect(knownModel.capabilities).toEqual(expect.arrayContaining(["reasoning", "tools"]))
 	})
 
 	it("keeps legacy supportsTools=false authoritative for dynamic-list models", async () => {

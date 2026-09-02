@@ -107,7 +107,7 @@
 		top: 100%;
 		left: 0;
 		right: 0;
-		height: 0.4rem;
+		height: 0.5rem;
 	}
 
 	.cline-chat-message[data-role="user"] {
@@ -146,7 +146,8 @@
 	}
 
 	/* Actions appear and vanish instantly — a fade on hover chrome reads as
-	 * lag, not polish. */
+	 * lag, not polish. They float as a quiet self-backed rectangle OVER
+	 * whatever follows, so the transcript reserves no blank space for them. */
 	.cline-chat-message-actions {
 		position: absolute;
 		top: 100%;
@@ -154,9 +155,14 @@
 		display: flex;
 		min-height: 1.5rem;
 		align-items: center;
+		gap: 0.125rem;
+		margin-top: 0.375rem;
+		padding: 0.125rem 0;
+		border-radius: var(--radius);
+		background: color-mix(in oklab, var(--background) 92%, transparent);
+		backdrop-filter: blur(4px);
 		pointer-events: none;
 		opacity: 0;
-		margin-top: 0.1rem;
 	}
 
 	.cline-chat-message-actions[data-side="start"] {
@@ -165,10 +171,6 @@
 
 	.cline-chat-message-actions[data-side="end"] {
 		right: 0;
-	}
-
-	.cline-chat-message[data-role="assistant"] > .cline-chat-message-actions {
-		margin-top: 0.25rem;
 	}
 
 	.cline-chat-message:hover > .cline-chat-message-actions,
@@ -196,18 +198,22 @@
 		height: 0.875rem;
 	}
 
+	/* The timestamp ends flush against the pill border without a trailing
+	 * inset of its own, so give it one. */
 	.cline-chat-message-actions > time {
 		margin-inline-start: 0.25rem;
+		margin-inline-end: 0.1875rem;
 	}
 
 	.cline-chat-reasoning {
 		width: 100%;
 		min-width: 0;
-		margin: 0.5rem 0;
+		margin: 0.6rem 0;
 	}
 
 	.cline-chat-reasoning-trigger,
-	.cline-chat-tool-trigger {
+	.cline-chat-tool-trigger,
+	.cline-chat-work-trigger {
 		display: flex;
 		max-width: 100%;
 		min-height: 1.75rem;
@@ -222,29 +228,119 @@
 		font-size: var(--text-sm);
 		font-weight: var(--font-weight-medium);
 		text-align: left;
+		transition: color 120ms ease;
 	}
 
 	button.cline-chat-reasoning-trigger,
-	button.cline-chat-tool-trigger {
+	button.cline-chat-tool-trigger,
+	button.cline-chat-work-trigger {
 		cursor: pointer;
 	}
 
 	button.cline-chat-reasoning-trigger:disabled,
-	button.cline-chat-tool-trigger:disabled {
+	button.cline-chat-tool-trigger:disabled,
+	button.cline-chat-work-trigger:disabled {
 		cursor: not-allowed;
 		opacity: 0.5;
 	}
 
-	.cline-chat-reasoning-trigger:hover {
+	.cline-chat-reasoning-trigger:hover,
+	.cline-chat-work-trigger:hover {
 		color: var(--foreground);
 	}
 
 	.cline-chat-disclosure-icon {
 		flex: 0 0 auto;
+		transition: transform 180ms cubic-bezier(0.45, 0, 0.55, 1);
 	}
 
 	[aria-expanded="true"] > .cline-chat-disclosure-icon {
 		transform: rotate(180deg);
+	}
+
+	/* The work summary's chevron points right while collapsed and continues
+	 * counterclockwise to point up when expanded. */
+	.cline-chat-work-trigger > .cline-chat-disclosure-icon {
+		transform: rotate(-90deg);
+	}
+
+	.cline-chat-work-trigger[aria-expanded="true"] > .cline-chat-disclosure-icon {
+		transform: rotate(-180deg);
+	}
+
+	/* Disclosure open/close glides on a symmetric ease-in-out (the iOS-style
+	 * curve) rather than snapping. */
+	.cline-chat-disclosure-content-motion {
+		display: grid;
+		min-width: 0;
+		grid-template-rows: 0fr;
+		opacity: 0;
+		visibility: hidden;
+		transition:
+			grid-template-rows 180ms cubic-bezier(0.45, 0, 0.55, 1),
+			opacity 180ms cubic-bezier(0.45, 0, 0.55, 1),
+			visibility 0s linear 180ms;
+	}
+
+	.cline-chat-disclosure-content-motion[data-state="open"] {
+		grid-template-rows: 1fr;
+		opacity: 1;
+		visibility: visible;
+		transition-delay: 0s;
+	}
+
+	.cline-chat-disclosure-content-motion-inner {
+		min-height: 0;
+		overflow: hidden;
+	}
+
+	/* Running reasoning/tool titles use their inherited text color as the bright
+	 * band, so the same shimmer fits muted thinking text and primary tool text. */
+	.cline-chat-streaming-title {
+		display: inline-block;
+		background-image: linear-gradient(
+			90deg,
+			color-mix(in oklab, currentcolor 55%, transparent) 0%,
+			currentcolor 50%,
+			color-mix(in oklab, currentcolor 55%, transparent) 100%
+		);
+		background-position: 200% 0;
+		background-size: 200% 100%;
+		-webkit-background-clip: text;
+		background-clip: text;
+		-webkit-text-fill-color: transparent;
+		animation: cline-chat-title-shimmer 2.25s linear infinite;
+	}
+
+	.cline-chat-thinking-icon {
+		flex: 0 0 auto;
+	}
+
+	/* Thinking prose stays capped and scrollable so a long trace never pushes
+	 * the transcript around. The X axis is pinned shut: `overflow-y: auto`
+	 * alone would compute overflow-x to `auto` and let a long unbreakable
+	 * token add a horizontal scrollbar. */
+	.cline-chat-thinking-content {
+		max-height: 12rem;
+		overflow-x: hidden;
+		overflow-y: auto;
+		/* Legible first, de-emphasized second: plain muted-foreground reads
+		 * too faint for multi-line prose, so lean most of the way back toward
+		 * the body text color. */
+		color: color-mix(in oklab, var(--foreground) 75%, var(--muted-foreground));
+	}
+
+	/* The reveal rule below is `.cline-chat-message:hover`, so hovering anywhere
+	 * in the message pops the action row — including the reasoning disclosure
+	 * nested in the message content. The actions act on the message body, so
+	 * suppress the reveal while the pointer is inside the thinking panel.
+	 * `[data-visible]` still wins, keeping pending/error states pinned open. */
+	.cline-chat-message:has(
+		> .cline-chat-message-content .cline-chat-reasoning:hover
+	)
+	> .cline-chat-message-actions:not([data-visible="true"]) {
+		pointer-events: none;
+		opacity: 0;
 	}
 
 	.cline-chat-reasoning-content {
@@ -330,9 +426,24 @@
 		max-width: 100%;
 		min-width: 0;
 		margin-top: 0.375rem;
-		padding-left: 2rem;
+		padding-left: 1rem;
 		overflow-x: hidden;
 		color: var(--muted-foreground);
+		font-size: var(--text-sm);
+	}
+
+	/* Expanded reasoning and tool panels can share a lightweight disclosure
+	 * rail instead of their default panel chrome. The rail sits beneath a 1rem
+	 * trigger icon, while the inset aligns its content with the trigger label. */
+	.cline-chat-panel-rail {
+		max-width: 100%;
+		margin-top: 0;
+		margin-left: 0.45rem;
+		padding: 0.4rem 1rem;
+		border: 0;
+		border-left: 1px solid var(--border);
+		border-radius: 0;
+		background: transparent;
 		font-size: var(--text-sm);
 	}
 
@@ -359,6 +470,30 @@
 		box-sizing: border-box;
 	}
 
+	.cline-chat-work {
+		width: 100%;
+		min-width: 0;
+	}
+
+	/* Expanded work re-shows the run's normal chat rows at transcript level,
+	 * with the tight working-row rhythm the live run uses. */
+	.cline-chat-work-content {
+		display: flex;
+		max-width: 100%;
+		min-width: 0;
+		flex-direction: column;
+		gap: 0.25rem;
+		margin-top: 0.25rem;
+		box-sizing: border-box;
+	}
+
+	/* The flex gap owns row spacing inside expanded work; the rows' own
+	 * transcript margins would double it. */
+	.cline-chat-work-content > .cline-chat-tool,
+	.cline-chat-work-content > .cline-chat-reasoning {
+		margin: 0;
+	}
+
 	.cline-chat-conversation-viewport:focus-visible {
 		outline: 2px solid var(--ring);
 		outline-offset: -2px;
@@ -367,7 +502,8 @@
 	.cline-chat-scroll-button:focus-visible,
 	.cline-chat-message-action:focus-visible,
 	.cline-chat-reasoning-trigger:focus-visible,
-	.cline-chat-tool-trigger:focus-visible {
+	.cline-chat-tool-trigger:focus-visible,
+	.cline-chat-work-trigger:focus-visible {
 		outline: 2px solid var(--ring);
 		outline-offset: 2px;
 	}
@@ -379,7 +515,18 @@
 	}
 
 	@media (prefers-reduced-motion: reduce) {
-		.cline-chat-disclosure-icon {
+		.cline-chat-disclosure-icon,
+		.cline-chat-work-trigger > .cline-chat-disclosure-icon {
+			transition: none;
+		}
+
+		.cline-chat-streaming-title {
+			background: none;
+			-webkit-text-fill-color: currentcolor;
+			animation: none;
+		}
+
+		.cline-chat-disclosure-content-motion {
 			transition: none;
 		}
 
@@ -398,6 +545,12 @@
 	@keyframes cline-chat-spin {
 		to {
 			transform: rotate(360deg);
+		}
+	}
+
+	@keyframes cline-chat-title-shimmer {
+		to {
+			background-position: -200% 0;
 		}
 	}
 }

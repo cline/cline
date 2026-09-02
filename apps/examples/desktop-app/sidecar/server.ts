@@ -1,15 +1,17 @@
-import { createReadStream } from "node:fs";
-import { stat } from "node:fs/promises";
-import { basename, join } from "node:path";
-import { Readable } from "node:stream";
+import { randomUUID, timingSafeEqual } from "node:crypto";
 import { captureSdkError } from "@cline/shared";
 import type { DesktopTransportRequest } from "../webview/lib/desktop-transport";
+import { MAX_DESKTOP_TRANSPORT_PAYLOAD_BYTES } from "../webview/lib/voice-input-limits";
 import { handleCommand } from "./commands";
-import { encodeSidecarEvent, sendEvent } from "./context";
+import {
+	cancelSidecarToolApprovalsForOwner,
+	encodeSidecarEvent,
+	sendEvent,
+	syncSidecarApprovalReadiness,
+} from "./context";
 import { fetchMarketplaceCatalog } from "./marketplace";
 import { cancelMcpOAuthAuthorizationsForOwner } from "./mcp-oauth";
 import { cancelProviderOAuthLoginsForOwner } from "./oauth-login";
-import { sharedSessionDataDir } from "./paths";
 import {
 	BunRuntime,
 	SIDECAR_HOST,
@@ -21,7 +23,10 @@ import {
 
 type SidecarServer = {
 	port: number;
-	upgrade(req: Request): boolean;
+	upgrade(
+		req: Request,
+		options?: { data?: { canApproveTools?: boolean } },
+	): boolean;
 };
 
 // Comma-separated extra origins (e.g. a dev server on a nonstandard port when
@@ -44,11 +49,17 @@ const JSON_HEADERS = {
 	"content-type": "application/json",
 };
 
-function videoContentType(filename: string): string {
-	if (filename.toLowerCase().endsWith(".webm")) return "video/webm";
-	if (filename.toLowerCase().endsWith(".mov")) return "video/quicktime";
-	if (filename.toLowerCase().endsWith(".mpeg")) return "video/mpeg";
-	return "video/mp4";
+const APPROVAL_TOKEN_QUERY_PARAM = "approval_token";
+
+function hasValidApprovalToken(url: URL, expectedToken: string): boolean {
+	const candidate = url.searchParams.get(APPROVAL_TOKEN_QUERY_PARAM);
+	if (!candidate) return false;
+	const candidateBytes = Buffer.from(candidate);
+	const expectedBytes = Buffer.from(expectedToken);
+	return (
+		candidateBytes.length === expectedBytes.length &&
+		timingSafeEqual(candidateBytes, expectedBytes)
+	);
 }
 
 function readOrigin(req: Request): string | undefined {
@@ -160,7 +171,9 @@ export function startServer(
 	ctx: SidecarContext,
 	preferredPort: number = SIDECAR_PORT,
 	onShutdown?: (reason?: string) => Promise<void>,
-): { port: number } {
+	approvalToken = process.env.CLINE_SIDECAR_APPROVAL_TOKEN?.trim() ||
+		randomUUID(),
+): { port: number; approvalToken: string } {
 	if (!BunRuntime) {
 		throw new Error("sidecar must be run with Bun");
 	}
@@ -175,7 +188,7 @@ export function startServer(
 			server = BunRuntime.serve({
 				hostname: SIDECAR_HOST,
 				port: candidate,
-				fetch: createFetchHandler(ctx, onShutdown),
+				fetch: createFetchHandler(ctx, onShutdown, approvalToken),
 				websocket: createWebSocketHandler(ctx),
 			}) as SidecarServer;
 			break;
@@ -188,12 +201,13 @@ export function startServer(
 		throw lastError ?? new Error("Failed to start sidecar server");
 	}
 
-	return { port: server.port };
+	return { port: server.port, approvalToken };
 }
 
 export function createFetchHandler(
 	ctx: SidecarContext,
 	onShutdown?: (reason?: string) => Promise<void>,
+	approvalToken = "",
 ) {
 	return async (req: Request, server: SidecarServer) => {
 		const url = new URL(req.url);
@@ -217,76 +231,17 @@ export function createFetchHandler(
 		}
 
 		if (
-			req.method === "GET" &&
-			url.pathname.startsWith("/api/session-artifacts/")
-		) {
-			if (!isTrustedRequestOrigin(req)) {
-				return new Response("Forbidden", { status: 403 });
-			}
-			const segments = url.pathname
-				.slice("/api/session-artifacts/".length)
-				.split("/")
-				.map((segment) => decodeURIComponent(segment));
-			const [sessionId, artifactName, ...extra] = segments;
-			if (
-				!sessionId ||
-				!artifactName ||
-				extra.length > 0 ||
-				sessionId === "." ||
-				sessionId === ".." ||
-				artifactName === "." ||
-				artifactName === ".." ||
-				basename(sessionId) !== sessionId ||
-				basename(artifactName) !== artifactName ||
-				!/^[a-zA-Z0-9][a-zA-Z0-9._:-]*$/.test(sessionId) ||
-				!/^[a-zA-Z0-9][a-zA-Z0-9._ -]*$/.test(artifactName)
-			) {
-				return new Response("Invalid artifact path", { status: 400 });
-			}
-			const artifactPath = join(
-				sharedSessionDataDir(),
-				sessionId,
-				"artifacts",
-				artifactName,
-			);
-			const artifactStat = await stat(artifactPath).catch(() => null);
-			if (!artifactStat?.isFile()) {
-				return new Response("Artifact not found", { status: 404 });
-			}
-			const range = req.headers.get("range")?.match(/^bytes=(\d+)-(\d*)$/);
-			const start = range ? Number(range[1]) : 0;
-			const requestedEnd = range?.[2]
-				? Number(range[2])
-				: artifactStat.size - 1;
-			const end = Math.min(requestedEnd, artifactStat.size - 1);
-			if (start < 0 || start > end || start >= artifactStat.size) {
-				return new Response(null, {
-					status: 416,
-					headers: { "content-range": `bytes */${artifactStat.size}` },
-				});
-			}
-			const body = Readable.toWeb(
-				createReadStream(artifactPath, { start, end }),
-			);
-			return new Response(body as unknown as BodyInit, {
-				status: range ? 206 : 200,
-				headers: {
-					...corsHeaders(req),
-					"accept-ranges": "bytes",
-					"cache-control": "private, max-age=31536000, immutable",
-					"content-length": String(end - start + 1),
-					"content-type": videoContentType(artifactName),
-					...(range
-						? { "content-range": `bytes ${start}-${end}/${artifactStat.size}` }
-						: {}),
-				},
-			});
-		}
-
-		if (
 			url.pathname === "/transport" &&
 			isTrustedRequestOrigin(req) &&
-			server.upgrade(req)
+			server.upgrade(req, {
+				data: {
+					// Originless clients remain supported for local integrations, but only
+					// the browser-hosted desktop UI may receive or resolve approvals.
+					canApproveTools:
+						Boolean(readOrigin(req)) &&
+						hasValidApprovalToken(url, approvalToken),
+				},
+			})
 		) {
 			return undefined;
 		}
@@ -398,10 +353,12 @@ export function createFetchHandler(
 	};
 }
 
-function createWebSocketHandler(ctx: SidecarContext) {
+export function createWebSocketHandler(ctx: SidecarContext) {
 	return {
+		maxPayloadLength: MAX_DESKTOP_TRANSPORT_PAYLOAD_BYTES,
 		open(ws: SidecarWebSocketClient) {
 			ctx.wsClients.add(ws);
+			void syncSidecarApprovalReadiness(ctx).catch(() => {});
 			sendEvent(ctx, "host_ready", {
 				pid: process.pid,
 				mode: SIDECAR_MODE,
@@ -442,6 +399,8 @@ function createWebSocketHandler(ctx: SidecarContext) {
 		},
 		close(ws: SidecarWebSocketClient) {
 			ctx.wsClients.delete(ws);
+			cancelSidecarToolApprovalsForOwner(ctx, ws);
+			void syncSidecarApprovalReadiness(ctx).catch(() => {});
 			// Browser OAuth flows are interactive: if the connection that started
 			// one goes away (webview reload, transport drop), cancel its callback
 			// wait so the sidecar cannot retain an abandoned authorization attempt.

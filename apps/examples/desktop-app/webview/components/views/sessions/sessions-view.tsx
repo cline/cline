@@ -10,15 +10,17 @@ import {
 	Filter,
 	Folder,
 	GitFork,
+	Import,
 	Loader2,
 	MoreHorizontal,
 	Pencil,
+	Pin,
 	Search,
-	Star,
 	Trash2,
 	X,
 } from "lucide-react";
 import { type CSSProperties, useEffect, useMemo, useState } from "react";
+import { ImportSessionsDialog } from "@/components/import-sessions-dialog";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -131,7 +133,7 @@ function sessionFilterDetails(
 	const workspacePath = session?.workspaceRoot || session?.cwd || "";
 	const workspace = workspacePath ? basenamePath(workspacePath) : "";
 	return [
-		thread.pinned ? "favorite:yes" : undefined,
+		thread.pinned ? "pinned:yes" : undefined,
 		workspace ? `workspace:${workspace}` : undefined,
 		thread.status ? `status:${thread.status}` : undefined,
 		thread.provider ? `provider:${thread.provider}` : undefined,
@@ -155,6 +157,7 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 	);
 	const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
 	const [editingTitle, setEditingTitle] = useState("");
+	const [importDialogOpen, setImportDialogOpen] = useState(false);
 	const [deleteCandidate, setDeleteCandidate] = useState<SessionThread | null>(
 		null,
 	);
@@ -333,6 +336,18 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 							value={query}
 						/>
 					</div>
+					<Button
+						aria-label="Import sessions from other tools"
+						className="h-8 rounded-md px-2.5"
+						onClick={() => setImportDialogOpen(true)}
+						size="sm"
+						title="Import sessions from Claude Code, Codex, or opencode"
+						type="button"
+						variant="outline"
+					>
+						<Import className="size-4" />
+						Import
+					</Button>
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>
 							<Button
@@ -426,13 +441,16 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 						<span className="sr-only">Actions</span>
 					</div>
 					<div>
-						{history.isLoadingHistory && history.threads.length === 0 ? (
+						{/* Keep the loader up until the backend's first response: the
+						    empty-state copy must only describe an actual zero-session
+						    answer, not a fetch that is still in flight or retrying. */}
+						{!history.hasLoadedHistory && history.threads.length === 0 ? (
 							<div className="flex items-center gap-2 border-t px-4 py-8 text-sm text-muted-foreground">
 								<Loader2 className="size-4 animate-spin" />
 								Loading session history...
 							</div>
 						) : null}
-						{!history.isLoadingHistory && filteredThreads.length === 0 ? (
+						{history.hasLoadedHistory && filteredThreads.length === 0 ? (
 							<div className="border-t px-4 py-8 text-sm text-muted-foreground">
 								{history.threads.length === 0
 									? "No sessions yet."
@@ -569,8 +587,8 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 												/>
 												<span className="truncate">{thread.title}</span>
 												{thread.pinned ? (
-													<Star
-														aria-label="Favorited"
+													<Pin
+														aria-label="Pinned"
 														className="size-3.5 shrink-0 fill-current text-muted-foreground"
 													/>
 												) : null}
@@ -623,13 +641,13 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 														)
 													}
 												>
-													<Star
+													<Pin
 														className={cn(
 															"size-4",
 															thread.pinned && "fill-current",
 														)}
 													/>
-													{thread.pinned ? "Unfavorite" : "Favorite"}
+													{thread.pinned ? "Unpin" : "Pin"}
 												</DropdownMenuItem>
 												<DropdownMenuItem onClick={() => startRename(thread)}>
 													<Pencil className="size-4" />
@@ -780,6 +798,12 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 					</AlertDialogFooter>
 				</AlertDialogContent>
 			</AlertDialog>
+
+			<ImportSessionsDialog
+				onImported={() => void history.refreshSessions()}
+				onOpenChange={setImportDialogOpen}
+				open={importDialogOpen}
+			/>
 		</div>
 	);
 }

@@ -32,11 +32,6 @@ export type ChatUsageEvent = {
 	cost?: number;
 };
 
-export type ImageDeltaEvent = {
-	data?: string;
-	mediaType?: string;
-};
-
 export type ToolCallStartEvent = {
 	toolCallId?: string;
 	toolName?: string;
@@ -50,6 +45,12 @@ export type ToolCallEndEvent = {
 	output?: unknown;
 	error?: string;
 	durationMs?: number;
+};
+
+export type ToolCallUpdateEvent = {
+	toolCallId?: string;
+	toolName?: string;
+	update?: unknown;
 };
 
 export type ToolApprovalRequestItem = {
@@ -66,6 +67,7 @@ export type ToolApprovalRequestItem = {
 
 export type AskQuestionRequestItem = {
 	requestId: string;
+	sessionId: string;
 	createdAt: string;
 	question: string;
 	options: string[];

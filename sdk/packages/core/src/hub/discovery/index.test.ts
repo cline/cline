@@ -13,6 +13,7 @@ import {
 	resolveHubOwnerContext,
 	writeHubDiscovery,
 } from ".";
+import { resolveSdkRuntimeBuildIdFromCoreSource } from "./runtime-build-id";
 
 type EnvSnapshot = {
 	CLINE_DATA_DIR: string | undefined;
@@ -69,10 +70,11 @@ describe("hub discovery", () => {
 		);
 	});
 
-	it("allows tests to override the unbundled source build identity", () => {
+	it("fingerprints unbundled source builds and allows an explicit override", () => {
 		snapshot = captureEnv();
 		delete process.env.CLINE_HUB_BUILD_ID;
-		expect(resolveHubBuildId()).toMatch(/^source-/);
+		expect(resolveHubBuildId()).toBe(resolveSdkRuntimeBuildIdFromCoreSource());
+		expect(resolveHubBuildId()).toMatch(/^source-v3-[a-f0-9]{64}$/);
 
 		process.env.CLINE_HUB_BUILD_ID = "e2e-build";
 		expect(resolveHubBuildId()).toBe("e2e-build");
@@ -102,27 +104,28 @@ describe("hub discovery", () => {
 		).toEqual({ compatible: false, reason: "unsupported_protocol" });
 	});
 
-	it("allows tests to override the build epoch and treats sources as unordered", () => {
+	it("orders source builds by runtime input time and allows an explicit override", () => {
 		snapshot = captureEnv();
 		delete process.env.CLINE_HUB_BUILD_EPOCH_MS;
-		expect(resolveHubBuildEpochMs()).toBeUndefined();
+		expect(resolveHubBuildEpochMs()).toBeGreaterThan(0);
 
 		process.env.CLINE_HUB_BUILD_EPOCH_MS = "12345";
 		expect(resolveHubBuildEpochMs()).toBe(12345);
 	});
 
-	it("reuses managed Hubs only for the same build or a strictly newer one", () => {
+	it("retires a managed Hub only when this build is strictly newer", () => {
 		snapshot = captureEnv();
 		delete process.env.CLINE_HUB_BUILD_EPOCH_MS;
-		const reuseOptions = {
-			expectedBuildId: "current-build",
-			expectedBuildEpochMs: 1_000,
+		const self = {
+			buildId: "current-build",
+			buildEpochMs: 1_000,
+			coreVersion: "0.0.70",
 		};
 		// Same build: reusable regardless of epoch.
 		expect(
 			isManagedHubReusable(
 				{ protocolVersion: "v1", buildId: "current-build" },
-				reuseOptions,
+				{ self },
 			),
 		).toBe(true);
 		// Different build with a newer epoch: another install upgraded the Hub.
@@ -133,24 +136,37 @@ describe("hub discovery", () => {
 					buildId: "other-build",
 					buildEpochMs: 2_000,
 				},
-				reuseOptions,
+				{ self },
 			),
 		).toBe(true);
 		// Different build that is older: retire and replace.
 		expect(
 			isManagedHubReusable(
 				{ protocolVersion: "v1", buildId: "other-build", buildEpochMs: 500 },
-				reuseOptions,
+				{ self },
 			),
 		).toBe(false);
-		// Different build with no ordering information: replace (safe default).
+		// No epoch, but an older core version still orders the two builds.
+		expect(
+			isManagedHubReusable(
+				{
+					protocolVersion: "v1",
+					buildId: "other-build",
+					coreVersion: "0.0.64",
+				},
+				{ self },
+			),
+		).toBe(false);
+		// Different build with no ordering information at all: attach rather
+		// than replace. Retiring an unordered peer is what let two installs
+		// shut each other's daemon down in a loop.
 		expect(
 			isManagedHubReusable(
 				{ protocolVersion: "v1", buildId: "other-build" },
-				reuseOptions,
+				{ self },
 			),
-		).toBe(false);
-		// Own epoch unknown (unbundled sources): replace.
+		).toBe(true);
+		// Own epoch unknown (unbundled sources): attach, never downgrade.
 		expect(
 			isManagedHubReusable(
 				{
@@ -158,12 +174,13 @@ describe("hub discovery", () => {
 					buildId: "other-build",
 					buildEpochMs: 2_000,
 				},
-				{ expectedBuildId: "current-build" },
+				{ self: { buildId: "current-build" } },
 			),
-		).toBe(false);
-		// Legacy hub without build metadata: replace.
-		expect(isManagedHubReusable({ protocolVersion: "v1" }, reuseOptions)).toBe(
-			false,
+		).toBe(true);
+		// Legacy hub without build metadata: attach and let the build-mismatch
+		// watcher prompt instead of killing a daemon we cannot order.
+		expect(isManagedHubReusable({ protocolVersion: "v1" }, { self })).toBe(
+			true,
 		);
 		// Protocol mismatch is never reusable, newer or not.
 		expect(
@@ -173,7 +190,7 @@ describe("hub discovery", () => {
 					buildId: "other-build",
 					buildEpochMs: 2_000,
 				},
-				reuseOptions,
+				{ self },
 			),
 		).toBe(false);
 	});

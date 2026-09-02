@@ -1,4 +1,3 @@
-import { basename } from "node:path";
 import type { TeamProgressProjectionEvent } from "@cline/shared";
 import type { SessionUsageSummary } from "../../../runtime/host/runtime-host";
 import type {
@@ -11,17 +10,6 @@ import {
 	readCoreSessionSnapshot,
 	readHubSessionRecord,
 } from "./context";
-
-function toHubArtifactReference(artifact: {
-	path: string;
-	mediaType: string;
-}): { artifactName: string; mediaType: string } | undefined {
-	const artifactName = basename(artifact.path);
-	if (!artifactName || artifactName === "." || artifactName === "..") {
-		return undefined;
-	}
-	return { artifactName, mediaType: artifact.mediaType };
-}
 
 /**
  * Translates internal `CoreSessionEvent`s emitted by the session host into the
@@ -225,6 +213,23 @@ async function projectAgentEvent(
 			return;
 		}
 	}
+	if (
+		agentEvent.type === "content_update" &&
+		agentEvent.contentType === "tool"
+	) {
+		ctx.publish(
+			ctx.buildEvent(
+				"tool.updated",
+				{
+					toolCallId: agentEvent.toolCallId,
+					toolName: agentEvent.toolName,
+					update: agentEvent.update,
+				},
+				sessionId,
+			),
+		);
+		return;
+	}
 	if (agentEvent.type === "content_end") {
 		switch (agentEvent.contentType) {
 			case "text":
@@ -236,25 +241,15 @@ async function projectAgentEvent(
 					),
 				);
 				break;
-			case "image":
-				if (agentEvent.image) {
+			case "media":
+				if (agentEvent.media) {
 					ctx.publish(
 						ctx.buildEvent(
-							"assistant.image",
-							{ image: agentEvent.image },
+							"assistant.media",
+							{ media: agentEvent.media },
 							sessionId,
 						),
 					);
-				}
-				break;
-			case "video":
-				if (agentEvent.video) {
-					const video = toHubArtifactReference(agentEvent.video);
-					if (video) {
-						ctx.publish(
-							ctx.buildEvent("assistant.video", { video }, sessionId),
-						);
-					}
 				}
 				break;
 			case "reasoning":

@@ -298,6 +298,7 @@ describe("@cline/ui theme contract", () => {
 		for (const size of [
 			"xs",
 			"sm",
+			"md",
 			"base",
 			"lg",
 			"xl",
@@ -327,6 +328,7 @@ describe("@cline/ui theme contract", () => {
 			"--font-weight-cline-ui-medium: var(--font-weight-medium);",
 		);
 		expect(componentTheme).toContain("--text-cline-ui-xs: var(--text-xs);");
+		expect(componentTheme).toContain("--text-cline-ui-md: var(--text-md);");
 		expect(componentTheme).toContain("--radius-cline-ui-lg: var(--radius-lg);");
 		expect(componentTheme).not.toMatch(
 			/--color-cline-ui-(?:neutral|accent|error|success|warning|info)-(?:a)?\d+:/,

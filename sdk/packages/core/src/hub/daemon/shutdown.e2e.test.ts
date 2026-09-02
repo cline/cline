@@ -86,7 +86,10 @@ async function waitForDiscovery(
 	childExit: Promise<{ code: number | null; signal: NodeJS.Signals | null }>,
 	readStderr: () => string,
 ): Promise<ReadyDaemon["discovery"]> {
-	const deadline = Date.now() + 10_000;
+	// A hang guard, not a timing assertion: spawning a real bun daemon on a
+	// 2-core hosted Windows runner regularly needs more than 10s under load, and
+	// failing a publish on runner speed is worse than waiting.
+	const deadline = Date.now() + 30_000;
 	while (Date.now() < deadline) {
 		try {
 			const parsed = JSON.parse(
@@ -170,13 +173,30 @@ async function openAuthenticatedSocket(
 	url: string,
 	authToken: string,
 ): Promise<WebSocket> {
-	const socket = new WebSocket(url, `cline-hub-auth.${authToken}`);
-	await withTimeout(
-		once(socket, "open").then(() => undefined),
-		5_000,
-		"WebSocket",
-	);
-	return socket;
+	// A freshly spawned bun daemon on a loaded 2-core Windows runner
+	// occasionally drops its very first accepted connection before writing the
+	// upgrade response, which surfaces as a handshake "socket hang up". Real
+	// hub clients reconnect with backoff (HubClient), and this test asserts
+	// shutdown behavior rather than first-connection reliability, so retry
+	// transient handshake failures within a bounded budget.
+	const deadline = Date.now() + 15_000;
+	for (;;) {
+		const socket = new WebSocket(url, `cline-hub-auth.${authToken}`);
+		try {
+			await withTimeout(
+				once(socket, "open").then(() => undefined),
+				5_000,
+				"WebSocket",
+			);
+			return socket;
+		} catch (error) {
+			socket.terminate();
+			if (Date.now() >= deadline) {
+				throw error;
+			}
+			await delay(100);
+		}
+	}
 }
 
 function toHttpUrl(webSocketUrl: string, pathname: string): URL {

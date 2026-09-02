@@ -3,6 +3,10 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+	appendCappedCommandOutput,
+	MAX_LIVE_COMMAND_OUTPUT_CHARS,
+} from "@/lib/command-output";
 import { MODEL_SELECTION_STORAGE_KEY } from "@/lib/model-selection";
 import { useChatSession } from "./use-chat-session";
 
@@ -35,6 +39,22 @@ function HookHarness() {
 	return null;
 }
 
+function deferred<T>() {
+	let resolve!: (value: T | PromiseLike<T>) => void;
+	const promise = new Promise<T>((next) => {
+		resolve = next;
+	});
+	return { promise, resolve };
+}
+
+function handlerFor(eventName: string): (payload: unknown) => void {
+	const handler = subscribeMock.mock.calls.find(
+		([subscribedEvent]) => subscribedEvent === eventName,
+	)?.[1];
+	expect(handler).toBeDefined();
+	return handler as (payload: unknown) => void;
+}
+
 beforeEach(async () => {
 	Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 	window.localStorage.clear();
@@ -59,6 +79,619 @@ afterEach(async () => {
 });
 
 describe("useChatSession", () => {
+	it("restores an idle parent when aborting its child fails", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string } | undefined;
+					if (request?.action === "start") {
+						return { sessionId: "session-child-abort" };
+					}
+					if (request?.action === "abort") {
+						return { ok: false };
+					}
+				}
+				return [];
+			},
+		);
+
+		await act(async () => current.start(current.config));
+		const statusHandler = handlerFor("chat_session_status");
+
+		await act(async () => {
+			statusHandler({ sessionId: current.sessionId, status: "idle" });
+		});
+		expect(current.status).toBe("idle");
+
+		await act(async () => current.abort());
+
+		expect(current.status).toBe("idle");
+	});
+
+	it("preserves authoritative completion across abort races", async () => {
+		vi.useFakeTimers();
+		try {
+			const sessionId = "session-abort-chat-done";
+			const abortResponse = deferred<unknown>();
+			const pendingResponse = deferred<unknown>();
+			const sendResponse = deferred<unknown>();
+			invokeMock.mockImplementation(
+				async (command: string, args?: Record<string, unknown>) => {
+					if (command === "chat_session_command") {
+						const request = args?.request as { action?: string } | undefined;
+						if (request?.action === "start") return { sessionId };
+						if (request?.action === "send") {
+							return await sendResponse.promise;
+						}
+						if (request?.action === "abort") {
+							return await abortResponse.promise;
+						}
+						if (request?.action === "pending_prompts") {
+							return await pendingResponse.promise;
+						}
+					}
+					return [];
+				},
+			);
+
+			await act(async () => current.start(current.config));
+			const chatEventHandler = handlerFor("chat_event");
+			const statusHandler = handlerFor("chat_session_status");
+
+			await act(async () => {
+				statusHandler({ sessionId, status: "running" });
+			});
+			let sendTask!: Promise<void>;
+			await act(async () => {
+				sendTask = current.sendPrompt("queued follow-up");
+				for (let i = 0; i < 5; i += 1) await Promise.resolve();
+			});
+
+			await act(async () => {
+				chatEventHandler({
+					sessionId,
+					stream: "chat_done",
+					chunk: JSON.stringify({ reason: "completed" }),
+					ts: Date.now(),
+					index: 1,
+				});
+			});
+			expect(current.status).toBe("running");
+
+			let abortTask!: Promise<void>;
+			await act(async () => {
+				abortTask = current.abort();
+				await Promise.resolve();
+			});
+			expect(current.status).toBe("stopping");
+
+			await act(async () => {
+				statusHandler({ sessionId, status: "running" });
+			});
+			expect(current.status).toBe("stopping");
+
+			await act(async () => {
+				pendingResponse.resolve({
+					sessionId,
+					ok: true,
+					promptsInQueue: [],
+				});
+				for (let i = 0; i < 5; i += 1) await Promise.resolve();
+			});
+			expect(current.status).toBe("completed");
+
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(2000);
+			});
+			expect(current.status).toBe("completed");
+
+			await act(async () => {
+				sendResponse.resolve({
+					sessionId,
+					ok: true,
+					queued: true,
+					promptsInQueue: [],
+				});
+				await sendTask;
+			});
+			expect(current.status).toBe("completed");
+
+			await act(async () => {
+				abortResponse.resolve({ ok: false });
+				await abortTask;
+			});
+			expect(current.status).toBe("completed");
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("reconciles a running tool row after an aborted send settles", async () => {
+		const sessionId = "session-aborted-tool";
+		const sendResponse = deferred<unknown>();
+		const canonicalMessages = [
+			{
+				id: "history-assistant",
+				sessionId,
+				role: "assistant",
+				content: "",
+				createdAt: 2,
+			},
+			{
+				id: "history-tool",
+				sessionId,
+				role: "tool",
+				content: JSON.stringify({
+					toolName: "spawn_agent",
+					input: { task: "sleep" },
+					result: { finishReason: "aborted" },
+					isError: false,
+				}),
+				createdAt: 3,
+				meta: {
+					toolName: "spawn_agent",
+					toolCallId: "call-spawn",
+					hookEventName: "history_tool_result",
+				},
+			},
+		];
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "read_session_messages") return canonicalMessages;
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string } | undefined;
+					if (request?.action === "start") {
+						return { sessionId };
+					}
+					if (request?.action === "send") {
+						return await sendResponse.promise;
+					}
+					if (request?.action === "abort") return { sessionId, ok: true };
+				}
+				return [];
+			},
+		);
+
+		await act(async () => current.start(current.config));
+		const chatEventHandler = handlerFor("chat_event");
+
+		let sendTask!: Promise<void>;
+		await act(async () => {
+			sendTask = current.sendPrompt("spawn a subagent");
+			await Promise.resolve();
+			chatEventHandler?.({
+				sessionId,
+				stream: "chat_tool_call_start",
+				chunk: JSON.stringify({
+					toolCallId: "call-spawn",
+					toolName: "spawn_agent",
+					input: { task: "sleep" },
+				}),
+				ts: Date.now(),
+				index: 1,
+			});
+		});
+		expect(
+			current.messages.find((message) => message.role === "tool")?.meta
+				?.hookEventName,
+		).toBe("tool_call_start");
+
+		await act(async () => current.abort());
+		await act(async () => {
+			sendResponse.resolve({
+				ok: true,
+				result: { finishReason: "aborted" },
+			});
+			await sendTask;
+			await new Promise((resolve) => setTimeout(resolve, 300));
+		});
+
+		expect(current.status).toBe("cancelled");
+		const toolMessage = current.messages.find(
+			(message) => message.role === "tool",
+		);
+		expect(toolMessage?.meta?.hookEventName).toBe("history_tool_result");
+		expect(JSON.parse(toolMessage?.content ?? "{}").result).toEqual({
+			finishReason: "aborted",
+		});
+	});
+
+	it("caps command output while preserving the newest tail", () => {
+		const result = appendCappedCommandOutput(
+			"head\n",
+			`${"x".repeat(MAX_LIVE_COMMAND_OUTPUT_CHARS)}tail`,
+		);
+		expect(result.truncated).toBe(true);
+		expect(result.output.length).toBeLessThanOrEqual(
+			MAX_LIVE_COMMAND_OUTPUT_CHARS,
+		);
+		expect(
+			result.output.startsWith("\u001b[0m[Earlier command output truncated]"),
+		).toBe(true);
+		expect(result.output.endsWith("tail")).toBe(true);
+	});
+
+	it("coalesces live command updates and exposes detach by tool call", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return {
+						cwd: "/workspace/cline",
+						workspaceRoot: "/workspace/cline",
+					};
+				}
+				if (command === "proceed_while_running") {
+					return { detachedCount: 1 };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return {
+							sessionId: request.config?.sessionId ?? "session-output",
+							cwd: "/workspace/cline",
+							workspaceRoot: "/workspace/cline",
+						};
+					}
+				}
+				return [];
+			},
+		);
+		await act(async () => current.start(current.config));
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+		const longAnsiOutput = `\u001b[31m${"x".repeat(
+			MAX_LIVE_COMMAND_OUTPUT_CHARS + 100,
+		)}tail\u001b[0m`;
+
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_tool_call_start",
+				chunk: JSON.stringify({
+					toolCallId: "call-output",
+					toolName: "run_commands",
+					input: { commands: ["bun test"] },
+				}),
+				ts: Date.now(),
+				index: 1,
+			});
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_tool_call_update",
+				chunk: JSON.stringify({
+					toolCallId: "call-output",
+					toolName: "run_commands",
+					update: {
+						stream: "stdout",
+						chunk: longAnsiOutput,
+						detachable: true,
+					},
+				}),
+				ts: Date.now(),
+				index: 2,
+			});
+			await new Promise((resolve) => setTimeout(resolve, 60));
+		});
+
+		const toolMessage = current.messages.find(
+			(message) => message.role === "tool",
+		);
+		expect(toolMessage?.meta).toMatchObject({
+			toolCallId: "call-output",
+			toolDetachable: true,
+			toolOutputTruncated: true,
+		});
+		expect(toolMessage?.meta?.toolOutput?.length).toBeLessThanOrEqual(
+			MAX_LIVE_COMMAND_OUTPUT_CHARS,
+		);
+		expect(toolMessage?.meta?.toolOutput).toContain("tail\u001b[0m");
+
+		if (!current.sessionId) throw new Error("Expected active session");
+		await act(async () =>
+			current.proceedWhileRunning(current.sessionId as string, "call-output"),
+		);
+		expect(invokeMock).toHaveBeenCalledWith("proceed_while_running", {
+			sessionId: current.sessionId,
+			toolCallId: "call-output",
+		});
+	});
+
+	it("heals a running attached session with a dead event stream by polling history", async () => {
+		// Scheduled runs can execute on a host whose live events never reach
+		// this client; the transcript must still settle without a remount.
+		const hydratedSessionId = "session-dead-stream";
+		let readCount = 0;
+		let recordReads = 0;
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "read_session_messages") {
+					readCount += 1;
+					const base = [
+						{
+							id: "history-user",
+							sessionId: hydratedSessionId,
+							role: "user",
+							content: "tell me the current time",
+							createdAt: 1,
+						},
+					];
+					return readCount === 1
+						? base
+						: [
+								...base,
+								{
+									id: "history-answer",
+									sessionId: hydratedSessionId,
+									role: "assistant",
+									content: "It is 12:28 PM PT.",
+									createdAt: 2,
+								},
+							];
+				}
+				if (command === "get_discovered_session") {
+					recordReads += 1;
+					// Still running on the first poll — the snapshot already
+					// ends on assistant narration, which must NOT read as
+					// finished while the record says running.
+					return {
+						sessionId: hydratedSessionId,
+						status: recordReads === 1 ? "running" : "completed",
+					};
+				}
+				if (command === "read_session_hooks") return [];
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string } | undefined;
+					if (request?.action === "attach") {
+						return {
+							sessionId: hydratedSessionId,
+							status: "running",
+							provider: "cline",
+							model: "test-model",
+							cwd: "/workspace/cline",
+							workspaceRoot: "/workspace/cline",
+						};
+					}
+					return { promptsInQueue: [] };
+				}
+				return [];
+			},
+		);
+
+		// Fake timers must be active before hydration so the fallback's
+		// interval registers on the fake clock.
+		vi.useFakeTimers();
+		try {
+			await act(async () => {
+				await current.hydrateSession({
+					sessionId: hydratedSessionId,
+					status: "running",
+					provider: "cline",
+					model: "test-model",
+					cwd: "/workspace/cline",
+					workspaceRoot: "/workspace/cline",
+					startedAt: "2026-08-12T00:00:00.000Z",
+				});
+			});
+			expect(current.status).toBe("running");
+			expect(current.messages).toHaveLength(1);
+
+			// No chat_event chunks arrive. The first poll surfaces the
+			// narration mid-run; the record still says running, and the
+			// record — not transcript shape — decides the status.
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(3_100);
+			});
+			expect(current.messages).toHaveLength(2);
+			expect(current.messages[1]?.content).toBe("It is 12:28 PM PT.");
+			expect(current.status).toBe("running");
+
+			// The record flips to completed; the next poll mirrors it.
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(3_100);
+			});
+		} finally {
+			vi.useRealTimers();
+		}
+
+		expect(current.status).toBe("completed");
+	});
+
+	it("keeps the stale-stream poll inert while a local turn is in flight", async () => {
+		// Regression: the fallback poll replaced an optimistic user bubble
+		// (raw prompt) with its canonical envelope-wrapped twin, desyncing
+		// the rekey bookkeeping so the stream appended a duplicate bubble.
+		const hydratedSessionId = "session-local-turn";
+		let readCount = 0;
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "read_session_messages") {
+					readCount += 1;
+					return [
+						{
+							id: "history-user",
+							sessionId: hydratedSessionId,
+							role: "user",
+							content: "earlier prompt",
+							createdAt: 1,
+						},
+					];
+				}
+				if (command === "get_discovered_session") {
+					return { sessionId: hydratedSessionId, status: "running" };
+				}
+				if (command === "read_session_hooks") return [];
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string } | undefined;
+					if (request?.action === "attach" || request?.action === "start") {
+						return {
+							sessionId: hydratedSessionId,
+							status: "idle",
+							provider: "cline",
+							model: "test-model",
+							cwd: "/workspace/cline",
+							workspaceRoot: "/workspace/cline",
+						};
+					}
+					if (request?.action === "send") {
+						// Keep the send unresolved: the local turn stays in
+						// flight for the whole test.
+						return await new Promise(() => {});
+					}
+					return { promptsInQueue: [] };
+				}
+				return [];
+			},
+		);
+
+		vi.useFakeTimers();
+		try {
+			await act(async () => {
+				await current.hydrateSession({
+					sessionId: hydratedSessionId,
+					status: "idle",
+					provider: "cline",
+					model: "test-model",
+					cwd: "/workspace/cline",
+					workspaceRoot: "/workspace/cline",
+					startedAt: "2026-08-12T00:00:00.000Z",
+				});
+			});
+			const readsAfterHydration = readCount;
+
+			await act(async () => {
+				void current.sendPrompt("what time is it");
+				await Promise.resolve();
+			});
+			expect(current.status).toBe("starting");
+			expect(
+				current.messages.filter((m) => m.content === "what time is it"),
+			).toHaveLength(1);
+
+			// Model produces nothing for a long quiet window; the poll must
+			// not fire while the local turn is unsettled.
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(10_000);
+			});
+			expect(readCount).toBe(readsAfterHydration);
+			expect(
+				current.messages.filter((m) => m.content === "what time is it"),
+			).toHaveLength(1);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("routes command updates after attaching to an in-flight tool call", async () => {
+		const hydratedSessionId = "session-in-flight-command";
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "read_session_messages") {
+					return [
+						{
+							id: "history-tool-call",
+							sessionId: hydratedSessionId,
+							role: "tool",
+							content: JSON.stringify({
+								toolName: "run_commands",
+								input: { commands: ["bun test"] },
+								result: null,
+								isError: false,
+							}),
+							createdAt: 1,
+							meta: {
+								toolName: "run_commands",
+								toolCallId: "call-in-flight",
+								hookEventName: "history_tool_use",
+							},
+						},
+					];
+				}
+				if (command === "read_session_hooks") return [];
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string } | undefined;
+					if (request?.action === "attach") {
+						return {
+							sessionId: hydratedSessionId,
+							status: "running",
+							provider: "cline",
+							model: "test-model",
+							cwd: "/workspace/cline",
+							workspaceRoot: "/workspace/cline",
+						};
+					}
+					return { promptsInQueue: [] };
+				}
+				return [];
+			},
+		);
+
+		await act(async () => {
+			await current.hydrateSession({
+				sessionId: hydratedSessionId,
+				status: "running",
+				provider: "cline",
+				model: "test-model",
+				cwd: "/workspace/cline",
+				workspaceRoot: "/workspace/cline",
+				startedAt: "2026-08-12T00:00:00.000Z",
+			});
+		});
+
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: hydratedSessionId,
+				stream: "chat_tool_call_update",
+				chunk: JSON.stringify({
+					toolCallId: "call-in-flight",
+					toolName: "run_commands",
+					update: { stream: "stdout", chunk: "still running\n" },
+				}),
+				ts: Date.now(),
+				index: 1,
+			});
+			await new Promise((resolve) => setTimeout(resolve, 60));
+		});
+
+		expect(current.messages).toHaveLength(1);
+		expect(current.messages[0]?.meta?.toolOutput).toBe("still running\n");
+
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: hydratedSessionId,
+				stream: "chat_tool_call_end",
+				chunk: JSON.stringify({
+					toolCallId: "call-in-flight",
+					toolName: "run_commands",
+					output: "done",
+				}),
+				ts: Date.now(),
+				index: 2,
+			});
+		});
+
+		const completedPayload = JSON.parse(current.messages[0]?.content ?? "{}");
+		expect(completedPayload).toMatchObject({
+			input: { commands: ["bun test"] },
+			result: "done",
+		});
+		expect(current.messages[0]?.meta?.hookEventName).toBe("tool_call_end");
+	});
+
 	it("starts without a selected workspace and adopts the SDK temporary path", async () => {
 		let startedSessionId = "";
 		await act(async () => {
@@ -523,28 +1156,32 @@ describe("useChatSession", () => {
 			});
 			chatEventHandler?.({
 				sessionId: current.sessionId,
-				stream: "chat_image",
+				stream: "chat_media",
 				chunk: JSON.stringify({
-					data: "aGVsbG8=",
+					id: "generated-1",
+					modality: "image",
 					mediaType: "image/webp",
+					source: { type: "base64", data: "aGVsbG8=" },
 				}),
 				ts: Date.now(),
 				index: 2,
 			});
 		});
 
-		const assistant = current.messages.findLast(
+		const assistantMessages = current.messages.filter(
 			(message) => message.role === "assistant",
 		);
-		expect(assistant).toMatchObject({
-			content: "Here it is.",
-			images: [
-				expect.objectContaining({
-					data: "aGVsbG8=",
-					mediaType: "image/webp",
-				}),
-			],
-		});
+		expect(assistantMessages).toEqual([
+			expect.objectContaining({ content: "Here it is." }),
+			expect.objectContaining({
+				media: [
+					expect.objectContaining({
+						id: "generated-1",
+						mediaType: "image/webp",
+					}),
+				],
+			}),
+		]);
 	});
 
 	it("deduplicates repeated live generated image events", async () => {
@@ -573,28 +1210,102 @@ describe("useChatSession", () => {
 		)?.[1] as ((payload: unknown) => void) | undefined;
 
 		await act(async () => {
-			for (const [index, data] of [
-				"aGVsbG8=",
-				"aGVsbG8=",
-				"d29ybGQ=",
+			for (const [index, media] of [
+				{ id: "generated-1", data: "aGVsbG8=" },
+				{ id: "generated-1", data: "aGVsbG8=" },
+				{ id: "generated-2", data: "d29ybGQ=" },
 			].entries()) {
 				chatEventHandler?.({
 					sessionId: current.sessionId,
-					stream: "chat_image",
-					chunk: JSON.stringify({ data, mediaType: "image/webp" }),
+					stream: "chat_media",
+					chunk: JSON.stringify({
+						id: media.id,
+						modality: "image",
+						mediaType: "image/webp",
+						source: { type: "base64", data: media.data },
+					}),
 					ts: Date.now(),
 					index: index + 1,
 				});
 			}
 		});
 
-		const assistant = current.messages.findLast(
-			(message) => message.role === "assistant",
+		expect(
+			current.messages.flatMap((message) =>
+				(message.media ?? []).map((media) => media.id),
+			),
+		).toEqual(["generated-1", "generated-2"]);
+	});
+
+	it("projects generated media from a completed tool call onto its tool message", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return { sessionId: request.config?.sessionId };
+					}
+					if (request?.action === "send") {
+						return { ok: true };
+					}
+				}
+				return [];
+			},
 		);
-		expect(assistant?.images?.map((image) => image.data)).toEqual([
-			"aGVsbG8=",
-			"d29ybGQ=",
-		]);
+		await act(async () => current.sendPrompt("Draw a lighthouse"));
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+		const media = {
+			id: "tool-generated-1",
+			modality: "image",
+			mediaType: "image/png",
+			source: { type: "base64", data: "aGVsbG8=" },
+		};
+
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_tool_call_start",
+				chunk: JSON.stringify({
+					toolCallId: "generate-call",
+					toolName: "generate_media",
+					input: { media_type: "image", prompt: "A lighthouse" },
+				}),
+				ts: Date.now(),
+				index: 1,
+			});
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_tool_call_end",
+				chunk: JSON.stringify({
+					toolCallId: "generate-call",
+					toolName: "generate_media",
+					output: [
+						{ type: "text", text: "Generated an image." },
+						{ type: "media", media },
+					],
+				}),
+				ts: Date.now(),
+				index: 2,
+			});
+		});
+
+		const toolMessage = current.messages.find(
+			(message) => message.meta?.toolName === "generate_media",
+		);
+		expect(toolMessage).toMatchObject({
+			role: "tool",
+			media: [media],
+			meta: { hookEventName: "tool_call_end" },
+		});
+		expect(toolMessage?.content).toContain("[generated image]");
+		expect(toolMessage?.content).not.toContain("aGVsbG8=");
 	});
 
 	it("renders generated images returned in the completed RPC result", async () => {
@@ -658,55 +1369,6 @@ describe("useChatSession", () => {
 				expect.objectContaining({
 					data: "aGVsbG8=",
 					mediaType: "image/png",
-				}),
-			],
-		});
-	});
-
-	it("appends live generated videos to the active assistant message", async () => {
-		invokeMock.mockImplementation(
-			async (command: string, args?: Record<string, unknown>) => {
-				if (command === "get_process_context") {
-					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
-				}
-				if (command === "chat_session_command") {
-					const request = args?.request as
-						| { action?: string; config?: { sessionId?: string } }
-						| undefined;
-					if (request?.action === "start") {
-						return { sessionId: request.config?.sessionId };
-					}
-					if (request?.action === "send") return { ok: true };
-				}
-				return [];
-			},
-		);
-		await act(async () => current.sendPrompt("Animate a lighthouse"));
-		const chatEventHandler = subscribeMock.mock.calls.find(
-			([eventName]) => eventName === "chat_event",
-		)?.[1] as ((payload: unknown) => void) | undefined;
-
-		await act(async () => {
-			chatEventHandler?.({
-				sessionId: current.sessionId,
-				stream: "chat_video",
-				chunk: JSON.stringify({
-					mediaType: "video/mp4",
-					artifactName: "video-result.mp4",
-				}),
-				ts: Date.now(),
-				index: 1,
-			});
-		});
-
-		expect(
-			current.messages.findLast((message) => message.role === "assistant"),
-		).toMatchObject({
-			content: "",
-			videos: [
-				expect.objectContaining({
-					mediaType: "video/mp4",
-					artifactName: "video-result.mp4",
 				}),
 			],
 		});
@@ -1169,6 +1831,78 @@ describe("useChatSession", () => {
 		expect(current.summary.totalCostUsd).toBeCloseTo(0.03);
 	});
 
+	it("restores a pending question when switching to its session", async () => {
+		const hydratedSessionId = "session-with-question";
+		const pendingQuestion = {
+			requestId: "question-1",
+			sessionId: hydratedSessionId,
+			createdAt: "2026-08-11T00:00:00.000Z",
+			question: "Which branch should I use?",
+			options: ["Keep current", "Create new"],
+		};
+		const askQuestionHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "ask_question_requested",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+		expect(askQuestionHandler).toBeTypeOf("function");
+
+		await act(async () => {
+			askQuestionHandler?.(pendingQuestion);
+		});
+		expect(current.pendingAskQuestions).toEqual([]);
+
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "poll_ask_questions") {
+					return args?.sessionId === hydratedSessionId ? [pendingQuestion] : [];
+				}
+				if (
+					command === "poll_tool_approvals" ||
+					command === "read_session_messages" ||
+					command === "read_session_hooks"
+				) {
+					return [];
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string } | undefined;
+					if (request?.action === "attach") {
+						return {
+							sessionId: hydratedSessionId,
+							status: "running",
+							provider: "cline",
+							model: "test-model",
+							cwd: "/workspace/cline",
+							workspaceRoot: "/workspace/cline",
+						};
+					}
+					return { promptsInQueue: [] };
+				}
+				return [];
+			},
+		);
+
+		await act(async () => {
+			await current.hydrateSession({
+				sessionId: hydratedSessionId,
+				status: "running",
+				provider: "cline",
+				model: "test-model",
+				cwd: "/workspace/cline",
+				workspaceRoot: "/workspace/cline",
+				startedAt: "2026-08-11T00:00:00.000Z",
+			});
+		});
+
+		await vi.waitFor(() =>
+			expect(current.pendingAskQuestions).toEqual([pendingQuestion]),
+		);
+		expect(invokeMock).toHaveBeenCalledWith("poll_ask_questions", {
+			sessionId: hydratedSessionId,
+		});
+	});
+
 	it("resets to the remembered provider/model after viewing a historical session", async () => {
 		window.localStorage.setItem(
 			MODEL_SELECTION_STORAGE_KEY,
@@ -1320,6 +2054,180 @@ describe("useChatSession", () => {
 			});
 		});
 		expect(current.status).toBe("completed");
+	});
+
+	it("finalizes a queued turn on chat_done: clears the streaming id and reconciles persisted history", async () => {
+		// Queued turns resolve their send() RPC early ({ ok: true } without a
+		// result), so chat_done is their only finalization signal. Without the
+		// turn-end reconcile, a turn whose deltas were incomplete would stay
+		// visually streaming forever and only heal when a later non-queued send
+		// rehydrated history.
+		let canonicalMessages: unknown[] = [];
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "read_session_messages") {
+					return canonicalMessages;
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return { sessionId: request.config?.sessionId };
+					}
+					if (request?.action === "send") {
+						return { ok: true };
+					}
+				}
+				return [];
+			},
+		);
+
+		await act(async () => {
+			await current.sendPrompt("First prompt");
+		});
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+		expect(chatEventHandler).toBeDefined();
+
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_queued_prompt_start",
+				chunk: JSON.stringify({
+					promptId: "queued-prompt-1",
+					prompt: "First prompt",
+				}),
+				ts: Date.now(),
+				index: 1,
+			});
+		});
+		// A transport hiccup dropped the tail of the stream: only a truncated
+		// prefix of the assistant text arrives live.
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_text",
+				chunk: "The answer is",
+				ts: Date.now(),
+				index: 2,
+			});
+		});
+		canonicalMessages = [
+			{
+				id: "persisted_user_1",
+				sessionId: current.sessionId,
+				role: "user",
+				content: "First prompt",
+				createdAt: Date.now(),
+			},
+			{
+				id: "persisted_assistant_1",
+				sessionId: current.sessionId,
+				role: "assistant",
+				content: "The answer is 42.",
+				createdAt: Date.now(),
+			},
+		];
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_done",
+				chunk: JSON.stringify({ reason: "completed" }),
+				ts: Date.now(),
+				index: 3,
+			});
+		});
+
+		// The streaming shimmer clears as soon as the turn settles.
+		expect(current.status).toBe("completed");
+		expect(current.activeAssistantMessageId).toBeNull();
+
+		// The delayed reconcile replaces the truncated live transcript with the
+		// persisted one.
+		await act(async () => {
+			await new Promise((resolve) => setTimeout(resolve, 400));
+		});
+		const assistantMessages = current.messages.filter(
+			(message) => message.role === "assistant",
+		);
+		expect(assistantMessages).toHaveLength(1);
+		expect(assistantMessages[0]?.content).toBe("The answer is 42.");
+	});
+
+	it("keeps the live transcript when the turn-end reconcile finds no persisted assistant turn", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "read_session_messages") {
+					// Persistence has not caught up yet.
+					return [];
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return { sessionId: request.config?.sessionId };
+					}
+					if (request?.action === "send") {
+						return { ok: true };
+					}
+				}
+				return [];
+			},
+		);
+
+		await act(async () => {
+			await current.sendPrompt("First prompt");
+		});
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+		expect(chatEventHandler).toBeDefined();
+
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_queued_prompt_start",
+				chunk: JSON.stringify({
+					promptId: "queued-prompt-1",
+					prompt: "First prompt",
+				}),
+				ts: Date.now(),
+				index: 1,
+			});
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_text",
+				chunk: "Streamed live content",
+				ts: Date.now(),
+				index: 2,
+			});
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_done",
+				chunk: JSON.stringify({ reason: "completed" }),
+				ts: Date.now(),
+				index: 3,
+			});
+		});
+		await act(async () => {
+			await new Promise((resolve) => setTimeout(resolve, 400));
+		});
+
+		expect(current.status).toBe("completed");
+		const assistantMessages = current.messages.filter(
+			(message) => message.role === "assistant",
+		);
+		expect(assistantMessages).toHaveLength(1);
+		expect(assistantMessages[0]?.content).toBe("Streamed live content");
 	});
 
 	it("stays running on chat_done while more prompts wait in the queue", async () => {

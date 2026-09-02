@@ -1,9 +1,12 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { createFetchHandler } from "./server";
+import { describe, expect, it, vi } from "vitest";
+import {
+	MAX_RECORDED_AUDIO_BASE64_BYTES,
+	MAX_RECORDED_AUDIO_BYTES,
+} from "../webview/lib/voice-input-limits";
+import { createFetchHandler, createWebSocketHandler } from "./server";
 import type { SidecarContext } from "./types";
+
+const TEST_APPROVAL_TOKEN = "test-approval-token";
 
 function createTestServer() {
 	return {
@@ -13,7 +16,11 @@ function createTestServer() {
 }
 
 function createHandler(onShutdown = vi.fn()) {
-	return createFetchHandler({} as SidecarContext, onShutdown);
+	return createFetchHandler(
+		{} as SidecarContext,
+		onShutdown,
+		TEST_APPROVAL_TOKEN,
+	);
 }
 
 function createTelemetryHandler(capture = vi.fn()) {
@@ -23,24 +30,15 @@ function createTelemetryHandler(capture = vi.fn()) {
 	};
 }
 
-const originalSessionDataDir = process.env.CLINE_SESSION_DATA_DIR;
-const originalDbDataDir = process.env.CLINE_DB_DATA_DIR;
-const temporaryDirectories: string[] = [];
+describe("sidecar WebSocket payload limit", () => {
+	it("accepts every recording allowed by the voice input size limit", () => {
+		const handler = createWebSocketHandler({} as SidecarContext);
 
-afterEach(() => {
-	if (originalSessionDataDir === undefined) {
-		delete process.env.CLINE_SESSION_DATA_DIR;
-	} else {
-		process.env.CLINE_SESSION_DATA_DIR = originalSessionDataDir;
-	}
-	if (originalDbDataDir === undefined) {
-		delete process.env.CLINE_DB_DATA_DIR;
-	} else {
-		process.env.CLINE_DB_DATA_DIR = originalDbDataDir;
-	}
-	for (const directory of temporaryDirectories.splice(0)) {
-		rmSync(directory, { recursive: true, force: true });
-	}
+		expect(MAX_RECORDED_AUDIO_BYTES).toBe(25 * 1024 * 1024);
+		expect(handler.maxPayloadLength).toBeGreaterThan(
+			MAX_RECORDED_AUDIO_BASE64_BYTES,
+		);
+	});
 });
 
 describe("sidecar HTTP origin checks", () => {
@@ -93,6 +91,37 @@ describe("sidecar HTTP origin checks", () => {
 		expect(server.upgrade).not.toHaveBeenCalled();
 	});
 
+	it("does not grant approval authority to originless local clients", async () => {
+		const server = createTestServer();
+		await createHandler()(
+			new Request(
+				`http://127.0.0.1:3126/transport?approval_token=${TEST_APPROVAL_TOKEN}`,
+			),
+			server,
+		);
+
+		expect(server.upgrade).toHaveBeenCalledWith(expect.any(Request), {
+			data: { canApproveTools: false },
+		});
+	});
+
+	it("grants approval authority to the trusted desktop webview", async () => {
+		const server = createTestServer();
+		await createHandler()(
+			new Request(
+				`http://127.0.0.1:3126/transport?approval_token=${TEST_APPROVAL_TOKEN}`,
+				{
+					headers: { origin: "tauri://localhost" },
+				},
+			),
+			server,
+		);
+
+		expect(server.upgrade).toHaveBeenCalledWith(expect.any(Request), {
+			data: { canApproveTools: true },
+		});
+	});
+
 	it("allows desktop webview origins in preflight responses", async () => {
 		const server = createTestServer();
 		const response = await createHandler()(
@@ -111,45 +140,19 @@ describe("sidecar HTTP origin checks", () => {
 			"tauri://localhost",
 		);
 	});
-});
 
-describe("session video artifacts", () => {
-	it("serves a generated video only from the session artifact directory", async () => {
-		const sessionsDir = mkdtempSync(join(tmpdir(), "desktop-video-artifact-"));
-		const dbDir = mkdtempSync(join(tmpdir(), "desktop-video-db-"));
-		temporaryDirectories.push(sessionsDir, dbDir);
-		process.env.CLINE_SESSION_DATA_DIR = sessionsDir;
-		process.env.CLINE_DB_DATA_DIR = dbDir;
-		const artifactsDir = join(sessionsDir, "session-1", "artifacts");
-		const dbArtifactsDir = join(dbDir, "session-1", "artifacts");
-		mkdirSync(artifactsDir, { recursive: true });
-		mkdirSync(dbArtifactsDir, { recursive: true });
-		writeFileSync(join(artifactsDir, "video-result.mp4"), "video-bytes");
-		writeFileSync(join(dbArtifactsDir, "video-result.mp4"), "database-bytes");
-
-		const response = await createHandler()(
-			new Request(
-				"http://127.0.0.1:3126/api/session-artifacts/session-1/video-result.mp4",
-				{ headers: { origin: "tauri://localhost" } },
-			),
-			createTestServer(),
+	it("does not grant approval authority to a spoofed trusted origin", async () => {
+		const server = createTestServer();
+		await createHandler()(
+			new Request("http://127.0.0.1:3126/transport", {
+				headers: { origin: "tauri://localhost" },
+			}),
+			server,
 		);
 
-		expect(response?.status).toBe(200);
-		expect(response?.headers.get("content-type")).toBe("video/mp4");
-		await expect(response?.text()).resolves.toBe("video-bytes");
-	});
-
-	it("rejects untrusted origins for session artifacts", async () => {
-		const response = await createHandler()(
-			new Request(
-				"http://127.0.0.1:3126/api/session-artifacts/session-1/video.mp4",
-				{ headers: { origin: "https://attacker.example" } },
-			),
-			createTestServer(),
-		);
-
-		expect(response?.status).toBe(403);
+		expect(server.upgrade).toHaveBeenCalledWith(expect.any(Request), {
+			data: { canApproveTools: false },
+		});
 	});
 });
 

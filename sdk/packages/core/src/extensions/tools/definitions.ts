@@ -44,6 +44,8 @@ import {
 	EditFileInputSchema,
 	type FetchWebContentInput,
 	FetchWebContentInputSchema,
+	type GenerateMediaInput,
+	GenerateMediaInputSchema,
 	type ReadFileRequest,
 	type ReadFilesInput,
 	ReadFilesInputSchema,
@@ -65,6 +67,8 @@ import type {
 	DefaultToolsConfig,
 	EditorExecutor,
 	FileReadExecutor,
+	GenerateMediaExecutor,
+	GenerateMediaResult,
 	SearchExecutor,
 	ShellExecutor,
 	SkillsExecutorWithMetadata,
@@ -192,46 +196,64 @@ async function executeShellCommands(
 		options;
 
 	return Promise.all(
-		commands.map(async (command): Promise<ToolOperationResult> => {
-			const startedAt = Date.now();
-			const query = formatRunCommandQueryPreview(command);
-			try {
-				const output = await withTimeout(
-					executor(command, cwd, context),
-					timeoutMs,
-					`Command timed out after ${timeoutMs}ms`,
-				);
-				return {
-					query,
-					result: output,
-					success: true,
-				};
-			} catch (error) {
-				if (error instanceof TimeoutError) {
-					captureRunCommandsTimeoutFromContext(telemetry, context, {
-						effectiveTimeoutMs: error.timeoutMs,
-						timeoutSource,
-						commandCount: commands.length,
-						durationMs: Date.now() - startedAt,
-					});
-				}
-				if (error instanceof CommandExitError) {
+		commands.map(
+			async (command, commandIndex): Promise<ToolOperationResult> => {
+				const startedAt = Date.now();
+				const query = formatRunCommandQueryPreview(command);
+				const commandContext: AgentToolContext = context.emitUpdate
+					? {
+							...context,
+							emitUpdate: (update) => {
+								const payload =
+									update && typeof update === "object" && !Array.isArray(update)
+										? (update as Record<string, unknown>)
+										: { update };
+								context.emitUpdate?.({
+									...payload,
+									commandIndex,
+									query,
+								});
+							},
+						}
+					: context;
+				try {
+					const output = await withTimeout(
+						executor(command, cwd, commandContext),
+						timeoutMs,
+						`Command timed out after ${timeoutMs}ms`,
+					);
 					return {
 						query,
-						result: error.output,
-						error: error.message,
+						result: output,
+						success: true,
+					};
+				} catch (error) {
+					if (error instanceof TimeoutError) {
+						captureRunCommandsTimeoutFromContext(telemetry, context, {
+							effectiveTimeoutMs: error.timeoutMs,
+							timeoutSource,
+							commandCount: commands.length,
+							durationMs: Date.now() - startedAt,
+						});
+					}
+					if (error instanceof CommandExitError) {
+						return {
+							query,
+							result: error.output,
+							error: error.message,
+							success: false,
+						};
+					}
+					const msg = formatError(error);
+					return {
+						query,
+						result: "",
+						error: `Command failed: ${msg}`,
 						success: false,
 					};
 				}
-				const msg = formatError(error);
-				return {
-					query,
-					result: "",
-					error: `Command failed: ${msg}`,
-					success: false,
-				};
-			}
-		}),
+			},
+		),
 	);
 }
 
@@ -716,6 +738,31 @@ export function createEditorTool(
 }
 
 /**
+ * Create the generate_media tool
+ *
+ * Generates media with a separately configured media-generation model.
+ */
+export function createGenerateMediaTool(
+	executor: GenerateMediaExecutor,
+): AgentTool<GenerateMediaInput, GenerateMediaResult> {
+	return createTool<GenerateMediaInput, GenerateMediaResult>({
+		name: "generate_media",
+		description:
+			"Generate media from a text prompt using the configured media-generation model. " +
+			"Currently only image generation is supported. " +
+			"Use this tool when the user asks you to create an image. " +
+			"Returns generated media content that can be shown to the user.",
+		inputSchema: zodToJsonSchema(GenerateMediaInputSchema),
+		retryable: false,
+		maxRetries: 0,
+		execute: async (input, context) => {
+			const validatedInput = validateWithZod(GenerateMediaInputSchema, input);
+			return executor(validatedInput, context);
+		},
+	});
+}
+
+/**
  * Create the skills tool
  *
  * Invokes a configured skill by name and optional arguments.
@@ -759,7 +806,7 @@ export function createSkillsTool(
 		get() {
 			const skills = executor.configuredSkills
 				?.filter((s) => !s.disabled)
-				.map((s) => s.name);
+				.map((s) => (s.id.includes(":") ? s.id : s.name));
 			if (skills && skills.length > 0) {
 				return `${baseDescription} Available skills: ${skills.join(", ")}.`;
 			}
@@ -883,6 +930,7 @@ export function createDefaultTools(
 		enableWebFetch = true,
 		enableApplyPatch = false,
 		enableEditor = true,
+		enableGenerateMedia = false,
 		enableSkills = true,
 		enableAskQuestion = true,
 		enableSubmitAndExit = false,
@@ -918,6 +966,11 @@ export function createDefaultTools(
 		tools.push(createEditorTool(executors.editor, config));
 	} else if (enableApplyPatch && executors.applyPatch) {
 		tools.push(createApplyPatchTool(executors.applyPatch, config));
+	}
+
+	// Add generate_media tool if enabled and executor provided
+	if (enableGenerateMedia && executors.generateMedia) {
+		tools.push(createGenerateMediaTool(executors.generateMedia));
 	}
 
 	// Add skills tool if enabled and executor provided

@@ -69,7 +69,7 @@ export type {
 	ApiStream,
 	ApiStreamChunk,
 	ApiStreamDoneChunk,
-	ApiStreamImageChunk,
+	ApiStreamMediaChunk,
 	ApiStreamReasoningChunk,
 	ApiStreamTextChunk,
 	ApiStreamToolCall,

@@ -30,7 +30,7 @@ import {
 	ProviderSettingsManager,
 	SessionSource,
 } from "@cline/core";
-import { isLikelyAuthError, type Message } from "@cline/shared";
+import { isLikelyAuthError, type MessageWithMetadata } from "@cline/shared";
 import { getPersistedProviderApiKey } from "../commands/auth";
 import { resolveSystemPrompt } from "../runtime/prompt";
 import { subscribeToAgentEvents } from "../runtime/session-events";
@@ -70,6 +70,10 @@ import {
 	sendSessionInfoUpdate,
 } from "./session-updates";
 
+const CHAT_MODEL_QUERY_OPTIONS = {
+	filter: "chat",
+} satisfies Llms.GetModelsForProviderOptions;
+
 interface SessionState {
 	id: string;
 	cwd: string;
@@ -100,7 +104,7 @@ interface SessionState {
 	 */
 	fatalError?: Error;
 	/** Messages to inject into the next session manager for conversation continuity. */
-	pendingInitialMessages?: Message[];
+	pendingInitialMessages?: MessageWithMetadata[];
 }
 
 export class AcpAgent implements Agent {
@@ -185,7 +189,10 @@ export class AcpAgent implements Agent {
 		const providerId =
 			process.env.CLINE_PROVIDER ?? this.authResult?.providerId ?? "cline";
 
-		const providerModels = await Llms.getModelsForProvider(providerId);
+		const providerModels = await Llms.getModelsForProvider(
+			providerId,
+			CHAT_MODEL_QUERY_OPTIONS,
+		);
 		// Model ids are provider-scoped, so the default must come from the
 		// provider's own catalog: `cline-pass` uses `cline-pass/…` ids that mean
 		// nothing to `cline`, and vice versa.
@@ -240,7 +247,7 @@ export class AcpAgent implements Agent {
 		this.isSessionReady();
 
 		let session = this.sessions.get(params.sessionId);
-		let messages: Message[];
+		let messages: MessageWithMetadata[];
 
 		if (session?.sessionManager && session.activeSessionId) {
 			// The session is still live in this connection — replay its current
@@ -256,7 +263,10 @@ export class AcpAgent implements Agent {
 				// provider's own catalog just like newSession.
 				const providerId =
 					process.env.CLINE_PROVIDER ?? this.authResult?.providerId ?? "cline";
-				const providerModels = await Llms.getModelsForProvider(providerId);
+				const providerModels = await Llms.getModelsForProvider(
+					providerId,
+					CHAT_MODEL_QUERY_OPTIONS,
+				);
 				session = {
 					id: params.sessionId,
 					cwd: params.cwd,
@@ -289,6 +299,7 @@ export class AcpAgent implements Agent {
 
 		const providerModels = await Llms.getModelsForProvider(
 			session.currentProviderId,
+			CHAT_MODEL_QUERY_OPTIONS,
 		);
 		const availableModels = Object.entries(providerModels).map(
 			([availableModelId, info]) => ({
@@ -473,7 +484,10 @@ export class AcpAgent implements Agent {
 				// current one when it's offered there too, otherwise fall back to the
 				// provider's declared default rather than whichever model happens to
 				// be listed first (for cline-pass that is an unrelated free model).
-				const providerModels = await Llms.getModelsForProvider(value);
+				const providerModels = await Llms.getModelsForProvider(
+					value,
+					CHAT_MODEL_QUERY_OPTIONS,
+				);
 				session.currentModelId = await resolveDefaultModelId(
 					value,
 					session.currentModelId,
@@ -676,7 +690,7 @@ export class AcpAgent implements Agent {
 		session: SessionState,
 		acpSessionId: string,
 		options?: { resume?: boolean },
-	): Promise<Message[] | undefined> {
+	): Promise<MessageWithMetadata[] | undefined> {
 		if (session.sessionManager) {
 			return undefined;
 		}
@@ -695,7 +709,7 @@ export class AcpAgent implements Agent {
 			workspaceRoot: config.workspaceRoot,
 		});
 
-		let initialMessages: Message[] | undefined;
+		let initialMessages: MessageWithMetadata[] | undefined;
 		if (options?.resume) {
 			initialMessages = await sessionManager
 				.readMessages(acpSessionId)
@@ -907,7 +921,10 @@ async function buildAllConfigOptions(
 ): Promise<SessionConfigOption[]> {
 	const [providerOption, providerModels] = await Promise.all([
 		buildProviderConfigOption(session.currentProviderId),
-		Llms.getModelsForProvider(session.currentProviderId),
+		Llms.getModelsForProvider(
+			session.currentProviderId,
+			CHAT_MODEL_QUERY_OPTIONS,
+		),
 	]);
 	return [
 		providerOption,

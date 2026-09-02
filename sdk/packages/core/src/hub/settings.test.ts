@@ -1,3 +1,6 @@
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import {
 	type CorePluginSettingsSnapshot,
@@ -49,6 +52,84 @@ function createHostPluginSettingsSnapshot(
 }
 
 describe("hub settings commands", () => {
+	it("persists generate_media opt-in state through settings.toggle", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "hub-tool-settings-"));
+		const settingsPath = join(tempRoot, "global-settings.json");
+		const previousSettingsPath = process.env.CLINE_GLOBAL_SETTINGS_PATH;
+		process.env.CLINE_GLOBAL_SETTINGS_PATH = settingsPath;
+		let transport: HubServerTransport | undefined;
+
+		try {
+			await writeFile(
+				settingsPath,
+				`${JSON.stringify({ disabledTools: ["generate_media", "read_file"] })}\n`,
+				"utf8",
+			);
+			transport = new HubServerTransport({
+				runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
+				scheduleOptions: { dbPath: ":memory:" },
+				settingsService: new CoreSettingsService(),
+			});
+			const enabled = await transport.handleCommand({
+				version: "v1",
+				command: "settings.toggle",
+				requestId: "enable-generate-media",
+				clientId: "desktop-sidecar",
+				payload: {
+					type: "tools",
+					name: "generate_media",
+					enabled: true,
+					workspaceRoot: tempRoot,
+					cwd: tempRoot,
+				},
+			});
+
+			expect(enabled).toMatchObject({
+				ok: true,
+				payload: { changedTypes: ["tools"] },
+			});
+			expect(JSON.parse(await readFile(settingsPath, "utf8"))).toEqual({
+				autoUpdateEnabled: true,
+				telemetryOptOut: false,
+				disabledTools: ["read_file"],
+				tools: { generate_media: { enabled: true } },
+			});
+
+			const disabled = await transport.handleCommand({
+				version: "v1",
+				command: "settings.toggle",
+				requestId: "disable-generate-media",
+				clientId: "desktop-sidecar",
+				payload: {
+					type: "tools",
+					name: "generate_media",
+					enabled: false,
+					workspaceRoot: tempRoot,
+					cwd: tempRoot,
+				},
+			});
+
+			expect(disabled).toMatchObject({
+				ok: true,
+				payload: { changedTypes: ["tools"] },
+			});
+			expect(JSON.parse(await readFile(settingsPath, "utf8"))).toEqual({
+				autoUpdateEnabled: true,
+				telemetryOptOut: false,
+				disabledTools: ["read_file"],
+				tools: { generate_media: { enabled: false } },
+			});
+		} finally {
+			await transport?.stop();
+			if (previousSettingsPath === undefined) {
+				delete process.env.CLINE_GLOBAL_SETTINGS_PATH;
+			} else {
+				process.env.CLINE_GLOBAL_SETTINGS_PATH = previousSettingsPath;
+			}
+			await rm(tempRoot, { recursive: true, force: true });
+		}
+	});
+
 	it("uses an injected host plugin source across list and toggle commands", async () => {
 		let enabled = true;
 		const pluginSource: CorePluginSettingsSource = {
@@ -75,7 +156,12 @@ describe("hub settings commands", () => {
 				payload: {},
 			});
 			expect(listed.payload?.snapshot).toMatchObject({
-				plugins: [{ path: "host:memory-plugin", enabled: true }],
+				plugins: expect.arrayContaining([
+					expect.objectContaining({
+						path: "host:memory-plugin",
+						enabled: true,
+					}),
+				]),
 			});
 
 			const toggled = await transport.handleCommand({
@@ -90,7 +176,12 @@ describe("hub settings commands", () => {
 				},
 			});
 			expect(toggled.payload?.snapshot).toMatchObject({
-				plugins: [{ path: "host:memory-plugin", enabled: false }],
+				plugins: expect.arrayContaining([
+					expect.objectContaining({
+						path: "host:memory-plugin",
+						enabled: false,
+					}),
+				]),
 			});
 		} finally {
 			await transport.stop();
@@ -144,7 +235,12 @@ describe("hub settings commands", () => {
 				payload: {
 					changedTypes: ["plugins"],
 					snapshot: {
-						plugins: [{ path: "host:memory-plugin", enabled: false }],
+						plugins: expect.arrayContaining([
+							expect.objectContaining({
+								path: "host:memory-plugin",
+								enabled: false,
+							}),
+						]),
 					},
 				},
 			});
@@ -153,7 +249,12 @@ describe("hub settings commands", () => {
 			expect(settingsEvents[0]).toMatchObject({
 				types: ["plugins"],
 				snapshot: {
-					plugins: [{ path: "host:memory-plugin", enabled: false }],
+					plugins: expect.arrayContaining([
+						expect.objectContaining({
+							path: "host:memory-plugin",
+							enabled: false,
+						}),
+					]),
 				},
 			});
 		} finally {
@@ -231,6 +332,51 @@ describe("hub settings commands", () => {
 			});
 		} finally {
 			unsubscribe();
+			await transport.stop();
+		}
+	});
+
+	it("forwards explicit Agent Plugin paths to the hub settings service", async () => {
+		const snapshot = {
+			workflows: [],
+			rules: [],
+			skills: [],
+			plugins: [],
+			tools: [],
+			mcp: [],
+		};
+		const settingsService = {
+			list: vi.fn().mockResolvedValue(snapshot),
+		} as unknown as CoreSettingsService;
+		const transport = new HubServerTransport({
+			runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
+			scheduleOptions: { dbPath: ":memory:" },
+			settingsService,
+		});
+
+		try {
+			const reply = await transport.handleCommand({
+				version: "v1",
+				command: "settings.list",
+				requestId: "agent-plugins-list",
+				clientId: "cli",
+				payload: {
+					cwd: "/workspace",
+					workspaceRoot: "/workspace",
+					agentPluginPaths: ["./portable"],
+					includePluginTools: false,
+				},
+			});
+
+			expect(reply).toMatchObject({ ok: true, payload: { snapshot } });
+			expect(settingsService.list).toHaveBeenCalledWith({
+				cwd: "/workspace",
+				workspaceRoot: "/workspace",
+				agentPluginPaths: ["./portable"],
+				includePluginTools: false,
+				availabilityContext: undefined,
+			});
+		} finally {
 			await transport.stop();
 		}
 	});

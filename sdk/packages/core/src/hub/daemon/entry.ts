@@ -9,6 +9,10 @@ import { reconnectDaemonConnectors } from "../../services/connectors/daemon-conn
 import { createLocalHubScheduleRuntimeHandlers } from "../daemon/runtime-handlers";
 import { resolveHubEndpointOptions } from "../discovery/defaults";
 import {
+	HUB_LOCK_HELD_EXIT_CODE,
+	isHubLockHeldError,
+} from "../discovery/instance-lock";
+import {
 	resolveProductionHubOwnerContext,
 	resolveSharedHubOwnerContext,
 } from "../discovery/workspace";
@@ -36,6 +40,42 @@ export const hubDaemonReady = new Promise<void>((resolve, reject) => {
 // The daemon entrypoint also runs standalone, where no importer observes the
 // readiness promise. Keep startup failures handled by the fatal path below.
 void hubDaemonReady.catch(() => undefined);
+
+const HUB_STARTUP_BIND_RETRY_WINDOW_MS = 5_000;
+const HUB_STARTUP_BIND_RETRY_DELAY_MS = 250;
+
+function isAddressInUseError(error: unknown): boolean {
+	return (
+		error instanceof Error &&
+		(error as Error & { code?: string }).code === "EADDRINUSE"
+	);
+}
+
+async function startHubWebSocketServerWithBindRetry(
+	bindDeadline: number,
+	options: Parameters<typeof startHubWebSocketServer>[0],
+): Promise<Awaited<ReturnType<typeof startHubWebSocketServer>>> {
+	for (;;) {
+		try {
+			return await startHubWebSocketServer(options);
+		} catch (error) {
+			// A retiring predecessor can hold the port — or the instance lock —
+			// for a couple of seconds after acking shutdown. Wait either out
+			// within the deadline; a lock still held past it means a live Hub
+			// owns this context, and the rule is connect or diagnose, never
+			// replace (exit code 3, below).
+			if (
+				(!isAddressInUseError(error) && !isHubLockHeldError(error)) ||
+				Date.now() >= bindDeadline
+			) {
+				throw error;
+			}
+			await new Promise((resolve) =>
+				setTimeout(resolve, HUB_STARTUP_BIND_RETRY_DELAY_MS),
+			);
+		}
+	}
+}
 
 function parseArgs(argv: string[]): {
 	cwd: string;
@@ -198,9 +238,15 @@ async function main(): Promise<void> {
 		shutdownFatal("unhandledRejection", reason);
 	});
 
+	// A hub being retired can keep the port bound for a couple of seconds
+	// after acking shutdown (its watchdog force-exits below the 3s retire
+	// poll). Spawning into that window must wait the port out instead of
+	// dying with EADDRINUSE and leaving clients with no hub at all.
+	const bindDeadline = Date.now() + HUB_STARTUP_BIND_RETRY_WINDOW_MS;
 	let server: Awaited<ReturnType<typeof startHubWebSocketServer>>;
 	try {
-		server = await startHubWebSocketServer({
+		server = await startHubWebSocketServerWithBindRetry(bindDeadline, {
+			workspaceRoot: options.cwd,
 			onShutdownRequested: () => {
 				void requestOrQueueShutdown({
 					reason: "authenticated HTTP shutdown request",
@@ -312,6 +358,15 @@ async function main(): Promise<void> {
 
 void main().catch((error) => {
 	rejectHubDaemonReady(error);
+	if (isHubLockHeldError(error)) {
+		// A live Hub owns this context. Losing the singleton race is a
+		// diagnosis, not a failure to fight: exit distinctly and leave the
+		// running Hub alone.
+		process.stderr.write(
+			`[hub-daemon] another live Hub owns this data directory: ${error.message}\n`,
+		);
+		process.exit(HUB_LOCK_HELD_EXIT_CODE);
+	}
 	const message =
 		error instanceof Error ? error.stack || error.message : String(error);
 	process.stderr.write(`[hub-daemon] fatal: ${message}\n`);

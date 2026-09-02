@@ -1,11 +1,10 @@
 import {
 	createGateway,
 	createHandlerAsync,
-	getGeneratedModelsForProvider,
 	hasRegisteredHandler,
 	MODEL_COLLECTIONS_BY_PROVIDER_ID,
 	normalizeProviderId,
-	resolveProviderModelCatalogKeys,
+	toGatewayModelCapabilities,
 } from "@cline/llms";
 import type {
 	AgentConfig,
@@ -100,42 +99,15 @@ function readPositiveInteger(value: unknown): number | undefined {
 		: undefined;
 }
 
-function isGeneratedMediaModel(model: ModelInfo): boolean {
-	return (
-		model.modalities?.output.includes("image") === true ||
-		model.modalities?.output.includes("video") === true
-	);
-}
-
-function resolveFallbackKnownModels(
-	providerId: string,
-): Record<string, ModelInfo> | undefined {
-	const generatedMediaModels = Object.fromEntries(
-		resolveProviderModelCatalogKeys(providerId)
-			.flatMap((catalogKey) =>
-				Object.entries(getGeneratedModelsForProvider(catalogKey)),
-			)
-			.filter(([, model]) => isGeneratedMediaModel(model)),
-	);
-	const curatedModels = MODEL_COLLECTIONS_BY_PROVIDER_ID[providerId]?.models;
-	// Curated collections enforce transport-specific allowlists and limits
-	// (notably Codex, Claude Code, and local model providers). Generated catalog
-	// metadata may fill visual-media gaps, but must never overwrite those rules.
-	const knownModels = {
-		...generatedMediaModels,
-		...curatedModels,
-	};
-	return Object.keys(knownModels).length > 0 ? knownModels : undefined;
-}
-
 export function resolveKnownModelsFromConfig(
 	config: AgentConfig,
 ): Record<string, ModelInfo> | undefined {
 	const pc = config.providerConfig as ProviderConfig | undefined;
-	const knownModels =
-		pc?.knownModels ??
-		config.knownModels ??
-		resolveFallbackKnownModels(config.providerId);
+	const knownModels = pc?.knownModels
+		? pc.knownModels
+		: (config.knownModels ??
+			MODEL_COLLECTIONS_BY_PROVIDER_ID[config.providerId]?.models ??
+			undefined);
 	// Caller-configured limits are authoritative for the selected model —
 	// surface them to the gateway so the resolved model definition carries
 	// the right limits (e.g. Ollama's num_ctx derives from the resolved
@@ -168,36 +140,6 @@ export function resolveKnownModelsFromConfig(
 	};
 }
 
-function toGatewayCapabilities(
-	capabilities: ModelInfo["capabilities"],
-): GatewayModelDefinition["capabilities"] {
-	if (!capabilities?.length) {
-		return undefined;
-	}
-
-	const mapped = new Set<
-		NonNullable<GatewayModelDefinition["capabilities"]>[number]
-	>();
-	for (const capability of capabilities) {
-		switch (capability) {
-			case "tools":
-			case "reasoning":
-			case "prompt-cache":
-			case "images":
-				mapped.add(capability);
-				break;
-			case "structured_output":
-				mapped.add("structured-output");
-				break;
-			default:
-				mapped.add("text");
-		}
-	}
-
-	mapped.add("text");
-	return [...mapped];
-}
-
 function toGatewayConfiguredModel(
 	id: string,
 	model: ModelInfo,
@@ -209,8 +151,10 @@ function toGatewayConfiguredModel(
 		contextWindow: model.contextWindow,
 		maxInputTokens: model.maxInputTokens,
 		maxOutputTokens: model.maxTokens,
+		operation: model.operation,
+		operationModes: model.operationModes,
 		modalities: model.modalities,
-		capabilities: toGatewayCapabilities(model.capabilities),
+		capabilities: toGatewayModelCapabilities(model.capabilities),
 		reasoningOptions: model.reasoningOptions,
 		metadata: {
 			family: model.family,
