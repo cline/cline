@@ -1506,15 +1506,23 @@ describe("disconnectComposioToolkit", () => {
 				},
 			},
 		});
-		let releaseOldDelete: (() => void) | undefined;
+		// ca_old_acct is revoked by the disconnect AND by the reconnect's
+		// finalize (which supersedes it); collect every resolver so releasing
+		// unblocks all of them regardless of order.
+		const oldDeleteResolvers: Array<() => void> = [];
 		const remoteDelete = vi.fn((accountId: string) => {
 			if (accountId === "ca_old_acct") {
 				return new Promise((resolve) => {
-					releaseOldDelete = () => resolve({});
+					oldDeleteResolvers.push(() => resolve({}));
 				});
 			}
 			return Promise.resolve({});
 		});
+		const releaseOldDelete = () => {
+			for (const resolve of oldDeleteResolvers.splice(0)) {
+				resolve();
+			}
+		};
 		const client = {
 			toolkits: {
 				// Redirect-less reconnect: finalizes without a pending entry.
@@ -1562,7 +1570,12 @@ describe("disconnectComposioToolkit", () => {
 		expect(readStateFile(dir).toolkits?.github?.connectedAccountId).toBe(
 			"ca_new_acct",
 		);
-		releaseOldDelete?.();
+		// Wait until the reconnect's finalize has also issued its supersession
+		// revoke of ca_old_acct, then release every ca_old_acct delete.
+		await vi.waitFor(() => {
+			expect(remoteDelete.mock.calls.length).toBeGreaterThanOrEqual(2);
+		});
+		releaseOldDelete();
 		const disconnected = await disconnectPromise;
 		// The disconnect only revoked ca_old_acct; blindly deleting the slot
 		// would orphan ca_new_acct (authorized remotely, no local record) for
@@ -1575,7 +1588,11 @@ describe("disconnectComposioToolkit", () => {
 			disconnected.integrations.find((entry) => entry.toolkit === "github")
 				?.status,
 		).toBe("connected");
-		expect(remoteDelete).toHaveBeenCalledTimes(1);
+		// The surviving connection's own account is never revoked.
+		expect(remoteDelete).not.toHaveBeenCalledWith(
+			"ca_new_acct",
+			expect.anything(),
+		);
 		// And a later refresh keeps it, rather than re-importing an orphan.
 		const refreshed = await getComposioStatus({ refresh: true });
 		expect(
@@ -1585,6 +1602,93 @@ describe("disconnectComposioToolkit", () => {
 		expect(readStateFile(dir).toolkits?.github?.connectedAccountId).toBe(
 			"ca_new_acct",
 		);
+	});
+
+	it("a failed revocation whose slot was replaced hands the old account to the tombstone machinery", async () => {
+		const dir = useTempDataDir();
+		process.env.COMPOSIO_API_KEY = "ck_orphan_race";
+		writeState(dir, {
+			apiKey: "ck_orphan_race",
+			userId: "u_orphan_race",
+			toolkits: {
+				github: {
+					connectedAccountId: "ca_stale",
+					connectedAt: "2026-08-28T00:00:00.000Z",
+					tools: [{ slug: "GITHUB_CREATE_AN_ISSUE" }],
+				},
+			},
+		});
+		// ca_stale is revoked by the disconnect AND by the reconnect's finalize
+		// (which supersedes it); both fail. Collect every rejecter.
+		const staleRejecters: Array<(error: Error) => void> = [];
+		const remoteDelete = vi.fn((accountId: string) => {
+			if (accountId === "ca_stale") {
+				return new Promise((_resolve, reject) => {
+					staleRejecters.push(reject);
+				});
+			}
+			return Promise.resolve({});
+		});
+		const rejectStaleDelete = (error: Error) => {
+			for (const reject of staleRejecters.splice(0)) {
+				reject(error);
+			}
+		};
+		const client = {
+			toolkits: {
+				authorize: vi.fn(async () => ({
+					id: "ca_fresh_replace",
+					redirectUrl: null,
+					waitForConnection: async () => ({}),
+				})),
+			},
+			authConfigs: {
+				list: vi.fn(async () => ({ items: [] })),
+				create: vi.fn(),
+			},
+			tools: {
+				getRawComposioTools: vi.fn(async () => [
+					{ slug: "GITHUB_CREATE_AN_ISSUE" },
+				]),
+			},
+			connectedAccounts: {
+				list: vi.fn(async () => ({ items: [], nextCursor: null })),
+				link: vi.fn(),
+				delete: remoteDelete,
+			},
+		};
+		createMockComposioClient = () => client;
+
+		const disconnectPromise = disconnectComposioToolkit("github");
+		await vi.waitFor(() => {
+			expect(remoteDelete).toHaveBeenCalledWith("ca_stale", {
+				revoke_on_delete: true,
+			});
+		});
+		// A redirect-less reconnect replaces the slot while the disconnect is
+		// suspended on the (about to fail) revocation. The replacement also
+		// tombstones ca_stale defensively.
+		const reconnect = await connectComposioToolkit("github");
+		expect(reconnect.alreadyConnected).toBe(true);
+		// Wait for the finalize's own supersession revoke of ca_stale to be in
+		// flight too, then fail every ca_stale revocation at once.
+		await vi.waitFor(() => {
+			expect(remoteDelete.mock.calls.length).toBeGreaterThanOrEqual(2);
+		});
+		// The disconnect's revocation now fails. Throwing "still connected —
+		// try again" would be a lie (the slot holds the new account) and would
+		// leave ca_stale authorized with no local reference; instead it must
+		// stay tombstoned so reconciliation keeps retrying the revocation.
+		rejectStaleDelete(new Error("500 internal error"));
+		const disconnected = await disconnectPromise;
+		expect(
+			disconnected.integrations.find((entry) => entry.toolkit === "github")
+				?.status,
+		).toBe("connected");
+		expect(readStateFile(dir).toolkits?.github?.connectedAccountId).toBe(
+			"ca_fresh_replace",
+		);
+		expect(readStateFile(dir).cancelledAccountIds).toContain("ca_stale");
 	});
 
 	it("treats an account that is already gone remotely as revoked", async () => {
