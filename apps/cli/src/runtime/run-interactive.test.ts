@@ -82,7 +82,6 @@ describe("applyInteractiveModelChange", () => {
 			version: 1 as const,
 			modes: {},
 			providers: {},
-			modes: {},
 		}));
 		const ensureReady = vi.fn(async () => {});
 		const restartWithCurrentMessages = vi.fn(async () => {});

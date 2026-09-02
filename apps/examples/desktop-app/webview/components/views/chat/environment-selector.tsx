@@ -72,7 +72,8 @@ export function buildEnvironmentSelectorModel(
 
 	return {
 		activeKind: localSelected ? "local" : "remote",
-		activeLabel: activeRemote?.label ?? (localSelected ? "Local" : "Remote SSH"),
+		activeLabel:
+			activeRemote?.label ?? (localSelected ? "Local" : "Remote SSH"),
 		local: {
 			id: LOCAL_WORKSPACE_ENVIRONMENT_ID,
 			label: "Local",
@@ -259,7 +260,6 @@ export function EnvironmentSelector({
 						<Check className="ml-auto" />
 					) : null}
 				</DropdownMenuItem>
-
 			</DropdownMenuContent>
 		</DropdownMenu>
 	);

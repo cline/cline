@@ -28,6 +28,8 @@ type CliDiscoveredSession = Omit<SessionHistoryItem, "status"> & {
 
 export interface SessionThread {
 	id: string;
+	/** Runtime environment that owns the session (local, SSH, or cloud). */
+	environmentId?: string;
 	origin?: "local" | "cloud";
 	repoUrl?: string;
 	title: string;
@@ -285,6 +287,8 @@ function toThread(session: SessionHistoryItem): SessionThread {
 	const schedule = getSessionMetadataSchedule(session.metadata);
 	return {
 		id: session.sessionId,
+		environmentId:
+			session.environmentId?.trim() || LOCAL_WORKSPACE_ENVIRONMENT_ID,
 		origin: session.origin,
 		repoUrl: session.repoUrl,
 		title: toTitle(session),
@@ -446,6 +450,7 @@ function areThreadsEquivalent(
 		const b = next[i];
 		if (
 			a.id !== b.id ||
+			a.environmentId !== b.environmentId ||
 			a.origin !== b.origin ||
 			a.repoUrl !== b.repoUrl ||
 			a.title !== b.title ||

@@ -96,7 +96,7 @@ describe("sidebar session organization", () => {
 		]);
 		expect(rows[1]).toMatchObject({
 			kind: "schedule",
-			id: "schedule:sched_daily",
+			id: "environment:local:schedule:sched_daily",
 		});
 	});
 
@@ -125,12 +125,40 @@ describe("sidebar session organization", () => {
 					: row.thread.id,
 			),
 		).toEqual([
-			"title:report today's date to the user.:2",
-			"schedule:sched_daily:1",
+			"environment:local:title:report today's date to the user.:2",
+			"environment:local:schedule:sched_daily:1",
 		]);
 		expect(rows[0]).toMatchObject({
 			label: "Report today's date to the user.",
 		});
+	});
+
+	it("keeps schedules from different runtime environments in separate groups", () => {
+		const rows = groupScheduledThreads([
+			thread("local-run", "/work/acme/repo", {
+				environmentId: "local",
+				title: "Daily report",
+				isScheduled: true,
+				scheduleId: "sched_daily",
+			}),
+			thread("remote-run", "/work/acme/repo", {
+				environmentId: "ssh:pi-host",
+				title: "Daily report",
+				isScheduled: true,
+				scheduleId: "sched_daily",
+			}),
+		]);
+
+		expect(
+			rows.map((row) =>
+				row.kind === "schedule"
+					? `${row.id}:${row.threads.map((item) => item.id).join(",")}`
+					: row.thread.id,
+			),
+		).toEqual([
+			"environment:local:schedule:sched_daily:local-run",
+			"environment:ssh:pi-host:schedule:sched_daily:remote-run",
+		]);
 	});
 
 	it("labels runs by number and falls back to the start time", () => {

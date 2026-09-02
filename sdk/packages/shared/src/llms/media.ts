@@ -3,6 +3,9 @@ import { z } from "zod";
 export const IMAGE_OMITTED_PLACEHOLDER =
 	"[media omitted: invalid or exceeds size limit]";
 
+export const GENERATED_MEDIA_OMITTED_PLACEHOLDER =
+	"[Generated image omitted from model context: invalid or exceeds size limit. The user can still access and view the original image in the conversation; do not regenerate it solely because of this notice.]";
+
 /**
  * Substituted for image content at request-build time when the target model
  * does not advertise image input. The stored conversation history keeps the

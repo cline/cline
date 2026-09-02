@@ -4,7 +4,10 @@ import {
 	parseTimestamp,
 	type SessionThread,
 } from "@/hooks/use-session-history";
-import { normalizeWorkspacePath } from "@/lib/workspace-paths";
+import {
+	LOCAL_WORKSPACE_ENVIRONMENT_ID,
+	normalizeWorkspacePath,
+} from "@/lib/workspace-paths";
 
 // One page of sidebar rows. Large enough to fill the sidebar on a tall
 // window (10 left a stub of rows over empty space); history fetches start at
@@ -77,7 +80,7 @@ export function groupThreadsByProject(
 
 export type SidebarScheduleGroup = {
 	kind: "schedule";
-	/** Stable key: the schedule id when known, otherwise the shared title. */
+	/** Stable key: the environment plus schedule id or shared title. */
 	id: string;
 	label: string;
 	/** Runs in the order they were given (newest first in the sidebar). */
@@ -91,15 +94,18 @@ export type SidebarListRow =
 /**
  * Key that decides which schedule group a thread joins. Runs stamped with a
  * schedule id (or linked to one through the executions list) group by that
- * id; older runs without one group by their shared title, since a schedule's
- * sessions all start from the same prompt. Non-scheduled threads return null.
+ * id within their runtime environment; older runs without one group by their
+ * shared title and environment, since a schedule's sessions all start from
+ * the same prompt. Non-scheduled threads return null.
  */
 export function scheduleGroupKey(thread: SessionThread): string | null {
 	if (!thread.isScheduled) return null;
+	const environmentId =
+		thread.environmentId?.trim() || LOCAL_WORKSPACE_ENVIRONMENT_ID;
 	const scheduleId = thread.scheduleId?.trim();
-	if (scheduleId) return `schedule:${scheduleId}`;
+	if (scheduleId) return `environment:${environmentId}:schedule:${scheduleId}`;
 	const title = normalizeTitle(thread.title).trim().toLowerCase();
-	return title ? `title:${title}` : null;
+	return title ? `environment:${environmentId}:title:${title}` : null;
 }
 
 /**

@@ -65,6 +65,20 @@ describe("DefaultRuntimeBuilder", () => {
 	const previousHome = process.env.HOME;
 	const previousGlobalSettingsPath = process.env.CLINE_GLOBAL_SETTINGS_PATH;
 	const tempDirs: string[] = [];
+	const configureOptInTools = (
+		tools: Record<string, { enabled: boolean }> = {},
+	): void => {
+		const settingsRoot = mkdtempSync(join(tmpdir(), "cline-opt-in-tools-"));
+		tempDirs.push(settingsRoot);
+		process.env.CLINE_GLOBAL_SETTINGS_PATH = join(
+			settingsRoot,
+			"global-settings.json",
+		);
+		writeFileSync(
+			process.env.CLINE_GLOBAL_SETTINGS_PATH,
+			JSON.stringify({ tools }),
+		);
+	};
 
 	afterEach(() => {
 		process.env.HOME = previousHome;
@@ -83,6 +97,44 @@ describe("DefaultRuntimeBuilder", () => {
 		const names = runtime.tools.map((tool) => tool.name);
 		expect(names.length).toBeGreaterThan(0);
 		expect(names).not.toContain("spawn_agent");
+	});
+
+	it("registers generate_media only when opted in and its executor is available", async () => {
+		configureOptInTools({ generate_media: { enabled: true } });
+		const withoutExecutor = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig(),
+		});
+		expect(withoutExecutor.tools.map((tool) => tool.name)).not.toContain(
+			"generate_media",
+		);
+
+		const withExecutor = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig(),
+			toolExecutors: {
+				generateMedia: async () => [],
+			},
+		});
+		expect(withExecutor.tools.map((tool) => tool.name)).toContain(
+			"generate_media",
+		);
+	});
+
+	it("applies tool policies to generate_media", async () => {
+		configureOptInTools({ generate_media: { enabled: true } });
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({
+				toolPolicies: {
+					generate_media: { enabled: false },
+				},
+			}),
+			toolExecutors: {
+				generateMedia: async () => [],
+			},
+		});
+
+		expect(runtime.tools.map((tool) => tool.name)).not.toContain(
+			"generate_media",
+		);
 	});
 
 	it("derives enabled provider tools without registering a local executor", async () => {
@@ -121,6 +173,61 @@ describe("DefaultRuntimeBuilder", () => {
 		});
 		expect(runtime.tools.some((tool) => tool.name === "image_generation")).toBe(
 			false,
+		);
+	});
+
+	it("prefers the configured generate_media tool over provider-native image generation", async () => {
+		configureOptInTools({ generate_media: { enabled: true } });
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({
+				providerId: "openai-native",
+				modelId: "gpt-5.4",
+			}),
+			toolExecutors: {
+				generateMedia: async () => [],
+			},
+		});
+
+		expect(runtime.modelTools).not.toContainEqual(
+			expect.objectContaining({ name: "image_generation" }),
+		);
+		expect(runtime.tools.map((tool) => tool.name)).toContain("generate_media");
+	});
+
+	it("does not restore provider-native image generation when generate_media is disabled", async () => {
+		configureOptInTools({ generate_media: { enabled: true } });
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({
+				providerId: "openai-native",
+				modelId: "gpt-5.4",
+				toolPolicies: { generate_media: { enabled: false } },
+			}),
+			toolExecutors: { generateMedia: async () => [] },
+		});
+
+		expect(runtime.modelTools).not.toContainEqual(
+			expect.objectContaining({ name: "image_generation" }),
+		);
+		expect(runtime.tools.map((tool) => tool.name)).not.toContain(
+			"generate_media",
+		);
+	});
+
+	it("keeps native image generation suppressed when generate_media is not opted in", async () => {
+		configureOptInTools();
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({
+				providerId: "openai-native",
+				modelId: "gpt-5.4",
+			}),
+			toolExecutors: { generateMedia: async () => [] },
+		});
+
+		expect(runtime.modelTools).not.toContainEqual(
+			expect.objectContaining({ name: "image_generation" }),
+		);
+		expect(runtime.tools.map((tool) => tool.name)).not.toContain(
+			"generate_media",
 		);
 	});
 

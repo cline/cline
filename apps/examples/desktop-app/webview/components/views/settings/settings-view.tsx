@@ -52,6 +52,10 @@ import {
 	subscribeToProviderCatalogInvalidation,
 } from "@/lib/provider-model-catalog";
 import type {
+	MediaGenerationModelCatalog,
+	MediaGenerationSettings,
+	MediaGenerationType,
+	MediaModelSelection,
 	Provider,
 	ProviderCatalogResponse,
 	ProviderMode,
@@ -103,11 +107,22 @@ type GlobalSettingsResponse = {
 
 const PROVIDER_CATALOG_CACHE_TTL_MS = 60_000;
 
+export function isProviderCatalogFresh(
+	fetchedAt: number | undefined,
+	now = Date.now(),
+): boolean {
+	return (
+		fetchedAt !== undefined && now - fetchedAt < PROVIDER_CATALOG_CACHE_TTL_MS
+	);
+}
+
 let providerCatalogCache: {
 	providers: Provider[];
+	mediaGenerationModels: MediaGenerationModelCatalog;
 	fetchedAt: number;
 } | null = null;
 let modeSettingsCache: ProviderModesSettings = {};
+let mediaGenerationCache: MediaGenerationSettings | undefined;
 
 function removeProviderModes(
 	modes: ProviderModesSettings,
@@ -144,7 +159,7 @@ export function SettingsView({
 		() => providerCatalogCache?.providers ?? [],
 	);
 	const [providersLoading, setProvidersLoading] = useState(
-		() => !providerCatalogCache,
+		() => !isProviderCatalogFresh(providerCatalogCache?.fetchedAt),
 	);
 	const [providerCatalogError, setProviderCatalogError] = useState<
 		string | null
@@ -175,6 +190,21 @@ export function SettingsView({
 	// detail panel so its local field drafts remount from the reloaded
 	// props instead of keeping unpersisted values.
 	const [detailResetToken, setDetailResetToken] = useState(0);
+	const [mediaGeneration, setMediaGeneration] = useState<
+		MediaGenerationSettings | undefined
+	>(() => mediaGenerationCache);
+	const [mediaGenerationModels, setMediaGenerationModels] =
+		useState<MediaGenerationModelCatalog>(
+			() =>
+				providerCatalogCache?.mediaGenerationModels ?? {
+					audio: {},
+					image: {},
+					video: {},
+				},
+		);
+	const [mediaGenerationSaving, setMediaGenerationSaving] = useState<
+		Partial<Record<MediaGenerationType, boolean>>
+	>({});
 
 	useEffect(() => {
 		if (section !== "Models") {
@@ -184,7 +214,10 @@ export function SettingsView({
 	}, [section]);
 
 	const setProvidersWithCache = useCallback(
-		(next: Provider[] | ((prev: Provider[]) => Provider[])) => {
+		(
+			next: Provider[] | ((prev: Provider[]) => Provider[]),
+			mediaGenerationModels?: MediaGenerationModelCatalog,
+		) => {
 			setProviders((prev) => {
 				const resolved =
 					typeof next === "function"
@@ -192,6 +225,12 @@ export function SettingsView({
 						: next;
 				providerCatalogCache = {
 					providers: resolved,
+					mediaGenerationModels: mediaGenerationModels ??
+						providerCatalogCache?.mediaGenerationModels ?? {
+							audio: {},
+							image: {},
+							video: {},
+						},
 					fetchedAt: Date.now(),
 				};
 				return resolved;
@@ -210,10 +249,12 @@ export function SettingsView({
 		const now = Date.now();
 		if (
 			providerCatalogCache &&
-			now - providerCatalogCache.fetchedAt < PROVIDER_CATALOG_CACHE_TTL_MS
+			isProviderCatalogFresh(providerCatalogCache.fetchedAt, now)
 		) {
 			setProviders(providerCatalogCache.providers);
 			setModeSettings(modeSettingsCache);
+			setMediaGeneration(mediaGenerationCache);
+			setMediaGenerationModels(providerCatalogCache.mediaGenerationModels);
 			setProvidersLoading(false);
 			setProviderCatalogError(null);
 			return true;
@@ -229,12 +270,15 @@ export function SettingsView({
 			if (generation !== catalogGenerationRef.current) {
 				return false;
 			}
-			setProvidersWithCache(payload.providers);
+			setProvidersWithCache(payload.providers, payload.mediaGenerationModels);
+			setMediaGenerationModels(payload.mediaGenerationModels);
 			const modes =
 				payload.modes ??
 				(payload.voiceInput ? { voiceInput: payload.voiceInput } : {});
 			modeSettingsCache = modes;
 			setModeSettings(modes);
+			mediaGenerationCache = payload.mediaGeneration;
+			setMediaGeneration(payload.mediaGeneration);
 		} catch (error) {
 			if (generation !== catalogGenerationRef.current) {
 				return false;
@@ -249,7 +293,7 @@ export function SettingsView({
 	}, [setProvidersWithCache]);
 
 	useEffect(() => {
-		if (activeNav !== "Models") {
+		if (activeNav !== "Models" && activeNav !== "Customize") {
 			return;
 		}
 		const timeoutId = window.setTimeout(() => {
@@ -276,7 +320,15 @@ export function SettingsView({
 			if (generation !== catalogGenerationRef.current) {
 				return;
 			}
-			setProvidersWithCache(payload.providers);
+			setProvidersWithCache(payload.providers, payload.mediaGenerationModels);
+			setMediaGenerationModels(payload.mediaGenerationModels);
+			const modes =
+				payload.modes ??
+				(payload.voiceInput ? { voiceInput: payload.voiceInput } : {});
+			modeSettingsCache = modes;
+			setModeSettings(modes);
+			mediaGenerationCache = payload.mediaGeneration;
+			setMediaGeneration(payload.mediaGeneration);
 		} catch {
 			// Background refresh only; the optimistic state remains until the
 			// next full load.
@@ -404,7 +456,6 @@ export function SettingsView({
 				// a voice-input selection pointing at it); reload so the view and
 				// the chat microphone reflect the real on-disk state.
 				providerCatalogCache = null;
-				notifyVoiceInputSettingsChanged();
 				await loadProviderCatalog();
 			}
 		},
@@ -414,6 +465,38 @@ export function SettingsView({
 			persistProviderSettings,
 			setProvidersWithCache,
 		],
+	);
+
+	const updateMediaGeneration = useCallback(
+		async (
+			mediaType: MediaGenerationType,
+			selection: MediaModelSelection | undefined,
+		) => {
+			setMediaGenerationSaving((current) => ({
+				...current,
+				[mediaType]: true,
+			}));
+			try {
+				const result = await desktopClient.invoke<{
+					mediaGeneration?: MediaGenerationSettings;
+				}>("save_media_generation_settings", {
+					media_type: mediaType,
+					provider: selection?.providerId,
+					model: selection?.modelId,
+				});
+				mediaGenerationCache = result.mediaGeneration;
+				setMediaGeneration(result.mediaGeneration);
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
+				window.alert(`Failed to save media generation settings: ${message}`);
+			} finally {
+				setMediaGenerationSaving((current) => ({
+					...current,
+					[mediaType]: false,
+				}));
+			}
+		},
+		[],
 	);
 
 	const updateProvider = useCallback(
@@ -716,6 +799,21 @@ export function SettingsView({
 			/>
 		) : activeNav === "Customize" ? (
 			<CustomizeView
+				generateMediaConfig={{
+					error: providerCatalogError,
+					loading: providersLoading,
+					mediaTypes: [
+						{
+							mediaType: "image",
+							modelIdsByProvider: mediaGenerationModels.image,
+							saving: mediaGenerationSaving.image === true,
+							selection: mediaGeneration?.image,
+						},
+					],
+					onChange: updateMediaGeneration,
+					onConfigureProviders: () => onNavigateSection("Models"),
+					providers,
+				}}
 				onOpenMarketplace={() => onNavigateSection("Marketplace")}
 			/>
 		) : activeNav === "Marketplace" ? (

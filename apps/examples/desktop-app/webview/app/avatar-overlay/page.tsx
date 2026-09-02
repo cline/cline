@@ -148,10 +148,10 @@ export default function AvatarOverlayPage() {
 			animation === "running"
 				? AVATAR_RUNNING_DURATIONS_MS
 				: animation === "jumping"
-				? AVATAR_JUMP_DURATIONS_MS
-				: animation === "waving"
-					? AVATAR_WAVE_DURATIONS_MS
-					: AVATAR_IDLE_DURATIONS_MS;
+					? AVATAR_JUMP_DURATIONS_MS
+					: animation === "waving"
+						? AVATAR_WAVE_DURATIONS_MS
+						: AVATAR_IDLE_DURATIONS_MS;
 		const timeout = window.setTimeout(() => {
 			if (
 				(animation === "waving" || animation === "jumping") &&
@@ -204,7 +204,13 @@ export default function AvatarOverlayPage() {
 	};
 
 	const animationRow =
-		animation === "running" ? 1 : animation === "waving" ? 3 : animation === "jumping" ? 4 : 0;
+		animation === "running"
+			? 1
+			: animation === "waving"
+				? 3
+				: animation === "jumping"
+					? 4
+					: 0;
 
 	return (
 		<main
