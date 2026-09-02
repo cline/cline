@@ -330,27 +330,44 @@ describe("AgentSidebar session organization", () => {
 			scheduleName: "Daily date report",
 			scheduleRunNumber: index,
 		});
+		const sessionHistory = makeSessionHistory([run(2), run(1)], vi.fn());
+		const render = async (activeSessionId: string) => {
+			await act(async () => {
+				root.render(
+					<SidebarProvider>
+						<AgentSidebar
+							activeSessionId={activeSessionId}
+							onHome={vi.fn()}
+							onSettingsSectionChange={vi.fn()}
+							sessionHistory={sessionHistory}
+							setView={vi.fn()}
+							settingsSection="General"
+							view="chat"
+						/>
+					</SidebarProvider>,
+				);
+			});
+		};
 
-		await act(async () => {
-			root.render(
-				<SidebarProvider>
-					<AgentSidebar
-						activeSessionId="alpha-1"
-						onHome={vi.fn()}
-						onSettingsSectionChange={vi.fn()}
-						sessionHistory={makeSessionHistory([run(2), run(1)], vi.fn())}
-						setView={vi.fn()}
-						settingsSection="General"
-						view="chat"
-					/>
-				</SidebarProvider>,
-			);
-		});
-
+		await render("alpha-1");
 		expect(sessionRow("Daily date report").getAttribute("aria-expanded")).toBe(
 			"true",
 		);
 		expect(sessionIsVisible("Run 1")).toBe(true);
+
+		// The group can still be collapsed while it holds the active session,
+		// and stays collapsed across re-renders.
+		await click(sessionRow("Daily date report"));
+		await render("alpha-1");
+		expect(sessionIsVisible("Run 1")).toBe(false);
+
+		// Opening another run of the schedule (e.g. from the Schedules
+		// settings page) reopens the collapsed group so the run is visible.
+		await render("alpha-2");
+		expect(sessionRow("Daily date report").getAttribute("aria-expanded")).toBe(
+			"true",
+		);
+		expect(sessionIsVisible("Run 2")).toBe(true);
 	});
 
 	it("groups scheduled runs inside their project when sorted by project", async () => {

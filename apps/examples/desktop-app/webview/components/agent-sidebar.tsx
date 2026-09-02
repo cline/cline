@@ -101,6 +101,7 @@ import {
 	INITIAL_VISIBLE_THREAD_COUNT,
 	type SidebarListRow,
 	type SidebarScheduleGroup,
+	scheduleGroupKey,
 	scheduleRunLabel,
 	workspaceDisplayName,
 } from "@/lib/sidebar-session-organization";
@@ -547,6 +548,23 @@ export function AgentSidebar({
 			return next;
 		});
 	}, []);
+	// Opening a session drops the stored choice for the group that holds it,
+	// so a run opened elsewhere is visible even if its group was collapsed
+	// earlier. Keyed on the session and group ids rather than the thread list
+	// so a history refresh doesn't undo a collapse made while it is open.
+	const activeScheduleGroupId = useMemo(() => {
+		const thread = threads.find((t) => t.id === activeThread);
+		return thread ? scheduleGroupKey(thread) : null;
+	}, [activeThread, threads]);
+	useEffect(() => {
+		if (!activeThread || !activeScheduleGroupId) return;
+		setScheduleGroupExpanded((current) => {
+			if (!current.has(activeScheduleGroupId)) return current;
+			const next = new Map(current);
+			next.delete(activeScheduleGroupId);
+			return next;
+		});
+	}, [activeThread, activeScheduleGroupId]);
 	const isScheduleGroupExpanded = useCallback(
 		(group: SidebarScheduleGroup) =>
 			scheduleGroupExpanded.get(group.id) ??
