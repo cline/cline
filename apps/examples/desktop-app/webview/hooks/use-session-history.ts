@@ -1041,6 +1041,20 @@ export function useSessionHistory({
 				}
 			},
 		);
+		const unsubscribeTransportImport = desktopClient.subscribe(
+			"session_import_progress",
+			(payload) => {
+				if (!payload || typeof payload !== "object") {
+					return;
+				}
+				// Imported sessions land directly in the store; refresh so they
+				// appear in history no matter where the import was started from.
+				const result = (payload as { result?: { ok?: boolean } }).result;
+				if (result?.ok) {
+					scheduleRefresh(HISTORY_EVENT_REFRESH_DELAY_MS, { force: true });
+				}
+			},
+		);
 		const unsubscribeTransportChatEvent = desktopClient.subscribe(
 			"chat_event",
 			(payload) => {
@@ -1079,6 +1093,7 @@ export function useSessionHistory({
 			unsubscribeTransportDelete();
 			unsubscribeTransportStatus();
 			unsubscribeTransportEnded();
+			unsubscribeTransportImport();
 			unsubscribeTransportChatEvent();
 		};
 	}, [activeSessionId, scheduleRefresh]);
