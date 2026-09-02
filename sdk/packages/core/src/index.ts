@@ -502,6 +502,10 @@ export {
 	type RuntimeOAuthResolution,
 	RuntimeOAuthTokenManager,
 } from "./runtime/orchestration/runtime-oauth-token-manager";
+export {
+	type RuntimeFrameAdapterOptions,
+	RuntimeFrameAdapter,
+} from "./runtime/orchestration/runtime-frame-adapter";
 export type {
 	BuiltRuntime,
 	RuntimeBuilder,
