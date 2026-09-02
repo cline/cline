@@ -445,6 +445,21 @@ class StdioMcpClient implements McpServerClient {
 				new Error(`MCP process error: ${toErrorMessage(error)}`),
 			);
 		});
+		// A server that dies or closes stdin while a request is still being
+		// written fails that write asynchronously on the stdin stream. Without
+		// a listener Node raises it as an uncaught exception on the host
+		// process. The "exit" handler reports the server's fate for anything
+		// still pending; the write error only needs a home.
+		child.stdin.on("error", (error) => {
+			if (this.process !== child) {
+				return;
+			}
+			this.failAllPending(
+				new Error(
+					`MCP process for "${this.registration.name}" stopped accepting input: ${toErrorMessage(error)}`,
+				),
+			);
+		});
 		child.once("exit", (code, signal) => {
 			if (this.process !== child) {
 				return;
