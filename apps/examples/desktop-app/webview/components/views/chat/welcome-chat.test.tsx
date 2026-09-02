@@ -8,16 +8,21 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
 import { WelcomeScreen } from "./welcome-chat";
 
-const { invokeMock, subscribeMock, accountRef } = vi.hoisted(() => ({
-	invokeMock: vi.fn(
-		async (_command: string, _args?: unknown) => ({}) as unknown,
-	),
-	subscribeMock: vi.fn(
-		(_eventName: string, _handler: (payload: unknown) => void) => () =>
-			undefined,
-	),
-	accountRef: { user: null as { id: string } | null },
-}));
+const { invokeMock, subscribeMock, accountRef, openExternalUrlMock } =
+	vi.hoisted(() => ({
+		invokeMock: vi.fn(
+			async (_command: string, _args?: unknown) => ({}) as unknown,
+		),
+		openExternalUrlMock: vi.fn(async () => undefined),
+		subscribeMock: vi.fn(
+			(_eventName: string, _handler: (payload: unknown) => void) => () =>
+				undefined,
+		),
+		accountRef: {
+			user: null as { id: string } | null,
+			activeOrganization: null as { id: string } | null,
+		},
+	}));
 
 const listAgendaTasksMock = vi.hoisted(() => vi.fn());
 const approveAgendaTaskMock = vi.hoisted(() => vi.fn());
@@ -33,7 +38,7 @@ vi.mock("@/lib/desktop-client", () => ({
 		subscribe: subscribeMock,
 		subscribeTransportState: vi.fn(() => () => undefined),
 	},
-	openExternalUrl: vi.fn(async () => undefined),
+	openExternalUrl: openExternalUrlMock,
 }));
 // The Agenda UI ships hidden for now; these tests force the flag on so they
 // keep guarding the dormant feature. agenda-ui-hidden.test.tsx covers the
@@ -43,6 +48,7 @@ vi.mock("@/lib/feature-flags", () => ({ AGENDA_UI_ENABLED: true }));
 vi.mock("@/contexts/account-context", () => ({
 	useAccount: () => ({
 		user: accountRef.user,
+		activeOrganization: accountRef.activeOrganization,
 		refreshAccount: vi.fn(async () => undefined),
 	}),
 }));
@@ -139,6 +145,39 @@ async function clickButton(
 }
 
 describe("WelcomeScreen", () => {
+	it("opens the GitHub App install flow from cloud onboarding", async () => {
+		accountRef.user = { id: "user-1" };
+		invokeMock.mockImplementation(async (command: string) => {
+			if (command === "list_cloud_repositories") {
+				return {
+					connected: false,
+					connectUrl: "https://app.example/dashboard/integrations",
+					repositories: [],
+				};
+			}
+			if (command === "cline_integrations") {
+				return { url: "https://github.com/apps/cline/installations/new" };
+			}
+			return {};
+		});
+
+		await renderWelcomeScreen({
+			cloudAgentsEnabled: true,
+			executionTarget: "cloud",
+			workspaceRoot: "/projects/project-1",
+			workspaces: ["/projects/project-1"],
+		});
+		await clickButton("Connect GitHub");
+
+		expect(invokeMock).toHaveBeenCalledWith("cline_integrations", {
+			operation: "githubInstallUrl",
+		});
+		expect(openExternalUrlMock).toHaveBeenCalledWith(
+			"https://github.com/apps/cline/installations/new",
+		);
+		accountRef.user = null;
+	});
+
 	it("does not render static prompt suggestions", async () => {
 		await renderWelcomeScreen({
 			gitBranch: "main",

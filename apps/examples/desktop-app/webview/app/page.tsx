@@ -55,6 +55,7 @@ import { toast } from "@/hooks/use-toast";
 import { applyAppZoomAction, syncAppFontSize } from "@/lib/app-font-size";
 import { syncAppIcon } from "@/lib/app-icon";
 import type { ChatSessionConfig } from "@/lib/chat-schema";
+import { openPersonalGitHubInstallUrl } from "@/lib/cline-integrations";
 import {
 	cloudRepositoryLabel,
 	isCloudProvisioningSessionId,
@@ -69,7 +70,7 @@ import {
 	type DesktopAppView,
 	desktopAppReducer,
 } from "@/lib/desktop-app-state";
-import { desktopClient } from "@/lib/desktop-client";
+import { desktopClient, openExternalUrl } from "@/lib/desktop-client";
 import { watchDesktopNotifications } from "@/lib/desktop-notifications";
 import {
 	subscribeToDesktopActions,
@@ -771,8 +772,18 @@ function ChatThreadPane({
 	const [gitBranch, setGitBranch] = useState<string | null>(null);
 	// Re-evaluate the account-targeted flag after sign-in changes.
 	const [cloudAgentsEnabled, setCloudAgentsEnabled] = useState(false);
-	const { user: accountUser } = useAccount();
+	const { user: accountUser, activeOrganization } = useAccount();
 	const accountUserId = accountUser?.id ?? null;
+	const openGitHubConnect = useCallback(
+		async (fallbackUrl: string) => {
+			if (activeOrganization) {
+				await openExternalUrl(fallbackUrl);
+				return;
+			}
+			await openPersonalGitHubInstallUrl(fallbackUrl);
+		},
+		[activeOrganization],
+	);
 	useEffect(() => {
 		void accountUserId;
 		let cancelled = false;
@@ -1883,6 +1894,11 @@ function ChatThreadPane({
 		/>
 	);
 
+	const cloudConnectUrl =
+		cloudSessionError?.code === "github_not_connected"
+			? cloudSessionError.connectUrl
+			: undefined;
+
 	return (
 		<WorkspaceProvider value={workspaceContextValue}>
 			{/* Requires `dragDropEnabled: false` on the Tauri window so the native shell does not swallow OS file drags. */}
@@ -1971,11 +1987,10 @@ function ChatThreadPane({
 								chatTransportState={chatTransportState}
 								error={cloudSessionError?.message ?? displayedError}
 								errorAction={
-									cloudSessionError?.code === "github_not_connected" &&
-									cloudSessionError.connectUrl
+									cloudConnectUrl
 										? {
 												label: "Connect GitHub",
-												url: cloudSessionError.connectUrl,
+												onClick: () => openGitHubConnect(cloudConnectUrl),
 											}
 										: undefined
 								}
