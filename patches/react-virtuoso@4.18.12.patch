@@ -1,0 +1,22 @@
+diff --git a/dist/index.mjs b/dist/index.mjs
+index fa294a6c2546197da0d1c4139d753104f4f02539..c1afabd5e883d368f070b760011044e92e90f125 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -2078,7 +2078,16 @@ const rr = no(() => /iP(ad|od|hone)/i.test(navigator.userAgent) && /WebKit/i.tes
+           ([, f, a, S], [{ bottom: H, items: y, offsetBottom: k, totalCount: u }, g]) => {
+             const C = H + k;
+             let L = 0;
+-            return a === u && f.length > 0 && y.length > 0 && (y[0].originalIndex === 0 && f[0].originalIndex === 0 || (L = C - S, L !== 0 && (L += g))), [L, y, u, C];
++            if (a === u && f.length > 0 && y.length > 0 && !(y[0].originalIndex === 0 && f[0].originalIndex === 0)) {
++              L = C - S;
++              // A size change of the last list item shifts nothing above it, so it never needs
++              // upward-scroll compensation. Without this, a growing tail (e.g. a streaming chat
++              // message) pulls the viewport back down while the user scrolls up.
++              const N = y[y.length - 1], F = f[f.length - 1];
++              N.originalIndex === u - 1 && F.originalIndex === N.originalIndex && (L -= N.size - F.size);
++              L !== 0 && (L += g);
++            }
++            return [L, y, u, C];
+           },
+           [0, [], 0, 0]
+         ),
