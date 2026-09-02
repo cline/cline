@@ -76,6 +76,13 @@ export interface McpAddDefaults {
 	type?: McpTransport["type"];
 	command?: string;
 	url?: string;
+	headers?: Record<string, string>;
+	/**
+	 * Install definitions may prefill only the public OAuth client policy. Client
+	 * secrets remain an explicit wizard-only input and are never accepted from a
+	 * marketplace or CLI install flag.
+	 */
+	oauthClient?: Omit<McpServerOAuthClientConfig, "clientSecret">;
 }
 
 export interface RunMcpWizardOptions {
@@ -505,6 +512,13 @@ async function actionAdd(defaults?: McpAddDefaults): Promise<void> {
 	} else {
 		const config = await collectUrlTransport(type as "sse" | "streamableHttp", {
 			url: defaults?.url,
+			headers: defaults?.headers,
+			authMode: defaults?.oauthClient
+				? "oauth"
+				: defaults?.headers
+					? "headers"
+					: undefined,
+			oauthClient: defaults?.oauthClient,
 		});
 		transport = config?.transport ?? null;
 		authMode = config?.authMode ?? "none";

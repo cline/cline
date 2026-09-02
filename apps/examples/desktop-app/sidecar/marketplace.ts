@@ -18,6 +18,7 @@ import {
 	resolve,
 } from "node:path";
 import {
+	buildMcpInstallTransport,
 	installPlugin as installCorePlugin,
 	installMcpServer,
 	type MarketplaceActionResult,
@@ -348,114 +349,28 @@ const defaultSpawnCommand: SpawnCommand = async (command, args, options = {}) =>
 		});
 	});
 
-function normalizeTransport(value: string | undefined): string {
-	const normalized = (value ?? "stdio").trim();
-	if (normalized === "http" || normalized === "streamable-http") {
-		return "streamableHttp";
-	}
-	if (
-		normalized === "stdio" ||
-		normalized === "sse" ||
-		normalized === "streamableHttp"
-	) {
-		return normalized;
-	}
-	throw new Error(
-		`Unsupported MCP transport "${normalized}". Expected stdio, sse, http, streamable-http, or streamableHttp.`,
-	);
-}
-
-function assertUrl(value: string): void {
-	let parsed: URL;
-	try {
-		parsed = new URL(value);
-	} catch {
-		throw new Error(`Invalid MCP server URL: ${value}`);
-	}
-	if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-		throw new Error(`Invalid MCP server URL: ${value}`);
-	}
-}
-
 export function buildMarketplaceMcpInput(args: string[]): JsonRecord {
-	const [rawName, ...rest] = args;
-	const name = rawName?.trim();
-	if (!name) {
-		throw new Error("MCP marketplace install requires a server name");
-	}
-	let transportType = "stdio";
-	const headers: Record<string, string> = {};
-	const targetArgs: string[] = [];
-	let parsingMarketplaceOptions = true;
-	for (let index = 0; index < rest.length; index++) {
-		const arg = rest[index];
-		if (parsingMarketplaceOptions && arg === "--") {
-			targetArgs.push(...rest.slice(index + 1));
-			break;
-		}
-		if (parsingMarketplaceOptions && (arg === "--transport" || arg === "-t")) {
-			const next = rest[index + 1]?.trim();
-			if (!next) throw new Error("--transport requires a value");
-			transportType = normalizeTransport(next);
-			index++;
-			continue;
-		}
-		const shouldParseHeader =
-			parsingMarketplaceOptions ||
-			normalizeTransport(transportType) !== "stdio";
-		if (
-			shouldParseHeader &&
-			(arg === "--header" || arg?.startsWith("--header="))
-		) {
-			const rawHeader =
-				arg === "--header" ? rest[++index] : arg.slice("--header=".length);
-			if (!rawHeader) throw new Error("--header requires a value");
-			const separatorIndex = rawHeader.indexOf(":");
-			if (separatorIndex <= 0) {
-				throw new Error(
-					`Invalid MCP header "${rawHeader}". Expected "Header-Name: header value".`,
-				);
-			}
-			const headerName = rawHeader.slice(0, separatorIndex).trim();
-			const headerValue = rawHeader.slice(separatorIndex + 1).trim();
-			if (!headerName || !headerValue) {
-				throw new Error(
-					`Invalid MCP header "${rawHeader}". Expected "Header-Name: header value".`,
-				);
-			}
-			headers[headerName] = headerValue;
-			continue;
-		}
-		parsingMarketplaceOptions = false;
-		targetArgs.push(arg);
-	}
-	transportType = normalizeTransport(transportType);
-	if (transportType === "stdio") {
-		if (Object.keys(headers).length > 0) {
-			throw new Error("Stdio MCP installs do not support request headers.");
-		}
-		const [command, ...commandArgs] = targetArgs;
-		if (!command?.trim()) {
-			throw new Error("Stdio MCP install requires a command");
-		}
+	// Current catalog entries can keep omitting this policy or using the legacy
+	// mcp-remote command shape. Core owns both that compatibility normalization
+	// and the strict grammar for forward-compatible OAuth definitions.
+	const { name, oauthClient, transport } = buildMcpInstallTransport(
+		parseMcpInstallArgs(args),
+	);
+	if (transport.type === "stdio") {
 		return {
 			name,
-			transportType,
-			command,
-			args: commandArgs.length > 0 ? commandArgs : undefined,
+			transportType: transport.type,
+			command: transport.command,
+			args: transport.args,
 			disabled: false,
 		};
 	}
-	if (targetArgs.length !== 1) {
-		throw new Error("Remote MCP install requires exactly one URL");
-	}
-	const url = targetArgs[0]?.trim() ?? "";
-	assertUrl(url);
 	return {
 		name,
-		transportType,
-		url,
-		headers: Object.keys(headers).length > 0 ? headers : undefined,
+		transportType: transport.type,
+		url: transport.url,
+		headers: transport.headers,
+		oauthClient,
 		disabled: false,
 	};
 }

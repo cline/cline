@@ -1,11 +1,11 @@
 import {
 	buildMcpInstallTransport as buildCoreMcpInstallTransport,
 	type McpInstallOptions as CoreMcpInstallOptions,
+	type McpUninstallOptions as CoreMcpUninstallOptions,
+	type McpUninstallResult as CoreMcpUninstallResult,
 	installMcpServer,
 	type McpInstallResult,
 	type McpServerTransportConfig,
-	type McpUninstallOptions as CoreMcpUninstallOptions,
-	type McpUninstallResult as CoreMcpUninstallResult,
 	uninstallMcpServer,
 } from "@cline/core";
 import type { McpAddDefaults } from "../wizards/mcp";
@@ -29,6 +29,7 @@ export interface McpInstallDirectResult {
 	name: string;
 	status: "installed";
 	transport: McpServerTransportConfig;
+	oauthClient?: McpAddDefaults["oauthClient"];
 	warnings: string[];
 }
 
@@ -39,12 +40,22 @@ function quoteCommandArg(arg: string): string {
 	return `"${arg.replace(/(["\\])/g, "\\$1")}"`;
 }
 
-export function buildMcpInstallDefaults(options: {
-	name: string;
-	targetArgs?: string[];
-	transport?: string;
-}): McpAddDefaults {
-	const { name, transport } = buildCoreMcpInstallTransport(options);
+export function buildMcpInstallDefaults(
+	options: CoreMcpInstallOptions,
+): McpAddDefaults {
+	const { name, oauthClient, transport } =
+		buildCoreMcpInstallTransport(options);
+	const publicOAuthClient = oauthClient
+		? {
+				clientId: oauthClient.clientId,
+				...(oauthClient.allowedScopes
+					? { allowedScopes: oauthClient.allowedScopes }
+					: {}),
+				...(oauthClient.loopbackHostname
+					? { loopbackHostname: oauthClient.loopbackHostname }
+					: {}),
+			}
+		: undefined;
 	if (transport.type === "stdio") {
 		return {
 			name,
@@ -58,6 +69,8 @@ export function buildMcpInstallDefaults(options: {
 		name,
 		type: transport.type,
 		url: transport.url,
+		...(transport.headers ? { headers: transport.headers } : {}),
+		...(publicOAuthClient ? { oauthClient: publicOAuthClient } : {}),
 	};
 }
 
@@ -69,6 +82,21 @@ export function installMcpServerDirect(
 		name: result.name,
 		status: result.status,
 		transport: result.transport,
+		...(result.oauthClient
+			? {
+					oauthClient: {
+						clientId: result.oauthClient.clientId,
+						...(result.oauthClient.allowedScopes
+							? { allowedScopes: result.oauthClient.allowedScopes }
+							: {}),
+						...(result.oauthClient.loopbackHostname
+							? {
+									loopbackHostname: result.oauthClient.loopbackHostname,
+								}
+							: {}),
+					},
+				}
+			: {}),
 		warnings: result.warnings,
 	};
 }

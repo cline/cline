@@ -1,7 +1,7 @@
 import { fstatSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename } from "node:path";
-import type { ToolPolicy } from "@cline/core";
+import type { McpOAuthLoopbackHostname, ToolPolicy } from "@cline/core";
 
 import { registerDisposable } from "@cline/shared";
 import type { Command } from "commander";
@@ -124,6 +124,21 @@ export function resolveConfigDirArg(argv: string[]): string | undefined {
 
 function collectOption(value: string, previous: string[] = []): string[] {
 	return [...previous, value];
+}
+
+function collectSingleOption(
+	flag: string,
+): (value: string, previous?: string) => string {
+	return (value, previous) => {
+		if (previous !== undefined) {
+			throw new CommanderError(
+				1,
+				"commander.duplicateOption",
+				`${flag} may only be specified once`,
+			);
+		}
+		return value;
+	};
 }
 
 // Shells strip quote characters before argv reaches us, so a prompt that was
@@ -484,14 +499,34 @@ export async function runCli(): Promise<void> {
 		.option(
 			"--transport <transport>",
 			"stdio, sse, http, streamable-http, or streamableHttp (default: stdio)",
+			collectSingleOption("--transport"),
 		)
 		.option("--header <header>", "Remote MCP request header", collectOption, [])
+		.option(
+			"--oauth-client-id <public-id>",
+			"Public OAuth client ID for a pre-registered remote MCP client",
+			collectSingleOption("--oauth-client-id"),
+		)
+		.option(
+			"--oauth-allowed-scope <scope>",
+			"Maximum OAuth scope allowed for the client (repeatable)",
+			collectOption,
+			[],
+		)
+		.option(
+			"--oauth-loopback-hostname <hostname>",
+			"OAuth redirect hostname: 127.0.0.1 or localhost",
+			collectSingleOption("--oauth-loopback-hostname"),
+		)
 		.option("--yes", "Install noninteractively without opening the wizard")
 		.option("--json", "Output as JSON")
 		.action(async (name: string, targetArgs: string[]) => {
 			const opts = mcpInstallCmd.opts<{
 				header?: string[];
 				json?: boolean;
+				oauthAllowedScope?: string[];
+				oauthClientId?: string;
+				oauthLoopbackHostname?: string;
 				transport?: string;
 				yes?: boolean;
 			}>();
@@ -499,6 +534,14 @@ export async function runCli(): Promise<void> {
 			ctx.exitCode = await runMcpInstallCommand({
 				name,
 				headers: opts.header,
+				oauthAllowedScopes:
+					opts.oauthAllowedScope && opts.oauthAllowedScope.length > 0
+						? opts.oauthAllowedScope
+						: undefined,
+				oauthClientId: opts.oauthClientId,
+				oauthLoopbackHostname: opts.oauthLoopbackHostname as
+					| McpOAuthLoopbackHostname
+					| undefined,
 				targetArgs,
 				transport: opts.transport,
 				json: opts.json === true || program.opts().json === true,

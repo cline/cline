@@ -15,12 +15,13 @@ vi.mock("@cline/core", async (importOriginal) => {
 	return {
 		...actual,
 		installMcpServer: vi.fn((options) => {
-			const { name, transport, warnings } =
+			const { name, oauthClient, transport, warnings } =
 				actual.buildMcpInstallTransport(options);
 			return {
 				name,
 				status: "installed",
 				transport,
+				oauthClient,
 				warnings,
 			};
 		}),
@@ -58,6 +59,49 @@ describe("mcp install command", () => {
 			type: "streamableHttp",
 			url: "https://mcp.context7.com/mcp",
 		});
+	});
+
+	it("prefills only normalized public OAuth policy in the wizard", () => {
+		expect(
+			buildMcpInstallDefaults({
+				name: "slack",
+				transport: "http",
+				targetArgs: ["https://mcp.slack.com/mcp"],
+				oauthClientId: "public-client",
+				oauthAllowedScopes: ["search:read.public", "channels:history"],
+				oauthLoopbackHostname: "localhost",
+			}),
+		).toEqual({
+			name: "slack",
+			type: "streamableHttp",
+			url: "https://mcp.slack.com/mcp",
+			oauthClient: {
+				clientId: "public-client",
+				allowedScopes: ["channels:history", "search:read.public"],
+				loopbackHostname: "localhost",
+			},
+		});
+	});
+
+	it("uses Core validation for incomplete or duplicate OAuth policy", () => {
+		const remote = {
+			name: "slack",
+			transport: "http",
+			targetArgs: ["https://mcp.slack.com/mcp"],
+		};
+		expect(() =>
+			buildMcpInstallDefaults({
+				...remote,
+				oauthLoopbackHostname: "localhost",
+			}),
+		).toThrow(/--oauth-client-id is required/);
+		expect(() =>
+			buildMcpInstallDefaults({
+				...remote,
+				oauthClientId: "public-client",
+				oauthAllowedScopes: ["channels:history", "channels:history"],
+			}),
+		).toThrow(/Duplicate MCP OAuth scope/);
 	});
 
 	it("shows mcp-remote marketplace entries as native remote servers", () => {
@@ -154,8 +198,8 @@ describe("mcp install command", () => {
 			buildMcpInstallTransport({
 				name: "docs",
 				transport: "http",
-				headers: ["Authorization: Bearer <token>"],
-				targetArgs: ["https://example.com/mcp", "--header=X-Extra: yes"],
+				headers: ["Authorization: Bearer <token>", "X-Extra: yes"],
+				targetArgs: ["https://example.com/mcp"],
 			}),
 		).toEqual({
 			name: "docs",
@@ -190,6 +234,34 @@ describe("mcp install command", () => {
 			name: "ctx7",
 			type: "streamableHttp",
 			url: "https://mcp.context7.com/mcp",
+		});
+	});
+
+	it("passes public OAuth policy to the wizard without a secret", async () => {
+		const runWizard = vi.fn(async () => 0);
+
+		const code = await runMcpInstallCommand({
+			name: "slack",
+			transport: "http",
+			targetArgs: ["https://mcp.slack.com/mcp"],
+			oauthClientId: "public-client",
+			oauthAllowedScopes: ["search:read.public", "channels:history"],
+			oauthLoopbackHostname: "localhost",
+			isTty: true,
+			runWizard,
+			io: { writeErr: vi.fn() },
+		});
+
+		expect(code).toBe(0);
+		expect(runWizard).toHaveBeenCalledWith({
+			name: "slack",
+			type: "streamableHttp",
+			url: "https://mcp.slack.com/mcp",
+			oauthClient: {
+				clientId: "public-client",
+				allowedScopes: ["channels:history", "search:read.public"],
+				loopbackHostname: "localhost",
+			},
 		});
 	});
 
@@ -235,11 +307,8 @@ describe("mcp install command", () => {
 		const code = await runMcpInstallCommand({
 			name: "docs",
 			transport: "http",
-			targetArgs: [
-				"https://example.com/mcp",
-				"--header",
-				"Authorization: Bearer token",
-			],
+			headers: ["Authorization: Bearer token"],
+			targetArgs: ["https://example.com/mcp"],
 			isTty: false,
 			yes: true,
 			io: { writeln, writeErr },
@@ -249,11 +318,8 @@ describe("mcp install command", () => {
 		expect(installMcpServer).toHaveBeenCalledWith({
 			name: "docs",
 			transport: "http",
-			targetArgs: [
-				"https://example.com/mcp",
-				"--header",
-				"Authorization: Bearer token",
-			],
+			headers: ["Authorization: Bearer token"],
+			targetArgs: ["https://example.com/mcp"],
 			isTty: false,
 			yes: true,
 			io: { writeln, writeErr },
@@ -284,6 +350,36 @@ describe("mcp install command", () => {
 				args: ["server.js"],
 			},
 		});
+	});
+
+	it("reports normalized OAuth policy for a direct install without authorizing", async () => {
+		const writeln = vi.fn();
+
+		const code = await runMcpInstallCommand({
+			name: "slack",
+			transport: "http",
+			targetArgs: ["https://mcp.slack.com/mcp"],
+			oauthClientId: "public-client",
+			oauthAllowedScopes: ["search:read.public", "channels:history"],
+			oauthLoopbackHostname: "localhost",
+			isTty: false,
+			yes: true,
+			json: true,
+			io: { writeln, writeErr: vi.fn() },
+		});
+
+		expect(code).toBe(0);
+		const output = JSON.parse(writeln.mock.calls[0]?.[0]) as Record<
+			string,
+			unknown
+		>;
+		expect(output.oauthClient).toEqual({
+			clientId: "public-client",
+			allowedScopes: ["channels:history", "search:read.public"],
+			loopbackHostname: "localhost",
+		});
+		expect(output).not.toHaveProperty("oauth");
+		expect(output.oauthClient).not.toHaveProperty("clientSecret");
 	});
 });
 

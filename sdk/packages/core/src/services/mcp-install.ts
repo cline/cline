@@ -1,13 +1,26 @@
-import type { McpServerTransportConfig } from "../extensions/mcp";
+import type {
+	McpOAuthLoopbackHostname,
+	McpServerOAuthClientConfig,
+	McpServerTransportConfig,
+} from "../extensions/mcp";
 import {
 	resolveDefaultMcpSettingsPath,
 	updateMcpSettingsFileSync,
 } from "../extensions/mcp";
+import { normalizeMcpOAuthAllowedScopes } from "../extensions/mcp/oauth-scope-policy";
 import { resolveNativeMcpTransport } from "../extensions/mcp/remote-proxy";
+
+type McpInstallOAuthClientPolicy = Pick<
+	McpServerOAuthClientConfig,
+	"clientId" | "allowedScopes" | "loopbackHostname"
+>;
 
 export interface McpInstallOptions {
 	name: string;
 	headers?: string[];
+	oauthAllowedScopes?: string[];
+	oauthClientId?: string;
+	oauthLoopbackHostname?: McpOAuthLoopbackHostname;
 	targetArgs?: string[];
 	transport?: string;
 	settingsPath?: string;
@@ -17,6 +30,7 @@ export interface McpInstallResult {
 	name: string;
 	status: "installed";
 	transport: McpServerTransportConfig;
+	oauthClient?: McpInstallOAuthClientPolicy;
 	warnings: string[];
 }
 
@@ -80,14 +94,44 @@ function containsPlaceholder(value: string): boolean {
 
 function splitTargetArgsAndHeaders(input: {
 	headers?: string[];
+	oauthAllowedScopes?: string[];
+	oauthClientId?: string;
+	oauthLoopbackHostname?: string;
 	parseTransport?: boolean;
 	targetArgs?: string[];
 	transport?: string;
-}): { headers: string[]; targetArgs: string[]; transport?: string } {
+}): {
+	headers: string[];
+	oauthAllowedScopes?: string[];
+	oauthClientId?: string;
+	oauthLoopbackHostname?: string;
+	targetArgs: string[];
+	transport?: string;
+} {
 	const headers = [...(input.headers ?? [])];
+	const oauthAllowedScopes = [...(input.oauthAllowedScopes ?? [])];
 	const targetArgs: string[] = [];
+	let oauthClientId = input.oauthClientId;
+	let oauthLoopbackHostname = input.oauthLoopbackHostname;
+	let sawOauthAllowedScope = input.oauthAllowedScopes !== undefined;
+	let sawOauthClientId = input.oauthClientId !== undefined;
+	let sawOauthLoopbackHostname = input.oauthLoopbackHostname !== undefined;
 	let transport = input.transport;
+	let sawTransport = input.transport !== undefined;
 	const args = input.targetArgs ?? [];
+	const requireOptionValue = (index: number, option: string): string => {
+		const value = args[index + 1];
+		if (!value || value.startsWith("--")) {
+			throw new Error(`${option} requires a value`);
+		}
+		return value;
+	};
+	const requireInlineOptionValue = (value: string, option: string): string => {
+		if (!value) {
+			throw new Error(`${option} requires a value`);
+		}
+		return value;
+	};
 	for (let index = 0; index < args.length; index++) {
 		const arg = args[index];
 		// Marketplace-style args use "--" to end option parsing (matching how
@@ -97,20 +141,92 @@ function splitTargetArgsAndHeaders(input: {
 			targetArgs.push(...args.slice(index + 1));
 			break;
 		}
-		if (input.parseTransport && arg === "--transport") {
-			const value = args[index + 1];
-			if (!value) {
-				throw new Error("--transport requires a value");
+		if (input.parseTransport && (arg === "--transport" || arg === "-t")) {
+			if (sawTransport) {
+				throw new Error("--transport may only be specified once");
 			}
+			const value = requireOptionValue(index, "--transport");
 			transport = value;
+			sawTransport = true;
 			index++;
 			continue;
 		}
 		if (input.parseTransport && arg?.startsWith("--transport=")) {
-			transport = arg.slice("--transport=".length);
+			if (sawTransport) {
+				throw new Error("--transport may only be specified once");
+			}
+			transport = requireInlineOptionValue(
+				arg.slice("--transport=".length),
+				"--transport",
+			);
+			sawTransport = true;
 			continue;
 		}
-		if (arg === "--header") {
+		if (input.parseTransport && arg === "--oauth-client-id") {
+			if (sawOauthClientId) {
+				throw new Error("--oauth-client-id may only be specified once");
+			}
+			oauthClientId = requireOptionValue(index, "--oauth-client-id");
+			sawOauthClientId = true;
+			index++;
+			continue;
+		}
+		if (input.parseTransport && arg?.startsWith("--oauth-client-id=")) {
+			if (sawOauthClientId) {
+				throw new Error("--oauth-client-id may only be specified once");
+			}
+			oauthClientId = requireInlineOptionValue(
+				arg.slice("--oauth-client-id=".length),
+				"--oauth-client-id",
+			);
+			sawOauthClientId = true;
+			continue;
+		}
+		if (input.parseTransport && arg === "--oauth-allowed-scope") {
+			oauthAllowedScopes.push(
+				requireOptionValue(index, "--oauth-allowed-scope"),
+			);
+			sawOauthAllowedScope = true;
+			index++;
+			continue;
+		}
+		if (input.parseTransport && arg?.startsWith("--oauth-allowed-scope=")) {
+			oauthAllowedScopes.push(
+				requireInlineOptionValue(
+					arg.slice("--oauth-allowed-scope=".length),
+					"--oauth-allowed-scope",
+				),
+			);
+			sawOauthAllowedScope = true;
+			continue;
+		}
+		if (input.parseTransport && arg === "--oauth-loopback-hostname") {
+			if (sawOauthLoopbackHostname) {
+				throw new Error("--oauth-loopback-hostname may only be specified once");
+			}
+			oauthLoopbackHostname = requireOptionValue(
+				index,
+				"--oauth-loopback-hostname",
+			);
+			sawOauthLoopbackHostname = true;
+			index++;
+			continue;
+		}
+		if (input.parseTransport && arg?.startsWith("--oauth-loopback-hostname=")) {
+			if (sawOauthLoopbackHostname) {
+				throw new Error("--oauth-loopback-hostname may only be specified once");
+			}
+			oauthLoopbackHostname = requireInlineOptionValue(
+				arg.slice("--oauth-loopback-hostname=".length),
+				"--oauth-loopback-hostname",
+			);
+			sawOauthLoopbackHostname = true;
+			continue;
+		}
+		if (input.parseTransport && arg?.startsWith("--oauth-")) {
+			throw new Error(`Unsupported MCP OAuth install option "${arg}".`);
+		}
+		if (input.parseTransport && arg === "--header") {
 			const value = args[index + 1];
 			if (!value) {
 				throw new Error("--header requires a value");
@@ -119,13 +235,63 @@ function splitTargetArgsAndHeaders(input: {
 			index++;
 			continue;
 		}
-		if (arg?.startsWith("--header=")) {
+		if (input.parseTransport && arg?.startsWith("--header=")) {
 			headers.push(arg.slice("--header=".length));
 			continue;
 		}
 		targetArgs.push(arg);
 	}
-	return { headers, targetArgs, transport };
+	return {
+		headers,
+		...(sawOauthAllowedScope ? { oauthAllowedScopes } : {}),
+		...(sawOauthClientId ? { oauthClientId } : {}),
+		...(sawOauthLoopbackHostname ? { oauthLoopbackHostname } : {}),
+		targetArgs,
+		transport,
+	};
+}
+
+function normalizeMcpInstallOAuthClient(options: {
+	oauthAllowedScopes?: string[];
+	oauthClientId?: string;
+	oauthLoopbackHostname?: string;
+}): McpInstallOAuthClientPolicy | undefined {
+	const clientId = options.oauthClientId?.trim();
+	if (!clientId) {
+		if (
+			options.oauthAllowedScopes !== undefined ||
+			options.oauthLoopbackHostname !== undefined
+		) {
+			throw new Error(
+				"--oauth-client-id is required when --oauth-allowed-scope or --oauth-loopback-hostname is provided.",
+			);
+		}
+		if (options.oauthClientId !== undefined) {
+			throw new Error("--oauth-client-id requires a non-empty value");
+		}
+		return undefined;
+	}
+
+	const allowedScopes = normalizeMcpOAuthAllowedScopes(
+		options.oauthAllowedScopes,
+	);
+	const rawLoopbackHostname = options.oauthLoopbackHostname;
+	const loopbackHostname = rawLoopbackHostname?.trim();
+	if (
+		loopbackHostname !== undefined &&
+		loopbackHostname !== "127.0.0.1" &&
+		loopbackHostname !== "localhost"
+	) {
+		throw new Error(
+			`Unsupported MCP OAuth loopback hostname "${rawLoopbackHostname}". Expected 127.0.0.1 or localhost.`,
+		);
+	}
+
+	return {
+		clientId,
+		...(allowedScopes ? { allowedScopes } : {}),
+		...(loopbackHostname ? { loopbackHostname } : {}),
+	};
 }
 
 function buildHeaders(values: string[]): {
@@ -150,28 +316,45 @@ function buildHeaders(values: string[]): {
 export function buildMcpInstallTransport(options: {
 	headers?: string[];
 	name: string;
+	oauthAllowedScopes?: string[];
+	oauthClientId?: string;
+	oauthLoopbackHostname?: McpOAuthLoopbackHostname;
 	targetArgs?: string[];
 	transport?: string;
-}): { name: string; transport: McpServerTransportConfig; warnings: string[] } {
+}): {
+	name: string;
+	oauthClient?: McpInstallOAuthClientPolicy;
+	transport: McpServerTransportConfig;
+	warnings: string[];
+} {
 	const name = options.name.trim();
 	if (!name) {
 		throw new Error("MCP server name is required");
 	}
-	const {
-		headers: rawHeaders,
-		targetArgs,
-		transport,
-	} = splitTargetArgsAndHeaders({
+	const parsed = splitTargetArgsAndHeaders({
 		headers: options.headers,
+		oauthAllowedScopes: options.oauthAllowedScopes,
+		oauthClientId: options.oauthClientId,
+		oauthLoopbackHostname: options.oauthLoopbackHostname,
 		targetArgs: options.targetArgs,
 		transport: options.transport,
 	});
-	const type = normalizeTransportType(transport);
+	const oauthClient = normalizeMcpInstallOAuthClient(parsed);
+	const type = normalizeTransportType(parsed.transport);
+	const targetArgs = parsed.targetArgs;
+	const rawHeaders = parsed.headers;
 	const { headers, warnings } = buildHeaders(rawHeaders);
+	if (
+		oauthClient &&
+		Object.keys(headers ?? {}).some(
+			(headerName) => headerName.toLowerCase() === "authorization",
+		)
+	) {
+		throw new Error(
+			"MCP OAuth installs do not support a static Authorization header.",
+		);
+	}
 	if (type === "stdio") {
-		if (rawHeaders.length > 0) {
-			throw new Error("Stdio MCP installs do not support request headers.");
-		}
 		const [command, ...args] = targetArgs;
 		if (!command?.trim()) {
 			throw new Error(
@@ -183,6 +366,23 @@ export function buildMcpInstallTransport(options: {
 			command,
 			args: args.length > 0 ? args : undefined,
 		});
+		// Older marketplace entries still declare `npx mcp-remote <url>` as
+		// stdio. Resolve that exact safe shape before deciding whether remote-only
+		// headers and OAuth client policy are applicable.
+		if (stdioTransport.type !== "stdio") {
+			return {
+				name,
+				...(oauthClient ? { oauthClient } : {}),
+				transport: headers ? { ...stdioTransport, headers } : stdioTransport,
+				warnings,
+			};
+		}
+		if (oauthClient) {
+			throw new Error("Stdio MCP installs do not support OAuth client policy.");
+		}
+		if (rawHeaders.length > 0) {
+			throw new Error("Stdio MCP installs do not support request headers.");
+		}
 		return {
 			name,
 			transport: stdioTransport,
@@ -199,6 +399,7 @@ export function buildMcpInstallTransport(options: {
 	assertValidUrl(url);
 	return {
 		name,
+		...(oauthClient ? { oauthClient } : {}),
 		transport: headers ? { type, url, headers } : { type, url },
 		warnings,
 	};
@@ -211,18 +412,30 @@ export function parseMcpInstallArgs(args: string[]): McpInstallOptions {
 			"Marketplace MCP install args must start with a server name.",
 		);
 	}
+	const parsed = splitTargetArgsAndHeaders({
+		parseTransport: true,
+		targetArgs,
+	});
+	const oauthClient = normalizeMcpInstallOAuthClient(parsed);
 	return {
 		name,
-		...splitTargetArgsAndHeaders({
-			parseTransport: true,
-			targetArgs,
-		}),
+		headers: parsed.headers,
+		...(oauthClient?.allowedScopes
+			? { oauthAllowedScopes: oauthClient.allowedScopes }
+			: {}),
+		...(oauthClient ? { oauthClientId: oauthClient.clientId } : {}),
+		...(oauthClient?.loopbackHostname
+			? { oauthLoopbackHostname: oauthClient.loopbackHostname }
+			: {}),
+		targetArgs: parsed.targetArgs,
+		transport: parsed.transport,
 	};
 }
 
 function addMcpServer(
 	name: string,
 	transport: McpServerTransportConfig,
+	oauthClient: McpInstallOAuthClientPolicy | undefined,
 	settingsPath: string,
 ): void {
 	updateMcpSettingsFileSync(settingsPath, (settings) => {
@@ -233,20 +446,26 @@ function addMcpServer(
 			!Array.isArray(serversValue)
 				? { ...(serversValue as Record<string, unknown>) }
 				: {};
-		servers[name] = { transport };
+		servers[name] = {
+			transport,
+			...(oauthClient ? { oauthClient } : {}),
+		};
 		settings.mcpServers = servers;
 	});
 }
 
 export function installMcpServer(options: McpInstallOptions): McpInstallResult {
-	const { name, transport, warnings } = buildMcpInstallTransport(options);
+	const { name, oauthClient, transport, warnings } =
+		buildMcpInstallTransport(options);
 	addMcpServer(
 		name,
 		transport,
+		oauthClient,
 		options.settingsPath ?? resolveDefaultMcpSettingsPath(),
 	);
 	return {
 		name,
+		...(oauthClient ? { oauthClient } : {}),
 		status: "installed",
 		transport,
 		warnings,
