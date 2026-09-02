@@ -22,9 +22,9 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
+import { getInitialChatConfig } from "@/hooks/chat-session/constants";
 import { basenamePath, formatRelativeTime } from "@/hooks/use-session-history";
 import { desktopClient } from "@/lib/desktop-client";
-import { readModelSelectionStorageFromWindow } from "@/lib/model-selection";
 import {
 	type ImportableSession,
 	importSelectionKey,
@@ -46,17 +46,17 @@ type ImportSessionsDialogProps = {
 };
 
 /**
- * Provider/model a new chat would start with right now. Imported sessions
- * are stamped with it so "continue this in Cline" runs on something the user
- * has actually configured instead of the source tool's provider.
+ * Provider/model a new chat would start with right now, resolved the same
+ * way a new chat resolves it (remembered selection, then the built-in
+ * default). Imported sessions are stamped with it so "continue this in
+ * Cline" runs on what the user actually uses instead of the source tool's
+ * provider. Reading model-selection storage directly is not enough: the
+ * composer only records a model when the user picks one explicitly, so
+ * anyone on the default model has no entry there.
  */
-function resumeTarget(): { provider?: string; model?: string } {
-	const selection = readModelSelectionStorageFromWindow();
-	const provider = selection.lastProvider.trim();
-	const model = provider
-		? (selection.lastModelByProvider[provider] ?? "").trim()
-		: "";
-	return provider && model ? { provider, model } : {};
+function resumeTarget(): { provider: string; model: string } {
+	const { provider, model } = getInitialChatConfig();
+	return { provider, model };
 }
 
 function matchesQuery(session: ImportableSession, query: string): boolean {

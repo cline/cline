@@ -1551,8 +1551,11 @@ export async function handleCommand(
 		// Opening a history session resumes on the row's provider/model, so the
 		// UI passes what a new chat would run on; the source tool's own
 		// provider/model stay in metadata.importedFrom.
-		const provider = asTrimmedString(args?.provider);
-		const model = asTrimmedString(args?.model);
+		// Never let the source tool's provider become the resume target: when
+		// the caller sends no selection, use the app default like other
+		// server-started sessions do.
+		const provider = asTrimmedString(args?.provider) ?? "cline";
+		const model = asTrimmedString(args?.model) ?? CLINE_DEFAULT_MODEL_ID;
 		const results = await importer.importMany(
 			requests,
 			(result, index) => {
@@ -1562,7 +1565,7 @@ export async function handleCommand(
 					result,
 				});
 			},
-			{ ...(provider ? { provider } : {}), ...(model ? { model } : {}) },
+			{ provider, model },
 		);
 		return { results };
 	}
