@@ -324,7 +324,11 @@ export function ComposioConnectorBrowser({
 			</div>
 
 			{actionError ? (
+				// Attributed to the connector the failed action targeted, so the
+				// catalog surface never presents it as some other connector's
+				// failure.
 				<p className="text-xs text-destructive" role="alert">
+					{statusBySlug.get(actionError.toolkit)?.name ?? actionError.toolkit}:{" "}
 					{actionError.message}
 				</p>
 			) : null}
@@ -387,6 +391,11 @@ export function ComposioConnectorBrowser({
 			)}
 
 			<ConnectorDetailDialog
+				actionError={
+					detailSlug !== null && actionError?.toolkit === detailSlug
+						? actionError.message
+						: undefined
+				}
 				busy={detailSlug !== null && busyToolkit === detailSlug}
 				entry={detailEntry}
 				onCancel={() => {
@@ -475,6 +484,7 @@ function ConnectorRow({
 function ConnectorDetailDialog({
 	entry,
 	summary,
+	actionError,
 	busy,
 	onConnect,
 	onCancel,
@@ -483,6 +493,8 @@ function ConnectorDetailDialog({
 }: {
 	entry: ComposioCatalogToolkit | null;
 	summary?: ComposioIntegrationSummary;
+	/** Already scoped by the caller to THIS dialog's connector. */
+	actionError?: string;
 	busy: boolean;
 	onConnect: () => void;
 	onCancel: () => void;
@@ -562,9 +574,9 @@ function ConnectorDetailDialog({
 								</p>
 							) : null}
 
-							{summary?.error ? (
+							{(actionError ?? summary?.error) ? (
 								<p className="text-xs text-destructive" role="alert">
-									{summary.error}
+									{actionError ?? summary?.error}
 								</p>
 							) : null}
 
