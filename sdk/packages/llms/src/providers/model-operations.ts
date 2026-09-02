@@ -25,6 +25,17 @@ const VIDEO_LANGUAGE_OPERATION: GatewayModelOperationCapability = {
 	outputModalities: ["text", "video"],
 };
 
+const AUDIO_LANGUAGE_OPERATION: GatewayModelOperationCapability = {
+	operation: "language",
+	outputModalities: ["text", "audio"],
+};
+
+const SPEECH_GENERATION_OPERATION: GatewayModelOperationCapability = {
+	operation: "speech-generation",
+	inputModalities: ["text"],
+	outputModalities: ["audio"],
+};
+
 const VIDEO_GENERATION_OPERATION: GatewayModelOperationCapability = {
 	operation: "video-generation",
 	inputModalities: ["text", "image"],
@@ -68,19 +79,33 @@ export const BUILTIN_TRANSCRIPTION_TRANSPORTS = {
 const BUILTIN_MEDIA_OPERATION_CAPABILITIES: Readonly<
 	Record<string, readonly GatewayModelOperationCapability[]>
 > = {
-	"openai-native": [IMAGE_LANGUAGE_OPERATION, IMAGE_GENERATION_OPERATION],
+	"openai-native": [
+		IMAGE_LANGUAGE_OPERATION,
+		IMAGE_GENERATION_OPERATION,
+		AUDIO_LANGUAGE_OPERATION,
+		SPEECH_GENERATION_OPERATION,
+	],
 	gemini: [
 		IMAGE_LANGUAGE_OPERATION,
 		IMAGE_GENERATION_OPERATION,
+		AUDIO_LANGUAGE_OPERATION,
+		SPEECH_GENERATION_OPERATION,
 		VIDEO_LANGUAGE_OPERATION,
 		VIDEO_GENERATION_OPERATION,
 	],
-	vertex: [IMAGE_LANGUAGE_OPERATION, IMAGE_GENERATION_OPERATION],
+	vertex: [
+		IMAGE_LANGUAGE_OPERATION,
+		IMAGE_GENERATION_OPERATION,
+		AUDIO_LANGUAGE_OPERATION,
+		SPEECH_GENERATION_OPERATION,
+	],
 	bedrock: [IMAGE_GENERATION_OPERATION],
 	openrouter: [IMAGE_LANGUAGE_OPERATION, IMAGE_GENERATION_OPERATION],
 	"vercel-ai-gateway": [
 		IMAGE_LANGUAGE_OPERATION,
 		IMAGE_GENERATION_OPERATION,
+		AUDIO_LANGUAGE_OPERATION,
+		SPEECH_GENERATION_OPERATION,
 		VIDEO_LANGUAGE_OPERATION,
 		VIDEO_GENERATION_OPERATION,
 	],
