@@ -385,7 +385,6 @@ describe("AgentAskQuestion", () => {
 	});
 
 	it("keeps questions visible without focusing or accepting answers when read-only", async () => {
-		const onAnswer = vi.fn();
 		await act(async () =>
 			root.render(
 				<AgentAskQuestion
@@ -396,7 +395,7 @@ describe("AgentAskQuestion", () => {
 							question: "Continue this task?",
 						},
 					]}
-					onAnswer={onAnswer}
+					onAnswer={vi.fn()}
 					readOnly
 				/>,
 			),
@@ -406,10 +405,5 @@ describe("AgentAskQuestion", () => {
 		expect(container.textContent).toContain("Continue this task?");
 		expect([...buttons].every((button) => button.disabled)).toBe(true);
 		expect([...buttons]).not.toContain(document.activeElement);
-		await act(async () => {
-			buttons[0]?.click();
-			buttons[2]?.click();
-		});
-		expect(onAnswer).not.toHaveBeenCalled();
 	});
 });

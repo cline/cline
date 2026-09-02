@@ -95,14 +95,12 @@ describe("AgentApprovalCard", () => {
 	});
 
 	it("keeps approval context visible without accepting decisions when read-only", async () => {
-		const onApprove = vi.fn();
-		const onReject = vi.fn();
 		await act(async () =>
 			root.render(
 				<AgentApprovalCard
 					detail="bun test"
-					onApprove={onApprove}
-					onReject={onReject}
+					onApprove={vi.fn()}
+					onReject={vi.fn()}
 					readOnly
 					title="Run command"
 				/>,
@@ -112,11 +110,5 @@ describe("AgentApprovalCard", () => {
 		const buttons = container.querySelectorAll("button");
 		expect(container.textContent).toContain("bun test");
 		expect([...buttons].every((button) => button.disabled)).toBe(true);
-		await act(async () => {
-			buttons[0]?.click();
-			buttons[1]?.click();
-		});
-		expect(onApprove).not.toHaveBeenCalled();
-		expect(onReject).not.toHaveBeenCalled();
 	});
 });

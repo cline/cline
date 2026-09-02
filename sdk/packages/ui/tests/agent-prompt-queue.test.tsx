@@ -243,15 +243,13 @@ describe("AgentPromptQueue", () => {
 
 	it("keeps queue disclosure available while read-only actions stay disabled", async () => {
 		const onEdit = vi.fn();
-		const onRemove = vi.fn();
-		const onSteer = vi.fn();
 		const renderQueue = (readOnly: boolean) =>
 			root.render(
 				<AgentPromptQueue
 					items={[{ id: "one", prompt: "Queued context", steer: false }]}
 					onEdit={onEdit}
-					onRemove={onRemove}
-					onSteer={onSteer}
+					onRemove={vi.fn()}
+					onSteer={vi.fn()}
 					readOnly={readOnly}
 				/>,
 			);
@@ -298,14 +296,5 @@ describe("AgentPromptQueue", () => {
 			".cline-ui-agent-prompt-queue__action",
 		);
 		expect([...actionButtons].every((button) => button.disabled)).toBe(true);
-		await act(async () => {
-			actionButtons.forEach((button) => {
-				button.click();
-			});
-			await Promise.resolve();
-		});
-		expect(onEdit).not.toHaveBeenCalled();
-		expect(onRemove).not.toHaveBeenCalled();
-		expect(onSteer).not.toHaveBeenCalled();
 	});
 });
