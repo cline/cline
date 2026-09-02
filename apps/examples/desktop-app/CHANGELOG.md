@@ -27,6 +27,7 @@
 
 ## 0.0.20
 
+- Customize now separates Cline Plugins from Agent Plugins discovered by the Hub. Agent Plugin switches use Hub-managed enablement, contributed skills appear in the Skills inventory, and connected desktop views refresh when Hub settings change
 - Cline Desktop now ships on Windows: releases include a code-signed x64 installer, and installed apps auto-update on the same feed macOS does
 - Windows shell fixes: background processes (the sidecar, git) no longer pop visible console windows; updates now download in the background and install when you restart the app; the MCP settings path falls back to `USERPROFILE` when `HOME` is unset
 - Tool results that return images — screenshots from browser or MCP tools — now render as inline images you can click to expand, with a carousel for stepping through multiple images, instead of raw base64 text
