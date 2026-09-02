@@ -1,4 +1,5 @@
 @import "./theme/component-theme.css";
+@import "./components/audio-player.css";
 @import "./components/agent-approval-card.css";
 @import "./components/agent-ask-question.css";
 @import "./components/agent-aurora.css";

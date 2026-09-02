@@ -31,6 +31,21 @@ export {
 	AttachmentDropZone,
 	type AttachmentDropZoneProps,
 } from "./attachment-drop-zone.js";
+export {
+	AudioPlayer,
+	AudioPlayerControlBar,
+	type AudioPlayerControlBarProps,
+	type AudioPlayerData,
+	AudioPlayerElement,
+	type AudioPlayerElementProps,
+	AudioPlayerPlayButton,
+	type AudioPlayerPlayButtonProps,
+	type AudioPlayerProps,
+	AudioPlayerTimeDisplay,
+	type AudioPlayerTimeDisplayProps,
+	AudioPlayerTimeRange,
+	type AudioPlayerTimeRangeProps,
+} from "./audio-player.js";
 export { Badge, type BadgeProps } from "./badge.js";
 export {
 	Button,
