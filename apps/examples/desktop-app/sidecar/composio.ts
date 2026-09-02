@@ -1189,6 +1189,15 @@ export async function disconnectComposioToolkit(
 	toolkit: ComposioToolkitSlug,
 	logger?: BasicLogger,
 ): Promise<ComposioStatusResponse> {
+	// Record the disconnect intent BEFORE any await, so a connect attempt
+	// that began earlier and finalizes while this disconnect is still
+	// awaiting its remote revocation is dropped at write time (its startedAt
+	// predates this marker; see FinalizeGuard.startedAt). Stamping at entry —
+	// rather than after the revocation — is the mirror of anchoring the
+	// connect's startedAt at entry: whichever action started later wins,
+	// symmetrically. A connect that began AFTER this marker keeps a larger
+	// startedAt and is not dropped, so a genuinely newer reconnect survives.
+	lastDisconnectedAt.set(toolkit, Date.now());
 	const pending = pendingConnections.get(toolkit);
 	pendingConnections.delete(toolkit);
 	lastConnectionErrors.delete(toolkit);
@@ -1261,15 +1270,17 @@ export async function disconnectComposioToolkit(
 			}
 		}
 	}
-	let slotEmptyAfterRemoval = false;
 	const next = updateComposioState((s) => {
 		const current = s.toolkits?.[toolkit];
 		// Remove only the account this disconnect actually revoked. A
 		// connection finalized while the awaited revocation above was in
-		// flight is the newer user intent: it carries a different account id
-		// and its remote account was never touched — blindly deleting it here
-		// would leave that account authorized with no local record, for the
-		// next refresh to import as a resurrected connector.
+		// flight is the newer user intent (its startedAt is after this
+		// disconnect's entry marker, so finalize was NOT dropped): it carries
+		// a different account id and its remote account was never touched —
+		// blindly deleting it here would leave that account authorized with no
+		// local record, for the next refresh to import as a resurrected
+		// connector. The entry-time marker is safe to keep either way: it
+		// predates any surviving newer connection's startedAt.
 		if (
 			current &&
 			stored &&
@@ -1278,14 +1289,7 @@ export async function disconnectComposioToolkit(
 		) {
 			delete s.toolkits[toolkit];
 		}
-		slotEmptyAfterRemoval = !s.toolkits?.[toolkit];
 	});
-	if (slotEmptyAfterRemoval) {
-		// Only an effective disconnect stamps the marker; stamping over a
-		// surviving newer connection would make later refreshes and
-		// finalizations treat it as disconnected.
-		lastDisconnectedAt.set(toolkit, Date.now());
-	}
 	return buildStatusResponse(next);
 }
 
