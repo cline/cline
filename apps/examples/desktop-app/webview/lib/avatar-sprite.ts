@@ -17,9 +17,15 @@ export function avatarFrameBackgroundPosition(
 	scale = 1,
 ): string {
 	if (!Number.isInteger(row) || row < 0 || row >= AVATAR_ATLAS_ROWS) {
-		throw new RangeError(`avatar row must be between 0 and ${AVATAR_ATLAS_ROWS - 1}`);
+		throw new RangeError(
+			`avatar row must be between 0 and ${AVATAR_ATLAS_ROWS - 1}`,
+		);
 	}
-	if (!Number.isInteger(column) || column < 0 || column >= AVATAR_ATLAS_COLUMNS) {
+	if (
+		!Number.isInteger(column) ||
+		column < 0 ||
+		column >= AVATAR_ATLAS_COLUMNS
+	) {
 		throw new RangeError(
 			`avatar column must be between 0 and ${AVATAR_ATLAS_COLUMNS - 1}`,
 		);

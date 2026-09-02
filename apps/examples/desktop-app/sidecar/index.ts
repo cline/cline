@@ -3,7 +3,7 @@ import {
 	createClineTelemetryServiceConfig,
 	readGlobalSettings,
 	setHomeDirIfUnset,
-	setModelToolEnabledGlobally,
+	setOptInToolEnabledGlobally,
 	watchManagedHubBuildMismatch,
 } from "@cline/core";
 import { captureSdkError } from "@cline/shared";
@@ -74,7 +74,7 @@ async function main() {
 	// unwritable settings file must not block startup over a default.
 	try {
 		if (readGlobalSettings().tools?.web_search === undefined) {
-			setModelToolEnabledGlobally("web_search", true);
+			setOptInToolEnabledGlobally("web_search", true);
 		}
 	} catch (error) {
 		observability.logger.error?.("Failed to seed web search default", {

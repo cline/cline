@@ -1,4 +1,6 @@
 import type {
+	MediaGenerationSettings,
+	MediaModelSelection,
 	ProviderMode,
 	ProviderModeSettingsMap,
 	ProviderModesSettings,
@@ -6,7 +8,7 @@ import type {
 	VoiceInputModeSettings,
 	VoiceOutputModeSettings,
 } from "@cline/shared";
-import { PROVIDER_MODE_IDS } from "@cline/shared";
+import { MEDIA_GENERATION_TYPES, PROVIDER_MODE_IDS } from "@cline/shared";
 import { z } from "zod";
 import {
 	type ProviderClient,
@@ -19,6 +21,8 @@ import {
 } from "../services/llms/provider-settings";
 
 export type {
+	MediaGenerationSettings,
+	MediaModelSelection,
 	ProviderClient,
 	ProviderConfig,
 	ProviderProtocol,
@@ -73,7 +77,18 @@ export function parseProviderModeSettings<Mode extends ProviderMode>(
 	) as ProviderModeSettingsMap[Mode];
 }
 
-export type StoredProviderModes = ProviderModesSettings;
+export const MediaModelSelectionSchema: z.ZodType<MediaModelSelection> =
+	z.object({
+		providerId: z.string().min(1),
+		modelId: z.string().min(1),
+	});
+
+export const MediaGenerationSettingsSchema: z.ZodType<MediaGenerationSettings> =
+	z.partialRecord(z.enum(MEDIA_GENERATION_TYPES), MediaModelSelectionSchema);
+
+export type StoredProviderModes = ProviderModesSettings & {
+	mediaGeneration?: MediaGenerationSettings;
+};
 
 export interface StoredProviderSettingsEntry {
 	settings: ProviderSettings;
@@ -100,7 +115,10 @@ const StoredProviderModesSchemaShape = Object.fromEntries(
 };
 
 export const StoredProviderModesSchema: z.ZodType<StoredProviderModes> =
-	z.object(StoredProviderModesSchemaShape);
+	z.object({
+		...StoredProviderModesSchemaShape,
+		mediaGeneration: MediaGenerationSettingsSchema.optional(),
+	});
 
 export const StoredProviderSettingsEntrySchema: z.ZodType<StoredProviderSettingsEntry> =
 	z.object({
