@@ -302,6 +302,12 @@ export async function createOpenAICompatibleProviderModule(
 					: openRouterImageProvider
 						? openRouterImageProvider.imageModel(modelId)
 						: provider.imageModel(modelId),
+			...(vercelGateway
+				? {
+						videoGeneration: (modelId: string) =>
+							vercelGateway.videoModel(modelId),
+					}
+				: {}),
 		},
 	};
 }

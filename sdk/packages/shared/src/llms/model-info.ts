@@ -181,6 +181,12 @@ export function usesImageGenerationOperation(
 	return model.operation === "image-generation";
 }
 
+export function usesVideoGenerationOperation(model: {
+	operation?: ModelOperation;
+}): boolean {
+	return model.operation === "video-generation";
+}
+
 /**
  * Whether a model's capability metadata declares `capability`.
  *
