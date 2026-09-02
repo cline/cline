@@ -401,7 +401,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		name: "Berget.AI",
 		description: "Berget.AI model provider from models.dev",
 		family: "openai-compatible",
-		capabilities: ["tools", "reasoning", "prompt-cache"],
+		capabilities: ["tools", "reasoning"],
 		modelsProviderId: "berget",
 		defaultModelId: "zai-org/GLM-5.3-Flash",
 		apiKeyEnv: ["BERGET_API_KEY"],
@@ -963,7 +963,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "hyper",
-		defaultModelId: "glm-5.3",
+		defaultModelId: "kimi-k2-thinking",
 		apiKeyEnv: ["HYPER_API_KEY"],
 		docsUrl: "https://hyper.charm.land",
 		defaults: {
@@ -1164,8 +1164,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		modelsProviderId: "kimi-for-coding",
 		defaultModelId: "k3",
 		apiKeyEnv: ["KIMI_API_KEY"],
-		docsUrl:
-			"https://www.kimi.com/code/docs/en/third-party-tools/other-coding-agents.html",
+		docsUrl: "https://www.kimi.com/code/docs/en/kimi-code/models.html",
 		defaults: {
 			baseUrl: "https://api.kimi.com/coding/v1",
 		},
@@ -1610,7 +1609,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "nebius",
-		defaultModelId: "moonshotai/Kimi-K3",
+		defaultModelId: "zai-org/GLM-5.3-Flash",
 		apiKeyEnv: ["NEBIUS_API_KEY"],
 		docsUrl: "https://docs.tokenfactory.nebius.com/",
 		defaults: {
@@ -1761,7 +1760,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "opencode-go",
-		defaultModelId: "hy4-preview",
+		defaultModelId: "muse-spark-1.3-contributor",
 		apiKeyEnv: ["OPENCODE_API_KEY"],
 		docsUrl: "https://opencode.ai/docs/zen",
 		defaults: {
@@ -1972,7 +1971,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "requesty",
-		defaultModelId: "glm-5.3-flash",
+		defaultModelId: "gemini-3.8-flash",
 		apiKeyEnv: ["REQUESTY_API_KEY"],
 		docsUrl: "https://requesty.ai/solution/llm-routing/models",
 		defaults: {
@@ -2518,7 +2517,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "vercel-ai-gateway",
-		defaultModelId: "anthropic/claude-fable-5.1",
+		defaultModelId: "google/gemini-3.8-flash",
 		apiKeyEnv: ["AI_GATEWAY_API_KEY"],
 		docsUrl:
 			"https://github.com/vercel/ai/tree/5eb85cc45a259553501f535b8ac79a77d0e79223/packages/gateway",
