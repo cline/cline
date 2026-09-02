@@ -205,4 +205,60 @@ describe("SDK URL MCP client authorization persistence", () => {
 			lastError: "SSE error: Non-200 status code (404)",
 		});
 	});
+
+	it("fails before network use when a persisted token exceeds its scope policy", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-client-url-"));
+		tempRoots.push(tempRoot);
+		const settingsPath = join(tempRoot, "cline_mcp_settings.json");
+		const transport = {
+			type: "streamableHttp" as const,
+			url: "https://mcp.example.test",
+		};
+		const oauthClient = {
+			clientId: "cline-internal-client",
+			allowedScopes: ["channels:history"],
+		};
+		await writeFile(
+			settingsPath,
+			JSON.stringify({
+				mcpServers: {
+					linear: {
+						transport,
+						oauthClient,
+						oauth: {
+							clientInformation: {
+								client_id: "cline-internal-client",
+							},
+							scopePolicy: ["channels:history"],
+							tokens: {
+								access_token: "over-scoped-token",
+								token_type: "bearer",
+								scope: "channels:history chat:write",
+							},
+						},
+					},
+				},
+			}),
+			"utf8",
+		);
+		const fetch = vi.fn<typeof globalThis.fetch>();
+		const client = await createDefaultMcpServerClientFactory({
+			settingsPath,
+			fetch,
+		})({
+			name: "linear",
+			transport,
+			oauthClient,
+		});
+
+		await expect(client.connect()).rejects.toThrow(/chat:write/);
+		expect(fetch).not.toHaveBeenCalled();
+		expect(
+			listMcpServerOAuthStatuses({ filePath: settingsPath })[0],
+		).toMatchObject({
+			oauthConfigured: false,
+			authorizationRequired: false,
+			lastError: expect.stringContaining("chat:write"),
+		});
+	});
 });

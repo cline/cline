@@ -46,6 +46,7 @@ export type {
 	McpOAuthProviderContext,
 } from "./oauth";
 export { authorizeMcpServerOAuth } from "./oauth";
+export { McpOAuthScopePolicyError } from "./oauth-scope-policy";
 export type { PluginMcpServerResolution } from "./plugin-server-registration";
 export {
 	normalizePluginMcpServerRegistration,

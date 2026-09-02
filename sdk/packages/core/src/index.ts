@@ -306,6 +306,7 @@ export {
 	type McpManager,
 	type McpManagerOptions,
 	McpOAuthClientChangedError,
+	McpOAuthScopePolicyError,
 	type McpServerClient,
 	type McpServerClientFactory,
 	type McpServerOAuthClientConfig,

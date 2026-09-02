@@ -613,17 +613,18 @@ class SdkUrlMcpClient implements McpServerClient {
 			clientInformation: createMcpOAuthClientInformation(
 				this.registration.oauthClient,
 			),
+			allowedScopes: this.registration.oauthClient?.allowedScopes,
 		});
 		this.authContext = authContext;
-		// A normal connection may consume/refresh existing credentials, but it
-		// must not initiate a new interactive OAuth flow. Without stored tokens,
-		// omit the provider so the MCP SDK reports UnauthorizedError immediately;
-		// the host can then render an explicit authorization action.
-		const oauthProvider = (await authContext.provider.tokens())
-			? authContext.provider
-			: undefined;
 		let client: Client | undefined;
 		try {
+			// A normal connection may consume/refresh existing credentials, but it
+			// must not initiate a new interactive OAuth flow. Without stored tokens,
+			// omit the provider so the MCP SDK reports UnauthorizedError immediately;
+			// the host can then render an explicit authorization action.
+			const oauthProvider = (await authContext.provider.tokens())
+				? authContext.provider
+				: undefined;
 			client = new Client({
 				name: this.options.clientName?.trim() || "@cline/core",
 				version: this.options.clientVersion?.trim() || "0.0.0",
@@ -752,6 +753,7 @@ class SdkUrlMcpClient implements McpServerClient {
 				clientInformation: createMcpOAuthClientInformation(
 					this.registration.oauthClient,
 				),
+				allowedScopes: this.registration.oauthClient?.allowedScopes,
 			});
 		const effectiveError = augmentMcpTimeoutError(
 			error,

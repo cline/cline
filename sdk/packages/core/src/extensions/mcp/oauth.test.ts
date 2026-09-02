@@ -15,6 +15,7 @@ import {
 	createMcpSdkTransport,
 	isMcpUnauthorizedError,
 } from "./oauth";
+import { McpOAuthScopePolicyError } from "./oauth-scope-policy";
 
 describe("mcp oauth", () => {
 	const tempRoots: string[] = [];
@@ -31,6 +32,7 @@ describe("mcp oauth", () => {
 	async function createSettingsFile(oauthClient?: {
 		clientId: string;
 		clientSecret?: string;
+		allowedScopes?: string[];
 	}): Promise<string> {
 		const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-oauth-"));
 		tempRoots.push(tempRoot);
@@ -173,6 +175,108 @@ describe("mcp oauth", () => {
 		expect(await changedSecret.provider.tokens()).toBeUndefined();
 	});
 
+	it("binds persisted tokens and client metadata to the configured scope policy", async () => {
+		const settingsPath = await createSettingsFile({
+			clientId: "client-a",
+			allowedScopes: ["search:read.public", "channels:history"],
+		});
+		const context = createMcpOAuthProviderContext({
+			settingsPath,
+			serverName: "linear",
+			redirectUrl: "http://127.0.0.1:1456/mcp/oauth/callback",
+			clientInformation: { client_id: "client-a" },
+			allowedScopes: ["search:read.public", "channels:history"],
+		});
+
+		expect(context.provider.clientMetadata.scope).toBe(
+			"channels:history search:read.public",
+		);
+		await context.provider.saveTokens({
+			access_token: "policy-bound-token",
+			token_type: "bearer",
+			scope: "channels:history",
+		});
+		expect((await context.provider.tokens())?.access_token).toBe(
+			"policy-bound-token",
+		);
+
+		const written = JSON.parse(await readFile(settingsPath, "utf8"));
+		expect(written.mcpServers.linear.oauth.scopePolicy).toEqual([
+			"channels:history",
+			"search:read.public",
+		]);
+
+		const changedPolicy = createMcpOAuthProviderContext({
+			settingsPath,
+			serverName: "linear",
+			redirectUrl: "http://127.0.0.1:1456/mcp/oauth/callback",
+			clientInformation: { client_id: "client-a" },
+			allowedScopes: ["channels:history"],
+		});
+		expect(await changedPolicy.provider.tokens()).toBeUndefined();
+	});
+
+	it("invalidates policy-bound tokens when the configured policy is removed", async () => {
+		const settingsPath = await createSettingsFile({
+			clientId: "client-a",
+			allowedScopes: ["channels:history"],
+		});
+		const scopedContext = createMcpOAuthProviderContext({
+			settingsPath,
+			serverName: "linear",
+			redirectUrl: "http://127.0.0.1:1456/mcp/oauth/callback",
+			clientInformation: { client_id: "client-a" },
+			allowedScopes: ["channels:history"],
+		});
+		await scopedContext.provider.saveTokens({
+			access_token: "policy-bound-token",
+			token_type: "bearer",
+			scope: "channels:history",
+		});
+		await updateMcpSettingsFile(settingsPath, (settings) => {
+			const servers = settings.mcpServers as Record<string, unknown>;
+			const linear = servers.linear as Record<string, unknown>;
+			linear.oauthClient = { clientId: "client-a" };
+		});
+
+		const unscopedContext = createMcpOAuthProviderContext({
+			settingsPath,
+			serverName: "linear",
+			redirectUrl: "http://127.0.0.1:1456/mcp/oauth/callback",
+			clientInformation: { client_id: "client-a" },
+		});
+		expect(await unscopedContext.provider.tokens()).toBeUndefined();
+		await unscopedContext.resetInteractiveState();
+
+		const written = JSON.parse(await readFile(settingsPath, "utf8"));
+		expect(written.mcpServers.linear.oauth.tokens).toBeUndefined();
+		expect(written.mcpServers.linear.oauth.scopePolicy).toBeUndefined();
+	});
+
+	it("rejects token responses that grant scopes outside the configured policy", async () => {
+		const settingsPath = await createSettingsFile({
+			clientId: "client-a",
+			allowedScopes: ["channels:history"],
+		});
+		const context = createMcpOAuthProviderContext({
+			settingsPath,
+			serverName: "linear",
+			redirectUrl: "http://127.0.0.1:1456/mcp/oauth/callback",
+			clientInformation: { client_id: "client-a" },
+			allowedScopes: ["channels:history"],
+		});
+
+		await expect(
+			context.provider.saveTokens({
+				access_token: "over-scoped-token",
+				token_type: "bearer",
+				scope: "channels:history chat:write",
+			}),
+		).rejects.toBeInstanceOf(McpOAuthScopePolicyError);
+		const written = JSON.parse(await readFile(settingsPath, "utf8"));
+		expect(written.mcpServers.linear.oauth).toBeUndefined();
+	});
+
 	it("merges updates with the latest OAuth state read under the settings lock", async () => {
 		const settingsPath = await createSettingsFile();
 		const context = createMcpOAuthProviderContext({
@@ -238,6 +342,41 @@ describe("mcp oauth", () => {
 			clientId: "client-b",
 			clientSecret: "secret-b",
 		});
+		expect(written.mcpServers.linear.oauth).toBeUndefined();
+	});
+
+	it("rejects tokens from a callback after the configured scope policy changes", async () => {
+		const settingsPath = await createSettingsFile({
+			clientId: "client-a",
+			allowedScopes: ["channels:history"],
+		});
+		const context = createMcpOAuthProviderContext({
+			settingsPath,
+			serverName: "linear",
+			redirectUrl: "http://127.0.0.1:1456/mcp/oauth/callback",
+			clientInformation: { client_id: "client-a" },
+			allowedScopes: ["channels:history"],
+		});
+		await context.resetInteractiveState();
+
+		await updateMcpSettingsFile(settingsPath, (settings) => {
+			const servers = settings.mcpServers as Record<string, unknown>;
+			const linear = servers.linear as Record<string, unknown>;
+			linear.oauthClient = {
+				clientId: "client-a",
+				allowedScopes: ["search:read.public"],
+			};
+			delete linear.oauth;
+		});
+
+		await expect(
+			context.provider.saveTokens({
+				access_token: "stale-access-token",
+				token_type: "bearer",
+				scope: "channels:history",
+			}),
+		).rejects.toBeInstanceOf(McpOAuthClientChangedError);
+		const written = JSON.parse(await readFile(settingsPath, "utf8"));
 		expect(written.mcpServers.linear.oauth).toBeUndefined();
 	});
 
