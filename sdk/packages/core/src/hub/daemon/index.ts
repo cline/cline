@@ -733,6 +733,13 @@ const HUB_UPGRADE_IDLE_POLL_MS = 500;
 export interface UpgradeManagedHubOptions {
 	workspaceRoot?: string;
 	/**
+	 * Endpoint overrides for the replacement hub, passed through to
+	 * `ensureDetachedHubServer` (the `cline hub upgrade --host/--port/
+	 * --pathname` flags). Discovery of the currently running hub still
+	 * follows the owner context, matching the command's historical behavior.
+	 */
+	endpoint?: HubEndpointOverrides;
+	/**
 	 * How long to wait, after draining, for the hub's live sessions to finish
 	 * before replacing it (`force`) or giving up (`still_busy`).
 	 */
@@ -814,7 +821,10 @@ export async function upgradeManagedHub(
 		? await safeProbeHubServer(discovered.url, discovered.authToken)
 		: undefined;
 	if (!live?.url) {
-		const ensured = await ensureDetachedHubServer(workspaceRoot);
+		const ensured = await ensureDetachedHubServer(
+			workspaceRoot,
+			options.endpoint ?? {},
+		);
 		return { outcome: "started", ...ensured };
 	}
 	const record = {
@@ -909,7 +919,10 @@ export async function upgradeManagedHub(
 			`The running Cline Hub at ${record.url} could not be stopped. Run 'cline doctor fix' to stop stale hub daemons, then try again.`,
 		);
 	}
-	const ensured = await ensureDetachedHubServer(workspaceRoot);
+	const ensured = await ensureDetachedHubServer(
+		workspaceRoot,
+		options.endpoint ?? {},
+	);
 	return {
 		outcome: "replaced",
 		...ensured,
