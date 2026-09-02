@@ -52,6 +52,23 @@ async function renderMessages(
 	});
 }
 
+describe("ChatMessages error action", () => {
+	it("runs the supplied action", async () => {
+		const onClick = vi.fn();
+		await renderMessages([], {
+			error: "Connect GitHub",
+			errorAction: { label: "Connect GitHub", onClick },
+		});
+
+		const button = [...container.querySelectorAll("button")].find((candidate) =>
+			candidate.textContent?.includes("Connect GitHub"),
+		);
+		expect(button).toBeDefined();
+		await act(async () => button?.click());
+		expect(onClick).toHaveBeenCalledOnce();
+	});
+});
+
 describe("ChatMessages tool disclosures", () => {
 	it.each([
 		["run_commands", "lucide-terminal"],

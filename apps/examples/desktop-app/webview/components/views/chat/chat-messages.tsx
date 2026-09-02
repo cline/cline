@@ -28,7 +28,6 @@ import type {
 	ChatMessageVideo,
 	ChatSessionStatus,
 } from "@/lib/chat-schema";
-import { openExternalUrl } from "@/lib/desktop-client";
 import { cn } from "@/lib/utils";
 import { STREAMING_TITLE_CLASS } from "./messages/constants";
 import {
@@ -80,7 +79,7 @@ type ChatMessagesProps = {
 	onForkSession?: () => void | Promise<void>;
 	onOpenVoiceOutputSettings?: () => void;
 	startingLabel?: string;
-	errorAction?: { label: string; url: string };
+	errorAction?: { label: string; onClick: () => void | Promise<void> };
 	onProceedWhileRunning?: (
 		sessionId: string,
 		toolCallId?: string,
@@ -792,7 +791,7 @@ function ChatMessagesImpl({
 								{errorAction ? (
 									<Button
 										className="mt-2"
-										onClick={() => void openExternalUrl(errorAction.url)}
+										onClick={() => void errorAction.onClick()}
 										size="sm"
 										variant="outline"
 									>
