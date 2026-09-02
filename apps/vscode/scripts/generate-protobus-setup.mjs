@@ -110,41 +110,31 @@ ${servers.join("\n")}
  * Generate imports and function to add all the handlers to the server for all services defined in the proto files.
  */
 async function generateVscodeProtobusServers(protobusServices) {
-	const imports = [];
-	const servers = [];
-	const serviceMap = [];
-	const decoders = [];
-	const decoderMap = [];
-	const streamingMethods = [];
+	const imports = []
+	const servers = []
+	const serviceMap = []
+	const decoders = []
+	const decoderMap = []
+	const streamingMethods = []
 	for (const [serviceName, def] of Object.entries(protobusServices)) {
-		const domain = getDomainName(serviceName);
-		const dir = getDirName(serviceName);
-		imports.push(`// ${domain} Service`);
-		servers.push(
-			`const ${serviceName}Handlers: serviceTypes.${serviceName}Handlers = {`,
-		);
-		decoders.push(
-			`const ${serviceName}RequestDecoders: Record<string, (json: unknown) => unknown> = {`,
-		);
+		const domain = getDomainName(serviceName)
+		const dir = getDirName(serviceName)
+		imports.push(`// ${domain} Service`)
+		servers.push(`const ${serviceName}Handlers: serviceTypes.${serviceName}Handlers = {`)
+		decoders.push(`const ${serviceName}RequestDecoders: Record<string, (json: unknown) => unknown> = {`)
 		for (const [rpcName, rpc] of Object.entries(def.service)) {
-			imports.push(
-				`import { ${rpcName} } from "@core/controller/${dir}/${rpcName}"`,
-			);
-			servers.push(`    ${rpcName}: ${rpcName},`);
-			decoders.push(
-				`    ${rpcName}: ${getFqn(rpc.requestType.type.name)}.fromJSON,`,
-			);
+			imports.push(`import { ${rpcName} } from "@core/controller/${dir}/${rpcName}"`)
+			servers.push(`    ${rpcName}: ${rpcName},`)
+			decoders.push(`    ${rpcName}: ${getFqn(rpc.requestType.type.name)}.fromJSON,`)
 			if (rpc.responseStream) {
 				streamingMethods.push(`    "cline.${serviceName}.${rpcName}",`)
 			}
 		}
-		servers.push(`} \n`);
-		decoders.push(`} \n`);
-		serviceMap.push(`    "cline.${serviceName}": ${serviceName}Handlers,`);
-		decoderMap.push(
-			`    "cline.${serviceName}": ${serviceName}RequestDecoders,`,
-		);
-		imports.push("");
+		servers.push(`} \n`)
+		decoders.push(`} \n`)
+		serviceMap.push(`    "cline.${serviceName}": ${serviceName}Handlers,`)
+		decoderMap.push(`    "cline.${serviceName}": ${serviceName}RequestDecoders,`)
+		imports.push("")
 	}
 
 	// Create output file

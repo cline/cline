@@ -35,9 +35,9 @@ export async function dispatchCoreConnectionRequest(
 		(postMessage, grpcRequest) =>
 			// A decode failure throws out of the dispatch; the connection layer
 			// reports it as this request's error response.
-				handleGrpcRequest(controller, postMessage, {
-					...grpcRequest,
-					message: decodeCoreConnectionRequestMessage(grpcRequest.service, grpcRequest.method, grpcRequest.message),
-				}),
+			handleGrpcRequest(controller, postMessage, {
+				...grpcRequest,
+				message: decodeCoreConnectionRequestMessage(grpcRequest.service, grpcRequest.method, grpcRequest.message),
+			}),
 	)
 }
