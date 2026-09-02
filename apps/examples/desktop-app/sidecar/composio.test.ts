@@ -1691,6 +1691,81 @@ describe("disconnectComposioToolkit", () => {
 		expect(readStateFile(dir).cancelledAccountIds).toContain("ca_stale");
 	});
 
+	it("a disconnect started after a redirect-less connect wins over the finalize", async () => {
+		const dir = useTempDataDir();
+		process.env.COMPOSIO_API_KEY = "ck_disc_wins";
+		writeState(dir, {
+			apiKey: "ck_disc_wins",
+			userId: "u_disc_wins",
+			toolkits: {
+				github: {
+					connectedAccountId: "ca_prev",
+					connectedAt: "2026-08-28T00:00:00.000Z",
+					tools: [{ slug: "GITHUB_CREATE_AN_ISSUE" }],
+				},
+			},
+		});
+		let releaseConnectFetch: (() => void) | undefined;
+		const remoteDelete = vi.fn(async () => ({}));
+		const client = {
+			toolkits: {
+				authorize: vi.fn(async () => ({
+					id: "ca_connect_new",
+					redirectUrl: null,
+					waitForConnection: async () => ({}),
+				})),
+			},
+			authConfigs: {
+				list: vi.fn(async () => ({ items: [] })),
+				create: vi.fn(),
+			},
+			tools: {
+				getRawComposioTools: vi.fn(
+					() =>
+						new Promise<{ slug: string }[]>((resolve) => {
+							releaseConnectFetch = () =>
+								resolve([{ slug: "GITHUB_CREATE_AN_ISSUE" }]);
+						}),
+				),
+			},
+			connectedAccounts: {
+				list: vi.fn(async () => ({ items: [], nextCursor: null })),
+				link: vi.fn(),
+				delete: remoteDelete,
+			},
+		};
+		createMockComposioClient = () => client;
+
+		// The connect starts first and is suspended inside its finalize's tool
+		// fetch.
+		const connectPromise = connectComposioToolkit("github");
+		await vi.waitFor(() => {
+			expect(client.tools.getRawComposioTools).toHaveBeenCalledTimes(1);
+		});
+		// The user then clicks disconnect — the newer intent. It must win even
+		// though the connect finalizes afterward.
+		const disconnected = await disconnectComposioToolkit("github");
+		expect(
+			disconnected.integrations.find((entry) => entry.toolkit === "github")
+				?.status,
+		).toBe("not_connected");
+		// The connect's tool fetch completes last; its finalize must be dropped
+		// (disconnect marker predates nothing — the connect started earlier, so
+		// its startedAt is before the disconnect marker) and its new account
+		// revoked.
+		releaseConnectFetch?.();
+		const connectResult = await connectPromise;
+		expect(connectResult.alreadyConnected).toBeUndefined();
+		expect(readStateFile(dir).toolkits ?? {}).toEqual({});
+		expect(remoteDelete).toHaveBeenCalledWith("ca_connect_new", {
+			revoke_on_delete: true,
+		});
+		const after = await getComposioStatus();
+		expect(
+			after.integrations.find((entry) => entry.toolkit === "github")?.status,
+		).toBe("not_connected");
+	});
+
 	it("treats an account that is already gone remotely as revoked", async () => {
 		const dir = useTempDataDir();
 		process.env.COMPOSIO_API_KEY = "ck_gone_404";
