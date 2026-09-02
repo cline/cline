@@ -21,6 +21,7 @@ import {
 import { SessionImportService } from "./service";
 
 const tempDirs: string[] = [];
+const stores: SqliteSessionStore[] = [];
 
 function tempDir(prefix: string): string {
 	const dir = mkdtempSync(join(tmpdir(), prefix));
@@ -28,7 +29,19 @@ function tempDir(prefix: string): string {
 	return dir;
 }
 
+/** A fresh, initialized store in its own temp dir, closed after the test. */
+function tempStore(): SqliteSessionStore {
+	const store = new SqliteSessionStore({ sessionsDir: tempDir("cline-db-") });
+	store.init();
+	stores.push(store);
+	return store;
+}
+
 afterEach(() => {
+	// Close db handles first: Windows refuses to remove a dir holding an open file.
+	for (const store of stores.splice(0)) {
+		store.close();
+	}
 	while (tempDirs.length > 0) {
 		const dir = tempDirs.pop();
 		if (dir) rmSync(dir, { recursive: true, force: true });
@@ -776,11 +789,9 @@ describe("SessionImportService", () => {
 	it("imports a discovered session into a listable completed Cline session", async () => {
 		const projectsDir = tempDir("cc-import-");
 		writeClaudeCodeFixture(projectsDir);
-		const dbDir = tempDir("cline-db-");
 		const artifactsDir = tempDir("cline-sessions-");
 
-		const store = new SqliteSessionStore({ sessionsDir: dbDir });
-		store.init();
+		const store = tempStore();
 		const sessions = new CoreSessionService(store, {
 			sessionArtifactsDir: artifactsDir,
 		});
@@ -843,10 +854,8 @@ describe("SessionImportService", () => {
 	it("stamps the resume provider/model on the row and keeps the source in metadata", async () => {
 		const projectsDir = tempDir("cc-import-");
 		writeClaudeCodeFixture(projectsDir);
-		const dbDir = tempDir("cline-db-");
 		const artifactsDir = tempDir("cline-sessions-");
-		const store = new SqliteSessionStore({ sessionsDir: dbDir });
-		store.init();
+		const store = tempStore();
 		const sessions = new CoreSessionService(store, {
 			sessionArtifactsDir: artifactsDir,
 		});
@@ -882,10 +891,7 @@ describe("SessionImportService", () => {
 		// A half-specified target is ignored rather than mixing provider and
 		// model from different worlds. (Fresh store: the same source is never
 		// imported twice into one store.)
-		const partialStore = new SqliteSessionStore({
-			sessionsDir: tempDir("cline-db-"),
-		});
-		partialStore.init();
+		const partialStore = tempStore();
 		const partialImporter = new SessionImportService(
 			new CoreSessionService(partialStore, {
 				sessionArtifactsDir: tempDir("cline-sessions-"),
@@ -905,10 +911,8 @@ describe("SessionImportService", () => {
 	it("rolls back a half-written session when a later write fails", async () => {
 		const projectsDir = tempDir("cc-import-");
 		writeClaudeCodeFixture(projectsDir);
-		const dbDir = tempDir("cline-db-");
 		const artifactsDir = tempDir("cline-sessions-");
-		const store = new SqliteSessionStore({ sessionsDir: dbDir });
-		store.init();
+		const store = tempStore();
 		const sessions = new CoreSessionService(store, {
 			sessionArtifactsDir: artifactsDir,
 		});
@@ -946,8 +950,7 @@ describe("SessionImportService", () => {
 	it("rolls back a session whose creation fails after the row is written", async () => {
 		const projectsDir = tempDir("cc-import-");
 		writeClaudeCodeFixture(projectsDir);
-		const store = new SqliteSessionStore({ sessionsDir: tempDir("cline-db-") });
-		store.init();
+		const store = tempStore();
 		const sessions = new CoreSessionService(store, {
 			sessionArtifactsDir: tempDir("cline-sessions-"),
 		});
@@ -984,8 +987,7 @@ describe("SessionImportService", () => {
 	it("coalesces overlapping imports of the same source into one session", async () => {
 		const projectsDir = tempDir("cc-import-");
 		writeClaudeCodeFixture(projectsDir);
-		const store = new SqliteSessionStore({ sessionsDir: tempDir("cline-db-") });
-		store.init();
+		const store = tempStore();
 		const sessions = new CoreSessionService(store, {
 			sessionArtifactsDir: tempDir("cline-sessions-"),
 		});
@@ -1010,8 +1012,7 @@ describe("SessionImportService", () => {
 	it("never marks a session as imported unless every write succeeded", async () => {
 		const projectsDir = tempDir("cc-import-");
 		writeClaudeCodeFixture(projectsDir);
-		const store = new SqliteSessionStore({ sessionsDir: tempDir("cline-db-") });
-		store.init();
+		const store = tempStore();
 		const sessions = new CoreSessionService(store, {
 			sessionArtifactsDir: tempDir("cline-sessions-"),
 		});
@@ -1046,10 +1047,8 @@ describe("SessionImportService", () => {
 	it("never duplicates a source session that was already imported", async () => {
 		const projectsDir = tempDir("cc-import-");
 		writeClaudeCodeFixture(projectsDir);
-		const dbDir = tempDir("cline-db-");
 		const artifactsDir = tempDir("cline-sessions-");
-		const store = new SqliteSessionStore({ sessionsDir: dbDir });
-		store.init();
+		const store = tempStore();
 		const sessions = new CoreSessionService(store, {
 			sessionArtifactsDir: artifactsDir,
 		});
