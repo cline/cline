@@ -50,6 +50,8 @@
 		"components/attachment-drop-zone.tsx",
 		"components/badge.tsx",
 		"components/button.tsx",
+		"components/audio-player.css",
+		"components/audio-player.tsx",
 		"components/generated-media.tsx",
 		"components/agent-chat/agent-chat.css",
 		"components/agent-chat/index.tsx",
