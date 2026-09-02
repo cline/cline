@@ -319,10 +319,22 @@ function readPersistedChatMessages(
 	}
 }
 
-const GENERATED_VIDEO_EXTENSIONS = new Set([".mp4", ".webm", ".mov", ".mpeg"]);
+const GENERATED_MEDIA_EXTENSIONS = new Set([
+	".mp4",
+	".webm",
+	".mov",
+	".mpeg",
+	".mp3",
+	".wav",
+	".aac",
+	".m4a",
+	".weba",
+	".flac",
+	".ogg",
+]);
 
 /**
- * Clone generated videos when a new session inherits history from another
+ * Clone generated media when a new session inherits history from another
  * session. The webview resolves artifacts against the current session ID, so
  * the bytes must follow the copied message history.
  *
@@ -330,7 +342,7 @@ const GENERATED_VIDEO_EXTENSIONS = new Set([".mp4", ".webm", ".mov", ".mpeg"]);
  * directory rename. A failed copy therefore leaves no partially populated
  * artifact directory behind.
  */
-export async function copySessionGeneratedVideoArtifacts(
+export async function copySessionGeneratedArtifacts(
 	sourceSessionId: string,
 	targetSessionId: string,
 ): Promise<void> {
@@ -342,36 +354,36 @@ export async function copySessionGeneratedVideoArtifacts(
 			throw error;
 		},
 	);
-	const videoEntries = entries.filter(
+	const mediaEntries = entries.filter(
 		(entry) =>
 			entry.isFile() &&
-			GENERATED_VIDEO_EXTENSIONS.has(extname(entry.name).toLowerCase()),
+			GENERATED_MEDIA_EXTENSIONS.has(extname(entry.name).toLowerCase()),
 	);
-	if (videoEntries.length === 0) return;
+	if (mediaEntries.length === 0) return;
 
 	const targetDir = join(sharedSessionDataDir(), targetSessionId, "artifacts");
 	if (existsSync(targetDir)) {
 		throw new Error(
-			`Generated video artifact destination already exists for session ${targetSessionId}`,
+			`Generated media artifact destination already exists for session ${targetSessionId}`,
 		);
 	}
 
 	const targetSessionDir = dirname(targetDir);
 	const stagingDir = join(
 		targetSessionDir,
-		`.video-artifacts-${randomUUID()}.tmp`,
+		`.media-artifacts-${randomUUID()}.tmp`,
 	);
 	await mkdir(targetSessionDir, { recursive: true });
 	try {
 		await mkdir(stagingDir);
 		await Promise.all(
-			videoEntries.map((entry) =>
+			mediaEntries.map((entry) =>
 				copyFile(join(sourceDir, entry.name), join(stagingDir, entry.name)),
 			),
 		);
 		if (existsSync(targetDir)) {
 			throw new Error(
-				`Generated video artifact destination already exists for session ${targetSessionId}`,
+				`Generated media artifact destination already exists for session ${targetSessionId}`,
 			);
 		}
 		await rename(stagingDir, targetDir);
@@ -380,13 +392,13 @@ export async function copySessionGeneratedVideoArtifacts(
 	}
 }
 
-async function copySessionGeneratedVideoArtifactsWithRollback(
+async function copySessionGeneratedArtifactsWithRollback(
 	manager: Pick<ClineCore, "delete">,
 	sourceSessionId: string,
 	targetSessionId: string,
 ): Promise<void> {
 	try {
-		await copySessionGeneratedVideoArtifacts(sourceSessionId, targetSessionId);
+		await copySessionGeneratedArtifacts(sourceSessionId, targetSessionId);
 	} catch (copyError) {
 		try {
 			const deleted = await manager.delete(targetSessionId);
@@ -398,7 +410,7 @@ async function copySessionGeneratedVideoArtifactsWithRollback(
 		} catch (rollbackError) {
 			throw new AggregateError(
 				[copyError, rollbackError],
-				`Failed to copy generated videos and roll back replacement session ${targetSessionId}`,
+				`Failed to copy generated media and roll back replacement session ${targetSessionId}`,
 			);
 		}
 		throw copyError;
@@ -1432,7 +1444,7 @@ async function handleForkUnlocked(
 		});
 		newSessionId = started.sessionId;
 	}
-	await copySessionGeneratedVideoArtifactsWithRollback(
+	await copySessionGeneratedArtifactsWithRollback(
 		manager,
 		sourceSessionId,
 		newSessionId,
@@ -1531,7 +1543,7 @@ async function handleRestoreCheckpoint(
 		if (!sessionId || !restoredMessages) {
 			throw new Error("Checkpoint restore did not return a new session");
 		}
-		await copySessionGeneratedVideoArtifactsWithRollback(
+		await copySessionGeneratedArtifactsWithRollback(
 			manager,
 			sourceSessionId,
 			sessionId,

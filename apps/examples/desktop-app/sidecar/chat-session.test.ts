@@ -14,7 +14,7 @@ import { materializeUserFiles } from "./attachments";
 import {
 	buildSessionConnectionUpdate,
 	consumeWorkspaceMetadata,
-	copySessionGeneratedVideoArtifacts,
+	copySessionGeneratedArtifacts,
 	handleChatSessionCommand,
 	hasProviderChanged,
 	mergeSessionConfig,
@@ -336,9 +336,9 @@ function createVideoReplacementContext(options: {
 }
 
 describe("session forks", () => {
-	it("atomically copies only generated video artifacts", async () => {
+	it("atomically copies only generated media artifacts", async () => {
 		await withTemporarySessionDataDir(
-			"desktop-video-fork-",
+			"desktop-media-fork-",
 			async (sessionsDir) => {
 				writeSessionArtifact(
 					sessionsDir,
@@ -353,7 +353,8 @@ describe("session forks", () => {
 					"webm-video",
 				);
 				writeSessionArtifact(sessionsDir, "source", "generated.mp3", "audio");
-				await copySessionGeneratedVideoArtifacts("source", "target");
+				writeSessionArtifact(sessionsDir, "source", "notes.txt", "unrelated");
+				await copySessionGeneratedArtifacts("source", "target");
 
 				const targetArtifactsDir = join(sessionsDir, "target", "artifacts");
 				expect(
@@ -362,19 +363,20 @@ describe("session forks", () => {
 				expect(
 					readFileSync(join(targetArtifactsDir, "generated.webm"), "utf8"),
 				).toBe("webm-video");
-				expect(existsSync(join(targetArtifactsDir, "generated.mp3"))).toBe(
-					false,
-				);
+				expect(
+					readFileSync(join(targetArtifactsDir, "generated.mp3"), "utf8"),
+				).toBe("audio");
+				expect(existsSync(join(targetArtifactsDir, "notes.txt"))).toBe(false);
 				expect(
 					readdirSync(join(sessionsDir, "target")).filter((name) =>
-						name.startsWith(".video-artifacts-"),
+						name.startsWith(".media-artifacts-"),
 					),
 				).toEqual([]);
 			},
 		);
 	});
 
-	it("copies generated videos into a full-history fork", async () => {
+	it("copies generated media into a full-history fork", async () => {
 		await withTemporarySessionDataDir(
 			"desktop-video-full-fork-",
 			async (sessionsDir) => {
@@ -385,6 +387,12 @@ describe("session forks", () => {
 					sourceSessionId,
 					"generated.mp4",
 					"video-bytes",
+				);
+				writeSessionArtifact(
+					sessionsDir,
+					sourceSessionId,
+					"generated.mp3",
+					"audio-bytes",
 				);
 				const { ctx } = createVideoReplacementContext({
 					sourceSessionId,
@@ -403,11 +411,17 @@ describe("session forks", () => {
 						"utf8",
 					),
 				).toBe("video-bytes");
+				expect(
+					readFileSync(
+						join(sessionsDir, targetSessionId, "artifacts", "generated.mp3"),
+						"utf8",
+					),
+				).toBe("audio-bytes");
 			},
 		);
 	});
 
-	it("deletes a fork replacement when generated video copying fails", async () => {
+	it("deletes a fork replacement when generated media copying fails", async () => {
 		await withTemporarySessionDataDir(
 			"desktop-video-fork-rollback-",
 			async (sessionsDir) => {
@@ -439,7 +453,7 @@ describe("session forks", () => {
 						config: VIDEO_SESSION_CONFIG,
 					}),
 				).rejects.toThrow(
-					`Generated video artifact destination already exists for session ${targetSessionId}`,
+					`Generated media artifact destination already exists for session ${targetSessionId}`,
 				);
 				expect(deleteSession).toHaveBeenCalledWith(targetSessionId);
 				expect(ctx.liveSessions.has(sourceSessionId)).toBe(true);
@@ -448,7 +462,7 @@ describe("session forks", () => {
 		);
 	});
 
-	it("copies generated videos into a checkpoint-restored session", async () => {
+	it("copies generated media into a checkpoint-restored session", async () => {
 		await withTemporarySessionDataDir(
 			"desktop-video-checkpoint-",
 			async (sessionsDir) => {
@@ -479,6 +493,12 @@ describe("session forks", () => {
 					sourceSessionId,
 					"generated.mp4",
 					"video-bytes",
+				);
+				writeSessionArtifact(
+					sessionsDir,
+					sourceSessionId,
+					"generated.mp3",
+					"audio-bytes",
 				);
 				const restore = vi.fn(async () => ({
 					sessionId: targetSessionId,
@@ -527,6 +547,12 @@ describe("session forks", () => {
 						"utf8",
 					),
 				).toBe("video-bytes");
+				expect(
+					readFileSync(
+						join(sessionsDir, targetSessionId, "artifacts", "generated.mp3"),
+						"utf8",
+					),
+				).toBe("audio-bytes");
 			},
 		);
 	});
@@ -597,11 +623,11 @@ describe("session forks", () => {
 
 				expect(caught).toBeInstanceOf(AggregateError);
 				expect((caught as AggregateError).message).toBe(
-					`Failed to copy generated videos and roll back replacement session ${targetSessionId}`,
+					`Failed to copy generated media and roll back replacement session ${targetSessionId}`,
 				);
 				expect((caught as AggregateError).errors).toEqual([
 					expect.objectContaining({
-						message: `Generated video artifact destination already exists for session ${targetSessionId}`,
+						message: `Generated media artifact destination already exists for session ${targetSessionId}`,
 					}),
 					rollbackError,
 				]);
