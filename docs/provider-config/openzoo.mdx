@@ -1,37 +1,44 @@
 ---
 title: "OpenZoo"
-description: "Configure Cline with OpenZoo, an OpenAI-compatible provider with no signup — pay per call by card or via x402, hosted or local with npx."
+description: "Configure Cline with OpenZoo, an OpenAI-compatible provider that pays per call over x402 from a local proxy — no account."
 ---
 
-OpenZoo is an OpenAI-compatible model provider that requires no account. Any API
-key value is accepted, and usage is paid per request — by card, or automatically
-via the x402 protocol when running the local gateway.
+OpenZoo is an OpenAI-compatible model provider with no account. You run a small
+local proxy (`npx openzoo`) that pays for each request over the x402 protocol
+from a local burner wallet; Cline talks to the proxy like any other
+OpenAI-compatible endpoint.
 
 **Website:** [https://openzoo.fun](https://openzoo.fun)
 
 ### Quickstart
 
-1. In Cline settings, set **API Provider** to "OpenAI Compatible".
-2. Set **Base URL** to `https://api.openzoo.fun/v1` — or run `npx openzoo` and
-   use `http://localhost:8402/v1`.
-3. Set **API Key** to any value, e.g. `sk-openzoo` (no signup exists).
-4. Set **Model ID** to a model from the catalog, e.g. `z-ai/glm-5.3-flash`.
+1. Start the proxy: `npx openzoo` (listens on `http://localhost:8402/v1`).
+2. In Cline settings, set **API Provider** to "OpenAI Compatible".
+3. Set **Base URL** to `http://localhost:8402/v1`.
+4. Set **API Key** to any non-empty value, e.g. `sk-openzoo` — the local proxy
+   ignores it.
+5. Set **Model ID** to a model from the catalog, e.g. `z-ai/glm-5.3-flash`.
 
 ### Notes
 
--   **No signup:** any API key is accepted; billing is per call.
+-   **Wallet:** `npx openzoo address` prints the proxy's wallet; fund it with
+    USDC on Solana or Base. `npx openzoo balance` shows what is left.
 -   **Model list:** fetch live model ids and pricing (free) from
-    `https://api.openzoo.fun/v1/models`. Ids are namespaced, like
+    `http://localhost:8402/v1/models`. Ids are namespaced, like
     `z-ai/glm-5.3-flash` or `qwen/qwen3.7-flash`.
 -   **Streaming:** SSE streaming is supported.
--   **Local mode:** `npx openzoo` serves the same API at
-    `http://localhost:8402/v1` and pays per call from a local burner wallet.
+-   **Hosted endpoint:** `https://api.openzoo.fun/v1` answers HTTP 402 unless
+    the caller pays x402 or presents an OpenZoo subscription key
+    (`ozk_live_…`). Plain OpenAI clients cannot pay x402, so use the local
+    proxy.
 
 ### Troubleshooting
 
--   **Connection errors (local):** confirm `npx openzoo` is running and the
-    Base URL is `http://localhost:8402/v1`.
--   **HTTP 402:** the wallet behind the request is unfunded — the error body
-    carries directions (card link, `npx openzoo address` / `balance`).
+-   **Connection errors:** confirm `npx openzoo` is running and the Base URL is
+    `http://localhost:8402/v1`.
+-   **HTTP 402 from the proxy:** the local wallet is unfunded — send USDC to
+    the address from `npx openzoo address`.
+-   **HTTP 402 from `api.openzoo.fun`:** Cline is pointed at the hosted
+    endpoint without a subscription key; use the local proxy instead.
 -   **"Model Not Found":** copy the model id exactly as returned by
     `/v1/models`.
