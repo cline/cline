@@ -5,7 +5,10 @@ import {
 	sanitizeSurrogates,
 	toAiSdkToolResultOutput,
 } from "./ai-sdk-format";
-import { IMAGE_UNSUPPORTED_PLACEHOLDER } from "./media";
+import {
+	GENERATED_MEDIA_OMITTED_PLACEHOLDER,
+	IMAGE_UNSUPPORTED_PLACEHOLDER,
+} from "./media";
 
 describe("formatMessagesForAiSdk", () => {
 	const imageData = (byteLength: number, fill = 1) =>
@@ -326,6 +329,29 @@ describe("formatMessagesForAiSdk", () => {
 					data: { type: "data", data: image },
 					mediaType: "image/png",
 				},
+			],
+		});
+	});
+
+	it("tells the model that omitted generated media remains available to the user", () => {
+		const output = toAiSdkToolResultOutput([
+			{ type: "text", text: "Generated an image" },
+			{
+				type: "media",
+				media: {
+					id: "generated-image",
+					modality: "image",
+					mediaType: "image/png",
+					source: { type: "base64", data: "truncated base64" },
+				},
+			},
+		]);
+
+		expect(output).toEqual({
+			type: "content",
+			value: [
+				{ type: "text", text: "Generated an image" },
+				{ type: "text", text: GENERATED_MEDIA_OMITTED_PLACEHOLDER },
 			],
 		});
 	});

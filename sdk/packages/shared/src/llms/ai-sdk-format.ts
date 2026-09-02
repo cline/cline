@@ -5,6 +5,7 @@ import {
 	DEFAULT_MAX_IMAGE_ENCODED_BYTES,
 	type GeneratedMedia,
 	type GeneratedMediaModality,
+	GENERATED_MEDIA_OMITTED_PLACEHOLDER,
 	IMAGE_OMITTED_PLACEHOLDER,
 	IMAGE_UNSUPPORTED_PLACEHOLDER,
 	imageBase64LengthForDecodedBytes,
@@ -170,8 +171,11 @@ function isAiSdkContentBlockArray(
 	});
 }
 
-function imageOmittedTextPart(): { type: "text"; text: string } {
-	return { type: "text", text: IMAGE_OMITTED_PLACEHOLDER };
+function imageOmittedTextPart(text = IMAGE_OMITTED_PLACEHOLDER): {
+	type: "text";
+	text: string;
+} {
+	return { type: "text", text };
 }
 
 function reserveRemoteImageUrlBudget(state: MediaBudgetState): boolean {
@@ -207,6 +211,7 @@ function parseUrlProtocol(value: string): string | undefined {
 function toToolResultImagePart(
 	image: AiSdkImageContentBlock,
 	state: MediaBudgetState,
+	omittedText = IMAGE_OMITTED_PLACEHOLDER,
 ): ToolResultImagePart | { type: "text"; text: string } {
 	const validation = validateAndReserveImageMedia(
 		image.mediaType,
@@ -218,7 +223,7 @@ function toToolResultImagePart(
 		state,
 	);
 	if (!validation.ok) {
-		return imageOmittedTextPart();
+		return imageOmittedTextPart(omittedText);
 	}
 	return toolResultImagePart(validation.base64, validation.mediaType);
 }
@@ -251,10 +256,10 @@ function toToolResultGeneratedMediaPart(
 	if (media.source.type === "url") {
 		const supportedMediaTypes: readonly string[] = SUPPORTED_IMAGE_MEDIA_TYPES;
 		if (!supportedMediaTypes.includes(media.mediaType.toLowerCase())) {
-			return imageOmittedTextPart();
+			return imageOmittedTextPart(GENERATED_MEDIA_OMITTED_PLACEHOLDER);
 		}
 		if (!reserveRemoteImageUrlBudget(state)) {
-			return imageOmittedTextPart();
+			return imageOmittedTextPart(GENERATED_MEDIA_OMITTED_PLACEHOLDER);
 		}
 		return {
 			type: "file",
@@ -269,6 +274,7 @@ function toToolResultGeneratedMediaPart(
 			mediaType: media.mediaType,
 		},
 		state,
+		GENERATED_MEDIA_OMITTED_PLACEHOLDER,
 	);
 }
 
