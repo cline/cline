@@ -1,4 +1,5 @@
 import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
+import { mkdir } from "node:fs/promises";
 import { StringDecoder } from "node:string_decoder";
 import {
 	type AgentToolContext,
@@ -68,9 +69,34 @@ export const DEFAULT_MCP_CONNECT_TIMEOUT_MS = 3_000;
 export const DEFAULT_HTTP_MCP_CONNECT_TIMEOUT_MS = 10_000;
 const DEFAULT_HTTP_MCP_REDIRECT_URL =
 	"http://127.0.0.1:1456/mcp/oauth/callback";
+const STDIO_MCP_GRACEFUL_SHUTDOWN_TIMEOUT_MS = 250;
+const STDIO_MCP_FORCED_SHUTDOWN_TIMEOUT_MS = 2_000;
 
 function toErrorMessage(error: unknown): string {
 	return error instanceof Error ? error.message : String(error);
+}
+
+async function settlesWithin(
+	promise: Promise<void>,
+	timeoutMs: number,
+): Promise<boolean> {
+	return new Promise((resolve) => {
+		let settled = false;
+		const finish = (result: boolean) => {
+			if (settled) {
+				return;
+			}
+			settled = true;
+			clearTimeout(timeout);
+			resolve(result);
+		};
+		const timeout = setTimeout(() => finish(false), timeoutMs);
+		timeout.unref();
+		promise.then(
+			() => finish(true),
+			() => finish(true),
+		);
+	});
 }
 
 /**
@@ -173,6 +199,7 @@ class NewlineMessageParser {
 class StdioMcpClient implements McpServerClient {
 	private readonly registration: McpServerRegistration;
 	private process?: ChildProcessWithoutNullStreams;
+	private processClose?: Promise<void>;
 	private nextRequestId = 1;
 	private readonly pending = new Map<
 		number,
@@ -222,6 +249,7 @@ class StdioMcpClient implements McpServerClient {
 			capabilities: {},
 			clientInfo: { name: "@cline/core", version: "0.0.0" },
 		};
+		await this.ensureAgentPluginDataDirectory();
 		this.spawnProcess("newline");
 		try {
 			await this.request(
@@ -251,17 +279,74 @@ class StdioMcpClient implements McpServerClient {
 		this.connected = true;
 	}
 
+	/**
+	 * Agent Plugin discovery is intentionally read-only. Create the plugin's
+	 * persistent writable data directory only when its stdio server is about to
+	 * launch, as required by the Agent Plugins MCP runtime contract.
+	 */
+	private async ensureAgentPluginDataDirectory(): Promise<void> {
+		if (this.registration.metadata?.source !== "agent-plugin") {
+			return;
+		}
+		const pluginDataPath = this.registration.metadata.pluginDataPath;
+		if (typeof pluginDataPath !== "string" || pluginDataPath.length === 0) {
+			return;
+		}
+		await mkdir(pluginDataPath, { recursive: true });
+	}
+
 	async disconnect(): Promise<void> {
 		const child = this.process;
+		const processClose = this.processClose;
 		this.connected = false;
 		this.process = undefined;
+		this.processClose = undefined;
 		this.failAllPending(
 			new Error(`Disconnected from MCP server "${this.registration.name}".`),
 		);
-		if (!child) {
+		if (!processClose) {
 			return;
 		}
+		if (!child) {
+			if (
+				!(await settlesWithin(
+					processClose,
+					STDIO_MCP_FORCED_SHUTDOWN_TIMEOUT_MS,
+				))
+			) {
+				throw new Error(
+					`MCP process for "${this.registration.name}" did not close during disconnect.`,
+				);
+			}
+			return;
+		}
+
+		// Closing stdin first lets well-behaved MCP servers shut down cleanly. This
+		// matters on Windows, where a live child process keeps its cwd locked.
+		if (!child.stdin.destroyed) {
+			child.stdin.end();
+		}
+		if (
+			await settlesWithin(processClose, STDIO_MCP_GRACEFUL_SHUTDOWN_TIMEOUT_MS)
+		) {
+			return;
+		}
+
 		child.kill();
+		if (
+			await settlesWithin(processClose, STDIO_MCP_FORCED_SHUTDOWN_TIMEOUT_MS)
+		) {
+			return;
+		}
+
+		child.kill("SIGKILL");
+		if (
+			!(await settlesWithin(processClose, STDIO_MCP_FORCED_SHUTDOWN_TIMEOUT_MS))
+		) {
+			throw new Error(
+				`MCP process for "${this.registration.name}" did not exit during disconnect.`,
+			);
+		}
 	}
 
 	async listTools(): Promise<readonly McpToolDescriptor[]> {
@@ -339,6 +424,9 @@ class StdioMcpClient implements McpServerClient {
 		});
 
 		this.process = child;
+		this.processClose = new Promise((resolve) => {
+			child.once("close", () => resolve());
+		});
 		child.stdout.on("data", (chunk: Buffer) => this.handleStdout(chunk));
 		child.stderr.on("data", (chunk: Buffer) => {
 			if (this.process !== child) {
@@ -557,6 +645,8 @@ export interface DefaultMcpServerClientFactoryOptions {
 	clientName?: string;
 	clientVersion?: string;
 	fetch?: FetchLike;
+	/** Keep literal configured headers on the declared MCP origin only. */
+	restrictConfiguredHeadersToOrigin?: boolean;
 }
 
 export interface ProbeMcpServerConnectionOptions
@@ -632,6 +722,8 @@ class SdkUrlMcpClient implements McpServerClient {
 				registration: this.registration,
 				oauthProvider,
 				fetch: this.options.fetch,
+				restrictConfiguredHeadersToOrigin:
+					this.options.restrictConfiguredHeadersToOrigin,
 			});
 			await client.connect(transport, {
 				timeout: this.connectAttemptTimeoutMs,
