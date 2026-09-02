@@ -20,6 +20,10 @@ import {
 import { version as corePackageVersion } from "../../package.json";
 import { createComposioToolsExtension } from "../extensions/composio/composio-tools-extension";
 import {
+	type AgentPluginPackageDiagnostic,
+	loadAgentPluginPackages,
+} from "../extensions/agent-plugin";
+import {
 	resolveAndLoadAgentPlugins,
 	resolvePluginSkillDirectoriesFromPaths,
 } from "../extensions/plugin/plugin-config-loader";
@@ -53,7 +57,10 @@ import {
 	toProviderConfig,
 } from "../types/provider-settings";
 import { resolveWorkspacePath } from "./config";
-import { filterExtensionToolRegistrations } from "./global-settings";
+import {
+	filterExtensionToolRegistrations,
+	resolveDisabledAgentPluginNames,
+} from "./global-settings";
 import { hasRuntimeHooks, mergeAgentExtensions } from "./session-data";
 import type { ProviderSettingsManager } from "./storage/provider-settings-manager";
 import { InMemoryWorkspaceManager } from "./workspace/workspace-manager";
@@ -94,6 +101,19 @@ function logPluginDiagnostics(
 				pluginPath: failure.pluginPath,
 				pluginName: failure.pluginName,
 			},
+		);
+	}
+}
+
+function logAgentPluginDiagnostics(
+	diagnostics: ReadonlyArray<AgentPluginPackageDiagnostic>,
+	logger: BasicLogger | undefined,
+): void {
+	for (const item of diagnostics) {
+		const component = item.componentName ? ` (${item.componentName})` : "";
+		logger?.log(
+			`[agent-plugins] ${item.pluginName ?? item.pluginPath}${component}: ${item.message}`,
+			{ severity: item.level === "warning" ? "warn" : "error" },
 		);
 	}
 }
@@ -426,6 +446,29 @@ export async function prepareLocalRuntimeBootstrap(
 	const composioToolsExtension = createComposioToolsExtension({
 		logger: localConfig?.logger,
 	});
+	let loadedAgentPluginPackages:
+		| Awaited<ReturnType<typeof loadAgentPluginPackages>>
+		| undefined;
+	if (hasConfigExtension(configExtensions, "plugins")) {
+		try {
+			loadedAgentPluginPackages = await loadAgentPluginPackages({
+				pluginPaths: input.config.agentPluginPaths,
+				cwd: input.config.cwd,
+				disabledPluginNames: [...resolveDisabledAgentPluginNames()],
+			});
+			logAgentPluginDiagnostics(
+				loadedAgentPluginPackages.diagnostics,
+				extensionContext.logger,
+			);
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			extensionContext.logger?.log(
+				`[agent-plugins] Package discovery failed; continuing without Agent Plugins: ${message}`,
+				{ severity: "error" },
+			);
+		}
+	}
+
 	const builtInExtensionList = [
 		...(fileHookExtension ? [fileHookExtension] : []),
 		...(composioToolsExtension ? [composioToolsExtension] : []),
@@ -524,6 +567,8 @@ export async function prepareLocalRuntimeBootstrap(
 			onSubAgentEnd: subAgentLifecycleCallbacks?.onSubAgentEnd,
 			userInstructionService: userInstructionService,
 			pluginSkillDirectories,
+			agentPluginSkills: loadedAgentPluginPackages?.skills,
+			agentPluginMcpServers: loadedAgentPluginPackages?.mcpServers,
 			configExtensions: configExtensions,
 			toolExecutors: effectiveToolExecutors,
 			toolPolicies,

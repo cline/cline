@@ -5,6 +5,27 @@ export type HubUpdateRestartDecision =
 	| { action: "stay"; hint: string };
 
 /**
+ * Human phrase for the live work an outdated Hub is serving, used by the
+ * blocking "Hub update required" dialog. Falls back to an unquantified
+ * phrase when the Hub could not answer the activity query.
+ */
+export function describeOutdatedHubSessions(counts: {
+	activeSessionCount?: number;
+	participantClientCount?: number;
+}): string {
+	const sessions = counts.activeSessionCount;
+	if (typeof sessions !== "number" || sessions <= 0) {
+		return "active sessions from other Cline clients";
+	}
+	const sessionsPhrase = `${sessions} active session${sessions === 1 ? "" : "s"}`;
+	const clients = counts.participantClientCount;
+	if (typeof clients !== "number" || clients <= 0) {
+		return sessionsPhrase;
+	}
+	return `${sessionsPhrase} from ${clients} connected Cline client${clients === 1 ? "" : "s"}`;
+}
+
+/**
  * Decide what "Update and restart" should do after an on-demand updater
  * check. Restart only when an update is actually staged - relaunching the
  * same version would bring the mismatch dialog straight back without

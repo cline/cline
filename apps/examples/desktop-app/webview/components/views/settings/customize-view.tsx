@@ -8,7 +8,10 @@ import { desktopClient } from "@/lib/desktop-client";
 import { cn } from "@/lib/utils";
 import { PageFrame, PageHeader } from "../page-layout";
 import { ComposioConnectorsView } from "./composio-connectors-view";
-import { CustomizationSectionView } from "./extensions-view";
+import {
+	CustomizationSectionView,
+	invalidateExtensionInventoryCache,
+} from "./extensions-view";
 import { McpServersContent } from "./mcp-view";
 
 /**
@@ -103,6 +106,15 @@ export function CustomizeView({
 		}, 0);
 		return () => window.clearTimeout(timeoutId);
 	}, [refreshCounts]);
+
+	useEffect(
+		() =>
+			desktopClient.subscribe("settings.changed", () => {
+				invalidateExtensionInventoryCache();
+				void refreshCounts();
+			}),
+		[refreshCounts],
+	);
 
 	const handleInventoryChanged = useCallback(() => {
 		void refreshCounts();

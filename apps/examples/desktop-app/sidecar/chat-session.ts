@@ -23,6 +23,7 @@ import {
 	createCloudHandoffFingerprint,
 	createSessionCompactionState,
 	createUserInstructionConfigService,
+	findCheckpointForRun,
 	getCoreBuiltinToolCatalog,
 	isSkillsToolAvailable,
 	mergeCloudHandoffMetadata,
@@ -32,6 +33,7 @@ import {
 	RuntimeOAuthTokenManager,
 	readCloudHandoffMetadata,
 	readGlobalSettings,
+	readSessionCheckpointHistory,
 	resolveProviderApiKeyFromSettings,
 	type SessionCompactionState,
 	type SessionPendingPrompt,
@@ -1571,8 +1573,18 @@ async function handleForkUnlocked(
 		sessionMetadata: forkMetadata,
 		toolPolicies: resolveToolPolicies(forkConfig),
 	};
+	// Sessions without a checkpoint at or before the edited run (imported
+	// transcripts, checkpoints disabled) have no workspace state to roll back,
+	// so fork the trimmed messages onto the current workspace instead of
+	// failing the edit.
+	const canRestoreWorkspace =
+		forkBeforeRunCount !== undefined &&
+		findCheckpointForRun(
+			readSessionCheckpointHistory({ metadata: sourceMetadata }),
+			forkBeforeRunCount,
+		) !== undefined;
 	let newSessionId: string;
-	if (forkBeforeRunCount !== undefined) {
+	if (forkBeforeRunCount !== undefined && canRestoreWorkspace) {
 		const cwd =
 			restoreWorkspacePath ||
 			(typeof forkConfig.cwd === "string" && forkConfig.cwd.trim()) ||
