@@ -1,6 +1,7 @@
 import { providerOffersModelTool } from "@cline/llms/browser";
-import { Minus, Plus, RotateCcw } from "lucide-react";
+import { Import, Minus, Plus, RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ImportSessionsDialog } from "@/components/import-sessions-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -59,7 +60,7 @@ import {
 	setStoredHubTheme,
 } from "@/lib/theme";
 import { cn } from "@/lib/utils";
-import { MarketplaceView } from "../marketplace-view";
+import { MarketplaceExplorerView } from "../marketplace-explorer-view";
 import { PageFrame, PageHeader } from "../page-layout";
 import { AccountView } from "./account-view";
 import { AddProviderContent, type AddProviderPayload } from "./add-provider";
@@ -217,6 +218,31 @@ export function SettingsView({
 		return () => window.clearTimeout(timeoutId);
 	}, [activeNav, loadProviderCatalog]);
 
+	/**
+	 * Silently refreshes view state from the authoritative catalog after a
+	 * successful save, without toggling the loading screen. Optimistic
+	 * mutations can't know sidecar-computed fields (`configured`), so the
+	 * Configured badge would otherwise stay stale until a remount. Claims a
+	 * new generation like loadProviderCatalog, so overlapping resyncs, loads,
+	 * and edits always resolve to the newest snapshot: anything older still
+	 * in flight is discarded on arrival.
+	 */
+	const resyncProviderCatalog = useCallback(async () => {
+		const generation = ++catalogGenerationRef.current;
+		try {
+			const payload = await desktopClient.invoke<ProviderCatalogResponse>(
+				"list_provider_catalog",
+			);
+			if (generation !== catalogGenerationRef.current) {
+				return;
+			}
+			setProvidersWithCache(payload.providers);
+		} catch {
+			// Background refresh only; the optimistic state remains until the
+			// next full load.
+		}
+	}, [setProvidersWithCache]);
+
 	const persistProviderSettings = useCallback(
 		async (
 			id: string,
@@ -237,6 +263,10 @@ export function SettingsView({
 						? toSettingsPatch(updates.configValues)
 						: undefined,
 				});
+				// Pick up sidecar-computed readiness (`configured`) for the
+				// just-saved settings so the Configured badge and count update
+				// without a remount.
+				void resyncProviderCatalog();
 				return true;
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
@@ -261,7 +291,7 @@ export function SettingsView({
 				invalidateProviderCatalogCache();
 			}
 		},
-		[loadProviderCatalog],
+		[loadProviderCatalog, resyncProviderCatalog],
 	);
 
 	const connectProvider = useCallback(
@@ -428,6 +458,11 @@ export function SettingsView({
 			// must learn about the new OAuth connection too, not just this
 			// view's local provider state.
 			invalidateProviderCatalogCache();
+			// Fetch the authoritative post-login snapshot. The resync claims a
+			// new generation, so an older load or resync still in flight can't
+			// arrive late and overwrite the just-connected state, and its own
+			// response also covers any provider saved moments earlier.
+			void resyncProviderCatalog();
 			setSelectedProviderId(id);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
@@ -582,10 +617,7 @@ export function SettingsView({
 				onOpenMarketplace={() => onNavigateSection("Marketplace")}
 			/>
 		) : activeNav === "Marketplace" ? (
-			<MarketplaceView
-				onOpenInstalled={() => onNavigateSection("Customize")}
-				variant="directory"
-			/>
+			<MarketplaceExplorerView />
 		) : activeNav === "Channels" ? (
 			<ChannelsContent />
 		) : activeNav === "Schedules" ? (
@@ -605,9 +637,8 @@ export function SettingsView({
 		);
 
 	return (
-		<div className="grid h-full grid-rows-[3rem_minmax(0,1fr)] overflow-hidden bg-background md:block">
-			<div aria-hidden="true" className="md:hidden" />
-			<div className="min-h-0 overflow-hidden md:h-full">{content}</div>
+		<div className="h-full overflow-hidden bg-background">
+			<div className="h-full min-h-0 overflow-hidden">{content}</div>
 		</div>
 	);
 }
@@ -635,6 +666,7 @@ function GeneralSettingsContent({
 		if (typeof window === "undefined") return "light";
 		return readStoredHubTheme() ?? readSystemHubTheme();
 	});
+	const [importDialogOpen, setImportDialogOpen] = useState(false);
 	const [accent, setAccent] = useState<HubAccent>(() => {
 		if (typeof window === "undefined") return "violet";
 		return readStoredHubAccent();
@@ -1094,6 +1126,31 @@ function GeneralSettingsContent({
 						onCheckedChange={(checked) => void updateTelemetryOptOut(!checked)}
 					/>
 				</div>
+				<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
+					<div className="flex flex-col gap-1">
+						<p className="text-base font-semibold text-foreground">
+							Import sessions
+						</p>
+						<p className="text-sm text-muted-foreground">
+							Bring your conversation history from Claude Code, Codex, or
+							opencode into Cline.
+						</p>
+					</div>
+					<Button
+						className="shrink-0"
+						onClick={() => setImportDialogOpen(true)}
+						size="sm"
+						type="button"
+						variant="outline"
+					>
+						<Import className="size-3" />
+						Import
+					</Button>
+				</div>
+				<ImportSessionsDialog
+					onOpenChange={setImportDialogOpen}
+					open={importDialogOpen}
+				/>
 				<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
 					<div className="flex flex-col gap-1">
 						<p className="text-base font-semibold text-foreground">

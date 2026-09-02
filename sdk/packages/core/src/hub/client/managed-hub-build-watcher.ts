@@ -13,6 +13,7 @@ import {
 	resolveProductionHubOwnerContext,
 	resolveSharedHubOwnerContext,
 } from "../discovery/workspace";
+import { queryHubSessionActivity } from "./index";
 
 const DEFAULT_WATCH_INTERVAL_MS = 10_000;
 const WATCH_INTERVAL_ENV = "CLINE_HUB_BUILD_WATCH_INTERVAL_MS";
@@ -43,6 +44,36 @@ export interface ManagedHubBuildMismatchEvent {
 	hubCoreVersion?: string;
 	/** Build identity this client expects a managed Hub to match. */
 	expectedBuildId: string;
+	/**
+	 * Sessions with live participants on the Hub (best-effort, `outdated_hub`
+	 * only): the work that replacing the Hub would interrupt. Unset when the
+	 * Hub cannot answer the query.
+	 */
+	activeSessionCount?: number;
+	/** Distinct clients attached to those sessions (best-effort, `outdated_hub` only). */
+	participantClientCount?: number;
+}
+
+/**
+ * Best-effort enrichment for the `outdated_hub` case: how much live work the
+ * older Hub is serving, so surfaces can say "updating now interrupts N
+ * sessions" instead of asking for blind consent. A Hub that cannot answer
+ * leaves the fields unset rather than failing the check.
+ */
+async function withHubSessionActivity(
+	event: ManagedHubBuildMismatchEvent,
+	authToken?: string,
+): Promise<ManagedHubBuildMismatchEvent> {
+	try {
+		const activity = await queryHubSessionActivity(event.url, authToken);
+		return {
+			...event,
+			activeSessionCount: activity.activeSessionCount,
+			participantClientCount: activity.participantClientCount,
+		};
+	} catch {
+		return event;
+	}
 }
 
 function resolveDefaultHubOwnerContext(): HubOwnerContext {
@@ -118,7 +149,10 @@ export async function checkManagedHubBuildMismatch(): Promise<
 	// this client is what supplies the missing ordering - is a client-update
 	// prompt as before.
 	if (compareHubBuilds(resolveHubBuildIdentity(), healthy) > 0) {
-		return report("outdated_hub");
+		return await withHubSessionActivity(
+			report("outdated_hub"),
+			record.authToken,
+		);
 	}
 	return report("build_mismatch");
 }

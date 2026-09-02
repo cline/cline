@@ -89,7 +89,7 @@ export class TeamChildSessionManager {
 		return {
 			sessionId: opts.sessionId,
 			source: root.source,
-			pid: process.ppid,
+			pid: root.pid,
 			startedAt: opts.startedAt,
 			endedAt: null,
 			exitCode: null,

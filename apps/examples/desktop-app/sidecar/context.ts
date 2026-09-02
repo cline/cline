@@ -114,23 +114,25 @@ export function syncSidecarApprovalReadiness(
 	ctx: SidecarContext,
 ): Promise<void> {
 	const previous = approvalReadinessUpdates.get(ctx) ?? Promise.resolve();
-	const update = previous.catch(() => undefined).then(async () => {
-		const hubClient = ctx.hubClient;
-		if (!hubClient) return;
-		await hubClient.updateCapabilities(
-			[...ctx.wsClients].some(
-				(client) => client.data?.canApproveTools === true,
-			)
-				? [
-						{
-							name: HUB_CLIENT_TOOL_APPROVAL_CAPABILITY,
-							description:
-								"Cline Code has a live user surface for tool review.",
-						},
-					]
-				: [],
-		);
-	});
+	const update = previous
+		.catch(() => undefined)
+		.then(async () => {
+			const hubClient = ctx.hubClient;
+			if (!hubClient) return;
+			await hubClient.updateCapabilities(
+				[...ctx.wsClients].some(
+					(client) => client.data?.canApproveTools === true,
+				)
+					? [
+							{
+								name: HUB_CLIENT_TOOL_APPROVAL_CAPABILITY,
+								description:
+									"Cline Code has a live user surface for tool review.",
+							},
+						]
+					: [],
+			);
+		});
 	approvalReadinessUpdates.set(ctx, update);
 	return update.finally(() => {
 		if (approvalReadinessUpdates.get(ctx) === update) {
@@ -807,6 +809,10 @@ export function handleHubLiveEvent(
 			...(event.payload ?? {}),
 			...(event.sessionId ? { sessionId: event.sessionId } : {}),
 		});
+		return;
+	}
+	if (event.event === "settings.changed") {
+		sendEvent(ctx, event.event, event.payload ?? {});
 		return;
 	}
 

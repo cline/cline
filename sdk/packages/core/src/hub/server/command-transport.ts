@@ -9,6 +9,12 @@ import type {
 export interface HubConnectionAuthority {
 	clientId: string;
 	workspaceContext?: HubClientRegistration["workspaceContext"];
+	/**
+	 * Token-authenticated connections may already bind any workspace at
+	 * registration time, so they are also allowed to explicitly request
+	 * cross-workspace schedule access (`allWorkspaces` command payloads).
+	 */
+	crossWorkspace?: boolean;
 }
 
 export interface HubCommandTransport {

@@ -9,6 +9,10 @@ import {
 	resolve,
 } from "node:path";
 import {
+	type AgentPluginPackageLoadReport,
+	loadAgentPluginPackages,
+} from "../extensions/agent-plugin";
+import {
 	createUserInstructionConfigService,
 	type RuleConfig,
 	type SkillConfig,
@@ -30,6 +34,8 @@ import {
 } from "../extensions/plugin/plugin-config-loader";
 import {
 	readGlobalSettings,
+	resolveDisabledAgentPluginNames,
+	setDisabledAgentPlugin,
 	setDisabledPlugin,
 	setToolDisabledGlobally,
 	toggleDisabledTool,
@@ -241,6 +247,154 @@ function toSorted<T extends CoreSettingsItem>(items: T[]): T[] {
 	});
 }
 
+function agentPluginItemSource(
+	pluginRoot: string,
+	workspaceRoot: string,
+): "global-plugin" | "workspace-plugin" {
+	return workspaceRoot &&
+		detectSource(pluginRoot, workspaceRoot) === "workspace"
+		? "workspace-plugin"
+		: "global-plugin";
+}
+
+function joinAgentPluginDiagnostics(
+	report: AgentPluginPackageLoadReport,
+	pluginRoot: string,
+): string | undefined {
+	const messages = report.diagnostics
+		.filter((entry) => entry.pluginPath === pluginRoot)
+		.map((entry) => entry.message);
+	return messages.length > 0 ? messages.join("\n") : undefined;
+}
+
+function appendAgentPluginSettings(input: {
+	report: AgentPluginPackageLoadReport;
+	workspaceRoot: string;
+	disabledPluginNames: ReadonlySet<string>;
+	plugins: CoreSettingsItem[];
+	skills: CoreSettingsItem[];
+	mcp: CoreSettingsItem[];
+}): void {
+	const loadedRoots = new Set<string>();
+	for (const plugin of input.report.plugins) {
+		loadedRoots.add(plugin.rootPath);
+		const enabled = !input.disabledPluginNames.has(plugin.manifest.name);
+		const source = agentPluginItemSource(plugin.rootPath, input.workspaceRoot);
+		const skillNames = plugin.skills.map((skill) => skill.metadata.name).sort();
+		const mcpServerNames = plugin.mcpServers
+			.map((server) => server.registration.name)
+			.sort();
+		const componentSummary = [
+			`${skillNames.length} skill${skillNames.length === 1 ? "" : "s"}`,
+			`${mcpServerNames.length} MCP server${mcpServerNames.length === 1 ? "" : "s"}`,
+		].join(", ");
+		input.plugins.push({
+			id: `agent-plugin:${plugin.manifest.name}`,
+			name: plugin.manifest.name,
+			path: plugin.rootPath,
+			enabled,
+			kind: "plugin",
+			source,
+			toggleable: true,
+			agentPlugin: true,
+			pluginName: plugin.manifest.name,
+			pluginPath: plugin.rootPath,
+			description: [
+				plugin.manifest.description,
+				`Portable Agent Plugin${plugin.manifest.version ? ` v${plugin.manifest.version}` : ""} (${componentSummary})`,
+			]
+				.filter(Boolean)
+				.join("\n"),
+			loadError: joinAgentPluginDiagnostics(input.report, plugin.rootPath),
+			contributions: {
+				inspectionStatus: enabled ? "available" : "disabled",
+				capabilities: [
+					...(skillNames.length > 0 ? ["skills"] : []),
+					...(mcpServerNames.length > 0 ? ["mcp"] : []),
+				],
+				tools: [],
+				skills: skillNames,
+				rules: [],
+				hooks: [],
+				commands: [],
+				mcpServers: mcpServerNames,
+				providers: [],
+			},
+		});
+		if (!enabled) {
+			continue;
+		}
+
+		for (const skill of plugin.skills) {
+			input.skills.push({
+				id: `${plugin.manifest.name}:${skill.metadata.name}`,
+				name: skill.metadata.name,
+				path: skill.filePath,
+				enabled: true,
+				kind: "skill",
+				source,
+				description: skill.metadata.description,
+				toggleable: false,
+				agentPlugin: true,
+				pluginName: plugin.manifest.name,
+				pluginPath: plugin.rootPath,
+			});
+		}
+
+		for (const server of plugin.mcpServers) {
+			input.mcp.push({
+				id: server.registration.name,
+				name: server.registration.name,
+				path: join(plugin.rootPath, "mcp.json"),
+				enabled: true,
+				kind: "mcp",
+				source,
+				description: `${server.registration.transport.type}, portable Agent Plugin`,
+				toggleable: false,
+				agentPlugin: true,
+				pluginName: plugin.manifest.name,
+				pluginPath: plugin.rootPath,
+			});
+		}
+	}
+
+	const rejectedRoots = new Set(
+		input.report.diagnostics
+			.filter(
+				(entry) =>
+					!loadedRoots.has(entry.pluginPath) &&
+					(entry.scope === "plugin" || entry.scope === "manifest"),
+			)
+			.map((entry) => entry.pluginPath),
+	);
+	for (const pluginRoot of rejectedRoots) {
+		input.plugins.push({
+			id: `agent-plugin:invalid:${pluginRoot}`,
+			name: basename(pluginRoot) || pluginRoot,
+			path: pluginRoot,
+			enabled: false,
+			kind: "plugin",
+			source: agentPluginItemSource(pluginRoot, input.workspaceRoot),
+			toggleable: false,
+			agentPlugin: true,
+			pluginPath: pluginRoot,
+			description: "Invalid portable Agent Plugin package.",
+			loadError: joinAgentPluginDiagnostics(input.report, pluginRoot),
+			contributions: {
+				inspectionStatus: "failed",
+				capabilities: [],
+				tools: [],
+				skills: [],
+				rules: [],
+				hooks: [],
+				commands: [],
+				mcpServers: [],
+				providers: [],
+			},
+		});
+	}
+}
+
 function resolveWorkspaceRoot(input: CoreSettingsListInput): string {
 	return input.workspaceRoot?.trim() || input.cwd?.trim() || "";
 }
@@ -331,6 +485,26 @@ export class CoreSettingsService {
 				plugins.push(...supplied.plugins);
 				tools.push(...supplied.tools);
 			}
+			try {
+				const report = await loadAgentPluginPackages({
+					pluginPaths: input.agentPluginPaths,
+					cwd: resolveCwd(input, workspaceRoot),
+				});
+				appendAgentPluginSettings({
+					report,
+					workspaceRoot,
+					disabledPluginNames: resolveDisabledAgentPluginNames(),
+					plugins,
+					skills,
+					mcp,
+				});
+			} catch (error) {
+				// Portable package discovery is isolated from all other settings.
+				const message = error instanceof Error ? error.message : String(error);
+				console.warn(
+					`[agent-plugins] Package discovery failed; listing settings without Agent Plugins: ${message}`,
+				);
+			}
 			const enabledPluginPaths = new Set(
 				plugins
 					.filter((plugin) => plugin.enabled !== false)
@@ -387,7 +561,11 @@ export class CoreSettingsService {
 				}
 			}
 
-			if (workspaceRoot && !this.pluginSource) {
+			if (
+				workspaceRoot &&
+				!this.pluginSource &&
+				input.includePluginTools !== false
+			) {
 				try {
 					const pluginReport = await listPluginToolsWithDiagnostics({
 						workspacePath: workspaceRoot,
@@ -414,6 +592,9 @@ export class CoreSettingsService {
 						pluginReport.plugins.map((plugin) => [plugin.path, plugin]),
 					);
 					for (const plugin of plugins) {
+						if (plugin.agentPlugin === true) {
+							continue;
+						}
 						const contribution = contributionByPath.get(plugin.path);
 						plugin.contributions = {
 							inspectionStatus:
@@ -485,6 +666,16 @@ export class CoreSettingsService {
 		if (input.type === "skills") {
 			return await withUserInstructionService(input, async (service) => {
 				const record = findSkillRecord(service, input);
+				if (record?.item.source?.type === "agent-plugin") {
+					// Agent Plugin skills are only toggleable as part of their
+					// plugin (`type: "plugins"`). Writing `disabled` into the
+					// skill's frontmatter would corrupt it: the strict Agent
+					// Skills parser rejects any field outside its closed set,
+					// so the skill would fail to load on the very next refresh.
+					throw new Error(
+						`Skill '${record.item.name}' is contributed by the Agent Plugin '${record.item.source.pluginName}' and cannot be toggled individually; toggle the plugin instead.`,
+					);
+				}
 				const filePath = record?.filePath;
 				if (!filePath) {
 					throw new Error(
@@ -531,20 +722,38 @@ export class CoreSettingsService {
 		}
 
 		if (input.type === "plugins") {
-			const pluginPath = input.path?.trim() || input.id?.trim();
-			if (!pluginPath) {
-				throw new Error("Plugin settings toggle requires a plugin path.");
+			const snapshotBeforeMutation = await this.list(input);
+			const requestedId = input.id?.trim();
+			const requestedPath = input.path?.trim();
+			const requestedName = input.name?.trim();
+			const plugin = snapshotBeforeMutation.plugins.find(
+				(item) =>
+					(requestedId && item.id === requestedId) ||
+					(requestedPath && item.path === requestedPath) ||
+					(requestedName && item.name === requestedName),
+			);
+			if (!plugin) {
+				throw new Error(
+					`Unknown plugin: ${requestedPath ?? requestedId ?? requestedName ?? "(missing target)"}`,
+				);
 			}
+
+			if (plugin.agentPlugin === true) {
+				if (plugin.toggleable !== true) {
+					throw new Error(`Agent Plugin '${plugin.name}' cannot be toggled.`);
+				}
+				const enabled = input.enabled ?? plugin.enabled === false;
+				setDisabledAgentPlugin(plugin.pluginName ?? plugin.name, !enabled);
+				return {
+					snapshot: await this.list(input),
+					changedTypes: ["plugins", "skills", "mcp"],
+				};
+			}
+
+			const pluginPath = plugin.path;
 			if (this.pluginSource) {
-				const snapshotBeforeMutation = await this.list(input);
 				let enabled = input.enabled;
 				if (enabled === undefined) {
-					const plugin = snapshotBeforeMutation.plugins.find(
-						(item) => item.path === pluginPath,
-					);
-					if (!plugin) {
-						throw new Error(`Unknown plugin: ${pluginPath}`);
-					}
 					enabled = !plugin.enabled;
 				}
 				const sourceSnapshot = await this.pluginSource.setEnabled({
@@ -556,7 +765,12 @@ export class CoreSettingsService {
 				return {
 					snapshot: {
 						...snapshotBeforeMutation,
-						plugins: sourceSnapshot.plugins,
+						plugins: [
+							...sourceSnapshot.plugins,
+							...snapshotBeforeMutation.plugins.filter(
+								(item) => item.agentPlugin === true,
+							),
+						],
 						tools: toSorted(sourceSnapshot.tools),
 					},
 					changedTypes: ["plugins"],
@@ -565,12 +779,6 @@ export class CoreSettingsService {
 
 			let enabled = input.enabled;
 			if (enabled === undefined) {
-				const plugin = listPluginSettings({
-					workspaceRoot: resolveWorkspaceRoot(input),
-				}).find((item) => item.path === pluginPath);
-				if (!plugin) {
-					throw new Error(`Unknown plugin: ${pluginPath}`);
-				}
 				enabled = !plugin.enabled;
 			}
 			setDisabledPlugin(pluginPath, !enabled);

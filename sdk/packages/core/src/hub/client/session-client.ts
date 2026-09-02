@@ -11,6 +11,7 @@ import type {
 	HubCommandInput,
 	HubCommandOutput,
 	HubEventEnvelope,
+	HubSessionSearchHit,
 	HubTaskCreateInput,
 	HubTaskUpdateInput,
 	HubTypedCommandName,
@@ -358,6 +359,7 @@ export class HubSessionClient {
 				enableSpawnAgent: request.enableSpawn !== false,
 				enableAgentTeams: request.enableTeams !== false,
 				disableMcpSettingsTools: request.disableMcpSettingsTools,
+				agentPluginPaths: request.agentPluginPaths,
 				missionLogIntervalSteps: request.missionStepInterval,
 				missionLogIntervalMs: request.missionTimeIntervalMs,
 			},
@@ -526,6 +528,7 @@ export class HubSessionClient {
 								enableSpawnAgent: request.enableSpawn !== false,
 								enableAgentTeams: request.enableTeams !== false,
 								disableMcpSettingsTools: request.disableMcpSettingsTools,
+								agentPluginPaths: request.agentPluginPaths,
 								missionLogIntervalSteps: request.missionStepInterval,
 								missionLogIntervalMs: request.missionTimeIntervalMs,
 							},
@@ -596,6 +599,18 @@ export class HubSessionClient {
 		return sessions
 			.map((session) => extractSessionRow({ session }))
 			.filter((row): row is HubSessionRow => Boolean(row?.sessionId));
+	}
+
+	async searchSessions(input: {
+		query: string;
+		limit?: number;
+		workspaceRoot?: string;
+	}): Promise<HubSessionSearchHit[]> {
+		await this.ensureMetadataApplied();
+		const reply = await this.client.command("session.search", input);
+		return Array.isArray(reply.payload?.hits)
+			? (reply.payload.hits as unknown as HubSessionSearchHit[])
+			: [];
 	}
 
 	async deleteSession(

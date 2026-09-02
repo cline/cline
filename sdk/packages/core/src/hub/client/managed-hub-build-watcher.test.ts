@@ -4,9 +4,24 @@ type DiscoveryMockOptions = {
 	record?: Record<string, unknown>;
 	probe?: Record<string, unknown> | undefined;
 	expectedBuildId?: string;
+	/**
+	 * What the session-activity query reports for an outdated hub; omitted
+	 * means the hub cannot answer (the query throws) and the event carries no
+	 * counts. Always mocked: the real query opens a socket, which never
+	 * settles under this file's fake timers.
+	 */
+	activity?: { activeSessionCount: number; participantClientCount: number };
 };
 
 function mockDiscovery(options: DiscoveryMockOptions): void {
+	vi.doMock("./index", () => ({
+		queryHubSessionActivity: vi.fn(async () => {
+			if (!options.activity) {
+				throw new Error("hub activity unavailable");
+			}
+			return options.activity;
+		}),
+	}));
 	vi.doMock("../discovery/workspace", () => ({
 		resolveProductionHubOwnerContext: () => ({
 			ownerId: "hub-test",
@@ -86,6 +101,7 @@ describe("checkManagedHubBuildMismatch", () => {
 				port: 59999,
 				url: "ws://127.0.0.1:59999/hub",
 			},
+			activity: { activeSessionCount: 2, participantClientCount: 1 },
 		});
 		const { checkManagedHubBuildMismatch } = await import(
 			"./managed-hub-build-watcher"
@@ -93,7 +109,32 @@ describe("checkManagedHubBuildMismatch", () => {
 
 		await expect(checkManagedHubBuildMismatch()).resolves.toMatchObject({
 			reason: "outdated_hub",
+			activeSessionCount: 2,
+			participantClientCount: 1,
 		});
+	});
+
+	it("reports an outdated hub without counts when it cannot answer the activity query", async () => {
+		vi.stubEnv("CLINE_HUB_BUILD_EPOCH_MS", "1000");
+		mockDiscovery({
+			record: liveRecord,
+			probe: {
+				protocolVersion: "v1",
+				buildId: "old-build",
+				buildEpochMs: 500,
+				host: "127.0.0.1",
+				port: 59999,
+				url: "ws://127.0.0.1:59999/hub",
+			},
+		});
+		const { checkManagedHubBuildMismatch } = await import(
+			"./managed-hub-build-watcher"
+		);
+
+		const mismatch = await checkManagedHubBuildMismatch();
+		expect(mismatch).toMatchObject({ reason: "outdated_hub" });
+		expect(mismatch?.activeSessionCount).toBeUndefined();
+		expect(mismatch?.participantClientCount).toBeUndefined();
 	});
 
 	// A Hub carrying no ordering metadata cannot be placed relative to this
