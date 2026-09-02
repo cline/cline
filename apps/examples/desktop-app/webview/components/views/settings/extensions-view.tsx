@@ -228,6 +228,7 @@ export interface GenerateMediaToolConfig {
 	) => void | Promise<void>;
 	onConfigureProviders: () => void;
 	providers: readonly Provider[];
+	unavailableReason?: string;
 }
 
 const MEDIA_TYPE_PRESENTATION: Record<
@@ -380,6 +381,14 @@ export function GenerateMediaConfiguration({
 }: {
 	config: GenerateMediaToolConfig;
 }) {
+	if (config.unavailableReason) {
+		return (
+			<p className="text-xs text-muted-foreground">
+				{config.unavailableReason}
+			</p>
+		);
+	}
+
 	if (config.loading) {
 		return (
 			<p className="text-xs text-muted-foreground">
@@ -1866,6 +1875,9 @@ export function CustomizationSectionView({
 									const isToggling = togglingToolIds.has(tool.id);
 									const isGenerateMedia = tool.id === "generate_media";
 									const isExpanded = expandedToolIds.has(tool.id);
+									const mediaUnavailableReason = isGenerateMedia
+										? generateMediaConfig?.unavailableReason
+										: undefined;
 									const mediaConfigurationLoading =
 										isGenerateMedia && generateMediaConfig?.loading === true;
 									const hasMediaConfiguration = Boolean(
@@ -1875,9 +1887,11 @@ export function CustomizationSectionView({
 									);
 									const setupRequired =
 										isGenerateMedia &&
+										!mediaUnavailableReason &&
 										!mediaConfigurationLoading &&
 										!hasMediaConfiguration;
-									const effectivelyEnabled = tool.enabled && !setupRequired;
+									const effectivelyEnabled =
+										tool.enabled && !setupRequired && !mediaUnavailableReason;
 									const summary = (
 										<>
 											<div className="flex items-center gap-3">
@@ -1932,13 +1946,15 @@ export function CustomizationSectionView({
 															: "text-muted-foreground",
 													)}
 												>
-													{mediaConfigurationLoading
-														? "Checking setup"
-														: setupRequired
-															? "Setup required"
-															: effectivelyEnabled
-																? "Enabled"
-																: "Disabled"}
+													{mediaUnavailableReason
+														? "Local only"
+														: mediaConfigurationLoading
+															? "Checking setup"
+															: setupRequired
+																? "Setup required"
+																: effectivelyEnabled
+																	? "Enabled"
+																	: "Disabled"}
 												</span>
 												<Switch
 													checked={effectivelyEnabled}
@@ -1947,6 +1963,7 @@ export function CustomizationSectionView({
 													}}
 													disabled={
 														isToggling ||
+														Boolean(mediaUnavailableReason) ||
 														setupRequired ||
 														mediaConfigurationLoading
 													}

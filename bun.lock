@@ -163,9 +163,9 @@
         "typescript": "^5.9.3",
       },
     },
-    "apps/examples/desktop-app": {
-      "name": "@cline/code",
-      "version": "0.0.21-beta.1",
+	"apps/examples/desktop-app": {
+		"name": "@cline/code",
+		"version": "0.0.22-beta.1",
       "dependencies": {
         "@ai-sdk/gateway": "4.0.31",
         "@ai-sdk/google": "4.0.44",

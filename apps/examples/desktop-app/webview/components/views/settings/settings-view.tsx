@@ -74,6 +74,7 @@ import {
 	setStoredHubTheme,
 } from "@/lib/theme";
 import { cn } from "@/lib/utils";
+import { LOCAL_WORKSPACE_ENVIRONMENT_ID } from "@/lib/workspace-paths";
 import { MarketplaceExplorerView } from "../marketplace-explorer-view";
 import { PageFrame, PageHeader } from "../page-layout";
 import { AccountView } from "./account-view";
@@ -144,17 +145,23 @@ function removeProviderModes(
 // -----------------------------------------------------------
 
 export function SettingsView({
+	activeEnvironmentId = LOCAL_WORKSPACE_ENVIRONMENT_ID,
 	section,
 	onNavigateSection,
 	onOpenSession,
 	modeSettingsRequest,
 }: {
+	activeEnvironmentId?: string;
 	section: SettingsSection;
 	onNavigateSection: (section: SettingsSection) => void;
 	onOpenSession?: (sessionId: string) => void | Promise<void>;
 	modeSettingsRequest?: number;
 }) {
 	const activeNav = section;
+	const mediaGenerationUnavailableReason =
+		activeEnvironmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID
+			? undefined
+			: "Media generation is available only in Local sessions.";
 	const [providers, setProviders] = useState<Provider[]>(
 		() => providerCatalogCache?.providers ?? [],
 	);
@@ -472,6 +479,7 @@ export function SettingsView({
 			mediaType: MediaGenerationType,
 			selection: MediaModelSelection | undefined,
 		) => {
+			if (mediaGenerationUnavailableReason) return;
 			setMediaGenerationSaving((current) => ({
 				...current,
 				[mediaType]: true,
@@ -496,7 +504,7 @@ export function SettingsView({
 				}));
 			}
 		},
-		[],
+		[mediaGenerationUnavailableReason],
 	);
 
 	const updateProvider = useCallback(
@@ -813,7 +821,13 @@ export function SettingsView({
 					onChange: updateMediaGeneration,
 					onConfigureProviders: () => onNavigateSection("Models"),
 					providers,
+					unavailableReason: mediaGenerationUnavailableReason,
 				}}
+				localOnlyNotice={
+					mediaGenerationUnavailableReason
+						? "Customize settings shown here apply to Local sessions. Remote environments use customizations installed on that host."
+						: undefined
+				}
 				onOpenMarketplace={() => onNavigateSection("Marketplace")}
 			/>
 		) : activeNav === "Marketplace" ? (

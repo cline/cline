@@ -59,9 +59,11 @@ function asCount(value: unknown): number {
 
 export function CustomizeView({
 	generateMediaConfig,
+	localOnlyNotice,
 	onOpenMarketplace,
 }: {
 	generateMediaConfig?: GenerateMediaToolConfig;
+	localOnlyNotice?: string;
 	onOpenMarketplace?: () => void;
 }) {
 	const [tab, setTab] = useState<CustomizeTab>("skills");
@@ -142,6 +144,11 @@ export function CustomizeView({
 				description="Extend what Cline can do and change how it works. Manage what's installed, or browse the marketplace for more options."
 				title="Customize"
 			/>
+			{localOnlyNotice ? (
+				<p className="mb-4 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+					{localOnlyNotice}
+				</p>
+			) : null}
 
 			<div className="mb-6 flex items-center gap-0 border-b border-border">
 				{CUSTOMIZE_TABS.filter(

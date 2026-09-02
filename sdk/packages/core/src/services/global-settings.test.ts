@@ -6,7 +6,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	GlobalSettingsSchema,
 	isAgentPluginDisabledGlobally,
-	isModelToolEnabledGlobally,
 	isOptInToolEnabledGlobally,
 	readCompactionModeGlobally,
 	readCompactionStrategyGlobally,

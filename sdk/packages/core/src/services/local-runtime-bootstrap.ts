@@ -18,11 +18,11 @@ import {
 	hasRuntimeConfigExtension,
 } from "@cline/shared";
 import { version as corePackageVersion } from "../../package.json";
-import { createComposioToolsExtension } from "../extensions/composio/composio-tools-extension";
 import {
 	type AgentPluginPackageDiagnostic,
 	loadAgentPluginPackages,
 } from "../extensions/agent-plugin";
+import { createComposioToolsExtension } from "../extensions/composio/composio-tools-extension";
 import {
 	resolveAndLoadAgentPlugins,
 	resolvePluginSkillDirectoriesFromPaths,
