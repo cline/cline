@@ -1,6 +1,6 @@
 import { execFile as execFileCallback } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -667,9 +667,9 @@ describe("createCheckpointHooks", () => {
 			);
 			expect(firstTree.split("\n").sort()).toEqual(["a.txt", "b.txt"]);
 			// The scratch index survives the turn — that is the cross-turn cache.
-			expect(existsSync(join(checkpointScratchDir(sessionId), "index"))).toBe(
-				true,
-			);
+			expect(
+				existsSync(join(checkpointScratchDir(cwd, sessionId), "index")),
+			).toBe(true);
 
 			await rm(join(cwd, "a.txt"));
 			await runCheckpointHooks(hooks, {
@@ -707,15 +707,102 @@ describe("createCheckpointHooks", () => {
 			});
 			await writeFile(join(cwd, "loose.txt"), "loose\n", "utf8");
 			await runCheckpointHooks(hooks);
-			expect(existsSync(checkpointScratchDir(sessionId))).toBe(true);
+			expect(existsSync(checkpointScratchDir(cwd, sessionId))).toBe(true);
 
 			await deleteCheckpointRefs(cwd, sessionId);
 
-			expect(existsSync(checkpointScratchDir(sessionId))).toBe(false);
+			expect(existsSync(checkpointScratchDir(cwd, sessionId))).toBe(false);
 		} finally {
 			await deleteCheckpointRefs(cwd, sessionId);
 			await rm(cwd, { recursive: true, force: true });
 		}
 	});
 
+	it("recovers from a stale index.lock left by a killed git process", async () => {
+		const cwd = await createGitRepo();
+		const sessionId = "sess_stale_lock";
+		let metadata: Record<string, unknown> | undefined;
+		try {
+			const hooks = createCheckpointHooks({
+				cwd,
+				sessionId,
+				readSessionMetadata: async () => metadata,
+				writeSessionMetadata: async (next) => {
+					metadata = next;
+				},
+			});
+			// A SIGKILLed git leaves the lock file next to the persistent index;
+			// the rebuild must clear it or every later turn degrades to HEAD-only.
+			const scratch = checkpointScratchDir(cwd, sessionId);
+			await mkdir(scratch, { recursive: true });
+			await writeFile(join(scratch, "index.lock"), "", "utf8");
+			await writeFile(join(cwd, "loose.txt"), "loose\n", "utf8");
+
+			await runCheckpointHooks(hooks);
+
+			const checkpoint = metadata?.checkpoint as CheckpointMetadata;
+			expect(checkpoint.latest.kind).toBe("stash");
+			const tree = await runGit(
+				cwd,
+				"ls-tree",
+				"-r",
+				"--name-only",
+				`${checkpoint.latest.ref}^3`,
+			);
+			expect(tree.split("\n")).toEqual(["loose.txt"]);
+		} finally {
+			await deleteCheckpointRefs(cwd, sessionId);
+			await rm(cwd, { recursive: true, force: true });
+		}
+	});
+
+	it("keeps an untracked nested repository's gitlink across turns", async () => {
+		// `ls-files --others` reports a nested repo as "sub/" while the index
+		// records the gitlink as "sub"; the stale sweep must not treat that
+		// name difference as a deleted entry.
+		const cwd = await createGitRepo();
+		const sessionId = "sess_nested_repo";
+		let metadata: Record<string, unknown> | undefined;
+		try {
+			const sub = join(cwd, "sub");
+			await mkdir(sub);
+			await runGit(sub, "init");
+			await runGit(sub, "config", "user.name", "Codex Test");
+			await runGit(sub, "config", "user.email", "codex@example.com");
+			await writeFile(join(sub, "inner.txt"), "inner\n", "utf8");
+			await runGit(sub, "add", "inner.txt");
+			await runGit(sub, "commit", "-m", "inner");
+
+			const hooks = createCheckpointHooks({
+				cwd,
+				sessionId,
+				readSessionMetadata: async () => metadata,
+				writeSessionMetadata: async (next) => {
+					metadata = next;
+				},
+			});
+			await runCheckpointHooks(hooks);
+
+			const first = (metadata?.checkpoint as CheckpointMetadata).latest;
+			expect(first.kind).toBe("stash");
+			expect(await runGit(cwd, "ls-tree", `${first.ref}^3`)).toMatch(
+				/160000 commit [0-9a-f]{40}\tsub/,
+			);
+
+			// The second turn exercises the stale sweep against the now-populated
+			// persistent index.
+			await writeFile(join(cwd, "extra.txt"), "extra\n", "utf8");
+			await runCheckpointHooks(hooks, {
+				messages: [userMessage("first request"), userMessage("second request")],
+			});
+			const second = (metadata?.checkpoint as CheckpointMetadata).latest;
+			expect(second.runCount).toBe(2);
+			expect(await runGit(cwd, "ls-tree", `${second.ref}^3`)).toMatch(
+				/160000 commit [0-9a-f]{40}\tsub/,
+			);
+		} finally {
+			await deleteCheckpointRefs(cwd, sessionId);
+			await rm(cwd, { recursive: true, force: true });
+		}
+	});
 });

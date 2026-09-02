@@ -573,6 +573,7 @@ export async function handleSessionRestore(
 		const result = await service.restoreCheckpoint({
 			sessionId: sourceSessionId,
 			checkpointRunCount,
+			telemetry: ctx.telemetry,
 			restore: {
 				messages: restoreOptions.messages as boolean | undefined,
 				workspace: restoreOptions.workspace as boolean | undefined,

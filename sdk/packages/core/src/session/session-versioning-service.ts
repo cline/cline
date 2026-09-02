@@ -148,43 +148,11 @@ export class SessionVersioningService {
 	): Promise<SessionCheckpointRestoreResult<TStartResult>> {
 		const restoreMessages = input.restore?.messages !== false;
 		const restoreWorkspace = input.restore?.workspace !== false;
-		const sourceSessionId = validateRestoreOptions({
-			sessionId: input.sessionId,
-			restoreMessages,
-			restoreWorkspace,
-			requiresStart: input.start === undefined,
-			checkpointRunCount: input.checkpointRunCount,
-		});
-
-		const sourceSession = await input.getSession(sourceSessionId);
-		if (!sourceSession) {
-			throw new SessionVersioningError(
-				"session_not_found",
-				`Session ${sourceSessionId} not found`,
-			);
-		}
-		const sourceMessages = restoreMessages
-			? await input.readMessages(sourceSessionId)
-			: undefined;
-		if (restoreMessages && sourceMessages?.length === 0) {
-			throw new SessionVersioningError(
-				"session_messages_not_found",
-				`No messages found for session ${sourceSessionId}`,
-			);
-		}
-
-		const plan = createCheckpointRestorePlan({
-			session: sourceSession,
-			messages: sourceMessages,
-			checkpointRunCount: input.checkpointRunCount,
-			cwd: input.cwd,
-			restoreMessages,
-		});
-		const sourceSnapshot = createCoreSessionSnapshot({
-			session: sourceSession,
-			messages: sourceMessages,
-		});
+		// Declared before any throwing setup so validation and lookup failures —
+		// the most common restore failures — are counted too. The checkpoint kind
+		// is only known once the plan exists.
 		const restoreStartedAt = Date.now();
+		let plannedCheckpoint: CheckpointEntry | undefined;
 		const captureRestore = (
 			outcome: "success" | "failed",
 			extra?: Record<string, string | number | boolean>,
@@ -192,17 +160,64 @@ export class SessionVersioningService {
 			input.telemetry?.capture({
 				event: "checkpoint.restore",
 				properties: {
-					sessionId: sourceSessionId,
+					sessionId: input.sessionId,
 					checkpointRunCount: input.checkpointRunCount,
 					restoreWorkspace,
 					restoreMessages,
-					checkpointKind: plan.checkpoint.kind ?? "unknown",
+					checkpointKind: plannedCheckpoint?.kind ?? "unknown",
 					outcome,
 					durationMs: Date.now() - restoreStartedAt,
 					...extra,
 				},
 			});
 		};
+
+		let sourceSession: SessionRecord;
+		let sourceMessages: LlmsProviders.MessageWithMetadata[] | undefined;
+		let plan: CheckpointRestorePlan;
+		try {
+			const sourceSessionId = validateRestoreOptions({
+				sessionId: input.sessionId,
+				restoreMessages,
+				restoreWorkspace,
+				requiresStart: input.start === undefined,
+				checkpointRunCount: input.checkpointRunCount,
+			});
+
+			const session = await input.getSession(sourceSessionId);
+			if (!session) {
+				throw new SessionVersioningError(
+					"session_not_found",
+					`Session ${sourceSessionId} not found`,
+				);
+			}
+			sourceSession = session;
+			sourceMessages = restoreMessages
+				? await input.readMessages(sourceSessionId)
+				: undefined;
+			if (restoreMessages && sourceMessages?.length === 0) {
+				throw new SessionVersioningError(
+					"session_messages_not_found",
+					`No messages found for session ${sourceSessionId}`,
+				);
+			}
+
+			plan = createCheckpointRestorePlan({
+				session: sourceSession,
+				messages: sourceMessages,
+				checkpointRunCount: input.checkpointRunCount,
+				cwd: input.cwd,
+				restoreMessages,
+			});
+			plannedCheckpoint = plan.checkpoint;
+		} catch (error) {
+			captureRestore("failed", { phase: "plan" });
+			throw error;
+		}
+		const sourceSnapshot = createCoreSessionSnapshot({
+			session: sourceSession,
+			messages: sourceMessages,
+		});
 		let restoredCheckpointMetadata: CheckpointMetadata | undefined;
 		let initialMessages: LlmsProviders.MessageWithMetadata[] = [];
 		let startInput: TStartInput | undefined;

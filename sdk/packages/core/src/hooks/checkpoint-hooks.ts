@@ -1,17 +1,29 @@
-import { execFile as execFileCallback } from "node:child_process";
-import { mkdir, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { execFile as execFileCallback, spawn } from "node:child_process";
+import { createHash } from "node:crypto";
+import { mkdir, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import type { AgentHooks, BasicLogger, ITelemetryService } from "@cline/shared";
+import { resolveClineDataDir } from "@cline/shared/storage";
 import { countUserRunMessages } from "../session/user-run-messages";
 
 const execFile = promisify(execFileCallback);
 const CHECKPOINT_STASH_MESSAGE_PREFIX = "cline checkpoint session=";
 const LS_FILES_MAX_BUFFER = 1024 * 1024 * 64;
+/**
+ * Scratch dirs whose mtime is older than this are reaped opportunistically.
+ * Each snapshot rewrites the index (and so touches the dir), so any live
+ * session refreshes its dir every turn; only sessions idle for this long —
+ * typically ones never explicitly deleted — are affected.
+ */
+const SCRATCH_DIR_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
 
 export function isCheckpointStashMessage(message: string): boolean {
 	return message.includes(CHECKPOINT_STASH_MESSAGE_PREFIX);
+}
+
+function checkpointScratchBaseDir(): string {
+	return join(resolveClineDataDir(), "checkpoint-scratch");
 }
 
 /**
@@ -19,11 +31,50 @@ export function isCheckpointStashMessage(message: string): boolean {
  * to snapshot untracked files. Persisting the index across turns lets git's
  * stat cache skip re-reading (and re-hashing) untracked files that have not
  * changed since the previous checkpoint — without it, every turn re-hashes
- * every untracked byte in the workspace. Removed by `deleteCheckpointRefs`.
+ * every untracked byte in the workspace.
+ *
+ * Lives under the user's Cline data dir (never the world-shared OS tmpdir:
+ * the index and pathspec files enumerate workspace paths) and is keyed by a
+ * hash of cwd + session id: hashing avoids sanitization collisions between
+ * distinct ids, and folding in cwd keeps a session restored against a
+ * different workspace from inheriting a foreign index. Removed by
+ * `deleteCheckpointRefs` and by the age-based reaper.
  */
-export function checkpointScratchDir(sessionId: string): string {
-	const safeId = sessionId.replace(/[^A-Za-z0-9._-]/g, "_");
-	return join(tmpdir(), `cline-checkpoint-${safeId}`);
+export function checkpointScratchDir(cwd: string, sessionId: string): string {
+	const key = createHash("sha256")
+		.update(`${cwd}\0${sessionId}`)
+		.digest("hex")
+		.slice(0, 32);
+	return join(checkpointScratchBaseDir(), key);
+}
+
+/**
+ * Best-effort reaper for scratch dirs of sessions that were never explicitly
+ * deleted. Everything under the base dir is ours, so age is the only
+ * criterion. Errors (missing base dir, races with concurrent sessions) are
+ * ignored — the next hook instance tries again.
+ */
+async function pruneStaleScratchDirs(): Promise<void> {
+	try {
+		const base = checkpointScratchBaseDir();
+		const cutoff = Date.now() - SCRATCH_DIR_MAX_AGE_MS;
+		const entries = await readdir(base, { withFileTypes: true });
+		await Promise.all(
+			entries.map(async (entry) => {
+				if (!entry.isDirectory()) return;
+				const dir = join(base, entry.name);
+				try {
+					if ((await stat(dir)).mtimeMs < cutoff) {
+						await rm(dir, { recursive: true, force: true });
+					}
+				} catch {
+					// Raced with another process — ignore.
+				}
+			}),
+		);
+	} catch {
+		// Base dir missing or unreadable — nothing to prune.
+	}
 }
 
 export interface CheckpointEntry {
@@ -128,6 +179,41 @@ async function runGitWithIndex(
 	return result.stdout.trim();
 }
 
+/** Like `runGitWithIndex`, but feeds `input` to the child's stdin. */
+function runGitWithIndexStdin(
+	cwd: string,
+	indexFile: string,
+	args: string[],
+	input: string,
+): Promise<void> {
+	return new Promise((resolve, reject) => {
+		const child = spawn("git", ["-C", cwd, ...args], {
+			windowsHide: true,
+			env: { ...process.env, GIT_INDEX_FILE: indexFile },
+			stdio: ["pipe", "ignore", "pipe"],
+		});
+		let stderr = "";
+		child.stderr.on("data", (chunk) => {
+			stderr += chunk;
+		});
+		child.on("error", reject);
+		child.on("close", (code) => {
+			if (code === 0) {
+				resolve();
+			} else {
+				reject(
+					new Error(`git ${args[0]} exited with ${code}: ${stderr.trim()}`),
+				);
+			}
+		});
+		child.stdin.on("error", () => {
+			// The close handler reports the real failure; without this listener a
+			// child that exits before consuming stdin crashes the process (EPIPE).
+		});
+		child.stdin.end(input);
+	});
+}
+
 /**
  * Builds a commit whose tree contains only the current untracked (but not
  * git-ignored) files, without touching the working tree or the real index.
@@ -148,7 +234,9 @@ async function createUntrackedParentCommit(
 	if (untrackedFiles.length === 0) {
 		return undefined;
 	}
-	await mkdir(scratchDir, { recursive: true });
+	// 0700: the index and pathspec enumerate workspace paths — private to the
+	// user (mode is a no-op on Windows, where the data dir is per-user anyway).
+	await mkdir(scratchDir, { recursive: true, mode: 0o700 });
 	const indexFile = join(scratchDir, "index");
 	const pathspecFile = join(scratchDir, "pathspec");
 	// Feed paths via a NUL-delimited pathspec file so large untracked sets
@@ -163,49 +251,50 @@ async function createUntrackedParentCommit(
 	];
 	try {
 		await runGitWithIndex(cwd, indexFile, addArgs);
-	} catch {
-		// A corrupt index (crash mid-write, git version change) would otherwise
-		// fail every turn from here on; rebuild it from scratch once. The retry
-		// pays a full re-hash, so anything else propagates to the caller.
+	} catch (error) {
+		// A listed file vanishing before the add is a per-turn race, not index
+		// damage — keep the cache and let the caller degrade this turn only.
+		const stderr = String((error as { stderr?: unknown }).stderr ?? "");
+		if (stderr.includes("did not match any files")) {
+			throw error;
+		}
+		// A corrupt index or stale index.lock (crash mid-write, SIGKILLed git)
+		// would otherwise fail every turn from here on; clear both and rebuild
+		// once. The retry pays a full re-hash, so anything else propagates.
 		await rm(indexFile, { force: true });
+		await rm(`${indexFile}.lock`, { force: true });
 		await runGitWithIndex(cwd, indexFile, addArgs);
 	}
 	// Drop index entries that fell out of the untracked set (file deleted or
 	// became tracked) so they don't ghost into the snapshot tree — `git add`
-	// with a pathspec never removes entries.
+	// with a pathspec never removes entries. Normalize trailing slashes when
+	// comparing: `ls-files --others` reports an untracked nested repo as
+	// "sub/", but the index records its gitlink entry as "sub" — without the
+	// normalization the gitlink would be purged the same turn it was added.
 	const indexedListing = await execFile("git", ["-C", cwd, "ls-files", "-z"], {
 		windowsHide: true,
 		maxBuffer: LS_FILES_MAX_BUFFER,
 		env: { ...process.env, GIT_INDEX_FILE: indexFile },
 	});
-	const untrackedSet = new Set(untrackedFiles);
+	const untrackedSet = new Set(
+		untrackedFiles.map((path) =>
+			path.endsWith("/") ? path.slice(0, -1) : path,
+		),
+	);
 	const stale = indexedListing.stdout
 		.split("\0")
 		.filter(Boolean)
 		.filter((path) => !untrackedSet.has(path));
-	// `update-index` has no --pathspec-from-file, so pass paths as arguments in
-	// length-bounded batches to stay under Windows' ~32k command-line limit.
-	let batch: string[] = [];
-	let batchLength = 0;
-	const flushBatch = async () => {
-		if (batch.length === 0) return;
-		await runGitWithIndex(cwd, indexFile, [
-			"update-index",
-			"--force-remove",
-			"--",
-			...batch,
-		]);
-		batch = [];
-		batchLength = 0;
-	};
-	for (const path of stale) {
-		if (batch.length > 0 && batchLength + path.length > 8000) {
-			await flushBatch();
-		}
-		batch.push(path);
-		batchLength += path.length + 1;
+	if (stale.length > 0) {
+		// Paths go over stdin (`-z --stdin`): one git process regardless of how
+		// many entries went stale, and no command-line length limits.
+		await runGitWithIndexStdin(
+			cwd,
+			indexFile,
+			["update-index", "-z", "--force-remove", "--stdin"],
+			`${stale.join("\0")}\0`,
+		);
 	}
-	await flushBatch();
 	const tree = await runGitWithIndex(cwd, indexFile, ["write-tree"]);
 	if (!tree) {
 		return undefined;
@@ -320,13 +409,14 @@ export async function deleteCheckpointRefs(
 	cwd: string | null | undefined,
 	sessionId: string,
 ): Promise<void> {
-	// The scratch dir (persistent untracked index) is keyed by session id
-	// alone, so clean it up even when no cwd is known.
-	await rm(checkpointScratchDir(sessionId), {
+	if (!cwd) return;
+	// The scratch dir (persistent untracked index) is keyed by cwd + session
+	// id. A session whose cwd is unknown at deletion time is covered by the
+	// age-based reaper instead.
+	await rm(checkpointScratchDir(cwd, sessionId), {
 		recursive: true,
 		force: true,
 	}).catch(() => undefined);
-	if (!cwd) return;
 	const prefix = `refs/cline/checkpoints/${sessionId}/`;
 	try {
 		const { stdout } = await runGit(cwd, [
@@ -378,6 +468,9 @@ function upsertCheckpointHistory(
 export function createCheckpointHooks(
 	options: CreateCheckpointHooksOptions,
 ): AgentHooks {
+	// Reap scratch dirs left behind by sessions that were never explicitly
+	// deleted. Fire-and-forget: pruning failures never affect the session.
+	void pruneStaleScratchDirs();
 	let repoSupported: boolean | undefined;
 	// Number of messages present when the current run started, captured in
 	// beforeRun. For hosts that append the run's prompt *after* beforeRun (e.g.
@@ -475,7 +568,7 @@ export function createCheckpointHooks(
 			ref =
 				(await createWorktreeStashCommit(
 					options.cwd,
-					checkpointScratchDir(options.sessionId),
+					checkpointScratchDir(options.cwd, options.sessionId),
 					message,
 				)) ?? "";
 		} catch (error) {
