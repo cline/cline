@@ -1,36 +1,29 @@
-// MCP OAuth state is stored in the shared MCP settings file
-// (~/.cline/data/settings/cline_mcp_settings.json) under each server's `oauth`
-// key, in the format @cline/core (CLI, JetBrains) reads and writes:
-//
-//   { "mcpServers": { "linear": { "transport": {...}, "oauth": { "tokens": {...}, ... } } } }
-//
-// This shared file is the single source of truth, which keeps the extension,
-// the CLI, and multiple extension windows interoperable:
-//  - Writes scope to ONE server's `oauth` key via @cline/core's
-//    updateMcpServerOAuthStateAsync, which re-reads the file under a
-//    cross-process lock and replaces it atomically (temp + rename), so
-//    concurrent writers never clobber other servers or the whole file. Lock
-//    acquisition yields the extension host event loop rather than blocking it.
-//  - Reads come fresh from disk, so a token authorized by the CLI or another
-//    window is picked up without restarting.
-//  - The interactive authorization flow is HTTP-based token collection via
-//    @cline/core's authorizeMcpServerOAuth, which binds a local loopback
-//    callback server — the same flow the CLI uses.
-
 import {
+	areMcpOAuthClientConfigurationsEqual,
 	authorizeMcpServerOAuth,
-	getMcpServerOAuthState,
-	type McpServerOAuthState,
+	createMcpOAuthClientInformation,
+	createMcpOAuthProviderContext,
+	createMcpOAuthTransportBinding,
+	type McpServerOAuthClientConfig,
+	type McpServerTransportConfig,
+	resolveMcpServerRegistration,
 	updateMcpServerOAuthStateAsync,
 } from "@cline/core"
-import { StateManager } from "@core/storage/StateManager"
-import { OAuthClientProvider } from "@modelcontextprotocol/sdk/client/auth.js"
-import type { OAuthClientInformationMixed, OAuthClientMetadata, OAuthTokens } from "@modelcontextprotocol/sdk/shared/auth.js"
-import crypto from "crypto"
+import type { OAuthClientProvider } from "@modelcontextprotocol/sdk/client/auth.js"
 import { fetch } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
 import { openExternal } from "@/utils/env"
-import { getServerAuthHash } from "@/utils/mcpAuth"
+
+export type McpOAuthRemoteTransport = Extract<McpServerTransportConfig, { url: string }>
+
+export class McpOAuthEffectiveTransportMismatchError extends Error {
+	constructor(serverName: string) {
+		super(
+			`MCP OAuth is unavailable for "${serverName}" because environment expansion changes its remote URL, headers, or OAuth client policy. Use literal remote URL, header, and OAuth client values so credentials stay bound to the configured endpoint and client.`,
+		)
+		this.name = "McpOAuthEffectiveTransportMismatchError"
+	}
+}
 
 /**
  * Fallback redirect URL advertised in client metadata for connection-time
@@ -42,161 +35,49 @@ const DEFAULT_HTTP_MCP_REDIRECT_URL = "http://127.0.0.1:1456/mcp/oauth/callback"
 
 /**
  * Ports the local OAuth callback server may bind. The first three match the
- * @cline/core defaults; extras tolerate concurrent flows from other Cline
- * processes (CLI, another extension window) holding a port.
+ * @cline/core defaults and the redirect URIs registered by every Cline setup
+ * surface. Expanding this list requires updating those registrations first.
  */
-const MCP_OAUTH_CALLBACK_PORTS = [1456, 1457, 1458, 1459, 1460, 1461]
+export const MCP_OAUTH_CALLBACK_PORTS = [1456, 1457, 1458] as const
 
 /** How long the interactive flow waits for the browser callback. */
 const MCP_OAUTH_FLOW_TIMEOUT_MS = 10 * 60 * 1000 // 10 minutes
 
-/**
- * Read a server's OAuth state fresh from the shared settings file.
- * Never throws — a missing/unreadable file simply means "no state".
- */
-function readOAuthState(serverName: string, settingsPath: string): McpServerOAuthState {
-	try {
-		return getMcpServerOAuthState(serverName, { filePath: settingsPath }) ?? {}
-	} catch {
-		return {}
-	}
+type CachedOAuthProvider = {
+	transportBinding: string
+	oauthClient: McpServerOAuthClientConfig | undefined
+	provider: OAuthClientProvider
 }
 
-/**
- * Scoped write of one server's OAuth state. The updater runs against the
- * server's current state under a cross-process lock and returns the next state;
- * concurrent writers are never clobbered wholesale. Lock acquisition yields the
- * event loop. Failures are logged but non-fatal, so a missing server entry
- * (e.g. deleted in another window) does not crash the MCP SDK provider callbacks
- * that invoke this mid-connection.
- */
-async function patchOAuthState(
-	serverName: string,
-	settingsPath: string,
-	updater: (current: McpServerOAuthState) => McpServerOAuthState,
-): Promise<void> {
-	try {
-		await updateMcpServerOAuthStateAsync(serverName, updater, { filePath: settingsPath })
-	} catch (error) {
-		Logger.warn(`[McpOAuth] Failed to persist OAuth state for ${serverName}: ${error}`)
-	}
+export interface McpOAuthManagerDependencies {
+	areMcpOAuthClientConfigurationsEqual: typeof areMcpOAuthClientConfigurationsEqual
+	authorizeMcpServerOAuth: typeof authorizeMcpServerOAuth
+	createMcpOAuthClientInformation: typeof createMcpOAuthClientInformation
+	createMcpOAuthProviderContext: typeof createMcpOAuthProviderContext
+	createMcpOAuthTransportBinding: typeof createMcpOAuthTransportBinding
+	resolveMcpServerRegistration: typeof resolveMcpServerRegistration
+	updateMcpServerOAuthStateAsync: typeof updateMcpServerOAuthStateAsync
 }
 
-/**
- * Implementation of OAuthClientProvider for connection-time auth.
- *
- * This provider is attached to SSE/StreamableHTTP transports so the MCP SDK
- * can read tokens (and auto-refresh them with the stored refresh_token). It
- * reads/writes the shared settings file in @cline/core's format.
- *
- * Note: `redirectToAuthorization` here is a no-op signal — connection attempts
- * never open a browser. The interactive flow (Authenticate button) goes
- * through McpOAuthManager.startOAuthFlow → authorizeMcpServerOAuth, which
- * runs its own provider with a live local callback server.
- */
-class ClineOAuthClientProvider implements OAuthClientProvider {
-	constructor(
-		private readonly serverName: string,
-		private readonly settingsPath: string,
-	) {}
+const defaultDependencies: McpOAuthManagerDependencies = {
+	// Keep Core operations injectable as one unit. Besides making the adapter
+	// testable without browser/network effects, this prevents tests from mixing a
+	// source-level helper with stale workspace-dist implementations of the state
+	// mutators that enforce the same bindings.
+	areMcpOAuthClientConfigurationsEqual,
+	authorizeMcpServerOAuth,
+	createMcpOAuthClientInformation,
+	createMcpOAuthProviderContext,
+	createMcpOAuthTransportBinding,
+	resolveMcpServerRegistration,
+	updateMcpServerOAuthStateAsync,
+}
 
-	get redirectUrl(): string {
-		const state = readOAuthState(this.serverName, this.settingsPath)
-		return state.redirectUrl ?? DEFAULT_HTTP_MCP_REDIRECT_URL
+function resolveConnectionRedirectUrl(client: McpServerOAuthClientConfig | undefined): string {
+	if (client?.loopbackHostname === "localhost") {
+		return "http://localhost:1456/mcp/oauth/callback"
 	}
-
-	get clientMetadata(): OAuthClientMetadata {
-		return {
-			redirect_uris: [this.redirectUrl],
-			token_endpoint_auth_method: "none",
-			grant_types: ["authorization_code", "refresh_token"],
-			response_types: ["code"],
-			client_name: "Cline",
-		}
-	}
-
-	state(): string {
-		return crypto.randomUUID()
-	}
-
-	async clientInformation(): Promise<OAuthClientInformationMixed | undefined> {
-		const state = readOAuthState(this.serverName, this.settingsPath)
-		return state.clientInformation as OAuthClientInformationMixed | undefined
-	}
-
-	async saveClientInformation(clientInformation: OAuthClientInformationMixed): Promise<void> {
-		await patchOAuthState(this.serverName, this.settingsPath, (current) => ({
-			...current,
-			clientInformation: clientInformation as Record<string, unknown>,
-		}))
-	}
-
-	async tokens(): Promise<OAuthTokens | undefined> {
-		// Always read fresh from disk: tokens may have just been written by the
-		// CLI, another extension window, or the interactive authorize flow.
-		// Expired access tokens are still returned when a refresh_token exists —
-		// the MCP SDK refreshes them automatically and calls saveTokens().
-		const state = readOAuthState(this.serverName, this.settingsPath)
-		return state.tokens as OAuthTokens | undefined
-	}
-
-	async saveTokens(tokens: OAuthTokens): Promise<void> {
-		// Called by the SDK after a successful token exchange or refresh.
-		Logger.log(`[McpOAuth] Tokens saved for ${this.serverName}`)
-		const lastAuthenticatedAt = Date.now()
-		await patchOAuthState(this.serverName, this.settingsPath, (current) => ({
-			...current,
-			tokens: tokens as Record<string, unknown>,
-			lastError: undefined,
-			lastAuthenticatedAt,
-		}))
-	}
-
-	async redirectToAuthorization(_authorizationUrl: URL): Promise<void> {
-		// Intentionally do nothing. The SDK calls this during a connection
-		// attempt when the server requires auth; it then throws
-		// UnauthorizedError, which McpHub catches to show the "Authenticate"
-		// button. The actual browser flow runs in startOAuthFlow(), with a
-		// dedicated provider whose local callback server is actually listening.
-		Logger.log(`[McpOAuth] OAuth required for ${this.serverName} - user must click Authenticate`)
-	}
-
-	async saveCodeVerifier(codeVerifier: string): Promise<void> {
-		await patchOAuthState(this.serverName, this.settingsPath, (current) => ({
-			...current,
-			codeVerifier,
-		}))
-	}
-
-	async codeVerifier(): Promise<string> {
-		const state = readOAuthState(this.serverName, this.settingsPath)
-		if (!state.codeVerifier) {
-			throw new Error(`No code verifier found for ${this.serverName}`)
-		}
-		return state.codeVerifier
-	}
-
-	async invalidateCredentials(scope: "all" | "client" | "tokens" | "verifier"): Promise<void> {
-		await patchOAuthState(this.serverName, this.settingsPath, (current) => {
-			if (scope === "all") {
-				return { lastError: current.lastError, redirectUrl: current.redirectUrl }
-			}
-			return {
-				...current,
-				...(scope === "client" ? { clientInformation: undefined } : {}),
-				...(scope === "tokens" ? { tokens: undefined, lastAuthenticatedAt: undefined } : {}),
-				...(scope === "verifier" ? { codeVerifier: undefined } : {}),
-			}
-		})
-	}
-
-	/**
-	 * Check if provider has valid authentication
-	 */
-	async isAuthenticated(): Promise<boolean> {
-		const tokens = await this.tokens()
-		return Boolean(tokens && tokens.access_token)
-	}
+	return DEFAULT_HTTP_MCP_REDIRECT_URL
 }
 
 /**
@@ -207,26 +88,93 @@ class ClineOAuthClientProvider implements OAuthClientProvider {
  * HTTP-callback authorization flow via @cline/core.
  */
 export class McpOAuthManager {
-	private providers: Map<string, OAuthClientProvider> = new Map()
+	private providers = new Map<string, CachedOAuthProvider>()
 	/** Serializes interactive flows per server so double-clicks don't race. */
 	private activeFlows: Map<string, Promise<void>> = new Map()
 
-	constructor(private readonly getSettingsPath: () => Promise<string>) {}
+	constructor(
+		private readonly getSettingsPath: () => Promise<string>,
+		private readonly dependencies: McpOAuthManagerDependencies = defaultDependencies,
+	) {}
 
 	/**
-	 * Gets or creates an OAuthClientProvider for a server.
+	 * Gets or creates an OAuthClientProvider for one exact remote transport.
+	 *
+	 * The shared Core context re-reads bound state for every credential access
+	 * and guards every write under the settings lock. Replacing this cache entry
+	 * when either the transport or static client changes prevents an old provider
+	 * from surviving a settings edit. The effective client policy is compared
+	 * against the raw registration so environment expansion also fails closed,
+	 * while canonical header and scope ordering still reuse the same provider.
 	 */
-	async getOrCreateProvider(serverName: string, serverUrl: string): Promise<OAuthClientProvider> {
-		const key = `${serverName}:${serverUrl}`
-		const existing = this.providers.get(key)
-		if (existing) {
-			return existing
+	async getOrCreateProvider(
+		serverName: string,
+		transport: McpOAuthRemoteTransport,
+		effectiveOAuthClient: McpServerOAuthClientConfig | undefined,
+		effectiveTransport: McpOAuthRemoteTransport = transport,
+	): Promise<OAuthClientProvider> {
+		const transportBinding = this.dependencies.createMcpOAuthTransportBinding(transport)
+		if (this.dependencies.createMcpOAuthTransportBinding(effectiveTransport) !== transportBinding) {
+			throw new McpOAuthEffectiveTransportMismatchError(serverName)
 		}
-		// Import tokens from the legacy `mcpOAuthSecrets` store into the shared
-		// settings file before the first read, if any are present.
-		await this.migrateLegacySecrets(serverName, serverUrl)
-		const provider = new ClineOAuthClientProvider(serverName, await this.getSettingsPath())
-		this.providers.set(key, provider)
+		const settingsPath = await this.getSettingsPath()
+		let registration: ReturnType<typeof resolveMcpServerRegistration>
+		try {
+			registration = this.dependencies.resolveMcpServerRegistration(serverName, { filePath: settingsPath })
+		} catch {
+			// VS Code supports expanding a complete remote URL from ${env:...}.
+			// Core intentionally validates the raw persisted registration and rejects
+			// that placeholder as a URL. Treat that as an unavailable binding rather
+			// than failing an otherwise valid non-OAuth connection.
+			throw new McpOAuthEffectiveTransportMismatchError(serverName)
+		}
+		const registrationTransportBinding =
+			registration && registration.transport.type !== "stdio"
+				? this.dependencies.createMcpOAuthTransportBinding(registration.transport)
+				: undefined
+		if (registrationTransportBinding !== transportBinding) {
+			throw new McpOAuthEffectiveTransportMismatchError(serverName)
+		}
+		const oauthClient = registration?.oauthClient
+		if (!this.dependencies.areMcpOAuthClientConfigurationsEqual(effectiveOAuthClient, oauthClient)) {
+			throw new McpOAuthEffectiveTransportMismatchError(serverName)
+		}
+		const existing = this.providers.get(serverName)
+		// Cache identity includes the exact secret even though persisted public
+		// policy metadata does not. A secret-only rotation must replace the provider
+		// before any token or clientInformation read can occur.
+		if (
+			existing?.transportBinding === transportBinding &&
+			this.dependencies.areMcpOAuthClientConfigurationsEqual(existing.oauthClient, oauthClient)
+		) {
+			return existing.provider
+		}
+
+		const context = this.dependencies.createMcpOAuthProviderContext({
+			settingsPath,
+			serverName,
+			transportBinding,
+			redirectUrl: resolveConnectionRedirectUrl(oauthClient),
+			clientInformation: this.dependencies.createMcpOAuthClientInformation(oauthClient),
+			allowedScopes: oauthClient?.allowedScopes,
+			loopbackHostname: oauthClient?.loopbackHostname,
+			onAuthorizationUrl: () => {
+				// Connection attempts only surface the Authenticate action. The
+				// explicit interactive flow below owns browser navigation.
+				Logger.log(`[McpOAuth] OAuth required for ${serverName} - user must click Authenticate`)
+			},
+		})
+		const provider = context.provider
+		this.providers.set(serverName, {
+			transportBinding,
+			oauthClient: oauthClient
+				? {
+						...oauthClient,
+						...(oauthClient.allowedScopes ? { allowedScopes: [...oauthClient.allowedScopes] } : {}),
+					}
+				: undefined,
+			provider,
+		})
 		return provider
 	}
 
@@ -248,13 +196,13 @@ export class McpOAuthManager {
 
 		const flow = (async () => {
 			const settingsPath = await this.getSettingsPath()
-			const result = await authorizeMcpServerOAuth({
+			const result = await this.dependencies.authorizeMcpServerOAuth({
 				serverName,
 				filePath: settingsPath,
 				clientName: "Cline",
 				fetch,
 				openUrl: (url) => openExternal(url),
-				callbackPorts: MCP_OAUTH_CALLBACK_PORTS,
+				callbackPorts: [...MCP_OAUTH_CALLBACK_PORTS],
 				timeoutMs: MCP_OAUTH_FLOW_TIMEOUT_MS,
 			})
 			Logger.log(`[McpOAuth] ${result.message}`)
@@ -274,49 +222,24 @@ export class McpOAuthManager {
 	 * removes them; this also drops the cached provider and proactively
 	 * clears the oauth block in case the entry itself is kept.
 	 */
-	async clearServerAuth(serverName: string, serverUrl: string): Promise<void> {
-		this.providers.delete(`${serverName}:${serverUrl}`)
-		await patchOAuthState(serverName, await this.getSettingsPath(), () => ({}))
-	}
-
-	/**
-	 * One-time migration of tokens from the legacy `mcpOAuthSecrets` secrets
-	 * blob into the shared settings file. Runs per server at connection time;
-	 * file-based state always wins (never overwrite newer shared state).
-	 */
-	private async migrateLegacySecrets(serverName: string, serverUrl: string): Promise<void> {
+	async clearServerAuth(
+		serverName: string,
+		transport: McpOAuthRemoteTransport,
+		oauthClient: McpServerOAuthClientConfig | undefined,
+	): Promise<void> {
+		this.providers.delete(serverName)
+		const settingsPath = await this.getSettingsPath()
+		const transportBinding = this.dependencies.createMcpOAuthTransportBinding(transport)
 		try {
-			const secretsJson = StateManager.get().getSecretKey("mcpOAuthSecrets")
-			if (!secretsJson) {
-				return
-			}
-			const secrets = JSON.parse(secretsJson) as Record<
-				string,
-				{ tokens?: OAuthTokens; tokens_saved_at?: number; client_info?: Record<string, unknown> }
-			>
-			const serverHash = getServerAuthHash(serverName, serverUrl)
-			const legacy = secrets[serverHash]
-			if (!legacy?.tokens?.access_token) {
-				return
-			}
-
-			const settingsPath = await this.getSettingsPath()
-			const current = readOAuthState(serverName, settingsPath)
-			if (!current.tokens) {
-				Logger.log(`[McpOAuth] Migrating legacy OAuth tokens for ${serverName} to shared settings file`)
-				await patchOAuthState(serverName, settingsPath, (state) => ({
-					...state,
-					tokens: legacy.tokens as unknown as Record<string, unknown>,
-					clientInformation: state.clientInformation ?? legacy.client_info,
-					lastAuthenticatedAt: legacy.tokens_saved_at ?? Date.now(),
-				}))
-			}
-
-			// Drop the migrated entry so this only happens once per server.
-			delete secrets[serverHash]
-			StateManager.get().setSecret("mcpOAuthSecrets", Object.keys(secrets).length ? JSON.stringify(secrets) : undefined)
+			await this.dependencies.updateMcpServerOAuthStateAsync(serverName, () => ({}), {
+				filePath: settingsPath,
+				expectedTransportBinding: transportBinding,
+				expectedOAuthClient: oauthClient ?? null,
+			})
 		} catch (error) {
-			Logger.warn(`[McpOAuth] Legacy OAuth migration failed for ${serverName}: ${error}`)
+			// Deletion can race another window changing/removing this entry. The
+			// guarded write must not clear credentials for the replacement target.
+			Logger.warn(`[McpOAuth] Failed to clear OAuth state for ${serverName}: ${error}`)
 		}
 	}
 }

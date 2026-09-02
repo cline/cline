@@ -23,6 +23,18 @@ vi.mock("@cline/core", async (importOriginal: any) => {
 	const actual = await importOriginal()
 	return {
 		...actual,
+		// Importing the catalog reaches McpHub through the SDK controller. These
+		// functions are captured in McpOAuthManager's default dependency object at
+		// module evaluation time, even though catalog tests never invoke OAuth. Keep
+		// the complete capture surface present so a workspace-dist mismatch cannot
+		// turn an unrelated catalog suite into a missing-export failure.
+		areMcpOAuthClientConfigurationsEqual: vi.fn(() => false),
+		authorizeMcpServerOAuth: vi.fn(),
+		createMcpOAuthClientInformation: vi.fn(),
+		createMcpOAuthProviderContext: vi.fn(),
+		createMcpOAuthTransportBinding: vi.fn(),
+		resolveMcpServerRegistration: vi.fn(),
+		updateMcpServerOAuthStateAsync: vi.fn(),
 		resolveProviderConfig: mocks.resolveProviderConfig,
 		listLocalProviders: mocks.listLocalProviders,
 	}

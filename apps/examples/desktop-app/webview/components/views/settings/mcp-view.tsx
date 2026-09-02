@@ -59,11 +59,12 @@ import { CommandBadge, PageFrame, PageHeader } from "../page-layout";
 import { subscribeToExtensionInventoryInvalidation } from "./extensions-view";
 import {
 	buildMcpOAuthClientUpsert,
+	buildMcpOAuthRedirectUris,
 	createMcpOAuthClientFormFields,
 	isMcpOAuthClientIdentityUnchanged,
-	MCP_OAUTH_REDIRECT_URIS,
 	type McpOAuthClientSummary,
 	type McpOAuthClientUpsert,
+	type McpOAuthLoopbackHostname,
 } from "./mcp-oauth-form";
 
 type McpTransportType = "stdio" | "sse" | "streamableHttp";
@@ -141,6 +142,8 @@ type McpServerFormState = {
 	hasSavedOauthClientSecret: boolean;
 	preserveSavedOauthClientSecret: boolean;
 	oauthAllowedScopesText: string;
+	oauthLoopbackHostname: McpOAuthLoopbackHostname;
+	originalOauthLoopbackHostname: McpOAuthLoopbackHostname;
 	originalOauthServerUrl: string;
 	originalOauthTransportType: McpTransportType;
 	originalOauthHeaders?: Record<string, string>;
@@ -235,6 +238,8 @@ function createServerFormState(existing?: McpServer): McpServerFormState {
 		hasSavedOauthClientSecret: oauthClient.hasSavedClientSecret,
 		preserveSavedOauthClientSecret: oauthClient.preserveSavedClientSecret,
 		oauthAllowedScopesText: oauthClient.allowedScopesText,
+		oauthLoopbackHostname: oauthClient.loopbackHostname,
+		originalOauthLoopbackHostname: oauthClient.originalLoopbackHostname,
 		originalOauthServerUrl: oauthClient.originalServerUrl,
 		originalOauthTransportType:
 			oauthClient.originalTransportType as McpTransportType,
@@ -485,6 +490,8 @@ export function McpServersContent({
 				hasSavedClientSecret: form.hasSavedOauthClientSecret,
 				preserveSavedClientSecret: form.preserveSavedOauthClientSecret,
 				allowedScopesText: form.oauthAllowedScopesText,
+				loopbackHostname: form.oauthLoopbackHostname,
+				originalLoopbackHostname: form.originalOauthLoopbackHostname,
 				serverUrl: form.url,
 				originalServerUrl: form.originalOauthServerUrl,
 				transportType: form.transportType,
@@ -565,6 +572,8 @@ export function McpServersContent({
 		hasSavedClientSecret: formState.hasSavedOauthClientSecret,
 		preserveSavedClientSecret: formState.preserveSavedOauthClientSecret,
 		allowedScopesText: formState.oauthAllowedScopesText,
+		loopbackHostname: formState.oauthLoopbackHostname,
+		originalLoopbackHostname: formState.originalOauthLoopbackHostname,
 		serverUrl: formState.url,
 		originalServerUrl: formState.originalOauthServerUrl,
 		transportType: formState.transportType,
@@ -1117,6 +1126,36 @@ export function McpServersContent({
 										</p>
 									</div>
 									<div className="grid gap-2">
+										<Label htmlFor="mcp-oauth-loopback-hostname">
+											Loopback callback hostname
+										</Label>
+										<Select
+											value={formState.oauthLoopbackHostname}
+											onValueChange={(value) =>
+												setFormState((current) => ({
+													...current,
+													oauthLoopbackHostname:
+														value as McpOAuthLoopbackHostname,
+												}))
+											}
+										>
+											<SelectTrigger id="mcp-oauth-loopback-hostname">
+												<SelectValue />
+											</SelectTrigger>
+											<SelectContent>
+												<SelectItem value="127.0.0.1">
+													127.0.0.1 (default)
+												</SelectItem>
+												<SelectItem value="localhost">localhost</SelectItem>
+											</SelectContent>
+										</Select>
+										<p className="text-xs text-muted-foreground">
+											Use localhost only when the OAuth provider requires that
+											exact redirect host. Cline still listens only on IPv4
+											loopback.
+										</p>
+									</div>
+									<div className="grid gap-2">
 										<p className="text-sm font-medium text-foreground">
 											Redirect URIs
 										</p>
@@ -1125,7 +1164,9 @@ export function McpServersContent({
 											Cline uses the first available local port.
 										</p>
 										<div className="grid gap-1 rounded-md bg-muted/40 px-3 py-2">
-											{MCP_OAUTH_REDIRECT_URIS.map((redirectUri) => (
+											{buildMcpOAuthRedirectUris(
+												formState.oauthLoopbackHostname,
+											).map((redirectUri) => (
 												<code
 													className="select-all break-all font-mono text-xs text-foreground"
 													key={redirectUri}

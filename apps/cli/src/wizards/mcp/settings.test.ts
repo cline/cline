@@ -9,6 +9,7 @@ import {
 	loadServers,
 	removeServer,
 	setServerOAuthClient,
+	updateServer,
 } from "./settings";
 
 describe("MCP wizard settings", () => {
@@ -170,5 +171,161 @@ describe("MCP wizard settings", () => {
 			clientId: "new-client",
 			clientSecret: "new-secret",
 		});
+	});
+
+	it("clears OAuth state when the configured loopback hostname changes", async () => {
+		const settingsPath = await useTempSettingsPath();
+		await writeFile(
+			settingsPath,
+			JSON.stringify({
+				mcpServers: {
+					slack: {
+						transport: {
+							type: "streamableHttp",
+							url: "https://mcp.slack.com/mcp",
+						},
+						oauthClient: {
+							clientId: "desktop-client",
+							loopbackHostname: "localhost",
+						},
+						oauth: { tokens: { access_token: "old-token" } },
+					},
+				},
+			}),
+		);
+
+		setServerOAuthClient("slack", { clientId: "desktop-client" });
+
+		const [slack] = loadServers();
+		expect(slack?.oauth).toBeUndefined();
+		expect(slack?.oauthClient).toEqual({ clientId: "desktop-client" });
+	});
+
+	it.each([
+		{
+			change: "URL",
+			transport: {
+				type: "streamableHttp" as const,
+				url: "https://proxy.example.com/other-mcp",
+				headers: { Authorization: "Bearer static", "X-Tenant": "one" },
+			},
+		},
+		{
+			change: "remote transport type",
+			transport: {
+				type: "sse" as const,
+				url: "https://proxy.example.com/mcp",
+				headers: { Authorization: "Bearer static", "X-Tenant": "one" },
+			},
+		},
+		{
+			change: "header value",
+			transport: {
+				type: "streamableHttp" as const,
+				url: "https://proxy.example.com/mcp",
+				headers: { Authorization: "Bearer static", "X-Tenant": "two" },
+			},
+		},
+	])("clears OAuth state when the remote $change changes", async ({
+		transport,
+	}) => {
+		const settingsPath = await useTempSettingsPath();
+		await writeFile(
+			settingsPath,
+			JSON.stringify({
+				mcpServers: {
+					proxy: {
+						transport: {
+							type: "streamableHttp",
+							url: "https://proxy.example.com/mcp",
+							headers: {
+								Authorization: "Bearer static",
+								"X-Tenant": "one",
+							},
+						},
+						oauthClient: {
+							clientId: "desktop-client",
+							clientSecret: "saved-secret",
+							allowedScopes: ["channels:history"],
+							loopbackHostname: "localhost",
+						},
+						oauth: { tokens: { access_token: "old-token" } },
+					},
+				},
+			}),
+		);
+
+		updateServer("proxy", transport);
+
+		const [proxy] = loadServers();
+		expect(proxy?.transport).toEqual(transport);
+		expect(proxy?.oauth).toBeUndefined();
+		expect(proxy?.oauthClient).toBeUndefined();
+	});
+
+	it("preserves OAuth state when remote headers are only reordered", async () => {
+		const settingsPath = await useTempSettingsPath();
+		await writeFile(
+			settingsPath,
+			JSON.stringify({
+				mcpServers: {
+					proxy: {
+						transport: {
+							type: "streamableHttp",
+							url: "https://proxy.example.com/mcp",
+							headers: {
+								Authorization: "Bearer static",
+								"X-Tenant": "one",
+							},
+						},
+						oauthClient: {
+							clientId: "desktop-client",
+							clientSecret: "saved-secret",
+						},
+						oauth: { tokens: { access_token: "old-token" } },
+					},
+				},
+			}),
+		);
+
+		updateServer("proxy", {
+			type: "streamableHttp",
+			url: "https://proxy.example.com/mcp",
+			headers: {
+				"X-Tenant": "one",
+				Authorization: "Bearer static",
+			},
+		});
+
+		const [proxy] = loadServers();
+		expect(proxy?.oauth?.tokens?.access_token).toBe("old-token");
+		expect(proxy?.oauthClient?.clientSecret).toBe("saved-secret");
+	});
+
+	it("clears OAuth state when omitted headers become an explicit empty set", async () => {
+		const settingsPath = await useTempSettingsPath();
+		await writeFile(
+			settingsPath,
+			JSON.stringify({
+				mcpServers: {
+					proxy: {
+						transport: {
+							type: "streamableHttp",
+							url: "https://proxy.example.com/mcp",
+						},
+						oauth: { tokens: { access_token: "old-token" } },
+					},
+				},
+			}),
+		);
+
+		updateServer("proxy", {
+			type: "streamableHttp",
+			url: "https://proxy.example.com/mcp",
+			headers: {},
+		});
+
+		const [proxy] = loadServers();
+		expect(proxy?.oauth).toBeUndefined();
 	});
 });

@@ -20,20 +20,32 @@ import {
 } from "@cline/shared";
 import { resolveMcpSettingsPath } from "@cline/shared/storage";
 import { z } from "zod";
+import { areMcpOAuthClientConfigurationsEqual } from "./oauth-client-policy";
+import {
+	createMcpOAuthClientPolicyBinding,
+	MCP_OAUTH_CLIENT_POLICY_BINDING_PATTERN,
+} from "./oauth-client-policy-binding";
 import {
 	areMcpOAuthScopePoliciesEqual,
 	assertMcpOAuthScopesAllowed,
 	MCP_OAUTH_SCOPE_TOKEN_PATTERN,
 	normalizeMcpOAuthAllowedScopes,
 } from "./oauth-scope-policy";
+import {
+	createMcpOAuthTransportBinding,
+	MCP_OAUTH_TRANSPORT_BINDING_PATTERN,
+} from "./oauth-transport-binding";
 import { resolveNativeMcpTransport } from "./remote-proxy";
 import type {
 	McpManager,
+	McpOAuthLoopbackHostname,
 	McpServerOAuthClientConfig,
 	McpServerOAuthState,
 	McpServerOAuthStatus,
 	McpServerRegistration,
 } from "./types";
+
+const mcpOAuthLoopbackHostnameSchema = z.enum(["127.0.0.1", "localhost"]);
 
 const stringRecordSchema = z.record(z.string(), z.string());
 const metadataSchema = z.record(z.string(), z.unknown());
@@ -69,9 +81,18 @@ const timeoutFieldSchema = z.preprocess(
 );
 const oauthStateSchema = z
 	.object({
+		transportBinding: z
+			.string()
+			.regex(MCP_OAUTH_TRANSPORT_BINDING_PATTERN)
+			.optional(),
+		clientPolicyBinding: z
+			.string()
+			.regex(MCP_OAUTH_CLIENT_POLICY_BINDING_PATTERN)
+			.optional(),
 		clientInformation: z.record(z.string(), z.unknown()).optional(),
 		tokens: z.record(z.string(), z.unknown()).optional(),
 		scopePolicy: oauthAllowedScopesSchema.optional(),
+		loopbackHostname: mcpOAuthLoopbackHostnameSchema.optional(),
 		codeVerifier: z.string().optional(),
 		discoveryState: z.record(z.string(), z.unknown()).optional(),
 		redirectUrl: z.string().url().optional(),
@@ -85,6 +106,7 @@ const oauthClientSchema = z
 		clientId: z.string().min(1),
 		clientSecret: z.string().min(1).optional(),
 		allowedScopes: oauthAllowedScopesSchema.optional(),
+		loopbackHostname: mcpOAuthLoopbackHostnameSchema.optional(),
 	})
 	.strip();
 
@@ -266,6 +288,11 @@ export interface UpdateMcpServerOAuthStateOptions
 	 * configured client. `null` asserts that dynamic registration is still in use.
 	 */
 	expectedOAuthClient?: McpServerOAuthClientConfig | null;
+	/**
+	 * When present, only update OAuth state while the server still resolves to
+	 * this remote transport identity.
+	 */
+	expectedTransportBinding?: string;
 }
 
 export interface RegisterMcpServersFromSettingsOptions {
@@ -300,6 +327,15 @@ export class McpOAuthClientChangedError extends Error {
 			`OAuth client configuration changed while authorizing MCP server "${serverName}". Start authorization again.`,
 		);
 		this.name = "McpOAuthClientChangedError";
+	}
+}
+
+export class McpOAuthTransportChangedError extends Error {
+	constructor(serverName: string) {
+		super(
+			`MCP server "${serverName}" transport configuration changed while authorizing. Start authorization again.`,
+		);
+		this.name = "McpOAuthTransportChangedError";
 	}
 }
 
@@ -770,12 +806,21 @@ export function normalizeMcpServerOAuthState(
 		return undefined;
 	}
 	const normalized: McpServerOAuthState = {
+		...(value.transportBinding
+			? { transportBinding: value.transportBinding }
+			: {}),
+		...(value.clientPolicyBinding
+			? { clientPolicyBinding: value.clientPolicyBinding }
+			: {}),
 		...(value.clientInformation
 			? { clientInformation: value.clientInformation }
 			: {}),
 		...(value.tokens ? { tokens: value.tokens } : {}),
 		...(value.scopePolicy?.length
 			? { scopePolicy: normalizeMcpOAuthAllowedScopes(value.scopePolicy) }
+			: {}),
+		...(value.loopbackHostname
+			? { loopbackHostname: value.loopbackHostname }
 			: {}),
 		...(value.codeVerifier ? { codeVerifier: value.codeVerifier } : {}),
 		...(value.discoveryState ? { discoveryState: value.discoveryState } : {}),
@@ -787,6 +832,12 @@ export function normalizeMcpServerOAuthState(
 		...(value.authorizationRequired ? { authorizationRequired: true } : {}),
 	};
 	return Object.keys(normalized).length > 0 ? normalized : undefined;
+}
+
+function resolveMcpOAuthLoopbackHostname(
+	value: McpOAuthLoopbackHostname | undefined,
+): McpOAuthLoopbackHostname {
+	return value ?? "127.0.0.1";
 }
 
 function validateOauthState(value: unknown): McpServerOAuthState | undefined {
@@ -910,6 +961,12 @@ export function setMcpServerDisabled(
 	});
 }
 
+/**
+ * Returns reusable OAuth state only when its digests match the server's current
+ * remote transport and client policy. Legacy or mismatched state is
+ * intentionally hidden so callers cannot infer that it is safe for a different
+ * endpoint or OAuth client.
+ */
 export function getMcpServerOAuthState(
 	serverName: string,
 	options: LoadMcpSettingsOptions = {},
@@ -918,7 +975,33 @@ export function getMcpServerOAuthState(
 	if (!Object.hasOwn(config.mcpServers, serverName)) {
 		return undefined;
 	}
-	return normalizeMcpServerOAuthState(config.mcpServers[serverName]?.oauth);
+	const configured = config.mcpServers[serverName];
+	if (!configured) {
+		return undefined;
+	}
+	const registration = toMcpServerRegistration(serverName, configured);
+	if (registration.transport.type === "stdio") {
+		return undefined;
+	}
+	const state = normalizeMcpServerOAuthState(registration.oauth);
+	try {
+		const bindingsMatch =
+			state?.transportBinding ===
+				createMcpOAuthTransportBinding(registration.transport) &&
+			state.clientPolicyBinding ===
+				createMcpOAuthClientPolicyBinding(registration.oauthClient);
+		const configuredClientMatches = registration.oauthClient
+			? state?.clientInformation?.client_id ===
+					registration.oauthClient.clientId &&
+				state.clientInformation.client_secret ===
+					registration.oauthClient.clientSecret
+			: true;
+		return bindingsMatch && configuredClientMatches ? state : undefined;
+	} catch {
+		// Ambiguous case-insensitive header duplicates are an invalid OAuth
+		// transport identity. State reads fail closed without breaking status UIs.
+		return undefined;
+	}
 }
 
 function buildOAuthStateMutator(
@@ -932,26 +1015,68 @@ function buildOAuthStateMutator(
 		if (!server) {
 			throw new Error(`Unknown MCP server: ${serverName}`);
 		}
+		if (options.expectedTransportBinding !== undefined) {
+			// Re-resolve the transport from the object held under the lock. A value
+			// checked before lock acquisition may already be stale by the time an OAuth
+			// callback or refresh tries to persist credentials.
+			const parsedRegistration = mcpRegistrationBodySchema.safeParse(server);
+			const currentTransport = parsedRegistration.success
+				? resolveNativeMcpTransport(parsedRegistration.data.transport)
+				: undefined;
+			if (
+				!currentTransport ||
+				currentTransport.type === "stdio" ||
+				createMcpOAuthTransportBinding(currentTransport) !==
+					options.expectedTransportBinding
+			) {
+				throw new McpOAuthTransportChangedError(serverName);
+			}
+		}
 		if (options.expectedOAuthClient !== undefined) {
+			// The client secret is intentionally absent from the persisted public-policy
+			// binding, so this exact configuration comparison is the confidential-client
+			// guard. Do not replace it with binding equality alone.
 			const parsedClient = oauthClientSchema.safeParse(server.oauthClient);
 			const currentClient = parsedClient.success
 				? parsedClient.data
 				: undefined;
 			const expectedClient = options.expectedOAuthClient ?? undefined;
 			if (
-				currentClient?.clientId !== expectedClient?.clientId ||
-				currentClient?.clientSecret !== expectedClient?.clientSecret ||
-				!areMcpOAuthScopePoliciesEqual(
-					currentClient?.allowedScopes,
-					expectedClient?.allowedScopes,
-				)
+				!areMcpOAuthClientConfigurationsEqual(currentClient, expectedClient)
 			) {
 				throw new McpOAuthClientChangedError(serverName);
 			}
 		}
 
-		const current = validateOauthState(server.oauth) ?? {};
-		const updated = normalizeMcpServerOAuthState(updater(current));
+		const stored = validateOauthState(server.oauth) ?? {};
+		const expectedClientPolicyBinding =
+			options.expectedOAuthClient === undefined
+				? undefined
+				: createMcpOAuthClientPolicyBinding(
+						options.expectedOAuthClient ?? undefined,
+					);
+		const guardedBindings: McpServerOAuthState = {
+			...(options.expectedTransportBinding
+				? { transportBinding: options.expectedTransportBinding }
+				: {}),
+			...(expectedClientPolicyBinding
+				? { clientPolicyBinding: expectedClientPolicyBinding }
+				: {}),
+		};
+		const storedMatchesGuards =
+			(options.expectedTransportBinding === undefined ||
+				stored.transportBinding === options.expectedTransportBinding) &&
+			(expectedClientPolicyBinding === undefined ||
+				stored.clientPolicyBinding === expectedClientPolicyBinding);
+		// Never pass stale state to the caller's updater. Starting from only the
+		// current guards prevents an updater that spreads `current` from carrying old
+		// tokens, verifier, or discovery state into a new transport/client identity.
+		const current = storedMatchesGuards ? stored : guardedBindings;
+		const candidate = updater(current);
+		const updated = normalizeMcpServerOAuthState({
+			...candidate,
+			...guardedBindings,
+		});
 		if (updated) {
 			server.oauth = updated;
 		} else {
@@ -1012,17 +1137,48 @@ export function getMcpServerOAuthStatus(
 	registration: McpServerRegistration,
 ): McpServerOAuthStatus {
 	const oauthSupported = registration.transport.type !== "stdio";
+	let currentTransportBinding: string | undefined;
+	if (registration.transport.type !== "stdio") {
+		try {
+			currentTransportBinding = createMcpOAuthTransportBinding(
+				registration.transport,
+			);
+		} catch {
+			// Invalid duplicate header names cannot safely identify one HTTP target.
+			currentTransportBinding = undefined;
+		}
+	}
+	const tokensMatchTransport =
+		currentTransportBinding !== undefined &&
+		registration.oauth?.transportBinding === currentTransportBinding;
+	const tokensMatchClientPolicy =
+		registration.oauth?.clientPolicyBinding ===
+		createMcpOAuthClientPolicyBinding(registration.oauthClient);
 	const accessToken = registration.oauth?.tokens?.access_token;
 	const tokenClientInformation = registration.oauth?.clientInformation;
 	const tokensMatchConfiguredClient = registration.oauthClient
 		? tokenClientInformation?.client_id === registration.oauthClient.clientId &&
 			tokenClientInformation?.client_secret ===
 				registration.oauthClient.clientSecret
-		: true;
+		: typeof tokenClientInformation?.client_id === "string" &&
+			tokenClientInformation.client_id.trim().length > 0;
+	// Each predicate below is independent defense in depth. In particular, a
+	// syntactically valid access token is not "configured" when it belongs to a
+	// prior endpoint, client, scope maximum, or callback identity.
 	const tokensMatchScopePolicy = areMcpOAuthScopePoliciesEqual(
 		registration.oauthClient?.allowedScopes,
 		registration.oauth?.scopePolicy,
 	);
+	const tokensMatchLoopbackHostname = registration.oauthClient
+		? registration.oauth?.loopbackHostname === undefined
+			? resolveMcpOAuthLoopbackHostname(
+					registration.oauthClient.loopbackHostname,
+				) === "127.0.0.1"
+			: registration.oauth.loopbackHostname ===
+				resolveMcpOAuthLoopbackHostname(
+					registration.oauthClient.loopbackHostname,
+				)
+		: true;
 	let tokenScopesAllowed = true;
 	try {
 		assertMcpOAuthScopesAllowed(
@@ -1035,8 +1191,11 @@ export function getMcpServerOAuthStatus(
 	}
 	const oauthConfigured =
 		oauthSupported &&
+		tokensMatchTransport &&
+		tokensMatchClientPolicy &&
 		tokensMatchConfiguredClient &&
 		tokensMatchScopePolicy &&
+		tokensMatchLoopbackHostname &&
 		tokenScopesAllowed &&
 		typeof accessToken === "string" &&
 		accessToken.trim().length > 0;
@@ -1046,10 +1205,17 @@ export function getMcpServerOAuthStatus(
 		oauthConfigured,
 		authorizationRequired:
 			oauthSupported &&
+			tokensMatchTransport &&
+			tokensMatchClientPolicy &&
 			!oauthConfigured &&
 			registration.oauth?.authorizationRequired === true,
-		lastError: registration.oauth?.lastError,
-		lastAuthenticatedAt: registration.oauth?.lastAuthenticatedAt,
+		lastError:
+			tokensMatchTransport && tokensMatchClientPolicy
+				? registration.oauth?.lastError
+				: undefined,
+		lastAuthenticatedAt: oauthConfigured
+			? registration.oauth?.lastAuthenticatedAt
+			: undefined,
 	};
 }
 

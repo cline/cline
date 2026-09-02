@@ -14,6 +14,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+	getMcpServerOAuthState,
 	hasMcpSettingsFile,
 	listMcpServerOAuthStatuses,
 	loadMcpSettingsFile,
@@ -27,6 +28,17 @@ import {
 	updateMcpSettingsFile,
 	updateMcpSettingsFileSync,
 } from "./config-loader";
+import { createMcpOAuthClientPolicyBinding } from "./oauth-client-policy-binding";
+import { createMcpOAuthTransportBinding } from "./oauth-transport-binding";
+
+const LINEAR_TRANSPORT = {
+	type: "streamableHttp",
+	url: "https://mcp.linear.app/mcp",
+} as const;
+const LINEAR_TRANSPORT_BINDING =
+	createMcpOAuthTransportBinding(LINEAR_TRANSPORT);
+const DYNAMIC_CLIENT_POLICY_BINDING =
+	createMcpOAuthClientPolicyBinding(undefined);
 
 describe("mcp config loader", () => {
 	const tempRoots: string[] = [];
@@ -139,6 +151,33 @@ describe("mcp config loader", () => {
 				oauthClient: {
 					clientId: "cline-internal-client",
 					allowedScopes: ["channels:history chat:write"],
+				},
+			}),
+		).toThrow(/Invalid MCP server/);
+	});
+
+	it("accepts only the two supported OAuth loopback callback hostnames", () => {
+		const registration = parseMcpServerRegistration("slack", {
+			transport: {
+				type: "streamableHttp",
+				url: "https://mcp.slack.com/mcp",
+			},
+			oauthClient: {
+				clientId: "cline-internal-client",
+				loopbackHostname: "localhost",
+			},
+		});
+
+		expect(registration.oauthClient?.loopbackHostname).toBe("localhost");
+		expect(() =>
+			parseMcpServerRegistration("slack", {
+				transport: {
+					type: "streamableHttp",
+					url: "https://mcp.slack.com/mcp",
+				},
+				oauthClient: {
+					clientId: "cline-internal-client",
+					loopbackHostname: "example.com",
 				},
 			}),
 		).toThrow(/Invalid MCP server/);
@@ -527,11 +566,13 @@ describe("mcp config loader", () => {
 				{
 					mcpServers: {
 						linear: {
-							transport: {
-								type: "streamableHttp",
-								url: "https://mcp.linear.app/mcp",
-							},
+							transport: LINEAR_TRANSPORT,
 							oauth: {
+								transportBinding: LINEAR_TRANSPORT_BINDING,
+								clientPolicyBinding: DYNAMIC_CLIENT_POLICY_BINDING,
+								clientInformation: {
+									client_id: "dynamic-client",
+								},
 								tokens: {
 									access_token: "old-token",
 									token_type: "Bearer",
@@ -589,6 +630,206 @@ describe("mcp config loader", () => {
 		expect(written.mcpServers.linear.oauth?.lastAuthenticatedAt).toBe(123);
 	});
 
+	it("does not expose or report legacy oauth state without a transport binding", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-"));
+		tempRoots.push(tempRoot);
+		const filePath = join(tempRoot, "cline_mcp_settings.json");
+		await writeFile(
+			filePath,
+			JSON.stringify({
+				mcpServers: {
+					linear: {
+						transport: LINEAR_TRANSPORT,
+						oauth: {
+							tokens: { access_token: "legacy-token" },
+							lastError: "legacy error",
+							lastAuthenticatedAt: 123,
+							authorizationRequired: true,
+						},
+					},
+				},
+			}),
+			"utf8",
+		);
+
+		expect(getMcpServerOAuthState("linear", { filePath })).toBeUndefined();
+		expect(listMcpServerOAuthStatuses({ filePath })).toEqual([
+			{
+				serverName: "linear",
+				oauthSupported: true,
+				oauthConfigured: false,
+				authorizationRequired: false,
+				lastError: undefined,
+				lastAuthenticatedAt: undefined,
+			},
+		]);
+	});
+
+	it("does not expose partially bound legacy state without a client policy binding", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-"));
+		tempRoots.push(tempRoot);
+		const filePath = join(tempRoot, "cline_mcp_settings.json");
+		await writeFile(
+			filePath,
+			JSON.stringify({
+				mcpServers: {
+					linear: {
+						transport: LINEAR_TRANSPORT,
+						oauth: {
+							transportBinding: LINEAR_TRANSPORT_BINDING,
+							clientInformation: { client_id: "legacy-dynamic-client" },
+							tokens: { access_token: "legacy-token" },
+							lastAuthenticatedAt: 123,
+						},
+					},
+				},
+			}),
+			"utf8",
+		);
+
+		expect(getMcpServerOAuthState("linear", { filePath })).toBeUndefined();
+		expect(listMcpServerOAuthStatuses({ filePath })[0]).toMatchObject({
+			oauthConfigured: false,
+			lastAuthenticatedAt: undefined,
+		});
+	});
+
+	it("does not expose static OAuth state after only the client secret changes", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-"));
+		tempRoots.push(tempRoot);
+		const filePath = join(tempRoot, "cline_mcp_settings.json");
+		const oauthClient = {
+			clientId: "static-client",
+			clientSecret: "replacement-secret",
+			allowedScopes: ["read"],
+		};
+		await writeFile(
+			filePath,
+			JSON.stringify({
+				mcpServers: {
+					linear: {
+						transport: LINEAR_TRANSPORT,
+						oauthClient,
+						oauth: {
+							transportBinding: LINEAR_TRANSPORT_BINDING,
+							clientPolicyBinding:
+								createMcpOAuthClientPolicyBinding(oauthClient),
+							clientInformation: {
+								client_id: "static-client",
+								client_secret: "stale-secret",
+							},
+							tokens: { access_token: "stale-token", scope: "read" },
+							scopePolicy: ["read"],
+							lastAuthenticatedAt: 123,
+						},
+					},
+				},
+			}),
+			"utf8",
+		);
+
+		expect(getMcpServerOAuthState("linear", { filePath })).toBeUndefined();
+		expect(listMcpServerOAuthStatuses({ filePath })[0]).toMatchObject({
+			oauthConfigured: false,
+			lastAuthenticatedAt: undefined,
+		});
+	});
+
+	it("keeps oauth status across header reordering but invalidates semantic transport changes", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-"));
+		tempRoots.push(tempRoot);
+		const filePath = join(tempRoot, "cline_mcp_settings.json");
+		const transport = {
+			type: "streamableHttp" as const,
+			url: "https://mcp.example.test/mcp",
+			headers: {
+				"X-Tenant": "engineering",
+				Authorization: "Bearer static-routing-secret",
+			},
+		};
+		await writeFile(
+			filePath,
+			JSON.stringify({
+				mcpServers: {
+					remote: {
+						transport,
+						oauth: {
+							transportBinding: createMcpOAuthTransportBinding(transport),
+							clientPolicyBinding: DYNAMIC_CLIENT_POLICY_BINDING,
+							clientInformation: { client_id: "dynamic-client" },
+							tokens: { access_token: "bound-token" },
+							lastAuthenticatedAt: 123,
+						},
+					},
+				},
+			}),
+			"utf8",
+		);
+		expect(listMcpServerOAuthStatuses({ filePath })[0]?.oauthConfigured).toBe(
+			true,
+		);
+
+		await updateMcpSettingsFile(filePath, (settings) => {
+			const remote = (settings.mcpServers as Record<string, unknown>)
+				.remote as { transport: { headers: Record<string, string> } };
+			remote.transport.headers = {
+				authorization: "Bearer static-routing-secret",
+				"x-tenant": "engineering",
+			};
+		});
+		expect(listMcpServerOAuthStatuses({ filePath })[0]?.oauthConfigured).toBe(
+			true,
+		);
+
+		await updateMcpSettingsFile(filePath, (settings) => {
+			const remote = (settings.mcpServers as Record<string, unknown>)
+				.remote as { transport: { headers: Record<string, string> } };
+			remote.transport.headers["x-tenant"] = "support";
+		});
+		expect(listMcpServerOAuthStatuses({ filePath })[0]).toMatchObject({
+			oauthConfigured: false,
+			lastAuthenticatedAt: undefined,
+		});
+		expect(getMcpServerOAuthState("remote", { filePath })).toBeUndefined();
+	});
+
+	it("fails OAuth state and status closed for ambiguous duplicate header names", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-"));
+		tempRoots.push(tempRoot);
+		const filePath = join(tempRoot, "cline_mcp_settings.json");
+		await writeFile(
+			filePath,
+			JSON.stringify({
+				mcpServers: {
+					remote: {
+						transport: {
+							type: "streamableHttp",
+							url: "https://mcp.example.test/mcp",
+							headers: {
+								"X-Tenant": "engineering",
+								"x-tenant": "support",
+							},
+						},
+						oauth: {
+							transportBinding: LINEAR_TRANSPORT_BINDING,
+							clientPolicyBinding: DYNAMIC_CLIENT_POLICY_BINDING,
+							clientInformation: { client_id: "dynamic-client" },
+							tokens: { access_token: "must-not-be-reused" },
+							lastAuthenticatedAt: 123,
+						},
+					},
+				},
+			}),
+			"utf8",
+		);
+
+		expect(getMcpServerOAuthState("remote", { filePath })).toBeUndefined();
+		expect(listMcpServerOAuthStatuses({ filePath })[0]).toMatchObject({
+			oauthConfigured: false,
+			lastAuthenticatedAt: undefined,
+		});
+	});
+
 	it("does not report tokens as configured outside their bound scope policy", async () => {
 		const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-"));
 		tempRoots.push(tempRoot);
@@ -603,12 +844,21 @@ describe("mcp config loader", () => {
 				allowedScopes: ["channels:history"],
 			},
 			oauth: {
+				transportBinding: createMcpOAuthTransportBinding({
+					type: "streamableHttp",
+					url: "https://mcp.slack.com/mcp",
+				}),
+				clientPolicyBinding: createMcpOAuthClientPolicyBinding({
+					clientId: "cline-internal-client",
+					allowedScopes: ["channels:history"],
+				}),
 				clientInformation: { client_id: "cline-internal-client" },
 				tokens: {
 					access_token: "stored-token",
 					token_type: "Bearer",
 					scope: "channels:history",
 				},
+				lastAuthenticatedAt: 123,
 			},
 		};
 		await writeFile(
@@ -620,6 +870,9 @@ describe("mcp config loader", () => {
 		expect(listMcpServerOAuthStatuses({ filePath })[0]?.oauthConfigured).toBe(
 			false,
 		);
+		expect(
+			listMcpServerOAuthStatuses({ filePath })[0]?.lastAuthenticatedAt,
+		).toBeUndefined();
 		const policyBoundServer = {
 			...server,
 			oauth: {
@@ -635,6 +888,9 @@ describe("mcp config loader", () => {
 		expect(listMcpServerOAuthStatuses({ filePath })[0]?.oauthConfigured).toBe(
 			true,
 		);
+		expect(
+			listMcpServerOAuthStatuses({ filePath })[0]?.lastAuthenticatedAt,
+		).toBe(123);
 
 		const overScopedServer = {
 			...policyBoundServer,
@@ -654,6 +910,9 @@ describe("mcp config loader", () => {
 		expect(listMcpServerOAuthStatuses({ filePath })[0]?.oauthConfigured).toBe(
 			false,
 		);
+		expect(
+			listMcpServerOAuthStatuses({ filePath })[0]?.lastAuthenticatedAt,
+		).toBeUndefined();
 	});
 
 	it("rejects inherited server names when updating oauth state", async () => {

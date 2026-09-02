@@ -28,6 +28,7 @@ describe("McpHub connect failure", () => {
 	function createHub() {
 		const hub = Object.create(McpHub.prototype) as McpHub
 		;(hub as any).connections = []
+		;(hub as any).rawDisplayConfigs = new Map()
 		;(hub as any).isConnecting = false
 		;(hub as any).clientVersion = "0.0.0"
 		sandbox.stub(hub as any, "notifyWebviewOfServerChanges").resolves()

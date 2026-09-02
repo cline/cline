@@ -24,26 +24,54 @@ import {
 import {
 	getMcpServerOAuthState,
 	McpOAuthClientChangedError,
+	McpOAuthTransportChangedError,
 	normalizeMcpServerOAuthState,
 	resolveDefaultMcpSettingsPath,
 	updateMcpServerOAuthStateAsync,
 } from "./config-loader";
+import { createMcpOAuthClientPolicyBinding } from "./oauth-client-policy-binding";
 import {
 	areMcpOAuthScopePoliciesEqual,
 	assertMcpOAuthScopesAllowed,
 	createMcpOAuthScopePolicyFetch,
 	normalizeMcpOAuthAllowedScopes,
 } from "./oauth-scope-policy";
+import {
+	createMcpOAuthTransportBinding,
+	isMcpOAuthTransportBinding,
+} from "./oauth-transport-binding";
 import { augmentMcpTimeoutError, resolveMcpRequestTimeoutMs } from "./timeout";
 import type {
+	McpOAuthLoopbackHostname,
 	McpServerOAuthClientConfig,
 	McpServerOAuthState,
 	McpServerRegistration,
 } from "./types";
 
 const DEFAULT_MCP_OAUTH_CALLBACK_PATH = "/mcp/oauth/callback";
-const DEFAULT_MCP_OAUTH_CALLBACK_PORTS = [1456, 1457, 1458];
+const DEFAULT_MCP_OAUTH_CALLBACK_PORT = 1456;
+const DEFAULT_MCP_OAUTH_CALLBACK_PORTS = [
+	DEFAULT_MCP_OAUTH_CALLBACK_PORT,
+	1457,
+	1458,
+];
 const DEFAULT_MCP_OAUTH_TIMEOUT_MS = 5 * 60 * 1000;
+
+export const DEFAULT_MCP_OAUTH_LOOPBACK_HOSTNAME = "127.0.0.1" as const;
+
+export function resolveMcpOAuthLoopbackHostname(
+	value: McpOAuthLoopbackHostname | undefined,
+): McpOAuthLoopbackHostname {
+	return value ?? DEFAULT_MCP_OAUTH_LOOPBACK_HOSTNAME;
+}
+
+export function buildMcpOAuthCallbackUrl(
+	hostname: McpOAuthLoopbackHostname,
+	port = DEFAULT_MCP_OAUTH_CALLBACK_PORT,
+	path = DEFAULT_MCP_OAUTH_CALLBACK_PATH,
+): string {
+	return `http://${hostname}:${port}${path}`;
+}
 
 export type McpSdkAuthCapableTransport =
 	| SSEClientTransport
@@ -56,6 +84,15 @@ export interface CreateMcpOAuthProviderContextOptions {
 	onAuthorizationUrl?: (url: string) => void | Promise<void>;
 	clientInformation?: OAuthClientInformationMixed;
 	allowedScopes?: readonly string[];
+	loopbackHostname?: McpOAuthLoopbackHostname;
+	/**
+	 * Set false only for a legacy dynamic flow whose callbackHost is not one of
+	 * the supported persisted loopback identities. Its exact redirect URL still
+	 * binds the dynamically registered client without mislabeling the host.
+	 */
+	persistLoopbackHostname?: boolean;
+	/** SHA-256 binding for the remote transport allowed to reuse OAuth state. */
+	transportBinding: string;
 }
 
 export interface McpOAuthProviderContext {
@@ -155,31 +192,104 @@ function assertOAuthClientUnchanged(
 export function createMcpOAuthProviderContext(
 	options: CreateMcpOAuthProviderContextOptions,
 ): McpOAuthProviderContext {
-	const allowedScopes = normalizeMcpOAuthAllowedScopes(options.allowedScopes);
-	let state: McpServerOAuthState = {};
-	try {
-		state =
-			getMcpServerOAuthState(options.serverName, {
-				filePath: options.settingsPath,
-			}) ?? {};
-	} catch {
-		state = {};
+	if (!isMcpOAuthTransportBinding(options.transportBinding)) {
+		throw new Error("MCP OAuth transport binding must be a SHA-256 digest.");
 	}
+	const transportBinding = options.transportBinding;
+	const allowedScopes = normalizeMcpOAuthAllowedScopes(options.allowedScopes);
+	const hasConfiguredLoopbackHostname = options.loopbackHostname !== undefined;
+	const persistLoopbackHostname = options.persistLoopbackHostname !== false;
+	const loopbackHostname = resolveMcpOAuthLoopbackHostname(
+		options.loopbackHostname,
+	);
+	const expectedOAuthClient: McpServerOAuthClientConfig | null =
+		options.clientInformation
+			? {
+					clientId: options.clientInformation.client_id,
+					...(options.clientInformation.client_secret
+						? { clientSecret: options.clientInformation.client_secret }
+						: {}),
+					...(allowedScopes ? { allowedScopes } : {}),
+					...(loopbackHostname !== DEFAULT_MCP_OAUTH_LOOPBACK_HOSTNAME
+						? { loopbackHostname }
+						: {}),
+				}
+			: null;
+	const clientPolicyBinding = createMcpOAuthClientPolicyBinding(
+		expectedOAuthClient ?? undefined,
+	);
+	let state: McpServerOAuthState = {};
+	let refreshFromSettings = true;
+	const refreshState = (): void => {
+		if (!refreshFromSettings) {
+			return;
+		}
+		try {
+			state =
+				getMcpServerOAuthState(options.serverName, {
+					filePath: options.settingsPath,
+				}) ?? {};
+		} catch {
+			state = {};
+		}
+	};
+	refreshState();
 	let lastAuthorizationUrl: string | undefined;
 	let lastOAuthState: string | undefined;
-	const currentClientInformation = () =>
+	const stateMatchesTransport = () =>
+		state.transportBinding === transportBinding;
+	const stateMatchesClientPolicy = () =>
+		state.clientPolicyBinding === clientPolicyBinding;
+	const stateMatchesScopePolicy = () =>
+		areMcpOAuthScopePoliciesEqual(allowedScopes, state.scopePolicy);
+	const stateMatchesLoopbackHostname = () => {
+		if (!persistLoopbackHostname) {
+			return state.loopbackHostname === undefined;
+		}
+		// A dynamically registered client has no registration-level hostname to
+		// compare on a later passive connection. Its persisted, transport-bound
+		// callback identity remains authoritative. Interactive flows supply the
+		// actual supported callback hostname and therefore still compare exactly.
+		if (!options.clientInformation && !hasConfiguredLoopbackHostname) {
+			return (
+				state.loopbackHostname === undefined ||
+				state.loopbackHostname === DEFAULT_MCP_OAUTH_LOOPBACK_HOSTNAME ||
+				state.loopbackHostname === "localhost"
+			);
+		}
+		return state.loopbackHostname === undefined
+			? loopbackHostname === DEFAULT_MCP_OAUTH_LOOPBACK_HOSTNAME
+			: state.loopbackHostname === loopbackHostname;
+	};
+	const stateMatchesConfiguredClient = () =>
+		options.clientInformation === undefined ||
+		isSameOAuthClient(
+			state.clientInformation as OAuthClientInformationMixed | undefined,
+			options.clientInformation,
+		);
+	// Credential-bearing fields are reusable only when every independently stored
+	// identity dimension still matches. Keeping this conjunction centralized also
+	// prevents individual provider getters from accidentally applying weaker rules.
+	const stateMatchesProviderConfiguration = () =>
+		stateMatchesTransport() &&
+		stateMatchesClientPolicy() &&
+		stateMatchesScopePolicy() &&
+		stateMatchesLoopbackHostname() &&
+		stateMatchesConfiguredClient();
+	let expectedClientInformation = stateMatchesProviderConfiguration()
+		? (state.clientInformation as OAuthClientInformationMixed | undefined)
+		: undefined;
+	const currentClientInformationFromState = () =>
 		options.clientInformation ??
-		(state.clientInformation as OAuthClientInformationMixed | undefined);
-	const expectedOAuthClient = options.clientInformation
-		? {
-				clientId: options.clientInformation.client_id,
-				...(options.clientInformation.client_secret
-					? { clientSecret: options.clientInformation.client_secret }
-					: {}),
-				...(allowedScopes ? { allowedScopes } : {}),
-			}
-		: null;
-
+		(stateMatchesProviderConfiguration()
+			? (state.clientInformation as OAuthClientInformationMixed | undefined)
+			: undefined);
+	const currentClientInformation = () => {
+		refreshState();
+		const clientInformation = currentClientInformationFromState();
+		expectedClientInformation = clientInformation;
+		return clientInformation;
+	};
 	const patch = async (
 		updater: (current: McpServerOAuthState) => McpServerOAuthState,
 	): Promise<void> => {
@@ -190,25 +300,48 @@ export function createMcpOAuthProviderContext(
 				{
 					filePath: options.settingsPath,
 					expectedOAuthClient,
+					expectedTransportBinding: transportBinding,
 				},
 			);
 		} catch (error) {
-			if (options.settingsPath || error instanceof McpOAuthClientChangedError) {
+			if (
+				options.settingsPath ||
+				error instanceof McpOAuthClientChangedError ||
+				error instanceof McpOAuthTransportChangedError
+			) {
 				throw error;
 			}
 			// Programmatically supplied registrations may not have a settings file.
 			// They still need a functional in-memory provider context.
-			state = normalizeMcpServerOAuthState(updater(state)) ?? {};
+			// A caller that supplied settingsPath never receives this fallback: disk
+			// failures and stale locked-write guards must remain observable and fail closed.
+			refreshFromSettings = false;
+			const current =
+				stateMatchesTransport() && stateMatchesClientPolicy()
+					? state
+					: { transportBinding, clientPolicyBinding };
+			state =
+				normalizeMcpServerOAuthState({
+					...updater(current),
+					transportBinding,
+					clientPolicyBinding,
+				}) ?? {};
 		}
 	};
 
 	const provider: OAuthClientProvider = {
 		get redirectUrl() {
-			return state.redirectUrl ?? options.redirectUrl;
+			refreshState();
+			return (
+				(stateMatchesProviderConfiguration() ? state.redirectUrl : undefined) ??
+				options.redirectUrl
+			);
 		},
 		get clientMetadata() {
+			refreshState();
 			return createOAuthClientMetadata(
-				state.redirectUrl ?? options.redirectUrl,
+				(stateMatchesProviderConfiguration() ? state.redirectUrl : undefined) ??
+					options.redirectUrl,
 				allowedScopes,
 			);
 		},
@@ -218,14 +351,11 @@ export function createMcpOAuthProviderContext(
 		},
 		clientInformation: currentClientInformation,
 		saveClientInformation: async (clientInformation) => {
-			const previousClientInformation = state.clientInformation as
-				| OAuthClientInformationMixed
-				| undefined;
 			await patch((current) => {
 				assertOAuthClientUnchanged(
 					options.serverName,
 					current,
-					previousClientInformation,
+					expectedClientInformation,
 				);
 				const clientChanged = !isSameOAuthClient(
 					current.clientInformation as OAuthClientInformationMixed | undefined,
@@ -242,19 +372,25 @@ export function createMcpOAuthProviderContext(
 							}
 						: {}),
 					redirectUrl: options.redirectUrl,
+					loopbackHostname: persistLoopbackHostname
+						? loopbackHostname
+						: undefined,
 					lastError: undefined,
 				};
 			});
+			expectedClientInformation = clientInformation;
 		},
 		tokens: () => {
+			refreshState();
 			const tokens = state.tokens as OAuthTokens | undefined;
+			const clientInformation = currentClientInformationFromState();
 			if (
-				!currentClientInformation()?.client_id ||
+				!stateMatchesProviderConfiguration() ||
+				!clientInformation?.client_id ||
 				!isSameOAuthClient(
 					state.clientInformation as OAuthClientInformationMixed | undefined,
-					currentClientInformation(),
-				) ||
-				!areMcpOAuthScopePoliciesEqual(allowedScopes, state.scopePolicy)
+					clientInformation,
+				)
 			) {
 				return undefined;
 			}
@@ -263,6 +399,7 @@ export function createMcpOAuthProviderContext(
 				allowedScopes,
 				"persisted token",
 			);
+			expectedClientInformation = clientInformation;
 			return tokens;
 		},
 		saveTokens: async (tokens) => {
@@ -272,7 +409,8 @@ export function createMcpOAuthProviderContext(
 				"token response",
 			);
 			const lastAuthenticatedAt = Date.now();
-			const clientInformation = currentClientInformation();
+			const clientInformation =
+				options.clientInformation ?? expectedClientInformation;
 			if (!clientInformation?.client_id) {
 				throw new Error("Cannot save MCP OAuth tokens without a client ID.");
 			}
@@ -293,6 +431,9 @@ export function createMcpOAuthProviderContext(
 					scopePolicy: allowedScopes ? [...allowedScopes] : undefined,
 					clientInformation: clientInformation as Record<string, unknown>,
 					redirectUrl: options.redirectUrl,
+					loopbackHostname: persistLoopbackHostname
+						? loopbackHostname
+						: undefined,
 					lastError: undefined,
 					lastAuthenticatedAt,
 				};
@@ -303,7 +444,8 @@ export function createMcpOAuthProviderContext(
 			await options.onAuthorizationUrl?.(lastAuthorizationUrl);
 		},
 		saveCodeVerifier: async (codeVerifier) => {
-			const clientInformation = currentClientInformation();
+			const clientInformation =
+				options.clientInformation ?? expectedClientInformation;
 			await patch((current) => {
 				assertOAuthClientUnchanged(
 					options.serverName,
@@ -314,11 +456,15 @@ export function createMcpOAuthProviderContext(
 					...current,
 					codeVerifier,
 					redirectUrl: options.redirectUrl,
+					loopbackHostname: persistLoopbackHostname
+						? loopbackHostname
+						: undefined,
 				};
 			});
 		},
 		codeVerifier: () => {
-			if (!state.codeVerifier) {
+			refreshState();
+			if (!stateMatchesProviderConfiguration() || !state.codeVerifier) {
 				throw new Error(
 					`Missing OAuth code verifier for MCP server "${options.serverName}".`,
 				);
@@ -326,9 +472,8 @@ export function createMcpOAuthProviderContext(
 			return state.codeVerifier;
 		},
 		invalidateCredentials: async (scope) => {
-			const clientInformation = state.clientInformation as
-				| OAuthClientInformationMixed
-				| undefined;
+			const clientInformation =
+				options.clientInformation ?? expectedClientInformation;
 			await patch((current) => {
 				assertOAuthClientUnchanged(
 					options.serverName,
@@ -339,6 +484,7 @@ export function createMcpOAuthProviderContext(
 					return {
 						lastError: current.lastError,
 						redirectUrl: current.redirectUrl,
+						loopbackHostname: current.loopbackHostname,
 					};
 				}
 				return {
@@ -357,9 +503,8 @@ export function createMcpOAuthProviderContext(
 			});
 		},
 		saveDiscoveryState: async (discoveryState) => {
-			const clientInformation = state.clientInformation as
-				| OAuthClientInformationMixed
-				| undefined;
+			const clientInformation =
+				options.clientInformation ?? expectedClientInformation;
 			await patch((current) => {
 				assertOAuthClientUnchanged(
 					options.serverName,
@@ -372,8 +517,12 @@ export function createMcpOAuthProviderContext(
 				};
 			});
 		},
-		discoveryState: () =>
-			state.discoveryState as OAuthDiscoveryState | undefined,
+		discoveryState: () => {
+			refreshState();
+			return stateMatchesProviderConfiguration()
+				? (state.discoveryState as OAuthDiscoveryState | undefined)
+				: undefined;
+		},
 	};
 
 	return {
@@ -383,6 +532,10 @@ export function createMcpOAuthProviderContext(
 		resetInteractiveState: async () => {
 			await patch((current) => {
 				const configuredClientInformation = options.clientInformation;
+				const dynamicRedirectChanged =
+					configuredClientInformation === undefined &&
+					current.clientInformation !== undefined &&
+					current.redirectUrl !== options.redirectUrl;
 				const configuredClientChanged =
 					configuredClientInformation !== undefined &&
 					!isSameOAuthClient(
@@ -395,8 +548,17 @@ export function createMcpOAuthProviderContext(
 					allowedScopes,
 					current.scopePolicy,
 				);
+				const loopbackHostnameChanged = persistLoopbackHostname
+					? current.loopbackHostname === undefined
+						? loopbackHostname !== DEFAULT_MCP_OAUTH_LOOPBACK_HOSTNAME
+						: current.loopbackHostname !== loopbackHostname
+					: current.loopbackHostname !== undefined;
+				// Discovery metadata can be recomputed, but tokens cannot be translated
+				// between client, scope, redirect, or callback identities. Clear them before
+				// the next browser flow rather than waiting for a provider rejection.
 				return {
 					...current,
+					...(dynamicRedirectChanged ? { clientInformation: undefined } : {}),
 					...(configuredClientInformation
 						? {
 								clientInformation: configuredClientInformation as Record<
@@ -405,16 +567,23 @@ export function createMcpOAuthProviderContext(
 								>,
 							}
 						: {}),
-					...(configuredClientChanged || scopePolicyChanged
+					...(dynamicRedirectChanged ||
+					configuredClientChanged ||
+					scopePolicyChanged ||
+					loopbackHostnameChanged
 						? { tokens: undefined, lastAuthenticatedAt: undefined }
 						: {}),
 					scopePolicy: allowedScopes ? [...allowedScopes] : undefined,
+					loopbackHostname: persistLoopbackHostname
+						? loopbackHostname
+						: undefined,
 					codeVerifier: undefined,
 					discoveryState: undefined,
 					lastError: undefined,
 					redirectUrl: options.redirectUrl,
 				};
 			});
+			expectedClientInformation = currentClientInformationFromState();
 		},
 		markError: async (errorMessage) => {
 			await patch((current) => ({
@@ -564,17 +733,40 @@ export async function authorizeMcpServerOAuth(
 			`MCP server "${serverName}" has a static Authorization header. Remove it before starting OAuth.`,
 		);
 	}
+	const transportBinding = createMcpOAuthTransportBinding(
+		registration.transport,
+	);
 	const requestTimeoutMs = resolveMcpRequestTimeoutMs(
 		registration.timeoutSeconds,
 	);
+	const configuredLoopbackHostname = registration.oauthClient?.loopbackHostname;
+	const resolvedConfiguredLoopbackHostname = resolveMcpOAuthLoopbackHostname(
+		configuredLoopbackHostname,
+	);
+	const hasExplicitCallbackHost = options.callbackHost !== undefined;
+	if (
+		registration.oauthClient !== undefined &&
+		hasExplicitCallbackHost &&
+		options.callbackHost !== resolvedConfiguredLoopbackHostname
+	) {
+		throw new Error(
+			`MCP server "${serverName}" resolves oauthClient.loopbackHostname to "${resolvedConfiguredLoopbackHostname}"; callbackHost must match it when supplied.`,
+		);
+	}
 
 	const callbackServer = await startLocalOAuthServer({
 		host: options.callbackHost,
+		...(hasExplicitCallbackHost
+			? {}
+			: {
+					callbackHostname: resolvedConfiguredLoopbackHostname,
+				}),
 		ports: options.callbackPorts?.length
 			? options.callbackPorts
 			: DEFAULT_MCP_OAUTH_CALLBACK_PORTS,
 		callbackPath: options.callbackPath ?? DEFAULT_MCP_OAUTH_CALLBACK_PATH,
 		timeoutMs: options.timeoutMs ?? DEFAULT_MCP_OAUTH_TIMEOUT_MS,
+		requireExpectedState: true,
 		successHtml: options.successHtml,
 		onListening: options.onServerListening,
 		onClose: options.onServerClose,
@@ -582,13 +774,27 @@ export async function authorizeMcpServerOAuth(
 	if (!callbackServer.callbackUrl) {
 		throw new Error("Unable to bind local MCP OAuth callback server.");
 	}
+	const actualCallbackHostname = new URL(callbackServer.callbackUrl).hostname;
+	// Legacy dynamic callers may bind an arbitrary callbackHost. Keep that API
+	// behavior, while recording an exact identity whenever the host is one of the
+	// supported persisted loopback values. The exact redirectUrl still binds an
+	// arbitrary legacy host to its dynamically registered client.
+	const effectiveLoopbackHostname =
+		actualCallbackHostname === "127.0.0.1" ||
+		actualCallbackHostname === "localhost"
+			? actualCallbackHostname
+			: configuredLoopbackHostname;
+	const persistLoopbackHostname =
+		actualCallbackHostname === "127.0.0.1" ||
+		actualCallbackHostname === "localhost";
 	const cancelCallbackWait = () => callbackServer.cancelWait();
 	options.signal?.addEventListener("abort", cancelCallbackWait, { once: true });
 	if (options.signal?.aborted) {
 		cancelCallbackWait();
 	}
 
-	const oauthContext = createMcpOAuthProviderContext({
+	let oauthContext: McpOAuthProviderContext;
+	oauthContext = createMcpOAuthProviderContext({
 		settingsPath,
 		serverName,
 		redirectUrl: callbackServer.callbackUrl,
@@ -596,15 +802,26 @@ export async function authorizeMcpServerOAuth(
 			registration.oauthClient,
 		),
 		allowedScopes: registration.oauthClient?.allowedScopes,
+		loopbackHostname: effectiveLoopbackHostname,
+		persistLoopbackHostname,
+		transportBinding,
 		onAuthorizationUrl: async (url) => {
+			const expectedState = oauthContext.getLastOAuthState();
+			const authorizationState = new URL(url).searchParams.get("state");
+			if (!expectedState || authorizationState !== expectedState) {
+				throw new Error(
+					`MCP server "${serverName}" did not produce a valid OAuth stateful authorization URL.`,
+				);
+			}
+			callbackServer.setExpectedState(expectedState);
 			await options.openUrl?.(url);
 		},
 	});
-	await oauthContext.resetInteractiveState();
 
 	const client = buildClient(options);
 	let retryClient: Client | undefined;
 	try {
+		await oauthContext.resetInteractiveState();
 		const transport = createMcpSdkTransport({
 			registration,
 			oauthProvider: oauthContext.provider,

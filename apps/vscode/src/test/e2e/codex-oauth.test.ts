@@ -1,6 +1,8 @@
+import { readFileSync } from "node:fs"
 import net from "node:net"
+import path from "node:path"
 import { expect } from "@playwright/test"
-import { e2e } from "./utils/helpers"
+import { E2ETestHelper, e2e } from "./utils/helpers"
 
 async function waitForPortListening(port: number, timeoutMs: number): Promise<void> {
 	const deadline = Date.now() + timeoutMs
@@ -18,6 +20,31 @@ async function waitForPortListening(port: number, timeoutMs: number): Promise<vo
 		await new Promise((r) => setTimeout(r, 200))
 	}
 	throw new Error(`Nothing listening on port ${port} after ${timeoutMs}ms`)
+}
+
+async function waitForCapturedAuthorizationUrl(clineDir: string, timeoutMs: number): Promise<URL> {
+	const captureFile = path.join(clineDir, "data", "debug-captured-urls.jsonl")
+	let capturedUrl: URL | undefined
+	await E2ETestHelper.waitUntil(() => {
+		try {
+			const entries = readFileSync(captureFile, "utf8")
+				.trim()
+				.split("\n")
+				.filter(Boolean)
+				.map((line) => JSON.parse(line) as { url?: unknown })
+			for (const entry of entries.toReversed()) {
+				if (typeof entry.url !== "string") continue
+				const url = new URL(entry.url)
+				if (url.origin === "https://auth.openai.com" && url.pathname === "/oauth/authorize") {
+					capturedUrl = url
+					return true
+				}
+			}
+		} catch {}
+		return false
+	}, timeoutMs)
+	if (!capturedUrl) throw new Error(`No OpenAI authorization URL captured after ${timeoutMs}ms`)
+	return capturedUrl
 }
 
 async function navigateToCodexProvider(sidebar: import("@playwright/test").Frame): Promise<void> {
@@ -66,21 +93,32 @@ e2e("Codex sign-in fails fast with a port-in-use toast when 1455 is occupied", a
 	}
 })
 
-e2e("Codex sign-in with port free binds the callback server and surfaces OAuth redirect errors", async ({ page, sidebar }) => {
-	await navigateToCodexProvider(sidebar)
+e2e(
+	"Codex sign-in with port free binds the callback server and surfaces OAuth redirect errors",
+	async ({ app, page, sidebar }) => {
+		await navigateToCodexProvider(sidebar)
 
-	const signInButton = sidebar.getByRole("button", { name: "Sign in to OpenAI Codex" })
-	await expect(signInButton).toBeVisible()
-	await signInButton.click()
+		const signInButton = sidebar.getByRole("button", { name: "Sign in to OpenAI Codex" })
+		await expect(signInButton).toBeVisible()
+		await signInButton.click()
 
-	// The SDK binds the callback server before opening the browser; prove the
-	// real port-free wiring by simulating the OAuth redirect the browser
-	// would deliver. An `error` callback settles regardless of state.
-	await waitForPortListening(1455, 15_000)
-	const response = await fetch("http://localhost:1455/auth/callback?error=access_denied")
-	expect(response.status).toBe(400)
+		// The SDK binds the callback server before opening the browser. Capture the
+		// real authorization URL so the simulated provider error carries the same
+		// state value and exercises the production anti-CSRF check.
+		await waitForPortListening(1455, 15_000)
+		const clineDir = await app.evaluate(() => process.env.CLINE_DIR)
+		expect(clineDir).toBeTruthy()
+		const authorizationUrl = await waitForCapturedAuthorizationUrl(clineDir as string, 15_000)
+		const state = authorizationUrl.searchParams.get("state")
+		expect(state).toBeTruthy()
+		const callbackUrl = new URL("http://localhost:1455/auth/callback")
+		callbackUrl.searchParams.set("error", "access_denied")
+		callbackUrl.searchParams.set("state", state as string)
+		const response = await fetch(callbackUrl)
+		expect(response.status).toBe(400)
 
-	await expect(page.locator(".notifications-toasts").getByText(/OAuth error: access_denied/)).toBeVisible({
-		timeout: 15_000,
-	})
-})
+		await expect(page.locator(".notifications-toasts").getByText(/OAuth error: access_denied/)).toBeVisible({
+			timeout: 15_000,
+		})
+	},
+)

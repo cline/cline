@@ -8,12 +8,15 @@ import {
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import type { FetchLike } from "@modelcontextprotocol/sdk/shared/transport.js";
 import {
+	buildMcpOAuthCallbackUrl,
 	createMcpOAuthClientInformation,
 	createMcpOAuthProviderContext,
 	createMcpSdkTransport,
 	isMcpUnauthorizedError,
 	type McpOAuthProviderContext,
+	resolveMcpOAuthLoopbackHostname,
 } from "./oauth";
+import { createMcpOAuthTransportBinding } from "./oauth-transport-binding";
 import { augmentMcpTimeoutError, resolveMcpRequestTimeoutMs } from "./timeout";
 import type {
 	McpServerClient,
@@ -66,8 +69,13 @@ export const DEFAULT_MCP_CONNECT_TIMEOUT_MS = 3_000;
 // cap; servers connect in parallel. An explicit `timeout` overrides this in
 // either direction.
 export const DEFAULT_HTTP_MCP_CONNECT_TIMEOUT_MS = 10_000;
-const DEFAULT_HTTP_MCP_REDIRECT_URL =
-	"http://127.0.0.1:1456/mcp/oauth/callback";
+function defaultHttpMcpRedirectUrl(
+	registration: McpServerRegistration,
+): string {
+	return buildMcpOAuthCallbackUrl(
+		resolveMcpOAuthLoopbackHostname(registration.oauthClient?.loopbackHostname),
+	);
+}
 
 function toErrorMessage(error: unknown): string {
 	return error instanceof Error ? error.message : String(error);
@@ -608,12 +616,13 @@ class SdkUrlMcpClient implements McpServerClient {
 		const authContext = createMcpOAuthProviderContext({
 			settingsPath: this.options.settingsPath,
 			serverName: this.registration.name,
-			redirectUrl:
-				this.registration.oauth?.redirectUrl ?? DEFAULT_HTTP_MCP_REDIRECT_URL,
+			redirectUrl: defaultHttpMcpRedirectUrl(this.registration),
 			clientInformation: createMcpOAuthClientInformation(
 				this.registration.oauthClient,
 			),
 			allowedScopes: this.registration.oauthClient?.allowedScopes,
+			loopbackHostname: this.registration.oauthClient?.loopbackHostname,
+			transportBinding: this.getOAuthTransportBinding(),
 		});
 		this.authContext = authContext;
 		let client: Client | undefined;
@@ -742,18 +751,29 @@ class SdkUrlMcpClient implements McpServerClient {
 		);
 	}
 
+	private getOAuthTransportBinding(): string {
+		const transport = this.registration.transport;
+		if (transport.type === "stdio") {
+			throw new Error(
+				`MCP server "${this.registration.name}" uses stdio transport and cannot bind OAuth state.`,
+			);
+		}
+		return createMcpOAuthTransportBinding(transport);
+	}
+
 	private async handleOperationError(error: unknown): Promise<never> {
 		const authContext =
 			this.authContext ??
 			createMcpOAuthProviderContext({
 				settingsPath: this.options.settingsPath,
 				serverName: this.registration.name,
-				redirectUrl:
-					this.registration.oauth?.redirectUrl ?? DEFAULT_HTTP_MCP_REDIRECT_URL,
+				redirectUrl: defaultHttpMcpRedirectUrl(this.registration),
 				clientInformation: createMcpOAuthClientInformation(
 					this.registration.oauthClient,
 				),
 				allowedScopes: this.registration.oauthClient?.allowedScopes,
+				loopbackHostname: this.registration.oauthClient?.loopbackHostname,
+				transportBinding: this.getOAuthTransportBinding(),
 			});
 		const effectiveError = augmentMcpTimeoutError(
 			error,
