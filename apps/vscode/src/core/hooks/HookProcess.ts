@@ -283,6 +283,16 @@ export class HookProcess extends EventEmitter {
 							reject(spawnError)
 						})
 
+						// A hook that exits (or closes stdin) before draining its input
+						// fails the still-pending write asynchronously with EPIPE (EOF on
+						// Windows). That surfaces on the stdin stream, not the child, so
+						// without a listener it escapes as an uncaught exception on the
+						// host process. The "close" handler already reports how the hook
+						// ended; the write failure itself only needs to be absorbed.
+						this.childProcess.stdin?.on("error", (error) => {
+							Logger.debug(`Hook '${this.scriptPath}' stopped reading its input: ${error.message}`)
+						})
+
 						// Send input to the process
 						try {
 							this.childProcess.stdin?.write(inputJson)
