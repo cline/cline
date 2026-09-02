@@ -56,7 +56,6 @@
 
 import type {
 	AgentEvent,
-	AgentAudioPart,
 	AgentFinishReason,
 	AgentImagePart,
 	AgentMessage,
@@ -65,7 +64,6 @@ import type {
 	AgentTextPart,
 	AgentToolResultPart,
 	AgentUsage,
-	AgentVideoPart,
 	LegacyAgentUsage,
 } from "@cline/shared";
 
@@ -125,28 +123,6 @@ function extractImageParts(
 			data: part.image,
 			mediaType: part.mediaType ?? "image/png",
 		}));
-}
-
-function extractVideoParts(
-	message: AgentMessage,
-): Array<{ path: string; mediaType: string }> {
-	return message.content
-		.filter(
-			(part): part is AgentVideoPart & { path: string } =>
-				part.type === "video" && typeof part.path === "string",
-		)
-		.map((part) => ({ path: part.path, mediaType: part.mediaType }));
-}
-
-function extractAudioParts(
-	message: AgentMessage,
-): Array<{ path: string; mediaType: string }> {
-	return message.content
-		.filter(
-			(part): part is AgentAudioPart & { path: string } =>
-				part.type === "audio" && typeof part.path === "string",
-		)
-		.map((part) => ({ path: part.path, mediaType: part.mediaType }));
 }
 
 function extractToolResultPart(
@@ -346,20 +322,6 @@ export class RuntimeEventAdapter {
 				type: "content_end",
 				contentType: "image",
 				image,
-			});
-		}
-		for (const video of extractVideoParts(message)) {
-			out.push({
-				type: "content_end",
-				contentType: "video",
-				video,
-			});
-		}
-		for (const audio of extractAudioParts(message)) {
-			out.push({
-				type: "content_end",
-				contentType: "audio",
-				audio,
 			});
 		}
 		return out;

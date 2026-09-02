@@ -201,7 +201,6 @@ export {
 	validateImageMedia,
 } from "./llms/media";
 export type {
-	AudioContent,
 	ContentBlock,
 	FileContent,
 	ImageContent,
@@ -215,20 +214,13 @@ export type {
 	ToolDefinition,
 	ToolResultContent,
 	ToolUseContent,
-	VideoContent,
 } from "./llms/messages";
 export {
 	ApiFormat,
 	ApiFormatSchema,
 	type ChatCompatibleModelDescriptor,
 	type ChatModelModalities,
-	isAudioGenerationModel,
 	isChatCompatibleModel,
-	isDedicatedAudioGenerationModel,
-	isDedicatedImageGenerationModel,
-	isDedicatedVideoGenerationModel,
-	isImageGenerationModel,
-	isVideoGenerationModel,
 	type ModelCapability,
 	ModelCapabilitySchema,
 	type ModelInfo,

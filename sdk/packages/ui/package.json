@@ -57,8 +57,6 @@
 		"components/agent-chat/index.tsx",
 		"components/agent-chat/tool-diff.tsx",
 		"components/agent-chat/tool-summary",
-		"components/audio-player.css",
-		"components/audio-player.tsx",
 		"components/agent-approval-card.css",
 		"components/agent-approval-card.tsx",
 		"components/agent-ask-question.css",

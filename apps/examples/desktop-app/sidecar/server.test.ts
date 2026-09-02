@@ -33,20 +33,6 @@ function createTelemetryHandler(capture = vi.fn()) {
 	};
 }
 
-const originalSessionDataDir = process.env.CLINE_SESSION_DATA_DIR;
-const temporaryDirectories: string[] = [];
-
-afterEach(() => {
-	if (originalSessionDataDir === undefined) {
-		delete process.env.CLINE_SESSION_DATA_DIR;
-	} else {
-		process.env.CLINE_SESSION_DATA_DIR = originalSessionDataDir;
-	}
-	for (const directory of temporaryDirectories.splice(0)) {
-		rmSync(directory, { recursive: true, force: true });
-	}
-});
-
 describe("sidecar WebSocket payload limit", () => {
 	it("accepts every recording allowed by the voice input size limit", () => {
 		const handler = createWebSocketHandler({} as SidecarContext);

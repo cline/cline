@@ -15,7 +15,9 @@ describe("readSessionMessages", () => {
 
 		await expect(
 			readSessionMessages(
-				{ liveSessions } as Parameters<typeof readSessionMessages>[0],
+				{ liveSessions } as unknown as Parameters<
+					typeof readSessionMessages
+				>[0],
 				sessionId,
 			),
 		).resolves.toEqual([
@@ -63,7 +65,9 @@ describe("readSessionMessages", () => {
 
 		await expect(
 			readSessionMessages(
-				{ liveSessions } as Parameters<typeof readSessionMessages>[0],
+				{ liveSessions } as unknown as Parameters<
+					typeof readSessionMessages
+				>[0],
 				sessionId,
 			),
 		).resolves.toEqual([
@@ -150,7 +154,9 @@ describe("readSessionMessages", () => {
 
 		await expect(
 			readSessionMessages(
-				{ liveSessions } as Parameters<typeof readSessionMessages>[0],
+				{ liveSessions } as unknown as Parameters<
+					typeof readSessionMessages
+				>[0],
 				sessionId,
 			),
 		).resolves.toEqual([
@@ -223,7 +229,9 @@ describe("readSessionMessages", () => {
 
 		await expect(
 			readSessionMessages(
-				{ liveSessions } as Parameters<typeof readSessionMessages>[0],
+				{ liveSessions } as unknown as Parameters<
+					typeof readSessionMessages
+				>[0],
 				sessionId,
 			),
 		).resolves.toEqual([
@@ -274,7 +282,9 @@ describe("readSessionMessages", () => {
 
 		await expect(
 			readSessionMessages(
-				{ liveSessions } as Parameters<typeof readSessionMessages>[0],
+				{ liveSessions } as unknown as Parameters<
+					typeof readSessionMessages
+				>[0],
 				sessionId,
 			),
 		).resolves.toEqual([
@@ -317,18 +327,21 @@ describe("readSessionMessages", () => {
 
 		await expect(
 			readSessionMessages(
-				{ liveSessions } as Parameters<typeof readSessionMessages>[0],
+				{ liveSessions } as unknown as Parameters<
+					typeof readSessionMessages
+				>[0],
 				sessionId,
 			),
 		).resolves.toEqual([
 			expect.objectContaining({
 				role: "assistant",
 				content: "",
-				videos: [
+				media: [
 					{
 						id: "assistant-video_video_0",
+						modality: "video",
 						mediaType: "video/mp4",
-						artifactName: "video-result.mp4",
+						source: { type: "artifact", artifactId: "video-result.mp4" },
 					},
 				],
 			}),
@@ -360,18 +373,21 @@ describe("readSessionMessages", () => {
 
 		await expect(
 			readSessionMessages(
-				{ liveSessions } as Parameters<typeof readSessionMessages>[0],
+				{ liveSessions } as unknown as Parameters<
+					typeof readSessionMessages
+				>[0],
 				sessionId,
 			),
 		).resolves.toEqual([
 			expect.objectContaining({
 				role: "assistant",
 				content: "",
-				audios: [
+				media: [
 					{
 						id: "assistant-audio_audio_0",
+						modality: "audio",
 						mediaType: "audio/mpeg",
-						artifactName: "audio-result.mp3",
+						source: { type: "artifact", artifactId: "audio-result.mp3" },
 					},
 				],
 			}),
@@ -396,7 +412,9 @@ describe("readSessionMessages", () => {
 
 		await expect(
 			readSessionMessages(
-				{ liveSessions } as Parameters<typeof readSessionMessages>[0],
+				{ liveSessions } as unknown as Parameters<
+					typeof readSessionMessages
+				>[0],
 				sessionId,
 				2,
 			),
@@ -414,7 +432,9 @@ describe("readSessionMessages", () => {
 
 		await expect(
 			readSessionMessages(
-				{ liveSessions } as Parameters<typeof readSessionMessages>[0],
+				{ liveSessions } as unknown as Parameters<
+					typeof readSessionMessages
+				>[0],
 				sessionId,
 				1,
 			),

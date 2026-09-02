@@ -1602,9 +1602,7 @@ describe("ChatMessages generated audio", () => {
 				"http://127.0.0.1:3126/api/session-artifacts/session-1/audio%20result.mp3",
 			);
 			expect(
-				container.querySelector(
-					'[aria-label="Play or pause generated audio"]',
-				),
+				container.querySelector('[aria-label="Play or pause generated audio"]'),
 			).not.toBeNull();
 		});
 	});

@@ -77,8 +77,6 @@ export type AgentContentType =
 	| "text"
 	| "reasoning"
 	| "image"
-	| "video"
-	| "audio"
 	| "media"
 	| "tool";
 
@@ -134,10 +132,6 @@ export interface AgentContentEndEvent extends AgentEventMetadata {
 	media?: GeneratedMedia;
 	/** Generated image returned by a legacy model event. */
 	image?: { data: string; mediaType: string };
-	/** Generated video persisted by the session host. */
-	video?: { path: string; mediaType: string };
-	/** Generated audio persisted by the session host. */
-	audio?: { path: string; mediaType: string };
 	/** Name of the tool that completed */
 	toolName?: string;
 	/** Unique identifier for this tool call */

@@ -466,6 +466,21 @@ function createVideoReplacementContext(options: {
 		messages,
 		checkpoint: { ref: "first", createdAt: 1, runCount: 1 },
 	}));
+	const sessionManager = {
+		get: vi.fn(async () => ({
+			sessionId: options.sourceSessionId,
+			source: "desktop",
+			status: "completed",
+			provider: VIDEO_SESSION_CONFIG.provider,
+			model: VIDEO_SESSION_CONFIG.model,
+			cwd: VIDEO_SESSION_CONFIG.cwd,
+			workspaceRoot: VIDEO_SESSION_CONFIG.cwd,
+		})),
+		readMessages: vi.fn(async () => messages),
+		start,
+		restore,
+		delete: options.deleteSession ?? (async () => true),
+	};
 	const ctx = {
 		liveSessions: new Map([
 			[
@@ -481,21 +496,10 @@ function createVideoReplacementContext(options: {
 			],
 		]),
 		restoringWorkspacePaths: new Set(),
-		sessionManager: {
-			get: vi.fn(async () => ({
-				sessionId: options.sourceSessionId,
-				source: "desktop",
-				status: "completed",
-				provider: VIDEO_SESSION_CONFIG.provider,
-				model: VIDEO_SESSION_CONFIG.model,
-				cwd: VIDEO_SESSION_CONFIG.cwd,
-				workspaceRoot: VIDEO_SESSION_CONFIG.cwd,
-			})),
-			readMessages: vi.fn(async () => messages),
-			start,
-			restore,
-			delete: options.deleteSession ?? (async () => true),
-		},
+		...localRuntimeContext(sessionManager, {
+			sessionIds: [options.sourceSessionId, options.targetSessionId],
+			workspaceRoot: VIDEO_SESSION_CONFIG.cwd,
+		}),
 		streamIndices: new Map(),
 		wsClients: new Set(),
 	} as unknown as SidecarContext;
@@ -687,10 +691,21 @@ describe("session forks", () => {
 						],
 					]),
 					restoringWorkspacePaths: new Set(),
-					sessionManager: {
-						restore,
-						readMessages: vi.fn(async () => restoredMessages),
-					},
+					...localRuntimeContext(
+						{
+							get: vi.fn(async () => ({
+								sessionId: sourceSessionId,
+								source: "desktop",
+								status: "completed",
+							})),
+							restore,
+							readMessages: vi.fn(async () => restoredMessages),
+						},
+						{
+							sessionIds: [sourceSessionId, targetSessionId],
+							workspaceRoot: VIDEO_SESSION_CONFIG.cwd,
+						},
+					),
 					streamIndices: new Map(),
 					wsClients: new Set(),
 				} as unknown as SidecarContext;
@@ -764,14 +779,25 @@ describe("session forks", () => {
 						],
 					]),
 					restoringWorkspacePaths: new Set(),
-					sessionManager: {
-						restore: vi.fn(async () => ({
-							sessionId: targetSessionId,
-							messages: restoredMessages,
-							checkpoint: { ref: "first", createdAt: 1, runCount: 1 },
-						})),
-						delete: deleteSession,
-					},
+					...localRuntimeContext(
+						{
+							get: vi.fn(async () => ({
+								sessionId: sourceSessionId,
+								source: "desktop",
+								status: "completed",
+							})),
+							restore: vi.fn(async () => ({
+								sessionId: targetSessionId,
+								messages: restoredMessages,
+								checkpoint: { ref: "first", createdAt: 1, runCount: 1 },
+							})),
+							delete: deleteSession,
+						},
+						{
+							sessionIds: [sourceSessionId, targetSessionId],
+							workspaceRoot: VIDEO_SESSION_CONFIG.cwd,
+						},
+					),
 					streamIndices: new Map(),
 					wsClients: new Set(),
 				} as unknown as SidecarContext;
