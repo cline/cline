@@ -14,6 +14,7 @@ import { AgendaTaskReviewDialog } from "@/components/agenda-task-review-dialog";
 import { useAccount } from "@/contexts/account-context";
 import { useWorkspace } from "@/contexts/workspace-context";
 import { isAgendaTaskExpired, useAgendaTasks } from "@/hooks/use-agenda-tasks";
+import { fetchGitHubInstallUrl } from "@/lib/cline-integrations";
 import {
 	type CloudBranchListOptions,
 	type CloudBranchListResult,
@@ -86,7 +87,7 @@ export function WelcomeScreen({
 	environmentSelector?: ReactNode;
 	onOpenSession?: (sessionId: string) => void | Promise<void>;
 }) {
-	const { user, refreshAccount } = useAccount();
+	const { user, activeOrganization, refreshAccount } = useAccount();
 	const [signingIn, setSigningIn] = useState(false);
 	const [signInError, setSignInError] = useState<string | null>(null);
 	const [cloudSetup, setCloudSetup] = useState<CloudSetupState>({
@@ -161,6 +162,13 @@ export function WelcomeScreen({
 	const openExternalUrl = useCallback(async (url: string) => {
 		await desktopClient.invoke("open_external_url", { url });
 	}, []);
+	const connectGitHub = useCallback(async () => {
+		try {
+			await openExternalUrl(await fetchGitHubInstallUrl());
+		} catch {
+			await openExternalUrl(cloudSetup.connectUrl);
+		}
+	}, [cloudSetup.connectUrl, openExternalUrl]);
 
 	const cloudModeActive =
 		active && cloudAgentsEnabled && executionTarget === "cloud";
@@ -419,7 +427,12 @@ export function WelcomeScreen({
 						<div className="mt-4 w-full">
 							<CloudOnboardingCard
 								checking={cloudSetupChecking}
-								onConnect={() => void openExternalUrl(cloudSetup.connectUrl)}
+								onConnect={() =>
+									void (cloudOnboardingVariant === "not_connected" &&
+									!activeOrganization
+										? connectGitHub()
+										: openExternalUrl(cloudSetup.connectUrl))
+								}
 								onRefresh={() => void checkCloudSetup()}
 								onSignIn={() => void signIn()}
 								signingIn={signingIn}

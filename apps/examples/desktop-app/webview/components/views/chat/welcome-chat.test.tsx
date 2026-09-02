@@ -16,7 +16,10 @@ const { invokeMock, subscribeMock, accountRef } = vi.hoisted(() => ({
 		(_eventName: string, _handler: (payload: unknown) => void) => () =>
 			undefined,
 	),
-	accountRef: { user: null as { id: string } | null },
+	accountRef: {
+		user: null as { id: string } | null,
+		activeOrganization: null as { id: string } | null,
+	},
 }));
 
 const listAgendaTasksMock = vi.hoisted(() => vi.fn());
@@ -39,6 +42,7 @@ vi.mock("@/lib/desktop-client", () => ({
 vi.mock("@/contexts/account-context", () => ({
 	useAccount: () => ({
 		user: accountRef.user,
+		activeOrganization: accountRef.activeOrganization,
 		refreshAccount: vi.fn(async () => undefined),
 	}),
 }));
@@ -140,6 +144,39 @@ async function clickButton(
 }
 
 describe("WelcomeScreen", () => {
+	it("opens the GitHub App install flow from cloud onboarding", async () => {
+		accountRef.user = { id: "user-1" };
+		invokeMock.mockImplementation(async (command: string) => {
+			if (command === "list_cloud_repositories") {
+				return {
+					connected: false,
+					connectUrl: "https://app.example/dashboard/integrations",
+					repositories: [],
+				};
+			}
+			if (command === "cline_integrations") {
+				return { url: "https://github.com/apps/cline/installations/new" };
+			}
+			return {};
+		});
+
+		await renderWelcomeScreen({
+			cloudAgentsEnabled: true,
+			executionTarget: "cloud",
+			workspaceRoot: "/projects/project-1",
+			workspaces: ["/projects/project-1"],
+		});
+		await clickButton("Connect GitHub");
+
+		expect(invokeMock).toHaveBeenCalledWith("cline_integrations", {
+			operation: "githubInstallUrl",
+		});
+		expect(invokeMock).toHaveBeenCalledWith("open_external_url", {
+			url: "https://github.com/apps/cline/installations/new",
+		});
+		accountRef.user = null;
+	});
+
 	it("keeps the welcome composer in the upper portion of the page", async () => {
 		await renderWelcomeScreen({
 			workspaceRoot: "/projects/project-1",
