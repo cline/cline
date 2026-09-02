@@ -21,19 +21,37 @@ import {
 	findRecommendedToolkit,
 	isComposioToolkitSlug,
 } from "../webview/lib/composio-types";
+import type { ClineAuthTelemetryContext } from "./cline-auth";
+import {
+	type ConnectorCatalogEntry,
+	ConnectorsApiError,
+	deleteConnection,
+	fetchConnectableToolkits,
+	initiateConnection,
+	listConnections,
+	listToolkitTools,
+	waitForConnectionActive,
+} from "./cline-connectors-api";
 
 /**
  * Management plane for Composio-backed integrations (Gmail, Google Calendar,
  * GitHub).
  *
- * The sidecar owns the OAuth handshake and connection bookkeeping, but agent
- * sessions run in the shared Hub daemon, so the sidecar cannot register tools
- * directly. Instead, connection state plus the fetched tool schemas are
- * persisted to `<cline-data>/settings/composio.json`, which core's built-in
+ * Every Composio call goes through the Cline API connectors proxy
+ * (`cline-connectors-api.ts`), which holds the Composio project key
+ * server-side and derives the Composio `user_id` from the authenticated
+ * account — a client-held key can't be user-scoped, so the proxy is what
+ * keeps one install from acting as another user. There is no local API key.
+ *
+ * The sidecar still owns connection bookkeeping and the OAuth-completion
+ * wait, and persists connection state plus fetched tool schemas to
+ * `<cline-data>/settings/composio.json`, which core's built-in
  * `composio-tools` extension (`@cline/core`, composio-tools-extension.ts)
  * reads at session start to register one tool per connected Composio tool.
  * New sessions pick state changes up automatically; running sessions keep
- * their frozen tool set.
+ * their frozen tool set. The persisted file no longer holds an API key; the
+ * proxy resolves the account bearer token per call, and the composio-tools
+ * extension executes tools through the same proxy.
  */
 
 const COMPOSIO_STATE_FILE_NAME = "composio.json";
@@ -42,8 +60,6 @@ const COMPOSIO_STATE_FILE_NAME = "composio.json";
 const LEGACY_COMPOSIO_PLUGIN_RELATIVE_PATH = ["plugins", "composio-tools.ts"];
 /** How long the background waiter gives the user to finish the browser flow. */
 const CONNECT_WAIT_TIMEOUT_MS = 5 * 60 * 1000;
-/** Cap on tools materialized per toolkit; Composio orders by importance. */
-const TOOLS_PER_TOOLKIT_LIMIT = 20;
 const MAX_TOOL_DESCRIPTION_LENGTH = 1024;
 
 type StoredComposioTool = {
@@ -64,20 +80,10 @@ type StoredComposioToolkit = {
 };
 
 type StoredComposioState = {
-	/**
-	 * Copy of the managed COMPOSIO_API_KEY environment variable, persisted so
-	 * core's composio-tools extension — which runs in the Hub process without
-	 * this process's environment — can execute tools. Re-synced on every
-	 * read: rotated when the managed key changes, dropped when it disappears.
-	 * There is no user-entered key.
-	 */
-	apiKey?: string;
-	/** Stable per-install Composio user id; generated on first configuration. */
-	userId?: string;
 	toolkits?: Partial<Record<string, StoredComposioToolkit>>;
 	/**
 	 * Connected-account ids from OAuth attempts the user cancelled (or that a
-	 * disconnect / key change abandoned) while the browser flow could still
+	 * disconnect / sign-out abandoned) while the browser flow could still
 	 * complete. Reconciliation refuses to import these and keeps trying to
 	 * revoke them remotely. Persisted so a sidecar restart cannot forget a
 	 * cancellation, and kept until the account is confirmed deleted on
@@ -94,10 +100,6 @@ type PendingConnection = {
 	connectedAccountId: string;
 	redirectUrl?: string;
 	startedAt: number;
-	/** The key/user the attempt was started under; finalization is dropped if
-	 * either changed while the browser flow was in flight. */
-	apiKey: string;
-	userId: string;
 	/** The webview connection that started this attempt, if any. When that
 	 * connection goes away (webview closed/reloaded, transport drop) the
 	 * attempt is abandoned — matching how provider and MCP OAuth waits are
@@ -105,117 +107,15 @@ type PendingConnection = {
 	owner?: object;
 };
 
-type ComposioConnectionRequest = {
-	id: string;
-	redirectUrl?: string | null;
-	waitForConnection: (timeout?: number) => Promise<unknown>;
-};
-
-/** One toolkit from the raw catalog endpoint (`GET /api/v3/toolkits`). The
- * SDK's wrapper strips the auth-availability fields we filter on, so the
- * catalog is fetched over REST directly. */
-type RawComposioToolkitItem = {
-	slug: string;
-	name: string;
-	meta?: {
-		description?: string;
-		logo?: string;
-		tools_count?: number;
-		categories?: Array<{ slug: string; name: string }>;
-	};
-	/** Auth methods Composio manages credentials for; empty/absent means the
-	 * org must bring its own auth config for this toolkit. */
-	composio_managed_auth_schemes?: string[];
-	no_auth?: boolean;
-};
-
-/** Minimal surface of the `@composio/core` client this module uses; the SDK is
- * loaded lazily so sidecar startup does not pay its import cost. */
-type ComposioClient = {
-	toolkits: {
-		authorize: (
-			userId: string,
-			toolkitSlug: string,
-		) => Promise<ComposioConnectionRequest>;
-	};
-	authConfigs: {
-		list: (query?: { toolkit?: string }) => Promise<{
-			items: Array<{
-				id: string;
-				isComposioManaged?: boolean;
-				toolkit?: { slug: string };
-			}>;
-		}>;
-		create: (
-			toolkit: string,
-			options: { type: "use_composio_managed_auth"; name?: string },
-		) => Promise<{ id: string }>;
-	};
-	tools: {
-		getRawComposioTools: (query: {
-			toolkits: string[];
-			limit?: number;
-		}) => Promise<
-			Array<{
-				slug: string;
-				name?: string;
-				description?: string;
-				version?: string;
-				inputParameters?: unknown;
-			}>
-		>;
-	};
-	connectedAccounts: {
-		list: (query?: {
-			userIds?: string[];
-			toolkitSlugs?: string[];
-			cursor?: string;
-		}) => Promise<{
-			items: Array<{
-				id: string;
-				status: string;
-				isDisabled?: boolean;
-				toolkit: { slug: string };
-			}>;
-			nextCursor?: string | null;
-		}>;
-		link: (
-			userId: string,
-			authConfigId: string,
-		) => Promise<ComposioConnectionRequest>;
-	};
-	/**
-	 * The underlying REST client. Account deletions go through it because the
-	 * high-level wrapper's `connectedAccounts.delete` never sends
-	 * `revoke_on_delete` and the API defaults it to false — a soft delete
-	 * that removes the Composio record while leaving the upstream OAuth grant
-	 * (the Gmail/Calendar/GitHub token itself) authorized.
-	 */
-	getClient: () => {
-		connectedAccounts: {
-			delete: (
-				id: string,
-				params: { revoke_on_delete: boolean },
-			) => Promise<unknown>;
-		};
-	};
-};
-
-type ConnectedAccountListItem = {
-	id: string;
-	status: string;
-	isDisabled?: boolean;
-	toolkit: { slug: string };
-};
-
 const pendingConnections = new Map<ComposioToolkitSlug, PendingConnection>();
 /**
  * Toolkits whose connect call is inside its initiation round trip. The
- * pending entry only exists once Composio has returned the connected-account
- * id, so this set is what makes connects single-flight across that window —
- * without it, two overlapping calls would each create a remote account and
- * the second `pendingConnections.set` would overwrite the first, leaving the
- * superseded account unrevoked and eligible for a later import.
+ * pending entry only exists once the proxy has returned the
+ * connected-account id, so this set is what makes connects single-flight
+ * across that window — without it, two overlapping calls would each create a
+ * remote account and the second `pendingConnections.set` would overwrite the
+ * first, leaving the superseded account unrevoked and eligible for a later
+ * import.
  */
 const connectInitiationsInFlight = new Set<ComposioToolkitSlug>();
 const lastConnectionErrors = new Map<ComposioToolkitSlug, string>();
@@ -223,47 +123,73 @@ const lastConnectionErrors = new Map<ComposioToolkitSlug, string>();
  * the disconnect cannot write it back. */
 const lastDisconnectedAt = new Map<ComposioToolkitSlug, number>();
 
-/** Usage-ranked toolkit catalog, cached per key since it changes rarely. */
+/** Usage-ranked toolkit catalog, cached since it changes rarely. Keyed by
+ * nothing (the proxy scopes to the account) — cleared on sign-out. */
 const CATALOG_TTL_MS = 60 * 60 * 1000;
-const CATALOG_FETCH_LIMIT = 500;
 let catalogCache: {
-	apiKey: string;
 	fetchedAt: number;
 	entries: ComposioCatalogToolkit[];
 } | null = null;
 
-let cachedClient: { apiKey: string; client: ComposioClient } | null = null;
+/**
+ * Whether connectors are available to this install: the account is signed in
+ * and passes the proxy's entitlement gate. Cached briefly so the many status
+ * reads the UI issues don't each hit the network; the proxy remains the
+ * authority (any real call re-checks entitlement server-side).
+ */
+const CONFIGURED_TTL_MS = 60 * 1000;
+let configuredCache: { checkedAt: number; configured: boolean } | null = null;
 
-async function getComposioClient(apiKey: string): Promise<ComposioClient> {
-	if (cachedClient?.apiKey === apiKey) {
-		return cachedClient.client;
-	}
-	const { Composio } = await import("@composio/core");
-	const client = new Composio({ apiKey }) as unknown as ComposioClient;
-	cachedClient = { apiKey, client };
-	return client;
+function parseToolInputParameters(
+	value: unknown,
+): Record<string, unknown> | undefined {
+	return typeof value === "object" && value !== null
+		? (value as Record<string, unknown>)
+		: undefined;
 }
 
-/** Composio SDK errors embed the raw response JSON ("401 {...}"); pull out
- * the human-readable message when one is present. */
-function formatComposioError(error: unknown): string {
-	const message = error instanceof Error ? error.message : String(error);
-	const jsonStart = message.indexOf("{");
-	if (jsonStart !== -1) {
-		try {
-			const parsed = JSON.parse(message.slice(jsonStart)) as {
-				error?: { message?: unknown };
-				message?: unknown;
-			};
-			const nested = parsed.error?.message ?? parsed.message;
-			if (typeof nested === "string" && nested.trim()) {
-				return nested.trim();
-			}
-		} catch {
-			// Fall through to the raw message.
-		}
+function toStoredTool(raw: {
+	slug: string;
+	name?: string;
+	description?: string;
+	version?: string;
+	inputParameters?: unknown;
+}): StoredComposioTool | undefined {
+	if (!raw?.slug) {
+		return undefined;
 	}
-	return message;
+	const description = raw.description?.trim();
+	return {
+		slug: raw.slug,
+		name: raw.name?.trim() || undefined,
+		description:
+			description && description.length > MAX_TOOL_DESCRIPTION_LENGTH
+				? `${description.slice(0, MAX_TOOL_DESCRIPTION_LENGTH)}…`
+				: description || undefined,
+		version:
+			typeof raw.version === "string" && raw.version.trim()
+				? raw.version.trim()
+				: undefined,
+		inputParameters: parseToolInputParameters(raw.inputParameters),
+	};
+}
+
+function formatConnectorsError(error: unknown): string {
+	if (error instanceof ConnectorsApiError) {
+		return error.message;
+	}
+	return error instanceof Error ? error.message : String(error);
+}
+
+/** Test hook: clears the module-level availability/catalog caches and the
+ * in-memory attempt maps so each test starts from a clean slate. */
+export function __resetComposioCachesForTesting(): void {
+	configuredCache = null;
+	catalogCache = null;
+	pendingConnections.clear();
+	connectInitiationsInFlight.clear();
+	lastConnectionErrors.clear();
+	lastDisconnectedAt.clear();
 }
 
 export function parseComposioToolkitSlug(value: unknown): ComposioToolkitSlug {
@@ -274,86 +200,6 @@ export function parseComposioToolkitSlug(value: unknown): ComposioToolkitSlug {
 		throw new Error(`Invalid Composio toolkit slug: ${String(value)}`);
 	}
 	return slug;
-}
-
-/** Composio retired the legacy connection-create endpoint that
- * `toolkits.authorize()` uses for Composio-managed OAuth auth configs; the
- * error directs callers to the connected-account link flow instead. */
-function isLegacyConnectionEndpointError(error: unknown): boolean {
-	const message = error instanceof Error ? error.message : String(error);
-	return message.includes("connected_accounts/link");
-}
-
-/** A custom auth config is the org's own OAuth app registered in Composio —
- * the consent screen then shows that app's branding ("Authorize Cline")
- * instead of Composio's shared OAuth app ("Authorize Composio"). */
-async function findCustomAuthConfigId(
-	client: ComposioClient,
-	toolkit: ComposioToolkitSlug,
-): Promise<string | undefined> {
-	try {
-		const existing = await client.authConfigs.list({ toolkit });
-		return existing.items?.find((item) => item.isComposioManaged === false)?.id;
-	} catch {
-		// Lookup is an optimization; the authorize path below still works.
-		return undefined;
-	}
-}
-
-async function resolveToolkitAuthConfigId(
-	client: ComposioClient,
-	toolkit: ComposioToolkitSlug,
-): Promise<string> {
-	const existing = await client.authConfigs.list({ toolkit });
-	const items = existing.items ?? [];
-	// Prefer a custom (org-branded) auth config when both kinds exist.
-	const preferred =
-		items.find((item) => item.isComposioManaged === false) ?? items[0];
-	if (preferred?.id) {
-		return preferred.id;
-	}
-	const created = await client.authConfigs.create(toolkit, {
-		type: "use_composio_managed_auth",
-	});
-	return created.id;
-}
-
-/**
- * Start an OAuth connection for a toolkit.
- *
- * When a custom auth config exists (the org's own OAuth app), connect through
- * it directly with the connected-account link flow so the consent screen
- * carries the org's branding. Otherwise fall back to `toolkits.authorize()`
- * (which finds or creates a Composio-managed auth config in one call) — and
- * because Composio retired that method's connection-create endpoint for
- * managed OAuth configs, retry the specific rejection through the link flow
- * against the same auth config.
- */
-export async function initiateToolkitConnection(
-	client: ComposioClient,
-	userId: string,
-	toolkit: ComposioToolkitSlug,
-	logger?: BasicLogger,
-): Promise<ComposioConnectionRequest> {
-	const customAuthConfigId = await findCustomAuthConfigId(client, toolkit);
-	if (customAuthConfigId) {
-		logger?.log?.(
-			`composio connect ${toolkit}: using custom auth config ${customAuthConfigId}`,
-		);
-		return await client.connectedAccounts.link(userId, customAuthConfigId);
-	}
-	try {
-		return await client.toolkits.authorize(userId, toolkit);
-	} catch (error) {
-		if (!isLegacyConnectionEndpointError(error)) {
-			throw error;
-		}
-		logger?.log?.(
-			`composio authorize ${toolkit}: legacy endpoint retired, using connected-account link flow`,
-		);
-		const authConfigId = await resolveToolkitAuthConfigId(client, toolkit);
-		return await client.connectedAccounts.link(userId, authConfigId);
-	}
 }
 
 // ── Persisted state ──────────────────────────────────────────────────────
@@ -380,7 +226,8 @@ function readComposioState(): StoredComposioState {
 function writeComposioState(state: StoredComposioState): void {
 	const path = resolveComposioStatePath();
 	mkdirSync(dirname(path), { recursive: true });
-	// The file holds the Composio API key; keep it owner-readable only.
+	// The file no longer holds an API key, but connection metadata is still
+	// user data; keep it owner-readable only, unchanged from before.
 	writeFileSync(path, `${JSON.stringify(state, null, "\t")}\n`, {
 		mode: 0o600,
 	});
@@ -402,19 +249,6 @@ function updateComposioState(
 	mutate(state);
 	writeComposioState(state);
 	return state;
-}
-
-/**
- * The managed Composio API key: the COMPOSIO_API_KEY environment variable
- * exported to the sidecar process. There is no user-entered key, and the key
- * is deliberately NOT baked into shipped binaries — a client-embedded secret
- * is extractable by anyone with the artifact. Installs without the variable
- * keep connectors hidden; the intended interim rollout is internal users
- * exporting the key locally, until a Cline-platform proxy holds it
- * server-side.
- */
-function resolveManagedComposioApiKey(): string | undefined {
-	return process.env.COMPOSIO_API_KEY?.trim() || undefined;
 }
 
 /** Remembers a cancelled/abandoned OAuth attempt's connected-account id so
@@ -463,80 +297,30 @@ function pruneConfirmedCancelledAccount(accountId: string): void {
 }
 
 /**
- * Best-effort remote revocation for cancelled/abandoned OAuth attempts.
- * Returns true when the account is confirmed gone (deleted now, or already
- * deleted) — the caller then prunes its tombstone. A failure is logged, not
+ * Best-effort remote revocation for cancelled/abandoned OAuth attempts,
+ * through the proxy's delete (which revokes upstream credentials). Returns
+ * true when the account is confirmed gone (deleted now, or already gone / a
+ * 404) — the caller then prunes its tombstone. A failure is logged, not
  * thrown: the persisted tombstone keeps the account from ever materializing
  * tools locally, and the status-refresh reconciliation retries the deletion
- * whenever Composio still reports the account.
+ * whenever the proxy still reports the account.
  */
 async function revokeConnectedAccountQuietly(
-	apiKey: string,
 	accountId: string,
-	logger?: BasicLogger,
+	ctx?: ClineAuthTelemetryContext,
 ): Promise<boolean> {
 	try {
-		const client = await getComposioClient(apiKey);
-		await deleteConnectedAccountWithRevocation(client, accountId);
+		await deleteConnection(accountId, ctx);
 		return true;
 	} catch (error) {
 		if (isAccountAlreadyGoneError(error)) {
 			return true;
 		}
-		logger?.log?.(
-			`composio: revoking cancelled account ${accountId} failed: ${error instanceof Error ? error.message : String(error)}`,
+		ctx?.logger?.log?.(
+			`composio: revoking cancelled account ${accountId} failed: ${formatConnectorsError(error)}`,
 		);
 		return false;
 	}
-}
-
-/**
- * Deletes a connected account AND revokes its upstream OAuth credentials.
- * Without `revoke_on_delete=true` the API only soft-deletes the Composio
- * record: tool execution stops, but the provider-side grant (the actual
- * Gmail/Calendar/GitHub token) stays authorized — a disconnect the UI
- * reports as done would leave live credentials behind. The high-level SDK
- * wrapper never sends the flag, so this goes through the raw client.
- */
-async function deleteConnectedAccountWithRevocation(
-	client: ComposioClient,
-	accountId: string,
-): Promise<unknown> {
-	return await client.getClient().connectedAccounts.delete(accountId, {
-		revoke_on_delete: true,
-	});
-}
-
-/** Defensive cap; a user has roughly one connected account per toolkit, so
- * real lists fit in one or two pages. */
-const CONNECTED_ACCOUNTS_MAX_PAGES = 20;
-
-/**
- * Lists the user's connected accounts following pagination to the end. The
- * reconciliation removal logic treats absence from this list as "revoked
- * remotely", so a truncated listing would locally disconnect accounts that
- * merely live on a later page. `complete` is false only when the page cap
- * was hit — callers must then skip absence-based removals.
- */
-async function listAllConnectedAccounts(
-	client: ComposioClient,
-	userId: string,
-): Promise<{ items: ConnectedAccountListItem[]; complete: boolean }> {
-	const items: ConnectedAccountListItem[] = [];
-	let cursor: string | undefined;
-	for (let page = 0; page < CONNECTED_ACCOUNTS_MAX_PAGES; page++) {
-		const response = await client.connectedAccounts.list({
-			userIds: [userId],
-			...(cursor ? { cursor } : {}),
-		});
-		items.push(...(response.items ?? []));
-		const nextCursor = response.nextCursor ?? undefined;
-		if (!nextCursor) {
-			return { items, complete: true };
-		}
-		cursor = nextCursor;
-	}
-	return { items, complete: false };
 }
 
 /**
@@ -549,64 +333,19 @@ async function listAllConnectedAccounts(
  */
 function abandonPendingConnections(
 	state: StoredComposioState,
-	logger?: BasicLogger,
+	ctx?: ClineAuthTelemetryContext,
 ): void {
 	for (const pending of pendingConnections.values()) {
 		rememberCancelledAccountId(state, pending.connectedAccountId);
-		void revokeConnectedAccountQuietly(
-			pending.apiKey,
-			pending.connectedAccountId,
-			logger,
-		).then((confirmedGone) => {
-			if (confirmedGone) {
-				pruneConfirmedCancelledAccount(pending.connectedAccountId);
-			}
-		});
+		void revokeConnectedAccountQuietly(pending.connectedAccountId, ctx).then(
+			(confirmedGone) => {
+				if (confirmedGone) {
+					pruneConfirmedCancelledAccount(pending.connectedAccountId);
+				}
+			},
+		);
 	}
 	pendingConnections.clear();
-}
-
-/**
- * Keep the stored key in sync with the managed COMPOSIO_API_KEY: adopt it
- * when none is stored, rotate the stored copy when it changes, and drop it
- * when it disappears.
- *
- * Any change to the effective key also drops the connected toolkits and
- * abandons in-flight OAuth attempts: both belong to the previous key's
- * Composio project, and keeping the toolkits would report old-project
- * connectors as installed while new sessions execute their tools under the
- * new key (failed calls, or an unintended matching account). Accounts that
- * exist under the new key's project are re-imported by the next status
- * refresh.
- *
- * Persists (and re-syncs the plugin file) only when something changed.
- */
-function reconcileManagedApiKey(
-	state: StoredComposioState,
-	logger?: BasicLogger,
-): void {
-	const managedKey = resolveManagedComposioApiKey();
-	if ((state.apiKey || undefined) === managedKey) {
-		return;
-	}
-	abandonPendingConnections(state, logger);
-	state.toolkits = {};
-	if (managedKey) {
-		state.apiKey = managedKey;
-		if (!state.userId) {
-			state.userId = `cline-desktop-${randomUUID()}`;
-		}
-	} else {
-		delete state.apiKey;
-	}
-	lastConnectionErrors.clear();
-	catalogCache = null;
-	writeComposioState(state);
-	logger?.log?.(
-		managedKey
-			? "composio: managed api key adopted; connections will re-import from Composio on refresh"
-			: "composio: managed api key is gone; dropped the key and materialized connections",
-	);
 }
 
 /**
@@ -633,9 +372,71 @@ function readReconciledComposioState(
 	logger?: BasicLogger,
 ): StoredComposioState {
 	removeLegacyComposioPluginQuietly(logger);
+	return readComposioState();
+}
+
+// ── Availability (entitlement) ─────────────────────────────────────────────
+
+/**
+ * Whether connectors are available to this install. The proxy enforces
+ * entitlement (signed-in Cline account on an internal domain / rollout
+ * cohort) on every route; a `listConnections` probe both proves sign-in and
+ * exercises that gate. 401/403 → not available. Result is cached briefly to
+ * spare the network the UI's frequent status polls; a forced refresh (or
+ * cache miss) re-probes.
+ */
+async function isConnectorsAvailable(options?: {
+	forceRefresh?: boolean;
+	ctx?: ClineAuthTelemetryContext;
+}): Promise<boolean> {
+	if (
+		!options?.forceRefresh &&
+		configuredCache &&
+		Date.now() - configuredCache.checkedAt < CONFIGURED_TTL_MS
+	) {
+		return configuredCache.configured;
+	}
+	let configured: boolean;
+	try {
+		await listConnections(options?.ctx);
+		configured = true;
+	} catch (error) {
+		if (
+			error instanceof ConnectorsApiError &&
+			(error.status === 401 || error.status === 403)
+		) {
+			configured = false;
+		} else {
+			// A transient failure (offline, 5xx) shouldn't flip the feature off
+			// and tear down the UI; assume still-available and let the actual
+			// operation surface the error. Never cache this guess.
+			return configuredCache?.configured ?? true;
+		}
+	}
+	configuredCache = { checkedAt: Date.now(), configured };
+	if (!configured) {
+		// Signed out or un-entitled: connections in the state file belong to a
+		// session that can no longer act on them. Drop them so no stale
+		// connectors are reported (and so the composio-tools extension, which
+		// also fails closed without a token, and the UI agree).
+		catalogCache = null;
+		clearConnectorStateForSignedOut();
+	}
+	return configured;
+}
+
+function clearConnectorStateForSignedOut(): void {
 	const state = readComposioState();
-	reconcileManagedApiKey(state, logger);
-	return state;
+	if (!state.toolkits || Object.keys(state.toolkits).length === 0) {
+		return;
+	}
+	// Abandon in-flight attempts (tombstone + best-effort revoke) and drop the
+	// materialized toolkits; keep tombstones so a completed browser flow for a
+	// just-cancelled attempt still can't be imported after re-sign-in.
+	updateComposioState((s) => {
+		abandonPendingConnections(s);
+		s.toolkits = {};
+	});
 }
 
 // ── Status ───────────────────────────────────────────────────────────────
@@ -679,6 +480,7 @@ function summarizeToolkit(
 
 function buildStatusResponse(
 	state: StoredComposioState,
+	configured: boolean,
 ): ComposioStatusResponse {
 	// Recommended toolkits are always listed; any other toolkit appears while
 	// it is connected or mid-connection (so the catalog UI can join on it).
@@ -692,7 +494,7 @@ function buildStatusResponse(
 		slugs.add(slug);
 	}
 	return {
-		configured: Boolean(state.apiKey),
+		configured,
 		integrations: [...slugs].map((slug) => summarizeToolkit(state, slug)),
 	};
 }
@@ -700,29 +502,36 @@ function buildStatusResponse(
 export async function getComposioStatus(options?: {
 	refresh?: boolean;
 	logger?: BasicLogger;
+	telemetry?: ClineAuthTelemetryContext["telemetry"];
 }): Promise<ComposioStatusResponse> {
+	const ctx: ClineAuthTelemetryContext = {
+		logger: options?.logger,
+		telemetry: options?.telemetry,
+	};
+	const configured = await isConnectorsAvailable({
+		forceRefresh: options?.refresh,
+		ctx,
+	});
 	const state = readReconciledComposioState(options?.logger);
-	if (!options?.refresh || !state.apiKey || !state.userId) {
-		return buildStatusResponse(state);
+	if (!options?.refresh || !configured) {
+		return buildStatusResponse(state, configured);
 	}
-	// Reconcile with Composio: connections can be revoked (or added) from the
-	// Composio dashboard without this app knowing.
+	// Reconcile with the proxy: connections can be revoked (or added) from the
+	// Composio dashboard, or by another device, without this app knowing.
 	try {
 		const refreshStartedAt = Date.now();
-		const client = await getComposioClient(state.apiKey);
-		const accounts = await listAllConnectedAccounts(client, state.userId);
+		const connections = await listConnections(ctx);
 		const cancelledIds = new Set(state.cancelledAccountIds ?? []);
 		const activeByToolkit = new Map<string, string>();
-		for (const account of accounts.items ?? []) {
+		for (const account of connections) {
 			if (cancelledIds.has(account.id)) {
-				// A cancelled attempt Composio still knows about — its browser
+				// A cancelled attempt the proxy still knows about — its browser
 				// flow may have completed after the cancel. Retry the revocation
 				// instead of importing it; once the delete is confirmed the
 				// tombstone has nothing left to guard and is pruned.
 				const confirmedGone = await revokeConnectedAccountQuietly(
-					state.apiKey,
 					account.id,
-					options?.logger,
+					ctx,
 				);
 				if (confirmedGone) {
 					pruneConfirmedCancelledAccount(account.id);
@@ -756,22 +565,19 @@ export async function getComposioStatus(options?: {
 				// reported as installed — its account is abandoned/revoked.
 				removals.push(slug);
 			} else if (stored && !remoteAccountId) {
-				// Absence-based removal is only sound when the whole account
-				// list was seen; a capped (incomplete) listing proves nothing
-				// about accounts past the cap.
-				if (accounts.complete) {
-					removals.push(slug);
-				}
+				// The proxy list is authoritative (server-side pagination to
+				// completion), so absence means revoked remotely.
+				removals.push(slug);
 			} else if (
 				remoteAccountId &&
 				(!stored ||
 					stored.connectedAccountId !== remoteAccountId ||
 					// Self-heal: a toolkit persisted with zero tools (the schema
-					// fetch returned empty at connect time — a transient Composio
-					// hiccup, or state written by an older build) would otherwise
-					// stay wedged forever: reported as connected while sessions
-					// get no tools, with nothing ever re-fetching. Re-fetch
-					// instead of trusting the empty cache.
+					// fetch returned empty at connect time — a transient hiccup,
+					// or state written by an older build) would otherwise stay
+					// wedged forever: reported as connected while sessions get no
+					// tools, with nothing ever re-fetching. Re-fetch instead of
+					// trusting the empty cache.
 					stored.tools.length === 0) &&
 				!pendingConnections.has(slug) &&
 				// A connect mid-initiation owns the slug (its pending entry does
@@ -797,20 +603,17 @@ export async function getComposioStatus(options?: {
 					...lookupCatalogDisplayInfo(slug),
 					...(sameAccount && stored?.name ? { name: stored.name } : {}),
 					...(sameAccount && stored?.logo ? { logo: stored.logo } : {}),
-					tools: await fetchToolkitTools(client, slug),
+					tools: await fetchToolkitTools(slug, ctx),
 				});
 			}
 		}
 		if (removals.length > 0 || imports.size > 0) {
 			// The tool fetches above are slow enough for a connect, disconnect,
-			// cancel, or key change to have landed meanwhile. Each delta is
+			// cancel, or sign-out to have landed meanwhile. Each delta is
 			// applied to the freshly read state only if that slug still matches
 			// the baseline it was decided against (per-slug compare-and-swap),
 			// so concurrent changes survive this write.
 			const next = updateComposioState((fresh) => {
-				if (fresh.apiKey !== state.apiKey || fresh.userId !== state.userId) {
-					return; // Key changed mid-refresh; keep the fresh state as-is.
-				}
 				const freshToolkits = { ...(fresh.toolkits ?? {}) };
 				const freshCancelled = new Set(fresh.cancelledAccountIds ?? []);
 				for (const slug of removals) {
@@ -847,14 +650,14 @@ export async function getComposioStatus(options?: {
 				}
 				fresh.toolkits = freshToolkits;
 			});
-			return buildStatusResponse(next);
+			return buildStatusResponse(next, configured);
 		}
 	} catch (error) {
 		options?.logger?.log?.(
-			`composio status refresh failed: ${error instanceof Error ? error.message : String(error)}`,
+			`composio status refresh failed: ${formatConnectorsError(error)}`,
 		);
 	}
-	return buildStatusResponse(state);
+	return buildStatusResponse(state, configured);
 }
 
 // ── Toolkit catalog ──────────────────────────────────────────────────────
@@ -867,100 +670,38 @@ function lookupCatalogDisplayInfo(slug: ComposioToolkitSlug): {
 	return { name: entry?.name, logo: entry?.logo };
 }
 
-const COMPOSIO_BASE_URL = (
-	process.env.COMPOSIO_BASE_URL || "https://backend.composio.dev"
-).replace(/\/+$/, "");
-
-/** The SDK's catalog wrapper strips `composio_managed_auth_schemes`, which
- * the connectable filter needs, so fetch the same endpoint over REST. */
-async function fetchRawToolkitCatalog(
-	apiKey: string,
-): Promise<RawComposioToolkitItem[]> {
-	const url = new URL(`${COMPOSIO_BASE_URL}/api/v3/toolkits`);
-	url.searchParams.set("sort_by", "usage");
-	url.searchParams.set("limit", String(CATALOG_FETCH_LIMIT));
-	const response = await fetch(url, { headers: { "x-api-key": apiKey } });
-	if (!response.ok) {
-		throw new Error(`toolkit catalog request failed (HTTP ${response.status})`);
-	}
-	const parsed = (await response.json()) as {
-		items?: RawComposioToolkitItem[];
+function toCatalogToolkit(
+	entry: ConnectorCatalogEntry,
+): ComposioCatalogToolkit {
+	return {
+		slug: entry.slug,
+		name: entry.name?.trim() || entry.slug,
+		description: entry.description?.trim() || undefined,
+		logo: entry.logo || undefined,
+		categories: entry.categories?.filter(Boolean),
+		toolsCount: entry.toolsCount,
+		recommended: Boolean(findRecommendedToolkit(entry.slug)),
 	};
-	return parsed.items ?? [];
 }
 
-async function listConfiguredToolkitSlugs(
-	client: ComposioClient,
-): Promise<Set<string>> {
-	const configured = new Set<string>();
-	try {
-		const response = await client.authConfigs.list();
-		for (const item of response.items ?? []) {
-			const slug = item.toolkit?.slug?.trim().toLowerCase();
-			if (slug) {
-				configured.add(slug);
-			}
-		}
-	} catch {
-		// Best-effort: without the list, only managed toolkits are shown.
+async function ensureToolkitCatalog(
+	ctx: ClineAuthTelemetryContext,
+): Promise<ComposioCatalogToolkit[]> {
+	if (catalogCache && Date.now() - catalogCache.fetchedAt < CATALOG_TTL_MS) {
+		return catalogCache.entries;
 	}
-	return configured;
-}
-
-/**
- * Maps the raw catalog onto browsable entries, keeping only toolkits a
- * Connect click can actually finish: Composio manages credentials for them,
- * or the project already has an auth config (e.g. the org's own OAuth app).
- * Exported for tests.
- */
-export function buildConnectableCatalog(
-	items: RawComposioToolkitItem[],
-	configuredSlugs: ReadonlySet<string>,
-): ComposioCatalogToolkit[] {
-	const seen = new Set<string>();
+	const items = await fetchConnectableToolkits(ctx);
 	const entries: ComposioCatalogToolkit[] = [];
-	for (const item of items ?? []) {
+	const seen = new Set<string>();
+	for (const item of items) {
 		const slug = item?.slug?.trim().toLowerCase();
 		if (!slug || seen.has(slug) || !isComposioToolkitSlug(slug)) {
 			continue;
 		}
 		seen.add(slug);
-		const managed = (item.composio_managed_auth_schemes?.length ?? 0) > 0;
-		if (!managed && !configuredSlugs.has(slug)) {
-			continue;
-		}
-		entries.push({
-			slug,
-			name: item.name?.trim() || slug,
-			description: item.meta?.description?.trim() || undefined,
-			logo: item.meta?.logo || undefined,
-			categories: item.meta?.categories
-				?.map((category) => category.name)
-				.filter(Boolean),
-			toolsCount: item.meta?.tools_count,
-			recommended: Boolean(findRecommendedToolkit(slug)),
-		});
+		entries.push(toCatalogToolkit({ ...item, slug }));
 	}
-	return entries;
-}
-
-async function ensureToolkitCatalog(
-	client: ComposioClient,
-	apiKey: string,
-): Promise<ComposioCatalogToolkit[]> {
-	if (
-		catalogCache &&
-		catalogCache.apiKey === apiKey &&
-		Date.now() - catalogCache.fetchedAt < CATALOG_TTL_MS
-	) {
-		return catalogCache.entries;
-	}
-	const [items, configuredSlugs] = await Promise.all([
-		fetchRawToolkitCatalog(apiKey),
-		listConfiguredToolkitSlugs(client),
-	]);
-	const entries = buildConnectableCatalog(items, configuredSlugs);
-	catalogCache = { apiKey, fetchedAt: Date.now(), entries };
+	catalogCache = { fetchedAt: Date.now(), entries };
 	return entries;
 }
 
@@ -968,19 +709,18 @@ async function ensureToolkitCatalog(
 export async function listComposioToolkits(
 	logger?: BasicLogger,
 ): Promise<ComposioCatalogResponse> {
-	const state = readReconciledComposioState(logger);
-	if (!state.apiKey) {
+	const ctx: ClineAuthTelemetryContext = { logger };
+	if (!(await isConnectorsAvailable({ ctx }))) {
 		return { configured: false, toolkits: [] };
 	}
-	const client = await getComposioClient(state.apiKey);
 	try {
 		return {
 			configured: true,
-			toolkits: await ensureToolkitCatalog(client, state.apiKey),
+			toolkits: await ensureToolkitCatalog(ctx),
 		};
 	} catch (error) {
 		throw new Error(
-			`Could not load the Composio connector catalog: ${formatComposioError(error)}`,
+			`Could not load the Composio connector catalog: ${formatConnectorsError(error)}`,
 		);
 	}
 }
@@ -996,118 +736,109 @@ export async function connectComposioToolkit(
 	// disconnect whose marker lands at or after this instant overlapped this
 	// attempt somewhere (including during the connection-initiation round
 	// trip) and must win at finalize time (see FinalizeGuard.startedAt).
-	// Disconnect sets its marker after its awaited remote deletion, i.e. at
-	// the latest point of its execution, so every overlapping interleaving
-	// yields marker >= startedAt.
+	// Disconnect sets its marker at entry too, so every overlapping
+	// interleaving is decided by which action started later.
 	const startedAt = Date.now();
-	const state = readReconciledComposioState(logger);
-	if (!state.apiKey || !state.userId) {
+	const ctx: ClineAuthTelemetryContext = { logger };
+	if (!(await isConnectorsAvailable({ ctx }))) {
 		throw new Error(
-			"Add a Composio API key in Settings (or set COMPOSIO_API_KEY in the sidecar environment) before connecting an integration.",
+			"Sign in to your Cline account to use connectors. If you are signed in, connectors may not be enabled for your account yet.",
 		);
 	}
 	const existingPending = pendingConnections.get(toolkit);
 	if (existingPending) {
 		return {
 			redirectUrl: existingPending.redirectUrl,
-			status: buildStatusResponse(state),
+			status: buildStatusResponse(readComposioState(), true),
 		};
 	}
 	if (connectInitiationsInFlight.has(toolkit)) {
 		// Another connect for this toolkit is mid-initiation (see the set's
 		// doc). Single-flight: the first call owns the attempt and already
 		// received its redirect; this one just reports current status.
-		return { status: buildStatusResponse(state) };
+		return { status: buildStatusResponse(readComposioState(), true) };
 	}
 	connectInitiationsInFlight.add(toolkit);
 	try {
 		lastConnectionErrors.delete(toolkit);
-		const client = await getComposioClient(state.apiKey);
-		let connectionRequest: ComposioConnectionRequest;
+		let initiated: Awaited<ReturnType<typeof initiateConnection>>;
 		try {
-			connectionRequest = await initiateToolkitConnection(
-				client,
-				state.userId,
-				toolkit,
-				logger,
-			);
+			initiated = await initiateConnection(toolkit, ctx);
 		} catch (error) {
 			throw new Error(
-				`Could not start the ${toolkit} connection: ${formatComposioError(error)}`,
+				`Could not start the ${toolkit} connection: ${formatConnectorsError(error)}`,
 			);
 		}
-		const redirectUrl = connectionRequest.redirectUrl?.trim() || undefined;
-		const guard = { apiKey: state.apiKey, userId: state.userId, startedAt };
+		const redirectUrl = initiated.redirectUrl?.trim() || undefined;
+		const connectedAccountId = initiated.connectedAccountId;
+		const guard: FinalizeGuard = { startedAt };
 		if (!redirectUrl) {
-			// No browser step needed (e.g. the account is already authorized on
-			// Composio's side) — finalize right away. There is no pending entry on
-			// this path, so the disconnect defense lives entirely in the guard's
-			// startedAt check inside finalizeToolkitConnection.
+			// No browser step needed (the account is already authorized on
+			// Composio's side) — finalize right away. There is no pending entry
+			// on this path, so the disconnect defense lives entirely in the
+			// guard's startedAt check inside finalizeToolkitConnection.
 			let persisted: boolean;
 			try {
 				persisted = await finalizeToolkitConnection(
-					client,
 					toolkit,
-					connectionRequest.id,
+					connectedAccountId,
 					guard,
-					logger,
+					ctx,
 				);
 			} catch (error) {
 				// The attempt failed from the app's point of view, but the freshly
 				// created account is authorized on Composio's side and nothing
-				// references it — left alone, the next reconciliation would import
-				// it and a connection the user was told failed would silently
-				// appear as installed. Abandon it like a cancel before surfacing
-				// the error.
-				await abandonFinalizedConnection(
-					connectionRequest.id,
-					guard.apiKey,
-					logger,
-				);
+				// references it — abandon it like a cancel before surfacing.
+				await abandonFinalizedConnection(connectedAccountId, ctx);
 				throw error;
 			}
-			// A dropped result (a disconnect won the race, or the key changed
-			// mid-flow) must not report success: the connector is NOT connected,
-			// and the status below already reflects that.
 			return {
 				...(persisted ? { alreadyConnected: true } : {}),
-				status: buildStatusResponse(readComposioState()),
+				status: buildStatusResponse(readComposioState(), true),
 			};
 		}
 
 		const attemptId = randomUUID();
 		pendingConnections.set(toolkit, {
 			attemptId,
-			connectedAccountId: connectionRequest.id,
+			connectedAccountId,
 			redirectUrl,
+			startedAt,
 			owner: options?.owner,
-			...guard,
 		});
 
 		// The OAuth flow finishes in the external browser, which cannot navigate
-		// the app back. Wait for Composio to report the connection in the
-		// background; the webview polls `status` to observe the flip.
+		// the app back. Poll the proxy for the connection in the background; the
+		// webview polls `status` to observe the flip.
 		void (async () => {
 			try {
-				await connectionRequest.waitForConnection(CONNECT_WAIT_TIMEOUT_MS);
+				await waitForConnectionActive(connectedAccountId, {
+					timeoutMs: CONNECT_WAIT_TIMEOUT_MS,
+					shouldContinue: () =>
+						pendingConnections.get(toolkit)?.attemptId === attemptId,
+					logger,
+					ctx,
+				});
 				if (pendingConnections.get(toolkit)?.attemptId !== attemptId) {
 					return; // Cancelled or superseded while we waited.
 				}
-				// finalizeToolkitConnection re-checks the attempt and the key/user
-				// at write time, so a cancel, disconnect, or key change that lands
-				// during the tool fetch cannot be overwritten by this attempt.
+				// finalizeToolkitConnection re-checks the attempt at write time,
+				// so a cancel or disconnect that lands during the tool fetch
+				// cannot be overwritten by this attempt.
 				await finalizeToolkitConnection(
-					client,
 					toolkit,
-					connectionRequest.id,
-					{ ...guard, attemptId },
-					logger,
+					connectedAccountId,
+					{
+						...guard,
+						attemptId,
+					},
+					ctx,
 				);
 			} catch (error) {
 				if (pendingConnections.get(toolkit)?.attemptId !== attemptId) {
-					return; // Cancel/disconnect/key change already abandoned it.
+					return; // Cancel/disconnect already abandoned it.
 				}
-				const reason = formatComposioError(error);
+				const reason = formatConnectorsError(error);
 				lastConnectionErrors.set(
 					toolkit,
 					`Connection was not completed: ${reason}`,
@@ -1118,11 +849,7 @@ export async function connectComposioToolkit(
 				// the remote account ACTIVE later — where reconciliation would
 				// import it, materializing a connection the user was told failed.
 				// Abandon it like a cancel: tombstone first, revoke best-effort.
-				await abandonFinalizedConnection(
-					connectionRequest.id,
-					guard.apiKey,
-					logger,
-				);
+				await abandonFinalizedConnection(connectedAccountId, ctx);
 			} finally {
 				if (pendingConnections.get(toolkit)?.attemptId === attemptId) {
 					pendingConnections.delete(toolkit);
@@ -1130,7 +857,10 @@ export async function connectComposioToolkit(
 			}
 		})();
 
-		return { redirectUrl, status: buildStatusResponse(state) };
+		return {
+			redirectUrl,
+			status: buildStatusResponse(readComposioState(), true),
+		};
 	} finally {
 		connectInitiationsInFlight.delete(toolkit);
 	}
@@ -1164,9 +894,8 @@ export async function cancelComposioConnect(
 		rememberCancelledAccountId(state, pending.connectedAccountId);
 	});
 	const confirmedGone = await revokeConnectedAccountQuietly(
-		pending.apiKey,
 		pending.connectedAccountId,
-		logger,
+		{ logger },
 	);
 	if (confirmedGone) {
 		pruneConfirmedCancelledAccount(pending.connectedAccountId);
@@ -1202,27 +931,13 @@ export function abandonComposioConnectsForOwner(
 /**
  * Whether a remote deletion failed because the account is ALREADY gone
  * (revoked from the Composio dashboard, or an attempt that never completed) —
- * the only failure that may be treated as a successful revocation. Trust a
- * structured HTTP status when the error carries one; otherwise accept only a
- * message that STARTS with "404" (the Composio SDK surfaces errors as
- * "<status> <raw response json>"). Anything looser — e.g. a "not found"
- * substring — would misclassify unrelated failures (a 500 whose body mentions
- * "not found", a "user not found" auth error) as confirmed revocation and
- * delete local state or prune a tombstone while the remote authorization is
- * still live. Unrecognized errors therefore fail CLOSED: the revocation
- * counts as unconfirmed, local state is kept, and reconciliation retries.
+ * the only failure that may be treated as a successful revocation. The proxy
+ * surfaces this as an HTTP 404 through {@link ConnectorsApiError.status}.
+ * Anything else fails CLOSED: the revocation counts as unconfirmed, local
+ * state is kept, and reconciliation retries.
  */
 function isAccountAlreadyGoneError(error: unknown): boolean {
-	if (typeof error === "object" && error !== null) {
-		const status =
-			(error as { status?: unknown }).status ??
-			(error as { statusCode?: unknown }).statusCode;
-		if (typeof status === "number") {
-			return status === 404;
-		}
-	}
-	const message = error instanceof Error ? error.message : String(error);
-	return /^\s*404\b/.test(message);
+	return error instanceof ConnectorsApiError && error.status === 404;
 }
 
 export async function disconnectComposioToolkit(
@@ -1232,12 +947,10 @@ export async function disconnectComposioToolkit(
 	// Record the disconnect intent BEFORE any await, so a connect attempt
 	// that began earlier and finalizes while this disconnect is still
 	// awaiting its remote revocation is dropped at write time (its startedAt
-	// predates this marker; see FinalizeGuard.startedAt). Stamping at entry —
-	// rather than after the revocation — is the mirror of anchoring the
-	// connect's startedAt at entry: whichever action started later wins,
-	// symmetrically. A connect that began AFTER this marker keeps a larger
-	// startedAt and is not dropped, so a genuinely newer reconnect survives.
+	// predates this marker; see FinalizeGuard.startedAt). Whichever action
+	// started later wins, symmetrically.
 	lastDisconnectedAt.set(toolkit, Date.now());
+	const ctx: ClineAuthTelemetryContext = { logger };
 	const pending = pendingConnections.get(toolkit);
 	pendingConnections.delete(toolkit);
 	lastConnectionErrors.delete(toolkit);
@@ -1251,22 +964,17 @@ export async function disconnectComposioToolkit(
 			rememberCancelledAccountId(s, pending.connectedAccountId);
 		});
 		const confirmedGone = await revokeConnectedAccountQuietly(
-			pending.apiKey,
 			pending.connectedAccountId,
-			logger,
+			ctx,
 		);
 		if (confirmedGone) {
 			pruneConfirmedCancelledAccount(pending.connectedAccountId);
 		}
 	}
 	const stored = state.toolkits?.[toolkit];
-	if (stored && state.apiKey) {
+	if (stored) {
 		try {
-			const client = await getComposioClient(state.apiKey);
-			await deleteConnectedAccountWithRevocation(
-				client,
-				stored.connectedAccountId,
-			);
+			await deleteConnection(stored.connectedAccountId, ctx);
 		} catch (error) {
 			if (!isAccountAlreadyGoneError(error)) {
 				const current =
@@ -1281,11 +989,9 @@ export async function disconnectComposioToolkit(
 					// lands. Removing only the local state would report an
 					// uninstall that never took effect remotely — keep the
 					// connector installed (it is the retry vehicle) and surface
-					// the failure. (Revoking from the Composio dashboard works
-					// too: the next status refresh drops the local state once
-					// the account is gone.)
+					// the failure.
 					throw new Error(
-						`Could not revoke the ${toolkit} connection: ${formatComposioError(error)}. The connector is still connected — try again, or revoke it from the Composio dashboard.`,
+						`Could not revoke the ${toolkit} connection: ${formatConnectorsError(error)}. The connector is still connected — try again, or revoke it from the Composio dashboard.`,
 					);
 				}
 				// The slot was replaced by a newer connect (or one is mid-flight
@@ -1298,10 +1004,9 @@ export async function disconnectComposioToolkit(
 					rememberCancelledAccountId(s, stored.connectedAccountId);
 				});
 				logger?.log?.(
-					`composio disconnect ${toolkit}: revocation failed after the slot changed; retrying via tombstone (${formatComposioError(error)})`,
+					`composio disconnect ${toolkit}: revocation failed after the slot changed; retrying via tombstone (${formatConnectorsError(error)})`,
 				);
-			}
-			if (isAccountAlreadyGoneError(error)) {
+			} else {
 				// Already deleted on Composio's side; local removal is all that
 				// is left to do.
 				logger?.log?.(
@@ -1319,8 +1024,7 @@ export async function disconnectComposioToolkit(
 		// a different account id and its remote account was never touched —
 		// blindly deleting it here would leave that account authorized with no
 		// local record, for the next refresh to import as a resurrected
-		// connector. The entry-time marker is safe to keep either way: it
-		// predates any surviving newer connection's startedAt.
+		// connector.
 		if (
 			current &&
 			stored &&
@@ -1330,52 +1034,30 @@ export async function disconnectComposioToolkit(
 			delete s.toolkits[toolkit];
 		}
 	});
-	return buildStatusResponse(next);
+	return buildStatusResponse(next, true);
 }
 
 // ── Tool materialization ─────────────────────────────────────────────────
 
 async function fetchToolkitTools(
-	client: ComposioClient,
 	toolkit: ComposioToolkitSlug,
+	ctx: ClineAuthTelemetryContext,
 ): Promise<StoredComposioTool[]> {
-	const rawTools = await client.tools.getRawComposioTools({
-		toolkits: [toolkit],
-		limit: TOOLS_PER_TOOLKIT_LIMIT,
-	});
+	const rawTools = await listToolkitTools(toolkit, ctx);
 	const tools: StoredComposioTool[] = [];
 	for (const raw of rawTools) {
-		if (!raw?.slug) {
-			continue;
+		const tool = toStoredTool(raw);
+		if (tool) {
+			tools.push(tool);
 		}
-		const description = raw.description?.trim();
-		tools.push({
-			slug: raw.slug,
-			name: raw.name?.trim() || undefined,
-			description:
-				description && description.length > MAX_TOOL_DESCRIPTION_LENGTH
-					? `${description.slice(0, MAX_TOOL_DESCRIPTION_LENGTH)}…`
-					: description || undefined,
-			version:
-				typeof raw.version === "string" && raw.version.trim()
-					? raw.version.trim()
-					: undefined,
-			inputParameters:
-				typeof raw.inputParameters === "object" && raw.inputParameters !== null
-					? (raw.inputParameters as Record<string, unknown>)
-					: undefined,
-		});
 	}
 	return tools;
 }
 
 type FinalizeGuard = {
 	/** Present for browser-flow attempts; the pending entry must still carry
-	 * this id at write time (cancel/disconnect/key changes clear it). */
+	 * this id at write time (cancel/disconnect clear it). */
 	attemptId?: string;
-	/** The key/user the connection was initiated under. */
-	apiKey: string;
-	userId: string;
 	/** When the connection attempt began. A disconnect of this toolkit that
 	 * lands at or after this instant is the newer user intent: the finalize
 	 * result is dropped and its account revoked instead of written. This is
@@ -1385,15 +1067,14 @@ type FinalizeGuard = {
 };
 
 /** An attempt whose result must not be persisted — superseded by a
- * disconnect or key change, or failed from the app's point of view (wait
- * timeout/error, failed finalize) — can still leave an authorized account
- * behind on Composio's side that nothing references, and its browser flow
- * may even complete later. Tombstone it so reconciliation can never import
- * it, then revoke it — the same lifecycle as a cancelled attempt. */
+ * disconnect, or failed from the app's point of view (wait timeout/error,
+ * failed finalize) — can still leave an authorized account behind on
+ * Composio's side that nothing references, and its browser flow may even
+ * complete later. Tombstone it so reconciliation can never import it, then
+ * revoke it — the same lifecycle as a cancelled attempt. */
 async function abandonFinalizedConnection(
 	connectedAccountId: string,
-	apiKey: string,
-	logger?: BasicLogger,
+	ctx: ClineAuthTelemetryContext,
 ): Promise<void> {
 	updateComposioState((s) => {
 		rememberCancelledAccountId(s, connectedAccountId);
@@ -1408,9 +1089,8 @@ async function abandonFinalizedConnection(
 		}
 	});
 	const confirmedGone = await revokeConnectedAccountQuietly(
-		apiKey,
 		connectedAccountId,
-		logger,
+		ctx,
 	);
 	if (confirmedGone) {
 		pruneConfirmedCancelledAccount(connectedAccountId);
@@ -1418,46 +1098,36 @@ async function abandonFinalizedConnection(
 }
 
 /** Returns whether the connection was actually persisted — a dropped result
- * (superseded attempt, key change, or a disconnect that won the race) must
- * not be reported as a successful connect by callers. */
+ * (superseded attempt or a disconnect that won the race) must not be
+ * reported as a successful connect by callers. */
 async function finalizeToolkitConnection(
-	client: ComposioClient,
 	toolkit: ComposioToolkitSlug,
 	connectedAccountId: string,
 	guard: FinalizeGuard,
-	logger?: BasicLogger,
+	ctx: ClineAuthTelemetryContext,
 ): Promise<boolean> {
-	const tools = await fetchToolkitTools(client, toolkit);
+	const tools = await fetchToolkitTools(toolkit, ctx);
 	// Everything below (up to the state write) runs synchronously, so these
-	// write-time checks cannot be raced by a cancel, disconnect, or key
-	// change that happened while the tool fetch (or the browser flow) was in
-	// flight.
+	// write-time checks cannot be raced by a cancel or disconnect that
+	// happened while the tool fetch (or the browser flow) was in flight.
 	if (
 		guard.attemptId &&
 		pendingConnections.get(toolkit)?.attemptId !== guard.attemptId
 	) {
-		// Whoever cleared the attempt (cancel, disconnect, key change) already
-		// tombstoned and revoked its account.
-		logger?.log?.(
+		// Whoever cleared the attempt (cancel, disconnect) already tombstoned
+		// and revoked its account.
+		ctx.logger?.log?.(
 			`composio connect ${toolkit}: attempt superseded before finalize; dropping result`,
 		);
-		return false;
-	}
-	const state = readComposioState();
-	if (state.apiKey !== guard.apiKey || state.userId !== guard.userId) {
-		logger?.log?.(
-			`composio connect ${toolkit}: API key or user changed mid-flow; dropping stale connection`,
-		);
-		await abandonFinalizedConnection(connectedAccountId, guard.apiKey, logger);
 		return false;
 	}
 	if ((lastDisconnectedAt.get(toolkit) ?? 0) >= guard.startedAt) {
 		// The user disconnected this toolkit after the attempt began; writing
 		// the result now would resurrect the connector they removed.
-		logger?.log?.(
+		ctx.logger?.log?.(
 			`composio connect ${toolkit}: disconnected mid-finalize; dropping and revoking the new account`,
 		);
-		await abandonFinalizedConnection(connectedAccountId, guard.apiKey, logger);
+		await abandonFinalizedConnection(connectedAccountId, ctx);
 		return false;
 	}
 	// No await separates the guard checks above from this write, so the
@@ -1467,9 +1137,7 @@ async function finalizeToolkitConnection(
 		const previous = s.toolkits?.[toolkit];
 		if (previous && previous.connectedAccountId !== connectedAccountId) {
 			// Superseded by this connection: nothing references the previous
-			// account anymore, so it must not stay authorized remotely. The
-			// tombstone also covers a concurrent disconnect whose own
-			// revocation of it fails after this write.
+			// account anymore, so it must not stay authorized remotely.
 			replacedAccountId = previous.connectedAccountId;
 			rememberCancelledAccountId(s, previous.connectedAccountId);
 		}
@@ -1485,7 +1153,7 @@ async function finalizeToolkitConnection(
 	});
 	if (replacedAccountId) {
 		const superseded = replacedAccountId;
-		void revokeConnectedAccountQuietly(guard.apiKey, superseded, logger).then(
+		void revokeConnectedAccountQuietly(superseded, ctx).then(
 			(confirmedGone) => {
 				if (confirmedGone) {
 					pruneConfirmedCancelledAccount(superseded);
@@ -1493,6 +1161,8 @@ async function finalizeToolkitConnection(
 			},
 		);
 	}
-	logger?.log?.(`composio connected ${toolkit} with ${tools.length} tool(s)`);
+	ctx.logger?.log?.(
+		`composio connected ${toolkit} with ${tools.length} tool(s)`,
+	);
 	return true;
 }
