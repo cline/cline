@@ -33,10 +33,36 @@ export interface ClineAccountSnapshot {
 	organizations: ClineAccountOrganization[];
 	activeOrganization: ClineAccountOrganization | null;
 	displayedBalance: number;
+	/** Web privacy settings URL; undefined when the API advertised no destination. */
+	privacySettingsUrl?: string;
 }
 
 export function formatClineCredits(value: number): string {
 	return formatCreditBalance(normalizeCreditBalance(value));
+}
+
+/**
+ * Resolve the web app's privacy settings URL from the `dataPrivacyPath` the API
+ * advertises on GET /users/me. The path is relative and carries a query string,
+ * so it is joined with `new URL(path, base)` rather than concatenated, and the
+ * link identifies this client so the dashboard can acknowledge where the user
+ * came from. Returns undefined when the API advertised nothing, which is the
+ * signal to offer no action at all.
+ */
+export function getClinePrivacySettingsUrl(
+	user: Pick<ClineAccountUser, "dataPrivacyPath">,
+	appBaseUrl: string = getClineEnvironmentConfig().appBaseUrl,
+): string | undefined {
+	if (!user.dataPrivacyPath) {
+		return undefined;
+	}
+	try {
+		const url = new URL(user.dataPrivacyPath, appBaseUrl);
+		url.searchParams.set("client", "cli");
+		return url.href;
+	} catch {
+		return undefined;
+	}
 }
 
 // FIXME: These message checks are temporary until structured error types are
@@ -231,6 +257,7 @@ export async function loadClineAccountSnapshot(input: {
 		organizations,
 		activeOrganization,
 		displayedBalance,
+		privacySettingsUrl: getClinePrivacySettingsUrl(user),
 	};
 }
 

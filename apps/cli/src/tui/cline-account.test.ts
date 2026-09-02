@@ -368,3 +368,37 @@ describe("isClineAccountCreditsErrorMessage", () => {
 		).toBe(false);
 	});
 });
+
+describe("getClinePrivacySettingsUrl", () => {
+	it("returns undefined when the API did not advertise a privacy path", async () => {
+		const { getClinePrivacySettingsUrl } = await import("./cline-account");
+		expect(
+			getClinePrivacySettingsUrl({}, "https://app.cline.bot"),
+		).toBeUndefined();
+	});
+
+	it("joins the advertised path with the app base URL and tags the CLI as the client", async () => {
+		const { getClinePrivacySettingsUrl } = await import("./cline-account");
+		expect(
+			getClinePrivacySettingsUrl(
+				{ dataPrivacyPath: "/dashboard/account?tab=privacy" },
+				"https://staging-app.cline.bot/",
+			),
+		).toBe(
+			"https://staging-app.cline.bot/dashboard/account?tab=privacy&client=cli",
+		);
+	});
+
+	it("defaults to the configured Cline environment's app base URL", async () => {
+		const { getClinePrivacySettingsUrl } = await import("./cline-account");
+		const { getClineEnvironmentConfig } = await import("@cline/shared");
+		const url = getClinePrivacySettingsUrl({
+			dataPrivacyPath: "/dashboard/account?tab=privacy",
+		});
+		expect(url).toBeDefined();
+		expect(new URL(url ?? "").origin).toBe(
+			new URL(getClineEnvironmentConfig().appBaseUrl).origin,
+		);
+		expect(new URL(url ?? "").searchParams.get("client")).toBe("cli");
+	});
+});
