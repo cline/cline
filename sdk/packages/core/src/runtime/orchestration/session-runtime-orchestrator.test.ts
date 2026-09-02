@@ -1042,6 +1042,42 @@ describe("SessionRuntime.run", () => {
 		expect(configs[0]?.completionPolicy).toBeUndefined();
 	});
 
+	it("disables tools and completion-tool policy for dedicated speech models", async () => {
+		const { deps, configs } = withCapturingFakeRuntime();
+		const modelId = "openai/tts-voice";
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				modelId,
+				knownModels: {
+					[modelId]: {
+						id: modelId,
+						operation: "speech-generation",
+						modalities: {
+							input: ["text"],
+							output: ["audio"],
+						},
+					},
+				},
+				tools: [
+					{
+						name: "read_files",
+						description: "Read files",
+						inputSchema: { type: "object" },
+						execute: async () => "contents",
+					},
+				],
+				completionPolicy: { requireCompletionTool: true },
+			}),
+			deps,
+		);
+
+		await session.run("Narrate this");
+
+		expect(configs).toHaveLength(1);
+		expect(configs[0]?.tools).toEqual([]);
+		expect(configs[0]?.completionPolicy).toBeUndefined();
+	});
+
 	it("preserves tools and completion policy for mixed text-and-video models", async () => {
 		const { deps, configs } = withCapturingFakeRuntime();
 		const modelId = "mixed-text-video";

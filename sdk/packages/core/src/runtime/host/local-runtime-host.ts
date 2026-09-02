@@ -145,33 +145,60 @@ import {
 	replaySubagentHookEvent,
 } from "./runtime-host-support";
 
-function videoArtifactExtension(mediaType: string): string {
-	switch (mediaType.toLowerCase()) {
+function generatedArtifactExtension(mediaType: string): string {
+	const normalizedMediaType = mediaType.split(";", 1)[0]?.trim().toLowerCase();
+	switch (normalizedMediaType) {
 		case "video/webm":
 			return "webm";
 		case "video/quicktime":
 			return "mov";
 		case "video/mpeg":
 			return "mpeg";
+		case "audio/mpeg":
+		case "audio/mp3":
+			return "mp3";
+		case "audio/wav":
+		case "audio/wave":
+		case "audio/x-wav":
+			return "wav";
+		case "audio/aac":
+			return "aac";
+		case "audio/mp4":
+		case "audio/m4a":
+		case "audio/x-m4a":
+			return "m4a";
+		case "audio/webm":
+			return "weba";
+		case "audio/flac":
+			return "flac";
+		case "audio/ogg":
+		case "audio/opus":
+			return "ogg";
 		default:
+			if (normalizedMediaType?.startsWith("audio/")) {
+				throw new Error(`Unsupported generated audio media type: ${mediaType}`);
+			}
 			return "mp4";
 	}
 }
 
 /**
- * Persist generated video bytes under `<sessionDir>/artifacts` with an atomic
- * temp-file + rename so partially written videos never become visible. The
- * returned artifact ID is the bare filename; consumers resolve it against the
- * owning session's artifact directory, so absolute host paths never enter
+ * Persist generated audio/video bytes under `<sessionDir>/artifacts` with an
+ * atomic temp-file + rename so partially written media never becomes visible.
+ * The returned artifact ID is the bare filename; consumers resolve it against
+ * the owning session's artifact directory, so absolute host paths never enter
  * message stores, live events, or hub payloads.
  */
-async function storeSessionVideoArtifact(
+async function storeSessionGeneratedArtifact(
 	sessionDir: string,
 	artifact: { data: string; mediaType: string },
 ): Promise<{ artifactId: string }> {
+	const kind = artifact.mediaType.trim().toLowerCase().startsWith("audio/")
+		? "audio"
+		: "video";
 	const artifactsDir = join(sessionDir, "artifacts");
 	await mkdir(artifactsDir, { recursive: true });
-	const artifactId = `video-${Date.now()}-${randomUUID()}.${videoArtifactExtension(artifact.mediaType)}`;
+	const artifactId = `${kind}-${Date.now()}-${randomUUID()}.${generatedArtifactExtension(artifact.mediaType)}`;
 	const path = join(artifactsDir, artifactId);
 	const temporaryPath = `${path}.tmp`;
 	try {
@@ -783,7 +810,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			initialMessages: bootstrap.effectiveInput.initialMessages,
 			userFileContentLoader: loadUserFileContent,
 			storeGeneratedArtifact: (artifact) =>
-				storeSessionVideoArtifact(sessionDir, artifact),
+				storeSessionGeneratedArtifact(sessionDir, artifact),
 			toolPolicies: bootstrap.toolPolicies,
 			requestToolApproval: bootstrap.requestToolApproval
 				? async (request) => {
