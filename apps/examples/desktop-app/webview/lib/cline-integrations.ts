@@ -3,7 +3,7 @@ import type {
 	ClineGitHubRepository,
 	ClineIntegration,
 } from "@/lib/cline-integrations-types";
-import { desktopClient } from "@/lib/desktop-client";
+import { desktopClient, openExternalUrl } from "@/lib/desktop-client";
 
 export * from "@/lib/cline-integrations-types";
 
@@ -45,4 +45,14 @@ export async function fetchGitHubInstallUrl(): Promise<string> {
 		throw new Error("no GitHub install URL was returned");
 	}
 	return url;
+}
+
+export async function openPersonalGitHubInstallUrl(
+	fallbackUrl: string,
+): Promise<void> {
+	let url = fallbackUrl;
+	try {
+		url = await fetchGitHubInstallUrl();
+	} catch {}
+	await openExternalUrl(url);
 }

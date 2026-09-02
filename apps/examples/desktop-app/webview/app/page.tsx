@@ -73,6 +73,7 @@ import { toast } from "@/hooks/use-toast";
 import { applyAppZoomAction, syncAppFontSize } from "@/lib/app-font-size";
 import { syncAppIcon } from "@/lib/app-icon";
 import type { ChatSessionConfig } from "@/lib/chat-schema";
+import { openPersonalGitHubInstallUrl } from "@/lib/cline-integrations";
 import {
 	formatHandoffModelFallback,
 	HANDOFF_PROGRESS_LABELS,
@@ -1271,8 +1272,18 @@ function ChatThreadPane({
 		readHandoffReceipt(historySession?.metadata);
 	const handoffExternalPresentation =
 		handoffUi?.status === "complete" && handoffUi.externalPresentation;
-	const { user: accountUser } = useAccount();
+	const { user: accountUser, activeOrganization } = useAccount();
 	const accountUserId = accountUser?.id ?? null;
+	const openGitHubConnect = useCallback(
+		async (fallbackUrl: string) => {
+			if (activeOrganization) {
+				await openExternalUrl(fallbackUrl);
+				return;
+			}
+			await openPersonalGitHubInstallUrl(fallbackUrl);
+		},
+		[activeOrganization],
+	);
 	useEffect(() => {
 		void accountUserId;
 		let cancelled = false;
@@ -2855,6 +2866,10 @@ function ChatThreadPane({
 	) : (
 		chatComposer
 	);
+	const cloudConnectUrl =
+		cloudSessionError?.code === "github_not_connected"
+			? cloudSessionError.connectUrl
+			: undefined;
 
 	return (
 		<WorkspaceProvider value={workspaceContextValue}>
@@ -2949,11 +2964,10 @@ function ChatThreadPane({
 								chatTransportState={chatTransportState}
 								error={cloudSessionError?.message ?? displayedError}
 								errorAction={
-									cloudSessionError?.code === "github_not_connected" &&
-									cloudSessionError.connectUrl
+									cloudConnectUrl
 										? {
 												label: "Connect GitHub",
-												url: cloudSessionError.connectUrl,
+												onClick: () => openGitHubConnect(cloudConnectUrl),
 											}
 										: undefined
 								}
