@@ -497,7 +497,7 @@ describe("useChatSession", () => {
 		expect(
 			current.messages.find((message) => message.role === "tool")?.meta,
 		).toMatchObject({
-			toolBackgroundStatus: "completed",
+			toolBackgroundStatus: "succeeded",
 			toolBackgroundLogPath: "/tmp/output.log",
 			hookEventName: "tool_call_end",
 		});

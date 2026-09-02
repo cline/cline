@@ -102,7 +102,12 @@ type PendingToolOutput = {
 	text: string;
 	truncated: boolean;
 	detachable?: boolean;
-	backgroundStatus?: "running" | "completed" | "failed" | "killed";
+	backgroundStatus?:
+		| "running"
+		| "succeeded"
+		| "failed"
+		| "killed"
+		| "indeterminate";
 	backgroundLogPath?: string;
 };
 
@@ -400,7 +405,7 @@ export function useChatSession() {
 	const detachedExecutionIdsRef = useRef<Record<string, Set<string>>>({});
 	const detachedToolEndedRef = useRef<Set<string>>(new Set());
 	const detachedOutcomeStatusRef = useRef<
-		Record<string, "completed" | "failed" | "killed">
+		Record<string, "succeeded" | "failed" | "killed" | "indeterminate">
 	>({});
 	const pendingToolOutputRef = useRef(new Map<string, PendingToolOutput>());
 	// Optimistic user bubbles whose prompt is still in flight, by message id.
@@ -1416,19 +1421,25 @@ export function useChatSession() {
 				}
 				if (toolCallId && executionId && completed) {
 					detachedExecutionIdsRef.current[toolCallId]?.delete(executionId);
+					// Matches VS Code's commandStatus mapping in message-translator.
 					const nextStatus =
 						outcome?.kind === "exited" && outcome.exitCode === 0
-							? "completed"
+							? "succeeded"
 							: outcome?.kind === "hard_killed"
 								? "killed"
-								: "failed";
+								: outcome?.kind === "signaled"
+									? "indeterminate"
+									: "failed";
 					const previousStatus = detachedOutcomeStatusRef.current[toolCallId];
 					detachedOutcomeStatusRef.current[toolCallId] =
 						previousStatus === "killed" || nextStatus === "killed"
 							? "killed"
 							: previousStatus === "failed" || nextStatus === "failed"
 								? "failed"
-								: "completed";
+								: previousStatus === "indeterminate" ||
+										nextStatus === "indeterminate"
+									? "indeterminate"
+									: "succeeded";
 				}
 				const hasPendingExecutions = Boolean(
 					toolCallId &&

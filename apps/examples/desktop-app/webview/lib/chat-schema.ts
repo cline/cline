@@ -67,7 +67,7 @@ export const ChatMessageSchema = z.object({
 			toolOutputTruncated: z.boolean().optional(),
 			toolDetachable: z.boolean().optional(),
 			toolBackgroundStatus: z
-				.enum(["running", "completed", "failed", "killed"])
+				.enum(["running", "succeeded", "failed", "killed", "indeterminate"])
 				.optional(),
 			toolBackgroundLogPath: z.string().optional(),
 			iteration: z.number().int().nonnegative().optional(),

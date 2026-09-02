@@ -279,10 +279,27 @@ describe("HubRuntimeHost", () => {
 			onEvent = listener;
 			return () => {};
 		});
+		commandMock.mockResolvedValue({
+			payload: {
+				session: {
+					sessionId: "sess-1",
+					status: "running",
+					createdAt: Date.now(),
+					updatedAt: Date.now(),
+					workspaceRoot: "/tmp/project",
+					cwd: "/tmp/project",
+				},
+			},
+		});
+		const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 		const { HubRuntimeHost } = await import("./hub-runtime-host");
 		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
 		const events: unknown[] = [];
 		host.subscribe((event) => events.push(event));
+		await host.startSession({
+			config: createConfig(),
+			source: SessionSource.CLI,
+		});
 
 		onEvent?.({
 			version: "v1",
@@ -297,6 +314,11 @@ describe("HubRuntimeHost", () => {
 		});
 
 		expect(events).toEqual([]);
+		expect(warnSpy).toHaveBeenCalledWith(
+			"[hub] dropped malformed command.detached_completed event",
+			expect.any(String),
+		);
+		warnSpy.mockRestore();
 	});
 
 	it("uses the hub-resolved workspace in the manifest for a pathless start", async () => {

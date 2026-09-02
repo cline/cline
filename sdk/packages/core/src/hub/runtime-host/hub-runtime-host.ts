@@ -1954,6 +1954,14 @@ export class HubRuntimeHost implements RuntimeHost {
 				);
 				if (payload) {
 					this.events.emit({ type: "detached_command_completed", payload });
+				} else {
+					// A dropped completion leaves the client's command row in the
+					// running state forever, so surface why the payload did not
+					// parse (for example an empty logPath).
+					console.warn(
+						"[hub] dropped malformed command.detached_completed event",
+						JSON.stringify(event.payload ?? null),
+					);
 				}
 				return;
 			}
