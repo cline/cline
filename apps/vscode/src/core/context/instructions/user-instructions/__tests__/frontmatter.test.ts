@@ -1,6 +1,6 @@
 import { describe, it } from "bun:test"
 import { expect } from "chai"
-import { parseYamlFrontmatter } from "../frontmatter"
+import { parseYamlFrontmatter, updateUserInstructionMarkdownDisabledState } from "../frontmatter"
 
 describe("parseYamlFrontmatter", () => {
 	it("returns original content when no frontmatter", () => {
@@ -67,5 +67,30 @@ describe("parseYamlFrontmatter", () => {
 		expect(result.parseError).to.equal(undefined)
 		expect(result.data).to.deep.equal({ name: "my-skill", description: "A test skill" })
 		expect(result.body.trim()).to.equal("# my-skill\nThis is a test skill.")
+	})
+})
+
+describe("updateUserInstructionMarkdownDisabledState", () => {
+	it("adds disabled frontmatter when a rule is toggled off", () => {
+		const output = updateUserInstructionMarkdownDisabledState("Follow this rule", false)
+		expect(output).to.equal("---\ndisabled: true\n---\nFollow this rule")
+	})
+
+	it("preserves existing frontmatter fields when disabling", () => {
+		const input = ["---", "paths:", "  - src/**", "---", "Scoped rule"].join("\n")
+		const output = updateUserInstructionMarkdownDisabledState(input, false)
+		expect(output).to.contain("disabled: true")
+		expect(output).to.contain("paths:")
+		expect(output).to.contain("Scoped rule")
+	})
+
+	it("removes disabled frontmatter when a rule is toggled back on", () => {
+		const input = ["---", "disabled: true", "---", "Follow this rule"].join("\n")
+		expect(updateUserInstructionMarkdownDisabledState(input, true)).to.equal("Follow this rule")
+	})
+
+	it("leaves malformed frontmatter untouched", () => {
+		const input = ["---", "paths: [invalid", "---", "Rule body"].join("\n")
+		expect(updateUserInstructionMarkdownDisabledState(input, false)).to.equal(input)
 	})
 })
