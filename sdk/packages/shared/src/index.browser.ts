@@ -230,6 +230,7 @@ export {
 	type ThinkingConfig,
 	ThinkingConfigSchema,
 	usesImageGenerationOperation,
+	usesSpeechGenerationOperation,
 	usesVideoGenerationOperation,
 } from "./llms/model-info";
 export { mergeModelOptions } from "./llms/model-options";

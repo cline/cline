@@ -106,6 +106,7 @@ export async function createVertexProviderModule(
 		operations: {
 			language: (modelId) => provider(modelId),
 			imageGeneration: (modelId) => provider.image(modelId),
+			speechGeneration: (modelId) => provider.speech(modelId),
 		},
 	};
 }
