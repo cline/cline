@@ -2520,7 +2520,11 @@ export async function handleCommand(
 				return await listComposioToolkits(ctx.logger);
 			case "connect": {
 				const toolkit = parseComposioToolkitSlug(args?.toolkit);
-				const result = await connectComposioToolkit(toolkit, ctx.logger);
+				// Tie the attempt to the initiating webview so it is abandoned
+				// if that connection goes away before the browser flow finishes.
+				const result = await connectComposioToolkit(toolkit, ctx.logger, {
+					owner: options?.connection,
+				});
 				if (result.redirectUrl) {
 					await openUrlInDefaultBrowser(result.redirectUrl);
 				}
