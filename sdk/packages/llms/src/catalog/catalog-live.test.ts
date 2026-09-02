@@ -294,6 +294,110 @@ describe("models-dev-catalog", () => {
 		expect(providerModels.poe).not.toHaveProperty("unsupported-image");
 	});
 
+	it("keeps dedicated video models for providers with a video endpoint", () => {
+		const providerModels = normalizeModelsDevProviderModels({
+			google: {
+				id: "google",
+				name: "Google",
+				npm: "@ai-sdk/google",
+				models: {
+					"video-model": {
+						tool_call: false,
+						modalities: { input: ["text"], output: ["video"] },
+					},
+					"image-to-video-model": {
+						tool_call: false,
+						modalities: { input: ["text", "image"], output: ["video"] },
+					},
+				},
+			},
+			vercel: {
+				id: "vercel",
+				name: "Vercel AI Gateway",
+				models: {
+					"gateway-video-model": {
+						tool_call: false,
+						modalities: { input: ["text"], output: ["video"] },
+					},
+				},
+			},
+		});
+		expect(providerModels.gemini).toMatchObject({
+			"video-model": {
+				operation: "video-generation",
+				modalities: { input: ["text"], output: ["video"] },
+			},
+			"image-to-video-model": {
+				operation: "video-generation",
+				modalities: { input: ["text", "image"], output: ["video"] },
+			},
+		});
+		expect(providerModels["vercel-ai-gateway"]).toMatchObject({
+			"gateway-video-model": {
+				operation: "video-generation",
+				modalities: { input: ["text"], output: ["video"] },
+			},
+		});
+	});
+
+	it("omits video models from providers without a declared video transport", () => {
+		const providerModels = normalizeModelsDevProviderModels({
+			openai: {
+				id: "openai",
+				name: "OpenAI",
+				models: {
+					"dedicated-video": {
+						tool_call: false,
+						modalities: { input: ["text"], output: ["video"] },
+					},
+					"tool-flagged-dedicated-video": {
+						// Tool metadata must not make a video-only model usable via a
+						// provider without a video transport.
+						tool_call: true,
+						modalities: { input: ["text"], output: ["video"] },
+					},
+					"mixed-video": {
+						tool_call: false,
+						modalities: {
+							input: ["text"],
+							output: ["text", "video"],
+						},
+					},
+					"chat-model": { tool_call: true },
+				},
+			},
+			google: {
+				id: "google",
+				name: "Google",
+				npm: "@ai-sdk/google",
+				models: {
+					"mixed-video": {
+						tool_call: true,
+						modalities: {
+							input: ["text"],
+							output: ["text", "video"],
+						},
+					},
+				},
+			},
+		});
+
+		expect(providerModels["openai-native"]).not.toHaveProperty(
+			"dedicated-video",
+		);
+		expect(providerModels["openai-native"]).not.toHaveProperty(
+			"tool-flagged-dedicated-video",
+		);
+		expect(providerModels["openai-native"]).not.toHaveProperty("mixed-video");
+		expect(providerModels["openai-native"]).toHaveProperty("chat-model");
+		expect(providerModels.gemini).toMatchObject({
+			"mixed-video": {
+				modalities: { input: ["text"], output: ["text", "video"] },
+			},
+		});
+		expect(providerModels.gemini?.["mixed-video"]?.operation).toBeUndefined();
+	});
+
 	it("prefers a text-output model over a newer dedicated image default", () => {
 		const payload: ModelsDevPayload = {
 			openai: {

@@ -181,6 +181,12 @@ export function usesImageGenerationOperation(
 	return model.operation === "image-generation";
 }
 
+export function usesVideoGenerationOperation(model: {
+	operation?: ModelOperation;
+}): boolean {
+	return model.operation === "video-generation";
+}
+
 export function isImageGenerationModel(
 	model: Pick<ModelInfo, "operation" | "modalities">,
 ): boolean {
