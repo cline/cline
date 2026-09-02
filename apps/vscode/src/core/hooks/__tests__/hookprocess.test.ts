@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, it } from "bun:test"
+import type { EventEmitter } from "events"
 import fs from "fs/promises"
 import os from "os"
 import path from "path"
@@ -260,7 +261,7 @@ describe("HookProcess stdin failures", () => {
 		// child; unguarded it escapes as an uncaught exception and kills the
 		// whole host process instead of failing this one hook.
 		const uncaught: unknown[] = []
-		const onUncaught = (error: unknown) => {
+		const onUncaught: NodeJS.UncaughtExceptionListener = (error) => {
 			uncaught.push(error)
 		}
 		process.on("uncaughtException", onUncaught)
@@ -280,7 +281,9 @@ describe("HookProcess stdin failures", () => {
 			await new Promise((resolve) => setTimeout(resolve, 200))
 			uncaught.should.be.empty()
 		} finally {
-			process.off("uncaughtException", onUncaught)
+			// Through the plain EventEmitter type: bun-types merges extra
+			// overloads into `process` that break resolution of this call.
+			;(process as unknown as EventEmitter).removeListener("uncaughtException", onUncaught)
 		}
 	}, 15000)
 
