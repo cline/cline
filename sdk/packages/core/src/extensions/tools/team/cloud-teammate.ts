@@ -1,6 +1,6 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, dirname, extname, join } from "node:path";
 import type {
 	AgentResult,
 	WorkspaceCapsuleArchiveMetadata,
@@ -27,6 +27,37 @@ export interface CloudInitialCapsuleConfiguration {
 	git?: WorkspaceCapsuleGitMetadata;
 }
 
+export type CloudAgentConfigSource =
+	| { type: "git"; url: string; ref: string; path: string }
+	| { type: "local"; path: string };
+
+export interface CloudAgentConfigExtension {
+	name: string;
+	source: CloudAgentConfigSource;
+}
+
+export interface CloudAgentConfigConfiguration {
+	skills?: CloudAgentConfigExtension[];
+	rules?: CloudAgentConfigExtension[];
+}
+
+interface ProvisionedAgentConfig {
+	extensions: {
+		skills: Array<{
+			name: string;
+			source:
+				| { type: "git"; url: string; ref: string; path: string }
+				| { type: "capsule"; path: string };
+		}>;
+		rules: Array<{
+			name: string;
+			source:
+				| { type: "git"; url: string; ref: string; path: string }
+				| { type: "capsule"; path: string };
+		}>;
+	};
+}
+
 export interface CloudTeammateProvisionInput {
 	teamId: string;
 	teamName: string;
@@ -37,6 +68,7 @@ export interface CloudTeammateProvisionInput {
 		metadata: WorkspaceCapsuleArchiveMetadata;
 		manifest: WorkspaceCapsuleManifest;
 	};
+	agentConfig?: ProvisionedAgentConfig;
 	/** Cancels client-side upload/readiness polling only. */
 	signal?: AbortSignal;
 }
@@ -92,6 +124,8 @@ export interface CloudTeammateConfiguration {
 	enabled: true;
 	controlPlane: CloudTeammateControlPlane;
 	initialCapsule: CloudInitialCapsuleConfiguration;
+	/** Optional pinned Git or explicitly selected local skills/rules. */
+	agentConfig?: CloudAgentConfigConfiguration;
 }
 
 export interface ProvisionCloudTeammateOptions {
@@ -272,8 +306,19 @@ export async function provisionCloudTeammate(
 
 		const teamId = options.runtime.getTeamId();
 		const teamName = options.runtime.getTeamName();
+		const preparedConfig = prepareAgentConfig(
+			options.configuration.agentConfig,
+		);
 		const plan = await buildWorkspaceCapsulePlan({
 			...options.configuration.initialCapsule,
+			roots: [
+				...options.configuration.initialCapsule.roots,
+				...preparedConfig.roots,
+			],
+			selections: [
+				...options.configuration.initialCapsule.selections,
+				...preparedConfig.selections,
+			],
 			team: { teamId, agentId: options.agentId },
 		});
 		const temporaryDirectory = await mkdtemp(
@@ -294,6 +339,7 @@ export async function provisionCloudTeammate(
 						metadata,
 						manifest: plan.manifest,
 					},
+					agentConfig: preparedConfig.config,
 					signal: options.signal,
 				});
 			try {
@@ -344,4 +390,67 @@ export async function provisionCloudTeammate(
 		pending.delete(options.agentId);
 		if (pending.size === 0) pendingCloudSpawns.delete(options.runtime);
 	}
+}
+
+function prepareAgentConfig(
+	config: CloudAgentConfigConfiguration | undefined,
+): {
+	roots: WorkspaceCapsuleApprovedRoot[];
+	selections: WorkspaceCapsuleSelection[];
+	config?: ProvisionedAgentConfig;
+} {
+	if (!config) return { roots: [], selections: [] };
+	const roots: WorkspaceCapsuleApprovedRoot[] = [];
+	const selections: WorkspaceCapsuleSelection[] = [];
+	const usedNames = new Set<string>();
+	const convert = (
+		items: CloudAgentConfigExtension[] | undefined,
+		kind: "skills" | "rules",
+	) =>
+		(items ?? []).map((item, index) => {
+			if (!/^[A-Za-z0-9_-]+$/.test(item.name)) {
+				throw new Error(`Invalid cloud agent ${kind} name: ${item.name}`);
+			}
+			const key = `${kind}:${item.name.toLowerCase()}`;
+			if (usedNames.has(key))
+				throw new Error(`Duplicate cloud agent ${kind} name: ${item.name}`);
+			usedNames.add(key);
+			if (item.source.type === "git") {
+				return {
+					name: item.name,
+					source: {
+						type: "git" as const,
+						url: item.source.url,
+						ref: item.source.ref,
+						path: item.source.path,
+					},
+				};
+			}
+			const extension =
+				kind === "rules" ? extname(item.source.path).toLowerCase() : "";
+			if (
+				kind === "rules" &&
+				![".md", ".markdown", ".txt"].includes(extension)
+			) {
+				throw new Error(
+					`Cloud agent rule ${item.name} must be a Markdown or text file`,
+				);
+			}
+			const rootId = `cline-config-${kind}-${index}`;
+			const destination = `.cline-agent-config/${kind}/${item.name}${extension}`;
+			roots.push({ id: rootId, path: dirname(item.source.path) });
+			selections.push({
+				rootId,
+				path: basename(item.source.path),
+				purpose: "artifact",
+				destination,
+			});
+			return {
+				name: item.name,
+				source: { type: "capsule" as const, path: destination },
+			};
+		});
+	const skills = convert(config.skills, "skills");
+	const rules = convert(config.rules, "rules");
+	return { roots, selections, config: { extensions: { skills, rules } } };
 }

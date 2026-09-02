@@ -26,6 +26,9 @@ export {
 // =============================================================================
 
 export {
+	type CloudAgentConfigConfiguration,
+	type CloudAgentConfigExtension,
+	type CloudAgentConfigSource,
 	type CloudInitialCapsuleConfiguration,
 	type CloudTeammateConfiguration,
 	type CloudTeammateControlPlane,

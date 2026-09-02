@@ -22,6 +22,7 @@ if (e2eRequired && (!coreBaseUrl || !coreToken)) {
 	);
 }
 const selectedContents = "export const selected = true;\n";
+const localSkillContents = "local review instructions\n";
 const dmgContents = Buffer.from([0, 1, 2, 3, 4, 5]);
 
 interface HydratedWorkspaceEntry {
@@ -136,8 +137,15 @@ describe.skipIf(!coreBaseUrl || !coreToken)(
 				join(tmpdir(), "cline-cloud-cross-e2e-artifact-"),
 			);
 			await mkdir(join(workspace, "src"));
+			await mkdir(join(workspace, ".cline", "skills", "local-review"), {
+				recursive: true,
+			});
 			await mkdir(join(workspace, ".git"));
 			await writeFile(join(workspace, "src", "selected.ts"), selectedContents);
+			await writeFile(
+				join(workspace, ".cline", "skills", "local-review", "SKILL.md"),
+				localSkillContents,
+			);
 			await writeFile(join(workspace, ".git", "config"), "local metadata\n");
 			await writeFile(join(workspace, ".env"), "SECRET=never-upload\n");
 			await writeFile(
@@ -227,6 +235,17 @@ describe.skipIf(!coreBaseUrl || !coreToken)(
 								},
 							],
 						},
+						agentConfig: {
+							skills: [
+								{
+									name: "local-review",
+									source: {
+										type: "local",
+										path: join(workspace, ".cline", "skills", "local-review"),
+									},
+								},
+							],
+						},
 					},
 				});
 				const spawnResult = (await findTool(
@@ -248,6 +267,7 @@ describe.skipIf(!coreBaseUrl || !coreToken)(
 					agentId: "reviewer",
 					status: "spawned_cloud",
 					skippedPaths: [
+						{ rootId: "workspace", path: ".cline", reason: "blocked_path" },
 						{ rootId: "workspace", path: ".env", reason: "blocked_path" },
 						{
 							rootId: "workspace",
@@ -286,6 +306,10 @@ describe.skipIf(!coreBaseUrl || !coreToken)(
 							path: "artifacts/Cline.dmg",
 							purpose: "artifact",
 						}),
+						expect.objectContaining({
+							path: ".cline-agent-config/skills/local-review/SKILL.md",
+							purpose: "artifact",
+						}),
 					]),
 				);
 				expect(entries.map((entry) => entry.path)).not.toContain(".env");
@@ -312,6 +336,14 @@ describe.skipIf(!coreBaseUrl || !coreToken)(
 							path: "artifacts/Cline.dmg",
 							sha256: createHash("sha256").update(dmgContents).digest("hex"),
 							size: dmgContents.byteLength,
+						}),
+						expect.objectContaining({
+							path: ".cline-agent-config/skills/local-review/SKILL.md",
+							sha256: createHash("sha256")
+								.update(localSkillContents)
+								.digest("hex"),
+							size: Buffer.byteLength(localSkillContents),
+							utf8: localSkillContents,
 						}),
 					]),
 				);

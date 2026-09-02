@@ -1,5 +1,12 @@
 import { createHash } from "node:crypto";
-import { access, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import {
+	access,
+	mkdir,
+	mkdtemp,
+	readFile,
+	rm,
+	writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AgentResult } from "@cline/shared";
@@ -46,6 +53,75 @@ afterEach(async () => {
 });
 
 describe("cloud teammate Teams integration", () => {
+	it("adds explicitly selected local agent config to the immutable capsule", async () => {
+		const workspace = await temporaryWorkspace();
+		const skill = join(workspace, ".cline", "skills", "local-review");
+		await mkdir(skill, { recursive: true });
+		await writeFile(join(workspace, "source.ts"), "export {};\n");
+		await writeFile(join(skill, "SKILL.md"), "local instructions\n");
+		let provisionInput: CloudTeammateProvisionInput | undefined;
+		const controlPlane: CloudTeammateControlPlane = {
+			provisionTeammate: vi.fn(async (input) => {
+				provisionInput = input;
+				await readFile(input.initialCapsule.archivePath);
+				return { nodeId: "cnd-config" };
+			}),
+			reattachTeammate: vi.fn(async (input) => ({ nodeId: input.nodeId })),
+			runTeammateTask: vi.fn(async () => result("unused")),
+			destroyTeammate: vi.fn(async () => undefined),
+		};
+		const runtime = new AgentTeamsRuntime({ teamName: "local-config" });
+		const tools = createAgentTeamsTools({
+			runtime,
+			requesterId: "lead",
+			teammateConfigProvider: createDelegatedAgentConfigProvider({
+				providerId: "anthropic",
+				modelId: "unused",
+			}),
+			cloudTeammates: {
+				enabled: true,
+				controlPlane,
+				initialCapsule: {
+					roots: [{ id: "workspace", path: workspace }],
+					selections: [{ rootId: "workspace", path: "source.ts" }],
+				},
+				agentConfig: {
+					skills: [
+						{ name: "local-review", source: { type: "local", path: skill } },
+					],
+				},
+			},
+		});
+		await tools
+			.find((tool) => tool.name === "team_spawn_cloud_teammate")
+			?.execute(
+				{ agentId: "reviewer", rolePrompt: "Review" },
+				{ agentId: "lead", iteration: 1 },
+			);
+
+		expect(provisionInput?.agentConfig).toEqual({
+			extensions: {
+				skills: [
+					{
+						name: "local-review",
+						source: {
+							type: "capsule",
+							path: ".cline-agent-config/skills/local-review",
+						},
+					},
+				],
+				rules: [],
+			},
+		});
+		expect(provisionInput?.initialCapsule.manifest.entries).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					path: ".cline-agent-config/skills/local-review/SKILL.md",
+				}),
+			]),
+		);
+	});
+
 	it("builds only the parent-selected capsule and runs through existing team runs", async () => {
 		const workspace = await temporaryWorkspace();
 		await writeFile(join(workspace, "selected.txt"), "selected\n");
@@ -166,13 +242,12 @@ describe("cloud teammate Teams integration", () => {
 		const workspace = await temporaryWorkspace();
 		await writeFile(join(workspace, "source.ts"), "export {};\n");
 		let releaseDestroy: (() => void) | undefined;
-		const destroyTeammate = vi.fn(
-			(input: { reason?: string }) =>
-				input.reason === "explicit_teammate_shutdown"
-					? new Promise<void>((resolve) => {
-							releaseDestroy = resolve;
-						})
-					: Promise.resolve(),
+		const destroyTeammate = vi.fn((input: { reason?: string }) =>
+			input.reason === "explicit_teammate_shutdown"
+				? new Promise<void>((resolve) => {
+						releaseDestroy = resolve;
+					})
+				: Promise.resolve(),
 		);
 		const controlPlane: CloudTeammateControlPlane = {
 			provisionTeammate: async (input) => {

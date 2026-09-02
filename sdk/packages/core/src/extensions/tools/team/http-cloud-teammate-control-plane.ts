@@ -401,6 +401,7 @@ export class HttpCloudTeammateControlPlane
 						...this.options.compatibility,
 					},
 					initialCapsuleId: capsule.id,
+					agentConfig: input.agentConfig,
 				}),
 			},
 		);
