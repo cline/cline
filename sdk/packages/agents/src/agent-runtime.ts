@@ -1153,11 +1153,12 @@ export class AgentRuntime {
 				}
 				case "media": {
 					let media = event.media;
-					// Generated videos are too large for inline persistence. Stateful
-					// hosts store the bytes as a session artifact so message stores,
-					// live events, and hub payloads carry only the artifact reference.
+					// Generated audio and video are too large for inline persistence.
+					// Stateful hosts store the bytes as a session artifact so message
+					// stores, live events, and hub payloads carry only the artifact
+					// reference.
 					if (
-						media.modality === "video" &&
+						(media.modality === "video" || media.modality === "audio") &&
 						media.source.type === "base64" &&
 						this.config.storeGeneratedArtifact
 					) {

@@ -557,7 +557,7 @@ export interface AgentRuntimeConfig {
 		request: ToolApprovalRequest,
 	) => Promise<ToolApprovalResult> | ToolApprovalResult;
 	/**
-	 * Optional host hook that persists large generated media (currently video)
+	 * Optional host hook that persists large generated media (audio and video)
 	 * outside the message store. When provided, the runtime replaces the inline
 	 * base64 source with the returned artifact reference before the media
 	 * reaches persistence, live events, or hub payloads. Stateless runtimes

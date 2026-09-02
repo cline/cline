@@ -780,9 +780,9 @@ export interface AgentConfig {
 	userFileContentLoader?: (path: string) => Promise<string>;
 	/** Host-owned storage for large generated artifacts. */
 	/**
-	 * Host-owned storage for large generated media artifacts (currently video).
-	 * The returned artifact ID replaces the inline base64 source on the
-	 * canonical media block before persistence or event delivery.
+	 * Host-owned storage for large generated media artifacts (audio and
+	 * video). The returned artifact ID replaces the inline base64 source on
+	 * the canonical media block before persistence or event delivery.
 	 */
 	storeGeneratedArtifact?: (artifact: {
 		data: string;

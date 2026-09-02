@@ -50,6 +50,7 @@ import {
 	modelSupportsToolCalling,
 	type ToolCallRecord,
 	usesImageGenerationOperation,
+	usesSpeechGenerationOperation,
 	usesVideoGenerationOperation,
 } from "@cline/shared";
 import { filterDisabledTools } from "../../services/global-settings";
@@ -861,6 +862,7 @@ export class SessionRuntime {
 		const modelInfo = tryGetModelInfo(this.config);
 		const dedicatedMediaGeneration =
 			usesImageGenerationOperation(modelInfo ?? {}) ||
+			usesSpeechGenerationOperation(modelInfo ?? {}) ||
 			usesVideoGenerationOperation(modelInfo ?? {});
 		const toolCallingDisabled =
 			dedicatedMediaGeneration || !modelSupportsToolCalling(modelInfo ?? {});

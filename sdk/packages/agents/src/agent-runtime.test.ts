@@ -187,6 +187,48 @@ describe("AgentRuntime", () => {
 		});
 	});
 
+	it("stores generated audio through the host artifact callback", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "media",
+					media: {
+						id: "generated-audio-1",
+						modality: "audio",
+						mediaType: "audio/mpeg",
+						source: { type: "base64", data: "YXVkaW8=" },
+					},
+				},
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const storeGeneratedArtifact = vi.fn(async () => ({
+			artifactId: "audio-artifact.mp3",
+		}));
+		const runtime = new AgentRuntime({ model, storeGeneratedArtifact });
+
+		const result = await runtime.run("Narrate a lighthouse story");
+
+		expect(storeGeneratedArtifact).toHaveBeenCalledWith({
+			data: "YXVkaW8=",
+			mediaType: "audio/mpeg",
+		});
+		expect(result.messages.at(-1)).toMatchObject({
+			role: "assistant",
+			content: [
+				{
+					type: "media",
+					media: {
+						id: "generated-audio-1",
+						modality: "audio",
+						mediaType: "audio/mpeg",
+						source: { type: "artifact", artifactId: "audio-artifact.mp3" },
+					},
+				},
+			],
+		});
+	});
+
 	it("keeps generated videos inline when no artifact store is configured", async () => {
 		const model = new ScriptedModel([
 			() => [
