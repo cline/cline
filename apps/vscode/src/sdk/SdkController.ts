@@ -87,6 +87,7 @@ import { SdkSessionLifecycle } from "./sdk-session-lifecycle"
 import { SdkSessionRebuildScheduler } from "./sdk-session-rebuild-scheduler"
 import { SdkTaskControlCoordinator } from "./sdk-task-control-coordinator"
 import { SdkTaskHistory, sessionHistoryRecordToHistoryItem } from "./sdk-task-history"
+import { SdkTaskHistorySearch, type SessionSearchHit } from "./sdk-task-history-search"
 import { SdkTaskStartCoordinator } from "./sdk-task-start-coordinator"
 import { createVscodeSdkTelemetryHandle, type VscodeSdkTelemetryHandle } from "./sdk-telemetry"
 import { SdkTerminalExecutionModeCoordinator } from "./sdk-terminal-execution-mode-coordinator"
@@ -174,6 +175,7 @@ export class Controller {
 	private diffEdits: SdkDiffEditCoordinator
 	private sessionConfigBuilder: SdkSessionConfigBuilder
 	private taskHistory: SdkTaskHistory
+	private taskHistorySearch: SdkTaskHistorySearch
 	private mode: SdkModeCoordinator
 	private mcpTools: SdkMcpCoordinator
 	private terminalExecutionMode: SdkTerminalExecutionModeCoordinator
@@ -484,6 +486,7 @@ export class Controller {
 			// never overlap live-session ids.
 			getMinter: () => this.messageTranslatorState.getMinter(),
 		})
+		this.taskHistorySearch = new SdkTaskHistorySearch(this.taskHistory)
 		this.mode = new SdkModeCoordinator({
 			stateManager: this.stateManager,
 			sessions: this.sessions,
@@ -933,6 +936,7 @@ export class Controller {
 		await this.clearTask()
 		await this.sessions.dispose("SdkController.dispose")
 		await this.taskHistory.dispose()
+		await this.taskHistorySearch.dispose()
 		this.mcpHub?.dispose?.()
 		this.messages.dispose()
 		await this.sdkTelemetry.dispose()
@@ -2074,6 +2078,15 @@ export class Controller {
 		return TaskHistoryArray.create({ tasks: tasks.slice(0, limit), hasMore })
 	}
 
+	/**
+	 * Advanced search: full-text search across task message content (tool output,
+	 * responses, code snippets), not just the title/prompt getTaskHistory matches.
+	 * Layered on top of getTaskHistory rather than replacing it.
+	 */
+	async searchTaskHistory(query: string, limit: number): Promise<SessionSearchHit[]> {
+		return this.taskHistorySearch.search(query, limit)
+	}
+
 	async exportTaskWithId(id: string): Promise<void> {
 		const taskDirPath = await this.taskHistory.getTaskDirPath(id)
 		if (!taskDirPath) {
@@ -2087,7 +2100,9 @@ export class Controller {
 	}
 
 	async deleteTaskFromState(id: string): Promise<HistoryItem[]> {
-		return this.taskHistory.deleteTaskFromState(id)
+		const historyItems = await this.taskHistory.deleteTaskFromState(id)
+		this.taskHistorySearch.removeSession(id)
+		return historyItems
 	}
 
 	async deleteAllTaskHistory(): Promise<DeleteAllTaskHistoryCount> {

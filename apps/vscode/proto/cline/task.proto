@@ -35,6 +35,8 @@ service TaskService {
   rpc toggleTaskFavorite(TaskFavoriteRequest) returns (Empty);
   // Gets filtered task history
   rpc getTaskHistory(GetTaskHistoryRequest) returns (TaskHistoryArray);
+  // Advanced search: full-text search across task message content (not just title/prompt)
+  rpc searchTaskHistory(SearchTaskHistoryRequest) returns (SearchTaskHistoryResponse);
   // Sends a response to a previous ask operation
   rpc askResponse(AskResponseRequest) returns (Empty);
   // Edits a previous user message, truncates following conversation, and regenerates
@@ -94,6 +96,28 @@ message GetTaskHistoryRequest {
 message TaskHistoryArray {
   repeated TaskItem tasks = 1;
   bool has_more = 2;
+}
+
+// Request for advanced (full message content) task history search
+message SearchTaskHistoryRequest {
+  Metadata metadata = 1;
+  string query = 2;
+  int32 limit = 3;
+}
+
+// A single full-text search hit against task history content
+message TaskSearchHit {
+  string id = 1;
+  string title = 2;
+  string snippet = 3;
+  string role = 4;
+  int64 ts = 5;
+  double score = 6;
+}
+
+// Response for advanced task history search
+message SearchTaskHistoryResponse {
+  repeated TaskSearchHit hits = 1;
 }
 
 // Task item details for history list
