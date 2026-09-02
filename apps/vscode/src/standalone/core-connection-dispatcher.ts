@@ -1,10 +1,16 @@
 import type { Controller } from "@core/controller"
 import { handleGrpcRequest } from "@core/controller/grpc-handler"
-import { responseStreamingMethods, serviceRequestDecoders } from "@generated/hosts/vscode/protobus-services"
+import {
+	responseStreamingMethods,
+	serviceRequestDecoders,
+	serviceResponseEncoders,
+} from "@generated/hosts/vscode/protobus-services"
+import type { ExtensionMessage } from "@shared/ExtensionMessage"
 import {
 	type CoreConnectionMessageWriter,
 	dispatchCoreConnectionRequest as dispatchProtocolRequest,
 } from "./core-connection-protocol"
+import { log } from "./utils"
 
 /**
  * Requests arrive over the core connection as proto3 JSON (the webview encodes
@@ -23,6 +29,47 @@ export function decodeCoreConnectionRequestMessage(service: string, method: stri
 	return decoder ? decoder(message) : message
 }
 
+/**
+ * The mirror of the request decode: responses leave over the core connection as
+ * JSON, and the webview on the other side decodes them with ts-proto's fromJSON,
+ * which expects proto3 JSON. Encode with the generated toJSON so bytes fields
+ * become base64 (a raw Uint8Array stringifies to an index-keyed object fromJSON
+ * cannot read) and extra non-proto fields on loosely-typed handler results are
+ * dropped before the wire, matching what fromJSON would keep anyway.
+ *
+ * toJSON throws on a handler result that violates its response proto typing
+ * (e.g. null inside a repeated message field) — shapes today's raw
+ * JSON.stringify forwards without complaint. Fall back to the raw message on
+ * encode failure rather than turning a working-in-practice RPC into an error.
+ */
+export function encodeCoreConnectionResponseMessage(service: string, method: string, message: unknown): unknown {
+	const encoder = serviceResponseEncoders[service]?.[method]
+	if (!encoder) {
+		return message
+	}
+	try {
+		return encoder(message)
+	} catch (error) {
+		log(`Failed to encode ${service}.${method} response as proto3 JSON, forwarding it raw: ${error}`)
+		return message
+	}
+}
+
+/** Applies the response encode to a controller message on its way to the wire. */
+export function encodeCoreConnectionResponse(service: string, method: string, message: ExtensionMessage): ExtensionMessage {
+	const response = message.grpc_response
+	if (!response || response.message === undefined) {
+		return message
+	}
+	return {
+		...message,
+		grpc_response: {
+			...response,
+			message: encodeCoreConnectionResponseMessage(service, method, response.message),
+		},
+	}
+}
+
 export async function dispatchCoreConnectionRequest(
 	controller: Controller,
 	write: CoreConnectionMessageWriter,
@@ -33,11 +80,16 @@ export async function dispatchCoreConnectionRequest(
 		request,
 		(qualifiedMethod) => responseStreamingMethods.has(qualifiedMethod),
 		(postMessage, grpcRequest) =>
+			// Decode brackets the handler on the way in, encode on the way out.
 			// A decode failure throws out of the dispatch; the connection layer
 			// reports it as this request's error response.
-			handleGrpcRequest(controller, postMessage, {
-				...grpcRequest,
-				message: decodeCoreConnectionRequestMessage(grpcRequest.service, grpcRequest.method, grpcRequest.message),
-			}),
+			handleGrpcRequest(
+				controller,
+				(message) => postMessage(encodeCoreConnectionResponse(request.service, request.method, message)),
+				{
+					...grpcRequest,
+					message: decodeCoreConnectionRequestMessage(grpcRequest.service, grpcRequest.method, grpcRequest.message),
+				},
+			),
 	)
 }
