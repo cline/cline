@@ -145,17 +145,18 @@ import {
 	replaySubagentHookEvent,
 } from "./runtime-host-support";
 
-function generatedArtifactExtension(
-	kind: "video" | "audio",
-	mediaType: string,
-): string {
-	switch (mediaType.toLowerCase()) {
+function generatedArtifactExtension(mediaType: string): string {
+	const normalizedMediaType = mediaType.split(";", 1)[0]?.trim().toLowerCase();
+	switch (normalizedMediaType) {
 		case "video/webm":
 			return "webm";
 		case "video/quicktime":
 			return "mov";
 		case "video/mpeg":
 			return "mpeg";
+		case "audio/mpeg":
+		case "audio/mp3":
+			return "mp3";
 		case "audio/wav":
 		case "audio/wave":
 		case "audio/x-wav":
@@ -174,18 +175,31 @@ function generatedArtifactExtension(
 		case "audio/opus":
 			return "ogg";
 		default:
-			return kind === "audio" ? "mp3" : "mp4";
+			if (normalizedMediaType?.startsWith("audio/")) {
+				throw new Error(`Unsupported generated audio media type: ${mediaType}`);
+			}
+			return "mp4";
 	}
 }
 
+/**
+ * Persist generated audio/video bytes under `<sessionDir>/artifacts` with an
+ * atomic temp-file + rename so partially written media never becomes visible.
+ * The returned artifact ID is the bare filename; consumers resolve it against
+ * the owning session's artifact directory, so absolute host paths never enter
+ * message stores, live events, or hub payloads.
+ */
 async function storeSessionGeneratedArtifact(
 	sessionDir: string,
-	artifact: { kind: "video" | "audio"; data: string; mediaType: string },
-): Promise<{ path: string }> {
+	artifact: { data: string; mediaType: string },
+): Promise<{ artifactId: string }> {
+	const kind = artifact.mediaType.trim().toLowerCase().startsWith("audio/")
+		? "audio"
+		: "video";
 	const artifactsDir = join(sessionDir, "artifacts");
 	await mkdir(artifactsDir, { recursive: true });
-	const filename = `${artifact.kind}-${Date.now()}-${randomUUID()}.${generatedArtifactExtension(artifact.kind, artifact.mediaType)}`;
-	const path = join(artifactsDir, filename);
+	const artifactId = `${kind}-${Date.now()}-${randomUUID()}.${generatedArtifactExtension(artifact.mediaType)}`;
+	const path = join(artifactsDir, artifactId);
 	const temporaryPath = `${path}.tmp`;
 	try {
 		await writeFile(temporaryPath, Buffer.from(artifact.data, "base64"));
@@ -193,7 +207,7 @@ async function storeSessionGeneratedArtifact(
 	} finally {
 		await rm(temporaryPath, { force: true }).catch(() => undefined);
 	}
-	return { path };
+	return { artifactId };
 }
 
 const MAX_SCAN_LIMIT = 5000;
