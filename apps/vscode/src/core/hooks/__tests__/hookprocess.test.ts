@@ -238,3 +238,46 @@ describe("HookProcess spawn failures", () => {
 		},
 	)
 })
+
+describe("HookProcess stdin failures", () => {
+	let tempDir: string
+
+	beforeEach(async () => {
+		tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "hookprocess-stdin-test-"))
+	})
+
+	afterEach(async () => {
+		await fs.rm(tempDir, { recursive: true, force: true })
+	})
+
+	it("fails open when the hook exits without reading a large input", async () => {
+		const hookBasePath = path.join(tempDir, "UserPromptSubmit")
+		await writeHookScriptForPlatform(hookBasePath, `#!/usr/bin/env node\nprocess.exit(3)\n`)
+		const scriptPath = process.platform === "win32" ? `${hookBasePath}.ps1` : hookBasePath
+
+		// An input larger than the pipe buffer leaves part of the write pending
+		// when the hook exits. That failure lands on the stdin stream, not the
+		// child; unguarded it escapes as an uncaught exception and kills the
+		// whole host process instead of failing this one hook.
+		const uncaught: unknown[] = []
+		const onUncaught = (error: unknown) => {
+			uncaught.push(error)
+		}
+		process.on("uncaughtException", onUncaught)
+		try {
+			const hookProcess = new HookProcess(scriptPath, 15000)
+			const input = JSON.stringify({ userPromptSubmit: { prompt: "x".repeat(1_000_000) } })
+			try {
+				await hookProcess.run(input)
+				throw new Error("Expected hook run to fail")
+			} catch (error: any) {
+				error.message.should.match(/Hook exited with code 3/)
+			}
+			// Give a late pipe error a chance to surface before asserting.
+			await new Promise((resolve) => setTimeout(resolve, 200))
+			uncaught.should.be.empty()
+		} finally {
+			process.off("uncaughtException", onUncaught)
+		}
+	}, 15000)
+})
