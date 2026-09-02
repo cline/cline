@@ -634,7 +634,7 @@ describe("default connect budget", () => {
 describe("mcp client stdin failures", () => {
 	it("fails the request instead of crashing when the server exits mid-write", async () => {
 		const uncaught: unknown[] = [];
-		const onUncaught = (error: unknown) => {
+		const onUncaught: NodeJS.UncaughtExceptionListener = (error) => {
 			uncaught.push(error);
 		};
 		process.on("uncaughtException", onUncaught);
@@ -654,7 +654,7 @@ describe("mcp client stdin failures", () => {
 			await new Promise((resolve) => setTimeout(resolve, 200));
 			expect(uncaught).toEqual([]);
 		} finally {
-			process.off("uncaughtException", onUncaught);
+			process.removeListener("uncaughtException", onUncaught);
 			await client.disconnect();
 		}
 	}, 30_000);
