@@ -241,6 +241,8 @@ export function isDedicatedAudioGenerationModel(
 		model.operation === "speech-generation" ||
 		(isAudioGenerationModel(model) && output?.includes("text") !== true)
 	);
+}
+
 export function usesSpeechGenerationOperation(model: {
 	operation?: ModelOperation;
 }): boolean {
