@@ -610,6 +610,12 @@ function App(props: TuiProps) {
 				})
 				.then(async (update) => {
 					if (!update) {
+						// choice() resolves undefined on Esc; it does not reject.
+						showToast(
+							"The running Cline Hub stays on the older version. Run 'cline hub upgrade' once its sessions finish.",
+							"info",
+						);
+						refocusTextareaRef.current();
 						return;
 					}
 					showToast("Updating the Cline Hub…", "info");
@@ -642,10 +648,6 @@ function App(props: TuiProps) {
 					refocusTextareaRef.current();
 				})
 				.catch(() => {
-					showToast(
-						"The running Cline Hub stays on the older version. Run 'cline hub upgrade' once its sessions finish.",
-						"info",
-					);
 					refocusTextareaRef.current();
 				});
 			return;
