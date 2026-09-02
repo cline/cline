@@ -37,6 +37,7 @@ const expectedPlatformPackages = [
 	"@cline/cli-darwin-x64",
 	"@cline/cli-linux-arm64",
 	"@cline/cli-linux-x64",
+	"@cline/cli-linux-x64-baseline",
 	"@cline/cli-windows-arm64",
 	"@cline/cli-windows-x64",
 ] as const;
