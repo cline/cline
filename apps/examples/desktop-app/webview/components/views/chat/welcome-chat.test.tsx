@@ -8,19 +8,21 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
 import { WelcomeScreen } from "./welcome-chat";
 
-const { invokeMock, subscribeMock, accountRef } = vi.hoisted(() => ({
-	invokeMock: vi.fn(
-		async (_command: string, _args?: unknown) => ({}) as unknown,
-	),
-	subscribeMock: vi.fn(
-		(_eventName: string, _handler: (payload: unknown) => void) => () =>
-			undefined,
-	),
-	accountRef: {
-		user: null as { id: string } | null,
-		activeOrganization: null as { id: string } | null,
-	},
-}));
+const { invokeMock, subscribeMock, accountRef, openExternalUrlMock } =
+	vi.hoisted(() => ({
+		invokeMock: vi.fn(
+			async (_command: string, _args?: unknown) => ({}) as unknown,
+		),
+		openExternalUrlMock: vi.fn(async () => undefined),
+		subscribeMock: vi.fn(
+			(_eventName: string, _handler: (payload: unknown) => void) => () =>
+				undefined,
+		),
+		accountRef: {
+			user: null as { id: string } | null,
+			activeOrganization: null as { id: string } | null,
+		},
+	}));
 
 const listAgendaTasksMock = vi.hoisted(() => vi.fn());
 const approveAgendaTaskMock = vi.hoisted(() => vi.fn());
@@ -36,7 +38,7 @@ vi.mock("@/lib/desktop-client", () => ({
 		subscribe: subscribeMock,
 		subscribeTransportState: vi.fn(() => () => undefined),
 	},
-	openExternalUrl: vi.fn(async () => undefined),
+	openExternalUrl: openExternalUrlMock,
 }));
 
 vi.mock("@/contexts/account-context", () => ({
@@ -171,9 +173,9 @@ describe("WelcomeScreen", () => {
 		expect(invokeMock).toHaveBeenCalledWith("cline_integrations", {
 			operation: "githubInstallUrl",
 		});
-		expect(invokeMock).toHaveBeenCalledWith("open_external_url", {
-			url: "https://github.com/apps/cline/installations/new",
-		});
+		expect(openExternalUrlMock).toHaveBeenCalledWith(
+			"https://github.com/apps/cline/installations/new",
+		);
 		accountRef.user = null;
 	});
 

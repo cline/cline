@@ -14,7 +14,7 @@ import { AgendaTaskReviewDialog } from "@/components/agenda-task-review-dialog";
 import { useAccount } from "@/contexts/account-context";
 import { useWorkspace } from "@/contexts/workspace-context";
 import { isAgendaTaskExpired, useAgendaTasks } from "@/hooks/use-agenda-tasks";
-import { fetchGitHubInstallUrl } from "@/lib/cline-integrations";
+import { openPersonalGitHubInstallUrl } from "@/lib/cline-integrations";
 import {
 	type CloudBranchListOptions,
 	type CloudBranchListResult,
@@ -162,13 +162,16 @@ export function WelcomeScreen({
 	const openExternalUrl = useCallback(async (url: string) => {
 		await desktopClient.invoke("open_external_url", { url });
 	}, []);
-	const connectGitHub = useCallback(async () => {
-		try {
-			await openExternalUrl(await fetchGitHubInstallUrl());
-		} catch {
-			await openExternalUrl(cloudSetup.connectUrl);
-		}
-	}, [cloudSetup.connectUrl, openExternalUrl]);
+	const connectGitHub = useCallback(
+		async (fallbackUrl: string) => {
+			if (activeOrganization) {
+				await openExternalUrl(fallbackUrl);
+				return;
+			}
+			await openPersonalGitHubInstallUrl(fallbackUrl);
+		},
+		[activeOrganization, openExternalUrl],
+	);
 
 	const cloudModeActive =
 		active && cloudAgentsEnabled && executionTarget === "cloud";
@@ -387,7 +390,7 @@ export function WelcomeScreen({
 									onListCloudBranches={listCloudBranches}
 									onListCloudRepositories={listCloudRepositories}
 									onListGitBranches={onListGitBranches}
-									onOpenExternalUrl={openExternalUrl}
+									onOpenExternalUrl={connectGitHub}
 									onPickWorkspaceDirectory={pickWorkspaceDirectory}
 									onRefreshWorkspaces={refreshWorkspaces}
 									onRepoUrlChange={onRepoUrlChange}
@@ -428,9 +431,8 @@ export function WelcomeScreen({
 							<CloudOnboardingCard
 								checking={cloudSetupChecking}
 								onConnect={() =>
-									void (cloudOnboardingVariant === "not_connected" &&
-									!activeOrganization
-										? connectGitHub()
+									void (cloudOnboardingVariant === "not_connected"
+										? connectGitHub(cloudSetup.connectUrl)
 										: openExternalUrl(cloudSetup.connectUrl))
 								}
 								onRefresh={() => void checkCloudSetup()}
