@@ -631,7 +631,9 @@ export function useChatSession() {
 						.filter(
 							(message) =>
 								message.meta?.toolCallId &&
-								message.meta.toolBackgroundStatus === "running",
+								(message.meta.toolBackgroundStatus === "running" ||
+									message.meta.toolBackgroundStatus ===
+										"indeterminate"),
 						)
 						.map(
 							(message) =>
@@ -645,6 +647,17 @@ export function useChatSession() {
 						: undefined;
 					if (!overlay) return message;
 					detachedToolMessageIdsRef.current[toolCallId] = message.id;
+					// The historical tool call has already ended; recording that
+					// lets a later detached-completion event settle this row in
+					// place instead of leaving it permanently unsettled.
+					detachedToolEndedRef.current.add(toolCallId);
+					// TODO: Mark rows whose detached process is still alive as
+					// running, with their execution ids, when the hub exposes an
+					// active-command query over the detached-log markers. Until
+					// then reconstruction cannot tell a still-running process from
+					// one that finished while this client was not listening, so
+					// the row claims no outcome and a later completion event
+					// settles it with the truth.
 					return {
 						...message,
 						meta: {
@@ -652,9 +665,9 @@ export function useChatSession() {
 							toolOutput: overlay.meta?.toolOutput,
 							toolOutputTruncated: overlay.meta?.toolOutputTruncated,
 							toolDetachable: false,
-							toolBackgroundStatus: "running" as const,
+							toolBackgroundStatus: "indeterminate" as const,
 							toolBackgroundLogPath: overlay.meta?.toolBackgroundLogPath,
-							hookEventName: "tool_call_start",
+							hookEventName: "tool_call_end",
 						},
 					};
 				});
