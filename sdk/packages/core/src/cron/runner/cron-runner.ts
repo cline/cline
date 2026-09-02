@@ -121,6 +121,34 @@ async function withTimeout<T>(
 	}
 }
 
+/**
+ * Session metadata keys that identify the automation run a session belongs
+ * to. Clients (e.g. the desktop sidebar) read these to group a schedule's
+ * runs together and label each one, so they are part of the session
+ * metadata contract; keep them in sync with the readers.
+ */
+export const RUN_SESSION_METADATA_KEYS = {
+	scheduleId: "scheduleId",
+	scheduleName: "scheduleName",
+	scheduleExecutionId: "scheduleExecutionId",
+	scheduleRunNumber: "scheduleRunNumber",
+} as const;
+
+export function buildRunSessionMetadata(
+	spec: Pick<CronSpecRecord, "externalId" | "title">,
+	run: Pick<CronRunRecord, "runId">,
+	runNumber: number | undefined,
+): Record<string, unknown> {
+	return {
+		[RUN_SESSION_METADATA_KEYS.scheduleId]: spec.externalId,
+		[RUN_SESSION_METADATA_KEYS.scheduleName]: spec.title,
+		[RUN_SESSION_METADATA_KEYS.scheduleExecutionId]: run.runId,
+		...(runNumber !== undefined
+			? { [RUN_SESSION_METADATA_KEYS.scheduleRunNumber]: runNumber }
+			: {}),
+	};
+}
+
 export interface CronRunnerOptions {
 	store: SqliteCronStore;
 	materializer: CronMaterializer;
@@ -305,8 +333,16 @@ export class CronRunner {
 			releaseLeaseHeartbeat = this.startClaimLeaseHeartbeat(claim);
 			const startRequest = await this.buildStartRequest(spec);
 			phase = "starting the agent session";
-			const startResp =
-				await this.options.runtimeHandlers.startSession(startRequest);
+			const startResp = await this.options.runtimeHandlers.startSession(
+				startRequest,
+				{
+					sessionMetadata: buildRunSessionMetadata(
+						spec,
+						run,
+						this.store.getRunOrdinal(run.runId),
+					),
+				},
+			);
 			sessionId = startResp.sessionId.trim();
 			if (!sessionId) throw new Error("runtime returned empty sessionId");
 			this.activeRuns.set(run.runId, {

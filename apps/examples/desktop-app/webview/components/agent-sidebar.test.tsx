@@ -88,20 +88,6 @@ async function hover(element: Element): Promise<void> {
 	});
 }
 
-async function changeField(
-	element: HTMLInputElement | HTMLTextAreaElement,
-	value: string,
-): Promise<void> {
-	await act(async () => {
-		const prototype = Object.getPrototypeOf(element) as object;
-		const setter = Object.getOwnPropertyDescriptor(prototype, "value")?.set;
-		setter?.call(element, value);
-		element.dispatchEvent(new Event("input", { bubbles: true }));
-		element.dispatchEvent(new Event("change", { bubbles: true }));
-		await Promise.resolve();
-	});
-}
-
 function buttonWithText(text: string, rootNode: ParentNode = container) {
 	const button = [
 		...rootNode.querySelectorAll<HTMLButtonElement>("button"),
@@ -272,6 +258,155 @@ describe("AgentSidebar session organization", () => {
 		expect(buttonWithText("Tasks")).toBeDefined();
 	});
 
+	it("folds a schedule's runs into one collapsible row", async () => {
+		const run = (index: number) => ({
+			...makeThread("alpha", index),
+			title: "Report today's date to the user.",
+			isScheduled: true,
+			scheduleId: "sched_daily",
+			scheduleName: "Daily date report",
+			scheduleRunNumber: index,
+		});
+		const openThread = vi.fn();
+		const sessionHistory = makeSessionHistory(
+			[run(2), makeThread("beta", 1), run(1)],
+			vi.fn(),
+		);
+		(sessionHistory as { openThread: unknown }).openThread = openThread;
+
+		await act(async () => {
+			root.render(
+				<SidebarProvider>
+					<AgentSidebar
+						activeSessionId={null}
+						onHome={vi.fn()}
+						onSettingsSectionChange={vi.fn()}
+						sessionHistory={sessionHistory}
+						setView={vi.fn()}
+						settingsSection="General"
+						view="chat"
+					/>
+				</SidebarProvider>,
+			);
+		});
+
+		// One header per schedule, named after the schedule rather than the
+		// prompt, with the run count; the runs themselves start collapsed.
+		const header = sessionRow("Daily date report");
+		expect(header.textContent).toContain("2 runs");
+		expect(header.getAttribute("aria-expanded")).toBe("false");
+		expect(header.querySelector('[aria-label="Scheduled"]')).not.toBeNull();
+		expect(sessionIsVisible("Report today's date to the user.")).toBe(false);
+		expect(sessionIsVisible("Run 2")).toBe(false);
+		// The Scheduled section counts schedules, not runs.
+		expect(buttonWithText("Scheduled").textContent).toContain("1");
+		expect(sessionIsVisible("beta session 1")).toBe(true);
+
+		await click(header);
+		expect(header.getAttribute("aria-expanded")).toBe("true");
+		expect(sessionIsVisible("Run 2")).toBe(true);
+		expect(sessionIsVisible("Run 1")).toBe(true);
+		// Nested runs don't repeat the clock the header already shows.
+		expect(
+			sessionRow("Run 1").querySelector('[aria-label="Scheduled"]'),
+		).toBeNull();
+		expect(
+			sessionRow("Run 2").compareDocumentPosition(sessionRow("Run 1")) &
+				Node.DOCUMENT_POSITION_FOLLOWING,
+		).toBeTruthy();
+
+		await click(sessionRow("Run 1"));
+		expect(openThread).toHaveBeenCalledWith("alpha-1");
+
+		await click(header);
+		expect(sessionIsVisible("Run 1")).toBe(false);
+	});
+
+	it("expands the schedule group that holds the active session", async () => {
+		const run = (index: number) => ({
+			...makeThread("alpha", index),
+			isScheduled: true,
+			scheduleId: "sched_daily",
+			scheduleName: "Daily date report",
+			scheduleRunNumber: index,
+		});
+		const sessionHistory = makeSessionHistory([run(2), run(1)], vi.fn());
+		const render = async (activeSessionId: string) => {
+			await act(async () => {
+				root.render(
+					<SidebarProvider>
+						<AgentSidebar
+							activeSessionId={activeSessionId}
+							onHome={vi.fn()}
+							onSettingsSectionChange={vi.fn()}
+							sessionHistory={sessionHistory}
+							setView={vi.fn()}
+							settingsSection="General"
+							view="chat"
+						/>
+					</SidebarProvider>,
+				);
+			});
+		};
+
+		await render("alpha-1");
+		expect(sessionRow("Daily date report").getAttribute("aria-expanded")).toBe(
+			"true",
+		);
+		expect(sessionIsVisible("Run 1")).toBe(true);
+
+		// The group can still be collapsed while it holds the active session,
+		// and stays collapsed across re-renders.
+		await click(sessionRow("Daily date report"));
+		await render("alpha-1");
+		expect(sessionIsVisible("Run 1")).toBe(false);
+
+		// Opening another run of the schedule (e.g. from the Schedules
+		// settings page) reopens the collapsed group so the run is visible.
+		await render("alpha-2");
+		expect(sessionRow("Daily date report").getAttribute("aria-expanded")).toBe(
+			"true",
+		);
+		expect(sessionIsVisible("Run 2")).toBe(true);
+	});
+
+	it("groups scheduled runs inside their project when sorted by project", async () => {
+		const run = (index: number) => ({
+			...makeThread("alpha", index),
+			isScheduled: true,
+			scheduleId: "sched_daily",
+			scheduleName: "Daily date report",
+			scheduleRunNumber: index,
+		});
+
+		await act(async () => {
+			root.render(
+				<SidebarProvider>
+					<AgentSidebar
+						activeSessionId={null}
+						onHome={vi.fn()}
+						onSettingsSectionChange={vi.fn()}
+						sessionHistory={makeSessionHistory(
+							[run(2), makeThread("alpha", 3), run(1)],
+							vi.fn(),
+						)}
+						setView={vi.fn()}
+						settingsSection="General"
+						view="chat"
+					/>
+				</SidebarProvider>,
+			);
+		});
+		await switchToProjectSort();
+
+		const header = sessionRow("Daily date report");
+		expect(header.textContent).toContain("2 runs");
+		expect(sessionIsVisible("alpha session 3")).toBe(true);
+		expect(sessionIsVisible("Run 2")).toBe(false);
+		await click(header);
+		expect(sessionIsVisible("Run 2")).toBe(true);
+	});
+
 	it("defaults to Pinned, Scheduled, and Tasks sections sorted by time", async () => {
 		const pinned = { ...makeThread("alpha", 1), pinned: true };
 		const scheduled = { ...makeThread("beta", 1), isScheduled: true };
@@ -321,7 +456,10 @@ describe("AgentSidebar session organization", () => {
 
 	it("deletes a session through the row's hover trash button", async () => {
 		const deleteThread = vi.fn(async () => undefined);
-		const sessionHistory = makeSessionHistory([makeThread("alpha", 1)], vi.fn());
+		const sessionHistory = makeSessionHistory(
+			[makeThread("alpha", 1)],
+			vi.fn(),
+		);
 		(sessionHistory as { deleteThread: unknown }).deleteThread = deleteThread;
 
 		await act(async () => {
@@ -575,6 +713,19 @@ describe("AgentSidebar session organization", () => {
 		expect(
 			getSessionOverviewItems(thread).some(([label]) => label === "Status"),
 		).toBe(false);
+		// Scheduled runs lead with the schedule they belong to and which run
+		// this is; the row itself only says "Run N".
+		expect(
+			getSessionOverviewItems({
+				...makeThread("cline", 6),
+				isScheduled: true,
+				scheduleName: "Daily date report",
+				scheduleRunNumber: 6,
+			}).slice(0, 2),
+		).toEqual([
+			["Schedule", "Daily date report"],
+			["Run", "6"],
+		]);
 	});
 
 	it("shows the full first line of the session title", () => {
@@ -996,9 +1147,7 @@ describe("AgentSidebar session organization", () => {
 		expect(customizeRow.className.split(" ")).toContain(
 			"bg-surface-hover-lighter",
 		);
-		expect(customizeRow.className.split(" ")).not.toContain(
-			"bg-surface-hover",
-		);
+		expect(customizeRow.className.split(" ")).not.toContain("bg-surface-hover");
 		// Sub-tabs are indented under the parent row.
 		expect(installedRow.className.split(" ")).toContain("pl-8!");
 
@@ -1048,11 +1197,12 @@ describe("AgentSidebar session organization", () => {
 		expect(inactiveRow.getAttribute("aria-current")).toBeNull();
 	});
 
-	it("opens session search in a dialog from the logo-row icon", async () => {
+	it("opens the global search command bar from the logo-row icon without loading full history", async () => {
 		const sessionHistory = makeSessionHistory(
 			[makeThread("alpha", 1), makeThread("beta", 1)],
 			vi.fn(),
 		);
+		const onOpenSearch = vi.fn();
 		await act(async () => {
 			root.render(
 				<AccountProvider>
@@ -1060,6 +1210,7 @@ describe("AgentSidebar session organization", () => {
 						<AgentSidebar
 							activeSessionId={null}
 							onHome={vi.fn()}
+							onOpenSearch={onOpenSearch}
 							onSettingsSectionChange={vi.fn()}
 							sessionHistory={sessionHistory}
 							setView={vi.fn()}
@@ -1078,33 +1229,12 @@ describe("AgentSidebar session organization", () => {
 		);
 		expect(searchButton).not.toBeNull();
 		await click(searchButton as Element);
-		// Opening search pulls the full history so unloaded sessions match too.
-		expect(sessionHistory.loadAllSessions).toHaveBeenCalledOnce();
-
-		const searchInput = await vi.waitFor(() => {
-			const input = document.querySelector<HTMLInputElement>(
-				'[data-slot="command-input"]',
-			);
-			expect(input).not.toBeNull();
-			return input as HTMLInputElement;
-		});
-		expect(searchInput.placeholder).toBe("Search sessions...");
-
-		await changeField(searchInput, "alpha");
-		const match = await vi.waitFor(() => {
-			const items = [
-				...document.querySelectorAll<HTMLElement>('[data-slot="command-item"]'),
-			];
-			expect(items).toHaveLength(1);
-			return items[0] as HTMLElement;
-		});
-		expect(match.textContent).toContain("alpha session 1");
-
-		await click(match);
-		expect(sessionHistory.openThread).toHaveBeenCalledWith("alpha-1");
-		await vi.waitFor(() =>
-			expect(document.querySelector('[data-slot="command-input"]')).toBeNull(),
-		);
+		// The icon opens the indexed command bar owned by the page shell...
+		expect(onOpenSearch).toHaveBeenCalledOnce();
+		// ...instead of a sidebar-local dialog that eagerly pulled the entire
+		// session history just to filter titles client-side.
+		expect(sessionHistory.loadAllSessions).not.toHaveBeenCalled();
+		expect(document.querySelector('[data-slot="command-input"]')).toBeNull();
 	});
 
 	it("uses only the Cline logo for home in the collapsed sidebar", async () => {

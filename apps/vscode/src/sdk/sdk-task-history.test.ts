@@ -116,6 +116,7 @@ describe("SdkTaskHistory", () => {
 			totalCost: 0.01,
 			isFavorited: true,
 			modelId: "claude-test",
+			apiProvider: "anthropic",
 			cwdOnTaskInitialization: "/repo",
 		})
 		expect(result.ts).toBeGreaterThan(0)

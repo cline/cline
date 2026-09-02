@@ -694,6 +694,8 @@ export {
 	type ProviderConfigFieldRequirement,
 	type ProviderConfigFields,
 } from "./services/providers/provider-config-fields";
+export { isProviderSettingsUsable } from "./services/providers/provider-readiness";
+export * from "./services/session-import";
 export {
 	type MigrateLegacyProviderSettingsOptions,
 	type MigrateLegacyProviderSettingsResult,
