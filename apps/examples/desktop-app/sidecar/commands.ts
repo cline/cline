@@ -49,6 +49,7 @@ import {
 	transcribeConfiguredVoiceInput,
 	updateLocalProvider,
 	updateMcpSettingsFileSync,
+	upgradeManagedHub,
 } from "@cline/core";
 import { resolveAudioTranscriptionRoute } from "@cline/llms";
 import {
@@ -1385,6 +1386,45 @@ export async function handleCommand(
 	}
 	if (command === "get_chat_ws_endpoint") {
 		return "";
+	}
+
+	// ── Managed hub upgrade ───────────────────────────────────────────
+	if (command === "hub_upgrade") {
+		// Replacing the shared Hub interrupts other clients' sessions, so it
+		// carries the same per-connection gate as the tool-approval commands:
+		// only the webview connection dialed with the approval token may ask,
+		// never an arbitrary local WebSocket client.
+		if (!options?.connection?.data?.canApproveTools) {
+			throw new Error("hub upgrade requires a trusted desktop connection");
+		}
+		// Only reached after the user accepted the blocking "Hub update
+		// required" dialog, so force: the old Hub is replaced even though it
+		// is still serving other clients' sessions. Drain-first semantics
+		// still give in-flight turns the wait window to finish.
+		const result = await upgradeManagedHub({
+			workspaceRoot: ctx.workspaceRoot,
+			force: true,
+			reason: "Cline Desktop hub update",
+		});
+		if (result.outcome === "hub_not_older") {
+			throw new Error(
+				"The running Cline Hub is newer than this app, so it was not replaced. Update Cline instead.",
+			);
+		}
+		if (result.outcome === "still_busy") {
+			throw new Error(
+				"The running Cline Hub picked up new sessions before it could be replaced, so it was left running. Try again.",
+			);
+		}
+		// The mismatch is resolved: a null broadcast closes the dialog in
+		// every connected webview and stops the replay-on-connect.
+		ctx.hubBuildMismatch = null;
+		broadcastEvent(ctx, "hub_build_mismatch", null);
+		return {
+			outcome: result.outcome,
+			url: result.url ?? null,
+			interruptedSessionCount: result.activeSessionCount ?? 0,
+		};
 	}
 
 	// ── Tool approvals (in-memory) ────────────────────────────────────
