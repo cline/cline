@@ -1152,18 +1152,36 @@ export class AgentRuntime {
 					break;
 				}
 				case "media": {
+					let media = event.media;
+					// Generated videos are too large for inline persistence. Stateful
+					// hosts store the bytes as a session artifact so message stores,
+					// live events, and hub payloads carry only the artifact reference.
+					if (
+						media.modality === "video" &&
+						media.source.type === "base64" &&
+						this.config.storeGeneratedArtifact
+					) {
+						const stored = await this.config.storeGeneratedArtifact({
+							data: media.source.data,
+							mediaType: media.mediaType,
+						});
+						media = {
+							...media,
+							source: { type: "artifact", artifactId: stored.artifactId },
+						};
+					}
 					sequence.push({
 						type: "part",
 						part: {
 							type: "media",
-							media: event.media,
+							media,
 						},
 					});
 					await this.emit({
 						type: "assistant-media",
 						snapshot: this.snapshot(),
 						iteration: this.state.iteration,
-						media: event.media,
+						media,
 					});
 					break;
 				}

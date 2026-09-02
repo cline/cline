@@ -766,6 +766,15 @@ export interface AgentConfig {
 	 */
 	userFileContentLoader?: (path: string) => Promise<string>;
 	/**
+	 * Host-owned storage for large generated media artifacts (currently video).
+	 * The returned artifact ID replaces the inline base64 source on the
+	 * canonical media block before persistence or event delivery.
+	 */
+	storeGeneratedArtifact?: (artifact: {
+		data: string;
+		mediaType: string;
+	}) => Promise<{ artifactId: string }>;
+	/**
 	 * Optional metadata merged into every tool execution context.
 	 * Hosts can use this to thread runtime-specific identifiers such as session IDs.
 	 */

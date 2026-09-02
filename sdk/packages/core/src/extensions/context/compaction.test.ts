@@ -359,6 +359,29 @@ describe("createContextCompactionPrepareTurn", () => {
 		);
 	});
 
+	it("summarizes generated video media without disclosing artifact ids", () => {
+		const serialized = serializeMessage({
+			role: "assistant",
+			content: [
+				{
+					type: "media",
+					media: {
+						id: "media_video_1",
+						modality: "video",
+						mediaType: "video/mp4",
+						source: {
+							type: "artifact",
+							artifactId: "private-video.mp4",
+						},
+					},
+				},
+			],
+		});
+
+		expect(serialized).toBe("[Bot generated video]: video/mp4");
+		expect(serialized).not.toContain("private-video.mp4");
+	});
+
 	it("returns no result when the transcript has no typed user prompt", () => {
 		// The whole-history fold anchors on typed user prompts; a transcript
 		// of pure tool traffic has nothing to fold around.

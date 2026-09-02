@@ -50,6 +50,7 @@ import {
 	modelSupportsToolCalling,
 	type ToolCallRecord,
 	usesImageGenerationOperation,
+	usesVideoGenerationOperation,
 } from "@cline/shared";
 import { filterDisabledTools } from "../../services/global-settings";
 import {
@@ -858,11 +859,11 @@ export class SessionRuntime {
 		}
 		const conversationId = this.conversation.getConversationId();
 		const modelInfo = tryGetModelInfo(this.config);
-		const dedicatedImageGeneration = usesImageGenerationOperation(
-			modelInfo ?? {},
-		);
+		const dedicatedMediaGeneration =
+			usesImageGenerationOperation(modelInfo ?? {}) ||
+			usesVideoGenerationOperation(modelInfo ?? {});
 		const toolCallingDisabled =
-			dedicatedImageGeneration || !modelSupportsToolCalling(modelInfo ?? {});
+			dedicatedMediaGeneration || !modelSupportsToolCalling(modelInfo ?? {});
 		const availableTools = filterAvailableExtensionTools(
 			Array.from(mergedToolsByName.values()),
 			this.config.toolPolicies,

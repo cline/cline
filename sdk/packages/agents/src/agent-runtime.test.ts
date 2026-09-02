@@ -145,6 +145,83 @@ describe("AgentRuntime", () => {
 		});
 	});
 
+	it("stores generated videos through the host artifact callback", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "media",
+					media: {
+						id: "generated-video-1",
+						modality: "video",
+						mediaType: "video/mp4",
+						source: { type: "base64", data: "dmlkZW8=" },
+					},
+				},
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const storeGeneratedArtifact = vi.fn(async () => ({
+			artifactId: "video-artifact.mp4",
+		}));
+		const runtime = new AgentRuntime({ model, storeGeneratedArtifact });
+
+		const result = await runtime.run("Animate a lighthouse");
+
+		expect(storeGeneratedArtifact).toHaveBeenCalledWith({
+			data: "dmlkZW8=",
+			mediaType: "video/mp4",
+		});
+		expect(result.messages.at(-1)).toMatchObject({
+			role: "assistant",
+			content: [
+				{
+					type: "media",
+					media: {
+						id: "generated-video-1",
+						modality: "video",
+						mediaType: "video/mp4",
+						source: { type: "artifact", artifactId: "video-artifact.mp4" },
+					},
+				},
+			],
+		});
+	});
+
+	it("keeps generated videos inline when no artifact store is configured", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "media",
+					media: {
+						id: "generated-video-2",
+						modality: "video",
+						mediaType: "video/webm",
+						source: { type: "base64", data: "dmlkZW8=" },
+					},
+				},
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({ model });
+
+		const result = await runtime.run("Animate a lighthouse");
+
+		expect(result.messages.at(-1)).toMatchObject({
+			role: "assistant",
+			content: [
+				{
+					type: "media",
+					media: {
+						id: "generated-video-2",
+						modality: "video",
+						mediaType: "video/webm",
+						source: { type: "base64", data: "dmlkZW8=" },
+					},
+				},
+			],
+		});
+	});
+
 	it("preserves generated media in exact text/media/text order", async () => {
 		const model = new ScriptedModel([
 			() => [

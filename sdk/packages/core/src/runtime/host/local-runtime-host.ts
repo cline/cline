@@ -1,4 +1,6 @@
+import { randomUUID } from "node:crypto";
 import { readdirSync } from "node:fs";
+import { mkdir, rename, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
 import type * as LlmsProviders from "@cline/llms";
@@ -142,6 +144,44 @@ import {
 	readPersistedMessagesFile,
 	replaySubagentHookEvent,
 } from "./runtime-host-support";
+
+function videoArtifactExtension(mediaType: string): string {
+	switch (mediaType.toLowerCase()) {
+		case "video/webm":
+			return "webm";
+		case "video/quicktime":
+			return "mov";
+		case "video/mpeg":
+			return "mpeg";
+		default:
+			return "mp4";
+	}
+}
+
+/**
+ * Persist generated video bytes under `<sessionDir>/artifacts` with an atomic
+ * temp-file + rename so partially written videos never become visible. The
+ * returned artifact ID is the bare filename; consumers resolve it against the
+ * owning session's artifact directory, so absolute host paths never enter
+ * message stores, live events, or hub payloads.
+ */
+async function storeSessionVideoArtifact(
+	sessionDir: string,
+	artifact: { data: string; mediaType: string },
+): Promise<{ artifactId: string }> {
+	const artifactsDir = join(sessionDir, "artifacts");
+	await mkdir(artifactsDir, { recursive: true });
+	const artifactId = `video-${Date.now()}-${randomUUID()}.${videoArtifactExtension(artifact.mediaType)}`;
+	const path = join(artifactsDir, artifactId);
+	const temporaryPath = `${path}.tmp`;
+	try {
+		await writeFile(temporaryPath, Buffer.from(artifact.data, "base64"));
+		await rename(temporaryPath, path);
+	} finally {
+		await rm(temporaryPath, { force: true }).catch(() => undefined);
+	}
+	return { artifactId };
+}
 
 const MAX_SCAN_LIMIT = 5000;
 
@@ -742,6 +782,8 @@ export class LocalRuntimeHost implements RuntimeHost {
 			hookErrorMode: configWithProvider.hookErrorMode,
 			initialMessages: bootstrap.effectiveInput.initialMessages,
 			userFileContentLoader: loadUserFileContent,
+			storeGeneratedArtifact: (artifact) =>
+				storeSessionVideoArtifact(sessionDir, artifact),
 			toolPolicies: bootstrap.toolPolicies,
 			requestToolApproval: bootstrap.requestToolApproval
 				? async (request) => {
