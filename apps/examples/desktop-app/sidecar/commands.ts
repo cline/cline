@@ -1937,6 +1937,7 @@ export async function handleCommand(
 				return await getComposioStatus({
 					refresh: args?.refresh === true,
 					logger: ctx.logger,
+					telemetry: ctx.telemetry,
 				});
 			case "listToolkits":
 				return await listComposioToolkits(ctx.logger);

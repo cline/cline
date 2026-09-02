@@ -16,7 +16,7 @@ import {
  * Installed > Connectors: the connected accounts. Gmail, Google Calendar,
  * and GitHub are pinned as recommended; the full catalog is browsed from the
  * Marketplace's Connectors tab. The Composio API key comes from the
- * sidecar's COMPOSIO_API_KEY environment variable — there is nothing
+ * Cline API connectors proxy (server-held key) — there is nothing
  * key-related to manage here, and the whole tab is hidden without one.
  */
 
