@@ -57,3 +57,38 @@ export function parseYamlFrontmatter(markdown: string): FrontmatterParseResult {
 		return { data: {}, body: normalizedMarkdown, hadFrontmatter: true, parseError: message }
 	}
 }
+
+/**
+ * Update the `disabled` frontmatter flag shared by SDK-backed user
+ * instructions (rules, skills, and workflows).
+ *
+ * - enabled=false sets `disabled: true`.
+ * - enabled=true removes `disabled` and a stale `enabled: false`.
+ * - malformed frontmatter is left untouched so a toggle cannot corrupt it.
+ */
+export function updateUserInstructionMarkdownDisabledState(content: string, enabled: boolean): string {
+	const { data, body, hadFrontmatter, parseError } = parseYamlFrontmatter(content)
+
+	if (!hadFrontmatter && enabled) {
+		return content
+	}
+
+	if (parseError) {
+		return content
+	}
+
+	if (enabled) {
+		delete data.disabled
+		if (data.enabled === false) {
+			delete data.enabled
+		}
+		if (Object.keys(data).length === 0) {
+			return body
+		}
+	} else {
+		data.disabled = true
+	}
+
+	const yamlText = yaml.dump(data, { schema: yaml.JSON_SCHEMA }).trimEnd()
+	return `---\n${yamlText}\n---\n${body}`
+}
