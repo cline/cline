@@ -10,6 +10,7 @@
 // model `contextWindow` onto it.
 
 import type {
+	GatewayModelCapability,
 	GatewayProviderContext,
 	GatewayResolvedProviderConfig,
 } from "@cline/shared";
@@ -117,10 +118,81 @@ export function withOllamaResponseTimeout(
 		}
 	}) as typeof fetch;
 }
+const OLLAMA_DEFAULT_BASE_URL = "http://localhost:11434/api";
+
+function withResolvedOllamaToolCapability(
+	model: GatewayProviderContext["model"],
+	supportsTools: boolean,
+): GatewayProviderContext["model"] {
+	const capabilities = new Set<GatewayModelCapability>([
+		"text",
+		...(model.capabilities ?? []),
+	]);
+	capabilities.delete("tools");
+	if (supportsTools) {
+		capabilities.add("tools");
+	}
+	return { ...model, capabilities: [...capabilities] };
+}
+
+async function resolveOllamaSelectedModel(
+	model: GatewayProviderContext["model"],
+	fetch: typeof globalThis.fetch,
+	baseURL: string,
+	headers: Record<string, string>,
+	context: GatewayProviderContext,
+	signal?: AbortSignal,
+): Promise<GatewayProviderContext["model"]> {
+	try {
+		const response = await fetch(`${baseURL}/show`, {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				...headers,
+			},
+			body: JSON.stringify({ model: model.id }),
+			signal,
+		});
+		if (!response.ok) {
+			throw new Error(`Ollama /api/show returned HTTP ${response.status}`);
+		}
+
+		const payload = (await response.json()) as { capabilities?: unknown };
+		if (!Array.isArray(payload.capabilities)) {
+			context.logger?.log(
+				"Ollama tool capability metadata is unknown; tools are disabled for the selected model.",
+				{
+					severity: "warn",
+					providerId: "ollama",
+					modelId: model.id,
+					reason: "missing-capabilities",
+				},
+			);
+			return withResolvedOllamaToolCapability(model, false);
+		}
+
+		return withResolvedOllamaToolCapability(
+			model,
+			payload.capabilities.includes("tools"),
+		);
+	} catch (error) {
+		context.logger?.log(
+			"Ollama tool capability metadata could not be loaded; tools are disabled for the selected model.",
+			{
+				severity: "warn",
+				providerId: "ollama",
+				modelId: model.id,
+				reason: "metadata-request-failed",
+				error,
+			},
+		);
+		return withResolvedOllamaToolCapability(model, false);
+	}
+}
 
 export async function createOllamaProviderModule(
 	config: GatewayResolvedProviderConfig,
-	_context: GatewayProviderContext,
+	context: GatewayProviderContext,
 ): Promise<ProviderFactoryResult> {
 	// An API key is only needed for Ollama Cloud (ollama.com); local servers
 	// accept unauthenticated requests, so a missing key is not an error.
@@ -128,18 +200,20 @@ export async function createOllamaProviderModule(
 	// wins over the convenience API-key setting.
 	const apiKey = await resolveApiKey(config);
 	const baseURL = normalizeOllamaBaseUrl(config.baseUrl);
+	const metadataBaseURL = baseURL ?? OLLAMA_DEFAULT_BASE_URL;
 	const headers = {
 		...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
 		...config.headers,
 	};
+	const fetch = withOllamaResponseTimeout(
+		ensureFetch(config.fetch),
+		readOllamaTimeoutMs(config),
+	);
 	const provider = createOllama({
 		...(baseURL ? { baseURL } : {}),
 		...(Object.keys(headers).length > 0 ? { headers } : {}),
 		compatibility: "strict",
-		fetch: withOllamaResponseTimeout(
-			ensureFetch(config.fetch),
-			readOllamaTimeoutMs(config),
-		),
+		fetch,
 	});
 	// Empty-response retries (a common local-backend glitch that otherwise
 	// hard-fails the task) are applied centrally in `ai-sdk.ts` for every
@@ -149,6 +223,19 @@ export async function createOllamaProviderModule(
 	// the downstream converter stringifies multimodal tool-result content,
 	// losing image bytes.
 	return {
+		resolveSelectedModel: async (model, request, signal) => {
+			if (!request.tools?.length && !request.modelTools?.length) {
+				return model;
+			}
+			return resolveOllamaSelectedModel(
+				model,
+				fetch,
+				metadataBaseURL,
+				headers,
+				context,
+				signal,
+			);
+		},
 		operations: {
 			language: (modelId) =>
 				wrapLanguageModel({
