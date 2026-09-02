@@ -643,7 +643,13 @@ function ConnectorDetailPane({
 	const status = summary?.status ?? "not_connected";
 	const busy = connections.busyToolkit === connector.slug;
 	const toolNames = summary?.toolNames ?? [];
-	const error = connections.actionError ?? summary?.error;
+	// Action errors are scoped to the toolkit they came from — connector B's
+	// pane must never render connector A's failure.
+	const scopedActionError =
+		connections.actionError?.toolkit === connector.slug
+			? connections.actionError.message
+			: undefined;
+	const error = scopedActionError ?? summary?.error;
 
 	return (
 		<ScrollArea className="h-full min-w-0 flex-1">

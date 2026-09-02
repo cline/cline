@@ -460,7 +460,11 @@ describe("connectComposioToolkit", () => {
 	it("overlapping connects are single-flight: only one remote account is ever created", async () => {
 		const dir = useTempDataDir();
 		process.env.COMPOSIO_API_KEY = "ck_overlap";
-		writeState(dir, { apiKey: "ck_overlap", userId: "u_overlap", toolkits: {} });
+		writeState(dir, {
+			apiKey: "ck_overlap",
+			userId: "u_overlap",
+			toolkits: {},
+		});
 		let releaseAuthorize: (() => void) | undefined;
 		const authorize = vi.fn(
 			() =>
@@ -517,6 +521,84 @@ describe("connectComposioToolkit", () => {
 		await cancelComposioConnect("github");
 	});
 
+	it("a refresh racing a redirect-less attempt cannot leave a failed connection installed", async () => {
+		const dir = useTempDataDir();
+		process.env.COMPOSIO_API_KEY = "ck_refresh_race";
+		writeState(dir, {
+			apiKey: "ck_refresh_race",
+			userId: "u_refresh_race",
+			toolkits: {},
+		});
+		let rejectConnectFetch: ((error: Error) => void) | undefined;
+		const getRawComposioTools = vi.fn(() =>
+			// First call is the connect's finalize: suspended, then failed.
+			// Any later call (a refresh import) resolves immediately.
+			getRawComposioTools.mock.calls.length <= 1
+				? new Promise<{ slug: string }[]>((_resolve, reject) => {
+						rejectConnectFetch = reject;
+					})
+				: Promise.resolve([{ slug: "GITHUB_LIST_ISSUES" }]),
+		);
+		const remoteDelete = vi.fn(async () => ({}));
+		const client = {
+			toolkits: {
+				// Redirect-less: the account is ACTIVE remotely from creation,
+				// which is what lets a concurrent refresh see it.
+				authorize: vi.fn(async () => ({
+					id: "ca_race_import",
+					redirectUrl: null,
+					waitForConnection: async () => ({}),
+				})),
+			},
+			authConfigs: {
+				list: vi.fn(async () => ({ items: [] })),
+				create: vi.fn(),
+			},
+			tools: { getRawComposioTools },
+			connectedAccounts: {
+				list: vi.fn(async () => ({
+					items: [
+						{
+							id: "ca_race_import",
+							status: "ACTIVE",
+							toolkit: { slug: "github" },
+						},
+					],
+					nextCursor: null,
+				})),
+				link: vi.fn(),
+				delete: remoteDelete,
+			},
+		};
+		createMockComposioClient = () => client;
+
+		const connectPromise = connectComposioToolkit("github");
+		await vi.waitFor(() => {
+			expect(getRawComposioTools).toHaveBeenCalledTimes(1);
+		});
+		// A refresh runs while the attempt is mid-finalize and sees the
+		// account as ACTIVE. The in-flight guard must keep it from importing
+		// the connector out from under the attempt.
+		const refreshed = await getComposioStatus({ refresh: true });
+		expect(
+			refreshed.integrations.find((entry) => entry.toolkit === "github")
+				?.status,
+		).toBe("not_connected");
+		expect(readStateFile(dir).toolkits ?? {}).toEqual({});
+		// The attempt's tool fetch then fails; the account is abandoned.
+		rejectConnectFetch?.(new Error("500 tools endpoint exploded"));
+		await expect(connectPromise).rejects.toThrow(/tools endpoint exploded/);
+		expect(remoteDelete).toHaveBeenCalledWith("ca_race_import", {
+			revoke_on_delete: true,
+		});
+		// Nothing may report the failed connection as installed afterwards.
+		expect(readStateFile(dir).toolkits ?? {}).toEqual({});
+		const after = await getComposioStatus();
+		expect(
+			after.integrations.find((entry) => entry.toolkit === "github")?.status,
+		).toBe("not_connected");
+	});
+
 	it("a connect overlapping a redirect-less finalize is also single-flight", async () => {
 		const dir = useTempDataDir();
 		process.env.COMPOSIO_API_KEY = "ck_overlap_rl";
@@ -541,7 +623,8 @@ describe("connectComposioToolkit", () => {
 				getRawComposioTools: vi.fn(
 					() =>
 						new Promise<{ slug: string }[]>((resolve) => {
-							releaseToolFetch = () => resolve([{ slug: "GITHUB_LIST_ISSUES" }]);
+							releaseToolFetch = () =>
+								resolve([{ slug: "GITHUB_LIST_ISSUES" }]);
 						}),
 				),
 			},
