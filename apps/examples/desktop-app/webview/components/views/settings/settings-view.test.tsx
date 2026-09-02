@@ -11,7 +11,7 @@ import { isProviderCatalogFresh, SettingsView } from "./settings-view";
 
 const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }));
 vi.mock("@/lib/desktop-client", () => ({
-	desktopClient: { invoke },
+	desktopClient: { invoke, subscribe: vi.fn(() => () => {}) },
 	isTauriAvailable: vi.fn(() => false),
 	openExternalUrl: vi.fn(),
 }));
@@ -233,5 +233,92 @@ describe("SettingsView generate media configuration", () => {
 			disabled: false,
 		});
 		expect(toggle?.getAttribute("data-state")).toBe("checked");
+	});
+
+	it("keeps desktop-local media settings unavailable in remote sessions", async () => {
+		const configuredTool = {
+			id: "generate_media",
+			name: "generate_media",
+			description: "Generate media from a prompt.",
+			enabled: true,
+			source: "builtin",
+			headlessToolNames: ["generate_media"],
+		};
+		invoke.mockImplementation(async (command: string) => {
+			if (command === "list_user_instruction_configs") {
+				return {
+					workspaceRoot: "/workspace",
+					rules: [],
+					workflows: [],
+					skills: [],
+					agents: [],
+					plugins: [],
+					tools: [configuredTool],
+					hooks: [],
+					mcp: { settingsPath: "", hasSettingsFile: false, servers: [] },
+					warnings: [],
+				};
+			}
+			if (command === "list_provider_catalog") {
+				return {
+					providers: [],
+					settingsPath: "/settings/providers.json",
+					mediaGeneration: {
+						image: { providerId: "google", modelId: "gemini-image" },
+					},
+					mediaGenerationModels: { audio: {}, image: {}, video: {} },
+				};
+			}
+			throw new Error(`unexpected command: ${command}`);
+		});
+
+		await act(async () => {
+			root.render(
+				<SettingsView
+					activeEnvironmentId="pi-host"
+					onNavigateSection={vi.fn()}
+					section="Customize"
+				/>,
+			);
+		});
+		await act(async () => {
+			await new Promise((resolve) => setTimeout(resolve, 20));
+		});
+		const toolsTab = [
+			...container.querySelectorAll<HTMLButtonElement>("button"),
+		].find((button) => button.textContent?.trim().startsWith("Tools"));
+		await act(async () => {
+			toolsTab?.click();
+			await new Promise((resolve) => setTimeout(resolve, 20));
+		});
+
+		const toggle = container.querySelector<HTMLButtonElement>(
+			'button[aria-label="Toggle generate_media"]',
+		);
+		expect(toggle?.disabled).toBe(true);
+		expect(toggle?.getAttribute("data-state")).toBe("unchecked");
+		expect(container.textContent).toContain("Local only");
+		expect(container.textContent).toContain(
+			"Customize settings shown here apply to Local sessions. Remote environments use customizations installed on that host.",
+		);
+
+		const cardTrigger = container.querySelector<HTMLButtonElement>(
+			'button[aria-label="Configure generate_media"]',
+		);
+		act(() => cardTrigger?.click());
+		expect(container.textContent).toContain(
+			"Media generation is available only in Local sessions.",
+		);
+		expect(
+			container.querySelector('[aria-label="Image generation provider"]'),
+		).toBeNull();
+		expect(invoke).not.toHaveBeenCalledWith(
+			"save_media_generation_settings",
+			expect.anything(),
+		);
+		expect(invoke).not.toHaveBeenCalledWith(
+			"set_tool_disabled",
+			expect.anything(),
+		);
 	});
 });

@@ -814,6 +814,25 @@ fn restart_to_apply_update(
     app.restart();
 }
 
+/// Relaunch the current version of the app. Used after the sidecar replaces
+/// the shared Cline Hub under the running app (the "Cline Hub update
+/// required" flow): a fresh launch attaches everything to the new Hub instead
+/// of trying to migrate live connections. restart() never returns, so the
+/// run-loop Exit handler cannot stop the sidecar; do it explicitly first.
+#[tauri::command]
+fn relaunch_app(app: tauri::AppHandle, backend_state: State<'_, Arc<DesktopBackendState>>) {
+    backend_state.stop();
+    app.restart();
+}
+
+/// Quit the app. Used by the "Cline Hub update required" flow when the user
+/// chooses to keep the older running Hub (and its live sessions) and update
+/// later. The run-loop Exit handler stops the sidecar.
+#[tauri::command]
+fn quit_app(app: tauri::AppHandle) {
+    app.exit(0);
+}
+
 /// Run one updater check/download/stage cycle immediately instead of waiting
 /// for the next background interval, and report the resulting status. Used by
 /// flows that need an update staged right now (e.g. the "Cline Hub was
@@ -1562,7 +1581,9 @@ fn main() {
             handle_avatar_overlay_action,
             show_session_notification,
             drain_desktop_actions,
-            set_tray_status
+            set_tray_status,
+            relaunch_app,
+            quit_app
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri app")
@@ -1621,6 +1642,16 @@ mod tests {
         );
 
         fs::remove_dir_all(&test_dir).expect("test directory should be removed");
+    }
+
+    #[test]
+    fn macos_bundle_declares_voice_input_permissions() {
+        let info_plist = include_str!("../Info.plist");
+        assert!(info_plist.contains("<key>NSMicrophoneUsageDescription</key>"));
+        assert!(info_plist.contains("<key>NSSpeechRecognitionUsageDescription</key>"));
+
+        let entitlements = include_str!("../entitlements.plist");
+        assert!(entitlements.contains("<key>com.apple.security.device.audio-input</key>"));
     }
 
     #[test]

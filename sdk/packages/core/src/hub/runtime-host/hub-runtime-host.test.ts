@@ -99,7 +99,10 @@ describe("HubRuntimeHost", () => {
 		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
 
 		const started = await host.startSession({
-			config: createConfig(),
+			config: {
+				...createConfig(),
+				agentPluginPaths: ["./portable-plugin"],
+			},
 			source: SessionSource.CLI,
 			localRuntime: {
 				extensionContext: {
@@ -126,6 +129,7 @@ describe("HubRuntimeHost", () => {
 				systemPrompt: "system",
 				mode: "act",
 				checkpoint: { enabled: true },
+				agentPluginPaths: ["./portable-plugin"],
 				enableTools: true,
 				enableSpawnAgent: true,
 				enableAgentTeams: true,

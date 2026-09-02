@@ -248,6 +248,8 @@ const NATIVE_COMMANDS = new Set([
 	"show_session_notification",
 	"drain_desktop_actions",
 	"set_tray_status",
+	"relaunch_app",
+	"quit_app",
 ]);
 
 class DesktopClient {

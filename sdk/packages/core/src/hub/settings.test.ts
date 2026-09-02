@@ -156,7 +156,12 @@ describe("hub settings commands", () => {
 				payload: {},
 			});
 			expect(listed.payload?.snapshot).toMatchObject({
-				plugins: [{ path: "host:memory-plugin", enabled: true }],
+				plugins: expect.arrayContaining([
+					expect.objectContaining({
+						path: "host:memory-plugin",
+						enabled: true,
+					}),
+				]),
 			});
 
 			const toggled = await transport.handleCommand({
@@ -171,7 +176,12 @@ describe("hub settings commands", () => {
 				},
 			});
 			expect(toggled.payload?.snapshot).toMatchObject({
-				plugins: [{ path: "host:memory-plugin", enabled: false }],
+				plugins: expect.arrayContaining([
+					expect.objectContaining({
+						path: "host:memory-plugin",
+						enabled: false,
+					}),
+				]),
 			});
 		} finally {
 			await transport.stop();
@@ -225,7 +235,12 @@ describe("hub settings commands", () => {
 				payload: {
 					changedTypes: ["plugins"],
 					snapshot: {
-						plugins: [{ path: "host:memory-plugin", enabled: false }],
+						plugins: expect.arrayContaining([
+							expect.objectContaining({
+								path: "host:memory-plugin",
+								enabled: false,
+							}),
+						]),
 					},
 				},
 			});
@@ -234,7 +249,12 @@ describe("hub settings commands", () => {
 			expect(settingsEvents[0]).toMatchObject({
 				types: ["plugins"],
 				snapshot: {
-					plugins: [{ path: "host:memory-plugin", enabled: false }],
+					plugins: expect.arrayContaining([
+						expect.objectContaining({
+							path: "host:memory-plugin",
+							enabled: false,
+						}),
+					]),
 				},
 			});
 		} finally {
@@ -312,6 +332,51 @@ describe("hub settings commands", () => {
 			});
 		} finally {
 			unsubscribe();
+			await transport.stop();
+		}
+	});
+
+	it("forwards explicit Agent Plugin paths to the hub settings service", async () => {
+		const snapshot = {
+			workflows: [],
+			rules: [],
+			skills: [],
+			plugins: [],
+			tools: [],
+			mcp: [],
+		};
+		const settingsService = {
+			list: vi.fn().mockResolvedValue(snapshot),
+		} as unknown as CoreSettingsService;
+		const transport = new HubServerTransport({
+			runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
+			scheduleOptions: { dbPath: ":memory:" },
+			settingsService,
+		});
+
+		try {
+			const reply = await transport.handleCommand({
+				version: "v1",
+				command: "settings.list",
+				requestId: "agent-plugins-list",
+				clientId: "cli",
+				payload: {
+					cwd: "/workspace",
+					workspaceRoot: "/workspace",
+					agentPluginPaths: ["./portable"],
+					includePluginTools: false,
+				},
+			});
+
+			expect(reply).toMatchObject({ ok: true, payload: { snapshot } });
+			expect(settingsService.list).toHaveBeenCalledWith({
+				cwd: "/workspace",
+				workspaceRoot: "/workspace",
+				agentPluginPaths: ["./portable"],
+				includePluginTools: false,
+				availabilityContext: undefined,
+			});
+		} finally {
 			await transport.stop();
 		}
 	});

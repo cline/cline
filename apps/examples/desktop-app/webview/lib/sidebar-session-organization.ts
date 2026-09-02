@@ -1,6 +1,13 @@
 import { isChatWorkspacePath } from "@cline/shared/browser";
-import type { SessionThread } from "@/hooks/use-session-history";
-import { normalizeWorkspacePath } from "@/lib/workspace-paths";
+import { normalizeTitle } from "@/components/utils";
+import {
+	parseTimestamp,
+	type SessionThread,
+} from "@/hooks/use-session-history";
+import {
+	LOCAL_WORKSPACE_ENVIRONMENT_ID,
+	normalizeWorkspacePath,
+} from "@/lib/workspace-paths";
 
 // One page of sidebar rows. Large enough to fill the sidebar on a tall
 // window (10 left a stub of rows over empty space); history fetches start at
@@ -69,4 +76,91 @@ export function groupThreadsByProject(
 		workspacePath: group.workspacePath,
 		threads: group.threads,
 	}));
+}
+
+export type SidebarScheduleGroup = {
+	kind: "schedule";
+	/** Stable key: the environment plus schedule id or shared title. */
+	id: string;
+	label: string;
+	/** Runs in the order they were given (newest first in the sidebar). */
+	threads: SessionThread[];
+};
+
+export type SidebarListRow =
+	| { kind: "thread"; thread: SessionThread }
+	| SidebarScheduleGroup;
+
+/**
+ * Key that decides which schedule group a thread joins. Runs stamped with a
+ * schedule id (or linked to one through the executions list) group by that
+ * id within their runtime environment; older runs without one group by their
+ * shared title and environment, since a schedule's sessions all start from
+ * the same prompt. Non-scheduled threads return null.
+ */
+export function scheduleGroupKey(thread: SessionThread): string | null {
+	if (!thread.isScheduled) return null;
+	const environmentId =
+		thread.environmentId?.trim() || LOCAL_WORKSPACE_ENVIRONMENT_ID;
+	const scheduleId = thread.scheduleId?.trim();
+	if (scheduleId) return `environment:${environmentId}:schedule:${scheduleId}`;
+	const title = normalizeTitle(thread.title).trim().toLowerCase();
+	return title ? `environment:${environmentId}:title:${title}` : null;
+}
+
+/**
+ * Folds every scheduled thread into one row per schedule, keeping each group
+ * at the position of its first (newest) run so the list still reads in
+ * recency order. Non-scheduled threads pass through as plain rows.
+ */
+export function groupScheduledThreads(
+	threads: readonly SessionThread[],
+): SidebarListRow[] {
+	const rows: SidebarListRow[] = [];
+	const groups = new Map<string, SidebarScheduleGroup>();
+	for (const thread of threads) {
+		const key = scheduleGroupKey(thread);
+		if (!key) {
+			rows.push({ kind: "thread", thread });
+			continue;
+		}
+		const existing = groups.get(key);
+		if (existing) {
+			existing.threads.push(thread);
+			if (!existing.label) existing.label = scheduleGroupLabel(thread);
+			continue;
+		}
+		const group: SidebarScheduleGroup = {
+			kind: "schedule",
+			id: key,
+			label: scheduleGroupLabel(thread),
+			threads: [thread],
+		};
+		groups.set(key, group);
+		rows.push(group);
+	}
+	return rows;
+}
+
+function scheduleGroupLabel(thread: SessionThread): string {
+	return thread.scheduleName?.trim() || normalizeTitle(thread.title).trim();
+}
+
+/**
+ * Label for one run inside a schedule group. Runs the runner numbered show
+ * "Run N"; older runs fall back to when they started, which is the next
+ * best way to tell them apart.
+ */
+export function scheduleRunLabel(thread: SessionThread): string {
+	if (thread.scheduleRunNumber) return `Run ${thread.scheduleRunNumber}`;
+	const started = parseTimestamp(thread.startedAt);
+	if (Number.isFinite(started)) {
+		return new Date(started).toLocaleString(undefined, {
+			month: "short",
+			day: "numeric",
+			hour: "numeric",
+			minute: "2-digit",
+		});
+	}
+	return "Run";
 }

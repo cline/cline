@@ -1057,6 +1057,7 @@ export default function Home() {
 								{view === "settings" ? (
 									<div className="absolute inset-0 z-30 bg-background text-foreground">
 										<SettingsView
+											activeEnvironmentId={activeEnvironmentId}
 											modeSettingsRequest={modeSettingsRequest}
 											onNavigateSection={handleSettingsSectionChange}
 											onOpenSession={handleOpenSessionById}
