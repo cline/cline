@@ -4,6 +4,7 @@ import {
 	filterChatModels,
 	isChatModel,
 	isDedicatedTranscriptionModel,
+	isImageGenerationModel,
 	publishProviderModels,
 	selectTranscriptionModel,
 	subscribeToProviderModels,
@@ -67,13 +68,40 @@ describe("transcription model selection", () => {
 		).toBe(false);
 	});
 
-	it("keeps chat and image-generation models in the composer", () => {
+	it("keeps chat and image-generation models in the composer and routes image models to settings", () => {
 		expect(
 			isChatModel({
 				id: "chat",
 				name: "Chat",
 				inputModalities: ["text", "audio"],
 				outputModalities: ["text"],
+			}),
+		).toBe(true);
+		expect(
+			isImageGenerationModel({
+				id: "image",
+				name: "Image",
+				operation: "image-generation",
+				inputModalities: ["text", "image"],
+				outputModalities: ["image"],
+			}),
+		).toBe(true);
+		expect(
+			isChatModel({
+				id: "mixed-image",
+				name: "Mixed image",
+				operation: "language",
+				inputModalities: ["text", "image"],
+				outputModalities: ["text", "image"],
+			}),
+		).toBe(true);
+		expect(
+			isImageGenerationModel({
+				id: "mixed-image",
+				name: "Mixed image",
+				operation: "language",
+				inputModalities: ["text", "image"],
+				outputModalities: ["text", "image"],
 			}),
 		).toBe(true);
 		expect(
@@ -114,6 +142,13 @@ describe("transcription model selection", () => {
 				operation: "speech-generation",
 				inputModalities: ["text"],
 				outputModalities: ["audio"],
+			}),
+		).toBe(false);
+		expect(
+			isChatModel({
+				id: "stale-video-model",
+				name: "Stale video model",
+				operation: "video-generation",
 			}),
 		).toBe(false);
 	});

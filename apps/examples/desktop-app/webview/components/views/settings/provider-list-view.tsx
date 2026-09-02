@@ -389,7 +389,6 @@ export function ProviderListContent({
 			))}
 		</div>
 	);
-
 	return (
 		<ScrollArea className="h-full">
 			<div

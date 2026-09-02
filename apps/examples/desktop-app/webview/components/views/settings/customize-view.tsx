@@ -8,7 +8,10 @@ import { desktopClient } from "@/lib/desktop-client";
 import { cn } from "@/lib/utils";
 import { PageFrame, PageHeader } from "../page-layout";
 import { ComposioConnectorsView } from "./composio-connectors-view";
-import { CustomizationSectionView } from "./extensions-view";
+import {
+	CustomizationSectionView,
+	type GenerateMediaToolConfig,
+} from "./extensions-view";
 import { McpServersContent } from "./mcp-view";
 
 /**
@@ -54,8 +57,10 @@ function asCount(value: unknown): number {
 }
 
 export function CustomizeView({
+	generateMediaConfig,
 	onOpenMarketplace,
 }: {
+	generateMediaConfig?: GenerateMediaToolConfig;
 	onOpenMarketplace?: () => void;
 }) {
 	const [tab, setTab] = useState<CustomizeTab>("skills");
@@ -212,6 +217,7 @@ export function CustomizeView({
 			) : (
 				<CustomizationSectionView
 					chrome="embedded"
+					generateMediaConfig={generateMediaConfig}
 					onInventoryChanged={handleInventoryChanged}
 					section="Tools"
 				/>
