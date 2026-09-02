@@ -118,7 +118,7 @@ export function ComposioConnectorsView({
 
 			{actionError ? (
 				<p className="text-xs text-destructive" role="alert">
-					{actionError}
+					{actionError.message}
 				</p>
 			) : null}
 

@@ -745,7 +745,12 @@ export async function getComposioStatus(options?: {
 			const remoteAccountId = activeByToolkit.get(slug);
 			const stored = startToolkits[slug];
 			baselineIdBySlug.set(slug, stored?.connectedAccountId);
-			if (stored && !remoteAccountId) {
+			if (stored && cancelledIds.has(stored.connectedAccountId)) {
+				// A stored entry carrying a tombstoned account (imported by a
+				// refresh that raced an attempt's failure) must never stay
+				// reported as installed — its account is abandoned/revoked.
+				removals.push(slug);
+			} else if (stored && !remoteAccountId) {
 				// Absence-based removal is only sound when the whole account
 				// list was seen; a capped (incomplete) listing proves nothing
 				// about accounts past the cap.
@@ -764,6 +769,12 @@ export async function getComposioStatus(options?: {
 					// instead of trusting the empty cache.
 					stored.tools.length === 0) &&
 				!pendingConnections.has(slug) &&
+				// A connect mid-initiation owns the slug (its pending entry does
+				// not exist yet): a redirect-less attempt can already be ACTIVE
+				// remotely while its finalize is still fetching tools, and
+				// importing it here would keep it installed even if that
+				// finalize then fails and abandons the account.
+				!connectInitiationsInFlight.has(slug) &&
 				// The remote snapshot predates a local disconnect of this
 				// toolkit; writing it back would resurrect the connection.
 				(lastDisconnectedAt.get(slug) ?? 0) < refreshStartedAt
@@ -818,7 +829,10 @@ export async function getComposioStatus(options?: {
 					if ((lastDisconnectedAt.get(slug) ?? 0) >= refreshStartedAt) {
 						continue; // Disconnected mid-refresh.
 					}
-					if (pendingConnections.has(slug)) {
+					if (
+						pendingConnections.has(slug) ||
+						connectInitiationsInFlight.has(slug)
+					) {
 						continue; // A new attempt started mid-refresh; let it finish.
 					}
 					if (freshCancelled.has(imported.connectedAccountId)) {
@@ -1317,6 +1331,15 @@ async function abandonFinalizedConnection(
 ): Promise<void> {
 	updateComposioState((s) => {
 		rememberCancelledAccountId(s, connectedAccountId);
+		// A concurrent refresh may have imported this account before the
+		// tombstone above landed (it was ACTIVE remotely while the attempt was
+		// still finalizing). No stored entry may outlive its abandoned
+		// account, so strip any toolkit that carries it.
+		for (const [slug, stored] of Object.entries(s.toolkits ?? {})) {
+			if (stored?.connectedAccountId === connectedAccountId && s.toolkits) {
+				delete s.toolkits[slug];
+			}
+		}
 	});
 	const confirmedGone = await revokeConnectedAccountQuietly(
 		apiKey,
