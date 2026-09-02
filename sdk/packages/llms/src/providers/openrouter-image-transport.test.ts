@@ -62,6 +62,7 @@ describe("OpenRouter image transport", () => {
 						{
 							id: "google/gemini-image-test",
 							name: "Gemini Image Test",
+							operation: "image-generation",
 							modalities: {
 								input: ["text", "image"],
 								output: ["image"],
@@ -88,11 +89,17 @@ describe("OpenRouter image transport", () => {
 			model: "google/gemini-image-test",
 			modalities: ["image", "text"],
 		});
-		expect(events).toContainEqual({
-			type: "image",
-			data: imageBase64,
-			mediaType: "image/png",
-		});
+		expect(events).toContainEqual(
+			expect.objectContaining({
+				type: "media",
+				media: expect.objectContaining({
+					id: expect.any(String),
+					modality: "image",
+					mediaType: "image/png",
+					source: { type: "base64", data: imageBase64 },
+				}),
+			}),
+		);
 		expect(events.at(-1)).toEqual({ type: "finish", reason: "stop" });
 	});
 

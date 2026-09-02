@@ -5,7 +5,10 @@ import type {
 } from "@modelcontextprotocol/sdk/client/auth.js";
 import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
+import {
+	SSEClientTransport,
+	SseError,
+} from "@modelcontextprotocol/sdk/client/sse.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import type {
 	OAuthClientInformationMixed,
@@ -39,6 +42,120 @@ const DEFAULT_MCP_OAUTH_TIMEOUT_MS = 5 * 60 * 1000;
 export type McpSdkAuthCapableTransport =
 	| SSEClientTransport
 	| StreamableHTTPClientTransport;
+
+const MCP_REDIRECT_STATUS_CODES = new Set([301, 302, 303, 307, 308]);
+const MAX_MCP_REDIRECTS = 20;
+const CROSS_ORIGIN_SENSITIVE_HEADERS = new Set([
+	"authorization",
+	"cookie",
+	"proxy-authorization",
+]);
+const CLIENT_MANAGED_MCP_HEADERS = new Set([
+	"mcp-protocol-version",
+	"mcp-session-id",
+]);
+
+function resolveConfiguredMcpHeaders(input: {
+	headers?: Record<string, string>;
+	oauthProvider?: OAuthClientProvider;
+	restrictConfiguredHeadersToOrigin?: boolean;
+}): Record<string, string> | undefined {
+	if (!input.headers || !input.restrictConfiguredHeadersToOrigin) {
+		return input.headers;
+	}
+
+	const entries = Object.entries(input.headers).filter(([name]) => {
+		const normalized = name.toLowerCase();
+		if (CLIENT_MANAGED_MCP_HEADERS.has(normalized)) {
+			return false;
+		}
+		return normalized !== "authorization" || !input.oauthProvider;
+	});
+	return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+}
+
+export function createOriginBoundMcpHeadersFetch(input: {
+	endpointUrl: string;
+	configuredHeaders: Record<string, string>;
+	baseFetch?: FetchLike;
+}): FetchLike {
+	const configuredOrigin = new URL(input.endpointUrl).origin;
+	const configuredHeaderNames = new Set(
+		Object.keys(input.configuredHeaders).map((name) => name.toLowerCase()),
+	);
+	const baseFetch = input.baseFetch ?? globalThis.fetch;
+	const stripCrossOriginHeaders = (headers: Headers): void => {
+		const headerNamesToDelete: string[] = [];
+		headers.forEach((_value, headerName) => {
+			const normalized = headerName.toLowerCase();
+			if (
+				configuredHeaderNames.has(normalized) ||
+				CROSS_ORIGIN_SENSITIVE_HEADERS.has(normalized)
+			) {
+				headerNamesToDelete.push(headerName);
+			}
+		});
+		for (const headerName of headerNamesToDelete) {
+			headers.delete(headerName);
+		}
+	};
+
+	return async (requestInput, requestInit) => {
+		const initialRequest =
+			requestInput instanceof Request
+				? new Request(requestInput, requestInit as RequestInit)
+				: new Request(String(requestInput), requestInit as RequestInit);
+		let currentUrl = new URL(initialRequest.url);
+		let method = initialRequest.method;
+		let body =
+			method === "GET" || method === "HEAD"
+				? undefined
+				: await initialRequest.clone().arrayBuffer();
+		const headers = new Headers(initialRequest.headers);
+		if (currentUrl.origin !== configuredOrigin) {
+			stripCrossOriginHeaders(headers);
+		}
+
+		for (let redirectCount = 0; ; redirectCount += 1) {
+			const response = await baseFetch(currentUrl, {
+				method,
+				headers,
+				body,
+				redirect: "manual",
+				signal: initialRequest.signal,
+			});
+			if (!MCP_REDIRECT_STATUS_CODES.has(response.status)) {
+				return response;
+			}
+			if (redirectCount >= MAX_MCP_REDIRECTS) {
+				await response.body?.cancel().catch(() => undefined);
+				throw new Error(
+					`MCP endpoint exceeded ${MAX_MCP_REDIRECTS} redirects.`,
+				);
+			}
+			const location = response.headers.get("location");
+			if (!location) {
+				return response;
+			}
+			const nextUrl = new URL(location, currentUrl);
+			await response.body?.cancel().catch(() => undefined);
+			if (nextUrl.origin !== configuredOrigin) {
+				stripCrossOriginHeaders(headers);
+			}
+			if (
+				(response.status === 303 && method !== "GET" && method !== "HEAD") ||
+				((response.status === 301 || response.status === 302) &&
+					method === "POST")
+			) {
+				method = "GET";
+				body = undefined;
+				headers.delete("content-length");
+				headers.delete("content-type");
+			}
+			currentUrl = nextUrl;
+		}
+	};
+}
 
 export interface CreateMcpOAuthProviderContextOptions {
 	settingsPath?: string;
@@ -406,6 +523,7 @@ export function createMcpSdkTransport(input: {
 	registration: McpServerRegistration;
 	oauthProvider?: OAuthClientProvider;
 	fetch?: FetchLike;
+	restrictConfiguredHeadersToOrigin?: boolean;
 }): McpSdkAuthCapableTransport {
 	const transport = input.registration.transport;
 	if (transport.type === "stdio") {
@@ -414,19 +532,32 @@ export function createMcpSdkTransport(input: {
 		);
 	}
 
-	const requestInit = transport.headers
+	const configuredHeaders = resolveConfiguredMcpHeaders({
+		headers: transport.headers,
+		oauthProvider: input.oauthProvider,
+		restrictConfiguredHeadersToOrigin: input.restrictConfiguredHeadersToOrigin,
+	});
+	const requestInit = configuredHeaders
 		? {
-				headers: transport.headers,
+				headers: configuredHeaders,
 			}
 		: undefined;
+	const effectiveFetch =
+		input.restrictConfiguredHeadersToOrigin && configuredHeaders
+			? createOriginBoundMcpHeadersFetch({
+					endpointUrl: transport.url,
+					configuredHeaders,
+					baseFetch: input.fetch,
+				})
+			: input.fetch;
 	// The upstream transports only surface a typed UnauthorizedError for a 401
 	// when an OAuth provider is present. For passive connections without stored
 	// tokens, translate the response at the fetch boundary so callers can show
 	// an explicit sign-in action without starting discovery/registration/PKCE.
 	const transportFetch: FetchLike | undefined = input.oauthProvider
-		? input.fetch
+		? effectiveFetch
 		: async (url, init) => {
-				const response = await (input.fetch ?? globalThis.fetch)(url, init);
+				const response = await (effectiveFetch ?? globalThis.fetch)(url, init);
 				if (response.status === 401) {
 					await response.body?.cancel().catch(() => undefined);
 					throw new UnauthorizedError("MCP server requires authorization");
@@ -437,6 +568,13 @@ export function createMcpSdkTransport(input: {
 		return new SSEClientTransport(new URL(transport.url), {
 			authProvider: input.oauthProvider,
 			requestInit,
+			// The stream request must see the raw response: EventSource flattens
+			// a thrown fetch error into a status-less error event, while a
+			// passed-through 401 fails the connection with an SseError carrying
+			// the HTTP code that isMcpUnauthorizedError recognizes.
+			eventSourceInit: {
+				fetch: (url, init) => (effectiveFetch ?? globalThis.fetch)(url, init),
+			},
 			fetch: transportFetch,
 		});
 	}
@@ -446,6 +584,20 @@ export function createMcpSdkTransport(input: {
 		requestInit,
 		fetch: transportFetch,
 	});
+}
+
+/**
+ * Recognizes a 401 from a remote MCP server across transports. The streamable
+ * HTTP transport (and SSE message POSTs) reject with the typed
+ * UnauthorizedError raised at the fetch boundary, but the SSE stream request
+ * runs inside EventSource, which consumes the response and reports the HTTP
+ * status only through SseError's code.
+ */
+export function isMcpUnauthorizedError(error: unknown): boolean {
+	return (
+		error instanceof UnauthorizedError ||
+		(error instanceof SseError && error.code === 401)
+	);
 }
 
 function buildClient(input: {
@@ -554,7 +706,7 @@ export async function authorizeMcpServerOAuth(
 				message: `MCP server "${serverName}" is already authorized.`,
 			};
 		} catch (error) {
-			if (!(error instanceof UnauthorizedError)) {
+			if (!isMcpUnauthorizedError(error)) {
 				throw error;
 			}
 			await oauthContext.markAuthorizationRequired(

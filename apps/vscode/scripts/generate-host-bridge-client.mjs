@@ -17,10 +17,14 @@ const VSCODE_CLIENT_FILE = path.resolve("src/generated/hosts/vscode/hostbridge-g
  */
 export async function main() {
 	const { hostServices } = await loadServicesFromProtoDescriptor()
+	// CoreConnectionService is an internal transport used only by external
+	// cores. It is implemented directly by the Host Bridge and must not become
+	// part of the public HostProvider client surface or the VS Code emulation.
+	const { CoreConnectionService: _coreConnectionService, ...publicHostServices } = hostServices
 
-	await generateTypesFile(hostServices)
-	await generateExternalClientFile(hostServices)
-	await generateVscodeClientFile(hostServices)
+	await generateTypesFile(publicHostServices)
+	await generateExternalClientFile(publicHostServices)
+	await generateVscodeClientFile(publicHostServices)
 
 	console.log(`Generated Host Bridge client files at:`)
 	console.log(`- ${TYPES_FILE}`)
@@ -125,9 +129,9 @@ function generateExternalClientSetup(serviceName, serviceDefinition) {
 				return `    ${methodName}(request: ${requestType}): Promise<${responseType}> {
       return this.makeRequest((client) => client.${methodName}(request))
     }`
-			} else {
-				// Generate streaming method
-				return `  ${methodName}(
+			}
+			// Generate streaming method
+			return `  ${methodName}(
 		request: ${requestType},
 		callbacks: StreamingCallbacks<${responseType}>,
 	): () => void {
@@ -150,7 +154,6 @@ function generateExternalClientSetup(serviceName, serviceDefinition) {
 			abortController.abort()
 		}
 	}\n`
-			}
 		})
 		.join("\n")
 
@@ -222,9 +225,8 @@ function generateVscodeClientImplementation(serviceName, serviceDefinition) {
 			const isStreamingResponse = methodDef.responseStream
 			if (!isStreamingResponse) {
 				return `${name}ServiceRegistry.registerMethod("${methodName}", ${methodName})`
-			} else {
-				return `${name}ServiceRegistry.registerMethod("${methodName}", ${methodName}, { isStreaming: true })`
 			}
+			return `${name}ServiceRegistry.registerMethod("${methodName}", ${methodName}, { isStreaming: true })`
 		})
 		.join("\n")
 

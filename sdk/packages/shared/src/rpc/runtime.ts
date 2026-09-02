@@ -1,6 +1,10 @@
 import z from "zod";
 import type { HubToolExecutorName } from "../hub";
-import type { ModelModality } from "../llms/model-info";
+import type {
+	ModelModality,
+	ModelOperation,
+	ModelOperationMode,
+} from "../llms/model-info";
 import type { ReasoningLevel } from "../llms/reasoning-options";
 import type {
 	RuntimeConfigExtensionKind,
@@ -16,6 +20,8 @@ export interface ChatRuntimeConfig extends SessionPromptConfig {
 	enableSpawn?: boolean;
 	enableTeams?: boolean;
 	disableMcpSettingsTools?: boolean;
+	/** Additional Agent Plugins package roots resolved by the hub runtime. */
+	agentPluginPaths?: string[];
 	autoApproveTools?: boolean;
 	missionStepInterval?: number;
 	missionTimeIntervalMs?: number;
@@ -143,13 +149,33 @@ export interface EnterpriseStatusRequest {
 
 export type EnterpriseStatusResponse = EnterpriseSyncResponse;
 
+/** Which tier of the Cline recommended-models feed featured a model. */
+export type ProviderModelFeaturedTier = "recommended" | "free" | "subscribed";
+
+export interface ProviderModelFeatured {
+	tier: ProviderModelFeaturedTier;
+	/** Position within the tier, preserving the feed's intentional order. */
+	rank: number;
+	/** Feed marketing tags, e.g. "NEW" or "BEST". */
+	tags: string[];
+}
+
 export interface ProviderModel {
 	id: string;
 	name: string;
+	description?: string;
+	/**
+	 * Present when the Cline recommended-models feed features this model
+	 * (cline / cline-pass providers only), so pickers can lead with the
+	 * feed's tiers without fetching and joining the feed themselves.
+	 */
+	featured?: ProviderModelFeatured;
+	operation?: ModelOperation;
 	contextWindow?: number;
 	supportsAttachments?: boolean;
 	supportsVision?: boolean;
 	supportsReasoning?: boolean;
+	operationModes?: ModelOperationMode[];
 	inputModalities?: ModelModality[];
 	outputModalities?: ModelModality[];
 }
@@ -188,6 +214,12 @@ export interface ProviderListItem {
 	color: string;
 	letter: string;
 	enabled: boolean;
+	/**
+	 * True when the persisted settings hold real credentials or a usable
+	 * keyless endpoint (see @cline/core's isProviderSettingsUsable), unlike
+	 * `enabled` which is set by any persisted entry.
+	 */
+	configured?: boolean;
 	apiKey?: string;
 	oauthAccessTokenPresent?: boolean;
 	baseUrl?: string;
@@ -203,9 +235,47 @@ export interface ProviderListItem {
 	family?: string;
 }
 
+export interface VoiceInputSelection {
+	providerId: string;
+	modelId: string;
+}
+
+export interface MediaModelSelection {
+	providerId: string;
+	modelId: string;
+}
+
+/** Media kinds supported by the generic media-generation settings contract. */
+export const MEDIA_GENERATION_TYPES = [
+	"image",
+	"audio",
+	"video",
+] as const satisfies readonly ModelModality[];
+
+export type MediaGenerationType = (typeof MEDIA_GENERATION_TYPES)[number];
+
+/**
+ * Provider/model selections used by the generic media-generation tool.
+ *
+ * Extending {@link MediaGenerationType} automatically adds a typed selection
+ * slot for the new media kind without introducing a separate tool contract.
+ */
+export type MediaGenerationSettings = Partial<
+	Record<MediaGenerationType, MediaModelSelection>
+>;
+
+/** Server-authoritative media-generation models keyed by provider id. */
+export type MediaGenerationModelCatalog = Record<
+	MediaGenerationType,
+	Record<string, string[]>
+>;
+
 export interface ProviderCatalogResponse {
 	providers: ProviderListItem[];
 	settingsPath: string;
+	voiceInput?: VoiceInputSelection;
+	mediaGeneration?: MediaGenerationSettings;
+	mediaGenerationModels: MediaGenerationModelCatalog;
 }
 
 export interface ProviderModelsResponse {

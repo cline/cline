@@ -369,6 +369,57 @@ describe("SessionRuntime.getExtensionRegistry", () => {
 		);
 	});
 
+	it("composes tool-conditional rules only when the tool is enabled", async () => {
+		const conditionalRuleExtension: AgentExtension = {
+			name: "conditional-tool-rule",
+			manifest: { capabilities: ["rules"] },
+			setup: (api) => {
+				api.registerRule({
+					id: "conditional-tool-rule:guidance",
+					content: "Use tasks for durable follow-up work.",
+					whenToolAvailable: "tasks",
+				});
+			},
+		};
+		const todoListTool: AgentTool = {
+			name: "tasks",
+			description: "Manage durable agenda items.",
+			inputSchema: { type: "object", properties: {} },
+			execute: async () => ({ ok: true }),
+		};
+
+		const enabledCapture = withCapturingFakeRuntime();
+		const enabledSession = new SessionRuntime(
+			makeAgentConfig({
+				systemPrompt: "Base prompt.",
+				tools: [todoListTool],
+				extensions: [conditionalRuleExtension],
+			}),
+			enabledCapture.deps,
+		);
+		await enabledSession.run("go");
+
+		expect(enabledCapture.configs[0]?.systemPrompt).toBe(
+			"Base prompt.\n\nUse tasks for durable follow-up work.",
+		);
+		expect(enabledCapture.configs[0]?.tools).toContainEqual(todoListTool);
+
+		const disabledCapture = withCapturingFakeRuntime();
+		const disabledSession = new SessionRuntime(
+			makeAgentConfig({
+				systemPrompt: "Base prompt.",
+				tools: [todoListTool],
+				extensions: [conditionalRuleExtension],
+				toolPolicies: { tasks: { enabled: false } },
+			}),
+			disabledCapture.deps,
+		);
+		await disabledSession.run("go");
+
+		expect(disabledCapture.configs[0]?.systemPrompt).toBe("Base prompt.");
+		expect(disabledCapture.configs[0]?.tools).toEqual([]);
+	});
+
 	it("passes session, caller, and logger context into extension setup()", async () => {
 		const logger = {
 			debug: vi.fn(),
@@ -855,6 +906,51 @@ it("derives tool image support metadata from resolved provider model catalog", a
 	expect(runtimeConfig.toolContextMetadata?.telemetry).toBeUndefined();
 });
 
+it.each([
+	["absent", undefined],
+	["empty", []],
+])("keeps image support enabled when the capability list is %s", async (_label, capabilities) => {
+	const { deps, configs } = withCapturingFakeRuntime();
+	const session = new SessionRuntime(
+		makeAgentConfig({
+			knownModels: {
+				"claude-3-5-sonnet": {
+					id: "claude-3-5-sonnet",
+					...(capabilities === undefined ? {} : { capabilities }),
+				},
+			},
+		}),
+		deps,
+	);
+
+	await session.run("inspect image");
+
+	expect(configs[0]?.toolContextMetadata).toEqual(
+		expect.objectContaining({ modelSupportsImages: true }),
+	);
+});
+
+it("disables image support when a populated capability list omits images", async () => {
+	const { deps, configs } = withCapturingFakeRuntime();
+	const session = new SessionRuntime(
+		makeAgentConfig({
+			knownModels: {
+				"claude-3-5-sonnet": {
+					id: "claude-3-5-sonnet",
+					capabilities: ["tools", "prompt-cache"],
+				},
+			},
+		}),
+		deps,
+	);
+
+	await session.run("inspect image");
+
+	expect(configs[0]?.toolContextMetadata).toEqual(
+		expect.objectContaining({ modelSupportsImages: false }),
+	);
+});
+
 describe("SessionRuntime.run", () => {
 	it("invokes the injected AgentRuntime and returns an AgentResult", async () => {
 		const { deps, calls } = withFakeRuntime({
@@ -882,6 +978,8 @@ describe("SessionRuntime.run", () => {
 				knownModels: {
 					[modelId]: {
 						id: modelId,
+						operation: "image-generation",
+						capabilities: ["tools", "images"],
 						modalities: {
 							input: ["text", "image"],
 							output: ["image"],
@@ -908,41 +1006,6 @@ describe("SessionRuntime.run", () => {
 		expect(configs[0]?.completionPolicy).toBeUndefined();
 	});
 
-	it("preserves tools and completion-tool policy for mixed image models", async () => {
-		const { deps, configs } = withCapturingFakeRuntime();
-		const modelId = "openai/gpt-5-image";
-		const completionPolicy = { requireCompletionTool: true };
-		const session = new SessionRuntime(
-			makeAgentConfig({
-				modelId,
-				knownModels: {
-					[modelId]: {
-						id: modelId,
-						modalities: {
-							input: ["text", "image"],
-							output: ["image", "text"],
-						},
-					},
-				},
-				tools: [
-					{
-						name: "read_files",
-						description: "Read files",
-						inputSchema: { type: "object" },
-						execute: async () => "contents",
-					},
-				],
-				completionPolicy,
-			}),
-			deps,
-		);
-		await session.run("Answer normally or generate an image");
-
-		expect(configs).toHaveLength(1);
-		expect(configs[0]?.tools?.map((tool) => tool.name)).toEqual(["read_files"]);
-		expect(configs[0]?.completionPolicy).toEqual(completionPolicy);
-	});
-
 	it("disables tools and completion-tool policy for dedicated video models", async () => {
 		const { deps, configs } = withCapturingFakeRuntime();
 		const modelId = "google/veo-video";
@@ -952,6 +1015,7 @@ describe("SessionRuntime.run", () => {
 				knownModels: {
 					[modelId]: {
 						id: modelId,
+						operation: "video-generation",
 						modalities: {
 							input: ["text", "image"],
 							output: ["video"],
@@ -1015,44 +1079,9 @@ describe("SessionRuntime.run", () => {
 		});
 	});
 
-	it("disables tools and completion-tool policy for dedicated audio models", async () => {
+	it("preserves tools and completion-tool policy for mixed image models", async () => {
 		const { deps, configs } = withCapturingFakeRuntime();
-		const modelId = "dedicated-audio";
-		const session = new SessionRuntime(
-			makeAgentConfig({
-				modelId,
-				knownModels: {
-					[modelId]: {
-						id: modelId,
-						modalities: {
-							input: ["text"],
-							output: ["audio"],
-						},
-					},
-				},
-				tools: [
-					{
-						name: "read_files",
-						description: "Read files",
-						inputSchema: { type: "object" },
-						execute: async () => "contents",
-					},
-				],
-				completionPolicy: { requireCompletionTool: true },
-			}),
-			deps,
-		);
-
-		await session.run("Generate speech");
-
-		expect(configs).toHaveLength(1);
-		expect(configs[0]?.tools).toEqual([]);
-		expect(configs[0]?.completionPolicy).toBeUndefined();
-	});
-
-	it("preserves tools and completion policy for mixed text-and-audio models", async () => {
-		const { deps, configs } = withCapturingFakeRuntime();
-		const modelId = "mixed-text-audio";
+		const modelId = "openai/gpt-5-image";
 		const completionPolicy = { requireCompletionTool: true };
 		const session = new SessionRuntime(
 			makeAgentConfig({
@@ -1060,9 +1089,10 @@ describe("SessionRuntime.run", () => {
 				knownModels: {
 					[modelId]: {
 						id: modelId,
+						capabilities: ["tools", "images"],
 						modalities: {
-							input: ["text"],
-							output: ["text", "audio"],
+							input: ["text", "image"],
+							output: ["image", "text"],
 						},
 					},
 				},
@@ -1079,11 +1109,47 @@ describe("SessionRuntime.run", () => {
 			deps,
 		);
 
-		await session.run("Use a tool and return narrated text");
+		await session.run("Answer normally or generate an image");
 
 		expect(configs).toHaveLength(1);
 		expect(configs[0]?.tools?.map((tool) => tool.name)).toEqual(["read_files"]);
 		expect(configs[0]?.completionPolicy).toEqual(completionPolicy);
+	});
+
+	it("disables tools and completion-tool policy for tool-less mixed image models", async () => {
+		const { deps, configs } = withCapturingFakeRuntime();
+		const modelId = "google/gemini-2.5-flash-image";
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				modelId,
+				knownModels: {
+					[modelId]: {
+						id: modelId,
+						capabilities: ["images"],
+						modalities: {
+							input: ["text", "image"],
+							output: ["text", "image"],
+						},
+					},
+				},
+				tools: [
+					{
+						name: "read_files",
+						description: "Read files",
+						inputSchema: { type: "object" },
+						execute: async () => "contents",
+					},
+				],
+				completionPolicy: { requireCompletionTool: true },
+			}),
+			deps,
+		);
+
+		await session.run("Generate an image");
+
+		expect(configs).toHaveLength(1);
+		expect(configs[0]?.tools).toEqual([]);
+		expect(configs[0]?.completionPolicy).toBeUndefined();
 	});
 
 	it("appends the user turn into the conversation store", async () => {
@@ -1769,6 +1835,119 @@ describe("SessionRuntime real AgentRuntime smoke", () => {
 		expect(typeof lastContent === "object" ? lastContent.type : undefined).toBe(
 			"tool_result",
 		);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// external abort signal
+// ---------------------------------------------------------------------------
+
+describe("SessionRuntime external abort signal", () => {
+	it("observes the parent signal only while a run is active", async () => {
+		const controller = new AbortController();
+		const addEventListener = vi.spyOn(controller.signal, "addEventListener");
+		const removeEventListener = vi.spyOn(
+			controller.signal,
+			"removeEventListener",
+		);
+		const { deps } = withFakeRuntime();
+		const session = new SessionRuntime(
+			makeAgentConfig({ abortSignal: controller.signal }),
+			deps,
+		);
+
+		expect(addEventListener).not.toHaveBeenCalled();
+		await session.run("delegated task");
+
+		expect(addEventListener).toHaveBeenCalledOnce();
+		expect(removeEventListener).toHaveBeenCalledOnce();
+	});
+
+	it("does not retain the parent signal when extension startup fails", async () => {
+		const controller = new AbortController();
+		const addEventListener = vi.spyOn(controller.signal, "addEventListener");
+		const extension: AgentExtension = {
+			name: "failing-startup",
+			manifest: { capabilities: ["tools"] },
+			setup: () => {
+				throw new Error("startup failed");
+			},
+		};
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				abortSignal: controller.signal,
+				extensions: [extension],
+				hookErrorMode: "throw",
+			}),
+		);
+
+		await expect(session.run("delegated task")).rejects.toThrow(
+			"startup failed",
+		);
+		expect(addEventListener).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		"before",
+		"during",
+	] as const)("retains a parent abort received %s delegated startup", async (timing) => {
+		const controller = new AbortController();
+		let releaseStartup: (() => void) | undefined;
+		// AgentRuntime plugin setup has no cancellation contract. Release this
+		// finite startup explicitly and verify the retained abort is applied before
+		// the model runs; making arbitrary plugin initialization abortable is not
+		// part of SessionRuntime cancellation propagation.
+		const startupGate = new Promise<void>((resolve) => {
+			releaseStartup = resolve;
+		});
+		let markStartupEntered: (() => void) | undefined;
+		const startupEntered = new Promise<void>((resolve) => {
+			markStartupEntered = resolve;
+		});
+		const modelStream = vi.fn(async () =>
+			(async function* () {
+				yield { type: "text-delta" as const, text: "should not run" };
+				yield { type: "finish" as const, reason: "stop" as const };
+			})(),
+		);
+		const scriptedModel: AgentModel = { stream: modelStream };
+
+		if (timing === "before") {
+			controller.abort("parent session aborted");
+		}
+		const session = new SessionRuntime(
+			makeAgentConfig({ abortSignal: controller.signal }),
+			{
+				createAgentRuntimeImpl: (config) =>
+					createAgentRuntime({
+						...config,
+						model: scriptedModel,
+						plugins: [
+							...(config.plugins ?? []),
+							{
+								name: "delayed-startup",
+								async setup() {
+									markStartupEntered?.();
+									await startupGate;
+									return {};
+								},
+							},
+						],
+					}),
+			},
+		);
+		const runPromise = session.run("delegated task");
+		await startupEntered;
+		if (timing === "during") {
+			controller.abort("parent session aborted");
+		}
+		releaseStartup?.();
+
+		await expect(runPromise).resolves.toMatchObject({
+			finishReason: "aborted",
+		});
+		expect(modelStream).not.toHaveBeenCalled();
+		await session.shutdown();
 	});
 });
 

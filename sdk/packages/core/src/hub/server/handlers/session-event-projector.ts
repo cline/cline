@@ -1,4 +1,3 @@
-import { basename } from "node:path";
 import type { TeamProgressProjectionEvent } from "@cline/shared";
 import type { SessionUsageSummary } from "../../../runtime/host/runtime-host";
 import type {
@@ -11,17 +10,6 @@ import {
 	readCoreSessionSnapshot,
 	readHubSessionRecord,
 } from "./context";
-
-function toHubArtifactReference(artifact: {
-	path: string;
-	mediaType: string;
-}): { artifactName: string; mediaType: string } | undefined {
-	const artifactName = basename(artifact.path);
-	if (!artifactName || artifactName === "." || artifactName === "..") {
-		return undefined;
-	}
-	return { artifactName, mediaType: artifact.mediaType };
-}
 
 /**
  * Translates internal `CoreSessionEvent`s emitted by the session host into the
@@ -225,6 +213,23 @@ async function projectAgentEvent(
 			return;
 		}
 	}
+	if (
+		agentEvent.type === "content_update" &&
+		agentEvent.contentType === "tool"
+	) {
+		ctx.publish(
+			ctx.buildEvent(
+				"tool.updated",
+				{
+					toolCallId: agentEvent.toolCallId,
+					toolName: agentEvent.toolName,
+					update: agentEvent.update,
+				},
+				sessionId,
+			),
+		);
+		return;
+	}
 	if (agentEvent.type === "content_end") {
 		switch (agentEvent.contentType) {
 			case "text":
@@ -236,35 +241,15 @@ async function projectAgentEvent(
 					),
 				);
 				break;
-			case "image":
-				if (agentEvent.image) {
+			case "media":
+				if (agentEvent.media) {
 					ctx.publish(
 						ctx.buildEvent(
-							"assistant.image",
-							{ image: agentEvent.image },
+							"assistant.media",
+							{ media: agentEvent.media },
 							sessionId,
 						),
 					);
-				}
-				break;
-			case "video":
-				if (agentEvent.video) {
-					const video = toHubArtifactReference(agentEvent.video);
-					if (video) {
-						ctx.publish(
-							ctx.buildEvent("assistant.video", { video }, sessionId),
-						);
-					}
-				}
-				break;
-			case "audio":
-				if (agentEvent.audio) {
-					const audio = toHubArtifactReference(agentEvent.audio);
-					if (audio) {
-						ctx.publish(
-							ctx.buildEvent("assistant.audio", { audio }, sessionId),
-						);
-					}
 				}
 				break;
 			case "reasoning":
@@ -385,7 +370,57 @@ async function projectAgentEvent(
 				sessionId,
 			),
 		);
+		return;
 	}
+	if (agentEvent.type === "error") {
+		await projectAgentErrorEvent(ctx, event);
+	}
+}
+
+/**
+ * A failed agent run emits a legacy `error` event and resolves with a
+ * `finishReason: "error"` result instead of emitting `done`. RPC-driven turns
+ * (`run.start`) report that failure themselves: the awaiting handler publishes
+ * `run.failed` with the full result. Turns drained from the pending-prompt
+ * queue have no awaiting handler — their errored result is discarded — so
+ * without this projection the failure never reaches any client and
+ * interactive UIs hang on a running state. Publish `run.failed` here for
+ * exactly those unreported turns.
+ */
+async function projectAgentErrorEvent(
+	ctx: HubTransportContext,
+	event: Extract<CoreSessionEvent, { type: "agent_event" }>,
+): Promise<void> {
+	const { sessionId, event: agentEvent } = event.payload;
+	if (agentEvent.type !== "error" || agentEvent.recoverable) {
+		return;
+	}
+	// Subagent and teammate run failures do not end the session's turn; the
+	// lead run keeps going and reports its own terminal state.
+	if (agentEvent.parentAgentId || event.payload.teamRole === "teammate") {
+		return;
+	}
+	// An RPC handler is awaiting this turn and will publish the authoritative
+	// `run.failed` (with the full result) once `runTurn` settles.
+	if ((ctx.activeRpcTurnCountBySession.get(sessionId) ?? 0) > 0) {
+		return;
+	}
+	const message =
+		agentEvent.error instanceof Error
+			? agentEvent.error.message
+			: String(agentEvent.error);
+	const snapshot = await readCoreSessionSnapshot(ctx, sessionId);
+	ctx.publish(
+		ctx.buildEvent(
+			"run.failed",
+			{
+				reason: "error",
+				...(message ? { error: message, text: message } : {}),
+				...(snapshot ? { snapshot } : {}),
+			},
+			sessionId,
+		),
+	);
 }
 
 async function projectSessionEnded(

@@ -14,103 +14,72 @@ import { materializeUserFiles } from "./attachments";
 import {
 	buildSessionConnectionUpdate,
 	consumeWorkspaceMetadata,
-	copySessionGeneratedArtifacts,
+	copySessionGeneratedVideoArtifacts,
 	handleChatSessionCommand,
 	hasProviderChanged,
 	mergeSessionConfig,
 	prewarmWorkspaceMetadata,
+	resolveDesktopSessionMode,
+	rewriteDesktopTeamPrompt,
 	shouldUpdateSessionConnection,
 	WORKSPACE_METADATA_PREWARM_TTL_MS,
 } from "./chat-session";
+import { handleCoreSessionEvent } from "./context";
 import type { SidecarContext } from "./types";
 
-const VIDEO_SESSION_CONFIG = {
-	provider: "cline",
-	model: "anthropic/claude-sonnet-4.6",
-	cwd: "/workspace/project",
-};
+describe("resolveDesktopSessionMode", () => {
+	it("does not turn auto-approved Act sessions into Yolo sessions", () => {
+		expect(
+			resolveDesktopSessionMode({ mode: "act", autoApproveTools: true }),
+		).toBe("act");
+		expect(resolveDesktopSessionMode({ autoApproveTools: true })).toBe("act");
+	});
 
-async function withTemporarySessionDataDir<T>(
-	prefix: string,
-	run: (sessionsDir: string) => Promise<T>,
-): Promise<T> {
-	const previousSessionDataDir = process.env.CLINE_SESSION_DATA_DIR;
-	const sessionsDir = mkdtempSync(join(tmpdir(), prefix));
-	try {
-		process.env.CLINE_SESSION_DATA_DIR = sessionsDir;
-		return await run(sessionsDir);
-	} finally {
-		if (previousSessionDataDir === undefined) {
-			delete process.env.CLINE_SESSION_DATA_DIR;
-		} else {
-			process.env.CLINE_SESSION_DATA_DIR = previousSessionDataDir;
+	it("preserves explicit Plan and Yolo modes", () => {
+		expect(resolveDesktopSessionMode({ mode: "plan" })).toBe("plan");
+		expect(resolveDesktopSessionMode({ mode: "yolo" })).toBe("yolo");
+	});
+});
+
+describe("rewriteDesktopTeamPrompt", () => {
+	it("rewrites /team for the core runtime", () => {
+		expect(
+			rewriteDesktopTeamPrompt("/team inspect the app", {
+				disabledTools: new Set(),
+			}),
+		).toBe(
+			'<user_command slash="team">spawn a team of agents for the following task: inspect the app</user_command>',
+		);
+	});
+
+	it("rejects /team when the Teams tool is disabled", () => {
+		expect(() =>
+			rewriteDesktopTeamPrompt("/team inspect the app", {
+				disabledTools: new Set(["teams"]),
+			}),
+		).toThrow("Agent teams are disabled");
+	});
+
+	it("rejects /team when the mode's tool preset has no team tools", () => {
+		expect(() =>
+			rewriteDesktopTeamPrompt("/team inspect the app", {
+				mode: "yolo",
+				disabledTools: new Set(),
+			}),
+		).toThrow("Agent teams are not available in yolo mode");
+	});
+
+	it("accepts /team in act and plan modes", () => {
+		for (const mode of ["act", "plan", undefined]) {
+			expect(
+				rewriteDesktopTeamPrompt("/team inspect the app", {
+					mode,
+					disabledTools: new Set(),
+				}),
+			).toContain('<user_command slash="team">');
 		}
-		rmSync(sessionsDir, { recursive: true, force: true });
-	}
-}
-
-function writeSessionArtifact(
-	sessionsDir: string,
-	sessionId: string,
-	name: string,
-	content: string,
-): string {
-	const artifactPath = join(sessionsDir, sessionId, "artifacts", name);
-	mkdirSync(join(sessionsDir, sessionId, "artifacts"), { recursive: true });
-	writeFileSync(artifactPath, content);
-	return artifactPath;
-}
-
-function createVideoReplacementContext(options: {
-	sourceSessionId: string;
-	targetSessionId: string;
-	messages?: unknown[];
-	deleteSession?: (sessionId: string) => Promise<boolean>;
-}) {
-	const messages = options.messages ?? [
-		{ role: "user" as const, content: "create a video" },
-	];
-	const start = vi.fn(async () => ({ sessionId: options.targetSessionId }));
-	const restore = vi.fn(async () => ({
-		sessionId: options.targetSessionId,
-		messages,
-		checkpoint: { ref: "first", createdAt: 1, runCount: 1 },
-	}));
-	const ctx = {
-		liveSessions: new Map([
-			[
-				options.sourceSessionId,
-				{
-					config: VIDEO_SESSION_CONFIG,
-					messages,
-					promptsInQueue: [],
-					busy: false,
-					startedAt: Date.now(),
-					status: "completed",
-				},
-			],
-		]),
-		restoringWorkspacePaths: new Set(),
-		sessionManager: {
-			get: vi.fn(async () => ({
-				sessionId: options.sourceSessionId,
-				source: "desktop",
-				status: "completed",
-				provider: VIDEO_SESSION_CONFIG.provider,
-				model: VIDEO_SESSION_CONFIG.model,
-				cwd: VIDEO_SESSION_CONFIG.cwd,
-				workspaceRoot: VIDEO_SESSION_CONFIG.cwd,
-			})),
-			readMessages: vi.fn(async () => messages),
-			start,
-			restore,
-			delete: options.deleteSession ?? (async () => true),
-		},
-		streamIndices: new Map(),
-		wsClients: new Set(),
-	} as unknown as SidecarContext;
-	return { ctx, restore, start };
-}
+	});
+});
 
 describe("buildSessionConnectionUpdate", () => {
 	it("does not clear reasoning settings when config omits reasoning fields", () => {
@@ -231,6 +200,8 @@ describe("pathless session starts", () => {
 		const start = vi.fn(async (input: { config: Record<string, unknown> }) => {
 			expect(input.config).not.toHaveProperty("cwd");
 			expect(input.config).not.toHaveProperty("workspaceRoot");
+			expect(input.config).not.toHaveProperty("enableSpawnAgent");
+			expect(input.config).not.toHaveProperty("enableAgentTeams");
 			return {
 				sessionId: "session-pathless",
 				manifest: {
@@ -253,6 +224,10 @@ describe("pathless session starts", () => {
 				provider: "cline",
 				model: "anthropic/claude-sonnet-4.6",
 				enableTools: true,
+				// Legacy desktop capability flags must not override the SDK's
+				// current tool preset or global tool customizations.
+				enableSpawn: false,
+				enableTeams: false,
 			},
 		})) as {
 			sessionId: string;
@@ -272,10 +247,98 @@ describe("pathless session starts", () => {
 	});
 });
 
+const VIDEO_SESSION_CONFIG = {
+	provider: "cline",
+	model: "anthropic/claude-sonnet-4.6",
+	cwd: "/workspace/project",
+};
+
+async function withTemporarySessionDataDir<T>(
+	prefix: string,
+	run: (sessionsDir: string) => Promise<T>,
+): Promise<T> {
+	const previousSessionDataDir = process.env.CLINE_SESSION_DATA_DIR;
+	const sessionsDir = mkdtempSync(join(tmpdir(), prefix));
+	try {
+		process.env.CLINE_SESSION_DATA_DIR = sessionsDir;
+		return await run(sessionsDir);
+	} finally {
+		if (previousSessionDataDir === undefined) {
+			delete process.env.CLINE_SESSION_DATA_DIR;
+		} else {
+			process.env.CLINE_SESSION_DATA_DIR = previousSessionDataDir;
+		}
+		rmSync(sessionsDir, { recursive: true, force: true });
+	}
+}
+
+function writeSessionArtifact(
+	sessionsDir: string,
+	sessionId: string,
+	name: string,
+	content: string,
+): string {
+	const artifactPath = join(sessionsDir, sessionId, "artifacts", name);
+	mkdirSync(join(sessionsDir, sessionId, "artifacts"), { recursive: true });
+	writeFileSync(artifactPath, content);
+	return artifactPath;
+}
+
+function createVideoReplacementContext(options: {
+	sourceSessionId: string;
+	targetSessionId: string;
+	messages?: unknown[];
+	deleteSession?: (sessionId: string) => Promise<boolean>;
+}) {
+	const messages = options.messages ?? [
+		{ role: "user" as const, content: "create a video" },
+	];
+	const start = vi.fn(async () => ({ sessionId: options.targetSessionId }));
+	const restore = vi.fn(async () => ({
+		sessionId: options.targetSessionId,
+		messages,
+		checkpoint: { ref: "first", createdAt: 1, runCount: 1 },
+	}));
+	const ctx = {
+		liveSessions: new Map([
+			[
+				options.sourceSessionId,
+				{
+					config: VIDEO_SESSION_CONFIG,
+					messages,
+					promptsInQueue: [],
+					busy: false,
+					startedAt: Date.now(),
+					status: "completed",
+				},
+			],
+		]),
+		restoringWorkspacePaths: new Set(),
+		sessionManager: {
+			get: vi.fn(async () => ({
+				sessionId: options.sourceSessionId,
+				source: "desktop",
+				status: "completed",
+				provider: VIDEO_SESSION_CONFIG.provider,
+				model: VIDEO_SESSION_CONFIG.model,
+				cwd: VIDEO_SESSION_CONFIG.cwd,
+				workspaceRoot: VIDEO_SESSION_CONFIG.cwd,
+			})),
+			readMessages: vi.fn(async () => messages),
+			start,
+			restore,
+			delete: options.deleteSession ?? (async () => true),
+		},
+		streamIndices: new Map(),
+		wsClients: new Set(),
+	} as unknown as SidecarContext;
+	return { ctx, restore, start };
+}
+
 describe("session forks", () => {
-	it("atomically copies only generated media artifacts", async () => {
+	it("atomically copies only generated video artifacts", async () => {
 		await withTemporarySessionDataDir(
-			"desktop-media-fork-",
+			"desktop-video-fork-",
 			async (sessionsDir) => {
 				writeSessionArtifact(
 					sessionsDir,
@@ -290,8 +353,7 @@ describe("session forks", () => {
 					"webm-video",
 				);
 				writeSessionArtifact(sessionsDir, "source", "generated.mp3", "audio");
-				writeSessionArtifact(sessionsDir, "source", "notes.txt", "unrelated");
-				await copySessionGeneratedArtifacts("source", "target");
+				await copySessionGeneratedVideoArtifacts("source", "target");
 
 				const targetArtifactsDir = join(sessionsDir, "target", "artifacts");
 				expect(
@@ -300,20 +362,19 @@ describe("session forks", () => {
 				expect(
 					readFileSync(join(targetArtifactsDir, "generated.webm"), "utf8"),
 				).toBe("webm-video");
-				expect(
-					readFileSync(join(targetArtifactsDir, "generated.mp3"), "utf8"),
-				).toBe("audio");
-				expect(existsSync(join(targetArtifactsDir, "notes.txt"))).toBe(false);
+				expect(existsSync(join(targetArtifactsDir, "generated.mp3"))).toBe(
+					false,
+				);
 				expect(
 					readdirSync(join(sessionsDir, "target")).filter((name) =>
-						name.startsWith(".media-artifacts-"),
+						name.startsWith(".video-artifacts-"),
 					),
 				).toEqual([]);
 			},
 		);
 	});
 
-	it("copies generated media into a full-history fork", async () => {
+	it("copies generated videos into a full-history fork", async () => {
 		await withTemporarySessionDataDir(
 			"desktop-video-full-fork-",
 			async (sessionsDir) => {
@@ -324,12 +385,6 @@ describe("session forks", () => {
 					sourceSessionId,
 					"generated.mp4",
 					"video-bytes",
-				);
-				writeSessionArtifact(
-					sessionsDir,
-					sourceSessionId,
-					"generated.mp3",
-					"audio-bytes",
 				);
 				const { ctx } = createVideoReplacementContext({
 					sourceSessionId,
@@ -348,102 +403,213 @@ describe("session forks", () => {
 						"utf8",
 					),
 				).toBe("video-bytes");
-				expect(
-					readFileSync(
-						join(sessionsDir, targetSessionId, "artifacts", "generated.mp3"),
-						"utf8",
-					),
-				).toBe("audio-bytes");
 			},
 		);
 	});
 
-	it("deletes a fork replacement when generated media copying fails", async () => {
-		const previousSessionDataDir = process.env.CLINE_SESSION_DATA_DIR;
-		const sessionsDir = mkdtempSync(
-			join(tmpdir(), "desktop-video-fork-rollback-"),
-		);
-		const sourceSessionId = "source-video-fork-rollback";
-		const targetSessionId = "target-video-fork-rollback";
-		const sourceMessages = [
-			{ role: "user" as const, content: "create a video" },
-		];
+	it("deletes a fork replacement when generated video copying fails", async () => {
+		await withTemporarySessionDataDir(
+			"desktop-video-fork-rollback-",
+			async (sessionsDir) => {
+				const sourceSessionId = "source-video-fork-rollback";
+				const targetSessionId = "target-video-fork-rollback";
+				writeSessionArtifact(
+					sessionsDir,
+					sourceSessionId,
+					"generated.mp4",
+					"video-bytes",
+				);
+				writeSessionArtifact(
+					sessionsDir,
+					targetSessionId,
+					"existing.mp4",
+					"existing",
+				);
+				const deleteSession = vi.fn(async () => true);
+				const { ctx } = createVideoReplacementContext({
+					sourceSessionId,
+					targetSessionId,
+					deleteSession,
+				});
 
-		try {
-			process.env.CLINE_SESSION_DATA_DIR = sessionsDir;
-			const sourceArtifactsDir = join(
-				sessionsDir,
-				sourceSessionId,
-				"artifacts",
-			);
-			const targetArtifactsDir = join(
-				sessionsDir,
-				targetSessionId,
-				"artifacts",
-			);
-			mkdirSync(sourceArtifactsDir, { recursive: true });
-			mkdirSync(targetArtifactsDir, { recursive: true });
-			writeFileSync(join(sourceArtifactsDir, "generated.mp4"), "video-bytes");
-			writeFileSync(join(targetArtifactsDir, "existing.mp4"), "existing");
-			const deleteSession = vi.fn(async () => true);
-			const ctx = {
-				liveSessions: new Map([
-					[
-						sourceSessionId,
-						{
-							config: {
-								provider: "cline",
-								model: "anthropic/claude-sonnet-4.6",
-							},
-							messages: sourceMessages,
-							promptsInQueue: [],
-							busy: false,
-							startedAt: Date.now(),
-							status: "completed",
-						},
-					],
-				]),
-				restoringWorkspacePaths: new Set(),
-				sessionManager: {
-					get: vi.fn(async () => ({
+				await expect(
+					handleChatSessionCommand(ctx, {
+						action: "fork",
 						sessionId: sourceSessionId,
-						source: "desktop",
-						status: "completed",
-						provider: "cline",
-						model: "anthropic/claude-sonnet-4.6",
-						cwd: "/workspace/project",
-						workspaceRoot: "/workspace/project",
-					})),
-					start: vi.fn(async () => ({ sessionId: targetSessionId })),
-					delete: deleteSession,
-				},
-				streamIndices: new Map(),
-				wsClients: new Set(),
-			} as unknown as SidecarContext;
+						config: VIDEO_SESSION_CONFIG,
+					}),
+				).rejects.toThrow(
+					`Generated video artifact destination already exists for session ${targetSessionId}`,
+				);
+				expect(deleteSession).toHaveBeenCalledWith(targetSessionId);
+				expect(ctx.liveSessions.has(sourceSessionId)).toBe(true);
+				expect(ctx.liveSessions.has(targetSessionId)).toBe(false);
+			},
+		);
+	});
 
-			await expect(
-				handleChatSessionCommand(ctx, {
-					action: "fork",
-					sessionId: sourceSessionId,
-					config: {
-						provider: "cline",
-						model: "anthropic/claude-sonnet-4.6",
+	it("copies generated videos into a checkpoint-restored session", async () => {
+		await withTemporarySessionDataDir(
+			"desktop-video-checkpoint-",
+			async (sessionsDir) => {
+				const sourceSessionId = "source-video-checkpoint";
+				const targetSessionId = "target-video-checkpoint";
+				const restoredMessages = [
+					{ role: "user" as const, content: "create a video" },
+					{
+						role: "assistant" as const,
+						content: [
+							{
+								type: "media" as const,
+								media: {
+									id: "media_video_1",
+									modality: "video" as const,
+									mediaType: "video/mp4",
+									source: {
+										type: "artifact" as const,
+										artifactId: "generated.mp4",
+									},
+								},
+							},
+						],
 					},
-				}),
-			).rejects.toThrow(
-				`Generated media artifact destination already exists for session ${targetSessionId}`,
-			);
-			expect(deleteSession).toHaveBeenCalledWith(targetSessionId);
-			expect(ctx.liveSessions.has(sourceSessionId)).toBe(true);
-			expect(ctx.liveSessions.has(targetSessionId)).toBe(false);
-		} finally {
-			if (previousSessionDataDir === undefined) {
-				delete process.env.CLINE_SESSION_DATA_DIR;
-			} else {
-				process.env.CLINE_SESSION_DATA_DIR = previousSessionDataDir;
-			}
-			rmSync(sessionsDir, { recursive: true, force: true });
-		}
+				];
+				writeSessionArtifact(
+					sessionsDir,
+					sourceSessionId,
+					"generated.mp4",
+					"video-bytes",
+				);
+				const restore = vi.fn(async () => ({
+					sessionId: targetSessionId,
+					messages: restoredMessages,
+					checkpoint: { ref: "first", createdAt: 1, runCount: 1 },
+				}));
+				const ctx = {
+					liveSessions: new Map([
+						[
+							sourceSessionId,
+							{
+								config: VIDEO_SESSION_CONFIG,
+								messages: restoredMessages,
+								promptsInQueue: [],
+								busy: false,
+								startedAt: Date.now(),
+								status: "completed",
+							},
+						],
+					]),
+					restoringWorkspacePaths: new Set(),
+					sessionManager: {
+						restore,
+						readMessages: vi.fn(async () => restoredMessages),
+					},
+					streamIndices: new Map(),
+					wsClients: new Set(),
+				} as unknown as SidecarContext;
+
+				await handleChatSessionCommand(ctx, {
+					action: "restore_checkpoint",
+					sessionId: sourceSessionId,
+					checkpointRunCount: 1,
+					config: VIDEO_SESSION_CONFIG,
+				});
+
+				expect(restore).toHaveBeenCalledWith(
+					expect.objectContaining({
+						sessionId: sourceSessionId,
+						checkpointRunCount: 1,
+					}),
+				);
+				expect(
+					readFileSync(
+						join(sessionsDir, targetSessionId, "artifacts", "generated.mp4"),
+						"utf8",
+					),
+				).toBe("video-bytes");
+			},
+		);
+	});
+
+	it("reports copy and rollback failures without replacing the source checkpoint session", async () => {
+		await withTemporarySessionDataDir(
+			"desktop-video-checkpoint-rollback-",
+			async (sessionsDir) => {
+				const sourceSessionId = "source-video-checkpoint-rollback";
+				const targetSessionId = "target-video-checkpoint-rollback";
+				const restoredMessages = [
+					{ role: "user" as const, content: "create a video" },
+				];
+				writeSessionArtifact(
+					sessionsDir,
+					sourceSessionId,
+					"generated.mp4",
+					"video-bytes",
+				);
+				writeSessionArtifact(
+					sessionsDir,
+					targetSessionId,
+					"existing.mp4",
+					"existing",
+				);
+				const rollbackError = new Error("replacement cleanup failed");
+				const deleteSession = vi.fn(async () => {
+					throw rollbackError;
+				});
+				const ctx = {
+					liveSessions: new Map([
+						[
+							sourceSessionId,
+							{
+								config: VIDEO_SESSION_CONFIG,
+								messages: restoredMessages,
+								promptsInQueue: [],
+								busy: false,
+								startedAt: Date.now(),
+								status: "completed",
+							},
+						],
+					]),
+					restoringWorkspacePaths: new Set(),
+					sessionManager: {
+						restore: vi.fn(async () => ({
+							sessionId: targetSessionId,
+							messages: restoredMessages,
+							checkpoint: { ref: "first", createdAt: 1, runCount: 1 },
+						})),
+						delete: deleteSession,
+					},
+					streamIndices: new Map(),
+					wsClients: new Set(),
+				} as unknown as SidecarContext;
+
+				let caught: unknown;
+				try {
+					await handleChatSessionCommand(ctx, {
+						action: "restore_checkpoint",
+						sessionId: sourceSessionId,
+						checkpointRunCount: 1,
+						config: VIDEO_SESSION_CONFIG,
+					});
+				} catch (error) {
+					caught = error;
+				}
+
+				expect(caught).toBeInstanceOf(AggregateError);
+				expect((caught as AggregateError).message).toBe(
+					`Failed to copy generated videos and roll back replacement session ${targetSessionId}`,
+				);
+				expect((caught as AggregateError).errors).toEqual([
+					expect.objectContaining({
+						message: `Generated video artifact destination already exists for session ${targetSessionId}`,
+					}),
+					rollbackError,
+				]);
+				expect(deleteSession).toHaveBeenCalledWith(targetSessionId);
+				expect(ctx.liveSessions.has(sourceSessionId)).toBe(true);
+				expect(ctx.liveSessions.has(targetSessionId)).toBe(false);
+			},
+		);
 	});
 
 	it("restores the selected workspace checkpoint before forking for message editing", async () => {
@@ -546,226 +712,11 @@ describe("session forks", () => {
 		expect(result).toEqual({
 			sessionId: "edited-fork",
 			forkedFromSessionId: sourceSessionId,
-			messages: expectedMessages,
 		});
 		expect(ctx.liveSessions.get("edited-fork")?.messages).toEqual(
 			expectedMessages,
 		);
 		expect(ctx.restoringWorkspacePaths.size).toBe(0);
-	});
-
-	it("copies generated media into a checkpoint-restored session", async () => {
-		const previousSessionDataDir = process.env.CLINE_SESSION_DATA_DIR;
-		const sessionsDir = mkdtempSync(
-			join(tmpdir(), "desktop-video-checkpoint-"),
-		);
-		const sourceSessionId = "source-video-checkpoint";
-		const targetSessionId = "target-video-checkpoint";
-		const restoredMessages = [
-			{ role: "user" as const, content: "create a video" },
-			{
-				role: "assistant" as const,
-				content: [
-					{
-						type: "video" as const,
-						path: join(
-							sessionsDir,
-							sourceSessionId,
-							"artifacts",
-							"generated.mp4",
-						),
-						mediaType: "video/mp4",
-					},
-					{
-						type: "audio" as const,
-						path: join(
-							sessionsDir,
-							sourceSessionId,
-							"artifacts",
-							"generated.mp3",
-						),
-						mediaType: "audio/mpeg",
-					},
-				],
-			},
-		];
-		const sourceArtifactsDir = join(sessionsDir, sourceSessionId, "artifacts");
-
-		try {
-			process.env.CLINE_SESSION_DATA_DIR = sessionsDir;
-			mkdirSync(sourceArtifactsDir, { recursive: true });
-			writeFileSync(join(sourceArtifactsDir, "generated.mp4"), "video-bytes");
-			writeFileSync(join(sourceArtifactsDir, "generated.mp3"), "audio-bytes");
-			const restore = vi.fn(async () => ({
-				sessionId: targetSessionId,
-				messages: restoredMessages,
-				checkpoint: { ref: "first", createdAt: 1, runCount: 1 },
-			}));
-			const ctx = {
-				liveSessions: new Map([
-					[
-						sourceSessionId,
-						{
-							config: {
-								provider: "cline",
-								model: "anthropic/claude-sonnet-4.6",
-								cwd: "/workspace/project",
-							},
-							messages: restoredMessages,
-							promptsInQueue: [],
-							busy: false,
-							startedAt: Date.now(),
-							status: "completed",
-						},
-					],
-				]),
-				restoringWorkspacePaths: new Set(),
-				sessionManager: {
-					restore,
-					readMessages: vi.fn(async () => restoredMessages),
-				},
-				streamIndices: new Map(),
-				wsClients: new Set(),
-			} as unknown as SidecarContext;
-
-			await handleChatSessionCommand(ctx, {
-				action: "restore_checkpoint",
-				sessionId: sourceSessionId,
-				checkpointRunCount: 1,
-				config: {
-					provider: "cline",
-					model: "anthropic/claude-sonnet-4.6",
-					cwd: "/workspace/project",
-				},
-			});
-
-			expect(restore).toHaveBeenCalledWith(
-				expect.objectContaining({
-					sessionId: sourceSessionId,
-					checkpointRunCount: 1,
-				}),
-			);
-			expect(
-				readFileSync(
-					join(sessionsDir, targetSessionId, "artifacts", "generated.mp4"),
-					"utf8",
-				),
-			).toBe("video-bytes");
-			expect(
-				readFileSync(
-					join(sessionsDir, targetSessionId, "artifacts", "generated.mp3"),
-					"utf8",
-				),
-			).toBe("audio-bytes");
-		} finally {
-			if (previousSessionDataDir === undefined) {
-				delete process.env.CLINE_SESSION_DATA_DIR;
-			} else {
-				process.env.CLINE_SESSION_DATA_DIR = previousSessionDataDir;
-			}
-			rmSync(sessionsDir, { recursive: true, force: true });
-		}
-	});
-
-	it("reports copy and rollback failures without replacing the source checkpoint session", async () => {
-		const previousSessionDataDir = process.env.CLINE_SESSION_DATA_DIR;
-		const sessionsDir = mkdtempSync(
-			join(tmpdir(), "desktop-video-checkpoint-rollback-"),
-		);
-		const sourceSessionId = "source-video-checkpoint-rollback";
-		const targetSessionId = "target-video-checkpoint-rollback";
-		const restoredMessages = [
-			{ role: "user" as const, content: "create a video" },
-		];
-
-		try {
-			process.env.CLINE_SESSION_DATA_DIR = sessionsDir;
-			const sourceArtifactsDir = join(
-				sessionsDir,
-				sourceSessionId,
-				"artifacts",
-			);
-			const targetArtifactsDir = join(
-				sessionsDir,
-				targetSessionId,
-				"artifacts",
-			);
-			mkdirSync(sourceArtifactsDir, { recursive: true });
-			mkdirSync(targetArtifactsDir, { recursive: true });
-			writeFileSync(join(sourceArtifactsDir, "generated.mp4"), "video-bytes");
-			writeFileSync(join(targetArtifactsDir, "existing.mp4"), "existing");
-			const rollbackError = new Error("replacement cleanup failed");
-			const deleteSession = vi.fn(async () => {
-				throw rollbackError;
-			});
-			const ctx = {
-				liveSessions: new Map([
-					[
-						sourceSessionId,
-						{
-							config: {
-								provider: "cline",
-								model: "anthropic/claude-sonnet-4.6",
-								cwd: "/workspace/project",
-							},
-							messages: restoredMessages,
-							promptsInQueue: [],
-							busy: false,
-							startedAt: Date.now(),
-							status: "completed",
-						},
-					],
-				]),
-				restoringWorkspacePaths: new Set(),
-				sessionManager: {
-					restore: vi.fn(async () => ({
-						sessionId: targetSessionId,
-						messages: restoredMessages,
-						checkpoint: { ref: "first", createdAt: 1, runCount: 1 },
-					})),
-					delete: deleteSession,
-				},
-				streamIndices: new Map(),
-				wsClients: new Set(),
-			} as unknown as SidecarContext;
-
-			let caught: unknown;
-			try {
-				await handleChatSessionCommand(ctx, {
-					action: "restore_checkpoint",
-					sessionId: sourceSessionId,
-					checkpointRunCount: 1,
-					config: {
-						provider: "cline",
-						model: "anthropic/claude-sonnet-4.6",
-						cwd: "/workspace/project",
-					},
-				});
-			} catch (error) {
-				caught = error;
-			}
-
-			expect(caught).toBeInstanceOf(AggregateError);
-			expect((caught as AggregateError).message).toBe(
-				`Failed to copy generated media and roll back replacement session ${targetSessionId}`,
-			);
-			expect((caught as AggregateError).errors).toEqual([
-				expect.objectContaining({
-					message: `Generated media artifact destination already exists for session ${targetSessionId}`,
-				}),
-				rollbackError,
-			]);
-			expect(deleteSession).toHaveBeenCalledWith(targetSessionId);
-			expect(ctx.liveSessions.has(sourceSessionId)).toBe(true);
-			expect(ctx.liveSessions.has(targetSessionId)).toBe(false);
-		} finally {
-			if (previousSessionDataDir === undefined) {
-				delete process.env.CLINE_SESSION_DATA_DIR;
-			} else {
-				process.env.CLINE_SESSION_DATA_DIR = previousSessionDataDir;
-			}
-			rmSync(sessionsDir, { recursive: true, force: true });
-		}
 	});
 
 	it("holds the workspace lock for the full edit restore", async () => {
@@ -874,6 +825,89 @@ describe("session forks", () => {
 		await expect(fork).resolves.toMatchObject({
 			sessionId: "locked-edited-fork",
 		});
+		expect(ctx.restoringWorkspacePaths.size).toBe(0);
+	});
+
+	it("forks trimmed messages without restoring when the edited run has no checkpoint", async () => {
+		const sourceSessionId = `source-imported-fork-${Date.now()}`;
+		const sourceMessages = [
+			{ role: "user" as const, content: "imported prompt" },
+			{ role: "assistant" as const, content: "imported response" },
+			{ role: "user" as const, content: "prompt to edit" },
+			{ role: "assistant" as const, content: "response to replace" },
+		];
+		const expectedMessages = sourceMessages.slice(0, 2);
+		const start = vi.fn(async () => ({ sessionId: "imported-fork" }));
+		const restore = vi.fn(async () => {
+			throw new Error("restore must not run without a checkpoint");
+		});
+		const readMessages = vi.fn(async () => expectedMessages);
+		const ctx = {
+			liveSessions: new Map([
+				[
+					sourceSessionId,
+					{
+						config: {
+							provider: "cline",
+							model: "anthropic/claude-sonnet-4.6",
+						},
+						messages: sourceMessages,
+						promptsInQueue: [],
+						busy: false,
+						startedAt: Date.now(),
+						status: "completed",
+					},
+				],
+			]),
+			restoringWorkspacePaths: new Set(),
+			sessionManager: {
+				get: vi.fn(async () => ({
+					sessionId: sourceSessionId,
+					source: "desktop",
+					status: "completed",
+					provider: "cline",
+					model: "anthropic/claude-sonnet-4.6",
+					cwd: "/workspace/project",
+					workspaceRoot: "/workspace/project",
+					metadata: {
+						importedFrom: { tool: "codex", sourceId: "cdx-1" },
+					},
+				})),
+				readMessages,
+				restore,
+				start,
+			},
+			streamIndices: new Map(),
+			wsClients: new Set(),
+		} as unknown as SidecarContext;
+
+		const result = (await handleChatSessionCommand(ctx, {
+			action: "fork",
+			sessionId: sourceSessionId,
+			forkBeforeRunCount: 2,
+			config: {
+				provider: "cline",
+				model: "anthropic/claude-sonnet-4.6",
+			},
+		})) as { sessionId: string };
+
+		expect(restore).not.toHaveBeenCalled();
+		expect(start).toHaveBeenCalledWith(
+			expect.objectContaining({
+				initialMessages: expectedMessages,
+				sessionMetadata: expect.objectContaining({
+					fork: expect.objectContaining({
+						forkedFromSessionId: sourceSessionId,
+						beforeRunCount: 2,
+					}),
+				}),
+			}),
+		);
+		expect(result.sessionId).toBe("imported-fork");
+		expect(ctx.liveSessions.has(sourceSessionId)).toBe(false);
+		expect(ctx.liveSessions.get("imported-fork")?.messages).toEqual(
+			expectedMessages,
+		);
 		expect(ctx.restoringWorkspacePaths.size).toBe(0);
 	});
 
@@ -1056,6 +1090,81 @@ describe("session forks", () => {
 		).rejects.toThrow("Wait for all turns in this workspace to finish");
 		expect(restore).not.toHaveBeenCalled();
 		expect(ctx.restoringWorkspacePaths.size).toBe(0);
+	});
+
+	it("allows a workspace restore after a queued turn completes through the event stream", async () => {
+		const sessionId = `queued-turn-session-${Date.now()}`;
+		const dataDir = mkdtempSync(join(tmpdir(), "cline-queued-restore-"));
+		const originalDataDir = process.env.CLINE_SESSION_DATA_DIR;
+		process.env.CLINE_SESSION_DATA_DIR = dataDir;
+		try {
+			const restore = vi.fn(async () => ({
+				sessionId,
+				messages: [{ role: "user", content: "first prompt" }],
+				checkpoint: { ref: "first", createdAt: 1, runCount: 1 },
+			}));
+			const ctx = {
+				liveSessions: new Map([
+					[
+						sessionId,
+						{
+							config: { cwd: "/workspace/project" },
+							messages: [{ role: "user", content: "first prompt" }],
+							promptsInQueue: [],
+							// A drained queued turn is running: no send() RPC owns
+							// this turn's busy flag, only the event stream does.
+							busy: true,
+							startedAt: Date.now(),
+							status: "running",
+						},
+					],
+				]),
+				restoringWorkspacePaths: new Set(),
+				streamIndices: new Map(),
+				wsClients: new Set(),
+				sessionManager: { restore },
+			} as unknown as SidecarContext;
+			const restoreRequest = {
+				action: "restore_checkpoint" as const,
+				sessionId,
+				checkpointRunCount: 1,
+				config: {
+					cwd: "/workspace/project",
+					provider: "cline",
+					model: "test-model",
+				},
+			};
+
+			// While the queued turn is still running the workspace stays locked.
+			await expect(
+				handleChatSessionCommand(ctx, restoreRequest),
+			).rejects.toThrow("Wait for all turns in this workspace to finish");
+			expect(restore).not.toHaveBeenCalled();
+
+			// The queued turn settles through the event stream: the runtime
+			// host reports the session back at idle (there is no send() RPC
+			// response to clear the busy flag for event-settled turns).
+			handleCoreSessionEvent(ctx, {
+				type: "status",
+				payload: { sessionId, status: "idle" },
+			});
+			expect(ctx.liveSessions.get(sessionId)).toMatchObject({
+				busy: false,
+				status: "idle",
+			});
+
+			await expect(
+				handleChatSessionCommand(ctx, restoreRequest),
+			).resolves.toMatchObject({ sessionId });
+			expect(restore).toHaveBeenCalledTimes(1);
+		} finally {
+			if (originalDataDir === undefined) {
+				delete process.env.CLINE_SESSION_DATA_DIR;
+			} else {
+				process.env.CLINE_SESSION_DATA_DIR = originalDataDir;
+			}
+			rmSync(dataDir, { force: true, recursive: true });
+		}
 	});
 
 	it("blocks sends from sibling sessions while their workspace is restored", async () => {
@@ -1723,6 +1832,7 @@ describe("first-send connection updates", () => {
 		});
 
 		expect(updateSessionConnection).toHaveBeenCalledTimes(1);
+		expect(ctx.liveSessions.get(sessionId)?.attachedViaHub).toBe(false);
 	});
 });
 
@@ -1817,6 +1927,15 @@ name: desktop-send-skill
 ---
 Follow the desktop send skill instructions.`,
 		);
+		const workflowsDir = join(workspace, ".cline", "workflows");
+		mkdirSync(workflowsDir, { recursive: true });
+		writeFileSync(
+			join(workflowsDir, "desktop-send-workflow.md"),
+			`---
+name: desktop-send-workflow
+---
+Follow the desktop send workflow instructions.`,
+		);
 		return workspace;
 	}
 
@@ -1860,7 +1979,7 @@ Follow the desktop send skill instructions.`,
 		return { ctx, send, session, sessionId, updatePendingPrompt };
 	}
 
-	it("expands a leading skill command into its instructions", async () => {
+	it("sends a skill command through as typed for the skills tool", async () => {
 		const workspace = createWorkspaceWithSkill();
 		const { ctx, send, session, sessionId } = createContext(workspace);
 
@@ -1870,16 +1989,59 @@ Follow the desktop send skill instructions.`,
 			prompt: "/desktop-send-skill write the docs",
 		});
 
+		// Skills are not expanded into the user message: the runtime's skills
+		// tool loads the instructions, and the persisted transcript keeps the
+		// typed command.
+		expect(send).toHaveBeenCalledWith(
+			expect.objectContaining({
+				prompt: "/desktop-send-skill write the docs",
+			}),
+		);
+		expect(session.prompt).toBe("/desktop-send-skill write the docs");
+	});
+
+	it("expands a skill command in yolo mode, where the skills tool is unavailable", async () => {
+		const workspace = createWorkspaceWithSkill();
+		const { ctx, send, session, sessionId } = createContext(workspace);
+		(session.config as Record<string, unknown>).mode = "yolo";
+
+		await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "/desktop-send-skill write the docs",
+		});
+
+		// The yolo preset has no skills tool, so textual expansion is the only
+		// way the instructions reach the model.
 		expect(send).toHaveBeenCalledWith(
 			expect.objectContaining({
 				prompt: "Follow the desktop send skill instructions. write the docs",
 			}),
 		);
-		// The session's display prompt keeps the raw token.
-		expect(session.prompt).toBe("/desktop-send-skill write the docs");
 	});
 
-	it("expands a skill command when a queued prompt is edited", async () => {
+	it("expands a leading workflow command into its instructions", async () => {
+		const workspace = createWorkspaceWithSkill();
+		const { ctx, send, session, sessionId } = createContext(workspace);
+
+		await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "/desktop-send-workflow ship it",
+		});
+
+		// Workflows are not served by the skills tool, so they keep textual
+		// expansion.
+		expect(send).toHaveBeenCalledWith(
+			expect.objectContaining({
+				prompt: "Follow the desktop send workflow instructions. ship it",
+			}),
+		);
+		// The session's display prompt keeps the raw token.
+		expect(session.prompt).toBe("/desktop-send-workflow ship it");
+	});
+
+	it("keeps a skill command as typed when a queued prompt is edited", async () => {
 		const workspace = createWorkspaceWithSkill();
 		const { ctx, sessionId, updatePendingPrompt } = createContext(workspace);
 
@@ -1893,7 +2055,44 @@ Follow the desktop send skill instructions.`,
 		expect(updatePendingPrompt).toHaveBeenCalledWith({
 			sessionId,
 			promptId: "queued-1",
-			prompt: "Follow the desktop send skill instructions. later please",
+			prompt: "/desktop-send-skill later please",
+		});
+	});
+
+	it("expands a workflow command when a queued prompt is edited", async () => {
+		const workspace = createWorkspaceWithSkill();
+		const { ctx, sessionId, updatePendingPrompt } = createContext(workspace);
+
+		await handleChatSessionCommand(ctx, {
+			action: "update_pending_prompt",
+			sessionId,
+			promptId: "queued-2",
+			prompt: "/desktop-send-workflow later please",
+		});
+
+		expect(updatePendingPrompt).toHaveBeenCalledWith({
+			sessionId,
+			promptId: "queued-2",
+			prompt: "Follow the desktop send workflow instructions. later please",
+		});
+	});
+
+	it("rewrites a team command when a queued prompt is edited", async () => {
+		const workspace = createWorkspaceWithSkill();
+		const { ctx, sessionId, updatePendingPrompt } = createContext(workspace);
+
+		await handleChatSessionCommand(ctx, {
+			action: "update_pending_prompt",
+			sessionId,
+			promptId: "queued-team",
+			prompt: "/team inspect the app",
+		});
+
+		expect(updatePendingPrompt).toHaveBeenCalledWith({
+			sessionId,
+			promptId: "queued-team",
+			prompt:
+				'<user_command slash="team">spawn a team of agents for the following task: inspect the app</user_command>',
 		});
 	});
 

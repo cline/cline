@@ -225,6 +225,76 @@ describe("translateHistoricalMessage", () => {
 			},
 		]);
 	});
+
+	it("replays provider model tools with the ordinary ACP tool updates", () => {
+		expect(
+			translateHistoricalMessage({
+				role: "assistant",
+				content: "Found it",
+				metadata: {
+					modelToolActivities: [
+						{
+							toolCallId: "search-1",
+							toolName: "web_search",
+							execution: "provider",
+							input: { query: "latest Bun release" },
+							output: "Bun 1.3.14",
+						},
+					],
+				},
+			} as Parameters<typeof translateHistoricalMessage>[0]),
+		).toEqual([
+			{
+				sessionUpdate: "tool_call",
+				toolCallId: "search-1",
+				title: expect.any(String),
+				kind: "search",
+				status: "pending",
+				rawInput: { query: "latest Bun release" },
+			},
+			{
+				sessionUpdate: "tool_call_update",
+				toolCallId: "search-1",
+				status: "completed",
+				rawOutput: "Bun 1.3.14",
+			},
+			{
+				sessionUpdate: "agent_message_chunk",
+				content: { type: "text", text: "Found it" },
+			},
+		]);
+	});
+
+	it("preserves structured native web-search results", () => {
+		const nativeResult = {
+			type: "web_search_result",
+			url: "https://bun.sh/blog/bun-v1.3.14",
+			title: "Bun v1.3.14",
+			pageAge: "2026-08-12",
+			encryptedContent: "encrypted",
+		};
+		const updates = translateHistoricalMessage({
+			role: "assistant",
+			content: "Found it",
+			metadata: {
+				modelToolActivities: [
+					{
+						toolCallId: "search-native",
+						toolName: "web_search",
+						execution: "provider",
+						input: { query: "latest Bun" },
+						output: [nativeResult],
+					},
+				],
+			},
+		} as Parameters<typeof translateHistoricalMessage>[0]);
+
+		expect(updates[1]).toMatchObject({
+			sessionUpdate: "tool_call_update",
+			toolCallId: "search-native",
+			rawOutput: JSON.stringify(nativeResult),
+		});
+	});
 });
 
 describe("replaySessionHistory", () => {

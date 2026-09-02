@@ -5,8 +5,11 @@ const packageRoot = join(import.meta.dir, "..");
 const readThemeFile = (name: string) =>
 	readFileSync(join(packageRoot, "theme", name), "utf8");
 
+const palette = readThemeFile("palette.css");
 const tokens = readThemeFile("tokens.css");
 const tokensWithoutComments = tokens.replace(/\/\*[\s\S]*?\*\//g, "");
+const paletteWithoutComments = palette.replace(/\/\*[\s\S]*?\*\//g, "");
+const scopedTokens = readThemeFile("scoped-tokens.css");
 const theme = readThemeFile("theme.css");
 const componentTheme = readThemeFile("component-theme.css");
 const base = readThemeFile("base.css");
@@ -27,6 +30,13 @@ const requiredTokens = [
 	"--text-xs",
 	"--text-6xl",
 	"--sidebar",
+	"--surface-1",
+	"--text-1",
+	"--border-1",
+	"--success-surface",
+	"--warning-surface",
+	"--error-surface",
+	"--info-surface",
 ];
 
 for (const token of requiredTokens) {
@@ -35,15 +45,50 @@ for (const token of requiredTokens) {
 	}
 }
 
+for (const paletteName of [
+	"neutral",
+	"accent",
+	"error",
+	"success",
+	"warning",
+	"info",
+]) {
+	for (let step = 1; step <= 12; step += 1) {
+		for (const token of [
+			`--${paletteName}-${step}:`,
+			`--${paletteName}-a${step}:`,
+		]) {
+			if (palette.split(token).length !== 3) {
+				throw new Error(`palette.css must define ${token} once per mode`);
+			}
+		}
+	}
+}
+
 if (
+	palette.includes("--cline-") ||
 	tokens.includes("--cline-") ||
 	theme.includes("--cline-") ||
 	base.includes("--cline-")
 ) {
 	throw new Error("theme contract must not expose --cline-* variables");
 }
-if (/@(?:apply|custom-variant|layer|theme)\b/.test(tokensWithoutComments)) {
-	throw new Error("tokens.css must remain framework-neutral");
+if (
+	/@(?:apply|custom-variant|layer|theme|supports|media)\b/.test(
+		paletteWithoutComments + tokensWithoutComments,
+	)
+) {
+	throw new Error("palette.css and tokens.css must remain framework-neutral");
+}
+if (!tokensWithoutComments.includes('@import "@cline/ui/theme/palette.css";')) {
+	throw new Error("tokens.css must import the owned palette");
+}
+if (
+	/--(?:slate|violet|ruby|green|amber|sky)-(?:a)?\d+:/.test(palette) ||
+	/@import/.test(scopedTokens) ||
+	/(^|\n):root\s*\{/.test(scopedTokens)
+) {
+	throw new Error("owned palette names and scoped theme isolation must hold");
 }
 if (theme.includes("tokens.css") || !theme.includes("@theme inline")) {
 	throw new Error(
@@ -67,9 +112,9 @@ if (base.includes("#__next") || base.includes("@source")) {
 	throw new Error("base.css must not contain consumer-specific shell policy");
 }
 if (
-	!index.includes('@import "./tokens.css";') ||
-	!index.includes('@import "./theme.css";') ||
-	!index.includes('@import "./base.css";')
+	!index.includes('@import "@cline/ui/theme/tokens.css";') ||
+	!index.includes('@import "@cline/ui/theme/theme.css";') ||
+	!index.includes('@import "@cline/ui/theme/base.css";')
 ) {
 	throw new Error("theme entry point must compose tokens, theme, and base CSS");
 }
@@ -77,6 +122,7 @@ for (const subpath of [
 	"./components.css",
 	"./components/markdown.css",
 	"./theme/index.css",
+	"./theme/palette.css",
 	"./theme/scoped-tokens.css",
 	"./theme/tokens.css",
 	"./theme/theme.css",

@@ -86,11 +86,16 @@ async function streamThroughVendor({
 	const module = await createOllamaProviderModule(
 		{ providerId: "ollama", fetch: fetchStub } as GatewayResolvedProviderConfig,
 		{
-			provider: { id: "ollama", name: "Ollama", defaultModelId: "", models: [] },
+			provider: {
+				id: "ollama",
+				name: "Ollama",
+				defaultModelId: "",
+				models: [],
+			},
 			model: { id: "test-model", name: "test-model", providerId: "ollama" },
 		} as unknown as GatewayProviderContext,
 	);
-	const model = module.model("test-model");
+	const model = module.operations.language("test-model");
 	const result = await model.doStream({
 		prompt,
 		...(providerOptions ? { providerOptions } : {}),

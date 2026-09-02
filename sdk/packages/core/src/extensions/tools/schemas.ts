@@ -244,6 +244,22 @@ export const ApplyPatchInputUnionSchema = z.union([
 ]);
 
 /**
+ * Schema for generate_media tool input
+ */
+export const GenerateMediaInputSchema = z.object({
+	media_type: z
+		.literal("image")
+		.describe(
+			"The type of media to generate. Currently only image generation is supported.",
+		),
+	prompt: z
+		.string()
+		.trim()
+		.min(1)
+		.describe("A detailed description of the image to generate."),
+});
+
+/**
  * Schema for skills tool input
  */
 export const SkillsInputSchema = z.object({
@@ -334,6 +350,11 @@ export type EditFileInput = z.infer<typeof EditFileInputSchema>;
  * Input for the apply_patch tool
  */
 export type ApplyPatchInput = z.infer<typeof ApplyPatchInputSchema>;
+
+/**
+ * Input for the generate_media tool
+ */
+export type GenerateMediaInput = z.infer<typeof GenerateMediaInputSchema>;
 
 /**
  * Input for the skills tool

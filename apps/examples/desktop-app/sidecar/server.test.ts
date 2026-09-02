@@ -2,8 +2,14 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createFetchHandler } from "./server";
+import {
+	MAX_RECORDED_AUDIO_BASE64_BYTES,
+	MAX_RECORDED_AUDIO_BYTES,
+} from "../webview/lib/voice-input-limits";
+import { createFetchHandler, createWebSocketHandler } from "./server";
 import type { SidecarContext } from "./types";
+
+const TEST_APPROVAL_TOKEN = "test-approval-token";
 
 function createTestServer() {
 	return {
@@ -13,7 +19,11 @@ function createTestServer() {
 }
 
 function createHandler(onShutdown = vi.fn()) {
-	return createFetchHandler({} as SidecarContext, onShutdown);
+	return createFetchHandler(
+		{} as SidecarContext,
+		onShutdown,
+		TEST_APPROVAL_TOKEN,
+	);
 }
 
 function createTelemetryHandler(capture = vi.fn()) {
@@ -23,24 +33,15 @@ function createTelemetryHandler(capture = vi.fn()) {
 	};
 }
 
-const originalSessionDataDir = process.env.CLINE_SESSION_DATA_DIR;
-const originalDbDataDir = process.env.CLINE_DB_DATA_DIR;
-const temporaryDirectories: string[] = [];
+describe("sidecar WebSocket payload limit", () => {
+	it("accepts every recording allowed by the voice input size limit", () => {
+		const handler = createWebSocketHandler({} as SidecarContext);
 
-afterEach(() => {
-	if (originalSessionDataDir === undefined) {
-		delete process.env.CLINE_SESSION_DATA_DIR;
-	} else {
-		process.env.CLINE_SESSION_DATA_DIR = originalSessionDataDir;
-	}
-	if (originalDbDataDir === undefined) {
-		delete process.env.CLINE_DB_DATA_DIR;
-	} else {
-		process.env.CLINE_DB_DATA_DIR = originalDbDataDir;
-	}
-	for (const directory of temporaryDirectories.splice(0)) {
-		rmSync(directory, { recursive: true, force: true });
-	}
+		expect(MAX_RECORDED_AUDIO_BYTES).toBe(25 * 1024 * 1024);
+		expect(handler.maxPayloadLength).toBeGreaterThan(
+			MAX_RECORDED_AUDIO_BASE64_BYTES,
+		);
+	});
 });
 
 describe("sidecar HTTP origin checks", () => {
@@ -93,6 +94,37 @@ describe("sidecar HTTP origin checks", () => {
 		expect(server.upgrade).not.toHaveBeenCalled();
 	});
 
+	it("does not grant approval authority to originless local clients", async () => {
+		const server = createTestServer();
+		await createHandler()(
+			new Request(
+				`http://127.0.0.1:3126/transport?approval_token=${TEST_APPROVAL_TOKEN}`,
+			),
+			server,
+		);
+
+		expect(server.upgrade).toHaveBeenCalledWith(expect.any(Request), {
+			data: { canApproveTools: false },
+		});
+	});
+
+	it("grants approval authority to the trusted desktop webview", async () => {
+		const server = createTestServer();
+		await createHandler()(
+			new Request(
+				`http://127.0.0.1:3126/transport?approval_token=${TEST_APPROVAL_TOKEN}`,
+				{
+					headers: { origin: "tauri://localhost" },
+				},
+			),
+			server,
+		);
+
+		expect(server.upgrade).toHaveBeenCalledWith(expect.any(Request), {
+			data: { canApproveTools: true },
+		});
+	});
+
 	it("allows desktop webview origins in preflight responses", async () => {
 		const server = createTestServer();
 		const response = await createHandler()(
@@ -111,10 +143,44 @@ describe("sidecar HTTP origin checks", () => {
 			"tauri://localhost",
 		);
 	});
+
+	it("does not grant approval authority to a spoofed trusted origin", async () => {
+		const server = createTestServer();
+		await createHandler()(
+			new Request("http://127.0.0.1:3126/transport", {
+				headers: { origin: "tauri://localhost" },
+			}),
+			server,
+		);
+
+		expect(server.upgrade).toHaveBeenCalledWith(expect.any(Request), {
+			data: { canApproveTools: false },
+		});
+	});
 });
 
-describe("session media artifacts", () => {
-	it("serves a generated video only from the session artifact directory", async () => {
+const originalSessionDataDir = process.env.CLINE_SESSION_DATA_DIR;
+const originalDbDataDir = process.env.CLINE_DB_DATA_DIR;
+const temporaryDirectories: string[] = [];
+
+afterEach(() => {
+	if (originalSessionDataDir === undefined) {
+		delete process.env.CLINE_SESSION_DATA_DIR;
+	} else {
+		process.env.CLINE_SESSION_DATA_DIR = originalSessionDataDir;
+	}
+	if (originalDbDataDir === undefined) {
+		delete process.env.CLINE_DB_DATA_DIR;
+	} else {
+		process.env.CLINE_DB_DATA_DIR = originalDbDataDir;
+	}
+	for (const directory of temporaryDirectories.splice(0)) {
+		rmSync(directory, { recursive: true, force: true });
+	}
+});
+
+describe("session video artifacts", () => {
+	function writeVideoArtifact(): void {
 		const sessionsDir = mkdtempSync(join(tmpdir(), "desktop-video-artifact-"));
 		const dbDir = mkdtempSync(join(tmpdir(), "desktop-video-db-"));
 		temporaryDirectories.push(sessionsDir, dbDir);
@@ -126,6 +192,10 @@ describe("session media artifacts", () => {
 		mkdirSync(dbArtifactsDir, { recursive: true });
 		writeFileSync(join(artifactsDir, "video-result.mp4"), "video-bytes");
 		writeFileSync(join(dbArtifactsDir, "video-result.mp4"), "database-bytes");
+	}
+
+	it("serves a generated video only from the session artifact directory", async () => {
+		writeVideoArtifact();
 
 		const response = await createHandler()(
 			new Request(
@@ -137,28 +207,40 @@ describe("session media artifacts", () => {
 
 		expect(response?.status).toBe(200);
 		expect(response?.headers.get("content-type")).toBe("video/mp4");
+		expect(response?.headers.get("accept-ranges")).toBe("bytes");
 		await expect(response?.text()).resolves.toBe("video-bytes");
 	});
 
-	it("serves generated audio with its audio content type", async () => {
-		const sessionsDir = mkdtempSync(join(tmpdir(), "desktop-audio-artifact-"));
-		temporaryDirectories.push(sessionsDir);
-		process.env.CLINE_SESSION_DATA_DIR = sessionsDir;
-		const artifactsDir = join(sessionsDir, "session-1", "artifacts");
-		mkdirSync(artifactsDir, { recursive: true });
-		writeFileSync(join(artifactsDir, "audio-result.mp3"), "audio-bytes");
+	it("serves byte ranges for generated videos", async () => {
+		writeVideoArtifact();
 
 		const response = await createHandler()(
 			new Request(
-				"http://127.0.0.1:3126/api/session-artifacts/session-1/audio-result.mp3",
+				"http://127.0.0.1:3126/api/session-artifacts/session-1/video-result.mp4",
+				{
+					headers: { origin: "tauri://localhost", range: "bytes=6-10" },
+				},
+			),
+			createTestServer(),
+		);
+
+		expect(response?.status).toBe(206);
+		expect(response?.headers.get("content-range")).toBe("bytes 6-10/11");
+		await expect(response?.text()).resolves.toBe("bytes");
+	});
+
+	it("rejects traversal-shaped artifact names", async () => {
+		writeVideoArtifact();
+
+		const response = await createHandler()(
+			new Request(
+				"http://127.0.0.1:3126/api/session-artifacts/session-1/..%2Fsecret.mp4",
 				{ headers: { origin: "tauri://localhost" } },
 			),
 			createTestServer(),
 		);
 
-		expect(response?.status).toBe(200);
-		expect(response?.headers.get("content-type")).toBe("audio/mpeg");
-		await expect(response?.text()).resolves.toBe("audio-bytes");
+		expect(response?.status).toBe(400);
 	});
 
 	it("rejects untrusted origins for session artifacts", async () => {
@@ -211,6 +293,91 @@ describe("desktop error telemetry", () => {
 				transportState: "connected",
 			}),
 		});
+	});
+
+	it("forwards bounded source attribution for uncaught webview errors", async () => {
+		const server = createTestServer();
+		const { handler, capture } = createTelemetryHandler();
+		const response = await handler(
+			new Request("http://127.0.0.1:3126/telemetry/error", {
+				method: "POST",
+				headers: {
+					origin: "tauri://localhost",
+					"content-type": "application/json",
+				},
+				body: JSON.stringify({
+					operation: "webview.uncaught_error",
+					errorMessage: "Unexpected token '<'",
+					errorType: "SyntaxError",
+					handled: false,
+					transportState: "connecting",
+					sourceUrl: `tauri://localhost/_vercel/insights/script.js?${"q".repeat(600)}`,
+					lineno: 1,
+					colno: 1,
+					stack: `SyntaxError: Unexpected token '<'\n${"x".repeat(600)}`,
+				}),
+			}),
+			server,
+		);
+
+		expect(response?.status).toBe(202);
+		expect(capture).toHaveBeenCalledWith({
+			event: "sdk.error",
+			properties: expect.objectContaining({
+				component: "desktop",
+				operation: "webview.uncaught_error",
+				error_type: "SyntaxError",
+				error_message: "Unexpected token '<'",
+				handled: false,
+				transportState: "connecting",
+				lineno: 1,
+				colno: 1,
+			}),
+		});
+		const properties = capture.mock.calls[0]?.[0]?.properties as Record<
+			string,
+			unknown
+		>;
+		expect(properties.sourceUrl).toHaveLength(500);
+		expect(
+			String(properties.sourceUrl).startsWith(
+				"tauri://localhost/_vercel/insights/script.js",
+			),
+		).toBe(true);
+		expect(properties.stack).toHaveLength(500);
+	});
+
+	it("drops malformed source attribution fields", async () => {
+		const server = createTestServer();
+		const { handler, capture } = createTelemetryHandler();
+		const response = await handler(
+			new Request("http://127.0.0.1:3126/telemetry/error", {
+				method: "POST",
+				headers: {
+					origin: "tauri://localhost",
+					"content-type": "application/json",
+				},
+				body: JSON.stringify({
+					operation: "webview.uncaught_error",
+					errorMessage: "boom",
+					sourceUrl: 42,
+					lineno: "one",
+					colno: null,
+					stack: "   ",
+				}),
+			}),
+			server,
+		);
+
+		expect(response?.status).toBe(202);
+		const properties = capture.mock.calls[0]?.[0]?.properties as Record<
+			string,
+			unknown
+		>;
+		expect("sourceUrl" in properties).toBe(false);
+		expect("lineno" in properties).toBe(false);
+		expect("colno" in properties).toBe(false);
+		expect("stack" in properties).toBe(false);
 	});
 
 	it("rejects error reports from untrusted origins", async () => {

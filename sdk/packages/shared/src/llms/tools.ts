@@ -29,6 +29,8 @@ export interface ToolCallRecord {
 	id: string;
 	/** Name of the tool that was called */
 	name: string;
+	/** Absent for ordinary AgentRuntime-executed tools. */
+	execution?: "client" | "provider";
 	/** Input passed to the tool */
 	input: unknown;
 	/** Output returned from the tool (if successful) */
@@ -84,9 +86,28 @@ export interface ToolApprovalResult {
 	reason?: string;
 }
 
+/**
+ * Model-facing reason a client sends when the user rejects a tool approval.
+ * No tool name is interpolated: tool results are already paired with their
+ * tool call blocks. Hosts also match on this string to classify a tool
+ * result as a user rejection (vs. a timeout/disconnect/system rejection).
+ */
+export const USER_REJECTED_TOOL_REASON =
+	"This tool call was rejected by the user and not executed.";
+
+/**
+ * Guidance the agent runtime appends to every rejected tool approval reason
+ * so the model treats the rejection as deliberate instead of retrying it as
+ * a tool/system failure. Clients only supply the leading reason (who
+ * rejected and why); the runtime appends this suffix.
+ */
+export const TOOL_REJECTION_SUFFIX =
+	"NOT a tool or system failure. Clarify with user before proceeding.";
+
 export const ToolCallRecordSchema = z.object({
 	id: z.string(),
 	name: z.string(),
+	execution: z.enum(["client", "provider"]).optional(),
 	input: z.unknown(),
 	output: z.unknown(),
 	error: z.string().optional(),

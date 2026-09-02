@@ -4,6 +4,11 @@ import path from "node:path";
 import * as LlmsModels from "@cline/llms";
 import { CLINE_DEFAULT_MODEL_ID } from "@cline/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+	FALLBACK_CLINE_RECOMMENDED_MODELS,
+	getCachedClineRecommendedModels,
+	resetClineRecommendedModelsCacheForTests,
+} from "../llms/cline-recommended-models";
 import { clearLiveModelsCatalogCache } from "../llms/provider-defaults";
 import { ProviderSettingsManager } from "../storage/provider-settings-manager";
 import {
@@ -15,14 +20,23 @@ import {
 } from "./local-provider-registry";
 import {
 	addLocalProvider,
+	createConfiguredStreamingTranscriptionSession,
 	deleteLocalProvider,
+	generateConfiguredMedia,
 	getLocalProviderModels,
+	isDedicatedTranscriptionModel,
+	isUsableImageGenerationModel,
 	listLocalProviders,
 	markLocalProviderEnabled,
 	normalizeOAuthProvider,
 	refreshProviderModelsFromSource,
+	resolveConfiguredMediaGenerationTarget,
 	resolveLocalClineAuthToken,
 	saveLocalProviderSettings,
+	saveMediaGenerationSettings,
+	saveVoiceInputSettings,
+	transcribeConfiguredVoiceInput,
+	transcribeLocalAudio,
 	updateLocalProvider,
 } from "./local-provider-service";
 
@@ -52,6 +66,7 @@ function makeTempManager(): {
 
 afterEach(() => {
 	clearLiveModelsCatalogCache();
+	resetClineRecommendedModelsCacheForTests();
 	LlmsModels.resetRegistry();
 	vi.restoreAllMocks();
 	vi.unstubAllGlobals();
@@ -173,6 +188,108 @@ describe("models registry parsing", () => {
 		expect(model).not.toHaveProperty("contextWindow");
 		expect(model).not.toHaveProperty("maxInputTokens");
 		expect(model).not.toHaveProperty("temperature");
+	});
+
+	it("seeds tool calling when capabilities are synthesized purely from boolean flags", async () => {
+		const parsed = parseModelsFile({
+			version: 1,
+			providers: {
+				"boolean-only-provider": {
+					provider: {
+						name: "Boolean Only Provider",
+						baseUrl: "https://boolean-only.example.invalid/v1",
+					},
+					models: {
+						// No explicit capabilities list: the entry only carries the
+						// boolean convenience flag. The synthesized list must include
+						// "tools", otherwise a non-empty list without it reads as an
+						// authoritative denial to modelSupportsToolCalling (#13463).
+						reasoner: {
+							contextWindow: 16000,
+							supportsReasoning: true,
+						},
+						// No flags at all: the capability list must stay absent so the
+						// runtime keeps its fail-open behavior.
+						bare: {
+							contextWindow: 16000,
+						},
+						// Explicit partial list on a non-catalog model: nothing can
+						// author a "no tools" stored entry (the VS Code legacy
+						// migration writes exactly this shape), so "tools" must be
+						// seeded here too.
+						"partial-list": {
+							capabilities: ["prompt-cache"],
+						},
+						// Non-language models must not gain a tools claim.
+						"image-gen": {
+							operation: "image-generation",
+							capabilities: ["images"],
+						},
+					},
+				},
+			},
+		});
+
+		const entry = parsed.providers["boolean-only-provider"];
+		if (!entry) {
+			throw new Error("expected boolean-only provider entry");
+		}
+
+		registerCustomProvider("boolean-only-provider", entry);
+
+		const models = await LlmsModels.getModelsForProvider(
+			"boolean-only-provider",
+		);
+		expect(models.reasoner?.capabilities).toEqual(
+			expect.arrayContaining(["reasoning", "tools"]),
+		);
+		expect(models.bare).not.toHaveProperty("capabilities");
+		expect(models["partial-list"]?.capabilities).toEqual(
+			expect.arrayContaining(["prompt-cache", "tools"]),
+		);
+		expect(models["image-gen"]?.capabilities).not.toContain("tools");
+	});
+
+	it("keeps generated tool support when stale OpenCode Go metadata shadows a catalog model", async () => {
+		const generatedModel =
+			LlmsModels.getGeneratedModelsForProvider("opencode-go")["glm-5.3"];
+		expect(generatedModel?.capabilities).toContain("tools");
+
+		const parsed = parseModelsFile({
+			version: 1,
+			providers: {
+				"opencode-go": {
+					models: {
+						"glm-5.3": {
+							// Older clients persisted only capability projections they
+							// understood. Once v4.1.11 began gating tools, this partial
+							// list shadowed the catalog's "tools" capability and disabled
+							// every edit/read tool for the model.
+							capabilities: ["reasoning", "prompt-cache"],
+						},
+					},
+				},
+			},
+		});
+
+		const entry = parsed.providers["opencode-go"];
+		if (!entry) {
+			throw new Error("expected OpenCode Go provider entry");
+		}
+
+		registerCustomProvider("opencode-go", entry);
+
+		const model = (await LlmsModels.getModelsForProvider("opencode-go"))[
+			"glm-5.3"
+		];
+		expect(model?.capabilities).toEqual(
+			expect.arrayContaining([
+				"tools",
+				"reasoning",
+				"prompt-cache",
+				"structured_output",
+			]),
+		);
 	});
 
 	it("skips malformed provider entries while preserving valid providers", () => {
@@ -305,6 +422,69 @@ describe("addLocalProvider – model ID parsing via modelsSourceUrl", () => {
 		expect(models.map((m) => m.id).sort()).toEqual(["llama3.1", "qwen3:8b"]);
 	});
 
+	it("merges live Cline models into the registered catalog", async () => {
+		const liveModelId = "vendor/live-cline-model";
+		const fetchMock = vi.fn(async (url: string) => {
+			if (url === "https://models.dev/api.json") {
+				return new Response(
+					JSON.stringify({
+						openrouter: {
+							models: {
+								[liveModelId]: {
+									name: "Live Cline Model",
+									tool_call: true,
+									reasoning: true,
+									limit: {
+										context: 256_000,
+										input: 200_000,
+										output: 32_000,
+									},
+								},
+							},
+						},
+					}),
+					{
+						status: 200,
+						headers: { "content-type": "application/json" },
+					},
+				);
+			}
+
+			return new Response(
+				JSON.stringify({
+					recommended: [
+						{
+							id: liveModelId,
+							name: liveModelId,
+							description: "Fresh from the live catalog",
+							tags: ["NEW"],
+						},
+					],
+					free: [],
+					clinePass: [],
+				}),
+				{
+					status: 200,
+					headers: { "content-type": "application/json" },
+				},
+			);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const { models } = await getLocalProviderModels("cline");
+
+		// models.dev and the recommended feed populate the live catalog; the
+		// recommended feed is fetched once more for the featured-tier overlay.
+		expect(fetchMock).toHaveBeenCalledTimes(3);
+		expect(models.find((model) => model.id === liveModelId)).toMatchObject({
+			id: liveModelId,
+			name: "Live Cline Model",
+			supportsReasoning: true,
+			description: "Fresh from the live catalog",
+			featured: { tier: "recommended", rank: 0, tags: ["NEW"] },
+		});
+	});
+
 	it("uses only live ClinePass models when live models are found", async () => {
 		const fetchMock = vi.fn(async (url: string) => {
 			if (url === "https://models.dev/api.json") {
@@ -354,7 +534,10 @@ describe("addLocalProvider – model ID parsing via modelsSourceUrl", () => {
 
 		const { models } = await getLocalProviderModels("cline-pass");
 
-		expect(fetchMock).toHaveBeenCalledTimes(2);
+		// models.dev, the recommended-models feed via the live catalog, and
+		// the recommended-models feed again for the featured-tier overlay
+		// (separately cached; both caches are cold here).
+		expect(fetchMock).toHaveBeenCalledTimes(3);
 		expect(models.map((model) => model.id)).toEqual(
 			expect.arrayContaining([
 				"cline-pass/live-pass-model",
@@ -407,7 +590,10 @@ describe("addLocalProvider – model ID parsing via modelsSourceUrl", () => {
 
 		const { models } = await getLocalProviderModels("cline-pass");
 
-		expect(fetchMock).toHaveBeenCalledTimes(2);
+		// models.dev, the recommended-models feed via the live catalog, and
+		// the recommended-models feed again for the featured-tier overlay
+		// (separately cached; both caches are cold here).
+		expect(fetchMock).toHaveBeenCalledTimes(3);
 		expect(models.map((model) => model.id)).toContain(
 			"cline-pass/mimo-v2.5-pro",
 		);
@@ -761,6 +947,53 @@ describe("addLocalProvider – capabilities", () => {
 		});
 	});
 
+	it("preserves operation routing facts for provider catalog consumers", () => {
+		expect(
+			toProviderModel("realtime-whisper", {
+				name: "Realtime Whisper",
+				operation: "transcription",
+				operationModes: ["streaming"],
+				modalities: { input: ["audio"], output: ["text"] },
+			}),
+		).toMatchObject({
+			operation: "transcription",
+			operationModes: ["streaming"],
+			inputModalities: ["audio"],
+			outputModalities: ["text"],
+		});
+	});
+
+	it.each([
+		["absent", undefined],
+		["empty", [] as const],
+	])("leaves capability support undeclared when the list is %s", (_label, capabilities) => {
+		expect(
+			toProviderModel("sparse-model", {
+				name: "Sparse Model",
+				...(capabilities === undefined
+					? {}
+					: { capabilities: [...capabilities] }),
+			}),
+		).toMatchObject({
+			supportsVision: undefined,
+			supportsAttachments: undefined,
+			supportsReasoning: undefined,
+		});
+	});
+
+	it("reports a populated capability list as authoritative", () => {
+		expect(
+			toProviderModel("vision-only", {
+				name: "Vision Only",
+				capabilities: ["images"],
+			}),
+		).toMatchObject({
+			supportsVision: true,
+			supportsAttachments: false,
+			supportsReasoning: false,
+		});
+	});
+
 	it("sets supportsVision and supportsAttachments when capability is 'vision'", async () => {
 		await addLocalProvider(manager, {
 			providerId: "vision-provider",
@@ -872,12 +1105,576 @@ describe("addLocalProvider – capabilities", () => {
 	});
 });
 
+describe("audio transcription", () => {
+	let manager: ProviderSettingsManager;
+	let cleanup: () => void;
+
+	beforeEach(async () => {
+		({ manager, cleanup } = makeTempManager());
+		await addLocalProvider(manager, {
+			providerId: "audio-provider",
+			name: "Audio Provider",
+			baseUrl: "https://audio.example.invalid/v1",
+			apiKey: "audio-key",
+			models: ["whisper-large-v3"],
+		});
+		LlmsModels.registerModel("audio-provider", "whisper-large-v3", {
+			id: "whisper-large-v3",
+			name: "Whisper Large v3",
+			operation: "transcription",
+			operationModes: ["batch"],
+			modalities: { input: ["audio"], output: ["text"] },
+		});
+	});
+
+	afterEach(() => cleanup());
+
+	it("recognizes only the explicit transcription operation", () => {
+		expect(
+			isDedicatedTranscriptionModel({
+				operation: "transcription",
+			}),
+		).toBe(true);
+		expect(
+			isDedicatedTranscriptionModel({
+				operation: "speech-generation",
+			}),
+		).toBe(false);
+		expect(
+			isDedicatedTranscriptionModel({
+				operation: "language",
+			}),
+		).toBe(false);
+	});
+
+	it("transcribes with the configured provider and requested model", async () => {
+		const transcribeSpy = vi
+			.spyOn(LlmsModels, "transcribeAudio")
+			.mockResolvedValue({ text: "transcribed text" });
+
+		await expect(
+			transcribeLocalAudio(manager, {
+				providerId: "audio-provider",
+				modelId: "whisper-large-v3",
+				audio: new Uint8Array([1, 2, 3]),
+				mediaType: "audio/webm",
+			}),
+		).resolves.toEqual({ text: "transcribed text" });
+		expect(transcribeSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				modelId: "whisper-large-v3",
+				audio: new Uint8Array([1, 2, 3]),
+				mediaType: "audio/webm",
+				providerConfig: expect.objectContaining({
+					providerId: "audio-provider",
+					apiKey: "audio-key",
+				}),
+			}),
+		);
+	});
+
+	it("persists and uses the configured voice input model", async () => {
+		await expect(
+			saveVoiceInputSettings(manager, {
+				providerId: "audio-provider",
+				modelId: "whisper-large-v3",
+			}),
+		).resolves.toMatchObject({
+			voiceInput: {
+				providerId: "audio-provider",
+				modelId: "whisper-large-v3",
+			},
+		});
+
+		const transcribeSpy = vi
+			.spyOn(LlmsModels, "transcribeAudio")
+			.mockResolvedValue({ text: "configured transcript" });
+		await expect(
+			transcribeConfiguredVoiceInput(manager, {
+				audio: new Uint8Array([4, 5, 6]),
+				mediaType: "audio/webm",
+			}),
+		).resolves.toEqual({ text: "configured transcript" });
+		expect(transcribeSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				modelId: "whisper-large-v3",
+				providerConfig: expect.objectContaining({
+					providerId: "audio-provider",
+				}),
+			}),
+		);
+	});
+
+	it("creates a streaming session only for a streaming transcription model", async () => {
+		LlmsModels.registerModel("audio-provider", "realtime-whisper", {
+			id: "realtime-whisper",
+			name: "Realtime Whisper",
+			operation: "transcription",
+			operationModes: ["streaming"],
+			modalities: { input: ["audio"], output: ["text"] },
+		});
+		await saveVoiceInputSettings(manager, {
+			providerId: "audio-provider",
+			modelId: "realtime-whisper",
+		});
+		const createSessionSpy = vi
+			.spyOn(LlmsModels, "createStreamingAudioTranscriptionSession")
+			.mockResolvedValue({
+				token: "short-lived-token",
+				url: "wss://audio.example.invalid/transcription",
+			});
+
+		await expect(
+			createConfiguredStreamingTranscriptionSession(manager),
+		).resolves.toMatchObject({ token: "short-lived-token" });
+		expect(createSessionSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				modelId: "realtime-whisper",
+				providerConfig: expect.objectContaining({
+					providerId: "audio-provider",
+				}),
+			}),
+		);
+	});
+
+	it("rejects a voice input selection that is not an audio-to-text model", async () => {
+		await expect(
+			saveVoiceInputSettings(manager, {
+				providerId: "audio-provider",
+				modelId: "missing-model",
+			}),
+		).rejects.toThrow(
+			'Model "missing-model" is not a dedicated audio-to-text transcription model',
+		);
+		expect(manager.getVoiceInputSettings()).toBeUndefined();
+	});
+
+	it("resolves the built-in ElevenLabs endpoint from providers.json", async () => {
+		manager.saveProviderSettings(
+			{
+				provider: "elevenlabs",
+				model: "scribe_v2",
+				apiKey: "eleven-key",
+			},
+			{ setLastUsed: false },
+		);
+		const transcribeSpy = vi
+			.spyOn(LlmsModels, "transcribeAudio")
+			.mockResolvedValue({ text: "ElevenLabs transcript" });
+
+		await expect(
+			transcribeLocalAudio(manager, {
+				providerId: "elevenlabs",
+				modelId: "scribe_v2",
+				audio: new Uint8Array([1, 2, 3]),
+				mediaType: "audio/webm",
+			}),
+		).resolves.toEqual({ text: "ElevenLabs transcript" });
+		expect(transcribeSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				modelId: "scribe_v2",
+				providerConfig: expect.objectContaining({
+					providerId: "elevenlabs",
+					apiKey: "eleven-key",
+					baseUrl: "https://api.elevenlabs.io/v1",
+				}),
+			}),
+		);
+	});
+});
+
+describe("media generation settings", () => {
+	let manager: ProviderSettingsManager;
+	let cleanup: () => void;
+
+	beforeEach(() => {
+		({ manager, cleanup } = makeTempManager());
+		manager.saveProviderSettings(
+			{
+				provider: "openrouter",
+				apiKey: "openrouter-key",
+			},
+			{ setLastUsed: false },
+		);
+		LlmsModels.registerProvider({
+			provider: {
+				id: "custom-image-provider",
+				name: "Custom Image Provider",
+				defaultModelId: "custom-image-model",
+				client: "custom",
+				source: "file",
+			},
+			models: {
+				"custom-image-model": {
+					id: "custom-image-model",
+					name: "Custom Image Model",
+					operation: "image-generation",
+					modalities: { input: ["text"], output: ["image"] },
+				},
+			},
+		});
+		manager.saveProviderSettings(
+			{
+				provider: "custom-image-provider",
+				apiKey: "custom-key",
+			},
+			{ setLastUsed: false },
+		);
+		LlmsModels.registerModel("openrouter", "test-image-model", {
+			id: "test-image-model",
+			name: "Test Image Model",
+			operation: "image-generation",
+			modalities: { input: ["text", "image"], output: ["image"] },
+		});
+		LlmsModels.registerModel("openrouter", "test-mixed-image-model", {
+			id: "test-mixed-image-model",
+			name: "Test Mixed Image Model",
+			operation: "language",
+			modalities: {
+				input: ["text", "image"],
+				output: ["text", "image"],
+			},
+		});
+		LlmsModels.registerModel("openrouter", "test-stale-image-model", {
+			id: "test-stale-image-model",
+			name: "Test Image Model With Stale Modalities",
+			operation: "image-generation",
+			modalities: { input: ["text"], output: ["text"] },
+		});
+	});
+
+	afterEach(() => cleanup());
+
+	it("requires text-to-image semantics and an executable provider operation", () => {
+		expect(
+			isUsableImageGenerationModel("openrouter", {
+				id: "dedicated",
+				name: "Dedicated",
+				operation: "image-generation",
+				modalities: { input: ["text"], output: ["image"] },
+			}),
+		).toBe(true);
+		expect(
+			isUsableImageGenerationModel("openrouter", {
+				id: "dedicated-stale-modalities",
+				name: "Dedicated With Stale Modalities",
+				operation: "image-generation",
+				modalities: { input: ["text"], output: ["text"] },
+			}),
+		).toBe(true);
+		expect(
+			isUsableImageGenerationModel("openrouter", {
+				id: "mixed",
+				name: "Mixed",
+				operation: "language",
+				modalities: {
+					input: ["text", "image"],
+					output: ["text", "image"],
+				},
+			}),
+		).toBe(true);
+		expect(
+			isUsableImageGenerationModel("openrouter", {
+				id: "image-input-only",
+				name: "Image Input Only",
+				operation: "language",
+				modalities: { input: ["text", "image"], output: ["text"] },
+			}),
+		).toBe(false);
+		expect(
+			isUsableImageGenerationModel("custom-provider", {
+				id: "unregistered-operation",
+				name: "Unregistered Operation",
+				operation: "image-generation",
+				modalities: { input: ["text"], output: ["image"] },
+			}),
+		).toBe(false);
+	});
+
+	it("persists and returns a configured image model", async () => {
+		await expect(
+			saveMediaGenerationSettings(manager, "image", {
+				providerId: "openrouter",
+				modelId: "test-image-model",
+			}),
+		).resolves.toMatchObject({
+			mediaGeneration: {
+				image: {
+					providerId: "openrouter",
+					modelId: "test-image-model",
+				},
+			},
+		});
+
+		expect(manager.getMediaGenerationSettings()).toEqual({
+			image: {
+				providerId: "openrouter",
+				modelId: "test-image-model",
+			},
+		});
+		await expect(listLocalProviders(manager)).resolves.toMatchObject({
+			mediaGeneration: {
+				image: {
+					providerId: "openrouter",
+					modelId: "test-image-model",
+				},
+			},
+		});
+	});
+
+	it("returns the authoritative image model catalog for every provider", async () => {
+		const catalog = await listLocalProviders(manager);
+
+		expect(Object.keys(catalog.mediaGenerationModels.image).sort()).toEqual(
+			catalog.providers.map((provider) => provider.id).sort(),
+		);
+		expect(catalog.mediaGenerationModels.image.openrouter).toEqual(
+			expect.arrayContaining([
+				"test-image-model",
+				"test-mixed-image-model",
+				"test-stale-image-model",
+			]),
+		);
+		expect(
+			catalog.providers
+				.find((provider) => provider.id === "custom-image-provider")
+				?.modelList?.map((model) => model.id),
+		).toContain("custom-image-model");
+		expect(
+			catalog.mediaGenerationModels.image["custom-image-provider"],
+		).toEqual([]);
+	});
+
+	it("accepts a mixed language model that produces images", async () => {
+		await expect(
+			saveMediaGenerationSettings(manager, "image", {
+				providerId: "openrouter",
+				modelId: "test-mixed-image-model",
+			}),
+		).resolves.toMatchObject({
+			mediaGeneration: {
+				image: { modelId: "test-mixed-image-model" },
+			},
+		});
+	});
+
+	it("accepts an explicit image model when modality metadata is stale", async () => {
+		await expect(
+			saveMediaGenerationSettings(manager, "image", {
+				providerId: "openrouter",
+				modelId: "test-stale-image-model",
+			}),
+		).resolves.toMatchObject({
+			mediaGeneration: {
+				image: { modelId: "test-stale-image-model" },
+			},
+		});
+	});
+
+	it("generates with the configured model and returns canonical media content", async () => {
+		await saveMediaGenerationSettings(manager, "image", {
+			providerId: "openrouter",
+			modelId: "test-image-model",
+		});
+		const generatedImage = {
+			id: "generated-1",
+			modality: "image" as const,
+			mediaType: "image/png",
+			source: { type: "base64" as const, data: "aGVsbG8=" },
+		};
+		const generateSpy = vi
+			.spyOn(LlmsModels, "generateMedia")
+			.mockResolvedValue({
+				media: [generatedImage],
+				usage: {
+					inputTokens: 11,
+					outputTokens: 4,
+					cacheReadTokens: 0,
+					cacheWriteTokens: 0,
+				},
+			});
+		const abortController = new AbortController();
+
+		const result = await generateConfiguredMedia(manager, {
+			mediaType: "image",
+			prompt: "A tiny lighthouse in a storm",
+			abortSignal: abortController.signal,
+		});
+
+		expect(generateSpy).toHaveBeenCalledWith({
+			providerConfig: expect.objectContaining({
+				providerId: "openrouter",
+				apiKey: "openrouter-key",
+				modelId: "test-image-model",
+				modelInfo: expect.objectContaining({ id: "test-image-model" }),
+			}),
+			modelId: "test-image-model",
+			prompt: "A tiny lighthouse in a storm",
+			mediaType: "image",
+			abortSignal: abortController.signal,
+		});
+		expect(result).toEqual({
+			content: [
+				{
+					type: "text",
+					text: "Generated 1 image with openrouter/test-image-model.",
+				},
+				{ type: "media", media: generatedImage },
+			],
+			usage: {
+				inputTokens: 11,
+				outputTokens: 4,
+				cacheReadTokens: 0,
+				cacheWriteTokens: 0,
+			},
+		});
+		expect(JSON.stringify(result)).not.toContain("openrouter-key");
+	});
+
+	it("resolves only currently executable stored media targets", async () => {
+		manager.setMediaGenerationSettings({
+			image: {
+				providerId: "openrouter",
+				modelId: "test-image-model",
+			},
+		});
+		await expect(
+			resolveConfiguredMediaGenerationTarget(manager, "image"),
+		).resolves.toMatchObject({
+			mediaType: "image",
+			selection: {
+				providerId: "openrouter",
+				modelId: "test-image-model",
+			},
+			providerConfig: {
+				providerId: "openrouter",
+				apiKey: "openrouter-key",
+				modelId: "test-image-model",
+			},
+			model: { id: "test-image-model" },
+		});
+
+		const unsupportedSelection = {
+			image: {
+				providerId: "custom-image-provider",
+				modelId: "custom-image-model",
+			},
+		};
+		manager.setMediaGenerationSettings(unsupportedSelection);
+		await expect(
+			resolveConfiguredMediaGenerationTarget(manager, "image"),
+		).resolves.toBeUndefined();
+		expect(manager.getMediaGenerationSettings()).toEqual(unsupportedSelection);
+	});
+
+	it("revalidates a stored image model before generation", async () => {
+		manager.setMediaGenerationSettings({
+			image: {
+				providerId: "openrouter",
+				modelId: "missing-image-model",
+			},
+		});
+		const generateSpy = vi.spyOn(LlmsModels, "generateMedia");
+
+		await expect(
+			generateConfiguredMedia(manager, {
+				mediaType: "image",
+				prompt: "This must not be sent",
+			}),
+		).rejects.toThrow(
+			"The configured image generation provider or model is unavailable",
+		);
+		expect(generateSpy).not.toHaveBeenCalled();
+	});
+
+	it("rejects a model that cannot generate images without replacing settings", async () => {
+		await saveMediaGenerationSettings(manager, "image", {
+			providerId: "openrouter",
+			modelId: "test-image-model",
+		});
+		LlmsModels.registerModel("openrouter", "text-only-model", {
+			id: "text-only-model",
+			name: "Text Only",
+			operation: "language",
+			modalities: { input: ["text"], output: ["text"] },
+		});
+
+		await expect(
+			saveMediaGenerationSettings(manager, "image", {
+				providerId: "openrouter",
+				modelId: "text-only-model",
+			}),
+		).rejects.toThrow(
+			'not an executable image-generation model for provider "openrouter"',
+		);
+		expect(manager.getMediaGenerationSettings()?.image?.modelId).toBe(
+			"test-image-model",
+		);
+	});
+
+	it("clears media generation settings when the image selection is omitted", async () => {
+		await saveMediaGenerationSettings(manager, "image", {
+			providerId: "openrouter",
+			modelId: "test-image-model",
+		});
+
+		await expect(
+			saveMediaGenerationSettings(manager, "image", undefined),
+		).resolves.toEqual({
+			settingsPath: manager.getFilePath(),
+			mediaGeneration: undefined,
+		});
+		expect(manager.getMediaGenerationSettings()).toBeUndefined();
+	});
+
+	it("updates one media type without replacing future media selections", async () => {
+		manager.setMediaGenerationSettings({
+			audio: {
+				providerId: "future-audio-provider",
+				modelId: "future-audio-model",
+			},
+		});
+
+		await saveMediaGenerationSettings(manager, "image", {
+			providerId: "openrouter",
+			modelId: "test-image-model",
+		});
+		expect(manager.getMediaGenerationSettings()).toEqual({
+			audio: {
+				providerId: "future-audio-provider",
+				modelId: "future-audio-model",
+			},
+			image: {
+				providerId: "openrouter",
+				modelId: "test-image-model",
+			},
+		});
+
+		await saveMediaGenerationSettings(manager, "image", undefined);
+		expect(manager.getMediaGenerationSettings()).toEqual({
+			audio: {
+				providerId: "future-audio-provider",
+				modelId: "future-audio-model",
+			},
+		});
+	});
+});
+
 // ===========================================================================
 // models.json – built-in provider model overlays
 // ===========================================================================
 
 describe("models.json model overlays", () => {
 	it("loads model-only entries for built-in providers", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn().mockResolvedValue(
+				new Response(JSON.stringify({}), {
+					status: 200,
+					headers: { "content-type": "application/json" },
+				}),
+			),
+		);
 		const dir = mkdtempSync(
 			path.join(os.tmpdir(), "local-provider-overlay-test-"),
 		);
@@ -954,6 +1751,16 @@ describe("saveLocalProviderSettings", () => {
 	afterEach(() => cleanup());
 
 	it("disabling a provider removes it from settings", () => {
+		manager.setVoiceInputSettings({
+			providerId: "test-provider",
+			modelId: "m1",
+		});
+		manager.setMediaGenerationSettings({
+			image: {
+				providerId: "test-provider",
+				modelId: "m1",
+			},
+		});
 		const result = saveLocalProviderSettings(manager, {
 			providerId: "test-provider",
 			enabled: false,
@@ -961,6 +1768,8 @@ describe("saveLocalProviderSettings", () => {
 
 		expect(result.enabled).toBe(false);
 		expect(manager.getProviderSettings("test-provider")).toBeUndefined();
+		expect(manager.getVoiceInputSettings()).toBeUndefined();
+		expect(manager.getMediaGenerationSettings()).toBeUndefined();
 	});
 
 	it("updates apiKey", () => {
@@ -1269,6 +2078,12 @@ describe("deleteLocalProvider", () => {
 	afterEach(() => cleanup());
 
 	it("removes provider from registry and local settings", async () => {
+		manager.setMediaGenerationSettings({
+			image: {
+				providerId: "delete-me-provider",
+				modelId: "delete-model",
+			},
+		});
 		await deleteLocalProvider(manager, {
 			providerId: "delete-me-provider",
 		});
@@ -1276,6 +2091,7 @@ describe("deleteLocalProvider", () => {
 		expect(LlmsModels.hasProvider("delete-me-provider")).toBe(false);
 		expect(manager.getProviderSettings("delete-me-provider")).toBeUndefined();
 		expect(manager.getLastUsedProviderSettings()).toBeUndefined();
+		expect(manager.getMediaGenerationSettings()).toBeUndefined();
 	});
 
 	it("throws when deleting an unknown provider", async () => {
@@ -1335,6 +2151,68 @@ describe("listLocalProviders", () => {
 		expect(providers.map((p) => p.id)).toContain("cline-pass");
 	});
 
+	it("stamps featured tiers from the bundled fallback without a feed fetch", async () => {
+		const fetchMock = vi.fn();
+		vi.stubGlobal("fetch", fetchMock);
+
+		const { providers } = await listLocalProviders(manager);
+		const modelList =
+			providers.find((provider) => provider.id === "cline")?.modelList ?? [];
+		const stampedIds = modelList
+			.filter((model) => model.featured?.tier === "recommended")
+			.map((model) => model.id);
+		const expectedIds = FALLBACK_CLINE_RECOMMENDED_MODELS.recommended
+			.map((model) => model.id)
+			.filter((id) => modelList.some((model) => model.id === id));
+
+		// A cold boot must still paint tiered sections: the catalog stamps
+		// synchronously from the bundled fallback instead of waiting on (or
+		// triggering) a feed fetch.
+		expect(stampedIds.length).toBeGreaterThan(0);
+		expect(new Set(stampedIds)).toEqual(new Set(expectedIds));
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it("stamps featured tiers from the cached live feed once warmed", async () => {
+		const clineModelIds = Object.keys(
+			await LlmsModels.getModelsForProvider("cline"),
+		);
+		const [recommendedId, freeId] = clineModelIds;
+		await getCachedClineRecommendedModels({
+			baseUrl: "https://api.example.test",
+			fetchImpl: async () =>
+				new Response(
+					JSON.stringify({
+						recommended: [
+							{
+								id: recommendedId,
+								name: "Live Pick",
+								description: "Live description",
+								tags: ["NEW"],
+							},
+						],
+						free: [{ id: freeId, name: "Live Free", description: "" }],
+						clinePass: [],
+					}),
+					{ status: 200, headers: { "Content-Type": "application/json" } },
+				),
+			catalogLoader: async () => ({}),
+		});
+
+		const { providers } = await listLocalProviders(manager);
+		const modelList =
+			providers.find((provider) => provider.id === "cline")?.modelList ?? [];
+
+		expect(
+			modelList.find((model) => model.id === recommendedId)?.featured,
+		).toEqual({ tier: "recommended", rank: 0, tags: ["NEW"] });
+		expect(modelList.find((model) => model.id === freeId)?.featured).toEqual({
+			tier: "free",
+			rank: 0,
+			tags: [],
+		});
+	});
+
 	it("marks enabled providers correctly", async () => {
 		await addLocalProvider(manager, {
 			providerId: "enabled-check-provider",
@@ -1346,6 +2224,32 @@ describe("listLocalProviders", () => {
 		const { providers } = await listLocalProviders(manager);
 		const p = providers.find((x) => x.id === "enabled-check-provider");
 		expect(p?.enabled).toBe(true);
+	});
+
+	it("returns the configured voice input selection", async () => {
+		await addLocalProvider(manager, {
+			providerId: "voice-list-provider",
+			name: "Voice List Provider",
+			baseUrl: "https://example.invalid/v1",
+			models: ["whisper"],
+		});
+		LlmsModels.registerModel("voice-list-provider", "whisper", {
+			id: "whisper",
+			name: "Whisper",
+			operation: "transcription",
+			operationModes: ["batch"],
+			modalities: { input: ["audio"], output: ["text"] },
+		});
+		await saveVoiceInputSettings(manager, {
+			providerId: "voice-list-provider",
+			modelId: "whisper",
+		});
+
+		const catalog = await listLocalProviders(manager);
+		expect(catalog.voiceInput).toEqual({
+			providerId: "voice-list-provider",
+			modelId: "whisper",
+		});
 	});
 
 	it("marks alias providers enabled without copying shared OAuth credentials", async () => {

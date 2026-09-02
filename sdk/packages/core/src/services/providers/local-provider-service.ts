@@ -1,13 +1,24 @@
 import * as LlmsModels from "@cline/llms";
-import type {
-	AddProviderActionRequest,
-	ITelemetryService,
-	ProviderCapability,
-	ProviderConfigField,
-	ProviderConfigFieldPrimitive,
-	ProviderListItem,
-	ProviderModel,
-	SaveProviderSettingsActionRequest,
+import {
+	type AddProviderActionRequest,
+	type AgentUsage,
+	type ITelemetryService,
+	MEDIA_GENERATION_TYPES,
+	type MediaContent,
+	type MediaGenerationModelCatalog,
+	type MediaGenerationSettings,
+	type MediaGenerationType,
+	type MediaModelSelection,
+	modelProducesImages,
+	type ProviderCapability,
+	type ProviderCatalogResponse,
+	type ProviderConfigField,
+	type ProviderConfigFieldPrimitive,
+	type ProviderListItem,
+	type ProviderModel,
+	type SaveProviderSettingsActionRequest,
+	type TextContent,
+	type VoiceInputSelection,
 } from "@cline/shared";
 import { createOAuthClientCallbacks } from "../../auth/client";
 import {
@@ -16,13 +27,19 @@ import {
 	type ProviderOAuthCredentials,
 	saveProviderOAuthCredentials,
 } from "../../auth/provider-auth-registry";
+import {
+	applyClineFeaturedModels,
+	getCachedClineRecommendedModels,
+	peekClineRecommendedModels,
+} from "../../services/llms/cline-recommended-models";
 import { resolveProviderConfig } from "../../services/llms/provider-defaults";
-import type {
-	ModelInfo,
-	ProviderClient,
-	ProviderConfig,
-	ProviderProtocol,
-	ProviderSettings,
+import {
+	type ModelInfo,
+	type ProviderClient,
+	type ProviderConfig,
+	type ProviderProtocol,
+	type ProviderSettings,
+	toProviderConfig,
 } from "../../services/llms/provider-settings";
 import type { ProviderTokenSource } from "../../types/provider-settings";
 import type { ProviderSettingsManager } from "../storage/provider-settings-manager";
@@ -37,9 +54,11 @@ import {
 	fetchModelIdsFromSource,
 	resolveModelsSourceUrl,
 } from "./model-source";
+import { isProviderSettingsUsable } from "./provider-readiness";
 
 export { ensureCustomProvidersLoaded } from "./local-provider-registry";
 
+const CLINE_PROVIDER_ID = "cline";
 const CLINE_PASS_PROVIDER_ID = "cline-pass";
 
 export interface ListLocalProvidersOptions {
@@ -63,6 +82,43 @@ export interface UpdateLocalProviderRequest {
 
 export interface DeleteLocalProviderRequest {
 	providerId: string;
+}
+
+export interface TranscribeLocalAudioRequest {
+	providerId: string;
+	modelId: string;
+	audio: Uint8Array;
+	mediaType?: string;
+	abortSignal?: AbortSignal;
+}
+
+export interface TranscribeConfiguredVoiceInputRequest {
+	audio: Uint8Array;
+	mediaType?: string;
+	abortSignal?: AbortSignal;
+}
+
+export interface CreateConfiguredStreamingTranscriptionSessionRequest {
+	expiresAfterSeconds?: number;
+	abortSignal?: AbortSignal;
+}
+
+export interface GenerateConfiguredMediaRequest {
+	mediaType: "image";
+	prompt: string;
+	abortSignal?: AbortSignal;
+}
+
+export interface GenerateConfiguredMediaResult {
+	content: Array<TextContent | MediaContent>;
+	usage?: AgentUsage;
+}
+
+export interface ResolvedMediaGenerationTarget {
+	mediaType: "image";
+	selection: MediaModelSelection;
+	providerConfig: ProviderConfig;
+	model: ModelInfo;
 }
 
 // --- Small pure helpers ---
@@ -111,6 +167,42 @@ function stableColor(id: string): string {
 	return palette[hash % palette.length];
 }
 
+export function isDedicatedTranscriptionModel(
+	model: Pick<ProviderModel, "operation">,
+): boolean {
+	return model.operation === "transcription";
+}
+
+/**
+ * Whether a catalog model is image-generation eligible and has an executable
+ * provider operation. Explicit image-generation models remain eligible when
+ * external modality metadata is stale; mixed language models must advertise
+ * text input and image output. The transport check deliberately fails closed
+ * for providers without a matching image-capable operation.
+ */
+export function isUsableImageGenerationModel(
+	providerId: string,
+	model: ModelInfo,
+): boolean {
+	const operation = model.operation ?? "language";
+	if (operation !== "language" && operation !== "image-generation") {
+		return false;
+	}
+	if (operation !== "image-generation" && !modelProducesImages(model)) {
+		return false;
+	}
+	const family = model.metadata?.family;
+	return LlmsModels.builtinProviderSupportsModelOperation({
+		providerId,
+		modelId: model.id,
+		operation: model.operation,
+		operationModes: model.operationModes,
+		modalities: model.modalities,
+		family: typeof family === "string" ? family : undefined,
+		capabilities: model.capabilities,
+	});
+}
+
 function toSortedProviderModels(
 	modelMap: Record<string, ModelInfo>,
 ): ProviderModel[] {
@@ -123,16 +215,21 @@ async function resolveProviderModelMap(
 	providerId: string,
 	config?: ProviderConfig,
 ): Promise<Record<string, ModelInfo>> {
-	const registeredModels = await LlmsModels.getModelsForProvider(providerId);
+	const [registeredModels, registeredModelOverrides] = await Promise.all([
+		LlmsModels.getModelsForProvider(providerId),
+		LlmsModels.getModelOverridesForProvider(providerId),
+	]);
+	const shouldLoadLiveCatalog =
+		providerId === CLINE_PROVIDER_ID || providerId === CLINE_PASS_PROVIDER_ID;
 	const isClinePass = providerId === CLINE_PASS_PROVIDER_ID;
-	if (!config && !isClinePass) {
+	if (!config && !shouldLoadLiveCatalog) {
 		return registeredModels;
 	}
 
 	const resolved = await resolveProviderConfig(
 		providerId,
 		{
-			loadLatestOnInit: isClinePass,
+			loadLatestOnInit: shouldLoadLiveCatalog,
 			loadPrivateOnAuth: true,
 			failOnError: false,
 		},
@@ -150,8 +247,70 @@ async function resolveProviderModelMap(
 		? {
 				...registeredModels,
 				...resolved.knownModels,
+				...registeredModelOverrides,
 			}
 		: registeredModels;
+}
+
+async function resolveMediaGenerationSelection(
+	manager: ProviderSettingsManager,
+	mediaType: MediaGenerationType,
+	selection: MediaModelSelection | undefined,
+): Promise<ResolvedMediaGenerationTarget | undefined> {
+	if (mediaType !== "image") return undefined;
+	if (!selection) return undefined;
+
+	const providerId = selection.providerId.trim();
+	const modelId = selection.modelId.trim();
+	if (!providerId || !modelId) return undefined;
+
+	try {
+		const state = manager.read();
+		if (!state.providers[providerId]) return undefined;
+		const config = manager.getProviderConfig(providerId, {
+			includeKnownModels: false,
+		});
+		if (!config) return undefined;
+
+		const modelMap = await resolveProviderModelMap(providerId, config);
+		const model = modelMap[modelId];
+		if (!model || !isUsableImageGenerationModel(providerId, model)) {
+			return undefined;
+		}
+
+		return {
+			mediaType,
+			selection: { providerId, modelId },
+			providerConfig: {
+				...config,
+				modelId,
+				modelInfo: model,
+				knownModels: {
+					...(config.knownModels ?? {}),
+					[modelId]: model,
+				},
+			},
+			model,
+		};
+	} catch {
+		return undefined;
+	}
+}
+
+/** Resolve a currently executable configured media target without mutating settings. */
+export async function resolveConfiguredMediaGenerationTarget(
+	manager: ProviderSettingsManager,
+	mediaType: MediaGenerationType,
+): Promise<ResolvedMediaGenerationTarget | undefined> {
+	try {
+		return await resolveMediaGenerationSelection(
+			manager,
+			mediaType,
+			manager.getMediaGenerationSettings()?.[mediaType],
+		);
+	} catch {
+		return undefined;
+	}
 }
 
 function uniqueTrimmed(values?: string[]): string[] {
@@ -346,8 +505,32 @@ function removeProviderFromSettingsState(
 		delete state.lastUsedProvider;
 		mutated = true;
 	}
+	mutated = clearProviderModeSelections(state, providerId) || mutated;
 	if (mutated) manager.write(state);
 	LlmsModels.unregisterProvider(providerId);
+}
+
+function clearProviderModeSelections(
+	state: ReturnType<ProviderSettingsManager["read"]>,
+	providerId: string,
+): boolean {
+	let mutated = false;
+	if (state.modes.voiceInput?.providerId === providerId) {
+		delete state.modes.voiceInput;
+		mutated = true;
+	}
+	const mediaGeneration = state.modes.mediaGeneration;
+	for (const mediaType of MEDIA_GENERATION_TYPES) {
+		if (mediaGeneration?.[mediaType]?.providerId !== providerId) {
+			continue;
+		}
+		delete mediaGeneration[mediaType];
+		if (Object.keys(mediaGeneration).length === 0) {
+			delete state.modes.mediaGeneration;
+		}
+		mutated = true;
+	}
+	return mutated;
 }
 
 // --- Public API ---
@@ -688,18 +871,35 @@ export function markLocalProviderEnabled(
 export async function listLocalProviders(
 	manager: ProviderSettingsManager,
 	options: ListLocalProvidersOptions = {},
-): Promise<{ providers: ProviderListItem[]; settingsPath: string }> {
+): Promise<ProviderCatalogResponse> {
 	const state = manager.read();
 	const ids = LlmsModels.getProviderIds();
 
+	// The catalog is built for every provider at startup and must not wait on
+	// the network, so featured tiers come from a synchronous peek (cached live
+	// feed, else the bundled fallback). This keeps even the very first picker
+	// paint after a cold boot sectioned; the per-provider model-list path
+	// (getLocalProviderModels) then refreshes with live feed data.
+	const featuredData = peekClineRecommendedModels();
+
 	const providerEntries = await Promise.all(
 		ids.map(
-			async (id): Promise<{ provider: ProviderListItem; rank: number }> => {
+			async (
+				id,
+			): Promise<{
+				provider: ProviderListItem;
+				rank: number;
+				modelMap: Record<string, ModelInfo>;
+			}> => {
 				const [info, registeredModels] = await Promise.all([
 					LlmsModels.getProvider(id),
 					LlmsModels.getModelsForProvider(id),
 				]);
-				const modelList = toSortedProviderModels(registeredModels);
+				const modelList = applyClineFeaturedModels(
+					id,
+					toSortedProviderModels(registeredModels),
+					featuredData,
+				);
 				const directSettings = state.providers[id]?.settings;
 				const persistedSettings = manager.getProviderSettings(id);
 				const name = info?.name ?? titleCaseFromId(id);
@@ -718,6 +918,19 @@ export async function listLocalProviders(
 						color: stableColor(id),
 						letter: createLetter(name),
 						enabled: Boolean(directSettings),
+						// Distinct from `enabled` (any persisted entry, which
+						// migrations and empty saves can create): true only when
+						// the saved settings hold real credentials or a usable
+						// keyless endpoint, mirroring the CLI's readiness check.
+						configured: isProviderSettingsUsable(
+							id,
+							persistedSettings,
+							persistedSettings
+								? toProviderConfig(persistedSettings, {
+										includeKnownModels: false,
+									})
+								: undefined,
+						),
 						apiKey: persistedSettings
 							? resolveVisibleApiKey(persistedSettings)
 							: undefined,
@@ -741,6 +954,7 @@ export async function listLocalProviders(
 						modelList,
 					},
 					rank: getPopularRank(info?.metadata),
+					modelMap: registeredModels,
 				};
 			},
 		),
@@ -758,8 +972,59 @@ export async function listLocalProviders(
 			(provider) => provider.id !== CLINE_PASS_PROVIDER_ID,
 		);
 	}
+	const imageModelsByProvider: Record<string, string[]> = {};
+	for (const provider of providers) {
+		const modelMap = providerEntries.find(
+			(entry) => entry.provider.id === provider.id,
+		)?.modelMap;
+		imageModelsByProvider[provider.id] = Object.entries(modelMap ?? {})
+			.filter(([, model]) => isUsableImageGenerationModel(provider.id, model))
+			.map(([modelId]) => modelId)
+			.sort((a, b) => a.localeCompare(b));
+	}
+	const mediaGenerationModels: MediaGenerationModelCatalog = {
+		audio: {},
+		image: imageModelsByProvider,
+		video: {},
+	};
 
-	return { providers, settingsPath: manager.getFilePath() };
+	const configuredVoiceInput = manager.getVoiceInputSettings();
+	const voiceProvider = configuredVoiceInput
+		? providers.find(
+				(provider) =>
+					provider.id === configuredVoiceInput.providerId && provider.enabled,
+			)
+		: undefined;
+	const voiceModel = voiceProvider?.modelList?.find(
+		(model) =>
+			model.id === configuredVoiceInput?.modelId &&
+			isDedicatedTranscriptionModel(model),
+	);
+	const voiceInput =
+		configuredVoiceInput && voiceModel ? configuredVoiceInput : undefined;
+	const resolvedImageTarget = await resolveConfiguredMediaGenerationTarget(
+		manager,
+		"image",
+	);
+	const imageProvider = resolvedImageTarget
+		? providers.find(
+				(provider) =>
+					provider.id === resolvedImageTarget.selection.providerId &&
+					provider.enabled,
+			)
+		: undefined;
+	const mediaGeneration =
+		resolvedImageTarget && imageProvider
+			? { image: resolvedImageTarget.selection }
+			: undefined;
+
+	return {
+		providers,
+		settingsPath: manager.getFilePath(),
+		voiceInput,
+		mediaGeneration,
+		mediaGenerationModels,
+	};
 }
 
 export async function getLocalProviderModels(
@@ -768,8 +1033,228 @@ export async function getLocalProviderModels(
 ): Promise<{ providerId: string; models: ProviderModel[] }> {
 	const id = providerId.trim();
 	const modelMap = await resolveProviderModelMap(id, config);
-	const models = toSortedProviderModels(modelMap);
+	let models = toSortedProviderModels(modelMap);
+	if (id === CLINE_PROVIDER_ID || id === CLINE_PASS_PROVIDER_ID) {
+		// Stamp the recommended-feed tiers onto the list so every client's
+		// picker gets Recommended/Free/Subscribed data without fetching and
+		// joining the feed itself. Cached; falls back to a bundled list, so
+		// a failure only means models without tier decoration.
+		models = applyClineFeaturedModels(
+			id,
+			models,
+			await getCachedClineRecommendedModels(),
+		);
+	}
 	return { providerId: id, models };
+}
+
+export async function transcribeLocalAudio(
+	manager: ProviderSettingsManager,
+	request: TranscribeLocalAudioRequest,
+): Promise<LlmsModels.AudioTranscriptionResult> {
+	const providerId = request.providerId.trim();
+	const modelId = request.modelId.trim();
+	const config = manager.getProviderConfig(providerId, {
+		includeKnownModels: false,
+	});
+	if (!config) {
+		throw new Error(
+			`Transcription provider "${providerId}" is not configured in providers.json`,
+		);
+	}
+
+	const { models } = await getLocalProviderModels(providerId, config);
+	const model = models.find((candidate) => candidate.id === modelId);
+	if (!model || !isDedicatedTranscriptionModel(model)) {
+		throw new Error(
+			`Model "${modelId}" is not a dedicated audio-to-text transcription model`,
+		);
+	}
+	if (model.operationModes?.includes("streaming")) {
+		throw new Error(
+			`Model "${modelId}" requires streaming transcription and cannot transcribe a completed recording`,
+		);
+	}
+
+	return LlmsModels.transcribeAudio({
+		providerConfig: config,
+		modelId,
+		audio: request.audio,
+		mediaType: request.mediaType,
+		abortSignal: request.abortSignal,
+	});
+}
+
+export async function saveVoiceInputSettings(
+	manager: ProviderSettingsManager,
+	selection: VoiceInputSelection | undefined,
+): Promise<{ settingsPath: string; voiceInput?: VoiceInputSelection }> {
+	if (!selection) {
+		manager.setVoiceInputSettings(undefined);
+		return { settingsPath: manager.getFilePath() };
+	}
+
+	const providerId = selection.providerId.trim();
+	const modelId = selection.modelId.trim();
+	if (!providerId || !modelId) {
+		throw new Error("Voice input provider and model are required");
+	}
+	const state = manager.read();
+	if (!state.providers[providerId]) {
+		throw new Error(
+			`Voice input provider "${providerId}" must be enabled and configured`,
+		);
+	}
+	const config = manager.getProviderConfig(providerId, {
+		includeKnownModels: false,
+	});
+	const { models } = await getLocalProviderModels(providerId, config);
+	const model = models.find((candidate) => candidate.id === modelId);
+	if (!model || !isDedicatedTranscriptionModel(model)) {
+		throw new Error(
+			`Model "${modelId}" is not a dedicated audio-to-text transcription model`,
+		);
+	}
+
+	const voiceInput = { providerId, modelId };
+	manager.setVoiceInputSettings(voiceInput);
+	return { settingsPath: manager.getFilePath(), voiceInput };
+}
+
+export async function saveMediaGenerationSettings(
+	manager: ProviderSettingsManager,
+	mediaType: MediaGenerationType,
+	selection: MediaModelSelection | undefined,
+): Promise<{
+	settingsPath: string;
+	mediaGeneration?: MediaGenerationSettings;
+}> {
+	if (mediaType !== "image") {
+		throw new Error(
+			`Media generation type "${mediaType}" is not supported yet`,
+		);
+	}
+
+	const current = { ...manager.getMediaGenerationSettings() };
+	if (!selection) {
+		delete current[mediaType];
+		const mediaGeneration =
+			Object.keys(current).length > 0 ? current : undefined;
+		manager.setMediaGenerationSettings(mediaGeneration);
+		return { settingsPath: manager.getFilePath(), mediaGeneration };
+	}
+
+	const providerId = selection.providerId.trim();
+	const modelId = selection.modelId.trim();
+	if (!providerId || !modelId) {
+		throw new Error("Image generation provider and model are required");
+	}
+	const target = await resolveMediaGenerationSelection(manager, "image", {
+		providerId,
+		modelId,
+	});
+	if (!target) {
+		throw new Error(
+			`Model "${modelId}" is not an executable image-generation model for provider "${providerId}"`,
+		);
+	}
+
+	const mediaGeneration = { ...current, [mediaType]: target.selection };
+	manager.setMediaGenerationSettings(mediaGeneration);
+	return { settingsPath: manager.getFilePath(), mediaGeneration };
+}
+
+/**
+ * Generate media with the provider and model selected in server-side settings.
+ *
+ * The selection is revalidated immediately before each request so a removed,
+ * disabled, or newly incompatible model cannot be invoked from stale session
+ * state. Provider credentials never enter the tool input or result.
+ */
+export async function generateConfiguredMedia(
+	manager: ProviderSettingsManager,
+	request: GenerateConfiguredMediaRequest,
+): Promise<GenerateConfiguredMediaResult> {
+	const target = await resolveConfiguredMediaGenerationTarget(
+		manager,
+		request.mediaType,
+	);
+	if (!target) {
+		throw new Error(
+			"The configured image generation provider or model is unavailable; choose one in Settings",
+		);
+	}
+
+	const result = await LlmsModels.generateMedia({
+		providerConfig: target.providerConfig,
+		modelId: target.selection.modelId,
+		prompt: request.prompt,
+		mediaType: request.mediaType,
+		abortSignal: request.abortSignal,
+	});
+
+	const mediaLabel = result.media.length === 1 ? "image" : "images";
+	return {
+		content: [
+			{
+				type: "text",
+				text: `Generated ${result.media.length} ${mediaLabel} with ${target.selection.providerId}/${target.selection.modelId}.`,
+			},
+			...result.media.map((media): MediaContent => ({ type: "media", media })),
+		],
+		...(result.usage ? { usage: result.usage } : {}),
+	};
+}
+
+export async function transcribeConfiguredVoiceInput(
+	manager: ProviderSettingsManager,
+	request: TranscribeConfiguredVoiceInputRequest,
+): Promise<LlmsModels.AudioTranscriptionResult> {
+	const selection = manager.getVoiceInputSettings();
+	if (!selection) {
+		throw new Error("Configure a voice input provider and model in Settings");
+	}
+	return transcribeLocalAudio(manager, {
+		...selection,
+		audio: request.audio,
+		mediaType: request.mediaType,
+		abortSignal: request.abortSignal,
+	});
+}
+
+export async function createConfiguredStreamingTranscriptionSession(
+	manager: ProviderSettingsManager,
+	request: CreateConfiguredStreamingTranscriptionSessionRequest = {},
+): Promise<LlmsModels.StreamingAudioTranscriptionSession> {
+	const selection = manager.getVoiceInputSettings();
+	if (!selection) {
+		throw new Error("Configure a voice input provider and model in Settings");
+	}
+	const config = manager.getProviderConfig(selection.providerId, {
+		includeKnownModels: false,
+	});
+	if (!config) {
+		throw new Error(
+			`Transcription provider "${selection.providerId}" is not configured in providers.json`,
+		);
+	}
+	const { models } = await getLocalProviderModels(selection.providerId, config);
+	const model = models.find((candidate) => candidate.id === selection.modelId);
+	if (
+		!model ||
+		!isDedicatedTranscriptionModel(model) ||
+		!model.operationModes?.includes("streaming")
+	) {
+		throw new Error(
+			`Model "${selection.modelId}" does not support streaming transcription`,
+		);
+	}
+	return LlmsModels.createStreamingAudioTranscriptionSession({
+		providerConfig: config,
+		modelId: selection.modelId,
+		expiresAfterSeconds: request.expiresAfterSeconds,
+		abortSignal: request.abortSignal,
+	});
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -815,6 +1300,7 @@ export function saveLocalProviderSettings(
 		const state = manager.read();
 		delete state.providers[providerId];
 		if (state.lastUsedProvider === providerId) delete state.lastUsedProvider;
+		clearProviderModeSelections(state, providerId);
 		manager.write(state);
 		return { providerId, enabled: false, settingsPath: manager.getFilePath() };
 	}

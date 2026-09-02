@@ -2,10 +2,10 @@ import type {
 	AgentMessage,
 	AgentMessagePart,
 	AgentTextPart,
-	AudioContent,
 	ContentBlock,
 	FileContent,
 	ImageContent,
+	MediaContent,
 	Message,
 	MessageWithMetadata,
 	RedactedThinkingContent,
@@ -13,9 +13,9 @@ import type {
 	ThinkingContent,
 	ToolResultContent,
 	ToolUseContent,
-	VideoContent,
 } from "@cline/shared";
 import { EMPTY_CONTENT_TEXT } from "@cline/shared";
+import { toPersistedToolResultContent } from "../../session/persisted-tool-result-content";
 
 export function messageToAgentMessages(
 	message: MessageWithMetadata,
@@ -199,10 +199,8 @@ function contentBlockToAgentPart(block: ContentBlock): AgentMessagePart {
 			};
 		case "image":
 			return { type: "image", image: block.data, mediaType: block.mediaType };
-		case "video":
-			return { type: "video", path: block.path, mediaType: block.mediaType };
-		case "audio":
-			return { type: "audio", path: block.path, mediaType: block.mediaType };
+		case "media":
+			return { type: "media", media: block.media };
 		case "file":
 			return { type: "file", path: block.path, content: block.content };
 		case "tool_use":
@@ -267,28 +265,17 @@ function agentPartToContentBlock(
 						mediaType: part.mediaType ?? "image/png",
 					} satisfies ImageContent)
 				: undefined;
-		case "video":
-			return part.path
-				? ({
-						type: "video",
-						path: part.path,
-						mediaType: part.mediaType,
-					} satisfies VideoContent)
-				: undefined;
-		case "audio":
-			return part.path
-				? ({
-						type: "audio",
-						path: part.path,
-						mediaType: part.mediaType,
-					} satisfies AudioContent)
-				: undefined;
 		case "file":
 			return {
 				type: "file",
 				path: part.path,
 				content: part.content,
 			} satisfies FileContent;
+		case "media":
+			return {
+				type: "media",
+				media: part.media,
+			} satisfies MediaContent;
 		case "tool-call": {
 			const metadata = part.metadata as
 				| {
@@ -305,18 +292,11 @@ function agentPartToContentBlock(
 			} satisfies ToolUseContent;
 		}
 		case "tool-result": {
-			const output = part.output;
-			const content =
-				typeof output === "string"
-					? output
-					: Array.isArray(output)
-						? (output as ToolResultContent["content"])
-						: JSON.stringify(output);
 			return {
 				type: "tool_result",
 				tool_use_id: part.toolCallId,
 				name: part.toolName,
-				content,
+				content: toPersistedToolResultContent(part.output),
 				is_error: part.isError,
 			} satisfies ToolResultContent;
 		}

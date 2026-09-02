@@ -1,4 +1,9 @@
 import {
+	builtinProviderSupportsModelOperation,
+	normalizeBuiltinModelOperationModalities,
+	resolveModelOperation,
+} from "../providers/model-operations";
+import {
 	MODELS_DEV_BLOCKED_PROVIDER_IDS,
 	MODELS_DEV_CURRENT_BUILTIN_PROVIDER_KEYS,
 	resolveGeneratedProviderIdForModelsDevKey,
@@ -7,6 +12,10 @@ import {
 	fetchClineRecommendedModelsPayload,
 	normalizeClineRecommendedProviderModels,
 } from "./catalog-cline-recommended";
+import {
+	resolveCatalogModelOperation,
+	resolveCatalogModelOperationModes,
+} from "./model-operation";
 import type { ModelInfo, ModelModality } from "./types";
 
 export interface ModelsDevModel {
@@ -79,6 +88,7 @@ interface SelectedModelsDevProvider {
 
 const DEFAULT_MAX_INPUT_TOKENS = 128_000;
 const DEFAULT_MAX_TOKENS = 4096;
+
 const MODELS_DEV_AI_SDK_PROVIDER_FAMILIES = {
 	"@ai-sdk/openai": "openai",
 	"@ai-sdk/openai-compatible": "openai-compatible",
@@ -88,32 +98,6 @@ const MODELS_DEV_AI_SDK_PROVIDER_FAMILIES = {
 	"@ai-sdk/amazon-bedrock": "bedrock",
 	"@ai-sdk/mistral": "mistral",
 } as const satisfies Record<string, ModelsDevGeneratedProviderSpec["family"]>;
-
-// Dedicated video models require a provider factory that exposes AI SDK's
-// VideoModel interface. Other providers may still expose mixed text/video
-// language models through their normal streaming endpoint.
-const DEDICATED_VIDEO_ENDPOINT_PROVIDER_IDS: ReadonlySet<string> = new Set([
-	"gemini",
-	"vercel-ai-gateway",
-]);
-
-// Dedicated speech models require a provider factory that exposes AI SDK's
-// SpeechModel interface. OpenAI-compatible providers without that endpoint can
-// still expose mixed text/audio language models through normal streaming.
-const DEDICATED_AUDIO_ENDPOINT_PROVIDER_IDS: ReadonlySet<string> = new Set([
-	"gemini",
-	"openai-native",
-	"vercel-ai-gateway",
-	"vertex",
-]);
-
-export function supportsDedicatedVideoEndpoint(providerId: string): boolean {
-	return DEDICATED_VIDEO_ENDPOINT_PROVIDER_IDS.has(providerId);
-}
-
-export function supportsDedicatedAudioEndpoint(providerId: string): boolean {
-	return DEDICATED_AUDIO_ENDPOINT_PROVIDER_IDS.has(providerId);
-}
 
 function parseReleaseDate(value: string | undefined): number {
 	if (!value) {
@@ -245,9 +229,8 @@ const KNOWN_MODEL_MODALITIES = new Set<ModelModality>([
 	"pdf",
 ]);
 
-function toModalities(
-	modalities: ModelsDevModel["modalities"],
-): ModelInfo["modalities"] {
+function toModalities(model: ModelsDevModel): ModelInfo["modalities"] {
+	const modalities = model.modalities;
 	if (!modalities) {
 		return undefined;
 	}
@@ -260,90 +243,48 @@ function toModalities(
 			),
 		);
 	const input = normalize(modalities.input);
-	const output = normalize(modalities.output);
+	let output = normalize(modalities.output);
+	if (
+		model.family?.trim().toLowerCase() === "gpt-image" &&
+		output.includes("image")
+	) {
+		// models.dev has advertised some GPT Image releases as also producing
+		// text. They are image-endpoint models, so keeping `text` here would route
+		// them through the streaming Responses path instead of `generateImage`.
+		output = output.filter((modality) => modality !== "text");
+	}
 	// A one-sided declaration is incomplete and must not turn an otherwise
 	// usable chat model into an input- or output-incompatible model.
 	if (input.length === 0 || output.length === 0) {
 		return undefined;
 	}
-	if (
-		!output.includes("image") &&
-		!output.includes("video") &&
-		!output.includes("audio")
-	) {
+	const hasGeneratedOutput = output.some((modality) => modality !== "text");
+	const isTranscriptionShape =
+		input.length === 1 &&
+		input[0] === "audio" &&
+		output.length === 1 &&
+		output[0] === "text";
+	const hasAudioInput = input.includes("audio");
+	// Ordinary language-model input modalities already have compact capability
+	// projections (images, video, files). Audio has no generic capability flag,
+	// so retain that input shape along with generated output and transcription.
+	if (!hasGeneratedOutput && !isTranscriptionShape && !hasAudioInput) {
 		return undefined;
 	}
 	return { input, output };
 }
 
-function isSpecializedMediaModel(model: ModelsDevModel): boolean {
+function isSpecializedOperationModel(model: ModelInfo): boolean {
 	return (
-		model.modalities?.input?.includes("text") === true &&
-		(model.modalities.output?.includes("image") === true ||
-			model.modalities.output?.includes("video") === true ||
-			model.modalities.output?.includes("audio") === true)
+		resolveModelOperation(model) !== "language" ||
+		model.modalities?.output.some((modality) => modality !== "text") === true
 	);
 }
-
-function isDedicatedImageModel(model: ModelsDevModel): boolean {
-	return (
-		model.modalities?.output?.includes("image") === true &&
-		model.modalities.output.includes("text") !== true
-	);
-}
-
-function isDedicatedVideoModel(model: ModelsDevModel): boolean {
-	return (
-		model.modalities?.output?.includes("video") === true &&
-		model.modalities.output.includes("text") !== true
-	);
-}
-
-function isDedicatedAudioModel(model: ModelsDevModel): boolean {
-	return (
-		model.modalities?.output?.includes("audio") === true &&
-		model.modalities.output.includes("text") !== true
-	);
-}
-
-function providerSupportsDedicatedImageModels(
-	provider: ModelsDevProviderPayload,
-): boolean {
-	// Current built-ins without a recognized models.dev SDK package use the
-	// OpenAI-compatible runtime family when their generated spec is normalized.
-	const family = supportedAiSdkProviderFamily(provider) ?? "openai-compatible";
-	return (
-		family === "openai-compatible" ||
-		family === "openai" ||
-		family === "google" ||
-		family === "vertex" ||
-		family === "bedrock"
-	);
-}
-
 function isChatModel(model: ModelInfo): boolean {
 	return (
 		(model.modalities === undefined ||
 			model.modalities.input.includes("text")) &&
 		(model.modalities === undefined || model.modalities.output.includes("text"))
-	);
-}
-
-function hasSupportedDedicatedVideoEndpoint(
-	providerId: string,
-	model: ModelsDevModel,
-): boolean {
-	return (
-		!isDedicatedVideoModel(model) || supportsDedicatedVideoEndpoint(providerId)
-	);
-}
-
-function hasSupportedDedicatedAudioEndpoint(
-	providerId: string,
-	model: ModelsDevModel,
-): boolean {
-	return (
-		!isDedicatedAudioModel(model) || supportsDedicatedAudioEndpoint(providerId)
 	);
 }
 
@@ -375,7 +316,9 @@ function toModelInfo(modelId: string, model: ModelsDevModel): ModelInfo {
 	const maxInputTokens = resolveMaxInputTokens(model.limit);
 	const outputToken = model.limit?.output ?? DEFAULT_MAX_TOKENS;
 	const rawContextLimit = model.limit?.context;
-	const modalities = toModalities(model.modalities);
+	const modalities = toModalities(model);
+	const operation = resolveCatalogModelOperation(model);
+	const operationModes = resolveCatalogModelOperationModes(modelId, model);
 
 	return {
 		id: modelId,
@@ -384,7 +327,9 @@ function toModelInfo(modelId: string, model: ModelsDevModel): ModelInfo {
 		maxInputTokens,
 		maxTokens: Math.floor(outputToken),
 		capabilities: toCapabilities(model),
-		reasoningOptions: model.reasoning_options,
+		...(model.reasoning_options !== undefined
+			? { reasoningOptions: model.reasoning_options }
+			: {}),
 		pricing: {
 			input: model.cost?.input ?? 0,
 			output: model.cost?.output ?? 0,
@@ -394,6 +339,8 @@ function toModelInfo(modelId: string, model: ModelsDevModel): ModelInfo {
 		status: toStatus(model.status),
 		releaseDate: model.release_date,
 		family: model.family,
+		...(operation !== "language" ? { operation } : {}),
+		...(operationModes ? { operationModes } : {}),
 		...(modalities !== undefined ? { modalities } : {}),
 	};
 }
@@ -416,17 +363,36 @@ export function normalizeModelsDevProviderModels(
 
 		const models: Record<string, ModelInfo> = {};
 		for (const [modelId, model] of Object.entries(source.models)) {
+			const rawInfo = toModelInfo(modelId, model);
+			const modalities = normalizeBuiltinModelOperationModalities({
+				providerId: targetProviderId,
+				modelId,
+				operation: rawInfo.operation,
+				operationModes: rawInfo.operationModes,
+				modalities: rawInfo.modalities,
+				family: rawInfo.family,
+				capabilities: rawInfo.capabilities,
+			});
+			const info = {
+				...rawInfo,
+				...(modalities ? { modalities } : {}),
+			};
 			if (
-				(isDedicatedImageModel(model) &&
-					!providerSupportsDedicatedImageModels(source)) ||
-				(model.tool_call !== true && !isSpecializedMediaModel(model)) ||
-				!hasSupportedDedicatedVideoEndpoint(targetProviderId, model) ||
-				!hasSupportedDedicatedAudioEndpoint(targetProviderId, model) ||
-				isDeprecatedModel(model)
+				(model.tool_call !== true && !isSpecializedOperationModel(info)) ||
+				isDeprecatedModel(model) ||
+				!builtinProviderSupportsModelOperation({
+					providerId: targetProviderId,
+					modelId,
+					operation: info.operation,
+					operationModes: info.operationModes,
+					modalities: info.modalities,
+					family: info.family,
+					capabilities: info.capabilities,
+				})
 			) {
 				continue;
 			}
-			models[modelId] = toModelInfo(modelId, model);
+			models[modelId] = info;
 		}
 
 		if (Object.keys(models).length > 0) {

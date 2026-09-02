@@ -6,6 +6,8 @@
  * converted to any provider's native format.
  */
 
+import type { GeneratedMedia } from "./media";
+
 /**
  * Message roles
  */
@@ -43,20 +45,10 @@ export interface ImageContent {
 	mediaType: string;
 }
 
-/** Artifact-backed generated video. */
-export interface VideoContent {
-	type: "video";
-	/** Absolute path within the owning session's artifact directory. */
-	path: string;
-	mediaType: string;
-}
-
-/** Artifact-backed generated audio. */
-export interface AudioContent {
-	type: "audio";
-	/** Absolute path within the owning session's artifact directory. */
-	path: string;
-	mediaType: string;
+/** Model-generated binary media preserved independently of textual files. */
+export interface MediaContent {
+	type: "media";
+	media: GeneratedMedia;
 }
 
 /**
@@ -86,7 +78,9 @@ export interface ToolResultContent {
 	/** Name of the tool that generated this result */
 	name: string;
 	/** Result content (can be text or error) */
-	content: string | Array<TextContent | ImageContent | FileContent>;
+	content:
+		| string
+		| Array<TextContent | ImageContent | MediaContent | FileContent>;
 	/** Whether this result represents an error */
 	is_error?: boolean;
 }
@@ -125,8 +119,7 @@ export interface RedactedThinkingContent {
 export type ContentBlock =
 	| TextContent
 	| ImageContent
-	| VideoContent
-	| AudioContent
+	| MediaContent
 	| ToolUseContent
 	| ToolResultContent
 	| ThinkingContent

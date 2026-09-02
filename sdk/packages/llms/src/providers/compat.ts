@@ -28,6 +28,7 @@ import {
 } from "./ai-sdk";
 import { BUILTIN_PROVIDER_REGISTRATIONS } from "./builtins-runtime";
 import { createGateway } from "./gateway";
+import { toGatewayModelCapabilities } from "./model-capabilities";
 import {
 	getProviderCollection,
 	getProviderCollectionSync,
@@ -51,45 +52,6 @@ const BUILTIN_PROVIDER_MAP = new Map(
 	]),
 );
 
-function toGatewayCapabilities(
-	capabilities: readonly string[] | undefined,
-): GatewayModelDefinition["capabilities"] {
-	if (!capabilities?.length) {
-		return undefined;
-	}
-
-	const mapped = new Set<
-		NonNullable<GatewayModelDefinition["capabilities"]>[number]
-	>();
-	for (const capability of capabilities) {
-		switch (capability) {
-			case "tools":
-			case "reasoning":
-			case "prompt-cache":
-			case "images":
-			case "audio":
-				mapped.add(capability);
-				break;
-			case "files":
-			case "streaming":
-			case "temperature":
-			case "reasoning-effort":
-			case "computer-use":
-			case "global-endpoint":
-				mapped.add("text");
-				break;
-			case "structured_output":
-				mapped.add("structured-output");
-				break;
-			default:
-				mapped.add("text");
-		}
-	}
-
-	mapped.add("text");
-	return [...mapped];
-}
-
 function toGatewayModelDefinition(
 	providerId: string,
 	model: ModelInfo,
@@ -102,8 +64,10 @@ function toGatewayModelDefinition(
 		contextWindow: model.contextWindow,
 		maxInputTokens: model.maxInputTokens,
 		maxOutputTokens: model.maxTokens,
+		operation: model.operation,
+		operationModes: model.operationModes,
 		modalities: model.modalities,
-		capabilities: toGatewayCapabilities(model.capabilities),
+		capabilities: toGatewayModelCapabilities(model.capabilities),
 		reasoningOptions: model.reasoningOptions,
 		metadata: {
 			family: model.family,
@@ -385,6 +349,8 @@ export function toGatewayRequestMessages(
 										mediaType: part.mediaType,
 									},
 								];
+							case "media":
+								return [{ type: "media" as const, media: part.media }];
 							case "file":
 								return [{ type: "text" as const, text: part.content }];
 							case "redacted_thinking":
@@ -554,31 +520,13 @@ function toApiStreamChunk(
 	switch (event.type) {
 		case "text-delta":
 			return { type: "text", id, text: event.text };
-		case "file":
-			// The legacy ApiStream contract has no file chunk type; generated
-			// files are only representable on the AgentModelEvent path.
+		case "media":
+			return { type: "media", id, media: event.media };
+		case "tool-result":
+			// Model-tool activity is available through the AgentModel/AgentRuntime
+			// event path. The legacy ApiStream contract has no observational tool
+			// event that would not imply caller-owned execution.
 			return undefined;
-		case "image":
-			return {
-				type: "image",
-				id,
-				data: event.data,
-				mediaType: event.mediaType,
-			};
-		case "video":
-			return {
-				type: "video",
-				id,
-				data: event.data,
-				mediaType: event.mediaType,
-			};
-		case "audio":
-			return {
-				type: "audio",
-				id,
-				data: event.data,
-				mediaType: event.mediaType,
-			};
 		case "reasoning-delta": {
 			const metadata = event.metadata as Record<string, unknown> | undefined;
 			return {

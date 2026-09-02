@@ -18,14 +18,20 @@ import {
 	resolve,
 } from "node:path";
 import {
+	installPlugin as installCorePlugin,
+	installMcpServer,
 	type MarketplaceActionResult,
 	type MarketplaceEntryInput,
+	parseMcpInstallArgs,
 	resolveSkillsConfigSearchPaths,
 	resolveWorkflowsConfigSearchPaths,
 	uninstallMarketplaceEntry as uninstallCoreMarketplaceEntry,
 	uninstallPlugin as uninstallLocalPlugin,
 } from "@cline/core";
-import { resolveClineDir } from "@cline/shared/storage";
+import {
+	discoverPluginModulePaths,
+	resolveClineDir,
+} from "@cline/shared/storage";
 import { deleteMcpServer, readMcpServersResponse } from "./mcp";
 import type { JsonRecord } from "./types";
 
@@ -454,18 +460,6 @@ export function buildMarketplaceMcpInput(args: string[]): JsonRecord {
 	};
 }
 
-function resolveClineInvocation(): { command: string; argsPrefix: string[] } {
-	const wrapperPath = process.env.CLINE_WRAPPER_PATH?.trim();
-	if (wrapperPath) {
-		return { command: wrapperPath, argsPrefix: [] };
-	}
-	const entry = process.argv[1]?.trim();
-	if (entry && /(?:^|[/\\])apps[/\\]cli[/\\]src[/\\]index\.ts$/.test(entry)) {
-		return { command: process.execPath, argsPrefix: [entry] };
-	}
-	return { command: "cline", argsPrefix: [] };
-}
-
 function isInsidePath(childPath: string, parentPath: string): boolean {
 	const relativePath = relative(resolve(parentPath), resolve(childPath));
 	return (
@@ -584,7 +578,9 @@ function isOfficialPluginSlug(source: string): boolean {
 	return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(source.trim());
 }
 
-function getOfficialPluginInstallPath(source: string): string | undefined {
+export function getOfficialPluginInstallPath(
+	source: string,
+): string | undefined {
 	const slug = source.trim();
 	if (!isOfficialPluginSlug(slug)) return undefined;
 	const sourceKey = `official:${OFFICIAL_PLUGINS_REPO}#plugins/${slug}`;
@@ -597,12 +593,33 @@ function getOfficialPluginInstallPath(source: string): string | undefined {
 	);
 }
 
-function isOfficialPluginInstalled(entry: MarketplaceInstallInput): boolean {
-	if (entry.type !== "plugin") return false;
+type OfficialPluginInstallState = "installed" | "partial" | "missing";
+
+function getOfficialPluginInstallState(
+	entry: MarketplaceInstallInput,
+): OfficialPluginInstallState {
+	if (entry.type !== "plugin") return "missing";
 	const [source] = entry.install.args ?? [];
-	if (!source) return false;
+	if (!source) return "missing";
 	const installPath = getOfficialPluginInstallPath(source);
-	return Boolean(installPath && existsSync(installPath));
+	if (!installPath || !existsSync(installPath)) return "missing";
+	// A bare directory is not an install: a failed or interrupted install can
+	// leave the directory behind with no plugin inside, and treating that as
+	// installed makes the next install attempt "succeed" silently ("already
+	// installed") while nothing actually works. Require a loadable plugin
+	// module before reporting the entry as installed; a directory without one
+	// is "partial" so the installer can reclaim it with --force.
+	try {
+		return discoverPluginModulePaths(installPath).length > 0
+			? "installed"
+			: "partial";
+	} catch {
+		return "partial";
+	}
+}
+
+function isOfficialPluginInstalled(entry: MarketplaceInstallInput): boolean {
+	return getOfficialPluginInstallState(entry) === "installed";
 }
 
 function resolveHomeDir(): string {
@@ -697,6 +714,7 @@ function hasMatchingInventoryItem(
 	return items.some((item) => {
 		if (!item || typeof item !== "object") return false;
 		const record = item as JsonRecord;
+		if (record.agentPlugin === true) return false;
 		const values = [
 			typeof record.name === "string" ? record.name : undefined,
 			typeof record.id === "string" ? record.id : undefined,
@@ -797,7 +815,6 @@ async function installSkill(
 
 async function installPlugin(
 	entry: MarketplaceInstallInput,
-	spawnCommand: SpawnCommand,
 ): Promise<MarketplaceInstallResult> {
 	const installArgs = entry.install.args ?? [];
 	if (installArgs.length !== 1) {
@@ -805,7 +822,8 @@ async function installPlugin(
 			"Plugin marketplace installs currently support exactly one source argument.",
 		);
 	}
-	if (isOfficialPluginInstalled(entry)) {
+	const installState = getOfficialPluginInstallState(entry);
+	if (installState === "installed") {
 		return {
 			id: entry.id,
 			type: entry.type,
@@ -813,35 +831,36 @@ async function installPlugin(
 			message: `${entry.name ?? entry.id} is already installed.`,
 		};
 	}
-	const { command, argsPrefix } = resolveClineInvocation();
-	const result = await spawnCommand(command, [
-		...argsPrefix,
-		"plugin",
-		"install",
-		installArgs[0] ?? "",
-		"--json",
-	]);
-	if (result.exitCode !== 0) {
-		const output = commandOutput(result);
-		throw new Error(
-			`Plugin install failed with exit code ${result.exitCode}${output ? `:\n${output}` : ""}`,
-		);
-	}
-	let details: JsonRecord | undefined;
-	try {
-		details = result.stdout.trim()
-			? (JSON.parse(result.stdout.trim()) as JsonRecord)
-			: undefined;
-	} catch {
-		details = undefined;
-	}
+	// Install in-process instead of shelling out to a `cline` binary: the
+	// packaged desktop app cannot assume a CLI install exists on the user's
+	// PATH (GUI apps inherit launchd's minimal PATH on macOS), which surfaced
+	// as 'Executable not found in $PATH: "cline"' in the marketplace UI.
+	//
+	// force reclaims a leftover directory from a failed or interrupted
+	// install: without it the installer refuses to replace the existing path
+	// and every retry from the UI would fail the same way. This is safe
+	// because the state check just confirmed the directory contains no
+	// loadable plugin module.
+	const result = await installCorePlugin({
+		source: installArgs[0] ?? "",
+		force: installState === "partial",
+	});
+	const warnings = result.mcpSyncFailures.map(
+		(failure) =>
+			`Failed to sync plugin MCP servers for ${failure.pluginName ?? failure.pluginPath}: ${failure.message}`,
+	);
 	return {
 		id: entry.id,
 		type: entry.type,
 		status: "installed",
 		message: `Installed ${entry.name ?? entry.id}.`,
-		details,
-		output: commandOutput(result),
+		details: {
+			source: result.source,
+			installPath: result.installPath,
+			entryPaths: result.entryPaths,
+			mcpSyncFailures: result.mcpSyncFailures,
+		} as JsonRecord,
+		output: [`Path: ${result.installPath}`, ...warnings].join("\n"),
 	};
 }
 
@@ -852,45 +871,26 @@ export async function installMarketplaceEntry(
 	const entry = readInstallInput(args);
 	const spawnCommand = options.spawnCommand ?? defaultSpawnCommand;
 	if (entry.type === "mcp") {
-		// Validate marketplace args before handing them to the CLI-backed installer.
-		buildMarketplaceMcpInput(entry.install.args ?? []);
-		const { command, argsPrefix } = resolveClineInvocation();
-		const result = await spawnCommand(command, [
-			...argsPrefix,
-			"mcp",
-			"install",
-			"--yes",
-			"--json",
-			...(entry.install.args ?? []),
-		]);
-		if (result.exitCode !== 0) {
-			const output = commandOutput(result);
-			throw new Error(
-				`MCP install failed with exit code ${result.exitCode}${output ? `:\n${output}` : ""}`,
-			);
-		}
-		let details: JsonRecord | undefined;
-		try {
-			details = result.stdout.trim()
-				? (JSON.parse(result.stdout.trim()) as JsonRecord)
-				: undefined;
-		} catch {
-			details = undefined;
-		}
+		// Register the server in-process; this only writes MCP settings, so
+		// there is no reason to depend on a `cline` binary being on PATH.
+		const result = installMcpServer(
+			parseMcpInstallArgs(entry.install.args ?? []),
+		);
 		return {
 			id: entry.id,
 			type: entry.type,
 			status: "installed",
 			message: `Installed ${entry.name ?? entry.id}.`,
-			details,
-			output: commandOutput(result),
+			details: result as unknown as JsonRecord,
+			output:
+				result.warnings.length > 0 ? result.warnings.join("\n") : undefined,
 		};
 	}
 	if (entry.type === "skill") {
 		return installSkill(entry, spawnCommand);
 	}
 	if (entry.type === "plugin") {
-		return installPlugin(entry, spawnCommand);
+		return installPlugin(entry);
 	}
 	throw new Error(`Unsupported marketplace entry type: ${entry.type}`);
 }

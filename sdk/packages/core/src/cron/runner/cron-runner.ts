@@ -121,6 +121,34 @@ async function withTimeout<T>(
 	}
 }
 
+/**
+ * Session metadata keys that identify the automation run a session belongs
+ * to. Clients (e.g. the desktop sidebar) read these to group a schedule's
+ * runs together and label each one, so they are part of the session
+ * metadata contract; keep them in sync with the readers.
+ */
+export const RUN_SESSION_METADATA_KEYS = {
+	scheduleId: "scheduleId",
+	scheduleName: "scheduleName",
+	scheduleExecutionId: "scheduleExecutionId",
+	scheduleRunNumber: "scheduleRunNumber",
+} as const;
+
+export function buildRunSessionMetadata(
+	spec: Pick<CronSpecRecord, "externalId" | "title">,
+	run: Pick<CronRunRecord, "runId">,
+	runNumber: number | undefined,
+): Record<string, unknown> {
+	return {
+		[RUN_SESSION_METADATA_KEYS.scheduleId]: spec.externalId,
+		[RUN_SESSION_METADATA_KEYS.scheduleName]: spec.title,
+		[RUN_SESSION_METADATA_KEYS.scheduleExecutionId]: run.runId,
+		...(runNumber !== undefined
+			? { [RUN_SESSION_METADATA_KEYS.scheduleRunNumber]: runNumber }
+			: {}),
+	};
+}
+
 export interface CronRunnerOptions {
 	store: SqliteCronStore;
 	materializer: CronMaterializer;
@@ -300,11 +328,21 @@ export class CronRunner {
 			executionDeadlineMs = startMs + spec.timeoutSeconds * 1000;
 		}
 
+		let phase = "preparing the session request";
 		try {
 			releaseLeaseHeartbeat = this.startClaimLeaseHeartbeat(claim);
 			const startRequest = await this.buildStartRequest(spec);
-			const startResp =
-				await this.options.runtimeHandlers.startSession(startRequest);
+			phase = "starting the agent session";
+			const startResp = await this.options.runtimeHandlers.startSession(
+				startRequest,
+				{
+					sessionMetadata: buildRunSessionMetadata(
+						spec,
+						run,
+						this.store.getRunOrdinal(run.runId),
+					),
+				},
+			);
 			sessionId = startResp.sessionId.trim();
 			if (!sessionId) throw new Error("runtime returned empty sessionId");
 			this.activeRuns.set(run.runId, {
@@ -313,6 +351,7 @@ export class CronRunner {
 			});
 			this.store.attachSessionIdToRun(run.runId, sessionId);
 
+			phase = "running the agent turn";
 			const turnRequest: ChatRunTurnRequest = {
 				config: startRequest,
 				prompt: this.buildPrompt(spec, triggerEvent),
@@ -364,12 +403,20 @@ export class CronRunner {
 			}
 			const message = err instanceof Error ? err.message : String(err);
 			const endMs = Date.now();
+			const errorContext = isTimeout
+				? `The run exceeded its ${spec.timeoutSeconds}s timeout while ${phase} and was aborted:`
+				: `The run failed while ${phase}:`;
 			const reportPath = writeCronRunReport({
 				specs: this.options.specs,
 				workspaceRoot: this.options.workspaceRoot,
 				run: { ...run, sessionId, status: "failed" },
 				spec,
-				data: { error: message, durationMs: endMs - startMs, triggerEvent },
+				data: {
+					error: message,
+					errorContext,
+					durationMs: endMs - startMs,
+					triggerEvent,
+				},
 			});
 			this.store.completeRun(run.runId, {
 				status: "failed",

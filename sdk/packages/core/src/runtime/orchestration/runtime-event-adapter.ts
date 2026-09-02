@@ -1,5 +1,5 @@
 /**
- * Adapter from the new `AgentRuntimeEvent` union (13 variants, defined
+ * Adapter from the new `AgentRuntimeEvent` union (defined
  * in `@cline/shared/src/agent.ts`) to the legacy `AgentEvent` union
  * (9 top-level types, defined in
  * `@cline/shared/src/agents/types.ts`) consumed by today's
@@ -28,12 +28,12 @@
  *                        accumulated } (per delta)
  *   reasoning deltas → content_start { contentType:"reasoning",
  *                        reasoning, redacted } (per delta)
+ *   assistant-media   → content_end { contentType:"media", media }
+ *                        at the original stream position
  *   assistant-message → one content_end { contentType:"text", text }
  *                        if any text parts; one
  *                        content_end { contentType:"reasoning", reasoning }
- *                        if any reasoning parts; and one
- *                        content_end { contentType:"image", image } per
- *                        generated image
+ *                        if any reasoning parts
  *                        (turn-processor.ts:157-170).
  *
  * --- STATEFUL BOOK-KEEPING ------------------------------------------------
@@ -53,17 +53,14 @@
  */
 
 import type {
-	AgentAudioPart,
 	AgentEvent,
 	AgentFinishReason,
-	AgentImagePart,
 	AgentMessage,
 	AgentReasoningPart,
 	AgentRuntimeEvent,
 	AgentTextPart,
 	AgentToolResultPart,
 	AgentUsage,
-	AgentVideoPart,
 	LegacyAgentUsage,
 } from "@cline/shared";
 
@@ -109,42 +106,6 @@ function extractReasoningPart(
 		reasoning: parts.map((part) => part.text).join(""),
 		redacted: parts.some((part) => part.redacted === true),
 	};
-}
-
-function extractImageParts(
-	message: AgentMessage,
-): Array<{ data: string; mediaType: string }> {
-	return message.content
-		.filter(
-			(part): part is AgentImagePart & { image: string } =>
-				part.type === "image" && typeof part.image === "string",
-		)
-		.map((part) => ({
-			data: part.image,
-			mediaType: part.mediaType ?? "image/png",
-		}));
-}
-
-function extractVideoParts(
-	message: AgentMessage,
-): Array<{ path: string; mediaType: string }> {
-	return message.content
-		.filter(
-			(part): part is AgentVideoPart & { path: string } =>
-				part.type === "video" && typeof part.path === "string",
-		)
-		.map((part) => ({ path: part.path, mediaType: part.mediaType }));
-}
-
-function extractAudioParts(
-	message: AgentMessage,
-): Array<{ path: string; mediaType: string }> {
-	return message.content
-		.filter(
-			(part): part is AgentAudioPart & { path: string } =>
-				part.type === "audio" && typeof part.path === "string",
-		)
-		.map((part) => ({ path: part.path, mediaType: part.mediaType }));
 }
 
 function extractToolResultPart(
@@ -256,6 +217,14 @@ export class RuntimeEventAdapter {
 						redacted: event.redacted === true,
 					},
 				];
+			case "assistant-media":
+				return [
+					{
+						type: "content_end",
+						contentType: "media",
+						media: event.media,
+					},
+				];
 			case "assistant-message":
 				return this.translateAssistantMessage(event.message);
 			case "tool-started":
@@ -331,32 +300,16 @@ export class RuntimeEventAdapter {
 				reasoning: reasoning.reasoning,
 			});
 		}
-		for (const image of extractImageParts(message)) {
-			out.push({
-				type: "content_end",
-				contentType: "image",
-				image,
-			});
-		}
-		for (const video of extractVideoParts(message)) {
-			out.push({
-				type: "content_end",
-				contentType: "video",
-				video,
-			});
-		}
-		for (const audio of extractAudioParts(message)) {
-			out.push({
-				type: "content_end",
-				contentType: "audio",
-				audio,
-			});
-		}
 		return out;
 	}
 
 	private translateToolStarted(event: {
-		toolCall: { toolCallId: string; toolName: string; input: unknown };
+		toolCall: {
+			toolCallId: string;
+			toolName: string;
+			input: unknown;
+			execution?: "client" | "provider";
+		};
 	}): AgentEvent[] {
 		this.toolStartedAt.set(event.toolCall.toolCallId, Date.now());
 		return [
@@ -366,12 +319,17 @@ export class RuntimeEventAdapter {
 				toolName: event.toolCall.toolName,
 				toolCallId: event.toolCall.toolCallId,
 				input: event.toolCall.input,
+				execution: event.toolCall.execution,
 			},
 		];
 	}
 
 	private translateToolFinished(event: {
-		toolCall: { toolCallId: string; toolName: string };
+		toolCall: {
+			toolCallId: string;
+			toolName: string;
+			execution?: "client" | "provider";
+		};
 		message: AgentMessage;
 	}): AgentEvent[] {
 		const startedAt = this.toolStartedAt.get(event.toolCall.toolCallId);
@@ -390,6 +348,7 @@ export class RuntimeEventAdapter {
 				output,
 				error,
 				durationMs,
+				execution: event.toolCall.execution,
 			},
 		];
 	}

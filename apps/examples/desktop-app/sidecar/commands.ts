@@ -5,55 +5,75 @@ import { basename, dirname, extname, isAbsolute, join } from "node:path";
 import { promisify } from "node:util";
 import type {
 	ClineAccountActionRequest,
+	CoreSettingsSnapshot,
 	ProviderCapability,
 	ProviderClient,
+	ProviderConfig,
 	ProviderProtocol,
 	SaveProviderSettingsActionRequest,
 } from "@cline/core";
 import {
 	addLocalProvider,
 	ClineAccountService,
+	captureAuthRefreshSoftFailure,
+	createConfiguredStreamingTranscriptionSession,
 	createUserInstructionConfigService,
-	discoverPluginModulePaths,
 	ensureCustomProvidersLoaded,
 	executeClineAccountAction,
+	fetchClineRecommendedModels,
 	getCoreBuiltinToolCatalog,
 	getLocalProviderModels,
-	getPluginDisplayName,
 	listHookConfigFiles,
 	listLocalProviders,
-	listPluginTools,
 	normalizeOAuthProvider,
 	ProviderSettingsManager,
 	parseMcpServerRegistration,
 	probeMcpServerConnection,
 	RuntimeOAuthTokenManager,
 	readGlobalSettings,
+	resolveDisabledToolNames,
+	resolveEnabledOptInToolNames,
 	resolveLocalClineAuthToken,
 	resolveMcpServerRegistration,
-	resolvePluginConfigSearchPaths,
 	resolveSessionBackend,
 	resolveAgentConfigSearchPaths as resolveSharedAgentConfigSearchPaths,
+	SESSION_IMPORT_TOOLS,
+	type SessionImportRequest,
+	SessionImportService,
+	type SessionImportTool,
 	SqliteSessionStore,
 	saveLocalProviderSettings,
+	saveMediaGenerationSettings,
+	saveVoiceInputSettings,
 	setAutoUpdateEnabledGlobally,
-	setDisabledPlugin,
-	setDisabledTools,
 	setMcpServerDisabled,
+	setOptInToolEnabledGlobally,
 	setTelemetryOptOutGlobally,
-	toggleDisabledTool,
+	transcribeConfiguredVoiceInput,
 	updateLocalProvider,
 	updateMcpSettingsFileSync,
+	upgradeManagedHub,
 } from "@cline/core";
+import { resolveAudioTranscriptionRoute } from "@cline/llms";
 import {
 	CLINE_DEFAULT_MODEL_ID,
+	formatSessionSearchPreview,
+	formatSessionSearchTitle,
 	getClineEnvironmentConfig,
+	isCanonicalBase64,
 	ONE_TIME_SCHEDULE_CRON_PATTERN,
 	ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY,
 	readHubScheduleMode,
 } from "@cline/shared";
 import { readFileSyncStrippingUtf8Bom } from "@cline/shared/node";
 import packageJson from "../package.json";
+import { CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT } from "../webview/lib/cline-account-state";
+import { MAX_RECORDED_AUDIO_BYTES } from "../webview/lib/voice-input-limits";
+import {
+	listClineGitHubRepositories,
+	listClineIntegrations,
+	resolveGitHubInstallUrl,
+} from "./commands-integrations";
 import {
 	connectorChannelsPayload,
 	startConnectorChannel,
@@ -63,7 +83,12 @@ import {
 	broadcastEvent,
 	ensureSharedHubClient,
 	resolveSidecarAskQuestion,
+	sendEventToClient,
 } from "./context";
+import {
+	identifyDesktopFeatureFlagsAccount,
+	refreshDesktopFeatureFlags,
+} from "./feature-flags";
 import {
 	installMarketplaceEntryForDesktopCommand,
 	listMarketplaceInstalledEntries,
@@ -103,13 +128,75 @@ import type {
 	ChatSessionCommandRequest,
 	JsonRecord,
 	SidecarContext,
+	SidecarWebSocketClient,
 } from "./types";
+import { pickWorkspaceDirectory } from "./workspace-picker";
 
 // All child processes in this module run asynchronously: the sidecar is a
 // single event loop shared by every UI command and streaming chat session, so
 // a synchronous exec (git, folder picker, editor discovery) freezes the whole
 // app until the child exits.
 const execFileAsync = promisify(execFile);
+type DesktopDebugLogLevel = "debug" | "info" | "error";
+
+function sanitizeDiagnosticUrl(value: string | undefined): string | undefined {
+	if (!value) return undefined;
+	try {
+		const url = new URL(value);
+		url.username = "";
+		url.password = "";
+		url.search = "";
+		url.hash = "";
+		return url.toString();
+	} catch {
+		return "[invalid URL]";
+	}
+}
+
+function sanitizeDiagnosticFailure(
+	error: unknown,
+	providerConfig: ProviderConfig | undefined,
+): string {
+	let message = error instanceof Error ? error.message : String(error);
+	const sanitizedBaseUrl = sanitizeDiagnosticUrl(providerConfig?.baseUrl);
+	if (providerConfig?.baseUrl && sanitizedBaseUrl) {
+		message = message.replaceAll(providerConfig.baseUrl, sanitizedBaseUrl);
+	}
+	const secrets = [
+		providerConfig?.apiKey,
+		providerConfig?.accessToken,
+		...Object.values(providerConfig?.headers ?? {}),
+	];
+	for (const secret of secrets) {
+		const value = secret?.trim();
+		if (value) {
+			message = message.replaceAll(value, "[redacted]");
+		}
+	}
+	return message;
+}
+
+function emitDesktopDebugLog(
+	ctx: SidecarContext,
+	level: DesktopDebugLogLevel,
+	message: string,
+	metadata?: Record<string, unknown>,
+): void {
+	if (level === "error") {
+		ctx.logger?.error?.(message, metadata);
+	} else if (level === "info") {
+		ctx.logger?.log(message, metadata);
+	} else {
+		ctx.logger?.debug(message, metadata);
+	}
+	broadcastEvent(ctx, "desktop_debug_log", {
+		scope: "voice-input",
+		level,
+		message,
+		timestamp: new Date().toISOString(),
+		metadata,
+	});
+}
 
 // Strict allowlist: the opener hands the URL to the OS protocol handler, so
 // anything broader (file:, custom app schemes) would let webview content
@@ -226,9 +313,38 @@ function removePathIfExists(
 // refreshes would invalidate each other.
 let clineOAuthTokenManager: RuntimeOAuthTokenManager | undefined;
 
+function syncFeatureFlagsAccountFromResult(
+	ctx: SidecarContext,
+	operation: string,
+	result: unknown,
+): void {
+	if (operation === "fetchMe") {
+		const user = result as { id?: string; email?: string } | undefined;
+		if (user?.id) {
+			void identifyDesktopFeatureFlagsAccount(
+				{ id: user.id, email: user.email },
+				{ logger: ctx.logger, telemetry: ctx.telemetry },
+			);
+		}
+		return;
+	}
+}
+
+function syncFeatureFlagsAccountFromSettings(
+	ctx: SidecarContext,
+	manager: ProviderSettingsManager,
+): void {
+	void identifyDesktopFeatureFlagsAccount(
+		{ id: manager.getProviderSettings("cline")?.auth?.accountId },
+		{ logger: ctx.logger, telemetry: ctx.telemetry },
+	);
+}
+
 async function resolveFreshClineAuthToken(
+	ctx: SidecarContext,
 	manager: ProviderSettingsManager,
 ): Promise<string | undefined> {
+	let refreshError: Error | undefined;
 	try {
 		clineOAuthTokenManager ??= new RuntimeOAuthTokenManager();
 		const resolution = await clineOAuthTokenManager.resolveProviderApiKey({
@@ -237,11 +353,28 @@ async function resolveFreshClineAuthToken(
 		if (resolution?.apiKey) {
 			return resolution.apiKey;
 		}
-	} catch {
-		// Fall back to the persisted token; the account request surfaces the
-		// auth failure to the caller.
+	} catch (error) {
+		// Fall back to the persisted token; when one exists the account request
+		// surfaces the auth failure to the caller.
+		refreshError = error instanceof Error ? error : new Error(String(error));
 	}
-	return resolveLocalClineAuthToken(manager.getProviderSettings("cline"));
+	const persisted = resolveLocalClineAuthToken(
+		manager.getProviderSettings("cline"),
+	);
+	// Never-signed-in resolves to undefined without a refresh attempt and is
+	// silent. A refresh failure with no persisted fallback means credentials
+	// existed but yielded nothing — that is the signal a real auth regression
+	// would show up as, so report exactly one event for it.
+	if (!persisted && refreshError) {
+		ctx.logger?.error?.("Cline auth token refresh failed with no fallback", {
+			error: refreshError,
+		});
+		captureAuthRefreshSoftFailure(ctx.telemetry, "cline", {
+			errorName: refreshError.name,
+			errorCode: "desktop_refresh_failed_no_fallback_token",
+		});
+	}
+	return persisted;
 }
 
 function mergePersistedSessionRecord(
@@ -416,6 +549,67 @@ async function listSessionsFromSidecarManager(
 		.slice(0, max);
 }
 
+async function withSearchDeadline<T>(
+	promise: Promise<T>,
+	timeoutMs: number,
+): Promise<T> {
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	try {
+		return await Promise.race([
+			promise,
+			new Promise<never>((_, reject) => {
+				timer = setTimeout(
+					() => reject(new Error("Session search timed out")),
+					timeoutMs,
+				);
+			}),
+		]);
+	} finally {
+		if (timer) clearTimeout(timer);
+	}
+}
+
+function metadataSessionSearchHits(
+	value: unknown,
+	query: string,
+): JsonRecord[] {
+	if (!Array.isArray(value)) return [];
+	const normalizedQuery = query.toLocaleLowerCase();
+	return value.flatMap((item) => {
+		if (!item || typeof item !== "object") return [];
+		const session = item as JsonRecord;
+		const metadata =
+			session.metadata && typeof session.metadata === "object"
+				? (session.metadata as JsonRecord)
+				: {};
+		const sessionId = String(session.sessionId ?? "").trim();
+		if (!sessionId) return [];
+		const rawTitle = String(
+			metadata.title ?? session.title ?? session.prompt ?? sessionId,
+		).trim();
+		const prompt = String(session.prompt ?? metadata.prompt ?? "");
+		const title = formatSessionSearchTitle(rawTitle) || sessionId;
+		const workspaceRoot = String(session.workspaceRoot ?? session.cwd ?? "");
+		const searchable = [rawTitle, prompt, workspaceRoot, session.model]
+			.join("\n")
+			.toLocaleLowerCase();
+		if (!searchable.includes(normalizedQuery)) return [];
+		return [
+			{
+				sessionId,
+				documentId: `${sessionId}:metadata`,
+				ordinal: -1,
+				role: "session",
+				startedAt: String(session.startedAt ?? session.createdAt ?? ""),
+				workspaceRoot,
+				title,
+				snippet: formatSessionSearchPreview("session", prompt || title),
+				score: 0,
+			},
+		];
+	});
+}
+
 // ---------------------------------------------------------------------------
 // Git helpers
 // ---------------------------------------------------------------------------
@@ -498,7 +692,15 @@ async function handleRoutineScheduleCommand(
 		hubCommand: string,
 		payload?: Record<string, unknown>,
 	) => {
-		const reply = await hubClient.command(hubCommand as never, payload);
+		// The desktop app runs chats (and therefore agent-created schedules)
+		// across many workspace folders, while this hub client is registered
+		// against the app's own launch directory. Ask the hub for schedules
+		// across all workspaces so the Schedules page manages every schedule
+		// on this machine, not just the launch-directory scope.
+		const reply = await hubClient.command(hubCommand as never, {
+			...payload,
+			allWorkspaces: true,
+		});
 		if (!reply.ok) {
 			throw new Error(
 				reply.error?.message ?? `hub command failed: ${hubCommand}`,
@@ -658,6 +860,43 @@ async function handleRoutineScheduleCommand(
 }
 
 // ---------------------------------------------------------------------------
+// Agenda task queue helpers (in-process via shared hub server)
+// ---------------------------------------------------------------------------
+
+const AGENDA_TASK_COMMANDS = new Set([
+	"task.create",
+	"task.list",
+	"task.get",
+	"task.update",
+	"task.approve",
+	"task.cancel",
+	"task.run",
+	"task.automation.get",
+	"task.automation.set",
+]);
+
+const AGENDA_TASK_EXECUTION_COMMANDS = new Set([
+	"task.create",
+	"task.approve",
+	"task.cancel",
+	"task.run",
+	"task.automation.set",
+]);
+
+async function handleAgendaTaskCommand(
+	ctx: SidecarContext,
+	command: string,
+	args?: Record<string, unknown>,
+): Promise<unknown> {
+	const hubClient = await ensureSharedHubClient(ctx);
+	const reply = await hubClient.command(command as never, args);
+	if (!reply.ok) {
+		throw new Error(reply.error?.message ?? `hub command failed: ${command}`);
+	}
+	return reply.payload ?? {};
+}
+
+// ---------------------------------------------------------------------------
 // User instruction config listing through the core config service.
 // ---------------------------------------------------------------------------
 
@@ -665,9 +904,51 @@ function resolveAgentConfigSearchPaths(workspaceRoot?: string): string[] {
 	return resolveSharedAgentConfigSearchPaths(workspaceRoot);
 }
 
+async function listHubSettings(
+	ctx: SidecarContext,
+): Promise<CoreSettingsSnapshot> {
+	const hubClient = await ensureSharedHubClient(ctx);
+	const reply = await hubClient.command("settings.list", {
+		workspaceRoot: ctx.workspaceRoot,
+		cwd: ctx.workspaceRoot,
+	});
+	if (!reply.ok) {
+		throw new Error(
+			reply.error?.message ?? "hub command failed: settings.list",
+		);
+	}
+	return reply.payload?.snapshot as CoreSettingsSnapshot;
+}
+
+async function toggleHubSetting(
+	ctx: SidecarContext,
+	input: {
+		type: "plugins" | "tools";
+		path?: string;
+		name?: string;
+		enabled?: boolean;
+	},
+): Promise<CoreSettingsSnapshot> {
+	const hubClient = await ensureSharedHubClient(ctx);
+	const reply = await hubClient.command("settings.toggle", {
+		...input,
+		workspaceRoot: ctx.workspaceRoot,
+		cwd: ctx.workspaceRoot,
+	});
+	if (!reply.ok) {
+		throw new Error(
+			reply.error?.message ?? "hub command failed: settings.toggle",
+		);
+	}
+	return reply.payload?.snapshot as CoreSettingsSnapshot;
+}
+
 async function listUserInstructionConfigs(
-	workspaceRoot: string,
+	ctx: SidecarContext,
+	settingsSnapshot?: CoreSettingsSnapshot,
 ): Promise<JsonRecord> {
+	const workspaceRoot = ctx.workspaceRoot;
+	const hubSettings = settingsSnapshot ?? (await listHubSettings(ctx));
 	const warnings: string[] = [];
 	const userInstructionService = createUserInstructionConfigService({
 		skills: { workspacePath: workspaceRoot },
@@ -738,40 +1019,6 @@ async function listUserInstructionConfigs(
 		}
 	};
 
-	const loadPlugins = (): Array<{
-		name: string;
-		path: string;
-		enabled: boolean;
-	}> => {
-		const disabledPlugins = new Set(readGlobalSettings().disabledPlugins ?? []);
-		const pluginsByPath = new Map<
-			string,
-			{ name: string; path: string; enabled: boolean }
-		>();
-		const directories = resolvePluginConfigSearchPaths(workspaceRoot).filter(
-			(d) => existsSync(d),
-		);
-		for (const directory of directories) {
-			try {
-				for (const filePath of discoverPluginModulePaths(directory)) {
-					if (pluginsByPath.has(filePath)) {
-						continue;
-					}
-					pluginsByPath.set(filePath, {
-						name: getPluginDisplayName(filePath, directory),
-						path: filePath,
-						enabled: !disabledPlugins.has(filePath),
-					});
-				}
-			} catch {
-				// best-effort
-			}
-		}
-		return [...pluginsByPath.values()].sort((a, b) =>
-			a.name.localeCompare(b.name),
-		);
-	};
-
 	try {
 		await userInstructionService.start();
 	} catch (error) {
@@ -792,13 +1039,43 @@ async function listUserInstructionConfigs(
 	} finally {
 		userInstructionService.stop();
 	}
-	const pluginTools = await listPluginTools({
-		workspacePath: workspaceRoot,
-		cwd: workspaceRoot,
-	});
+	const knownSkillPaths = new Set(
+		skills.flatMap((skill) => {
+			if (!skill || typeof skill !== "object") return [];
+			const path = (skill as JsonRecord).path;
+			return typeof path === "string" ? [path] : [];
+		}),
+	);
+	for (const skill of hubSettings.skills) {
+		if (
+			skill.agentPlugin !== true ||
+			skill.enabled === false ||
+			knownSkillPaths.has(skill.path)
+		) {
+			continue;
+		}
+		skills.push({
+			id: skill.id,
+			name: skill.name,
+			description: skill.description,
+			instructions: "",
+			path: skill.path,
+			enabled: true,
+			source: skill.source,
+			agentPlugin: true,
+			pluginName: skill.pluginName,
+		});
+		knownSkillPaths.add(skill.path);
+	}
 
-	const disabledTools = new Set(readGlobalSettings().disabledTools ?? []);
+	const disabledTools = resolveDisabledToolNames();
+	// Pin spawn/teams availability so this listing matches the hub's
+	// (apps/cline-hub/src/server/user-instructions.ts) even if the preset
+	// defaults change.
 	const builtinToolCatalog = getCoreBuiltinToolCatalog({
+		enableSpawnAgent: true,
+		enableAgentTeams: true,
+		enabledOptInToolIds: resolveEnabledOptInToolNames(),
 		disabledToolIds: disabledTools,
 	});
 
@@ -809,7 +1086,18 @@ async function listUserInstructionConfigs(
 		skills,
 		runtimeCommands,
 		agents: loadAgents(),
-		plugins: loadPlugins(),
+		plugins: hubSettings.plugins.map((plugin) => ({
+			id: plugin.id,
+			name: plugin.name,
+			path: plugin.path,
+			enabled: plugin.enabled !== false,
+			source: plugin.source,
+			toggleable: plugin.toggleable === true,
+			agentPlugin: plugin.agentPlugin === true,
+			description: plugin.description,
+			loadError: plugin.loadError,
+			contributions: plugin.contributions,
+		})),
 		tools: [
 			...builtinToolCatalog.map((tool) => ({
 				id: tool.id,
@@ -821,11 +1109,11 @@ async function listUserInstructionConfigs(
 				source: "builtin",
 				headlessToolNames: tool.headlessToolNames,
 			})),
-			...pluginTools.map((tool) => ({
-				id: `${tool.pluginName}:${tool.name}:${tool.path}`,
+			...hubSettings.tools.map((tool) => ({
+				id: tool.id,
 				name: tool.name,
 				description: tool.description,
-				enabled: tool.enabled,
+				enabled: tool.enabled !== false,
 				source: tool.source,
 				path: tool.path,
 				pluginName: tool.pluginName,
@@ -840,41 +1128,6 @@ async function listUserInstructionConfigs(
 // ---------------------------------------------------------------------------
 // Native OS commands
 // ---------------------------------------------------------------------------
-
-// Async is load-bearing here: the native picker blocks until the user chooses
-// a folder, and a synchronous exec would freeze every other sidecar command
-// (chat streams, history, settings) for however long the dialog stays open.
-async function pickWorkspaceDirectory(): Promise<string | null> {
-	const platform = process.platform;
-	if (platform === "darwin") {
-		try {
-			const { stdout } = await execFileAsync(
-				"osascript",
-				[
-					"-e",
-					'set theFolder to choose folder with prompt "Select workspace directory"',
-					"-e",
-					"return POSIX path of theFolder",
-				],
-				{ encoding: "utf8" },
-			);
-			return stdout.trim() || null;
-		} catch {
-			return null;
-		}
-	}
-	// Linux — try zenity
-	try {
-		const { stdout } = await execFileAsync(
-			"zenity",
-			["--file-selection", "--directory", "--title=Select workspace directory"],
-			{ encoding: "utf8" },
-		);
-		return stdout.trim() || null;
-	} catch {
-		return null;
-	}
-}
 
 function openFileInEditor(filePath: string): void {
 	const platform = process.platform;
@@ -1086,7 +1339,7 @@ export async function handleCommand(
 	ctx: SidecarContext,
 	command: string,
 	args?: Record<string, unknown>,
-	options?: { connection?: object },
+	options?: { connection?: SidecarWebSocketClient },
 ): Promise<unknown> {
 	// ── Chat session commands ──────────────────────────────────────────
 	if (command === "chat_session_command") {
@@ -1096,6 +1349,33 @@ export async function handleCommand(
 			(args?.request as ChatSessionCommandRequest | undefined) ??
 				(args as ChatSessionCommandRequest),
 		);
+	}
+	if (command === "proceed_while_running") {
+		const sessionId = String(args?.sessionId ?? "").trim();
+		if (!sessionId) {
+			throw new Error("sessionId is required");
+		}
+		const toolCallId = asTrimmedString(args?.toolCallId);
+		const hubClient = await ensureSharedHubClient(
+			ctx,
+			ctx.sessionManager?.runtimeAddress,
+		);
+		const reply = await hubClient.command(
+			"run.proceed_while_running",
+			{ sessionId, ...(toolCallId ? { toolCallId } : {}) },
+			sessionId,
+		);
+		if (!reply.ok) {
+			throw new Error(
+				reply.error?.message ?? "Could not proceed while command is running.",
+			);
+		}
+		return {
+			detachedCount:
+				typeof reply.payload?.detachedCount === "number"
+					? reply.payload.detachedCount
+					: 0,
+		};
 	}
 
 	// ── Session data reading ──────────────────────────────────────────
@@ -1146,11 +1426,54 @@ export async function handleCommand(
 		return "";
 	}
 
+	// ── Managed hub upgrade ───────────────────────────────────────────
+	if (command === "hub_upgrade") {
+		// Replacing the shared Hub interrupts other clients' sessions, so it
+		// carries the same per-connection gate as the tool-approval commands:
+		// only the webview connection dialed with the approval token may ask,
+		// never an arbitrary local WebSocket client.
+		if (!options?.connection?.data?.canApproveTools) {
+			throw new Error("hub upgrade requires a trusted desktop connection");
+		}
+		// Only reached after the user accepted the blocking "Hub update
+		// required" dialog, so force: the old Hub is replaced even though it
+		// is still serving other clients' sessions. Drain-first semantics
+		// still give in-flight turns the wait window to finish.
+		const result = await upgradeManagedHub({
+			workspaceRoot: ctx.workspaceRoot,
+			force: true,
+			reason: "Cline Desktop hub update",
+		});
+		if (result.outcome === "hub_not_older") {
+			throw new Error(
+				"The running Cline Hub is newer than this app, so it was not replaced. Update Cline instead.",
+			);
+		}
+		if (result.outcome === "still_busy") {
+			throw new Error(
+				"The running Cline Hub picked up new sessions before it could be replaced, so it was left running. Try again.",
+			);
+		}
+		// The mismatch is resolved: a null broadcast closes the dialog in
+		// every connected webview and stops the replay-on-connect.
+		ctx.hubBuildMismatch = null;
+		broadcastEvent(ctx, "hub_build_mismatch", null);
+		return {
+			outcome: result.outcome,
+			url: result.url ?? null,
+			interruptedSessionCount: result.activeSessionCount ?? 0,
+		};
+	}
+
 	// ── Tool approvals (in-memory) ────────────────────────────────────
 	if (command === "poll_tool_approvals") {
 		const sessionId = String(args?.sessionId ?? "").trim();
+		const connection = options?.connection;
+		if (!connection?.data?.canApproveTools) {
+			throw new Error("tool approvals require a trusted desktop connection");
+		}
 		return Array.from(ctx.pendingApprovals.values())
-			.filter((a) => a.item.sessionId === sessionId)
+			.filter((a) => a.owner === connection && a.item.sessionId === sessionId)
 			.map((a) => a.item);
 	}
 	if (command === "respond_tool_approval") {
@@ -1159,24 +1482,38 @@ export async function handleCommand(
 		if (!sessionId || !requestId) {
 			throw new Error("sessionId and requestId are required");
 		}
-		const pending = ctx.pendingApprovals.get(requestId);
-		if (pending) {
-			pending.resolve({
-				approved: Boolean(args?.approved),
-				...(typeof args?.reason === "string" && args.reason.trim().length > 0
-					? { reason: args.reason.trim() }
-					: {}),
-			});
+		const connection = options?.connection;
+		if (!connection?.data?.canApproveTools) {
+			throw new Error("tool approvals require a trusted desktop connection");
 		}
+		const pending = ctx.pendingApprovals.get(requestId);
+		if (!pending || pending.owner !== connection) {
+			throw new Error("tool approval does not belong to this connection");
+		}
+		if (pending.item.sessionId !== sessionId) {
+			throw new Error("tool approval does not belong to this session");
+		}
+		pending.resolve({
+			approved: Boolean(args?.approved),
+			...(typeof args?.reason === "string" && args.reason.trim().length > 0
+				? { reason: args.reason.trim() }
+				: {}),
+		});
 		ctx.pendingApprovals.delete(requestId);
 		const remaining = Array.from(ctx.pendingApprovals.values())
-			.filter((a) => a.item.sessionId === sessionId)
+			.filter((a) => a.owner === connection && a.item.sessionId === sessionId)
 			.map((a) => a.item);
-		broadcastEvent(ctx, "tool_approval_state", {
+		sendEventToClient(ctx, connection, "tool_approval_state", {
 			sessionId,
 			items: remaining,
 		});
 		return true;
+	}
+	if (command === "poll_ask_questions") {
+		const sessionId = String(args?.sessionId ?? "").trim();
+		return Array.from(ctx.pendingQuestions.values())
+			.filter((question) => question.item.sessionId === sessionId)
+			.map((question) => question.item);
 	}
 	if (command === "respond_ask_question") {
 		const requestId = String(args?.requestId ?? "").trim();
@@ -1211,10 +1548,104 @@ export async function handleCommand(
 			typeof args?.limit === "number" ? args.limit : 300,
 		);
 	}
+	if (command === "search_sessions") {
+		const query = String(args?.query ?? "").trim();
+		if (!query) return [];
+		const limit =
+			typeof args?.limit === "number" && Number.isFinite(args.limit)
+				? Math.max(1, Math.min(200, Math.trunc(args.limit)))
+				: 50;
+		const workspaceRoot =
+			typeof args?.workspaceRoot === "string"
+				? args.workspaceRoot.trim() || undefined
+				: undefined;
+		if (ctx.hubClient) {
+			try {
+				const reply = await withSearchDeadline(
+					ctx.hubClient.command("session.search", {
+						query,
+						limit,
+						workspaceRoot,
+					}),
+					750,
+				);
+				if (
+					reply.ok &&
+					Array.isArray(reply.payload?.hits) &&
+					reply.payload.hits.length > 0
+				) {
+					return reply.payload.hits.slice(0, limit).map((hit) => ({
+						...hit,
+						title: formatSessionSearchTitle(hit.title),
+						snippet: formatSessionSearchPreview(hit.role, hit.snippet),
+					}));
+				}
+			} catch {
+				// Fall back to metadata-only search when the index is unavailable.
+			}
+		}
+
+		const sessions = await withSearchDeadline(
+			listSessionsFromSidecarManager(ctx, 500),
+			1_000,
+		).catch(() => []);
+		return metadataSessionSearchHits(sessions, query).slice(0, limit);
+	}
 	if (command === "get_discovered_session") {
 		const sessionId = String(args?.sessionId ?? args?.session_id ?? "").trim();
 		if (!sessionId) throw new Error("session id is required");
 		return (await getSessionFromSidecarManager(ctx, sessionId)) ?? null;
+	}
+
+	// ── Session import from other coding tools ────────────────────────
+	if (command === "list_importable_sessions") {
+		const backend = await resolveSessionBackend({ backendMode: "local" });
+		const importer = new SessionImportService(backend);
+		return {
+			installedTools: importer.installedTools(),
+			sessions: await importer.discover(),
+		};
+	}
+	if (command === "import_sessions") {
+		const rawSelections = Array.isArray(args?.selections)
+			? args.selections
+			: [];
+		const requests: SessionImportRequest[] = [];
+		for (const selection of rawSelections) {
+			if (!selection || typeof selection !== "object") continue;
+			const tool = String((selection as JsonRecord).tool ?? "").trim();
+			const sourceId = String((selection as JsonRecord).sourceId ?? "").trim();
+			if (!sourceId) continue;
+			if (!(SESSION_IMPORT_TOOLS as readonly string[]).includes(tool)) {
+				continue;
+			}
+			requests.push({ tool: tool as SessionImportTool, sourceId });
+		}
+		if (requests.length === 0) {
+			throw new Error("at least one { tool, sourceId } selection is required");
+		}
+		const backend = await resolveSessionBackend({ backendMode: "local" });
+		const importer = new SessionImportService(backend);
+		// Opening a history session resumes on the row's provider/model, so the
+		// UI passes what a new chat would run on; the source tool's own
+		// provider/model stay in metadata.importedFrom.
+		// Never let the source tool's provider become the resume target: when
+		// the caller sends no selection, use the app default like other
+		// server-started sessions do.
+		const provider = asTrimmedString(args?.provider) ?? "cline";
+		const model = asTrimmedString(args?.model) ?? CLINE_DEFAULT_MODEL_ID;
+		const results = await importer.importMany(
+			requests,
+			(result, index) => {
+				broadcastEvent(ctx, "session_import_progress", {
+					index,
+					total: requests.length,
+					result,
+				});
+			},
+			{ provider, model },
+		);
+		return { results };
 	}
 	if (command === "update_chat_session_title") {
 		const sessionId = String(args?.sessionId ?? "").trim();
@@ -1255,7 +1686,7 @@ export async function handleCommand(
 		const result = await backend.updateSession({ sessionId, metadata: merged });
 		if (!result.updated) throw new Error(`Session ${sessionId} not found`);
 		// Annotating a session is not session activity. updateSession stamps
-		// updated_at, which clients sort and label rows by, so a favorite would
+		// updated_at, which clients sort and label rows by, so a pin would
 		// otherwise make an old session look like it just ran.
 		if (existing?.updatedAt) {
 			store.run("UPDATE sessions SET updated_at = ? WHERE session_id = ?", [
@@ -1394,16 +1825,65 @@ export async function handleCommand(
 		const operation = String(args?.operation ?? "").trim();
 		if (!operation) throw new Error("operation is required");
 		const manager = new ProviderSettingsManager();
+		// Signed out is an expected state, not a command failure: resolve the
+		// token up front and return a typed result the webview can act on
+		// instead of letting the account service throw a generic error that
+		// would be captured as error telemetry and shown raw to the user.
+		const authToken = await resolveFreshClineAuthToken(ctx, manager);
+		if (!authToken) {
+			// Backstop for credentials that go away without a settings write —
+			// an expired or server-revoked token. Explicit sign-out is handled
+			// at its source in `save_provider_settings`; this catches the rest
+			// so a stale account never keeps serving its rollout cohort.
+			void identifyDesktopFeatureFlagsAccount(
+				{},
+				{ logger: ctx.logger, telemetry: ctx.telemetry },
+			);
+			return CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT;
+		}
 		const settings = manager.getProviderSettings("cline");
 		const accountService = new ClineAccountService({
 			apiBaseUrl:
 				settings?.baseUrl?.trim() || getClineEnvironmentConfig().apiBaseUrl,
-			getAuthToken: async () => resolveFreshClineAuthToken(manager),
+			getAuthToken: async () => authToken,
 		});
-		return await executeClineAccountAction(
+		const result = await executeClineAccountAction(
 			args as ClineAccountActionRequest,
 			accountService,
 		);
+		syncFeatureFlagsAccountFromResult(ctx, operation, result);
+		return result;
+	}
+
+	// ── Cline integrations (GitHub App) ────────────────────────────────
+	if (command === "cline_integrations") {
+		const operation = String(args?.operation ?? "").trim();
+		if (!operation) throw new Error("operation is required");
+		const manager = new ProviderSettingsManager();
+
+		const authToken = await resolveFreshClineAuthToken(ctx, manager);
+		if (!authToken) {
+			return CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT;
+		}
+		const settings = manager.getProviderSettings("cline");
+		const environment = getClineEnvironmentConfig();
+		const requestOptions = {
+			apiBaseUrl: settings?.baseUrl?.trim() || environment.apiBaseUrl,
+			appBaseUrl: environment.appBaseUrl,
+			authToken,
+		};
+		switch (operation) {
+			case "list":
+				return await listClineIntegrations(requestOptions);
+			case "listGitHubRepositories":
+				return await listClineGitHubRepositories(requestOptions);
+			case "githubInstallUrl":
+				return await resolveGitHubInstallUrl(requestOptions);
+			default:
+				throw new Error(
+					`Unsupported Cline integrations operation: ${operation}`,
+				);
+		}
 	}
 
 	// ── Provider management ────────────────────────────────────────────
@@ -1419,15 +1899,189 @@ export async function handleCommand(
 			manager.getProviderConfig(String(args?.provider ?? "").trim()),
 		);
 	}
+	if (command === "list_cline_recommended_models") {
+		// Tiered picker data (recommended / free / clinePass) with
+		// display-ready names; falls back to a bundled list offline.
+		return await fetchClineRecommendedModels();
+	}
+	if (command === "create_streaming_transcription_session") {
+		const manager = new ProviderSettingsManager();
+		const selection = manager.getVoiceInputSettings();
+		const providerConfig = selection
+			? manager.getProviderConfig(selection.providerId, {
+					includeKnownModels: false,
+				})
+			: undefined;
+		const route = providerConfig
+			? resolveAudioTranscriptionRoute(providerConfig)
+			: undefined;
+		const diagnostics = {
+			providerId: selection?.providerId,
+			modelId: selection?.modelId,
+			transport: route?.transport,
+			endpoint: sanitizeDiagnosticUrl(route?.endpoint),
+		};
+		emitDesktopDebugLog(
+			ctx,
+			"debug",
+			"Creating streaming transcription session",
+			diagnostics,
+		);
+		const startedAt = Date.now();
+		try {
+			const session = await createConfiguredStreamingTranscriptionSession(
+				manager,
+				{ expiresAfterSeconds: 300 },
+			);
+			emitDesktopDebugLog(
+				ctx,
+				"debug",
+				"Streaming transcription session created",
+				{
+					...diagnostics,
+					durationMs: Date.now() - startedAt,
+					expiresAt: session.expiresAt,
+				},
+			);
+			return session;
+		} catch (error) {
+			const failure = sanitizeDiagnosticFailure(error, providerConfig);
+			emitDesktopDebugLog(
+				ctx,
+				"error",
+				"Streaming transcription session setup failed",
+				{
+					...diagnostics,
+					durationMs: Date.now() - startedAt,
+					failure,
+				},
+			);
+			throw new Error(failure, { cause: error });
+		}
+	}
+	if (command === "transcribe_audio") {
+		const audioBase64 = String(args?.audioBase64 ?? "");
+		const mediaType = String(args?.mediaType ?? "").trim() || undefined;
+		if (!isCanonicalBase64(audioBase64)) {
+			throw new Error("recorded audio must be canonical base64");
+		}
+		const decodedBytes =
+			Math.floor((audioBase64.length * 3) / 4) -
+			(audioBase64.endsWith("==") ? 2 : audioBase64.endsWith("=") ? 1 : 0);
+		if (decodedBytes > MAX_RECORDED_AUDIO_BYTES) {
+			throw new Error(
+				`recorded audio exceeds the ${MAX_RECORDED_AUDIO_BYTES} byte limit`,
+			);
+		}
+		const manager = new ProviderSettingsManager();
+		const selection = manager.getVoiceInputSettings();
+		const providerConfig = selection
+			? manager.getProviderConfig(selection.providerId, {
+					includeKnownModels: false,
+				})
+			: undefined;
+		const route = providerConfig
+			? resolveAudioTranscriptionRoute(providerConfig)
+			: undefined;
+		const diagnostics = {
+			providerId: selection?.providerId,
+			modelId: selection?.modelId,
+			transport: route?.transport,
+			endpoint: sanitizeDiagnosticUrl(route?.endpoint),
+			mediaType,
+			audioBytes: decodedBytes,
+		};
+		emitDesktopDebugLog(
+			ctx,
+			"debug",
+			"Starting audio transcription",
+			diagnostics,
+		);
+		const startedAt = Date.now();
+		try {
+			const result = await transcribeConfiguredVoiceInput(manager, {
+				audio: Buffer.from(audioBase64, "base64"),
+				mediaType,
+			});
+			emitDesktopDebugLog(ctx, "debug", "Audio transcription completed", {
+				...diagnostics,
+				durationMs: Date.now() - startedAt,
+				transcriptCharacters: result.text.length,
+				language: result.language,
+			});
+			return result;
+		} catch (error) {
+			const failure = sanitizeDiagnosticFailure(error, providerConfig);
+			emitDesktopDebugLog(ctx, "error", "Audio transcription failed", {
+				...diagnostics,
+				durationMs: Date.now() - startedAt,
+				failure,
+			});
+			throw new Error(failure, { cause: error });
+		}
+	}
+	if (command === "save_voice_input_settings") {
+		const providerId = String(args?.provider ?? "").trim();
+		const modelId = String(args?.model ?? "").trim();
+		if (Boolean(providerId) !== Boolean(modelId)) {
+			throw new Error(
+				"voice input provider and model must both be set or both be cleared",
+			);
+		}
+		const manager = new ProviderSettingsManager();
+		const result = await saveVoiceInputSettings(
+			manager,
+			providerId && modelId ? { providerId, modelId } : undefined,
+		);
+		emitDesktopDebugLog(ctx, "info", "Voice input settings saved", {
+			providerId: result.voiceInput?.providerId,
+			modelId: result.voiceInput?.modelId,
+			configured: Boolean(result.voiceInput),
+		});
+		return result;
+	}
+	if (command === "save_media_generation_settings") {
+		const mediaType = String(args?.media_type ?? "").trim();
+		if (mediaType !== "image") {
+			throw new Error('media_type must be "image"');
+		}
+		const providerId = String(args?.provider ?? "").trim();
+		const modelId = String(args?.model ?? "").trim();
+		if (Boolean(providerId) !== Boolean(modelId)) {
+			throw new Error(
+				"media generation provider and model must both be set or both be cleared",
+			);
+		}
+		const manager = new ProviderSettingsManager();
+		const result = await saveMediaGenerationSettings(
+			manager,
+			mediaType,
+			providerId && modelId ? { providerId, modelId } : undefined,
+		);
+		emitDesktopDebugLog(ctx, "info", "Media generation settings saved", {
+			providerId: result.mediaGeneration?.image?.providerId,
+			modelId: result.mediaGeneration?.image?.modelId,
+			configured: Boolean(result.mediaGeneration?.image),
+		});
+		return result;
+	}
 	if (command === "save_provider_settings") {
 		const manager = new ProviderSettingsManager();
-		return saveLocalProviderSettings(manager, {
+		const saved = saveLocalProviderSettings(manager, {
 			...readProviderSettingsUpdate(args),
 			providerId: String(args?.provider ?? ""),
 			enabled: typeof args?.enabled === "boolean" ? args.enabled : undefined,
 			apiKey: typeof args?.api_key === "string" ? args.api_key : undefined,
 			baseUrl: typeof args?.base_url === "string" ? args.base_url : undefined,
 		});
+		// Sign-out is a `save_provider_settings` that blanks the cline auth block
+		// (see signOut in webview settings/account-view.tsx), so this is the
+		// authoritative signal — it fires the moment credentials are cleared
+		// rather than waiting for the next account fetch.
+		if (saved.providerId === "cline" || saved.providerId === "cline-pass") {
+			syncFeatureFlagsAccountFromSettings(ctx, manager);
+		}
+		return saved;
 	}
 	if (command === "add_provider") {
 		const manager = new ProviderSettingsManager();
@@ -1521,6 +2175,25 @@ export async function handleCommand(
 		}
 		setAutoUpdateEnabledGlobally(args.auto_update_enabled);
 		return readGlobalSettings();
+	}
+	if (command === "set_web_search_enabled") {
+		if (typeof args?.web_search_enabled !== "boolean") {
+			throw new Error("web_search_enabled must be a boolean");
+		}
+		setOptInToolEnabledGlobally("web_search", args.web_search_enabled);
+		return readGlobalSettings();
+	}
+
+	// ── Feature flags ──────────────────────────────────────────────────
+	// Flags are evaluated here, not in the webview: the sidecar already has
+	// the PostHog key inlined at build time and evaluates against the same
+	// distinct ID it reports telemetry with. The client just reads the
+	// resolved values.
+	if (command === "get_feature_flags") {
+		return await refreshDesktopFeatureFlags({
+			logger: ctx.logger,
+			telemetry: ctx.telemetry,
+		});
 	}
 
 	// ── Connector channels ─────────────────────────────────────────────
@@ -1778,14 +2451,25 @@ export async function handleCommand(
 		return await handleRoutineScheduleCommand(ctx, command, args);
 	}
 
+	// ── Agenda task queue ─────────────────────────────────────────────
+	if (AGENDA_TASK_COMMANDS.has(command)) {
+		if (
+			AGENDA_TASK_EXECUTION_COMMANDS.has(command) &&
+			!options?.connection?.data?.canApproveTools
+		) {
+			throw new Error("task execution requires a trusted desktop connection");
+		}
+		return await handleAgendaTaskCommand(ctx, command, args);
+	}
+
 	// ── User instruction configs ──────────────────────────────────────
 	if (command === "list_user_instruction_configs") {
-		return await listUserInstructionConfigs(ctx.workspaceRoot);
+		return await listUserInstructionConfigs(ctx);
 	}
 	if (command === "list_marketplace_installed_entries") {
 		return listMarketplaceInstalledEntries(
 			args,
-			await listUserInstructionConfigs(ctx.workspaceRoot),
+			await listUserInstructionConfigs(ctx),
 		);
 	}
 	if (command === "install_marketplace_entry") {
@@ -1807,8 +2491,11 @@ export async function handleCommand(
 		if (!toolName) {
 			throw new Error("tool name is required");
 		}
-		toggleDisabledTool(toolName);
-		return await listUserInstructionConfigs(ctx.workspaceRoot);
+		const snapshot = await toggleHubSetting(ctx, {
+			type: "tools",
+			name: toolName,
+		});
+		return await listUserInstructionConfigs(ctx, snapshot);
 	}
 	if (command === "set_tool_disabled") {
 		const rawNames = Array.isArray(args?.names) ? args.names : [args?.name];
@@ -1818,26 +2505,45 @@ export async function handleCommand(
 		if (toolNames.length === 0) {
 			throw new Error("tool name is required");
 		}
-		setDisabledTools(toolNames, args?.disabled === true);
-		return await listUserInstructionConfigs(ctx.workspaceRoot);
+		let snapshot: CoreSettingsSnapshot | undefined;
+		for (const name of toolNames) {
+			snapshot = await toggleHubSetting(ctx, {
+				type: "tools",
+				name,
+				enabled: args?.disabled !== true,
+			});
+		}
+		return await listUserInstructionConfigs(ctx, snapshot);
 	}
 	if (command === "set_plugin_disabled") {
 		const pluginPath = String(args?.path ?? "").trim();
 		if (!pluginPath) {
 			throw new Error("plugin path is required");
 		}
-		setDisabledPlugin(pluginPath, args?.disabled === true);
-		return await listUserInstructionConfigs(ctx.workspaceRoot);
+		const snapshot = await toggleHubSetting(ctx, {
+			type: "plugins",
+			path: pluginPath,
+			enabled: args?.disabled !== true,
+		});
+		return await listUserInstructionConfigs(ctx, snapshot);
 	}
 
 	// ── Native OS commands ────────────────────────────────────────────
 	if (command === "validate_workspace_directory") {
 		const workspacePath = String(args?.path ?? "").trim();
 		if (!workspacePath) return { valid: false };
+		// Support typed/pasted paths like "~/projects/app" from the manual
+		// path-entry fallback; return the resolved path so the caller adopts it.
+		const resolved =
+			workspacePath === "~"
+				? homedir()
+				: workspacePath.startsWith("~/") || workspacePath.startsWith("~\\")
+					? join(homedir(), workspacePath.slice(2))
+					: workspacePath;
 		try {
-			return { valid: statSync(workspacePath).isDirectory() };
+			return { valid: statSync(resolved).isDirectory(), path: resolved };
 		} catch {
-			return { valid: false };
+			return { valid: false, path: resolved };
 		}
 	}
 	if (command === "pick_workspace_directory") {

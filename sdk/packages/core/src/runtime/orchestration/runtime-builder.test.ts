@@ -1,4 +1,11 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	realpathSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -58,6 +65,20 @@ describe("DefaultRuntimeBuilder", () => {
 	const previousHome = process.env.HOME;
 	const previousGlobalSettingsPath = process.env.CLINE_GLOBAL_SETTINGS_PATH;
 	const tempDirs: string[] = [];
+	const configureOptInTools = (
+		tools: Record<string, { enabled: boolean }> = {},
+	): void => {
+		const settingsRoot = mkdtempSync(join(tmpdir(), "cline-opt-in-tools-"));
+		tempDirs.push(settingsRoot);
+		process.env.CLINE_GLOBAL_SETTINGS_PATH = join(
+			settingsRoot,
+			"global-settings.json",
+		);
+		writeFileSync(
+			process.env.CLINE_GLOBAL_SETTINGS_PATH,
+			JSON.stringify({ tools }),
+		);
+	};
 
 	afterEach(() => {
 		process.env.HOME = previousHome;
@@ -76,6 +97,138 @@ describe("DefaultRuntimeBuilder", () => {
 		const names = runtime.tools.map((tool) => tool.name);
 		expect(names.length).toBeGreaterThan(0);
 		expect(names).not.toContain("spawn_agent");
+	});
+
+	it("registers generate_media only when opted in and its executor is available", async () => {
+		configureOptInTools({ generate_media: { enabled: true } });
+		const withoutExecutor = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig(),
+		});
+		expect(withoutExecutor.tools.map((tool) => tool.name)).not.toContain(
+			"generate_media",
+		);
+
+		const withExecutor = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig(),
+			toolExecutors: {
+				generateMedia: async () => [],
+			},
+		});
+		expect(withExecutor.tools.map((tool) => tool.name)).toContain(
+			"generate_media",
+		);
+	});
+
+	it("applies tool policies to generate_media", async () => {
+		configureOptInTools({ generate_media: { enabled: true } });
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({
+				toolPolicies: {
+					generate_media: { enabled: false },
+				},
+			}),
+			toolExecutors: {
+				generateMedia: async () => [],
+			},
+		});
+
+		expect(runtime.tools.map((tool) => tool.name)).not.toContain(
+			"generate_media",
+		);
+	});
+
+	it("derives enabled provider tools without registering a local executor", async () => {
+		const settingsRoot = mkdtempSync(join(tmpdir(), "cline-model-tools-"));
+		tempDirs.push(settingsRoot);
+		process.env.CLINE_GLOBAL_SETTINGS_PATH = join(
+			settingsRoot,
+			"global-settings.json",
+		);
+		writeFileSync(
+			process.env.CLINE_GLOBAL_SETTINGS_PATH,
+			JSON.stringify({ tools: { web_search: { enabled: true } } }),
+		);
+
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig(),
+		});
+
+		expect(runtime.modelTools).toEqual([{ name: "web_search" }]);
+		expect(runtime.tools.some((tool) => tool.name === "web_search")).toBe(
+			false,
+		);
+	});
+
+	it("requests provider image generation for supported language models", async () => {
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({
+				providerId: "openai-native",
+				modelId: "gpt-5.4",
+			}),
+		});
+
+		expect(runtime.modelTools).toContainEqual({
+			name: "image_generation",
+			outputFormat: "png",
+		});
+		expect(runtime.tools.some((tool) => tool.name === "image_generation")).toBe(
+			false,
+		);
+	});
+
+	it("prefers the configured generate_media tool over provider-native image generation", async () => {
+		configureOptInTools({ generate_media: { enabled: true } });
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({
+				providerId: "openai-native",
+				modelId: "gpt-5.4",
+			}),
+			toolExecutors: {
+				generateMedia: async () => [],
+			},
+		});
+
+		expect(runtime.modelTools).not.toContainEqual(
+			expect.objectContaining({ name: "image_generation" }),
+		);
+		expect(runtime.tools.map((tool) => tool.name)).toContain("generate_media");
+	});
+
+	it("does not restore provider-native image generation when generate_media is disabled", async () => {
+		configureOptInTools({ generate_media: { enabled: true } });
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({
+				providerId: "openai-native",
+				modelId: "gpt-5.4",
+				toolPolicies: { generate_media: { enabled: false } },
+			}),
+			toolExecutors: { generateMedia: async () => [] },
+		});
+
+		expect(runtime.modelTools).not.toContainEqual(
+			expect.objectContaining({ name: "image_generation" }),
+		);
+		expect(runtime.tools.map((tool) => tool.name)).not.toContain(
+			"generate_media",
+		);
+	});
+
+	it("keeps native image generation suppressed when generate_media is not opted in", async () => {
+		configureOptInTools();
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({
+				providerId: "openai-native",
+				modelId: "gpt-5.4",
+			}),
+			toolExecutors: { generateMedia: async () => [] },
+		});
+
+		expect(runtime.modelTools).not.toContainEqual(
+			expect.objectContaining({ name: "image_generation" }),
+		);
+		expect(runtime.tools.map((tool) => tool.name)).not.toContain(
+			"generate_media",
+		);
 	});
 
 	it("forwards runtime logger for downstream agent creation", async () => {
@@ -508,6 +661,142 @@ process.stdin.on("data", (chunk) => {
 		}
 	});
 
+	it("combines hub-owned Agent Plugin skills and MCP servers with client instructions", async () => {
+		const tempRoot = realpathSync.native(
+			mkdtempSync(join(tmpdir(), "runtime-builder-agent-plugin-")),
+		);
+		tempDirs.push(tempRoot);
+		const previousSettingsPath = process.env.CLINE_MCP_SETTINGS_PATH;
+		process.env.CLINE_MCP_SETTINGS_PATH = join(
+			tempRoot,
+			"missing-settings.json",
+		);
+		const pluginRoot = join(tempRoot, "portable");
+		const pluginSkillRoot = join(pluginRoot, "skills", "portable-review");
+		const pluginSkillPath = join(pluginSkillRoot, "SKILL.md");
+		const localSkillRoot = join(tempRoot, "local-skills", "local-review");
+		const serverPath = join(pluginRoot, "server.js");
+		mkdirSync(pluginSkillRoot, { recursive: true });
+		mkdirSync(localSkillRoot, { recursive: true });
+		writeFileSync(
+			pluginSkillPath,
+			"---\nname: portable-review\ndescription: Review with the portable plugin\n---\nUse portable guidance.",
+			"utf8",
+		);
+		writeFileSync(
+			join(localSkillRoot, "SKILL.md"),
+			"---\nname: local-review\ndescription: Review locally\n---\nUse local guidance.",
+			"utf8",
+		);
+		writeFileSync(
+			serverPath,
+			`let buffer = "";
+function write(payload) { process.stdout.write(JSON.stringify(payload) + "\\n"); }
+process.stdin.on("data", (chunk) => {
+  buffer += chunk.toString("utf8");
+  let newline;
+  while ((newline = buffer.indexOf("\\n")) >= 0) {
+    const line = buffer.slice(0, newline).trim();
+    buffer = buffer.slice(newline + 1);
+    if (!line) continue;
+    const message = JSON.parse(line);
+    if (message.method === "notifications/initialized") continue;
+    if (message.method === "initialize") write({ jsonrpc: "2.0", id: message.id, result: { protocolVersion: "2024-11-05", capabilities: { tools: {} }, serverInfo: { name: "portable", version: "1.0.0" } } });
+    if (message.method === "tools/list") write({ jsonrpc: "2.0", id: message.id, result: { tools: [{ name: "echo", description: "Portable echo", inputSchema: { type: "object" } }] } });
+    if (message.method === "tools/call") write({ jsonrpc: "2.0", id: message.id, result: { echoed: message.params?.arguments ?? null } });
+  }
+});`,
+			"utf8",
+		);
+		const resolvedPluginRoot = realpathSync.native(pluginRoot);
+		const resolvedPluginSkillRoot = realpathSync.native(pluginSkillRoot);
+		const resolvedPluginSkillPath = realpathSync.native(pluginSkillPath);
+
+		const clientInstructionService = createUserInstructionConfigService({
+			skills: { directories: [join(tempRoot, "local-skills")] },
+			rules: { directories: [] },
+			workflows: { directories: [] },
+		});
+		let runtime:
+			| Awaited<ReturnType<DefaultRuntimeBuilder["build"]>>
+			| undefined;
+		try {
+			runtime = await new DefaultRuntimeBuilder().build({
+				config: makeBaseConfig({
+					cwd: tempRoot,
+					disableMcpSettingsTools: true,
+				}),
+				userInstructionService: clientInstructionService,
+				agentPluginSkills: [
+					{
+						pluginName: "portable",
+						pluginRoot: resolvedPluginRoot,
+						directoryPath: resolvedPluginSkillRoot,
+						filePath: resolvedPluginSkillPath,
+						metadata: {
+							name: "portable-review",
+							description: "Review with the portable plugin",
+						},
+					},
+				],
+				agentPluginMcpServers: [
+					{
+						pluginName: "portable",
+						pluginRoot: resolvedPluginRoot,
+						pluginDataPath: join(tempRoot, "plugin-data"),
+						serverName: "tools",
+						registration: {
+							name: "portable.tools",
+							transport: {
+								type: "stdio",
+								command: process.execPath,
+								args: [serverPath],
+								cwd: resolvedPluginRoot,
+							},
+							metadata: {
+								source: "agent-plugin",
+								pluginDataPath: join(tempRoot, "plugin-data"),
+							},
+						},
+					},
+				],
+			});
+
+			const mcpTool = runtime.tools.find(
+				(tool) => tool.description === "Portable echo",
+			);
+			expect(existsSync(join(tempRoot, "plugin-data"))).toBe(true);
+			expect(mcpTool).toBeDefined();
+			const extensionTools = await collectExtensionTools(runtime.extensions);
+			const skillsTool = extensionTools.find((tool) => tool.name === "skills");
+			expect(skillsTool).toBeDefined();
+			if (!skillsTool) {
+				throw new Error("Expected combined skills tool.");
+			}
+			expect(skillsTool.description).toContain("portable:portable-review");
+			const context = {
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			};
+			const portableResult = await skillsTool.execute(
+				{ skill: "portable:portable-review" },
+				context,
+			);
+			expect(portableResult).toContain("Use portable guidance.");
+			expect(portableResult).toContain(
+				`<skill-root>${resolvedPluginSkillRoot}</skill-root>`,
+			);
+			await expect(
+				skillsTool.execute({ skill: "local-review" }, context),
+			).resolves.toContain("Use local guidance.");
+		} finally {
+			await runtime?.shutdown("test");
+			clientInstructionService.stop();
+			process.env.CLINE_MCP_SETTINGS_PATH = previousSettingsPath;
+		}
+	});
+
 	it("skips MCP settings tools when disableMcpSettingsTools is true", async () => {
 		const tempRoot = mkdtempSync(
 			join(tmpdir(), "runtime-builder-mcp-disabled-"),
@@ -603,6 +892,10 @@ process.stdin.on("data", (chunk) => {
 						broken: {
 							command: process.execPath,
 							args: [serverPath],
+							// Keep the test fast: the Content-Length fallback
+							// attempt otherwise waits out the default connect
+							// budget against this silent server.
+							timeout: 1,
 						},
 					},
 				},

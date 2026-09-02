@@ -20,7 +20,7 @@ const gatewayMock = vi.hoisted(() => {
 	};
 });
 
-vi.mock("@cline/llms", () => ({
+vi.mock("@cline/llms", async (importOriginal) => ({
 	createGateway: gatewayMock.createGateway,
 	MODEL_COLLECTIONS_BY_PROVIDER_ID: gatewayMock.curatedCollectionsByProvider,
 	hasRegisteredHandler: gatewayMock.hasRegisteredHandler,
@@ -29,6 +29,12 @@ vi.mock("@cline/llms", () => ({
 	resolveProviderModelCatalogKeys: (id: string) => [id],
 	getGeneratedModelsForProvider: (id: string) =>
 		gatewayMock.generatedModelsByProvider[id] ?? {},
+	// Capability translation is the behaviour under test in the gateway model
+	// assertions below, so use the real translator rather than a stub that
+	// would re-implement (and could disagree with) it.
+	toGatewayModelCapabilities: (
+		await importOriginal<typeof import("@cline/llms")>()
+	).toGatewayModelCapabilities,
 }));
 
 describe("createAgentModelFromConfig", () => {
@@ -58,6 +64,7 @@ describe("createAgentModelFromConfig", () => {
 			"veo-test": {
 				id: "veo-test",
 				name: "Veo Test",
+				operation: "video-generation",
 				modalities: { input: ["text"], output: ["video"] },
 				capabilities: [],
 			},
@@ -82,6 +89,7 @@ describe("createAgentModelFromConfig", () => {
 						models: [
 							expect.objectContaining({
 								id: "veo-test",
+								operation: "video-generation",
 								modalities: { input: ["text"], output: ["video"] },
 							}),
 						],
@@ -125,10 +133,12 @@ describe("createAgentModelFromConfig", () => {
 			},
 			"generated-image-model": {
 				id: "generated-image-model",
+				operation: "image-generation",
 				modalities: { input: ["text"], output: ["image"] },
 			},
 			"generated-video-model": {
 				id: "generated-video-model",
+				operation: "video-generation",
 				modalities: { input: ["text"], output: ["video"] },
 			},
 			"mixed-video-model": {
@@ -168,7 +178,7 @@ describe("createAgentModelFromConfig", () => {
 		);
 	});
 
-	it("does not inherit Ollama Cloud chat models without host-known models", async () => {
+	it("does not inherit generated chat models without host-known models", async () => {
 		gatewayMock.curatedCollectionsByProvider.ollama = { models: {} };
 		gatewayMock.generatedModelsByProvider.ollama = {
 			"cloud-chat-model": {
@@ -427,6 +437,79 @@ describe("createAgentModelFromConfig", () => {
 		);
 	});
 
+	it("forwards the workspace cwd as a Claude Code gateway provider option", async () => {
+		const { createAgentModelFromConfig } = await import("./handler-factory");
+
+		createAgentModelFromConfig(
+			{
+				providerId: "claude-code",
+				modelId: "sonnet",
+				systemPrompt: "",
+				tools: [],
+				extensionContext: {
+					workspace: {
+						rootPath: "/home/user/project",
+						cwd: "/home/user/project/packages/app",
+					},
+				},
+				providerConfig: {
+					providerId: "claude-code",
+					modelId: "sonnet",
+				},
+			},
+			undefined,
+		);
+
+		expect(gatewayMock.createGateway).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				providerConfigs: [
+					expect.objectContaining({
+						providerId: "claude-code",
+						options: expect.objectContaining({
+							cwd: "/home/user/project/packages/app",
+						}),
+					}),
+				],
+			}),
+		);
+	});
+
+	it("falls back to the workspace root when no cwd is set for Claude Code", async () => {
+		const { createAgentModelFromConfig } = await import("./handler-factory");
+
+		createAgentModelFromConfig(
+			{
+				providerId: "claude-code",
+				modelId: "sonnet",
+				systemPrompt: "",
+				tools: [],
+				extensionContext: {
+					workspace: {
+						rootPath: "/home/user/project",
+					},
+				},
+				providerConfig: {
+					providerId: "claude-code",
+					modelId: "sonnet",
+				},
+			},
+			undefined,
+		);
+
+		expect(gatewayMock.createGateway).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				providerConfigs: [
+					expect.objectContaining({
+						providerId: "claude-code",
+						options: expect.objectContaining({
+							cwd: "/home/user/project",
+						}),
+					}),
+				],
+			}),
+		);
+	});
+
 	it("forwards Vertex GCP settings as gateway provider options", async () => {
 		const { createAgentModelFromConfig } = await import("./handler-factory");
 
@@ -672,7 +755,9 @@ describe("createAgentModelFromConfig", () => {
 		const provider = await createSapAiCoreProviderModule(
 			gatewayConfig?.providerConfigs[0] as never,
 		);
-		const model = provider.model("anthropic--claude-4.6-sonnet") as {
+		const model = provider.operations.language(
+			"anthropic--claude-4.6-sonnet",
+		) as {
 			config?: {
 				destination?: Record<string, unknown>;
 				deploymentConfig?: Record<string, unknown>;

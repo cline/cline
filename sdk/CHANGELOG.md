@@ -1,5 +1,129 @@
 # Cline SDK Changelog
 
+## 0.0.82
+
+- Fixed tool calling being silently disabled for gateway models whose catalog entry declares no capabilities. Three separate producers built gateway model definitions with their own hand-written capability translations and had drifted; the builtin-provider path emitted `["text"]` where the others emitted `undefined`, and that list read as an authoritative denial that stripped every tool definition from requests to Dify, SAP AI Core, opencode, and the Codex CLI. One shared translator now serves every producer
+- Fixed an empty capability list stripping image input. Two readers bypassed `modelHasCapability` and tested `capabilities` directly, where an empty list is not nullish but matches nothing: the file-read tool silently dropped every image from the request, and model pickers reported models as definitively lacking vision, attachments, and reasoning when nothing had been declared
+- Langfuse tracing now works in minified release builds. `initializeLangfuseTelemetry` identified the OpenTelemetry provider by constructor name, which minification renames, so every production build silently initialized with `readiness=false` while unminified dev runs worked. Detection is now structural, and a foreign provider already holding the global slot gets the Langfuse span processor attached rather than being silently bailed on. Langfuse also moved to AI SDK 7 telemetry
+- New `SessionImportService` discovers and imports conversation history from Claude Code (`~/.claude/projects`), Codex (`~/.codex/sessions`), and opencode (`opencode.db`), translating each into Cline's native message format and persisting it as a completed, listable, resumable session. Imports are transactional, idempotent per source, and sanitized so the transcript is valid to resume against any provider
+- The hub is never retired out from under running work. `upgradeManagedHub` and `retireIncompatibleHub` now establish the drain barrier before any activity check, and refuse to replace a hub that does not accept the drain — previously an idle snapshot could authorize a shutdown that killed a session admitted moments later
+- Restoring a checkpoint now refuses to run when HEAD has moved past the commit the checkpoint was taken on. The restore's `git reset --hard` silently knocked any later commits off the branch, leaving them reachable only through the reflog; the branch move is now a compare-and-swap so a commit landing mid-restore cannot be lost either
+- Remote (SSE/streamable HTTP) MCP servers now get a 10s connect budget. An unreachable but enabled server previously spent the full 60s request timeout inside `session.create`, blowing past the hub's 30s cap and tearing down the whole session
+- `apply_patch` now preserves a file's own CRLF line endings across updates
+- Global rules are now also discovered at `~/Cline/Rules`. The VS Code Rules tab resolves the Documents folder with `xdg-user-dir DOCUMENTS`, which prints bare `$HOME` on WSL and headless installs, so rules written there never reached the system prompt
+- OpenAI Codex (ChatGPT subscription) sign-in now fails fast with an actionable error when callback port 1455 is already in use, instead of opening a browser to a flow whose callback can never arrive. OAuth redirect errors such as `access_denied` are surfaced rather than collapsed into "Missing authorization code"
+- A transient token-refresh failure no longer logs out Codex and OpenAI-compatible-account users. Only a rejected refresh token now forces re-authentication; network errors, timeouts, and server 5xx rethrow instead
+- Aborting a session now propagates to the work it spawned — delegated subagents and teammates are cancelled with it, and aborted teammate tasks persist as cancelled instead of staying open
+- Agent-created schedules are now anchored in `~/.cline/schedules` rather than inheriting whichever chat workspace they happened to be created in, where they were invisible to workspace-scoped listings and tied to folders that may be cleaned up. Schedules created with an explicit workspace are unchanged
+- Fixed hub-managed schedules being wiped by cron reconciliation on hub restart
+- Scheduled sessions now carry their schedule's identity — id, name, cron run id, and a stable 1-based run number that a later cancellation never shifts — so clients can group runs under the schedule that produced them
+- Token-authenticated hub connections can now request cross-workspace schedule access, so a host can list schedules that live outside the workspace it registered. Workspace-bound clients stay scoped
+- Session history is now searchable through a server-side full-text index, exposed as a hub command, instead of clients loading every session to filter locally
+- Cline provider models now load from the live catalog rather than only the bundled one, so newly published models appear without a package update. Explicit runtime and `models.json` overrides still take precedence
+- The message the model receives when a user rejects a tool call now names the rejected tool and reads as a user decision rather than an error
+- Provider 401/403 responses are now classified as an `auth` error class on the existing `errorClass` plumbing, so hosts can render credential rejections as actionable guidance instead of a raw provider body
+- The provider catalog now exposes a computed `configured` flag, so a settings entry seeded with only a default model and no credentials no longer reads as a connected provider
+- Tool results can now carry media: images returned by a tool are extracted and exposed as attachments instead of raw base64 text
+- The hub no longer creates filesystem watchers on agenda spec directories while the todo tool is disabled, and `updateTask` reconciles external spec edits itself, so a spec edited on disk no longer fails every subsequent update with a signature mismatch
+- Refreshed the model catalog. Adds ten providers (Bothub, OpenReason, SenseNova (China), TokenGo, TokenRouter, Vancine, Volcengine Ark, Volcengine Ark Coding Plan, above.dev, and klokintegration.se) and updates model lists and pricing across providers. This is an unusually wide refresh: the resolved default model changes for 57 providers. Most consequentially, Anthropic now resolves to Claude Fable 5.1 instead of Claude Opus 5, and Amazon Bedrock, Vertex, OpenRouter, Vercel AI Gateway, Kilo Gateway, LLM Gateway, DevPass, DigitalOcean, CrossModel, Eden AI, and NanoGPT follow it to Fable 5.1. If you use any provider without pinning a model, expect a different default
+
+## 0.0.81
+
+- Agent Plugins v1 packages are now discovered, enabled, and loaded by the Cline Hub execution host. The hub validates `plugin.json`, enforces resolved package boundaries, exposes valid Agent Skills through the namespaced skills tool, and starts independently valid stdio, Streamable HTTP, and legacy SSE MCP servers from `mcp.json`. User packages are automatically discovered under `~/.agents/plugins`, while workspace `.agents/plugins` directories are intentionally ignored; callers can still add explicitly trusted host-resolved roots with `agentPluginPaths`. Clients no longer need their own Agent Plugins loader or enablement store. Hub settings persist disabled plugins by manifest name, publish `settings.changed`, and exclude disabled contributions from newly built session runtimes
+- Session snapshot events no longer carry the full conversation transcript. Every `session.updated` (and `session.created` / `session.detached` / `run.started`) event embedded the session's entire message history, so on a multi-megabyte task each status flip shipped megabytes to every subscriber, flooded the durable event log, and could grow the hub process by one transcript copy per event — reported as a 25 GB `cline` process on a 16 GB machine. Snapshots are now state-only (status, usage, model, workspace, checkpoint); transcripts are fetched with the `session.messages` command. Checkpoint-restore replies, which carry messages in their own field, are unaffected
+
+## 0.0.80
+
+- New files created by the file-writing tools now use the platform's native line endings
+- Fixed `search_codebase` crashing the process on files that contain a single enormous line
+- Credentials embedded in git remote URLs are now redacted from the workspace information included in the system prompt
+- Claude Code is now marked as a subscription-billed provider, so hosts suppress its per-token prices and API-rate cost estimates. Its models reuse Anthropic API pricing metadata, which produced dollar figures for usage that is covered by a Claude Pro/Max subscription
+- `installMcpServer` no longer treats a `--` separator in the install arguments as part of the stdio command
+- The `tasks` tool can now be configured to offer only scheduled work, disabling the Todo kind while leaving the Agenda backend intact
+- Refreshed the model catalog. Adds seven providers (Agnes AI, Aixy, IteraCompute, LLM Tech, NeoSmith, Pendra, and Standard Compute) and updates model lists and pricing across providers. The resolved default model changes for ClinePass (now GLM 5.3), Z.ai, Hugging Face, evroc, LLM Gateway, NanoGPT, and Weights & Biases, so if you use one of those without pinning a model you will get a different default
+
+## 0.0.79
+
+- The hub's durable event log is now capped at 64 MiB on disk. Event envelopes carrying full session snapshots could previously accumulate to tens of gigabytes, since row and time retention alone did not bound file size and deletes never shrink a SQLite file. Oldest events are dropped first and the file is vacuumed to return the space, and pruning now also runs after every 16 MiB appended instead of waiting for the hourly sweep
+- Fixed `task.completed` telemetry being dropped for most interactive sessions. The event is now emitted from every session teardown path, exactly once per session
+- Refreshed the model catalog. Adds two providers (AgentRouter and Opper) and updates model lists and pricing across providers. The resolved default model changes for Aki.io and NanoGPT, so if you use one of those without pinning a model you will get a different default
+
+## 0.0.78
+
+- The hub can now be drained and upgraded without losing work. A draining hub refuses new mutating work while it finishes what it is running, a durable event log lets a reconnecting client replay everything it missed, and durable runs are queued rather than dropped. Replayed events are deduped by event id, so an event that arrives on both the replay and the live stream is delivered once
+- Fixed tool calling being silently disabled for custom OpenAI-Compatible models whose capability list was synthesized from convenience flags like `supportsReasoning`. An inferred list read as an authoritative denial and stripped every tool from the request; explicitly authored capability lists still decide
+- Langfuse traces now carry session and client identity for hub-backed and delegated-agent runs. Hub sessions rebuild client name and version from request headers, and delegated agents group under their parent session instead of appearing as unattributed traces
+- Refreshed the model catalog, which updates model lists and pricing across providers and changes the resolved default model for several of them (DeepSeek, Crof, CrossModel, Eden AI, Kilo, and NanoGPT). If you use one of those providers without pinning a model, you will get a different default
+
+## 0.0.77
+
+- The `tasks` tool (durable todos and one-time or recurring agent schedules) is now scoped to the clients that can service it. Hosts declare their client type and the core tool catalog resolves availability centrally, so CLI and VS Code sessions no longer register a tool they cannot act on; hub sessions resolve the same way from the requesting client's metadata
+
+## 0.0.76
+
+- Added model-driven image generation. Models that support it can generate images during a turn, and generated images are persisted in session history and exports
+- Agents can now create and manage scheduled tasks and a durable todo agenda. Schedules are scoped to the workspace that registered them
+- Skill slash commands now load through the skills tool instead of being pasted into the user message. The persisted transcript records what you typed (`/my-skill ...`) rather than the whole SKILL.md body, and skill instructions arrive once instead of twice. Workflows keep textual expansion
+- Fixed provider-executed tool activity being dropped entirely — every tool the Claude Code provider ran inside its own session modified the workspace with no tool activity in runtime events, transcripts, or the UI. These now surface as observational tool events
+- Fixed `PreToolUse` hook `contextModification` never reaching the model on the next engine; it is delivered again as a `<hook_context>` block stamped with the tool name and call id, hidden from user-facing transcripts
+- Fixed `PostToolUse` hooks running fire-and-forget with their output discarded. They are awaited now (120s bound) and their `contextModification` and `cancel` controls are honored, matching legacy
+- Fixed `run_commands` failing with ENOENT for the structured `{ command }` form when the command contained a space; it routes through the shell when no `args` key is present
+- PowerShell commands now run fail-fast (`$ErrorActionPreference='Stop'`). A pipeline erroring per item no longer emits tens of thousands of stderr records and then reports success
+- Fixed Gemini custom base URLs configured as a host root
+- Image and voice models no longer appear in chat model pickers
+- Provider model lists now carry featured tiers (Recommended/Free, and Subscribed/Free for ClinePass) plus model descriptions, served from the SDK with a cached recommended-models feed and a bundled offline fallback, so clients no longer join the feed themselves
+- Fixed sessions reporting a bogus "running" status — interactive sessions that were never prompted, and snapshot-only session updates — which left clients that gate on turn activity (desktop checkpoint restore) stuck busy forever
+- Detached command output now streams live and survives hub restarts instead of being reaped
+- Gateway usage now displays the billed cost
+- Fixed Windows crashes from the agenda spec watcher when the specs directory resolved through an 8.3 short path
+- AI SDK telemetry spans now carry user, session, conversation, run, provider, and model context under a stable `cline-sdk` service name
+- Refreshed the model catalog, which adds AMD, Arcee, Echo, Jalapeno, Kosmik, LLM Gateway, RunInfra, and SCNet as providers, renames `scx` to `scx-ai`, and updates model lists and per-provider default models across the board
+
+## 0.0.75
+
+- Added provider-executed web search. Models that support it can search the web during a turn, and the search calls and their results are persisted in session history so they replay on reload. Off by default; enable the `web_search` model tool in settings
+- Added a dedicated Cline provider for the Cline gateway, replacing the generic OpenAI-compatible path. Extended thinking budgets and other gateway options now reach the wire for both `cline` and `cline-pass`, which had silently stopped applying to `cline-pass`
+- Fixed two Cline installations on different builds shutting each other's Hub daemon down in a loop, killing every live session with an abnormal socket close. Build identity is now compared through a total order, so at most one side of a pair can ever decide to retire the other
+- A newer build no longer replaces a Hub that is serving live sessions — it attaches over the compatible wire protocol and the swap happens once the Hub is idle, instead of the sessions dying mid-handshake
+- Development builds now run their own Hub daemon per build id instead of contending for a single record; production keeps its singleton
+- Idle plugin sandbox processes are now reclaimed instead of lingering for the life of the session
+- `cline doctor fix` now reports honestly: processes that survived a kill are separated from ones that appeared while the fix ran, a live parent respawning a daemon is named, and a startup lock held by a running process is reported as held rather than leaked
+- Refreshed the model catalog, which adds Crusoe as a provider and updates model lists and per-provider default models across the board
+
+## 0.0.74
+
+- Fixed the Claude Code provider being unusable for agentic work: the provider now declares its own native tools instead of receiving Cline's unbridgeable tool definitions, the session is anchored on the workspace directory instead of inheriting the host's cwd, and `~/.claude` plus project settings are loaded so user-configured permission rules apply. File edits under the workspace are auto-approved; command execution stays gated by your own Claude settings
+- Fixed truncated tool-call JSON being silently "repaired" into wrong arguments — a payload with an unterminated string is now rejected rather than getting an invented terminator
+- Fixed strict providers rejecting a turn with "user message must have content" when a message's content held only empty text parts
+- Fixed a mid-turn crash on streamed tool calls with non-zero or non-contiguous indexes, hit through LiteLLM's Anthropic passthrough, by updating the AI SDK packages
+- Managed Hub daemons now upgrade directionally: when another install ships a newer Hub build, hosts attach to the newer daemon and prompt to update and restart instead of the two installs repeatedly retiring each other's daemons. Older or unordered Hubs are still retired and replaced
+- Fixed the Hub daemon logging an unhandled `hub server close failed` rejection and exiting non-zero whenever a client was connected at shutdown; shutdown is now clean
+- `run.started` is now emitted only after the target session resolves and carries the originating `requestId` and `clientId`, so multi-client hosts can correlate delivery acknowledgments
+- Token telemetry now reports disjoint per-request buckets — uncached input, cache reads, cache writes — instead of re-counting the whole cached conversation on every event, which inflated per-task sums roughly 5x on cache-heavy sessions
+- Involuntary Cline logouts (a rejected refresh token) are now reported instead of credentials being cleared silently; a transient network failure refreshing the stored session on startup no longer books as a logout
+- Per-token stream deltas are no longer mirrored into telemetry — they accounted for ~97% of all agent event volume with no analytical value
+
+## 0.0.73
+
+- Fixed hosts reconnecting to stale managed Hub daemons: daemons now carry a runtime build fingerprint, so upgrading retires and respawns a daemon still running older code instead of attaching to it
+- Fixed compaction being silently skipped on reasoning models. The summarizer no longer hardcodes a 1024-token output cap — it honors an explicit max-output-tokens setting, defaults to 4096 (lowered when the model reports less), and logs a diagnostic when a summary comes back empty
+- Added Fable 5 (`claude-fable-5`) to the Vertex model catalog. Pricing is intentionally omitted because Vertex bills region-dependently, so cost shows as unknown rather than wrong
+- Custom Vertex model IDs are now passed through unchanged, routing Claude-style IDs to the Anthropic-on-Vertex path
+
+## 0.0.72
+
+- Prompts queued during a turn now survive being interrupted: they are preserved across user-initiated aborts, drained after a turn aborts itself, and edits made to the queue inside the abort window are applied rather than lost. Stopping a session now has consistent full-stop semantics across hosts
+- Session context stays durable across aborts and hub restarts, so an interrupted session resumes with the state it had rather than a reset one
+- Queued turns that fail are now reported as `run.failed` instead of completing silently
+- A hung MCP server no longer takes down session creation, and stdio servers that were never configured get a 30-second initialize budget instead of blocking indefinitely
+- Remote SSE MCP servers now surface an OAuth authorization prompt on a 401 instead of failing outright, and remote MCP supports pre-registered OAuth clients for setups where dynamic client registration isn't available
+- LiteLLM requests route through Chat Completions instead of the Responses API, fixing calls against LiteLLM proxies
+- Network interruptions that happen mid-stream but before any model output are retried instead of failing the turn
+- Vertex ADC token refreshes use the configured fetch, so they work behind proxies and custom transports
+- Checkpoint diffs now include files that were untracked when the snapshot was taken, and checkpoints are picked up when git is initialized part-way through a session
+- Plugin settings and contributions are centralized in the hub, with host-aware snapshots and atomic host plugin toggles; a source host no longer runs a foreign compiled plugin-sandbox bootstrap
+- Scheduled run reports carry execution context — readable headers, schedule metadata, durations, and lifecycle error details
+
 ## 0.0.71
 
 - Reasoning settings now resolve portably across AI SDK providers — effort levels and enable/disable flags map to the AI SDK's native reasoning setting (including Ollama), replacing the per-provider thinking overrides, and an explicit request to disable reasoning now takes priority

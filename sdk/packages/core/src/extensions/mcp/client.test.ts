@@ -7,9 +7,12 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { HUB_DEFAULT_COMMAND_TIMEOUT_MS } from "@cline/shared";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
 	createDefaultMcpServerClientFactory,
+	DEFAULT_HTTP_MCP_CONNECT_TIMEOUT_MS,
+	DEFAULT_MCP_CONNECT_TIMEOUT_MS,
 	probeMcpServerConnection,
 } from "./client";
 import { resolveMcpServerRegistrations } from "./config-loader";
@@ -256,23 +259,43 @@ describe("mcp client request timeout", () => {
 		}
 	}, 30_000);
 
-	it("keeps the fast probe default when no timeout is configured", async () => {
+	it("connects a moderately slow server without a configured timeout", async () => {
 		const factory = createDefaultMcpServerClientFactory();
-		// 3s of startup work exceeds the 1.5s default probe, so connect must
-		// fail quickly instead of stalling startup.
+		// The old 1.5s initialize probe killed servers that needed ~2s to answer
+		// (https://github.com/cline/cline/issues/13035), so the default budget
+		// must cover them. It deliberately stays small beyond that: initialize
+		// runs on the session.create critical path, so genuinely slow starters
+		// (e.g. JVM-based Oracle SQLcl) opt into patience with an explicit
+		// `timeout` instead of the default stalling every session.
 		const client = await factory(
-			fakeServerRegistration({ delayMs: 0, initDelayMs: 3_000 }),
+			fakeServerRegistration({ delayMs: 0, initDelayMs: 2_000 }),
 		);
-		const startedAt = Date.now();
 		try {
-			await expect(client.connect()).rejects.toThrow(/timed out/);
-			expect(Date.now() - startedAt).toBeLessThan(8_000);
+			await client.connect();
+			expect(await client.listTools()).toEqual([]);
 		} finally {
 			await client.disconnect();
 		}
 	}, 30_000);
 
-	it("keeps the fast probe when a malformed settings timeout is ignored", async () => {
+	it("connects a slow-starting server when a timeout is configured", async () => {
+		const factory = createDefaultMcpServerClientFactory();
+		const client = await factory(
+			fakeServerRegistration({
+				timeoutSeconds: 15,
+				delayMs: 0,
+				initDelayMs: 4_000,
+			}),
+		);
+		try {
+			await client.connect();
+			expect(await client.listTools()).toEqual([]);
+		} finally {
+			await client.disconnect();
+		}
+	}, 30_000);
+
+	it("uses the default connect budget when a malformed settings timeout is ignored", async () => {
 		const filePath = join(tempRoot, `malformed-timeout-${Date.now()}.json`);
 		writeFileSync(
 			filePath,
@@ -281,7 +304,7 @@ describe("mcp client request timeout", () => {
 					"fake-server": {
 						transport: fakeServerRegistration({
 							delayMs: 0,
-							initDelayMs: 3_000,
+							initDelayMs: 2_000,
 						}).transport,
 						timeout: "60",
 					},
@@ -292,10 +315,9 @@ describe("mcp client request timeout", () => {
 		const [registration] = resolveMcpServerRegistrations({ filePath });
 		expect(registration.timeoutSeconds).toBeUndefined();
 		const client = await createDefaultMcpServerClientFactory()(registration);
-		const startedAt = Date.now();
 		try {
-			await expect(client.connect()).rejects.toThrow(/timed out/);
-			expect(Date.now() - startedAt).toBeLessThan(8_000);
+			await client.connect();
+			expect(await client.listTools()).toEqual([]);
 		} finally {
 			await client.disconnect();
 		}
@@ -400,6 +422,36 @@ describe("mcp client request timeout", () => {
 		await waitFor(() => existsSync(pidFile));
 		const pid = Number(readFileSync(pidFile, "utf8"));
 		await waitFor(() => !isProcessRunning(pid));
+	}, 30_000);
+
+	it("waits for the stdio child to close before disconnect resolves", async () => {
+		const serverCwd = mkdtempSync(join(tempRoot, "disconnect-cwd-"));
+		const pidFile = join(tempRoot, `disconnect-${Date.now()}.pid`);
+		const registration = fakeServerRegistration({
+			delayMs: 0,
+			pidFile,
+		});
+		if (registration.transport.type !== "stdio") {
+			throw new Error("Expected stdio registration.");
+		}
+		registration.transport.cwd = serverCwd;
+		const client = await createDefaultMcpServerClientFactory()(registration);
+
+		try {
+			await client.connect();
+			await waitFor(() => existsSync(pidFile));
+			const pid = Number(readFileSync(pidFile, "utf8"));
+			expect(isProcessRunning(pid)).toBe(true);
+
+			await client.disconnect();
+
+			expect(isProcessRunning(pid)).toBe(false);
+			expect(() =>
+				rmSync(serverCwd, { recursive: true, force: true }),
+			).not.toThrow();
+		} finally {
+			await client.disconnect().catch(() => {});
+		}
 	}, 30_000);
 
 	it("aborts a long stdio tool call without waiting for its timeout", async () => {
@@ -512,5 +564,29 @@ describe("remote MCP OAuth connection", () => {
 			error:
 				'MCP server "notion" rejected its configured Authorization header. Update or remove that header before connecting with OAuth.',
 		});
+	});
+});
+
+describe("default connect budget", () => {
+	it("keeps the doubled initialize budget well under the hub command timeout", () => {
+		// MCP initialize runs on the session.create critical path, and connect()
+		// can spend the budget twice (newline then Content-Length framing). If
+		// the doubled total approaches HUB_DEFAULT_COMMAND_TIMEOUT_MS, a server
+		// that never initializes stalls session.create past the hub deadline and
+		// the whole session is torn down (a hung server used to kill the CLI
+		// this way). Keep headroom for the rest of session creation.
+		expect(DEFAULT_MCP_CONNECT_TIMEOUT_MS * 2).toBeLessThanOrEqual(
+			HUB_DEFAULT_COMMAND_TIMEOUT_MS / 2,
+		);
+	});
+
+	it("keeps the remote connect budget well under the hub command timeout", () => {
+		// Remote (SSE/streamable HTTP) connect also runs on the session.create
+		// critical path. Without this bound an offline remote server stalls
+		// session.create past the hub deadline and takes the whole session
+		// down (this crashed the CLI).
+		expect(DEFAULT_HTTP_MCP_CONNECT_TIMEOUT_MS).toBeLessThanOrEqual(
+			HUB_DEFAULT_COMMAND_TIMEOUT_MS / 2,
+		);
 	});
 });

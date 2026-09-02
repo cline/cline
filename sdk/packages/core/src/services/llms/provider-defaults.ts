@@ -205,14 +205,18 @@ async function mergeKnownModels(
 
 	if (providerId === "cline") {
 		// Cline recommendations can use Vercel-style ids while the broader
-		// catalog includes OpenRouter aliases for the same models.
-		return Llms.sortModelsByReleaseDate({
-			...Llms.preferCanonicalModelIds(
-				knownModelsWithoutUserOverrides,
-				Llms.VERCEL_OPENROUTER_MODEL_ID_ALIAS_RULES,
-			),
-			...userKnownModels,
-		});
+		// catalog includes OpenRouter aliases for the same models. Image-output
+		// models are temporarily unavailable through Cline's inference backend,
+		// so filter them only at the Cline catalog boundary.
+		return Llms.sortModelsByReleaseDate(
+			Llms.filterImageOutputModels({
+				...Llms.preferCanonicalModelIds(
+					knownModelsWithoutUserOverrides,
+					Llms.VERCEL_OPENROUTER_MODEL_ID_ALIAS_RULES,
+				),
+				...userKnownModels,
+			}),
+		);
 	}
 
 	return Llms.sortModelsByReleaseDate({
@@ -653,6 +657,17 @@ const PRIVATE_PROVIDER_MODEL_FETCHERS: Record<
 	litellm: fetchLiteLlmPrivateModels,
 	poolside: fetchPoolsidePrivateModels,
 };
+
+/**
+ * Whether a provider's model catalog comes from the customer's configured
+ * endpoint rather than a shared public catalog.
+ *
+ * Keep this derived from the fetcher registry so host consumers cannot drift
+ * from the providers whose live metadata is endpoint-specific.
+ */
+export function isPrivateModelCatalogProvider(providerId: string): boolean {
+	return Object.hasOwn(PRIVATE_PROVIDER_MODEL_FETCHERS, providerId);
+}
 
 const PUBLIC_MODELS_CACHE = new Map<
 	string,

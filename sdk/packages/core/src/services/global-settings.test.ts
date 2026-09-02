@@ -5,17 +5,22 @@ import type { ITelemetryService } from "@cline/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	GlobalSettingsSchema,
+	isAgentPluginDisabledGlobally,
+	isOptInToolEnabledGlobally,
 	readCompactionModeGlobally,
 	readCompactionStrategyGlobally,
 	readGlobalSettings,
 	readPlanActModeGlobally,
 	readToolAutoApproveGlobally,
+	readTuiThemeGlobally,
+	resolveDisabledToolNames,
 	setAutoUpdateEnabledGlobally,
 	setCompactionModeGlobally,
 	setCompactionStrategyGlobally,
+	setDisabledAgentPlugin,
 	setDisabledPlugin,
 	setDisabledTools,
-	readTuiThemeGlobally,
+	setOptInToolEnabledGlobally,
 	setPlanActModeGlobally,
 	setTelemetryOptOutGlobally,
 	setToolAutoApproveGlobally,
@@ -33,11 +38,13 @@ describe("global-settings", () => {
 	it("defines the global settings file schema", () => {
 		expect(
 			GlobalSettingsSchema.parse({
+				disabledAgentPlugins: [" portable ", "portable"],
 				disabledTools: [" read_files ", "read_files", "editor"],
 				disabledPlugins: ["/plugins/example.js", "/plugins/example.js"],
 			}),
 		).toEqual({
 			autoUpdateEnabled: true,
+			disabledAgentPlugins: ["portable"],
 			disabledPlugins: ["/plugins/example.js"],
 			disabledTools: ["editor", "read_files"],
 			telemetryOptOut: false,
@@ -51,6 +58,23 @@ describe("global-settings", () => {
 		expect(GlobalSettingsSchema.parse({ disabledTools: [] })).toEqual({
 			autoUpdateEnabled: true,
 			telemetryOptOut: false,
+		});
+		expect(
+			GlobalSettingsSchema.parse({
+				disabledTools: ["generate_media", "read_files", "web_search"],
+				tools: {
+					generate_media: { enabled: true },
+					web_search: { enabled: false },
+				},
+			}),
+		).toEqual({
+			autoUpdateEnabled: true,
+			disabledTools: ["read_files"],
+			telemetryOptOut: false,
+			tools: {
+				generate_media: { enabled: true },
+				web_search: { enabled: false },
+			},
 		});
 		expect(
 			GlobalSettingsSchema.parse({
@@ -137,28 +161,75 @@ describe("global-settings", () => {
 		}
 	});
 
-	it("preserves disabled tools and plugins across targeted updates", async () => {
+	it("preserves disabled tools and both plugin formats across targeted updates", async () => {
 		const root = await mkdtemp(join(tmpdir(), "core-global-settings-"));
 		try {
 			const settingsPath = join(root, "global-settings.json");
 			process.env.CLINE_GLOBAL_SETTINGS_PATH = settingsPath;
 
 			setDisabledPlugin("/plugins/example.js", true);
+			setDisabledAgentPlugin("portable-review", true);
 			setDisabledTools(["read_files", "editor"], true);
 			setDisabledTools(["editor"], false);
 
 			expect(readGlobalSettings()).toEqual({
 				autoUpdateEnabled: true,
+				disabledAgentPlugins: ["portable-review"],
 				disabledPlugins: ["/plugins/example.js"],
 				disabledTools: ["read_files"],
 				telemetryOptOut: false,
 			});
 			expect(JSON.parse(await readFile(settingsPath, "utf8"))).toEqual({
 				autoUpdateEnabled: true,
+				disabledAgentPlugins: ["portable-review"],
 				disabledPlugins: ["/plugins/example.js"],
 				disabledTools: ["read_files"],
 				telemetryOptOut: false,
 			});
+
+			setDisabledAgentPlugin("portable-review", false);
+			expect(isAgentPluginDisabledGlobally("portable-review")).toBe(false);
+			expect(readGlobalSettings().disabledAgentPlugins).toBeUndefined();
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	it("stores opt-in tool preferences only in the scalable tools map", async () => {
+		const root = await mkdtemp(join(tmpdir(), "core-global-settings-"));
+		try {
+			process.env.CLINE_GLOBAL_SETTINGS_PATH = join(
+				root,
+				"global-settings.json",
+			);
+
+			expect(isOptInToolEnabledGlobally("web_search")).toBe(false);
+			expect(isOptInToolEnabledGlobally("generate_media")).toBe(false);
+			expect(resolveDisabledToolNames()).toEqual(
+				new Set(["web_search", "generate_media"]),
+			);
+
+			setOptInToolEnabledGlobally("web_search", true);
+			setDisabledTools(["generate_media"], false);
+			expect(isOptInToolEnabledGlobally("web_search")).toBe(true);
+			expect(isOptInToolEnabledGlobally("generate_media")).toBe(true);
+			expect(resolveDisabledToolNames()).toEqual(new Set());
+			expect(resolveDisabledToolNames(["generate_media"])).toEqual(new Set());
+			expect(readGlobalSettings().tools).toEqual({
+				generate_media: { enabled: true },
+				web_search: { enabled: true },
+			});
+			expect(readGlobalSettings().disabledTools).toBeUndefined();
+
+			setDisabledTools(["web_search", "generate_media"], true);
+			expect(readGlobalSettings().tools).toEqual({
+				generate_media: { enabled: false },
+				web_search: { enabled: false },
+			});
+			expect(resolveDisabledToolNames()).toEqual(
+				new Set(["web_search", "generate_media"]),
+			);
+			expect(readGlobalSettings().disabledTools).toBeUndefined();
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}
@@ -451,6 +522,7 @@ describe("global-settings", () => {
 				const settingsPath = join(root, "global-settings.json");
 				process.env.CLINE_GLOBAL_SETTINGS_PATH = settingsPath;
 				writeGlobalSettings({
+					disabledAgentPlugins: ["portable-review"],
 					disabledTools: ["editor"],
 					disabledPlugins: ["/plugins/example.js"],
 				});
@@ -458,6 +530,7 @@ describe("global-settings", () => {
 				const settings = readGlobalSettings();
 
 				expect(Object.isFrozen(settings)).toBe(true);
+				expect(Object.isFrozen(settings.disabledAgentPlugins)).toBe(true);
 				expect(Object.isFrozen(settings.disabledTools)).toBe(true);
 				expect(Object.isFrozen(settings.disabledPlugins)).toBe(true);
 				expect(() => {
@@ -466,6 +539,7 @@ describe("global-settings", () => {
 				expect(() => {
 					settings.disabledTools?.push("malicious");
 				}).toThrow();
+				expect(isAgentPluginDisabledGlobally("portable-review")).toBe(true);
 			} finally {
 				await rm(root, { recursive: true, force: true });
 			}

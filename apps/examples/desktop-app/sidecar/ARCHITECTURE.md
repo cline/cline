@@ -49,7 +49,7 @@ const sessionManager = await ClineCore.create({
     workspaceRoot,
     cwd: workspaceRoot,
     clientType: "code-sidecar",
-    displayName: "Code App sidecar",
+    displayName: "Cline Desktop sidecar",
   },
   capabilities: {
     requestToolApproval: async (request) => {
@@ -141,6 +141,9 @@ Supported commands:
 | `chat_session_command` | shared Hub through `ClineCore` |
 | `list_provider_catalog` | `ProviderSettingsManager` + `listLocalProviders` |
 | `list_provider_models` | `getLocalProviderModels` |
+| `save_voice_input_settings` | validates and persists the selected transcription provider/model |
+| `create_streaming_transcription_session` | mints a short-lived, transcription-bound browser token without exposing provider credentials |
+| `transcribe_audio` | configured voice input selection + provider credentials |
 | `save_provider_settings` | `saveLocalProviderSettings` |
 | `add_provider` | `addLocalProvider` |
 | `run_provider_oauth_login` | `loginLocalProvider` |
@@ -162,6 +165,8 @@ Supported commands:
 | `get_process_context` | In-memory context |
 | `poll_tool_approvals` | In-memory pending map |
 | `respond_tool_approval` | In-memory promise resolution |
+| `poll_ask_questions` | In-memory pending map |
+| `respond_ask_question` | In-memory promise resolution |
 | `list_routine_schedules` | shared Hub schedule commands |
 | `list_user_instruction_configs` | Direct core API |
 | `pick_workspace_directory` | OS native dialog |
@@ -170,7 +175,8 @@ Supported commands:
 ## Dev Workflow
 
 ```bash
-bun run dev:sidecar   # Start sidecar on port 3126
-bun run dev:web       # Start Next.js on port 3125
+bun run dev:headless  # Start sidecar and Next.js with a fresh shared approval credential
+bun run dev:sidecar   # Start only the sidecar (no browser approval surface)
+bun run dev:web       # Start only Next.js (no authenticated approval connection)
 bun run dev           # Both concurrently
 ```

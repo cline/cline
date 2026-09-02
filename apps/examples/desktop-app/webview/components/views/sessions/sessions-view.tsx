@@ -10,15 +10,17 @@ import {
 	Filter,
 	Folder,
 	GitFork,
+	Import,
 	Loader2,
 	MoreHorizontal,
 	Pencil,
+	Pin,
 	Search,
-	Star,
 	Trash2,
 	X,
 } from "lucide-react";
 import { type CSSProperties, useEffect, useMemo, useState } from "react";
+import { ImportSessionsDialog } from "@/components/import-sessions-dialog";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -131,7 +133,7 @@ function sessionFilterDetails(
 	const workspacePath = session?.workspaceRoot || session?.cwd || "";
 	const workspace = workspacePath ? basenamePath(workspacePath) : "";
 	return [
-		thread.pinned ? "favorite:yes" : undefined,
+		thread.pinned ? "pinned:yes" : undefined,
 		workspace ? `workspace:${workspace}` : undefined,
 		thread.status ? `status:${thread.status}` : undefined,
 		thread.provider ? `provider:${thread.provider}` : undefined,
@@ -155,6 +157,7 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 	);
 	const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
 	const [editingTitle, setEditingTitle] = useState("");
+	const [importDialogOpen, setImportDialogOpen] = useState(false);
 	const [deleteCandidate, setDeleteCandidate] = useState<SessionThread | null>(
 		null,
 	);
@@ -317,10 +320,8 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 		<div className="flex h-full min-h-0 flex-col overflow-hidden bg-background text-foreground">
 			<header className="flex shrink-0 items-end justify-between gap-6 px-18 pb-7 pt-10 max-[1200px]:px-8 max-md:pl-12 max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:pr-4 max-[720px]:pt-5">
 				<div className="min-w-0">
-					<h1 className="text-[32px] font-semibold leading-[1.15] tracking-normal">
-						Sessions
-					</h1>
-					<p className="mt-3 text-[15px] leading-6 text-muted-foreground">
+					<h1 className="text-3xl font-semibold">Sessions</h1>
+					<p className="mt-3 text-base leading-6 text-muted-foreground">
 						Recent sessions across clients and workspaces.
 					</p>
 				</div>
@@ -335,6 +336,18 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 							value={query}
 						/>
 					</div>
+					<Button
+						aria-label="Import sessions from other tools"
+						className="h-8 rounded-md px-2.5"
+						onClick={() => setImportDialogOpen(true)}
+						size="sm"
+						title="Import sessions from Claude Code, Codex, or opencode"
+						type="button"
+						variant="outline"
+					>
+						<Import className="size-4" />
+						Import
+					</Button>
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>
 							<Button
@@ -428,13 +441,16 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 						<span className="sr-only">Actions</span>
 					</div>
 					<div>
-						{history.isLoadingHistory && history.threads.length === 0 ? (
+						{/* Keep the loader up until the backend's first response: the
+						    empty-state copy must only describe an actual zero-session
+						    answer, not a fetch that is still in flight or retrying. */}
+						{!history.hasLoadedHistory && history.threads.length === 0 ? (
 							<div className="flex items-center gap-2 border-t px-4 py-8 text-sm text-muted-foreground">
 								<Loader2 className="size-4 animate-spin" />
 								Loading session history...
 							</div>
 						) : null}
-						{!history.isLoadingHistory && filteredThreads.length === 0 ? (
+						{history.hasLoadedHistory && filteredThreads.length === 0 ? (
 							<div className="border-t px-4 py-8 text-sm text-muted-foreground">
 								{history.threads.length === 0
 									? "No sessions yet."
@@ -459,8 +475,8 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 										// never reflows as long values wrap or hydrate in.
 										"grid h-14 grid-cols-[minmax(14rem,1.35fr)_minmax(9rem,0.8fr)_minmax(12rem,1fr)_7rem_5rem_6rem_1.75rem] items-center gap-x-4 border-t px-4 text-sm transition-colors",
 										activeSessionId === thread.id
-											? "bg-accent/50"
-											: "hover:bg-accent/30",
+											? "bg-surface-hover"
+											: "hover:bg-surface-hover-lighter",
 									)}
 									key={thread.id}
 								>
@@ -571,8 +587,8 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 												/>
 												<span className="truncate">{thread.title}</span>
 												{thread.pinned ? (
-													<Star
-														aria-label="Favorited"
+													<Pin
+														aria-label="Pinned"
 														className="size-3.5 shrink-0 fill-current text-muted-foreground"
 													/>
 												) : null}
@@ -605,7 +621,7 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 											<DropdownMenuTrigger asChild>
 												<button
 													aria-label={`Session actions for ${thread.title}`}
-													className="grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+													className="grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 													disabled={Boolean(pendingKind)}
 													type="button"
 												>
@@ -625,13 +641,13 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 														)
 													}
 												>
-													<Star
+													<Pin
 														className={cn(
 															"size-4",
 															thread.pinned && "fill-current",
 														)}
 													/>
-													{thread.pinned ? "Unfavorite" : "Favorite"}
+													{thread.pinned ? "Unpin" : "Pin"}
 												</DropdownMenuItem>
 												<DropdownMenuItem onClick={() => startRename(thread)}>
 													<Pencil className="size-4" />
@@ -782,6 +798,12 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 					</AlertDialogFooter>
 				</AlertDialogContent>
 			</AlertDialog>
+
+			<ImportSessionsDialog
+				onImported={() => void history.refreshSessions()}
+				onOpenChange={setImportDialogOpen}
+				open={importDialogOpen}
+			/>
 		</div>
 	);
 }

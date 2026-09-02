@@ -5,7 +5,10 @@ import {
 	sanitizeSurrogates,
 	toAiSdkToolResultOutput,
 } from "./ai-sdk-format";
-import { IMAGE_UNSUPPORTED_PLACEHOLDER } from "./media";
+import {
+	GENERATED_MEDIA_OMITTED_PLACEHOLDER,
+	IMAGE_UNSUPPORTED_PLACEHOLDER,
+} from "./media";
 
 describe("formatMessagesForAiSdk", () => {
 	const imageData = (byteLength: number, fill = 1) =>
@@ -75,6 +78,53 @@ describe("formatMessagesForAiSdk", () => {
 			{
 				role: "assistant",
 				content: [{ type: "text", text: EMPTY_CONTENT_TEXT }],
+			},
+		]);
+	});
+
+	it("replaces messages whose parts are all empty text with explicit error text", () => {
+		const messages = formatMessagesForAiSdk(undefined, [
+			{ role: "user", content: [{ type: "text", text: "" }] },
+			{
+				role: "user",
+				content: [
+					{ type: "text", text: "   \n\t  " },
+					{ type: "text", text: "" },
+				],
+			},
+		]);
+
+		expect(messages).toEqual([
+			{
+				role: "user",
+				content: [{ type: "text", text: EMPTY_CONTENT_TEXT }],
+			},
+			{
+				role: "user",
+				content: [{ type: "text", text: EMPTY_CONTENT_TEXT }],
+			},
+		]);
+	});
+
+	it("keeps messages that pair empty text with other content", () => {
+		const image = imageData(16);
+		const messages = formatMessagesForAiSdk(undefined, [
+			{
+				role: "user",
+				content: [
+					{ type: "text", text: "" },
+					{ type: "image", image, mediaType: "image/png" },
+				],
+			},
+		]);
+
+		expect(messages).toEqual([
+			{
+				role: "user",
+				content: [
+					{ type: "text", text: "" },
+					{ type: "file", data: image, mediaType: "image/png" },
+				],
 			},
 		]);
 	});
@@ -253,6 +303,118 @@ describe("formatMessagesForAiSdk", () => {
 				],
 			},
 		]);
+	});
+
+	it("forwards canonical generated-media tool results as bounded file parts", () => {
+		const image = "QkFTRTY0REFUQQ==";
+		const output = toAiSdkToolResultOutput([
+			{ type: "text", text: "Generated an image" },
+			{
+				type: "media",
+				media: {
+					id: "generated-image",
+					modality: "image",
+					mediaType: "image/png",
+					source: { type: "base64", data: image },
+				},
+			},
+		]);
+
+		expect(output).toEqual({
+			type: "content",
+			value: [
+				{ type: "text", text: "Generated an image" },
+				{
+					type: "file",
+					data: { type: "data", data: image },
+					mediaType: "image/png",
+				},
+			],
+		});
+	});
+
+	it("tells the model that omitted generated media remains available to the user", () => {
+		const output = toAiSdkToolResultOutput([
+			{ type: "text", text: "Generated an image" },
+			{
+				type: "media",
+				media: {
+					id: "generated-image",
+					modality: "image",
+					mediaType: "image/png",
+					source: { type: "base64", data: "truncated base64" },
+				},
+			},
+		]);
+
+		expect(output).toEqual({
+			type: "content",
+			value: [
+				{ type: "text", text: "Generated an image" },
+				{ type: "text", text: GENERATED_MEDIA_OMITTED_PLACEHOLDER },
+			],
+		});
+	});
+
+	it("forwards canonical generated-media URLs as native file parts", () => {
+		expect(
+			toAiSdkToolResultOutput([
+				{
+					type: "media",
+					media: {
+						id: "generated-image",
+						modality: "image",
+						mediaType: "image/webp",
+						source: {
+							type: "url",
+							url: "https://example.com/generated.webp",
+						},
+					},
+				},
+			]),
+		).toEqual({
+			type: "content",
+			value: [
+				{
+					type: "file",
+					data: {
+						type: "url",
+						url: "https://example.com/generated.webp",
+					},
+					mediaType: "image/webp",
+				},
+			],
+		});
+	});
+
+	it("removes canonical media bytes when the target cannot view images", () => {
+		const image = "QkFTRTY0REFUQQ==";
+		const output = toAiSdkToolResultOutput(
+			[
+				{ type: "text", text: "Generated an image" },
+				{
+					type: "media",
+					media: {
+						id: "generated-image",
+						modality: "image",
+						mediaType: "image/png",
+						source: { type: "base64", data: image },
+					},
+				},
+			],
+			false,
+			undefined,
+			{ supportsImages: false },
+		);
+
+		expect(output).toEqual({
+			type: "content",
+			value: [
+				{ type: "text", text: "Generated an image" },
+				{ type: "text", text: IMAGE_UNSUPPORTED_PLACEHOLDER },
+			],
+		});
+		expect(JSON.stringify(output)).not.toContain(image);
 	});
 
 	it("extracts nested image content blocks from a read_files tool result", () => {
@@ -796,66 +958,6 @@ describe("formatMessagesForAiSdk", () => {
 		]);
 	});
 
-	it("does not disclose generated video artifact paths to providers", () => {
-		const artifactPath =
-			"/Users/example/.cline/data/sessions/session-1/artifacts/private-video.mp4";
-		const messages = formatMessagesForAiSdk(undefined, [
-			{
-				role: "assistant",
-				content: [
-					{
-						type: "video",
-						path: artifactPath,
-						mediaType: "video/mp4",
-					},
-				],
-			},
-		]);
-
-		expect(messages).toEqual([
-			{
-				role: "assistant",
-				content: [
-					{
-						type: "text",
-						text: "[Generated video artifact: video/mp4]",
-					},
-				],
-			},
-		]);
-		expect(JSON.stringify(messages)).not.toContain(artifactPath);
-	});
-
-	it("does not disclose generated audio artifact paths to providers", () => {
-		const artifactPath =
-			"/Users/example/.cline/data/sessions/session-1/artifacts/private-audio.mp3";
-		const messages = formatMessagesForAiSdk(undefined, [
-			{
-				role: "assistant",
-				content: [
-					{
-						type: "audio",
-						path: artifactPath,
-						mediaType: "audio/mpeg",
-					},
-				],
-			},
-		]);
-
-		expect(messages).toEqual([
-			{
-				role: "assistant",
-				content: [
-					{
-						type: "text",
-						text: "[Generated audio artifact: audio/mpeg]",
-					},
-				],
-			},
-		]);
-		expect(JSON.stringify(messages)).not.toContain(artifactPath);
-	});
-
 	it("moves generated assistant images onto string user messages", () => {
 		const image = imageData(8);
 		const messages = formatMessagesForAiSdk(undefined, [
@@ -880,6 +982,94 @@ describe("formatMessagesForAiSdk", () => {
 					{ type: "text", text: "Describe it" },
 					{ type: "file", data: image, mediaType: "image/png" },
 				],
+			},
+		]);
+	});
+
+	it("preserves generated assistant images across a tool-result turn", () => {
+		const image = imageData(8);
+		const messages = formatMessagesForAiSdk(undefined, [
+			{
+				role: "assistant",
+				content: [
+					{ type: "image", image, mediaType: "image/png" },
+					{
+						type: "tool-call",
+						toolCallId: "call_1",
+						toolName: "lookup",
+						input: { query: "bee" },
+					},
+					{
+						type: "tool-call",
+						toolCallId: "call_2",
+						toolName: "lookup",
+						input: { query: "hive" },
+					},
+				],
+			},
+			{
+				role: "tool",
+				content: [
+					{
+						type: "tool-result",
+						toolCallId: "call_1",
+						toolName: "lookup",
+						output: "found",
+					},
+				],
+			},
+			{
+				role: "tool",
+				content: [
+					{
+						type: "tool-result",
+						toolCallId: "call_2",
+						toolName: "lookup",
+						output: "also found",
+					},
+				],
+			},
+		]);
+
+		expect(messages).toEqual([
+			{
+				role: "assistant",
+				content: [
+					{ type: "text", text: "[generated image]" },
+					{
+						type: "tool-call",
+						toolCallId: "call_1",
+						toolName: "lookup",
+						input: { query: "bee" },
+					},
+					{
+						type: "tool-call",
+						toolCallId: "call_2",
+						toolName: "lookup",
+						input: { query: "hive" },
+					},
+				],
+			},
+			{
+				role: "tool",
+				content: [
+					{
+						type: "tool-result",
+						toolCallId: "call_1",
+						toolName: "lookup",
+						output: { type: "text", value: "found" },
+					},
+					{
+						type: "tool-result",
+						toolCallId: "call_2",
+						toolName: "lookup",
+						output: { type: "text", value: "also found" },
+					},
+				],
+			},
+			{
+				role: "user",
+				content: [{ type: "file", data: image, mediaType: "image/png" }],
 			},
 		]);
 	});
@@ -1186,6 +1376,82 @@ describe("formatMessagesForAiSdk", () => {
 		]);
 		expect(JSON.stringify(messages)).not.toContain(hiddenPayload);
 	});
+
+	it("replays canonical assistant media exactly once on the next user turn", () => {
+		const data = "aGVsbG8=";
+		const messages = formatMessagesForAiSdk(undefined, [
+			{
+				role: "assistant",
+				content: [
+					{ type: "text", text: "I made an image." },
+					{
+						type: "media",
+						media: {
+							id: "generated-image",
+							modality: "image",
+							mediaType: "image/png",
+							source: { type: "base64", data },
+						},
+					},
+				],
+			},
+			{ role: "user", content: [{ type: "text", text: "Refine it." }] },
+		]);
+
+		expect(messages).toEqual([
+			{
+				role: "assistant",
+				content: [
+					{ type: "text", text: "I made an image." },
+					{ type: "text", text: "[generated image]" },
+				],
+			},
+			{
+				role: "user",
+				content: [
+					{ type: "text", text: "Refine it." },
+					{ type: "file", data, mediaType: "image/png" },
+				],
+			},
+		]);
+		expect(JSON.stringify(messages).split(data)).toHaveLength(2);
+	});
+
+	it("replays supported generated audio and hides it from text-only models", () => {
+		const source = {
+			id: "generated-audio",
+			modality: "audio" as const,
+			mediaType: "audio/mpeg",
+			source: { type: "base64" as const, data: "SUQz" },
+		};
+		const history = [
+			{
+				role: "assistant" as const,
+				content: [{ type: "media" as const, media: source }],
+			},
+			{
+				role: "user" as const,
+				content: [{ type: "text" as const, text: "Continue." }],
+			},
+		];
+
+		const supported = formatMessagesForAiSdk(undefined, history, {
+			supportedInputModalities: ["text", "audio"],
+		});
+		const unsupported = formatMessagesForAiSdk(undefined, history, {
+			supportedInputModalities: ["text"],
+		});
+
+		expect(supported.at(-1)?.content).toContainEqual({
+			type: "file",
+			data: "SUQz",
+			mediaType: "audio/mpeg",
+		});
+		expect(JSON.stringify(unsupported)).not.toContain("SUQz");
+		expect(JSON.stringify(unsupported)).toContain(
+			"[generated audio unavailable to this model]",
+		);
+	});
 });
 
 describe("sanitizeSurrogates", () => {
@@ -1381,7 +1647,7 @@ describe("formatMessagesForAiSdk - models without image support", () => {
 					],
 				},
 			],
-			{ supportsImages: false },
+			{ supportedInputModalities: ["text"] },
 		);
 
 		expect(messages).toEqual([
@@ -1410,7 +1676,7 @@ describe("formatMessagesForAiSdk - models without image support", () => {
 					content: [{ type: "text", text: "Describe it" }],
 				},
 			],
-			{ supportsImages: false },
+			{ supportedInputModalities: ["text"] },
 		);
 
 		expect(messages).toEqual([
@@ -1429,7 +1695,7 @@ describe("formatMessagesForAiSdk - models without image support", () => {
 		expect(JSON.stringify(messages)).not.toContain(image);
 	});
 
-	it("keeps user image parts when supportsImages is explicitly true", () => {
+	it("keeps user image parts when image input is explicitly supported", () => {
 		const image = imageData(16);
 		const messages = formatMessagesForAiSdk(
 			undefined,
@@ -1439,7 +1705,7 @@ describe("formatMessagesForAiSdk - models without image support", () => {
 					content: [{ type: "image", image, mediaType: "image/png" }],
 				},
 			],
-			{ supportsImages: true },
+			{ supportedInputModalities: ["text", "image"] },
 		);
 
 		expect(messages).toEqual([
@@ -1470,7 +1736,7 @@ describe("formatMessagesForAiSdk - models without image support", () => {
 					],
 				},
 			],
-			{ supportsImages: false },
+			{ supportedInputModalities: ["text"] },
 		);
 
 		expect(messages).toEqual([
@@ -1521,7 +1787,7 @@ describe("formatMessagesForAiSdk - models without image support", () => {
 					],
 				},
 			],
-			{ supportsImages: false },
+			{ supportedInputModalities: ["text"] },
 		);
 
 		expect(messages).toEqual([

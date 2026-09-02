@@ -27,9 +27,9 @@
 // - SDK "ended" event → finalizes the session
 
 import type { CoreSessionEvent } from "@cline/core"
-import { PATCH_MARKERS } from "@cline/core"
-import type { Message as SdkMessage } from "@cline/llms"
-import { type AgentEvent, formatDisplayUserInput } from "@cline/shared"
+import { PATCH_MARKERS, projectSessionMessagesForDisplay } from "@cline/core"
+import type { MessageWithMetadata as SdkMessage } from "@cline/llms"
+import { type AgentEvent, formatDisplayUserInput, type ProviderErrorClass } from "@cline/shared"
 import { COMMAND_OUTPUT_STRING } from "@shared/combineCommandSequences"
 import type {
 	ClineApiReqInfo,
@@ -45,11 +45,12 @@ import type {
 } from "@shared/ExtensionMessage"
 import { Logger } from "@shared/services/Logger"
 import * as path from "path"
+import { isClineManagedProvider } from "@/shared/utils/cline"
 import { arePathsEqual, getDesktopDir } from "@/utils/path"
 import { CLINE_FREE_PROMOTION_ENDED_ERROR_CODE, isClineFreePromotionEndedMessage } from "../services/error/ClineError"
 import { MessageIdMinter } from "./message-id-minter"
-import { describeMissingCredentialError } from "./provider-credential-error"
-import { isSyntheticSdkUserMessage } from "./sdk-user-message-mapping"
+import { describeCredentialRejectedError, describeMissingCredentialError } from "./provider-credential-error"
+import { extractPersistedHookContextChips, isSyntheticSdkUserMessage, isSyntheticUserPrompt } from "./sdk-user-message-mapping"
 import { isDeniedToolApprovalMistake, isKnownToolApprovalDenial } from "./tool-approval-denial"
 
 // ---------------------------------------------------------------------------
@@ -1507,6 +1508,21 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 					})
 					break
 				}
+				case "media": {
+					const media = event.media
+					if (!media) {
+						break
+					}
+					messages.push({
+						ts: state.nextTs(),
+						type: "say",
+						say: "text",
+						text: "",
+						media: [media],
+						partial: false,
+					})
+					break
+				}
 				case "tool": {
 					const toolName = event.toolName ?? "unknown"
 
@@ -1916,7 +1932,12 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 			// `code: "insufficient_credits"`). We try to reshape it into the
 			// ClineError-serialized format the webview expects so that ErrorRow
 			// can render the correct UI (Buy Credits button, etc.).
-			const errorPayload = reshapeErrorForWebview(event.error, state.activeProviderId(), state.activeModelId())
+			const errorPayload = reshapeErrorForWebview(
+				event.error,
+				state.activeProviderId(),
+				state.activeModelId(),
+				event.errorClass,
+			)
 
 			// Emit an api_req_started with streamingFailedMessage so the
 			// RequestStartRow renders the error via ErrorRow. This replaces
@@ -2094,10 +2115,19 @@ export function translateSessionEvent(event: CoreSessionEvent, state: MessageTra
 
 		case "pending_prompt_submitted": {
 			const { prompt, userImages, userFiles } = event.payload
+			// Synthetic prompts (task resumption, plan -> act auto-continue) are
+			// hidden from every other transcript surface, and this echo must
+			// hide them too: a send that races a settling abort is auto-queued
+			// by the runtime, so a bare Resume can arrive here carrying the
+			// synthetic resumption prompt. Echoing it would leak model-facing
+			// text as a user bubble and shift the visible-user-message ordinals
+			// that edit/regenerate mapping relies on. Attachments the user
+			// supplied alongside a synthetic prompt still render (matching
+			// isSyntheticSdkUserMessage, which counts those as visible).
 			// Display boundary: formatDisplayUserInput strips runtime-generated
 			// notice elements (e.g. mode_notice) that normalizeUserInput must
 			// preserve, since the latter also sanitizes model-bound prompts.
-			const displayPrompt = formatDisplayUserInput(prompt)
+			const displayPrompt = isSyntheticUserPrompt(prompt) ? "" : formatDisplayUserInput(prompt)
 			const hasPrompt = displayPrompt.trim().length > 0
 			const hasImages = (userImages?.length ?? 0) > 0
 			const hasFiles = (userFiles?.length ?? 0) > 0
@@ -2138,13 +2168,6 @@ export function translateSessionEvent(event: CoreSessionEvent, state: MessageTra
 type SdkContentBlock = Exclude<SdkMessage["content"], string>[number]
 type SdkToolUseBlock = Extract<SdkContentBlock, { type: "tool_use" }>
 type SdkMessageWithMetrics = SdkMessage & {
-	metrics?: {
-		inputTokens?: number
-		outputTokens?: number
-		cacheReadTokens?: number
-		cacheWriteTokens?: number
-		cost?: number
-	}
 	/**
 	 * Plan/act mode recovered from the persisted <user_input mode="..."> wrapper before display
 	 * sanitization strips it (see sanitizeSdkUserMessagesForDisplay in sdk-task-history.ts).
@@ -2334,7 +2357,8 @@ export function sdkMessagesToClineMessages(
 		state.clearTurnOutcome()
 	}
 
-	for (const message of messages) {
+	for (const { message, sourceIndex } of projectSessionMessagesForDisplay(messages)) {
+		const sourceMessage = messages[sourceIndex]
 		if (message.role === "assistant") {
 			flushUnmatchedToolUses()
 
@@ -2349,7 +2373,7 @@ export function sdkMessagesToClineMessages(
 				continue
 			}
 
-			for (const block of message.content) {
+			for (const [blockIndex, block] of message.content.entries()) {
 				switch (block.type) {
 					case "text":
 						if (block.text.trim()) {
@@ -2379,6 +2403,37 @@ export function sdkMessagesToClineMessages(
 							)
 						}
 						break
+					case "image":
+						if (block.data && block.mediaType.startsWith("image/")) {
+							clineMessages.push(
+								...agentEventToMessages(
+									{
+										type: "content_end",
+										contentType: "media",
+										media: {
+											id: `${message.id ?? `history-${sourceIndex}`}:media:${blockIndex}`,
+											modality: "image",
+											mediaType: block.mediaType,
+											source: { type: "base64", data: block.data },
+										},
+									} as AgentEvent,
+									state,
+								),
+							)
+						}
+						break
+					case "media":
+						clineMessages.push(
+							...agentEventToMessages(
+								{
+									type: "content_end",
+									contentType: "media",
+									media: block.media,
+								} as AgentEvent,
+								state,
+							),
+						)
+						break
 					case "tool_use":
 						// Tool activity after a text block means that text wasn't the
 						// turn-final response (also covers dangling tool_use blocks whose
@@ -2392,6 +2447,23 @@ export function sdkMessagesToClineMessages(
 			continue
 		}
 
+		// Runtime-injected hook context is not a user turn: reconstruct the hook
+		// status rows shown live and leave turn/mode state untouched, so the
+		// final turn's completion retag survives the injection.
+		const hookChips = extractPersistedHookContextChips(message)
+		if (hookChips.length > 0) {
+			for (const chip of hookChips) {
+				clineMessages.push({
+					ts: state.nextTs(),
+					type: "say",
+					say: "hook_status",
+					text: JSON.stringify(chip),
+					partial: false,
+				})
+			}
+			continue
+		}
+
 		if (typeof message.content === "string") {
 			const text = message.content.trim()
 			if (text) {
@@ -2401,7 +2473,7 @@ export function sdkMessagesToClineMessages(
 				// (task resumption, plan -> act auto-continue) still advance the turn/mode
 				// state but never had a visible bubble live, so don't emit one here either.
 				state.clearTurnOutcome()
-				currentMode = message.uiMode ?? currentMode
+				currentMode = sourceMessage.uiMode ?? currentMode
 				if (!isSyntheticSdkUserMessage(message)) {
 					clineMessages.push({
 						ts: state.nextTs(),
@@ -2418,7 +2490,7 @@ export function sdkMessagesToClineMessages(
 		const userText = textContentBlocksToText(message.content)
 		if (userText) {
 			state.clearTurnOutcome()
-			currentMode = message.uiMode ?? currentMode
+			currentMode = sourceMessage.uiMode ?? currentMode
 			if (!isSyntheticSdkUserMessage(message)) {
 				clineMessages.push({
 					ts: state.nextTs(),
@@ -2510,6 +2582,9 @@ export function historyItemToSessionFields(item: {
 const MODEL_NOT_FOUND_GUIDANCE =
 	"This model may be retired or unavailable on your account. Switch to a different model in API Configuration settings, then retry."
 
+const VERTEX_GLOBAL_REGION_GUIDANCE =
+	'This model does not support the Vertex AI global endpoint. Switch Google Cloud Region from "global" to a specific region (e.g. "us-east5") in API Configuration settings, or choose a different model, then retry.'
+
 /**
  * Rewrite a model-not-found error into actionable guidance, or undefined if the
  * message is not one. The provider's HTTP status is stripped upstream, so this
@@ -2533,6 +2608,33 @@ function describeModelNotFoundError(rawMessage: string): string | undefined {
 }
 
 /**
+ * Rewrite a Vertex "model not available on the global endpoint" rejection into
+ * recovery guidance, or undefined for anything else. The picker intentionally
+ * no longer filters the catalog by endpoint capability — endpoint support
+ * changes faster than any host-maintained allowlist — so an unsupported pick
+ * under `vertexRegion: "global"` surfaces here, loud and actionable, instead
+ * of hiding models from the picker.
+ *
+ * Observed shapes: AnthropicVertex's bare `model not available in region:
+ * global`, and Google's `Publisher Model `projects/.../locations/global/...`
+ * was not found / no access` body. The HTTP status is stripped upstream, so
+ * this matches on text.
+ */
+function describeVertexGlobalRegionError(rawMessage: string, providerId?: string): string | undefined {
+	if (providerId !== "vertex") {
+		return undefined
+	}
+	const rejectedFromGlobalRegion =
+		/not (?:available|supported|found) in (?:region|location)\b[^.\n]*\bglobal\b/i.test(rawMessage) ||
+		/\bregion:\s*global\b/i.test(rawMessage) ||
+		(/\blocations\/global\b/.test(rawMessage) && /not found|does not have access|permission denied/i.test(rawMessage))
+	if (!rejectedFromGlobalRegion) {
+		return undefined
+	}
+	return `${rawMessage} ${VERTEX_GLOBAL_REGION_GUIDANCE}`
+}
+
+/**
  * Reshape an SDK error into the serialized ClineError JSON the webview's
  * ErrorRow expects (`code`, `providerId`, `details`), extracting structured
  * info from the error message when present and falling back to raw text.
@@ -2541,6 +2643,7 @@ export function reshapeErrorForWebview(
 	error: { message?: string; status?: number; code?: string },
 	providerId?: string,
 	modelId?: string,
+	errorClass?: ProviderErrorClass,
 ): string {
 	// The ClineError-JSON branches below are cline-provider flows (balance,
 	// spend limit), so "cline" stays their fallback id. The missing-credential
@@ -2564,6 +2667,26 @@ export function reshapeErrorForWebview(
 				message: rawMessage,
 			},
 		})
+	}
+
+	// Vertex global-endpoint rejections get recovery guidance before the
+	// generic model-not-found rewrite can claim them (Google's Publisher
+	// Model "was not found" body also matches the not-found pattern).
+	const vertexGlobalRegionMessage = describeVertexGlobalRegionError(rawMessage, providerId)
+	if (vertexGlobalRegionMessage) {
+		return vertexGlobalRegionMessage
+	}
+
+	// A BYOK provider rejected the configured credentials (llms classified the
+	// HTTP 401/403 while the typed error was still available). Raw provider
+	// bodies here are dead ends — e.g. Mistral's `{"detail":"Invalid API Key"}`
+	// is identical for a wrong, empty, or wrong-scope key — so point the user
+	// at the key configuration instead. Cline-account providers keep the JSON
+	// path below (the webview renders their auth failures as a sign-in card),
+	// and so does an *unknown* provider id: rewriting without knowing the
+	// provider could suppress that sign-in card for a cline-account failure.
+	if (errorClass === "auth" && providerId !== undefined && !isClineManagedProvider(providerId)) {
+		return describeCredentialRejectedError(rawMessage, providerId)
 	}
 
 	// Try to extract structured error info from the error message.

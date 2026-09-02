@@ -12,7 +12,9 @@ import type {
 } from "@/lib/session-history";
 import {
 	getSessionMetadataGitBranch,
+	getSessionMetadataIsScheduled,
 	getSessionMetadataPinned,
+	getSessionMetadataSchedule,
 	getSessionMetadataTitle,
 	getSessionSource,
 	PINNED_METADATA_KEY,
@@ -37,7 +39,20 @@ export interface SessionThread {
 	totalCostUsd?: number;
 	status: SessionHistoryStatus;
 	pinned?: boolean;
+	isScheduled: boolean;
+	/** Raw start timestamp; the sidebar labels un-numbered scheduled runs with it. */
+	startedAt?: string;
+	/** Schedule provenance for scheduled runs (metadata or executions list). */
+	scheduleId?: string;
+	scheduleName?: string;
+	scheduleRunNumber?: number;
 }
+
+/** What the schedule executions list knows about a session it started. */
+type ScheduledSessionLink = {
+	scheduleId?: string;
+	scheduleName?: string;
+};
 
 type SessionHookEvent = {
 	inputTokens?: number;
@@ -249,6 +264,7 @@ function inferStatusFromMessages(
 
 function toThread(session: SessionHistoryItem): SessionThread {
 	const workspacePath = (session.workspaceRoot || session.cwd).trim();
+	const schedule = getSessionMetadataSchedule(session.metadata);
 	return {
 		id: session.sessionId,
 		title: toTitle(session),
@@ -261,6 +277,11 @@ function toThread(session: SessionHistoryItem): SessionThread {
 		gitBranch: getSessionMetadataGitBranch(session.metadata) || undefined,
 		status: normalizeDiscoveredStatus(session.status, session.prompt),
 		pinned: getSessionMetadataPinned(session.metadata),
+		isScheduled: getSessionMetadataIsScheduled(session.metadata),
+		startedAt: session.startedAt?.trim() || undefined,
+		scheduleId: schedule.scheduleId,
+		scheduleName: schedule.scheduleName,
+		scheduleRunNumber: schedule.runNumber,
 	};
 }
 
@@ -341,6 +362,17 @@ function summarizeUsageFromMessages(messages: SessionMessage[]): {
 	return { inputTokens, outputTokens, totalCostUsd };
 }
 
+function areScheduleInfosEqual(
+	a: ReturnType<typeof getSessionMetadataSchedule>,
+	b: ReturnType<typeof getSessionMetadataSchedule>,
+): boolean {
+	return (
+		a.scheduleId === b.scheduleId &&
+		a.scheduleName === b.scheduleName &&
+		a.runNumber === b.runNumber
+	);
+}
+
 function areSessionsEquivalent(
 	current: SessionHistoryItem[],
 	next: SessionHistoryItem[],
@@ -358,12 +390,18 @@ function areSessionsEquivalent(
 			a.startedAt !== b.startedAt ||
 			a.endedAt !== b.endedAt ||
 			a.prompt !== b.prompt ||
+			getSessionMetadataIsScheduled(a.metadata) !==
+				getSessionMetadataIsScheduled(b.metadata) ||
 			getSessionMetadataGitBranch(a.metadata) !==
 				getSessionMetadataGitBranch(b.metadata) ||
 			getSessionMetadataTitle(a.metadata) !==
 				getSessionMetadataTitle(b.metadata) ||
 			getSessionMetadataPinned(a.metadata) !==
 				getSessionMetadataPinned(b.metadata) ||
+			!areScheduleInfosEqual(
+				getSessionMetadataSchedule(a.metadata),
+				getSessionMetadataSchedule(b.metadata),
+			) ||
 			a.workspaceRoot !== b.workspaceRoot ||
 			a.cwd !== b.cwd ||
 			a.provider !== b.provider ||
@@ -399,7 +437,12 @@ function areThreadsEquivalent(
 			a.outputTokens !== b.outputTokens ||
 			a.totalCostUsd !== b.totalCostUsd ||
 			a.status !== b.status ||
-			a.pinned !== b.pinned
+			a.pinned !== b.pinned ||
+			a.isScheduled !== b.isScheduled ||
+			a.startedAt !== b.startedAt ||
+			a.scheduleId !== b.scheduleId ||
+			a.scheduleName !== b.scheduleName ||
+			a.scheduleRunNumber !== b.scheduleRunNumber
 		) {
 			return false;
 		}
@@ -486,7 +529,11 @@ export function useSessionHistory({
 }: UseSessionHistoryOptions) {
 	const [sessions, setSessions] = useState<SessionHistoryItem[]>([]);
 	const [threads, setThreads] = useState<SessionThread[]>([]);
-	const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+	// False until the backend has answered a history request at least once.
+	// Consumers use this to tell "still loading" apart from "loaded, zero
+	// sessions": an empty-state copy shown before the first response reads as
+	// lost history whenever fetching takes more than an instant.
+	const [hasLoadedHistory, setHasLoadedHistory] = useState(false);
 	const [isLoadingMore, setIsLoadingMore] = useState(false);
 	const [mayHaveMoreSessions, setMayHaveMoreSessions] = useState(false);
 	const [pendingAction, setPendingAction] =
@@ -494,6 +541,16 @@ export function useSessionHistory({
 	const [unreadSessionIds, setUnreadSessionIds] = useState<Set<string>>(
 		() => new Set(),
 	);
+	// Sessions that schedule executions report as their own, keyed by session
+	// id. Scheduled runs executed by the local hub do not reliably carry the
+	// "hub-schedule" origin trigger in their session metadata (the runtime
+	// that claims the run doesn't always stamp provenance), so the metadata
+	// check alone would miss them; the executions list is the authoritative
+	// link. It also supplies the schedule id/name for sessions recorded
+	// before the runner stamped those into metadata.
+	const [scheduledSessionLinks, setScheduledSessionLinks] = useState<
+		Map<string, ScheduledSessionLink>
+	>(() => new Map());
 	const fetchLimitRef = useRef(INITIAL_HISTORY_FETCH_LIMIT);
 	// Limit of the most recent refresh that actually returned sessions. Failed
 	// attempts roll back to this rather than to a caller-local snapshot, which
@@ -516,6 +573,10 @@ export function useSessionHistory({
 	const refreshLimitRef = useRef(0);
 	const loadAllPromiseRef = useRef<Promise<boolean> | null>(null);
 	const lastRefreshStartedAtRef = useRef(0);
+	// Guards scheduleRefresh against continuations that settle after unmount
+	// (e.g. the fast retry of a failed initial fetch), which would otherwise
+	// re-arm a timer the cleanup has already cleared and poll forever.
+	const disposedRef = useRef(false);
 
 	useEffect(() => {
 		sessionsRef.current = sessions;
@@ -539,6 +600,91 @@ export function useSessionHistory({
 		});
 	}, [activeSessionId]);
 
+	useEffect(() => {
+		let cancelled = false;
+		const collectScheduledSessionLinks = async () => {
+			const response = await desktopClient
+				.invoke<{
+					schedules?: Array<{ scheduleId?: unknown; name?: unknown }>;
+					activeExecutions?: Array<{
+						sessionId?: unknown;
+						scheduleId?: unknown;
+					}>;
+					lastExecutions?: Array<{
+						sessionId?: unknown;
+						scheduleId?: unknown;
+					}>;
+				}>("list_routine_schedules")
+				.catch(() => null);
+			if (cancelled || !response) {
+				return;
+			}
+			const scheduleNames = new Map<string, string>();
+			for (const schedule of response.schedules ?? []) {
+				const scheduleId =
+					typeof schedule?.scheduleId === "string"
+						? schedule.scheduleId.trim()
+						: "";
+				const name =
+					typeof schedule?.name === "string" ? schedule.name.trim() : "";
+				if (scheduleId && name) {
+					scheduleNames.set(scheduleId, name);
+				}
+			}
+			const links = new Map<string, ScheduledSessionLink>();
+			for (const execution of [
+				...(response.activeExecutions ?? []),
+				...(response.lastExecutions ?? []),
+			]) {
+				const sessionId =
+					typeof execution?.sessionId === "string"
+						? execution.sessionId.trim()
+						: "";
+				if (!sessionId) {
+					continue;
+				}
+				const scheduleId =
+					typeof execution?.scheduleId === "string"
+						? execution.scheduleId.trim()
+						: "";
+				links.set(sessionId, {
+					...(scheduleId ? { scheduleId } : {}),
+					...(scheduleId && scheduleNames.has(scheduleId)
+						? { scheduleName: scheduleNames.get(scheduleId) }
+						: {}),
+				});
+			}
+			setScheduledSessionLinks((current) => {
+				// Merge instead of replace: the executions list is a rolling
+				// window, so ids that fell out of it are still scheduled runs.
+				let changed = false;
+				const next = new Map(current);
+				for (const [sessionId, link] of links) {
+					const existing = next.get(sessionId);
+					if (
+						existing &&
+						existing.scheduleId === link.scheduleId &&
+						existing.scheduleName === link.scheduleName
+					) {
+						continue;
+					}
+					next.set(sessionId, link);
+					changed = true;
+				}
+				return changed ? next : current;
+			});
+		};
+		void collectScheduledSessionLinks();
+		const interval = window.setInterval(
+			() => void collectScheduledSessionLinks(),
+			2 * 60 * 1000,
+		);
+		return () => {
+			cancelled = true;
+			window.clearInterval(interval);
+		};
+	}, []);
+
 	const refreshSessions = useCallback(async () => {
 		// Reuse an in-flight refresh only when it already asked for at least as
 		// many sessions as we need now. "Load more" raises the limit and then
@@ -556,12 +702,6 @@ export function useSessionHistory({
 			lastRefreshStartedAtRef.current = Date.now();
 			const limit = fetchLimitRef.current;
 			refreshLimitRef.current = limit;
-			// Only surface the loading state before anything has been fetched:
-			// consumers only render it for an empty list, and toggling it on
-			// every background poll re-rendered the whole app twice per refresh.
-			if (sessionsRef.current.length === 0) {
-				setIsLoadingHistory(true);
-			}
 			try {
 				const discovered = await desktopClient
 					.invoke<CliDiscoveredSession[]>("list_discovered_sessions", { limit })
@@ -649,12 +789,11 @@ export function useSessionHistory({
 					return areThreadsEquivalent(current, next) ? current : next;
 				});
 				loadedLimitRef.current = Math.max(loadedLimitRef.current, limit);
+				setHasLoadedHistory(true);
 				return true;
 			} catch {
 				// Ignore in browser mode or when tauri command is unavailable.
 				return false;
-			} finally {
-				setIsLoadingHistory(false);
 			}
 		})();
 
@@ -672,6 +811,9 @@ export function useSessionHistory({
 
 	const scheduleRefresh = useCallback(
 		(delayMs = 0, options: { force?: boolean } = {}) => {
+			if (disposedRef.current) {
+				return;
+			}
 			const now = Date.now();
 			const minTarget = options.force
 				? now
@@ -693,7 +835,16 @@ export function useSessionHistory({
 				() => {
 					refreshTimeoutRef.current = null;
 					scheduledRefreshAtRef.current = null;
-					void refreshSessions();
+					void refreshSessions().then((loaded) => {
+						// Until something has loaded the UI has nothing but a
+						// loading state to show, so a failed fetch (e.g. the
+						// websocket losing the race with a webview reload) retries
+						// on the short event cadence instead of stranding the
+						// sidebar until the periodic poll fires.
+						if (!loaded && loadedLimitRef.current === 0) {
+							scheduleRefresh(MIN_EVENT_HISTORY_REFRESH_INTERVAL_MS);
+						}
+					});
 				},
 				Math.max(0, target - now),
 			);
@@ -703,6 +854,7 @@ export function useSessionHistory({
 
 	useEffect(() => {
 		let disposed = false;
+		disposedRef.current = false;
 
 		const runRefresh = () => {
 			if (!disposed) {
@@ -720,6 +872,7 @@ export function useSessionHistory({
 
 		return () => {
 			disposed = true;
+			disposedRef.current = true;
 			window.clearInterval(interval);
 			if (refreshTimeoutRef.current !== null) {
 				window.clearTimeout(refreshTimeoutRef.current);
@@ -966,6 +1119,20 @@ export function useSessionHistory({
 				}
 			},
 		);
+		const unsubscribeTransportImport = desktopClient.subscribe(
+			"session_import_progress",
+			(payload) => {
+				if (!payload || typeof payload !== "object") {
+					return;
+				}
+				// Imported sessions land directly in the store; refresh so they
+				// appear in history no matter where the import was started from.
+				const result = (payload as { result?: { ok?: boolean } }).result;
+				if (result?.ok) {
+					scheduleRefresh(HISTORY_EVENT_REFRESH_DELAY_MS, { force: true });
+				}
+			},
+		);
 		const unsubscribeTransportChatEvent = desktopClient.subscribe(
 			"chat_event",
 			(payload) => {
@@ -1004,6 +1171,7 @@ export function useSessionHistory({
 			unsubscribeTransportDelete();
 			unsubscribeTransportStatus();
 			unsubscribeTransportEnded();
+			unsubscribeTransportImport();
 			unsubscribeTransportChatEvent();
 		};
 	}, [activeSessionId, scheduleRefresh]);
@@ -1188,7 +1356,7 @@ export function useSessionHistory({
 				);
 			};
 
-			// Favoriting is a single click, so apply it locally first and roll back
+			// Pinning is a single click, so apply it locally first and roll back
 			// if the write fails rather than blocking the row on a round trip.
 			applyPinned(pinned);
 			try {
@@ -1207,7 +1375,7 @@ export function useSessionHistory({
 				applyPinned(!pinned);
 				toast({
 					variant: "destructive",
-					title: pinned ? "Favorite failed" : "Unfavorite failed",
+					title: pinned ? "Pin failed" : "Unpin failed",
 					description:
 						error instanceof Error
 							? error.message
@@ -1408,9 +1576,38 @@ export function useSessionHistory({
 		[sessions],
 	);
 
+	const threadsWithScheduled = useMemo(() => {
+		if (scheduledSessionLinks.size === 0) {
+			return threads;
+		}
+		return threads.map((thread) => {
+			const link = scheduledSessionLinks.get(thread.id);
+			if (!link) {
+				return thread;
+			}
+			// Metadata stamped by the runner wins; the executions list only
+			// fills in what the session record itself doesn't carry.
+			const scheduleId = thread.scheduleId ?? link.scheduleId;
+			const scheduleName = thread.scheduleName ?? link.scheduleName;
+			if (
+				thread.isScheduled &&
+				scheduleId === thread.scheduleId &&
+				scheduleName === thread.scheduleName
+			) {
+				return thread;
+			}
+			return {
+				...thread,
+				isScheduled: true,
+				...(scheduleId ? { scheduleId } : {}),
+				...(scheduleName ? { scheduleName } : {}),
+			};
+		});
+	}, [scheduledSessionLinks, threads]);
+
 	return {
 		getSessionByThreadId,
-		isLoadingHistory,
+		hasLoadedHistory,
 		isLoadingMore,
 		loadAllSessions,
 		loadOlderSessions,
@@ -1425,7 +1622,7 @@ export function useSessionHistory({
 		forkThread,
 		sessionById,
 		sessions,
-		threads,
+		threads: threadsWithScheduled,
 		unreadSessionIds,
 	};
 }

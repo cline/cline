@@ -654,6 +654,43 @@ describe("SdkModeCoordinator", () => {
 		expect(Math.max(...postOrders)).toBeGreaterThan(appendOrder)
 	})
 
+	it("settles the aborted turn as resumable so the footer never keeps a stale streaming/approval state", async () => {
+		const activeSession = makeActiveSession({ isRunning: true })
+		const task = makeTask("old-session", [{ ts: 1, type: "say", say: "text", text: "partial", partial: true }])
+		const { coordinator, options } = makeCoordinator({ activeSession, task, turnPhase: "awaiting_approval" })
+
+		await coordinator.rebuildSessionForMode("act")
+
+		// Mirror cancelTask: a resume ask row anchors the Resume Task button.
+		const resumeAppend = (options.messages.appendAndEmit as ReturnType<typeof vi.fn>).mock.calls.find(
+			([messages]) => messages[0]?.ask === "resume_task",
+		)
+		expect(resumeAppend).toBeDefined()
+		expect(resumeAppend?.[1]).toEqual({
+			type: "status",
+			payload: { sessionId: "old-session", status: "cancelled" },
+		})
+		expect(options.setTurnPhase).toHaveBeenCalledWith("resumable", resumeAppend?.[0][0].ts)
+		// The aborted turn never auto-continues (the plan was not presented), so
+		// nothing may flip the phase back to streaming afterwards.
+		expect(options.onAutoContinueStarting).not.toHaveBeenCalled()
+		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
+	})
+
+	it("does not touch the turn phase when rebuilding an idle session", async () => {
+		const activeSession = makeActiveSession({ isRunning: false })
+		const task = makeTask("old-session")
+		const { coordinator, options } = makeCoordinator({ activeSession, task })
+
+		await coordinator.rebuildSessionForMode("act")
+
+		expect(options.setTurnPhase).not.toHaveBeenCalled()
+		expect(options.messages.appendAndEmit).not.toHaveBeenCalledWith(
+			[expect.objectContaining({ ask: "resume_task" })],
+			expect.anything(),
+		)
+	})
+
 	describe("mode switch notices", () => {
 		it("records a notice for a manual toggle and consumes it exactly once", async () => {
 			const activeSession = makeActiveSession()
@@ -782,6 +819,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		resetMessageTranslator: vi.fn(),
 		postStateToWebview: vi.fn().mockResolvedValue(undefined),
 		getTurnPhase: vi.fn(() => input.turnPhase ?? "idle"),
+		setTurnPhase: vi.fn(),
 		resolveContextMentions: vi.fn(async (text: string) => text),
 		onAutoContinueStarting: vi.fn(),
 		onAutoContinueFailed: vi.fn(),
@@ -819,6 +857,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		resetMessageTranslator: ReturnType<typeof vi.fn>
 		postStateToWebview: ReturnType<typeof vi.fn>
 		getTurnPhase: ReturnType<typeof vi.fn>
+		setTurnPhase: ReturnType<typeof vi.fn>
 		resolveContextMentions: ReturnType<typeof vi.fn>
 		onAutoContinueStarting: ReturnType<typeof vi.fn>
 		onAutoContinueFailed: ReturnType<typeof vi.fn>

@@ -28,6 +28,10 @@ describe("models-dev-catalog", () => {
 						reasoning: true,
 						reasoning_options: [{ type: "effort", values: ["medium", "high"] }],
 						cost: { cache_read: 1 },
+						modalities: {
+							input: ["text", "audio"],
+							output: ["text"],
+						},
 					},
 				},
 			},
@@ -97,6 +101,10 @@ describe("models-dev-catalog", () => {
 			docsUrl: "https://platform.openai.com/docs/models",
 			capabilities: ["tools", "reasoning", "prompt-cache"],
 		});
+		expect(providerModels["openai-native"]["gpt-test"].modalities).toEqual({
+			input: ["text", "audio"],
+			output: ["text"],
+		});
 		expect(providerSpecs.poolside).toMatchObject({
 			id: "poolside",
 			family: "openai-compatible",
@@ -123,208 +131,53 @@ describe("models-dev-catalog", () => {
 		).toEqual([{ type: "effort", values: ["medium", "high"] }]);
 	});
 
-	it("keeps dedicated video models for providers with a video endpoint", () => {
-		const providerModels = normalizeModelsDevProviderModels({
-			google: {
-				id: "google",
-				name: "Google",
-				models: {
-					"video-model": {
-						tool_call: false,
-						modalities: { input: ["text"], output: ["video"] },
-					},
-					"image-to-video-model": {
-						tool_call: false,
-						modalities: { input: ["text", "image"], output: ["video"] },
-					},
-				},
-			},
-			vercel: {
-				id: "vercel",
-				name: "Vercel AI Gateway",
-				models: {
-					"gateway-video-model": {
-						tool_call: false,
-						modalities: { input: ["text"], output: ["video"] },
-					},
-				},
-			},
-		});
-
-		expect(providerModels.gemini).toMatchObject({
-			"video-model": {
-				modalities: { input: ["text"], output: ["video"] },
-			},
-			"image-to-video-model": {
-				modalities: { input: ["text", "image"], output: ["video"] },
-			},
-		});
-		expect(providerModels["vercel-ai-gateway"]).toMatchObject({
-			"gateway-video-model": {
-				modalities: { input: ["text"], output: ["video"] },
-			},
-		});
-	});
-
-	it("omits unsupported dedicated video models but keeps mixed and tool-capable models", () => {
+	it("keeps dedicated image models without tool calling", () => {
 		const providerModels = normalizeModelsDevProviderModels({
 			openai: {
 				id: "openai",
 				name: "OpenAI",
+				npm: "@ai-sdk/openai",
 				models: {
-					"dedicated-video": {
-						tool_call: false,
-						modalities: { input: ["text"], output: ["video"] },
-					},
-					"tool-flagged-dedicated-video": {
+					"chat-model": {
 						tool_call: true,
-						modalities: { input: ["text"], output: ["video"] },
+						modalities: { input: ["text"], output: ["text"] },
 					},
-					"image-to-video": {
+					"image-model": {
 						tool_call: false,
-						modalities: { input: ["image"], output: ["video"] },
+						modalities: { input: ["text"], output: ["image"] },
 					},
-					"mixed-video": {
+					"gpt-image-with-text-output": {
 						tool_call: false,
+						family: "gpt-image",
 						modalities: {
-							input: ["text"],
-							output: ["text", "video"],
+							input: ["text", "image"],
+							output: ["text", "image"],
 						},
 					},
-					"tool-capable-video": {
-						tool_call: true,
-						modalities: {
-							input: ["text", "video"],
-							output: ["text", "video"],
-						},
+					"embedding-model": {
+						tool_call: false,
+						modalities: { input: ["text"], output: ["text"] },
 					},
 				},
 			},
 		});
 
-		expect(providerModels["openai-native"]).not.toHaveProperty(
-			"dedicated-video",
-		);
-		expect(providerModels["openai-native"]).not.toHaveProperty(
-			"tool-flagged-dedicated-video",
-		);
-		expect(providerModels["openai-native"]).not.toHaveProperty(
-			"image-to-video",
-		);
 		expect(providerModels["openai-native"]).toMatchObject({
-			"mixed-video": {
-				modalities: { input: ["text"], output: ["text", "video"] },
+			"chat-model": expect.any(Object),
+			"image-model": {
+				modalities: { input: ["text"], output: ["image"] },
 			},
-			"tool-capable-video": expect.objectContaining({
-				capabilities: expect.arrayContaining(["tools", "video"]),
-				modalities: { input: ["text", "video"], output: ["text", "video"] },
-			}),
-		});
-	});
-
-	it("keeps dedicated audio models for providers with a speech endpoint", () => {
-		const providerModels = normalizeModelsDevProviderModels({
-			openai: {
-				id: "openai",
-				name: "OpenAI",
-				models: {
-					"openai-speech": {
-						tool_call: false,
-						modalities: { input: ["text"], output: ["audio"] },
-					},
-				},
-			},
-			google: {
-				id: "google",
-				name: "Google",
-				models: {
-					"google-speech": {
-						tool_call: false,
-						modalities: { input: ["text"], output: ["audio"] },
-					},
-				},
-			},
-			"google-vertex": {
-				id: "google-vertex",
-				name: "Google Vertex",
-				models: {
-					"vertex-speech": {
-						tool_call: false,
-						modalities: { input: ["text"], output: ["audio"] },
-					},
-				},
-			},
-			vercel: {
-				id: "vercel",
-				name: "Vercel AI Gateway",
-				models: {
-					"gateway-speech": {
-						tool_call: false,
-						modalities: { input: ["text"], output: ["audio"] },
-					},
-				},
+			"gpt-image-with-text-output": {
+				family: "gpt-image",
+				modalities: { input: ["text", "image"], output: ["image"] },
 			},
 		});
-
-		expect(providerModels["openai-native"]).toHaveProperty("openai-speech");
-		expect(providerModels.gemini).toHaveProperty("google-speech");
-		expect(providerModels.vertex).toHaveProperty("vertex-speech");
-		expect(providerModels["vercel-ai-gateway"]).toHaveProperty(
-			"gateway-speech",
+		expect(providerModels["openai-native"]).not.toHaveProperty(
+			"embedding-model",
 		);
 	});
 
-	it("omits unsupported dedicated audio models but keeps mixed audio models", () => {
-		const providerModels = normalizeModelsDevProviderModels({
-			"extra-router": {
-				id: "extra-router",
-				name: "Extra Router",
-				npm: "@ai-sdk/openai-compatible",
-				models: {
-					"dedicated-audio": {
-						tool_call: false,
-						modalities: { input: ["text"], output: ["audio"] },
-					},
-					"tool-flagged-dedicated-audio": {
-						tool_call: true,
-						modalities: { input: ["text"], output: ["audio"] },
-					},
-					"mixed-audio": {
-						tool_call: false,
-						modalities: {
-							input: ["text"],
-							output: ["text", "audio"],
-						},
-					},
-				},
-			},
-			mistral: {
-				id: "mistral",
-				name: "Mistral",
-				models: {
-					"voxtral-speech": {
-						tool_call: false,
-						modalities: { input: ["text"], output: ["audio"] },
-					},
-				},
-			},
-		});
-
-		expect(providerModels["extra-router"]).not.toHaveProperty(
-			"dedicated-audio",
-		);
-		expect(providerModels["extra-router"]).not.toHaveProperty(
-			"tool-flagged-dedicated-audio",
-		);
-		expect(providerModels["extra-router"]).toMatchObject({
-			"mixed-audio": {
-				modalities: { input: ["text"], output: ["text", "audio"] },
-			},
-		});
-		expect(providerModels.mistral).toBeUndefined();
-	});
-
-	it("only admits dedicated image models for provider families with an image model factory", () => {
+	it("only admits media models for providers with an explicit operation transport", () => {
 		const providerModels = normalizeModelsDevProviderModels({
 			"extra-router": {
 				id: "extra-router",
@@ -355,7 +208,10 @@ describe("models-dev-catalog", () => {
 				models: {
 					"supported-image": {
 						tool_call: false,
-						modalities: { input: ["text"], output: ["image"] },
+						modalities: {
+							input: ["text", "image", "pdf"],
+							output: ["image", "pdf"],
+						},
 					},
 				},
 			},
@@ -403,20 +259,143 @@ describe("models-dev-catalog", () => {
 					},
 				},
 			},
+			poe: {
+				id: "poe",
+				name: "Poe",
+				npm: "@ai-sdk/openai-compatible",
+				models: {
+					"unsupported-image": {
+						tool_call: false,
+						modalities: { input: ["text"], output: ["image"] },
+					},
+					"chat-model": { tool_call: true },
+				},
+			},
 		});
 
-		expect(providerModels["extra-router"]).toHaveProperty("compatible-image");
-		expect(providerModels["extra-router"]).toHaveProperty("mixed-model");
+		expect(providerModels["extra-router"]).not.toHaveProperty(
+			"compatible-image",
+		);
+		expect(providerModels["extra-router"]).not.toHaveProperty("mixed-model");
 		expect(providerModels["extra-router"]).toHaveProperty("chat-model");
-		expect(providerModels.xai).toHaveProperty("supported-image");
+		expect(providerModels.xai?.["supported-image"]?.modalities).toEqual({
+			input: ["text", "image"],
+			output: ["image"],
+		});
 		expect(providerModels["extra-anthropic"]).not.toHaveProperty(
 			"unsupported-image",
 		);
-		expect(providerModels["extra-anthropic"]).toHaveProperty("mixed-model");
+		expect(providerModels["extra-anthropic"]).not.toHaveProperty("mixed-model");
 		expect(providerModels["extra-mistral"]).not.toHaveProperty(
 			"unsupported-image",
 		);
 		expect(providerModels.gemini).toHaveProperty("supported-image");
+		expect(providerModels.poe).toHaveProperty("chat-model");
+		expect(providerModels.poe).not.toHaveProperty("unsupported-image");
+	});
+
+	it("keeps dedicated video models for providers with a video endpoint", () => {
+		const providerModels = normalizeModelsDevProviderModels({
+			google: {
+				id: "google",
+				name: "Google",
+				npm: "@ai-sdk/google",
+				models: {
+					"video-model": {
+						tool_call: false,
+						modalities: { input: ["text"], output: ["video"] },
+					},
+					"image-to-video-model": {
+						tool_call: false,
+						modalities: { input: ["text", "image"], output: ["video"] },
+					},
+				},
+			},
+			vercel: {
+				id: "vercel",
+				name: "Vercel AI Gateway",
+				models: {
+					"gateway-video-model": {
+						tool_call: false,
+						modalities: { input: ["text"], output: ["video"] },
+					},
+				},
+			},
+		});
+		expect(providerModels.gemini).toMatchObject({
+			"video-model": {
+				operation: "video-generation",
+				modalities: { input: ["text"], output: ["video"] },
+			},
+			"image-to-video-model": {
+				operation: "video-generation",
+				modalities: { input: ["text", "image"], output: ["video"] },
+			},
+		});
+		expect(providerModels["vercel-ai-gateway"]).toMatchObject({
+			"gateway-video-model": {
+				operation: "video-generation",
+				modalities: { input: ["text"], output: ["video"] },
+			},
+		});
+	});
+
+	it("omits video models from providers without a declared video transport", () => {
+		const providerModels = normalizeModelsDevProviderModels({
+			openai: {
+				id: "openai",
+				name: "OpenAI",
+				models: {
+					"dedicated-video": {
+						tool_call: false,
+						modalities: { input: ["text"], output: ["video"] },
+					},
+					"tool-flagged-dedicated-video": {
+						// Tool metadata must not make a video-only model usable via a
+						// provider without a video transport.
+						tool_call: true,
+						modalities: { input: ["text"], output: ["video"] },
+					},
+					"mixed-video": {
+						tool_call: false,
+						modalities: {
+							input: ["text"],
+							output: ["text", "video"],
+						},
+					},
+					"chat-model": { tool_call: true },
+				},
+			},
+			google: {
+				id: "google",
+				name: "Google",
+				npm: "@ai-sdk/google",
+				models: {
+					"mixed-video": {
+						tool_call: true,
+						modalities: {
+							input: ["text"],
+							output: ["text", "video"],
+						},
+					},
+				},
+			},
+		});
+
+		expect(providerModels["openai-native"]).not.toHaveProperty(
+			"dedicated-video",
+		);
+		expect(providerModels["openai-native"]).not.toHaveProperty(
+			"tool-flagged-dedicated-video",
+		);
+		expect(providerModels["openai-native"]).not.toHaveProperty("mixed-video");
+		expect(providerModels["openai-native"]).toHaveProperty("chat-model");
+		expect(providerModels.gemini).toMatchObject({
+			"mixed-video": {
+				modalities: { input: ["text"], output: ["text", "video"] },
+			},
+		});
+		expect(providerModels.gemini?.["mixed-video"]?.operation).toBeUndefined();
 	});
 
 	it("prefers a text-output model over a newer dedicated image default", () => {
@@ -448,6 +427,100 @@ describe("models-dev-catalog", () => {
 			normalizeModelsDevProviderSpecs(payload, providerModels)["openai-native"]
 				?.defaultModelId,
 		).toBe("chat-model");
+	});
+
+	it("classifies transcription models with explicit batch and streaming modes", () => {
+		const providerModels = normalizeModelsDevProviderModels({
+			groq: {
+				id: "groq",
+				name: "Groq",
+				models: {
+					"chat-model": {
+						tool_call: true,
+						modalities: { input: ["text"], output: ["text"] },
+					},
+					"whisper-large-v3": {
+						tool_call: false,
+						modalities: { input: ["audio"], output: ["text"] },
+					},
+					"gpt-realtime-whisper": {
+						name: "GPT Realtime Whisper",
+						tool_call: false,
+						modalities: { input: ["audio"], output: ["text"] },
+					},
+					"speech-model": {
+						tool_call: false,
+						modalities: { input: ["text"], output: ["audio"] },
+					},
+				},
+			},
+			vercel: {
+				id: "vercel",
+				name: "Vercel AI Gateway",
+				models: {
+					"openai/whisper-1": {
+						tool_call: false,
+						modalities: { input: ["audio"], output: ["text"] },
+					},
+					"openai/gpt-realtime-whisper": {
+						tool_call: false,
+						modalities: { input: ["audio"], output: ["text"] },
+					},
+				},
+			},
+		});
+
+		expect(providerModels.groq?.["whisper-large-v3"]).toMatchObject({
+			operation: "transcription",
+			operationModes: ["batch"],
+			modalities: { input: ["audio"], output: ["text"] },
+		});
+		expect(providerModels.groq).not.toHaveProperty("gpt-realtime-whisper");
+		expect(providerModels.groq).not.toHaveProperty("speech-model");
+		expect(providerModels["vercel-ai-gateway"]).toMatchObject({
+			"openai/whisper-1": {
+				operation: "transcription",
+				operationModes: ["batch"],
+			},
+			"openai/gpt-realtime-whisper": {
+				operation: "transcription",
+				operationModes: ["streaming"],
+			},
+		});
+	});
+
+	it("admits transcription only through an explicit provider operation", () => {
+		const providerModels = normalizeModelsDevProviderModels({
+			groq: {
+				id: "groq",
+				name: "Groq",
+				models: {
+					"whisper-large-v3": {
+						tool_call: false,
+						modalities: { input: ["audio"], output: ["text"] },
+					},
+				},
+			},
+			greenpt: {
+				id: "greenpt",
+				name: "GreenPT",
+				npm: "@ai-sdk/openai-compatible",
+				models: {
+					"chat-model": {
+						tool_call: true,
+						modalities: { input: ["text"], output: ["text"] },
+					},
+					"green-s": {
+						tool_call: false,
+						modalities: { input: ["audio"], output: ["text"] },
+					},
+				},
+			},
+		});
+
+		expect(providerModels.groq).toHaveProperty("whisper-large-v3");
+		expect(providerModels.greenpt).toHaveProperty("chat-model");
+		expect(providerModels.greenpt).not.toHaveProperty("green-s");
 	});
 
 	it("normalizes Cline recommended clinePass models as a generated provider source", () => {
@@ -966,27 +1039,23 @@ describe("models-dev-catalog", () => {
 		).toBe(400_000);
 	});
 
-	it("ships only endpoint-supported dedicated audio models", () => {
+	it("regenerates image models with supported endpoint routing", () => {
 		expect(
-			getGeneratedModelsForProvider("vercel-ai-gateway")["fish-audio/s2.1-pro"]
-				?.modalities,
-		).toEqual({ input: ["text"], output: ["audio"] });
+			getGeneratedModelsForProvider("openai-native")["gpt-image-1.5"]
+				?.modalities?.output,
+		).toEqual(["image"]);
 		expect(
-			getGeneratedModelsForProvider("gemini")["gemini-3.1-flash-tts-preview"]
-				?.modalities,
-		).toEqual({ input: ["text"], output: ["audio"] });
-		expect(
-			getGeneratedModelsForProvider("openrouter")["openai/gpt-audio"]
-				?.modalities,
-		).toEqual({ input: ["text", "audio"], output: ["text", "audio"] });
-		expect(
-			getGeneratedModelsForProvider("mistral")["voxtral-mini-tts-latest"],
-		).toBeUndefined();
-		expect(
-			getGeneratedModelsForProvider("digitalocean")[
-				"canopylabs/orpheus-v1-english"
-			],
-		).toBeUndefined();
+			getGeneratedModelsForProvider("xai")["grok-imagine-image"]?.modalities,
+		).toEqual({ input: ["text", "image"], output: ["image"] });
+
+		const poeDedicatedImages = Object.values(
+			getGeneratedModelsForProvider("poe"),
+		).filter(
+			(model) =>
+				model.modalities?.output.includes("image") === true &&
+				model.modalities.output.includes("text") !== true,
+		);
+		expect(poeDedicatedImages).toEqual([]);
 	});
 
 	it("includes video input for direct MiniMax M3 catalog entries", () => {
@@ -1000,6 +1069,31 @@ describe("models-dev-catalog", () => {
 				getGeneratedModelsForProvider(providerId)["MiniMax-M3"]?.capabilities,
 			).toEqual(expect.arrayContaining(["images", "video"]));
 		}
+	});
+
+	it("regenerates transcription models through explicit operation routes", () => {
+		expect(
+			getGeneratedModelsForProvider("groq")["whisper-large-v3"],
+		).toMatchObject({
+			operation: "transcription",
+			operationModes: ["batch"],
+			modalities: { input: ["audio"], output: ["text"] },
+		});
+		expect(
+			getGeneratedModelsForProvider("vercel-ai-gateway")[
+				"openai/gpt-realtime-whisper"
+			],
+		).toMatchObject({
+			operation: "transcription",
+			operationModes: ["streaming"],
+		});
+		expect(
+			getGeneratedModelsForProvider("groq")["canopylabs/orpheus-v1-english"],
+		).toBeUndefined();
+		expect(getGeneratedModelsForProvider("greenpt")["green-s"]).toBeUndefined();
+		expect(
+			getGeneratedModelsForProvider("alibaba")["qwen3-asr-flash"],
+		).toBeUndefined();
 	});
 
 	it("fetches and normalizes models.dev payload", async () => {
