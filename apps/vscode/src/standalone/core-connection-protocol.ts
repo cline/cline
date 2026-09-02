@@ -20,6 +20,7 @@ export async function dispatchCoreConnectionRequest(
 	write: CoreConnectionMessageWriter,
 	request: NonNullable<CoreConnectionMessage["request"]>,
 	isStreamingMethod: (qualifiedMethod: string) => boolean,
+	encodeResponseMessage: (message: unknown) => unknown,
 	handleRequest: CoreRequestHandler,
 ): Promise<void> {
 	const qualifiedMethod = `${request.service}.${request.method}`
@@ -35,7 +36,7 @@ export async function dispatchCoreConnectionRequest(
 		return
 	}
 
-	await handleRequest(serializeForwards(write), {
+	await handleRequest(serializeForwards(write, encodeResponseMessage), {
 		service: request.service,
 		method: request.method,
 		message: JSON.parse(request.messageJson || "{}"),
@@ -53,10 +54,13 @@ export async function dispatchCoreConnectionRequest(
  * payloads together. A failed write rejects every later forward for the
  * request, so a torn payload is never followed by more chunks.
  */
-function serializeForwards(write: CoreConnectionMessageWriter): (message: ExtensionMessage) => Promise<boolean> {
+function serializeForwards(
+	write: CoreConnectionMessageWriter,
+	encodeResponseMessage: (message: unknown) => unknown,
+): (message: ExtensionMessage) => Promise<boolean> {
 	let chain: Promise<unknown> = Promise.resolve()
 	return (message) => {
-		const result = chain.then(() => forwardCoreControllerResponse(write, message))
+		const result = chain.then(() => forwardCoreControllerResponse(write, message, encodeResponseMessage))
 		chain = result
 		return result
 	}
@@ -65,6 +69,7 @@ function serializeForwards(write: CoreConnectionMessageWriter): (message: Extens
 export async function forwardCoreControllerResponse(
 	write: CoreConnectionMessageWriter,
 	message: ExtensionMessage,
+	encodeResponseMessage: (message: unknown) => unknown,
 ): Promise<boolean> {
 	const response = message.grpc_response
 	if (!response) {
@@ -83,7 +88,9 @@ export async function forwardCoreControllerResponse(
 		return true
 	}
 
-	const messageJson = JSON.stringify(response.message)
+	// The receiver decodes with fromJSON, which expects proto3 JSON — encode the
+	// ts-proto message accordingly rather than stringifying its raw object shape.
+	const messageJson = JSON.stringify(encodeResponseMessage(response.message))
 	if (messageJson === undefined) {
 		throw new Error(`Core response ${response.request_id} is not JSON serializable`)
 	}

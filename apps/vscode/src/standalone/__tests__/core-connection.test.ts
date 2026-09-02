@@ -13,6 +13,7 @@ describe("core connection dispatcher", () => {
 			stream.write,
 			request("unary-1", false),
 			() => false,
+			(message) => message,
 			async (postMessage) => {
 				await postMessage({
 					type: "grpc_response",
@@ -28,6 +29,25 @@ describe("core connection dispatcher", () => {
 		expect(response?.completed).to.equal(true)
 	})
 
+	it("serializes response payloads through the injected encoder", async () => {
+		const stream = fakeStream()
+
+		await dispatchCoreConnectionRequest(
+			stream.write,
+			request("encoded-1", false),
+			() => false,
+			(message) => ({ encoded: message }),
+			async (postMessage) => {
+				await postMessage({
+					type: "grpc_response",
+					grpc_response: { request_id: "encoded-1", message: { value: "ok" } },
+				})
+			},
+		)
+
+		expect(new TextDecoder().decode(stream.messages[0]?.response?.messageJsonChunk)).to.equal('{"encoded":{"value":"ok"}}')
+	})
+
 	it("keeps streams open until the controller marks the final response", async () => {
 		const stream = fakeStream()
 
@@ -35,6 +55,7 @@ describe("core connection dispatcher", () => {
 			stream.write,
 			request("stream-1", true),
 			() => true,
+			(message) => message,
 			async (postMessage) => {
 				await postMessage({
 					type: "grpc_response",
@@ -65,6 +86,7 @@ describe("core connection dispatcher", () => {
 			stream.write,
 			request("bad-mode", true),
 			() => false,
+			(message) => message,
 			async () => {},
 		)
 
@@ -80,6 +102,7 @@ describe("core connection dispatcher", () => {
 			stream.write,
 			request("large", false),
 			() => false,
+			(message) => message,
 			async (postMessage) => {
 				await postMessage({
 					type: "grpc_response",
@@ -106,6 +129,7 @@ describe("core connection dispatcher", () => {
 			stream.write,
 			request("interleave", true),
 			() => true,
+			(message) => message,
 			async (postMessage) => {
 				// Fire-and-forget delivery, as streaming handlers do: both
 				// logical responses are in flight at once.

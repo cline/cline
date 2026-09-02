@@ -128,6 +128,8 @@ async function generateVscodeProtobusServers(protobusServices) {
 	const serviceMap = [];
 	const decoders = [];
 	const decoderMap = [];
+	const encoders = [];
+	const encoderMap = [];
 	const streamingMethods = [];
 	for (const [serviceName, def] of Object.entries(protobusServices)) {
 		const domain = getDomainName(serviceName);
@@ -139,6 +141,9 @@ async function generateVscodeProtobusServers(protobusServices) {
 		decoders.push(
 			`const ${serviceName}RequestDecoders: Record<string, (json: unknown) => unknown> = {`,
 		);
+		encoders.push(
+			`const ${serviceName}ResponseEncoders: Record<string, (message: any) => unknown> = {`,
+		);
 		for (const [rpcName, rpc] of Object.entries(def.service)) {
 			imports.push(
 				`import { ${rpcName} } from "@core/controller/${dir}/${rpcName}"`,
@@ -147,15 +152,22 @@ async function generateVscodeProtobusServers(protobusServices) {
 			decoders.push(
 				`    ${rpcName}: ${getFqn(rpc.requestType.type.name)}.fromJSON,`,
 			);
+			encoders.push(
+				`    ${rpcName}: ${getFqn(rpc.responseType.type.name)}.toJSON,`,
+			);
 			if (rpc.responseStream) {
 				streamingMethods.push(`    "cline.${serviceName}.${rpcName}",`);
 			}
 		}
 		servers.push(`} \n`);
 		decoders.push(`} \n`);
+		encoders.push(`} \n`);
 		serviceMap.push(`    "cline.${serviceName}": ${serviceName}Handlers,`);
 		decoderMap.push(
 			`    "cline.${serviceName}": ${serviceName}RequestDecoders,`,
+		);
+		encoderMap.push(
+			`    "cline.${serviceName}": ${serviceName}ResponseEncoders,`,
 		);
 		imports.push("");
 	}
@@ -182,6 +194,21 @@ ${decoders.join("\n")}
  */
 export const serviceRequestDecoders: Record<string, Record<string, (json: unknown) => unknown>> = {
 ${decoderMap.join("\n")}
+}
+
+${encoders.join("\n")}
+/**
+ * Per-method response encoders (ts-proto message -> proto3 JSON) for hosts whose
+ * transport delivers protobus responses as JSON — the mirror of
+ * serviceRequestDecoders. The receiving webview decodes responses with fromJSON,
+ * which expects proto3 JSON: without toJSON here, a bytes field would arrive as
+ * Uint8Array's index-keyed JSON stringification instead of the base64 fromJSON
+ * requires, and extra non-proto fields on loosely-typed handler results would
+ * reach the wire only to be dropped by fromJSON — unlike the in-process VS Code
+ * path, which structured-clones the handler result as-is.
+ */
+export const serviceResponseEncoders: Record<string, Record<string, (message: any) => unknown>> = {
+${encoderMap.join("\n")}
 }
 
 /** Fully-qualified response-streaming methods, derived from the proto descriptors. */
