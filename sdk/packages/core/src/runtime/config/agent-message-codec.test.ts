@@ -8,6 +8,48 @@ import {
 } from "./agent-message-codec";
 
 describe("agent message codec", () => {
+	it("converts legacy path-backed video and audio blocks into artifact media", () => {
+		const [message] = messageToAgentMessages({
+			id: "legacy-media",
+			role: "assistant",
+			ts: 1,
+			content: [
+				{
+					type: "video",
+					path: "/home/user/.cline/data/sessions/s1/artifacts/clip.mp4",
+					mediaType: "video/mp4",
+				},
+				{
+					type: "audio",
+					path: "/home/user/.cline/data/sessions/s1/artifacts/take.mp3",
+					mediaType: "audio/mpeg",
+				},
+			] as never,
+		});
+
+		expect(message?.content).toEqual([
+			{
+				type: "media",
+				media: {
+					id: "legacy_video_clip.mp4",
+					modality: "video",
+					mediaType: "video/mp4",
+					source: { type: "artifact", artifactId: "clip.mp4" },
+				},
+			},
+			{
+				type: "media",
+				media: {
+					id: "legacy_audio_take.mp3",
+					modality: "audio",
+					mediaType: "audio/mpeg",
+					source: { type: "artifact", artifactId: "take.mp3" },
+				},
+			},
+		]);
+		expect(JSON.stringify(message)).not.toContain("/home/user");
+	});
+
 	it("projects provider activity with the same persisted payload as a local tool", () => {
 		const nativeSearchResults = [
 			{

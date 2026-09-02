@@ -176,7 +176,45 @@ function normalizeContentBlocks(content: Message["content"]): ContentBlock[] {
 	return [...content];
 }
 
+/**
+ * Sessions persisted by earlier experimental builds stored generated audio and
+ * video as path-backed `video`/`audio` blocks that no longer exist in the
+ * ContentBlock union. Convert them to artifact-source media at the codec
+ * boundary so resumed legacy transcripts keep flowing through the canonical
+ * media pipeline instead of producing undefined message parts.
+ */
+function legacyGeneratedMediaToAgentPart(
+	block: ContentBlock,
+): AgentMessagePart | undefined {
+	const record = block as {
+		type?: unknown;
+		path?: unknown;
+		mediaType?: unknown;
+	};
+	if (
+		(record.type !== "video" && record.type !== "audio") ||
+		typeof record.path !== "string" ||
+		typeof record.mediaType !== "string"
+	) {
+		return undefined;
+	}
+	const artifactId = record.path.split(/[\\/]/).pop() || record.path;
+	return {
+		type: "media",
+		media: {
+			id: `legacy_${record.type}_${artifactId}`,
+			modality: record.type,
+			mediaType: record.mediaType,
+			source: { type: "artifact", artifactId },
+		},
+	};
+}
+
 function contentBlockToAgentPart(block: ContentBlock): AgentMessagePart {
+	const legacyMedia = legacyGeneratedMediaToAgentPart(block);
+	if (legacyMedia) {
+		return legacyMedia;
+	}
 	switch (block.type) {
 		case "text":
 			return { type: "text", text: block.text };
