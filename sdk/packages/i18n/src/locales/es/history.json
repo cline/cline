@@ -1,0 +1,37 @@
+{
+	"addToFavorites": "Añadir a favoritos",
+	"clearSearch": "Borrar búsqueda",
+	"deleteAll": "Eliminar todo el historial",
+	"deleteAllAria": "Eliminar todo el historial",
+	"deleteSelectedAria": "Eliminar elementos seleccionados",
+	"deleteSelected_one": "Eliminar seleccionado",
+	"deleteSelected_many": "Eliminar {{count}} seleccionados",
+	"deleteSelected_other": "Eliminar {{count}} seleccionados",
+	"favorited": "Favorito",
+	"filters": {
+		"favoritesOnly": "Solo favoritos",
+		"mostExpensive": "Más costosos",
+		"mostRelevant": "Más relevantes",
+		"mostTokens": "Más tokens",
+		"newest": "Más recientes",
+		"oldest": "Más antiguos",
+		"workspaceOnly": "Solo este espacio de trabajo"
+	},
+	"groups": {
+		"older": "Anteriores",
+		"today": "Hoy"
+	},
+	"legacy": "Antiguo",
+	"modelLabel": "Modelo",
+	"noRecentTasks": "No hay tareas recientes",
+	"recent": "Recientes",
+	"removeFromFavorites": "Quitar de favoritos",
+	"searchPlaceholder": "Búsqueda difusa en el historial...",
+	"selectAll": "Seleccionar todo",
+	"selectNone": "Deseleccionar todo",
+	"sizeLabel": "Tamaño",
+	"title": "Historial",
+	"tokensLabel": "Tokens",
+	"viewAll": "Ver todo",
+	"viewAllAria": "Ver todo el historial"
+}

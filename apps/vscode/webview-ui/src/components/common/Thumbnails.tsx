@@ -103,7 +103,8 @@ const Thumbnails = ({ images, files, style, setImages, setFiles, onHeightChange,
 									color: "var(--vscode-foreground)",
 									fontSize: 10,
 									fontWeight: "bold",
-								}}></span>
+								}}
+							/>
 						</div>
 					)}
 				</div>
@@ -137,7 +138,8 @@ const Thumbnails = ({ images, files, style, setImages, setFiles, onHeightChange,
 								style={{
 									fontSize: 16,
 									color: "var(--vscode-foreground)",
-								}}></span>
+								}}
+							/>
 							<span
 								style={{
 									fontSize: 7,
@@ -174,7 +176,8 @@ const Thumbnails = ({ images, files, style, setImages, setFiles, onHeightChange,
 										color: "var(--vscode-foreground)",
 										fontSize: 10,
 										fontWeight: "bold",
-									}}></span>
+									}}
+								/>
 							</div>
 						)}
 					</div>

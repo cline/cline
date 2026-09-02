@@ -1,0 +1,11 @@
+{
+	"preferredLanguage": {
+		"description": "Язык, на котором Cline должен общаться.",
+		"label": "Предпочитаемый язык"
+	},
+	"uiLanguage": {
+		"auto": "Автоматически (как в VS Code)",
+		"description": "Язык интерфейса Cline.",
+		"label": "Язык интерфейса"
+	}
+}

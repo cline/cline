@@ -3,6 +3,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import PreferredLanguageSetting from "../PreferredLanguageSetting"
 import Section from "../Section"
+import UiLanguageSetting from "../UiLanguageSetting"
 import { updateSetting } from "../utils/settingsHandlers"
 
 interface GeneralSettingsSectionProps {
@@ -16,6 +17,8 @@ const GeneralSettingsSection = ({ renderSectionHeader }: GeneralSettingsSectionP
 		<div>
 			{renderSectionHeader("general")}
 			<Section>
+				<UiLanguageSetting />
+
 				<PreferredLanguageSetting />
 
 				<div className="mb-[5px]">

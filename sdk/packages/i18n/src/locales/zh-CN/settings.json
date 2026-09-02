@@ -1,0 +1,11 @@
+{
+	"preferredLanguage": {
+		"description": "Cline 与您交流时使用的语言。",
+		"label": "首选语言"
+	},
+	"uiLanguage": {
+		"auto": "自动（跟随 VS Code）",
+		"description": "Cline 界面所使用的语言。",
+		"label": "界面语言"
+	}
+}

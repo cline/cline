@@ -1,0 +1,35 @@
+{
+	"addToFavorites": "즐겨찾기에 추가",
+	"clearSearch": "검색 지우기",
+	"deleteAll": "전체 기록 삭제",
+	"deleteAllAria": "전체 기록 삭제",
+	"deleteSelectedAria": "선택한 항목 삭제",
+	"deleteSelected_other": "선택한 {{count}}개 삭제",
+	"favorited": "즐겨찾기됨",
+	"filters": {
+		"favoritesOnly": "즐겨찾기만",
+		"mostExpensive": "비용 많은 순",
+		"mostRelevant": "관련성 순",
+		"mostTokens": "토큰 많은 순",
+		"newest": "최신순",
+		"oldest": "오래된순",
+		"workspaceOnly": "현재 작업 영역만"
+	},
+	"groups": {
+		"older": "이전",
+		"today": "오늘"
+	},
+	"legacy": "레거시",
+	"modelLabel": "모델",
+	"noRecentTasks": "최근 작업이 없습니다",
+	"recent": "최근",
+	"removeFromFavorites": "즐겨찾기에서 제거",
+	"searchPlaceholder": "기록 검색...",
+	"selectAll": "모두 선택",
+	"selectNone": "선택 해제",
+	"sizeLabel": "크기",
+	"title": "기록",
+	"tokensLabel": "토큰",
+	"viewAll": "전체 보기",
+	"viewAllAria": "전체 기록 보기"
+}

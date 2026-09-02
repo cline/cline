@@ -11,6 +11,7 @@ import { ClineEnv } from "@/config"
 import { ExtensionRegistryInfo } from "@/registry"
 import { BannerService } from "@/services/banner/BannerService"
 import { featureFlagsService } from "@/services/feature-flags"
+import { resolveHostLocale } from "@/services/i18n"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { getExtensionVariant } from "@/services/telemetry/rollout-metadata"
 import { getLatestAnnouncementId } from "@/utils/announcements"
@@ -42,6 +43,8 @@ export async function getStateToPostToWebview(controller: {
 	const autoApprovalSettings = stateManager.getGlobalSettingsKey("autoApprovalSettings")
 	const browserSettings = stateManager.getGlobalSettingsKey("browserSettings")
 	const preferredLanguage = stateManager.getGlobalSettingsKey("preferredLanguage")
+	const uiLanguage = stateManager.getGlobalSettingsKey("uiLanguage")
+	const uiLocale = resolveHostLocale(uiLanguage)
 	const mode = stateManager.getGlobalSettingsKey("mode")
 	const useAutoCondense = stateManager.getGlobalSettingsKey("useAutoCondense")
 	const compactionStrategy = readCompactionStrategyGlobally()
@@ -120,6 +123,8 @@ export async function getStateToPostToWebview(controller: {
 		autoApprovalSettings,
 		browserSettings,
 		preferredLanguage,
+		uiLanguage,
+		uiLocale,
 		mode,
 		useAutoCondense,
 		compactionStrategy,

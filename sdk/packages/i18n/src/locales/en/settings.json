@@ -1,0 +1,11 @@
+{
+	"preferredLanguage": {
+		"description": "The language that Cline should use for communication.",
+		"label": "Preferred Language"
+	},
+	"uiLanguage": {
+		"auto": "Auto (match VS Code)",
+		"description": "The language used for Cline's interface.",
+		"label": "Display Language"
+	}
+}

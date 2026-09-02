@@ -14,6 +14,7 @@ import { ExtensionRegistryInfo } from "./registry"
 import { registerVsCodeLmHandler } from "./sdk/vscode-lm/register-vscode-lm"
 import { ErrorService } from "./services/error"
 import { featureFlagsService } from "./services/feature-flags"
+import { t, updateHostLocale } from "./services/i18n"
 import { getDistinctId } from "./services/logging/distinctId"
 import { telemetryService } from "./services/telemetry"
 import { PostHogClientProvider } from "./services/telemetry/providers/posthog/PostHogClientProvider"
@@ -53,13 +54,17 @@ export async function initialize(storageContext: StorageContext): Promise<Webvie
 	const { ClineEndpoint } = await import("./config")
 	await ClineEndpoint.initialize(HostProvider.get().extensionFsPath)
 
+	// Before state loads, notifications fall back to the host display language.
+	updateHostLocale(undefined)
+
 	try {
 		await StateManager.initialize(storageContext)
+		updateHostLocale(StateManager.get().getGlobalSettingsKey("uiLanguage"))
 	} catch (error) {
 		Logger.error("[Cline] CRITICAL: Failed to initialize StateManager:", error)
 		HostProvider.window.showMessage({
 			type: ShowMessageType.ERROR,
-			message: "Failed to initialize storage. Please check logs for details or try restarting the client.",
+			message: t("storageInitFailed"),
 		})
 	}
 

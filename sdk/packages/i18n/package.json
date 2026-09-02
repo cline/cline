@@ -1,0 +1,45 @@
+{
+	"name": "@cline/i18n",
+	"version": "0.1.0",
+	"description": "Shared localization runtime and message catalogs for Cline apps",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/cline/cline",
+		"directory": "sdk/packages/i18n"
+	},
+	"private": false,
+	"internal": true,
+	"publishConfig": {
+		"access": "public"
+	},
+	"type": "module",
+	"main": "dist/index.js",
+	"types": "dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		}
+	},
+	"files": [
+		"dist"
+	],
+	"license": "Apache-2.0",
+	"scripts": {
+		"build": "bun tsc -p tsconfig.build.json",
+		"typecheck": "bun tsc -p tsconfig.json --noEmit",
+		"test": "vitest run --config vitest.config.ts",
+		"translate": "bun scripts/translate.ts"
+	},
+	"engines": {
+		"node": ">=22"
+	},
+	"dependencies": {
+		"i18next": "^26.4.1"
+	},
+	"devDependencies": {
+		"@anthropic-ai/sdk": "^0.123.0",
+		"typescript": "5.9.3",
+		"vitest": "^4.0.18"
+	}
+}

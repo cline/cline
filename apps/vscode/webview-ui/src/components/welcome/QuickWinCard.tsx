@@ -8,7 +8,7 @@ interface QuickWinCardProps {
 
 const renderIcon = (iconName?: string) => {
 	if (!iconName) {
-		return <span className="codicon codicon-rocket text-[28px]! leading-none!"></span>
+		return <span className="codicon codicon-rocket text-[28px]! leading-none!" />
 	}
 
 	let iconClass = "codicon-rocket"
@@ -25,7 +25,7 @@ const renderIcon = (iconName?: string) => {
 		default:
 			break
 	}
-	return <span className={`codicon ${iconClass} text-[28px]! leading-none!`}></span>
+	return <span className={`codicon ${iconClass} text-[28px]! leading-none!`} />
 }
 
 const QuickWinCard: React.FC<QuickWinCardProps> = ({ task, onExecute }) => {
