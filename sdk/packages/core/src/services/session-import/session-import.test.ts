@@ -943,6 +943,70 @@ describe("SessionImportService", () => {
 		expect(store.list(50)).toHaveLength(1);
 	});
 
+	it("rolls back a session whose creation fails after the row is written", async () => {
+		const projectsDir = tempDir("cc-import-");
+		writeClaudeCodeFixture(projectsDir);
+		const store = new SqliteSessionStore({ sessionsDir: tempDir("cline-db-") });
+		store.init();
+		const sessions = new CoreSessionService(store, {
+			sessionArtifactsDir: tempDir("cline-sessions-"),
+		});
+		// createRootSessionWithArtifacts upserts the row, then writes the
+		// messages file and manifest; simulate the file write failing.
+		const original = sessions.createRootSessionWithArtifacts.bind(sessions);
+		let failNext = true;
+		sessions.createRootSessionWithArtifacts = async (input) => {
+			const created = await original(input);
+			if (failNext) {
+				failNext = false;
+				throw new Error("manifest write failed");
+			}
+			return created;
+		};
+		const importer = new SessionImportService(sessions, [
+			new ClaudeCodeImportAdapter({ projectsDir }),
+		]);
+
+		const [failed] = await importer.importMany([
+			{ tool: "claude-code", sourceId: "abc" },
+		]);
+		expect(failed.ok).toBe(false);
+		expect(failed.error).toContain("manifest write failed");
+		expect(store.list(50)).toHaveLength(0);
+
+		const [retried] = await importer.importMany([
+			{ tool: "claude-code", sourceId: "abc" },
+		]);
+		expect(retried.ok).toBe(true);
+		expect(store.list(50)).toHaveLength(1);
+	});
+
+	it("coalesces overlapping imports of the same source into one session", async () => {
+		const projectsDir = tempDir("cc-import-");
+		writeClaudeCodeFixture(projectsDir);
+		const store = new SqliteSessionStore({ sessionsDir: tempDir("cline-db-") });
+		store.init();
+		const sessions = new CoreSessionService(store, {
+			sessionArtifactsDir: tempDir("cline-sessions-"),
+		});
+		// Two separate services, as two import_sessions requests would build,
+		// each snapshotting an empty set of existing imports.
+		const makeImporter = () =>
+			new SessionImportService(sessions, [
+				new ClaudeCodeImportAdapter({ projectsDir }),
+			]);
+		const request = [{ tool: "claude-code" as const, sourceId: "abc" }];
+		const [[first], [second]] = await Promise.all([
+			makeImporter().importMany(request),
+			makeImporter().importMany(request),
+		]);
+		expect(first.ok).toBe(true);
+		expect(second.ok).toBe(true);
+		expect(first.sessionId).toBe(second.sessionId);
+		expect([first.alreadyImported, second.alreadyImported]).toContain(true);
+		expect(store.list(50)).toHaveLength(1);
+	});
+
 	it("never marks a session as imported unless every write succeeded", async () => {
 		const projectsDir = tempDir("cc-import-");
 		writeClaudeCodeFixture(projectsDir);

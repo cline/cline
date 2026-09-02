@@ -48,6 +48,15 @@ export function readImportedFromMetadata(
 	};
 }
 
+/**
+ * Imports currently being written, keyed by source. Each import_sessions
+ * request builds its own service and snapshots the existing markers once,
+ * so two overlapping requests for one source (a second window, a
+ * double-fired command) would otherwise both pass the dedupe check and
+ * persist two sessions. The later caller waits on the first write instead.
+ */
+const inFlightImports = new Map<string, Promise<SessionImportResult>>();
+
 function importKey(tool: string, sourceId: string): string {
 	return `${tool}:${sourceId}`;
 }
@@ -177,10 +186,41 @@ export class SessionImportService {
 				alreadyImported: true,
 			};
 		}
+		const key = importKey(request.tool, request.sourceId);
+		const inFlight = inFlightImports.get(key);
+		if (inFlight) {
+			const first = await inFlight;
+			if (first.ok && first.sessionId) {
+				existing.set(key, first.sessionId);
+				return {
+					tool: request.tool,
+					sourceId: request.sourceId,
+					ok: true,
+					sessionId: first.sessionId,
+					alreadyImported: true,
+				};
+			}
+			return { ...first, tool: request.tool, sourceId: request.sourceId };
+		}
+		const work = this.importFresh(adapter, request, options);
+		inFlightImports.set(key, work);
+		try {
+			const result = await work;
+			if (result.ok && result.sessionId) existing.set(key, result.sessionId);
+			return result;
+		} finally {
+			inFlightImports.delete(key);
+		}
+	}
+
+	private async importFresh(
+		adapter: SessionImportAdapter,
+		request: SessionImportRequest,
+		options: SessionImportOptions,
+	): Promise<SessionImportResult> {
 		try {
 			const converted = adapter.convert(request.sourceId);
 			const sessionId = await this.persistConverted(converted, options);
-			existing.set(importKey(request.tool, request.sourceId), sessionId);
 			return {
 				tool: request.tool,
 				sourceId: request.sourceId,
@@ -266,30 +306,32 @@ export class SessionImportService {
 		// Created already completed: an imported session is history from
 		// birth, and a transient running/pid-0 row is exactly what the
 		// stale-session reconciler — running in the hub daemon against the
-		// same DB — would flip to failed mid-import.
-		await this.sessions.createRootSessionWithArtifacts({
-			sessionId,
-			source: SessionSource.DESKTOP,
-			pid: 0,
-			interactive: true,
-			provider: useResumeTarget
-				? (resumeProvider as string)
-				: converted.provider,
-			model: useResumeTarget ? (resumeModel as string) : converted.model,
-			cwd,
-			workspaceRoot: cwd,
-			enableTools: true,
-			enableSpawn: false,
-			enableTeams: false,
-			...(converted.prompt ? { prompt: converted.prompt } : {}),
-			metadata: baseMetadata,
-			startedAt: new Date(startedAtMs).toISOString(),
-			status: "completed",
-			endedAt: new Date(endedAtMs).toISOString(),
-			exitCode: 0,
-		});
-
+		// same DB — would flip to failed mid-import. Creation sits inside the
+		// rollback: it upserts the row before writing the artifact files, so a
+		// failed file write must not leave a completed row with no transcript.
 		try {
+			await this.sessions.createRootSessionWithArtifacts({
+				sessionId,
+				source: SessionSource.DESKTOP,
+				pid: 0,
+				interactive: true,
+				provider: useResumeTarget
+					? (resumeProvider as string)
+					: converted.provider,
+				model: useResumeTarget ? (resumeModel as string) : converted.model,
+				cwd,
+				workspaceRoot: cwd,
+				enableTools: true,
+				enableSpawn: false,
+				enableTeams: false,
+				...(converted.prompt ? { prompt: converted.prompt } : {}),
+				metadata: baseMetadata,
+				startedAt: new Date(startedAtMs).toISOString(),
+				status: "completed",
+				endedAt: new Date(endedAtMs).toISOString(),
+				exitCode: 0,
+			});
+
 			await this.sessions.persistSessionMessages(sessionId, messages);
 
 			// Last step on purpose: the importedFrom marker means "this import
@@ -312,7 +354,8 @@ export class SessionImportService {
 			});
 		} catch (error) {
 			// Remove the half-written session so history never shows a broken
-			// entry; even if this fails, the row carries no importedFrom marker.
+			// entry (deleteSession tolerates a missing row or missing files);
+			// even if this fails, the row carries no importedFrom marker.
 			try {
 				await this.sessions.deleteSession(sessionId);
 			} catch {
