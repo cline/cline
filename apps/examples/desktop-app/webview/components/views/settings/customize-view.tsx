@@ -9,6 +9,7 @@ import { PageFrame, PageHeader } from "../page-layout";
 import {
 	CustomizationSectionView,
 	type GenerateMediaToolConfig,
+	invalidateExtensionInventoryCache,
 } from "./extensions-view";
 import { McpServersContent } from "./mcp-view";
 
@@ -79,6 +80,15 @@ export function CustomizeView({
 		}, 0);
 		return () => window.clearTimeout(timeoutId);
 	}, [refreshCounts]);
+
+	useEffect(
+		() =>
+			desktopClient.subscribe("settings.changed", () => {
+				invalidateExtensionInventoryCache();
+				void refreshCounts();
+			}),
+		[refreshCounts],
+	);
 
 	const handleInventoryChanged = useCallback(() => {
 		void refreshCounts();
