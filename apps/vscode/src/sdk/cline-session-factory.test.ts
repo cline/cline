@@ -16,6 +16,7 @@ import {
 	normalizeProviderReasoningSettings,
 	normalizeSdkBaseUrl,
 	resolveApiKey,
+	resolveAzureProviderConfig,
 	updateHistoryItem,
 } from "./cline-session-factory"
 import { parseProviderId } from "./model-catalog/provider-id"
@@ -508,6 +509,121 @@ describe("buildSessionConfig", () => {
 			providerId: "asksage",
 			baseUrl: "https://asksage.migrated.example/server",
 		})
+	})
+
+	it("forwards Azure settings from legacy state and mirrors them into providers.json", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "openai",
+			actModeOpenAiModelId: "gpt-5.6-terra",
+			openAiApiKey: "azure-key",
+			openAiBaseUrl: "https://example.openai.azure.com/openai/deployments/gpt-5.6-terra",
+			azureApiVersion: "2025-01-01-preview",
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		// Without this the SDK gateway never appends ?api-version= to Azure
+		// deployment URLs and Azure rejects every request with
+		// "Resource not found" (#13655).
+		expect(config.providerConfig).toMatchObject({
+			providerId: "openai-compatible",
+			azure: { apiVersion: "2025-01-01-preview" },
+		})
+		expect(mocks.providerSettingsManager.saveProviderSettings).toHaveBeenCalledWith(
+			expect.objectContaining({
+				provider: "openai-compatible",
+				azure: { apiVersion: "2025-01-01-preview" },
+			}),
+			{ setLastUsed: false },
+		)
+	})
+
+	it("falls back to the providers.json Azure settings when legacy state has none", async () => {
+		mocks.providerSettingsManager.getProviderSettings.mockImplementation((providerId?: string) => {
+			if (providerId !== "openai-compatible") {
+				return undefined
+			}
+			return {
+				provider: "openai-compatible",
+				apiKey: "azure-key",
+				baseUrl: "https://example.openai.azure.com/openai/deployments/gpt-5.6-terra",
+				azure: { apiVersion: "2025-04-01-preview", useIdentity: true },
+			} as any
+		})
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "openai",
+			actModeOpenAiModelId: "gpt-5.6-terra",
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.providerConfig).toMatchObject({
+			providerId: "openai-compatible",
+			azure: { apiVersion: "2025-04-01-preview", useIdentity: true },
+		})
+		expect(mocks.providerSettingsManager.saveProviderSettings).not.toHaveBeenCalled()
+	})
+
+	it("treats a blank legacy Azure API version as unset and keeps the stored value", () => {
+		mocks.providerSettingsManager.getProviderSettings.mockImplementation((providerId?: string) => {
+			if (providerId !== "openai-compatible") {
+				return undefined
+			}
+			return {
+				provider: "openai-compatible",
+				azure: { apiVersion: "2025-04-01-preview" },
+			} as any
+		})
+
+		expect(resolveAzureProviderConfig({ azureApiVersion: "   " } as any)).toEqual({
+			azure: { apiVersion: "2025-04-01-preview" },
+		})
+		expect(mocks.providerSettingsManager.saveProviderSettings).not.toHaveBeenCalled()
+	})
+
+	it("merges legacy Azure fields over the stored azure block when mirroring", () => {
+		mocks.providerSettingsManager.getProviderSettings.mockImplementation((providerId?: string) => {
+			if (providerId !== "openai-compatible") {
+				return undefined
+			}
+			return {
+				provider: "openai-compatible",
+				apiKey: "stored-key",
+				model: "gpt-5.6-terra",
+				azure: { apiVersion: "2024-06-01", useIdentity: true },
+			} as any
+		})
+
+		const resolved = resolveAzureProviderConfig({ azureApiVersion: "2025-01-01-preview" } as any)
+
+		expect(resolved).toEqual({ azure: { apiVersion: "2025-01-01-preview", useIdentity: true } })
+		// The mirror must preserve unrelated stored fields (key, model, ...).
+		expect(mocks.providerSettingsManager.saveProviderSettings).toHaveBeenCalledWith(
+			expect.objectContaining({
+				provider: "openai-compatible",
+				apiKey: "stored-key",
+				model: "gpt-5.6-terra",
+				azure: { apiVersion: "2025-01-01-preview", useIdentity: true },
+			}),
+			{ setLastUsed: false },
+		)
+	})
+
+	it("does not rewrite providers.json when the stored Azure settings already match", () => {
+		mocks.providerSettingsManager.getProviderSettings.mockImplementation((providerId?: string) => {
+			if (providerId !== "openai-compatible") {
+				return undefined
+			}
+			return {
+				provider: "openai-compatible",
+				azure: { apiVersion: "2025-01-01-preview" },
+			} as any
+		})
+
+		const resolved = resolveAzureProviderConfig({ azureApiVersion: "2025-01-01-preview" } as any)
+
+		expect(resolved).toEqual({ azure: { apiVersion: "2025-01-01-preview" } })
+		expect(mocks.providerSettingsManager.saveProviderSettings).not.toHaveBeenCalled()
 	})
 
 	it("forwards the regional API line from legacy state so the gateway can route to the regional endpoint", async () => {
