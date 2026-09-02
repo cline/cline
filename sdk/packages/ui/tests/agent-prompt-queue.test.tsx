@@ -240,4 +240,72 @@ describe("AgentPromptQueue", () => {
 		);
 		expect(container.childElementCount).toBe(0);
 	});
+
+	it("keeps queue disclosure available while read-only actions stay disabled", async () => {
+		const onEdit = vi.fn();
+		const onRemove = vi.fn();
+		const onSteer = vi.fn();
+		const renderQueue = (readOnly: boolean) =>
+			root.render(
+				<AgentPromptQueue
+					items={[{ id: "one", prompt: "Queued context", steer: false }]}
+					onEdit={onEdit}
+					onRemove={onRemove}
+					onSteer={onSteer}
+					readOnly={readOnly}
+				/>,
+			);
+		await act(async () => renderQueue(false));
+
+		const toggle = container.querySelector<HTMLButtonElement>(
+			"button[aria-expanded]",
+		);
+		await act(async () => toggle?.click());
+		await act(async () =>
+			container
+				.querySelector<HTMLButtonElement>('[aria-label="Edit queued prompt"]')
+				?.click(),
+		);
+		await act(async () => renderQueue(true));
+
+		const editor = container.querySelector<HTMLTextAreaElement>(
+			'[aria-label="Edit queued prompt"]',
+		);
+		expect(toggle?.disabled).toBe(false);
+		expect(toggle?.getAttribute("aria-expanded")).toBe("true");
+		expect(editor?.readOnly).toBe(true);
+		expect(
+			container.querySelector<HTMLButtonElement>(
+				'[aria-label="Save queued prompt"]',
+			)?.disabled,
+		).toBe(true);
+
+		await act(async () =>
+			editor?.dispatchEvent(
+				new KeyboardEvent("keydown", { bubbles: true, key: "Enter" }),
+			),
+		);
+		expect(onEdit).not.toHaveBeenCalled();
+		await act(async () =>
+			container
+				.querySelector<HTMLButtonElement>(
+					'[aria-label="Cancel editing queued prompt"]',
+				)
+				?.click(),
+		);
+		expect(container.textContent).toContain("Queued context");
+		const actionButtons = container.querySelectorAll<HTMLButtonElement>(
+			".cline-ui-agent-prompt-queue__action",
+		);
+		expect([...actionButtons].every((button) => button.disabled)).toBe(true);
+		await act(async () => {
+			actionButtons.forEach((button) => {
+				button.click();
+			});
+			await Promise.resolve();
+		});
+		expect(onEdit).not.toHaveBeenCalled();
+		expect(onRemove).not.toHaveBeenCalled();
+		expect(onSteer).not.toHaveBeenCalled();
+	});
 });

@@ -80,14 +80,17 @@ welcome surfaces. It supports bot-only and grid-only compositions and becomes
 static when reduced motion is requested.
 
 `AgentApprovalCard` is controlled presentation; the host owns approval state
-and submits its callbacks.
+and submits its callbacks. Its `readOnly` mode keeps context visible while
+disabling decisions.
 
 `AgentAskQuestion` keeps option selection locally and submits explicitly. The
 host owns pending answers, errors, and response transport. Multiple-choice
 items set `multiple: true` and provide `onAnswers` for array submission.
+`readOnly` keeps questions visible without accepting or focusing answers.
 
 `AgentPromptQueue` renders queued prompts and reports edit, remove, and steer
-actions to the host.
+actions to the host. `readOnly` preserves queue disclosure while disabling
+those mutations.
 
 The token entry point has no React, Tailwind, font-package, or desktop runtime
 dependency. Apps provide Inter and Geist Mono themselves, which

@@ -25,6 +25,7 @@ export interface AgentAskQuestionProps {
 	pendingAnswers?: Readonly<
 		Record<string, string | readonly string[] | undefined>
 	>;
+	readOnly?: boolean;
 }
 
 function optionLabel(index: number) {
@@ -58,6 +59,7 @@ export function AgentAskQuestion({
 	onAnswer,
 	onAnswers,
 	pendingAnswers = {},
+	readOnly = false,
 }: AgentAskQuestionProps) {
 	const [selections, setSelections] = useState<
 		Readonly<Record<string, readonly string[]>>
@@ -91,6 +93,7 @@ export function AgentAskQuestion({
 				const canSubmit =
 					selected.length > 0 && (!item.multiple || Boolean(onAnswers));
 				const selectOption = (option: string) => {
+					if (readOnly) return;
 					setSelections((current) => {
 						const currentSelection = current[item.id] ?? [];
 						const nextSelection = item.multiple
@@ -103,14 +106,20 @@ export function AgentAskQuestion({
 					});
 				};
 				const submit = () => {
-					if (!canSubmit) return;
+					if (!canSubmit || readOnly) return;
 					if (item.multiple) onAnswers?.(item.id, selected);
 					else onAnswer(item.id, selected[0] as string);
 				};
 				const handleOptionKeyDown = (
 					event: ReactKeyboardEvent<HTMLFieldSetElement>,
 				) => {
-					if (isPending || event.altKey || event.ctrlKey || event.metaKey)
+					if (
+						isPending ||
+						readOnly ||
+						event.altKey ||
+						event.ctrlKey ||
+						event.metaKey
+					)
 						return;
 
 					const optionButtons = Array.from(
@@ -187,9 +196,11 @@ export function AgentAskQuestion({
 							{options.map((option, index) => (
 								<Button
 									aria-pressed={selected.includes(option)}
-									autoFocus={itemIndex === 0 && index === 0 && !isPending}
+									autoFocus={
+										itemIndex === 0 && index === 0 && !isPending && !readOnly
+									}
 									className="cline-ui-agent-ask-question__option h-auto min-h-9.5 w-full max-w-full justify-start gap-3 rounded-cline-ui-md p-2 text-left text-cline-ui-sm"
-									disabled={isPending}
+									disabled={isPending || readOnly}
 									key={option}
 									onClick={() => selectOption(option)}
 									size="sm"
@@ -221,7 +232,7 @@ export function AgentAskQuestion({
 							) : null}
 							<Button
 								className="cline-ui-agent-ask-question__submit"
-								disabled={!canSubmit || isPending}
+								disabled={!canSubmit || isPending || readOnly}
 								onClick={submit}
 								size="sm"
 								tone="neutral"

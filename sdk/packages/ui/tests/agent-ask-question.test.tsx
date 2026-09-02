@@ -383,4 +383,33 @@ describe("AgentAskQuestion", () => {
 		await act(async () => buttons[2]?.click());
 		expect(onAnswer).toHaveBeenCalledWith("request-1", "Second");
 	});
+
+	it("keeps questions visible without focusing or accepting answers when read-only", async () => {
+		const onAnswer = vi.fn();
+		await act(async () =>
+			root.render(
+				<AgentAskQuestion
+					items={[
+						{
+							id: "request-1",
+							options: ["Continue", "Stop"],
+							question: "Continue this task?",
+						},
+					]}
+					onAnswer={onAnswer}
+					readOnly
+				/>,
+			),
+		);
+
+		const buttons = container.querySelectorAll("button");
+		expect(container.textContent).toContain("Continue this task?");
+		expect([...buttons].every((button) => button.disabled)).toBe(true);
+		expect([...buttons]).not.toContain(document.activeElement);
+		await act(async () => {
+			buttons[0]?.click();
+			buttons[2]?.click();
+		});
+		expect(onAnswer).not.toHaveBeenCalled();
+	});
 });

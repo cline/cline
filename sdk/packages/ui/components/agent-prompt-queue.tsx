@@ -14,6 +14,7 @@ export interface AgentPromptQueueProps {
 	onEdit: (id: string, prompt: string) => Promise<void> | void;
 	onRemove: (id: string) => Promise<void> | void;
 	onSteer: (id: string) => Promise<void> | void;
+	readOnly?: boolean;
 }
 
 type IconName =
@@ -103,6 +104,7 @@ export function AgentPromptQueue({
 	onEdit,
 	onRemove,
 	onSteer,
+	readOnly = false,
 }: AgentPromptQueueProps) {
 	const [editingId, setEditingId] = useState<string | null>(null);
 	const [editingValue, setEditingValue] = useState("");
@@ -122,7 +124,7 @@ export function AgentPromptQueue({
 	const submitEdit = useCallback(
 		async (item: AgentPromptQueueItem) => {
 			const prompt = editingValue.trim();
-			if (!prompt || pendingId) return;
+			if (!prompt || pendingId || readOnly) return;
 			setActionError(null);
 			setPendingId(item.id);
 			try {
@@ -139,12 +141,12 @@ export function AgentPromptQueue({
 				setPendingId(null);
 			}
 		},
-		[cancelEdit, editingValue, onEdit, pendingId],
+		[cancelEdit, editingValue, onEdit, pendingId, readOnly],
 	);
 
 	const runAction = useCallback(
 		async (item: AgentPromptQueueItem, action: "steer" | "remove") => {
-			if (pendingId) return;
+			if (pendingId || readOnly) return;
 			setActionError(null);
 			setPendingId(item.id);
 			try {
@@ -159,7 +161,7 @@ export function AgentPromptQueue({
 				setPendingId(null);
 			}
 		},
-		[onRemove, onSteer, pendingId],
+		[onRemove, onSteer, pendingId, readOnly],
 	);
 
 	useEffect(() => {
@@ -225,12 +227,16 @@ export function AgentPromptQueue({
 										aria-label="Edit queued prompt"
 										className="cline-ui-agent-prompt-queue__editor block min-h-8 w-full resize-none rounded-cline-ui-md border border-cline-ui-border bg-cline-ui-background px-2 py-1.5 text-cline-ui-foreground text-cline-ui-xs leading-4 outline-none focus:border-[color-mix(in_oklab,var(--cline-ui-primary)_50%,transparent)] focus:shadow-[0_0_0_1px_color-mix(in_oklab,var(--cline-ui-primary)_20%,transparent)]"
 										disabled={isPending}
-										onChange={(event) => setEditingValue(event.target.value)}
+										onChange={(event) => {
+											if (!readOnly) setEditingValue(event.target.value);
+										}}
 										onKeyDown={(event) => {
 											if (event.key === "Escape") {
 												event.preventDefault();
 												cancelEdit();
+												return;
 											}
+											if (readOnly) return;
 											if (
 												event.key === "Enter" &&
 												!event.shiftKey &&
@@ -241,6 +247,7 @@ export function AgentPromptQueue({
 											}
 										}}
 										rows={1}
+										readOnly={readOnly}
 										value={editingValue}
 									/>
 								) : (
@@ -276,7 +283,9 @@ export function AgentPromptQueue({
 										<button
 											aria-label="Save queued prompt"
 											className={ACTION_CLASS_NAME}
-											disabled={isBusy || editingValue.trim().length === 0}
+											disabled={
+												isBusy || readOnly || editingValue.trim().length === 0
+											}
 											onClick={() => void submitEdit(item)}
 											type="button"
 										>
@@ -298,7 +307,7 @@ export function AgentPromptQueue({
 											<button
 												aria-label="Steer queued prompt"
 												className={ACTION_CLASS_NAME}
-												disabled={isBusy}
+												disabled={isBusy || readOnly}
 												onClick={() => void runAction(item, "steer")}
 												title="Steer next"
 												type="button"
@@ -309,7 +318,7 @@ export function AgentPromptQueue({
 										<button
 											aria-label="Edit queued prompt"
 											className={ACTION_CLASS_NAME}
-											disabled={isBusy}
+											disabled={isBusy || readOnly}
 											onClick={() => {
 												setEditingId(item.id);
 												setEditingValue(item.prompt);
@@ -321,7 +330,7 @@ export function AgentPromptQueue({
 										<button
 											aria-label="Remove queued prompt"
 											className={ACTION_CLASS_NAME}
-											disabled={isBusy}
+											disabled={isBusy || readOnly}
 											onClick={() => void runAction(item, "remove")}
 											type="button"
 										>
