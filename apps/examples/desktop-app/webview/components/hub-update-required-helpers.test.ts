@@ -2,7 +2,39 @@ import { describe, expect, it } from "vitest";
 import {
 	describeOutdatedHubSessions,
 	resolveHubUpdateRestartDecision,
+	shouldShowHubMismatchDialog,
 } from "./hub-update-required-helpers";
+
+describe("shouldShowHubMismatchDialog", () => {
+	it("always allows the truly-broken and blocking reasons", () => {
+		for (const state of [
+			"idle",
+			"checking",
+			"downloading",
+			"ready",
+			"error",
+			undefined,
+		] as const) {
+			expect(shouldShowHubMismatchDialog("unsupported_protocol", state)).toBe(
+				true,
+			);
+			expect(shouldShowHubMismatchDialog("outdated_hub", state)).toBe(true);
+		}
+	});
+
+	it("allows a newer-hub prompt only once an app update is staged", () => {
+		expect(shouldShowHubMismatchDialog("build_mismatch", "ready")).toBe(true);
+		for (const state of [
+			"idle",
+			"checking",
+			"downloading",
+			"error",
+			undefined,
+		] as const) {
+			expect(shouldShowHubMismatchDialog("build_mismatch", state)).toBe(false);
+		}
+	});
+});
 
 describe("describeOutdatedHubSessions", () => {
 	it("quantifies sessions and clients when the hub reported both", () => {

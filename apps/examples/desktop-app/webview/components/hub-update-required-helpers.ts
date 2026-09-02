@@ -5,6 +5,28 @@ export type HubUpdateRestartDecision =
 	| { action: "stay"; hint: string };
 
 /**
+ * Whether a hub build mismatch may interrupt with a modal at all.
+ *
+ * - `unsupported_protocol` and `outdated_hub` always may: the first means
+ *   the app cannot talk to the Hub, the second is the blocking
+ *   replace-or-quit decision.
+ * - `build_mismatch` may only once an app update is actually staged. A
+ *   newer Hub is advisory while the wire protocol still works, and without
+ *   a staged update the modal's only exit is "no update available yet",
+ *   which loops on every launch and webview reconnect until a release
+ *   ships - so it stays silent until it can offer a real action.
+ */
+export function shouldShowHubMismatchDialog(
+	reason: string | undefined,
+	updateState: AppUpdateStatus["state"] | undefined,
+): boolean {
+	if (reason === "unsupported_protocol" || reason === "outdated_hub") {
+		return true;
+	}
+	return updateState === "ready";
+}
+
+/**
  * Human phrase for the live work an outdated Hub is serving, used by the
  * blocking "Hub update required" dialog. Falls back to an unquantified
  * phrase when the Hub could not answer the activity query.

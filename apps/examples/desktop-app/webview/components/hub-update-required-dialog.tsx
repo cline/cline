@@ -14,11 +14,13 @@ import {
 import {
 	checkForUpdateNow,
 	restartToApplyUpdate,
+	useAppUpdateStatus,
 } from "@/hooks/use-app-update";
 import { desktopClient } from "@/lib/desktop-client";
 import {
 	describeOutdatedHubSessions,
 	resolveHubUpdateRestartDecision,
+	shouldShowHubMismatchDialog,
 } from "./hub-update-required-helpers";
 
 type HubBuildMismatchPayload = {
@@ -37,6 +39,35 @@ type UpdatePhase = "idle" | "updating" | "restarting";
 
 /** Generous deadline: drain wait + graceful retire + fresh daemon startup. */
 const HUB_UPGRADE_TIMEOUT_MS = 60_000;
+
+/**
+ * "Later" must survive webview remounts and reconnects: the sidecar replays
+ * a pending mismatch on every new webview connection (session switches,
+ * reloads, relaunches), and in-memory dismissal state resurrected the modal
+ * each time. Storage keeps one key - a different hub build prompts again.
+ */
+const DISMISSED_MISMATCH_STORAGE_KEY = "cline.hub-mismatch-dismissed";
+
+function readPersistedDismissedKey(): string | null {
+	try {
+		return localStorage.getItem(DISMISSED_MISMATCH_STORAGE_KEY);
+	} catch {
+		return null;
+	}
+}
+
+function persistDismissedKey(key: string): void {
+	try {
+		localStorage.setItem(DISMISSED_MISMATCH_STORAGE_KEY, key);
+	} catch {
+		// Best effort: without storage the dismissal lasts this mount only.
+	}
+}
+
+// One updater kick per observed mismatch per page lifetime. Module scope
+// survives component remounts (session switches) so the update feed is not
+// re-hit every time the dialog mounts.
+let updateCheckKickedForKey: string | null = null;
 
 /**
  * Blocking prompt shown when the sidecar reports that the shared Cline Hub
@@ -58,9 +89,12 @@ export function HubUpdateRequiredDialog() {
 	const [mismatch, setMismatch] = useState<HubBuildMismatchPayload | null>(
 		null,
 	);
-	const [dismissedKey, setDismissedKey] = useState<string | null>(null);
+	const [dismissedKey, setDismissedKey] = useState<string | null>(
+		readPersistedDismissedKey,
+	);
 	const [phase, setPhase] = useState<UpdatePhase>("idle");
 	const [updateHint, setUpdateHint] = useState<string | null>(null);
+	const updateStatus = useAppUpdateStatus();
 
 	useEffect(() => {
 		return desktopClient.subscribe("hub_build_mismatch", (payload) => {
@@ -83,6 +117,25 @@ export function HubUpdateRequiredDialog() {
 	}, []);
 
 	const mismatchKey = mismatch ? mismatchKeyOf(mismatch) : null;
+
+	// When a newer Hub appears, stage the matching app update right away (if
+	// a release exists) so the prompt can open actionable instead of waiting
+	// for the next 30s background cycle. Without a staged update the
+	// build_mismatch modal stays hidden entirely - see
+	// shouldShowHubMismatchDialog.
+	useEffect(() => {
+		if (
+			!mismatch ||
+			mismatch.reason !== "build_mismatch" ||
+			mismatchKey === null ||
+			mismatchKey === dismissedKey ||
+			updateCheckKickedForKey === mismatchKey
+		) {
+			return;
+		}
+		updateCheckKickedForKey = mismatchKey;
+		void checkForUpdateNow();
+	}, [mismatch, mismatchKey, dismissedKey]);
 
 	const handleUpdateAndRestart = useCallback(async () => {
 		setPhase("updating");
@@ -191,14 +244,18 @@ export function HubUpdateRequiredDialog() {
 		);
 	}
 
-	const open = mismatchKey !== null && mismatchKey !== dismissedKey;
+	const open =
+		mismatchKey !== null &&
+		mismatchKey !== dismissedKey &&
+		shouldShowHubMismatchDialog(mismatch?.reason, updateStatus.state);
 
 	return (
 		<AlertDialog
 			open={open}
 			onOpenChange={(nextOpen) => {
-				if (!nextOpen && phase === "idle") {
+				if (!nextOpen && phase === "idle" && mismatchKey !== null) {
 					setDismissedKey(mismatchKey);
+					persistDismissedKey(mismatchKey);
 				}
 			}}
 		>
