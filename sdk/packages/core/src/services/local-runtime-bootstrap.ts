@@ -15,6 +15,7 @@ import type {
 } from "@cline/shared";
 import { hasRuntimeConfigExtension } from "@cline/shared";
 import { version as corePackageVersion } from "../../package.json";
+import { createComposioToolsExtension } from "../extensions/composio/composio-tools-extension";
 import {
 	resolveAndLoadAgentPlugins,
 	resolvePluginSkillDirectoriesFromPaths,
@@ -394,7 +395,19 @@ export async function prepareLocalRuntimeBootstrap(
 		}
 	}
 
-	const builtInExtensions = fileHookExtension ? [fileHookExtension] : undefined;
+	// Composio connector tools register in-process from persisted connection
+	// state rather than through a drop-in plugin: compiled hosts (the packaged
+	// desktop app) cannot spawn the plugin sandbox, and every host with the
+	// state file should serve the same tools.
+	const composioToolsExtension = createComposioToolsExtension({
+		logger: localConfig?.logger,
+	});
+	const builtInExtensionList = [
+		...(fileHookExtension ? [fileHookExtension] : []),
+		...(composioToolsExtension ? [composioToolsExtension] : []),
+	];
+	const builtInExtensions =
+		builtInExtensionList.length > 0 ? builtInExtensionList : undefined;
 	const extensions = mergeAgentExtensions(
 		builtInExtensions,
 		mergeAgentExtensions(
