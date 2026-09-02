@@ -1,11 +1,7 @@
-import {
-	copyFileSync,
-	existsSync,
-	mkdirSync,
-	readdirSync,
-	readFileSync,
-} from "node:fs";
-import { basename, join, resolve } from "node:path";
+import { randomUUID } from "node:crypto";
+import { existsSync, readFileSync } from "node:fs";
+import { copyFile, mkdir, readdir, rename, rm } from "node:fs/promises";
+import { basename, dirname, extname, join, resolve } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import {
 	buildCloudHandoffDashboardUrl,
@@ -359,19 +355,101 @@ function readPersistedChatMessages(
 	}
 }
 
-export function copySessionGeneratedArtifacts(
+const GENERATED_MEDIA_EXTENSIONS = new Set([
+	".mp4",
+	".webm",
+	".mov",
+	".mpeg",
+	".mp3",
+	".wav",
+	".aac",
+	".m4a",
+	".weba",
+	".flac",
+	".ogg",
+]);
+
+/**
+ * Clone generated media when a new session inherits history from another
+ * session. The webview resolves artifacts against the current session ID, so
+ * the bytes must follow the copied message history.
+ *
+ * Files are prepared in a sibling staging directory and published with one
+ * directory rename. A failed copy therefore leaves no partially populated
+ * artifact directory behind.
+ */
+export async function copySessionGeneratedArtifacts(
 	sourceSessionId: string,
 	targetSessionId: string,
-): void {
+): Promise<void> {
 	if (sourceSessionId === targetSessionId) return;
 	const sourceDir = join(sharedSessionDataDir(), sourceSessionId, "artifacts");
-	if (!existsSync(sourceDir)) return;
+	const entries = await readdir(sourceDir, { withFileTypes: true }).catch(
+		(error: NodeJS.ErrnoException) => {
+			if (error.code === "ENOENT") return [];
+			throw error;
+		},
+	);
+	const mediaEntries = entries.filter(
+		(entry) =>
+			entry.isFile() &&
+			GENERATED_MEDIA_EXTENSIONS.has(extname(entry.name).toLowerCase()),
+	);
+	if (mediaEntries.length === 0) return;
 
 	const targetDir = join(sharedSessionDataDir(), targetSessionId, "artifacts");
-	mkdirSync(targetDir, { recursive: true });
-	for (const entry of readdirSync(sourceDir, { withFileTypes: true })) {
-		if (!entry.isFile()) continue;
-		copyFileSync(join(sourceDir, entry.name), join(targetDir, entry.name));
+	if (existsSync(targetDir)) {
+		throw new Error(
+			`Generated media artifact destination already exists for session ${targetSessionId}`,
+		);
+	}
+
+	const targetSessionDir = dirname(targetDir);
+	const stagingDir = join(
+		targetSessionDir,
+		`.media-artifacts-${randomUUID()}.tmp`,
+	);
+	await mkdir(targetSessionDir, { recursive: true });
+	try {
+		await mkdir(stagingDir);
+		await Promise.all(
+			mediaEntries.map((entry) =>
+				copyFile(join(sourceDir, entry.name), join(stagingDir, entry.name)),
+			),
+		);
+		if (existsSync(targetDir)) {
+			throw new Error(
+				`Generated media artifact destination already exists for session ${targetSessionId}`,
+			);
+		}
+		await rename(stagingDir, targetDir);
+	} finally {
+		await rm(stagingDir, { recursive: true, force: true });
+	}
+}
+
+async function copySessionGeneratedArtifactsWithRollback(
+	manager: Pick<ClineCore, "delete">,
+	sourceSessionId: string,
+	targetSessionId: string,
+): Promise<void> {
+	try {
+		await copySessionGeneratedArtifacts(sourceSessionId, targetSessionId);
+	} catch (copyError) {
+		try {
+			const deleted = await manager.delete(targetSessionId);
+			if (!deleted) {
+				throw new Error(
+					`Failed to delete replacement session ${targetSessionId}`,
+				);
+			}
+		} catch (rollbackError) {
+			throw new AggregateError(
+				[copyError, rollbackError],
+				`Failed to copy generated media and roll back replacement session ${targetSessionId}`,
+			);
+		}
+		throw copyError;
 	}
 }
 
@@ -1616,7 +1694,11 @@ async function handleForkUnlocked(
 		});
 		newSessionId = started.sessionId;
 	}
-	copySessionGeneratedArtifacts(sourceSessionId, newSessionId);
+	await copySessionGeneratedArtifactsWithRollback(
+		manager,
+		sourceSessionId,
+		newSessionId,
+	);
 	try {
 		const read = await manager.readMessages(newSessionId);
 		if (forkBeforeRunCount !== undefined || read.length > 0) {
@@ -1760,7 +1842,11 @@ async function handleRestoreCheckpoint(
 		if (!sessionId || !restoredMessages) {
 			throw new Error("Checkpoint restore did not return a new session");
 		}
-		copySessionGeneratedArtifacts(sourceSessionId, sessionId);
+		await copySessionGeneratedArtifactsWithRollback(
+			manager,
+			sourceSessionId,
+			sessionId,
+		);
 		discardAllTrackedAttachments(
 			sourceSessionId,
 			ctx.liveSessions.get(sourceSessionId),
