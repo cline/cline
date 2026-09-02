@@ -272,6 +272,9 @@ describe("HookProcess stdin failures", () => {
 				throw new Error("Expected hook run to fail")
 			} catch (error: any) {
 				error.message.should.match(/Hook exited with code 3/)
+				// stdin's failure is emitted before the child's "close", so the exit
+				// error can say the input never arrived.
+				error.message.should.match(/stopped reading its input before it was fully delivered/)
 			}
 			// Give a late pipe error a chance to surface before asserting.
 			await new Promise((resolve) => setTimeout(resolve, 200))
@@ -279,5 +282,16 @@ describe("HookProcess stdin failures", () => {
 		} finally {
 			process.off("uncaughtException", onUncaught)
 		}
+	}, 15000)
+
+	it("still succeeds when a hook ignores a large input and exits 0", async () => {
+		const hookBasePath = path.join(tempDir, "TaskStart")
+		await writeHookScriptForPlatform(hookBasePath, `#!/usr/bin/env node\nconsole.log("{}")\n`)
+		const scriptPath = process.platform === "win32" ? `${hookBasePath}.ps1` : hookBasePath
+
+		// Ignoring stdin is legitimate hook behavior; a failed input delivery
+		// must not turn a successful hook into a failed one.
+		const hookProcess = new HookProcess(scriptPath, 15000)
+		await hookProcess.run(JSON.stringify({ taskStart: { blob: "x".repeat(1_000_000) } }))
 	}, 15000)
 })
