@@ -1,4 +1,11 @@
-import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import {
+	mkdir,
+	mkdtemp,
+	realpath,
+	rm,
+	symlink,
+	writeFile,
+} from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -152,6 +159,64 @@ This is a test skill.`,
 		expect(skill.name).toBe("my-skill");
 		expect(skill.description).toBe("A test skill");
 		expect(skill.instructions).toBe("This is a test skill.");
+	});
+
+	it("keeps Agent Plugin skills strict and namespaced while watching", async () => {
+		const tempRoot = await realpath(
+			await mkdtemp(join(tmpdir(), "core-user-instructions-agent-plugin-")),
+		);
+		tempRoots.push(tempRoot);
+		const pluginRoot = join(tempRoot, "portable");
+		const skillRoot = join(pluginRoot, "skills", "review");
+		const filePath = join(skillRoot, "SKILL.md");
+		await mkdir(skillRoot, { recursive: true });
+		await writeFile(
+			filePath,
+			"---\nname: review\ndescription: Review portable code\n---\n",
+		);
+
+		const watcher = createUserInstructionConfigWatcher({
+			skills: {
+				directories: [],
+				agentPluginSkills: [
+					{
+						pluginName: "portable",
+						pluginRoot,
+						directoryPath: skillRoot,
+						filePath,
+						metadata: {
+							name: "review",
+							description: "Review portable code",
+						},
+					},
+				],
+			},
+			rules: { directories: [] },
+			workflows: { directories: [] },
+		});
+
+		await watcher.refreshAll();
+		expect(watcher.getSnapshot("skill").get("portable:review")).toMatchObject({
+			item: {
+				name: "review",
+				description: "Review portable code",
+				instructions: "",
+				source: {
+					type: "agent-plugin",
+					pluginName: "portable",
+					pluginRoot,
+					skillRoot,
+					filePath,
+				},
+			},
+		});
+
+		await writeFile(
+			filePath,
+			"---\nname: review\ndescription: Review portable code\ndisabled: true\n---\nInvalid now.",
+		);
+		await watcher.refreshType("skill");
+		expect(watcher.getSnapshot("skill")).toEqual(new Map());
 	});
 
 	it("emits typed events for skills, rules, and workflows in one watcher", async () => {
