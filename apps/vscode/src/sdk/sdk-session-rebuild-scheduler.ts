@@ -89,13 +89,14 @@ export class SdkSessionRebuildScheduler {
 	}
 
 	private drainIfIdle(): void {
-		if (this.drainInFlight || this.pending.size === 0 || !isIdle(this.options.sessions.getActiveSession())) {
+		const activeSession = this.options.sessions.getActiveSession()
+		if (this.drainInFlight || this.pending.size === 0 || !activeSession || !isIdle(activeSession)) {
 			return
 		}
 		// Cloud sessions run on the sandbox with its own tools/provider; local
 		// MCP, provider and terminal changes do not apply and must not rebuild
 		// the sandbox conversation into a local one.
-		if ("isCloud" in activeSession.sdkHost) {
+		if (activeSession.sdkHost && "isCloud" in activeSession.sdkHost) {
 			this.pending.clear()
 			return
 		}

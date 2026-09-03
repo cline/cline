@@ -359,7 +359,12 @@ export class SdkCloudSessionCoordinator {
 		return recommended.recommended[0]?.id ?? CLINE_RECOMMENDED_MODELS_FALLBACK.recommended[0].id
 	}
 
-	async startCloudTask(input: { prompt: string; images?: string[]; repoUrl: string; branch?: string }): Promise<string | undefined> {
+	async startCloudTask(input: {
+		prompt: string
+		images?: string[]
+		repoUrl: string
+		branch?: string
+	}): Promise<string | undefined> {
 		const isSuperseded = this.options.claimTaskViewGeneration()
 		await this.options.clearTask()
 		const startedAt = Date.now()
