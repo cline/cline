@@ -23,4 +23,10 @@ export type HistoryItem = {
 	 */
 	apiProvider?: string
 	isLegacy?: boolean
+
+	/** "cloud" for Cline Cloud sessions; absent/"local" for tasks run in this workspace. */
+	executionTarget?: "local" | "cloud"
+	cloudStatus?: "provisioning" | "running" | "idle" | "completed" | "failed" | "expired"
+	cloudRepoUrl?: string
+	cloudBranch?: string
 }

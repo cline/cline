@@ -70,6 +70,7 @@ describe("SDK remote-config coordination", () => {
 		const controller = {
 			stateManager: {
 				getGlobalSettingsKey: () => undefined,
+				getGlobalStateKey: () => undefined,
 				getRemoteConfigSettings: () => ({}),
 				setGlobalState: vi.fn(),
 			},
@@ -88,6 +89,7 @@ describe("SDK remote-config coordination", () => {
 				},
 			},
 			sessions: { getActiveSession: () => undefined },
+			cloud: { getCurrentTaskInfo: () => undefined, getCloudModelId: () => "cloud-model" },
 			turnStateTracker: { get: () => undefined },
 			messageTranslatorState: { getMinter: () => minter },
 			getStateToPostToWebview: SdkController.prototype.getStateToPostToWebview,
