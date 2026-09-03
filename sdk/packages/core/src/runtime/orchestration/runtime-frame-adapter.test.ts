@@ -5,6 +5,7 @@
  * consumer changes" proof of the migration.
  */
 import type {
+	AgentEvent,
 	AgentMessage,
 	AgentRuntimeEvent,
 	AgentRuntimeStateSnapshot,
@@ -153,11 +154,11 @@ describe("RuntimeFrameAdapter — dual-emit", () => {
 		// durationMs is wall-clock per adapter instance (tool-started to
 		// tool-finished); normalize it so the identity check compares
 		// structure, not sub-millisecond scheduling.
-		const normalize = (event: Record<string, unknown>): Record<string, unknown> => {
+		const normalize = (event: AgentEvent): Record<string, unknown> => {
 			if (event.type === "content_end" && event.contentType === "tool") {
 				return { ...event, durationMs: "normalized" };
 			}
-			return event;
+			return { ...event };
 		};
 
 		const dualEvents = [];
@@ -176,7 +177,7 @@ describe("RuntimeFrameAdapter — dual-emit", () => {
 		);
 		// The normalized field is still a real measured duration.
 		const toolEnd = dualEvents.find(
-			(event) =>
+			(event): event is Extract<AgentEvent, { type: "content_end" }> =>
 				event.type === "content_end" && event.contentType === "tool",
 		);
 		expect(typeof toolEnd?.durationMs).toBe("number");
