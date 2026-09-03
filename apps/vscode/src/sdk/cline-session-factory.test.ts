@@ -104,6 +104,9 @@ beforeEach(() => {
 	mocks.providerSettingsManager.getFilePath.mockReturnValue(path.join(tempDir, "settings", "providers.json"))
 	mocks.providerSettingsManager.getLastUsedProviderSettings.mockReturnValue(undefined)
 	mocks.providerSettingsManager.getProviderSettings.mockReturnValue(undefined)
+	// clearAllMocks keeps implementations: re-pin the default so a test that
+	// swaps in a real manager cannot leak it into later tests.
+	mocks.getProviderSettingsManager.mockImplementation(() => mocks.providerSettingsManager)
 })
 
 afterEach(() => {
@@ -607,6 +610,44 @@ describe("buildSessionConfig", () => {
 			}),
 			{ setLastUsed: false },
 		)
+	})
+
+	it("mirrors Azure settings through the real ProviderSettingsManager (schema round-trip)", async () => {
+		// The mocked-manager tests above cannot catch a mirror payload that the
+		// real ProviderSettingsSchema.parse would reject (the resolver swallows
+		// save failures), so exercise the real manager against a temp file.
+		// Import by relative path: the "@cline/core" specifier is aliased to an
+		// in-memory stub in vitest.config.ts, which validates nothing.
+		const { ProviderSettingsManager } = await import(
+			"../../../../sdk/packages/core/src/services/storage/provider-settings-manager"
+		)
+		const realManager = new ProviderSettingsManager({
+			filePath: path.join(tempDir, "settings", "providers.json"),
+		})
+		// Reporter's #13655 state: entry written by the CLI onboarding (key,
+		// base URL, model) but no azure block.
+		realManager.saveProviderSettings(
+			{
+				provider: "openai-compatible",
+				apiKey: "azure-key",
+				model: "gpt-5.6-terra",
+				baseUrl: "https://example.openai.azure.com/openai/deployments/gpt-5.6-terra",
+			},
+			{ setLastUsed: false },
+		)
+		mocks.getProviderSettingsManager.mockReturnValue(realManager as never)
+
+		const resolved = resolveAzureProviderConfig({ azureApiVersion: "2025-01-01-preview" } as any)
+
+		expect(resolved).toEqual({ azure: { apiVersion: "2025-01-01-preview" } })
+		const persisted = realManager.getProviderSettings("openai-compatible")
+		expect(persisted).toMatchObject({
+			provider: "openai-compatible",
+			apiKey: "azure-key",
+			model: "gpt-5.6-terra",
+			baseUrl: "https://example.openai.azure.com/openai/deployments/gpt-5.6-terra",
+			azure: { apiVersion: "2025-01-01-preview" },
+		})
 	})
 
 	it("does not rewrite providers.json when the stored Azure settings already match", () => {
