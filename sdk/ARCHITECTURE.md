@@ -266,22 +266,23 @@ persists that same ID and its artifacts. Closing a runtime before a user turn
 therefore leaves no empty history entry, and persistence code never allocates a
 replacement ID for an unknown session.
 
-### Generated Video Flow
+### Generated Audio & Video Flow
 
-Generated video rides the canonical `GeneratedMedia` pipeline while keeping
-large media bytes out of persisted provider history:
+Generated audio and video ride the canonical `GeneratedMedia` pipeline while
+keeping large media bytes out of persisted provider history:
 
-1. `@cline/llms` routes models with the `video-generation` operation through
-   the AI SDK `experimental_generateVideo` API. Models that return both text
-   and video stay on the streaming language-model path, where video file parts
-   are classified into canonical `media` stream chunks (modality `video`).
-   Both admission paths are fail-closed: a provider must declare a matching
-   video operation capability before its catalog models are kept.
+1. `@cline/llms` routes models with the `speech-generation` or
+   `video-generation` operation through the AI SDK `generateSpeech` and
+   `experimental_generateVideo` APIs. Models that return text alongside audio
+   or video stay on the streaming language-model path, where audio/video file
+   parts are classified into canonical `media` stream chunks. Both admission
+   paths are fail-closed: a provider must declare a matching operation
+   capability before its catalog models are kept.
 2. `@cline/agents` assembles media events into `AgentMediaPart`s. A stateless
    host retains the inline base64 source, while a persistent host supplies
    `storeGeneratedArtifact` so the runtime can swap the base64 source for an
    `artifact` source before the media reaches persistence or events.
-3. `@cline/core` writes each video through a temporary file and atomic rename
+3. `@cline/core` writes each clip through a temporary file and atomic rename
    beneath `<session-artifacts-root>/<session-id>/artifacts`, and returns the
    bare filename as the artifact ID. The session artifacts root comes from the
    session persistence adapter (`resolveSessionDataDir()` for the local
@@ -294,7 +295,7 @@ large media bytes out of persisted provider history:
    summarizer.
 5. Host UIs resolve the artifact ID together with the owning session ID into a
    trusted, session-scoped byte-range media endpoint. When desktop history is
-   forked or restored from a checkpoint, generated videos are staged and
+   forked or restored from a checkpoint, generated media files are staged and
    atomically cloned into the new session before that session is exposed to
    the webview.
 

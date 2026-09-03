@@ -304,6 +304,8 @@ export async function createOpenAICompatibleProviderModule(
 						: provider.imageModel(modelId),
 			...(vercelGateway
 				? {
+						speechGeneration: (modelId: string) =>
+							vercelGateway.speechModel(modelId),
 						videoGeneration: (modelId: string) =>
 							vercelGateway.videoModel(modelId),
 					}

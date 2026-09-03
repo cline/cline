@@ -84,6 +84,7 @@ export async function createOpenAIProviderModule(
 		operations: {
 			language: (modelId) => provider.responses(modelId),
 			imageGeneration: (modelId) => provider.image(modelId),
+			speechGeneration: (modelId) => provider.speech(modelId),
 		},
 		buildStreamConfig: (request) => ({
 			...(!isChatGptOAuth &&

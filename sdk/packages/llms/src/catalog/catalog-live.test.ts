@@ -398,6 +398,126 @@ describe("models-dev-catalog", () => {
 		expect(providerModels.gemini?.["mixed-video"]?.operation).toBeUndefined();
 	});
 
+	it("keeps dedicated audio models for providers with a speech endpoint", () => {
+		const providerModels = normalizeModelsDevProviderModels({
+			openai: {
+				id: "openai",
+				name: "OpenAI",
+				models: {
+					"openai-speech": {
+						tool_call: false,
+						modalities: { input: ["text"], output: ["audio"] },
+					},
+				},
+			},
+			google: {
+				id: "google",
+				name: "Google",
+				npm: "@ai-sdk/google",
+				models: {
+					"google-speech": {
+						tool_call: false,
+						modalities: { input: ["text"], output: ["audio"] },
+					},
+				},
+			},
+			"google-vertex": {
+				id: "google-vertex",
+				name: "Google Vertex",
+				npm: "@ai-sdk/google-vertex",
+				models: {
+					"vertex-speech": {
+						tool_call: false,
+						modalities: { input: ["text"], output: ["audio"] },
+					},
+				},
+			},
+			vercel: {
+				id: "vercel",
+				name: "Vercel AI Gateway",
+				models: {
+					"gateway-speech": {
+						tool_call: false,
+						modalities: { input: ["text"], output: ["audio"] },
+					},
+				},
+			},
+		});
+
+		expect(providerModels["openai-native"]).toMatchObject({
+			"openai-speech": { operation: "speech-generation" },
+		});
+		expect(providerModels.gemini).toMatchObject({
+			"google-speech": { operation: "speech-generation" },
+		});
+		expect(providerModels.vertex).toMatchObject({
+			"vertex-speech": { operation: "speech-generation" },
+		});
+		expect(providerModels["vercel-ai-gateway"]).toMatchObject({
+			"gateway-speech": { operation: "speech-generation" },
+		});
+	});
+
+	it("omits audio models from providers without a declared speech transport", () => {
+		const providerModels = normalizeModelsDevProviderModels({
+			"extra-router": {
+				id: "extra-router",
+				name: "Extra Router",
+				npm: "@ai-sdk/openai-compatible",
+				models: {
+					"dedicated-audio": {
+						tool_call: false,
+						modalities: { input: ["text"], output: ["audio"] },
+					},
+					"tool-flagged-dedicated-audio": {
+						// Tool metadata must not make an audio-only model usable via a
+						// provider without a speech transport.
+						tool_call: true,
+						modalities: { input: ["text"], output: ["audio"] },
+					},
+					"mixed-audio": {
+						tool_call: false,
+						modalities: {
+							input: ["text"],
+							output: ["text", "audio"],
+						},
+					},
+					"chat-model": { tool_call: true },
+				},
+			},
+			openai: {
+				id: "openai",
+				name: "OpenAI",
+				models: {
+					"mixed-audio": {
+						tool_call: true,
+						modalities: {
+							input: ["text"],
+							output: ["text", "audio"],
+						},
+					},
+				},
+			},
+		});
+
+		expect(providerModels["extra-router"]).not.toHaveProperty(
+			"dedicated-audio",
+		);
+		expect(providerModels["extra-router"]).not.toHaveProperty(
+			"tool-flagged-dedicated-audio",
+		);
+		expect(providerModels["extra-router"]).not.toHaveProperty("mixed-audio");
+		expect(providerModels["extra-router"]).toHaveProperty("chat-model");
+		expect(providerModels["openai-native"]).toMatchObject({
+			"mixed-audio": {
+				modalities: { input: ["text"], output: ["text", "audio"] },
+			},
+		});
+		expect(
+			providerModels["openai-native"]?.["mixed-audio"]?.operation,
+		).toBeUndefined();
+	});
+
 	it("prefers a text-output model over a newer dedicated image default", () => {
 		const payload: ModelsDevPayload = {
 			openai: {

@@ -14,7 +14,7 @@ export const GENERATED_PROVIDER_MODELS: {
   version: number
   providers: Record<string, Record<string, ModelInfo>>
 } = {
-  version: 1788385387611,
+  version: 1788386569333,
   providers: {
   "302ai": {
     "claude-opus-4-7": {
@@ -44588,6 +44588,33 @@ export const GENERATED_PROVIDER_MODELS: {
         ]
       }
     },
+    "gemini-3.5-live-translate-preview": {
+      "id": "gemini-3.5-live-translate-preview",
+      "name": "Gemini 3.5 Live Translate Preview",
+      "contextWindow": 16384,
+      "maxInputTokens": 16384,
+      "maxTokens": 32768,
+      "capabilities": [
+        "temperature"
+      ],
+      "pricing": {
+        "input": 3.5,
+        "output": 21,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-06-09",
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "audio"
+        ],
+        "output": [
+          "audio",
+          "text"
+        ]
+      }
+    },
     "gemini-3-pro-image": {
       "id": "gemini-3-pro-image",
       "name": "Nano Banana Pro",
@@ -44842,6 +44869,35 @@ export const GENERATED_PROVIDER_MODELS: {
         ]
       }
     },
+    "gemini-3.1-flash-tts-preview": {
+      "id": "gemini-3.1-flash-tts-preview",
+      "name": "Gemini 3.1 Flash TTS Preview",
+      "contextWindow": 8192,
+      "maxInputTokens": 8192,
+      "maxTokens": 16384,
+      "capabilities": [
+        "reasoning",
+        "temperature"
+      ],
+      "reasoningOptions": [],
+      "pricing": {
+        "input": 1,
+        "output": 20,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-04-15",
+      "family": "gemini-flash",
+      "operation": "speech-generation",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "audio"
+        ]
+      }
+    },
     "gemma-4-26b-a4b-it": {
       "id": "gemma-4-26b-a4b-it",
       "name": "Gemma 4 26B A4B IT",
@@ -44964,7 +45020,66 @@ export const GENERATED_PROVIDER_MODELS: {
           "audio"
         ],
         "output": [
-          "text"
+          "text",
+          "audio"
+        ]
+      }
+    },
+    "lyria-3-clip-preview": {
+      "id": "lyria-3-clip-preview",
+      "name": "Lyria 3 Clip Preview",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 65536,
+      "capabilities": [
+        "images",
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-03-25",
+      "family": "lyria",
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text",
+          "audio"
+        ]
+      }
+    },
+    "lyria-3-pro-preview": {
+      "id": "lyria-3-pro-preview",
+      "name": "Lyria 3 Pro Preview",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 65536,
+      "capabilities": [
+        "images",
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-03-25",
+      "family": "lyria",
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text",
+          "audio"
         ]
       }
     },
@@ -45428,6 +45543,60 @@ export const GENERATED_PROVIDER_MODELS: {
         ],
         "output": [
           "text"
+        ]
+      }
+    },
+    "gemini-2.5-flash-preview-tts": {
+      "id": "gemini-2.5-flash-preview-tts",
+      "name": "Gemini 2.5 Flash Preview TTS",
+      "contextWindow": 8192,
+      "maxInputTokens": 8192,
+      "maxTokens": 16384,
+      "capabilities": [
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0.5,
+        "output": 10,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-05-01",
+      "family": "gemini-flash",
+      "operation": "speech-generation",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "audio"
+        ]
+      }
+    },
+    "gemini-2.5-pro-preview-tts": {
+      "id": "gemini-2.5-pro-preview-tts",
+      "name": "Gemini 2.5 Pro Preview TTS",
+      "contextWindow": 8192,
+      "maxInputTokens": 8192,
+      "maxTokens": 16384,
+      "capabilities": [
+        "temperature"
+      ],
+      "pricing": {
+        "input": 1,
+        "output": 20,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-05-01",
+      "family": "gemini-flash",
+      "operation": "speech-generation",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "audio"
         ]
       }
     }
@@ -110703,7 +110872,8 @@ export const GENERATED_PROVIDER_MODELS: {
           "image"
         ],
         "output": [
-          "text"
+          "text",
+          "audio"
         ]
       }
     },
@@ -155306,6 +155476,82 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-07-30",
       "family": "ling"
     },
+    "spacexai/grok-voice-think-fast-2.0": {
+      "id": "spacexai/grok-voice-think-fast-2.0",
+      "name": "Grok Voice Think Fast 2.0",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-07-29",
+      "family": "grok",
+      "modalities": {
+        "input": [
+          "text",
+          "audio"
+        ],
+        "output": [
+          "text",
+          "audio"
+        ]
+      }
+    },
+    "fish-audio/s2.1-pro": {
+      "id": "fish-audio/s2.1-pro",
+      "name": "S2.1 Pro",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-07-28",
+      "family": "o",
+      "operation": "speech-generation",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "audio"
+        ]
+      }
+    },
+    "fish-audio/s2.1-pro-free": {
+      "id": "fish-audio/s2.1-pro-free",
+      "name": "S2.1 Pro (Free)",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-07-28",
+      "family": "o",
+      "operation": "speech-generation",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "audio"
+        ]
+      }
+    },
     "anthropic/claude-opus-5": {
       "id": "anthropic/claude-opus-5",
       "name": "Claude Opus 5",
@@ -155976,6 +156222,48 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-07-08",
       "family": "grok"
+    },
+    "openai/gpt-realtime-2.1": {
+      "id": "openai/gpt-realtime-2.1",
+      "name": "gpt-realtime-2.1",
+      "contextWindow": 128000,
+      "maxInputTokens": 96000,
+      "maxTokens": 32000,
+      "capabilities": [
+        "reasoning",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "minimal",
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 4,
+        "output": 24,
+        "cacheRead": 0.4,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-07-06",
+      "family": "gpt",
+      "modalities": {
+        "input": [
+          "text",
+          "audio"
+        ],
+        "output": [
+          "text",
+          "audio"
+        ]
+      }
     },
     "tencent/hy3": {
       "id": "tencent/hy3",
@@ -156855,6 +157143,35 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-05-07",
       "family": "gemini-flash-lite"
     },
+    "openai/gpt-realtime-2": {
+      "id": "openai/gpt-realtime-2",
+      "name": "gpt-realtime-2",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "temperature",
+        "prompt-cache"
+      ],
+      "pricing": {
+        "input": 4,
+        "output": 24,
+        "cacheRead": 0.4,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-05-07",
+      "family": "gpt",
+      "modalities": {
+        "input": [
+          "text",
+          "audio"
+        ],
+        "output": [
+          "text",
+          "audio"
+        ]
+      }
+    },
     "openai/gpt-realtime-whisper": {
       "id": "openai/gpt-realtime-whisper",
       "name": "gpt-realtime-whisper",
@@ -157086,6 +157403,32 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-04-23",
       "family": "gpt-pro"
+    },
+    "spacexai/grok-voice-think-fast-1.0": {
+      "id": "spacexai/grok-voice-think-fast-1.0",
+      "name": "Grok Voice Think Fast 1.0",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-04-23",
+      "family": "grok",
+      "modalities": {
+        "input": [
+          "text",
+          "audio"
+        ],
+        "output": [
+          "text",
+          "audio"
+        ]
+      }
     },
     "alibaba/qwen3.6-27b": {
       "id": "alibaba/qwen3.6-27b",
@@ -157934,6 +158277,31 @@ export const GENERATED_PROVIDER_MODELS: {
         ]
       }
     },
+    "spacexai/grok-tts": {
+      "id": "spacexai/grok-tts",
+      "name": "Grok TTS",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-03-16",
+      "family": "grok",
+      "operation": "speech-generation",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "audio"
+        ]
+      }
+    },
     "zai/glm-5-turbo": {
       "id": "zai/glm-5-turbo",
       "name": "GLM 5 Turbo",
@@ -158094,6 +158462,56 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-03-10",
       "family": "grok"
+    },
+    "fish-audio/s2-pro": {
+      "id": "fish-audio/s2-pro",
+      "name": "S2 Pro",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-03-09",
+      "family": "o",
+      "operation": "speech-generation",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "audio"
+        ]
+      }
+    },
+    "fish-audio/s2-pro-free": {
+      "id": "fish-audio/s2-pro-free",
+      "name": "S2 Pro (Free)",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-03-09",
+      "family": "o",
+      "operation": "speech-generation",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "audio"
+        ]
+      }
     },
     "openai/gpt-5.4": {
       "id": "openai/gpt-5.4",
@@ -158386,6 +158804,35 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-02-23",
       "family": "qwen"
+    },
+    "openai/gpt-realtime-1.5": {
+      "id": "openai/gpt-realtime-1.5",
+      "name": "GPT-Realtime-1.5",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "temperature",
+        "prompt-cache"
+      ],
+      "pricing": {
+        "input": 4,
+        "output": 16,
+        "cacheRead": 0.4,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-02-23",
+      "family": "gpt",
+      "modalities": {
+        "input": [
+          "text",
+          "audio"
+        ],
+        "output": [
+          "text",
+          "audio"
+        ]
+      }
     },
     "google/gemini-3.1-pro-preview": {
       "id": "google/gemini-3.1-pro-preview",
@@ -160159,6 +160606,56 @@ export const GENERATED_PROVIDER_MODELS: {
         ]
       }
     },
+    "fish-audio/s1": {
+      "id": "fish-audio/s1",
+      "name": "S1",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-10-20",
+      "family": "o",
+      "operation": "speech-generation",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "audio"
+        ]
+      }
+    },
+    "fish-audio/s1-free": {
+      "id": "fish-audio/s1-free",
+      "name": "S1 (Free)",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-10-20",
+      "family": "o",
+      "operation": "speech-generation",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "audio"
+        ]
+      }
+    },
     "anthropic/claude-haiku-4.5": {
       "id": "anthropic/claude-haiku-4.5",
       "name": "Claude Haiku 4.5",
@@ -160242,6 +160739,35 @@ export const GENERATED_PROVIDER_MODELS: {
         ],
         "output": [
           "video"
+        ]
+      }
+    },
+    "openai/gpt-realtime-mini": {
+      "id": "openai/gpt-realtime-mini",
+      "name": "GPT-Realtime mini",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "temperature",
+        "prompt-cache"
+      ],
+      "pricing": {
+        "input": 0.6,
+        "output": 2.4,
+        "cacheRead": 0.06,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-10-10",
+      "family": "gpt",
+      "modalities": {
+        "input": [
+          "text",
+          "audio"
+        ],
+        "output": [
+          "text",
+          "audio"
         ]
       }
     },
@@ -162640,6 +163166,60 @@ export const GENERATED_PROVIDER_MODELS: {
         ]
       }
     },
+    "openai/tts-1": {
+      "id": "openai/tts-1",
+      "name": "TTS-1",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2023-11-06",
+      "family": "o",
+      "operation": "speech-generation",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "audio"
+        ]
+      }
+    },
+    "openai/tts-1-hd": {
+      "id": "openai/tts-1-hd",
+      "name": "TTS-1 HD",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2023-11-06",
+      "family": "o",
+      "operation": "speech-generation",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "audio"
+        ]
+      }
+    },
     "openai/whisper-1": {
       "id": "openai/whisper-1",
       "name": "Whisper",
@@ -163620,6 +164200,56 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2025-10-15",
       "family": "claude-haiku"
+    },
+    "gemini-2.5-flash-tts": {
+      "id": "gemini-2.5-flash-tts",
+      "name": "Gemini 2.5 Flash TTS",
+      "contextWindow": 32768,
+      "maxInputTokens": 32768,
+      "maxTokens": 16384,
+      "capabilities": [],
+      "pricing": {
+        "input": 0.5,
+        "output": 10,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-09-30",
+      "family": "gemini-flash",
+      "operation": "speech-generation",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "audio"
+        ]
+      }
+    },
+    "gemini-2.5-pro-tts": {
+      "id": "gemini-2.5-pro-tts",
+      "name": "Gemini 2.5 Pro TTS",
+      "contextWindow": 32768,
+      "maxInputTokens": 32768,
+      "maxTokens": 16384,
+      "capabilities": [],
+      "pricing": {
+        "input": 1,
+        "output": 20,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-09-30",
+      "family": "gemini-pro",
+      "operation": "speech-generation",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "audio"
+        ]
+      }
     },
     "claude-sonnet-4-5@20250929": {
       "id": "claude-sonnet-4-5@20250929",

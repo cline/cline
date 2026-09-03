@@ -19,7 +19,7 @@
     },
     "apps/cli": {
       "name": "@cline/cli",
-      "version": "3.0.60",
+      "version": "3.0.61",
       "bin": {
         "cline": "src/index.ts",
       },
@@ -165,7 +165,7 @@
     },
     "apps/examples/desktop-app": {
       "name": "@cline/code",
-      "version": "0.0.21",
+      "version": "0.0.22",
       "dependencies": {
         "@base-ui/react": "^1.2.0",
         "@cline/core": "workspace:*",
@@ -360,7 +360,7 @@
     },
     "apps/vscode": {
       "name": "claude-dev",
-      "version": "4.1.16",
+      "version": "4.1.17",
       "dependencies": {
         "@anthropic-ai/sdk": "^0.37.0",
         "@bufbuild/protobuf": "^2.2.5",
@@ -753,6 +753,7 @@
         "@radix-ui/react-slot": "1.2.4",
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
+        "media-chrome": "^4.18.1",
       },
       "devDependencies": {
         "@fontsource-variable/geist-mono": "^5.2.8",

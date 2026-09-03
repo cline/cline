@@ -1557,6 +1557,40 @@ describe("ChatMessages generated videos", () => {
 	});
 });
 
+describe("ChatMessages generated audio", () => {
+	it("renders an artifact-backed audio player", async () => {
+		await renderMessages([
+			{
+				id: "assistant-audio",
+				sessionId: "session-1",
+				role: "assistant",
+				content: "",
+				media: [
+					{
+						id: "generated-audio-1",
+						modality: "audio",
+						mediaType: "audio/mpeg",
+						source: { type: "artifact", artifactId: "audio result.mp3" },
+					},
+				],
+				createdAt: 1,
+			},
+		]);
+
+		await vi.waitFor(() => {
+			const audio = container.querySelector<HTMLAudioElement>(
+				'audio[aria-label="Generated audio"]',
+			);
+			expect(audio?.src).toBe(
+				"http://127.0.0.1:3126/api/session-artifacts/session-1/audio%20result.mp3",
+			);
+			expect(
+				container.querySelector('[aria-label="Play or pause generated audio"]'),
+			).not.toBeNull();
+		});
+	});
+});
+
 describe("ChatMessages reasoning disclosure", () => {
 	it("shimmers the thinking title only while reasoning is streaming", async () => {
 		const messages: ChatMessage[] = [

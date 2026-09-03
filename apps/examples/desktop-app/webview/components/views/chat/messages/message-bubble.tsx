@@ -27,6 +27,7 @@ import { MemoizedMarkdown } from "../../../ui/markdown";
 import { formatChatMessageContent } from "../message-content";
 import { isSystemSteeringMessage } from "./group-messages";
 import { MessageImageCarousel } from "./image-carousel";
+import { audioArtifactId, MessageAudios } from "./message-audios";
 import { MessageVideos, videoArtifactId } from "./message-videos";
 import { ReasoningBlock } from "./reasoning-block";
 
@@ -76,12 +77,18 @@ function MessageMedia({
 	sessionId?: string | null;
 	onExpandVideo?: (video: ChatMessageMedia) => void;
 }) {
-	// Artifact-backed videos are served by the session host over the byte-range
-	// artifact endpoint; everything else renders from validated inline bytes.
+	// Artifact-backed audio and video are served by the session host over the
+	// byte-range artifact endpoint; everything else renders from validated
+	// inline bytes.
 	const artifactVideos = sessionId
 		? media.filter((item) => videoArtifactId(item) !== undefined)
 		: [];
-	const inlineMedia = media.filter((item) => !artifactVideos.includes(item));
+	const artifactAudios = sessionId
+		? media.filter((item) => audioArtifactId(item) !== undefined)
+		: [];
+	const inlineMedia = media.filter(
+		(item) => !artifactVideos.includes(item) && !artifactAudios.includes(item),
+	);
 	return (
 		<div className="flex max-w-2xl flex-col gap-2">
 			{artifactVideos.length && sessionId ? (
@@ -90,6 +97,9 @@ function MessageMedia({
 					sessionId={sessionId}
 					videos={artifactVideos}
 				/>
+			) : null}
+			{artifactAudios.length && sessionId ? (
+				<MessageAudios audios={artifactAudios} sessionId={sessionId} />
 			) : null}
 			{inlineMedia.map((item) => (
 				<GeneratedMediaContent
