@@ -23,9 +23,9 @@ import { formatDisplayUserInput, type RemoteConfig, type RemoteConfigBundle } fr
 import type { ApiConfiguration } from "@shared/api"
 import type { ChatContent } from "@shared/ChatContent"
 import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@shared/ClineAccount"
+import type { CurrentCloudTaskInfo } from "@shared/cloud/cloud-sessions"
 import { mentionRegexGlobal } from "@shared/context-mentions"
 import type { ClineApiReqInfo, ClineMessage, ExtensionState } from "@shared/ExtensionMessage"
-import type { CurrentCloudTaskInfo } from "@shared/cloud/cloud-sessions"
 import type { HistoryItem } from "@shared/HistoryItem"
 import { DeleteAllTaskHistoryCount, type GetTaskHistoryRequest, TaskHistoryArray, TaskResponse } from "@shared/proto/cline/task"
 import type { Settings } from "@shared/storage/state-keys"
@@ -42,8 +42,8 @@ import { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalMan
 import { ExtensionRegistryInfo } from "@/registry"
 import { OcaAuthService } from "@/services/auth/oca/OcaAuthService"
 import { UrlContentFetcher } from "@/services/browser/UrlContentFetcher"
-import { isCloudSessionsFeatureEnabled } from "@/services/cloud/cloudSessionsFeature"
 import { CloudSessionsService } from "@/services/cloud/CloudSessionsService"
+import { isCloudSessionsFeatureEnabled } from "@/services/cloud/cloudSessionsFeature"
 import { ClineError } from "@/services/error/ClineError"
 import { McpHub } from "@/services/mcp/McpHub"
 import { telemetryService } from "@/services/telemetry"
@@ -1450,7 +1450,12 @@ export class Controller {
 		this.messageTranslatorState.clearTurnOutcome()
 		if (cloudTarget) {
 			this.pendingClineAuthRetryPrompt = undefined
-			return this.cloud.startCloudTask({ prompt: prompt ?? "", images, repoUrl: cloudTarget.repoUrl, branch: cloudTarget.branch })
+			return this.cloud.startCloudTask({
+				prompt: prompt ?? "",
+				images,
+				repoUrl: cloudTarget.repoUrl,
+				branch: cloudTarget.branch,
+			})
 		}
 		return this.taskStart.initTask(prompt, images, files, historyItem, taskSettings)
 	}
