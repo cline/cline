@@ -23,14 +23,14 @@ import type {
 	ChatMessage,
 	ChatMessageImage,
 	ChatMessageMedia,
-	ChatMessageVideo,
 } from "@/lib/chat-schema";
 import { cn } from "@/lib/utils";
 import { MemoizedMarkdown } from "../../../ui/markdown";
 import { formatChatMessageContent } from "../message-content";
 import { isSystemSteeringMessage } from "./group-messages";
 import { MessageImageCarousel } from "./image-carousel";
-import { MessageAudios, MessageVideos } from "./message-media";
+import { audioArtifactId, MessageAudios } from "./message-audios";
+import { MessageVideos, videoArtifactId } from "./message-videos";
 import { ReasoningBlock } from "./reasoning-block";
 
 function MessageImages({
@@ -70,10 +70,40 @@ function MessageImages({
 	);
 }
 
-function MessageMedia({ media }: { media: ChatMessageMedia[] }) {
+function MessageMedia({
+	media,
+	sessionId,
+	onExpandVideo,
+}: {
+	media: ChatMessageMedia[];
+	sessionId?: string | null;
+	onExpandVideo?: (video: ChatMessageMedia) => void;
+}) {
+	// Artifact-backed audio and video are served by the session host over the
+	// byte-range artifact endpoint; everything else renders from validated
+	// inline bytes.
+	const artifactVideos = sessionId
+		? media.filter((item) => videoArtifactId(item) !== undefined)
+		: [];
+	const artifactAudios = sessionId
+		? media.filter((item) => audioArtifactId(item) !== undefined)
+		: [];
+	const inlineMedia = media.filter(
+		(item) => !artifactVideos.includes(item) && !artifactAudios.includes(item),
+	);
 	return (
 		<div className="flex max-w-2xl flex-col gap-2">
-			{media.map((item) => (
+			{artifactVideos.length && sessionId ? (
+				<MessageVideos
+					onExpandVideo={onExpandVideo}
+					sessionId={sessionId}
+					videos={artifactVideos}
+				/>
+			) : null}
+			{artifactAudios.length && sessionId ? (
+				<MessageAudios audios={artifactAudios} sessionId={sessionId} />
+			) : null}
+			{inlineMedia.map((item) => (
 				<GeneratedMediaContent
 					classNames={{
 						image:
@@ -134,7 +164,7 @@ export const MessageBubble = memo(function MessageBubble({
 	isStreaming?: boolean;
 	onCopyMessage?: (messageId: string, content: string) => void | Promise<void>;
 	onExpandImage?: (image: ChatMessageImage) => void;
-	onExpandVideo?: (video: ChatMessageVideo) => void;
+	onExpandVideo?: (video: ChatMessageMedia) => void;
 	onEditMessage?: (
 		messageId: string,
 		content: string,
@@ -256,22 +286,13 @@ export const MessageBubble = memo(function MessageBubble({
 					/>
 				) : null}
 
-				{message.videos?.length && message.sessionId ? (
-					<MessageVideos
+				{message.media?.length ? (
+					<MessageMedia
+						media={message.media}
 						onExpandVideo={onExpandVideo}
 						sessionId={message.sessionId}
-						videos={message.videos}
 					/>
 				) : null}
-
-				{message.audios?.length && message.sessionId ? (
-					<MessageAudios
-						audios={message.audios}
-						sessionId={message.sessionId}
-					/>
-				) : null}
-
-				{message.media?.length ? <MessageMedia media={message.media} /> : null}
 
 				{displayContent ? (
 					<div className="min-w-0 max-w-full wrap-break-word">

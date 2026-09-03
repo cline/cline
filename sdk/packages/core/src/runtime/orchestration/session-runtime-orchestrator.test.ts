@@ -1006,6 +1006,115 @@ describe("SessionRuntime.run", () => {
 		expect(configs[0]?.completionPolicy).toBeUndefined();
 	});
 
+	it("disables tools and completion-tool policy for dedicated video models", async () => {
+		const { deps, configs } = withCapturingFakeRuntime();
+		const modelId = "google/veo-video";
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				modelId,
+				knownModels: {
+					[modelId]: {
+						id: modelId,
+						operation: "video-generation",
+						modalities: {
+							input: ["text", "image"],
+							output: ["video"],
+						},
+					},
+				},
+				tools: [
+					{
+						name: "read_files",
+						description: "Read files",
+						inputSchema: { type: "object" },
+						execute: async () => "contents",
+					},
+				],
+				completionPolicy: { requireCompletionTool: true },
+			}),
+			deps,
+		);
+
+		await session.run("Generate a video");
+
+		expect(configs).toHaveLength(1);
+		expect(configs[0]?.tools).toEqual([]);
+		expect(configs[0]?.completionPolicy).toBeUndefined();
+	});
+
+	it("disables tools and completion-tool policy for dedicated speech models", async () => {
+		const { deps, configs } = withCapturingFakeRuntime();
+		const modelId = "openai/tts-voice";
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				modelId,
+				knownModels: {
+					[modelId]: {
+						id: modelId,
+						operation: "speech-generation",
+						modalities: {
+							input: ["text"],
+							output: ["audio"],
+						},
+					},
+				},
+				tools: [
+					{
+						name: "read_files",
+						description: "Read files",
+						inputSchema: { type: "object" },
+						execute: async () => "contents",
+					},
+				],
+				completionPolicy: { requireCompletionTool: true },
+			}),
+			deps,
+		);
+
+		await session.run("Narrate this");
+
+		expect(configs).toHaveLength(1);
+		expect(configs[0]?.tools).toEqual([]);
+		expect(configs[0]?.completionPolicy).toBeUndefined();
+	});
+
+	it("preserves tools and completion policy for mixed text-and-video models", async () => {
+		const { deps, configs } = withCapturingFakeRuntime();
+		const modelId = "mixed-text-video";
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				modelId,
+				knownModels: {
+					[modelId]: {
+						id: modelId,
+						modalities: {
+							input: ["text"],
+							output: ["text", "video"],
+						},
+					},
+				},
+				tools: [
+					{
+						name: "read_files",
+						description: "Read files",
+						inputSchema: { type: "object" },
+						execute: async () => "contents",
+					},
+				],
+				completionPolicy: { requireCompletionTool: true },
+			}),
+			deps,
+		);
+
+		await session.run("Use a tool if needed, then generate a video");
+
+		expect(configs).toHaveLength(1);
+		expect(configs[0]?.tools?.map((tool) => tool.name)).toEqual(["read_files"]);
+		expect(configs[0]?.completionPolicy).toEqual({
+			requireCompletionTool: true,
+		});
+	});
+
 	it("preserves tools and completion-tool policy for mixed image models", async () => {
 		const { deps, configs } = withCapturingFakeRuntime();
 		const modelId = "openai/gpt-5-image";

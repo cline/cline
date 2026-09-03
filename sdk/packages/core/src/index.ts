@@ -708,6 +708,7 @@ export {
 	isRealtimeVoiceModel,
 	isSpeechGenerationModel,
 	isUsableImageGenerationModel,
+	isUsableMediaGenerationModel,
 	listLocalProviders,
 	loginAndSaveLocalProviderOAuthCredentials,
 	loginLocalProvider,
@@ -930,20 +931,16 @@ export {
 export * from "./tasks";
 export type {
 	ChatMessage,
-	ChatMessageAudio,
 	ChatMessageImage,
-	ChatMessageVideo,
 	ChatSessionConfig,
 	ChatSessionStatus,
 	ChatSummary,
 	ChatViewState,
 } from "./types/chat-schema";
 export {
-	ChatMessageAudioSchema,
 	ChatMessageImageSchema,
 	ChatMessageRoleSchema,
 	ChatMessageSchema,
-	ChatMessageVideoSchema,
 	ChatSessionConfigSchema,
 	ChatSessionStatusSchema,
 	ChatSummarySchema,

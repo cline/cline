@@ -27,6 +27,7 @@ import {
 	isChatProviderModel,
 	isDedicatedTranscriptionModel,
 	isUsableImageGenerationModel,
+	isUsableMediaGenerationModel,
 	listLocalProviders,
 	markLocalProviderEnabled,
 	normalizeOAuthProvider,
@@ -1617,9 +1618,7 @@ describe("media generation settings", () => {
 				mediaType: "image",
 				prompt: "This must not be sent",
 			}),
-		).rejects.toThrow(
-			"The configured image generation provider or model is unavailable",
-		);
+		).rejects.toThrow("No usable image generation model is configured");
 		expect(generateSpy).not.toHaveBeenCalled();
 	});
 
@@ -1645,6 +1644,310 @@ describe("media generation settings", () => {
 		);
 		expect(manager.getMediaGenerationSettings()?.image?.modelId).toBe(
 			"test-image-model",
+		);
+	});
+
+	it("dispatches per-type usability and fails closed without a media transport", () => {
+		const dedicatedVideo = {
+			id: "video-model",
+			name: "Video Model",
+			operation: "video-generation" as const,
+			modalities: {
+				input: ["text" as const],
+				output: ["video" as const],
+			},
+		};
+		const dedicatedSpeech = {
+			id: "speech-model",
+			name: "Speech Model",
+			operation: "speech-generation" as const,
+			modalities: {
+				input: ["text" as const],
+				output: ["audio" as const],
+			},
+		};
+		// openrouter declares no video or speech transport in this branch, so
+		// the transport check fails closed even for explicit dedicated models.
+		expect(
+			isUsableMediaGenerationModel("video", "openrouter", dedicatedVideo),
+		).toBe(false);
+		expect(
+			isUsableMediaGenerationModel("audio", "openrouter", dedicatedSpeech),
+		).toBe(false);
+		// A media type never matches a model for another modality.
+		expect(
+			isUsableMediaGenerationModel("video", "openrouter", {
+				id: "test-image-model",
+				name: "Test Image Model",
+				operation: "image-generation",
+				modalities: { input: ["text"], output: ["image"] },
+			}),
+		).toBe(false);
+	});
+
+	it("rejects saving audio and video selections without an executable model", async () => {
+		LlmsModels.registerModel("openrouter", "unsupported-video-model", {
+			id: "unsupported-video-model",
+			name: "Unsupported Video Model",
+			operation: "video-generation",
+			modalities: { input: ["text"], output: ["video"] },
+		});
+
+		await expect(
+			saveMediaGenerationSettings(manager, "video", {
+				providerId: "openrouter",
+				modelId: "unsupported-video-model",
+			}),
+		).rejects.toThrow(
+			'not an executable video-generation model for provider "openrouter"',
+		);
+		await expect(
+			saveMediaGenerationSettings(manager, "audio", {
+				providerId: "openrouter",
+				modelId: "test-image-model",
+			}),
+		).rejects.toThrow(
+			'not an executable audio-generation model for provider "openrouter"',
+		);
+		expect(manager.getMediaGenerationSettings()).toBeUndefined();
+	});
+
+	it("names the configured media types when the requested type is unavailable", async () => {
+		manager.setMediaGenerationSettings({
+			image: {
+				providerId: "openrouter",
+				modelId: "test-image-model",
+			},
+		});
+		const generateSpy = vi.spyOn(LlmsModels, "generateMedia");
+
+		await expect(
+			generateConfiguredMedia(manager, {
+				mediaType: "video",
+				prompt: "This must not be sent",
+			}),
+		).rejects.toThrow(
+			"No usable video generation model is configured; configured media types: image",
+		);
+		expect(generateSpy).not.toHaveBeenCalled();
+	});
+
+	it("accepts video models on providers with a declared video transport", async () => {
+		manager.saveProviderSettings(
+			{ provider: "gemini", apiKey: "gemini-key" },
+			{ setLastUsed: false },
+		);
+		LlmsModels.registerModel("gemini", "veo-test", {
+			id: "veo-test",
+			name: "Veo Test",
+			operation: "video-generation",
+			modalities: { input: ["text"], output: ["video"] },
+		});
+		LlmsModels.registerModel("gemini", "mixed-video-test", {
+			id: "mixed-video-test",
+			name: "Mixed Video Test",
+			operation: "language",
+			modalities: { input: ["text"], output: ["text", "video"] },
+		});
+
+		expect(
+			isUsableMediaGenerationModel("video", "gemini", {
+				id: "veo-test",
+				name: "Veo Test",
+				operation: "video-generation",
+				modalities: { input: ["text"], output: ["video"] },
+			}),
+		).toBe(true);
+		expect(
+			isUsableMediaGenerationModel("video", "gemini", {
+				id: "mixed-video-test",
+				name: "Mixed Video Test",
+				operation: "language",
+				modalities: { input: ["text"], output: ["text", "video"] },
+			}),
+		).toBe(true);
+
+		await expect(
+			saveMediaGenerationSettings(manager, "video", {
+				providerId: "gemini",
+				modelId: "veo-test",
+			}),
+		).resolves.toMatchObject({
+			mediaGeneration: {
+				video: { providerId: "gemini", modelId: "veo-test" },
+			},
+		});
+		await expect(
+			resolveConfiguredMediaGenerationTarget(manager, "video"),
+		).resolves.toMatchObject({
+			mediaType: "video",
+			selection: { providerId: "gemini", modelId: "veo-test" },
+			model: { id: "veo-test" },
+		});
+	});
+
+	it("generates video through the configured target with canonical media", async () => {
+		manager.saveProviderSettings(
+			{ provider: "gemini", apiKey: "gemini-key" },
+			{ setLastUsed: false },
+		);
+		LlmsModels.registerModel("gemini", "veo-generate-test", {
+			id: "veo-generate-test",
+			name: "Veo Generate Test",
+			operation: "video-generation",
+			modalities: { input: ["text"], output: ["video"] },
+		});
+		await saveMediaGenerationSettings(manager, "video", {
+			providerId: "gemini",
+			modelId: "veo-generate-test",
+		});
+		const video = {
+			id: "media_video_1",
+			modality: "video" as const,
+			mediaType: "video/mp4",
+			source: { type: "base64" as const, data: "dmlkZW8=" },
+		};
+		const generateSpy = vi
+			.spyOn(LlmsModels, "generateMedia")
+			.mockResolvedValue({ media: [video] });
+
+		await expect(
+			generateConfiguredMedia(manager, {
+				mediaType: "video",
+				prompt: "A bee documentary",
+			}),
+		).resolves.toEqual({
+			content: [
+				{
+					type: "text",
+					text: "Generated 1 video with gemini/veo-generate-test.",
+				},
+				{ type: "media", media: video },
+			],
+		});
+		expect(generateSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				modelId: "veo-generate-test",
+				mediaType: "video",
+				prompt: "A bee documentary",
+			}),
+		);
+	});
+
+	it("accepts speech models on providers with a declared speech transport", async () => {
+		manager.saveProviderSettings(
+			{ provider: "openai-native", apiKey: "openai-key" },
+			{ setLastUsed: false },
+		);
+		LlmsModels.registerModel("openai-native", "tts-test", {
+			id: "tts-test",
+			name: "TTS Test",
+			operation: "speech-generation",
+			modalities: { input: ["text"], output: ["audio"] },
+		});
+
+		expect(
+			isUsableMediaGenerationModel("audio", "openai-native", {
+				id: "tts-test",
+				name: "TTS Test",
+				operation: "speech-generation",
+				modalities: { input: ["text"], output: ["audio"] },
+			}),
+		).toBe(true);
+		expect(
+			isUsableMediaGenerationModel("audio", "openai-native", {
+				id: "mixed-audio-test",
+				name: "Mixed Audio Test",
+				operation: "language",
+				modalities: { input: ["text"], output: ["text", "audio"] },
+			}),
+		).toBe(true);
+
+		await expect(
+			saveMediaGenerationSettings(manager, "audio", {
+				providerId: "openai-native",
+				modelId: "tts-test",
+			}),
+		).resolves.toMatchObject({
+			mediaGeneration: {
+				audio: { providerId: "openai-native", modelId: "tts-test" },
+			},
+		});
+		await expect(
+			resolveConfiguredMediaGenerationTarget(manager, "audio"),
+		).resolves.toMatchObject({
+			mediaType: "audio",
+			selection: { providerId: "openai-native", modelId: "tts-test" },
+			model: { id: "tts-test" },
+		});
+	});
+
+	it("excludes realtime audio models from media generation", () => {
+		const realtimeModel = {
+			id: "grok-voice-think-fast-2.0",
+			name: "Grok Voice Think Fast 2.0",
+			operation: "language" as const,
+			operationModes: ["streaming"] as const,
+			modalities: { input: ["text"] as const, output: ["audio"] as const },
+		};
+
+		expect(
+			isUsableMediaGenerationModel("audio", "xai", realtimeModel),
+		).toBe(false);
+		expect(
+			isUsableMediaGenerationModel("audio", "xai", {
+				...realtimeModel,
+				operationModes: undefined,
+				id: "gemini-2.5-flash-live-preview",
+			}),
+		).toBe(false);
+	});
+
+	it("generates audio through the configured target with canonical media", async () => {
+		manager.saveProviderSettings(
+			{ provider: "openai-native", apiKey: "openai-key" },
+			{ setLastUsed: false },
+		);
+		LlmsModels.registerModel("openai-native", "tts-generate-test", {
+			id: "tts-generate-test",
+			name: "TTS Generate Test",
+			operation: "speech-generation",
+			modalities: { input: ["text"], output: ["audio"] },
+		});
+		await saveMediaGenerationSettings(manager, "audio", {
+			providerId: "openai-native",
+			modelId: "tts-generate-test",
+		});
+		const audio = {
+			id: "media_audio_1",
+			modality: "audio" as const,
+			mediaType: "audio/mpeg",
+			source: { type: "base64" as const, data: "YXVkaW8=" },
+		};
+		const generateSpy = vi
+			.spyOn(LlmsModels, "generateMedia")
+			.mockResolvedValue({ media: [audio] });
+
+		await expect(
+			generateConfiguredMedia(manager, {
+				mediaType: "audio",
+				prompt: "Narrate a lighthouse story",
+			}),
+		).resolves.toEqual({
+			content: [
+				{
+					type: "text",
+					text: "Generated 1 audio clip with openai-native/tts-generate-test.",
+				},
+				{ type: "media", media: audio },
+			],
+		});
+		expect(generateSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				modelId: "tts-generate-test",
+				mediaType: "audio",
+				prompt: "Narrate a lighthouse story",
+			}),
 		);
 	});
 

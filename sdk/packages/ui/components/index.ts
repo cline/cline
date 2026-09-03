@@ -31,7 +31,6 @@ export {
 	AttachmentDropZone,
 	type AttachmentDropZoneProps,
 } from "./attachment-drop-zone.js";
-export { Badge, type BadgeProps } from "./badge.js";
 export {
 	AudioPlayer,
 	AudioPlayerControlBar,
@@ -47,6 +46,7 @@ export {
 	AudioPlayerTimeRange,
 	type AudioPlayerTimeRangeProps,
 } from "./audio-player.js";
+export { Badge, type BadgeProps } from "./badge.js";
 export {
 	Button,
 	type ButtonProps,

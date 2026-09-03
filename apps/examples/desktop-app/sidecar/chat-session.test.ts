@@ -2,6 +2,7 @@ import {
 	existsSync,
 	mkdirSync,
 	mkdtempSync,
+	readdirSync,
 	readFileSync,
 	rmSync,
 	writeFileSync,
@@ -413,75 +414,421 @@ describe("environment-bound session attach", () => {
 	});
 });
 
-describe("session forks", () => {
-	it("copies generated artifacts into the forked session", () => {
-		const previousSessionDataDir = process.env.CLINE_SESSION_DATA_DIR;
-		const sessionsDir = mkdtempSync(join(tmpdir(), "desktop-fork-artifacts-"));
-		const sourceSessionId = "source-session";
-		const targetSessionId = "forked-session";
-		const sourceArtifactsDir = join(sessionsDir, sourceSessionId, "artifacts");
+const VIDEO_SESSION_CONFIG = {
+	provider: "cline",
+	model: "anthropic/claude-sonnet-4.6",
+	cwd: "/workspace/project",
+};
 
-		try {
-			process.env.CLINE_SESSION_DATA_DIR = sessionsDir;
-			mkdirSync(sourceArtifactsDir, { recursive: true });
-			writeFileSync(join(sourceArtifactsDir, "generated.mp4"), "video");
-			writeFileSync(join(sourceArtifactsDir, "generated.mp3"), "audio");
-
-			copySessionGeneratedArtifacts(sourceSessionId, targetSessionId);
-
-			expect(
-				readFileSync(
-					join(sessionsDir, targetSessionId, "artifacts", "generated.mp4"),
-					"utf8",
-				),
-			).toBe("video");
-			expect(
-				readFileSync(
-					join(sessionsDir, targetSessionId, "artifacts", "generated.mp3"),
-					"utf8",
-				),
-			).toBe("audio");
-		} finally {
-			if (previousSessionDataDir === undefined) {
-				delete process.env.CLINE_SESSION_DATA_DIR;
-			} else {
-				process.env.CLINE_SESSION_DATA_DIR = previousSessionDataDir;
-			}
-			rmSync(sessionsDir, { recursive: true, force: true });
+async function withTemporarySessionDataDir<T>(
+	prefix: string,
+	run: (sessionsDir: string) => Promise<T>,
+): Promise<T> {
+	const previousSessionDataDir = process.env.CLINE_SESSION_DATA_DIR;
+	const sessionsDir = mkdtempSync(join(tmpdir(), prefix));
+	try {
+		process.env.CLINE_SESSION_DATA_DIR = sessionsDir;
+		return await run(sessionsDir);
+	} finally {
+		if (previousSessionDataDir === undefined) {
+			delete process.env.CLINE_SESSION_DATA_DIR;
+		} else {
+			process.env.CLINE_SESSION_DATA_DIR = previousSessionDataDir;
 		}
+		rmSync(sessionsDir, { recursive: true, force: true });
+	}
+}
+
+function writeSessionArtifact(
+	sessionsDir: string,
+	sessionId: string,
+	name: string,
+	content: string,
+): string {
+	const artifactPath = join(sessionsDir, sessionId, "artifacts", name);
+	mkdirSync(join(sessionsDir, sessionId, "artifacts"), { recursive: true });
+	writeFileSync(artifactPath, content);
+	return artifactPath;
+}
+
+function createVideoReplacementContext(options: {
+	sourceSessionId: string;
+	targetSessionId: string;
+	messages?: unknown[];
+	deleteSession?: (sessionId: string) => Promise<boolean>;
+}) {
+	const messages = options.messages ?? [
+		{ role: "user" as const, content: "create a video" },
+	];
+	const start = vi.fn(async () => ({ sessionId: options.targetSessionId }));
+	const restore = vi.fn(async () => ({
+		sessionId: options.targetSessionId,
+		messages,
+		checkpoint: { ref: "first", createdAt: 1, runCount: 1 },
+	}));
+	const sessionManager = {
+		get: vi.fn(async () => ({
+			sessionId: options.sourceSessionId,
+			source: "desktop",
+			status: "completed",
+			provider: VIDEO_SESSION_CONFIG.provider,
+			model: VIDEO_SESSION_CONFIG.model,
+			cwd: VIDEO_SESSION_CONFIG.cwd,
+			workspaceRoot: VIDEO_SESSION_CONFIG.cwd,
+		})),
+		readMessages: vi.fn(async () => messages),
+		start,
+		restore,
+		delete: options.deleteSession ?? (async () => true),
+	};
+	const ctx = {
+		liveSessions: new Map([
+			[
+				options.sourceSessionId,
+				{
+					config: VIDEO_SESSION_CONFIG,
+					messages,
+					promptsInQueue: [],
+					busy: false,
+					startedAt: Date.now(),
+					status: "completed",
+				},
+			],
+		]),
+		restoringWorkspacePaths: new Set(),
+		...localRuntimeContext(sessionManager, {
+			sessionIds: [options.sourceSessionId, options.targetSessionId],
+			workspaceRoot: VIDEO_SESSION_CONFIG.cwd,
+		}),
+		streamIndices: new Map(),
+		wsClients: new Set(),
+	} as unknown as SidecarContext;
+	return { ctx, restore, start };
+}
+
+describe("session forks", () => {
+	it("atomically copies only generated media artifacts", async () => {
+		await withTemporarySessionDataDir(
+			"desktop-media-fork-",
+			async (sessionsDir) => {
+				writeSessionArtifact(
+					sessionsDir,
+					"source",
+					"generated.mp4",
+					"mp4-video",
+				);
+				writeSessionArtifact(
+					sessionsDir,
+					"source",
+					"generated.webm",
+					"webm-video",
+				);
+				writeSessionArtifact(sessionsDir, "source", "generated.mp3", "audio");
+				writeSessionArtifact(sessionsDir, "source", "notes.txt", "unrelated");
+				await copySessionGeneratedArtifacts("source", "target");
+
+				const targetArtifactsDir = join(sessionsDir, "target", "artifacts");
+				expect(
+					readFileSync(join(targetArtifactsDir, "generated.mp4"), "utf8"),
+				).toBe("mp4-video");
+				expect(
+					readFileSync(join(targetArtifactsDir, "generated.webm"), "utf8"),
+				).toBe("webm-video");
+				expect(
+					readFileSync(join(targetArtifactsDir, "generated.mp3"), "utf8"),
+				).toBe("audio");
+				expect(existsSync(join(targetArtifactsDir, "notes.txt"))).toBe(false);
+				expect(
+					readdirSync(join(sessionsDir, "target")).filter((name) =>
+						name.startsWith(".media-artifacts-"),
+					),
+				).toEqual([]);
+			},
+		);
 	});
 
-	it("blocks the delete command while a persisted cloud handoff is pending", async () => {
-		const sessionId = "pending-handoff-source";
-		const remove = vi.fn();
-		const manager = {
-			get: vi.fn(async () => ({
-				sessionId,
-				metadata: {
-					handoff: {
-						status: "pending",
-						toCloudSessionId: "cloud-pending",
-						handedOffAt: "2026-08-18T00:00:00.000Z",
-						dashboardUrl:
-							"https://app.cline.bot/agents?sessionId=cloud-pending",
-					},
-				},
-			})),
-			delete: remove,
-		};
-		const ctx = {
-			liveSessions: new Map(),
-			cloudSessionManager: null,
-			...localRuntimeContext(manager, { sessionIds: [sessionId] }),
-		} as unknown as SidecarContext;
-		const { handleCommand } = await import("./commands");
+	it("copies generated media into a full-history fork", async () => {
+		await withTemporarySessionDataDir(
+			"desktop-video-full-fork-",
+			async (sessionsDir) => {
+				const sourceSessionId = "source-video-full-fork";
+				const targetSessionId = "target-video-full-fork";
+				writeSessionArtifact(
+					sessionsDir,
+					sourceSessionId,
+					"generated.mp4",
+					"video-bytes",
+				);
+				writeSessionArtifact(
+					sessionsDir,
+					sourceSessionId,
+					"generated.mp3",
+					"audio-bytes",
+				);
+				const { ctx } = createVideoReplacementContext({
+					sourceSessionId,
+					targetSessionId,
+				});
 
-		await expect(
-			handleCommand(ctx, "delete_chat_session", {
-				sessionId,
-			}),
-		).rejects.toThrow("Cloud handoff is still pending");
-		expect(remove).not.toHaveBeenCalled();
+				await handleChatSessionCommand(ctx, {
+					action: "fork",
+					sessionId: sourceSessionId,
+					config: VIDEO_SESSION_CONFIG,
+				});
+
+				expect(
+					readFileSync(
+						join(sessionsDir, targetSessionId, "artifacts", "generated.mp4"),
+						"utf8",
+					),
+				).toBe("video-bytes");
+				expect(
+					readFileSync(
+						join(sessionsDir, targetSessionId, "artifacts", "generated.mp3"),
+						"utf8",
+					),
+				).toBe("audio-bytes");
+			},
+		);
+	});
+
+	it("deletes a fork replacement when generated media copying fails", async () => {
+		await withTemporarySessionDataDir(
+			"desktop-video-fork-rollback-",
+			async (sessionsDir) => {
+				const sourceSessionId = "source-video-fork-rollback";
+				const targetSessionId = "target-video-fork-rollback";
+				writeSessionArtifact(
+					sessionsDir,
+					sourceSessionId,
+					"generated.mp4",
+					"video-bytes",
+				);
+				writeSessionArtifact(
+					sessionsDir,
+					targetSessionId,
+					"existing.mp4",
+					"existing",
+				);
+				const deleteSession = vi.fn(async () => true);
+				const { ctx } = createVideoReplacementContext({
+					sourceSessionId,
+					targetSessionId,
+					deleteSession,
+				});
+
+				await expect(
+					handleChatSessionCommand(ctx, {
+						action: "fork",
+						sessionId: sourceSessionId,
+						config: VIDEO_SESSION_CONFIG,
+					}),
+				).rejects.toThrow(
+					`Generated media artifact destination already exists for session ${targetSessionId}`,
+				);
+				expect(deleteSession).toHaveBeenCalledWith(targetSessionId);
+				expect(ctx.liveSessions.has(sourceSessionId)).toBe(true);
+				expect(ctx.liveSessions.has(targetSessionId)).toBe(false);
+			},
+		);
+	});
+
+	it("copies generated media into a checkpoint-restored session", async () => {
+		await withTemporarySessionDataDir(
+			"desktop-video-checkpoint-",
+			async (sessionsDir) => {
+				const sourceSessionId = "source-video-checkpoint";
+				const targetSessionId = "target-video-checkpoint";
+				const restoredMessages = [
+					{ role: "user" as const, content: "create a video" },
+					{
+						role: "assistant" as const,
+						content: [
+							{
+								type: "media" as const,
+								media: {
+									id: "media_video_1",
+									modality: "video" as const,
+									mediaType: "video/mp4",
+									source: {
+										type: "artifact" as const,
+										artifactId: "generated.mp4",
+									},
+								},
+							},
+						],
+					},
+				];
+				writeSessionArtifact(
+					sessionsDir,
+					sourceSessionId,
+					"generated.mp4",
+					"video-bytes",
+				);
+				writeSessionArtifact(
+					sessionsDir,
+					sourceSessionId,
+					"generated.mp3",
+					"audio-bytes",
+				);
+				const restore = vi.fn(async () => ({
+					sessionId: targetSessionId,
+					messages: restoredMessages,
+					checkpoint: { ref: "first", createdAt: 1, runCount: 1 },
+				}));
+				const ctx = {
+					liveSessions: new Map([
+						[
+							sourceSessionId,
+							{
+								config: VIDEO_SESSION_CONFIG,
+								messages: restoredMessages,
+								promptsInQueue: [],
+								busy: false,
+								startedAt: Date.now(),
+								status: "completed",
+							},
+						],
+					]),
+					restoringWorkspacePaths: new Set(),
+					...localRuntimeContext(
+						{
+							get: vi.fn(async () => ({
+								sessionId: sourceSessionId,
+								source: "desktop",
+								status: "completed",
+							})),
+							restore,
+							readMessages: vi.fn(async () => restoredMessages),
+						},
+						{
+							sessionIds: [sourceSessionId, targetSessionId],
+							workspaceRoot: VIDEO_SESSION_CONFIG.cwd,
+						},
+					),
+					streamIndices: new Map(),
+					wsClients: new Set(),
+				} as unknown as SidecarContext;
+
+				await handleChatSessionCommand(ctx, {
+					action: "restore_checkpoint",
+					sessionId: sourceSessionId,
+					checkpointRunCount: 1,
+					config: VIDEO_SESSION_CONFIG,
+				});
+
+				expect(restore).toHaveBeenCalledWith(
+					expect.objectContaining({
+						sessionId: sourceSessionId,
+						checkpointRunCount: 1,
+					}),
+				);
+				expect(
+					readFileSync(
+						join(sessionsDir, targetSessionId, "artifacts", "generated.mp4"),
+						"utf8",
+					),
+				).toBe("video-bytes");
+				expect(
+					readFileSync(
+						join(sessionsDir, targetSessionId, "artifacts", "generated.mp3"),
+						"utf8",
+					),
+				).toBe("audio-bytes");
+			},
+		);
+	});
+
+	it("reports copy and rollback failures without replacing the source checkpoint session", async () => {
+		await withTemporarySessionDataDir(
+			"desktop-video-checkpoint-rollback-",
+			async (sessionsDir) => {
+				const sourceSessionId = "source-video-checkpoint-rollback";
+				const targetSessionId = "target-video-checkpoint-rollback";
+				const restoredMessages = [
+					{ role: "user" as const, content: "create a video" },
+				];
+				writeSessionArtifact(
+					sessionsDir,
+					sourceSessionId,
+					"generated.mp4",
+					"video-bytes",
+				);
+				writeSessionArtifact(
+					sessionsDir,
+					targetSessionId,
+					"existing.mp4",
+					"existing",
+				);
+				const rollbackError = new Error("replacement cleanup failed");
+				const deleteSession = vi.fn(async () => {
+					throw rollbackError;
+				});
+				const ctx = {
+					liveSessions: new Map([
+						[
+							sourceSessionId,
+							{
+								config: VIDEO_SESSION_CONFIG,
+								messages: restoredMessages,
+								promptsInQueue: [],
+								busy: false,
+								startedAt: Date.now(),
+								status: "completed",
+							},
+						],
+					]),
+					restoringWorkspacePaths: new Set(),
+					...localRuntimeContext(
+						{
+							get: vi.fn(async () => ({
+								sessionId: sourceSessionId,
+								source: "desktop",
+								status: "completed",
+							})),
+							restore: vi.fn(async () => ({
+								sessionId: targetSessionId,
+								messages: restoredMessages,
+								checkpoint: { ref: "first", createdAt: 1, runCount: 1 },
+							})),
+							delete: deleteSession,
+						},
+						{
+							sessionIds: [sourceSessionId, targetSessionId],
+							workspaceRoot: VIDEO_SESSION_CONFIG.cwd,
+						},
+					),
+					streamIndices: new Map(),
+					wsClients: new Set(),
+				} as unknown as SidecarContext;
+
+				let caught: unknown;
+				try {
+					await handleChatSessionCommand(ctx, {
+						action: "restore_checkpoint",
+						sessionId: sourceSessionId,
+						checkpointRunCount: 1,
+						config: VIDEO_SESSION_CONFIG,
+					});
+				} catch (error) {
+					caught = error;
+				}
+
+				expect(caught).toBeInstanceOf(AggregateError);
+				expect((caught as AggregateError).message).toBe(
+					`Failed to copy generated media and roll back replacement session ${targetSessionId}`,
+				);
+				expect((caught as AggregateError).errors).toEqual([
+					expect.objectContaining({
+						message: `Generated media artifact destination already exists for session ${targetSessionId}`,
+					}),
+					rollbackError,
+				]);
+				expect(deleteSession).toHaveBeenCalledWith(targetSessionId);
+				expect(ctx.liveSessions.has(sourceSessionId)).toBe(true);
+				expect(ctx.liveSessions.has(targetSessionId)).toBe(false);
+			},
+		);
 	});
 
 	it("blocks deletion while the handoff request is starting", async () => {

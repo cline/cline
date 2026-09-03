@@ -45,22 +45,6 @@ export interface ImageContent {
 	mediaType: string;
 }
 
-/** Artifact-backed generated video. */
-export interface VideoContent {
-	type: "video";
-	/** Absolute path within the owning session's artifact directory. */
-	path: string;
-	mediaType: string;
-}
-
-/** Artifact-backed generated audio. */
-export interface AudioContent {
-	type: "audio";
-	/** Absolute path within the owning session's artifact directory. */
-	path: string;
-	mediaType: string;
-}
-
 /** Model-generated binary media preserved independently of textual files. */
 export interface MediaContent {
 	type: "media";
@@ -135,8 +119,6 @@ export interface RedactedThinkingContent {
 export type ContentBlock =
 	| TextContent
 	| ImageContent
-	| VideoContent
-	| AudioContent
 	| MediaContent
 	| ToolUseContent
 	| ToolResultContent

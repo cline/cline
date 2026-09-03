@@ -77,8 +77,6 @@ export type AgentContentType =
 	| "text"
 	| "reasoning"
 	| "image"
-	| "video"
-	| "audio"
 	| "media"
 	| "tool";
 
@@ -134,10 +132,6 @@ export interface AgentContentEndEvent extends AgentEventMetadata {
 	media?: GeneratedMedia;
 	/** Generated image returned by a legacy model event. */
 	image?: { data: string; mediaType: string };
-	/** Generated video persisted by the session host. */
-	video?: { path: string; mediaType: string };
-	/** Generated audio persisted by the session host. */
-	audio?: { path: string; mediaType: string };
 	/** Name of the tool that completed */
 	toolName?: string;
 	/** Unique identifier for this tool call */
@@ -779,11 +773,15 @@ export interface AgentConfig {
 	 */
 	userFileContentLoader?: (path: string) => Promise<string>;
 	/** Host-owned storage for large generated artifacts. */
+	/**
+	 * Host-owned storage for large generated media artifacts (audio and
+	 * video). The returned artifact ID replaces the inline base64 source on
+	 * the canonical media block before persistence or event delivery.
+	 */
 	storeGeneratedArtifact?: (artifact: {
-		kind: "video" | "audio";
 		data: string;
 		mediaType: string;
-	}) => Promise<{ path: string }>;
+	}) => Promise<{ artifactId: string }>;
 	/**
 	 * Optional metadata merged into every tool execution context.
 	 * Hosts can use this to thread runtime-specific identifiers such as session IDs.

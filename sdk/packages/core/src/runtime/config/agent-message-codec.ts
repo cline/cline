@@ -2,7 +2,6 @@ import type {
 	AgentMessage,
 	AgentMessagePart,
 	AgentTextPart,
-	AudioContent,
 	ContentBlock,
 	FileContent,
 	ImageContent,
@@ -14,7 +13,6 @@ import type {
 	ThinkingContent,
 	ToolResultContent,
 	ToolUseContent,
-	VideoContent,
 } from "@cline/shared";
 import { EMPTY_CONTENT_TEXT } from "@cline/shared";
 import { toPersistedToolResultContent } from "../../session/persisted-tool-result-content";
@@ -178,7 +176,45 @@ function normalizeContentBlocks(content: Message["content"]): ContentBlock[] {
 	return [...content];
 }
 
+/**
+ * Sessions persisted by earlier experimental builds stored generated audio and
+ * video as path-backed `video`/`audio` blocks that no longer exist in the
+ * ContentBlock union. Convert them to artifact-source media at the codec
+ * boundary so resumed legacy transcripts keep flowing through the canonical
+ * media pipeline instead of producing undefined message parts.
+ */
+function legacyGeneratedMediaToAgentPart(
+	block: ContentBlock,
+): AgentMessagePart | undefined {
+	const record = block as {
+		type?: unknown;
+		path?: unknown;
+		mediaType?: unknown;
+	};
+	if (
+		(record.type !== "video" && record.type !== "audio") ||
+		typeof record.path !== "string" ||
+		typeof record.mediaType !== "string"
+	) {
+		return undefined;
+	}
+	const artifactId = record.path.split(/[\\/]/).pop() || record.path;
+	return {
+		type: "media",
+		media: {
+			id: `legacy_${record.type}_${artifactId}`,
+			modality: record.type,
+			mediaType: record.mediaType,
+			source: { type: "artifact", artifactId },
+		},
+	};
+}
+
 function contentBlockToAgentPart(block: ContentBlock): AgentMessagePart {
+	const legacyMedia = legacyGeneratedMediaToAgentPart(block);
+	if (legacyMedia) {
+		return legacyMedia;
+	}
 	switch (block.type) {
 		case "text":
 			return { type: "text", text: block.text };
@@ -201,10 +237,6 @@ function contentBlockToAgentPart(block: ContentBlock): AgentMessagePart {
 			};
 		case "image":
 			return { type: "image", image: block.data, mediaType: block.mediaType };
-		case "video":
-			return { type: "video", path: block.path, mediaType: block.mediaType };
-		case "audio":
-			return { type: "audio", path: block.path, mediaType: block.mediaType };
 		case "media":
 			return { type: "media", media: block.media };
 		case "file":
@@ -270,22 +302,6 @@ function agentPartToContentBlock(
 						data: part.image,
 						mediaType: part.mediaType ?? "image/png",
 					} satisfies ImageContent)
-				: undefined;
-		case "video":
-			return part.path
-				? ({
-						type: "video",
-						path: part.path,
-						mediaType: part.mediaType,
-					} satisfies VideoContent)
-				: undefined;
-		case "audio":
-			return part.path
-				? ({
-						type: "audio",
-						path: part.path,
-						mediaType: part.mediaType,
-					} satisfies AudioContent)
 				: undefined;
 		case "file":
 			return {

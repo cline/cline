@@ -864,8 +864,6 @@ export function handleHubLiveEvent(
 			return;
 		}
 		case "assistant.image":
-		case "assistant.video":
-		case "assistant.audio":
 		case "reasoning.delta":
 		case "tool.started":
 		case "tool.updated":

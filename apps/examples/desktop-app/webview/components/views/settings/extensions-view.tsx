@@ -261,11 +261,20 @@ function isValidMediaSelection(
 export function MediaModelConfiguration({
 	config,
 	media,
+	onPendingSelectionChange,
 }: {
 	config: GenerateMediaToolConfig;
 	media: MediaTypeConfiguration;
+	onPendingSelectionChange?: (
+		mediaType: MediaGenerationType,
+		selection: MediaModelSelection | undefined,
+	) => void;
 }) {
 	const presentation = MEDIA_TYPE_PRESENTATION[media.mediaType];
+	const [pendingSelection, setPendingSelection] = useState(media.selection);
+	useEffect(() => {
+		setPendingSelection(media.selection);
+	}, [media.selection]);
 	const eligibleProviders = config.providers
 		.filter((provider) => provider.enabled)
 		.map((provider) => ({
@@ -276,11 +285,13 @@ export function MediaModelConfiguration({
 		}))
 		.filter((entry) => entry.models.length > 0);
 	const selectedProvider = eligibleProviders.find(
-		(entry) => entry.provider.id === media.selection?.providerId,
+		(entry) => entry.provider.id === pendingSelection?.providerId,
 	);
 	const selectedModels = selectedProvider?.models ?? [];
-	const hasValidSelection = isValidMediaSelection(config, media);
-
+	const hasValidSelection = isValidMediaSelection(config, {
+		...media,
+		selection: pendingSelection,
+	});
 	if (eligibleProviders.length === 0) {
 		return (
 			<div className="space-y-2" data-media-type-config={media.mediaType}>
@@ -323,17 +334,20 @@ export function MediaModelConfiguration({
 						onChange={(event) => {
 							const providerId = event.target.value;
 							if (!providerId) {
-								void config.onChange(media.mediaType, undefined);
+								setPendingSelection(undefined);
+								onPendingSelectionChange?.(media.mediaType, undefined);
 								return;
 							}
 							const modelId = eligibleProviders.find(
 								(entry) => entry.provider.id === providerId,
 							)?.models[0]?.id;
 							if (modelId) {
-								void config.onChange(media.mediaType, {
+								const nextSelection = {
 									providerId,
 									modelId,
-								});
+								};
+								setPendingSelection(nextSelection);
+								onPendingSelectionChange?.(media.mediaType, nextSelection);
 							}
 						}}
 						value={selectedProvider?.provider.id ?? ""}
@@ -354,12 +368,14 @@ export function MediaModelConfiguration({
 						disabled={!selectedProvider || media.saving}
 						onChange={(event) => {
 							if (!selectedProvider || !event.target.value) return;
-							void config.onChange(media.mediaType, {
+							const nextSelection = {
 								providerId: selectedProvider.provider.id,
 								modelId: event.target.value,
-							});
+							};
+							setPendingSelection(nextSelection);
+							onPendingSelectionChange?.(media.mediaType, nextSelection);
 						}}
-						value={hasValidSelection ? media.selection?.modelId : ""}
+						value={hasValidSelection ? pendingSelection?.modelId : ""}
 					>
 						{selectedModels.length === 0 ? (
 							<option value="">Select a provider first</option>
@@ -381,6 +397,10 @@ export function GenerateMediaConfiguration({
 }: {
 	config: GenerateMediaToolConfig;
 }) {
+	const [pendingSelections, setPendingSelections] = useState<
+		Partial<Record<MediaGenerationType, MediaModelSelection | undefined>>
+	>({});
+	const [saving, setSaving] = useState(false);
 	if (config.unavailableReason) {
 		return (
 			<p className="text-xs text-muted-foreground">
@@ -414,6 +434,17 @@ export function GenerateMediaConfiguration({
 			</div>
 		);
 	}
+	const getPendingSelection = (media: MediaTypeConfiguration) =>
+		Object.hasOwn(pendingSelections, media.mediaType)
+			? pendingSelections[media.mediaType]
+			: media.selection;
+	const hasChanges = config.mediaTypes.some((media) => {
+		const selection = getPendingSelection(media);
+		return (
+			selection?.providerId !== media.selection?.providerId ||
+			selection?.modelId !== media.selection?.modelId
+		);
+	});
 
 	return (
 		<div className="space-y-3">
@@ -422,8 +453,40 @@ export function GenerateMediaConfiguration({
 					config={config}
 					key={media.mediaType}
 					media={media}
+					onPendingSelectionChange={(mediaType, selection) =>
+						setPendingSelections((current) => ({
+							...current,
+							[mediaType]: selection,
+						}))
+					}
 				/>
 			))}
+			<Button
+				className="w-full"
+				disabled={!hasChanges || saving || config.mediaTypes.some((media) => media.saving)}
+					onClick={async () => {
+						setSaving(true);
+						try {
+							await Promise.all(
+								config.mediaTypes.map(async (media) => {
+									const selection = getPendingSelection(media);
+									if (
+										(selection !== undefined || media.selection !== undefined) &&
+										(selection?.providerId !== media.selection?.providerId ||
+											selection?.modelId !== media.selection?.modelId)
+									) {
+										await config.onChange(media.mediaType, selection);
+									}
+								}),
+							);
+					} finally {
+						setSaving(false);
+					}
+				}}
+				type="button"
+			>
+				{saving ? "Saving..." : "Save"}
+			</Button>
 			<p className="text-xs text-muted-foreground">
 				Tool availability changes apply to new chats.
 			</p>
@@ -1914,9 +1977,9 @@ export function CustomizationSectionView({
 									return (
 										<div
 											key={tool.id}
-											className="rounded-lg border border-border px-5 py-4"
+											className="grid min-w-0 gap-2 rounded-lg border bg-card p-4"
 										>
-											<div className="flex items-start gap-3">
+											<div className="flex min-w-0 items-start gap-3">
 												{isGenerateMedia ? (
 													<button
 														aria-controls={`tool-config-${tool.id}`}

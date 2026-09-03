@@ -23,11 +23,15 @@ import {
 	formatMessagesForAiSdk,
 	GeneratedMediaSchema,
 	generatedMediaModalityFromMediaType,
+	imageBase64DecodedByteLength,
+	isCanonicalBase64,
 	modelProducesImages,
 	modelSupportsToolCalling,
 	parseJsonStream,
 	sanitizeSurrogates,
 	usesImageGenerationOperation,
+	usesSpeechGenerationOperation,
+	usesVideoGenerationOperation,
 	validateAndReserveBase64Media,
 	validateAndReserveImageMedia,
 	validateImageMedia,
@@ -35,6 +39,8 @@ import {
 import {
 	type CallSettings,
 	generateImage,
+	generateSpeech,
+	experimental_generateVideo as generateVideo,
 	jsonSchema,
 	NoSuchToolError,
 	stepCountIs,
@@ -203,6 +209,90 @@ function resolveImageGenerationPrompt(
 		}
 	}
 	return text;
+}
+
+type VideoGenerationPrompt =
+	| string
+	| { image: ImageGenerationInput; text?: string };
+
+function resolveVideoGenerationPrompt(
+	request: GatewayStreamRequest,
+	context: GatewayProviderContext,
+): VideoGenerationPrompt {
+	for (let index = request.messages.length - 1; index >= 0; index -= 1) {
+		const message = request.messages[index];
+		if (message?.role !== "user") continue;
+		const text = message.content
+			.filter((part) => part.type === "text")
+			.map((part) => part.text)
+			.join("\n")
+			.trim();
+		if (!text) continue;
+		if (context.model.modalities?.input.includes("image") !== true) {
+			return text;
+		}
+		const image = message.content.find((part) => part.type === "image");
+		return image ? { image: normalizeImageGenerationInput(image), text } : text;
+	}
+	throw new Error("Video generation requires a text prompt");
+}
+
+/**
+ * Convert a provider-generated audio or video file into canonical media.
+ *
+ * Generated audio and video are deliberately exempt from the inline
+ * image/media turn budget: stateful hosts immediately persist them as session
+ * artifacts (the runtime replaces the base64 source with an artifact
+ * reference before the bytes reach persistence or hub events), so capping
+ * them at the small inline envelope would reject virtually every real
+ * generated clip.
+ */
+function extractGeneratedArtifactMedia(
+	file: unknown,
+	modality: "audio" | "video",
+): GeneratedMedia | undefined {
+	if (!file || typeof file !== "object") return undefined;
+	const record = file as Record<string, unknown>;
+	if (
+		typeof record.mediaType !== "string" ||
+		!record.mediaType.startsWith(`${modality}/`) ||
+		typeof record.base64 !== "string"
+	) {
+		return undefined;
+	}
+	const base64 = record.base64.trim();
+	if (!isCanonicalBase64(base64)) {
+		return undefined;
+	}
+	return {
+		id: `media_${nanoid()}`,
+		modality,
+		mediaType: record.mediaType,
+		source: { type: "base64", data: base64 },
+		sizeBytes: imageBase64DecodedByteLength(base64),
+	};
+}
+
+function extractGeneratedVideo(file: unknown): GeneratedMedia | undefined {
+	return extractGeneratedArtifactMedia(file, "video");
+}
+
+function extractGeneratedAudio(file: unknown): GeneratedMedia | undefined {
+	return extractGeneratedArtifactMedia(file, "audio");
+}
+
+function resolveSpeechGenerationText(request: GatewayStreamRequest): string {
+	for (let index = request.messages.length - 1; index >= 0; index -= 1) {
+		const message = request.messages[index];
+		if (message?.role !== "user") continue;
+		const text = message.content
+			.filter((part) => part.type === "text")
+			.map((part) => part.text)
+			.join("\n")
+			.trim();
+		if (text) return text;
+	}
+	throw new Error("Speech generation requires text input");
 }
 
 type GeneratedImageExtraction =
@@ -1488,6 +1578,14 @@ async function* emitAiSdkEvents(
 				}
 
 				if (part.type === "file") {
+					const artifactMedia =
+						extractGeneratedVideo(part.file) ??
+						extractGeneratedAudio(part.file);
+					if (artifactMedia) {
+						sawVisibleContent = true;
+						yield { type: "media", media: artifactMedia };
+						continue;
+					}
 					const extracted = extractGeneratedImage(part.file, mediaBudget);
 					if (extracted.kind === "accepted") {
 						sawVisibleContent = true;
@@ -2123,7 +2221,9 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 				const modelOperation = context.model.operation ?? "language";
 				if (
 					modelOperation !== "language" &&
-					modelOperation !== "image-generation"
+					modelOperation !== "image-generation" &&
+					modelOperation !== "speech-generation" &&
+					modelOperation !== "video-generation"
 				) {
 					throw new Error(
 						`Provider "${context.provider.id}" does not implement the "${modelOperation}" model operation`,
@@ -2189,6 +2289,78 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 								context.model.metadata?.pricing,
 							),
 						};
+					}
+					yield { type: "finish", reason: "stop" };
+					return;
+				}
+				if (usesSpeechGenerationOperation(context.model)) {
+					if (!provider.operations.speechGeneration) {
+						throw new Error(
+							`Provider "${context.provider.id}" does not support speech generation models`,
+						);
+					}
+					const text = resolveSpeechGenerationText(request);
+					recordProviderRequestCapture({
+						stage: "ai_sdk_prompt",
+						request,
+						payload: {
+							operation: "generate_speech",
+							text,
+							providerOptions,
+						},
+					});
+					const result = await generateSpeech({
+						model: provider.operations.speechGeneration(
+							context.model.id,
+						) as never,
+						text,
+						abortSignal: request.signal,
+						providerOptions: providerOptions as never,
+					});
+					const audio = extractGeneratedAudio(result.audio);
+					if (!audio) {
+						throw new Error("Speech model returned no supported audio");
+					}
+					yield { type: "media", media: audio };
+					yield { type: "finish", reason: "stop" };
+					return;
+				}
+				if (usesVideoGenerationOperation(context.model)) {
+					if (!provider.operations.videoGeneration) {
+						throw new Error(
+							`Provider "${context.provider.id}" does not support video generation models`,
+						);
+					}
+					const prompt = resolveVideoGenerationPrompt(request, context);
+					recordProviderRequestCapture({
+						stage: "ai_sdk_prompt",
+						request,
+						payload: {
+							operation: "generate_video",
+							prompt:
+								typeof prompt === "string"
+									? prompt
+									: { text: prompt.text, hasImage: true },
+							providerOptions,
+						},
+					});
+					const result = await generateVideo({
+						model: provider.operations.videoGeneration(
+							context.model.id,
+						) as never,
+						prompt,
+						abortSignal: request.signal,
+						providerOptions: providerOptions as never,
+					});
+					let emittedVideos = 0;
+					for (const file of result.videos) {
+						const video = extractGeneratedVideo(file);
+						if (!video) continue;
+						emittedVideos += 1;
+						yield { type: "media", media: video };
+					}
+					if (emittedVideos === 0) {
+						throw new Error("Video model returned no supported videos");
 					}
 					yield { type: "finish", reason: "stop" };
 					return;

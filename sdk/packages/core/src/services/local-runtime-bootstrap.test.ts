@@ -447,6 +447,12 @@ describe("prepareLocalRuntimeBootstrap", () => {
 		expect(
 			withSelection.runtimeBuilderInput.toolExecutors?.generateMedia,
 		).toBeTypeOf("function");
+		expect(
+			withSelection.runtimeBuilderInput.configuredMediaGenerationTypes,
+		).toEqual(["image"]);
+		expect(
+			withoutSelection.runtimeBuilderInput.configuredMediaGenerationTypes,
+		).toEqual([]);
 	});
 
 	it("does not inject the media executor for a stale stored selection", async () => {

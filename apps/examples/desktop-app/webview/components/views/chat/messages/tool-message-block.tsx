@@ -24,6 +24,8 @@ import { cn } from "@/lib/utils";
 import { MemoizedMarkdown } from "../../../ui/markdown";
 import { IS_DEBUG, STREAMING_TITLE_CLASS } from "./constants";
 import { MessageImageCarousel } from "./image-carousel";
+import { MessageAudios } from "./message-audios";
+import { MessageVideos, resolveSessionArtifactUrl } from "./message-videos";
 import { getToolNameIcon } from "./tool-icons";
 import {
 	buildToolPresentation,
@@ -101,6 +103,33 @@ const ToolCallRow = memo(function ToolCallRow({
 		? appendCappedCommandOutput("", commandOutputSource).output
 		: "";
 	const toolSessionId = message.sessionId;
+	const artifactVideos = toolSessionId
+		? (message.media ?? []).filter(
+				(media) => media.modality === "video" && media.source.type === "artifact",
+			)
+		: [];
+	const artifactAudios = toolSessionId
+		? (message.media ?? []).filter(
+				(media) => media.modality === "audio" && media.source.type === "artifact",
+			)
+		: [];
+	const [artifactUrls, setArtifactUrls] = useState<Record<string, string>>({});
+	const artifactMedia = [...artifactVideos, ...artifactAudios];
+	const artifactIds = artifactMedia
+		.map((media) => media.id)
+		.join(",");
+	useEffect(() => {
+		if (!toolSessionId) return;
+		for (const media of artifactMedia) {
+			if (media.source.type !== "artifact") continue;
+			void resolveSessionArtifactUrl(toolSessionId, media.source.artifactId).then(
+				(url) => setArtifactUrls((current) => ({ ...current, [media.id]: url })),
+			);
+		}
+	}, [artifactIds, toolSessionId]);
+	const mediaPlaceholderText = (summary.outputText ?? "")
+		.replace(/\[generated audio\]/gi, artifactUrls[artifactAudios[0]?.id ?? ""] ?? "[generated audio]")
+		.replace(/\[generated video\]/gi, artifactUrls[artifactVideos[0]?.id ?? ""] ?? "[generated video]");
 	const toolCallId = message.meta?.toolCallId;
 	const canProceed = Boolean(
 		inProgress &&
@@ -266,7 +295,7 @@ const ToolCallRow = memo(function ToolCallRow({
 						</div>
 					) : summary.outputText ? (
 						<ToolActivityCode className="mt-1 max-h-64 overflow-auto whitespace-pre-wrap break-words font-mono text-xs">
-							{summary.outputText}
+							{mediaPlaceholderText}
 						</ToolActivityCode>
 					) : null}
 					{outputImages.length > 0 ? (
@@ -275,29 +304,6 @@ const ToolCallRow = memo(function ToolCallRow({
 								images={outputImages}
 								onExpandImage={onExpandImage}
 							/>
-						</div>
-					) : null}
-					{otherOutputMedia.length > 0 ? (
-						<div className="mt-2 flex max-w-2xl flex-col gap-2">
-							{otherOutputMedia.map((media, index) => (
-								<GeneratedMediaContent
-									classNames={{
-										audio: "w-full",
-										video: "max-h-96 max-w-full rounded-lg",
-										file: "text-sm underline",
-										unavailable:
-											"rounded-lg border border-border bg-muted p-3 text-sm",
-									}}
-									key={`${message.id}_tool_media_${index}`}
-									media={{
-										id: `${message.id}_tool_media_${index}`,
-										modality: media.modality,
-										mediaType: media.mediaType,
-										name: media.name,
-										source: { type: "base64", data: media.data },
-									}}
-								/>
-							))}
 						</div>
 					) : null}
 					{inputPreview ? (
@@ -336,9 +342,48 @@ const ToolCallRow = memo(function ToolCallRow({
 					) : null}
 				</ToolActivityContent>
 			</ToolActivity>
-			{message.media?.length ? (
+			{otherOutputMedia.length > 0 ? (
+				<div className="mt-2 ml-7 flex max-w-2xl flex-col gap-2">
+					{otherOutputMedia.map((media, index) => (
+						<GeneratedMediaContent
+							classNames={{
+								audio: "w-full",
+								video: "max-h-96 max-w-full rounded-lg",
+								file: "text-sm underline",
+								unavailable: "rounded-lg border border-border bg-muted p-3 text-sm",
+							}}
+							key={`${message.id}_tool_media_${index}`}
+							media={{
+								id: `${message.id}_tool_media_${index}`,
+								modality: media.modality,
+								mediaType: media.mediaType,
+								name: media.name,
+								source: { type: "base64", data: media.data },
+							}}
+						/>
+					))}
+				</div>
+			) : null}
+			{artifactVideos.length > 0 && toolSessionId ? (
+				<div className="mt-2 ml-7">
+					<MessageVideos sessionId={toolSessionId} videos={artifactVideos} />
+				</div>
+			) : null}
+			{artifactAudios.length > 0 && toolSessionId ? (
+				<div className="mt-2 ml-7">
+					<MessageAudios audios={artifactAudios} sessionId={toolSessionId} />
+				</div>
+			) : null}
+			{message.media?.filter(
+				(media) => !artifactVideos.includes(media) && !artifactAudios.includes(media),
+			).length ? (
 				<div className="ml-7 flex max-w-2xl flex-col gap-2">
-					{message.media.map((media) => (
+					{message.media
+						.filter(
+							(media) =>
+									!artifactVideos.includes(media) && !artifactAudios.includes(media),
+						)
+						.map((media) => (
 						<GeneratedMediaContent
 							classNames={{
 								image:

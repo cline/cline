@@ -25,7 +25,7 @@ import { toast } from "@/hooks/use-toast";
 import type {
 	ChatMessage,
 	ChatMessageImage,
-	ChatMessageVideo,
+	ChatMessageMedia,
 	ChatSessionStatus,
 } from "@/lib/chat-schema";
 import { cn } from "@/lib/utils";
@@ -39,7 +39,10 @@ import {
 } from "./messages/group-messages";
 import { ChatImageLightbox } from "./messages/image-lightbox";
 import { MessageBubble } from "./messages/message-bubble";
-import { ChatVideoLightbox } from "./messages/message-media";
+import {
+	resolveSessionArtifactUrl,
+	videoArtifactId,
+} from "./messages/message-videos";
 import {
 	ToolApprovalPanel,
 	type ToolApprovalRequestItem,
@@ -47,6 +50,7 @@ import {
 import { ToolMessageBlock } from "./messages/tool-message-block";
 import { buildToolPresentation } from "./messages/tool-summaries";
 import { useAssistantSpeech } from "./messages/use-assistant-speech";
+import { ChatVideoLightbox } from "./messages/video-lightbox";
 import { WorkBlock } from "./messages/work-block";
 import { SessionContent } from "./session-content";
 
@@ -197,7 +201,8 @@ function ChatMessagesImpl({
 	} | null>(null);
 	const [expandedVideo, setExpandedVideo] = useState<{
 		sessionId: string;
-		video: ChatMessageVideo;
+		video: ChatMessageMedia;
+		source: string;
 	} | null>(null);
 	const assistantSpeech = useAssistantSpeech({
 		sessionId,
@@ -474,8 +479,13 @@ function ChatMessagesImpl({
 		[sessionId],
 	);
 	const handleExpandVideo = useCallback(
-		(video: ChatMessageVideo) => {
-			if (sessionId) setExpandedVideo({ sessionId, video });
+		async (video: ChatMessageMedia) => {
+			const artifactId = videoArtifactId(video);
+			if (!sessionId || !artifactId) {
+				return;
+			}
+			const source = await resolveSessionArtifactUrl(sessionId, artifactId);
+			setExpandedVideo({ sessionId, video, source });
 		},
 		[sessionId],
 	);
@@ -592,6 +602,7 @@ function ChatMessagesImpl({
 												message={child.message}
 												onCopyMessage={handleCopyMessage}
 												onExpandImage={handleExpandImage}
+												onExpandVideo={handleExpandVideo}
 												wasCopied={copiedMessageId === child.message.id}
 												{...getReasoningProps(child.reasoningMessages)}
 											/>
@@ -814,7 +825,7 @@ function ChatMessagesImpl({
 			{visibleExpandedVideo ? (
 				<ChatVideoLightbox
 					onClose={() => setExpandedVideo(null)}
-					sessionId={visibleExpandedVideo.sessionId}
+					source={visibleExpandedVideo.source}
 					video={visibleExpandedVideo.video}
 				/>
 			) : null}

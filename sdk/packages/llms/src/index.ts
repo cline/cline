@@ -1,6 +1,7 @@
 export { CLINE_DEFAULT_MODEL_ID } from "@cline/shared";
 export {
 	generateMedia,
+	type MediaGenerationMediaType,
 	type MediaGenerationRequest,
 	type MediaGenerationResult,
 } from "./media-generation";

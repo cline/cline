@@ -817,6 +817,18 @@ export function SettingsView({
 							saving: mediaGenerationSaving.image === true,
 							selection: mediaGeneration?.image,
 						},
+						{
+							mediaType: "audio",
+							modelIdsByProvider: mediaGenerationModels.audio,
+							saving: mediaGenerationSaving.audio === true,
+							selection: mediaGeneration?.audio,
+						},
+						{
+							mediaType: "video",
+							modelIdsByProvider: mediaGenerationModels.video,
+							saving: mediaGenerationSaving.video === true,
+							selection: mediaGeneration?.video,
+						},
 					],
 					onChange: updateMediaGeneration,
 					onConfigureProviders: () => onNavigateSection("Models"),

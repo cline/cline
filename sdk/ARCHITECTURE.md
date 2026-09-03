@@ -266,6 +266,39 @@ persists that same ID and its artifacts. Closing a runtime before a user turn
 therefore leaves no empty history entry, and persistence code never allocates a
 replacement ID for an unknown session.
 
+### Generated Audio & Video Flow
+
+Generated audio and video ride the canonical `GeneratedMedia` pipeline while
+keeping large media bytes out of persisted provider history:
+
+1. `@cline/llms` routes models with the `speech-generation` or
+   `video-generation` operation through the AI SDK `generateSpeech` and
+   `experimental_generateVideo` APIs. Models that return text alongside audio
+   or video stay on the streaming language-model path, where audio/video file
+   parts are classified into canonical `media` stream chunks. Both admission
+   paths are fail-closed: a provider must declare a matching operation
+   capability before its catalog models are kept.
+2. `@cline/agents` assembles media events into `AgentMediaPart`s. A stateless
+   host retains the inline base64 source, while a persistent host supplies
+   `storeGeneratedArtifact` so the runtime can swap the base64 source for an
+   `artifact` source before the media reaches persistence or events.
+3. `@cline/core` writes each clip through a temporary file and atomic rename
+   beneath `<session-artifacts-root>/<session-id>/artifacts`, and returns the
+   bare filename as the artifact ID. The session artifacts root comes from the
+   session persistence adapter (`resolveSessionDataDir()` for the local
+   adapter); it is distinct from the SQLite database directory. Because the
+   canonical media block only ever carries the artifact ID, absolute host
+   paths never enter message stores, live events, or hub payloads.
+4. Provider-history formatting and context compaction retain only a
+   modality/media-type marker for artifact-backed media. Artifact IDs and host
+   paths are persistence metadata and must never be sent to a model or
+   summarizer.
+5. Host UIs resolve the artifact ID together with the owning session ID into a
+   trusted, session-scoped byte-range media endpoint. When desktop history is
+   forked or restored from a checkpoint, generated media files are staged and
+   atomically cloned into the new session before that session is exposed to
+   the webview.
+
 Workspace bootstrap is owned by the runtime that executes the session. Hub
 clients preserve an omitted `cwd` and `workspaceRoot` across the transport so
 the hub-side execution host can place the session in the shared chat

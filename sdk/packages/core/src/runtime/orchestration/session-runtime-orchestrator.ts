@@ -39,9 +39,6 @@ import {
 	type ContributionRegistry,
 	createContributionRegistry,
 	type ITelemetryService,
-	isDedicatedAudioGenerationModel,
-	isDedicatedImageGenerationModel,
-	isDedicatedVideoGenerationModel,
 	isLikelyAuthError,
 	type LegacyAgentUsage,
 	type LoopDetectionConfig,
@@ -52,6 +49,9 @@ import {
 	modelSupportsImageInput,
 	modelSupportsToolCalling,
 	type ToolCallRecord,
+	usesImageGenerationOperation,
+	usesSpeechGenerationOperation,
+	usesVideoGenerationOperation,
 } from "@cline/shared";
 import { filterDisabledTools } from "../../services/global-settings";
 import {
@@ -861,9 +861,9 @@ export class SessionRuntime {
 		const conversationId = this.conversation.getConversationId();
 		const modelInfo = tryGetModelInfo(this.config);
 		const dedicatedMediaGeneration =
-			isDedicatedAudioGenerationModel(modelInfo ?? {}) ||
-			isDedicatedImageGenerationModel(modelInfo ?? {}) ||
-			isDedicatedVideoGenerationModel(modelInfo ?? {});
+			usesImageGenerationOperation(modelInfo ?? {}) ||
+			usesSpeechGenerationOperation(modelInfo ?? {}) ||
+			usesVideoGenerationOperation(modelInfo ?? {});
 		const toolCallingDisabled =
 			dedicatedMediaGeneration || !modelSupportsToolCalling(modelInfo ?? {});
 		const availableTools = filterAvailableExtensionTools(
