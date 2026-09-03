@@ -1834,6 +1834,102 @@ describe("media generation settings", () => {
 		);
 	});
 
+	it("accepts speech models on providers with a declared speech transport", async () => {
+		manager.saveProviderSettings(
+			{ provider: "openai-native", apiKey: "openai-key" },
+			{ setLastUsed: false },
+		);
+		LlmsModels.registerModel("openai-native", "tts-test", {
+			id: "tts-test",
+			name: "TTS Test",
+			operation: "speech-generation",
+			modalities: { input: ["text"], output: ["audio"] },
+		});
+
+		expect(
+			isUsableMediaGenerationModel("audio", "openai-native", {
+				id: "tts-test",
+				name: "TTS Test",
+				operation: "speech-generation",
+				modalities: { input: ["text"], output: ["audio"] },
+			}),
+		).toBe(true);
+		expect(
+			isUsableMediaGenerationModel("audio", "openai-native", {
+				id: "mixed-audio-test",
+				name: "Mixed Audio Test",
+				operation: "language",
+				modalities: { input: ["text"], output: ["text", "audio"] },
+			}),
+		).toBe(true);
+
+		await expect(
+			saveMediaGenerationSettings(manager, "audio", {
+				providerId: "openai-native",
+				modelId: "tts-test",
+			}),
+		).resolves.toMatchObject({
+			mediaGeneration: {
+				audio: { providerId: "openai-native", modelId: "tts-test" },
+			},
+		});
+		await expect(
+			resolveConfiguredMediaGenerationTarget(manager, "audio"),
+		).resolves.toMatchObject({
+			mediaType: "audio",
+			selection: { providerId: "openai-native", modelId: "tts-test" },
+			model: { id: "tts-test" },
+		});
+	});
+
+	it("generates audio through the configured target with canonical media", async () => {
+		manager.saveProviderSettings(
+			{ provider: "openai-native", apiKey: "openai-key" },
+			{ setLastUsed: false },
+		);
+		LlmsModels.registerModel("openai-native", "tts-generate-test", {
+			id: "tts-generate-test",
+			name: "TTS Generate Test",
+			operation: "speech-generation",
+			modalities: { input: ["text"], output: ["audio"] },
+		});
+		await saveMediaGenerationSettings(manager, "audio", {
+			providerId: "openai-native",
+			modelId: "tts-generate-test",
+		});
+		const audio = {
+			id: "media_audio_1",
+			modality: "audio" as const,
+			mediaType: "audio/mpeg",
+			source: { type: "base64" as const, data: "YXVkaW8=" },
+		};
+		const generateSpy = vi
+			.spyOn(LlmsModels, "generateMedia")
+			.mockResolvedValue({ media: [audio] });
+
+		await expect(
+			generateConfiguredMedia(manager, {
+				mediaType: "audio",
+				prompt: "Narrate a lighthouse story",
+			}),
+		).resolves.toEqual({
+			content: [
+				{
+					type: "text",
+					text: "Generated 1 audio clip with openai-native/tts-generate-test.",
+				},
+				{ type: "media", media: audio },
+			],
+		});
+		expect(generateSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				modelId: "tts-generate-test",
+				mediaType: "audio",
+				prompt: "Narrate a lighthouse story",
+			}),
+		);
+	});
+
 	it("clears media generation settings when the image selection is omitted", async () => {
 		await saveMediaGenerationSettings(manager, "image", {
 			providerId: "openrouter",
