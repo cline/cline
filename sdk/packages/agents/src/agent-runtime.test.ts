@@ -236,8 +236,7 @@ describe("AgentRuntime", () => {
 					type: "tool-call-delta",
 					toolCallId: "media-1",
 					toolName: "generate_media",
-					inputText:
-						'{"media_type":"video","prompt":"A bee documentary"}',
+					inputText: '{"media_type":"video","prompt":"A bee documentary"}',
 				},
 				{ type: "finish", reason: "tool-calls" },
 			],
