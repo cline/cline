@@ -82,7 +82,7 @@ jobs:
           echo "No signing secret resolves outside the PublishDesktop environment."
 
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ github.event.inputs.git_tag }}
           fetch-depth: 0
@@ -234,13 +234,17 @@ jobs:
           # out.
           echo "All 8 signing secrets are present."
 
+      # Every action in this job is SHA-pinned: the Apple certificate and the
+      # updater signing key are in scope here, and a hijacked upstream tag
+      # (e.g. a setup action swapping the bun binary that later runs the
+      # build with those secrets in env) must not be able to reach them.
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ needs.validate.outputs.tag }}
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: "1.3.13"
 
@@ -248,8 +252,11 @@ jobs:
       # install both Rust targets; `tauri build --target universal-apple-darwin`
       # compiles each and lipos the results into one binary.
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable branch
         with:
+          # With a SHA-pinned action the toolchain no longer comes from the
+          # ref name, so it must be set explicitly.
+          toolchain: stable
           targets: aarch64-apple-darwin,x86_64-apple-darwin
 
       # No Rust build cache here, deliberately. This is the only job that can
@@ -456,7 +463,7 @@ jobs:
           ls -lh "$OUT"
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: desktop-universal
           path: apps/examples/desktop-app/dist/publish/*
@@ -515,10 +522,10 @@ jobs:
 
           echo "All Windows signing secrets are present."
 
-      # Every action in this job is SHA-pinned (unlike elsewhere in this
-      # file): they run with id-token: write and the updater signing key in
-      # scope, so a hijacked upstream tag must not be able to reach the
-      # signing identity or tamper with what gets signed and uploaded.
+      # Every action in this job is SHA-pinned: they run with id-token: write
+      # and the updater signing key in scope, so a hijacked upstream tag must
+      # not be able to reach the signing identity or tamper with what gets
+      # signed and uploaded.
       - name: Checkout code
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -742,20 +749,23 @@ jobs:
     permissions:
       contents: write
     steps:
+      # SHA-pinned like the build jobs: this job holds contents: write, so a
+      # hijacked action here could swap the release assets or the feed's
+      # latest.json for what the signed builds produced.
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ needs.validate.outputs.tag }}
           fetch-depth: 0
           fetch-tags: true
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: "1.3.13"
 
       - name: Download artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           path: dist/desktop
           merge-multiple: true
@@ -836,7 +846,7 @@ jobs:
           echo "prev_tag=$PREV_TAG" >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
         with:
           tag_name: ${{ needs.validate.outputs.tag }}
           name: "Desktop v${{ needs.validate.outputs.version }}"
@@ -906,7 +916,7 @@ jobs:
           echo "Auto-update feed refreshed: https://github.com/${GITHUB_REPOSITORY}/releases/download/${FEED}/latest.json"
 
       - name: Post release to Slack
-        uses: slackapi/slack-github-action@v3.0.1
+        uses: slackapi/slack-github-action@af78098f536edbc4de71162a307590698245be95 # v3.0.1
         with:
           method: chat.postMessage
           token: ${{ secrets.SLACK_RELEASE_BOT_TOKEN }}
