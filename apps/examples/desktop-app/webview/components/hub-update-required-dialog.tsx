@@ -19,6 +19,7 @@ import {
 import { desktopClient } from "@/lib/desktop-client";
 import {
 	describeOutdatedHubSessions,
+	isPersistableHubMismatchKey,
 	resolveHubUpdateRestartDecision,
 	shouldShowHubMismatchDialog,
 } from "./hub-update-required-helpers";
@@ -50,7 +51,8 @@ const DISMISSED_MISMATCH_STORAGE_KEY = "cline.hub-mismatch-dismissed";
 
 function readPersistedDismissedKey(): string | null {
 	try {
-		return localStorage.getItem(DISMISSED_MISMATCH_STORAGE_KEY);
+		const key = localStorage.getItem(DISMISSED_MISMATCH_STORAGE_KEY);
+		return isPersistableHubMismatchKey(key) ? key : null;
 	} catch {
 		return null;
 	}
@@ -255,7 +257,12 @@ export function HubUpdateRequiredDialog() {
 			onOpenChange={(nextOpen) => {
 				if (!nextOpen && phase === "idle" && mismatchKey !== null) {
 					setDismissedKey(mismatchKey);
-					persistDismissedKey(mismatchKey);
+					// unsupported_protocol never persists: hub-backed features
+					// stay broken against that Hub, so its warning must return
+					// on the next reconnect or relaunch.
+					if (isPersistableHubMismatchKey(mismatchKey)) {
+						persistDismissedKey(mismatchKey);
+					}
 				}
 			}}
 		>

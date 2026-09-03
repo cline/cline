@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
 	describeOutdatedHubSessions,
+	isPersistableHubMismatchKey,
 	resolveHubUpdateRestartDecision,
 	shouldShowHubMismatchDialog,
 } from "./hub-update-required-helpers";
@@ -20,6 +21,16 @@ describe("shouldShowHubMismatchDialog", () => {
 			);
 			expect(shouldShowHubMismatchDialog("outdated_hub", state)).toBe(true);
 		}
+	});
+
+	it("persists dismissals only for the advisory build_mismatch case", () => {
+		expect(isPersistableHubMismatchKey("build_mismatch:abc123")).toBe(true);
+		expect(isPersistableHubMismatchKey("unsupported_protocol:abc123")).toBe(
+			false,
+		);
+		expect(isPersistableHubMismatchKey("outdated_hub:abc123")).toBe(false);
+		expect(isPersistableHubMismatchKey(null)).toBe(false);
+		expect(isPersistableHubMismatchKey("")).toBe(false);
 	});
 
 	it("allows a newer-hub prompt only once an app update is staged", () => {

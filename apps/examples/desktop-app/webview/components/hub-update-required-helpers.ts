@@ -27,6 +27,18 @@ export function shouldShowHubMismatchDialog(
 }
 
 /**
+ * Only the advisory `build_mismatch` dismissal may persist across webview
+ * mounts and app relaunches. An `unsupported_protocol` Hub leaves hub-backed
+ * features broken, so that warning must return on every reconnect and
+ * relaunch - its "Later" lasts only for the current mount. Applied on both
+ * write and read, so a key persisted by any other path is ignored too.
+ * (Mismatch keys are `${reason}:${hubBuildId}`.)
+ */
+export function isPersistableHubMismatchKey(key: string | null): key is string {
+	return typeof key === "string" && key.startsWith("build_mismatch:");
+}
+
+/**
  * Human phrase for the live work an outdated Hub is serving, used by the
  * blocking "Hub update required" dialog. Falls back to an unquantified
  * phrase when the Hub could not answer the activity query.
