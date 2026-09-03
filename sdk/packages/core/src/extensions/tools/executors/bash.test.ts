@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import {
 	access,
 	copyFile,
@@ -1039,4 +1040,129 @@ describe.runIf(process.platform === "win32")("createWindowsExecutor", () => {
 		const output = await executor("echo shell-ok", process.cwd(), ctx);
 		expect(output.trim()).toBe("shell-ok");
 	});
+
+	// A backgrounded child (`cmd &`, nohup) inherits the stdio pipe
+	// write-ends, so the shell's 'close' event never fires after it exits.
+	// Before the exit-grace completion this hung the command until the timeout
+	// killed the whole tree (GitHub #12417). POSIX shells reproduce this
+	// directly; on Windows the Git Bash shell does too.
+	const bashShell =
+		process.platform === "win32"
+			? "C:\\Program Files\\Git\\bin\\bash.exe"
+			: "/bin/bash";
+	const hasBashShell = existsSync(bashShell);
+
+	it.runIf(hasBashShell)(
+		"completes when a background child keeps the stdio pipes open after the shell exits",
+		async () => {
+			const executor = createShellExecutor({
+				shell: bashShell,
+				timeoutMs: 5_000,
+			});
+			// sleep outlives the 5s timeout, so without exit-grace completion
+			// this command times out instead of returning the echo output.
+			const output = await executor("sleep 8 & echo done", process.cwd(), ctx);
+			expect(output).toContain("done");
+			expect(output).toContain("background processes still running");
+		},
+	);
+
+	it.runIf(hasBashShell)(
+		"reports a failing exit code when a background child keeps the stdio pipes open",
+		async () => {
+			const executor = createShellExecutor({
+				shell: bashShell,
+				timeoutMs: 5_000,
+			});
+			let error: unknown;
+			try {
+				await executor("sleep 8 & echo oops; exit 3", process.cwd(), ctx);
+			} catch (caught) {
+				error = caught;
+			}
+			expect(error).toBeInstanceOf(CommandExitError);
+			expect((error as CommandExitError).exitCode).toBe(3);
+			expect((error as CommandExitError).output).toContain("oops");
+			expect((error as CommandExitError).output).toContain(
+				"background processes still running",
+			);
+		},
+	);
+
+	// Detached variant: the user has already proceeded while the command
+	// runs, so the promise has settled and only the detached log is left. The
+	// shell exits while the backgrounded sleep holds the pipes, so 'close'
+	// never arrives - the exit-grace path must write the exit record and
+	// complete the log instead of leaving it in the active state.
+	it.runIf(hasBashShell)(
+		"finalizes a detached log when the shell exits while a background child holds the pipes",
+		async () => {
+			const controller = new RunCommandExecutionController();
+			let commandStarted = false;
+			let detachReady = false;
+			let resolveDetachReady: (() => void) | undefined;
+			const readyToDetach = new Promise<void>((resolve) => {
+				resolveDetachReady = resolve;
+			});
+			const resolveWhenReady = () => {
+				if (commandStarted && detachReady) resolveDetachReady?.();
+			};
+			const executor = createShellExecutor({
+				shell: bashShell,
+				timeoutMs: 10_000,
+				executionController: controller,
+				detachedLogRetentionMs: 5_000,
+				processStartTokenProbe: (pid) => ({
+					status: "found",
+					token: `test-process-${pid}`,
+				}),
+			});
+			// The shell stays in the foreground for a second (so the command
+			// can be detached first), then exits while the backgrounded sleep -
+			// which outlives the whole test - still holds the stdio pipes, so
+			// 'close' can never arrive within the assertion window.
+			const execution = executor(
+				{
+					command: bashShell,
+					args: ["-c", "sleep 30 & echo started; sleep 1"],
+				},
+				process.cwd(),
+				{
+					...ctx,
+					sessionId: "session-detach-bg",
+					toolCallId: "call-detach-bg",
+					emitUpdate: (update) => {
+						const payload = update as Record<string, unknown>;
+						if (
+							typeof payload.chunk === "string" &&
+							payload.chunk.startsWith("started")
+						) {
+							commandStarted = true;
+						}
+						if (payload.detachable === true) detachReady = true;
+						resolveWhenReady();
+					},
+				},
+			);
+
+			await readyToDetach;
+			expect(
+				controller.proceedWhileRunning("session-detach-bg", "call-detach-bg"),
+			).toBe(1);
+			const result = await execution;
+			expect(result).toContain("started");
+			// The detach notice names the log file the rest of the output goes to.
+			const logPath = /Output will continue in (.+?)\]/.exec(result)?.[1];
+			expect(logPath).toBeDefined();
+
+			const completedAtPath = join(dirname(logPath as string), "completed-at");
+			const deadline = Date.now() + 10_000;
+			while (!(await fileExists(completedAtPath)) && Date.now() < deadline) {
+				await new Promise((resolve) => setTimeout(resolve, 100));
+			}
+			const logText = await readFile(logPath as string, "utf8");
+			expect(logText).toContain("[Command exited with code 0]");
+			expect(await fileExists(completedAtPath)).toBe(true);
+		},
+	);
 });
