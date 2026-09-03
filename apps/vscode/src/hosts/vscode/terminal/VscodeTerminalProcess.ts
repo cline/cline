@@ -405,7 +405,12 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 			}
 
 			// the command process is finished, let's check the output to see if we need to use the terminal capture fallback
-			if (!this.fullOutput.trim()) {
+			// The CommandExecuted (C) marker is parsed out of the same read()
+			// stream as the output, so when it was seen an empty fullOutput is a
+			// genuine silent success ($null, git add -A on a clean tree) — the
+			// stream worked and the command simply printed nothing. Falling back
+			// there reported silent commands as capture failures (GitHub #13272).
+			if (!this.fullOutput.trim() && !didSeeCommandExecuted) {
 				// No output captured via shell integration, trying fallback
 				telemetryService.captureTerminalOutputFailure(
 					terminalClosed ? TerminalOutputFailureReason.TERMINAL_CLOSED : TerminalOutputFailureReason.TIMEOUT,
@@ -433,13 +438,15 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 					telemetryService.captureTerminalExecution(false, "vscode", "none", fallbackDetails)
 				}
 			} else {
-				// Output was captured, but distinguish *how* it was completed: real
-				// OSC 633 C/D markers ("shell_integration") vs the idle/prompt
-				// heuristic fallback ("markerless_heuristic") when markers never
-				// arrived. Folding the latter into "shell_integration" successes
-				// would inflate the metric this PR's fixes are evaluated against.
-				// A terminal closed mid-command is not a success even though some
-				// output was captured — the command was interrupted.
+				// Output was captured — or the C marker proved the stream worked
+				// and the command legitimately printed nothing. Distinguish *how*
+				// completion was observed: real OSC 633 C/D markers
+				// ("shell_integration") vs the idle/prompt heuristic fallback
+				// ("markerless_heuristic") when markers never arrived. Folding the
+				// latter into "shell_integration" successes would inflate the
+				// metric this PR's fixes are evaluated against. A terminal closed
+				// mid-command is not a success even though some output was
+				// captured — the command was interrupted.
 				telemetryService.captureTerminalExecution(
 					!terminalClosed,
 					"vscode",

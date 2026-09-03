@@ -29,6 +29,25 @@ tsConfigPaths.register({
 // The module is ES6 only, but the integration tests are compiled to commonJS.
 const originalRequire = Module.prototype.require
 Module.prototype.require = function (id) {
+	// Serve `mocha` imports from the runner's own interface. The runner
+	// (@vscode/test-cli) constructs its Mocha instance from its own copy of
+	// the package; a test file that `require("mocha")`s a second copy gets an
+	// un-setup module whose `currentContext` is never set, and crashes with
+	// "Cannot read properties of undefined (reading 'describe')" at import.
+	// The runner's bdd UI installs describe/it/hooks on globalThis before each
+	// test file is required, so delegating to the globals gives every test the
+	// live runner interface regardless of how "mocha" resolves.
+	if (id === "mocha") {
+		return {
+			after: globalThis.after,
+			afterEach: globalThis.afterEach,
+			before: globalThis.before,
+			beforeEach: globalThis.beforeEach,
+			describe: globalThis.describe,
+			it: globalThis.it,
+		}
+	}
+
 	// Intercept requires for @google/genai
 	if (id === "@google/genai") {
 		// Return the mock instead
