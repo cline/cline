@@ -1,6 +1,11 @@
-import { accessSync, existsSync, constants as fsConstants } from "node:fs";
+import {
+	accessSync,
+	existsSync,
+	constants as fsConstants,
+	statSync,
+} from "node:fs";
 import { createRequire } from "node:module";
-import { delimiter, dirname, join } from "node:path";
+import { basename, delimiter, dirname, join } from "node:path";
 import type { GatewayResolvedProviderConfig } from "@cline/shared";
 // Keep this import static so the VS Code extension bundle includes the SAP
 // provider. Hiding it behind a computed dynamic import leaves the published
@@ -79,6 +84,55 @@ function resolveClaudeExecutable(): string | undefined {
 	return findExecutableOnPath("claude");
 }
 
+// A configured `pathToClaudeCodeExecutable` is an explicit user choice, so
+// validate it and fail loudly instead of falling back: silently spawning some
+// other `claude` than the one the user pointed at hides the misconfiguration
+// behind confusing downstream behavior. A bare command name (the settings
+// placeholder suggests `claude`) is resolved through PATH the way a shell
+// would; paths must pass the same X_OK probe the bundled/PATH candidates do.
+function resolveConfiguredClaudeExecutable(value: unknown): string {
+	const hint =
+		"Set the Claude Code CLI Path to the `claude` executable to use, or clear it to use the bundled executable or one found on PATH.";
+	if (typeof value !== "string" || value.trim().length === 0) {
+		throw new Error(
+			`The configured Claude Code CLI Path is not a valid path. ${hint}`,
+		);
+	}
+	if (basename(value) === value) {
+		const resolved = findExecutableOnPath(value);
+		if (resolved === undefined) {
+			throw new Error(
+				`The configured Claude Code CLI Path was not found on PATH: ${value}. ${hint}`,
+			);
+		}
+		return resolved;
+	}
+	let isFile: boolean;
+	try {
+		isFile = statSync(value).isFile();
+	} catch (error) {
+		const code = (error as NodeJS.ErrnoException).code;
+		throw new Error(
+			code === "ENOENT"
+				? `The configured Claude Code CLI Path does not exist: ${value}. ${hint}`
+				: `The configured Claude Code CLI Path could not be read: ${value}. ${hint}`,
+		);
+	}
+	if (!isFile) {
+		throw new Error(
+			`The configured Claude Code CLI Path is not a file: ${value}. ${hint}`,
+		);
+	}
+	try {
+		accessSync(value, fsConstants.X_OK);
+	} catch {
+		throw new Error(
+			`The configured Claude Code CLI Path is not executable: ${value}. ${hint}`,
+		);
+	}
+	return value;
+}
+
 export async function createClaudeCodeProviderModule(
 	config: GatewayResolvedProviderConfig,
 ): Promise<ProviderFactoryResult> {
@@ -101,11 +155,22 @@ export async function createClaudeCodeProviderModule(
 	const defaultSettings: Record<string, unknown> = {
 		...((options.defaultSettings as Record<string, unknown> | undefined) ?? {}),
 	};
+	// Resolution precedence: a configured executable wins, then the bundled
+	// per-platform binary, then a `claude` on PATH. Hosts forward the user's
+	// configured path as defaultSettings.pathToClaudeCodeExecutable (e.g. the
+	// VS Code extension's claudeCodePath setting), so its mere presence is what
+	// suppresses the fallback below -- hosts must omit the key when unset
+	// rather than pass a blank string.
 	if (defaultSettings.pathToClaudeCodeExecutable === undefined) {
 		const executable = resolveClaudeExecutable();
 		if (executable !== undefined) {
 			defaultSettings.pathToClaudeCodeExecutable = executable;
 		}
+	} else {
+		defaultSettings.pathToClaudeCodeExecutable =
+			resolveConfiguredClaudeExecutable(
+				defaultSettings.pathToClaudeCodeExecutable,
+			);
 	}
 	// Hosts forward the workspace root as a top-level `cwd` option (e.g.
 	// @cline/core's buildGatewayProviderOptions). Anchor the spawned agent
