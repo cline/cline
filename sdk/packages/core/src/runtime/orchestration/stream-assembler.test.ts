@@ -17,6 +17,7 @@ import {
 	DIAG_STALE_EPOCH,
 	DIAG_TURN_CLOSE_WITHOUT_OPEN,
 	StreamAssembler,
+	type ReasoningSink,
 	type SessionConsumer,
 	type TextSink,
 	type ToolSink,
@@ -55,7 +56,7 @@ class RecordingConsumer implements SessionConsumer {
 					},
 				};
 			},
-			onReasoning: (): TextSink => {
+			onReasoning: (): ReasoningSink => {
 				this.record("reasoning:open");
 				return {
 					onDelta: (reasoning: string): void => {
