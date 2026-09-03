@@ -1732,6 +1732,108 @@ describe("media generation settings", () => {
 		expect(generateSpy).not.toHaveBeenCalled();
 	});
 
+	it("accepts video models on providers with a declared video transport", async () => {
+		manager.saveProviderSettings(
+			{ provider: "gemini", apiKey: "gemini-key" },
+			{ setLastUsed: false },
+		);
+		LlmsModels.registerModel("gemini", "veo-test", {
+			id: "veo-test",
+			name: "Veo Test",
+			operation: "video-generation",
+			modalities: { input: ["text"], output: ["video"] },
+		});
+		LlmsModels.registerModel("gemini", "mixed-video-test", {
+			id: "mixed-video-test",
+			name: "Mixed Video Test",
+			operation: "language",
+			modalities: { input: ["text"], output: ["text", "video"] },
+		});
+
+		expect(
+			isUsableMediaGenerationModel("video", "gemini", {
+				id: "veo-test",
+				name: "Veo Test",
+				operation: "video-generation",
+				modalities: { input: ["text"], output: ["video"] },
+			}),
+		).toBe(true);
+		expect(
+			isUsableMediaGenerationModel("video", "gemini", {
+				id: "mixed-video-test",
+				name: "Mixed Video Test",
+				operation: "language",
+				modalities: { input: ["text"], output: ["text", "video"] },
+			}),
+		).toBe(true);
+
+		await expect(
+			saveMediaGenerationSettings(manager, "video", {
+				providerId: "gemini",
+				modelId: "veo-test",
+			}),
+		).resolves.toMatchObject({
+			mediaGeneration: {
+				video: { providerId: "gemini", modelId: "veo-test" },
+			},
+		});
+		await expect(
+			resolveConfiguredMediaGenerationTarget(manager, "video"),
+		).resolves.toMatchObject({
+			mediaType: "video",
+			selection: { providerId: "gemini", modelId: "veo-test" },
+			model: { id: "veo-test" },
+		});
+	});
+
+	it("generates video through the configured target with canonical media", async () => {
+		manager.saveProviderSettings(
+			{ provider: "gemini", apiKey: "gemini-key" },
+			{ setLastUsed: false },
+		);
+		LlmsModels.registerModel("gemini", "veo-generate-test", {
+			id: "veo-generate-test",
+			name: "Veo Generate Test",
+			operation: "video-generation",
+			modalities: { input: ["text"], output: ["video"] },
+		});
+		await saveMediaGenerationSettings(manager, "video", {
+			providerId: "gemini",
+			modelId: "veo-generate-test",
+		});
+		const video = {
+			id: "media_video_1",
+			modality: "video" as const,
+			mediaType: "video/mp4",
+			source: { type: "base64" as const, data: "dmlkZW8=" },
+		};
+		const generateSpy = vi
+			.spyOn(LlmsModels, "generateMedia")
+			.mockResolvedValue({ media: [video] });
+
+		await expect(
+			generateConfiguredMedia(manager, {
+				mediaType: "video",
+				prompt: "A bee documentary",
+			}),
+		).resolves.toEqual({
+			content: [
+				{
+					type: "text",
+					text: "Generated 1 video with gemini/veo-generate-test.",
+				},
+				{ type: "media", media: video },
+			],
+		});
+		expect(generateSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				modelId: "veo-generate-test",
+				mediaType: "video",
+				prompt: "A bee documentary",
+			}),
+		);
+	});
+
 	it("clears media generation settings when the image selection is omitted", async () => {
 		await saveMediaGenerationSettings(manager, "image", {
 			providerId: "openrouter",

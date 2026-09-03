@@ -817,6 +817,12 @@ export function SettingsView({
 							saving: mediaGenerationSaving.image === true,
 							selection: mediaGeneration?.image,
 						},
+						{
+							mediaType: "video",
+							modelIdsByProvider: mediaGenerationModels.video,
+							saving: mediaGenerationSaving.video === true,
+							selection: mediaGeneration?.video,
+						},
 					],
 					onChange: updateMediaGeneration,
 					onConfigureProviders: () => onNavigateSection("Models"),
