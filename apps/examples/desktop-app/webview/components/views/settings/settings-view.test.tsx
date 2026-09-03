@@ -11,7 +11,7 @@ import { isProviderCatalogFresh, SettingsView } from "./settings-view";
 
 const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }));
 vi.mock("@/lib/desktop-client", () => ({
-	desktopClient: { invoke },
+	desktopClient: { invoke, subscribe: vi.fn(() => () => {}) },
 	isTauriAvailable: vi.fn(() => false),
 	openExternalUrl: vi.fn(),
 }));
