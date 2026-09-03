@@ -1,8 +1,10 @@
 import type { ClineMessage, ClineSayTool } from "@shared/ExtensionMessage"
 import type { Mode } from "@shared/storage/types"
+import type { TFunction } from "i18next"
 import type { LucideIcon } from "lucide-react"
 import type React from "react"
 import { useMemo } from "react"
+import { useTranslation } from "react-i18next"
 import { cleanPathPrefix } from "../common/CodeAccordian"
 import { getIconByToolName } from "./chat-view"
 import { isApiReqAbsorbable, isLowStakesTool } from "./chat-view/utils/messageUtils"
@@ -28,29 +30,35 @@ interface RequestStartRowProps {
 type ApiReqState = "pre" | "thinking" | "error" | "final"
 
 // Helper to format search regex for display - show all terms separated by |
-const formatSearchRegex = (regex: string, path: string, filePattern?: string): string => {
+const formatSearchRegex = (regex: string, path: string, t: TFunction, filePattern?: string): string => {
 	const cleanedPath = cleanPathPrefix(path)
-	const pathDisplay = cleanedPath ? `${cleanedPath}/` : "codebase"
+	const pathDisplay = cleanedPath ? `${cleanedPath}/` : t("chat:requestStart.codebase")
 	const terms = regex
 		.split("|")
-		.map((t) => t.trim().replace(/\\b/g, "").replace(/\\s\?/g, " "))
+		.map((term) => term.trim().replace(/\\b/g, "").replace(/\\s\?/g, " "))
 		.filter(Boolean)
 		.join(" | ")
-	return filePattern && filePattern !== "*" ? `"${terms}" in ${pathDisplay} (${filePattern})` : `"${terms}" in ${pathDisplay}`
+	return filePattern && filePattern !== "*"
+		? t("chat:requestStart.searchInPathWithPattern", { terms, path: pathDisplay, pattern: filePattern })
+		: t("chat:requestStart.searchInPath", { terms, path: pathDisplay })
 }
 // Format activity text based on tool type
-const getActivityText = (tool: ClineSayTool): string | null => {
+const getActivityText = (tool: ClineSayTool, t: TFunction): string | null => {
 	const cleanedPath = cleanPathPrefix(tool.path || "")
 	switch (tool.tool) {
 		case "readFile":
-			return tool.path ? `Reading ${cleanedPath}...` : null
+			return tool.path ? t("chat:requestStart.reading", { path: cleanedPath }) : null
 		case "listFilesTopLevel":
 		case "listFilesRecursive":
-			return tool.path ? `Exploring ${cleanedPath}/...` : null
+			return tool.path ? t("chat:requestStart.exploring", { path: cleanedPath }) : null
 		case "searchFiles":
-			return tool.regex ? `Searching ${formatSearchRegex(tool.regex, tool.path || "", tool.filePattern)}...` : null
+			return tool.regex
+				? t("chat:requestStart.searching", {
+						query: formatSearchRegex(tool.regex, tool.path || "", t, tool.filePattern),
+					})
+				: null
 		case "listCodeDefinitionNames":
-			return tool.path ? `Analyzing ${cleanedPath}/...` : null
+			return tool.path ? t("chat:requestStart.analyzing", { path: cleanedPath }) : null
 		default:
 			return null
 	}
@@ -61,6 +69,7 @@ const collectToolsInRange = (
 	messages: ClineMessage[],
 	startIdx: number,
 	endIdx: number,
+	t: TFunction,
 	stopCondition?: (msg: ClineMessage) => boolean,
 ): { icon: LucideIcon; text: string }[] => {
 	const activities: { icon: LucideIcon; text: string }[] = []
@@ -80,7 +89,7 @@ const collectToolsInRange = (
 
 		try {
 			const tool = JSON.parse(msg.text || "{}") as ClineSayTool
-			const activityText = getActivityText(tool)
+			const activityText = getActivityText(tool, t)
 			if (activityText) {
 				const toolIcon = getIconByToolName(tool.tool)
 				activities.push({ icon: toolIcon, text: activityText })
@@ -141,6 +150,7 @@ export const RequestStartRow: React.FC<RequestStartRowProps> = ({
 	isExpanded,
 	message,
 }) => {
+	const { t } = useTranslation()
 	// Derive explicit state
 	const hasError = !!(apiRequestFailedMessage || apiReqStreamingFailedMessage)
 	const hasCost = cost != null
@@ -179,11 +189,11 @@ export const RequestStartRow: React.FC<RequestStartRowProps> = ({
 		if (!currentApiReq.hasCost) {
 			// CASE A: Current api_req is INCOMPLETE
 			// Look for ask === "tool" messages AFTER the current api_req_started
-			return collectToolsInRange(clineMessages, currentApiReq.index + 1, clineMessages.length)
+			return collectToolsInRange(clineMessages, currentApiReq.index + 1, clineMessages.length, t)
 		}
 		// CASE B: Current api_req is COMPLETE - no activities to show
 		return []
-	}, [clineMessages])
+	}, [clineMessages, t])
 
 	// Check if there are any completed tools in the tool group
 	const hasCompletedTools = useMemo(() => {
@@ -237,7 +247,7 @@ export const RequestStartRow: React.FC<RequestStartRowProps> = ({
 					<div className="ml-1 pl-0 mb-1 -mt-1.25 pt-1">
 						<div className="inline-flex justify-baseline gap-0.5 text-left select-none px-0 w-full">
 							<span className="animate-shimmer bg-linear-90 from-foreground to-description bg-[length:200%_100%] bg-clip-text text-transparent text-[13px] leading-none">
-								Thinking...
+								{t("chat:thinking.streaming")}
 							</span>
 						</div>
 					</div>

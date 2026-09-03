@@ -1,0 +1,317 @@
+{
+	"browser": {
+		"actionLabel": "Acción del navegador:",
+		"actions": {
+			"click": "Clic ({{coordinate}})",
+			"closeBrowser": "Cerrar navegador",
+			"launch": "Iniciar navegador en {{url}}",
+			"scrollDown": "Desplazarse hacia abajo",
+			"scrollUp": "Desplazarse hacia arriba",
+			"type": "Escribir \"{{text}}\""
+		},
+		"consoleLogs": "Registros de consola",
+		"isUsingBrowser": "Cline está usando el navegador:",
+		"next": "Siguiente",
+		"noNewLogs": "(Sin registros nuevos)",
+		"previous": "Anterior",
+		"screenshotAlt": "Captura de pantalla del navegador",
+		"sessionStarted": "Sesión de navegador iniciada",
+		"stepOf": "Paso {{current}} de {{total}}",
+		"wantsToUseBrowser": "Cline quiere usar el navegador:"
+	},
+	"commandOutput": {
+		"approvalRequired": "El modelo ha determinado que este comando requiere aprobación explícita.",
+		"cancel": "cancelar",
+		"clickToOpen": "Haz clic para abrir: {{path}}",
+		"status": {
+			"completed": "Completado",
+			"pending": "Pendiente",
+			"running": "En ejecución",
+			"skipped": "Omitido"
+		},
+		"stop": "detener",
+		"terminalCancelInfo": "Este comando se está ejecutando en el terminal de VSCode. Puedes detenerlo manualmente con Ctrl+C en el terminal, o cambiar al modo de ejecución en segundo plano en la configuración para poder cancelar comandos."
+	},
+	"compaction": {
+		"autoCompacting": "Compactando contexto automáticamente",
+		"cancelled": "Compactación cancelada",
+		"compacted": "Contexto compactado",
+		"compactedManual": "Contexto compactado (manual)",
+		"compacting": "Compactando contexto",
+		"failed": "Error al compactar",
+		"messagesDelta": "{{before}} → {{after}} mensajes",
+		"skipped": "Compactación omitida",
+		"tokensDelta": "{{before}} → {{after}} tokens"
+	},
+	"completion": {
+		"completed": "Completado",
+		"copyPlanAria": "Copiar respuesta del plan",
+		"copyResponseAria": "Copiar respuesta",
+		"plan": "Plan",
+		"viewChanges": "Ver cambios"
+	},
+	"contextMenu": {
+		"addFile": "Agregar archivo",
+		"addFolder": "Agregar carpeta",
+		"commit": "Confirmación {{hash}}",
+		"commitHashDescription": "Hash de confirmación de Git",
+		"gitCommitDescription": "{{shortHash}} por {{author}} el {{date}}",
+		"gitCommits": "Confirmaciones de Git",
+		"gitCommitsDescription": "Buscar en el historial del repositorio",
+		"label": "Menciones de contexto",
+		"noResults": "No se encontraron resultados",
+		"pasteUrl": "Pega una URL para obtener su contenido",
+		"problems": "Problemas",
+		"searching": "Buscando...",
+		"terminal": "Terminal",
+		"workingChanges": "Cambios de trabajo",
+		"workingChangesDescription": "Cambios actuales sin confirmar"
+	},
+	"diffEdit": {
+		"openFileTitle": "Abrir archivo en el editor"
+	},
+	"errorBoundary": {
+		"errorPrefix": "Error: {{message}}",
+		"title": "Algo salió mal al mostrar este contenido",
+		"unknownError": "Error desconocido"
+	},
+	"errors": {
+		"auth": {
+			"clickRetryBelow": "(Haz clic en \"Reintentar\" abajo)",
+			"loggedOut": "Vaya, parece que cerraste sesión: haz clic abajo para iniciar sesión",
+			"signIn": "Iniciar sesión en Cline"
+		},
+		"billing": {
+			"retryAfterSwitching": "Reintenta la solicitud después de cambiar.",
+			"switchToUsageBased": "Cambiar a facturación por uso",
+			"switchedToUsageBased": "Cambiado a facturación por uso",
+			"switching": "Cambiando..."
+		},
+		"clinePassLimit": {
+			"switchFailed": "No se pudo cambiar de proveedor. Selecciona la facturación por uso de Cline en la configuración de API.",
+			"switchPrompt": "¿Quieres cambiar a la facturación por uso y reintentar con el proveedor Cline?",
+			"title": "Límite de ClinePass alcanzado"
+		},
+		"clineignore": "Cline intentó acceder a <path>{{path}}</path>, que está bloqueado por el archivo <fileCode>.clineignore</fileCode>.",
+		"creditLimit": {
+			"buyCredits": "Comprar créditos",
+			"currentBalance": "Saldo actual:",
+			"defaultMessage": "Te has quedado sin créditos.",
+			"totalPromotions": "Promociones totales:",
+			"totalSpent": "Gasto total:"
+		},
+		"diffError": "El modelo usó patrones de búsqueda que no coinciden con nada en el archivo. Reintentando...",
+		"entitlement": {
+			"getClinePass": "Obtener ClinePass",
+			"headline": "Este modelo requiere una suscripción a ClinePass.",
+			"subscribe": "Suscríbete a ClinePass para usar este modelo y luego reintenta tu solicitud."
+		},
+		"freeModelLimit": {
+			"limitBody": "Has alcanzado el límite de uso gratuito de hoy para este modelo.",
+			"limitReached": "Límite diario del modelo gratuito alcanzado",
+			"switchFailed": "No se pudo cambiar de modelo. Selecciona {{modelId}} en la configuración de API.",
+			"switchPaid": "O cambia a la versión de pago de este modelo ({{modelId}}) con facturación por uso.",
+			"tryAgainIn": "Inténtalo de nuevo en {{resetTime}} o selecciona otro modelo.",
+			"tryAgainLater": "Inténtalo de nuevo más tarde o selecciona otro modelo."
+		},
+		"freePromotionEnded": {
+			"body": "La promoción gratuita de este modelo ha terminado y ya no está disponible.",
+			"selectAnother": "Selecciona otro modelo para continuar.",
+			"selectModel": "Seleccionar un modelo",
+			"title": "La promoción del modelo gratuito ha terminado"
+		},
+		"orgRestriction": {
+			"body": "Las cuentas de organización no pueden usar suscripciones de ClinePass.",
+			"switchFailed": "No se pudo cambiar de cuenta. Usa /accounts para cambiar a tu cuenta personal.",
+			"switchToPersonal": "Cambiar a cuenta personal",
+			"switchedToPersonal": "Cambiado a cuenta personal",
+			"title": "La cuenta de organización no puede usar ClinePass"
+		},
+		"powershellHelp": "Parece que tienes problemas con Windows PowerShell; consulta esta <helpLink>guía de solución de problemas</helpLink>.",
+		"requestId": "ID de solicitud: {{requestId}}",
+		"retryRequest": "Reintentar solicitud",
+		"spendLimit": {
+			"limitReachedDaily": "Se ha alcanzado el límite diario de ${{limit}}.",
+			"limitReachedMonthly": "Se ha alcanzado el límite mensual de ${{limit}}.",
+			"orgLimits": "Límites establecidos por tu organización.",
+			"requestIncrease": "Solicitar aumento",
+			"requestSent": "Solicitud enviada",
+			"resets": "Se restablece:",
+			"sending": "Enviando…",
+			"usage": "Uso",
+			"usageDaily": "Uso diario",
+			"usageMonthly": "Uso mensual"
+		}
+	},
+	"featureTips": {
+		"label": "Consejo:",
+		"tips": {
+			"autoApprove": "Habilita la aprobación automática para herramientas de solo lectura, como la lectura de archivos, para acelerar la exploración.",
+			"checkpoints": "Cline crea puntos de control después de los cambios: siempre puedes restaurar un estado anterior.",
+			"clinerules": "Agrega un archivo .clinerules en la raíz de tu proyecto para darle a Cline instrucciones específicas del proyecto.",
+			"compact": "Usa /compact para condensar conversaciones largas y liberar espacio en la ventana de contexto.",
+			"disableTips": "Puedes desactivar estos consejos en Configuración → Funciones → \"Consejos de funciones\".",
+			"dragDrop": "Puedes arrastrar y soltar imágenes en el chat para compartir capturas de pantalla con Cline.",
+			"mcpServers": "Configura servidores MCP para darle a Cline acceso a herramientas y API externas.",
+			"mentions": "Usa @ en el chat para agregar archivos, carpetas o URL como contexto de tu tarea.",
+			"planMode": "Cambia al modo Plan para discutir y planificar un enfoque antes de que Cline actúe.",
+			"quote": "Usa el botón de cita para seleccionar texto de la respuesta de Cline y referenciarlo en tu respuesta."
+		}
+	},
+	"hook": {
+		"abort": "Anular",
+		"exitCode": "(salida: {{code}})",
+		"label": "Hook:",
+		"status": {
+			"aborted": "Anulado",
+			"completed": "Completado",
+			"failed": "Falló",
+			"running": "En ejecución",
+			"unknown": "Desconocido"
+		},
+		"timeoutError": "Tardó más de 30 segundos. Comprueba si hay bucles infinitos o agrega tiempos de espera a las solicitudes de red.",
+		"unknownName": "Desconocido",
+		"validationError": "El hook devolvió un JSON no válido. Consulta los detalles del error a continuación."
+	},
+	"newTask": {
+		"label": "Tarea"
+	},
+	"quote": {
+		"dismissAria": "Descartar cita",
+		"quoteSelectionAria": "Citar selección",
+		"quoteSelectionTitle": "Citar la selección en la respuesta"
+	},
+	"reportBug": {
+		"additionalContext": "Contexto adicional",
+		"apiRequestOutput": "Salida relevante de la solicitud de API",
+		"clineVersion": "Versión de Cline",
+		"operatingSystem": "Sistema operativo",
+		"providerModel": "Proveedor/modelo",
+		"stepsToReproduce": "Pasos para reproducir",
+		"systemInfo": "Información del sistema",
+		"title": "Informe de error",
+		"whatHappened": "¿Qué ocurrió?"
+	},
+	"requestStart": {
+		"analyzing": "Analizando {{path}}/...",
+		"codebase": "el código base",
+		"exploring": "Explorando {{path}}/...",
+		"reading": "Leyendo {{path}}...",
+		"searchInPath": "\"{{terms}}\" en {{path}}",
+		"searchInPathWithPattern": "\"{{terms}}\" en {{path}} ({{pattern}})",
+		"searching": "Buscando {{query}}..."
+	},
+	"row": {
+		"arguments": "Argumentos",
+		"collapseSummary": "Contraer resumen",
+		"condensingConversation": "Cline está condensando la conversación:",
+		"conditionalRulesApplied": "Reglas condicionales aplicadas:",
+		"error": "Error",
+		"expandSummary": "Expandir resumen",
+		"fetchedFromUrl": "Cline obtuvo contenido de esta URL:",
+		"hasQuestion": "Cline tiene una pregunta:",
+		"havingTrouble": "Cline está teniendo problemas...",
+		"isCreatingPatches": "Cline está creando parches para editar este archivo:",
+		"listedFilesRecursive": "Cline vio recursivamente todos los archivos de este directorio:",
+		"listedFilesTopLevel": "Cline vio los archivos del nivel superior de este directorio:",
+		"loadedSkill": "Cline cargó la habilidad:",
+		"loadingMcpDocumentation": "Cargando documentación de MCP",
+		"mcpNotification": "Notificación de MCP:",
+		"outsideWorkspace": "Esto está fuera de tu área de trabajo",
+		"outsideWorkspaceFile": "Este archivo está fuera de tu área de trabajo",
+		"searchExternal": "Esta búsqueda es externa",
+		"searchedWeb": "Cline buscó en la web:",
+		"shellIntegration": {
+			"backgroundEnabled": "Terminal en segundo plano habilitado",
+			"enableBackground": "Habilitar terminal en segundo plano (recomendado)",
+			"issues": "Problemas de integración del shell",
+			"recommendBackground": "Como estás experimentando problemas repetidos de integración del shell, te recomendamos cambiar al modo de terminal en segundo plano para mayor fiabilidad.",
+			"stillHavingTrouble": "¿Sigues teniendo problemas?",
+			"troubleBody": "Es posible que Cline no pueda ver la salida del comando. Actualiza VSCode (<code1>CMD/CTRL + Shift + P</code1> → \"Update\") y asegúrate de usar un shell compatible: zsh, bash, fish o PowerShell (<code2>CMD/CTRL + Shift + P</code2> → \"Terminal: Seleccionar perfil predeterminado\").",
+			"unavailable": "Integración del shell no disponible"
+		},
+		"summaryLabel": "Resumen:",
+		"urlExternal": "Esta URL es externa",
+		"viewedCodeDefinitions": "Cline vio los nombres de definiciones de código fuente usados en este directorio:",
+		"wantsToAccessResource": "Cline quiere acceder a un recurso en el servidor MCP <server>{{serverName}}</server>:",
+		"wantsToCondense": "Cline quiere condensar tu conversación:",
+		"wantsToCreateFile": "Cline quiere crear un archivo nuevo:",
+		"wantsToCreateGithubIssue": "Cline quiere crear una incidencia de Github:",
+		"wantsToDeleteFile": "Cline quiere eliminar este archivo:",
+		"wantsToEditFile": "Cline quiere editar este archivo:",
+		"wantsToExecuteCommand": "Cline quiere ejecutar este comando:",
+		"wantsToFetchFromUrl": "Cline quiere obtener contenido de esta URL:",
+		"wantsToListFilesRecursive": "Cline quiere ver recursivamente todos los archivos de este directorio:",
+		"wantsToListFilesTopLevel": "Cline quiere ver los archivos del nivel superior de este directorio:",
+		"wantsToReadFile": "Cline quiere leer este archivo:",
+		"wantsToSearchDirectory": "Cline quiere buscar <code>{{regex}}</code> en este directorio:",
+		"wantsToSearchWeb": "Cline quiere buscar en la web:",
+		"wantsToStartNewTask": "Cline quiere iniciar una tarea nueva:",
+		"wantsToUseTool": "Cline quiere usar una herramienta en el servidor MCP <server>{{serverName}}</server>:",
+		"wantsToViewCodeDefinitions": "Cline quiere ver los nombres de definiciones de código fuente usados en este directorio:"
+	},
+	"searchResults": {
+		"collapseAria": "Contraer resultados de búsqueda",
+		"expandAria": "Expandir resultados de búsqueda",
+		"workspace": "Área de trabajo: {{name}}"
+	},
+	"servers": {
+		"goToSettingsAria": "Ir a la configuración de servidores MCP",
+		"hideAria": "Ocultar servidores MCP",
+		"manageTooltip": "Administrar servidores MCP",
+		"showAria": "Mostrar servidores MCP",
+		"title": "Servidores MCP"
+	},
+	"slashMenu": {
+		"defaultCommands": "Comandos predeterminados",
+		"label": "Comandos de barra",
+		"mcpPromptFrom": "Prompt de MCP de {{serverName}}",
+		"mcpPrompts": "Prompts de MCP",
+		"noMatchingCommands": "No se encontraron comandos coincidentes",
+		"workflowCommands": "Comandos de flujo de trabajo"
+	},
+	"subagent": {
+		"hideOutput": "Ocultar salida",
+		"hideOutputAria": "Ocultar salida del subagente",
+		"showFullPromptAria": "Mostrar el prompt completo del subagente",
+		"showMore": "Mostrar más",
+		"showOutput": "Mostrar salida",
+		"showOutputAria": "Mostrar salida del subagente",
+		"stats": "{{toolCalls}} herramientas llamadas · {{tokens}} tokens · {{cost}}",
+		"statusUnavailable": "Actualización de estado del subagente no disponible.",
+		"wantsToUse_many": "Cline quiere usar subagentes:",
+		"wantsToUse_one": "Cline quiere usar un subagente:",
+		"wantsToUse_other": "Cline quiere usar subagentes:"
+	},
+	"textArea": {
+		"act": "Actuar",
+		"actModeTooltip": "En el modo Actuar, Cline completará la tarea de inmediato",
+		"addContext": "Agregar contexto",
+		"addFilesImages": "Agregar archivos e imágenes",
+		"dimensionError": "Las dimensiones de la imagen superan los 7500 px",
+		"hint": "Escribe @ para contexto, / para comandos de barra y flujos de trabajo; mantén Mayús para arrastrar archivos/imágenes",
+		"openApiSettings": "Abrir configuración de API",
+		"placeholderMessage": "Escribe un mensaje...",
+		"placeholderTask": "Escribe tu tarea aquí...",
+		"plan": "Plan",
+		"planModeTooltip": "En el modo Plan, Cline reunirá información para diseñar un plan",
+		"toggleShortcut": "Alternar con <kbd>{{keys}}</kbd>",
+		"unsupportedFileError": "Los archivos que no son imágenes están deshabilitados actualmente"
+	},
+	"thinking": {
+		"label": "Pensando",
+		"streaming": "Pensando..."
+	},
+	"userMessage": {
+		"cancel": "Cancelar",
+		"editFailed": "No se pudo editar y regenerar el mensaje",
+		"editRegenerate": "Editar y regenerar desde aquí",
+		"editRegenerateAria": "Editar y regenerar desde este mensaje",
+		"resetChat": "Restablecer chat",
+		"resetChatTooltip": "Rebobinar la conversación y conservar las ediciones de código actuales",
+		"resetCode": "Restablecer código",
+		"resetCodeTooltip": "Rebobinar la conversación y restablecer las ediciones de código",
+		"restoring": "Restaurando...",
+		"running": "Ejecutando..."
+	}
+}

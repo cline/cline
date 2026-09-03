@@ -1,6 +1,7 @@
 import { UpdateTerminalConnectionTimeoutResponse } from "@shared/proto/index.cline"
 import { VSCodeCheckbox, VSCodeDropdown, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import React, { useState } from "react"
+import { Trans, useTranslation } from "react-i18next"
 import { PlatformType } from "@/config/platform.config"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { usePlatform } from "@/context/PlatformContext"
@@ -20,6 +21,7 @@ const TerminalSettingsSection: React.FC<TerminalSettingsSectionProps> = ({ rende
 		availableTerminalProfiles,
 		vscodeTerminalExecutionMode,
 	} = useExtensionState()
+	const { t } = useTranslation()
 	const platformConfig = usePlatform()
 	const isVsCodePlatform = platformConfig.type === PlatformType.VSCODE
 	const executionMode = vscodeTerminalExecutionMode ?? "vscodeTerminal"
@@ -36,7 +38,7 @@ const TerminalSettingsSection: React.FC<TerminalSettingsSectionProps> = ({ rende
 
 		const seconds = Number.parseFloat(value)
 		if (Number.isNaN(seconds) || seconds <= 0) {
-			setInputError("Please enter a positive number")
+			setInputError(t("settings:terminal.shellTimeout.invalidNumber"))
 			return
 		}
 
@@ -95,18 +97,22 @@ const TerminalSettingsSection: React.FC<TerminalSettingsSectionProps> = ({ rende
 					{isVsCodePlatform && (
 						<div className="mb-4">
 							<label className="font-medium block mb-1" htmlFor="terminal-execution-mode">
-								Terminal Execution Mode
+								{t("settings:terminal.executionMode.label")}
 							</label>
 							<VSCodeDropdown
 								className="w-full"
 								id="terminal-execution-mode"
 								onChange={(event) => handleExecutionModeChange(event as Event)}
 								value={executionMode}>
-								<VSCodeOption value="vscodeTerminal">VS Code Terminal</VSCodeOption>
-								<VSCodeOption value="backgroundExec">Background Exec</VSCodeOption>
+								<VSCodeOption value="vscodeTerminal">
+									{t("settings:terminal.executionMode.vscodeTerminal")}
+								</VSCodeOption>
+								<VSCodeOption value="backgroundExec">
+									{t("settings:terminal.executionMode.backgroundExec")}
+								</VSCodeOption>
 							</VSCodeDropdown>
 							<p className="text-xs text-[var(--vscode-descriptionForeground)] mt-1">
-								Choose whether Cline runs commands in the VS Code terminal or a background process.
+								{t("settings:terminal.executionMode.description")}
 							</p>
 						</div>
 					)}
@@ -115,13 +121,13 @@ const TerminalSettingsSection: React.FC<TerminalSettingsSectionProps> = ({ rende
 						<>
 							<div className="mb-4">
 								<div className="mb-2">
-									<label className="font-medium block mb-1">Shell integration timeout (seconds)</label>
+									<label className="font-medium block mb-1">{t("settings:terminal.shellTimeout.label")}</label>
 									<div className="flex items-center">
 										<VSCodeTextField
 											className="w-full"
 											onBlur={handleInputBlur}
 											onChange={(event) => handleTimeoutChange(event as Event)}
-											placeholder="Enter timeout in seconds"
+											placeholder={t("settings:terminal.shellTimeout.placeholder")}
 											value={inputValue}
 										/>
 									</div>
@@ -130,8 +136,7 @@ const TerminalSettingsSection: React.FC<TerminalSettingsSectionProps> = ({ rende
 									)}
 								</div>
 								<p className="text-xs text-(--vscode-descriptionForeground)">
-									Set how long Cline waits for shell integration to activate before executing commands. Increase
-									this value if you experience terminal connection timeouts.
+									{t("settings:terminal.shellTimeout.description")}
 								</p>
 							</div>
 
@@ -140,12 +145,11 @@ const TerminalSettingsSection: React.FC<TerminalSettingsSectionProps> = ({ rende
 									<VSCodeCheckbox
 										checked={terminalReuseEnabled ?? true}
 										onChange={(event) => handleTerminalReuseChange(event as Event)}>
-										Enable aggressive terminal reuse
+										{t("settings:terminal.reuse.label")}
 									</VSCodeCheckbox>
 								</div>
 								<p className="text-xs text-(--vscode-descriptionForeground)">
-									When enabled, Cline will reuse existing terminal windows that aren't in the current working
-									directory. Disable this if you experience issues with task lockout after a terminal command.
+									{t("settings:terminal.reuse.description")}
 								</p>
 							</div>
 						</>
@@ -154,7 +158,7 @@ const TerminalSettingsSection: React.FC<TerminalSettingsSectionProps> = ({ rende
 					{/* Terminal choice affects both foreground and background execution mode. */}
 					<div className="mb-4">
 						<label className="font-medium block mb-1" htmlFor="default-terminal-profile">
-							Default Terminal Profile
+							{t("settings:terminal.defaultProfile.label")}
 						</label>
 						<VSCodeDropdown
 							className="w-full"
@@ -168,28 +172,35 @@ const TerminalSettingsSection: React.FC<TerminalSettingsSectionProps> = ({ rende
 							))}
 						</VSCodeDropdown>
 						<p className="text-xs text-(--vscode-descriptionForeground) mt-1">
-							Select the default terminal Cline will use. 'Default' uses your VSCode global setting.
+							{t("settings:terminal.defaultProfile.description")}
 						</p>
 					</div>
 					<div className="mt-5 p-3 bg-(--vscode-textBlockQuote-background) rounded border border-(--vscode-textBlockQuote-border)">
 						<p className="text-[13px] m-0">
-							<strong>Having terminal issues?</strong> Check our{" "}
-							<a
-								className="text-(--vscode-textLink-foreground) underline hover:no-underline"
-								href="https://docs.cline.bot/troubleshooting/terminal-quick-fixes"
-								rel="noopener noreferrer"
-								target="_blank">
-								Terminal Quick Fixes
-							</a>{" "}
-							or the{" "}
-							<a
-								className="text-(--vscode-textLink-foreground) underline hover:no-underline"
-								href="https://docs.cline.bot/troubleshooting/terminal-integration-guide"
-								rel="noopener noreferrer"
-								target="_blank">
-								Complete Troubleshooting Guide
-							</a>
-							.
+							<Trans
+								components={{
+									guideLink: (
+										// biome-ignore lint/a11y/useAnchorContent: content is injected by Trans
+										<a
+											className="text-(--vscode-textLink-foreground) underline hover:no-underline"
+											href="https://docs.cline.bot/troubleshooting/terminal-integration-guide"
+											rel="noopener noreferrer"
+											target="_blank"
+										/>
+									),
+									quickFixesLink: (
+										// biome-ignore lint/a11y/useAnchorContent: content is injected by Trans
+										<a
+											className="text-(--vscode-textLink-foreground) underline hover:no-underline"
+											href="https://docs.cline.bot/troubleshooting/terminal-quick-fixes"
+											rel="noopener noreferrer"
+											target="_blank"
+										/>
+									),
+									strong: <strong />,
+								}}
+								i18nKey="settings:terminal.troubleshooting.text"
+							/>
 						</p>
 					</div>
 				</div>

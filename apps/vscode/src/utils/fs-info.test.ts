@@ -1,5 +1,5 @@
-import { beforeEach, describe, it } from "mocha"
 import * as os from "node:os"
+import { beforeEach, describe, it } from "mocha"
 import "should"
 import { _getFsInfoCacheSizeForTests, _resetFsInfoCacheForTests, getFsInfo } from "./fs-info"
 

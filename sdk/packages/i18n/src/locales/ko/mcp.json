@@ -1,0 +1,97 @@
+{
+	"addServer": {
+		"addServer": "서버 추가",
+		"connecting": "연결하는 중...",
+		"description": "이름과 URL 엔드포인트를 입력하여 원격 MCP 서버를 추가하세요. 자세한 내용은 <docsLink>여기</docsLink>를 참조하세요.",
+		"editConfiguration": "구성 편집",
+		"errors": {
+			"addFailed": "서버를 추가하지 못했습니다",
+			"invalidUrl": "URL 형식이 잘못되었습니다",
+			"nameRequired": "서버 이름을 입력해야 합니다",
+			"urlRequired": "서버 URL을 입력해야 합니다"
+		},
+		"serverName": "서버 이름",
+		"serverUrl": "서버 URL",
+		"transportSse": "SSE(레거시)",
+		"transportStreamableHttp": "Streamable HTTP",
+		"transportType": "전송 유형"
+	},
+	"chatDisplay": {
+		"clickToOpenInBrowser": "클릭하여 브라우저에서 열기",
+		"fetchOpenGraphFailed": "Open Graph 데이터를 가져오지 못했습니다",
+		"imageErrorTitle": "이 이미지를 표시하는 중 문제가 발생했습니다",
+		"imageFrom": "{{hostname}}의 이미지",
+		"imageLoadFailed": "이미지를 로드하지 못했습니다",
+		"linkPreviewErrorTitle": "이 링크 미리 보기를 표시하는 중 문제가 발생했습니다",
+		"loadingImage": "{{hostname}}에서 이미지를 로드하는 중...",
+		"loadingPreview": "{{hostname}}의 미리 보기를 로드하는 중...",
+		"noDescriptionAvailable": "사용 가능한 설명이 없습니다",
+		"noTitle": "제목 없음",
+		"previewLoadFailed": "미리 보기를 로드할 수 없습니다",
+		"previewNetworkError": "미리 보기를 로드하는 중 네트워크 오류가 발생했습니다",
+		"previewTimeout": "미리 보기 요청 시간이 초과되었습니다",
+		"svgFrom": "{{hostname}}의 SVG",
+		"unknownError": "알 수 없는 오류가 발생했습니다",
+		"waitingMinutes": "{{minutes}}분 {{seconds}}초 대기 중...",
+		"waitingSeconds": "{{seconds}}초 대기 중..."
+	},
+	"configure": {
+		"advancedSettings": "고급 MCP 설정",
+		"configureServers": "MCP 서버 구성",
+		"description": "<mcpLink>Model Context Protocol</mcpLink>은 로컬에서 실행되는 MCP 서버와의 통신을 지원하며, 이러한 서버는 Cline의 기능을 확장하는 추가 도구와 리소스를 제공합니다. <communityLink>커뮤니티에서 만든 서버</communityLink>를 사용하거나 Cline에게 워크플로에 맞는 새 도구를 만들어 달라고 요청할 수 있습니다(예: \"최신 npm 문서를 가져오는 도구 추가해 줘\"). <demoLink>여기에서 데모를 확인하세요.</demoLink>",
+		"remoteManagedBanner": "조직에서 일부 MCP 서버를 관리합니다"
+	},
+	"displayMode": {
+		"markdown": "Markdown",
+		"plain": "일반 텍스트",
+		"rich": "리치 디스플레이"
+	},
+	"response": {
+		"parseError": "응답을 구문 분석하는 중 오류 발생:",
+		"processError": "응답 콘텐츠를 처리하지 못했습니다. 안전하게 보려면 일반 텍스트 모드로 전환하세요.",
+		"title": "응답",
+		"titleError": "응답(오류)"
+	},
+	"serverList": {
+		"noServers": "설치된 MCP 서버가 없습니다"
+	},
+	"serverRow": {
+		"alwaysEnabledTooltip": "조직에서 사용하도록 설정한 서버이므로 사용 중지할 수 없습니다",
+		"arguments": "인수",
+		"authenticate": "인증",
+		"autoApprove": "자동 승인",
+		"autoApproveAll": "모든 도구 자동 승인",
+		"deleteServer": "서버 삭제",
+		"deleting": "삭제하는 중...",
+		"noDescription": "설명 없음",
+		"noPrompts": "프롬프트를 찾을 수 없습니다",
+		"noResources": "리소스를 찾을 수 없습니다",
+		"noTools": "도구를 찾을 수 없습니다",
+		"parameters": "매개 변수",
+		"promptsTab": "프롬프트({{count}})",
+		"requestTimeout": "요청 시간 제한",
+		"resourcesTab": "리소스({{count}})",
+		"restartServer": "서버 다시 시작",
+		"restarting": "다시 시작하는 중...",
+		"retryConnection": "연결 다시 시도",
+		"retrying": "다시 시도하는 중...",
+		"returns": "반환:",
+		"serverDisabled": "서버 사용 안 함",
+		"timeoutDescription": "VS Code와 CLI에서 이 서버가 처리하는 모든 요청에 적용됩니다. 다른 값을 사용하려면 cline_mcp_settings.json에서 \"timeout\"(초)을 설정하세요.",
+		"timeouts": {
+			"fiveMinutes": "5분",
+			"oneHour": "1시간",
+			"oneMinute": "1분",
+			"tenMinutes": "10분",
+			"thirtyMinutes": "30분",
+			"thirtySeconds": "30초"
+		},
+		"toolsTab": "도구({{count}})",
+		"unknown": "알 수 없음"
+	},
+	"tabs": {
+		"configure": "구성",
+		"remoteServers": "원격 서버"
+	},
+	"title": "MCP 서버"
+}

@@ -1,4 +1,5 @@
 import { McpPrompt } from "@shared/mcp"
+import { useTranslation } from "react-i18next"
 
 type McpPromptRowProps = {
 	prompt: McpPrompt
@@ -6,6 +7,7 @@ type McpPromptRowProps = {
 }
 
 const McpPromptRow = ({ prompt, serverName }: McpPromptRowProps) => {
+	const { t } = useTranslation()
 	return (
 		<div
 			key={prompt.name}
@@ -50,7 +52,7 @@ const McpPromptRow = ({ prompt, serverName }: McpPromptRowProps) => {
 							fontSize: "11px",
 							textTransform: "uppercase",
 						}}>
-						Arguments
+						{t("mcp:serverRow.arguments")}
 					</div>
 					{prompt.arguments.map((arg) => (
 						<div
@@ -81,7 +83,7 @@ const McpPromptRow = ({ prompt, serverName }: McpPromptRowProps) => {
 									overflowWrap: "break-word",
 									wordBreak: "break-word",
 								}}>
-								{arg.description || "No description"}
+								{arg.description || t("mcp:serverRow.noDescription")}
 							</span>
 						</div>
 					))}

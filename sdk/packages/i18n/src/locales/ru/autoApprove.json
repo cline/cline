@@ -1,0 +1,30 @@
+{
+	"actions": {
+		"editFiles": {
+			"label": "Редактирование файлов",
+			"shortName": "Правка"
+		},
+		"executeSafeCommands": {
+			"label": "Выполнение команд",
+			"shortName": "Команды"
+		},
+		"readFiles": {
+			"label": "Чтение файлов",
+			"shortName": "Чтение"
+		},
+		"useBrowser": {
+			"label": "Получение веб-содержимого",
+			"shortName": "Веб"
+		},
+		"useMcp": {
+			"label": "Использование серверов MCP",
+			"shortName": "MCP"
+		}
+	},
+	"closeSettingsAria": "Закрыть настройки автоодобрения",
+	"description": "Разрешить Cline выполнять эти действия без запроса одобрения.",
+	"docs": "Документация",
+	"none": "Нет",
+	"openSettingsAria": "Открыть настройки автоодобрения",
+	"title": "Автоодобрение:"
+}

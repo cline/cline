@@ -1,0 +1,50 @@
+{
+	"addCredits": "添加额度",
+	"auth": {
+		"copied": "已复制",
+		"copy": "复制",
+		"copyCodeAria": "复制 Cline 登录代码",
+		"enterCode": "请在浏览器中输入此代码："
+	},
+	"clineEnvironment": "Cline 环境",
+	"creditsHistory": {
+		"credits": "额度",
+		"creditsUsed": "已用额度",
+		"date": "日期",
+		"model": "模型",
+		"noPayments": "暂无付款记录",
+		"noUsage": "暂无使用记录",
+		"operations": {
+			"webFetch": "网页抓取",
+			"webFetchLlm": "网页抓取 (LLM)",
+			"webSearch": "网页搜索"
+		},
+		"paymentsHistory": "付款记录",
+		"totalCost": "总费用",
+		"usageHistory": "使用记录"
+	},
+	"currentBalance": "当前余额",
+	"dashboard": "仪表板",
+	"env": {
+		"local": "本地",
+		"production": "生产",
+		"staging": "预发布"
+	},
+	"lastUpdated": "上次更新时间：{{time}}",
+	"logOut": "退出登录",
+	"optOutRemoteConfig": "选择退出远程配置",
+	"organizationLockedTooltip": "你的组织已启用远程配置，因此无法更改此设置。",
+	"personal": "个人",
+	"roleTitle": "角色",
+	"roles": {
+		"admin": "管理员",
+		"member": "成员",
+		"owner": "所有者"
+	},
+	"title": "账户",
+	"welcome": {
+		"description": "注册账户即可使用最新模型、查看用量和额度的计费仪表板，以及更多即将推出的功能。",
+		"signUp": "使用 Cline 注册",
+		"terms": "继续即表示你同意<tosLink>服务条款</tosLink>和<privacyLink>隐私政策</privacyLink>。"
+	}
+}

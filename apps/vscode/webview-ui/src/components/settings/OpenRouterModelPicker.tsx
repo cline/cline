@@ -6,6 +6,7 @@ import { VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"
 import type React from "react"
 import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react"
+import { Trans, useTranslation } from "react-i18next"
 import { useMount } from "react-use"
 import styled from "styled-components"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -46,6 +47,7 @@ interface OpenRouterModelPickerProps {
 }
 
 const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, currentMode, showProviderRouting }) => {
+	const { t } = useTranslation()
 	const { handleModeFieldsChange, handleFieldChange } = useApiConfigurationHandlers()
 	const { commitSelection, write } = useProviderConfig("openrouter")
 	const { apiConfiguration, favoritedModelIds, openRouterModels, refreshOpenRouterModels } = useExtensionState()
@@ -252,7 +254,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 			</style>
 			<div style={{ display: "flex", flexDirection: "column" }}>
 				<label htmlFor="model-search">
-					<span style={{ fontWeight: 500 }}>Model</span>
+					<span style={{ fontWeight: 500 }}>{t("settings:modelPicker.label")}</span>
 				</label>
 
 				<DropdownWrapper ref={dropdownRef}>
@@ -269,7 +271,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 							setIsDropdownVisible(true)
 						}}
 						onKeyDown={handleKeyDown}
-						placeholder="Search and select a model..."
+						placeholder={t("settings:modelPicker.searchPlaceholder")}
 						role="combobox"
 						style={{
 							width: "100%",
@@ -279,7 +281,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 						value={searchTerm}>
 						{searchTerm && (
 							<div
-								aria-label="Clear search"
+								aria-label={t("settings:clearSearch")}
 								className="input-icon-button codicon codicon-close"
 								onClick={() => {
 									setSearchTerm("")
@@ -338,10 +340,10 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 							defaultEffort={showAdaptiveThinkingEffort ? adaptiveThinkingDefaultEffort : "none"}
 							description={
 								showAdaptiveThinkingEffort
-									? "Use None to disable adaptive thinking. Higher effort increases response detail and token usage."
-									: "Use None to disable extended thinking. Higher effort improves depth, but uses more tokens."
+									? t("settings:reasoningEffort.adaptiveDescription")
+									: t("settings:reasoningEffort.extendedDescription")
 							}
-							label={showAdaptiveThinkingEffort ? "Adaptive Thinking" : undefined}
+							label={showAdaptiveThinkingEffort ? t("settings:reasoningEffort.adaptiveLabel") : undefined}
 							onEffortChange={handleReasoningEffortChange}
 						/>
 					)}
@@ -362,12 +364,19 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 						marginTop: 0,
 						color: "var(--vscode-descriptionForeground)",
 					}}>
-					The extension automatically fetches the latest list of models available on{" "}
-					<VSCodeLink href="https://openrouter.ai/models" style={{ display: "inline", fontSize: "inherit" }}>
-						OpenRouter.
-					</VSCodeLink>
-					If you're unsure which model to choose, compare available models by context window, pricing, and capabilities.
-					You can also try searching "free" for no-cost options currently available.
+					<Trans
+						components={{
+							providerLink: (
+								<VSCodeLink
+									href="https://openrouter.ai/models"
+									style={{ display: "inline", fontSize: "inherit" }}
+								/>
+							),
+						}}
+						i18nKey="settings:modelPicker.autoFetchNote"
+						values={{ provider: "OpenRouter" }}
+					/>{" "}
+					{t("settings:modelPicker.autoFetchFreeTip")}
 				</p>
 			)}
 		</div>

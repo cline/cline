@@ -2,6 +2,7 @@ import fs from "fs/promises"
 import sizeOf from "image-size"
 import * as path from "path"
 import { HostProvider } from "@/hosts/host-provider"
+import { t } from "@/services/i18n"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
 
@@ -15,7 +16,7 @@ export async function selectFiles(imagesAllowed: boolean): Promise<{ images: str
 
 	const showDialogueResponse = await HostProvider.window.showOpenDialogue({
 		canSelectMany: true,
-		openLabel: "Select",
+		openLabel: t("files.dialogSelectLabel"),
 		filters: {
 			files: imagesAllowed ? [...IMAGE_EXTENSIONS, ...OTHER_FILE_EXTENSIONS] : OTHER_FILE_EXTENSIONS,
 		},
@@ -44,7 +45,7 @@ export async function selectFiles(imagesAllowed: boolean): Promise<{ images: str
 					Logger.warn(`Image dimensions exceed 7500px, skipping: ${filePath}`)
 					HostProvider.window.showMessage({
 						type: ShowMessageType.ERROR,
-						message: `Image too large: ${path.basename(filePath)} was skipped (dimensions exceed 7500px).`,
+						message: t("files.imageTooLarge", { filename: path.basename(filePath) }),
 					})
 					return null
 				}
@@ -52,7 +53,7 @@ export async function selectFiles(imagesAllowed: boolean): Promise<{ images: str
 				Logger.error(`Error reading file or getting dimensions for ${filePath}:`, error)
 				HostProvider.window.showMessage({
 					type: ShowMessageType.ERROR,
-					message: `Could not read dimensions for ${path.basename(filePath)}, skipping.`,
+					message: t("files.readDimensionsFailed", { filename: path.basename(filePath) }),
 				})
 				return null
 			}
@@ -70,7 +71,7 @@ export async function selectFiles(imagesAllowed: boolean): Promise<{ images: str
 				Logger.warn(`File too large, skipping: ${filePath}`)
 				HostProvider.window.showMessage({
 					type: ShowMessageType.ERROR,
-					message: `File too large: ${path.basename(filePath)} was skipped (size exceeds 20MB).`,
+					message: t("files.fileTooLarge", { filename: path.basename(filePath) }),
 				})
 				return null
 			}
@@ -78,7 +79,7 @@ export async function selectFiles(imagesAllowed: boolean): Promise<{ images: str
 			Logger.error(`Error checking file size for ${filePath}:`, error)
 			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
-				message: `Could not check file size for ${path.basename(filePath)}, skipping.`,
+				message: t("files.checkSizeFailed", { filename: path.basename(filePath) }),
 			})
 			return null
 		}

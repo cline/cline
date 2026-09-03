@@ -1,19 +1,20 @@
 import type { UsageTransaction as ClineAccountUsageTransaction } from "@shared/ClineAccount"
 import type { UsageTransaction as ProtoUsageTransaction, UserOrganization } from "@shared/proto/cline/account"
 
+/** Returns the i18n key for the user's main organization role; translate at the render site. */
 export const getMainRole = (roles?: string[]) => {
 	if (!roles) {
 		return undefined
 	}
 
 	if (roles.includes("owner")) {
-		return "Owner"
+		return "account:roles.owner"
 	}
 	if (roles.includes("admin")) {
-		return "Admin"
+		return "account:roles.admin"
 	}
 
-	return "Member"
+	return "account:roles.member"
 }
 
 export const getClineUris = (base: string, type: "dashboard" | "credits", route?: "account" | "organization") => {

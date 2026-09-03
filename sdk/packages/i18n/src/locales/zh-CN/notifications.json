@@ -1,3 +1,109 @@
 {
-	"storageInitFailed": "存储初始化失败。请查看日志了解详情，或尝试重启客户端。"
+	"auth": {
+		"codexBrowserOpenFailed": "无法打开浏览器进行 OpenAI 登录。请手动打开此 URL：{{url}}",
+		"codexSignInFailed": "OpenAI Codex 登录失败：{{error}}",
+		"codexSignInSuccess": "已成功登录 OpenAI Codex"
+	},
+	"checkpoints": {
+		"diffTitle": "自上条消息以来的更改",
+		"noChanges": "自您的上条消息以来未发现文件更改。",
+		"noneTaken": "此任务未创建检查点。检查点要求工作区是 Git 仓库。"
+	},
+	"cli": {
+		"installFailed": "无法启动 CLI 安装：{{error}}"
+	},
+	"commands": {
+		"selectCodeToExplain": "请选择要解释的代码。",
+		"selectCodeToImprove": "请选择要改进的代码。"
+	},
+	"commitMessage": {
+		"generateFailed": "生成提交信息失败：{{error}}",
+		"generateForAllDescription_other": "为 {{count}} 个仓库生成提交信息",
+		"generateForAllLabel": "$(git-commit) 为所有有更改的仓库生成",
+		"generating": "正在为 {{repository}} 生成提交信息...",
+		"generationFailed": "[提交信息生成失败] {{error}}",
+		"noChanges": "在任何工作区仓库中都未发现更改",
+		"selectRepoPlaceholder": "选择要生成提交信息的仓库"
+	},
+	"files": {
+		"checkSizeFailed": "无法检查 {{filename}} 的文件大小，已跳过。",
+		"dialogSelectLabel": "选择",
+		"fileTooLarge": "文件过大：{{filename}} 已被跳过（大小超过 20MB）。",
+		"imageTooLarge": "图片过大：{{filename}} 已被跳过（尺寸超过 7500px）。",
+		"invalidDataUri": "数据 URI 格式无效",
+		"openFileFailed": "无法打开文件！",
+		"openImageFailed": "打开图片时出错：{{error}}",
+		"readDimensionsFailed": "无法读取 {{filename}} 的尺寸，已跳过。"
+	},
+	"jupyter": {
+		"noActiveNotebook": "未找到活动的 Jupyter 笔记本。请先打开一个 .ipynb 文件。"
+	},
+	"mcp": {
+		"invalidSettingsJson": "MCP 设置文件中的 JSON 无效。请检查语法。",
+		"openSettingsFileButton": "打开设置文件",
+		"restartingServer": "正在重启 {{serverName}} MCP 服务器...",
+		"serverConnectFailed": "无法连接到 {{serverName}} MCP 服务器",
+		"serverConnected": "{{serverName}} MCP 服务器已连接",
+		"settingsSchemaError": "MCP 设置架构错误——未加载任何服务器。",
+		"updateAutoApproveFailed": "更新自动批准设置失败",
+		"updateServerStateFailed": "更新服务器状态失败：{{error}}",
+		"updateTimeoutFailed": "更新服务器超时设置失败：{{error}}"
+	},
+	"mentions": {
+		"fetchContentFailed": "获取 {{url}} 的内容时出错：{{error}}"
+	},
+	"oca": {
+		"backendUnreachable": "无法访问 OCA 后端。请检查您的终结点和代理配置是否正确，并参阅故障排除指南。",
+		"fetchModelsFailed": "获取 OCA 模型失败。请检查您在 {{baseUrl}} 的配置",
+		"noModels": "未找到模型。您是否已设置 OCA 访问权限（可能需要通过权益配置）？",
+		"notAuthenticated": "尚未通过 OCA 身份验证。请先登录。",
+		"refreshError": "刷新 OCA 模型时出错。{{message}} opc-request-id: {{requestId}}",
+		"refreshedModels": "已从 {{baseUrl}} 刷新 OCA 模型",
+		"serviceError": "您是否已设置 OCA 访问权限（可能需要通过权益配置）？OCA 服务返回了 {{status}} {{statusText}}。"
+	},
+	"rules": {
+		"createdGlobalRuleFile": "已创建新的全局规则文件：{{filename}}",
+		"createdGlobalWorkflowFile": "已创建新的全局工作流文件：{{filename}}",
+		"createdWorkspaceRuleFile": "已创建新的工作区规则文件：{{filename}}",
+		"createdWorkspaceWorkflowFile": "已创建新的工作区工作流文件：{{filename}}",
+		"ruleFileAlreadyExists": "规则文件“{{filename}}”已存在。",
+		"ruleFileDeleted": "已成功删除规则文件“{{filename}}”",
+		"workflowFileAlreadyExists": "工作流文件“{{filename}}”已存在。",
+		"workflowFileDeleted": "已成功删除工作流文件“{{filename}}”"
+	},
+	"skills": {
+		"alreadyExists": "技能“{{name}}”已存在"
+	},
+	"state": {
+		"resetComplete": "状态已重置",
+		"resetFailed": "重置状态失败：{{error}}",
+		"resettingGlobal": "正在重置全局状态...",
+		"resettingWorkspace": "正在重置工作区状态..."
+	},
+	"storageInitFailed": "存储初始化失败。请查看日志了解详情，或尝试重启客户端。",
+	"tasks": {
+		"deleteAllExceptFavoritesButton": "删除除收藏外的所有任务",
+		"deleteAllPrompt": "您要删除什么？",
+		"deleteAllTasksButton": "删除所有任务",
+		"deleteButton": "删除",
+		"deleteConfirm_other": "确定要删除这 {{count}} 个任务吗？此操作无法撤消。",
+		"deleteEverythingButton": "删除全部内容",
+		"noFavoritesFound": "未找到收藏的任务。仍要删除所有任务吗？"
+	},
+	"telemetry": {
+		"hostTelemetryDisabled": "已启用 Cline 匿名错误和使用情况报告，但 IDE 遥测已禁用。若要为此扩展启用错误和使用情况报告，请在 IDE 设置中启用遥测。",
+		"openSettingsButton": "打开设置"
+	},
+	"terminal": {
+		"getContentsFailed": "获取终端内容失败"
+	},
+	"url": {
+		"copyAgainButton": "再次复制 URL",
+		"openFailed": "无法打开 URL：{{url}}",
+		"openFailedCopied": "无法自动打开该 URL。已将其复制到剪贴板。"
+	},
+	"version": {
+		"updated": "Cline 已更新至 v{{version}}",
+		"welcome": "欢迎使用 Cline v{{version}}"
+	}
 }

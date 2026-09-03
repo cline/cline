@@ -1,0 +1,62 @@
+{
+	"addRemoteServer": "添加远程服务器",
+	"advancedMcpSettings": "MCP 高级设置",
+	"clearSearch": "清除搜索",
+	"customizeTitle": "自定义",
+	"disableEntry": "禁用 {{name}}",
+	"editConfiguration": "编辑配置",
+	"enableEntry": "启用 {{name}}",
+	"installEntry": "安装 {{name}}",
+	"installedMcpServers": "已安装的 MCP 服务器",
+	"installedSectionTitle": "已安装的{{title}}",
+	"orgManagesMcpServers": "你的组织托管了部分 MCP 服务器",
+	"primitives": {
+		"mcp": {
+			"description": "通过 <mcpLink>MCP</mcpLink> 服务器将 Cline 连接到外部 API、本地工具和托管服务。",
+			"label": "MCP",
+			"loading": "正在加载 MCP 服务器",
+			"noInstalled": "没有已安装的 MCP 服务器。",
+			"noMarketplace": "市场中没有 MCP 服务器。",
+			"noMatch": "没有符合搜索条件的 MCP 服务器。",
+			"searchAria": "搜索 MCP 服务器",
+			"searchPlaceholder": "搜索 MCP 服务器",
+			"title": "MCP 服务器"
+		},
+		"plugin": {
+			"description": "<pluginsLink>插件</pluginsLink>是比单个 MCP 服务器或技能更复杂的能力扩展，可包含自定义工具、钩子、规则、斜杠命令或打包的技能。",
+			"label": "插件",
+			"loading": "正在加载插件",
+			"noInstalled": "没有已安装的插件。",
+			"noMarketplace": "市场中没有插件。",
+			"noMatch": "没有符合搜索条件的插件。",
+			"searchAria": "搜索插件",
+			"searchPlaceholder": "搜索插件",
+			"title": "插件"
+		},
+		"skill": {
+			"description": "可复用的指令集，Cline 会在执行特定任务时按需加载，不会在无关工作中占用上下文。前往 <agentSkillsLink>Agent Skills</agentSkillsLink> 浏览更多。",
+			"label": "技能",
+			"loading": "正在加载技能",
+			"noInstalled": "没有已安装的技能。",
+			"noMarketplace": "市场中没有技能。",
+			"noMatch": "没有符合搜索条件的技能。",
+			"searchAria": "搜索技能",
+			"searchPlaceholder": "搜索技能",
+			"title": "技能"
+		}
+	},
+	"remoteManagedSkillUninstall": "远程托管的技能无法在此处卸载",
+	"requiresEnv": "需要 {{vars}}",
+	"sections": {
+		"installed": "已安装",
+		"marketplace": "市场"
+	},
+	"sectionsAria": "{{title}}分区",
+	"source": {
+		"global": "全局",
+		"remote": "远程",
+		"workspace": "工作区"
+	},
+	"uninstallEntry": "卸载 {{name}}",
+	"usesEnv": "使用 {{vars}}"
+}

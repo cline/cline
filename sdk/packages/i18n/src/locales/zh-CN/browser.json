@@ -1,0 +1,13 @@
+{
+	"settingsMenu": {
+		"connected": "已连接",
+		"connectionInfoTitle": "浏览器连接信息",
+		"disconnected": "未连接",
+		"local": "本地",
+		"remote": "远程",
+		"remoteHostLabel": "远程主机：",
+		"statusLabel": "状态：",
+		"title": "浏览器连接",
+		"typeLabel": "类型："
+	}
+}

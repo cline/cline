@@ -1,3 +1,111 @@
 {
-	"storageInitFailed": "Failed to initialize storage. Please check logs for details or try restarting the client."
+	"auth": {
+		"codexBrowserOpenFailed": "Couldn't open your browser for OpenAI sign-in. Open this URL manually: {{url}}",
+		"codexSignInFailed": "OpenAI Codex sign in failed: {{error}}",
+		"codexSignInSuccess": "Successfully signed in to OpenAI Codex"
+	},
+	"checkpoints": {
+		"diffTitle": "Changes since your last message",
+		"noChanges": "No file changes found since your last message.",
+		"noneTaken": "No checkpoint was taken for this task. Checkpoints require the workspace to be a git repository."
+	},
+	"cli": {
+		"installFailed": "Failed to start CLI installation: {{error}}"
+	},
+	"commands": {
+		"selectCodeToExplain": "Please select some code to explain.",
+		"selectCodeToImprove": "Please select some code to improve."
+	},
+	"commitMessage": {
+		"generateFailed": "Failed to generate commit message: {{error}}",
+		"generateForAllDescription_one": "Generate commit messages for {{count}} repository",
+		"generateForAllDescription_other": "Generate commit messages for {{count}} repositories",
+		"generateForAllLabel": "$(git-commit) Generate for all repositories with changes",
+		"generating": "Generating commit message for {{repository}}...",
+		"generationFailed": "[Commit Generation Failed] {{error}}",
+		"noChanges": "No changes found in any workspace repositories",
+		"selectRepoPlaceholder": "Select repository for commit message generation"
+	},
+	"files": {
+		"checkSizeFailed": "Could not check file size for {{filename}}, skipping.",
+		"dialogSelectLabel": "Select",
+		"fileTooLarge": "File too large: {{filename}} was skipped (size exceeds 20MB).",
+		"imageTooLarge": "Image too large: {{filename}} was skipped (dimensions exceed 7500px).",
+		"invalidDataUri": "Invalid data URI format",
+		"openFileFailed": "Could not open file!",
+		"openImageFailed": "Error opening image: {{error}}",
+		"readDimensionsFailed": "Could not read dimensions for {{filename}}, skipping."
+	},
+	"jupyter": {
+		"noActiveNotebook": "No active Jupyter notebook found. Please open a .ipynb file first."
+	},
+	"mcp": {
+		"invalidSettingsJson": "Invalid JSON in MCP settings file. Please check the syntax.",
+		"openSettingsFileButton": "Open Settings File",
+		"restartingServer": "Restarting {{serverName}} MCP server...",
+		"serverConnectFailed": "Failed to connect to {{serverName}} MCP server",
+		"serverConnected": "{{serverName}} MCP server connected",
+		"settingsSchemaError": "MCP settings schema error — no servers were loaded.",
+		"updateAutoApproveFailed": "Failed to update autoApprove settings",
+		"updateServerStateFailed": "Failed to update server state: {{error}}",
+		"updateTimeoutFailed": "Failed to update server timeout: {{error}}"
+	},
+	"mentions": {
+		"fetchContentFailed": "Error fetching content for {{url}}: {{error}}"
+	},
+	"oca": {
+		"backendUnreachable": "Unable to access the OCA backend. Is your endpoint and proxy configured properly? Please see the troubleshooting guide.",
+		"fetchModelsFailed": "Failed to fetch OCA models. Please check your configuration from {{baseUrl}}",
+		"noModels": "No models found. Did you set up your OCA access (possibly through entitlements)?",
+		"notAuthenticated": "Not authenticated with OCA. Please sign in first.",
+		"refreshError": "Error refreshing OCA models. {{message}} opc-request-id: {{requestId}}",
+		"refreshedModels": "Refreshed OCA models from {{baseUrl}}",
+		"serviceError": "Did you set up your OCA access (possibly through entitlements)? OCA service returned {{status}} {{statusText}}."
+	},
+	"rules": {
+		"createdGlobalRuleFile": "Created new global rule file: {{filename}}",
+		"createdGlobalWorkflowFile": "Created new global workflow file: {{filename}}",
+		"createdWorkspaceRuleFile": "Created new workspace rule file: {{filename}}",
+		"createdWorkspaceWorkflowFile": "Created new workspace workflow file: {{filename}}",
+		"ruleFileAlreadyExists": "rule file \"{{filename}}\" already exists.",
+		"ruleFileDeleted": "rule file \"{{filename}}\" deleted successfully",
+		"workflowFileAlreadyExists": "workflow file \"{{filename}}\" already exists.",
+		"workflowFileDeleted": "workflow file \"{{filename}}\" deleted successfully"
+	},
+	"skills": {
+		"alreadyExists": "Skill \"{{name}}\" already exists"
+	},
+	"state": {
+		"resetComplete": "State reset",
+		"resetFailed": "Failed to reset state: {{error}}",
+		"resettingGlobal": "Resetting global state...",
+		"resettingWorkspace": "Resetting workspace state..."
+	},
+	"storageInitFailed": "Failed to initialize storage. Please check logs for details or try restarting the client.",
+	"tasks": {
+		"deleteAllExceptFavoritesButton": "Delete All Except Favorites",
+		"deleteAllPrompt": "What would you like to delete?",
+		"deleteAllTasksButton": "Delete All Tasks",
+		"deleteButton": "Delete",
+		"deleteConfirm_one": "Are you sure you want to delete this task? This action cannot be undone.",
+		"deleteConfirm_other": "Are you sure you want to delete these {{count}} tasks? This action cannot be undone.",
+		"deleteEverythingButton": "Delete Everything",
+		"noFavoritesFound": "No favorited tasks found. Would you like to delete all tasks anyway?"
+	},
+	"telemetry": {
+		"hostTelemetryDisabled": "Anonymous Cline error and usage reporting is enabled, but IDE telemetry is disabled. To enable error and usage reporting for this extension, enable telemetry in IDE settings.",
+		"openSettingsButton": "Open Settings"
+	},
+	"terminal": {
+		"getContentsFailed": "Failed to get terminal contents"
+	},
+	"url": {
+		"copyAgainButton": "Copy URL Again",
+		"openFailed": "Failed to open URL: {{url}}",
+		"openFailedCopied": "Couldn't open the URL automatically. It has been copied to your clipboard."
+	},
+	"version": {
+		"updated": "Cline has been updated to v{{version}}",
+		"welcome": "Welcome to Cline v{{version}}"
+	}
 }

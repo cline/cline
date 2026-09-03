@@ -1,0 +1,62 @@
+{
+	"addRemoteServer": "Добавить удалённый сервер",
+	"advancedMcpSettings": "Расширенные настройки MCP",
+	"clearSearch": "Очистить поиск",
+	"customizeTitle": "Настройка",
+	"disableEntry": "Отключить {{name}}",
+	"editConfiguration": "Изменить конфигурацию",
+	"enableEntry": "Включить {{name}}",
+	"installEntry": "Установить {{name}}",
+	"installedMcpServers": "Установленные серверы MCP",
+	"installedSectionTitle": "Установленные: {{title}}",
+	"orgManagesMcpServers": "Ваша организация управляет некоторыми серверами MCP",
+	"primitives": {
+		"mcp": {
+			"description": "Подключайте Cline к внешним API, локальным инструментам и облачным сервисам через серверы <mcpLink>MCP</mcpLink>.",
+			"label": "MCP",
+			"loading": "Загрузка серверов MCP",
+			"noInstalled": "Нет установленных серверов MCP.",
+			"noMarketplace": "В маркетплейсе нет серверов MCP.",
+			"noMatch": "Ни один сервер MCP не соответствует вашему запросу.",
+			"searchAria": "Поиск серверов MCP",
+			"searchPlaceholder": "Поиск серверов MCP",
+			"title": "Серверы MCP"
+		},
+		"plugin": {
+			"description": "<pluginsLink>Плагины</pluginsLink> — это расширения для возможностей сложнее, чем один сервер MCP или навык: пользовательские инструменты, хуки, правила, слэш-команды или наборы навыков.",
+			"label": "Плагины",
+			"loading": "Загрузка плагинов",
+			"noInstalled": "Нет установленных плагинов.",
+			"noMarketplace": "В маркетплейсе нет плагинов.",
+			"noMatch": "Ни один плагин не соответствует вашему запросу.",
+			"searchAria": "Поиск плагинов",
+			"searchPlaceholder": "Поиск плагинов",
+			"title": "Плагины"
+		},
+		"skill": {
+			"description": "Многоразовые наборы инструкций, которые Cline загружает по требованию для конкретных задач, не занимая контекст при посторонней работе. Больше — на <agentSkillsLink>Agent Skills</agentSkillsLink>.",
+			"label": "Навыки",
+			"loading": "Загрузка навыков",
+			"noInstalled": "Нет установленных навыков.",
+			"noMarketplace": "В маркетплейсе нет навыков.",
+			"noMatch": "Ни один навык не соответствует вашему запросу.",
+			"searchAria": "Поиск навыков",
+			"searchPlaceholder": "Поиск навыков",
+			"title": "Навыки"
+		}
+	},
+	"remoteManagedSkillUninstall": "Навыки под удалённым управлением нельзя удалить здесь",
+	"requiresEnv": "Требуется {{vars}}",
+	"sections": {
+		"installed": "Установлено",
+		"marketplace": "Маркетплейс"
+	},
+	"sectionsAria": "Разделы: {{title}}",
+	"source": {
+		"global": "Глобально",
+		"remote": "Удалённо",
+		"workspace": "Рабочее пространство"
+	},
+	"uninstallEntry": "Удалить {{name}}",
+	"usesEnv": "Использует {{vars}}"
+}

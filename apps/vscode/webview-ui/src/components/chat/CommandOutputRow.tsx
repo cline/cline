@@ -2,6 +2,7 @@ import { COMMAND_OUTPUT_STRING, COMMAND_REQ_APP_STRING } from "@shared/combineCo
 import { ClineMessage } from "@shared/ExtensionMessage"
 import { StringRequest } from "@shared/proto/cline/common"
 import { memo, useEffect, useRef } from "react"
+import { useTranslation } from "react-i18next"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { FileServiceClient } from "@/services/grpc-client"
@@ -22,6 +23,7 @@ export const CommandOutputContent = memo(
 		isContainerExpanded: boolean
 		onOutputChange?: () => void
 	}) => {
+		const { t } = useTranslation()
 		const outputLines = output.split("\n")
 		const lineCount = outputLines.length
 		const shouldAutoShow = lineCount <= 5
@@ -82,7 +84,7 @@ export const CommandOutputContent = memo(
 								console.error("Failed to open log file:", err),
 							)
 						}}
-						title={`Click to open: ${logFilePath}`}>
+						title={t("chat:commandOutput.clickToOpen", { path: logFilePath })}>
 						<span className="shrink-0">📋 Output is being logged to:</span>
 						<span className="text-vscode-textLink-foreground underline break-all">{fileName}</span>
 					</div>
@@ -140,6 +142,7 @@ export const CommandOutputRow = memo(
 		setIsOutputFullyExpanded: (expanded: boolean) => void
 		onOutputChange?: () => void
 	}) => {
+		const { t } = useTranslation()
 		const splitMessage = (text: string) => {
 			const outputIndex = text.indexOf(COMMAND_OUTPUT_STRING)
 			if (outputIndex === -1) {
@@ -205,7 +208,9 @@ export const CommandOutputRow = memo(
 										"text-success": isCommandExecuting,
 										"text-editor-warning-foreground": isCommandPending,
 									})}>
-									{getCommandStatusText(isCommandExecuting, isCommandPending, isCommandCompleted)}
+									{t(
+										`chat:commandOutput.status.${getCommandStatusKey(isCommandExecuting, isCommandPending, isCommandCompleted)}`,
+									)}
 								</span>
 							</div>
 							<div className="flex items-center gap-2 shrink-0">
@@ -217,14 +222,12 @@ export const CommandOutputRow = memo(
 												onCancelCommand?.()
 											} else {
 												// For regular terminal mode, show a message
-												alert(
-													"This command is running in the VSCode terminal. You can manually stop it using Ctrl+C in the terminal, or switch to Background Execution mode in settings for cancellable commands.",
-												)
+												alert(t("chat:commandOutput.terminalCancelInfo"))
 											}
 										}}
 										size="sm"
 										variant="secondary">
-										{isBackgroundExec ? "cancel" : "stop"}
+										{isBackgroundExec ? t("chat:commandOutput.cancel") : t("chat:commandOutput.stop")}
 									</Button>
 								)}
 							</div>
@@ -248,7 +251,7 @@ export const CommandOutputRow = memo(
 				{requestsApproval && (
 					<div className="flex items-center gap-2.5 p-2 text-[12px] text-editor-warning-foreground">
 						<i className="codicon codicon-warning" />
-						<span>The model has determined this command requires explicit approval.</span>
+						<span>{t("chat:commandOutput.approvalRequired")}</span>
 					</div>
 				)}
 			</>
@@ -258,22 +261,15 @@ export const CommandOutputRow = memo(
 
 CommandOutputRow.displayName = "CommandOutputRow"
 
-const CommandStatusMap = {
-	executing: "Running",
-	pending: "Pending",
-	completed: "Completed",
-	skipped: "Skipped",
-}
-
-function getCommandStatusText(isExecuting: boolean, isPending: boolean, isCompleted: boolean): string {
+function getCommandStatusKey(isExecuting: boolean, isPending: boolean, isCompleted: boolean): string {
 	if (isExecuting) {
-		return CommandStatusMap.executing
+		return "running"
 	}
 	if (isPending) {
-		return CommandStatusMap.pending
+		return "pending"
 	}
 	if (isCompleted) {
-		return CommandStatusMap.completed
+		return "completed"
 	}
-	return CommandStatusMap.skipped
+	return "skipped"
 }

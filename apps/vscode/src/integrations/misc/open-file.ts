@@ -2,6 +2,7 @@ import { writeFile } from "@utils/fs"
 import * as os from "os"
 import * as path from "path"
 import { HostProvider } from "@/hosts/host-provider"
+import { t } from "@/services/i18n"
 import { ShowMessageType } from "@/shared/proto/host/window"
 
 export async function openImage(dataUri: string) {
@@ -9,7 +10,7 @@ export async function openImage(dataUri: string) {
 	if (!matches) {
 		HostProvider.window.showMessage({
 			type: ShowMessageType.ERROR,
-			message: "Invalid data URI format",
+			message: t("files.invalidDataUri"),
 		})
 		return
 	}
@@ -24,7 +25,7 @@ export async function openImage(dataUri: string) {
 	} catch (error) {
 		HostProvider.window.showMessage({
 			type: ShowMessageType.ERROR,
-			message: `Error opening image: ${error}`,
+			message: t("files.openImageFailed", { error: String(error) }),
 		})
 	}
 }
@@ -38,7 +39,7 @@ export async function openFile(absolutePath: string, preserveFocus: boolean = fa
 	} catch (_error) {
 		HostProvider.window.showMessage({
 			type: ShowMessageType.ERROR,
-			message: `Could not open file!`,
+			message: t("files.openFileFailed"),
 		})
 	}
 }

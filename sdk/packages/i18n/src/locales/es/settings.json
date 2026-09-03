@@ -1,11 +1,310 @@
 {
+	"about": {
+		"communitySupport": "Comunidad y soporte",
+		"description": "Un asistente de IA que puede usar tu CLI y tu editor. Cline puede realizar tareas complejas de desarrollo de software paso a paso, con herramientas que le permiten crear y editar archivos, explorar proyectos grandes, usar el navegador y ejecutar comandos de terminal (tras tu autorización).",
+		"development": "Desarrollo",
+		"documentation": "Documentación",
+		"featureRequests": "Solicitudes de funciones",
+		"issues": "Incidencias",
+		"resources": "Recursos",
+		"variantLegacy": "Heredada",
+		"variantNext": "Next"
+	},
+	"account": {
+		"signUpWithCline": "Registrarse en Cline",
+		"viewBillingUsage": "Ver facturación y uso"
+	},
+	"apiConfig": {
+		"actMode": "Modo Acción",
+		"planMode": "Modo Plan",
+		"separateModels": {
+			"description": "Al cambiar entre el modo Plan y el modo Acción se conservarán la API y el modelo usados en el modo anterior. Esto puede ser útil, por ejemplo, para usar un modelo de razonamiento potente que diseñe un plan que luego ejecute un modelo de código más económico.",
+			"label": "Usar modelos distintos para los modos Plan y Acción"
+		}
+	},
+	"apiKeyField": {
+		"helpText": "Esta clave se almacena localmente y solo se usa para realizar solicitudes de API desde esta extensión.",
+		"label": "Clave de API de {{providerName}}",
+		"placeholder": "Introduce la clave de API...",
+		"signupText": "Regístrate aquí para obtener tu clave de API de {{providerName}}."
+	},
+	"apiOptions": {
+		"providerLabel": "Proveedor de API",
+		"providersRemoteManagedTooltip": "Las opciones de proveedor se administran mediante la configuración remota de tu organización",
+		"searchProviderPlaceholder": "Busca y selecciona un proveedor..."
+	},
+	"baseUrl": {
+		"defaultPlaceholder": "Predeterminado: https://api.example.com",
+		"label": "URL base",
+		"labelCustom": "Usar URL base personalizada"
+	},
+	"clearSearch": "Borrar búsqueda",
+	"debug": {
+		"resetGlobalState": "Restablecer estado global",
+		"resetGlobalStateDescription": "Esto restablecerá todo el estado global y el almacenamiento de secretos de la extensión.",
+		"resetOnboardingState": "Restablecer estado de incorporación",
+		"resetWorkspaceState": "Restablecer estado del área de trabajo"
+	},
+	"features": {
+		"autoCompact": {
+			"description": "Comprime automáticamente el historial de conversación.",
+			"label": "Compactación automática"
+		},
+		"backgroundEdit": {
+			"description": "Permite realizar ediciones sin robar el foco del editor",
+			"label": "Edición en segundo plano"
+		},
+		"checkpoints": {
+			"description": "Guarda el progreso en puntos clave para revertir fácilmente",
+			"label": "Puntos de control"
+		},
+		"compactionStrategy": {
+			"agentic": "Agéntica",
+			"basic": "Básica",
+			"description": "Controla cómo la compactación automática reescribe el contexto.",
+			"label": "Estrategia de compactación automática"
+		},
+		"featureTips": {
+			"description": "Muestra consejos rotativos durante la fase de razonamiento para ayudarte a descubrir las funciones de Cline.",
+			"label": "Consejos de funciones"
+		},
+		"groups": {
+			"advanced": "Avanzado",
+			"agent": "Agente",
+			"editor": "Editor"
+		},
+		"hooks": {
+			"description": "Habilita hooks de ciclo de vida y de herramientas durante la ejecución de tareas.",
+			"label": "Hooks"
+		},
+		"mcpDisplayMode": {
+			"description": "Controla cómo se muestran las respuestas de MCP",
+			"label": "Modo de visualización de MCP",
+			"markdown": "Markdown",
+			"plain": "Texto sin formato",
+			"rich": "Visualización enriquecida"
+		},
+		"webSearch": {
+			"description": "Permite que el modelo busque en la web cuando el proveedor y el modelo seleccionados lo admiten. Se aplica a las tareas nuevas.",
+			"label": "Búsqueda web"
+		},
+		"worktrees": {
+			"description": "Habilita la administración de worktrees de git para ejecutar tareas de Cline en paralelo.",
+			"label": "Worktrees"
+		}
+	},
+	"general": {
+		"telemetry": {
+			"description": "Ayuda a mejorar Cline enviando datos de uso e informes de errores. Nunca se envía código, prompts ni información personal. Consulta nuestro <telemetryLink>resumen de telemetría</telemetryLink> y nuestra <privacyLink>política de privacidad</privacyLink> para obtener más detalles.",
+			"label": "Permitir informes de errores y de uso"
+		}
+	},
+	"modelInfo": {
+		"advanced": "Avanzado",
+		"browser": "Navegador",
+		"cacheReads": "Lecturas de caché",
+		"cacheWrites": "Escrituras de caché",
+		"context": "Contexto:",
+		"free": "Gratis",
+		"images": "Imágenes",
+		"input": "Entrada:",
+		"no": "No",
+		"notAvailable": "N/D",
+		"output": "Salida:",
+		"promptCaching": "Caché de prompts",
+		"providerRouting": {
+			"default": "Predeterminado",
+			"defaultDescription": "Equilibra la carga entre proveedores (AWS, Google Vertex, etc.), priorizando el precio sin descuidar la disponibilidad",
+			"label": "Enrutamiento de proveedores",
+			"latency": "Latencia",
+			"latencyDescription": "Ordena por tiempo de respuesta, priorizando la latencia más baja",
+			"price": "Precio",
+			"priceDescription": "Ordena por precio, priorizando el proveedor de menor costo",
+			"throughput": "Rendimiento",
+			"throughputDescription": "Ordena por rendimiento, priorizando el más alto (puede aumentar el costo)"
+		},
+		"seeLess": "Ver menos",
+		"seeMore": "Ver más",
+		"tierAbove": "{{price}}/millón de tokens (> {{limit}} tokens)",
+		"tierUpTo": "{{price}}/millón de tokens (<= {{limit}} tokens)",
+		"tieredPricing": "Precios por niveles:",
+		"yes": "Sí"
+	},
+	"modelPicker": {
+		"autoFetchFreeTip": "También puedes buscar \"free\" para ver las opciones sin costo disponibles actualmente.",
+		"autoFetchNote": "La extensión obtiene automáticamente la lista más reciente de modelos disponibles en <providerLink>{{provider}}</providerLink>. Si no sabes qué modelo elegir, compara los modelos disponibles por ventana de contexto, precio y capacidades.",
+		"clineAutoFetchNote": "La extensión obtiene automáticamente la lista más reciente de modelos de Cline.",
+		"deployedModels": "Modelos implementados",
+		"freeBadge": "Gratis",
+		"freeModelDescription": "Modelo gratuito",
+		"freeTab": "Gratis",
+		"idLabel": "ID del modelo",
+		"label": "Modelo",
+		"loadingModels": "Cargando modelos...",
+		"noModelsFound": "No se encontraron modelos",
+		"notDeployedModels": "Modelos no implementados",
+		"recommendedBadge": "Recomendado",
+		"recommendedModelDescription": "Modelo recomendado",
+		"recommendedTab": "Recomendados",
+		"searchPlaceholder": "Busca y selecciona un modelo...",
+		"searchShortPlaceholder": "Buscar modelos...",
+		"selectPlaceholder": "Selecciona un modelo...",
+		"suggestionsAria": "Sugerencias de modelos",
+		"vercelEnterApiKey": "Introduce arriba tu clave de API de Vercel AI Gateway para cargar los modelos disponibles. Puedes obtener una clave de API en <gatewayLink>Vercel AI Gateway</gatewayLink>.",
+		"vercelSelectModel": "Selecciona un modelo en la lista desplegable de arriba. La extensión obtiene los modelos disponibles de tu configuración de Vercel AI Gateway."
+	},
 	"preferredLanguage": {
 		"description": "El idioma que Cline debe usar para comunicarse.",
 		"label": "Idioma preferido"
 	},
+	"providerRegistry": {
+		"gemini": {
+			"baseUrlPlaceholder": "Predeterminado: https://generativelanguage.googleapis.com"
+		}
+	},
+	"reasoningEffort": {
+		"adaptiveDescription": "Usa Ninguno para desactivar el razonamiento adaptativo. Un esfuerzo mayor aumenta el detalle de las respuestas y el uso de tokens.",
+		"adaptiveLabel": "Razonamiento adaptativo",
+		"description": "Un esfuerzo mayor mejora la profundidad, pero usa más tokens.",
+		"extendedDescription": "Usa Ninguno para desactivar el razonamiento extendido. Un esfuerzo mayor mejora la profundidad, pero usa más tokens.",
+		"label": "Esfuerzo de razonamiento",
+		"options": {
+			"high": "Alto",
+			"low": "Bajo",
+			"medium": "Medio",
+			"none": "Ninguno",
+			"xhigh": "Muy alto"
+		}
+	},
+	"remoteConfig": {
+		"disabled": "Deshabilitado",
+		"enabled": "Habilitado",
+		"failed": "Error",
+		"loadFailed": "Error al cargar la configuración administrada",
+		"managedNote": "Estas opciones se administran mediante la configuración remota de tu organización.",
+		"notConfigured": "Sin configurar",
+		"notSetup": "Aún no has configurado la configuración remota. Hazlo desde nuestro <dashboardLink>panel</dashboardLink>.",
+		"optedOut": "Has optado por no usar la configuración remota. Vuelve a activarla para aplicarla y verla aquí.",
+		"otel": {
+			"flushSuccess": "¡Búferes vaciados! Consulta el canal de salida para obtener información más detallada",
+			"headerCount_many": "{{count}} encabezados",
+			"headerCount_one": "{{count}} encabezado",
+			"headerCount_other": "{{count}} encabezados",
+			"logBatchSize": "Tamaño de lote de registros",
+			"logBatchTimeout": "Tiempo de espera de lote de registros",
+			"logMaxQueueSize": "Tamaño máximo de cola de registros",
+			"logsEndpoint": "Punto de conexión de registros",
+			"logsExporter": "Exportador de registros",
+			"metricExportInterval": "Intervalo de exportación de métricas",
+			"metricsEndpoint": "Punto de conexión de métricas",
+			"metricsExporter": "Exportador de métricas",
+			"otlpEndpoint": "Punto de conexión OTLP",
+			"otlpHeaders": "Encabezados OTLP",
+			"otlpInsecure": "OTLP no seguro",
+			"otlpProtocol": "Protocolo OTLP",
+			"title": "Configuración de OpenTelemetry"
+		},
+		"promptUpload": {
+			"accessKeyId": "ID de clave de acceso",
+			"accountId": "ID de cuenta",
+			"backfillEnabled": "Relleno retroactivo habilitado",
+			"batchSize": "Tamaño de lote",
+			"bucket": "Bucket",
+			"endpoint": "Punto de conexión",
+			"maxQueueSize": "Tamaño máximo de cola",
+			"maxRetries": "Reintentos máximos",
+			"region": "Región",
+			"secretAccessKey": "Clave de acceso secreta",
+			"storageType": "Tipo de almacenamiento",
+			"syncInterval": "Intervalo de sincronización",
+			"testUpload": "Probar carga",
+			"title": "Configuración de carga de prompts"
+		},
+		"refresh": "Actualizar",
+		"refreshError": "No se pudo actualizar la configuración administrada: {{error}}",
+		"refreshFailed": "Error al actualizar la configuración administrada",
+		"retryIn_many": "(Reintentar en: {{count}} segundos)",
+		"retryIn_one": "(Reintentar en: {{count}} segundo)",
+		"retryIn_other": "(Reintentar en: {{count}} segundos)",
+		"success": "¡Listo!",
+		"test": "Probar",
+		"testFailed": "La prueba falló",
+		"testing": "Probando...",
+		"updateFailed": "Error al actualizar la configuración administrada"
+	},
+	"remoteManaged": {
+		"tooltip": "Esta opción se administra mediante la configuración remota de tu organización"
+	},
+	"tabs": {
+		"about": {
+			"name": "Acerca de",
+			"tooltip": "Acerca de Cline"
+		},
+		"apiConfig": {
+			"name": "Configuración de API"
+		},
+		"debug": {
+			"name": "Depuración",
+			"tooltip": "Herramientas de depuración"
+		},
+		"features": {
+			"header": "Configuración de funciones",
+			"name": "Funciones"
+		},
+		"general": {
+			"header": "Configuración general",
+			"name": "General"
+		},
+		"remoteConfig": {
+			"name": "Configuración remota",
+			"tooltip": "Campos configurados de forma remota"
+		},
+		"terminal": {
+			"header": "Configuración del terminal",
+			"name": "Terminal"
+		}
+	},
+	"terminal": {
+		"defaultProfile": {
+			"description": "Selecciona el terminal predeterminado que usará Cline. \"Predeterminado\" usa tu configuración global de VS Code.",
+			"label": "Perfil de terminal predeterminado"
+		},
+		"executionMode": {
+			"backgroundExec": "Ejecución en segundo plano",
+			"description": "Elige si Cline ejecuta los comandos en el terminal de VS Code o en un proceso en segundo plano.",
+			"label": "Modo de ejecución del terminal",
+			"vscodeTerminal": "Terminal de VS Code"
+		},
+		"reuse": {
+			"description": "Cuando está habilitado, Cline reutilizará las ventanas de terminal existentes que no estén en el directorio de trabajo actual. Deshabilítalo si experimentas bloqueos de tareas después de un comando de terminal.",
+			"label": "Habilitar reutilización agresiva del terminal"
+		},
+		"shellTimeout": {
+			"description": "Define cuánto espera Cline a que se active la integración del shell antes de ejecutar comandos. Aumenta este valor si experimentas tiempos de espera de conexión del terminal.",
+			"invalidNumber": "Introduce un número positivo",
+			"label": "Tiempo de espera de integración del shell (segundos)",
+			"placeholder": "Introduce el tiempo de espera en segundos"
+		},
+		"troubleshooting": {
+			"text": "<strong>¿Problemas con el terminal?</strong> Consulta nuestras <quickFixesLink>soluciones rápidas del terminal</quickFixesLink> o la <guideLink>guía completa de solución de problemas</guideLink>."
+		}
+	},
+	"title": "Configuración",
 	"uiLanguage": {
 		"auto": "Automático (según VS Code)",
 		"description": "El idioma de la interfaz de Cline.",
 		"label": "Idioma de la interfaz"
+	},
+	"validation": {
+		"apiKeyRequired": "Debes proporcionar una clave de API válida o elegir otro proveedor.",
+		"authUrlRequired": "Debes proporcionar una URL de autenticación válida o elegir otro proveedor.",
+		"awsRegionRequired": "Debes elegir una región para usar con AWS Bedrock.",
+		"baseUrlRequired": "Debes proporcionar una URL base válida o elegir otro proveedor.",
+		"clientIdRequired": "Debes proporcionar un ID de cliente válido o elegir otro proveedor.",
+		"clientSecretRequired": "Debes proporcionar un secreto de cliente válido o elegir otro proveedor.",
+		"googleCloudConfigRequired": "Debes proporcionar un ID de proyecto y una región de Google Cloud válidos.",
+		"modelIdRequired": "Debes proporcionar un ID de modelo válido.",
+		"modelSelectorRequired": "Debes proporcionar un selector de modelo válido.",
+		"openAiConfigRequired": "Debes proporcionar una URL base, una clave de API y un ID de modelo válidos."
 	}
 }

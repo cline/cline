@@ -36,6 +36,7 @@ import * as fs from "fs/promises"
 import ReconnectingEventSource from "reconnecting-eventsource"
 import { z } from "zod"
 import { HostProvider } from "@/hosts/host-provider"
+import { t } from "@/services/i18n"
 import { fetch } from "@/shared/net"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
@@ -212,17 +213,18 @@ export class McpHub {
 			try {
 				config = JSON.parse(content)
 			} catch (_error) {
+				const openSettingsFileButton = t("mcp.openSettingsFileButton")
 				HostProvider.window
 					.showMessage({
 						type: ShowMessageType.ERROR,
-						message: `Invalid JSON in MCP settings file. Please check the syntax.`,
+						message: t("mcp.invalidSettingsJson"),
 						options: {
 							detail: settingsPath,
-							items: ["Open Settings File"],
+							items: [openSettingsFileButton],
 						},
 					})
 					.then((response) => {
-						if (response.selectedOption === "Open Settings File") {
+						if (response.selectedOption === openSettingsFileButton) {
 							HostProvider.window.showTextDocument({
 								path: settingsPath,
 								options: {},
@@ -258,18 +260,19 @@ export class McpHub {
 					.map(([server, details]) => `  • ${server}: ${details.join(", ")}`)
 					.join("\n")
 
+				const openSettingsFileButton = t("mcp.openSettingsFileButton")
 				HostProvider.window
 					.showMessage({
 						type: ShowMessageType.ERROR,
-						message: `MCP settings schema error — no servers were loaded.`,
+						message: t("mcp.settingsSchemaError"),
 						options: {
 							detail: `${settingsPath}\n\n${serverSummaries}`,
 							modal: false,
-							items: ["Open Settings File"],
+							items: [openSettingsFileButton],
 						},
 					})
 					.then((response) => {
-						if (response.selectedOption === "Open Settings File") {
+						if (response.selectedOption === openSettingsFileButton) {
 							HostProvider.window.showTextDocument({
 								path: settingsPath,
 								options: {},
@@ -1529,7 +1532,7 @@ export class McpHub {
 		if (config) {
 			HostProvider.window.showMessage({
 				type: ShowMessageType.INFORMATION,
-				message: `Restarting ${serverName} MCP server...`,
+				message: t("mcp.restartingServer", { serverName }),
 			})
 			connection.server.status = "connecting"
 			connection.server.error = ""
@@ -1541,13 +1544,13 @@ export class McpHub {
 				await this.connectToServer(serverName, JSON.parse(config), "internal")
 				HostProvider.window.showMessage({
 					type: ShowMessageType.INFORMATION,
-					message: `${serverName} MCP server connected`,
+					message: t("mcp.serverConnected", { serverName }),
 				})
 			} catch (error) {
 				Logger.error(`Failed to restart connection for ${serverName}:`, error)
 				HostProvider.window.showMessage({
 					type: ShowMessageType.ERROR,
-					message: `Failed to connect to ${serverName} MCP server`,
+					message: t("mcp.serverConnectFailed", { serverName }),
 				})
 			}
 		}
@@ -1662,7 +1665,7 @@ export class McpHub {
 			}
 			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
-				message: `Failed to update server state: ${error instanceof Error ? error.message : String(error)}`,
+				message: t("mcp.updateServerStateFailed", { error: error instanceof Error ? error.message : String(error) }),
 			})
 			throw error
 		} finally {
@@ -1843,7 +1846,7 @@ export class McpHub {
 			Logger.error("Failed to update autoApprove settings:", error)
 			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
-				message: "Failed to update autoApprove settings",
+				message: t("mcp.updateAutoApproveFailed"),
 			})
 			throw error // Re-throw to ensure the error is properly handled
 		}
@@ -1973,7 +1976,7 @@ export class McpHub {
 			}
 			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
-				message: `Failed to update server timeout: ${error instanceof Error ? error.message : String(error)}`,
+				message: t("mcp.updateTimeoutFailed", { error: error instanceof Error ? error.message : String(error) }),
 			})
 			throw error
 		}

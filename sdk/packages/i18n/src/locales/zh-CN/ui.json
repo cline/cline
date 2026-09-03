@@ -1,0 +1,76 @@
+{
+	"alert": {
+		"dismissAria": "关闭"
+	},
+	"bannerCarousel": {
+		"announcementsAria": "公告",
+		"carouselRoleDescription": "轮播",
+		"dismissAria": "关闭横幅",
+		"nextAria": "下一条横幅",
+		"previousAria": "上一条横幅"
+	},
+	"codeAccordian": {
+		"collapseAria": "折叠代码块",
+		"consoleLogs": "控制台日志",
+		"expandAria": "展开代码块",
+		"userEdits": "用户编辑"
+	},
+	"copyButton": {
+		"copied": "已复制",
+		"copy": "复制"
+	},
+	"dialog": {
+		"close": "关闭"
+	},
+	"markdown": {
+		"actMode": {
+			"alreadyActiveTitle": "已处于 Act 模式",
+			"label": "Act 模式 (⌘⇧A)",
+			"toggleTitle": "点击切换到 Act 模式"
+		},
+		"copyCodeAria": "复制代码",
+		"openInEditor": "在编辑器中打开 {{filePath}}"
+	},
+	"menuAnnouncement": {
+		"itemPosition": "{{label}}，第 {{position}} 项，共 {{total}} 项"
+	},
+	"mermaid": {
+		"copyCode": "复制代码",
+		"generating": "正在生成 Mermaid 图表..."
+	},
+	"navbar": {
+		"account": "账户",
+		"customize": "自定义",
+		"history": "历史记录",
+		"newTask": "新任务",
+		"settings": "设置"
+	},
+	"thumbnails": {
+		"imageAlt": "缩略图 {{number}}"
+	},
+	"unsafeImage": {
+		"altLabel": "替代文本：",
+		"blockedTitle": "外部图片已被阻止，等待用户同意",
+		"loadImage": "加载图片",
+		"sourceLabel": "来源："
+	},
+	"viewHeader": {
+		"done": "完成",
+		"environmentSuffix": "{{environment}}环境",
+		"environments": {
+			"local": "本地",
+			"production": "生产",
+			"selfHosted": "自托管",
+			"staging": "预发布"
+		}
+	},
+	"whatsNew": {
+		"followOnLinkedInAria": "在 LinkedIn 上关注我们",
+		"followOnXAria": "在 X 上关注我们",
+		"joinDiscordAria": "加入我们的 Discord",
+		"joinSubredditAria": "加入我们的 subreddit",
+		"starOnGitHubAria": "在 GitHub 上为我们加星标",
+		"supportCta": "请通过<githubLink>在 GitHub 上为我们加星标</githubLink>来支持 Cline。",
+		"title": "🎉 v{{version}} 新功能"
+	}
+}

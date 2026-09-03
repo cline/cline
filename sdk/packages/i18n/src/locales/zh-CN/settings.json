@@ -1,11 +1,306 @@
 {
+	"about": {
+		"communitySupport": "社区与支持",
+		"description": "一个可以使用您的命令行和编辑器的 AI 助手。Cline 能借助各种工具逐步完成复杂的软件开发任务：创建和编辑文件、探索大型项目、使用浏览器以及执行终端命令（在您授权后）。",
+		"development": "开发",
+		"documentation": "文档",
+		"featureRequests": "功能请求",
+		"issues": "问题反馈",
+		"resources": "资源",
+		"variantLegacy": "旧版",
+		"variantNext": "新版"
+	},
+	"account": {
+		"signUpWithCline": "注册 Cline",
+		"viewBillingUsage": "查看账单与用量"
+	},
+	"apiConfig": {
+		"actMode": "执行模式",
+		"planMode": "规划模式",
+		"separateModels": {
+			"description": "在规划模式和执行模式之间切换时，会保留上一个模式所使用的 API 和模型。例如，您可以用强大的推理模型来制定计划，再让更经济的编码模型来执行。",
+			"label": "为规划模式和执行模式使用不同的模型"
+		}
+	},
+	"apiKeyField": {
+		"helpText": "此密钥仅存储在本地，只用于从本扩展发出 API 请求。",
+		"label": "{{providerName}} API 密钥",
+		"placeholder": "输入 API 密钥...",
+		"signupText": "在此注册即可获取 {{providerName}} API 密钥。"
+	},
+	"apiOptions": {
+		"providerLabel": "API 提供商",
+		"providersRemoteManagedTooltip": "提供商选项由您所在组织的远程配置管理",
+		"searchProviderPlaceholder": "搜索并选择提供商..."
+	},
+	"baseUrl": {
+		"defaultPlaceholder": "默认：https://api.example.com",
+		"label": "基础 URL",
+		"labelCustom": "使用自定义基础 URL"
+	},
+	"clearSearch": "清除搜索",
+	"debug": {
+		"resetGlobalState": "重置全局状态",
+		"resetGlobalStateDescription": "这将重置扩展中的所有全局状态和机密存储。",
+		"resetOnboardingState": "重置引导状态",
+		"resetWorkspaceState": "重置工作区状态"
+	},
+	"features": {
+		"autoCompact": {
+			"description": "自动压缩对话历史记录。",
+			"label": "自动压缩"
+		},
+		"backgroundEdit": {
+			"description": "允许在不夺取编辑器焦点的情况下进行编辑",
+			"label": "后台编辑"
+		},
+		"checkpoints": {
+			"description": "在关键节点保存进度，便于回滚",
+			"label": "检查点"
+		},
+		"compactionStrategy": {
+			"agentic": "代理式",
+			"basic": "基础",
+			"description": "控制自动压缩重写上下文的方式。",
+			"label": "自动压缩策略"
+		},
+		"featureTips": {
+			"description": "在思考阶段轮换显示提示，帮助您发现 Cline 的各项功能。",
+			"label": "功能提示"
+		},
+		"groups": {
+			"advanced": "高级",
+			"agent": "代理",
+			"editor": "编辑器"
+		},
+		"hooks": {
+			"description": "在任务执行期间启用生命周期钩子和工具钩子。",
+			"label": "钩子"
+		},
+		"mcpDisplayMode": {
+			"description": "控制 MCP 响应的显示方式",
+			"label": "MCP 显示模式",
+			"markdown": "Markdown",
+			"plain": "纯文本",
+			"rich": "富文本显示"
+		},
+		"webSearch": {
+			"description": "当所选提供商和模型支持时，允许模型搜索网络。对新任务生效。",
+			"label": "网络搜索"
+		},
+		"worktrees": {
+			"description": "启用 git 工作树管理，以并行运行多个 Cline 任务。",
+			"label": "工作树"
+		}
+	},
+	"general": {
+		"telemetry": {
+			"description": "通过发送使用数据和错误报告帮助改进 Cline。绝不会发送任何代码、提示词或个人信息。详情请参阅我们的<telemetryLink>遥测概述</telemetryLink>和<privacyLink>隐私政策</privacyLink>。",
+			"label": "允许错误和使用情况报告"
+		}
+	},
+	"modelInfo": {
+		"advanced": "高级",
+		"browser": "浏览器",
+		"cacheReads": "缓存读取",
+		"cacheWrites": "缓存写入",
+		"context": "上下文：",
+		"free": "免费",
+		"images": "图像",
+		"input": "输入：",
+		"no": "否",
+		"notAvailable": "不适用",
+		"output": "输出：",
+		"promptCaching": "提示词缓存",
+		"providerRouting": {
+			"default": "默认",
+			"defaultDescription": "在多个提供商（AWS、Google Vertex 等）之间进行负载均衡，在兼顾可用性的同时优先考虑价格",
+			"label": "提供商路由",
+			"latency": "延迟",
+			"latencyDescription": "按响应时间排序，优先选择延迟最低的提供商",
+			"price": "价格",
+			"priceDescription": "按价格排序，优先选择成本最低的提供商",
+			"throughput": "吞吐量",
+			"throughputDescription": "按吞吐量排序，优先选择吞吐量最高的提供商（可能增加成本）"
+		},
+		"seeLess": "收起",
+		"seeMore": "查看更多",
+		"tierAbove": "{{price}}/百万 token（> {{limit}} token）",
+		"tierUpTo": "{{price}}/百万 token（<= {{limit}} token）",
+		"tieredPricing": "分级定价：",
+		"yes": "是"
+	},
+	"modelPicker": {
+		"autoFetchFreeTip": "您也可以搜索“free”来查找当前可用的免费选项。",
+		"autoFetchNote": "本扩展会自动获取 <providerLink>{{provider}}</providerLink> 上可用模型的最新列表。如果不确定选择哪个模型，可以按上下文窗口、价格和功能对比可用模型。",
+		"clineAutoFetchNote": "本扩展会自动获取最新的 Cline 模型列表。",
+		"deployedModels": "已部署的模型",
+		"freeBadge": "免费",
+		"freeModelDescription": "免费模型",
+		"freeTab": "免费",
+		"idLabel": "模型 ID",
+		"label": "模型",
+		"loadingModels": "正在加载模型...",
+		"noModelsFound": "未找到模型",
+		"notDeployedModels": "未部署的模型",
+		"recommendedBadge": "推荐",
+		"recommendedModelDescription": "推荐模型",
+		"recommendedTab": "推荐",
+		"searchPlaceholder": "搜索并选择模型...",
+		"searchShortPlaceholder": "搜索模型...",
+		"selectPlaceholder": "选择模型...",
+		"suggestionsAria": "模型建议",
+		"vercelEnterApiKey": "在上方输入您的 Vercel AI Gateway API 密钥以加载可用模型。您可以从 <gatewayLink>Vercel AI Gateway</gatewayLink> 获取 API 密钥。",
+		"vercelSelectModel": "从上方下拉列表中选择模型。本扩展会从您的 Vercel AI Gateway 配置中获取可用模型。"
+	},
 	"preferredLanguage": {
 		"description": "Cline 与您交流时使用的语言。",
 		"label": "首选语言"
 	},
+	"providerRegistry": {
+		"gemini": {
+			"baseUrlPlaceholder": "默认：https://generativelanguage.googleapis.com"
+		}
+	},
+	"reasoningEffort": {
+		"adaptiveDescription": "选择“无”可禁用自适应思考。级别越高，回答越详细，token 消耗也越多。",
+		"adaptiveLabel": "自适应思考",
+		"description": "级别越高，思考越深入，但会消耗更多 token。",
+		"extendedDescription": "选择“无”可禁用扩展思考。级别越高，思考越深入，但会消耗更多 token。",
+		"label": "推理强度",
+		"options": {
+			"high": "高",
+			"low": "低",
+			"medium": "中",
+			"none": "无",
+			"xhigh": "超高"
+		}
+	},
+	"remoteConfig": {
+		"disabled": "已禁用",
+		"enabled": "已启用",
+		"failed": "失败",
+		"loadFailed": "加载托管配置失败",
+		"managedNote": "这些设置由您所在组织的远程配置管理。",
+		"notConfigured": "未配置",
+		"notSetup": "您尚未配置远程配置。请通过我们的<dashboardLink>控制面板</dashboardLink>进行配置。",
+		"optedOut": "您已选择退出远程配置。重新加入即可应用并在此处查看。",
+		"otel": {
+			"flushSuccess": "已刷新缓冲区！请查看输出通道以获取更多详细信息",
+			"headerCount_other": "{{count}} 个标头",
+			"logBatchSize": "日志批处理大小",
+			"logBatchTimeout": "日志批处理超时",
+			"logMaxQueueSize": "日志最大队列大小",
+			"logsEndpoint": "日志端点",
+			"logsExporter": "日志导出器",
+			"metricExportInterval": "指标导出间隔",
+			"metricsEndpoint": "指标端点",
+			"metricsExporter": "指标导出器",
+			"otlpEndpoint": "OTLP 端点",
+			"otlpHeaders": "OTLP 标头",
+			"otlpInsecure": "OTLP 非安全连接",
+			"otlpProtocol": "OTLP 协议",
+			"title": "OpenTelemetry 配置"
+		},
+		"promptUpload": {
+			"accessKeyId": "访问密钥 ID",
+			"accountId": "账户 ID",
+			"backfillEnabled": "启用回填",
+			"batchSize": "批处理大小",
+			"bucket": "存储桶",
+			"endpoint": "端点",
+			"maxQueueSize": "最大队列大小",
+			"maxRetries": "最大重试次数",
+			"region": "区域",
+			"secretAccessKey": "私有访问密钥",
+			"storageType": "存储类型",
+			"syncInterval": "同步间隔",
+			"testUpload": "测试上传",
+			"title": "提示词上传配置"
+		},
+		"refresh": "刷新",
+		"refreshError": "无法刷新托管配置：{{error}}",
+		"refreshFailed": "刷新托管配置失败",
+		"retryIn_other": "（{{count}} 秒后可重试）",
+		"success": "成功！",
+		"test": "测试",
+		"testFailed": "测试失败",
+		"testing": "正在测试...",
+		"updateFailed": "更新托管配置失败"
+	},
+	"remoteManaged": {
+		"tooltip": "此设置由您所在组织的远程配置管理"
+	},
+	"tabs": {
+		"about": {
+			"name": "关于",
+			"tooltip": "关于 Cline"
+		},
+		"apiConfig": {
+			"name": "API 配置"
+		},
+		"debug": {
+			"name": "调试",
+			"tooltip": "调试工具"
+		},
+		"features": {
+			"header": "功能设置",
+			"name": "功能"
+		},
+		"general": {
+			"header": "常规设置",
+			"name": "常规"
+		},
+		"remoteConfig": {
+			"name": "远程配置",
+			"tooltip": "远程配置的字段"
+		},
+		"terminal": {
+			"header": "终端设置",
+			"name": "终端"
+		}
+	},
+	"terminal": {
+		"defaultProfile": {
+			"description": "选择 Cline 使用的默认终端。“默认”将使用您的 VS Code 全局设置。",
+			"label": "默认终端配置文件"
+		},
+		"executionMode": {
+			"backgroundExec": "后台执行",
+			"description": "选择 Cline 是在 VS Code 终端中运行命令，还是在后台进程中运行。",
+			"label": "终端执行模式",
+			"vscodeTerminal": "VS Code 终端"
+		},
+		"reuse": {
+			"description": "启用后，Cline 会重用不在当前工作目录中的现有终端窗口。如果在执行终端命令后遇到任务卡死的问题，请禁用此选项。",
+			"label": "启用积极的终端重用"
+		},
+		"shellTimeout": {
+			"description": "设置 Cline 在执行命令前等待 Shell 集成激活的时长。如果遇到终端连接超时，请增大此值。",
+			"invalidNumber": "请输入一个正数",
+			"label": "Shell 集成超时（秒）",
+			"placeholder": "输入超时秒数"
+		},
+		"troubleshooting": {
+			"text": "<strong>遇到终端问题？</strong>请查看我们的<quickFixesLink>终端快速修复</quickFixesLink>或<guideLink>完整故障排除指南</guideLink>。"
+		}
+	},
+	"title": "设置",
 	"uiLanguage": {
 		"auto": "自动（跟随 VS Code）",
 		"description": "Cline 界面所使用的语言。",
 		"label": "界面语言"
+	},
+	"validation": {
+		"apiKeyRequired": "必须提供有效的 API 密钥，或选择其他提供商。",
+		"authUrlRequired": "必须提供有效的身份验证 URL，或选择其他提供商。",
+		"awsRegionRequired": "必须选择用于 AWS Bedrock 的区域。",
+		"baseUrlRequired": "必须提供有效的基础 URL，或选择其他提供商。",
+		"clientIdRequired": "必须提供有效的客户端 ID，或选择其他提供商。",
+		"clientSecretRequired": "必须提供有效的客户端密钥，或选择其他提供商。",
+		"googleCloudConfigRequired": "必须提供有效的 Google Cloud 项目 ID 和区域。",
+		"modelIdRequired": "必须提供有效的模型 ID。",
+		"modelSelectorRequired": "必须提供有效的模型选择器。",
+		"openAiConfigRequired": "必须提供有效的基础 URL、API 密钥和模型 ID。"
 	}
 }

@@ -1,3 +1,113 @@
 {
-	"storageInitFailed": "No se pudo inicializar el almacenamiento. Consulta los registros para más detalles o intenta reiniciar el cliente."
+	"auth": {
+		"codexBrowserOpenFailed": "No se pudo abrir el navegador para iniciar sesión en OpenAI. Abre esta URL manualmente: {{url}}",
+		"codexSignInFailed": "Error al iniciar sesión en OpenAI Codex: {{error}}",
+		"codexSignInSuccess": "Sesión iniciada correctamente en OpenAI Codex"
+	},
+	"checkpoints": {
+		"diffTitle": "Cambios desde tu último mensaje",
+		"noChanges": "No se encontraron cambios en archivos desde tu último mensaje.",
+		"noneTaken": "No se creó ningún punto de control para esta tarea. Los puntos de control requieren que el espacio de trabajo sea un repositorio Git."
+	},
+	"cli": {
+		"installFailed": "No se pudo iniciar la instalación de la CLI: {{error}}"
+	},
+	"commands": {
+		"selectCodeToExplain": "Selecciona el código que quieres explicar.",
+		"selectCodeToImprove": "Selecciona el código que quieres mejorar."
+	},
+	"commitMessage": {
+		"generateFailed": "No se pudo generar el mensaje de confirmación: {{error}}",
+		"generateForAllDescription_many": "Generar mensajes de confirmación para {{count}} repositorios",
+		"generateForAllDescription_one": "Generar mensajes de confirmación para {{count}} repositorio",
+		"generateForAllDescription_other": "Generar mensajes de confirmación para {{count}} repositorios",
+		"generateForAllLabel": "$(git-commit) Generar para todos los repositorios con cambios",
+		"generating": "Generando mensaje de confirmación para {{repository}}...",
+		"generationFailed": "[Error al generar la confirmación] {{error}}",
+		"noChanges": "No se encontraron cambios en ningún repositorio del espacio de trabajo",
+		"selectRepoPlaceholder": "Selecciona el repositorio para generar el mensaje de confirmación"
+	},
+	"files": {
+		"checkSizeFailed": "No se pudo comprobar el tamaño del archivo {{filename}}; se omitirá.",
+		"dialogSelectLabel": "Seleccionar",
+		"fileTooLarge": "Archivo demasiado grande: {{filename}} se omitió (el tamaño supera los 20 MB).",
+		"imageTooLarge": "Imagen demasiado grande: {{filename}} se omitió (las dimensiones superan los 7500 px).",
+		"invalidDataUri": "Formato de URI de datos no válido",
+		"openFileFailed": "No se pudo abrir el archivo.",
+		"openImageFailed": "Error al abrir la imagen: {{error}}",
+		"readDimensionsFailed": "No se pudieron leer las dimensiones de {{filename}}; se omitirá."
+	},
+	"jupyter": {
+		"noActiveNotebook": "No se encontró ningún cuaderno de Jupyter activo. Abre primero un archivo .ipynb."
+	},
+	"mcp": {
+		"invalidSettingsJson": "JSON no válido en el archivo de configuración de MCP. Comprueba la sintaxis.",
+		"openSettingsFileButton": "Abrir archivo de configuración",
+		"restartingServer": "Reiniciando el servidor MCP {{serverName}}...",
+		"serverConnectFailed": "No se pudo conectar al servidor MCP {{serverName}}",
+		"serverConnected": "Servidor MCP {{serverName}} conectado",
+		"settingsSchemaError": "Error de esquema en la configuración de MCP: no se cargó ningún servidor.",
+		"updateAutoApproveFailed": "No se pudo actualizar la configuración de aprobación automática",
+		"updateServerStateFailed": "No se pudo actualizar el estado del servidor: {{error}}",
+		"updateTimeoutFailed": "No se pudo actualizar el tiempo de espera del servidor: {{error}}"
+	},
+	"mentions": {
+		"fetchContentFailed": "Error al obtener el contenido de {{url}}: {{error}}"
+	},
+	"oca": {
+		"backendUnreachable": "No se puede acceder al backend de OCA. ¿Están configurados correctamente tu punto de conexión y tu proxy? Consulta la guía de solución de problemas.",
+		"fetchModelsFailed": "No se pudieron obtener los modelos de OCA. Comprueba tu configuración de {{baseUrl}}",
+		"noModels": "No se encontraron modelos. ¿Configuraste tu acceso a OCA (posiblemente mediante permisos)?",
+		"notAuthenticated": "No autenticado con OCA. Inicia sesión primero.",
+		"refreshError": "Error al actualizar los modelos de OCA. {{message}} opc-request-id: {{requestId}}",
+		"refreshedModels": "Modelos de OCA actualizados desde {{baseUrl}}",
+		"serviceError": "¿Configuraste tu acceso a OCA (posiblemente mediante permisos)? El servicio de OCA devolvió {{status}} {{statusText}}."
+	},
+	"rules": {
+		"createdGlobalRuleFile": "Se creó un nuevo archivo de reglas global: {{filename}}",
+		"createdGlobalWorkflowFile": "Se creó un nuevo archivo de flujo de trabajo global: {{filename}}",
+		"createdWorkspaceRuleFile": "Se creó un nuevo archivo de reglas del espacio de trabajo: {{filename}}",
+		"createdWorkspaceWorkflowFile": "Se creó un nuevo archivo de flujo de trabajo del espacio de trabajo: {{filename}}",
+		"ruleFileAlreadyExists": "El archivo de reglas \"{{filename}}\" ya existe.",
+		"ruleFileDeleted": "Archivo de reglas \"{{filename}}\" eliminado correctamente",
+		"workflowFileAlreadyExists": "El archivo de flujo de trabajo \"{{filename}}\" ya existe.",
+		"workflowFileDeleted": "Archivo de flujo de trabajo \"{{filename}}\" eliminado correctamente"
+	},
+	"skills": {
+		"alreadyExists": "La habilidad \"{{name}}\" ya existe"
+	},
+	"state": {
+		"resetComplete": "Estado restablecido",
+		"resetFailed": "No se pudo restablecer el estado: {{error}}",
+		"resettingGlobal": "Restableciendo el estado global...",
+		"resettingWorkspace": "Restableciendo el estado del espacio de trabajo..."
+	},
+	"storageInitFailed": "No se pudo inicializar el almacenamiento. Consulta los registros para más detalles o intenta reiniciar el cliente.",
+	"tasks": {
+		"deleteAllExceptFavoritesButton": "Eliminar todo excepto favoritos",
+		"deleteAllPrompt": "¿Qué quieres eliminar?",
+		"deleteAllTasksButton": "Eliminar todas las tareas",
+		"deleteButton": "Eliminar",
+		"deleteConfirm_many": "¿Seguro que quieres eliminar estas {{count}} tareas? Esta acción no se puede deshacer.",
+		"deleteConfirm_one": "¿Seguro que quieres eliminar esta tarea? Esta acción no se puede deshacer.",
+		"deleteConfirm_other": "¿Seguro que quieres eliminar estas {{count}} tareas? Esta acción no se puede deshacer.",
+		"deleteEverythingButton": "Eliminar todo",
+		"noFavoritesFound": "No se encontraron tareas favoritas. ¿Quieres eliminar todas las tareas de todos modos?"
+	},
+	"telemetry": {
+		"hostTelemetryDisabled": "El informe anónimo de errores y uso de Cline está habilitado, pero la telemetría del IDE está deshabilitada. Para habilitar el informe de errores y uso de esta extensión, habilita la telemetría en la configuración del IDE.",
+		"openSettingsButton": "Abrir configuración"
+	},
+	"terminal": {
+		"getContentsFailed": "No se pudo obtener el contenido del terminal"
+	},
+	"url": {
+		"copyAgainButton": "Copiar URL de nuevo",
+		"openFailed": "No se pudo abrir la URL: {{url}}",
+		"openFailedCopied": "No se pudo abrir la URL automáticamente. Se copió al portapapeles."
+	},
+	"version": {
+		"updated": "Cline se actualizó a la versión v{{version}}",
+		"welcome": "Te damos la bienvenida a Cline v{{version}}"
+	}
 }

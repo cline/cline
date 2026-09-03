@@ -1,0 +1,86 @@
+{
+	"buttons": {
+		"back": "뒤로",
+		"continue": "계속",
+		"createAccount": "계정 만들기",
+		"login": "Cline에 로그인"
+	},
+	"capabilities": {
+		"images": "이미지",
+		"promptCache": "프롬프트 캐시",
+		"tools": "도구"
+	},
+	"changeLaterNote": "나중에 설정에서 변경할 수 있습니다",
+	"clinePassEmpty": {
+		"description": "다른 옵션을 선택하거나 나중에 다시 시도해 주세요.",
+		"title": "현재 사용 가능한 ClinePass 모델이 없습니다."
+	},
+	"completeSignInBrowser": "브라우저에서 로그인을 완료하세요. 완료되면 자동으로 계속 진행됩니다.",
+	"groups": {
+		"free": "무료",
+		"frontier": "프런티어",
+		"openSource": "오픈 소스"
+	},
+	"learnMore": "자세히 알아보기",
+	"modelItem": {
+		"contextLabel": "컨텍스트:",
+		"speedLabel": "속도:",
+		"supportLabel": "지원:"
+	},
+	"noSearchResults": "\"{{searchTerm}}\"에 대한 결과가 없습니다",
+	"otherOptions": "기타 옵션",
+	"price": {
+		"free": "무료",
+		"high": "$$$",
+		"low": "$",
+		"medium": "$$"
+	},
+	"searchModelPlaceholder": "모델 검색...",
+	"speed": {
+		"average": "보통",
+		"fast": "빠름",
+		"instant": "매우 빠름",
+		"slow": "느림"
+	},
+	"steps": {
+		"accountWait": {
+			"description": "브라우저에서 계정 생성을 완료한 뒤 여기로 돌아와 마무리하세요.",
+			"title": "거의 다 됐어요!"
+		},
+		"byok": {
+			"title": "제공업체 구성"
+		},
+		"clinePass": {
+			"title": "ClinePass 모델 선택"
+		},
+		"free": {
+			"title": "무료 모델 선택"
+		},
+		"power": {
+			"title": "모델 선택"
+		},
+		"userType": {
+			"description": "아래 옵션을 선택하여 시작하세요.",
+			"title": "Cline을 어떻게 사용하시겠어요?"
+		}
+	},
+	"userTypes": {
+		"byok": {
+			"description": "원하는 제공업체와 함께 Cline 사용",
+			"title": "내 API 키 사용"
+		},
+		"clinePass": {
+			"description": "최고의 오픈 웨이트 모델을 위한 저렴한 구독 요금제.",
+			"title": "ClinePass"
+		},
+		"free": {
+			"description": "비용 없이 시작",
+			"title": "완전 무료"
+		},
+		"power": {
+			"description": "Claude, GPT Codex, Gemini 등",
+			"title": "프런티어 모델"
+		}
+	},
+	"waitingForSignIn": "로그인 대기 중..."
+}

@@ -1,6 +1,7 @@
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { GitCompareIcon } from "lucide-react"
 import { memo, useEffect, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { CheckpointsServiceClient } from "@/services/grpc-client"
 import { CopyButton } from "../common/CopyButton"
 import SuccessButton from "../common/SuccessButton"
@@ -33,6 +34,7 @@ interface CompletionOutputRowProps {
  */
 export const CompletionOutputRow = memo(
 	({ text, quoteButtonState, handleQuoteClick, showViewChanges }: CompletionOutputRowProps) => {
+		const { t } = useTranslation()
 		const [viewChangesPending, setViewChangesPending] = useState(false)
 		// undefined = still checking; the button stays hidden until the host
 		// confirms the latest run actually changed files. A count of 0 also
@@ -70,8 +72,10 @@ export const CompletionOutputRow = memo(
 		return (
 			<div className="rounded-sm border border-success/20 overflow-visible bg-success/10">
 				<div className="flex items-center justify-between gap-2 pl-2 pr-1 pt-1 -mb-1.5">
-					<span className="text-xs font-medium uppercase tracking-wider text-success/70">Completed</span>
-					<CopyButton ariaLabel="Copy response" className="text-success/70" textToCopy={text} />
+					<span className="text-xs font-medium uppercase tracking-wider text-success/70">
+						{t("chat:completion.completed")}
+					</span>
+					<CopyButton ariaLabel={t("chat:completion.copyResponseAria")} className="text-success/70" textToCopy={text} />
 				</div>
 				<div className="completion-output-content relative p-2 w-full [&_hr]:opacity-20 [&_p:last-child]:mb-0 rounded-sm">
 					<MarkdownRow markdown={text} />
@@ -92,7 +96,7 @@ export const CompletionOutputRow = memo(
 							}}
 							style={{ cursor: viewChangesPending ? "wait" : "pointer" }}>
 							<GitCompareIcon className="size-3 mr-1.5" />
-							View Changes
+							{t("chat:completion.viewChanges")}
 						</SuccessButton>
 					</div>
 				)}

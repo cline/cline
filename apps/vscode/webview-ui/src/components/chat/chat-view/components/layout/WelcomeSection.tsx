@@ -4,6 +4,7 @@ import type { Worktree } from "@shared/proto/cline/worktree"
 import { TrackWorktreeViewOpenedRequest } from "@shared/proto/cline/worktree"
 import { GitBranch, Sparkles } from "lucide-react"
 import React, { useCallback, useEffect, useMemo, useState } from "react"
+import { useTranslation } from "react-i18next"
 import BannerCarousel, { BannerData } from "@/components/common/BannerCarousel"
 import WhatsNewModal from "@/components/common/WhatsNewModal"
 import HistoryPreview from "@/components/history/HistoryPreview"
@@ -37,6 +38,7 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 	taskHistory,
 	shouldShowQuickWins,
 }) => {
+	const { t } = useTranslation()
 	const { lastDismissedInfoBannerVersion, lastDismissedCliBannerVersion, lastDismissedModelBannerVersion, dismissedBanners } =
 		useExtensionState()
 
@@ -357,8 +359,10 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 												<div className="flex items-center gap-1.5 text-xs">
 													<GitBranch className="w-3 h-3 stroke-[2.5] flex-shrink-0" />
 													<span className="break-all text-center">
-														<span className="font-semibold">Current:</span>{" "}
-														{currentWorktree.branch || "detached HEAD"}
+														<span className="font-semibold">
+															{t("chatView:welcome.currentLabel")}
+														</span>{" "}
+														{currentWorktree.branch || t("chatView:welcome.detachedHead")}
 													</span>
 												</div>
 												<span className="break-all text-center max-w-[300px]">
@@ -366,9 +370,7 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 												</span>
 											</button>
 										</TooltipTrigger>
-										<TooltipContent side="bottom">
-											View and manage git worktrees. Great for running parallel Cline tasks.
-										</TooltipContent>
+										<TooltipContent side="bottom">{t("chatView:welcome.worktreesTooltip")}</TooltipContent>
 									</Tooltip>
 								)}
 							</div>

@@ -1,0 +1,86 @@
+{
+	"buttons": {
+		"back": "Назад",
+		"continue": "Продолжить",
+		"createAccount": "Создать аккаунт",
+		"login": "Войти в Cline"
+	},
+	"capabilities": {
+		"images": "Изображения",
+		"promptCache": "Кэш промптов",
+		"tools": "Инструменты"
+	},
+	"changeLaterNote": "Это можно изменить позже в настройках",
+	"clinePassEmpty": {
+		"description": "Выберите другой вариант или повторите попытку позже.",
+		"title": "Сейчас нет доступных моделей ClinePass."
+	},
+	"completeSignInBrowser": "Завершите вход в браузере. Мы продолжим автоматически, как только вы закончите.",
+	"groups": {
+		"free": "Бесплатные",
+		"frontier": "Передовые",
+		"openSource": "Открытые"
+	},
+	"learnMore": "Подробнее",
+	"modelItem": {
+		"contextLabel": "Контекст:",
+		"speedLabel": "Скорость:",
+		"supportLabel": "Поддержка:"
+	},
+	"noSearchResults": "Ничего не найдено по запросу «{{searchTerm}}»",
+	"otherOptions": "другие варианты",
+	"price": {
+		"free": "Бесплатно",
+		"high": "$$$",
+		"low": "$",
+		"medium": "$$"
+	},
+	"searchModelPlaceholder": "Поиск модели...",
+	"speed": {
+		"average": "Средняя",
+		"fast": "Быстрая",
+		"instant": "Мгновенная",
+		"slow": "Медленная"
+	},
+	"steps": {
+		"accountWait": {
+			"description": "Завершите создание аккаунта в браузере, затем вернитесь сюда, чтобы закончить.",
+			"title": "Почти готово!"
+		},
+		"byok": {
+			"title": "Настройте провайдера"
+		},
+		"clinePass": {
+			"title": "Выберите модель ClinePass"
+		},
+		"free": {
+			"title": "Выберите бесплатную модель"
+		},
+		"power": {
+			"title": "Выберите модель"
+		},
+		"userType": {
+			"description": "Выберите один из вариантов ниже, чтобы начать.",
+			"title": "Как вы будете использовать Cline?"
+		}
+	},
+	"userTypes": {
+		"byok": {
+			"description": "Используйте Cline с любым провайдером на ваш выбор",
+			"title": "Использовать свой API-ключ"
+		},
+		"clinePass": {
+			"description": "Недорогая подписка на лучшую модель с открытыми весами.",
+			"title": "ClinePass"
+		},
+		"free": {
+			"description": "Начните без каких-либо затрат",
+			"title": "Абсолютно бесплатно"
+		},
+		"power": {
+			"description": "Claude, GPT Codex, Gemini и др.",
+			"title": "Передовая модель"
+		}
+	},
+	"waitingForSignIn": "Ожидание входа..."
+}

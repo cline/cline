@@ -5,6 +5,7 @@ import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import deepEqual from "fast-deep-equal"
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react"
 import React, { CSSProperties, memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { useSize } from "react-use"
 import styled from "styled-components"
 import { BrowserSettingsMenu } from "@/components/browser/BrowserSettingsMenu"
@@ -106,6 +107,7 @@ const headerStyle: CSSProperties = {
 
 const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 	const { messages, isLast, onHeightChange, lastModifiedMessage, onSetQuote } = props
+	const { t } = useTranslation()
 	const { browserSettings } = useExtensionState()
 	const prevHeightRef = useRef(0)
 	const [maxActionHeight, setMaxActionHeight] = useState(0)
@@ -359,7 +361,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 					<span className="codicon codicon-inspect" style={browserIconStyle} />
 				)}
 				<span style={approveTextStyle}>
-					{isAutoApproved ? "Cline is using the browser:" : "Cline wants to use the browser:"}
+					{isAutoApproved ? t("chat:browser.isUsingBrowser") : t("chat:browser.wantsToUseBrowser")}
 				</span>
 			</div>
 			<div
@@ -398,7 +400,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 					}}>
 					{displayState.screenshot ? (
 						<img
-							alt="Browser screenshot"
+							alt={t("chat:browser.screenshotAlt")}
 							onClick={() =>
 								FileServiceClient.openImage(StringRequest.create({ value: displayState.screenshot })).catch(
 									(err) => console.error("Failed to open image:", err),
@@ -439,10 +441,12 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 							padding: `9px 8px ${consoleLogsExpanded ? 0 : 8}px 8px`,
 						}}>
 						{consoleLogsExpanded ? <ChevronDownIcon size={16} /> : <ChevronRightIcon size={16} />}
-						<span style={consoleLogsTextStyle}>Console Logs</span>
+						<span style={consoleLogsTextStyle}>{t("chat:browser.consoleLogs")}</span>
 					</div>
 					{consoleLogsExpanded && (
-						<CodeBlock source={`${"```"}shell\n${displayState.consoleLogs || "(No new logs)"}\n${"```"}`} />
+						<CodeBlock
+							source={`${"```"}shell\n${displayState.consoleLogs || t("chat:browser.noNewLogs")}\n${"```"}`}
+						/>
 					)}
 				</div>
 			</div>
@@ -453,19 +457,17 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 			{/* Pagination moved to bottom */}
 			{pages.length > 1 && (
 				<div style={paginationContainerStyle}>
-					<div>
-						Step {currentPageIndex + 1} of {pages.length}
-					</div>
+					<div>{t("chat:browser.stepOf", { current: currentPageIndex + 1, total: pages.length })}</div>
 					<div style={paginationButtonGroupStyle}>
 						<VSCodeButton
 							disabled={currentPageIndex === 0 || isBrowsing}
 							onClick={() => setCurrentPageIndex((i) => i - 1)}>
-							Previous
+							{t("chat:browser.previous")}
 						</VSCodeButton>
 						<VSCodeButton
 							disabled={currentPageIndex === pages.length - 1 || isBrowsing}
 							onClick={() => setCurrentPageIndex((i) => i + 1)}>
-							Next
+							{t("chat:browser.next")}
 						</VSCodeButton>
 					</div>
 				</div>
@@ -505,6 +507,7 @@ const BrowserSessionRowContent = memo(
 		setMaxActionHeight,
 		onSetQuote,
 	}: BrowserSessionRowContentProps) => {
+		const { t } = useTranslation()
 		const handleToggle = useCallback(() => {
 			if (message.say === "api_req_started") {
 				setMaxActionHeight(0)
@@ -516,7 +519,7 @@ const BrowserSessionRowContent = memo(
 			return (
 				<>
 					<div style={headerStyle}>
-						<span style={browserSessionStartedTextStyle}>Browser Session Started</span>
+						<span style={browserSessionStartedTextStyle}>{t("chat:browser.sessionStarted")}</span>
 					</div>
 					<div style={codeBlockContainerStyle}>
 						<CodeBlock forceWrap={true} source={`${"```"}shell\n${message.text}\n${"```"}`} />
@@ -569,20 +572,21 @@ const BrowserSessionRowContent = memo(
 )
 
 const BrowserActionBox = ({ action, coordinate, text }: { action: BrowserAction; coordinate?: string; text?: string }) => {
+	const { t } = useTranslation()
 	const getBrowserActionText = (action: BrowserAction, coordinate?: string, text?: string) => {
 		switch (action) {
 			case "launch":
-				return `Launch browser at ${text}`
+				return t("chat:browser.actions.launch", { url: text })
 			case "click":
-				return `Click (${coordinate?.replace(",", ", ")})`
+				return t("chat:browser.actions.click", { coordinate: coordinate?.replace(",", ", ") })
 			case "type":
-				return `Type "${text}"`
+				return t("chat:browser.actions.type", { text })
 			case "scroll_down":
-				return "Scroll down"
+				return t("chat:browser.actions.scrollDown")
 			case "scroll_up":
-				return "Scroll up"
+				return t("chat:browser.actions.scrollUp")
 			case "close":
-				return "Close browser"
+				return t("chat:browser.actions.closeBrowser")
 			default:
 				return action
 		}
@@ -592,7 +596,7 @@ const BrowserActionBox = ({ action, coordinate, text }: { action: BrowserAction;
 			<div style={browserActionBoxContainerInnerStyle}>
 				<div style={browseActionRowContainerStyle}>
 					<span style={browseActionRowStyle}>
-						<span style={browseActionTextStyle}>Browse Action: </span>
+						<span style={browseActionTextStyle}>{t("chat:browser.actionLabel")} </span>
 						{getBrowserActionText(action, coordinate, text)}
 					</span>
 				</div>

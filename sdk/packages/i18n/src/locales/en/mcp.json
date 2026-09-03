@@ -1,0 +1,97 @@
+{
+	"addServer": {
+		"addServer": "Add Server",
+		"connecting": "Connecting...",
+		"description": "Add a remote MCP server by providing a name and its URL endpoint. Learn more <docsLink>here.</docsLink>",
+		"editConfiguration": "Edit Configuration",
+		"errors": {
+			"addFailed": "Failed to add server",
+			"invalidUrl": "Invalid URL format",
+			"nameRequired": "Server name is required",
+			"urlRequired": "Server URL is required"
+		},
+		"serverName": "Server Name",
+		"serverUrl": "Server URL",
+		"transportSse": "SSE (Legacy)",
+		"transportStreamableHttp": "Streamable HTTP",
+		"transportType": "Transport Type"
+	},
+	"chatDisplay": {
+		"clickToOpenInBrowser": "Click to open in browser",
+		"fetchOpenGraphFailed": "Failed to fetch Open Graph data",
+		"imageErrorTitle": "Something went wrong displaying this image",
+		"imageFrom": "Image from {{hostname}}",
+		"imageLoadFailed": "Failed to load image",
+		"linkPreviewErrorTitle": "Something went wrong displaying this link preview",
+		"loadingImage": "Loading image from {{hostname}}...",
+		"loadingPreview": "Loading preview for {{hostname}}...",
+		"noDescriptionAvailable": "No description available",
+		"noTitle": "No title",
+		"previewLoadFailed": "Unable to load preview",
+		"previewNetworkError": "Network error loading preview",
+		"previewTimeout": "Preview request timed out",
+		"svgFrom": "SVG from {{hostname}}",
+		"unknownError": "Unknown error occurred",
+		"waitingMinutes": "Waiting for {{minutes}}m {{seconds}}s...",
+		"waitingSeconds": "Waiting for {{seconds}}s..."
+	},
+	"configure": {
+		"advancedSettings": "Advanced MCP Settings",
+		"configureServers": "Configure MCP Servers",
+		"description": "The <mcpLink>Model Context Protocol</mcpLink> enables communication with locally running MCP servers that provide additional tools and resources to extend Cline's capabilities. You can use <communityLink>community-made servers</communityLink> or ask Cline to create new tools specific to your workflow (e.g., \"add a tool that gets the latest npm docs\"). <demoLink>See a demo here.</demoLink>",
+		"remoteManagedBanner": "Your organization manages some MCP servers"
+	},
+	"displayMode": {
+		"markdown": "Markdown",
+		"plain": "Plain Text",
+		"rich": "Rich Display"
+	},
+	"response": {
+		"parseError": "Error parsing response:",
+		"processError": "Failed to process response content. Switch to plain text mode to view safely.",
+		"title": "Response",
+		"titleError": "Response (Error)"
+	},
+	"serverList": {
+		"noServers": "No MCP servers installed"
+	},
+	"serverRow": {
+		"alwaysEnabledTooltip": "This server can't be disabled because it is enabled by your organization",
+		"arguments": "Arguments",
+		"authenticate": "Authenticate",
+		"autoApprove": "Auto-approve",
+		"autoApproveAll": "Auto-approve all tools",
+		"deleteServer": "Delete Server",
+		"deleting": "Deleting...",
+		"noDescription": "No description",
+		"noPrompts": "No prompts found",
+		"noResources": "No resources found",
+		"noTools": "No tools found",
+		"parameters": "Parameters",
+		"promptsTab": "Prompts ({{count}})",
+		"requestTimeout": "Request Timeout",
+		"resourcesTab": "Resources ({{count}})",
+		"restartServer": "Restart Server",
+		"restarting": "Restarting...",
+		"retryConnection": "Retry Connection",
+		"retrying": "Retrying...",
+		"returns": "Returns",
+		"serverDisabled": "Server Disabled",
+		"timeoutDescription": "Applies to every request this server handles, in VS Code and the CLI. For other values, set \"timeout\" (seconds) in cline_mcp_settings.json.",
+		"timeouts": {
+			"fiveMinutes": "5 minutes",
+			"oneHour": "1 hour",
+			"oneMinute": "1 minute",
+			"tenMinutes": "10 minutes",
+			"thirtyMinutes": "30 minutes",
+			"thirtySeconds": "30 seconds"
+		},
+		"toolsTab": "Tools ({{count}})",
+		"unknown": "Unknown"
+	},
+	"tabs": {
+		"configure": "Configure",
+		"remoteServers": "Remote Servers"
+	},
+	"title": "MCP Servers"
+}

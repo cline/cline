@@ -1,0 +1,76 @@
+{
+	"alert": {
+		"dismissAria": "Закрыть"
+	},
+	"bannerCarousel": {
+		"announcementsAria": "Объявления",
+		"carouselRoleDescription": "карусель",
+		"dismissAria": "Закрыть баннер",
+		"nextAria": "Следующий баннер",
+		"previousAria": "Предыдущий баннер"
+	},
+	"codeAccordian": {
+		"collapseAria": "Свернуть блок кода",
+		"consoleLogs": "Журналы консоли",
+		"expandAria": "Развернуть блок кода",
+		"userEdits": "Правки пользователя"
+	},
+	"copyButton": {
+		"copied": "Скопировано",
+		"copy": "Копировать"
+	},
+	"dialog": {
+		"close": "Закрыть"
+	},
+	"markdown": {
+		"actMode": {
+			"alreadyActiveTitle": "Уже в режиме Act",
+			"label": "Режим Act (⌘⇧A)",
+			"toggleTitle": "Нажмите, чтобы переключиться в режим Act"
+		},
+		"copyCodeAria": "Копировать код",
+		"openInEditor": "Открыть {{filePath}} в редакторе"
+	},
+	"menuAnnouncement": {
+		"itemPosition": "{{label}}, {{position}} из {{total}}"
+	},
+	"mermaid": {
+		"copyCode": "Копировать код",
+		"generating": "Создание диаграммы Mermaid..."
+	},
+	"navbar": {
+		"account": "Учетная запись",
+		"customize": "Настроить",
+		"history": "История",
+		"newTask": "Новая задача",
+		"settings": "Настройки"
+	},
+	"thumbnails": {
+		"imageAlt": "Миниатюра {{number}}"
+	},
+	"unsafeImage": {
+		"altLabel": "Альтернативный текст:",
+		"blockedTitle": "Внешнее изображение заблокировано до получения согласия",
+		"loadImage": "Загрузить изображение",
+		"sourceLabel": "Источник:"
+	},
+	"viewHeader": {
+		"done": "Готово",
+		"environmentSuffix": "Среда: {{environment}}",
+		"environments": {
+			"local": "Локальная",
+			"production": "Рабочая",
+			"selfHosted": "Самостоятельно размещенная",
+			"staging": "Промежуточная"
+		}
+	},
+	"whatsNew": {
+		"followOnLinkedInAria": "Подписывайтесь на нас в LinkedIn",
+		"followOnXAria": "Подписывайтесь на нас в X",
+		"joinDiscordAria": "Присоединяйтесь к нашему Discord",
+		"joinSubredditAria": "Присоединяйтесь к нашему сабреддиту",
+		"starOnGitHubAria": "Поставьте нам звезду на GitHub",
+		"supportCta": "Поддержите Cline — <githubLink>поставьте нам звезду на GitHub</githubLink>.",
+		"title": "🎉 Новое в v{{version}}"
+	}
+}

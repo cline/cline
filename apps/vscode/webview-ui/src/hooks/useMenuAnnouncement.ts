@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 
 interface UseMenuAnnouncementOptions<T> {
 	/** The list of items in the menu */
@@ -27,6 +28,7 @@ export function useMenuAnnouncement<T>({
 	getItemLabel,
 	isItemSelectable = () => true,
 }: UseMenuAnnouncementOptions<T>): UseMenuAnnouncementResult {
+	const { t } = useTranslation()
 	const [announcement, setAnnouncement] = useState("")
 	const clearTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 	const hasNavigatedRef = useRef(false)
@@ -57,7 +59,9 @@ export function useMenuAnnouncement<T>({
 			const selectedItem = items[selectedIndex]
 			if (isItemSelectable(selectedItem)) {
 				const label = getItemLabel(selectedItem)
-				setAnnouncement(`${label}, ${selectedIndex + 1} of ${items.length}`)
+				setAnnouncement(
+					t("ui:menuAnnouncement.itemPosition", { label, position: selectedIndex + 1, total: items.length }),
+				)
 
 				// Clear announcement after screen reader has time to read it
 				clearTimeoutRef.current = setTimeout(() => {
@@ -72,7 +76,7 @@ export function useMenuAnnouncement<T>({
 				clearTimeoutRef.current = null
 			}
 		}
-	}, [selectedIndex, items, getItemLabel, isItemSelectable])
+	}, [selectedIndex, items, getItemLabel, isItemSelectable, t])
 
 	return {
 		announcement,

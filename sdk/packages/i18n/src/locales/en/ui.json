@@ -1,0 +1,76 @@
+{
+	"alert": {
+		"dismissAria": "Dismiss"
+	},
+	"bannerCarousel": {
+		"announcementsAria": "Announcements",
+		"carouselRoleDescription": "carousel",
+		"dismissAria": "Dismiss banner",
+		"nextAria": "Next banner",
+		"previousAria": "Previous banner"
+	},
+	"codeAccordian": {
+		"collapseAria": "Collapse code block",
+		"consoleLogs": "Console Logs",
+		"expandAria": "Expand code block",
+		"userEdits": "User Edits"
+	},
+	"copyButton": {
+		"copied": "Copied",
+		"copy": "Copy"
+	},
+	"dialog": {
+		"close": "Close"
+	},
+	"markdown": {
+		"actMode": {
+			"alreadyActiveTitle": "Already in Act Mode",
+			"label": "Act Mode (⌘⇧A)",
+			"toggleTitle": "Click to toggle to Act Mode"
+		},
+		"copyCodeAria": "Copy code",
+		"openInEditor": "Open {{filePath}} in editor"
+	},
+	"menuAnnouncement": {
+		"itemPosition": "{{label}}, {{position}} of {{total}}"
+	},
+	"mermaid": {
+		"copyCode": "Copy Code",
+		"generating": "Generating mermaid diagram..."
+	},
+	"navbar": {
+		"account": "Account",
+		"customize": "Customize",
+		"history": "History",
+		"newTask": "New Task",
+		"settings": "Settings"
+	},
+	"thumbnails": {
+		"imageAlt": "Thumbnail image {{number}}"
+	},
+	"unsafeImage": {
+		"altLabel": "Alt:",
+		"blockedTitle": "External image blocked pending consent",
+		"loadImage": "Load image",
+		"sourceLabel": "Source:"
+	},
+	"viewHeader": {
+		"done": "Done",
+		"environmentSuffix": "{{environment}} environment",
+		"environments": {
+			"local": "Local",
+			"production": "Production",
+			"selfHosted": "Self-hosted",
+			"staging": "Staging"
+		}
+	},
+	"whatsNew": {
+		"followOnLinkedInAria": "Follow us on LinkedIn",
+		"followOnXAria": "Follow us on X",
+		"joinDiscordAria": "Join our Discord",
+		"joinSubredditAria": "Join our subreddit",
+		"starOnGitHubAria": "Star us on GitHub",
+		"supportCta": "Please support Cline by <githubLink>starring us on GitHub</githubLink>.",
+		"title": "🎉 New in v{{version}}"
+	}
+}

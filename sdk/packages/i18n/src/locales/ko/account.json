@@ -1,0 +1,50 @@
+{
+	"addCredits": "크레딧 추가",
+	"auth": {
+		"copied": "복사됨",
+		"copy": "복사",
+		"copyCodeAria": "Cline 로그인 코드 복사",
+		"enterCode": "브라우저에 이 코드를 입력하세요:"
+	},
+	"clineEnvironment": "Cline 환경",
+	"creditsHistory": {
+		"credits": "크레딧",
+		"creditsUsed": "사용한 크레딧",
+		"date": "날짜",
+		"model": "모델",
+		"noPayments": "결제 기록이 없습니다",
+		"noUsage": "사용 기록이 없습니다",
+		"operations": {
+			"webFetch": "웹 가져오기",
+			"webFetchLlm": "웹 가져오기(LLM)",
+			"webSearch": "웹 검색"
+		},
+		"paymentsHistory": "결제 기록",
+		"totalCost": "총 비용",
+		"usageHistory": "사용 기록"
+	},
+	"currentBalance": "현재 잔액",
+	"dashboard": "대시보드",
+	"env": {
+		"local": "로컬",
+		"production": "프로덕션",
+		"staging": "스테이징"
+	},
+	"lastUpdated": "마지막 업데이트: {{time}}",
+	"logOut": "로그아웃",
+	"optOutRemoteConfig": "원격 구성 사용 안 함",
+	"organizationLockedTooltip": "조직에서 원격 구성을 사용하도록 설정한 동안에는 변경할 수 없습니다.",
+	"personal": "개인",
+	"roleTitle": "역할",
+	"roles": {
+		"admin": "관리자",
+		"member": "멤버",
+		"owner": "소유자"
+	},
+	"title": "계정",
+	"welcome": {
+		"description": "계정에 가입하면 최신 모델, 사용량과 크레딧을 확인할 수 있는 결제 대시보드, 그리고 곧 추가될 다양한 기능을 이용할 수 있습니다.",
+		"signUp": "Cline으로 가입",
+		"terms": "계속하면 <tosLink>서비스 약관</tosLink> 및 <privacyLink>개인정보 처리방침</privacyLink>에 동의하는 것입니다."
+	}
+}

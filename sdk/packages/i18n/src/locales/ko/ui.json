@@ -1,0 +1,76 @@
+{
+	"alert": {
+		"dismissAria": "닫기"
+	},
+	"bannerCarousel": {
+		"announcementsAria": "공지 사항",
+		"carouselRoleDescription": "캐러셀",
+		"dismissAria": "배너 닫기",
+		"nextAria": "다음 배너",
+		"previousAria": "이전 배너"
+	},
+	"codeAccordian": {
+		"collapseAria": "코드 블록 접기",
+		"consoleLogs": "콘솔 로그",
+		"expandAria": "코드 블록 펼치기",
+		"userEdits": "사용자 편집"
+	},
+	"copyButton": {
+		"copied": "복사됨",
+		"copy": "복사"
+	},
+	"dialog": {
+		"close": "닫기"
+	},
+	"markdown": {
+		"actMode": {
+			"alreadyActiveTitle": "이미 Act 모드입니다",
+			"label": "Act 모드 (⌘⇧A)",
+			"toggleTitle": "클릭하여 Act 모드로 전환"
+		},
+		"copyCodeAria": "코드 복사",
+		"openInEditor": "편집기에서 {{filePath}} 열기"
+	},
+	"menuAnnouncement": {
+		"itemPosition": "{{label}}, {{total}}개 중 {{position}}번째"
+	},
+	"mermaid": {
+		"copyCode": "코드 복사",
+		"generating": "Mermaid 다이어그램 생성 중..."
+	},
+	"navbar": {
+		"account": "계정",
+		"customize": "사용자 지정",
+		"history": "기록",
+		"newTask": "새 작업",
+		"settings": "설정"
+	},
+	"thumbnails": {
+		"imageAlt": "썸네일 이미지 {{number}}"
+	},
+	"unsafeImage": {
+		"altLabel": "대체 텍스트:",
+		"blockedTitle": "동의 전까지 외부 이미지가 차단됨",
+		"loadImage": "이미지 로드",
+		"sourceLabel": "소스:"
+	},
+	"viewHeader": {
+		"done": "완료",
+		"environmentSuffix": "{{environment}} 환경",
+		"environments": {
+			"local": "로컬",
+			"production": "프로덕션",
+			"selfHosted": "자체 호스팅",
+			"staging": "스테이징"
+		}
+	},
+	"whatsNew": {
+		"followOnLinkedInAria": "LinkedIn에서 팔로우하기",
+		"followOnXAria": "X에서 팔로우하기",
+		"joinDiscordAria": "Discord에 참여하기",
+		"joinSubredditAria": "서브레딧에 참여하기",
+		"starOnGitHubAria": "GitHub에서 별표 주기",
+		"supportCta": "<githubLink>GitHub에서 별표를 눌러</githubLink> Cline을 응원해 주세요.",
+		"title": "🎉 v{{version}}의 새로운 기능"
+	}
+}

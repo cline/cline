@@ -1,4 +1,5 @@
 import React from "react"
+import { i18n } from "@/i18n"
 
 interface ChatErrorBoundaryProps {
 	children: React.ReactNode
@@ -47,8 +48,13 @@ class ChatErrorBoundary extends React.Component<ChatErrorBoundaryProps, ChatErro
 						borderRadius: "4px",
 						backgroundColor: "var(--vscode-inputValidation-errorBackground, rgba(255, 0, 0, 0.1))",
 					}}>
-					<h3 style={{ margin: "0 0 8px 0" }}>{errorTitle || "Something went wrong displaying this content"}</h3>
-					<p style={{ margin: "0" }}>{errorBody || `Error: ${this.state.error?.message || "Unknown error"}`}</p>
+					<h3 style={{ margin: "0 0 8px 0" }}>{errorTitle || i18n.t("chat:errorBoundary.title")}</h3>
+					<p style={{ margin: "0" }}>
+						{errorBody ||
+							i18n.t("chat:errorBoundary.errorPrefix", {
+								message: this.state.error?.message || i18n.t("chat:errorBoundary.unknownError"),
+							})}
+					</p>
 				</div>
 			)
 		}
