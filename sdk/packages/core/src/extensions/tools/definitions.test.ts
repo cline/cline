@@ -117,23 +117,23 @@ describe("default generate_media tool", () => {
 		).rejects.toThrow("provider unavailable");
 	});
 
-	it.each(["audio", "video"] as const)(
-		"accepts %s requests and forwards them to the executor",
-		async (mediaType) => {
-			const execute = vi.fn(async () => generatedContent);
-			const tool = createGenerateMediaTool(execute);
+	it.each([
+		"audio",
+		"video",
+	] as const)("accepts %s requests and forwards them to the executor", async (mediaType) => {
+		const execute = vi.fn(async () => generatedContent);
+		const tool = createGenerateMediaTool(execute);
 
-			await tool.execute(
-				{ media_type: mediaType, prompt: "A bee documentary" },
-				{ agentId: "agent-1", iteration: 1 },
-			);
+		await tool.execute(
+			{ media_type: mediaType, prompt: "A bee documentary" },
+			{ agentId: "agent-1", iteration: 1 },
+		);
 
-			expect(execute).toHaveBeenCalledWith(
-				{ media_type: mediaType, prompt: "A bee documentary" },
-				expect.objectContaining({ agentId: "agent-1" }),
-			);
-		},
-	);
+		expect(execute).toHaveBeenCalledWith(
+			{ media_type: mediaType, prompt: "A bee documentary" },
+			expect.objectContaining({ agentId: "agent-1" }),
+		);
+	});
 
 	it("rejects unsupported media types before invoking the executor", async () => {
 		const execute = vi.fn(async () => generatedContent);
