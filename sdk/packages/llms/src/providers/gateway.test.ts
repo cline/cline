@@ -1491,54 +1491,51 @@ describe("sdk-gateway", () => {
 		["openai-native", "tts-test", openaiSpeechSpy],
 		["gemini", "gemini-tts-test", googleSpeechSpy],
 		["vercel-ai-gateway", "openai/tts-test", vercelGatewaySpeechSpy],
-	] as const)(
-		"uses generateSpeech for dedicated audio models through %s",
-		async (providerId, modelId, speechModelSpy) => {
-			generateSpeechSpy.mockResolvedValue({
-				audio: { mediaType: "audio/mpeg", base64: "YXVkaW8=" },
-			});
-			const abortController = new AbortController();
-			const gateway = createGateway({
-				providerConfigs: [
-					{
-						providerId,
-						apiKey: "test",
-						models: [
-							{
-								id: modelId,
-								name: "Speech Test",
-								operation: "speech-generation",
-								modalities: { input: ["text"], output: ["audio"] },
-							},
-						],
-					},
-				],
-			});
-
-			const events = await collect(
-				await gateway.stream({
+	] as const)("uses generateSpeech for dedicated audio models through %s", async (providerId, modelId, speechModelSpy) => {
+		generateSpeechSpy.mockResolvedValue({
+			audio: { mediaType: "audio/mpeg", base64: "YXVkaW8=" },
+		});
+		const abortController = new AbortController();
+		const gateway = createGateway({
+			providerConfigs: [
+				{
 					providerId,
-					modelId,
-					messages: baseMessages,
-					signal: abortController.signal,
-				}),
-			);
+					apiKey: "test",
+					models: [
+						{
+							id: modelId,
+							name: "Speech Test",
+							operation: "speech-generation",
+							modalities: { input: ["text"], output: ["audio"] },
+						},
+					],
+				},
+			],
+		});
 
-			expect(speechModelSpy).toHaveBeenCalledWith(modelId);
-			expect(generateSpeechSpy).toHaveBeenCalledWith(
-				expect.objectContaining({
-					model: expect.objectContaining({ modelId }),
-					text: "Hello",
-					abortSignal: abortController.signal,
-				}),
-			);
-			expect(streamTextSpy).not.toHaveBeenCalled();
-			expect(events).toEqual([
-				generatedAudioEvent("audio/mpeg", "YXVkaW8="),
-				{ type: "finish", reason: "stop" },
-			]);
-		},
-	);
+		const events = await collect(
+			await gateway.stream({
+				providerId,
+				modelId,
+				messages: baseMessages,
+				signal: abortController.signal,
+			}),
+		);
+
+		expect(speechModelSpy).toHaveBeenCalledWith(modelId);
+		expect(generateSpeechSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				model: expect.objectContaining({ modelId }),
+				text: "Hello",
+				abortSignal: abortController.signal,
+			}),
+		);
+		expect(streamTextSpy).not.toHaveBeenCalled();
+		expect(events).toEqual([
+			generatedAudioEvent("audio/mpeg", "YXVkaW8="),
+			{ type: "finish", reason: "stop" },
+		]);
+	});
 
 	it("rejects dedicated audio models on providers without a speech transport", async () => {
 		const gateway = createGateway({
@@ -1628,7 +1625,9 @@ describe("sdk-gateway", () => {
 			type: "text-delta",
 			text: "Here is the narration",
 		});
-		expect(events).toContainEqual(generatedAudioEvent("audio/mpeg", "YXVkaW8="));
+		expect(events).toContainEqual(
+			generatedAudioEvent("audio/mpeg", "YXVkaW8="),
+		);
 	});
 
 	it("preserves text-only responses from mixed text-and-audio models", async () => {
