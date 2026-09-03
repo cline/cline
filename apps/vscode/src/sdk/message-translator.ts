@@ -1172,6 +1172,34 @@ export function extractToolOutputText(output: unknown): string {
 	return JSON.stringify(output)
 }
 
+/**
+ * Maps a run-command process outcome to the command row's terminal status.
+ * Shared by the foreground completion update (content_update) and the detached
+ * completion event so both paths agree on the status vocabulary.
+ */
+function commandStatusFromOutcome(outcome: unknown): "succeeded" | "failed" | "killed" | "indeterminate" {
+	if (outcome && typeof outcome === "object" && !Array.isArray(outcome)) {
+		const record = outcome as Record<string, unknown>
+		if (record.kind === "exited") return record.exitCode === 0 ? "succeeded" : "failed"
+		if (record.kind === "hard_killed") return "killed"
+		if (record.kind === "signaled") return "indeterminate"
+		if (record.kind === "failed") return "failed"
+	}
+	return "succeeded"
+}
+
+/**
+ * run_commands results carry per-command success flags — the shell tool
+ * wrapper converts CommandExitError into a success:false result instead of an
+ * error — so a failed foreground command is only visible here.
+ */
+function toolOutputHasFailure(output: unknown): boolean {
+	return (
+		Array.isArray(output) &&
+		output.some((item) => typeof item === "object" && item !== null && (item as Record<string, unknown>).success === false)
+	)
+}
+
 // ---------------------------------------------------------------------------
 // MCP tool detection
 // ---------------------------------------------------------------------------
@@ -1555,13 +1583,18 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 				const logPath = typeof updateData.logPath === "string" ? updateData.logPath : undefined
 				const retainedDetachedRow = state.getDetachedCommand(event.toolCallId)
 				const detachNotice = logPath ? `[Command is still running. Output will continue in ${logPath}]` : ""
-				const visibleOutput = [detachNotice, output || retainedDetachedRow?.output].filter(Boolean).join("\n")
+				// The stored row keeps the raw output only: formatDetachedCommandOutput
+				// prepends the detach notice itself, so storing it here would show the
+				// notice twice while running and leave a stale "still running" line
+				// after the detached process completes.
+				const retainedOutput = output || retainedDetachedRow?.output || ""
+				const visibleOutput = [detachNotice, retainedOutput].filter(Boolean).join("\n")
 				const commandText = retainedDetachedRow?.commandText ?? extractCommandText(state.getStreamingToolInput())
 				if (logPath && event.toolCallId && executionId) {
 					state.recordDetachedCommand(event.toolCallId, executionId, logPath, {
 						ts: state.getStreamingToolTs(),
 						commandText,
-						output: visibleOutput,
+						output: retainedOutput,
 					})
 				}
 				const detachedOutput = state.formatDetachedCommandOutput(event.toolCallId)
@@ -1574,7 +1607,7 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 					}`,
 					partial: updateData.completed !== true,
 					commandCompleted: updateData.completed === true,
-					commandStatus: updateData.completed === true ? "succeeded" : "running",
+					commandStatus: updateData.completed === true ? commandStatusFromOutcome(updateData.outcome) : "running",
 				})
 				break
 			}
@@ -1798,11 +1831,15 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 									: commandText,
 							partial: detachedRow !== undefined && !detachedState?.complete,
 							commandCompleted: detachedRow === undefined || detachedState?.complete === true,
-							commandStatus: event.error
-								? "failed"
-								: detachedRow !== undefined && !detachedState?.complete
-									? "running"
-									: (detachedRow?.terminalStatus ?? "succeeded"),
+							// CommandExitError becomes a success:false tool result rather
+							// than an event error, so a failed foreground command is only
+							// visible in the output entries' success flags.
+							commandStatus:
+								event.error || toolOutputHasFailure(event.output)
+									? "failed"
+									: detachedRow !== undefined && !detachedState?.complete
+										? "running"
+										: (detachedRow?.terminalStatus ?? "succeeded"),
 						})
 						break
 					}
@@ -2238,16 +2275,7 @@ export function translateSessionEvent(event: CoreSessionEvent, state: MessageTra
 						: outcome.kind === "hard_killed"
 							? "[Detached command reached its hard deadline and was terminated]"
 							: `[Detached command failed: ${outcome.error}]`
-			const status =
-				outcome.kind === "exited"
-					? outcome.exitCode === 0
-						? "succeeded"
-						: "failed"
-					: outcome.kind === "hard_killed"
-						? "killed"
-						: outcome.kind === "signaled"
-							? "indeterminate"
-							: "failed"
+			const status = commandStatusFromOutcome(outcome)
 			const completed = state.completeDetachedCommand(
 				event.payload.toolCallId,
 				event.payload.executionId,

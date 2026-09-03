@@ -558,6 +558,15 @@ export function handleCoreSessionEvent(
 			sendEvent(ctx, "team_progress", event.payload);
 			break;
 		}
+		case "detached_command_completed": {
+			// Sessions this sidecar drives report their detached processes through
+			// CoreSessionEvents; hub-attached sessions report them through hub live
+			// events (see handleHubLiveEvent). Both must forward the same
+			// chat_tool_call_update shape so the webview settles the originating
+			// command row exactly once.
+			emitDetachedCommandCompleted(ctx, event.payload);
+			break;
+		}
 	}
 }
 
@@ -785,6 +794,43 @@ function requestSidecarToolApproval(
 	});
 }
 
+/**
+ * Forwards a detached command's process outcome to the originating tool row as
+ * a chat_tool_call_update. Shared by both observation paths: hub live events
+ * (`command.detached_completed`) for sessions another client drives, and
+ * CoreSessionEvents for sessions this sidecar drives through its own ClineCore.
+ */
+function emitDetachedCommandCompleted(
+	ctx: SidecarContext,
+	payload: {
+		sessionId: string;
+		executionId?: unknown;
+		toolCallId?: unknown;
+		detachKind?: unknown;
+		logPath?: unknown;
+		outcome?: unknown;
+	},
+): void {
+	emitChunk(
+		ctx,
+		payload.sessionId,
+		"chat_tool_call_update",
+		JSON.stringify({
+			toolCallId:
+				typeof payload.toolCallId === "string" ? payload.toolCallId : undefined,
+			toolName: "run_commands",
+			update: {
+				executionId: payload.executionId,
+				detached: true,
+				completed: true,
+				detachKind: payload.detachKind,
+				logPath: payload.logPath,
+				outcome: payload.outcome,
+			},
+		}),
+	);
+}
+
 export function handleHubLiveEvent(
 	ctx: SidecarContext,
 	event: {
@@ -895,26 +941,14 @@ export function handleHubLiveEvent(
 			return;
 		}
 		case "command.detached_completed": {
-			emitChunk(
-				ctx,
+			emitDetachedCommandCompleted(ctx, {
 				sessionId,
-				"chat_tool_call_update",
-				JSON.stringify({
-					toolCallId:
-						typeof event.payload?.toolCallId === "string"
-							? event.payload.toolCallId
-							: undefined,
-					toolName: "run_commands",
-					update: {
-						executionId: event.payload?.executionId,
-						detached: true,
-						completed: true,
-						detachKind: event.payload?.detachKind,
-						logPath: event.payload?.logPath,
-						outcome: event.payload?.outcome,
-					},
-				}),
-			);
+				executionId: event.payload?.executionId,
+				toolCallId: event.payload?.toolCallId,
+				detachKind: event.payload?.detachKind,
+				logPath: event.payload?.logPath,
+				outcome: event.payload?.outcome,
+			});
 			return;
 		}
 		case "tool.finished": {

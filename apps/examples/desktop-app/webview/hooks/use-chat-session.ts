@@ -119,6 +119,26 @@ function errorMessage(err: unknown): string {
 	return err instanceof Error ? err.message : String(err);
 }
 
+/**
+ * Renders a detached command's process outcome as the row's completion note.
+ * Matches the completion notes VS Code's message-translator appends to detached
+ * command rows so both hosts describe outcomes with the same vocabulary.
+ */
+function formatDetachedCompletionNote(
+	outcome: Record<string, unknown>,
+): string {
+	if (outcome.kind === "exited") {
+		return `[Detached command completed with exit code ${outcome.exitCode}]`;
+	}
+	if (outcome.kind === "signaled") {
+		return `[Detached command ended from signal ${outcome.signal}]`;
+	}
+	if (outcome.kind === "hard_killed") {
+		return "[Detached command reached its hard deadline and was terminated]";
+	}
+	return `[Detached command failed: ${outcome.error}]`;
+}
+
 function makeErrorChatMessage(
 	sid: string | null,
 	content: string,
@@ -407,6 +427,10 @@ export function useChatSession() {
 	const detachedOutcomeStatusRef = useRef<
 		Record<string, "succeeded" | "failed" | "killed" | "indeterminate">
 	>({});
+	// Executions whose completion note already landed in the row's output, by
+	// tool call id. Both observation paths may deliver the same completion, so
+	// this keeps the note from rendering twice for one execution.
+	const detachedNotedExecutionIdsRef = useRef<Record<string, Set<string>>>({});
 	const pendingToolOutputRef = useRef(new Map<string, PendingToolOutput>());
 	// Optimistic user bubbles whose prompt is still in flight, by message id.
 	// A chat_queued_prompt_start event may only re-key one of these — never a
@@ -632,8 +656,7 @@ export function useChatSession() {
 							(message) =>
 								message.meta?.toolCallId &&
 								(message.meta.toolBackgroundStatus === "running" ||
-									message.meta.toolBackgroundStatus ===
-										"indeterminate"),
+									message.meta.toolBackgroundStatus === "indeterminate"),
 						)
 						.map(
 							(message) =>
@@ -1477,9 +1500,28 @@ export function useChatSession() {
 					delete detachedExecutionIdsRef.current[toolCallId];
 					detachedToolEndedRef.current.delete(toolCallId);
 					delete detachedOutcomeStatusRef.current[toolCallId];
+					delete detachedNotedExecutionIdsRef.current[toolCallId];
+				}
+				// The process outcome is the only signal that distinguishes a
+				// completed detached command from an indeterminate or never-completed
+				// one, so render it in the row's output — once per execution, since
+				// both observation paths may deliver the same completion.
+				const completionNote =
+					completed &&
+					outcome &&
+					toolCallId &&
+					executionId &&
+					!detachedNotedExecutionIdsRef.current[toolCallId]?.has(executionId)
+						? formatDetachedCompletionNote(outcome)
+						: "";
+				if (completionNote && toolCallId && executionId) {
+					(detachedNotedExecutionIdsRef.current[toolCallId] ??= new Set()).add(
+						executionId,
+					);
 				}
 				if (
 					!chunk &&
+					!completionNote &&
 					detachable === undefined &&
 					!sourceTruncated &&
 					backgroundStatus === undefined &&
@@ -1488,7 +1530,20 @@ export function useChatSession() {
 					return;
 				const pending = pendingToolOutputRef.current;
 				const existing = pending.get(messageId);
-				const appended = appendCappedCommandOutput(existing?.text ?? "", chunk);
+				const priorOutput =
+					existing?.text ||
+					messagesRef.current.find((message) => message.id === messageId)?.meta
+						?.toolOutput ||
+					"";
+				const effectiveChunk = chunk
+					? chunk
+					: completionNote
+						? `${priorOutput ? "\n" : ""}${completionNote}`
+						: "";
+				const appended = appendCappedCommandOutput(
+					existing?.text ?? "",
+					effectiveChunk,
+				);
 				pending.set(messageId, {
 					text: appended.output,
 					truncated: Boolean(
@@ -1860,6 +1915,7 @@ export function useChatSession() {
 				delete detachedExecutionIdsRef.current[toolCallId];
 				detachedToolEndedRef.current.delete(toolCallId);
 				delete detachedOutcomeStatusRef.current[toolCallId];
+				delete detachedNotedExecutionIdsRef.current[toolCallId];
 			}
 			if (toolCallId) {
 				delete liveToolMessageIdsRef.current[toolCallId];

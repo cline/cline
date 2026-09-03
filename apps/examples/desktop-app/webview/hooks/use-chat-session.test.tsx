@@ -501,6 +501,111 @@ describe("useChatSession", () => {
 			toolBackgroundLogPath: "/tmp/output.log",
 			hookEventName: "tool_call_end",
 		});
+		// The process outcome is rendered in the row's output so a completed
+		// command is distinguishable from an indeterminate one.
+		expect(
+			current.messages.find((message) => message.role === "tool")?.meta
+				?.toolOutput,
+		).toContain("[Detached command completed with exit code 0]");
+	});
+
+	it("renders a detached completion note once even if the completion is delivered twice", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string } | undefined;
+					if (request?.action === "start") {
+						return {
+							sessionId: "session-detached-note",
+							cwd: "/workspace/cline",
+							workspaceRoot: "/workspace/cline",
+						};
+					}
+				}
+				return [];
+			},
+		);
+		await act(async () => current.start(current.config));
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+		const send = (stream: string, body: unknown, index: number) =>
+			chatEventHandler?.({
+				sessionId: "session-detached-note",
+				stream,
+				chunk: JSON.stringify(body),
+				ts: Date.now(),
+				index,
+			});
+
+		const completion = {
+			toolCallId: "call-detached-note",
+			toolName: "run_commands",
+			update: {
+				executionId: "execution-detached-note",
+				detached: true,
+				completed: true,
+				logPath: "/tmp/output.log",
+				outcome: { kind: "exited", exitCode: 0 },
+			},
+		};
+
+		await act(async () => {
+			send(
+				"chat_tool_call_start",
+				{
+					toolCallId: "call-detached-note",
+					toolName: "run_commands",
+					input: { commands: ["sleep 60"] },
+				},
+				1,
+			);
+			send(
+				"chat_tool_call_update",
+				{
+					toolCallId: "call-detached-note",
+					toolName: "run_commands",
+					update: {
+						executionId: "execution-detached-note",
+						detached: true,
+						detachable: false,
+						logPath: "/tmp/output.log",
+					},
+				},
+				2,
+			);
+			// The process exits before the tool call resolves.
+			send("chat_tool_call_update", completion, 3);
+			// Both observation paths may deliver the same completion.
+			send("chat_tool_call_update", completion, 4);
+			send(
+				"chat_tool_call_end",
+				{
+					toolCallId: "call-detached-note",
+					toolName: "run_commands",
+					output:
+						"[Command is still running. Output will continue in /tmp/output.log]",
+				},
+				5,
+			);
+			await new Promise((resolve) => setTimeout(resolve, 60));
+		});
+
+		const toolMessage = current.messages.find(
+			(message) => message.role === "tool",
+		);
+		expect(toolMessage?.meta).toMatchObject({
+			toolBackgroundStatus: "succeeded",
+			hookEventName: "tool_call_end",
+		});
+		expect(
+			toolMessage?.meta?.toolOutput?.match(
+				/Detached command completed with exit code 0/g,
+			),
+		).toHaveLength(1);
 	});
 	it("reconstructs a detached command as indeterminate and settles it on completion", async () => {
 		let canonicalMessages: unknown[] = [];
@@ -652,8 +757,6 @@ describe("useChatSession", () => {
 			hookEventName: "tool_call_end",
 		});
 	});
-
-
 
 	it("heals a running attached session with a dead event stream by polling history", async () => {
 		// Scheduled runs can execute on a host whose live events never reach
