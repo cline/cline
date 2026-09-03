@@ -46,8 +46,9 @@ function GeneratedAudio({
 	}
 
 	return source ? (
-		<AudioPlayer className="w-full max-w-md text-foreground">
-			<AudioPlayerElement
+		<div className="max-w-md space-y-1">
+			<AudioPlayer className="w-full text-foreground">
+				<AudioPlayerElement
 				aria-label="Generated audio"
 				muted={false}
 				onPlay={(event) => {
@@ -58,8 +59,8 @@ function GeneratedAudio({
 				}}
 				preload="metadata"
 				src={source}
-			/>
-			<AudioPlayerControlBar className="w-full">
+				/>
+				<AudioPlayerControlBar className="w-full">
 				<AudioPlayerPlayButton aria-label="Play or pause generated audio" />
 				<AudioPlayerTimeRange />
 				<AudioPlayerTimeDisplay
@@ -67,8 +68,9 @@ function GeneratedAudio({
 					noToggle
 					remaining
 				/>
-			</AudioPlayerControlBar>
-		</AudioPlayer>
+				</AudioPlayerControlBar>
+			</AudioPlayer>
+		</div>
 	) : (
 		<div className="flex h-10 w-72 items-center justify-center rounded-lg border border-border text-sm text-muted-foreground">
 			<Loader2 className="mr-2 size-4 animate-spin" />
