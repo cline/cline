@@ -140,6 +140,20 @@ export class SdkTaskStartCoordinator {
 				taskSessionId = startResult.sessionId
 			}
 
+			const hasMeaningfulUserInput = Boolean(prompt?.trim() || images?.length || files?.length)
+			// Lazy start intentionally skips durable History for empty sessions. A real
+			// prompt/attachment task must get a durable row before clear/close can erase
+			// the only synthetic representation (#13781). Do this before the first send
+			// and before History update, without waiting for model output.
+			if (hasMeaningfulUserInput && sdkHost.ensureSessionPersisted) {
+				const persisted = await sdkHost.ensureSessionPersisted(taskSessionId, {
+					prompt: prompt ?? "",
+				})
+				if (!persisted) {
+					Logger.warn(`[SdkController] Failed to materialize durable history for session ${taskSessionId} before send`)
+				}
+			}
+
 			const newHistoryItem = this.options.createHistoryItemFromSession(
 				taskSessionId,
 				prompt ?? "",
@@ -149,7 +163,7 @@ export class SdkTaskStartCoordinator {
 			await this.options.taskHistory.updateTaskHistoryItem(newHistoryItem)
 			await this.options.postStateToWebview()
 
-			if (prompt?.trim() || images?.length || files?.length) {
+			if (hasMeaningfulUserInput) {
 				Logger.log(`[SdkController] Sending prompt to session: ${taskSessionId}`)
 				const resolvedTask = await this.options.resolveContextMentions(prompt || "")
 				this.options.sessions.fireAndForgetSend(sdkHost, taskSessionId, resolvedTask, images, files)

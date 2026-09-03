@@ -923,7 +923,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		// conversation. Brand-new empty sessions stay lazy.
 		if (initialMessages.length > 0 && !resumedArtifacts) {
 			try {
-				await this.ensureSessionPersisted(active);
+				await this.materializeSessionArtifacts(active);
 				await this.invoke<void>(
 					"persistSessionMessages",
 					sessionId,
@@ -1693,7 +1693,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		if (!session.artifacts && !session.pendingPrompt) {
 			session.pendingPrompt = prompt;
 		}
-		await this.ensureSessionPersisted(session);
+		await this.materializeSessionArtifacts(session);
 		// A seeded session (fork, checkpoint restore, missing-session
 		// recovery) materializes at start, before any prompt exists, so its
 		// row is created promptless. Backfill it with the first user prompt,
@@ -1791,7 +1791,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		// session seeded with in-memory history, the entire conversation.
 		if (messages.length > 0) {
 			try {
-				await this.ensureSessionPersisted(session);
+				await this.materializeSessionArtifacts(session);
 				await this.invoke<void>(
 					"persistSessionMessages",
 					session.sessionId,
@@ -2109,7 +2109,26 @@ export class LocalRuntimeHost implements RuntimeHost {
 
 	// ── Session lifecycle ───────────────────────────────────────────────
 
-	private async ensureSessionPersisted(session: ActiveSession): Promise<void> {
+	async ensureSessionPersisted(
+		sessionId: string,
+		options?: { prompt?: string },
+	): Promise<boolean> {
+		const session = this.sessions.get(sessionId);
+		if (!session) {
+			return false;
+		}
+		if (session.artifacts) {
+			return true;
+		}
+		const prompt = options?.prompt?.trim();
+		if (prompt && !session.pendingPrompt) {
+			session.pendingPrompt = prompt;
+		}
+		await this.materializeSessionArtifacts(session);
+		return session.artifacts !== undefined;
+	}
+
+	private async materializeSessionArtifacts(session: ActiveSession): Promise<void> {
 		if (session.artifacts) return;
 		const workspacePath = resolveWorkspacePath(session.config);
 		session.artifacts = (await this.invoke("createRootSessionWithArtifacts", {

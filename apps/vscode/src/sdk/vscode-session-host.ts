@@ -302,6 +302,13 @@ export class VscodeSessionHost implements SdkSessionHost {
 		return this.inner.update(sessionId, updates)
 	}
 
+	async ensureSessionPersisted(sessionId: string, options?: { prompt?: string }): Promise<boolean> {
+		if (!this.inner.ensureSessionPersisted) {
+			return false
+		}
+		return this.inner.ensureSessionPersisted(sessionId, options)
+	}
+
 	async handleHookEvent(payload: HookEventPayload): Promise<void> {
 		return this.inner.ingestHookEvent(payload)
 	}
