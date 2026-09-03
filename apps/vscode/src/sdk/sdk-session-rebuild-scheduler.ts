@@ -58,6 +58,13 @@ export class SdkSessionRebuildScheduler {
 		if (this.drainInFlight || this.pending.size === 0 || !activeSession || activeSession.isRunning) {
 			return
 		}
+		// Cloud sessions run on the sandbox with its own tools/provider; local
+		// MCP, provider and terminal changes do not apply and must not rebuild
+		// the sandbox conversation into a local one.
+		if ("isCloud" in activeSession.sdkHost) {
+			this.pending.clear()
+			return
+		}
 
 		const drain = async (): Promise<void> => {
 			while (this.pending.size > 0) {
