@@ -69,6 +69,17 @@ export async function newTask(controller: Controller, request: NewTaskRequest): 
 		}).filter(([_, value]) => value !== undefined),
 	)
 
-	const taskId = await controller.initTask(request.text, request.images, request.files, undefined, filteredTaskSettings)
+	const cloudTarget =
+		request.executionTarget === "cloud" && request.cloudRepoUrl?.trim()
+			? { repoUrl: request.cloudRepoUrl.trim(), branch: request.cloudBranch?.trim() || undefined }
+			: undefined
+	const taskId = await controller.initTask(
+		request.text,
+		request.images,
+		request.files,
+		undefined,
+		filteredTaskSettings,
+		cloudTarget,
+	)
 	return String.create({ value: taskId || "" })
 }

@@ -55,6 +55,16 @@ export class SdkTaskControlCoordinator {
 
 	constructor(private readonly options: SdkTaskControlCoordinatorOptions) {}
 
+	/**
+	 * Allocates a task-view generation for a task-open flow that runs outside
+	 * this coordinator (cloud sessions). The returned predicate reports whether
+	 * a newer showTaskWithId/clearTask has superseded the caller.
+	 */
+	claimTaskViewGeneration(): () => boolean {
+		const generation = ++this.taskViewGeneration
+		return () => generation !== this.taskViewGeneration
+	}
+
 	async cancelClineTaskOnSignOut(isClineManagedProvider: boolean): Promise<void> {
 		const activeSession = this.options.sessions.getActiveSession()
 		if (!isClineManagedProvider || !activeSession?.isRunning) {
