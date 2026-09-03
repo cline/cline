@@ -143,6 +143,12 @@ export class SdkSessionLifecycle {
 
 	async startNewSession(
 		startInput: Parameters<VscodeSessionHost["start"]>[0],
+		/**
+		 * Session-scoped host (e.g. a CloudSessionHost) to start on instead of the
+		 * shared local host. Its events are routed to onSessionEvent for as long
+		 * as the session is active; tool policies are left to the host.
+		 */
+		hostOverride?: SdkSessionHost,
 	): Promise<{ startResult: StartSessionResult; sdkHost: SdkSessionHost }> {
 		if (this.activeSession) {
 			await this.endActiveSession("startNewSession")
@@ -156,9 +162,10 @@ export class SdkSessionLifecycle {
 		}
 
 		const autoApprovalSettings = StateManager.get().getGlobalSettingsKey("autoApprovalSettings")
-		const toolPolicies = autoApprovalSettings ? buildToolPolicies(autoApprovalSettings, this.options.mcpHub) : undefined
+		const toolPolicies =
+			!hostOverride && autoApprovalSettings ? buildToolPolicies(autoApprovalSettings, this.options.mcpHub) : undefined
 
-		const sdkHost = await this.getOrCreateSharedHost()
+		const sdkHost = hostOverride ?? (await this.getOrCreateSharedHost())
 
 		const startResult = await sdkHost.start({
 			...startInput,
@@ -173,12 +180,42 @@ export class SdkSessionLifecycle {
 					}
 				: undefined,
 			sdkHost,
-			unsubscribe: () => {},
+			unsubscribe: hostOverride ? this.subscribeSessionHost(hostOverride) : () => {},
 			startResult,
 			isRunning: true,
 		}
 
 		return { startResult, sdkHost }
+	}
+
+	/**
+	 * Makes an already-running conversation on a session-scoped host the active
+	 * session without starting a new one (e.g. reopening a cloud session that
+	 * keeps running in its sandbox). Events flow to onSessionEvent until the
+	 * session is ended; the host itself is not stopped when it is.
+	 */
+	async attachExistingSession(input: {
+		sdkHost: SdkSessionHost
+		sessionId: string
+		startConfig?: ActiveSession["startConfig"]
+		isRunning: boolean
+	}): Promise<ActiveSession> {
+		if (this.activeSession) {
+			await this.endActiveSession("attachExistingSession")
+		}
+		const session: ActiveSession = {
+			sessionId: input.sessionId,
+			startConfig: input.startConfig,
+			sdkHost: input.sdkHost,
+			unsubscribe: this.subscribeSessionHost(input.sdkHost),
+			isRunning: input.isRunning,
+		}
+		this.activeSession = session
+		return session
+	}
+
+	private subscribeSessionHost(sdkHost: SdkSessionHost): () => void {
+		return this.createSafeUnsubscribe(sdkHost.subscribe(this.options.onSessionEvent), "session-host")
 	}
 
 	async replaceActiveSession(options: {

@@ -135,7 +135,9 @@ export class SdkModeCoordinator {
 		}
 
 		const activeSession = this.options.sessions.getActiveSession()
-		if (activeSession) {
+		// Cloud sessions take the mode per turn (CloudSessionHost.send), so no
+		// local rebuild is needed or possible.
+		if (activeSession && !("isCloud" in activeSession.sdkHost)) {
 			// awaiting_followup is also used for non-plan turns, so it is not
 			// sufficient evidence that the user has a plan to approve. Require the
 			// latest completed assistant result to be the explicit plan completion

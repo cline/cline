@@ -15,6 +15,8 @@ export async function setUserOrganization(controller: Controller, request: UserO
 		}
 		// Switch to the specified organization using the account service
 		await controller.accountService.switchAccount(request.organizationId)
+		// Cloud sessions and GitHub repositories are scoped to the active organization.
+		controller.resetCloudSessions()
 		await controller.refreshRemoteConfig()
 		return {}
 	} catch (error) {
