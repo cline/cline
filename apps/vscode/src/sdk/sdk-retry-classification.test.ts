@@ -21,7 +21,7 @@ describe("classifyFailureForRetry", () => {
 		})
 
 		it("retries transport-level failure codes", () => {
-			for (const code of ["ECONNRESET", "ECONNREFUSED", "ETIMEDOUT", "EAI_AGAIN", "UND_ERR_SOCKET"]) {
+			for (const code of ["ECONNRESET", "ECONNREFUSED", "ETIMEDOUT", "EAI_AGAIN", "ENOTFOUND", "UND_ERR_SOCKET"]) {
 				expect(classifyFailureForRetry({ error: apiCallError({ code }) })).toEqual({ retryable: true })
 			}
 		})
@@ -46,33 +46,57 @@ describe("classifyFailureForRetry", () => {
 			expect(classifyFailureForRetry({ error })).toEqual({ retryable: true, retryAfterSeconds: 30 })
 		})
 
-		it("lets HTTP metadata outrank message text (no substring matching)", () => {
-			// Previously the substring blacklist made any "billing" message
-			// permanent; a typed 500 verdict is transient regardless of wording.
+		it("lets HTTP metadata outrank message text (no substring veto over typed verdicts)", () => {
+			// A typed 500 verdict is transient regardless of wording — even when
+			// the body mentions billing.
 			const error = apiCallError({ statusCode: 500, message: "billing hard failure" })
 			expect(classifyFailureForRetry({ error })).toEqual({ retryable: true })
 		})
 	})
 
-	describe("permanent by default", () => {
+	describe("retryable by default — external failures without typed metadata", () => {
+		it("retries the flattened z.ai DNS failure verbatim (string and Error forms)", () => {
+			const text = "Cannot connect to API: getaddrinfo EAI_AGAIN api.z.ai: getaddrinfo EAI_AGAIN api.z.ai (EAI_AGAIN)"
+			// Providers stringify transport failures; the turn pipeline also
+			// flattens `error` to a display string before the retry boundary.
+			expect(classifyFailureForRetry({ error: text })).toEqual({ retryable: true })
+			expect(classifyFailureForRetry({ error: new Error(text) })).toEqual({ retryable: true })
+			expect(classifyFailureForRetry({ error: text, errorClass: "unknown" })).toEqual({ retryable: true })
+		})
+
+		it("retries novel and unrecognized provider errors — no permanent default", () => {
+			for (const error of [
+				new Error("some novel provider failure"),
+				new Error("The model is overloaded"),
+				"just a string",
+				{ statusCode: "not-a-number" },
+				null,
+			] as unknown[]) {
+				expect(classifyFailureForRetry({ error })).toEqual({ retryable: true })
+			}
+		})
+
+		it("retries throughput limit text even when it mentions tokens", () => {
+			for (const message of [
+				"Rate limit reached for tokens per minute",
+				"Tokens per minute limit exceeded, please retry",
+			]) {
+				expect(classifyFailureForRetry({ error: new Error(message) })).toEqual({ retryable: true })
+			}
+		})
+	})
+
+	describe("permanent only for proven unfixable causes", () => {
 		it("does not retry request, auth, billing, and other non-retryable statuses", () => {
 			for (const statusCode of [400, 401, 402, 403, 404, 422, 501]) {
 				expect(classifyFailureForRetry({ error: apiCallError({ statusCode }) })).toEqual({ retryable: false })
 			}
 		})
 
-		it("does not retry an unmatched error — no matter the message", () => {
-			const errors: unknown[] = [
-				new Error("some novel provider failure"),
-				new Error("prompt is too long"), // overflow text without typed class
-				new Error("insufficient_quota: check your plan and billing"),
-				"just a string",
-				{ statusCode: "not-a-number" },
-				null,
-			]
-			for (const error of errors) {
-				expect(classifyFailureForRetry({ error })).toEqual({ retryable: false })
-			}
+		it("does not retry the typed auth error class (HTTP 401/403 verdict)", () => {
+			expect(classifyFailureForRetry({ error: apiCallError({ statusCode: 500 }), errorClass: "auth" })).toEqual({
+				retryable: false,
+			})
 		})
 
 		it("does not retry a typed context-window overflow, even with a transient-looking status", () => {
@@ -80,6 +104,41 @@ describe("classifyFailureForRetry", () => {
 			expect(classifyFailureForRetry({ error, errorClass: "context_window_exceeded" })).toEqual({
 				retryable: false,
 			})
+		})
+
+		it("does not retry flattened context-overflow messages", () => {
+			for (const message of [
+				"prompt is too long",
+				"This model's maximum context length is 16385 tokens. However, you requested 20000 tokens",
+				"input tokens exceed the maximum allowed",
+				"context_length_exceeded",
+			]) {
+				expect(classifyFailureForRetry({ error: new Error(message) })).toEqual({ retryable: false })
+			}
+		})
+
+		it("does not retry flattened credential-rejection messages", () => {
+			for (const message of [
+				"Invalid API key provided",
+				"incorrect api key provided: sk-foo***",
+				"invalid x-api-key",
+				"Unauthorized — the request requires valid credentials",
+				"authentication_error: invalid credentials",
+				"No auth credentials found",
+			]) {
+				expect(classifyFailureForRetry({ error: new Error(message) })).toEqual({ retryable: false })
+			}
+		})
+
+		it("does not retry flattened billing/quota hard-failure messages", () => {
+			for (const message of [
+				"insufficient_quota: check your plan and billing details",
+				"You exceeded your current quota, please check your plan",
+				"credit balance too low",
+				"Payment required: add credits to continue",
+			]) {
+				expect(classifyFailureForRetry({ error: new Error(message) })).toEqual({ retryable: false })
+			}
 		})
 
 		it("does not retry aborts (user cancellation)", () => {

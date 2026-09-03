@@ -234,18 +234,6 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			controller.stateManager.setGlobalState("backgroundEditEnabled", !!request.backgroundEditEnabled)
 		}
 
-		if (request.autoRetryFailedRequests !== undefined || request.autoRetryIndefinitely !== undefined) {
-			if (request.autoRetryFailedRequests !== undefined) {
-				controller.stateManager.setGlobalState("autoRetryFailedRequests", !!request.autoRetryFailedRequests)
-			}
-			if (request.autoRetryIndefinitely !== undefined) {
-				controller.stateManager.setGlobalState("autoRetryIndefinitely", !!request.autoRetryIndefinitely)
-			}
-			// Disabling the feature (or changing the retry budget) must also
-			// cancel a retry that is already scheduled or counting down.
-			controller.cancelScheduledAutoRetry()
-		}
-
 		if (request.multiRootEnabled !== undefined) {
 			controller.stateManager.setGlobalState("multiRootEnabled", !!request.multiRootEnabled)
 		}

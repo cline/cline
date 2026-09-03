@@ -1,5 +1,5 @@
 import type { CoreSessionEvent } from "@cline/core"
-import type { ClineMessage } from "@shared/ExtensionMessage"
+import type { ClineMessage, TurnPhase } from "@shared/ExtensionMessage"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { MessageTranslatorState } from "./message-translator"
 import { PROVIDER_FAILURE_ERROR_TYPE, PROVIDER_FAILURE_PHASE } from "./provider-failure-telemetry"
@@ -122,8 +122,86 @@ describe("SdkSessionEventCoordinator", () => {
 
 		await coordinator.handleSessionEvent(event)
 
-		expect(options.setTurnPhase).toHaveBeenCalledWith("error")
+		// Auto-retry may still claim this failure, so the commit is deferred by
+		// the grace window…
+		expect(options.setTurnPhase).not.toHaveBeenCalledWith("error")
+
+		// …and lands once the window lapses without a retry claiming it.
+		await vi.waitFor(() => expect(options.setTurnPhase).toHaveBeenCalledWith("error"))
 		expect(options.setTurnPhase).not.toHaveBeenCalledWith("awaiting_followup")
+	})
+
+	it("defers the error phase briefly when auto-retry may claim the failure", async () => {
+		const { coordinator, options, event } = makeCoordinator({
+			translation: {
+				messages: [],
+				sessionEnded: false,
+				turnComplete: true,
+			},
+		})
+		options.messageTranslatorState.setErrorSeen()
+
+		await coordinator.handleSessionEvent(event)
+
+		// No instant "error" commit — the settle path may still schedule an
+		// automatic retry (phase "retrying") for this same failure, and an
+		// instant commit would flash the Retry / Start New Task buttons.
+		expect(options.setTurnPhase).not.toHaveBeenCalledWith("error")
+
+		// The grace window lapses without a retry claiming the failure: commit.
+		await vi.waitFor(() => expect(options.setTurnPhase).toHaveBeenCalledWith("error"))
+		coordinator.dispose()
+	})
+
+	it("drops a deferred error commit when a retry claims the failure first", async () => {
+		const { coordinator, options, event } = makeCoordinator({
+			translation: {
+				messages: [],
+				sessionEnded: false,
+				turnComplete: true,
+			},
+		})
+		options.messageTranslatorState.setErrorSeen()
+
+		await coordinator.handleSessionEvent(event)
+		// The settle path scheduled the retry while the grace window was open.
+		options.getTurnPhase = vi.fn((): TurnPhase => "retrying")
+
+		await new Promise((resolve) => setTimeout(resolve, 550))
+		expect(options.setTurnPhase).not.toHaveBeenCalledWith("error")
+		coordinator.dispose()
+	})
+
+	it("folds duplicate failure rows into the recovery countdown block", async () => {
+		const kept: ClineMessage = { ts: 1, type: "say", say: "text", text: "kept", partial: false }
+		const duplicateAsk: ClineMessage = {
+			ts: 2,
+			type: "ask",
+			ask: "api_req_failed",
+			text: "fetch failed",
+			partial: false,
+		}
+		const duplicateRow: ClineMessage = {
+			ts: 3,
+			type: "say",
+			say: "api_req_started",
+			text: JSON.stringify({ streamingFailedMessage: "fetch failed" }),
+			partial: false,
+		}
+		const { coordinator, options, event } = makeCoordinator({
+			translation: {
+				messages: [kept, duplicateAsk, duplicateRow],
+				sessionEnded: false,
+				turnComplete: false,
+			},
+		})
+		options.filterMessagesForRecovery = vi.fn((messages: ClineMessage[]) =>
+			messages.filter((message) => message !== duplicateAsk && message !== duplicateRow),
+		)
+
+		await coordinator.handleSessionEvent(event)
+
+		expect(options.messages.appendAndEmit).toHaveBeenCalledWith([kept], event)
 	})
 
 	it("marks a submitted queued prompt as a new streaming turn", async () => {

@@ -6,6 +6,7 @@ import {
 	ClineAskUseMcpServer,
 	ClineMessage,
 	ClinePlanModeResponse,
+	ClineSayAutoRecovery,
 	ClineSayTool,
 	COMPLETION_RESULT_CHANGES_FLAG,
 } from "@shared/ExtensionMessage"
@@ -81,6 +82,8 @@ interface ChatRowProps {
 	mode?: Mode
 	reasoningContent?: string
 	responseStarted?: boolean
+	/** Auto-recovery decoration payload when this row is the streak's decorated error block. */
+	recovery?: ClineSayAutoRecovery
 }
 
 export interface QuoteButtonState {
@@ -147,6 +150,7 @@ export const ChatRowContent = memo(
 		mode,
 		reasoningContent,
 		responseStarted,
+		recovery,
 	}: ChatRowContentProps) => {
 		const {
 			backgroundEditEnabled,
@@ -825,6 +829,7 @@ export const ChatRowContent = memo(
 								message={message}
 								mode={mode}
 								reasoningContent={reasoningContent}
+								recovery={recovery}
 								responseStarted={responseStarted}
 							/>
 						)
@@ -926,7 +931,15 @@ export const ChatRowContent = memo(
 							</div>
 						)
 					case "error":
-						return <ErrorRow errorType="error" message={message} />
+						return <ErrorRow errorType="error" message={message} recovery={recovery} />
+					case "auto_recovery":
+						// Invisible marker message: the active recovery decoration is
+						// rendered by the error block it attaches to (see
+						// findActiveRecoveryDecoration), never as its own row. The
+						// visibility filter normally removes this message already;
+						// this spacer is a belt-and-braces fallback (virtuoso can't
+						// render null).
+						return <InvisibleSpacer />
 					case "diff_error":
 						return <ErrorRow errorType="diff_error" message={message} />
 					case "clineignore_error":
@@ -1042,7 +1055,7 @@ export const ChatRowContent = memo(
 			case "ask":
 				switch (message.ask) {
 					case "mistake_limit_reached":
-						return <ErrorRow errorType="mistake_limit_reached" message={message} />
+						return <ErrorRow errorType="mistake_limit_reached" message={message} recovery={recovery} />
 					case "completion_result":
 						if (message.text) {
 							const hasChanges = message.text.endsWith(COMPLETION_RESULT_CHANGES_FLAG) ?? false

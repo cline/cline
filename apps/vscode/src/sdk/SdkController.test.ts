@@ -11,8 +11,8 @@ import { resolveWorkspaceManagerPaths, resolveWorkspaceRootPath } from "./worksp
 const privateControllerProto = SdkController.prototype as unknown as {
 	handleTurnSettled: (this: never, sessionId: string, outcome: SdkTurnOutcome) => Promise<void>
 	reDriveAutoRetry: (this: never, sessionId: string, isCancelled: () => boolean) => Promise<void>
-	cancelScheduledAutoRetry: (this: never) => void
 	emitAutoRetryScheduled: (this: never, info: RetryAttemptInfo) => void
+	settleAbandonedRetryPhase: (this: never) => void
 }
 
 describe("isClineManagedProvider", () => {
@@ -314,6 +314,22 @@ describe("turn failure boundary (handleTurnSettled)", () => {
 			emitClineBalanceError: vi.fn(),
 			emitAgentError: vi.fn(),
 			turnStateTracker: { set: vi.fn() },
+			settleAbandonedRetryPhase: vi.fn(),
+			interactions: {
+				settleAutoRecovery: vi.fn(),
+				resetMistakeEscalation: vi.fn(),
+				// Guard used by the live-marker settle path; inert by default.
+				isAutoRecoveryActive: vi.fn((): boolean => false),
+				beginAutoRecoveryCountdown: vi.fn(),
+				markAutoRecoveryRetrying: vi.fn(),
+			},
+			// Delegates exactly like the real helper so assertions on
+			// interactions.settleAutoRecovery exercise the boundary's behavior.
+			settleLiveAutoRecoveryMarker: vi.fn(function (this: {
+				interactions?: { settleAutoRecovery: () => void }
+			}) {
+				this.interactions?.settleAutoRecovery()
+			}),
 			...overrides,
 		}
 	}
@@ -327,14 +343,6 @@ describe("turn failure boundary (handleTurnSettled)", () => {
 		expect(controller.apiRetry.reset).toHaveBeenCalledOnce()
 		expect(controller.apiRetry.handleSendError).not.toHaveBeenCalled()
 		expect(controller.turnStateTracker.set).not.toHaveBeenCalled()
-	})
-
-	it("cancelScheduledAutoRetry cancels a pending retry after settings changed", () => {
-		const controller = makeBoundaryFake()
-
-		privateControllerProto.cancelScheduledAutoRetry.call(controller as never)
-
-		expect(controller.apiRetry.cancel).toHaveBeenCalledOnce()
 	})
 
 	it("schedules exactly one retry for a retryable send rejection and keeps the phase streaming", async () => {
@@ -421,6 +429,105 @@ describe("turn failure boundary (handleTurnSettled)", () => {
 		expect(controller.emitClineAuthError).toHaveBeenCalledOnce()
 		expect(controller.apiRetry.handleSendError).not.toHaveBeenCalled()
 		expect(controller.emitAgentError).not.toHaveBeenCalled()
+	})
+
+	it("emits the failure row before scheduling the retry marker", async () => {
+		// The webview binds the countdown marker to the nearest PRECEDING error
+		// block (findActiveRecoveryDecoration), so the error row must already
+		// exist when the marker lands — otherwise the marker reaches back to a
+		// previous streak's error and the hold truncates the chat at it.
+		const order: string[] = []
+		const controller = makeBoundaryFake({
+			emitAgentError: vi.fn(() => order.push("error-row")),
+			apiRetry: {
+				reset: vi.fn(),
+				cancel: vi.fn(),
+				handleSendError: vi.fn(() => {
+					order.push("schedule")
+					return true
+				}),
+			},
+		})
+
+		await privateControllerProto.handleTurnSettled.call(controller as never, "session-123", {
+			status: "failed",
+			error: new Error("socket hang up"),
+			source: "send_rejection",
+		})
+
+		expect(order).toEqual(["error-row", "schedule"])
+	})
+
+	it("settles a live recovery marker when a permanent send rejection ends the streak", async () => {
+		const controller = makeBoundaryFake({
+			classifyAutoRetryFailure: vi.fn(() => ({ retryable: false })),
+		})
+
+		await privateControllerProto.handleTurnSettled.call(controller as never, "session-123", {
+			status: "failed",
+			error: new Error("prompt is too long"),
+			source: "send_rejection",
+		})
+
+		expect(controller.interactions.settleAutoRecovery).toHaveBeenCalledOnce()
+	})
+
+	it("settles a live recovery marker when a permanent event-delivered failure ends the streak", async () => {
+		const controller = makeBoundaryFake({
+			classifyAutoRetryFailure: vi.fn(() => ({ retryable: false })),
+		})
+
+		await privateControllerProto.handleTurnSettled.call(controller as never, "session-123", {
+			status: "failed",
+			error: new Error("Unauthorized"),
+			source: "agent_event",
+		})
+
+		expect(controller.interactions.settleAutoRecovery).toHaveBeenCalledOnce()
+	})
+})
+
+describe("auto-recovery marker settles when no action is in flight", () => {
+	it("cancelTask settles a live marker before the session is torn down", async () => {
+		const order: string[] = []
+		const fake = {
+			apiRetry: { cancel: vi.fn(() => order.push("apiRetry.cancel")) },
+			interactions: { settleAutoRecovery: vi.fn(() => order.push("settle")) },
+			settleLiveAutoRecoveryMarker: vi.fn(function (this: {
+				interactions?: { settleAutoRecovery: () => void }
+			}) {
+				this.interactions?.settleAutoRecovery()
+			}),
+			turnStateTracker: { set: vi.fn(() => order.push("phase")) },
+			taskControl: { cancelTask: vi.fn(async () => order.push("taskControl")) },
+		}
+
+		await SdkController.prototype.cancelTask.call(fake as never)
+
+		// The settle must precede taskControl.cancelTask() — the marker row can
+		// only be rewritten while this session is still the active one.
+		expect(order).toEqual(["apiRetry.cancel", "settle", "phase", "taskControl"])
+	})
+
+	it("clearTask settles a live marker while the session is still active", async () => {
+		const order: string[] = []
+		const fake = {
+			pendingClineAuthRetryPrompt: "prompt",
+			apiRetry: { cancel: vi.fn(() => order.push("apiRetry.cancel")) },
+			interactions: { settleAutoRecovery: vi.fn(() => order.push("settle")) },
+			settleLiveAutoRecoveryMarker: vi.fn(function (this: {
+				interactions?: { settleAutoRecovery: () => void }
+			}) {
+				this.interactions?.settleAutoRecovery()
+			}),
+			turnStateTracker: { set: vi.fn() },
+			taskControl: { clearTask: vi.fn(async () => order.push("taskControl")) },
+			postStateToWebview: vi.fn(async () => order.push("post")),
+		}
+
+		await SdkController.prototype.clearTask.call(fake as never)
+
+		expect(order.indexOf("settle")).toBeLessThan(order.indexOf("taskControl"))
 	})
 })
 
@@ -543,7 +650,6 @@ describe("auto-retry lifecycle (failed turn → countdown → re-drive)", () => 
 		controller: Record<string, unknown>
 		apiRetry: SdkApiRetryCoordinator
 		clock: ReturnType<typeof makeManualClock>
-		settings: Record<string, boolean>
 		emitSessionEvents: ReturnType<typeof vi.fn>
 		setPhase: ReturnType<typeof vi.fn>
 		clearTurnOutcome: ReturnType<typeof vi.fn>
@@ -563,18 +669,28 @@ describe("auto-retry lifecycle (failed turn → countdown → re-drive)", () => 
 	 */
 	function makeLifecycleHarness(): LifecycleHarness {
 		const clock = makeManualClock()
-		const settings: Record<string, boolean> = { autoRetryFailedRequests: true, autoRetryIndefinitely: false }
 		let activeSession: { sessionId: string; isRunning: boolean } | undefined = {
 			sessionId: "session-123",
 			isRunning: false,
 		}
 		const emitSessionEvents = vi.fn()
 		const setPhase = vi.fn()
+		// Phase-aware fake so settleAbandonedRetryPhase()'s currentPhase guard is real.
+		const trackerState = { phase: "idle" as string }
+		const turnStateTracker = {
+			set: (phase: string) => {
+				trackerState.phase = phase
+				setPhase(phase)
+			},
+			get currentPhase() {
+				return trackerState.phase
+			},
+		}
 		const clearTurnOutcome = vi.fn()
 		const askResponse = vi.fn(async () => {})
 		const controller = Object.create(SdkController.prototype) as Record<string, unknown>
 		Object.assign(controller, {
-			stateManager: { getGlobalSettingsKey: vi.fn((key: string) => settings[key]) },
+			stateManager: { getGlobalSettingsKey: vi.fn(() => undefined) },
 			sessions: { getActiveSession: () => activeSession },
 			messages: { emitSessionEvents },
 			diffEdits: { discardAllPreviews: vi.fn() },
@@ -583,19 +699,18 @@ describe("auto-retry lifecycle (failed turn → countdown → re-drive)", () => 
 			getSessionProviderId: vi.fn(() => undefined),
 			getActiveProviderId: vi.fn(() => undefined),
 			captureProviderFailure: vi.fn(),
-			turnStateTracker: { set: setPhase },
+			turnStateTracker,
 			messageTranslatorState: { clearTurnOutcome },
 			task: { taskId: "session-123" },
 			followups: { askResponse },
 		})
 		const apiRetry = new SdkApiRetryCoordinator({
-			isAutoRetryEnabled: () => !!settings.autoRetryFailedRequests,
-			isRetryIndefinite: () => !!settings.autoRetryIndefinitely,
 			isSessionActive: (sessionId) => activeSession?.sessionId === sessionId,
 			sendTurn: (sessionId, isCancelled) => {
 				void privateControllerProto.reDriveAutoRetry.call(controller as never, sessionId, isCancelled)
 			},
 			emitRetryScheduled: (info) => privateControllerProto.emitAutoRetryScheduled.call(controller as never, info),
+			onRetryAbandoned: () => privateControllerProto.settleAbandonedRetryPhase.call(controller as never),
 			scheduleTimer: clock.scheduleTimer,
 			cancelTimer: clock.cancelTimer,
 		})
@@ -605,7 +720,6 @@ describe("auto-retry lifecycle (failed turn → countdown → re-drive)", () => 
 			controller,
 			apiRetry,
 			clock,
-			settings,
 			emitSessionEvents,
 			setPhase,
 			clearTurnOutcome,
@@ -633,13 +747,13 @@ describe("auto-retry lifecycle (failed turn → countdown → re-drive)", () => 
 
 		await harness.settle("agent_event", transportError())
 
-		// The countdown is scheduled and surfaced to the user…
+		// The countdown is scheduled on the Fibonacci schedule (first delay 3s) and
+		// takes over the footer via the "retrying" phase (Cancel only) — nothing is
+		// appended below the already-rendered error, so no row is emitted at all.
 		expect(harness.clock.timers).toHaveLength(1)
-		expect(harness.clock.timers[0]?.delayMs).toBeGreaterThan(0)
-		expect(harness.emitSessionEvents).toHaveBeenCalledWith(
-			[expect.objectContaining({ type: "say", say: "text", text: expect.stringMatching(/^Auto-retrying in \d/) })],
-			{ type: "status", payload: { sessionId: "session-123", status: "running" } },
-		)
+		expect(harness.clock.timers[0]?.delayMs).toBe(3000)
+		expect(harness.setPhase).toHaveBeenCalledWith("retrying")
+		expect(harness.emitSessionEvents).not.toHaveBeenCalled()
 		// …but nothing re-drives yet, and the already-rendered event failure is
 		// not re-surfaced as an agent error.
 		expect(harness.askResponse).not.toHaveBeenCalled()
@@ -704,7 +818,7 @@ describe("auto-retry lifecycle (failed turn → countdown → re-drive)", () => 
 		expect(harness.setPhase).toHaveBeenCalledWith("streaming")
 
 		// The user cancels (or the task tears down) while the funnel is pending.
-		privateControllerProto.cancelScheduledAutoRetry.call(harness.controller as never)
+		harness.apiRetry.cancel()
 		releaseFunnel()
 		await flushTurnWork()
 
@@ -715,15 +829,14 @@ describe("auto-retry lifecycle (failed turn → countdown → re-drive)", () => 
 		expect(harness.clock.timers).toHaveLength(1)
 	})
 
-	it("never sends a retry that was counting down when auto-retry got disabled", async () => {
+	it("never sends a retry that was counting down when the task was cancelled", async () => {
 		const harness = makeLifecycleHarness()
 
 		await harness.settle("send_rejection", transportError("fetch failed"))
 		expect(harness.clock.timers).toHaveLength(1)
 
-		// Settings flip off — the pending timer is invalidated…
-		harness.settings.autoRetryFailedRequests = false
-		privateControllerProto.cancelScheduledAutoRetry.call(harness.controller as never)
+		// The task is cancelled — the pending timer is invalidated…
+		harness.apiRetry.cancel()
 		expect(harness.clock.cancelTimer).toHaveBeenCalledOnce()
 		expect(harness.apiRetry.hasPendingRetry).toBe(false)
 
@@ -734,9 +847,8 @@ describe("auto-retry lifecycle (failed turn → countdown → re-drive)", () => 
 		expect(harness.askResponse).not.toHaveBeenCalled()
 		expect(harness.setPhase).not.toHaveBeenCalledWith("streaming")
 
-		// The streak was cleared too: a later failure under re-enabled settings
-		// schedules a fresh streak instead of resuming the cancelled one.
-		harness.settings.autoRetryFailedRequests = true
+		// The streak was cleared too: a later failure schedules a fresh streak
+		// instead of resuming the cancelled one.
 		await harness.settle("send_rejection", transportError("fetch failed again"))
 		expect(harness.clock.timers).toHaveLength(2)
 		expect(harness.apiRetry.currentRetryCount).toBe(1)
@@ -751,10 +863,7 @@ describe("auto-retry lifecycle (failed turn → countdown → re-drive)", () => 
 		// Nothing is scheduled, nothing re-drives…
 		expect(harness.clock.timers).toHaveLength(0)
 		expect(harness.askResponse).not.toHaveBeenCalled()
-		expect(harness.emitSessionEvents).not.toHaveBeenCalledWith(
-			[expect.objectContaining({ say: "text", text: expect.stringMatching(/^Auto-retrying/) })],
-			expect.anything(),
-		)
+		expect(harness.setPhase).not.toHaveBeenCalledWith("retrying")
 		// …the phase settles on error recovery and the banner reports "error".
 		expect(harness.setPhase).toHaveBeenCalledWith("error")
 		expect(harness.emitSessionEvents).toHaveBeenCalledWith(

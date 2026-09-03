@@ -382,6 +382,20 @@ export class Controller {
 				return autoApprovalSettings ? isToolAutoApproved(request.toolName, autoApprovalSettings) : false
 			},
 			getCwd: () => this.lastKnownWorkspaceRoot,
+			// Mistake-limit recovery: guard the Fibonacci backoff so a cancelled
+			// or switched-away session stops instead of continuing, and persist
+			// the terminal stop row so it survives restart via task-history
+			// metadata. Both callbacks run mid-run, long after construction.
+			isSessionActive: (sessionId) => this.sessions.getActiveSession()?.sessionId === sessionId,
+			// After the backoff sleep, only return the UI to "streaming" when the
+			// "retrying" phase we set is still current (a run that settled while we
+			// slept keeps its terminal phase).
+			getTurnPhase: () => this.turnStateTracker.currentPhase,
+			recordPersistedTaskNotice: (sessionId, notice) => {
+				void this.taskHistory.recordTaskNotice(sessionId, notice).catch((error) => {
+					Logger.warn("[SdkController] Failed to persist mistake-limit notice:", error)
+				})
+			},
 		})
 		this.sessions = new SdkSessionLifecycle({
 			mcpHub: this.mcpHub,
@@ -427,14 +441,16 @@ export class Controller {
 			onTurnSettled: (sessionId, outcome) => this.handleTurnSettled(sessionId, outcome),
 		})
 		this.apiRetry = new SdkApiRetryCoordinator({
-			isAutoRetryEnabled: () => !!this.stateManager.getGlobalSettingsKey("autoRetryFailedRequests"),
-			isRetryIndefinite: () => !!this.stateManager.getGlobalSettingsKey("autoRetryIndefinitely"),
 			isSessionActive: (sessionId) => this.sessions.getActiveSession()?.sessionId === sessionId,
 			// The session is idle by the time the timer fires, so the re-drive takes the normal follow-up funnel.
 			sendTurn: (sessionId, isCancelled) => {
 				void this.reDriveAutoRetry(sessionId, isCancelled)
 			},
 			emitRetryScheduled: (info) => this.emitAutoRetryScheduled(info),
+			// The timer fired but the retry was already invalidated (e.g. the task
+			// was cancelled or switched mid-countdown) — restore error recovery if
+			// we still own the phase.
+			onRetryAbandoned: () => this.settleAbandonedRetryPhase(),
 		})
 		this.sessionRebuilds = new SdkSessionRebuildScheduler({ sessions: this.sessions })
 		this.taskHistory = new SdkTaskHistory({
@@ -614,6 +630,9 @@ export class Controller {
 			postStateToWebview: () => this.postStateToWebview(),
 			setTurnPhase: (phase, anchorTs) => this.turnStateTracker.set(phase, anchorTs),
 			getTurnPhase: () => this.turnStateTracker.currentPhase,
+			// Deferred "error"-phase commits when a retry may still claim the failure.
+			// Fold duplicate transient-failure rows into the live recovery countdown block.
+			filterMessagesForRecovery: (messages) => this.filterDuplicateRecoveryErrors(messages),
 			captureProviderApiError: (event) => this.captureProviderFailure(event),
 			beginProviderFailureTelemetryTurn: () => this.beginProviderFailureTelemetryTurn(),
 		})
@@ -878,6 +897,7 @@ export class Controller {
 
 	async dispose(): Promise<void> {
 		this.providerConfigStoreSubscription.dispose()
+		this.sessionEvents.dispose()
 		// Clear the remote config timer to prevent stale fetches
 		if (this.remoteConfigTimer) {
 			clearInterval(this.remoteConfigTimer)
@@ -1370,6 +1390,11 @@ export class Controller {
 
 	async cancelTask(): Promise<void> {
 		this.apiRetry?.cancel()
+		// A cancelled task can have a recovery streak counting down. Settle its
+		// marker now — while this session is still the active one — so the
+		// decorated error block reverts to the plain exclamation glyph instead
+		// of ticking toward a retry that will never fire.
+		this.settleLiveAutoRecoveryMarker()
 		// Fence first: mark resumable before aborting so any straggler events from the aborted
 		// turn land on the wrong side of the UI mode. (Full fence-before-abort epoch bump lands
 		// in S6; this sets the authoritative phase now.)
@@ -1431,6 +1456,9 @@ export class Controller {
 	async clearTask(): Promise<void> {
 		this.pendingClineAuthRetryPrompt = undefined
 		this.apiRetry?.cancel()
+		// Same as cancelTask: settle any live recovery marker while this
+		// session is still the active one, before the task is torn down.
+		this.settleLiveAutoRecoveryMarker()
 		// No active task — UI returns to idle (input enabled, no buttons/thinking).
 		this.turnStateTracker.set("idle")
 		await this.taskControl.clearTask()
@@ -1479,29 +1507,43 @@ export class Controller {
 	}
 
 	/**
-	 * Surfaces a pending auto-retry as a chat message so the user knows a retry is
-	 * scheduled and can cancel it. Called by {@link SdkApiRetryCoordinator}.
+	 * A transient failure's retry was scheduled. The countdown marker is
+	 * created/updated (one per streak) — the webview swaps the first error
+	 * block's glyph for the ring — and the "retrying" phase holds the footer to
+	 * Cancel only.
 	 */
 	private emitAutoRetryScheduled(info: RetryAttemptInfo): void {
-		const sessionId = this.sessions.getActiveSession()?.sessionId
-		if (!sessionId) {
-			return
+		Logger.log(`[ApiRetry] Retry #${info.attempt} scheduled in ${Math.round(info.delaySeconds)}s (Fibonacci backoff)`)
+		// One live marker per streak (updated in place each attempt) decorates
+		// the streak's first error block instead of appending new rows.
+		this.interactions?.beginAutoRecoveryCountdown({
+			kind: "api",
+			delaySeconds: Math.round(info.delaySeconds),
+		})
+		this.turnStateTracker.set("retrying")
+	}
+
+	/**
+	 * While an API auto-retry streak is counting down, the transient failure's
+	 * rows (api_req_started with streamingFailedMessage + the api_req_failed
+	 * ask) would repeat once per failed attempt. The FIRST failure renders
+	 * normally (the streak only activates when its retry is scheduled); later
+	 * ones are folded into the live countdown block's payload instead of
+	 * appending new error rows.
+	 */
+	private filterDuplicateRecoveryErrors(messages: ClineMessage[]): ClineMessage[] {
+		if (!this.interactions?.isAutoRecoveryActive("api")) {
+			return messages
 		}
-		const delaySeconds = Math.round(info.delaySeconds)
-		const delayText = delaySeconds >= 60 ? `${Math.floor(delaySeconds / 60)}m ${delaySeconds % 60}s` : `${delaySeconds}s`
-		const budgetText = info.maxAttempts !== undefined ? ` of ${info.maxAttempts}` : ""
-		this.messages.emitSessionEvents(
-			[
-				{
-					ts: Date.now(),
-					type: "say",
-					say: "text",
-					text: `Auto-retrying in ${delayText} (attempt ${info.attempt}${budgetText})…`,
-					partial: false,
-				},
-			],
-			{ type: "status", payload: { sessionId, status: "running" } },
-		)
+		return messages.filter((message) => {
+			if (message.type === "ask" && message.ask === "api_req_failed") {
+				return false
+			}
+			if (message.type === "say" && message.say === "api_req_started") {
+				return !message.text?.includes('"streamingFailedMessage"')
+			}
+			return true
+		})
 	}
 
 	private emitAgentError(sessionId: string, text: string, status: "running" | "error"): void {
@@ -1512,12 +1554,36 @@ export class Controller {
 	}
 
 	/**
-	 * Cancel a scheduled auto-retry. Called when auto-retry settings change so
-	 * a retry counting down under the previous settings never fires (see
-	 * updateSettings / updateSettingsCli).
+	 * An auto-retry streak was abandoned without sending (task cancelled or
+	 * session replaced, stray timer). If the displayed task still sits in the
+	 * "retrying" phase, restore error recovery so the footer cannot hang on a
+	 * Cancel-only state with no retry in flight.
 	 */
-	cancelScheduledAutoRetry(): void {
-		this.apiRetry?.cancel()
+	/**
+	 * Settle any tracked auto-recovery marker row (countdown/retrying →
+	 * settled). A no-op when no streak is live. Called on every path that
+	 * definitively ends a streak without a successful attempt — task cancelled
+	 * or cleared, permanent turn failure, abandoned retry — so the decorated
+	 * error block always reverts to its plain exclamation glyph when no
+	 * recovery action is actually happening.
+	 */
+	private settleLiveAutoRecoveryMarker(): void {
+		this.interactions?.settleAutoRecovery()
+	}
+
+	private settleAbandonedRetryPhase(): void {
+		if (this.turnStateTracker.currentPhase !== "retrying") {
+			return
+		}
+		const sessionId = this.sessions.getActiveSession()?.sessionId
+		if (!sessionId || this.task?.taskId !== sessionId) {
+			return
+		}
+		// The abandoned streak's marker settles with the phase: no ring/spinner
+		// may outlive the retry that was never sent.
+		this.settleLiveAutoRecoveryMarker()
+		this.turnStateTracker.set("error")
+		this.postStateToWebview().catch(() => {})
 	}
 
 	/** Apply a turn's terminal outcome (see SdkTurnOutcome); retry policy is applied here and only here. */
@@ -1526,6 +1592,13 @@ export class Controller {
 			// Normal flows close their diff sessions inline; anything left here is orphaned.
 			void this.diffEdits.discardAllPreviews("turn complete")
 			this.apiRetry?.reset()
+			// A productive turn broke the mistake-recovery streak…
+			this.interactions?.resetMistakeEscalation()
+			// …and ended any API auto-retry streak — the marker settles and the
+			// decorated error block reverts to its plain glyph.
+			if (this.interactions?.isAutoRecoveryActive("api")) {
+				this.interactions.settleAutoRecovery()
+			}
 			this.postStateToWebview().catch((err) => {
 				Logger.error("[SdkController] Failed to post state after turn:", err)
 			})
@@ -1571,19 +1644,33 @@ export class Controller {
 				failurePhase: PROVIDER_FAILURE_PHASE.STREAMING,
 			})
 			const classification = this.classifyAutoRetryFailure(outcome)
+			// The failure row MUST land before the retry marker: the webview
+			// binds the marker to the nearest PRECEDING error block
+			// (findActiveRecoveryDecoration), so a marker emitted first would
+			// reach back to a previous streak's error — decorating (and
+			// hold-truncating the chat at) ancient history. (Status is derived
+			// from the classification; in the rare retryable-but-refused race
+			// the phase settle below corrects the UI in the same state post.)
+			this.emitAgentError(sessionId, `Agent error: ${errorMessage}`, classification.retryable ? "running" : "error")
 			const willAutoRetry = classification.retryable
 				? (this.apiRetry?.handleSendError(outcome.error, sessionId, classification.retryAfterSeconds) ?? false)
 				: false
 			if (!willAutoRetry) {
+				// A permanent failure (or dead session) ends any live streak:
+				// settle the marker so its block reverts to the plain glyph.
+				this.settleLiveAutoRecoveryMarker()
 				// Without a retry the phase settles here; with one, the re-drive owns it.
 				this.turnStateTracker.set("error")
 			}
-			this.emitAgentError(sessionId, `Agent error: ${errorMessage}`, willAutoRetry ? "running" : "error")
 		} else {
 			// Already rendered and captured; only the retry policy applies.
 			const classification = this.classifyAutoRetryFailure(outcome)
 			if (classification.retryable) {
 				this.apiRetry?.handleSendError(outcome.error, sessionId, classification.retryAfterSeconds)
+			} else {
+				// A permanent event-delivered failure (e.g. the retried attempt
+				// hit an auth error) ends any live streak: settle the marker.
+				this.settleLiveAutoRecoveryMarker()
 			}
 		}
 		this.postStateToWebview().catch(() => {})
@@ -1600,20 +1687,25 @@ export class Controller {
 		try {
 			if (isCancelled()) {
 				Logger.log(`[ApiRetry] Retry for session ${sessionId} cancelled; abandoning auto-retry`)
+				this.settleAbandonedRetryPhase()
 				return
 			}
 			const activeSession = this.sessions.getActiveSession()
 			if (!activeSession || activeSession.sessionId !== sessionId || activeSession.isRunning) {
 				Logger.log(`[ApiRetry] Session ${sessionId} is not an idle active session; abandoning auto-retry`)
+				this.settleAbandonedRetryPhase()
 				return
 			}
 			if (this.task?.taskId !== sessionId) {
 				Logger.log(`[ApiRetry] Displayed task no longer matches session ${sessionId}; abandoning auto-retry`)
+				this.settleAbandonedRetryPhase()
 				return
 			}
 
 			// Mirror askResponse()'s pre-set so the footer flips to Thinking + Cancel.
 			this.turnStateTracker.set("streaming")
+			// The countdown block flips from its ring to "Retrying…" for the re-drive.
+			this.interactions?.markAutoRecoveryRetrying()
 			this.messageTranslatorState.clearTurnOutcome()
 			this.postStateToWebview().catch((err) => {
 				Logger.error("[SdkController] Failed to post state before auto-retry re-drive:", err)
@@ -1637,16 +1729,14 @@ export class Controller {
 	}
 
 	/**
-	 * Retry policy for a failed turn: the setting gates, then only typed
-	 * transient signals (transport errors, 408/429/appropriate 5xx, or the AI
-	 * SDK's retryable flag — see sdk-retry-classification) may mark it
-	 * retryable. Anything unmatched — unfamiliar 4xx, auth, billing, provider
-	 * errors — is permanent.
+	 * Retry policy for a failed turn: the default is retryable — any externally caused failure (network/DNS outages, provider
+	 * downtime, novel provider errors, even flattened to text by the provider)
+	 * rides the unlimited Fibonacci schedule. Only proven user-action causes
+	 * are permanent: typed auth/context-window classes, aborts, definitive
+	 * non-retryable HTTP statuses, and flattened credential/billing/overflow
+	 * signatures (see sdk-retry-classification).
 	 */
 	private classifyAutoRetryFailure(failure: TurnFailure): RetryClassification {
-		if (!this.stateManager.getGlobalSettingsKey("autoRetryFailedRequests")) {
-			return { retryable: false }
-		}
 		return classifyFailureForRetry(failure)
 	}
 

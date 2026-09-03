@@ -56,12 +56,6 @@ export async function updateSettingsCli(controller: Controller, request: UpdateS
 
 		controller.stateManager.setGlobalStateBatch(filteredSettings)
 
-		// Auto-retry settings changes must cancel a retry already scheduled
-		// under the previous settings (the batch above just wrote the values).
-		if (filteredSettings.autoRetryFailedRequests !== undefined || filteredSettings.autoRetryIndefinitely !== undefined) {
-			controller.cancelScheduledAutoRetry()
-		}
-
 		Logger.log("autoApprovalSettings", controller.stateManager.getGlobalSettingsKey("autoApprovalSettings"))
 
 		// Handle fields requiring type conversion from generated protobuf types to application types

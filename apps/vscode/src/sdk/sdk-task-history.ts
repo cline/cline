@@ -72,6 +72,39 @@ function dateStringToTimestamp(value: string | null | undefined): number {
 	return Number.isFinite(timestamp) ? timestamp : 0
 }
 
+/** Metadata key holding durable display-only error rows (see recordTaskNotice). */
+const TASK_NOTICES_METADATA_KEY = "taskNotices"
+
+/** Upper bound on persisted notices per session record. */
+const MAX_TASK_NOTICES = 20
+
+interface PersistedTaskNotice {
+	ts: number
+	text: string
+}
+
+/**
+ * Parse-and-validate boundary for metadata-stored notices. Metadata is
+ * untrusted persisted JSON, so every entry is checked before use.
+ */
+function readPersistedTaskNotices(metadata: SessionHistoryRecord["metadata"] | undefined): PersistedTaskNotice[] {
+	const raw = metadata?.[TASK_NOTICES_METADATA_KEY]
+	if (!Array.isArray(raw)) {
+		return []
+	}
+	const notices: PersistedTaskNotice[] = []
+	for (const entry of raw) {
+		if (typeof entry !== "object" || entry === null) {
+			continue
+		}
+		const { ts, text } = entry as { ts: unknown; text: unknown }
+		if (typeof ts === "number" && Number.isFinite(ts) && typeof text === "string" && text.trim().length > 0) {
+			notices.push({ ts, text })
+		}
+	}
+	return notices
+}
+
 /**
  * Sort comparator for session history records by recency: newest first.
  *
@@ -449,6 +482,29 @@ export class SdkTaskHistory {
 		return this.withHistoryHost((host) => host.get(taskId) as Promise<SessionHistoryRecord | undefined>)
 	}
 
+	/**
+	 * Persist a display-only error row (e.g. the terminal mistake-limit stop)
+	 * in the session record's metadata so history rendering can re-append it —
+	 * the SDK transcript only carries conversation messages, so live-only rows
+	 * would otherwise vanish on restart. Bounded to the most recent notices.
+	 */
+	async recordTaskNotice(taskId: string, notice: { ts: number; text: string }): Promise<void> {
+		const record = await this.getSdkRecord(taskId)
+		if (!record) {
+			return
+		}
+		const notices = [...readPersistedTaskNotices(record.metadata), { ...notice }].slice(-MAX_TASK_NOTICES)
+		await this.withHistoryHost((host) =>
+			host.update(taskId, {
+				metadata: {
+					...(record.metadata ?? {}),
+					[TASK_NOTICES_METADATA_KEY]: notices,
+				},
+			}),
+		)
+		this.invalidateMetadataHistoryCache()
+	}
+
 	async getClineMessages(taskId: string): Promise<ClineMessage[]> {
 		const sdkRecord = await this.getSdkRecord(taskId)
 		const legacyTask = this.findLegacyTask(taskId)
@@ -476,6 +532,18 @@ export class SdkTaskHistory {
 				cwd: sdkRecord?.cwd || sdkRecord?.workspaceRoot || undefined,
 			},
 		)
+		// Re-append durable display-only error rows (e.g. the terminal
+		// mistake-limit stop): the transcript only carries conversation
+		// messages, so live-only rows would otherwise vanish on restart.
+		for (const notice of readPersistedTaskNotices(sdkRecord?.metadata)) {
+			clineMessages.push({
+				ts: notice.ts,
+				type: "say",
+				say: "error",
+				text: notice.text,
+				partial: false,
+			})
+		}
 		if (sdkRecord && legacyTask) {
 			return mergeLegacyUiMessagesWithResumedSdkMessages(readUiMessages(taskId, legacyTask.dataDir), clineMessages)
 		}

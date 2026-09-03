@@ -314,8 +314,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		lastDismissedCliBannerVersion: 0,
 		backgroundEditEnabled: false,
 		showFeatureTips: false,
-		autoRetryFailedRequests: true,
-		autoRetryIndefinitely: false,
 		globalSkillsToggles: {},
 		localSkillsToggles: {},
 

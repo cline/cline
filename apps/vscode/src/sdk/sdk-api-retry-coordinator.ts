@@ -2,30 +2,17 @@ import { Logger } from "@/shared/services/Logger"
 
 export const MAX_RETRY_DELAY_SECONDS = 300
 
-/** Base delay for the exponential backoff (attempt 1 waits up to 1s). */
-export const BASE_RETRY_DELAY_SECONDS = 1
-
-/**
- * Default budget: retries a failure streak may consume before recovery is left
- * to the user (Retry button). Retried requests spend billable tokens even when
- * the response is lost, so the default is bounded; unattended tasks lift the
- * ceiling via the `autoRetryIndefinitely` setting.
- */
-export const DEFAULT_MAX_RETRY_ATTEMPTS = 5
+/** First delay of the Fibonacci retry schedule, in seconds (3, 5, 8, 13, 21, …). */
+export const FIRST_RETRY_DELAY_SECONDS = 3
 
 export interface RetryAttemptInfo {
 	readonly attempt: number
-	/** Delay actually scheduled, after jitter and Retry-After. */
+	/** Delay actually scheduled (Fibonacci schedule, or the provider's Retry-After). */
 	readonly delaySeconds: number
-	/** Total retries allowed for this streak; undefined when unlimited. */
-	readonly maxAttempts: number | undefined
 	readonly error: unknown
 }
 
 export interface SdkApiRetryCoordinatorOptions {
-	isAutoRetryEnabled: () => boolean
-	/** Whether the failure streak has no attempt ceiling (explicit opt-in). */
-	isRetryIndefinite: () => boolean
 	isSessionActive: (sessionId: string) => boolean
 	/** Re-drive the failed session; the guard is live across the re-drive's awaits. */
 	sendTurn: (sessionId: string, isCancelled: () => boolean) => void
@@ -33,22 +20,32 @@ export interface SdkApiRetryCoordinatorOptions {
 	onRetryAbandoned?: () => void
 	scheduleTimer?: (fn: () => void, delayMs: number) => ReturnType<typeof setTimeout>
 	cancelTimer?: (handle: ReturnType<typeof setTimeout>) => void
-	/** Random source for backoff jitter; injectable for tests. */
-	random?: () => number
-}
-
-/** Exponential backoff schedule for an attempt (1-indexed), capped. */
-export function getExponentialBackoffSeconds(attempt: number, maxSeconds: number = MAX_RETRY_DELAY_SECONDS): number {
-	if (!Number.isInteger(attempt) || attempt < 1) {
-		return 0
-	}
-	return Math.min(maxSeconds, BASE_RETRY_DELAY_SECONDS * 2 ** (attempt - 1))
 }
 
 /**
- * Schedules retries for transiently failed agent turns: bounded attempt budget
- * (DEFAULT_MAX_RETRY_ATTEMPTS, lifted by the `autoRetryIndefinitely` opt-in),
- * exponential backoff with equal jitter, and `Retry-After` honored when sent.
+ * Fibonacci retry schedule for an attempt (1-indexed): 3, 5, 8, 13, 21, … capped
+ * at `maxSeconds`. Each delay is the sum of the two before it, so early retries
+ * land fast while a persistent outage backs off gently and without a retry limit.
+ */
+export function getFibonacciRetryDelaySeconds(attempt: number, maxSeconds: number = MAX_RETRY_DELAY_SECONDS): number {
+	if (!Number.isInteger(attempt) || attempt < 1) {
+		return 0
+	}
+	let prev = FIRST_RETRY_DELAY_SECONDS // attempt 1
+	let current = FIRST_RETRY_DELAY_SECONDS + 2 // attempt 2 (5)
+	for (let i = 2; i < attempt; i++) {
+		const next = prev + current
+		prev = current
+		current = next
+	}
+	return Math.min(maxSeconds, attempt === 1 ? prev : current)
+}
+
+/**
+ * Schedules retries for transiently failed agent turns: unlimited attempts on a
+ * deterministic Fibonacci backoff (3, 5, 8, 13, 21, … capped at
+ * MAX_RETRY_DELAY_SECONDS), with `Retry-After` honored when sent. Recovery is
+ * left to the user (Retry button) only when a failure is not retryable.
  *
  * Cancellation is definitive — a generation counter invalidates scheduled
  * timers and in-flight re-drives alike, even between awaits.
@@ -59,12 +56,10 @@ export class SdkApiRetryCoordinator {
 	private pendingTimer: ReturnType<typeof setTimeout> | undefined
 	private readonly scheduleTimer: (fn: () => void, delayMs: number) => ReturnType<typeof setTimeout>
 	private readonly cancelTimer: (handle: ReturnType<typeof setTimeout>) => void
-	private readonly random: () => number
 
 	constructor(private readonly options: SdkApiRetryCoordinatorOptions) {
 		this.scheduleTimer = options.scheduleTimer ?? ((fn, delayMs) => setTimeout(fn, delayMs))
 		this.cancelTimer = options.cancelTimer ?? ((handle) => clearTimeout(handle))
-		this.random = options.random ?? Math.random
 	}
 
 	/** How many retries have been scheduled for the current failure streak. */
@@ -78,22 +73,14 @@ export class SdkApiRetryCoordinator {
 
 	handleSendError(error: unknown, sessionId: string, retryAfterSeconds?: number): boolean {
 		this.clearPending()
-		if (!this.options.isAutoRetryEnabled() || !this.options.isSessionActive(sessionId)) {
+		if (!this.options.isSessionActive(sessionId)) {
 			return false
 		}
 		const attempt = ++this.retryCount
-		const maxAttempts = this.options.isRetryIndefinite() ? undefined : DEFAULT_MAX_RETRY_ATTEMPTS
-		if (attempt > (maxAttempts ?? Infinity)) {
-			Logger.log(
-				`[ApiRetry] Retry budget exhausted after ${maxAttempts} attempts for session ${sessionId}; leaving recovery to the user`,
-			)
-			this.retryCount = 0
-			return false
-		}
 		// Retry-After replaces the backoff: the provider explicitly cleared that
-		// wait (already clamped by the classifier), so it is used unjittered.
-		const delaySeconds = retryAfterSeconds ?? this.jitterDelaySeconds(getExponentialBackoffSeconds(attempt))
-		this.options.emitRetryScheduled({ attempt, delaySeconds, maxAttempts, error })
+		// wait (already clamped by the classifier), so it is used as-is.
+		const delaySeconds = retryAfterSeconds ?? getFibonacciRetryDelaySeconds(attempt)
+		this.options.emitRetryScheduled({ attempt, delaySeconds, error })
 
 		this.generation += 1
 		const scheduledGeneration = this.generation
@@ -101,8 +88,8 @@ export class SdkApiRetryCoordinator {
 		const isCancelled = () => this.generation !== scheduledGeneration || !this.options.isSessionActive(sessionId)
 		this.pendingTimer = this.scheduleTimer(() => {
 			this.pendingTimer = undefined
-			if (!this.options.isAutoRetryEnabled() || isCancelled()) {
-				Logger.log(`[ApiRetry] Abandoning retry #${attempt} for session ${sessionId}: cancelled or disabled`)
+			if (isCancelled()) {
+				Logger.log(`[ApiRetry] Abandoning retry #${attempt} for session ${sessionId}: cancelled`)
 				this.options.onRetryAbandoned?.()
 				return
 			}
@@ -129,11 +116,5 @@ export class SdkApiRetryCoordinator {
 			this.cancelTimer(this.pendingTimer)
 			this.pendingTimer = undefined
 		}
-	}
-
-	/** Equal jitter: half the schedule deterministically, half random. */
-	private jitterDelaySeconds(delaySeconds: number): number {
-		const half = delaySeconds / 2
-		return half + this.random() * half
 	}
 }

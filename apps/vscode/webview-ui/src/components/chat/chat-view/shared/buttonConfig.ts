@@ -1,5 +1,6 @@
 import type { ClineMessage, ClineSayTool, TurnState } from "@shared/ExtensionMessage"
 import type { Mode } from "@shared/storage/types"
+import { findActiveRecoveryDecoration } from "../utils/messageUtils"
 
 /**
  * Button action types that determine the behavior
@@ -181,6 +182,16 @@ export const BUTTON_CONFIGS: Record<string, ButtonConfig> = {
 
 	// Streaming/partial states - disable interaction during streaming
 	partial: {
+		sendingDisabled: true,
+		enableButtons: true,
+		primaryText: undefined,
+		secondaryText: "Cancel",
+		primaryAction: undefined,
+		secondaryAction: "cancel",
+	},
+	// A transient failure is counting down to its automatic retry — the only
+	// action is Cancel; recovery buttons appear only if the streak is abandoned.
+	auto_retrying: {
 		sendingDisabled: true,
 		enableButtons: true,
 		primaryText: undefined,
@@ -371,6 +382,7 @@ export function buttonsForPhase(
 	turnState: TurnState,
 	anchoredMessage: ClineMessage | undefined,
 	foregroundCommandRunning = false,
+	autoRecoveryLive = false,
 ): ButtonConfig {
 	switch (turnState.phase) {
 		case "idle":
@@ -382,9 +394,26 @@ export function buttonsForPhase(
 			return foregroundCommandRunning ? BUTTON_CONFIGS.foreground_command_running : BUTTON_CONFIGS.partial
 		case "completed":
 			return BUTTON_CONFIGS.completion_result
+		case "retrying":
+			// A transient failure is counting down to its automatic retry. The only
+			// user action is Cancel; Retry/Start New Task appear only if the streak
+			// is abandoned (phase flips back to "error").
+			return BUTTON_CONFIGS.auto_retrying
 		case "resumable":
 			return BUTTON_CONFIGS.resume_task
 		case "error":
+			// A live auto-recovery streak holds the turn: each per-attempt
+			// failure flips the phase to "error" for a beat before the next
+			// countdown re-holds it as "retrying". Surfacing Retry/Start New
+			// Task for that beat makes the footer blink between button sets,
+			// so while the live marker exists the footer keeps the stable
+			// Cancel-only config. When the streak gives up the coordinator
+			// settles the marker BEFORE the phase change surfaces here, so
+			// the genuine recovery buttons still appear — exactly once,
+			// stable.
+			if (autoRecoveryLive) {
+				return BUTTON_CONFIGS.auto_retrying
+			}
 			// The anchored message distinguishes mistake_limit (Proceed/New Task) from a failed
 			// API request (Retry/New Task). Default to the retry config.
 			if (anchoredMessage?.type === "ask" && anchoredMessage.ask === "mistake_limit_reached") {
@@ -416,7 +445,15 @@ export function getButtonConfigFromState(
 ): ButtonConfig {
 	if (turnState) {
 		const anchored = turnState.anchorTs !== undefined ? messages.find((m) => m.ts === turnState.anchorTs) : undefined
-		return buttonsForPhase(turnState, anchored, foregroundCommandRunning)
+		// A live auto-recovery marker means the streak is still being retried:
+		// transient per-attempt phase blinks must not change the footer buttons.
+		// Deliberately NOT phase-gated (unlike the glyph decoration in ChatView):
+		// mid-streak the phase blinks to "error" between attempts and the footer
+		// must stay Cancel-only through it — the backend settles the marker
+		// BEFORE the phase change whenever a streak genuinely dies, so a live
+		// marker here always means "still being retried".
+		const autoRecoveryLive = findActiveRecoveryDecoration(messages) !== undefined
+		return buttonsForPhase(turnState, anchored, foregroundCommandRunning, autoRecoveryLive)
 	}
 	return getButtonConfigForMessages(messages, mode)
 }
