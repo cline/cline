@@ -11,6 +11,7 @@
 	},
 	"include": [
 		"src/index.ts",
+		"src/frames.ts",
 		"src/hub/index.ts",
 		"src/hub/daemon/entry.ts",
 		"src/services/telemetry/index.ts",

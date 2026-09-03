@@ -556,14 +556,38 @@ the process console, never the protocol stream. **Scope correction**:
 moved to 3c — both are VSCode host wiring that would be dead code
 until the translator consumes frames.
 
-**Phase 3c — VSCode wiring and translator.** Port message-translator
-onto the assembler. MessageTranslatorState's parser fields delete;
-ClineMessage mapping remains as sink implementations; sub-agent
-suppression (P5's heuristic) becomes `onSubAgent → null` plus a
-SubagentStatusRow consumer. Also the host wiring moved from 3b: the
-epoch fence from SdkController into the producer envelope
-(`RuntimeFrameAdapter.bumpEpoch` at cancel/reinit boundaries), and
-`SdkSessionRebuildScheduler` onto the assembler's `onIdle`.
+**Phase 3c — VSCode wiring and translator (split during execution
+into wiring and translator-sinks PRs).**
+
+**Phase 3c part 1 status: implemented (producer envelope wiring).**
+`apps/vscode/src/sdk/sdk-frame-stream.ts` is the host's frame tap: a
+`SessionFramer` whose (epoch, seq) authority IS the existing
+`MessageIdMinter` — frames sample the same counter that stamps
+ClineMessage ids, so one total order covers both (the minter's
+documented rationale, extended to frames). SdkController feeds every
+CoreSessionEvent through it (dual-run, parallel to the v1 coordinator),
+and both fence sites (`resetMessageTranslatorAndFence`,
+`raiseCancelFence`) call `fenceAndFlush()` before the minter bump —
+the epoch fence now lives in the envelope (P4): open scopes close at
+the current epoch, and any later straggler frame is stale for every
+frame consumer. The assembler's consumer is a stream-health monitor
+(verification gate 4): legal streams are silent; repairs are logged
+and retained for debugging. A health monitor must OBSERVE sub-agents,
+not prune them — its `onSubAgent` returns a consumer, unlike
+rendering consumers. Enabling plumbing: `@cline/core` gains a pure
+`./frames` subpath export (assembler + projector, mirroring
+`@cline/shared/storage`) so the vscode test harness can alias around
+the heavy main index. **Deferred with rationale:** the rebuild
+scheduler's `onIdle` port — session-lifecycle `isRunning` encodes
+pending-prompt delivery windows (`pending_prompt_submitted` sets
+running BEFORE any turn frames exist), so the assembler's idle edge
+would fire between queued turns and let the scheduler rebuild
+mid-delivery; blocked until pending-prompts become frames (Phase 3d's
+scope). **Remaining (part 2):** the translator sinks port —
+MessageTranslatorState's parser fields delete, ClineMessage mapping
+becomes sink implementations, sub-agent suppression (P5's heuristic)
+becomes `onSubAgent → null` plus a SubagentStatusRow consumer, and
+the health monitor is replaced by the real sinks.
 
 **Phase 3d — history replay and reconnect.** Snapshot reconciliation
 in the assembler (diff against the live set), live-after-history dedup
@@ -639,11 +663,12 @@ revertable without reverting its ancestors' behavior changes:
 | 3 | `dpc/event-stream-phase2` | Assembler (`@cline/core`), CLI terminal port, differential replay harness. (ACP port moved to PR 5, Phase 3b.) | 2 |
 | 4 | `dpc/event-stream-demux` | Phase 3a: multiplexed framing (SessionFramer, shared sequencer), address-keyed validator, tree-aware assembler with `onSubAgent` pruning, session-event projector. | 3 |
 | 5 | `dpc/event-stream-phase3b` | Phase 3b: ACP port (second frame consumer, differential-tested). | 4 |
-| 6 | `dpc/event-stream-phase3c` | Phase 3c: VSCode translator sinks, epoch fence into producer, rebuild scheduler on `onIdle`; P5 heuristic becomes `onSubAgent → null`. | 5 |
-| 7 | `dpc/event-stream-phase3d` | Phase 3d: history replay/reconnect, snapshot reconciliation. | 6 |
-| 8 | `dpc/event-stream-phase4a` | Desktop sidecar forwards frames verbatim (v1 re-encoding deletes). | 7 |
-| 9 | `dpc/event-stream-phase4b` | Desktop webview sinks (`use-chat-session`). | 8 |
-| 10 | `dpc/event-stream-phase5` | CI ratchet + deletion of superseded v1 consumer paths and the v1 reference renderer. | 9 |
+| 6 | `dpc/event-stream-phase3c-wiring` | Phase 3c part 1: producer envelope in SdkController — minter-backed frame stream, fence in the envelope, health monitor; `@cline/core/frames` subpath. | 5 |
+| 7 | `dpc/event-stream-phase3c-sinks` | Phase 3c part 2: VSCode translator sinks; P5 heuristic becomes `onSubAgent → null`; health monitor replaced by ClineMessage sinks. | 6 |
+| 8 | `dpc/event-stream-phase3d` | Phase 3d: history replay/reconnect, snapshot reconciliation. | 7 |
+| 9 | `dpc/event-stream-phase4a` | Desktop sidecar forwards frames verbatim (v1 re-encoding deletes). | 8 |
+| 10 | `dpc/event-stream-phase4b` | Desktop webview sinks (`use-chat-session`). | 9 |
+| 11 | `dpc/event-stream-phase5` | CI ratchet + deletion of superseded v1 consumer paths and the v1 reference renderer. | 10 |
 
 Review stays manageable because PR 1 is additive-only (this PR), PRs 2-3
 are producer/plumbing with property tests doing the checking, and the
