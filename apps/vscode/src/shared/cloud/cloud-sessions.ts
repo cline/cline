@@ -56,7 +56,10 @@ export function formatRepoLabel(repoUrl: string | undefined): string {
 }
 
 function trimGitSuffix(path: string): string {
-	return path.replace(/^\/+/, "").replace(/\/+$/, "").replace(/\.git$/i, "")
+	return path
+		.replace(/^\/+/, "")
+		.replace(/\/+$/, "")
+		.replace(/\.git$/i, "")
 }
 
 /**
