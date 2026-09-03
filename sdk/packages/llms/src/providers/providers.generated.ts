@@ -445,7 +445,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning"],
 		modelsProviderId: "cerebras",
-		defaultModelId: "gemma-4-31b",
+		defaultModelId: "qwen-3.8-27b",
 		apiKeyEnv: ["CEREBRAS_API_KEY"],
 		docsUrl: "https://inference-docs.cerebras.ai/models/overview",
 	},
