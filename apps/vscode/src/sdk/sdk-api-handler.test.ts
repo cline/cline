@@ -104,6 +104,42 @@ describe("buildSdkProviderConfig", () => {
 		})
 	})
 
+	it("forwards the configured Claude Code executable to standalone handlers", () => {
+		mocks.providerSettingsManager.getProviderSettings.mockReturnValue(undefined)
+
+		const providerConfig = buildSdkProviderConfig(
+			{
+				actModeApiProvider: "claude-code",
+				actModeApiModelId: "sonnet",
+				claudeCodePath: "  /opt/homebrew/bin/claude  ",
+			},
+			"act",
+		)
+
+		expect(providerConfig).toMatchObject({
+			providerId: "claude-code",
+			claudeCode: {
+				defaultSettings: { pathToClaudeCodeExecutable: "/opt/homebrew/bin/claude" },
+			},
+		})
+	})
+
+	it("omits the Claude Code override when no executable is configured", () => {
+		mocks.providerSettingsManager.getProviderSettings.mockReturnValue(undefined)
+
+		const providerConfig = buildSdkProviderConfig(
+			{
+				actModeApiProvider: "claude-code",
+				actModeApiModelId: "sonnet",
+			},
+			"act",
+		)
+
+		expect(providerConfig.providerId).toBe("claude-code")
+		// The provider's own bundled-binary/PATH resolution must stay in charge.
+		expect("claudeCode" in providerConfig).toBe(false)
+	})
+
 	it("omits timeoutMs for Ollama when no explicit timeout is configured", () => {
 		mocks.providerSettingsManager.getProviderSettings.mockReturnValue(undefined)
 
