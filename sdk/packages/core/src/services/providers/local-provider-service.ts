@@ -9,7 +9,6 @@ import {
 	type MediaGenerationSettings,
 	type MediaGenerationType,
 	type MediaModelSelection,
-	modelProducesImages,
 	type ProviderCapability,
 	type ProviderCatalogResponse,
 	type ProviderConfigField,
@@ -104,7 +103,7 @@ export interface CreateConfiguredStreamingTranscriptionSessionRequest {
 }
 
 export interface GenerateConfiguredMediaRequest {
-	mediaType: "image";
+	mediaType: MediaGenerationType;
 	prompt: string;
 	abortSignal?: AbortSignal;
 }
@@ -115,7 +114,7 @@ export interface GenerateConfiguredMediaResult {
 }
 
 export interface ResolvedMediaGenerationTarget {
-	mediaType: "image";
+	mediaType: MediaGenerationType;
 	selection: MediaModelSelection;
 	providerConfig: ProviderConfig;
 	model: ModelInfo;
@@ -173,22 +172,56 @@ export function isDedicatedTranscriptionModel(
 	return model.operation === "transcription";
 }
 
+interface MediaGenerationModalityRule {
+	/** Non-language operation that executes this media type directly. */
+	dedicatedOperation:
+		| "image-generation"
+		| "speech-generation"
+		| "video-generation";
+	/** Output modality a mixed language model must advertise. */
+	outputModality: "image" | "audio" | "video";
+}
+
+const MEDIA_GENERATION_LABELS: Record<MediaGenerationType, string> = {
+	image: "Image",
+	audio: "Audio",
+	video: "Video",
+};
+
+const MEDIA_GENERATION_MODALITY_RULES: Record<
+	MediaGenerationType,
+	MediaGenerationModalityRule
+> = {
+	image: { dedicatedOperation: "image-generation", outputModality: "image" },
+	audio: { dedicatedOperation: "speech-generation", outputModality: "audio" },
+	video: { dedicatedOperation: "video-generation", outputModality: "video" },
+};
+
 /**
- * Whether a catalog model is image-generation eligible and has an executable
- * provider operation. Explicit image-generation models remain eligible when
- * external modality metadata is stale; mixed language models must advertise
- * text input and image output. The transport check deliberately fails closed
- * for providers without a matching image-capable operation.
+ * Whether a catalog model can generate the requested media type and has an
+ * executable provider operation. Explicit dedicated-generation models remain
+ * eligible when external modality metadata is stale; mixed language models
+ * must advertise text input and the matching output modality. The transport
+ * check deliberately fails closed for providers without a matching
+ * media-capable operation.
  */
-export function isUsableImageGenerationModel(
+export function isUsableMediaGenerationModel(
+	mediaType: MediaGenerationType,
 	providerId: string,
 	model: ModelInfo,
 ): boolean {
+	const rule = MEDIA_GENERATION_MODALITY_RULES[mediaType];
 	const operation = model.operation ?? "language";
-	if (operation !== "language" && operation !== "image-generation") {
+	if (operation !== "language" && operation !== rule.dedicatedOperation) {
 		return false;
 	}
-	if (operation !== "image-generation" && !modelProducesImages(model)) {
+	if (
+		operation !== rule.dedicatedOperation &&
+		!(
+			model.modalities?.input.includes("text") === true &&
+			model.modalities.output.includes(rule.outputModality)
+		)
+	) {
 		return false;
 	}
 	const family = model.metadata?.family;
@@ -201,6 +234,13 @@ export function isUsableImageGenerationModel(
 		family: typeof family === "string" ? family : undefined,
 		capabilities: model.capabilities,
 	});
+}
+
+export function isUsableImageGenerationModel(
+	providerId: string,
+	model: ModelInfo,
+): boolean {
+	return isUsableMediaGenerationModel("image", providerId, model);
 }
 
 function toSortedProviderModels(
@@ -257,7 +297,6 @@ async function resolveMediaGenerationSelection(
 	mediaType: MediaGenerationType,
 	selection: MediaModelSelection | undefined,
 ): Promise<ResolvedMediaGenerationTarget | undefined> {
-	if (mediaType !== "image") return undefined;
 	if (!selection) return undefined;
 
 	const providerId = selection.providerId.trim();
@@ -274,7 +313,7 @@ async function resolveMediaGenerationSelection(
 
 		const modelMap = await resolveProviderModelMap(providerId, config);
 		const model = modelMap[modelId];
-		if (!model || !isUsableImageGenerationModel(providerId, model)) {
+		if (!model || !isUsableMediaGenerationModel(mediaType, providerId, model)) {
 			return undefined;
 		}
 
@@ -972,21 +1011,23 @@ export async function listLocalProviders(
 			(provider) => provider.id !== CLINE_PASS_PROVIDER_ID,
 		);
 	}
-	const imageModelsByProvider: Record<string, string[]> = {};
-	for (const provider of providers) {
-		const modelMap = providerEntries.find(
-			(entry) => entry.provider.id === provider.id,
-		)?.modelMap;
-		imageModelsByProvider[provider.id] = Object.entries(modelMap ?? {})
-			.filter(([, model]) => isUsableImageGenerationModel(provider.id, model))
-			.map(([modelId]) => modelId)
-			.sort((a, b) => a.localeCompare(b));
-	}
-	const mediaGenerationModels: MediaGenerationModelCatalog = {
-		audio: {},
-		image: imageModelsByProvider,
-		video: {},
-	};
+	const mediaGenerationModels = Object.fromEntries(
+		MEDIA_GENERATION_TYPES.map((mediaType) => {
+			const modelsByProvider: Record<string, string[]> = {};
+			for (const provider of providers) {
+				const modelMap = providerEntries.find(
+					(entry) => entry.provider.id === provider.id,
+				)?.modelMap;
+				modelsByProvider[provider.id] = Object.entries(modelMap ?? {})
+					.filter(([, model]) =>
+						isUsableMediaGenerationModel(mediaType, provider.id, model),
+					)
+					.map(([modelId]) => modelId)
+					.sort((a, b) => a.localeCompare(b));
+			}
+			return [mediaType, modelsByProvider];
+		}),
+	) as MediaGenerationModelCatalog;
 
 	const configuredVoiceInput = manager.getVoiceInputSettings();
 	const voiceProvider = configuredVoiceInput
@@ -1002,20 +1043,28 @@ export async function listLocalProviders(
 	);
 	const voiceInput =
 		configuredVoiceInput && voiceModel ? configuredVoiceInput : undefined;
-	const resolvedImageTarget = await resolveConfiguredMediaGenerationTarget(
-		manager,
-		"image",
-	);
-	const imageProvider = resolvedImageTarget
-		? providers.find(
-				(provider) =>
-					provider.id === resolvedImageTarget.selection.providerId &&
-					provider.enabled,
-			)
-		: undefined;
+	const mediaGenerationEntries = (
+		await Promise.all(
+			MEDIA_GENERATION_TYPES.map(async (mediaType) => {
+				const target = await resolveConfiguredMediaGenerationTarget(
+					manager,
+					mediaType,
+				);
+				const targetProvider = target
+					? providers.find(
+							(provider) =>
+								provider.id === target.selection.providerId && provider.enabled,
+						)
+					: undefined;
+				return target && targetProvider
+					? ([mediaType, target.selection] as const)
+					: undefined;
+			}),
+		)
+	).filter((entry) => entry !== undefined);
 	const mediaGeneration =
-		resolvedImageTarget && imageProvider
-			? { image: resolvedImageTarget.selection }
+		mediaGenerationEntries.length > 0
+			? (Object.fromEntries(mediaGenerationEntries) as MediaGenerationSettings)
 			: undefined;
 
 	return {
@@ -1129,12 +1178,6 @@ export async function saveMediaGenerationSettings(
 	settingsPath: string;
 	mediaGeneration?: MediaGenerationSettings;
 }> {
-	if (mediaType !== "image") {
-		throw new Error(
-			`Media generation type "${mediaType}" is not supported yet`,
-		);
-	}
-
 	const current = { ...manager.getMediaGenerationSettings() };
 	if (!selection) {
 		delete current[mediaType];
@@ -1147,15 +1190,17 @@ export async function saveMediaGenerationSettings(
 	const providerId = selection.providerId.trim();
 	const modelId = selection.modelId.trim();
 	if (!providerId || !modelId) {
-		throw new Error("Image generation provider and model are required");
+		throw new Error(
+			`${MEDIA_GENERATION_LABELS[mediaType]} generation provider and model are required`,
+		);
 	}
-	const target = await resolveMediaGenerationSelection(manager, "image", {
+	const target = await resolveMediaGenerationSelection(manager, mediaType, {
 		providerId,
 		modelId,
 	});
 	if (!target) {
 		throw new Error(
-			`Model "${modelId}" is not an executable image-generation model for provider "${providerId}"`,
+			`Model "${modelId}" is not an executable ${mediaType}-generation model for provider "${providerId}"`,
 		);
 	}
 
@@ -1180,8 +1225,22 @@ export async function generateConfiguredMedia(
 		request.mediaType,
 	);
 	if (!target) {
+		const configuredTypes = (
+			await Promise.all(
+				MEDIA_GENERATION_TYPES.map(async (mediaType) =>
+					mediaType !== request.mediaType &&
+					(await resolveConfiguredMediaGenerationTarget(manager, mediaType))
+						? mediaType
+						: undefined,
+				),
+			)
+		).filter((mediaType) => mediaType !== undefined);
 		throw new Error(
-			"The configured image generation provider or model is unavailable; choose one in Settings",
+			`No usable ${request.mediaType} generation model is configured` +
+				(configuredTypes.length > 0
+					? `; configured media types: ${configuredTypes.join(", ")}`
+					: "") +
+				". The user can choose one in Settings.",
 		);
 	}
 
@@ -1193,7 +1252,8 @@ export async function generateConfiguredMedia(
 		abortSignal: request.abortSignal,
 	});
 
-	const mediaLabel = result.media.length === 1 ? "image" : "images";
+	const unit = request.mediaType === "audio" ? "audio clip" : request.mediaType;
+	const mediaLabel = result.media.length === 1 ? unit : `${unit}s`;
 	return {
 		content: [
 			{

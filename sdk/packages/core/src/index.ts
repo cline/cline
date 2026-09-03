@@ -699,6 +699,7 @@ export {
 	getLocalProviderModels,
 	isDedicatedTranscriptionModel,
 	isUsableImageGenerationModel,
+	isUsableMediaGenerationModel,
 	listLocalProviders,
 	loginAndSaveLocalProviderOAuthCredentials,
 	loginLocalProvider,

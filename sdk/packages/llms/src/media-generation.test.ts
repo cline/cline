@@ -117,6 +117,49 @@ describe("generateMedia", () => {
 		]);
 	});
 
+	it.each([
+		["audio", "audio/mpeg", "speech-generation"],
+		["video", "video/mp4", "video-generation"],
+	] as const)(
+		"collects requested %s media and ignores other modalities",
+		async (mediaType, mimeType, operation) => {
+			const requested = {
+				id: `${mediaType}-1`,
+				modality: mediaType,
+				mediaType: mimeType,
+				source: { type: "base64" as const, data: "bWVkaWE=" },
+			};
+			const otherImage = {
+				id: "image-1",
+				modality: "image" as const,
+				mediaType: "image/png",
+				source: { type: "base64" as const, data: "aGVsbG8=" },
+			};
+			mockHandler([
+				{ type: "media", media: otherImage, id: "response-1" },
+				{ type: "media", media: requested, id: "response-1" },
+				{ type: "done", success: true, id: "response-1" },
+			]);
+
+			await expect(
+				generateMedia({
+					providerConfig: providerConfig({
+						knownModels: {
+							"media-model": {
+								id: "media-model",
+								name: "Media Model",
+								operation,
+							},
+						},
+					}),
+					modelId: "media-model",
+					prompt: "Produce a bee clip",
+					mediaType,
+				}),
+			).resolves.toEqual({ media: [requested] });
+		},
+	);
+
 	it("throws when the stream reports an unsuccessful terminal chunk", async () => {
 		mockHandler([
 			{
