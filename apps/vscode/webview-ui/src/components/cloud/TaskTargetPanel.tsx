@@ -123,6 +123,10 @@ export function TaskTargetPanel() {
 			void loadBranches(selectedRepo)
 		}
 	}, [isCloud, selectedRepo, loadBranches])
+	const onBranchQueryChange = useCallback(
+		(query: string) => void loadBranches(selectedRepo, query || undefined),
+		[loadBranches, selectedRepo],
+	)
 
 	useEffect(() => {
 		if (connection?.connected && repositories.length > 0) {
@@ -251,7 +255,7 @@ export function TaskTargetPanel() {
 									icon={<GitBranchIcon className="size-3" />}
 									loading={branchesLoading}
 									onChange={selectBranch}
-									onQueryChange={(query) => void loadBranches(selectedRepo, query || undefined)}
+									onQueryChange={onBranchQueryChange}
 									options={branchOptions}
 									placeholder="Branch"
 									value={cloudTaskTarget?.branch}

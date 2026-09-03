@@ -169,7 +169,7 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 									</div>
 									<div className="history-meta-stack">
 										<span className="history-date">{formatDate(item.ts)}</span>
-										{item.totalCost != null && isCostVisible(item.apiProvider) && (
+										{item.totalCost != null && item.executionTarget !== "cloud" && isCostVisible(item.apiProvider) && (
 											<span className="history-cost-chip">${item.totalCost.toFixed(2)}</span>
 										)}
 									</div>
