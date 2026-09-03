@@ -174,6 +174,47 @@ describe("findActiveRecoveryDecoration", () => {
 		// Legacy caller (no phase): marker rules, as before.
 		expect(findActiveRecoveryDecoration(messages)).toMatchObject({ markerTs: 2, targetTs: 1 })
 	})
+
+	it("self-heals a stranded countdown whose fire time is long past", () => {
+		const staleMarker: ClineMessage = {
+			type: "say",
+			say: "auto_recovery",
+			text: JSON.stringify({ kind: "api", status: "countdown", delaySeconds: 3, retryAt: Date.now() - 10 * 60_000 }),
+			ts: 2,
+		}
+		const messages = [createErrorMessage(1), staleMarker, createTextMessage(3, "held rows must release")]
+		// No phase (marker rules) and live phases alike: a countdown this old
+		// can only be stranded — treat it as settled so no rows stay hidden
+		// and the footer cannot hang on Cancel-only.
+		expect(findActiveRecoveryDecoration(messages)).toBeUndefined()
+		expect(findActiveRecoveryDecoration(messages, "streaming")).toBeUndefined()
+		expect(findActiveRecoveryDecoration(messages, "retrying")).toBeUndefined()
+	})
+
+	it("keeps decorating a countdown whose fire time just passed", () => {
+		const justPast: ClineMessage = {
+			type: "say",
+			say: "auto_recovery",
+			text: JSON.stringify({ kind: "api", status: "countdown", delaySeconds: 3, retryAt: Date.now() - 30_000 }),
+			ts: 2,
+		}
+		const messages = [createErrorMessage(1), justPast]
+		// Within the grace window the timer may simply not have fired yet.
+		expect(findActiveRecoveryDecoration(messages)).toMatchObject({ markerTs: 2, targetTs: 1 })
+		expect(findActiveRecoveryDecoration(messages, "retrying")).toMatchObject({ markerTs: 2, targetTs: 1 })
+	})
+
+	it("does not time-gate a retrying marker (the attempt is in flight)", () => {
+		const retrying: ClineMessage = {
+			type: "say",
+			say: "auto_recovery",
+			text: JSON.stringify({ kind: "api", status: "retrying", delaySeconds: 3, retryAt: Date.now() - 10 * 60_000 }),
+			ts: 2,
+		}
+		const messages = [createErrorMessage(1), retrying]
+		expect(findActiveRecoveryDecoration(messages, "streaming")).toMatchObject({ markerTs: 2, targetTs: 1 })
+		expect(findActiveRecoveryDecoration(messages)).toMatchObject({ markerTs: 2, targetTs: 1 })
+	})
 })
 
 describe("hideRowsAfterActiveRecovery", () => {

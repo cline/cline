@@ -176,6 +176,28 @@ export interface ActiveRecoveryDecoration {
  */
 const RECOVERY_LIVE_PHASES = new Set<TurnPhase>(["streaming", "retrying"])
 
+/**
+ * A "countdown" marker whose scheduled fire time is this far in the past is
+ * stale: the retry timer flips the marker to "retrying" at (or within
+ * milliseconds of) retryAt, so a countdown still sitting in the message list
+ * long after its fire time can only be stranded — a backend path that
+ * cancelled the streak without settling the marker. The grace window is
+ * generous on purpose (a sleeping machine wakes with the timer callback still
+ * pending, and the ring legitimately displays up to the fire time), so this
+ * only trips when no legitimate countdown can still be running. "retrying"
+ * markers carry no reliable timestamp (retryAt is cleared) and are not
+ * time-gated; the backend settles those on every terminal path.
+ */
+const STALE_COUNTDOWN_GRACE_MS = 120_000
+
+function isStaleCountdownMarker(payload: ClineSayAutoRecovery | undefined): boolean {
+	return (
+		payload?.status === "countdown" &&
+		payload.retryAt !== undefined &&
+		Date.now() - payload.retryAt > STALE_COUNTDOWN_GRACE_MS
+	)
+}
+
 export function findActiveRecoveryDecoration(messages: ClineMessage[], phase?: TurnPhase): ActiveRecoveryDecoration | undefined {
 	for (let i = messages.length - 1; i >= 0; i--) {
 		const message = messages[i]
@@ -183,6 +205,12 @@ export function findActiveRecoveryDecoration(messages: ClineMessage[], phase?: T
 			continue
 		}
 		const payload = parseAutoRecoveryPayload(message.text)
+		if (isStaleCountdownMarker(payload)) {
+			// Self-heal: render as settled — plain glyph, no hold, no
+			// Cancel-only footer — instead of trusting a stranded marker and
+			// hiding rows below the frozen error block forever.
+			return undefined
+		}
 		if (!payload || (payload.status !== "countdown" && payload.status !== "retrying")) {
 			// The nearest marker from the tail is settled — nothing to decorate.
 			return undefined

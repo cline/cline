@@ -591,6 +591,11 @@ export class Controller {
 			clearTask: async () => {
 				this.pendingClineAuthRetryPrompt = undefined
 				this.apiRetry?.cancel()
+				// cancel() clears the timer without firing it, so
+				// onRetryAbandoned never runs on this path — settle the marker
+				// here, while the streak's session is still the active one,
+				// mirroring the public clearTask/cancelTask paths.
+				this.settleLiveAutoRecoveryMarker()
 				await this.taskControl.clearTask()
 			},
 			setTask: (task) => {
@@ -1725,6 +1730,19 @@ export class Controller {
 			}
 		} catch (error) {
 			Logger.error("[SdkController] Auto-retry re-drive failed:", error)
+			// The funnel threw before producing a turn outcome, so nothing else
+			// will settle this streak's UI: without this the marker stays
+			// "retrying" with the phase parked on "streaming" — Cancel-only
+			// footer, spinner, and the recovery hold hiding every row below the
+			// frozen error block, forever. Settle the marker and restore error
+			// recovery while this session still owns the display (a task switch
+			// settles it elsewhere; a late turn outcome corrects the phase).
+			this.settleLiveAutoRecoveryMarker()
+			const active = this.sessions.getActiveSession()
+			if (active?.sessionId === sessionId && this.task?.taskId === sessionId) {
+				this.turnStateTracker.set("error")
+			}
+			this.postStateToWebview().catch(() => {})
 		}
 	}
 

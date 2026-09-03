@@ -542,6 +542,10 @@ describe("auto-retry re-drive (reDriveAutoRetry)", () => {
 			messageTranslatorState: { clearTurnOutcome: vi.fn() },
 			postStateToWebview: vi.fn(() => Promise.resolve()),
 			followups: { askResponse: vi.fn(() => Promise.resolve()) },
+			// Abandon/settle collaborators: without these the abandon paths
+			// throw into reDriveAutoRetry's catch (which used to swallow it).
+			settleAbandonedRetryPhase: vi.fn(),
+			settleLiveAutoRecoveryMarker: vi.fn(),
 			...overrides,
 		}
 	}
@@ -654,6 +658,8 @@ describe("auto-retry lifecycle (failed turn → countdown → re-drive)", () => 
 		setPhase: ReturnType<typeof vi.fn>
 		clearTurnOutcome: ReturnType<typeof vi.fn>
 		askResponse: ReturnType<typeof vi.fn>
+		/** Auto-recovery marker lifecycle collaborator (settle calls asserted). */
+		interactions: { settleAutoRecovery: ReturnType<typeof vi.fn> }
 		/** Replace the active session (the session-replacement race). */
 		setActiveSession(session: { sessionId: string; isRunning: boolean } | undefined): void
 		/** Deliver a turn's terminal outcome to the real handleTurnSettled boundary. */
@@ -688,6 +694,12 @@ describe("auto-retry lifecycle (failed turn → countdown → re-drive)", () => 
 		}
 		const clearTurnOutcome = vi.fn()
 		const askResponse = vi.fn(async () => {})
+		const interactions = {
+			beginAutoRecoveryCountdown: vi.fn(),
+			markAutoRecoveryRetrying: vi.fn(),
+			settleAutoRecovery: vi.fn(),
+			isAutoRecoveryActive: vi.fn(() => false),
+		}
 		const controller = Object.create(SdkController.prototype) as Record<string, unknown>
 		Object.assign(controller, {
 			stateManager: { getGlobalSettingsKey: vi.fn(() => undefined) },
@@ -703,6 +715,7 @@ describe("auto-retry lifecycle (failed turn → countdown → re-drive)", () => 
 			messageTranslatorState: { clearTurnOutcome },
 			task: { taskId: "session-123" },
 			followups: { askResponse },
+			interactions,
 		})
 		const apiRetry = new SdkApiRetryCoordinator({
 			isSessionActive: (sessionId) => activeSession?.sessionId === sessionId,
@@ -724,6 +737,7 @@ describe("auto-retry lifecycle (failed turn → countdown → re-drive)", () => 
 			setPhase,
 			clearTurnOutcome,
 			askResponse,
+			interactions,
 			setActiveSession: (session) => {
 				activeSession = session
 			},
@@ -888,5 +902,25 @@ describe("auto-retry lifecycle (failed turn → countdown → re-drive)", () => 
 		expect(harness.askResponse).not.toHaveBeenCalled()
 		expect(harness.setPhase).not.toHaveBeenCalledWith("streaming")
 		expect(harness.setPhase).not.toHaveBeenCalledWith("resumable")
+	})
+
+	it("settles the marker and restores error recovery when the re-drive funnel throws", async () => {
+		const harness = makeLifecycleHarness()
+		// The re-drive reaches the funnel, but the send path blows up (e.g. the
+		// session host connection died while the machine slept) before any
+		// turn outcome can be produced.
+		harness.askResponse.mockImplementation(() => Promise.reject(new Error("session host disconnected")))
+
+		await harness.settle("agent_event", transportError())
+		expect(harness.clock.timers).toHaveLength(1)
+
+		harness.clock.fire(0)
+		await flushTurnWork()
+
+		// Without the catch-path settle the marker strands as "retrying" with
+		// the phase parked on "streaming": Cancel-only footer, spinner, and
+		// the recovery hold hiding rows below the frozen error block forever.
+		expect(harness.interactions.settleAutoRecovery).toHaveBeenCalledOnce()
+		expect(harness.setPhase).toHaveBeenLastCalledWith("error")
 	})
 })
