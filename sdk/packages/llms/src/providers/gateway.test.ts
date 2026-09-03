@@ -1837,7 +1837,9 @@ describe("sdk-gateway", () => {
 
 		expect(streamTextSpy).toHaveBeenCalled();
 		expect(generateVideoSpy).not.toHaveBeenCalled();
-		expect(events).toContainEqual(generatedVideoEvent("video/webm", "dmlkZW8="));
+		expect(events).toContainEqual(
+			generatedVideoEvent("video/webm", "dmlkZW8="),
+		);
 	});
 
 	it("preserves text-only responses from mixed text-and-video models", async () => {
