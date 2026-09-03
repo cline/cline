@@ -5,6 +5,7 @@ import type { BasicLogger } from "@cline/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { writeGlobalSettings } from "../global-settings";
 import {
+	createConfiguredTelemetryHandle,
 	createConfiguredTelemetryService,
 	createOpenTelemetryTelemetryService,
 	OpenTelemetryProvider,
@@ -130,6 +131,58 @@ describe("createOpenTelemetryTelemetryService", () => {
 		const span = provider.getTracer("test").startSpan("verify.tracing");
 		span.end();
 		await provider.dispose();
+	});
+
+	it("constructs the tracer provider with an injected span processor", async () => {
+		const shutdown = vi.fn(async () => undefined);
+		const processor = {
+			onStart: vi.fn(),
+			onEnd: vi.fn(),
+			forceFlush: vi.fn(async () => undefined),
+			shutdown,
+		};
+		const { provider } = createOpenTelemetryTelemetryService({
+			metadata: {
+				extension_version: "1.2.3",
+				cline_type: "cli",
+				platform: "terminal",
+				platform_version: process.version,
+				os_type: process.platform,
+				os_version: "unknown",
+			},
+			enabled: true,
+			additionalSpanProcessors: [processor],
+		});
+
+		expect(provider.tracerProvider).not.toBeNull();
+		await provider.dispose();
+		expect(shutdown).toHaveBeenCalledTimes(1);
+	});
+
+	it("uses the existing OTLP pipeline without a local Langfuse processor in collector mode", async () => {
+		const handle = createConfiguredTelemetryHandle({
+			metadata: {
+				extension_version: "1.2.3",
+				cline_type: "cli",
+				platform: "terminal",
+				platform_version: process.version,
+				os_type: process.platform,
+				os_version: "unknown",
+			},
+			enabled: true,
+			tracesExporter: "console",
+			langfuse: { mode: "collector" },
+		});
+
+		expect(handle.provider?.tracerProvider).not.toBeNull();
+		expect(
+			(
+				handle.provider as unknown as {
+					options: { additionalSpanProcessors?: unknown[] };
+				}
+			).options.additionalSpanProcessors,
+		).toEqual([]);
+		await handle.dispose();
 	});
 
 	it("does not create an OTEL provider when disabled", () => {

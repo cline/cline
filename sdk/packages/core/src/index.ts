@@ -779,6 +779,7 @@ export {
 export type { ITelemetryAdapter } from "./services/telemetry/ITelemetryAdapter";
 export {
 	type ConfiguredTelemetryHandle,
+	type CreateConfiguredTelemetryHandleOptions,
 	type CreateOpenTelemetryTelemetryServiceOptions,
 	createConfiguredTelemetryHandle,
 	createConfiguredTelemetryService,
@@ -917,6 +918,16 @@ export async function loadOpenTelemetryAdapter() {
 	return import("./services/telemetry/index.js");
 }
 export { Agent, createAgentRuntime } from "@cline/agents";
+export {
+	activateLangfuseTelemetry,
+	createLangfuseTelemetryIntegration,
+	disableLangfuseTelemetry,
+	hasLangfuseTelemetryConfig,
+	type LangfuseCollectorTelemetryConfig,
+	type LangfuseDirectTelemetryConfig,
+	type LangfuseTelemetryConfig,
+	type LangfuseTelemetryIntegration,
+} from "@cline/llms";
 export {
 	createCompactionStateAwarePrepareTurn,
 	createContextCompactionPrepareTurn,
