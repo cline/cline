@@ -244,7 +244,7 @@ The source lives at [`sdk/examples/hooks/PreToolUse_ClineignoreGuard.sh`](https:
 This hook covers only part of what `.clineignore` did — and enforces more than it ever did:
 - It **blocks file reads, edits, and shell commands** — it does **not** filter search or file-listing results, so it is an access-control boundary rather than a context-reduction tool (the original `.clineignore` was the reverse).
 - A cancelled tool call stops the current task run with the reason shown; send a follow-up message to continue the conversation.
-- The shell guard is a conservative token check, not a full shell parser: it catches straightforward access like `cat .env`, but a sufficiently creative command could still slip through.
+- The shell guard is a conservative token check, not a full shell parser: it catches straightforward access like `cat .env`, but a sufficiently creative command could still slip through. Paths are canonicalized lexically, but symlinks are not resolved — a pre-existing symlink aliasing an ignored file is not caught, so add such aliases to `.clineignore` too.
 - In the CLI, hooks are disabled in `--yolo` mode; use `--act` or `--plan`.
 </Note>
 
