@@ -353,6 +353,18 @@ export function isUsableMediaGenerationModel(
 	providerId: string,
 	model: ModelInfo,
 ): boolean {
+	// Realtime/live models use a session transport and cannot be invoked by the
+	// batch media-generation API, even when their catalog metadata includes
+	// text input and audio output.
+	if (
+		mediaType === "audio" &&
+		(model.operationModes?.includes("streaming") === true ||
+			/(?:^|[/_.\s-])(realtime|live)(?:$|[/_.\s-])/i.test(
+				`${model.id} ${model.name}`,
+			))
+	) {
+		return false;
+	}
 	const rule = MEDIA_GENERATION_MODALITY_RULES[mediaType];
 	const operation = model.operation ?? "language";
 	if (operation !== "language" && operation !== rule.dedicatedOperation) {

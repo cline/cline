@@ -1882,6 +1882,27 @@ describe("media generation settings", () => {
 		});
 	});
 
+	it("excludes realtime audio models from media generation", () => {
+		const realtimeModel = {
+			id: "grok-voice-think-fast-2.0",
+			name: "Grok Voice Think Fast 2.0",
+			operation: "language" as const,
+			operationModes: ["streaming"] as const,
+			modalities: { input: ["text"] as const, output: ["audio"] as const },
+		};
+
+		expect(
+			isUsableMediaGenerationModel("audio", "xai", realtimeModel),
+		).toBe(false);
+		expect(
+			isUsableMediaGenerationModel("audio", "xai", {
+				...realtimeModel,
+				operationModes: undefined,
+				id: "gemini-2.5-flash-live-preview",
+			}),
+		).toBe(false);
+	});
+
 	it("generates audio through the configured target with canonical media", async () => {
 		manager.saveProviderSettings(
 			{ provider: "openai-native", apiKey: "openai-key" },
