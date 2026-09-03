@@ -433,6 +433,7 @@ export type {
 	CheckpointMetadata,
 } from "./hooks/checkpoint-hooks";
 export * from "./hub";
+export { type HubClientOptions, NodeHubClient } from "./hub/client";
 export { HubRuntimeHost } from "./hub/runtime-host/hub-runtime-host";
 export { RemoteRuntimeHost } from "./hub/runtime-host/remote-runtime-host";
 export {
