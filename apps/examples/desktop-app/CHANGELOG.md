@@ -1,5 +1,54 @@
 # Cline Desktop Changelog
 
+## 0.0.22
+
+- Import your history from Claude Code, Codex, and opencode. An Import button in the Sessions header (and a row in Settings → General) scans your local stores from all three tools and turns the conversations you pick into fully resumable Cline sessions. Sessions are grouped per tool with select-all and a search across title, folder, and first prompt; already-imported ones are shown as such so re-opening the dialog is safe. Imported sessions resume on your configured provider and model, not the source tool's. If you have history from any of these tools, onboarding now offers the import as a step
+- Runs of a schedule now fold into a single collapsible sidebar row named after the schedule, with its run count, instead of one row per run all carrying the same prompt title. Expanding lists them newest-first as "Run N" with the usual status dot, time, hover card, context menu, and delete; the group holding the active session opens on its own
+- Voice input now works on macOS. The app shipped without a microphone usage description or entitlement, so dictation failed silently
+- Web search is now on by default
+- The marketplace detail panel now opens on click rather than hover, with left-aligned content, a single "Learn more" link, and the selected entry staying open while you filter the list
+- When the Hub is older than the app, you are now offered a choice — replace it, with a count of the sessions that would be interrupted, or keep it running — instead of the app quietly working against stale code. Replacing drains the Hub first so in-flight turns finish
+- Editing and resending a message now works on sessions with no checkpoint history, such as imported ones, instead of failing with "No checkpoint found at or before run N"
+- Fixed tool calling being silently disabled for Dify, SAP AI Core, opencode, and Codex CLI models. Their catalog entries declare no capabilities, and the empty list was read as an authoritative denial that stripped every tool from the request
+- Fixed images being dropped from file reads on models whose capability list is empty
+- The message the model receives when you reject a tool call now names the tool and reads as your decision rather than an error
+- Refreshed the model catalog. Adds eight providers (Bothub, OpenReason, SenseNova (China), TokenRouter, Vancine, Volcengine Ark Coding Plan, above.dev, and klokintegration.se) and changes the resolved default model for 36 providers — most consequentially Anthropic, which now resolves to Claude Fable 5.1 instead of Claude Opus 5, with Amazon Bedrock, Vertex, OpenRouter, Kilo Gateway, DevPass, DigitalOcean, CrossModel, and Eden AI following. If you use a provider without pinning a model, expect a different default
+
+## 0.0.21
+
+- Marketplace is now a two-pane explorer: a browsable list on the left and full catalog metadata for the selected item on the right, with category tag filters that collapse behind a "more" toggle
+- Stopping a session now actually stops everything it started. Stop stays available while child agents are running, and an abort propagates to delegated subagents and to teammates instead of leaving orphaned work running in the background; cancelled teammate tasks now persist as cancelled
+- Fixed the ask-a-question tool's option text overflowing instead of wrapping
+- You can now drop file attachments anywhere over the chat input, not just on the small attach target
+- Cline provider models now refresh from the live catalog, so newly released models show up without waiting for an app update
+- Provider 401/403 responses are now classified as authentication errors rather than generic request failures, so a bad or missing API key is distinguishable from a real provider outage
+- Fixed Langfuse tracing never initializing in release builds — the minified bundle broke tracer detection, so telemetry worked in dev and silently did nothing in the shipped app. Also updated for AI SDK 7's telemetry API
+- Refreshed the model catalog. Adds TokenGo and Volcengine Ark, and updates model lists, pricing, and the resolved default model for ~36 providers (including Hugging Face, Mistral, OpenRouter, Together, NanoGPT, Requesty, Baseten, Cloudflare Workers AI, and DigitalOcean) — if you use one of those without pinning a model, you will get a different default
+
+## 0.0.20
+
+- Customize now separates Cline Plugins from Agent Plugins discovered by the Hub. Agent Plugin switches use Hub-managed enablement, contributed skills appear in the Skills inventory, and connected desktop views refresh when Hub settings change
+- Cline Desktop now ships on Windows: releases include a code-signed x64 installer, and installed apps auto-update on the same feed macOS does
+- Windows shell fixes: background processes (the sidecar, git) no longer pop visible console windows; updates now download in the background and install when you restart the app; the MCP settings path falls back to `USERPROFILE` when `HOME` is unset
+- Tool results that return images — screenshots from browser or MCP tools — now render as inline images you can click to expand, with a carousel for stepping through multiple images, instead of raw base64 text
+- Session search now covers your full indexed history. The sidebar search icon opens the command bar (Cmd/Ctrl+P) with server-ranked results, instead of a sidebar-local dialog that first loaded every session into memory
+- Onboarding has a new GitHub integration step
+- Fixed scheduled tasks disappearing after the app updated — hub-managed schedules were being wiped by cron reconciliation on restart
+- Agent-created schedules now live in one user-level home (`~/.cline/schedules`) instead of being scattered across whichever chat folder created them, and they now appear on the Schedules page
+- A finished scheduled session now surfaces its final answer: the completing step auto-expands, is labeled "Scheduled task completed" (or failed), and its summary renders as markdown
+- Suggested routine templates now ask for a specific final report, so a scheduled run ends with something readable
+- Providers no longer show as "Configured" on the strength of a leftover settings entry with no real credentials, and the badge now updates live after connecting or saving credentials instead of waiting for a remount
+- Fixed OpenAI Codex (ChatGPT subscription) sign-in silently dead-ending when callback port 1455 was already in use — it now fails immediately with an actionable error, and OAuth redirect errors surface instead of a confusing "Missing authorization code"
+- Codex and OCA sign-ins are no longer dropped when a token refresh hits a transient network failure or server error
+- Checkpoint restore now refuses to reset your workspace when commits were made after the checkpoint, instead of silently knocking them off the branch
+- Fixed an enabled-but-offline remote MCP server stalling session startup until the session was torn down
+- Global rules stored at `~/Cline/Rules` are now discovered (previously only `~/Documents/Cline/Rules`), fixing rules that never reached the model on WSL and headless installs
+- `apply_patch` now preserves a file's own CRLF line endings
+- The window title bar stays draggable across every view
+- Voice input's Live and After recording badges now have tooltips explaining them
+- Removed the box shadow from the chat message actions row
+- The hub no longer watches agenda spec directories while the todo tool is disabled, dropping an OS watch handle per known workspace
+
 ## 0.0.19
 
 - Fixed the background Cline process ballooning in memory during long sessions — session status updates were carrying a full copy of the conversation transcript to every connected client, which on a multi-megabyte task could grow the process to tens of gigabytes. Status updates now carry only state (status, usage, model, workspace, checkpoint); the transcript is fetched on demand

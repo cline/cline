@@ -191,6 +191,91 @@ describe("ChatMessages tool disclosures", () => {
 		);
 	});
 
+	it("renders image content returned by a tool instead of raw base64", async () => {
+		const screenshotData = "aGVsbG8=";
+		await renderMessages([
+			{
+				id: "tool-screenshot",
+				sessionId: "session-1",
+				role: "tool",
+				content: JSON.stringify({
+					toolName: "computer_use",
+					input: { action: "screenshot" },
+					result: [
+						{
+							type: "text",
+							text: "Screenshot captured at /tmp/screenshot.png",
+						},
+						{
+							type: "image",
+							data: screenshotData,
+							mimeType: "image/png",
+						},
+					],
+				}),
+				createdAt: 1,
+			},
+		]);
+
+		const trigger = [...container.querySelectorAll("button")].find((element) =>
+			element.textContent?.includes("Computer use"),
+		);
+		expect(trigger?.getAttribute("aria-expanded")).toBe("true");
+		expect(container.textContent).toContain(
+			"Screenshot captured at /tmp/screenshot.png",
+		);
+		expect(container.textContent).not.toContain(screenshotData);
+
+		const image = container.querySelector<HTMLImageElement>(
+			'img[alt="Generated result 1"]',
+		);
+		expect(image?.src).toBe(`data:image/png;base64,${screenshotData}`);
+
+		await act(async () => image?.closest("button")?.click());
+		expect(
+			container.querySelector(
+				'[role="dialog"][aria-label="Expanded attachment"]',
+			),
+		).not.toBeNull();
+	});
+
+	it("navigates multiple images returned by a single tool call", async () => {
+		await renderMessages([
+			{
+				id: "tool-multi-screenshot",
+				sessionId: "session-1",
+				role: "tool",
+				content: JSON.stringify({
+					toolName: "computer_use",
+					input: { action: "screenshot" },
+					result: [
+						{ type: "image", data: "Zmlyc3Q=", mimeType: "image/png" },
+						{ type: "image", data: "c2Vjb25k", mimeType: "image/png" },
+					],
+				}),
+				createdAt: 1,
+			},
+		]);
+
+		expect(
+			container.querySelector<HTMLImageElement>('img[alt="Generated result 1"]')
+				?.src,
+		).toBe("data:image/png;base64,Zmlyc3Q=");
+		expect(container.querySelector('img[alt="Generated result 2"]')).toBeNull();
+		expect(container.textContent).toContain("1 / 2");
+
+		const next = container.querySelector<HTMLButtonElement>(
+			'button[aria-label="Next generated image"]',
+		);
+		await act(async () => next?.click());
+
+		expect(
+			container.querySelector<HTMLImageElement>('img[alt="Generated result 2"]')
+				?.src,
+		).toBe("data:image/png;base64,c2Vjb25k");
+		expect(container.textContent).toContain("2 / 2");
+	});
+
 	it("auto-expands submit_and_exit and renders its summary as markdown", async () => {
 		const summary = "## Report\n\nChecked **3 feeds**, all healthy.";
 		await renderMessages([
@@ -244,6 +329,61 @@ describe("ChatMessages tool disclosures", () => {
 
 		expect(container.textContent).toContain("Scheduled task failed");
 		expect(container.textContent).not.toContain("Scheduled task completed");
+	});
+
+	it("keeps the scheduled-task report visible when the run collapses", async () => {
+		// A follow-up prompt settles the scheduled run's span and folds its
+		// working rows into the work summary; the submit_and_exit row is the
+		// run's final report and must stay visible below it.
+		const summary = "All feeds healthy.";
+		await renderMessages([
+			{
+				id: "user-schedule",
+				sessionId: "session-1",
+				role: "user",
+				content: "Check the feeds",
+				createdAt: 1_000,
+			},
+			{
+				id: "tool-read",
+				sessionId: "session-1",
+				role: "tool",
+				content: JSON.stringify({
+					toolName: "read_files",
+					input: { paths: ["feeds.json"] },
+					result: {},
+				}),
+				createdAt: 2_000,
+			},
+			{
+				id: "tool-submit",
+				sessionId: "session-1",
+				role: "tool",
+				content: JSON.stringify({
+					toolName: "submit_and_exit",
+					input: { summary, verified: true },
+					result: summary,
+				}),
+				createdAt: 3_000,
+			},
+			{
+				id: "user-followup",
+				sessionId: "session-1",
+				role: "user",
+				content: "Thanks!",
+				createdAt: 9_000,
+			},
+		]);
+
+		// The working rows folded into a collapsed work summary…
+		const workTrigger = container.querySelector(
+			"button.cline-chat-work-trigger",
+		);
+		expect(workTrigger?.getAttribute("aria-expanded")).toBe("false");
+		// …but the report row did not fold with them: it stays visible and
+		// expanded outside the summary.
+		expect(container.textContent).toContain("Scheduled task completed");
+		expect(container.textContent).toContain(summary);
 	});
 
 	it("renders consecutive tool calls as individual rows", async () => {

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { desktopClient } from "@/lib/desktop-client";
-import type { SessionAgentEntry } from "@/lib/session-agents";
+import { agentEntryState, type SessionAgentEntry } from "@/lib/session-agents";
 
 /** While a turn runs, child agents come and go faster than a one-shot fetch sees. */
 const ACTIVE_POLL_INTERVAL_MS = 2500;
@@ -72,8 +72,8 @@ function parseAgentEntries(value: unknown): SessionAgentEntry[] {
 /**
  * Roster of the child agents a session started.
  *
- * Read once per displayed session and then polled only while that session is
- * active. Deliberately *not* gated on whether the header is currently showing
+ * Read once per displayed session and then polled while that session or one of
+ * its children is active. Deliberately *not* gated on whether the header shows
  * any agents: that tally is derived from the newest messages only, so gating on
  * it would deadlock — a session whose spawn calls have aged out of the message
  * window would report zero agents, never query the database that still
@@ -167,6 +167,9 @@ export function useSessionAgents({
 	const agents = isCurrent ? roster.entries : NO_AGENTS;
 	const loading = isCurrent && roster.loading;
 	const error = isCurrent ? roster.error : null;
+	const hasRunningAgents = agents.some(
+		(agent) => agentEntryState(agent.status) === "running",
+	);
 
 	// One read per displayed session, repeated when the session starts or stops
 	// running — a turn can finish up to a poll interval after the last read, so
@@ -190,16 +193,21 @@ export function useSessionAgents({
 	}, [panelOpen, refresh, sessionId]);
 
 	useEffect(() => {
-		if (!sessionId || !sessionActive) {
+		if (!sessionId || (!sessionActive && !hasRunningAgents)) {
 			return;
 		}
+		let polling = false;
 		const timer = window.setInterval(() => {
-			void refresh(sessionId, { quiet: true });
+			if (polling) return;
+			polling = true;
+			void refresh(sessionId, { quiet: true }).finally(() => {
+				polling = false;
+			});
 		}, ACTIVE_POLL_INTERVAL_MS);
 		return () => {
 			window.clearInterval(timer);
 		};
-	}, [refresh, sessionActive, sessionId]);
+	}, [hasRunningAgents, refresh, sessionActive, sessionId]);
 
 	return { agents, loading, error, refresh };
 }
