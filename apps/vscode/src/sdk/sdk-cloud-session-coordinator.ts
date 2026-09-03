@@ -365,8 +365,9 @@ export class SdkCloudSessionCoordinator {
 		repoUrl: string
 		branch?: string
 	}): Promise<string | undefined> {
-		const isSuperseded = this.options.claimTaskViewGeneration()
+		// clearTask bumps the task-view generation itself, so claim ours after it.
 		await this.options.clearTask()
+		const isSuperseded = this.options.claimTaskViewGeneration()
 		const startedAt = Date.now()
 		const provisionalId = `${CLOUD_PROVISIONING_ID_PREFIX}${startedAt}`
 		const task = this.installTask(provisionalId)
@@ -472,22 +473,20 @@ export class SdkCloudSessionCoordinator {
 	// ---- Reopening a task from History ----
 
 	async openCloudTask(sessionId: string): Promise<HistoryItem | undefined> {
-		const isSuperseded = this.options.claimTaskViewGeneration()
 		const record = await this.findHistoryRecord(sessionId)
 		if (!record) {
 			Logger.error(`[CloudSessions] Cloud session not found: ${sessionId}`)
 			return undefined
 		}
 		const entry = this.entries.get(sessionId)
-		if (!entry || isSuperseded()) {
+		if (!entry) {
 			return undefined
 		}
 		const historyItem = sessionHistoryRecordToHistoryItem(record)
 
+		// clearTask bumps the task-view generation itself, so claim ours after it.
 		await this.options.clearTask()
-		if (isSuperseded()) {
-			return historyItem
-		}
+		const isSuperseded = this.options.claimTaskViewGeneration()
 
 		try {
 			this.options.resetMessageTranslator()
