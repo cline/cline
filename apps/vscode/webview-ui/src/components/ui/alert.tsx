@@ -1,6 +1,7 @@
 import { cva, type VariantProps } from "class-variance-authority"
 import { AlertTriangleIcon, XIcon } from "lucide-react"
 import * as React from "react"
+import { useTranslation } from "react-i18next"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
@@ -26,6 +27,7 @@ const Alert = React.forwardRef<
 	React.HTMLAttributes<HTMLDivElement> &
 		VariantProps<typeof alertVariants> & { isDismissible?: boolean; title?: string; icon?: React.ReactNode }
 >(({ className, variant, children, isDismissible = true, title, icon, ...props }, ref) => {
+	const { t } = useTranslation()
 	const [dismissed, setDismissed] = React.useState(false)
 	if (dismissed) {
 		return null
@@ -40,7 +42,7 @@ const Alert = React.forwardRef<
 				</AlertTitle>
 				{isDismissible && (
 					<Button
-						aria-label="Dismiss"
+						aria-label={t("ui:alert.dismissAria")}
 						className="opacity-100 hover:opacity-100 justify-center"
 						onClick={(e) => {
 							e.preventDefault()

@@ -50,6 +50,7 @@ import { VscodeWebviewProvider } from "./hosts/vscode/VscodeWebviewProvider"
 import { exportVSCodeStorageToSharedFiles } from "./hosts/vscode/vscode-to-file-migration"
 import { ExtensionRegistryInfo } from "./registry"
 import { AuthService, LogoutReason } from "./sdk/auth-service"
+import { t } from "./services/i18n"
 import { telemetryService } from "./services/telemetry"
 import type { RolloutBundleActivation } from "./services/telemetry/rollout-metadata"
 import { LG_TASK_URI_PATH, SharedUriHandler, TASK_URI_PATH } from "./services/uri/SharedUriHandler"
@@ -234,7 +235,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				Logger.error("Error getting terminal contents:", error)
 				HostProvider.window.showMessage({
 					type: ShowMessageType.ERROR,
-					message: "Failed to get terminal contents",
+					message: t("terminal.getContentsFailed"),
 				})
 			}
 		}),
@@ -379,7 +380,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		if (!activeNotebook) {
 			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
-				message: "No active Jupyter notebook found. Please open a .ipynb file first.",
+				message: t("jupyter.noActiveNotebook"),
 			})
 			return null
 		}

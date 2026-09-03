@@ -1,0 +1,97 @@
+{
+	"addServer": {
+		"addServer": "Agregar servidor",
+		"connecting": "Conectando...",
+		"description": "Agrega un servidor MCP remoto proporcionando un nombre y la URL de su punto de conexión. Obtén más información <docsLink>aquí.</docsLink>",
+		"editConfiguration": "Editar configuración",
+		"errors": {
+			"addFailed": "No se pudo agregar el servidor",
+			"invalidUrl": "Formato de URL no válido",
+			"nameRequired": "El nombre del servidor es obligatorio",
+			"urlRequired": "La URL del servidor es obligatoria"
+		},
+		"serverName": "Nombre del servidor",
+		"serverUrl": "URL del servidor",
+		"transportSse": "SSE (heredado)",
+		"transportStreamableHttp": "Streamable HTTP",
+		"transportType": "Tipo de transporte"
+	},
+	"chatDisplay": {
+		"clickToOpenInBrowser": "Haz clic para abrir en el navegador",
+		"fetchOpenGraphFailed": "No se pudieron obtener los datos de Open Graph",
+		"imageErrorTitle": "Se produjo un error al mostrar esta imagen",
+		"imageFrom": "Imagen de {{hostname}}",
+		"imageLoadFailed": "No se pudo cargar la imagen",
+		"linkPreviewErrorTitle": "Se produjo un error al mostrar la vista previa de este enlace",
+		"loadingImage": "Cargando imagen de {{hostname}}...",
+		"loadingPreview": "Cargando vista previa de {{hostname}}...",
+		"noDescriptionAvailable": "No hay descripción disponible",
+		"noTitle": "Sin título",
+		"previewLoadFailed": "No se puede cargar la vista previa",
+		"previewNetworkError": "Error de red al cargar la vista previa",
+		"previewTimeout": "Se agotó el tiempo de espera de la solicitud de vista previa",
+		"svgFrom": "SVG de {{hostname}}",
+		"unknownError": "Se produjo un error desconocido",
+		"waitingMinutes": "Esperando {{minutes}} min {{seconds}} s...",
+		"waitingSeconds": "Esperando {{seconds}} s..."
+	},
+	"configure": {
+		"advancedSettings": "Configuración avanzada de MCP",
+		"configureServers": "Configurar servidores MCP",
+		"description": "El <mcpLink>Model Context Protocol</mcpLink> permite la comunicación con servidores MCP que se ejecutan localmente y que proporcionan herramientas y recursos adicionales para ampliar las capacidades de Cline. Puedes usar <communityLink>servidores creados por la comunidad</communityLink> o pedirle a Cline que cree nuevas herramientas específicas para tu flujo de trabajo (p. ej., \"agrega una herramienta que obtenga la documentación más reciente de npm\"). <demoLink>Mira una demostración aquí.</demoLink>",
+		"remoteManagedBanner": "Tu organización administra algunos servidores MCP"
+	},
+	"displayMode": {
+		"markdown": "Markdown",
+		"plain": "Texto sin formato",
+		"rich": "Visualización enriquecida"
+	},
+	"response": {
+		"parseError": "Error al analizar la respuesta:",
+		"processError": "No se pudo procesar el contenido de la respuesta. Cambia al modo de texto sin formato para verlo de forma segura.",
+		"title": "Respuesta",
+		"titleError": "Respuesta (error)"
+	},
+	"serverList": {
+		"noServers": "No hay servidores MCP instalados"
+	},
+	"serverRow": {
+		"alwaysEnabledTooltip": "Este servidor no se puede deshabilitar porque tu organización lo ha habilitado",
+		"arguments": "Argumentos",
+		"authenticate": "Autenticar",
+		"autoApprove": "Aprobación automática",
+		"autoApproveAll": "Aprobar automáticamente todas las herramientas",
+		"deleteServer": "Eliminar servidor",
+		"deleting": "Eliminando...",
+		"noDescription": "Sin descripción",
+		"noPrompts": "No se encontraron prompts",
+		"noResources": "No se encontraron recursos",
+		"noTools": "No se encontraron herramientas",
+		"parameters": "Parámetros",
+		"promptsTab": "Prompts ({{count}})",
+		"requestTimeout": "Tiempo de espera de la solicitud",
+		"resourcesTab": "Recursos ({{count}})",
+		"restartServer": "Reiniciar servidor",
+		"restarting": "Reiniciando...",
+		"retryConnection": "Reintentar conexión",
+		"retrying": "Reintentando...",
+		"returns": "Devuelve",
+		"serverDisabled": "Servidor deshabilitado",
+		"timeoutDescription": "Se aplica a cada solicitud que procesa este servidor, en VS Code y en la CLI. Para otros valores, establece \"timeout\" (segundos) en cline_mcp_settings.json.",
+		"timeouts": {
+			"fiveMinutes": "5 minutos",
+			"oneHour": "1 hora",
+			"oneMinute": "1 minuto",
+			"tenMinutes": "10 minutos",
+			"thirtyMinutes": "30 minutos",
+			"thirtySeconds": "30 segundos"
+		},
+		"toolsTab": "Herramientas ({{count}})",
+		"unknown": "Desconocido"
+	},
+	"tabs": {
+		"configure": "Configurar",
+		"remoteServers": "Servidores remotos"
+	},
+	"title": "Servidores MCP"
+}

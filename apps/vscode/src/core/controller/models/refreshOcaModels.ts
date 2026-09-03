@@ -11,6 +11,7 @@ import {
 	RESPONSES_API,
 } from "@/services/auth/oca/utils/constants"
 import { createOcaHeaders } from "@/services/auth/oca/utils/utils"
+import { t } from "@/services/i18n"
 import { getAxiosSettings } from "@/shared/net"
 import { ShowMessageType } from "@/shared/proto/index.host"
 import { Logger } from "@/shared/services/Logger"
@@ -30,14 +31,14 @@ export async function refreshOcaModels(controller: Controller, request: StringRe
 		}
 		return undefined
 	}
-	const noModelsMessage = "No models found. Did you set up your OCA access (possibly through entitlements)?"
+	const noModelsMessage = t("oca.noModels")
 	const models: Record<string, OcaModelInfo> = {}
 	let defaultModelId: string | undefined
 	const ocaAccessToken = await OcaAuthService.getInstance().getAuthToken()
 	if (!ocaAccessToken) {
 		HostProvider.window.showMessage({
 			type: ShowMessageType.ERROR,
-			message: "Not authenticated with OCA. Please sign in first.",
+			message: t("oca.notAuthenticated"),
 		})
 		return OcaCompatibleModelInfo.create({ error: "Not authenticated with OCA" })
 	}
@@ -172,12 +173,12 @@ export async function refreshOcaModels(controller: Controller, request: StringRe
 
 			HostProvider.window.showMessage({
 				type: ShowMessageType.INFORMATION,
-				message: `Refreshed OCA models from ${baseUrl}`,
+				message: t("oca.refreshedModels", { baseUrl }),
 			})
 			await controller.postStateToWebview?.()
 		} else {
 			Logger.error("Invalid response from OCA API")
-			const error = `Failed to fetch OCA models. Please check your configuration from ${baseUrl}`
+			const error = t("oca.fetchModelsFailed", { baseUrl })
 			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
 				message: error,
@@ -188,17 +189,17 @@ export async function refreshOcaModels(controller: Controller, request: StringRe
 		let userMsg: string
 		if (err.response) {
 			// The request was made and the server responded with a status code that falls out of the range of 2xx
-			userMsg = `Did you set up your OCA access (possibly through entitlements)? OCA service returned ${err.response.status} ${err.response.statusText}.`
+			userMsg = t("oca.serviceError", { status: err.response.status, statusText: err.response.statusText })
 		} else if (err.request) {
 			// The request was made but no response was received
-			userMsg = `Unable to access the OCA backend. Is your endpoint and proxy configured properly? Please see the troubleshooting guide.`
+			userMsg = t("oca.backendUnreachable")
 		} else {
 			userMsg = err.message
 			Logger.error(userMsg, err)
 		}
 		HostProvider.window.showMessage({
 			type: ShowMessageType.ERROR,
-			message: `Error refreshing OCA models. ${userMsg} opc-request-id: ${headers["opc-request-id"]}`,
+			message: t("oca.refreshError", { message: userMsg, requestId: headers["opc-request-id"] }),
 		})
 		return OcaCompatibleModelInfo.create({ error: userMsg })
 	}

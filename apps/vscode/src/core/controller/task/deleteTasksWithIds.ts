@@ -1,5 +1,6 @@
 import { Empty, StringArrayRequest } from "@shared/proto/cline/common"
 import { HostProvider } from "@/hosts/host-provider"
+import { t } from "@/services/i18n"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
@@ -17,18 +18,16 @@ export async function deleteTasksWithIds(controller: Controller, request: String
 	}
 
 	const taskCount = request.value.length
-	const message =
-		taskCount === 1
-			? "Are you sure you want to delete this task? This action cannot be undone."
-			: `Are you sure you want to delete these ${taskCount} tasks? This action cannot be undone.`
+	const message = t("tasks.deleteConfirm", { count: taskCount })
+	const deleteButton = t("tasks.deleteButton")
 
 	const userChoice = await HostProvider.window.showMessage({
 		type: ShowMessageType.WARNING,
 		message,
-		options: { modal: true, items: ["Delete"] },
+		options: { modal: true, items: [deleteButton] },
 	})
 
-	if (userChoice.selectedOption !== "Delete") {
+	if (userChoice.selectedOption !== deleteButton) {
 		return Empty.create()
 	}
 

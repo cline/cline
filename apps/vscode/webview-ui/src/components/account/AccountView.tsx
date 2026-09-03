@@ -5,6 +5,7 @@ import { EmptyRequest } from "@shared/proto/cline/common"
 import { VSCodeButton, VSCodeDivider, VSCodeDropdown, VSCodeOption, VSCodeTag } from "@vscode/webview-ui-toolkit/react"
 import deepEqual from "fast-deep-equal"
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { useInterval } from "react-use"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { type ClineUser, handleSignOut } from "@/context/ClineAuthContext"
@@ -42,12 +43,20 @@ type CachedData = {
 
 const ClineEnvOptions = ["Production", "Staging", "Local"] as const
 
+// Display labels (i18n keys) for the env options; option values stay untranslated.
+const ClineEnvLabelKeys: Record<(typeof ClineEnvOptions)[number], string> = {
+	Local: "account:env.local",
+	Production: "account:env.production",
+	Staging: "account:env.staging",
+}
+
 const AccountView = ({ onDone, clineUser, organizations, activeOrganization }: AccountViewProps) => {
 	const { environment } = useExtensionState()
+	const { t } = useTranslation()
 
 	return (
 		<div className="fixed inset-0 flex flex-col overflow-hidden">
-			<ViewHeader environment={environment} onDone={onDone} showEnvironmentSuffix title="Account" />
+			<ViewHeader environment={environment} onDone={onDone} showEnvironmentSuffix title={t("account:title")} />
 			<div className="grow flex flex-col px-5 overflow-y-auto">
 				{clineUser?.uid ? (
 					<ClineAccountView
@@ -68,6 +77,7 @@ const AccountView = ({ onDone, clineUser, organizations, activeOrganization }: A
 const ClineAccountView = ({ clineUser, userOrganizations, activeOrganization, clineEnv }: ClineAccountViewProps) => {
 	const { email, displayName, appBaseUrl, uid } = clineUser
 	const { remoteConfigSettings, environment } = useExtensionState()
+	const { t } = useTranslation()
 
 	// Determine if dropdown should be locked by remote config
 	const isLockedByRemoteConfig = Object.keys(remoteConfigSettings || {}).length > 0
@@ -328,7 +338,7 @@ const ClineAccountView = ({ clineUser, userOrganizations, activeOrganization, cl
 											disabled={isLoading || isLockedByRemoteConfig}
 											onChange={handleOrganizationChange}>
 											<VSCodeOption key="personal" value={uid}>
-												Personal
+												{t("account:personal")}
 											</VSCodeOption>
 											{userOrganizations?.map((org: UserOrganization) => (
 												<VSCodeOption key={org.organizationId} value={org.organizationId}>
@@ -338,12 +348,12 @@ const ClineAccountView = ({ clineUser, userOrganizations, activeOrganization, cl
 										</VSCodeDropdown>
 									</TooltipTrigger>
 									<TooltipContent hidden={!isLockedByRemoteConfig}>
-										This cannot be changed while your organization has remote configuration enabled.
+										{t("account:organizationLockedTooltip")}
 									</TooltipContent>
 								</Tooltip>
 								{activeOrganization && (
-									<VSCodeTag className="text-xs p-2" title="Role">
-										{getMainRole(activeOrganization.roles)}
+									<VSCodeTag className="text-xs p-2" title={t("account:roleTitle")}>
+										{t(getMainRole(activeOrganization.roles) ?? "account:roles.member")}
 									</VSCodeTag>
 								)}
 							</div>
@@ -357,11 +367,11 @@ const ClineAccountView = ({ clineUser, userOrganizations, activeOrganization, cl
 				<div className="w-full flex gap-2 flex-col min-[225px]:flex-row">
 					<div className="w-full min-[225px]:w-1/2">
 						<VSCodeButtonLink appearance="primary" className="w-full" href={getClineUris(clineUrl, "dashboard").href}>
-							Dashboard
+							{t("account:dashboard")}
 						</VSCodeButtonLink>
 					</div>
 					<VSCodeButton appearance="secondary" className="w-full min-[225px]:w-1/2" onClick={() => handleSignOut()}>
-						Log out
+						{t("account:logOut")}
 					</VSCodeButton>
 				</div>
 
@@ -390,7 +400,7 @@ const ClineAccountView = ({ clineUser, userOrganizations, activeOrganization, cl
 				{isClineTester && environment !== "selfHosted" && (
 					<div className="w-full gap-1 items-end">
 						<VSCodeDivider className="w-full my-3" />
-						<div className="text-sm font-semibold">Cline Environment</div>
+						<div className="text-sm font-semibold">{t("account:clineEnvironment")}</div>
 						<VSCodeDropdown
 							className="w-full mt-1"
 							currentValue={clineEnv}
@@ -403,7 +413,7 @@ const ClineAccountView = ({ clineUser, userOrganizations, activeOrganization, cl
 							}}>
 							{ClineEnvOptions.map((env) => (
 								<VSCodeOption key={env} value={env}>
-									{env}
+									{t(ClineEnvLabelKeys[env])}
 								</VSCodeOption>
 							))}
 						</VSCodeDropdown>

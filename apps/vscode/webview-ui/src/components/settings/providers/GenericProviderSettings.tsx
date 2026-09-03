@@ -1,4 +1,5 @@
 import { Mode } from "@shared/storage/types"
+import { useTranslation } from "react-i18next"
 import { type ProviderId } from "@/context/ExtensionStateContext"
 import { useProviderConfig } from "@/hooks/useProviderConfig"
 import { useProviderModelSelection } from "@/hooks/useProviderModelSelection"
@@ -42,6 +43,7 @@ export const GenericProviderSettings = ({
 	isPopup,
 	currentMode,
 }: GenericProviderSettingsProps) => {
+	const { t } = useTranslation()
 	const { models, defaultModelId, isLoading, isStale, error } = useProviderModels(providerId)
 	const { config, write, commitSelection } = useProviderConfig(providerId)
 	const { selectedModel, commitModelSelection } = useProviderModelSelection(providerId, currentMode, {
@@ -79,7 +81,7 @@ export const GenericProviderSettings = ({
 			<ApiKeyField
 				initialValue={savedApiKeyMask}
 				onChange={handleApiKeyChange}
-				placeholder="Enter API Key..."
+				placeholder={t("providers:shared.enterApiKeyPlaceholder")}
 				providerName={providerName}
 				signupUrl={signupUrl}
 			/>

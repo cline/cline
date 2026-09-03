@@ -4,6 +4,7 @@ import { ShowMessageType } from "@shared/proto/host/window"
 import type { TaskFeedbackType } from "@shared/WebviewMessage"
 import * as os from "os"
 import { ClineAccountUserInfo } from "@/services/auth/AuthService"
+import { t } from "@/services/i18n"
 import { Setting } from "@/shared/proto/index.host"
 import { Logger } from "@/shared/services/Logger"
 import { Mode } from "@/shared/storage/types"
@@ -399,17 +400,17 @@ export class TelemetryService {
 		if (hostSetting.isEnabled === Setting.DISABLED) {
 			// Only show warning if user has opted in to Cline telemetry but host telemetry is disabled
 			if (didUserOptIn) {
+				const openSettingsButton = t("telemetry.openSettingsButton")
 				void HostProvider.window
 					.showMessage({
 						type: ShowMessageType.WARNING,
-						message:
-							"Anonymous Cline error and usage reporting is enabled, but IDE telemetry is disabled. To enable error and usage reporting for this extension, enable telemetry in IDE settings.",
+						message: t("telemetry.hostTelemetryDisabled"),
 						options: {
-							items: ["Open Settings"],
+							items: [openSettingsButton],
 						},
 					})
 					.then((response: { selectedOption?: string }) => {
-						if (response.selectedOption === "Open Settings") {
+						if (response.selectedOption === openSettingsButton) {
 							void HostProvider.window.openSettings({
 								query: "telemetry.telemetryLevel",
 							})

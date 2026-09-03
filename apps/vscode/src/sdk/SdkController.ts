@@ -42,6 +42,7 @@ import { ExtensionRegistryInfo } from "@/registry"
 import { OcaAuthService } from "@/services/auth/oca/OcaAuthService"
 import { UrlContentFetcher } from "@/services/browser/UrlContentFetcher"
 import { ClineError } from "@/services/error/ClineError"
+import { t } from "@/services/i18n"
 import { McpHub } from "@/services/mcp/McpHub"
 import { telemetryService } from "@/services/telemetry"
 import type { ClineExtensionContext } from "@/shared/cline"
@@ -1818,20 +1819,20 @@ export class Controller {
 		if (diffs === undefined) {
 			HostProvider.window.showMessage({
 				type: ShowMessageType.INFORMATION,
-				message: "No checkpoint was taken for this task. Checkpoints require the workspace to be a git repository.",
+				message: t("checkpoints.noneTaken"),
 			})
 			return
 		}
 		if (diffs.length === 0) {
 			HostProvider.window.showMessage({
 				type: ShowMessageType.INFORMATION,
-				message: "No file changes found since your last message.",
+				message: t("checkpoints.noChanges"),
 			})
 			return
 		}
 
 		await HostProvider.diff.openMultiFileDiff({
-			title: "Changes since your last message",
+			title: t("checkpoints.diffTitle"),
 			diffs: diffs.map((diff) => ({
 				filePath: diff.filePath,
 				leftContent: diff.leftContent,
@@ -2098,14 +2099,15 @@ export class Controller {
 		const taskHistory = await this.taskHistory.listHistory({ hydrate: false })
 		const totalTasks = taskHistory.length
 
+		const deleteAllExceptFavoritesButton = t("tasks.deleteAllExceptFavoritesButton")
 		const userChoice = (
 			await HostProvider.window.showMessage(
 				ShowMessageRequest.create({
 					type: ShowMessageType.WARNING,
-					message: "What would you like to delete?",
+					message: t("tasks.deleteAllPrompt"),
 					options: {
 						modal: true,
-						items: ["Delete All Except Favorites", "Delete Everything"],
+						items: [deleteAllExceptFavoritesButton, t("tasks.deleteEverythingButton")],
 					},
 				}),
 			)
@@ -2115,7 +2117,7 @@ export class Controller {
 			return DeleteAllTaskHistoryCount.create({ tasksDeleted: 0 })
 		}
 
-		if (userChoice === "Delete All Except Favorites") {
+		if (userChoice === deleteAllExceptFavoritesButton) {
 			const hasFavoritedTasks = taskHistory.some(
 				(task) =>
 					metadataBoolean(task.metadata, "isFavorited") ?? metadataBoolean(task.metadata, "is_favorited") ?? false,
@@ -2132,10 +2134,10 @@ export class Controller {
 			const answer = (
 				await HostProvider.window.showMessage({
 					type: ShowMessageType.WARNING,
-					message: "No favorited tasks found. Would you like to delete all tasks anyway?",
+					message: t("tasks.noFavoritesFound"),
 					options: {
 						modal: true,
-						items: ["Delete All Tasks"],
+						items: [t("tasks.deleteAllTasksButton")],
 					},
 				})
 			).selectedOption

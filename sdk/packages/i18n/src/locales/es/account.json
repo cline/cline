@@ -1,0 +1,50 @@
+{
+	"addCredits": "Agregar créditos",
+	"auth": {
+		"copied": "Copiado",
+		"copy": "Copiar",
+		"copyCodeAria": "Copiar el código de inicio de sesión de Cline",
+		"enterCode": "Introduce este código en tu navegador:"
+	},
+	"clineEnvironment": "Entorno de Cline",
+	"creditsHistory": {
+		"credits": "Créditos",
+		"creditsUsed": "Créditos usados",
+		"date": "Fecha",
+		"model": "Modelo",
+		"noPayments": "No hay historial de pagos",
+		"noUsage": "No hay historial de uso",
+		"operations": {
+			"webFetch": "Recuperación web",
+			"webFetchLlm": "Recuperación web (LLM)",
+			"webSearch": "Búsqueda web"
+		},
+		"paymentsHistory": "HISTORIAL DE PAGOS",
+		"totalCost": "Costo total",
+		"usageHistory": "HISTORIAL DE USO"
+	},
+	"currentBalance": "SALDO ACTUAL",
+	"dashboard": "Panel",
+	"env": {
+		"local": "Local",
+		"production": "Producción",
+		"staging": "Staging"
+	},
+	"lastUpdated": "Última actualización: {{time}}",
+	"logOut": "Cerrar sesión",
+	"optOutRemoteConfig": "Desactivar la configuración remota",
+	"organizationLockedTooltip": "Esto no se puede cambiar mientras tu organización tenga habilitada la configuración remota.",
+	"personal": "Personal",
+	"roleTitle": "Rol",
+	"roles": {
+		"admin": "Administrador",
+		"member": "Miembro",
+		"owner": "Propietario"
+	},
+	"title": "Cuenta",
+	"welcome": {
+		"description": "Regístrate para obtener acceso a los modelos más recientes, un panel de facturación para ver el uso y los créditos, y más funciones próximamente.",
+		"signUp": "Registrarse con Cline",
+		"terms": "Al continuar, aceptas los <tosLink>Términos del servicio</tosLink> y la <privacyLink>Política de privacidad.</privacyLink>"
+	}
+}

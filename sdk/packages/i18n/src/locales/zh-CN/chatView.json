@@ -1,0 +1,49 @@
+{
+	"buttons": {
+		"approve": "批准",
+		"cancel": "取消",
+		"condenseConversation": "压缩对话",
+		"proceedAnyways": "仍然继续",
+		"proceedWhileRunning": "运行时继续",
+		"reject": "拒绝",
+		"reportGithubIssue": "报告 GitHub 问题",
+		"resumeTask": "恢复任务",
+		"retry": "重试",
+		"runCommand": "运行命令",
+		"save": "保存",
+		"startNewTask": "开始新任务",
+		"startNewTaskWithContext": "携带上下文开始新任务"
+	},
+	"queuedPrompts": {
+		"attachments_other": "{{count}} 个附件",
+		"cancelQueued": "取消已排队的消息",
+		"mixedSummary": "排队 {{queueCount}} 条，引导 {{steerCount}} 条",
+		"queuedMessages_other": "{{count}} 条排队消息",
+		"steer": "引导",
+		"steeringMessages_other": "{{count}} 条引导消息"
+	},
+	"toolGroup": {
+		"analyzing": "正在分析 {{path}}/...",
+		"codebase": "代码库",
+		"contextFallback": "上下文",
+		"definitions_other": "{{count}} 个定义",
+		"exploring": "正在浏览 {{path}}/...",
+		"files_other": "{{count}} 个文件",
+		"folders_other": "{{count}} 个文件夹",
+		"linesFrom": "第 {{start}} 行起",
+		"linesRange": "第 {{start}}-{{end}} 行",
+		"patterns_other": "{{count}} 个模式",
+		"performedSearches_other": "执行了 {{count}} 次搜索",
+		"reading": "正在读取 {{path}}...",
+		"readingWithLines": "正在读取 {{path}}（{{lines}}）...",
+		"searchIn": "{{path}} 中的 {{terms}}",
+		"searching": "正在搜索 {{query}}...",
+		"summary": "Cline {{items}}",
+		"summaryRead": "Cline 读取了 {{items}}"
+	},
+	"welcome": {
+		"currentLabel": "当前：",
+		"detachedHead": "分离的 HEAD",
+		"worktreesTooltip": "查看和管理 Git 工作树。非常适合并行运行多个 Cline 任务。"
+	}
+}

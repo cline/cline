@@ -1,0 +1,53 @@
+{
+	"buttons": {
+		"compactTask": "Сжать задачу",
+		"copyAria": "Копировать",
+		"copyText": "Скопировать текст",
+		"deleteTask": "Удалить задачу",
+		"deleteTaskWithSize": "Удалить задачу (размер: {{size}})",
+		"newTaskAria": "Новая задача",
+		"openConversationHistory": "Открыть файл истории диалога",
+		"openConversationHistoryAria": "Открыть историю диалога на диске",
+		"startNewTask": "Начать новую задачу"
+	},
+	"collapseAria": "Свернуть заголовок задачи",
+	"compactConfirm": {
+		"cancel": "Отмена",
+		"cancelTitle": "Нет, оставить задачу как есть",
+		"confirm": "Сжать",
+		"confirmTitle": "Да, сжать задачу",
+		"description": "Заменяет историю диалога сводкой, чтобы освободить место в контекстном окне.",
+		"title": "Сжать текущую задачу?"
+	},
+	"contextWindowSummary": {
+		"autoCondenseThreshold": "Порог автосжатия",
+		"contextWindow": "Контекстное окно",
+		"noTokenData": "Нет данных об использовании токенов",
+		"remaining": "Осталось:",
+		"thresholdClickHint": "Нажмите на полосу контекстного окна, чтобы задать новый порог.",
+		"thresholdDescription": "Когда использование контекстного окна превысит этот порог, задача будет автоматически сжата.",
+		"tokenDetails": {
+			"cacheReads": "Чтения из кэша",
+			"cacheWrites": "Записи в кэш",
+			"completionTokens": "Токены ответа",
+			"promptTokens": "Токены запроса"
+		},
+		"tokenUsage": "Использование токенов",
+		"total": "Всего:",
+		"used": "Использовано:"
+	},
+	"cwdBadge": {
+		"outsideWorkspaceAria": "Рабочий каталог задачи {{cwd}} находится вне текущего рабочего пространства",
+		"outsideWorkspaceTooltip": "Рабочий каталог этой задачи — {{cwd}}, он находится вне текущего рабочего пространства. Cline читает и редактирует файлы и выполняет команды именно там."
+	},
+	"expandAria": "Развернуть заголовок задачи",
+	"progressAria": "Заполненность контекстного окна",
+	"stickyMessage": {
+		"scrollToMessageAria": "Перейти к вашему сообщению: {{message}}",
+		"scrollToMessageTitle": "Нажмите, чтобы перейти к вашему сообщению"
+	},
+	"tooltips": {
+		"maxContextWindow": "Максимальный размер контекстного окна для этой модели",
+		"tokensUsed": "Токены, использованные в текущем запросе"
+	}
+}

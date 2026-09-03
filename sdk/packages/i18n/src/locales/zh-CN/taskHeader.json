@@ -1,0 +1,53 @@
+{
+	"buttons": {
+		"compactTask": "压缩任务",
+		"copyAria": "复制",
+		"copyText": "复制文本",
+		"deleteTask": "删除任务",
+		"deleteTaskWithSize": "删除任务（大小：{{size}}）",
+		"newTaskAria": "新任务",
+		"openConversationHistory": "打开对话历史文件",
+		"openConversationHistoryAria": "打开磁盘上的对话历史",
+		"startNewTask": "开始新任务"
+	},
+	"collapseAria": "折叠任务标题",
+	"compactConfirm": {
+		"cancel": "取消",
+		"cancelTitle": "否，保持任务原样",
+		"confirm": "压缩",
+		"confirmTitle": "是，压缩此任务",
+		"description": "用摘要替换对话历史记录，以释放上下文窗口空间。",
+		"title": "压缩当前任务？"
+	},
+	"contextWindowSummary": {
+		"autoCondenseThreshold": "自动压缩阈值",
+		"contextWindow": "上下文窗口",
+		"noTokenData": "暂无 Token 使用数据",
+		"remaining": "剩余：",
+		"thresholdClickHint": "点击上下文窗口进度条以设置新阈值。",
+		"thresholdDescription": "当上下文窗口使用量超过此阈值时，任务将被自动压缩。",
+		"tokenDetails": {
+			"cacheReads": "缓存读取",
+			"cacheWrites": "缓存写入",
+			"completionTokens": "补全 Token",
+			"promptTokens": "提示 Token"
+		},
+		"tokenUsage": "Token 用量",
+		"total": "总计：",
+		"used": "已用："
+	},
+	"cwdBadge": {
+		"outsideWorkspaceAria": "任务工作目录 {{cwd}} 位于当前工作区之外",
+		"outsideWorkspaceTooltip": "此任务的工作目录为 {{cwd}}，位于当前工作区之外。Cline 将在该目录中读取和编辑文件并运行命令。"
+	},
+	"expandAria": "展开任务标题",
+	"progressAria": "上下文窗口使用进度",
+	"stickyMessage": {
+		"scrollToMessageAria": "滚动到你的消息：{{message}}",
+		"scrollToMessageTitle": "点击滚动到你的消息"
+	},
+	"tooltips": {
+		"maxContextWindow": "此模型的最大上下文窗口大小",
+		"tokensUsed": "此请求当前使用的 Token 数"
+	}
+}

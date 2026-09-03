@@ -3,6 +3,7 @@ import { CreateSkillRequest, SkillsToggles } from "@shared/proto/cline/file"
 import fs from "fs/promises"
 import path from "path"
 import { HostProvider } from "@/hosts/host-provider"
+import { t } from "@/services/i18n"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
 import { fileExistsAtPath } from "@/utils/fs"
@@ -76,7 +77,7 @@ export async function createSkillFile(controller: Controller, request: CreateSki
 	if (await fileExistsAtPath(skillDir)) {
 		await HostProvider.window.showMessage({
 			type: ShowMessageType.WARNING,
-			message: `Skill "${sanitizedName}" already exists`,
+			message: t("skills.alreadyExists", { name: sanitizedName }),
 		})
 		// Return current toggles
 		const globalToggles = controller.stateManager.getGlobalSettingsKey("globalSkillsToggles") || {}

@@ -1,6 +1,7 @@
 import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
 import { ShowMessageType } from "@shared/proto/host/window"
 import { HostProvider } from "@/hosts/host-provider"
+import { t } from "@/services/i18n"
 import { Logger } from "@/shared/services/Logger"
 
 /**
@@ -65,7 +66,7 @@ export async function openExternal(url: string): Promise<void> {
 			Logger.error(`Fallback 'open' also failed: ${fallbackError}`)
 			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
-				message: `Failed to open URL: ${url}`,
+				message: t("url.openFailed", { url }),
 			})
 		}
 	}

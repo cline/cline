@@ -1,5 +1,6 @@
 import { getFileMentionFromPath } from "@/core/mentions"
 import { HostProvider } from "@/hosts/host-provider"
+import { t } from "@/services/i18n"
 import { telemetryService } from "@/services/telemetry"
 import { CommandContext, Empty } from "@/shared/proto/index.cline"
 import { ShowMessageType } from "@/shared/proto/index.host"
@@ -15,7 +16,7 @@ export async function improveWithCline(
 		Logger.log("❌ No text selected and no notebook context")
 		HostProvider.window.showMessage({
 			type: ShowMessageType.INFORMATION,
-			message: "Please select some code to improve.",
+			message: t("commands.selectCodeToImprove"),
 		})
 		return {}
 	}

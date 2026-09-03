@@ -1,11 +1,306 @@
 {
+	"about": {
+		"communitySupport": "커뮤니티 및 지원",
+		"description": "CLI와 편집기를 사용할 수 있는 AI 어시스턴트입니다. Cline은 파일 생성 및 편집, 대규모 프로젝트 탐색, 브라우저 사용, 터미널 명령 실행(사용자 승인 후)을 지원하는 도구를 활용해 복잡한 소프트웨어 개발 작업을 단계별로 처리할 수 있습니다.",
+		"development": "개발",
+		"documentation": "문서",
+		"featureRequests": "기능 요청",
+		"issues": "이슈",
+		"resources": "리소스",
+		"variantLegacy": "레거시",
+		"variantNext": "Next"
+	},
+	"account": {
+		"signUpWithCline": "Cline 가입하기",
+		"viewBillingUsage": "결제 및 사용량 보기"
+	},
+	"apiConfig": {
+		"actMode": "실행 모드",
+		"planMode": "계획 모드",
+		"separateModels": {
+			"description": "계획 모드와 실행 모드를 전환할 때 이전 모드에서 사용한 API와 모델이 유지됩니다. 예를 들어 강력한 추론 모델로 계획을 세우고, 더 저렴한 코딩 모델로 실행할 때 유용합니다.",
+			"label": "계획 모드와 실행 모드에 서로 다른 모델 사용"
+		}
+	},
+	"apiKeyField": {
+		"helpText": "이 키는 로컬에만 저장되며 이 확장에서 API 요청을 보내는 데만 사용됩니다.",
+		"label": "{{providerName}} API 키",
+		"placeholder": "API 키 입력...",
+		"signupText": "여기에서 가입하여 {{providerName}} API 키를 받으세요."
+	},
+	"apiOptions": {
+		"providerLabel": "API 공급자",
+		"providersRemoteManagedTooltip": "공급자 옵션은 조직의 원격 구성으로 관리됩니다",
+		"searchProviderPlaceholder": "공급자 검색 및 선택..."
+	},
+	"baseUrl": {
+		"defaultPlaceholder": "기본값: https://api.example.com",
+		"label": "기본 URL",
+		"labelCustom": "사용자 지정 기본 URL 사용"
+	},
+	"clearSearch": "검색 지우기",
+	"debug": {
+		"resetGlobalState": "전역 상태 초기화",
+		"resetGlobalStateDescription": "확장의 모든 전역 상태와 비밀 저장소가 초기화됩니다.",
+		"resetOnboardingState": "온보딩 상태 초기화",
+		"resetWorkspaceState": "작업 영역 상태 초기화"
+	},
+	"features": {
+		"autoCompact": {
+			"description": "대화 기록을 자동으로 압축합니다.",
+			"label": "자동 압축"
+		},
+		"backgroundEdit": {
+			"description": "편집기 포커스를 빼앗지 않고 편집을 허용합니다",
+			"label": "백그라운드 편집"
+		},
+		"checkpoints": {
+			"description": "주요 지점에서 진행 상황을 저장해 쉽게 롤백할 수 있습니다",
+			"label": "체크포인트"
+		},
+		"compactionStrategy": {
+			"agentic": "에이전트 방식",
+			"basic": "기본",
+			"description": "자동 압축이 컨텍스트를 다시 작성하는 방식을 제어합니다.",
+			"label": "자동 압축 전략"
+		},
+		"featureTips": {
+			"description": "생각 단계 동안 팁을 번갈아 표시하여 Cline의 기능을 알아볼 수 있게 합니다.",
+			"label": "기능 팁"
+		},
+		"groups": {
+			"advanced": "고급",
+			"agent": "에이전트",
+			"editor": "편집기"
+		},
+		"hooks": {
+			"description": "작업 실행 중 수명 주기 및 도구 후크를 사용하도록 설정합니다.",
+			"label": "후크"
+		},
+		"mcpDisplayMode": {
+			"description": "MCP 응답이 표시되는 방식을 제어합니다",
+			"label": "MCP 표시 모드",
+			"markdown": "Markdown",
+			"plain": "일반 텍스트",
+			"rich": "리치 표시"
+		},
+		"webSearch": {
+			"description": "선택한 공급자와 모델이 지원하는 경우 모델이 웹을 검색할 수 있게 합니다. 새 작업에 적용됩니다.",
+			"label": "웹 검색"
+		},
+		"worktrees": {
+			"description": "Cline 작업을 병렬로 실행할 수 있도록 git 워크트리 관리를 사용하도록 설정합니다.",
+			"label": "워크트리"
+		}
+	},
+	"general": {
+		"telemetry": {
+			"description": "사용 데이터와 오류 보고서를 전송하여 Cline 개선에 도움을 주세요. 코드, 프롬프트, 개인 정보는 절대 전송되지 않습니다. 자세한 내용은 <telemetryLink>원격 분석 개요</telemetryLink>와 <privacyLink>개인정보처리방침</privacyLink>을 참조하세요.",
+			"label": "오류 및 사용량 보고 허용"
+		}
+	},
+	"modelInfo": {
+		"advanced": "고급",
+		"browser": "브라우저",
+		"cacheReads": "캐시 읽기",
+		"cacheWrites": "캐시 쓰기",
+		"context": "컨텍스트:",
+		"free": "무료",
+		"images": "이미지",
+		"input": "입력:",
+		"no": "아니요",
+		"notAvailable": "해당 없음",
+		"output": "출력:",
+		"promptCaching": "프롬프트 캐싱",
+		"providerRouting": {
+			"default": "기본값",
+			"defaultDescription": "여러 공급자(AWS, Google Vertex 등) 간에 부하를 분산하며, 가동률을 고려하면서 가격을 우선합니다",
+			"label": "공급자 라우팅",
+			"latency": "지연 시간",
+			"latencyDescription": "응답 시간순으로 정렬하여 지연 시간이 가장 낮은 공급자를 우선합니다",
+			"price": "가격",
+			"priceDescription": "가격순으로 정렬하여 비용이 가장 낮은 공급자를 우선합니다",
+			"throughput": "처리량",
+			"throughputDescription": "처리량순으로 정렬하여 처리량이 가장 높은 공급자를 우선합니다(비용이 늘어날 수 있음)"
+		},
+		"seeLess": "간략히 보기",
+		"seeMore": "더 보기",
+		"tierAbove": "{{price}}/백만 토큰(> {{limit}} 토큰)",
+		"tierUpTo": "{{price}}/백만 토큰(<= {{limit}} 토큰)",
+		"tieredPricing": "구간별 요금:",
+		"yes": "예"
+	},
+	"modelPicker": {
+		"autoFetchFreeTip": "\"free\"를 검색하면 현재 이용 가능한 무료 옵션을 찾을 수도 있습니다.",
+		"autoFetchNote": "이 확장은 <providerLink>{{provider}}</providerLink>에서 사용 가능한 최신 모델 목록을 자동으로 가져옵니다. 어떤 모델을 선택할지 확실하지 않다면 컨텍스트 창, 가격, 기능을 기준으로 사용 가능한 모델을 비교해 보세요.",
+		"clineAutoFetchNote": "이 확장은 최신 Cline 모델 목록을 자동으로 가져옵니다.",
+		"deployedModels": "배포된 모델",
+		"freeBadge": "무료",
+		"freeModelDescription": "무료 모델",
+		"freeTab": "무료",
+		"idLabel": "모델 ID",
+		"label": "모델",
+		"loadingModels": "모델 로드 중...",
+		"noModelsFound": "모델을 찾을 수 없음",
+		"notDeployedModels": "배포되지 않은 모델",
+		"recommendedBadge": "추천",
+		"recommendedModelDescription": "추천 모델",
+		"recommendedTab": "추천",
+		"searchPlaceholder": "모델 검색 및 선택...",
+		"searchShortPlaceholder": "모델 검색...",
+		"selectPlaceholder": "모델 선택...",
+		"suggestionsAria": "모델 제안",
+		"vercelEnterApiKey": "사용 가능한 모델을 불러오려면 위에 Vercel AI Gateway API 키를 입력하세요. API 키는 <gatewayLink>Vercel AI Gateway</gatewayLink>에서 받을 수 있습니다.",
+		"vercelSelectModel": "위 드롭다운에서 모델을 선택하세요. 이 확장은 Vercel AI Gateway 구성에서 사용 가능한 모델을 가져옵니다."
+	},
 	"preferredLanguage": {
 		"description": "Cline이 대화할 때 사용할 언어입니다.",
 		"label": "선호 언어"
 	},
+	"providerRegistry": {
+		"gemini": {
+			"baseUrlPlaceholder": "기본값: https://generativelanguage.googleapis.com"
+		}
+	},
+	"reasoningEffort": {
+		"adaptiveDescription": "적응형 사고를 사용하지 않으려면 '없음'을 선택하세요. 수준이 높을수록 응답이 자세해지고 토큰 사용량이 늘어납니다.",
+		"adaptiveLabel": "적응형 사고",
+		"description": "수준이 높을수록 더 깊이 있게 사고하지만 토큰을 더 많이 사용합니다.",
+		"extendedDescription": "확장 사고를 사용하지 않으려면 '없음'을 선택하세요. 수준이 높을수록 더 깊이 있게 사고하지만 토큰을 더 많이 사용합니다.",
+		"label": "추론 수준",
+		"options": {
+			"high": "높음",
+			"low": "낮음",
+			"medium": "보통",
+			"none": "없음",
+			"xhigh": "매우 높음"
+		}
+	},
+	"remoteConfig": {
+		"disabled": "사용 안 함",
+		"enabled": "사용",
+		"failed": "실패",
+		"loadFailed": "관리형 구성을 불러오지 못했습니다",
+		"managedNote": "이 설정은 조직의 원격 구성으로 관리됩니다.",
+		"notConfigured": "구성되지 않음",
+		"notSetup": "아직 원격 구성을 설정하지 않았습니다. <dashboardLink>대시보드</dashboardLink>에서 설정하세요.",
+		"optedOut": "원격 구성 사용을 거부한 상태입니다. 다시 참여하면 구성이 적용되고 여기에서 확인할 수 있습니다.",
+		"otel": {
+			"flushSuccess": "버퍼를 플러시했습니다! 자세한 내용은 출력 채널을 확인하세요",
+			"headerCount_other": "헤더 {{count}}개",
+			"logBatchSize": "로그 배치 크기",
+			"logBatchTimeout": "로그 배치 시간 제한",
+			"logMaxQueueSize": "로그 최대 큐 크기",
+			"logsEndpoint": "로그 엔드포인트",
+			"logsExporter": "로그 내보내기 도구",
+			"metricExportInterval": "메트릭 내보내기 간격",
+			"metricsEndpoint": "메트릭 엔드포인트",
+			"metricsExporter": "메트릭 내보내기 도구",
+			"otlpEndpoint": "OTLP 엔드포인트",
+			"otlpHeaders": "OTLP 헤더",
+			"otlpInsecure": "OTLP 비보안 모드",
+			"otlpProtocol": "OTLP 프로토콜",
+			"title": "OpenTelemetry 구성"
+		},
+		"promptUpload": {
+			"accessKeyId": "액세스 키 ID",
+			"accountId": "계정 ID",
+			"backfillEnabled": "백필 사용",
+			"batchSize": "배치 크기",
+			"bucket": "버킷",
+			"endpoint": "엔드포인트",
+			"maxQueueSize": "최대 큐 크기",
+			"maxRetries": "최대 재시도 횟수",
+			"region": "지역",
+			"secretAccessKey": "비밀 액세스 키",
+			"storageType": "스토리지 유형",
+			"syncInterval": "동기화 간격",
+			"testUpload": "업로드 테스트",
+			"title": "프롬프트 업로드 구성"
+		},
+		"refresh": "새로 고침",
+		"refreshError": "관리형 구성을 새로 고칠 수 없습니다: {{error}}",
+		"refreshFailed": "관리형 구성을 새로 고치지 못했습니다",
+		"retryIn_other": "({{count}}초 후 재시도 가능)",
+		"success": "성공!",
+		"test": "테스트",
+		"testFailed": "테스트 실패",
+		"testing": "테스트 중...",
+		"updateFailed": "관리형 구성을 업데이트하지 못했습니다"
+	},
+	"remoteManaged": {
+		"tooltip": "이 설정은 조직의 원격 구성으로 관리됩니다"
+	},
+	"tabs": {
+		"about": {
+			"name": "정보",
+			"tooltip": "Cline 정보"
+		},
+		"apiConfig": {
+			"name": "API 구성"
+		},
+		"debug": {
+			"name": "디버그",
+			"tooltip": "디버그 도구"
+		},
+		"features": {
+			"header": "기능 설정",
+			"name": "기능"
+		},
+		"general": {
+			"header": "일반 설정",
+			"name": "일반"
+		},
+		"remoteConfig": {
+			"name": "원격 구성",
+			"tooltip": "원격으로 구성된 필드"
+		},
+		"terminal": {
+			"header": "터미널 설정",
+			"name": "터미널"
+		}
+	},
+	"terminal": {
+		"defaultProfile": {
+			"description": "Cline이 사용할 기본 터미널을 선택하세요. '기본값'은 VS Code 전역 설정을 사용합니다.",
+			"label": "기본 터미널 프로필"
+		},
+		"executionMode": {
+			"backgroundExec": "백그라운드 실행",
+			"description": "Cline이 명령을 VS Code 터미널에서 실행할지 백그라운드 프로세스에서 실행할지 선택합니다.",
+			"label": "터미널 실행 모드",
+			"vscodeTerminal": "VS Code 터미널"
+		},
+		"reuse": {
+			"description": "사용하도록 설정하면 Cline이 현재 작업 디렉터리에 있지 않은 기존 터미널 창을 재사용합니다. 터미널 명령 후 작업이 멈추는 문제가 발생하면 사용하지 않도록 설정하세요.",
+			"label": "적극적인 터미널 재사용 사용"
+		},
+		"shellTimeout": {
+			"description": "명령을 실행하기 전에 Cline이 셸 통합 활성화를 기다리는 시간을 설정합니다. 터미널 연결 시간 초과가 발생하면 이 값을 늘리세요.",
+			"invalidNumber": "양수를 입력하세요",
+			"label": "셸 통합 시간 제한(초)",
+			"placeholder": "시간 제한(초)을 입력하세요"
+		},
+		"troubleshooting": {
+			"text": "<strong>터미널에 문제가 있나요?</strong> <quickFixesLink>터미널 빠른 해결 방법</quickFixesLink>이나 <guideLink>전체 문제 해결 가이드</guideLink>를 확인하세요."
+		}
+	},
+	"title": "설정",
 	"uiLanguage": {
 		"auto": "자동(VS Code 언어에 맞춤)",
 		"description": "Cline 인터페이스에 사용할 언어입니다.",
 		"label": "표시 언어"
+	},
+	"validation": {
+		"apiKeyRequired": "유효한 API 키를 입력하거나 다른 공급자를 선택하세요.",
+		"authUrlRequired": "유효한 인증 URL을 입력하거나 다른 공급자를 선택하세요.",
+		"awsRegionRequired": "AWS Bedrock에서 사용할 리전을 선택해야 합니다.",
+		"baseUrlRequired": "유효한 기본 URL을 입력하거나 다른 공급자를 선택하세요.",
+		"clientIdRequired": "유효한 클라이언트 ID를 입력하거나 다른 공급자를 선택하세요.",
+		"clientSecretRequired": "유효한 클라이언트 시크릿을 입력하거나 다른 공급자를 선택하세요.",
+		"googleCloudConfigRequired": "유효한 Google Cloud 프로젝트 ID와 리전을 입력해야 합니다.",
+		"modelIdRequired": "유효한 모델 ID를 입력해야 합니다.",
+		"modelSelectorRequired": "유효한 모델 선택기를 입력해야 합니다.",
+		"openAiConfigRequired": "유효한 기본 URL, API 키, 모델 ID를 입력해야 합니다."
 	}
 }

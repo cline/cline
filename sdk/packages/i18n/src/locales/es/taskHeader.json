@@ -1,0 +1,53 @@
+{
+	"buttons": {
+		"compactTask": "Compactar tarea",
+		"copyAria": "Copiar",
+		"copyText": "Copiar texto",
+		"deleteTask": "Eliminar tarea",
+		"deleteTaskWithSize": "Eliminar tarea (tamaño: {{size}})",
+		"newTaskAria": "Nueva tarea",
+		"openConversationHistory": "Abrir archivo del historial de conversación",
+		"openConversationHistoryAria": "Abrir historial de conversación en disco",
+		"startNewTask": "Iniciar una nueva tarea"
+	},
+	"collapseAria": "Contraer encabezado de la tarea",
+	"compactConfirm": {
+		"cancel": "Cancelar",
+		"cancelTitle": "No, mantener la tarea tal como está",
+		"confirm": "Compactar",
+		"confirmTitle": "Sí, compactar la tarea",
+		"description": "Reemplaza el historial de conversación con un resumen para liberar espacio en la ventana de contexto.",
+		"title": "¿Compactar la tarea actual?"
+	},
+	"contextWindowSummary": {
+		"autoCondenseThreshold": "Umbral de condensación automática",
+		"contextWindow": "Ventana de contexto",
+		"noTokenData": "No hay datos de uso de tokens disponibles",
+		"remaining": "Restante:",
+		"thresholdClickHint": "Haz clic en la barra de la ventana de contexto para establecer un nuevo umbral.",
+		"thresholdDescription": "Cuando el uso de la ventana de contexto supere este umbral, la tarea se condensará automáticamente.",
+		"tokenDetails": {
+			"cacheReads": "Lecturas de caché",
+			"cacheWrites": "Escrituras en caché",
+			"completionTokens": "Tokens de salida",
+			"promptTokens": "Tokens de entrada"
+		},
+		"tokenUsage": "Uso de tokens",
+		"total": "Total:",
+		"used": "Usado:"
+	},
+	"cwdBadge": {
+		"outsideWorkspaceAria": "El directorio de trabajo de la tarea {{cwd}} está fuera del espacio de trabajo actual",
+		"outsideWorkspaceTooltip": "El directorio de trabajo de esta tarea es {{cwd}}, que está fuera del espacio de trabajo actual. Cline lee y edita archivos y ejecuta comandos allí."
+	},
+	"expandAria": "Expandir encabezado de la tarea",
+	"progressAria": "Progreso de uso de la ventana de contexto",
+	"stickyMessage": {
+		"scrollToMessageAria": "Desplazarse a tu mensaje: {{message}}",
+		"scrollToMessageTitle": "Haz clic para desplazarte a tu mensaje"
+	},
+	"tooltips": {
+		"maxContextWindow": "Tamaño máximo de la ventana de contexto para este modelo",
+		"tokensUsed": "Tokens usados actualmente en esta solicitud"
+	}
+}

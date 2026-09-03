@@ -1,0 +1,62 @@
+{
+	"addRemoteServer": "Add Remote Server",
+	"advancedMcpSettings": "Advanced MCP Settings",
+	"clearSearch": "Clear search",
+	"customizeTitle": "Customize",
+	"disableEntry": "Disable {{name}}",
+	"editConfiguration": "Edit Configuration",
+	"enableEntry": "Enable {{name}}",
+	"installEntry": "Install {{name}}",
+	"installedMcpServers": "Installed MCP Servers",
+	"installedSectionTitle": "Installed {{title}}",
+	"orgManagesMcpServers": "Your organization manages some MCP servers",
+	"primitives": {
+		"mcp": {
+			"description": "Connect Cline to external APIs, local tools, and hosted services through <mcpLink>MCP</mcpLink> servers.",
+			"label": "MCP",
+			"loading": "Loading MCP servers",
+			"noInstalled": "No installed MCP servers.",
+			"noMarketplace": "No marketplace MCP servers.",
+			"noMatch": "No MCP servers match your search.",
+			"searchAria": "Search MCP Servers",
+			"searchPlaceholder": "Search MCP servers",
+			"title": "MCP Servers"
+		},
+		"plugin": {
+			"description": "<pluginsLink>Plugins</pluginsLink> are extensions for capabilities more complex than a single MCP server or skill, including custom tools, hooks, rules, slash commands, or bundled skills.",
+			"label": "Plugins",
+			"loading": "Loading plugins",
+			"noInstalled": "No installed plugins.",
+			"noMarketplace": "No marketplace plugins.",
+			"noMatch": "No plugins match your search.",
+			"searchAria": "Search Plugins",
+			"searchPlaceholder": "Search plugins",
+			"title": "Plugins"
+		},
+		"skill": {
+			"description": "Reusable instruction sets that Cline loads on demand for specific tasks, without staying in context for unrelated work. Browse more at <agentSkillsLink>Agent Skills</agentSkillsLink>.",
+			"label": "Skills",
+			"loading": "Loading skills",
+			"noInstalled": "No installed skills.",
+			"noMarketplace": "No marketplace skills.",
+			"noMatch": "No skills match your search.",
+			"searchAria": "Search Skills",
+			"searchPlaceholder": "Search skills",
+			"title": "Skills"
+		}
+	},
+	"remoteManagedSkillUninstall": "Remote-managed skills cannot be uninstalled here",
+	"requiresEnv": "Requires {{vars}}",
+	"sections": {
+		"installed": "Installed",
+		"marketplace": "Marketplace"
+	},
+	"sectionsAria": "{{title}} sections",
+	"source": {
+		"global": "Global",
+		"remote": "Remote",
+		"workspace": "Workspace"
+	},
+	"uninstallEntry": "Uninstall {{name}}",
+	"usesEnv": "Uses {{vars}}"
+}

@@ -1,0 +1,243 @@
+{
+	"aihubmix": {
+		"discountHelpText": "Запросите скидку 10% прямо сейчас!"
+	},
+	"asksage": {
+		"apiUrlLabel": "URL-адрес API AskSage",
+		"apiUrlPlaceholder": "Введите URL-адрес API AskSage..."
+	},
+	"bedrock": {
+		"accessKeyLabel": "Ключ доступа AWS",
+		"accessKeyPlaceholder": "Введите ключ доступа...",
+		"apiKeyLabel": "Ключ API AWS Bedrock",
+		"apiKeyPlaceholder": "Введите ключ API Bedrock",
+		"authApiKey": "Ключ API",
+		"authCredentials": "Учётные данные AWS",
+		"authProfile": "Профиль AWS",
+		"baseInferenceModelLabel": "Базовая модель инференса",
+		"clearSearchAria": "Очистить поиск",
+		"credentialsDescription": "Выполните аутентификацию, указав ключи выше, или используйте стандартные поставщики учётных данных AWS, т. е. ~/.aws/credentials или переменные среды. Эти учётные данные используются только локально для выполнения запросов к API из этого расширения.",
+		"customModelIdPlaceholder": "Введите пользовательский идентификатор модели...",
+		"customModelNote": "Выберите «Пользовательская» при использовании Application Inference Profile в Bedrock. Введите ARN профиля Application Inference Profile в поле «Идентификатор модели».",
+		"customOption": "Пользовательская",
+		"modelIdLabel": "Идентификатор модели",
+		"profileDescription": "Используются учётные данные профиля AWS из ~/.aws/credentials. Оставьте имя профиля пустым, чтобы использовать профиль по умолчанию. Эти учётные данные используются только локально для выполнения запросов к API из этого расширения.",
+		"profileLabel": "Имя профиля AWS",
+		"profilePlaceholder": "Введите имя профиля (default, если пусто)",
+		"regionLabel": "Регион AWS",
+		"regionSearchPlaceholder": "Найдите или введите свой регион...",
+		"secretKeyLabel": "Секретный ключ AWS",
+		"secretKeyPlaceholder": "Введите секретный ключ...",
+		"sessionTokenLabel": "Токен сеанса AWS",
+		"sessionTokenPlaceholder": "Введите токен сеанса...",
+		"useCrossRegionInference": "Использовать межрегиональный инференс",
+		"useCustomVpcEndpoint": "Использовать пользовательскую конечную точку VPC",
+		"useGlobalInferenceProfile": "Использовать глобальный профиль инференса",
+		"usePromptCaching": "Использовать кэширование промптов",
+		"vpcEndpointPlaceholder": "Введите URL-адрес конечной точки VPC (необязательно)"
+	},
+	"claudeCode": {
+		"cliPathDescription": "Путь к Claude Code CLI.",
+		"cliPathLabel": "Путь к Claude Code CLI",
+		"latestVersionNote": "По умолчанию используется последняя версия {{model}}."
+	},
+	"clinePass": {
+		"freeLabel": "БЕСПЛАТНО",
+		"freeTab": "Бесплатные",
+		"freeTabDescription": "Попробуйте с ограниченным лимитом, отдельно от квоты ClinePass.",
+		"subscribedTab": "По подписке"
+	},
+	"dify": {
+		"description": "Dify — это платформа, предоставляющая доступ к различным моделям ИИ через единый API. Чтобы начать работу, укажите URL-адрес вашего экземпляра Dify и ключ API.",
+		"modelSelectionNote": "Выбор модели выполняется в конфигурации вашего приложения Dify."
+	},
+	"hicap": {
+		"apiKeyLabel": "Ключ API Hicap",
+		"generateApiKey": "Создать ключ API"
+	},
+	"huggingface": {
+		"apiKeyLabel": "Ключ API Hugging Face",
+		"getApiKeyLink": "Получить ключ API можно здесь",
+		"pricingNote": "Мы не показываем здесь цены, поскольку они зависят от настроек вашего поставщика Hugging Face и не всегда доступны через их API"
+	},
+	"litellm": {
+		"baseUrlOptionalLabel": "Базовый URL-адрес (необязательно)",
+		"description": "LiteLLM предоставляет единый интерфейс для доступа к моделям различных поставщиков LLM. Дополнительные сведения см. в их <docsLink>кратком руководстве</docsLink>.",
+		"extendedThinkingInfo": "Расширенное мышление доступно для таких моделей, как Sonnet-4, o3-mini, Deepseek R1 и др. Подробнее о <docsLink>настройке режима мышления</docsLink>",
+		"modelListStale": "Список моделей может быть устаревшим для текущей конфигурации LiteLLM.",
+		"modelSearchPlaceholder": "Найдите или введите пользовательский идентификатор модели..."
+	},
+	"lmstudio": {
+		"contextWindowLabel": "Контекстное окно",
+		"contextWindowTitle": "Недоступно для изменения: значение возвращается подключённой конечной точкой",
+		"description": "LM Studio позволяет запускать модели локально на вашем компьютере. Инструкции по началу работы см. в их <quickstartLink>кратком руководстве.</quickstartLink> Также необходимо запустить функцию <serverLink>локального сервера</serverLink> LM Studio командой <code>lms server start</code>, чтобы использовать её с этим расширением.",
+		"modelPlaceholder": "например, meta-llama-3.1-8b-instruct"
+	},
+	"modelPicker": {
+		"customModelIdLabel": "Пользовательский идентификатор модели",
+		"customModelIdPlaceholder": "Введите пользовательский идентификатор модели",
+		"modelListStale": "Список моделей может быть устаревшим для текущей конфигурации поставщика.",
+		"notInCurrentList": "{{modelId}} (нет в текущем списке)",
+		"selectedModelNotInList": "Выбранная модель «{{modelId}}» отсутствует в текущем списке.",
+		"useCustomModelButton": "Использовать пользовательскую модель",
+		"useCustomModelIdOption": "Использовать пользовательский идентификатор модели…"
+	},
+	"moonshot": {
+		"entrypointLabel": "Точка входа Moonshot"
+	},
+	"oca": {
+		"acknowledgeButton": "Я подтверждаю и соглашаюсь",
+		"acknowledgementTitle": "Требуется подтверждение",
+		"connecting": "Подключение…",
+		"customBaseUrlLabel": "Пользовательский базовый URL-адрес (необязательно)",
+		"disclaimerSubtitle": "Отказ от ответственности: запрещённые к отправке данные",
+		"employeeCheckbox": "Я сотрудник Oracle",
+		"feedbackPrompt": "Есть идея для Oracle Code Assist?",
+		"lastRefreshedAt": "Последнее обновление в {{time}}",
+		"logOut": "Выйти",
+		"oracleEmploymentAria": "Работа в Oracle",
+		"provideFeedback": "Оставить отзыв",
+		"reasoningEffortLabel": "Уровень рассуждений",
+		"refresh": "Обновить",
+		"refreshFailed": "Не удалось обновить модели. Проверьте сеанс или сетевое подключение.",
+		"refreshing": "Обновление…",
+		"setupNote": "Попросите вашего ИТ-администратора настроить Oracle Code Assist в качестве поставщика моделей. Сотрудникам Oracle см. <quickstartLink>краткое руководство</quickstartLink>",
+		"signInAgain": "Войти снова",
+		"signInButton": "Войти через Oracle Code Assist",
+		"signedIn": "Вход выполнен",
+		"unknownUser": "Неизвестный пользователь"
+	},
+	"ollama": {
+		"apiKeyHelpText": "Необязательный ключ API для экземпляров Ollama с аутентификацией или облачных сервисов. Оставьте пустым для локальных установок.",
+		"apiKeyPlaceholder": "Введите ключ API (необязательно)...",
+		"contextWindowLabel": "Контекстное окно модели",
+		"description": "Ollama позволяет запускать модели локально на вашем компьютере. Инструкции по началу работы см. в их <quickstartLink>кратком руководстве.</quickstartLink>",
+		"fetchFailed": "Не удалось получить модели с сервера Ollama. Убедитесь, что Ollama запущена и доступна, или введите идентификатор модели вручную выше.",
+		"modelPlaceholder": "например, llama3.1",
+		"modelSearchPlaceholder": "Найдите и выберите модель...",
+		"requestTimeoutDescription": "Максимальное время ожидания ответа API в миллисекундах до прерывания запроса.",
+		"requestTimeoutLabel": "Тайм-аут запроса (мс)",
+		"requestTimeoutPlaceholder": "По умолчанию: 300000 (5 минут)"
+	},
+	"openaiCodex": {
+		"signInButton": "Войти в OpenAI Codex",
+		"signInDescription": "Войдите с подпиской ChatGPT Plus или Pro, чтобы использовать модели GPT-5 без ключа API.",
+		"signOut": "Выйти",
+		"signedIn": "Выполнен вход в OpenAI Codex"
+	},
+	"openaiCompatible": {
+		"addHeader": "Добавить заголовок",
+		"azureApiVersionLabel": "Задать версию API Azure",
+		"azureIdentityCheckbox": "Использовать аутентификацию Azure Identity",
+		"customHeadersLabel": "Пользовательские заголовки",
+		"customModelIdLabel": "Пользовательский идентификатор модели",
+		"headerNamePlaceholder": "Имя заголовка",
+		"headerValuePlaceholder": "Значение заголовка",
+		"inputPriceLabel": "Цена ввода / 1 млн токенов",
+		"modelConfigurationTitle": "Конфигурация модели",
+		"modelIdLabel": "Идентификатор модели",
+		"modelIdPlaceholder": "Введите идентификатор модели...",
+		"notSetPlaceholder": "не задано",
+		"outputPriceLabel": "Цена вывода / 1 млн токенов",
+		"removeHeader": "Удалить",
+		"temperatureLabel": "Температура"
+	},
+	"openrouter": {
+		"apiKeyLabel": "Ключ API OpenRouter",
+		"balance": "Баланс: {{balance}}",
+		"balanceTitle": "Остаток на балансе: {{balance}}\nЛимит: {{limit}}\nИспользовано: {{usage}}",
+		"getApiKeyButton": "Получить ключ API OpenRouter"
+	},
+	"qwen": {
+		"apiLineDescription": "Выберите подходящий интерфейс API в зависимости от вашего местоположения. Если вы находитесь в Китае, выберите китайский интерфейс API. В противном случае выберите международный интерфейс API.",
+		"apiLineLabel": "Линия API Alibaba",
+		"apiLineOptions": {
+			"china": "Китайский API",
+			"international": "Международный API"
+		}
+	},
+	"qwenCode": {
+		"authDescription": "Qwen Code — это API на основе OAuth, требующий аутентификации через официальный клиент Qwen. Сначала необходимо настроить учётные данные OAuth.",
+		"credsPathDescription": "Путь к файлу учётных данных OAuth Qwen. Используйте ~/.qwen/oauth_creds.json или укажите свой путь.",
+		"credsPathLabel": "Путь к учётным данным OAuth",
+		"gettingStartedIntro": "Чтобы начать работу:",
+		"gettingStartedStep1": "1. Установите официальный клиент Qwen",
+		"gettingStartedStep2": "2. Выполните аутентификацию с помощью своей учётной записи",
+		"gettingStartedStep3": "3. Учётные данные OAuth будут сохранены автоматически",
+		"setupInstructions": "Инструкции по настройке",
+		"title": "Конфигурация API Qwen Code"
+	},
+	"requesty": {
+		"getApiKeyButton": "Получить ключ API Requesty"
+	},
+	"sapaicore": {
+		"authUrlLabel": "URL-адрес аутентификации AI Core",
+		"authUrlPlaceholder": "Введите URL-адрес аутентификации AI Core...",
+		"baseUrlLabel": "Базовый URL-адрес AI Core",
+		"baseUrlPlaceholder": "Введите базовый URL-адрес AI Core...",
+		"clientIdLabel": "Идентификатор клиента AI Core",
+		"clientIdPlaceholder": "Введите идентификатор клиента AI Core...",
+		"clientIdSet": "Идентификатор клиента задан. Чтобы изменить его, введите значение заново.",
+		"clientSecretLabel": "Секрет клиента AI Core",
+		"clientSecretPlaceholder": "Введите секрет клиента AI Core...",
+		"clientSecretSet": "Секрет клиента задан. Чтобы изменить его, введите значение заново.",
+		"configureCredentials": "Настройте учётные данные SAP AI Core, чтобы увидеть доступные модели.",
+		"docsLink": "Дополнительные сведения о доступе к API SAP AI Core см. здесь.",
+		"fetchFailed": "Не удалось получить модели. Проверьте конфигурацию.",
+		"noDeployments": "Не удалось получить модели из экземпляра сервиса SAP AI Core. Проверьте конфигурацию SAP AI Core или убедитесь, что ваши развёртывания развёрнуты и запущены в экземпляре сервиса",
+		"orchestrationDescriptionDisabled": "Если отключено, доступ предоставляется только к развёрнутым моделям в вашем экземпляре сервиса AI Core.",
+		"orchestrationDescriptionEnabled": "Если включено, предоставляется доступ ко всем доступным моделям без необходимости отдельных развёртываний.",
+		"orchestrationModeLabel": "Режим оркестрации",
+		"resourceGroupLabel": "Группа ресурсов AI Core",
+		"resourceGroupPlaceholder": "Введите группу ресурсов AI Core..."
+	},
+	"shared": {
+		"adaptiveThinkingDescription": "Выберите «Нет», чтобы отключить адаптивное мышление. Чем выше уровень, тем подробнее ответы и тем больше расход токенов.",
+		"adaptiveThinkingLabel": "Адаптивное мышление",
+		"apiKeyLabel": "Ключ API",
+		"apiKeyStoredLocally": "Этот ключ хранится локально и используется только для выполнения запросов к API из этого расширения.",
+		"baseUrlLabel": "Базовый URL-адрес",
+		"complexPromptsNote": "Cline использует сложные промпты, поэтому поведение может различаться между моделями. Менее мощные модели могут работать не так, как ожидается.",
+		"contextWindowSizeLabel": "Размер контекстного окна",
+		"credentialsStoredLocally": "Эти учётные данные хранятся локально и используются только для выполнения запросов к API из этого расширения.",
+		"customBaseUrlPlaceholder": "Пользовательский базовый URL-адрес",
+		"defaultPlaceholder": "По умолчанию: {{value}}",
+		"enterApiKeyPlaceholder": "Введите ключ API...",
+		"enterBaseUrlPlaceholder": "Введите базовый URL-адрес...",
+		"extendedThinkingDescription": "Выберите «Нет», чтобы отключить расширенное мышление. Более высокий уровень улучшает глубину, но расходует больше токенов.",
+		"loading": "Загрузка...",
+		"loadingModels": "Загрузка моделей…",
+		"maxOutputTokensLabel": "Максимум выходных токенов",
+		"modelLabel": "Модель",
+		"mustBePositiveInteger": "Значение поля «{{label}}» должно быть положительным целым числом.",
+		"mustBeValidNumber": "Значение поля «{{label}}» должно быть допустимым числом.",
+		"noteLabel": "Примечание:",
+		"refreshModels": "Обновить модели",
+		"remoteConfigManaged": "Этот параметр управляется удалённой конфигурацией вашей организации",
+		"retry": "Повторить",
+		"selectModelPlaceholder": "Выберите модель...",
+		"selectRegionPlaceholder": "Выберите регион...",
+		"supportsImagesLabel": "Поддерживает изображения",
+		"useCustomBaseUrl": "Использовать пользовательский базовый URL-адрес"
+	},
+	"vercelAiGateway": {
+		"apiKeyLabel": "Ключ API Vercel AI Gateway",
+		"getApiKeyNote": "Получить ключ API Vercel AI Gateway можно, <signupLink>зарегистрировавшись здесь.</signupLink>"
+	},
+	"vertex": {
+		"customModelNote": "Настройте возможности пользовательской модели, если они отличаются от значений по умолчанию.",
+		"projectIdLabel": "Идентификатор проекта Google Cloud",
+		"projectIdPlaceholder": "Введите идентификатор проекта...",
+		"regionLabel": "Регион Google Cloud",
+		"setupDescription": "Чтобы использовать Google Cloud Vertex AI, необходимо <accountLink>1) создать учётную запись Google Cloud › включить Vertex AI API › включить нужные модели Claude,</accountLink> <cliLink>2) установить Google Cloud CLI › настроить учётные данные приложения по умолчанию.</cliLink>",
+		"supportsReasoningLabel": "Поддерживает рассуждения"
+	},
+	"vscodeLm": {
+		"description": "Использует модели, предоставляемые другими расширениями через VS Code Language Model API. Самый распространённый источник — GitHub Copilot: установите <copilotLink>расширение Copilot</copilotLink> и включите модели в настройках Copilot; впрочем, здесь появится любое расширение, зарегистрировавшее поставщика языковых моделей. После включения моделей <refreshLink>обновите список моделей</refreshLink>.",
+		"languageModelLabel": "Языковая модель"
+	},
+	"zai": {
+		"entrypointDescription": "Выберите подходящую точку входа API в зависимости от вашего местоположения. Если вы находитесь в Китае, выберите open.bigmodel.cn. В противном случае выберите api.z.ai.",
+		"entrypointLabel": "Точка входа Z AI"
+	}
+}

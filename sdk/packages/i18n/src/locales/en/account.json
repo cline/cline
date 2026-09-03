@@ -1,0 +1,50 @@
+{
+	"addCredits": "Add Credits",
+	"auth": {
+		"copied": "Copied",
+		"copy": "Copy",
+		"copyCodeAria": "Copy Cline sign-in code",
+		"enterCode": "Enter this code in your browser:"
+	},
+	"clineEnvironment": "Cline Environment",
+	"creditsHistory": {
+		"credits": "Credits",
+		"creditsUsed": "Credits Used",
+		"date": "Date",
+		"model": "Model",
+		"noPayments": "No payment history",
+		"noUsage": "No usage history",
+		"operations": {
+			"webFetch": "Web Fetch",
+			"webFetchLlm": "Web Fetch (LLM)",
+			"webSearch": "Web Search"
+		},
+		"paymentsHistory": "PAYMENTS HISTORY",
+		"totalCost": "Total Cost",
+		"usageHistory": "USAGE HISTORY"
+	},
+	"currentBalance": "CURRENT BALANCE",
+	"dashboard": "Dashboard",
+	"env": {
+		"local": "Local",
+		"production": "Production",
+		"staging": "Staging"
+	},
+	"lastUpdated": "Last updated: {{time}}",
+	"logOut": "Log out",
+	"optOutRemoteConfig": "Opt out of remote config",
+	"organizationLockedTooltip": "This cannot be changed while your organization has remote configuration enabled.",
+	"personal": "Personal",
+	"roleTitle": "Role",
+	"roles": {
+		"admin": "Admin",
+		"member": "Member",
+		"owner": "Owner"
+	},
+	"title": "Account",
+	"welcome": {
+		"description": "Sign up for an account to get access to the latest models, billing dashboard to view usage and credits, and more upcoming features.",
+		"signUp": "Sign up with Cline",
+		"terms": "By continuing, you agree to the <tosLink>Terms of Service</tosLink> and <privacyLink>Privacy Policy.</privacyLink>"
+	}
+}

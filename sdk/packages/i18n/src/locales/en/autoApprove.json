@@ -1,0 +1,30 @@
+{
+	"actions": {
+		"editFiles": {
+			"label": "Edit files",
+			"shortName": "Edit"
+		},
+		"executeSafeCommands": {
+			"label": "Execute commands",
+			"shortName": "Commands"
+		},
+		"readFiles": {
+			"label": "Read files",
+			"shortName": "Read"
+		},
+		"useBrowser": {
+			"label": "Fetch web content",
+			"shortName": "Web Fetch"
+		},
+		"useMcp": {
+			"label": "Use MCP servers",
+			"shortName": "MCP"
+		}
+	},
+	"closeSettingsAria": "Close auto-approve settings",
+	"description": "Let Cline take these actions without asking for approval.",
+	"docs": "Docs",
+	"none": "None",
+	"openSettingsAria": "Open auto-approve settings",
+	"title": "Auto-approve:"
+}

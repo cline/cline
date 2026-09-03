@@ -4,6 +4,7 @@ import { combineHookSequences } from "@shared/combineHookSequences"
 import { getApiMetrics, getLastApiReqTotalTokens } from "@shared/getApiMetrics"
 import { BooleanRequest, StringRequest } from "@shared/proto/cline/common"
 import { useCallback, useEffect, useMemo, useRef } from "react"
+import { useTranslation } from "react-i18next"
 import { useMount } from "react-use"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useShowNavbar } from "@/context/PlatformContext"
@@ -47,6 +48,7 @@ const MAX_IMAGES_AND_FILES_PER_MESSAGE = CHAT_CONSTANTS.MAX_IMAGES_AND_FILES_PER
 const QUICK_WINS_HISTORY_THRESHOLD = 3
 
 const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryView }: ChatViewProps) => {
+	const { t } = useTranslation()
 	const showNavbar = useShowNavbar()
 	const {
 		version,
@@ -371,9 +373,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	}, [queuedPromptCount, taskTs, scrollToBottomSmooth, scrollToBottomAuto, disableAutoScrollRef])
 
 	const placeholderText = useMemo(() => {
-		const text = task ? "Type a message..." : "Type your task here..."
+		const text = task ? t("chat:textArea.placeholderMessage") : t("chat:textArea.placeholderTask")
 		return text
-	}, [task])
+	}, [task, t])
 
 	return (
 		<ChatLayout isHidden={isHidden}>

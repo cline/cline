@@ -1,6 +1,7 @@
 import type { ModelInfo } from "@shared/api"
 import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { useState } from "react"
+import { useTranslation } from "react-i18next"
 import styled from "styled-components"
 import { useProviderModels } from "@/hooks/useProviderModels"
 import { ModelDescriptionMarkdown } from "../ModelDescriptionMarkdown"
@@ -92,16 +93,18 @@ const ProviderRoutingLabel = styled.label`
 
 // ========== Helper Functions ==========
 
+type Translate = (key: string, options?: Record<string, unknown>) => string
+
 /**
  * Format price for compact display (e.g., "$5/M" for $5 per million tokens)
  * Price is already in per-million format from OpenRouter
  */
-const formatCompactPrice = (price: number | undefined): string => {
+const formatCompactPrice = (price: number | undefined, t: Translate): string => {
 	if (price === undefined) {
-		return "N/A"
+		return t("settings:modelInfo.notAvailable")
 	}
 	if (price === 0) {
-		return "Free"
+		return t("settings:modelInfo.free")
 	}
 	if (price < 0.01) {
 		return `$${price.toFixed(4)}/M`
@@ -115,9 +118,9 @@ const formatCompactPrice = (price: number | undefined): string => {
 /**
  * Format context window for compact display (e.g., "200K")
  */
-const formatCompactContext = (contextWindow: number | undefined): string => {
+const formatCompactContext = (contextWindow: number | undefined, t: Translate): string => {
 	if (!contextWindow) {
-		return "N/A"
+		return t("settings:modelInfo.notAvailable")
 	}
 	if (contextWindow >= 1_000_000) {
 		return `${(contextWindow / 1_000_000).toFixed(contextWindow % 1_000_000 === 0 ? 0 : 1)}M`
@@ -131,6 +134,7 @@ const formatCompactContext = (contextWindow: number | undefined): string => {
 const formatTiers = (
 	tiers: ModelInfo["tiers"],
 	priceType: "inputPrice" | "outputPrice" | "cacheReadsPrice" | "cacheWritesPrice",
+	t: Translate,
 ): JSX.Element[] => {
 	if (!tiers || tiers.length === 0) {
 		return []
@@ -145,19 +149,19 @@ const formatTiers = (
 				return null
 			}
 
+			const isUnbounded = tier.contextWindow === Number.POSITIVE_INFINITY || tier.contextWindow >= Number.MAX_SAFE_INTEGER
+
 			return (
 				<span key={`tier-${tier.contextWindow}`} style={{ paddingLeft: "15px" }}>
-					{formatPrice(price)}/million tokens (
-					{tier.contextWindow === Number.POSITIVE_INFINITY || tier.contextWindow >= Number.MAX_SAFE_INTEGER ? (
-						<span>
-							{">"} {prevLimit.toLocaleString()}
-						</span>
-					) : (
-						<span>
-							{"<="} {tier.contextWindow?.toLocaleString()}
-						</span>
-					)}
-					{" tokens)"}
+					{isUnbounded
+						? t("settings:modelInfo.tierAbove", {
+								limit: prevLimit.toLocaleString(),
+								price: formatPrice(price),
+							})
+						: t("settings:modelInfo.tierUpTo", {
+								limit: tier.contextWindow?.toLocaleString(),
+								price: formatPrice(price),
+							})}
 					{index < arr.length - 1 && <br />}
 				</span>
 			)
@@ -196,6 +200,7 @@ export const ModelInfoView = ({
 	showProviderRouting,
 	hideUsageCost,
 }: ModelInfoViewProps) => {
+	const { t } = useTranslation()
 	const [advancedExpanded, setAdvancedExpanded] = useState(false)
 
 	const { models: geminiModels } = useProviderModels("gemini")
@@ -222,23 +227,23 @@ export const ModelInfoView = ({
 			<InfoRow>
 				{modelInfo.contextWindow !== undefined && modelInfo.contextWindow > 0 && (
 					<InfoItem>
-						<InfoLabel>Context: </InfoLabel>
-						<InfoValue>{formatCompactContext(modelInfo.contextWindow)}</InfoValue>
+						<InfoLabel>{t("settings:modelInfo.context")} </InfoLabel>
+						<InfoValue>{formatCompactContext(modelInfo.contextWindow, t)}</InfoValue>
 					</InfoItem>
 				)}
 				{!hideUsageCost && modelInfo.inputPrice !== undefined && (
 					<InfoItem>
-						<InfoLabel>Input: </InfoLabel>
-						<InfoValue>{formatCompactPrice(modelInfo.inputPrice)}</InfoValue>
+						<InfoLabel>{t("settings:modelInfo.input")} </InfoLabel>
+						<InfoValue>{formatCompactPrice(modelInfo.inputPrice, t)}</InfoValue>
 					</InfoItem>
 				)}
 				{!hideUsageCost && modelInfo.outputPrice !== undefined && (
 					<InfoItem>
-						<InfoLabel>Output: </InfoLabel>
+						<InfoLabel>{t("settings:modelInfo.output")} </InfoLabel>
 						<InfoValue>
 							{hasThinkingConfig && modelInfo.thinkingConfig?.outputPrice !== undefined
-								? formatCompactPrice(modelInfo.thinkingConfig.outputPrice)
-								: formatCompactPrice(modelInfo.outputPrice)}
+								? formatCompactPrice(modelInfo.thinkingConfig.outputPrice, t)
+								: formatCompactPrice(modelInfo.outputPrice, t)}
 						</InfoValue>
 					</InfoItem>
 				)}
@@ -247,23 +252,23 @@ export const ModelInfoView = ({
 			{/* Collapsible Advanced Section */}
 			<CollapsibleHeader onClick={() => setAdvancedExpanded(!advancedExpanded)}>
 				<CollapsibleArrow $isExpanded={advancedExpanded}>▶</CollapsibleArrow>
-				Advanced
+				{t("settings:modelInfo.advanced")}
 			</CollapsibleHeader>
 			<CollapsibleContent $isExpanded={advancedExpanded}>
 				<AdvancedSection>
 					{/* Capabilities */}
 					<AdvancedRow>
-						<AdvancedLabel>Images</AdvancedLabel>
-						<AdvancedValue>{hasImages ? "Yes" : "No"}</AdvancedValue>
+						<AdvancedLabel>{t("settings:modelInfo.images")}</AdvancedLabel>
+						<AdvancedValue>{hasImages ? t("settings:modelInfo.yes") : t("settings:modelInfo.no")}</AdvancedValue>
 					</AdvancedRow>
 					<AdvancedRow>
-						<AdvancedLabel>Browser</AdvancedLabel>
-						<AdvancedValue>{hasBrowser ? "Yes" : "No"}</AdvancedValue>
+						<AdvancedLabel>{t("settings:modelInfo.browser")}</AdvancedLabel>
+						<AdvancedValue>{hasBrowser ? t("settings:modelInfo.yes") : t("settings:modelInfo.no")}</AdvancedValue>
 					</AdvancedRow>
 					{!isGemini && (
 						<AdvancedRow>
-							<AdvancedLabel>Prompt Caching</AdvancedLabel>
-							<AdvancedValue>{hasCaching ? "Yes" : "No"}</AdvancedValue>
+							<AdvancedLabel>{t("settings:modelInfo.promptCaching")}</AdvancedLabel>
+							<AdvancedValue>{hasCaching ? t("settings:modelInfo.yes") : t("settings:modelInfo.no")}</AdvancedValue>
 						</AdvancedRow>
 					)}
 
@@ -272,14 +277,14 @@ export const ModelInfoView = ({
 						<>
 							{modelInfo.cacheReadsPrice !== undefined && (
 								<AdvancedRow>
-									<AdvancedLabel>Cache Reads</AdvancedLabel>
-									<AdvancedValue>{formatCompactPrice(modelInfo.cacheReadsPrice)}</AdvancedValue>
+									<AdvancedLabel>{t("settings:modelInfo.cacheReads")}</AdvancedLabel>
+									<AdvancedValue>{formatCompactPrice(modelInfo.cacheReadsPrice, t)}</AdvancedValue>
 								</AdvancedRow>
 							)}
 							{modelInfo.cacheWritesPrice !== undefined && (
 								<AdvancedRow>
-									<AdvancedLabel>Cache Writes</AdvancedLabel>
-									<AdvancedValue>{formatCompactPrice(modelInfo.cacheWritesPrice)}</AdvancedValue>
+									<AdvancedLabel>{t("settings:modelInfo.cacheWrites")}</AdvancedLabel>
+									<AdvancedValue>{formatCompactPrice(modelInfo.cacheWritesPrice, t)}</AdvancedValue>
 								</AdvancedRow>
 							)}
 						</>
@@ -288,18 +293,18 @@ export const ModelInfoView = ({
 					{/* Tiered Pricing */}
 					{!hideUsageCost && hasTiers && (
 						<div style={{ marginTop: 8 }}>
-							<div style={{ fontWeight: 500, marginBottom: 4 }}>Tiered Pricing:</div>
+							<div style={{ fontWeight: 500, marginBottom: 4 }}>{t("settings:modelInfo.tieredPricing")}</div>
 							{modelInfo.tiers && (
 								<>
 									<div>
-										<span style={{ fontWeight: 500 }}>Input:</span>
+										<span style={{ fontWeight: 500 }}>{t("settings:modelInfo.input")}</span>
 										<br />
-										{formatTiers(modelInfo.tiers, "inputPrice")}
+										{formatTiers(modelInfo.tiers, "inputPrice", t)}
 									</div>
 									<div style={{ marginTop: 4 }}>
-										<span style={{ fontWeight: 500 }}>Output:</span>
+										<span style={{ fontWeight: 500 }}>{t("settings:modelInfo.output")}</span>
 										<br />
-										{formatTiers(modelInfo.tiers, "outputPrice")}
+										{formatTiers(modelInfo.tiers, "outputPrice", t)}
 									</div>
 								</>
 							)}
@@ -309,15 +314,17 @@ export const ModelInfoView = ({
 					{/* Provider Routing */}
 					{showProviderRouting && onProviderSortingChange && (
 						<ProviderRoutingContainer>
-							<ProviderRoutingLabel>Provider Routing</ProviderRoutingLabel>
+							<ProviderRoutingLabel>{t("settings:modelInfo.providerRouting.label")}</ProviderRoutingLabel>
 							<VSCodeDropdown
 								onChange={(e: any) => onProviderSortingChange(e.target.value)}
 								style={{ width: "100%" }}
 								value={providerSorting || ""}>
-								<VSCodeOption value="">Default</VSCodeOption>
-								<VSCodeOption value="price">Price</VSCodeOption>
-								<VSCodeOption value="throughput">Throughput</VSCodeOption>
-								<VSCodeOption value="latency">Latency</VSCodeOption>
+								<VSCodeOption value="">{t("settings:modelInfo.providerRouting.default")}</VSCodeOption>
+								<VSCodeOption value="price">{t("settings:modelInfo.providerRouting.price")}</VSCodeOption>
+								<VSCodeOption value="throughput">
+									{t("settings:modelInfo.providerRouting.throughput")}
+								</VSCodeOption>
+								<VSCodeOption value="latency">{t("settings:modelInfo.providerRouting.latency")}</VSCodeOption>
 							</VSCodeDropdown>
 							<p
 								style={{
@@ -326,12 +333,11 @@ export const ModelInfoView = ({
 									marginBottom: 0,
 									color: "var(--vscode-descriptionForeground)",
 								}}>
-								{!providerSorting &&
-									"Load balance across providers (AWS, Google Vertex, etc.), prioritizing price while considering uptime"}
-								{providerSorting === "price" && "Sort by price, prioritizing the lowest cost provider"}
+								{!providerSorting && t("settings:modelInfo.providerRouting.defaultDescription")}
+								{providerSorting === "price" && t("settings:modelInfo.providerRouting.priceDescription")}
 								{providerSorting === "throughput" &&
-									"Sort by throughput, prioritizing highest throughput (may increase cost)"}
-								{providerSorting === "latency" && "Sort by response time, prioritizing lowest latency"}
+									t("settings:modelInfo.providerRouting.throughputDescription")}
+								{providerSorting === "latency" && t("settings:modelInfo.providerRouting.latencyDescription")}
 							</p>
 						</ProviderRoutingContainer>
 					)}

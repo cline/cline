@@ -12,6 +12,7 @@ import { isBinaryFile } from "isbinaryfile"
 import * as path from "path"
 import { HostProvider } from "@/hosts/host-provider"
 import { getLatestTerminalOutput } from "@/hosts/vscode/terminal/get-latest-output"
+import { t } from "@/services/i18n"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { DiagnosticSeverity } from "@/shared/proto/index.cline"
 import { Logger } from "@/shared/services/Logger"
@@ -105,7 +106,7 @@ export async function parseMentions(
 			launchBrowserError = error
 			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
-				message: `Error fetching content for ${urlMention}: ${error.message}`,
+				message: t("mentions.fetchContentFailed", { url: urlMention, error: error.message }),
 			})
 		}
 	}
@@ -137,7 +138,7 @@ export async function parseMentions(
 				} catch (error) {
 					HostProvider.window.showMessage({
 						type: ShowMessageType.ERROR,
-						message: `Error fetching content for ${mention}: ${error.message}`,
+						message: t("mentions.fetchContentFailed", { url: mention, error: error.message }),
 					})
 					result = `Error fetching content: ${error.message}`
 					// Track failed URL mention

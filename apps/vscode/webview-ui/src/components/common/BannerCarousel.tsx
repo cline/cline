@@ -1,5 +1,6 @@
 import { ChevronLeft, ChevronRight, XIcon } from "lucide-react"
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { useRemark } from "react-remark"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -76,6 +77,7 @@ const BannerCardContent: React.FC<BannerCardContentProps> = ({ banner, isActive,
 }
 
 const BannerCarousel: React.FC<BannerCarouselProps> = ({ banners }) => {
+	const { t } = useTranslation()
 	const [currentIndex, setCurrentIndex] = useState(0)
 	const [isPaused, setIsPaused] = useState(false)
 	const [isTransitioning, setIsTransitioning] = useState(false)
@@ -149,9 +151,9 @@ const BannerCarousel: React.FC<BannerCarouselProps> = ({ banners }) => {
 
 	return (
 		<div
-			aria-label="Announcements"
+			aria-label={t("ui:bannerCarousel.announcementsAria")}
 			aria-live="polite"
-			aria-roledescription="carousel"
+			aria-roledescription={t("ui:bannerCarousel.carouselRoleDescription")}
 			className="mx-3 mb-3"
 			onMouseEnter={() => setIsPaused(true)}
 			onMouseLeave={() => setIsPaused(false)}
@@ -161,7 +163,7 @@ const BannerCarousel: React.FC<BannerCarouselProps> = ({ banners }) => {
 				{/* Dismiss button - shows on each card that has onDismiss defined */}
 				{showDismissButton && (
 					<Button
-						aria-label="Dismiss banner"
+						aria-label={t("ui:bannerCarousel.dismissAria")}
 						className="absolute top-2.5 right-2 z-10"
 						data-testid="banner-dismiss-button"
 						onClick={(e) => {
@@ -203,10 +205,14 @@ const BannerCarousel: React.FC<BannerCarouselProps> = ({ banners }) => {
 
 						{/* Navigation arrows */}
 						<div className="flex gap-0.5">
-							<Button aria-label="Previous banner" onClick={handlePrevious} size="icon" variant="icon">
+							<Button
+								aria-label={t("ui:bannerCarousel.previousAria")}
+								onClick={handlePrevious}
+								size="icon"
+								variant="icon">
 								<ChevronLeft className="size-4" />
 							</Button>
-							<Button aria-label="Next banner" onClick={handleNext} size="icon" variant="icon">
+							<Button aria-label={t("ui:bannerCarousel.nextAria")} onClick={handleNext} size="icon" variant="icon">
 								<ChevronRight className="size-4" />
 							</Button>
 						</div>

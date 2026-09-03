@@ -1,0 +1,13 @@
+{
+	"settingsMenu": {
+		"connected": "Conectado",
+		"connectionInfoTitle": "Información de conexión del navegador",
+		"disconnected": "Desconectado",
+		"local": "Local",
+		"remote": "Remoto",
+		"remoteHostLabel": "Host remoto:",
+		"statusLabel": "Estado:",
+		"title": "Conexión del navegador",
+		"typeLabel": "Tipo:"
+	}
+}

@@ -1,0 +1,90 @@
+{
+	"agentsTooltip": "Busca de forma recursiva todos los archivos AGENTS.md del espacio de trabajo cuando existe un AGENTS.md de nivel superior",
+	"allHooksCreated": "Todos los hooks creados",
+	"banners": {
+		"orgManagesRules": "Tu organización administra algunas reglas",
+		"orgManagesSkills": "Tu organización administra algunas habilidades",
+		"orgManagesWorkflows": "Tu organización administra algunos flujos de trabajo",
+		"windowsHooks": "La activación de hooks aún no es compatible con Windows en este PR base. Los hooks se pueden crear, editar y eliminar, y se ejecutan siempre que el archivo del hook exista. Próximamente: estado habilitado/deshabilitado de hooks basado en JSON en todas las plataformas.",
+		"workflowsDeprecated": "Los flujos de trabajo están quedando obsoletos. Usa habilidades en su lugar."
+	},
+	"createFile": "Crear archivo",
+	"createSkill": "Crear habilidad",
+	"customize": "Personalizar",
+	"deleteFile": "Eliminar archivo de {{type}}",
+	"deleteHookFile": "Eliminar archivo del hook",
+	"descriptions": {
+		"hooks": "Los hooks te permiten ejecutar scripts personalizados en puntos específicos del ciclo de ejecución de Cline, lo que habilita la automatización y la integración con herramientas externas.",
+		"rules": "Las reglas te permiten dar a Cline indicaciones a nivel de sistema. Piensa en ellas como una forma persistente de incluir contexto y preferencias para tus proyectos o de forma global en cada conversación.",
+		"skills": "Las habilidades son conjuntos de instrucciones reutilizables que Cline puede activar bajo demanda. Cuando una tarea coincide con la descripción de una habilidad, Cline usa la herramienta <tool>use_skill</tool> para cargar las instrucciones completas.",
+		"workflows": "Los flujos de trabajo te permiten definir una serie de pasos para guiar a Cline en un conjunto repetitivo de tareas, como desplegar un servicio o enviar un PR. Para invocar un flujo de trabajo, escribe <cmd>/workflow-name</cmd> en el chat."
+	},
+	"docs": "Documentación",
+	"editFile": "Editar archivo de {{type}}",
+	"editHookFile": "Editar archivo del hook",
+	"errors": {
+		"createSkillFailed": "No se pudo crear la habilidad",
+		"invalidExtension": "Solo se permite .md, .txt o sin extensión de archivo",
+		"invalidSkillName": "El nombre de la habilidad solo puede contener letras, números, guiones y guiones bajos",
+		"remoteConfigRefresh": "No se pudo actualizar la configuración administrada: {{error}}",
+		"showingLastLoaded": "Se muestra la última configuración cargada."
+	},
+	"hideCustomize": "Ocultar Personalizar",
+	"hookSelectDescription": "Elige un tipo de hook para crear. Los hooks se ejecutan en puntos específicos del ciclo de vida de Cline. Disponibles: {{hooks}}",
+	"hookToggleWindowsTitle": "La activación de hooks aún no es compatible con Windows en este PR base. Los hooks se ejecutan cuando el archivo del hook existe.",
+	"hookTypes": {
+		"postToolUse": "Se ejecuta después de usar cualquier herramienta",
+		"preCompact": "Se ejecuta antes de la compactación de la conversación",
+		"preToolUse": "Se ejecuta antes de usar cualquier herramienta",
+		"taskCancel": "Se ejecuta cuando se cancela una tarea",
+		"taskComplete": "Se ejecuta cuando una tarea se completa",
+		"taskResume": "Se ejecuta cuando se reanuda una tarea",
+		"taskStart": "Se ejecuta cuando comienza una nueva tarea",
+		"userPromptSubmit": "Se ejecuta cuando el usuario envía un prompt"
+	},
+	"hooksToggleNote": "Activa o desactiva (chmod +x/-x).",
+	"hooksWindowsNote": "En Windows, los hooks se ejecutan siempre que el archivo del hook exista.",
+	"learnMore": "Más información",
+	"loadingManagedConfig": "Cargando configuración administrada…",
+	"newFile": "Nuevo archivo",
+	"newHookPlaceholder": "Nuevo hook...",
+	"newRulePlaceholder": "Nuevo archivo de regla...",
+	"newSkillPlaceholder": "Nueva habilidad...",
+	"newWorkflowPlaceholder": "Nuevo archivo de flujo de trabajo...",
+	"noRulesFound": "No se encontraron reglas",
+	"noWorkflowsFound": "No se encontraron flujos de trabajo",
+	"requiredRule": "Esta regla es obligatoria y no se puede deshabilitar",
+	"ruleNameHint": "nombre-de-regla (.md, .txt o sin extensión)",
+	"sections": {
+		"enterpriseRules": "Reglas de empresa",
+		"enterpriseSkills": "Habilidades de empresa",
+		"enterpriseWorkflows": "Flujos de trabajo de empresa",
+		"globalHooks": "Hooks globales",
+		"globalRules": "Reglas globales",
+		"globalSkills": "Habilidades globales",
+		"globalWorkflows": "Flujos de trabajo globales",
+		"workspaceRules": "Reglas del espacio de trabajo",
+		"workspaceSkills": "Habilidades del espacio de trabajo",
+		"workspaceWorkflows": "Flujos de trabajo del espacio de trabajo"
+	},
+	"selectHookType": "Selecciona el tipo de hook a crear",
+	"showCustomize": "Mostrar Personalizar",
+	"skillNameHint": "nombre-de-habilidad (letras, números, guiones, guiones bajos)",
+	"tabs": {
+		"hooks": "Hooks",
+		"rules": "Reglas",
+		"skills": "Habilidades",
+		"workflows": "Flujos de trabajo"
+	},
+	"types": {
+		"agents": "regla AGENTS.md",
+		"cline": "regla",
+		"cursor": "regla de Cursor",
+		"skill": "habilidad",
+		"windsurf": "regla de Windsurf",
+		"workflow": "flujo de trabajo"
+	},
+	"viewFile": "Ver archivo de {{type}}",
+	"viewFileReadonly": "Ver archivo de {{type}} (solo lectura)",
+	"workflowNameHint": "nombre-de-flujo (.md, .txt o sin extensión)"
+}

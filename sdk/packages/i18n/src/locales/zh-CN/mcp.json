@@ -1,0 +1,97 @@
+{
+	"addServer": {
+		"addServer": "添加服务器",
+		"connecting": "正在连接...",
+		"description": "通过提供名称及其 URL 端点来添加远程 MCP 服务器。在<docsLink>此处</docsLink>了解更多。",
+		"editConfiguration": "编辑配置",
+		"errors": {
+			"addFailed": "添加服务器失败",
+			"invalidUrl": "URL 格式无效",
+			"nameRequired": "服务器名称为必填项",
+			"urlRequired": "服务器 URL 为必填项"
+		},
+		"serverName": "服务器名称",
+		"serverUrl": "服务器 URL",
+		"transportSse": "SSE（旧版）",
+		"transportStreamableHttp": "Streamable HTTP",
+		"transportType": "传输类型"
+	},
+	"chatDisplay": {
+		"clickToOpenInBrowser": "单击以在浏览器中打开",
+		"fetchOpenGraphFailed": "获取 Open Graph 数据失败",
+		"imageErrorTitle": "显示此图像时出错",
+		"imageFrom": "来自 {{hostname}} 的图像",
+		"imageLoadFailed": "图像加载失败",
+		"linkPreviewErrorTitle": "显示此链接预览时出错",
+		"loadingImage": "正在从 {{hostname}} 加载图像...",
+		"loadingPreview": "正在加载 {{hostname}} 的预览...",
+		"noDescriptionAvailable": "暂无描述",
+		"noTitle": "无标题",
+		"previewLoadFailed": "无法加载预览",
+		"previewNetworkError": "加载预览时出现网络错误",
+		"previewTimeout": "预览请求超时",
+		"svgFrom": "来自 {{hostname}} 的 SVG",
+		"unknownError": "发生未知错误",
+		"waitingMinutes": "已等待 {{minutes}} 分 {{seconds}} 秒...",
+		"waitingSeconds": "已等待 {{seconds}} 秒..."
+	},
+	"configure": {
+		"advancedSettings": "高级 MCP 设置",
+		"configureServers": "配置 MCP 服务器",
+		"description": "<mcpLink>模型上下文协议 (Model Context Protocol)</mcpLink> 支持与本地运行的 MCP 服务器通信，这些服务器提供额外的工具和资源来扩展 Cline 的能力。你可以使用<communityLink>社区制作的服务器</communityLink>，或让 Cline 为你的工作流创建新工具（例如“添加一个获取最新 npm 文档的工具”）。<demoLink>在此查看演示。</demoLink>",
+		"remoteManagedBanner": "你的组织管理着部分 MCP 服务器"
+	},
+	"displayMode": {
+		"markdown": "Markdown",
+		"plain": "纯文本",
+		"rich": "富文本显示"
+	},
+	"response": {
+		"parseError": "解析响应时出错：",
+		"processError": "处理响应内容失败。请切换到纯文本模式以安全查看。",
+		"title": "响应",
+		"titleError": "响应（错误）"
+	},
+	"serverList": {
+		"noServers": "未安装 MCP 服务器"
+	},
+	"serverRow": {
+		"alwaysEnabledTooltip": "此服务器由你的组织启用，无法禁用",
+		"arguments": "参数",
+		"authenticate": "身份验证",
+		"autoApprove": "自动批准",
+		"autoApproveAll": "自动批准所有工具",
+		"deleteServer": "删除服务器",
+		"deleting": "正在删除...",
+		"noDescription": "无描述",
+		"noPrompts": "未找到提示",
+		"noResources": "未找到资源",
+		"noTools": "未找到工具",
+		"parameters": "参数",
+		"promptsTab": "提示 ({{count}})",
+		"requestTimeout": "请求超时时间",
+		"resourcesTab": "资源 ({{count}})",
+		"restartServer": "重启服务器",
+		"restarting": "正在重启...",
+		"retryConnection": "重试连接",
+		"retrying": "正在重试...",
+		"returns": "返回",
+		"serverDisabled": "服务器已禁用",
+		"timeoutDescription": "适用于此服务器处理的每个请求（在 VS Code 和 CLI 中）。如需其他值，请在 cline_mcp_settings.json 中设置 \"timeout\"（秒）。",
+		"timeouts": {
+			"fiveMinutes": "5 分钟",
+			"oneHour": "1 小时",
+			"oneMinute": "1 分钟",
+			"tenMinutes": "10 分钟",
+			"thirtyMinutes": "30 分钟",
+			"thirtySeconds": "30 秒"
+		},
+		"toolsTab": "工具 ({{count}})",
+		"unknown": "未知"
+	},
+	"tabs": {
+		"configure": "配置",
+		"remoteServers": "远程服务器"
+	},
+	"title": "MCP 服务器"
+}

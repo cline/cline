@@ -1,5 +1,6 @@
 import { openAiModelInfoSafeDefaults } from "@shared/api"
 import { Mode } from "@shared/storage/types"
+import { useTranslation } from "react-i18next"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useProviderConfig } from "@/hooks/useProviderConfig"
 import { useProviderModelSelection } from "@/hooks/useProviderModelSelection"
@@ -33,6 +34,7 @@ interface XaiProviderProps {
 }
 
 export const XaiProvider = ({ showModelOptions, isPopup, currentMode }: XaiProviderProps) => {
+	const { t } = useTranslation()
 	const { apiConfiguration } = useExtensionState()
 	const { config, write, commitSelection } = useProviderConfig(PROVIDER_ID)
 
@@ -94,8 +96,8 @@ export const XaiProvider = ({ showModelOptions, isPopup, currentMode }: XaiProvi
 						color: "var(--vscode-descriptionForeground)",
 					}}>
 					<span style={{ color: "var(--vscode-errorForeground)" }}>
-						(<span style={{ fontWeight: 500 }}>Note:</span> Cline uses complex prompts, so behavior can vary across
-						models. Less capable models may not work as expected.)
+						(<span style={{ fontWeight: 500 }}>{t("providers:shared.noteLabel")}</span>{" "}
+						{t("providers:shared.complexPromptsNote")})
 					</span>
 				</p>
 			</div>
@@ -103,7 +105,7 @@ export const XaiProvider = ({ showModelOptions, isPopup, currentMode }: XaiProvi
 			{showModelOptions && (
 				<>
 					<ModelSelector
-						label="Model"
+						label={t("providers:shared.modelLabel")}
 						models={models}
 						onChange={(event: Event) => handleModelChange(getEventValue(event))}
 						selectedModelId={selectedModelId}

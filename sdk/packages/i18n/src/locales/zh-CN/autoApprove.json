@@ -1,0 +1,30 @@
+{
+	"actions": {
+		"editFiles": {
+			"label": "编辑文件",
+			"shortName": "编辑"
+		},
+		"executeSafeCommands": {
+			"label": "执行命令",
+			"shortName": "命令"
+		},
+		"readFiles": {
+			"label": "读取文件",
+			"shortName": "读取"
+		},
+		"useBrowser": {
+			"label": "获取网页内容",
+			"shortName": "网页获取"
+		},
+		"useMcp": {
+			"label": "使用 MCP 服务器",
+			"shortName": "MCP"
+		}
+	},
+	"closeSettingsAria": "关闭自动批准设置",
+	"description": "允许 Cline 无需请求批准即可执行这些操作。",
+	"docs": "文档",
+	"none": "无",
+	"openSettingsAria": "打开自动批准设置",
+	"title": "自动批准："
+}

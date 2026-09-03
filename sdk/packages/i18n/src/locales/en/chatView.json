@@ -1,0 +1,57 @@
+{
+	"buttons": {
+		"approve": "Approve",
+		"cancel": "Cancel",
+		"condenseConversation": "Condense Conversation",
+		"proceedAnyways": "Proceed Anyways",
+		"proceedWhileRunning": "Proceed While Running",
+		"reject": "Reject",
+		"reportGithubIssue": "Report GitHub issue",
+		"resumeTask": "Resume Task",
+		"retry": "Retry",
+		"runCommand": "Run Command",
+		"save": "Save",
+		"startNewTask": "Start New Task",
+		"startNewTaskWithContext": "Start New Task with Context"
+	},
+	"queuedPrompts": {
+		"attachments_one": "{{count}} attachment",
+		"attachments_other": "{{count}} attachments",
+		"cancelQueued": "Cancel queued message",
+		"mixedSummary": "{{queueCount}} queued, {{steerCount}} steering",
+		"queuedMessages_one": "Queued message",
+		"queuedMessages_other": "{{count}} queued messages",
+		"steer": "Steer",
+		"steeringMessages_one": "Steering message",
+		"steeringMessages_other": "{{count}} steering messages"
+	},
+	"toolGroup": {
+		"analyzing": "Analyzing {{path}}/...",
+		"codebase": "codebase",
+		"contextFallback": "Context",
+		"definitions_one": "{{count}} definition",
+		"definitions_other": "{{count}} definitions",
+		"exploring": "Exploring {{path}}/...",
+		"files_one": "{{count}} file",
+		"files_other": "{{count}} files",
+		"folders_one": "{{count}} folder",
+		"folders_other": "{{count}} folders",
+		"linesFrom": "lines {{start}}+",
+		"linesRange": "lines {{start}}-{{end}}",
+		"patterns_one": "{{count}} pattern",
+		"patterns_other": "{{count}} patterns",
+		"performedSearches_one": "performed {{count}} search",
+		"performedSearches_other": "performed {{count}} searches",
+		"reading": "Reading {{path}}...",
+		"readingWithLines": "Reading {{path}} ({{lines}})...",
+		"searchIn": "{{terms}} in {{path}}",
+		"searching": "Searching {{query}}...",
+		"summary": "Cline {{items}}",
+		"summaryRead": "Cline read {{items}}"
+	},
+	"welcome": {
+		"currentLabel": "Current:",
+		"detachedHead": "detached HEAD",
+		"worktreesTooltip": "View and manage git worktrees. Great for running parallel Cline tasks."
+	}
+}

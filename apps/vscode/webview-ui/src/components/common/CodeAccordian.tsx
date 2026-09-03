@@ -1,5 +1,6 @@
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react"
 import { memo, useMemo } from "react"
+import { useTranslation } from "react-i18next"
 import CodeBlock from "@/components/common/CodeBlock"
 import { cn } from "@/lib/utils"
 import { getLanguageFromPath } from "@/utils/getLanguageFromPath"
@@ -36,6 +37,7 @@ const CodeAccordian = ({
 	onToggleExpand,
 	isLoading,
 }: CodeAccordianProps) => {
+	const { t } = useTranslation()
 	const inferredLanguage = useMemo(
 		() => code && (language ?? (path ? getLanguageFromPath(path) : undefined)),
 		[path, language, code],
@@ -52,7 +54,7 @@ const CodeAccordian = ({
 		<div className="bg-code overflow-hidden rounded-xs border border-editor-group-border">
 			{(path || isFeedback || isConsoleLogs) && (
 				<Button
-					aria-label={isExpanded ? "Collapse code block" : "Expand code block"}
+					aria-label={isExpanded ? t("ui:codeAccordian.collapseAria") : t("ui:codeAccordian.expandAria")}
 					className={cn("text-description flex items-center cursor-pointer select-none w-full py-[9px] px-2.5", {
 						"cursor-wait opacity-70": isLoading,
 					})}
@@ -72,7 +74,7 @@ const CodeAccordian = ({
 						<div className="flex items-center">
 							<span className={`mr-1.5 codicon codicon-${isFeedback ? "feedback" : "output"}`} />
 							<span className="whitespace-nowrap overflow-hidden text-ellipsis mr-2">
-								{isFeedback ? "User Edits" : "Console Logs"}
+								{isFeedback ? t("ui:codeAccordian.userEdits") : t("ui:codeAccordian.consoleLogs")}
 							</span>
 						</div>
 					) : (

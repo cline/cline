@@ -1,3 +1,115 @@
 {
-	"storageInitFailed": "Не удалось инициализировать хранилище. Проверьте журналы или попробуйте перезапустить клиент."
+	"auth": {
+		"codexBrowserOpenFailed": "Не удалось открыть браузер для входа в OpenAI. Откройте этот URL-адрес вручную: {{url}}",
+		"codexSignInFailed": "Не удалось войти в OpenAI Codex: {{error}}",
+		"codexSignInSuccess": "Вход в OpenAI Codex выполнен успешно"
+	},
+	"checkpoints": {
+		"diffTitle": "Изменения с момента вашего последнего сообщения",
+		"noChanges": "С момента вашего последнего сообщения изменений в файлах не найдено.",
+		"noneTaken": "Для этой задачи не была создана контрольная точка. Контрольные точки требуют, чтобы рабочая область была репозиторием Git."
+	},
+	"cli": {
+		"installFailed": "Не удалось запустить установку CLI: {{error}}"
+	},
+	"commands": {
+		"selectCodeToExplain": "Выделите код, который нужно объяснить.",
+		"selectCodeToImprove": "Выделите код, который нужно улучшить."
+	},
+	"commitMessage": {
+		"generateFailed": "Не удалось создать сообщение фиксации: {{error}}",
+		"generateForAllDescription_few": "Создать сообщения фиксации для {{count}} репозиториев",
+		"generateForAllDescription_many": "Создать сообщения фиксации для {{count}} репозиториев",
+		"generateForAllDescription_one": "Создать сообщения фиксации для {{count}} репозитория",
+		"generateForAllDescription_other": "Создать сообщения фиксации для {{count}} репозитория",
+		"generateForAllLabel": "$(git-commit) Создать для всех репозиториев с изменениями",
+		"generating": "Создание сообщения фиксации для {{repository}}...",
+		"generationFailed": "[Не удалось создать сообщение фиксации] {{error}}",
+		"noChanges": "Изменения не найдены ни в одном репозитории рабочей области",
+		"selectRepoPlaceholder": "Выберите репозиторий для создания сообщения фиксации"
+	},
+	"files": {
+		"checkSizeFailed": "Не удалось проверить размер файла {{filename}}, он будет пропущен.",
+		"dialogSelectLabel": "Выбрать",
+		"fileTooLarge": "Файл слишком большой: {{filename}} пропущен (размер превышает 20 МБ).",
+		"imageTooLarge": "Изображение слишком большое: {{filename}} пропущено (размеры превышают 7500 пикселей).",
+		"invalidDataUri": "Недопустимый формат URI данных",
+		"openFileFailed": "Не удалось открыть файл!",
+		"openImageFailed": "Ошибка при открытии изображения: {{error}}",
+		"readDimensionsFailed": "Не удалось прочитать размеры {{filename}}, файл будет пропущен."
+	},
+	"jupyter": {
+		"noActiveNotebook": "Активная записная книжка Jupyter не найдена. Сначала откройте файл .ipynb."
+	},
+	"mcp": {
+		"invalidSettingsJson": "Недопустимый JSON в файле параметров MCP. Проверьте синтаксис.",
+		"openSettingsFileButton": "Открыть файл параметров",
+		"restartingServer": "Перезапуск сервера MCP {{serverName}}...",
+		"serverConnectFailed": "Не удалось подключиться к серверу MCP {{serverName}}",
+		"serverConnected": "Сервер MCP {{serverName}} подключен",
+		"settingsSchemaError": "Ошибка схемы параметров MCP — серверы не были загружены.",
+		"updateAutoApproveFailed": "Не удалось обновить параметры автоматического утверждения",
+		"updateServerStateFailed": "Не удалось обновить состояние сервера: {{error}}",
+		"updateTimeoutFailed": "Не удалось обновить тайм-аут сервера: {{error}}"
+	},
+	"mentions": {
+		"fetchContentFailed": "Ошибка при получении содержимого {{url}}: {{error}}"
+	},
+	"oca": {
+		"backendUnreachable": "Не удаётся получить доступ к серверной части OCA. Правильно ли настроены конечная точка и прокси-сервер? См. руководство по устранению неполадок.",
+		"fetchModelsFailed": "Не удалось получить модели OCA. Проверьте конфигурацию для {{baseUrl}}",
+		"noModels": "Модели не найдены. Настроен ли у вас доступ к OCA (возможно, через права доступа)?",
+		"notAuthenticated": "Не выполнена аутентификация в OCA. Сначала войдите в систему.",
+		"refreshError": "Ошибка при обновлении моделей OCA. {{message}} opc-request-id: {{requestId}}",
+		"refreshedModels": "Модели OCA обновлены из {{baseUrl}}",
+		"serviceError": "Настроен ли у вас доступ к OCA (возможно, через права доступа)? Служба OCA вернула {{status}} {{statusText}}."
+	},
+	"rules": {
+		"createdGlobalRuleFile": "Создан новый глобальный файл правил: {{filename}}",
+		"createdGlobalWorkflowFile": "Создан новый глобальный файл рабочего процесса: {{filename}}",
+		"createdWorkspaceRuleFile": "Создан новый файл правил рабочей области: {{filename}}",
+		"createdWorkspaceWorkflowFile": "Создан новый файл рабочего процесса рабочей области: {{filename}}",
+		"ruleFileAlreadyExists": "Файл правил «{{filename}}» уже существует.",
+		"ruleFileDeleted": "Файл правил «{{filename}}» успешно удалён",
+		"workflowFileAlreadyExists": "Файл рабочего процесса «{{filename}}» уже существует.",
+		"workflowFileDeleted": "Файл рабочего процесса «{{filename}}» успешно удалён"
+	},
+	"skills": {
+		"alreadyExists": "Навык «{{name}}» уже существует"
+	},
+	"state": {
+		"resetComplete": "Состояние сброшено",
+		"resetFailed": "Не удалось сбросить состояние: {{error}}",
+		"resettingGlobal": "Сброс глобального состояния...",
+		"resettingWorkspace": "Сброс состояния рабочей области..."
+	},
+	"storageInitFailed": "Не удалось инициализировать хранилище. Проверьте журналы или попробуйте перезапустить клиент.",
+	"tasks": {
+		"deleteAllExceptFavoritesButton": "Удалить всё, кроме избранного",
+		"deleteAllPrompt": "Что вы хотите удалить?",
+		"deleteAllTasksButton": "Удалить все задачи",
+		"deleteButton": "Удалить",
+		"deleteConfirm_few": "Вы действительно хотите удалить {{count}} задачи? Это действие нельзя отменить.",
+		"deleteConfirm_many": "Вы действительно хотите удалить {{count}} задач? Это действие нельзя отменить.",
+		"deleteConfirm_one": "Вы действительно хотите удалить {{count}} задачу? Это действие нельзя отменить.",
+		"deleteConfirm_other": "Вы действительно хотите удалить {{count}} задачи? Это действие нельзя отменить.",
+		"deleteEverythingButton": "Удалить всё",
+		"noFavoritesFound": "Избранные задачи не найдены. Всё равно удалить все задачи?"
+	},
+	"telemetry": {
+		"hostTelemetryDisabled": "Анонимные отчёты об ошибках и использовании Cline включены, но телеметрия IDE отключена. Чтобы включить отчёты об ошибках и использовании для этого расширения, включите телеметрию в параметрах IDE.",
+		"openSettingsButton": "Открыть параметры"
+	},
+	"terminal": {
+		"getContentsFailed": "Не удалось получить содержимое терминала"
+	},
+	"url": {
+		"copyAgainButton": "Скопировать URL-адрес ещё раз",
+		"openFailed": "Не удалось открыть URL-адрес: {{url}}",
+		"openFailedCopied": "Не удалось автоматически открыть URL-адрес. Он скопирован в буфер обмена."
+	},
+	"version": {
+		"updated": "Cline обновлён до версии v{{version}}",
+		"welcome": "Добро пожаловать в Cline v{{version}}"
+	}
 }

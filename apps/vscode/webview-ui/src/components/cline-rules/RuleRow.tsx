@@ -2,6 +2,7 @@ import { StringRequest } from "@shared/proto/cline/common"
 import { DeleteSkillRequest, RuleFileRequest } from "@shared/proto/index.cline"
 import { REMOTE_URI_SCHEME } from "@shared/remote-config/constants"
 import { EyeIcon, InfoIcon, PenIcon, Trash2Icon } from "lucide-react"
+import { useTranslation } from "react-i18next"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -38,12 +39,15 @@ const RuleRow: React.FC<{
 	alwaysEnabled?: boolean
 	onDeleteSkill?: () => void
 }> = ({ rulePath, enabled, isGlobal, toggleRule, ruleType, isRemote = false, alwaysEnabled = false, onDeleteSkill }) => {
+	const { t } = useTranslation()
 	const displayName = getDisplayNameFromPath(rulePath)
 	const skillDisplayName = getSkillDisplayNameFromSkillMdPath(rulePath)
 
 	// For remote rules, the rulePath is already the display name
 	const finalDisplayName = isRemote ? rulePath : ruleType === "skill" ? skillDisplayName : displayName
 	const isDisabled = isRemote && alwaysEnabled
+	// Localized noun for the rule type, interpolated into the action labels below.
+	const typeLabel = t(`rules:types.${ruleType}`, { defaultValue: ruleType })
 
 	const getRuleTypeIcon = () => {
 		switch (ruleType) {
@@ -146,9 +150,7 @@ const RuleRow: React.FC<{
 							<TooltipTrigger asChild className="cursor-help">
 								<InfoIcon className="ml-1.5 opacity-70 size-[0.85rem]" />
 							</TooltipTrigger>
-							<TooltipContent>
-								Searches recursively for all AGENTS.md files in the workspace when a top-level AGENTS.md exists
-							</TooltipContent>
+							<TooltipContent>{t("rules:agentsTooltip")}</TooltipContent>
 						</Tooltip>
 					)}
 				</span>
@@ -161,22 +163,26 @@ const RuleRow: React.FC<{
 						disabled={isDisabled}
 						key={rulePath}
 						onClick={() => toggleRule(rulePath, !enabled)}
-						title={isDisabled ? "This rule is required and cannot be disabled" : undefined}
+						title={isDisabled ? t("rules:requiredRule") : undefined}
 					/>
 					<Button
-						aria-label={isRemote ? `View ${ruleType} file` : `Edit ${ruleType} file`}
+						aria-label={
+							isRemote ? t("rules:viewFile", { type: typeLabel }) : t("rules:editFile", { type: typeLabel })
+						}
 						onClick={handleEditClick}
 						size="xs"
-						title={isRemote ? `View ${ruleType} file (read-only)` : `Edit ${ruleType} file`}
+						title={
+							isRemote ? t("rules:viewFileReadonly", { type: typeLabel }) : t("rules:editFile", { type: typeLabel })
+						}
 						variant="icon">
 						{isRemote ? <EyeIcon /> : <PenIcon />}
 					</Button>
 					<Button
-						aria-label={`Delete ${ruleType} file`}
+						aria-label={t("rules:deleteFile", { type: typeLabel })}
 						disabled={isRemote}
 						onClick={handleDeleteClick}
 						size="xs"
-						title={`Delete ${ruleType} file`}
+						title={t("rules:deleteFile", { type: typeLabel })}
 						variant="icon">
 						<Trash2Icon />
 					</Button>

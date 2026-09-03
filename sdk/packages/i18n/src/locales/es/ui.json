@@ -1,0 +1,76 @@
+{
+	"alert": {
+		"dismissAria": "Descartar"
+	},
+	"bannerCarousel": {
+		"announcementsAria": "Anuncios",
+		"carouselRoleDescription": "carrusel",
+		"dismissAria": "Descartar banner",
+		"nextAria": "Banner siguiente",
+		"previousAria": "Banner anterior"
+	},
+	"codeAccordian": {
+		"collapseAria": "Contraer bloque de código",
+		"consoleLogs": "Registros de consola",
+		"expandAria": "Expandir bloque de código",
+		"userEdits": "Ediciones del usuario"
+	},
+	"copyButton": {
+		"copied": "Copiado",
+		"copy": "Copiar"
+	},
+	"dialog": {
+		"close": "Cerrar"
+	},
+	"markdown": {
+		"actMode": {
+			"alreadyActiveTitle": "Ya está en modo Act",
+			"label": "Modo Act (⌘⇧A)",
+			"toggleTitle": "Haz clic para cambiar al modo Act"
+		},
+		"copyCodeAria": "Copiar código",
+		"openInEditor": "Abrir {{filePath}} en el editor"
+	},
+	"menuAnnouncement": {
+		"itemPosition": "{{label}}, {{position}} de {{total}}"
+	},
+	"mermaid": {
+		"copyCode": "Copiar código",
+		"generating": "Generando diagrama de Mermaid..."
+	},
+	"navbar": {
+		"account": "Cuenta",
+		"customize": "Personalizar",
+		"history": "Historial",
+		"newTask": "Nueva tarea",
+		"settings": "Configuración"
+	},
+	"thumbnails": {
+		"imageAlt": "Imagen en miniatura {{number}}"
+	},
+	"unsafeImage": {
+		"altLabel": "Texto alternativo:",
+		"blockedTitle": "Imagen externa bloqueada hasta obtener consentimiento",
+		"loadImage": "Cargar imagen",
+		"sourceLabel": "Origen:"
+	},
+	"viewHeader": {
+		"done": "Listo",
+		"environmentSuffix": "Entorno {{environment}}",
+		"environments": {
+			"local": "Local",
+			"production": "Producción",
+			"selfHosted": "Autohospedado",
+			"staging": "Preproducción"
+		}
+	},
+	"whatsNew": {
+		"followOnLinkedInAria": "Síguenos en LinkedIn",
+		"followOnXAria": "Síguenos en X",
+		"joinDiscordAria": "Únete a nuestro Discord",
+		"joinSubredditAria": "Únete a nuestro subreddit",
+		"starOnGitHubAria": "Danos una estrella en GitHub",
+		"supportCta": "Apoya a Cline <githubLink>dándonos una estrella en GitHub</githubLink>.",
+		"title": "🎉 Novedades de la v{{version}}"
+	}
+}

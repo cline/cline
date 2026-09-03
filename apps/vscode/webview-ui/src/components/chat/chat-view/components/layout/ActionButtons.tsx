@@ -3,6 +3,7 @@ import type { Mode } from "@shared/storage/types"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import type React from "react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { useExtensionState } from "../../../../../context/ExtensionStateContext"
 import { ButtonActionType, getButtonConfigFromState } from "../../shared/buttonConfig"
 import type { ChatState, MessageHandlers } from "../../types/chatTypes"
@@ -19,6 +20,7 @@ interface ActionButtonsProps {
  * Action buttons area including approve/reject buttons
  */
 export const ActionButtons: React.FC<ActionButtonsProps> = ({ task, messages, chatState, mode, messageHandlers }) => {
+	const { t } = useTranslation()
 	const { inputValue, selectedImages, selectedFiles, setSendingDisabled } = chatState
 	const { turnState, foregroundCommandRunning } = useExtensionState()
 
@@ -135,7 +137,7 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({ task, messages, ch
 					className={secondaryText ? "flex-1 mr-[6px]" : "flex-2"}
 					disabled={!canInteract}
 					onClick={() => handleActionClick(primaryAction, inputValue, selectedImages, selectedFiles)}>
-					{primaryText}
+					{t(primaryText)}
 				</VSCodeButton>
 			)}
 			{secondaryText && secondaryAction && (
@@ -144,7 +146,7 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({ task, messages, ch
 					className={primaryText ? "flex-1" : "flex-2"}
 					disabled={!canInteract}
 					onClick={() => handleActionClick(secondaryAction, inputValue, selectedImages, selectedFiles)}>
-					{secondaryText}
+					{t(secondaryText)}
 				</VSCodeButton>
 			)}
 		</div>

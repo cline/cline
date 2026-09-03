@@ -2,6 +2,7 @@ import { ModelInfo, openAiModelInfoSafeDefaults } from "@shared/api"
 import { Mode } from "@shared/storage/types"
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { RefreshCwIcon } from "lucide-react"
+import { Trans, useTranslation } from "react-i18next"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useProviderConfig } from "@/hooks/useProviderConfig"
 import { useProviderModelSelection } from "@/hooks/useProviderModelSelection"
@@ -32,6 +33,7 @@ interface LiteLlmProviderProps {
 }
 
 export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: LiteLlmProviderProps) => {
+	const { t } = useTranslation()
 	const { remoteConfigSettings } = useExtensionState()
 	const { models, defaultModelId, isLoading, isStale, error, refresh } = useProviderModels(LITELLM_PROVIDER_ID)
 	const { config, write, commitSelection } = useProviderConfig(LITELLM_PROVIDER_ID)
@@ -78,11 +80,11 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 					disabled={remoteConfigSettings?.liteLlmBaseUrl !== undefined}
 					initialValue={config?.baseUrl || ""}
 					onChange={handleBaseUrlChange}
-					placeholder={"Default: http://localhost:4000"}
+					placeholder={t("providers:shared.defaultPlaceholder", { value: "http://localhost:4000" })}
 					style={{ width: "100%" }}
 					type="text">
 					<div className="flex items-center gap-2 mb-1">
-						<span style={{ fontWeight: 500 }}>Base URL (optional)</span>
+						<span style={{ fontWeight: 500 }}>{t("providers:litellm.baseUrlOptionalLabel")}</span>
 						{remoteConfigSettings?.liteLlmBaseUrl !== undefined && <LockIcon />}
 					</div>
 				</DebouncedTextField>
@@ -92,24 +94,24 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 					disabled={remoteConfigSettings?.configuredApiKeys?.litellm}
 					initialValue={savedApiKeyMask}
 					onChange={handleApiKeyChange}
-					placeholder="Default: noop"
+					placeholder={t("providers:shared.defaultPlaceholder", { value: "noop" })}
 					style={{ width: "100%" }}
 					type="password">
 					<div className="flex items-center gap-2 mb-1">
-						<span style={{ fontWeight: 500 }}>API Key</span>
+						<span style={{ fontWeight: 500 }}>{t("providers:shared.apiKeyLabel")}</span>
 						{remoteConfigSettings?.configuredApiKeys?.litellm && <LockIcon />}
 					</div>
 				</DebouncedTextField>
 			</RemotelyConfiguredInputWrapper>
 			{showModelOptions && (
 				<>
-					{isStale && <div role="status">Model list may be stale for the current LiteLLM configuration.</div>}
+					{isStale && <div role="status">{t("providers:litellm.modelListStale")}</div>}
 					{error && <div role="alert">{error}</div>}
 					<ModelAutocomplete
-						label="Model"
+						label={t("providers:shared.modelLabel")}
 						models={models}
 						onChange={handleModelChange}
-						placeholder="Search or enter a custom model ID..."
+						placeholder={t("providers:litellm.modelSearchPlaceholder")}
 						selectedModelId={selectedModelId}
 					/>
 					<VSCodeButton
@@ -117,10 +119,10 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 						disabled={isLoading}
 						onClick={onRefreshModels}>
 						{isLoading ? (
-							"Loading..."
+							t("providers:shared.loading")
 						) : (
 							<>
-								Refresh models <RefreshCwIcon className="ml-1" />
+								{t("providers:shared.refreshModels")} <RefreshCwIcon className="ml-1" />
 							</>
 						)}
 					</VSCodeButton>
@@ -129,7 +131,7 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 						<ReasoningEffortSelector
 							currentMode={currentMode}
 							defaultEffort="none"
-							description="Use None to disable extended thinking. Higher effort improves depth, but uses more tokens."
+							description={t("providers:shared.extendedThinkingDescription")}
 							onEffortChange={(effort) => {
 								void write({
 									reasoning: { enabled: effort !== "none", effort: effort !== "none" ? effort : undefined },
@@ -147,12 +149,17 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 					marginTop: "5px",
 					color: "var(--vscode-descriptionForeground)",
 				}}>
-				Extended thinking is available for models such as Sonnet-4, o3-mini, Deepseek R1, etc. More info on{" "}
-				<VSCodeLink
-					href="https://docs.litellm.ai/docs/reasoning_content"
-					style={{ display: "inline", fontSize: "inherit" }}>
-					thinking mode configuration
-				</VSCodeLink>
+				<Trans
+					components={{
+						docsLink: (
+							<VSCodeLink
+								href="https://docs.litellm.ai/docs/reasoning_content"
+								style={{ display: "inline", fontSize: "inherit" }}
+							/>
+						),
+					}}
+					i18nKey="providers:litellm.extendedThinkingInfo"
+				/>
 			</p>
 
 			<p
@@ -161,11 +168,14 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 					marginTop: "5px",
 					color: "var(--vscode-descriptionForeground)",
 				}}>
-				LiteLLM provides a unified interface to access various LLM providers' models. See their{" "}
-				<VSCodeLink href="https://docs.litellm.ai/docs/" style={{ display: "inline", fontSize: "inherit" }}>
-					quickstart guide
-				</VSCodeLink>{" "}
-				for more information.
+				<Trans
+					components={{
+						docsLink: (
+							<VSCodeLink href="https://docs.litellm.ai/docs/" style={{ display: "inline", fontSize: "inherit" }} />
+						),
+					}}
+					i18nKey="providers:litellm.description"
+				/>
 			</p>
 		</div>
 	)

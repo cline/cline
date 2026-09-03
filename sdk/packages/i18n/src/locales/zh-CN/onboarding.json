@@ -1,0 +1,86 @@
+{
+	"buttons": {
+		"back": "返回",
+		"continue": "继续",
+		"createAccount": "创建我的账号",
+		"login": "登录 Cline"
+	},
+	"capabilities": {
+		"images": "图像",
+		"promptCache": "提示词缓存",
+		"tools": "工具"
+	},
+	"changeLaterNote": "之后可以在设置中随时更改",
+	"clinePassEmpty": {
+		"description": "请选择其他选项，或稍后再试。",
+		"title": "当前没有可用的 ClinePass 模型。"
+	},
+	"completeSignInBrowser": "请在浏览器中完成登录。完成后我们会自动继续。",
+	"groups": {
+		"free": "免费",
+		"frontier": "前沿模型",
+		"openSource": "开源"
+	},
+	"learnMore": "了解更多",
+	"modelItem": {
+		"contextLabel": "上下文：",
+		"speedLabel": "速度：",
+		"supportLabel": "支持："
+	},
+	"noSearchResults": "未找到与“{{searchTerm}}”匹配的结果",
+	"otherOptions": "其他选项",
+	"price": {
+		"free": "免费",
+		"high": "$$$",
+		"low": "$",
+		"medium": "$$"
+	},
+	"searchModelPlaceholder": "搜索模型...",
+	"speed": {
+		"average": "中等",
+		"fast": "快",
+		"instant": "极快",
+		"slow": "慢"
+	},
+	"steps": {
+		"accountWait": {
+			"description": "请在浏览器中完成账号创建，然后回到这里完成设置。",
+			"title": "就快完成了！"
+		},
+		"byok": {
+			"title": "配置你的提供商"
+		},
+		"clinePass": {
+			"title": "选择 ClinePass 模型"
+		},
+		"free": {
+			"title": "选择免费模型"
+		},
+		"power": {
+			"title": "选择你的模型"
+		},
+		"userType": {
+			"description": "选择下面的一个选项开始使用。",
+			"title": "你会如何使用 Cline？"
+		}
+	},
+	"userTypes": {
+		"byok": {
+			"description": "在你选择的提供商上使用 Cline",
+			"title": "自带 API 密钥"
+		},
+		"clinePass": {
+			"description": "低价订阅方案，畅享最佳开放权重模型。",
+			"title": "ClinePass"
+		},
+		"free": {
+			"description": "零成本开始使用",
+			"title": "完全免费"
+		},
+		"power": {
+			"description": "Claude、GPT Codex、Gemini 等",
+			"title": "前沿模型"
+		}
+	},
+	"waitingForSignIn": "正在等待登录..."
+}

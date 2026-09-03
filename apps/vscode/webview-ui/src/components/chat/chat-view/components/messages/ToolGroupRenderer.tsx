@@ -1,6 +1,8 @@
 import { ClineMessage, ClineSayTool } from "@shared/ExtensionMessage"
 import { StringRequest } from "@shared/proto/cline/common"
+import type { TFunction } from "i18next"
 import { memo, useCallback, useMemo, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { TypewriterText } from "@/components/chat/TypewriterText"
 import { cleanPathPrefix } from "@/components/common/CodeAccordian"
 import { Button } from "@/components/ui/button"
@@ -24,20 +26,27 @@ interface ToolWithReasoning {
 
 const EXPANDABLE_TOOLS = new Set(["listFilesTopLevel", "listFilesRecursive", "listCodeDefinitionNames", "searchFiles"])
 
+// Helper to format the "lines X-Y" / "lines X+" note for read operations
+const formatLinesNote = (t: TFunction, start?: number | null, end?: number | null): string | null => {
+	if (start == null) {
+		return null
+	}
+	return end != null ? t("chatView:toolGroup.linesRange", { start, end }) : t("chatView:toolGroup.linesFrom", { start })
+}
+
 // Helper to format activity text for active items (from RequestStartRow logic)
-const getActivityText = (tool: ClineSayTool): string | null => {
+const getActivityText = (tool: ClineSayTool, t: TFunction): string | null => {
 	const cleanedPath = cleanPathPrefix(tool.path || "")
 	const formatSearchRegex = (regex: string, path: string, filePattern?: string): string => {
 		const cleanedPath = cleanPathPrefix(path)
-		const pathDisplay = cleanedPath ? `${cleanedPath}/` : "codebase"
+		const pathDisplay = cleanedPath ? `${cleanedPath}/` : t("chatView:toolGroup.codebase")
 		const terms = regex
 			.split("|")
-			.map((t) => t.trim().replace(/\\b/g, "").replace(/\\s\?/g, " "))
+			.map((term) => term.trim().replace(/\\b/g, "").replace(/\\s\?/g, " "))
 			.filter(Boolean)
 			.join(" | ")
-		return filePattern && filePattern !== "*"
-			? `"${terms}" in ${pathDisplay} (${filePattern})`
-			: `"${terms}" in ${pathDisplay}`
+		const query = t("chatView:toolGroup.searchIn", { terms: `"${terms}"`, path: pathDisplay })
+		return filePattern && filePattern !== "*" ? `${query} (${filePattern})` : query
 	}
 
 	switch (tool.tool) {
@@ -45,19 +54,20 @@ const getActivityText = (tool: ClineSayTool): string | null => {
 			if (!tool.path) {
 				return null
 			}
-			const lineHint =
-				tool.readLineStart != null
-					? ` (lines ${tool.readLineStart}${tool.readLineEnd != null ? `-${tool.readLineEnd}` : "+"})`
-					: ""
-			return `Reading ${cleanedPath}${lineHint}...`
+			const lines = formatLinesNote(t, tool.readLineStart, tool.readLineEnd)
+			return lines
+				? t("chatView:toolGroup.readingWithLines", { path: cleanedPath, lines })
+				: t("chatView:toolGroup.reading", { path: cleanedPath })
 		}
 		case "listFilesTopLevel":
 		case "listFilesRecursive":
-			return tool.path ? `Exploring ${cleanedPath}/...` : null
+			return tool.path ? t("chatView:toolGroup.exploring", { path: cleanedPath }) : null
 		case "searchFiles":
-			return tool.regex ? `Searching ${formatSearchRegex(tool.regex, tool.path || "", tool.filePattern)}...` : null
+			return tool.regex
+				? t("chatView:toolGroup.searching", { query: formatSearchRegex(tool.regex, tool.path || "", tool.filePattern) })
+				: null
 		case "listCodeDefinitionNames":
-			return tool.path ? `Analyzing ${cleanedPath}/...` : null
+			return tool.path ? t("chatView:toolGroup.analyzing", { path: cleanedPath }) : null
 		default:
 			return null
 	}
@@ -109,6 +119,7 @@ const getCurrentActivities = (allMessages: ClineMessage[]): ClineMessage[] => {
  * Shows both completed tools AND currently active tools in a unified list (only for last group).
  */
 export const ToolGroupRenderer = memo(({ messages, allMessages, isLastGroup }: ToolGroupRendererProps) => {
+	const { t } = useTranslation()
 	const [expandedItems, setExpandedItems] = useState<Record<number, boolean>>({})
 
 	// Filter out tools in the "current activities" range (being shown in loading state)
@@ -135,11 +146,11 @@ export const ToolGroupRenderer = memo(({ messages, allMessages, isLastGroup }: T
 					parsedTool,
 					reasoning: undefined,
 					isActive: true,
-					activityText: getActivityText(parsedTool),
+					activityText: getActivityText(parsedTool, t),
 				}
 			})
 			.filter((item) => item.activityText)
-	}, [currentActivities])
+	}, [currentActivities, t])
 
 	// Merge: completed items first, then active items (active only added to last group)
 	// Deduplicate - exclude completed items that match active items by path
@@ -153,7 +164,10 @@ export const ToolGroupRenderer = memo(({ messages, allMessages, isLastGroup }: T
 		return [...dedupedCompleted, ...activeTools]
 	}, [completedTools, activeTools])
 
-	const summary = getToolGroupSummaryFromParsedTools(completedTools.map((item) => item.parsedTool))
+	const summary = getToolGroupSummaryFromParsedTools(
+		completedTools.map((item) => item.parsedTool),
+		t,
+	)
 
 	const handleOpenFile = useCallback((filePath: string) => {
 		FileServiceClient.openFileRelativePath(StringRequest.create({ value: filePath })).catch((err) =>
@@ -178,7 +192,7 @@ export const ToolGroupRenderer = memo(({ messages, allMessages, isLastGroup }: T
 			{/* Content - unified list of completed + active tools */}
 			<div className="min-w-0">
 				{allTools.map(({ tool, parsedTool, isActive, activityText }) => {
-					const info = getToolDisplayInfo(parsedTool)
+					const info = getToolDisplayInfo(parsedTool, t)
 					if (!info) {
 						return null
 					}
@@ -296,17 +310,14 @@ function parseToolSafe(text: string | undefined): ClineSayTool {
 /**
  * Get display info for a tool.
  */
-function getToolDisplayInfo(tool: ClineSayTool) {
+function getToolDisplayInfo(tool: ClineSayTool, t: TFunction) {
 	const icon = getIconByToolName(tool.tool)
 	const filePath = tool.path || ""
 	const folderPath = filePath + "/"
 
 	switch (tool.tool) {
 		case "readFile": {
-			const lineNote =
-				tool.readLineStart != null
-					? `lines ${tool.readLineStart}${tool.readLineEnd != null ? `-${tool.readLineEnd}` : "+"}`
-					: null
+			const lineNote = formatLinesNote(t, tool.readLineStart, tool.readLineEnd)
 			return {
 				icon,
 				path: filePath,
@@ -325,7 +336,7 @@ function getToolDisplayInfo(tool: ClineSayTool) {
 				icon,
 				path: filePath ? folderPath : "",
 				label: `search: ${tool.regex}`,
-				displayText: formatSearchDisplay(tool.regex || "", filePath, tool.filePattern),
+				displayText: formatSearchDisplay(tool.regex || "", filePath, t, tool.filePattern),
 			}
 		default:
 			return null
@@ -335,17 +346,17 @@ function getToolDisplayInfo(tool: ClineSayTool) {
 /**
  * Format search regex for display - simplify complex patterns
  */
-function formatSearchDisplay(regex: string, path: string, filePattern?: string): string {
+function formatSearchDisplay(regex: string, path: string, t: TFunction, filePattern?: string): string {
 	// Split by | and clean up regex syntax
 	const terms = regex
 		.split("|")
-		.map((t) => t.trim().replace(/\\b/g, "").replace(/\\s\?/g, " "))
+		.map((term) => term.trim().replace(/\\b/g, "").replace(/\\s\?/g, " "))
 		.filter(Boolean)
 
-	const termDisplay = terms.length > 3 ? `${terms.length} patterns` : `"${terms.join(" | ")}"`
+	const termDisplay = terms.length > 3 ? t("chatView:toolGroup.patterns", { count: terms.length }) : `"${terms.join(" | ")}"`
 	// When path is empty (e.g. SDK search_codebase has no path param), show "codebase"
-	const pathDisplay = path ? `${cleanPathPrefix(path)}/` : "codebase"
-	let result = `${termDisplay} in ${pathDisplay}`
+	const pathDisplay = path ? `${cleanPathPrefix(path)}/` : t("chatView:toolGroup.codebase")
+	let result = t("chatView:toolGroup.searchIn", { terms: termDisplay, path: pathDisplay })
 
 	if (filePattern && filePattern !== "*") {
 		result += ` (${filePattern})`
@@ -357,7 +368,7 @@ function formatSearchDisplay(regex: string, path: string, filePattern?: string):
 /**
  * Get summary label for a tool group - shows what's been added to context.
  */
-export function getToolGroupSummaryFromParsedTools(tools: ClineSayTool[]): string {
+export function getToolGroupSummaryFromParsedTools(tools: ClineSayTool[], t: TFunction): string {
 	const counts = { read: 0, list: 0, search: 0, def: 0 }
 
 	for (const tool of tools) {
@@ -379,20 +390,26 @@ export function getToolGroupSummaryFromParsedTools(tools: ClineSayTool[]): strin
 	}
 
 	const parts: string[] = []
-	const action = counts.read > 0 || counts.list > 0 ? " read " : " "
 
 	if (counts.read > 0) {
-		parts.push(`${counts.read} file${counts.read > 1 ? "s" : ""}`)
+		parts.push(t("chatView:toolGroup.files", { count: counts.read }))
 	}
 	if (counts.list > 0) {
-		parts.push(`${counts.list} folder${counts.list > 1 ? "s" : ""}`)
+		parts.push(t("chatView:toolGroup.folders", { count: counts.list }))
 	}
 	if (counts.def > 0) {
-		parts.push(`${counts.def} definition${counts.def > 1 ? "s" : ""}`)
+		parts.push(t("chatView:toolGroup.definitions", { count: counts.def }))
 	}
 	if (counts.search > 0) {
-		parts.push(`performed ${counts.search} search${counts.search > 1 ? "es" : ""}`)
+		parts.push(t("chatView:toolGroup.performedSearches", { count: counts.search }))
 	}
 
-	return parts.length === 0 ? "Context" : "Cline" + action + parts.join(", ")
+	if (parts.length === 0) {
+		return t("chatView:toolGroup.contextFallback")
+	}
+
+	const items = parts.join(", ")
+	return counts.read > 0 || counts.list > 0
+		? t("chatView:toolGroup.summaryRead", { items })
+		: t("chatView:toolGroup.summary", { items })
 }

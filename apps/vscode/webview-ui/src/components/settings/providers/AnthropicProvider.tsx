@@ -1,6 +1,7 @@
 import { openAiModelInfoSafeDefaults } from "@shared/api"
 import type { Mode } from "@shared/storage/types"
 import { isClaudeOpusAdaptiveThinkingModel, resolveClaudeOpusAdaptiveThinking } from "@shared/utils/reasoning-support"
+import { useTranslation } from "react-i18next"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useProviderConfig } from "@/hooks/useProviderConfig"
 import { useProviderModelSelection } from "@/hooks/useProviderModelSelection"
@@ -29,6 +30,7 @@ interface AnthropicProviderProps {
  * The Anthropic provider configuration component
  */
 export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: AnthropicProviderProps) => {
+	const { t } = useTranslation()
 	const { apiConfiguration, remoteConfigSettings } = useExtensionState()
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
 	const { config, write, commitSelection } = useProviderConfig(PROVIDER_ID)
@@ -101,10 +103,10 @@ export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: An
 				<BaseUrlField
 					disabled={!!remoteConfigSettings?.anthropicBaseUrl}
 					initialValue={config?.baseUrl}
-					label="Use custom base URL"
+					label={t("providers:shared.useCustomBaseUrl")}
 					onChange={handleBaseUrlChange}
 					onClear={handleBaseUrlClear}
-					placeholder="Default: https://api.anthropic.com"
+					placeholder={t("providers:shared.defaultPlaceholder", { value: "https://api.anthropic.com" })}
 					showLockIcon={!!remoteConfigSettings?.anthropicBaseUrl}
 				/>
 			</RemotelyConfiguredInputWrapper>
@@ -112,7 +114,7 @@ export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: An
 			{showModelOptions && (
 				<>
 					<ModelSelector
-						label="Model"
+						label={t("providers:shared.modelLabel")}
 						models={models}
 						onChange={(e) => handleModelChange(e.target.value)}
 						selectedModelId={selectedModelId}
@@ -123,15 +125,15 @@ export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: An
 							allowedEfforts={["none", "low", "medium", "high", "xhigh"] as const}
 							currentMode={currentMode}
 							defaultEffort={adaptiveThinkingDefaultEffort}
-							description="Use None to disable adaptive thinking. Higher effort increases response detail and token usage."
-							label="Adaptive Thinking"
+							description={t("providers:shared.adaptiveThinkingDescription")}
+							label={t("providers:shared.adaptiveThinkingLabel")}
 							onEffortChange={handleReasoningEffortChange}
 						/>
 					) : selectedModelInfo.supportsReasoning === true ? (
 						<ReasoningEffortSelector
 							currentMode={currentMode}
 							defaultEffort="none"
-							description="Use None to disable extended thinking. Higher effort improves depth, but uses more tokens."
+							description={t("providers:shared.extendedThinkingDescription")}
 							onEffortChange={handleReasoningEffortChange}
 						/>
 					) : null}

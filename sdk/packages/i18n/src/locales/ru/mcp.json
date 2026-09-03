@@ -1,0 +1,97 @@
+{
+	"addServer": {
+		"addServer": "Добавить сервер",
+		"connecting": "Подключение...",
+		"description": "Добавьте удаленный сервер MCP, указав имя и URL-адрес его конечной точки. Подробнее <docsLink>здесь.</docsLink>",
+		"editConfiguration": "Изменить конфигурацию",
+		"errors": {
+			"addFailed": "Не удалось добавить сервер",
+			"invalidUrl": "Недопустимый формат URL-адреса",
+			"nameRequired": "Укажите имя сервера",
+			"urlRequired": "Укажите URL-адрес сервера"
+		},
+		"serverName": "Имя сервера",
+		"serverUrl": "URL-адрес сервера",
+		"transportSse": "SSE (устаревший)",
+		"transportStreamableHttp": "Streamable HTTP",
+		"transportType": "Тип транспорта"
+	},
+	"chatDisplay": {
+		"clickToOpenInBrowser": "Щелкните, чтобы открыть в браузере",
+		"fetchOpenGraphFailed": "Не удалось получить данные Open Graph",
+		"imageErrorTitle": "При отображении этого изображения произошла ошибка",
+		"imageFrom": "Изображение с {{hostname}}",
+		"imageLoadFailed": "Не удалось загрузить изображение",
+		"linkPreviewErrorTitle": "При отображении предварительного просмотра этой ссылки произошла ошибка",
+		"loadingImage": "Загрузка изображения с {{hostname}}...",
+		"loadingPreview": "Загрузка предварительного просмотра для {{hostname}}...",
+		"noDescriptionAvailable": "Описание недоступно",
+		"noTitle": "Без названия",
+		"previewLoadFailed": "Не удалось загрузить предварительный просмотр",
+		"previewNetworkError": "Ошибка сети при загрузке предварительного просмотра",
+		"previewTimeout": "Истекло время ожидания запроса предварительного просмотра",
+		"svgFrom": "SVG с {{hostname}}",
+		"unknownError": "Произошла неизвестная ошибка",
+		"waitingMinutes": "Ожидание: {{minutes}} мин {{seconds}} с...",
+		"waitingSeconds": "Ожидание: {{seconds}} с..."
+	},
+	"configure": {
+		"advancedSettings": "Дополнительные параметры MCP",
+		"configureServers": "Настроить серверы MCP",
+		"description": "<mcpLink>Model Context Protocol</mcpLink> обеспечивает взаимодействие с локально запущенными серверами MCP, которые предоставляют дополнительные инструменты и ресурсы, расширяющие возможности Cline. Вы можете использовать <communityLink>серверы, созданные сообществом</communityLink>, или попросить Cline создать новые инструменты для вашего рабочего процесса (например, «добавь инструмент, который получает свежую документацию npm»). <demoLink>Посмотреть демонстрацию.</demoLink>",
+		"remoteManagedBanner": "Ваша организация управляет некоторыми серверами MCP"
+	},
+	"displayMode": {
+		"markdown": "Markdown",
+		"plain": "Обычный текст",
+		"rich": "Расширенное отображение"
+	},
+	"response": {
+		"parseError": "Ошибка при разборе ответа:",
+		"processError": "Не удалось обработать содержимое ответа. Переключитесь в режим обычного текста для безопасного просмотра.",
+		"title": "Ответ",
+		"titleError": "Ответ (ошибка)"
+	},
+	"serverList": {
+		"noServers": "Серверы MCP не установлены"
+	},
+	"serverRow": {
+		"alwaysEnabledTooltip": "Этот сервер нельзя отключить, так как он включен вашей организацией",
+		"arguments": "Аргументы",
+		"authenticate": "Пройти проверку подлинности",
+		"autoApprove": "Одобрять автоматически",
+		"autoApproveAll": "Автоматически одобрять все инструменты",
+		"deleteServer": "Удалить сервер",
+		"deleting": "Удаление...",
+		"noDescription": "Нет описания",
+		"noPrompts": "Промпты не найдены",
+		"noResources": "Ресурсы не найдены",
+		"noTools": "Инструменты не найдены",
+		"parameters": "Параметры",
+		"promptsTab": "Промпты ({{count}})",
+		"requestTimeout": "Время ожидания запроса",
+		"resourcesTab": "Ресурсы ({{count}})",
+		"restartServer": "Перезапустить сервер",
+		"restarting": "Перезапуск...",
+		"retryConnection": "Повторить подключение",
+		"retrying": "Повторная попытка...",
+		"returns": "Возвращает",
+		"serverDisabled": "Сервер отключен",
+		"timeoutDescription": "Применяется ко всем запросам, которые обрабатывает этот сервер, в VS Code и CLI. Для других значений задайте \"timeout\" (в секундах) в файле cline_mcp_settings.json.",
+		"timeouts": {
+			"fiveMinutes": "5 минут",
+			"oneHour": "1 час",
+			"oneMinute": "1 минута",
+			"tenMinutes": "10 минут",
+			"thirtyMinutes": "30 минут",
+			"thirtySeconds": "30 секунд"
+		},
+		"toolsTab": "Инструменты ({{count}})",
+		"unknown": "Неизвестно"
+	},
+	"tabs": {
+		"configure": "Настройка",
+		"remoteServers": "Удаленные серверы"
+	},
+	"title": "Серверы MCP"
+}

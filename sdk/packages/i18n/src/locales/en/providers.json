@@ -1,0 +1,243 @@
+{
+	"aihubmix": {
+		"discountHelpText": "Now request 10% discount!"
+	},
+	"asksage": {
+		"apiUrlLabel": "AskSage API URL",
+		"apiUrlPlaceholder": "Enter AskSage API URL..."
+	},
+	"bedrock": {
+		"accessKeyLabel": "AWS Access Key",
+		"accessKeyPlaceholder": "Enter Access Key...",
+		"apiKeyLabel": "AWS Bedrock Api Key",
+		"apiKeyPlaceholder": "Enter Bedrock Api Key",
+		"authApiKey": "API Key",
+		"authCredentials": "AWS Credentials",
+		"authProfile": "AWS Profile",
+		"baseInferenceModelLabel": "Base Inference Model",
+		"clearSearchAria": "Clear search",
+		"credentialsDescription": "Authenticate by either providing the keys above or use the default AWS credential providers, i.e. ~/.aws/credentials or environment variables. These credentials are only used locally to make API requests from this extension.",
+		"customModelIdPlaceholder": "Enter custom model ID...",
+		"customModelNote": "Select \"Custom\" when using the Application Inference Profile in Bedrock. Enter the Application Inference Profile ARN in the Model ID field.",
+		"customOption": "Custom",
+		"modelIdLabel": "Model ID",
+		"profileDescription": "Using AWS Profile credentials from ~/.aws/credentials. Leave profile name empty to use the default profile. These credentials are only used locally to make API requests from this extension.",
+		"profileLabel": "AWS Profile Name",
+		"profilePlaceholder": "Enter profile name (default if empty)",
+		"regionLabel": "AWS Region",
+		"regionSearchPlaceholder": "Search or enter custom region...",
+		"secretKeyLabel": "AWS Secret Key",
+		"secretKeyPlaceholder": "Enter Secret Key...",
+		"sessionTokenLabel": "AWS Session Token",
+		"sessionTokenPlaceholder": "Enter Session Token...",
+		"useCrossRegionInference": "Use cross-region inference",
+		"useCustomVpcEndpoint": "Use custom VPC endpoint",
+		"useGlobalInferenceProfile": "Use global inference profile",
+		"usePromptCaching": "Use prompt caching",
+		"vpcEndpointPlaceholder": "Enter VPC Endpoint URL (optional)"
+	},
+	"claudeCode": {
+		"cliPathDescription": "Path to the Claude Code CLI.",
+		"cliPathLabel": "Claude Code CLI Path",
+		"latestVersionNote": "Use the latest version of {{model}} by default."
+	},
+	"clinePass": {
+		"freeLabel": "FREE",
+		"freeTab": "Free",
+		"freeTabDescription": "Try with limited usage, separate from ClinePass quota.",
+		"subscribedTab": "Subscribed"
+	},
+	"dify": {
+		"description": "Dify is a platform that provides access to various AI models through a unified API. Configure your Dify instance URL and API key to get started.",
+		"modelSelectionNote": "The model selection is handled within your Dify application configuration."
+	},
+	"hicap": {
+		"apiKeyLabel": "Hicap API Key",
+		"generateApiKey": "Generate API Key"
+	},
+	"huggingface": {
+		"apiKeyLabel": "Hugging Face API Key",
+		"getApiKeyLink": "Get your API key here",
+		"pricingNote": "We don’t show pricing here because it depends on your Hugging Face provider settings and isn’t consistently available via their API"
+	},
+	"litellm": {
+		"baseUrlOptionalLabel": "Base URL (optional)",
+		"description": "LiteLLM provides a unified interface to access various LLM providers' models. See their <docsLink>quickstart guide</docsLink> for more information.",
+		"extendedThinkingInfo": "Extended thinking is available for models such as Sonnet-4, o3-mini, Deepseek R1, etc. More info on <docsLink>thinking mode configuration</docsLink>",
+		"modelListStale": "Model list may be stale for the current LiteLLM configuration.",
+		"modelSearchPlaceholder": "Search or enter a custom model ID..."
+	},
+	"lmstudio": {
+		"contextWindowLabel": "Context Window",
+		"contextWindowTitle": "Not editable - the value is returned by the connected endpoint",
+		"description": "LM Studio allows you to run models locally on your computer. For instructions on how to get started, see their <quickstartLink>quickstart guide.</quickstartLink> You will also need to start LM Studio's <serverLink>local server</serverLink> feature with <code>lms server start</code> to use it with this extension.",
+		"modelPlaceholder": "e.g. meta-llama-3.1-8b-instruct"
+	},
+	"modelPicker": {
+		"customModelIdLabel": "Custom model ID",
+		"customModelIdPlaceholder": "Enter custom model ID",
+		"modelListStale": "Model list may be stale for the current provider configuration.",
+		"notInCurrentList": "{{modelId}} (not in current list)",
+		"selectedModelNotInList": "Selected model “{{modelId}}” is not in the current list.",
+		"useCustomModelButton": "Use custom model",
+		"useCustomModelIdOption": "Use custom model ID…"
+	},
+	"moonshot": {
+		"entrypointLabel": "Moonshot Entrypoint"
+	},
+	"oca": {
+		"acknowledgeButton": "I acknowledge and agree",
+		"acknowledgementTitle": "Acknowledgement Required",
+		"connecting": "Connecting…",
+		"customBaseUrlLabel": "Custom Base URL (optional)",
+		"disclaimerSubtitle": "Disclaimer: Prohibited Data Submission",
+		"employeeCheckbox": "I’m an Oracle Employee",
+		"feedbackPrompt": "Have an idea for Oracle Code Assist?",
+		"lastRefreshedAt": "Last refreshed at {{time}}",
+		"logOut": "Log out",
+		"oracleEmploymentAria": "Oracle employment",
+		"provideFeedback": "Provide feedback",
+		"reasoningEffortLabel": "Reasoning Effort",
+		"refresh": "Refresh",
+		"refreshFailed": "Failed to refresh models. Check your session or network.",
+		"refreshing": "Refreshing…",
+		"setupNote": "Please ask your IT administrator to set up Oracle Code Assist as a model provider. Oracle Employees, please see the <quickstartLink>quickstart guide</quickstartLink>",
+		"signInAgain": "Sign in again",
+		"signInButton": "Sign in with Oracle Code Assist",
+		"signedIn": "Signed in",
+		"unknownUser": "Unknown User"
+	},
+	"ollama": {
+		"apiKeyHelpText": "Optional API key for authenticated Ollama instances or cloud services. Leave empty for local installations.",
+		"apiKeyPlaceholder": "Enter API Key (optional)...",
+		"contextWindowLabel": "Model Context Window",
+		"description": "Ollama allows you to run models locally on your computer. For instructions on how to get started, see their <quickstartLink>quickstart guide.</quickstartLink>",
+		"fetchFailed": "Unable to fetch models from Ollama server. Please ensure Ollama is running and accessible, or enter the model ID manually above.",
+		"modelPlaceholder": "e.g. llama3.1",
+		"modelSearchPlaceholder": "Search and select a model...",
+		"requestTimeoutDescription": "Maximum time in milliseconds to wait for API responses before timing out.",
+		"requestTimeoutLabel": "Request Timeout (ms)",
+		"requestTimeoutPlaceholder": "Default: 300000 (5 minutes)"
+	},
+	"openaiCodex": {
+		"signInButton": "Sign in to OpenAI Codex",
+		"signInDescription": "Sign in with your ChatGPT Plus or Pro subscription to use GPT-5 models without an API key.",
+		"signOut": "Sign Out",
+		"signedIn": "Signed in to OpenAI Codex"
+	},
+	"openaiCompatible": {
+		"addHeader": "Add Header",
+		"azureApiVersionLabel": "Set Azure API version",
+		"azureIdentityCheckbox": "Use Azure Identity Authentication",
+		"customHeadersLabel": "Custom Headers",
+		"customModelIdLabel": "Custom Model ID",
+		"headerNamePlaceholder": "Header name",
+		"headerValuePlaceholder": "Header value",
+		"inputPriceLabel": "Input Price / 1M tokens",
+		"modelConfigurationTitle": "Model Configuration",
+		"modelIdLabel": "Model ID",
+		"modelIdPlaceholder": "Enter Model ID...",
+		"notSetPlaceholder": "not set",
+		"outputPriceLabel": "Output Price / 1M tokens",
+		"removeHeader": "Remove",
+		"temperatureLabel": "Temperature"
+	},
+	"openrouter": {
+		"apiKeyLabel": "OpenRouter API Key",
+		"balance": "Balance: {{balance}}",
+		"balanceTitle": "Remaining balance: {{balance}}\nLimit: {{limit}}\nUsage: {{usage}}",
+		"getApiKeyButton": "Get OpenRouter API Key"
+	},
+	"qwen": {
+		"apiLineDescription": "Please select the appropriate API interface based on your location. If you are in China, choose the China API interface. Otherwise, choose the International API interface.",
+		"apiLineLabel": "Alibaba API Line",
+		"apiLineOptions": {
+			"china": "China API",
+			"international": "International API"
+		}
+	},
+	"qwenCode": {
+		"authDescription": "Qwen Code is an OAuth-based API that requires authentication through the official Qwen client. You'll need to set up OAuth credentials first.",
+		"credsPathDescription": "Path to your Qwen OAuth credentials file. Use ~/.qwen/oauth_creds.json or provide a custom path.",
+		"credsPathLabel": "OAuth Credentials Path",
+		"gettingStartedIntro": "To get started:",
+		"gettingStartedStep1": "1. Install the official Qwen client",
+		"gettingStartedStep2": "2. Authenticate using your account",
+		"gettingStartedStep3": "3. OAuth credentials will be stored automatically",
+		"setupInstructions": "Setup Instructions",
+		"title": "Qwen Code API Configuration"
+	},
+	"requesty": {
+		"getApiKeyButton": "Get Requesty API Key"
+	},
+	"sapaicore": {
+		"authUrlLabel": "AI Core Auth URL",
+		"authUrlPlaceholder": "Enter AI Core Auth URL...",
+		"baseUrlLabel": "AI Core Base URL",
+		"baseUrlPlaceholder": "Enter AI Core Base URL...",
+		"clientIdLabel": "AI Core Client Id",
+		"clientIdPlaceholder": "Enter AI Core Client Id...",
+		"clientIdSet": "Client Id is set. To change it, please re-enter the value.",
+		"clientSecretLabel": "AI Core Client Secret",
+		"clientSecretPlaceholder": "Enter AI Core Client Secret...",
+		"clientSecretSet": "Client Secret is set. To change it, please re-enter the value.",
+		"configureCredentials": "Please configure your SAP AI Core credentials to see available models.",
+		"docsLink": "You can find more information about SAP AI Core API access here.",
+		"fetchFailed": "Failed to fetch models. Please check your configuration.",
+		"noDeployments": "Unable to fetch models from SAP AI Core service instance. Please check your SAP AI Core configuration or ensure your deployments are deployed and running in the service instance",
+		"orchestrationDescriptionDisabled": "When disabled, provides access only to deployed models in your AI Core service instance.",
+		"orchestrationDescriptionEnabled": "When enabled, provides access to all available models without requiring individual deployments.",
+		"orchestrationModeLabel": "Orchestration Mode",
+		"resourceGroupLabel": "AI Core Resource Group",
+		"resourceGroupPlaceholder": "Enter AI Core Resource Group..."
+	},
+	"shared": {
+		"adaptiveThinkingDescription": "Use None to disable adaptive thinking. Higher effort increases response detail and token usage.",
+		"adaptiveThinkingLabel": "Adaptive Thinking",
+		"apiKeyLabel": "API Key",
+		"apiKeyStoredLocally": "This key is stored locally and only used to make API requests from this extension.",
+		"baseUrlLabel": "Base URL",
+		"complexPromptsNote": "Cline uses complex prompts, so behavior can vary across models. Less capable models may not work as expected.",
+		"contextWindowSizeLabel": "Context Window Size",
+		"credentialsStoredLocally": "These credentials are stored locally and only used to make API requests from this extension.",
+		"customBaseUrlPlaceholder": "Custom base URL",
+		"defaultPlaceholder": "Default: {{value}}",
+		"enterApiKeyPlaceholder": "Enter API Key...",
+		"enterBaseUrlPlaceholder": "Enter base URL...",
+		"extendedThinkingDescription": "Use None to disable extended thinking. Higher effort improves depth, but uses more tokens.",
+		"loading": "Loading...",
+		"loadingModels": "Loading models…",
+		"maxOutputTokensLabel": "Max Output Tokens",
+		"modelLabel": "Model",
+		"mustBePositiveInteger": "{{label}} must be a positive integer.",
+		"mustBeValidNumber": "{{label}} must be a valid number.",
+		"noteLabel": "Note:",
+		"refreshModels": "Refresh models",
+		"remoteConfigManaged": "This setting is managed by your organization's remote configuration",
+		"retry": "Retry",
+		"selectModelPlaceholder": "Select a model...",
+		"selectRegionPlaceholder": "Select a region...",
+		"supportsImagesLabel": "Supports Images",
+		"useCustomBaseUrl": "Use custom base URL"
+	},
+	"vercelAiGateway": {
+		"apiKeyLabel": "Vercel AI Gateway API Key",
+		"getApiKeyNote": "You can get a Vercel AI Gateway API key by <signupLink>signing up here.</signupLink>"
+	},
+	"vertex": {
+		"customModelNote": "Adjust the custom model's capabilities if they differ from the defaults.",
+		"projectIdLabel": "Google Cloud Project ID",
+		"projectIdPlaceholder": "Enter Project ID...",
+		"regionLabel": "Google Cloud Region",
+		"setupDescription": "To use Google Cloud Vertex AI, you need to <accountLink>1) create a Google Cloud account › enable the Vertex AI API › enable the desired Claude models,</accountLink> <cliLink>2) install the Google Cloud CLI › configure Application Default Credentials.</cliLink>",
+		"supportsReasoningLabel": "Supports Reasoning"
+	},
+	"vscodeLm": {
+		"description": "Uses models contributed by other extensions through the VS Code Language Model API. The most common source is GitHub Copilot — install the <copilotLink>Copilot extension</copilotLink> and enable models in Copilot settings — but any extension that registers a language model provider will appear here. <refreshLink>Refresh the model list</refreshLink> after enabling models.",
+		"languageModelLabel": "Language Model"
+	},
+	"zai": {
+		"entrypointDescription": "Please select the appropriate API entrypoint based on your location. If you are in China, choose open.bigmodel.cn. Otherwise, choose api.z.ai.",
+		"entrypointLabel": "Z AI Entrypoint"
+	}
+}

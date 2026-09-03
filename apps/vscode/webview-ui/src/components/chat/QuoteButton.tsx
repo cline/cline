@@ -1,5 +1,6 @@
 import { QuoteIcon } from "lucide-react"
 import React from "react"
+import { useTranslation } from "react-i18next"
 import styled from "styled-components"
 import { Button } from "@/components/ui/button"
 
@@ -21,18 +22,19 @@ const ButtonContainer = styled.div<ButtonContainerProps>`
 `
 
 const QuoteButton: React.FC<QuoteButtonProps> = ({ top, left, onClick }) => {
+	const { t } = useTranslation()
 	return (
 		// Pass transient props to the styled component
 		<ButtonContainer $left={left} $top={top} className="quote-button-class absolute">
 			<Button
-				aria-label="Quote selection"
+				aria-label={t("chat:quote.quoteSelectionAria")}
 				className="p-3 h-auto min-w-auto rounded-md shadow-sm transition-transform hover:scale-105 z-10"
 				onClick={(e) => {
 					e.stopPropagation() // Prevent triggering mouseup on the parent
 					onClick()
 				}}
 				size="sm"
-				title="Quote selection in reply">
+				title={t("chat:quote.quoteSelectionTitle")}>
 				<QuoteIcon className="size-2 fill-button-foreground rotate-180 stroke-1" />
 			</Button>
 		</ButtonContainer>

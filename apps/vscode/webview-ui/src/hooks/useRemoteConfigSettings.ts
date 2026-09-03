@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { i18n } from "@/i18n"
 import { RemoteConfigServiceClient } from "@/services/grpc-client"
 
 export interface RemoteConfigSetting {
@@ -47,7 +48,7 @@ export default function useRemoteConfigSettings(isVisible: boolean): RemoteConfi
 		} catch (error) {
 			setState((current) => ({
 				...current,
-				error: error instanceof Error ? error.message : "Failed to update managed configuration",
+				error: error instanceof Error ? error.message : i18n.t("settings:remoteConfig.updateFailed"),
 			}))
 		}
 	}, [])
@@ -71,7 +72,7 @@ export default function useRemoteConfigSettings(isVisible: boolean): RemoteConfi
 					setState((current) => ({
 						...current,
 						isLoading: false,
-						error: error instanceof Error ? error.message : "Failed to load managed configuration",
+						error: error instanceof Error ? error.message : i18n.t("settings:remoteConfig.loadFailed"),
 					}))
 				}
 			})

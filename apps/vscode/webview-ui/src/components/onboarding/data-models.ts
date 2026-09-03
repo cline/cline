@@ -67,47 +67,50 @@ export function getOnboardingGroupDisplayName(group: string): string {
 	return group
 }
 
+/** Returns an i18n key for the model's price range; call t() at the render site. */
 export function getPriceRange(modelInfo: OpenRouterModelInfo): string {
 	const prompt = Number(modelInfo.inputPrice ?? 0)
 	const completion = Number(modelInfo.outputPrice ?? 0)
 	const cost = prompt + completion
 	if (cost === 0) {
-		return "Free"
+		return "onboarding:price.free"
 	}
 	if (cost < 10) {
-		return "$"
+		return "onboarding:price.low"
 	}
 	if (cost > 50) {
-		return "$$$"
+		return "onboarding:price.high"
 	}
-	return "$$"
+	return "onboarding:price.medium"
 }
 
+/** Returns i18n keys for the model's capabilities; call t() at the render site. */
 export function getCapabilities(modelInfo: OpenRouterModelInfo): string[] {
 	const capabilities = new Set<string>()
 	if (modelInfo.supportsImages) {
-		capabilities.add("Images")
+		capabilities.add("onboarding:capabilities.images")
 	}
 	if (modelInfo.supportsPromptCache) {
-		capabilities.add("Prompt Cache")
+		capabilities.add("onboarding:capabilities.promptCache")
 	}
-	capabilities.add("Tools")
+	capabilities.add("onboarding:capabilities.tools")
 	return Array.from(capabilities)
 }
 
+/** Returns an i18n key for the model's speed label; call t() at the render site. */
 export function getSpeedLabel(latency?: number): string {
 	if (!latency) {
-		return "Average"
+		return "onboarding:speed.average"
 	}
 	if (latency < 1) {
-		return "Instant"
+		return "onboarding:speed.instant"
 	}
 	if (latency < 2) {
-		return "Fast"
+		return "onboarding:speed.fast"
 	}
 	if (latency > 5) {
-		return "Slow"
+		return "onboarding:speed.slow"
 	}
 
-	return "Average"
+	return "onboarding:speed.average"
 }

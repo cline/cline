@@ -1,12 +1,14 @@
 import { StringRequest } from "@shared/proto/cline/common"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { useEffect, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { ClineAuthStatus } from "@/components/account/ClineAuthStatus"
 import { useClineAuth, useClineSignIn } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { UiServiceClient } from "@/services/grpc-client"
 
 export const ClineAccountInfoCard = ({ usageLink }: { usageLink?: string }) => {
+	const { t } = useTranslation()
 	const { clineUser } = useClineAuth()
 	const { navigateToAccount } = useExtensionState()
 	const { isLoginLoading, authStatusMessage, handleSignIn } = useClineSignIn()
@@ -39,12 +41,12 @@ export const ClineAccountInfoCard = ({ usageLink }: { usageLink?: string }) => {
 		<div className="max-w-[600px]">
 			{user ? (
 				<VSCodeButton appearance="secondary" onClick={handleShowAccount}>
-					View Billing & Usage
+					{t("settings:account.viewBillingUsage")}
 				</VSCodeButton>
 			) : (
 				<div className="flex flex-col gap-3">
 					<VSCodeButton className="mt-0" disabled={isLoginLoading} onClick={handleLogin}>
-						Sign Up with Cline
+						{t("settings:account.signUpWithCline")}
 						{isLoginLoading && (
 							<span className="ml-1 animate-spin">
 								<span className="codicon codicon-refresh" />

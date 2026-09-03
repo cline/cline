@@ -1,0 +1,25 @@
+{
+	"getStartedFree": "Get Started for Free",
+	"greeting": "Hi, I'm Cline",
+	"heading": "What can I do for you?",
+	"intro": "I can do all kinds of tasks thanks to breakthroughs in <sonnetLink>Claude 4.6 Sonnet's</sonnetLink> agentic coding capabilities and access to tools that let me create & edit files, explore complex projects, use a browser, and execute terminal commands <aside>(with your permission, of course)</aside>. I can even use MCP to create new tools and extend my own capabilities.",
+	"letsGo": "Let's go!",
+	"quickWins": {
+		"cliTool": {
+			"description": "Develop a powerful terminal CLI to automate a cool task",
+			"title": "Craft a CLI Tool"
+		},
+		"heading": "Quick <wins>[Wins]</wins> with Cline",
+		"nextjsApp": {
+			"description": "Create a beautiful notetaking app with Next.js and Tailwind",
+			"title": "Build a Next.js App"
+		},
+		"snakeGame": {
+			"description": "Code a classic Snake game that runs in the browser.",
+			"title": "Develop a Game"
+		}
+	},
+	"signUpDescription": "Sign up for an account to get started for free, or use an API key that provides access to models like Claude Sonnet.",
+	"takeATour": "Take a Tour",
+	"useOwnApiKey": "Use your own API key"
+}

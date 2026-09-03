@@ -1,11 +1,308 @@
 {
+	"about": {
+		"communitySupport": "Community & Support",
+		"description": "An AI assistant that can use your CLI and Editor. Cline can handle complex software development tasks step-by-step with tools that let him create & edit files, explore large projects, use the browser, and execute terminal commands (after you grant permission).",
+		"development": "Development",
+		"documentation": "Documentation",
+		"featureRequests": "Feature Requests",
+		"issues": "Issues",
+		"resources": "Resources",
+		"variantLegacy": "Legacy",
+		"variantNext": "Next"
+	},
+	"account": {
+		"signUpWithCline": "Sign Up with Cline",
+		"viewBillingUsage": "View Billing & Usage"
+	},
+	"apiConfig": {
+		"actMode": "Act Mode",
+		"planMode": "Plan Mode",
+		"separateModels": {
+			"description": "Switching between Plan and Act mode will persist the API and model used in the previous mode. This may be helpful e.g. when using a strong reasoning model to architect a plan for a cheaper coding model to act on.",
+			"label": "Use different models for Plan and Act modes"
+		}
+	},
+	"apiKeyField": {
+		"helpText": "This key is stored locally and only used to make API requests from this extension.",
+		"label": "{{providerName}} API Key",
+		"placeholder": "Enter API Key...",
+		"signupText": "Sign up here to get your {{providerName}} API key."
+	},
+	"apiOptions": {
+		"providerLabel": "API Provider",
+		"providersRemoteManagedTooltip": "Provider options are managed by your organization's remote configuration",
+		"searchProviderPlaceholder": "Search and select provider..."
+	},
+	"baseUrl": {
+		"defaultPlaceholder": "Default: https://api.example.com",
+		"label": "Base URL",
+		"labelCustom": "Use custom base URL"
+	},
+	"clearSearch": "Clear search",
+	"debug": {
+		"resetGlobalState": "Reset Global State",
+		"resetGlobalStateDescription": "This will reset all global state and secret storage in the extension.",
+		"resetOnboardingState": "Reset Onboarding State",
+		"resetWorkspaceState": "Reset Workspace State"
+	},
+	"features": {
+		"autoCompact": {
+			"description": "Automatically compress conversation history.",
+			"label": "Auto Compact"
+		},
+		"backgroundEdit": {
+			"description": "Allow edits without stealing editor focus",
+			"label": "Background Edit"
+		},
+		"checkpoints": {
+			"description": "Save progress at key points for easy rollback",
+			"label": "Checkpoints"
+		},
+		"compactionStrategy": {
+			"agentic": "Agentic",
+			"basic": "Basic",
+			"description": "Controls how auto compaction rewrites context.",
+			"label": "Auto Compact Strategy"
+		},
+		"featureTips": {
+			"description": "Show rotating tips during the thinking phase to help you discover Cline features.",
+			"label": "Feature Tips"
+		},
+		"groups": {
+			"advanced": "Advanced",
+			"agent": "Agent",
+			"editor": "Editor"
+		},
+		"hooks": {
+			"description": "Enable lifecycle and tool hooks during task execution.",
+			"label": "Hooks"
+		},
+		"mcpDisplayMode": {
+			"description": "Controls how MCP responses are displayed",
+			"label": "MCP Display Mode",
+			"markdown": "Markdown",
+			"plain": "Plain Text",
+			"rich": "Rich Display"
+		},
+		"webSearch": {
+			"description": "Let the model search the web when the selected provider and model support it. Applies to new tasks.",
+			"label": "Web Search"
+		},
+		"worktrees": {
+			"description": "Enables git worktree management for running parallel Cline tasks.",
+			"label": "Worktrees"
+		}
+	},
+	"general": {
+		"telemetry": {
+			"description": "Help improve Cline by sending usage data and error reports. No code, prompts, or personal information are ever sent. See our <telemetryLink>telemetry overview</telemetryLink> and <privacyLink>privacy policy</privacyLink> for more details.",
+			"label": "Allow error and usage reporting"
+		}
+	},
+	"modelInfo": {
+		"advanced": "Advanced",
+		"browser": "Browser",
+		"cacheReads": "Cache Reads",
+		"cacheWrites": "Cache Writes",
+		"context": "Context:",
+		"free": "Free",
+		"images": "Images",
+		"input": "Input:",
+		"no": "No",
+		"notAvailable": "N/A",
+		"output": "Output:",
+		"promptCaching": "Prompt Caching",
+		"providerRouting": {
+			"default": "Default",
+			"defaultDescription": "Load balance across providers (AWS, Google Vertex, etc.), prioritizing price while considering uptime",
+			"label": "Provider Routing",
+			"latency": "Latency",
+			"latencyDescription": "Sort by response time, prioritizing lowest latency",
+			"price": "Price",
+			"priceDescription": "Sort by price, prioritizing the lowest cost provider",
+			"throughput": "Throughput",
+			"throughputDescription": "Sort by throughput, prioritizing highest throughput (may increase cost)"
+		},
+		"seeLess": "See less",
+		"seeMore": "See more",
+		"tierAbove": "{{price}}/million tokens (> {{limit}} tokens)",
+		"tierUpTo": "{{price}}/million tokens (<= {{limit}} tokens)",
+		"tieredPricing": "Tiered Pricing:",
+		"yes": "Yes"
+	},
+	"modelPicker": {
+		"autoFetchFreeTip": "You can also try searching \"free\" for no-cost options currently available.",
+		"autoFetchNote": "The extension automatically fetches the latest list of models available on <providerLink>{{provider}}</providerLink>. If you're unsure which model to choose, compare available models by context window, pricing, and capabilities.",
+		"clineAutoFetchNote": "The extension automatically fetches the latest Cline model list.",
+		"deployedModels": "Deployed Models",
+		"freeBadge": "Free",
+		"freeModelDescription": "Free model",
+		"freeTab": "Free",
+		"idLabel": "Model ID",
+		"label": "Model",
+		"loadingModels": "Loading models...",
+		"noModelsFound": "No models found",
+		"notDeployedModels": "Not Deployed Models",
+		"recommendedBadge": "Recommended",
+		"recommendedModelDescription": "Recommended model",
+		"recommendedTab": "Recommended",
+		"searchPlaceholder": "Search and select a model...",
+		"searchShortPlaceholder": "Search models...",
+		"selectPlaceholder": "Select a model...",
+		"suggestionsAria": "Model suggestions",
+		"vercelEnterApiKey": "Enter your Vercel AI Gateway API key above to load available models. You can get an API key from <gatewayLink>Vercel AI Gateway</gatewayLink>.",
+		"vercelSelectModel": "Select a model from the dropdown above. The extension fetches available models from your Vercel AI Gateway configuration."
+	},
 	"preferredLanguage": {
 		"description": "The language that Cline should use for communication.",
 		"label": "Preferred Language"
 	},
+	"providerRegistry": {
+		"gemini": {
+			"baseUrlPlaceholder": "Default: https://generativelanguage.googleapis.com"
+		}
+	},
+	"reasoningEffort": {
+		"adaptiveDescription": "Use None to disable adaptive thinking. Higher effort increases response detail and token usage.",
+		"adaptiveLabel": "Adaptive Thinking",
+		"description": "Higher effort improves depth, but uses more tokens.",
+		"extendedDescription": "Use None to disable extended thinking. Higher effort improves depth, but uses more tokens.",
+		"label": "Reasoning Effort",
+		"options": {
+			"high": "High",
+			"low": "Low",
+			"medium": "Medium",
+			"none": "None",
+			"xhigh": "Extra High"
+		}
+	},
+	"remoteConfig": {
+		"disabled": "Disabled",
+		"enabled": "Enabled",
+		"failed": "Failed",
+		"loadFailed": "Failed to load managed configuration",
+		"managedNote": "These settings are managed by your organization's remote configuration.",
+		"notConfigured": "Not configured",
+		"notSetup": "You haven't configured remote config yet. Do so through our <dashboardLink>dashboard</dashboardLink>.",
+		"optedOut": "You have opted out of remote config. Opt back in to apply it and see it here.",
+		"otel": {
+			"flushSuccess": "Flushed buffers! Please check the output channel for more detailed information",
+			"headerCount_one": "{{count}} header",
+			"headerCount_other": "{{count}} headers",
+			"logBatchSize": "Log Batch Size",
+			"logBatchTimeout": "Log Batch Timeout",
+			"logMaxQueueSize": "Log Max Queue Size",
+			"logsEndpoint": "Logs Endpoint",
+			"logsExporter": "Logs Exporter",
+			"metricExportInterval": "Metric Export Interval",
+			"metricsEndpoint": "Metrics Endpoint",
+			"metricsExporter": "Metrics Exporter",
+			"otlpEndpoint": "OTLP Endpoint",
+			"otlpHeaders": "OTLP Headers",
+			"otlpInsecure": "OTLP Insecure",
+			"otlpProtocol": "OTLP Protocol",
+			"title": "OpenTelemetry Configuration"
+		},
+		"promptUpload": {
+			"accessKeyId": "Access Key ID",
+			"accountId": "Account ID",
+			"backfillEnabled": "Backfill Enabled",
+			"batchSize": "Batch Size",
+			"bucket": "Bucket",
+			"endpoint": "Endpoint",
+			"maxQueueSize": "Max Queue Size",
+			"maxRetries": "Max Retries",
+			"region": "Region",
+			"secretAccessKey": "Secret Access Key",
+			"storageType": "Storage Type",
+			"syncInterval": "Sync Interval",
+			"testUpload": "Test Upload",
+			"title": "Prompt Uploading Configuration"
+		},
+		"refresh": "Refresh",
+		"refreshError": "Could not refresh managed configuration: {{error}}",
+		"refreshFailed": "Failed to refresh managed configuration",
+		"retryIn_one": "(Retry in: {{count}} second)",
+		"retryIn_other": "(Retry in: {{count}} seconds)",
+		"success": "Success!",
+		"test": "Test",
+		"testFailed": "Test failed",
+		"testing": "Testing...",
+		"updateFailed": "Failed to update managed configuration"
+	},
+	"remoteManaged": {
+		"tooltip": "This setting is managed by your organization's remote configuration"
+	},
+	"tabs": {
+		"about": {
+			"name": "About",
+			"tooltip": "About Cline"
+		},
+		"apiConfig": {
+			"name": "API Configuration"
+		},
+		"debug": {
+			"name": "Debug",
+			"tooltip": "Debug Tools"
+		},
+		"features": {
+			"header": "Feature Settings",
+			"name": "Features"
+		},
+		"general": {
+			"header": "General Settings",
+			"name": "General"
+		},
+		"remoteConfig": {
+			"name": "Remote Config",
+			"tooltip": "Remotely configured fields"
+		},
+		"terminal": {
+			"header": "Terminal Settings",
+			"name": "Terminal"
+		}
+	},
+	"terminal": {
+		"defaultProfile": {
+			"description": "Select the default terminal Cline will use. 'Default' uses your VSCode global setting.",
+			"label": "Default Terminal Profile"
+		},
+		"executionMode": {
+			"backgroundExec": "Background Exec",
+			"description": "Choose whether Cline runs commands in the VS Code terminal or a background process.",
+			"label": "Terminal Execution Mode",
+			"vscodeTerminal": "VS Code Terminal"
+		},
+		"reuse": {
+			"description": "When enabled, Cline will reuse existing terminal windows that aren't in the current working directory. Disable this if you experience issues with task lockout after a terminal command.",
+			"label": "Enable aggressive terminal reuse"
+		},
+		"shellTimeout": {
+			"description": "Set how long Cline waits for shell integration to activate before executing commands. Increase this value if you experience terminal connection timeouts.",
+			"invalidNumber": "Please enter a positive number",
+			"label": "Shell integration timeout (seconds)",
+			"placeholder": "Enter timeout in seconds"
+		},
+		"troubleshooting": {
+			"text": "<strong>Having terminal issues?</strong> Check our <quickFixesLink>Terminal Quick Fixes</quickFixesLink> or the <guideLink>Complete Troubleshooting Guide</guideLink>."
+		}
+	},
+	"title": "Settings",
 	"uiLanguage": {
 		"auto": "Auto (match VS Code)",
 		"description": "The language used for Cline's interface.",
 		"label": "Display Language"
+	},
+	"validation": {
+		"apiKeyRequired": "You must provide a valid API key or choose a different provider.",
+		"authUrlRequired": "You must provide a valid Auth URL or choose a different provider.",
+		"awsRegionRequired": "You must choose a region to use with AWS Bedrock.",
+		"baseUrlRequired": "You must provide a valid Base URL or choose a different provider.",
+		"clientIdRequired": "You must provide a valid Client ID or choose a different provider.",
+		"clientSecretRequired": "You must provide a valid Client Secret or choose a different provider.",
+		"googleCloudConfigRequired": "You must provide a valid Google Cloud Project ID and Region.",
+		"modelIdRequired": "You must provide a valid model ID.",
+		"modelSelectorRequired": "You must provide a valid model selector.",
+		"openAiConfigRequired": "You must provide a valid base URL, API key, and model ID."
 	}
 }

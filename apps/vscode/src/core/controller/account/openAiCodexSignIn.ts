@@ -2,6 +2,7 @@ import { Empty, EmptyRequest } from "@shared/proto/cline/common"
 import { ShowMessageType } from "@shared/proto/host/window"
 import { HostProvider } from "@/hosts/host-provider"
 import { AuthService } from "@/sdk/auth-service"
+import { t } from "@/services/i18n"
 import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
 
@@ -20,7 +21,7 @@ export async function openAiCodexSignIn(controller: Controller, _: EmptyRequest)
 			.then(async () => {
 				HostProvider.window.showMessage({
 					type: ShowMessageType.INFORMATION,
-					message: "Successfully signed in to OpenAI Codex",
+					message: t("auth.codexSignInSuccess"),
 				})
 				await controller.postStateToWebview()
 			})
@@ -34,7 +35,7 @@ export async function openAiCodexSignIn(controller: Controller, _: EmptyRequest)
 				if (!isAbandonedFlow) {
 					HostProvider.window.showMessage({
 						type: ShowMessageType.ERROR,
-						message: `OpenAI Codex sign in failed: ${errorMessage}`,
+						message: t("auth.codexSignInFailed", { error: errorMessage }),
 					})
 				}
 			})

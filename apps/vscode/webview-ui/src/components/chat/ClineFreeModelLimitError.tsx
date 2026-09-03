@@ -3,6 +3,7 @@ import { CommitModelSelectionRequest } from "@shared/proto/cline/models"
 import type { Mode } from "@shared/storage/types"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { useMemo, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { getModeSpecificFields } from "@/components/settings/utils/providerUtils"
 import { useApiConfigurationHandlers } from "@/components/settings/utils/useApiConfigurationHandlers"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -47,6 +48,7 @@ function findPaidModelId(freeModelId: string | undefined, clineModelIds: string[
 }
 
 const ClineFreeModelLimitError = ({ message }: ClineFreeModelLimitErrorProps) => {
+	const { t } = useTranslation()
 	const { apiConfiguration, mode } = useExtensionState()
 	const { models: clineModels } = useProviderModels(CLINE_PROVIDER_ID)
 	const { handleModeFieldsChange } = useApiConfigurationHandlers()
@@ -115,7 +117,7 @@ const ClineFreeModelLimitError = ({ message }: ClineFreeModelLimitErrorProps) =>
 			setDidSwitch(true)
 		} catch (error) {
 			console.error("Failed to switch to the paid model:", error)
-			setSwitchError(`Failed to switch model. Select ${paidModelId} in API Configuration settings.`)
+			setSwitchError(t("chat:errors.freeModelLimit.switchFailed", { modelId: paidModelId }))
 		} finally {
 			setIsSwitching(false)
 		}
@@ -125,17 +127,19 @@ const ClineFreeModelLimitError = ({ message }: ClineFreeModelLimitErrorProps) =>
 		<div
 			className="p-2 border-none rounded-md mb-2 bg-(--vscode-textBlockQuote-background)"
 			data-testid="cline-free-model-limit-error">
-			<div className="text-error mb-2">Daily free model limit reached</div>
+			<div className="text-error mb-2">{t("chat:errors.freeModelLimit.limitReached")}</div>
 			<div className="text-(--vscode-descriptionForeground) text-xs wrap-anywhere">
-				You've reached today's free usage limit for this model.
+				{t("chat:errors.freeModelLimit.limitBody")}
 			</div>
 			<div className="text-(--vscode-descriptionForeground) text-xs mt-2">
-				{resetTime ? `Try again in ${resetTime}` : "Try again later"} or select another model.
+				{resetTime
+					? t("chat:errors.freeModelLimit.tryAgainIn", { resetTime })
+					: t("chat:errors.freeModelLimit.tryAgainLater")}
 			</div>
 			{paidModelId && (
 				<>
 					<div className="text-(--vscode-descriptionForeground) text-xs mt-2 wrap-anywhere">
-						Or switch to the paid version of this model ({paidModelId}) with usage-based billing.
+						{t("chat:errors.freeModelLimit.switchPaid", { modelId: paidModelId })}
 					</div>
 					<VSCodeButton
 						appearance="primary"
@@ -143,14 +147,14 @@ const ClineFreeModelLimitError = ({ message }: ClineFreeModelLimitErrorProps) =>
 						disabled={isSwitching || didSwitch}
 						onClick={handleSwitchToPaidModel}>
 						{isSwitching
-							? "Switching..."
+							? t("chat:errors.billing.switching")
 							: didSwitch
-								? "Switched to Usage-Based billing"
-								: "Switch to Usage-Based billing"}
+								? t("chat:errors.billing.switchedToUsageBased")
+								: t("chat:errors.billing.switchToUsageBased")}
 					</VSCodeButton>
 					{didSwitch && (
 						<div className="text-(--vscode-descriptionForeground) text-xs mt-2">
-							Retry the request after switching.
+							{t("chat:errors.billing.retryAfterSwitching")}
 						</div>
 					)}
 					{switchError && <div className="text-error text-xs mt-2">{switchError}</div>}

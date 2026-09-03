@@ -1,0 +1,243 @@
+{
+	"aihubmix": {
+		"discountHelpText": "지금 신청하면 10% 할인!"
+	},
+	"asksage": {
+		"apiUrlLabel": "AskSage API URL",
+		"apiUrlPlaceholder": "AskSage API URL 입력..."
+	},
+	"bedrock": {
+		"accessKeyLabel": "AWS 액세스 키",
+		"accessKeyPlaceholder": "액세스 키 입력...",
+		"apiKeyLabel": "AWS Bedrock API 키",
+		"apiKeyPlaceholder": "Bedrock API 키 입력",
+		"authApiKey": "API 키",
+		"authCredentials": "AWS 자격 증명",
+		"authProfile": "AWS 프로필",
+		"baseInferenceModelLabel": "기본 추론 모델",
+		"clearSearchAria": "검색 지우기",
+		"credentialsDescription": "위 키를 입력하여 인증하거나 기본 AWS 자격 증명 공급자(예: ~/.aws/credentials 또는 환경 변수)를 사용하세요. 이 자격 증명은 이 확장에서 API 요청을 보내는 데에만 로컬로 사용됩니다.",
+		"customModelIdPlaceholder": "사용자 지정 모델 ID 입력...",
+		"customModelNote": "Bedrock에서 애플리케이션 추론 프로필을 사용할 때는 \"사용자 지정\"을 선택하세요. 모델 ID 필드에 애플리케이션 추론 프로필 ARN을 입력하세요.",
+		"customOption": "사용자 지정",
+		"modelIdLabel": "모델 ID",
+		"profileDescription": "~/.aws/credentials의 AWS 프로필 자격 증명을 사용합니다. 기본 프로필을 사용하려면 프로필 이름을 비워 두세요. 이 자격 증명은 이 확장에서 API 요청을 보내는 데에만 로컬로 사용됩니다.",
+		"profileLabel": "AWS 프로필 이름",
+		"profilePlaceholder": "프로필 이름 입력(비워 두면 default)",
+		"regionLabel": "AWS 리전",
+		"regionSearchPlaceholder": "검색하거나 사용자 지정 리전 입력...",
+		"secretKeyLabel": "AWS 비밀 키",
+		"secretKeyPlaceholder": "비밀 키 입력...",
+		"sessionTokenLabel": "AWS 세션 토큰",
+		"sessionTokenPlaceholder": "세션 토큰 입력...",
+		"useCrossRegionInference": "리전 간 추론 사용",
+		"useCustomVpcEndpoint": "사용자 지정 VPC 엔드포인트 사용",
+		"useGlobalInferenceProfile": "글로벌 추론 프로필 사용",
+		"usePromptCaching": "프롬프트 캐싱 사용",
+		"vpcEndpointPlaceholder": "VPC 엔드포인트 URL 입력(선택 사항)"
+	},
+	"claudeCode": {
+		"cliPathDescription": "Claude Code CLI 경로입니다.",
+		"cliPathLabel": "Claude Code CLI 경로",
+		"latestVersionNote": "기본적으로 최신 버전의 {{model}}을(를) 사용합니다."
+	},
+	"clinePass": {
+		"freeLabel": "무료",
+		"freeTab": "무료",
+		"freeTabDescription": "ClinePass 할당량과 별도로 제한된 사용량으로 사용해 보세요.",
+		"subscribedTab": "구독 중"
+	},
+	"dify": {
+		"description": "Dify는 통합 API를 통해 다양한 AI 모델에 액세스할 수 있는 플랫폼입니다. 시작하려면 Dify 인스턴스 URL과 API 키를 구성하세요.",
+		"modelSelectionNote": "모델 선택은 Dify 애플리케이션 구성에서 처리됩니다."
+	},
+	"hicap": {
+		"apiKeyLabel": "Hicap API 키",
+		"generateApiKey": "API 키 생성"
+	},
+	"huggingface": {
+		"apiKeyLabel": "Hugging Face API 키",
+		"getApiKeyLink": "여기에서 API 키 받기",
+		"pricingNote": "가격은 Hugging Face 공급자 설정에 따라 다르고 해당 API를 통해 일관되게 제공되지 않으므로 여기에는 표시하지 않습니다"
+	},
+	"litellm": {
+		"baseUrlOptionalLabel": "기본 URL(선택 사항)",
+		"description": "LiteLLM은 다양한 LLM 공급자의 모델에 액세스할 수 있는 통합 인터페이스를 제공합니다. 자세한 내용은 <docsLink>빠른 시작 가이드</docsLink>를 참조하세요.",
+		"extendedThinkingInfo": "확장 사고는 Sonnet-4, o3-mini, Deepseek R1 등의 모델에서 사용할 수 있습니다. 자세한 내용은 <docsLink>사고 모드 구성</docsLink>을 참조하세요.",
+		"modelListStale": "현재 LiteLLM 구성에 대해 모델 목록이 오래되었을 수 있습니다.",
+		"modelSearchPlaceholder": "검색하거나 사용자 지정 모델 ID 입력..."
+	},
+	"lmstudio": {
+		"contextWindowLabel": "컨텍스트 창",
+		"contextWindowTitle": "편집 불가 - 연결된 엔드포인트에서 반환되는 값입니다",
+		"description": "LM Studio를 사용하면 컴퓨터에서 로컬로 모델을 실행할 수 있습니다. 시작 방법은 <quickstartLink>빠른 시작 가이드</quickstartLink>를 참조하세요. 또한 이 확장과 함께 사용하려면 <code>lms server start</code> 명령으로 LM Studio의 <serverLink>로컬 서버</serverLink> 기능을 시작해야 합니다.",
+		"modelPlaceholder": "예: meta-llama-3.1-8b-instruct"
+	},
+	"modelPicker": {
+		"customModelIdLabel": "사용자 지정 모델 ID",
+		"customModelIdPlaceholder": "사용자 지정 모델 ID 입력",
+		"modelListStale": "현재 공급자 구성에 대해 모델 목록이 오래되었을 수 있습니다.",
+		"notInCurrentList": "{{modelId}}(현재 목록에 없음)",
+		"selectedModelNotInList": "선택한 모델 \"{{modelId}}\"이(가) 현재 목록에 없습니다.",
+		"useCustomModelButton": "사용자 지정 모델 사용",
+		"useCustomModelIdOption": "사용자 지정 모델 ID 사용…"
+	},
+	"moonshot": {
+		"entrypointLabel": "Moonshot 진입점"
+	},
+	"oca": {
+		"acknowledgeButton": "확인했으며 동의합니다",
+		"acknowledgementTitle": "확인 필요",
+		"connecting": "연결하는 중…",
+		"customBaseUrlLabel": "사용자 지정 기본 URL(선택 사항)",
+		"disclaimerSubtitle": "고지 사항: 제출 금지 데이터",
+		"employeeCheckbox": "저는 Oracle 직원입니다",
+		"feedbackPrompt": "Oracle Code Assist에 대한 아이디어가 있으신가요?",
+		"lastRefreshedAt": "마지막 새로 고침: {{time}}",
+		"logOut": "로그아웃",
+		"oracleEmploymentAria": "Oracle 재직 여부",
+		"provideFeedback": "피드백 보내기",
+		"reasoningEffortLabel": "추론 강도",
+		"refresh": "새로 고침",
+		"refreshFailed": "모델을 새로 고치지 못했습니다. 세션 또는 네트워크를 확인하세요.",
+		"refreshing": "새로 고치는 중…",
+		"setupNote": "IT 관리자에게 Oracle Code Assist를 모델 공급자로 설정해 달라고 요청하세요. Oracle 직원은 <quickstartLink>빠른 시작 가이드</quickstartLink>를 참조하세요.",
+		"signInAgain": "다시 로그인",
+		"signInButton": "Oracle Code Assist로 로그인",
+		"signedIn": "로그인됨",
+		"unknownUser": "알 수 없는 사용자"
+	},
+	"ollama": {
+		"apiKeyHelpText": "인증이 필요한 Ollama 인스턴스 또는 클라우드 서비스용 선택적 API 키입니다. 로컬 설치의 경우 비워 두세요.",
+		"apiKeyPlaceholder": "API 키 입력(선택 사항)...",
+		"contextWindowLabel": "모델 컨텍스트 창",
+		"description": "Ollama를 사용하면 컴퓨터에서 로컬로 모델을 실행할 수 있습니다. 시작 방법은 <quickstartLink>빠른 시작 가이드</quickstartLink>를 참조하세요.",
+		"fetchFailed": "Ollama 서버에서 모델을 가져올 수 없습니다. Ollama가 실행 중이고 액세스 가능한지 확인하거나 위에서 모델 ID를 직접 입력하세요.",
+		"modelPlaceholder": "예: llama3.1",
+		"modelSearchPlaceholder": "모델 검색 및 선택...",
+		"requestTimeoutDescription": "API 응답을 기다리는 최대 시간(밀리초)이며 이 시간이 지나면 시간 초과됩니다.",
+		"requestTimeoutLabel": "요청 시간 제한(ms)",
+		"requestTimeoutPlaceholder": "기본값: 300000(5분)"
+	},
+	"openaiCodex": {
+		"signInButton": "OpenAI Codex에 로그인",
+		"signInDescription": "ChatGPT Plus 또는 Pro 구독으로 로그인하면 API 키 없이 GPT-5 모델을 사용할 수 있습니다.",
+		"signOut": "로그아웃",
+		"signedIn": "OpenAI Codex에 로그인됨"
+	},
+	"openaiCompatible": {
+		"addHeader": "헤더 추가",
+		"azureApiVersionLabel": "Azure API 버전 설정",
+		"azureIdentityCheckbox": "Azure ID 인증 사용",
+		"customHeadersLabel": "사용자 지정 헤더",
+		"customModelIdLabel": "사용자 지정 모델 ID",
+		"headerNamePlaceholder": "헤더 이름",
+		"headerValuePlaceholder": "헤더 값",
+		"inputPriceLabel": "입력 가격 / 100만 토큰",
+		"modelConfigurationTitle": "모델 구성",
+		"modelIdLabel": "모델 ID",
+		"modelIdPlaceholder": "모델 ID 입력...",
+		"notSetPlaceholder": "설정 안 됨",
+		"outputPriceLabel": "출력 가격 / 100만 토큰",
+		"removeHeader": "제거",
+		"temperatureLabel": "온도"
+	},
+	"openrouter": {
+		"apiKeyLabel": "OpenRouter API 키",
+		"balance": "잔액: {{balance}}",
+		"balanceTitle": "남은 잔액: {{balance}}\n한도: {{limit}}\n사용량: {{usage}}",
+		"getApiKeyButton": "OpenRouter API 키 받기"
+	},
+	"qwen": {
+		"apiLineDescription": "위치에 따라 적절한 API 인터페이스를 선택하세요. 중국에 있는 경우 중국 API 인터페이스를 선택하고, 그렇지 않으면 국제 API 인터페이스를 선택하세요.",
+		"apiLineLabel": "Alibaba API 회선",
+		"apiLineOptions": {
+			"china": "중국 API",
+			"international": "국제 API"
+		}
+	},
+	"qwenCode": {
+		"authDescription": "Qwen Code는 공식 Qwen 클라이언트를 통한 인증이 필요한 OAuth 기반 API입니다. 먼저 OAuth 자격 증명을 설정해야 합니다.",
+		"credsPathDescription": "Qwen OAuth 자격 증명 파일의 경로입니다. ~/.qwen/oauth_creds.json을 사용하거나 사용자 지정 경로를 입력하세요.",
+		"credsPathLabel": "OAuth 자격 증명 경로",
+		"gettingStartedIntro": "시작하려면:",
+		"gettingStartedStep1": "1. 공식 Qwen 클라이언트를 설치합니다",
+		"gettingStartedStep2": "2. 계정으로 인증합니다",
+		"gettingStartedStep3": "3. OAuth 자격 증명이 자동으로 저장됩니다",
+		"setupInstructions": "설정 안내",
+		"title": "Qwen Code API 구성"
+	},
+	"requesty": {
+		"getApiKeyButton": "Requesty API 키 받기"
+	},
+	"sapaicore": {
+		"authUrlLabel": "AI Core 인증 URL",
+		"authUrlPlaceholder": "AI Core 인증 URL 입력...",
+		"baseUrlLabel": "AI Core 기본 URL",
+		"baseUrlPlaceholder": "AI Core 기본 URL 입력...",
+		"clientIdLabel": "AI Core 클라이언트 ID",
+		"clientIdPlaceholder": "AI Core 클라이언트 ID 입력...",
+		"clientIdSet": "클라이언트 ID가 설정되었습니다. 변경하려면 값을 다시 입력하세요.",
+		"clientSecretLabel": "AI Core 클라이언트 비밀",
+		"clientSecretPlaceholder": "AI Core 클라이언트 비밀 입력...",
+		"clientSecretSet": "클라이언트 비밀이 설정되었습니다. 변경하려면 값을 다시 입력하세요.",
+		"configureCredentials": "사용 가능한 모델을 보려면 SAP AI Core 자격 증명을 구성하세요.",
+		"docsLink": "SAP AI Core API 액세스에 대한 자세한 내용은 여기에서 확인할 수 있습니다.",
+		"fetchFailed": "모델을 가져오지 못했습니다. 구성을 확인하세요.",
+		"noDeployments": "SAP AI Core 서비스 인스턴스에서 모델을 가져올 수 없습니다. SAP AI Core 구성을 확인하거나 배포가 서비스 인스턴스에서 배포되어 실행 중인지 확인하세요",
+		"orchestrationDescriptionDisabled": "사용하지 않도록 설정하면 AI Core 서비스 인스턴스에 배포된 모델에만 액세스할 수 있습니다.",
+		"orchestrationDescriptionEnabled": "사용하도록 설정하면 개별 배포 없이 사용 가능한 모든 모델에 액세스할 수 있습니다.",
+		"orchestrationModeLabel": "오케스트레이션 모드",
+		"resourceGroupLabel": "AI Core 리소스 그룹",
+		"resourceGroupPlaceholder": "AI Core 리소스 그룹 입력..."
+	},
+	"shared": {
+		"adaptiveThinkingDescription": "적응형 사고를 사용하지 않으려면 '없음'을 선택하세요. 강도가 높을수록 응답이 자세해지고 토큰 사용량이 늘어납니다.",
+		"adaptiveThinkingLabel": "적응형 사고",
+		"apiKeyLabel": "API 키",
+		"apiKeyStoredLocally": "이 키는 로컬에 저장되며 이 확장에서 API 요청을 보내는 데에만 사용됩니다.",
+		"baseUrlLabel": "기본 URL",
+		"complexPromptsNote": "Cline은 복잡한 프롬프트를 사용하므로 모델에 따라 동작이 다를 수 있습니다. 성능이 낮은 모델은 예상대로 작동하지 않을 수 있습니다.",
+		"contextWindowSizeLabel": "컨텍스트 창 크기",
+		"credentialsStoredLocally": "이 자격 증명은 로컬에 저장되며 이 확장에서 API 요청을 보내는 데에만 사용됩니다.",
+		"customBaseUrlPlaceholder": "사용자 지정 기본 URL",
+		"defaultPlaceholder": "기본값: {{value}}",
+		"enterApiKeyPlaceholder": "API 키 입력...",
+		"enterBaseUrlPlaceholder": "기본 URL 입력...",
+		"extendedThinkingDescription": "확장 사고를 사용하지 않으려면 '없음'을 선택하세요. 강도가 높을수록 깊이가 향상되지만 토큰을 더 많이 사용합니다.",
+		"loading": "로드하는 중...",
+		"loadingModels": "모델을 로드하는 중…",
+		"maxOutputTokensLabel": "최대 출력 토큰",
+		"modelLabel": "모델",
+		"mustBePositiveInteger": "{{label}}은(는) 양의 정수여야 합니다.",
+		"mustBeValidNumber": "{{label}}은(는) 유효한 숫자여야 합니다.",
+		"noteLabel": "참고:",
+		"refreshModels": "모델 새로 고침",
+		"remoteConfigManaged": "이 설정은 조직의 원격 구성에서 관리합니다",
+		"retry": "다시 시도",
+		"selectModelPlaceholder": "모델 선택...",
+		"selectRegionPlaceholder": "리전 선택...",
+		"supportsImagesLabel": "이미지 지원",
+		"useCustomBaseUrl": "사용자 지정 기본 URL 사용"
+	},
+	"vercelAiGateway": {
+		"apiKeyLabel": "Vercel AI Gateway API 키",
+		"getApiKeyNote": "<signupLink>여기에서 가입</signupLink>하여 Vercel AI Gateway API 키를 받을 수 있습니다."
+	},
+	"vertex": {
+		"customModelNote": "사용자 지정 모델의 기능이 기본값과 다른 경우 조정하세요.",
+		"projectIdLabel": "Google Cloud 프로젝트 ID",
+		"projectIdPlaceholder": "프로젝트 ID 입력...",
+		"regionLabel": "Google Cloud 리전",
+		"setupDescription": "Google Cloud Vertex AI를 사용하려면 <accountLink>1) Google Cloud 계정 만들기 › Vertex AI API 사용 설정 › 원하는 Claude 모델 사용 설정,</accountLink> <cliLink>2) Google Cloud CLI 설치 › 애플리케이션 기본 자격 증명 구성</cliLink>이 필요합니다.",
+		"supportsReasoningLabel": "추론 지원"
+	},
+	"vscodeLm": {
+		"description": "다른 확장이 VS Code Language Model API를 통해 제공하는 모델을 사용합니다. 가장 일반적인 소스는 GitHub Copilot입니다. <copilotLink>Copilot 확장</copilotLink>을 설치하고 Copilot 설정에서 모델을 사용하도록 설정하세요. 언어 모델 공급자를 등록한 다른 확장도 여기에 표시됩니다. 모델을 사용하도록 설정한 후 <refreshLink>모델 목록을 새로 고치세요</refreshLink>.",
+		"languageModelLabel": "언어 모델"
+	},
+	"zai": {
+		"entrypointDescription": "위치에 따라 적절한 API 진입점을 선택하세요. 중국에 있는 경우 open.bigmodel.cn을 선택하고, 그렇지 않으면 api.z.ai를 선택하세요.",
+		"entrypointLabel": "Z AI 진입점"
+	}
+}

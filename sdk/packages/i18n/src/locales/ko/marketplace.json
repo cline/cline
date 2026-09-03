@@ -1,0 +1,62 @@
+{
+	"addRemoteServer": "원격 서버 추가",
+	"advancedMcpSettings": "MCP 고급 설정",
+	"clearSearch": "검색 지우기",
+	"customizeTitle": "사용자 지정",
+	"disableEntry": "{{name}} 사용 안 함",
+	"editConfiguration": "구성 편집",
+	"enableEntry": "{{name}} 사용",
+	"installEntry": "{{name}} 설치",
+	"installedMcpServers": "설치된 MCP 서버",
+	"installedSectionTitle": "설치된 {{title}}",
+	"orgManagesMcpServers": "조직에서 일부 MCP 서버를 관리하고 있습니다",
+	"primitives": {
+		"mcp": {
+			"description": "<mcpLink>MCP</mcpLink> 서버를 통해 Cline을 외부 API, 로컬 도구, 호스팅 서비스에 연결하세요.",
+			"label": "MCP",
+			"loading": "MCP 서버 로드 중",
+			"noInstalled": "설치된 MCP 서버가 없습니다.",
+			"noMarketplace": "마켓플레이스에 MCP 서버가 없습니다.",
+			"noMatch": "검색과 일치하는 MCP 서버가 없습니다.",
+			"searchAria": "MCP 서버 검색",
+			"searchPlaceholder": "MCP 서버 검색",
+			"title": "MCP 서버"
+		},
+		"plugin": {
+			"description": "<pluginsLink>플러그인</pluginsLink>은 단일 MCP 서버나 스킬보다 복잡한 기능을 위한 확장으로, 사용자 지정 도구, 훅, 규칙, 슬래시 명령, 번들 스킬 등을 포함할 수 있습니다.",
+			"label": "플러그인",
+			"loading": "플러그인 로드 중",
+			"noInstalled": "설치된 플러그인이 없습니다.",
+			"noMarketplace": "마켓플레이스에 플러그인이 없습니다.",
+			"noMatch": "검색과 일치하는 플러그인이 없습니다.",
+			"searchAria": "플러그인 검색",
+			"searchPlaceholder": "플러그인 검색",
+			"title": "플러그인"
+		},
+		"skill": {
+			"description": "특정 작업에 필요할 때만 Cline이 불러오는 재사용 가능한 지침 모음으로, 관련 없는 작업에서는 컨텍스트를 차지하지 않습니다. <agentSkillsLink>Agent Skills</agentSkillsLink>에서 더 찾아보세요.",
+			"label": "스킬",
+			"loading": "스킬 로드 중",
+			"noInstalled": "설치된 스킬이 없습니다.",
+			"noMarketplace": "마켓플레이스에 스킬이 없습니다.",
+			"noMatch": "검색과 일치하는 스킬이 없습니다.",
+			"searchAria": "스킬 검색",
+			"searchPlaceholder": "스킬 검색",
+			"title": "스킬"
+		}
+	},
+	"remoteManagedSkillUninstall": "원격으로 관리되는 스킬은 여기에서 제거할 수 없습니다",
+	"requiresEnv": "{{vars}} 필요",
+	"sections": {
+		"installed": "설치됨",
+		"marketplace": "마켓플레이스"
+	},
+	"sectionsAria": "{{title}} 섹션",
+	"source": {
+		"global": "전역",
+		"remote": "원격",
+		"workspace": "작업 영역"
+	},
+	"uninstallEntry": "{{name}} 제거",
+	"usesEnv": "{{vars}} 사용"
+}

@@ -1,7 +1,9 @@
 import type { ClineMessage, TurnState } from "@shared/ExtensionMessage"
 import { fireEvent, render, screen } from "@testing-library/react"
 import type { ReactNode } from "react"
+import { I18nextProvider } from "react-i18next"
 import { describe, expect, it, vi } from "vitest"
+import { i18n } from "@/i18n"
 import type { ChatState, MessageHandlers } from "../../types/chatTypes"
 import { ActionButtons } from "./ActionButtons"
 
@@ -53,13 +55,15 @@ describe("ActionButtons", () => {
 		}
 
 		render(
-			<ActionButtons
-				chatState={makeChatState()}
-				messageHandlers={{ executeButtonAction: vi.fn() } as unknown as MessageHandlers}
-				messages={[task]}
-				mode="act"
-				task={task}
-			/>,
+			<I18nextProvider i18n={i18n}>
+				<ActionButtons
+					chatState={makeChatState()}
+					messageHandlers={{ executeButtonAction: vi.fn() } as unknown as MessageHandlers}
+					messages={[task]}
+					mode="act"
+					task={task}
+				/>
+			</I18nextProvider>,
 		)
 
 		expect(screen.queryByRole("button")).not.toBeInTheDocument()
@@ -86,7 +90,11 @@ describe("ActionButtons", () => {
 			mode: "act" as const,
 		}
 
-		const { rerender } = render(<ActionButtons {...props} messages={[task]} />)
+		const { rerender } = render(
+			<I18nextProvider i18n={i18n}>
+				<ActionButtons {...props} messages={[task]} />
+			</I18nextProvider>,
+		)
 
 		const save = screen.getByRole("button", { name: "Save" })
 		expect(save).not.toBeDisabled()
@@ -99,7 +107,11 @@ describe("ActionButtons", () => {
 		// first, but the anchored timestamp changes — buttons must re-enable.
 		const secondAsk = fileApprovalAsk(2, "/notes2.txt")
 		mockTurnState.mockReturnValue({ phase: "awaiting_approval", anchorTs: 2 })
-		rerender(<ActionButtons {...props} messages={[task, secondAsk]} />)
+		rerender(
+			<I18nextProvider i18n={i18n}>
+				<ActionButtons {...props} messages={[task, secondAsk]} />
+			</I18nextProvider>,
+		)
 
 		expect(screen.getByRole("button", { name: "Save" })).not.toBeDisabled()
 		expect(screen.getByRole("button", { name: "Reject" })).not.toBeDisabled()

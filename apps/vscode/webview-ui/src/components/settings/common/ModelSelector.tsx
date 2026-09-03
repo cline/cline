@@ -1,5 +1,6 @@
 import { ModelInfo } from "@shared/api"
 import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
+import { useTranslation } from "react-i18next"
 import styled from "styled-components"
 
 /**
@@ -46,7 +47,8 @@ OG Saoud Note:
 /**
  * A reusable component for selecting models from a dropdown
  */
-export const ModelSelector = ({ models, selectedModelId, onChange, zIndex, label = "Model" }: ModelSelectorProps) => {
+export const ModelSelector = ({ models, selectedModelId, onChange, zIndex, label }: ModelSelectorProps) => {
+	const { t } = useTranslation()
 	const modelIds = Object.keys(models)
 	// Force VSCodeDropdown to re-initialize after async catalog/selection hydration.
 	const dropdownKey = `${selectedModelId ?? ""}:${modelIds.join("\u0000")}`
@@ -54,10 +56,10 @@ export const ModelSelector = ({ models, selectedModelId, onChange, zIndex, label
 	return (
 		<DropdownContainer className="dropdown-container" zIndex={zIndex}>
 			<label htmlFor="model-id">
-				<span className="font-medium">{label}</span>
+				<span className="font-medium">{label ?? t("settings:modelPicker.label")}</span>
 			</label>
 			<VSCodeDropdown className="w-full" id="model-id" key={dropdownKey} onChange={onChange} value={selectedModelId}>
-				<VSCodeOption value="">Select a model...</VSCodeOption>
+				<VSCodeOption value="">{t("settings:modelPicker.selectPlaceholder")}</VSCodeOption>
 				{modelIds.map((modelId) => (
 					<VSCodeOption className="break-words whitespace-normal max-w-full" key={modelId} value={modelId}>
 						{modelId}

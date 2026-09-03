@@ -2,6 +2,7 @@ import type { Mode } from "@shared/storage/types"
 import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"
 import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 import styled from "styled-components"
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -91,6 +92,7 @@ const ApiOptions = ({
 }: ApiOptionsProps) => {
 	// Use full context state for immediate save payload
 	const { apiConfiguration, remoteConfigSettings } = useExtensionState()
+	const { t } = useTranslation()
 
 	const selectedProvider =
 		(currentMode === "plan" ? apiConfiguration?.planModeApiProvider : apiConfiguration?.actModeApiProvider) || "anthropic"
@@ -109,6 +111,19 @@ const ApiOptions = ({
 		? undefined
 		: (getGenericProviderSettings(selectedProvider, catalogProviderListing) ??
 			getFallbackGenericProviderSettings(selectedProvider))
+
+	// The registry is a plain data table, so its base-URL field text is stored as
+	// i18n keys (values starting with "settings:"). Resolve them here — the render
+	// site — leaving literal values (e.g. URL placeholders) untouched.
+	const translateRegistryText = (value?: string) => (value?.startsWith("settings:") ? t(value) : value)
+	const localizedGenericProviderSettings = genericProviderSettings && {
+		...genericProviderSettings,
+		baseUrlField: genericProviderSettings.baseUrlField && {
+			...genericProviderSettings.baseUrlField,
+			label: translateRegistryText(genericProviderSettings.baseUrlField.label),
+			placeholder: translateRegistryText(genericProviderSettings.baseUrlField.placeholder),
+		},
+	}
 
 	const { handleModeFieldChange } = useApiConfigurationHandlers()
 
@@ -275,16 +290,16 @@ const ApiOptions = ({
 						<TooltipTrigger>
 							<div className="flex items-center gap-2 mb-1">
 								<label htmlFor="api-provider">
-									<span style={{ fontWeight: 500 }}>API Provider</span>
+									<span style={{ fontWeight: 500 }}>{t("settings:apiOptions.providerLabel")}</span>
 								</label>
 								<i className="codicon codicon-lock text-description text-sm" />
 							</div>
 						</TooltipTrigger>
-						<TooltipContent>Provider options are managed by your organization's remote configuration</TooltipContent>
+						<TooltipContent>{t("settings:apiOptions.providersRemoteManagedTooltip")}</TooltipContent>
 					</Tooltip>
 				) : (
 					<label htmlFor="api-provider">
-						<span style={{ fontWeight: 500 }}>API Provider</span>
+						<span style={{ fontWeight: 500 }}>{t("settings:apiOptions.providerLabel")}</span>
 					</label>
 				)}
 				<ProviderDropdownWrapper ref={dropdownRef}>
@@ -300,7 +315,7 @@ const ApiOptions = ({
 							setIsDropdownVisible(true)
 						}}
 						onKeyDown={handleKeyDown}
-						placeholder="Search and select provider..."
+						placeholder={t("settings:apiOptions.searchProviderPlaceholder")}
 						role="combobox"
 						style={{
 							width: "100%",
@@ -311,7 +326,7 @@ const ApiOptions = ({
 						value={searchTerm}>
 						{searchTerm && searchTerm !== currentProviderLabel && (
 							<div
-								aria-label="Clear search"
+								aria-label={t("settings:clearSearch")}
 								className="input-icon-button codicon codicon-close"
 								onClick={() => {
 									setSearchTerm("")
@@ -397,9 +412,9 @@ const ApiOptions = ({
 				<OpenRouterProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
-			{apiConfiguration && genericProviderSettings && (
+			{apiConfiguration && localizedGenericProviderSettings && (
 				<GenericProviderSettings
-					{...genericProviderSettings}
+					{...localizedGenericProviderSettings}
 					currentMode={currentMode}
 					isPopup={isPopup}
 					showModelOptions={showModelOptions}

@@ -5,6 +5,7 @@ import { Mode } from "@shared/storage/types"
 import { VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"
 import React, { KeyboardEvent, useEffect, useMemo, useRef, useState } from "react"
+import { Trans, useTranslation } from "react-i18next"
 import { useMount } from "react-use"
 import styled from "styled-components"
 import { useDynamicProviderSelection } from "@/hooks/useDynamicProviderSelection"
@@ -24,6 +25,7 @@ interface RequestyModelPickerProps {
 }
 
 const RequestyModelPicker: React.FC<RequestyModelPickerProps> = ({ isPopup, baseUrl, currentMode }) => {
+	const { t } = useTranslation()
 	const { apiConfiguration, requestyModels, setRequestyModels } = useExtensionState()
 	const { write } = useProviderConfig("requesty")
 	const { handleModeFieldsChange } = useApiConfigurationHandlers()
@@ -195,7 +197,7 @@ const RequestyModelPicker: React.FC<RequestyModelPickerProps> = ({ isPopup, base
 			</style>
 			<div style={{ display: "flex", flexDirection: "column" }}>
 				<label htmlFor="model-search">
-					<span style={{ fontWeight: 500 }}>Model</span>
+					<span style={{ fontWeight: 500 }}>{t("settings:modelPicker.label")}</span>
 				</label>
 				<DropdownWrapper ref={dropdownRef}>
 					<VSCodeTextField
@@ -206,7 +208,7 @@ const RequestyModelPicker: React.FC<RequestyModelPickerProps> = ({ isPopup, base
 							setIsDropdownVisible(true)
 						}}
 						onKeyDown={handleKeyDown}
-						placeholder="Search and select a model..."
+						placeholder={t("settings:modelPicker.searchPlaceholder")}
 						role="combobox"
 						style={{
 							width: "100%",
@@ -216,7 +218,7 @@ const RequestyModelPicker: React.FC<RequestyModelPickerProps> = ({ isPopup, base
 						value={searchTerm}>
 						{searchTerm && (
 							<div
-								aria-label="Clear search"
+								aria-label={t("settings:clearSearch")}
 								className="input-icon-button codicon codicon-close"
 								onClick={() => {
 									handleModelChange("")
@@ -261,7 +263,7 @@ const RequestyModelPicker: React.FC<RequestyModelPickerProps> = ({ isPopup, base
 						<ReasoningEffortSelector
 							currentMode={currentMode}
 							defaultEffort="none"
-							description="Use None to disable extended thinking. Higher effort improves depth, but uses more tokens."
+							description={t("settings:reasoningEffort.extendedDescription")}
 							onEffortChange={handleReasoningEffortChange}
 						/>
 					)}
@@ -274,14 +276,18 @@ const RequestyModelPicker: React.FC<RequestyModelPickerProps> = ({ isPopup, base
 						marginTop: 0,
 						color: "var(--vscode-descriptionForeground)",
 					}}>
-					<>
-						The extension automatically fetches the latest list of models available on{" "}
-						<VSCodeLink href={requestyModelListUrl?.toString()} style={{ display: "inline", fontSize: "inherit" }}>
-							Requesty.
-						</VSCodeLink>
-						If you're unsure which model to choose, compare available models by context window, pricing, and
-						capabilities.
-					</>
+					<Trans
+						components={{
+							providerLink: (
+								<VSCodeLink
+									href={requestyModelListUrl?.toString()}
+									style={{ display: "inline", fontSize: "inherit" }}
+								/>
+							),
+						}}
+						i18nKey="settings:modelPicker.autoFetchNote"
+						values={{ provider: "Requesty" }}
+					/>
 				</p>
 			)}
 		</div>

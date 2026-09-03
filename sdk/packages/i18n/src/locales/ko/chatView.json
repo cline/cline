@@ -1,0 +1,49 @@
+{
+	"buttons": {
+		"approve": "승인",
+		"cancel": "취소",
+		"condenseConversation": "대화 압축",
+		"proceedAnyways": "계속 진행",
+		"proceedWhileRunning": "실행 중에 계속",
+		"reject": "거부",
+		"reportGithubIssue": "GitHub 이슈 보고",
+		"resumeTask": "작업 다시 시작",
+		"retry": "다시 시도",
+		"runCommand": "명령 실행",
+		"save": "저장",
+		"startNewTask": "새 작업 시작",
+		"startNewTaskWithContext": "컨텍스트를 유지한 채 새 작업 시작"
+	},
+	"queuedPrompts": {
+		"attachments_other": "첨부 파일 {{count}}개",
+		"cancelQueued": "대기 중인 메시지 취소",
+		"mixedSummary": "대기 {{queueCount}}개, 조정 {{steerCount}}개",
+		"queuedMessages_other": "대기 중인 메시지 {{count}}개",
+		"steer": "조정",
+		"steeringMessages_other": "조정 메시지 {{count}}개"
+	},
+	"toolGroup": {
+		"analyzing": "{{path}}/ 분석 중...",
+		"codebase": "코드베이스",
+		"contextFallback": "컨텍스트",
+		"definitions_other": "정의 {{count}}개",
+		"exploring": "{{path}}/ 탐색 중...",
+		"files_other": "파일 {{count}}개",
+		"folders_other": "폴더 {{count}}개",
+		"linesFrom": "{{start}}행부터",
+		"linesRange": "{{start}}-{{end}}행",
+		"patterns_other": "패턴 {{count}}개",
+		"performedSearches_other": "검색 {{count}}회 수행",
+		"reading": "{{path}} 읽는 중...",
+		"readingWithLines": "{{path}} 읽는 중({{lines}})...",
+		"searchIn": "{{path}}에서 {{terms}}",
+		"searching": "{{query}} 검색 중...",
+		"summary": "Cline이 {{items}}",
+		"summaryRead": "Cline이 {{items}} 읽음"
+	},
+	"welcome": {
+		"currentLabel": "현재:",
+		"detachedHead": "분리된 HEAD",
+		"worktreesTooltip": "Git 작업 트리를 보고 관리합니다. Cline 작업을 병렬로 실행할 때 유용합니다."
+	}
+}

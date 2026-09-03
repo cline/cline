@@ -1,12 +1,14 @@
 import { IntentEvent } from "@shared/proto/cline/ui"
 import { HistoryIcon, PlusIcon, PuzzleIcon, SettingsIcon, UserCircleIcon } from "lucide-react"
 import { useMemo } from "react"
+import { useTranslation } from "react-i18next"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { TaskServiceClient, UiServiceClient } from "@/services/grpc-client"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 
 export const Navbar = () => {
+	const { t } = useTranslation()
 	const { navigateToHistory, navigateToSettings, navigateToAccount, navigateToMarketplace, navigateToChat } =
 		useExtensionState()
 
@@ -15,7 +17,7 @@ export const Navbar = () => {
 			{
 				id: "chat",
 				name: "Chat",
-				tooltip: "New Task",
+				tooltip: t("ui:navbar.newTask"),
 				icon: PlusIcon,
 				navigate: () => {
 					UiServiceClient.trackIntent(
@@ -35,33 +37,33 @@ export const Navbar = () => {
 			{
 				id: "customize",
 				name: "Customize",
-				tooltip: "Customize",
+				tooltip: t("ui:navbar.customize"),
 				icon: PuzzleIcon,
 				navigate: navigateToMarketplace,
 			},
 			{
 				id: "history",
 				name: "History",
-				tooltip: "History",
+				tooltip: t("ui:navbar.history"),
 				icon: HistoryIcon,
 				navigate: navigateToHistory,
 			},
 			{
 				id: "account",
 				name: "Account",
-				tooltip: "Account",
+				tooltip: t("ui:navbar.account"),
 				icon: UserCircleIcon,
 				navigate: navigateToAccount,
 			},
 			{
 				id: "settings",
 				name: "Settings",
-				tooltip: "Settings",
+				tooltip: t("ui:navbar.settings"),
 				icon: SettingsIcon,
 				navigate: navigateToSettings,
 			},
 		],
-		[navigateToAccount, navigateToChat, navigateToHistory, navigateToMarketplace, navigateToSettings],
+		[navigateToAccount, navigateToChat, navigateToHistory, navigateToMarketplace, navigateToSettings, t],
 	)
 
 	return (

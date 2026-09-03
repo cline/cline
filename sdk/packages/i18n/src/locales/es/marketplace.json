@@ -1,0 +1,62 @@
+{
+	"addRemoteServer": "Añadir servidor remoto",
+	"advancedMcpSettings": "Configuración avanzada de MCP",
+	"clearSearch": "Borrar búsqueda",
+	"customizeTitle": "Personalizar",
+	"disableEntry": "Deshabilitar {{name}}",
+	"editConfiguration": "Editar configuración",
+	"enableEntry": "Habilitar {{name}}",
+	"installEntry": "Instalar {{name}}",
+	"installedMcpServers": "Servidores MCP instalados",
+	"installedSectionTitle": "{{title}} instalados",
+	"orgManagesMcpServers": "Tu organización administra algunos servidores MCP",
+	"primitives": {
+		"mcp": {
+			"description": "Conecta Cline a API externas, herramientas locales y servicios alojados a través de servidores <mcpLink>MCP</mcpLink>.",
+			"label": "MCP",
+			"loading": "Cargando servidores MCP",
+			"noInstalled": "No hay servidores MCP instalados.",
+			"noMarketplace": "No hay servidores MCP en el marketplace.",
+			"noMatch": "Ningún servidor MCP coincide con tu búsqueda.",
+			"searchAria": "Buscar servidores MCP",
+			"searchPlaceholder": "Buscar servidores MCP",
+			"title": "Servidores MCP"
+		},
+		"plugin": {
+			"description": "Los <pluginsLink>plugins</pluginsLink> son extensiones para capacidades más complejas que un único servidor MCP o habilidad, e incluyen herramientas personalizadas, hooks, reglas, comandos de barra o habilidades empaquetadas.",
+			"label": "Plugins",
+			"loading": "Cargando plugins",
+			"noInstalled": "No hay plugins instalados.",
+			"noMarketplace": "No hay plugins en el marketplace.",
+			"noMatch": "Ningún plugin coincide con tu búsqueda.",
+			"searchAria": "Buscar plugins",
+			"searchPlaceholder": "Buscar plugins",
+			"title": "Plugins"
+		},
+		"skill": {
+			"description": "Conjuntos de instrucciones reutilizables que Cline carga bajo demanda para tareas específicas, sin permanecer en el contexto para trabajo no relacionado. Explora más en <agentSkillsLink>Agent Skills</agentSkillsLink>.",
+			"label": "Habilidades",
+			"loading": "Cargando habilidades",
+			"noInstalled": "No hay habilidades instaladas.",
+			"noMarketplace": "No hay habilidades en el marketplace.",
+			"noMatch": "Ninguna habilidad coincide con tu búsqueda.",
+			"searchAria": "Buscar habilidades",
+			"searchPlaceholder": "Buscar habilidades",
+			"title": "Habilidades"
+		}
+	},
+	"remoteManagedSkillUninstall": "Las habilidades administradas de forma remota no se pueden desinstalar aquí",
+	"requiresEnv": "Requiere {{vars}}",
+	"sections": {
+		"installed": "Instalado",
+		"marketplace": "Marketplace"
+	},
+	"sectionsAria": "Secciones de {{title}}",
+	"source": {
+		"global": "Global",
+		"remote": "Remoto",
+		"workspace": "Espacio de trabajo"
+	},
+	"uninstallEntry": "Desinstalar {{name}}",
+	"usesEnv": "Usa {{vars}}"
+}

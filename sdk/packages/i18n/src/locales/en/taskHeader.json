@@ -1,0 +1,53 @@
+{
+	"buttons": {
+		"compactTask": "Compact Task",
+		"copyAria": "Copy",
+		"copyText": "Copy Text",
+		"deleteTask": "Delete Task",
+		"deleteTaskWithSize": "Delete Task (size: {{size}})",
+		"newTaskAria": "New Task",
+		"openConversationHistory": "Open Conversation History File",
+		"openConversationHistoryAria": "Open Disk Conversation History",
+		"startNewTask": "Start a New Task"
+	},
+	"collapseAria": "Collapse task header",
+	"compactConfirm": {
+		"cancel": "Cancel",
+		"cancelTitle": "No, keep the task as is",
+		"confirm": "Compact",
+		"confirmTitle": "Yes, compact the task",
+		"description": "Replaces the conversation history with a summary to free up context window space.",
+		"title": "Compact the current task?"
+	},
+	"contextWindowSummary": {
+		"autoCondenseThreshold": "Auto Condense Threshold",
+		"contextWindow": "Context Window",
+		"noTokenData": "No token usage data available",
+		"remaining": "Remaining:",
+		"thresholdClickHint": "Click on the context window bar to set a new threshold.",
+		"thresholdDescription": "When the context window usage exceeds this threshold, the task will be automatically condensed.",
+		"tokenDetails": {
+			"cacheReads": "Cache Reads",
+			"cacheWrites": "Cache Writes",
+			"completionTokens": "Completion Tokens",
+			"promptTokens": "Prompt Tokens"
+		},
+		"tokenUsage": "Token Usage",
+		"total": "Total:",
+		"used": "Used:"
+	},
+	"cwdBadge": {
+		"outsideWorkspaceAria": "Task working directory {{cwd}} is outside the current workspace",
+		"outsideWorkspaceTooltip": "This task's working directory is {{cwd}}, which is outside the current workspace. Cline reads and edits files and runs commands there."
+	},
+	"expandAria": "Expand task header",
+	"progressAria": "Context window usage progress",
+	"stickyMessage": {
+		"scrollToMessageAria": "Scroll to your message: {{message}}",
+		"scrollToMessageTitle": "Click to scroll to your message"
+	},
+	"tooltips": {
+		"maxContextWindow": "Maximum context window size for this model",
+		"tokensUsed": "Current tokens used in this request"
+	}
+}

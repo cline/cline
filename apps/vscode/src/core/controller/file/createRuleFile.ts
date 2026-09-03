@@ -4,6 +4,7 @@ import { getWorkspaceBasename } from "@core/workspace"
 import { RuleFile, RuleFileRequest } from "@shared/proto/cline/file"
 import { refreshWorkflowToggles } from "@/core/context/instructions/user-instructions/workflows"
 import { HostProvider } from "@/hosts/host-provider"
+import { t } from "@/services/i18n"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
 import { getCwd, getDesktopDir } from "@/utils/path"
@@ -40,10 +41,12 @@ export async function createRuleFile(controller: Controller, request: RuleFileRe
 		throw new Error("Failed to create file.")
 	}
 
-	const fileTypeName = request.type === "workflow" ? "workflow" : "rule"
+	const isWorkflow = request.type === "workflow"
 
 	if (fileExists) {
-		const message = `${fileTypeName} file "${request.filename}" already exists.`
+		const message = isWorkflow
+			? t("rules.workflowFileAlreadyExists", { filename: request.filename })
+			: t("rules.ruleFileAlreadyExists", { filename: request.filename })
 		HostProvider.window.showMessage({
 			type: ShowMessageType.WARNING,
 			message,
@@ -60,7 +63,13 @@ export async function createRuleFile(controller: Controller, request: RuleFileRe
 
 		await openFile(controller, { value: filePath })
 
-		const message = `Created new ${request.isGlobal ? "global" : "workspace"} ${fileTypeName} file: ${request.filename}`
+		const message = request.isGlobal
+			? isWorkflow
+				? t("rules.createdGlobalWorkflowFile", { filename: request.filename })
+				: t("rules.createdGlobalRuleFile", { filename: request.filename })
+			: isWorkflow
+				? t("rules.createdWorkspaceWorkflowFile", { filename: request.filename })
+				: t("rules.createdWorkspaceRuleFile", { filename: request.filename })
 		HostProvider.window.showMessage({
 			type: ShowMessageType.INFORMATION,
 			message,

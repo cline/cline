@@ -1,5 +1,6 @@
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import { memo } from "react"
+import { Trans, useTranslation } from "react-i18next"
 import { ClineAuthStatus } from "@/components/account/ClineAuthStatus"
 import ClineFreeModelLimitError from "@/components/chat/ClineFreeModelLimitError"
 import ClineFreePromotionEndedError from "@/components/chat/ClineFreePromotionEndedError"
@@ -22,6 +23,7 @@ interface ErrorRowProps {
 }
 
 const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStreamingFailedMessage }: ErrorRowProps) => {
+	const { t } = useTranslation()
 	const { clineUser } = useClineAuth()
 	const rawApiError = apiRequestFailedMessage || apiReqStreamingFailedMessage
 
@@ -102,7 +104,7 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 						return (
 							<p className="m-0 whitespace-pre-wrap text-error wrap-anywhere">
 								{errorMessage}
-								{requestId && <div>Request ID: {requestId}</div>}
+								{requestId && <div>{t("chat:errors.requestId", { requestId })}</div>}
 							</p>
 						)
 					}
@@ -117,10 +119,10 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 							// User is using Cline provider and is not logged in
 							<div className="flex flex-col gap-3">
 								<div className="flex items-center justify-center rounded border border-neutral-500/30 bg-vscode-editor-background p-6 text-center text-vscode-foreground">
-									Whoops looks like you're logged out – click below to sign in
+									{t("chat:errors.auth.loggedOut")}
 								</div>
 								<Button className="w-full" disabled={isLoginLoading} onClick={handleSignIn}>
-									Sign in to Cline
+									{t("chat:errors.auth.signIn")}
 									{isLoginLoading && (
 										<span className="ml-1 animate-spin">
 											<span className="codicon codicon-refresh" />
@@ -132,7 +134,7 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 						) : (
 							// Don't show sign in button after the user has logged in, just ask them to retry
 							<div className="mt-4">
-								<span className="text-description">(Click "Retry" below)</span>
+								<span className="text-description">{t("chat:errors.auth.clickRetryBelow")}</span>
 							</div>
 						)
 					}
@@ -145,19 +147,23 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 								{providerId && <span className="uppercase">[{providerId}] </span>}
 								{errorCode && <span>{errorCode}</span>}
 								{errorMessage}
-								{requestId && <div>Request ID: {requestId}</div>}
+								{requestId && <div>{t("chat:errors.requestId", { requestId })}</div>}
 							</header>
 
 							{/* Windows Powershell Issue */}
 							{errorMessage?.toLowerCase()?.includes("powershell") && (
 								<div>
-									It seems like you're having Windows PowerShell issues, please see this{" "}
-									<a
-										className="underline text-inherit"
-										href="https://github.com/cline/cline/wiki/TroubleShooting-%E2%80%90-%22PowerShell-is-not-recognized-as-an-internal-or-external-command%22">
-										troubleshooting guide
-									</a>
-									.
+									<Trans
+										components={{
+											helpLink: (
+												<a
+													className="underline text-inherit"
+													href="https://github.com/cline/cline/wiki/TroubleShooting-%E2%80%90-%22PowerShell-is-not-recognized-as-an-internal-or-external-command%22"
+												/>
+											),
+										}}
+										i18nKey="chat:errors.powershellHelp"
+									/>
 								</div>
 							)}
 
@@ -173,7 +179,7 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 			case "diff_error":
 				return (
 					<div className="flex flex-col p-2 rounded text-xs opacity-80 bg-quote text-foreground">
-						<div>The model used search patterns that don't match anything in the file. Retrying...</div>
+						<div>{t("chat:errors.diffError")}</div>
 					</div>
 				)
 
@@ -181,8 +187,11 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 				return (
 					<div className="flex flex-col p-2 rounded text-xs opacity-80 bg-quote text-foreground">
 						<div>
-							Cline tried to access <code>{message.text}</code> which is blocked by the <code>.clineignore</code>
-							file.
+							<Trans
+								components={{ fileCode: <code />, path: <code /> }}
+								i18nKey="chat:errors.clineignore"
+								values={{ path: message.text }}
+							/>
 						</div>
 					</div>
 				)

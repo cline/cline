@@ -321,7 +321,7 @@ const processUrlTypes = async (
  * @param maxUrls - Maximum number of URLs to process
  * @param onMatchesFound - Callback when initial URLs are extracted
  * @param onMatchesUpdated - Callback when URL types are determined
- * @param onError - Error handler callback
+ * @param onError - Error handler callback (receives an i18n key to translate at the render site)
  * @returns Cleanup function to cancel processing
  */
 export const processResponseUrls = (
@@ -344,7 +344,7 @@ export const processResponseUrls = (
 			// Process URLs in the background
 			await processUrlTypes(matches, onMatchesUpdated, cancellationToken)
 		} catch (_error) {
-			onError("Failed to process response content. Switch to plain text mode to view safely.")
+			onError("mcp:response.processError")
 		}
 	}
 
