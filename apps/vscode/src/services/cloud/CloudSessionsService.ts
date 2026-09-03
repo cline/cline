@@ -192,7 +192,14 @@ export class CloudSessionsService {
 		try {
 			const rows =
 				(await this.request<
-					Array<{ id?: unknown; name?: unknown; full_name?: unknown; html_url?: unknown; clone_url?: unknown; default_branch?: unknown }>
+					Array<{
+						id?: unknown
+						name?: unknown
+						full_name?: unknown
+						html_url?: unknown
+						clone_url?: unknown
+						default_branch?: unknown
+					}>
 				>(path)) ?? []
 			const repositories = rows.flatMap((row): CloudRepository[] => {
 				const id = Number(row.id)

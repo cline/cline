@@ -1,5 +1,6 @@
 import { StringRequest } from "@shared/proto/cline/common"
 import { memo } from "react"
+import { CloudStatusPill } from "@/components/cloud/CloudStatusPill"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useUsageCostVisibility } from "@/hooks/useUsageCostVisibility"
 import { TaskServiceClient } from "@/services/grpc-client"
@@ -164,6 +165,7 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 										)}
 										<div className="history-task-description ph-no-capture">{item.task}</div>
 										{item.isLegacy && <span className="history-cost-chip">Legacy</span>}
+										{item.executionTarget === "cloud" && <CloudStatusPill status={item.cloudStatus} />}
 									</div>
 									<div className="history-meta-stack">
 										<span className="history-date">{formatDate(item.ts)}</span>

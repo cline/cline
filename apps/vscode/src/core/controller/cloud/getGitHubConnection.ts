@@ -1,5 +1,5 @@
-import type { EmptyRequest } from "@shared/proto/cline/common"
 import { GitHubConnection, GitHubRepository } from "@shared/proto/cline/cloud"
+import type { EmptyRequest } from "@shared/proto/cline/common"
 import { CloudSessionError } from "@/services/cloud/CloudSessionsService"
 import type { Controller } from "../index"
 
