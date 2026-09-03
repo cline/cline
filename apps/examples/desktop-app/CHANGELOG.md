@@ -1,5 +1,11 @@
 # Cline Desktop Changelog
 
+## 0.0.23-beta.1
+
+- Beta: configure and opt in to image generation under Customize → Tools. Provider credentials stay server-side, and generated images remain available in session history.
+- Scheduled runs are grouped within their runtime environment so similarly named local and SSH schedules stay separate. While an SSH environment is selected, media-generation settings now make clear that they configure only the local runtime.
+- Includes all stable desktop improvements through 0.0.22, including resumable imports from Claude Code, Codex, and opencode; grouped schedule runs; macOS voice input; safer Hub upgrades; and provider and tool compatibility fixes.
+
 ## 0.0.22-beta.1
 
 - Beta: Composio connectors now register tools directly in the packaged desktop runtime for eligible internal accounts, with safer OAuth revocation and more resilient connect, disconnect, and reconciliation behavior.
