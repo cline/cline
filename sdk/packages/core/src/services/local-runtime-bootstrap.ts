@@ -13,7 +13,10 @@ import type {
 	ToolApprovalResult,
 	WorkspaceInfo,
 } from "@cline/shared";
-import { hasRuntimeConfigExtension } from "@cline/shared";
+import {
+	hasRuntimeConfigExtension,
+	MEDIA_GENERATION_TYPES,
+} from "@cline/shared";
 import { version as corePackageVersion } from "../../package.json";
 import {
 	type AgentPluginPackageDiagnostic,
@@ -497,12 +500,20 @@ export async function prepareLocalRuntimeBootstrap(
 		input.capabilities,
 	);
 	const requestToolApproval = capabilities?.requestToolApproval;
-	const configuredMediaTarget = await resolveConfiguredMediaGenerationTarget(
-		providerSettingsManager,
-		"image",
-	);
+	const configuredMediaGenerationTypes = (
+		await Promise.all(
+			MEDIA_GENERATION_TYPES.map(async (mediaType) =>
+				(await resolveConfiguredMediaGenerationTarget(
+					providerSettingsManager,
+					mediaType,
+				))
+					? mediaType
+					: undefined,
+			),
+		)
+	).filter((mediaType) => mediaType !== undefined);
 	const configuredGenerateMediaExecutor: GenerateMediaExecutor | undefined =
-		configuredMediaTarget
+		configuredMediaGenerationTypes.length > 0
 			? async (mediaInput, context) => {
 					const generated = await generateConfiguredMedia(
 						providerSettingsManager,
@@ -564,6 +575,7 @@ export async function prepareLocalRuntimeBootstrap(
 			agentPluginMcpServers: loadedAgentPluginPackages?.mcpServers,
 			configExtensions: configExtensions,
 			toolExecutors: effectiveToolExecutors,
+			configuredMediaGenerationTypes,
 			toolPolicies,
 			workspaceManager,
 			logger: config.logger,

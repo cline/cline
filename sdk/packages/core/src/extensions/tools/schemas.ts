@@ -248,15 +248,17 @@ export const ApplyPatchInputUnionSchema = z.union([
  */
 export const GenerateMediaInputSchema = z.object({
 	media_type: z
-		.literal("image")
+		.enum(["image", "audio", "video"])
 		.describe(
-			"The type of media to generate. Currently only image generation is supported.",
+			"The type of media to generate. Only media types with a configured " +
+				"generation model can be produced; requests for an unconfigured " +
+				"type fail with an error naming the configured types.",
 		),
 	prompt: z
 		.string()
 		.trim()
 		.min(1)
-		.describe("A detailed description of the image to generate."),
+		.describe("A detailed description of the media to generate."),
 });
 
 /**

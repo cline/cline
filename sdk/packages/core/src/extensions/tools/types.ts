@@ -313,6 +313,13 @@ export interface DefaultToolsConfig {
 	enableGenerateMedia?: boolean;
 
 	/**
+	 * Media types with a configured generation target, surfaced in the
+	 * generate_media tool description so the model knows which types it can
+	 * request before calling the tool.
+	 */
+	generateMediaTypes?: readonly ("image" | "audio" | "video")[];
+
+	/**
 	 * Enable the skills tool
 	 * @default true
 	 */

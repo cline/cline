@@ -26,6 +26,7 @@ import {
 	getLocalProviderModels,
 	isDedicatedTranscriptionModel,
 	isUsableImageGenerationModel,
+	isUsableMediaGenerationModel,
 	listLocalProviders,
 	markLocalProviderEnabled,
 	normalizeOAuthProvider,
@@ -1581,9 +1582,7 @@ describe("media generation settings", () => {
 				mediaType: "image",
 				prompt: "This must not be sent",
 			}),
-		).rejects.toThrow(
-			"The configured image generation provider or model is unavailable",
-		);
+		).rejects.toThrow("No usable image generation model is configured");
 		expect(generateSpy).not.toHaveBeenCalled();
 	});
 
@@ -1610,6 +1609,91 @@ describe("media generation settings", () => {
 		expect(manager.getMediaGenerationSettings()?.image?.modelId).toBe(
 			"test-image-model",
 		);
+	});
+
+	it("dispatches per-type usability and fails closed without a media transport", () => {
+		const dedicatedVideo = {
+			id: "video-model",
+			name: "Video Model",
+			operation: "video-generation" as const,
+			modalities: {
+				input: ["text" as const],
+				output: ["video" as const],
+			},
+		};
+		const dedicatedSpeech = {
+			id: "speech-model",
+			name: "Speech Model",
+			operation: "speech-generation" as const,
+			modalities: {
+				input: ["text" as const],
+				output: ["audio" as const],
+			},
+		};
+		// openrouter declares no video or speech transport in this branch, so
+		// the transport check fails closed even for explicit dedicated models.
+		expect(
+			isUsableMediaGenerationModel("video", "openrouter", dedicatedVideo),
+		).toBe(false);
+		expect(
+			isUsableMediaGenerationModel("audio", "openrouter", dedicatedSpeech),
+		).toBe(false);
+		// A media type never matches a model for another modality.
+		expect(
+			isUsableMediaGenerationModel("video", "openrouter", {
+				id: "test-image-model",
+				name: "Test Image Model",
+				operation: "image-generation",
+				modalities: { input: ["text"], output: ["image"] },
+			}),
+		).toBe(false);
+	});
+
+	it("rejects saving audio and video selections without an executable model", async () => {
+		LlmsModels.registerModel("openrouter", "unsupported-video-model", {
+			id: "unsupported-video-model",
+			name: "Unsupported Video Model",
+			operation: "video-generation",
+			modalities: { input: ["text"], output: ["video"] },
+		});
+
+		await expect(
+			saveMediaGenerationSettings(manager, "video", {
+				providerId: "openrouter",
+				modelId: "unsupported-video-model",
+			}),
+		).rejects.toThrow(
+			'not an executable video-generation model for provider "openrouter"',
+		);
+		await expect(
+			saveMediaGenerationSettings(manager, "audio", {
+				providerId: "openrouter",
+				modelId: "test-image-model",
+			}),
+		).rejects.toThrow(
+			'not an executable audio-generation model for provider "openrouter"',
+		);
+		expect(manager.getMediaGenerationSettings()).toBeUndefined();
+	});
+
+	it("names the configured media types when the requested type is unavailable", async () => {
+		manager.setMediaGenerationSettings({
+			image: {
+				providerId: "openrouter",
+				modelId: "test-image-model",
+			},
+		});
+		const generateSpy = vi.spyOn(LlmsModels, "generateMedia");
+
+		await expect(
+			generateConfiguredMedia(manager, {
+				mediaType: "video",
+				prompt: "This must not be sent",
+			}),
+		).rejects.toThrow(
+			"No usable video generation model is configured; configured media types: image",
+		);
+		expect(generateSpy).not.toHaveBeenCalled();
 	});
 
 	it("clears media generation settings when the image selection is omitted", async () => {

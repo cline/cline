@@ -8,13 +8,16 @@ import {
 type ApiStreamUsageChunk = Extract<ApiStreamChunk, { type: "usage" }>;
 type ApiStreamDoneChunk = Extract<ApiStreamChunk, { type: "done" }>;
 
+/** Media types a generation request can target. */
+export type MediaGenerationMediaType = "image" | "audio" | "video";
+
 /** A provider-neutral media generation request. */
 export interface MediaGenerationRequest {
 	providerConfig: ProviderConfig;
 	modelId: string;
 	prompt: string;
-	/** The requested output modality. Image is the first supported modality. */
-	mediaType: "image";
+	/** The requested output modality. */
+	mediaType: MediaGenerationMediaType;
 	abortSignal?: AbortSignal;
 }
 
@@ -99,7 +102,7 @@ export async function generateMedia(
 		// Reasoning controls belong to the provider's selected chat model. A
 		// separately selected media model can support a different effort set (or
 		// no reasoning controls at all), so carrying those settings across makes
-		// otherwise valid image requests fail before generation starts.
+		// otherwise valid media requests fail before generation starts.
 		thinking: undefined,
 		reasoningEffort: undefined,
 		thinkingBudgetTokens: undefined,

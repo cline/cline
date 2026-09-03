@@ -3,6 +3,7 @@ import type {
 	AgentTool,
 	BasicLogger,
 	ITelemetryService,
+	MediaGenerationType,
 	ModelTool,
 	RuntimeConfigExtensionKind,
 	TeamTeammateSpec,
@@ -148,6 +149,7 @@ function createBuiltinToolsList(
 	executorOverrides?: Partial<ToolExecutors>,
 	telemetry?: ITelemetryService,
 	runCommandExecutionController?: RunCommandExecutionController,
+	configuredMediaGenerationTypes?: readonly MediaGenerationType[],
 ): AgentTool[] {
 	const preset = ToolPresets[resolveToolPresetName({ mode })];
 	const toolRoutingConfig = resolveToolRoutingConfig(
@@ -167,6 +169,7 @@ function createBuiltinToolsList(
 			...preset,
 			enableSkills: !!skillsExecutor,
 			enableGenerateMedia: !!executorOverrides?.generateMedia,
+			generateMediaTypes: configuredMediaGenerationTypes,
 			...toolRoutingConfig,
 			executors: {
 				...(skillsExecutor
@@ -427,9 +430,15 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 		) {
 			modelTools.push({ name: "web_search" });
 		}
+		// When the configurable media executor owns a modality, the provider's
+		// native model tool for that modality stays suppressed so agent-facing
+		// media generation flows only through generate_media.
+		const mediaExecutorOwnsImages =
+			!!toolExecutors?.generateMedia &&
+			(input.configuredMediaGenerationTypes?.includes("image") ?? true);
 		if (
 			normalized.enableTools &&
-			!toolExecutors?.generateMedia &&
+			!mediaExecutorOwnsImages &&
 			supportsModelTool(
 				{ providerId: config.providerId, modelId: config.modelId },
 				"image_generation",
@@ -578,6 +587,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 					toolExecutors,
 					telemetry ?? config.telemetry,
 					input.runCommandExecutionController,
+					input.configuredMediaGenerationTypes,
 				),
 			);
 			const agentPluginMcpServers = pluginsEnabled
@@ -664,6 +674,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 												toolExecutors,
 												telemetry ?? config.telemetry,
 												input.runCommandExecutionController,
+												input.configuredMediaGenerationTypes,
 											),
 											agent,
 										)
@@ -770,6 +781,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 									toolExecutors,
 									telemetry ?? config.telemetry,
 									input.runCommandExecutionController,
+									input.configuredMediaGenerationTypes,
 								)
 						: undefined,
 					teammateConfigProvider: delegatedAgentConfigProvider,
