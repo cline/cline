@@ -4,6 +4,7 @@ import {
 	getShellArgs,
 	getShellInvocation,
 	getShellKind,
+	unwrapNestedPowerShellCommand,
 } from "./shell";
 
 describe("shell helpers", () => {
@@ -51,6 +52,152 @@ describe("shell helpers", () => {
 				"$ErrorActionPreference='Stop';$c=[Console]::In.ReadToEnd();",
 			);
 			expect(input).toBe("param($x = 5) Write-Output $x");
+		}
+	});
+
+	it("unwraps a nested powershell -Command so $_ reaches the script literally", () => {
+		// GitHub #13284: the stdin bootstrap parses the command as outer
+		// PowerShell source, so the nested double-quoted argument had its $_
+		// interpolated away before the nested shell ever saw it.
+		const nested =
+			"powershell -NoProfile -Command \" Get-ChildItem . -Recurse -File | Where-Object { $_.Name -match 'MyEditForm' } | ForEach-Object { $_.FullName } \"";
+		const { input } = getShellInvocation("powershell", nested);
+		expect(input).toBe(
+			"Get-ChildItem . -Recurse -File | Where-Object { $_.Name -match 'MyEditForm' } | ForEach-Object { $_.FullName }",
+		);
+	});
+
+	it("unwraps nested pwsh invocations only for a pwsh outer shell", () => {
+		const nested = 'pwsh -NoProfile -Command "Write-Output $_"';
+		expect(unwrapNestedPowerShellCommand(nested, "pwsh")).toBe(
+			"Write-Output $_",
+		);
+		expect(unwrapNestedPowerShellCommand(nested, "powershell")).toBeUndefined();
+		// Cross-edition nesting in the other direction is kept too: a model may
+		// deliberately run Windows PowerShell 5.1 from a PowerShell 7 outer shell.
+		expect(
+			unwrapNestedPowerShellCommand(
+				'powershell -NoProfile -Command "Write-Output $_"',
+				"C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+			),
+		).toBeUndefined();
+	});
+
+	it("unwraps every wrapper flag the bootstrap already applies", () => {
+		for (const flags of [
+			"-NoProfile",
+			"-NoProfile -NonInteractive",
+			"-NoLogo -NoProfile -NonInteractive",
+		]) {
+			expect(
+				unwrapNestedPowerShellCommand(
+					`powershell ${flags} -Command "Get-Date"`.replace(/\s+/g, " "),
+					"powershell",
+				),
+			).toBe("Get-Date");
+		}
+		// Quoted executable paths count as the same shell when the edition matches.
+		expect(
+			unwrapNestedPowerShellCommand(
+				'"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -NoProfile -Command "Get-Date"',
+				"pwsh",
+			),
+		).toBe("Get-Date");
+	});
+
+	it("unwraps recursive double-shells one layer per pass", () => {
+		expect(
+			unwrapNestedPowerShellCommand(
+				'powershell -NoProfile -Command "powershell -NoProfile -Command `"Write-Output $_`""',
+				"powershell",
+			),
+		).toBe("Write-Output $_");
+	});
+
+	it("decodes PowerShell escape sequences while unwrapping", () => {
+		expect(
+			unwrapNestedPowerShellCommand(
+				'powershell -NoProfile -Command "Write-Output `"`n`$literal`""',
+				"powershell",
+			),
+		).toBe('Write-Output "\n$literal"');
+		// Doubled quotes decode to a single embedded quote.
+		expect(
+			unwrapNestedPowerShellCommand(
+				'powershell -NoProfile -Command "Write-Output \'say ""hi""\'"',
+				"powershell",
+			),
+		).toBe("Write-Output 'say \"hi\"'");
+		// `u{…} code-point escapes are PowerShell 7+ only.
+		expect(
+			unwrapNestedPowerShellCommand(
+				'pwsh -NoProfile -Command "Write-Output `u{41} `u{1F600}"',
+				"pwsh",
+			),
+		).toBe("Write-Output A 😀");
+		expect(
+			unwrapNestedPowerShellCommand(
+				'powershell -NoProfile -Command "Write-Output `u{41}"',
+				"powershell",
+			),
+		).toBe("Write-Output u{41}");
+		// A malformed escape stays literal.
+		expect(
+			unwrapNestedPowerShellCommand(
+				'pwsh -NoProfile -Command "Write-Output `u{zz}"',
+				"pwsh",
+			),
+		).toBe("Write-Output u{zz}");
+		// The `e ESC escape is PowerShell 7+ only as well.
+		expect(
+			unwrapNestedPowerShellCommand(
+				'pwsh -NoProfile -Command "Write-Output `e[31mred`e[0m"',
+				"pwsh",
+			),
+		).toBe("Write-Output \x1b[31mred\x1b[0m");
+		expect(
+			unwrapNestedPowerShellCommand(
+				'powershell -NoProfile -Command "Write-Output `e"',
+				"powershell",
+			),
+		).toBe("Write-Output e");
+	});
+
+	it("leaves non-rewritable nested invocations byte-identical", () => {
+		const untouched = [
+			// Other flags can change semantics in the nested shell.
+			'powershell -ExecutionPolicy Bypass -Command "Get-Date"',
+			"powershell -File script.ps1",
+			// Abbreviated -Command is ambiguous; only the full name is rewritten.
+			'powershell -c "Get-Date"',
+			// Without -NoProfile the nested shell would load the user's
+			// profile, which the profile-less outer process cannot reproduce.
+			'powershell -Command "Get-Date"',
+			'powershell -NonInteractive -Command "Get-Date"',
+			// Extra statements after the quoted script belong to the outer shell.
+			'powershell -NoProfile -Command "Get-Date"; Write-Output after',
+			// An unquoted tail is already parsed by the outer shell.
+			"powershell -Command Get-Date",
+			// Single quotes are literal in the outer parser: no interpolation to fix.
+			"powershell -Command 'Get-Date'",
+			// Unterminated or stray quotes make the tail ambiguous.
+			'powershell -Command "Get-Date',
+			'powershell -Command "Get-Date" "other"',
+			// Empty script.
+			'powershell -Command ""',
+			// Plain commands, other executables, and non-PowerShell executables
+			// that merely carry a -Command flag.
+			"Write-Output hello",
+			'cmd /c "echo hello"',
+			'Write-Output -Command "Get-Date"',
+			'notepad -Command "Get-Date"',
+			'"" -Command "Get-Date"',
+		];
+		for (const command of untouched) {
+			expect(
+				unwrapNestedPowerShellCommand(command, "powershell"),
+			).toBeUndefined();
+			expect(getShellInvocation("powershell", command).input).toBe(command);
 		}
 	});
 

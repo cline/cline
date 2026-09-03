@@ -950,6 +950,24 @@ describe.runIf(process.platform === "win32")("createWindowsExecutor", () => {
 		);
 
 		it.runIf(shell === "powershell.exe" || hasPwsh)(
+			`unwraps a redundant nested ${shell} -Command instead of interpolating it`,
+			async () => {
+				const executor = createShellExecutor({ shell });
+				const nestedExe = shell === "powershell.exe" ? "powershell" : "pwsh";
+				const output = await executor(
+					`${nestedExe} -NoProfile -Command "'a.ps1','b.txt' | Where-Object { $_ -match '\\.ps1$' }"`,
+					process.cwd(),
+					ctx,
+				);
+				// Before the unwrap, the stdin bootstrap parsed this as outer
+				// PowerShell source and interpolated $_ away, so the nested shell
+				// received `{ -match '\.ps1$' }` and failed with a parse error
+				// instead of filtering the list (GitHub #13284).
+				expect(output.trim()).toBe("a.ps1");
+			},
+		);
+
+		it.runIf(shell === "powershell.exe" || hasPwsh)(
 			`reports a failed final native command through ${shell}`,
 			async () => {
 				const executor = createShellExecutor({ shell });
