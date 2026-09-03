@@ -1,5 +1,5 @@
 import { CheckIcon, ChevronDownIcon, LoaderCircleIcon } from "lucide-react"
-import { type ReactNode, useEffect, useMemo, useState } from "react"
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react"
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
@@ -39,12 +39,16 @@ export function SearchableSelect({
 }) {
 	const [open, setOpen] = useState(false)
 	const [query, setQuery] = useState("")
+	const lastEmittedQuery = useRef("")
 
 	useEffect(() => {
-		if (!onQueryChange) {
+		if (!onQueryChange || query === lastEmittedQuery.current) {
 			return
 		}
-		const timer = setTimeout(() => onQueryChange(query), 250)
+		const timer = setTimeout(() => {
+			lastEmittedQuery.current = query
+			onQueryChange(query)
+		}, 250)
 		return () => clearTimeout(timer)
 	}, [query, onQueryChange])
 
@@ -90,7 +94,7 @@ export function SearchableSelect({
 					)}
 				</button>
 			</PopoverTrigger>
-			<PopoverContent align="start" className="w-[var(--radix-popover-trigger-width)] min-w-56 p-1" side="bottom">
+			<PopoverContent align="start" className="w-[var(--radix-popover-trigger-width)] min-w-56 p-1 text-menu-foreground" side="bottom">
 				<Input
 					autoFocus
 					className="mb-1 h-7 px-2 py-1 text-xs"
