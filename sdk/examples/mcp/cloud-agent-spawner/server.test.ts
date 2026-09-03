@@ -18,8 +18,6 @@ describe("Cline Cloud Agent MCP server", () => {
 			]);
 			const result = await client.listTools();
 			expect(result.tools.map(({ name }) => name)).toEqual([
-				"start_cline_oauth",
-				"get_cline_oauth_status",
 				"spawn_cloud_agent",
 				"get_cloud_agent_spawn_status",
 			]);

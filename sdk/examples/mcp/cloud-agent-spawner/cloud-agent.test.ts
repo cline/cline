@@ -34,9 +34,13 @@ describe("CloudAgentSpawner", () => {
 						sessionId?: string,
 					) => {
 						commands.push({ name, payload, sessionId });
-						return name === "session.create"
-							? { ok: true, payload: { sessionId: "inner-agent" } }
-							: { ok: true, payload: {} };
+						if (name === "session.create") {
+							return { ok: true, payload: { sessionId: "inner-agent" } };
+						}
+						if (name === "run.enqueue") {
+							return { ok: true, payload: { runId: "run-1" } };
+						}
+						return { ok: true, payload: {} };
 					},
 					dispose: async () => {
 						disposed = true;
@@ -66,6 +70,7 @@ describe("CloudAgentSpawner", () => {
 			operationId: started.operationId,
 			cloudSessionId: "ses-cloud",
 			agentSessionId: "inner-agent",
+			runId: "run-1",
 			dashboardUrl: "https://app.example.test/agents?sessionId=ses-cloud",
 			status: "running",
 		});
@@ -77,10 +82,10 @@ describe("CloudAgentSpawner", () => {
 		expect(commands.map(({ name }) => name)).toEqual([
 			"session.create",
 			"session.attach",
-			"session.send_input",
+			"run.enqueue",
 		]);
 		expect(commands[2]).toMatchObject({
-			payload: { prompt: "Fix the parser tests" },
+			payload: { prompt: "Fix the parser tests", mode: "act" },
 			sessionId: "inner-agent",
 		});
 		expect(disposed).toBe(true);
@@ -108,58 +113,7 @@ describe("CloudAgentSpawner", () => {
 		expect(result).toMatchObject({
 			operationId: started.operationId,
 			status: "failed",
-			error: expect.stringContaining("Cline authentication is required"),
-		});
-	});
-
-	it("starts device OAuth and persists completed Cline credentials", async () => {
-		let savedSettings: unknown;
-		const spawner = new CloudAgentSpawner({
-			resolveEnvironment: () => ({
-				apiBaseUrl: "https://api.example.test",
-				appBaseUrl: "https://app.example.test",
-			}),
-			providerSettingsManager: {
-				getProviderSettings: () => undefined,
-				saveProviderSettings: (settings: unknown) => {
-					savedSettings = settings;
-				},
-			} as never,
-			startDeviceAuth: async () => ({
-				deviceCode: "device-code",
-				userCode: "ABCD-EFGH",
-				verificationUri: "https://login.example.test/device",
-				verificationUriComplete:
-					"https://login.example.test/device?code=ABCD-EFGH",
-				expiresInSeconds: 600,
-				pollIntervalSeconds: 1,
-			}),
-			completeDeviceAuth: async () => ({
-				access: "access-token",
-				refresh: "refresh-token",
-				expires: Date.now() + 60_000,
-				accountId: "account-1",
-			}),
-		});
-
-		const started = await spawner.startOAuth();
-		expect(started).toMatchObject({
-			status: "pending",
-			userCode: "ABCD-EFGH",
-			verificationUrl: "https://login.example.test/device?code=ABCD-EFGH",
-		});
-		await Promise.resolve();
-		expect(spawner.getOAuthStatus(started.flowId)).toEqual({
-			flowId: started.flowId,
-			status: "authenticated",
-		});
-		expect(savedSettings).toMatchObject({
-			provider: "cline",
-			auth: {
-				accessToken: "workos:access-token",
-				refreshToken: "refresh-token",
-				accountId: "account-1",
-			},
+			error: expect.stringContaining("Cline API key is required"),
 		});
 	});
 });

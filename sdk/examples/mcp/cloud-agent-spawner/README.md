@@ -1,7 +1,7 @@
 # Cline Cloud Agent MCP Server
 
-A standalone stdio Model Context Protocol server that lets any MCP host connect
-a Cline account and spawn autonomous Cline Cloud agents.
+A standalone stdio Model Context Protocol server that lets any MCP host use a
+Cline API key to spawn autonomous Cline Cloud agents.
 
 The server has no Codex-specific integration. Any MCP client capable of
 launching a local stdio server can use it, including Claude Code, Codex, desktop
@@ -10,14 +10,12 @@ configuration behavior remains the responsibility of the MCP host.
 
 ## Tools
 
-- `start_cline_oauth` starts Cline's device-code OAuth flow.
-- `get_cline_oauth_status` reports whether sign-in is pending, authenticated, or failed.
 - `spawn_cloud_agent` starts one asynchronous cloud-agent operation and immediately returns an operation ID.
 - `get_cloud_agent_spawn_status` reports provisioning progress and the final cloud and agent session IDs.
 
-The implementation follows the desktop app's cloud lifecycle: refresh-aware
-authentication, REST workspace provisioning, authenticated Hub WebSocket,
-`session.create`, `session.attach`, and `session.send_input`.
+The implementation follows the desktop app's cloud lifecycle: API-key
+authentication, REST workspace provisioning, authenticated Hub
+WebSocket, `session.create`, `session.attach`, and durable `run.enqueue`.
 
 ## Recommended agent workflow
 
@@ -28,15 +26,17 @@ authentication, REST workspace provisioning, authenticated Hub WebSocket,
    because the operation remains pending; doing so can create a duplicate workspace.
 4. Pending responses identify the current stage, including authentication,
    workspace creation, provisioning, runtime connection, and prompt submission.
-5. When status becomes `running`, show `dashboardUrl` and both session IDs. The
-   cloud agent continues independently; `running` does not mean its task is finished.
+5. When status becomes `running`, show `dashboardUrl`, `runId`, and both session
+   IDs. The cloud run has been durably accepted and continues independently;
+   `running` does not mean its task is finished.
 6. When status becomes `failed`, show the error. If a dashboard URL is present,
    the workspace exists but its inner agent could not be started.
 
-If spawning reports that authentication is required, call `start_cline_oauth`,
-immediately show its URL and code, and poll `get_cline_oauth_status` about every
-three seconds. Keep the same MCP process alive and do not start a second OAuth
-flow while the first one is pending.
+Before starting the server, set `CLINE_API_KEY` in its environment. Do not pass
+the API key as a tool argument or include it in an agent prompt. If a status
+response reports that the key is missing or invalid, update the MCP server's
+environment, restart it, and start a new operation only after configuration is
+fixed.
 
 ## Build and run
 
@@ -61,7 +61,10 @@ are written to stdout; diagnostics are written only to stderr.
       "command": "node",
       "args": [
         "/ABSOLUTE/PATH/TO/cline/sdk/examples/mcp/cloud-agent-spawner/build/cli.js"
-      ]
+      ],
+      "env": {
+        "CLINE_API_KEY": "${CLINE_API_KEY}"
+      }
     }
   }
 }
@@ -69,6 +72,6 @@ are written to stdout; diagnostics are written only to stderr.
 
 For development, use `bun run` with the absolute path to `server.ts`.
 
-The OAuth tools save credentials to Cline's normal provider settings and the
-server refreshes them automatically. `CLINE_API_KEY` is also supported for
-non-interactive environments.
+`CLINE_API_KEY` is the only supported authentication method. Keep it in the MCP
+host's secret or environment configuration; never place it in prompts or tool
+arguments.

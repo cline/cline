@@ -1,14 +1,5 @@
 import { randomUUID } from "node:crypto";
-import {
-	ClineAccountService,
-	completeClineDeviceAuth,
-	NodeHubClient,
-	type OAuthCredentials,
-	ProviderSettingsManager,
-	RuntimeOAuthTokenManager,
-	saveLocalProviderOAuthCredentials,
-	startClineDeviceAuth,
-} from "@cline/core";
+import { ClineAccountService, NodeHubClient } from "@cline/core";
 import { getClineEnvironmentConfig } from "@cline/shared";
 
 const CLOUD_WORKSPACE_ROOT = "/workspace";
@@ -34,12 +25,13 @@ export type SpawnCloudAgentResult = {
 	operationId: string;
 	cloudSessionId: string;
 	agentSessionId: string;
+	runId: string;
 	dashboardUrl: string;
 	status: "running";
 };
 
 export type CloudAgentSpawnStage =
-	| "authenticating"
+	| "validating_api_key"
 	| "resolving_organization"
 	| "creating_workspace"
 	| "provisioning_workspace"
@@ -67,19 +59,6 @@ export type CloudAgentSpawnStatus =
 			dashboardUrl?: string;
 	  };
 
-export type ClineOAuthStartResult = {
-	flowId: string;
-	status: "pending";
-	userCode: string;
-	verificationUrl: string;
-	expiresAt: string;
-};
-
-export type ClineOAuthStatus =
-	| { flowId: string; status: "pending"; expiresAt: string }
-	| { flowId: string; status: "authenticated" }
-	| { flowId: string; status: "failed"; error: string };
-
 type CloudEnvironment = { apiBaseUrl: string; appBaseUrl: string };
 
 type CloudAgentSpawnerOptions = {
@@ -90,15 +69,7 @@ type CloudAgentSpawnerOptions = {
 		options: ConstructorParameters<typeof NodeHubClient>[0],
 	) => HubClient;
 	sleep?: (milliseconds: number) => Promise<void>;
-	providerSettingsManager?: ProviderSettingsManager;
-	startDeviceAuth?: typeof startClineDeviceAuth;
-	completeDeviceAuth?: typeof completeClineDeviceAuth;
 };
-
-type OAuthFlowState =
-	| { status: "pending"; expiresAt: string }
-	| { status: "authenticated" }
-	| { status: "failed"; error: string };
 
 class CloudAgentError extends Error {
 	constructor(
@@ -130,13 +101,7 @@ function dashboardUrl(appBaseUrl: string, cloudSessionId: string): string {
 }
 
 async function defaultAuthToken(): Promise<string | undefined> {
-	const explicit = process.env.CLINE_API_KEY?.trim();
-	if (explicit) return explicit;
-	return (
-		await new RuntimeOAuthTokenManager().resolveProviderApiKey({
-			providerId: "cline",
-		})
-	)?.apiKey;
+	return process.env.CLINE_API_KEY?.trim() || undefined;
 }
 
 export class CloudAgentSpawner {
@@ -147,10 +112,6 @@ export class CloudAgentSpawner {
 		CloudAgentSpawnerOptions["createHubClient"]
 	>;
 	private readonly sleep: (milliseconds: number) => Promise<void>;
-	private readonly providerSettingsManager: ProviderSettingsManager;
-	private readonly startDeviceAuth: typeof startClineDeviceAuth;
-	private readonly completeDeviceAuth: typeof completeClineDeviceAuth;
-	private readonly oauthFlows = new Map<string, OAuthFlowState>();
 	private readonly spawnOperations = new Map<string, CloudAgentSpawnStatus>();
 
 	constructor(options: CloudAgentSpawnerOptions = {}) {
@@ -164,63 +125,6 @@ export class CloudAgentSpawner {
 			options.sleep ??
 			((milliseconds) =>
 				new Promise((resolve) => setTimeout(resolve, milliseconds)));
-		this.providerSettingsManager =
-			options.providerSettingsManager ?? new ProviderSettingsManager();
-		this.startDeviceAuth = options.startDeviceAuth ?? startClineDeviceAuth;
-		this.completeDeviceAuth =
-			options.completeDeviceAuth ?? completeClineDeviceAuth;
-	}
-
-	async startOAuth(): Promise<ClineOAuthStartResult> {
-		const authorization = await this.startDeviceAuth();
-		const flowId = randomUUID();
-		const expiresAt = new Date(
-			Date.now() + authorization.expiresInSeconds * 1_000,
-		).toISOString();
-		this.oauthFlows.set(flowId, { status: "pending", expiresAt });
-		const existing = this.providerSettingsManager.getProviderSettings("cline");
-		void this.completeDeviceAuth({
-			deviceCode: authorization.deviceCode,
-			expiresInSeconds: authorization.expiresInSeconds,
-			pollIntervalSeconds: authorization.pollIntervalSeconds,
-			apiBaseUrl: this.resolveEnvironment().apiBaseUrl,
-			provider: "cline",
-		})
-			.then((credentials: OAuthCredentials) => {
-				saveLocalProviderOAuthCredentials(
-					this.providerSettingsManager,
-					"cline",
-					existing,
-					credentials,
-				);
-				this.oauthFlows.set(flowId, { status: "authenticated" });
-			})
-			.catch((error: unknown) => {
-				this.oauthFlows.set(flowId, {
-					status: "failed",
-					error: error instanceof Error ? error.message : String(error),
-				});
-			});
-		return {
-			flowId,
-			status: "pending",
-			userCode: authorization.userCode,
-			verificationUrl:
-				authorization.verificationUriComplete ?? authorization.verificationUri,
-			expiresAt,
-		};
-	}
-
-	getOAuthStatus(flowId: string): ClineOAuthStatus {
-		const state = this.oauthFlows.get(flowId);
-		if (!state) {
-			return {
-				flowId,
-				status: "failed",
-				error: "OAuth flow was not found. Start a new Cline OAuth flow.",
-			};
-		}
-		return { flowId, ...state };
 	}
 
 	startSpawn(input: SpawnCloudAgentInput): SpawnCloudAgentStartResult {
@@ -228,8 +132,8 @@ export class CloudAgentSpawner {
 		const started: SpawnCloudAgentStartResult = {
 			operationId,
 			status: "pending",
-			stage: "authenticating",
-			message: "Checking Cline credentials.",
+			stage: "validating_api_key",
+			message: "Validating the configured Cline API key.",
 			pollAfterMs: PROVISION_POLL_MS,
 		};
 		this.spawnOperations.set(operationId, started);
@@ -291,7 +195,7 @@ export class CloudAgentSpawner {
 		const token = (await this.resolveAuthToken())?.trim();
 		if (!token) {
 			throw new CloudAgentError(
-				"Cline authentication is required. Sign in with Cline or set CLINE_API_KEY for the MCP server.",
+				"Cline API key is required. Set CLINE_API_KEY in the MCP server environment and restart the server.",
 				401,
 			);
 		}
@@ -355,9 +259,7 @@ export class CloudAgentSpawner {
 			displayName: "Cloud agent spawner",
 			workspaceRoot: CLOUD_WORKSPACE_ROOT,
 			cwd: CLOUD_WORKSPACE_ROOT,
-			resolveConnectionHeaders: async () => ({
-				Authorization: `Bearer ${(await this.resolveAuthToken())?.trim() || token}`,
-			}),
+			authToken: token,
 		});
 
 		try {
@@ -422,16 +324,22 @@ export class CloudAgentSpawner {
 				"Submitting the task to the cloud agent.",
 				cloudSessionId,
 			);
-			await client.command(
-				"session.send_input",
-				{ prompt: input.prompt },
+			const admission = await client.command(
+				"run.enqueue",
+				{ prompt: input.prompt, mode: "act" },
 				agentSessionId,
-				{ timeoutMs: null },
 			);
+			const runId = String(admission.payload?.runId ?? "").trim();
+			if (!runId) {
+				throw new CloudAgentError(
+					"Cloud Hub accepted the agent session but returned no queued run id.",
+				);
+			}
 			this.spawnOperations.set(operationId, {
 				operationId,
 				cloudSessionId,
 				agentSessionId,
+				runId,
 				dashboardUrl: dashboardUrl(environment.appBaseUrl, cloudSessionId),
 				status: "running",
 			});

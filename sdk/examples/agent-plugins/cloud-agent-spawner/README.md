@@ -16,8 +16,8 @@ dependency on the standalone MCP example:
 - Project: `.agents/plugins/cloud-agent-spawner`
 - User: `~/.agents/plugins/cloud-agent-spawner`
 
-The plugin exposes the standalone server's `start_cline_oauth`,
-`get_cline_oauth_status`, `spawn_cloud_agent`, and
-`get_cloud_agent_spawn_status` tools through `mcp.json`. Its bundled skill tells
-the host agent how to guide sign-in, poll without creating duplicate workspaces,
-and present the final dashboard and session IDs.
+The plugin exposes the standalone server's `spawn_cloud_agent` and
+`get_cloud_agent_spawn_status` tools through `mcp.json`. Configure
+`CLINE_API_KEY` in the host process before launching the plugin. Its bundled
+skill tells the host agent how to poll without creating duplicate workspaces and
+present the final dashboard, run ID, and session IDs without exposing the key.

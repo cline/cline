@@ -11,46 +11,10 @@ export function createCloudAgentMcpServer(
 		version: "0.1.0",
 	});
 	server.registerTool(
-		"start_cline_oauth",
-		{
-			description:
-				"Start Cline device-code sign-in. Immediately show verificationUrl and userCode to the user. Keep this MCP server running, then poll get_cline_oauth_status with flowId about every 3 seconds until authenticated or failed. Do not call spawn_cloud_agent while OAuth is pending.",
-		},
-		async () => {
-			try {
-				const result = await spawner.startOAuth();
-				return {
-					content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
-					structuredContent: result,
-				};
-			} catch (error) {
-				return toolError(error);
-			}
-		},
-	);
-	server.registerTool(
-		"get_cline_oauth_status",
-		{
-			description:
-				"Check Cline sign-in. If pending, tell the user you are still waiting and poll again after about 3 seconds without starting another OAuth flow. If authenticated, proceed to spawn_cloud_agent. If failed, show the error and offer to start a new flow.",
-			inputSchema: {
-				flowId: z.string().uuid(),
-			},
-		},
-		async ({ flowId }) => {
-			const result = spawner.getOAuthStatus(flowId);
-			return {
-				content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
-				structuredContent: result,
-				...(result.status === "failed" ? { isError: true } : {}),
-			};
-		},
-	);
-	server.registerTool(
 		"spawn_cloud_agent",
 		{
 			description:
-				"Begin creating one autonomous Cline Cloud agent. Call exactly once per requested agent. Returns immediately with an operationId; it does not mean the agent is running yet. Tell the user provisioning has started, then poll get_cloud_agent_spawn_status using operationId and pollAfterMs. Never retry this tool merely because provisioning is slow, because that can create duplicate cloud workspaces.",
+				"Begin creating one autonomous Cline Cloud agent using the CLINE_API_KEY configured in this MCP server's environment. Call exactly once per requested agent. Returns immediately with an operationId; it does not mean the agent is running yet. Tell the user provisioning has started, then poll get_cloud_agent_spawn_status using operationId and pollAfterMs. Never retry this tool merely because provisioning is slow, because that can create duplicate cloud workspaces.",
 			inputSchema: {
 				prompt: z.string().trim().min(1).describe("Task for the cloud agent."),
 				repoUrl: z
@@ -95,7 +59,7 @@ export function createCloudAgentMcpServer(
 		"get_cloud_agent_spawn_status",
 		{
 			description:
-				"Poll a cloud-agent spawn operation. While pending, briefly report stage/message only when useful and poll again after pollAfterMs; do not call spawn_cloud_agent again. On running, give the user dashboardUrl plus both session IDs and explain that the cloud agent continues independently. On failed, report error; if cloudSessionId/dashboardUrl is present, explain that the workspace was created but its inner agent failed.",
+				"Poll a cloud-agent spawn operation. While pending, briefly report stage/message only when useful and poll again after pollAfterMs; do not call spawn_cloud_agent again. On running, give the user dashboardUrl, runId, and both session IDs, and explain that the queued cloud run continues independently. On failed, report error; if authentication failed, instruct the user to configure CLINE_API_KEY in the MCP server environment and restart it. If cloudSessionId/dashboardUrl is present, explain that the workspace was created but its inner agent failed.",
 			inputSchema: {
 				operationId: z.string().uuid(),
 			},
