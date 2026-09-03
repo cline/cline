@@ -39,6 +39,28 @@ export function isPersistableHubMismatchKey(key: string | null): key is string {
 }
 
 /**
+ * What a dismissal becomes when the sidecar delivers a mismatch again - it
+ * replays the pending mismatch on every webview (re)connection, including
+ * in-place transport reconnects where the dialog never remounts. A reason
+ * whose dismissal may not outlive the moment (`unsupported_protocol`: the
+ * app cannot talk to the Hub) drops its matching in-memory "Later" so the
+ * warning reopens on the replay; the advisory `build_mismatch` dismissal
+ * stands. An unrelated dismissed key is kept either way.
+ */
+export function retainDismissalForIncomingMismatch(
+	previousDismissedKey: string | null,
+	incomingKey: string,
+): string | null {
+	if (
+		previousDismissedKey === incomingKey &&
+		!isPersistableHubMismatchKey(incomingKey)
+	) {
+		return null;
+	}
+	return previousDismissedKey;
+}
+
+/**
  * Human phrase for the live work an outdated Hub is serving, used by the
  * blocking "Hub update required" dialog. Falls back to an unquantified
  * phrase when the Hub could not answer the activity query.

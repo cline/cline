@@ -3,6 +3,7 @@ import {
 	describeOutdatedHubSessions,
 	isPersistableHubMismatchKey,
 	resolveHubUpdateRestartDecision,
+	retainDismissalForIncomingMismatch,
 	shouldShowHubMismatchDialog,
 } from "./hub-update-required-helpers";
 
@@ -31,6 +32,35 @@ describe("shouldShowHubMismatchDialog", () => {
 		expect(isPersistableHubMismatchKey("outdated_hub:abc123")).toBe(false);
 		expect(isPersistableHubMismatchKey(null)).toBe(false);
 		expect(isPersistableHubMismatchKey("")).toBe(false);
+	});
+
+	it("reopens a dismissed protocol warning on redelivery, keeps advisory and unrelated dismissals", () => {
+		// A replayed unsupported_protocol mismatch clears its own dismissal:
+		// the app cannot talk to that Hub, so "Later" must not outlive an
+		// in-place reconnect replay.
+		expect(
+			retainDismissalForIncomingMismatch(
+				"unsupported_protocol:abc",
+				"unsupported_protocol:abc",
+			),
+		).toBeNull();
+		// The advisory newer-hub dismissal stands across replays.
+		expect(
+			retainDismissalForIncomingMismatch(
+				"build_mismatch:abc",
+				"build_mismatch:abc",
+			),
+		).toBe("build_mismatch:abc");
+		// A dismissal for a different mismatch is untouched.
+		expect(
+			retainDismissalForIncomingMismatch(
+				"build_mismatch:abc",
+				"unsupported_protocol:def",
+			),
+		).toBe("build_mismatch:abc");
+		expect(retainDismissalForIncomingMismatch(null, "build_mismatch:abc")).toBe(
+			null,
+		);
 	});
 
 	it("allows a newer-hub prompt only once an app update is staged", () => {

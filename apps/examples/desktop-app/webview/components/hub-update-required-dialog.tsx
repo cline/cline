@@ -21,6 +21,7 @@ import {
 	describeOutdatedHubSessions,
 	isPersistableHubMismatchKey,
 	resolveHubUpdateRestartDecision,
+	retainDismissalForIncomingMismatch,
 	shouldShowHubMismatchDialog,
 } from "./hub-update-required-helpers";
 
@@ -110,11 +111,19 @@ export function HubUpdateRequiredDialog() {
 			if (!payload || typeof payload !== "object") {
 				return;
 			}
-			setMismatch(payload as HubBuildMismatchPayload);
+			const incoming = payload as HubBuildMismatchPayload;
+			setMismatch(incoming);
 			// A new mismatch is a fresh prompt: drop any "no update available"
 			// hint left over from a previous dialog so it reopens in its
 			// initial state instead of pre-set to "Try again".
 			setUpdateHint(null);
+			// Delivery includes replays on in-place transport reconnects, where
+			// this component never remounts: a non-persistable dismissal
+			// (unsupported_protocol) must not survive them, or the warning about
+			// a Hub the app cannot talk to stays silenced indefinitely.
+			setDismissedKey((previous) =>
+				retainDismissalForIncomingMismatch(previous, mismatchKeyOf(incoming)),
+			);
 		});
 	}, []);
 
