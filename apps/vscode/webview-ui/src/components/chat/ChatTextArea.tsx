@@ -259,7 +259,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 		const [fileSearchResults, setFileSearchResults] = useState<SearchResult[]>([])
 		const [searchLoading, setSearchLoading] = useState(false)
-		const [, metaKeyChar] = useMetaKeyDetection(platform)
+		const [os, metaKeyChar] = useMetaKeyDetection(platform)
 		const { selectedProvider, selectedModelId } = useNormalizedApiConfiguration(mode)
 
 		// Fetch git commits when Git is selected or when typing a hash
@@ -1078,7 +1078,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			})()
 		}, [mode, inputValue, selectedImages, selectedFiles, setInputValue, setSelectedImages, setSelectedFiles])
 
-		useShortcut(usePlatform().togglePlanActKeys, onModeToggle, { disableTextInputs: false }) // important that we don't disable the text input here
+		// "Meta" is the platform's primary modifier: Cmd on macOS, Ctrl elsewhere (Win/Super is reserved by the OS).
+		const primaryModifier = os === "mac" ? "Meta" : "Control"
+		useShortcut(usePlatform().togglePlanActKeys.replace("Meta", primaryModifier), onModeToggle, { disableTextInputs: false }) // important that we don't disable the text input here
 
 		const handleContextButtonClick = useCallback(() => {
 			// Focus the textarea first

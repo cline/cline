@@ -18,17 +18,12 @@ export const detectOS = (platform: string) => {
 	return detectedOs
 }
 
+/**
+ * Label for the primary modifier that "Meta" in shortcut configs resolves to: Cmd on macOS,
+ * Ctrl elsewhere. The Win/Super key is reserved by the OS and rarely reaches the webview.
+ */
 export const detectMetaKeyChar = (platform: string) => {
-	if (platform.match(platforms.mac)) {
-		return "CMD"
-	}
-	if (platform.match(platforms.windows)) {
-		return "Win"
-	}
-	if (platform.match(platforms.linux)) {
-		return "Super"
-	}
-	return "CMD"
+	return platform.match(platforms.mac) ? "CMD" : "Ctrl"
 }
 
 const userAgent = navigator?.userAgent || ""
