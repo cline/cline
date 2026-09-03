@@ -187,6 +187,77 @@ describe("AgentRuntime", () => {
 		});
 	});
 
+	it("persists audio and video media inside tool results as artifacts", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "media-1",
+					toolName: "generate_media",
+					inputText:
+						'{"media_type":"video","prompt":"A bee documentary"}',
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+			() => [
+				{ type: "text-delta", text: "Here is your video." },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const storeGeneratedArtifact = vi.fn(async () => ({
+			artifactId: "video-artifact.mp4",
+		}));
+		const runtime = new AgentRuntime({
+			model,
+			storeGeneratedArtifact,
+			tools: [
+				{
+					name: "generate_media",
+					description: "Generate media",
+					inputSchema: { type: "object" },
+					execute: async () => [
+						{ type: "text", text: "Generated 1 video." },
+						{
+							type: "media",
+							media: {
+								id: "media_video_1",
+								modality: "video",
+								mediaType: "video/mp4",
+								source: { type: "base64", data: "dmlkZW8=" },
+							},
+						},
+					],
+				},
+			],
+		});
+
+		const result = await runtime.run("Generate a bee documentary");
+
+		expect(storeGeneratedArtifact).toHaveBeenCalledWith({
+			data: "dmlkZW8=",
+			mediaType: "video/mp4",
+		});
+		const toolMessage = result.messages.find(
+			(message) => message.role === "tool",
+		);
+		expect(toolMessage?.content[0]).toMatchObject({
+			type: "tool-result",
+			output: [
+				{ type: "text", text: "Generated 1 video." },
+				{
+					type: "media",
+					media: {
+						id: "media_video_1",
+						modality: "video",
+						mediaType: "video/mp4",
+						source: { type: "artifact", artifactId: "video-artifact.mp4" },
+					},
+				},
+			],
+		});
+		expect(JSON.stringify(toolMessage)).not.toContain("dmlkZW8=");
+	});
+
 	it("keeps generated videos inline when no artifact store is configured", async () => {
 		const model = new ScriptedModel([
 			() => [
