@@ -61,7 +61,7 @@ export class SdkSessionRebuildScheduler {
 		// Cloud sessions run on the sandbox with its own tools/provider; local
 		// MCP, provider and terminal changes do not apply and must not rebuild
 		// the sandbox conversation into a local one.
-		if ("isCloud" in activeSession.sdkHost) {
+		if (activeSession.sdkHost && "isCloud" in activeSession.sdkHost) {
 			this.pending.clear()
 			return
 		}

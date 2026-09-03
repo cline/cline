@@ -13,7 +13,7 @@ import type { ChatState, MessageHandlers } from "../types/chatTypes"
  * Handles sending messages, button clicks, and task management
  */
 export function useMessageHandlers(messages: ClineMessage[], chatState: ChatState): MessageHandlers {
-	const { backgroundCommandRunning, turnState } = useExtensionState()
+	const { backgroundCommandRunning, turnState, cloudSessionsEnabled, cloudTaskTarget } = useExtensionState()
 	const {
 		setInputValue,
 		activeQuote,
@@ -166,10 +166,19 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 				}
 
 				if (messages.length === 0) {
+					const runInCloud = cloudSessionsEnabled && cloudTaskTarget?.target === "cloud" && !!cloudTaskTarget.repoUrl
 					const request = NewTaskRequest.create({
 						text: messageToSend,
 						images,
-						files,
+						// Local file paths cannot be read from a cloud sandbox.
+						files: runInCloud ? [] : files,
+						...(runInCloud
+							? {
+									executionTarget: "cloud",
+									cloudRepoUrl: cloudTaskTarget.repoUrl,
+									cloudBranch: cloudTaskTarget.branch,
+								}
+							: {}),
 					})
 					clearSentMessageState()
 					trackPromptSubmitted(false)
@@ -322,6 +331,8 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 			setPendingUserMessage,
 			setPendingResponse,
 			chatState,
+			cloudSessionsEnabled,
+			cloudTaskTarget,
 		],
 	)
 
