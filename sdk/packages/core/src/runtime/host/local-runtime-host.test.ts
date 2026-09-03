@@ -1609,6 +1609,87 @@ describe("LocalRuntimeHost", () => {
 		).not.toHaveBeenCalled();
 	});
 
+	it("keeps the stored history origin when resuming a session", async () => {
+		const workspaceRoot = join(isolatedHomeDir, "workspace");
+		mkdirSync(workspaceRoot, { recursive: true });
+		const git = simpleGit({ baseDir: workspaceRoot });
+		await git.init();
+		await git.addConfig("user.email", "test@example.com");
+		await git.addConfig("user.name", "Test");
+		await git.commit("initial", ["--allow-empty"]);
+		await git.addRemote("origin", "https://example.com/imported.git");
+
+		const sessionId = "sess-imported-resume";
+		const manifest: SessionManifest = {
+			...createManifest(sessionId),
+			source: SessionSource.DESKTOP,
+			cwd: workspaceRoot,
+			workspace_root: workspaceRoot,
+			metadata: {
+				title: "Imported from Claude Code",
+				sessionHistoryOrigin: { mode: "import", trigger: "claude-code" },
+			},
+		};
+		const updateSession = vi.fn().mockResolvedValue({ updated: true });
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn(),
+			persistSessionMessages: vi.fn(),
+			updateSession,
+			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
+			readSessionManifest: vi.fn().mockReturnValue(manifest),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const agent = {
+			run: vi.fn().mockResolvedValue(createResult()),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			getMessages: vi.fn().mockReturnValue([]),
+			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			canStartRun: vi.fn().mockReturnValue(true),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		};
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder: {
+				build: vi.fn().mockReturnValue({ tools: [], shutdown: vi.fn() }),
+			} as never,
+			createAgent: () => agent as never,
+		});
+
+		// A resume start carries the default "user" origin in its metadata;
+		// the git refresh on resume must not persist it over the stored one.
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId, cwd: workspaceRoot, workspaceRoot }),
+				interactive: true,
+				initialMessages: [{ role: "user", content: "imported prompt" }],
+				sessionMetadata: { sessionHistoryOrigin: { mode: "user" } },
+			}),
+		);
+
+		expect(
+			sessionService.createRootSessionWithArtifacts,
+		).not.toHaveBeenCalled();
+		expect(updateSession).toHaveBeenCalledWith(
+			expect.objectContaining({
+				sessionId,
+				metadata: expect.objectContaining({
+					title: "Imported from Claude Code",
+					sessionHistoryOrigin: { mode: "import", trigger: "claude-code" },
+					git: expect.objectContaining({
+						url: "https://example.com/imported.git",
+					}),
+				}),
+			}),
+		);
+	});
+
 	it("runs a non-interactive prompt and persists messages/status", async () => {
 		const sessionId = "sess-1";
 		const manifest = createManifest(sessionId);
