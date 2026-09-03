@@ -351,6 +351,85 @@ describe("createAgentModelFromConfig", () => {
 		);
 	});
 
+	it("forwards the configured Claude Code executable alongside the workspace cwd", async () => {
+		const { createAgentModelFromConfig } = await import("./handler-factory");
+
+		createAgentModelFromConfig(
+			{
+				providerId: "claude-code",
+				modelId: "sonnet",
+				systemPrompt: "",
+				tools: [],
+				extensionContext: {
+					workspace: {
+						rootPath: "/home/user/project",
+						cwd: "/home/user/project/packages/app",
+					},
+				},
+				providerConfig: {
+					providerId: "claude-code",
+					modelId: "sonnet",
+					claudeCode: {
+						defaultSettings: {
+							pathToClaudeCodeExecutable: "/opt/homebrew/bin/claude",
+						},
+					},
+				},
+			},
+			undefined,
+		);
+
+		expect(gatewayMock.createGateway).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				providerConfigs: [
+					expect.objectContaining({
+						providerId: "claude-code",
+						options: expect.objectContaining({
+							// The host's configured executable reaches the provider...
+							defaultSettings: {
+								pathToClaudeCodeExecutable: "/opt/homebrew/bin/claude",
+							},
+							// ...without displacing the workspace anchor the CLI needs.
+							cwd: "/home/user/project/packages/app",
+						}),
+					}),
+				],
+			}),
+		);
+	});
+
+	it("lets an explicit Claude Code cwd win over the host workspace", async () => {
+		const { createAgentModelFromConfig } = await import("./handler-factory");
+
+		createAgentModelFromConfig(
+			{
+				providerId: "claude-code",
+				modelId: "sonnet",
+				systemPrompt: "",
+				tools: [],
+				extensionContext: {
+					workspace: { rootPath: "/home/user/project" },
+				},
+				providerConfig: {
+					providerId: "claude-code",
+					modelId: "sonnet",
+					claudeCode: { cwd: "/home/user/other" },
+				},
+			},
+			undefined,
+		);
+
+		expect(gatewayMock.createGateway).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				providerConfigs: [
+					expect.objectContaining({
+						options: expect.objectContaining({ cwd: "/home/user/other" }),
+					}),
+				],
+			}),
+		);
+	});
+
 	it("forwards Vertex GCP settings as gateway provider options", async () => {
 		const { createAgentModelFromConfig } = await import("./handler-factory");
 
