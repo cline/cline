@@ -11,6 +11,7 @@ import {
 	resolveEnabledOptInToolNames,
 	resolveAgentConfigSearchPaths as resolveSharedAgentConfigSearchPaths,
 } from "@cline/core";
+import { MEDIA_GENERATION_TYPES } from "@cline/shared";
 import { readFileSyncStrippingUtf8Bom } from "@cline/shared/node";
 import { readMcpServersResponse } from "./mcp";
 import type { JsonRecord } from "./types";
@@ -109,12 +110,17 @@ export async function listUserInstructionConfigs(
 		}),
 	]);
 	const disabledTools = resolveDisabledToolNames();
-	const mediaGenerationConfigured = Boolean(
-		await resolveConfiguredMediaGenerationTarget(
-			new ProviderSettingsManager(),
-			"image",
-		),
-	);
+	const mediaSettingsManager = new ProviderSettingsManager();
+	const mediaGenerationConfigured = (
+		await Promise.all(
+			MEDIA_GENERATION_TYPES.map((mediaType) =>
+				resolveConfiguredMediaGenerationTarget(
+					mediaSettingsManager,
+					mediaType,
+				),
+			),
+		)
+	).some((target) => Boolean(target));
 	// Pin spawn/teams availability so this listing matches the desktop
 	// sidecar's (sidecar/commands.ts) even if the preset defaults change.
 	const builtinToolCatalog = getCoreBuiltinToolCatalog({

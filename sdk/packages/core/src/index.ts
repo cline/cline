@@ -708,6 +708,7 @@ export {
 	isRealtimeVoiceModel,
 	isSpeechGenerationModel,
 	isUsableImageGenerationModel,
+	isUsableMediaGenerationModel,
 	listLocalProviders,
 	loginAndSaveLocalProviderOAuthCredentials,
 	loginLocalProvider,

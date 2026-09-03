@@ -744,14 +744,23 @@ export function createEditorTool(
  */
 export function createGenerateMediaTool(
 	executor: GenerateMediaExecutor,
+	options: { mediaTypes?: readonly GenerateMediaInput["media_type"][] } = {},
 ): AgentTool<GenerateMediaInput, GenerateMediaResult> {
+	const configuredTypes = options.mediaTypes?.length
+		? options.mediaTypes
+		: undefined;
 	return createTool<GenerateMediaInput, GenerateMediaResult>({
 		name: "generate_media",
 		description:
-			"Generate media from a text prompt using the configured media-generation model. " +
-			"Currently only image generation is supported. " +
-			"Use this tool when the user asks you to create an image. " +
-			"Returns generated media content that can be shown to the user.",
+			"Generate media from a text prompt using the separately configured " +
+			"media-generation model for the requested type. This is the only way " +
+			"to generate images, audio, or video. " +
+			(configuredTypes
+				? `Currently configured media types: ${configuredTypes.join(", ")}. `
+				: "") +
+			"Use this tool whenever the user asks you to create an image, audio " +
+			"clip, or video. Returns generated media content that can be shown " +
+			"to the user.",
 		inputSchema: zodToJsonSchema(GenerateMediaInputSchema),
 		retryable: false,
 		maxRetries: 0,
@@ -970,7 +979,11 @@ export function createDefaultTools(
 
 	// Add generate_media tool if enabled and executor provided
 	if (enableGenerateMedia && executors.generateMedia) {
-		tools.push(createGenerateMediaTool(executors.generateMedia));
+		tools.push(
+			createGenerateMediaTool(executors.generateMedia, {
+				mediaTypes: config.generateMediaTypes,
+			}),
+		);
 	}
 
 	// Add skills tool if enabled and executor provided

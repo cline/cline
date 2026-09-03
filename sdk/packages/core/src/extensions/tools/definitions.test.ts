@@ -117,17 +117,53 @@ describe("default generate_media tool", () => {
 		).rejects.toThrow("provider unavailable");
 	});
 
+	it.each(["audio", "video"] as const)(
+		"accepts %s requests and forwards them to the executor",
+		async (mediaType) => {
+			const execute = vi.fn(async () => generatedContent);
+			const tool = createGenerateMediaTool(execute);
+
+			await tool.execute(
+				{ media_type: mediaType, prompt: "A bee documentary" },
+				{ agentId: "agent-1", iteration: 1 },
+			);
+
+			expect(execute).toHaveBeenCalledWith(
+				{ media_type: mediaType, prompt: "A bee documentary" },
+				expect.objectContaining({ agentId: "agent-1" }),
+			);
+		},
+	);
+
 	it("rejects unsupported media types before invoking the executor", async () => {
 		const execute = vi.fn(async () => generatedContent);
 		const tool = createGenerateMediaTool(execute);
 
 		await expect(
-			tool.execute({ media_type: "video", prompt: "A bee" } as never, {
+			tool.execute({ media_type: "hologram", prompt: "A bee" } as never, {
 				agentId: "agent-1",
 				iteration: 1,
 			}),
-		).rejects.toThrow("Invalid input");
+		).rejects.toThrow('expected one of "image"|"audio"|"video"');
 		expect(execute).not.toHaveBeenCalled();
+	});
+
+	it("names the configured media types in the tool description", () => {
+		const tool = createGenerateMediaTool(async () => generatedContent, {
+			mediaTypes: ["image", "video"],
+		});
+		expect(tool.description).toContain(
+			"Currently configured media types: image, video.",
+		);
+
+		const [registered] = createDefaultTools({
+			executors: { generateMedia: async () => generatedContent },
+			enableGenerateMedia: true,
+			generateMediaTypes: ["audio"],
+		}).filter((candidate) => candidate.name === "generate_media");
+		expect(registered?.description).toContain(
+			"Currently configured media types: audio.",
+		);
 	});
 });
 
