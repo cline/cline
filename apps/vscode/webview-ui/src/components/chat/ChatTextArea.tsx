@@ -1078,8 +1078,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			})()
 		}, [mode, inputValue, selectedImages, selectedFiles, setInputValue, setSelectedImages, setSelectedFiles])
 
-		// "Meta" is the platform's primary modifier: Cmd on macOS, Ctrl elsewhere (Win/Super is reserved by the OS).
-		const primaryModifier = os === "mac" ? "Meta" : "Control"
+		// "Meta" resolves to Cmd on macOS and Alt elsewhere; see detectMetaKeyChar for why.
+		const primaryModifier = os === "mac" ? "Meta" : "Alt"
 		useShortcut(usePlatform().togglePlanActKeys.replace("Meta", primaryModifier), onModeToggle, { disableTextInputs: false }) // important that we don't disable the text input here
 
 		const handleContextButtonClick = useCallback(() => {

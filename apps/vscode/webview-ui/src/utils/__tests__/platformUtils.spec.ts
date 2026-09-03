@@ -7,18 +7,18 @@ describe("detectMetaKeyChar", () => {
 		expect(result).toBe("CMD")
 	})
 
-	it("should return Ctrl for win32 platform", () => {
+	it("should return Alt for win32 platform", () => {
 		const result = detectMetaKeyChar("win32")
-		expect(result).toBe("Ctrl")
+		expect(result).toBe("Alt")
 	})
 
-	it("should return Ctrl for linux platform", () => {
+	it("should return Alt for linux platform", () => {
 		const result = detectMetaKeyChar("linux")
-		expect(result).toBe("Ctrl")
+		expect(result).toBe("Alt")
 	})
 
-	it("should return Ctrl for unknown platform", () => {
+	it("should return Alt for unknown platform", () => {
 		const result = detectMetaKeyChar("somethingelse")
-		expect(result).toBe("Ctrl")
+		expect(result).toBe("Alt")
 	})
 })

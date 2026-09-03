@@ -45,7 +45,7 @@ describe("useMetaKeyDetection", () => {
 		// mock the detect functions
 		const { result } = renderHook(() => useMetaKeyDetection("win32"))
 		expect(result.current[0]).toBe("windows")
-		expect(result.current[1]).toBe("Ctrl")
+		expect(result.current[1]).toBe("Alt")
 	})
 
 	it("should detect Mac OS and metaKey from platform", () => {
@@ -59,6 +59,6 @@ describe("useMetaKeyDetection", () => {
 		// mock the detect functions
 		const { result } = renderHook(() => useMetaKeyDetection("linux"))
 		expect(result.current[0]).toBe("linux")
-		expect(result.current[1]).toBe("Ctrl")
+		expect(result.current[1]).toBe("Alt")
 	})
 })

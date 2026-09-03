@@ -19,11 +19,12 @@ export const detectOS = (platform: string) => {
 }
 
 /**
- * Label for the primary modifier that "Meta" in shortcut configs resolves to: Cmd on macOS,
- * Ctrl elsewhere. The Win/Super key is reserved by the OS and rarely reaches the webview.
+ * Label for the modifier that "Meta" in shortcut configs resolves to: Cmd on macOS, Alt elsewhere.
+ * The Win/Super key is reserved by the OS and rarely reaches the webview, and Ctrl+Shift+A is
+ * VS Code's own "Open Agents Window" shortcut.
  */
 export const detectMetaKeyChar = (platform: string) => {
-	return platform.match(platforms.mac) ? "CMD" : "Ctrl"
+	return platform.match(platforms.mac) ? "CMD" : "Alt"
 }
 
 const userAgent = navigator?.userAgent || ""
