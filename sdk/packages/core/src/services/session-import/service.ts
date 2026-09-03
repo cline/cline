@@ -17,9 +17,6 @@ import type {
 	SessionImportTool,
 } from "./types";
 
-/** `sessionHistoryOrigin.mode` stamped on imported sessions. */
-export const SESSION_IMPORT_HISTORY_MODE = "import";
-
 export interface ImportedFromMetadata {
 	tool: SessionImportTool;
 	sourceSessionId: string;
@@ -315,7 +312,7 @@ export class SessionImportService {
 						? { git: { branch: converted.gitBranch } }
 						: {}),
 				},
-				{ mode: SESSION_IMPORT_HISTORY_MODE, trigger: converted.tool },
+				{ mode: "import", trigger: converted.tool },
 			);
 
 		// Created already completed: an imported session is history from

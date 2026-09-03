@@ -14,7 +14,6 @@ export {
 export {
 	type ImportedFromMetadata,
 	readImportedFromMetadata,
-	SESSION_IMPORT_HISTORY_MODE,
 	SessionImportService,
 } from "./service";
 export {
