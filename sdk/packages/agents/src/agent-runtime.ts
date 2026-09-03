@@ -26,6 +26,7 @@ import type {
 	AgentUsage,
 	AgentRuntimeConfig as BaseAgentRuntimeConfig,
 	CaptureTaskLifecycleEventInput,
+	GeneratedMedia,
 	ProviderErrorClass,
 	TelemetryProperties,
 	ToolApprovalResult,
@@ -1921,7 +1922,7 @@ export class AgentRuntime {
 				type: "tool-result",
 				toolCallId: prepared.toolCall.toolCallId,
 				toolName: prepared.toolCall.toolName,
-				output: result.output,
+				output: await this.persistToolResultArtifactMedia(result.output),
 				isError: result.isError,
 			},
 		]);
@@ -1935,6 +1936,57 @@ export class AgentRuntime {
 		});
 
 		return message;
+	}
+
+	/**
+	 * Persist generated audio/video media blocks inside a tool result through
+	 * the host artifact store. Tool executors (notably generate_media) return
+	 * inline base64 media; like streamed media events, large clips must reach
+	 * persistence, live events, and hub payloads as artifact references only.
+	 */
+	private async persistToolResultArtifactMedia(
+		output: unknown,
+	): Promise<unknown> {
+		const store = this.config.storeGeneratedArtifact;
+		if (!store || !Array.isArray(output)) {
+			return output;
+		}
+		let changed = false;
+		const converted = await Promise.all(
+			output.map(async (block) => {
+				if (
+					!block ||
+					typeof block !== "object" ||
+					(block as { type?: unknown }).type !== "media"
+				) {
+					return block;
+				}
+				const media = (block as { media?: GeneratedMedia }).media;
+				if (
+					!media ||
+					(media.modality !== "audio" && media.modality !== "video") ||
+					media.source.type !== "base64"
+				) {
+					return block;
+				}
+				const stored = await store({
+					data: media.source.data,
+					mediaType: media.mediaType,
+				});
+				changed = true;
+				return {
+					...block,
+					media: {
+						...media,
+						source: {
+							type: "artifact" as const,
+							artifactId: stored.artifactId,
+						},
+					},
+				};
+			}),
+		);
+		return changed ? converted : output;
 	}
 
 	private finishRun(

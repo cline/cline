@@ -231,6 +231,55 @@ describe("DefaultRuntimeBuilder", () => {
 		);
 	});
 
+	it("suppresses native image generation per modality ownership", async () => {
+		configureOptInTools({ generate_media: { enabled: true } });
+		// Image target configured: the executor owns images.
+		const imageOwned = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({
+				providerId: "openai-native",
+				modelId: "gpt-5.4",
+			}),
+			toolExecutors: { generateMedia: async () => [] },
+			configuredMediaGenerationTypes: ["image", "video"],
+		});
+		expect(imageOwned.modelTools).not.toContainEqual(
+			expect.objectContaining({ name: "image_generation" }),
+		);
+
+		// Only a video target configured: image stays on the provider-native
+		// tool because the executor does not own that modality.
+		const videoOnly = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({
+				providerId: "openai-native",
+				modelId: "gpt-5.4",
+			}),
+			toolExecutors: { generateMedia: async () => [] },
+			configuredMediaGenerationTypes: ["video"],
+		});
+		expect(videoOnly.modelTools).toContainEqual(
+			expect.objectContaining({ name: "image_generation" }),
+		);
+		expect(videoOnly.tools.map((tool) => tool.name)).toContain(
+			"generate_media",
+		);
+	});
+
+	it("names configured media types in the registered tool description", async () => {
+		configureOptInTools({ generate_media: { enabled: true } });
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig(),
+			toolExecutors: { generateMedia: async () => [] },
+			configuredMediaGenerationTypes: ["image", "audio"],
+		});
+
+		const tool = runtime.tools.find(
+			(candidate) => candidate.name === "generate_media",
+		);
+		expect(tool?.description).toContain(
+			"Currently configured media types: image, audio.",
+		);
+	});
+
 	it("forwards runtime logger for downstream agent creation", async () => {
 		const logger = {
 			debug: () => {},
