@@ -17,6 +17,7 @@ import { reasoningEffortFromThinkingBudget } from "@shared/utils/reasoning-suppo
 import { ExtensionRegistryInfo } from "@/registry"
 import { fetch } from "@/shared/net"
 import { buildBedrockProviderConfig } from "./bedrock-config"
+import { buildClaudeCodeProviderConfig } from "./claude-code-config"
 import {
 	type HostClientContext,
 	resolveApiKey,
@@ -151,6 +152,10 @@ export function buildSdkProviderConfig(
 		// ignore an explicit Request Timeout setting and load models with
 		// Ollama's 4096-token server default.
 		...(providerId === "ollama" ? resolveOllamaProviderConfig(configuration, modelId) : {}),
+		// Claude Code spawns a CLI, and the user can configure which executable
+		// to spawn. Without this the configured path is dropped and the provider
+		// falls back to the bundled binary or PATH (#11908).
+		...(providerId === "claude-code" ? buildClaudeCodeProviderConfig(configuration) : {}),
 	}
 
 	if (options?.disableReasoning) {
