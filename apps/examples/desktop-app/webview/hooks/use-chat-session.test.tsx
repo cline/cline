@@ -1184,6 +1184,61 @@ describe("useChatSession", () => {
 		]);
 	});
 
+	it("appends live artifact-backed generated videos with the owning session id", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return { sessionId: request.config?.sessionId };
+					}
+					if (request?.action === "send") {
+						return { ok: true };
+					}
+				}
+				return [];
+			},
+		);
+		await act(async () => current.sendPrompt("Animate a lighthouse"));
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_media",
+				chunk: JSON.stringify({
+					id: "generated-video-1",
+					modality: "video",
+					mediaType: "video/mp4",
+					source: { type: "artifact", artifactId: "video-result.mp4" },
+				}),
+				ts: Date.now(),
+				index: 1,
+			});
+		});
+
+		expect(
+			current.messages.findLast((message) => message.role === "assistant"),
+		).toMatchObject({
+			content: "",
+			sessionId: current.sessionId,
+			media: [
+				expect.objectContaining({
+					modality: "video",
+					mediaType: "video/mp4",
+					source: { type: "artifact", artifactId: "video-result.mp4" },
+				}),
+			],
+		});
+	});
+
 	it("deduplicates repeated live generated image events", async () => {
 		invokeMock.mockImplementation(
 			async (command: string, args?: Record<string, unknown>) => {

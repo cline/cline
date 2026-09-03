@@ -20,6 +20,17 @@ const IMAGE_GENERATION_OPERATION: GatewayModelOperationCapability = {
 	outputModalities: ["image"],
 };
 
+const VIDEO_LANGUAGE_OPERATION: GatewayModelOperationCapability = {
+	operation: "language",
+	outputModalities: ["text", "video"],
+};
+
+const VIDEO_GENERATION_OPERATION: GatewayModelOperationCapability = {
+	operation: "video-generation",
+	inputModalities: ["text", "image"],
+	outputModalities: ["video"],
+};
+
 interface BuiltinTranscriptionOperation {
 	transport: NonNullable<GatewayProviderMetadata["transcriptionTransport"]>;
 	modes: readonly ModelOperationMode[];
@@ -58,11 +69,21 @@ const BUILTIN_MEDIA_OPERATION_CAPABILITIES: Readonly<
 	Record<string, readonly GatewayModelOperationCapability[]>
 > = {
 	"openai-native": [IMAGE_LANGUAGE_OPERATION, IMAGE_GENERATION_OPERATION],
-	gemini: [IMAGE_LANGUAGE_OPERATION, IMAGE_GENERATION_OPERATION],
+	gemini: [
+		IMAGE_LANGUAGE_OPERATION,
+		IMAGE_GENERATION_OPERATION,
+		VIDEO_LANGUAGE_OPERATION,
+		VIDEO_GENERATION_OPERATION,
+	],
 	vertex: [IMAGE_LANGUAGE_OPERATION, IMAGE_GENERATION_OPERATION],
 	bedrock: [IMAGE_GENERATION_OPERATION],
 	openrouter: [IMAGE_LANGUAGE_OPERATION, IMAGE_GENERATION_OPERATION],
-	"vercel-ai-gateway": [IMAGE_LANGUAGE_OPERATION, IMAGE_GENERATION_OPERATION],
+	"vercel-ai-gateway": [
+		IMAGE_LANGUAGE_OPERATION,
+		IMAGE_GENERATION_OPERATION,
+		VIDEO_LANGUAGE_OPERATION,
+		VIDEO_GENERATION_OPERATION,
+	],
 	digitalocean: [IMAGE_GENERATION_OPERATION],
 	xai: [IMAGE_GENERATION_OPERATION],
 	cline: [IMAGE_LANGUAGE_OPERATION, IMAGE_GENERATION_OPERATION],
@@ -223,14 +244,28 @@ export function normalizeBuiltinModelOperationModalities(input: {
 		capabilities: input.capabilities,
 		metadata: input.family ? { family: input.family } : undefined,
 	};
-	const capability = BUILTIN_MODEL_OPERATION_CAPABILITIES[
-		input.providerId
-	]?.find(
-		(candidate) =>
-			candidate.operation === resolveModelOperation(model) &&
-			capabilityRoutesMatchModel(candidate, model),
-	);
-	if (!capability) return input.modalities;
+	const capabilities =
+		BUILTIN_MODEL_OPERATION_CAPABILITIES[input.providerId]?.filter(
+			(candidate) =>
+				candidate.operation === resolveModelOperation(model) &&
+				capabilityRoutesMatchModel(candidate, model),
+		) ?? [];
+	if (capabilities.length === 0) return input.modalities;
+
+	// A provider may declare several capabilities for the same operation (for
+	// example language transports that emit images and ones that emit video).
+	// The executable subset is bounded by their union, not by whichever
+	// declaration happens to appear first.
+	const unionOf = (
+		key: "inputModalities" | "outputModalities",
+	): readonly ModelModalities["input"][number][] | undefined =>
+		capabilities.some((capability) => capability[key] === undefined)
+			? undefined
+			: [
+					...new Set(
+						capabilities.flatMap((capability) => capability[key] ?? []),
+					),
+				];
 
 	const intersect = <T>(
 		declared: readonly T[],
@@ -241,11 +276,11 @@ export function normalizeBuiltinModelOperationModalities(input: {
 			: declared.filter((value) => supported.includes(value));
 	const inputModalities = intersect(
 		input.modalities.input,
-		capability.inputModalities,
+		unionOf("inputModalities"),
 	);
 	const outputModalities = intersect(
 		input.modalities.output,
-		capability.outputModalities,
+		unionOf("outputModalities"),
 	);
 
 	// Preserve an unmatchable declaration so the fail-closed support check can

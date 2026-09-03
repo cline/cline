@@ -128,6 +128,7 @@ export function createAgentRuntimeConfig(
 		toolPolicies: agentConfig.toolPolicies,
 		toolContextMetadata: input.toolContextMetadata,
 		requestToolApproval: agentConfig.requestToolApproval,
+		storeGeneratedArtifact: agentConfig.storeGeneratedArtifact,
 	};
 
 	return config;

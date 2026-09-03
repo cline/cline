@@ -14,7 +14,7 @@ export const GENERATED_PROVIDER_MODELS: {
   version: number
   providers: Record<string, Record<string, ModelInfo>>
 } = {
-  version: 1788321372354,
+  version: 1788385387611,
   providers: {
   "302ai": {
     "claude-opus-4-7": {
@@ -21380,6 +21380,41 @@ export const GENERATED_PROVIDER_MODELS: {
     }
   },
   "cline-pass": {
+    "cline-pass/deepseek-v4-pro": {
+      "name": "DeepSeek V4 Pro",
+      "id": "cline-pass/deepseek-v4-pro",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 384000,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "toggle"
+        },
+        {
+          "type": "effort",
+          "values": [
+            "high",
+            "xhigh"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 1.02747,
+        "output": 2.05494,
+        "cacheRead": 0.085623,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-04-24",
+      "family": "deepseek-thinking",
+      "description": "Frontier reasoning and coding with 1M context window"
+    },
     "cline-pass/qwen3.8-max": {
       "name": "Qwen3.8 Max",
       "id": "cline-pass/qwen3.8-max",
@@ -21525,6 +21560,182 @@ export const GENERATED_PROVIDER_MODELS: {
       "family": "kimi-k3",
       "description": "Leading open weights model (reliability might be unstable and will consume usage faster than others)"
     },
+    "cline-pass/minimax-m3": {
+      "name": "MiniMax-M3",
+      "id": "cline-pass/minimax-m3",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 512000,
+      "capabilities": [
+        "images",
+        "video",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "toggle"
+        }
+      ],
+      "pricing": {
+        "input": 0.3,
+        "output": 1.2,
+        "cacheRead": 0.06,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-06-01",
+      "family": "minimax",
+      "description": "Frontier coding and agent model with 1M context window"
+    },
+    "cline-pass/deepseek-v4-flash": {
+      "name": "DeepSeek V4 Flash",
+      "id": "cline-pass/deepseek-v4-flash",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 384000,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "toggle"
+        },
+        {
+          "type": "effort",
+          "values": [
+            "high",
+            "xhigh"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.08092,
+        "output": 0.16184,
+        "cacheRead": 0.016184,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-04-24",
+      "family": "deepseek-flash",
+      "description": "Fast and efficient with 1M context window"
+    },
+    "cline-pass/qwen3.7-max": {
+      "name": "Qwen3.7 Max",
+      "id": "cline-pass/qwen3.7-max",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 131072,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "toggle"
+        }
+      ],
+      "pricing": {
+        "input": 1.475,
+        "output": 4.425,
+        "cacheRead": 0.295,
+        "cacheWrite": 1.84375
+      },
+      "releaseDate": "2026-05-21",
+      "family": "qwen",
+      "description": "Flagship agent model with 1M context window"
+    },
+    "cline-pass/qwen3.7-plus": {
+      "name": "Qwen3.7 Plus",
+      "id": "cline-pass/qwen3.7-plus",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 131072,
+      "capabilities": [
+        "images",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "toggle"
+        }
+      ],
+      "pricing": {
+        "input": 0.32,
+        "output": 1.28,
+        "cacheRead": 0.064,
+        "cacheWrite": 0.4
+      },
+      "releaseDate": "2026-06-02",
+      "family": "qwen",
+      "description": "Fast multimodal agent model with vision and video input"
+    },
+    "cline-pass/kimi-k2.7-code": {
+      "name": "Kimi K2.7 Code",
+      "id": "cline-pass/kimi-k2.7-code",
+      "contextWindow": 262144,
+      "maxInputTokens": 262144,
+      "maxTokens": 235929,
+      "capabilities": [
+        "images",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [],
+      "pricing": {
+        "input": 0.66,
+        "output": 3.4,
+        "cacheRead": 0.18,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-06-12",
+      "family": "kimi-k2",
+      "description": "Latest Kimi model specialized for agentic coding"
+    },
+    "cline-pass/kimi-k2.6": {
+      "name": "Kimi K2.6",
+      "id": "cline-pass/kimi-k2.6",
+      "contextWindow": 262144,
+      "maxInputTokens": 262144,
+      "maxTokens": 235929,
+      "capabilities": [
+        "images",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "toggle"
+        }
+      ],
+      "pricing": {
+        "input": 0.95,
+        "output": 4,
+        "cacheRead": 0.16,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-04-21",
+      "family": "kimi-k2",
+      "description": "Strong multimodal model for long-horizon agent tasks"
+    },
     "cline-pass/glm-5.3": {
       "name": "GLM-5.3",
       "id": "cline-pass/glm-5.3",
@@ -21557,217 +21768,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-08-14",
       "family": "glm",
       "description": "Z-AI's new top open-weights model"
-    },
-    "cline-pass/qwen3.7-plus": {
-      "name": "Qwen3.7 Plus",
-      "id": "cline-pass/qwen3.7-plus",
-      "contextWindow": 1000000,
-      "maxInputTokens": 1000000,
-      "maxTokens": 131072,
-      "capabilities": [
-        "images",
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "toggle"
-        }
-      ],
-      "pricing": {
-        "input": 0.32,
-        "output": 1.28,
-        "cacheRead": 0.064,
-        "cacheWrite": 0.4
-      },
-      "releaseDate": "2026-06-02",
-      "family": "qwen",
-      "description": "Fast multimodal agent model with vision and video input"
-    },
-    "cline-pass/qwen3.7-max": {
-      "name": "Qwen3.7 Max",
-      "id": "cline-pass/qwen3.7-max",
-      "contextWindow": 1000000,
-      "maxInputTokens": 1000000,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "toggle"
-        }
-      ],
-      "pricing": {
-        "input": 1.475,
-        "output": 4.425,
-        "cacheRead": 0.295,
-        "cacheWrite": 1.84375
-      },
-      "releaseDate": "2026-05-21",
-      "family": "qwen",
-      "description": "Flagship agent model with 1M context window"
-    },
-    "cline-pass/deepseek-v4-pro": {
-      "name": "DeepSeek V4 Pro",
-      "id": "cline-pass/deepseek-v4-pro",
-      "contextWindow": 1048576,
-      "maxInputTokens": 1048576,
-      "maxTokens": 384000,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "toggle"
-        },
-        {
-          "type": "effort",
-          "values": [
-            "high",
-            "xhigh"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 1.04226,
-        "output": 2.08452,
-        "cacheRead": 0.086855,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-04-24",
-      "family": "deepseek-thinking",
-      "description": "Frontier reasoning and coding with 1M context window"
-    },
-    "cline-pass/kimi-k2.7-code": {
-      "name": "Kimi K2.7 Code",
-      "id": "cline-pass/kimi-k2.7-code",
-      "contextWindow": 262144,
-      "maxInputTokens": 262144,
-      "maxTokens": 235929,
-      "capabilities": [
-        "images",
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.66,
-        "output": 3.4,
-        "cacheRead": 0.18,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-06-12",
-      "family": "kimi-k2",
-      "description": "Latest Kimi model specialized for agentic coding"
-    },
-    "cline-pass/deepseek-v4-flash": {
-      "name": "DeepSeek V4 Flash",
-      "id": "cline-pass/deepseek-v4-flash",
-      "contextWindow": 1048576,
-      "maxInputTokens": 1048576,
-      "maxTokens": 384000,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "toggle"
-        },
-        {
-          "type": "effort",
-          "values": [
-            "high",
-            "xhigh"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 0.088606,
-        "output": 0.177212,
-        "cacheRead": 0.017721,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-04-24",
-      "family": "deepseek-flash",
-      "description": "Fast and efficient with 1M context window"
-    },
-    "cline-pass/minimax-m3": {
-      "name": "MiniMax-M3",
-      "id": "cline-pass/minimax-m3",
-      "contextWindow": 1048576,
-      "maxInputTokens": 1048576,
-      "maxTokens": 512000,
-      "capabilities": [
-        "images",
-        "video",
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "toggle"
-        }
-      ],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.06,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-06-01",
-      "family": "minimax",
-      "description": "Frontier coding and agent model with 1M context window"
-    },
-    "cline-pass/kimi-k2.6": {
-      "name": "Kimi K2.6",
-      "id": "cline-pass/kimi-k2.6",
-      "contextWindow": 262144,
-      "maxInputTokens": 262144,
-      "maxTokens": 235929,
-      "capabilities": [
-        "images",
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "toggle"
-        }
-      ],
-      "pricing": {
-        "input": 0.95,
-        "output": 4,
-        "cacheRead": 0.16,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-04-21",
-      "family": "kimi-k2",
-      "description": "Strong multimodal model for long-horizon agent tasks"
     },
     "cline-pass/mimo-v2.5-pro": {
       "name": "MiMo-V2.5-Pro",
@@ -22746,7 +22746,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "GLM-5.3-Flash",
       "contextWindow": 1048576,
       "maxInputTokens": 1048576,
-      "maxTokens": 64000,
+      "maxTokens": 1048576,
       "capabilities": [
         "images",
         "tools",
@@ -22798,9 +22798,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 1.75,
-        "output": 4.499,
-        "cacheRead": 0.438,
+        "input": 1.4,
+        "output": 4.399,
+        "cacheRead": 0.26,
         "cacheWrite": 0
       },
       "releaseDate": "2026-08-14",
@@ -22844,7 +22844,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Gemini 3.7 Flash",
       "contextWindow": 1048576,
       "maxInputTokens": 1048576,
-      "maxTokens": 1048576,
+      "maxTokens": 65535,
       "capabilities": [
         "images",
         "files",
@@ -22889,7 +22889,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "DeepSeek V4 Pro 0813",
       "contextWindow": 1048576,
       "maxInputTokens": 1048576,
-      "maxTokens": 1048576,
+      "maxTokens": 64000,
       "capabilities": [
         "tools",
         "reasoning",
@@ -22984,7 +22984,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Claude Opus 5",
       "contextWindow": 1000000,
       "maxInputTokens": 1000000,
-      "maxTokens": 1000000,
+      "maxTokens": 128000,
       "capabilities": [
         "images",
         "files",
@@ -23021,7 +23021,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Gemini 3.5 Flash Lite",
       "contextWindow": 1048576,
       "maxInputTokens": 1048576,
-      "maxTokens": 1048576,
+      "maxTokens": 65535,
       "capabilities": [
         "images",
         "files",
@@ -23067,7 +23067,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Gemini 3.6 Flash",
       "contextWindow": 1048576,
       "maxInputTokens": 1048576,
-      "maxTokens": 1048576,
+      "maxTokens": 65535,
       "capabilities": [
         "images",
         "tools",
@@ -23117,7 +23117,16 @@ export const GENERATED_PROVIDER_MODELS: {
         "reasoning",
         "structured_output"
       ],
-      "reasoningOptions": [],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "high",
+            "max"
+          ]
+        }
+      ],
       "pricing": {
         "input": 3,
         "output": 14.999,
@@ -23132,7 +23141,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "GPT-5.6 Luna",
       "contextWindow": 1050000,
       "maxInputTokens": 922000,
-      "maxTokens": 1050000,
+      "maxTokens": 128000,
       "capabilities": [
         "images",
         "files",
@@ -23165,7 +23174,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "GPT-5.6 Sol",
       "contextWindow": 1050000,
       "maxInputTokens": 922000,
-      "maxTokens": 1050000,
+      "maxTokens": 128000,
       "capabilities": [
         "images",
         "files",
@@ -23198,7 +23207,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "GPT-5.6 Terra",
       "contextWindow": 1050000,
       "maxInputTokens": 922000,
-      "maxTokens": 1050000,
+      "maxTokens": 128000,
       "capabilities": [
         "images",
         "files",
@@ -23231,7 +23240,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Claude Sonnet 5",
       "contextWindow": 1000000,
       "maxInputTokens": 1000000,
-      "maxTokens": 1000000,
+      "maxTokens": 128000,
       "capabilities": [
         "images",
         "files",
@@ -23268,7 +23277,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "GLM-5.2",
       "contextWindow": 1048576,
       "maxInputTokens": 1048576,
-      "maxTokens": 1048576,
+      "maxTokens": 1000000,
       "capabilities": [
         "tools",
         "reasoning",
@@ -23385,7 +23394,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Claude Opus 4.8",
       "contextWindow": 1000000,
       "maxInputTokens": 1000000,
-      "maxTokens": 1000000,
+      "maxTokens": 128000,
       "capabilities": [
         "images",
         "files",
@@ -23422,7 +23431,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Gemini 3.5 Flash",
       "contextWindow": 1048576,
       "maxInputTokens": 1048576,
-      "maxTokens": 1048576,
+      "maxTokens": 65535,
       "capabilities": [
         "images",
         "tools",
@@ -23465,7 +23474,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Gemini 3.1 Flash Lite",
       "contextWindow": 1048576,
       "maxInputTokens": 1048576,
-      "maxTokens": 1048576,
+      "maxTokens": 65535,
       "capabilities": [
         "images",
         "files",
@@ -23523,7 +23532,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "nvidia-nemotron-3-nano-omni",
       "contextWindow": 300000,
       "maxInputTokens": 300000,
-      "maxTokens": 300000,
+      "maxTokens": 65536,
       "capabilities": [
         "tools",
         "reasoning",
@@ -23597,7 +23606,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Kimi K2.6",
       "contextWindow": 262144,
       "maxInputTokens": 262144,
-      "maxTokens": 256000,
+      "maxTokens": 262144,
       "capabilities": [
         "images",
         "files",
@@ -23626,7 +23635,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Qwen3.6 35B-A3B",
       "contextWindow": 262000,
       "maxInputTokens": 262000,
-      "maxTokens": 262000,
+      "maxTokens": 32768,
       "capabilities": [
         "images",
         "tools",
@@ -23649,7 +23658,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Claude Opus 4.7",
       "contextWindow": 1000000,
       "maxInputTokens": 1000000,
-      "maxTokens": 1000000,
+      "maxTokens": 128000,
       "capabilities": [
         "images",
         "files",
@@ -23709,7 +23718,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Gemma 4 26B A4B IT",
       "contextWindow": 262000,
       "maxInputTokens": 262000,
-      "maxTokens": 262000,
+      "maxTokens": 81920,
       "capabilities": [
         "images",
         "tools",
@@ -23779,7 +23788,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "MiniMax-M2.7",
       "contextWindow": 196608,
       "maxInputTokens": 196608,
-      "maxTokens": 196072,
+      "maxTokens": 196608,
       "capabilities": [
         "tools",
         "reasoning",
@@ -23824,7 +23833,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Mistral Small 4",
       "contextWindow": 262144,
       "maxInputTokens": 262144,
-      "maxTokens": 262144,
+      "maxTokens": 256000,
       "capabilities": [
         "images",
         "tools",
@@ -23848,7 +23857,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "GPT-5.4",
       "contextWindow": 1050000,
       "maxInputTokens": 1050000,
-      "maxTokens": 1050000,
+      "maxTokens": 128000,
       "capabilities": [
         "images",
         "files",
@@ -23927,7 +23936,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Claude Sonnet 4.6",
       "contextWindow": 1000000,
       "maxInputTokens": 1000000,
-      "maxTokens": 1000000,
+      "maxTokens": 128000,
       "capabilities": [
         "images",
         "files",
@@ -23965,7 +23974,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Qwen3.5 397B-A17B",
       "contextWindow": 262000,
       "maxInputTokens": 262000,
-      "maxTokens": 250000,
+      "maxTokens": 262000,
       "capabilities": [
         "tools",
         "reasoning",
@@ -24009,7 +24018,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "MiniMax-M2.5",
       "contextWindow": 196000,
       "maxInputTokens": 196000,
-      "maxTokens": 196608,
+      "maxTokens": 196000,
       "capabilities": [
         "tools",
         "reasoning",
@@ -24032,7 +24041,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Claude Opus 4.6",
       "contextWindow": 1000000,
       "maxInputTokens": 1000000,
-      "maxTokens": 1000000,
+      "maxTokens": 128000,
       "capabilities": [
         "images",
         "files",
@@ -24182,7 +24191,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Kimi K2.5",
       "contextWindow": 262144,
       "maxInputTokens": 262144,
-      "maxTokens": 256000,
+      "maxTokens": 262144,
       "capabilities": [
         "images",
         "tools",
@@ -24232,7 +24241,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "GLM-4.7",
       "contextWindow": 202752,
       "maxInputTokens": 202752,
-      "maxTokens": 198000,
+      "maxTokens": 202752,
       "capabilities": [
         "tools",
         "reasoning",
@@ -24254,7 +24263,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Devstral 2",
       "contextWindow": 256000,
       "maxInputTokens": 256000,
-      "maxTokens": 262000,
+      "maxTokens": 256000,
       "capabilities": [
         "tools",
         "structured_output",
@@ -24275,7 +24284,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "nova-2-lite",
       "contextWindow": 1000000,
       "maxInputTokens": 1000000,
-      "maxTokens": 1000000,
+      "maxTokens": 65535,
       "capabilities": [
         "images",
         "files",
@@ -24389,7 +24398,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Claude Opus 4.5 (latest)",
       "contextWindow": 200000,
       "maxInputTokens": 200000,
-      "maxTokens": 200000,
+      "maxTokens": 64000,
       "capabilities": [
         "images",
         "files",
@@ -24427,7 +24436,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "GPT-5.1",
       "contextWindow": 400000,
       "maxInputTokens": 272000,
-      "maxTokens": 400000,
+      "maxTokens": 128000,
       "capabilities": [
         "images",
         "files",
@@ -24512,7 +24521,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "MiniMax-M2",
       "contextWindow": 400000,
       "maxInputTokens": 400000,
-      "maxTokens": 400000,
+      "maxTokens": 196000,
       "capabilities": [
         "tools",
         "reasoning",
@@ -24534,7 +24543,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Claude Haiku 4.5 (latest)",
       "contextWindow": 200000,
       "maxInputTokens": 200000,
-      "maxTokens": 200000,
+      "maxTokens": 64000,
       "capabilities": [
         "images",
         "files",
@@ -24572,7 +24581,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Claude Sonnet 4.5 (latest)",
       "contextWindow": 200000,
       "maxInputTokens": 200000,
-      "maxTokens": 200000,
+      "maxTokens": 64000,
       "capabilities": [
         "images",
         "files",
@@ -24610,7 +24619,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Apertus 70B",
       "contextWindow": 65536,
       "maxInputTokens": 65536,
-      "maxTokens": 65536,
+      "maxTokens": 16384,
       "capabilities": [
         "tools",
         "reasoning"
@@ -24670,7 +24679,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "GPT-5",
       "contextWindow": 400000,
       "maxInputTokens": 272000,
-      "maxTokens": 400000,
+      "maxTokens": 128000,
       "capabilities": [
         "images",
         "tools",
@@ -24701,7 +24710,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "GPT-5 Mini",
       "contextWindow": 400000,
       "maxInputTokens": 272000,
-      "maxTokens": 400000,
+      "maxTokens": 128000,
       "capabilities": [
         "images",
         "tools",
@@ -24732,7 +24741,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "GPT-5 Nano",
       "contextWindow": 400000,
       "maxInputTokens": 272000,
-      "maxTokens": 400000,
+      "maxTokens": 128000,
       "capabilities": [
         "images",
         "tools",
@@ -24763,7 +24772,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "GPT OSS 120B",
       "contextWindow": 131000,
       "maxInputTokens": 131000,
-      "maxTokens": 128000,
+      "maxTokens": 131000,
       "capabilities": [
         "tools",
         "reasoning",
@@ -24867,7 +24876,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Qwen3 235B-A22B Instruct 2507",
       "contextWindow": 262000,
       "maxInputTokens": 262000,
-      "maxTokens": 131000,
+      "maxTokens": 262000,
       "capabilities": [
         "tools",
         "structured_output",
@@ -24888,7 +24897,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Gemini 2.5 Flash",
       "contextWindow": 1048576,
       "maxInputTokens": 1048576,
-      "maxTokens": 1048576,
+      "maxTokens": 65535,
       "capabilities": [
         "images",
         "files",
@@ -25008,7 +25017,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "mistral-large-2402",
       "contextWindow": 32000,
       "maxInputTokens": 32000,
-      "maxTokens": 32000,
+      "maxTokens": 8192,
       "capabilities": [
         "files",
         "tools",
@@ -25070,7 +25079,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Claude Sonnet 4 (latest)",
       "contextWindow": 200000,
       "maxInputTokens": 200000,
-      "maxTokens": 200000,
+      "maxTokens": 65000,
       "capabilities": [
         "images",
         "files",
@@ -25108,7 +25117,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "GPT-4.1",
       "contextWindow": 1047576,
       "maxInputTokens": 1047576,
-      "maxTokens": 1047576,
+      "maxTokens": 32768,
       "capabilities": [
         "images",
         "files",
@@ -25130,7 +25139,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "GPT-4.1 mini",
       "contextWindow": 1047576,
       "maxInputTokens": 1047576,
-      "maxTokens": 1047576,
+      "maxTokens": 32768,
       "capabilities": [
         "images",
         "files",
@@ -25152,7 +25161,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "GPT-4.1 nano",
       "contextWindow": 1047576,
       "maxInputTokens": 1047576,
-      "maxTokens": 1047576,
+      "maxTokens": 32768,
       "capabilities": [
         "images",
         "files",
@@ -25174,7 +25183,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "nova-lite-v1",
       "contextWindow": 300000,
       "maxInputTokens": 300000,
-      "maxTokens": 300000,
+      "maxTokens": 10000,
       "capabilities": [
         "images",
         "files",
@@ -25196,7 +25205,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "nova-micro-v1",
       "contextWindow": 128000,
       "maxInputTokens": 128000,
-      "maxTokens": 128000,
+      "maxTokens": 10000,
       "capabilities": [
         "images",
         "tools",
@@ -25259,7 +25268,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Qwen3-Coder 30B-A3B Instruct",
       "contextWindow": 262144,
       "maxInputTokens": 262144,
-      "maxTokens": 262000,
+      "maxTokens": 262144,
       "capabilities": [
         "tools",
         "structured_output",
@@ -25319,7 +25328,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Nova Pro 1.0",
       "contextWindow": 300000,
       "maxInputTokens": 300000,
-      "maxTokens": 5000,
+      "maxTokens": 10000,
       "capabilities": [
         "images",
         "files",
@@ -25343,7 +25352,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "pixtral-12b-2409",
       "contextWindow": 128000,
       "maxInputTokens": 128000,
-      "maxTokens": 128000,
+      "maxTokens": 4096,
       "capabilities": [
         "images",
         "tools",
@@ -25404,7 +25413,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "mistral-nemo-instruct-2407",
       "contextWindow": 128000,
       "maxInputTokens": 128000,
-      "maxTokens": 131072,
+      "maxTokens": 128000,
       "capabilities": [
         "tools",
         "structured_output",
@@ -25466,7 +25475,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "GPT-4o mini",
       "contextWindow": 128000,
       "maxInputTokens": 128000,
-      "maxTokens": 128000,
+      "maxTokens": 16000,
       "capabilities": [
         "images",
         "files",
@@ -25488,7 +25497,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "GPT-4o",
       "contextWindow": 128000,
       "maxInputTokens": 128000,
-      "maxTokens": 128000,
+      "maxTokens": 16000,
       "capabilities": [
         "images",
         "files",
@@ -26833,7 +26842,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "id": "tencent/hy3",
       "name": "Hy3",
       "contextWindow": 262144,
-      "maxInputTokens": 262144,
+      "maxInputTokens": 192000,
       "maxTokens": 131072,
       "capabilities": [
         "tools",
@@ -33710,8 +33719,8 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.4636,
-        "output": 0.9272,
+        "input": 0.46312,
+        "output": 0.92624,
         "cacheRead": 0,
         "cacheWrite": 0
       },
@@ -34637,7 +34646,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Hy3",
       "contextWindow": 262144,
       "maxInputTokens": 262144,
-      "maxTokens": 64000,
+      "maxTokens": 128000,
       "capabilities": [
         "tools",
         "reasoning",
@@ -37833,7 +37842,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "pricing": {
         "input": 0.15001,
         "output": 0.59997,
-        "cacheRead": 0.15001,
+        "cacheRead": 0.015001,
         "cacheWrite": 0.15001
       },
       "releaseDate": "2025-08-05",
@@ -37864,7 +37873,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "pricing": {
         "input": 0.15001,
         "output": 0.59997,
-        "cacheRead": 0.15001,
+        "cacheRead": 0.015001,
         "cacheWrite": 0.15001
       },
       "releaseDate": "2025-08-05",
@@ -37895,7 +37904,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "pricing": {
         "input": 0.07,
         "output": 0.30002,
-        "cacheRead": 0.07,
+        "cacheRead": 0.007,
         "cacheWrite": 0.07
       },
       "releaseDate": "2025-08-05",
@@ -37926,7 +37935,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "pricing": {
         "input": 0.07,
         "output": 0.30002,
-        "cacheRead": 0.07,
+        "cacheRead": 0.007,
         "cacheWrite": 0.07
       },
       "releaseDate": "2025-08-05",
@@ -38175,8 +38184,8 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.17385,
-        "output": 0.6954,
+        "input": 0.17367,
+        "output": 0.69468,
         "cacheRead": 0,
         "cacheWrite": 0
       },
@@ -38762,8 +38771,8 @@ export const GENERATED_PROVIDER_MODELS: {
         "temperature"
       ],
       "pricing": {
-        "input": 1.0431,
-        "output": 1.0431,
+        "input": 1.04202,
+        "output": 1.04202,
         "cacheRead": 0,
         "cacheWrite": 0
       },
@@ -42367,7 +42376,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "pricing": {
         "input": 0.15,
         "output": 0.5,
-        "cacheRead": 0.029,
+        "cacheRead": 0.03,
         "cacheWrite": 0
       },
       "releaseDate": "2026-08-26",
@@ -44222,6 +44231,53 @@ export const GENERATED_PROVIDER_MODELS: {
     }
   },
   "gemini": {
+    "gemini-3.8-flash": {
+      "id": "gemini-3.8-flash",
+      "name": "Gemini 3.8 Flash",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 65536,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.75,
+        "output": 3.75,
+        "cacheRead": 0.075,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-02",
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
     "gemini-3.7-flash": {
       "id": "gemini-3.7-flash",
       "name": "Gemini 3.7 Flash",
@@ -44497,6 +44553,38 @@ export const GENERATED_PROVIDER_MODELS: {
         "output": [
           "text",
           "image"
+        ]
+      }
+    },
+    "gemini-omni-flash-preview": {
+      "id": "gemini-omni-flash-preview",
+      "name": "Gemini Omni Flash Preview",
+      "contextWindow": 131072,
+      "maxInputTokens": 131072,
+      "maxTokens": 65536,
+      "capabilities": [
+        "images",
+        "video",
+        "reasoning",
+        "temperature"
+      ],
+      "reasoningOptions": [],
+      "pricing": {
+        "input": 1.5,
+        "output": 17.5,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-06-30",
+      "family": "gemini",
+      "operation": "video-generation",
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "video"
         ]
       }
     },
@@ -44808,6 +44896,34 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-04-02",
       "family": "gemma"
     },
+    "veo-3.1-lite-generate-preview": {
+      "id": "veo-3.1-lite-generate-preview",
+      "name": "Veo 3.1 lite",
+      "contextWindow": 480,
+      "maxInputTokens": 480,
+      "maxTokens": 8192,
+      "capabilities": [
+        "images"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-03-31",
+      "family": "veo",
+      "operation": "video-generation",
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "video"
+        ]
+      }
+    },
     "gemini-3.1-flash-live-preview": {
       "id": "gemini-3.1-flash-live-preview",
       "name": "Gemini 3.1 Flash Live Preview",
@@ -45063,6 +45179,63 @@ export const GENERATED_PROVIDER_MODELS: {
         "output": [
           "text",
           "image"
+        ]
+      }
+    },
+    "veo-3.1-fast-generate-preview": {
+      "id": "veo-3.1-fast-generate-preview",
+      "name": "Veo 3.1 fast",
+      "contextWindow": 480,
+      "maxInputTokens": 480,
+      "maxTokens": 8192,
+      "capabilities": [
+        "images",
+        "video"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-10-15",
+      "family": "veo",
+      "operation": "video-generation",
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "video"
+        ]
+      }
+    },
+    "veo-3.1-generate-preview": {
+      "id": "veo-3.1-generate-preview",
+      "name": "Veo 3.1",
+      "contextWindow": 480,
+      "maxInputTokens": 480,
+      "maxTokens": 8192,
+      "capabilities": [
+        "images"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-10-15",
+      "family": "veo",
+      "operation": "video-generation",
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "video"
         ]
       }
     },
@@ -50118,8 +50291,8 @@ export const GENERATED_PROVIDER_MODELS: {
       "id": "tencent/Hy3",
       "name": "Hy3",
       "contextWindow": 262144,
-      "maxInputTokens": 262144,
-      "maxTokens": 64000,
+      "maxInputTokens": 192000,
+      "maxTokens": 128000,
       "capabilities": [
         "tools",
         "reasoning",
@@ -51523,6 +51696,28 @@ export const GENERATED_PROVIDER_MODELS: {
     }
   },
   "hyper": {
+    "kimi-k2-thinking": {
+      "id": "kimi-k2-thinking",
+      "name": "Kimi K2 Thinking",
+      "contextWindow": 262144,
+      "maxInputTokens": 262144,
+      "maxTokens": 26214,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [],
+      "pricing": {
+        "input": 0.6,
+        "output": 2.5,
+        "cacheRead": 0,
+        "cacheWrite": 0.3
+      },
+      "releaseDate": "2026-09-02",
+      "family": "kimi-thinking"
+    },
     "glm-5.3": {
       "id": "glm-5.3",
       "name": "GLM-5.3",
@@ -52021,10 +52216,10 @@ export const GENERATED_PROVIDER_MODELS: {
       ],
       "reasoningOptions": [],
       "pricing": {
-        "input": 0.404,
-        "output": 1.496,
+        "input": 0.426,
+        "output": 1.62,
         "cacheRead": 0,
-        "cacheWrite": 0.202
+        "cacheWrite": 0.213
       },
       "releaseDate": "2026-06-05",
       "family": "minimax"
@@ -52044,10 +52239,10 @@ export const GENERATED_PROVIDER_MODELS: {
       ],
       "reasoningOptions": [],
       "pricing": {
-        "input": 1.332,
-        "output": 4.312,
+        "input": 1.29,
+        "output": 4.22,
         "cacheRead": 0,
-        "cacheWrite": 0.666
+        "cacheWrite": 0.645
       },
       "releaseDate": "2026-06-04",
       "family": "glm"
@@ -52158,10 +52353,10 @@ export const GENERATED_PROVIDER_MODELS: {
       ],
       "reasoningOptions": [],
       "pricing": {
-        "input": 0.12,
-        "output": 0.42,
+        "input": 0.116,
+        "output": 0.38,
         "cacheRead": 0,
-        "cacheWrite": 0.06
+        "cacheWrite": 0.058
       },
       "releaseDate": "2026-04-30",
       "family": "gemma"
@@ -52260,10 +52455,10 @@ export const GENERATED_PROVIDER_MODELS: {
       ],
       "reasoningOptions": [],
       "pricing": {
-        "input": 0.91,
-        "output": 2.934,
+        "input": 0.85,
+        "output": 2.774,
         "cacheRead": 0,
-        "cacheWrite": 0.455
+        "cacheWrite": 0.425
       },
       "releaseDate": "2026-04-13",
       "family": "glm"
@@ -52296,10 +52491,10 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.19,
-        "output": 0.63,
+        "input": 0.188,
+        "output": 0.7,
         "cacheRead": 0,
-        "cacheWrite": 0.095
+        "cacheWrite": 0.094
       },
       "releaseDate": "2026-04-13",
       "family": "gpt-oss"
@@ -52318,10 +52513,10 @@ export const GENERATED_PROVIDER_MODELS: {
       ],
       "reasoningOptions": [],
       "pricing": {
-        "input": 0.5504,
-        "output": 2.885,
+        "input": 0.5284,
+        "output": 2.785,
         "cacheRead": 0,
-        "cacheWrite": 0.2752
+        "cacheWrite": 0.2642
       },
       "releaseDate": "2026-04-13",
       "family": "kimi-k2"
@@ -56266,8 +56461,8 @@ export const GENERATED_PROVIDER_MODELS: {
       "id": "Hy3",
       "name": "Hy3",
       "contextWindow": 202752,
-      "maxInputTokens": 202752,
-      "maxTokens": 64000,
+      "maxInputTokens": 192000,
+      "maxTokens": 128000,
       "capabilities": [
         "tools",
         "reasoning",
@@ -58620,8 +58815,8 @@ export const GENERATED_PROVIDER_MODELS: {
       "id": "hy3",
       "name": "Hy3",
       "contextWindow": 256000,
-      "maxInputTokens": 256000,
-      "maxTokens": 64000,
+      "maxInputTokens": 192000,
+      "maxTokens": 128000,
       "capabilities": [
         "tools",
         "reasoning",
@@ -58650,8 +58845,8 @@ export const GENERATED_PROVIDER_MODELS: {
       "id": "hy3:free",
       "name": "Hy3 (Free)",
       "contextWindow": 256000,
-      "maxInputTokens": 256000,
-      "maxTokens": 64000,
+      "maxInputTokens": 192000,
+      "maxTokens": 128000,
       "capabilities": [
         "tools",
         "reasoning",
@@ -59887,6 +60082,151 @@ export const GENERATED_PROVIDER_MODELS: {
     }
   },
   "kilo": {
+    "google/gemini-3.8-flash": {
+      "id": "google/gemini-3.8-flash",
+      "name": "Gemini 3.8 Flash",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 65536,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.75,
+        "output": 3.75,
+        "cacheRead": 0.075,
+        "cacheWrite": 0.041667
+      },
+      "releaseDate": "2026-09-02",
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
+    "meta/muse-spark-1.3": {
+      "id": "meta/muse-spark-1.3",
+      "name": "Meta: Muse Spark 1.3",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 943718,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "minimal",
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 1.25,
+        "output": 4.25,
+        "cacheRead": 0.15,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-02",
+      "family": "muse",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "pdf",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
+    "meta/muse-spark-1.3-contributor": {
+      "id": "meta/muse-spark-1.3-contributor",
+      "name": "Meta: Muse Spark 1.3 Contributor",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 943718,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "minimal",
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.1,
+        "output": 0.2,
+        "cacheRead": 0.002,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-02",
+      "family": "muse",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "pdf",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
     "anthropic/claude-fable-5.1": {
       "id": "anthropic/claude-fable-5.1",
       "name": "Claude Fable 5.1",
@@ -60235,9 +60575,9 @@ export const GENERATED_PROVIDER_MODELS: {
     "~z-ai/glm-latest": {
       "id": "~z-ai/glm-latest",
       "name": "Z.ai: GLM Latest",
-      "contextWindow": 1048576,
-      "maxInputTokens": 1048576,
-      "maxTokens": 943718,
+      "contextWindow": 262144,
+      "maxInputTokens": 262144,
+      "maxTokens": 235929,
       "capabilities": [
         "tools",
         "reasoning",
@@ -60256,9 +60596,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 1.17,
-        "output": 3.96,
-        "cacheRead": 0.234,
+        "input": 1.15,
+        "output": 3.5,
+        "cacheRead": 0.1,
         "cacheWrite": 0
       },
       "releaseDate": "2026-08-19",
@@ -61740,7 +62080,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "id": "tencent/hy3",
       "name": "Hy3",
       "contextWindow": 262144,
-      "maxInputTokens": 262144,
+      "maxInputTokens": 192000,
       "maxTokens": 128000,
       "capabilities": [
         "tools",
@@ -61760,9 +62100,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.14,
-        "output": 0.58,
-        "cacheRead": 0.035,
+        "input": 0.0825,
+        "output": 0.33,
+        "cacheRead": 0.020625,
         "cacheWrite": 0
       },
       "releaseDate": "2026-07-06",
@@ -62123,9 +62463,9 @@ export const GENERATED_PROVIDER_MODELS: {
     "nvidia/nemotron-3-ultra-550b-a55b": {
       "id": "nvidia/nemotron-3-ultra-550b-a55b",
       "name": "Nemotron 3 Ultra 550B A55B",
-      "contextWindow": 256000,
-      "maxInputTokens": 256000,
-      "maxTokens": 32768,
+      "contextWindow": 202800,
+      "maxInputTokens": 202800,
+      "maxTokens": 182520,
       "capabilities": [
         "tools",
         "reasoning",
@@ -66348,35 +66688,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2025-08-28",
       "family": "qwen"
     },
-    "meituan/longcat-2.0-free": {
-      "id": "meituan/longcat-2.0-free",
-      "name": "Meituan: LongCat 2.0 (free)",
-      "contextWindow": 1048756,
-      "maxInputTokens": 1048756,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "none",
-            "high"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 0,
-        "output": 0,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-08-26",
-      "family": "longcat"
-    },
     "openai/gpt-5.6-sol-discounted": {
       "id": "openai/gpt-5.6-sol-discounted",
       "name": "OpenAI: GPT-5.6 Sol (50% off)",
@@ -69366,6 +69677,50 @@ export const GENERATED_PROVIDER_MODELS: {
     }
   },
   "llmgateway": {
+    "gemini-3.8-flash": {
+      "id": "gemini-3.8-flash",
+      "name": "Gemini 3.8 Flash",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 1048576,
+      "capabilities": [
+        "images",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "minimal",
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.75,
+        "output": 3.75,
+        "cacheRead": 0.075,
+        "cacheWrite": 0.08333
+      },
+      "releaseDate": "2026-09-02",
+      "family": "gemini",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
     "claude-fable-5-1": {
       "id": "claude-fable-5-1",
       "name": "Claude Fable 5.1",
@@ -69534,9 +69889,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 1.3,
+        "input": 1.2,
         "output": 4,
-        "cacheRead": 0.25,
+        "cacheRead": 0.2,
         "cacheWrite": 0
       },
       "releaseDate": "2026-08-14",
@@ -70145,8 +70500,8 @@ export const GENERATED_PROVIDER_MODELS: {
       "id": "hy3",
       "name": "Hy3",
       "contextWindow": 262144,
-      "maxInputTokens": 262144,
-      "maxTokens": 64000,
+      "maxInputTokens": 192000,
+      "maxTokens": 128000,
       "capabilities": [
         "tools",
         "reasoning",
@@ -73264,7 +73619,8 @@ export const GENERATED_PROVIDER_MODELS: {
         "tools",
         "reasoning",
         "structured_output",
-        "temperature"
+        "temperature",
+        "prompt-cache"
       ],
       "reasoningOptions": [
         {
@@ -73277,9 +73633,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.05,
-        "output": 0.2,
-        "cacheRead": 0,
+        "input": 0.04,
+        "output": 0.19,
+        "cacheRead": 0.01,
         "cacheWrite": 0
       },
       "releaseDate": "2025-08-05",
@@ -74373,6 +74729,50 @@ export const GENERATED_PROVIDER_MODELS: {
     }
   },
   "llmgateway-providers": {
+    "google-vertex/gemini-3.8-flash": {
+      "id": "google-vertex/gemini-3.8-flash",
+      "name": "Gemini 3.8 Flash (Google Vertex AI)",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 65536,
+      "capabilities": [
+        "images",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "minimal",
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.75,
+        "output": 3.75,
+        "cacheRead": 0.075,
+        "cacheWrite": 0.08333
+      },
+      "releaseDate": "2026-09-02",
+      "family": "gemini",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
     "anthropic/claude-fable-5-1": {
       "id": "anthropic/claude-fable-5-1",
       "name": "Claude Fable 5.1 (Anthropic)",
@@ -74703,6 +75103,38 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-08-14",
       "family": "qwen"
+    },
+    "runware/glm-5.3": {
+      "id": "runware/glm-5.3",
+      "name": "GLM-5.3 (Runware)",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 131072,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "high",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 1.2,
+        "output": 4,
+        "cacheRead": 0.2,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-14",
+      "family": "glm"
     },
     "scx-ai-gp/glm-5.3": {
       "id": "scx-ai-gp/glm-5.3",
@@ -76110,7 +76542,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "id": "deepinfra/hy3",
       "name": "Hy3 (DeepInfra)",
       "contextWindow": 262144,
-      "maxInputTokens": 262144,
+      "maxInputTokens": 192000,
       "maxTokens": 131072,
       "capabilities": [
         "tools",
@@ -76142,7 +76574,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "id": "novita/hy3",
       "name": "Hy3 (NovitaAI)",
       "contextWindow": 262144,
-      "maxInputTokens": 262144,
+      "maxInputTokens": 192000,
       "maxTokens": 262144,
       "capabilities": [
         "tools",
@@ -83342,6 +83774,37 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2025-08-05",
       "family": "gpt-oss"
     },
+    "consensusprotocol/gpt-oss-20b": {
+      "id": "consensusprotocol/gpt-oss-20b",
+      "name": "GPT OSS 20B (Consensus Protocol)",
+      "contextWindow": 65536,
+      "maxInputTokens": 65536,
+      "maxTokens": 32768,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.04,
+        "output": 0.19,
+        "cacheRead": 0.01,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-08-05",
+      "family": "gpt-oss"
+    },
     "groq/gpt-oss-120b": {
       "id": "groq/gpt-oss-120b",
       "name": "GPT OSS 120B (Groq)",
@@ -89316,6 +89779,183 @@ export const GENERATED_PROVIDER_MODELS: {
     }
   },
   "nano-gpt": {
+    "alibaba/qwen3.8-max-0902": {
+      "id": "alibaba/qwen3.8-max-0902",
+      "name": "Qwen3.8 Max 0902",
+      "contextWindow": 991808,
+      "maxInputTokens": 991808,
+      "maxTokens": 131072,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 2,
+        "output": 6,
+        "cacheRead": 0.17,
+        "cacheWrite": 2.5
+      },
+      "releaseDate": "2026-09-02",
+      "family": "qwen3.8-max"
+    },
+    "google/gemini-3.8-flash": {
+      "id": "google/gemini-3.8-flash",
+      "name": "Gemini 3.8 Flash",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 65536,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "minimal",
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.75,
+        "output": 3.75,
+        "cacheRead": 0.075,
+        "cacheWrite": 0.075
+      },
+      "releaseDate": "2026-09-02",
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
+    "meta/muse-spark-1.3": {
+      "id": "meta/muse-spark-1.3",
+      "name": "Muse Spark 1.3",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 943718,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "minimal",
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 1.25,
+        "output": 4.25,
+        "cacheRead": 0.15,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-02",
+      "family": "muse",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
+    "meta/muse-spark-1.3-contributor": {
+      "id": "meta/muse-spark-1.3-contributor",
+      "name": "Muse Spark 1.3 Contributor",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 943718,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "minimal",
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.1,
+        "output": 0.2,
+        "cacheRead": 0.002,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-02",
+      "family": "muse",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
     "anthropic/claude-fable-5.1": {
       "id": "anthropic/claude-fable-5.1",
       "name": "Claude Fable 5.1",
@@ -89605,9 +90245,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.44,
-        "output": 1.32,
-        "cacheRead": 0.014,
+        "input": 0.22,
+        "output": 0.66,
+        "cacheRead": 0.007,
         "cacheWrite": 0
       },
       "releaseDate": "2026-08-21",
@@ -89912,10 +90552,10 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.375,
-        "output": 1.875,
-        "cacheRead": 0.0375,
-        "cacheWrite": 0.020833
+        "input": 0.75,
+        "output": 3.75,
+        "cacheRead": 0.075,
+        "cacheWrite": 0.075
       },
       "releaseDate": "2026-08-13",
       "family": "gemini-flash",
@@ -89960,10 +90600,10 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.375,
-        "output": 1.875,
-        "cacheRead": 0.0375,
-        "cacheWrite": 0.020833
+        "input": 0.75,
+        "output": 3.75,
+        "cacheRead": 0.075,
+        "cacheWrite": 0.075
       },
       "releaseDate": "2026-08-13",
       "family": "gemini-flash",
@@ -91195,98 +91835,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-07-29",
       "family": "ornith"
     },
-    "ornith-ai/ornith-1.5-9b": {
-      "id": "ornith-ai/ornith-1.5-9b",
-      "name": "Ornith 1.5 9B",
-      "contextWindow": 262144,
-      "maxInputTokens": 262144,
-      "maxTokens": 32768,
-      "capabilities": [
-        "images",
-        "tools",
-        "reasoning",
-        "structured_output",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.1,
-        "output": 0.2,
-        "cacheRead": 0.05,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-07-29",
-      "family": "ornith"
-    },
-    "ornith-ai/ornith-1.5-9b:thinking": {
-      "id": "ornith-ai/ornith-1.5-9b:thinking",
-      "name": "Ornith 1.5 9B Thinking",
-      "contextWindow": 262144,
-      "maxInputTokens": 262144,
-      "maxTokens": 32768,
-      "capabilities": [
-        "images",
-        "tools",
-        "reasoning",
-        "structured_output",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.1,
-        "output": 0.2,
-        "cacheRead": 0.05,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-07-29",
-      "family": "ornith"
-    },
-    "qwen/qwen3.6-35b-a3b-uncensored": {
-      "id": "qwen/qwen3.6-35b-a3b-uncensored",
-      "name": "Qwen 3.6 35B A3B Uncensored",
-      "contextWindow": 262144,
-      "maxInputTokens": 262144,
-      "maxTokens": 32768,
-      "capabilities": [
-        "images",
-        "tools",
-        "reasoning",
-        "structured_output",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.15,
-        "output": 0.95,
-        "cacheRead": 0.075,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-07-29",
-      "family": "qwen3.6"
-    },
-    "qwen/qwen3.6-35b-a3b-uncensored:thinking": {
-      "id": "qwen/qwen3.6-35b-a3b-uncensored:thinking",
-      "name": "Qwen 3.6 35B A3B Uncensored Thinking",
-      "contextWindow": 262144,
-      "maxInputTokens": 262144,
-      "maxTokens": 32768,
-      "capabilities": [
-        "images",
-        "tools",
-        "reasoning",
-        "structured_output",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.15,
-        "output": 0.95,
-        "cacheRead": 0.075,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-07-29",
-      "family": "qwen3.6"
-    },
     "qwen/qwen3.8-27b-fable": {
       "id": "qwen/qwen3.8-27b-fable",
       "name": "Qwen 3.8 27B Fable",
@@ -91404,8 +91952,8 @@ export const GENERATED_PROVIDER_MODELS: {
     "z-ai/glm-5.3-flash-uncensored": {
       "id": "z-ai/glm-5.3-flash-uncensored",
       "name": "GLM 5.3 Flash Uncensored",
-      "contextWindow": 262144,
-      "maxInputTokens": 262144,
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
       "maxTokens": 32768,
       "capabilities": [
         "images",
@@ -92010,46 +92558,6 @@ export const GENERATED_PROVIDER_MODELS: {
           "text"
         ]
       }
-    },
-    "kwaipilot/kat-coder-air-v2.5": {
-      "id": "kwaipilot/kat-coder-air-v2.5",
-      "name": "KAT Coder Air V2.5",
-      "contextWindow": 256000,
-      "maxInputTokens": 256000,
-      "maxTokens": 80000,
-      "capabilities": [
-        "tools",
-        "structured_output",
-        "prompt-cache"
-      ],
-      "pricing": {
-        "input": 0.15,
-        "output": 0.6,
-        "cacheRead": 0.03,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-07-14",
-      "family": "kat-coder"
-    },
-    "kwaipilot/kat-coder-pro-v2.5": {
-      "id": "kwaipilot/kat-coder-pro-v2.5",
-      "name": "KAT Coder Pro V2.5",
-      "contextWindow": 256000,
-      "maxInputTokens": 256000,
-      "maxTokens": 80000,
-      "capabilities": [
-        "tools",
-        "structured_output",
-        "prompt-cache"
-      ],
-      "pricing": {
-        "input": 0.74,
-        "output": 2.96,
-        "cacheRead": 0.15,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-07-14",
-      "family": "kat-coder"
     },
     "openai/gpt-5.6-luna": {
       "id": "openai/gpt-5.6-luna",
@@ -96078,37 +96586,6 @@ export const GENERATED_PROVIDER_MODELS: {
         ]
       }
     },
-    "sarvam-30b": {
-      "id": "sarvam-30b",
-      "name": "Sarvam 30B",
-      "contextWindow": 65536,
-      "maxInputTokens": 65536,
-      "maxTokens": 4096,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "low",
-            "medium",
-            "high"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 0.028,
-        "output": 0.111,
-        "cacheRead": 0.017,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-02-18",
-      "family": "sarvam"
-    },
     "anthropic/claude-sonnet-4.6": {
       "id": "anthropic/claude-sonnet-4.6",
       "name": "Claude Sonnet 4.6",
@@ -97705,28 +98182,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2025-09-25",
       "family": "kimi-k2"
-    },
-    "openai/gpt-5-codex": {
-      "id": "openai/gpt-5-codex",
-      "name": "GPT-5 Codex",
-      "contextWindow": 256000,
-      "maxInputTokens": 256000,
-      "maxTokens": 32768,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 1.25,
-        "output": 10,
-        "cacheRead": 0.125,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-09-15",
-      "family": "gpt-codex"
     },
     "qwen/Qwen3-235B-A22B-Thinking-2507": {
       "id": "qwen/Qwen3-235B-A22B-Thinking-2507",
@@ -101113,7 +101568,8 @@ export const GENERATED_PROVIDER_MODELS: {
         "images",
         "tools",
         "reasoning",
-        "temperature"
+        "temperature",
+        "prompt-cache"
       ],
       "reasoningOptions": [
         {
@@ -101132,9 +101588,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0,
-        "output": 0,
-        "cacheRead": 0,
+        "input": 1,
+        "output": 4.05,
+        "cacheRead": 0.17,
         "cacheWrite": 0
       },
       "releaseDate": "2026-07-15",
@@ -101805,8 +102261,8 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.072,
-        "output": 0.28,
+        "input": 0.15,
+        "output": 0.6,
         "cacheRead": 0,
         "cacheWrite": 0
       },
@@ -101836,8 +102292,8 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.05,
-        "output": 0.2,
+        "input": 0.07,
+        "output": 0.3,
         "cacheRead": 0,
         "cacheWrite": 0
       },
@@ -111119,6 +111575,135 @@ export const GENERATED_PROVIDER_MODELS: {
     }
   },
   "opencode": {
+    "gemini-3.8-flash": {
+      "id": "gemini-3.8-flash",
+      "name": "Gemini 3.8 Flash",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 65536,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 1.5,
+        "output": 7.5,
+        "cacheRead": 0.15,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-02",
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
+    "muse-spark-1.3-contributor-free": {
+      "id": "muse-spark-1.3-contributor-free",
+      "name": "Muse Spark 1.3 Free",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 131072,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "minimal",
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-02",
+      "family": "muse-free",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "pdf",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
+    "claude-fable-5-1": {
+      "id": "claude-fable-5-1",
+      "name": "Claude Fable 5.1",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 128000,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 10,
+        "output": 50,
+        "cacheRead": 0.25,
+        "cacheWrite": 12.5
+      },
+      "releaseDate": "2026-09-01",
+      "family": "claude-fable"
+    },
     "ling-3.0-flash-fin-free": {
       "id": "ling-3.0-flash-fin-free",
       "name": "Ling 3.0 Flash Fin Free",
@@ -113161,6 +113746,55 @@ export const GENERATED_PROVIDER_MODELS: {
     }
   },
   "opencode-go": {
+    "muse-spark-1.3-contributor": {
+      "id": "muse-spark-1.3-contributor",
+      "name": "Muse Spark 1.3 Contributor",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 131072,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "minimal",
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.1,
+        "output": 0.2,
+        "cacheRead": 0.002,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-02",
+      "family": "muse",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "pdf",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
     "hy4-preview": {
       "id": "hy4-preview",
       "name": "Hy4 preview",
@@ -113561,8 +114195,8 @@ export const GENERATED_PROVIDER_MODELS: {
       "id": "hy3",
       "name": "Hy3",
       "contextWindow": 256000,
-      "maxInputTokens": 256000,
-      "maxTokens": 64000,
+      "maxInputTokens": 192000,
+      "maxTokens": 128000,
       "capabilities": [
         "tools",
         "reasoning",
@@ -114044,6 +114678,151 @@ export const GENERATED_PROVIDER_MODELS: {
     }
   },
   "openrouter": {
+    "google/gemini-3.8-flash": {
+      "id": "google/gemini-3.8-flash",
+      "name": "Gemini 3.8 Flash",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 65536,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.75,
+        "output": 3.75,
+        "cacheRead": 0.075,
+        "cacheWrite": 0.041667
+      },
+      "releaseDate": "2026-09-02",
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
+    "meta/muse-spark-1.3": {
+      "id": "meta/muse-spark-1.3",
+      "name": "Muse Spark 1.3",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 943718,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "minimal",
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 1.25,
+        "output": 4.25,
+        "cacheRead": 0.15,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-02",
+      "family": "muse",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "pdf",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
+    "meta/muse-spark-1.3-contributor": {
+      "id": "meta/muse-spark-1.3-contributor",
+      "name": "Muse Spark 1.3 Contributor",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 943718,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "minimal",
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.1,
+        "output": 0.2,
+        "cacheRead": 0.002,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-02",
+      "family": "muse",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "pdf",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
     "anthropic/claude-fable-5.1": {
       "id": "anthropic/claude-fable-5.1",
       "name": "Claude Fable 5.1",
@@ -114329,9 +115108,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.44,
-        "output": 1.32,
-        "cacheRead": 0.014,
+        "input": 0.22,
+        "output": 0.66,
+        "cacheRead": 0.007,
         "cacheWrite": 0
       },
       "releaseDate": "2026-08-21",
@@ -114391,7 +115170,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "GLM Latest",
       "contextWindow": 1310720,
       "maxInputTokens": 1310720,
-      "maxTokens": 943718,
+      "maxTokens": 235929,
       "capabilities": [
         "tools",
         "reasoning",
@@ -114410,9 +115189,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 1.17,
-        "output": 3.96,
-        "cacheRead": 0.234,
+        "input": 1.15,
+        "output": 3.5,
+        "cacheRead": 0.1,
         "cacheWrite": 0
       },
       "releaseDate": "2026-08-19",
@@ -114615,9 +115394,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 1.1154,
-        "output": 3.3462,
-        "cacheRead": 0.03718,
+        "input": 0.66,
+        "output": 1.98,
+        "cacheRead": 0.022,
         "cacheWrite": 0
       },
       "releaseDate": "2026-08-12",
@@ -115851,7 +116630,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "id": "tencent/hy3",
       "name": "Hy3",
       "contextWindow": 262144,
-      "maxInputTokens": 262144,
+      "maxInputTokens": 192000,
       "maxTokens": 128000,
       "capabilities": [
         "tools",
@@ -115871,9 +116650,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.132,
-        "output": 0.528,
-        "cacheRead": 0.033,
+        "input": 0.0825,
+        "output": 0.33,
+        "cacheRead": 0.020625,
         "cacheWrite": 0
       },
       "releaseDate": "2026-07-06",
@@ -116288,7 +117067,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Nemotron 3 Ultra 550B A55B",
       "contextWindow": 262144,
       "maxInputTokens": 262144,
-      "maxTokens": 32768,
+      "maxTokens": 182520,
       "capabilities": [
         "tools",
         "reasoning",
@@ -116312,9 +117091,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.625,
-        "output": 3.125,
-        "cacheRead": 0.1875,
+        "input": 0.6,
+        "output": 2.4,
+        "cacheRead": 0.12,
         "cacheWrite": 0
       },
       "releaseDate": "2026-06-04",
@@ -117183,9 +117962,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.088606,
-        "output": 0.177212,
-        "cacheRead": 0.017721,
+        "input": 0.08092,
+        "output": 0.16184,
+        "cacheRead": 0.016184,
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-24",
@@ -117217,9 +117996,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 1.04226,
-        "output": 2.08452,
-        "cacheRead": 0.086855,
+        "input": 1.02747,
+        "output": 2.05494,
+        "cacheRead": 0.085623,
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-24",
@@ -124875,8 +125654,8 @@ export const GENERATED_PROVIDER_MODELS: {
       "id": "tencent/hy3",
       "name": "Hy3",
       "contextWindow": 256000,
-      "maxInputTokens": 256000,
-      "maxTokens": 64000,
+      "maxInputTokens": 192000,
+      "maxTokens": 128000,
       "capabilities": [
         "tools",
         "reasoning",
@@ -124906,8 +125685,8 @@ export const GENERATED_PROVIDER_MODELS: {
       "id": "tencent/hy3-free",
       "name": "Hy3 (free)",
       "contextWindow": 256000,
-      "maxInputTokens": 256000,
-      "maxTokens": 64000,
+      "maxInputTokens": 192000,
+      "maxTokens": 128000,
       "capabilities": [
         "tools",
         "reasoning",
@@ -127793,6 +128572,40 @@ export const GENERATED_PROVIDER_MODELS: {
     }
   },
   "ovhcloud": {
+    "qwen3.8-27b": {
+      "id": "qwen3.8-27b",
+      "name": "Qwen3.8-27B",
+      "contextWindow": 262144,
+      "maxInputTokens": 262144,
+      "maxTokens": 262144,
+      "capabilities": [
+        "images",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "minimal",
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-02",
+      "family": "qwen"
+    },
     "qwen3.6-27b": {
       "id": "qwen3.6-27b",
       "name": "Qwen3.6-27B",
@@ -137014,8 +137827,8 @@ export const GENERATED_PROVIDER_MODELS: {
     "glm-5.3-flash": {
       "id": "glm-5.3-flash",
       "name": "GLM-5.3-Flash",
-      "contextWindow": 131072,
-      "maxInputTokens": 131072,
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
       "maxTokens": 131072,
       "capabilities": [
         "images",
@@ -138342,7 +139155,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "id": "hy3",
       "name": "Hy3",
       "contextWindow": 262144,
-      "maxInputTokens": 262144,
+      "maxInputTokens": 192000,
       "maxTokens": 262144,
       "capabilities": [
         "tools",
@@ -149224,8 +150037,8 @@ export const GENERATED_PROVIDER_MODELS: {
       "id": "hy3",
       "name": "Hy3",
       "contextWindow": 256000,
-      "maxInputTokens": 256000,
-      "maxTokens": 64000,
+      "maxInputTokens": 192000,
+      "maxTokens": 128000,
       "capabilities": [
         "tools",
         "reasoning",
@@ -149291,8 +150104,8 @@ export const GENERATED_PROVIDER_MODELS: {
       "id": "hy3",
       "name": "Hy3",
       "contextWindow": 256000,
-      "maxInputTokens": 256000,
-      "maxTokens": 64000,
+      "maxInputTokens": 192000,
+      "maxTokens": 128000,
       "capabilities": [
         "tools",
         "reasoning",
@@ -153594,6 +154407,34 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-09-01",
       "family": "claude-fable"
     },
+    "alibaba/wan-v3.0-video-prime": {
+      "id": "alibaba/wan-v3.0-video-prime",
+      "name": "Wan v3.0 Video Prime",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "images"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-28",
+      "family": "o",
+      "operation": "video-generation",
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "video"
+        ]
+      }
+    },
     "tencent/hy4-preview": {
       "id": "tencent/hy4-preview",
       "name": "Tencent Hy4 Preview",
@@ -153704,6 +154545,34 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-08-27",
       "family": "ling"
+    },
+    "minimax/minimax-h3-max": {
+      "id": "minimax/minimax-h3-max",
+      "name": "MiniMax H3 Max",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "images"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-27",
+      "family": "minimax",
+      "operation": "video-generation",
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "video"
+        ]
+      }
     },
     "alibaba/qwen3.8-flash": {
       "id": "alibaba/qwen3.8-flash",
@@ -153852,6 +154721,34 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-08-26",
       "family": "glm"
+    },
+    "alibaba/wan-v3.0-video": {
+      "id": "alibaba/wan-v3.0-video",
+      "name": "Wan v3.0 Video",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "images"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-23",
+      "family": "o",
+      "operation": "video-generation",
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "video"
+        ]
+      }
     },
     "deepseek/deepseek-v4-flash-vision-exp": {
       "id": "deepseek/deepseek-v4-flash-vision-exp",
@@ -154155,6 +155052,31 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-08-10",
       "family": "muse"
     },
+    "bytedance/seedance-2.5": {
+      "id": "bytedance/seedance-2.5",
+      "name": "Seedance 2.5",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-07",
+      "family": "seed",
+      "operation": "video-generation",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      }
+    },
     "spacexai/grok-imagine-image-2.0": {
       "id": "spacexai/grok-imagine-image-2.0",
       "name": "Grok Imagine Image 2.0",
@@ -154249,6 +155171,31 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-08-05",
       "family": "muse"
     },
+    "bfl/flux-3-video": {
+      "id": "bfl/flux-3-video",
+      "name": "Flux 3",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-04",
+      "family": "flux",
+      "operation": "video-generation",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      }
+    },
     "sakana/namazu": {
       "id": "sakana/namazu",
       "name": "Sakana Namazu",
@@ -154293,6 +155240,34 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-07-31",
       "family": "deepseek-flash"
+    },
+    "minimax/minimax-h3": {
+      "id": "minimax/minimax-h3",
+      "name": "MiniMax H3",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "images"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-07-30",
+      "family": "minimax",
+      "operation": "video-generation",
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "video"
+        ]
+      }
     },
     "thinkingmachines/inkling-small": {
       "id": "thinkingmachines/inkling-small",
@@ -155006,7 +155981,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "id": "tencent/hy3",
       "name": "Hy3",
       "contextWindow": 262144,
-      "maxInputTokens": 262144,
+      "maxInputTokens": 192000,
       "maxTokens": 262144,
       "capabilities": [
         "tools",
@@ -155098,6 +156073,34 @@ export const GENERATED_PROVIDER_MODELS: {
         "output": [
           "text",
           "image"
+        ]
+      }
+    },
+    "bytedance/seedance-2.0-mini": {
+      "id": "bytedance/seedance-2.0-mini",
+      "name": "Seedance 2.0 Mini",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "images"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-06-22",
+      "family": "seed",
+      "operation": "video-generation",
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "video"
         ]
       }
     },
@@ -155417,6 +156420,56 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-06-01",
       "family": "minimax"
+    },
+    "spacexai/grok-imagine-video-1.5": {
+      "id": "spacexai/grok-imagine-video-1.5",
+      "name": "Grok Imagine Video 1.5",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-05-30",
+      "family": "grok",
+      "operation": "video-generation",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      }
+    },
+    "spacexai/grok-imagine-video-1.5-preview": {
+      "id": "spacexai/grok-imagine-video-1.5-preview",
+      "name": "Grok Imagine Video 1.5 Preview",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-05-30",
+      "family": "grok",
+      "operation": "video-generation",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      }
     },
     "stepfun/step-3.7-flash": {
       "id": "stepfun/step-3.7-flash",
@@ -156329,6 +157382,64 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-04-16",
       "family": "grok-build"
     },
+    "bytedance/seedance-2.0": {
+      "id": "bytedance/seedance-2.0",
+      "name": "Seedance 2.0",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "images",
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-04-14",
+      "family": "seed",
+      "operation": "video-generation",
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "video"
+        ]
+      }
+    },
+    "bytedance/seedance-2.0-fast": {
+      "id": "bytedance/seedance-2.0-fast",
+      "name": "Seedance 2.0 Fast",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "images",
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-04-14",
+      "family": "seed",
+      "operation": "video-generation",
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "video"
+        ]
+      }
+    },
     "meta/muse-spark-1.1": {
       "id": "meta/muse-spark-1.1",
       "name": "Muse Spark 1.1",
@@ -156364,6 +157475,60 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-04-08",
       "family": "muse"
+    },
+    "alibaba/wan-v2.7-r2v": {
+      "id": "alibaba/wan-v2.7-r2v",
+      "name": "Wan v2.7 Reference-to-Video",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-04-07",
+      "family": "o",
+      "operation": "video-generation",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      }
+    },
+    "alibaba/wan-v2.7-t2v": {
+      "id": "alibaba/wan-v2.7-t2v",
+      "name": "Wan v2.7 Text-to-Video",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-04-07",
+      "family": "o",
+      "operation": "video-generation",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      }
     },
     "zai/glm-5.1": {
       "id": "zai/glm-5.1",
@@ -156471,6 +157636,31 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-04-02",
       "family": "gemma"
+    },
+    "google/veo-3.1-lite-generate-001": {
+      "id": "google/veo-3.1-lite-generate-001",
+      "name": "Veo 3.1 Lite Generate",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-04-02",
+      "family": "veo",
+      "operation": "video-generation",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      }
     },
     "arcee-ai/trinity-large-thinking": {
       "id": "arcee-ai/trinity-large-thinking",
@@ -157009,6 +158199,33 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-03-05",
       "family": "gpt-pro"
     },
+    "klingai/kling-v3.0-motion-control": {
+      "id": "klingai/kling-v3.0-motion-control",
+      "name": "Kling v3.0 Motion Control",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-03-04",
+      "family": "ling",
+      "operation": "video-generation",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      }
+    },
     "fish-audio/transcribe-1": {
       "id": "fish-audio/transcribe-1",
       "name": "Transcribe-1",
@@ -157467,6 +158684,60 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-02-05",
       "family": "claude-opus"
     },
+    "klingai/kling-v3.0-i2v": {
+      "id": "klingai/kling-v3.0-i2v",
+      "name": "Kling v3.0 Image-to-Video",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-02-05",
+      "family": "ling",
+      "operation": "video-generation",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      }
+    },
+    "klingai/kling-v3.0-t2v": {
+      "id": "klingai/kling-v3.0-t2v",
+      "name": "Kling v3.0 Text-to-Video",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-02-05",
+      "family": "ling",
+      "operation": "video-generation",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      }
+    },
     "openai/gpt-5.3-codex": {
       "id": "openai/gpt-5.3-codex",
       "name": "GPT 5.3 Codex",
@@ -157612,6 +158883,31 @@ export const GENERATED_PROVIDER_MODELS: {
         ],
         "output": [
           "image"
+        ]
+      }
+    },
+    "spacexai/grok-imagine-video": {
+      "id": "spacexai/grok-imagine-video",
+      "name": "Grok Imagine",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-01-28",
+      "family": "grok",
+      "operation": "video-generation",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
         ]
       }
     },
@@ -157846,6 +159142,33 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2025-12-22",
       "family": "glm"
     },
+    "klingai/kling-v2.6-motion-control": {
+      "id": "klingai/kling-v2.6-motion-control",
+      "name": "Kling v2.6 Motion Control",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-12-18",
+      "family": "ling",
+      "operation": "video-generation",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      }
+    },
     "google/gemini-3-flash": {
       "id": "google/gemini-3-flash",
       "name": "Gemini 3 Flash",
@@ -157880,6 +159203,141 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2025-12-17",
       "family": "gemini-flash"
     },
+    "alibaba/wan-v2.6-i2v": {
+      "id": "alibaba/wan-v2.6-i2v",
+      "name": "Wan v2.6 Image-to-Video",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-12-16",
+      "family": "o",
+      "operation": "video-generation",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      }
+    },
+    "alibaba/wan-v2.6-i2v-flash": {
+      "id": "alibaba/wan-v2.6-i2v-flash",
+      "name": "Wan v2.6 Image-to-Video Flash",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-12-16",
+      "family": "o",
+      "operation": "video-generation",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      }
+    },
+    "alibaba/wan-v2.6-r2v": {
+      "id": "alibaba/wan-v2.6-r2v",
+      "name": "Wan v2.6 Reference-to-Video",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-12-16",
+      "family": "o",
+      "operation": "video-generation",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      }
+    },
+    "alibaba/wan-v2.6-r2v-flash": {
+      "id": "alibaba/wan-v2.6-r2v-flash",
+      "name": "Wan v2.6 Reference-to-Video Flash",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-12-16",
+      "family": "o",
+      "operation": "video-generation",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      }
+    },
+    "alibaba/wan-v2.6-t2v": {
+      "id": "alibaba/wan-v2.6-t2v",
+      "name": "Wan v2.6 Text-to-Video",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-12-16",
+      "family": "o",
+      "operation": "video-generation",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      }
+    },
     "bfl/flux-2-max": {
       "id": "bfl/flux-2-max",
       "name": "FLUX.2 [max]",
@@ -157904,6 +159362,33 @@ export const GENERATED_PROVIDER_MODELS: {
         ],
         "output": [
           "image"
+        ]
+      }
+    },
+    "bytedance/seedance-v1.5-pro": {
+      "id": "bytedance/seedance-v1.5-pro",
+      "name": "Seedance v1.5 Pro",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-12-16",
+      "family": "seed",
+      "operation": "video-generation",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
         ]
       }
     },
@@ -158109,6 +159594,60 @@ export const GENERATED_PROVIDER_MODELS: {
         ],
         "output": [
           "image"
+        ]
+      }
+    },
+    "klingai/kling-v2.6-i2v": {
+      "id": "klingai/kling-v2.6-i2v",
+      "name": "Kling v2.6 Image-to-Video",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-12-03",
+      "family": "ling",
+      "operation": "video-generation",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      }
+    },
+    "klingai/kling-v2.6-t2v": {
+      "id": "klingai/kling-v2.6-t2v",
+      "name": "Kling v2.6 Text-to-Video",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-12-03",
+      "family": "ling",
+      "operation": "video-generation",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
         ]
       }
     },
@@ -158593,6 +160132,33 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2025-10-27",
       "family": "minimax"
     },
+    "bytedance/seedance-v1.0-pro-fast": {
+      "id": "bytedance/seedance-v1.0-pro-fast",
+      "name": "Seedance v1.0 Pro Fast",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-10-24",
+      "family": "seed",
+      "operation": "video-generation",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      }
+    },
     "anthropic/claude-haiku-4.5": {
       "id": "anthropic/claude-haiku-4.5",
       "name": "Claude Haiku 4.5",
@@ -158624,6 +160190,60 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2025-10-15",
       "family": "claude-haiku"
+    },
+    "google/veo-3.1-fast-generate-001": {
+      "id": "google/veo-3.1-fast-generate-001",
+      "name": "Veo 3.1 Fast Generate",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-10-15",
+      "family": "veo",
+      "operation": "video-generation",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      }
+    },
+    "google/veo-3.1-generate-001": {
+      "id": "google/veo-3.1-generate-001",
+      "name": "Veo 3.1",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-10-15",
+      "family": "veo",
+      "operation": "video-generation",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      }
     },
     "openai/gpt-5-pro": {
       "id": "openai/gpt-5-pro",
@@ -158740,6 +160360,33 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2025-09-29",
       "family": "claude-sonnet"
     },
+    "alibaba/wan-v2.5-t2v-preview": {
+      "id": "alibaba/wan-v2.5-t2v-preview",
+      "name": "Wan v2.5 Text-to-Video Preview",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-09-24",
+      "family": "o",
+      "operation": "video-generation",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      }
+    },
     "alibaba/qwen3-235b-a22b-thinking": {
       "id": "alibaba/qwen3-235b-a22b-thinking",
       "name": "Qwen3 235B A22B Thinking 2507",
@@ -158837,6 +160484,60 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2025-09-23",
       "family": "qwen"
+    },
+    "klingai/kling-v2.5-turbo-i2v": {
+      "id": "klingai/kling-v2.5-turbo-i2v",
+      "name": "Kling v2.5 Turbo Image-to-Video",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-09-23",
+      "family": "ling",
+      "operation": "video-generation",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      }
+    },
+    "klingai/kling-v2.5-turbo-t2v": {
+      "id": "klingai/kling-v2.5-turbo-t2v",
+      "name": "Kling v2.5 Turbo Text-to-Video",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-09-23",
+      "family": "ling",
+      "operation": "video-generation",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      }
     },
     "deepseek/deepseek-v3.1-terminus": {
       "id": "deepseek/deepseek-v3.1-terminus",
@@ -159410,6 +161111,33 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2025-07-31",
       "family": "qwen"
     },
+    "google/veo-3.0-fast-generate-001": {
+      "id": "google/veo-3.0-fast-generate-001",
+      "name": "Veo 3.0 Fast Generate",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-07-31",
+      "family": "veo",
+      "operation": "video-generation",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      }
+    },
     "zai/glm-4.5": {
       "id": "zai/glm-4.5",
       "name": "GLM 4.5",
@@ -159648,6 +161376,33 @@ export const GENERATED_PROVIDER_MODELS: {
         ]
       }
     },
+    "bytedance/seedance-v1.0-pro": {
+      "id": "bytedance/seedance-v1.0-pro",
+      "name": "Seedance v1.0 Pro",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-06-11",
+      "family": "seed",
+      "operation": "video-generation",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      }
+    },
     "openai/o3-pro": {
       "id": "openai/o3-pro",
       "name": "o3 Pro",
@@ -159782,6 +161537,33 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2025-05-22",
       "family": "claude-sonnet"
+    },
+    "google/veo-3.0-generate-001": {
+      "id": "google/veo-3.0-generate-001",
+      "name": "Veo 3.0",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-05-20",
+      "family": "veo",
+      "operation": "video-generation",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "video"
+        ]
+      }
     },
     "mistral/mistral-medium": {
       "id": "mistral/mistral-medium",
@@ -160890,6 +162672,53 @@ export const GENERATED_PROVIDER_MODELS: {
     }
   },
   "vertex": {
+    "gemini-3.8-flash": {
+      "id": "gemini-3.8-flash",
+      "name": "Gemini 3.8 Flash",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 65536,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.75,
+        "output": 3.75,
+        "cacheRead": 0.075,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-02",
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
     "claude-fable-5-1@default": {
       "id": "claude-fable-5-1@default",
       "name": "Claude Fable 5.1",

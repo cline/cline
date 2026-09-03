@@ -30,10 +30,15 @@ import {
 
 const streamTextSpy = vi.fn();
 const generateImageSpy = vi.fn();
+const generateVideoSpy = vi.fn();
 const vercelGatewayFactorySpy = vi.fn();
 const vercelGatewayImageSpy = vi.fn((modelId: string) => ({
 	modelId,
 	family: "vercel-gateway-image",
+}));
+const vercelGatewayVideoSpy = vi.fn((modelId: string) => ({
+	modelId,
+	family: "vercel-gateway-video",
 }));
 const openaiCompatibleFactorySpy = vi.fn();
 const openaiCompatibleSpy = vi.fn((modelId: string) => ({
@@ -101,6 +106,7 @@ vi.mock("ai", () => ({
 		...(options && typeof options === "object" ? options : {}),
 	}),
 	generateImage: (input: unknown) => generateImageSpy(input),
+	experimental_generateVideo: (input: unknown) => generateVideoSpy(input),
 	streamText: (input: unknown) => streamTextSpy(input),
 	// `wrapLanguageModel` is used by the openai-compatible and mistral
 	// vendors to attach `splitToolImagesMiddleware`. The middleware itself
@@ -129,6 +135,7 @@ vi.mock("@ai-sdk/gateway", () => ({
 		vercelGatewayFactorySpy(config);
 		return {
 			imageModel: (modelId: string) => vercelGatewayImageSpy(modelId),
+			videoModel: (modelId: string) => vercelGatewayVideoSpy(modelId),
 		};
 	},
 }));
@@ -245,6 +252,18 @@ function generatedImageEvent(mediaType: string, data: string) {
 	});
 }
 
+function generatedVideoEvent(mediaType: string, data: string) {
+	return expect.objectContaining({
+		type: "media",
+		media: expect.objectContaining({
+			id: expect.any(String),
+			modality: "video",
+			mediaType,
+			source: { type: "base64", data },
+		}),
+	});
+}
+
 async function captureReasoningOptions({
 	providerId,
 	options,
@@ -324,8 +343,10 @@ describe("sdk-gateway", () => {
 		resetSdkErrorRateLimiterForTests();
 		streamTextSpy.mockReset();
 		generateImageSpy.mockReset();
+		generateVideoSpy.mockReset();
 		vercelGatewayFactorySpy.mockReset();
 		vercelGatewayImageSpy.mockReset();
+		vercelGatewayVideoSpy.mockReset();
 		openaiCompatibleFactorySpy.mockReset();
 		openaiCompatibleSpy.mockReset();
 		openaiResponsesSpy.mockReset();
@@ -371,6 +392,10 @@ describe("sdk-gateway", () => {
 		vercelGatewayImageSpy.mockImplementation((modelId: string) => ({
 			modelId,
 			family: "vercel-gateway-image",
+		}));
+		vercelGatewayVideoSpy.mockImplementation((modelId: string) => ({
+			modelId,
+			family: "vercel-gateway-video",
 		}));
 		anthropicSpy.mockImplementation((modelId: string) => ({
 			modelId,
@@ -1415,6 +1440,216 @@ describe("sdk-gateway", () => {
 			},
 			{ type: "finish", reason: "stop" },
 		]);
+	});
+
+	it("uses generateVideo for dedicated text-to-video models", async () => {
+		generateVideoSpy.mockResolvedValue({
+			videos: [{ mediaType: "video/mp4", base64: "dmlkZW8=" }],
+		});
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "vercel-ai-gateway",
+					apiKey: "test",
+					models: [
+						{
+							id: "google/veo-test",
+							name: "Veo Test",
+							operation: "video-generation",
+							modalities: { input: ["text"], output: ["video"] },
+						},
+					],
+				},
+			],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId: "vercel-ai-gateway",
+				modelId: "google/veo-test",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(vercelGatewayVideoSpy).toHaveBeenCalledWith("google/veo-test");
+		expect(generateVideoSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				model: expect.objectContaining({ modelId: "google/veo-test" }),
+				prompt: "Hello",
+			}),
+		);
+		expect(streamTextSpy).not.toHaveBeenCalled();
+		expect(events).toEqual([
+			generatedVideoEvent("video/mp4", "dmlkZW8="),
+			{ type: "finish", reason: "stop" },
+		]);
+	});
+
+	it("streams generated video files for mixed text-and-video models", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "text-delta", text: "Here is the video" },
+				{
+					type: "file",
+					file: { mediaType: "video/webm", base64: "dmlkZW8=" },
+				},
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "vercel-ai-gateway",
+					apiKey: "test",
+					models: [
+						{
+							id: "mixed-video-test",
+							name: "Mixed Video Test",
+							modalities: {
+								input: ["text"],
+								output: ["text", "video"],
+							},
+						},
+					],
+				},
+			],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId: "vercel-ai-gateway",
+				modelId: "mixed-video-test",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(streamTextSpy).toHaveBeenCalled();
+		expect(generateVideoSpy).not.toHaveBeenCalled();
+		expect(events).toContainEqual(
+			generatedVideoEvent("video/webm", "dmlkZW8="),
+		);
+	});
+
+	it("preserves text-only responses from mixed text-and-video models", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "text-delta", text: "No video was generated" },
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "vercel-ai-gateway",
+					apiKey: "test",
+					models: [
+						{
+							id: "mixed-video-test",
+							name: "Mixed Video Test",
+							modalities: {
+								input: ["text"],
+								output: ["text", "video"],
+							},
+						},
+					],
+				},
+			],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId: "vercel-ai-gateway",
+				modelId: "mixed-video-test",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(events).toContainEqual({
+			type: "text-delta",
+			text: "No video was generated",
+		});
+		expect(events.at(-1)).toMatchObject({ type: "finish" });
+		expect(events.at(-1)).not.toMatchObject({ reason: "error" });
+	});
+
+	it("preserves generated video history without disclosing artifact ids inline", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "text-delta", text: "Continuing" },
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+		const artifactId = "private-video.mp4";
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "vercel-ai-gateway",
+					apiKey: "test",
+					models: [
+						{
+							id: "mixed-video-test",
+							name: "Mixed Video Test",
+							modalities: {
+								input: ["text"],
+								output: ["text", "video"],
+							},
+						},
+					],
+				},
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "vercel-ai-gateway",
+				modelId: "mixed-video-test",
+				messages: [
+					{
+						id: "assistant_video",
+						role: "assistant",
+						content: [
+							{
+								type: "media",
+								media: {
+									id: "media_video_1",
+									modality: "video",
+									mediaType: "video/mp4",
+									source: { type: "artifact", artifactId },
+								},
+							},
+						],
+						createdAt: 1,
+					},
+					{
+						id: "user_continue",
+						role: "user",
+						content: [{ type: "text", text: "Continue" }],
+						createdAt: 2,
+					},
+				],
+			}),
+		);
+
+		const call = streamTextSpy.mock.calls.at(-1)?.[0] as
+			| { messages?: unknown }
+			| undefined;
+		expect(call?.messages).toEqual([
+			{
+				role: "assistant",
+				content: [{ type: "text", text: "[generated video]" }],
+			},
+			{
+				role: "user",
+				content: [
+					{ type: "text", text: "Continue" },
+					{
+						type: "text",
+						text: "[generated video unavailable to this model]",
+					},
+				],
+			},
+		]);
+		expect(JSON.stringify(call?.messages)).not.toContain(artifactId);
 	});
 
 	it("routes the GPT Image family through generateImage despite stale text-output metadata", async () => {
