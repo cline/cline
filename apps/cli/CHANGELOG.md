@@ -23,6 +23,7 @@
 
 ## 3.0.60
 
+- The config screen now separates Cline Plugins from Agent Plugins discovered by the Hub. Agent Plugins can be enabled or disabled with Space; the Hub persists the state and their skills and MCP servers follow it when the interactive runtime is rebuilt
 - Fixed the background hub process ballooning in memory during long sessions — session status updates were broadcasting a full copy of the conversation transcript to every connected client, which on a large task could grow the process to tens of gigabytes. Upgrading retires the running hub so the fix takes effect on the next command
 - New files are now created with your platform's native line endings
 - Fixed the codebase search tool crashing on files that contain a single enormous line

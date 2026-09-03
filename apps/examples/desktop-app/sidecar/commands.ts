@@ -1036,6 +1036,34 @@ async function listUserInstructionConfigs(
 	} finally {
 		userInstructionService.stop();
 	}
+	const knownSkillPaths = new Set(
+		skills.flatMap((skill) => {
+			if (!skill || typeof skill !== "object") return [];
+			const path = (skill as JsonRecord).path;
+			return typeof path === "string" ? [path] : [];
+		}),
+	);
+	for (const skill of hubSettings.skills) {
+		if (
+			skill.agentPlugin !== true ||
+			skill.enabled === false ||
+			knownSkillPaths.has(skill.path)
+		) {
+			continue;
+		}
+		skills.push({
+			id: skill.id,
+			name: skill.name,
+			description: skill.description,
+			instructions: "",
+			path: skill.path,
+			enabled: true,
+			source: skill.source,
+			agentPlugin: true,
+			pluginName: skill.pluginName,
+		});
+		knownSkillPaths.add(skill.path);
+	}
 
 	const disabledTools = new Set(readGlobalSettings().disabledTools ?? []);
 	// Pin spawn/teams availability so this listing matches the hub's
@@ -1055,9 +1083,15 @@ async function listUserInstructionConfigs(
 		runtimeCommands,
 		agents: loadAgents(),
 		plugins: hubSettings.plugins.map((plugin) => ({
+			id: plugin.id,
 			name: plugin.name,
 			path: plugin.path,
 			enabled: plugin.enabled !== false,
+			source: plugin.source,
+			toggleable: plugin.toggleable === true,
+			agentPlugin: plugin.agentPlugin === true,
+			description: plugin.description,
+			loadError: plugin.loadError,
 			contributions: plugin.contributions,
 		})),
 		tools: [
@@ -2084,7 +2118,16 @@ export async function handleCommand(
 					);
 				});
 			},
-			{ owner: options?.connection },
+			{
+				owner: options?.connection,
+				// Push the device sign-in confirmation code so the webview can
+				// show it while the user confirms it in the browser.
+				onUserCode: (userCode) =>
+					broadcastEvent(ctx, "provider_oauth_user_code", {
+						provider: providerId,
+						userCode,
+					}),
+			},
 		);
 	}
 	if (command === "cancel_provider_oauth_login") {
