@@ -2907,8 +2907,8 @@ export async function handleCommand(
 	}
 	if (command === "save_media_generation_settings") {
 		const mediaType = String(args?.media_type ?? "").trim();
-		if (mediaType !== "image") {
-			throw new Error('media_type must be "image"');
+		if (mediaType !== "image" && mediaType !== "audio" && mediaType !== "video") {
+			throw new Error('media_type must be "image", "audio", or "video"');
 		}
 		const providerId = String(args?.provider ?? "").trim();
 		const modelId = String(args?.model ?? "").trim();

@@ -400,6 +400,7 @@ export function GenerateMediaConfiguration({
 	const [pendingSelections, setPendingSelections] = useState<
 		Partial<Record<MediaGenerationType, MediaModelSelection | undefined>>
 	>({});
+	const [saving, setSaving] = useState(false);
 	if (config.unavailableReason) {
 		return (
 			<p className="text-xs text-muted-foreground">
@@ -462,21 +463,29 @@ export function GenerateMediaConfiguration({
 			))}
 			<Button
 				className="w-full"
-				disabled={!hasChanges || config.mediaTypes.some((media) => media.saving)}
-				onClick={() => {
-					for (const media of config.mediaTypes) {
-						const selection = getPendingSelection(media);
-						if (selection !== undefined || media.selection !== undefined) {
-							if (
-								selection?.providerId !== media.selection?.providerId ||
-								selection?.modelId !== media.selection?.modelId
-							) void config.onChange(media.mediaType, selection);
-						}
+				disabled={!hasChanges || saving || config.mediaTypes.some((media) => media.saving)}
+					onClick={async () => {
+						setSaving(true);
+						try {
+							await Promise.all(
+								config.mediaTypes.map(async (media) => {
+									const selection = getPendingSelection(media);
+									if (
+										(selection !== undefined || media.selection !== undefined) &&
+										(selection?.providerId !== media.selection?.providerId ||
+											selection?.modelId !== media.selection?.modelId)
+									) {
+										await config.onChange(media.mediaType, selection);
+									}
+								}),
+							);
+					} finally {
+						setSaving(false);
 					}
 				}}
 				type="button"
 			>
-				Save
+				{saving ? "Saving..." : "Save"}
 			</Button>
 			<p className="text-xs text-muted-foreground">
 				Tool availability changes apply to new chats.
