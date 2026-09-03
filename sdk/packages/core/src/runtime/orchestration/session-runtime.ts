@@ -11,6 +11,10 @@ import type {
 	ToolApprovalRequest,
 	ToolApprovalResult,
 } from "@cline/shared";
+import type {
+	AgentPluginPackageMcpServer,
+	AgentPluginPackageSkill,
+} from "../../extensions/agent-plugin";
 import type { UserInstructionConfigService } from "../../extensions/config";
 import type {
 	RunCommandExecutionController,
@@ -71,6 +75,8 @@ export interface RuntimeBuilderInput {
 	onTeamRestored?: () => void;
 	userInstructionService?: UserInstructionConfigService;
 	pluginSkillDirectories?: ReadonlyArray<string>;
+	agentPluginSkills?: ReadonlyArray<AgentPluginPackageSkill>;
+	agentPluginMcpServers?: ReadonlyArray<AgentPluginPackageMcpServer>;
 	configExtensions?: RuntimeConfigExtensionKind[];
 	toolExecutors?: Partial<ToolExecutors>;
 	runCommandExecutionController?: RunCommandExecutionController;

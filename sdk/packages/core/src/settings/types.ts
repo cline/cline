@@ -35,6 +35,10 @@ export interface CoreSettingsItem {
 	toggleable?: boolean;
 	pluginName?: string;
 	pluginPath?: string;
+	/** True when this item comes from the portable agent-plugins.org format. */
+	agentPlugin?: boolean;
+	/** Loader diagnostics associated with this item, if any. */
+	loadError?: string;
 	contributions?: CorePluginContributions;
 }
 
@@ -82,6 +86,10 @@ export interface CoreSettingsSnapshot {
 export interface CoreSettingsListInput {
 	cwd?: string;
 	workspaceRoot?: string;
+	/** Optional explicit portable Agent Plugin roots, resolved by the host. */
+	agentPluginPaths?: string[];
+	/** Whether inspecting Cline plugins should execute their setup for tool metadata. */
+	includePluginTools?: boolean;
 	userInstructionService?: UserInstructionConfigService;
 	availabilityContext?: BuiltinToolAvailabilityContext;
 }

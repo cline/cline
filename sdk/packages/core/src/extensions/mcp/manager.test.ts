@@ -127,6 +127,43 @@ describe("InMemoryMcpManager", () => {
 		expect(client.disconnect).toHaveBeenCalledTimes(2);
 	});
 
+	it("disconnects the remaining servers when one fails during dispose", async () => {
+		const wedgedClient = createClient({
+			disconnect: vi.fn(async () => {
+				throw new Error("process did not exit");
+			}),
+		});
+		const healthyClient = createClient();
+		const clients = new Map([
+			["wedged", wedgedClient],
+			["healthy", healthyClient],
+		]);
+		const manager = new InMemoryMcpManager({
+			clientFactory: async (registration) => {
+				const client = clients.get(registration.name);
+				if (!client) {
+					throw new Error(`Unexpected server: ${registration.name}`);
+				}
+				return client;
+			},
+		});
+		// "wedged" is registered first, so dispose reaches it before "healthy".
+		await manager.registerServer({
+			name: "wedged",
+			transport: { type: "stdio", command: "node" },
+		});
+		await manager.registerServer({
+			name: "healthy",
+			transport: { type: "stdio", command: "node" },
+		});
+		await manager.connectServer("wedged");
+		await manager.connectServer("healthy");
+
+		await expect(manager.dispose()).rejects.toThrow(AggregateError);
+		expect(wedgedClient.disconnect).toHaveBeenCalledTimes(1);
+		expect(healthyClient.disconnect).toHaveBeenCalledTimes(1);
+	});
+
 	it("replaces the client when its timeout snapshot changes", async () => {
 		const firstClient = createClient();
 		const secondClient = createClient();

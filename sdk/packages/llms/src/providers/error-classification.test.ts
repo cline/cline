@@ -110,6 +110,72 @@ describe("classifyProviderError", () => {
 		});
 	});
 
+	describe("auth", () => {
+		it("classifies a structural 401 payload", () => {
+			expect(
+				classifyProviderError({
+					statusCode: 401,
+					message: "invalid x-api-key",
+				}),
+			).toBe("auth");
+		});
+
+		it("classifies a structural 403 payload", () => {
+			expect(classifyProviderError({ status: 403, message: "Forbidden" })).toBe(
+				"auth",
+			);
+		});
+
+		it("classifies a typed APICallError 401 (Mistral invalid-key shape)", () => {
+			expect(
+				classifyProviderError(
+					new APICallError({
+						message: "Invalid API Key",
+						url: "https://api.mistral.ai/v1/chat/completions",
+						requestBodyValues: {},
+						statusCode: 401,
+						responseBody: JSON.stringify({ detail: "Invalid API Key" }),
+					}),
+				),
+			).toBe("auth");
+		});
+
+		it("treats the typed statusCode as authoritative: 401 wins over context wording", () => {
+			expect(
+				classifyProviderError(
+					new APICallError({
+						message: "Unauthorized",
+						url: "https://api.example.com/v1/chat/completions",
+						requestBodyValues: {},
+						statusCode: 401,
+						responseBody: JSON.stringify({
+							error: { message: "context length exceeded" },
+						}),
+					}),
+				),
+			).toBe("auth");
+		});
+
+		it("unwraps a RetryError whose final attempt was a 401", () => {
+			const last = new APICallError({
+				message: "Unauthorized",
+				url: "https://api.example.com/v1/chat/completions",
+				requestBodyValues: {},
+				statusCode: 401,
+				responseBody: JSON.stringify({ detail: "Invalid API Key" }),
+			});
+			expect(
+				classifyProviderError(
+					new RetryError({
+						message: "Failed after 2 attempts",
+						reason: "errorNotRetryable",
+						errors: [last],
+					}),
+				),
+			).toBe("auth");
+		});
+	});
+
 	describe("unknown", () => {
 		it("vetoes token-per-minute rate limits despite token wording", () => {
 			expect(
@@ -141,12 +207,11 @@ describe("classifyProviderError", () => {
 			).toBe("unknown");
 		});
 
-		it("leaves auth errors unclassified", () => {
+		it("leaves auth wording without an HTTP status unclassified", () => {
+			// Status-only policy: provider bodies can quote "unauthorized"
+			// without the request having been an auth failure.
 			expect(
-				classifyProviderError({
-					statusCode: 401,
-					message: "invalid x-api-key",
-				}),
+				classifyProviderError(new Error("Unauthorized: check your key")),
 			).toBe("unknown");
 		});
 

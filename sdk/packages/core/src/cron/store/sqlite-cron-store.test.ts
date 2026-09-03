@@ -290,6 +290,39 @@ describe("SqliteCronStore: runs", () => {
 		expect(store.hasConsumedOneOffRevision(spec.specId, 1)).toBe(true);
 	});
 
+	it("numbers a spec's runs by creation order regardless of status", () => {
+		const spec = seedOneOff();
+		const other = store.upsertSpec({
+			externalId: "other",
+			sourcePath: "other.md",
+			triggerKind: "one_off",
+			sourceHash: "hash-other",
+			parseStatus: "valid",
+			spec: {
+				triggerKind: "one_off",
+				id: "other",
+				title: "Other",
+				prompt: "p",
+				workspaceRoot: "/ws",
+				enabled: true,
+			},
+		}).record;
+		const enqueue = (specId: string) =>
+			store.enqueueRun({ specId, specRevision: 1, triggerKind: "manual" });
+		const first = enqueue(spec.specId);
+		const second = enqueue(spec.specId);
+		const otherFirst = enqueue(other.specId);
+		const third = enqueue(spec.specId);
+		// A cancelled run keeps its slot so later numbers never shift.
+		store.completeRun(second.runId, { status: "cancelled" });
+
+		expect(store.getRunOrdinal(first.runId)).toBe(1);
+		expect(store.getRunOrdinal(second.runId)).toBe(2);
+		expect(store.getRunOrdinal(third.runId)).toBe(3);
+		expect(store.getRunOrdinal(otherFirst.runId)).toBe(1);
+		expect(store.getRunOrdinal("crun_missing")).toBeUndefined();
+	});
+
 	it("treats failed one-off runs as satisfying the revision", () => {
 		const spec = seedOneOff();
 		const run = store.enqueueRun({

@@ -29,6 +29,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
+import { useOAuthUserCode } from "@/hooks/use-oauth-user-code";
 import { openExternalUrl } from "@/lib/desktop-client";
 import {
 	getProviderAuthKind,
@@ -539,6 +540,7 @@ export function ProviderDetailContent({
 	onDisconnect?: () => void;
 	variant?: "page" | "panel";
 }) {
+	const deviceUserCode = useOAuthUserCode(oauthLoginPending);
 	const [shownSecrets, setShownSecrets] = useState<Record<string, boolean>>({});
 	const [localConfigValues, setLocalConfigValues] = useState<
 		Record<string, ProviderConfigFieldPrimitive>
@@ -820,6 +822,14 @@ export function ProviderDetailContent({
 										: "Sign in with browser"}
 								</span>
 							</Button>
+						) : null}
+						{oauthLoginPending && deviceUserCode ? (
+							<p className="mt-3 text-xs text-muted-foreground">
+								Confirm this code in your browser:{" "}
+								<span className="font-mono font-medium text-foreground">
+									{deviceUserCode}
+								</span>
+							</p>
 						) : null}
 						{apiKeyField ? (
 							<div className="mt-3">

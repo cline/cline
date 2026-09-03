@@ -1,6 +1,7 @@
 import { providerOffersModelTool } from "@cline/llms/browser";
-import { Minus, Plus, RotateCcw } from "lucide-react";
+import { Import, Minus, Plus, RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ImportSessionsDialog } from "@/components/import-sessions-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -59,7 +60,7 @@ import {
 	setStoredHubTheme,
 } from "@/lib/theme";
 import { cn } from "@/lib/utils";
-import { MarketplaceView } from "../marketplace-view";
+import { MarketplaceExplorerView } from "../marketplace-explorer-view";
 import { PageFrame, PageHeader } from "../page-layout";
 import { AccountView } from "./account-view";
 import { AddProviderContent, type AddProviderPayload } from "./add-provider";
@@ -616,10 +617,7 @@ export function SettingsView({
 				onOpenMarketplace={() => onNavigateSection("Marketplace")}
 			/>
 		) : activeNav === "Marketplace" ? (
-			<MarketplaceView
-				onOpenInstalled={() => onNavigateSection("Customize")}
-				variant="directory"
-			/>
+			<MarketplaceExplorerView />
 		) : activeNav === "Channels" ? (
 			<ChannelsContent />
 		) : activeNav === "Schedules" ? (
@@ -668,6 +666,7 @@ function GeneralSettingsContent({
 		if (typeof window === "undefined") return "light";
 		return readStoredHubTheme() ?? readSystemHubTheme();
 	});
+	const [importDialogOpen, setImportDialogOpen] = useState(false);
 	const [accent, setAccent] = useState<HubAccent>(() => {
 		if (typeof window === "undefined") return "violet";
 		return readStoredHubAccent();
@@ -1127,6 +1126,31 @@ function GeneralSettingsContent({
 						onCheckedChange={(checked) => void updateTelemetryOptOut(!checked)}
 					/>
 				</div>
+				<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
+					<div className="flex flex-col gap-1">
+						<p className="text-base font-semibold text-foreground">
+							Import sessions
+						</p>
+						<p className="text-sm text-muted-foreground">
+							Bring your conversation history from Claude Code, Codex, or
+							opencode into Cline.
+						</p>
+					</div>
+					<Button
+						className="shrink-0"
+						onClick={() => setImportDialogOpen(true)}
+						size="sm"
+						type="button"
+						variant="outline"
+					>
+						<Import className="size-3" />
+						Import
+					</Button>
+				</div>
+				<ImportSessionsDialog
+					onOpenChange={setImportDialogOpen}
+					open={importDialogOpen}
+				/>
 				<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
 					<div className="flex flex-col gap-1">
 						<p className="text-base font-semibold text-foreground">

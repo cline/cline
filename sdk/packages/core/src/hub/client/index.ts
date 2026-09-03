@@ -970,10 +970,18 @@ function sameNormalizedHubUrl(left: string, right: string): boolean {
 	}
 }
 
+export interface HubSessionActivity {
+	/** Sessions with at least one live participant attached. */
+	activeSessionCount: number;
+	/** Distinct client ids attached to those sessions. */
+	participantClientCount: number;
+}
+
 /**
- * Whether any client is attached to a session on the hub - the one signal
- * that cannot go stale, because participants are live socket subscriptions
- * the hub drops the moment a client's connection closes.
+ * Summarize live activity from a `session.list` payload. A session counts as
+ * active only while a client is attached to it - the one signal that cannot
+ * go stale, because participants are live socket subscriptions the hub drops
+ * the moment a client's connection closes.
  *
  * Deliberately NOT based on session status: a client that dies without
  * stopping its session leaves the hub-side runtime behind in a non-terminal
@@ -983,27 +991,56 @@ function sameNormalizedHubUrl(left: string, right: string): boolean {
  * exact moment of a hub swap dies with the old hub - rare, and its next
  * scheduled tick runs normally on the replacement.
  */
-export function hasActiveHubSessions(payload: unknown): boolean {
+export function summarizeHubSessionActivity(
+	payload: unknown,
+): HubSessionActivity {
 	const sessions =
 		payload &&
 		typeof payload === "object" &&
 		Array.isArray((payload as { sessions?: unknown }).sessions)
 			? (payload as { sessions: unknown[] }).sessions
 			: [];
-	return sessions.some((session) => {
+	let activeSessionCount = 0;
+	const clientIds = new Set<string>();
+	for (const session of sessions) {
 		if (!session || typeof session !== "object") {
-			return false;
+			continue;
 		}
-		const record = session as { participants?: unknown };
-		return Array.isArray(record.participants) && record.participants.length > 0;
-	});
+		const participants = (session as { participants?: unknown }).participants;
+		if (!Array.isArray(participants) || participants.length === 0) {
+			continue;
+		}
+		activeSessionCount += 1;
+		for (const participant of participants) {
+			const clientId =
+				participant && typeof participant === "object"
+					? (participant as { clientId?: unknown }).clientId
+					: undefined;
+			if (typeof clientId === "string" && clientId.trim()) {
+				clientIds.add(clientId);
+			}
+		}
+	}
+	return { activeSessionCount, participantClientCount: clientIds.size };
 }
 
-export async function localHubHasNoActiveSessions(
+export function hasActiveHubSessions(payload: unknown): boolean {
+	return summarizeHubSessionActivity(payload).activeSessionCount > 0;
+}
+
+/**
+ * Ask a hub how much live work it is serving. Throws when the hub cannot
+ * answer (unreachable, auth rejected, or too old to serve `session.list`),
+ * because the safe default points in opposite directions per caller: a
+ * replacement path treats an unanswerable hub as idle and retires it, while
+ * a recovery path treats it as busy and leaves it alone. Callers pick their
+ * own fallback instead of inheriting a hidden one.
+ */
+export async function queryHubSessionActivity(
 	url: string,
 	authToken?: string,
 	options?: Pick<HubClientOptions, "workspaceRoot" | "cwd">,
-): Promise<boolean> {
+): Promise<HubSessionActivity> {
 	const client = new NodeHubClient({
 		url,
 		authToken,
@@ -1019,11 +1056,24 @@ export async function localHubHasNoActiveSessions(
 			undefined,
 			{ timeoutMs: HUB_RECOVERY_SESSION_LIST_TIMEOUT_MS },
 		);
-		return !hasActiveHubSessions(reply.payload);
-	} catch {
-		return false;
+		return summarizeHubSessionActivity(reply.payload);
 	} finally {
 		await client.dispose().catch(() => undefined);
+	}
+}
+
+export async function localHubHasNoActiveSessions(
+	url: string,
+	authToken?: string,
+	options?: Pick<HubClientOptions, "workspaceRoot" | "cwd">,
+): Promise<boolean> {
+	try {
+		const activity = await queryHubSessionActivity(url, authToken, options);
+		return activity.activeSessionCount === 0;
+	} catch {
+		// Recovery callers must not treat a hub they cannot positively observe
+		// idle as safe to stop, so an unanswerable hub reports as busy here.
+		return false;
 	}
 }
 

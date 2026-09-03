@@ -220,6 +220,19 @@ export function modelSupportsToolCalling(model: {
 	return modelHasCapability(model, "tools", { assumeWhenUnspecified: true });
 }
 
+/**
+ * Whether a model can receive image parts in a request. Fails open on the
+ * same grounds as `modelSupportsToolCalling`: a host boundary that reports no
+ * capabilities at all has not declared the model text-only, and stripping
+ * images from a vision-capable model loses user content silently. A populated
+ * list without `images` is authoritative.
+ */
+export function modelSupportsImageInput(model: {
+	capabilities?: readonly string[];
+}): boolean {
+	return modelHasCapability(model, "images", { assumeWhenUnspecified: true });
+}
+
 export const ModelInfoSchema = z.object({
 	id: z.string(),
 	name: z.string().optional(),

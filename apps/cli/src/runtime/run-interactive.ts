@@ -200,10 +200,6 @@ export async function runInteractive(
 	let pluginChatCommandHostPromise:
 		| Promise<InteractiveSlashCommand[]>
 		| undefined;
-	const configDataLoader = createInteractiveConfigDataLoader({
-		config,
-		userInstructionService,
-	});
 	const ensurePluginChatCommandHost = async (): Promise<
 		InteractiveSlashCommand[]
 	> => {
@@ -301,6 +297,12 @@ export async function runInteractive(
 		onPendingPromptSubmitted: (event) => {
 			uiEvents.emit("pending-prompt-submitted", event);
 		},
+	});
+	const configDataLoader = createInteractiveConfigDataLoader({
+		config,
+		userInstructionService,
+		loadCoreSettings: sessionRuntime.listCoreSettings,
+		toggleCoreSettings: sessionRuntime.toggleCoreSettings,
 	});
 	let modeChangePromise: Promise<void> | undefined;
 	let modeChangeTarget: "plan" | "act" | undefined;

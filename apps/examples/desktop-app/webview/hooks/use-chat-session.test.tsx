@@ -39,6 +39,22 @@ function HookHarness() {
 	return null;
 }
 
+function deferred<T>() {
+	let resolve!: (value: T | PromiseLike<T>) => void;
+	const promise = new Promise<T>((next) => {
+		resolve = next;
+	});
+	return { promise, resolve };
+}
+
+function handlerFor(eventName: string): (payload: unknown) => void {
+	const handler = subscribeMock.mock.calls.find(
+		([subscribedEvent]) => subscribedEvent === eventName,
+	)?.[1];
+	expect(handler).toBeDefined();
+	return handler as (payload: unknown) => void;
+}
+
 beforeEach(async () => {
 	Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 	window.localStorage.clear();
@@ -63,6 +79,223 @@ afterEach(async () => {
 });
 
 describe("useChatSession", () => {
+	it("restores an idle parent when aborting its child fails", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string } | undefined;
+					if (request?.action === "start") {
+						return { sessionId: "session-child-abort" };
+					}
+					if (request?.action === "abort") {
+						return { ok: false };
+					}
+				}
+				return [];
+			},
+		);
+
+		await act(async () => current.start(current.config));
+		const statusHandler = handlerFor("chat_session_status");
+
+		await act(async () => {
+			statusHandler({ sessionId: current.sessionId, status: "idle" });
+		});
+		expect(current.status).toBe("idle");
+
+		await act(async () => current.abort());
+
+		expect(current.status).toBe("idle");
+	});
+
+	it("preserves authoritative completion across abort races", async () => {
+		vi.useFakeTimers();
+		try {
+			const sessionId = "session-abort-chat-done";
+			const abortResponse = deferred<unknown>();
+			const pendingResponse = deferred<unknown>();
+			const sendResponse = deferred<unknown>();
+			invokeMock.mockImplementation(
+				async (command: string, args?: Record<string, unknown>) => {
+					if (command === "chat_session_command") {
+						const request = args?.request as { action?: string } | undefined;
+						if (request?.action === "start") return { sessionId };
+						if (request?.action === "send") {
+							return await sendResponse.promise;
+						}
+						if (request?.action === "abort") {
+							return await abortResponse.promise;
+						}
+						if (request?.action === "pending_prompts") {
+							return await pendingResponse.promise;
+						}
+					}
+					return [];
+				},
+			);
+
+			await act(async () => current.start(current.config));
+			const chatEventHandler = handlerFor("chat_event");
+			const statusHandler = handlerFor("chat_session_status");
+
+			await act(async () => {
+				statusHandler({ sessionId, status: "running" });
+			});
+			let sendTask!: Promise<void>;
+			await act(async () => {
+				sendTask = current.sendPrompt("queued follow-up");
+				for (let i = 0; i < 5; i += 1) await Promise.resolve();
+			});
+
+			await act(async () => {
+				chatEventHandler({
+					sessionId,
+					stream: "chat_done",
+					chunk: JSON.stringify({ reason: "completed" }),
+					ts: Date.now(),
+					index: 1,
+				});
+			});
+			expect(current.status).toBe("running");
+
+			let abortTask!: Promise<void>;
+			await act(async () => {
+				abortTask = current.abort();
+				await Promise.resolve();
+			});
+			expect(current.status).toBe("stopping");
+
+			await act(async () => {
+				statusHandler({ sessionId, status: "running" });
+			});
+			expect(current.status).toBe("stopping");
+
+			await act(async () => {
+				pendingResponse.resolve({
+					sessionId,
+					ok: true,
+					promptsInQueue: [],
+				});
+				for (let i = 0; i < 5; i += 1) await Promise.resolve();
+			});
+			expect(current.status).toBe("completed");
+
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(2000);
+			});
+			expect(current.status).toBe("completed");
+
+			await act(async () => {
+				sendResponse.resolve({
+					sessionId,
+					ok: true,
+					queued: true,
+					promptsInQueue: [],
+				});
+				await sendTask;
+			});
+			expect(current.status).toBe("completed");
+
+			await act(async () => {
+				abortResponse.resolve({ ok: false });
+				await abortTask;
+			});
+			expect(current.status).toBe("completed");
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("reconciles a running tool row after an aborted send settles", async () => {
+		const sessionId = "session-aborted-tool";
+		const sendResponse = deferred<unknown>();
+		const canonicalMessages = [
+			{
+				id: "history-assistant",
+				sessionId,
+				role: "assistant",
+				content: "",
+				createdAt: 2,
+			},
+			{
+				id: "history-tool",
+				sessionId,
+				role: "tool",
+				content: JSON.stringify({
+					toolName: "spawn_agent",
+					input: { task: "sleep" },
+					result: { finishReason: "aborted" },
+					isError: false,
+				}),
+				createdAt: 3,
+				meta: {
+					toolName: "spawn_agent",
+					toolCallId: "call-spawn",
+					hookEventName: "history_tool_result",
+				},
+			},
+		];
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "read_session_messages") return canonicalMessages;
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string } | undefined;
+					if (request?.action === "start") {
+						return { sessionId };
+					}
+					if (request?.action === "send") {
+						return await sendResponse.promise;
+					}
+					if (request?.action === "abort") return { sessionId, ok: true };
+				}
+				return [];
+			},
+		);
+
+		await act(async () => current.start(current.config));
+		const chatEventHandler = handlerFor("chat_event");
+
+		let sendTask!: Promise<void>;
+		await act(async () => {
+			sendTask = current.sendPrompt("spawn a subagent");
+			await Promise.resolve();
+			chatEventHandler?.({
+				sessionId,
+				stream: "chat_tool_call_start",
+				chunk: JSON.stringify({
+					toolCallId: "call-spawn",
+					toolName: "spawn_agent",
+					input: { task: "sleep" },
+				}),
+				ts: Date.now(),
+				index: 1,
+			});
+		});
+		expect(
+			current.messages.find((message) => message.role === "tool")?.meta
+				?.hookEventName,
+		).toBe("tool_call_start");
+
+		await act(async () => current.abort());
+		await act(async () => {
+			sendResponse.resolve({
+				ok: true,
+				result: { finishReason: "aborted" },
+			});
+			await sendTask;
+			await new Promise((resolve) => setTimeout(resolve, 300));
+		});
+
+		expect(current.status).toBe("cancelled");
+		const toolMessage = current.messages.find(
+			(message) => message.role === "tool",
+		);
+		expect(toolMessage?.meta?.hookEventName).toBe("history_tool_result");
+		expect(JSON.parse(toolMessage?.content ?? "{}").result).toEqual({
+			finishReason: "aborted",
+		});
+	});
+
 	it("caps command output while preserving the newest tail", () => {
 		const result = appendCappedCommandOutput(
 			"head\n",

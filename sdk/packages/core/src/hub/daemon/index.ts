@@ -15,7 +15,7 @@ import {
 	withResolvedClineBuildEnv,
 } from "@cline/shared";
 import {
-	localHubHasNoActiveSessions,
+	queryHubSessionActivity,
 	rememberRecoverableLocalHubUrl,
 	requestHubDrain,
 	requestHubShutdown,
@@ -23,7 +23,9 @@ import {
 } from "../client";
 import {
 	clearHubDiscovery,
+	compareHubBuilds,
 	createHubServerUrl,
+	getManagedHubCompatibility,
 	type HubOwnerContext,
 	type HubServerDiscoveryRecord,
 	type HubServerProbeRecord,
@@ -31,6 +33,7 @@ import {
 	probeHubServer,
 	readHubDiscovery,
 	resolveClineDataDir,
+	resolveHubBuildIdentity,
 	withHubStartupLock,
 	writeHubDiscovery,
 } from "../discovery";
@@ -264,7 +267,11 @@ export async function hubHasLiveSessions(
 	record: Pick<HubServerProbeRecord, "url" | "authToken">,
 ): Promise<boolean> {
 	try {
-		return !(await localHubHasNoActiveSessions(record.url, record.authToken));
+		const activity = await queryHubSessionActivity(
+			record.url,
+			record.authToken,
+		);
+		return activity.activeSessionCount > 0;
 	} catch {
 		return false;
 	}
@@ -275,6 +282,15 @@ export async function hubHasLiveSessions(
  * dies mid-turn with an abnormal close. Defer instead while it is busy: the
  * caller attaches to the older Hub, the build-mismatch watcher tells the user a
  * newer build is waiting, and the swap happens at a boundary they choose.
+ *
+ * The drain comes BEFORE the busy check, not after: an idle reading is only
+ * a snapshot, and a session admitted between it and the shutdown would die
+ * in a retirement that "idle" was supposed to rule out. With the drain
+ * accepted first, the hub admits no new work, so the reading stays true
+ * through the retire. A hub that does not accept the drain (builds that
+ * predate /drain answer 404; a wedged one may not answer at all) keeps the
+ * historical best-effort snapshot - never replacing such a hub would strand
+ * every client on it permanently, the very failure this path exists to fix.
  */
 async function retireIncompatibleHub(
 	record: HubServerProbeRecord,
@@ -283,12 +299,37 @@ async function retireIncompatibleHub(
 	if (isReusableHubRecord(record)) {
 		return "reusable";
 	}
+	const drained = await requestHubDrain(
+		record.url,
+		record.authToken,
+		"retired by newer install",
+	).catch(() => false);
 	if (await hubHasLiveSessions(record)) {
+		// Deferring means the hub keeps serving its sessions, so hand it back:
+		// a deferred hub left draining would refuse all new work until restart.
+		if (drained) {
+			await requestHubDrain(
+				record.url,
+				record.authToken,
+				"hub retirement deferred",
+				{ off: true },
+			).catch(() => false);
+		}
 		return "deferred_busy";
 	}
-	return (await retireDiscoveredHub(record, discoveryPath))
-		? "retired"
-		: "failed";
+	const retired = await retireDiscoveredHub(record, discoveryPath);
+	// A hub that survived the ladder (or was skipped by the retire circuit
+	// breaker) keeps running, so hand it back too - drained-but-alive is a
+	// limbo that refuses all new work until something restarts it.
+	if (!retired && drained) {
+		await requestHubDrain(
+			record.url,
+			record.authToken,
+			"hub retirement failed",
+			{ off: true },
+		).catch(() => false);
+	}
+	return retired ? "retired" : "failed";
 }
 
 /**
@@ -684,4 +725,194 @@ export async function ensureDetachedHubServer(
 	return await withHubStartupLock(owner.discoveryPath, async () =>
 		ensureDetachedHubServerLocked(owner, workspaceRoot, endpointOverrides),
 	);
+}
+
+const HUB_UPGRADE_DEFAULT_WAIT_MS = 5_000;
+const HUB_UPGRADE_IDLE_POLL_MS = 500;
+
+export interface UpgradeManagedHubOptions {
+	workspaceRoot?: string;
+	/**
+	 * How long to wait, after draining, for the hub's live sessions to finish
+	 * before replacing it (`force`) or giving up (`still_busy`).
+	 */
+	waitForIdleMs?: number;
+	/**
+	 * Replace the hub even if sessions are still live once the wait expires.
+	 * Only set this on a user-consented path: those sessions die mid-turn.
+	 * Honored only once the hub has accepted the drain - a busy hub that
+	 * refused the drain is never replaced, because the drain is what protects
+	 * work started during the wait window.
+	 */
+	force?: boolean;
+	/** Recorded as the hub's drain reason, visible in `hub.status`. */
+	reason?: string;
+}
+
+export type UpgradeManagedHubOutcome =
+	/** The running older hub was retired and a current-build hub is up. */
+	| "replaced"
+	/** No live hub was found; a current-build hub was started. */
+	| "started"
+	/** The running hub already matches this build; nothing to do. */
+	| "already_current"
+	/**
+	 * The running hub is newer than (or unorderable against) this build.
+	 * Replacing it would downgrade another install's hub and reopen the
+	 * mutual-retire loop (#13145), so it is refused; updating this client is
+	 * the fix.
+	 */
+	| "hub_not_older"
+	/** `force` was not set and sessions never finished - or the hub's
+	 * activity could never be confirmed, which counts as busy here; the hub
+	 * was un-drained and left running. */
+	| "still_busy";
+
+export interface UpgradeManagedHubResult {
+	outcome: UpgradeManagedHubOutcome;
+	url?: string;
+	authToken?: string;
+	/**
+	 * Live sessions observed on the old hub at decision time: the sessions
+	 * that were interrupted (`replaced`) or that kept it running
+	 * (`still_busy`). Omitted when the hub never answered the activity query.
+	 */
+	activeSessionCount?: number;
+}
+
+/**
+ * Replace the managed local hub with one running this build, on the user's
+ * explicit say-so. This is the deliberate counterpart to the automatic
+ * replacement in `ensureDetachedHubServer`, which defers while the older hub
+ * is serving sessions: drain first (the hub refuses new work while in-flight
+ * turns get `waitForIdleMs` to finish), then the shared graceful retire
+ * ladder, then a fresh daemon. Drain-first is a guarantee, not a courtesy:
+ * this function retires a hub only under an accepted drain, because the
+ * drain is the admission barrier that keeps any busy or idle reading true
+ * through the retire. A hub that refuses the drain fails the upgrade
+ * outright - `force` does not override that, and neither does an idle
+ * reading, which without the drain is only a snapshot that a newly admitted
+ * session could invalidate before the retire lands. (Such a hub is still
+ * replaced by the automatic ensure path once idle at the next client
+ * startup, the pre-existing recovery route for hubs too old to serve
+ * /drain.) Activity readings that fail are treated as unknown, not idle:
+ * they never shorten the wait window, and without `force` an unconfirmed
+ * hub is handed back un-drained rather than retired.
+ *
+ * Never replaces a hub this build is not strictly newer than - the build
+ * total order guarantees at most one side of any install pair can reach the
+ * retire step, which is what keeps two mixed installs from taking turns
+ * "upgrading" the hub to their own build.
+ */
+export async function upgradeManagedHub(
+	options: UpgradeManagedHubOptions = {},
+): Promise<UpgradeManagedHubResult> {
+	const owner = resolveDefaultHubOwnerContext();
+	const workspaceRoot = options.workspaceRoot ?? process.cwd();
+	const discovered = await readHubDiscovery(owner.discoveryPath);
+	const live = discovered?.url
+		? await safeProbeHubServer(discovered.url, discovered.authToken)
+		: undefined;
+	if (!live?.url) {
+		const ensured = await ensureDetachedHubServer(workspaceRoot);
+		return { outcome: "started", ...ensured };
+	}
+	const record = {
+		...live,
+		authToken: live.authToken ?? discovered?.authToken,
+		pid: live.pid ?? discovered?.pid,
+	};
+	if (getManagedHubCompatibility(live).compatible) {
+		return {
+			outcome: "already_current",
+			url: live.url,
+			authToken: record.authToken,
+		};
+	}
+	if (compareHubBuilds(resolveHubBuildIdentity(), live) <= 0) {
+		return {
+			outcome: "hub_not_older",
+			url: live.url,
+			authToken: record.authToken,
+		};
+	}
+	const drained = await requestHubDrain(
+		record.url,
+		record.authToken,
+		options.reason ?? "hub upgrade requested",
+	).catch(() => false);
+	// No accepted drain, no upgrade - unconditionally. The drain is the
+	// admission barrier that keeps every reading below true through the
+	// retire; without it even a positively idle reading is a snapshot that a
+	// session admitted a moment later would invalidate, and that session
+	// would die in a retire the user's consent prompt never covered. A hub
+	// too old or too wedged to accept the drain is still replaced by the
+	// automatic ensure path once it is idle at the next client startup.
+	if (!drained) {
+		throw new Error(
+			`The running Cline Hub at ${record.url} did not accept a drain request, so it was not replaced. It is replaced automatically once idle when a Cline client next starts, or run 'cline doctor fix' to stop it now.`,
+		);
+	}
+	// An aborted upgrade must hand the hub back: leaving it draining refuses
+	// all new mutating work until a restart.
+	const undrain = async (): Promise<void> => {
+		await requestHubDrain(record.url, record.authToken, "hub upgrade aborted", {
+			off: true,
+		}).catch(() => false);
+	};
+	const deadline =
+		Date.now() + (options.waitForIdleMs ?? HUB_UPGRADE_DEFAULT_WAIT_MS);
+	// A failed reading is "unknown", never "idle": it must not end the wait
+	// window early, overwrite the last real observation, or authorize a
+	// retirement by itself - a transient query blip while turns are still
+	// finishing must not cut short the grace the drain exists to provide.
+	// Only an observed-zero reading ends the window before the deadline.
+	// (Checks at least once so waitForIdleMs: 0 still observes an idle hub.)
+	let observedSessionCount: number | undefined;
+	for (;;) {
+		try {
+			observedSessionCount = (
+				await queryHubSessionActivity(record.url, record.authToken)
+			).activeSessionCount;
+			if (observedSessionCount === 0) {
+				break;
+			}
+		} catch {
+			// Unknown; keep polling until the deadline.
+		}
+		if (Date.now() >= deadline) {
+			break;
+		}
+		await new Promise((resolve) =>
+			setTimeout(resolve, HUB_UPGRADE_IDLE_POLL_MS),
+		);
+	}
+	const confirmedIdle = observedSessionCount === 0;
+	// Without force, only a positively idle hub may be replaced: a busy or
+	// unanswerable hub is handed back un-drained. With force, the user has
+	// already consented to interrupting the sessions the prompt showed them,
+	// and the accepted drain keeps new work out from here through the retire.
+	if (!confirmedIdle && options.force !== true) {
+		await undrain();
+		return {
+			outcome: "still_busy",
+			url: record.url,
+			authToken: record.authToken,
+			...(observedSessionCount !== undefined
+				? { activeSessionCount: observedSessionCount }
+				: {}),
+		};
+	}
+	if (!(await retireDiscoveredHub(record, owner.discoveryPath))) {
+		await undrain();
+		throw new Error(
+			`The running Cline Hub at ${record.url} could not be stopped. Run 'cline doctor fix' to stop stale hub daemons, then try again.`,
+		);
+	}
+	const ensured = await ensureDetachedHubServer(workspaceRoot);
+	return {
+		outcome: "replaced",
+		...ensured,
+		activeSessionCount: observedSessionCount ?? 0,
+	};
 }

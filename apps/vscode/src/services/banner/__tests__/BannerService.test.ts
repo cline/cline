@@ -559,6 +559,80 @@ describe("BannerService", () => {
 				expect(mockFetch.calledTwice).to.be.true
 			})
 		})
+
+		it("should clear cache when dismissing a cached remote banner", async () => {
+			const mockResponse = {
+				data: {
+					items: [
+						{
+							id: "bnr_remote",
+							titleMd: "Remote",
+							bodyMd: "Remote",
+							severity: "info" as const,
+							placement: "top" as const,
+							rulesJson: "{}",
+						},
+					],
+				},
+			}
+
+			mockFetch.resolves(createSuccessResponse(mockResponse))
+
+			await mockFetchForTesting(mockFetch, async () => {
+				const bannerService = BannerService.initialize(mockController)
+				bannerService.getActiveBanners()
+				await new Promise((resolve) => setTimeout(resolve, 10))
+				// Initial banner list fetch
+				expect(mockFetch.callCount).to.equal(1)
+
+				await bannerService.dismissBanner("bnr_remote")
+				// Dismiss event POST
+				expect(mockFetch.callCount).to.equal(2)
+
+				bannerService.getActiveBanners()
+				await new Promise((resolve) => setTimeout(resolve, 10))
+				// Cache was cleared, so the list is refetched
+				expect(mockFetch.callCount).to.equal(3)
+			})
+		})
+
+		it("should keep cached remote banners when dismissing a non-remote banner id", async () => {
+			const mockResponse = {
+				data: {
+					items: [
+						{
+							id: "bnr_remote",
+							titleMd: "Remote",
+							bodyMd: "Remote",
+							severity: "info" as const,
+							placement: "top" as const,
+							rulesJson: "{}",
+						},
+					],
+				},
+			}
+
+			mockFetch.resolves(createSuccessResponse(mockResponse))
+
+			await mockFetchForTesting(mockFetch, async () => {
+				const bannerService = BannerService.initialize(mockController)
+				bannerService.getActiveBanners()
+				await new Promise((resolve) => setTimeout(resolve, 10))
+				// Initial banner list fetch
+				expect(mockFetch.callCount).to.equal(1)
+
+				// Dismiss a hardcoded/webview-local banner id (e.g. the ClinePass promo)
+				await bannerService.dismissBanner("cline-pass-home-promo-v2")
+				// Dismiss event POST, but no cache clear
+				expect(mockFetch.callCount).to.equal(2)
+
+				const banners = bannerService.getActiveBanners()
+				await new Promise((resolve) => setTimeout(resolve, 10))
+				// Remote banners are still served from cache without a refetch
+				expect(banners.map((b) => b.id)).to.deep.equal(["bnr_remote"])
+				expect(mockFetch.callCount).to.equal(2)
+			})
+		})
 	})
 
 	describe("OS Parameter Integration", () => {

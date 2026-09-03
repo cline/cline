@@ -184,6 +184,37 @@ describe("createProviderConfigStore", () => {
 		expect(store.read(providerId).baseUrl).toBeUndefined()
 	})
 
+	// Pasted API keys can carry invisible clipboard artifacts (surrounding
+	// whitespace, newlines, zero-width characters). The masked key field hides
+	// them from the user and the provider rejects the key with a 401 that
+	// looks identical to a genuinely wrong key, so the write boundary must
+	// strip them before the value reaches either backing store.
+	it("sanitizes pasted API keys before writing to both stores", async () => {
+		const { createProviderConfigStore } = await import("./store")
+		const store = createProviderConfigStore()
+		const providerId = parseProviderId("mistral")
+
+		store.write(providerId, { apiKey: " \u200b\ufeffmistral-key\u200d \n" })
+
+		expect(mocks.getApiConfiguration().mistralApiKey).toBe("mistral-key")
+		expect(mocks.getSavedProviderSettings("mistral")).toEqual({ provider: "mistral", apiKey: "mistral-key" })
+		expect(store.read(providerId).apiKey).toBe("mistral-key")
+	})
+
+	it("treats a whitespace-only API key as a clear", async () => {
+		const { createProviderConfigStore } = await import("./store")
+		mocks.setProviderSettings({ mistral: { provider: "mistral", apiKey: "existing-key" } })
+		mocks.setApiConfiguration({ mistralApiKey: "existing-key" })
+		const store = createProviderConfigStore()
+		const providerId = parseProviderId("mistral")
+
+		store.write(providerId, { apiKey: " \n " })
+
+		expect(mocks.getApiConfiguration().mistralApiKey).toBeUndefined()
+		expect(mocks.getSavedProviderSettings("mistral")).toEqual({ provider: "mistral" })
+		expect(store.read(providerId).apiKey).toBeUndefined()
+	})
+
 	// Changing the regional API line in the settings UI goes through
 	// store.write. It must land in providers.json (the CLI and desktop app
 	// bake the regional base URL from its stored apiLine) AND mirror to the

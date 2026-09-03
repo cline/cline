@@ -1,10 +1,13 @@
 import type { ProviderSettingsManager } from "@cline/core";
 import {
+	completeClineDeviceAuth,
 	getProviderAuthStorageId,
 	loginLocalProvider,
 	markLocalProviderEnabled,
 	saveLocalProviderOAuthCredentials,
+	startClineDeviceAuth,
 } from "@cline/core";
+import { getClineEnvironmentConfig } from "@cline/shared";
 
 export class OAuthLoginCancelledError extends Error {
 	constructor(providerId: string) {
@@ -26,13 +29,41 @@ type PendingOAuthLogin = {
 const pendingOAuthLoginsByProvider = new Map<string, PendingOAuthLogin>();
 
 export type OAuthLoginDependencies = {
-	login: typeof loginLocalProvider;
+	login: typeof loginProviderForDesktop;
 	save: typeof saveLocalProviderOAuthCredentials;
 	markEnabled: typeof markLocalProviderEnabled;
 };
 
+/**
+ * Cline account providers sign in with the WorkOS device-code grant, whose
+ * browser page asks the user to confirm a short code. `loginLocalProvider`
+ * runs that flow but discards the code, so use the split helpers instead and
+ * surface the code through `onUserCode` for the UI to display.
+ */
+async function loginProviderForDesktop(
+	providerId: string,
+	existing: Parameters<typeof loginLocalProvider>[1],
+	openUrl: (url: string) => void,
+	onUserCode?: (userCode: string) => void,
+): ReturnType<typeof loginLocalProvider> {
+	if (providerId !== "cline" && providerId !== "cline-pass") {
+		return loginLocalProvider(providerId, existing, openUrl);
+	}
+	const device = await startClineDeviceAuth();
+	onUserCode?.(device.userCode);
+	openUrl(device.verificationUriComplete ?? device.verificationUri);
+	return completeClineDeviceAuth({
+		deviceCode: device.deviceCode,
+		expiresInSeconds: device.expiresInSeconds,
+		pollIntervalSeconds: device.pollIntervalSeconds,
+		apiBaseUrl:
+			existing?.baseUrl?.trim() || getClineEnvironmentConfig().apiBaseUrl,
+		provider: providerId,
+	});
+}
+
 const defaultDependencies: OAuthLoginDependencies = {
-	login: loginLocalProvider,
+	login: loginProviderForDesktop,
 	save: saveLocalProviderOAuthCredentials,
 	markEnabled: markLocalProviderEnabled,
 };
@@ -47,7 +78,11 @@ export async function runCancellableProviderOAuthLogin(
 	manager: ProviderSettingsManager,
 	providerId: string,
 	openUrl: (url: string) => void,
-	options: { owner?: object } = {},
+	options: {
+		owner?: object;
+		/** Receives the device sign-in confirmation code, when the flow has one. */
+		onUserCode?: (userCode: string) => void;
+	} = {},
 	dependencies: OAuthLoginDependencies = defaultDependencies,
 ): Promise<{ provider: string; accessToken: string }> {
 	const storageProviderId = getProviderAuthStorageId(providerId) ?? providerId;
@@ -74,7 +109,7 @@ export async function runCancellableProviderOAuthLogin(
 		// after cancellation is observed and cannot become an unhandled
 		// rejection that kills the sidecar.
 		const credentials = await Promise.race([
-			dependencies.login(providerId, existing, openUrl),
+			dependencies.login(providerId, existing, openUrl, options.onUserCode),
 			cancellation,
 		]);
 		if (entry.cancelled) {

@@ -1270,6 +1270,30 @@ export class SqliteCronStore {
 		return row ? runToRecord(row) : undefined;
 	}
 
+	/**
+	 * 1-based position of a run among every run ever created for its spec,
+	 * in creation order. Counts runs of every status (including cancelled and
+	 * failed ones) so the number is stable: a later cancellation never shifts
+	 * the numbers already stamped onto earlier sessions. Returns undefined
+	 * for an unknown run.
+	 */
+	public getRunOrdinal(runId: string): number | undefined {
+		const row = this.db
+			.prepare(
+				`SELECT COUNT(*) AS count
+					FROM cron_runs r
+					INNER JOIN cron_runs target ON target.run_id = ?
+					WHERE r.spec_id = target.spec_id
+						AND (
+							r.created_at < target.created_at
+							OR (r.created_at = target.created_at AND r.rowid <= target.rowid)
+						)`,
+			)
+			.get(runId) as { count?: unknown } | undefined;
+		const count = Number(row?.count ?? 0);
+		return count > 0 ? count : undefined;
+	}
+
 	public insertEventLog(
 		event: AutomationEventEnvelope,
 		options: { receivedAtIso?: string } = {},

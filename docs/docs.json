@@ -179,6 +179,12 @@
 						"pages": [
 							"troubleshooting/networking-and-proxies"
 						]
+					},
+					{
+						"group": "Resources",
+						"pages": [
+							"resources/deprecations"
+						]
 					}
 				]
 			},

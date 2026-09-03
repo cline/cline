@@ -152,15 +152,21 @@ function deferred<T>() {
 }
 
 async function renderVoiceComposer({
+	hasRunningAgents = false,
+	onAbort = vi.fn(),
 	onPromptInputChange = vi.fn(),
 	onSend = vi.fn(),
 	prompt = "",
 	promptVersion = 0,
+	status = "idle",
 }: {
+	hasRunningAgents?: boolean;
+	onAbort?: ReturnType<typeof vi.fn>;
 	onPromptInputChange?: ReturnType<typeof vi.fn>;
 	onSend?: ReturnType<typeof vi.fn>;
 	prompt?: string;
 	promptVersion?: number;
+	status?: ChatSessionStatus;
 } = {}) {
 	await act(async () => {
 		root.render(
@@ -168,9 +174,10 @@ async function renderVoiceComposer({
 				<ChatInputBar
 					attachments={[]}
 					gitBranch="main"
+					hasRunningAgents={hasRunningAgents}
 					mode="act"
 					model="test-model"
-					onAbort={vi.fn()}
+					onAbort={onAbort}
 					onAttachFiles={vi.fn()}
 					onEditPromptInQueue={vi.fn()}
 					onListGitBranches={vi.fn(async () => ({
@@ -191,7 +198,7 @@ async function renderVoiceComposer({
 					promptsInQueue={[]}
 					provider="cline"
 					reasoningEffort="low"
-					status="idle"
+					status={status}
 					summary={{ toolCalls: 0, tokensIn: 0, tokensOut: 0 }}
 					thinking
 				/>
@@ -202,6 +209,23 @@ async function renderVoiceComposer({
 }
 
 describe("ChatInputBar", () => {
+	it("allows a parent session with a running child agent to be stopped", async () => {
+		const onAbort = vi.fn();
+		await renderVoiceComposer({
+			hasRunningAgents: true,
+			onAbort,
+			status: "idle",
+		});
+
+		const stopButton = container.querySelector<HTMLButtonElement>(
+			'[aria-label="Stop agent"]',
+		);
+		expect(stopButton).not.toBeNull();
+
+		await act(async () => stopButton?.click());
+		expect(onAbort).toHaveBeenCalledOnce();
+	});
+
 	it("builds slash commands from both workflows and skills", () => {
 		expect(
 			buildUserInstructionSlashCommands({

@@ -25,6 +25,8 @@ import {
 	getAdjacentConfigTab,
 	getConfigFooterText,
 	getConfigItemDisplayName,
+	getConfigPluginSections,
+	getConfigTabCountHeading,
 	getConfigTabs,
 	getPluginDiagnosticsLoadingText,
 	isInlineConfigAction,
@@ -34,6 +36,7 @@ import {
 	resolveConfigItemSelectAction,
 	resolveConfigItemToggleAction,
 	resolveInitialConfigTab,
+	shouldRenderConfigItemAsEnabled,
 	toTabLabel,
 } from "./config-view-helpers";
 
@@ -298,6 +301,16 @@ function appendSkillRows(
 	}
 }
 
+function appendPluginRows(
+	rows: ConfigRow[],
+	items: InteractiveConfigItem[],
+): void {
+	for (const section of getConfigPluginSections(items)) {
+		rows.push({ kind: "head", label: section.label });
+		appendExtRows(rows, section.items);
+	}
+}
+
 function withOptimisticToggle(
 	data: InteractiveConfigData,
 	item: InteractiveConfigItem,
@@ -477,10 +490,13 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 			r.push({ kind: "toggle", id: "verbose", label: "Verbose" });
 		} else {
 			const activeItems = resolveActiveConfigItems(configData, activeTab);
-			r.push({
-				kind: "head",
-				label: `${toTabLabel(activeTab)} (${activeItems.length})`,
-			});
+			const countHeading = getConfigTabCountHeading(
+				activeTab,
+				activeItems.length,
+			);
+			if (countHeading) {
+				r.push({ kind: "head", label: countHeading });
+			}
 
 			if (activeItems.length === 0 && !pluginToolsLoading) {
 				r.push({
@@ -504,6 +520,21 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 				}
 			} else if (activeTab === "skills") {
 				appendSkillRows(r, activeItems);
+			} else if (activeTab === "plugins") {
+				appendPluginRows(r, activeItems);
+				if (pluginToolsLoading) {
+					const loadingText = getPluginDiagnosticsLoadingText(activeTab);
+					r.push({
+						kind: "detail",
+						text: loadingText ?? "Loading plugin diagnostics...",
+					});
+				}
+				if (pluginToolsError) {
+					r.push({
+						kind: "detail",
+						text: pluginToolsError,
+					});
+				}
 			} else {
 				for (const item of activeItems) {
 					r.push({
@@ -521,19 +552,6 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 										lastError: item.loadError,
 									})
 								: getPluginLoadErrorLabel(item),
-					});
-				}
-				if (activeTab === "plugins" && pluginToolsLoading) {
-					const loadingText = getPluginDiagnosticsLoadingText(activeTab);
-					r.push({
-						kind: "detail",
-						text: loadingText ?? "Loading plugin diagnostics...",
-					});
-				}
-				if (activeTab === "plugins" && pluginToolsError) {
-					r.push({
-						kind: "detail",
-						text: pluginToolsError,
 					});
 				}
 			}
@@ -871,11 +889,10 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 											: "○ "
 								: "";
 						const rightLabel = row.rightLabel ?? "";
-						const toggleable = isToggleableConfigItem(row.item);
 						const prefix = " ".repeat(row.indent ?? 0);
 						const rowColor = row.item.loadError
 							? "red"
-							: toggleable && enabledState === "enabled"
+							: shouldRenderConfigItemAsEnabled(row.item, enabledState)
 								? palette.success
 								: enabledState === "partial"
 									? "yellow"

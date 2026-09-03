@@ -14,6 +14,7 @@ import {
 	isAgentPluginDirectory,
 	isChatWorkspacePath,
 	RULES_CONFIG_DIRECTORY_NAME,
+	resolveAgentPluginSearchPaths,
 	resolveAgentsConfigDirPath,
 	resolveChatWorkspacePath,
 	resolveClineDataDir,
@@ -31,6 +32,7 @@ import {
 	resolveSessionDataDir,
 	resolveTeamDataDir,
 	resolveWorkflowsConfigSearchPaths,
+	setHomeDir,
 } from "./paths";
 
 type EnvSnapshot = {
@@ -81,6 +83,20 @@ describe("storage path resolution", () => {
 
 	afterEach(() => {
 		restoreEnv(snapshot);
+	});
+
+	it("only auto-discovers Agent Plugins from the user home", () => {
+		const homeRoot = mkdtempSync(join(tmpdir(), "cline-agent-plugin-home-"));
+		const previousHome = process.env.HOME ?? "~";
+		try {
+			setHomeDir(homeRoot);
+			expect(resolveAgentPluginSearchPaths()).toEqual([
+				join(homeRoot, ".agents", "plugins"),
+			]);
+		} finally {
+			setHomeDir(previousHome);
+			rmSync(homeRoot, { recursive: true, force: true });
+		}
 	});
 
 	it("uses CLINE_DATA_DIR as-is when set", () => {

@@ -424,6 +424,36 @@ describe("mcp client request timeout", () => {
 		await waitFor(() => !isProcessRunning(pid));
 	}, 30_000);
 
+	it("waits for the stdio child to close before disconnect resolves", async () => {
+		const serverCwd = mkdtempSync(join(tempRoot, "disconnect-cwd-"));
+		const pidFile = join(tempRoot, `disconnect-${Date.now()}.pid`);
+		const registration = fakeServerRegistration({
+			delayMs: 0,
+			pidFile,
+		});
+		if (registration.transport.type !== "stdio") {
+			throw new Error("Expected stdio registration.");
+		}
+		registration.transport.cwd = serverCwd;
+		const client = await createDefaultMcpServerClientFactory()(registration);
+
+		try {
+			await client.connect();
+			await waitFor(() => existsSync(pidFile));
+			const pid = Number(readFileSync(pidFile, "utf8"));
+			expect(isProcessRunning(pid)).toBe(true);
+
+			await client.disconnect();
+
+			expect(isProcessRunning(pid)).toBe(false);
+			expect(() =>
+				rmSync(serverCwd, { recursive: true, force: true }),
+			).not.toThrow();
+		} finally {
+			await client.disconnect().catch(() => {});
+		}
+	}, 30_000);
+
 	it("aborts a long stdio tool call without waiting for its timeout", async () => {
 		const factory = createDefaultMcpServerClientFactory();
 		const client = await factory(

@@ -9,6 +9,8 @@ import {
 } from "node:path";
 import {
 	type BuiltinToolAvailabilityContext,
+	type CoreSettingsItem,
+	type CoreSettingsSnapshot,
 	DEFAULT_MCP_CONNECT_TIMEOUT_MS,
 	discoverPluginModulePaths,
 	getPluginDisplayName,
@@ -80,6 +82,12 @@ export interface InteractiveConfigItem {
 		| "global-plugin"
 		| "workspace-plugin";
 	description?: string;
+	/** True when the hub discovered this through agent-plugins.org. */
+	agentPlugin?: boolean;
+	/** Explicitly overrides the default toggle policy for this item. */
+	toggleable?: boolean;
+	/** Explicitly overrides the default delete policy for this item. */
+	deletable?: boolean;
 }
 
 export interface InteractiveConfigData {
@@ -100,8 +108,14 @@ export interface LoadInteractiveConfigDataOptions {
 }
 
 export function isToggleableInteractiveConfigItem(
-	item: Pick<InteractiveConfigItem, "kind" | "source" | "pluginName">,
+	item: Pick<
+		InteractiveConfigItem,
+		"kind" | "source" | "pluginName" | "toggleable"
+	>,
 ): boolean {
+	if (item.toggleable !== undefined) {
+		return item.toggleable;
+	}
 	if (item.kind === "mcp") {
 		return !item.pluginName;
 	}
@@ -324,12 +338,53 @@ export function applyPluginFailures(
 	}
 }
 
+function toAgentPluginInteractiveItem(
+	item: CoreSettingsItem,
+): InteractiveConfigItem {
+	return {
+		id: item.id,
+		name: item.name,
+		path: item.path,
+		enabled: item.enabled,
+		kind: item.kind,
+		source: item.source,
+		description: item.description,
+		pluginName: item.pluginName,
+		pluginPath: item.pluginPath,
+		loadError: item.loadError,
+		agentPlugin: true,
+		toggleable: item.toggleable ?? false,
+		deletable: false,
+		...(item.kind === "plugin" ? { configKind: "plugin" as const } : {}),
+	};
+}
+
+function appendAgentPluginSnapshotItems(
+	target: InteractiveConfigItem[],
+	items: readonly CoreSettingsItem[],
+): void {
+	const existing = new Set(
+		target.map((item) => `${item.kind}\0${item.id}\0${item.path}`),
+	);
+	for (const item of items) {
+		if (item.agentPlugin !== true) {
+			continue;
+		}
+		const key = `${item.kind}\0${item.id}\0${item.path}`;
+		if (!existing.has(key)) {
+			target.push(toAgentPluginInteractiveItem(item));
+			existing.add(key);
+		}
+	}
+}
+
 export async function loadInteractiveConfigData(input: {
 	userInstructionService?: UserInstructionConfigService;
 	cwd: string;
 	workspaceRoot: string;
 	availabilityContext?: BuiltinToolAvailabilityContext;
 	includePluginTools?: boolean;
+	agentPluginSettings?: CoreSettingsSnapshot;
 }): Promise<InteractiveConfigData> {
 	const workflows: InteractiveConfigItem[] = [];
 	const rules: InteractiveConfigItem[] = [];
@@ -518,14 +573,23 @@ export async function loadInteractiveConfigData(input: {
 		}
 	}
 
+	if (input.agentPluginSettings) {
+		appendAgentPluginSnapshotItems(plugins, input.agentPluginSettings.plugins);
+		appendAgentPluginSnapshotItems(skills, input.agentPluginSettings.skills);
+		appendAgentPluginSnapshotItems(mcp, input.agentPluginSettings.mcp);
+	}
+
+	const existsLocallyOrComesFromHub = (item: InteractiveConfigItem) =>
+		item.agentPlugin === true || existsSync(item.path);
+
 	return {
-		workflows: toSorted(workflows.filter((item) => existsSync(item.path))),
-		rules: toSorted(rules.filter((item) => existsSync(item.path))),
-		skills: toSorted(skills.filter((item) => existsSync(item.path))),
-		hooks: toSorted(hooks.filter((item) => existsSync(item.path))),
-		agents: toSorted(agents.filter((item) => existsSync(item.path))),
-		plugins: toSorted(plugins.filter((item) => existsSync(item.path))),
-		mcp: toSorted(mcp.filter((item) => existsSync(item.path))),
+		workflows: toSorted(workflows.filter(existsLocallyOrComesFromHub)),
+		rules: toSorted(rules.filter(existsLocallyOrComesFromHub)),
+		skills: toSorted(skills.filter(existsLocallyOrComesFromHub)),
+		hooks: toSorted(hooks.filter(existsLocallyOrComesFromHub)),
+		agents: toSorted(agents.filter(existsLocallyOrComesFromHub)),
+		plugins: toSorted(plugins.filter(existsLocallyOrComesFromHub)),
+		mcp: toSorted(mcp.filter(existsLocallyOrComesFromHub)),
 		tools: toSorted(tools),
 		workflowSlashCommands,
 		pluginDiagnosticsLoaded: input.includePluginTools !== false,

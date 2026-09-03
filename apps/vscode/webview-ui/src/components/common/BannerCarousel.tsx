@@ -49,17 +49,22 @@ const BannerCardContent: React.FC<BannerCardContentProps> = ({ banner, isActive,
 			}}>
 			{/* Title with optional icon */}
 			<h3
-				className={cn("font-semibold mb-2 flex items-center gap-2 text-base pr-0", {
+				className={cn("font-semibold mb-2 flex items-center text-base pr-0", {
+					"gap-2": banner.icon,
 					"pr-6": showDismissButton,
 				})}>
-				<span className="shrink-0">{banner.icon}</span>
+				{banner.icon && <span className="shrink-0">{banner.icon}</span>}
 				{banner.title}
 			</h3>
 
 			{/* Description */}
-			<div className="text-sm text-description leading-relaxed [&>*:last-child]:mb-0 [&_a]:hover:underline">
-				{markdownContent}
-			</div>
+			{typeof banner.description === "string" ? (
+				<div className="text-sm text-description leading-relaxed [&>*:last-child]:mb-0 [&_a]:hover:underline">
+					{markdownContent}
+				</div>
+			) : (
+				<div className="text-sm text-description leading-relaxed">{banner.description}</div>
+			)}
 
 			{/* Action buttons */}
 			{banner.actions?.length ? (
@@ -107,12 +112,26 @@ const BannerCarousel: React.FC<BannerCarouselProps> = ({ banners }) => {
 		setIsPaused(true) // Pause auto-rotation when user manually navigates
 	}, [currentIndex, banners.length, transitionToIndex])
 
-	// Reset currentIndex when banners change to prevent out-of-bounds access
+	// When the banners array changes (e.g. a banner is added or removed), keep
+	// showing the banner the user was viewing by remapping its id to the new
+	// index; fall back to clamping when it no longer exists.
+	const prevBannersRef = useRef(banners)
 	useEffect(() => {
-		if (currentIndex >= banners.length && banners.length > 0) {
+		const prevBanners = prevBannersRef.current
+		if (prevBanners === banners) {
+			return
+		}
+		prevBannersRef.current = banners
+		const activeBannerId = prevBanners[Math.min(currentIndex, prevBanners.length - 1)]?.id
+		const newIndex = activeBannerId ? banners.findIndex((banner) => banner.id === activeBannerId) : -1
+		if (newIndex >= 0) {
+			if (newIndex !== currentIndex) {
+				setCurrentIndex(newIndex)
+			}
+		} else if (currentIndex >= banners.length && banners.length > 0) {
 			setCurrentIndex(banners.length - 1)
 		}
-	}, [banners.length, currentIndex])
+	}, [banners, currentIndex])
 
 	// Auto-rotation effect
 	useEffect(() => {
