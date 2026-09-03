@@ -30,10 +30,6 @@ export type SessionMetadata = {
 	scheduleName?: string;
 	scheduleExecutionId?: string;
 	scheduleRunNumber?: number;
-	/** Set by the session importer (see `SessionImportService` in @cline/core). */
-	importedFrom?: {
-		tool?: string;
-	};
 	[key: string]: unknown;
 };
 
@@ -138,20 +134,6 @@ export function getSessionMetadataIsScheduled(
 		typeof origin.trigger === "string" &&
 		origin.trigger.trim() === SCHEDULED_SESSION_SOURCE
 	);
-}
-
-export function getSessionMetadataImportedFrom(
-	metadata?: SessionMetadata,
-): string {
-	const importedFrom = metadata?.importedFrom;
-	if (
-		!importedFrom ||
-		typeof importedFrom !== "object" ||
-		Array.isArray(importedFrom)
-	) {
-		return "";
-	}
-	return typeof importedFrom.tool === "string" ? importedFrom.tool.trim() : "";
 }
 
 export function getSessionMetadataSchedule(

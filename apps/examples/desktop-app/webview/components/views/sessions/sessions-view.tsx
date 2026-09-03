@@ -21,7 +21,6 @@ import {
 } from "lucide-react";
 import { type CSSProperties, useEffect, useMemo, useState } from "react";
 import { ImportSessionsDialog } from "@/components/import-sessions-dialog";
-import { ImportSourceIcon } from "@/components/import-source-icon";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -587,12 +586,6 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 													tone={sessionStatusTone(thread.status)}
 												/>
 												<span className="truncate">{thread.title}</span>
-												{thread.importedFrom ? (
-													<ImportSourceIcon
-														className="size-3.5 text-muted-foreground"
-														tool={thread.importedFrom}
-													/>
-												) : null}
 												{thread.pinned ? (
 													<Pin
 														aria-label="Pinned"

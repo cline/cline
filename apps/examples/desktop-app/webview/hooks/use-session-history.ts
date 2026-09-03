@@ -12,7 +12,6 @@ import type {
 } from "@/lib/session-history";
 import {
 	getSessionMetadataGitBranch,
-	getSessionMetadataImportedFrom,
 	getSessionMetadataIsScheduled,
 	getSessionMetadataPinned,
 	getSessionMetadataSchedule,
@@ -41,8 +40,6 @@ export interface SessionThread {
 	status: SessionHistoryStatus;
 	pinned?: boolean;
 	isScheduled: boolean;
-	/** Agent the session was imported from ("claude-code", "codex", "opencode"). */
-	importedFrom?: string;
 	/** Raw start timestamp; the sidebar labels un-numbered scheduled runs with it. */
 	startedAt?: string;
 	/** Schedule provenance for scheduled runs (metadata or executions list). */
@@ -281,7 +278,6 @@ function toThread(session: SessionHistoryItem): SessionThread {
 		status: normalizeDiscoveredStatus(session.status, session.prompt),
 		pinned: getSessionMetadataPinned(session.metadata),
 		isScheduled: getSessionMetadataIsScheduled(session.metadata),
-		importedFrom: getSessionMetadataImportedFrom(session.metadata) || undefined,
 		startedAt: session.startedAt?.trim() || undefined,
 		scheduleId: schedule.scheduleId,
 		scheduleName: schedule.scheduleName,
@@ -443,7 +439,6 @@ function areThreadsEquivalent(
 			a.status !== b.status ||
 			a.pinned !== b.pinned ||
 			a.isScheduled !== b.isScheduled ||
-			a.importedFrom !== b.importedFrom ||
 			a.startedAt !== b.startedAt ||
 			a.scheduleId !== b.scheduleId ||
 			a.scheduleName !== b.scheduleName ||

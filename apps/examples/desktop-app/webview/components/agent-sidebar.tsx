@@ -35,10 +35,6 @@ import {
 import { AppUpdateIndicator } from "@/components/app-update-indicator";
 import { ClineLogo } from "@/components/cline-logo";
 import {
-	getImportSourceLabel,
-	ImportSourceIcon,
-} from "@/components/import-source-icon";
-import {
 	AlertDialog,
 	AlertDialogAction,
 	AlertDialogCancel,
@@ -1573,12 +1569,6 @@ function ThreadItem({
 											className="size-3 shrink-0 text-muted-foreground"
 										/>
 									) : null}
-									{thread.importedFrom ? (
-										<ImportSourceIcon
-											className="size-3 text-muted-foreground"
-											tool={thread.importedFrom}
-										/>
-									) : null}
 									<span className="block min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-sm font-normal leading-tight">
 										{rowText}
 									</span>
@@ -1683,10 +1673,6 @@ export function getSessionOverviewItems(
 		["Tokens", formatTokenCount(thread.inputTokens, thread.outputTokens)],
 		["Cost", formatCostUsd(thread.totalCostUsd)],
 		["Source", thread.source],
-		[
-			"Imported",
-			thread.importedFrom ? getImportSourceLabel(thread.importedFrom) : null,
-		],
 	];
 	return items.filter((item): item is [string, string, string?] =>
 		Boolean(item[1]),
