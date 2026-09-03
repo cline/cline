@@ -166,15 +166,24 @@ export class CloudSessionHost implements SdkSessionHost {
 		}
 		if (event.type === "status") {
 			const mapped = mapAgentStatus(event.payload.status)
-			if (mapped) {
+			// "idle" is the resting state after any turn; keep the more specific
+			// completed/failed outcome until the agent runs again.
+			if (mapped && !(mapped === "idle" && (this.agentStatus === "completed" || this.agentStatus === "failed"))) {
 				this.setStatus(mapped)
 			}
 		} else if (event.type === "ended") {
 			this.setStatus("completed")
-		} else if (event.type === "agent_event" || event.type === "chunk") {
-			if (this.agentStatus !== "running") {
+		} else if (event.type === "agent_event") {
+			const agentEvent = event.payload.event
+			if (agentEvent.type === "done") {
+				this.setStatus(agentEvent.reason === "error" ? "failed" : "completed")
+			} else if (agentEvent.type === "error" && agentEvent.recoverable === false) {
+				this.setStatus("failed")
+			} else if (this.agentStatus !== "running") {
 				this.setStatus("running")
 			}
+		} else if (event.type === "chunk" && this.agentStatus !== "running") {
+			this.setStatus("running")
 		}
 	}
 
