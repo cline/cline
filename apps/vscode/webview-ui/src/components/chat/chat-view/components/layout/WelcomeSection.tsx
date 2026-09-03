@@ -4,6 +4,8 @@ import type { Worktree } from "@shared/proto/cline/worktree"
 import { TrackWorktreeViewOpenedRequest } from "@shared/proto/cline/worktree"
 import { GitBranch, Sparkles } from "lucide-react"
 import React, { useCallback, useEffect, useMemo, useState } from "react"
+import RunningCloudTasks from "@/components/cloud/RunningCloudTasks"
+import { TaskTargetPanel } from "@/components/cloud/TaskTargetPanel"
 import BannerCarousel, { BannerData } from "@/components/common/BannerCarousel"
 import WhatsNewModal from "@/components/common/WhatsNewModal"
 import HistoryPreview from "@/components/history/HistoryPreview"
@@ -72,6 +74,7 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 		worktreesEnabled,
 		banners,
 		welcomeBanners,
+		cloudSessionsEnabled,
 	} = useExtensionState()
 	const { handleFieldsChange } = useApiConfigurationHandlers()
 	const { isClinePassEnabled, isUsingClinePass, openSubscribePage, switchToClinePassProvider } = useClinePassPromo()
@@ -326,6 +329,7 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 				{!showWhatsNewModal && (
 					<>
 						<BannerCarousel banners={activeBanners} />
+						{cloudSessionsEnabled && <RunningCloudTasks />}
 						{!shouldShowQuickWins && taskHistory.length > 0 && <HistoryPreview showHistoryView={showHistoryView} />}
 						{/* Quick launch worktree button */}
 						{isGitRepo && worktreesEnabled?.featureFlag && worktreesEnabled?.user && (
@@ -377,6 +381,11 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 				)}
 			</div>
 			<SuggestedTasks shouldShowQuickWins={shouldShowQuickWins} />
+			{cloudSessionsEnabled && (
+				<div className="mt-auto pt-2">
+					<TaskTargetPanel />
+				</div>
+			)}
 
 			{/* Quick launch worktree modal */}
 			<CreateWorktreeModal

@@ -302,6 +302,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		webSearchEnabled: false,
 		subagentsEnabled: false,
 		worktreesEnabled: { user: true, featureFlag: false },
+		cloudSessionsEnabled: false,
 		favoritedModelIds: [],
 		lastDismissedInfoBannerVersion: 0,
 		lastDismissedModelBannerVersion: 0,
