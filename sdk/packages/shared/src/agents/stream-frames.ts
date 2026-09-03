@@ -54,7 +54,12 @@ export interface ResourceRef {
 }
 
 export type Outcome =
-	| { kind: "completed" }
+	/**
+	 * The v1 finish reason rides along on completed turns: `max_iterations`
+	 * and `mistake_limit` also complete the turn, but consumers that vary
+	 * behavior on the exact reason (the completion retag) must see it.
+	 */
+	| { kind: "completed"; finishReason?: "completed" | "max_iterations" | "mistake_limit" }
 	| { kind: "error"; error: StreamError }
 	| { kind: "interrupted" }
 	| { kind: "detached"; resource: ResourceRef };
