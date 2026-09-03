@@ -709,6 +709,12 @@ export function SettingsView({
 							selection: mediaGeneration?.image,
 						},
 						{
+							mediaType: "audio",
+							modelIdsByProvider: mediaGenerationModels.audio,
+							saving: mediaGenerationSaving.audio === true,
+							selection: mediaGeneration?.audio,
+						},
+						{
 							mediaType: "video",
 							modelIdsByProvider: mediaGenerationModels.video,
 							saving: mediaGenerationSaving.video === true,
