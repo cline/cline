@@ -488,6 +488,9 @@ describe("GenerateMediaConfiguration", () => {
 			if (!providerSelect) return;
 			providerSelect.value = "vercel-ai-gateway";
 			providerSelect.dispatchEvent(new Event("change", { bubbles: true }));
+			Array.from(container.querySelectorAll("button"))
+				.find((button) => button.textContent === "Save")
+				?.click();
 		});
 		expect(onChange).toHaveBeenLastCalledWith("image", {
 			providerId: "vercel-ai-gateway",
@@ -506,6 +509,9 @@ describe("GenerateMediaConfiguration", () => {
 			if (!modelSelect) return;
 			modelSelect.value = "mixed-image";
 			modelSelect.dispatchEvent(new Event("change", { bubbles: true }));
+			Array.from(container.querySelectorAll("button"))
+				.find((button) => button.textContent === "Save")
+				?.click();
 		});
 		expect(onChange).toHaveBeenLastCalledWith("image", {
 			providerId: "vercel-ai-gateway",
@@ -521,6 +527,9 @@ describe("GenerateMediaConfiguration", () => {
 			configuredProviderSelect.dispatchEvent(
 				new Event("change", { bubbles: true }),
 			);
+			Array.from(container.querySelectorAll("button"))
+				.find((button) => button.textContent === "Save")
+				?.click();
 		});
 		expect(onChange).toHaveBeenLastCalledWith("image", undefined);
 	});

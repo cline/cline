@@ -121,6 +121,7 @@ export const GENERATED_PROVIDER_IDS = [
 	"moonshot",
 	"moonshotai-cn",
 	"morph",
+	"nan",
 	"nano-gpt",
 	"nearai",
 	"nebius",
