@@ -114,10 +114,7 @@ export async function listUserInstructionConfigs(
 	const mediaGenerationConfigured = (
 		await Promise.all(
 			MEDIA_GENERATION_TYPES.map((mediaType) =>
-				resolveConfiguredMediaGenerationTarget(
-					mediaSettingsManager,
-					mediaType,
-				),
+				resolveConfiguredMediaGenerationTarget(mediaSettingsManager, mediaType),
 			),
 		)
 	).some((target) => Boolean(target));
