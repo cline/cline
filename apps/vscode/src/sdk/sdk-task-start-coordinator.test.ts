@@ -326,6 +326,52 @@ it("persists attachment-only tasks without waiting for model output", async () =
 	expect(historyStore.size).toBe(1)
 })
 
+it("does not fabricate history or send when ensureSessionPersisted throws after start (#13781)", async () => {
+	const { coordinator, options, state, sdkHost, historyStore } = makeCoordinator()
+	const persistError = new Error("materialize failed")
+	sdkHost.ensureSessionPersisted.mockRejectedValue(persistError)
+
+	const sessionId = await coordinator.initTask("persist then explode")
+
+	expect(sessionId).toBeUndefined()
+	expect(options.sessions.startNewSession).toHaveBeenCalledOnce()
+	expect(sdkHost.ensureSessionPersisted).toHaveBeenCalledOnce()
+	expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
+	expect(options.taskHistory.updateTaskHistoryItem).not.toHaveBeenCalled()
+	expect(historyStore.size).toBe(0)
+	expect(options.captureProviderApiError).toHaveBeenCalledWith({
+		sessionId: expect.any(String),
+		error: persistError,
+		providerId: "anthropic",
+		modelId: "model",
+		errorType: PROVIDER_FAILURE_ERROR_TYPE.TASK_INIT,
+		failurePhase: PROVIDER_FAILURE_PHASE.PREFLIGHT,
+	})
+	expect(options.messages.appendAndEmit).toHaveBeenCalledWith(
+		[
+			expect.objectContaining({
+				type: "say",
+				say: "error",
+				text: expect.stringContaining("materialize failed"),
+			}),
+		],
+		expect.objectContaining({
+			type: "status",
+			payload: expect.objectContaining({ status: "error" }),
+		}),
+	)
+	// Early streaming post + post-error post (handleInitError path).
+	expect(options.postStateToWebview).toHaveBeenCalled()
+
+	// CURRENT BEHAVIOR (#13781 evidence): clearTask runs once at init start only.
+	// After startNewSession succeeded and ensureSessionPersisted threw, production
+	// catch does NOT call clearTask again — so createAndSetTask's resident task
+	// may remain on state. Document, do not "fix" with product cleanup here.
+	expect(options.clearTask).toHaveBeenCalledOnce()
+	expect(state.task).toBeDefined()
+	expect(state.task?.taskId).toEqual(expect.any(String))
+})
+
 function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 	const state: { task?: { taskId: string } } = {}
 	const config = input.config ?? {
@@ -348,7 +394,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 	const durableHistoryIds = new Set<string>()
 	const sdkHost = {
 		send: vi.fn(),
-		ensureSessionPersisted: vi.fn(async (sessionId: string) => {
+		ensureSessionPersisted: vi.fn(async (sessionId: string, _options?: { prompt?: string }) => {
 			durableHistoryIds.add(sessionId)
 			return true
 		}),

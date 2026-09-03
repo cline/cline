@@ -1288,6 +1288,138 @@ describe("LocalRuntimeHost", () => {
 		expect(sessionService.persistSessionMessages).not.toHaveBeenCalled();
 	});
 
+	describe("ensureSessionPersisted (#13781 early materialization seam)", () => {
+		function makeLazyHost(sessionId: string) {
+			const manifest = createManifest(sessionId);
+			const sessionService = {
+				ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+				createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+					manifestPath: "/tmp/manifest.json",
+					messagesPath: "/tmp/messages.json",
+					manifest,
+				}),
+				persistSessionMessages: vi.fn(),
+				updateSessionStatus: vi.fn().mockResolvedValue({
+					updated: true,
+					endedAt: "2026-01-01T00:00:05.000Z",
+				}),
+				writeSessionManifest: vi.fn(),
+				listSessions: vi.fn().mockResolvedValue([]),
+				deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+			};
+			const runtimeBuilder = {
+				build: vi.fn().mockReturnValue({
+					tools: [],
+					teamRuntime: undefined,
+					teamRestoredFromPersistence: false,
+					shutdown: vi.fn(),
+				}),
+			};
+			const agent = {
+				run: vi.fn().mockResolvedValue(createResult()),
+				continue: vi.fn().mockResolvedValue(createResult()),
+				getMessages: vi.fn().mockReturnValue([]),
+				getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+				getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+				abort: vi.fn(),
+				subscribeEvents: vi.fn().mockReturnValue(() => {}),
+				canStartRun: vi.fn().mockReturnValue(true),
+				shutdown: vi.fn().mockResolvedValue(undefined),
+			};
+			const manager = new RuntimeHostUnderTest({
+				distinctId,
+				sessionService: sessionService as never,
+				runtimeBuilder: runtimeBuilder as never,
+				createAgent: () => agent as never,
+			});
+			return { manager, sessionService };
+		}
+
+		it("materializes a lazy interactive session with the ensure prompt (title/first-prompt)", async () => {
+			const sessionId = "sess-ensure-persist";
+			const { manager, sessionService } = makeLazyHost(sessionId);
+
+			await manager.startSession(
+				normalizeStartInput({
+					config: createConfig({ sessionId }),
+					interactive: true,
+				}),
+			);
+
+			// Empty lazy start alone must not create durable artifacts.
+			expect(
+				sessionService.createRootSessionWithArtifacts,
+			).not.toHaveBeenCalled();
+
+			const persisted = await manager.ensureSessionPersisted(sessionId, {
+				prompt: "meaningful prompt",
+			});
+
+			expect(persisted).toBe(true);
+			expect(
+				sessionService.createRootSessionWithArtifacts,
+			).toHaveBeenCalledOnce();
+			expect(
+				sessionService.createRootSessionWithArtifacts,
+			).toHaveBeenCalledWith(
+				expect.objectContaining({
+					sessionId,
+					prompt: "meaningful prompt",
+				}),
+			);
+		});
+
+		it("is idempotent once artifacts already exist", async () => {
+			const sessionId = "sess-ensure-idempotent";
+			const { manager, sessionService } = makeLazyHost(sessionId);
+
+			await manager.startSession(
+				normalizeStartInput({
+					config: createConfig({ sessionId }),
+					interactive: true,
+				}),
+			);
+
+			await expect(
+				manager.ensureSessionPersisted(sessionId, { prompt: "first ensure" }),
+			).resolves.toBe(true);
+			await expect(
+				manager.ensureSessionPersisted(sessionId, { prompt: "second ensure" }),
+			).resolves.toBe(true);
+
+			expect(
+				sessionService.createRootSessionWithArtifacts,
+			).toHaveBeenCalledOnce();
+			expect(
+				sessionService.createRootSessionWithArtifacts,
+			).toHaveBeenCalledWith(
+				expect.objectContaining({
+					sessionId,
+					prompt: "first ensure",
+				}),
+			);
+		});
+
+		it("returns false for unknown session ids without materializing", async () => {
+			const sessionId = "sess-ensure-known";
+			const { manager, sessionService } = makeLazyHost(sessionId);
+
+			await manager.startSession(
+				normalizeStartInput({
+					config: createConfig({ sessionId }),
+					interactive: true,
+				}),
+			);
+
+			await expect(manager.ensureSessionPersisted("unknown-id")).resolves.toBe(
+				false,
+			);
+			expect(
+				sessionService.createRootSessionWithArtifacts,
+			).not.toHaveBeenCalled();
+		});
+	});
+
 	it("readLiveSessionMessages serves in-memory messages for resident sessions before persistence", async () => {
 		const sessionId = "sess-live-messages";
 		const manifest = createManifest(sessionId);
