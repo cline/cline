@@ -143,12 +143,29 @@ export async function checkManagedHubBuildMismatch(): Promise<
 	if (compatibility.reason === "unsupported_protocol") {
 		return report("unsupported_protocol");
 	}
+	// Two independently built artifacts of the same release never share a
+	// build fingerprint: a CLI and a desktop app cut from different commits
+	// at the same core version carry different buildIds and build epochs, so
+	// they disagree forever. That disagreement is not user-actionable in
+	// either direction - "update" would install nothing newer, and the
+	// prompt loops until the next release happens to align the fingerprints.
+	// Same core version therefore never prompts; the fingerprint keeps its
+	// role in the reuse/retire total order, where its antisymmetry matters,
+	// but it does not drive prompts on its own.
+	const self = resolveHubBuildIdentity();
+	if (
+		self.coreVersion &&
+		healthy.coreVersion &&
+		self.coreVersion === healthy.coreVersion
+	) {
+		return undefined;
+	}
 	// Only a Hub this client is strictly newer than gets the "older Hub" copy;
 	// that is the case the retire path defers while sessions are live. A newer
 	// Hub - or one that carries too little metadata to order, where updating
 	// this client is what supplies the missing ordering - is a client-update
 	// prompt as before.
-	if (compareHubBuilds(resolveHubBuildIdentity(), healthy) > 0) {
+	if (compareHubBuilds(self, healthy) > 0) {
 		return await withHubSessionActivity(
 			report("outdated_hub"),
 			record.authToken,
