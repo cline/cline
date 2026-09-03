@@ -1,0 +1,67 @@
+syntax = "proto3";
+
+package cline;
+
+import "cline/common.proto";
+
+option go_package = "github.com/cline/grpc-go/cline";
+option java_multiple_files = true;
+option java_package = "bot.cline.proto";
+
+// Cline Cloud sessions: run a task in a hosted sandbox instead of the local workspace.
+service CloudService {
+  // GitHub App connection status and the repositories it can access, for the active account scope
+  rpc getGitHubConnection(EmptyRequest) returns (GitHubConnection);
+  // Opens the GitHub App install / manage-access page in the browser
+  rpc connectGitHub(EmptyRequest) returns (Empty);
+  // Lists branches of an accessible repository
+  rpc getRepositoryBranches(RepositoryBranchesRequest) returns (CloudBranchList);
+  // Suggested repository/branch for the open workspace, derived from its git remote
+  rpc getWorkspaceCloudDefaults(EmptyRequest) returns (WorkspaceCloudDefaults);
+  // Persists the user's Local/Cloud choice and repository selection for new tasks
+  rpc setCloudTaskTarget(CloudTaskTarget) returns (Empty);
+  // Opens the Cline Cloud dashboard page for a cloud session
+  rpc openCloudSessionDashboard(StringRequest) returns (Empty);
+}
+
+message GitHubRepository {
+  int64 id = 1;
+  string name = 2;
+  string full_name = 3;
+  string url = 4;
+  string default_branch = 5;
+}
+
+message GitHubConnection {
+  bool signed_in = 1;
+  bool connected = 2;
+  string connect_url = 3;
+  repeated GitHubRepository repositories = 4;
+  // Set when the request failed (network / API error); other fields are then unreliable
+  optional string error = 5;
+}
+
+message RepositoryBranchesRequest {
+  Metadata metadata = 1;
+  int64 repository_id = 2;
+  optional string query = 3;
+}
+
+message CloudBranchList {
+  repeated string branches = 1;
+}
+
+message WorkspaceCloudDefaults {
+  // Normalized https://github.com/owner/repo URL of the workspace's origin remote, if any
+  optional string repo_url = 1;
+  optional string branch = 2;
+}
+
+message CloudTaskTarget {
+  Metadata metadata = 1;
+  // "local" | "cloud"
+  string target = 2;
+  optional string repo_url = 3;
+  optional int64 repository_id = 4;
+  optional string branch = 5;
+}
