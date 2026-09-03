@@ -20560,6 +20560,39 @@ export const GENERATED_PROVIDER_MODELS: {
     }
   },
   "cerebras": {
+    "qwen-3.8-27b": {
+      "id": "qwen-3.8-27b",
+      "name": "Qwen3.8 27B",
+      "contextWindow": 65536,
+      "maxInputTokens": 65536,
+      "maxTokens": 32768,
+      "capabilities": [
+        "images",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.99,
+        "output": 1.49,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-14",
+      "family": "qwen"
+    },
     "gemma-4-31b": {
       "id": "gemma-4-31b",
       "name": "Gemma 4 31B IT",
