@@ -1,4 +1,5 @@
 import { nanoid } from "nanoid";
+import { withSessionHistoryOriginMetadata } from "../../session/history-origin";
 import type { UnifiedSessionPersistenceService } from "../../session/services/persistence-service";
 import { SessionSource } from "../../types/common";
 import { ensureChatWorkspace } from "../workspace/chat-workspace";
@@ -15,6 +16,9 @@ import type {
 	SessionImportResult,
 	SessionImportTool,
 } from "./types";
+
+/** `sessionHistoryOrigin.mode` stamped on imported sessions. */
+export const SESSION_IMPORT_HISTORY_MODE = "import";
 
 export interface ImportedFromMetadata {
 	tool: SessionImportTool;
@@ -298,10 +302,21 @@ export class SessionImportService {
 		const endedAtMs = Number.isFinite(converted.endedAtMs)
 			? converted.endedAtMs
 			: startedAtMs;
-		const baseMetadata: Record<string, unknown> = {
-			title: converted.title,
-			...(converted.gitBranch ? { git: { branch: converted.gitBranch } } : {}),
-		};
+		// The top-level `source` stays the client surface (desktop); the
+		// history origin records that this session was initiated by an import
+		// and which agent it came from, so the messages file `origin` and
+		// downstream telemetry can separate imported transcripts from Cline's
+		// own — the same shape scheduled runs use (`automation`/`hub-schedule`).
+		const baseMetadata: Record<string, unknown> =
+			withSessionHistoryOriginMetadata(
+				{
+					title: converted.title,
+					...(converted.gitBranch
+						? { git: { branch: converted.gitBranch } }
+						: {}),
+				},
+				{ mode: SESSION_IMPORT_HISTORY_MODE, trigger: converted.tool },
+			);
 
 		// Created already completed: an imported session is history from
 		// birth, and a transient running/pid-0 row is exactly what the
