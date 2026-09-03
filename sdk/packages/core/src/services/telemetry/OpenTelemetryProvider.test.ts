@@ -1,6 +1,7 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import * as llms from "@cline/llms";
 import type { BasicLogger } from "@cline/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { writeGlobalSettings } from "../global-settings";
@@ -160,6 +161,10 @@ describe("createOpenTelemetryTelemetryService", () => {
 	});
 
 	it("uses the existing OTLP pipeline without a local Langfuse processor in collector mode", async () => {
+		const activateLangfuseTelemetry = vi.spyOn(
+			llms,
+			"activateLangfuseTelemetry",
+		);
 		const handle = createConfiguredTelemetryHandle({
 			metadata: {
 				extension_version: "1.2.3",
@@ -175,6 +180,7 @@ describe("createOpenTelemetryTelemetryService", () => {
 		});
 
 		expect(handle.provider?.tracerProvider).not.toBeNull();
+		expect(activateLangfuseTelemetry).toHaveBeenCalledTimes(1);
 		expect(
 			(
 				handle.provider as unknown as {
@@ -182,6 +188,29 @@ describe("createOpenTelemetryTelemetryService", () => {
 				}
 			).options.additionalSpanProcessors,
 		).toEqual([]);
+		await handle.dispose();
+	});
+
+	it("does not activate Langfuse collector mode without a trace pipeline", async () => {
+		const activateLangfuseTelemetry = vi.spyOn(
+			llms,
+			"activateLangfuseTelemetry",
+		);
+		const handle = createConfiguredTelemetryHandle({
+			metadata: {
+				extension_version: "1.2.3",
+				cline_type: "cli",
+				platform: "terminal",
+				platform_version: process.version,
+				os_type: process.platform,
+				os_version: "unknown",
+			},
+			enabled: true,
+			langfuse: { mode: "collector" },
+		});
+
+		expect(handle.provider?.tracerProvider).toBeNull();
+		expect(activateLangfuseTelemetry).not.toHaveBeenCalled();
 		await handle.dispose();
 	});
 

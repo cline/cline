@@ -489,7 +489,7 @@ export function createConfiguredTelemetryHandle(
 	};
 	const { telemetry, provider, emitProviderCreated } =
 		createConfiguredTelemetryService(configuredOptions);
-	if (provider && (langfuse || collectorMode)) {
+	if (provider?.tracerProvider && (langfuse || collectorMode)) {
 		activateLangfuseTelemetry();
 	}
 
