@@ -980,6 +980,12 @@ function mapFinishReason(
 	if (value === "length" || value === "max_tokens") {
 		return "max-tokens";
 	}
+	// Kept distinct from the `stop` fallback below: a filtered turn that
+	// produced no content must not be reported (or retried) as a transient
+	// empty response — see `AgentModelFinishReason`.
+	if (value === "content-filter" || value === "content_filter") {
+		return "content-filter";
+	}
 	if (value === "error") {
 		return "error";
 	}

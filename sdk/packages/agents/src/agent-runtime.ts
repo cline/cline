@@ -53,6 +53,14 @@ const MAX_TOKENS_INCOMPLETE_TURN_MESSAGE =
 	"Model reached the maximum output token limit before completing the turn";
 
 /**
+ * Terminal message for a turn the provider blocked. Kept separate from the
+ * generic empty-response text because the two call for opposite user action:
+ * an empty response is worth retrying, a filtered one reproduces every time.
+ */
+const CONTENT_FILTER_EMPTY_TURN_MESSAGE =
+	"Model returned no content because the response was blocked by a content filter. Retrying is unlikely to help — try rephrasing the request.";
+
+/**
  * Terminal message when a context-window overflow cannot be recovered because
  * there is no conversation history to compact — the system prompt, tools, and
  * current input alone exceed the window.
@@ -507,6 +515,16 @@ export class AgentRuntime {
 		 * telemetry leave this false, so their failures still get reported.
 		 */
 		lastErrorReported: false,
+		/**
+		 * Finish reason carried into the run-failed `sdk.error` event. Set
+		 * only at the throw sites where a finish reason IS the failure's
+		 * cause (empty turn, max-tokens, provider error) — never recorded
+		 * ambiently on finish events, so a failure elsewhere in the loop
+		 * (hooks, listeners, transport, setup) can never inherit a reason
+		 * from a request that did not cause it. Undefined means the
+		 * attribute is omitted, which is always safe; a wrong reason is not.
+		 */
+		lastFinishReason: undefined as AgentModelFinishReason | undefined,
 	};
 	/** One automatic overflow-recovery attempt per run. */
 	private overflowRecoveryAttempted = false;
@@ -701,6 +719,7 @@ export class AgentRuntime {
 		this.state.lastError = undefined;
 		this.state.lastErrorClass = undefined;
 		this.state.lastErrorReported = false;
+		this.state.lastFinishReason = undefined;
 		this.state.usage = cloneUsage(DEFAULT_USAGE);
 		this.overflowRecoveryAttempted = false;
 
@@ -743,7 +762,14 @@ export class AgentRuntime {
 					throw this.normalizeAbortError();
 				}
 				if (message.content.length === 0) {
+					// Attribution is set immediately before each throw: nothing can
+					// interleave between a synchronous set-and-throw and the
+					// run-level catch, so `sdk.error` can never pick up a reason
+					// from a failure it did not cause. Failures with no
+					// finish-reason cause (hooks, listeners, transport) leave the
+					// field unset and the attribute is omitted.
 					if (finishReason === "error") {
+						this.state.lastFinishReason = finishReason;
 						throw new Error(this.state.lastError ?? "Model stream failed");
 					}
 					// Provider-executed tool activity lives in message metadata, not
@@ -757,7 +783,12 @@ export class AgentRuntime {
 						Array.isArray(modelToolActivities) &&
 						modelToolActivities.length > 0;
 					if (!hasModelToolActivity) {
-						throw new Error("Model returned empty response");
+						this.state.lastFinishReason = finishReason;
+						throw new Error(
+							finishReason === "content-filter"
+								? CONTENT_FILTER_EMPTY_TURN_MESSAGE
+								: "Model returned empty response",
+						);
 					}
 				}
 				const toolCalls = message.content.filter(
@@ -781,9 +812,12 @@ export class AgentRuntime {
 				});
 
 				if (finishReason === "max-tokens" && toolCalls.length === 0) {
+					// Same set-and-throw attribution as the empty-content check.
+					this.state.lastFinishReason = finishReason;
 					throw new Error(MAX_TOKENS_INCOMPLETE_TURN_MESSAGE);
 				}
 				if (finishReason === "error" && toolCalls.length === 0) {
+					this.state.lastFinishReason = finishReason;
 					throw new Error(this.state.lastError ?? "Model stream failed");
 				}
 				this.state.pendingToolCalls = toolCalls.map((part) => part.toolCallId);
@@ -2009,6 +2043,9 @@ export class AgentRuntime {
 							...(metadata as TelemetryProperties),
 							providerId: this.getTelemetryProviderId(),
 							modelId: this.getTelemetryModelId(),
+							...(this.state.lastFinishReason
+								? { finishReason: this.state.lastFinishReason }
+								: {}),
 						},
 					});
 				}
