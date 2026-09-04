@@ -202,16 +202,48 @@ Module.prototype.require = function (id) {
 		}
 	}
 
+	if (id === "@cline/core/frames") {
+		// SdkController constructs the frame stream at load; the integration
+		// tests never feed it events, so an inert assembler suffices.
+		class StreamAssembler {
+			constructor(_consumer) {}
+			push() {}
+			pushAll() {}
+			openScopes() {
+				return { turnPaths: [], blocks: [] }
+			}
+		}
+		return {
+			StreamAssembler,
+			projectSessionEvent: () => [],
+		}
+	}
+
 	if (id === "@cline/shared") {
 		// Mirrors USER_REJECTED_TOOL_REASON / TOOL_REJECTION_SUFFIX in
 		// sdk/packages/shared/src/llms/tools.ts (the ESM-only real package
 		// cannot be required from this CommonJS test host).
+		// SessionFramer pairs with the inert StreamAssembler above: constructed
+		// by SdkController's frame stream at load, never fed by these tests.
+		class SessionFramer {
+			constructor(_options) {}
+			frameEvent() {
+				return []
+			}
+			frameRoutedEvent() {
+				return []
+			}
+			fence() {
+				return []
+			}
+		}
 		return {
 			buildClineSystemPrompt: () => "",
 			USER_REJECTED_TOOL_REASON: "This tool call was rejected by the user and not executed.",
 			TOOL_REJECTION_SUFFIX: "NOT a tool or system failure. Clarify with user before proceeding.",
 			createTool: (tool) => tool,
 			formatDisplayUserInput: (input) => (typeof input === "string" ? input : JSON.stringify(input)),
+			SessionFramer,
 		}
 	}
 

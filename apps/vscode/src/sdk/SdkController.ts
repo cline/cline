@@ -75,6 +75,7 @@ import { SdkCompactionCoordinator } from "./sdk-compaction-coordinator"
 import { SdkDiffEditCoordinator } from "./sdk-diff-edit-coordinator"
 import { SdkFollowupCoordinator } from "./sdk-followup-coordinator"
 import { SdkForegroundCommandCoordinator } from "./sdk-foreground-command-coordinator"
+import { SdkFrameStream } from "./sdk-frame-stream"
 import { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
 import { SdkMcpCoordinator } from "./sdk-mcp-coordinator"
 import { SdkMessageCoordinator, type SessionEventListener } from "./sdk-message-coordinator"
@@ -167,6 +168,7 @@ export class Controller {
 	// SDK session state and the coordinators that drive it.
 	private messageTranslatorState: MessageTranslatorState
 	private turnStateTracker!: TurnStateTracker
+	private readonly frameStream: SdkFrameStream
 	private messages: SdkMessageCoordinator
 	private sessions: SdkSessionLifecycle
 	private sessionRebuilds: SdkSessionRebuildScheduler
@@ -341,6 +343,10 @@ export class Controller {
 		void this.getWorkspaceRoot()
 		// Authoritative UI-mode tracker, sharing the one id/seq/epoch authority.
 		this.turnStateTracker = new TurnStateTracker(this.messageTranslatorState.getMinter())
+		// v2 frame stream (Phase 3c part 1): producer-envelope tap sharing the
+		// minter's (epoch, seq) authority; health-monitored until the translator
+		// port (part 2) replaces the consumer with ClineMessage sinks.
+		this.frameStream = new SdkFrameStream(this.messageTranslatorState.getMinter())
 		this.messages = new SdkMessageCoordinator({
 			getTask: () => this.task,
 			// Stamp seq/epoch on every message flowing to the webview from the shared authority.
@@ -394,6 +400,9 @@ export class Controller {
 				this.sessionEvents.handleSessionEvent(event).catch((err) => {
 					Logger.error("[SdkController] Failed to handle session event:", err)
 				})
+				// Dual-run frame tap (Phase 3c part 1): same events, framed and
+				// health-monitored; the fence sites call fenceAndFlush().
+				this.frameStream?.handleSessionEvent(event)
 			},
 			onDidBecomeIdle: () => this.handleSessionBecameIdle(),
 			beforeStartSession: () => this.ensureRemoteConfigForSessionStart(),
@@ -603,6 +612,7 @@ export class Controller {
 			// turn carry the old epoch and are dropped by the webview. The resumable phase is set
 			// in SdkController.cancelTask before this runs.
 			raiseCancelFence: () => {
+				this.frameStream?.fenceAndFlush()
 				this.messageTranslatorState.clearApprovedToolMessageTs()
 				this.messageTranslatorState.getMinter().bumpEpoch()
 			},
@@ -2220,6 +2230,9 @@ export class Controller {
 	 * and is dropped by the webview. Order matters: bump synchronously here, before any await.
 	 */
 	resetMessageTranslatorAndFence(): void {
+		// Frame stream: close open scopes at the current epoch; the bump below
+		// fences later stragglers for every frame consumer (design P4).
+		this.frameStream?.fenceAndFlush()
 		this.messageTranslatorState.reset()
 		this.messageTranslatorState.getMinter().bumpEpoch()
 	}
