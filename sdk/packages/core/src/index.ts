@@ -508,6 +508,7 @@ export {
 } from "./runtime/orchestration/runtime-frame-adapter";
 export {
 	DIAG_AFTER_SESSION_END,
+	DIAG_ANNOTATION_NEVER_OPENED,
 	DIAG_ANNOTATION_UNROUTED,
 	DIAG_BLOCK_OPEN_WHILE_OPEN,
 	DIAG_ORPHAN_BLOCK_FRAME,
