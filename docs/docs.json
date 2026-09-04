@@ -1071,7 +1071,7 @@
 		},
 		{
 			"source": "/provider-config/nebius",
-			"destination": "/provider-config/other-30-plus-providers#nebius-ai-studio"
+			"destination": "/provider-config/other-30-plus-providers#nebius-token-factory"
 		},
 		{
 			"source": "/provider-config/nousresearch",
