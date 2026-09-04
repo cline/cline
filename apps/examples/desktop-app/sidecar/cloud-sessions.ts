@@ -1,11 +1,14 @@
 import { randomUUID } from "node:crypto";
-import { decodeJwtPayload } from "@cline/shared";
+import type { NodeHubClient } from "@cline/core";
+import { decodeJwtPayload, type HubEventEnvelope } from "@cline/shared";
 import type {
 	CloudBranchListOptions,
 	CloudBranchListResult,
 	CloudRepositoryListResult,
 } from "../webview/lib/cloud-repositories";
+import type { JsonRecord, LiveSession, PromptInQueue } from "./types";
 
+const CLOUD_WORKSPACE_ROOT = "/workspace";
 const CREATE_TIMEOUT_MS = 610_000;
 const PROVISIONING_POLL_MS = 3_000;
 // Bound hot-path REST calls so a dead network cannot hang the sidebar.
@@ -744,4 +747,470 @@ export class CloudSessionApi {
 		const messages = (payload as { messages?: unknown } | undefined)?.messages;
 		return Array.isArray(messages) ? messages : [];
 	}
+}
+function isExpiredRecord(record: CloudSessionRecord): boolean {
+	const expiredAt = record.expiredAt
+		? Date.parse(record.expiredAt)
+		: Number.NaN;
+	return Number.isFinite(expiredAt) && expiredAt <= Date.now();
+}
+
+type CloudHubClient = Pick<
+	NodeHubClient,
+	"command" | "connect" | "dispose" | "getClientId" | "subscribe"
+>;
+
+type CloudRehydrationSnapshot = {
+	status: string;
+	messages: unknown[];
+	prompts?: PromptInQueue[];
+	submittedPrompts: PromptInQueue[];
+};
+
+type CloudConnection = {
+	remote: CloudSessionRecord;
+	client: CloudHubClient;
+	innerSessionId?: string;
+	rehydrationPromise?: Promise<CloudRehydrationSnapshot>;
+	rehydrationRerunRequested?: boolean;
+	bufferingEvents?: boolean;
+	bufferedEvents: HubEventEnvelope[];
+	rehydrationGeneration: number;
+	transcriptKnown: boolean;
+	seenEventIds: Set<string>;
+	seenEventIdOrder: string[];
+	/** Prevents concurrent sends from creating competing inner sessions. */
+	innerSessionCreation?: Promise<void>;
+	/** Set by disposeConnection; late timers and approval callbacks must not
+	 * command (and thereby resurrect) a disposed client. */
+	disposed?: boolean;
+	/** Rate-limits cloud_session_sync_failed to state transitions so a
+	 * reconnect loop cannot spam the UI on every attempt. */
+	syncFailureNotified?: boolean;
+	unsubscribe: () => void;
+};
+
+type CloudSessionManagerOptions = {
+	api: Pick<
+		CloudSessionApi,
+		| "create"
+		| "delete"
+		| "list"
+		| "status"
+		| "history"
+		| "updateTitle"
+		| "listRepositories"
+		| "listBranches"
+	>;
+	getAuthToken: () => Promise<string | undefined>;
+	apiBaseUrl: string;
+	/** Resolves the active billing org; undefined means a personal session. */
+	getActiveOrganizationId?: (options?: {
+		fresh?: boolean;
+	}) => Promise<string | undefined>;
+	/** Test seam for retry backoff waits. */
+	sleep?: (ms: number) => Promise<void>;
+	createHubClient?: (
+		options: ConstructorParameters<typeof NodeHubClient>[0],
+	) => CloudHubClient;
+};
+
+/** Recognizes server ids even before the in-memory cloud registry is warm. */
+export function isCloudOuterSessionId(sessionId: string): boolean {
+	return sessionId.trim().startsWith("ses-");
+}
+
+function toWebSocketUrl(apiBaseUrl: string, outerSessionId: string): string {
+	const url = new URL(
+		`/api/v1/session/${encodeURIComponent(outerSessionId)}`,
+		apiBaseUrl,
+	);
+	url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+	return url.toString();
+}
+
+function recordToLiveSession(record: CloudSessionRecord): LiveSession {
+	return {
+		config: {
+			executionTarget: "cloud",
+			provider: "cline",
+			providerId: "cline",
+			model: record.metadata.modelId ?? "",
+			modelId: record.metadata.modelId ?? "",
+			repoUrl: record.repoContext.repoUrl ?? "",
+			branch: record.repoContext.branch ?? "",
+			cwd: CLOUD_WORKSPACE_ROOT,
+			workspaceRoot: CLOUD_WORKSPACE_ROOT,
+		},
+		messages: [],
+		promptsInQueue: [],
+		// REST "active" means a proxy WebSocket is open, not that the agent is
+		// running. Hub attach/events provide the authoritative busy state.
+		busy: false,
+		startedAt: Date.parse(record.createdAt) || Date.now(),
+		// A future TTL is not an end time.
+		endedAt:
+			isExpiredRecord(record) && record.expiredAt
+				? Date.parse(record.expiredAt)
+				: undefined,
+		status: record.status,
+		attachedViaHub: true,
+	};
+}
+
+/** Reply shape for chat_session_command start/attach on a cloud session. */
+function attachResultPayload(
+	record: CloudSessionRecord,
+	status: string,
+	prompt?: string,
+): JsonRecord {
+	return {
+		sessionId: record.id,
+		origin: "cloud",
+		executionTarget: "cloud",
+		status,
+		provider: "cline",
+		model: record.metadata.modelId ?? "",
+		repoUrl: record.repoContext.repoUrl ?? "",
+		branch: record.repoContext.branch ?? "",
+		cwd: CLOUD_WORKSPACE_ROOT,
+		workspaceRoot: CLOUD_WORKSPACE_ROOT,
+		...(prompt?.trim() ? { prompt: prompt.trim() } : {}),
+		metadata: {
+			origin: "cloud",
+			repoUrl: record.repoContext.repoUrl ?? "",
+			git: {
+				url: record.repoContext.repoUrl ?? "",
+				branch: record.repoContext.branch ?? "",
+			},
+		},
+	};
+}
+
+export function cloudSessionToDiscoveryRecord(
+	record: CloudSessionRecord,
+): JsonRecord {
+	return {
+		sessionId: record.id,
+		origin: "cloud",
+		executionTarget: "cloud",
+		status: record.status,
+		provider: "cline",
+		model: record.metadata.modelId ?? "",
+		cwd: CLOUD_WORKSPACE_ROOT,
+		workspaceRoot: CLOUD_WORKSPACE_ROOT,
+		repoUrl: record.repoContext.repoUrl ?? "",
+		branch: record.repoContext.branch ?? "",
+		// updatedAt changes on every reconnect, so it is not a stable start time.
+		startedAt: record.createdAt,
+		endedAt: isExpiredRecord(record)
+			? (record.expiredAt ?? undefined)
+			: undefined,
+		updatedAt: record.updatedAt,
+		...(record.title?.trim() ? { title: record.title.trim() } : {}),
+		metadata: {
+			...(record.title?.trim() ? { title: record.title.trim() } : {}),
+			origin: "cloud",
+			repoUrl: record.repoContext.repoUrl ?? "",
+			git: {
+				url: record.repoContext.repoUrl ?? "",
+				branch: record.repoContext.branch ?? "",
+			},
+		},
+	};
+}
+
+function readSessionRows(
+	payload: Record<string, unknown> | undefined,
+): JsonRecord[] {
+	return Array.isArray(payload?.sessions)
+		? payload.sessions.filter(
+				(item): item is JsonRecord =>
+					Boolean(item) && typeof item === "object" && !Array.isArray(item),
+			)
+		: [];
+}
+
+function updatedAt(record: JsonRecord): number {
+	const value = record.updatedAt;
+	return typeof value === "number"
+		? value
+		: Date.parse(String(value ?? "")) || 0;
+}
+
+function sessionRowModelId(record: JsonRecord | undefined): string {
+	const metadata =
+		record?.metadata && typeof record.metadata === "object"
+			? (record.metadata as JsonRecord)
+			: undefined;
+	return String(metadata?.model ?? record?.model ?? "").trim();
+}
+
+function isRootSessionRow(record: JsonRecord): boolean {
+	const metadata =
+		record.metadata && typeof record.metadata === "object"
+			? (record.metadata as JsonRecord)
+			: undefined;
+	return !String(
+		metadata?.parentSessionId ?? record.parentSessionId ?? "",
+	).trim();
+}
+
+function parseApprovalInput(value: unknown): unknown {
+	if (typeof value !== "string") {
+		return value;
+	}
+	try {
+		return JSON.parse(value);
+	} catch {
+		return value;
+	}
+}
+
+function messageText(message: unknown): string {
+	if (!message || typeof message !== "object" || Array.isArray(message)) {
+		return "";
+	}
+	const content = (message as JsonRecord).content;
+	if (typeof content === "string") {
+		return content.trim();
+	}
+	if (!Array.isArray(content)) {
+		return "";
+	}
+	return content
+		.map((part) =>
+			part && typeof part === "object" && !Array.isArray(part)
+				? String((part as JsonRecord).text ?? "")
+				: "",
+		)
+		.join("")
+		.trim();
+}
+
+/** Normalizes pod-wrapped prompts and raw local/queue prompts. */
+function normalizeUserPrompt(text: string): string {
+	const trimmed = text.trim();
+	const match = trimmed.match(/^<user_input\b[^>]*>([\s\S]*)<\/user_input>$/);
+	return (match ? match[1] : trimmed).trim();
+}
+
+function countPromptOccurrences(
+	messages: unknown[],
+	prompts: PromptInQueue[],
+	prompt: string,
+): number {
+	const expected = normalizeUserPrompt(prompt);
+	return (
+		messages.filter(
+			(message) =>
+				Boolean(message) &&
+				typeof message === "object" &&
+				!Array.isArray(message) &&
+				String((message as JsonRecord).role ?? "").toLowerCase() === "user" &&
+				normalizeUserPrompt(messageText(message)) === expected,
+		).length +
+		prompts.filter((item) => normalizeUserPrompt(item.prompt) === expected)
+			.length
+	);
+}
+
+function submittedPromptsFromEvents(
+	events: HubEventEnvelope[],
+): PromptInQueue[] {
+	return events.flatMap((event) => {
+		if (event.event !== "session.pending_prompt_submitted") return [];
+		const prompt =
+			event.payload?.prompt &&
+			typeof event.payload.prompt === "object" &&
+			!Array.isArray(event.payload.prompt)
+				? (event.payload.prompt as JsonRecord)
+				: undefined;
+		const id = String(prompt?.id ?? "").trim();
+		if (!id) return [];
+		return [
+			{
+				id,
+				prompt: String(prompt?.prompt ?? ""),
+				steer: prompt?.delivery === "steer",
+				attachmentCount:
+					typeof prompt?.attachmentCount === "number"
+						? prompt.attachmentCount
+						: 0,
+				userImages: Array.isArray(prompt?.userImages)
+					? prompt.userImages.filter(
+							(image): image is string => typeof image === "string",
+						)
+					: undefined,
+			},
+		];
+	});
+}
+
+function mergePromptEvidence(
+	prompts: PromptInQueue[] | undefined,
+	submittedPrompts: PromptInQueue[],
+): PromptInQueue[] {
+	const merged = [...(prompts ?? [])];
+	const knownIds = new Set(merged.map((prompt) => prompt.id));
+	for (const prompt of submittedPrompts) {
+		if (!knownIds.has(prompt.id)) merged.push(prompt);
+	}
+	return merged;
+}
+
+const TERMINAL_RUN_EVENTS = new Set([
+	"run.completed",
+	"run.aborted",
+	"run.failed",
+]);
+const SUPERSEDABLE_CONTENT_EVENTS = new Set([
+	"assistant.delta",
+	"assistant.finished",
+	"reasoning.delta",
+	"reasoning.finished",
+]);
+
+function assistantTexts(messages: unknown[]): string[] {
+	return messages
+		.filter(
+			(message): message is JsonRecord =>
+				Boolean(message) &&
+				typeof message === "object" &&
+				!Array.isArray(message) &&
+				String((message as JsonRecord).role ?? "").toLowerCase() ===
+					"assistant",
+		)
+		.map(messageText)
+		.filter(Boolean);
+}
+
+function newlyPersistedAssistantTexts(
+	snapshotMessages: unknown[],
+	baselineMessages: unknown[],
+): string[] {
+	const baselineCounts = new Map<string, number>();
+	for (const text of assistantTexts(baselineMessages)) {
+		baselineCounts.set(text, (baselineCounts.get(text) ?? 0) + 1);
+	}
+	return assistantTexts(snapshotMessages).filter((text) => {
+		const count = baselineCounts.get(text) ?? 0;
+		if (count === 0) return true;
+		if (count === 1) baselineCounts.delete(text);
+		else baselineCounts.set(text, count - 1);
+		return false;
+	});
+}
+
+function collectToolCallIds(
+	value: unknown,
+	result = new Set<string>(),
+): Set<string> {
+	if (!value || typeof value !== "object") return result;
+	if (Array.isArray(value)) {
+		for (const item of value) collectToolCallIds(item, result);
+		return result;
+	}
+	const record = value as JsonRecord;
+	if (record.type === "tool_use" && typeof record.id === "string") {
+		result.add(record.id);
+	}
+	for (const key of ["toolCallId", "tool_call_id", "toolUseId"]) {
+		if (typeof record[key] === "string" && record[key]) {
+			result.add(record[key] as string);
+		}
+	}
+	for (const child of Object.values(record)) collectToolCallIds(child, result);
+	return result;
+}
+
+function streamedAssistantText(events: HubEventEnvelope[]): string {
+	// Match messageText() trimming before substring supersession.
+	for (let index = events.length - 1; index >= 0; index -= 1) {
+		const event = events[index];
+		if (
+			event.event === "assistant.finished" &&
+			typeof event.payload?.text === "string" &&
+			event.payload.text
+		) {
+			return event.payload.text.trim();
+		}
+	}
+	return events
+		.filter((event) => event.event === "assistant.delta")
+		.map((event) =>
+			typeof event.payload?.text === "string" ? event.payload.text : "",
+		)
+		.join("")
+		.trim();
+}
+
+/** Reconciles each completed run separately; tools dedupe by stable call id. */
+export function reconcileBufferedCloudEvents(
+	events: HubEventEnvelope[],
+	snapshotMessages: unknown[],
+	options: {
+		/**
+		 * Whether a fresh queue snapshot was fetched and applied during
+		 * rehydration. When it was, queue events received before its reply are
+		 * stale; later events still win. When the fetch failed, the newest
+		 * buffered queue event is the best state available.
+		 */
+		queueSnapshotApplied?: boolean;
+		queueSnapshotEventCutoff?: number;
+		baselineMessages?: unknown[];
+	} = {},
+): HubEventEnvelope[] {
+	const queueSnapshotApplied = options.queueSnapshotApplied !== false;
+	const unclaimedAssistantTexts = newlyPersistedAssistantTexts(
+		snapshotMessages,
+		options.baselineMessages ?? [],
+	);
+	const snapshotToolCallIds = collectToolCallIds(snapshotMessages);
+	// Queue events are full snapshots, so only the newest one matters.
+	const queueEvents = queueSnapshotApplied
+		? events.slice(options.queueSnapshotEventCutoff ?? events.length)
+		: events;
+	const lastQueueEvent = queueEvents.findLast(
+		(event) => event.event === "session.pending_prompts",
+	);
+	const reconciled: HubEventEnvelope[] = [];
+	let segment: HubEventEnvelope[] = [];
+
+	const flush = (terminal: boolean) => {
+		if (segment.length === 0) return;
+		const streamed = terminal ? streamedAssistantText(segment) : "";
+		const persistedIndex = streamed
+			? unclaimedAssistantTexts.findIndex((text) => text.includes(streamed))
+			: -1;
+		const contentPersisted = persistedIndex >= 0;
+		if (contentPersisted) unclaimedAssistantTexts.splice(persistedIndex, 1);
+		for (const event of segment) {
+			if (contentPersisted && SUPERSEDABLE_CONTENT_EVENTS.has(event.event)) {
+				continue;
+			}
+			// Replay only the newest queue state after the snapshot cutoff.
+			if (
+				event.event === "session.pending_prompts" &&
+				event !== lastQueueEvent
+			) {
+				continue;
+			}
+			// Keep terminal events: run.failed may carry the only error detail.
+			if (event.event.startsWith("tool.")) {
+				const toolCallId = String(event.payload?.toolCallId ?? "").trim();
+				if (toolCallId && snapshotToolCallIds.has(toolCallId)) continue;
+			}
+			reconciled.push(event);
+		}
+		segment = [];
+	};
+
+	for (const event of events) {
+		segment.push(event);
+		if (TERMINAL_RUN_EVENTS.has(event.event)) flush(true);
+	}
+	// Never supersede an unterminated tail.
+	flush(false);
+	return reconciled;
 }
