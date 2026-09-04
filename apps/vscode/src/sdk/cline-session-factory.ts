@@ -43,6 +43,7 @@ import { ExtensionRegistryInfo } from "@/registry"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { fetch } from "@/shared/net"
 import { type BedrockProviderConfig, buildBedrockProviderConfig } from "./bedrock-config"
+import { buildClaudeCodeProviderConfig, type ClaudeCodeProviderConfig } from "./claude-code-config"
 import { buildAgentHooks } from "./hooks-adapter"
 import { readTaskHistory, resolveDataDir } from "./legacy-state-reader"
 import type { ResolvedModelSelection } from "./model-catalog/contracts"
@@ -787,6 +788,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	let vertexProviderConfig: Pick<ProviderSettings, "gcp" | "region"> | undefined
 	let sapProviderConfig: SapProviderConfig | undefined
 	let ollamaProviderConfig: ReturnType<typeof resolveOllamaProviderConfig> | undefined
+	let claudeCodeProviderConfig: ClaudeCodeProviderConfig | undefined
 
 	try {
 		const stateManager = StateManager.get()
@@ -832,6 +834,13 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 
 			if (providerId === "ollama") {
 				ollamaProviderConfig = resolveOllamaProviderConfig(apiConfig, modelId)
+			}
+
+			// Forward the user's configured Claude Code executable. Without this
+			// the provider resolves the bundled binary (or PATH) and the
+			// persisted setting is silently ignored (#11908).
+			if (providerId === "claude-code") {
+				claudeCodeProviderConfig = buildClaudeCodeProviderConfig(apiConfig)
 			}
 
 			Logger.log(
@@ -988,12 +997,15 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	// gateway; without it the agent loop uses bare global fetch and corporate
 	// proxy/self-signed CA setups fail on JetBrains and CLI. Cloud providers
 	// additionally need structured options (region/project/auth/SAP OAuth), which core
-	// reads from providerConfig in createAgentModelFromConfig.
-	const cloudProviderConfig = bedrockProviderConfig ?? vertexProviderConfig ?? sapProviderConfig ?? ollamaProviderConfig
-	// Spread the cloud config first so the explicit fields below — notably the
+	// reads from providerConfig in createAgentModelFromConfig. Local CLI-backed
+	// providers (Ollama, Claude Code) use the same slot for their own options.
+	// Only one of these is ever set: each is built under an exclusive provider-id check.
+	const structuredProviderConfig =
+		bedrockProviderConfig ?? vertexProviderConfig ?? sapProviderConfig ?? ollamaProviderConfig ?? claudeCodeProviderConfig
+	// Spread the structured config first so the explicit fields below — notably the
 	// proxy/CA-aware fetch — can never be clobbered if those types gain matching keys.
 	const providerConfig = {
-		...(cloudProviderConfig ?? {}),
+		...(structuredProviderConfig ?? {}),
 		providerId: sdkProviderId,
 		modelId,
 		...(apiKey ? { apiKey } : {}),
