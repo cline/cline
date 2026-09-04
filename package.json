@@ -10,6 +10,8 @@
         "apps/examples/*",
         "apps/examples/vscode/src/webview",
         "sdk/examples",
+        "sdk/examples/agent-plugins/*",
+        "sdk/examples/mcp/*",
         "sdk/examples/plugins/*"
     ],
     "scripts": {
