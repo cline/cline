@@ -3,6 +3,7 @@ import {
 	checkManagedHubBuildMismatch,
 	createClineTelemetryServiceConfig,
 	readGlobalSettings,
+	resolveHubBuildIdentity,
 	setHomeDirIfUnset,
 	setOptInToolEnabledGlobally,
 	watchManagedHubBuildMismatch,
@@ -226,11 +227,33 @@ function runTelemetrySelfcheck(): void {
 	process.stdout.write(`${JSON.stringify(report)}\n`);
 }
 
+/**
+ * Resolve Core's identity through the same source-mapped import compiled into
+ * the production sidecar. Release CI uses this to catch missing build defines
+ * before a binary that can only resolve its identity from a source checkout is
+ * published.
+ */
+function runRuntimeSelfcheck(): void {
+	const identity = resolveHubBuildIdentity();
+	process.stdout.write(
+		`${JSON.stringify({
+			runtime_selfcheck: true,
+			build_id: identity.buildId ?? "",
+			build_epoch_ms: identity.buildEpochMs ?? null,
+			core_version: identity.coreVersion ?? "",
+		})}\n`,
+	);
+}
+
 async function runEntrypoint(): Promise<void> {
 	// Before the daemon-sentinel claim: the selfcheck only inspects build-time
 	// config and must not consume the sentinel or start anything.
 	if (process.argv.includes("--telemetry-selfcheck")) {
 		runTelemetrySelfcheck();
+		return;
+	}
+	if (process.argv.includes("--runtime-selfcheck")) {
+		runRuntimeSelfcheck();
 		return;
 	}
 	if (await runRemoteHelperEntrypoint()) {

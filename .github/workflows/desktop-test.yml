@@ -10,6 +10,8 @@ on:
       - "apps/examples/desktop-app/scripts/dmg-background.ts"
       - "apps/examples/desktop-app/scripts/dmg-background.test.ts"
       - "apps/examples/desktop-app/scripts/build-sidecar-bin.ts"
+      - "apps/examples/desktop-app/scripts/runtime-build-define-args.ts"
+      - "apps/examples/desktop-app/scripts/runtime-build-define-args.test.ts"
       - "apps/examples/desktop-app/scripts/bun-cross-compile-runtime.ts"
       - "apps/examples/desktop-app/scripts/bun-cross-compile-runtime.test.ts"
       - "apps/examples/desktop-app/src-tauri/dmg/background.png"
@@ -24,6 +26,8 @@ on:
       - "apps/examples/desktop-app/scripts/dmg-background.ts"
       - "apps/examples/desktop-app/scripts/dmg-background.test.ts"
       - "apps/examples/desktop-app/scripts/build-sidecar-bin.ts"
+      - "apps/examples/desktop-app/scripts/runtime-build-define-args.ts"
+      - "apps/examples/desktop-app/scripts/runtime-build-define-args.test.ts"
       - "apps/examples/desktop-app/scripts/bun-cross-compile-runtime.ts"
       - "apps/examples/desktop-app/scripts/bun-cross-compile-runtime.test.ts"
       - "apps/examples/desktop-app/src-tauri/dmg/background.png"
@@ -54,6 +58,9 @@ jobs:
       # not need a workspace dependency install or macOS runner.
       - name: Test DMG background tooling
         run: bun run test:dmg-background
+
+      - name: Test runtime build defines
+        run: bun test scripts/runtime-build-define-args.test.ts
 
   windows-linux-cross-compile:
     name: Test Windows to Linux Bun cross-compilation
