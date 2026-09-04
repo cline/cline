@@ -402,6 +402,16 @@ export interface RuntimeHost {
 		sessionId: string,
 	): Promise<LlmsProviders.MessageWithMetadata[]>;
 	dispatchHookEvent(payload: HookEventPayload): Promise<void>;
+	/**
+	 * Materialize a durable History row for an already-started in-memory lazy
+	 * session that has a meaningful user prompt and/or attachments.
+	 * Does not start a model turn. No-op when the session is unknown or already
+	 * persisted. Optional so hub/remote hosts without resident sessions can omit it.
+	 */
+	ensureSessionPersisted?(
+		sessionId: string,
+		options?: { prompt?: string },
+	): Promise<boolean>;
 	subscribe(
 		listener: (event: CoreSessionEvent) => void,
 		options?: RuntimeHostSubscribeOptions,

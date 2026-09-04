@@ -496,6 +496,16 @@ export class ClineCore {
 	 */
 	update: RuntimeHost["updateSession"] = (...args) =>
 		this.host.updateSession(...args);
+
+	ensureSessionPersisted: NonNullable<RuntimeHost["ensureSessionPersisted"]> = (
+		sessionId,
+		options,
+	) => {
+		if (!this.host.ensureSessionPersisted) {
+			return Promise.resolve(false);
+		}
+		return this.host.ensureSessionPersisted(sessionId, options);
+	};
 	/**
 	 * Stores the compacted working-context state for an existing session.
 	 */
