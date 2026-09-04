@@ -1,3 +1,4 @@
+// biome-ignore-all lint/suspicious/noTemplateCurlyInString: ${env:VAR} is the literal config syntax under test.
 import {
 	existsSync,
 	mkdirSync,
@@ -31,6 +32,7 @@ describe("mcp config loader", () => {
 	const tempRoots: string[] = [];
 
 	afterEach(async () => {
+		vi.unstubAllEnvs();
 		await Promise.all(
 			tempRoots.map((directory) =>
 				rm(directory, { recursive: true, force: true }),
@@ -99,6 +101,87 @@ describe("mcp config loader", () => {
 				oauth: undefined,
 			},
 		]);
+	});
+
+	it("expands ${env:VAR} references in stdio env for nested and legacy formats", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-"));
+		tempRoots.push(tempRoot);
+		const filePath = join(tempRoot, "cline_mcp_settings.json");
+		vi.stubEnv("CLINE_TEST_API_KEY", "resolved-key");
+		vi.stubEnv("CLINE_TEST_ABSENT", undefined);
+		await writeFile(
+			filePath,
+			JSON.stringify(
+				{
+					mcpServers: {
+						nested: {
+							transport: {
+								type: "stdio",
+								command: "npx",
+								env: {
+									API_KEY: "${env:CLINE_TEST_API_KEY}",
+									MISSING: "${env:CLINE_TEST_ABSENT}",
+									PLAIN: "literal",
+								},
+							},
+						},
+						legacy: {
+							command: "npx",
+							env: { AUTH: "Bearer ${env:CLINE_TEST_API_KEY}" },
+						},
+					},
+				},
+				null,
+				2,
+			),
+			"utf8",
+		);
+
+		const registrations = resolveMcpServerRegistrations({ filePath });
+		expect(
+			registrations.find((entry) => entry.name === "nested")?.transport,
+		).toMatchObject({
+			env: {
+				API_KEY: "resolved-key",
+				MISSING: "${env:CLINE_TEST_ABSENT}",
+				PLAIN: "literal",
+			},
+		});
+		expect(
+			registrations.find((entry) => entry.name === "legacy")?.transport,
+		).toMatchObject({ env: { AUTH: "Bearer resolved-key" } });
+	});
+
+	it("never writes an expanded env reference back to the settings file", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-"));
+		tempRoots.push(tempRoot);
+		const filePath = join(tempRoot, "cline_mcp_settings.json");
+		vi.stubEnv("CLINE_TEST_API_KEY", "resolved-key");
+		await writeFile(
+			filePath,
+			JSON.stringify(
+				{
+					mcpServers: {
+						docs: {
+							transport: {
+								type: "stdio",
+								command: "npx",
+								env: { API_KEY: "${env:CLINE_TEST_API_KEY}" },
+							},
+						},
+					},
+				},
+				null,
+				2,
+			),
+			"utf8",
+		);
+
+		setMcpServerDisabled({ filePath, name: "docs", disabled: true });
+
+		const onDisk = await readFile(filePath, "utf8");
+		expect(onDisk).toContain("${env:CLINE_TEST_API_KEY}");
+		expect(onDisk).not.toContain("resolved-key");
 	});
 
 	it("parses per-server timeout (seconds) in nested and legacy formats", async () => {
