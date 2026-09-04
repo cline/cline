@@ -621,7 +621,9 @@ export function CustomizationSectionView({
 				if (names.length === 0) {
 					throw new Error("tool name is required");
 				}
+				const desiredEnabled = !tool.enabled;
 				let response: UserInstructionListsResponse | undefined;
+				let unreachable = false;
 				try {
 					response = await desktopClient.invoke<UserInstructionListsResponse>(
 						"set_tool_disabled",
@@ -635,30 +637,48 @@ export function CustomizationSectionView({
 						throw error;
 					}
 					// toggle_disabled_plugin_tool flips one name with no
-					// explicit target state, which only reliably lands on the
-					// desired state when the tool maps to a single
-					// underlying name. A tool with several headless names in
-					// a mixed disabled state can't be forced to the opposite
-					// state by blindly flipping every name — some flips
-					// would move it further from the goal instead of closer.
-					if (names.length > 1) {
-						throw new Error(
-							`Couldn't toggle ${tool.name}: this desktop build needs an update to change tools with multiple underlying actions.`,
-						);
-					}
+					// explicit target state. Flipping every name once
+					// reaches the target correctly when the tool's
+					// underlying names shared the same prior state; if they
+					// didn't (a mixed disabled state), flip everyone back to
+					// restore the original state instead of leaving some
+					// other unintended combination, and report that the
+					// tool needs an update.
 					for (const name of names) {
 						response = await desktopClient.invoke<UserInstructionListsResponse>(
 							"toggle_disabled_plugin_tool",
 							{ name },
 						);
 					}
+					if (names.length > 1) {
+						const reachedTarget =
+							response?.tools?.find((candidate) => candidate.id === tool.id)
+								?.enabled === desiredEnabled;
+						if (!reachedTarget) {
+							for (const name of names) {
+								response =
+									await desktopClient.invoke<UserInstructionListsResponse>(
+										"toggle_disabled_plugin_tool",
+										{ name },
+									);
+							}
+							unreachable = true;
+						}
+					}
+				}
+				if (response) {
+					applyResponse(response);
+				}
+				if (unreachable) {
+					throw new Error(
+						`Couldn't toggle ${tool.name}: this desktop build needs an update to change tools with multiple underlying actions in a mixed state.`,
+					);
 				}
 				if (!response) {
 					throw new Error(
 						"tool toggle did not return an updated extension list",
 					);
 				}
-				applyResponse(response);
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
 				setErrorMessage(message);
@@ -710,29 +730,39 @@ export function CustomizationSectionView({
 						throw error;
 					}
 					// toggle_disabled_plugin_tool flips one name with no
-					// explicit target state, which only reliably lands on
-					// the desired state when the tool maps to a single
-					// underlying name. A tool with several headless names in
-					// a mixed disabled state can't be forced to the target
-					// state by blindly flipping every name — some flips
-					// would move it further from the goal instead of
-					// closer — so skip those instead of silently leaving
-					// them wrong, and apply whatever did succeed.
+					// explicit target state. Flipping every name of a tool
+					// once reaches the target correctly when its underlying
+					// names shared the same prior state; if they didn't (a
+					// mixed disabled state), flip everyone back to restore
+					// the original state instead of leaving some other
+					// unintended combination, and report that tool as
+					// needing an update.
 					for (const tool of targets) {
 						const toolNames = [
 							tool.name,
 							...(tool.headlessToolNames ?? []),
 						].filter(Boolean);
-						if (toolNames.length > 1) {
-							unreachableTools.push(tool);
-							continue;
-						}
 						for (const name of toolNames) {
 							response =
 								await desktopClient.invoke<UserInstructionListsResponse>(
 									"toggle_disabled_plugin_tool",
 									{ name },
 								);
+						}
+						if (toolNames.length > 1) {
+							const reachedTarget =
+								response?.tools?.find((candidate) => candidate.id === tool.id)
+									?.enabled === enabled;
+							if (!reachedTarget) {
+								for (const name of toolNames) {
+									response =
+										await desktopClient.invoke<UserInstructionListsResponse>(
+											"toggle_disabled_plugin_tool",
+											{ name },
+										);
+								}
+								unreachableTools.push(tool);
+							}
 						}
 					}
 				}
@@ -742,7 +772,7 @@ export function CustomizationSectionView({
 				if (unreachableTools.length > 0) {
 					const names = unreachableTools.map((tool) => tool.name).join(", ");
 					throw new Error(
-						`Couldn't ${enabled ? "enable" : "disable"} ${names}: this desktop build needs an update to change tools with multiple underlying actions in bulk.`,
+						`Couldn't ${enabled ? "enable" : "disable"} ${names}: this desktop build needs an update to change tools with multiple underlying actions in a mixed state.`,
 					);
 				}
 				if (!response) {
