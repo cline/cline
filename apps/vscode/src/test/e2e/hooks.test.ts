@@ -1,7 +1,7 @@
 import { expect } from "@playwright/test"
 import fs from "fs/promises"
 import path from "path"
-import { e2e, E2ETestHelper } from "./utils/helpers"
+import { E2ETestHelper, e2e } from "./utils/helpers"
 
 // This spec runs against its own fixture workspace: hooks execute on every
 // prompt once discovered (hooksEnabled defaults to true), so keeping the hook
@@ -20,7 +20,7 @@ const hooksE2e = e2e.extend({
 // the window's actual workspace folders, so the marker must land in this
 // window's workspace root and name it — regardless of what any other Cline
 // instance recorded in shared state.
-hooksE2e("Hooks - workspace hook runs from this window's workspace root", async ({ helper, sidebar, workspaceDir }) => {
+hooksE2e("Hooks - workspace hook injects fresh context on each turn", async ({ helper, sidebar, workspaceDir }) => {
 	const markerPath = path.join(workspaceDir, "hook-ran.json")
 	await fs.rm(markerPath, { force: true })
 
@@ -29,12 +29,12 @@ hooksE2e("Hooks - workspace hook runs from this window's workspace root", async 
 
 		const inputbox = sidebar.getByTestId("chat-input")
 		await expect(inputbox).toBeVisible()
-		await inputbox.fill("Trigger the prompt hook")
+		await inputbox.fill("hook context probe one")
 		await sidebar.getByTestId("send-button").click()
 
 		// The hook runs during beforeRun, ahead of the model call, so the
 		// marker exists by the time the mock response renders.
-		await expect(sidebar.getByText("mock Cline API response")).toBeVisible()
+		await expect(sidebar.getByText("Hook context received for turn one.").first()).toBeVisible()
 
 		let markerRaw: string | undefined
 		await expect
@@ -59,6 +59,22 @@ hooksE2e("Hooks - workspace hook runs from this window's workspace root", async 
 			reportedRoots.push(await fs.realpath(root))
 		}
 		expect(reportedRoots).toContain(expectedRoot)
+		expect(marker.prompt).toContain("hook context probe one")
+
+		await fs.rm(markerPath, { force: true })
+		await inputbox.fill("hook context probe two")
+		await sidebar.getByTestId("send-button").click()
+		await expect(sidebar.getByText("Hook context received for turn two.").first()).toBeVisible()
+		const secondMarker = JSON.parse(await fs.readFile(markerPath, "utf-8"))
+		expect(secondMarker.prompt).toContain("hook context probe two")
+		expect(secondMarker.prompt).not.toContain("HOOK_FACT_")
+		await expect(sidebar.getByText(/HOOK_FACT_(ALPHA|BETA)/)).toHaveCount(0)
+
+		await sidebar.getByRole("button", { name: "New Task", exact: true }).first().click()
+		await expect(sidebar.getByText("Recent")).toBeVisible()
+		await sidebar.getByText("hook context probe one").first().click()
+		await expect(sidebar.getByText("hook context probe two")).toBeVisible()
+		await expect(sidebar.getByText(/HOOK_FACT_(ALPHA|BETA)/)).toHaveCount(0)
 	} finally {
 		await fs.rm(markerPath, { force: true })
 	}

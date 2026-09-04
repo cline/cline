@@ -478,6 +478,12 @@ Extensibility is split deliberately:
 Design implication:
 
 - additive runtime behavior should usually enter through these extension points instead of bespoke special-case host code.
+- `beforeRun` may return `appendContext`. Core aggregates it across config and
+  extension hooks; the agent runtime appends it after run input, before the first
+  model request. Like tool-hook context, it persists as a user-role message with
+  `displayRole: "system"`. Prompt observers must skip these synthetic messages.
+  A stopping hook prevents injection. File-hook execution policy belongs to its
+  host adapter; this return channel does not make detached scripts blocking.
 
 ### 9. Context Compaction
 
