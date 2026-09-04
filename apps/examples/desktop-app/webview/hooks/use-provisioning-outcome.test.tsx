@@ -22,6 +22,7 @@ type HarnessProps = {
 	onOpenReady: (sessionId: string) => Promise<boolean>;
 	onResolved: () => void;
 	onError: (message: string) => void;
+	onPhase?: (phase: string | undefined) => void;
 };
 
 let container: HTMLDivElement;
@@ -64,6 +65,24 @@ afterEach(async () => {
 });
 
 describe("useProvisioningOutcome", () => {
+	it("reports the current provisioning phase", async () => {
+		invokeMock.mockResolvedValue({
+			status: "provisioning",
+			phase: "cloning_repo",
+		} satisfies CloudProvisioningOutcome);
+		const onPhase = vi.fn();
+
+		await renderHarness({
+			placeholderId: "cloud-provisioning-1",
+			onOpenReady: vi.fn(async () => true),
+			onResolved: vi.fn(),
+			onError: vi.fn(),
+			onPhase,
+		});
+
+		expect(onPhase).toHaveBeenCalledWith("cloning_repo");
+	});
+
 	it("opens the ready session and resolves its placeholder", async () => {
 		invokeMock.mockResolvedValue({
 			status: "ready",

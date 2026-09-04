@@ -3,6 +3,7 @@
 import { Cloud, Copy, ExternalLink, GitFork, Loader2, X } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { toast } from "@/hooks/use-toast";
 import type {
 	HandoffProgressPhase,
 	HandoffReceipt as HandoffReceiptValue,
@@ -110,6 +111,20 @@ export function CloudHandoffReceipt({
 	onForkLocally: () => void;
 	showRecoveryUrl?: boolean;
 }) {
+	const copyRecoveryLink = async () => {
+		try {
+			if (!navigator.clipboard?.writeText)
+				throw new Error("Clipboard unavailable");
+			await navigator.clipboard.writeText(receipt.dashboardUrl);
+		} catch {
+			toast({
+				title: "Copy failed",
+				description: "Use Open Cloud or select the recovery link above.",
+				variant: "destructive",
+			});
+		}
+	};
+
 	return (
 		<div className="mx-auto flex w-full max-w-xl flex-col items-center gap-4 px-6 py-10 text-center">
 			<div className="flex size-10 items-center justify-center rounded-full bg-primary/10 text-primary">
@@ -148,9 +163,7 @@ export function CloudHandoffReceipt({
 			{showRecoveryUrl ? (
 				<button
 					className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
-					onClick={() =>
-						void navigator.clipboard?.writeText(receipt.dashboardUrl)
-					}
+					onClick={() => void copyRecoveryLink()}
 					type="button"
 				>
 					<Copy className="size-3" />

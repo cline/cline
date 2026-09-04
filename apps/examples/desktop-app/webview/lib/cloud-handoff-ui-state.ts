@@ -24,17 +24,51 @@ export type CloudHandoffUiEntry =
 			retryDraft?: string;
 			retryAttachments?: File[];
 	  }
-	| { status: "recovery_dismissed"; dashboardUrl: string }
+	| {
+			status: "recovery_dismissed";
+			dashboardUrl: string;
+			retryDraft?: string;
+			retryAttachments?: File[];
+	  }
 	| { status: "failed"; retryDraft?: string; retryAttachments?: File[] }
-	| { status: "retry_restored" }
+	| {
+			status: "retry_restored";
+			dashboardUrl?: string;
+			retryDraft?: string;
+			retryAttachments?: File[];
+	  }
 	| { status: "target_prompt"; pendingPrompt: PendingHandoffPrompt }
 	| {
 			status: "complete";
 			receipt: HandoffReceipt;
 			externalPresentation: boolean;
+			/** Follow-up queue outcome, carried so a lost RPC response can
+			 * still drive the definite-failure restoration. */
+			warningKind?: "unqueued" | "unconfirmed";
+			retryDraft?: string;
+			retryAttachments?: File[];
+			retainRetry?: boolean;
 	  };
 
 export type CloudHandoffUiState = Record<string, CloudHandoffUiEntry>;
+
+export function hasLivePendingHandoff(
+	entry: CloudHandoffUiEntry | undefined,
+): boolean {
+	return (
+		entry?.status === "recovery" ||
+		entry?.status === "recovery_dismissed" ||
+		(entry?.status === "retry_restored" && Boolean(entry.dashboardUrl))
+	);
+}
+
+export function resolveHandoffReceipt(
+	live: CloudHandoffUiEntry | undefined,
+	persisted: HandoffReceipt | null,
+): HandoffReceipt | null {
+	if (!live) return persisted;
+	return live.status === "complete" ? live.receipt : persisted;
+}
 
 export type CloudHandoffUiAction =
 	| {
@@ -50,6 +84,10 @@ export type CloudHandoffUiAction =
 			dashboardUrl?: string;
 			sessionId?: string;
 			destination?: "in_app" | "external";
+			warningKind?: "unqueued" | "unconfirmed";
+			retryDraft?: string;
+			retryAttachments?: File[];
+			retainRetry?: boolean;
 	  }
 	| {
 			type: "failed";
@@ -64,6 +102,16 @@ export type CloudHandoffUiAction =
 			receipt: HandoffReceipt;
 			externalPresentation: boolean;
 			pendingPrompt?: PendingHandoffPrompt;
+			warningKind?: "unqueued" | "unconfirmed";
+			retryDraft?: string;
+			retryAttachments?: File[];
+	  }
+	| {
+			type: "target_open_failed";
+			sourceSessionId: string;
+			dashboardUrl: string;
+			retryDraft?: string;
+			retryAttachments?: File[];
 	  }
 	| { type: "external"; sourceSessionId: string }
 	| { type: "prompt_reconciled"; sourceSessionId: string }
@@ -72,7 +120,8 @@ export type CloudHandoffUiAction =
 			sourceSessionId: string;
 			dashboardUrl: string;
 	  }
-	| { type: "retry_restored"; sourceSessionId: string };
+	| { type: "retry_restored"; sourceSessionId: string }
+	| { type: "retry_delivered"; sourceSessionId: string };
 
 function completeHandoff(
 	state: CloudHandoffUiState,
@@ -80,13 +129,41 @@ function completeHandoff(
 	receipt: HandoffReceipt,
 	externalPresentation: boolean,
 	pendingPrompt?: PendingHandoffPrompt,
+	warningKind?: "unqueued" | "unconfirmed",
+	retryDraft?: string,
+	retryAttachments?: File[],
+	retainRetry = false,
 ): CloudHandoffUiState {
+	const current = state[sourceSessionId];
+	const carriedRetryDraft =
+		retryDraft ??
+		(retainRetry &&
+		(current?.status === "failed" ||
+			current?.status === "recovery" ||
+			current?.status === "retry_restored" ||
+			current?.status === "complete")
+			? current.retryDraft
+			: undefined);
+	const carriedRetryAttachments =
+		retryAttachments ??
+		(retainRetry &&
+		(current?.status === "failed" ||
+			current?.status === "recovery" ||
+			current?.status === "retry_restored" ||
+			current?.status === "complete")
+			? current.retryAttachments
+			: undefined);
 	return {
 		...state,
 		[sourceSessionId]: {
 			status: "complete",
 			receipt,
 			externalPresentation,
+			...(warningKind ? { warningKind } : {}),
+			...(carriedRetryDraft ? { retryDraft: carriedRetryDraft } : {}),
+			...(carriedRetryAttachments?.length
+				? { retryAttachments: carriedRetryAttachments }
+				: {}),
 		},
 		...(!externalPresentation && pendingPrompt
 			? {
@@ -106,11 +183,21 @@ export function cloudHandoffUiReducer(
 	const current = state[action.sourceSessionId];
 	switch (action.type) {
 		case "start": {
+			// A retry of a pending handoff must not discard the recovery URL:
+			// if the retry fails before any progress event re-supplies it, the
+			// dashboard link would be gone from live state entirely.
+			const carriedDashboardUrl =
+				current?.status === "recovery" ||
+				current?.status === "recovery_dismissed" ||
+				current?.status === "progress"
+					? current.dashboardUrl
+					: undefined;
 			return {
 				...state,
 				[action.sourceSessionId]: {
 					status: "progress",
 					phase: "checking",
+					...(carriedDashboardUrl ? { dashboardUrl: carriedDashboardUrl } : {}),
 					...(action.pendingPrompt
 						? { pendingPrompt: action.pendingPrompt }
 						: {}),
@@ -131,6 +218,11 @@ export function cloudHandoffUiReducer(
 						dashboardUrl: action.dashboardUrl,
 					},
 					action.destination === "external",
+					undefined,
+					action.warningKind,
+					action.retryDraft,
+					action.retryAttachments,
+					action.retainRetry,
 				);
 			}
 			if (
@@ -156,6 +248,21 @@ export function cloudHandoffUiReducer(
 				},
 			};
 		case "failed": {
+			// An authoritative completion event may have already landed while
+			// the RPC transport failed; the receipt (and its cloud URL) must
+			// survive, since the source session is locked either way.
+			if (current?.status === "complete") {
+				if (!action.retryDraft && !action.retryAttachments?.length)
+					return state;
+				return {
+					...state,
+					[action.sourceSessionId]: {
+						...current,
+						retryDraft: action.retryDraft,
+						retryAttachments: action.retryAttachments,
+					},
+				};
+			}
 			const dashboardUrl =
 				current?.status === "progress" ? current.dashboardUrl : undefined;
 			if (action.exposeRecovery && dashboardUrl) {
@@ -185,7 +292,30 @@ export function cloudHandoffUiReducer(
 				action.receipt,
 				action.externalPresentation,
 				action.pendingPrompt,
+				action.warningKind,
+				action.retryDraft,
+				action.retryAttachments,
 			);
+		case "target_open_failed":
+			if (current?.status === "complete") {
+				return {
+					...state,
+					[action.sourceSessionId]: {
+						...current,
+						retryDraft: action.retryDraft,
+						retryAttachments: action.retryAttachments,
+					},
+				};
+			}
+			return {
+				...state,
+				[action.sourceSessionId]: {
+					status: "recovery",
+					dashboardUrl: action.dashboardUrl,
+					retryDraft: action.retryDraft,
+					retryAttachments: action.retryAttachments,
+				},
+			};
 		case "external": {
 			if (current?.status !== "complete") return state;
 			const next = {
@@ -212,25 +342,49 @@ export function cloudHandoffUiReducer(
 				[action.sourceSessionId]: {
 					status: "recovery_dismissed",
 					dashboardUrl: action.dashboardUrl,
+					...(current && "retryDraft" in current
+						? { retryDraft: current.retryDraft }
+						: {}),
+					...(current && "retryAttachments" in current
+						? { retryAttachments: current.retryAttachments }
+						: {}),
 				},
 			};
 		case "retry_restored":
 			if (current?.status === "failed") {
 				return {
 					...state,
-					[action.sourceSessionId]: { status: "retry_restored" },
+					[action.sourceSessionId]: {
+						status: "retry_restored",
+						retryDraft: current.retryDraft,
+						retryAttachments: current.retryAttachments,
+					},
 				};
 			}
 			if (current?.status === "recovery") {
 				return {
 					...state,
 					[action.sourceSessionId]: {
-						status: "recovery",
+						status: "retry_restored",
 						dashboardUrl: current.dashboardUrl,
+						retryDraft: current.retryDraft,
+						retryAttachments: current.retryAttachments,
 					},
 				};
 			}
 			return state;
+		case "retry_delivered": {
+			if (current?.status !== "complete") return state;
+			return {
+				...state,
+				[action.sourceSessionId]: {
+					status: "complete",
+					receipt: current.receipt,
+					externalPresentation: current.externalPresentation,
+					...(current.warningKind ? { warningKind: current.warningKind } : {}),
+				},
+			};
+		}
 	}
 }
 

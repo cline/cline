@@ -216,11 +216,23 @@ export async function handleSessionInput(
 			: typeof payload.input === "string"
 				? payload.input
 				: "";
-	if (!prompt.trim()) {
+	const attachments =
+		payload.attachments &&
+		typeof payload.attachments === "object" &&
+		!Array.isArray(payload.attachments)
+			? (payload.attachments as Record<string, unknown>)
+			: undefined;
+	const userImages = Array.isArray(attachments?.userImages)
+		? attachments.userImages.filter((image) => typeof image === "string")
+		: undefined;
+	const userFiles = Array.isArray(attachments?.userFiles)
+		? attachments.userFiles.filter((filePath) => typeof filePath === "string")
+		: undefined;
+	if (!prompt.trim() && !userImages?.length && !userFiles?.length) {
 		return errorReply(
 			envelope,
 			"invalid_session_input",
-			"session input requires a prompt string",
+			"session input requires a prompt or attachment",
 		);
 	}
 	const session = await ctx.sessionHost.getSession(sessionId);
@@ -237,15 +249,6 @@ export async function handleSessionInput(
 			sessionId,
 		),
 	);
-	const attachments =
-		payload.attachments &&
-		typeof payload.attachments === "object" &&
-		!Array.isArray(payload.attachments)
-			? (payload.attachments as Record<string, unknown>)
-			: undefined;
-	const userFiles = Array.isArray(attachments?.userFiles)
-		? attachments.userFiles.filter((filePath) => typeof filePath === "string")
-		: undefined;
 	const timeoutMs = parseRunTimeoutMs(payload);
 	ctx.suppressNextTerminalEventBySession.set(sessionId, "run.start.reply");
 	const releaseActiveRpcTurn = trackActiveRpcTurn(ctx, sessionId);
@@ -263,9 +266,7 @@ export async function handleSessionInput(
 						payload.delivery === "queue" || payload.delivery === "steer"
 							? payload.delivery
 							: undefined,
-					userImages: Array.isArray(attachments?.userImages)
-						? (attachments.userImages as string[])
-						: undefined,
+					userImages,
 					userFiles,
 					timeoutMs,
 				},

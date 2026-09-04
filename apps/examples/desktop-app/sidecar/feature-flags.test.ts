@@ -61,7 +61,9 @@ import {
 	disposeDesktopFeatureFlagsService,
 	getDesktopFeatureFlagsContext,
 	getDesktopFeatureFlagsService,
+	isCloudAgentsAvailable,
 	isCloudAgentsEnabled,
+	isCloudHandoffEnabled,
 	isDesktopInternalFeatureEnabled,
 	refreshDesktopFeatureFlags,
 	resetDesktopFeatureFlagsForTesting,
@@ -87,6 +89,7 @@ beforeEach(() => {
 
 afterEach(() => {
 	delete process.env.CLINE_CODE_CLOUD_AGENTS;
+	delete process.env.CLINE_CODE_CLOUD_HANDOFF;
 	delete process.env.CLINE_DATA_DIR;
 	rmSync(dataDir, { recursive: true, force: true });
 	if (originalApiKey === undefined) {
@@ -379,27 +382,39 @@ describe("disposeDesktopFeatureFlagsService", () => {
 	});
 });
 
-describe("isCloudAgentsEnabled", () => {
-	it("defaults to off with no setting and no override", () => {
-		expect(isCloudAgentsEnabled()).toBe(false);
-	});
-
-	it("follows the user's settings opt-in toggle", () => {
-		setCloudSessionsEnabled(true);
-		expect(isCloudAgentsEnabled()).toBe(true);
+describe("cloud agents gate", () => {
+	it("is available in beta and follows the existing Settings toggle", () => {
+		expect(isCloudAgentsAvailable()).toBe(true);
 		setCloudSessionsEnabled(false);
 		expect(isCloudAgentsEnabled()).toBe(false);
+		setCloudSessionsEnabled(true);
+		expect(isCloudAgentsEnabled()).toBe(true);
 	});
 
 	it("honors the env override in both directions", () => {
 		process.env.CLINE_CODE_CLOUD_AGENTS = "1";
+		expect(isCloudAgentsAvailable()).toBe(true);
 		expect(isCloudAgentsEnabled()).toBe(true);
 		process.env.CLINE_CODE_CLOUD_AGENTS = "true";
 		expect(isCloudAgentsEnabled()).toBe(true);
 		setCloudSessionsEnabled(true);
 		process.env.CLINE_CODE_CLOUD_AGENTS = "0";
+		expect(isCloudAgentsAvailable()).toBe(false);
 		expect(isCloudAgentsEnabled()).toBe(false);
 		process.env.CLINE_CODE_CLOUD_AGENTS = "false";
 		expect(isCloudAgentsEnabled()).toBe(false);
+	});
+});
+
+describe("cloud handoff gate", () => {
+	it("is enabled by default in beta", () => {
+		expect(isCloudHandoffEnabled()).toBe(true);
+	});
+
+	it("honors the diagnostic env override", () => {
+		process.env.CLINE_CODE_CLOUD_HANDOFF = "0";
+		expect(isCloudHandoffEnabled()).toBe(false);
+		process.env.CLINE_CODE_CLOUD_HANDOFF = "1";
+		expect(isCloudHandoffEnabled()).toBe(true);
 	});
 });

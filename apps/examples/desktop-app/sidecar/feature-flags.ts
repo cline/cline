@@ -289,21 +289,46 @@ export async function identifyDesktopFeatureFlagsAccount(
 	}
 }
 
-/**
- * Env override first; otherwise the user's explicit opt-in from Settings.
- *
- * Cloud sessions are in preview, so the gate is a toggle the user flips in
- * Settings → General (default off) rather than a remote rollout flag.
- */
-export function isCloudAgentsEnabled(): boolean {
+export function readCloudAgentsEnvOverride(): boolean | undefined {
 	const override = process.env.CLINE_CODE_CLOUD_AGENTS?.trim().toLowerCase();
-	if (override === "1" || override === "true") {
-		return true;
-	}
-	if (override === "0" || override === "false") {
-		return false;
-	}
+	if (override === "1" || override === "true") return true;
+	if (override === "0" || override === "false") return false;
+	return undefined;
+}
+
+/** The beta always exposes the existing Cloud sessions opt-in. */
+export function isCloudAgentsAvailable(_options?: {
+	logger?: BasicLogger;
+	telemetry?: ITelemetryService;
+}): boolean {
+	const override = readCloudAgentsEnvOverride();
+	if (override !== undefined) return override;
+	return true;
+}
+
+/** The existing Settings toggle remains the beta opt-in. */
+export function isCloudAgentsEnabled(_options?: {
+	logger?: BasicLogger;
+	telemetry?: ITelemetryService;
+}): boolean {
+	const override = readCloudAgentsEnvOverride();
+	if (override !== undefined) return override;
 	return readDesktopSettings().cloudSessionsEnabled;
+}
+
+export function readCloudHandoffEnvOverride(): boolean | undefined {
+	const override = process.env.CLINE_CODE_CLOUD_HANDOFF?.trim().toLowerCase();
+	if (override === "1" || override === "true") return true;
+	if (override === "0" || override === "false") return false;
+	return undefined;
+}
+
+/** Handoff ships with the beta and remains gated by Cloud sessions in the UI. */
+export function isCloudHandoffEnabled(_options?: {
+	logger?: BasicLogger;
+	telemetry?: ITelemetryService;
+}): boolean {
+	return readCloudHandoffEnvOverride() ?? true;
 }
 
 export function resetDesktopFeatureFlagsForTesting(): void {

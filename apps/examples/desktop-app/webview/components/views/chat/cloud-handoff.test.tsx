@@ -9,11 +9,16 @@ import {
 	CloudHandoffRecoveryNotice,
 } from "./cloud-handoff";
 
+const { toastMock } = vi.hoisted(() => ({ toastMock: vi.fn() }));
+
+vi.mock("@/hooks/use-toast", () => ({ toast: toastMock }));
+
 let container: HTMLDivElement | null = null;
 
 afterEach(() => {
 	container?.remove();
 	container = null;
+	toastMock.mockReset();
 });
 
 function render(node: React.ReactNode) {
@@ -88,6 +93,42 @@ describe("CloudHandoffReceipt", () => {
 		);
 		expect(view.textContent).not.toContain("sessionId=cloud-1");
 		expect(view.textContent).not.toContain("Copy recovery link");
+	});
+
+	it.each([
+		"unavailable",
+		"rejected",
+	] as const)("explains when clipboard copying is %s", async (failure) => {
+		Object.defineProperty(navigator, "clipboard", {
+			configurable: true,
+			value:
+				failure === "rejected"
+					? { writeText: vi.fn().mockRejectedValue(new Error("denied")) }
+					: undefined,
+		});
+		const view = render(
+			<CloudHandoffReceipt
+				onForkLocally={() => undefined}
+				onOpenCloud={() => undefined}
+				receipt={{
+					targetSessionId: "cloud-1",
+					dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
+				}}
+				showRecoveryUrl
+			/>,
+		);
+		await act(async () => {
+			Array.from(view.querySelectorAll("button"))
+				.find((item) => item.textContent?.includes("Copy recovery link"))
+				?.click();
+			await Promise.resolve();
+		});
+
+		expect(toastMock).toHaveBeenCalledExactlyOnceWith({
+			title: "Copy failed",
+			description: "Use Open Cloud or select the recovery link above.",
+			variant: "destructive",
+		});
 	});
 });
 

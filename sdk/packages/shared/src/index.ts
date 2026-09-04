@@ -102,7 +102,7 @@ export {
 export { PLUGIN_FILE_EXTENSIONS } from "./extensions/plugin";
 export {
 	FEATURE_FLAGS,
-	type FeatureFlag,
+	FeatureFlag,
 	FeatureFlagDefaultValue,
 	type FeatureFlagPayload,
 	type FeatureFlagsAndPayloads,
@@ -169,6 +169,7 @@ export {
 	DEFAULT_MAX_IMAGE_DECODED_BYTES,
 	DEFAULT_MAX_IMAGE_ENCODED_BYTES,
 	DEFAULT_MAX_TOTAL_MEDIA_BYTES,
+	GENERATED_MEDIA_OMITTED_PLACEHOLDER,
 	type GeneratedMedia,
 	type GeneratedMediaModality,
 	GeneratedMediaModalitySchema,
@@ -176,7 +177,6 @@ export {
 	type GeneratedMediaSource,
 	GeneratedMediaSourceSchema,
 	generatedMediaModalityFromMediaType,
-	GENERATED_MEDIA_OMITTED_PLACEHOLDER,
 	IMAGE_OMITTED_PLACEHOLDER,
 	IMAGE_UNSUPPORTED_PLACEHOLDER,
 	type ImageMediaLimits,

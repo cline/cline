@@ -14,7 +14,7 @@ describe("cloud handoff metadata", () => {
 		branch: " main ",
 		headSha: "A".repeat(40),
 		modelId: " cloud/model ",
-		workspaceRelativePath: " apps/desktop ",
+		workspaceRelativePath: "apps/desktop",
 		mode: "plan",
 	});
 
@@ -91,6 +91,18 @@ describe("cloud handoff metadata", () => {
 			}),
 		).toBe(false);
 		expect(cloudHandoffFingerprintsEqual(undefined, undefined)).toBe(false);
+	});
+
+	it("preserves significant whitespace in workspace paths", () => {
+		expect(
+			createCloudHandoffFingerprint({
+				repoUrl: "https://github.com/cline/cline",
+				branch: "main",
+				headSha: "a".repeat(40),
+				modelId: "cloud/model",
+				workspaceRelativePath: " leading/trailing ",
+			}).workspaceRelativePath,
+		).toBe(" leading/trailing ");
 	});
 
 	it("builds an environment-specific dashboard URL", () => {

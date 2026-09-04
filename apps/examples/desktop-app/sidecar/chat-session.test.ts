@@ -17,6 +17,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { materializeUserFiles } from "./attachments";
 import {
 	assertSessionDeleteAllowedDuringHandoff,
+	beginSessionMetadataUpdate,
 	buildSessionConnectionUpdate,
 	cloudHandoffGitStateMatchesFingerprint,
 	combineCloudHandoffModels,
@@ -884,9 +885,28 @@ describe("session forks", () => {
 			...localRuntimeContext(manager, { sessionIds: [sessionId] }),
 		} as unknown as SidecarContext;
 
+		const releaseDelete = await assertSessionDeleteAllowedDuringHandoff(
+			ctx,
+			sessionId,
+		);
+		expect(releaseDelete).toBeTypeOf("function");
+		releaseDelete();
+	});
+
+	it("blocks handoff while a metadata update is active", async () => {
+		const ctx = {
+			liveSessions: new Map(),
+			...localRuntimeContext({}, { sessionIds: ["metadata-source"] }),
+		} as unknown as SidecarContext;
+		const releaseUpdate = beginSessionMetadataUpdate(ctx, "metadata-source");
+
 		await expect(
-			assertSessionDeleteAllowedDuringHandoff(ctx, sessionId),
-		).resolves.toBeUndefined();
+			handleChatSessionCommand(ctx, {
+				action: "handoff",
+				sessionId: "metadata-source",
+			}),
+		).rejects.toThrow("metadata update to finish");
+		releaseUpdate();
 	});
 
 	it("keeps a persisted pending handoff read-only after restart", async () => {
@@ -2467,7 +2487,7 @@ describe("cloud handoff gates", () => {
 				action: "prepare_handoff",
 				sessionId,
 			}),
-		).rejects.toThrow("requires Cloud sessions");
+		).rejects.toThrow("Enable Cloud sessions");
 	});
 
 	it("explains how to recover a mismatched resumed handoff", () => {
@@ -2595,7 +2615,7 @@ describe("cloud handoff gates", () => {
 		expect(update).not.toHaveBeenCalled();
 	});
 
-	it("clears a mismatched pending handoff only after the target is gone", async () => {
+	it("preserves a mismatched pending handoff when the target is not visible", async () => {
 		const update = vi.fn(async () => ({ updated: true }));
 		await expect(
 			reconcilePendingCloudHandoff(
@@ -2609,10 +2629,8 @@ describe("cloud handoff gates", () => {
 					appBaseUrl: "https://app.cline.bot",
 				},
 			),
-		).resolves.toEqual({ metadata: { workspace: "preserved" } });
-		expect(update).toHaveBeenCalledWith("local-1", {
-			metadata: { workspace: "preserved" },
-		});
+		).rejects.toThrow("not visible from the current account");
+		expect(update).not.toHaveBeenCalled();
 	});
 
 	it("preserves pending lineage when target lookup is uncertain", async () => {
@@ -2637,10 +2655,11 @@ describe("cloud handoff gates", () => {
 		expect(update).not.toHaveBeenCalled();
 	});
 
-	it("keeps the source locked when clearing gone lineage is not persisted", async () => {
+	it("does not clear invisible lineage when metadata updates are unavailable", async () => {
+		const update = vi.fn(async () => ({ updated: false }));
 		await expect(
 			reconcilePendingCloudHandoff(
-				{ update: vi.fn(async () => ({ updated: false })) } as never,
+				{ update } as never,
 				{ handoffTargetExists: vi.fn(async () => false) },
 				{
 					sourceSessionId: "local-1",
@@ -2650,7 +2669,8 @@ describe("cloud handoff gates", () => {
 					appBaseUrl: "https://app.cline.bot",
 				},
 			),
-		).rejects.toThrow("local pending handoff record could not be cleared");
+		).rejects.toThrow("not visible from the current account");
+		expect(update).not.toHaveBeenCalled();
 	});
 
 	it("fails when a required handoff metadata update is not persisted", async () => {

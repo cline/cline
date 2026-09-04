@@ -66,9 +66,15 @@ import type {
 } from "@/hooks/chat-session/types";
 import { useAppUpdate } from "@/hooks/use-app-update";
 import { useChatSession } from "@/hooks/use-chat-session";
-import { useProvisioningOutcome } from "@/hooks/use-provisioning-outcome";
+import {
+	type CloudProvisioningPhase,
+	useProvisioningOutcome,
+} from "@/hooks/use-provisioning-outcome";
 import { useSessionAgents } from "@/hooks/use-session-agents";
-import { useSessionHistory } from "@/hooks/use-session-history";
+import {
+	resolveLiveHistorySession,
+	useSessionHistory,
+} from "@/hooks/use-session-history";
 import { toast } from "@/hooks/use-toast";
 import { applyAppZoomAction, syncAppFontSize } from "@/lib/app-font-size";
 import { syncAppIcon } from "@/lib/app-icon";
@@ -83,24 +89,28 @@ import {
 	parseHandoffCommand,
 	readHandoffReceipt,
 	readPendingHandoffRecovery,
-	shouldOpenHandoffInApp,
 	validateHandoffAttachments,
 } from "@/lib/cloud-handoff";
+import {
+	createHandoffLifecycle,
+	type HandoffLifecycle,
+} from "@/lib/cloud-handoff-lifecycle";
 import {
 	appendPendingHandoffPrompt,
 	type CloudHandoffUiAction,
 	type CloudHandoffUiState,
 	cloudHandoffUiReducer,
+	hasLivePendingHandoff,
 	matchingUserPromptCount,
 	type PendingHandoffPrompt,
 	pendingHandoffPromptCaughtUp,
+	resolveHandoffReceipt,
 } from "@/lib/cloud-handoff-ui-state";
 import {
 	cloudRepositoryLabel,
 	isCloudProvisioningSessionId,
 } from "@/lib/cloud-repositories";
 import {
-	humanizeCloudHandoffError,
 	humanizeCloudSessionError,
 	parseCloudSessionError,
 } from "@/lib/cloud-session-error";
@@ -217,37 +227,64 @@ const GIT_BRANCH_REFRESH_INTERVAL_MS = 5_000;
 
 type AppLocation = DesktopAppLocation<SettingsSection>;
 
-const PROVISIONING_PHASE_INTERVAL_MS = 4_500;
 // create() can spend one 610s window on the original POST and another on
 // timeout recovery. Leave room for auth, Hub attach, seeding, and verification
 // without waiting forever for a lost transport response.
 const HANDOFF_INVOKE_TIMEOUT_MS = 25 * 60_000;
+const LONG_PROVISIONING_THRESHOLD_MS = 60_000;
+
+function readCloudProvisioningPhase(
+	value: unknown,
+): CloudProvisioningPhase | undefined {
+	return value === "provisioning" ||
+		value === "cloning_repo" ||
+		value === "agent_starting" ||
+		value === "ready" ||
+		value === "failed"
+		? value
+		: undefined;
+}
 
 /** Shared provisioning status for the originating thread and placeholder. */
-function useCloudProvisioningPhase(repoUrl?: string): string {
+function useCloudProvisioningPhase(
+	repoUrl: string | undefined,
+	active: boolean,
+	phase: CloudProvisioningPhase | undefined,
+	startedAt: string | undefined,
+): string {
 	const repoLabel = cloudRepositoryLabel(repoUrl ?? "");
-	const phases = useMemo(
-		() => [
-			"Spinning up a fresh sandbox",
-			repoLabel ? `Cloning ${repoLabel}` : "Cloning your repository",
-			"Waking up the agent",
-			"Getting everything ready",
-		],
-		[repoLabel],
-	);
-	const [phaseIndex, setPhaseIndex] = useState(0);
-	// Hold the final phase so provisioning does not appear to restart. The
-	// interval stops via this guard instead of inside the state updater,
-	// which must stay pure (StrictMode double-invokes it).
-	const lastPhase = phaseIndex >= phases.length - 1;
+	const [longRunning, setLongRunning] = useState(false);
 	useEffect(() => {
-		if (lastPhase) return;
-		const interval = window.setInterval(() => {
-			setPhaseIndex((current) => Math.min(current + 1, phases.length - 1));
-		}, PROVISIONING_PHASE_INTERVAL_MS);
-		return () => window.clearInterval(interval);
-	}, [lastPhase, phases.length]);
-	return `${phases[phaseIndex]}...`;
+		if (!active) {
+			setLongRunning(false);
+			return;
+		}
+		const parsedStartedAt = Date.parse(startedAt ?? "");
+		const elapsed = Number.isFinite(parsedStartedAt)
+			? Math.max(0, Date.now() - parsedStartedAt)
+			: 0;
+		if (elapsed >= LONG_PROVISIONING_THRESHOLD_MS) {
+			setLongRunning(true);
+			return;
+		}
+		setLongRunning(false);
+		const timeout = window.setTimeout(
+			() => setLongRunning(true),
+			LONG_PROVISIONING_THRESHOLD_MS - elapsed,
+		);
+		return () => window.clearTimeout(timeout);
+	}, [active, startedAt]);
+	const label =
+		phase === "cloning_repo"
+			? repoLabel
+				? `Cloning ${repoLabel}`
+				: "Cloning your repository"
+			: phase === "agent_starting"
+				? "Starting the agent"
+				: "Starting your workspace";
+	return longRunning
+		? `${label}... This may take several minutes.`
+		: `${label}...`;
 }
 
 /** Matches the compact loading row shown inside a starting chat. */
@@ -291,37 +328,6 @@ export default function Home() {
 		cloudHandoffUiReducer,
 		{},
 	);
-	useEffect(
-		() =>
-			desktopClient.subscribe("cloud_handoff_progress", (payload) => {
-				if (!payload || typeof payload !== "object") return;
-				const progress = payload as {
-					sourceSessionId?: string;
-					phase?: HandoffProgressPhase;
-					message?: string;
-					dashboardUrl?: string;
-					sessionId?: string;
-					destination?: "in_app" | "external";
-				};
-				if (
-					!progress.sourceSessionId?.trim() ||
-					!progress.phase ||
-					!(progress.phase in HANDOFF_PROGRESS_LABELS)
-				) {
-					return;
-				}
-				dispatchHandoffUi({
-					type: "progress",
-					sourceSessionId: progress.sourceSessionId,
-					phase: progress.phase,
-					message: progress.message,
-					dashboardUrl: progress.dashboardUrl,
-					sessionId: progress.sessionId,
-					destination: progress.destination,
-				});
-			}),
-		[],
-	);
 	// Starts false on both server and first client render (hydration-safe);
 	// the effect below reads the persisted state right after mount.
 	const [showOnboarding, setShowOnboarding] = useState(false);
@@ -359,6 +365,10 @@ export default function Home() {
 	const activeRealtimeBridgeRef = useRef<RealtimeChatBridge | null>(null);
 	const { navigation, threads } = appState;
 	const { activeThreadId, settingsSection, view } = navigation.current;
+	const navigationRef = useRef(navigation.current);
+	navigationRef.current = navigation.current;
+	const threadsRef = useRef(threads);
+	threadsRef.current = threads;
 	const activeEnvironmentId =
 		activeRemoteEnvironment?.id ?? LOCAL_WORKSPACE_ENVIRONMENT_ID;
 
@@ -419,6 +429,7 @@ export default function Home() {
 	}, []);
 
 	const navigate = useCallback((destination: AppLocation) => {
+		navigationRef.current = destination;
 		dispatchApp({ type: "navigate", destination });
 	}, []);
 	const navigateWith = useCallback(
@@ -428,11 +439,15 @@ export default function Home() {
 		[navigate, navigation.current],
 	);
 	const handleNavigateBack = useCallback(() => {
+		const destination = navigation.back.at(-1);
+		if (destination) navigationRef.current = destination;
 		dispatchApp({ type: "back" });
-	}, []);
+	}, [navigation.back]);
 	const handleNavigateForward = useCallback(() => {
+		const destination = navigation.forward[0];
+		if (destination) navigationRef.current = destination;
 		dispatchApp({ type: "forward" });
-	}, []);
+	}, [navigation.forward]);
 
 	useAppUpdate();
 
@@ -519,9 +534,15 @@ export default function Home() {
 	useEffect(() => watchDesktopNotifications(), []);
 
 	const createThreadForEnvironment = useCallback((environmentId: string) => {
+		const threadId = makeThreadId();
+		navigationRef.current = {
+			...navigationRef.current,
+			activeThreadId: threadId,
+			view: "chat",
+		};
 		dispatchApp({
 			type: "new-thread",
-			threadId: makeThreadId(),
+			threadId,
 			environmentId,
 		});
 		requestPromptInputFocus();
@@ -530,10 +551,16 @@ export default function Home() {
 		createThreadForEnvironment(activeEnvironmentId);
 	}, [activeEnvironmentId, createThreadForEnvironment]);
 	const selectEnvironmentDraft = useCallback((environmentId: string) => {
+		const threadId = makeThreadId();
+		navigationRef.current = {
+			...navigationRef.current,
+			activeThreadId: threadId,
+			view: "chat",
+		};
 		dispatchApp({
 			type: "select-environment-draft",
 			environmentId,
-			threadId: makeThreadId(),
+			threadId,
 		});
 	}, []);
 	const handleSelectEnvironment = useCallback(
@@ -676,14 +703,24 @@ export default function Home() {
 	}, []);
 
 	const handleOpenSession = useCallback(
-		(session: SessionHistoryItem, initialPromptDraft?: string) => {
+		(
+			session: SessionHistoryItem,
+			initialPromptDraft?: string,
+			initialAttachments?: File[],
+		) => {
 			const environmentId =
 				session.environmentId?.trim() || LOCAL_WORKSPACE_ENVIRONMENT_ID;
+			navigationRef.current = {
+				...navigationRef.current,
+				activeThreadId: `session_${session.sessionId}`,
+				view: "chat",
+			};
 			dispatchApp({
 				type: "open-session",
 				session: { ...session, environmentId },
 				environmentId,
 				initialPromptDraft,
+				initialAttachments,
 			});
 		},
 		[],
@@ -691,11 +728,22 @@ export default function Home() {
 
 	const handleDeleteSession = useCallback(
 		(deletedSessionId: string, deletedThreadId?: string) => {
+			const fallbackThreadId = makeThreadId();
+			if (
+				navigationRef.current.activeThreadId === deletedThreadId ||
+				navigationRef.current.activeThreadId === `session_${deletedSessionId}`
+			) {
+				navigationRef.current = {
+					...navigationRef.current,
+					activeThreadId: fallbackThreadId,
+					view: "chat",
+				};
+			}
 			dispatchApp({
 				type: "delete-session",
 				deletedSessionId,
 				deletedThreadId,
-				fallbackThreadId: makeThreadId(),
+				fallbackThreadId,
 				fallbackEnvironmentId: activeEnvironmentId,
 			});
 		},
@@ -799,6 +847,10 @@ export default function Home() {
 		onOpenSession: handleOpenSession,
 		onUpdateSessionMetadata: handleUpdateSessionMetadata,
 	});
+	const activeHistorySession = resolveLiveHistorySession(
+		activeThread?.historySession,
+		sessionHistory.sessions,
+	);
 	const sessionHistoryRef = useRef(sessionHistory.sessions);
 	useEffect(() => {
 		sessionHistoryRef.current = sessionHistory.sessions;
@@ -807,8 +859,18 @@ export default function Home() {
 		async (
 			sessionId: string,
 			environmentId?: string,
-			options: { silent?: boolean } = {},
+			options: {
+				silent?: boolean;
+				initialPromptDraft?: string;
+				initialAttachments?: File[];
+				expectedActiveThreadId?: string;
+			} = {},
 		): Promise<boolean> => {
+			const stillExpectedThread = () =>
+				!options.expectedActiveThreadId ||
+				(navigationRef.current.view === "chat" &&
+					navigationRef.current.activeThreadId ===
+						options.expectedActiveThreadId);
 			const cachedSession = sessionHistoryRef.current.find(
 				(session) =>
 					session.sessionId === sessionId &&
@@ -816,7 +878,12 @@ export default function Home() {
 						session.environmentId === environmentId),
 			);
 			if (cachedSession) {
-				handleOpenSession(cachedSession);
+				if (!stillExpectedThread()) return false;
+				handleOpenSession(
+					cachedSession,
+					options.initialPromptDraft,
+					options.initialAttachments,
+				);
 				return true;
 			}
 			try {
@@ -838,7 +905,12 @@ export default function Home() {
 						`The session belongs to environment ${session.environmentId}, not ${environmentId}.`,
 					);
 				}
-				handleOpenSession(session);
+				if (!stillExpectedThread()) return false;
+				handleOpenSession(
+					session,
+					options.initialPromptDraft,
+					options.initialAttachments,
+				);
 				return true;
 			} catch (error) {
 				if (!options.silent) {
@@ -854,6 +926,67 @@ export default function Home() {
 			}
 		},
 		[handleOpenSession],
+	);
+	const openHandoffSessionRef = useRef(handleOpenSessionById);
+	openHandoffSessionRef.current = handleOpenSessionById;
+	const handoffLifecycleRef = useRef<HandoffLifecycle | null>(null);
+	if (handoffLifecycleRef.current === null) {
+		handoffLifecycleRef.current = createHandoffLifecycle({
+			dispatch: dispatchHandoffUi,
+			toast: ({ connectUrl, ...toastFields }) =>
+				toast({
+					...toastFields,
+					action: connectUrl ? (
+						<ToastAction
+							altText="Connect GitHub"
+							onClick={() => void openExternalUrl(connectUrl)}
+						>
+							Connect GitHub
+						</ToastAction>
+					) : undefined,
+				}),
+			openSession: (sessionId, options) =>
+				openHandoffSessionRef.current(sessionId, undefined, options),
+			openExternal: openExternalUrl,
+		});
+	}
+	const handoffLifecycle = handoffLifecycleRef.current;
+	useEffect(
+		() =>
+			desktopClient.subscribe("cloud_handoff_progress", (payload) => {
+				if (!payload || typeof payload !== "object") return;
+				const progress = payload as {
+					sourceSessionId?: string;
+					handoffAttemptId?: string;
+					phase?: HandoffProgressPhase;
+					message?: string;
+					dashboardUrl?: string;
+					sessionId?: string;
+					destination?: "in_app" | "external";
+					warning?: string;
+					warningKind?: "unqueued" | "unconfirmed";
+					undeliveredCommand?: string;
+				};
+				if (
+					!progress.sourceSessionId?.trim() ||
+					!progress.phase ||
+					!(progress.phase in HANDOFF_PROGRESS_LABELS)
+				)
+					return;
+				void handoffLifecycle.onEvent({
+					sourceSessionId: progress.sourceSessionId,
+					handoffAttemptId: progress.handoffAttemptId,
+					phase: progress.phase,
+					message: progress.message,
+					dashboardUrl: progress.dashboardUrl,
+					sessionId: progress.sessionId,
+					destination: progress.destination,
+					warning: progress.warning,
+					warningKind: progress.warningKind,
+					undeliveredCommand: progress.undeliveredCommand,
+				});
+			}),
+		[handoffLifecycle],
 	);
 	useEffect(
 		() =>
@@ -891,19 +1024,33 @@ export default function Home() {
 			if (!placeholderId?.trim() || !sessionId?.trim()) {
 				return;
 			}
-			const placeholderThread = threads.find(
+			const placeholderThread = threadsRef.current.find(
 				(thread) => thread.historySession?.sessionId === placeholderId,
 			);
 			if (!placeholderThread) {
 				return;
 			}
-			// The mounted chat pane owns active-placeholder recovery, including
-			// retries. Background placeholders need only be removed.
-			if (placeholderThread.id !== activeThreadId) {
-				handleDeleteSession(placeholderId, placeholderThread.id);
+			if (
+				navigationRef.current.view === "chat" &&
+				placeholderThread.id === navigationRef.current.activeThreadId
+			) {
+				void handleOpenSessionById(sessionId, undefined, {
+					silent: true,
+					expectedActiveThreadId: placeholderThread.id,
+				}).then((opened) => {
+					if (
+						opened ||
+						navigationRef.current.view !== "chat" ||
+						navigationRef.current.activeThreadId !== placeholderThread.id
+					) {
+						handleDeleteSession(placeholderId, placeholderThread.id);
+					}
+				});
+				return;
 			}
+			handleDeleteSession(placeholderId, placeholderThread.id);
 		});
-	}, [threads, activeThreadId, handleDeleteSession]);
+	}, [handleDeleteSession, handleOpenSessionById]);
 
 	const historyWorkspacePaths = useMemo(
 		() =>
@@ -1001,16 +1148,18 @@ export default function Home() {
 											environmentProfilesLoading={
 												remoteEnvironmentProfilesLoading
 											}
-											historySession={activeThread.historySession}
+											historySession={activeHistorySession}
 											handoffUiState={handoffUiState}
 											onHandoffUiAction={dispatchHandoffUi}
+											handoffLifecycle={handoffLifecycle}
 											liveHistoryStatus={
 												sessionHistory.sessions.find(
 													(session) =>
 														session.sessionId ===
 														activeThread.historySession?.sessionId,
-												)?.status ?? activeThread.historySession?.status
+												)?.status ?? activeHistorySession?.status
 											}
+											initialAttachments={activeThread.initialAttachments}
 											initialPromptDraft={activeThread.initialPromptDraft}
 											knownWorkspacePaths={historyWorkspacePaths}
 											onInitialPromptDraftConsumed={
@@ -1119,7 +1268,9 @@ function ChatThreadPane({
 	environmentProfilesLoading,
 	historySession,
 	liveHistoryStatus,
+	initialAttachments,
 	initialPromptDraft,
+	handoffLifecycle,
 	knownWorkspacePaths,
 	onInitialPromptDraftConsumed,
 	onUpdateSessionMetadata,
@@ -1150,7 +1301,12 @@ function ChatThreadPane({
 	historySession?: SessionHistoryItem;
 	/** Current status from the live list; the history snapshot may be stale. */
 	liveHistoryStatus?: SessionHistoryItem["status"];
+	initialAttachments?: File[];
 	initialPromptDraft?: string;
+	handoffLifecycle: Pick<
+		HandoffLifecycle,
+		"onRpcStarted" | "onRpcResolved" | "onRpcRejected"
+	>;
 	knownWorkspacePaths: string[];
 	onInitialPromptDraftConsumed?: (threadId: string) => void;
 	onUpdateSessionMetadata?: (
@@ -1163,11 +1319,17 @@ function ChatThreadPane({
 	onOpenSession?: (
 		session: SessionHistoryItem,
 		initialPromptDraft?: string,
+		initialAttachments?: File[],
 	) => void;
 	onOpenSessionById?: (
 		sessionId: string,
 		environmentId?: string,
-		options?: { silent?: boolean },
+		options?: {
+			silent?: boolean;
+			initialPromptDraft?: string;
+			initialAttachments?: File[];
+			expectedActiveThreadId?: string;
+		},
 	) => boolean | Promise<boolean>;
 	onPickRemoteWorkspaceDirectory: (
 		environment: RemoteWorkspaceEnvironment,
@@ -1242,6 +1404,8 @@ function ChatThreadPane({
 	const [gitBranch, setGitBranch] = useState<string | null>(null);
 	// Re-evaluate the account-targeted flag after sign-in changes.
 	const [cloudAgentsEnabled, setCloudAgentsEnabled] = useState(false);
+	const [cloudHandoffEnabled, setCloudHandoffEnabled] = useState(false);
+	const cloudHandoffAvailable = cloudAgentsEnabled && cloudHandoffEnabled;
 	const handoffStartingRef = useRef(false);
 	const sourceSessionId = sessionId ?? historySession?.sessionId;
 	const handoffUi = sourceSessionId
@@ -1251,6 +1415,14 @@ function ChatThreadPane({
 	const pendingHandoffRecovery = readPendingHandoffRecovery(
 		historySession?.metadata,
 	);
+	const handoffRetryEligible =
+		Boolean(pendingHandoffRecovery) ||
+		handoffUi?.status === "recovery" ||
+		handoffUi?.status === "recovery_dismissed" ||
+		handoffUi?.status === "failed" ||
+		handoffUi?.status === "retry_restored";
+	const handoffOwnershipPending =
+		Boolean(pendingHandoffRecovery) || hasLivePendingHandoff(handoffUi);
 	const dismissedHandoffRecoveryUrl =
 		handoffUi?.status === "recovery_dismissed" ? handoffUi.dashboardUrl : null;
 	const handoffRecoveryUrl =
@@ -1260,16 +1432,20 @@ function ChatThreadPane({
 			: null) ??
 		null;
 	const handoffRetry =
-		(handoffUi?.status === "recovery" || handoffUi?.status === "failed") &&
+		(handoffUi?.status === "recovery" ||
+			handoffUi?.status === "recovery_dismissed" ||
+			handoffUi?.status === "failed" ||
+			handoffUi?.status === "retry_restored") &&
 		(handoffUi.retryDraft || handoffUi.retryAttachments?.length)
 			? {
 					draft: handoffUi.retryDraft,
 					attachments: handoffUi.retryAttachments,
 				}
 			: null;
-	const handoffReceipt =
-		(handoffUi?.status === "complete" ? handoffUi.receipt : null) ??
-		readHandoffReceipt(historySession?.metadata);
+	const handoffReceipt = resolveHandoffReceipt(
+		handoffUi,
+		readHandoffReceipt(historySession?.metadata),
+	);
 	const handoffExternalPresentation =
 		handoffUi?.status === "complete" && handoffUi.externalPresentation;
 	const { user: accountUser, activeOrganization } = useAccount();
@@ -1294,8 +1470,12 @@ function ChatThreadPane({
 				.invoke("get_feature_flags", {})
 				.then((flags) => {
 					if (!cancelled) {
-						const featureFlags = flags as { cloudAgents?: boolean };
+						const featureFlags = flags as {
+							cloudAgents?: boolean;
+							cloudHandoff?: boolean;
+						};
 						setCloudAgentsEnabled(Boolean(featureFlags.cloudAgents));
+						setCloudHandoffEnabled(Boolean(featureFlags.cloudHandoff));
 					}
 				})
 				.catch(() => {
@@ -1312,8 +1492,12 @@ function ChatThreadPane({
 			"feature_flags_changed",
 			(payload) => {
 				if (!cancelled) {
-					const featureFlags = payload as { cloudAgents?: boolean };
+					const featureFlags = payload as {
+						cloudAgents?: boolean;
+						cloudHandoff?: boolean;
+					};
 					setCloudAgentsEnabled(Boolean(featureFlags.cloudAgents));
+					setCloudHandoffEnabled(Boolean(featureFlags.cloudHandoff));
 				}
 			},
 		);
@@ -1373,6 +1557,8 @@ function ChatThreadPane({
 	const [provisioningError, setProvisioningError] = useState<string | null>(
 		null,
 	);
+	const [liveProvisioningPhase, setLiveProvisioningPhase] =
+		useState<CloudProvisioningPhase>();
 	const provisioningPlaceholderId =
 		historySession?.sessionId &&
 		isCloudProvisioningSessionId(historySession.sessionId)
@@ -1381,13 +1567,17 @@ function ChatThreadPane({
 	useEffect(() => {
 		void provisioningPlaceholderId;
 		setProvisioningError(null);
+		setLiveProvisioningPhase(undefined);
 	}, [provisioningPlaceholderId]);
 	const handleProvisioningReady = useCallback(
 		async (sessionId: string) =>
 			Boolean(
-				await onOpenSessionById?.(sessionId, undefined, { silent: true }),
+				await onOpenSessionById?.(sessionId, undefined, {
+					silent: true,
+					expectedActiveThreadId: threadId,
+				}),
 			),
-		[onOpenSessionById],
+		[onOpenSessionById, threadId],
 	);
 	const handleProvisioningResolved = useCallback(() => {
 		if (provisioningPlaceholderId) {
@@ -1399,6 +1589,7 @@ function ChatThreadPane({
 		onOpenReady: handleProvisioningReady,
 		onResolved: handleProvisioningResolved,
 		onError: setProvisioningError,
+		onPhase: setLiveProvisioningPhase,
 	});
 	// The placeholder id covers list-refresh lag before live status arrives.
 	const isProvisioningCloudSession =
@@ -1410,6 +1601,10 @@ function ChatThreadPane({
 			));
 	const provisioningPhase = useCloudProvisioningPhase(
 		config.repoUrl || historySession?.repoUrl,
+		isProvisioningCloudSession || (isCloudSession && status === "starting"),
+		liveProvisioningPhase ??
+			readCloudProvisioningPhase(historySession?.metadata?.provisioningPhase),
+		historySession?.startedAt,
 	);
 	const activeWorkspaceCwd = isCloudSession
 		? ""
@@ -1829,20 +2024,27 @@ function ChatThreadPane({
 		if (!historySession) {
 			return;
 		}
+		const hasInitialComposerState =
+			initialPromptDraft !== undefined || initialAttachments !== undefined;
+		if (hasInitialComposerState) {
+			setPromptInput(initialPromptDraft ?? "");
+			setPendingAttachments(initialAttachments ? [...initialAttachments] : []);
+			onInitialPromptDraftConsumed?.(threadId);
+		}
 		if (hydratedSessionRef.current === historySession.sessionId) {
 			return;
 		}
 		hydratedSessionRef.current = historySession.sessionId;
-		setPromptInput(initialPromptDraft ?? "");
-		if (initialPromptDraft !== undefined) {
-			onInitialPromptDraftConsumed?.(threadId);
+		if (!hasInitialComposerState) {
+			setPromptInput("");
+			setPendingAttachments([]);
 		}
-		setPendingAttachments([]);
 		setManualTitle(getSessionMetadataTitle(historySession.metadata));
 		void hydrateSession(historySession);
 	}, [
 		historySession,
 		hydrateSession,
+		initialAttachments,
 		initialPromptDraft,
 		onInitialPromptDraftConsumed,
 		setPromptInput,
@@ -1852,17 +2054,47 @@ function ChatThreadPane({
 	// Hydrate first, then restore a failed handoff's draft and attachments. If
 	// this ran above the hydration effect, hydration would immediately wipe the
 	// only retained retry payload after navigation back to the source session.
+	const restoredHandoffRetryRef = useRef<{
+		sourceSessionId: string;
+		draft?: string;
+		attachments?: File[];
+	} | null>(null);
 	useEffect(() => {
-		if (!sourceSessionId || !handoffRetry) return;
+		if (!sourceSessionId || !handoffRetry) {
+			restoredHandoffRetryRef.current = null;
+			return;
+		}
+		const restored = restoredHandoffRetryRef.current;
+		if (
+			restored?.sourceSessionId === sourceSessionId &&
+			restored.draft === handoffRetry.draft &&
+			restored.attachments === handoffRetry.attachments
+		)
+			return;
+		restoredHandoffRetryRef.current = {
+			sourceSessionId,
+			draft: handoffRetry.draft,
+			attachments: handoffRetry.attachments,
+		};
 		if (handoffRetry.draft) setPromptInput(handoffRetry.draft);
 		if (handoffRetry.attachments?.length) {
 			setPendingAttachments([...handoffRetry.attachments]);
 		}
-		onHandoffUiAction({
-			type: "retry_restored",
-			sourceSessionId,
-		});
-	}, [handoffRetry, onHandoffUiAction, setPromptInput, sourceSessionId]);
+		if (handoffUi?.status !== "retry_restored") {
+			onHandoffUiAction({ type: "retry_restored", sourceSessionId });
+		}
+	}, [
+		handoffRetry,
+		handoffUi?.status,
+		onHandoffUiAction,
+		setPromptInput,
+		sourceSessionId,
+	]);
+
+	const handoffUiRef = useRef(handoffUi);
+	useEffect(() => {
+		handoffUiRef.current = handoffUi;
+	}, [handoffUi]);
 
 	const runHandoff = useCallback(
 		async (
@@ -1871,6 +2103,7 @@ function ChatThreadPane({
 			sourceAttachments: File[],
 			attachments: SerializedAttachments,
 			sourceSessionId: string,
+			handoffAttemptId: string,
 			pendingPrompt?: PendingHandoffPrompt,
 		) => {
 			onHandoffUiAction({
@@ -1887,6 +2120,7 @@ function ChatThreadPane({
 							sessionId: sourceSessionId,
 							config,
 							fingerprint: preflight.fingerprint,
+							handoffAttemptId,
 							nextCommand: nextCommand || undefined,
 							attachments:
 								attachments.userImages.length > 0 ? attachments : undefined,
@@ -1894,102 +2128,29 @@ function ChatThreadPane({
 					},
 					{ timeoutMs: HANDOFF_INVOKE_TIMEOUT_MS },
 				);
-				const targetSessionId = (
-					result.outerSessionId ||
-					result.sessionId ||
-					""
-				).trim();
-				const dashboardUrl = result.dashboardUrl?.trim();
-				if (!targetSessionId || !dashboardUrl) {
-					throw new Error("Cloud handoff did not return a cloud session.");
-				}
-				const receipt = { targetSessionId, dashboardUrl };
-				const destination = result.destination ?? "in_app";
-				onHandoffUiAction({
-					type: "complete",
-					sourceSessionId,
-					receipt,
-					externalPresentation: destination === "external",
+				await handoffLifecycle.onRpcResolved(sourceSessionId, {
+					handoffAttemptId,
+					result,
+					nextCommand,
+					sourceAttachments,
 					pendingPrompt,
+					isThreadActive,
 				});
-				if (result.warning) {
-					onHandoffUiAction({
-						type: "prompt_reconciled",
-						sourceSessionId: targetSessionId,
-					});
-				}
-				if (shouldOpenHandoffInApp(destination, isThreadActive?.() ?? true)) {
-					const opened = await Promise.resolve(
-						onOpenSessionById?.(targetSessionId, undefined, { silent: true }),
-					).catch(() => false);
-					if (!opened) {
-						onHandoffUiAction({ type: "external", sourceSessionId });
-						try {
-							await openExternalUrl(dashboardUrl);
-							toast({
-								title: "Opened handoff in your browser",
-								description:
-									"The cloud session could not be attached inside Cline.",
-							});
-						} catch {
-							toast({
-								title: "Unable to open the browser",
-								description:
-									"Use the recovery link to open the cloud session manually.",
-								variant: "destructive",
-							});
-						}
-					}
-				} else if (destination === "external") {
-					await openExternalUrl(dashboardUrl).catch(() =>
-						toast({
-							title: "Cloud handoff complete",
-							description: "Use the recovery link to open the cloud session.",
-						}),
-					);
-				} else {
-					toast({
-						title: "Cloud handoff complete",
-						description: "The cloud session is ready in your session list.",
-					});
-				}
-				if (result.warning) {
-					toast({
-						title: "Handoff completed with a warning",
-						description: result.warning,
-					});
-				}
 			} catch (error) {
-				onHandoffUiAction({
-					type: "failed",
-					sourceSessionId,
-					exposeRecovery: true,
-					retryDraft: nextCommand ? `/handoff ${nextCommand}` : "/handoff",
-					retryAttachments: sourceAttachments,
-				});
-				const rawError = error instanceof Error ? error.message : String(error);
-				const cloudError = parseCloudSessionError(rawError);
-				const connectUrl = cloudError?.connectUrl;
-				toast({
-					title: "Handoff failed",
-					description: humanizeCloudHandoffError(
-						cloudError?.message ?? rawError,
-					),
-					variant: "destructive",
-					action: connectUrl ? (
-						<ToastAction
-							altText="Connect GitHub"
-							onClick={() => void openExternalUrl(connectUrl)}
-						>
-							Connect GitHub
-						</ToastAction>
-					) : undefined,
+				const reducerEntry = handoffUiRef.current;
+				await handoffLifecycle.onRpcRejected(sourceSessionId, {
+					handoffAttemptId,
+					error,
+					nextCommand,
+					sourceAttachments,
+					reducerEntryIsComplete:
+						reducerEntry?.status === "complete" ? reducerEntry : undefined,
+					isThreadActive,
 				});
 			}
 		},
-		[config, isThreadActive, onOpenSessionById, onHandoffUiAction],
+		[config, handoffLifecycle, isThreadActive, onHandoffUiAction],
 	);
-
 	const prepareHandoff = useCallback(
 		async (nextCommand: string) => {
 			const sourceSessionId = sessionId ?? historySession?.sessionId;
@@ -2001,12 +2162,13 @@ function ChatThreadPane({
 				});
 				return;
 			}
-			if (!cloudAgentsEnabled) {
+			if (!cloudHandoffAvailable && !handoffRetryEligible) {
 				setPromptInput(nextCommand ? `/handoff ${nextCommand}` : "/handoff");
 				toast({
 					title: "Cloud handoff is not available",
-					description:
-						"Enable Cloud sessions in Settings before using /handoff.",
+					description: cloudAgentsEnabled
+						? "Cloud handoff is not enabled for this account yet."
+						: "Enable Cloud sessions in Settings before using /handoff.",
 				});
 				return;
 			}
@@ -2055,6 +2217,10 @@ function ChatThreadPane({
 			}
 			handoffStartingRef.current = true;
 			const sourceAttachments = [...pendingAttachments];
+			const handoffAttemptId = handoffLifecycle.onRpcStarted(
+				sourceSessionId,
+				threadId,
+			);
 			const submittedAt = Date.now();
 			setPendingAttachments([]);
 			try {
@@ -2106,33 +2272,19 @@ function ChatThreadPane({
 					sourceAttachments,
 					attachments,
 					sourceSessionId,
+					handoffAttemptId,
 					pendingPrompt,
 				);
 			} catch (error) {
-				onHandoffUiAction({
-					type: "failed",
-					sourceSessionId,
-					exposeRecovery: true,
-					retryDraft: nextCommand ? `/handoff ${nextCommand}` : "/handoff",
-					retryAttachments: sourceAttachments,
-				});
-				const rawError = error instanceof Error ? error.message : String(error);
-				const cloudError = parseCloudSessionError(rawError);
-				const connectUrl = cloudError?.connectUrl;
-				toast({
-					title: "Handoff is not ready",
-					description: humanizeCloudHandoffError(
-						cloudError?.message ?? rawError,
-					),
-					variant: "destructive",
-					action: connectUrl ? (
-						<ToastAction
-							altText="Connect GitHub"
-							onClick={() => void openExternalUrl(connectUrl)}
-						>
-							Connect GitHub
-						</ToastAction>
-					) : undefined,
+				const reducerEntry = handoffUiRef.current;
+				await handoffLifecycle.onRpcRejected(sourceSessionId, {
+					handoffAttemptId,
+					error,
+					nextCommand,
+					sourceAttachments,
+					reducerEntryIsComplete:
+						reducerEntry?.status === "complete" ? reducerEntry : undefined,
+					isThreadActive,
 				});
 			} finally {
 				handoffStartingRef.current = false;
@@ -2140,7 +2292,10 @@ function ChatThreadPane({
 		},
 		[
 			cloudAgentsEnabled,
+			cloudHandoffAvailable,
 			config,
+			handoffLifecycle,
+			handoffRetryEligible,
 			historySession?.sessionId,
 			isCloudSession,
 			messages,
@@ -2148,10 +2303,12 @@ function ChatThreadPane({
 			pendingHandoffRecovery,
 			promptsInQueue.length,
 			runHandoff,
+			isThreadActive,
 			sessionId,
 			setPromptInput,
 			status,
 			onHandoffUiAction,
+			threadId,
 		],
 	);
 
@@ -2159,8 +2316,17 @@ function ChatThreadPane({
 		async (prompt: string) => {
 			const trimmed = prompt.trim();
 			const handoff = parseHandoffCommand(trimmed);
-			if (handoff) {
+			if (handoff && (cloudHandoffAvailable || handoffRetryEligible)) {
 				await prepareHandoff(handoff.nextCommand);
+				return;
+			}
+			if (!handoff && handoffOwnershipPending) {
+				setPromptInput(prompt);
+				toast({
+					title: "Cloud handoff is still pending",
+					description:
+						"Retry /handoff or use the recovery link before sending another prompt.",
+				});
 				return;
 			}
 			if (!trimmed && pendingAttachments.length === 0) {
@@ -2188,6 +2354,9 @@ function ChatThreadPane({
 			sessionId,
 			setPromptInput,
 			threadId,
+			cloudHandoffAvailable,
+			handoffRetryEligible,
+			handoffOwnershipPending,
 		],
 	);
 	const handleRealtimeSend = useCallback(
@@ -2333,7 +2502,7 @@ function ChatThreadPane({
 		? null
 		: (sessionId ?? visibleHistorySession?.sessionId ?? null);
 	const handoffDeleteLocked = Boolean(
-		handoffProgress || pendingHandoffRecovery,
+		handoffProgress || handoffOwnershipPending,
 	);
 
 	const requestDeleteSession = useCallback(() => {
@@ -2560,12 +2729,23 @@ function ChatThreadPane({
 			return;
 		}
 		if (cloudAgentsEnabled) {
+			const retryDraft =
+				handoffUi?.status === "complete" ? handoffUi.retryDraft : undefined;
+			const retryAttachments =
+				handoffUi?.status === "complete"
+					? handoffUi.retryAttachments
+					: undefined;
 			const opened = await Promise.resolve(
 				onOpenSessionById?.(receipt.targetSessionId, undefined, {
 					silent: true,
+					initialPromptDraft: retryDraft,
+					initialAttachments: retryAttachments,
 				}),
 			).catch(() => false);
 			if (opened) {
+				if (sourceSessionId && (retryDraft || retryAttachments?.length)) {
+					onHandoffUiAction({ type: "retry_delivered", sourceSessionId });
+				}
 				return;
 			}
 			if (sourceSessionId) {
@@ -2582,6 +2762,7 @@ function ChatThreadPane({
 	}, [
 		cloudAgentsEnabled,
 		handoffReceipt,
+		handoffUi,
 		onHandoffUiAction,
 		onOpenSessionById,
 		sourceSessionId,
@@ -2803,7 +2984,7 @@ function ChatThreadPane({
 	const chatComposer = (
 		<ChatInputBar
 			attachments={attachmentList}
-			cloudHandoffAvailable={cloudAgentsEnabled}
+			cloudHandoffAvailable={cloudHandoffAvailable || handoffRetryEligible}
 			hasRunningAgents={agentActivity.running > 0}
 			onAbort={handleAbort}
 			onAttachFiles={handleAttachFiles}
