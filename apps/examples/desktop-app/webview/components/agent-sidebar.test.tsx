@@ -142,6 +142,12 @@ const signedInUser = {
 
 beforeEach(() => {
 	Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+	if (typeof window.localStorage.clear !== "function") {
+		Object.defineProperty(window, "localStorage", {
+			configurable: true,
+			value: window.sessionStorage,
+		});
+	}
 	window.localStorage.clear();
 	invoke.mockReset();
 	invoke.mockRejectedValue(new Error("No Cline account auth token found"));
@@ -564,6 +570,21 @@ describe("AgentSidebar session organization", () => {
 		expect(
 			getSessionOverviewItems(thread).some(([label]) => label === "Status"),
 		).toBe(false);
+	});
+
+	it("labels a cloud session by repository", () => {
+		expect(
+			getSessionOverviewItems({
+				...makeThread("cloud", 1),
+				origin: "cloud",
+				repoUrl: "https://github.com/cline/cline",
+				workspacePath: "https://github.com/cline/cline",
+			}),
+		).toContainEqual([
+			"Repository",
+			"https://github.com/cline/cline",
+			"https://github.com/cline/cline",
+		]);
 	});
 
 	it("shows the full first line of the session title", () => {
