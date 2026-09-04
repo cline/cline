@@ -1,4 +1,13 @@
-import { isAbsolute, relative, resolve, sep } from "node:path";
+import { realpathSync } from "node:fs";
+import {
+	basename,
+	dirname,
+	isAbsolute,
+	join,
+	relative,
+	resolve,
+	sep,
+} from "node:path";
 import type {
 	HubCommandEnvelope,
 	HubReplyEnvelope,
@@ -52,6 +61,56 @@ function pathWithin(workspaceRoot: string, candidate: string): boolean {
 	return path !== ".." && !path.startsWith(`..${sep}`) && !isAbsolute(path);
 }
 
+/** Mirrors the store's default page size for filtered listings. */
+const DEFAULT_LIST_LIMIT = 200;
+
+/**
+ * Canonicalize a path that may no longer exist: realpath the deepest existing
+ * ancestor and reattach the missing remainder, so a removed workspace that was
+ * reached through a symlinked ancestor (e.g. `/var` vs `/private/var`) still
+ * canonicalizes to the same identity as its stored form.
+ */
+function canonicalizeThroughExistingAncestor(resolved: string): string {
+	let prefix = resolved;
+	let suffix = "";
+	for (;;) {
+		try {
+			const canonicalPrefix = realpathSync.native(prefix);
+			return suffix ? join(canonicalPrefix, suffix) : canonicalPrefix;
+		} catch {
+			const parent = dirname(prefix);
+			// Even the filesystem root failed to resolve; keep the input.
+			if (parent === prefix) return resolved;
+			suffix = suffix ? join(basename(prefix), suffix) : basename(prefix);
+			prefix = parent;
+		}
+	}
+}
+
+/**
+ * Stored workspace roots mix canonical (realpath) and merely resolved forms,
+ * so workspace filters compare canonical forms on both sides. Removed
+ * workspaces canonicalize through their deepest existing ancestor, and case
+ * folds on Windows, where lexically different paths can name the same
+ * directory.
+ */
+function comparableWorkspacePath(value: string): string {
+	const canonical = canonicalizeThroughExistingAncestor(resolve(value.trim()));
+	return process.platform === "win32" ? canonical.toLowerCase() : canonical;
+}
+
+/** Per-request memo so large listings canonicalize each distinct root once. */
+function memoizedComparableWorkspacePath(): (value: string) => string {
+	const cache = new Map<string, string>();
+	return (value) => {
+		const cached = cache.get(value);
+		if (cached !== undefined) return cached;
+		const computed = comparableWorkspacePath(value);
+		cache.set(value, computed);
+		return computed;
+	};
+}
+
 function okReply(
 	envelope: HubCommandEnvelope,
 	payload?: Record<string, unknown>,
@@ -97,25 +156,51 @@ export class HubScheduleCommandService {
 							),
 						),
 					});
-				case "schedule.list":
+				case "schedule.list": {
+					const enabled =
+						typeof envelope.payload?.enabled === "boolean"
+							? envelope.payload.enabled
+							: undefined;
+					const limit =
+						typeof envelope.payload?.limit === "number"
+							? envelope.payload.limit
+							: undefined;
+					const tags = Array.isArray(envelope.payload?.tags)
+						? (envelope.payload?.tags as string[])
+						: undefined;
+					const requestedRoot = spansAllWorkspaces(envelope, scope)
+						? requestedWorkspaceRoot(envelope.payload ?? {})
+						: undefined;
+					if (requestedRoot) {
+						// Filter before applying the limit — a limited global
+						// listing could otherwise truncate away every match for
+						// the requested workspace.
+						const wanted = comparableWorkspacePath(requestedRoot);
+						const comparable = memoizedComparableWorkspacePath();
+						return okReply(envelope, {
+							schedules: this.schedules
+								.listSchedules({
+									enabled,
+									tags,
+									limit: Number.MAX_SAFE_INTEGER,
+								})
+								.filter(
+									(schedule) => comparable(schedule.workspaceRoot) === wanted,
+								)
+								.slice(0, limit ?? DEFAULT_LIST_LIMIT),
+						});
+					}
 					return okReply(envelope, {
 						schedules: this.schedules.listSchedules({
-							enabled:
-								typeof envelope.payload?.enabled === "boolean"
-									? envelope.payload.enabled
-									: undefined,
-							limit:
-								typeof envelope.payload?.limit === "number"
-									? envelope.payload.limit
-									: undefined,
-							tags: Array.isArray(envelope.payload?.tags)
-								? (envelope.payload?.tags as string[])
-								: undefined,
+							enabled,
+							limit,
+							tags,
 							workspaceRoot: spansAllWorkspaces(envelope, scope)
 								? undefined
 								: scope.workspaceRoot,
 						}),
 					});
+				}
 				case "schedule.get":
 					return okReply(envelope, {
 						schedule: this.requireScopedSchedule(envelope, scope),

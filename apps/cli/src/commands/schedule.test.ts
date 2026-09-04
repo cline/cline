@@ -1,4 +1,4 @@
-import { readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -118,9 +118,84 @@ describe("runScheduleCommand list output", () => {
 			}),
 		);
 		expect(mockHubClientCommand).toHaveBeenCalledWith("schedule.list", {
+			allWorkspaces: true,
 			limit: 100,
 			enabled: undefined,
 			tags: undefined,
+		});
+	});
+
+	it("passes --workspace to the hub for server-side filtering", async () => {
+		mockEnsureCliHubServer.mockResolvedValue({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "test-token",
+		});
+		const filtered = {
+			scheduleId: "sched_b",
+			name: "daily-pr-summary",
+			workspaceRoot: "/Users/someone/project-b",
+		};
+		mockHubClientCommand.mockResolvedValue({
+			ok: true,
+			payload: { schedules: [filtered] },
+		});
+
+		const output: string[] = [];
+		const code = await runScheduleCommand(
+			[
+				"list",
+				"--json",
+				"--limit",
+				"5",
+				"--workspace",
+				"/Users/someone/project-b",
+				"--address",
+				"127.0.0.1:25463",
+			],
+			{
+				writeln: (text?: string) => {
+					output.push(text ?? "");
+				},
+				writeErr: () => {},
+			},
+		);
+
+		expect(code).toBe(0);
+		// The hub filters by workspace before applying the limit and matches
+		// canonical path forms, so the CLI just forwards the filter.
+		expect(mockHubClientCommand).toHaveBeenCalledWith(
+			"schedule.list",
+			expect.objectContaining({
+				allWorkspaces: true,
+				workspaceRoot: "/Users/someone/project-b",
+				limit: 5,
+			}),
+		);
+		expect(JSON.parse(output.join("\n"))).toEqual([filtered]);
+	});
+
+	it("sends allWorkspaces on id-addressed schedule commands", async () => {
+		mockEnsureCliHubServer.mockResolvedValue({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "test-token",
+		});
+		mockHubClientCommand.mockResolvedValue({
+			ok: true,
+			payload: { schedule: { scheduleId: "sched_a" } },
+		});
+
+		const code = await runScheduleCommand(
+			["pause", "sched_a", "--address", "127.0.0.1:25463"],
+			{
+				writeln: () => {},
+				writeErr: () => {},
+			},
+		);
+
+		expect(code).toBe(0);
+		expect(mockHubClientCommand).toHaveBeenCalledWith("schedule.disable", {
+			allWorkspaces: true,
+			scheduleId: "sched_a",
 		});
 	});
 
@@ -152,6 +227,134 @@ describe("runScheduleCommand list output", () => {
 		expect(errors).toEqual([]);
 		expect(output).toEqual(["[]"]);
 		expect(mockHubClientCommand).toHaveBeenCalled();
+	});
+});
+
+describe("runScheduleCommand local client across workspaces", () => {
+	afterEach(() => {
+		vi.clearAllMocks();
+		delete process.env.CLINE_CRON_DB_PATH;
+	});
+
+	it("lists schedules created for another workspace without a hub address", async () => {
+		const root = join(tmpdir(), `cline-cli-schedules-${Date.now()}`);
+		const workspaceA = join(root, "workspace-a");
+		await mkdir(workspaceA, { recursive: true });
+		process.env.CLINE_CRON_DB_PATH = join(root, "cron.db");
+		try {
+			const created = await runScheduleCommand(
+				[
+					"create",
+					"daily-issue-summary",
+					"--cron",
+					"0 7 * * *",
+					"--prompt",
+					"Summarize new issues.",
+					"--workspace",
+					workspaceA,
+					"--provider",
+					"cline",
+					"--model",
+					"cline/test-model",
+					"--disabled",
+				],
+				{
+					writeln: () => {},
+					writeErr: () => {},
+				},
+			);
+			expect(created).toBe(0);
+
+			// The list runs from this test process's cwd, which is not
+			// workspace-a. The schedule must still appear, matching how the
+			// desktop Schedules page shows every schedule on the machine.
+			const output: string[] = [];
+			const errors: string[] = [];
+			const code = await runScheduleCommand(["list", "--json"], {
+				writeln: (text?: string) => {
+					output.push(text ?? "");
+				},
+				writeErr: (text: string) => {
+					errors.push(text);
+				},
+			});
+			expect(errors).toEqual([]);
+			expect(code).toBe(0);
+			const schedules = JSON.parse(output.join("\n")) as Array<{
+				name?: string;
+				workspaceRoot?: string;
+			}>;
+			expect(schedules).toHaveLength(1);
+			expect(schedules[0]).toMatchObject({
+				name: "daily-issue-summary",
+				workspaceRoot: workspaceA,
+			});
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	it("filters --workspace through symlinked paths before the limit", async () => {
+		const root = join(tmpdir(), `cline-cli-schedule-links-${Date.now()}`);
+		const targetWorkspace = join(root, "target-workspace");
+		const linkedWorkspace = join(root, "linked-workspace");
+		const otherWorkspace = join(root, "other-workspace");
+		await mkdir(targetWorkspace, { recursive: true });
+		await mkdir(otherWorkspace, { recursive: true });
+		await symlink(targetWorkspace, linkedWorkspace, "dir");
+		process.env.CLINE_CRON_DB_PATH = join(root, "cron.db");
+		try {
+			const seed = async (name: string, workspaceRoot: string) => {
+				const code = await runScheduleCommand(
+					[
+						"create",
+						name,
+						"--cron",
+						"0 7 * * *",
+						"--prompt",
+						`Run ${name}.`,
+						"--workspace",
+						workspaceRoot,
+						"--provider",
+						"cline",
+						"--model",
+						"cline/test-model",
+						"--disabled",
+					],
+					{ writeln: () => {}, writeErr: () => {} },
+				);
+				expect(code).toBe(0);
+			};
+			// Surround the match with other-workspace schedules so a global
+			// limit of 1 could not contain it under any listing order.
+			await seed("other-first", otherWorkspace);
+			await seed("target-routine", targetWorkspace);
+			await seed("other-last", otherWorkspace);
+
+			const output: string[] = [];
+			const errors: string[] = [];
+			const code = await runScheduleCommand(
+				["list", "--json", "--limit", "1", "--workspace", linkedWorkspace],
+				{
+					writeln: (text?: string) => {
+						output.push(text ?? "");
+					},
+					writeErr: (text: string) => {
+						errors.push(text);
+					},
+				},
+			);
+			expect(errors).toEqual([]);
+			expect(code).toBe(0);
+			const schedules = JSON.parse(output.join("\n")) as Array<{
+				name?: string;
+			}>;
+			expect(schedules).toEqual([
+				expect.objectContaining({ name: "target-routine" }),
+			]);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
 	});
 });
 
@@ -492,6 +695,7 @@ describe("runScheduleCommand export", () => {
 			const written = await readFile(targetPath, "utf8");
 			expect(written).toBe(JSON.stringify(scheduleRecord, null, 2));
 			expect(mockHubClientCommand).toHaveBeenCalledWith("schedule.get", {
+				allWorkspaces: true,
 				scheduleId: "sched_abc",
 			});
 		} finally {

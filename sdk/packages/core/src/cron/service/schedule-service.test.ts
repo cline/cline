@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -627,6 +627,127 @@ describe("HubScheduleService", () => {
 					workspaceRoot: resolve("/another-workspace"),
 					cwd: resolve("/another-workspace"),
 				});
+			} finally {
+				await service.dispose();
+			}
+		},
+	);
+
+	sqliteIt(
+		"filters cross-workspace listings by workspace before the limit and across path aliases",
+		async () => {
+			const dbPath = await createTempDbPath();
+			cleanupPaths.push(dbPath);
+			const service = new HubScheduleService({
+				dbPath,
+				specs: { cronSpecsDir: join(dirname(dbPath), "cron") },
+				runtimeHandlers: {
+					startSession: vi.fn(async () => ({ sessionId: "session-4" })),
+					sendSession: vi.fn(async () => ({ result: { text: "done" } })),
+					abortSession: vi.fn(async () => ({ applied: true })),
+					stopSession: vi.fn(async () => ({ applied: true })),
+				},
+			});
+			try {
+				const commands = new HubScheduleCommandService(service);
+				const root = dirname(dbPath);
+				const targetWorkspace = join(root, "target-workspace");
+				const aliasWorkspace = join(root, "alias-workspace");
+				const otherWorkspace = join(root, "other-workspace");
+				await mkdir(targetWorkspace, { recursive: true });
+				await mkdir(otherWorkspace, { recursive: true });
+				await symlink(targetWorkspace, aliasWorkspace, "dir");
+
+				const seed = (name: string, workspaceRoot: string) =>
+					service.createSchedule({
+						name,
+						cronPattern: "0 * * * *",
+						prompt: `Run ${name}`,
+						workspaceRoot,
+						cwd: workspaceRoot,
+					});
+				// Surround the match with other-workspace schedules so a global
+				// limit of 1 could not contain it under any listing order.
+				seed("other-first", otherWorkspace);
+				const match = seed("target-routine", targetWorkspace);
+				seed("other-last", otherWorkspace);
+
+				const crossAuthority = {
+					clientId: "cross-client",
+					workspaceContext: {
+						workspaceRoot: otherWorkspace,
+						cwd: otherWorkspace,
+					},
+					crossWorkspace: true,
+				};
+				// The workspace filter applies before the limit and matches the
+				// symlinked spelling of the target workspace root.
+				const filtered = await commands.handleCommand(
+					{
+						version: "v1",
+						command: "schedule.list",
+						clientId: "cross-client",
+						payload: {
+							allWorkspaces: true,
+							workspaceRoot: aliasWorkspace,
+							limit: 1,
+						},
+					},
+					crossAuthority,
+				);
+				expect(filtered.payload?.schedules).toMatchObject([
+					{ scheduleId: match.scheduleId },
+				]);
+
+				// Without cross-workspace authority the payload filter is
+				// ignored and the listing stays scoped to the connection.
+				const scopedList = await commands.handleCommand(
+					{
+						version: "v1",
+						command: "schedule.list",
+						clientId: "scoped-client",
+						payload: {
+							allWorkspaces: true,
+							workspaceRoot: targetWorkspace,
+						},
+					},
+					{
+						clientId: "scoped-client",
+						workspaceContext: {
+							workspaceRoot: otherWorkspace,
+							cwd: otherWorkspace,
+						},
+					},
+				);
+				const scopedNames = (
+					scopedList.payload?.schedules as Array<{ name: string }>
+				)
+					.map((schedule) => schedule.name)
+					.sort();
+				expect(scopedNames).toEqual(["other-first", "other-last"]);
+
+				// A removed workspace referenced through a symlinked ancestor
+				// still filters by identity, not by lexical spelling: both
+				// sides canonicalize through their deepest existing ancestor.
+				const goneSchedule = seed(
+					"gone-routine",
+					join(targetWorkspace, "gone-workspace"),
+				);
+				const goneFiltered = await commands.handleCommand(
+					{
+						version: "v1",
+						command: "schedule.list",
+						clientId: "cross-client",
+						payload: {
+							allWorkspaces: true,
+							workspaceRoot: join(aliasWorkspace, "gone-workspace"),
+						},
+					},
+					crossAuthority,
+				);
+				expect(goneFiltered.payload?.schedules).toMatchObject([
+					{ scheduleId: goneSchedule.scheduleId },
+				]);
 			} finally {
 				await service.dispose();
 			}
