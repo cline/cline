@@ -1,5 +1,10 @@
 /// <reference types="@types/bun" />
-import { resolveSdkRuntimeBuildIdFromCoreSource } from "./src/hub/discovery/runtime-build-id";
+import { dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+import {
+	resolveRepoRootFromCorePackage,
+	resolveSdkRuntimeBuildId,
+} from "./scripts/runtime-build-id";
 
 type PackageManifest = {
 	dependencies?: Record<string, string>;
@@ -9,7 +14,10 @@ type PackageManifest = {
 const packageJson = (await Bun.file(
 	new URL("./package.json", import.meta.url),
 ).json()) as PackageManifest;
-const runtimeBuildId = resolveSdkRuntimeBuildIdFromCoreSource();
+const corePackageRoot = dirname(fileURLToPath(import.meta.url));
+const runtimeBuildId = resolveSdkRuntimeBuildId(
+	resolveRepoRootFromCorePackage(corePackageRoot),
+);
 
 // Keep declared runtime packages external so they are not duplicated inside each
 // bundled entrypoint and installed again from package.json.
