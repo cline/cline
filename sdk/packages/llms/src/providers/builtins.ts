@@ -1017,6 +1017,22 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		modelsSourceUrl: "http://localhost:11434/api/tags",
 	},
 	{
+		id: "llmman",
+		name: "llmman",
+		description: "Local model runner serving the Ollama API",
+		// Routed to the native Ollama API vendor (`vendors/ollama.ts`) for the
+		// same reason as the entry above: the OpenAI-compatible `/v1` endpoint
+		// ignores `options.num_ctx`.
+		family: "ollama",
+		capabilities: ["tools"],
+		defaultModelId: "",
+		// Models are whatever the user has pulled locally, discovered
+		// dynamically rather than from a published catalog.
+		modelsFactory: () => ({}),
+		defaults: { baseUrl: "http://localhost:17434" },
+		modelsSourceUrl: "http://localhost:17434/api/tags",
+	},
+	{
 		id: "lmstudio",
 		name: "LM Studio",
 		description: "Local model inference with LM Studio",
