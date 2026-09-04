@@ -167,7 +167,78 @@ describe("runAgent", () => {
 
 	afterEach(() => {
 		process.exitCode = originalExitCode;
+		vi.useRealTimers();
 		vi.clearAllMocks();
+	});
+
+	it("times out while the initial one-shot turn is still running", async () => {
+		vi.useFakeTimers();
+		const startedAt = new Date("2026-03-22T00:00:00.000Z");
+		const endedAt = new Date("2026-03-22T00:00:01.100Z");
+		let abortCount = 0;
+		let resolveStart: ((value: unknown) => void) | undefined;
+		sessionManagerMocks.start.mockImplementation(
+			() =>
+				new Promise((resolve) => {
+					resolveStart = resolve;
+				}),
+		);
+		sessionManagerMocks.abort.mockImplementation(async (sessionId: string) => {
+			abortCount += 1;
+			if (abortCount === 2) {
+				resolveStart?.({
+					sessionId,
+					manifest: { session_id: sessionId },
+					result: {
+						text: "aborted",
+						usage: {
+							inputTokens: 0,
+							outputTokens: 0,
+							cacheReadTokens: 0,
+							cacheWriteTokens: 0,
+							totalCost: undefined,
+						},
+						messages: [],
+						toolCalls: [],
+						iterations: 0,
+						finishReason: "aborted",
+						model: { id: "test", provider: "test", info: {} },
+						startedAt,
+						endedAt,
+						durationMs: 1100,
+					},
+				});
+			}
+		});
+
+		const { runAgent } = await import("./run-agent");
+		const runPromise = runAgent("test prompt", {
+			cwd: process.cwd(),
+			enableAgentTeams: false,
+			enableSpawnAgent: false,
+			enableTools: [],
+			execution: { maxConsecutiveMistakes: 3 },
+			logger: undefined,
+			mode: "yolo",
+			modelId: "test",
+			outputMode: "text",
+			providerId: "test",
+			systemPrompt: "system",
+			thinking: false,
+			timeoutSeconds: 1,
+			toolPolicies: { "*": { autoApprove: true } },
+			verbose: false,
+			workspaceRoot: process.cwd(),
+		} as never);
+
+		await vi.advanceTimersByTimeAsync(0);
+		expect(sessionManagerMocks.start).toHaveBeenCalledOnce();
+		await vi.advanceTimersByTimeAsync(1100);
+		await runPromise;
+
+		expect(sessionManagerMocks.abort).toHaveBeenCalledTimes(2);
+		expect(outputMocks.writeErr).toHaveBeenCalledWith("run timed out after 1s");
+		expect(process.exitCode).toBe(1);
 	});
 
 	it("starts the session with normalized user input", async () => {
