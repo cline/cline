@@ -306,6 +306,7 @@ function buildModelFromPrivateSource(
 		supportsPromptCache?: boolean;
 		supportsReasoning?: boolean;
 		releaseDate?: string;
+		pricing?: ModelPricing;
 	},
 ): ModelInfo {
 	const capabilities: NonNullable<ModelInfo["capabilities"]> = [
@@ -332,6 +333,7 @@ function buildModelFromPrivateSource(
 		capabilities,
 		releaseDate: input.releaseDate,
 		status: "active",
+		...(input.pricing === undefined ? {} : { pricing: input.pricing }),
 	};
 }
 
@@ -544,7 +546,71 @@ interface LiteLlmModelInfoResponse {
 		supports_vision?: boolean;
 		supports_prompt_caching?: boolean;
 		supports_reasoning?: boolean;
+		input_cost_per_token?: number | string;
+		output_cost_per_token?: number | string;
+		cache_read_input_token_cost?: number | string;
+		cache_creation_input_token_cost?: number | string;
 	};
+}
+
+/**
+ * The pricing block on a model, derived from ModelInfo rather than imported: this module already
+ * takes its ModelInfo from `./provider-settings`, and deriving keeps the two from drifting apart.
+ */
+type ModelPricing = NonNullable<ModelInfo["pricing"]>;
+
+/** LiteLLM quotes costs per token; ModelInfo.pricing is per million tokens. */
+const TOKENS_PER_PRICED_UNIT = 1_000_000;
+
+/**
+ * Significant digits kept when rescaling a per-token cost.
+ *
+ * The multiply is not exact in binary: 4e-7 * 1e6 is 0.39999999999999997, which is the price the
+ * cost readout would then show. Twelve significant digits is far more than any real quote carries
+ * (the cheapest models are around 1e-8 per token) and removes the artifact.
+ */
+const PRICE_PRECISION = 12;
+
+function perMillionTokens(
+	value: number | string | undefined,
+): number | undefined {
+	const perToken = parseOptionalNumber(value);
+	if (perToken === undefined) {
+		return undefined;
+	}
+	return Number(
+		(perToken * TOKENS_PER_PRICED_UNIT).toPrecision(PRICE_PRECISION),
+	);
+}
+
+/**
+ * The prices a LiteLLM proxy reported, or undefined when it reported none.
+ *
+ * Undefined rather than a block of zeros on purpose: zero is a price, and a proxy that says nothing
+ * about cost has not said the model is free. Each field is carried independently for the same
+ * reason, so a half-priced quote stays half a quote instead of gaining a fabricated zero.
+ */
+function litellmPricing(
+	info: LiteLlmModelInfoResponse["model_info"],
+): ModelPricing | undefined {
+	const pricing: ModelPricing = {};
+	const input = perMillionTokens(info?.input_cost_per_token);
+	const output = perMillionTokens(info?.output_cost_per_token);
+	const cacheRead = perMillionTokens(info?.cache_read_input_token_cost);
+	const cacheWrite = perMillionTokens(info?.cache_creation_input_token_cost);
+	if (input !== undefined) {
+		pricing.input = input;
+	}
+	if (output !== undefined) {
+		pricing.output = output;
+	}
+	if (cacheRead !== undefined) {
+		pricing.cacheRead = cacheRead;
+	}
+	if (cacheWrite !== undefined) {
+		pricing.cacheWrite = cacheWrite;
+	}
+	return Object.keys(pricing).length > 0 ? pricing : undefined;
 }
 
 function normalizeLiteLlmBaseUrl(baseUrl: string | undefined): string {
@@ -613,6 +679,7 @@ async function fetchLiteLlmPrivateModels(
 							supportsImages: info?.supports_vision,
 							supportsPromptCache: info?.supports_prompt_caching,
 							supportsReasoning: info?.supports_reasoning,
+							pricing: litellmPricing(info),
 						});
 						models[modelId] = converted;
 						if (displayName) {
