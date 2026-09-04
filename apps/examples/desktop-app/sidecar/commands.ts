@@ -92,6 +92,7 @@ import {
 	identifyDesktopFeatureFlagsAccount,
 	isCloudAgentsAvailable,
 	isCloudAgentsEnabled,
+	isCloudHandoffEnabled,
 	refreshDesktopFeatureFlags,
 } from "./feature-flags";
 import {
@@ -1414,6 +1415,10 @@ export async function handleCommand(
 				logger: ctx.logger,
 				telemetry: ctx.telemetry,
 			}),
+			cloudHandoff: isCloudHandoffEnabled({
+				logger: ctx.logger,
+				telemetry: ctx.telemetry,
+			}),
 		};
 	}
 	if (command === "list_cloud_repositories") {
@@ -1645,6 +1650,8 @@ export async function handleCommand(
 					null
 				);
 			} catch {
+				// Preserve offline access, but never let a successful fresh list be
+				// shadowed forever by a session deleted on another device.
 				return cloud.getCachedDiscoveryRecord(sessionId) ?? null;
 			}
 		}
@@ -1725,36 +1732,45 @@ export async function handleCommand(
 		if (!patch || typeof patch !== "object" || Array.isArray(patch)) {
 			throw new Error("metadata patch is required");
 		}
-		// updateSession replaces metadata wholesale in both the session row and
-		// the manifest, so merge over what each already holds. A null value
-		// removes the key, which is how callers clear a flag.
-		const store = new SqliteSessionStore();
-		const asRecord = (value: unknown): JsonRecord =>
-			value && typeof value === "object" && !Array.isArray(value)
-				? (value as JsonRecord)
-				: {};
-		const existing = store.get(sessionId);
-		const merged: JsonRecord = {
-			...asRecord(readSessionManifest(sessionId)?.metadata),
-			...asRecord(existing?.metadata),
-		};
-		for (const [key, value] of Object.entries(patch as JsonRecord)) {
-			if (value === null) delete merged[key];
-			else merged[key] = value;
-		}
-		const backend = await resolveSessionBackend({ backendMode: "local" });
-		const result = await backend.updateSession({ sessionId, metadata: merged });
-		if (!result.updated) throw new Error(`Session ${sessionId} not found`);
-		// Annotating a session is not session activity. updateSession stamps
-		// updated_at, which clients sort and label rows by, so a pin would
-		// otherwise make an old session look like it just ran.
-		if (existing?.updatedAt) {
-			store.run("UPDATE sessions SET updated_at = ? WHERE session_id = ?", [
-				existing.updatedAt,
+		const { beginSessionMetadataUpdate } = await import("./chat-session");
+		const releaseMetadataUpdate = beginSessionMetadataUpdate(ctx, sessionId);
+		try {
+			// updateSession replaces metadata wholesale in both the session row and
+			// the manifest, so merge over what each already holds. A null value
+			// removes the key, which is how callers clear a flag.
+			const store = new SqliteSessionStore();
+			const asRecord = (value: unknown): JsonRecord =>
+				value && typeof value === "object" && !Array.isArray(value)
+					? (value as JsonRecord)
+					: {};
+			const existing = store.get(sessionId);
+			const merged: JsonRecord = {
+				...asRecord(readSessionManifest(sessionId)?.metadata),
+				...asRecord(existing?.metadata),
+			};
+			for (const [key, value] of Object.entries(patch as JsonRecord)) {
+				if (value === null) delete merged[key];
+				else merged[key] = value;
+			}
+			const backend = await resolveSessionBackend({ backendMode: "local" });
+			const result = await backend.updateSession({
 				sessionId,
-			]);
+				metadata: merged,
+			});
+			if (!result.updated) throw new Error(`Session ${sessionId} not found`);
+			// Annotating a session is not session activity. updateSession stamps
+			// updated_at, which clients sort and label rows by, so a pin would
+			// otherwise make an old session look like it just ran.
+			if (existing?.updatedAt) {
+				store.run("UPDATE sessions SET updated_at = ? WHERE session_id = ?", [
+					existing.updatedAt,
+					sessionId,
+				]);
+			}
+			return merged;
+		} finally {
+			releaseMetadataUpdate();
 		}
-		return merged;
 	}
 	if (command === "delete_chat_session" || command === "delete_cli_session") {
 		const sessionId = String(args?.sessionId ?? args?.session_id ?? "").trim();
@@ -1764,102 +1780,113 @@ export async function handleCommand(
 			await cloud.delete(sessionId);
 			return true;
 		}
-		ctx.logger?.log("Deleting desktop chat session", { command, sessionId });
-		const store = new SqliteSessionStore();
-		const row = store.get(sessionId);
-		const manifest = readSessionManifest(sessionId);
-		let deleted = false;
-		let deleteError: Error | null = null;
-		try {
-			if (ctx.sessionManager) {
-				deleted = await ctx.sessionManager.delete(sessionId);
-			} else {
-				const backend = await resolveSessionBackend({ backendMode: "local" });
-				const deleteSession = (
-					backend as {
-						deleteSession: (
-							sessionId: string,
-							cascade?: boolean,
-						) => Promise<boolean | { deleted: boolean }>;
-					}
-				).deleteSession.bind(backend);
-				const deleteResult = await deleteSession(sessionId, true);
-				deleted =
-					typeof deleteResult === "boolean"
-						? deleteResult
-						: deleteResult.deleted;
-			}
-		} catch (error) {
-			deleteError = error instanceof Error ? error : new Error(String(error));
-		}
-		if (store.delete(sessionId, true)) {
-			deleted = true;
-		}
-		ctx.liveSessions.delete(sessionId);
-		const directoryCandidates = new Set<string>([
-			join(sharedSessionDataDir(), sessionId),
-		]);
-		for (const path of [
-			row?.messagesPath,
-			typeof manifest?.messages_path === "string"
-				? manifest.messages_path
-				: null,
-		]) {
-			if (typeof path === "string" && path.trim().length > 0) {
-				directoryCandidates.add(dirname(path));
-			}
-		}
-		for (const path of [sessionLogPath(sessionId)]) {
-			if (removePathIfExists(path, { recursive: true })) {
-				deleted = true;
-			}
-		}
-		for (const dir of directoryCandidates) {
-			if (removePathIfExists(dir, { recursive: true })) {
-				deleted = true;
-			}
-		}
-		for (const path of [
-			row?.messagesPath,
-			typeof manifest?.messages_path === "string"
-				? manifest.messages_path
-				: null,
-			join(sharedSessionDataDir(), sessionId, `${sessionId}.json`),
-		].filter((v): v is string => typeof v === "string" && v.length > 0)) {
-			if (removePathIfExists(path)) {
-				deleted = true;
-			}
-		}
-		for (const suffix of ["messages.json"]) {
-			const fileName = `${sessionId}.${suffix}`;
-			const found = findArtifactUnderDir(
-				join(sharedSessionDataDir(), rootSessionIdFrom(sessionId)),
-				fileName,
-				4,
-			);
-			if (found && removePathIfExists(found)) {
-				deleted = true;
-			}
-		}
-		if (!deleted && deleteError) {
-			ctx.logger?.error?.("Failed to delete desktop chat session", {
-				sessionId,
-				error: deleteError,
-			});
-			throw deleteError;
-		}
-		ctx.logger?.log("Desktop chat session delete completed", {
+		const { assertSessionDeleteAllowedDuringHandoff } = await import(
+			"./chat-session"
+		);
+		const releaseDelete = await assertSessionDeleteAllowedDuringHandoff(
+			ctx,
 			sessionId,
-			deleted,
-		});
-		if (deleted) {
-			broadcastEvent(ctx, "session_deleted", {
+		);
+		try {
+			ctx.logger?.log("Deleting desktop chat session", { command, sessionId });
+			const store = new SqliteSessionStore();
+			const row = store.get(sessionId);
+			const manifest = readSessionManifest(sessionId);
+			let deleted = false;
+			let deleteError: Error | null = null;
+			try {
+				if (ctx.sessionManager) {
+					deleted = await ctx.sessionManager.delete(sessionId);
+				} else {
+					const backend = await resolveSessionBackend({ backendMode: "local" });
+					const deleteSession = (
+						backend as {
+							deleteSession: (
+								sessionId: string,
+								cascade?: boolean,
+							) => Promise<boolean | { deleted: boolean }>;
+						}
+					).deleteSession.bind(backend);
+					const deleteResult = await deleteSession(sessionId, true);
+					deleted =
+						typeof deleteResult === "boolean"
+							? deleteResult
+							: deleteResult.deleted;
+				}
+			} catch (error) {
+				deleteError = error instanceof Error ? error : new Error(String(error));
+			}
+			if (store.delete(sessionId, true)) {
+				deleted = true;
+			}
+			ctx.liveSessions.delete(sessionId);
+			const directoryCandidates = new Set<string>([
+				join(sharedSessionDataDir(), sessionId),
+			]);
+			for (const path of [
+				row?.messagesPath,
+				typeof manifest?.messages_path === "string"
+					? manifest.messages_path
+					: null,
+			]) {
+				if (typeof path === "string" && path.trim().length > 0) {
+					directoryCandidates.add(dirname(path));
+				}
+			}
+			for (const path of [sessionLogPath(sessionId)]) {
+				if (removePathIfExists(path, { recursive: true })) {
+					deleted = true;
+				}
+			}
+			for (const dir of directoryCandidates) {
+				if (removePathIfExists(dir, { recursive: true })) {
+					deleted = true;
+				}
+			}
+			for (const path of [
+				row?.messagesPath,
+				typeof manifest?.messages_path === "string"
+					? manifest.messages_path
+					: null,
+				join(sharedSessionDataDir(), sessionId, `${sessionId}.json`),
+			].filter((v): v is string => typeof v === "string" && v.length > 0)) {
+				if (removePathIfExists(path)) {
+					deleted = true;
+				}
+			}
+			for (const suffix of ["messages.json"]) {
+				const fileName = `${sessionId}.${suffix}`;
+				const found = findArtifactUnderDir(
+					join(sharedSessionDataDir(), rootSessionIdFrom(sessionId)),
+					fileName,
+					4,
+				);
+				if (found && removePathIfExists(found)) {
+					deleted = true;
+				}
+			}
+			if (!deleted && deleteError) {
+				ctx.logger?.error?.("Failed to delete desktop chat session", {
+					sessionId,
+					error: deleteError,
+				});
+				throw deleteError;
+			}
+			ctx.logger?.log("Desktop chat session delete completed", {
 				sessionId,
-				command,
-				deleted: true,
+				deleted,
 			});
+			if (deleted) {
+				broadcastEvent(ctx, "session_deleted", {
+					sessionId,
+					command,
+					deleted: true,
+				});
+			}
+			return deleted;
+		} finally {
+			releaseDelete();
 		}
-		return deleted;
 	}
 
 	// ── Workspace file search ─────────────────────────────────────────
@@ -2261,6 +2288,7 @@ export async function handleCommand(
 		broadcastEvent(ctx, "feature_flags_changed", {
 			cloudAgents: isCloudAgentsEnabled(),
 			cloudAgentsAvailable: isCloudAgentsAvailable(),
+			cloudHandoff: isCloudHandoffEnabled(),
 		});
 		return settings;
 	}

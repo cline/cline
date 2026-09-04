@@ -292,3 +292,43 @@ describe("cloud agents gate", () => {
 		expect(isCloudAgentsEnabled()).toBe(false);
 	});
 });
+
+describe("cloud handoff gate", () => {
+	beforeEach(() => {
+		delete process.env.CLINE_CODE_CLOUD_HANDOFF;
+	});
+
+	afterEach(() => {
+		delete process.env.CLINE_CODE_CLOUD_HANDOFF;
+	});
+
+	it("is disabled while the rollout flag is off", async () => {
+		const { isCloudHandoffEnabled } = await import("./feature-flags");
+		mocks.getBooleanFlagEnabled.mockReturnValue(false);
+		expect(isCloudHandoffEnabled()).toBe(false);
+	});
+
+	it("enables from the rollout flag alone", async () => {
+		const { isCloudHandoffEnabled } = await import("./feature-flags");
+		mocks.getBooleanFlagEnabled.mockImplementation(
+			(flag: unknown) => flag === "code-cloud-handoff",
+		);
+		expect(isCloudHandoffEnabled()).toBe(true);
+	});
+
+	it("does not enable from a non-boolean flag payload", async () => {
+		const { isCloudHandoffEnabled } = await import("./feature-flags");
+		mocks.getFlagPayload.mockReturnValue({ variant: "enabled" });
+		mocks.getBooleanFlagEnabled.mockReturnValue(false);
+		expect(isCloudHandoffEnabled()).toBe(false);
+	});
+
+	it("lets the env override force the gate in both directions", async () => {
+		const { isCloudHandoffEnabled } = await import("./feature-flags");
+		mocks.getBooleanFlagEnabled.mockReturnValue(false);
+		process.env.CLINE_CODE_CLOUD_HANDOFF = "1";
+		expect(isCloudHandoffEnabled()).toBe(true);
+		process.env.CLINE_CODE_CLOUD_HANDOFF = "0";
+		expect(isCloudHandoffEnabled()).toBe(false);
+	});
+});
