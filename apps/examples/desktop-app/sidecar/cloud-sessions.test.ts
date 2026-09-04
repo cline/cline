@@ -1194,3 +1194,831 @@ beforeAll(() => {
 afterAll(() => {
 	delete process.env.CLINE_CODE_CLOUD_AGENTS;
 });
+describe("cloud agents feature flag", () => {
+	it("blocks cloud session creation when the flag is off", async () => {
+		process.env.CLINE_CODE_CLOUD_AGENTS = "0";
+		try {
+			const { ctx } = createContext();
+			const manager = new CloudSessionManager(ctx, {
+				api: {
+					list: async () => [],
+					create: async () => {
+						throw new Error("must not create");
+					},
+				} as unknown as CloudSessionApi,
+				apiBaseUrl: "https://api.example",
+				getAuthToken: async () => "workos:fresh",
+				createHubClient: () => {
+					throw new Error("must not connect");
+				},
+			});
+			ctx.cloudSessionManager = manager;
+
+			await expect(
+				handleChatSessionCommand(ctx, {
+					action: "start",
+					config: {
+						executionTarget: "cloud",
+						repoUrl: "https://github.com/cline/test",
+						model: "anthropic/claude-sonnet-5",
+					},
+				}),
+			).rejects.toThrow(/not enabled/);
+		} finally {
+			process.env.CLINE_CODE_CLOUD_AGENTS = "1";
+		}
+	});
+});
+
+describe("cloud session discovery", () => {
+	it("does not project a live cloud session through local discovery", () => {
+		const { ctx } = createContext();
+		ctx.liveSessions.set("ses-cloud", {
+			busy: true,
+			messages: [{ role: "user", content: "cloud prompt" }],
+			promptsInQueue: [],
+			status: "running",
+			config: { executionTarget: "cloud" },
+			startedAt: Date.now(),
+		});
+
+		const sessions = discoverChatSessions(ctx) as Array<{ sessionId?: string }>;
+		expect(sessions.some((session) => session.sessionId === "ses-cloud")).toBe(
+			false,
+		);
+	});
+});
+
+describe("reconcileBufferedCloudEvents", () => {
+	const event = (
+		name: HubEventEnvelope["event"],
+		id: string,
+		payload: Record<string, unknown> = {},
+	): HubEventEnvelope => ({
+		version: "v1",
+		event: name,
+		eventId: id,
+		timestamp: Date.now(),
+		sessionId: "inner-1",
+		payload,
+	});
+
+	it("replays content the snapshot does NOT contain", () => {
+		// The safety-critical direction: an unreflected buffered turn must
+		// never be dropped, or a whole reply silently vanishes.
+		const buffered = [
+			event("assistant.delta", "a-1", { text: "unpersisted reply" }),
+			event("run.completed", "done-1"),
+		];
+		expect(
+			reconcileBufferedCloudEvents(buffered, [
+				{ role: "assistant", content: "a completely different answer" },
+			]).map((item) => item.event),
+		).toEqual(["assistant.delta", "run.completed"]);
+	});
+
+	it("supersedes despite trailing whitespace in the streamed text", () => {
+		const buffered = [
+			event("assistant.finished", "f-1", { text: "the answer \n" }),
+			event("run.completed", "done-1"),
+		];
+		expect(
+			reconcileBufferedCloudEvents(buffered, [
+				{ role: "assistant", content: "prefix the answer" },
+			]).map((item) => item.event),
+		).toEqual(["run.completed"]);
+	});
+
+	it("drops buffered queue snapshots when a fresh queue snapshot was applied", () => {
+		const buffered = [
+			event("session.pending_prompts", "q-1", { prompts: [] }),
+			event("assistant.delta", "a-1", { text: "live tail" }),
+		];
+		expect(
+			reconcileBufferedCloudEvents(buffered, []).map((item) => item.event),
+		).toEqual(["assistant.delta"]);
+	});
+
+	it("replays the newest buffered queue snapshot when the queue fetch failed", () => {
+		// Dropping the buffer here would silently lose queued/steered prompts
+		// until some later change produces another queue snapshot.
+		const buffered = [
+			event("session.pending_prompts", "q-1", { prompts: [] }),
+			event("session.pending_prompts", "q-2", {
+				prompts: [{ id: "p-1", prompt: "queued work" }],
+			}),
+			event("assistant.delta", "a-1", { text: "live tail" }),
+		];
+		expect(
+			reconcileBufferedCloudEvents(buffered, [], {
+				queueSnapshotApplied: false,
+			}).map((item) => item.eventId),
+		).toEqual(["q-2", "a-1"]);
+	});
+
+	it("replays a queue snapshot received after the queue fetch", () => {
+		const buffered = [
+			event("session.pending_prompts", "q-old", { prompts: [] }),
+			event("assistant.delta", "a-1", { text: "live tail" }),
+			event("session.pending_prompts", "q-new", {
+				prompts: [{ id: "p-1", prompt: "queued work" }],
+			}),
+		];
+		expect(
+			reconcileBufferedCloudEvents(buffered, [], {
+				queueSnapshotEventCutoff: 1,
+			}).map((item) => item.eventId),
+		).toEqual(["a-1", "q-new"]);
+	});
+
+	it("supersedes content independently across two terminal run segments", () => {
+		const buffered = [
+			event("assistant.delta", "a-1", { text: "first tail" }),
+			event("run.completed", "done-1"),
+			event("assistant.delta", "a-2", { text: "second tail" }),
+			event("run.completed", "done-2"),
+		];
+
+		expect(
+			reconcileBufferedCloudEvents(buffered, [
+				{ role: "assistant", content: "prefix first tail" },
+				{ role: "assistant", content: "prefix second tail" },
+			]).map((item) => item.event),
+		).toEqual(["run.completed", "run.completed"]);
+	});
+
+	it("does not let an older identical reply supersede a new buffered turn", () => {
+		const buffered = [
+			event("assistant.delta", "a-2", { text: "Done" }),
+			event("run.completed", "done-2"),
+		];
+		const baseline = [{ role: "assistant", content: "Done" }];
+
+		expect(
+			reconcileBufferedCloudEvents(buffered, baseline, {
+				baselineMessages: baseline,
+			}).map((item) => item.event),
+		).toEqual(["assistant.delta", "run.completed"]);
+		expect(
+			reconcileBufferedCloudEvents(
+				buffered,
+				[...baseline, { role: "assistant", content: "Done" }],
+				{ baselineMessages: baseline },
+			).map((item) => item.event),
+		).toEqual(["run.completed"]);
+	});
+
+	it("keeps run.failed while suppressing reflected content and dedupes tools by id", () => {
+		const buffered = [
+			event("assistant.delta", "a-1", { text: "partial failure" }),
+			event("tool.started", "tool-1", { toolCallId: "call-1" }),
+			event("run.failed", "failed-1", { error: "boom" }),
+		];
+
+		expect(
+			reconcileBufferedCloudEvents(buffered, [
+				{ role: "assistant", content: "saved partial failure" },
+				{
+					role: "assistant",
+					content: [{ type: "tool_use", id: "call-1", name: "read_file" }],
+				},
+			]).map((item) => item.event),
+		).toEqual(["run.failed"]);
+	});
+});
+
+describe("CloudSessionManager", () => {
+	it("projects the outer remote-session id as the desktop session id", () => {
+		expect(
+			cloudSessionToDiscoveryRecord({
+				...REMOTE_SESSION,
+				repoContext: {
+					...REMOTE_SESSION.repoContext,
+					branch: "feature/cloud",
+				},
+			}),
+		).toMatchObject({
+			sessionId: "ses-outer",
+			origin: "cloud",
+			executionTarget: "cloud",
+			repoUrl: "https://github.com/cline/test",
+			workspaceRoot: "/workspace",
+			branch: "feature/cloud",
+			metadata: {
+				git: {
+					url: "https://github.com/cline/test",
+					branch: "feature/cloud",
+				},
+			},
+		});
+	});
+
+	it("treats a live session's future expiredAt as a TTL, not an end time", () => {
+		// A future endedAt renders as "now" for every session in the sidebar.
+		const alive = cloudSessionToDiscoveryRecord({
+			...REMOTE_SESSION,
+			expiredAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+		});
+		expect(alive.endedAt).toBeUndefined();
+
+		const expired = cloudSessionToDiscoveryRecord({
+			...REMOTE_SESSION,
+			expiredAt: "2026-08-01T00:00:00.000Z",
+		});
+		expect(expired.endedAt).toBe("2026-08-01T00:00:00.000Z");
+	});
+
+	it("overlays live status and prompt-derived title on refreshed REST rows", async () => {
+		const { ctx } = createContext();
+		ctx.liveSessions.set("ses-outer", {
+			config: { executionTarget: "cloud" },
+			messages: [],
+			promptsInQueue: [],
+			busy: true,
+			startedAt: Date.now(),
+			status: "running",
+			prompt: "Fix reconnect behavior\nwith a regression test",
+			attachedViaHub: true,
+		});
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+		});
+
+		const [session] = await manager.listForDiscovery();
+
+		expect(session).toMatchObject({
+			sessionId: "ses-outer",
+			origin: "cloud",
+			status: "running",
+			prompt: "Fix reconnect behavior\nwith a regression test",
+			repoUrl: "https://github.com/cline/test",
+			metadata: {
+				title: "Fix reconnect behavior",
+				origin: "cloud",
+			},
+		});
+	});
+
+	it("reuses the newest inner Hub session and translates events to the outer id", async () => {
+		const { ctx, events } = createContext();
+		const hub = new FakeHubClient();
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+
+		await manager.list();
+		await manager.attach("ses-outer");
+		hub.events?.({
+			version: "v1",
+			event: "session.updated",
+			eventId: "evt-1",
+			timestamp: Date.now(),
+			sessionId: "inner-1",
+			payload: { session: { status: "running" } },
+		});
+
+		expect(hub.commands[0]).toMatchObject({ command: "session.list" });
+		expect(hub.commands[1]).toMatchObject({
+			command: "session.attach",
+			sessionId: "inner-1",
+		});
+		expect(events.at(-1)).toEqual({
+			name: "chat_session_status",
+			payload: { sessionId: "ses-outer", status: "running" },
+		});
+	});
+
+	it("ignores newer child sessions when reconnecting to the cloud root", async () => {
+		const { ctx } = createContext();
+		const hub = new FakeHubClient();
+		hub.listedSessions = [
+			{ sessionId: "inner-root", updatedAt: 20 },
+			{
+				sessionId: "inner-child",
+				updatedAt: 30,
+				metadata: { parentSessionId: "inner-root" },
+			},
+		];
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+
+		await manager.list();
+		await manager.attach("ses-outer");
+
+		expect(hub.commands).toContainEqual(
+			expect.objectContaining({
+				command: "session.attach",
+				sessionId: "inner-root",
+			}),
+		);
+	});
+
+	it("uses unique Hub client ids and subscribes only to the inner session", async () => {
+		const clientIds: string[] = [];
+		const hubs = [new FakeHubClient(), new FakeHubClient()];
+		for (const hub of hubs) {
+			const { ctx } = createContext();
+			const manager = new CloudSessionManager(ctx, {
+				api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+				apiBaseUrl: "https://api.example",
+				getAuthToken: async () => "workos:fresh",
+				createHubClient: (options) => {
+					clientIds.push(String(options.clientId));
+					return hub as never;
+				},
+			});
+			await manager.list();
+			await manager.attach("ses-outer");
+		}
+
+		expect(new Set(clientIds).size).toBe(2);
+		expect(clientIds).toEqual([
+			expect.stringMatching(/^code-cloud-ses-outer-/),
+			expect.stringMatching(/^code-cloud-ses-outer-/),
+		]);
+		expect(hubs.map((hub) => hub.subscriptionSessionId)).toEqual([
+			"inner-1",
+			"inner-1",
+		]);
+		expect(hubs.map((hub) => hub.subscriptionSessionIds)).toEqual([
+			["inner-1"],
+			["inner-1"],
+		]);
+	});
+
+	it("treats a Hub pending session as an active desktop run", async () => {
+		const { ctx, events } = createContext();
+		const hub = new FakeHubClient();
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+
+		await manager.list();
+		await manager.attach("ses-outer");
+		hub.events?.({
+			version: "v1",
+			event: "session.updated",
+			eventId: "evt-pending",
+			timestamp: Date.now(),
+			sessionId: "inner-1",
+			payload: { session: { status: "pending" } },
+		});
+
+		expect(ctx.liveSessions.get("ses-outer")).toMatchObject({
+			busy: true,
+			status: "running",
+		});
+		expect(events.at(-1)).toEqual({
+			name: "chat_session_status",
+			payload: { sessionId: "ses-outer", status: "running" },
+		});
+	});
+
+	it("drops replayed Hub events by eventId", async () => {
+		const { ctx, events } = createContext();
+		const hub = new FakeHubClient();
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+		await manager.list();
+		await manager.attach("ses-outer");
+		const replayed: HubEventEnvelope = {
+			version: "v1",
+			event: "assistant.delta",
+			eventId: "evt-replayed",
+			timestamp: Date.now(),
+			sessionId: "inner-1",
+			payload: { text: "once" },
+		};
+
+		hub.events?.(replayed);
+		hub.events?.(replayed);
+
+		expect(
+			events.filter(
+				(item) => item.name === "chat_event" && item.payload.chunk === "once",
+			),
+		).toHaveLength(1);
+	});
+
+	it("resolves fresh bearer headers for each WebSocket connection attempt", async () => {
+		const { ctx, events } = createContext();
+		const hub = new FakeHubClient();
+		const tokens = ["workos:first", "workos:refreshed"];
+		let resolveHeaders:
+			| (() =>
+					| Readonly<Record<string, string>>
+					| Promise<Readonly<Record<string, string>>>)
+			| undefined;
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => tokens.shift(),
+			createHubClient: (options) => {
+				resolveHeaders = options.resolveConnectionHeaders;
+				return hub as never;
+			},
+		});
+		await manager.list();
+		await manager.attach("ses-outer");
+
+		expect(await resolveHeaders?.()).toEqual({
+			Authorization: "Bearer workos:first",
+		});
+		expect(await resolveHeaders?.()).toEqual({
+			Authorization: "Bearer workos:refreshed",
+		});
+		await vi.waitFor(() => {
+			expect(
+				hub.commands.some((entry) => entry.command === "session.get"),
+			).toBe(true);
+		});
+		expect(
+			events.some(
+				(event) =>
+					event.name === "cloud_session_rehydrated" &&
+					event.payload.sessionId === "ses-outer",
+			),
+		).toBe(true);
+	});
+
+	it("refreshes the completion time for a later turn completed while disconnected", async () => {
+		const { ctx } = createContext();
+		const hub = new FakeHubClient();
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+		await manager.list();
+		await manager.attach("ses-outer");
+
+		const live = ctx.liveSessions.get("ses-outer");
+		expect(live).toBeDefined();
+		if (!live) throw new Error("missing live cloud session");
+		live.status = "running";
+		live.endedAt = 1;
+		hub.sessionStatus = "completed";
+
+		await manager.readMessages("ses-outer");
+
+		expect(live.endedAt).toBeGreaterThan(1);
+	});
+
+	it("keeps an org connection when reconnect cleanup cannot resolve its scope", async () => {
+		const { ctx, events } = createContext();
+		const hub = new FakeHubClient();
+		hub.commandHook = (command) => {
+			if (command === "session.get") throw new Error("rehydration failed");
+		};
+		let resolveHeaders:
+			| (() =>
+					| Readonly<Record<string, string>>
+					| Promise<Readonly<Record<string, string>>>)
+			| undefined;
+		let organizationLookups = 0;
+		const listScopes: Array<string | undefined> = [];
+		const manager = new CloudSessionManager(ctx, {
+			api: {
+				list: async (organizationId?: string) => {
+					listScopes.push(organizationId);
+					return organizationId ? [REMOTE_SESSION] : [];
+				},
+			} as unknown as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			getActiveOrganizationId: async () => {
+				organizationLookups += 1;
+				if (organizationLookups > 1) throw new Error("account endpoint down");
+				return "org-cline-bot";
+			},
+			createHubClient: (options) => {
+				resolveHeaders = options.resolveConnectionHeaders;
+				return hub as never;
+			},
+		});
+		await manager.list();
+		await manager.attach("ses-outer");
+
+		await resolveHeaders?.();
+		await resolveHeaders?.();
+		await vi.waitFor(() => expect(organizationLookups).toBe(2));
+
+		expect(hub.disposed).toBe(false);
+		expect(listScopes).toEqual(["org-cline-bot"]);
+		expect(
+			events.some((event) => event.name === "cloud_session_sync_failed"),
+		).toBe(true);
+	});
+
+	it("keeps buffered queue state when the queue snapshot reply is malformed", async () => {
+		const { ctx } = createContext();
+		const hub = new FakeHubClient();
+		hub.malformedQueueReply = true;
+		// A queue event arrives while the rehydration snapshot is in flight,
+		// so it lands in the reconnect buffer.
+		hub.commandHook = async (command) => {
+			if (command !== "session.messages") return;
+			hub.events?.({
+				version: "v1",
+				event: "session.pending_prompts",
+				eventId: "evt-queue-buffered",
+				timestamp: Date.now(),
+				sessionId: "inner-1",
+				payload: {
+					prompts: [
+						{
+							id: "q-buffered",
+							prompt: "still queued",
+							delivery: "queue",
+							attachmentCount: 0,
+						},
+					],
+				},
+			});
+		};
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+		await manager.list();
+		await manager.attach("ses-outer");
+		// Reading with an unknown transcript forces the rehydration snapshot.
+		await manager.readMessages("ses-outer");
+
+		// The malformed reply must not count as an authoritative snapshot;
+		// the buffered queue event is replayed and keeps the queued prompt.
+		expect(ctx.liveSessions.get("ses-outer")?.promptsInQueue).toMatchObject([
+			{ id: "q-buffered", prompt: "still queued" },
+		]);
+	});
+
+	it("rejects malformed queue command replies instead of clearing the queue", async () => {
+		const { ctx } = createContext();
+		const hub = new FakeHubClient();
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+		await manager.list();
+		await manager.attach("ses-outer");
+		// Seed the queue from a valid snapshot first.
+		hub.prompts[0].userImages = ["data:image/png;base64,AQID"];
+		await manager.pendingPrompts("ses-outer");
+		expect(ctx.liveSessions.get("ses-outer")?.promptsInQueue).toMatchObject([
+			{ id: "q-1", userImages: ["data:image/png;base64,AQID"] },
+		]);
+
+		hub.malformedQueueReply = true;
+
+		// A prompts-less reply must surface as an error, not become an
+		// authoritative empty queue that hides queued prompts.
+		await expect(manager.pendingPrompts("ses-outer")).rejects.toThrow(
+			"invalid pending-prompts snapshot",
+		);
+		expect(ctx.liveSessions.get("ses-outer")?.promptsInQueue).toMatchObject([
+			{ id: "q-1" },
+		]);
+	});
+
+	it("queues one rerun when a second sync overlaps the active snapshot", async () => {
+		const { ctx } = createContext();
+		const hub = new FakeHubClient();
+		let releaseFirst!: () => void;
+		const firstBlocked = new Promise<void>((resolve) => {
+			releaseFirst = resolve;
+		});
+		let reachedFirst!: () => void;
+		const firstReached = new Promise<void>((resolve) => {
+			reachedFirst = resolve;
+		});
+		let messageReads = 0;
+		hub.commandHook = async (command) => {
+			if (command !== "session.messages") return;
+			messageReads += 1;
+			if (messageReads === 1) {
+				reachedFirst();
+				await firstBlocked;
+			}
+		};
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+		await manager.list();
+		await manager.attach("ses-outer");
+
+		const first = manager.readMessages("ses-outer");
+		await firstReached;
+		const second = manager.readMessages("ses-outer");
+		releaseFirst();
+		await Promise.all([first, second]);
+
+		expect(messageReads).toBe(2);
+	});
+
+	it("retains the prior transcript and replays live events when a snapshot fails", async () => {
+		const { ctx, events } = createContext();
+		const hub = new FakeHubClient();
+		hub.invalidMessagesSnapshot = true;
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+		await manager.list();
+		await manager.attach("ses-outer");
+		const previous = [{ role: "assistant" as const, content: "keep me" }];
+		const live = ctx.liveSessions.get("ses-outer");
+		if (live) live.messages = previous;
+		hub.commandHook = (command) => {
+			if (command !== "session.messages") return;
+			hub.events?.({
+				version: "v1",
+				event: "assistant.delta",
+				eventId: "evt-during-failed-sync",
+				timestamp: Date.now(),
+				sessionId: "inner-1",
+				payload: { text: "still live" },
+			});
+		};
+
+		await expect(manager.readMessages("ses-outer")).rejects.toThrow(
+			/invalid transcript snapshot/i,
+		);
+		expect(ctx.liveSessions.get("ses-outer")?.messages).toBe(previous);
+		expect(events).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					name: "chat_event",
+					payload: expect.objectContaining({
+						stream: "chat_text",
+						chunk: "still live",
+					}),
+				}),
+				expect.objectContaining({ name: "cloud_session_sync_failed" }),
+			]),
+		);
+	});
+
+	it("maps cloud approvals into the existing UI and responds on the inner id", async () => {
+		const { ctx, events } = createContext();
+		const hub = new FakeHubClient();
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+		await manager.list();
+		await manager.attach("ses-outer");
+
+		hub.events?.({
+			version: "v1",
+			event: "approval.requested",
+			eventId: "evt-approval",
+			timestamp: Date.now(),
+			sessionId: "inner-1",
+			payload: {
+				approvalId: "approval-1",
+				toolCallId: "tool-1",
+				toolName: "run_commands",
+				inputJson: '{"command":"git status"}',
+			},
+		});
+
+		const pending = ctx.pendingApprovals.get("ses-outer:approval-1");
+		expect(pending?.item).toMatchObject({
+			requestId: "ses-outer:approval-1",
+			sessionId: "ses-outer",
+			toolCallId: "tool-1",
+			toolName: "run_commands",
+			input: { command: "git status" },
+		});
+		expect(events.at(-1)?.name).toBe("tool_approval_state");
+
+		await pending?.resolve({ approved: true });
+		expect(hub.commands.at(-1)).toMatchObject({
+			command: "approval.respond",
+			payload: { approvalId: "approval-1", approved: true },
+			sessionId: "inner-1",
+		});
+	});
+
+	it("restores pending cloud approvals when attaching after a missed event", async () => {
+		const { ctx, events } = createContext();
+		const hub = new FakeHubClient();
+		hub.pendingApprovals = [
+			{
+				approvalId: "approval-restored",
+				toolCallId: "tool-restored",
+				toolName: "write_to_file",
+				inputJson: '{"path":"README.md"}',
+			},
+		];
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+		await manager.list();
+
+		await manager.attach("ses-outer");
+
+		const pending = ctx.pendingApprovals.get("ses-outer:approval-restored");
+		expect(pending?.item).toMatchObject({
+			toolCallId: "tool-restored",
+			toolName: "write_to_file",
+			input: { path: "README.md" },
+		});
+		expect(events.at(-1)).toMatchObject({
+			name: "tool_approval_state",
+			payload: {
+				sessionId: "ses-outer",
+				items: [
+					expect.objectContaining({ requestId: "ses-outer:approval-restored" }),
+				],
+			},
+		});
+
+		await pending?.resolve({ approved: false, reason: "not now" });
+		expect(hub.commands.at(-1)).toMatchObject({
+			command: "approval.respond",
+			payload: {
+				approvalId: "approval-restored",
+				approved: false,
+				reason: "not now",
+			},
+		});
+	});
+
+	it("does not restore pending approvals after the manager is disposed", async () => {
+		const { ctx, events } = createContext();
+		const hub = new FakeHubClient();
+		hub.pendingApprovals = [
+			{
+				approvalId: "approval-old-account",
+				toolCallId: "tool-old-account",
+				toolName: "write_to_file",
+				inputJson: '{"path":"secret.txt"}',
+			},
+		];
+		let enterList!: () => void;
+		let releaseList!: () => void;
+		const listEntered = new Promise<void>((resolve) => {
+			enterList = resolve;
+		});
+		const listReleased = new Promise<void>((resolve) => {
+			releaseList = resolve;
+		});
+		hub.commandHook = async (command) => {
+			if (command !== "approval.list_pending") return;
+			enterList();
+			await listReleased;
+		};
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+		await manager.list();
+
+		const attaching = manager.attach("ses-outer");
+		await listEntered;
+		await manager.dispose();
+		releaseList();
+		await attaching;
+
+		expect(ctx.pendingApprovals.size).toBe(0);
+		expect(
+			events.some((event) =>
+				JSON.stringify(event.payload).includes("approval-old-account"),
+			),
+		).toBe(false);
+	});
+});
