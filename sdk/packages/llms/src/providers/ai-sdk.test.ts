@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import fixtures from "../../fixtures/usage.json";
-import { normalizeUsage } from "./ai-sdk";
+import {
+	normalizeUsage,
+	parseRetryAfterDelayMs,
+	wrapFetchForRetryAfterGuard,
+} from "./ai-sdk";
 
 /**
  * These tests validate usage normalization across different AI SDK stream result shapes.
@@ -128,6 +132,57 @@ const testCases = [
 ];
 
 describe("ai-sdk usage normalization", () => {
+	describe("retry-after guard", () => {
+		it("parses delta seconds, fractional seconds, Unix timestamps, and HTTP dates", () => {
+			const nowMs = Date.UTC(2026, 0, 1, 0, 0, 0);
+
+			expect(parseRetryAfterDelayMs("5", nowMs)).toBe(5_000);
+			expect(parseRetryAfterDelayMs("0.01", nowMs)).toBe(10);
+			expect(parseRetryAfterDelayMs(String(nowMs / 1_000 + 2), nowMs)).toBe(
+				2_000,
+			);
+			expect(
+				parseRetryAfterDelayMs("Thu, 01 Jan 2026 00:00:03 GMT", nowMs),
+			).toBe(3_000);
+			expect(parseRetryAfterDelayMs("not-a-date", nowMs)).toBeUndefined();
+		});
+
+		it("strips long retry-after headers from 429 responses", async () => {
+			const guardedFetch = wrapFetchForRetryAfterGuard(async () => {
+				return new Response("rate limited", {
+					headers: { "retry-after": "10800" },
+					status: 429,
+				});
+			}, 5 * 60 * 1_000);
+
+			const response = await guardedFetch!("https://example.test");
+
+			expect(response.status).toBe(429);
+			expect(response.headers.get("retry-after")).toBeNull();
+			expect(response.headers.get("x-cline-retry-after-truncated")).toBe(
+				"true",
+			);
+			expect(response.headers.get("x-cline-retry-after-ms")).toBe("10800000");
+			expect(await response.text()).toBe("rate limited");
+		});
+
+		it("preserves short retry-after headers on 429 responses", async () => {
+			const guardedFetch = wrapFetchForRetryAfterGuard(async () => {
+				return new Response("retry soon", {
+					headers: { "retry-after": "15" },
+					status: 429,
+				});
+			}, 5 * 60 * 1_000);
+
+			const response = await guardedFetch!("https://example.test");
+
+			expect(response.status).toBe(429);
+			expect(response.headers.get("retry-after")).toBe("15");
+			expect(response.headers.get("x-cline-retry-after-truncated")).toBeNull();
+			expect(await response.text()).toBe("retry soon");
+		});
+	});
+
 	describe.each(testCases)("$provider", ({
 		description,
 		finishUsage,
