@@ -4,6 +4,14 @@ import {
 	withResolvedClineBuildEnv,
 } from "@cline/shared";
 
+/**
+ * How long to watch a detached hook before recording it as still running.
+ * Past this point the hook would already have been a serious stall had it run
+ * blocking, so the exact runtime stops mattering and the observation is
+ * censored instead.
+ */
+const DEFAULT_DETACHED_OBSERVATION_MS = 30_000;
+
 export interface RunSubprocessEventOptions {
 	command: string[];
 	cwd?: string;
@@ -15,6 +23,29 @@ export interface RunSubprocessEventOptions {
 		pid?: number;
 		detached: boolean;
 	}) => void;
+	/**
+	 * Reports a detached hook's runtime exactly once. The run never waits on
+	 * this: detached hooks are fire-and-forget by contract, and this only
+	 * observes them so hosts can measure how long they actually take.
+	 *
+	 * `exited: true` means the hook finished and `durationMs` is its runtime.
+	 * `exited: false` is a censored observation: the hook was still running
+	 * after the observation window, and `durationMs` is that window, so read
+	 * it as "ran at least this long" and count these separately — the
+	 * case that matters most, since those are the hooks that would stall a
+	 * blocking run. Without it the sample would only contain hooks that
+	 * finished.
+	 *
+	 * Nothing is reported if the parent exits before either happens.
+	 */
+	onDetachedSettled?: (event: {
+		command: string[];
+		durationMs: number;
+		exitCode: number | null;
+		exited: boolean;
+	}) => void;
+	/** Overrides the censoring window for `onDetachedSettled`. */
+	detachedObservationMs?: number;
 }
 
 export interface RunSubprocessEventResult {
@@ -180,11 +211,7 @@ export async function runSubprocessEvent(
 		child.once("error", (error) => reject(formatSpawnError(error, command)));
 	});
 	const completed = new Promise<RunSubprocessEventResult>((resolve, reject) => {
-		child.once("error", (error) => {
-			if (timeoutId) clearTimeout(timeoutId);
-			reject(formatSpawnError(error, command));
-		});
-		child.once("close", (exitCode) => {
+		const settle = (exitCode: number | null) => {
 			if (timeoutId) clearTimeout(timeoutId);
 			const { parsedJson, parseError } = parseStdout(stdout);
 			resolve({
@@ -195,7 +222,24 @@ export async function runSubprocessEvent(
 				parseError,
 				timedOut,
 			});
+		};
+		child.once("error", (error) => {
+			if (timeoutId) clearTimeout(timeoutId);
+			reject(formatSpawnError(error, command));
 		});
+		child.once("close", (exitCode) => settle(exitCode));
+		// "close" waits for the stdio pipes to reach EOF, and a hook that spawned
+		// a background child sharing its stdout keeps the pipe open after the
+		// hook itself exits — without a fallback the caller would wait on that
+		// grandchild forever (the timeout's SIGKILL only reaches the direct
+		// child). Settle shortly after process exit with whatever output arrived;
+		// a resolved promise ignores the eventual "close".
+		if (!detached) {
+			child.once("exit", (exitCode) => {
+				const fallback = setTimeout(() => settle(exitCode), 1_000);
+				fallback.unref?.();
+			});
+		}
 	});
 	// Avoid an unhandled rejection from the completion observer when a detached
 	// process reports a late spawn error after ownership has been handed off.
@@ -206,6 +250,61 @@ export async function runSubprocessEvent(
 			timedOut = true;
 			child.kill("SIGKILL");
 		}, options.timeoutMs);
+	}
+
+	// Armed before the stdin write is awaited: a hook that never reads stdin
+	// can leave that write pending until it exits (seen on Windows), and an
+	// observation window that only starts afterwards would never censor
+	// anything — the sample would silently fall back to hooks that finished.
+	if (detached) {
+		if (options.onDetachedSettled) {
+			const startedAt = Date.now();
+			const report = options.onDetachedSettled;
+			let reported = false;
+			let censorTimer: NodeJS.Timeout | undefined;
+			// Observe only: `completed` is already wired, and neither the
+			// listener nor the timer keeps the process alive (the child and
+			// the timer are both unref'd), so a hook that outlives the parent
+			// simply never reports.
+			const reportOnce = (event: {
+				durationMs: number;
+				exitCode: number | null;
+				exited: boolean;
+			}) => {
+				if (reported) {
+					return;
+				}
+				reported = true;
+				if (censorTimer) {
+					clearTimeout(censorTimer);
+				}
+				report({ command, ...event });
+			};
+			const observationMs =
+				options.detachedObservationMs ?? DEFAULT_DETACHED_OBSERVATION_MS;
+			censorTimer = setTimeout(
+				() =>
+					// The window itself is the reported duration: a censored
+					// sample means "ran at least this long", and the timer's own
+					// firing time is both noisy and meaningless here.
+					reportOnce({
+						durationMs: observationMs,
+						exitCode: null,
+						exited: false,
+					}),
+				observationMs,
+			);
+			censorTimer.unref?.();
+			void completed
+				.then((result) =>
+					reportOnce({
+						durationMs: Date.now() - startedAt,
+						exitCode: result.exitCode,
+						exited: true,
+					}),
+				)
+				.catch(() => undefined);
+		}
 	}
 
 	await Promise.race([

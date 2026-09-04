@@ -183,11 +183,23 @@ function mergeRuntimeHooks(
 
 	return {
 		beforeRun: async (ctx) => {
+			let aggregate:
+				| Awaited<ReturnType<NonNullable<AgentRuntimeHooks["beforeRun"]>>>
+				| undefined;
 			for (const hook of hooks) {
 				const result = await hook.beforeRun?.(ctx);
-				if (result?.stop) return result;
+				if (!result) continue;
+				if (result.stop) return result;
+				const appendContext = [aggregate?.appendContext, result.appendContext]
+					.filter((value): value is string => Boolean(value?.trim()))
+					.join("\n\n");
+				aggregate = {
+					...aggregate,
+					...result,
+					appendContext: appendContext || undefined,
+				};
 			}
-			return undefined;
+			return aggregate;
 		},
 		afterRun: async (ctx) => {
 			for (const hook of hooks) {
