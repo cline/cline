@@ -8,10 +8,12 @@ import {
 	type ClineCoreStartConfig,
 	createSessionCompactionState,
 	createUserInstructionConfigService,
+	findCheckpointForRun,
 	getCoreBuiltinToolCatalog,
 	isSkillsToolAvailable,
 	projectSessionCompactionState,
 	readGlobalSettings,
+	readSessionCheckpointHistory,
 	type SessionCompactionState,
 	type SessionPendingPrompt,
 	type SessionRecord,
@@ -1301,8 +1303,18 @@ async function handleForkUnlocked(
 		sessionMetadata: forkMetadata,
 		toolPolicies: resolveToolPolicies(forkConfig),
 	};
+	// Sessions without a checkpoint at or before the edited run (imported
+	// transcripts, checkpoints disabled) have no workspace state to roll back,
+	// so fork the trimmed messages onto the current workspace instead of
+	// failing the edit.
+	const canRestoreWorkspace =
+		forkBeforeRunCount !== undefined &&
+		findCheckpointForRun(
+			readSessionCheckpointHistory({ metadata: sourceMetadata }),
+			forkBeforeRunCount,
+		) !== undefined;
 	let newSessionId: string;
-	if (forkBeforeRunCount !== undefined) {
+	if (forkBeforeRunCount !== undefined && canRestoreWorkspace) {
 		const cwd =
 			restoreWorkspacePath ||
 			(typeof forkConfig.cwd === "string" && forkConfig.cwd.trim()) ||

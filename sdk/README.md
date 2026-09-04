@@ -213,6 +213,33 @@ The paths in `session.manifest` are the authoritative resolved workspace paths.
 
 `ClineCore` gives the agent built-in tools (`bash`, `editor`, `read_files`, `apply_patch`, `search`, `fetch_web`), persists sessions to SQLite, discovers config from `.cline/` directories, and optionally connects to an RPC sidecar for scheduled agents and cross-process session management.
 
+### Portable Agent Plugins
+
+`ClineCore` and Hub-backed SDK clients support [Agent Plugins v1](https://agent-plugins.org/specification) without a client-side loader. The execution host automatically discovers user-installed package directories under `~/.agents/plugins/*` on the Hub host. Automatic discovery intentionally does not scan workspace `.agents/plugins` directories, so opening a repository does not implicitly activate repository-controlled MCP servers. Hosts may explicitly opt in to additional roots through `agentPluginPaths`; those caller-provided paths are resolved against the session `cwd` and remain subject to the same package-boundary validation.
+
+Each package is validated from its root `plugin.json`. Valid immediate-child Agent Skills under `skills/` are exposed through the `skills` tool as `plugin-name:skill-name`; valid servers from root `mcp.json` are connected without modifying `cline_mcp_settings.json`. Invalid packages, components, skills, and MCP entries fail at their specification-defined narrow boundaries.
+
+Agent Plugin discovery is read-only: loading settings validates manifests and inspects skills and `mcp.json` without starting MCP processes or creating plugin data directories. For stdio MCP servers, the runtime creates the dedicated persistent `PLUGIN_DATA` directory immediately before launching the server, as required by the Agent Plugins MCP contract.
+
+The Hub also owns Agent Plugin enablement. Hub-backed clients read the same plugin inventory through settings APIs and toggle entries there instead of maintaining client-local state. Disabled plugins are persisted by their validated manifest name and do not contribute skills or MCP servers when a session runtime is built. Every settings mutation publishes `settings.changed`, so subscribed clients can refresh their settings views.
+
+Agent Plugin contributions are part of a session's runtime snapshot. A client may rebuild an idle session after a toggle (the CLI does this for a toggle made in its interactive settings view), but an already-running turn keeps the tools, skills, and rules it started with. Other existing sessions pick up the new state when they are rebuilt or restarted; new sessions use it immediately. Installing or removing files under `~/.agents/plugins` is detected on the next settings refresh or session build rather than pushed by a filesystem watcher.
+
+You can also provide package roots explicitly. Relative paths are resolved by the Hub against the session `cwd`:
+
+```typescript
+const session = await cline.start({
+  prompt: "Use the release plugin to prepare this repository",
+  config: {
+    providerId: "anthropic",
+    modelId: "claude-sonnet-4-6",
+    cwd: "/path/to/project",
+    enableTools: true,
+    agentPluginPaths: ["./vendor/release-plugin"],
+  },
+})
+```
+
 ## Packages
 
 The SDK is a layered stack. Use as much or as little as you need:

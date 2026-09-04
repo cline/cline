@@ -15,6 +15,7 @@ import {
 	getSessionMetadataGitBranch,
 	getSessionMetadataIsScheduled,
 	getSessionMetadataPinned,
+	getSessionMetadataSchedule,
 	getSessionMetadataTitle,
 	getSessionSource,
 	PINNED_METADATA_KEY,
@@ -42,7 +43,19 @@ export interface SessionThread {
 	status: SessionHistoryStatus;
 	pinned?: boolean;
 	isScheduled: boolean;
+	/** Raw start timestamp; the sidebar labels un-numbered scheduled runs with it. */
+	startedAt?: string;
+	/** Schedule provenance for scheduled runs (metadata or executions list). */
+	scheduleId?: string;
+	scheduleName?: string;
+	scheduleRunNumber?: number;
 }
+
+/** What the schedule executions list knows about a session it started. */
+type ScheduledSessionLink = {
+	scheduleId?: string;
+	scheduleName?: string;
+};
 
 type SessionHookEvent = {
 	inputTokens?: number;
@@ -266,6 +279,7 @@ function toThread(session: SessionHistoryItem): SessionThread {
 		session.origin === "cloud" && session.repoUrl?.trim()
 			? session.repoUrl.trim()
 			: (session.workspaceRoot || session.cwd).trim();
+	const schedule = getSessionMetadataSchedule(session.metadata);
 	return {
 		id: session.sessionId,
 		origin: session.origin,
@@ -281,6 +295,10 @@ function toThread(session: SessionHistoryItem): SessionThread {
 		status: normalizeDiscoveredStatus(session.status, session.prompt),
 		pinned: getSessionMetadataPinned(session.metadata),
 		isScheduled: getSessionMetadataIsScheduled(session.metadata),
+		startedAt: session.startedAt?.trim() || undefined,
+		scheduleId: schedule.scheduleId,
+		scheduleName: schedule.scheduleName,
+		scheduleRunNumber: schedule.runNumber,
 	};
 }
 
@@ -361,6 +379,17 @@ function summarizeUsageFromMessages(messages: SessionMessage[]): {
 	return { inputTokens, outputTokens, totalCostUsd };
 }
 
+function areScheduleInfosEqual(
+	a: ReturnType<typeof getSessionMetadataSchedule>,
+	b: ReturnType<typeof getSessionMetadataSchedule>,
+): boolean {
+	return (
+		a.scheduleId === b.scheduleId &&
+		a.scheduleName === b.scheduleName &&
+		a.runNumber === b.runNumber
+	);
+}
+
 function areSessionsEquivalent(
 	current: SessionHistoryItem[],
 	next: SessionHistoryItem[],
@@ -388,6 +417,10 @@ function areSessionsEquivalent(
 				getSessionMetadataTitle(b.metadata) ||
 			getSessionMetadataPinned(a.metadata) !==
 				getSessionMetadataPinned(b.metadata) ||
+			!areScheduleInfosEqual(
+				getSessionMetadataSchedule(a.metadata),
+				getSessionMetadataSchedule(b.metadata),
+			) ||
 			a.workspaceRoot !== b.workspaceRoot ||
 			a.cwd !== b.cwd ||
 			a.provider !== b.provider ||
@@ -426,7 +459,11 @@ function areThreadsEquivalent(
 			a.totalCostUsd !== b.totalCostUsd ||
 			a.status !== b.status ||
 			a.pinned !== b.pinned ||
-			a.isScheduled !== b.isScheduled
+			a.isScheduled !== b.isScheduled ||
+			a.startedAt !== b.startedAt ||
+			a.scheduleId !== b.scheduleId ||
+			a.scheduleName !== b.scheduleName ||
+			a.scheduleRunNumber !== b.scheduleRunNumber
 		) {
 			return false;
 		}
@@ -525,14 +562,16 @@ export function useSessionHistory({
 	const [unreadSessionIds, setUnreadSessionIds] = useState<Set<string>>(
 		() => new Set(),
 	);
-	// Session ids that schedule executions report as their own. Scheduled runs
-	// executed by the local hub do not reliably carry the "hub-schedule"
-	// origin trigger in their session metadata (the runtime that claims the
-	// run doesn't always stamp provenance), so the metadata check alone would
-	// miss them; the executions list is the authoritative link.
-	const [scheduledSessionIds, setScheduledSessionIds] = useState<Set<string>>(
-		() => new Set(),
-	);
+	// Sessions that schedule executions report as their own, keyed by session
+	// id. Scheduled runs executed by the local hub do not reliably carry the
+	// "hub-schedule" origin trigger in their session metadata (the runtime
+	// that claims the run doesn't always stamp provenance), so the metadata
+	// check alone would miss them; the executions list is the authoritative
+	// link. It also supplies the schedule id/name for sessions recorded
+	// before the runner stamped those into metadata.
+	const [scheduledSessionLinks, setScheduledSessionLinks] = useState<
+		Map<string, ScheduledSessionLink>
+	>(() => new Map());
 	const fetchLimitRef = useRef(INITIAL_HISTORY_FETCH_LIMIT);
 	// Limit of the most recent refresh that actually returned sessions. Failed
 	// attempts roll back to this rather than to a caller-local snapshot, which
@@ -584,17 +623,36 @@ export function useSessionHistory({
 
 	useEffect(() => {
 		let cancelled = false;
-		const collectScheduledSessionIds = async () => {
+		const collectScheduledSessionLinks = async () => {
 			const response = await desktopClient
 				.invoke<{
-					activeExecutions?: Array<{ sessionId?: unknown }>;
-					lastExecutions?: Array<{ sessionId?: unknown }>;
+					schedules?: Array<{ scheduleId?: unknown; name?: unknown }>;
+					activeExecutions?: Array<{
+						sessionId?: unknown;
+						scheduleId?: unknown;
+					}>;
+					lastExecutions?: Array<{
+						sessionId?: unknown;
+						scheduleId?: unknown;
+					}>;
 				}>("list_routine_schedules")
 				.catch(() => null);
 			if (cancelled || !response) {
 				return;
 			}
-			const ids = new Set<string>();
+			const scheduleNames = new Map<string, string>();
+			for (const schedule of response.schedules ?? []) {
+				const scheduleId =
+					typeof schedule?.scheduleId === "string"
+						? schedule.scheduleId.trim()
+						: "";
+				const name =
+					typeof schedule?.name === "string" ? schedule.name.trim() : "";
+				if (scheduleId && name) {
+					scheduleNames.set(scheduleId, name);
+				}
+			}
+			const links = new Map<string, ScheduledSessionLink>();
 			for (const execution of [
 				...(response.activeExecutions ?? []),
 				...(response.lastExecutions ?? []),
@@ -603,23 +661,43 @@ export function useSessionHistory({
 					typeof execution?.sessionId === "string"
 						? execution.sessionId.trim()
 						: "";
-				if (sessionId) {
-					ids.add(sessionId);
+				if (!sessionId) {
+					continue;
 				}
+				const scheduleId =
+					typeof execution?.scheduleId === "string"
+						? execution.scheduleId.trim()
+						: "";
+				links.set(sessionId, {
+					...(scheduleId ? { scheduleId } : {}),
+					...(scheduleId && scheduleNames.has(scheduleId)
+						? { scheduleName: scheduleNames.get(scheduleId) }
+						: {}),
+				});
 			}
-			setScheduledSessionIds((current) => {
+			setScheduledSessionLinks((current) => {
 				// Merge instead of replace: the executions list is a rolling
 				// window, so ids that fell out of it are still scheduled runs.
-				const next = new Set(current);
-				for (const id of ids) {
-					next.add(id);
+				let changed = false;
+				const next = new Map(current);
+				for (const [sessionId, link] of links) {
+					const existing = next.get(sessionId);
+					if (
+						existing &&
+						existing.scheduleId === link.scheduleId &&
+						existing.scheduleName === link.scheduleName
+					) {
+						continue;
+					}
+					next.set(sessionId, link);
+					changed = true;
 				}
-				return next.size === current.size ? current : next;
+				return changed ? next : current;
 			});
 		};
-		void collectScheduledSessionIds();
+		void collectScheduledSessionLinks();
 		const interval = window.setInterval(
-			() => void collectScheduledSessionIds(),
+			() => void collectScheduledSessionLinks(),
 			2 * 60 * 1000,
 		);
 		return () => {
@@ -1086,6 +1164,20 @@ export function useSessionHistory({
 				}
 			},
 		);
+		const unsubscribeTransportImport = desktopClient.subscribe(
+			"session_import_progress",
+			(payload) => {
+				if (!payload || typeof payload !== "object") {
+					return;
+				}
+				// Imported sessions land directly in the store; refresh so they
+				// appear in history no matter where the import was started from.
+				const result = (payload as { result?: { ok?: boolean } }).result;
+				if (result?.ok) {
+					scheduleRefresh(HISTORY_EVENT_REFRESH_DELAY_MS, { force: true });
+				}
+			},
+		);
 		const unsubscribeTransportChatEvent = desktopClient.subscribe(
 			"chat_event",
 			(payload) => {
@@ -1125,6 +1217,7 @@ export function useSessionHistory({
 			unsubscribeTransportStatus();
 			unsubscribeCloudScope();
 			unsubscribeTransportEnded();
+			unsubscribeTransportImport();
 			unsubscribeTransportChatEvent();
 		};
 	}, [activeSessionId, scheduleRefresh]);
@@ -1536,15 +1629,33 @@ export function useSessionHistory({
 	);
 
 	const threadsWithScheduled = useMemo(() => {
-		if (scheduledSessionIds.size === 0) {
+		if (scheduledSessionLinks.size === 0) {
 			return threads;
 		}
-		return threads.map((thread) =>
-			!thread.isScheduled && scheduledSessionIds.has(thread.id)
-				? { ...thread, isScheduled: true }
-				: thread,
-		);
-	}, [scheduledSessionIds, threads]);
+		return threads.map((thread) => {
+			const link = scheduledSessionLinks.get(thread.id);
+			if (!link) {
+				return thread;
+			}
+			// Metadata stamped by the runner wins; the executions list only
+			// fills in what the session record itself doesn't carry.
+			const scheduleId = thread.scheduleId ?? link.scheduleId;
+			const scheduleName = thread.scheduleName ?? link.scheduleName;
+			if (
+				thread.isScheduled &&
+				scheduleId === thread.scheduleId &&
+				scheduleName === thread.scheduleName
+			) {
+				return thread;
+			}
+			return {
+				...thread,
+				isScheduled: true,
+				...(scheduleId ? { scheduleId } : {}),
+				...(scheduleName ? { scheduleName } : {}),
+			};
+		});
+	}, [scheduledSessionLinks, threads]);
 
 	return {
 		getSessionByThreadId,

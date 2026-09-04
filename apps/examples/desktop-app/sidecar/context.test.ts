@@ -1235,6 +1235,33 @@ describe("Code sidecar runtime capabilities", () => {
 			},
 		]);
 	});
+
+	it("forwards Hub settings changes so open desktop views can refresh", async () => {
+		const { createSidecarContext, handleHubLiveEvent } = await import(
+			"./context"
+		);
+		const ctx = createSidecarContext("/workspace/project");
+		ctx.wsClients.add({ send: vi.fn() } as never);
+
+		handleHubLiveEvent(ctx, {
+			event: "settings.changed",
+			payload: {
+				types: ["plugins", "skills", "mcp"],
+			},
+		});
+
+		expect(readEvents(ctx)).toEqual([
+			{
+				type: "event",
+				event: {
+					name: "settings.changed",
+					payload: {
+						types: ["plugins", "skills", "mcp"],
+					},
+				},
+			},
+		]);
+	});
 });
 
 describe("disposeSidecarContext attachment cleanup", () => {
