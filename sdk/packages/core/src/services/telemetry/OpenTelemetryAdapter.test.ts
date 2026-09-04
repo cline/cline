@@ -142,6 +142,29 @@ describe("OpenTelemetryAdapter", () => {
 			expect(shutdown).toHaveBeenCalledTimes(1);
 		});
 	});
+
+	it("does not shut down providers it does not own", async () => {
+		const forceFlush = vi.fn().mockResolvedValue(undefined);
+		const shutdown = vi.fn().mockResolvedValue(undefined);
+
+		const adapter = new OpenTelemetryAdapter({
+			metadata: makeMetadata(),
+			// Shared providers (e.g. the VS Code extension's process-wide OTel
+			// clients): dispose must leave shutdown to the provider owner.
+			ownsProviders: false,
+			meterProvider: {
+				getMeter: () => ({}) as never,
+				forceFlush,
+				shutdown,
+			},
+		});
+
+		await adapter.flush();
+		await adapter.dispose();
+
+		expect(forceFlush).toHaveBeenCalledTimes(1);
+		expect(shutdown).not.toHaveBeenCalled();
+	});
 });
 
 function makeMetadata() {
