@@ -1,3 +1,8 @@
+import type {
+	MediaGenerationSettings,
+	MediaModelSelection,
+} from "@cline/shared";
+import { MEDIA_GENERATION_TYPES } from "@cline/shared";
 import { z } from "zod";
 import {
 	type ProviderClient,
@@ -10,6 +15,8 @@ import {
 } from "../services/llms/provider-settings";
 
 export type {
+	MediaGenerationSettings,
+	MediaModelSelection,
 	ProviderClient,
 	ProviderConfig,
 	ProviderProtocol,
@@ -29,8 +36,18 @@ export const VoiceInputSettingsSchema = z.object({
 
 export type VoiceInputSettings = z.infer<typeof VoiceInputSettingsSchema>;
 
+export const MediaModelSelectionSchema: z.ZodType<MediaModelSelection> =
+	z.object({
+		providerId: z.string().min(1),
+		modelId: z.string().min(1),
+	});
+
+export const MediaGenerationSettingsSchema: z.ZodType<MediaGenerationSettings> =
+	z.partialRecord(z.enum(MEDIA_GENERATION_TYPES), MediaModelSelectionSchema);
+
 export interface StoredProviderModes {
 	voiceInput?: VoiceInputSettings;
+	mediaGeneration?: MediaGenerationSettings;
 }
 
 export interface StoredProviderSettingsEntry {
@@ -49,6 +66,7 @@ export interface StoredProviderSettings {
 export const StoredProviderModesSchema: z.ZodType<StoredProviderModes> =
 	z.object({
 		voiceInput: VoiceInputSettingsSchema.optional(),
+		mediaGeneration: MediaGenerationSettingsSchema.optional(),
 	});
 
 export const StoredProviderSettingsEntrySchema: z.ZodType<StoredProviderSettingsEntry> =

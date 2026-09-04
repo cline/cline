@@ -1,7 +1,7 @@
 import { expect } from "@playwright/test"
 import fs from "fs/promises"
 import path from "path"
-import { e2e, E2ETestHelper } from "./utils/helpers"
+import { E2ETestHelper, e2e } from "./utils/helpers"
 
 // This spec runs against its own fixture workspace: hooks execute on every
 // prompt once discovered (hooksEnabled defaults to true), so keeping the hook

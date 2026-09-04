@@ -1,4 +1,8 @@
 import type {
+	MediaGenerationModelCatalog,
+	MediaGenerationSettings,
+	MediaGenerationType,
+	MediaModelSelection,
 	ModelModality,
 	ModelOperation,
 	ModelOperationMode,
@@ -31,7 +35,15 @@ export interface ProviderModel {
 	outputModalities?: ModelModality[];
 }
 
-export type { ModelModality, ModelOperation, ModelOperationMode };
+export type {
+	MediaGenerationModelCatalog,
+	MediaGenerationSettings,
+	MediaGenerationType,
+	MediaModelSelection,
+	ModelModality,
+	ModelOperation,
+	ModelOperationMode,
+};
 
 export type ProviderConfigFieldType =
 	| "text"
@@ -97,6 +109,8 @@ export interface ProviderCatalogResponse {
 	providers: Provider[];
 	settingsPath: string;
 	voiceInput?: VoiceInputSelection;
+	mediaGeneration?: MediaGenerationSettings;
+	mediaGenerationModels: MediaGenerationModelCatalog;
 }
 
 export interface VoiceInputSelection {

@@ -3,6 +3,7 @@ import type {
 	AgentTool,
 	BasicLogger,
 	ITelemetryService,
+	MediaGenerationType,
 	ModelTool,
 	RuntimeConfigExtensionKind,
 	TeamTeammateSpec,
@@ -49,7 +50,7 @@ import { loadConfiguredAgentConfigs } from "../../extensions/tools/team/configur
 import { createConfiguredAgentTools } from "../../extensions/tools/team/configured-agent-tool";
 import {
 	filterDisabledTools,
-	isModelToolEnabledGlobally,
+	isOptInToolEnabledGlobally,
 	resolveDisabledToolNames,
 } from "../../services/global-settings";
 import { createLocalTeamStore } from "../../services/storage/team-store";
@@ -148,6 +149,7 @@ function createBuiltinToolsList(
 	executorOverrides?: Partial<ToolExecutors>,
 	telemetry?: ITelemetryService,
 	runCommandExecutionController?: RunCommandExecutionController,
+	configuredMediaGenerationTypes?: readonly MediaGenerationType[],
 ): AgentTool[] {
 	const preset = ToolPresets[resolveToolPresetName({ mode })];
 	const toolRoutingConfig = resolveToolRoutingConfig(
@@ -166,6 +168,8 @@ function createBuiltinToolsList(
 			},
 			...preset,
 			enableSkills: !!skillsExecutor,
+			enableGenerateMedia: !!executorOverrides?.generateMedia,
+			generateMediaTypes: configuredMediaGenerationTypes,
 			...toolRoutingConfig,
 			executors: {
 				...(skillsExecutor
@@ -418,7 +422,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 		const modelTools: ModelTool[] = [];
 		if (
 			normalized.enableTools &&
-			isModelToolEnabledGlobally("web_search") &&
+			isOptInToolEnabledGlobally("web_search") &&
 			supportsModelTool(
 				{ providerId: config.providerId, modelId: config.modelId },
 				"web_search",
@@ -426,8 +430,15 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 		) {
 			modelTools.push({ name: "web_search" });
 		}
+		// When the configurable media executor owns a modality, the provider's
+		// native model tool for that modality stays suppressed so agent-facing
+		// media generation flows only through generate_media.
+		const mediaExecutorOwnsImages =
+			!!toolExecutors?.generateMedia &&
+			(input.configuredMediaGenerationTypes?.includes("image") ?? true);
 		if (
 			normalized.enableTools &&
+			!mediaExecutorOwnsImages &&
 			supportsModelTool(
 				{ providerId: config.providerId, modelId: config.modelId },
 				"image_generation",
@@ -576,6 +587,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 					toolExecutors,
 					telemetry ?? config.telemetry,
 					input.runCommandExecutionController,
+					input.configuredMediaGenerationTypes,
 				),
 			);
 			const agentPluginMcpServers = pluginsEnabled
@@ -662,6 +674,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 												toolExecutors,
 												telemetry ?? config.telemetry,
 												input.runCommandExecutionController,
+												input.configuredMediaGenerationTypes,
 											),
 											agent,
 										)
@@ -768,6 +781,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 									toolExecutors,
 									telemetry ?? config.telemetry,
 									input.runCommandExecutionController,
+									input.configuredMediaGenerationTypes,
 								)
 						: undefined,
 					teammateConfigProvider: delegatedAgentConfigProvider,

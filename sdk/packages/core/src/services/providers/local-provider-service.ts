@@ -1,14 +1,23 @@
 import * as LlmsModels from "@cline/llms";
-import type {
-	AddProviderActionRequest,
-	ITelemetryService,
-	ProviderCapability,
-	ProviderConfigField,
-	ProviderConfigFieldPrimitive,
-	ProviderListItem,
-	ProviderModel,
-	SaveProviderSettingsActionRequest,
-	VoiceInputSelection,
+import {
+	type AddProviderActionRequest,
+	type AgentUsage,
+	type ITelemetryService,
+	MEDIA_GENERATION_TYPES,
+	type MediaContent,
+	type MediaGenerationModelCatalog,
+	type MediaGenerationSettings,
+	type MediaGenerationType,
+	type MediaModelSelection,
+	type ProviderCapability,
+	type ProviderCatalogResponse,
+	type ProviderConfigField,
+	type ProviderConfigFieldPrimitive,
+	type ProviderListItem,
+	type ProviderModel,
+	type SaveProviderSettingsActionRequest,
+	type TextContent,
+	type VoiceInputSelection,
 } from "@cline/shared";
 import { createOAuthClientCallbacks } from "../../auth/client";
 import {
@@ -93,6 +102,24 @@ export interface CreateConfiguredStreamingTranscriptionSessionRequest {
 	abortSignal?: AbortSignal;
 }
 
+export interface GenerateConfiguredMediaRequest {
+	mediaType: MediaGenerationType;
+	prompt: string;
+	abortSignal?: AbortSignal;
+}
+
+export interface GenerateConfiguredMediaResult {
+	content: Array<TextContent | MediaContent>;
+	usage?: AgentUsage;
+}
+
+export interface ResolvedMediaGenerationTarget {
+	mediaType: MediaGenerationType;
+	selection: MediaModelSelection;
+	providerConfig: ProviderConfig;
+	model: ModelInfo;
+}
+
 // --- Small pure helpers ---
 
 function resolveVisibleApiKey(settings: {
@@ -145,6 +172,77 @@ export function isDedicatedTranscriptionModel(
 	return model.operation === "transcription";
 }
 
+interface MediaGenerationModalityRule {
+	/** Non-language operation that executes this media type directly. */
+	dedicatedOperation:
+		| "image-generation"
+		| "speech-generation"
+		| "video-generation";
+	/** Output modality a mixed language model must advertise. */
+	outputModality: "image" | "audio" | "video";
+}
+
+const MEDIA_GENERATION_LABELS: Record<MediaGenerationType, string> = {
+	image: "Image",
+	audio: "Audio",
+	video: "Video",
+};
+
+const MEDIA_GENERATION_MODALITY_RULES: Record<
+	MediaGenerationType,
+	MediaGenerationModalityRule
+> = {
+	image: { dedicatedOperation: "image-generation", outputModality: "image" },
+	audio: { dedicatedOperation: "speech-generation", outputModality: "audio" },
+	video: { dedicatedOperation: "video-generation", outputModality: "video" },
+};
+
+/**
+ * Whether a catalog model can generate the requested media type and has an
+ * executable provider operation. Explicit dedicated-generation models remain
+ * eligible when external modality metadata is stale; mixed language models
+ * must advertise text input and the matching output modality. The transport
+ * check deliberately fails closed for providers without a matching
+ * media-capable operation.
+ */
+export function isUsableMediaGenerationModel(
+	mediaType: MediaGenerationType,
+	providerId: string,
+	model: ModelInfo,
+): boolean {
+	const rule = MEDIA_GENERATION_MODALITY_RULES[mediaType];
+	const operation = model.operation ?? "language";
+	if (operation !== "language" && operation !== rule.dedicatedOperation) {
+		return false;
+	}
+	if (
+		operation !== rule.dedicatedOperation &&
+		!(
+			model.modalities?.input.includes("text") === true &&
+			model.modalities.output.includes(rule.outputModality)
+		)
+	) {
+		return false;
+	}
+	const family = model.metadata?.family;
+	return LlmsModels.builtinProviderSupportsModelOperation({
+		providerId,
+		modelId: model.id,
+		operation: model.operation,
+		operationModes: model.operationModes,
+		modalities: model.modalities,
+		family: typeof family === "string" ? family : undefined,
+		capabilities: model.capabilities,
+	});
+}
+
+export function isUsableImageGenerationModel(
+	providerId: string,
+	model: ModelInfo,
+): boolean {
+	return isUsableMediaGenerationModel("image", providerId, model);
+}
+
 function toSortedProviderModels(
 	modelMap: Record<string, ModelInfo>,
 ): ProviderModel[] {
@@ -192,6 +290,66 @@ async function resolveProviderModelMap(
 				...registeredModelOverrides,
 			}
 		: registeredModels;
+}
+
+async function resolveMediaGenerationSelection(
+	manager: ProviderSettingsManager,
+	mediaType: MediaGenerationType,
+	selection: MediaModelSelection | undefined,
+): Promise<ResolvedMediaGenerationTarget | undefined> {
+	if (!selection) return undefined;
+
+	const providerId = selection.providerId.trim();
+	const modelId = selection.modelId.trim();
+	if (!providerId || !modelId) return undefined;
+
+	try {
+		const state = manager.read();
+		if (!state.providers[providerId]) return undefined;
+		const config = manager.getProviderConfig(providerId, {
+			includeKnownModels: false,
+		});
+		if (!config) return undefined;
+
+		const modelMap = await resolveProviderModelMap(providerId, config);
+		const model = modelMap[modelId];
+		if (!model || !isUsableMediaGenerationModel(mediaType, providerId, model)) {
+			return undefined;
+		}
+
+		return {
+			mediaType,
+			selection: { providerId, modelId },
+			providerConfig: {
+				...config,
+				modelId,
+				modelInfo: model,
+				knownModels: {
+					...(config.knownModels ?? {}),
+					[modelId]: model,
+				},
+			},
+			model,
+		};
+	} catch {
+		return undefined;
+	}
+}
+
+/** Resolve a currently executable configured media target without mutating settings. */
+export async function resolveConfiguredMediaGenerationTarget(
+	manager: ProviderSettingsManager,
+	mediaType: MediaGenerationType,
+): Promise<ResolvedMediaGenerationTarget | undefined> {
+	try {
+		return await resolveMediaGenerationSelection(
+			manager,
+			mediaType,
+			manager.getMediaGenerationSettings()?.[mediaType],
+		);
+	} catch {
+		return undefined;
+	}
 }
 
 function uniqueTrimmed(values?: string[]): string[] {
@@ -386,12 +544,32 @@ function removeProviderFromSettingsState(
 		delete state.lastUsedProvider;
 		mutated = true;
 	}
+	mutated = clearProviderModeSelections(state, providerId) || mutated;
+	if (mutated) manager.write(state);
+	LlmsModels.unregisterProvider(providerId);
+}
+
+function clearProviderModeSelections(
+	state: ReturnType<ProviderSettingsManager["read"]>,
+	providerId: string,
+): boolean {
+	let mutated = false;
 	if (state.modes.voiceInput?.providerId === providerId) {
 		delete state.modes.voiceInput;
 		mutated = true;
 	}
-	if (mutated) manager.write(state);
-	LlmsModels.unregisterProvider(providerId);
+	const mediaGeneration = state.modes.mediaGeneration;
+	for (const mediaType of MEDIA_GENERATION_TYPES) {
+		if (mediaGeneration?.[mediaType]?.providerId !== providerId) {
+			continue;
+		}
+		delete mediaGeneration[mediaType];
+		if (Object.keys(mediaGeneration).length === 0) {
+			delete state.modes.mediaGeneration;
+		}
+		mutated = true;
+	}
+	return mutated;
 }
 
 // --- Public API ---
@@ -732,11 +910,7 @@ export function markLocalProviderEnabled(
 export async function listLocalProviders(
 	manager: ProviderSettingsManager,
 	options: ListLocalProvidersOptions = {},
-): Promise<{
-	providers: ProviderListItem[];
-	settingsPath: string;
-	voiceInput?: VoiceInputSelection;
-}> {
+): Promise<ProviderCatalogResponse> {
 	const state = manager.read();
 	const ids = LlmsModels.getProviderIds();
 
@@ -749,7 +923,13 @@ export async function listLocalProviders(
 
 	const providerEntries = await Promise.all(
 		ids.map(
-			async (id): Promise<{ provider: ProviderListItem; rank: number }> => {
+			async (
+				id,
+			): Promise<{
+				provider: ProviderListItem;
+				rank: number;
+				modelMap: Record<string, ModelInfo>;
+			}> => {
 				const [info, registeredModels] = await Promise.all([
 					LlmsModels.getProvider(id),
 					LlmsModels.getModelsForProvider(id),
@@ -813,6 +993,7 @@ export async function listLocalProviders(
 						modelList,
 					},
 					rank: getPopularRank(info?.metadata),
+					modelMap: registeredModels,
 				};
 			},
 		),
@@ -830,6 +1011,23 @@ export async function listLocalProviders(
 			(provider) => provider.id !== CLINE_PASS_PROVIDER_ID,
 		);
 	}
+	const mediaGenerationModels = Object.fromEntries(
+		MEDIA_GENERATION_TYPES.map((mediaType) => {
+			const modelsByProvider: Record<string, string[]> = {};
+			for (const provider of providers) {
+				const modelMap = providerEntries.find(
+					(entry) => entry.provider.id === provider.id,
+				)?.modelMap;
+				modelsByProvider[provider.id] = Object.entries(modelMap ?? {})
+					.filter(([, model]) =>
+						isUsableMediaGenerationModel(mediaType, provider.id, model),
+					)
+					.map(([modelId]) => modelId)
+					.sort((a, b) => a.localeCompare(b));
+			}
+			return [mediaType, modelsByProvider];
+		}),
+	) as MediaGenerationModelCatalog;
 
 	const configuredVoiceInput = manager.getVoiceInputSettings();
 	const voiceProvider = configuredVoiceInput
@@ -845,8 +1043,37 @@ export async function listLocalProviders(
 	);
 	const voiceInput =
 		configuredVoiceInput && voiceModel ? configuredVoiceInput : undefined;
+	const mediaGenerationEntries = (
+		await Promise.all(
+			MEDIA_GENERATION_TYPES.map(async (mediaType) => {
+				const target = await resolveConfiguredMediaGenerationTarget(
+					manager,
+					mediaType,
+				);
+				const targetProvider = target
+					? providers.find(
+							(provider) =>
+								provider.id === target.selection.providerId && provider.enabled,
+						)
+					: undefined;
+				return target && targetProvider
+					? ([mediaType, target.selection] as const)
+					: undefined;
+			}),
+		)
+	).filter((entry) => entry !== undefined);
+	const mediaGeneration =
+		mediaGenerationEntries.length > 0
+			? (Object.fromEntries(mediaGenerationEntries) as MediaGenerationSettings)
+			: undefined;
 
-	return { providers, settingsPath: manager.getFilePath(), voiceInput };
+	return {
+		providers,
+		settingsPath: manager.getFilePath(),
+		voiceInput,
+		mediaGeneration,
+		mediaGenerationModels,
+	};
 }
 
 export async function getLocalProviderModels(
@@ -943,6 +1170,102 @@ export async function saveVoiceInputSettings(
 	return { settingsPath: manager.getFilePath(), voiceInput };
 }
 
+export async function saveMediaGenerationSettings(
+	manager: ProviderSettingsManager,
+	mediaType: MediaGenerationType,
+	selection: MediaModelSelection | undefined,
+): Promise<{
+	settingsPath: string;
+	mediaGeneration?: MediaGenerationSettings;
+}> {
+	const current = { ...manager.getMediaGenerationSettings() };
+	if (!selection) {
+		delete current[mediaType];
+		const mediaGeneration =
+			Object.keys(current).length > 0 ? current : undefined;
+		manager.setMediaGenerationSettings(mediaGeneration);
+		return { settingsPath: manager.getFilePath(), mediaGeneration };
+	}
+
+	const providerId = selection.providerId.trim();
+	const modelId = selection.modelId.trim();
+	if (!providerId || !modelId) {
+		throw new Error(
+			`${MEDIA_GENERATION_LABELS[mediaType]} generation provider and model are required`,
+		);
+	}
+	const target = await resolveMediaGenerationSelection(manager, mediaType, {
+		providerId,
+		modelId,
+	});
+	if (!target) {
+		throw new Error(
+			`Model "${modelId}" is not an executable ${mediaType}-generation model for provider "${providerId}"`,
+		);
+	}
+
+	const mediaGeneration = { ...current, [mediaType]: target.selection };
+	manager.setMediaGenerationSettings(mediaGeneration);
+	return { settingsPath: manager.getFilePath(), mediaGeneration };
+}
+
+/**
+ * Generate media with the provider and model selected in server-side settings.
+ *
+ * The selection is revalidated immediately before each request so a removed,
+ * disabled, or newly incompatible model cannot be invoked from stale session
+ * state. Provider credentials never enter the tool input or result.
+ */
+export async function generateConfiguredMedia(
+	manager: ProviderSettingsManager,
+	request: GenerateConfiguredMediaRequest,
+): Promise<GenerateConfiguredMediaResult> {
+	const target = await resolveConfiguredMediaGenerationTarget(
+		manager,
+		request.mediaType,
+	);
+	if (!target) {
+		const configuredTypes = (
+			await Promise.all(
+				MEDIA_GENERATION_TYPES.map(async (mediaType) =>
+					mediaType !== request.mediaType &&
+					(await resolveConfiguredMediaGenerationTarget(manager, mediaType))
+						? mediaType
+						: undefined,
+				),
+			)
+		).filter((mediaType) => mediaType !== undefined);
+		throw new Error(
+			`No usable ${request.mediaType} generation model is configured` +
+				(configuredTypes.length > 0
+					? `; configured media types: ${configuredTypes.join(", ")}`
+					: "") +
+				". The user can choose one in Settings.",
+		);
+	}
+
+	const result = await LlmsModels.generateMedia({
+		providerConfig: target.providerConfig,
+		modelId: target.selection.modelId,
+		prompt: request.prompt,
+		mediaType: request.mediaType,
+		abortSignal: request.abortSignal,
+	});
+
+	const unit = request.mediaType === "audio" ? "audio clip" : request.mediaType;
+	const mediaLabel = result.media.length === 1 ? unit : `${unit}s`;
+	return {
+		content: [
+			{
+				type: "text",
+				text: `Generated ${result.media.length} ${mediaLabel} with ${target.selection.providerId}/${target.selection.modelId}.`,
+			},
+			...result.media.map((media): MediaContent => ({ type: "media", media })),
+		],
+		...(result.usage ? { usage: result.usage } : {}),
+	};
+}
+
 export async function transcribeConfiguredVoiceInput(
 	manager: ProviderSettingsManager,
 	request: TranscribeConfiguredVoiceInputRequest,
@@ -1037,9 +1360,7 @@ export function saveLocalProviderSettings(
 		const state = manager.read();
 		delete state.providers[providerId];
 		if (state.lastUsedProvider === providerId) delete state.lastUsedProvider;
-		if (state.modes.voiceInput?.providerId === providerId) {
-			delete state.modes.voiceInput;
-		}
+		clearProviderModeSelections(state, providerId);
 		manager.write(state);
 		return { providerId, enabled: false, settingsPath: manager.getFilePath() };
 	}

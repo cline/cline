@@ -8,11 +8,13 @@ import type {
 	AgentToolContext,
 	ImageContent,
 	ITelemetryService,
+	MediaContent,
 	TextContent,
 } from "@cline/shared";
 import type {
 	ApplyPatchInput,
 	EditFileInput,
+	GenerateMediaInput,
 	ReadFileRequest,
 	StructuredCommandInput,
 } from "./schemas";
@@ -38,6 +40,12 @@ export interface ToolOperationResult {
 }
 
 export type FileReadResultContent = string | Array<TextContent | ImageContent>;
+
+/** Structured content returned after successful media generation. */
+export type GenerateMediaContent = Array<TextContent | MediaContent>;
+
+/** Successful media-generation output. Failures use the runtime error channel. */
+export type GenerateMediaResult = GenerateMediaContent;
 
 // =============================================================================
 // Executor Interfaces
@@ -126,6 +134,18 @@ export type ApplyPatchExecutor = (
 ) => Promise<string>;
 
 /**
+ * Executor for generating media with a separately configured media model.
+ *
+ * @param input - Requested media type and generation prompt
+ * @param context - Tool execution context
+ * @returns Generated media content; failures should throw for the runtime error channel
+ */
+export type GenerateMediaExecutor = (
+	input: GenerateMediaInput,
+	context: AgentToolContext,
+) => Promise<GenerateMediaResult>;
+
+/**
  * Executor for invoking configured skills
  *
  * @param skill - Skill name to invoke
@@ -209,6 +229,8 @@ export interface ToolExecutors {
 	editor?: EditorExecutor;
 	/** Apply patch implementation */
 	applyPatch?: ApplyPatchExecutor;
+	/** Media generation implementation */
+	generateMedia?: GenerateMediaExecutor;
 	/** Skill invocation implementation */
 	skills?: SkillsExecutorWithMetadata;
 	/** Follow-up question implementation */
@@ -231,6 +253,7 @@ export type DefaultToolName =
 	| "fetch_web_content"
 	| "apply_patch"
 	| "editor"
+	| "generate_media"
 	| "skills"
 	| "ask_question"
 	| "submit_and_exit";
@@ -282,6 +305,19 @@ export interface DefaultToolsConfig {
 	 * @default true
 	 */
 	enableEditor?: boolean;
+
+	/**
+	 * Enable the generate_media tool
+	 * @default false
+	 */
+	enableGenerateMedia?: boolean;
+
+	/**
+	 * Media types with a configured generation target, surfaced in the
+	 * generate_media tool description so the model knows which types it can
+	 * request before calling the tool.
+	 */
+	generateMediaTypes?: readonly ("image" | "audio" | "video")[];
 
 	/**
 	 * Enable the skills tool

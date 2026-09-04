@@ -6,6 +6,7 @@ import type {
 	AgentTool,
 	BasicLogger,
 	ITelemetryService,
+	MediaGenerationType,
 	ModelTool,
 	RuntimeConfigExtensionKind,
 	ToolApprovalRequest,
@@ -79,6 +80,12 @@ export interface RuntimeBuilderInput {
 	agentPluginMcpServers?: ReadonlyArray<AgentPluginPackageMcpServer>;
 	configExtensions?: RuntimeConfigExtensionKind[];
 	toolExecutors?: Partial<ToolExecutors>;
+	/**
+	 * Media types with a resolvable generation target. Drives the
+	 * generate_media tool description and per-modality suppression of
+	 * provider-native media model tools.
+	 */
+	configuredMediaGenerationTypes?: readonly MediaGenerationType[];
 	runCommandExecutionController?: RunCommandExecutionController;
 	toolPolicies?: CoreSessionConfig["toolPolicies"];
 	workspaceManager?: WorkspaceManager;
