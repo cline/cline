@@ -5,6 +5,31 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { MarkdownLinkSafetyModal, MemoizedMarkdown } from "./markdown";
 
+const mermaidMocks = vi.hoisted(() => ({
+	initialize: vi.fn(),
+	moduleLoads: 0,
+	render: vi.fn(),
+}));
+
+type MermaidRenderResult = { svg: string };
+
+function deferredRender() {
+	let resolve: (value: MermaidRenderResult) => void = () => {};
+	let reject: (reason: unknown) => void = () => {};
+	const promise = new Promise<MermaidRenderResult>(
+		(resolvePromise, rejectPromise) => {
+			resolve = resolvePromise;
+			reject = rejectPromise;
+		},
+	);
+	return { promise, reject, resolve };
+}
+
+vi.mock("mermaid", () => {
+	mermaidMocks.moduleLoads += 1;
+	return { default: mermaidMocks };
+});
+
 const originalClipboard = Object.getOwnPropertyDescriptor(
 	navigator,
 	"clipboard",
@@ -27,12 +52,62 @@ beforeEach(() => {
 	});
 	openWindow = vi.fn<typeof window.open>(() => null);
 	vi.spyOn(window, "open").mockImplementation(openWindow);
+	mermaidMocks.initialize.mockClear();
+	mermaidMocks.render.mockReset();
+	mermaidMocks.render.mockImplementation(() => new Promise(() => {}));
+	vi.stubGlobal("requestIdleCallback", (callback: IdleRequestCallback) => {
+		callback({ didTimeout: false, timeRemaining: () => 50 });
+		return 1;
+	});
+	vi.stubGlobal("cancelIdleCallback", () => {});
+	const nativeSetTimeout = window.setTimeout.bind(window);
+	vi.spyOn(window, "setTimeout").mockImplementation(((
+		handler: TimerHandler,
+		timeout?: number,
+		...args: unknown[]
+	) => {
+		if (timeout === 300) {
+			if (typeof handler === "function") handler(...args);
+			return 1;
+		}
+		return nativeSetTimeout(handler, timeout, ...args);
+	}) as typeof window.setTimeout);
+	class ImmediateIntersectionObserver {
+		readonly root = null;
+		readonly rootMargin = "0px";
+		readonly thresholds = [0];
+
+		constructor(private readonly callback: IntersectionObserverCallback) {}
+
+		disconnect() {}
+
+		observe(target: Element) {
+			this.callback(
+				[
+					{
+						intersectionRatio: 1,
+						isIntersecting: true,
+						target,
+					} as IntersectionObserverEntry,
+				],
+				this as unknown as IntersectionObserver,
+			);
+		}
+
+		takeRecords() {
+			return [];
+		}
+
+		unobserve() {}
+	}
+	vi.stubGlobal("IntersectionObserver", ImmediateIntersectionObserver);
 });
 
 afterEach(async () => {
 	await act(async () => root.unmount());
 	container.remove();
 	vi.restoreAllMocks();
+	vi.unstubAllGlobals();
 	if (originalClipboard) {
 		Object.defineProperty(navigator, "clipboard", originalClipboard);
 	} else {
@@ -44,6 +119,15 @@ async function renderMarkdown(
 	props: Parameters<typeof MemoizedMarkdown>[0],
 ): Promise<void> {
 	await act(async () => root.render(<MemoizedMarkdown {...props} />));
+}
+
+async function waitFor(assertion: () => void): Promise<void> {
+	await vi.waitFor(async () => {
+		await act(async () => {
+			await new Promise((resolve) => setTimeout(resolve, 0));
+		});
+		assertion();
+	});
 }
 
 async function click(element: Element): Promise<void> {
@@ -77,6 +161,194 @@ function getButton(label: string): HTMLButtonElement {
 }
 
 describe("MemoizedMarkdown interactions", () => {
+	test("does not load Mermaid for ordinary Markdown", async () => {
+		const moduleLoads = mermaidMocks.moduleLoads;
+		const renderCalls = mermaidMocks.render.mock.calls.length;
+		await renderMarkdown({ content: "Ordinary **Markdown**." });
+
+		await waitFor(() => {
+			expect(container.textContent).toContain("Ordinary Markdown.");
+		});
+		expect(mermaidMocks.render).toHaveBeenCalledTimes(renderCalls);
+		expect(mermaidMocks.moduleLoads).toBe(moduleLoads);
+	});
+
+	test("renders Mermaid fences with interactive controls", async () => {
+		const source = "flowchart LR\nA[Text] --> B[SVG]";
+		const render = deferredRender();
+		mermaidMocks.render.mockReturnValueOnce(render.promise);
+		await renderMarkdown({ content: `\`\`\`mermaid\n${source}\n\`\`\`` });
+		await waitFor(() => {
+			expect(mermaidMocks.render).toHaveBeenCalledWith(
+				expect.any(String),
+				`${source}\n`,
+			);
+		});
+		await act(async () => {
+			render.resolve({
+				svg: `<svg data-testid="rendered-mermaid"><text>${source}</text></svg>`,
+			});
+			await render.promise;
+		});
+
+		await waitFor(() => {
+			expect(
+				container.querySelector('[data-testid="rendered-mermaid"]'),
+			).not.toBeNull();
+		});
+		const diagram = container.querySelector<SVGElement>(
+			'[data-testid="rendered-mermaid"]',
+		);
+		expect(diagram?.textContent).toContain(source);
+		expect(
+			container.querySelector('[data-streamdown="mermaid-block-actions"]'),
+		).not.toBeNull();
+		expect(container.querySelector('button[title="Copy Code"]')).not.toBeNull();
+		expect(
+			container.querySelector('button[title="Download diagram"]'),
+		).not.toBeNull();
+		expect(
+			container.querySelector('button[title="View fullscreen"]'),
+		).not.toBeNull();
+
+		await click(
+			container.querySelector('button[title="Copy Code"]') as HTMLButtonElement,
+		);
+		await waitFor(() => {
+			expect(writeText).toHaveBeenCalledWith(expect.stringContaining(source));
+		});
+
+		await click(
+			container.querySelector(
+				'button[title="View fullscreen"]',
+			) as HTMLButtonElement,
+		);
+		await waitFor(() => {
+			expect(
+				document.querySelector('button[title="Exit fullscreen"]'),
+			).not.toBeNull();
+		});
+		await click(
+			document.querySelector(
+				'button[title="Exit fullscreen"]',
+			) as HTMLButtonElement,
+		);
+	});
+
+	test("contains Mermaid parse failures without crashing the message", async () => {
+		const render = deferredRender();
+		mermaidMocks.render.mockReturnValueOnce(render.promise);
+
+		await renderMarkdown({
+			content: "Before\n\n```mermaid\nthis is not valid\n```\n\nAfter",
+		});
+		await waitFor(() => {
+			expect(mermaidMocks.render).toHaveBeenCalled();
+		});
+		await act(async () => {
+			render.reject(new Error("Parse error"));
+			await render.promise.catch(() => {});
+		});
+
+		await waitFor(() => {
+			expect(container.textContent).toContain("Mermaid Error: Parse error");
+			expect(container.textContent).toContain("Before");
+			expect(container.textContent).toContain("After");
+		});
+	});
+
+	test("settles an incomplete streaming fence into a rendered diagram", async () => {
+		await renderMarkdown({
+			content: "```mermaid\nflowchart LR\nA --",
+			streaming: true,
+		});
+		expect(
+			container.querySelector('[data-streamdown="code-block"]'),
+		).toBeNull();
+		expect(
+			container.querySelector('[data-testid="streamed-mermaid"]'),
+		).toBeNull();
+
+		const render = deferredRender();
+		mermaidMocks.render.mockReturnValueOnce(render.promise);
+		await renderMarkdown({
+			content: "```mermaid\nflowchart LR\nA --> B\n```",
+			streaming: false,
+		});
+		await waitFor(() => {
+			expect(mermaidMocks.render).toHaveBeenCalledWith(
+				expect.any(String),
+				"flowchart LR\nA --> B\n",
+			);
+		});
+		await act(async () => {
+			render.resolve({
+				svg: '<svg data-testid="streamed-mermaid"><text>complete</text></svg>',
+			});
+			await render.promise;
+		});
+
+		await waitFor(() => {
+			expect(
+				container.querySelector('[data-testid="streamed-mermaid"]'),
+			).not.toBeNull();
+			expect(
+				container.querySelector('[data-streamdown="code-block"]'),
+			).toBeNull();
+		});
+	});
+
+	test("keeps the latest diagram when streamed renders finish out of order", async () => {
+		const firstRender = deferredRender();
+		const finalRender = deferredRender();
+		mermaidMocks.render
+			.mockReturnValueOnce(firstRender.promise)
+			.mockReturnValueOnce(finalRender.promise);
+
+		await renderMarkdown({
+			content: "```mermaid\nflowchart LR\nA --> B\n```",
+			streaming: true,
+		});
+		await waitFor(() => {
+			expect(mermaidMocks.render).toHaveBeenCalledTimes(1);
+		});
+
+		await renderMarkdown({
+			content: "```mermaid\nflowchart LR\nA --> B --> C\n```",
+			streaming: false,
+		});
+		await waitFor(() => {
+			expect(mermaidMocks.render).toHaveBeenCalledTimes(2);
+		});
+
+		await act(async () => {
+			finalRender.resolve({
+				svg: '<svg data-testid="final-mermaid"><text>final</text></svg>',
+			});
+			await finalRender.promise;
+		});
+		await waitFor(() => {
+			expect(
+				container.querySelector('[data-testid="final-mermaid"]'),
+			).not.toBeNull();
+		});
+
+		await act(async () => {
+			firstRender.resolve({
+				svg: '<svg data-testid="stale-mermaid"><text>stale</text></svg>',
+			});
+			await firstRender.promise;
+		});
+		await waitFor(() => {
+			expect(
+				container.querySelector('[data-testid="final-mermaid"]'),
+			).not.toBeNull();
+			expect(
+				container.querySelector('[data-testid="stale-mermaid"]'),
+			).toBeNull();
+		});
+	});
+
 	test("confirms and closes an external link dialog exactly once", async () => {
 		const onClose = vi.fn();
 		const onConfirm = vi.fn();

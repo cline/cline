@@ -214,14 +214,18 @@ transcript states.
 
 For assistant Markdown, `@cline/ui/components/markdown` exports the shared
 Streamdown configuration — `markdownCodeHighlighter` (lazy Shiki with GitHub
-light/dark themes) and `agentMarkdownControls` — and
+light/dark themes), `agentMarkdownControls`, and the opt-in
+`createLazyMermaidPlugin` / `agentMarkdownControlsWithMermaid` pair — and
 `@cline/ui/components/markdown.css` carries the matching chat styling (quiet
 single-box code blocks with a hover copy control, chat-scale headings, table
-cards). Import the CSS unlayered so it wins over Streamdown's Tailwind
-utilities, and keep `streamdown`, `shiki`, `@shikijs/langs`, and
-`@shikijs/themes` installed (optional peer dependencies). Products keep their
-own `<Streamdown>` wrapper for link and image policy. Give each conversation a bounded height through an explicit height or
-a complete flex/min-height chain so its viewport can scroll.
+cards). The Mermaid plugin dynamically imports the renderer only after a
+`mermaid` fence is encountered and enforces strict security for model-authored
+source. Import the CSS unlayered so it wins over Streamdown's Tailwind
+utilities, and keep `streamdown`, `shiki`, `@shikijs/langs`, `@shikijs/themes`,
+and (when enabling diagrams) `mermaid` installed as optional peer dependencies.
+Products keep their own `<Streamdown>` wrapper for link and image policy. Give
+each conversation a bounded height through an explicit height or a complete
+flex/min-height chain so its viewport can scroll.
 
 These are presentation primitives, not an agent SDK. Consumers map their own
 message and tool schemas into the components and retain their own Markdown,
