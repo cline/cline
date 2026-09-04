@@ -20560,12 +20560,12 @@ export const GENERATED_PROVIDER_MODELS: {
     }
   },
   "cerebras": {
-    "gemma-4-31b": {
-      "id": "gemma-4-31b",
-      "name": "Gemma 4 31B IT",
-      "contextWindow": 131072,
-      "maxInputTokens": 131072,
-      "maxTokens": 40960,
+    "qwen-3.8-27b": {
+      "id": "qwen-3.8-27b",
+      "name": "Qwen3.8 27B",
+      "contextWindow": 65536,
+      "maxInputTokens": 65536,
+      "maxTokens": 32768,
       "capabilities": [
         "images",
         "tools",
@@ -20590,8 +20590,8 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheRead": 0,
         "cacheWrite": 0
       },
-      "releaseDate": "2026-04-02",
-      "family": "gemma"
+      "releaseDate": "2026-08-14",
+      "family": "qwen"
     },
     "gpt-oss-120b": {
       "id": "gpt-oss-120b",
