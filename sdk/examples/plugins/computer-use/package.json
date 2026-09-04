@@ -1,0 +1,45 @@
+{
+	"name": "cline-computer-use-plugin",
+	"version": "0.1.0",
+	"private": true,
+	"description": "Browser and platform-adaptive desktop computer-use tools for Cline",
+	"type": "module",
+	"engines": {
+		"node": ">=22"
+	},
+	"scripts": {
+		"test": "bun test",
+		"typecheck": "tsc --noEmit"
+	},
+	"exports": {
+		".": "./index.ts"
+	},
+	"cline": {
+		"plugins": [
+			{
+				"paths": [
+					"./index.ts"
+				],
+				"capabilities": [
+					"mcp",
+					"rules",
+					"hooks"
+				]
+			}
+		]
+	},
+	"peerDependencies": {
+		"@cline/core": "*"
+	},
+	"peerDependenciesMeta": {
+		"@cline/core": {
+			"optional": true
+		}
+	},
+	"dependencies": {
+		"@jitsi/robotjs": "0.6.24",
+		"@modelcontextprotocol/sdk": "1.29.0",
+		"node-screenshots": "0.2.8",
+		"sharp": "0.34.5"
+	}
+}
