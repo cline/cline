@@ -310,7 +310,7 @@ export interface DefaultToolsConfig {
 	 * Shell executable (name or full path) the run_commands executor will use.
 	 * The tool description tells the model which shell syntax to write, so this
 	 * must match the shell configured on the executor.
-	 * @default getDefaultShell(process.platform) — "/bin/bash" on Unix, "powershell" on Windows
+	 * @default getDefaultShell(process.platform) — "bash" on Unix, "powershell" on Windows
 	 */
 	shell?: string;
 
