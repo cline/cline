@@ -41,6 +41,7 @@ describe("SDK remote-config coordination", () => {
 		const controller = {
 			stateManager: {
 				getGlobalSettingsKey: () => undefined,
+				getGlobalStateKey: () => undefined,
 				getRemoteConfigSettings: () => ({}),
 				setGlobalState: vi.fn(),
 			},
@@ -52,6 +53,7 @@ describe("SDK remote-config coordination", () => {
 			ensureWorkspaceManager: async () => undefined,
 			taskHistory: { listHistory: async () => [] },
 			sessions: { getActiveSession: () => undefined },
+			cloud: { getCurrentTaskInfo: () => undefined },
 			turnStateTracker: { get: () => undefined },
 			messageTranslatorState: { getMinter: () => ({ epoch: 1, nextSeq: () => 1 }) },
 		}

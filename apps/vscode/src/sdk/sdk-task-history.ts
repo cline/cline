@@ -43,6 +43,19 @@ export interface SdkTaskHistoryOptions {
 	 */
 	getMinter?: () => MessageIdMinter
 	telemetry?: TelemetryService
+	/**
+	 * Cline Cloud sessions live in the cloud control plane, not the local SDK
+	 * store. When provided, they are merged into history listings and lookups
+	 * (identified by their `ses-…` ids) so History is the one place for every task.
+	 */
+	cloud?: CloudHistorySource
+}
+
+export interface CloudHistorySource {
+	isCloudSessionId: (id: string) => boolean
+	list: () => Promise<SessionHistoryRecord[]>
+	find: (id: string) => Promise<SessionHistoryRecord | undefined>
+	delete: (id: string) => Promise<void>
 }
 
 type SdkTaskHistoryListOptions = ClineCoreListHistoryOptions & {
@@ -149,6 +162,15 @@ function parseUserMessageMode(content: SdkMessage["content"]): "plan" | "act" | 
 	return undefined
 }
 
+/** Renders a persisted SDK transcript as chat rows, the same way History does for local tasks. */
+export function sdkMessagesToDisplayClineMessages(
+	messages: SdkMessage[],
+	minter: MessageIdMinter | undefined,
+	options: { finalTurnCompleted: boolean; cwd?: string },
+): ClineMessage[] {
+	return sdkMessagesToClineMessages(sanitizeSdkUserMessagesForDisplay(messages), minter, options)
+}
+
 function sanitizeSdkUserMessagesForDisplay(messages: SdkMessage[]): SdkDisplayMessage[] {
 	return messages.map((message): SdkDisplayMessage => {
 		if (message.role !== "user") {
@@ -193,6 +215,14 @@ export function sessionHistoryRecordToHistoryItem(item: SessionHistoryRecord): H
 		cwdOnTaskInitialization: item.cwd ?? item.workspaceRoot,
 		isLegacy:
 			metadataBoolean(metadata, "legacyTask") === true || metadataBoolean(metadata, "migratedFromLegacyTask") === true,
+		...(metadataString(metadata, "executionTarget") === "cloud"
+			? {
+					executionTarget: "cloud" as const,
+					cloudStatus: metadataString(metadata, "cloudStatus") as HistoryItem["cloudStatus"],
+					cloudRepoUrl: metadataString(metadata, "repoUrl"),
+					cloudBranch: metadataString(metadata, "branch"),
+				}
+			: {}),
 	}
 }
 
@@ -243,9 +273,14 @@ export class SdkTaskHistory {
 		return this.readAllLegacyTaskHistory().find(({ item }) => item.id === taskId)
 	}
 
+	private isCloudTask(taskId: string): boolean {
+		return this.options.cloud?.isCloudSessionId(taskId) ?? false
+	}
+
 	private getActiveHistoryHost(): VscodeSessionHost | undefined {
 		const sdkHost = this.options.sessions.getActiveSession()?.sdkHost
-		if (sdkHost && "listHistory" in sdkHost) {
+		// A cloud host only knows its own sandbox; local history always needs the local store.
+		if (sdkHost && "listHistory" in sdkHost && !("isCloud" in sdkHost)) {
 			return sdkHost as VscodeSessionHost
 		}
 		return undefined
@@ -330,6 +365,11 @@ export class SdkTaskHistory {
 
 	private invalidateMetadataHistoryCache(): void {
 		this.metadataHistoryCache = undefined
+	}
+
+	/** Forces the next listing to re-enumerate (e.g. a cloud session changed status). */
+	invalidateCache(): void {
+		this.invalidateMetadataHistoryCache()
 	}
 
 	/**
@@ -421,7 +461,16 @@ export class SdkTaskHistory {
 				metadataBoolean(item.metadata, "legacyTask") === true,
 		).length
 
-		const mergedHistory = [...visibleSdkHistory, ...legacyHistory].sort(compareSessionHistoryRecordsByRecencyDesc)
+		const cloudHistory = this.options.cloud
+			? await this.options.cloud.list().catch((error) => {
+					Logger.warn("[SdkTaskHistory] Failed to list cloud sessions:", error)
+					return [] as SessionHistoryRecord[]
+				})
+			: []
+
+		const mergedHistory = [...visibleSdkHistory, ...legacyHistory, ...cloudHistory].sort(
+			compareSessionHistoryRecordsByRecencyDesc,
+		)
 		if (useCache) {
 			this.metadataHistoryCache = {
 				records: mergedHistory,
@@ -450,6 +499,10 @@ export class SdkTaskHistory {
 	}
 
 	async getClineMessages(taskId: string): Promise<ClineMessage[]> {
+		if (this.isCloudTask(taskId)) {
+			// Cloud transcripts are read through the sandbox connection (see SdkCloudSessionCoordinator).
+			return []
+		}
 		const sdkRecord = await this.getSdkRecord(taskId)
 		const legacyTask = this.findLegacyTask(taskId)
 		if (!sdkRecord && legacyTask) {
@@ -517,11 +570,17 @@ export class SdkTaskHistory {
 	 * Start New Task affordances.
 	 */
 	async getSessionStatus(taskId: string): Promise<SessionHistoryRecord["status"] | undefined> {
+		if (this.isCloudTask(taskId)) {
+			return (await this.options.cloud?.find(taskId))?.status
+		}
 		const sdkRecord = await this.getSdkRecord(taskId).catch(() => undefined)
 		return sdkRecord?.status
 	}
 
 	async isLegacyTask(taskId: string): Promise<boolean> {
+		if (this.isCloudTask(taskId)) {
+			return false
+		}
 		const sdkRecord = await this.getSdkRecord(taskId)
 		if (sdkRecord) {
 			return (
@@ -592,10 +651,19 @@ export class SdkTaskHistory {
 	}
 
 	async updateTaskHistoryItem(item: HistoryItem): Promise<void> {
+		if (this.isCloudTask(item.id)) {
+			// Cloud records are owned by the control plane; nothing to persist locally.
+			return
+		}
 		await this.updateSession(item.id, item)
 	}
 
 	private async deleteSession(sessionId: string): Promise<void> {
+		if (this.isCloudTask(sessionId)) {
+			await this.options.cloud?.delete(sessionId)
+			this.invalidateMetadataHistoryCache()
+			return
+		}
 		const legacyTask = this.findLegacyTask(sessionId)
 		try {
 			await this.withHistoryHost(async (host) => {
@@ -614,6 +682,10 @@ export class SdkTaskHistory {
 	}
 
 	async findHistoryItem(taskId: string): Promise<HistoryItem | undefined> {
+		if (this.isCloudTask(taskId)) {
+			const cloudRecord = await this.options.cloud?.find(taskId)
+			return cloudRecord ? sessionHistoryRecordToHistoryItem(cloudRecord) : undefined
+		}
 		const sdkHistoryItem = await this.withHistoryHost(async (host) => {
 			const sdkRecord = await host.get(taskId)
 			if (!sdkRecord || sdkRecord.isSubagent === true) {
@@ -673,7 +745,7 @@ export class SdkTaskHistory {
 			`[SdkController] Task usage: tokensIn=${usage.tokensIn}, tokensOut=${usage.tokensOut}, cost=${usage.totalCost ?? 0}`,
 		)
 
-		if (!taskId) {
+		if (!taskId || this.isCloudTask(taskId)) {
 			return
 		}
 

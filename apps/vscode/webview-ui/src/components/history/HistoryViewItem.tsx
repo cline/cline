@@ -1,5 +1,7 @@
+import { formatRepoLabel } from "@shared/cloud/cloud-sessions"
 import { HistoryItem } from "@shared/HistoryItem"
 import { StringRequest } from "@shared/proto/cline/common"
+import type { TaskItem } from "@shared/proto/cline/task"
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import {
 	ArrowDownIcon,
@@ -13,6 +15,7 @@ import {
 	TrashIcon,
 } from "lucide-react"
 import { memo, useCallback, useMemo, useState } from "react"
+import { CloudStatusPill } from "@/components/cloud/CloudStatusPill"
 import { Button } from "@/components/ui/button"
 import { useUsageCostVisibility } from "@/hooks/useUsageCostVisibility"
 import { cn } from "@/lib/utils"
@@ -20,7 +23,7 @@ import { TaskServiceClient } from "@/services/grpc-client"
 import { formatLargeNumber, formatSize } from "@/utils/format"
 
 type HistoryViewItemProps = {
-	item: HistoryItem
+	item: HistoryItem | TaskItem
 	index: number
 	selectedItems: string[]
 	pendingFavoriteToggles: Record<string, boolean>
@@ -44,6 +47,8 @@ const HistoryViewItem = ({
 		() => pendingFavoriteToggles[item.id] ?? item.isFavorited,
 		[item.id, item.isFavorited, pendingFavoriteToggles],
 	)
+	// Cloud sessions are owned by Cline Cloud; favorites are a local-history concept.
+	const isCloud = item.executionTarget === "cloud"
 
 	const handleShowTaskWithId = useCallback((id: string) => {
 		TaskServiceClient.showTaskWithId(StringRequest.create({ value: id })).catch((error) =>
@@ -105,6 +110,7 @@ const HistoryViewItem = ({
 							Legacy
 						</span>
 					)}
+					{isCloud && <CloudStatusPill status={item.cloudStatus} />}
 					<div className="flex gap-2 flex-shrink-0">
 						<Button
 							aria-label="Delete"
@@ -121,8 +127,8 @@ const HistoryViewItem = ({
 						</Button>
 						<Button
 							aria-label={isFavoritedItem ? "Remove from favorites" : "Add to favorites"}
-							className="p-0"
-							disabled={pendingFavoriteToggles[item.id] !== undefined}
+							className={cn("p-0", { invisible: isCloud })}
+							disabled={isCloud || pendingFavoriteToggles[item.id] !== undefined}
 							onClick={(e) => {
 								e.stopPropagation()
 								toggleFavorite(item.id, isFavoritedItem)
@@ -147,7 +153,7 @@ const HistoryViewItem = ({
 					<div className="flex items-center justify-between w-full">
 						<div className="text-description text-xs uppercase">{formatDate(item.ts)}</div>
 						<div className="self-end flex items-center text-xs">
-							{isCostVisible(item.apiProvider) && (
+							{!isCloud && isCostVisible(item.apiProvider) && (
 								<span className="text-description">${item.totalCost?.toFixed(4) ?? 0}</span>
 							)}
 							{expanded ? (
@@ -203,6 +209,16 @@ const HistoryViewItem = ({
 										<div className="flex justify-between items-center w-full gap-1 text-xs">
 											<span className="font-medium text-description">Model:</span>
 											<span className="text-description">{item.modelId}</span>
+										</div>
+									)}
+
+									{isCloud && item.cloudRepoUrl && (
+										<div className="flex justify-between items-center w-full gap-1 text-xs">
+											<span className="font-medium text-description">Repository:</span>
+											<span className="text-description truncate">
+												{formatRepoLabel(item.cloudRepoUrl)}
+												{item.cloudBranch ? ` @ ${item.cloudBranch}` : ""}
+											</span>
 										</div>
 									)}
 

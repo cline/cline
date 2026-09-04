@@ -54,6 +54,10 @@ message NewTaskRequest {
   repeated string images = 3;
   repeated string files = 4;
   optional Settings task_settings = 5;
+  // "local" (default) or "cloud"; cloud runs the task in a Cline Cloud sandbox
+  optional string execution_target = 6;
+  optional string cloud_repo_url = 7;
+  optional string cloud_branch = 8;
 }
 
 // Request message for toggling task favorite status
@@ -88,6 +92,7 @@ message GetTaskHistoryRequest {
   bool current_workspace_only = 5;
   int32 limit = 6;
   int32 offset = 7;
+  bool cloud_only = 8;
 }
 
 // Response for task history
@@ -113,6 +118,12 @@ message TaskItem {
   // Provider id the task ran on. Empty for tasks recorded before this
   // field existed and for legacy imports; consumers show cost in that case.
   string api_provider = 13;
+  // "cloud" for Cline Cloud sessions; empty/"local" otherwise
+  string execution_target = 14;
+  // Cloud session status: provisioning | running | idle | completed | failed | expired
+  string cloud_status = 15;
+  string cloud_repo_url = 16;
+  string cloud_branch = 17;
 }
 
 // Request for ask response operation
