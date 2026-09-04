@@ -375,82 +375,6 @@ async function fetchUserInstructionLists(): Promise<UserInstructionListsResponse
 	return normalizeInstructionListsResponse(response);
 }
 
-function isUnsupportedDesktopCommand(error: unknown, command: string): boolean {
-	const message = error instanceof Error ? error.message : String(error);
-	return message.includes(`unsupported desktop command: ${command}`);
-}
-
-/**
- * Legacy fallback for sidecars that predate `set_tool_disabled`:
- * `toggle_disabled_plugin_tool` flips one name with no explicit target
- * state, so a tool with several headless names needs care to land on an
- * exact target rather than some other combination.
- *
- * A grouped tool's `enabled` flag is true only when *none* of its names are
- * disabled, so flipping every name once turns the aggregate true if and
- * only if every name was disabled right before that flip — the exact
- * "enable all" success condition. That makes the aggregate a reliable
- * one-shot check for the enable direction, but not for disable: `false`
- * there just means "at least one name disabled," which is equally true for
- * "still mixed" and "now fully disabled." So for disable, a second
- * (probe) flip is used — it turns the aggregate true only if every name was
- * disabled right after the *first* flip, which is exactly what "disable"
- * needs to confirm — and a third flip redoes the first if that holds.
- * Either way, an unconfirmed attempt is flipped back to its exact starting
- * state rather than left in some other unintended combination.
- */
-async function toggleLegacyToolGroup(
-	toolNames: string[],
-	toolId: string,
-	desiredEnabled: boolean,
-): Promise<{ response: UserInstructionListsResponse; reached: boolean }> {
-	let response: UserInstructionListsResponse | undefined;
-	const flipAll = async () => {
-		for (const name of toolNames) {
-			response = await desktopClient.invoke<UserInstructionListsResponse>(
-				"toggle_disabled_plugin_tool",
-				{ name },
-			);
-		}
-	};
-	const readEnabled = () =>
-		response?.tools.find((candidate) => candidate.id === toolId)?.enabled;
-
-	await flipAll();
-	if (toolNames.length <= 1) {
-		return {
-			response: response as UserInstructionListsResponse,
-			reached: true,
-		};
-	}
-
-	if (desiredEnabled) {
-		if (readEnabled() === true) {
-			return {
-				response: response as UserInstructionListsResponse,
-				reached: true,
-			};
-		}
-		await flipAll(); // Undo: restores the exact original state.
-		return {
-			response: response as UserInstructionListsResponse,
-			reached: false,
-		};
-	}
-
-	await flipAll(); // Probe.
-	if (readEnabled() === true) {
-		await flipAll(); // Redo: the probe flipped everyone back on.
-		return {
-			response: response as UserInstructionListsResponse,
-			reached: true,
-		};
-	}
-	// The first flip left the group mixed; the probe already restored the
-	// original state.
-	return { response: response as UserInstructionListsResponse, reached: false };
-}
-
 export function CustomizationSectionView({
 	catalogPrimitive,
 	chrome = "page",
@@ -692,42 +616,12 @@ export function CustomizationSectionView({
 				if (names.length === 0) {
 					throw new Error("tool name is required");
 				}
-				const desiredEnabled = !tool.enabled;
-				let response: UserInstructionListsResponse | undefined;
-				let unreachable = false;
-				try {
-					response = await desktopClient.invoke<UserInstructionListsResponse>(
+				const response =
+					await desktopClient.invoke<UserInstructionListsResponse>(
 						"set_tool_disabled",
-						{
-							names,
-							disabled: tool.enabled,
-						},
+						{ names, disabled: tool.enabled },
 					);
-				} catch (error) {
-					if (!isUnsupportedDesktopCommand(error, "set_tool_disabled")) {
-						throw error;
-					}
-					const result = await toggleLegacyToolGroup(
-						names,
-						tool.id,
-						desiredEnabled,
-					);
-					response = result.response;
-					unreachable = !result.reached;
-				}
-				if (response) {
-					applyResponse(response);
-				}
-				if (unreachable) {
-					throw new Error(
-						`Couldn't toggle ${tool.name}: this desktop build needs an update to change tools with multiple underlying actions.`,
-					);
-				}
-				if (!response) {
-					throw new Error(
-						"tool toggle did not return an updated extension list",
-					);
-				}
+				applyResponse(response);
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
 				setErrorMessage(message);
@@ -744,7 +638,7 @@ export function CustomizationSectionView({
 
 	const setAllToolsEnabled = useCallback(
 		async (toolsList: ToolItem[], enabled: boolean) => {
-			const targets = toolsList.filter((tool) => tool.enabled !== enabled);
+			const targets = toolsList.filter((tool) => !enabled || !tool.enabled);
 			if (targets.length === 0) {
 				return;
 			}
@@ -764,52 +658,12 @@ export function CustomizationSectionView({
 				if (names.length === 0) {
 					throw new Error("tool name is required");
 				}
-				let response: UserInstructionListsResponse | undefined;
-				const unreachableTools: ToolItem[] = [];
-				try {
-					response = await desktopClient.invoke<UserInstructionListsResponse>(
+				const response =
+					await desktopClient.invoke<UserInstructionListsResponse>(
 						"set_tool_disabled",
-						{
-							names,
-							disabled: !enabled,
-						},
+						{ names, disabled: !enabled },
 					);
-				} catch (error) {
-					if (!isUnsupportedDesktopCommand(error, "set_tool_disabled")) {
-						throw error;
-					}
-					// See toggleLegacyToolGroup for why grouped tools need
-					// verify-and-revert instead of a blind flip.
-					for (const tool of targets) {
-						const toolNames = [
-							tool.name,
-							...(tool.headlessToolNames ?? []),
-						].filter(Boolean);
-						const result = await toggleLegacyToolGroup(
-							toolNames,
-							tool.id,
-							enabled,
-						);
-						response = result.response;
-						if (!result.reached) {
-							unreachableTools.push(tool);
-						}
-					}
-				}
-				if (response) {
-					applyResponse(response);
-				}
-				if (unreachableTools.length > 0) {
-					const names = unreachableTools.map((tool) => tool.name).join(", ");
-					throw new Error(
-						`Couldn't ${enabled ? "enable" : "disable"} ${names}: this desktop build needs an update to change tools with multiple underlying actions.`,
-					);
-				}
-				if (!response) {
-					throw new Error(
-						"tool toggle did not return an updated extension list",
-					);
-				}
+				applyResponse(response);
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
 				setErrorMessage(message);
