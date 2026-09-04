@@ -270,8 +270,11 @@ export default function Home() {
 	const { activeThreadId, settingsSection, view } = navigation.current;
 	const navigationRef = useRef(navigation.current);
 	navigationRef.current = navigation.current;
+	const threadsRef = useRef(threads);
+	threadsRef.current = threads;
 
 	const navigate = useCallback((destination: AppLocation) => {
+		navigationRef.current = destination;
 		dispatchApp({ type: "navigate", destination });
 	}, []);
 	const navigateWith = useCallback(
@@ -281,11 +284,15 @@ export default function Home() {
 		[navigate, navigation.current],
 	);
 	const handleNavigateBack = useCallback(() => {
+		const destination = navigation.back.at(-1);
+		if (destination) navigationRef.current = destination;
 		dispatchApp({ type: "back" });
-	}, []);
+	}, [navigation.back]);
 	const handleNavigateForward = useCallback(() => {
+		const destination = navigation.forward[0];
+		if (destination) navigationRef.current = destination;
 		dispatchApp({ type: "forward" });
-	}, []);
+	}, [navigation.forward]);
 
 	useAppUpdate();
 
@@ -318,7 +325,13 @@ export default function Home() {
 	useEffect(() => watchDesktopNotifications(), []);
 
 	const handleNewThread = useCallback(() => {
-		dispatchApp({ type: "new-thread", threadId: makeThreadId() });
+		const threadId = makeThreadId();
+		navigationRef.current = {
+			...navigationRef.current,
+			activeThreadId: threadId,
+			view: "chat",
+		};
+		dispatchApp({ type: "new-thread", threadId });
 		requestPromptInputFocus();
 	}, []);
 
@@ -338,6 +351,11 @@ export default function Home() {
 
 	const handleOpenSession = useCallback(
 		(session: SessionHistoryItem, initialPromptDraft?: string) => {
+			navigationRef.current = {
+				...navigationRef.current,
+				activeThreadId: `session_${session.sessionId}`,
+				view: "chat",
+			};
 			dispatchApp({ type: "open-session", session, initialPromptDraft });
 		},
 		[],
@@ -345,11 +363,22 @@ export default function Home() {
 
 	const handleDeleteSession = useCallback(
 		(deletedSessionId: string, deletedThreadId?: string) => {
+			const fallbackThreadId = makeThreadId();
+			if (
+				navigationRef.current.activeThreadId === deletedThreadId ||
+				navigationRef.current.activeThreadId === `session_${deletedSessionId}`
+			) {
+				navigationRef.current = {
+					...navigationRef.current,
+					activeThreadId: fallbackThreadId,
+					view: "chat",
+				};
+			}
 			dispatchApp({
 				type: "delete-session",
 				deletedSessionId,
 				deletedThreadId,
-				fallbackThreadId: makeThreadId(),
+				fallbackThreadId,
 			});
 		},
 		[],
@@ -530,13 +559,16 @@ export default function Home() {
 			if (!placeholderId?.trim() || !sessionId?.trim()) {
 				return;
 			}
-			const placeholderThread = threads.find(
+			const placeholderThread = threadsRef.current.find(
 				(thread) => thread.historySession?.sessionId === placeholderId,
 			);
 			if (!placeholderThread) {
 				return;
 			}
-			if (placeholderThread.id === activeThreadId) {
+			if (
+				navigationRef.current.view === "chat" &&
+				placeholderThread.id === navigationRef.current.activeThreadId
+			) {
 				void handleOpenSessionById(sessionId, {
 					silent: true,
 					expectedActiveThreadId: placeholderThread.id,
@@ -553,7 +585,7 @@ export default function Home() {
 			}
 			handleDeleteSession(placeholderId, placeholderThread.id);
 		});
-	}, [threads, activeThreadId, handleDeleteSession, handleOpenSessionById]);
+	}, [handleDeleteSession, handleOpenSessionById]);
 
 	const historyWorkspacePaths = useMemo(
 		() => workspacePathsFromSessions(sessionHistory.sessions),
