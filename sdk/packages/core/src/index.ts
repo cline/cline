@@ -513,10 +513,13 @@ export {
 	DIAG_ORPHAN_BLOCK_FRAME,
 	DIAG_SNAPSHOT_UNROUTED,
 	DIAG_STALE_EPOCH,
+	DIAG_SUBAGENT_WITHOUT_TURN,
 	DIAG_TURN_CLOSE_WITHOUT_OPEN,
 	DIAG_TURN_OPEN_WHILE_OPEN,
 	StreamAssembler,
 } from "./runtime/orchestration/stream-assembler";
+export type { ProjectedAgentEvent } from "./runtime/orchestration/session-event-projector";
+export { projectSessionEvent } from "./runtime/orchestration/session-event-projector";
 export type {
 	MediaFinal,
 	ReasoningSink,
@@ -525,8 +528,8 @@ export type {
 	TextSink,
 	ToolSink,
 	TurnConsumer,
-	TurnObserver,
 } from "./runtime/orchestration/stream-assembler";
+
 export type {
 	BuiltRuntime,
 	RuntimeBuilder,
