@@ -1,11 +1,11 @@
 import {
 	buildMcpInstallTransport as buildCoreMcpInstallTransport,
 	type McpInstallOptions as CoreMcpInstallOptions,
+	type McpUninstallOptions as CoreMcpUninstallOptions,
+	type McpUninstallResult as CoreMcpUninstallResult,
 	installMcpServer,
 	type McpInstallResult,
 	type McpServerTransportConfig,
-	type McpUninstallOptions as CoreMcpUninstallOptions,
-	type McpUninstallResult as CoreMcpUninstallResult,
 	uninstallMcpServer,
 } from "@cline/core";
 import type { McpAddDefaults } from "../wizards/mcp";

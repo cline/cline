@@ -11,6 +11,15 @@ const sourcemap = Bun.env.CLINE_SOURCEMAPS === "1" ? "linked" : "none";
 // minify: true keeps identifier mangling active even when sourcemaps are enabled.
 const minify = Bun.env.CLINE_SOURCEMAPS !== "1";
 
+const packageJson = (await Bun.file(
+	new URL("./package.json", import.meta.url),
+).json()) as any;
+
+const external = Object.keys({
+	...(packageJson.dependencies ?? {}),
+	...(packageJson.peerDependencies ?? {}),
+}).filter((name) => !name.startsWith("@cline/"));
+
 const runBuild = async (
 	name: string,
 	options: Parameters<typeof Bun.build>[0],
@@ -21,6 +30,10 @@ const runBuild = async (
 	});
 
 	if (!result.success) {
+		console.error(`${name} build failed with logs:`);
+		for (const log of result.logs) {
+			console.error(log);
+		}
 		throw new Error(`Failed ${name} build`);
 	}
 
@@ -43,6 +56,8 @@ await runBuild("node", {
 	],
 	outdir: "./dist",
 	target: "node",
+	external,
+	packages: "bundle",
 	minify,
 	sourcemap,
 });
@@ -51,10 +66,10 @@ await runBuild("browser", {
 	entrypoints: ["./src/index.browser.ts"],
 	outdir: "./dist",
 	target: "browser",
+	external,
+	packages: "bundle",
 	minify,
 	sourcemap,
-	packages: "bundle",
-	external: ["zod"],
 });
 
 if (shouldEmitTypes) {

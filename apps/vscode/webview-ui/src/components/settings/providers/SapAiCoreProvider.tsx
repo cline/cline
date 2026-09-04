@@ -1,5 +1,5 @@
-import { SapAiCoreModelDeployment, SapAiCoreModelsRequest } from "@shared/proto/index.cline"
-import { Mode } from "@shared/storage/types"
+import { type SapAiCoreModelDeployment, SapAiCoreModelsRequest } from "@shared/proto/index.cline"
+import type { Mode } from "@shared/storage/types"
 import { VSCodeCheckbox, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { useCallback, useEffect, useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -122,7 +122,10 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 			handleModeFieldsChange(
 				{
 					modelId: { plan: "planModeApiModelId", act: "actModeApiModelId" },
-					deploymentId: { plan: "planModeSapAiCoreDeploymentId", act: "actModeSapAiCoreDeploymentId" },
+					deploymentId: {
+						plan: "planModeSapAiCoreDeploymentId",
+						act: "actModeSapAiCoreDeploymentId",
+					},
 				},
 				{ modelId, deploymentId },
 				currentMode,
@@ -211,6 +214,20 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 						<br />
 						When disabled, provides access only to deployed models in your AI Core service instance.
 					</p>
+					{useOrchestrationMode && (
+						<div className="mt-3 flex flex-col gap-1.5">
+							<DebouncedTextField
+								initialValue={apiConfiguration?.sapAiCoreModelAllowlist || ""}
+								onChange={(value) => handleFieldChange("sapAiCoreModelAllowlist", value)}
+								placeholder="e.g. anthropic--claude-3.5-sonnet, anthropic--claude-4.6-sonnet"
+								style={{ width: "100%" }}>
+								<span className="font-medium">Orchestration Model Allowlist</span>
+							</DebouncedTextField>
+							<p className="text-xs text-(--vscode-descriptionForeground)">
+								Comma-separated list of models to show. Leave empty to allow all models.
+							</p>
+						</div>
+					)}
 				</div>
 			)}
 
@@ -230,13 +247,14 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 							</div>
 						) : hasRequiredCredentials ? (
 							<>
-								{sapAiCoreModelDeployments.length === 0 && (
+								{sapAiCoreModelDeployments.length === 0 && (!useOrchestrationMode || !orchestrationAvailable) && (
 									<div className="text-xs text-(--vscode-errorForeground) mb-2">
 										Unable to fetch models from SAP AI Core service instance. Please check your SAP AI Core
 										configuration or ensure your deployments are deployed and running in the service instance
 									</div>
 								)}
 								<SapAiCoreModelPicker
+									modelAllowlist={apiConfiguration?.sapAiCoreModelAllowlist}
 									onModelChange={handleModelChange}
 									placeholder="Select a model..."
 									sapAiCoreModelDeployments={sapAiCoreModelDeployments}

@@ -104,7 +104,7 @@ export class ProviderSettingsManager {
 			const result = StoredProviderSettingsSchema.safeParse(parsed);
 			if (result.success) {
 				registerConfiguredProvidersFromSettings(result.data);
-				const clineAuth = result.data.providers["cline"]?.settings?.auth;
+				const clineAuth = result.data.providers.cline?.settings?.auth;
 				sdkDebug(
 					`providers.read providers=[${Object.keys(result.data.providers).join(",")}] lastUsed=${result.data.lastUsedProvider ?? "none"} clineAuthPresent=${!!clineAuth?.accessToken} clineAccessTokenHash=${hashSecret(clineAuth?.accessToken)} clineRefreshTokenHash=${hashSecret(clineAuth?.refreshToken)}`,
 				);
@@ -173,11 +173,11 @@ export class ProviderSettingsManager {
 				: previous.lastUsedProvider,
 		};
 		this.write(next);
-		const prevClineAuth = previous.providers["cline"]?.settings?.auth;
+		const prevClineAuth = previous.providers.cline?.settings?.auth;
 		const nextClineAuth =
 			validatedSettings.provider === "cline"
 				? validatedSettings.auth
-				: next.providers["cline"]?.settings?.auth;
+				: next.providers.cline?.settings?.auth;
 		const authDropped =
 			!!prevClineAuth?.accessToken && !nextClineAuth?.accessToken;
 		sdkDebug(

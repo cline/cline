@@ -111,23 +111,34 @@ let mockFetch: FetchFunction | undefined
  * const response = await fetch('https://api.example.com')
  * ```
  */
-export const fetch: typeof globalThis.fetch = (() => {
-	// Note: Don't use Logger here; it may not be initialized.
+let baseFetch: typeof globalThis.fetch | undefined
+let isInitialized = false
 
-	let baseFetch: typeof globalThis.fetch = globalThis.fetch
+function getBaseFetch(): typeof globalThis.fetch {
+	if (isInitialized && baseFetch) {
+		return baseFetch
+	}
+
+	baseFetch = globalThis.fetch
 	// Note: See esbuild.mjs, process.env.IS_STANDALONE is statically rewritten
 	// to "true" or "false" (as strings) in the JetBrains/CLI build.
 	// We must use explicit string comparison because "false" is truthy in JS.
-	if (process.env.IS_STANDALONE === "true") {
+	const hasProxyEnv = Boolean(
+		process.env.http_proxy || process.env.https_proxy || process.env.HTTP_PROXY || process.env.HTTPS_PROXY,
+	)
+	if (process.env.IS_STANDALONE === "true" || hasProxyEnv) {
 		// Configure undici with ProxyAgent
 		const agent = new EnvHttpProxyAgent({})
 		setGlobalDispatcher(agent)
 		baseFetch = undiciFetch as any as typeof globalThis.fetch
 	}
+	isInitialized = true
+	return baseFetch
+}
 
-	return ((input: string | URL | Request, init?: RequestInit): Promise<Response> =>
-		(mockFetch || baseFetch)(input, init)) as typeof globalThis.fetch
-})()
+export const fetch: typeof globalThis.fetch = ((input: string | URL | Request, init?: RequestInit): Promise<Response> => {
+	return (mockFetch || getBaseFetch())(input, init)
+}) as typeof globalThis.fetch
 
 /**
  * Mocks `fetch` for testing and calls `callback`. Then restores `fetch`. If the

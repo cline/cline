@@ -1034,10 +1034,10 @@ describe("createContextCompactionPrepareTurn", () => {
 	it("budgets the complete basic compaction output including the latest turn", () => {
 		const messages: LlmsProviders.Message[] = [
 			{ role: "user", content: "original task" },
-			{ role: "assistant", content: "old assistant " + "x".repeat(10_000) },
+			{ role: "assistant", content: `old assistant ${"x".repeat(10_000)}` },
 			{ role: "user", content: "latest typed prompt" },
 			assistantToolUseMessage("tool-live"),
-			toolResultMessage("tool-live", "live result " + "y".repeat(10_000)),
+			toolResultMessage("tool-live", `live result ${"y".repeat(10_000)}`),
 		];
 
 		const compacted = runForcedBasicCompaction(messages, 700);
