@@ -12,6 +12,7 @@ import {
 import {
 	buildUserInstructionSlashCommands,
 	ChatInputBar,
+	withCloudHandoffSlashCommand,
 } from "./chat-input-bar";
 
 const {
@@ -247,6 +248,21 @@ describe("ChatInputBar", () => {
 		).toEqual([
 			{ name: "release", description: "Ship it" },
 			{ name: "publish-ui-skill", description: "Skill command" },
+		]);
+	});
+
+	it("shows the reserved handoff command only while cloud handoff is available", () => {
+		const commands = [
+			{ name: "fork", description: "Fork" },
+			{ name: "handoff", description: "User workflow" },
+		];
+		expect(withCloudHandoffSlashCommand(commands, false)).toEqual(commands);
+		expect(withCloudHandoffSlashCommand(commands, true)).toEqual([
+			{
+				name: "handoff",
+				description: "Continue this local session in Cline Cloud",
+			},
+			{ name: "fork", description: "Fork" },
 		]);
 	});
 

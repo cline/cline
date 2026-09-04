@@ -3,7 +3,10 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { useSessionHistory } from "./use-session-history";
+import {
+	resolveLiveHistorySession,
+	useSessionHistory,
+} from "./use-session-history";
 
 const { invokeMock, subscribeMock, subscribers } = vi.hoisted(() => {
 	const subscribers = new Map<string, (payload: unknown) => void>();
@@ -47,6 +50,24 @@ function sessionRow(sessionId: string) {
 		endedAt: "2026-07-20T11:00:00.000Z",
 	};
 }
+
+describe("resolveLiveHistorySession", () => {
+	it("uses refreshed metadata for an already-open session", () => {
+		const snapshot = sessionRow("handoff-source");
+		const refreshed = {
+			...snapshot,
+			metadata: {
+				handoff: {
+					status: "complete",
+					toCloudSessionId: "cloud-1",
+				},
+			},
+		};
+
+		expect(resolveLiveHistorySession(snapshot, [refreshed])).toBe(refreshed);
+		expect(resolveLiveHistorySession(snapshot, [])).toBe(snapshot);
+	});
+});
 
 let container: HTMLDivElement;
 let root: Root;
@@ -189,6 +210,42 @@ describe("useSessionHistory session mapping", () => {
 		expect(
 			current.threads.find((thread) => thread.id === "regular-session"),
 		).toMatchObject({ isScheduled: false });
+	});
+
+	it("refreshes metadata-only cloud handoff transitions", async () => {
+		await act(async () => {
+			root.render(<HookHarness />);
+		});
+		await flush();
+		await act(async () => {
+			pendingLists[0].resolve([sessionRow("handoff-source")]);
+			await Promise.resolve();
+		});
+
+		let refresh: Promise<boolean> | undefined;
+		await act(async () => {
+			refresh = current.refreshSessions();
+		});
+		await act(async () => {
+			pendingLists[1].resolve([
+				{
+					...sessionRow("handoff-source"),
+					metadata: {
+						handoff: {
+							status: "complete",
+							toCloudSessionId: "cloud-1",
+							dashboardUrl: "https://app.cline.bot/agents/cloud-1",
+						},
+					},
+				},
+			]);
+			await refresh;
+		});
+
+		expect(current.sessions[0]?.metadata?.handoff).toMatchObject({
+			status: "complete",
+			toCloudSessionId: "cloud-1",
+		});
 	});
 
 	it("maps the runner's schedule provenance onto sidebar threads", async () => {
