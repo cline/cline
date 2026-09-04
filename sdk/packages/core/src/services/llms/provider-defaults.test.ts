@@ -527,6 +527,53 @@ describe("resolveProviderConfig", () => {
 		expect(Object.keys(resolved?.knownModels ?? {})).toEqual(["local-llama"]);
 	});
 
+	it("surfaces LM Studio's per-model context length from the public models endpoint", async () => {
+		// #13457: LM Studio reports the loaded model's real context length on
+		// /v1/models; dropping it left every model on the generic 128k safe
+		// default, so the chat indicator and auto-compaction budgeted against
+		// a window the server does not apply.
+		const fetchMock = vi.fn(async () => {
+			return new Response(
+				JSON.stringify({
+					object: "list",
+					data: [
+						{
+							id: "qwen-3.8-27b",
+							object: "model",
+							max_context_length: 200_000,
+						},
+						{ id: "no-context-model", object: "model" },
+					],
+				}),
+				{
+					status: 200,
+					headers: { "content-type": "application/json" },
+				},
+			);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const resolved = await resolveProviderConfig(
+			"lmstudio",
+			{ failOnError: false, cacheTtlMs: 0 },
+			{
+				providerId: "lmstudio",
+				modelId: "",
+				baseUrl: "http://localhost:1234/v1",
+			},
+		);
+
+		expect(fetchMock).toHaveBeenCalledWith(
+			"http://localhost:1234/v1/models",
+			{ method: "GET" },
+		);
+		expect(resolved?.knownModels?.["qwen-3.8-27b"]?.contextWindow).toBe(
+			200_000,
+		);
+		// A model the server did not describe keeps the generic default.
+		expect(resolved?.knownModels?.["no-context-model"]).toBeDefined();
+	});
+
 	it("loads Poolside models from the authenticated models endpoint", async () => {
 		const fetchMock = vi.fn(async () => {
 			return new Response(
