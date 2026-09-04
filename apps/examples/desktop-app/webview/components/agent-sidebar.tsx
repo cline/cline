@@ -914,12 +914,12 @@ export function AgentSidebar({
 								newTaskActive && "bg-surface-hover text-sidebar-foreground",
 							)}
 							onClick={openHome}
-							title="Start a new task"
+							title="Start a new session"
 							type="button"
 							variant="sidebarItem"
 						>
 							<Plus className="size-4 shrink-0" />
-							<span className="truncate">New</span>
+							<span className="truncate">Session</span>
 						</Button>
 						<Button
 							aria-label="Schedule"
