@@ -3,9 +3,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
-	toggleSkillFrontmatter,
-	updateSkillMarkdownEnabledState,
-} from "./skill-frontmatter-toggle";
+	toggleInstructionFrontmatter,
+	updateInstructionMarkdownEnabledState,
+} from "./instruction-frontmatter-toggle";
 import { parseSkillConfigFromMarkdown } from "./user-instruction-config-loader";
 
 describe("skill frontmatter toggle", () => {
@@ -27,7 +27,7 @@ First line.
 
 Second line.`;
 
-		const updated = updateSkillMarkdownEnabledState(content, false);
+		const updated = updateInstructionMarkdownEnabledState(content, false);
 		const parsed = parseSkillConfigFromMarkdown(updated, "fallback");
 
 		expect(parsed.disabled).toBe(true);
@@ -43,7 +43,7 @@ disabled: true
 ---
 Use the review checklist.`;
 
-		const updated = updateSkillMarkdownEnabledState(content, true);
+		const updated = updateInstructionMarkdownEnabledState(content, true);
 		const parsed = parseSkillConfigFromMarkdown(updated, "fallback");
 
 		expect(parsed.disabled).toBeUndefined();
@@ -58,7 +58,7 @@ enabled: false
 ---
 Use legacy instructions.`;
 
-		const updated = updateSkillMarkdownEnabledState(content, true);
+		const updated = updateInstructionMarkdownEnabledState(content, true);
 		const parsed = parseSkillConfigFromMarkdown(updated, "fallback");
 
 		expect(parsed.disabled).toBeUndefined();
@@ -69,7 +69,7 @@ Use legacy instructions.`;
 	it("prepends frontmatter when disabling a skill without frontmatter", () => {
 		const content = "Follow the incident response runbook.";
 
-		const updated = updateSkillMarkdownEnabledState(content, false);
+		const updated = updateInstructionMarkdownEnabledState(content, false);
 		const parsed = parseSkillConfigFromMarkdown(updated, "incident-response");
 
 		expect(parsed.disabled).toBe(true);
@@ -83,7 +83,7 @@ ${content}`);
 	it("leaves a skill without frontmatter unchanged when enabling", () => {
 		const content = "Follow the incident response runbook.";
 
-		expect(updateSkillMarkdownEnabledState(content, true)).toBe(content);
+		expect(updateInstructionMarkdownEnabledState(content, true)).toBe(content);
 	});
 
 	// Regression test for https://github.com/cline/cline/issues/12151: a leading UTF-8 BOM
@@ -96,7 +96,7 @@ description: Review code carefully
 ---
 First line.`;
 
-		const updated = updateSkillMarkdownEnabledState(content, false);
+		const updated = updateInstructionMarkdownEnabledState(content, false);
 		const parsed = parseSkillConfigFromMarkdown(updated, "fallback");
 
 		expect(parsed.disabled).toBe(true);
@@ -116,7 +116,10 @@ name: file-skill
 Use file-backed instructions.`,
 		);
 
-		const result = await toggleSkillFrontmatter({ filePath, enabled: false });
+		const result = await toggleInstructionFrontmatter({
+			filePath,
+			enabled: false,
+		});
 		const written = await readFile(filePath, "utf8");
 		const parsed = parseSkillConfigFromMarkdown(written, "fallback");
 

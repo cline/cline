@@ -2,12 +2,12 @@ import { readFile, writeFile } from "node:fs/promises";
 import { stripUtf8Bom } from "@cline/shared";
 import YAML from "yaml";
 
-export interface ToggleSkillFrontmatterOptions {
+export interface ToggleInstructionFrontmatterOptions {
 	filePath: string;
 	enabled: boolean;
 }
 
-export interface ToggleSkillFrontmatterResult {
+export interface ToggleInstructionFrontmatterResult {
 	filePath: string;
 	enabled: boolean;
 	disabled: boolean;
@@ -48,7 +48,7 @@ function serializeMarkdownFrontmatter(
 	return `---\n${yaml}\n---\n${body}`;
 }
 
-export function updateSkillMarkdownEnabledState(
+export function updateInstructionMarkdownEnabledState(
 	content: string,
 	enabled: boolean,
 ): string {
@@ -73,12 +73,12 @@ export function updateSkillMarkdownEnabledState(
 	return serializeMarkdownFrontmatter(data, body);
 }
 
-export async function toggleSkillFrontmatter({
+export async function toggleInstructionFrontmatter({
 	filePath,
 	enabled,
-}: ToggleSkillFrontmatterOptions): Promise<ToggleSkillFrontmatterResult> {
+}: ToggleInstructionFrontmatterOptions): Promise<ToggleInstructionFrontmatterResult> {
 	const content = await readFile(filePath, "utf8");
-	const updated = updateSkillMarkdownEnabledState(content, enabled);
+	const updated = updateInstructionMarkdownEnabledState(content, enabled);
 	await writeFile(filePath, updated);
 
 	return {

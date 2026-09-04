@@ -23,6 +23,8 @@ import {
 	fetchClineRecommendedModels,
 	getCoreBuiltinToolCatalog,
 	getLocalProviderModels,
+	HOOK_CONFIG_FILE_EVENT_MAP,
+	HookConfigFileName,
 	listHookConfigFiles,
 	listLocalProviders,
 	normalizeOAuthProvider,
@@ -920,7 +922,7 @@ async function listHubSettings(
 async function toggleHubSetting(
 	ctx: SidecarContext,
 	input: {
-		type: "plugins" | "tools" | "skills";
+		type: "plugins" | "tools" | "skills" | "rules" | "workflows";
 		path?: string;
 		name?: string;
 		enabled?: boolean;
@@ -960,17 +962,13 @@ async function listUserInstructionConfigs(
 		for (const record of userInstructionService.listRecords(type)) {
 			const item = record.item as unknown as JsonRecord;
 			const disabled = item.disabled === true;
-			// Rules and workflows have no toggle UI, so keep hiding disabled
-			// ones; skills need to stay visible (disabled) so they can be
-			// re-enabled from the Skills tab.
-			if (disabled && type !== "skill") continue;
 			items.push({
 				id: record.id,
 				name: item.name ?? record.id,
 				description: item.description,
 				instructions: item.instructions,
 				path: record.filePath,
-				...(type === "skill" ? { enabled: !disabled } : {}),
+				enabled: !disabled,
 			});
 		}
 		return items;
@@ -2512,14 +2510,31 @@ export async function handleCommand(
 		});
 		return await listUserInstructionConfigs(ctx, snapshot);
 	}
-	if (command === "set_skill_disabled") {
-		const skillPath = String(args?.path ?? "").trim();
-		if (!skillPath) {
-			throw new Error("skill path is required");
+	if (command === "list_creatable_hook_events") {
+		return {
+			events: Object.values(HookConfigFileName).filter(
+				(event) => HOOK_CONFIG_FILE_EVENT_MAP[event] !== undefined,
+			),
+		};
+	}
+	if (command === "create_global_customization") {
+		const hubClient = await ensureSharedHubClient(ctx);
+		const reply = await hubClient.command("settings.createGlobal", args ?? {});
+		if (!reply.ok)
+			throw new Error(reply.error?.message ?? "Unable to create customization");
+		return reply.payload;
+	}
+	if (command === "set_instruction_disabled") {
+		const type = args?.type;
+		if (type !== "skills" && type !== "rules" && type !== "workflows")
+			throw new Error("Invalid instruction type");
+		const instructionPath = String(args?.path ?? "").trim();
+		if (!instructionPath) {
+			throw new Error("instruction path is required");
 		}
 		const snapshot = await toggleHubSetting(ctx, {
-			type: "skills",
-			path: skillPath,
+			type,
+			path: instructionPath,
 			enabled: args?.disabled !== true,
 		});
 		return await listUserInstructionConfigs(ctx, snapshot);

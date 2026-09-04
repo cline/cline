@@ -90,9 +90,19 @@ export function createInteractiveConfigDataLoader(input: {
 			return undefined;
 		}
 		const settings = createCoreSettingsService();
-		if (item.kind === "skill" && typeof item.enabled === "boolean") {
+		if (
+			(item.kind === "skill" ||
+				item.kind === "rule" ||
+				item.kind === "workflow") &&
+			typeof item.enabled === "boolean"
+		) {
 			await settings.toggle({
-				type: "skills",
+				type:
+					item.kind === "skill"
+						? "skills"
+						: item.kind === "rule"
+							? "rules"
+							: "workflows",
 				id: item.id,
 				path: item.path,
 				name: item.name,

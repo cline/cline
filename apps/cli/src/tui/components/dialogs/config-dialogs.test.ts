@@ -37,7 +37,7 @@ describe("config detail dialog helpers", () => {
 		expect(shouldToggleExtDetailForKey("space", skill)).toBe(true);
 		expect(shouldToggleExtDetailForKey("space", mcp)).toBe(true);
 		expect(shouldToggleExtDetailForKey("return", skill)).toBe(false);
-		expect(shouldToggleExtDetailForKey("space", workflow)).toBe(false);
+		expect(shouldToggleExtDetailForKey("space", workflow)).toBe(true);
 	});
 
 	it("builds useful detail rows with status for toggleable items", () => {
@@ -62,7 +62,7 @@ describe("config detail dialog helpers", () => {
 
 	it("omits status and toggle hint for non-toggleable items", () => {
 		const workflow = createItem({
-			kind: "workflow",
+			kind: "agent",
 			name: "release",
 			description: "Run release workflow",
 		});

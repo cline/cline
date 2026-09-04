@@ -422,7 +422,8 @@ Design implication:
 ### 4. Settings Mutation Boundary
 
 Core owns settings snapshots and mutations through `packages/core/src/settings`.
-The hub exposes the same path through `settings.list` and `settings.toggle`.
+The hub exposes the same path through `settings.list`, `settings.toggle`, and `settings.createGlobal`.
+Rule, workflow, and skill toggles persist the Markdown disabled field and refresh discovery; disabled entries remain in settings inventories but are excluded from runtime instructions and commands. Global creation writes validated rules, skills, and JavaScript event hooks into the canonical global configuration directories without overwriting existing files, then publishes `settings.changed`.
 
 Design implication:
 

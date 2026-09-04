@@ -747,6 +747,10 @@ export function McpServersContent({
 
 	const headerActions = (
 		<>
+			<Button variant="outline" size="sm" onClick={openCreateDialog}>
+				<Plus className="size-4" />
+				New MCP
+			</Button>
 			<Button
 				variant="outline"
 				size="sm"
@@ -754,10 +758,6 @@ export function McpServersContent({
 				disabled={isLoading}
 			>
 				<RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
-			</Button>
-			<Button size="sm" onClick={openCreateDialog}>
-				<Plus className="h-4 w-4" />
-				Add MCP Server
 			</Button>
 		</>
 	);

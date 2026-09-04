@@ -7,6 +7,7 @@ export type {
 	CorePluginContributions,
 	CorePluginSettingsSnapshot,
 	CorePluginSettingsSource,
+	CoreSettingsCreateGlobalInput,
 	CoreSettingsItem,
 	CoreSettingsItemKind,
 	CoreSettingsItemSource,

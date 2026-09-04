@@ -186,3 +186,74 @@ describe("tool state controls", () => {
 		).toBe(String(!initialEnabled));
 	});
 });
+
+describe("instruction controls", () => {
+	it.each([
+		"rule",
+		"workflow",
+		"skill",
+	] as const)("disables and re-enables a %s in place", async (type) => {
+		let enabled = true;
+		const inventory = () => ({
+			workspaceRoot: "/workspace",
+			[type === "rule"
+				? "rules"
+				: type === "workflow"
+					? "workflows"
+					: "skills"]: [
+				{
+					id: "review",
+					name: "review",
+					path: "/workspace/review.md",
+					instructions: "Review carefully.",
+					enabled,
+				},
+			],
+		});
+		invoke.mockImplementation(async (command, args) => {
+			if (command === "list_marketplace_installed_entries")
+				return { installedKeys: [] };
+			if (command === "list_user_instruction_configs") return inventory();
+			if (command === "set_instruction_disabled") {
+				enabled = !args.disabled;
+				return inventory();
+			}
+			throw new Error(`Unexpected command: ${command}`);
+		});
+		await act(async () => {
+			root.render(
+				<CustomizationSectionView
+					section={type === "rule" ? "Rules" : "Skills"}
+				/>,
+			);
+		});
+		await vi.waitFor(() =>
+			expect(
+				container.querySelector('[aria-label="Toggle review"]'),
+			).not.toBeNull(),
+		);
+		for (const desired of [false, true]) {
+			await act(async () => {
+				container
+					.querySelector<HTMLButtonElement>('[aria-label="Toggle review"]')
+					?.click();
+			});
+			expect(enabled).toBe(desired);
+			expect(
+				container
+					.querySelector('[aria-label="Toggle review"]')
+					?.getAttribute("aria-checked"),
+			).toBe(String(desired));
+			expect(invoke).toHaveBeenLastCalledWith("set_instruction_disabled", {
+				type:
+					type === "rule"
+						? "rules"
+						: type === "workflow"
+							? "workflows"
+							: "skills",
+				path: "/workspace/review.md",
+				disabled: !desired,
+			});
+		}
+	});
+});

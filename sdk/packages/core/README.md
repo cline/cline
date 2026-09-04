@@ -106,6 +106,7 @@ The package also exports storage and settings helpers such as:
 
 - `ProviderSettingsManager`
 - `CoreSettingsService` and `createCoreSettingsService`
+- Rule, workflow, and skill enablement through `CoreSettingsService.toggle()`; global rule, skill, and hook creation through `CoreSettingsService.createGlobal()` (also exposed as the `settings.createGlobal` hub command)
 - MCP settings helpers such as `setMcpServerDisabled`
 - `SqliteTeamStore`
 - SQLite-backed local session stores and artifacts through `@cline/core`

@@ -905,6 +905,8 @@ export class HubServerTransport implements NativeHubTransport {
 				return okReply(envelope);
 			case "settings.list":
 				return await this.handleSettingsList(envelope);
+			case "settings.createGlobal":
+				return await this.handleSettingsCreateGlobal(envelope);
 			case "settings.toggle":
 				return await this.handleSettingsToggle(envelope);
 			case "connector.channels":
@@ -997,6 +999,62 @@ export class HubServerTransport implements NativeHubTransport {
 				ok: false,
 				error: {
 					code: "settings_list_failed",
+					message: error instanceof Error ? error.message : String(error),
+				},
+			};
+		}
+	}
+
+	private async handleSettingsCreateGlobal(
+		envelope: HubCommandEnvelope,
+	): Promise<HubReplyEnvelope> {
+		try {
+			const input = envelope.payload;
+			if (!input || typeof input !== "object" || Array.isArray(input))
+				throw new Error("settings.createGlobal payload must be an object.");
+			if (
+				input.type !== "rule" &&
+				input.type !== "skill" &&
+				input.type !== "hook"
+			)
+				throw new Error("Choose a rule, skill, or hook.");
+			if (typeof input.name !== "string" || typeof input.content !== "string")
+				throw new Error("Name and content are required.");
+			if (
+				input.description !== undefined &&
+				typeof input.description !== "string"
+			)
+				throw new Error("Description must be a string.");
+			const result = await this.settings.createGlobal({
+				type: input.type,
+				name: input.name,
+				content: input.content,
+				description: input.description,
+			});
+			this.publish(
+				buildHubEvent("settings.changed", {
+					types: [
+						input.type === "rule"
+							? "rules"
+							: input.type === "skill"
+								? "skills"
+								: "hooks",
+					],
+				}),
+			);
+			return {
+				version: envelope.version,
+				requestId: envelope.requestId,
+				ok: true,
+				payload: result,
+			};
+		} catch (error) {
+			return {
+				version: envelope.version,
+				requestId: envelope.requestId,
+				ok: false,
+				error: {
+					code: "settings_create_failed",
 					message: error instanceof Error ? error.message : String(error),
 				},
 			};

@@ -40,6 +40,8 @@ import {
 } from "../marketplace-view";
 import { CommandBadge, PageFrame, PageHeader } from "../page-layout";
 
+import { CreateCustomizationDialog } from "./create-customization-dialog";
+
 export type CustomizationSection =
 	| "Rules"
 	| "Hooks"
@@ -70,12 +72,14 @@ const sectionCommands: Record<CustomizationSection, string> = {
 };
 
 type RuleItem = {
+	enabled: boolean;
 	name: string;
 	instructions: string;
 	path: string;
 };
 
 type WorkflowItem = {
+	enabled: boolean;
 	id: string;
 	name: string;
 	instructions: string;
@@ -442,9 +446,9 @@ export function CustomizationSectionView({
 	const [togglingPluginPaths, setTogglingPluginPaths] = useState<Set<string>>(
 		() => new Set(),
 	);
-	const [togglingSkillPaths, setTogglingSkillPaths] = useState<Set<string>>(
-		() => new Set(),
-	);
+	const [togglingInstructionPaths, setTogglingInstructionPaths] = useState<
+		Set<string>
+	>(() => new Set());
 	const [localUninstallingKeys, setLocalUninstallingKeys] = useState<
 		Set<string>
 	>(() => new Set());
@@ -708,15 +712,27 @@ export function CustomizationSectionView({
 		[applyResponse],
 	);
 
-	const setSkillEnabled = useCallback(
-		async (skill: CommandItem) => {
-			setTogglingSkillPaths((current) => new Set(current).add(skill.path));
+	const setInstructionEnabled = useCallback(
+		async (skill: {
+			path: string;
+			enabled?: boolean;
+			type: "skill" | "rule" | "workflow";
+		}) => {
+			setTogglingInstructionPaths((current) =>
+				new Set(current).add(skill.path),
+			);
 			setErrorMessage(null);
 			try {
 				const response =
 					await desktopClient.invoke<UserInstructionListsResponse>(
-						"set_skill_disabled",
+						"set_instruction_disabled",
 						{
+							type:
+								skill.type === "skill"
+									? "skills"
+									: skill.type === "rule"
+										? "rules"
+										: "workflows",
 							path: skill.path,
 							disabled: skill.enabled !== false,
 						},
@@ -726,7 +742,7 @@ export function CustomizationSectionView({
 				const message = error instanceof Error ? error.message : String(error);
 				setErrorMessage(message);
 			} finally {
-				setTogglingSkillPaths((current) => {
+				setTogglingInstructionPaths((current) => {
 					const next = new Set(current);
 					next.delete(skill.path);
 					return next;
@@ -845,6 +861,7 @@ export function CustomizationSectionView({
 			type: "workflow",
 			name: workflow.name,
 			instructions: workflow.instructions,
+			enabled: workflow.enabled,
 			path: workflow.path,
 			scope: getPathScope(workflow.path, workspaceRoot),
 		}));
@@ -1136,17 +1153,11 @@ export function CustomizationSectionView({
 					<Switch
 						checked={item.enabled !== false}
 						onCheckedChange={() => {
-							void setSkillEnabled(item);
+							void setInstructionEnabled(item);
 						}}
 						disabled={
-							item.type === "workflow" ||
 							item.agentPlugin === true ||
-							togglingSkillPaths.has(item.path)
-						}
-						title={
-							item.type === "workflow"
-								? "Toggling workflows isn't supported yet"
-								: undefined
+							togglingInstructionPaths.has(item.path)
 						}
 						aria-label={`Toggle ${item.name}`}
 					/>
@@ -1411,6 +1422,27 @@ export function CustomizationSectionView({
 		</Button>
 	);
 
+	const sectionActions = (
+		<div className="flex shrink-0 items-center gap-2">
+			{(activeTab === "Rules" ||
+				activeTab === "Skills" ||
+				activeTab === "Hooks") && (
+				<CreateCustomizationDialog
+					key={activeTab}
+					type={
+						activeTab === "Rules"
+							? "rule"
+							: activeTab === "Skills"
+								? "skill"
+								: "hook"
+					}
+					onCreated={() => refresh(true)}
+				/>
+			)}
+			{refreshButton}
+		</div>
+	);
+
 	const content = (
 		<>
 			{chrome === "page" ? (
@@ -1418,14 +1450,14 @@ export function CustomizationSectionView({
 					description={sectionDescriptions[activeTab]}
 					title={activeTab}
 					meta={<CommandBadge>{sectionCommands[activeTab]}</CommandBadge>}
-					actions={refreshButton}
+					actions={sectionActions}
 				/>
 			) : (
 				<div className="mb-4 flex items-center justify-between gap-3">
 					<p className="text-sm text-muted-foreground">
 						{sectionDescriptions[activeTab]}
 					</p>
-					{refreshButton}
+					{sectionActions}
 				</div>
 			)}
 
@@ -1506,10 +1538,11 @@ export function CustomizationSectionView({
 										</span>
 										<ScopeBadge scope={scope} />
 										<Switch
-											checked
-											onCheckedChange={() => {}}
-											disabled
-											title="Toggling rules isn't supported yet"
+											checked={rule.enabled !== false}
+											onCheckedChange={() =>
+												void setInstructionEnabled({ ...rule, type: "rule" })
+											}
+											disabled={togglingInstructionPaths.has(rule.path)}
 											aria-label={`Toggle ${rule.name}`}
 										/>
 										{renderLocalItemMenu(
@@ -1634,35 +1667,10 @@ export function CustomizationSectionView({
 					</p>
 
 					<div className="flex flex-col gap-3">
-						{commandItems.map((item) => (
-							<div
-								key={`${item.type}:${item.path}`}
-								className="rounded-lg border border-border px-5 py-4"
-							>
-								<div className="flex items-center gap-3">
-									{item.type === "workflow" ? (
-										<Play className="h-4 w-4 shrink-0 text-primary" />
-									) : (
-										<Zap className="h-4 w-4 shrink-0 text-primary" />
-									)}
-									<h3 className="text-sm font-semibold text-foreground">
-										{item.name}
-									</h3>
-									<span className="rounded border border-border px-2 py-0.5 text-xs text-muted-foreground">
-										{item.type}
-									</span>
-								</div>
-								<p className="mt-2 ml-7 text-xs text-muted-foreground">
-									{item.description?.trim() || previewText(item.instructions)}
-								</p>
-								<p className="mt-1 ml-7 text-xs font-mono text-muted-foreground">
-									{item.path}
-								</p>
-							</div>
-						))}
+						{commandItems.map((item) => renderSkillCard(item))}
 						{commandItems.length === 0 && (
 							<p className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
-								No enabled skills or workflows found.
+								No skills or workflows found.
 							</p>
 						)}
 					</div>
