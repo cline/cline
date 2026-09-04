@@ -1523,7 +1523,7 @@ describe("CloudSessionManager", () => {
 		);
 	});
 
-	it("uses unique Hub client ids and subscribes only to the inner session", async () => {
+	it("uses unique Hub client ids and keeps subscriptions session-scoped", async () => {
 		const clientIds: string[] = [];
 		const hubs = [new FakeHubClient(), new FakeHubClient()];
 		for (const hub of hubs) {
@@ -1551,8 +1551,8 @@ describe("CloudSessionManager", () => {
 			"inner-1",
 		]);
 		expect(hubs.map((hub) => hub.subscriptionSessionIds)).toEqual([
-			["inner-1"],
-			["inner-1"],
+			["ses-outer", "inner-1"],
+			["ses-outer", "inner-1"],
 		]);
 	});
 
@@ -2028,6 +2028,12 @@ describe("CloudSessionManager", () => {
 		const hub = new FakeHubClient(false);
 		const manager = new CloudSessionManager(ctx, {
 			api: {
+				list: async () => [
+					{
+						...REMOTE_SESSION,
+						metadata: { ...REMOTE_SESSION.metadata, taskId: "task-created" },
+					},
+				],
 				create: async () => ({
 					sessionId: "ses-outer",
 					sandboxUrl: "",
@@ -2056,6 +2062,7 @@ describe("CloudSessionManager", () => {
 				command: "session.create",
 				payload: expect.objectContaining({
 					workspaceRoot: "/workspace",
+					requestedSessionId: "task-created",
 					sessionConfig: expect.objectContaining({
 						thinking: true,
 						reasoningEffort: "high",
