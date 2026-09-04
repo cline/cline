@@ -2549,6 +2549,10 @@ const handoffRequests = new WeakMap<
 // the counter keeps concurrent queued sends from releasing the guard early.
 const activeSendRequests = new WeakMap<SidecarContext, Map<string, number>>();
 const activeDeleteRequests = new WeakMap<SidecarContext, Map<string, number>>();
+const activeMetadataUpdateRequests = new WeakMap<
+	SidecarContext,
+	Map<string, number>
+>();
 
 function beginActiveSessionSend(
 	ctx: SidecarContext,
@@ -2595,6 +2599,32 @@ function beginActiveSessionDelete(
 	};
 }
 
+export function beginSessionMetadataUpdate(
+	ctx: SidecarContext,
+	sessionId: string,
+): () => void {
+	if (handoffRequests.get(ctx)?.has(sessionId)) {
+		throw new Error(
+			"Wait for the cloud handoff to finish before updating session metadata.",
+		);
+	}
+	let requests = activeMetadataUpdateRequests.get(ctx);
+	if (!requests) {
+		requests = new Map();
+		activeMetadataUpdateRequests.set(ctx, requests);
+	}
+	requests.set(sessionId, (requests.get(sessionId) ?? 0) + 1);
+	let finished = false;
+	return () => {
+		if (finished) return;
+		finished = true;
+		const remaining = (requests?.get(sessionId) ?? 1) - 1;
+		if (remaining > 0) requests?.set(sessionId, remaining);
+		else requests?.delete(sessionId);
+		if (requests?.size === 0) activeMetadataUpdateRequests.delete(ctx);
+	};
+}
+
 /**
  * Deleting a source session while its cloud handoff is in flight can remove
  * the only durable recovery record for an already-created sandbox. Keep this
@@ -2631,6 +2661,11 @@ async function handleHandoff(
 	if (!sourceSessionId) throw new Error("sessionId is required");
 	if (activeDeleteRequests.get(ctx)?.has(sourceSessionId)) {
 		throw new Error("Wait for session deletion to finish before handing off.");
+	}
+	if (activeMetadataUpdateRequests.get(ctx)?.has(sourceSessionId)) {
+		throw new Error(
+			"Wait for the session metadata update to finish before handing off.",
+		);
 	}
 	let requests = handoffRequests.get(ctx);
 	if (!requests) {
