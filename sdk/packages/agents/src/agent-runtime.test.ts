@@ -2282,6 +2282,86 @@ describe("AgentRuntime", () => {
 		});
 	});
 
+	it.each([
+		false,
+		true,
+	])("injects run context after input (seeded: %s)", async (seeded) => {
+		const model = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "done" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const prompt: AgentMessage = {
+			id: "prompt",
+			role: "user",
+			content: [{ type: "text", text: "hello" }],
+			createdAt: 1,
+		};
+		const runtime = new AgentRuntime({
+			model,
+			initialMessages: seeded ? [prompt] : [],
+			hooks: {
+				beforeRun: () => ({
+					appendContext: "first <hook_context>note</hook_context>",
+				}),
+			},
+			plugins: [
+				{
+					name: "second",
+					setup: () => ({
+						hooks: { beforeRun: () => ({ appendContext: "second" }) },
+					}),
+				},
+			],
+		});
+		const result = await runtime.run(seeded ? "" : "hello");
+		expect(result.status).toBe("completed");
+		const messages = model.requests[0].messages;
+		expect(messages[0].content).toEqual(prompt.content);
+		expect(messages[1]).toMatchObject({
+			role: "user",
+			metadata: { displayRole: "system", userRunSpan: 0 },
+			content: [
+				{
+					type: "text",
+					text:
+						'<hook_context source="RunStart">\nfirst <\\hook_context>note<\\/hook_context>\n</hook_context>\n\n' +
+						'<hook_context source="RunStart">\nsecond\n</hook_context>',
+				},
+			],
+		});
+		expect(result.messages[1]).toEqual(messages[1]);
+	});
+
+	it("discards all run context on cancellation without leaking it into the next run", async () => {
+		const beforeRun = vi
+			.fn()
+			.mockReturnValueOnce({ appendContext: "discard me" })
+			.mockReturnValueOnce(undefined);
+		const stop = vi
+			.fn()
+			.mockReturnValueOnce({ stop: true, appendContext: "discard this too" })
+			.mockReturnValueOnce(undefined);
+		const model = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "done" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			hooks: { beforeRun },
+			plugins: [
+				{ name: "stop", setup: () => ({ hooks: { beforeRun: stop } }) },
+			],
+		});
+		expect((await runtime.run("blocked")).status).toBe("aborted");
+		expect(model.requests).toHaveLength(0);
+		expect((await runtime.continue("retry")).status).toBe("completed");
+		expect(JSON.stringify(model.requests[0].messages)).not.toContain("discard");
+	});
+
 	it("sanitizes hook context markup against corrupting identity attributes", async () => {
 		const model = new ScriptedModel([
 			() => [
