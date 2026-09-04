@@ -2,8 +2,18 @@ import { useEffect, useRef } from "react";
 import { humanizeCloudSessionError } from "@/lib/cloud-session-error";
 import { desktopClient } from "@/lib/desktop-client";
 
+export type CloudProvisioningPhase =
+	| "provisioning"
+	| "cloning_repo"
+	| "agent_starting"
+	| "ready"
+	| "failed";
+
 export type CloudProvisioningOutcome =
-	| { status: "provisioning" }
+	| {
+			status: "provisioning";
+			phase?: CloudProvisioningPhase;
+	  }
 	| { status: "ready"; sessionId: string }
 	| { status: "failed"; message: string };
 
@@ -16,6 +26,7 @@ export function useProvisioningOutcome(options: {
 	onOpenReady: (sessionId: string) => Promise<boolean>;
 	onResolved: () => void;
 	onError: (message: string) => void;
+	onPhase?: (phase: CloudProvisioningPhase | undefined) => void;
 }): void {
 	const callbacksRef = useRef(options);
 	callbacksRef.current = options;
@@ -37,14 +48,13 @@ export function useProvisioningOutcome(options: {
 					);
 				if (cancelled) return;
 				if (outcome?.status === "ready") {
-					const opened = await callbacksRef.current.onOpenReady(
-						outcome.sessionId,
-					);
-					if (cancelled) return;
+					const { onOpenReady, onResolved } = callbacksRef.current;
+					const opened = await onOpenReady(outcome.sessionId);
 					if (opened) {
-						callbacksRef.current.onResolved();
+						onResolved();
 						return;
 					}
+					if (cancelled) return;
 					failedOpens += 1;
 					if (failedOpens >= PROVISIONING_OPEN_GIVE_UP_ATTEMPTS) {
 						callbacksRef.current.onError(
@@ -68,6 +78,7 @@ export function useProvisioningOutcome(options: {
 					}
 				} else {
 					unknownPolls = 0;
+					callbacksRef.current.onPhase?.(outcome?.phase);
 				}
 			} catch {
 				// Keep polling through a temporary sidecar interruption.
