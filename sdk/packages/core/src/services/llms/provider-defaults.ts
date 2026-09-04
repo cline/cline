@@ -813,7 +813,14 @@ async function getPrivateProviderModels(
 async function fetchLiveModelsCatalog(
 	url: string,
 ): Promise<Record<string, Record<string, ModelInfo>>> {
-	return Llms.fetchLiveProviderModels(url, globalThis.fetch);
+	// Route the shared catalog fetches through the same abortable timeout as
+	// the per-provider model fetchers. Every provider's resolveProviderConfig
+	// awaits this shared request, so a hanging catalog host (e.g. blackholed
+	// DNS) must fail fast instead of stalling model resolution for providers
+	// that never talk to that host.
+	return Llms.fetchLiveProviderModels(url, (input, init) =>
+		fetchWithTimeout(String(input), init ?? {}),
+	);
 }
 
 export async function getLiveModelsCatalog(
