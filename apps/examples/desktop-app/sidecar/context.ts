@@ -243,7 +243,7 @@ export function serializeQueuedPromptStart(input: {
 	});
 }
 
-function sendPromptsInQueueSnapshot(
+export function sendPromptsInQueueSnapshot(
 	ctx: SidecarContext,
 	sessionId: string,
 ): void {
