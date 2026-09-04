@@ -72,6 +72,32 @@ describe("run handlers", () => {
 		);
 	});
 
+	it("accepts an image-only session input", async () => {
+		const runTurn = vi.fn().mockResolvedValue(undefined);
+		const ctx = createContext({ runTurn });
+		const image = "data:image/png;base64,aGVsbG8=";
+
+		await expect(
+			handleSessionInput(ctx, {
+				version: "v1",
+				command: "session.send_input",
+				requestId: "req-image",
+				sessionId: "session-1",
+				payload: {
+					prompt: "",
+					attachments: { userImages: [image] },
+				},
+			}),
+		).resolves.toMatchObject({ ok: true });
+
+		expect(runTurn).toHaveBeenCalledWith(
+			expect.objectContaining({
+				prompt: "",
+				userImages: [image],
+			}),
+		);
+	});
+
 	it("does not publish run start for an unknown session", async () => {
 		const runTurn = vi.fn();
 		const ctx = createContext({

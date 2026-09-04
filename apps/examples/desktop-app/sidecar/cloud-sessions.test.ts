@@ -2369,7 +2369,7 @@ describe("CloudSessionManager", () => {
 		expect(ctx.liveSessions.get("ses-outer")?.config.model).toBe(selectedModel);
 	});
 
-	it("forwards cloud images and continues rejecting file attachments", async () => {
+	it("forwards image-only cloud messages and rejects file attachments", async () => {
 		const { ctx } = createContext();
 		const hub = new FakeHubClient();
 		const manager = new CloudSessionManager(ctx, {
@@ -2386,7 +2386,7 @@ describe("CloudSessionManager", () => {
 		await handleChatSessionCommand(ctx, {
 			action: "send",
 			sessionId: "ses-outer",
-			prompt: "Inspect this image",
+			prompt: "",
 			attachments: { userImages: [image] },
 			config: {
 				executionTarget: "cloud",
@@ -2397,7 +2397,7 @@ describe("CloudSessionManager", () => {
 		expect(hub.commands.at(-1)).toMatchObject({
 			command: "session.send_input",
 			payload: {
-				prompt: "Inspect this image",
+				prompt: "",
 				delivery: undefined,
 				attachments: { userImages: [image] },
 			},

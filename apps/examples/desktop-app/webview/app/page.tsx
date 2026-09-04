@@ -268,6 +268,8 @@ export default function Home() {
 		useState<OnboardingStep>("welcome");
 	const { navigation, threads } = appState;
 	const { activeThreadId, settingsSection, view } = navigation.current;
+	const navigationRef = useRef(navigation.current);
+	navigationRef.current = navigation.current;
 
 	const navigate = useCallback((destination: AppLocation) => {
 		dispatchApp({ type: "navigate", destination });
@@ -451,12 +453,18 @@ export default function Home() {
 	const handleOpenSessionById = useCallback(
 		async (
 			sessionId: string,
-			options: { silent?: boolean } = {},
+			options: { silent?: boolean; expectedActiveThreadId?: string } = {},
 		): Promise<boolean> => {
+			const stillExpectedThread = () =>
+				!options.expectedActiveThreadId ||
+				(navigationRef.current.view === "chat" &&
+					navigationRef.current.activeThreadId ===
+						options.expectedActiveThreadId);
 			const cachedSession = sessionHistoryRef.current.find(
 				(session) => session.sessionId === sessionId,
 			);
 			if (cachedSession) {
+				if (!stillExpectedThread()) return false;
 				handleOpenSession(cachedSession);
 				return true;
 			}
@@ -468,6 +476,7 @@ export default function Home() {
 				if (!session) {
 					throw new Error("The session for this run is no longer available.");
 				}
+				if (!stillExpectedThread()) return false;
 				handleOpenSession(session);
 				return true;
 			} catch (error) {
@@ -528,13 +537,18 @@ export default function Home() {
 				return;
 			}
 			if (placeholderThread.id === activeThreadId) {
-				void handleOpenSessionById(sessionId, { silent: true }).then(
-					(opened) => {
-						if (opened) {
-							handleDeleteSession(placeholderId, placeholderThread.id);
-						}
-					},
-				);
+				void handleOpenSessionById(sessionId, {
+					silent: true,
+					expectedActiveThreadId: placeholderThread.id,
+				}).then((opened) => {
+					if (
+						opened ||
+						navigationRef.current.view !== "chat" ||
+						navigationRef.current.activeThreadId !== placeholderThread.id
+					) {
+						handleDeleteSession(placeholderId, placeholderThread.id);
+					}
+				});
 				return;
 			}
 			handleDeleteSession(placeholderId, placeholderThread.id);
@@ -730,7 +744,7 @@ function ChatThreadPane({
 	) => void;
 	onOpenSessionById?: (
 		sessionId: string,
-		options?: { silent?: boolean },
+		options?: { silent?: boolean; expectedActiveThreadId?: string },
 	) => boolean | Promise<boolean>;
 	onOpenSetup?: () => void;
 	onOpenModelSettings?: () => void;
@@ -912,8 +926,13 @@ function ChatThreadPane({
 	}, [provisioningPlaceholderId]);
 	const handleProvisioningReady = useCallback(
 		async (sessionId: string) =>
-			Boolean(await onOpenSessionById?.(sessionId, { silent: true })),
-		[onOpenSessionById],
+			Boolean(
+				await onOpenSessionById?.(sessionId, {
+					silent: true,
+					expectedActiveThreadId: threadId,
+				}),
+			),
+		[onOpenSessionById, threadId],
 	);
 	const handleProvisioningResolved = useCallback(() => {
 		if (provisioningPlaceholderId) {
