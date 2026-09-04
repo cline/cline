@@ -152,11 +152,13 @@
 					{
 						"group": "Features",
 						"pages": [
+							"core-workflows/task-management",
 							"core-workflows/plan-and-act",
 							"core-workflows/working-with-files",
 							"core-workflows/using-commands",
 							"core-workflows/checkpoints",
 							"cli/agent-teams",
+							"features/auto-compact",
 							"features/subagents"
 						]
 					},
