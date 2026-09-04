@@ -527,6 +527,134 @@ describe("resolveProviderConfig", () => {
 		expect(Object.keys(resolved?.knownModels ?? {})).toEqual(["local-llama"]);
 	});
 
+	it("enriches LM Studio models with the loaded instance context length", async () => {
+		const fetchMock = vi.fn(async (input: string | URL | Request) => {
+			expect(String(input)).toBe("http://tailscale-host:1234/api/v1/models");
+			return new Response(
+				JSON.stringify({
+					models: [
+						{
+							key: "qwen3-27b",
+							max_context_length: 183_296,
+							loaded_instances: [
+								{ id: "qwen3-27b", config: { context_length: 40_000 } },
+							],
+						},
+						{
+							key: "gemma-4-31b",
+							max_context_length: 32_768,
+							loaded_instances: [],
+						},
+					],
+				}),
+				{
+					status: 200,
+					headers: { "content-type": "application/json" },
+				},
+			);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const resolved = await resolveProviderConfig(
+			"lmstudio",
+			{ failOnError: false, cacheTtlMs: 0 },
+			{
+				providerId: "lmstudio",
+				modelId: "",
+				baseUrl: "http://tailscale-host:1234/v1",
+			},
+		);
+
+		expect(resolved?.knownModels?.["qwen3-27b"]).toMatchObject({
+			id: "qwen3-27b",
+			contextWindow: 40_000,
+		});
+		expect(resolved?.knownModels?.["gemma-4-31b"]).toMatchObject({
+			id: "gemma-4-31b",
+			contextWindow: 32_768,
+		});
+	});
+
+	it("refreshes the context when the same LM Studio model is reloaded", async () => {
+		let contextWindow = 40_000;
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(
+				async () =>
+					new Response(
+						JSON.stringify({
+							models: [
+								{
+									key: "qwen3-27b",
+									loaded_instances: [
+										{
+											id: "qwen3-27b",
+											config: { context_length: contextWindow },
+										},
+									],
+								},
+							],
+						}),
+					),
+			),
+		);
+		const config = {
+			providerId: "lmstudio",
+			modelId: "qwen3-27b",
+			baseUrl: "http://localhost:1234/v1",
+		};
+
+		const first = await resolveProviderConfig(
+			"lmstudio",
+			{ failOnError: false, cacheTtlMs: 0 },
+			config,
+		);
+		contextWindow = 64_000;
+		const second = await resolveProviderConfig(
+			"lmstudio",
+			{ failOnError: false, cacheTtlMs: 0 },
+			config,
+		);
+
+		expect(first?.knownModels?.["qwen3-27b"]?.contextWindow).toBe(40_000);
+		expect(second?.knownModels?.["qwen3-27b"]?.contextWindow).toBe(64_000);
+	});
+
+	it("falls back to the id-only LM Studio listing when the REST API is unavailable", async () => {
+		const fetchMock = vi.fn(async (input: string | URL | Request) => {
+			if (String(input).endsWith("/api/v1/models")) {
+				return new Response("Not Found", { status: 404 });
+			}
+			expect(String(input)).toBe("http://localhost:1234/v1/models");
+			return new Response(
+				JSON.stringify({
+					object: "list",
+					data: [{ id: "legacy-model", object: "model" }],
+				}),
+				{
+					status: 200,
+					headers: { "content-type": "application/json" },
+				},
+			);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const resolved = await resolveProviderConfig(
+			"lmstudio",
+			{ failOnError: false, cacheTtlMs: 0 },
+			{
+				providerId: "lmstudio",
+				modelId: "",
+				baseUrl: "http://localhost:1234/v1",
+			},
+		);
+
+		expect(Object.keys(resolved?.knownModels ?? {})).toEqual(["legacy-model"]);
+		expect(
+			resolved?.knownModels?.["legacy-model"]?.contextWindow,
+		).toBeUndefined();
+	});
+
 	it("loads Poolside models from the authenticated models endpoint", async () => {
 		const fetchMock = vi.fn(async () => {
 			return new Response(

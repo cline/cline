@@ -134,6 +134,12 @@ export {
 	type ClineWebSearchResult,
 	createCline,
 } from "./providers/vendors/cline";
+export {
+	fetchLmStudioModels,
+	type LmStudioModel,
+	type LmStudioModelsFetch,
+	toLmStudioRestModelsUrl,
+} from "./providers/vendors/lmstudio";
 export { disposeLangfuseTelemetry } from "./services/langfuse-telemetry";
 export {
 	type AudioTranscriptionRequest,

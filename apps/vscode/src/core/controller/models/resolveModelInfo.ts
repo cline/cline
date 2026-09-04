@@ -1,3 +1,4 @@
+import { providerModelInfoRequiresLiveRefresh } from "@cline/core"
 import type { ProviderModelsResult } from "@/sdk/model-catalog/contracts"
 import { providerAllowsCustomModelIds } from "@/sdk/model-catalog/custom-model-ids"
 import { ResolveModelInfoRequest, ResolveModelInfoResponse } from "@/shared/proto/cline/models"
@@ -40,6 +41,7 @@ export async function resolveModelInfo(
 ): Promise<ResolveModelInfoResponse> {
 	const providerId = parseProviderIdRequest(request.providerId)
 	const requestedModelId = request.modelId?.trim() || ""
+	const requiresLiveModelInfo = providerModelInfoRequiresLiveRefresh(providerId)
 
 	const store = controller.getProviderConfigStore()
 	// A committed selection whose metadata is pure fallback fabrication (no
@@ -52,7 +54,7 @@ export async function resolveModelInfo(
 			if (selection?.modelId !== requestedModelId) {
 				continue
 			}
-			if (selection.modelInfoSource === "fallback" && !selection.overrides) {
+			if (requiresLiveModelInfo || (selection.modelInfoSource === "fallback" && !selection.overrides)) {
 				fallbackSelection ??= selection
 				continue
 			}
@@ -100,7 +102,7 @@ export async function resolveModelInfo(
 	const allowCustomModelIds = providerAllowsCustomModelIds(providerId)
 
 	const catalog = controller.getProviderCatalog()
-	const cached = catalog.peekModels(providerId)
+	const cached = requiresLiveModelInfo ? undefined : catalog.peekModels(providerId)
 	if (cached?.ok) {
 		const hit = pickFromCatalog(cached, requestedModelId, allowCustomModelIds)
 		// A default-model substitution answers a question about a different
@@ -118,7 +120,9 @@ export async function resolveModelInfo(
 	// Cache miss. Await a real resolve so the caller doesn't have to
 	// retry or race a warmer. The catalog dedup'\''s in-flight requests
 	// and caches the result, so the per-fingerprint cost is paid once.
-	const resolved = await catalog.resolveModels(providerId).catch(() => undefined)
+	const resolved = await catalog
+		.resolveModels(providerId, requiresLiveModelInfo ? { forceRefresh: true } : undefined)
+		.catch(() => undefined)
 	if (resolved?.ok) {
 		const hit = pickFromCatalog(resolved, requestedModelId, allowCustomModelIds)
 		if (hit && (hit.matchedRequested || !fallbackSelection)) {
