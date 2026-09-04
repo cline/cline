@@ -8,8 +8,10 @@ import {
 	type GatewayProviderSettings,
 	getClineEnvironmentConfig,
 	type JsonValue,
+	type ModelCapability,
 	type ProviderCapability,
 	type ProviderConfigField,
+	type ReasoningLevel,
 } from "@cline/shared";
 import { getGeneratedModelsForProvider } from "../catalog/catalog.generated-access";
 import { filterImageOutputModels } from "../catalog/model-filters";
@@ -475,6 +477,148 @@ function buildElevenLabsModels(): Record<string, ModelInfo> {
 	};
 }
 
+/**
+ * MindsHub (https://mindshub.ai) is not carried by models.dev, so its catalog
+ * is hand-maintained here rather than sourced through `modelsProviderId`. Kept
+ * in sync with https://docs.mindshub.ai/inference/models — MindsHub resolves
+ * these aliases server-side, so the underlying model version can move without
+ * a Cline release.
+ *
+ * `reasoning` is populated only where MindsHub's docs state a concrete effort
+ * ladder for that alias (`sonnet`, `deepseek`); `true` marks aliases the docs
+ * confirm reason internally without naming specific levels. `mindshub_air`
+ * and `kimi` are the two aliases MindsHub's docs call out as reasoning with
+ * `reasoning_efforts: null` (not user-adjustable), so neither sets the flag.
+ */
+interface MindsHubModelSpec {
+	id: string;
+	name: string;
+	family: string;
+	description?: string;
+	reasoning?: true | readonly ReasoningLevel[];
+}
+
+const MINDSHUB_MODEL_SPECS: readonly MindsHubModelSpec[] = [
+	{ id: "mindshub_air", name: "MindsHub Air", family: "mindshub" },
+	{
+		id: "sonnet",
+		name: "Claude Sonnet 5",
+		family: "anthropic",
+		reasoning: ["low", "medium", "high", "max"],
+	},
+	{ id: "opus", name: "Claude Opus 5", family: "anthropic", reasoning: true },
+	{ id: "fable", name: "Claude Fable 5", family: "anthropic", reasoning: true },
+	{ id: "haiku", name: "Claude Haiku 4.5", family: "anthropic" },
+	{ id: "gpt", name: "GPT 5.6 Sol", family: "openai", reasoning: true },
+	{ id: "gpt-terra", name: "GPT 5.6 Terra", family: "openai", reasoning: true },
+	{ id: "gpt-luna", name: "GPT 5.6 Luna", family: "openai", reasoning: true },
+	{
+		id: "gpt-codex",
+		name: "GPT 5.3 Codex",
+		family: "openai",
+		reasoning: true,
+	},
+	{
+		id: "gpt-mini",
+		name: "GPT 5.4 Mini",
+		family: "openai",
+		reasoning: ["none", "low", "high", "max"],
+	},
+	{ id: "gpt-nano", name: "GPT 5.4 Nano", family: "openai", reasoning: true },
+	{
+		id: "gemini",
+		name: "Gemini 3.1 Pro Preview",
+		family: "gemini",
+		reasoning: true,
+	},
+	{
+		id: "gemini-flash",
+		name: "Gemini 3.7 Flash",
+		family: "gemini",
+		reasoning: true,
+	},
+	{
+		id: "gemini-flash-3-6",
+		name: "Gemini 3.6 Flash",
+		family: "gemini",
+		description: "Frozen version of `gemini-flash`, which tracks the newest.",
+		reasoning: true,
+	},
+	{ id: "kimi", name: "Kimi K3", family: "moonshot" },
+	{
+		id: "deepseek",
+		name: "DeepSeek V4-Pro-0813",
+		family: "fireworks",
+		reasoning: ["low", "high", "max"],
+	},
+	{
+		id: "deepseek-v4-pro",
+		name: "DeepSeek V4 Pro",
+		family: "fireworks",
+		description: "Frozen version of `deepseek`, which tracks the newest.",
+		reasoning: ["low", "high", "max"],
+	},
+	{
+		id: "qwen",
+		name: "Qwen3.8-2.4T-A95B",
+		family: "fireworks",
+		reasoning: true,
+	},
+	{
+		id: "qwen-3-7-plus",
+		name: "Qwen3.7 Plus",
+		family: "fireworks",
+		description: "Frozen version of `qwen`, which tracks the newest.",
+		reasoning: true,
+	},
+	{ id: "glm", name: "GLM 5.2", family: "fireworks", reasoning: true },
+	{ id: "muse-spark", name: "Muse Spark 1.2", family: "meta", reasoning: true },
+	{
+		id: "muse-spark-1-1",
+		name: "Muse Spark 1.1",
+		family: "meta",
+		description: "Frozen version of `muse-spark`, which tracks the newest.",
+		reasoning: true,
+	},
+	{ id: "grok", name: "Grok 4.6", family: "xai", reasoning: true },
+	{
+		id: "grok-4-5",
+		name: "Grok 4.5",
+		family: "xai",
+		description: "Frozen version of `grok`, which tracks the newest.",
+		reasoning: true,
+	},
+];
+
+function buildMindsHubModels(): Record<string, ModelInfo> {
+	return Object.fromEntries(
+		MINDSHUB_MODEL_SPECS.map((spec) => {
+			const capabilities: ModelCapability[] = [
+				"tools",
+				"images",
+				"streaming",
+				"prompt-cache",
+			];
+			const info: ModelInfo = {
+				id: spec.id,
+				name: spec.name,
+				family: spec.family,
+				description: spec.description,
+				capabilities,
+			};
+			if (spec.reasoning) {
+				capabilities.push("reasoning");
+				if (Array.isArray(spec.reasoning)) {
+					info.reasoningOptions = [
+						{ type: "effort", values: [...spec.reasoning] },
+					];
+				}
+			}
+			return [spec.id, info];
+		}),
+	);
+}
+
 function buildClineModels(): Record<string, ModelInfo> {
 	// Cline is OpenRouter-backed generally, but its recommended-model endpoint
 	// can return Vercel-style ids. Include those exact ids so runtime metadata
@@ -858,6 +1002,19 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		modelsProviderId: "aihubmix",
 		defaults: { baseUrl: "https://api.aihubmix.com/v1" },
 		metadata: ANTHROPIC_ROUTING_METADATA,
+	},
+	{
+		id: "mindshub",
+		name: "MindsHub",
+		description:
+			"One API key for Claude, GPT, Gemini, Kimi, DeepSeek, and more, billed to one balance",
+		family: "openai-compatible",
+		capabilities: ["reasoning", "prompt-cache", "tools"],
+		defaultModelId: "sonnet",
+		apiKeyEnv: ["MINDSHUB_API_KEY"],
+		modelsFactory: buildMindsHubModels,
+		docsUrl: "https://docs.mindshub.ai/inference/",
+		defaults: { baseUrl: "https://api.mindshub.ai/v1" },
 	},
 	{
 		id: "hicap",
