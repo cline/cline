@@ -1,0 +1,17 @@
+{
+	"$schema": "https://schema.tauri.app/config/2",
+	"app": {
+		"windows": [
+			{
+				"label": "main",
+				"title": "Cline",
+				"width": 1500,
+				"height": 980,
+				"resizable": true,
+				"decorations": false,
+				"shadow": true,
+				"dragDropEnabled": false
+			}
+		]
+	}
+}
