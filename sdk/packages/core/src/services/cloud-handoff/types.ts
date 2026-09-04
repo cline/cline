@@ -44,4 +44,7 @@ export type CloudHandoffResult = {
 	dashboardUrl: string;
 	destination: CloudHandoffDestination;
 	warning?: string;
+	/** How the follow-up command failed: definitely unqueued, or unconfirmed
+	 * either way (an unconfirmed prompt must not be resubmitted blindly). */
+	warningKind?: "unqueued" | "unconfirmed";
 };

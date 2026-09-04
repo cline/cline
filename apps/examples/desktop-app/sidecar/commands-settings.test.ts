@@ -44,26 +44,24 @@ beforeEach(() => {
 
 afterEach(() => {
 	delete process.env.CLINE_CODE_CLOUD_AGENTS;
+	delete process.env.CLINE_CODE_CLOUD_HANDOFF;
 	delete process.env.CLINE_DATA_DIR;
 	rmSync(dataDir, { recursive: true, force: true });
 });
 
 describe("desktop settings commands", () => {
-	it("reads default desktop settings and an off feature gate", async () => {
+	it("reads default desktop settings with beta cloud availability", async () => {
 		const { ctx } = createContext();
 
 		await expect(
 			handleCommand(ctx, "get_desktop_settings", {}),
 		).resolves.toEqual({ cloudSessionsEnabled: false });
-		await expect(handleCommand(ctx, "get_feature_flags", {})).resolves.toEqual({
+		await expect(
+			handleCommand(ctx, "get_feature_flags", {}),
+		).resolves.toMatchObject({
 			cloudAgents: false,
-			cloudAgentsAvailable: false,
-			flags: {
-				"code-cloud-agents": false,
-				"code-onboarding-github": false,
-				"ext-cline-pass": false,
-				"internal-composio-connectors": false,
-			},
+			cloudAgentsAvailable: true,
+			cloudHandoff: true,
 		});
 	});
 
@@ -78,7 +76,7 @@ describe("desktop settings commands", () => {
 		expect(events).toEqual([]);
 	});
 
-	it("persists the toggle and broadcasts the rollout-gated state", async () => {
+	it("persists the toggle and broadcasts the new gate immediately", async () => {
 		const { ctx, events } = createContext();
 
 		await expect(
@@ -87,30 +85,35 @@ describe("desktop settings commands", () => {
 			}),
 		).resolves.toEqual({ cloudSessionsEnabled: true });
 		// Open webviews re-evaluate without waiting for a restart or account
-		// change.
+		// change. Beta makes cloud capabilities available without PostHog; the
+		// existing desktop opt-in remains the effective user-facing gate.
 		expect(events).toEqual([
 			{
 				name: "feature_flags_changed",
-				payload: { cloudAgents: false, cloudAgentsAvailable: false },
+				payload: {
+					cloudAgents: true,
+					cloudAgentsAvailable: true,
+					cloudHandoff: true,
+				},
 			},
 		]);
-		await expect(handleCommand(ctx, "get_feature_flags", {})).resolves.toEqual({
-			cloudAgents: false,
-			cloudAgentsAvailable: false,
-			flags: {
-				"code-cloud-agents": false,
-				"code-onboarding-github": false,
-				"ext-cline-pass": false,
-				"internal-composio-connectors": false,
-			},
-		});
+		await expect(
+			handleCommand(ctx, "get_feature_flags", {}),
+		).resolves.toMatchObject({ cloudAgents: true });
+		await expect(
+			handleCommand(ctx, "get_desktop_settings", {}),
+		).resolves.toEqual({ cloudSessionsEnabled: true });
 
 		await handleCommand(ctx, "set_cloud_sessions_enabled", {
 			cloud_sessions_enabled: false,
 		});
 		expect(events.at(-1)).toEqual({
 			name: "feature_flags_changed",
-			payload: { cloudAgents: false, cloudAgentsAvailable: false },
+			payload: {
+				cloudAgents: false,
+				cloudAgentsAvailable: true,
+				cloudHandoff: true,
+			},
 		});
 	});
 
@@ -118,15 +121,11 @@ describe("desktop settings commands", () => {
 		const { ctx } = createContext();
 		process.env.CLINE_CODE_CLOUD_AGENTS = "1";
 
-		await expect(handleCommand(ctx, "get_feature_flags", {})).resolves.toEqual({
+		await expect(
+			handleCommand(ctx, "get_feature_flags", {}),
+		).resolves.toMatchObject({
 			cloudAgents: true,
 			cloudAgentsAvailable: true,
-			flags: {
-				"code-cloud-agents": false,
-				"code-onboarding-github": false,
-				"ext-cline-pass": false,
-				"internal-composio-connectors": false,
-			},
 		});
 		// The toggle's stored value is reported as-is; the override only
 		// affects the effective gate.

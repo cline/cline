@@ -5,6 +5,8 @@ export const FeatureFlag = {
 	CLINE_PASS: "ext-cline-pass",
 	/** Makes the Cloud sessions opt-in visible in the Cline Code desktop app. */
 	CODE_CLOUD_AGENTS: "code-cloud-agents",
+	/** Enables /handoff (local-to-cloud session handoff) in the Cline Code desktop app. */
+	CODE_CLOUD_HANDOFF: "code-cloud-handoff",
 	/** Shows the GitHub integration step in the desktop app. */
 	CODE_ONBOARDING_GITHUB: "code-onboarding-github",
 	/** Widens access to the internal-only Composio connectors beyond

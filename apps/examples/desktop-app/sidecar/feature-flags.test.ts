@@ -63,6 +63,7 @@ import {
 	getDesktopFeatureFlagsService,
 	isCloudAgentsAvailable,
 	isCloudAgentsEnabled,
+	isCloudHandoffEnabled,
 	isDesktopInternalFeatureEnabled,
 	refreshDesktopFeatureFlags,
 	resetDesktopFeatureFlagsForTesting,
@@ -88,6 +89,7 @@ beforeEach(() => {
 
 afterEach(() => {
 	delete process.env.CLINE_CODE_CLOUD_AGENTS;
+	delete process.env.CLINE_CODE_CLOUD_HANDOFF;
 	delete process.env.CLINE_DATA_DIR;
 	rmSync(dataDir, { recursive: true, force: true });
 	if (originalApiKey === undefined) {
@@ -381,21 +383,12 @@ describe("disposeDesktopFeatureFlagsService", () => {
 });
 
 describe("cloud agents gate", () => {
-	it("defaults to unavailable and disabled", () => {
-		expect(isCloudAgentsAvailable()).toBe(false);
-		expect(isCloudAgentsEnabled()).toBe(false);
-	});
-
-	it("requires the rollout flag and the user's opt-in", () => {
-		setCloudSessionsEnabled(true);
-		expect(isCloudAgentsEnabled()).toBe(false);
-		mocks.getBooleanFlagEnabled.mockImplementation(
-			(flag: unknown) => flag === "code-cloud-agents",
-		);
+	it("is available in beta and follows the existing Settings toggle", () => {
 		expect(isCloudAgentsAvailable()).toBe(true);
-		expect(isCloudAgentsEnabled()).toBe(true);
 		setCloudSessionsEnabled(false);
 		expect(isCloudAgentsEnabled()).toBe(false);
+		setCloudSessionsEnabled(true);
+		expect(isCloudAgentsEnabled()).toBe(true);
 	});
 
 	it("honors the env override in both directions", () => {
@@ -410,5 +403,18 @@ describe("cloud agents gate", () => {
 		expect(isCloudAgentsEnabled()).toBe(false);
 		process.env.CLINE_CODE_CLOUD_AGENTS = "false";
 		expect(isCloudAgentsEnabled()).toBe(false);
+	});
+});
+
+describe("cloud handoff gate", () => {
+	it("is enabled by default in beta", () => {
+		expect(isCloudHandoffEnabled()).toBe(true);
+	});
+
+	it("honors the diagnostic env override", () => {
+		process.env.CLINE_CODE_CLOUD_HANDOFF = "0";
+		expect(isCloudHandoffEnabled()).toBe(false);
+		process.env.CLINE_CODE_CLOUD_HANDOFF = "1";
+		expect(isCloudHandoffEnabled()).toBe(true);
 	});
 });

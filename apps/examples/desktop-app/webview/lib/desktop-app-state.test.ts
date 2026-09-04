@@ -43,6 +43,35 @@ describe("desktopAppReducer", () => {
 		).toBeUndefined();
 	});
 
+	it("hands attachment-only recovery to the target thread exactly once", () => {
+		const attachment = new File(["png-bytes"], "screenshot.png", {
+			type: "image/png",
+		});
+		let state = createDesktopAppState("welcome", settingsSection);
+		state = desktopAppReducer(state, {
+			type: "open-session",
+			session: createSession("handoff-target"),
+			initialAttachments: [attachment],
+		});
+
+		const thread = state.threads.find(
+			(item) => item.id === "session_handoff-target",
+		);
+		expect(thread?.initialPromptDraft).toBeUndefined();
+		expect(thread?.initialAttachments).toEqual([attachment]);
+
+		state = desktopAppReducer(state, {
+			type: "consume-initial-prompt-draft",
+			threadId: "session_handoff-target",
+		});
+
+		const consumed = state.threads.find(
+			(item) => item.id === "session_handoff-target",
+		);
+		expect(consumed?.initialPromptDraft).toBeUndefined();
+		expect(consumed?.initialAttachments).toBeUndefined();
+	});
+
 	it("keeps both sessions deleted when deletion actions are queued together", () => {
 		let state = createDesktopAppState("welcome", settingsSection, "local");
 		state = desktopAppReducer(state, {

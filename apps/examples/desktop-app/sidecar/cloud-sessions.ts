@@ -124,6 +124,11 @@ type CloudHandoffSeed = {
 	messages: MessageWithMetadata[];
 	mode?: AgentMode;
 	workspaceRelativePath?: string;
+	config?: {
+		autoApproveTools?: boolean;
+		thinking?: boolean;
+		reasoningEffort?: "low" | "medium" | "high" | "xhigh";
+	};
 	onSeeding?: () => void;
 };
 
@@ -171,6 +176,17 @@ export class CloudSessionError extends Error {
 			`${CLOUD_ERROR_PREFIX}${JSON.stringify({ code, message: detail, connectUrl })}`,
 		);
 		this.name = "CloudSessionError";
+	}
+}
+
+/** A queued prompt whose delivery outcome could not be confirmed. */
+export class CloudQueueUnconfirmedError extends CloudSessionError {
+	constructor() {
+		super(
+			"request_failed",
+			"The connection was interrupted and Cline could not confirm whether this message was queued. Check the cloud session before resending it.",
+		);
+		this.name = "CloudQueueUnconfirmedError";
 	}
 }
 
@@ -2314,13 +2330,13 @@ export class CloudSessionManager {
 						live.busy = false;
 						live.status = "error";
 					}
+					if (delivery === "queue") {
+						throw new CloudQueueUnconfirmedError();
+					}
 					throw recoveryError;
 				}
 				if (delivery === "queue" && snapshot.prompts === undefined) {
-					throw new CloudSessionError(
-						"request_failed",
-						"The connection was interrupted and Cline could not confirm whether this message was queued. Check the cloud session before resending it.",
-					);
+					throw new CloudQueueUnconfirmedError();
 				}
 				const promptOccurrencesAfterRecovery = countPromptOccurrences(
 					snapshot.messages,

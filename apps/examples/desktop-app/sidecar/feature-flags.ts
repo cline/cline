@@ -22,13 +22,11 @@ import {
 	buildClinePostHogClient,
 	PostHogFeatureFlagsProvider,
 } from "@cline/core/services/feature-flags/posthog";
-import { FeatureFlag as SharedFeatureFlag } from "@cline/shared";
 import { resolveClineDataDir } from "@cline/shared/storage";
 import { readDesktopSettings } from "./desktop-settings";
 
 const DESKTOP_FEATURE_FLAGS_CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 const DESKTOP_ACCOUNT_CONTEXT_FILE_VERSION = 1;
-const FEATURE_FLAG_CODE_CLOUD_AGENTS = SharedFeatureFlag.CODE_CLOUD_AGENTS;
 
 let desktopFeatureFlagsContext: FeatureFlagsContext = {
 	clientName: "cline-code",
@@ -298,27 +296,39 @@ export function readCloudAgentsEnvOverride(): boolean | undefined {
 	return undefined;
 }
 
-/** The rollout flag controls whether this install can expose Cloud sessions. */
-export function isCloudAgentsAvailable(options?: {
+/** The beta always exposes the existing Cloud sessions opt-in. */
+export function isCloudAgentsAvailable(_options?: {
 	logger?: BasicLogger;
 	telemetry?: ITelemetryService;
 }): boolean {
 	const override = readCloudAgentsEnvOverride();
 	if (override !== undefined) return override;
-	return getDesktopFeatureFlagsService(options).getBooleanFlagEnabled(
-		FEATURE_FLAG_CODE_CLOUD_AGENTS,
-	);
+	return true;
 }
 
-/** The rollout gate and the user's Settings opt-in must both be enabled. */
-export function isCloudAgentsEnabled(options?: {
+/** The existing Settings toggle remains the beta opt-in. */
+export function isCloudAgentsEnabled(_options?: {
 	logger?: BasicLogger;
 	telemetry?: ITelemetryService;
 }): boolean {
 	const override = readCloudAgentsEnvOverride();
 	if (override !== undefined) return override;
-	if (!isCloudAgentsAvailable(options)) return false;
 	return readDesktopSettings().cloudSessionsEnabled;
+}
+
+export function readCloudHandoffEnvOverride(): boolean | undefined {
+	const override = process.env.CLINE_CODE_CLOUD_HANDOFF?.trim().toLowerCase();
+	if (override === "1" || override === "true") return true;
+	if (override === "0" || override === "false") return false;
+	return undefined;
+}
+
+/** Handoff ships with the beta and remains gated by Cloud sessions in the UI. */
+export function isCloudHandoffEnabled(_options?: {
+	logger?: BasicLogger;
+	telemetry?: ITelemetryService;
+}): boolean {
+	return readCloudHandoffEnvOverride() ?? true;
 }
 
 export function resetDesktopFeatureFlagsForTesting(): void {

@@ -57,10 +57,14 @@ function defaultGitCommand(
 }
 
 function trimGitSuffix(pathname: string): string {
-	return pathname
-		.replace(/^\/+/, "")
-		.replace(/\/+$/, "")
-		.replace(/\.git$/i, "");
+	let start = 0;
+	let end = pathname.length;
+	while (start < end && pathname[start] === "/") start += 1;
+	while (end > start && pathname[end - 1] === "/") end -= 1;
+	const trimmed = pathname.slice(start, end);
+	return trimmed.toLowerCase().endsWith(".git")
+		? trimmed.slice(0, -4)
+		: trimmed;
 }
 
 /** Converts supported GitHub clone URLs to the URL expected by cloud sessions. */
@@ -106,9 +110,10 @@ async function runRequired(
 	code: CloudHandoffGitPreflightErrorCode,
 	message: string,
 	signal?: AbortSignal,
+	normalizeOutput: (stdout: string) => string = (stdout) => stdout.trim(),
 ): Promise<string> {
 	try {
-		return (await git(args, { cwd, signal })).stdout.trim();
+		return normalizeOutput((await git(args, { cwd, signal })).stdout);
 	} catch (error) {
 		const detail = commandErrorMessage(error);
 		throw new CloudHandoffGitPreflightError(
@@ -131,7 +136,7 @@ function parseRemoteHead(stdout: string, branch: string): string | null {
 }
 
 function normalizeWorkspaceRelativePath(value: string): string | undefined {
-	const normalized = value.trim().replace(/\/+$/, "");
+	const normalized = value.replace(/[\r\n]+$/, "").replace(/\/+$/, "");
 	if (!normalized) return undefined;
 	const parts = normalized.split("/");
 	if (
@@ -180,13 +185,19 @@ export async function preflightCloudHandoffGit(input: {
 			"git_command_failed",
 			"Could not resolve the workspace path relative to the Git repository.",
 			input.signal,
+			(stdout) => stdout.replace(/[\r\n]+$/, ""),
 		),
 	);
 
 	const dirty = await runRequired(
 		git,
 		cwd,
-		["status", "--porcelain=v1", "--untracked-files=all"],
+		[
+			"status",
+			"--porcelain=v1",
+			"--untracked-files=all",
+			"--ignore-submodules=none",
+		],
 		"git_command_failed",
 		"Could not inspect the Git worktree.",
 		input.signal,
@@ -267,22 +278,23 @@ export async function preflightCloudHandoffGit(input: {
 	}
 
 	const upstreamBranch = mergeRef.slice("refs/heads/".length);
-	let rawRemoteUrl: string;
-	try {
-		rawRemoteUrl = (
-			await git(["remote", "get-url", remoteName], {
-				cwd,
-				signal: input.signal,
-			})
-		).stdout.trim();
-	} catch (error) {
-		// A branch remote may legally be a URL. Git can echo that argument in
-		// stderr, including embedded credentials, so do not append stderr here.
-		throw new CloudHandoffGitPreflightError(
-			"missing_upstream",
-			"Could not resolve the upstream remote.",
-			{ cause: error },
-		);
+	let rawRemoteUrl = remoteName;
+	if (!normalizeGitHubRemoteUrl(remoteName)) {
+		try {
+			rawRemoteUrl = (
+				await git(["remote", "get-url", remoteName], {
+					cwd,
+					signal: input.signal,
+				})
+			).stdout.trim();
+		} catch {
+			// Git may echo credential-bearing remote URLs in stderr. Do not retain
+			// the raw command error in either the message or the cause chain.
+			throw new CloudHandoffGitPreflightError(
+				"missing_upstream",
+				"Could not resolve the upstream remote.",
+			);
+		}
 	}
 	const repoUrl = normalizeGitHubRemoteUrl(rawRemoteUrl);
 	if (!repoUrl) {
@@ -308,7 +320,6 @@ export async function preflightCloudHandoffGit(input: {
 		throw new CloudHandoffGitPreflightError(
 			missing ? "remote_branch_missing" : "git_command_failed",
 			message,
-			{ cause: error },
 		);
 	}
 	const remoteSha = parseRemoteHead(remoteOutput, upstreamBranch);
@@ -328,7 +339,7 @@ export async function preflightCloudHandoffGit(input: {
 	return {
 		repoUrl,
 		branch: upstreamBranch,
-		remoteName,
+		remoteName: normalizeGitHubRemoteUrl(remoteName) ? repoUrl : remoteName,
 		headSha,
 		...(workspaceRelativePath ? { workspaceRelativePath } : {}),
 	};

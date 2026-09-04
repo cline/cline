@@ -124,3 +124,56 @@ export function shouldOpenHandoffInApp(
 ): boolean {
 	return destination === "in_app" && isSourceStillActive;
 }
+
+export type HandoffWarningToast = {
+	title: string;
+	description: string;
+	variant?: "destructive";
+};
+
+/**
+ * The single source of truth for how a handoff completion warning is shown,
+ * shared by the RPC result path and the `cloud_handoff_progress` complete
+ * event path so both surface the identical toast. Returns null when the
+ * payload carries no warning. An unconfirmed follow-up must never quote the
+ * command for resending — it may already be durably queued.
+ */
+export function buildHandoffWarningToast(fields: {
+	warning?: unknown;
+	warningKind?: unknown;
+	undeliveredCommand?: unknown;
+}): HandoffWarningToast | null {
+	const warning =
+		typeof fields.warning === "string" ? fields.warning.trim() : "";
+	if (!warning) {
+		return null;
+	}
+	const unconfirmed = fields.warningKind === "unconfirmed";
+	const undeliveredCommand =
+		!unconfirmed && typeof fields.undeliveredCommand === "string"
+			? fields.undeliveredCommand.trim()
+			: "";
+	return {
+		title: "Handoff completed with a warning",
+		description: undeliveredCommand
+			? `${warning} Your command was kept: "${undeliveredCommand}" — send it from the cloud session.`
+			: warning,
+		...(unconfirmed ? { variant: "destructive" as const } : {}),
+	};
+}
+
+/**
+ * Both the completion event and the RPC result can report the same warning;
+ * whichever lands first claims the toast and the other stays silent. Returns
+ * true when this caller should surface the warning for the source session.
+ */
+export function claimHandoffWarningSurface(
+	surfaced: Set<string>,
+	sourceSessionId: string,
+): boolean {
+	if (surfaced.has(sourceSessionId)) {
+		return false;
+	}
+	surfaced.add(sourceSessionId);
+	return true;
+}

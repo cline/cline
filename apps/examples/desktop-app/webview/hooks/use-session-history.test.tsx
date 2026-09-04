@@ -4,6 +4,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+	resolveLiveHistorySession,
 	sessionActivityTimestamp,
 	useSessionHistory,
 } from "./use-session-history";
@@ -39,6 +40,19 @@ function sessionRow(sessionId: string) {
 		endedAt: "2026-07-20T11:00:00.000Z",
 	};
 }
+
+it("uses refreshed metadata for an already-open session", () => {
+	const snapshot = sessionRow("handoff-source");
+	const refreshed = {
+		...snapshot,
+		metadata: {
+			handoff: { status: "complete", toCloudSessionId: "cloud-1" },
+		},
+	};
+
+	expect(resolveLiveHistorySession(snapshot, [refreshed])).toBe(refreshed);
+	expect(resolveLiveHistorySession(snapshot, [])).toBe(snapshot);
+});
 
 it("uses server activity when it is newer than local timestamps", () => {
 	expect(
