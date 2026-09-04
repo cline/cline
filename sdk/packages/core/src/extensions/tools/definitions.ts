@@ -18,6 +18,11 @@ import {
 import { captureRunCommandsTimeout } from "../../services/telemetry/core-events";
 import { CommandExitError } from "./executors/bash";
 import {
+	MonitorError,
+	type MonitorRecord,
+	type MonitorRegistry,
+} from "./executors/monitor";
+import {
 	MAX_COMMAND_OUTPUT_CHARS,
 	MAX_READ_LINES,
 	MAX_READ_OUTPUT_CHARS,
@@ -44,6 +49,8 @@ import {
 	EditFileInputSchema,
 	type FetchWebContentInput,
 	FetchWebContentInputSchema,
+	type MonitorInput,
+	MonitorInputSchema,
 	type ReadFileRequest,
 	type ReadFilesInput,
 	ReadFilesInputSchema,
@@ -816,6 +823,86 @@ export function createAskQuestionTool(
 	};
 }
 
+/**
+ * Watch something in the background without blocking the conversation.
+ *
+ * `start` returns as soon as the process is spawned. Output arrives later as
+ * notifications delivered through the registry's notifier, so the agent keeps
+ * working and is interrupted only when the watched thing actually says
+ * something.
+ */
+export function createMonitorTool(
+	registry: MonitorRegistry,
+	config: Pick<DefaultToolsConfig, "cwd"> = {},
+): AgentTool<MonitorInput, string> {
+	return createTool<MonitorInput, string>({
+		name: "monitor",
+		description:
+			"Watch something in the background and get notified when it produces output, without pausing your work. " +
+			"Use it to tail a log file, poll a PR or CI job, watch a directory, or track a long-running script. " +
+			'action "start" runs a command in the background and returns immediately; every line it prints is delivered to you as a notification while you continue with other work. ' +
+			"Write the command so it keeps running and prints a line only when something meaningful changes — a bare `sleep` or a one-shot command that exits immediately is not a monitor. " +
+			"For polling, loop inside the command and print only on a change. " +
+			'action "list" shows running monitors, and action "stop" ends one by id or name. ' +
+			"Do not start a monitor just to wait; run the check directly instead.",
+		inputSchema: zodToJsonSchema(MonitorInputSchema),
+		retryable: false,
+		maxRetries: 0,
+		execute: async (input) => {
+			const validatedInput = validateWithZod(MonitorInputSchema, input);
+
+			try {
+				switch (validatedInput.action) {
+					case "start": {
+						const record = registry.start({
+							name: validatedInput.name?.trim() ?? "",
+							command: validatedInput.command?.trim() ?? "",
+							description: validatedInput.description?.trim() ?? "",
+							cwd: config.cwd,
+						});
+						return (
+							`Started monitor ${record.id} ("${record.name}"): ${record.description}\n` +
+							`Command: ${record.command}\n` +
+							"Output will arrive as notifications. Continue with your other work; " +
+							`stop it with action "stop" and monitor_id ${record.id}.`
+						);
+					}
+					case "list": {
+						const records = registry.list();
+						if (records.length === 0) return "No monitors have been started.";
+						return records.map(formatMonitorRecord).join("\n");
+					}
+					case "stop": {
+						const key =
+							validatedInput.monitor_id?.trim() ||
+							validatedInput.name?.trim() ||
+							"";
+						const record = await registry.stop(key);
+						if (!record) return `No monitor found matching "${key}".`;
+						return `Stopped monitor ${record.id} ("${record.name}").`;
+					}
+				}
+			} catch (error) {
+				if (error instanceof MonitorError) return error.message;
+				throw error;
+			}
+		},
+	});
+}
+
+function formatMonitorRecord(record: MonitorRecord): string {
+	const parts = [
+		`${record.id} [${record.status}] "${record.name}": ${record.description}`,
+		`  command: ${record.command}`,
+		`  lines delivered: ${record.linesEmitted}`,
+	];
+	if (record.status === "exited" && record.exitCode !== undefined) {
+		parts.push(`  exit code: ${record.exitCode}`);
+	}
+	if (record.error) parts.push(`  error: ${record.error}`);
+	return parts.join("\n");
+}
+
 export function createSubmitAndExitTool(
 	executor: VerifySubmitExecutor,
 	config: Pick<DefaultToolsConfig, "submitTimeoutMs"> = {},
@@ -902,6 +989,7 @@ export function createDefaultTools(
 		enableApplyPatch = false,
 		enableEditor = true,
 		enableSkills = true,
+		enableMonitor = true,
 		enableAskQuestion = true,
 		enableSubmitAndExit = false,
 		...config
@@ -941,6 +1029,27 @@ export function createDefaultTools(
 	// Add skills tool if enabled and executor provided
 	if (enableSkills && executors.skills) {
 		tools.push(createSkillsTool(executors.skills, config));
+	}
+
+	// Two independent gates, both required.
+	//
+	// The registry must be supplied by the caller rather than built here: it
+	// owns live background processes, and a registry created inside this
+	// factory would give the caller no handle to dispose, letting monitors
+	// outlive the agent that started them.
+	//
+	// Shell access is the host's call, and `enableBash` is how the host makes
+	// it: presets and routing turn shell off through that flag, and monitor
+	// follows it so a no-shell mode cannot get shell execution back through
+	// this door. Deliberately NOT gated on `executors.bash`: unlike the other
+	// tools, monitor never invokes that executor — it spawns its own process —
+	// so executor presence is an implementation detail of run_commands, not a
+	// permission signal. Hosts that replace run_commands wholesale (the VS Code
+	// terminal tool suppresses the built-in executor and registers its own
+	// tool) have shell fully enabled while `executors.bash` is undefined;
+	// reading that as a shell refusal silently dropped monitor there.
+	if (enableMonitor && config.monitorRegistry && enableBash) {
+		tools.push(createMonitorTool(config.monitorRegistry, config));
 	}
 
 	const submitExecutor = enableSubmitAndExit ? executors.submit : undefined;

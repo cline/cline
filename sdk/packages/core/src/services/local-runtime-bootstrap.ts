@@ -27,6 +27,7 @@ import type {
 	PluginInitializationFailure,
 	PluginInitializationWarning,
 } from "../extensions/plugin/plugin-load-report";
+import type { MonitorNotifier } from "../extensions/tools";
 import type {
 	SubAgentEndContext,
 	SubAgentStartContext,
@@ -258,6 +259,12 @@ export interface PrepareLocalRuntimeBootstrapOptions {
 		onSubAgentEnd?: (context: SubAgentEndContext) => void | Promise<void>;
 	};
 	createSpawnTool: () => AgentTool;
+	/**
+	 * Delivers background monitor output into this session. Omitted by hosts
+	 * that have no way to interject between turns, which also disables the
+	 * monitor tool.
+	 */
+	monitorNotifier?: MonitorNotifier;
 	readSessionMetadata: () => Promise<Record<string, unknown> | undefined>;
 	writeSessionMetadata: (
 		metadata: Record<string, unknown>,
@@ -298,6 +305,7 @@ export async function prepareLocalRuntimeBootstrap(
 		onTeamEvent,
 		createSubAgentLifecycleCallbacks,
 		createSpawnTool,
+		monitorNotifier,
 		localRuntime,
 		readSessionMetadata,
 		writeSessionMetadata,
@@ -534,6 +542,7 @@ export async function prepareLocalRuntimeBootstrap(
 			logger: config.logger,
 			telemetry: config.telemetry,
 			requestToolApproval,
+			monitorNotifier,
 		},
 	};
 }

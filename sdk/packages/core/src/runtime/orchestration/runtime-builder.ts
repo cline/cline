@@ -29,6 +29,7 @@ import {
 import {
 	createBuiltinTools,
 	DEFAULT_MODEL_TOOL_ROUTING_RULES,
+	MonitorRegistry,
 	type RunCommandExecutionController,
 	resolveToolPresetName,
 	resolveToolRoutingConfig,
@@ -147,6 +148,9 @@ function createBuiltinToolsList(
 	skillsExecutor?: SkillsExecutorWithMetadata,
 	executorOverrides?: Partial<ToolExecutors>,
 	telemetry?: ITelemetryService,
+	// Lead-agent only. Sub-agents finish and disappear, so a monitor started by
+	// one would outlive every consumer of its output.
+	monitorRegistry?: MonitorRegistry,
 	runCommandExecutionController?: RunCommandExecutionController,
 ): AgentTool[] {
 	const preset = ToolPresets[resolveToolPresetName({ mode })];
@@ -166,7 +170,14 @@ function createBuiltinToolsList(
 			},
 			...preset,
 			enableSkills: !!skillsExecutor,
+			monitorRegistry,
 			...toolRoutingConfig,
+			// Routing rules may narrow tool availability, but plan mode's monitor
+			// prohibition is a security boundary and cannot be overridden.
+			enableMonitor:
+				preset.enableMonitor &&
+				!!monitorRegistry &&
+				toolRoutingConfig.enableMonitor !== false,
 			executors: {
 				...(skillsExecutor
 					? {
@@ -563,6 +574,17 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 				? [...(extensions ?? config.extensions ?? []), ...injectedExtensions]
 				: (extensions ?? config.extensions);
 
+		// Monitors are session-scoped background processes, so the registry is
+		// created once here and `shutdown` stops everything it started. A host
+		// that cannot interject supplies no notifier and gets no monitor tool.
+		const monitorRegistry =
+			normalized.enableTools && input.monitorNotifier
+				? new MonitorRegistry({
+						notifier: input.monitorNotifier,
+						cwd: config.cwd,
+					})
+				: undefined;
+
 		if (normalized.enableTools) {
 			tools.push(
 				...createBuiltinToolsList(
@@ -575,6 +597,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 					undefined,
 					toolExecutors,
 					telemetry ?? config.telemetry,
+					monitorRegistry,
 					input.runCommandExecutionController,
 				),
 			);
@@ -661,6 +684,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 													: undefined,
 												toolExecutors,
 												telemetry ?? config.telemetry,
+												undefined,
 												input.runCommandExecutionController,
 											),
 											agent,
@@ -767,6 +791,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 									undefined,
 									toolExecutors,
 									telemetry ?? config.telemetry,
+									undefined,
 									input.runCommandExecutionController,
 								)
 						: undefined,
@@ -875,6 +900,9 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 			shutdown: async (reason: string) => {
 				shutdownTeamRuntime(teamRuntime, reason);
 				this.teamRuntimeEntries.delete(registryKey);
+				// Background processes must not outlive the session that
+				// started them.
+				await monitorRegistry?.dispose();
 				await mcpShutdown?.();
 				for (const service of ownedUserInstructionServices) {
 					service.stop();

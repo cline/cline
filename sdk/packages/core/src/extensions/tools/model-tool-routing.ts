@@ -42,6 +42,7 @@ const TOOL_NAME_TO_FLAG: Record<
 		| "enableApplyPatch"
 		| "enableEditor"
 		| "enableSkills"
+		| "enableMonitor"
 		| "enableAskQuestion"
 		| "enableSubmitAndExit"
 	>
@@ -53,6 +54,7 @@ const TOOL_NAME_TO_FLAG: Record<
 	apply_patch: "enableApplyPatch",
 	editor: "enableEditor",
 	skills: "enableSkills",
+	monitor: "enableMonitor",
 	ask_question: "enableAskQuestion",
 	submit_and_exit: "enableSubmitAndExit",
 };
