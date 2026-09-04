@@ -208,6 +208,14 @@ jobs:
                     exit 1
                   fi
 
+            - name: Cloud session boundary (local Hub)
+              if: ${{ !cancelled() && steps.build_step.outcome == 'success' && runner.os == 'Linux' }}
+              working-directory: .
+              run: |
+                  bun run build:sdk
+                  cd apps/vscode
+                  bun run test:cloud
+
             - name: Unit Tests (bun) - Linux
               id: unit_tests_linux
               if: ${{ !cancelled() && steps.build_step.outcome == 'success' && runner.os == 'Linux' }}

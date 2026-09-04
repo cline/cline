@@ -149,7 +149,12 @@ export class SdkSessionLifecycle {
 		 * as the session is active; tool policies are left to the host.
 		 */
 		hostOverride?: SdkSessionHost,
+		/** Rechecked at every suspension point so a stale start cannot replace its successor. */
+		shouldContinue: () => boolean = () => true,
 	): Promise<{ startResult: StartSessionResult; sdkHost: SdkSessionHost }> {
+		if (!shouldContinue()) {
+			throw new SessionStartSupersededError()
+		}
 		if (this.activeSession) {
 			await this.endActiveSession("startNewSession")
 		}
@@ -160,17 +165,27 @@ export class SdkSessionLifecycle {
 		if (requestedSessionId) {
 			await this.waitForPendingStop(requestedSessionId)
 		}
+		if (!shouldContinue()) {
+			throw new SessionStartSupersededError()
+		}
 
 		const autoApprovalSettings = StateManager.get().getGlobalSettingsKey("autoApprovalSettings")
 		const toolPolicies =
 			!hostOverride && autoApprovalSettings ? buildToolPolicies(autoApprovalSettings, this.options.mcpHub) : undefined
 
 		const sdkHost = hostOverride ?? (await this.getOrCreateSharedHost())
+		if (!shouldContinue()) {
+			throw new SessionStartSupersededError()
+		}
 
 		const startResult = await sdkHost.start({
 			...startInput,
 			...(toolPolicies ? { toolPolicies } : {}),
 		})
+		if (!shouldContinue()) {
+			await sdkHost.stop(startResult.sessionId)
+			throw new SessionStartSupersededError()
+		}
 		this.activeSession = {
 			sessionId: startResult.sessionId,
 			startConfig: startInput.config
@@ -199,9 +214,16 @@ export class SdkSessionLifecycle {
 		sessionId: string
 		startConfig?: ActiveSession["startConfig"]
 		isRunning: boolean
+		shouldContinue?: () => boolean
 	}): Promise<ActiveSession> {
+		if (input.shouldContinue?.() === false) {
+			throw new SessionStartSupersededError()
+		}
 		if (this.activeSession) {
 			await this.endActiveSession("attachExistingSession")
+		}
+		if (input.shouldContinue?.() === false) {
+			throw new SessionStartSupersededError()
 		}
 		const session: ActiveSession = {
 			sessionId: input.sessionId,
@@ -212,6 +234,12 @@ export class SdkSessionLifecycle {
 		}
 		this.activeSession = session
 		return session
+	}
+
+	async endActiveSessionIfHost(host: SdkSessionHost, reason: string): Promise<void> {
+		if (this.activeSession?.sdkHost === host) {
+			await this.endActiveSession(reason)
+		}
 	}
 
 	private subscribeSessionHost(sdkHost: SdkSessionHost): () => void {
@@ -460,6 +488,13 @@ export class SdkSessionLifecycle {
 				this.setRunning(false)
 				await this.options.onSendError(error, sessionId)
 			})
+	}
+}
+
+export class SessionStartSupersededError extends Error {
+	constructor() {
+		super("Session start was superseded")
+		this.name = "SessionStartSupersededError"
 	}
 }
 
