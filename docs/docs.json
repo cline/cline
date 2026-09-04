@@ -1042,6 +1042,10 @@
 			"destination": "/provider-config/other-30-plus-providers#gcp-vertex-ai"
 		},
 		{
+			"source": "/provider-config/gmicloud",
+			"destination": "/provider-config/other-30-plus-providers#gmi-cloud"
+		},
+		{
 			"source": "/provider-config/groq",
 			"destination": "/provider-config/other-30-plus-providers#groq"
 		},

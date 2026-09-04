@@ -93,6 +93,19 @@ describe("providerSettingsRegistry", () => {
 		}
 	})
 
+	it("lets GMI Cloud accept model ids missing from the catalog", () => {
+		expect(getGenericProviderSettings("gmicloud", listing({ id: "gmicloud", name: "GMI Cloud" }))).toEqual({
+			allowsCustomIds: true,
+			baseUrlField: {
+				label: "Base URL",
+				placeholder: "https://api.gmi-serving.com/v1",
+			},
+			providerId: "gmicloud",
+			providerName: "GMI Cloud",
+			signupUrl: "https://console.gmicloud.ai/user-setting/ie/api-keys",
+		})
+	})
+
 	it("builds MiniMax and Together settings through the generic registry", () => {
 		expect(
 			getGenericProviderSettings(
