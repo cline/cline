@@ -1,3 +1,4 @@
+import { setRuleDisabledInFrontmatter } from "@core/context/instructions/user-instructions/cline-rules"
 import { getWorkspaceBasename } from "@core/workspace"
 import type { ToggleClineRuleRequest } from "@shared/proto/cline/file"
 import { RuleScope, ToggleClineRules } from "@shared/proto/cline/file"
@@ -45,6 +46,13 @@ export async function toggleClineRule(controller: Controller, request: ToggleCli
 		}
 		default:
 			throw new Error(`Invalid scope: ${scope}`)
+	}
+
+	// The SDK rule loader reads the document's `disabled` frontmatter flag,
+	// whereas the legacy loader reads the extension's toggle state. Keep both
+	// representations in sync for file-backed global and workspace rules.
+	if (scope !== RuleScope.REMOTE) {
+		await setRuleDisabledInFrontmatter(rulePath, enabled)
 	}
 
 	// Track rule toggle telemetry with current task context
