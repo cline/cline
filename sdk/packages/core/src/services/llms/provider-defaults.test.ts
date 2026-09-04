@@ -656,6 +656,131 @@ describe("resolveProviderConfig", () => {
 		expect(resolved?.knownModels?.["gpt-5.4"]).toBeUndefined();
 	});
 
+	it("carries LiteLLM per-token pricing through as dollars per million tokens", async () => {
+		// #13812: LiteLLM returns real per-token costs on /model/info and Cline showed every model as
+		// "free", so cost tracking read $0 for paid models. The two scales are the whole bug: LiteLLM
+		// reports dollars PER TOKEN, ModelInfo.pricing is dollars per MILLION tokens, and the numbers
+		// below are the ones from the report ($0.40 / $1.60 per 1M).
+		const fetchMock = vi.fn().mockResolvedValueOnce(
+			new Response(
+				JSON.stringify({
+					data: [
+						{
+							model_name: "gpt-4.1-mini",
+							litellm_params: { model: "openai/gpt-4.1-mini" },
+							model_info: {
+								max_input_tokens: 1_000_000,
+								input_cost_per_token: 4e-7,
+								output_cost_per_token: 1.6e-6,
+								cache_read_input_token_cost: 1e-7,
+								cache_creation_input_token_cost: 5e-7,
+							},
+						},
+					],
+				}),
+				{ status: 200, headers: { "content-type": "application/json" } },
+			),
+		);
+		vi.stubGlobal("fetch", fetchMock);
+
+		const resolved = await resolveProviderConfig(
+			"litellm",
+			{ failOnError: true, cacheTtlMs: 0 },
+			{
+				providerId: "litellm",
+				modelId: "",
+				apiKey: "litellm-key",
+				baseUrl: "http://localhost:4000/v1/",
+			},
+		);
+
+		expect(resolved?.knownModels?.["openai/gpt-4.1-mini"]?.pricing).toEqual({
+			input: 0.4,
+			output: 1.6,
+			cacheRead: 0.1,
+			cacheWrite: 0.5,
+		});
+		// The display-name alias is the entry the model picker shows, and it is a separate object.
+		expect(resolved?.knownModels?.["gpt-4.1-mini"]?.pricing).toEqual({
+			input: 0.4,
+			output: 1.6,
+			cacheRead: 0.1,
+			cacheWrite: 0.5,
+		});
+	});
+
+	it("omits LiteLLM pricing entirely when the proxy reports no costs", async () => {
+		// A genuinely free proxy, and the shape every older LiteLLM returns. `pricing` must stay
+		// absent rather than becoming a block of zeros: zero is a price, and claiming one the proxy
+		// never sent is the same class of wrong answer as the bug above, pointing the other way.
+		const fetchMock = vi.fn().mockResolvedValueOnce(
+			new Response(
+				JSON.stringify({
+					data: [
+						{
+							model_name: "local-model",
+							litellm_params: { model: "ollama/local-model" },
+							model_info: { max_input_tokens: 8_000 },
+						},
+					],
+				}),
+				{ status: 200, headers: { "content-type": "application/json" } },
+			),
+		);
+		vi.stubGlobal("fetch", fetchMock);
+
+		const resolved = await resolveProviderConfig(
+			"litellm",
+			{ failOnError: true, cacheTtlMs: 0 },
+			{
+				providerId: "litellm",
+				modelId: "",
+				apiKey: "litellm-key",
+				baseUrl: "http://localhost:4000/v1/",
+			},
+		);
+
+		expect(resolved?.knownModels?.["ollama/local-model"]).toBeDefined();
+		expect(
+			resolved?.knownModels?.["ollama/local-model"]?.pricing,
+		).toBeUndefined();
+	});
+
+	it("keeps a partial LiteLLM price list partial", async () => {
+		// Input priced, output not. Defaulting the missing half to 0 would under-report every
+		// completion; leaving it undefined keeps "unknown" distinguishable from "free".
+		const fetchMock = vi.fn().mockResolvedValueOnce(
+			new Response(
+				JSON.stringify({
+					data: [
+						{
+							model_name: "half-priced",
+							litellm_params: { model: "openai/half-priced" },
+							model_info: { input_cost_per_token: 2e-6 },
+						},
+					],
+				}),
+				{ status: 200, headers: { "content-type": "application/json" } },
+			),
+		);
+		vi.stubGlobal("fetch", fetchMock);
+
+		const resolved = await resolveProviderConfig(
+			"litellm",
+			{ failOnError: true, cacheTtlMs: 0 },
+			{
+				providerId: "litellm",
+				modelId: "",
+				apiKey: "litellm-key",
+				baseUrl: "http://localhost:4000/v1/",
+			},
+		);
+
+		expect(resolved?.knownModels?.["openai/half-priced"]?.pricing).toEqual({
+			input: 2,
+		});
+	});
+
 	it("returns an empty authoritative LiteLLM model list without auth", async () => {
 		const fetchMock = vi.fn();
 		vi.stubGlobal("fetch", fetchMock);
