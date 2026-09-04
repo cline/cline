@@ -256,11 +256,13 @@ export async function loadProviderModelCatalog(): Promise<ProviderModelCatalog> 
 
 export async function loadProviderModels(
 	providerId: string,
+	options?: { includeCloudModels?: boolean },
 ): Promise<ProviderModel[]> {
 	const payload = await desktopClient.invoke<ProviderModelsResponse>(
 		"list_provider_models",
 		{
 			provider: providerId,
+			...(options?.includeCloudModels ? { includeCloudModels: true } : {}),
 		},
 	);
 	return filterChatModels(payload.models);
