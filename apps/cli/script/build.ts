@@ -65,11 +65,16 @@ const allTargets: {
 	{ os: "win32", arch: "arm64" },
 ];
 
+const requestedTargets =
+	buildOptions.targetOs.length > 0
+		? allTargets.filter((item) => buildOptions.targetOs.includes(item.os))
+		: allTargets;
+
 const targets = buildOptions.single
-	? allTargets.filter(
+	? requestedTargets.filter(
 			(item) => item.os === process.platform && item.arch === process.arch,
 		)
-	: allTargets;
+	: requestedTargets;
 
 const opentuiVersion = pkg.dependencies["@opentui/core"];
 const optionsError = validateBuildOptions({
@@ -222,6 +227,35 @@ async function buildCompiledBinary(input: {
 	await $`rm -rf ${tmpDir}`;
 }
 
+async function signDarwinBinary(input: {
+	os: string;
+	name: string;
+	outfile: string;
+}): Promise<void> {
+	if (input.os !== "darwin") {
+		return;
+	}
+
+	if (process.platform !== "darwin") {
+		if (process.env.CLINE_ALLOW_UNSIGNED_DARWIN_BINARIES === "1") {
+			console.warn(
+				`  Skipping codesign for ${input.name}: host platform is ${process.platform}`,
+			);
+			return;
+		}
+
+		throw new Error(
+			`Darwin CLI binaries must be signed on macOS after compilation (${input.name}). ` +
+				"Run this build on macOS, exclude Darwin with --target-os, or set " +
+				"CLINE_ALLOW_UNSIGNED_DARWIN_BINARIES=1 for a local unsigned cross-build.",
+		);
+	}
+
+	console.log(`  Codesign: ${input.outfile}`);
+	await $`codesign --force --sign - ${input.outfile}`;
+	await $`codesign --verify --strict --verbose=2 ${input.outfile}`;
+}
+
 for (const item of targets) {
 	// npm treats "win32" specially in os field, but for package naming use "windows"
 	const displayOs = item.os === "win32" ? "windows" : item.os;
@@ -237,6 +271,7 @@ for (const item of targets) {
 	const outfile = join(outDir, binaryName);
 
 	await buildCompiledBinary({ bunTarget, dirName, outfile });
+	await signDarwinBinary({ os: item.os, name, outfile });
 
 	// Smoke test: only run on current platform
 	if (item.os === process.platform && item.arch === process.arch) {
