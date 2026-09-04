@@ -5,7 +5,15 @@ import {
 	formatDisplayUserInput,
 } from "@cline/shared/browser";
 import { AgentPromptQueue, SearchCombobox } from "@cline/ui";
-import { ArrowUp, Brain, CircleStop, Cpu, Paperclip, X } from "lucide-react";
+import {
+	ArrowUp,
+	Brain,
+	CircleStop,
+	Cloud,
+	Cpu,
+	Paperclip,
+	X,
+} from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
 	SpeechInput,
@@ -31,6 +39,7 @@ import { formatCostUsd } from "@/hooks/use-session-history";
 import { toast } from "@/hooks/use-toast";
 import type { ChatSessionConfig, ChatSessionStatus } from "@/lib/chat-schema";
 import { imageFilesFromClipboard } from "@/lib/clipboard-images";
+import { cloudRepositoryLabel } from "@/lib/cloud-repositories";
 import { desktopClient, writeDesktopDebugLog } from "@/lib/desktop-client";
 import {
 	buildModelPickerData,
@@ -45,6 +54,7 @@ import { normalizeProviderId } from "@/lib/provider-id";
 import {
 	loadProviderModelCatalog,
 	loadProviderModels,
+	subscribeToProviderCatalogInvalidation,
 	subscribeToProviderModels,
 	type TranscriptionModelTarget,
 	VOICE_INPUT_SETTINGS_CHANGED_EVENT,
@@ -139,6 +149,7 @@ const FALLBACK_PROVIDER_REASONING_MODELS: Record<string, string[]> = {
 	openrouter: ["anthropic/claude-sonnet-4.6"],
 	gemini: ["gemini-3-pro-latest"],
 };
+const CLINE_ONLY_PROVIDER_IDS = ["cline"];
 
 type ReasoningEffort = NonNullable<ChatSessionConfig["reasoningEffort"]>;
 type ReasoningEffortOption = {
@@ -288,6 +299,10 @@ type ChatInputBarProps = {
 	reasoningEffort: ChatSessionConfig["reasoningEffort"];
 	/** Branch name, "no-git" for a non-repo folder, null while discovery is pending. */
 	gitBranch: string | null;
+	executionTarget?: "local" | "cloud";
+	repoUrl?: string;
+	cloudBranch?: string;
+	hasActiveSession?: boolean;
 	promptDraft: PromptDraft;
 	onPromptInputChange: (value: string) => void;
 	onProviderChange: (provider: string) => void;
@@ -331,6 +346,10 @@ function ChatInputBarImpl({
 	thinking,
 	reasoningEffort,
 	gitBranch,
+	executionTarget = "local",
+	repoUrl,
+	cloudBranch,
+	hasActiveSession = false,
 	promptDraft,
 	onPromptInputChange,
 	onProviderChange,
@@ -450,13 +469,23 @@ function ChatInputBarImpl({
 		},
 		[model, provider],
 	);
-	const canSend = hasDraft && !speechInputActive;
+	const needsCloudRepository =
+		executionTarget === "cloud" && !hasActiveSession && !repoUrl?.trim();
+	const cloudSettingsLocked = executionTarget === "cloud" && hasActiveSession;
+	const canSend = hasDraft && !speechInputActive && !needsCloudRepository;
+	const cloudContextLabel = useMemo(
+		() =>
+			[cloudRepositoryLabel(repoUrl ?? "", "Cloud"), cloudBranch?.trim()]
+				.filter(Boolean)
+				.join(" / "),
+		[cloudBranch, repoUrl],
+	);
 	const handleSend = useCallback(() => {
-		if (speechInputActive) return;
+		if (!canSend) return;
 		const prompt = promptInput.trim();
 		setPromptInput("");
 		onSend(prompt);
-	}, [onSend, promptInput, setPromptInput, speechInputActive]);
+	}, [canSend, onSend, promptInput, setPromptInput]);
 	const fileInputRef = useRef<HTMLInputElement | null>(null);
 	const [transcriptionTarget, setTranscriptionTarget] =
 		useState<TranscriptionModelTarget | null>(null);
@@ -493,7 +522,10 @@ function ChatInputBarImpl({
 	const mentionKey = activeMention
 		? `${activeMention.start}:${activeMention.query}`
 		: null;
-	const mentionOpen = mentionKey !== null && dismissedMentionKey !== mentionKey;
+	const mentionOpen =
+		executionTarget === "local" &&
+		mentionKey !== null &&
+		dismissedMentionKey !== mentionKey;
 	const [mentionFiles, setMentionFiles] = useState<string[]>([]);
 	const [mentionLoading, setMentionLoading] = useState(false);
 	const [mentionSelectedIndex, setMentionSelectedIndex] = useState(0);
@@ -511,7 +543,12 @@ function ChatInputBarImpl({
 	const slashKey = activeSlash
 		? `${activeSlash.slashIndex}:${activeSlash.query}`
 		: null;
-	const slashOpen = slashKey !== null && dismissedSlashKey !== slashKey;
+	// Slash commands resolve against locally installed skills/workflows, which
+	// the cloud sandbox cannot run — gate them like @-mentions.
+	const slashOpen =
+		executionTarget === "local" &&
+		slashKey !== null &&
+		dismissedSlashKey !== slashKey;
 	const [slashCommands, setSlashCommands] = useState<SlashCommand[]>(
 		() => cachedSlashCommands ?? BUILTIN_SLASH_COMMANDS,
 	);
@@ -775,6 +812,14 @@ function ChatInputBarImpl({
 		() => resolveEffortIndex(thinking, reasoningEffort),
 		[reasoningEffort, thinking],
 	);
+	useEffect(() => {
+		if (
+			executionTarget === "cloud" &&
+			normalizeProviderId(provider) !== "cline"
+		) {
+			onProviderChange("cline");
+		}
+	}, [executionTarget, onProviderChange, provider]);
 	const hasExplicitReasoningSelection =
 		thinking !== undefined || reasoningEffort !== undefined;
 	const effortLabel =
@@ -1270,11 +1315,15 @@ function ChatInputBarImpl({
 							placeholder={
 								speechInputProcessing
 									? "Transcribing voice input…"
-									: variant === "welcome"
-										? "Ask to make changes, @mention files, reference #PRs, or run /commands."
-										: isBusy
+									: needsCloudRepository
+										? "Choose a repository"
+										: isBusy && variant !== "welcome"
 											? "Agent is working... submit to queue another message"
-											: "Enter your question or type / for commands or @ for context"
+											: executionTarget === "cloud"
+												? "Describe what Cline should do in this repository."
+												: variant === "welcome"
+													? "Ask to make changes, @mention files, reference #PRs, or run /commands."
+													: "Enter your question or type / for commands or @ for context"
 							}
 							readOnly={speechInputActive}
 							ref={promptInputRef}
@@ -1292,6 +1341,14 @@ function ChatInputBarImpl({
 								variant === "conversation" && "self-end",
 							)}
 						>
+							{needsCloudRepository ? (
+								<span
+									aria-live="polite"
+									className="max-w-40 text-right text-[11px] leading-4 text-muted-foreground"
+								>
+									Repository required
+								</span>
+							) : null}
 							{canAbort && (
 								<button
 									aria-label="Stop agent"
@@ -1345,7 +1402,11 @@ function ChatInputBarImpl({
 									)}
 									disabled={!canSend}
 									onClick={handleSend}
-									title="Send (Enter)"
+									title={
+										needsCloudRepository
+											? "Choose a repository"
+											: "Send (Enter)"
+									}
 									type="button"
 								>
 									<ArrowUp className="size-3" />
@@ -1380,7 +1441,9 @@ function ChatInputBarImpl({
 			<div className="flex min-w-0 items-center justify-between gap-x-3 gap-y-2 rounded-b-xl border-t border-border bg-muted/20 px-2 py-2 text-sm text-muted-foreground">
 				<div className="flex min-w-0 flex-auto flex-wrap items-center gap-2 max-[560px]:flex-nowrap">
 					<button
-						aria-label="Attach files"
+						aria-label={
+							executionTarget === "cloud" ? "Attach images" : "Attach files"
+						}
 						className="rounded-md p-2 text-muted-foreground hover:bg-surface-hover"
 						onClick={() => fileInputRef.current?.click()}
 						type="button"
@@ -1388,7 +1451,7 @@ function ChatInputBarImpl({
 						<Paperclip className="size-3" />
 					</button>
 					<input
-						accept="*/*"
+						accept={executionTarget === "cloud" ? "image/*" : "*/*"}
 						className="hidden"
 						multiple
 						onChange={(event) => {
@@ -1433,6 +1496,13 @@ function ChatInputBarImpl({
 					</div>
 					<div className="min-w-0 shrink-0">
 						<ModelSelector
+							allowedProviderIds={
+								executionTarget === "cloud"
+									? CLINE_ONLY_PROVIDER_IDS
+									: undefined
+							}
+							autoCorrectModel={!cloudSettingsLocked}
+							includeCloudModels={executionTarget === "cloud"}
 							isBusy={isBusy}
 							model={model}
 							onModelChange={onModelChange}
@@ -1440,11 +1510,12 @@ function ChatInputBarImpl({
 								handleModelSupportsReasoningChange
 							}
 							onProviderChange={onProviderChange}
+							persistSelection={executionTarget !== "cloud"}
 							provider={provider}
 						/>
 					</div>
 					<Select
-						disabled={modelSupportsReasoning !== true}
+						disabled={cloudSettingsLocked || modelSupportsReasoning !== true}
 						onValueChange={handleEffortChange}
 						value={EFFORT_LEVELS[effortIndex]?.value ?? "low"}
 					>
@@ -1453,9 +1524,11 @@ function ChatInputBarImpl({
 							className="gap-1.5 border-0 px-2 text-sm shadow-none data-[size=sm]:h-7 [&>svg:last-child]:hidden max-[560px]:size-7 max-[560px]:justify-center max-[560px]:p-0 bg-transparent! hover:bg-surface-hover!"
 							size="sm"
 							title={
-								modelSupportsReasoning === false
-									? "The selected model does not report reasoning support"
-									: undefined
+								cloudSettingsLocked
+									? "Thinking level is fixed when a cloud session starts"
+									: modelSupportsReasoning === false
+										? "The selected model does not report reasoning support"
+										: undefined
 							}
 						>
 							<Brain className="size-3" />
@@ -1477,17 +1550,27 @@ function ChatInputBarImpl({
 					{variant === "conversation" ? (
 						<div className="flex min-w-0 items-center gap-0">
 							<div className="min-w-0 overflow-visible">
-								<WorkspaceSelector
-									currentBranch={gitBranch}
-									disabled
-									onListGitBranches={onListGitBranches}
-									onRefreshWorkspaces={onRefreshWorkspaces}
-									onPickWorkspaceDirectory={onPickWorkspaceDirectory}
-									onSwitchGitBranch={onSwitchGitBranch}
-									onSwitchWorkspace={onSwitchWorkspace}
-									workspaces={workspaces}
-									workspaceRoot={workspaceRoot}
-								/>
+								{executionTarget === "cloud" ? (
+									<span
+										className="inline-flex max-w-48 items-center gap-1.5 truncate text-[11px] text-muted-foreground"
+										title={cloudContextLabel}
+									>
+										<Cloud className="size-3 shrink-0" />
+										<span className="truncate">{cloudContextLabel}</span>
+									</span>
+								) : (
+									<WorkspaceSelector
+										currentBranch={gitBranch}
+										disabled
+										onListGitBranches={onListGitBranches}
+										onRefreshWorkspaces={onRefreshWorkspaces}
+										onPickWorkspaceDirectory={onPickWorkspaceDirectory}
+										onSwitchGitBranch={onSwitchGitBranch}
+										onSwitchWorkspace={onSwitchWorkspace}
+										workspaces={workspaces}
+										workspaceRoot={workspaceRoot}
+									/>
+								)}
 							</div>
 							<TokenUsageRing
 								usage={{
@@ -1514,6 +1597,10 @@ export const ChatInputBar = memo(ChatInputBarImpl);
 // Memoized: the selectors load/hold the full provider-model catalog, so they
 // should not re-render for every keystroke in the composer textarea.
 const ModelSelector = memo(function ModelSelector({
+	allowedProviderIds,
+	autoCorrectModel = true,
+	includeCloudModels = false,
+	persistSelection = true,
 	provider,
 	model,
 	isBusy,
@@ -1521,6 +1608,10 @@ const ModelSelector = memo(function ModelSelector({
 	onModelChange,
 	onModelSupportsReasoningChange,
 }: {
+	allowedProviderIds?: string[];
+	autoCorrectModel?: boolean;
+	includeCloudModels?: boolean;
+	persistSelection?: boolean;
 	provider: string;
 	model: string;
 	isBusy: boolean;
@@ -1548,14 +1639,25 @@ const ModelSelector = memo(function ModelSelector({
 	const [lastSelection, setLastSelection] = useState(() =>
 		readModelSelectionStorageFromWindow(),
 	);
+	const [catalogRevision, setCatalogRevision] = useState(0);
 	const [mobileOpen, setMobileOpen] = useState(false);
+	useEffect(
+		() =>
+			subscribeToProviderCatalogInvalidation(() =>
+				setCatalogRevision((current) => current + 1),
+			),
+		[],
+	);
 	const visibleProviderModels = useMemo(() => {
 		const next: Record<string, string[]> = {};
 		for (const providerId of enabledProviderIds) {
+			if (allowedProviderIds && !allowedProviderIds.includes(providerId)) {
+				continue;
+			}
 			next[providerId] = providerModels[providerId] ?? [];
 		}
 		return next;
-	}, [enabledProviderIds, providerModels]);
+	}, [allowedProviderIds, enabledProviderIds, providerModels]);
 	const providers = useMemo(
 		() => Object.keys(visibleProviderModels),
 		[visibleProviderModels],
@@ -1614,7 +1716,11 @@ const ModelSelector = memo(function ModelSelector({
 		// remembered and default selections are our own bookkeeping, so they
 		// must resolve to a visible option — otherwise a stale remembered id
 		// gets silently resurrected into a selection the picker cannot show.
-		if (model && modelsForProvider.includes(model)) {
+		if (
+			model &&
+			normalizedProvider === resolvedProvider &&
+			(modelsForProvider.includes(model) || !autoCorrectModel)
+		) {
 			return model;
 		}
 		if (rememberedModel && pickerModelIds.has(rememberedModel)) {
@@ -1626,9 +1732,11 @@ const ModelSelector = memo(function ModelSelector({
 			""
 		);
 	}, [
+		autoCorrectModel,
 		lastSelection.lastModelByProvider,
 		model,
 		modelsForProvider,
+		normalizedProvider,
 		pickerModelIds,
 		rememberedLastProvider,
 		resolvedProvider,
@@ -1672,6 +1780,8 @@ const ModelSelector = memo(function ModelSelector({
 		resolvedProvider,
 	]);
 
+	// Catalog invalidation intentionally retriggers this load via catalogRevision.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: catalogRevision is a reload signal.
 	useEffect(() => {
 		let cancelled = false;
 		setReasoningCapabilitySource("loading");
@@ -1713,7 +1823,11 @@ const ModelSelector = memo(function ModelSelector({
 				return;
 			}
 			try {
-				const models = await loadProviderModels(normalizedProvider);
+				const models = includeCloudModels
+					? await loadProviderModels(normalizedProvider, {
+							includeCloudModels: true,
+						})
+					: await loadProviderModels(normalizedProvider);
 				if (cancelled || models.length === 0) {
 					return;
 				}
@@ -1748,11 +1862,12 @@ const ModelSelector = memo(function ModelSelector({
 		return () => {
 			cancelled = true;
 		};
-	}, [normalizedProvider]);
+	}, [catalogRevision, includeCloudModels, normalizedProvider]);
 
 	useEffect(() => {
 		return subscribeToProviderModels((providerId, models) => {
 			const normalizedId = normalizeProviderId(providerId);
+			if (includeCloudModels && normalizedId === "cline") return;
 			setProviderModels((current) => ({
 				...current,
 				[normalizedId]: models.map((entry) => entry.id),
@@ -1771,7 +1886,7 @@ const ModelSelector = memo(function ModelSelector({
 				current.includes(normalizedId) ? current : [...current, normalizedId],
 			);
 		});
-	}, []);
+	}, [includeCloudModels]);
 
 	// The remembered selection (what new sessions default to) is only written
 	// from the explicit picker handlers below. Mirroring every provider/model
@@ -1781,6 +1896,9 @@ const ModelSelector = memo(function ModelSelector({
 	// happened to use.
 	const rememberSelection = useCallback(
 		(providerId: string, modelId: string | undefined) => {
+			if (!persistSelection) {
+				return;
+			}
 			const normalizedId = normalizeProviderId(providerId);
 			if (!normalizedId) {
 				return;
@@ -1803,7 +1921,7 @@ const ModelSelector = memo(function ModelSelector({
 				};
 			});
 		},
-		[],
+		[persistSelection],
 	);
 
 	useEffect(() => {
@@ -1818,13 +1936,22 @@ const ModelSelector = memo(function ModelSelector({
 		if (providers.length === 0) {
 			return;
 		}
+		// isBusy also covers a locked cloud composer: silently "correcting" an
+		// attached cloud session's model (e.g. an org-catalog id missing from
+		// the local list) would push a real model change to the remote session
+		// on the next send, contradicting the locked-settings tooltip.
+		if (isBusy) {
+			return;
+		}
 		if (resolvedProvider && resolvedProvider !== normalizedProvider) {
 			onProviderChange(resolvedProvider);
 		}
-		if (resolvedModel && resolvedModel !== model) {
+		if (autoCorrectModel && resolvedModel && resolvedModel !== model) {
 			onModelChange(resolvedModel);
 		}
 	}, [
+		autoCorrectModel,
+		isBusy,
 		model,
 		onModelChange,
 		onProviderChange,
