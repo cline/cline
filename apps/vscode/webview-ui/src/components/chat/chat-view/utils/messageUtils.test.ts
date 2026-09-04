@@ -51,6 +51,14 @@ const createAskMessage = (
 	ts,
 })
 
+const createAskToolMessage = (ts: number, tool: string): ClineMessage => ({
+	type: "ask",
+	ask: "tool",
+	text: JSON.stringify({ tool, path: "src/file.ts" }),
+	ts,
+	partial: false,
+})
+
 describe("filterVisibleMessages", () => {
 	it("hides exact user feedback echoes for selected follow-up options", () => {
 		const askMessage = createAskMessage(1, "followup", ["Use this", "Use that"], "Use this")
@@ -165,5 +173,22 @@ describe("groupLowStakesTools", () => {
 		expect(grouped).toHaveLength(2)
 		expect(grouped[0]).toMatchObject({ type: "say", say: "reasoning", text: "Planning next read" })
 		expect(isToolGroup(grouped[1])).toBe(true)
+	})
+
+	it("renders an approval-pending low-stakes tool once, as a standalone row", () => {
+		const grouped = groupLowStakesTools([createAskToolMessage(1, "readFile")])
+
+		expect(grouped).toHaveLength(1)
+		expect(isToolGroup(grouped[0])).toBe(false)
+		expect(grouped[0]).toMatchObject({ type: "ask", ask: "tool" })
+	})
+
+	it("finalizes the preceding group and renders the approval-pending tool once", () => {
+		const grouped = groupLowStakesTools([createToolMessage(1, "readFile"), createAskToolMessage(2, "searchFiles")])
+
+		expect(grouped).toHaveLength(2)
+		expect(isToolGroup(grouped[0])).toBe(true)
+		expect(grouped[0]).toHaveLength(1)
+		expect(grouped[1]).toMatchObject({ type: "ask", ask: "tool" })
 	})
 })
