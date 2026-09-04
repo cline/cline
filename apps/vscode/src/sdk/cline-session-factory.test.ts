@@ -882,6 +882,45 @@ describe("buildSessionConfig", () => {
 		})
 	})
 
+	it("adds reasoning capability when OpenAI Compatible provider reasoning is enabled", async () => {
+		mocks.providerSettingsManager.getProviderSettings.mockReturnValue({
+			provider: "openai-compatible",
+			reasoning: { enabled: true, effort: "xhigh" },
+		} as any)
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "openai",
+			actModeOpenAiModelId: "custom-reasoner",
+			openAiApiKey: "openai-compatible-key",
+			openAiBaseUrl: "https://openai-compatible.example/v1",
+			actModeOpenAiModelInfo: {
+				supportsPromptCache: false,
+				capabilities: ["streaming", "tools", "images"],
+			},
+		} as any)
+		createProviderConfigStore().commitSelection(parseProviderId("openai"), "act", {
+			providerId: parseProviderId("openai"),
+			modelId: "custom-reasoner",
+			overrides: {
+				capabilities: ["streaming", "tools", "images"],
+			},
+		})
+		const getModelsSpy = vi.spyOn(LlmsModels, "getModelsForProvider").mockResolvedValueOnce({
+			"custom-reasoner": {
+				id: "custom-reasoner",
+				name: "Custom Reasoner",
+				capabilities: ["streaming", "tools", "images"],
+			},
+		})
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+		const knownModel = (config.providerConfig as any).knownModels["custom-reasoner"]
+
+		expect(config.thinking).toBe(true)
+		expect(config.reasoningEffort).toBe("xhigh")
+		expect(knownModel.capabilities).toEqual(["streaming", "tools", "images", "reasoning"])
+		getModelsSpy.mockRestore()
+	})
+
 	it("defaults tool-calling on for dynamic-list models without preserved SDK capabilities", async () => {
 		mocks.stateManager.getApiConfiguration.mockReturnValue({
 			actModeApiProvider: "openrouter",
