@@ -24,7 +24,6 @@ import type {
 	NoticeBody,
 	Outcome,
 	ReasoningStart,
-	TextStart,
 	ToolStart,
 } from "@cline/shared";
 import type {
