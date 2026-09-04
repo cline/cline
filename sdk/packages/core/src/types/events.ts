@@ -13,6 +13,24 @@ export interface SessionEndedEvent {
 	ts: number;
 }
 
+export type RunCommandDetachKind = "user" | "implicit";
+
+export type DetachedCommandOutcome =
+	| { kind: "exited"; exitCode: number }
+	| { kind: "signaled"; signal: string }
+	| { kind: "hard_killed" }
+	| { kind: "failed"; error: string };
+
+export interface DetachedCommandCompletedEvent {
+	sessionId: string;
+	executionId: string;
+	toolCallId?: string;
+	logPath: string;
+	detachKind: RunCommandDetachKind;
+	outcome: DetachedCommandOutcome;
+	ts: number;
+}
+
 export interface SessionToolEvent {
 	sessionId: string;
 	hookEventName:
@@ -87,6 +105,10 @@ export type CoreSessionEvent =
 			payload: SessionPendingPromptSubmittedEvent;
 	  }
 	| { type: "session_snapshot"; payload: SessionSnapshotEvent }
+	| {
+			type: "detached_command_completed";
+			payload: DetachedCommandCompletedEvent;
+	  }
 	| { type: "ended"; payload: SessionEndedEvent }
 	| { type: "hook"; payload: SessionToolEvent }
 	| { type: "status"; payload: { sessionId: string; status: string } };

@@ -110,6 +110,22 @@ Module.prototype.require = function (id) {
 		}
 		const listLocalProviders = async (manager) => ({ providers: [], settingsPath: manager.getFilePath?.() ?? "" })
 
+		// Subclassed at module load by out/src/sdk/vscode-run-command-execution-controller.js,
+		// so this must be a real class: an undefined base crashes the extension
+		// host before any test runs.
+		class RunCommandExecutionController {
+			register() {
+				return () => {}
+			}
+			subscribeToDetachedCommandCompleted() {
+				return () => {}
+			}
+			reportDetachedCommandCompleted() {}
+			proceedWhileRunning() {
+				return 0
+			}
+		}
+
 		return {
 			createClineTelemetryServiceConfig: (config = {}) => ({
 				enabled: false,
@@ -181,6 +197,7 @@ Module.prototype.require = function (id) {
 					return () => {}
 				}
 			},
+			RunCommandExecutionController,
 			ProviderSettingsManager,
 			listLocalProviders,
 			resolveProviderConfig: async () => undefined,

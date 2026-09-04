@@ -14,7 +14,7 @@ import {
 	rmSync,
 	writeFileSync,
 } from "node:fs";
-import { readdir, readFile, rm, stat } from "node:fs/promises";
+import { appendFile, readdir, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { StringDecoder } from "node:string_decoder";
@@ -28,12 +28,15 @@ import {
 	probeProcessStartTokenAsync,
 } from "../../../runtime/process-start-token";
 import { TimeoutError } from "../helpers";
-import type { ShellExecutor } from "../types";
+import type { ShellExecutionLimits, ShellExecutor } from "../types";
 import {
 	MAX_COMMAND_OUTPUT_CHARS,
 	truncateCommandOutput,
 } from "./output-limits";
-import type { RunCommandExecutionController } from "./run-command-execution-controller";
+import type {
+	RunCommandDetachKind,
+	RunCommandExecutionController,
+} from "./run-command-execution-controller";
 
 const MAX_DETACHED_LOG_BYTES = 10 * 1024 * 1024;
 const DEFAULT_DETACHED_LOG_RETENTION_MS = 24 * 60 * 60 * 1_000;
@@ -56,6 +59,7 @@ export interface DetachedCommandLogCleanupOptions {
 	nowMs?: number;
 	processStartTokenProbe?: ProcessStartTokenProbe;
 	activeCommandPollIntervalMs?: number;
+	killProcessTree?: (pid: number) => void | Promise<void>;
 }
 
 type DetachedCommandMarker = {
@@ -64,6 +68,7 @@ type DetachedCommandMarker = {
 	pid: number;
 	processStartToken: string;
 	detachedAtMs: number;
+	hardKillAtMs?: number;
 };
 
 function resolveDetachedLogRetentionMs(value: number | undefined): number {
@@ -83,6 +88,7 @@ type ResolvedDetachedCommandLogCleanupOptions = {
 	nowMs: number;
 	probeProcessStartToken: ProcessStartTokenProbe;
 	activeCommandPollIntervalMs: number;
+	killProcessTree: (pid: number) => Promise<void>;
 };
 
 function parseDetachedCommandMarker(
@@ -101,6 +107,12 @@ function parseDetachedCommandMarker(
 			typeof marker.detachedAtMs !== "number" ||
 			!Number.isFinite(marker.detachedAtMs) ||
 			marker.detachedAtMs < 0
+		) {
+			return undefined;
+		}
+		if (
+			marker.hardKillAtMs !== undefined &&
+			(!Number.isFinite(marker.hardKillAtMs) || marker.hardKillAtMs < 0)
 		) {
 			return undefined;
 		}
@@ -200,6 +212,17 @@ async function reconcileDetachedCommandLogDirectory(
 				probe.status === "found" &&
 				probe.token === marker.processStartToken
 			) {
+				if (
+					marker.hardKillAtMs !== undefined &&
+					options.nowMs >= marker.hardKillAtMs
+				) {
+					await appendFile(
+						join(directory, DETACHED_LOG_FILENAME),
+						"\n[Command reached its hard deadline]\n",
+						"utf8",
+					).catch(() => undefined);
+					await options.killProcessTree(marker.pid).catch(() => undefined);
+				}
 				// The detached command, rather than the host that launched it, owns the
 				// active lifecycle. Matching both PID and kernel start token prevents a
 				// later process that reuses the PID from extending this log's lifetime.
@@ -276,6 +299,33 @@ export async function cleanupStaleDetachedCommandLogs(
 	const activeCommandPollIntervalMs = resolveActiveCommandPollIntervalMs(
 		options.activeCommandPollIntervalMs,
 	);
+	const killProcessTree = async (pid: number): Promise<void> => {
+		if (options.killProcessTree) {
+			await options.killProcessTree(pid);
+			return;
+		}
+		if (process.platform === "win32") {
+			await new Promise<void>((resolve) => {
+				const killer = spawn(
+					"taskkill.exe",
+					["/PID", String(pid), "/T", "/F"],
+					{
+						stdio: "ignore",
+						shell: false,
+						windowsHide: true,
+					},
+				);
+				killer.once("error", () => resolve());
+				killer.once("close", () => resolve());
+			});
+			return;
+		}
+		try {
+			process.kill(-pid, "SIGKILL");
+		} catch {
+			process.kill(pid, "SIGKILL");
+		}
+	};
 	let entries: Dirent[];
 	try {
 		entries = await readdir(tempDirectory, { withFileTypes: true });
@@ -299,6 +349,7 @@ export async function cleanupStaleDetachedCommandLogs(
 					nowMs,
 					probeProcessStartToken,
 					activeCommandPollIntervalMs,
+					killProcessTree,
 				})
 			) {
 				removed += 1;
@@ -336,6 +387,21 @@ export interface ShellExecutorOptions {
 	 * @default 30000 (30 seconds)
 	 */
 	timeoutMs?: number;
+
+	/**
+	 * Automatically release the tool call after this duration. Per-invocation
+	 * limits override this value. Infinity disables the timer.
+	 * @default Infinity
+	 */
+	detachAfterMs?: number;
+
+	/**
+	 * Forcefully terminate the process tree after this duration. Per-invocation
+	 * limits override this value, then legacy `timeoutMs` is used as fallback.
+	 * Infinity disables the timer.
+	 * @default 30000
+	 */
+	killAfterMs?: number;
 
 	/**
 	 * Maximum output kept, in characters. Output beyond this is
@@ -657,7 +723,7 @@ function createDetachedLog(retentionMs: number, marker: DetachedCommandMarker) {
 function spawnAndCollect(
 	config: SpawnConfig,
 	context: AgentToolContext,
-	timeoutMs: number,
+	limits: Required<ShellExecutionLimits>,
 	maxOutputChars: number,
 	combineOutput: boolean,
 	detachedLogRetentionMs: number,
@@ -681,24 +747,36 @@ function spawnAndCollect(
 			windowsHide: true,
 		});
 		const childPid = child.pid;
+		const processStartedAtMs = Date.now();
+		const hardKillAtMs = Number.isFinite(limits.killAfterMs)
+			? processStartedAtMs + limits.killAfterMs
+			: undefined;
 
 		const stdout = createRollingCollector(maxOutputChars);
 		const stderr = createRollingCollector(maxOutputChars);
 		const executionId = randomUUID();
-		const supportsDetachment = Boolean(
+		const supportsManualDetachment = Boolean(
 			executionController && context.sessionId,
 		);
+		const supportsImplicitDetachment =
+			Number.isFinite(limits.detachAfterMs) &&
+			(!Number.isFinite(limits.killAfterMs) ||
+				limits.killAfterMs > limits.detachAfterMs);
 		let detachable = false;
 		let processStartToken: string | undefined;
 		let killed = false;
 		let settled = false;
 		let detached = false;
+		let detachKind: RunCommandDetachKind | undefined;
+		let implicitDetachRequested = false;
+		let detachedHardKillRequested = false;
+		let detachedCompletionReported = false;
 		let detachedLog: ReturnType<typeof createDetachedLog> | undefined;
 		let unregisterExecution = () => {};
 		const progress = createCommandProgressEmitter(
 			context,
 			executionId,
-			() => detachable,
+			() => detachable && supportsManualDetachment,
 			maxOutputChars,
 		);
 
@@ -754,35 +832,92 @@ function spawnAndCollect(
 			}
 		};
 
-		let timeout: NodeJS.Timeout;
+		let detachTimer: NodeJS.Timeout | undefined;
+		let killTimer: NodeJS.Timeout | undefined;
 		const abortHandler = () => killAndReject(new Error("Command was aborted"));
-		const cleanup = () => {
-			clearTimeout(timeout);
+		const clearDetachTimer = () => {
+			if (detachTimer) clearTimeout(detachTimer);
+			detachTimer = undefined;
+		};
+		const clearKillTimer = () => {
+			if (killTimer) clearTimeout(killTimer);
+			killTimer = undefined;
+		};
+		const cleanupForegroundOwnership = () => {
+			clearDetachTimer();
 			context.signal?.removeEventListener("abort", abortHandler);
 			unregisterExecution();
+		};
+		const reportDetachedCompletion = (
+			outcome:
+				| { kind: "exited"; exitCode: number }
+				| { kind: "signaled"; signal: string }
+				| { kind: "hard_killed" }
+				| { kind: "failed"; error: string },
+		) => {
+			if (!detached || !detachKind || detachedCompletionReported) return;
+			detachedCompletionReported = true;
+			clearKillTimer();
+			const payload = {
+				sessionId: context.sessionId ?? "",
+				executionId,
+				toolCallId: context.toolCallId,
+				logPath: detachedLog?.path ?? "",
+				detachKind,
+				outcome,
+				ts: Date.now(),
+			};
+			if (payload.sessionId && executionController) {
+				executionController?.reportDetachedCommandCompleted(payload);
+			} else {
+				// Direct executor consumers have no runtime event bus, so completion
+				// returns over the same update callback that announced detachment.
+				context.emitUpdate?.({
+					stream: "stdout",
+					chunk: "",
+					executionId,
+					detached: true,
+					completed: true,
+					detachKind,
+					logPath: payload.logPath,
+					outcome,
+				});
+			}
 		};
 		const killAndReject = (error: Error) => {
 			if (killed || settled) return;
 			killed = true;
 			progress.stop({ flush: true });
-			cleanup();
+			cleanupForegroundOwnership();
+			clearKillTimer();
 			void killProcessTree().finally(() => settle(() => reject(error)));
 		};
 
-		timeout = setTimeout(
-			() =>
-				killAndReject(
-					new TimeoutError(`Command timed out after ${timeoutMs}ms`, timeoutMs),
-				),
-			timeoutMs,
-		);
+		if (Number.isFinite(limits.killAfterMs)) {
+			killTimer = setTimeout(() => {
+				if (!detached) {
+					killAndReject(
+						new TimeoutError(
+							`Command timed out after ${limits.killAfterMs}ms`,
+							limits.killAfterMs,
+						),
+					);
+					return;
+				}
+				if (killed || detachedCompletionReported) return;
+				detachedHardKillRequested = true;
+				detachedLog?.write("\n[Command reached its hard deadline]\n");
+				void killProcessTree();
+			}, limits.killAfterMs);
+			killTimer.unref();
+		}
 
 		if (context.signal) {
 			context.signal.addEventListener("abort", abortHandler, { once: true });
 			if (context.signal.aborted) abortHandler();
 		}
 
-		const detach = (): boolean => {
+		const detach = (kind: RunCommandDetachKind): boolean => {
 			if (
 				!detachable ||
 				killed ||
@@ -800,9 +935,13 @@ function spawnAndCollect(
 				pid: childPid,
 				processStartToken,
 				detachedAtMs: Date.now(),
+				...(kind === "implicit" && hardKillAtMs !== undefined
+					? { hardKillAtMs }
+					: {}),
 			});
 			progress.stop({ flush: true });
 			detached = true;
+			detachKind = kind;
 			detachedLog = log;
 			const currentOut = stdout.current();
 			const currentErr = stderr.current();
@@ -810,7 +949,8 @@ function spawnAndCollect(
 			if (currentErr.text) {
 				detachedLog.write(`\n[stderr]\n${currentErr.text}`);
 			}
-			cleanup();
+			cleanupForegroundOwnership();
+			if (kind === "user") clearKillTimer();
 			child.unref();
 			(
 				child.stdout as (typeof child.stdout & { unref?: () => void }) | null
@@ -828,8 +968,25 @@ function spawnAndCollect(
 				.filter(Boolean)
 				.join("\n");
 			settle(() => resolve(notice));
+			context.emitUpdate?.({
+				stream: "stdout",
+				chunk: "",
+				executionId,
+				detachable: false,
+				detached: true,
+				detachKind: kind,
+				logPath: detachedLog.path,
+			});
 			return true;
 		};
+
+		if (supportsImplicitDetachment) {
+			detachTimer = setTimeout(() => {
+				implicitDetachRequested = true;
+				detach("implicit");
+			}, limits.detachAfterMs);
+			detachTimer.unref();
+		}
 
 		child.once("spawn", () => {
 			if (killed) return;
@@ -841,10 +998,8 @@ function spawnAndCollect(
 			});
 			const sessionId = context.sessionId;
 			if (
-				!supportsDetachment ||
 				!childPid ||
-				!sessionId ||
-				!executionController
+				(!supportsImplicitDetachment && !supportsManualDetachment)
 			) {
 				return;
 			}
@@ -861,17 +1016,23 @@ function spawnAndCollect(
 				}
 				processStartToken = probe.token;
 				detachable = true;
-				unregisterExecution = executionController.register({
-					executionId,
-					sessionId,
-					toolCallId: context.toolCallId,
-					detach,
-				});
+				if (supportsManualDetachment && sessionId && executionController) {
+					unregisterExecution = executionController.register({
+						executionId,
+						sessionId,
+						toolCallId: context.toolCallId,
+						detach,
+					});
+				}
+				if (implicitDetachRequested) {
+					detach("implicit");
+					return;
+				}
 				context.emitUpdate?.({
 					stream: "stdout",
 					chunk: "",
 					executionId,
-					detachable: true,
+					detachable: supportsManualDetachment,
 				});
 			})().catch(() => undefined);
 		});
@@ -896,7 +1057,7 @@ function spawnAndCollect(
 			progress.append("stderr", chunk);
 		});
 
-		child.on("close", (code) => {
+		child.on("close", (code, signal) => {
 			if (killed) return;
 
 			const out = stdout.snapshot();
@@ -906,6 +1067,13 @@ function spawnAndCollect(
 				detachedLog?.write(err.finalChunk);
 				detachedLog?.write(`\n[Command exited with code ${code ?? 1}]\n`);
 				detachedLog?.complete();
+				reportDetachedCompletion(
+					detachedHardKillRequested
+						? { kind: "hard_killed" }
+						: signal
+							? { kind: "signaled", signal }
+							: { kind: "exited", exitCode: code ?? 1 },
+				);
 				return;
 			}
 			if (out.finalChunk) {
@@ -915,7 +1083,8 @@ function spawnAndCollect(
 				progress.append("stderr", err.finalChunk);
 			}
 			progress.stop({ flush: true });
-			cleanup();
+			cleanupForegroundOwnership();
+			clearKillTimer();
 
 			if (code !== 0) {
 				const exitCode = code ?? 1;
@@ -960,10 +1129,16 @@ function spawnAndCollect(
 			if (detached) {
 				detachedLog?.write(`\n[Command failed: ${error.message}]\n`);
 				detachedLog?.complete();
+				reportDetachedCompletion(
+					detachedHardKillRequested
+						? { kind: "hard_killed" }
+						: { kind: "failed", error: error.message },
+				);
 				return;
 			}
 			progress.stop({ flush: true });
-			cleanup();
+			cleanupForegroundOwnership();
+			clearKillTimer();
 			settle(() =>
 				reject(new Error(`Failed to execute command: ${error.message}`)),
 			);
@@ -997,7 +1172,6 @@ export function createShellExecutor(
 ): ShellExecutor {
 	const {
 		shell = getDefaultShell(process.platform),
-		timeoutMs = 30000,
 		env = {},
 		combineOutput = true,
 		executionController,
@@ -1011,7 +1185,18 @@ export function createShellExecutor(
 		options.maxOutputBytes ??
 		MAX_COMMAND_OUTPUT_CHARS;
 
-	return (command, cwd, context) => {
+	return (command, cwd, context, invocationLimits) => {
+		const limits: Required<ShellExecutionLimits> = {
+			detachAfterMs:
+				invocationLimits?.detachAfterMs ??
+				options.detachAfterMs ??
+				Number.POSITIVE_INFINITY,
+			killAfterMs:
+				invocationLimits?.killAfterMs ??
+				options.killAfterMs ??
+				options.timeoutMs ??
+				30_000,
+		};
 		// Spawn without a shell only when the args key is present (even
 		// empty), marking input the caller already split. An object with no
 		// args key, like { command: "echo hello" }, holds a full command
@@ -1033,7 +1218,7 @@ export function createShellExecutor(
 				input: invocation.input,
 			},
 			context,
-			timeoutMs,
+			limits,
 			maxOutputChars,
 			combineOutput,
 			detachedLogRetentionMs,

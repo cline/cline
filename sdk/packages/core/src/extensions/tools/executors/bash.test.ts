@@ -12,7 +12,7 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import type { AgentToolContext } from "@cline/shared";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
 	CommandExitError,
 	cleanupStaleDetachedCommandLogs,
@@ -40,13 +40,18 @@ async function fileExists(path: string): Promise<boolean> {
 	}
 }
 
-function detachedCommandMarker(pid: number, processStartToken: string): string {
+function detachedCommandMarker(
+	pid: number,
+	processStartToken: string,
+	hardKillAtMs?: number,
+): string {
 	return `${JSON.stringify({
 		version: 1,
 		executionId: `execution-${pid}`,
 		pid,
 		processStartToken,
 		detachedAtMs: Date.now(),
+		...(hardKillAtMs !== undefined ? { hardKillAtMs } : {}),
 	})}\n`;
 }
 
@@ -232,6 +237,209 @@ describe("createShellExecutor", () => {
 		}
 	});
 
+	it("implicitly detaches at the soft deadline and reports natural completion", async () => {
+		const controller = new RunCommandExecutionController();
+		const updates: Array<Record<string, unknown>> = [];
+		const completions: unknown[] = [];
+		controller.subscribeToDetachedCommandCompleted((event) =>
+			completions.push(event),
+		);
+		const shell = createShellExecutor({
+			executionController: controller,
+			detachedLogRetentionMs: 50,
+			processStartTokenProbe: (pid) => ({
+				status: "found",
+				token: `test-${pid}`,
+			}),
+		});
+
+		const result = await shell(
+			{
+				command: process.execPath,
+				args: ["-e", "setTimeout(() => process.exit(0), 180)"],
+			},
+			process.cwd(),
+			{
+				...ctx,
+				sessionId: "session-implicit",
+				toolCallId: "call-implicit",
+				emitUpdate: (update) => updates.push(update as Record<string, unknown>),
+			},
+			{ detachAfterMs: 50, killAfterMs: 1_000 },
+		);
+
+		expect(result).toContain("Command is still running");
+		expect(updates).toContainEqual(
+			expect.objectContaining({ detached: true, detachKind: "implicit" }),
+		);
+		await expect.poll(() => completions.length).toBe(1);
+		expect(completions[0]).toMatchObject({
+			sessionId: "session-implicit",
+			toolCallId: "call-implicit",
+			detachKind: "implicit",
+			outcome: { kind: "exited", exitCode: 0 },
+		});
+	});
+
+	it("implicitly detaches without a manual-detach controller", async () => {
+		const updates: Array<Record<string, unknown>> = [];
+		const shell = createShellExecutor({
+			detachedLogRetentionMs: 50,
+			processStartTokenProbe: (pid) => ({
+				status: "found",
+				token: `test-${pid}`,
+			}),
+		});
+
+		const result = await shell(
+			{
+				command: process.execPath,
+				args: ["-e", "setTimeout(() => process.exit(0), 180)"],
+			},
+			process.cwd(),
+			{
+				...ctx,
+				emitUpdate: (update) => updates.push(update as Record<string, unknown>),
+			},
+			{ detachAfterMs: 50, killAfterMs: 1_000 },
+		);
+
+		expect(result).toContain("Command is still running");
+		expect(updates).toContainEqual(
+			expect.objectContaining({ detached: true, detachKind: "implicit" }),
+		);
+		expect(updates).not.toContainEqual(
+			expect.objectContaining({ detachable: true }),
+		);
+	});
+
+	it("uses executor limit options when invocation limits are omitted", async () => {
+		const controller = new RunCommandExecutionController();
+		const completions: unknown[] = [];
+		controller.subscribeToDetachedCommandCompleted((event) =>
+			completions.push(event),
+		);
+		const shell = createShellExecutor({
+			detachAfterMs: 50,
+			killAfterMs: 1_000,
+			executionController: controller,
+			detachedLogRetentionMs: 50,
+			processStartTokenProbe: (pid) => ({
+				status: "found",
+				token: `test-${pid}`,
+			}),
+		});
+
+		await expect(
+			shell(
+				{
+					command: process.execPath,
+					args: ["-e", "setTimeout(() => process.exit(0), 180)"],
+				},
+				process.cwd(),
+				{ ...ctx, sessionId: "session-options" },
+			),
+		).resolves.toContain("Command is still running");
+		await expect.poll(() => completions.length).toBe(1);
+		expect(completions[0]).toMatchObject({ detachKind: "implicit" });
+	});
+
+	it("keeps the hard deadline after implicit detach", async () => {
+		const controller = new RunCommandExecutionController();
+		const completions: unknown[] = [];
+		controller.subscribeToDetachedCommandCompleted((event) =>
+			completions.push(event),
+		);
+		const shell = createShellExecutor({
+			executionController: controller,
+			detachedLogRetentionMs: 50,
+			processStartTokenProbe: (pid) => ({
+				status: "found",
+				token: `test-${pid}`,
+			}),
+		});
+
+		await expect(
+			shell(
+				longRunningCommand,
+				process.cwd(),
+				{
+					...ctx,
+					sessionId: "session-hard-kill",
+				},
+				{ detachAfterMs: 50, killAfterMs: 180 },
+			),
+		).resolves.toContain("Command is still running");
+
+		await expect.poll(() => completions.length).toBe(1);
+		expect(completions[0]).toMatchObject({
+			detachKind: "implicit",
+			outcome: { kind: "hard_killed" },
+		});
+	});
+
+	it("cancels the hard deadline after user detach", async () => {
+		const controller = new RunCommandExecutionController();
+		const completions: unknown[] = [];
+		controller.subscribeToDetachedCommandCompleted((event) =>
+			completions.push(event),
+		);
+		const shell = createShellExecutor({
+			executionController: controller,
+			detachedLogRetentionMs: 50,
+			processStartTokenProbe: (pid) => ({
+				status: "found",
+				token: `test-${pid}`,
+			}),
+		});
+		const execution = shell(
+			{
+				command: process.execPath,
+				args: ["-e", "setTimeout(() => process.exit(0), 300)"],
+			},
+			process.cwd(),
+			{ ...ctx, sessionId: "session-user" },
+			{ detachAfterMs: Number.POSITIVE_INFINITY, killAfterMs: 150 },
+		);
+
+		await expect
+			.poll(() => controller.proceedWhileRunning("session-user"))
+			.toBe(1);
+		await expect(execution).resolves.toContain("Command is still running");
+		await expect.poll(() => completions.length).toBe(1);
+		expect(completions[0]).toMatchObject({
+			detachKind: "user",
+			outcome: { kind: "exited", exitCode: 0 },
+		});
+	});
+
+	it("does not arm soft detach when the hard deadline is not later", async () => {
+		const controller = new RunCommandExecutionController();
+		const updates: Array<Record<string, unknown>> = [];
+		const shell = createShellExecutor({
+			executionController: controller,
+			processStartTokenProbe: (pid) => ({
+				status: "found",
+				token: `test-${pid}`,
+			}),
+		});
+
+		await expect(
+			shell(
+				longRunningCommand,
+				process.cwd(),
+				{
+					...ctx,
+					sessionId: "session-ordering",
+					emitUpdate: (update) =>
+						updates.push(update as Record<string, unknown>),
+				},
+				{ detachAfterMs: 150, killAfterMs: 50 },
+			),
+		).rejects.toThrow("timed out");
+		expect(updates.some((update) => update.detached === true)).toBe(false);
+	});
+
 	it("does not advertise detachment when process identity cannot be captured", async () => {
 		const controller = new RunCommandExecutionController();
 		const detachabilityUpdates: boolean[] = [];
@@ -399,6 +607,42 @@ describe("createShellExecutor", () => {
 				true,
 			);
 			await expect.poll(() => fileExists(reusedPidDirectory)).toBe(false);
+		} finally {
+			await rm(tempDirectory, { recursive: true, force: true });
+		}
+	});
+
+	it("enforces a persisted hard deadline after host restart", async () => {
+		const tempDirectory = await mkdtemp(
+			join(tmpdir(), "detached-log-hard-deadline-"),
+		);
+		const directory = join(tempDirectory, "cline-command-hard-deadline");
+		const killProcessTree = vi.fn(async () => {});
+		try {
+			await mkdir(directory);
+			await Promise.all([
+				writeFile(join(directory, "output.log"), "still running"),
+				writeFile(
+					join(directory, "active-command.json"),
+					detachedCommandMarker(505, "process-505", 900),
+				),
+			]);
+
+			await cleanupStaleDetachedCommandLogs({
+				tempDirectory,
+				nowMs: 1_000,
+				activeCommandPollIntervalMs: 60_000,
+				processStartTokenProbe: () => ({
+					status: "found",
+					token: "process-505",
+				}),
+				killProcessTree,
+			});
+
+			expect(killProcessTree).toHaveBeenCalledWith(505);
+			expect(await readFile(join(directory, "output.log"), "utf8")).toContain(
+				"hard deadline",
+			);
 		} finally {
 			await rm(tempDirectory, { recursive: true, force: true });
 		}

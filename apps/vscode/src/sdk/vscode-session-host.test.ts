@@ -1,4 +1,4 @@
-import type { ClineCoreStartInput, ITelemetryService } from "@cline/core"
+import { RunCommandExecutionController, type ClineCoreStartInput, type ITelemetryService } from "@cline/core"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const mockClineCoreCreate = vi.hoisted(() => vi.fn())
@@ -49,6 +49,23 @@ describe("VscodeSessionHost telemetry wiring", () => {
 		})
 
 		expect(mockClineCoreCreate).toHaveBeenCalledWith(expect.objectContaining({ telemetry }))
+	})
+
+	it("passes the shared command controller to ClineCore and VS Code tools", async () => {
+		const commandExecutions = new RunCommandExecutionController()
+		await VscodeSessionHost.create({
+			// biome-ignore lint/suspicious/noExplicitAny: focused host unit test
+			mcpHub: {} as any,
+			commandExecutions: commandExecutions as never,
+		})
+
+		expect(mockClineCoreCreate).toHaveBeenCalledWith(
+			expect.objectContaining({ runCommandExecutionController: commandExecutions }),
+		)
+		const prepare = mockClineCoreCreate.mock.calls[0][0].prepare
+		const bootstrap = await prepare()
+		await bootstrap.applyToStartSessionInput({ config: { cwd: "/workspace" } })
+		expect(mockCreateVscodeExtraTools).toHaveBeenCalledWith({}, expect.objectContaining({ commandExecutions }))
 	})
 
 	it("injects shared telemetry into CoreSessionConfig when remote config did not provide one", async () => {
@@ -186,6 +203,7 @@ describe("VscodeSessionHost telemetry wiring", () => {
 			cwd: "/workspace",
 			getTerminalManager: undefined,
 			vscodeTerminalExecutionMode: undefined,
+			commandExecutions: undefined,
 		})
 		expect(result.source).toBe("vscode")
 		expect(result.config.extensions).toEqual([{ name: "remote-config" }])

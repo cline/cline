@@ -214,6 +214,113 @@ describe("HubRuntimeHost", () => {
 		});
 	});
 
+	it("reconstructs detached command completion without ending the session", async () => {
+		let onEvent: ((event: HubEventEnvelope) => void) | undefined;
+		subscribeMock.mockImplementation((listener) => {
+			onEvent = listener;
+			return () => {};
+		});
+		commandMock.mockResolvedValue({
+			payload: {
+				session: {
+					sessionId: "sess-1",
+					status: "running",
+					createdAt: Date.now(),
+					updatedAt: Date.now(),
+					workspaceRoot: "/tmp/project",
+					cwd: "/tmp/project",
+				},
+			},
+		});
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+		const events: unknown[] = [];
+		host.subscribe((event) => events.push(event));
+		await host.startSession({
+			config: createConfig(),
+			source: SessionSource.CLI,
+		});
+
+		onEvent?.({
+			version: "v1",
+			event: "command.detached_completed",
+			sessionId: "sess-1",
+			timestamp: 123,
+			payload: {
+				executionId: "execution-1",
+				toolCallId: "call-1",
+				logPath: "/tmp/output.log",
+				detachKind: "implicit",
+				outcome: { kind: "exited", exitCode: 0 },
+				ts: 123,
+			},
+		});
+
+		expect(events).toContainEqual({
+			type: "detached_command_completed",
+			payload: {
+				sessionId: "sess-1",
+				executionId: "execution-1",
+				toolCallId: "call-1",
+				logPath: "/tmp/output.log",
+				detachKind: "implicit",
+				outcome: { kind: "exited", exitCode: 0 },
+				ts: 123,
+			},
+		});
+		expect(events).not.toContainEqual(
+			expect.objectContaining({ type: "ended" }),
+		);
+	});
+
+	it("ignores detached command completion without a usable log path", async () => {
+		let onEvent: ((event: HubEventEnvelope) => void) | undefined;
+		subscribeMock.mockImplementation((listener) => {
+			onEvent = listener;
+			return () => {};
+		});
+		commandMock.mockResolvedValue({
+			payload: {
+				session: {
+					sessionId: "sess-1",
+					status: "running",
+					createdAt: Date.now(),
+					updatedAt: Date.now(),
+					workspaceRoot: "/tmp/project",
+					cwd: "/tmp/project",
+				},
+			},
+		});
+		const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+		const events: unknown[] = [];
+		host.subscribe((event) => events.push(event));
+		await host.startSession({
+			config: createConfig(),
+			source: SessionSource.CLI,
+		});
+
+		onEvent?.({
+			version: "v1",
+			event: "command.detached_completed",
+			sessionId: "sess-1",
+			timestamp: 123,
+			payload: {
+				executionId: "execution-1",
+				detachKind: "implicit",
+				outcome: { kind: "exited", exitCode: 0 },
+			},
+		});
+
+		expect(events).toEqual([]);
+		expect(warnSpy).toHaveBeenCalledWith(
+			"[hub] dropped malformed command.detached_completed event",
+			expect.any(String),
+		);
+		warnSpy.mockRestore();
+	});
+
 	it("uses the hub-resolved workspace in the manifest for a pathless start", async () => {
 		subscribeMock.mockReturnValue(() => {});
 		const resolvedWorkspace = "/home/host/.cline/data/workspaces/chat";
@@ -570,6 +677,7 @@ describe("HubRuntimeHost", () => {
 					},
 				},
 			})
+
 			.mockResolvedValueOnce({ ok: true, payload: {} });
 		const eventOrder: string[] = [];
 		const requestToolApproval = vi.fn(async () => {

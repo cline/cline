@@ -121,6 +121,12 @@ export class CommandExitError extends Error {
 	}
 }
 
+export {
+	RunCommandExecutionController,
+	type RunCommandDetachKind,
+} from "../../../../sdk/packages/core/src/extensions/tools/executors/run-command-execution-controller"
+export type { ShellExecutionLimits } from "../../../../sdk/packages/core/src/extensions/tools/types"
+
 export function createShellExecutor() {
 	return async () => ""
 }

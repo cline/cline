@@ -404,6 +404,307 @@ describe("translateSessionEvent — agent_event content_start", () => {
 		})
 	})
 
+	it("streams command output into one row and finalizes a detached command on process completion", () => {
+		const state = new MessageTranslatorState()
+		const start = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "run_commands",
+						toolCallId: "command-call",
+						input: { commands: ["bun test"] },
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		const rowTs = start.messages[0].ts
+
+		const output = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "content_update",
+						contentType: "tool",
+						toolName: "run_commands",
+						toolCallId: "command-call",
+						update: { stream: "stdout", chunk: "running\n", detachable: true },
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		expect(output.messages[0]).toMatchObject({ ts: rowTs, partial: true, commandCompleted: false })
+		expect(output.messages[0].text).toContain("running")
+
+		translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "content_update",
+						contentType: "tool",
+						toolName: "run_commands",
+						toolCallId: "command-call",
+						update: {
+							executionId: "execution-1",
+							detached: true,
+							detachKind: "implicit",
+							logPath: "/tmp/output.log",
+							detachable: false,
+						},
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+
+		const toolEnd = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "content_end",
+						contentType: "tool",
+						toolName: "run_commands",
+						toolCallId: "command-call",
+						output: "detached",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		expect(toolEnd.messages[0]).toMatchObject({ ts: rowTs, partial: true, commandCompleted: false })
+
+		const completed = translateSessionEvent(
+			{
+				type: "detached_command_completed",
+				payload: {
+					sessionId: "session-1",
+					executionId: "execution-1",
+					toolCallId: "command-call",
+					logPath: "/tmp/output.log",
+					detachKind: "implicit",
+					outcome: { kind: "exited", exitCode: 0 },
+					ts: 1,
+				},
+			},
+			state,
+		)
+		expect(completed.messages[0]).toMatchObject({ ts: rowTs, partial: false, commandCompleted: true })
+		expect(completed.messages[0].text).toContain("completed with exit code 0")
+	})
+
+	it("waits for every detached execution in a parallel command call", () => {
+		const state = new MessageTranslatorState()
+		const agentEvent = (event: AgentEvent) => ({
+			type: "agent_event" as const,
+			payload: { sessionId: "session-1", event },
+		})
+		translateSessionEvent(
+			agentEvent({
+				type: "content_start",
+				contentType: "tool",
+				toolName: "run_commands",
+				toolCallId: "parallel-call",
+				input: { commands: ["first", "second"] },
+			} as AgentEvent),
+			state,
+		)
+		for (const executionId of ["execution-1", "execution-2"]) {
+			translateSessionEvent(
+				agentEvent({
+					type: "content_update",
+					contentType: "tool",
+					toolName: "run_commands",
+					toolCallId: "parallel-call",
+					update: { executionId, detached: true, logPath: `/tmp/${executionId}.log` },
+				} as AgentEvent),
+				state,
+			)
+		}
+		translateSessionEvent(
+			agentEvent({
+				type: "content_end",
+				contentType: "tool",
+				toolName: "run_commands",
+				toolCallId: "parallel-call",
+				output: "detached",
+			} as AgentEvent),
+			state,
+		)
+
+		const first = translateSessionEvent(
+			{
+				type: "detached_command_completed",
+				payload: {
+					sessionId: "session-1",
+					executionId: "execution-2",
+					toolCallId: "parallel-call",
+					logPath: "/tmp/execution-2.log",
+					detachKind: "implicit",
+					outcome: { kind: "exited", exitCode: 0 },
+					ts: 1,
+				},
+			},
+			state,
+		)
+		expect(first.messages[0]).toMatchObject({ partial: true, commandStatus: "running" })
+
+		const second = translateSessionEvent(
+			{
+				type: "detached_command_completed",
+				payload: {
+					sessionId: "session-1",
+					executionId: "execution-1",
+					toolCallId: "parallel-call",
+					logPath: "/tmp/execution-1.log",
+					detachKind: "implicit",
+					outcome: { kind: "hard_killed" },
+					ts: 2,
+				},
+			},
+			state,
+		)
+		expect(second.messages[0]).toMatchObject({ partial: false, commandCompleted: true, commandStatus: "killed" })
+	})
+
+	it("labels failing foreground commands as failed", () => {
+		const state = new MessageTranslatorState()
+		const agentEvent = (event: AgentEvent) => ({
+			type: "agent_event" as const,
+			payload: { sessionId: "session-1", event },
+		})
+		translateSessionEvent(
+			agentEvent({
+				type: "content_start",
+				contentType: "tool",
+				toolName: "run_commands",
+				toolCallId: "failing-call",
+				input: { commands: ["echo about-to-fail; exit 2"] },
+			} as AgentEvent),
+			state,
+		)
+
+		// The foreground executor reports the failure in its completion update.
+		const completed = translateSessionEvent(
+			agentEvent({
+				type: "content_update",
+				contentType: "tool",
+				toolName: "run_commands",
+				toolCallId: "failing-call",
+				update: {
+					stream: "stdout",
+					chunk: "about-to-fail\n",
+					completed: true,
+					detachable: false,
+					outcome: { kind: "failed", error: "Command exited with code 2" },
+				},
+			} as AgentEvent),
+			state,
+		)
+		expect(completed.messages[0]).toMatchObject({ commandCompleted: true, commandStatus: "failed" })
+
+		// The shell tool wrapper converts CommandExitError into a success:false
+		// result instead of an error, so content_end must derive the failure
+		// from the output entries rather than event.error.
+		const toolEnd = translateSessionEvent(
+			agentEvent({
+				type: "content_end",
+				contentType: "tool",
+				toolName: "run_commands",
+				toolCallId: "failing-call",
+				output: [
+					{
+						query: "echo about-to-fail; exit 2",
+						result: "[Command exited with code 2]\nabout-to-fail",
+						error: "Command exited with code 2",
+						success: false,
+					},
+				],
+			} as AgentEvent),
+			state,
+		)
+		expect(toolEnd.messages[0]).toMatchObject({ commandCompleted: true, commandStatus: "failed" })
+		expect(toolEnd.messages[0].text).toContain("[Command exited with code 2]")
+	})
+
+	it("shows the detach notice once and drops it once the detached command completes", () => {
+		const state = new MessageTranslatorState()
+		const agentEvent = (event: AgentEvent) => ({
+			type: "agent_event" as const,
+			payload: { sessionId: "session-1", event },
+		})
+		translateSessionEvent(
+			agentEvent({
+				type: "content_start",
+				contentType: "tool",
+				toolName: "run_commands",
+				toolCallId: "detach-call",
+				input: { commands: ["sleep 60"] },
+			} as AgentEvent),
+			state,
+		)
+
+		const running = translateSessionEvent(
+			agentEvent({
+				type: "content_update",
+				contentType: "tool",
+				toolName: "run_commands",
+				toolCallId: "detach-call",
+				update: {
+					executionId: "execution-1",
+					detached: true,
+					detachKind: "implicit",
+					logPath: "/tmp/output.log",
+					detachable: false,
+				},
+			} as AgentEvent),
+			state,
+		)
+		// formatDetachedCommandOutput prepends the notice, so the stored row
+		// output must not already contain it.
+		expect(running.messages[0].text?.match(/Command is still running/g)).toHaveLength(1)
+
+		translateSessionEvent(
+			agentEvent({
+				type: "content_end",
+				contentType: "tool",
+				toolName: "run_commands",
+				toolCallId: "detach-call",
+				output: "detached",
+			} as AgentEvent),
+			state,
+		)
+
+		const completed = translateSessionEvent(
+			{
+				type: "detached_command_completed",
+				payload: {
+					sessionId: "session-1",
+					executionId: "execution-1",
+					toolCallId: "detach-call",
+					logPath: "/tmp/output.log",
+					detachKind: "implicit",
+					outcome: { kind: "exited", exitCode: 0 },
+					ts: 1,
+				},
+			},
+			state,
+		)
+		expect(completed.messages[0].text).toContain("[Command output log: /tmp/output.log]")
+		expect(completed.messages[0].text).toContain("[Detached command completed with exit code 0]")
+		expect(completed.messages[0].text).not.toContain("still running")
+	})
+
 	it("reuses the approved MCP prompt row for the matching MCP tool lifecycle", () => {
 		const state = new MessageTranslatorState()
 		const approvedMessageTs = state.nextTs()

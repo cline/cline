@@ -11,16 +11,19 @@
  *     for headless child_process.spawn execution.
  */
 
+import { randomUUID } from "node:crypto"
 import {
 	CommandExitError,
 	createShellExecutor,
 	createShellTool,
 	MAX_COMMAND_OUTPUT_CHARS,
+	type RunCommandDetachKind,
+	type ShellExecutionLimits,
 	type ShellExecutor,
 	type StructuredCommandInput,
 	truncateCommandOutput,
 } from "@cline/core"
-import type { AgentTool } from "@cline/shared"
+import type { AgentTool, AgentToolContext } from "@cline/shared"
 import { TerminalUserInterventionAction, telemetryService } from "@services/telemetry"
 import { ClineTempManager } from "@services/temp"
 import * as fs from "fs"
@@ -34,7 +37,7 @@ import {
 } from "@/integrations/terminal/types"
 import { Logger } from "@/shared/services/Logger"
 import { getShellForProfile } from "@/utils/shell"
-import type { SdkForegroundCommandCoordinator } from "./sdk-foreground-command-coordinator"
+import type { VscodeRunCommandExecutionController } from "./vscode-run-command-execution-controller"
 
 // ---------------------------------------------------------------------------
 // Types
@@ -43,11 +46,23 @@ import type { SdkForegroundCommandCoordinator } from "./sdk-foreground-command-c
 type ShellCommand = string | StructuredCommandInput
 type VscodeTerminalExecutionMode = "vscodeTerminal" | "backgroundExec"
 
-/** Foreground VS Code terminals cannot be forcibly terminated; give long-running commands room to finish. */
-export const VSCODE_FOREGROUND_RUN_COMMANDS_TIMEOUT_MS = 60 * 60 * 1000
+export const VSCODE_RUN_COMMAND_EXECUTION_PROFILES = {
+	vscodeTerminal: {
+		detachAfterMs: 30_000,
+		killAfterMs: Number.POSITIVE_INFINITY,
+	},
+	backgroundExec: {
+		detachAfterMs: 30_000,
+		killAfterMs: 3_600_000,
+	},
+} as const satisfies Record<VscodeTerminalExecutionMode, ShellExecutionLimits>
 
-/** Release the agent turn if a foreground command is still running after 300 seconds. */
-export const FOREGROUND_COMMAND_AUTO_PROCEED_MS = 300 * 1000
+/** The wrapper must outlive soft detach and the background hard deadline. */
+export const VSCODE_RUN_COMMANDS_WRAPPER_TIMEOUT_MS = 3_660_000
+
+/** Compatibility name retained for downstream imports. */
+export const VSCODE_FOREGROUND_RUN_COMMANDS_TIMEOUT_MS = VSCODE_RUN_COMMANDS_WRAPPER_TIMEOUT_MS
+export const FOREGROUND_COMMAND_AUTO_PROCEED_MS = VSCODE_RUN_COMMAND_EXECUTION_PROFILES.vscodeTerminal.detachAfterMs
 
 /**
  * Cap on the "Proceed While Running" log file. A detached devserver can log
@@ -68,14 +83,8 @@ export interface VscodeRunCommandsToolOptions {
 	bashTimeoutMs?: number
 	/** Terminal execution mode captured when this session's tool set is built. */
 	vscodeTerminalExecutionMode?: VscodeTerminalExecutionMode
-	/**
-	 * Registry of in-flight foreground executions, owned by SdkController.
-	 * When provided, each foreground command can be detached via the
-	 * "Proceed While Running" button. Foreground-only: background (SDK
-	 * child_process) executions cannot be detached — their abort signal
-	 * kills the process tree.
-	 */
-	foregroundCommands?: SdkForegroundCommandCoordinator
+	/** Shared foreground/background execution registry owned by SdkController. */
+	commandExecutions?: VscodeRunCommandExecutionController
 }
 
 // ---------------------------------------------------------------------------
@@ -116,7 +125,13 @@ interface DetachedCommandLog {
 	fail(error: unknown): void
 }
 
-function createDetachedCommandLog(terminalCommand: string, existingLines: string[]): DetachedCommandLog {
+type ForegroundCompletionOutcome = { kind: "exited"; exitCode: number } | { kind: "failed"; error: string }
+
+function createDetachedCommandLog(
+	terminalCommand: string,
+	existingLines: readonly string[],
+	onSettled?: (outcome: ForegroundCompletionOutcome) => void,
+): DetachedCommandLog {
 	const logFilePath = ClineTempManager.createTempFilePath("proceed-while-running")
 	const stream = fs.createWriteStream(logFilePath, { flags: "a" })
 	const sizeCapMessage = `[Log size cap of ${PROCEED_LOG_MAX_BYTES} bytes reached; further output is not logged.]`
@@ -146,7 +161,7 @@ function createDetachedCommandLog(terminalCommand: string, existingLines: string
 
 	let settled = false
 	let removeAttachedListeners = (): void => {}
-	const end = (message: string): void => {
+	const end = (message: string, outcome: ForegroundCompletionOutcome): void => {
 		if (settled) {
 			return
 		}
@@ -156,6 +171,7 @@ function createDetachedCommandLog(terminalCommand: string, existingLines: string
 		// the terminal status so a full log never hides completion or failure.
 		stream.write(`${message.slice(0, PROCEED_LOG_FINAL_MESSAGE_MAX_CHARS)}\n`)
 		stream.end()
+		onSettled?.(outcome)
 	}
 
 	return {
@@ -171,6 +187,14 @@ function createDetachedCommandLog(terminalCommand: string, existingLines: string
 			}
 			const onCompleted = (details?: TerminalCompletionDetails): void => {
 				const exitCode = details?.exitCode
+				const completionError = details?.terminalClosed
+					? "Terminal closed while the command was running"
+					: details?.unobservedCommand
+						? "Command completion could not be observed"
+						: undefined
+				const outcome = completionError
+					? ({ kind: "failed", error: completionError } as const)
+					: ({ kind: "exited", exitCode: exitCode ?? 0 } as const)
 				end(
 					details?.terminalClosed
 						? "[Terminal closed while the command was running; output may be incomplete]"
@@ -179,9 +203,12 @@ function createDetachedCommandLog(terminalCommand: string, existingLines: string
 							: exitCode !== undefined && exitCode !== null
 								? `[Command completed with exit code ${exitCode}]`
 								: "[Command completed]",
+					outcome,
 				)
 			}
-			const onError = (error: Error): void => end(`[Command failed after detaching: ${error.message}]`)
+			const onError = (error: Error): void => {
+				end(`[Command failed after detaching: ${error.message}]`, { kind: "failed", error: error.message })
+			}
 			removeAttachedListeners = () => {
 				process.removeListener("line", onLine)
 				process.removeListener("completed", onCompleted)
@@ -197,12 +224,12 @@ function createDetachedCommandLog(terminalCommand: string, existingLines: string
 		},
 		fail: (error) => {
 			const message = error instanceof Error ? error.message : String(error)
-			end(`[Command failed before log capture completed: ${message}]`)
+			end(`[Command failed before log capture completed: ${message}]`, { kind: "failed", error: message })
 		},
 	}
 }
 
-type DetachReason = "user" | "timeout"
+type DetachReason = RunCommandDetachKind
 
 function formatDetachedResult(logFilePath: string, output: string, reason: DetachReason): string {
 	return [
@@ -223,14 +250,35 @@ export async function executeForeground(
 	terminalManager: VscodeTerminalManager,
 	maxOutputChars: number,
 	abortSignal?: AbortSignal,
-	foregroundCommands?: SdkForegroundCommandCoordinator,
+	commandExecutions?: VscodeRunCommandExecutionController,
 	terminalProfileId?: string,
+	context?: AgentToolContext,
+	limits: ShellExecutionLimits = VSCODE_RUN_COMMAND_EXECUTION_PROFILES.vscodeTerminal,
 ): Promise<string> {
 	const terminalCommand = formatCommandForTerminal(command)
+	const executionId = randomUUID()
+	const emitUpdate = (update: Record<string, unknown>): void => context?.emitUpdate?.({ executionId, ...update })
+	const emitDetachedCompletion = (kind: RunCommandDetachKind, outcome: ForegroundCompletionOutcome): void => {
+		const logPath = detachedLog?.path ?? ""
+		if (context?.sessionId && commandExecutions) {
+			commandExecutions?.reportDetachedCommandCompleted({
+				sessionId: context.sessionId,
+				executionId,
+				toolCallId: context.toolCallId,
+				logPath,
+				detachKind: kind,
+				outcome,
+				ts: Date.now(),
+			})
+		} else {
+			emitUpdate({ detached: true, completed: true, detachKind: kind, outcome, logPath, stream: "stdout", chunk: "" })
+		}
+	}
 
 	// "Proceed While Running": register a per-invocation handle so the user can
-	// detach this command. If they do not act, automatically detach after 300
-	// seconds so a long-running command cannot block the agent turn indefinitely.
+	// detach this command. If they do not act, automatically detach after the
+	// foreground profile's soft deadline so a long-running command cannot block
+	// the agent turn indefinitely.
 	// Detaching redirects the remaining output to a log file and resolves the
 	// awaited promise; the command keeps running in the user's terminal (and the
 	// terminal stays busy until it completes).
@@ -252,7 +300,7 @@ export async function executeForeground(
 		if (state.phase === "waiting") {
 			state.phase = "detached"
 			detachReason = reason
-			detachedLog = createDetachedCommandLog(terminalCommand, [])
+			detachedLog = createDetachedCommandLog(terminalCommand, [], (outcome) => emitDetachedCompletion(reason, outcome))
 			if (reason === "user") {
 				telemetryService.captureTerminalUserIntervention(TerminalUserInterventionAction.PROCESS_WHILE_RUNNING, "vscode")
 			}
@@ -261,10 +309,24 @@ export async function executeForeground(
 			applyDetach?.(reason)
 		}
 	}
-	const unregister = foregroundCommands?.register({
-		detach: () => requestDetach("user"),
+	const unregister = commandExecutions?.register({
+		executionId,
+		sessionId: context?.sessionId ?? "",
+		toolCallId: context?.toolCallId,
+		detach: (kind) => {
+			if (state.phase === "detached" || state.phase === "aborted") {
+				return false
+			}
+			requestDetach(kind)
+			return true
+		},
 	})
-	const autoProceedTimer = setTimeout(() => requestDetach("timeout"), FOREGROUND_COMMAND_AUTO_PROCEED_MS)
+	const autoProceedTimer =
+		Number.isFinite(limits.detachAfterMs) &&
+		(!Number.isFinite(limits.killAfterMs) || (limits.killAfterMs ?? 0) > (limits.detachAfterMs ?? 0))
+			? setTimeout(() => requestDetach("implicit"), limits.detachAfterMs)
+			: undefined
+	emitUpdate({ stream: "stdout", chunk: "", detachable: true })
 	const onAbort = (): void => {
 		if (state.phase === "waiting") {
 			state.phase = "aborted"
@@ -326,7 +388,15 @@ export async function executeForeground(
 				throw new Error("Detached command log was not initialized")
 			}
 			void acquisition.then((outcome) => finishDetachedAcquisition(outcome, log))
-			return formatDetachedResult(log.path, "", detachReason ?? "timeout")
+			emitUpdate({
+				detached: true,
+				detachKind: detachReason,
+				logPath: log.path,
+				detachable: false,
+				stream: "stdout",
+				chunk: "",
+			})
+			return formatDetachedResult(log.path, "", detachReason ?? "implicit")
 		}
 
 		// Acquisition and a user action can resolve in the same microtask turn.
@@ -343,7 +413,15 @@ export async function executeForeground(
 				throw new Error("Detached command log was not initialized")
 			}
 			finishDetachedAcquisition(firstOutcome, log)
-			return formatDetachedResult(log.path, "", detachReason ?? "timeout")
+			emitUpdate({
+				detached: true,
+				detachKind: detachReason,
+				logPath: log.path,
+				detachable: false,
+				stream: "stdout",
+				chunk: "",
+			})
+			return formatDetachedResult(log.path, "", detachReason ?? "implicit")
 		}
 		if (firstOutcome.type === "error") {
 			throw firstOutcome.error
@@ -374,6 +452,7 @@ export async function executeForeground(
 				outputLines.push(line)
 				droppedLines++
 			}
+			emitUpdate({ stream: "stdout", chunk: `${line}\n`, detachable: true })
 		}
 		process.on("line", bufferLine)
 
@@ -401,7 +480,9 @@ export async function executeForeground(
 					return
 				}
 				detachReason = reason
-				detachedLog = createDetachedCommandLog(terminalCommand, outputLines)
+				detachedLog = createDetachedCommandLog(terminalCommand, outputLines, (outcome) =>
+					emitDetachedCompletion(reason, outcome),
+				)
 				detachedLog.attach(process)
 				if (reason === "user") {
 					telemetryService.captureTerminalUserIntervention(
@@ -415,6 +496,14 @@ export async function executeForeground(
 				// (log-only) output doesn't mutate outputLines while it's read.
 				process.detach()
 				process.removeListener("line", bufferLine)
+				emitUpdate({
+					detached: true,
+					detachKind: reason,
+					logPath: detachedLog.path,
+					detachable: false,
+					stream: "stdout",
+					chunk: "",
+				})
 			}
 
 			// Wait for completion (or detach, which also resolves the promise)
@@ -433,7 +522,7 @@ export async function executeForeground(
 			})
 
 			if (detachedLog !== undefined) {
-				return formatDetachedResult(detachedLog.path, output, detachReason ?? "timeout")
+				return formatDetachedResult(detachedLog.path, output, detachReason ?? "implicit")
 			}
 
 			const completionDetails = process.getCompletionDetails?.()
@@ -478,12 +567,30 @@ export async function executeForeground(
 				throw new CommandExitError(exitCode, result)
 			}
 
+			emitUpdate({
+				stream: "stdout",
+				chunk: "",
+				completed: true,
+				detachable: false,
+				outcome: { kind: "exited", exitCode: exitCode ?? 0 },
+			})
 			return output
 		} finally {
 			process.removeListener("line", bufferLine)
 		}
+	} catch (error) {
+		if (state.phase !== "detached") {
+			emitUpdate({
+				stream: "stdout",
+				chunk: "",
+				completed: true,
+				detachable: false,
+				outcome: { kind: "failed", error: error instanceof Error ? error.message : String(error) },
+			})
+		}
+		throw error
 	} finally {
-		clearTimeout(autoProceedTimer)
+		if (autoProceedTimer) clearTimeout(autoProceedTimer)
 		abortSignal?.removeEventListener("abort", onAbort)
 		unregister?.()
 	}
@@ -566,13 +673,21 @@ function createVscodeShellExecutor(options: VscodeRunCommandsToolOptions, state:
 					// Set SHELL env to match the shell we're spawning so child
 					// processes see the correct value instead of the inherited parent's.
 					env: { SHELL: shell },
+					executionController: options.commandExecutions,
+					detachAfterMs: VSCODE_RUN_COMMAND_EXECUTION_PROFILES.backgroundExec.detachAfterMs,
+					killAfterMs: VSCODE_RUN_COMMAND_EXECUTION_PROFILES.backgroundExec.killAfterMs,
 				})
 				Logger.log(`[VscodeRunCommands] Background executor using shell: ${shell}`)
 			}
 			// Record execution outcomes so background mode is comparable with
 			// foreground mode in the same task.terminal_execution event.
 			try {
-				const result = await bgExecutor(command, commandCwd || cwd, context)
+				const result = await bgExecutor(
+					command,
+					commandCwd || cwd,
+					context,
+					VSCODE_RUN_COMMAND_EXECUTION_PROFILES.backgroundExec,
+				)
 				telemetryService.captureTerminalExecution(true, "vscode", "child_process", {
 					exitCode: 0,
 					terminalExecutionMode: "backgroundExec",
@@ -597,8 +712,10 @@ function createVscodeShellExecutor(options: VscodeRunCommandsToolOptions, state:
 			terminalManager,
 			MAX_COMMAND_OUTPUT_CHARS,
 			context.signal,
-			options.foregroundCommands,
+			options.commandExecutions,
 			profileId,
+			context,
+			VSCODE_RUN_COMMAND_EXECUTION_PROFILES.vscodeTerminal,
 		)
 	}
 }

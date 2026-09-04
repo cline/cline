@@ -23,6 +23,21 @@ describe("resolveWorkspaceRootPath", () => {
 	})
 })
 
+describe("proceedWhileRunningCommand", () => {
+	it("delegates to the active SDK session with its session id", async () => {
+		const proceedWhileRunning = vi.fn(async () => 1)
+		const controller = {
+			sessions: {
+				getActiveSession: () => ({ sessionId: "session-1", sdkHost: { proceedWhileRunning } }),
+			},
+		}
+
+		await SdkController.prototype.proceedWhileRunningCommand.call(controller as never)
+
+		expect(proceedWhileRunning).toHaveBeenCalledWith("session-1")
+	})
+})
+
 vi.mock("@/services/telemetry", () => ({
 	telemetryService: {
 		captureRemoteConfigSessionGate: vi.fn(),
@@ -46,7 +61,7 @@ describe("SDK remote-config coordination", () => {
 			},
 			backgroundCommandRunning: false,
 			backgroundCommandTaskId: undefined,
-			foregroundCommands: { isRunning: false },
+			commandExecutions: { isRunning: false },
 			isRemoteConfigAvailable: true,
 			currentRemoteConfigRevision: 7,
 			ensureWorkspaceManager: async () => undefined,

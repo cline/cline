@@ -181,7 +181,12 @@ const ToolCallRow = memo(function ToolCallRow({
 		}
 	}, [isProceeding, onProceedWhileRunning, toolCallId, toolSessionId]);
 
-	const hasError = Boolean(payload?.isError);
+	const backgroundStatus = message.meta?.toolBackgroundStatus;
+	const hasError = Boolean(
+		payload?.isError ||
+			backgroundStatus === "failed" ||
+			backgroundStatus === "killed",
+	);
 	const Icon = getToolNameIcon(toolName);
 	const details = summary.details.map((detail, index) => ({
 		detail,

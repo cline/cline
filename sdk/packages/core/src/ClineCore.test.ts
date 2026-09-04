@@ -857,7 +857,26 @@ Summarize the local event.
 				}),
 			}),
 		);
+
 		expect(result.messages).toEqual(restoreResult.messages);
 		expect(result.sessionId).toBe("restored-session");
+	});
+
+	it("delegates proceed while running to the runtime host", async () => {
+		const host = {
+			runtimeAddress: undefined,
+			proceedWhileRunning: vi.fn(async () => 2),
+			subscribe: vi.fn(() => () => {}),
+		};
+		createRuntimeHostMock.mockResolvedValue(host);
+		const core = await ClineCore.create();
+
+		await expect(core.proceedWhileRunning("session-1", "call-1")).resolves.toBe(
+			2,
+		);
+		expect(host.proceedWhileRunning).toHaveBeenCalledWith(
+			"session-1",
+			"call-1",
+		);
 	});
 });

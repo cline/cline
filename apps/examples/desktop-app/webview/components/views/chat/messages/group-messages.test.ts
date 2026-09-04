@@ -222,6 +222,51 @@ describe("collapseCompletedWork", () => {
 		]);
 	});
 
+	it("keeps a run with a still-running detached command expanded until it settles", () => {
+		const runningTool = makeMessage({
+			id: "t1",
+			role: "tool",
+			content: JSON.stringify({
+				toolName: "run_commands",
+				input: {},
+				result: {},
+			}),
+			createdAt: 2_000,
+			meta: { toolBackgroundStatus: "running" },
+		});
+		const messages = (tool: ChatMessage) => [
+			makeMessage({
+				id: "u1",
+				role: "user",
+				content: "go",
+				createdAt: 1_000,
+			}),
+			tool,
+			makeMessage({ id: "a1", content: "Done.", createdAt: 3_000 }),
+		];
+
+		// The turn ended on its answer, but the detached command it started is
+		// still running: folding the span into "Worked for..." would hide the
+		// live row and its eventual completion note.
+		const running = collapse(messages(runningTool), true);
+		expect(running.map((item) => item.type)).toEqual([
+			"message",
+			"tools",
+			"message",
+		]);
+
+		const settledTool = {
+			...runningTool,
+			meta: { toolBackgroundStatus: "succeeded" as const },
+		};
+		const settled = collapse(messages(settledTool), true);
+		expect(settled.map((item) => item.type)).toEqual([
+			"message",
+			"work",
+			"message",
+		]);
+	});
+
 	it("keeps a trailing run without an answer expanded even when idle", () => {
 		// A cancelled or failed run never ended on assistant text; its rows stay
 		// visible so the user can see where it stopped.

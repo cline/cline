@@ -44,8 +44,8 @@ import type { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTermin
 import { getDistinctId } from "@/services/logging/distinctId"
 import type { McpHub } from "@/services/mcp/McpHub"
 import { Logger } from "@/shared/services/Logger"
-import type { SdkForegroundCommandCoordinator } from "./sdk-foreground-command-coordinator"
 import type { SdkSessionHost } from "./session-host"
+import type { VscodeRunCommandExecutionController } from "./vscode-run-command-execution-controller"
 import { createVscodeExtraTools } from "./vscode-runtime-builder"
 import { getEffectiveTerminalExecutionMode } from "./vscode-terminal-execution-mode"
 
@@ -91,8 +91,8 @@ export interface VscodeSessionHostOptions {
 	 * with a custom tool that supports foreground/background terminal execution.
 	 */
 	getTerminalManager?: () => VscodeTerminalManager
-	/** Registry of in-flight foreground executions for "Proceed While Running". */
-	foregroundCommands?: SdkForegroundCommandCoordinator
+	/** Shared SDK registry for foreground and background command executions. */
+	commandExecutions?: VscodeRunCommandExecutionController
 }
 
 export class VscodeSessionHost implements SdkSessionHost {
@@ -155,7 +155,7 @@ export class VscodeSessionHost implements SdkSessionHost {
 				cwd: inputWithRemoteConfig.config.cwd,
 				getTerminalManager: options.getTerminalManager,
 				vscodeTerminalExecutionMode: getEffectiveTerminalExecutionMode(requestedTerminalExecutionMode),
-				foregroundCommands: options.foregroundCommands,
+				commandExecutions: options.commandExecutions,
 			})
 			return {
 				...inputWithRemoteConfig,
@@ -187,6 +187,7 @@ export class VscodeSessionHost implements SdkSessionHost {
 				toolExecutors: Object.keys(toolExecutors).length > 0 ? toolExecutors : undefined,
 			},
 			toolPolicies: options.toolPolicies,
+			runCommandExecutionController: options.commandExecutions,
 			telemetry: options.telemetry,
 			distinctId: getDistinctId() || undefined,
 			prepare: async () => ({
@@ -219,6 +220,10 @@ export class VscodeSessionHost implements SdkSessionHost {
 			Logger.error("[VscodeSessionHost] send() error:", error)
 			throw error
 		}
+	}
+
+	async proceedWhileRunning(sessionId: string, toolCallId?: string): Promise<number> {
+		return this.inner.proceedWhileRunning(sessionId, toolCallId)
 	}
 
 	async getAccumulatedUsage(sessionId: string): Promise<SessionAccumulatedUsage | undefined> {

@@ -7,6 +7,9 @@ export type {
 } from "./config";
 export type {
 	CoreSessionEvent,
+	DetachedCommandCompletedEvent,
+	DetachedCommandOutcome,
+	RunCommandDetachKind,
 	SessionChunkEvent,
 	SessionEndedEvent,
 	SessionPendingPrompt,

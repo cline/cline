@@ -74,7 +74,6 @@ import {
 import { SdkCompactionCoordinator } from "./sdk-compaction-coordinator"
 import { SdkDiffEditCoordinator } from "./sdk-diff-edit-coordinator"
 import { SdkFollowupCoordinator } from "./sdk-followup-coordinator"
-import { SdkForegroundCommandCoordinator } from "./sdk-foreground-command-coordinator"
 import { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
 import { SdkMcpCoordinator } from "./sdk-mcp-coordinator"
 import { SdkMessageCoordinator, type SessionEventListener } from "./sdk-message-coordinator"
@@ -104,6 +103,7 @@ import { createTaskProxy, type TaskProxy } from "./task-proxy"
 import { syncTelemetrySettingFromSharedGlobalSettings } from "./telemetry-settings-sync"
 import { TurnStateTracker } from "./turn-state-tracker"
 import { createWorkspaceFileReadExecutor } from "./vscode-file-read-executor"
+import { VscodeRunCommandExecutionController } from "./vscode-run-command-execution-controller"
 import { VscodeSessionHost } from "./vscode-session-host"
 import type { VscodeTerminalExecutionMode } from "./vscode-terminal-execution-mode"
 import { WebviewGrpcBridge } from "./webview-grpc-bridge"
@@ -214,10 +214,10 @@ export class Controller {
 	// standalone (JetBrains/CLI) host run commands through the SDK's built-in tool.
 	private _terminalManager?: VscodeTerminalManager
 
-	// Registry of in-flight foreground (VS Code terminal) command executions.
+	// Registry of in-flight foreground and background command executions.
 	// Owned here — not by the session — so it survives session rebuilds, which
 	// recreate the tool set. Drives the "Proceed While Running" button.
-	private readonly foregroundCommands = new SdkForegroundCommandCoordinator({
+	private readonly commandExecutions = new VscodeRunCommandExecutionController({
 		onRunningChanged: () => {
 			void this.postStateToWebview()
 		},
@@ -398,7 +398,7 @@ export class Controller {
 			onDidBecomeIdle: () => this.handleSessionBecameIdle(),
 			beforeStartSession: () => this.ensureRemoteConfigForSessionStart(),
 			getRemoteConfigIntegration: () => this.remoteConfigCoreIntegration,
-			foregroundCommands: this.foregroundCommands,
+			commandExecutions: this.commandExecutions,
 			getTerminalManager: () => {
 				// Guarded by getEffectiveTerminalExecutionMode() at the read sites
 				// (vscode-session-host.ts, sdk-terminal-execution-mode-coordinator.ts):
@@ -1424,15 +1424,20 @@ export class Controller {
 	}
 
 	/**
-	 * "Proceed While Running": detach every in-flight foreground terminal
-	 * command. Each pending run_commands call returns its partial output plus
+	 * "Proceed While Running": detach every in-flight command in the active
+	 * SDK session. Each pending run_commands call returns its partial output plus
 	 * the log file path the remaining output is redirected to, and the agent
 	 * turn continues while the commands keep running in their terminals.
 	 */
 	async proceedWhileRunningCommand(): Promise<void> {
-		const detached = this.foregroundCommands.proceedWhileRunning()
+		const activeSession = this.sessions.getActiveSession()
+		if (!activeSession) {
+			Logger.warn("[SdkController] proceedWhileRunningCommand: No active session")
+			return
+		}
+		const detached = await activeSession.sdkHost.proceedWhileRunning(activeSession.sessionId)
 		if (detached === 0) {
-			Logger.warn("[SdkController] proceedWhileRunningCommand: No foreground command is running")
+			Logger.warn("[SdkController] proceedWhileRunningCommand: No detachable command is running")
 		}
 	}
 
@@ -2221,6 +2226,7 @@ export class Controller {
 	 */
 	resetMessageTranslatorAndFence(): void {
 		this.messageTranslatorState.reset()
+		this.messageTranslatorState.clearDetachedCommands()
 		this.messageTranslatorState.getMinter().bumpEpoch()
 	}
 
@@ -2236,7 +2242,7 @@ export class Controller {
 				mcpHub: this.mcpHub,
 				backgroundCommandRunning: this.backgroundCommandRunning,
 				backgroundCommandTaskId: this.backgroundCommandTaskId,
-				foregroundCommandRunning: this.foregroundCommands.isRunning,
+				foregroundCommandRunning: this.commandExecutions.isRunning,
 				isRemoteConfigAvailable: this.isRemoteConfigAvailable,
 				currentRemoteConfigRevision: this.currentRemoteConfigRevision,
 				// Without this the webview always receives workspaceRoots: [] on the
