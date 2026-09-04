@@ -58,6 +58,7 @@ export interface ClineCoreAutomationOptions {
 	workspaceRoot?: string;
 	dbPath?: string;
 	pollIntervalMs?: number;
+	/** Effective lease is at least 4x `pollIntervalMs` so sleep detection stays reliable. */
 	claimLeaseSeconds?: number;
 	globalMaxConcurrency?: number;
 	watcherDebounceMs?: number;

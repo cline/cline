@@ -163,6 +163,7 @@ export interface CronRunnerOptions {
 	specs?: ResolveCronSpecsDirOptions;
 	logger?: BasicLogger;
 	pollIntervalMs?: number;
+	/** Effective lease is at least 4x `pollIntervalMs` so sleep detection stays reliable. */
 	claimLeaseSeconds?: number;
 	globalMaxConcurrency?: number;
 }
@@ -173,11 +174,14 @@ export class CronRunner {
 	private readonly options: CronRunnerOptions;
 	private readonly limiter: ResourceLimiter;
 	private readonly claimLeaseMs: number;
+	private readonly pollIntervalMs: number;
 	private timer: ReturnType<typeof setInterval> | undefined;
 	private started = false;
 	private ticking = false;
 	private disposed = false;
 	private stopping = false;
+	private lastTickAtMs = 0;
+	private holdReclaimsUntilMs = 0;
 	private readonly activeRuns = new Map<
 		string,
 		{ claimToken: string; sessionId?: string }
@@ -188,9 +192,17 @@ export class CronRunner {
 		this.materializer = options.materializer;
 		this.options = options;
 		this.limiter = new ResourceLimiter(options.globalMaxConcurrency ?? 10);
+		this.pollIntervalMs = Math.max(
+			2_000,
+			options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS,
+		);
+		// Keep the lease well above the poll cadence so the sleep-gap check in
+		// tick() (half a lease) is never tripped by routine ticks, yet always
+		// tripped by a stall long enough to expire a lease.
 		this.claimLeaseMs = Math.max(
 			5_000,
 			(options.claimLeaseSeconds ?? DEFAULT_CLAIM_LEASE_SECONDS) * 1000,
+			this.pollIntervalMs * 4,
 		);
 	}
 
@@ -199,12 +211,8 @@ export class CronRunner {
 		if (this.started) return;
 		this.stopping = false;
 		this.started = true;
-		const interval = Math.max(
-			2_000,
-			this.options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS,
-		);
 		await this.tick();
-		this.timer = setInterval(() => void this.tick(), interval);
+		this.timer = setInterval(() => void this.tick(), this.pollIntervalMs);
 	}
 
 	public async stop(): Promise<void> {
@@ -246,6 +254,16 @@ export class CronRunner {
 	}
 
 	public async tick(): Promise<void> {
+		// Leases age in wall-clock time but heartbeat timers freeze during
+		// system sleep, so after a long gap (or on a fresh runner sharing
+		// cron.db with a live one) expired `running` rows likely still have a
+		// live owner about to renew. Hold reclaims for one lease period so we
+		// don't start a duplicate session for the same run.
+		const now = Date.now();
+		if (now - this.lastTickAtMs > this.claimLeaseMs / 2) {
+			this.holdReclaimsUntilMs = now + this.claimLeaseMs;
+		}
+		this.lastTickAtMs = now;
 		if (this.ticking) return;
 		this.ticking = true;
 		try {
@@ -253,6 +271,7 @@ export class CronRunner {
 			const claims = this.store.claimDueRuns({
 				nowIso: nowIso(),
 				leaseMs: this.claimLeaseMs,
+				reclaimExpiredRunning: now >= this.holdReclaimsUntilMs,
 			});
 			await Promise.allSettled(claims.map((claim) => this.executeClaim(claim)));
 		} catch (err) {
