@@ -177,7 +177,7 @@ function searchWithRipgrep(
 	return new Promise((resolve) => {
 		const child = spawn(
 			"rg",
-			["--json", `--context=${contextLines}`, "--max-count=1", "-i", query],
+			["--json", `--context=${contextLines}`, "-i", query],
 			{
 				cwd,
 				stdio: ["ignore", "pipe", "pipe"],
