@@ -4,6 +4,7 @@ import { isChatWorkspacePath } from "@cline/shared/browser";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { normalizeTitle } from "@/components/utils";
 import { toast } from "@/hooks/use-toast";
+import { humanizeCloudSessionError } from "@/lib/cloud-session-error";
 import { desktopClient } from "@/lib/desktop-client";
 import type {
 	SessionHistoryItem,
@@ -25,6 +26,8 @@ type CliDiscoveredSession = Omit<SessionHistoryItem, "status"> & {
 
 export interface SessionThread {
 	id: string;
+	origin?: "local" | "cloud";
+	repoUrl?: string;
 	title: string;
 	source?: string;
 	codebase: string;
@@ -157,6 +160,9 @@ export function normalizeDiscoveredStatus(
 	) {
 		return "cancelled";
 	}
+	if (normalized.includes("provision")) {
+		return "provisioning";
+	}
 	if (normalized.includes("fail") || normalized.includes("error")) {
 		return "failed";
 	}
@@ -240,7 +246,13 @@ function inferStatusFromMessages(
 		return content.trim().length > 0;
 	});
 	if (meaningfulMessages.length === 0) {
-		return status === "running" ? "running" : "idle";
+		// Provisioning placeholders legitimately have no messages — inferring
+		// "idle" here would kill the sidebar's provisioning state within one
+		// hydration cycle and flap it on every refresh after.
+		if (status === "running" || status === "provisioning") {
+			return status;
+		}
+		return "idle";
 	}
 	const lastMeaningful = meaningfulMessages[meaningfulMessages.length - 1];
 	if (status === "failed" && lastMeaningful.role === "assistant") {
@@ -250,9 +262,14 @@ function inferStatusFromMessages(
 }
 
 function toThread(session: SessionHistoryItem): SessionThread {
-	const workspacePath = (session.workspaceRoot || session.cwd).trim();
+	const workspacePath =
+		session.origin === "cloud" && session.repoUrl?.trim()
+			? session.repoUrl.trim()
+			: (session.workspaceRoot || session.cwd).trim();
 	return {
 		id: session.sessionId,
+		origin: session.origin,
+		repoUrl: session.repoUrl,
 		title: toTitle(session),
 		source: getSessionSource(session) || undefined,
 		codebase: basenamePath(workspacePath),
@@ -356,6 +373,8 @@ function areSessionsEquivalent(
 		const b = next[i];
 		if (
 			a.sessionId !== b.sessionId ||
+			a.origin !== b.origin ||
+			a.repoUrl !== b.repoUrl ||
 			getSessionSource(a) !== getSessionSource(b) ||
 			a.status !== b.status ||
 			a.startedAt !== b.startedAt ||
@@ -392,6 +411,8 @@ function areThreadsEquivalent(
 		const b = next[i];
 		if (
 			a.id !== b.id ||
+			a.origin !== b.origin ||
+			a.repoUrl !== b.repoUrl ||
 			a.title !== b.title ||
 			a.source !== b.source ||
 			a.codebase !== b.codebase ||
@@ -806,7 +827,10 @@ export function useSessionHistory({
 
 	useEffect(() => {
 		const recent = sessions
-			.filter((session) => session.sessionId !== activeSessionId)
+			.filter(
+				(session) =>
+					session.sessionId !== activeSessionId && session.origin !== "cloud",
+			)
 			.slice(0, 4);
 		let cancelled = false;
 		const timer = window.setTimeout(() => {
@@ -1002,7 +1026,20 @@ export function useSessionHistory({
 				const known = sessionsRef.current.some(
 					(session) => session.sessionId === sessionId,
 				);
-				const status = normalizeDiscoveredStatus(record.status);
+				const status = normalizeDiscoveredStatus(
+					record.status,
+					"active session",
+				);
+				setThreads((current) =>
+					updateThreadById(current, sessionId, (thread) =>
+						thread.status === status ? thread : { ...thread, status },
+					),
+				);
+				setSessions((current) =>
+					updateSessionById(current, sessionId, (session) =>
+						session.status === status ? session : { ...session, status },
+					),
+				);
 				if (!known) {
 					scheduleRefresh(HISTORY_EVENT_REFRESH_DELAY_MS);
 				} else if (isTerminalHistoryStatus(status)) {
@@ -1017,6 +1054,14 @@ export function useSessionHistory({
 						return next;
 					});
 				}
+			},
+		);
+		// Account/organization switches re-scope the cloud session list; the
+		// sidebar must reflect the new scope immediately, not on the next poll.
+		const unsubscribeCloudScope = desktopClient.subscribe(
+			"cloud_sessions_changed",
+			() => {
+				scheduleRefresh(HISTORY_FAST_REFRESH_DELAY_MS, { force: true });
 			},
 		);
 		const unsubscribeTransportEnded = desktopClient.subscribe(
@@ -1078,6 +1123,7 @@ export function useSessionHistory({
 			);
 			unsubscribeTransportDelete();
 			unsubscribeTransportStatus();
+			unsubscribeCloudScope();
 			unsubscribeTransportEnded();
 			unsubscribeTransportChatEvent();
 		};
@@ -1085,7 +1131,10 @@ export function useSessionHistory({
 
 	useEffect(() => {
 		const recent = sessions
-			.filter((session) => session.sessionId !== activeSessionId)
+			.filter(
+				(session) =>
+					session.sessionId !== activeSessionId && session.origin !== "cloud",
+			)
 			.slice(0, 4);
 		let cancelled = false;
 		const timer = window.setTimeout(() => {
@@ -1231,10 +1280,12 @@ export function useSessionHistory({
 				toast({
 					variant: "destructive",
 					title: "Rename failed",
-					description:
+					// Cloud failures arrive as a machine envelope; never show it raw.
+					description: humanizeCloudSessionError(
 						error instanceof Error
 							? error.message
 							: "The session title could not be updated.",
+					),
 				});
 				return false;
 			} finally {
@@ -1390,10 +1441,11 @@ export function useSessionHistory({
 				toast({
 					variant: "destructive",
 					title: "Delete failed",
-					description:
+					description: humanizeCloudSessionError(
 						error instanceof Error
 							? error.message
 							: "The session could not be removed from local history.",
+					),
 				});
 				return false;
 			} finally {
