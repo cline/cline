@@ -59,6 +59,7 @@ function makeHarness(options: { openSessionResult?: boolean } = {}) {
 				silent: true;
 				initialPromptDraft?: string;
 				initialAttachments?: File[];
+				expectedActiveThreadId?: string;
 			},
 		) => Promise.resolve(options.openSessionResult ?? true),
 	);
@@ -924,6 +925,38 @@ describe("cloud handoff lifecycle: event/RPC ordering races", () => {
 			status: "complete",
 			receipt: { targetSessionId: TARGET, dashboardUrl: DASHBOARD_URL },
 			warningKind: "unqueued",
+		});
+	});
+
+	it("reject then delayed event keeps recovery when the source thread is no longer active", async () => {
+		const h = makeHarness({ openSessionResult: false });
+		const attachment = makeAttachment();
+		const handoffAttemptId = h.lifecycle.onRpcStarted(SOURCE, "thread-a");
+		await h.lifecycle.onRpcRejected(SOURCE, {
+			handoffAttemptId,
+			error: new Error("fetch failed"),
+			nextCommand: "fix flaky test",
+			sourceAttachments: [attachment],
+			isThreadActive: () => false,
+		});
+
+		await h.lifecycle.onEvent(
+			completeEvent({
+				handoffAttemptId,
+				warningKind: "unqueued",
+			}),
+		);
+
+		expect(h.openSession).toHaveBeenCalledExactlyOnceWith(TARGET, {
+			silent: true,
+			initialPromptDraft: "fix flaky test",
+			initialAttachments: [attachment],
+			expectedActiveThreadId: "thread-a",
+		});
+		expect(h.getState()[SOURCE]).toMatchObject({
+			status: "complete",
+			retryDraft: "fix flaky test",
+			retryAttachments: [attachment],
 		});
 	});
 
