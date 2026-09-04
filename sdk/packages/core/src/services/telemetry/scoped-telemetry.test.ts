@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { CORE_TELEMETRY_EVENTS } from "./core-events";
 import type { ITelemetryAdapter } from "./ITelemetryAdapter";
 import {
 	createClientScopedTelemetryService,
@@ -80,7 +81,7 @@ describe("client-scoped telemetry", () => {
 		});
 
 		telemetry.capture({
-			event: "task.created",
+			event: CORE_TELEMETRY_EVENTS.TASK.CREATED,
 			properties: {
 				ulid: "session-1",
 				provider: "anthropic",
@@ -88,7 +89,7 @@ describe("client-scoped telemetry", () => {
 			},
 		});
 
-		expect(emit).toHaveBeenCalledWith("task.created", {
+		expect(emit).toHaveBeenCalledWith(CORE_TELEMETRY_EVENTS.TASK.CREATED, {
 			user_id: "account-1",
 			account_id: "account-1",
 			account_email: "dev@example.com",
@@ -130,9 +131,9 @@ describe("client-scoped telemetry", () => {
 			user: { distinctId: "machine-1", accountId: null },
 		});
 
-		telemetry.capture({ event: "task.created" });
+		telemetry.capture({ event: CORE_TELEMETRY_EVENTS.TASK.CREATED });
 
-		expect(emit).toHaveBeenCalledWith("task.created", {
+		expect(emit).toHaveBeenCalledWith(CORE_TELEMETRY_EVENTS.TASK.CREATED, {
 			cline_type: "desktop",
 			platform: "cline-desktop",
 			distinct_id: "machine-1",

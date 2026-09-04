@@ -777,6 +777,7 @@ export {
 	captureWorkspaceInitError,
 	captureWorkspaceInitialized,
 	captureWorkspacePathResolved,
+	clearAccountTelemetryIdentity,
 	identifyAccount,
 } from "./services/telemetry/core-events";
 export type { ITelemetryAdapter } from "./services/telemetry/ITelemetryAdapter";

@@ -26,6 +26,7 @@ import {
 	captureWorkspaceInitError,
 	captureWorkspaceInitialized,
 	captureWorkspacePathResolved,
+	clearAccountTelemetryIdentity,
 	identifyAccount,
 } from "./core-events";
 import type { ITelemetryAdapter } from "./ITelemetryAdapter";
@@ -953,6 +954,31 @@ describe("identifyAccount", () => {
 	test("no-ops when telemetry is undefined", () => {
 		expect(() =>
 			identifyAccount(undefined, { id: "usr-123", provider: "cline" }),
+		).not.toThrow();
+	});
+});
+
+describe("clearAccountTelemetryIdentity", () => {
+	test("restores anonymous identity and clears account properties", () => {
+		const stub = createTelemetryStub();
+
+		clearAccountTelemetryIdentity(stub.telemetry, "  machine-123  ");
+
+		expect(stub.telemetry.setDistinctId).toHaveBeenCalledWith("machine-123");
+		expect(stub.telemetry.updateCommonProperties).toHaveBeenCalledWith({
+			user_id: undefined,
+			account_id: undefined,
+			account_email: undefined,
+			provider: undefined,
+			organization_id: undefined,
+			organization_name: undefined,
+			member_id: undefined,
+		});
+	});
+
+	test("no-ops when telemetry is undefined", () => {
+		expect(() =>
+			clearAccountTelemetryIdentity(undefined, "machine-123"),
 		).not.toThrow();
 	});
 });

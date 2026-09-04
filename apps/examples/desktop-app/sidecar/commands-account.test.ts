@@ -62,8 +62,9 @@ beforeEach(() => {
 });
 
 describe("cline_account command auth states", () => {
-	it("returns a typed not-authenticated result when signed out, without telemetry or a thrown error", async () => {
-		const { ctx, capture } = createContext();
+	it("returns a typed not-authenticated result and restores anonymous telemetry when signed out", async () => {
+		const { ctx, capture, setDistinctId, updateCommonProperties } =
+			createContext();
 		resolveProviderApiKeyMock.mockResolvedValue(null);
 		getProviderSettingsMock.mockReturnValue(undefined);
 
@@ -77,6 +78,14 @@ describe("cline_account command auth states", () => {
 		expect(executeClineAccountActionMock).not.toHaveBeenCalled();
 		expect(clineAccountServiceCtorMock).not.toHaveBeenCalled();
 		expect(capture).not.toHaveBeenCalled();
+		expect(setDistinctId).toHaveBeenCalledWith(expect.any(String));
+		expect(updateCommonProperties).toHaveBeenCalledWith(
+			expect.objectContaining({
+				user_id: undefined,
+				account_id: undefined,
+				organization_id: undefined,
+			}),
+		);
 	});
 
 	it("runs the account action unchanged when a fresh token resolves", async () => {
@@ -280,7 +289,7 @@ describe("cline_account keeps feature-flag identity in sync", () => {
 	});
 
 	it("clears the account identity on logout", async () => {
-		const { ctx } = createContext();
+		const { ctx, setDistinctId, updateCommonProperties } = createContext();
 		resolveProviderApiKeyMock.mockResolvedValue({ apiKey: "token" });
 		getProviderSettingsMock.mockReturnValue({});
 		executeClineAccountActionMock.mockResolvedValue({ id: "acct-1" });
@@ -300,10 +309,22 @@ describe("cline_account keeps feature-flag identity in sync", () => {
 				distinctId: expect.any(String),
 			}),
 		);
+		expect(setDistinctId).toHaveBeenLastCalledWith(
+			ctx.telemetryUser?.distinctId,
+		);
+		expect(ctx.telemetryUser?.distinctId).not.toBe("acct-1");
+		expect(updateCommonProperties).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				user_id: undefined,
+				account_id: undefined,
+				account_email: undefined,
+				organization_id: undefined,
+			}),
+		);
 	});
 
 	it("clears the identity when sign-out blanks the cline auth settings", async () => {
-		const { ctx } = createContext();
+		const { ctx, setDistinctId, updateCommonProperties } = createContext();
 		resolveProviderApiKeyMock.mockResolvedValue({ apiKey: "token" });
 		getProviderSettingsMock.mockReturnValue({});
 		executeClineAccountActionMock.mockResolvedValue({ id: "acct-1" });
@@ -330,6 +351,16 @@ describe("cline_account keeps feature-flag identity in sync", () => {
 			expect.objectContaining({
 				accountId: null,
 				distinctId: expect.any(String),
+			}),
+		);
+		expect(setDistinctId).toHaveBeenLastCalledWith(
+			ctx.telemetryUser?.distinctId,
+		);
+		expect(updateCommonProperties).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				user_id: undefined,
+				account_id: undefined,
+				organization_id: undefined,
 			}),
 		);
 	});

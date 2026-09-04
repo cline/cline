@@ -17,6 +17,7 @@ import {
 	ClineAccountService,
 	type ClineAccountUser,
 	captureAuthRefreshSoftFailure,
+	clearAccountTelemetryIdentity,
 	createConfiguredStreamingTranscriptionSession,
 	createUserInstructionConfigService,
 	ensureCustomProvidersLoaded,
@@ -346,21 +347,34 @@ function syncAccountContextFromSettings(
 	manager: ProviderSettingsManager,
 ): void {
 	const auth = manager.getProviderSettings("cline")?.auth;
-	ctx.telemetryUser = resolveDesktopTelemetryUser({
-		accountId: auth?.accountId,
-		organizationId: auth?.organizationId,
-	});
-	if (auth?.accountId) {
-		identifyAccount(ctx.telemetry, {
-			id: auth.accountId,
-			provider: "cline",
-			organizationId: auth.organizationId,
-			organizationName: auth.organizationName,
-			memberId: auth.memberId,
-		});
+	const accountId = auth?.accountId?.trim();
+	if (!auth || !accountId) {
+		syncSignedOutAccountContext(ctx);
+		return;
 	}
+	ctx.telemetryUser = resolveDesktopTelemetryUser({
+		accountId,
+		organizationId: auth.organizationId,
+	});
+	identifyAccount(ctx.telemetry, {
+		id: accountId,
+		provider: "cline",
+		organizationId: auth.organizationId,
+		organizationName: auth.organizationName,
+		memberId: auth.memberId,
+	});
 	void identifyDesktopFeatureFlagsAccount(
-		{ id: auth?.accountId },
+		{ id: accountId },
+		{ logger: ctx.logger, telemetry: ctx.telemetry },
+	);
+}
+
+function syncSignedOutAccountContext(ctx: SidecarContext): void {
+	const telemetryUser = resolveDesktopTelemetryUser();
+	ctx.telemetryUser = telemetryUser;
+	clearAccountTelemetryIdentity(ctx.telemetry, telemetryUser.distinctId);
+	void identifyDesktopFeatureFlagsAccount(
+		{},
 		{ logger: ctx.logger, telemetry: ctx.telemetry },
 	);
 }
@@ -1859,11 +1873,7 @@ export async function handleCommand(
 			// an expired or server-revoked token. Explicit sign-out is handled
 			// at its source in `save_provider_settings`; this catches the rest
 			// so a stale account never keeps serving its rollout cohort.
-			void identifyDesktopFeatureFlagsAccount(
-				{},
-				{ logger: ctx.logger, telemetry: ctx.telemetry },
-			);
-			ctx.telemetryUser = resolveDesktopTelemetryUser();
+			syncSignedOutAccountContext(ctx);
 			return CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT;
 		}
 		const settings = manager.getProviderSettings("cline");

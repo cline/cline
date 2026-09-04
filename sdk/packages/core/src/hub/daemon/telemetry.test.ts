@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
+	mockClearAccountTelemetryIdentity,
 	mockIdentifyAccount,
 	mockGetProviderSettings,
 	mockFlush,
@@ -13,6 +14,7 @@ const {
 	const mockFlush = vi.fn(async () => undefined);
 	const mockDispose = vi.fn(async () => undefined);
 	return {
+		mockClearAccountTelemetryIdentity: vi.fn(),
 		mockIdentifyAccount: vi.fn(),
 		mockGetProviderSettings: vi.fn(),
 		mockFlush,
@@ -32,7 +34,12 @@ vi.mock("../../services/telemetry/OpenTelemetryProvider", () => ({
 }));
 
 vi.mock("../../services/telemetry/core-events", () => ({
+	clearAccountTelemetryIdentity: mockClearAccountTelemetryIdentity,
 	identifyAccount: mockIdentifyAccount,
+}));
+
+vi.mock("../../services/telemetry/distinct-id", () => ({
+	resolveCoreDistinctId: () => "machine-123",
 }));
 
 vi.mock("../../services/storage/provider-settings-manager", () => ({
@@ -53,6 +60,7 @@ describe("createHubDaemonTelemetry", () => {
 
 	afterEach(() => {
 		vi.useRealTimers();
+		mockClearAccountTelemetryIdentity.mockClear();
 		mockIdentifyAccount.mockClear();
 		mockGetProviderSettings.mockClear();
 		mockFlush.mockClear();
@@ -145,6 +153,36 @@ describe("createHubDaemonTelemetry", () => {
 			mockTelemetryService,
 			expect.objectContaining({ id: "usr-123", organizationId: "org-2" }),
 		);
+	});
+
+	it("restores anonymous process identity when the cached account signs out", () => {
+		mockGetProviderSettings.mockReturnValue({
+			auth: { accountId: "usr-123", organizationId: "org-1" },
+		});
+		createHubDaemonTelemetry();
+		expect(mockIdentifyAccount).toHaveBeenCalledTimes(1);
+
+		mockGetProviderSettings.mockReturnValue(undefined);
+		vi.advanceTimersByTime(5 * 60 * 1000);
+
+		expect(mockClearAccountTelemetryIdentity).toHaveBeenCalledExactlyOnceWith(
+			mockTelemetryService,
+			"machine-123",
+		);
+		vi.advanceTimersByTime(5 * 60 * 1000);
+		expect(mockClearAccountTelemetryIdentity).toHaveBeenCalledTimes(1);
+	});
+
+	it("does not clear a known identity for a transient settings read failure", () => {
+		mockGetProviderSettings.mockReturnValue({ auth: { accountId: "usr-123" } });
+		createHubDaemonTelemetry();
+
+		mockGetProviderSettings.mockImplementation(() => {
+			throw new Error("temporary settings failure");
+		});
+		vi.advanceTimersByTime(5 * 60 * 1000);
+
+		expect(mockClearAccountTelemetryIdentity).not.toHaveBeenCalled();
 	});
 
 	it("survives provider settings read failures", () => {
