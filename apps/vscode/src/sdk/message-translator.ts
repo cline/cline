@@ -1537,7 +1537,9 @@ export function translateAgentEvent(event: AgentEvent, state: MessageTranslatorS
 					state.clearTurnFinalText()
 
 					if (state.checkDeniedToolApproval(event.toolCallId) || isKnownToolApprovalDenial(event.error)) {
-						state.clearStreamingTool()
+						// A denied tool renders nothing here; forget its stream
+						// without minting an id for a row that never exists.
+						state.discardStreamingTool()
 						break
 					}
 

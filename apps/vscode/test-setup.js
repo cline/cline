@@ -233,6 +233,9 @@ Module.prototype.require = function (id) {
 			frameRoutedEvent() {
 				return []
 			}
+			annotateBlock() {
+				return []
+			}
 			fence() {
 				return []
 			}
