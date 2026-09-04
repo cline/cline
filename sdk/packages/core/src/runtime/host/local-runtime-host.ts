@@ -9,9 +9,12 @@ import {
 	type BasicLogger,
 	captureSdkError,
 	createSessionId,
+	estimateRequestInputTokens,
 	type ITelemetryService,
+	isContextWindowExceededError,
 	isLikelyAuthError,
 	normalizeUserInput,
+	parseContextWindowLimitFromError,
 } from "@cline/shared";
 import { setHomeDirIfUnset } from "@cline/shared/storage";
 import { isOAuthProvider } from "../../auth/provider-auth-registry";
@@ -19,6 +22,7 @@ import {
 	createCompactionStateAwarePrepareTurn,
 	createContextCompactionPrepareTurn,
 } from "../../extensions/context/compaction";
+import { createTokenEstimator } from "../../extensions/context/compaction-shared";
 import type { ToolExecutors } from "../../extensions/tools";
 import {
 	DefaultToolNames,
@@ -144,6 +148,8 @@ import {
 } from "./runtime-host-support";
 
 const MAX_SCAN_LIMIT = 5000;
+
+const OVERFLOW_RETRY_REQUEST_BUDGET_RATIO = 0.8;
 
 // Detached-log retention timers are process-local and intentionally unref'd.
 // Recover once for every process that owns a LocalRuntimeHost so embedders get
@@ -1887,9 +1893,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 			const runFn = shouldContinue
 				? () => session.agent.continue(prompt, userImages, userFiles)
 				: () => session.agent.run(prompt, userImages, userFiles);
-			const result = await this.runWithAuthRetry(
+			const result = await this.runWithContextOverflowRetry(
 				session,
-				runFn,
+				() => this.runWithAuthRetry(session, runFn, baselineMessages),
 				baselineMessages,
 			);
 
@@ -2441,6 +2447,150 @@ export class LocalRuntimeHost implements RuntimeHost {
 			: latestManifest.ended_at;
 		session.exitCode = latestManifest.exit_code;
 		this.emitStatus(session.sessionId, status);
+	}
+
+	// ── Context-overflow recovery ───────────────────────────────────────
+
+	/**
+	 * Recover from a context-window overflow (#9660). When the provider rejects
+	 * a request because the conversation exceeds its hard token limit — which
+	 * proactive compaction can miss if the configured context window is larger
+	 * than the API's real limit — force a compaction of the transcript and
+	 * retry the turn exactly once. On a second overflow (or if compaction can't
+	 * shrink the transcript) the original error is re-thrown honestly.
+	 */
+	private async runWithContextOverflowRetry(
+		session: ActiveSession,
+		run: () => Promise<AgentResult>,
+		baselineMessages: LlmsProviders.MessageWithMetadata[],
+	): Promise<AgentResult> {
+		try {
+			return await run();
+		} catch (error) {
+			if (!isContextWindowExceededError(error)) {
+				throw error;
+			}
+			// Compact the pre-turn baseline (which does NOT include the just-added
+			// user prompt) and restore it, so the retried run re-appends the prompt
+			// exactly once — mirroring runWithAuthRetry's restore-then-retry.
+			const compacted = await this.forceContextOverflowCompaction(
+				session,
+				error,
+				baselineMessages,
+			);
+			if (!compacted) {
+				// Nothing to shrink — a retry would re-fail identically.
+				throw error;
+			}
+			session.agent.restore(compacted);
+			// Single retry: the re-run is NOT wrapped, so a second overflow
+			// propagates instead of looping (mirrors runWithAuthRetry).
+			return run();
+		}
+	}
+
+	/**
+	 * Force a manual compaction of the given transcript, targeting the provider's
+	 * real token limit when it can be parsed from the error. Returns the compacted
+	 * messages, or `undefined` when compaction is disabled, produces no result, or
+	 * itself fails — in every `undefined` case the caller re-throws the original
+	 * overflow error rather than masking it with a compaction error.
+	 */
+	private async forceContextOverflowCompaction(
+		session: ActiveSession,
+		error: unknown,
+		messages: LlmsProviders.MessageWithMetadata[],
+	): Promise<LlmsProviders.MessageWithMetadata[] | undefined> {
+		if (messages.length === 0) {
+			return undefined;
+		}
+		const tools = [
+			...(session.runtime?.tools ?? []),
+			...(session.config.extraTools ?? []),
+		];
+		const compact = createContextCompactionPrepareTurn(session.config, {
+			mode: "manual",
+			manualTargetRatio: this.resolveOverflowCompactionRatio(
+				session,
+				error,
+				messages,
+				tools,
+			),
+		});
+		if (!compact) {
+			// Compaction disabled for this session — nothing we can force.
+			return undefined;
+		}
+		try {
+			const result = await compact({
+				agentId: session.agent.getAgentId(),
+				conversationId: session.agent.getConversationId(),
+				parentAgentId: null,
+				// `iteration` is only used for telemetry attribution here.
+				iteration: 1,
+				messages,
+				apiMessages: messages,
+				abortSignal: new AbortController().signal,
+				systemPrompt: session.config.systemPrompt,
+				tools,
+				model: {
+					id: session.config.modelId,
+					provider: session.config.providerId,
+					info: session.config.providerConfig?.modelInfo,
+				},
+			});
+			return result?.messages;
+		} catch {
+			// Don't let a compaction failure mask the original overflow error.
+			return undefined;
+		}
+	}
+
+	/**
+	 * Derive a manual compaction target ratio from the provider's real token limit
+	 * parsed out of the overflow error (e.g. "> 200000 maximum").
+	 *
+	 * The parsed limit bounds the whole request, not the transcript alone, so the
+	 * system prompt and tool schemas are subtracted before it becomes a
+	 * message-level target; otherwise the retry re-adds them on top of a budget
+	 * that already spent the limit and overflows again. The remaining margin
+	 * covers what cannot be measured here (the pending user turn and its
+	 * attachments, plus tokenizer drift), and over-compacting only costs history
+	 * whereas under-compacting leaves the conversation stuck. Extreme ratios are
+	 * clamped by `resolveManualMessageTargetTokens`.
+	 *
+	 * Returns `undefined` (letting compaction use its default ratio) when no limit
+	 * can be read.
+	 */
+	private resolveOverflowCompactionRatio(
+		session: ActiveSession,
+		error: unknown,
+		messages: LlmsProviders.MessageWithMetadata[],
+		tools: readonly unknown[],
+	): number | undefined {
+		const realLimit = parseContextWindowLimitFromError(error);
+		if (realLimit === undefined) {
+			return undefined;
+		}
+		const estimateMessageTokens = createTokenEstimator();
+		const currentTokens = messages.reduce(
+			(total, message) => total + estimateMessageTokens(message),
+			0,
+		);
+		if (currentTokens <= 0) {
+			return undefined;
+		}
+		const requestOverheadTokens = Math.max(
+			0,
+			estimateRequestInputTokens({
+				systemPrompt: session.config.systemPrompt,
+				messages,
+				tools,
+			}) - currentTokens,
+		);
+		const availableForMessages =
+			realLimit * OVERFLOW_RETRY_REQUEST_BUDGET_RATIO - requestOverheadTokens;
+		return availableForMessages / currentTokens;
 	}
 
 	// ── OAuth & auth ────────────────────────────────────────────────────
