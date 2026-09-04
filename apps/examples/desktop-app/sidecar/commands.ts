@@ -920,7 +920,7 @@ async function listHubSettings(
 async function toggleHubSetting(
 	ctx: SidecarContext,
 	input: {
-		type: "plugins" | "tools";
+		type: "plugins" | "tools" | "skills";
 		path?: string;
 		name?: string;
 		enabled?: boolean;
@@ -959,13 +959,18 @@ async function listUserInstructionConfigs(
 		const items: unknown[] = [];
 		for (const record of userInstructionService.listRecords(type)) {
 			const item = record.item as unknown as JsonRecord;
-			if (item.disabled === true) continue;
+			const disabled = item.disabled === true;
+			// Rules and workflows have no toggle UI, so keep hiding disabled
+			// ones; skills need to stay visible (disabled) so they can be
+			// re-enabled from the Skills tab.
+			if (disabled && type !== "skill") continue;
 			items.push({
 				id: record.id,
 				name: item.name ?? record.id,
 				description: item.description,
 				instructions: item.instructions,
 				path: record.filePath,
+				...(type === "skill" ? { enabled: !disabled } : {}),
 			});
 		}
 		return items;
@@ -2503,6 +2508,18 @@ export async function handleCommand(
 		const snapshot = await toggleHubSetting(ctx, {
 			type: "plugins",
 			path: pluginPath,
+			enabled: args?.disabled !== true,
+		});
+		return await listUserInstructionConfigs(ctx, snapshot);
+	}
+	if (command === "set_skill_disabled") {
+		const skillPath = String(args?.path ?? "").trim();
+		if (!skillPath) {
+			throw new Error("skill path is required");
+		}
+		const snapshot = await toggleHubSetting(ctx, {
+			type: "skills",
+			path: skillPath,
 			enabled: args?.disabled !== true,
 		});
 		return await listUserInstructionConfigs(ctx, snapshot);

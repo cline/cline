@@ -9,6 +9,7 @@ import {
 	Play,
 	Puzzle,
 	RefreshCw,
+	Search,
 	Server,
 	Trash2,
 	TriangleAlert,
@@ -18,12 +19,14 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { desktopClient } from "@/lib/desktop-client";
@@ -84,6 +87,7 @@ type SkillItem = {
 	description?: string;
 	instructions: string;
 	path: string;
+	enabled?: boolean;
 	agentPlugin?: boolean;
 	pluginName?: string;
 };
@@ -94,6 +98,7 @@ type CommandItem = {
 	name: string;
 	description?: string;
 	instructions: string;
+	enabled?: boolean;
 	path: string;
 	scope: ItemScope;
 	agentPlugin?: boolean;
@@ -143,6 +148,22 @@ type ToolItem = {
 	headlessToolNames?: string[];
 };
 
+function toolMatchesQuery(tool: ToolItem, normalizedQuery: string): boolean {
+	if (!normalizedQuery) {
+		return true;
+	}
+	const haystacks = [
+		tool.name,
+		tool.description,
+		tool.pluginName,
+		tool.path,
+		...(tool.headlessToolNames ?? []),
+	];
+	return haystacks.some((value) =>
+		value?.toLowerCase().includes(normalizedQuery),
+	);
+}
+
 type HookItem = {
 	fileName: string;
 	hookEventName?: string;
@@ -183,7 +204,7 @@ type McpServersResponse = {
 	servers: McpServer[];
 };
 
-type LocalUninstallType = "mcp" | "skill" | "workflow" | "plugin";
+type LocalUninstallType = "mcp" | "skill" | "workflow" | "plugin" | "rule";
 
 type LocalUninstallTarget = {
 	key: string;
@@ -422,7 +443,11 @@ export function CustomizationSectionView({
 	const [togglingToolIds, setTogglingToolIds] = useState<Set<string>>(
 		() => new Set(),
 	);
+	const [toolsSearchQuery, setToolsSearchQuery] = useState("");
 	const [togglingPluginPaths, setTogglingPluginPaths] = useState<Set<string>>(
+		() => new Set(),
+	);
+	const [togglingSkillPaths, setTogglingSkillPaths] = useState<Set<string>>(
 		() => new Set(),
 	);
 	const [localUninstallingKeys, setLocalUninstallingKeys] = useState<
@@ -636,6 +661,77 @@ export function CustomizationSectionView({
 		[applyResponse],
 	);
 
+	const setAllToolsEnabled = useCallback(
+		async (toolsList: ToolItem[], enabled: boolean) => {
+			const targets = toolsList.filter((tool) => tool.enabled !== enabled);
+			if (targets.length === 0) {
+				return;
+			}
+			const targetIds = targets.map((tool) => tool.id);
+			setTogglingToolIds((current) => {
+				const next = new Set(current);
+				for (const id of targetIds) {
+					next.add(id);
+				}
+				return next;
+			});
+			setErrorMessage(null);
+			try {
+				const names = targets.flatMap((tool) =>
+					[tool.name, ...(tool.headlessToolNames ?? [])].filter(Boolean),
+				);
+				if (names.length === 0) {
+					throw new Error("tool name is required");
+				}
+				let response: UserInstructionListsResponse | undefined;
+				try {
+					response = await desktopClient.invoke<UserInstructionListsResponse>(
+						"set_tool_disabled",
+						{
+							names,
+							disabled: !enabled,
+						},
+					);
+				} catch (error) {
+					if (!isUnsupportedDesktopCommand(error, "set_tool_disabled")) {
+						throw error;
+					}
+					for (const tool of targets) {
+						const toolNames = [
+							tool.name,
+							...(tool.headlessToolNames ?? []),
+						].filter(Boolean);
+						for (const name of toolNames) {
+							response =
+								await desktopClient.invoke<UserInstructionListsResponse>(
+									"toggle_disabled_plugin_tool",
+									{ name },
+								);
+						}
+					}
+				}
+				if (!response) {
+					throw new Error(
+						"tool toggle did not return an updated extension list",
+					);
+				}
+				applyResponse(response);
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
+				setErrorMessage(message);
+			} finally {
+				setTogglingToolIds((current) => {
+					const next = new Set(current);
+					for (const id of targetIds) {
+						next.delete(id);
+					}
+					return next;
+				});
+			}
+		},
+		[applyResponse],
+	);
+
 	const setPluginEnabled = useCallback(
 		async (plugin: PluginItem) => {
 			setTogglingPluginPaths((current) => new Set(current).add(plugin.path));
@@ -657,6 +753,34 @@ export function CustomizationSectionView({
 				setTogglingPluginPaths((current) => {
 					const next = new Set(current);
 					next.delete(plugin.path);
+					return next;
+				});
+			}
+		},
+		[applyResponse],
+	);
+
+	const setSkillEnabled = useCallback(
+		async (skill: CommandItem) => {
+			setTogglingSkillPaths((current) => new Set(current).add(skill.path));
+			setErrorMessage(null);
+			try {
+				const response =
+					await desktopClient.invoke<UserInstructionListsResponse>(
+						"set_skill_disabled",
+						{
+							path: skill.path,
+							disabled: skill.enabled !== false,
+						},
+					);
+				applyResponse(response);
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
+				setErrorMessage(message);
+			} finally {
+				setTogglingSkillPaths((current) => {
+					const next = new Set(current);
+					next.delete(skill.path);
 					return next;
 				});
 			}
@@ -782,6 +906,7 @@ export function CustomizationSectionView({
 			name: skill.name,
 			description: skill.description,
 			instructions: skill.instructions,
+			enabled: skill.enabled,
 			path: skill.path,
 			scope: getPathScope(skill.path, workspaceRoot),
 			agentPlugin: skill.agentPlugin,
@@ -852,11 +977,17 @@ export function CustomizationSectionView({
 	}, [plugins, workspaceRoot]);
 
 	const builtinTools = useMemo(
-		() => tools.filter((tool) => tool.source === "builtin"),
+		() =>
+			tools
+				.filter((tool) => tool.source === "builtin")
+				.sort((a, b) => a.name.localeCompare(b.name)),
 		[tools],
 	);
 	const pluginTools = useMemo(
-		() => tools.filter((tool) => tool.source !== "builtin"),
+		() =>
+			tools
+				.filter((tool) => tool.source !== "builtin")
+				.sort((a, b) => a.name.localeCompare(b.name)),
 		[tools],
 	);
 	const pluginToolsByPluginKey = useMemo(() => {
@@ -872,6 +1003,33 @@ export function CustomizationSectionView({
 		}
 		return grouped;
 	}, [pluginTools]);
+	const normalizedToolsSearchQuery = toolsSearchQuery.trim().toLowerCase();
+	const filteredBuiltinTools = useMemo(
+		() =>
+			builtinTools.filter((tool) =>
+				toolMatchesQuery(tool, normalizedToolsSearchQuery),
+			),
+		[builtinTools, normalizedToolsSearchQuery],
+	);
+	const filteredPluginTools = useMemo(
+		() =>
+			pluginTools.filter((tool) =>
+				toolMatchesQuery(tool, normalizedToolsSearchQuery),
+			),
+		[pluginTools, normalizedToolsSearchQuery],
+	);
+	const allBuiltinToolsEnabled = useMemo(
+		() =>
+			filteredBuiltinTools.length > 0 &&
+			filteredBuiltinTools.every((tool) => tool.enabled),
+		[filteredBuiltinTools],
+	);
+	const allPluginToolsEnabled = useMemo(
+		() =>
+			filteredPluginTools.length > 0 &&
+			filteredPluginTools.every((tool) => tool.enabled),
+		[filteredPluginTools],
+	);
 
 	const scopedPlugins = useMemo(
 		() => [
@@ -950,7 +1108,11 @@ export function CustomizationSectionView({
 		);
 	};
 
-	const renderPluginMenu = (target: LocalUninstallTarget) => {
+	const renderLocalItemMenu = (
+		target: LocalUninstallTarget,
+		options: { showDelete?: boolean } = {},
+	) => {
+		const { showDelete = true } = options;
 		const uninstalling = localUninstallingKeys.has(target.key);
 		return (
 			<DropdownMenu>
@@ -975,14 +1137,16 @@ export function CustomizationSectionView({
 						<Copy className="size-4" />
 						Copy path
 					</DropdownMenuItem>
-					<DropdownMenuItem
-						className="text-destructive focus:text-destructive"
-						disabled={uninstalling}
-						onClick={() => void uninstallLocalPrimitive(target)}
-					>
-						{uninstalling ? <Spinner /> : <Trash2 className="size-4" />}
-						{uninstalling ? "Uninstalling..." : "Uninstall"}
-					</DropdownMenuItem>
+					{showDelete ? (
+						<DropdownMenuItem
+							className="text-destructive focus:text-destructive"
+							disabled={uninstalling}
+							onClick={() => void uninstallLocalPrimitive(target)}
+						>
+							{uninstalling ? <Spinner /> : <Trash2 className="size-4" />}
+							{uninstalling ? "Uninstalling..." : "Uninstall"}
+						</DropdownMenuItem>
+					) : null}
 				</DropdownMenuContent>
 			</DropdownMenu>
 		);
@@ -996,26 +1160,15 @@ export function CustomizationSectionView({
 		return (
 			<div
 				key={key}
-				className="relative grid min-w-0 gap-2 rounded-lg border bg-card p-4"
+				className="grid min-w-0 gap-2 rounded-lg border bg-card p-4"
 			>
-				{item.agentPlugin !== true ? (
-					<div className="absolute top-4 right-4">
-						{renderLocalActionButton({
-							key,
-							type: item.type,
-							id: item.id,
-							name: item.name,
-							path: item.path,
-						})}
-					</div>
-				) : null}
-				<div className="flex min-w-0 items-center gap-2 pr-28">
+				<div className="flex min-w-0 items-center gap-2">
 					{item.type === "workflow" ? (
 						<Play className="h-4 w-4 shrink-0 text-primary" />
 					) : (
 						<Zap className="h-4 w-4 shrink-0 text-primary" />
 					)}
-					<h3 className="min-w-0 truncate text-sm font-semibold text-foreground">
+					<h3 className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">
 						{item.name}
 					</h3>
 					<ScopeBadge scope={item.scope} />
@@ -1032,6 +1185,32 @@ export function CustomizationSectionView({
 							Marketplace
 						</Badge>
 					) : null}
+					<Switch
+						checked={item.enabled !== false}
+						onCheckedChange={() => {
+							void setSkillEnabled(item);
+						}}
+						disabled={
+							item.type === "workflow" ||
+							item.agentPlugin === true ||
+							togglingSkillPaths.has(item.path)
+						}
+						title={
+							item.type === "workflow"
+								? "Toggling workflows isn't supported yet"
+								: undefined
+						}
+						aria-label={`Toggle ${item.name}`}
+					/>
+					{item.agentPlugin !== true
+						? renderLocalItemMenu({
+								key,
+								type: item.type,
+								id: item.id,
+								name: item.name,
+								path: item.path,
+							})
+						: null}
 				</div>
 				<p className="line-clamp-2 text-xs leading-5 text-muted-foreground">
 					{item.description?.trim() || previewText(item.instructions)}
@@ -1094,9 +1273,6 @@ export function CustomizationSectionView({
 							Marketplace
 						</Badge>
 					) : null}
-					<span className="text-xs text-muted-foreground">
-						{plugin.enabled ? "Enabled" : "Disabled"}
-					</span>
 					<Switch
 						checked={plugin.enabled}
 						onCheckedChange={() => {
@@ -1110,7 +1286,7 @@ export function CustomizationSectionView({
 						aria-label={`Toggle ${plugin.name}`}
 					/>
 					{plugin.agentPlugin !== true
-						? renderPluginMenu({
+						? renderLocalItemMenu({
 								key,
 								type: "plugin",
 								id: plugin.name,
@@ -1377,16 +1553,30 @@ export function CustomizationSectionView({
 								>
 									<div className="flex min-w-0 items-center gap-2">
 										<FileText className="h-4 w-4 shrink-0 text-primary" />
-										<span className="min-w-0 truncate text-sm font-semibold text-foreground">
+										<span className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">
 											{rule.name}
 										</span>
 										<ScopeBadge scope={scope} />
+										<Switch
+											checked
+											onCheckedChange={() => {}}
+											disabled
+											title="Toggling rules isn't supported yet"
+											aria-label={`Toggle ${rule.name}`}
+										/>
+										{renderLocalItemMenu(
+											{
+												key: rule.path,
+												type: "rule",
+												id: rule.path,
+												name: rule.name,
+												path: rule.path,
+											},
+											{ showDelete: false },
+										)}
 									</div>
 									<p className="line-clamp-2 text-xs leading-5 text-muted-foreground">
 										{previewText(rule.instructions)}
-									</p>
-									<p className="truncate text-xs font-mono text-muted-foreground">
-										{rule.path}
 									</p>
 								</div>
 							))}
@@ -1603,17 +1793,57 @@ export function CustomizationSectionView({
 
 			{activeTab === "Tools" && (
 				<div>
+					<div className="relative mb-6 block">
+						<Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+						<Input
+							aria-label="Search tools"
+							className="h-10 pl-8"
+							onChange={(event) => setToolsSearchQuery(event.target.value)}
+							placeholder="Search tools"
+							value={toolsSearchQuery}
+						/>
+					</div>
+
 					<div className="mb-6 grid gap-3">
 						<div className="flex items-center justify-between gap-3">
 							<h3 className="text-base font-semibold text-foreground">
-								Builtin Tools
+								BuiltIn Tools{" "}
+								<span className="text-muted-foreground">
+									{filteredBuiltinTools.length}
+								</span>
 							</h3>
-							<span className="text-sm text-muted-foreground">
-								{builtinTools.length}
-							</span>
+							<div className="flex items-center gap-2 text-sm text-muted-foreground">
+								<Checkbox
+									checked={allBuiltinToolsEnabled}
+									onCheckedChange={() => {
+										void setAllToolsEnabled(
+											filteredBuiltinTools,
+											!allBuiltinToolsEnabled,
+										);
+									}}
+									disabled={
+										filteredBuiltinTools.length === 0 ||
+										filteredBuiltinTools.some((tool) =>
+											togglingToolIds.has(tool.id),
+										)
+									}
+									id="builtin-tools-toggle-all"
+									aria-label={
+										allBuiltinToolsEnabled
+											? "Disable all builtin tools"
+											: "Enable all builtin tools"
+									}
+								/>
+								<label
+									className="cursor-pointer"
+									htmlFor="builtin-tools-toggle-all"
+								>
+									{allBuiltinToolsEnabled ? "Disable all" : "Enable all"}
+								</label>
+							</div>
 						</div>
 						<div className="flex flex-col gap-2">
-							{builtinTools.map((tool) =>
+							{filteredBuiltinTools.map((tool) =>
 								(() => {
 									const isToggling = togglingToolIds.has(tool.id);
 									return (
@@ -1626,9 +1856,6 @@ export function CustomizationSectionView({
 												<h3 className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">
 													{tool.name}
 												</h3>
-												<span className="text-xs text-muted-foreground">
-													{tool.enabled ? "Enabled" : "Disabled"}
-												</span>
 												<Switch
 													checked={tool.enabled}
 													onCheckedChange={() => {
@@ -1642,18 +1869,21 @@ export function CustomizationSectionView({
 												{tool.description?.trim() ||
 													"No description available."}
 											</p>
-											{!!tool.headlessToolNames?.length && (
-												<p className="truncate text-xs font-mono text-muted-foreground">
-													{tool.headlessToolNames.join(", ")}
-												</p>
-											)}
+											{!!tool.headlessToolNames?.length &&
+												tool.headlessToolNames?.length > 1 && (
+													<p className="truncate text-xs font-mono text-muted-foreground">
+														{tool.headlessToolNames.join(", ")}
+													</p>
+												)}
 										</div>
 									);
 								})(),
 							)}
-							{builtinTools.length === 0 && (
+							{filteredBuiltinTools.length === 0 && (
 								<p className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
-									No builtin tools found.
+									{builtinTools.length === 0
+										? "No builtin tools found."
+										: "No tools match your search."}
 								</p>
 							)}
 						</div>
@@ -1662,14 +1892,43 @@ export function CustomizationSectionView({
 					<div className="grid gap-3">
 						<div className="flex items-center justify-between gap-3">
 							<h3 className="text-base font-semibold text-foreground">
-								Plugin Tools
+								Plugin Tools{" "}
+								<span className="text-muted-foreground">
+									{filteredPluginTools.length}
+								</span>
 							</h3>
-							<span className="text-sm text-muted-foreground">
-								{pluginTools.length}
-							</span>
+							<div className="flex items-center gap-2 text-sm text-muted-foreground">
+								<Checkbox
+									checked={allPluginToolsEnabled}
+									onCheckedChange={() => {
+										void setAllToolsEnabled(
+											filteredPluginTools,
+											!allPluginToolsEnabled,
+										);
+									}}
+									disabled={
+										filteredPluginTools.length === 0 ||
+										filteredPluginTools.some((tool) =>
+											togglingToolIds.has(tool.id),
+										)
+									}
+									id="plugin-tools-toggle-all"
+									aria-label={
+										allPluginToolsEnabled
+											? "Disable all plugin tools"
+											: "Enable all plugin tools"
+									}
+								/>
+								<label
+									className="cursor-pointer"
+									htmlFor="plugin-tools-toggle-all"
+								>
+									{allPluginToolsEnabled ? "Disable all" : "Enable all"}
+								</label>
+							</div>
 						</div>
 						<div className="flex flex-col gap-2">
-							{pluginTools.map((tool) =>
+							{filteredPluginTools.map((tool) =>
 								(() => {
 									const isToggling = togglingToolIds.has(tool.id);
 									return (
@@ -1684,15 +1943,13 @@ export function CustomizationSectionView({
 												</h3>
 												{tool.pluginName && (
 													<Badge
-														variant="outline"
-														className="shrink-0 text-muted-foreground"
+														variant="muted"
+														className="shrink-0"
+														title={tool.path || tool.pluginName}
 													>
 														{tool.pluginName}
 													</Badge>
 												)}
-												<span className="text-xs text-muted-foreground">
-													{tool.enabled ? "Enabled" : "Disabled"}
-												</span>
 												<Switch
 													checked={tool.enabled}
 													onCheckedChange={() => {
@@ -1706,18 +1963,15 @@ export function CustomizationSectionView({
 												{tool.description?.trim() ||
 													"No description available."}
 											</p>
-											{tool.path && (
-												<p className="truncate text-xs font-mono text-muted-foreground">
-													{tool.path}
-												</p>
-											)}
 										</div>
 									);
 								})(),
 							)}
-							{pluginTools.length === 0 && (
+							{filteredPluginTools.length === 0 && (
 								<p className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
-									No plugin tools found.
+									{pluginTools.length === 0
+										? "No plugin tools found."
+										: "No tools match your search."}
 								</p>
 							)}
 						</div>
