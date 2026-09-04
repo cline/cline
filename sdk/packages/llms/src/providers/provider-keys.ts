@@ -89,6 +89,11 @@ const PROVIDER_IDS_MAP: ReadonlyArray<{
 		runtimeProviderId: "sambanova",
 	},
 	{
+		modelsDevKey: "scalattice",
+		generatedProviderId: "scalattice",
+		runtimeProviderId: "scalattice",
+	},
+	{
 		modelsDevKey: "nebius",
 		generatedProviderId: "nebius",
 		runtimeProviderId: "nebius",

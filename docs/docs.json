@@ -1094,6 +1094,10 @@
 			"destination": "/provider-config/other-30-plus-providers#sambanova"
 		},
 		{
+			"source": "/provider-config/scalattice",
+			"destination": "/provider-config/other-30-plus-providers#scalattice"
+		},
+		{
 			"source": "/provider-config/sap-aicore",
 			"destination": "/provider-config/other-30-plus-providers#sap-ai-core"
 		},
