@@ -227,6 +227,26 @@ describe("provider-ids", () => {
 		});
 	});
 
+	it("registers CoralBricks as an OpenAI-compatible built-in provider", async () => {
+		await expect(getProvider("coralbricks")).resolves.toMatchObject({
+			id: "coralbricks",
+			baseUrl: "https://inference.coralbricks.ai/v1",
+			defaultModelId: "glm-5.3-fp4",
+			client: "openai-compatible",
+		});
+
+		const coralbricksModels = await getModelsForProvider("coralbricks");
+		expect(coralbricksModels).toHaveProperty("glm-5.3-fp4");
+
+		const registration = BUILTIN_PROVIDER_REGISTRATIONS.find(
+			(item) => item.manifest.id === "coralbricks",
+		);
+		expect(registration).toBeDefined();
+		await expect(registration?.loadProvider()).resolves.toMatchObject({
+			createProvider: createOpenAICompatibleProvider,
+		});
+	});
+
 	it("registers Z.AI Coding Plan with an accessible coding-plan default", async () => {
 		await expect(getProvider("zai-coding-plan")).resolves.toMatchObject({
 			id: "zai-coding-plan",
