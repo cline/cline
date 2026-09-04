@@ -634,6 +634,18 @@ export function CustomizationSectionView({
 					if (!isUnsupportedDesktopCommand(error, "set_tool_disabled")) {
 						throw error;
 					}
+					// toggle_disabled_plugin_tool flips one name with no
+					// explicit target state, which only reliably lands on the
+					// desired state when the tool maps to a single
+					// underlying name. A tool with several headless names in
+					// a mixed disabled state can't be forced to the opposite
+					// state by blindly flipping every name — some flips
+					// would move it further from the goal instead of closer.
+					if (names.length > 1) {
+						throw new Error(
+							`Couldn't toggle ${tool.name}: this desktop build needs an update to change tools with multiple underlying actions.`,
+						);
+					}
 					for (const name of names) {
 						response = await desktopClient.invoke<UserInstructionListsResponse>(
 							"toggle_disabled_plugin_tool",
@@ -684,6 +696,7 @@ export function CustomizationSectionView({
 					throw new Error("tool name is required");
 				}
 				let response: UserInstructionListsResponse | undefined;
+				const unreachableTools: ToolItem[] = [];
 				try {
 					response = await desktopClient.invoke<UserInstructionListsResponse>(
 						"set_tool_disabled",
@@ -696,11 +709,24 @@ export function CustomizationSectionView({
 					if (!isUnsupportedDesktopCommand(error, "set_tool_disabled")) {
 						throw error;
 					}
+					// toggle_disabled_plugin_tool flips one name with no
+					// explicit target state, which only reliably lands on
+					// the desired state when the tool maps to a single
+					// underlying name. A tool with several headless names in
+					// a mixed disabled state can't be forced to the target
+					// state by blindly flipping every name — some flips
+					// would move it further from the goal instead of
+					// closer — so skip those instead of silently leaving
+					// them wrong, and apply whatever did succeed.
 					for (const tool of targets) {
 						const toolNames = [
 							tool.name,
 							...(tool.headlessToolNames ?? []),
 						].filter(Boolean);
+						if (toolNames.length > 1) {
+							unreachableTools.push(tool);
+							continue;
+						}
 						for (const name of toolNames) {
 							response =
 								await desktopClient.invoke<UserInstructionListsResponse>(
@@ -710,12 +736,20 @@ export function CustomizationSectionView({
 						}
 					}
 				}
+				if (response) {
+					applyResponse(response);
+				}
+				if (unreachableTools.length > 0) {
+					const names = unreachableTools.map((tool) => tool.name).join(", ");
+					throw new Error(
+						`Couldn't ${enabled ? "enable" : "disable"} ${names}: this desktop build needs an update to change tools with multiple underlying actions in bulk.`,
+					);
+				}
 				if (!response) {
 					throw new Error(
 						"tool toggle did not return an updated extension list",
 					);
 				}
-				applyResponse(response);
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
 				setErrorMessage(message);
