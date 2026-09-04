@@ -1,13 +1,13 @@
 import {
 	clearHubDiscovery,
 	ensureDetachedHubServer,
-	localHubHasNoActiveSessions,
 	probeHubServer,
 	readHubDiscovery,
 	requestHubDrain,
 	resolveProductionHubOwnerContext,
 	resolveSharedHubOwnerContext,
 	stopLocalHubServerGracefully,
+	upgradeManagedHub,
 } from "@cline/core";
 import { formatUptime, resolveClineBuildEnv } from "@cline/shared";
 import { Command, InvalidArgumentError } from "commander";
@@ -216,61 +216,36 @@ export function createHubCommand(
 					port?: number;
 					pathname?: string;
 				}>();
-				const owner = resolveCliHubOwnerContext();
-				const discovery = await readHubDiscovery(owner.discoveryPath);
-				if (discovery?.url) {
-					const drained = await requestHubDrain(
-						discovery.url,
-						discovery.authToken,
-						"cline hub upgrade",
-					).catch(() => false);
-					// An aborted upgrade must hand the hub back: leaving it
-					// draining refuses all new mutating work until a restart.
-					const undrain = async (): Promise<void> => {
-						if (!drained) {
-							return;
-						}
-						await requestHubDrain(
-							discovery.url,
-							discovery.authToken,
-							"cline hub upgrade aborted",
-							{ off: true },
-						).catch(() => false);
-					};
-					try {
-						const deadline = Date.now() + cmdOptions.wait * 1_000;
-						let idle = false;
-						// Check at least once so --wait 0 still observes an idle hub.
-						for (;;) {
-							idle = await localHubHasNoActiveSessions(
-								discovery.url,
-								discovery.authToken,
-							).catch(() => true);
-							if (idle || Date.now() >= deadline) {
-								break;
-							}
-							await new Promise((resolve) => setTimeout(resolve, 1_000));
-						}
-						if (!idle) {
-							await undrain();
-							io.writeErr(
-								"Hub is still serving sessions after the wait window; not replacing it. Re-run with a longer --wait, or finish the sessions first.",
-							);
-							fail();
-							return;
-						}
-						await stopHubServer(opts.cwd);
-					} catch (error) {
-						await undrain();
-						throw error;
-					}
-				}
-				const { url } = await ensureDetachedHubServer(opts.cwd, {
-					host: opts.host,
-					port: opts.port,
-					pathname: opts.pathname,
+				// One replacement policy for every surface: upgradeManagedHub
+				// carries the build-order gate (never downgrade a newer hub) and
+				// the accepted-drain requirement that this command's original
+				// inline implementation lacked. Endpoint flags only shape the
+				// replacement daemon; discovery still follows the owner context.
+				const result = await upgradeManagedHub({
+					workspaceRoot: opts.cwd,
+					waitForIdleMs: cmdOptions.wait * 1_000,
+					reason: "cline hub upgrade",
+					endpoint: {
+						host: opts.host,
+						port: opts.port,
+						pathname: opts.pathname,
+					},
 				});
-				io.writeln(JSON.stringify({ upgraded: true, url }));
+				if (result.outcome === "still_busy") {
+					io.writeErr(
+						"Hub is still serving sessions after the wait window; not replacing it. Re-run with a longer --wait, or finish the sessions first.",
+					);
+					fail();
+					return;
+				}
+				if (result.outcome === "hub_not_older") {
+					io.writeErr(
+						"The running hub is newer than this CLI, so it was not replaced. Run 'cline update' instead.",
+					);
+					fail();
+					return;
+				}
+				io.writeln(JSON.stringify({ upgraded: true, url: result.url }));
 			}),
 		);
 

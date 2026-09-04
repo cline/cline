@@ -733,6 +733,16 @@ const HUB_UPGRADE_IDLE_POLL_MS = 500;
 export interface UpgradeManagedHubOptions {
 	workspaceRoot?: string;
 	/**
+	 * Endpoint overrides for the replacement hub, passed through to
+	 * `ensureDetachedHubServer` (the `cline hub upgrade --host/--port/
+	 * --pathname` flags). Discovery of the currently running hub still
+	 * follows the owner context, matching the command's historical behavior.
+	 * An override also narrows `already_current`: a same-build hub at a
+	 * different endpoint is replaced at the requested one rather than
+	 * reported as current at its old address.
+	 */
+	endpoint?: HubEndpointOverrides;
+	/**
 	 * How long to wait, after draining, for the hub's live sessions to finish
 	 * before replacing it (`force`) or giving up (`still_busy`).
 	 */
@@ -754,7 +764,8 @@ export type UpgradeManagedHubOutcome =
 	| "replaced"
 	/** No live hub was found; a current-build hub was started. */
 	| "started"
-	/** The running hub already matches this build; nothing to do. */
+	/** The running hub already matches this build - and the requested
+	 * endpoint, when one is overridden; nothing to do. */
 	| "already_current"
 	/**
 	 * The running hub is newer than (or unorderable against) this build.
@@ -814,7 +825,10 @@ export async function upgradeManagedHub(
 		? await safeProbeHubServer(discovered.url, discovered.authToken)
 		: undefined;
 	if (!live?.url) {
-		const ensured = await ensureDetachedHubServer(workspaceRoot);
+		const ensured = await ensureDetachedHubServer(
+			workspaceRoot,
+			options.endpoint ?? {},
+		);
 		return { outcome: "started", ...ensured };
 	}
 	const record = {
@@ -822,14 +836,36 @@ export async function upgradeManagedHub(
 		authToken: live.authToken ?? discovered?.authToken,
 		pid: live.pid ?? discovered?.pid,
 	};
-	if (getManagedHubCompatibility(live).compatible) {
+	// With an explicit endpoint override, "already current" also requires the
+	// hub to be listening where the caller asked: `cline hub upgrade --port`
+	// has always meant "a current-build hub at THIS endpoint", so a same-build
+	// hub elsewhere goes through the drain-first replacement below instead of
+	// being reported as upgraded at its old address.
+	const requestedEndpoint = options.endpoint ?? {};
+	const hasEndpointOverride =
+		requestedEndpoint.host !== undefined ||
+		requestedEndpoint.port !== undefined ||
+		requestedEndpoint.pathname !== undefined;
+	let liveAtRequestedEndpoint = true;
+	if (hasEndpointOverride) {
+		const resolved = resolveHubEndpointOptions(requestedEndpoint);
+		liveAtRequestedEndpoint =
+			live.url ===
+			createHubServerUrl(resolved.host, resolved.port, resolved.pathname);
+	}
+	const compatible = getManagedHubCompatibility(live).compatible;
+	if (compatible && liveAtRequestedEndpoint) {
 		return {
 			outcome: "already_current",
 			url: live.url,
 			authToken: record.authToken,
 		};
 	}
-	if (compareHubBuilds(resolveHubBuildIdentity(), live) <= 0) {
+	// A hub this build is not strictly newer than is never replaced for build
+	// reasons, endpoint override or not - it may belong to a newer install.
+	// A same-build hub at the wrong endpoint is this install's own to move,
+	// so it falls through to the replacement path.
+	if (!compatible && compareHubBuilds(resolveHubBuildIdentity(), live) <= 0) {
 		return {
 			outcome: "hub_not_older",
 			url: live.url,
@@ -909,7 +945,10 @@ export async function upgradeManagedHub(
 			`The running Cline Hub at ${record.url} could not be stopped. Run 'cline doctor fix' to stop stale hub daemons, then try again.`,
 		);
 	}
-	const ensured = await ensureDetachedHubServer(workspaceRoot);
+	const ensured = await ensureDetachedHubServer(
+		workspaceRoot,
+		options.endpoint ?? {},
+	);
 	return {
 		outcome: "replaced",
 		...ensured,
