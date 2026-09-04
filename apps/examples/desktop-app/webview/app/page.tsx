@@ -48,7 +48,10 @@ import { AccountProvider, useAccount } from "@/contexts/account-context";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
 import { useAppUpdate } from "@/hooks/use-app-update";
 import { useChatSession } from "@/hooks/use-chat-session";
-import { useProvisioningOutcome } from "@/hooks/use-provisioning-outcome";
+import {
+	type CloudProvisioningPhase,
+	useProvisioningOutcome,
+} from "@/hooks/use-provisioning-outcome";
 import { useSessionAgents } from "@/hooks/use-session-agents";
 import { useSessionHistory } from "@/hooks/use-session-history";
 import { toast } from "@/hooks/use-toast";
@@ -164,40 +167,60 @@ const GIT_BRANCH_REFRESH_INTERVAL_MS = 5_000;
 
 type AppLocation = DesktopAppLocation<SettingsSection>;
 
-const PROVISIONING_PHASE_INTERVAL_MS = 4_500;
+const LONG_PROVISIONING_THRESHOLD_MS = 60_000;
+
+function readCloudProvisioningPhase(
+	value: unknown,
+): CloudProvisioningPhase | undefined {
+	return value === "provisioning" ||
+		value === "cloning_repo" ||
+		value === "agent_starting" ||
+		value === "ready" ||
+		value === "failed"
+		? value
+		: undefined;
+}
 
 /** Shared provisioning status for the originating thread and placeholder. */
 function useCloudProvisioningPhase(
 	repoUrl: string | undefined,
 	active: boolean,
+	phase: CloudProvisioningPhase | undefined,
+	startedAt: string | undefined,
 ): string {
 	const repoLabel = cloudRepositoryLabel(repoUrl ?? "");
-	const phases = useMemo(
-		() => [
-			"Spinning up a fresh sandbox",
-			repoLabel ? `Cloning ${repoLabel}` : "Cloning your repository",
-			"Waking up the agent",
-			"Getting everything ready",
-		],
-		[repoLabel],
-	);
-	const [phaseIndex, setPhaseIndex] = useState(0);
-	// Hold the final phase so provisioning does not appear to restart. The
-	// interval stops via this guard instead of inside the state updater,
-	// which must stay pure (StrictMode double-invokes it).
-	const lastPhase = phaseIndex >= phases.length - 1;
+	const [longRunning, setLongRunning] = useState(false);
 	useEffect(() => {
 		if (!active) {
-			setPhaseIndex(0);
+			setLongRunning(false);
 			return;
 		}
-		if (lastPhase) return;
-		const interval = window.setInterval(() => {
-			setPhaseIndex((current) => Math.min(current + 1, phases.length - 1));
-		}, PROVISIONING_PHASE_INTERVAL_MS);
-		return () => window.clearInterval(interval);
-	}, [active, lastPhase, phases.length]);
-	return `${phases[phaseIndex]}...`;
+		const parsedStartedAt = Date.parse(startedAt ?? "");
+		const elapsed = Number.isFinite(parsedStartedAt)
+			? Math.max(0, Date.now() - parsedStartedAt)
+			: 0;
+		if (elapsed >= LONG_PROVISIONING_THRESHOLD_MS) {
+			setLongRunning(true);
+			return;
+		}
+		setLongRunning(false);
+		const timeout = window.setTimeout(
+			() => setLongRunning(true),
+			LONG_PROVISIONING_THRESHOLD_MS - elapsed,
+		);
+		return () => window.clearTimeout(timeout);
+	}, [active, startedAt]);
+	const label =
+		phase === "cloning_repo"
+			? repoLabel
+				? `Cloning ${repoLabel}`
+				: "Cloning your repository"
+			: phase === "agent_starting"
+				? "Starting the agent"
+				: "Starting your workspace";
+	return longRunning
+		? `${label}... This may take several minutes.`
+		: `${label}...`;
 }
 
 /** Matches the compact loading row shown inside a starting chat. */
@@ -875,6 +898,8 @@ function ChatThreadPane({
 	const [provisioningError, setProvisioningError] = useState<string | null>(
 		null,
 	);
+	const [liveProvisioningPhase, setLiveProvisioningPhase] =
+		useState<CloudProvisioningPhase>();
 	const provisioningPlaceholderId =
 		historySession?.sessionId &&
 		isCloudProvisioningSessionId(historySession.sessionId)
@@ -883,6 +908,7 @@ function ChatThreadPane({
 	useEffect(() => {
 		void provisioningPlaceholderId;
 		setProvisioningError(null);
+		setLiveProvisioningPhase(undefined);
 	}, [provisioningPlaceholderId]);
 	const handleProvisioningReady = useCallback(
 		async (sessionId: string) =>
@@ -899,6 +925,7 @@ function ChatThreadPane({
 		onOpenReady: handleProvisioningReady,
 		onResolved: handleProvisioningResolved,
 		onError: setProvisioningError,
+		onPhase: setLiveProvisioningPhase,
 	});
 	// The placeholder id covers list-refresh lag before live status arrives.
 	const isProvisioningCloudSession =
@@ -911,6 +938,9 @@ function ChatThreadPane({
 	const provisioningPhase = useCloudProvisioningPhase(
 		config.repoUrl || historySession?.repoUrl,
 		isProvisioningCloudSession || (isCloudSession && status === "starting"),
+		liveProvisioningPhase ??
+			readCloudProvisioningPhase(historySession?.metadata?.provisioningPhase),
+		historySession?.startedAt,
 	);
 	const activeWorkspaceCwd = isCloudSession
 		? ""
