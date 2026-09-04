@@ -107,6 +107,9 @@ const GENERIC_PROVIDER_PRESENTATION_OVERRIDES: Record<string, GenericProviderPre
 	chutes: {
 		signupUrl: "https://chutes.ai/app/api",
 	},
+	"scx-ai": {
+		signupUrl: "https://platform.scx.ai",
+	},
 	"zai-coding-plan": {},
 }
 
@@ -169,6 +172,7 @@ const FALLBACK_GENERIC_PROVIDER_NAMES = {
 	xiaomi: "Xiaomi",
 	"tencent-tokenhub": "Tencent TokenHub",
 	chutes: "Chutes",
+	"scx-ai": "SCX.ai",
 	"zai-coding-plan": "Z.AI Coding Plan",
 } as const
 
