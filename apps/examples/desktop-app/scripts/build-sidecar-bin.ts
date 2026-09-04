@@ -3,14 +3,15 @@ import { $ } from "bun";
 // biome-ignore lint/style/noRestrictedImports: Release tooling must fingerprint the same SDK source graph as Core's package build.
 import { resolveSdkRuntimeBuildId } from "../../../../sdk/packages/core/src/hub/discovery/runtime-build-id";
 import { prepareWindowsCrossCompileRuntime } from "./bun-cross-compile-runtime";
-import { runtimeBuildDefineArgs } from "./runtime-build-define-args";
 import { telemetryDefineArgs } from "./telemetry-define-args";
 
 const REPO_ROOT = resolve(import.meta.dir, "../../../..");
-const runtimeDefines = runtimeBuildDefineArgs({
-	buildId: resolveSdkRuntimeBuildId(REPO_ROOT),
-	buildEpochMs: Date.now(),
-});
+const runtimeDefines = [
+	"--define",
+	`__CLINE_CORE_RUNTIME_BUILD_ID__=${JSON.stringify(resolveSdkRuntimeBuildId(REPO_ROOT))}`,
+	"--define",
+	`__CLINE_CORE_RUNTIME_BUILD_EPOCH_MS__=${JSON.stringify(Date.now())}`,
+];
 
 const resolveTargetTriple = async (): Promise<string> => {
 	const fromEnv = process.env.TAURI_ENV_TARGET_TRIPLE ?? process.env.TARGET;

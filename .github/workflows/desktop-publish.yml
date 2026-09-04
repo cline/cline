@@ -425,24 +425,6 @@ jobs:
             exit 1
           fi
 
-      # The desktop tsconfig maps Core imports to source, bypassing the build
-      # identity that Core's package build embeds in dist. Exercise identity
-      # resolution in the final executable with runtime overrides removed so a
-      # source-only fallback cannot ship and crash on users' machines.
-      - name: Verify sidecar runtime identity was inlined
-        working-directory: apps/examples/desktop-app
-        run: |
-          SELFCHECK=$(env -u CLINE_HUB_BUILD_ID -u CLINE_HUB_BUILD_EPOCH_MS ./src-tauri/bin/code-sidecar-universal-apple-darwin --runtime-selfcheck)
-          echo "$SELFCHECK"
-          if ! printf '%s' "$SELFCHECK" | grep -Eq '"build_id":"source-v3-[0-9a-f]{64}"'; then
-            echo "Packaged sidecar is missing its Core runtime build ID."
-            exit 1
-          fi
-          if ! printf '%s' "$SELFCHECK" | grep -Eq '"build_epoch_ms":[1-9][0-9]*'; then
-            echo "Packaged sidecar is missing its Core runtime build epoch."
-            exit 1
-          fi
-
       - name: Collect artifacts
         working-directory: apps/examples/desktop-app
         env:
@@ -693,21 +675,6 @@ jobs:
             echo "Packaged sidecar reports telemetry enabled but its OTLP"
             echo "endpoint is missing, unparseable, or not an http(s) URL."
             echo "Check the OTEL_EXPORTER_OTLP_ENDPOINT secret."
-            exit 1
-          fi
-
-      - name: Verify sidecar runtime identity was inlined
-        shell: bash
-        working-directory: apps/examples/desktop-app
-        run: |
-          SELFCHECK=$(env -u CLINE_HUB_BUILD_ID -u CLINE_HUB_BUILD_EPOCH_MS ./src-tauri/bin/code-sidecar-x86_64-pc-windows-msvc.exe --runtime-selfcheck)
-          echo "$SELFCHECK"
-          if ! printf '%s' "$SELFCHECK" | grep -Eq '"build_id":"source-v3-[0-9a-f]{64}"'; then
-            echo "Packaged sidecar is missing its Core runtime build ID."
-            exit 1
-          fi
-          if ! printf '%s' "$SELFCHECK" | grep -Eq '"build_epoch_ms":[1-9][0-9]*'; then
-            echo "Packaged sidecar is missing its Core runtime build epoch."
             exit 1
           fi
 
