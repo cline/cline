@@ -43,8 +43,10 @@ export interface SearchComboboxProps {
 	placement?: "top" | "bottom";
 	searchPlaceholder?: string;
 	/**
-	 * Section headers, rendered while the search box is empty whenever a run of
-	 * consecutive options carries that section id. Searching flattens the list.
+	 * Section headers, rendered whenever a run of consecutive options carries
+	 * that section id. They stay visible while searching so same-named options
+	 * from different sections (e.g. a Subscribed and a Free row for one model)
+	 * remain distinguishable.
 	 */
 	sections?: SearchComboboxSection[];
 	value?: string;
@@ -284,9 +286,6 @@ export function SearchCombobox({
 	};
 
 	const renderOptions = () => {
-		if (query) {
-			return filtered.map((option, index) => renderOption(option, index));
-		}
 		const rows: ReactNode[] = [];
 		let previousSection: string | undefined;
 		filtered.forEach((option, index) => {
