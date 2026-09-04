@@ -70,6 +70,11 @@ for (const profile of profiles) {
 			await expect(commandOutput).toContainText(expectedPathPart)
 		}
 		await expect(commandOutput).toContainText("UNICODE=中文")
+
+		const failFastOutput = sidebar.locator("code").filter({ hasText: "E2E_FAIL_FAST_1" })
+		await expect(failFastOutput).toBeVisible({ timeout: 30_000 })
+		await expect(sidebar.locator("body")).not.toContainText("E2E_FAIL_FAST_2")
+		await expect(sidebar.locator("body")).not.toContainText("E2E_PROCESSED_1")
 		await expect(sidebar.getByText("PowerShell background execution diagnostic completed.")).toBeVisible()
 		await page.screenshot({ path: testInfo.outputPath("powershell-background-success.png"), fullPage: true })
 	})
