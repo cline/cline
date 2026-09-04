@@ -618,6 +618,12 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 			modelId: config.modelId,
 			distinctId: input.distinctId,
 			sessionId: config.sessionId,
+			// Only the client identity: the full extensionContext carries
+			// lead-session workspace/session/automation context that delegated
+			// extension setups should not inherit implicitly.
+			extensionContext: config.extensionContext?.client
+				? { client: config.extensionContext.client }
+				: undefined,
 			cwd: config.cwd,
 			apiKey: config.apiKey ?? "",
 			baseUrl: config.baseUrl,

@@ -155,7 +155,9 @@ describe("HubRuntimeHost", () => {
 					version: "3.0.38",
 				},
 			}),
-			runtimeOptions: {},
+			runtimeOptions: {
+				client: { name: "cline-cli", version: "3.0.38" },
+			},
 			toolPolicies: undefined,
 			initialMessages: undefined,
 		});
