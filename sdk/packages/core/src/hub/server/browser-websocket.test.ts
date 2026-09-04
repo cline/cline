@@ -84,6 +84,68 @@ describe("BrowserWebSocketHubAdapter", () => {
 		}
 	});
 
+	it("terminates a subscriber whose send buffer exceeds the backpressure cap", async () => {
+		let capturedListener: ((envelope: HubEventEnvelope) => void) | undefined;
+		const transport = {
+			command: vi.fn(),
+			subscribe: vi.fn(
+				(_clientId: string, listener: (envelope: HubEventEnvelope) => void) => {
+					capturedListener = listener;
+					return () => {
+						capturedListener = undefined;
+					};
+				},
+			),
+		};
+		const socket = createSocket();
+		const backpressured = socket as typeof socket & {
+			bufferedAmount?: number;
+			terminate?: () => void;
+		};
+		backpressured.bufferedAmount = 0;
+		const terminate = vi.fn(() => socket.emitClose());
+		backpressured.terminate = terminate;
+		const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+		try {
+			new BrowserWebSocketHubAdapter(transport).attach(backpressured);
+			socket.emitMessage(
+				JSON.stringify({
+					kind: "stream.subscribe",
+					clientId: "slow-client",
+				}),
+			);
+			await vi.waitFor(() => {
+				expect(capturedListener).toBeDefined();
+			});
+
+			const envelope = (id: string): HubEventEnvelope =>
+				({
+					version: "v1",
+					event: "session.updated",
+					eventId: id,
+					timestamp: 1,
+					payload: {},
+				}) as unknown as HubEventEnvelope;
+
+			// Draining socket: frames flow normally.
+			capturedListener?.(envelope("evt-1"));
+			expect(socket.sent).toHaveLength(1);
+
+			// Send buffer past the cap: the frame is dropped and the socket is
+			// torn down instead of buffering forever.
+			backpressured.bufferedAmount = 65 * 1024 * 1024;
+			capturedListener?.(envelope("evt-2"));
+			expect(terminate).toHaveBeenCalledTimes(1);
+			expect(socket.sent).toHaveLength(1);
+			// The close handler released the subscription; nothing further is
+			// delivered or sent on the dead connection.
+			expect(capturedListener).toBeUndefined();
+		} finally {
+			errorSpy.mockRestore();
+		}
+	});
+
 	it("binds client identity to the Hub-authorized workspace", async () => {
 		const transport = {
 			command: vi.fn(
