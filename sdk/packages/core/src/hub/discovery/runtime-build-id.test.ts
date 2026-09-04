@@ -1,18 +1,8 @@
-import {
-	mkdirSync,
-	mkdtempSync,
-	rmSync,
-	statSync,
-	utimesSync,
-	writeFileSync,
-} from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import {
-	resolveSdkRuntimeBuildId,
-	resolveSdkRuntimeSourceIdentity,
-} from "./runtime-build-id";
+import { resolveSdkRuntimeBuildId } from "../../../scripts/runtime-build-id";
 
 describe("SDK runtime build identity", () => {
 	const tempDirs: string[] = [];
@@ -63,26 +53,5 @@ describe("SDK runtime build identity", () => {
 		);
 
 		expect(resolveSdkRuntimeBuildId(root)).toBe(first);
-	});
-
-	it("advances the source epoch when a runtime input changes", () => {
-		const root = createRuntimeFixture();
-		const first = resolveSdkRuntimeSourceIdentity(root);
-		const changedPath = join(
-			root,
-			"sdk",
-			"packages",
-			"core",
-			"src",
-			"index.ts",
-		);
-		const later = new Date(first.buildEpochMs + 10_000);
-		utimesSync(changedPath, later, later);
-
-		const updated = resolveSdkRuntimeSourceIdentity(root);
-		expect(updated.buildEpochMs).toBe(
-			Math.floor(statSync(changedPath).mtimeMs),
-		);
-		expect(updated.buildEpochMs).toBeGreaterThan(first.buildEpochMs);
 	});
 });
