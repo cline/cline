@@ -231,6 +231,12 @@ async function executeShellCommands(
 							commandCount: commands.length,
 							durationMs: Date.now() - startedAt,
 						});
+						return {
+							query,
+							result: "",
+							error: `${error.message}. This is the tool's wait limit, not an error reported by the command; the command may have been terminated. For long-running work, start it in the background and redirect its output to a file you can read later.`,
+							success: false,
+						};
 					}
 					if (error instanceof CommandExitError) {
 						return {
