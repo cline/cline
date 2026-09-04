@@ -1706,7 +1706,10 @@ function ChatThreadPane({
 			}
 			handoffStartingRef.current = true;
 			const sourceAttachments = [...pendingAttachments];
-			const handoffAttemptId = handoffLifecycle.onRpcStarted(sourceSessionId);
+			const handoffAttemptId = handoffLifecycle.onRpcStarted(
+				sourceSessionId,
+				threadId,
+			);
 			const submittedAt = Date.now();
 			setPendingAttachments([]);
 			try {
@@ -1794,6 +1797,7 @@ function ChatThreadPane({
 			setPromptInput,
 			status,
 			onHandoffUiAction,
+			threadId,
 		],
 	);
 
