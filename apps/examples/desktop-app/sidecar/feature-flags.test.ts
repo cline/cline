@@ -61,6 +61,7 @@ import {
 	disposeDesktopFeatureFlagsService,
 	getDesktopFeatureFlagsContext,
 	getDesktopFeatureFlagsService,
+	isCloudAgentsAvailable,
 	isCloudAgentsEnabled,
 	isDesktopInternalFeatureEnabled,
 	refreshDesktopFeatureFlags,
@@ -379,13 +380,19 @@ describe("disposeDesktopFeatureFlagsService", () => {
 	});
 });
 
-describe("isCloudAgentsEnabled", () => {
-	it("defaults to off with no setting and no override", () => {
+describe("cloud agents gate", () => {
+	it("defaults to unavailable and disabled", () => {
+		expect(isCloudAgentsAvailable()).toBe(false);
 		expect(isCloudAgentsEnabled()).toBe(false);
 	});
 
-	it("follows the user's settings opt-in toggle", () => {
+	it("requires the rollout flag and the user's opt-in", () => {
 		setCloudSessionsEnabled(true);
+		expect(isCloudAgentsEnabled()).toBe(false);
+		mocks.getBooleanFlagEnabled.mockImplementation(
+			(flag: unknown) => flag === "code-cloud-agents",
+		);
+		expect(isCloudAgentsAvailable()).toBe(true);
 		expect(isCloudAgentsEnabled()).toBe(true);
 		setCloudSessionsEnabled(false);
 		expect(isCloudAgentsEnabled()).toBe(false);
@@ -393,11 +400,13 @@ describe("isCloudAgentsEnabled", () => {
 
 	it("honors the env override in both directions", () => {
 		process.env.CLINE_CODE_CLOUD_AGENTS = "1";
+		expect(isCloudAgentsAvailable()).toBe(true);
 		expect(isCloudAgentsEnabled()).toBe(true);
 		process.env.CLINE_CODE_CLOUD_AGENTS = "true";
 		expect(isCloudAgentsEnabled()).toBe(true);
 		setCloudSessionsEnabled(true);
 		process.env.CLINE_CODE_CLOUD_AGENTS = "0";
+		expect(isCloudAgentsAvailable()).toBe(false);
 		expect(isCloudAgentsEnabled()).toBe(false);
 		process.env.CLINE_CODE_CLOUD_AGENTS = "false";
 		expect(isCloudAgentsEnabled()).toBe(false);

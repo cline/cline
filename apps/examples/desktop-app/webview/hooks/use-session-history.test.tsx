@@ -3,7 +3,10 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { useSessionHistory } from "./use-session-history";
+import {
+	sessionActivityTimestamp,
+	useSessionHistory,
+} from "./use-session-history";
 
 const { invokeMock, subscribeMock } = vi.hoisted(() => ({
 	invokeMock: vi.fn(),
@@ -36,6 +39,15 @@ function sessionRow(sessionId: string) {
 		endedAt: "2026-07-20T11:00:00.000Z",
 	};
 }
+
+it("uses server activity when it is newer than local timestamps", () => {
+	expect(
+		sessionActivityTimestamp({
+			...sessionRow("ses-cloud"),
+			lastActivityAt: "2026-07-20T12:00:00.000Z",
+		}),
+	).toBe(Date.parse("2026-07-20T12:00:00.000Z"));
+});
 
 let container: HTMLDivElement;
 let root: Root;

@@ -66,7 +66,10 @@ import type {
 } from "@/hooks/chat-session/types";
 import { useAppUpdate } from "@/hooks/use-app-update";
 import { useChatSession } from "@/hooks/use-chat-session";
-import { useProvisioningOutcome } from "@/hooks/use-provisioning-outcome";
+import {
+	type CloudProvisioningPhase,
+	useProvisioningOutcome,
+} from "@/hooks/use-provisioning-outcome";
 import { useSessionAgents } from "@/hooks/use-session-agents";
 import { useSessionHistory } from "@/hooks/use-session-history";
 import { toast } from "@/hooks/use-toast";
@@ -217,37 +220,64 @@ const GIT_BRANCH_REFRESH_INTERVAL_MS = 5_000;
 
 type AppLocation = DesktopAppLocation<SettingsSection>;
 
-const PROVISIONING_PHASE_INTERVAL_MS = 4_500;
 // create() can spend one 610s window on the original POST and another on
 // timeout recovery. Leave room for auth, Hub attach, seeding, and verification
 // without waiting forever for a lost transport response.
 const HANDOFF_INVOKE_TIMEOUT_MS = 25 * 60_000;
+const LONG_PROVISIONING_THRESHOLD_MS = 60_000;
+
+function readCloudProvisioningPhase(
+	value: unknown,
+): CloudProvisioningPhase | undefined {
+	return value === "provisioning" ||
+		value === "cloning_repo" ||
+		value === "agent_starting" ||
+		value === "ready" ||
+		value === "failed"
+		? value
+		: undefined;
+}
 
 /** Shared provisioning status for the originating thread and placeholder. */
-function useCloudProvisioningPhase(repoUrl?: string): string {
+function useCloudProvisioningPhase(
+	repoUrl: string | undefined,
+	active: boolean,
+	phase: CloudProvisioningPhase | undefined,
+	startedAt: string | undefined,
+): string {
 	const repoLabel = cloudRepositoryLabel(repoUrl ?? "");
-	const phases = useMemo(
-		() => [
-			"Spinning up a fresh sandbox",
-			repoLabel ? `Cloning ${repoLabel}` : "Cloning your repository",
-			"Waking up the agent",
-			"Getting everything ready",
-		],
-		[repoLabel],
-	);
-	const [phaseIndex, setPhaseIndex] = useState(0);
-	// Hold the final phase so provisioning does not appear to restart. The
-	// interval stops via this guard instead of inside the state updater,
-	// which must stay pure (StrictMode double-invokes it).
-	const lastPhase = phaseIndex >= phases.length - 1;
+	const [longRunning, setLongRunning] = useState(false);
 	useEffect(() => {
-		if (lastPhase) return;
-		const interval = window.setInterval(() => {
-			setPhaseIndex((current) => Math.min(current + 1, phases.length - 1));
-		}, PROVISIONING_PHASE_INTERVAL_MS);
-		return () => window.clearInterval(interval);
-	}, [lastPhase, phases.length]);
-	return `${phases[phaseIndex]}...`;
+		if (!active) {
+			setLongRunning(false);
+			return;
+		}
+		const parsedStartedAt = Date.parse(startedAt ?? "");
+		const elapsed = Number.isFinite(parsedStartedAt)
+			? Math.max(0, Date.now() - parsedStartedAt)
+			: 0;
+		if (elapsed >= LONG_PROVISIONING_THRESHOLD_MS) {
+			setLongRunning(true);
+			return;
+		}
+		setLongRunning(false);
+		const timeout = window.setTimeout(
+			() => setLongRunning(true),
+			LONG_PROVISIONING_THRESHOLD_MS - elapsed,
+		);
+		return () => window.clearTimeout(timeout);
+	}, [active, startedAt]);
+	const label =
+		phase === "cloning_repo"
+			? repoLabel
+				? `Cloning ${repoLabel}`
+				: "Cloning your repository"
+			: phase === "agent_starting"
+				? "Starting the agent"
+				: "Starting your workspace";
+	return longRunning
+		? `${label}... This may take several minutes.`
+		: `${label}...`;
 }
 
 /** Matches the compact loading row shown inside a starting chat. */
@@ -359,6 +389,10 @@ export default function Home() {
 	const activeRealtimeBridgeRef = useRef<RealtimeChatBridge | null>(null);
 	const { navigation, threads } = appState;
 	const { activeThreadId, settingsSection, view } = navigation.current;
+	const navigationRef = useRef(navigation.current);
+	navigationRef.current = navigation.current;
+	const threadsRef = useRef(threads);
+	threadsRef.current = threads;
 	const activeEnvironmentId =
 		activeRemoteEnvironment?.id ?? LOCAL_WORKSPACE_ENVIRONMENT_ID;
 
@@ -419,6 +453,7 @@ export default function Home() {
 	}, []);
 
 	const navigate = useCallback((destination: AppLocation) => {
+		navigationRef.current = destination;
 		dispatchApp({ type: "navigate", destination });
 	}, []);
 	const navigateWith = useCallback(
@@ -428,11 +463,15 @@ export default function Home() {
 		[navigate, navigation.current],
 	);
 	const handleNavigateBack = useCallback(() => {
+		const destination = navigation.back.at(-1);
+		if (destination) navigationRef.current = destination;
 		dispatchApp({ type: "back" });
-	}, []);
+	}, [navigation.back]);
 	const handleNavigateForward = useCallback(() => {
+		const destination = navigation.forward[0];
+		if (destination) navigationRef.current = destination;
 		dispatchApp({ type: "forward" });
-	}, []);
+	}, [navigation.forward]);
 
 	useAppUpdate();
 
@@ -519,9 +558,15 @@ export default function Home() {
 	useEffect(() => watchDesktopNotifications(), []);
 
 	const createThreadForEnvironment = useCallback((environmentId: string) => {
+		const threadId = makeThreadId();
+		navigationRef.current = {
+			...navigationRef.current,
+			activeThreadId: threadId,
+			view: "chat",
+		};
 		dispatchApp({
 			type: "new-thread",
-			threadId: makeThreadId(),
+			threadId,
 			environmentId,
 		});
 		requestPromptInputFocus();
@@ -530,10 +575,16 @@ export default function Home() {
 		createThreadForEnvironment(activeEnvironmentId);
 	}, [activeEnvironmentId, createThreadForEnvironment]);
 	const selectEnvironmentDraft = useCallback((environmentId: string) => {
+		const threadId = makeThreadId();
+		navigationRef.current = {
+			...navigationRef.current,
+			activeThreadId: threadId,
+			view: "chat",
+		};
 		dispatchApp({
 			type: "select-environment-draft",
 			environmentId,
-			threadId: makeThreadId(),
+			threadId,
 		});
 	}, []);
 	const handleSelectEnvironment = useCallback(
@@ -679,6 +730,11 @@ export default function Home() {
 		(session: SessionHistoryItem, initialPromptDraft?: string) => {
 			const environmentId =
 				session.environmentId?.trim() || LOCAL_WORKSPACE_ENVIRONMENT_ID;
+			navigationRef.current = {
+				...navigationRef.current,
+				activeThreadId: `session_${session.sessionId}`,
+				view: "chat",
+			};
 			dispatchApp({
 				type: "open-session",
 				session: { ...session, environmentId },
@@ -691,11 +747,22 @@ export default function Home() {
 
 	const handleDeleteSession = useCallback(
 		(deletedSessionId: string, deletedThreadId?: string) => {
+			const fallbackThreadId = makeThreadId();
+			if (
+				navigationRef.current.activeThreadId === deletedThreadId ||
+				navigationRef.current.activeThreadId === `session_${deletedSessionId}`
+			) {
+				navigationRef.current = {
+					...navigationRef.current,
+					activeThreadId: fallbackThreadId,
+					view: "chat",
+				};
+			}
 			dispatchApp({
 				type: "delete-session",
 				deletedSessionId,
 				deletedThreadId,
-				fallbackThreadId: makeThreadId(),
+				fallbackThreadId,
 				fallbackEnvironmentId: activeEnvironmentId,
 			});
 		},
@@ -807,8 +874,13 @@ export default function Home() {
 		async (
 			sessionId: string,
 			environmentId?: string,
-			options: { silent?: boolean } = {},
+			options: { silent?: boolean; expectedActiveThreadId?: string } = {},
 		): Promise<boolean> => {
+			const stillExpectedThread = () =>
+				!options.expectedActiveThreadId ||
+				(navigationRef.current.view === "chat" &&
+					navigationRef.current.activeThreadId ===
+						options.expectedActiveThreadId);
 			const cachedSession = sessionHistoryRef.current.find(
 				(session) =>
 					session.sessionId === sessionId &&
@@ -816,6 +888,7 @@ export default function Home() {
 						session.environmentId === environmentId),
 			);
 			if (cachedSession) {
+				if (!stillExpectedThread()) return false;
 				handleOpenSession(cachedSession);
 				return true;
 			}
@@ -838,6 +911,7 @@ export default function Home() {
 						`The session belongs to environment ${session.environmentId}, not ${environmentId}.`,
 					);
 				}
+				if (!stillExpectedThread()) return false;
 				handleOpenSession(session);
 				return true;
 			} catch (error) {
@@ -891,19 +965,33 @@ export default function Home() {
 			if (!placeholderId?.trim() || !sessionId?.trim()) {
 				return;
 			}
-			const placeholderThread = threads.find(
+			const placeholderThread = threadsRef.current.find(
 				(thread) => thread.historySession?.sessionId === placeholderId,
 			);
 			if (!placeholderThread) {
 				return;
 			}
-			// The mounted chat pane owns active-placeholder recovery, including
-			// retries. Background placeholders need only be removed.
-			if (placeholderThread.id !== activeThreadId) {
-				handleDeleteSession(placeholderId, placeholderThread.id);
+			if (
+				navigationRef.current.view === "chat" &&
+				placeholderThread.id === navigationRef.current.activeThreadId
+			) {
+				void handleOpenSessionById(sessionId, undefined, {
+					silent: true,
+					expectedActiveThreadId: placeholderThread.id,
+				}).then((opened) => {
+					if (
+						opened ||
+						navigationRef.current.view !== "chat" ||
+						navigationRef.current.activeThreadId !== placeholderThread.id
+					) {
+						handleDeleteSession(placeholderId, placeholderThread.id);
+					}
+				});
+				return;
 			}
+			handleDeleteSession(placeholderId, placeholderThread.id);
 		});
-	}, [threads, activeThreadId, handleDeleteSession]);
+	}, [handleDeleteSession, handleOpenSessionById]);
 
 	const historyWorkspacePaths = useMemo(
 		() =>
@@ -1167,7 +1255,7 @@ function ChatThreadPane({
 	onOpenSessionById?: (
 		sessionId: string,
 		environmentId?: string,
-		options?: { silent?: boolean },
+		options?: { silent?: boolean; expectedActiveThreadId?: string },
 	) => boolean | Promise<boolean>;
 	onPickRemoteWorkspaceDirectory: (
 		environment: RemoteWorkspaceEnvironment,
@@ -1373,6 +1461,8 @@ function ChatThreadPane({
 	const [provisioningError, setProvisioningError] = useState<string | null>(
 		null,
 	);
+	const [liveProvisioningPhase, setLiveProvisioningPhase] =
+		useState<CloudProvisioningPhase>();
 	const provisioningPlaceholderId =
 		historySession?.sessionId &&
 		isCloudProvisioningSessionId(historySession.sessionId)
@@ -1381,13 +1471,17 @@ function ChatThreadPane({
 	useEffect(() => {
 		void provisioningPlaceholderId;
 		setProvisioningError(null);
+		setLiveProvisioningPhase(undefined);
 	}, [provisioningPlaceholderId]);
 	const handleProvisioningReady = useCallback(
 		async (sessionId: string) =>
 			Boolean(
-				await onOpenSessionById?.(sessionId, undefined, { silent: true }),
+				await onOpenSessionById?.(sessionId, undefined, {
+					silent: true,
+					expectedActiveThreadId: threadId,
+				}),
 			),
-		[onOpenSessionById],
+		[onOpenSessionById, threadId],
 	);
 	const handleProvisioningResolved = useCallback(() => {
 		if (provisioningPlaceholderId) {
@@ -1399,6 +1493,7 @@ function ChatThreadPane({
 		onOpenReady: handleProvisioningReady,
 		onResolved: handleProvisioningResolved,
 		onError: setProvisioningError,
+		onPhase: setLiveProvisioningPhase,
 	});
 	// The placeholder id covers list-refresh lag before live status arrives.
 	const isProvisioningCloudSession =
@@ -1410,6 +1505,10 @@ function ChatThreadPane({
 			));
 	const provisioningPhase = useCloudProvisioningPhase(
 		config.repoUrl || historySession?.repoUrl,
+		isProvisioningCloudSession || (isCloudSession && status === "starting"),
+		liveProvisioningPhase ??
+			readCloudProvisioningPhase(historySession?.metadata?.provisioningPhase),
+		historySession?.startedAt,
 	);
 	const activeWorkspaceCwd = isCloudSession
 		? ""

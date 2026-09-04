@@ -22,11 +22,13 @@ import {
 	buildClinePostHogClient,
 	PostHogFeatureFlagsProvider,
 } from "@cline/core/services/feature-flags/posthog";
+import { FeatureFlag as SharedFeatureFlag } from "@cline/shared";
 import { resolveClineDataDir } from "@cline/shared/storage";
 import { readDesktopSettings } from "./desktop-settings";
 
 const DESKTOP_FEATURE_FLAGS_CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 const DESKTOP_ACCOUNT_CONTEXT_FILE_VERSION = 1;
+const FEATURE_FLAG_CODE_CLOUD_AGENTS = SharedFeatureFlag.CODE_CLOUD_AGENTS;
 
 let desktopFeatureFlagsContext: FeatureFlagsContext = {
 	clientName: "cline-code",
@@ -289,20 +291,33 @@ export async function identifyDesktopFeatureFlagsAccount(
 	}
 }
 
-/**
- * Env override first; otherwise the user's explicit opt-in from Settings.
- *
- * Cloud sessions are in preview, so the gate is a toggle the user flips in
- * Settings → General (default off) rather than a remote rollout flag.
- */
-export function isCloudAgentsEnabled(): boolean {
+export function readCloudAgentsEnvOverride(): boolean | undefined {
 	const override = process.env.CLINE_CODE_CLOUD_AGENTS?.trim().toLowerCase();
-	if (override === "1" || override === "true") {
-		return true;
-	}
-	if (override === "0" || override === "false") {
-		return false;
-	}
+	if (override === "1" || override === "true") return true;
+	if (override === "0" || override === "false") return false;
+	return undefined;
+}
+
+/** The rollout flag controls whether this install can expose Cloud sessions. */
+export function isCloudAgentsAvailable(options?: {
+	logger?: BasicLogger;
+	telemetry?: ITelemetryService;
+}): boolean {
+	const override = readCloudAgentsEnvOverride();
+	if (override !== undefined) return override;
+	return getDesktopFeatureFlagsService(options).getBooleanFlagEnabled(
+		FEATURE_FLAG_CODE_CLOUD_AGENTS,
+	);
+}
+
+/** The rollout gate and the user's Settings opt-in must both be enabled. */
+export function isCloudAgentsEnabled(options?: {
+	logger?: BasicLogger;
+	telemetry?: ITelemetryService;
+}): boolean {
+	const override = readCloudAgentsEnvOverride();
+	if (override !== undefined) return override;
+	if (!isCloudAgentsAvailable(options)) return false;
 	return readDesktopSettings().cloudSessionsEnabled;
 }
 

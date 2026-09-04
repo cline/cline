@@ -57,7 +57,9 @@ describe("desktop settings commands", () => {
 		).resolves.toEqual({ cloudSessionsEnabled: false });
 		await expect(handleCommand(ctx, "get_feature_flags", {})).resolves.toEqual({
 			cloudAgents: false,
+			cloudAgentsAvailable: false,
 			flags: {
+				"code-cloud-agents": false,
 				"code-onboarding-github": false,
 				"ext-cline-pass": false,
 				"internal-composio-connectors": false,
@@ -76,7 +78,7 @@ describe("desktop settings commands", () => {
 		expect(events).toEqual([]);
 	});
 
-	it("persists the toggle and broadcasts the new gate immediately", async () => {
+	it("persists the toggle and broadcasts the rollout-gated state", async () => {
 		const { ctx, events } = createContext();
 
 		await expect(
@@ -89,12 +91,14 @@ describe("desktop settings commands", () => {
 		expect(events).toEqual([
 			{
 				name: "feature_flags_changed",
-				payload: { cloudAgents: true },
+				payload: { cloudAgents: false, cloudAgentsAvailable: false },
 			},
 		]);
 		await expect(handleCommand(ctx, "get_feature_flags", {})).resolves.toEqual({
-			cloudAgents: true,
+			cloudAgents: false,
+			cloudAgentsAvailable: false,
 			flags: {
+				"code-cloud-agents": false,
 				"code-onboarding-github": false,
 				"ext-cline-pass": false,
 				"internal-composio-connectors": false,
@@ -106,7 +110,7 @@ describe("desktop settings commands", () => {
 		});
 		expect(events.at(-1)).toEqual({
 			name: "feature_flags_changed",
-			payload: { cloudAgents: false },
+			payload: { cloudAgents: false, cloudAgentsAvailable: false },
 		});
 	});
 
@@ -116,7 +120,9 @@ describe("desktop settings commands", () => {
 
 		await expect(handleCommand(ctx, "get_feature_flags", {})).resolves.toEqual({
 			cloudAgents: true,
+			cloudAgentsAvailable: true,
 			flags: {
+				"code-cloud-agents": false,
 				"code-onboarding-github": false,
 				"ext-cline-pass": false,
 				"internal-composio-connectors": false,

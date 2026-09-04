@@ -16,6 +16,7 @@ class MockWebSocket {
 	static readonly CLOSED = 3;
 	static instances: MockWebSocket[] = [];
 	static commandPayloads = new Map<string, unknown>();
+	static failNextOpen = false;
 
 	readyState = MockWebSocket.CONNECTING;
 	readonly sentFrames: unknown[] = [];
@@ -24,6 +25,11 @@ class MockWebSocket {
 	constructor(public readonly url: string) {
 		MockWebSocket.instances.push(this);
 		queueMicrotask(() => {
+			if (MockWebSocket.failNextOpen) {
+				MockWebSocket.failNextOpen = false;
+				this.emit("error", new Error("connection refused"));
+				return;
+			}
 			this.readyState = MockWebSocket.OPEN;
 			this.emit("open");
 		});
@@ -32,6 +38,7 @@ class MockWebSocket {
 	static reset(): void {
 		MockWebSocket.instances = [];
 		MockWebSocket.commandPayloads.clear();
+		MockWebSocket.failNextOpen = false;
 	}
 
 	send(data: string): void {
@@ -216,6 +223,30 @@ describe("NodeHubClient", () => {
 					clientId: client.getClientId(),
 				});
 
+				await client.dispose();
+			} finally {
+				vi.useRealTimers();
+			}
+		});
+
+		it("retries an initial connection failure with an active subscription", async () => {
+			vi.useFakeTimers();
+			vi.stubGlobal("WebSocket", MockWebSocket);
+			MockWebSocket.failNextOpen = true;
+
+			try {
+				const client = new NodeHubClient({ url: "ws://127.0.0.1:25463/hub" });
+				client.subscribe(() => {}, { sessionId: "session-1" });
+				await expect(client.connect()).rejects.toMatchObject({
+					code: "hub_connect_failed",
+				});
+
+				await vi.advanceTimersByTimeAsync(251);
+				await Promise.resolve();
+				await Promise.resolve();
+
+				expect(MockWebSocket.instances).toHaveLength(2);
+				expect(client.isConnected()).toBe(true);
 				await client.dispose();
 			} finally {
 				vi.useRealTimers();

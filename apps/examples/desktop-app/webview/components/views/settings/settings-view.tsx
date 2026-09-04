@@ -939,12 +939,8 @@ function GeneralSettingsContent({
 	const [cloudSessionsEffective, setCloudSessionsEffective] = useState<
 		boolean | null
 	>(null);
-	// Hard-wired on for the preview. If rollout control is ever needed,
-	// gate this on a PostHog flag exposed through the sidecar's
-	// get_feature_flags command (the sidecar's remote-flag evaluation
-	// plumbing was removed with the old rollout gate; see the git history
-	// of sidecar/feature-flags.ts for the hardened version).
-	const cloudSessionsSettingVisible = true;
+	const [cloudSessionsAvailable, setCloudSessionsAvailable] = useState(true);
+	const cloudSessionsSettingVisible = cloudSessionsAvailable;
 	// Connected providers that offer native web search; null until the
 	// catalog loads. The toggle silently does nothing with other providers,
 	// so the row spells out whether it will actually take effect.
@@ -955,10 +951,12 @@ function GeneralSettingsContent({
 
 	const refreshCloudSessionsEffective = useCallback(async () => {
 		try {
-			const flags = await desktopClient.invoke<{ cloudAgents?: boolean }>(
-				"get_feature_flags",
-			);
+			const flags = await desktopClient.invoke<{
+				cloudAgents?: boolean;
+				cloudAgentsAvailable?: boolean;
+			}>("get_feature_flags");
 			setCloudSessionsEffective(Boolean(flags.cloudAgents));
+			setCloudSessionsAvailable(flags.cloudAgentsAvailable !== false);
 		} catch {
 			setCloudSessionsEffective(null);
 		}

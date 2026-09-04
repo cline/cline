@@ -544,7 +544,9 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 								: null;
 							const workspace = session?.workspaceRoot || session?.cwd || "";
 							const updated = formatRelativeTime(
-								session?.endedAt || session?.startedAt,
+								session?.lastActivityAt ||
+									session?.endedAt ||
+									session?.startedAt,
 							);
 							return (
 								<div

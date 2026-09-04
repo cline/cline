@@ -119,6 +119,7 @@ import {
 } from "./desktop-settings";
 import {
 	identifyDesktopFeatureFlagsAccount,
+	isCloudAgentsAvailable,
 	isCloudAgentsEnabled,
 	isDesktopInternalFeatureEnabled,
 	refreshDesktopFeatureFlags,
@@ -2907,7 +2908,11 @@ export async function handleCommand(
 	}
 	if (command === "save_media_generation_settings") {
 		const mediaType = String(args?.media_type ?? "").trim();
-		if (mediaType !== "image" && mediaType !== "audio" && mediaType !== "video") {
+		if (
+			mediaType !== "image" &&
+			mediaType !== "audio" &&
+			mediaType !== "video"
+		) {
 			throw new Error('media_type must be "image", "audio", or "video"');
 		}
 		const providerId = String(args?.provider ?? "").trim();
@@ -3080,6 +3085,7 @@ export async function handleCommand(
 		// gate immediately instead of waiting for the next sign-in refresh.
 		broadcastEvent(ctx, "feature_flags_changed", {
 			cloudAgents: isCloudAgentsEnabled(),
+			cloudAgentsAvailable: isCloudAgentsAvailable(),
 		});
 		return settings;
 	}
@@ -3094,7 +3100,17 @@ export async function handleCommand(
 			logger: ctx.logger,
 			telemetry: ctx.telemetry,
 		});
-		return { ...snapshot, cloudAgents: isCloudAgentsEnabled() };
+		return {
+			...snapshot,
+			cloudAgents: isCloudAgentsEnabled({
+				logger: ctx.logger,
+				telemetry: ctx.telemetry,
+			}),
+			cloudAgentsAvailable: isCloudAgentsAvailable({
+				logger: ctx.logger,
+				telemetry: ctx.telemetry,
+			}),
+		};
 	}
 
 	// ── Connector channels ─────────────────────────────────────────────

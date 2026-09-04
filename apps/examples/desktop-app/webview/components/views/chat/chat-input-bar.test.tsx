@@ -406,7 +406,11 @@ describe("ChatInputBar", () => {
 
 	it("blocks a new cloud message until a GitHub repository is selected", async () => {
 		const onSend = vi.fn();
-		const render = async (repoUrl?: string) => {
+		const render = async (
+			repoUrl?: string,
+			prompt = "Continue in cloud",
+			attachments: Array<{ id: string; name: string; isImage: boolean }> = [],
+		) => {
 			await act(async () => {
 				root.render(
 					<WorkspaceProvider
@@ -421,7 +425,7 @@ describe("ChatInputBar", () => {
 						}}
 					>
 						<ChatInputBar
-							attachments={[]}
+							attachments={attachments}
 							executionTarget="cloud"
 							gitBranch="no-git"
 							hasActiveSession={false}
@@ -444,7 +448,7 @@ describe("ChatInputBar", () => {
 							onSend={onSend}
 							onSteerPromptInQueue={vi.fn()}
 							onSwitchGitBranch={vi.fn(async () => false)}
-							promptDraft={{ version: 0, value: "Continue in cloud" }}
+							promptDraft={{ version: 0, value: prompt }}
 							promptsInQueue={[]}
 							provider="cline"
 							reasoningEffort="low"
@@ -481,6 +485,17 @@ describe("ChatInputBar", () => {
 		expect(sendButton?.disabled).toBe(false);
 		await act(async () => sendButton?.click());
 		expect(onSend).toHaveBeenCalledWith("Continue in cloud");
+
+		onSend.mockClear();
+		await render("https://github.com/cline/cline", "", [
+			{ id: "image-1", name: "image.png", isImage: true },
+		]);
+		const imageOnlySendButton = container.querySelector<HTMLButtonElement>(
+			'[aria-label="Send message"]',
+		);
+		expect(imageOnlySendButton?.disabled).toBe(false);
+		await act(async () => imageOnlySendButton?.click());
+		expect(onSend).toHaveBeenCalledWith("");
 	});
 
 	it("top-aligns the textarea in the taller welcome composer", async () => {

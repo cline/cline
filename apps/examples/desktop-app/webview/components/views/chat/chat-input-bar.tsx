@@ -534,11 +534,7 @@ function ChatInputBarImpl({
 	const needsCloudRepository =
 		executionTarget === "cloud" && !hasActiveSession && !repoUrl?.trim();
 	const cloudSettingsLocked = executionTarget === "cloud" && hasActiveSession;
-	const canSend =
-		hasDraft &&
-		!speechInputActive &&
-		!needsCloudRepository &&
-		(executionTarget !== "cloud" || promptInput.trim().length > 0);
+	const canSend = hasDraft && !speechInputActive && !needsCloudRepository;
 	const cloudContextLabel = useMemo(
 		() =>
 			[cloudRepositoryLabel(repoUrl ?? "", "Cloud"), cloudBranch?.trim()]
