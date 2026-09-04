@@ -1,5 +1,6 @@
 import {
 	agentMarkdownControls,
+	createLazyMermaidPlugin,
 	markdownCodeHighlighter,
 } from "@cline/ui/components/markdown";
 import { cjk } from "@streamdown/cjk";
@@ -7,6 +8,7 @@ import type { ComponentProps, MouseEvent, ReactNode } from "react";
 import { isValidElement, memo, useState } from "react";
 import {
 	type Components,
+	type ControlsConfig,
 	type ExtraProps,
 	type LinkSafetyModalProps,
 	Streamdown,
@@ -24,7 +26,21 @@ import {
 	AlertDialogTitle,
 } from "./alert-dialog";
 
-const streamdownPlugins = { cjk, code: markdownCodeHighlighter };
+const streamdownPlugins = {
+	cjk,
+	code: markdownCodeHighlighter,
+	mermaid: createLazyMermaidPlugin(),
+};
+
+const desktopMarkdownControls = {
+	...agentMarkdownControls,
+	mermaid: {
+		copy: true,
+		download: true,
+		fullscreen: true,
+		panZoom: true,
+	},
+} satisfies ControlsConfig;
 
 export function MarkdownLinkSafetyModal({
 	isOpen,
@@ -306,7 +322,7 @@ export const MemoizedMarkdown = memo(
 		<Streamdown
 			className={cn("cline-markdown", classNames)}
 			components={markdownComponents}
-			controls={agentMarkdownControls}
+			controls={desktopMarkdownControls}
 			dir="auto"
 			isAnimating={streaming}
 			lineNumbers={false}
