@@ -208,14 +208,15 @@ async function loadFiles(
 	encoding: BufferEncoding,
 	restrictToCwd: boolean,
 ): Promise<LoadedFiles> {
-	const filesToLoad = extractFilesForOperations(lines, [
+	const requiredFiles = extractFilesForOperations(lines, [
 		PATCH_MARKERS.UPDATE,
 		PATCH_MARKERS.DELETE,
 	]);
+	const optionalFiles = extractFilesForOperations(lines, [PATCH_MARKERS.ADD]);
 	const files: Record<string, string> = {};
 	const eols: Record<string, LineEnding> = {};
 
-	for (const filePath of filesToLoad) {
+	for (const filePath of requiredFiles) {
 		const absolutePath = resolveFilePath(cwd, filePath, restrictToCwd);
 		let fileContent: string;
 		try {
@@ -225,6 +226,23 @@ async function loadFiles(
 		}
 		files[filePath] = fileContent.replace(/\r\n/g, "\n");
 		eols[filePath] = detectLineEnding(fileContent);
+	}
+
+	for (const filePath of optionalFiles) {
+		if (filePath in files) {
+			continue;
+		}
+		const absolutePath = resolveFilePath(cwd, filePath, restrictToCwd);
+		try {
+			const fileContent = await fs.readFile(absolutePath, encoding);
+			files[filePath] = fileContent.replace(/\r\n/g, "\n");
+			eols[filePath] = detectLineEnding(fileContent);
+		} catch (err) {
+			if ((err as { code?: string }).code === "ENOENT") {
+				continue;
+			}
+			throw err;
+		}
 	}
 
 	return { files, eols };
