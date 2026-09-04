@@ -13,10 +13,8 @@ export async function setUserOrganization(controller: Controller, request: UserO
 		if (!controller.accountService) {
 			throw new Error("Account service not available")
 		}
-		// Switch to the specified organization using the account service
-		await controller.accountService.switchAccount(request.organizationId)
-		// Cloud sessions and GitHub repositories are scoped to the active organization.
-		controller.resetCloudSessions()
+		// Invalidate and close authenticated old-scope connections before changing scope.
+		await controller.resetCloudSessions(() => controller.accountService!.switchAccount(request.organizationId))
 		await controller.refreshRemoteConfig()
 		return {}
 	} catch (error) {

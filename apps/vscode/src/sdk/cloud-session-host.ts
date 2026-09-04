@@ -12,8 +12,6 @@
 // run inside the sandbox. Tools are auto-approved there (the sandbox is
 // isolated and the session must keep going after VS Code closes), so the
 // approval capability only surfaces anything the pod still insists on asking.
-// Cloud sessions are Act-only, like the desktop app and the cloud dashboard:
-// auto-approving every tool is the opposite of what Plan mode is for.
 
 import {
 	type CompareCheckpointInput,
@@ -55,9 +53,13 @@ export interface CloudSessionHostOptions {
 	requestToolApproval?: (request: ToolApprovalRequest) => Promise<ToolApprovalResult>
 	telemetry?: ITelemetryService
 	onStatusChange?: (status: CloudSessionStatus) => void
+	/** Plan/Act mode for the next turn; the sandbox takes the mode per turn instead of by session rebuild. */
+	getMode?: () => "plan" | "act"
+	/** Sandbox workspace root. Hosted sandboxes use /workspace. */
+	workspaceRoot?: string
 }
 
-function mapAgentStatus(status: string): CloudSessionStatus | undefined {
+export function mapAgentStatus(status: string): CloudSessionStatus | undefined {
 	switch (status) {
 		case "running":
 		case "pending":
@@ -73,6 +75,20 @@ function mapAgentStatus(status: string): CloudSessionStatus | undefined {
 			return "idle"
 		default:
 			return undefined
+	}
+}
+
+export function mapAgentFinishReason(reason: AgentResult["finishReason"] | string): CloudSessionStatus {
+	switch (reason) {
+		case "completed":
+			return "completed"
+		case "aborted":
+			return "idle"
+		case "error":
+		case "max_iterations":
+		case "mistake_limit":
+		default:
+			return "failed"
 	}
 }
 
@@ -106,12 +122,13 @@ export class CloudSessionHost implements SdkSessionHost {
 	}
 
 	static async connect(options: CloudSessionHostOptions): Promise<CloudSessionHost> {
+		const workspaceRoot = options.workspaceRoot ?? CLOUD_WORKSPACE_ROOT
 		const host = new RemoteRuntimeHost({
 			endpoint: options.socketUrl,
 			clientType: "vscode-cloud-session",
 			displayName: "Cline for VS Code (cloud session)",
-			workspaceRoot: CLOUD_WORKSPACE_ROOT,
-			cwd: CLOUD_WORKSPACE_ROOT,
+			workspaceRoot,
+			cwd: workspaceRoot,
 			telemetry: options.telemetry,
 			capabilities: options.requestToolApproval ? { requestToolApproval: options.requestToolApproval } : undefined,
 			resolveConnectionHeaders: async () => {
@@ -172,11 +189,11 @@ export class CloudSessionHost implements SdkSessionHost {
 				this.setStatus(mapped)
 			}
 		} else if (event.type === "ended") {
-			this.setStatus("completed")
+			this.setStatus(mapAgentFinishReason(event.payload.reason))
 		} else if (event.type === "agent_event") {
 			const agentEvent = event.payload.event
 			if (agentEvent.type === "done") {
-				this.setStatus(agentEvent.reason === "error" ? "failed" : "completed")
+				this.setStatus(mapAgentFinishReason(agentEvent.reason))
 			} else if (agentEvent.type === "error" && agentEvent.recoverable === false) {
 				this.setStatus("failed")
 			} else if (this.agentStatus !== "running") {
@@ -218,7 +235,8 @@ export class CloudSessionHost implements SdkSessionHost {
 		if (this.innerSessionId) {
 			throw new Error("This cloud session already has a conversation.")
 		}
-		const cwd = input.config.cwd?.trim() || CLOUD_WORKSPACE_ROOT
+		const workspaceRoot = this.options.workspaceRoot ?? CLOUD_WORKSPACE_ROOT
+		const cwd = input.config.cwd?.trim() || workspaceRoot
 		// Pin the inner id to the outer id so events need no remapping for
 		// sessions this extension created; attached sessions created elsewhere
 		// keep their own inner id.
@@ -232,7 +250,7 @@ export class CloudSessionHost implements SdkSessionHost {
 					...input.config,
 					sessionId: plannedId,
 					cwd,
-					workspaceRoot: CLOUD_WORKSPACE_ROOT,
+					workspaceRoot,
 					systemPrompt: input.config.systemPrompt
 						? `${CLOUD_GITHUB_AUTH_SYSTEM_PROMPT}\n\n${input.config.systemPrompt}`
 						: CLOUD_GITHUB_AUTH_SYSTEM_PROMPT,
@@ -251,12 +269,22 @@ export class CloudSessionHost implements SdkSessionHost {
 
 	async send(input: SendSessionInput): Promise<AgentResult | undefined> {
 		this.setStatus("running")
-		return this.host.runTurn({
-			...input,
-			sessionId: this.toInner(input.sessionId),
-			// Local file paths mean nothing inside the sandbox; images travel as data URLs.
-			userFiles: undefined,
-		})
+		try {
+			return await this.host.runTurn({
+				...input,
+				sessionId: this.toInner(input.sessionId),
+				mode: input.mode ?? this.options.getMode?.(),
+				// Local file paths mean nothing inside the sandbox; images travel as data URLs.
+				userFiles: undefined,
+			})
+		} catch (error) {
+			// A rejected RPC proves only that this client stopped observing the turn;
+			// the sandbox may still be running after a transport loss.
+			if (this.agentStatus === "running") {
+				this.setStatus("idle")
+			}
+			throw error
+		}
 	}
 
 	async getAccumulatedUsage(sessionId: string): Promise<SessionAccumulatedUsage | undefined> {
