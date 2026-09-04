@@ -483,6 +483,25 @@ export class SdkTaskHistory {
 	}
 
 	/**
+	 * Raw message content for full-text search indexing: the SDK's own messages for
+	 * SDK-backed tasks, or the legacy API conversation history translated to the same
+	 * shape for pre-SDK tasks. Unlike {@link getClineMessages} this skips UI display
+	 * sanitization/merging — the indexer only needs searchable text, not a render-ready
+	 * transcript.
+	 */
+	async getSearchableMessages(taskId: string): Promise<SdkMessage[]> {
+		const sdkRecord = await this.getSdkRecord(taskId)
+		if (sdkRecord) {
+			return this.withHistoryHost((host) => host.readMessages(taskId) as Promise<SdkMessage[]>)
+		}
+		const legacyTask = this.findLegacyTask(taskId)
+		if (legacyTask) {
+			return legacyApiHistoryToSdkMessages(readApiConversationHistory(taskId, legacyTask.dataDir), legacyTask.item)
+		}
+		return []
+	}
+
+	/**
 	 * Absolute path of the directory holding the task's on-disk artifacts: the SDK
 	 * session folder (manifest json + messages json) for SDK tasks, or the legacy
 	 * tasks/<id> folder for pre-SDK tasks. Undefined when the task is unknown.
