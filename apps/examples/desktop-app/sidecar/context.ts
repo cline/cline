@@ -570,6 +570,7 @@ export function createSidecarContext(
 	observability: {
 		logger?: BasicLogger;
 		telemetry?: ITelemetryService;
+		telemetryUser?: SidecarContext["telemetryUser"];
 	} = {},
 ): SidecarContext {
 	return {
@@ -584,6 +585,7 @@ export function createSidecarContext(
 		workspaceRoot,
 		logger: observability.logger,
 		telemetry: observability.telemetry,
+		telemetryUser: observability.telemetryUser,
 		unsubscribeSessionEvents: null,
 		hubBuildMismatch: null,
 	};

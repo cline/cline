@@ -1,12 +1,12 @@
 import {
 	AGENT_UNEXPECTED_REASONING_TOKENS_EVENT,
+	captureTaskLifecycleEvent as captureSharedTaskLifecycleEvent,
 	type ITelemetryService,
 	TASK_CANCELLED_EVENT,
 	TASK_FIRST_CHUNK_RECEIVED_EVENT,
 	TASK_PROVIDER_REQUEST_STARTED_EVENT,
 	TASK_PROVIDER_STREAM_FAILED_EVENT,
 	TASK_PROVIDER_STREAM_STARTED_EVENT,
-	captureTaskLifecycleEvent as captureSharedTaskLifecycleEvent,
 } from "@cline/shared";
 import { describe, expect, test, vi } from "vitest";
 import {
@@ -18,8 +18,11 @@ import {
 	captureMistakeLimitReached,
 	captureProviderConfigured,
 	captureRunCommandsTimeout,
-	captureTelemetryOptOut,
+	captureTaskCompleted,
+	captureTaskCreated,
 	captureTaskLifecycleEvent,
+	captureTaskRestarted,
+	captureTelemetryOptOut,
 	captureWorkspaceInitError,
 	captureWorkspaceInitialized,
 	captureWorkspacePathResolved,
@@ -86,6 +89,49 @@ describe("captureTelemetryOptOut", () => {
 			"user.opt_out",
 			undefined,
 		);
+	});
+});
+
+describe("task lifecycle contract", () => {
+	test.each([
+		["task.created", captureTaskCreated],
+		["task.restarted", captureTaskRestarted],
+	] as const)("emits %s with canonical provider and model fields", (event, emit) => {
+		const stub = createTelemetryStub();
+		emit(stub.telemetry, {
+			ulid: "session-1",
+			provider: "anthropic",
+			model: "claude-sonnet-4.6",
+		});
+
+		expect(captureCallAt(stub, 0)).toEqual({
+			event,
+			properties: {
+				ulid: "session-1",
+				provider: "anthropic",
+				model: "claude-sonnet-4.6",
+			},
+		});
+	});
+
+	test("emits task.completed with canonical provider and model fields", () => {
+		const stub = createTelemetryStub();
+		captureTaskCompleted(stub.telemetry, {
+			ulid: "session-1",
+			provider: "anthropic",
+			model: "claude-sonnet-4.6",
+			source: "submit_and_exit",
+		});
+
+		expect(captureCallAt(stub, 0)).toEqual({
+			event: "task.completed",
+			properties: {
+				ulid: "session-1",
+				provider: "anthropic",
+				model: "claude-sonnet-4.6",
+				source: "submit_and_exit",
+			},
+		});
 	});
 });
 

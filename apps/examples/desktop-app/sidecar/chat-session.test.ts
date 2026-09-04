@@ -195,25 +195,49 @@ describe("hasProviderChanged", () => {
 
 describe("pathless session starts", () => {
 	it("omits workspace paths and returns the SDK-resolved chat workspace", async () => {
-		const start = vi.fn(async (input: { config: Record<string, unknown> }) => {
-			expect(input.config).not.toHaveProperty("cwd");
-			expect(input.config).not.toHaveProperty("workspaceRoot");
-			expect(input.config).not.toHaveProperty("enableSpawnAgent");
-			expect(input.config).not.toHaveProperty("enableAgentTeams");
-			return {
-				sessionId: "session-pathless",
-				manifest: {
-					cwd: "/home/host/.cline/data/workspaces/chat",
-					workspace_root: "/home/host/.cline/data/workspaces/chat",
-				},
-				manifestPath: "/tmp/session-pathless.json",
-				messagesPath: "/tmp/session-pathless.messages.json",
-			};
-		});
+		const start = vi.fn(
+			async (input: {
+				config: Record<string, unknown>;
+				localRuntime?: {
+					extensionContext?: {
+						client?: Record<string, unknown>;
+						user?: Record<string, unknown>;
+					};
+				};
+			}) => {
+				expect(input.config).not.toHaveProperty("cwd");
+				expect(input.config).not.toHaveProperty("workspaceRoot");
+				expect(input.config).not.toHaveProperty("enableSpawnAgent");
+				expect(input.config).not.toHaveProperty("enableAgentTeams");
+				expect(input.localRuntime?.extensionContext?.client).toMatchObject({
+					name: "cline-desktop",
+					platform: "Cline Desktop",
+				});
+				expect(input.localRuntime?.extensionContext?.user).toEqual({
+					distinctId: "account-1",
+					accountId: "account-1",
+					organizationId: "org-1",
+				});
+				return {
+					sessionId: "session-pathless",
+					manifest: {
+						cwd: "/home/host/.cline/data/workspaces/chat",
+						workspace_root: "/home/host/.cline/data/workspaces/chat",
+					},
+					manifestPath: "/tmp/session-pathless.json",
+					messagesPath: "/tmp/session-pathless.messages.json",
+				};
+			},
+		);
 		const ctx = {
 			liveSessions: new Map(),
 			restoringWorkspacePaths: new Set(),
 			sessionManager: { start },
+			telemetryUser: {
+				distinctId: "account-1",
+				accountId: "account-1",
+				organizationId: "org-1",
+			},
 		} as unknown as SidecarContext;
 
 		const result = (await handleChatSessionCommand(ctx, {

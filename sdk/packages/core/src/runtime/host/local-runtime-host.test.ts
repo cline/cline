@@ -217,6 +217,19 @@ describe("LocalRuntimeHost", () => {
 		}
 	});
 
+	it("preserves a caller-owned telemetry identity when no distinct id is supplied", async () => {
+		const setDistinctId = vi.fn();
+		const manager = new RuntimeHostUnderTest({
+			sessionService: new FileSessionService(
+				join(isolatedHomeDir, "sessions-identity"),
+			),
+			telemetry: { setDistinctId } as never,
+		});
+
+		expect(setDistinctId).not.toHaveBeenCalled();
+		await manager.dispose();
+	});
+
 	it.each([
 		{ source: "generated", requestedSessionId: undefined },
 		{ source: "requested", requestedSessionId: "session-explicit" },
@@ -7053,7 +7066,7 @@ describe("LocalRuntimeHost", () => {
 				ulid: sessionId,
 				source: "submit_and_exit",
 				provider: "mock-provider",
-				modelId: "mock-model",
+				model: "mock-model",
 			});
 		});
 
@@ -7338,7 +7351,7 @@ describe("LocalRuntimeHost", () => {
 				ulid: sessionId,
 				source: "shutdown",
 				provider: "mock-provider",
-				modelId: "mock-model",
+				model: "mock-model",
 			});
 		});
 

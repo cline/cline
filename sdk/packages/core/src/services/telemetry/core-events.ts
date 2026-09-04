@@ -395,8 +395,8 @@ export function captureTaskCreated(
 	telemetry: ITelemetryService | undefined,
 	properties: {
 		ulid: string;
-		apiProvider?: string;
-		openAiCompatibleDomain?: string;
+		provider?: string;
+		model?: string;
 	} & Partial<TelemetryAgentIdentityProperties>,
 ): void {
 	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.CREATED, properties);
@@ -406,8 +406,8 @@ export function captureTaskRestarted(
 	telemetry: ITelemetryService | undefined,
 	properties: {
 		ulid: string;
-		apiProvider?: string;
-		openAiCompatibleDomain?: string;
+		provider?: string;
+		model?: string;
 	} & Partial<TelemetryAgentIdentityProperties>,
 ): void {
 	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.RESTARTED, properties);
@@ -431,7 +431,7 @@ export function captureTaskCompleted(
 	properties: {
 		ulid: string;
 		provider?: string;
-		modelId?: string;
+		model?: string;
 		mode?: string;
 		durationMs?: number;
 		source?: TaskCompletedSource;

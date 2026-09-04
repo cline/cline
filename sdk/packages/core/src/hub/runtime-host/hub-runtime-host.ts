@@ -868,6 +868,12 @@ export class HubRuntimeHost implements RuntimeHost {
 			input.localRuntime,
 			capabilities,
 		);
+		const clientContext = toJsonSerializable(
+			input.localRuntime?.extensionContext?.client,
+		);
+		const userContext = toJsonSerializable(
+			input.localRuntime?.extensionContext?.user,
+		);
 		const plannedSessionId =
 			input.config.sessionId?.trim() || createSessionId();
 		const sendCreateCommand = () =>
@@ -879,6 +885,8 @@ export class HubRuntimeHost implements RuntimeHost {
 				),
 				metadata: buildCommandSessionMetadata(input),
 				runtimeOptions: {
+					...(clientContext ? { clientContext } : {}),
+					...(userContext ? { userContext } : {}),
 					...(clientContributions.manifest.length > 0
 						? { clientContributions: clientContributions.manifest }
 						: {}),
@@ -978,6 +986,12 @@ export class HubRuntimeHost implements RuntimeHost {
 					manifest: [],
 					handlers: new Map<string, ClientContributionHandler>(),
 				};
+		const clientContext = startConfig
+			? toJsonSerializable(startConfig.localRuntime?.extensionContext?.client)
+			: undefined;
+		const userContext = startConfig
+			? toJsonSerializable(startConfig.localRuntime?.extensionContext?.user)
+			: undefined;
 		let plannedSessionId: string | undefined;
 		let startSessionConfig: Record<string, unknown> | undefined;
 		if (startConfig) {
@@ -1015,6 +1029,8 @@ export class HubRuntimeHost implements RuntimeHost {
 								sessionConfig: toJsonRecord(startSessionConfig),
 								metadata: buildCommandSessionMetadata(startConfig),
 								runtimeOptions: {
+									...(clientContext ? { clientContext } : {}),
+									...(userContext ? { userContext } : {}),
 									...(clientContributions.manifest.length > 0
 										? { clientContributions: clientContributions.manifest }
 										: {}),

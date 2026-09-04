@@ -73,6 +73,36 @@ describe("TelemetryService", () => {
 		);
 	});
 
+	it("treats metadata as host defaults that event context may override", () => {
+		const { adapter, emit } = createAdapter();
+		const service = new TelemetryService({
+			adapters: [adapter],
+			metadata: {
+				extension_version: "0.0.82",
+				cline_type: "hub",
+				platform: "cline-hub-daemon",
+			},
+		});
+
+		service.capture({
+			event: "task.created",
+			properties: {
+				extension_version: "0.0.23",
+				cline_type: "desktop",
+				platform: "Cline Desktop",
+			},
+		});
+
+		expect(emit).toHaveBeenCalledWith(
+			"task.created",
+			expect.objectContaining({
+				extension_version: "0.0.23",
+				cline_type: "desktop",
+				platform: "Cline Desktop",
+			}),
+		);
+	});
+
 	it("mirrors telemetry events into the logger when provided", () => {
 		const logger: BasicLogger = {
 			debug: vi.fn(),

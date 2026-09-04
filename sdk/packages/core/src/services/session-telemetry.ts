@@ -29,13 +29,15 @@ export function emitSessionCreationTelemetry(
 	if (isRestart) {
 		captureTaskRestarted(config.telemetry, {
 			ulid: sessionId,
-			apiProvider: config.providerId,
+			provider: config.providerId,
+			model: config.modelId,
 			...agentIdentity,
 		});
 	} else {
 		captureTaskCreated(config.telemetry, {
 			ulid: sessionId,
-			apiProvider: config.providerId,
+			provider: config.providerId,
+			model: config.modelId,
 			...agentIdentity,
 		});
 	}

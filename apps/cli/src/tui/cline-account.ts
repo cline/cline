@@ -11,6 +11,8 @@ import {
 	getValidClineCredentials,
 	type ProviderSettings,
 	ProviderSettingsManager,
+	persistClineAccountTelemetryIdentity,
+	resolveClineAccountTelemetryIdentity,
 	saveLocalProviderOAuthCredentials,
 	type UserCurrentPlan,
 } from "@cline/core";
@@ -158,38 +160,6 @@ export async function createClineAccountService(input: {
 	});
 }
 
-/**
- * Persist the active organization so headless runs and the hub daemon can
- * attach it to telemetry identity. Personal account clears stale org fields.
- */
-function persistClineOrganizationContext(
-	activeOrganization: ClineAccountOrganization | null,
-	userId: string,
-): void {
-	try {
-		const manager = new ProviderSettingsManager();
-		const persisted = manager.getProviderSettings("cline");
-		if (!persisted) {
-			return;
-		}
-		manager.saveProviderSettings(
-			{
-				...persisted,
-				auth: {
-					...persisted.auth,
-					accountId: persisted.auth?.accountId ?? userId,
-					organizationId: activeOrganization?.organizationId,
-					organizationName: activeOrganization?.name,
-					memberId: activeOrganization?.memberId,
-				},
-			},
-			{ setLastUsed: false },
-		);
-	} catch {
-		// Best-effort only.
-	}
-}
-
 export async function loadClineAccountSnapshot(input: {
 	config: ClineAccountConfig;
 	clineApiBaseUrl?: string;
@@ -213,16 +183,12 @@ export async function loadClineAccountSnapshot(input: {
 	const displayedBalance = activeOrganization
 		? (organizationBalance?.balance ?? balance.balance)
 		: balance.balance;
-	const accountContext = {
-		id: user.id,
-		email: user.email,
-		provider: "cline",
-		organizationId: activeOrganization?.organizationId,
-		organizationName: activeOrganization?.name,
-		memberId: activeOrganization?.memberId,
-	};
+	const accountContext = resolveClineAccountTelemetryIdentity(user);
 	identifyTelemetryAccount(accountContext, input.config.logger);
-	persistClineOrganizationContext(activeOrganization, user.id);
+	persistClineAccountTelemetryIdentity(
+		new ProviderSettingsManager(),
+		accountContext,
+	);
 
 	return {
 		user,

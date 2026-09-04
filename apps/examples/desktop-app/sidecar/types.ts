@@ -8,6 +8,7 @@ import type {
 	ToolApprovalResult,
 } from "@cline/core";
 import type { MessageWithMetadata } from "@cline/llms";
+import type { UserContext } from "@cline/shared";
 
 export type JsonRecord = Record<string, unknown>;
 
@@ -123,6 +124,8 @@ export type SidecarContext = {
 	workspaceRoot: string;
 	logger?: BasicLogger;
 	telemetry?: ITelemetryService;
+	/** Analytics identity and explicit account state forwarded with each session. */
+	telemetryUser?: UserContext;
 	unsubscribeSessionEvents: (() => void) | null;
 	/**
 	 * Latest managed Hub build mismatch, broadcast as `hub_build_mismatch` and
