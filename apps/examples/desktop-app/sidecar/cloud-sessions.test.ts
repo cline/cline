@@ -786,4 +786,411 @@ describe("CloudSessionApi", () => {
 			}),
 		]);
 	});
+
+	it("returns a stable, environment-aware GitHub connection error", async () => {
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api.example",
+			appBaseUrl: "https://staging-app.example/",
+			getAuthToken: async () => "workos:test",
+			fetch: async () =>
+				jsonResponse({ success: false, error: "GitHub is not connected" }, 412),
+		});
+
+		const error = await api
+			.create({ modelId: "model", repoUrl: "https://github.com/cline/test" })
+			.catch((caught) => caught);
+
+		expect(error).toBeInstanceOf(CloudSessionError);
+		expect(error.code).toBe("github_not_connected");
+		expect(error.message).toBe(
+			'CLOUD_SESSION_ERROR:{"code":"github_not_connected","message":"GitHub is not connected","connectUrl":"https://staging-app.example/dashboard/integrations"}',
+		);
+	});
+
+	it("routes organization GitHub setup to organization integrations", async () => {
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api.example",
+			appBaseUrl: "https://staging-app.example/",
+			getAuthToken: async () => "workos:test",
+			fetch: async () =>
+				jsonResponse({ success: false, error: "GitHub is not connected" }, 412),
+		});
+
+		const error = await api
+			.create({
+				modelId: "model",
+				repoUrl: "https://github.com/cline/test",
+				organizationId: "org-cline-bot",
+			})
+			.catch((caught) => caught);
+
+		expect(error).toBeInstanceOf(CloudSessionError);
+		expect(error.connectUrl).toBe(
+			"https://staging-app.example/dashboard/organization/integrations",
+		);
+	});
+
+	it("surfaces a stable authentication error for REST requests", async () => {
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api.example",
+			appBaseUrl: "https://app.example",
+			getAuthToken: async () => "expired",
+			fetch: async () =>
+				jsonResponse({ success: false, error: "authentication required" }, 401),
+		});
+
+		const error = await api.list().catch((caught) => caught);
+
+		expect(error).toBeInstanceOf(CloudSessionError);
+		expect(error.code).toBe("authentication_required");
+	});
+
+	it("lists connected GitHub repositories and their branches", async () => {
+		const requestedPaths: string[] = [];
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api.example",
+			appBaseUrl: "https://app.example",
+			getAuthToken: async () => "workos:test",
+			fetch: async (input) => {
+				const path = new URL(String(input)).pathname;
+				requestedPaths.push(path);
+				if (path.endsWith("/branches")) {
+					return jsonResponse({
+						success: true,
+						data: [{ name: "main" }, { name: "feature/cloud" }],
+					});
+				}
+				return jsonResponse({
+					success: true,
+					data: [
+						{
+							id: 42,
+							name: "cline",
+							full_name: "cline/cline",
+							html_url: "https://github.com/cline/cline",
+							clone_url: "https://github.com/cline/cline.git",
+							default_branch: "main",
+						},
+					],
+				});
+			},
+		});
+
+		expect(await api.listRepositories()).toEqual({
+			connected: true,
+			connectUrl: "https://app.example/dashboard/integrations",
+			repositories: [
+				{
+					id: 42,
+					name: "cline",
+					fullName: "cline/cline",
+					url: "https://github.com/cline/cline",
+					defaultBranch: "main",
+				},
+			],
+		});
+		expect(await api.listBranches(42)).toEqual({
+			available: true,
+			branches: ["main", "feature/cloud"],
+			nextToken: "",
+		});
+		expect(requestedPaths).toEqual([
+			"/api/v1/integrations/github/repositories",
+			"/api/v1/integrations/github/repositories/42/branches",
+		]);
+	});
+
+	it("reads paginated branch responses and forwards search cursors", async () => {
+		let requestedUrl = "";
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api.example",
+			appBaseUrl: "https://app.example",
+			getAuthToken: async () => "workos:test",
+			fetch: async (input) => {
+				requestedUrl = String(input);
+				return jsonResponse({
+					success: true,
+					data: {
+						items: [{ name: "feature/cloud" }],
+						nextToken: "next/page",
+					},
+				});
+			},
+		});
+
+		expect(
+			await api.listBranches(42, undefined, {
+				cursor: "search cursor",
+				query: "feature/cloud",
+			}),
+		).toEqual({
+			available: true,
+			branches: ["feature/cloud"],
+			nextToken: "next/page",
+		});
+		const url = new URL(requestedUrl);
+		expect(url.pathname).toBe(
+			"/api/v1/integrations/github/repositories/42/branches",
+		);
+		expect(url.searchParams.get("query")).toBe("feature/cloud");
+		expect(url.searchParams.get("cursor")).toBe("search cursor");
+	});
+
+	it("filters legacy branch responses while backends roll out", async () => {
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api.example",
+			appBaseUrl: "https://app.example",
+			getAuthToken: async () => "workos:test",
+			fetch: async () =>
+				jsonResponse({
+					success: true,
+					data: [{ name: "main" }, { name: "feature/cloud" }],
+				}),
+		});
+
+		expect(await api.listBranches(42, undefined, { query: "FEATURE" })).toEqual(
+			{
+				available: true,
+				branches: ["feature/cloud"],
+				nextToken: "",
+			},
+		);
+	});
+
+	it("falls back to the repository default when the branch API is unavailable", async () => {
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api.example",
+			appBaseUrl: "https://app.example",
+			getAuthToken: async () => "workos:test",
+			fetch: async () =>
+				jsonResponse({ success: false, error: "route not found" }, 404),
+		});
+
+		expect(await api.listBranches(42)).toEqual({
+			available: false,
+			branches: [],
+		});
+	});
+
+	it("uses organization-scoped repository and branch endpoints", async () => {
+		const requestedPaths: string[] = [];
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api.example",
+			appBaseUrl: "https://app.example",
+			getAuthToken: async () => "workos:test",
+			fetch: async (input) => {
+				const path = new URL(String(input)).pathname;
+				requestedPaths.push(path);
+				return jsonResponse({ success: true, data: [] });
+			},
+		});
+
+		expect(await api.listRepositories("org-cline-bot")).toMatchObject({
+			connected: true,
+			connectUrl: "https://app.example/dashboard/organization/integrations",
+		});
+		await api.listBranches(42, "org-cline-bot");
+		expect(requestedPaths).toEqual([
+			"/api/v1/organizations/org-cline-bot/integrations/github/repositories",
+			"/api/v1/organizations/org-cline-bot/integrations/github/repositories/42/branches",
+		]);
+	});
+
+	it("refuses ambiguous recovery for overlapping identical create requests", async () => {
+		const now = new Date().toISOString();
+		const record = (id: string, createdAt: string) => ({
+			id,
+			title: "__cline_create_request__:same-request",
+			status: "running",
+			sandboxUrl: `pod-${id}`,
+			repoContext: { repoUrl: "https://github.com/cline/test" },
+			metadata: { modelId: "anthropic/claude-sonnet-5" },
+			createdAt,
+			updatedAt: createdAt,
+		});
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api.example",
+			appBaseUrl: "https://app.example",
+			getAuthToken: async () => "sk_test",
+			fetch: async (_input, init) =>
+				init?.method === "POST"
+					? jsonResponse({ success: false, error: "gateway timeout" }, 500)
+					: jsonResponse({
+							success: true,
+							data: [
+								record("ses-newer", now),
+								record("ses-older", new Date(Date.now() - 1_000).toISOString()),
+							],
+						}),
+		});
+		const input = {
+			requestId: "same-request",
+			modelId: "anthropic/claude-sonnet-5",
+			repoUrl: "https://github.com/cline/test",
+		};
+
+		// The API exposes no request id that can map either failed POST to one of
+		// these rows. Newest-wins can steal another conversation's sandbox.
+		const results = await Promise.allSettled([
+			api.create(input),
+			api.create(input),
+		]);
+
+		expect(results.map((result) => result.status)).toEqual([
+			"rejected",
+			"rejected",
+		]);
+		for (const result of results) {
+			if (result.status === "rejected") {
+				expect(result.reason).toMatchObject({ code: "request_failed" });
+				expect(String(result.reason)).toContain("ambiguous result");
+			}
+		}
+	});
+
+	it("cleans up terminal provisioning failures with the creation identity", async () => {
+		const authorizations: string[] = [];
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api.example",
+			appBaseUrl: "https://app.example",
+			getAuthToken: async () => "workos:create",
+			fetch: async (input, init) => {
+				authorizations.push(
+					new Headers(init?.headers).get("Authorization") ?? "",
+				);
+				if (init?.method === "POST") {
+					return jsonResponse({
+						success: true,
+						data: { sessionId: "ses-failed", status: "provisioning" },
+					});
+				}
+				if (init?.method === "DELETE") {
+					return new Response(undefined, { status: 204 });
+				}
+				expect(new URL(String(input)).pathname).toBe(
+					"/api/v1/session/ses-failed/status",
+				);
+				return jsonResponse({
+					success: true,
+					data: {
+						sessionId: "ses-failed",
+						status: "failed",
+						statusReason: "clone failed",
+					},
+				});
+			},
+		});
+
+		await expect(
+			api.create({
+				modelId: "model",
+				repoUrl: "https://github.com/cline/test",
+			}),
+		).rejects.toMatchObject({ code: "session_failed", detail: "clone failed" });
+		expect(authorizations).toEqual([
+			"Bearer workos:create",
+			"Bearer workos:create",
+			"Bearer workos:create",
+		]);
+	});
+
+	it("turns a generic forbidden response into actionable account guidance", async () => {
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api.example",
+			appBaseUrl: "https://app.example",
+			getAuthToken: async () => "workos:test",
+			fetch: async () =>
+				jsonResponse({ success: false, error: "forbidden" }, 403),
+		});
+
+		const error = await api
+			.create({ modelId: "model", repoUrl: "https://github.com/cline/test" })
+			.catch((caught) => caught);
+
+		expect(error).toBeInstanceOf(CloudSessionError);
+		expect(error.code).toBe("request_failed");
+		expect(error.status).toBe(403);
+		expect(error.message).toContain(
+			"Switch to Personal or another organization in Settings → Account",
+		);
+	});
+
+	it("does not retry an arbitrary 502 that could have provisioned", async () => {
+		const { ctx } = createContext();
+		const create = vi.fn(async () => {
+			throw new CloudSessionError(
+				"request_failed",
+				"upstream request failed",
+				undefined,
+				502,
+			);
+		});
+		const sleep = vi.fn(async () => undefined);
+		const manager = new CloudSessionManager(ctx, {
+			api: { create } as unknown as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			sleep,
+		});
+
+		await expect(
+			manager.create({
+				modelId: "model",
+				repoUrl: "https://github.com/cline/test",
+			}),
+		).rejects.toThrow("upstream request failed");
+		expect(create).toHaveBeenCalledOnce();
+		expect(sleep).not.toHaveBeenCalled();
+	});
+
+	it("does not run list recovery after a fast client-side rejection", async () => {
+		let listRequests = 0;
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api.example",
+			appBaseUrl: "https://app.example",
+			getAuthToken: async () => "sk_test",
+			fetch: async (_input, init) => {
+				if (init?.method === "POST") {
+					return jsonResponse({ success: false, error: "invalid branch" }, 422);
+				}
+				listRequests += 1;
+				return jsonResponse({ success: true, data: [] });
+			},
+		});
+
+		await expect(
+			api.create({
+				modelId: "anthropic/claude-sonnet-5",
+				repoUrl: "https://github.com/cline/test",
+			}),
+		).rejects.toThrow(/invalid branch/);
+		// A 4xx never provisioned anything; recovering on it could adopt an
+		// identical-config session created by another device on the account.
+		expect(listRequests).toBe(0);
+	});
+
+	it("returns the GitHub connection action when no integration exists", async () => {
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api.example",
+			appBaseUrl: "https://app.example/",
+			getAuthToken: async () => "workos:test",
+			fetch: async () =>
+				jsonResponse({ success: false, error: "not connected" }, 404),
+		});
+
+		expect(await api.listRepositories()).toEqual({
+			connected: false,
+			connectUrl: "https://app.example/dashboard/integrations",
+			repositories: [],
+		});
+	});
+});
+
+// Cloud-session creation is feature-flagged (default off); force it on for
+// this suite via the env override and prove the gate separately below.
+beforeAll(() => {
+	process.env.CLINE_CODE_CLOUD_AGENTS = "1";
+});
+afterAll(() => {
+	delete process.env.CLINE_CODE_CLOUD_AGENTS;
 });
