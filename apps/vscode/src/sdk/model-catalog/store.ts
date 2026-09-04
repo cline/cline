@@ -394,7 +394,12 @@ function applyModelOverrides(modelInfo: ModelInfo, overrides: ModelSelectionOver
 			next.capabilities = [...new Set([...next.capabilities, ...overrides.capabilities])]
 		}
 	}
-	if (overrides.supportsVision !== undefined) next.supportsImages = overrides.supportsVision
+	if (overrides.supportsVision !== undefined) {
+		next.supportsImages = overrides.supportsVision
+		if (!overrides.supportsVision && next.capabilities !== undefined) {
+			next.capabilities = next.capabilities.filter((capability) => capability !== "images")
+		}
+	}
 	if (overrides.supportsReasoning !== undefined) next.supportsReasoning = overrides.supportsReasoning
 	return next
 }
