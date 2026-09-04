@@ -63,6 +63,7 @@ describe("hub settings commands", () => {
 		const transport = new HubServerTransport({
 			runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
 			scheduleOptions: { dbPath: ":memory:" },
+			taskOptions: { dbPath: ":memory:", watchFiles: false },
 			settingsService: new CoreSettingsService({ pluginSource }),
 		});
 
@@ -128,6 +129,7 @@ describe("hub settings commands", () => {
 		const transport = new HubServerTransport({
 			runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
 			scheduleOptions: { dbPath: ":memory:" },
+			taskOptions: { dbPath: ":memory:", watchFiles: false },
 			settingsService: new CoreSettingsService({ pluginSource }),
 		});
 		const settingsEvents: unknown[] = [];
@@ -210,6 +212,7 @@ describe("hub settings commands", () => {
 		const transport = new HubServerTransport({
 			runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
 			scheduleOptions: { dbPath: ":memory:" },
+			taskOptions: { dbPath: ":memory:", watchFiles: false },
 			settingsService,
 		});
 		const events: string[] = [];
@@ -270,6 +273,7 @@ describe("hub settings commands", () => {
 		const transport = new HubServerTransport({
 			runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
 			scheduleOptions: { dbPath: ":memory:" },
+			taskOptions: { dbPath: ":memory:", watchFiles: false },
 			settingsService,
 		});
 
@@ -307,6 +311,7 @@ describe("hub settings commands", () => {
 		const transport = new HubServerTransport({
 			runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
 			scheduleOptions: { dbPath: ":memory:" },
+			taskOptions: { dbPath: ":memory:", watchFiles: false },
 			settingsService,
 		});
 
@@ -341,6 +346,7 @@ describe("hub settings commands", () => {
 		const transport = new HubServerTransport({
 			runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
 			scheduleOptions: { dbPath: ":memory:" },
+			taskOptions: { dbPath: ":memory:", watchFiles: false },
 			settingsService,
 		});
 
@@ -367,4 +373,57 @@ describe("hub settings commands", () => {
 			await transport.stop();
 		}
 	});
+});
+
+it("routes global creation through settings and publishes inventory invalidation", async () => {
+	const settingsService = new CoreSettingsService();
+	const create = vi
+		.spyOn(settingsService, "createGlobal")
+		.mockResolvedValue({ path: "/global/rules/review.md" });
+	const transport = new HubServerTransport({
+		runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
+		scheduleOptions: { dbPath: ":memory:" },
+		taskOptions: { dbPath: ":memory:", watchFiles: false },
+		settingsService,
+	});
+	const events: unknown[] = [];
+	const unsubscribe = transport.subscribe("creator", (event) => {
+		if (event.event === "settings.changed") events.push(event.payload);
+	});
+	try {
+		const payload = {
+			type: "rule",
+			name: "review",
+			content: "Review carefully.",
+		};
+		const reply = await transport.handleCommand({
+			version: "v1",
+			command: "settings.createGlobal",
+			requestId: "create",
+			clientId: "creator",
+			payload,
+		});
+		expect(create).toHaveBeenCalledWith({ ...payload, description: undefined });
+		expect(reply).toMatchObject({
+			ok: true,
+			payload: { path: "/global/rules/review.md" },
+		});
+		expect(events).toEqual([{ types: ["rules"] }]);
+		create.mockRejectedValueOnce(new Error("already exists"));
+		const failure = await transport.handleCommand({
+			version: "v1",
+			command: "settings.createGlobal",
+			requestId: "duplicate",
+			clientId: "creator",
+			payload,
+		});
+		expect(failure).toMatchObject({
+			ok: false,
+			error: { code: "settings_create_failed", message: "already exists" },
+		});
+		expect(events).toHaveLength(1);
+	} finally {
+		unsubscribe();
+		await transport.stop();
+	}
 });

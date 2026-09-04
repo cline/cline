@@ -94,6 +94,13 @@ export interface CoreSettingsListInput {
 	availabilityContext?: BuiltinToolAvailabilityContext;
 }
 
+export interface CoreSettingsCreateGlobalInput {
+	type: "rule" | "skill" | "hook";
+	name: string;
+	content: string;
+	description?: string;
+}
+
 export interface CoreSettingsToggleInput extends CoreSettingsListInput {
 	type: CoreSettingsType;
 	id?: string;

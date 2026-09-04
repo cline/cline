@@ -590,6 +590,7 @@ export type HubCommandName =
 	| "settings.get"
 	| "settings.patch"
 	| "settings.toggle"
+	| "settings.createGlobal"
 	| "connector.channels"
 	| "connector.configure"
 	| "connector.delete_config"

@@ -36,14 +36,12 @@ describe("config view helpers", () => {
 		expect(isToggleableConfigItem(createItem({ kind: "skill" }))).toBe(true);
 	});
 
-	it("does not treat workflow rows as toggleable", () => {
-		expect(isToggleableConfigItem(createItem({ kind: "workflow" }))).toBe(
-			false,
-		);
+	it("treats workflow rows as toggleable", () => {
+		expect(isToggleableConfigItem(createItem({ kind: "workflow" }))).toBe(true);
 	});
 
-	it("does not treat rule, agent, or hook rows as toggleable", () => {
-		expect(isToggleableConfigItem(createItem({ kind: "rule" }))).toBe(false);
+	it("supports rules while leaving agents and hooks non-toggleable", () => {
+		expect(isToggleableConfigItem(createItem({ kind: "rule" }))).toBe(true);
 		expect(isToggleableConfigItem(createItem({ kind: "agent" }))).toBe(false);
 		expect(isToggleableConfigItem(createItem({ kind: "hook" }))).toBe(false);
 	});

@@ -121,6 +121,8 @@ export function isToggleableInteractiveConfigItem(
 	}
 	return (
 		item.kind === "skill" ||
+		item.kind === "rule" ||
+		item.kind === "workflow" ||
 		item.kind === "plugin" ||
 		item.source === "builtin" ||
 		item.source === "workspace-plugin" ||

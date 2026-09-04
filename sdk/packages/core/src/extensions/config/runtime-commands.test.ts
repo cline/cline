@@ -2,11 +2,11 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { toggleInstructionFrontmatter } from "./instruction-frontmatter-toggle";
 import {
 	listAvailableRuntimeCommandsFromWatcher,
 	resolveRuntimeSlashCommandFromWatcher,
 } from "./runtime-commands";
-import { toggleSkillFrontmatter } from "./skill-frontmatter-toggle";
 import { createUserInstructionConfigWatcher } from "./user-instruction-config-loader";
 
 describe("runtime command registry", () => {
@@ -439,7 +439,10 @@ Review the current branch and summarize findings.
 				"Use the review skill.",
 			);
 
-			await toggleSkillFrontmatter({ filePath: skillPath, enabled: false });
+			await toggleInstructionFrontmatter({
+				filePath: skillPath,
+				enabled: false,
+			});
 			await watcher.refreshType("skill");
 
 			expect(resolveRuntimeSlashCommandFromWatcher("/review", watcher)).toBe(

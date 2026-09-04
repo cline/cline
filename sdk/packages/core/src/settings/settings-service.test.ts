@@ -46,6 +46,40 @@ describe("CoreSettingsService", () => {
 		tempRoots.length = 0;
 	});
 
+	it.each([
+		"rule",
+		"workflow",
+	] as const)("persists %s toggles and keeps disabled items discoverable", async (kind) => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "instruction-settings-"));
+		tempRoots.push(tempRoot);
+		const directory = join(
+			tempRoot,
+			".cline",
+			kind === "rule" ? "rules" : "workflows",
+		);
+		await mkdir(directory, { recursive: true });
+		const path = join(directory, "review.md");
+		await writeFile(
+			path,
+			"---\nname: review\ncustom: preserve\n---\nReview carefully.\n",
+		);
+		const settings = new CoreSettingsService();
+		const type = kind === "rule" ? "rules" : "workflows";
+		const input = { type, path, cwd: tempRoot } as const;
+		const disabled = await settings.toggle({ ...input, enabled: false });
+		expect(disabled.changedTypes).toEqual([type]);
+		expect(
+			disabled.snapshot[type].find((item) => item.path === path),
+		).toMatchObject({ enabled: false, toggleable: true });
+		expect(await readFile(path, "utf8")).toContain("disabled: true");
+		const enabled = await settings.toggle(input);
+		expect(
+			enabled.snapshot[type].find((item) => item.path === path)?.enabled,
+		).toBe(true);
+		expect(await readFile(path, "utf8")).toContain("custom: preserve");
+		expect(await readFile(path, "utf8")).not.toContain("disabled:");
+	});
+
 	it("toggles skill frontmatter and refreshes the skill service before returning a snapshot", async () => {
 		const tempRoot = await mkdtemp(join(tmpdir(), "core-settings-"));
 		tempRoots.push(tempRoot);

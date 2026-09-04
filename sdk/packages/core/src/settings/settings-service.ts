@@ -19,7 +19,7 @@ import {
 	type UserInstructionConfigService,
 	type WorkflowConfig,
 } from "../extensions/config";
-import { toggleSkillFrontmatter } from "../extensions/config/skill-frontmatter-toggle";
+import { toggleInstructionFrontmatter } from "../extensions/config/instruction-frontmatter-toggle";
 import {
 	hasMcpSettingsFile,
 	resolveDefaultMcpSettingsPath,
@@ -41,8 +41,10 @@ import {
 	toggleDisabledTool,
 } from "../services/global-settings";
 import { listPluginToolsWithDiagnostics } from "../services/plugin-tools";
+import { createGlobalCustomization } from "./create-global-customization";
 import type {
 	CorePluginSettingsSource,
+	CoreSettingsCreateGlobalInput,
 	CoreSettingsItem,
 	CoreSettingsListInput,
 	CoreSettingsMutationResult,
@@ -432,14 +434,17 @@ async function withUserInstructionService<T>(
 	}
 }
 
-function findSkillRecord(
+function findInstructionRecord(
 	service: UserInstructionConfigService | undefined,
 	input: CoreSettingsToggleInput,
+	type: "skill" | "rule" | "workflow",
 ) {
 	if (!service) {
 		return undefined;
 	}
-	const records = service.listRecords<SkillConfig>("skill");
+	const records = service.listRecords<
+		SkillConfig | RuleConfig | WorkflowConfig
+	>(type);
 	if (input.id) {
 		const match = records.find((record) => record.id === input.id);
 		if (match) {
@@ -522,7 +527,7 @@ export class CoreSettingsService {
 						kind: "workflow",
 						source: detectSource(record.filePath, workspaceRoot),
 						description: workflow.instructions,
-						toggleable: false,
+						toggleable: true,
 					});
 				}
 				for (const record of service.listRecords<RuleConfig>("rule")) {
@@ -535,7 +540,7 @@ export class CoreSettingsService {
 						kind: "rule",
 						source: detectSource(record.filePath, workspaceRoot),
 						description: rule.instructions,
-						toggleable: false,
+						toggleable: true,
 					});
 				}
 				for (const record of service.listRecords<SkillConfig>("skill")) {
@@ -660,13 +665,33 @@ export class CoreSettingsService {
 		});
 	}
 
+	async createGlobal(
+		input: CoreSettingsCreateGlobalInput,
+	): Promise<{ path: string }> {
+		return await createGlobalCustomization(input);
+	}
+
 	async toggle(
 		input: CoreSettingsToggleInput,
 	): Promise<CoreSettingsMutationResult> {
-		if (input.type === "skills") {
+		if (
+			input.type === "skills" ||
+			input.type === "rules" ||
+			input.type === "workflows"
+		) {
+			const type =
+				input.type === "skills"
+					? "skill"
+					: input.type === "rules"
+						? "rule"
+						: "workflow";
 			return await withUserInstructionService(input, async (service) => {
-				const record = findSkillRecord(service, input);
-				if (record?.item.source?.type === "agent-plugin") {
+				const record = findInstructionRecord(service, input, type);
+				if (
+					record &&
+					"source" in record.item &&
+					record.item.source?.type === "agent-plugin"
+				) {
 					// Agent Plugin skills are only toggleable as part of their
 					// plugin (`type: "plugins"`). Writing `disabled` into the
 					// skill's frontmatter would corrupt it: the strict Agent
@@ -679,7 +704,7 @@ export class CoreSettingsService {
 				const filePath = record?.filePath;
 				if (!filePath) {
 					throw new Error(
-						`Unable to resolve skill setting '${input.id ?? input.name ?? basename(input.path ?? "")}'.`,
+						`Unable to resolve ${type} setting '${input.id ?? input.name ?? basename(input.path ?? "")}'.`,
 					);
 				}
 				const currentEnabled =
@@ -691,17 +716,17 @@ export class CoreSettingsService {
 					(currentEnabled !== undefined ? !currentEnabled : undefined);
 				if (enabled === undefined) {
 					throw new Error(
-						`Cannot determine toggle state for skill '${input.id ?? input.name ?? basename(input.path ?? "")}'; provide an explicit enabled value or a resolvable workspace context.`,
+						`Cannot determine toggle state for ${type} '${input.id ?? input.name ?? basename(input.path ?? "")}'; provide an explicit enabled value or a resolvable workspace context.`,
 					);
 				}
-				await toggleSkillFrontmatter({ filePath, enabled });
-				await service?.refreshType("skill");
+				await toggleInstructionFrontmatter({ filePath, enabled });
+				await service?.refreshType(type);
 				return {
 					snapshot: await this.list({
 						...input,
 						userInstructionService: service,
 					}),
-					changedTypes: ["skills"],
+					changedTypes: [input.type],
 				};
 			});
 		}

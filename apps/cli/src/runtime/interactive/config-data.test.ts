@@ -1187,25 +1187,41 @@ Review with the bundled skill.`,
 		expect(docs?.loadError).toBeUndefined();
 	});
 
-	it("does not toggle workflow items", async () => {
+	it.each([
+		"rule",
+		"workflow",
+	] as const)("toggles %s items through shared settings", async (kind) => {
 		const tempRoot = await mkdtemp(join(tmpdir(), "cli-config-data-"));
 		tempRoots.push(tempRoot);
-		const workflowPath = join(tempRoot, "workflow.md");
-		await writeFile(workflowPath, "Run this workflow.");
+		const directory = join(
+			tempRoot,
+			".cline",
+			kind === "rule" ? "rules" : "workflows",
+		);
+		await mkdir(directory, { recursive: true });
+		const path = join(directory, "review.md");
+		await writeFile(path, "Review carefully.");
 		const loader = createInteractiveConfigDataLoader({
 			config: createConfig(tempRoot),
 		});
-		const item: InteractiveConfigItem = {
-			id: "workflow-one",
-			name: "workflow-one",
-			path: workflowPath,
+		await loader.onToggleConfigItem({
+			id: path,
+			name: "review",
+			path,
 			enabled: true,
 			source: "workspace",
-			kind: "workflow",
-		};
-
-		await expect(loader.onToggleConfigItem(item)).resolves.toBeUndefined();
-		expect(await readFile(workflowPath, "utf8")).toBe("Run this workflow.");
+			kind,
+		});
+		expect(await readFile(path, "utf8")).toContain("disabled: true");
+		await loader.onToggleConfigItem({
+			id: path,
+			name: "review",
+			path,
+			enabled: false,
+			source: "workspace",
+			kind,
+		});
+		expect(await readFile(path, "utf8")).toBe("Review carefully.");
 	});
 
 	it("returns undefined for non-toggleable items", async () => {
