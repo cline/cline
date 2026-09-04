@@ -5,7 +5,11 @@ import {
 } from "@cline/shared";
 import type { AuthSettings } from "../../services/llms/provider-settings";
 import { ProviderSettingsManager } from "../../services/storage/provider-settings-manager";
-import { identifyAccount } from "../../services/telemetry/core-events";
+import {
+	clearAccountTelemetryIdentity,
+	identifyAccount,
+} from "../../services/telemetry/core-events";
+import { resolveCoreDistinctId } from "../../services/telemetry/distinct-id";
 import { createConfiguredTelemetryHandle } from "../../services/telemetry/OpenTelemetryProvider";
 import { CORE_BUILD_VERSION } from "../../version";
 
@@ -50,21 +54,31 @@ export function createHubDaemonTelemetry(): HubDaemonTelemetry {
 	// migration and provider registration side effects, while
 	// getProviderSettings re-reads the file on every call anyway.
 	let settingsManager: ProviderSettingsManager | undefined;
-	const resolveCachedClineAuth = (): AuthSettings | undefined => {
+	const resolveCachedClineAuth = (): AuthSettings | null | undefined => {
 		try {
 			settingsManager ??= new ProviderSettingsManager();
 			return settingsManager.getProviderSettings("cline")?.auth;
 		} catch {
 			// Telemetry identity must never interfere with daemon operation.
-			return undefined;
+			return null;
 		}
 	};
 
 	let identifiedKey: string | undefined;
 	const refreshIdentity = (): void => {
 		const auth = resolveCachedClineAuth();
+		if (auth === null) {
+			return;
+		}
 		const accountId = auth?.accountId?.trim();
 		if (!auth || !accountId) {
+			if (identifiedKey !== undefined) {
+				identifiedKey = undefined;
+				clearAccountTelemetryIdentity(
+					handle.telemetry,
+					resolveCoreDistinctId(),
+				);
+			}
 			return;
 		}
 		// Re-identify on account OR active-organization change so a long-lived

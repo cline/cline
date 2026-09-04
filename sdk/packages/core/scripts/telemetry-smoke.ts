@@ -20,6 +20,7 @@ import {
 	captureTaskCompleted,
 	captureTaskCreated,
 	captureTaskRestarted,
+	captureTokenUsage,
 	captureWorkspaceInitError,
 	captureWorkspaceInitialized,
 	captureWorkspacePathResolved,
@@ -242,7 +243,8 @@ async function main() {
 		const t = new CapturingTelemetry();
 		captureTaskCreated(asITelemetryService(t), {
 			ulid: "ulid-smoke-task-1",
-			apiProvider: "anthropic",
+			provider: "anthropic",
+			model: "claude-sonnet-4-5",
 		});
 		dumpEvents(t.events);
 		const created = t.events.filter((e) => e.name === "task.created");
@@ -257,7 +259,8 @@ async function main() {
 		const t = new CapturingTelemetry();
 		captureTaskRestarted(asITelemetryService(t), {
 			ulid: "ulid-smoke-task-1",
-			apiProvider: "anthropic",
+			provider: "anthropic",
+			model: "claude-sonnet-4-5",
 		});
 		dumpEvents(t.events);
 		const restarted = t.events.filter((e) => e.name === "task.restarted");
@@ -314,6 +317,36 @@ async function main() {
 		);
 	}
 
+	header("task.tokens (per-request token and cost dimensions)");
+	{
+		const t = new CapturingTelemetry();
+		captureTokenUsage(asITelemetryService(t), {
+			ulid: "ulid-smoke-task-1",
+			provider: "anthropic",
+			model: "claude-sonnet-4-5",
+			tokensIn: 125,
+			tokensOut: 50,
+			cacheReadTokens: 75,
+			cacheWriteTokens: 25,
+			totalCost: 0.0125,
+		});
+		dumpEvents(t.events);
+		const tokenEvents = t.events.filter(
+			(event) => event.name === "task.tokens",
+		);
+		assertSmoke("task.tokens count", tokenEvents.length, 1);
+		assertSmoke(
+			"task.tokens carries cacheReadTokens",
+			tokenEvents[0]?.properties?.cacheReadTokens === 75,
+			true,
+		);
+		assertSmoke(
+			"task.tokens carries totalCost",
+			tokenEvents[0]?.properties?.totalCost === 0.0125,
+			true,
+		);
+	}
+
 	header(
 		"task.completed source=submit_and_exit (assistant declared completion)",
 	);
@@ -322,7 +355,7 @@ async function main() {
 		captureTaskCompleted(asITelemetryService(t), {
 			ulid: "ulid-smoke-task-1",
 			provider: "anthropic",
-			modelId: "claude-sonnet-4-5",
+			model: "claude-sonnet-4-5",
 			mode: "act",
 			durationMs: 12_345,
 			source: "submit_and_exit",
@@ -351,7 +384,7 @@ async function main() {
 		captureTaskCompleted(asITelemetryService(t), {
 			ulid: "ulid-smoke-task-2",
 			provider: "anthropic",
-			modelId: "claude-sonnet-4-5",
+			model: "claude-sonnet-4-5",
 			mode: "act",
 			durationMs: 9_876,
 			source: "shutdown",
@@ -381,7 +414,8 @@ async function main() {
 		const ulid = "ulid-smoke-task-lifecycle";
 		captureTaskCreated(tSvc, {
 			ulid,
-			apiProvider: "anthropic",
+			provider: "anthropic",
+			model: "claude-sonnet-4-5",
 		});
 		captureConversationTurnEvent(tSvc, {
 			ulid,
@@ -400,7 +434,7 @@ async function main() {
 		captureTaskCompleted(tSvc, {
 			ulid,
 			provider: "anthropic",
-			modelId: "claude-sonnet-4-5",
+			model: "claude-sonnet-4-5",
 			mode: "act",
 			durationMs: 4_242,
 			source: "submit_and_exit",

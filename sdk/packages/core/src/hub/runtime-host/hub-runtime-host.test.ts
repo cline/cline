@@ -106,7 +106,18 @@ describe("HubRuntimeHost", () => {
 			source: SessionSource.CLI,
 			localRuntime: {
 				extensionContext: {
-					client: { name: "cline-cli", version: "3.0.38" },
+					client: {
+						name: "cline-cli",
+						version: "3.0.38",
+						platform: "cli",
+						platformVersion: "3.0.38",
+						isMultiRoot: false,
+					},
+					user: {
+						distinctId: "account-1",
+						accountId: "account-1",
+						organizationId: "org-1",
+					},
 				},
 			},
 			prompt: "Hey",
@@ -155,7 +166,20 @@ describe("HubRuntimeHost", () => {
 					version: "3.0.38",
 				},
 			}),
-			runtimeOptions: {},
+			runtimeOptions: {
+				clientContext: {
+					name: "cline-cli",
+					version: "3.0.38",
+					platform: "cli",
+					platformVersion: "3.0.38",
+					isMultiRoot: false,
+				},
+				userContext: {
+					distinctId: "account-1",
+					accountId: "account-1",
+					organizationId: "org-1",
+				},
+			},
 			toolPolicies: undefined,
 			initialMessages: undefined,
 		});
