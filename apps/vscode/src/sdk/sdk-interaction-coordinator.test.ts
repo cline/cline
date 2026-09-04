@@ -1,5 +1,7 @@
 import type { AgentEvent } from "@cline/shared"
+import type { ClineSayAutoRecovery, TurnPhase } from "@shared/ExtensionMessage"
 import { describe, expect, it, vi } from "vitest"
+import { MessageIdMinter } from "./message-id-minter"
 import { MessageTranslatorState, translateSessionEvent } from "./message-translator"
 import { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
 import { SdkMessageCoordinator } from "./sdk-message-coordinator"
@@ -358,7 +360,204 @@ describe("SdkInteractionCoordinator", () => {
 		])
 	})
 
-	it("shows an error row and stops immediately when the mistake limit is reached", async () => {
+	it("continues with a re-injected error log on the first six mistake-limit hits", async () => {
+		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		const messages = new SdkMessageCoordinator({ getTask: () => task })
+		const sleep = vi.fn().mockResolvedValue(undefined)
+		// Shared id authority (production wiring): minted ids must not collide
+		// with the seeded row's id, or the handler's row would merge with it.
+		const minter = new MessageIdMinter()
+		const coordinator = new SdkInteractionCoordinator({
+			messages,
+			getSessionId: () => "session-123",
+			postStateToWebview: vi.fn().mockResolvedValue(undefined),
+			getMinter: () => minter,
+			sleep,
+			isSessionActive: () => true,
+		})
+		// Seed a real error row so the consolidated report has content.
+		messages.appendAndEmit(
+			[{ ts: minter.nextId(), type: "say", say: "error", text: "Error: Executing command failed: boom", partial: false }],
+			{ type: "status", payload: { sessionId: "session-123", status: "running" } },
+		)
+
+		for (let attempt = 1; attempt <= 6; attempt += 1) {
+			const decision = await coordinator.handleConsecutiveMistakeLimitReached({
+				iteration: attempt,
+				consecutiveMistakes: 6,
+				maxConsecutiveMistakes: 6,
+				reason: "tool_execution_failed",
+				details: "bad arguments",
+			})
+			expect(decision.action).toBe("continue")
+			if (decision.action === "continue") {
+				expect(decision.guidance).toContain("[mistake_limit_reached]")
+				expect(decision.guidance).toContain("Error: Executing command failed: boom")
+				expect(decision.guidance).toContain("Do NOT repeat the same tool call")
+			}
+		}
+
+		// Fibonacci pacing: 3, 5, 8, 13, 21, 34 seconds.
+		expect(sleep.mock.calls.map(([ms]) => ms)).toEqual([3000, 5000, 8000, 13000, 21000, 34000])
+
+		// ONE updatable countdown marker: every attempt re-emits the SAME row (same
+		// ts, merged in place) instead of appending a new error row each time.
+		const rows = task.messageStateHandler.getClineMessages()
+		const recoveryRows = rows.filter((m) => m.type === "say" && m.say === "auto_recovery")
+		expect(recoveryRows).toHaveLength(1)
+		const payload = JSON.parse(recoveryRows[0]!.text as string) as ClineSayAutoRecovery
+		expect(payload.kind).toBe("mistake")
+		expect(payload.delaySeconds).toBe(34) // last backoff scheduled (Fibonacci #6)
+		expect(payload.status).toBe("retrying") // last countdown ended; the retry is going out
+		expect(payload.retryAt).toBeUndefined()
+		// The seeded error row is untouched — recovery notices never render as say:"error".
+		const errorRows = rows.filter((m) => m.type === "say" && m.say === "error")
+		expect(errorRows).toHaveLength(1)
+		expect(rows.some((m) => m.type === "ask")).toBe(false)
+	})
+
+	it("stops with a resume affordance and a persisted notice after six failed recoveries", async () => {
+		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		const setTurnPhase = vi.fn()
+		const recordPersistedTaskNotice = vi.fn()
+		const coordinator = new SdkInteractionCoordinator({
+			messages: new SdkMessageCoordinator({ getTask: () => task }),
+			getSessionId: () => "session-123",
+			postStateToWebview: vi.fn().mockResolvedValue(undefined),
+			setTurnPhase,
+			sleep: vi.fn().mockResolvedValue(undefined),
+			isSessionActive: () => true,
+			recordPersistedTaskNotice,
+		})
+
+		for (let i = 0; i < 6; i += 1) {
+			await coordinator.handleConsecutiveMistakeLimitReached({
+				iteration: i + 1,
+				consecutiveMistakes: 6,
+				maxConsecutiveMistakes: 6,
+				reason: "tool_execution_failed",
+			})
+		}
+
+		// No details: the summary falls back to the iteration.
+		const decision = await coordinator.handleConsecutiveMistakeLimitReached({
+			iteration: 42,
+			consecutiveMistakes: 6,
+			maxConsecutiveMistakes: 6,
+			reason: "tool_execution_failed",
+		})
+		expect(decision).toEqual({
+			action: "stop",
+			reason: "mistake_limit_reached: tool_execution_failed at iteration 42",
+		})
+
+		const rows = task.messageStateHandler.getClineMessages()
+		// The single countdown marker settled — the gave-up details live in the
+		// persisted task notice and the resume affordance, not the marker payload.
+		const recoveryRows = rows.filter((m) => m.type === "say" && m.say === "auto_recovery")
+		expect(recoveryRows).toHaveLength(1)
+		const finalPayload = JSON.parse(recoveryRows.at(-1)!.text as string) as ClineSayAutoRecovery
+		expect(finalPayload.status).toBe("settled")
+
+		const askRows = rows.filter((m) => m.type === "ask")
+		expect(askRows).toHaveLength(1)
+		expect(askRows[0]?.ask).toBe("resume_task")
+		expect(setTurnPhase).toHaveBeenCalledWith("resumable", askRows[0]?.ts)
+		expect(recordPersistedTaskNotice).toHaveBeenCalledWith(
+			"session-123",
+			expect.objectContaining({ text: expect.stringContaining("gave up after 6 attempts") }),
+		)
+	})
+
+	it("stops when the session ends during the recovery backoff", async () => {
+		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		const coordinator = new SdkInteractionCoordinator({
+			messages: new SdkMessageCoordinator({ getTask: () => task }),
+			getSessionId: () => "session-123",
+			postStateToWebview: vi.fn().mockResolvedValue(undefined),
+			sleep: vi.fn().mockResolvedValue(undefined),
+			isSessionActive: () => false,
+		})
+
+		await expect(
+			coordinator.handleConsecutiveMistakeLimitReached({
+				iteration: 1,
+				consecutiveMistakes: 6,
+				maxConsecutiveMistakes: 6,
+				reason: "tool_execution_failed",
+				details: "boom",
+			}),
+		).resolves.toEqual({
+			action: "stop",
+			reason: "mistake_limit_reached: session ended during recovery backoff (tool_execution_failed: boom)",
+		})
+
+		// The countdown marker settled — no stale ring left behind.
+		const recoveryRows = task.messageStateHandler
+			.getClineMessages()
+			.filter((m) => m.type === "say" && m.say === "auto_recovery")
+		expect(recoveryRows).toHaveLength(1)
+		const payload = JSON.parse(recoveryRows[0]!.text as string) as ClineSayAutoRecovery
+		expect(payload.status).toBe("settled")
+	})
+
+	it("holds the retrying phase during the backoff and returns to streaming afterwards", async () => {
+		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		const setTurnPhase = vi.fn()
+		let phase: TurnPhase = "streaming"
+		const getTurnPhase = vi.fn((): TurnPhase => phase)
+		setTurnPhase.mockImplementation((next: TurnPhase) => {
+			phase = next
+		})
+		const coordinator = new SdkInteractionCoordinator({
+			messages: new SdkMessageCoordinator({ getTask: () => task }),
+			getSessionId: () => "session-123",
+			postStateToWebview: vi.fn().mockResolvedValue(undefined),
+			setTurnPhase,
+			getTurnPhase,
+			sleep: vi.fn().mockResolvedValue(undefined),
+			isSessionActive: () => true,
+		})
+
+		const decision = await coordinator.handleConsecutiveMistakeLimitReached({
+			iteration: 1,
+			consecutiveMistakes: 6,
+			maxConsecutiveMistakes: 6,
+			reason: "tool_execution_failed",
+		})
+		expect(decision.action).toBe("continue")
+		// The countdown held the "retrying" phase (stable Cancel, no streaming
+		// indicator), then handed the UI back to "streaming" once it ended.
+		expect(setTurnPhase).toHaveBeenCalledWith("retrying", expect.any(Number))
+		expect(setTurnPhase).toHaveBeenLastCalledWith("streaming")
+	})
+
+	it("keeps a terminal phase that landed while the backoff slept", async () => {
+		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		const setTurnPhase = vi.fn()
+		// The run completed mid-countdown: the phase is no longer ours to change.
+		const getTurnPhase = vi.fn((): TurnPhase => "completed")
+		const coordinator = new SdkInteractionCoordinator({
+			messages: new SdkMessageCoordinator({ getTask: () => task }),
+			getSessionId: () => "session-123",
+			postStateToWebview: vi.fn().mockResolvedValue(undefined),
+			setTurnPhase,
+			getTurnPhase,
+			sleep: vi.fn().mockResolvedValue(undefined),
+			isSessionActive: () => true,
+		})
+
+		await coordinator.handleConsecutiveMistakeLimitReached({
+			iteration: 1,
+			consecutiveMistakes: 6,
+			maxConsecutiveMistakes: 6,
+			reason: "tool_execution_failed",
+		})
+		expect(setTurnPhase).toHaveBeenCalledWith("retrying", expect.any(Number))
+		expect(setTurnPhase).not.toHaveBeenCalledWith("streaming")
+	})
+
+	it("shares one countdown row across API retry attempts and settles it when stopped", () => {
 		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
 		const setTurnPhase = vi.fn()
 		const coordinator = new SdkInteractionCoordinator({
@@ -368,53 +567,85 @@ describe("SdkInteractionCoordinator", () => {
 			setTurnPhase,
 		})
 
-		// CLI parity: the decision resolves right away as a stop — no pending
-		// prompt that would leave the agent loop running against the provider.
-		await expect(
-			coordinator.handleConsecutiveMistakeLimitReached({
-				iteration: 4,
-				consecutiveMistakes: 3,
-				maxConsecutiveMistakes: 3,
-				reason: "tool_execution_failed",
-				details: "bad arguments",
-			}),
-		).resolves.toEqual({
-			action: "stop",
-			reason: "mistake_limit_reached: tool_execution_failed: bad arguments",
-		})
+		expect(coordinator.isAutoRecoveryActive("api")).toBe(false)
 
-		expect(task.messageStateHandler.getClineMessages()).toMatchObject([
-			{
-				type: "say",
-				say: "error",
-				partial: false,
-			},
-		])
-		const errorText = task.messageStateHandler.getClineMessages()[0].text ?? ""
-		expect(errorText).toContain("3 errors in a row")
-		expect(errorText).toContain("tool_execution_failed: bad arguments")
-		expect(errorText).toContain("Send a message to give Cline guidance")
+		coordinator.beginAutoRecoveryCountdown({
+			kind: "api",
+			delaySeconds: 3,
+		})
+		expect(coordinator.isAutoRecoveryActive("api")).toBe(true)
+		expect(coordinator.isAutoRecoveryActive("mistake")).toBe(false)
+		expect(setTurnPhase).toHaveBeenCalledWith("retrying", expect.any(Number))
+
+		// Second attempt of the same streak: the SAME row (same ts) is updated.
+		const firstTs = task.messageStateHandler.getClineMessages().find((m) => m.say === "auto_recovery")?.ts
+		coordinator.beginAutoRecoveryCountdown({
+			kind: "api",
+			delaySeconds: 5,
+		})
+		const recoveryRows = task.messageStateHandler
+			.getClineMessages()
+			.filter((m) => m.type === "say" && m.say === "auto_recovery")
+		expect(recoveryRows).toHaveLength(1)
+		expect(recoveryRows[0]!.ts).toBe(firstTs)
+		let payload = JSON.parse(recoveryRows[0]!.text as string) as ClineSayAutoRecovery
+		expect(payload.kind).toBe("api")
+		expect(payload.delaySeconds).toBe(5)
+		expect(payload.status).toBe("countdown")
+		expect(payload.retryAt).toBeGreaterThan(Date.now())
+
+		coordinator.markAutoRecoveryRetrying()
+		payload = JSON.parse(
+			task.messageStateHandler.getClineMessages().find((m) => m.say === "auto_recovery")!.text as string,
+		) as ClineSayAutoRecovery
+		expect(payload.status).toBe("retrying")
+		expect(payload.retryAt).toBeUndefined()
+
+		// Settling retires the streak: no row is active anymore.
+		coordinator.settleAutoRecovery()
+		expect(coordinator.isAutoRecoveryActive("api")).toBe(false)
+		payload = JSON.parse(
+			task.messageStateHandler.getClineMessages().find((m) => m.say === "auto_recovery")!.text as string,
+		) as ClineSayAutoRecovery
+		expect(payload.status).toBe("settled")
 	})
 
-	it("summarizes the mistake limit without details using the iteration", async () => {
+	it("resets the recovery streak after a completed turn", async () => {
 		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		const sleep = vi.fn().mockResolvedValue(undefined)
 		const coordinator = new SdkInteractionCoordinator({
 			messages: new SdkMessageCoordinator({ getTask: () => task }),
 			getSessionId: () => "session-123",
 			postStateToWebview: vi.fn().mockResolvedValue(undefined),
+			sleep,
+			isSessionActive: () => true,
 		})
+		const context = {
+			consecutiveMistakes: 6,
+			maxConsecutiveMistakes: 6,
+			reason: "tool_execution_failed" as const,
+		}
 
-		await expect(
-			coordinator.handleConsecutiveMistakeLimitReached({
-				iteration: 4,
-				consecutiveMistakes: 3,
-				maxConsecutiveMistakes: 3,
-				reason: "tool_execution_failed",
-			}),
-		).resolves.toEqual({
-			action: "stop",
-			reason: "mistake_limit_reached: tool_execution_failed at iteration 4",
-		})
+		await coordinator.handleConsecutiveMistakeLimitReached({ ...context, iteration: 1 })
+		await coordinator.handleConsecutiveMistakeLimitReached({ ...context, iteration: 2 })
+		expect(sleep).toHaveBeenCalledTimes(2)
+
+		// A productive turn (see SdkController.handleTurnSettled) breaks the streak.
+		coordinator.resetMistakeEscalation()
+		await coordinator.handleConsecutiveMistakeLimitReached({ ...context, iteration: 3 })
+		expect(sleep).toHaveBeenCalledTimes(3)
+		// The streak restarted at attempt 1 (3s delay), not attempt 3 (8s).
+		expect(sleep.mock.calls[2]?.[0]).toBe(3000)
+		const recoveryRows = task.messageStateHandler
+			.getClineMessages()
+			.filter((m) => m.type === "say" && m.say === "auto_recovery")
+		// First streak's marker settled; the new streak minted a fresh marker row.
+		expect(recoveryRows).toHaveLength(2)
+		const firstPayload = JSON.parse(recoveryRows[0]!.text as string) as ClineSayAutoRecovery
+		const secondPayload = JSON.parse(recoveryRows[1]!.text as string) as ClineSayAutoRecovery
+		expect(firstPayload.status).toBe("settled")
+		expect(secondPayload.status).toBe("retrying")
+		expect(recoveryRows[1]!.ts).not.toBe(recoveryRows[0]!.ts)
 	})
 
 	it("clears pending tool approvals as rejected", async () => {

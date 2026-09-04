@@ -117,6 +117,7 @@ message Settings {
   reserved 139; // was max_consecutive_mistakes (removed; the SDK owns the mistake limit)
   reserved "max_consecutive_mistakes";
   reserved 142; // was yolo_mode_toggled (removed; migrated into auto_approval_settings)
+  reserved 187, 188;
   optional string lite_llm_base_url = 1;
   optional bool lite_llm_use_prompt_cache = 2;
   optional string anthropic_base_url = 4;
@@ -429,6 +430,8 @@ message UpdateSettingsRequest {
   optional bool show_feature_tips = 42;
   optional string compaction_strategy = 44;
   optional bool web_search_enabled = 45;
+  // Was auto_retry_failed_requests / auto_retry_indefinitely — auto-retry is always on; the toggles were removed.
+  reserved 46, 47;
 }
 
 message UpdateTerminalConnectionTimeoutRequest {

@@ -54,6 +54,32 @@ export class SdkMessageCoordinator {
 		}
 	}
 
+	/**
+	 * Recent distinct error texts from the current task's UI messages, oldest
+	 * first, for the mistake-limit recovery report. Consecutive duplicates are
+	 * collapsed and each entry is trimmed to `maxPerError` characters (head and
+	 * tail kept) so one long streaming error can't flood the report. `exclude`
+	 * filters meta rows (e.g. the recovery notices themselves) out of the log.
+	 */
+	getRecentErrorTexts(limit = 8, maxPerError = 600, exclude?: (text: string) => boolean): string[] {
+		const messages = this.options.getTask()?.messageStateHandler.getClineMessages() ?? []
+		const texts: string[] = []
+		for (let i = messages.length - 1; i >= 0 && texts.length < limit; i -= 1) {
+			const message = messages[i]
+			const text = message.type === "say" && message.say === "error" ? message.text?.trim() : undefined
+			if (!text || (texts.length > 0 && texts[0] === text) || exclude?.(text)) {
+				continue
+			}
+			texts.unshift(text)
+		}
+		const half = Math.floor(maxPerError / 2)
+		return texts.map((text) =>
+			text.length > maxPerError
+				? `${text.slice(0, half)}\n…[truncated ${text.length - maxPerError} characters]…\n${text.slice(text.length - half)}`
+				: text,
+		)
+	}
+
 	onSessionEvent(listener: SessionEventListener): () => void {
 		this.sessionEventListeners.add(listener)
 		return () => {

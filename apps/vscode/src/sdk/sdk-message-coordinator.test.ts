@@ -121,4 +121,31 @@ describe("SdkMessageCoordinator", () => {
 		expect(m.seq).toBeUndefined()
 		expect(m.epoch).toBeUndefined()
 	})
+
+	it("getRecentErrorTexts returns deduped, trimmed error texts oldest-first", () => {
+		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		const coordinator = new SdkMessageCoordinator({ getTask: () => task })
+		const long = "x".repeat(1000)
+		coordinator.appendMessages([
+			{ ts: 1, type: "say", say: "text", text: "not an error", partial: false },
+			{ ts: 2, type: "say", say: "error", text: "first failure", partial: false },
+			// Consecutive duplicate collapses.
+			{ ts: 3, type: "say", say: "error", text: "first failure", partial: false },
+			{ ts: 4, type: "say", say: "error", text: long, partial: false },
+			{ ts: 5, type: "say", say: "error", text: "latest failure", partial: false },
+		])
+
+		const texts = coordinator.getRecentErrorTexts(8, 100)
+		expect(texts).toEqual(["first failure", expect.stringContaining("[truncated"), "latest failure"])
+		// Head and tail are kept around the truncation marker.
+		expect(texts[1]?.startsWith("x")).toBe(true)
+		expect(texts[1]?.endsWith("x")).toBe(true)
+		expect(texts[1]?.length ?? 0).toBeLessThan(200)
+
+		// exclude filters meta rows out of the report.
+		expect(coordinator.getRecentErrorTexts(8, 100, (t) => t.startsWith("first"))).toEqual([
+			expect.stringContaining("[truncated"),
+			"latest failure",
+		])
+	})
 })

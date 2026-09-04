@@ -6,7 +6,7 @@ import type {
 	RestoreResult,
 	StartSessionResult,
 } from "@cline/core"
-import { formatModeSwitchNotice, type ModeSwitchNotice } from "@cline/shared"
+import { formatModeSwitchNotice, type ModeSwitchNotice, type ProviderErrorClass } from "@cline/shared"
 import { StateManager } from "@/core/storage/StateManager"
 import type { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
 import { McpHub } from "@/services/mcp/McpHub"
@@ -22,6 +22,30 @@ type AskQuestionHandler = NonNullable<Parameters<typeof VscodeSessionHost.create
 type EditorExecutorHandler = NonNullable<Parameters<typeof VscodeSessionHost.create>[0]["editorExecutor"]>
 type ApplyPatchExecutorHandler = NonNullable<Parameters<typeof VscodeSessionHost.create>[0]["applyPatchExecutor"]>
 type ReadFileExecutorHandler = NonNullable<Parameters<typeof VscodeSessionHost.create>[0]["readFileExecutor"]>
+
+/**
+ * The single terminal outcome of an agent turn, reported exactly once per
+ * turn-driving send after the session is idle. Failures arrive over two
+ * channels — a terminal error event and (sometimes) a rejected send promise —
+ * and a recorded event failure wins over the send's own settlement. Retry
+ * policy is applied at this boundary.
+ */
+export type SdkTurnOutcome =
+	| { status: "completed" }
+	| {
+			status: "failed"
+			error: unknown
+			/** Typed provider classification from the SDK, when known. */
+			errorClass?: ProviderErrorClass
+			/** Which failure channel produced this outcome. */
+			source: "agent_event" | "send_rejection"
+	  }
+
+/** Terminal failure recorded for an in-flight turn, not yet reported. */
+interface PendingTurnFailure {
+	error: unknown
+	errorClass?: ProviderErrorClass
+}
 
 export interface SdkSessionLifecycleOptions {
 	mcpHub: McpHub
@@ -45,8 +69,8 @@ export interface SdkSessionLifecycleOptions {
 	/** Shared SDK telemetry service owned by SdkController. */
 	telemetry?: ITelemetryService
 	onSendStart?: (sessionId: string) => void
-	onSendComplete: (sessionId: string) => Promise<void> | void
-	onSendError: (error: unknown, sessionId: string) => Promise<void> | void
+	/** Delivered exactly once per turn-driving send, after the session is idle. */
+	onTurnSettled: (sessionId: string, outcome: SdkTurnOutcome) => Promise<void> | void
 	/**
 	 * Returns (and clears) a pending user-initiated plan/act switch recorded by
 	 * SdkModeCoordinator for this session, so fireAndForgetSend — the single
@@ -71,6 +95,14 @@ export class SdkSessionLifecycle {
 	 * sequencing the CLI uses.
 	 */
 	private readonly pendingStops = new Map<string, Promise<void>>()
+
+	/**
+	 * The in-flight turn-driving send, tokened so superseded sends cannot
+	 * consume each other's recorded terminal failures.
+	 */
+	private inFlightTurnSend: { token: number; sessionId: string; session: ActiveSession } | undefined
+	private nextTurnSendToken = 1
+	private pendingTurnFailure: PendingTurnFailure | undefined
 
 	constructor(private readonly options: SdkSessionLifecycleOptions) {}
 
@@ -284,7 +316,42 @@ export class SdkSessionLifecycle {
 		if (this.sharedHostUnsubscribe) {
 			return
 		}
-		this.sharedHostUnsubscribe = this.createSafeUnsubscribe(sdkHost.subscribe(this.options.onSessionEvent), "shared-host")
+		this.sharedHostUnsubscribe = this.createSafeUnsubscribe(
+			sdkHost.subscribe((event) => {
+				this.noteTerminalErrorEvent(event)
+				this.options.onSessionEvent(event)
+			}),
+			"shared-host",
+		)
+	}
+
+	/**
+	 * Record the terminal error of the in-flight turn. `run-failed` fires
+	 * before the send promise settles and the event bus dispatches
+	 * synchronously, so this record is authoritative at settle time.
+	 */
+	private noteTerminalErrorEvent(event: CoreSessionEvent): void {
+		const inFlight = this.inFlightTurnSend
+		if (!inFlight || event.type !== "agent_event") {
+			return
+		}
+		const agentEvent = event.payload.event
+		if (event.payload.sessionId !== inFlight.sessionId || this.activeSession !== inFlight.session) {
+			return
+		}
+		if (agentEvent.type !== "error" || agentEvent.recoverable) {
+			return
+		}
+		this.pendingTurnFailure = {
+			error: agentEvent.error,
+			...(agentEvent.errorClass ? { errorClass: agentEvent.errorClass } : {}),
+		}
+	}
+
+	private clearInFlightTurnSend(token: number): void {
+		if (this.inFlightTurnSend?.token === token) {
+			this.inFlightTurnSend = undefined
+		}
 	}
 
 	/**
@@ -391,6 +458,13 @@ export class SdkSessionLifecycle {
 		const notice = this.options.consumeModeSwitchNotice?.(sessionId)
 		const noticedPrompt = notice ? `${formatModeSwitchNotice(notice.from, notice.to)}\n${prompt}` : prompt
 		this.options.onSendStart?.(sessionId)
+		// Only turn-driving sends are tracked; queue/steer deliveries settle on enqueue.
+		const isTurnDriving = delivery !== "queue" && delivery !== "steer"
+		const turnSendToken = this.nextTurnSendToken++
+		if (isTurnDriving && sessionAtSend && this.activeSession === sessionAtSend) {
+			this.pendingTurnFailure = undefined
+			this.inFlightTurnSend = { token: turnSendToken, sessionId, session: sessionAtSend }
+		}
 		sdkHost
 			.send({
 				sessionId,
@@ -405,24 +479,52 @@ export class SdkSessionLifecycle {
 					return
 				}
 				if (isSuperseded("completion")) {
+					this.clearInFlightTurnSend(turnSendToken)
 					return
 				}
 				Logger.log(`[SdkController] Agent turn completed for session: ${sessionId}`)
+				// Idle before reporting so the outcome handler can re-drive immediately.
 				this.setRunning(false)
-				await this.options.onSendComplete(sessionId)
+				const failure = this.takePendingTurnFailure(turnSendToken)
+				if (failure) {
+					await this.options.onTurnSettled(sessionId, {
+						status: "failed",
+						error: failure.error,
+						...(failure.errorClass ? { errorClass: failure.errorClass } : {}),
+						source: "agent_event",
+					})
+					return
+				}
+				await this.options.onTurnSettled(sessionId, { status: "completed" })
 			})
 			.catch(async (error: unknown) => {
 				if (isAbortError(error)) {
 					Logger.debug(`[SdkController] Agent turn aborted (expected): ${sessionId}`)
+					this.clearInFlightTurnSend(turnSendToken)
 					return
 				}
 				if (isSuperseded("failure")) {
+					this.clearInFlightTurnSend(turnSendToken)
 					return
 				}
 				Logger.error("[SdkController] Agent turn failed:", error)
 				this.setRunning(false)
-				await this.options.onSendError(error, sessionId)
+				const failure = this.takePendingTurnFailure(turnSendToken)
+				await this.options.onTurnSettled(sessionId, {
+					status: "failed",
+					error,
+					...(failure?.errorClass ? { errorClass: failure.errorClass } : {}),
+					source: "send_rejection",
+				})
 			})
+	}
+
+	/** Consume the terminal failure recorded for this turn's send, if any. */
+	private takePendingTurnFailure(turnSendToken: number): PendingTurnFailure | undefined {
+		this.clearInFlightTurnSend(turnSendToken)
+		const failure = this.pendingTurnFailure
+		this.pendingTurnFailure = undefined
+		return failure
 	}
 }
 

@@ -6,8 +6,10 @@ import type {
 	ClineAskQuestion,
 	ClineMessage,
 	ClinePlanModeResponse,
+	ClineSayAutoRecovery,
 	ClineSayBrowserAction,
 	ClineSayTool,
+	TurnPhase,
 } from "@shared/ExtensionMessage"
 import { FileIcon, FolderOpenDotIcon, FolderOpenIcon, SearchIcon, ShapesIcon, WrenchIcon } from "lucide-react"
 
@@ -111,8 +113,172 @@ export function canRestoreWorkspaceFromMessage(messages: ClineMessage[], message
 }
 
 /**
- * Filter messages that should be visible in the chat
+ * Parse the JSON payload of a say:"auto_recovery" marker message; undefined
+ * when the text is missing, malformed, or carries an unknown status.
  */
+const AUTO_RECOVERY_STATUSES = new Set(["countdown", "retrying", "settled"])
+
+export function parseAutoRecoveryPayload(text: string | undefined): ClineSayAutoRecovery | undefined {
+	if (!text) {
+		return undefined
+	}
+	try {
+		const parsed = JSON.parse(text) as ClineSayAutoRecovery
+		return parsed && typeof parsed.status === "string" && AUTO_RECOVERY_STATUSES.has(parsed.status) ? parsed : undefined
+	} catch {
+		return undefined
+	}
+}
+
+/**
+ * Messages that render as an error block in the chat and can carry the
+ * auto-recovery glyph in place of the default dark-gray exclamation mark.
+ */
+export function isErrorBlockMessage(message: ClineMessage): boolean {
+	if (message.type === "say" && message.say === "error") {
+		return true
+	}
+	if (message.type === "ask" && message.ask === "mistake_limit_reached") {
+		return true
+	}
+	if (message.type === "say" && message.say === "api_req_started") {
+		try {
+			const info = JSON.parse(message.text || "{}") as { cancelReason?: string; streamingFailedMessage?: string }
+			return Boolean(info.cancelReason || info.streamingFailedMessage)
+		} catch {
+			return false
+		}
+	}
+	return false
+}
+
+/**
+ * Where an active auto-recovery marker surfaces: the nearest error block AT OR
+ * BEFORE the marker gets its exclamation glyph swapped for the live countdown
+ * ring (status "countdown") / spinner (status "retrying"). One block, one glyph
+ * swap — the error text stays frozen for the whole streak.
+ */
+export interface ActiveRecoveryDecoration {
+	/** ts of the say:"auto_recovery" marker (the marker itself never renders). */
+	markerTs: number
+	/** ts of the error block whose glyph slot shows the ring/spinner. */
+	targetTs: number
+	payload: ClineSayAutoRecovery
+}
+
+/**
+ * Phases in which a live-looking recovery marker genuinely drives the UI: the
+ * countdown is running ("retrying") or the retried attempt is in flight
+ * ("streaming"). Every other phase means no recovery action is happening — a
+ * marker still saying "countdown"/"retrying" is stale (task cancelled or
+ * cleared, session switched, turn settled permanently) and must render as the
+ * plain exclamation glyph, never as a timer/spinner.
+ */
+const RECOVERY_LIVE_PHASES = new Set<TurnPhase>(["streaming", "retrying"])
+
+/**
+ * A "countdown" marker whose scheduled fire time is this far in the past is
+ * stale: the retry timer flips the marker to "retrying" at (or within
+ * milliseconds of) retryAt, so a countdown still sitting in the message list
+ * long after its fire time can only be stranded — a backend path that
+ * cancelled the streak without settling the marker. The grace window is
+ * generous on purpose (a sleeping machine wakes with the timer callback still
+ * pending, and the ring legitimately displays up to the fire time), so this
+ * only trips when no legitimate countdown can still be running. "retrying"
+ * markers carry no reliable timestamp (retryAt is cleared) and are not
+ * time-gated; the backend settles those on every terminal path.
+ */
+const STALE_COUNTDOWN_GRACE_MS = 120_000
+
+function isStaleCountdownMarker(payload: ClineSayAutoRecovery | undefined): boolean {
+	return (
+		payload?.status === "countdown" &&
+		payload.retryAt !== undefined &&
+		Date.now() - payload.retryAt > STALE_COUNTDOWN_GRACE_MS
+	)
+}
+
+export function findActiveRecoveryDecoration(messages: ClineMessage[], phase?: TurnPhase): ActiveRecoveryDecoration | undefined {
+	for (let i = messages.length - 1; i >= 0; i--) {
+		const message = messages[i]
+		if (message.type !== "say" || message.say !== "auto_recovery") {
+			continue
+		}
+		const payload = parseAutoRecoveryPayload(message.text)
+		if (isStaleCountdownMarker(payload)) {
+			// Self-heal: render as settled — plain glyph, no hold, no
+			// Cancel-only footer — instead of trusting a stranded marker and
+			// hiding rows below the frozen error block forever.
+			return undefined
+		}
+		if (!payload || (payload.status !== "countdown" && payload.status !== "retrying")) {
+			// The nearest marker from the tail is settled — nothing to decorate.
+			return undefined
+		}
+		if (phase !== undefined && !RECOVERY_LIVE_PHASES.has(phase)) {
+			// Live-looking marker, but no recovery action is in flight. Treat it
+			// as stale: the error block keeps its plain exclamation glyph and no
+			// rows are held back. (No phase passed — legacy caller: the marker
+			// rules the display, as before.)
+			return undefined
+		}
+		for (let j = i - 1; j >= 0; j--) {
+			const candidate = messages[j]
+			if (candidate.type === "say" && candidate.say === "auto_recovery") {
+				// A previous streak's marker bounds the search: this streak's
+				// error block must sit after it. Reaching past it would decorate
+				// — and hold the chat at — an error block from older history;
+				// this streak's own error row is missing, so decorate nothing.
+				break
+			}
+			if (isErrorBlockMessage(candidate)) {
+				return { markerTs: message.ts, targetTs: candidate.ts, payload }
+			}
+		}
+		// Active marker with no error block of its own to decorate.
+		return undefined
+	}
+	return undefined
+}
+
+/**
+ * Truncate the visible list right after the error block that carries the live
+ * recovery glyph (see findActiveRecoveryDecoration). Rows after it belong to
+ * the attempt being retried — streaming text, tool rows, the say:"compaction"
+ * divider, bookkeeping — and NONE of them may render below the frozen error
+ * block while the streak's outcome is unknown. The caller (see
+ * applyActiveRecoveryHold) gates this on the marker's liveness alone: the hold
+ * spans the countdown AND the in-flight retry, releasing only when the marker
+ * settles (an attempt finally succeeded). Rows after a settled marker (or with
+ * no marker at all) are historical and stay.
+ */
+export function hideRowsAfterActiveRecovery(messages: ClineMessage[], targetTs: number): ClineMessage[] {
+	const targetIndex = messages.findIndex((message) => message.ts === targetTs)
+	if (targetIndex === -1) {
+		return messages
+	}
+	return messages.slice(0, targetIndex + 1)
+}
+
+/**
+ * Policy layer for hideRowsAfterActiveRecovery: while an auto-recovery streak
+ * is live (marker status "countdown" or "retrying"), the decorated error block
+ * is the bottom of the rendered conversation — EVERY row after it is held
+ * back, no matter the type, until the streak settles on a successful attempt.
+ * Deliberately phase-independent: the backend's TurnState phase flaps between
+ * "retrying" and "streaming" (and transiently "error") across a streak, so a
+ * phase-gated hold would blink open exactly while the retried attempt streams
+ * — leaking rows like the "Auto compacting context" divider below the frozen
+ * error. Same philosophy as the Cancel-only footer config: gate on the marker,
+ * never on the phase.
+ */
+export function applyActiveRecoveryHold(
+	filtered: ClineMessage[],
+	activeRecovery: ActiveRecoveryDecoration | undefined,
+): ClineMessage[] {
+	return activeRecovery ? hideRowsAfterActiveRecovery(filtered, activeRecovery.targetTs) : filtered
+}
+
 export function filterVisibleMessages(messages: ClineMessage[]): ClineMessage[] {
 	return messages.filter((message, index, arr) => {
 		if (isDuplicateAskOptionEcho(message, arr[index - 1])) {
@@ -142,6 +308,7 @@ export function filterVisibleMessages(messages: ClineMessage[]): ClineMessage[] 
 			case "subagent_usage": // aggregated subagent usage metrics for task-level accounting
 			case "task_progress": // task progress messages are displayed in TaskHeader, not in main chat
 			case "checkpoint_created": // checkpoint restore is exposed from user-message edit controls
+			case "auto_recovery": // invisible marker: decorates the error block's glyph instead of rendering a row
 				return false
 			// NOTE: reasoning passes through to be included in tool groups
 			case "api_req_started": {

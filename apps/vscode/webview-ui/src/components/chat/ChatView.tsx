@@ -14,10 +14,12 @@ import AutoApproveBar from "./auto-approve-menu/AutoApproveBar"
 // Import utilities and hooks from the new structure
 import {
 	ActionButtons,
+	applyActiveRecoveryHold,
 	CHAT_CONSTANTS,
 	ChatLayout,
 	convertHtmlToMarkdown,
 	filterVisibleMessages,
+	findActiveRecoveryDecoration,
 	groupLowStakesTools,
 	groupMessages,
 	InputSection,
@@ -329,9 +331,27 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		}
 	}, [isHidden, sendingDisabled, enableButtons])
 
+	// The active auto-recovery marker (if any) attaches to the streak's first
+	// error block: that block's exclamation glyph swaps for a countdown ring
+	// while the backoff runs, then a spinner while the retry streams. Gated on
+	// the turn phase: only a streak whose retry is actually in flight
+	// (streaming/retrying) may decorate — a live-looking marker on a stopped,
+	// finished, or switched-away task is stale and renders the plain glyph.
+	const activeRecovery = useMemo(
+		() => findActiveRecoveryDecoration(modifiedMessages, turnState?.phase),
+		[modifiedMessages, turnState?.phase],
+	)
+
 	const visibleMessages = useMemo(() => {
-		return filterVisibleMessages(modifiedMessages)
-	}, [modifiedMessages])
+		const filtered = filterVisibleMessages(modifiedMessages)
+		// An auto-recovery streak is live: NOTHING may render below the decorated
+		// error block until an attempt succeeds — not streaming rows, not the
+		// compaction divider, nothing. The hold is gated on the marker alone (see
+		// applyActiveRecoveryHold), never on turnState.phase, because the phase
+		// flaps retrying -> streaming -> error across a streak and the hold must
+		// ride through all of it.
+		return applyActiveRecoveryHold(filtered, activeRecovery)
+	}, [modifiedMessages, activeRecovery])
 
 	const groupedMessages = useMemo(() => {
 		return groupLowStakesTools(groupMessages(visibleMessages))
@@ -403,6 +423,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				)}
 				{task && (
 					<MessagesArea
+						activeRecovery={activeRecovery}
 						chatState={chatState}
 						groupedMessages={groupedMessages}
 						messageHandlers={messageHandlers}

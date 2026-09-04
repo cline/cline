@@ -2,7 +2,7 @@ import type { AgentEvent, CoreSessionEvent } from "@cline/core"
 import { refreshClineRecommendedModels } from "@/core/controller/models/refreshClineRecommendedModels"
 import type { StateManager } from "@/core/storage/StateManager"
 import { CLINE_RECOMMENDED_MODELS_FALLBACK } from "@/shared/cline/recommended-models"
-import type { ClineApiReqInfo, TurnPhase } from "@/shared/ExtensionMessage"
+import type { ClineApiReqInfo, ClineMessage, TurnPhase } from "@/shared/ExtensionMessage"
 import { Logger } from "@/shared/services/Logger"
 import { isClineManagedProvider } from "@/shared/utils/cline"
 import type { MessageTranslatorState, TranslationResult } from "./message-translator"
@@ -37,6 +37,12 @@ export interface SdkSessionEventCoordinatorOptions {
 	setTurnPhase?: (phase: TurnPhase, anchorTs?: number) => void
 	/** Current authoritative UI turn phase, from the controller's TurnStateTracker. */
 	getTurnPhase?: () => TurnPhase
+	/**
+	 * Drop duplicate failure rows while an auto-recovery streak is active, so
+	 * repeated transient failures render as updates to the single countdown
+	 * block instead of flooding the chat with error rows. Optional for tests.
+	 */
+	filterMessagesForRecovery?: (messages: ClineMessage[]) => ClineMessage[]
 	captureProviderApiError?: (event: ProviderFailureTelemetry) => void
 	beginProviderFailureTelemetryTurn?: () => void
 }
@@ -44,8 +50,47 @@ export interface SdkSessionEventCoordinatorOptions {
 export class SdkSessionEventCoordinator {
 	private readonly translateSessionEvent: (event: CoreSessionEvent, state: MessageTranslatorState) => TranslationResult
 
+	/** Grace window before the "error" phase commits — an auto-retry may still claim the failure. */
+	private static readonly ERROR_PHASE_GRACE_MS = 450
+	private errorPhaseTimer: ReturnType<typeof setTimeout> | undefined
+
 	constructor(private readonly options: SdkSessionEventCoordinatorOptions) {
 		this.translateSessionEvent = options.translateSessionEvent ?? translateSessionEvent
+	}
+
+	dispose(): void {
+		this.clearPendingErrorPhase()
+	}
+
+	/**
+	 * Commit the "error" phase (footer flips to Retry / Start New Task). The
+	 * commit is deferred by a short grace window: the turn's settle path runs
+	 * right after this event and may schedule an
+	 * automatic retry for the same failure (phase "retrying", stable Cancel) —
+	 * committing instantly would flash the recovery buttons for the ~250ms
+	 * between the two state posts. The deferred commit is dropped if the phase
+	 * moved on in the meantime (retry scheduled, user cancelled, new turn).
+	 */
+	private scheduleErrorPhase(): void {
+		this.clearPendingErrorPhase()
+		this.errorPhaseTimer = setTimeout(() => {
+			this.errorPhaseTimer = undefined
+			// Only commit from a still-unsettled "streaming" phase: "retrying" (a
+			// retry was scheduled), "resumable" (cancel), and terminal phases win.
+			const phase = this.options.getTurnPhase?.()
+			if (phase !== undefined && phase !== "streaming") {
+				return
+			}
+			this.options.setTurnPhase?.("error")
+			this.options.postStateToWebview().catch(() => {})
+		}, SdkSessionEventCoordinator.ERROR_PHASE_GRACE_MS)
+	}
+
+	private clearPendingErrorPhase(): void {
+		if (this.errorPhaseTimer !== undefined) {
+			clearTimeout(this.errorPhaseTimer)
+			this.errorPhaseTimer = undefined
+		}
 	}
 
 	async handleSessionEvent(event: CoreSessionEvent): Promise<void> {
@@ -93,7 +138,13 @@ export class SdkSessionEventCoordinator {
 		}
 
 		if (result.messages.length > 0) {
-			this.options.messages.appendAndEmit(result.messages, event)
+			// While an auto-recovery streak is counting down, duplicate failure rows
+			// are folded into the live countdown block instead of appending.
+			const filtered = this.options.filterMessagesForRecovery?.(result.messages) ?? result.messages
+			result.messages = filtered
+			if (filtered.length > 0) {
+				this.options.messages.appendAndEmit(filtered, event)
+			}
 		}
 
 		if (activeSession) {
@@ -118,7 +169,7 @@ export class SdkSessionEventCoordinator {
 				} else if (this.options.messageTranslatorState.wasErrorSeen()) {
 					// The turn surfaced a provider error (ask:"api_req_failed" was emitted) —
 					// offer error recovery (Retry / Start New Task), not the followup state.
-					this.options.setTurnPhase?.("error")
+					this.scheduleErrorPhase()
 				} else if (this.options.messageTranslatorState.wasAttemptCompletionSeen()) {
 					this.options.setTurnPhase?.("completed")
 				} else {

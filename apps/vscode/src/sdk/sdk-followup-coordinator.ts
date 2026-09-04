@@ -70,6 +70,8 @@ export class SdkFollowupCoordinator {
 		files?: string[],
 		askResponse?: ClineAskResponse,
 		turnPhaseAtSubmit?: TurnPhase,
+		/** Abandon the follow-up instead of sending once this flips true (auto-retry cancellation). */
+		isCancelled?: () => boolean,
 	): Promise<void> {
 		if (this.options.interactions.resolvePendingToolApproval(prompt, askResponse, images, files)) {
 			return
@@ -90,8 +92,16 @@ export class SdkFollowupCoordinator {
 		// Rebuilds replace idle sessions. Wait before acquiring the shared
 		// prepare/start boundary so this follow-up cannot target a replaced host.
 		await this.options.waitForPendingRebuilds()
+		if (isCancelled?.()) {
+			Logger.log("[SdkController] askResponse: Follow-up cancelled before send")
+			return
+		}
 
 		await this.options.runExclusive(async () => {
+			if (isCancelled?.()) {
+				Logger.log("[SdkController] askResponse: Follow-up cancelled before send")
+				return
+			}
 			// Task navigation does not use the rebuild scheduler. Do not deliver a
 			// prompt submitted from one task into a task selected while we waited.
 			// Compare by taskId: reloading the same task allocates a new TaskProxy,

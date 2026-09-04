@@ -1,4 +1,4 @@
-import type { ClineMessage, ClineSayTool } from "@shared/ExtensionMessage"
+import type { ClineMessage, ClineSayAutoRecovery, ClineSayTool } from "@shared/ExtensionMessage"
 import type { Mode } from "@shared/storage/types"
 import type { LucideIcon } from "lucide-react"
 import type React from "react"
@@ -17,6 +17,8 @@ interface RequestStartRowProps {
 	cost?: number
 	reasoningContent?: string
 	responseStarted?: boolean
+	/** Auto-recovery decoration payload when this row is the streak's decorated error block. */
+	recovery?: ClineSayAutoRecovery
 	clineMessages: ClineMessage[]
 	mode?: Mode
 	classNames?: string
@@ -135,6 +137,7 @@ export const RequestStartRow: React.FC<RequestStartRowProps> = ({
 	cost,
 	reasoningContent,
 	responseStarted,
+	recovery,
 	clineMessages,
 	mode,
 	handleToggle,
@@ -258,6 +261,7 @@ export const RequestStartRow: React.FC<RequestStartRowProps> = ({
 					apiRequestFailedMessage={apiRequestFailedMessage}
 					errorType="error"
 					message={message}
+					recovery={recovery}
 				/>
 			)}
 		</div>
