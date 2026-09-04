@@ -17,7 +17,7 @@ import { AccountWelcomeView } from "./AccountWelcomeView"
 import { ClinePassCard } from "./ClinePassCard"
 import { CreditBalance } from "./CreditBalance"
 import CreditsHistoryTable from "./CreditsHistoryTable"
-import { convertProtoUsageTransactions, getClineUris, getMainRole } from "./helpers"
+import { convertProtoUsageTransactions, getClineUris, getMainRole, getPrivacySettingsUrl } from "./helpers"
 import { RemoteConfigToggle } from "./RemoteConfigToggle"
 
 type AccountViewProps = {
@@ -67,7 +67,7 @@ const AccountView = ({ onDone, clineUser, organizations, activeOrganization }: A
 }
 
 const ClineAccountView = ({ clineUser, userOrganizations, activeOrganization, clineEnv }: ClineAccountViewProps) => {
-	const { email, displayName, appBaseUrl, uid } = clineUser
+	const { email, displayName, appBaseUrl, uid, dataPrivacyPath } = clineUser
 	const { remoteConfigSettings, environment } = useExtensionState()
 
 	// Determine if dropdown should be locked by remote config
@@ -231,6 +231,7 @@ const ClineAccountView = ({ clineUser, userOrganizations, activeOrganization, cl
 	}, 60000)
 
 	const clineUrl = appBaseUrl || "https://app.cline.bot"
+	const privacySettingsUrl = getPrivacySettingsUrl(clineUrl, dataPrivacyPath)
 
 	// Fetch balance on mount
 	useEffect(() => {
@@ -365,6 +366,11 @@ const ClineAccountView = ({ clineUser, userOrganizations, activeOrganization, cl
 						Log out
 					</VSCodeButton>
 				</div>
+				{privacySettingsUrl && (
+					<VSCodeButtonLink appearance="secondary" className="w-full mt-2" href={privacySettingsUrl.href}>
+						Privacy settings
+					</VSCodeButtonLink>
+				)}
 
 				<VSCodeDivider className="w-full my-6" />
 

@@ -1,5 +1,7 @@
 import { VSCodeCheckbox, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { getPrivacySettingsUrl } from "@/components/account/helpers"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { useClineAuth } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import PreferredLanguageSetting from "../PreferredLanguageSetting"
 import Section from "../Section"
@@ -11,6 +13,8 @@ interface GeneralSettingsSectionProps {
 
 const GeneralSettingsSection = ({ renderSectionHeader }: GeneralSettingsSectionProps) => {
 	const { telemetrySetting, remoteConfigSettings } = useExtensionState()
+	const { clineUser } = useClineAuth()
+	const privacySettingsUrl = getPrivacySettingsUrl(clineUser?.appBaseUrl || "https://app.cline.bot", clineUser?.dataPrivacyPath)
 
 	return (
 		<div>
@@ -59,6 +63,18 @@ const GeneralSettingsSection = ({ renderSectionHeader }: GeneralSettingsSectionP
 						</VSCodeLink>{" "}
 						for more details.
 					</p>
+					{privacySettingsUrl && (
+						<p className="text-sm mt-[5px] text-description">
+							Your data sharing and Cline Bench preferences live in your Cline account's{" "}
+							<VSCodeLink
+								className="text-inherit"
+								href={privacySettingsUrl.href}
+								style={{ fontSize: "inherit", textDecoration: "underline" }}>
+								privacy settings
+							</VSCodeLink>
+							.
+						</p>
+					)}
 				</div>
 			</Section>
 		</div>

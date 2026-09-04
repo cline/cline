@@ -12,6 +12,8 @@ export interface ClineUser {
 	displayName?: string
 	photoUrl?: string
 	appBaseUrl?: string
+	/** Dashboard path of the web privacy settings; present only when the API advertises it. */
+	dataPrivacyPath?: string
 }
 
 export interface ClineAuthContextType {
