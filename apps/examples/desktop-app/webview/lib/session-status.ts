@@ -1,4 +1,19 @@
 import type { SessionStatusTone } from "@cline/ui";
+import type { ChatSessionStatus } from "@/lib/chat-schema";
+import type { SessionHistoryStatus } from "@/lib/session-history";
+
+export function resolveSessionHeaderStatus({
+	chatStatus,
+	isCloudSession,
+	liveHistoryStatus,
+}: {
+	chatStatus: ChatSessionStatus;
+	isCloudSession: boolean;
+	liveHistoryStatus?: SessionHistoryStatus;
+}): ChatSessionStatus {
+	if (!isCloudSession || !liveHistoryStatus) return chatStatus;
+	return liveHistoryStatus === "provisioning" ? "starting" : liveHistoryStatus;
+}
 
 /**
  * Session status presentation shared by every surface that renders a status
