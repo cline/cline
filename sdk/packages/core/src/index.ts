@@ -506,6 +506,27 @@ export {
 	type RuntimeFrameAdapterOptions,
 	RuntimeFrameAdapter,
 } from "./runtime/orchestration/runtime-frame-adapter";
+export {
+	DIAG_AFTER_SESSION_END,
+	DIAG_ANNOTATION_UNROUTED,
+	DIAG_BLOCK_OPEN_WHILE_OPEN,
+	DIAG_ORPHAN_BLOCK_FRAME,
+	DIAG_SNAPSHOT_UNROUTED,
+	DIAG_STALE_EPOCH,
+	DIAG_TURN_CLOSE_WITHOUT_OPEN,
+	DIAG_TURN_OPEN_WHILE_OPEN,
+	StreamAssembler,
+} from "./runtime/orchestration/stream-assembler";
+export type {
+	MediaFinal,
+	ReasoningSink,
+	SessionConsumer,
+	StreamDiagnostic,
+	TextSink,
+	ToolSink,
+	TurnConsumer,
+	TurnObserver,
+} from "./runtime/orchestration/stream-assembler";
 export type {
 	BuiltRuntime,
 	RuntimeBuilder,
