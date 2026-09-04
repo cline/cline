@@ -783,6 +783,17 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		defaults: { baseUrl: "https://api.together.xyz/v1" },
 	},
 	{
+		id: "neuronpool",
+		name: "NeuronPool",
+		description: "OpenAI-compatible social compute — pool machines plus public buyers",
+		family: "openai-compatible",
+		capabilities: ["tools"],
+		defaultModelId: "gpt-oss-20b",
+		apiKeyEnv: ["NEURONPOOL_API_KEY"],
+		docsUrl: "https://neuronpool.damnknee.workers.dev/dashboard",
+		defaults: { baseUrl: "https://neuronpool.damnknee.workers.dev/v1" },
+	},
+	{
 		id: "groq",
 		name: "Groq",
 		description: "Ultra-fast LPU inference",
