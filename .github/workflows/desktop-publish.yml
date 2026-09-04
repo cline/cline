@@ -425,6 +425,10 @@ jobs:
             exit 1
           fi
 
+      - name: Verify packaged sidecar cold start
+        working-directory: apps/examples/desktop-app
+        run: bun run scripts/verify-sidecar-startup.ts ./src-tauri/bin/code-sidecar-universal-apple-darwin
+
       - name: Collect artifacts
         working-directory: apps/examples/desktop-app
         env:
@@ -677,6 +681,10 @@ jobs:
             echo "Check the OTEL_EXPORTER_OTLP_ENDPOINT secret."
             exit 1
           fi
+
+      - name: Verify packaged sidecar cold start
+        working-directory: apps/examples/desktop-app
+        run: bun run scripts/verify-sidecar-startup.ts ./src-tauri/bin/code-sidecar-x86_64-pc-windows-msvc.exe
 
       - name: Collect artifacts
         shell: bash

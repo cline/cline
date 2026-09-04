@@ -350,6 +350,13 @@ user to update and restart. Hubs that are older, unordered, or missing build
 metadata are retired and replaced as before, so two concurrently running
 installations converge on the newest build instead of repeatedly replacing
 each other's daemons.
+Desktop sidecar compilation resolves SDK imports through source aliases, so it
+must embed the same runtime fingerprint itself, plus one build epoch shared by
+all local sidecar and remote-helper targets. A packaged process must never scan
+for an SDK checkout to determine its identity. Release validation starts the
+compiled sidecar from an empty temporary directory and verifies that it launches
+a detached Hub, publishes its endpoint, and serves a healthy backend.
+
 Explicit endpoints, including loopback URLs such as
 `ws://127.0.0.1:<port>/hub`, are sticky exact targets and remain protocol-only:
 reconnects may retry the same socket URL, but command recovery and
