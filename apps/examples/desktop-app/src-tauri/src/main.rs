@@ -9,6 +9,7 @@ use std::fs;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering as AtomicOrdering};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
@@ -283,21 +284,16 @@ async fn run_update_loop(app: tauri::AppHandle, state: Arc<UpdateState>) {
 struct DesktopBackendState {
     ws_endpoint: Mutex<Option<String>>,
     process: Mutex<Option<Child>>,
-    shutting_down: Mutex<bool>,
+    shutting_down: AtomicBool,
 }
 
 impl DesktopBackendState {
     fn is_shutting_down(&self) -> bool {
-        self.shutting_down
-            .lock()
-            .map(|guard| *guard)
-            .unwrap_or(true)
+        self.shutting_down.load(AtomicOrdering::Acquire)
     }
 
     fn stop(&self) {
-        if let Ok(mut guard) = self.shutting_down.lock() {
-            *guard = true;
-        }
+        self.shutting_down.store(true, AtomicOrdering::Release);
 
         if let Ok(mut process_guard) = self.process.lock() {
             if let Some(child) = process_guard.as_mut() {
@@ -515,6 +511,11 @@ fn ensure_desktop_backend_started_with(
         .process
         .lock()
         .map_err(|_| "failed to lock desktop backend process state")?;
+    // stop() marks shutdown before taking this same process lock. Recheck
+    // under the lock so a queued startup cannot spawn after shutdown.
+    if state.is_shutting_down() {
+        return Ok(());
+    }
     if let Some(existing) = process_guard.as_mut() {
         match existing.try_wait() {
             // A live child owns startup even while its endpoint is still
@@ -667,17 +668,24 @@ fn open_path_with_default_app(path: &Path) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn get_desktop_backend_endpoint(
+async fn get_desktop_backend_endpoint(
     backend_state: State<'_, Arc<DesktopBackendState>>,
     context: State<'_, AppContext>,
 ) -> Result<String, String> {
-    ensure_desktop_backend_started(backend_state.inner(), context.inner())?;
+    let backend_state = backend_state.inner().clone();
+    let context = context.inner().clone();
+    let state_for_start = backend_state.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        ensure_desktop_backend_started(&state_for_start, &context)
+    })
+    .await
+    .map_err(|error| format!("desktop backend startup task failed: {error}"))??;
+
     // Sidecar startup includes login-shell PATH resolution (bounded at 3s,
     // see sidecar/shell-path.ts) plus session-manager init, whose duration
     // varies by machine. Poll well past that combined worst case; the loop
     // returns as soon as the ready line arrives, so only failure waits long.
-    // While pending this only waits — respawning is ensure's job, and it
-    // refuses to start a second sidecar while the first one is still alive.
+    // Async sleeps keep Tauri's window event loop responsive while pending.
     for _ in 0..150 {
         if let Some(endpoint) = backend_state
             .ws_endpoint
@@ -700,7 +708,7 @@ fn get_desktop_backend_endpoint(
         if child_exited {
             return Err("desktop backend exited before publishing its endpoint".to_string());
         }
-        thread::sleep(Duration::from_millis(100));
+        tokio::time::sleep(Duration::from_millis(100)).await;
     }
     Err("desktop backend endpoint not ready".to_string())
 }
@@ -1190,9 +1198,15 @@ fn main() {
             setup_tray_icon(app)?;
             let app_context = app.state::<AppContext>().inner().clone();
             let backend_state = app.state::<Arc<DesktopBackendState>>().inner().clone();
-            if let Err(error) = ensure_desktop_backend_started(&backend_state, &app_context) {
-                eprintln!("[desktop-backend] startup failed: {error}");
-            }
+            let state_for_start = backend_state.clone();
+            let context_for_start = app_context.clone();
+            tauri::async_runtime::spawn_blocking(move || {
+                if let Err(error) =
+                    ensure_desktop_backend_started(&state_for_start, &context_for_start)
+                {
+                    eprintln!("[desktop-backend] startup failed: {error}");
+                }
+            });
             // Dev builds are not installed app bundles, so there is nothing the
             // updater could meaningfully check or replace.
             if !cfg!(debug_assertions) {
@@ -1441,6 +1455,31 @@ mod tests {
             }
         }
         state.stop();
+    }
+
+    #[test]
+    fn startup_queued_on_process_lock_does_not_spawn_after_shutdown() {
+        let state = Arc::new(DesktopBackendState::default());
+        let process_guard = state
+            .process
+            .lock()
+            .expect("process lock should succeed");
+        let spawn_count = Arc::new(AtomicUsize::new(0));
+        let state_for_start = state.clone();
+        let spawn_count_for_start = spawn_count.clone();
+        let startup = thread::spawn(move || {
+            ensure_desktop_backend_started_with(&state_for_start, || {
+                spawn_count_for_start.fetch_add(1, Ordering::SeqCst);
+                spawn_pending_sidecar()
+            })
+            .expect("shutdown should make startup a no-op");
+        });
+
+        state.shutting_down.store(true, AtomicOrdering::Release);
+        drop(process_guard);
+        startup.join().expect("startup thread should not panic");
+
+        assert_eq!(spawn_count.load(Ordering::SeqCst), 0);
     }
 
     #[test]
