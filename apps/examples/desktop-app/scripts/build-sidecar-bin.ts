@@ -1,6 +1,18 @@
+import { fileURLToPath } from "node:url";
 import { $ } from "bun";
+import { resolveSdkRuntimeBuildId } from "../../../../sdk/packages/core/scripts/runtime-build-id";
 import { prepareWindowsCrossCompileRuntime } from "./bun-cross-compile-runtime";
 import { telemetryDefineArgs } from "./telemetry-define-args";
+
+// Desktop tsconfig aliases resolve SDK imports to source, so the SDK dist
+// build's defines never reach this bundle. Embed one identity for every local
+// sidecar and remote helper; packaged processes cannot fingerprint a checkout.
+const runtimeDefineArgs = [
+	"--define",
+	`__CLINE_CORE_RUNTIME_BUILD_ID__=${JSON.stringify(resolveSdkRuntimeBuildId(fileURLToPath(new URL("../../../../", import.meta.url))))}`,
+	"--define",
+	`__CLINE_CORE_RUNTIME_BUILD_EPOCH_MS__=${Date.now()}`,
+];
 
 const resolveTargetTriple = async (): Promise<string> => {
 	const fromEnv = process.env.TAURI_ENV_TARGET_TRIPLE ?? process.env.TARGET;
@@ -50,7 +62,7 @@ const buildSidecar = async (
 	// app launched from Finder/the Dock has no OTEL_* env at runtime, so
 	// without this the sidecar silently ships with telemetry disabled.
 	// Verify with `<binary> --telemetry-selfcheck` after building.
-	const defines = telemetryDefineArgs();
+	const defines = [...telemetryDefineArgs(), ...runtimeDefineArgs];
 	const optimizationArgs = minify ? ["--minify"] : [];
 	// A compiled Bun executable otherwise reads .env and bunfig.toml from its
 	// launch directory before our entrypoint runs. Remote helpers are launched
