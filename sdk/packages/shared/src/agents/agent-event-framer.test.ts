@@ -332,7 +332,7 @@ describe("framer wart-fixes", () => {
 		if (close.kind !== "close") {
 			throw new Error("expected close");
 		}
-		expect(close.outcome).toEqual({ kind: "completed" });
+		expect(close.outcome).toEqual({ kind: "completed", finishReason: "max_iterations" });
 	});
 
 	it("epoch changes only via bumpEpoch; seq continues across turns", () => {

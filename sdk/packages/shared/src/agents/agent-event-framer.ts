@@ -607,7 +607,7 @@ function finishReasonToOutcome(
 		case "completed":
 		case "max_iterations":
 		case "mistake_limit":
-			return { kind: "completed" };
+			return { kind: "completed", finishReason: reason };
 		case "aborted":
 			return { kind: "interrupted" };
 		case "error":
