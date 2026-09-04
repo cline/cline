@@ -25,17 +25,14 @@ import type { SessionUpdate } from "@agentclientprotocol/sdk";
 import type { AgentEvent } from "@cline/core";
 import {
 	StreamAssembler,
-	type CloseFinal,
 	type MediaFinal,
-	type Outcome,
-	type ReasoningStart,
 	type SessionConsumer,
 	type TextSink,
 	type ReasoningSink,
 	type ToolSink,
 	type TurnConsumer,
 } from "@cline/core";
-import { SessionFramer } from "@cline/shared";
+import { type CloseFinal, type Outcome, SessionFramer } from "@cline/shared";
 import { buildToolTitle, mapToolKind } from "./tool-utils";
 
 /** Structural slice of AgentSideConnection the forwarder needs —

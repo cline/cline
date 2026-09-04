@@ -9,7 +9,7 @@ import { generateLegalV1Trace } from "@cline/shared";
 import { describe, expect, it } from "vitest";
 import { AcpStreamForwarder } from "./frame-forwarder";
 import { forwardAgentEvent } from "./session-updates";
-import type { SessionUpdate } from "@agentclientprotocol/sdk";
+import type { AgentSideConnection, SessionUpdate } from "@agentclientprotocol/sdk";
 
 interface Capture {
 	updates: Array<{ sessionId: string; update: SessionUpdate }>;
@@ -39,7 +39,9 @@ const makeCapture = (): Capture & {
 function renderV1(trace: AgentEvent[]): SessionUpdate[] {
 	const capture = makeCapture();
 	for (const event of trace) {
-		forwardAgentEvent(capture, "s1", event);
+		// v1 takes the full connection type; the capture is the structural
+		// slice it actually calls (the same cast session-updates.test.ts uses).
+		forwardAgentEvent(capture as unknown as AgentSideConnection, "s1", event);
 	}
 	return capture.updates.map((entry) => entry.update);
 }
