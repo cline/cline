@@ -110,9 +110,18 @@ describe("langfuse telemetry", () => {
 		resetLangfuseTelemetryForTests();
 	});
 
-	it("enables telemetry for non-cline providers when langfuse config is available", async () => {
-		await expect(ensureLangfuseTelemetry("openrouter")).resolves.toBe(true);
+	it("does not initialize telemetry for non-cline providers", async () => {
+		await expect(ensureLangfuseTelemetry("openrouter")).resolves.toBe(false);
+
+		expect(registerDisposableSpy).not.toHaveBeenCalled();
+		expect(addSpanProcessorSpy).not.toHaveBeenCalled();
+		expect(registerTelemetrySpy).not.toHaveBeenCalled();
+	});
+
+	it("keeps non-cline telemetry disabled after cline initialization", async () => {
 		await expect(ensureLangfuseTelemetry("cline")).resolves.toBe(true);
+		await expect(ensureLangfuseTelemetry("cline")).resolves.toBe(true);
+		await expect(ensureLangfuseTelemetry("openrouter")).resolves.toBe(false);
 
 		expect(registerDisposableSpy).toHaveBeenCalledTimes(1);
 		expect(addSpanProcessorSpy).toHaveBeenCalledTimes(1);
@@ -135,7 +144,7 @@ describe("langfuse telemetry", () => {
 			addSpanProcessor: addSpanProcessorSpy,
 		});
 
-		await expect(ensureLangfuseTelemetry("openrouter")).resolves.toBe(true);
+		await expect(ensureLangfuseTelemetry("cline")).resolves.toBe(true);
 		expect(addSpanProcessorSpy).toHaveBeenCalledTimes(1);
 		expect(registerTelemetrySpy).toHaveBeenCalledTimes(1);
 	});
@@ -151,7 +160,7 @@ describe("langfuse telemetry", () => {
 				registeredGlobalProvider.current ?? { constructor: { name: "Qn" } },
 		});
 
-		await expect(ensureLangfuseTelemetry("openrouter")).resolves.toBe(true);
+		await expect(ensureLangfuseTelemetry("cline")).resolves.toBe(true);
 		expect(registeredGlobalProvider.current).toBeInstanceOf(
 			MockNodeTracerProvider,
 		);
@@ -163,7 +172,7 @@ describe("langfuse telemetry", () => {
 			getDelegate: () => ({ addSpanProcessor: addSpanProcessorSpy }),
 		});
 
-		await expect(ensureLangfuseTelemetry("openrouter")).resolves.toBe(true);
+		await expect(ensureLangfuseTelemetry("cline")).resolves.toBe(true);
 		expect(addSpanProcessorSpy).toHaveBeenCalledTimes(1);
 		expect(registerTelemetrySpy).toHaveBeenCalledTimes(1);
 	});
@@ -176,7 +185,7 @@ describe("langfuse telemetry", () => {
 			}),
 		});
 
-		await expect(ensureLangfuseTelemetry("openrouter")).resolves.toBe(false);
+		await expect(ensureLangfuseTelemetry("cline")).resolves.toBe(false);
 		expect(registerTelemetrySpy).not.toHaveBeenCalled();
 	});
 
@@ -187,12 +196,12 @@ describe("langfuse telemetry", () => {
 			getDelegate: () => ({ constructor: { name: "SomethingInert" } }),
 		});
 
-		await expect(ensureLangfuseTelemetry("openrouter")).resolves.toBe(false);
+		await expect(ensureLangfuseTelemetry("cline")).resolves.toBe(false);
 		expect(registerTelemetrySpy).not.toHaveBeenCalled();
 	});
 
 	it("connects an AI SDK 7 call to the registered telemetry integration", async () => {
-		await expect(ensureLangfuseTelemetry("openrouter")).resolves.toBe(true);
+		await expect(ensureLangfuseTelemetry("cline")).resolves.toBe(true);
 
 		await generateText({
 			model: new MockLanguageModelV4({
