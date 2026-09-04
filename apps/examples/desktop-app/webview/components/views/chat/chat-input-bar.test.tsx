@@ -250,6 +250,203 @@ describe("ChatInputBar", () => {
 		]);
 	});
 
+	it("allows cloud image and model selection without replacing local defaults", async () => {
+		loadProviderModelCatalogMock.mockResolvedValue({
+			providers: [],
+			enabledProviderIds: ["anthropic", "cline"],
+			providerModels: {
+				anthropic: ["claude-test"],
+				cline: ["cline-test", "cline-alt"],
+			},
+			providerReasoningModels: { anthropic: [], cline: [] },
+		});
+		const localSelection = {
+			lastProvider: "anthropic",
+			lastModelByProvider: { anthropic: "claude-test" },
+		};
+		window.localStorage.setItem(
+			MODEL_SELECTION_STORAGE_KEY,
+			JSON.stringify(localSelection),
+		);
+		const onProviderChange = vi.fn();
+		const onModelChange = vi.fn();
+		await act(async () => {
+			root.render(
+				<WorkspaceProvider
+					value={{
+						workspaceRoot: "",
+						workspaces: [],
+						listWorkspaces: vi.fn(async () => []),
+						refreshWorkspaces: vi.fn(async () => undefined),
+						switchWorkspace: vi.fn(async () => true),
+						pickWorkspaceDirectory: vi.fn(async () => null),
+						selectChat: vi.fn(async () => true),
+					}}
+				>
+					<ChatInputBar
+						attachments={[]}
+						cloudBranch="feature/cloud"
+						executionTarget="cloud"
+						gitBranch="no-git"
+						hasActiveSession
+						mode="act"
+						model="claude-test"
+						onAbort={vi.fn()}
+						onAttachFiles={vi.fn()}
+						onEditPromptInQueue={vi.fn()}
+						onListGitBranches={vi.fn(async () => ({
+							current: "no-git",
+							branches: [],
+						}))}
+						onModeToggle={vi.fn()}
+						onModelChange={onModelChange}
+						onPromptInputChange={vi.fn()}
+						onProviderChange={onProviderChange}
+						onReasoningChange={vi.fn()}
+						onRemoveAttachment={vi.fn()}
+						onRemovePromptInQueue={vi.fn()}
+						onSend={vi.fn()}
+						onSteerPromptInQueue={vi.fn()}
+						onSwitchGitBranch={vi.fn(async () => false)}
+						promptDraft={{ version: 0, value: "" }}
+						promptsInQueue={[]}
+						provider="anthropic"
+						reasoningEffort="low"
+						repoUrl="https://github.com/cline/cline"
+						status="idle"
+						summary={{ toolCalls: 0, tokensIn: 0, tokensOut: 0 }}
+						thinking
+						variant="conversation"
+					/>
+				</WorkspaceProvider>,
+			);
+			await Promise.resolve();
+		});
+
+		await vi.waitFor(() => {
+			expect(onProviderChange).toHaveBeenCalledWith("cline");
+		});
+		expect(onModelChange).not.toHaveBeenCalled();
+		expect(
+			container.querySelector('[aria-label="Attach images"]'),
+		).not.toBeNull();
+		expect(
+			container.querySelector<HTMLInputElement>('input[type="file"]')?.accept,
+		).toBe("image/*");
+		expect(container.querySelector("#git-branch-btn")).toBeNull();
+		expect(container.textContent).toContain("cline/cline / feature/cloud");
+		expect(
+			container.querySelector<HTMLButtonElement>(
+				'[aria-label="Model and provider"]',
+			)?.disabled,
+		).toBe(false);
+		expect(
+			container.querySelector<HTMLButtonElement>(
+				'[aria-label="Thinking level"]',
+			)?.disabled,
+		).toBe(true);
+		const modelTrigger = container.querySelector<HTMLButtonElement>(
+			'[aria-label="Model and provider"]',
+		);
+		await act(async () => modelTrigger?.click());
+		const cloudModel = container.querySelector<HTMLButtonElement>(
+			'[aria-label="Model: cline-test"]',
+		);
+		await act(async () => cloudModel?.click());
+		const alternateModel = Array.from(
+			container.querySelectorAll<HTMLButtonElement>(
+				".cline-ui-search-combobox__option",
+			),
+		).find((button) => button.textContent?.includes("cline-alt"));
+		expect(alternateModel).not.toBeUndefined();
+		await act(async () => alternateModel?.click());
+		expect(onModelChange).toHaveBeenCalledWith("cline-alt");
+		expect(
+			JSON.parse(
+				window.localStorage.getItem(MODEL_SELECTION_STORAGE_KEY) ?? "null",
+			),
+		).toEqual(localSelection);
+	});
+
+	it("blocks a new cloud message until a GitHub repository is selected", async () => {
+		const onSend = vi.fn();
+		const render = async (repoUrl?: string) => {
+			await act(async () => {
+				root.render(
+					<WorkspaceProvider
+						value={{
+							workspaceRoot: "",
+							workspaces: [],
+							listWorkspaces: vi.fn(async () => []),
+							refreshWorkspaces: vi.fn(async () => undefined),
+							switchWorkspace: vi.fn(async () => true),
+							pickWorkspaceDirectory: vi.fn(async () => null),
+							selectChat: vi.fn(async () => true),
+						}}
+					>
+						<ChatInputBar
+							attachments={[]}
+							executionTarget="cloud"
+							gitBranch="no-git"
+							hasActiveSession={false}
+							mode="act"
+							model="test-model"
+							onAbort={vi.fn()}
+							onAttachFiles={vi.fn()}
+							onEditPromptInQueue={vi.fn()}
+							onListGitBranches={vi.fn(async () => ({
+								current: "no-git",
+								branches: [],
+							}))}
+							onModeToggle={vi.fn()}
+							onModelChange={vi.fn()}
+							onPromptInputChange={vi.fn()}
+							onProviderChange={vi.fn()}
+							onReasoningChange={vi.fn()}
+							onRemoveAttachment={vi.fn()}
+							onRemovePromptInQueue={vi.fn()}
+							onSend={onSend}
+							onSteerPromptInQueue={vi.fn()}
+							onSwitchGitBranch={vi.fn(async () => false)}
+							promptDraft={{ version: 0, value: "Continue in cloud" }}
+							promptsInQueue={[]}
+							provider="cline"
+							reasoningEffort="low"
+							repoUrl={repoUrl}
+							status="idle"
+							summary={{ toolCalls: 0, tokensIn: 0, tokensOut: 0 }}
+							thinking
+						/>
+					</WorkspaceProvider>,
+				);
+				await Promise.resolve();
+			});
+		};
+
+		await render();
+		const sendButton = container.querySelector<HTMLButtonElement>(
+			'[aria-label="Send message"]',
+		);
+		const promptInput = container.querySelector<HTMLTextAreaElement>(
+			'textarea[role="combobox"]',
+		);
+		expect(sendButton?.disabled).toBe(true);
+		expect(sendButton?.title).toBe("Choose a repository");
+		expect(container.textContent).toContain("Repository required");
+		expect(promptInput?.placeholder).toBe("Choose a repository");
+		await act(async () => {
+			promptInput?.dispatchEvent(
+				new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+			);
+		});
+		expect(onSend).not.toHaveBeenCalled();
+
+		await render("https://github.com/cline/cline");
+		expect(sendButton?.disabled).toBe(false);
+		await act(async () => sendButton?.click());
+		expect(onSend).toHaveBeenCalledWith("Continue in cloud");
+	});
+
 	it("top-aligns the textarea in the taller welcome composer", async () => {
 		await act(async () => {
 			root.render(

@@ -156,6 +156,7 @@ function toSortedProviderModels(
 async function resolveProviderModelMap(
 	providerId: string,
 	config?: ProviderConfig,
+	options: { loadLatest?: boolean } = {},
 ): Promise<Record<string, ModelInfo>> {
 	const [registeredModels, registeredModelOverrides] = await Promise.all([
 		LlmsModels.getModelsForProvider(providerId),
@@ -164,14 +165,14 @@ async function resolveProviderModelMap(
 	const shouldLoadLiveCatalog =
 		providerId === CLINE_PROVIDER_ID || providerId === CLINE_PASS_PROVIDER_ID;
 	const isClinePass = providerId === CLINE_PASS_PROVIDER_ID;
-	if (!config && !shouldLoadLiveCatalog) {
+	if (!config && !shouldLoadLiveCatalog && !options.loadLatest) {
 		return registeredModels;
 	}
 
 	const resolved = await resolveProviderConfig(
 		providerId,
 		{
-			loadLatestOnInit: shouldLoadLiveCatalog,
+			loadLatestOnInit: shouldLoadLiveCatalog || options.loadLatest,
 			loadPrivateOnAuth: true,
 			failOnError: false,
 		},
@@ -852,19 +853,24 @@ export async function listLocalProviders(
 export async function getLocalProviderModels(
 	providerId: string,
 	config?: ProviderConfig,
+	options?: { loadLatest?: boolean },
 ): Promise<{ providerId: string; models: ProviderModel[] }> {
 	const id = providerId.trim();
-	const modelMap = await resolveProviderModelMap(id, config);
+	const modelMap = await resolveProviderModelMap(id, config, options);
 	let models = toSortedProviderModels(modelMap);
 	if (id === CLINE_PROVIDER_ID || id === CLINE_PASS_PROVIDER_ID) {
 		// Stamp the recommended-feed tiers onto the list so every client's
 		// picker gets Recommended/Free/Subscribed data without fetching and
-		// joining the feed itself. Cached; falls back to a bundled list, so
-		// a failure only means models without tier decoration.
+		// joining the feed itself. The loadLatest path just refreshed live
+		// data, so peek (cache-or-bundled, never fetches) avoids a duplicate
+		// feed request; otherwise use the cached fetch. A miss only means
+		// models without tier decoration.
 		models = applyClineFeaturedModels(
 			id,
 			models,
-			await getCachedClineRecommendedModels(),
+			options?.loadLatest
+				? peekClineRecommendedModels()
+				: await getCachedClineRecommendedModels(),
 		);
 	}
 	return { providerId: id, models };

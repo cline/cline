@@ -824,6 +824,48 @@ describe("Code sidecar runtime capabilities", () => {
 		).toEqual([]);
 	});
 
+	it("keeps an approval visible when its remote acknowledgement fails", async () => {
+		const { createSidecarContext } = await import("./context");
+		const { handleCommand } = await import("./commands");
+		const ctx = createSidecarContext("/workspace/project");
+		const cloudClient = { data: { canApproveTools: true }, send: vi.fn() };
+		ctx.wsClients.add(cloudClient);
+		ctx.pendingApprovals.set("cloud-approval", {
+			item: {
+				requestId: "cloud-approval",
+				sessionId: "ses-cloud",
+				createdAt: new Date().toISOString(),
+				toolCallId: "tool-1",
+				toolName: "run_commands",
+			},
+			owner: cloudClient,
+			resolve: async () => {
+				throw new Error("hub disconnected");
+			},
+		});
+
+		await expect(
+			handleCommand(
+				ctx,
+				"respond_tool_approval",
+				{
+					sessionId: "ses-cloud",
+					requestId: "cloud-approval",
+					approved: true,
+				},
+				{ connection: cloudClient },
+			),
+		).rejects.toThrow("hub disconnected");
+		expect(
+			await handleCommand(
+				ctx,
+				"poll_tool_approvals",
+				{ sessionId: "ses-cloud" },
+				{ connection: cloudClient },
+			),
+		).toEqual([expect.objectContaining({ requestId: "cloud-approval" })]);
+	});
+
 	it("rejects and removes an approval when initial delivery fails", async () => {
 		const { createSidecarContext, createSidecarRuntimeCapabilities } =
 			await import("./context");
@@ -1269,5 +1311,39 @@ describe("disposeSidecarContext attachment cleanup", () => {
 
 		expect(existsSync(queuedFile)).toBe(false);
 		expect(ctx.liveSessions.size).toBe(0);
+	});
+
+	it("waits for pending approval callbacks before shutdown completes", async () => {
+		const { createSidecarContext, disposeSidecarContext } = await import(
+			"./context"
+		);
+		const ctx = createSidecarContext("/workspace/project");
+		let release: (() => void) | undefined;
+		ctx.pendingApprovals.set("approval-1", {
+			owner: { data: { canApproveTools: true }, send: vi.fn() },
+			item: {
+				requestId: "approval-1",
+				sessionId: "session-1",
+				createdAt: new Date().toISOString(),
+				toolCallId: "tool-1",
+				toolName: "run_commands",
+				input: {},
+			},
+			resolve: async () =>
+				await new Promise<void>((resolve) => {
+					release = resolve;
+				}),
+		});
+
+		let disposed = false;
+		const disposing = disposeSidecarContext(ctx, "test_shutdown").then(() => {
+			disposed = true;
+		});
+		await vi.waitFor(() => expect(release).toBeTypeOf("function"));
+		expect(disposed).toBe(false);
+
+		release?.();
+		await disposing;
+		expect(disposed).toBe(true);
 	});
 });
