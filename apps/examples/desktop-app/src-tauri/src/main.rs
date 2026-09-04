@@ -789,56 +789,82 @@ async fn check_for_update_now(
 }
 
 /// Icon ids accepted by `set_app_icon`; kept in sync with APP_ICONS in
-/// webview/lib/app-icon.ts. Every non-default id has a matching bundled
-/// resource at icons/dock/<id>.png.
-const APP_DOCK_ICONS: [&str; 4] = ["classic", "midnight", "hologram", "chip"];
+/// webview/lib/app-icon.ts. Every id has a matching bundled resource at
+/// icons/app/<id>.png.
+const APP_ICONS: [&str; 4] = ["classic", "midnight", "hologram", "chip"];
+
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+fn resolve_app_icon(app: &tauri::AppHandle, icon: &str) -> Result<PathBuf, String> {
+    let icon_path = app
+        .path()
+        .resolve(
+            format!("icons/app/{icon}.png"),
+            tauri::path::BaseDirectory::Resource,
+        )
+        .map_err(|e| format!("failed resolving app icon resource: {e}"))?;
+    if !icon_path.exists() {
+        return Err(format!(
+            "app icon resource missing: {}",
+            icon_path.display()
+        ));
+    }
+    Ok(icon_path)
+}
 
 #[tauri::command]
-fn set_app_icon(app: tauri::AppHandle, icon: String) -> Result<bool, String> {
-    if !APP_DOCK_ICONS.contains(&icon.as_str()) {
+async fn set_app_icon(app: tauri::AppHandle, icon: String) -> Result<bool, String> {
+    if !APP_ICONS.contains(&icon.as_str()) {
         return Err(format!("unknown app icon: {icon}"));
     }
     #[cfg(target_os = "macos")]
     {
-        // "classic" also ships as a dock resource, so every choice loads the
-        // same way; setApplicationIconImage's binding warns that passing nil
-        // to restore the bundled icon may not be allowed.
-        let icon_path = app
-            .path()
-            .resolve(
-                format!("icons/dock/{icon}.png"),
-                tauri::path::BaseDirectory::Resource,
-            )
-            .map_err(|e| format!("failed resolving dock icon resource: {e}"))?;
-        if !icon_path.exists() {
-            return Err(format!(
-                "dock icon resource missing: {}",
-                icon_path.display()
-            ));
-        }
+        // Every choice uses a resource because AppKit does not support restoring
+        // the bundled icon by passing a nil application icon.
+        let icon_path = resolve_app_icon(&app, &icon)?;
+        let (result_tx, result_rx) = tokio::sync::oneshot::channel();
         app.run_on_main_thread(move || {
             use objc2::{AllocAnyThread, MainThreadMarker};
             use objc2_app_kit::{NSApplication, NSImage};
             use objc2_foundation::NSString;
 
-            let Some(mtm) = MainThreadMarker::new() else {
-                return;
-            };
-            let ns_app = NSApplication::sharedApplication(mtm);
-            let Some(image) = NSImage::initWithContentsOfFile(
-                NSImage::alloc(),
-                &NSString::from_str(&icon_path.to_string_lossy()),
-            ) else {
-                eprintln!("[dock-icon] failed loading image: {}", icon_path.display());
-                return;
-            };
-            // SAFETY: called on the main thread with a valid, non-nil image.
-            unsafe { ns_app.setApplicationIconImage(Some(&image)) };
+            let result = (|| {
+                let mtm = MainThreadMarker::new().ok_or_else(|| {
+                    "app icon update did not run on the main thread".to_string()
+                })?;
+                let ns_app = NSApplication::sharedApplication(mtm);
+                let image = NSImage::initWithContentsOfFile(
+                    NSImage::alloc(),
+                    &NSString::from_str(&icon_path.to_string_lossy()),
+                )
+                .ok_or_else(|| {
+                    format!("failed loading app icon image: {}", icon_path.display())
+                })?;
+                // SAFETY: called on the main thread with a valid, non-nil image.
+                unsafe { ns_app.setApplicationIconImage(Some(&image)) };
+                Ok(())
+            })();
+            let _ = result_tx.send(result);
         })
-        .map_err(|e| format!("failed switching dock icon: {e}"))?;
+        .map_err(|e| format!("failed switching app icon: {e}"))?;
+        result_rx
+            .await
+            .map_err(|_| "app icon update ended before AppKit completed".to_string())??;
         Ok(true)
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "windows")]
+    {
+        let icon_path = resolve_app_icon(&app, &icon)?;
+        let image = tauri::image::Image::from_path(&icon_path)
+            .map_err(|e| format!("failed loading app icon image: {e}"))?;
+        let window = app
+            .get_webview_window(MAIN_WINDOW_LABEL)
+            .ok_or_else(|| "main window is unavailable".to_string())?;
+        window
+            .set_icon(image)
+            .map_err(|e| format!("failed switching taskbar icon: {e}"))?;
+        Ok(true)
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {
         let _ = app;
         Ok(false)
