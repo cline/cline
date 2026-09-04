@@ -2910,4 +2910,879 @@ describe("CloudSessionManager", () => {
 			),
 		).toBe(true);
 	});
+
+	it("passes branch and the user's approval policy through to the cloud session", async () => {
+		const { ctx } = createContext();
+		const hub = new FakeHubClient(false);
+		let createBody: Record<string, unknown> | undefined;
+		const manager = new CloudSessionManager(ctx, {
+			api: {
+				list: async () => [],
+				create: async (input: Record<string, unknown>) => {
+					createBody = input;
+					return { sessionId: "ses-created", sandboxUrl: "pod" };
+				},
+			} as unknown as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+		ctx.cloudSessionManager = manager;
+
+		await handleChatSessionCommand(ctx, {
+			action: "start",
+			prompt: "Fix the provisioning flow",
+			config: {
+				executionTarget: "cloud",
+				repoUrl: "https://github.com/cline/test",
+				model: "anthropic/claude-sonnet-5",
+				branch: "feature/login-fix",
+				autoApproveTools: false,
+			},
+		});
+
+		expect(createBody).toMatchObject({
+			repoUrl: "https://github.com/cline/test",
+			modelId: "anthropic/claude-sonnet-5",
+			initialPrompt: "Fix the provisioning flow",
+			branch: "feature/login-fix",
+			autoApproveTools: false,
+		});
+		const innerCreate = hub.commands.find(
+			(entry) => entry.command === "session.create",
+		);
+		expect(innerCreate?.payload?.toolPolicies).toEqual({
+			"*": { autoApprove: false },
+		});
+	});
+
+	it("propagates the live error when hydration fails and no snapshot exists", async () => {
+		const { ctx } = createContext();
+		const manager = new CloudSessionManager(ctx, {
+			api: {
+				list: async () => [REMOTE_SESSION],
+				history: async () => null,
+			} as unknown as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => {
+				throw new Error("sandbox unreachable");
+			},
+		});
+		ctx.cloudSessionManager = manager;
+
+		await expect(manager.readMessages(REMOTE_SESSION.id)).rejects.toThrow(
+			"sandbox unreachable",
+		);
+		expect(ctx.liveSessions.get(REMOTE_SESSION.id)?.messages ?? []).toEqual([]);
+	});
+
+	it("serves archived history for expired sessions without dialing the sandbox", async () => {
+		const { ctx } = createContext();
+		const expired: CloudSessionRecord = {
+			...REMOTE_SESSION,
+			expiredAt: "2026-08-04T00:00:00.000Z",
+		};
+		let historyCalls = 0;
+		const manager = new CloudSessionManager(ctx, {
+			api: {
+				list: async () => [expired],
+				create: async () => {
+					throw new Error("must not create");
+				},
+				history: async () => {
+					historyCalls += 1;
+					return [{ role: "user", content: "archived" }];
+				},
+			} as unknown as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => {
+				throw new Error("expired sessions must not open a websocket");
+			},
+		});
+		ctx.cloudSessionManager = manager;
+
+		const attached = await manager.attach(expired.id);
+		expect(attached).toMatchObject({
+			sessionId: expired.id,
+			status: "expired",
+		});
+		expect(historyCalls).toBe(1);
+
+		const messages = await manager.readMessages(expired.id);
+		expect(messages).toEqual([{ role: "user", content: "archived" }]);
+		expect(ctx.liveSessions.get(expired.id)?.messages).toEqual(messages);
+
+		await expect(manager.send(expired.id, "hello")).rejects.toMatchObject({
+			code: "session_expired",
+		});
+	});
+
+	it("falls back to archived history when live hydration fails", async () => {
+		const { ctx } = createContext();
+		const manager = new CloudSessionManager(ctx, {
+			api: {
+				list: async () => [REMOTE_SESSION],
+				create: async () => {
+					throw new Error("must not create");
+				},
+				history: async () => [{ role: "assistant", content: "snapshot" }],
+			} as unknown as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => {
+				throw new Error("sandbox unreachable");
+			},
+		});
+		ctx.cloudSessionManager = manager;
+
+		const messages = await manager.readMessages(REMOTE_SESSION.id);
+		expect(messages).toEqual([{ role: "assistant", content: "snapshot" }]);
+	});
+
+	it("shows a provisioning placeholder in the session list until create settles", async () => {
+		const { ctx, events } = createContext();
+		const hub = new FakeHubClient(false);
+		let serverReady = false;
+		let finishCreate:
+			| ((value: { sessionId: string; sandboxUrl: string }) => void)
+			| undefined;
+		const manager = new CloudSessionManager(ctx, {
+			api: {
+				list: async () => [
+					{
+						...REMOTE_SESSION,
+						id: "ses-existing",
+						status: "failed",
+						title: "Existing session",
+					},
+					{
+						...REMOTE_SESSION,
+						id: "ses-created",
+						status: serverReady ? "ready" : "provisioning",
+						title: undefined,
+						metadata: {
+							...REMOTE_SESSION.metadata,
+							createRequestTitle: "__cline_create_request__:client-start-1",
+						},
+					},
+				],
+				create: () =>
+					new Promise((resolve) => {
+						finishCreate = resolve;
+					}),
+			} as unknown as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+		ctx.cloudSessionManager = manager;
+
+		const creating = manager.create({
+			requestId: "client-start-1",
+			modelId: "anthropic/claude-sonnet-5",
+			repoUrl: "https://github.com/cline/test",
+			initialPrompt: "Fix the provisioning flow",
+		});
+		// Let create() register the placeholder before asserting.
+		await new Promise((resolve) => setTimeout(resolve, 0));
+
+		const during = await manager.listForDiscovery();
+		const provisioning = during.filter(
+			(session) => session.status === "provisioning",
+		);
+		expect(provisioning).toHaveLength(1);
+		const placeholder = provisioning[0];
+		expect(during.some((session) => session.sessionId === "ses-existing")).toBe(
+			true,
+		);
+		expect(during.some((session) => session.sessionId === "ses-created")).toBe(
+			false,
+		);
+		expect(placeholder).toMatchObject({
+			origin: "cloud",
+			prompt: "Fix the provisioning flow",
+			repoUrl: "https://github.com/cline/test",
+			metadata: expect.objectContaining({
+				title: "Provisioning cline/test…",
+			}),
+		});
+
+		// Opening the placeholder is benign (loading state), reads are empty,
+		// and only mutating actions fail with a clear message.
+		const placeholderId = String(placeholder?.sessionId);
+		await expect(
+			handleCommand(ctx, "get_cloud_provisioning_outcome", { placeholderId }),
+		).resolves.toEqual({ status: "provisioning" });
+		await expect(manager.attach(placeholderId)).resolves.toMatchObject({
+			sessionId: placeholderId,
+			status: "provisioning",
+		});
+		await expect(manager.readMessages(placeholderId)).resolves.toEqual([]);
+		await expect(manager.send(placeholderId, "hello")).rejects.toThrow(
+			/still provisioning/,
+		);
+
+		serverReady = true;
+		finishCreate?.({ sessionId: "ses-created", sandboxUrl: "pod" });
+		await creating;
+
+		const after = await manager.listForDiscovery();
+		expect(after.some((session) => session.status === "provisioning")).toBe(
+			false,
+		);
+
+		// The webview swaps placeholder threads to the real session on this.
+		const provisioned = events.find(
+			(event) => event.name === "cloud_session_provisioned",
+		);
+		expect(provisioned?.payload).toMatchObject({
+			placeholderId,
+			sessionId: "ses-created",
+		});
+		await expect(
+			handleCommand(ctx, "get_cloud_provisioning_outcome", { placeholderId }),
+		).resolves.toEqual({ status: "ready", sessionId: "ses-created" });
+	});
+
+	it("retains a failed provisioning outcome after removing its placeholder", async () => {
+		const { ctx, events } = createContext();
+		const manager = new CloudSessionManager(ctx, {
+			api: {
+				create: async () => {
+					throw new Error("sandbox failed");
+				},
+				list: async () => [],
+			} as unknown as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+		});
+		ctx.cloudSessionManager = manager;
+
+		const creating = manager.create({
+			modelId: "anthropic/claude-sonnet-5",
+			repoUrl: "https://github.com/cline/test",
+		});
+		const rejected = expect(creating).rejects.toThrow("sandbox failed");
+		const placeholderId = String(
+			events.find(
+				(event) =>
+					event.name === "chat_session_status" &&
+					event.payload.status === "provisioning",
+			)?.payload.sessionId,
+		);
+		await rejected;
+
+		await expect(
+			handleCommand(ctx, "get_cloud_provisioning_outcome", { placeholderId }),
+		).resolves.toEqual({ status: "failed", message: "sandbox failed" });
+	});
+
+	it("keeps server provisioning rows visible and reconciles their status", async () => {
+		const { ctx } = createContext();
+		let status = "provisioning";
+		const manager = new CloudSessionManager(ctx, {
+			api: {
+				list: async () => [{ ...REMOTE_SESSION, status: "provisioning" }],
+				status: async () => ({ sessionId: REMOTE_SESSION.id, status }),
+			} as unknown as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => {
+				throw new Error("must not connect while provisioning");
+			},
+		});
+
+		await expect(manager.listForDiscovery()).resolves.toEqual([
+			expect.objectContaining({
+				sessionId: REMOTE_SESSION.id,
+				status: "provisioning",
+			}),
+		]);
+		await expect(manager.attach(REMOTE_SESSION.id)).resolves.toMatchObject({
+			sessionId: REMOTE_SESSION.id,
+			status: "provisioning",
+		});
+		await expect(manager.readMessages(REMOTE_SESSION.id)).resolves.toEqual([]);
+
+		status = "ready";
+		await expect(manager.listForDiscovery()).resolves.toEqual([
+			expect.objectContaining({
+				sessionId: REMOTE_SESSION.id,
+				status: "ready",
+			}),
+		]);
+	});
+
+	it("single-flights repeated starts for the same client request", async () => {
+		const { ctx } = createContext();
+		const hub = new FakeHubClient(false);
+		let createCalls = 0;
+		let finishCreate:
+			| ((value: { sessionId: string; sandboxUrl: string }) => void)
+			| undefined;
+		const manager = new CloudSessionManager(ctx, {
+			api: {
+				list: async () => [],
+				create: () => {
+					createCalls += 1;
+					return new Promise((resolve) => {
+						finishCreate = resolve;
+					});
+				},
+			} as unknown as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+		const input = {
+			requestId: "client-start-1",
+			modelId: "anthropic/claude-sonnet-5",
+			repoUrl: "https://github.com/cline/test",
+		};
+
+		const first = manager.create(input);
+		const second = manager.create(input);
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(createCalls).toBe(1);
+		expect(
+			(await manager.listForDiscovery()).filter(
+				(session) => session.status === "provisioning",
+			),
+		).toHaveLength(1);
+
+		finishCreate?.({ sessionId: "ses-created", sandboxUrl: "pod" });
+		await expect(Promise.all([first, second])).resolves.toEqual([
+			expect.objectContaining({ sessionId: "ses-created" }),
+			expect.objectContaining({ sessionId: "ses-created" }),
+		]);
+	});
+
+	it("keeps identical starts from separate chats independent", async () => {
+		const { ctx } = createContext();
+		let createCalls = 0;
+		const manager = new CloudSessionManager(ctx, {
+			api: {
+				list: async () => [],
+				create: async () => {
+					createCalls += 1;
+					return {
+						sessionId: `ses-created-${createCalls}`,
+						sandboxUrl: "pod",
+					};
+				},
+			} as unknown as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => new FakeHubClient(false) as never,
+		});
+		const input = {
+			modelId: "anthropic/claude-sonnet-5",
+			repoUrl: "https://github.com/cline/test",
+		};
+
+		const [first, second] = await Promise.all([
+			manager.create({ ...input, requestId: "chat-a" }),
+			manager.create({ ...input, requestId: "chat-b" }),
+		]);
+
+		expect(createCalls).toBe(2);
+		expect(first.sessionId).not.toBe(second.sessionId);
+	});
+
+	it("deletes a late sandbox with the account that created it", async () => {
+		const { ctx } = createContext();
+		let authToken = "workos:original";
+		let finishCreate: (() => void) | undefined;
+		const deleteAuthorizations: string[] = [];
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api.example",
+			appBaseUrl: "https://app.example",
+			getAuthToken: async () => authToken,
+			fetch: async (_input, init) => {
+				if (init?.method === "POST") {
+					return await new Promise<Response>((resolve) => {
+						finishCreate = () =>
+							resolve(
+								jsonResponse(
+									{
+										success: true,
+										data: {
+											sessionId: "ses-created-late",
+											sandboxUrl: "pod",
+										},
+									},
+									201,
+								),
+							);
+					});
+				}
+				deleteAuthorizations.push(
+					new Headers(init?.headers).get("Authorization") ?? "",
+				);
+				return new Response(null, { status: 204 });
+			},
+		});
+		const manager = new CloudSessionManager(ctx, {
+			api,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => authToken,
+		});
+		const creating = manager.create({
+			modelId: "anthropic/claude-sonnet-5",
+			repoUrl: "https://github.com/cline/test",
+		});
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		authToken = "workos:new-account";
+		await manager.dispose();
+
+		finishCreate?.();
+
+		await expect(creating).rejects.toThrow(/account changed/i);
+		expect(deleteAuthorizations).toEqual(["Bearer workos:original"]);
+		expect(ctx.liveSessions.has("ses-created-late")).toBe(false);
+	});
+
+	it("returns cached cloud discovery promptly while a refresh is slow", async () => {
+		const { ctx } = createContext();
+		let listCalls = 0;
+		let finishRefresh: ((value: CloudSessionRecord[]) => void) | undefined;
+		const manager = new CloudSessionManager(ctx, {
+			api: {
+				list: async () => {
+					listCalls += 1;
+					if (listCalls === 1) return [REMOTE_SESSION];
+					return await new Promise((resolve) => {
+						finishRefresh = resolve;
+					});
+				},
+			} as unknown as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+		});
+		await manager.listForDiscovery();
+
+		const cached = await manager.listForDiscovery({ timeoutMs: 1 });
+
+		expect(cached).toEqual([
+			expect.objectContaining({ sessionId: "ses-outer", origin: "cloud" }),
+		]);
+		finishRefresh?.([]);
+		await new Promise((resolve) => setTimeout(resolve, 0));
+	});
+
+	it("uses only the active organization for billing and session listing", async () => {
+		const { ctx } = createContext();
+		const hub = new FakeHubClient(false);
+		const listCalls: Array<string | undefined> = [];
+		const repositoryScopes: Array<string | undefined> = [];
+		const branchScopes: Array<string | undefined> = [];
+		let createInput: Record<string, unknown> | undefined;
+		const orgSession = { ...REMOTE_SESSION, id: "ses-org", title: undefined };
+		const manager = new CloudSessionManager(ctx, {
+			api: {
+				list: async (organizationId?: string) => {
+					listCalls.push(organizationId);
+					return organizationId
+						? [orgSession]
+						: [{ ...REMOTE_SESSION, title: undefined }];
+				},
+				create: async (input: Record<string, unknown>) => {
+					createInput = input;
+					return { sessionId: "ses-created", sandboxUrl: "pod" };
+				},
+				listRepositories: async (organizationId?: string) => {
+					repositoryScopes.push(organizationId);
+					return { connected: true, connectUrl: "", repositories: [] };
+				},
+				listBranches: async (
+					_repositoryId: number,
+					organizationId?: string,
+				) => {
+					branchScopes.push(organizationId);
+					return { available: true, branches: [] };
+				},
+			} as unknown as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			getActiveOrganizationId: async () => "org-cline-bot",
+			createHubClient: () => hub as never,
+		});
+		ctx.cloudSessionManager = manager;
+
+		const scoped = await manager.list();
+		expect(listCalls).toEqual(["org-cline-bot"]);
+		expect(scoped.map((session) => session.id)).toEqual(["ses-org"]);
+		await manager.listRepositories();
+		await manager.listBranches(42);
+		expect(repositoryScopes).toEqual(["org-cline-bot"]);
+		expect(branchScopes).toEqual(["org-cline-bot"]);
+
+		await manager.create({
+			modelId: "anthropic/claude-sonnet-5",
+			repoUrl: "https://github.com/cline/test",
+		});
+		expect(createInput).toMatchObject({ organizationId: "org-cline-bot" });
+	});
+
+	it("refreshes the active organization before creating a session", async () => {
+		const { ctx } = createContext();
+		const hub = new FakeHubClient(false);
+		let serverScope = "org-a";
+		let cachedScope = serverScope;
+		const lookupOptions: Array<{ fresh?: boolean } | undefined> = [];
+		let createInput: Record<string, unknown> | undefined;
+		const manager = new CloudSessionManager(ctx, {
+			api: {
+				list: async () => [],
+				create: async (input: Record<string, unknown>) => {
+					createInput = input;
+					return { sessionId: "ses-created", sandboxUrl: "pod" };
+				},
+			} as unknown as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			getActiveOrganizationId: async (options) => {
+				lookupOptions.push(options);
+				if (options?.fresh) cachedScope = serverScope;
+				return cachedScope;
+			},
+			createHubClient: () => hub as never,
+		});
+
+		await manager.list();
+		serverScope = "org-b";
+		await manager.create({
+			modelId: "anthropic/claude-sonnet-5",
+			repoUrl: "https://github.com/cline/test",
+		});
+
+		expect(lookupOptions).toEqual([undefined, { fresh: true }]);
+		expect(createInput).toMatchObject({ organizationId: "org-b" });
+	});
+
+	it("keeps refresh-after-connect-failure in the active organization", async () => {
+		const { ctx } = createContext();
+		const listCalls: Array<string | undefined> = [];
+		const orgSession = { ...REMOTE_SESSION, id: "ses-org" };
+		const manager = new CloudSessionManager(ctx, {
+			api: {
+				list: async (organizationId?: string) => {
+					listCalls.push(organizationId);
+					return organizationId === "org-cline-bot" ? [orgSession] : [];
+				},
+			} as unknown as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			getActiveOrganizationId: async () => "org-cline-bot",
+			createHubClient: () =>
+				({
+					command: async () => ({ ok: true as const }),
+					connect: async () => {
+						throw new Error("pod offline");
+					},
+					dispose: async () => undefined,
+					getClientId: () => "code-cloud-ses-org",
+					subscribe: () => () => undefined,
+				}) as never,
+		});
+		ctx.cloudSessionManager = manager;
+
+		await manager.list();
+		await expect(manager.attach("ses-org")).rejects.toThrow("pod offline");
+
+		expect(listCalls).toEqual(["org-cline-bot", "org-cline-bot"]);
+	});
+
+	it("does not silently bill personal credits when account scope lookup fails", async () => {
+		const { ctx } = createContext();
+		const hub = new FakeHubClient(false);
+		let createInput: Record<string, unknown> | undefined;
+		const manager = new CloudSessionManager(ctx, {
+			api: {
+				list: async () => [],
+				create: async (input: Record<string, unknown>) => {
+					createInput = input;
+					return { sessionId: "ses-created", sandboxUrl: "pod" };
+				},
+			} as unknown as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			getActiveOrganizationId: async () => {
+				throw new Error("account endpoint down");
+			},
+			createHubClient: () => hub as never,
+		});
+		ctx.cloudSessionManager = manager;
+
+		await expect(
+			manager.create({
+				modelId: "anthropic/claude-sonnet-5",
+				repoUrl: "https://github.com/cline/test",
+			}),
+		).rejects.toThrow("account endpoint down");
+		expect(createInput?.organizationId).toBeUndefined();
+	});
+
+	it("recovers with a fresh connection after inner-session creation fails", async () => {
+		const { ctx } = createContext();
+		let clientCount = 0;
+		let failNextInnerCreate = true;
+		const clients: FakeHubClient[] = [];
+		const manager = new CloudSessionManager(ctx, {
+			api: {
+				list: async () => [{ ...REMOTE_SESSION, title: undefined }],
+			} as unknown as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => {
+				clientCount += 1;
+				const hub = new (class extends FakeHubClient {
+					override async command(
+						command: string,
+						payload?: Record<string, unknown>,
+						sessionId?: string,
+						options?: { timeoutMs?: number | null },
+					) {
+						if (command === "session.create" && failNextInnerCreate) {
+							failNextInnerCreate = false;
+							throw new Error("insufficient balance");
+						}
+						return super.command(command, payload, sessionId, options);
+					}
+				})(false);
+				clients.push(hub);
+				return hub as never;
+			},
+		});
+		ctx.cloudSessionManager = manager;
+		await manager.list();
+
+		// First send fails at inner-session creation…
+		await expect(manager.send("ses-outer", "first")).rejects.toThrow(
+			"insufficient balance",
+		);
+		// …and must NOT leave a poisoned connection behind: the retry gets a
+		// fresh client with a live event subscription and succeeds.
+		await manager.send("ses-outer", "second");
+		expect(clientCount).toBe(2);
+		expect(clients[1]?.events).toBeDefined();
+		expect(
+			clients[1]?.commands.some((entry) => entry.command === "session.create"),
+		).toBe(true);
+	});
+
+	it("single-flights inner-session creation under concurrent sends", async () => {
+		const { ctx } = createContext();
+		const hub = new FakeHubClient(false);
+		const manager = new CloudSessionManager(ctx, {
+			api: {
+				list: async () => [{ ...REMOTE_SESSION, title: undefined }],
+			} as unknown as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+		ctx.cloudSessionManager = manager;
+		await manager.list();
+
+		await Promise.all([
+			manager.send("ses-outer", "first"),
+			manager.send("ses-outer", "second"),
+		]);
+		const innerCreates = hub.commands.filter(
+			(entry) => entry.command === "session.create",
+		);
+		expect(innerCreates).toHaveLength(1);
+	});
+
+	it("re-scopes the visible list on org change but keeps open sessions routable", async () => {
+		const { ctx } = createContext();
+		const hub = new FakeHubClient();
+		let scope: string | undefined = "org-a";
+		const orgSession = { ...REMOTE_SESSION, id: "ses-org-a", title: undefined };
+		const personalSession = {
+			...REMOTE_SESSION,
+			id: "ses-personal",
+			title: undefined,
+		};
+		const manager = new CloudSessionManager(ctx, {
+			api: {
+				list: async (organizationId?: string) =>
+					organizationId ? [orgSession] : [personalSession],
+			} as unknown as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			getActiveOrganizationId: async () => scope,
+			createHubClient: () => hub as never,
+		});
+		ctx.cloudSessionManager = manager;
+
+		await manager.list();
+		await manager.attach("ses-org-a");
+
+		// The server-side active org changes (e.g. from the dashboard) and the
+		// resolver picks it up: the sidebar re-scopes to personal…
+		scope = undefined;
+		const visible = (await manager.listForDiscovery()).map(
+			(session) => session.sessionId,
+		);
+		expect(visible).toEqual(["ses-personal"]);
+
+		// …but the org session that is already open must stay routable.
+		await expect(manager.send("ses-org-a", "hello")).resolves.toMatchObject({
+			ok: true,
+		});
+	});
+
+	it("names the session from the first prompt and supports rename", async () => {
+		const { ctx } = createContext();
+		const hub = new FakeHubClient();
+		const titleUpdates: Array<{ id: string; title: string }> = [];
+		// Fresh record with no title: send() stamps titles onto the record
+		// object, so the shared fixture may carry one from earlier tests.
+		const record = { ...REMOTE_SESSION, title: undefined };
+		const manager = new CloudSessionManager(ctx, {
+			api: {
+				list: async () => [record],
+				updateTitle: async (id: string, title: string) => {
+					titleUpdates.push({ id, title });
+					return { ...record, title };
+				},
+			} as unknown as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+		ctx.cloudSessionManager = manager;
+		await manager.list();
+
+		await manager.send(
+			"ses-outer",
+			"Fix the login bug\nwith more detail below",
+		);
+		expect(titleUpdates).toEqual([
+			{ id: "ses-outer", title: "Fix the login bug" },
+		]);
+		expect(ctx.liveSessions.get("ses-outer")?.title).toBe("Fix the login bug");
+
+		// Second send must not rename again.
+		await manager.send("ses-outer", "another prompt");
+		expect(titleUpdates).toHaveLength(1);
+
+		// Explicit rename goes through REST and updates local state.
+		await manager.updateTitle("ses-outer", "Renamed");
+		expect(titleUpdates).toHaveLength(2);
+		expect(ctx.liveSessions.get("ses-outer")?.title).toBe("Renamed");
+	});
+
+	it("surfaces run.failed errors as a visible error message", async () => {
+		const { ctx, events } = createContext();
+		const hub = new FakeHubClient();
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+		ctx.cloudSessionManager = manager;
+		await manager.list();
+		await manager.attach("ses-outer");
+
+		hub.events?.({
+			version: "v1",
+			event: "run.failed",
+			sessionId: "inner-1",
+			payload: {
+				reason: "error",
+				error: "Insufficient balance. Your Cline Credits balance is $-1.55",
+			},
+		} as HubEventEnvelope);
+
+		const errorChunk = events.find(
+			(event) =>
+				event.name === "chat_event" &&
+				event.payload.stream === "chat_core_log" &&
+				String(event.payload.chunk).includes("Insufficient balance"),
+		);
+		expect(errorChunk).toBeDefined();
+		expect(events.some((event) => event.name === "chat_session_ended")).toBe(
+			true,
+		);
+	});
+
+	it("attaches instead of creating when start carries an existing outer id and the registry is cold", async () => {
+		const { ctx } = createContext();
+		const hub = new FakeHubClient(true);
+		let creates = 0;
+		const outerId = "ses-01H9XKYHEC1YFBXMJ8ZBES772P";
+		const manager = new CloudSessionManager(ctx, {
+			api: {
+				// Registry is cold: the record is only resolvable via REST list.
+				list: async () => [{ ...REMOTE_SESSION, id: outerId }],
+				create: async () => {
+					creates += 1;
+					return { sessionId: "ses-unwanted", sandboxUrl: "pod" };
+				},
+			} as unknown as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+		ctx.cloudSessionManager = manager;
+
+		const attached = await handleChatSessionCommand(ctx, {
+			action: "start",
+			config: {
+				executionTarget: "cloud",
+				sessionId: outerId,
+				repoUrl: "https://github.com/cline/test",
+				model: "anthropic/claude-sonnet-5",
+			},
+		});
+
+		expect(attached).toMatchObject({ sessionId: outerId, origin: "cloud" });
+		expect(creates).toBe(0);
+		expect(
+			hub.commands.some((entry) => entry.command === "session.attach"),
+		).toBe(true);
+	});
+
+	it("ignores a new client-planned id and provisions a canonical outer id", async () => {
+		const { ctx } = createContext();
+		const hub = new FakeHubClient(false);
+		let creates = 0;
+		const manager = new CloudSessionManager(ctx, {
+			api: {
+				list: async () => [],
+				create: async () => {
+					creates += 1;
+					return { sessionId: "ses-server", sandboxUrl: "pod" };
+				},
+			} as unknown as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+		ctx.cloudSessionManager = manager;
+
+		const created = await handleChatSessionCommand(ctx, {
+			action: "start",
+			config: {
+				executionTarget: "cloud",
+				sessionId: "client-planned-id",
+				repoUrl: "https://github.com/cline/test",
+				model: "anthropic/claude-sonnet-5",
+			},
+		});
+
+		expect(created).toMatchObject({
+			sessionId: "ses-server",
+			origin: "cloud",
+		});
+		expect(creates).toBe(1);
+		expect(ctx.liveSessions.has("client-planned-id")).toBe(false);
+		expect(ctx.liveSessions.has("ses-server")).toBe(true);
+	});
 });
