@@ -2,7 +2,7 @@ import * as path from "path"
 import * as vscode from "vscode"
 import { Controller } from "@/core/controller"
 import { HostProvider } from "@/hosts/host-provider"
-import { buildApiHandler } from "@/sdk/sdk-api-handler"
+import { buildApiHandlerWithHostContext } from "@/sdk/sdk-api-handler"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
 import { getGitDiff } from "@/utils/git"
@@ -215,7 +215,12 @@ async function performCommitMsgGeneration(controller: Controller, gitDiff: strin
 		// transform that doesn't need extended thinking; disabling reasoning also
 		// avoids sending both reasoning.effort and reasoning.max_tokens, which
 		// some providers (e.g. OpenRouter) reject.
-		const apiHandler = buildApiHandler(apiConfiguration, currentMode, { disableReasoning: true })
+		//
+		// Resolve the host client identity so the request carries the same Cline
+		// surface headers as a task: the Cline gateway serves models restricted to
+		// Cline product surfaces (the free models) only to requests that identify
+		// themselves, and answers anything else with HTTP 403.
+		const apiHandler = await buildApiHandlerWithHostContext(apiConfiguration, currentMode, { disableReasoning: true })
 
 		// Create a system prompt
 		const systemPrompt = PROMPT.system
