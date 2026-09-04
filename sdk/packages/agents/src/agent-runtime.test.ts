@@ -1395,7 +1395,7 @@ describe("AgentRuntime", () => {
 		]);
 	});
 
-	it("normalizes JSON-encoded string fields when the tool schema expects arrays", async () => {
+	it("normalizes JSON-encoded command arrays with Windows path backslashes", async () => {
 		const executeTool = vi.fn(async (input: { commands: string[] }) => ({
 			joined: input.commands.join(" && "),
 		}));
@@ -1406,9 +1406,7 @@ describe("AgentRuntime", () => {
 					type: "tool-call-delta",
 					toolCallId: "call_commands",
 					toolName: "commands",
-					inputText: JSON.stringify({
-						commands: JSON.stringify(["git status", "bun test"]),
-					}),
+					inputText: String.raw`{"commands":"[\"dir C:\\Dev\",\"echo done\"]"}`,
 				},
 				{ type: "finish", reason: "tool-calls" },
 			],
@@ -1418,7 +1416,7 @@ describe("AgentRuntime", () => {
 				expect(toolMessage.content[0]).toMatchObject({
 					type: "tool-result",
 					toolName: "commands",
-					output: { joined: "git status && bun test" },
+					output: { joined: String.raw`dir C:\Dev && echo done` },
 				});
 				return [
 					{ type: "text-delta", text: "done" },
@@ -1453,14 +1451,14 @@ describe("AgentRuntime", () => {
 
 		expect(result.status).toBe("completed");
 		expect(executeTool).toHaveBeenCalledWith(
-			{ commands: ["git status", "bun test"] },
+			{ commands: [String.raw`dir C:\Dev`, "echo done"] },
 			expect.anything(),
 		);
 		expect(beforeTool).toHaveBeenCalledWith(
 			expect.objectContaining({
-				input: { commands: ["git status", "bun test"] },
+				input: { commands: [String.raw`dir C:\Dev`, "echo done"] },
 				toolCall: expect.objectContaining({
-					input: { commands: ["git status", "bun test"] },
+					input: { commands: [String.raw`dir C:\Dev`, "echo done"] },
 				}),
 			}),
 		);
