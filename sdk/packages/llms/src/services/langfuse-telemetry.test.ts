@@ -118,8 +118,8 @@ describe("langfuse telemetry", () => {
 		expect(registerTelemetrySpy).not.toHaveBeenCalled();
 	});
 
-	it("keeps non-cline telemetry disabled after cline initialization", async () => {
-		await expect(ensureLangfuseTelemetry("cline")).resolves.toBe(true);
+	it("enables Cline backend providers and keeps other providers disabled", async () => {
+		await expect(ensureLangfuseTelemetry("cline-pass")).resolves.toBe(true);
 		await expect(ensureLangfuseTelemetry("cline")).resolves.toBe(true);
 		await expect(ensureLangfuseTelemetry("openrouter")).resolves.toBe(false);
 

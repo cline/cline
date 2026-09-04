@@ -64,7 +64,7 @@ export function hasLangfuseTelemetryConfig(): boolean {
 export async function ensureLangfuseTelemetry(
 	providerId: string,
 ): Promise<boolean> {
-	if (providerId !== "cline") {
+	if (providerId !== "cline" && providerId !== "cline-pass") {
 		return false;
 	}
 
