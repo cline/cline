@@ -53,6 +53,12 @@
 		-webkit-user-select: text;
 		user-select: text;
 	}
+
+	/* The Windows caption controls occupy the right edge of the shared title-bar row. */
+	html[data-windows-custom-titlebar]
+	[data-slot="window-title-bar-content-host"] {
+		padding-right: 9rem;
+	}
 }
 
 /* Chat Markdown polish and the streaming-title shimmer live in

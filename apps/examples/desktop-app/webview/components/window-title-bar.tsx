@@ -1,7 +1,16 @@
 "use client";
 
-import { createContext, type ReactNode, useContext, useState } from "react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import { Minus, Square, X } from "lucide-react";
+import {
+	createContext,
+	type ReactNode,
+	useContext,
+	useEffect,
+	useState,
+} from "react";
 import { createPortal } from "react-dom";
+import { isTauriAvailable } from "@/lib/desktop-client";
 import { cn } from "@/lib/utils";
 
 type WindowTitleBarContextValue = {
@@ -31,7 +40,83 @@ export function WindowTitleBarProvider({
 			value={{ contentEnabled, portalTarget, setPortalTarget }}
 		>
 			{children}
+			<WindowControls />
 		</WindowTitleBarContext.Provider>
+	);
+}
+
+function isWindowsDesktop(): boolean {
+	return (
+		isTauriAvailable() &&
+		typeof navigator !== "undefined" &&
+		/Windows/i.test(navigator.userAgent)
+	);
+}
+
+/** Native window actions for the borderless Windows frame. */
+export function WindowControls() {
+	const [isWindows, setIsWindows] = useState(false);
+	const [isMaximized, setIsMaximized] = useState(false);
+
+	useEffect(() => {
+		if (!isWindowsDesktop()) {
+			return;
+		}
+		setIsWindows(true);
+		document.documentElement.dataset.windowsCustomTitlebar = "";
+		const appWindow = getCurrentWindow();
+		void appWindow.isMaximized().then(setIsMaximized);
+		const unlisten = appWindow.onResized(() => {
+			void appWindow.isMaximized().then(setIsMaximized);
+		});
+		return () => {
+			delete document.documentElement.dataset.windowsCustomTitlebar;
+			void unlisten.then((stopListening) => stopListening());
+		};
+	}, []);
+
+	if (!isWindows) {
+		return null;
+	}
+
+	const appWindow = getCurrentWindow();
+	return (
+		<div
+			className="fixed top-0 right-0 z-50 flex h-12 bg-background"
+			data-slot="window-controls"
+		>
+			<button
+				aria-label="Minimize"
+				className="flex w-12 items-center justify-center text-foreground hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+				onClick={() => void appWindow.minimize()}
+				type="button"
+			>
+				<Minus aria-hidden="true" className="size-4" strokeWidth={1.5} />
+			</button>
+			<button
+				aria-label={isMaximized ? "Restore" : "Maximize"}
+				className="flex w-12 items-center justify-center text-foreground hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+				onClick={() => void appWindow.toggleMaximize()}
+				type="button"
+			>
+				{isMaximized ? (
+					<span aria-hidden="true" className="relative size-3.5">
+						<span className="absolute top-0 right-0 size-2.5 border border-current" />
+						<span className="absolute bottom-0 left-0 size-2.5 border border-current bg-background" />
+					</span>
+				) : (
+					<Square aria-hidden="true" className="size-3.5" strokeWidth={1.5} />
+				)}
+			</button>
+			<button
+				aria-label="Close"
+				className="flex w-12 items-center justify-center text-foreground hover:bg-red-600 hover:text-white focus-visible:bg-red-600 focus-visible:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white"
+				onClick={() => void appWindow.close()}
+				type="button"
+			>
+				<X aria-hidden="true" className="size-4" strokeWidth={1.5} />
+			</button>
+		</div>
 	);
 }
 
