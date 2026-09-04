@@ -1732,36 +1732,45 @@ export async function handleCommand(
 		if (!patch || typeof patch !== "object" || Array.isArray(patch)) {
 			throw new Error("metadata patch is required");
 		}
-		// updateSession replaces metadata wholesale in both the session row and
-		// the manifest, so merge over what each already holds. A null value
-		// removes the key, which is how callers clear a flag.
-		const store = new SqliteSessionStore();
-		const asRecord = (value: unknown): JsonRecord =>
-			value && typeof value === "object" && !Array.isArray(value)
-				? (value as JsonRecord)
-				: {};
-		const existing = store.get(sessionId);
-		const merged: JsonRecord = {
-			...asRecord(readSessionManifest(sessionId)?.metadata),
-			...asRecord(existing?.metadata),
-		};
-		for (const [key, value] of Object.entries(patch as JsonRecord)) {
-			if (value === null) delete merged[key];
-			else merged[key] = value;
-		}
-		const backend = await resolveSessionBackend({ backendMode: "local" });
-		const result = await backend.updateSession({ sessionId, metadata: merged });
-		if (!result.updated) throw new Error(`Session ${sessionId} not found`);
-		// Annotating a session is not session activity. updateSession stamps
-		// updated_at, which clients sort and label rows by, so a pin would
-		// otherwise make an old session look like it just ran.
-		if (existing?.updatedAt) {
-			store.run("UPDATE sessions SET updated_at = ? WHERE session_id = ?", [
-				existing.updatedAt,
+		const { beginSessionMetadataUpdate } = await import("./chat-session");
+		const releaseMetadataUpdate = beginSessionMetadataUpdate(ctx, sessionId);
+		try {
+			// updateSession replaces metadata wholesale in both the session row and
+			// the manifest, so merge over what each already holds. A null value
+			// removes the key, which is how callers clear a flag.
+			const store = new SqliteSessionStore();
+			const asRecord = (value: unknown): JsonRecord =>
+				value && typeof value === "object" && !Array.isArray(value)
+					? (value as JsonRecord)
+					: {};
+			const existing = store.get(sessionId);
+			const merged: JsonRecord = {
+				...asRecord(readSessionManifest(sessionId)?.metadata),
+				...asRecord(existing?.metadata),
+			};
+			for (const [key, value] of Object.entries(patch as JsonRecord)) {
+				if (value === null) delete merged[key];
+				else merged[key] = value;
+			}
+			const backend = await resolveSessionBackend({ backendMode: "local" });
+			const result = await backend.updateSession({
 				sessionId,
-			]);
+				metadata: merged,
+			});
+			if (!result.updated) throw new Error(`Session ${sessionId} not found`);
+			// Annotating a session is not session activity. updateSession stamps
+			// updated_at, which clients sort and label rows by, so a pin would
+			// otherwise make an old session look like it just ran.
+			if (existing?.updatedAt) {
+				store.run("UPDATE sessions SET updated_at = ? WHERE session_id = ?", [
+					existing.updatedAt,
+					sessionId,
+				]);
+			}
+			return merged;
+		} finally {
+			releaseMetadataUpdate();
 		}
-		return merged;
 	}
 	if (command === "delete_chat_session" || command === "delete_cli_session") {
 		const sessionId = String(args?.sessionId ?? args?.session_id ?? "").trim();

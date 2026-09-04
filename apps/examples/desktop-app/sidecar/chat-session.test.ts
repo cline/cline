@@ -18,6 +18,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { materializeUserFiles } from "./attachments";
 import {
 	assertSessionDeleteAllowedDuringHandoff,
+	beginSessionMetadataUpdate,
 	buildSessionConnectionUpdate,
 	cloudHandoffGitStateMatchesFingerprint,
 	combineCloudHandoffModels,
@@ -480,7 +481,7 @@ describe("session forks", () => {
 		expect(remove).not.toHaveBeenCalled();
 	});
 
-	it("blocks deletion while the handoff request is starting", async () => {
+	it("blocks local mutations while the handoff request is starting", async () => {
 		enableCloudHandoffGates();
 		let releaseGet: ((value: undefined) => void) | undefined;
 		const ctx = {
@@ -522,8 +523,37 @@ describe("session forks", () => {
 		await expect(
 			assertSessionDeleteAllowedDuringHandoff(ctx, "starting-handoff-source"),
 		).rejects.toThrow("Wait for the cloud handoff to finish before deleting");
+		const { handleCommand } = await import("./commands");
+		await expect(
+			handleCommand(ctx, "update_chat_session_metadata", {
+				sessionId: "starting-handoff-source",
+				metadata: { pinned: true },
+			}),
+		).rejects.toThrow(
+			"Wait for the cloud handoff to finish before updating session metadata",
+		);
 		releaseGet?.(undefined);
 		await expect(handoff).rejects.toThrow("was not found");
+	});
+
+	it("blocks handoff while a session metadata update is active", async () => {
+		const ctx = {
+			liveSessions: new Map(),
+		} as unknown as SidecarContext;
+		const releaseMetadataUpdate = beginSessionMetadataUpdate(
+			ctx,
+			"metadata-update-source",
+		);
+
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "handoff",
+				sessionId: "metadata-update-source",
+			}),
+		).rejects.toThrow(
+			"Wait for the session metadata update to finish before handing off",
+		);
+		releaseMetadataUpdate();
 	});
 
 	it("blocks handoff while session deletion is starting", async () => {
