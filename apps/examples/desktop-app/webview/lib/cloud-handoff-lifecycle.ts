@@ -47,6 +47,7 @@ export type HandoffLifecycleEffects = {
 			silent: true;
 			initialPromptDraft?: string;
 			initialAttachments?: File[];
+			expectedActiveThreadId?: string;
 		},
 	) => Promise<boolean> | boolean | undefined;
 	openExternal: (url: string) => Promise<void>;
@@ -129,6 +130,7 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 	const latestAttempts = new Map<string, string>();
 	const acceptedAttempts = new Map<string, string>();
 	const attemptOrders = new Map<string, number>();
+	const sourceThreadIds = new Map<string, string>();
 	let nextAttemptOrder = 0;
 
 	const attemptKey = (sourceSessionId: string, attemptId?: string) =>
@@ -173,10 +175,16 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 
 	return {
 		/** Starts a distinct RPC attempt for this source session. */
-		onRpcStarted(sourceSessionId: string): string {
+		onRpcStarted(sourceSessionId: string, sourceThreadId?: string): string {
 			const attemptId = crypto.randomUUID();
 			attemptOrders.set(attemptId, ++nextAttemptOrder);
 			latestAttempts.set(sourceSessionId, attemptId);
+			if (sourceThreadId) {
+				sourceThreadIds.set(
+					attemptKey(sourceSessionId, attemptId),
+					sourceThreadId,
+				);
+			}
 			surfacedWarnings.delete(sourceSessionId);
 			return attemptId;
 		},
@@ -187,6 +195,7 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 			if (!acceptAttempt(sourceSessionId, handoffAttemptId)) return;
 			const acceptedAttempt = handoffAttemptId;
 			const key = attemptKey(sourceSessionId, handoffAttemptId);
+			const sourceThreadId = sourceThreadIds.get(key);
 			if (progress.phase === "complete" && completions.has(key)) return;
 			let retryDraft: string | undefined;
 			let retryAttachments: File[] | undefined;
@@ -233,6 +242,11 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 										...(retryDraft ? { initialPromptDraft: retryDraft } : {}),
 										...(retryAttachments?.length
 											? { initialAttachments: retryAttachments }
+											: {}),
+										...(sourceThreadId
+											? {
+													expectedActiveThreadId: sourceThreadId,
+												}
 											: {}),
 									}),
 								)
