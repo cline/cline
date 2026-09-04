@@ -272,4 +272,29 @@ describe("createApplyPatchExecutor", () => {
 
 		await expect(fs.readFile(filePath, "utf-8")).resolves.toBe(original);
 	});
+
+	it("rejects an add patch when the file already exists", async () => {
+		const filePath = path.join(tempDir, "note.txt");
+		await fs.writeFile(filePath, "do not overwrite", "utf-8");
+		const execute = createApplyPatchExecutor();
+
+		await expect(
+			execute(
+				{
+					input: [
+						"*** Begin Patch",
+						"*** Add File: note.txt",
+						"+hello",
+						"*** End Patch",
+					].join("\n"),
+				},
+				tempDir,
+				{} as never,
+			),
+		).rejects.toThrow(/Add File Error: File already exists: note\.txt/);
+
+		await expect(fs.readFile(filePath, "utf-8")).resolves.toBe(
+			"do not overwrite",
+		);
+	});
 });
