@@ -741,6 +741,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			extensions,
 			hookErrorMode: configWithProvider.hookErrorMode,
 			initialMessages: bootstrap.effectiveInput.initialMessages,
+			toolContextMetadata: startInput.sessionMetadata,
 			userFileContentLoader: loadUserFileContent,
 			toolPolicies: bootstrap.toolPolicies,
 			requestToolApproval: bootstrap.requestToolApproval
