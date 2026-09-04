@@ -460,6 +460,27 @@ Design implication:
 - logging is injectable and transport-agnostic, allowing host environments (CLI, VS Code, browser) to wire their own backends
 - do not hardcode logging calls; accept a `logger?: BasicLogger` parameter instead
 
+### 6.1 OpenTelemetry and Langfuse ownership
+
+`@cline/core` is the composition root for Cline's process-wide OpenTelemetry
+provider. `createConfiguredTelemetryHandle` constructs that provider with both
+the configured OTLP processors and any additional processors. In Langfuse
+collector mode, it activates AI SDK 7 instrumentation but installs no local
+Langfuse exporter; the normal OTLP pipeline forwards spans and the backend owns
+the Langfuse credential. Direct mode instead obtains a `LangfuseSpanProcessor`
+from `@cline/llms` and installs it during provider construction.
+
+Direct `@cline/llms` consumers retain a standalone fallback. It creates an
+isolated Langfuse tracer provider and owns that provider's flush and shutdown.
+An LLM request never mutates or shuts down an ambient global provider.
+
+Design implication:
+
+- provider owners compose span processors before constructing an OpenTelemetry SDK 2.x provider
+- collector-mode Langfuse credentials remain in the OTel backend and are never present in the client or request metadata
+- only the provider owner may flush or shut down the provider
+- telemetry opt-out prevents creation and activation of the Cline-hosted Langfuse integration
+
 ### 7. Storage Adapters
 
 Stateful persistence should be isolated behind adapter/service layers.

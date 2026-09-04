@@ -14,6 +14,7 @@ export {
 } from "./OpenTelemetryAdapter";
 export {
 	type ConfiguredTelemetryHandle,
+	type CreateConfiguredTelemetryHandleOptions,
 	type CreateOpenTelemetryTelemetryServiceOptions,
 	createConfiguredTelemetryHandle,
 	createConfiguredTelemetryService,

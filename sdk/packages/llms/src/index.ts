@@ -134,7 +134,17 @@ export {
 	type ClineWebSearchResult,
 	createCline,
 } from "./providers/vendors/cline";
-export { disposeLangfuseTelemetry } from "./services/langfuse-telemetry";
+export {
+	activateLangfuseTelemetry,
+	createLangfuseTelemetryIntegration,
+	disableLangfuseTelemetry,
+	disposeLangfuseTelemetry,
+	hasLangfuseTelemetryConfig,
+	type LangfuseCollectorTelemetryConfig,
+	type LangfuseDirectTelemetryConfig,
+	type LangfuseTelemetryConfig,
+	type LangfuseTelemetryIntegration,
+} from "./services/langfuse-telemetry";
 export {
 	type AudioTranscriptionRequest,
 	type AudioTranscriptionResult,

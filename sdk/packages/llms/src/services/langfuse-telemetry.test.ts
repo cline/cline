@@ -1,76 +1,67 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { registerDisposableSpy, registerTelemetrySpy, telemetryStartSpy } =
-	vi.hoisted(() => ({
-		registerDisposableSpy: vi.fn(),
-		registerTelemetrySpy: vi.fn(),
-		telemetryStartSpy: vi.fn(),
-	}));
+const mocks = vi.hoisted(() => ({
+	registerDisposable: vi.fn(),
+	registerTelemetry: vi.fn(),
+	telemetryStart: vi.fn(),
+	setTracerProvider: vi.fn(),
+	forceFlush: vi.fn(async () => undefined),
+	shutdown: vi.fn(async () => undefined),
+	processorConstructor: vi.fn(),
+	providerConstructor: vi.fn(),
+}));
+
+vi.mock("@cline/shared", () => ({
+	registerDisposable: mocks.registerDisposable,
+}));
 
 vi.mock("ai", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("ai")>();
 	return {
 		...actual,
-		registerTelemetry: (
-			...integrations: Parameters<typeof actual.registerTelemetry>
-		) => {
-			registerTelemetrySpy(...integrations);
-			actual.registerTelemetry(...integrations);
+		registerTelemetry: (...integrations: unknown[]) => {
+			mocks.registerTelemetry(...integrations);
+			actual.registerTelemetry(...(integrations as never));
 		},
 	};
 });
 
-vi.mock("@langfuse/vercel-ai-sdk", () => ({
-	LangfuseVercelAiSdkIntegration: class MockLangfuseVercelAiSdkIntegration {
-		onStart = telemetryStartSpy;
+vi.mock("@langfuse/otel", () => ({
+	LangfuseSpanProcessor: class MockLangfuseSpanProcessor {
+		constructor(config: unknown) {
+			mocks.processorConstructor(config);
+		}
 	},
 }));
 
-const {
-	addSpanProcessorSpy,
-	forceFlushSpy,
-	shutdownSpy,
-	getDelegateSpy,
-	getTracerProviderSpy,
-	registeredGlobalProvider,
-} = vi.hoisted(() => ({
-	addSpanProcessorSpy: vi.fn(),
-	forceFlushSpy: vi.fn(async () => undefined),
-	shutdownSpy: vi.fn(async () => undefined),
-	getDelegateSpy: vi.fn(),
-	getTracerProviderSpy: vi.fn(),
-	registeredGlobalProvider: { current: undefined as unknown },
+vi.mock("@langfuse/tracing", () => ({
+	propagateAttributes: async (_attributes: unknown, callback: () => unknown) =>
+		await callback(),
+	setLangfuseTracerProvider: mocks.setTracerProvider,
 }));
 
-class MockNodeTracerProvider {
-	// Mirrors OpenTelemetry's registerGlobal semantics: the first
-	// registration wins and later ones are silently ignored.
-	register = vi.fn(() => {
-		registeredGlobalProvider.current ??= this;
-	});
-}
-
-vi.mock("@cline/shared", () => ({
-	registerDisposable: registerDisposableSpy,
-}));
-
-vi.mock("@langfuse/otel", () => ({
-	LangfuseSpanProcessor: class MockLangfuseSpanProcessor {},
-}));
-
-vi.mock("@opentelemetry/api", () => ({
-	trace: {
-		getTracerProvider: getTracerProviderSpy,
+vi.mock("@langfuse/vercel-ai-sdk", () => ({
+	LangfuseVercelAiSdkIntegration: class MockIntegration {
+		onStart = mocks.telemetryStart;
 	},
 }));
 
 vi.mock("@opentelemetry/sdk-trace-node", () => ({
-	NodeTracerProvider: MockNodeTracerProvider,
+	NodeTracerProvider: class MockNodeTracerProvider {
+		forceFlush = mocks.forceFlush;
+		shutdown = mocks.shutdown;
+		constructor(config: unknown) {
+			mocks.providerConstructor(config);
+		}
+	},
 }));
 
 import { generateText } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 import {
+	activateLangfuseTelemetry,
+	createLangfuseTelemetryIntegration,
+	disableLangfuseTelemetry,
 	disposeLangfuseTelemetry,
 	ensureLangfuseTelemetry,
 	resetLangfuseTelemetryForTests,
@@ -79,25 +70,7 @@ import {
 describe("langfuse telemetry", () => {
 	beforeEach(() => {
 		resetLangfuseTelemetryForTests();
-		registerDisposableSpy.mockReset();
-		registerTelemetrySpy.mockReset();
-		telemetryStartSpy.mockReset();
-		addSpanProcessorSpy.mockReset();
-		forceFlushSpy.mockReset();
-		forceFlushSpy.mockResolvedValue(undefined);
-		shutdownSpy.mockReset();
-		shutdownSpy.mockResolvedValue(undefined);
-		getDelegateSpy.mockReset();
-		getDelegateSpy.mockReturnValue({
-			constructor: { name: "NodeTracerProvider" },
-			forceFlush: forceFlushSpy,
-			shutdown: shutdownSpy,
-		});
-		registeredGlobalProvider.current = undefined;
-		getTracerProviderSpy.mockReturnValue({
-			addSpanProcessor: addSpanProcessorSpy,
-			getDelegate: getDelegateSpy,
-		});
+		for (const mock of Object.values(mocks)) mock.mockClear();
 		process.env.LANGFUSE_BASE_URL = "https://langfuse.example";
 		process.env.LANGFUSE_PUBLIC_KEY = "public-key";
 		process.env.LANGFUSE_SECRET_KEY = "secret-key";
@@ -110,102 +83,58 @@ describe("langfuse telemetry", () => {
 		resetLangfuseTelemetryForTests();
 	});
 
-	it("enables telemetry for non-cline providers when langfuse config is available", async () => {
-		await expect(ensureLangfuseTelemetry("openrouter")).resolves.toBe(true);
-		await expect(ensureLangfuseTelemetry("cline")).resolves.toBe(true);
-
-		expect(registerDisposableSpy).toHaveBeenCalledTimes(1);
-		expect(addSpanProcessorSpy).toHaveBeenCalledTimes(1);
-		expect(registerTelemetrySpy).toHaveBeenCalledTimes(1);
-		expect(registerTelemetrySpy).toHaveBeenCalledWith(expect.any(Object));
+	it("creates a processor for a host-owned provider without creating a provider", () => {
+		const integration = createLangfuseTelemetryIntegration();
+		expect(integration?.spanProcessor).toBeDefined();
+		expect(mocks.processorConstructor).toHaveBeenCalledWith({
+			baseUrl: "https://langfuse.example",
+			publicKey: "public-key",
+			secretKey: "secret-key",
+		});
+		expect(mocks.providerConstructor).not.toHaveBeenCalled();
 	});
 
-	it("flushes before shutdown during disposal", async () => {
+	it("activates shared-provider AI SDK telemetry only once", () => {
+		activateLangfuseTelemetry();
+		activateLangfuseTelemetry();
+		expect(mocks.registerTelemetry).toHaveBeenCalledTimes(1);
+	});
+
+	it("creates and owns an isolated provider for standalone use", async () => {
+		await expect(ensureLangfuseTelemetry("openrouter")).resolves.toBe(true);
+		expect(mocks.providerConstructor).toHaveBeenCalledTimes(1);
+		expect(mocks.setTracerProvider).toHaveBeenCalledWith(expect.any(Object));
+		expect(mocks.registerDisposable).toHaveBeenCalledTimes(1);
+
 		await disposeLangfuseTelemetry();
-
-		expect(forceFlushSpy).toHaveBeenCalledTimes(1);
-		expect(shutdownSpy).toHaveBeenCalledTimes(1);
-		expect(forceFlushSpy.mock.invocationCallOrder[0]).toBeLessThan(
-			shutdownSpy.mock.invocationCallOrder[0],
-		);
+		expect(mocks.forceFlush).toHaveBeenCalledTimes(1);
+		expect(mocks.shutdown).toHaveBeenCalledTimes(1);
+		expect(mocks.setTracerProvider).toHaveBeenLastCalledWith(null);
 	});
 
-	it("recognizes a directly registered tracer provider", async () => {
-		getTracerProviderSpy.mockReturnValue({
-			addSpanProcessor: addSpanProcessorSpy,
-		});
-
-		await expect(ensureLangfuseTelemetry("openrouter")).resolves.toBe(true);
-		expect(addSpanProcessorSpy).toHaveBeenCalledTimes(1);
-		expect(registerTelemetrySpy).toHaveBeenCalledTimes(1);
+	it("does not use the standalone fallback after a host disables telemetry", async () => {
+		disableLangfuseTelemetry();
+		await expect(ensureLangfuseTelemetry("cline")).resolves.toBe(false);
+		expect(mocks.providerConstructor).not.toHaveBeenCalled();
+		expect(mocks.registerTelemetry).not.toHaveBeenCalled();
 	});
 
-	it("registers its own provider when minification renames the proxy provider", async () => {
-		// Simulates the compiled release binary: the ProxyTracerProvider and
-		// its no-op delegate carry mangled constructor names, expose no
-		// addSpanProcessor, and only reflect a registration through
-		// getDelegate.
-		getTracerProviderSpy.mockReturnValue({
-			constructor: { name: "Zt" },
-			getDelegate: () =>
-				registeredGlobalProvider.current ?? { constructor: { name: "Qn" } },
-		});
-
-		await expect(ensureLangfuseTelemetry("openrouter")).resolves.toBe(true);
-		expect(registeredGlobalProvider.current).toBeInstanceOf(
-			MockNodeTracerProvider,
-		);
-		expect(registerTelemetrySpy).toHaveBeenCalledTimes(1);
+	it("does not dispose a host-owned provider", async () => {
+		activateLangfuseTelemetry();
+		await disposeLangfuseTelemetry();
+		expect(mocks.forceFlush).not.toHaveBeenCalled();
+		expect(mocks.shutdown).not.toHaveBeenCalled();
 	});
 
-	it("attaches to an already registered tracer provider through its delegate", async () => {
-		getTracerProviderSpy.mockReturnValue({
-			getDelegate: () => ({ addSpanProcessor: addSpanProcessorSpy }),
-		});
-
-		await expect(ensureLangfuseTelemetry("openrouter")).resolves.toBe(true);
-		expect(addSpanProcessorSpy).toHaveBeenCalledTimes(1);
-		expect(registerTelemetrySpy).toHaveBeenCalledTimes(1);
-	});
-
-	it("disables telemetry when a foreign provider owns the slot and accepts no processors", async () => {
-		getTracerProviderSpy.mockReturnValue({
-			getDelegate: () => ({
-				forceFlush: forceFlushSpy,
-				shutdown: shutdownSpy,
-			}),
-		});
-
-		await expect(ensureLangfuseTelemetry("openrouter")).resolves.toBe(false);
-		expect(registerTelemetrySpy).not.toHaveBeenCalled();
-	});
-
-	it("disables telemetry when the global slot rejects the registration", async () => {
-		// The delegate never reflects the attempted registration, matching an
-		// API whose global slot is stuck with an inert owner.
-		getTracerProviderSpy.mockReturnValue({
-			getDelegate: () => ({ constructor: { name: "SomethingInert" } }),
-		});
-
-		await expect(ensureLangfuseTelemetry("openrouter")).resolves.toBe(false);
-		expect(registerTelemetrySpy).not.toHaveBeenCalled();
-	});
-
-	it("connects an AI SDK 7 call to the registered telemetry integration", async () => {
-		await expect(ensureLangfuseTelemetry("openrouter")).resolves.toBe(true);
-
+	it("connects an AI SDK 7 call to the registered integration", async () => {
+		activateLangfuseTelemetry();
 		await generateText({
 			model: new MockLanguageModelV4({
 				doGenerate: {
 					content: [{ type: "text", text: "hello" }],
 					finishReason: { unified: "stop", raw: "stop" },
 					usage: {
-						inputTokens: {
-							total: 1,
-							noCache: 1,
-							cacheRead: 0,
-							cacheWrite: 0,
-						},
+						inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 },
 						outputTokens: { total: 1, text: 1, reasoning: 0 },
 					},
 					warnings: [],
@@ -214,7 +143,6 @@ describe("langfuse telemetry", () => {
 			prompt: "say hello",
 			telemetry: { isEnabled: true },
 		});
-
-		expect(telemetryStartSpy).toHaveBeenCalled();
+		expect(mocks.telemetryStart).toHaveBeenCalled();
 	});
 });
