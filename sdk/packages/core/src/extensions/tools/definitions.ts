@@ -16,13 +16,11 @@ import {
 	zodToJsonSchema,
 } from "@cline/shared";
 import { captureRunCommandsTimeout } from "../../services/telemetry/core-events";
-import { CommandExitError } from "./executors/bash";
 import {
-	MAX_COMMAND_OUTPUT_CHARS,
-	MAX_READ_LINES,
-	MAX_READ_OUTPUT_CHARS,
-	MAX_SEARCH_OUTPUT_CHARS,
-} from "./executors/output-limits";
+	DEFAULT_CONTEXT_LIMITS,
+	type ToolContextLimits,
+} from "../../settings/context-limits";
+import { CommandExitError } from "./executors/bash";
 import {
 	coalesceOrphanReadRanges,
 	formatError,
@@ -40,15 +38,15 @@ import {
 	ApplyPatchInputUnionSchema,
 	type AskQuestionInput,
 	AskQuestionInputSchema,
+	createEditFileInputSchema,
+	createRunCommandsInputSchema,
 	type EditFileInput,
-	EditFileInputSchema,
 	type FetchWebContentInput,
 	FetchWebContentInputSchema,
 	type ReadFileRequest,
 	type ReadFilesInput,
 	ReadFilesInputSchema,
 	ReadFilesInputUnionSchema,
-	RunCommandsInputSchema,
 	type SearchCodebaseInput,
 	SearchCodebaseInputSchema,
 	SearchCodebaseUnionInputSchema,
@@ -186,16 +184,27 @@ async function executeShellCommands(
 		timeoutMs: number;
 		timeoutSource: "default_setting" | "configured_setting";
 		telemetry?: ITelemetryService;
+		commandPreviewChars: number;
 	},
 ): Promise<ToolOperationResult[]> {
-	const { executor, cwd, context, timeoutMs, timeoutSource, telemetry } =
-		options;
+	const {
+		executor,
+		cwd,
+		context,
+		timeoutMs,
+		timeoutSource,
+		telemetry,
+		commandPreviewChars,
+	} = options;
 
 	return Promise.all(
 		commands.map(
 			async (command, commandIndex): Promise<ToolOperationResult> => {
 				const startedAt = Date.now();
-				const query = formatRunCommandQueryPreview(command);
+				const query = formatRunCommandQueryPreview(
+					command,
+					commandPreviewChars,
+				);
 				const commandContext: AgentToolContext = context.emitUpdate
 					? {
 							...context,
@@ -264,16 +273,17 @@ async function executeShellCommands(
  */
 export function createReadFilesTool(
 	executor: FileReadExecutor,
-	config: Pick<DefaultToolsConfig, "fileReadTimeoutMs"> = {},
+	config: Pick<DefaultToolsConfig, "fileReadTimeoutMs" | "limits"> = {},
 ): AgentTool<ReadFilesInput, ToolOperationResult[]> {
 	const timeoutMs = config.fileReadTimeoutMs ?? 10000;
+	const limits = config.limits ?? DEFAULT_CONTEXT_LIMITS.tool;
 
 	return createTool<ReadFilesInput, ToolOperationResult[]>({
 		name: "read_files",
 		description:
 			"Read the content of text or image files at the provided absolute paths, or return only an inclusive one-based line range when start_line/end_line are provided on the same file entry as its path. " +
 			"When you already know multiple files you need, read them together in one call, and call this tool in the same response as other independent tool calls. " +
-			`Each read returns at most ${MAX_READ_LINES} lines / ~${Math.round(MAX_READ_OUTPUT_CHARS / 1024)}k characters; longer files report their total line count, page through them with start_line/end_line on that file's entry. ` +
+			`Each read returns at most ${limits.readLines} lines / ~${Math.round(limits.readOutputChars / 1024)}k characters; longer files report their total line count, page through them with start_line/end_line on that file's entry. ` +
 			"Binary files that are not image and large files are not supported. " +
 			"Returns file contents or error messages for each path. ",
 		inputSchema: zodToJsonSchema(ReadFilesInputSchema),
@@ -360,9 +370,10 @@ export function createReadFilesTool(
  */
 export function createSearchTool(
 	executor: SearchExecutor,
-	config: Pick<DefaultToolsConfig, "cwd" | "searchTimeoutMs"> = {},
+	config: Pick<DefaultToolsConfig, "cwd" | "searchTimeoutMs" | "limits"> = {},
 ): AgentTool<SearchCodebaseInput, ToolOperationResult[]> {
 	const timeoutMs = config.searchTimeoutMs ?? 30000;
+	const limits = config.limits ?? DEFAULT_CONTEXT_LIMITS.tool;
 	const cwd = config.cwd ?? process.cwd();
 
 	return createTool<SearchCodebaseInput, ToolOperationResult[]>({
@@ -371,7 +382,7 @@ export function createSearchTool(
 			"Perform regex pattern searches across the codebase. " +
 			"Supports multiple parallel searches. When several search patterns could be useful and do not depend on each other, run them together in one call, and call this tool in the same response as other independent tool calls. " +
 			"Use for finding code patterns, function definitions, class names, imports, etc. " +
-			`Output beyond ~${Math.round(MAX_SEARCH_OUTPUT_CHARS / 1000)}k characters per query is middle-truncated; narrow patterns beat broad ones.`,
+			`Output beyond ~${Math.round(limits.searchOutputChars / 1000)}k characters per query is middle-truncated; narrow patterns beat broad ones.`,
 		inputSchema: zodToJsonSchema(SearchCodebaseInputSchema),
 		timeoutMs: timeoutMs * 2,
 		retryable: true,
@@ -428,6 +439,7 @@ const RUN_COMMANDS_SHARED_INSTRUCTIONS =
 export function buildRunCommandsDescription(
 	shellKind: ShellKind,
 	isWindows: boolean,
+	limits: ToolContextLimits = DEFAULT_CONTEXT_LIMITS.tool,
 ): string {
 	if (shellKind === "powershell" || shellKind === "cmd") {
 		const shellName = shellKind === "powershell" ? "PowerShell" : "cmd.exe";
@@ -435,7 +447,7 @@ export function buildRunCommandsDescription(
 		return (
 			"Run non-interactive shell commands from the root of the workspace in Windows environment. " +
 			RUN_COMMANDS_SHARED_INSTRUCTIONS +
-			`Output beyond ~${Math.round(MAX_COMMAND_OUTPUT_CHARS / 1000)}k characters is middle-truncated (start and end preserved); filter output when you need specific sections. ` +
+			`Output beyond ~${Math.round(limits.commandOutputChars / 1000)}k characters is middle-truncated (start and end preserved); filter output when you need specific sections. ` +
 			`Commands run through ${shellName}; quote paths and arguments for ${shellName} and use ${sequencingOperator} to sequence commands. ` +
 			"Include multiple commands in the same call when they are independent and safe to run concurrently. When independent reads, searches, or edits are also needed, call those tools in the same response."
 		);
@@ -452,7 +464,7 @@ export function buildRunCommandsDescription(
 		RUN_COMMANDS_SHARED_INSTRUCTIONS +
 		environmentNote +
 		"Commands should be properly shell-escaped and targeted to avoid error or timeout. Include multiple commands in the same call when they are independent complete shell commands and safe to run concurrently; multiline scripts and heredocs must be a single command string. When independent reads, searches, or edits are also needed, call those tools in the same response. " +
-		`Output beyond ~${Math.round(MAX_COMMAND_OUTPUT_CHARS / 1000)}k characters is middle-truncated (start and end preserved); pipe through grep/head/tail when you need specific sections of large output. ` +
+		`Output beyond ~${Math.round(limits.commandOutputChars / 1000)}k characters is middle-truncated (start and end preserved); pipe through grep/head/tail when you need specific sections of large output. ` +
 		"For long-running commands, run them in background and redirect output to a tmp file that you can read from later."
 	);
 }
@@ -474,11 +486,15 @@ export function buildRunCommandsDescription(
  */
 export function createShellTool(
 	executor: ShellExecutor,
-	config: Pick<DefaultToolsConfig, "cwd" | "bashTimeoutMs" | "telemetry"> & {
+	config: Pick<
+		DefaultToolsConfig,
+		"cwd" | "bashTimeoutMs" | "telemetry" | "limits"
+	> & {
 		shell?: string | (() => string);
 	} = {},
 ): AgentTool<unknown, ToolOperationResult[]> {
 	const timeoutMs = config.bashTimeoutMs ?? 30000;
+	const limits = config.limits ?? DEFAULT_CONTEXT_LIMITS.tool;
 	const timeoutSource =
 		config.bashTimeoutMs === undefined
 			? "default_setting"
@@ -491,12 +507,18 @@ export function createShellTool(
 			? configShell
 			: () => configShell ?? getDefaultShell(process.platform);
 	const describe = () =>
-		buildRunCommandsDescription(getShellKind(resolveShell()), isWindows);
+		buildRunCommandsDescription(
+			getShellKind(resolveShell()),
+			isWindows,
+			limits,
+		);
 
 	const tool = createTool<unknown, ToolOperationResult[]>({
 		name: "run_commands",
 		description: describe(),
-		inputSchema: zodToJsonSchema(RunCommandsInputSchema),
+		inputSchema: zodToJsonSchema(
+			createRunCommandsInputSchema(limits.commandInputChars),
+		),
 		timeoutMs: timeoutMs * 2,
 		retryable: false,
 		maxRetries: 0,
@@ -512,6 +534,7 @@ export function createShellTool(
 				timeoutMs,
 				timeoutSource,
 				telemetry: config.telemetry,
+				commandPreviewChars: limits.commandPreviewChars,
 			});
 		},
 	});
@@ -535,16 +558,18 @@ export function createShellTool(
  */
 export function createWebFetchTool(
 	executor: WebFetchExecutor,
-	config: Pick<DefaultToolsConfig, "webFetchTimeoutMs"> = {},
+	config: Pick<DefaultToolsConfig, "webFetchTimeoutMs" | "limits"> = {},
 ): AgentTool<FetchWebContentInput, ToolOperationResult[]> {
 	const timeoutMs = config.webFetchTimeoutMs ?? 30000;
+	const limits = config.limits ?? DEFAULT_CONTEXT_LIMITS.tool;
 
 	return createTool<FetchWebContentInput, ToolOperationResult[]>({
 		name: "fetch_web_content",
 		description:
 			"Fetch content from URLs and analyze them using the provided prompts. " +
 			"Use for retrieving documentation, API references, or any web content. " +
-			"Each request includes a URL and a prompt describing what information to extract. Fetch independent URLs together in one call, and call this tool in the same response as other independent tool calls.",
+			"Each request includes a URL and a prompt describing what information to extract. Fetch independent URLs together in one call, and call this tool in the same response as other independent tool calls. " +
+			`Content beyond ~${Math.round(limits.webFetchContentChars / 1000)}k characters per URL is dropped; fetch a more specific page when a document is larger.`,
 		inputSchema: zodToJsonSchema(FetchWebContentInputSchema),
 		timeoutMs: timeoutMs * 2,
 		retryable: true,
@@ -677,10 +702,14 @@ export function createApplyPatchTool(
  */
 export function createEditorTool(
 	executor: EditorExecutor,
-	config: Pick<DefaultToolsConfig, "cwd" | "editorTimeoutMs"> = {},
+	config: Pick<DefaultToolsConfig, "cwd" | "editorTimeoutMs" | "limits"> = {},
 ): AgentTool<EditFileInput, ToolOperationResult> {
 	const timeoutMs = config.editorTimeoutMs ?? 30000;
 	const cwd = config.cwd ?? process.cwd();
+	const limits = config.limits ?? DEFAULT_CONTEXT_LIMITS.tool;
+	const editFileInputSchema = createEditFileInputSchema(
+		limits.editorInputChars,
+	);
 
 	return createTool<EditFileInput, ToolOperationResult>({
 		name: "editor",
@@ -690,14 +719,17 @@ export function createEditorTool(
 			"Otherwise, the tool replaces `old_text` with `new_text`, or creates the file with `new_text` if file does not exist. " +
 			"Use this tool for making small, precise edits to existing files or creating new files over shell commands. If several edits to different files or non-overlapping regions are already known, emit multiple editor tool calls in the same response instead of serializing them across turns.",
 
-		inputSchema: zodToJsonSchema(EditFileInputSchema),
+		inputSchema: zodToJsonSchema(editFileInputSchema),
 		timeoutMs,
 		retryable: false, // Editing operations are stateful and should not auto-retry
 		maxRetries: 0,
 		execute: async (input, context) => {
-			const validatedInput = validateWithZod(EditFileInputSchema, input);
+			const validatedInput = validateWithZod(editFileInputSchema, input);
 			const operation = validatedInput.insert_line == null ? "edit" : "insert";
-			const sizeError = getEditorSizeError(validatedInput);
+			const sizeError = getEditorSizeError(
+				validatedInput,
+				limits.editorInputChars,
+			);
 
 			if (sizeError) {
 				return {

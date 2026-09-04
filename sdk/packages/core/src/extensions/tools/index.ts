@@ -135,6 +135,7 @@ export type {
 // =============================================================================
 
 import { type AgentTool, getDefaultShell } from "@cline/shared";
+import { resolveContextLimits } from "../../settings/context-limits";
 import { createDefaultTools } from "./definitions";
 import {
 	createDefaultExecutors,
@@ -204,11 +205,34 @@ export function createBuiltinTools(
 		toolsConfig.shell ??
 		executorOptions.bash?.shell ??
 		getDefaultShell(process.platform);
+	// One resolution per tool set, shared by the executors that enforce the
+	// caps and the descriptions that quote them.
+	const limits = toolsConfig.limits ?? resolveContextLimits().tool;
 	const resolvedExecutorOptions: DefaultExecutorsOptions = {
 		...executorOptions,
 		bash: {
+			maxOutputChars: limits.commandOutputChars,
 			...executorOptions.bash,
 			shell,
+		},
+		fileRead: {
+			maxReadLines: limits.readLines,
+			maxLineChars: limits.lineChars,
+			maxReadOutputChars: limits.readOutputChars,
+			...executorOptions.fileRead,
+		},
+		search: {
+			maxSearchOutputChars: limits.searchOutputChars,
+			maxLineChars: limits.lineChars,
+			...executorOptions.search,
+		},
+		webFetch: {
+			maxContentChars: limits.webFetchContentChars,
+			...executorOptions.webFetch,
+		},
+		editor: {
+			maxDiffLines: limits.editorDiffLines,
+			...executorOptions.editor,
 		},
 	};
 
@@ -219,6 +243,7 @@ export function createBuiltinTools(
 
 	return createDefaultTools({
 		...toolsConfig,
+		limits,
 		shell,
 		executors,
 	});

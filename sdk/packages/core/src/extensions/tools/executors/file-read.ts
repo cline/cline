@@ -47,12 +47,33 @@ export interface FileReadExecutorOptions {
 	 * @default false
 	 */
 	includeLineNumbers?: boolean;
+
+	/**
+	 * Max lines returned per read window.
+	 * @default MAX_READ_LINES
+	 */
+	maxReadLines?: number;
+
+	/**
+	 * Max characters kept per line.
+	 * @default MAX_LINE_CHARS
+	 */
+	maxLineChars?: number;
+
+	/**
+	 * Max characters returned per read window.
+	 * @default MAX_READ_OUTPUT_CHARS
+	 */
+	maxReadOutputChars?: number;
 }
 
 const DEFAULT_FILE_READ_OPTIONS: Required<FileReadExecutorOptions> = {
 	maxFileSizeBytes: 10_000_000, // 10MB default limit
 	encoding: "utf-8", // Default to UTF-8 encoding
 	includeLineNumbers: true, // Include line numbers by default
+	maxReadLines: MAX_READ_LINES,
+	maxLineChars: MAX_LINE_CHARS,
+	maxReadOutputChars: MAX_READ_OUTPUT_CHARS,
 };
 
 const MAX_TEXT_STREAM_BYTES = 100_000_000;
@@ -74,12 +95,19 @@ function getAbortError(signal: AbortSignal): Error {
 	return new Error("File read was aborted");
 }
 
+interface ReadWindowCaps {
+	maxReadLines: number;
+	maxLineChars: number;
+	maxReadOutputChars: number;
+}
+
 async function readTextWindow(
 	filePath: string,
 	encoding: BufferEncoding,
 	includeLineNumbers: boolean,
 	startLine: number | null | undefined,
 	endLine: number | null | undefined,
+	caps: ReadWindowCaps,
 	signal?: AbortSignal,
 ): Promise<string> {
 	if (signal?.aborted) {
@@ -98,8 +126,8 @@ async function readTextWindow(
 	let capped = false;
 	let approximateTotalLines = false;
 	const maxCapturedLineNumber = Number.isFinite(requestedEndLine)
-		? Math.min(requestedEndLine, requestedStartLine + MAX_READ_LINES - 1)
-		: requestedStartLine + MAX_READ_LINES - 1;
+		? Math.min(requestedEndLine, requestedStartLine + caps.maxReadLines - 1)
+		: requestedStartLine + caps.maxReadLines - 1;
 	const lineNumberPrefixChars = includeLineNumbers
 		? String(maxCapturedLineNumber).length + 3
 		: 0;
@@ -131,18 +159,18 @@ async function readTextWindow(
 			if (totalLines < requestedStartLine || capped) {
 				continue;
 			}
-			if (captured.length >= MAX_READ_LINES) {
+			if (captured.length >= caps.maxReadLines) {
 				capped = true;
 				continue;
 			}
 
 			let line = rawLine;
-			if (line.length > MAX_LINE_CHARS) {
-				line = `${line.slice(0, MAX_LINE_CHARS)} [line truncated]`;
+			if (line.length > caps.maxLineChars) {
+				line = `${line.slice(0, caps.maxLineChars)} [line truncated]`;
 			}
 
 			const nextChars = chars + line.length + lineNumberPrefixChars + 1;
-			if (nextChars > MAX_READ_OUTPUT_CHARS && captured.length > 0) {
+			if (nextChars > caps.maxReadOutputChars && captured.length > 0) {
 				capped = true;
 				continue;
 			}
@@ -204,9 +232,21 @@ async function readTextWindow(
 export function createFileReadExecutor(
 	options: FileReadExecutorOptions = {},
 ): FileReadExecutor {
-	const { maxFileSizeBytes, encoding, includeLineNumbers } = {
+	const {
+		maxFileSizeBytes,
+		encoding,
+		includeLineNumbers,
+		maxReadLines,
+		maxLineChars,
+		maxReadOutputChars,
+	} = {
 		...DEFAULT_FILE_READ_OPTIONS,
 		...options,
+	};
+	const caps: ReadWindowCaps = {
+		maxReadLines,
+		maxLineChars,
+		maxReadOutputChars,
 	};
 
 	return async (request: ReadFileRequest, context: AgentToolContext) => {
@@ -263,6 +303,7 @@ export function createFileReadExecutor(
 			includeLineNumbers,
 			start_line,
 			end_line,
+			caps,
 			context.signal,
 		);
 	};

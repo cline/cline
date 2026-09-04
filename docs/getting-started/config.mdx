@@ -115,6 +115,8 @@ cline dev log
 | `CLINE_SANDBOX_DATA_DIR` | Sandbox session storage directory |
 | `CLINE_HOOKS_DIR` | Additional hooks directory |
 | `CLINE_COMMAND_PERMISSIONS` | JSON policy restricting shell commands |
+| `CLINE_TOOL_MAX_*` | Caps on what each tool returns and accepts ([Context limits](#context-limits)) |
+| `CLINE_MESSAGE_BUILDER_*` | Caps on the text in each provider request ([Context limits](#context-limits)) |
 
 ### CLINE_DATA_DIR
 
@@ -146,6 +148,42 @@ Rules:
 - `deny` overrides `allow`
 - If `allow` is set, commands not matching `allow` are denied
 - `allowRedirects` controls shell redirects (`>`, `>>`, `<`), default `false`
+
+### Context limits
+
+Cap how much text moves between the model and its tools. Values are characters
+unless the name says bytes or lines.
+
+| Variable | Default | Governs |
+|----------|---------|---------|
+| `CLINE_TOOL_MAX_COMMAND_OUTPUT_CHARS` | `48000` | `run_commands` output; beyond this the middle is elided |
+| `CLINE_TOOL_MAX_READ_LINES` | `2000` | Lines per `read_files` window |
+| `CLINE_TOOL_MAX_LINE_CHARS` | `2000` | Characters per line in reads and search results |
+| `CLINE_TOOL_MAX_READ_OUTPUT_CHARS` | `48000` | Characters per `read_files` window |
+| `CLINE_TOOL_MAX_SEARCH_OUTPUT_CHARS` | `48000` | `search_codebase` output per query |
+| `CLINE_TOOL_MAX_WEB_FETCH_CONTENT_CHARS` | `48000` | Page content kept per `fetch_web_content` request |
+| `CLINE_TOOL_MAX_EDITOR_INPUT_CHARS` | `50000` | `old_text`/`new_text` accepted per `editor` call |
+| `CLINE_TOOL_MAX_COMMAND_INPUT_CHARS` | `12000` | Length of a single shell command |
+| `CLINE_TOOL_MAX_EDITOR_DIFF_LINES` | `200` | Diff lines in the `editor` result summary |
+| `CLINE_TOOL_MAX_COMMAND_PREVIEW_CHARS` | `200` | Command text echoed back in the tool result |
+| `CLINE_MESSAGE_BUILDER_MAX_TOOL_RESULT_CHARS` | `50000` | Each tool result forwarded to the model |
+| `CLINE_MESSAGE_BUILDER_MAX_FILE_CONTENT_CHARS` | `50000` | Each file attached to a message |
+| `CLINE_MESSAGE_BUILDER_MAX_TOTAL_TEXT_BYTES` | `6000000` | Text across the whole request |
+| `CLINE_MESSAGE_BUILDER_MAX_ASSISTANT_TEXT_CHARS` | `200000` | Each assistant message |
+| `CLINE_MESSAGE_BUILDER_MAX_ASSISTANT_TOOL_MARKUP_CHARS` | `12000` | Assistant text carrying repeated tool-call markup |
+| `CLINE_MESSAGE_BUILDER_MIN_OUTDATED_REWRITE_BYTES` | `65536` | Reclaimable bytes before stale file reads are rewritten |
+
+Rules:
+
+- Values that are not positive integers are ignored, and the default applies
+- Lowering `CLINE_MESSAGE_BUILDER_MAX_TOOL_RESULT_CHARS` lowers the tool caps with
+  it, so output is never trimmed twice; raising a tool cap raises it to match
+- `CLINE_MESSAGE_BUILDER_MIN_OUTDATED_REWRITE_BYTES` also accepts `0` to rewrite
+  superseded file reads immediately, or `infinity` to leave them in place
+- A tool result is re-sent on every later turn of a task, so larger limits cost
+  tokens for the rest of that task
+- The IDE reads the environment its editor was launched with, which on a desktop
+  launch is not your shell's; restart the editor after changing these
 
 ## Related Docs
 
