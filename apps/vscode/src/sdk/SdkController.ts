@@ -1466,8 +1466,8 @@ export class Controller {
 	}
 
 	/** Forgets cached cloud sessions after the account or organization changes. */
-	resetCloudSessions(): void {
-		this.cloud.reset()
+	async resetCloudSessions(changeScope?: () => Promise<void>): Promise<void> {
+		await this.cloud.reset(changeScope)
 	}
 
 	async reinitExistingTaskFromId(taskId: string): Promise<void> {
@@ -1990,8 +1990,7 @@ export class Controller {
 		if (this.task && this.cloud.isCloudSessionId(this.task.taskId)) {
 			await this.clearTask()
 		}
-		this.cloud.reset()
-		await this.authService.handleDeauth(LogoutReason.USER_INITIATED)
+		await this.cloud.reset(() => this.authService.handleDeauth(LogoutReason.USER_INITIATED))
 		// Invalidate BEFORE clearing: a refresh that already fetched under the
 		// signed-in identity must not republish the policy (and re-create the
 		// secret-bearing caches) after the clear. The clear itself runs under the

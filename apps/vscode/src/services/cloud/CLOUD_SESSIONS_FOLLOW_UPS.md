@@ -83,12 +83,11 @@ roughly in the order they should be done.
   `origin`; a root picker would help users with several GitHub repos open.
 - Telemetry: `cloud_task_started`, `cloud_task_completed`, `cloud_task_failed`,
   and `cloud_github_connect_clicked` events.
-- Tests: unit tests for `CloudSessionHost` (id mapping, status tracking),
-  `SdkCloudSessionCoordinator` (start, open, expired, notification) and the
-  `TaskTargetPanel` (onboarding variants, prefill from workspace defaults).
-  The manual harness used for the PR demo (mock control plane proxying to a
-  real Hub with a scripted OpenAI-compatible model) would make a good e2e
-  fixture if we want one.
+- Expand the checked-in cloud boundary with packaged VS Code coverage for
+  History reopen and completion notifications. `bun run test:cloud` exercises
+  the production REST client and authenticated WebSocket path through a real
+  local Hub; `bun run dev:cloud-sessions` runs the same credential-free fixture
+  for interactive extension development.
 
 ## Local multi-task (explicitly out of scope, rough sizing)
 
