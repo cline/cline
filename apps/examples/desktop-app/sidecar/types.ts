@@ -82,7 +82,12 @@ export type ToolApprovalRequestItem = {
 
 export type PendingToolApproval = {
 	item: ToolApprovalRequestItem;
-	/** Cloud approvals have no local WebSocket owner and may resolve remotely. */
+	/**
+	 * Cloud-session approvals are relayed from a pod without a local owner
+	 * and stay answerable from any trusted surface (and survive local
+	 * disconnects). Locally-executed approvals are owned by the connection
+	 * that must answer them.
+	 */
 	owner?: SidecarWebSocketClient;
 	resolve: (result: ToolApprovalResult) => void | Promise<void>;
 };

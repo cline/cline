@@ -27,7 +27,9 @@ import {
 	materializeUserFiles,
 	trackQueuedAttachments,
 } from "./attachments";
+import { getCloudSessionManager } from "./cloud-sessions";
 import { emitChunk, nowMs, sendEvent } from "./context";
+import { isCloudAgentsEnabled } from "./feature-flags";
 import { readSessionManifest, sharedSessionDataDir } from "./paths";
 import { persistSessionMessages } from "./session-data/messages";
 import type {
@@ -1578,6 +1580,124 @@ export async function handleChatSessionCommand(
 	ctx: SidecarContext,
 	request: ChatSessionCommandRequest,
 ): Promise<unknown> {
+	const executionTarget = String(request.config?.executionTarget ?? "").trim();
+	const sessionId = request.sessionId?.trim();
+	const existingCloudSession =
+		sessionId &&
+		ctx.liveSessions.get(sessionId)?.config.executionTarget === "cloud";
+	if (executionTarget === "cloud" || existingCloudSession) {
+		const cloud = getCloudSessionManager(ctx);
+		// The approval preference lives only client-side; keep the live session
+		// current so a lazily created inner session inherits the user's choice.
+		const requestedAutoApprove = request.config?.autoApproveTools;
+		if (typeof requestedAutoApprove === "boolean" && sessionId) {
+			const live = ctx.liveSessions.get(sessionId);
+			if (live) {
+				live.config.autoApproveTools = requestedAutoApprove;
+			}
+		}
+		switch (request.action) {
+			case "start": {
+				const requestedSessionId = String(
+					request.config?.sessionId ?? request.config?.session_id ?? "",
+				).trim();
+				// Server ids attach even with a cold registry; client-planned ids create.
+				if (requestedSessionId && cloud.isCloudSession(requestedSessionId)) {
+					return await cloud.attach(requestedSessionId);
+				}
+				// Gate new sessions only; existing cloud sessions must remain usable.
+				if (!isCloudAgentsEnabled()) {
+					throw new Error(
+						"Cloud sessions are not enabled for this account yet.",
+					);
+				}
+				const repoUrl = String(request.config?.repoUrl ?? "").trim();
+				const modelId = String(
+					request.config?.model ?? request.config?.modelId ?? "",
+				).trim();
+				if (!repoUrl || !modelId) {
+					throw new Error("repoUrl and model are required for a cloud session");
+				}
+				const branch = String(request.config?.branch ?? "").trim();
+				const initialPrompt = request.prompt?.trim();
+				const reasoningEffort = readReasoningEffort(
+					request.config?.reasoningEffort,
+				);
+				return await cloud.create({
+					...(requestedSessionId ? { requestId: requestedSessionId } : {}),
+					repoUrl,
+					modelId,
+					...(initialPrompt ? { initialPrompt } : {}),
+					...(branch ? { branch } : {}),
+					...(typeof request.config?.thinking === "boolean"
+						? { thinking: request.config.thinking }
+						: {}),
+					...(reasoningEffort ? { reasoningEffort } : {}),
+					...(typeof requestedAutoApprove === "boolean"
+						? { autoApproveTools: requestedAutoApprove }
+						: {}),
+				});
+			}
+			case "attach":
+				if (!sessionId) throw new Error("sessionId is required");
+				return await cloud.attach(sessionId);
+			case "send": {
+				if (!sessionId) throw new Error("sessionId is required");
+				const prompt = request.prompt?.trim();
+				if (!prompt) throw new Error("prompt is required");
+				if (request.attachments?.userFiles?.length) {
+					throw new Error(
+						"File attachments are not supported in cloud sessions",
+					);
+				}
+				const modelId = String(
+					request.config?.model ?? request.config?.modelId ?? "",
+				).trim();
+				return await cloud.send(
+					sessionId,
+					prompt,
+					request.delivery,
+					modelId || undefined,
+					request.attachments?.userImages,
+				);
+			}
+			case "stop":
+			case "abort":
+				if (!sessionId) throw new Error("sessionId is required");
+				return await cloud.abort(sessionId);
+			case "pending_prompts":
+				if (!sessionId) throw new Error("sessionId is required");
+				return await cloud.pendingPrompts(sessionId);
+			case "steer_prompt": {
+				const promptId = request.promptId?.trim();
+				if (!sessionId || !promptId)
+					throw new Error("sessionId and promptId are required");
+				return await cloud.updatePendingPrompt(sessionId, promptId, {
+					delivery: "steer",
+				});
+			}
+			case "update_pending_prompt": {
+				const promptId = request.promptId?.trim();
+				const prompt = request.prompt?.trim();
+				if (!sessionId || !promptId)
+					throw new Error("sessionId and promptId are required");
+				if (!prompt) throw new Error("prompt is required");
+				return await cloud.updatePendingPrompt(sessionId, promptId, {
+					prompt,
+				});
+			}
+			case "remove_pending_prompt": {
+				const promptId = request.promptId?.trim();
+				if (!sessionId || !promptId)
+					throw new Error("sessionId and promptId are required");
+				return await cloud.removePendingPrompt(sessionId, promptId);
+			}
+			default:
+				throw new Error(
+					`${request.action} is not supported for cloud sessions yet`,
+				);
+		}
+	}
 	const handler = ACTION_HANDLERS[request.action];
 	if (!handler) throw new Error("unsupported action");
 	return handler(ctx, request);

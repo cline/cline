@@ -15,7 +15,6 @@ import type {
 import {
 	addLocalProvider,
 	ClineAccountService,
-	captureAuthRefreshSoftFailure,
 	createConfiguredStreamingTranscriptionSession,
 	createUserInstructionConfigService,
 	ensureCustomProvidersLoaded,
@@ -29,9 +28,7 @@ import {
 	ProviderSettingsManager,
 	parseMcpServerRegistration,
 	probeMcpServerConnection,
-	RuntimeOAuthTokenManager,
 	readGlobalSettings,
-	resolveLocalClineAuthToken,
 	resolveMcpServerRegistration,
 	resolveSessionBackend,
 	resolveAgentConfigSearchPaths as resolveSharedAgentConfigSearchPaths,
@@ -61,6 +58,11 @@ import { readFileSyncStrippingUtf8Bom } from "@cline/shared/node";
 import packageJson from "../package.json";
 import { CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT } from "../webview/lib/cline-account-state";
 import { MAX_RECORDED_AUDIO_BYTES } from "../webview/lib/voice-input-limits";
+import { resolveFreshClineAuthToken } from "./cline-auth";
+import {
+	getCloudSessionManager,
+	resetCloudSessionManager,
+} from "./cloud-sessions";
 import {
 	listClineGitHubRepositories,
 	listClineIntegrations,
@@ -78,7 +80,13 @@ import {
 	sendEventToClient,
 } from "./context";
 import {
+	readDesktopSettings,
+	setCloudSessionsEnabled,
+} from "./desktop-settings";
+import {
 	identifyDesktopFeatureFlagsAccount,
+	isCloudAgentsAvailable,
+	isCloudAgentsEnabled,
 	refreshDesktopFeatureFlags,
 } from "./feature-flags";
 import {
@@ -113,7 +121,10 @@ import {
 import { listSessionAgents } from "./session-data/agents";
 import { readSessionHooks } from "./session-data/artifacts";
 import { normalizeSessionTitle } from "./session-data/common";
-import { discoverChatSessions } from "./session-data/discovery";
+import {
+	discoverChatSessions,
+	mergeDiscoveredSessionLists,
+} from "./session-data/discovery";
 import { readSessionMessages } from "./session-data/messages";
 import { searchWorkspaceFiles } from "./session-data/search";
 import type {
@@ -194,6 +205,11 @@ function emitDesktopDebugLog(
 // anything broader (file:, custom app schemes) would let webview content
 // launch arbitrary local handlers.
 const OPENABLE_URL_PROTOCOLS = new Set(["https:", "http:", "mailto:", "tel:"]);
+
+// Caps how long session discovery waits on the cloud API so a slow or
+// unreachable backend can never stall the sidebar; the manager falls back to
+// its last cached list.
+const CLOUD_DISCOVERY_BUDGET_MS = 2_000;
 
 function openUrlInDefaultBrowser(url: string): Promise<void> {
 	const platform = process.platform;
@@ -298,13 +314,6 @@ function removePathIfExists(
 	return true;
 }
 
-// Cline access tokens expire between app launches, so account requests must
-// resolve through the refresh-aware OAuth manager instead of reading the
-// persisted token directly. A single shared instance keeps concurrent account
-// requests single-flight; the refresh token is single-use, so parallel
-// refreshes would invalidate each other.
-let clineOAuthTokenManager: RuntimeOAuthTokenManager | undefined;
-
 function syncFeatureFlagsAccountFromResult(
 	ctx: SidecarContext,
 	operation: string,
@@ -330,43 +339,6 @@ function syncFeatureFlagsAccountFromSettings(
 		{ id: manager.getProviderSettings("cline")?.auth?.accountId },
 		{ logger: ctx.logger, telemetry: ctx.telemetry },
 	);
-}
-
-async function resolveFreshClineAuthToken(
-	ctx: SidecarContext,
-	manager: ProviderSettingsManager,
-): Promise<string | undefined> {
-	let refreshError: Error | undefined;
-	try {
-		clineOAuthTokenManager ??= new RuntimeOAuthTokenManager();
-		const resolution = await clineOAuthTokenManager.resolveProviderApiKey({
-			providerId: "cline",
-		});
-		if (resolution?.apiKey) {
-			return resolution.apiKey;
-		}
-	} catch (error) {
-		// Fall back to the persisted token; when one exists the account request
-		// surfaces the auth failure to the caller.
-		refreshError = error instanceof Error ? error : new Error(String(error));
-	}
-	const persisted = resolveLocalClineAuthToken(
-		manager.getProviderSettings("cline"),
-	);
-	// Never-signed-in resolves to undefined without a refresh attempt and is
-	// silent. A refresh failure with no persisted fallback means credentials
-	// existed but yielded nothing — that is the signal a real auth regression
-	// would show up as, so report exactly one event for it.
-	if (!persisted && refreshError) {
-		ctx.logger?.error?.("Cline auth token refresh failed with no fallback", {
-			error: refreshError,
-		});
-		captureAuthRefreshSoftFailure(ctx.telemetry, "cline", {
-			errorName: refreshError.name,
-			errorCode: "desktop_refresh_failed_no_fallback_token",
-		});
-	}
-	return persisted;
 }
 
 function mergePersistedSessionRecord(
@@ -1337,11 +1309,15 @@ export async function handleCommand(
 
 	// ── Session data reading ──────────────────────────────────────────
 	if (command === "read_session_messages") {
-		return await readSessionMessages(
-			ctx,
-			String(args?.sessionId ?? ""),
-			typeof args?.maxMessages === "number" ? args.maxMessages : 800,
-		);
+		const sessionId = String(args?.sessionId ?? "");
+		const cloud = getCloudSessionManager(ctx);
+		const maxMessages =
+			typeof args?.maxMessages === "number" ? args.maxMessages : 800;
+		if (cloud.isCloudSession(sessionId)) {
+			const messages = await cloud.readMessages(sessionId);
+			return await readSessionMessages(ctx, sessionId, maxMessages, messages);
+		}
+		return await readSessionMessages(ctx, sessionId, maxMessages);
 	}
 	if (command === "read_session_hooks") {
 		return await readSessionHooks(
@@ -1379,6 +1355,43 @@ export async function handleCommand(
 			},
 		};
 	}
+	if (command === "get_feature_flags") {
+		// PostHog flags resolve sidecar-side (build-time key, telemetry
+		// distinct id); the webview reads resolved values only. Cloud gets
+		// two derived fields: `cloudAgentsAvailable` (rollout flag — shows
+		// the Settings opt-in) and `cloudAgents` (flag AND the user's
+		// opt-in — enables the feature).
+		const snapshot = await refreshDesktopFeatureFlags({
+			logger: ctx.logger,
+			telemetry: ctx.telemetry,
+		});
+		return {
+			...snapshot,
+			cloudAgents: isCloudAgentsEnabled({
+				logger: ctx.logger,
+				telemetry: ctx.telemetry,
+			}),
+			cloudAgentsAvailable: isCloudAgentsAvailable({
+				logger: ctx.logger,
+				telemetry: ctx.telemetry,
+			}),
+		};
+	}
+	if (command === "list_cloud_repositories") {
+		return await getCloudSessionManager(ctx).listRepositories();
+	}
+	if (command === "list_cloud_branches") {
+		const repositoryId = Number(args?.repositoryId);
+		return await getCloudSessionManager(ctx).listBranches(repositoryId, {
+			cursor: typeof args?.cursor === "string" ? args.cursor : undefined,
+			query: typeof args?.query === "string" ? args.query : undefined,
+		});
+	}
+	if (command === "get_cloud_provisioning_outcome") {
+		const placeholderId = String(args?.placeholderId ?? "").trim();
+		if (!placeholderId) throw new Error("placeholderId is required");
+		return getCloudSessionManager(ctx).getProvisioningOutcome(placeholderId);
+	}
 	if (command === "get_chat_ws_endpoint") {
 		return "";
 	}
@@ -1391,7 +1404,11 @@ export async function handleCommand(
 			throw new Error("tool approvals require a trusted desktop connection");
 		}
 		return Array.from(ctx.pendingApprovals.values())
-			.filter((a) => a.owner === connection && a.item.sessionId === sessionId)
+			.filter(
+				(a) =>
+					(!a.owner || a.owner === connection) &&
+					a.item.sessionId === sessionId,
+			)
 			.map((a) => a.item);
 	}
 	if (command === "respond_tool_approval") {
@@ -1405,13 +1422,14 @@ export async function handleCommand(
 			throw new Error("tool approvals require a trusted desktop connection");
 		}
 		const pending = ctx.pendingApprovals.get(requestId);
-		if (!pending || pending.owner !== connection) {
+		if (!pending || (pending.owner && pending.owner !== connection)) {
 			throw new Error("tool approval does not belong to this connection");
 		}
 		if (pending.item.sessionId !== sessionId) {
 			throw new Error("tool approval does not belong to this session");
 		}
-		pending.resolve({
+		// Cloud approvals resolve through an async hub round-trip.
+		await pending.resolve({
 			approved: Boolean(args?.approved),
 			...(typeof args?.reason === "string" && args.reason.trim().length > 0
 				? { reason: args.reason.trim() }
@@ -1419,7 +1437,11 @@ export async function handleCommand(
 		});
 		ctx.pendingApprovals.delete(requestId);
 		const remaining = Array.from(ctx.pendingApprovals.values())
-			.filter((a) => a.owner === connection && a.item.sessionId === sessionId)
+			.filter(
+				(a) =>
+					(!a.owner || a.owner === connection) &&
+					a.item.sessionId === sessionId,
+			)
 			.map((a) => a.item);
 		sendEventToClient(ctx, connection, "tool_approval_state", {
 			sessionId,
@@ -1449,10 +1471,19 @@ export async function handleCommand(
 
 	// ── Session discovery ─────────────────────────────────────────────
 	if (command === "list_chat_sessions") {
-		return discoverChatSessions(
-			ctx,
-			typeof args?.limit === "number" ? args.limit : 300,
-		);
+		const limit = typeof args?.limit === "number" ? args.limit : 300;
+		const local = discoverChatSessions(ctx, limit);
+		// Existing cloud sessions stay listed even when the flag is off — the
+		// flag gates NEW creation only, so a rollback never strands a session.
+		const cloud = await getCloudSessionManager(ctx)
+			.listForDiscovery({ timeoutMs: CLOUD_DISCOVERY_BUDGET_MS })
+			.catch((error) => {
+				// A persistent listing failure silently empties the sidebar's
+				// cloud rows; keep a diagnostic trail.
+				ctx.logger?.error?.("Cloud session discovery failed", { error });
+				return [];
+			});
+		return mergeDiscoveredSessionLists(cloud, local, Math.max(1, limit));
 	}
 	if (command === "list_cli_sessions") {
 		return await listSessionsFromSidecarManager(
@@ -1461,10 +1492,18 @@ export async function handleCommand(
 		);
 	}
 	if (command === "list_discovered_sessions") {
-		return await listSessionsFromSidecarManager(
+		const limit = typeof args?.limit === "number" ? args.limit : 300;
+		const local = (await listSessionsFromSidecarManager(
 			ctx,
-			typeof args?.limit === "number" ? args.limit : 300,
-		);
+			limit,
+		)) as JsonRecord[];
+		const cloud = await getCloudSessionManager(ctx)
+			.listForDiscovery({ timeoutMs: CLOUD_DISCOVERY_BUDGET_MS })
+			.catch((error) => {
+				ctx.logger?.error?.("Cloud session discovery failed", { error });
+				return [];
+			});
+		return mergeDiscoveredSessionLists(cloud, local, Math.max(1, limit));
 	}
 	if (command === "search_sessions") {
 		const query = String(args?.query ?? "").trim();
@@ -1512,12 +1551,37 @@ export async function handleCommand(
 	if (command === "get_discovered_session") {
 		const sessionId = String(args?.sessionId ?? args?.session_id ?? "").trim();
 		if (!sessionId) throw new Error("session id is required");
+		const cloud = getCloudSessionManager(ctx);
+		if (cloud.isCloudSession(sessionId)) {
+			// The active-scope list can omit a session created under another
+			// org scope; fall back to revalidating the cached record by id so
+			// the session stays openable, and to the raw cache when the
+			// account APIs are unavailable entirely.
+			try {
+				const listed = (await cloud.listForDiscovery()).find(
+					(session) => session.sessionId === sessionId,
+				);
+				return (
+					listed ??
+					(await cloud.getCrossScopeDiscoveryRecord(sessionId)) ??
+					null
+				);
+			} catch {
+				return cloud.getCachedDiscoveryRecord(sessionId) ?? null;
+			}
+		}
 		return (await getSessionFromSidecarManager(ctx, sessionId)) ?? null;
 	}
 	if (command === "update_chat_session_title") {
 		const sessionId = String(args?.sessionId ?? "").trim();
 		if (!sessionId) throw new Error("session id is required");
 		const title = normalizeSessionTitle(String(args?.title ?? ""));
+		const cloud = getCloudSessionManager(ctx);
+		if (cloud.isCloudSession(sessionId)) {
+			if (!title) throw new Error("title is required");
+			await cloud.updateTitle(sessionId, title);
+			return true;
+		}
 		const backend = await resolveSessionBackend({ backendMode: "local" });
 		const result = await backend.updateSession({ sessionId, title });
 		if (!result.updated) throw new Error(`Session ${sessionId} not found`);
@@ -1566,6 +1630,11 @@ export async function handleCommand(
 	if (command === "delete_chat_session" || command === "delete_cli_session") {
 		const sessionId = String(args?.sessionId ?? args?.session_id ?? "").trim();
 		if (!sessionId) throw new Error("session id is required");
+		const cloud = getCloudSessionManager(ctx);
+		if (cloud.isCloudSession(sessionId)) {
+			await cloud.delete(sessionId);
+			return true;
+		}
 		ctx.logger?.log("Deleting desktop chat session", { command, sessionId });
 		const store = new SqliteSessionStore();
 		const row = store.get(sessionId);
@@ -1696,7 +1765,7 @@ export async function handleCommand(
 		// token up front and return a typed result the webview can act on
 		// instead of letting the account service throw a generic error that
 		// would be captured as error telemetry and shown raw to the user.
-		const authToken = await resolveFreshClineAuthToken(ctx, manager);
+		const authToken = await resolveFreshClineAuthToken(manager, ctx);
 		if (!authToken) {
 			// Backstop for credentials that go away without a settings write —
 			// an expired or server-revoked token. Explicit sign-out is handled
@@ -1718,6 +1787,12 @@ export async function handleCommand(
 			args as ClineAccountActionRequest,
 			accountService,
 		);
+		if (operation === "switchAccount") {
+			await resetCloudSessionManager(ctx);
+			// The sidebar must re-scope immediately (personal ⇄ org), not on
+			// the next 12s poll.
+			broadcastEvent(ctx, "cloud_sessions_changed", {});
+		}
 		syncFeatureFlagsAccountFromResult(ctx, operation, result);
 		return result;
 	}
@@ -1728,7 +1803,7 @@ export async function handleCommand(
 		if (!operation) throw new Error("operation is required");
 		const manager = new ProviderSettingsManager();
 
-		const authToken = await resolveFreshClineAuthToken(ctx, manager);
+		const authToken = await resolveFreshClineAuthToken(manager, ctx);
 		if (!authToken) {
 			return CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT;
 		}
@@ -1761,9 +1836,15 @@ export async function handleCommand(
 	}
 	if (command === "list_provider_models") {
 		const manager = new ProviderSettingsManager();
+		const providerId = String(args?.provider ?? "").trim();
+		const includeCloudModels =
+			providerId === "cline" &&
+			args?.includeCloudModels === true &&
+			isCloudAgentsEnabled();
 		return await getLocalProviderModels(
-			String(args?.provider ?? ""),
-			manager.getProviderConfig(String(args?.provider ?? "").trim()),
+			providerId,
+			manager.getProviderConfig(providerId),
+			{ loadLatest: includeCloudModels },
 		);
 	}
 	if (command === "list_cline_recommended_models") {
@@ -1909,13 +1990,20 @@ export async function handleCommand(
 	}
 	if (command === "save_provider_settings") {
 		const manager = new ProviderSettingsManager();
+		const providerId = String(args?.provider ?? "").trim();
 		const saved = saveLocalProviderSettings(manager, {
 			...readProviderSettingsUpdate(args),
-			providerId: String(args?.provider ?? ""),
+			providerId,
 			enabled: typeof args?.enabled === "boolean" ? args.enabled : undefined,
 			apiKey: typeof args?.api_key === "string" ? args.api_key : undefined,
 			baseUrl: typeof args?.base_url === "string" ? args.base_url : undefined,
 		});
+		if (providerId === "cline") {
+			await resetCloudSessionManager(ctx);
+			// Sign-out must clear cloud rows from the sidebar immediately,
+			// not on the next 12s poll.
+			broadcastEvent(ctx, "cloud_sessions_changed", {});
+		}
 		// Sign-out is a `save_provider_settings` that blanks the cline auth block
 		// (see signOut in webview settings/account-view.tsx), so this is the
 		// authoritative signal — it fires the moment credentials are cleared
@@ -1977,7 +2065,7 @@ export async function handleCommand(
 	if (command === "run_provider_oauth_login") {
 		const providerId = normalizeOAuthProvider(String(args?.provider ?? ""));
 		const manager = new ProviderSettingsManager();
-		return await runCancellableProviderOAuthLogin(
+		const result = await runCancellableProviderOAuthLogin(
 			manager,
 			providerId,
 			(url) => {
@@ -1991,6 +2079,14 @@ export async function handleCommand(
 			},
 			{ owner: options?.connection },
 		);
+		if (providerId === "cline") {
+			// New credentials re-scope cloud sessions just like switchAccount:
+			// drop the manager's cached org/session state and refresh the
+			// sidebar immediately instead of on the next poll.
+			await resetCloudSessionManager(ctx);
+			broadcastEvent(ctx, "cloud_sessions_changed", {});
+		}
+		return result;
 	}
 	if (command === "cancel_provider_oauth_login") {
 		const providerId = normalizeOAuthProvider(String(args?.provider ?? ""));
@@ -2018,6 +2114,22 @@ export async function handleCommand(
 		setAutoUpdateEnabledGlobally(args.auto_update_enabled);
 		return readGlobalSettings();
 	}
+	if (command === "get_desktop_settings") {
+		return readDesktopSettings();
+	}
+	if (command === "set_cloud_sessions_enabled") {
+		if (typeof args?.cloud_sessions_enabled !== "boolean") {
+			throw new Error("cloud_sessions_enabled must be a boolean");
+		}
+		const settings = setCloudSessionsEnabled(args.cloud_sessions_enabled);
+		// Every open webview (welcome composer included) must re-evaluate the
+		// gate immediately instead of waiting for the next sign-in refresh.
+		broadcastEvent(ctx, "feature_flags_changed", {
+			cloudAgents: isCloudAgentsEnabled(),
+			cloudAgentsAvailable: isCloudAgentsAvailable(),
+		});
+		return settings;
+	}
 	if (command === "set_web_search_enabled") {
 		if (typeof args?.web_search_enabled !== "boolean") {
 			throw new Error("web_search_enabled must be a boolean");
@@ -2031,13 +2143,6 @@ export async function handleCommand(
 	// the PostHog key inlined at build time and evaluates against the same
 	// distinct ID it reports telemetry with. The client just reads the
 	// resolved values.
-	if (command === "get_feature_flags") {
-		return await refreshDesktopFeatureFlags({
-			logger: ctx.logger,
-			telemetry: ctx.telemetry,
-		});
-	}
-
 	// ── Connector channels ─────────────────────────────────────────────
 	if (command === "list_connector_channels") {
 		return connectorChannelsPayload();

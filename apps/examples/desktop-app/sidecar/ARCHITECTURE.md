@@ -17,7 +17,11 @@ sidecar/
 ├── server.ts             # Bun HTTP server + WebSocket handlers
 ├── context.ts            # SidecarContext type and factory
 ├── commands.ts           # Command router
-├── chat-session.ts       # Shared-Hub chat session adapter
+├── chat-session.ts       # Shared-Hub chat session adapter (local + cloud routing)
+├── cloud-sessions.ts     # Cloud session REST client + Hub-proxy manager
+├── cline-auth.ts         # Refresh-aware Cline auth token resolution
+├── desktop-settings.ts   # Desktop-owned settings (cloud sessions opt-in)
+├── feature-flags.ts      # Cloud sessions gate (env override + settings toggle)
 ├── session-data/         # Shared discovery, messages, artifacts, search helpers
 ├── paths.ts              # Path resolution
 ├── types.ts              # Shared types
@@ -89,13 +93,17 @@ online:
 
 ```typescript
 const pendingApprovals = new Map<string, {
-  resolve: (result: ToolApprovalResult) => void;
+  resolve: (result: ToolApprovalResult) => void | Promise<void>;
   request: ToolApprovalRequest;
 }>();
 
 // When core requests approval → store promise, push to frontend
 // When frontend responds → resolve promise
 ```
+
+Cloud sessions route approvals the same way, but the resolver forwards the
+response to the sandbox Hub (`approval.respond`), which is why `resolve` may
+be async.
 
 ### 3. Provider Management — Direct ProviderSettingsManager
 
@@ -138,7 +146,7 @@ Supported commands:
 
 | Command | Implementation |
 |---------|---------------|
-| `chat_session_command` | shared Hub through `ClineCore` |
+| `chat_session_command` | shared Hub through `ClineCore`; cloud sessions route to `CloudSessionManager` |
 | `list_provider_catalog` | `ProviderSettingsManager` + `listLocalProviders` |
 | `list_provider_models` | `getLocalProviderModels` |
 | `save_voice_input_settings` | validates and persists the selected transcription provider/model |
@@ -147,12 +155,17 @@ Supported commands:
 | `save_provider_settings` | `saveLocalProviderSettings` |
 | `add_provider` | `addLocalProvider` |
 | `run_provider_oauth_login` | `loginLocalProvider` |
-| `list_chat_sessions` | `SqliteSessionStore` + file discovery |
-| `list_discovered_sessions` | Merged discovery |
-| `read_session_messages` | Session data readers |
+| `list_chat_sessions` | `SqliteSessionStore` + file discovery, merged with cloud sessions (2s budget) |
+| `list_discovered_sessions` | Merged discovery (local + cloud) |
+| `read_session_messages` | Session data readers; cloud sessions read through the sandbox Hub |
 | `read_session_hooks` | Session data readers |
-| `delete_chat_session` | `SqliteSessionStore.delete` + file cleanup |
-| `update_chat_session_title` | `resolveSessionBackend().updateSession` |
+| `delete_chat_session` | `SqliteSessionStore.delete` + file cleanup; cloud sessions also delete the sandbox |
+| `update_chat_session_title` | `resolveSessionBackend().updateSession`; cloud sessions PATCH the cloud API |
+| `get_feature_flags` | `isCloudAgentsEnabled()` (env override + settings toggle) |
+| `get_desktop_settings` | `readDesktopSettings()` |
+| `set_cloud_sessions_enabled` | `setCloudSessionsEnabled()` + `feature_flags_changed` broadcast |
+| `list_cloud_repositories` | `CloudSessionManager.listRepositories()` (GitHub integration) |
+| `list_cloud_branches` | `CloudSessionManager.listBranches()` (paginated) |
 | `list_mcp_servers` | Direct file I/O |
 | `authorize_mcp_server_oauth` | Explicit Connect action → cancellable `authorizeMcpServerOAuth` + system browser |
 | `cancel_mcp_server_oauth` | Cancel the pending MCP OAuth callback wait |
