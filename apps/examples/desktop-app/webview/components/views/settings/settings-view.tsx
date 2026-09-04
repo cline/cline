@@ -68,6 +68,7 @@ import { ChannelsContent } from "./channels-view";
 import { CustomizeView } from "./customize-view";
 import { NotificationSettings } from "./notification-settings";
 import {
+	type ModelRefreshStatus,
 	ProviderDetailContent,
 	ProviderListContent,
 } from "./provider-list-view";
@@ -126,6 +127,8 @@ export function SettingsView({
 	const [modelsErrorByProvider, setModelsErrorByProvider] = useState<
 		Record<string, string | null>
 	>({});
+	const [modelRefreshStatusByProvider, setModelRefreshStatusByProvider] =
+		useState<Record<string, ModelRefreshStatus | null>>({});
 	const [oauthSigningProviderId, setOauthSigningProviderId] = useState<
 		string | null
 	>(null);
@@ -368,14 +371,21 @@ export function SettingsView({
 	);
 
 	const loadProviderModels = useCallback(
-		async (id: string) => {
+		async (id: string, options: { forceRefresh?: boolean } = {}) => {
 			setModelsLoadingByProvider((prev) => ({ ...prev, [id]: true }));
 			setModelsErrorByProvider((prev) => ({ ...prev, [id]: null }));
+			if (options.forceRefresh) {
+				setModelRefreshStatusByProvider((prev) => ({
+					...prev,
+					[id]: null,
+				}));
+			}
 			try {
 				const payload = await desktopClient.invoke<ProviderModelsResponse>(
 					"list_provider_models",
 					{
 						provider: id,
+						...(options.forceRefresh ? { force_refresh: true } : {}),
 					},
 				);
 				setProvidersWithCache((prev) =>
@@ -390,9 +400,21 @@ export function SettingsView({
 					),
 				);
 				publishProviderModels(id, payload.models);
+				if (options.forceRefresh) {
+					setModelRefreshStatusByProvider((prev) => ({
+						...prev,
+						[id]: { kind: "success", modelCount: payload.models.length },
+					}));
+				}
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
 				setModelsErrorByProvider((prev) => ({ ...prev, [id]: message }));
+				if (options.forceRefresh) {
+					setModelRefreshStatusByProvider((prev) => ({
+						...prev,
+						[id]: { kind: "error", message },
+					}));
+				}
 			} finally {
 				setModelsLoadingByProvider((prev) => ({ ...prev, [id]: false }));
 			}
@@ -404,6 +426,7 @@ export function SettingsView({
 		async (id: string, models: string[]) => {
 			setModelsLoadingByProvider((prev) => ({ ...prev, [id]: true }));
 			setModelsErrorByProvider((prev) => ({ ...prev, [id]: null }));
+			setModelRefreshStatusByProvider((prev) => ({ ...prev, [id]: null }));
 			try {
 				await desktopClient.invoke("update_provider_models", {
 					provider: id,
@@ -575,11 +598,18 @@ export function SettingsView({
 					key={`${selectedProvider.id}:${detailResetToken}`}
 					modelsError={modelsErrorByProvider[selectedProvider.id] ?? null}
 					modelsLoading={modelsLoadingByProvider[selectedProvider.id] ?? false}
+					modelsRefreshStatus={
+						modelRefreshStatusByProvider[selectedProvider.id] ?? null
+					}
 					oauthLoginPending={oauthSigningProviderId === selectedProvider.id}
 					onBack={backToProviderList}
 					onConnect={() => connectProvider(selectedProvider.id)}
 					onDisconnect={() => void disconnectProvider(selectedProvider.id)}
-					onLoadModels={() => void loadProviderModels(selectedProvider.id)}
+					onLoadModels={() =>
+						void loadProviderModels(selectedProvider.id, {
+							forceRefresh: true,
+						})
+					}
 					onUpdateModels={(models) =>
 						void updateProviderModels(selectedProvider.id, models)
 					}

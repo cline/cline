@@ -512,15 +512,26 @@ export async function fetchModelsDevCatalog(
 	};
 }
 
+export interface FetchLiveProviderModelsOptions {
+	/**
+	 * Propagate a models.dev failure instead of returning only the optional
+	 * Cline recommendation overlays. Explicit user refreshes use this so a
+	 * stale bundled catalog is not reported as a successful live refresh.
+	 */
+	failOnModelsDevError?: boolean;
+}
+
 export async function fetchLiveProviderModels(
 	modelsDevUrl: string,
 	fetcher: typeof fetch = fetch,
+	options: FetchLiveProviderModelsOptions = {},
 ): Promise<Record<string, Record<string, ModelInfo>>> {
 	const emptyProviderModels: Record<string, Record<string, ModelInfo>> = {};
+	const modelsDevRequest = fetchModelsDevProviderModels(modelsDevUrl, fetcher);
 	const [providerModels, clineRecommendedPayload] = await Promise.all([
-		fetchModelsDevProviderModels(modelsDevUrl, fetcher).catch(
-			() => emptyProviderModels,
-		),
+		options.failOnModelsDevError
+			? modelsDevRequest
+			: modelsDevRequest.catch(() => emptyProviderModels),
 		fetchClineRecommendedModelsPayload(fetcher).catch(() => undefined),
 	]);
 	const clineRecommended = clineRecommendedPayload

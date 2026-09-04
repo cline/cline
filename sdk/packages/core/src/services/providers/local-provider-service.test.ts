@@ -481,6 +481,114 @@ describe("addLocalProvider – model ID parsing via modelsSourceUrl", () => {
 		});
 	});
 
+	it("force refreshes Hy4 preview for both Tencent live catalogs", async () => {
+		let revision = 0;
+		const fetchMock = vi.fn(async (url: string) => {
+			if (url !== "https://models.dev/api.json") {
+				return new Response(
+					JSON.stringify({ recommended: [], free: [], clinePass: [] }),
+					{
+						status: 200,
+						headers: { "content-type": "application/json" },
+					},
+				);
+			}
+			revision += 1;
+			const provider = (id: string) => ({
+				id,
+				npm: "@ai-sdk/openai-compatible",
+				models: {
+					"hy4-preview": {
+						name: `Hy4 preview ${revision}`,
+						tool_call: true,
+						reasoning: true,
+						limit: { context: 1_024_000, output: 64_000 },
+					},
+				},
+			});
+			return new Response(
+				JSON.stringify({
+					"tencent-token-plan": provider("tencent-token-plan"),
+					"tencent-tokenhub": provider("tencent-tokenhub"),
+				}),
+				{
+					status: 200,
+					headers: { "content-type": "application/json" },
+				},
+			);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const first = await getLocalProviderModels(
+			"tencent-token-plan",
+			undefined,
+			{ forceRefresh: true },
+		);
+		const second = await getLocalProviderModels("tencent-tokenhub", undefined, {
+			forceRefresh: true,
+		});
+		const revisited = await getLocalProviderModels("tencent-token-plan");
+
+		expect(
+			fetchMock.mock.calls.filter(
+				([url]) => url === "https://models.dev/api.json",
+			),
+		).toHaveLength(2);
+		expect(first.models).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					id: "hy4-preview",
+					name: "Hy4 preview 1",
+					contextWindow: 1_024_000,
+					supportsReasoning: true,
+				}),
+			]),
+		);
+		expect(second.models).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					id: "hy4-preview",
+					name: "Hy4 preview 2",
+					contextWindow: 1_024_000,
+					supportsReasoning: true,
+				}),
+			]),
+		);
+		expect(revisited.models).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					id: "hy4-preview",
+					name: "Hy4 preview 2",
+				}),
+			]),
+		);
+	});
+
+	it("surfaces a models.dev failure during an explicit refresh", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async (url: string) =>
+				url === "https://models.dev/api.json"
+					? new Response(null, { status: 503 })
+					: new Response(
+							JSON.stringify({ recommended: [], free: [], clinePass: [] }),
+							{
+								status: 200,
+								headers: { "content-type": "application/json" },
+							},
+						),
+			),
+		);
+
+		await expect(
+			getLocalProviderModels("tencent-tokenhub", undefined, {
+				forceRefresh: true,
+			}),
+		).rejects.toThrow(
+			"Failed to load model catalog from https://models.dev/api.json: HTTP 503",
+		);
+	});
+
 	it("uses only live ClinePass models when live models are found", async () => {
 		const fetchMock = vi.fn(async (url: string) => {
 			if (url === "https://models.dev/api.json") {
