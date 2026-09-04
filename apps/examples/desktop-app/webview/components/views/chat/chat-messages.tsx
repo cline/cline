@@ -20,13 +20,27 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+	supportsHighlightApi,
+	useSessionSearchHighlight,
+} from "@/hooks/use-session-search-highlight";
 import { toast } from "@/hooks/use-toast";
 import type {
 	ChatMessage,
 	ChatMessageImage,
 	ChatSessionStatus,
 } from "@/lib/chat-schema";
+import {
+	clampMatchIndex,
+	findSessionMatches,
+	isSearchableMessage,
+	type SessionSearchStepDirection,
+	searchAnchorId,
+	stepMatchIndex,
+} from "@/lib/session-search";
 import { cn } from "@/lib/utils";
+import { FindInSession } from "./find-in-session";
+import { formatChatMessageContent } from "./message-content";
 import { STREAMING_TITLE_CLASS } from "./messages/constants";
 import {
 	buildPreviousTimestampMap,
@@ -185,6 +199,9 @@ function ChatMessagesImpl({
 		sessionId: string | null;
 		image: ChatMessageImage;
 	} | null>(null);
+	const [isFindOpen, setIsFindOpen] = useState(false);
+	const [searchQuery, setSearchQuery] = useState("");
+	const [activeMatchIndex, setActiveMatchIndex] = useState(0);
 	const sessionVersioningPending =
 		editingMessageId !== null ||
 		forkingMessageId !== null ||
@@ -216,6 +233,49 @@ function ChatMessagesImpl({
 			lastRenderItem.type === "run" ||
 			(lastRenderItem.type === "message" &&
 				lastRenderItem.message.role === "assistant"));
+	// Matches are derived from the displayed text, not the raw content, so the
+	// search cannot hit text the user is not shown.
+	const searchMatches = useMemo(() => {
+		if (!isFindOpen) {
+			return [];
+		}
+		return findSessionMatches(
+			messages.filter(isSearchableMessage).map((message) => ({
+				messageId: message.id,
+				text: formatChatMessageContent(message.role, message.content),
+			})),
+			searchQuery,
+		);
+	}, [isFindOpen, messages, searchQuery]);
+	const matchedMessageIds = useMemo(
+		() => new Set(searchMatches.map((match) => match.messageId)),
+		[searchMatches],
+	);
+	// Streaming can shrink the match list under a stale index, so clamp on read
+	// rather than trusting the stored value.
+	const safeMatchIndex = clampMatchIndex(
+		activeMatchIndex,
+		searchMatches.length,
+	);
+	const activeMatchId = searchMatches[safeMatchIndex]?.messageId ?? null;
+	const matchedIdList = useMemo(
+		() => searchMatches.map((match) => match.messageId),
+		[searchMatches],
+	);
+	// Ranges hold live text-node references, so a transcript edit under an
+	// unchanged query has to force a rebuild.
+	useSessionSearchHighlight({
+		activeMessageId: activeMatchId,
+		messageIds: matchedIdList,
+		query: searchQuery,
+		revision: messages.length,
+	});
+	// Character-level painting is the intended presentation; the container tint
+	// is only a fallback where the Highlight API is unavailable.
+	const [useContainerTint, setUseContainerTint] = useState(false);
+	useEffect(() => {
+		setUseContainerTint(!supportsHighlightApi());
+	}, []);
 	// Built once per pendingAskQuestions change instead of per render: the
 	// list re-renders on every stream flush and these rows carry JSX.
 	const askQuestionItems = useMemo(
@@ -345,6 +405,63 @@ function ChatMessagesImpl({
 		},
 		[onAnswerAskQuestion],
 	);
+
+	// Cmd/Ctrl+F opens the bar only while a session is open, matching the
+	// Cmd+N / Cmd+, shortcuts registered in app/page.tsx.
+	useEffect(() => {
+		if (!sessionId) {
+			return;
+		}
+		const handleKeyDown = (event: KeyboardEvent) => {
+			if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) {
+				return;
+			}
+			if (event.key === "f" || event.key === "F") {
+				event.preventDefault();
+				setIsFindOpen(true);
+			}
+		};
+		window.addEventListener("keydown", handleKeyDown);
+		return () => window.removeEventListener("keydown", handleKeyDown);
+	}, [sessionId]);
+	// Closing the bar drops the query so reopening starts clean, and switching
+	// sessions must not carry a previous session's matches across.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: resets on session change.
+	useEffect(() => {
+		setIsFindOpen(false);
+		setSearchQuery("");
+		setActiveMatchIndex(0);
+	}, [sessionId]);
+	const previousActiveMatchId = useRef<string | null>(null);
+	useEffect(() => {
+		if (!activeMatchId || activeMatchId === previousActiveMatchId.current) {
+			previousActiveMatchId.current = activeMatchId;
+			return;
+		}
+		previousActiveMatchId.current = activeMatchId;
+		document
+			.getElementById(searchAnchorId(activeMatchId))
+			?.scrollIntoView({ block: "center", behavior: "smooth" });
+	}, [activeMatchId]);
+	const handleSearchQueryChange = useCallback((query: string) => {
+		setSearchQuery(query);
+		// Every edit restarts from the first match, so results always read
+		// top-down rather than from wherever the previous query left off.
+		setActiveMatchIndex(0);
+	}, []);
+	const handleStepMatch = useCallback(
+		(direction: SessionSearchStepDirection) => {
+			setActiveMatchIndex((current) =>
+				stepMatchIndex(current, searchMatches.length, direction),
+			);
+		},
+		[searchMatches.length],
+	);
+	const handleCloseFind = useCallback(() => {
+		setIsFindOpen(false);
+		setSearchQuery("");
+		setActiveMatchIndex(0);
+	}, []);
 
 	const handleCopyMessage = useCallback(
 		async (messageId: string, text: string) => {
@@ -511,6 +628,16 @@ function ChatMessagesImpl({
 			className="relative isolate h-full min-h-0 min-w-0 overflow-hidden"
 			key={sessionId ?? "new-chat"}
 		>
+			{isFindOpen ? (
+				<FindInSession
+					activeMatchIndex={safeMatchIndex}
+					onClose={handleCloseFind}
+					onQueryChange={handleSearchQueryChange}
+					onStepMatch={handleStepMatch}
+					query={searchQuery}
+					totalMatches={searchMatches.length}
+				/>
+			) : null}
 			<ConversationViewport
 				aria-label="Agent conversation"
 				className="h-full min-h-0 min-w-0"
@@ -611,6 +738,12 @@ function ChatMessagesImpl({
 												lastConversationMessage === message
 											}
 											isStreaming={streamingMessageId === message.id}
+											isSearchMatch={
+												useContainerTint && matchedMessageIds.has(message.id)
+											}
+											isActiveSearchMatch={
+												useContainerTint && activeMatchId === message.id
+											}
 											key={message.id}
 											message={message}
 											runCount={userRunCountByMessage.get(message)}
