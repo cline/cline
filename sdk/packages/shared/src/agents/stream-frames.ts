@@ -14,6 +14,8 @@
  */
 export const FRAME_SCHEMA_VERSION = 2;
 
+import type { ProviderErrorClass } from "../agent";
+
 // =============================================================================
 // Scope address
 // =============================================================================
@@ -40,7 +42,7 @@ export interface StreamError {
 	code: string;
 	message: string;
 	/** Provider error classification when known (AgentErrorEvent.errorClass). */
-	providerErrorClass?: string;
+	providerErrorClass?: ProviderErrorClass;
 	/** Structured provider details when available (e.g. a JSON error body). */
 	details?: unknown;
 }
@@ -60,7 +62,12 @@ export type Outcome =
 	 * behavior on the exact reason (the completion retag) must see it.
 	 */
 	| { kind: "completed"; finishReason?: "completed" | "max_iterations" | "mistake_limit" }
-	| { kind: "error"; error: StreamError }
+	| { kind: "error"; error: StreamError; /** Distinguishes the terminal
+	 * `error` event (`"error"`) from `done(reason:"error")` (`"done"`):
+	 * v1 finalizes a dangling compaction divider as "failed" for the
+	 * former and "cancelled" for the latter, and only the former emits
+	 * the api_req_failed pair. Always set on turn closes; tool closes
+	 * carry no terminal distinction. */ via?: "error" | "done" }
 	| { kind: "interrupted" }
 	| { kind: "detached"; resource: ResourceRef };
 

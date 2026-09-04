@@ -310,6 +310,7 @@ describe("framer wart-fixes", () => {
 		expect(turnClose.outcome).toEqual({
 			kind: "error",
 			error: { code: "run_failed", message: "ok" },
+			via: "done",
 		});
 	});
 
