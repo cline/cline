@@ -52,6 +52,8 @@ type CloudSetupState = {
 	repositoryUrls: string[];
 };
 
+const noop = () => undefined;
+
 export function WelcomeScreen({
 	active,
 	body,
@@ -63,9 +65,9 @@ export function WelcomeScreen({
 	executionTarget = "local",
 	repoUrl = "",
 	cloudBranch = "",
-	onExecutionTargetChange = () => undefined,
-	onRepoUrlChange = () => undefined,
-	onCloudBranchChange = () => undefined,
+	onExecutionTargetChange = noop,
+	onRepoUrlChange = noop,
+	onCloudBranchChange = noop,
 	cloudAgentsEnabled = false,
 	onOpenSession,
 }: {
