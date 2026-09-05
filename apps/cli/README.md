@@ -128,7 +128,7 @@ to change a setting, choose **Apply settings** to save, or press **Esc** to canc
 Thinking levels come from the selected model's catalog entry.
 
 Fast is off by default. Enabling it saves the preference for this provider,
-including future launches, and requests priority processing without lowering
+including future launches and switching to another Codex model, and requests priority processing without lowering
 reasoning effort. Turn it off in the same dialog to remove the override. It may
 consume more quota; account eligibility and actual processing speed depend on
 the backend. Other providers do not receive this service-tier override.

@@ -2,23 +2,13 @@
 
 ## ChatGPT subscription Fast settings
 
-Model settings accept `serviceTier?: "priority"`: priority requests Fast scheduling
-but does not guarantee backend scheduling;
-undefined/omission is off and sends no tier override. This setting is independent
-of thinking and reasoning effort. Core persists it through the existing provider
-settings store and passes it through runtime model options; the gateway adapter
-projects it onto `GatewayStreamRequest.serviceTier`. The legacy handler path
-projects `ProviderConfig.serviceTier` onto the same request field. Only the named
-`provider.openai-codex` option rule encodes it as AI SDK `serviceTier: "priority"`
-(OpenAI Responses wire field `service_tier`). Other providers receive no override.
-
-Live connection patches accept `"priority"` to enable, `null` to clear to
-undefined, and omission to preserve the current value. Hub input validation
-ignores invalid tier values; persisted settings reject them. Delegated agents
-inherit the effective setting without changing their reasoning configuration.
-
-Hub create/resume and checkpoint-restore start inputs project the validated runtime
-option into session config, with explicit session config taking precedence.
+- `serviceTier` is independent of thinking and reasoning effort.
+- Only `openai-codex` encodes `"priority"`; other providers send no tier override.
+- An absent tier in effective request settings sends no override.
+- In live updates, `null` clears the tier; omission preserves the current value.
+- The preference is provider-wide, persists across launches and Codex model
+  changes, and is inherited by delegated agents. Backend availability is not
+  guaranteed.
 
 This document is the architecture source of truth for the Cline SDK repository. It describes how the system is organized, how components interact, and the design principles that guide development decisions.
 
