@@ -1,7 +1,29 @@
 # Cline CLI Changelog
 
+## 3.0.61
+
+- Cline now handles a running Hub that is older than your CLI. Instead of quietly talking to a hub executing stale code, you get a prompt showing how many active sessions a replacement would interrupt, with enter-to-replace or escape-to-keep. The replacement drains the Hub first so in-flight turns finish, and a hub too old or wedged to accept the drain is left alone rather than killed
+- Windows binaries are now Authenticode-signed via Azure Trusted Signing, and a launch blocked by application-control policy now prints an actionable error instead of failing bare
+- Fixed the CLI dying when an enabled remote (SSE/streamable HTTP) MCP server is unreachable. The connect now has a 10s budget, so an offline server no longer stalls session startup past the Hub's deadline and tears the session down — previously the interactive TUI exited and one-shot runs failed
+- Fixed tool calling being silently disabled for Dify, SAP AI Core, opencode, and Codex CLI models. Their catalog entries declare no capabilities, and the empty list was read as an authoritative denial that stripped every tool from the request
+- Fixed images being dropped from file reads on models whose capability list is empty
+- Langfuse tracing now works in released builds. Detection identified the OpenTelemetry provider by class name, which minification renames, so tracing silently initialized as not-ready in every published binary while working in dev
+- Restoring a checkpoint now refuses to run when you have made commits after it, instead of silently knocking them off the branch where only the reflog could recover them. Chat-only restore is unaffected
+- `apply_patch` now preserves a file's existing CRLF line endings
+- Global rules are now also read from `~/Cline/Rules`, which is where the VS Code Rules tab writes them on WSL and headless installs
+- Signing in to OpenAI Codex (ChatGPT subscription) now fails with a clear "port in use" error when 1455 is occupied, instead of opening a browser to a flow that can never complete
+- A transient network failure while refreshing Codex or OpenAI-compatible-account tokens no longer logs you out
+- Aborting a session now also cancels the delegated subagents and teammates it spawned, instead of leaving their work running
+- Agent-created schedules now live in `~/.cline/schedules` instead of inheriting whichever chat folder they were created in. Schedules you create with `--workspace` are unchanged
+- Fixed scheduled tasks disappearing after a hub restart
+- Fixed markdown flashing as it settled at the end of a streamed response
+- The message the model sees when you reject a tool call now names the tool and reads as your decision rather than an error
+- Cline provider models now come from the live catalog, so newly published models show up without a CLI update
+- Refreshed the model catalog. Adds ten providers (Bothub, OpenReason, SenseNova (China), TokenGo, TokenRouter, Vancine, Volcengine Ark, Volcengine Ark Coding Plan, above.dev, and klokintegration.se) and updates model lists and pricing across providers. This is an unusually wide refresh: the resolved default model changes for 57 providers. Most consequentially, Anthropic now resolves to Claude Fable 5.1 instead of Claude Opus 5, and Amazon Bedrock, Vertex, OpenRouter, Vercel AI Gateway, Kilo Gateway, LLM Gateway, DevPass, DigitalOcean, CrossModel, Eden AI, and NanoGPT follow it to Fable 5.1. If you use any provider without pinning a model, expect a different default
+
 ## 3.0.60
 
+- The config screen now separates Cline Plugins from Agent Plugins discovered by the Hub. Agent Plugins can be enabled or disabled with Space; the Hub persists the state and their skills and MCP servers follow it when the interactive runtime is rebuilt
 - Fixed the background hub process ballooning in memory during long sessions — session status updates were broadcasting a full copy of the conversation transcript to every connected client, which on a large task could grow the process to tens of gigabytes. Upgrading retires the running hub so the fix takes effect on the next command
 - New files are now created with your platform's native line endings
 - Fixed the codebase search tool crashing on files that contain a single enormous line

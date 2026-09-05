@@ -331,6 +331,61 @@ describe("ChatMessages tool disclosures", () => {
 		expect(container.textContent).not.toContain("Scheduled task completed");
 	});
 
+	it("keeps the scheduled-task report visible when the run collapses", async () => {
+		// A follow-up prompt settles the scheduled run's span and folds its
+		// working rows into the work summary; the submit_and_exit row is the
+		// run's final report and must stay visible below it.
+		const summary = "All feeds healthy.";
+		await renderMessages([
+			{
+				id: "user-schedule",
+				sessionId: "session-1",
+				role: "user",
+				content: "Check the feeds",
+				createdAt: 1_000,
+			},
+			{
+				id: "tool-read",
+				sessionId: "session-1",
+				role: "tool",
+				content: JSON.stringify({
+					toolName: "read_files",
+					input: { paths: ["feeds.json"] },
+					result: {},
+				}),
+				createdAt: 2_000,
+			},
+			{
+				id: "tool-submit",
+				sessionId: "session-1",
+				role: "tool",
+				content: JSON.stringify({
+					toolName: "submit_and_exit",
+					input: { summary, verified: true },
+					result: summary,
+				}),
+				createdAt: 3_000,
+			},
+			{
+				id: "user-followup",
+				sessionId: "session-1",
+				role: "user",
+				content: "Thanks!",
+				createdAt: 9_000,
+			},
+		]);
+
+		// The working rows folded into a collapsed work summary…
+		const workTrigger = container.querySelector(
+			"button.cline-chat-work-trigger",
+		);
+		expect(workTrigger?.getAttribute("aria-expanded")).toBe("false");
+		// …but the report row did not fold with them: it stays visible and
+		// expanded outside the summary.
+		expect(container.textContent).toContain("Scheduled task completed");
+		expect(container.textContent).toContain(summary);
+	});
+
 	it("renders consecutive tool calls as individual rows", async () => {
 		const tools: ChatMessage[] = [
 			{
