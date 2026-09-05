@@ -1407,7 +1407,7 @@ describe("useChatSession", () => {
 		).toHaveLength(1);
 	});
 
-	it("hydrates output missed during a passive cloud reconnect", async () => {
+	it("hydrates state missed during a passive cloud reconnect", async () => {
 		invokeMock.mockImplementation(
 			async (command: string, _args?: Record<string, unknown>) => {
 				if (command === "get_process_context") {
@@ -1445,6 +1445,9 @@ describe("useChatSession", () => {
 		const rehydratedHandler = subscribeMock.mock.calls.find(
 			([eventName]) => eventName === "cloud_session_rehydrated",
 		)?.[1] as ((payload: unknown) => void) | undefined;
+		const endedHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_session_ended",
+		)?.[1] as ((payload: unknown) => void) | undefined;
 		expect(rehydratedHandler).toBeDefined();
 
 		await act(async () => {
@@ -1457,6 +1460,25 @@ describe("useChatSession", () => {
 			"Finished while reconnecting",
 		);
 		expect(current.status).toBe("completed");
+
+		await act(async () => {
+			endedHandler?.({ sessionId: "ses-cloud", reason: "completed" });
+			rehydratedHandler?.({
+				sessionId: "ses-cloud",
+				status: "running",
+				transcriptKnown: true,
+				messages: [
+					{
+						id: "remote-user",
+						sessionId: "ses-cloud",
+						role: "user",
+						content: "Started elsewhere",
+						createdAt: Date.now(),
+					},
+				],
+			});
+		});
+		expect(current.status).toBe("running");
 	});
 
 	it("keeps the reconciled live tail when the duplicate history RPC resolves", async () => {
