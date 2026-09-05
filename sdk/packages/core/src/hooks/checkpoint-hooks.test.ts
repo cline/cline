@@ -805,4 +805,46 @@ describe("createCheckpointHooks", () => {
 			await rm(cwd, { recursive: true, force: true });
 		}
 	});
+
+	it("detects untracked content changes across turns when core.ignorestat is enabled", async () => {
+		// With core.ignorestat=true git marks entries it writes as
+		// assume-unchanged and stops stat-checking them. The throwaway per-turn
+		// index never carried that bit across turns; a persistent index does,
+		// so without pinning the setting the second snapshot silently keeps the
+		// first turn's content.
+		const cwd = await createGitRepo();
+		const sessionId = "sess_ignorestat";
+		let metadata: Record<string, unknown> | undefined;
+		try {
+			await runGit(cwd, "config", "core.ignorestat", "true");
+			const hooks = createCheckpointHooks({
+				cwd,
+				sessionId,
+				readSessionMetadata: async () => metadata,
+				writeSessionMetadata: async (next) => {
+					metadata = next;
+				},
+			});
+
+			await writeFile(join(cwd, "data.txt"), "before", "utf8");
+			await runCheckpointHooks(hooks);
+			const first = (metadata?.checkpoint as CheckpointMetadata).latest;
+			expect(await runGit(cwd, "show", `${first.ref}^3:data.txt`)).toBe(
+				"before",
+			);
+
+			await writeFile(join(cwd, "data.txt"), "after!", "utf8");
+			await runCheckpointHooks(hooks, {
+				messages: [userMessage("first request"), userMessage("second request")],
+			});
+			const second = (metadata?.checkpoint as CheckpointMetadata).latest;
+			expect(second.runCount).toBe(2);
+			expect(await runGit(cwd, "show", `${second.ref}^3:data.txt`)).toBe(
+				"after!",
+			);
+		} finally {
+			await deleteCheckpointRefs(cwd, sessionId);
+			await rm(cwd, { recursive: true, force: true });
+		}
+	});
 });

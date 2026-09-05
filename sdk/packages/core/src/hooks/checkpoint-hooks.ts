@@ -166,16 +166,37 @@ async function runGit(
 	};
 }
 
+/**
+ * Config pinned for every command that touches the scratch index. A persistent
+ * index inherits whatever the repo's config makes git write into it, and some
+ * settings break cross-turn change detection: `core.ignorestat=true` marks
+ * added entries assume-unchanged, so later turns never stat them again and a
+ * modified file keeps its first-turn content in every subsequent snapshot. The
+ * throwaway per-turn index of the original implementation was immune to this
+ * by construction. `core.splitIndex` would additionally scatter shared-index
+ * files for our private index into the user's `.git`.
+ */
+const SCRATCH_INDEX_GIT_CONFIG = [
+	"-c",
+	"core.ignorestat=false",
+	"-c",
+	"core.splitIndex=false",
+];
+
 async function runGitWithIndex(
 	cwd: string,
 	indexFile: string,
 	args: string[],
 ): Promise<string> {
-	const result = await execFile("git", ["-C", cwd, ...args], {
-		windowsHide: true,
-		maxBuffer: LS_FILES_MAX_BUFFER,
-		env: { ...process.env, GIT_INDEX_FILE: indexFile },
-	});
+	const result = await execFile(
+		"git",
+		["-C", cwd, ...SCRATCH_INDEX_GIT_CONFIG, ...args],
+		{
+			windowsHide: true,
+			maxBuffer: LS_FILES_MAX_BUFFER,
+			env: { ...process.env, GIT_INDEX_FILE: indexFile },
+		},
+	);
 	return result.stdout.trim();
 }
 
@@ -187,11 +208,15 @@ function runGitWithIndexStdin(
 	input: string,
 ): Promise<void> {
 	return new Promise((resolve, reject) => {
-		const child = spawn("git", ["-C", cwd, ...args], {
-			windowsHide: true,
-			env: { ...process.env, GIT_INDEX_FILE: indexFile },
-			stdio: ["pipe", "ignore", "pipe"],
-		});
+		const child = spawn(
+			"git",
+			["-C", cwd, ...SCRATCH_INDEX_GIT_CONFIG, ...args],
+			{
+				windowsHide: true,
+				env: { ...process.env, GIT_INDEX_FILE: indexFile },
+				stdio: ["pipe", "ignore", "pipe"],
+			},
+		);
 		let stderr = "";
 		child.stderr.on("data", (chunk) => {
 			stderr += chunk;
@@ -271,11 +296,15 @@ async function createUntrackedParentCommit(
 	// comparing: `ls-files --others` reports an untracked nested repo as
 	// "sub/", but the index records its gitlink entry as "sub" — without the
 	// normalization the gitlink would be purged the same turn it was added.
-	const indexedListing = await execFile("git", ["-C", cwd, "ls-files", "-z"], {
-		windowsHide: true,
-		maxBuffer: LS_FILES_MAX_BUFFER,
-		env: { ...process.env, GIT_INDEX_FILE: indexFile },
-	});
+	const indexedListing = await execFile(
+		"git",
+		["-C", cwd, ...SCRATCH_INDEX_GIT_CONFIG, "ls-files", "-z"],
+		{
+			windowsHide: true,
+			maxBuffer: LS_FILES_MAX_BUFFER,
+			env: { ...process.env, GIT_INDEX_FILE: indexFile },
+		},
+	);
 	const untrackedSet = new Set(
 		untrackedFiles.map((path) =>
 			path.endsWith("/") ? path.slice(0, -1) : path,
