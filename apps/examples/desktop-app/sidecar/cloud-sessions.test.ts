@@ -1066,7 +1066,9 @@ describe("CloudSessionApi", () => {
 					});
 				}
 				if (init?.method === "DELETE") {
-					expect(new URL(String(input)).pathname).toBe("/api/v1/session/ses-failed");
+					expect(new URL(String(input)).pathname).toBe(
+						"/api/v1/session/ses-failed",
+					);
 					return new Response(undefined, { status: 204 });
 				}
 				expect(new URL(String(input)).pathname).toBe(
@@ -2453,19 +2455,23 @@ describe("CloudSessionManager", () => {
 		const reached = new Promise<void>((resolve) => {
 			reachedSend = resolve;
 		});
+		let sendAttempts = 0;
 		hub.commandHook = async (command) => {
 			if (command !== "session.send_input") return;
-			reachedSend();
-			await blocked;
+			sendAttempts += 1;
+			if (sendAttempts === 1) {
+				reachedSend();
+				await blocked;
+			}
 		};
 
 		const sending = manager.send("ses-outer", "same prompt");
 		await reached;
 
-		expect(ctx.liveSessions.get("ses-outer")?.messages).toContainEqual({
-			role: "user",
-			content: [{ type: "text", text: "same prompt" }],
-		});
+		hub.failNextSend = true;
+		await expect(manager.send("ses-outer", "same prompt")).rejects.toThrow(
+			/please send it again/,
+		);
 		releaseSend();
 		await sending;
 	});
