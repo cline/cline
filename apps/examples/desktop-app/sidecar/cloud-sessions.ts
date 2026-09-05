@@ -12,13 +12,11 @@ import {
 	getClineEnvironmentConfig,
 	type HubEventEnvelope,
 } from "@cline/shared";
-import type {
-	CloudBranchListOptions,
-	CloudBranchListResult,
-	CloudRepositoryListResult,
-} from "../webview/lib/cloud-repositories";
 import {
 	CLOUD_PROVISIONING_SESSION_ID_PREFIX,
+	type CloudBranchListOptions,
+	type CloudBranchListResult,
+	type CloudRepositoryListResult,
 	cloudRepositoryLabel,
 } from "../webview/lib/cloud-repositories";
 import { resolveFreshClineAuthToken } from "./cline-auth";
@@ -42,6 +40,8 @@ const CREATE_TIMEOUT_MS = 610_000;
 const PROVISIONING_POLL_MS = 3_000;
 // Bound hot-path REST calls so a dead network cannot hang the sidebar.
 const REQUEST_TIMEOUT_MS = 15_000;
+// Queue deliveries are acked promptly by the hub; a dead transport must not
+// hang them forever the way a run-length immediate send legitimately can.
 const QUEUE_COMMAND_TIMEOUT_MS = 30_000;
 const CLOUD_ERROR_PREFIX = "CLOUD_SESSION_ERROR:";
 const MAX_BUFFERED_SYNC_EVENTS = 2_000;
@@ -795,6 +795,7 @@ export class CloudSessionApi {
 		return Array.isArray(messages) ? messages : [];
 	}
 }
+
 function isExpiredRecord(record: CloudSessionRecord): boolean {
 	const expiredAt = record.expiredAt
 		? Date.parse(record.expiredAt)
@@ -1261,6 +1262,7 @@ export function reconcileBufferedCloudEvents(
 	flush(false);
 	return reconciled;
 }
+
 export class CloudSessionManager {
 	private disposed = false;
 	private readonly connections = new Map<string, CloudConnection>();
@@ -1465,9 +1467,16 @@ export class CloudSessionManager {
 				refresh.then(
 					(value) => ({ value }),
 					(error) => {
-						this.ctx.logger?.error?.("Cloud session discovery failed", {
-							error,
-						});
+						if (
+							!(
+								error instanceof CloudSessionError &&
+								error.code === "authentication_required"
+							)
+						) {
+							this.ctx.logger?.error?.("Cloud session discovery failed", {
+								error,
+							});
+						}
 						return { value: this.lastListedSessions };
 					},
 				),
@@ -2949,6 +2958,9 @@ export function getCloudSessionManager(
 			Date.now() - activeOrgCache.at < 60_000
 		) {
 			return activeOrgCache.id;
+		}
+		if (!(await getAuthToken())?.trim()) {
+			return undefined;
 		}
 		const organizations = await accountService.fetchUserOrganizations();
 		const id = organizations?.find(
