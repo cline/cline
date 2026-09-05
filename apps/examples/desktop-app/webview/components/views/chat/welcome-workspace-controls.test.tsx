@@ -32,6 +32,7 @@ async function renderControls({
 		root.render(
 			<WelcomeWorkspaceControls
 				currentBranch="main"
+				repoUrl=""
 				onListGitBranches={vi.fn(async () => ({
 					current: "main",
 					branches: ["main"],
@@ -124,6 +125,7 @@ describe("WelcomeWorkspaceControls manual path entry", () => {
 				root.render(
 					<WelcomeWorkspaceControls
 						currentBranch="main"
+						repoUrl=""
 						onListGitBranches={vi.fn(async () => ({
 							current: "main",
 							branches: ["main"],
@@ -177,6 +179,7 @@ async function renderBranchChipControls(overrides: {
 		root.render(
 			<WelcomeWorkspaceControls
 				currentBranch={overrides.currentBranch}
+				repoUrl=""
 				onListGitBranches={vi.fn(async () => ({
 					current: overrides.currentBranch,
 					branches:
