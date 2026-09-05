@@ -385,6 +385,35 @@ describe("session history", () => {
 		expect(rows.map((row) => row.sessionId)).toEqual(["root-session"]);
 	});
 
+	it("widens the scan when child sessions crowd roots out of the window", async () => {
+		const children = Array.from({ length: 30 }, (_, index) =>
+			createBackendRow({
+				sessionId: `root-session__sub__${index}`,
+				parentSessionId: "root-session",
+				isSubagent: true,
+			}),
+		);
+		const allRows = [
+			...children,
+			createBackendRow({ sessionId: "root-session" }),
+			createBackendRow({ sessionId: "older-root" }),
+		];
+		const listSessions = vi
+			.fn()
+			.mockImplementation(async (limit: number) => allRows.slice(0, limit));
+
+		const rows = await listSessionHistoryFromBackend(
+			{ listSessions },
+			{ limit: 10, hydrate: false },
+		);
+
+		expect(listSessions.mock.calls.map(([limit]) => limit)).toEqual([20, 40]);
+		expect(rows.map((row) => row.sessionId)).toEqual([
+			"root-session",
+			"older-root",
+		]);
+	});
+
 	it("can include child sessions when explicitly requested", async () => {
 		const childMessagesPath = await writeMessagesFile("child.messages.json");
 		const rootMessagesPath = await writeMessagesFile("root.messages.json");

@@ -193,14 +193,26 @@ async function listHostSessionRows(
 		await host.listSessions(0);
 		return [];
 	}
-	const scanLimit = options.includeSubagents
+	let scanLimit = options.includeSubagents
 		? requestedLimit
 		: normalizeHistoryScanLimit(requestedLimit);
-	const rows = await host.listSessions(scanLimit);
-	const filtered = options.includeSubagents
-		? rows
-		: rows.filter(isRootSessionRecord);
-	return filtered.slice(0, requestedLimit);
+	for (;;) {
+		const rows = await host.listSessions(scanLimit);
+		const filtered = options.includeSubagents
+			? rows
+			: rows.filter(isRootSessionRecord);
+		// Child rows sort after the root that spawned them, so one session with
+		// more children than the scan window hides every root. Widen the scan
+		// until the page fills or the backend runs out of rows.
+		if (
+			filtered.length >= requestedLimit ||
+			rows.length < scanLimit ||
+			scanLimit >= 2000
+		) {
+			return filtered.slice(0, requestedLimit);
+		}
+		scanLimit = Math.min(scanLimit * 2, 2000);
+	}
 }
 
 function extractTextFromContent(
