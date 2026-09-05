@@ -33,7 +33,7 @@ evals/
 
 ### Layer 1: Contract Tests (Unit)
 
-Location: `src/core/api/transform/__tests__/`
+Location: see the evals framework section below (paths are being repointed after the monorepo move)
 
 Tests API transform logic without LLM calls:
 - Thinking trace preservation
@@ -131,7 +131,7 @@ npm run eval:e2e
 
 ### Contract Test
 
-1. Add to `src/core/api/transform/__tests__/`
+1. Add your task to the evals framework (see the locations section above)
 2. Run: `npm run test:unit -- --grep "YourTest"`
 
 ### E2E Task
