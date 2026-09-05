@@ -165,7 +165,7 @@
     },
     "apps/examples/desktop-app": {
       "name": "@cline/code",
-      "version": "0.0.23-beta.1",
+      "version": "0.0.24-beta.1",
       "dependencies": {
         "@ai-sdk/gateway": "4.0.31",
         "@ai-sdk/google": "4.0.44",

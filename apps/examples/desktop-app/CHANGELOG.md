@@ -1,5 +1,11 @@
 # Cline Desktop Changelog
 
+## 0.0.24-beta.1
+
+- Beta: continue eligible local, git-backed sessions in Cline Cloud with `/handoff`, including optional follow-up text and image attachments.
+- Cloud sessions recover more reliably from provisioning, reconnect, and handoff failures without losing pending follow-up content.
+- Includes all stable desktop improvements through 0.0.23.
+
 ## 0.0.23-beta.1
 
 - Beta: configure and opt in to image generation under Customize → Tools. Provider credentials stay server-side, and generated images remain available in session history.
