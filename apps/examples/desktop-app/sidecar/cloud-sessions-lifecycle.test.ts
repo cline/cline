@@ -48,7 +48,7 @@ function createContext(): {
 		hubClient: null,
 		workspaceRoot: "/local/workspace",
 		unsubscribeSessionEvents: null,
-		cloudSessionManager: null,
+		hubBuildMismatch: null,
 	} as SidecarContext;
 	return { ctx, events };
 }
@@ -599,8 +599,6 @@ describe("CloudSessionManager lifecycle", () => {
 			getActiveOrganizationId: async () => "org-cline-bot",
 			createHubClient: () => hub as never,
 		});
-		ctx.cloudSessionManager = manager;
-
 		const scoped = await manager.list();
 		expect(listCalls).toEqual(["org-cline-bot"]);
 		expect(scoped.map((session) => session.id)).toEqual(["ses-org"]);
@@ -671,8 +669,6 @@ describe("CloudSessionManager lifecycle", () => {
 			},
 			createHubClient: () => hub as never,
 		});
-		ctx.cloudSessionManager = manager;
-
 		await expect(
 			manager.create({
 				modelId: "anthropic/claude-sonnet-5",
