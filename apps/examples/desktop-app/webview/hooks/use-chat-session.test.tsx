@@ -4630,6 +4630,22 @@ describe("coerced-queue first turn vs stale send response", () => {
 			sendResolvers[0]?.({ sessionId: sid, ok: true, queued: true });
 			await sendPromise;
 		});
+		await act(async () => {
+			rehydratedHandler?.({
+				sessionId: sid,
+				status: "completed",
+				transcriptKnown: true,
+				messages: [],
+			});
+		});
+
+		expect(current.status).toBe("running");
+		expect(
+			current.messages.some(
+				(message) =>
+					message.role === "user" && message.content === "Continue working",
+			),
+		).toBe(true);
 	});
 
 	it("ignores a rehydration read that resolves after a new turn starts", async () => {
