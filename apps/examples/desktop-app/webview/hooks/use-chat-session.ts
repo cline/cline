@@ -2122,9 +2122,14 @@ export function useChatSession() {
 					const previousUserCounts =
 						cloudTranscriptUserCountsRef.current[targetSessionId] ?? new Map();
 					const snapshotUserCounts = userMessageCounts(rehydratedMessages);
+					const liveUserCounts = userMessageCounts(messagesRef.current);
 					const snapshotHasNewUserMessage = Array.from(snapshotUserCounts).some(
 						([content, count]) =>
-							count > (previousUserCounts.get(content) ?? 0),
+							count >
+							Math.max(
+								previousUserCounts.get(content) ?? 0,
+								liveUserCounts.get(content) ?? 0,
+							),
 					);
 					const hasUnreflectedOptimisticPrompt = messagesRef.current.some(
 						(message) =>
