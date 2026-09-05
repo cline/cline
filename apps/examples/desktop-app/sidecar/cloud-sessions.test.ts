@@ -655,6 +655,7 @@ describe("CloudSessionApi", () => {
 					return jsonResponse({ success: false, error: "gateway" }, 500);
 				}
 				if (init?.method === "DELETE") {
+					expect(path).toBe("/api/v1/session/ses-outer");
 					deleted = true;
 					return jsonResponse({ success: true, data: {} });
 				}
