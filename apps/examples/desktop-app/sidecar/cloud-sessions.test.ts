@@ -1066,6 +1066,7 @@ describe("CloudSessionApi", () => {
 					});
 				}
 				if (init?.method === "DELETE") {
+					expect(new URL(String(input)).pathname).toBe("/api/v1/session/ses-failed");
 					return new Response(undefined, { status: 204 });
 				}
 				expect(new URL(String(input)).pathname).toBe(
