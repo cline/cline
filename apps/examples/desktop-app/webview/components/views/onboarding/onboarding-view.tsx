@@ -6,11 +6,13 @@ import {
 	CheckCircle2,
 	ChevronDown,
 	ExternalLink,
+	Import,
 	KeyRound,
 	Loader2,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ClineLogo } from "@/components/cline-logo";
+import { ImportSessionsDialog } from "@/components/import-sessions-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
@@ -24,6 +26,7 @@ import { GitHubConnectStep } from "@/components/views/onboarding/onboarding-gith
 import { useAccount } from "@/contexts/account-context";
 import { OAUTH_MANAGED_PROVIDERS } from "@/hooks/chat-session/constants";
 import { isFeatureEnabled, useFeatureFlags } from "@/hooks/use-feature-flags";
+import { useOAuthUserCode } from "@/hooks/use-oauth-user-code";
 import { isClineAccountNotAuthenticatedResult } from "@/lib/cline-account-state";
 import { desktopClient, openExternalUrl } from "@/lib/desktop-client";
 import {
@@ -39,13 +42,24 @@ import {
 	invalidateProviderCatalogCache,
 } from "@/lib/provider-model-catalog";
 import type { Provider } from "@/lib/provider-schema";
+import {
+	type ListImportableSessionsResponse,
+	SESSION_IMPORT_TOOL_LABELS,
+	SESSION_IMPORT_TOOL_ORDER,
+	type SessionImportTool,
+} from "@/lib/session-import";
 import { cn } from "@/lib/utils";
 
 const CREATE_ACCOUNT_URL = "https://app.cline.bot";
 
 export const GITHUB_ONBOARDING_FEATURE_FLAG = "code-onboarding-github";
 
-export type OnboardingStep = "welcome" | "connect" | "github" | "done";
+export type OnboardingStep =
+	| "welcome"
+	| "connect"
+	| "github"
+	| "import"
+	| "done";
 
 type OnboardingConnection =
 	| { kind: "cline" }
@@ -309,6 +323,7 @@ function ConnectStep({
 }) {
 	const { user, refreshAccount } = useAccount();
 	const [signingIn, setSigningIn] = useState(false);
+	const deviceUserCode = useOAuthUserCode(signingIn);
 	const [signInError, setSignInError] = useState<string | null>(null);
 	const [clineApiKey, setClineApiKey] = useState("");
 	const [clineKeySaving, setClineKeySaving] = useState(false);
@@ -606,6 +621,14 @@ function ConnectStep({
 							)}
 						</div>
 					)}
+					{!user && signingIn && deviceUserCode ? (
+						<p className="mt-4 ml-12 text-sm text-muted-foreground max-[720px]:ml-0">
+							Confirm this code in your browser:{" "}
+							<span className="font-mono font-medium text-foreground">
+								{deviceUserCode}
+							</span>
+						</p>
+					) : null}
 					{signInError ? (
 						<p
 							className="mt-6 ml-12 text-xs text-destructive max-[720px]:ml-0"
@@ -820,6 +843,155 @@ function ConnectStep({
 	);
 }
 
+/**
+ * Offers to bring session history over from other coding tools. Scans once
+ * on entry and silently advances when there is nothing to import, so only
+ * people who actually have Claude Code / Codex / opencode history ever see
+ * this step. After a successful import, onFinish closes onboarding directly
+ * — a second "you're all set" screen right after the import confirmation
+ * reads as a loop, not a finish.
+ */
+function ImportHistoryStep({
+	onContinue,
+	onFinish,
+}: {
+	onContinue: () => void;
+	onFinish: () => void;
+}) {
+	const [found, setFound] = useState<{
+		count: number;
+		tools: SessionImportTool[];
+	} | null>(null);
+	const [dialogOpen, setDialogOpen] = useState(false);
+	const [imported, setImported] = useState(false);
+
+	// The parent recreates onContinue every render, and importing itself
+	// re-renders the app shell (history refresh). Keep the callback in a ref
+	// so the scan effect runs exactly once per step entry: a re-scan after
+	// importing would see zero remaining sessions and auto-advance out from
+	// under the user's own import confirmation.
+	const skipRef = useRef(onContinue);
+	useEffect(() => {
+		skipRef.current = onContinue;
+	});
+
+	useEffect(() => {
+		let cancelled = false;
+		(async () => {
+			try {
+				const response =
+					await desktopClient.invoke<ListImportableSessionsResponse>(
+						"list_importable_sessions",
+						{},
+						{ timeoutMs: 120_000 },
+					);
+				if (cancelled) return;
+				const sessions = (response.sessions ?? []).filter(
+					(session) => !session.alreadyImportedSessionId,
+				);
+				if (sessions.length === 0) {
+					skipRef.current();
+					return;
+				}
+				const tools = SESSION_IMPORT_TOOL_ORDER.filter((tool) =>
+					sessions.some((session) => session.tool === tool),
+				);
+				setFound({ count: sessions.length, tools });
+			} catch {
+				// Onboarding must never dead-end on a scan failure.
+				if (!cancelled) skipRef.current();
+			}
+		})();
+		return () => {
+			cancelled = true;
+		};
+	}, []);
+
+	if (!found) {
+		return (
+			<OnboardingContent surface="transparent">
+				<div className="flex flex-col items-center py-10 text-center">
+					<Loader2
+						aria-hidden="true"
+						className="size-6 animate-spin text-muted-foreground"
+					/>
+					<p className="mt-4 text-md text-muted-foreground">
+						Checking for session history from other tools…
+					</p>
+					<Button
+						className="mt-8"
+						onClick={onContinue}
+						size="sm"
+						type="button"
+						variant="ghost"
+					>
+						Skip
+					</Button>
+				</div>
+			</OnboardingContent>
+		);
+	}
+
+	const toolList = found.tools
+		.map((tool) => SESSION_IMPORT_TOOL_LABELS[tool])
+		.join(found.tools.length === 2 ? " and " : ", ");
+
+	return (
+		<OnboardingContent surface="transparent">
+			<div className="flex flex-col items-center py-4 text-center">
+				<Import aria-hidden="true" className="size-10 text-primary" />
+				<h1 className="mt-4 text-3xl font-semibold tracking-tight text-foreground">
+					Bring your history with you
+				</h1>
+				<p className="mt-3 text-md text-muted-foreground">
+					{imported
+						? "Your sessions are in Cline's history now. You can import more anytime from the Sessions page."
+						: `Cline found ${found.count} session${found.count === 1 ? "" : "s"} from ${toolList} on this machine. Import them to keep your past conversations — and continue them here.`}
+				</p>
+				{imported ? (
+					<Button
+						className="mt-8 w-full max-w-64"
+						onClick={onFinish}
+						size="lg"
+						tone="accent"
+						type="button"
+						variant="fill"
+					>
+						Start building
+					</Button>
+				) : (
+					<>
+						<Button
+							className="mt-8 w-full max-w-64"
+							onClick={() => setDialogOpen(true)}
+							size="lg"
+							tone="accent"
+							type="button"
+							variant="fill"
+						>
+							Choose sessions to import
+						</Button>
+						<Button
+							className="mt-3"
+							onClick={onContinue}
+							size="sm"
+							type="button"
+							variant="ghost"
+						>
+							Skip for now
+						</Button>
+					</>
+				)}
+				<ImportSessionsDialog
+					onImported={() => setImported(true)}
+					onOpenChange={setDialogOpen}
+					open={dialogOpen}
+				/>
+			</div>
+		</OnboardingContent>
+	);
+}
+
 function DoneStep({
 	connection,
 	onFinish,
@@ -900,15 +1072,20 @@ export function OnboardingView({
 							setStep(
 								nextConnection.kind === "cline" && githubStepEnabled
 									? "github"
-									: "done",
+									: "import",
 							);
 						}}
 						onSkip={onComplete}
 					/>
 				) : step === "github" ? (
 					<OnboardingContent surface="panel">
-						<GitHubConnectStep onContinue={() => setStep("done")} />
+						<GitHubConnectStep onContinue={() => setStep("import")} />
 					</OnboardingContent>
+				) : step === "import" ? (
+					<ImportHistoryStep
+						onContinue={() => setStep("done")}
+						onFinish={onComplete}
+					/>
 				) : (
 					<DoneStep connection={connection} onFinish={onComplete} />
 				)}

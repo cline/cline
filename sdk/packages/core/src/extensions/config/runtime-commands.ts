@@ -60,6 +60,24 @@ function isCommandEnabled(command: SkillConfig | WorkflowConfig): boolean {
 	return command.disabled !== true;
 }
 
+function resolveCommandInstructions(
+	item: SkillConfig | WorkflowConfig,
+	kind: RuntimeCommandKind,
+): string {
+	if (
+		kind !== "skill" ||
+		!("source" in item) ||
+		item.source?.type !== "agent-plugin"
+	) {
+		return item.instructions;
+	}
+	const skillRoot = item.source.skillRoot
+		.replaceAll("&", "&amp;")
+		.replaceAll("<", "&lt;")
+		.replaceAll(">", "&gt;");
+	return `<skill-root>${skillRoot}</skill-root>\n${item.instructions}`;
+}
+
 function listCommandsForKind(
 	watcher: UserInstructionConfigWatcher,
 	kind: RuntimeCommandKind,
@@ -72,7 +90,7 @@ function listCommandsForKind(
 			name:
 				normalizeRuntimeCommandName(record.item.name) ||
 				`${kind}-${stableRuntimeCommandSuffix(id)}`,
-			instructions: record.item.instructions,
+			instructions: resolveCommandInstructions(record.item, kind),
 			description: resolveCommandDescription(record.item, kind),
 			kind,
 		}))
