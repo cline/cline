@@ -17,15 +17,16 @@ OpenAI-compatible endpoint.
 3. Set **Base URL** to `http://localhost:8402/v1`.
 4. Set **API Key** to any non-empty value, e.g. `sk-openzoo` — the local proxy
    ignores it.
-5. Set **Model ID** to a model from the catalog, e.g. `z-ai/glm-5.3-flash`.
+5. Set **Model ID** to `auto` (the proxy picks a model per request) or any id
+   from the catalog, e.g. `claude-sonnet-5`.
 
 ### Notes
 
 -   **Wallet:** `npx openzoo address` prints the proxy's wallet; fund it with
     USDC on Solana or Base. `npx openzoo balance` shows what is left.
 -   **Model list:** fetch live model ids and pricing (free) from
-    `http://localhost:8402/v1/models`. Ids are namespaced, like
-    `z-ai/glm-5.3-flash` or `qwen/qwen3.7-flash`.
+    `http://localhost:8402/v1/models`. Ids are bare model names, like
+    `claude-sonnet-5` or `gpt-4o-mini`.
 -   **Streaming:** SSE streaming is supported.
 -   **Hosted endpoint:** `https://api.openzoo.fun/v1` answers HTTP 402 unless
     the caller pays x402 or presents an OpenZoo subscription key
