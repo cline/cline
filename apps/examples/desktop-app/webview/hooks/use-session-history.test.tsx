@@ -5,10 +5,21 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useSessionHistory } from "./use-session-history";
 
-const { invokeMock, subscribeMock } = vi.hoisted(() => ({
-	invokeMock: vi.fn(),
-	subscribeMock: vi.fn(() => () => undefined),
-}));
+const { invokeMock, subscribeMock, subscribers } = vi.hoisted(() => {
+	const subscribers = new Map<string, (payload: unknown) => void>();
+	return {
+		invokeMock: vi.fn(),
+		subscribers,
+		subscribeMock: vi.fn(
+			(event: string, listener: (payload: unknown) => void) => {
+				subscribers.set(event, listener);
+				return () => {
+					if (subscribers.get(event) === listener) subscribers.delete(event);
+				};
+			},
+		),
+	};
+});
 
 vi.mock("@/lib/desktop-client", () => ({
 	desktopClient: {
@@ -61,6 +72,7 @@ beforeEach(() => {
 	pendingLists = [];
 	invokeMock.mockReset();
 	subscribeMock.mockClear();
+	subscribers.clear();
 	invokeMock.mockImplementation(
 		async (command: string, args?: { limit?: number }) => {
 			if (command === "list_discovered_sessions") {
@@ -214,6 +226,37 @@ describe("useSessionHistory session mapping", () => {
 			scheduleName: "Daily report",
 			scheduleRunNumber: 4,
 		});
+	});
+});
+
+describe("useSessionHistory live status", () => {
+	it("updates a known cloud session immediately from running events", async () => {
+		await act(async () => {
+			root.render(<HookHarness />);
+		});
+		await flush();
+		await act(async () => {
+			pendingLists[0].resolve([
+				{
+					...sessionRow("ses-cloud"),
+					origin: "cloud",
+					executionTarget: "cloud",
+				},
+			]);
+			await Promise.resolve();
+		});
+		expect(current.sessions[0]?.status).toBe("completed");
+
+		await act(async () => {
+			subscribers.get("chat_session_status")?.({
+				sessionId: "ses-cloud",
+				status: "running",
+			});
+			await Promise.resolve();
+		});
+
+		expect(current.sessions[0]?.status).toBe("running");
+		expect(current.threads[0]?.status).toBe("running");
 	});
 });
 
@@ -547,5 +590,32 @@ describe("useSessionHistory complete history loading", () => {
 
 		expect(current.sessions).toHaveLength(120);
 		expect(current.mayHaveMoreSessions).toBe(false);
+	});
+});
+
+describe("useSessionHistory background hydration", () => {
+	it("does not open cloud sessions to enrich sidebar metadata", async () => {
+		await act(async () => {
+			root.render(<HookHarness />);
+		});
+		await flush();
+		await act(async () => {
+			pendingLists[0].resolve([
+				sessionRow("local-session"),
+				{
+					...sessionRow("ses-cloud"),
+					origin: "cloud",
+					executionTarget: "cloud",
+				},
+			]);
+			await Promise.resolve();
+		});
+
+		await flush(801);
+		const hydratedSessionIds = invokeMock.mock.calls
+			.filter(([command]) => command === "read_session_messages")
+			.map(([, args]) => args?.sessionId);
+		expect(hydratedSessionIds).toContain("local-session");
+		expect(hydratedSessionIds).not.toContain("ses-cloud");
 	});
 });
