@@ -421,11 +421,11 @@ function areSessionsEquivalent(
 				getSessionMetadataTitle(b.metadata) ||
 			getSessionMetadataPinned(a.metadata) !==
 				getSessionMetadataPinned(b.metadata) ||
-				a.metadata?.provisioningPhase !== b.metadata?.provisioningPhase ||
-				!areScheduleInfosEqual(
-					getSessionMetadataSchedule(a.metadata),
-					getSessionMetadataSchedule(b.metadata),
-				) ||
+			a.metadata?.provisioningPhase !== b.metadata?.provisioningPhase ||
+			!areScheduleInfosEqual(
+				getSessionMetadataSchedule(a.metadata),
+				getSessionMetadataSchedule(b.metadata),
+			) ||
 			a.workspaceRoot !== b.workspaceRoot ||
 			a.cwd !== b.cwd ||
 			a.provider !== b.provider ||
