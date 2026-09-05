@@ -1467,9 +1467,16 @@ export class CloudSessionManager {
 				refresh.then(
 					(value) => ({ value }),
 					(error) => {
-						this.ctx.logger?.error?.("Cloud session discovery failed", {
-							error,
-						});
+						if (
+							!(
+								error instanceof CloudSessionError &&
+								error.code === "authentication_required"
+							)
+						) {
+							this.ctx.logger?.error?.("Cloud session discovery failed", {
+								error,
+							});
+						}
 						return { value: this.lastListedSessions };
 					},
 				),
