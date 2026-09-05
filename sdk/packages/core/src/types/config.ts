@@ -37,6 +37,7 @@ export interface CoreModelConfig {
 	 * Explicit reasoning effort override for capable models.
 	 */
 	reasoningEffort?: ProviderConfig["reasoningEffort"];
+	serviceTier?: ProviderConfig["serviceTier"];
 	/**
 	 * Explicit thinking/reasoning token budget for capable models.
 	 */

@@ -1,6 +1,8 @@
 import type { CoreSessionConfig } from "../../types/config";
 
 export interface ConnectionUpdate {
+	/** Omit to preserve; null clears priority processing. */
+	serviceTier?: CoreSessionConfig["serviceTier"] | null;
 	providerId?: string;
 	modelId?: string;
 	apiKey?: string;
@@ -13,6 +15,7 @@ export interface ConnectionUpdate {
 }
 
 export interface ConnectionUpdateInput {
+	serviceTier?: CoreSessionConfig["serviceTier"] | null;
 	providerId?: string;
 	modelId?: string;
 	apiKey?: string;
@@ -43,6 +46,9 @@ export function buildConnectionUpdate(
 	input: ConnectionUpdateInput,
 ): ConnectionUpdate {
 	const update: ConnectionUpdate = {};
+	if (input.serviceTier === "priority" || input.serviceTier === null) {
+		update.serviceTier = input.serviceTier;
+	}
 	if (input.providerId !== undefined) update.providerId = input.providerId;
 	if (input.modelId !== undefined) update.modelId = input.modelId;
 	if (input.apiKey !== undefined) update.apiKey = input.apiKey;

@@ -210,6 +210,7 @@ function buildProviderConfig(
 		apiKey: config.apiKey ?? stored?.apiKey,
 		baseUrl: config.baseUrl ?? stored?.baseUrl,
 		headers: undefined,
+		serviceTier: config.serviceTier ?? stored?.serviceTier,
 		reasoning: resolveReasoningSettings(config, stored?.reasoning),
 		modelCatalog,
 	};
