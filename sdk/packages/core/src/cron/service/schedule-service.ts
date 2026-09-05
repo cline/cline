@@ -46,8 +46,20 @@ type HubScheduleTurnResult = {
 	}>;
 };
 
+export interface HubScheduleStartSessionOptions {
+	/**
+	 * Provenance the runner knows about the automation run that is starting
+	 * this session (schedule id/name, run id, run number). Handlers merge it
+	 * into the session metadata so clients can group runs by schedule.
+	 */
+	sessionMetadata?: Record<string, unknown>;
+}
+
 export interface HubScheduleRuntimeHandlers {
-	startSession(request: ChatStartSessionRequest): Promise<{
+	startSession(
+		request: ChatStartSessionRequest,
+		options?: HubScheduleStartSessionOptions,
+	): Promise<{
 		sessionId: string;
 		startResult?: ChatStartSessionArtifacts;
 	}>;

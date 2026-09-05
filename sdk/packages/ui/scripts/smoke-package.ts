@@ -16,6 +16,7 @@ import { fileURLToPath } from "node:url";
 import {
 	AgentAskQuestion,
 	AgentApprovalCard,
+	AttachmentDropZone,
 	AgentAurora,
 	AgentHeroHeading,
 	AgentWelcomeHero,
@@ -64,6 +65,7 @@ if (typeof ToolFileDiff !== "function") {
 }
 if (
 	!AgentApprovalCard ||
+	!AttachmentDropZone ||
 	!AgentAskQuestion ||
 	!AgentAurora ||
 	!AgentHeroHeading ||
@@ -169,6 +171,9 @@ async function verifyTailwindContract(
 		"focus-visible:outline-3",
 		"min-h-8",
 		"resize-none",
+		"backdrop-blur-sm",
+		"border-dashed",
+		"pointer-events-none",
 	]) {
 		expectCandidate(css, candidate);
 	}

@@ -315,7 +315,15 @@ export class Controller {
 		// completion row (plan → yellow plan box, act → green completion box).
 		this.messageTranslatorState = new MessageTranslatorState(
 			undefined,
-			() => this.getActiveProviderId(),
+			// Provider backing the active turn — error reshaping branches on it
+			// (BYOK credential guidance vs the cline sign-in card). Prefer the
+			// active session's start metadata over the current settings
+			// selection: a provider/mode switch made while a turn is in flight
+			// changes the settings selection immediately, but the failing turn
+			// still belongs to the session's provider. Provider switches always
+			// start a new session, so start metadata never goes stale the way
+			// a mid-task model-only switch does for models below.
+			() => this.getSessionProviderId() ?? this.getActiveProviderId(),
 			() => (this.stateManager.getGlobalSettingsKey("mode") === "plan" ? "plan" : "act"),
 			() => this.lastKnownWorkspaceRoot,
 			// Model backing the active turn — lets error reshaping recognize

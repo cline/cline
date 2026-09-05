@@ -657,11 +657,18 @@ export function ChatEntryView(props: {
 						 * token identity, so settled content never re-renders.
 						 * tableOptions preserves the bordered table style that coalesced
 						 * mode used by default (top-level defaults to borderless columns).
+						 *
+						 * streaming stays true even after the entry settles: flipping the
+						 * prop makes MarkdownRenderable rebuild every block from scratch
+						 * (updateBlocks(true) skips all reuse paths), so the finished
+						 * message flashes back to unhighlighted text while tree-sitter
+						 * re-highlights. opencode's TUI keeps streaming={true} for the
+						 * same reason. entry.streaming still drives the spinner glyph.
 						 */}
 						<markdown
 							content={content}
 							syntaxStyle={getSyntaxStyle(theme, mode)}
-							streaming={entry.streaming}
+							streaming={true}
 							internalBlockMode="top-level"
 							tableOptions={{ style: "grid" }}
 							fg={defaultFg}

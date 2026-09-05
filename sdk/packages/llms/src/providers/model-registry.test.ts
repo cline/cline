@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
+	getModelOverridesForProvider,
 	getModelsForProvider,
 	registerModel,
 	registerProvider,
@@ -71,5 +72,19 @@ describe("getModelsForProvider", () => {
 		expect(
 			Object.keys(await getModelsForProvider(PROVIDER_ID, { filter: "chat" })),
 		).toEqual(["legacy", "chat", "mixed"]);
+	});
+
+	it("exposes runtime model overrides without the bundled provider models", async () => {
+		registerModel("anthropic", "custom-claude", {
+			id: "custom-claude",
+			name: "Custom Claude",
+		});
+
+		await expect(getModelOverridesForProvider("anthropic")).resolves.toEqual({
+			"custom-claude": {
+				id: "custom-claude",
+				name: "Custom Claude",
+			},
+		});
 	});
 });

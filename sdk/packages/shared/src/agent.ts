@@ -266,9 +266,12 @@ export type AgentModelFinishReason =
  * Coarse classification of a provider error, derived from the raw provider
  * error object before it is flattened into a display string. Shared by the
  * runtime's recovery policy and telemetry (`error_class`). Extend with new
- * classes (auth, rate_limit, billing, ...) as consumers need them.
+ * classes (rate_limit, billing, ...) as consumers need them.
+ *
+ * `auth`: the provider rejected the request's credentials (HTTP 401/403) —
+ * hosts should point the user at their API key configuration.
  */
-export type ProviderErrorClass = "context_window_exceeded" | "unknown";
+export type ProviderErrorClass = "context_window_exceeded" | "auth" | "unknown";
 
 export type AgentModelEvent =
 	| { type: "text-delta"; text: string }

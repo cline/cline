@@ -76,7 +76,7 @@
         "js-yaml": "^4.1.1",
         "serialize-javascript": ">=7.0.3",
         "protobufjs": "7.6.5",
-        "mermaid": "11.16.0",
+        "mermaid": "11.16.1",
         "diff": "8.0.4",
         "@sap-cloud-sdk/connectivity": "4.6.0",
         "@sap-cloud-sdk/http-client": "4.6.0",

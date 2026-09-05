@@ -642,7 +642,11 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 					"HookFactory.exec.catch.execution",
 				)
 			}
-			throw HookExecutionError.execution(this.scriptPath, exitCode ?? 1, stderr, this.hookName)
+			// A failure before the process produced any stderr (e.g. spawn never
+			// happened) would otherwise surface as a bare "exited with code 1";
+			// carry the underlying error message so the user sees the cause.
+			const details = stderr || (error instanceof Error ? error.message : String(error))
+			throw HookExecutionError.execution(this.scriptPath, exitCode ?? 1, details, this.hookName)
 		}
 	}
 }
