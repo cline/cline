@@ -72,11 +72,13 @@ function normalizeHistoryLimit(limit: number | undefined): number {
 	return Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 200;
 }
 
+const MAX_HISTORY_SCAN_LIMIT = 2000;
+
 function normalizeHistoryScanLimit(limit: number): number {
 	if (limit === 0) {
 		return 0;
 	}
-	return Math.min(Math.max(limit * 2, 20), 2000);
+	return Math.min(Math.max(limit * 2, 20), MAX_HISTORY_SCAN_LIMIT);
 }
 
 function isRootSessionRecord(
@@ -193,14 +195,27 @@ async function listHostSessionRows(
 		await host.listSessions(0);
 		return [];
 	}
-	const scanLimit = options.includeSubagents
-		? requestedLimit
-		: normalizeHistoryScanLimit(requestedLimit);
-	const rows = await host.listSessions(scanLimit);
-	const filtered = options.includeSubagents
-		? rows
-		: rows.filter(isRootSessionRecord);
-	return filtered.slice(0, requestedLimit);
+	if (options.includeSubagents) {
+		const rows = await host.listSessions(requestedLimit);
+		return rows.slice(0, requestedLimit);
+	}
+	// Child rows (subagent / team-task runs) sort after the root that spawned
+	// them, so a single session with more children than the scan window would
+	// hide itself and every older root behind a fixed over-fetch. Widen the
+	// scan until the page fills or the backend runs out of rows.
+	let scanLimit = normalizeHistoryScanLimit(requestedLimit);
+	for (;;) {
+		const rows = await host.listSessions(scanLimit);
+		const roots = rows.filter(isRootSessionRecord);
+		if (
+			roots.length >= requestedLimit ||
+			rows.length < scanLimit ||
+			scanLimit >= MAX_HISTORY_SCAN_LIMIT
+		) {
+			return roots.slice(0, requestedLimit);
+		}
+		scanLimit = Math.min(scanLimit * 2, MAX_HISTORY_SCAN_LIMIT);
+	}
 }
 
 function extractTextFromContent(
