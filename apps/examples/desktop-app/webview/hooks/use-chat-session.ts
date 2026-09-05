@@ -2122,6 +2122,10 @@ export function useChatSession() {
 					const previousUserCounts =
 						cloudTranscriptUserCountsRef.current[targetSessionId] ?? new Map();
 					const snapshotUserCounts = userMessageCounts(rehydratedMessages);
+					const snapshotHasNewUserMessage = Array.from(snapshotUserCounts).some(
+						([content, count]) =>
+							count > (previousUserCounts.get(content) ?? 0),
+					);
 					const hasUnreflectedOptimisticPrompt = messagesRef.current.some(
 						(message) =>
 							outstandingOptimisticUserIdsRef.current.has(message.id) &&
@@ -2150,7 +2154,8 @@ export function useChatSession() {
 					const mappedStatus = mapCloudRuntimeStatus(nextStatus);
 					if (
 						mappedStatus === "running" &&
-						turnEpochRef.current === turnSettledEpochRef.current
+						turnEpochRef.current === turnSettledEpochRef.current &&
+						!snapshotHasNewUserMessage
 					) {
 						return;
 					}
