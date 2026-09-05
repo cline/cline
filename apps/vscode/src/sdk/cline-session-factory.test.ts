@@ -6,6 +6,7 @@ import * as LlmsModels from "@cline/llms"
 import { ApiFormat } from "@shared/proto/cline/models"
 import { Logger } from "@shared/services/Logger"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { mockFetchForTesting } from "@/shared/net"
 import {
 	buildResumeSessionInput,
 	buildSessionConfig,
@@ -553,6 +554,53 @@ describe("buildSessionConfig", () => {
 			providerId: "moonshot",
 			apiLine: "china",
 		})
+	})
+
+	// Regression test for cline/cline#13464: undici's default 5-minute
+	// idle-body timeout (UND_ERR_BODY_TIMEOUT) killed LM Studio requests
+	// mid-stream even while the local server was actively generating tokens.
+	it("wraps LM Studio's fetch to ignore undici's idle-body timeout", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "lmstudio",
+			actModeApiModelId: "qwen3-coder-30b",
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+		const providerFetch = (config.providerConfig as { fetch?: typeof fetch }).fetch
+		expect(providerFetch).toBeDefined()
+
+		let capturedInit: (RequestInit & { dispatcher?: unknown }) | undefined
+		await mockFetchForTesting(
+			(async (_input, init) => {
+				capturedInit = init
+				return new Response("ok")
+			}) as typeof fetch,
+			() => providerFetch?.("http://localhost:1234/v1/chat/completions", { method: "POST" }),
+		)
+
+		expect(capturedInit).toMatchObject({ dispatcher: expect.anything() })
+	})
+
+	it("does not override the idle-body timeout for other providers", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "moonshot",
+			actModeApiModelId: "kimi-k3",
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+		const providerFetch = (config.providerConfig as { fetch?: typeof fetch }).fetch
+		expect(providerFetch).toBeDefined()
+
+		let capturedInit: (RequestInit & { dispatcher?: unknown }) | undefined
+		await mockFetchForTesting(
+			(async (_input, init) => {
+				capturedInit = init
+				return new Response("ok")
+			}) as typeof fetch,
+			() => providerFetch?.("https://api.moonshot.ai/v1/chat/completions", { method: "POST" }),
+		)
+
+		expect(capturedInit?.dispatcher).toBeUndefined()
 	})
 
 	it("inherits the base provider's legacy apiLine for coding variants", async () => {
