@@ -33,6 +33,7 @@ import {
 	updateProviderConfigValue,
 } from "../../utils/provider-config-values";
 import { getProviderSection } from "../../utils/provider-sections";
+import { canContinueLocalCliSetup } from "../../views/onboarding/model";
 import {
 	getSearchableListRowsWindow,
 	type SearchableItem,
@@ -656,7 +657,7 @@ export function ProviderConfigInputContent(
 
 export function LocalCliStatusContent(
 	props: ChoiceContext<boolean> & {
-		cli: ProviderLocalCli;
+		cli?: ProviderLocalCli;
 		providerName: string;
 	},
 ) {
@@ -666,6 +667,7 @@ export function LocalCliStatusContent(
 	const [checking, setChecking] = useState(false);
 
 	const refresh = useCallback(() => {
+		if (!cli) return;
 		setStatus(undefined);
 		setChecking(true);
 		checkLocalCliInstalled(cli)
@@ -686,7 +688,7 @@ export function LocalCliStatusContent(
 			refresh();
 			return;
 		}
-		if (key.name === "return" && status?.installed) {
+		if (key.name === "return" && canContinueLocalCliSetup(cli, status)) {
 			resolve(true);
 		}
 	}, dialogId);
@@ -712,18 +714,22 @@ export function LocalCliStatusContent(
 				<box flexDirection="column" gap={1}>
 					<text fg="yellow">{providerName} was not found</text>
 					<text fg="gray">{status.reason}</text>
-					<text fg="gray">Install {providerName} from:</text>
-					<text fg={palette.act} selectable>
-						{cli.docsUrl}
-					</text>
+					{cli?.docsUrl && (
+						<box flexDirection="column">
+							<text fg="gray">Install {providerName} from:</text>
+							<text fg={palette.act} selectable>
+								{cli.docsUrl}
+							</text>
+						</box>
+					)}
 				</box>
 			)}
 
 			<text fg="gray">
 				<em>
-					{status?.installed
+					{cli
 						? "Enter to continue, R to recheck, Esc to go back"
-						: "R to recheck, Esc to go back"}
+						: "Enter to continue, Esc to go back"}
 				</em>
 			</text>
 		</box>

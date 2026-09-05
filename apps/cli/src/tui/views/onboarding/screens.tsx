@@ -25,6 +25,7 @@ import { FIELD_ORDER } from "./fields";
 import {
 	type ClinePassSubscriptionOption,
 	type ClinePassSubscriptionStatus,
+	canContinueLocalCliSetup,
 	type MenuOption,
 	THINKING_LEVELS,
 } from "./model";
@@ -375,9 +376,7 @@ export function OnboardingLocalCliScreen(props: {
 	const colors = useOnboardingColors();
 	const installedStatus =
 		props.status?.installed === true ? props.status : undefined;
-	// A local-auth provider we know no CLI for has nothing to probe, so
-	// connecting is always available.
-	const canContinue = !props.cli || installedStatus !== undefined;
+	const canContinue = canContinueLocalCliSetup(props.cli, props.status);
 	return (
 		<OnboardingFrame
 			compact={props.compact}

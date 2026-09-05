@@ -43,6 +43,7 @@ import {
 	type ThinkingLevel,
 	ThinkingLevelContent,
 } from "../components/model-selector/model-selector";
+import { resolveProviderSetupRoute } from "../views/onboarding/model";
 
 export interface OpenModelSelectorOptions {
 	onCancel?: () => Promise<void> | void;
@@ -178,6 +179,8 @@ async function runProviderChange(
 		async () => await getProviderDisplayName(newProviderId),
 	);
 	const existingSettings = manager.getProviderSettings(newProviderId);
+	const needsLocalCliSetup =
+		resolveProviderSetupRoute(newProviderId) === "local_cli";
 	const localCliProvider = getLocalCliInfo(newProviderId);
 
 	// Manual API key entry is the escape hatch for when OAuth login isn't
@@ -247,7 +250,7 @@ async function runProviderChange(
 				loginResult === "use_api_key"
 					? await openManualApiKeyDialog()
 					: loginResult;
-		} else if (localCliProvider) {
+		} else if (needsLocalCliSetup) {
 			saved = await dialog.choice<boolean>({
 				style: { maxHeight: termHeight - 2 },
 				closeOnEscape: false,

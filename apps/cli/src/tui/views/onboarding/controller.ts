@@ -60,6 +60,7 @@ import { useOnboardingKeyboard } from "./keyboard";
 import {
 	CLINE_PASS_SUBSCRIPTION_OPTIONS,
 	type ClinePassSubscriptionStatus,
+	canContinueLocalCliSetup,
 	DEFAULT_THINKING_LEVEL_INDEX,
 	getMainMenuOptions,
 	type ModelEntry,
@@ -67,6 +68,7 @@ import {
 	type OnboardingStep,
 	type ProviderEntry,
 	type ReasoningEffort,
+	resolveProviderSetupRoute,
 	shouldUseFeaturedClineModelPicker,
 	type ThinkingLevel,
 	toModelEntriesFromKnownModels,
@@ -521,12 +523,14 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 				}
 				return;
 			}
-			const localCliProvider = getLocalCliInfo(provider.id);
-			if (localCliProvider) {
+			if (resolveProviderSetupRoute(provider.id) === "local_cli") {
 				setActiveProviderId(provider.id);
 				setActiveProviderName(provider.name);
 				setStep("local_cli_setup");
-				refreshLocalCliStatus(localCliProvider);
+				// Only providers that name a CLI have something to probe; the
+				// rest reach the screen with readiness simply unknown.
+				const localCliProvider = getLocalCliInfo(provider.id);
+				if (localCliProvider) refreshLocalCliStatus(localCliProvider);
 				return;
 			}
 			const config = getProviderConfigFields(provider.id);
@@ -596,9 +600,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 	}, [localCli, refreshLocalCliStatus]);
 
 	const saveLocalCliConfig = useCallback(() => {
-		// Nothing to probe for a local-auth provider that names no CLI, so
-		// connecting is always available; otherwise wait for a good probe.
-		if (localCli && !localCliStatus?.installed) {
+		if (!canContinueLocalCliSetup(localCli, localCliStatus)) {
 			return;
 		}
 		saveLocalProviderSettings(providerSettingsManager, {
