@@ -96,8 +96,13 @@ import {
 	getSessionSources,
 } from "@/lib/session-history";
 import {
+	groupScheduledThreads,
 	groupThreadsByProject,
 	INITIAL_VISIBLE_THREAD_COUNT,
+	type SidebarListRow,
+	type SidebarScheduleGroup,
+	scheduleGroupKey,
+	scheduleRunLabel,
 	workspaceDisplayName,
 } from "@/lib/sidebar-session-organization";
 import { cn } from "@/lib/utils";
@@ -325,6 +330,12 @@ export function AgentSidebar({
 	const [collapsedProjects, setCollapsedProjects] = useState<Set<string>>(
 		() => new Set(),
 	);
+	// Explicit expand/collapse choices per schedule group. Groups without an
+	// entry default to expanded only while they hold the active session, so a
+	// run opened from elsewhere (e.g. the Schedules settings page) is visible.
+	const [scheduleGroupExpanded, setScheduleGroupExpanded] = useState<
+		Map<string, boolean>
+	>(() => new Map());
 	const [projectVisibleCounts, setProjectVisibleCounts] = useState<
 		Record<string, number>
 	>({});
@@ -537,6 +548,40 @@ export function AgentSidebar({
 			return next;
 		});
 	}, []);
+	// Opening a session drops the stored choice for the group that holds it,
+	// so a run opened elsewhere is visible even if its group was collapsed
+	// earlier. Keyed on the session and group ids rather than the thread list
+	// so a history refresh doesn't undo a collapse made while it is open.
+	const activeScheduleGroupId = useMemo(() => {
+		const thread = threads.find((t) => t.id === activeThread);
+		return thread ? scheduleGroupKey(thread) : null;
+	}, [activeThread, threads]);
+	useEffect(() => {
+		if (!activeThread || !activeScheduleGroupId) return;
+		setScheduleGroupExpanded((current) => {
+			if (!current.has(activeScheduleGroupId)) return current;
+			const next = new Map(current);
+			next.delete(activeScheduleGroupId);
+			return next;
+		});
+	}, [activeThread, activeScheduleGroupId]);
+	const isScheduleGroupExpanded = useCallback(
+		(group: SidebarScheduleGroup) =>
+			scheduleGroupExpanded.get(group.id) ??
+			group.threads.some((thread) => thread.id === activeThread),
+		[activeThread, scheduleGroupExpanded],
+	);
+	const toggleScheduleGroup = useCallback(
+		(group: SidebarScheduleGroup) => {
+			const expanded = isScheduleGroupExpanded(group);
+			setScheduleGroupExpanded((current) => {
+				const next = new Map(current);
+				next.set(group.id, !expanded);
+				return next;
+			});
+		},
+		[isScheduleGroupExpanded],
+	);
 	const toggleProject = useCallback((project: string) => {
 		setCollapsedProjects((current) => {
 			const next = new Set(current);
@@ -635,13 +680,15 @@ export function AgentSidebar({
 			)}
 		</Button>
 	);
-	const threadItem = (thread: Thread) => (
+	const threadItem = (thread: Thread, options?: { nested?: boolean }) => (
 		<ThreadItem
 			editTitle={editingTitle}
 			editing={editingSessionId === thread.id}
 			hoverCardOpen={hoverCardThreadId === thread.id}
 			isActive={activeThread === thread.id}
 			key={thread.id}
+			label={options?.nested ? scheduleRunLabel(thread) : undefined}
+			nested={options?.nested}
 			onHoverCardOpenChange={(open) =>
 				setHoverCardThreadId((current) =>
 					open ? thread.id : current === thread.id ? null : current,
@@ -661,6 +708,30 @@ export function AgentSidebar({
 			thread={thread}
 			unread={unreadSessionIds.has(thread.id)}
 		/>
+	);
+	// Scheduled runs collapse into one row per schedule; everything else
+	// renders as before.
+	const listRow = (row: SidebarListRow) => {
+		if (row.kind === "thread") {
+			return threadItem(row.thread);
+		}
+		const expanded = isScheduleGroupExpanded(row);
+		return (
+			<ScheduleGroupRow
+				active={row.threads.some((thread) => thread.id === activeThread)}
+				expanded={expanded}
+				group={row}
+				key={row.id}
+				onToggle={() => toggleScheduleGroup(row)}
+				unread={row.threads.some((thread) => unreadSessionIds.has(thread.id))}
+			>
+				{row.threads.map((thread) => threadItem(thread, { nested: true }))}
+			</ScheduleGroupRow>
+		);
+	};
+	const scheduledRows = useMemo(
+		() => groupScheduledThreads(scheduledThreads),
+		[scheduledThreads],
 	);
 	const customizeSectionOpen =
 		view === "settings" &&
@@ -995,20 +1066,22 @@ export function AgentSidebar({
 																label="Pinned"
 																onToggle={() => toggleSection("pinned")}
 															>
-																{pinnedThreads.map(threadItem)}
+																{pinnedThreads.map((thread) =>
+																	threadItem(thread),
+																)}
 															</CategorySection>
 														) : null}
-														{scheduledThreads.length > 0 ? (
+														{scheduledRows.length > 0 ? (
 															<CategorySection
 																collapsed={collapsedSections.has("scheduled")}
-																count={scheduledThreads.length}
+																count={scheduledRows.length}
 																label="Scheduled"
 																onToggle={() => toggleSection("scheduled")}
 															>
-																{scheduledThreads
+																{scheduledRows
 																	.slice(0, scheduledVisibleCount)
-																	.map(threadItem)}
-																{scheduledThreads.length >
+																	.map(listRow)}
+																{scheduledRows.length >
 																scheduledVisibleCount ? (
 																	<Button
 																		className="px-2!"
@@ -1037,19 +1110,24 @@ export function AgentSidebar({
 															>
 																{taskThreads
 																	.slice(0, showMoreCount)
-																	.map(threadItem)}
+																	.map((thread) => threadItem(thread))}
 																{showTimeShowMore ? timeShowMoreButton : null}
 															</CategorySection>
 														) : null}
 													</>
 												) : (
-													taskThreads.slice(0, showMoreCount).map(threadItem)
+													taskThreads
+														.slice(0, showMoreCount)
+														.map((thread) => threadItem(thread))
 												)
 											) : (
 												projectGroups.map((project) => {
 													const visibleCount =
 														projectVisibleCounts[project.id] ??
 														INITIAL_VISIBLE_THREAD_COUNT;
+													const projectRows = groupScheduledThreads(
+														project.threads,
+													);
 													return (
 														<ProjectSection
 															collapsed={collapsedProjects.has(project.id)}
@@ -1057,10 +1135,8 @@ export function AgentSidebar({
 															label={project.label}
 															onToggle={() => toggleProject(project.id)}
 														>
-															{project.threads
-																.slice(0, visibleCount)
-																.map(threadItem)}
-															{project.threads.length > visibleCount ? (
+															{projectRows.slice(0, visibleCount).map(listRow)}
+															{projectRows.length > visibleCount ? (
 																<Button
 																	className="max-w-full pl-2!"
 																	onClick={() => showMoreForProject(project.id)}
@@ -1312,12 +1388,83 @@ function ProjectSection({
 	);
 }
 
+function ScheduleGroupRow({
+	group,
+	expanded,
+	active,
+	unread,
+	onToggle,
+	children,
+}: {
+	group: SidebarScheduleGroup;
+	expanded: boolean;
+	/** One of the runs is the open session; the header shows it while collapsed. */
+	active: boolean;
+	unread: boolean;
+	onToggle: () => void;
+	children: ReactNode;
+}) {
+	const running = group.threads.some((thread) => thread.status === "running");
+	const statusDotClass = running ? "bg-green-500" : unread ? "bg-blue-500" : "";
+	const runCount = group.threads.length;
+	return (
+		<div className="min-w-0">
+			<button
+				aria-expanded={expanded}
+				className={cn(
+					"grid h-8 w-full max-w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-1 overflow-hidden rounded-md px-2 text-left text-sm font-normal",
+					active && !expanded
+						? "bg-surface-hover text-sidebar-foreground"
+						: "text-sidebar-foreground/80 hover:bg-surface-hover",
+				)}
+				onClick={onToggle}
+				title={group.label}
+				type="button"
+			>
+				<span className="flex max-w-full min-w-0 items-center gap-1.5 overflow-hidden">
+					<ChevronDown
+						className={cn(
+							"size-3 shrink-0 text-muted-foreground transition-transform",
+							!expanded && "-rotate-90",
+						)}
+					/>
+					<Clock3
+						aria-label="Scheduled"
+						className="size-3 shrink-0 text-muted-foreground"
+					/>
+					<span className="block min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-sm font-normal leading-tight">
+						{group.label}
+					</span>
+				</span>
+				<span className="flex shrink-0 items-center gap-1.5 text-xs tabular-nums text-muted-foreground">
+					{statusDotClass ? (
+						<span
+							aria-hidden="true"
+							className={cn("size-1.5 rounded-full", statusDotClass)}
+						/>
+					) : null}
+					<span>
+						{runCount} {runCount === 1 ? "run" : "runs"}
+					</span>
+				</span>
+			</button>
+			{expanded ? (
+				<div className="ml-4 flex min-w-0 flex-col gap-0.5 border-l border-sidebar-border/70 pl-1">
+					{children}
+				</div>
+			) : null}
+		</div>
+	);
+}
+
 function ThreadItem({
 	thread,
 	editTitle,
 	editing,
 	hoverCardOpen,
 	isActive,
+	label,
+	nested = false,
 	onClick,
 	onHoverCardOpenChange,
 	onCancelRename,
@@ -1335,6 +1482,10 @@ function ThreadItem({
 	editing: boolean;
 	hoverCardOpen: boolean;
 	isActive: boolean;
+	/** Row text when it should not be the session title (a run inside a schedule group). */
+	label?: string;
+	/** Rendered inside a schedule group: the group already shows the clock. */
+	nested?: boolean;
 	onClick: () => void;
 	onHoverCardOpenChange: (open: boolean) => void;
 	onCancelRename: () => void;
@@ -1348,6 +1499,7 @@ function ThreadItem({
 	unread: boolean;
 }) {
 	const title = normalizeTitle(thread.title);
+	const rowText = label ?? title;
 	const overviewTitle = getSessionOverviewTitle(title);
 	const pending = pendingAction !== null;
 	const statusDotClass = pending
@@ -1411,14 +1563,14 @@ function ThreadItem({
 								type="button"
 							>
 								<span className="flex max-w-full min-w-0 items-center gap-1.5 overflow-hidden">
-									{thread.isScheduled ? (
+									{thread.isScheduled && !nested ? (
 										<Clock3
 											aria-label="Scheduled"
 											className="size-3 shrink-0 text-muted-foreground"
 										/>
 									) : null}
 									<span className="block min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-sm font-normal leading-tight">
-										{title}
+										{rowText}
 									</span>
 								</span>
 								<span className="flex shrink-0 items-center gap-1.5 text-sm text-muted-foreground">
@@ -1508,6 +1660,8 @@ export function getSessionOverviewItems(
 	// Updated time is already visible in the sidebar item.
 	const workspacePath = thread.workspacePath || thread.codebase;
 	const items: Array<[string, string | null | undefined, string?]> = [
+		["Schedule", thread.scheduleName],
+		["Run", thread.scheduleRunNumber ? String(thread.scheduleRunNumber) : null],
 		[
 			"Workspace",
 			workspaceDisplayName(workspacePath),
