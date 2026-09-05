@@ -2119,6 +2119,13 @@ export function useChatSession() {
 					const nextStatus = record.status?.trim();
 					// A locally submitted turn owns status and live routing until its RPC
 					// settles. A reconnect snapshot may describe the preceding turn.
+					const previousUserCounts =
+						cloudTranscriptUserCountsRef.current[targetSessionId] ?? new Map();
+					const snapshotUserCounts = userMessageCounts(rehydratedMessages);
+					const snapshotHasNewUserMessage = Array.from(snapshotUserCounts).some(
+						([content, count]) =>
+							count > (previousUserCounts.get(content) ?? 0),
+					);
 					const localSubmissionActive = activePromptSubmissionsRef.current > 0;
 					const snapshotBusy =
 						nextStatus === "running" || nextStatus === "pending";
@@ -2136,7 +2143,8 @@ export function useChatSession() {
 					const mappedStatus = mapCloudRuntimeStatus(nextStatus);
 					if (
 						mappedStatus === "running" &&
-						turnEpochRef.current === turnSettledEpochRef.current
+						turnEpochRef.current === turnSettledEpochRef.current &&
+						!snapshotHasNewUserMessage
 					) {
 						return;
 					}
