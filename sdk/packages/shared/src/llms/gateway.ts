@@ -226,6 +226,8 @@ export interface GatewayProviderContext {
 }
 
 export interface GatewayStreamRequest {
+	/** Optional priority processing, independent of reasoning. */
+	serviceTier?: "priority";
 	providerId: string;
 	modelId: string;
 	systemPrompt?: string;
@@ -273,6 +275,7 @@ export interface GatewayProviderRegistration {
 }
 
 export interface GatewayModelHandleOptions {
+	serviceTier?: "priority";
 	tools?: readonly AgentToolDefinition[];
 	modelTools?: readonly ModelTool[];
 	temperature?: number;

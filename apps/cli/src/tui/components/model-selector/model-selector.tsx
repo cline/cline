@@ -12,6 +12,7 @@ export interface ModelOption {
 	maxInputTokens?: number;
 	family?: string;
 	supportsReasoning: boolean;
+	reasoningOptions?: Llms.ModelInfo["reasoningOptions"];
 }
 
 const MAX_VISIBLE = 10;
@@ -311,7 +312,14 @@ export function ModelSelectorContent(
 
 // -- Thinking level dialog content --
 
-export type ThinkingLevel = "none" | "low" | "medium" | "high" | "xhigh";
+export type ThinkingLevel =
+	| "none"
+	| "minimal"
+	| "low"
+	| "medium"
+	| "high"
+	| "xhigh"
+	| "max";
 
 const THINKING_LEVELS: { value: ThinkingLevel; label: string; desc: string }[] =
 	[
@@ -609,6 +617,7 @@ export function buildModelOptions(
 			maxInputTokens: info.maxInputTokens ?? info.contextWindow,
 			family: info.family,
 			supportsReasoning: info.capabilities?.includes("reasoning") ?? false,
+			reasoningOptions: info.reasoningOptions,
 		}))
 		.sort((a, b) => a.name.localeCompare(b.name));
 }

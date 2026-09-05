@@ -35,6 +35,12 @@ import {
 	ClineModelSelectorDialogContent,
 } from "../components/model-selector/cline-model-selector";
 import {
+	type CodexSettings,
+	CodexSettingsContent,
+	codexCurrentThinking,
+	codexSettingsPatch,
+} from "../components/model-selector/codex-settings";
+import {
 	buildModelOptions,
 	CHANGE_PROVIDER_ACTION,
 	ModelIdInputContent,
@@ -297,6 +303,7 @@ async function runProviderChange(
 				{ setLastUsed: true },
 			);
 
+			config.serviceTier = newSettings?.serviceTier;
 			config.providerId = newProviderId;
 			config.apiKey = newApiKey;
 			const resolved = await resolveProviderConfig(
@@ -573,6 +580,41 @@ export function useModelSelector(opts: {
 				if (selectedKey === CHANGE_PROVIDER_ACTION) {
 					await changeProvider();
 					continue;
+				}
+
+				if (config.providerId === "openai-codex") {
+					const currentThinking = codexCurrentThinking(config);
+					const settings = await dialog.choice<CodexSettings>({
+						style: { maxHeight: termHeight - 2 },
+						content: (ctx: ChoiceContext<CodexSettings>) => (
+							<CodexSettingsContent
+								{...ctx}
+								modelName={
+									modelOptions.find((m) => m.key === selectedKey)?.name ??
+									selectedKey
+								}
+								model={modelOptions.find((m) => m.key === selectedKey)}
+								current={{
+									thinking: currentThinking,
+									fast: config.serviceTier === "priority",
+								}}
+							/>
+						),
+					});
+					if (!settings) continue;
+					config.modelId = selectedKey;
+					Object.assign(
+						config,
+						codexSettingsPatch(
+							{
+								thinking: currentThinking,
+								fast: config.serviceTier === "priority",
+							},
+							settings,
+						),
+					);
+					pickingModel = false;
+					break;
 				}
 
 				config.modelId = selectedKey;

@@ -154,6 +154,11 @@ class GatewayModelAdapter implements AgentModel {
 		return this.gateway.stream({
 			providerId: this.selection.providerId,
 			modelId: this.selection.modelId ?? "",
+			serviceTier: Object.hasOwn(request.options ?? {}, "serviceTier")
+				? request.options?.serviceTier === "priority"
+					? "priority"
+					: undefined
+				: this.defaults?.serviceTier,
 			systemPrompt: request.systemPrompt,
 			messages: request.messages,
 			tools: this.defaults?.tools ?? request.tools,

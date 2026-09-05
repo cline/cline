@@ -57,6 +57,36 @@ describe("prepareLocalRuntimeBootstrap", () => {
 		}
 	});
 
+	it.each([
+		undefined,
+		"priority",
+	] as const)("maps session serviceTier %s with stored settings fallback", async (serviceTier) => {
+		const { prepareLocalRuntimeBootstrap } = await import(
+			"./local-runtime-bootstrap"
+		);
+		const input = createStartInput();
+		const bootstrap = await prepareLocalRuntimeBootstrap({
+			input: {
+				...input,
+				config: { ...input.config, serviceTier, thinking: false },
+			},
+			sessionId: "sess-tier",
+			providerSettingsManager: createProviderSettingsManager({
+				provider: "cline",
+				serviceTier: serviceTier ? undefined : "priority",
+			}) as never,
+			defaultTelemetry: undefined,
+			defaultToolPolicies: undefined,
+			onPluginEvent: () => {},
+			onTeamEvent: () => {},
+			createSpawnTool,
+			readSessionMetadata: async () => undefined,
+			writeSessionMetadata: async () => {},
+		});
+		expect(bootstrap.providerConfig.serviceTier).toBe("priority");
+		expect(bootstrap.providerConfig.thinking).toBe(false);
+	});
+
 	it("applies hub model catalog defaults during local runtime bootstrap", async () => {
 		const { prepareLocalRuntimeBootstrap } = await import(
 			"./local-runtime-bootstrap"
