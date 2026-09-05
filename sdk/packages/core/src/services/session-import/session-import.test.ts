@@ -829,14 +829,26 @@ describe("SessionImportService", () => {
 		)?.importedFrom;
 		expect(importedFrom?.tool).toBe("claude-code");
 		expect(importedFrom?.sourceSessionId).toBe("abc");
+		// History origin marks the import and the agent it came from, while
+		// the top-level source stays the client surface.
+		expect(row?.source).toBe("desktop");
+		expect(
+			(row?.metadata as Record<string, unknown>)?.sessionHistoryOrigin,
+		).toEqual({ mode: "import", trigger: "claude-code" });
 		// No fabricated checkpoint refs.
 		expect(
 			(row?.metadata as Record<string, unknown>)?.checkpoint,
 		).toBeUndefined();
 
-		// Messages artifact is a valid v1 payload with ≥1 message.
+		// Messages artifact is a valid v1 payload with ≥1 message, and its
+		// origin block carries the import provenance.
 		const payload = JSON.parse(readFileSync(row?.messagesPath ?? "", "utf8"));
 		expect(payload.version).toBe(1);
+		expect(payload.origin).toMatchObject({
+			source: "desktop",
+			mode: "import",
+			trigger: "claude-code",
+		});
 		expect(payload.messages.length).toBeGreaterThan(0);
 		for (const message of payload.messages) {
 			expect(typeof message.id).toBe("string");
@@ -847,6 +859,10 @@ describe("SessionImportService", () => {
 		expect(manifest?.status).toBe("completed");
 		expect(manifest?.ended_at).toBe("2026-01-02T10:00:10.000Z");
 		expect(manifest?.metadata?.title).toBe("Fix parser bug");
+		expect(manifest?.metadata?.sessionHistoryOrigin).toEqual({
+			mode: "import",
+			trigger: "claude-code",
+		});
 
 		// Re-discovery flags the import instead of duplicating it.
 		const rediscovered = await importer.discover();
