@@ -3104,6 +3104,9 @@ export function getCloudSessionManager(
 		) {
 			return activeOrgCache.id;
 		}
+		if (!(await getAuthToken())?.trim()) {
+			return undefined;
+		}
 		const organizations = await accountService.fetchUserOrganizations();
 		const id = organizations?.find(
 			(organization) => organization.active,
