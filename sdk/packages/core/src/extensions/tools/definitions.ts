@@ -777,7 +777,7 @@ export function createSkillsTool(
 		get() {
 			const skills = executor.configuredSkills
 				?.filter((s) => !s.disabled)
-				.map((s) => s.name);
+				.map((s) => (s.id.includes(":") ? s.id : s.name));
 			if (skills && skills.length > 0) {
 				return `${baseDescription} Available skills: ${skills.join(", ")}.`;
 			}

@@ -128,12 +128,61 @@ export function resolveActiveConfigItems(
 	}
 }
 
+export interface ConfigPluginSection {
+	label: string;
+	items: InteractiveConfigItem[];
+}
+
+export function getConfigPluginSections(
+	items: readonly InteractiveConfigItem[],
+): ConfigPluginSection[] {
+	const clinePlugins = items.filter((item) => item.agentPlugin !== true);
+	const agentPlugins = items.filter((item) => item.agentPlugin === true);
+	return [
+		...(clinePlugins.length > 0
+			? [
+					{
+						label: `Cline Plugins (${clinePlugins.length})`,
+						items: clinePlugins,
+					},
+				]
+			: []),
+		...(agentPlugins.length > 0
+			? [
+					{
+						label: `Agent Plugins (${agentPlugins.length})`,
+						items: agentPlugins,
+					},
+				]
+			: []),
+	];
+}
+
+export function getConfigTabCountHeading(
+	tab: InteractiveConfigTab,
+	itemCount: number,
+): string | undefined {
+	return tab === "plugins" ? undefined : `${toTabLabel(tab)} (${itemCount})`;
+}
+
+export function shouldRenderConfigItemAsEnabled(
+	item: InteractiveConfigItem,
+	enabledState: "enabled" | "disabled" | "partial",
+): boolean {
+	return (
+		enabledState === "enabled" &&
+		(isToggleableInteractiveConfigItem(item) || item.agentPlugin === true)
+	);
+}
+
 export function isToggleableConfigItem(item: InteractiveConfigItem): boolean {
 	return isToggleableInteractiveConfigItem(item);
 }
 
 export function isDeletableConfigItem(item: InteractiveConfigItem): boolean {
-	return item.kind === "plugin";
+	return (
+		item.deletable ?? (item.kind === "plugin" && item.agentPlugin !== true)
+	);
 }
 
 export function resolveConfigItemSelectAction(

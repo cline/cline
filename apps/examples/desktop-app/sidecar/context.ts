@@ -812,6 +812,10 @@ export function handleHubLiveEvent(
 		});
 		return;
 	}
+	if (event.event === "settings.changed") {
+		sendEvent(ctx, event.event, event.payload ?? {});
+		return;
+	}
 
 	const sessionId = typeof event.sessionId === "string" ? event.sessionId : "";
 	if (!sessionId) {
