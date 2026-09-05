@@ -956,6 +956,90 @@ describe("LocalRuntimeHost", () => {
 		});
 	});
 
+	it("denies tool approval without asking the host once the session is aborting", async () => {
+		// A cancel arrives as abort() plus a denial of the pending approval; the agent may
+		// still request approval for the next tool call before it unwinds. Surfacing that
+		// to the host would show a dead prompt and park the teardown on its answer.
+		const sessionId = "sess-approval-while-aborting";
+		const manifest = createManifest(sessionId);
+		const requestToolApproval = vi.fn(async () => ({ approved: true }));
+		let capturedConfig: AgentConfig | undefined;
+		const updateSessionStatus = vi.fn().mockResolvedValue({ updated: true });
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({
+				tools: [],
+				shutdown: vi.fn(),
+			}),
+		};
+		let manager: RuntimeHostUnderTest | undefined;
+		let observedApproval: { approved: boolean; reason?: string } | undefined;
+		const agent = {
+			run: vi.fn(async () => {
+				await manager?.abort(sessionId, "Mode changed");
+				observedApproval = await capturedConfig?.requestToolApproval?.({
+					sessionId,
+					agentId: "agent-root-1",
+					conversationId: "conv-root-1",
+					iteration: 1,
+					toolCallId: "call-approval-2",
+					toolName: "read_files",
+					input: { path: "README.md" },
+					policy: { autoApprove: false },
+				});
+				return createResult();
+			}),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			getMessages: vi.fn().mockReturnValue([]),
+			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			canStartRun: vi.fn().mockReturnValue(true),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		};
+		manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: {
+				ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+				createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+					manifestPath: "/tmp/manifest.json",
+					messagesPath: "/tmp/messages.json",
+					manifest,
+				}),
+				persistSessionMessages: vi.fn(),
+				updateSessionStatus,
+				writeSessionManifest: vi.fn(),
+				listSessions: vi.fn().mockResolvedValue([]),
+				deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+			} as never,
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent: (config) => {
+				capturedConfig = config;
+				return agent as never;
+			},
+		});
+
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				prompt: "hello",
+				interactive: true,
+				capabilities: { requestToolApproval },
+			}),
+		);
+
+		expect(observedApproval).toEqual({
+			approved: false,
+			reason: "Session is aborting",
+		});
+		expect(requestToolApproval).not.toHaveBeenCalled();
+		expect(updateSessionStatus).not.toHaveBeenCalledWith(
+			sessionId,
+			"pending",
+			null,
+		);
+	});
+
 	it("ingests automation events emitted by sandbox plugins during setup", async () => {
 		const sessionId = "sess-plugin-automation-setup";
 		const ingestEvent = vi.fn().mockResolvedValue(undefined);

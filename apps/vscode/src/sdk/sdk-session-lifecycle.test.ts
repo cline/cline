@@ -189,6 +189,24 @@ describe("SdkSessionLifecycle", () => {
 		expect(onDidBecomeIdle).toHaveBeenCalledOnce()
 	})
 
+	it("notifies running listeners only on an idle-to-running transition", async () => {
+		const onDidBecomeRunning = vi.fn()
+		const sdkHost = makeSdkHost()
+		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
+		const lifecycle = makeLifecycle({ onDidBecomeRunning })
+		await lifecycle.startNewSession({} as StartInput)
+
+		// startNewSession leaves the session running; only a real flip fires the hook.
+		lifecycle.setRunning(true)
+		expect(onDidBecomeRunning).not.toHaveBeenCalled()
+
+		lifecycle.setRunning(false)
+		lifecycle.setRunning(true)
+		lifecycle.setRunning(true)
+
+		expect(onDidBecomeRunning).toHaveBeenCalledOnce()
+	})
+
 	it("calls the send-start hook before sending to the SDK host", async () => {
 		const onSendStart = vi.fn()
 		const send = vi.fn().mockResolvedValue(undefined)
