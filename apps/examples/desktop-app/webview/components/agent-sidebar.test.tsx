@@ -264,6 +264,155 @@ describe("AgentSidebar session organization", () => {
 		expect(buttonWithText("Tasks")).toBeDefined();
 	});
 
+	it("folds a schedule's runs into one collapsible row", async () => {
+		const run = (index: number) => ({
+			...makeThread("alpha", index),
+			title: "Report today's date to the user.",
+			isScheduled: true,
+			scheduleId: "sched_daily",
+			scheduleName: "Daily date report",
+			scheduleRunNumber: index,
+		});
+		const openThread = vi.fn();
+		const sessionHistory = makeSessionHistory(
+			[run(2), makeThread("beta", 1), run(1)],
+			vi.fn(),
+		);
+		(sessionHistory as { openThread: unknown }).openThread = openThread;
+
+		await act(async () => {
+			root.render(
+				<SidebarProvider>
+					<AgentSidebar
+						activeSessionId={null}
+						onHome={vi.fn()}
+						onSettingsSectionChange={vi.fn()}
+						sessionHistory={sessionHistory}
+						setView={vi.fn()}
+						settingsSection="General"
+						view="chat"
+					/>
+				</SidebarProvider>,
+			);
+		});
+
+		// One header per schedule, named after the schedule rather than the
+		// prompt, with the run count; the runs themselves start collapsed.
+		const header = sessionRow("Daily date report");
+		expect(header.textContent).toContain("2 runs");
+		expect(header.getAttribute("aria-expanded")).toBe("false");
+		expect(header.querySelector('[aria-label="Scheduled"]')).not.toBeNull();
+		expect(sessionIsVisible("Report today's date to the user.")).toBe(false);
+		expect(sessionIsVisible("Run 2")).toBe(false);
+		// The Scheduled section counts schedules, not runs.
+		expect(buttonWithText("Scheduled").textContent).toContain("1");
+		expect(sessionIsVisible("beta session 1")).toBe(true);
+
+		await click(header);
+		expect(header.getAttribute("aria-expanded")).toBe("true");
+		expect(sessionIsVisible("Run 2")).toBe(true);
+		expect(sessionIsVisible("Run 1")).toBe(true);
+		// Nested runs don't repeat the clock the header already shows.
+		expect(
+			sessionRow("Run 1").querySelector('[aria-label="Scheduled"]'),
+		).toBeNull();
+		expect(
+			sessionRow("Run 2").compareDocumentPosition(sessionRow("Run 1")) &
+				Node.DOCUMENT_POSITION_FOLLOWING,
+		).toBeTruthy();
+
+		await click(sessionRow("Run 1"));
+		expect(openThread).toHaveBeenCalledWith("alpha-1");
+
+		await click(header);
+		expect(sessionIsVisible("Run 1")).toBe(false);
+	});
+
+	it("expands the schedule group that holds the active session", async () => {
+		const run = (index: number) => ({
+			...makeThread("alpha", index),
+			isScheduled: true,
+			scheduleId: "sched_daily",
+			scheduleName: "Daily date report",
+			scheduleRunNumber: index,
+		});
+		const sessionHistory = makeSessionHistory([run(2), run(1)], vi.fn());
+		const render = async (activeSessionId: string) => {
+			await act(async () => {
+				root.render(
+					<SidebarProvider>
+						<AgentSidebar
+							activeSessionId={activeSessionId}
+							onHome={vi.fn()}
+							onSettingsSectionChange={vi.fn()}
+							sessionHistory={sessionHistory}
+							setView={vi.fn()}
+							settingsSection="General"
+							view="chat"
+						/>
+					</SidebarProvider>,
+				);
+			});
+		};
+
+		await render("alpha-1");
+		expect(sessionRow("Daily date report").getAttribute("aria-expanded")).toBe(
+			"true",
+		);
+		expect(sessionIsVisible("Run 1")).toBe(true);
+
+		// The group can still be collapsed while it holds the active session,
+		// and stays collapsed across re-renders.
+		await click(sessionRow("Daily date report"));
+		await render("alpha-1");
+		expect(sessionIsVisible("Run 1")).toBe(false);
+
+		// Opening another run of the schedule (e.g. from the Schedules
+		// settings page) reopens the collapsed group so the run is visible.
+		await render("alpha-2");
+		expect(sessionRow("Daily date report").getAttribute("aria-expanded")).toBe(
+			"true",
+		);
+		expect(sessionIsVisible("Run 2")).toBe(true);
+	});
+
+	it("groups scheduled runs inside their project when sorted by project", async () => {
+		const run = (index: number) => ({
+			...makeThread("alpha", index),
+			isScheduled: true,
+			scheduleId: "sched_daily",
+			scheduleName: "Daily date report",
+			scheduleRunNumber: index,
+		});
+
+		await act(async () => {
+			root.render(
+				<SidebarProvider>
+					<AgentSidebar
+						activeSessionId={null}
+						onHome={vi.fn()}
+						onSettingsSectionChange={vi.fn()}
+						sessionHistory={makeSessionHistory(
+							[run(2), makeThread("alpha", 3), run(1)],
+							vi.fn(),
+						)}
+						setView={vi.fn()}
+						settingsSection="General"
+						view="chat"
+					/>
+				</SidebarProvider>,
+			);
+		});
+		await switchToProjectSort();
+
+		const header = sessionRow("Daily date report");
+		expect(header.textContent).toContain("2 runs");
+		expect(sessionIsVisible("alpha session 3")).toBe(true);
+		expect(sessionIsVisible("Run 2")).toBe(false);
+		await click(header);
+		expect(sessionIsVisible("Run 2")).toBe(true);
+	});
+
 	it("defaults to Pinned, Scheduled, and Tasks sections sorted by time", async () => {
 		const pinned = { ...makeThread("alpha", 1), pinned: true };
 		const scheduled = { ...makeThread("beta", 1), isScheduled: true };
@@ -570,6 +719,19 @@ describe("AgentSidebar session organization", () => {
 		expect(
 			getSessionOverviewItems(thread).some(([label]) => label === "Status"),
 		).toBe(false);
+		// Scheduled runs lead with the schedule they belong to and which run
+		// this is; the row itself only says "Run N".
+		expect(
+			getSessionOverviewItems({
+				...makeThread("cline", 6),
+				isScheduled: true,
+				scheduleName: "Daily date report",
+				scheduleRunNumber: 6,
+			}).slice(0, 2),
+		).toEqual([
+			["Schedule", "Daily date report"],
+			["Run", "6"],
+		]);
 	});
 
 	it("labels a cloud session by repository", () => {
