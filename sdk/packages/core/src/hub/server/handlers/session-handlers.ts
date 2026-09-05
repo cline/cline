@@ -99,6 +99,9 @@ export function readSessionConnectionUpdate(
 ): SessionConnectionUpdate {
 	const record = asPlainRecord(value) ?? {};
 	const updates: SessionConnectionUpdate = {};
+	if (record.serviceTier === "priority" || record.serviceTier === null) {
+		updates.serviceTier = record.serviceTier;
+	}
 	const providerId = readConnectionString(record.providerId);
 	if (providerId) updates.providerId = providerId;
 	const modelId = readConnectionString(record.modelId);
@@ -392,6 +395,9 @@ export async function handleSessionCreate(
 					? runtimeOptions.systemPrompt
 					: ""),
 			mode: sessionMode,
+			serviceTier:
+				sessionConfig?.serviceTier ??
+				(runtimeOptions.serviceTier === "priority" ? "priority" : undefined),
 			maxIterations:
 				sessionConfig?.maxIterations ??
 				(typeof runtimeOptions.maxIterations === "number"
@@ -666,6 +672,11 @@ export async function handleSessionRestore(
 								? runtimeOptions.systemPrompt
 								: ""),
 						mode: sessionMode,
+						serviceTier:
+							sessionConfig?.serviceTier ??
+							(runtimeOptions.serviceTier === "priority"
+								? "priority"
+								: undefined),
 						maxIterations:
 							sessionConfig?.maxIterations ??
 							(typeof runtimeOptions.maxIterations === "number"

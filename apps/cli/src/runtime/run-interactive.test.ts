@@ -61,11 +61,15 @@ describe("resolveReasoningForModelChange", () => {
 });
 
 describe("applyInteractiveModelChange", () => {
-	it("restarts with the current transcript so a provider switch reloads its complete configuration", async () => {
+	it.each([
+		undefined,
+		"priority",
+	] as const)("restarts with the current transcript and applies Fast tier %s independently of reasoning", async (serviceTier) => {
 		const config = {
 			providerId: "openai-compatible",
 			modelId: "custom-model",
 			apiKey: "new-key",
+			serviceTier,
 			thinking: undefined,
 			reasoningEffort: undefined,
 		} as Config;
@@ -77,6 +81,8 @@ describe("applyInteractiveModelChange", () => {
 			client: "openai-compatible" as const,
 			protocol: "openai-chat" as const,
 			model: "old-model",
+			serviceTier: "priority" as const,
+			reasoning: { enabled: true, effort: "high" as const },
 		}));
 		const saveProviderSettings = vi.fn(() => ({
 			version: 1 as const,
@@ -108,12 +114,15 @@ describe("applyInteractiveModelChange", () => {
 			client: "openai-compatible",
 			protocol: "openai-chat",
 			model: "custom-model",
+			serviceTier,
+			reasoning: { enabled: true, effort: "high" },
 		});
 		expect(ensureReady).toHaveBeenCalledOnce();
 		expect(restartWithCurrentMessages).toHaveBeenCalledOnce();
 		expect(updateCurrentSessionConnection).toHaveBeenCalledWith({
 			providerId: "openai-compatible",
 			modelId: "custom-model",
+			serviceTier: serviceTier ?? null,
 		});
 		expect(ensureReady.mock.invocationCallOrder[0]).toBeLessThan(
 			restartWithCurrentMessages.mock.invocationCallOrder[0] ?? 0,

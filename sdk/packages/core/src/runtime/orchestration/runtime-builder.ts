@@ -626,6 +626,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 			knownModels: config.knownModels,
 			thinking: config.thinking,
 			reasoningEffort: config.reasoningEffort,
+			serviceTier: config.serviceTier ?? config.providerConfig?.serviceTier,
 			thinkingBudgetTokens: config.thinkingBudgetTokens,
 			maxTokensPerTurn: config.maxTokensPerTurn,
 			temperature: config.temperature,

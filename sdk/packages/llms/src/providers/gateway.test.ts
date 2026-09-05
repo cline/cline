@@ -6194,6 +6194,34 @@ describe("sdk-gateway", () => {
 	});
 
 	it.each([
+		undefined,
+		"priority",
+		"auto",
+	])("routes agent Fast option %s to Codex", async (serviceTier) => {
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "openai-codex", apiKey: "test-key" }],
+		});
+		const stream = vi
+			.spyOn(gateway, "stream")
+			.mockResolvedValue((async function* () {})());
+		const model = gateway.createAgentModel({
+			providerId: "openai-codex",
+			modelId: "astra",
+		});
+		await model.stream({
+			messages: baseMessages,
+			tools: [],
+			options: { serviceTier, thinking: false },
+		});
+		expect(stream).toHaveBeenCalledWith(
+			expect.objectContaining({
+				serviceTier: serviceTier === "priority" ? "priority" : undefined,
+				reasoning: expect.objectContaining({ enabled: false }),
+			}),
+		);
+	});
+
+	it.each([
 		{
 			name: "drops an unsupported legacy effort",
 			options: { reasoningEffort: "unsupported" },

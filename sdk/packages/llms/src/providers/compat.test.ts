@@ -402,6 +402,36 @@ describe("createGatewayApiHandler.createMessage", () => {
 		);
 	});
 
+	it.each([
+		undefined,
+		"priority",
+	] as const)("forwards Codex Fast tier %s independently of thinking", async (serviceTier) => {
+		streamTextSpy.mockReturnValue({
+			fullStream: (async function* () {
+				yield { type: "finish", finishReason: "stop" };
+			})(),
+			usage: Promise.resolve({ inputTokens: 1, outputTokens: 1 }),
+		});
+		const handler = createGatewayApiHandler({
+			providerId: "openai-codex",
+			modelId: "astra",
+			apiKey: "test-key",
+			thinking: false,
+			serviceTier,
+		});
+		for await (const _chunk of handler.createMessage("", [
+			{ role: "user", content: "Hello" },
+		])) {
+			// Drain the stream to execute the request.
+		}
+		const call = streamTextSpy.mock.calls.at(-1)?.[0] as {
+			providerOptions: Record<string, Record<string, unknown>>;
+		};
+		expect(call.providerOptions.openai.serviceTier).toBe(serviceTier);
+		if (serviceTier === undefined)
+			expect(call.providerOptions.openai).not.toHaveProperty("serviceTier");
+	});
+
 	it("conservatively normalizes exotic effort for unlisted OpenRouter models", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: (async function* () {

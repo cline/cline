@@ -126,6 +126,8 @@ export async function applyInteractiveModelChange(input: {
 	providerSettingsManager.saveProviderSettings({
 		...existing,
 		model: config.modelId,
+		// Explicit undefined removes a previously saved Fast preference.
+		serviceTier: config.serviceTier,
 		...(reasoning === undefined ? {} : { reasoning }),
 	});
 
@@ -140,6 +142,8 @@ export async function applyInteractiveModelChange(input: {
 	await sessionRuntime.updateCurrentSessionConnection({
 		providerId: config.providerId,
 		modelId: config.modelId,
+		// Undefined means "no update" over RPC; null explicitly clears Fast.
+		serviceTier: config.serviceTier ?? null,
 	});
 }
 

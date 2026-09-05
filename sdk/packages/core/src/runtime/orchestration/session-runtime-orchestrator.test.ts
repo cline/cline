@@ -1420,6 +1420,30 @@ describe("SessionRuntime.addTools / updateConnection / clearHistory / restore", 
 		expect(calls.run).toHaveLength(1);
 	});
 
+	it("updates and clears priority independently of reasoning", async () => {
+		const { deps, configs } = withCapturingFakeRuntime();
+		const session = new SessionRuntime(
+			makeAgentConfig({ thinking: true, reasoningEffort: "high" }),
+			deps,
+		);
+		session.updateConnection({ serviceTier: "priority" });
+		await session.run("priority");
+		expect(configs[0]?.modelOptions).toMatchObject({
+			serviceTier: "priority",
+			thinking: true,
+			reasoningEffort: "high",
+		});
+		session.updateConnection({ thinking: false });
+		await session.run("no reasoning");
+		expect(configs[1]?.modelOptions).toMatchObject({
+			serviceTier: "priority",
+			thinking: false,
+		});
+		session.updateConnection({ serviceTier: null });
+		await session.run("normal");
+		expect(configs[2]?.modelOptions).toEqual({ thinking: false });
+	});
+
 	it("updateConnection clears stale reasoning fields for next run", async () => {
 		const { deps, configs } = withCapturingFakeRuntime();
 		const session = new SessionRuntime(
