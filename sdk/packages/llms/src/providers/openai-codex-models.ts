@@ -1,4 +1,5 @@
 import type { ModelInfo } from "../catalog/types";
+import { withAstra } from "./openai-astra";
 
 /**
  * The ChatGPT/Codex backend starts rejecting requests around 95% of a
@@ -9,32 +10,37 @@ import type { ModelInfo } from "../catalog/types";
  */
 export const CODEX_EFFECTIVE_CONTEXT_WINDOW_PERCENT = 0.95;
 
-const GPT_VERSION_REGEX = /^gpt-(\d+\.\d+)/;
+// Accept integer majors while preserving the original numeric > 5.3 threshold.
+const GPT_VERSION_REGEX = /^gpt-(\d+)(?:\.(\d+))?(?=-|$)/;
+const UNSUPPORTED_VARIANT_REGEX = /(?:^|[-_.])(pro|nano)(?:[-_.]|$)/i;
 
 function isOpenAICodexAllowedModel(id: string, model: ModelInfo): boolean {
 	// O, pro, and nano variants are not supported
 	const family = model.family;
 	if (
-		family &&
-		(family.startsWith("o") ||
-			family.includes("pro") ||
-			family.includes("nano"))
+		UNSUPPORTED_VARIANT_REGEX.test(id) ||
+		UNSUPPORTED_VARIANT_REGEX.test(model.id) ||
+		(family &&
+			(family.startsWith("o") ||
+				family.includes("pro") ||
+				family.includes("nano")))
 	) {
 		return false;
 	}
-	// Must be newer than 5.3
 	const match = id.match(GPT_VERSION_REGEX);
-	return match ? Number.parseFloat(match[1]) > 5.3 : false;
+	if (!match) return false;
+	const version = Number(`${match[1]}.${match[2] ?? 0}`);
+	return Number.isSafeInteger(Number(match[1])) && version > 5.3;
 }
 
 /**
- * Applies the effective input budget to every allowed model. GPT-5.5
+ * Applies the effective input budget to allowed GPT models. GPT-5.5
  * additionally gets hardcoded limits because the ChatGPT/Codex backend
  * enforces a 272K input / 128K output cap that is lower than what the
  * generated OpenAI API catalog reports.
  */
 function toOpenAICodexModel(id: string, model: ModelInfo): ModelInfo {
-	if (id.includes("gpt-5.5")) {
+	if (/^gpt-5\.5(?:-|$)/.test(id)) {
 		return {
 			...model,
 			contextWindow: 400_000,
@@ -54,7 +60,7 @@ export function filterOpenAICodexModels(
 	models: Record<string, ModelInfo>,
 ): Record<string, ModelInfo> {
 	const result: Record<string, ModelInfo> = {};
-	for (const [id, model] of Object.entries(models)) {
+	for (const [id, model] of Object.entries(withAstra(models))) {
 		if (isOpenAICodexAllowedModel(id, model)) {
 			result[id] = toOpenAICodexModel(id, model);
 		}
