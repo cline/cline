@@ -781,6 +781,60 @@ describe("HubServerTransport boundaries", () => {
 				sessionId: "session-1",
 				conversationId: "conversation-1",
 			});
+			const pendingReply = await transport.handleCommand({
+				version: "v1",
+				requestId: "req-pending",
+				command: "approval.list_pending",
+				clientId: "client-1",
+				sessionId: "session-1",
+				payload: { sessionId: "session-1" },
+			});
+			expect(pendingReply).toMatchObject({
+				ok: true,
+				payload: {
+					approvals: [
+						expect.objectContaining({
+							approvalId,
+							createdAt: expect.any(Number),
+							toolCallId: "call-1",
+							toolName: "run_commands",
+							inputJson: '{"commands":["echo hi"]}',
+						}),
+					],
+				},
+			});
+			await expect(
+				transport.handleCommand({
+					version: "v1",
+					requestId: "req-pending-stranger",
+					command: "approval.list_pending",
+					clientId: "stranger-client",
+					sessionId: "session-1",
+				}),
+			).resolves.toMatchObject({
+				ok: false,
+				error: { code: "session_not_found" },
+			});
+			const strangerEvents: HubEventEnvelope[] = [];
+			transport.subscribe(
+				"stranger-client",
+				(event) => strangerEvents.push(event),
+				{ sessionId: "session-1" },
+			);
+			await Promise.resolve();
+			expect(strangerEvents).toEqual([]);
+			await expect(
+				handleApprovalRespond(ctx, {
+					version: "v1",
+					requestId: "req-stranger-response",
+					command: "approval.respond",
+					clientId: "stranger-client",
+					payload: { approvalId, approved: true },
+				}),
+			).resolves.toMatchObject({
+				ok: false,
+				error: { code: "approval_not_found" },
+			});
 			const reply = handleApprovalRespond(ctx, {
 				version: "v1",
 				requestId: "req-1",
@@ -796,6 +850,18 @@ describe("HubServerTransport boundaries", () => {
 			await expect(resultPromise).resolves.toEqual({
 				approved: true,
 				reason: "approved by user",
+			});
+			await expect(
+				transport.handleCommand({
+					version: "v1",
+					requestId: "req-pending-after",
+					command: "approval.list_pending",
+					clientId: "client-1",
+					sessionId: "session-1",
+				}),
+			).resolves.toMatchObject({
+				ok: true,
+				payload: { approvals: [] },
 			});
 		} finally {
 			vi.useRealTimers();
@@ -831,7 +897,9 @@ describe("HubServerTransport boundaries", () => {
 
 		// A client subscribing after the fact must still see the request.
 		const events: HubEventEnvelope[] = [];
-		transport.subscribe("late-client", (event) => events.push(event));
+		transport.subscribe("client-1", (event) => events.push(event), {
+			sessionId: "session-1",
+		});
 		await Promise.resolve();
 		await Promise.resolve();
 

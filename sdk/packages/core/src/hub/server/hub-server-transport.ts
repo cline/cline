@@ -47,6 +47,7 @@ import { SessionSource } from "../../types/common";
 import type { CoreSessionEvent } from "../../types/events";
 import type { HubConnectionAuthority } from "./command-transport";
 import {
+	handleApprovalListPending,
 	handleApprovalRespond,
 	pendingApprovalEvents,
 	requestToolApproval as requestToolApprovalHandler,
@@ -893,6 +894,8 @@ export class HubServerTransport implements NativeHubTransport {
 				return await handleCapabilityRequest(this.ctx, envelope);
 			case "approval.respond":
 				return await handleApprovalRespond(this.ctx, envelope);
+			case "approval.list_pending":
+				return handleApprovalListPending(this.ctx, envelope);
 			case "capability.respond":
 				return handleCapabilityRespond(this.ctx, envelope);
 			case "capability.progress":
@@ -1122,7 +1125,11 @@ export class HubServerTransport implements NativeHubTransport {
 		this.listeners.set(clientId, current);
 		// Re-issue pending approvals so a (re)connecting client can answer a
 		// request raised while it was away instead of leaving the turn parked.
-		const pending = pendingApprovalEvents(this.ctx, options?.sessionId);
+		const pending = pendingApprovalEvents(
+			this.ctx,
+			options?.sessionId,
+			clientId,
+		);
 		if (pending.length > 0) {
 			queueMicrotask(() => {
 				const listeners = this.listeners.get(clientId);
