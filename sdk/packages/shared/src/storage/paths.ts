@@ -570,23 +570,17 @@ export function resolvePluginConfigSearchPaths(
 }
 
 /**
- * Roots searched for Agent Plugins (agent-plugins.org). Kept separate from
+ * Root searched for Agent Plugins (agent-plugins.org). Kept separate from
  * {@link resolvePluginConfigSearchPaths} so the two package lanes never share a
  * directory: `.agents/plugins` is the vendor-neutral location, matching the
  * `.agents/skills` convention already honored by skill discovery.
  *
- * Discovery roots are explicitly client-defined by the specification, so these
- * are our choice rather than a conformance requirement.
+ * Discovery roots are explicitly client-defined by the specification. Cline
+ * only auto-discovers user-installed packages from the Hub host's home so
+ * opening a repository cannot activate repository-controlled MCP servers.
  */
-export function resolveAgentPluginSearchPaths(
-	workspacePath?: string,
-): string[] {
-	return dedupePaths([
-		workspacePath
-			? join(workspacePath, AGENTS_CONFIG_DIR, PLUGINS_DIRECTORY_NAME)
-			: "",
-		join(HOME_DIR, AGENTS_CONFIG_DIR, PLUGINS_DIRECTORY_NAME),
-	]);
+export function resolveAgentPluginSearchPaths(): string[] {
+	return [join(HOME_DIR, AGENTS_CONFIG_DIR, PLUGINS_DIRECTORY_NAME)];
 }
 
 const PLUGIN_MODULE_EXTENSIONS = new Set([".js", ".ts"]);

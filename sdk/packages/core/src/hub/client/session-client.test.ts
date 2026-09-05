@@ -94,6 +94,34 @@ describe("HubSessionClient", () => {
 		vi.unstubAllGlobals();
 	});
 
+	it("sends explicit Agent Plugin paths to the hub execution host", async () => {
+		vi.stubGlobal("WebSocket", MockWebSocket);
+		MockWebSocket.commandPayloads.set("session.create", {
+			session: { sessionId: "agent-plugin-session" },
+		});
+		const client = new HubSessionClient({
+			address: "ws://127.0.0.1:25463/hub",
+			clientId: "client-1",
+		});
+		await client.connect();
+
+		await client.startRuntimeSession({
+			workspaceRoot: "/hub/workspace",
+			provider: "cline",
+			model: "test-model",
+			enableTools: true,
+			agentPluginPaths: ["./portable-plugin"],
+		});
+
+		const createCommand = MockWebSocket.sentCommands.find(
+			(command) => command.command === "session.create",
+		);
+		expect(createCommand?.payload?.sessionConfig).toMatchObject({
+			agentPluginPaths: ["./portable-plugin"],
+		});
+		client.close();
+	});
+
 	it("normalizes run.failed events to include a top-level error", async () => {
 		vi.stubGlobal("WebSocket", MockWebSocket);
 		const client = new HubSessionClient({
