@@ -19,6 +19,7 @@ const {
 	loadProviderModelsMock,
 	speechInputMockState,
 	startVercelStreamingTranscriptionMock,
+	subscribeToProviderCatalogInvalidationMock,
 	subscribeToProviderModelsMock,
 } = vi.hoisted(() => ({
 	loadProviderModelCatalogMock: vi.fn(),
@@ -27,6 +28,7 @@ const {
 		current: null as MockSpeechInputProps | null,
 	},
 	startVercelStreamingTranscriptionMock: vi.fn(),
+	subscribeToProviderCatalogInvalidationMock: vi.fn(() => vi.fn()),
 	subscribeToProviderModelsMock: vi.fn(() => vi.fn()),
 }));
 
@@ -72,6 +74,8 @@ vi.mock("@/components/ai-elements/speech-input", async () => {
 vi.mock("@/lib/provider-model-catalog", () => ({
 	loadProviderModelCatalog: loadProviderModelCatalogMock,
 	loadProviderModels: loadProviderModelsMock,
+	subscribeToProviderCatalogInvalidation:
+		subscribeToProviderCatalogInvalidationMock,
 	subscribeToProviderModels: subscribeToProviderModelsMock,
 	VOICE_INPUT_SETTINGS_CHANGED_EVENT: "cline:test-voice-input-settings-changed",
 }));
@@ -85,6 +89,12 @@ let root: Root;
 
 beforeEach(() => {
 	Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+	if (typeof window.localStorage.clear !== "function") {
+		Object.defineProperty(window, "localStorage", {
+			configurable: true,
+			value: window.sessionStorage,
+		});
+	}
 	loadProviderModelCatalogMock.mockReset().mockResolvedValue({
 		providers: [],
 		enabledProviderIds: ["cline"],
@@ -99,6 +109,9 @@ beforeEach(() => {
 		stop: vi.fn(),
 		cancel: vi.fn(),
 	});
+	subscribeToProviderCatalogInvalidationMock
+		.mockReset()
+		.mockReturnValue(vi.fn());
 	subscribeToProviderModelsMock.mockReset().mockReturnValue(vi.fn());
 	HTMLElement.prototype.scrollIntoView = vi.fn();
 	HTMLElement.prototype.hasPointerCapture = vi.fn(() => false);
