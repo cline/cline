@@ -49,16 +49,29 @@ export interface SdkInteractionCoordinatorOptions {
 	getCwd?: () => string | undefined
 }
 
+interface PendingToolApproval {
+	resolve: (result: { approved: boolean; reason?: string }) => void
+	messageTs: number
+	toolName: string
+}
+
 export class SdkInteractionCoordinator {
 	private pendingAskResolve: ((answer: string) => void) | undefined
-	private pendingToolApprovalResolve: ((result: { approved: boolean; reason?: string }) => void) | undefined
-	private pendingToolApprovalMessage:
-		| {
-				toolCallId: string
-				messageTs: number
-				toolName: string
-		  }
-		| undefined
+	/**
+	 * Every approval the agent is currently waiting on, keyed by toolCallId in request
+	 * order. The SDK requests approval for each tool call of an assistant message before
+	 * executing any of them, so more than one can be outstanding; tracking only the latest
+	 * used to orphan the earlier promise (its run could then never finish).
+	 */
+	private readonly pendingToolApprovals = new Map<string, PendingToolApproval>()
+	/**
+	 * Set by clearPending (task cancel, mode switch, task switch/clear) and lifted when the
+	 * next turn starts. While set, approval and question requests are answered with an
+	 * immediate denial instead of a UI ask: the run they belong to is being aborted, and an
+	 * ask emitted now would re-arm dead Approve/Reject buttons over the Resume Task state the
+	 * cancel path just settled, and park the session's teardown on that answer.
+	 */
+	private closedReason: string | undefined
 
 	constructor(private readonly options: SdkInteractionCoordinatorOptions) {}
 
@@ -92,6 +105,13 @@ export class SdkInteractionCoordinator {
 	}
 
 	async handleRequestToolApproval(request: ToolApprovalRequest): Promise<{ approved: boolean; reason?: string }> {
+		if (this.closedReason !== undefined) {
+			Logger.log(
+				`[SdkController] Denying tool approval requested after "${this.closedReason}" (run is being torn down): tool=${request.toolName}`,
+			)
+			this.options.recordDeniedToolApproval?.(request.toolCallId, request.toolName, this.closedReason)
+			return { approved: false, reason: this.closedReason }
+		}
 		if (request.policy.autoApprove === true || this.options.shouldAutoApproveTool?.(request) === true) {
 			Logger.log(`[SdkController] Auto-approving tool execution: tool=${request.toolName}`)
 			return { approved: true }
@@ -121,16 +141,19 @@ export class SdkInteractionCoordinator {
 		await this.options.postStateToWebview()
 
 		return new Promise<{ approved: boolean; reason?: string }>((resolve) => {
-			this.pendingToolApprovalResolve = resolve
-			this.pendingToolApprovalMessage = {
-				toolCallId: request.toolCallId,
+			this.pendingToolApprovals.set(request.toolCallId, {
+				resolve,
 				messageTs: toolAskMessage.ts,
 				toolName: request.toolName,
-			}
+			})
 		})
 	}
 
 	async handleAskQuestion(question: string, options: string[], _context: unknown): Promise<string> {
+		if (this.closedReason !== undefined) {
+			Logger.log(`[SdkController] Skipping ask_question requested after "${this.closedReason}" (run is being torn down)`)
+			return ""
+		}
 		const askData: ClineAskQuestion = {
 			question,
 			options: options?.length ? options : undefined,
@@ -161,26 +184,29 @@ export class SdkInteractionCoordinator {
 		images?: string[],
 		files?: string[],
 	): boolean {
-		if (!this.pendingToolApprovalResolve) {
+		// The footer buttons belong to the most recently emitted ask, so a click answers the
+		// newest pending approval.
+		const latest = Array.from(this.pendingToolApprovals.entries()).at(-1)
+		if (!latest) {
 			return false
 		}
 
-		const resolve = this.pendingToolApprovalResolve
-		const pendingMessage = this.pendingToolApprovalMessage
+		const [toolCallId, pending] = latest
+		const resolve = pending.resolve
+		const pendingMessage = { toolCallId, messageTs: pending.messageTs, toolName: pending.toolName }
 
 		if (responseType === "messageResponse") {
 			Logger.log("[SdkController] Leaving pending tool approval open and routing user message as queued follow-up")
-			this.options.setTurnPhase?.("awaiting_approval", pendingMessage?.messageTs)
+			this.options.setTurnPhase?.("awaiting_approval", pendingMessage.messageTs)
 			// The approval remains pending. The chat message still needs normal follow-up routing.
 			return false
 		}
 
-		this.pendingToolApprovalResolve = undefined
-		this.pendingToolApprovalMessage = undefined
+		this.pendingToolApprovals.delete(toolCallId)
 
 		const approved = responseType === "yesButtonClicked"
 		Logger.log(`[SdkController] Resolving pending tool approval: approved=${approved} (responseType=${responseType})`)
-		if (approved && pendingMessage) {
+		if (approved) {
 			this.options.recordApprovedToolMessage?.(pendingMessage.toolCallId, pendingMessage.messageTs)
 		}
 
@@ -189,7 +215,7 @@ export class SdkInteractionCoordinator {
 		this.options.setTurnPhase?.("streaming")
 		// The reason must state the operation did NOT happen (for edits: the file is
 		// unchanged) — raw feedback alone reads like iteration on an applied change.
-		const denialReason = buildToolApprovalDenialReason(pendingMessage?.toolName, prompt)
+		const denialReason = buildToolApprovalDenialReason(pendingMessage.toolName, prompt)
 		if (!approved && (prompt?.trim() || images?.length || files?.length)) {
 			const userMessage: ClineMessage = {
 				ts: this.nextMessageTs(),
@@ -205,7 +231,7 @@ export class SdkInteractionCoordinator {
 				payload: { sessionId: this.options.getSessionId(), status: "running" },
 			})
 		}
-		if (!approved && pendingMessage) {
+		if (!approved) {
 			this.options.recordDeniedToolApproval?.(pendingMessage.toolCallId, pendingMessage.toolName, denialReason)
 		}
 		resolve({
@@ -245,7 +271,14 @@ export class SdkInteractionCoordinator {
 		return true
 	}
 
+	/**
+	 * Deny everything the outgoing run is waiting on and stop accepting new interaction
+	 * requests until {@link reopen} (the next turn start). Called on task cancel, plan/act
+	 * mode switch, task switch/clear, and edit-and-regenerate.
+	 */
 	clearPending(reason: string): void {
+		this.closedReason = reason
+
 		const resolveAsk = this.pendingAskResolve
 		this.pendingAskResolve = undefined
 		// ask_question is awaiting this promise inside the outgoing agent run. Settle it
@@ -253,19 +286,25 @@ export class SdkInteractionCoordinator {
 		// use an empty answer so the lifecycle reason is not presented as user input.
 		resolveAsk?.("")
 
-		const pendingMessage = this.pendingToolApprovalMessage
-		this.pendingToolApprovalMessage = undefined
-		if (this.pendingToolApprovalResolve) {
+		const pending = Array.from(this.pendingToolApprovals.entries())
+		this.pendingToolApprovals.clear()
+		for (const [toolCallId, { resolve, toolName }] of pending) {
 			// Record before resolving: the denial unblocks the core, which emits the
 			// tool's lifecycle events before the caller's abort lands. Unless the
 			// denial is already recorded, the translator renders those events as a
 			// second tool row next to the still-visible approval ask.
-			if (pendingMessage) {
-				this.options.recordDeniedToolApproval?.(pendingMessage.toolCallId, pendingMessage.toolName, reason)
-			}
-			this.pendingToolApprovalResolve({ approved: false, reason })
-			this.pendingToolApprovalResolve = undefined
+			this.options.recordDeniedToolApproval?.(toolCallId, toolName, reason)
+			resolve({ approved: false, reason })
 		}
+	}
+
+	/**
+	 * Accept interaction requests again. Called when a turn starts (a prompt is sent to the
+	 * session or the SDK drains a queued prompt), which is the only time a live run can
+	 * legitimately ask for approval after a clearPending.
+	 */
+	reopen(): void {
+		this.closedReason = undefined
 	}
 
 	/**

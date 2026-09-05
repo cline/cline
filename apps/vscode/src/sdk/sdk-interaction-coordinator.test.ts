@@ -532,4 +532,128 @@ describe("SdkInteractionCoordinator", () => {
 		expect(coordinator.resolvePendingToolApproval(undefined, "yesButtonClicked")).toBe(true)
 		await expect(approvalPromise).resolves.toEqual({ approved: true })
 	})
+	it("denies every outstanding approval on clearPending, not just the latest", async () => {
+		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		const recordDeniedToolApproval = vi.fn()
+		const coordinator = new SdkInteractionCoordinator({
+			messages: new SdkMessageCoordinator({ getTask: () => task }),
+			getSessionId: () => "session-123",
+			postStateToWebview: vi.fn().mockResolvedValue(undefined),
+			recordDeniedToolApproval,
+		})
+		const request = (toolCallId: string, toolName: string) =>
+			coordinator.handleRequestToolApproval({
+				agentId: "agent",
+				conversationId: "conversation",
+				iteration: 1,
+				toolCallId,
+				toolName,
+				input: {},
+				policy: { autoApprove: false },
+			})
+
+		// Parallel tool execution can leave several approvals outstanding at once.
+		const first = request("call-1", "run_commands")
+		const second = request("call-2", "read_files")
+		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(2))
+
+		coordinator.clearPending("Mode changed")
+
+		await expect(first).resolves.toEqual({ approved: false, reason: "Mode changed" })
+		await expect(second).resolves.toEqual({ approved: false, reason: "Mode changed" })
+		expect(recordDeniedToolApproval).toHaveBeenCalledWith("call-1", "run_commands", "Mode changed")
+		expect(recordDeniedToolApproval).toHaveBeenCalledWith("call-2", "read_files", "Mode changed")
+		expect(coordinator.resolvePendingToolApproval(undefined, "yesButtonClicked")).toBe(false)
+	})
+
+	it("refuses approval and question requests after clearPending until the next turn reopens them", async () => {
+		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		const messages = new SdkMessageCoordinator({ getTask: () => task })
+		const listener = vi.fn()
+		messages.onSessionEvent(listener)
+		const postStateToWebview = vi.fn().mockResolvedValue(undefined)
+		const setTurnPhase = vi.fn()
+		const recordDeniedToolApproval = vi.fn()
+		const coordinator = new SdkInteractionCoordinator({
+			messages,
+			getSessionId: () => "session-123",
+			postStateToWebview,
+			setTurnPhase,
+			recordDeniedToolApproval,
+		})
+		const request = (toolCallId: string) =>
+			coordinator.handleRequestToolApproval({
+				agentId: "agent",
+				conversationId: "conversation",
+				iteration: 1,
+				toolCallId,
+				toolName: "read_files",
+				input: {},
+				policy: { autoApprove: false },
+			})
+
+		// The SDK requests approval for every tool call of an assistant message in turn. A
+		// cancel (task cancel / plan-act switch) denies the pending one, and the runtime may
+		// immediately ask for the next one on the run that is being aborted.
+		const pending = request("call-1")
+		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
+		coordinator.clearPending("Mode changed")
+		await expect(pending).resolves.toEqual({ approved: false, reason: "Mode changed" })
+		postStateToWebview.mockClear()
+		setTurnPhase.mockClear()
+		listener.mockClear()
+
+		// No ask row, no phase change, no state post: the Resume Task state the cancel
+		// path settled must survive, and the run must unwind instead of waiting.
+		await expect(request("call-2")).resolves.toEqual({ approved: false, reason: "Mode changed" })
+		expect(recordDeniedToolApproval).toHaveBeenCalledWith("call-2", "read_files", "Mode changed")
+		await expect(coordinator.handleAskQuestion("Which file?", [], undefined)).resolves.toBe("")
+		expect(task.messageStateHandler.getClineMessages()).toHaveLength(1)
+		expect(listener).not.toHaveBeenCalled()
+		expect(setTurnPhase).not.toHaveBeenCalled()
+		expect(postStateToWebview).not.toHaveBeenCalled()
+
+		// The next turn (prompt sent / queued prompt drained) makes approvals live again.
+		coordinator.reopen()
+		const live = request("call-3")
+		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(2))
+		expect(setTurnPhase).toHaveBeenCalledWith("awaiting_approval", task.messageStateHandler.getClineMessages()[1].ts)
+		expect(coordinator.resolvePendingToolApproval(undefined, "yesButtonClicked")).toBe(true)
+		await expect(live).resolves.toEqual({ approved: true })
+	})
+
+	it("answers the newest outstanding approval from the footer buttons", async () => {
+		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		const recordApprovedToolMessage = vi.fn()
+		const coordinator = new SdkInteractionCoordinator({
+			messages: new SdkMessageCoordinator({ getTask: () => task }),
+			getSessionId: () => "session-123",
+			postStateToWebview: vi.fn().mockResolvedValue(undefined),
+			recordApprovedToolMessage,
+		})
+		const request = (toolCallId: string) =>
+			coordinator.handleRequestToolApproval({
+				agentId: "agent",
+				conversationId: "conversation",
+				iteration: 1,
+				toolCallId,
+				toolName: "read_files",
+				input: {},
+				policy: { autoApprove: false },
+			})
+
+		const first = request("call-1")
+		const second = request("call-2")
+		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(2))
+		const [firstAsk, secondAsk] = task.messageStateHandler.getClineMessages()
+
+		expect(coordinator.resolvePendingToolApproval(undefined, "yesButtonClicked")).toBe(true)
+		await expect(second).resolves.toEqual({ approved: true })
+		expect(recordApprovedToolMessage).toHaveBeenLastCalledWith("call-2", secondAsk.ts)
+
+		expect(coordinator.resolvePendingToolApproval(undefined, "noButtonClicked")).toBe(true)
+		await expect(first).resolves.toMatchObject({ approved: false })
+		expect(firstAsk.ts).not.toBe(secondAsk.ts)
+		expect(coordinator.resolvePendingToolApproval(undefined, "yesButtonClicked")).toBe(false)
+	})
 })

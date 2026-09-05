@@ -55,6 +55,8 @@ export interface SdkSessionLifecycleOptions {
 	 */
 	consumeModeSwitchNotice?: (sessionId: string) => ModeSwitchNotice | null
 	onDidBecomeIdle?: () => void
+	/** A turn started on the active session (queued prompt drained, follow-up, auto-continue). */
+	onDidBecomeRunning?: () => void
 }
 
 export class SdkSessionLifecycle {
@@ -84,7 +86,9 @@ export class SdkSessionLifecycle {
 			return
 		}
 		activeSession.isRunning = isRunning
-		if (!isRunning) {
+		if (isRunning) {
+			this.options.onDidBecomeRunning?.()
+		} else {
 			this.options.onDidBecomeIdle?.()
 		}
 	}

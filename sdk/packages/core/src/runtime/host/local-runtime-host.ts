@@ -747,6 +747,15 @@ export class LocalRuntimeHost implements RuntimeHost {
 				? async (request) => {
 						const requestToolApproval = bootstrap.requestToolApproval;
 						const liveSession = this.sessions.get(sessionId);
+						if (liveSession?.aborting) {
+							// The run is being torn down; surfacing a new approval prompt
+							// to the host would show a dead prompt and park the teardown
+							// on its answer.
+							return {
+								approved: false,
+								reason: "Session is aborting",
+							};
+						}
 						if (liveSession) {
 							await this.markTurnPending(liveSession);
 						}
