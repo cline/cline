@@ -1,0 +1,46 @@
+---
+title: Deprecations
+sidebarTitle: Deprecations
+description: Track Cline features that are being phased out and what to use instead.
+---
+
+## Overview
+
+As Cline evolves, we regularly revisit existing features to make sure they still fit how the product works today. This can include changes introduced by our newer agent architecture, features that are no longer providing enough value, or functionality where a different approach is more appropriate.
+
+This page tracks deprecated Cline features and recommended alternatives where available.
+
+| Feature         | Primary surface | Status           | Recommended alternative          |
+| --------------- | --------------- | ---------------- | -------------------------------- |
+| .clineignore    | VS Code extension | Deprecating soon | Block Ignored File Access plugin |
+| Explain Changes | VS Code extension | Deprecated       | Ask Cline for an explanation     |
+| Focus Chain     | VS Code extension | Deprecated       | No direct replacement            |
+
+## `.clineignore`
+
+`.clineignore` was introduced to control which files Cline automatically loads into context, but it was never designed to prevent access to those files. Cline can still access project files through other methods, including shell commands.
+
+To avoid creating a false sense of security, we are removing `.clineignore` as a supported feature.
+
+If you still want context filtering, you can use the Block Ignored File Access plugin:
+
+```bash
+cline plugin install
+https://github.com/cline/cline/blob/main/sdk/examples/plugins/gitignore-read-files-guard.ts --cwd
+```
+
+The plugin uses your workspace .gitignore to block supported file read and edit tools. It does not block shell commands and should not be treated as a security boundary.
+
+## Explain Changes
+
+"Explain Changes" is being deprecated as part of Cline's move to the SDK backed architecture.
+
+Rather than rebuilding the previous inline explanation experience, we are focusing on the current code review workflow.
+
+You can still use "View Changes" to inspect the code Cline changed, and ask Cline directly to explain what it changed, why it made those decisions, or walk through specific files.
+
+## Focus Chain
+
+"Focus Chain" maintained a todo list during longer tasks to help Cline track progress. In our testing, we found that it was no longer providing enough additional benefit on top of the current harness to maintain it as a separate feature.
+
+This means the "Focus Chain" todo list and the previous todo file behavior will no longer be part of the current Cline experience. The new harness is designed to manage task execution and context more effectively without relying on "Focus Chain" as a separate layer.

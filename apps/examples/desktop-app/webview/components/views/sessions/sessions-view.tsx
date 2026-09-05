@@ -10,6 +10,7 @@ import {
 	Filter,
 	Folder,
 	GitFork,
+	Import,
 	Loader2,
 	MoreHorizontal,
 	Pencil,
@@ -19,6 +20,7 @@ import {
 	X,
 } from "lucide-react";
 import { type CSSProperties, useEffect, useMemo, useState } from "react";
+import { ImportSessionsDialog } from "@/components/import-sessions-dialog";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -155,6 +157,7 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 	);
 	const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
 	const [editingTitle, setEditingTitle] = useState("");
+	const [importDialogOpen, setImportDialogOpen] = useState(false);
 	const [deleteCandidate, setDeleteCandidate] = useState<SessionThread | null>(
 		null,
 	);
@@ -333,6 +336,18 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 							value={query}
 						/>
 					</div>
+					<Button
+						aria-label="Import sessions from other tools"
+						className="h-8 rounded-md px-2.5"
+						onClick={() => setImportDialogOpen(true)}
+						size="sm"
+						title="Import sessions from Claude Code, Codex, or opencode"
+						type="button"
+						variant="outline"
+					>
+						<Import className="size-4" />
+						Import
+					</Button>
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>
 							<Button
@@ -783,6 +798,12 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 					</AlertDialogFooter>
 				</AlertDialogContent>
 			</AlertDialog>
+
+			<ImportSessionsDialog
+				onImported={() => void history.refreshSessions()}
+				onOpenChange={setImportDialogOpen}
+				open={importDialogOpen}
+			/>
 		</div>
 	);
 }
