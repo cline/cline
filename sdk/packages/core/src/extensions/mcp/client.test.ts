@@ -164,12 +164,7 @@ function fakeServerRegistration(options: {
 		name: "fake-server",
 		transport: {
 			type: "stdio",
-			// Quoted for the win32 shell:true spawn path, where the runtime may
-			// live under a directory containing spaces.
-			command:
-				process.platform === "win32"
-					? `"${process.execPath}"`
-					: process.execPath,
+			command: process.execPath,
 			args: [join(tempRoot, "fake-server.js")],
 			env: {
 				FAKE_MCP_DELAY_MS: String(options.delayMs),
