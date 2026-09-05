@@ -1,5 +1,10 @@
 import { randomUUID } from "node:crypto";
-import { NodeHubClient } from "@cline/core";
+import {
+	isHubCommandTimeoutError,
+	isHubReconnectableTransportError,
+	NodeHubClient,
+} from "@cline/core";
+import type { MessageWithMetadata } from "@cline/llms";
 import { decodeJwtPayload, type HubEventEnvelope } from "@cline/shared";
 import type {
 	CloudBranchListOptions,
@@ -10,8 +15,9 @@ import {
 	CLOUD_PROVISIONING_SESSION_ID_PREFIX,
 	cloudRepositoryLabel,
 } from "../webview/lib/cloud-repositories";
-import { sendEvent } from "./context";
+import { sendEvent, sendPromptsInQueueSnapshot } from "./context";
 import { resolveSessionListTitle } from "./session-data/common";
+import { readSessionMessages } from "./session-data/messages";
 import type {
 	JsonRecord,
 	LiveSession,
@@ -24,6 +30,7 @@ const CREATE_TIMEOUT_MS = 610_000;
 const PROVISIONING_POLL_MS = 3_000;
 // Bound hot-path REST calls so a dead network cannot hang the sidebar.
 const REQUEST_TIMEOUT_MS = 15_000;
+const QUEUE_COMMAND_TIMEOUT_MS = 30_000;
 const CLOUD_ERROR_PREFIX = "CLOUD_SESSION_ERROR:";
 const CREATE_REQUEST_TITLE_PREFIX = "__cline_create_request__:";
 
@@ -1704,11 +1711,654 @@ export class CloudSessionManager {
 		});
 	}
 
+	async attach(outerSessionId: string): Promise<JsonRecord> {
+		// Opening a placeholder keeps the loading pane stable during provisioning.
+		const placeholder = this.pendingCreates.get(outerSessionId);
+		if (placeholder) {
+			return { ...placeholder };
+		}
+		const known = await this.ensureKnownSession(outerSessionId);
+		if (known.status === "provisioning" || known.status === "failed") {
+			return attachResultPayload(known, known.status);
+		}
+		if (isExpiredRecord(known)) {
+			// A connection left over from before expiry would reconnect-loop
+			// against a dead sandbox forever.
+			await this.disposeConnection(outerSessionId);
+			return await this.attachExpired(known);
+		}
+		let connection: CloudConnection;
+		try {
+			connection = await this.ensureConnection(outerSessionId);
+		} catch (error) {
+			// Re-check expiry after a proxy upgrade failure.
+			const refreshed = await this.refreshKnownSession(outerSessionId);
+			if (refreshed && isExpiredRecord(refreshed)) {
+				await this.disposeConnection(outerSessionId);
+				return await this.attachExpired(refreshed);
+			}
+			throw error;
+		}
+		await this.ensureAttached(connection);
+		await this.refreshPendingApprovals(outerSessionId, connection);
+		const record = connection.remote;
+		const live = this.ctx.liveSessions.get(outerSessionId);
+		return attachResultPayload(
+			record,
+			live?.status ?? record.status,
+			live?.prompt,
+		);
+	}
+
+	async send(
+		outerSessionId: string,
+		prompt: string,
+		requestedDelivery?: "queue" | "steer",
+		modelId?: string,
+		userImages?: string[],
+	): Promise<{
+		sessionId: string;
+		ok: true;
+		queued?: boolean;
+		recoveredAfterDisconnect?: boolean;
+		status?: string;
+		result?: unknown;
+	}> {
+		const knownForSend = this.knownSessions.get(outerSessionId);
+		if (knownForSend && isExpiredRecord(knownForSend)) {
+			throw new CloudSessionError(
+				"session_expired",
+				"This cloud session has expired; its sandbox is gone. Start a new cloud session to continue.",
+			);
+		}
+		const connection = await this.ensureConnection(outerSessionId, {
+			createInner: true,
+		});
+		const innerSessionId = connection.innerSessionId;
+		if (!innerSessionId) {
+			throw new Error("Cloud Hub session was not initialized");
+		}
+		await this.ensureAttached(connection);
+		if (!connection.transcriptKnown) {
+			await this.rehydrateAfterTransportDrop(outerSessionId, connection);
+		}
+		// Rehydration attaches again and may reveal a model change made by a
+		// different client. Enforce this send's selected model only after the
+		// final authoritative snapshot.
+		await this.updateModel(connection, modelId);
+		const live = this.ctx.liveSessions.get(outerSessionId);
+		const delivery = requestedDelivery ?? (live?.busy ? "queue" : undefined);
+		const promptOccurrencesBeforeSend = countPromptOccurrences(
+			live?.messages ?? [],
+			live?.promptsInQueue ?? [],
+			prompt,
+		);
+		const ownsBusyState = delivery !== "queue" && delivery !== "steer";
+		const pendingMessage: MessageWithMetadata | undefined =
+			live && delivery !== "queue"
+				? { role: "user", content: [{ type: "text", text: prompt }] }
+				: undefined;
+		if (live && pendingMessage) {
+			live.messages = [...live.messages, pendingMessage];
+		}
+		const removePendingMessage = () => {
+			if (live && pendingMessage) {
+				live.messages = live.messages.filter(
+					(message) => message !== pendingMessage,
+				);
+			}
+		};
+		if (live && ownsBusyState) {
+			live.busy = true;
+			live.status = "running";
+			live.prompt ||= prompt;
+		}
+		// Name from the first prompt without delaying the send.
+		const record = this.knownSessions.get(outerSessionId);
+		if (record && !record.title?.trim()) {
+			const title = deriveCloudSessionTitle(prompt);
+			if (title) {
+				record.title = title;
+				if (live) {
+					live.title = title;
+				}
+				void this.options.api.updateTitle?.(outerSessionId, title).catch(() => {
+					// Sidebar still shows the local title; REST retries on rename.
+				});
+			}
+		}
+		try {
+			const reply = await connection.client.command(
+				"session.send_input",
+				{
+					prompt,
+					delivery,
+					...(userImages?.length ? { attachments: { userImages } } : {}),
+				},
+				innerSessionId,
+				delivery === "queue"
+					? { timeoutMs: QUEUE_COMMAND_TIMEOUT_MS }
+					: { timeoutMs: null },
+			);
+			return {
+				sessionId: outerSessionId,
+				ok: true,
+				...(delivery === "queue" ? { queued: true } : {}),
+				result: reply.payload?.result,
+			};
+		} catch (error) {
+			if (
+				isHubReconnectableTransportError(error) ||
+				isHubCommandTimeoutError(error, "session.send_input")
+			) {
+				let snapshot: CloudRehydrationSnapshot;
+				try {
+					snapshot = await this.rehydrateAfterTransportDrop(
+						outerSessionId,
+						connection,
+					);
+				} catch (recoveryError) {
+					removePendingMessage();
+					if (live && ownsBusyState) {
+						live.busy = false;
+						live.status = "error";
+					}
+					throw recoveryError;
+				}
+				// Without a queue snapshot the absence of the prompt proves
+				// nothing for a queue delivery — telling the user to resend
+				// would duplicate a durably queued prompt.
+				if (delivery === "queue" && snapshot.prompts === undefined) {
+					throw new CloudSessionError(
+						"request_failed",
+						"The connection was interrupted and Cline could not confirm whether this message was queued. Check the cloud session before resending it.",
+					);
+				}
+				const promptOccurrencesAfterRecovery = countPromptOccurrences(
+					snapshot.messages,
+					mergePromptEvidence(snapshot.prompts, snapshot.submittedPrompts),
+					prompt,
+				);
+				if (promptOccurrencesAfterRecovery <= promptOccurrencesBeforeSend) {
+					throw new CloudSessionError(
+						"request_failed",
+						"The connection was interrupted before this message could be confirmed. It was not found in the cloud session, so please send it again.",
+					);
+				}
+				return {
+					sessionId: outerSessionId,
+					ok: true,
+					...(delivery === "queue" ? { queued: true } : {}),
+					recoveredAfterDisconnect: true,
+					status: snapshot.status,
+				};
+			}
+			removePendingMessage();
+			if (live && ownsBusyState) {
+				live.busy = false;
+				live.status = "error";
+			}
+			throw error;
+		}
+	}
+
+	private async updateModel(
+		connection: CloudConnection,
+		requestedModelId?: string,
+	): Promise<void> {
+		const modelId = requestedModelId?.trim();
+		if (!modelId || connection.remote.metadata.modelId === modelId) {
+			return;
+		}
+		const innerSessionId = connection.innerSessionId;
+		if (!innerSessionId) {
+			throw new Error("Cloud Hub session was not initialized");
+		}
+		await connection.client.command(
+			"session.update_connection",
+			{ sessionId: innerSessionId, updates: { modelId } },
+			innerSessionId,
+		);
+		this.applyModel(connection, modelId);
+	}
+
+	private applyModel(connection: CloudConnection, modelId: string): void {
+		connection.remote.metadata.modelId = modelId;
+		const live = this.ctx.liveSessions.get(connection.remote.id);
+		if (live) {
+			live.config.model = modelId;
+			live.config.modelId = modelId;
+		}
+	}
+
+	private async rehydrateAfterTransportDrop(
+		outerSessionId: string,
+		connection: CloudConnection,
+	): Promise<CloudRehydrationSnapshot> {
+		if (connection.rehydrationPromise) {
+			connection.rehydrationRerunRequested = true;
+			return await connection.rehydrationPromise;
+		}
+		const rehydration = (async () => {
+			let snapshot: CloudRehydrationSnapshot | undefined;
+			do {
+				connection.rehydrationRerunRequested = false;
+				snapshot = await this.performTransportRehydration(
+					outerSessionId,
+					connection,
+				);
+			} while (connection.rehydrationRerunRequested && !this.disposed);
+			return snapshot;
+		})().finally(() => {
+			if (connection.rehydrationPromise === rehydration) {
+				connection.rehydrationPromise = undefined;
+			}
+		});
+		connection.rehydrationPromise = rehydration;
+		return await rehydration;
+	}
+
+	private async performTransportRehydration(
+		outerSessionId: string,
+		connection: CloudConnection,
+	): Promise<CloudRehydrationSnapshot> {
+		if (this.disposed) {
+			throw new Error("Cloud session manager was disposed");
+		}
+		const innerSessionId = connection.innerSessionId;
+		if (!innerSessionId) {
+			throw new Error("Cloud Hub session was not initialized");
+		}
+		connection.bufferingEvents = true;
+		connection.bufferedEvents = [];
+		connection.rehydrationGeneration += 1;
+		try {
+			// command() waits for registration, including reconnect attempts.
+			await this.ensureAttached(connection);
+			const sessionReply = await connection.client.command(
+				"session.get",
+				{ includeSnapshot: true },
+				innerSessionId,
+			);
+			const session =
+				sessionReply.payload?.session &&
+				typeof sessionReply.payload.session === "object" &&
+				!Array.isArray(sessionReply.payload.session)
+					? (sessionReply.payload.session as JsonRecord)
+					: undefined;
+			this.applySessionModel(connection, session);
+			const live = this.ctx.liveSessions.get(outerSessionId);
+			const baselineMessages = live?.messages ?? [];
+			const runtimeStatus = String(
+				session?.status ?? live?.status ?? "running",
+			).trim();
+			const status = runtimeStatus === "pending" ? "running" : runtimeStatus;
+
+			const messagesReply = await connection.client.command(
+				"session.messages",
+				{ sessionId: innerSessionId },
+				innerSessionId,
+			);
+			if (!Array.isArray(messagesReply.payload?.messages)) {
+				throw new Error("Cloud Hub returned an invalid transcript snapshot");
+			}
+			const messages = messagesReply.payload.messages;
+			const queueReply = await connection.client
+				.command(
+					"session.pending_prompts",
+					{ sessionId: innerSessionId },
+					innerSessionId,
+				)
+				.catch(() => undefined);
+			const queueSnapshotEventCutoff = connection.bufferedEvents.length;
+
+			if (live) {
+				const statusChanged = live.status !== status;
+				live.messages = messages;
+				live.status = status;
+				live.busy = status === "running" || status === "pending";
+				if (statusChanged) {
+					if (
+						status === "completed" ||
+						status === "failed" ||
+						status === "aborted"
+					) {
+						live.endedAt = Date.now();
+						sendEvent(this.ctx, "chat_session_ended", {
+							sessionId: outerSessionId,
+							// The live run.failed path reports "error"; keep the
+							// rehydrated terminal state on the same vocabulary.
+							reason: status === "failed" ? "error" : status,
+						});
+					} else {
+						sendEvent(this.ctx, "chat_session_status", {
+							sessionId: outerSessionId,
+							status,
+						});
+					}
+				}
+			}
+			// A reply is only an authoritative queue snapshot when it succeeded
+			// and actually carries a prompts array; treating an unsuccessful or
+			// malformed reply as authoritative would publish an empty queue and
+			// drop the buffered queue events that still hold the real state.
+			const queueSnapshotValid =
+				queueReply !== undefined &&
+				queueReply.ok !== false &&
+				Array.isArray(queueReply.payload?.prompts);
+			const prompts = queueSnapshotValid
+				? this.applyQueueSnapshot(outerSessionId, queueReply)
+				: undefined;
+			await this.refreshPendingApprovals(outerSessionId, connection);
+			connection.transcriptKnown = true;
+
+			// Publish the snapshot before releasing the reconciled tail.
+			sendEvent(this.ctx, "cloud_session_rehydrated", {
+				sessionId: outerSessionId,
+				status,
+				generation: connection.rehydrationGeneration,
+				transcriptKnown: true,
+				messages: await readSessionMessages(
+					this.ctx,
+					outerSessionId,
+					800,
+					messages,
+				),
+			});
+			const bufferedEvents = connection.bufferedEvents;
+			const submittedPrompts = submittedPromptsFromEvents(bufferedEvents);
+			const buffered = reconcileBufferedCloudEvents(bufferedEvents, messages, {
+				queueSnapshotApplied: queueSnapshotValid,
+				queueSnapshotEventCutoff,
+				baselineMessages,
+			});
+			connection.bufferedEvents = [];
+			connection.bufferingEvents = false;
+			connection.syncFailureNotified = false;
+			for (const event of buffered) {
+				this.forwardEvent(outerSessionId, connection, event);
+			}
+			return { status, messages, prompts, submittedPrompts };
+		} catch (error) {
+			// Preserve the current view and release the full tail on snapshot failure.
+			const buffered = connection.bufferedEvents;
+			connection.bufferedEvents = [];
+			connection.bufferingEvents = false;
+			for (const event of buffered) {
+				this.forwardEvent(outerSessionId, connection, event);
+			}
+			// Notify on the transition only: reconnect loops rehydrate on every
+			// attempt, and one toast per attempt would flood the UI.
+			if (!connection.syncFailureNotified) {
+				connection.syncFailureNotified = true;
+				sendEvent(this.ctx, "cloud_session_sync_failed", {
+					sessionId: outerSessionId,
+					message: error instanceof Error ? error.message : String(error),
+				});
+			}
+			throw error;
+		}
+	}
+
+	async abort(
+		outerSessionId: string,
+	): Promise<{ sessionId: string; ok: true }> {
+		const connection = await this.ensureConnection(outerSessionId);
+		if (connection.innerSessionId) {
+			await this.ensureAttached(connection);
+			await connection.client.command(
+				"run.abort",
+				{ sessionId: connection.innerSessionId },
+				connection.innerSessionId,
+			);
+		}
+		const live = this.ctx.liveSessions.get(outerSessionId);
+		if (live) {
+			live.busy = false;
+			live.status = "aborted";
+		}
+		return { sessionId: outerSessionId, ok: true };
+	}
+
+	async pendingPrompts(outerSessionId: string): Promise<JsonRecord> {
+		const connection = await this.ensureConnection(outerSessionId);
+		// No inner session means nothing was ever queued; answering [] beats
+		// throwing after having dialed a socket just to fail.
+		if (!connection.innerSessionId) {
+			return { sessionId: outerSessionId, promptsInQueue: [] };
+		}
+		const reply = await this.queueCommand(
+			outerSessionId,
+			"session.pending_prompts",
+			{},
+		);
+		return {
+			sessionId: outerSessionId,
+			promptsInQueue: this.applyQueueSnapshot(outerSessionId, reply),
+		};
+	}
+
+	async updatePendingPrompt(
+		outerSessionId: string,
+		promptId: string,
+		changes: { prompt?: string; delivery?: "queue" | "steer" },
+	): Promise<JsonRecord> {
+		const reply = await this.queueCommand(
+			outerSessionId,
+			"session.update_pending_prompt",
+			{ promptId, ...changes },
+		);
+		return {
+			sessionId: outerSessionId,
+			updated: reply.payload?.updated === true,
+			promptsInQueue: this.applyQueueSnapshot(outerSessionId, reply),
+		};
+	}
+
+	async removePendingPrompt(
+		outerSessionId: string,
+		promptId: string,
+	): Promise<JsonRecord> {
+		const reply = await this.queueCommand(
+			outerSessionId,
+			"session.remove_pending_prompt",
+			{ promptId },
+		);
+		return {
+			sessionId: outerSessionId,
+			removed: reply.payload?.removed === true,
+			promptsInQueue: this.applyQueueSnapshot(outerSessionId, reply),
+		};
+	}
+
+	private async queueCommand(
+		outerSessionId: string,
+		command:
+			| "session.pending_prompts"
+			| "session.update_pending_prompt"
+			| "session.remove_pending_prompt",
+		payload: Record<string, unknown>,
+	): Promise<{ ok: boolean; payload?: Record<string, unknown> }> {
+		const connection = await this.ensureConnection(outerSessionId);
+		const innerSessionId = connection.innerSessionId;
+		if (!innerSessionId) {
+			throw new Error("Cloud Hub session was not initialized");
+		}
+		await this.ensureAttached(connection);
+		return await connection.client.command(
+			command,
+			{ sessionId: innerSessionId, ...payload },
+			innerSessionId,
+		);
+	}
+
+	/** Mirrors the authoritative queue reply into desktop state. */
+	private applyQueueSnapshot(
+		outerSessionId: string,
+		reply: { payload?: Record<string, unknown> },
+	): PromptInQueue[] {
+		// A reply without a prompts array is not a snapshot; treating it as
+		// an empty queue would silently hide queued or steered prompts.
+		if (!Array.isArray(reply.payload?.prompts)) {
+			throw new Error("Cloud Hub returned an invalid pending-prompts snapshot");
+		}
+		const items = reply.payload.prompts as Array<Record<string, unknown>>;
+		const mapped: PromptInQueue[] = items
+			.map((item) => ({
+				id: typeof item.id === "string" ? item.id : "",
+				prompt: typeof item.prompt === "string" ? item.prompt : "",
+				steer: item.delivery === "steer",
+				attachmentCount:
+					typeof item.attachmentCount === "number" ? item.attachmentCount : 0,
+				userImages: Array.isArray(item.userImages)
+					? item.userImages.filter(
+							(image): image is string => typeof image === "string",
+						)
+					: undefined,
+			}))
+			.filter((item) => item.id);
+		const live = this.ctx.liveSessions.get(outerSessionId);
+		if (live) {
+			live.promptsInQueue = mapped;
+		}
+		sendPromptsInQueueSnapshot(this.ctx, outerSessionId);
+		return mapped;
+	}
+
+	async readMessages(outerSessionId: string): Promise<unknown[]> {
+		if (this.pendingCreates.has(outerSessionId)) {
+			return [];
+		}
+		const known = this.knownSessions.get(outerSessionId);
+		if (known?.status === "provisioning" || known?.status === "failed") {
+			return [];
+		}
+		if (known && isExpiredRecord(known)) {
+			// An expired session with no snapshot legitimately has no transcript.
+			return (await this.loadArchivedMessages(known)) ?? [];
+		}
+		try {
+			const connection = await this.ensureConnection(outerSessionId);
+			if (!connection.innerSessionId) {
+				return [];
+			}
+			return (
+				await this.rehydrateAfterTransportDrop(outerSessionId, connection)
+			).messages;
+		} catch (error) {
+			// Fall back only to a real archive; [] on 404 would mask live failures.
+			const refreshed =
+				(await this.refreshKnownSession(outerSessionId)) ?? known;
+			if (refreshed) {
+				const archived = await this.loadArchivedMessages(refreshed).catch(
+					() => null,
+				);
+				if (archived !== null) {
+					return archived;
+				}
+			}
+			throw error;
+		}
+	}
+
+	async updateTitle(outerSessionId: string, title: string): Promise<void> {
+		await this.options.api.updateTitle(outerSessionId, title);
+		const record = this.knownSessions.get(outerSessionId);
+		if (record) {
+			record.title = title;
+		}
+		const live = this.ctx.liveSessions.get(outerSessionId);
+		if (live) {
+			live.title = title;
+		}
+	}
+
+	async delete(outerSessionId: string): Promise<void> {
+		if (this.pendingCreates.has(outerSessionId)) {
+			throw new CloudSessionError(
+				"request_failed",
+				"This cloud session is still provisioning and cannot be deleted yet.",
+			);
+		}
+		// Tombstone the id so a concurrent attach/send/readMessages cannot dial
+		// a fresh connection for a session that is being torn down.
+		this.deletingSessions.add(outerSessionId);
+		try {
+			// Settle an in-flight connect before deleting its connection.
+			const pendingConnect = this.connectionPromises.get(outerSessionId);
+			if (pendingConnect) {
+				await pendingConnect.catch(() => undefined);
+			}
+			await this.disposeConnection(outerSessionId);
+			try {
+				await this.options.api.delete(outerSessionId);
+			} catch (error) {
+				// A session already gone remotely must still be deletable
+				// locally, or its row becomes permanently stuck in the UI.
+				const code = error instanceof CloudSessionError ? error.code : "";
+				if (code !== "session_not_found" && code !== "session_expired") {
+					throw error;
+				}
+			}
+			this.knownSessions.delete(outerSessionId);
+			this.ctx.liveSessions.delete(outerSessionId);
+			for (const [requestId, pending] of this.ctx.pendingApprovals) {
+				if (pending.item.sessionId === outerSessionId) {
+					this.ctx.pendingApprovals.delete(requestId);
+				}
+			}
+		} finally {
+			this.deletingSessions.delete(outerSessionId);
+		}
+	}
+
+	private async ensureKnownSession(
+		_outerSessionId: string,
+	): Promise<CloudSessionRecord> {
+		throw new Error("Cloud runtime is not wired in this stack layer");
+	}
+
+	private async refreshKnownSession(
+		_outerSessionId: string,
+	): Promise<CloudSessionRecord | undefined> {
+		return undefined;
+	}
+
 	private async ensureConnection(
 		_outerSessionId: string,
 		_options: { createInner?: boolean } = {},
 	): Promise<CloudConnection> {
 		throw new Error("Cloud runtime is not wired in this stack layer");
+	}
+
+	private async attachExpired(
+		_record: CloudSessionRecord,
+	): Promise<JsonRecord> {
+		throw new Error("Cloud runtime is not wired in this stack layer");
+	}
+
+	private async ensureAttached(_connection: CloudConnection): Promise<void> {}
+
+	private async refreshPendingApprovals(
+		_outerSessionId: string,
+		_connection: CloudConnection,
+	): Promise<void> {}
+
+	private applySessionModel(
+		_connection: CloudConnection,
+		_session: JsonRecord | undefined,
+	): void {}
+
+	private forwardEvent(
+		_outerSessionId: string,
+		_connection: CloudConnection,
+		_event: HubEventEnvelope,
+	): void {}
+
+	private async loadArchivedMessages(
+		_record: CloudSessionRecord,
+	): Promise<unknown[] | null> {
+		return null;
 	}
 
 	private async disposeConnection(_outerSessionId: string): Promise<void> {}
