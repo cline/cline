@@ -390,11 +390,10 @@ function areSessionsEquivalent(
 				getSessionMetadataGitBranch(b.metadata) ||
 			getSessionMetadataTitle(a.metadata) !==
 				getSessionMetadataTitle(b.metadata) ||
-				getSessionMetadataPinned(a.metadata) !==
-					getSessionMetadataPinned(b.metadata) ||
-				a.metadata?.provisioningPhase !==
-					b.metadata?.provisioningPhase ||
-				a.workspaceRoot !== b.workspaceRoot ||
+			getSessionMetadataPinned(a.metadata) !==
+				getSessionMetadataPinned(b.metadata) ||
+			a.metadata?.provisioningPhase !== b.metadata?.provisioningPhase ||
+			a.workspaceRoot !== b.workspaceRoot ||
 			a.cwd !== b.cwd ||
 			a.provider !== b.provider ||
 			a.model !== b.model
