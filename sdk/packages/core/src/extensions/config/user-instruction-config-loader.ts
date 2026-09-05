@@ -1,5 +1,13 @@
-import { readdir, readFile, stat } from "node:fs/promises";
-import { basename, dirname, extname, join, resolve } from "node:path";
+import { readdir, readFile, realpath, stat } from "node:fs/promises";
+import {
+	basename,
+	dirname,
+	extname,
+	isAbsolute,
+	join,
+	relative,
+	resolve,
+} from "node:path";
 import { stripUtf8Bom } from "@cline/shared";
 import {
 	AGENTS_RULES_FILE_NAME,
@@ -12,6 +20,10 @@ import {
 	WORKFLOWS_CONFIG_DIRECTORY_NAME,
 } from "@cline/shared/storage";
 import YAML from "yaml";
+import {
+	type AgentPluginPackageSkill,
+	parseAgentSkillMarkdown,
+} from "../agent-plugin";
 import { resolveAgentPluginSkillDirectories } from "../plugin/plugin-config-loader";
 import {
 	type UnifiedConfigDefinition,
@@ -45,6 +57,13 @@ export interface SkillConfig {
 	disabled?: boolean;
 	instructions: string;
 	frontmatter: Record<string, unknown>;
+	source?: {
+		type: "agent-plugin";
+		pluginName: string;
+		pluginRoot: string;
+		skillRoot: string;
+		filePath: string;
+	};
 }
 
 export interface RuleConfig {
@@ -86,6 +105,7 @@ export interface CreateSkillsConfigDefinitionOptions {
 	workspacePath?: string;
 	includePluginSkills?: boolean;
 	pluginSkillDirectories?: ReadonlyArray<string>;
+	agentPluginSkills?: ReadonlyArray<AgentPluginPackageSkill>;
 	pluginPaths?: ReadonlyArray<string>;
 	cwd?: string;
 }
@@ -154,7 +174,53 @@ function resolveSkillDirectories(
 			}),
 		);
 	}
+	if (options?.agentPluginSkills) {
+		directories.push(
+			...options.agentPluginSkills.map((skill) => skill.directoryPath),
+		);
+	}
 	return dedupeDirectoryPaths(directories);
+}
+
+function isPathWithin(parentPath: string, childPath: string): boolean {
+	const relativePath = relative(parentPath, childPath);
+	return (
+		relativePath === "" ||
+		(!relativePath.startsWith("..") && !isAbsolute(relativePath))
+	);
+}
+
+async function discoverAgentPluginSkillFile(
+	skill: AgentPluginPackageSkill,
+): Promise<ReadonlyArray<UnifiedConfigFileCandidate>> {
+	try {
+		const [pluginRoot, skillRoot, filePath] = await Promise.all([
+			realpath(skill.pluginRoot),
+			realpath(skill.directoryPath),
+			realpath(skill.filePath),
+		]);
+		if (
+			pluginRoot !== resolve(skill.pluginRoot) ||
+			!isPathWithin(pluginRoot, skillRoot) ||
+			!isPathWithin(pluginRoot, filePath) ||
+			!(await stat(skillRoot)).isDirectory() ||
+			!(await stat(filePath)).isFile()
+		) {
+			return [];
+		}
+		return [
+			{
+				directoryPath: skill.directoryPath,
+				fileName: SKILL_FILE_NAME,
+				filePath,
+			},
+		];
+	} catch (error) {
+		if (isIgnorableDirectoryError(error)) {
+			return [];
+		}
+		throw error;
+	}
 }
 
 async function discoverManagedPluginRoots(
@@ -531,6 +597,12 @@ export function createSkillsConfigDefinition(
 	options?: CreateSkillsConfigDefinitionOptions,
 ): UnifiedConfigDefinition<"skill", SkillConfig> {
 	const directories = resolveSkillDirectories(options);
+	const agentPluginSkillsByDirectory = new Map(
+		(options?.agentPluginSkills ?? []).map((skill) => [
+			resolve(skill.directoryPath),
+			skill,
+		]),
+	);
 	const managedRoot = options?.workspacePath
 		? join(options.workspacePath, ".cline")
 		: undefined;
@@ -540,14 +612,47 @@ export function createSkillsConfigDefinition(
 		directories: managedRoot
 			? dedupeDirectoryPaths([...directories, managedRoot])
 			: directories,
-		discoverFiles: discoverSkillFiles,
+		discoverFiles: (directoryPath) => {
+			const agentPluginSkill = agentPluginSkillsByDirectory.get(
+				resolve(directoryPath),
+			);
+			return agentPluginSkill
+				? discoverAgentPluginSkillFile(agentPluginSkill)
+				: discoverSkillFiles(directoryPath);
+		},
 		includeFile: (fileName) => fileName === SKILL_FILE_NAME,
-		parseFile: (context) =>
-			parseSkillConfigFromMarkdown(
+		parseFile: (context) => {
+			const agentPluginSkill = agentPluginSkillsByDirectory.get(
+				resolve(context.directoryPath),
+			);
+			if (!agentPluginSkill) {
+				return parseSkillConfigFromMarkdown(
+					context.content,
+					basename(context.directoryPath),
+				);
+			}
+			const parsed = parseAgentSkillMarkdown(
 				context.content,
-				basename(context.directoryPath),
-			),
-		resolveId: (skill) => normalizeName(skill.name),
+				agentPluginSkill.metadata.name,
+			);
+			return {
+				name: parsed.metadata.name,
+				description: parsed.metadata.description,
+				instructions: parsed.instructions,
+				frontmatter: parsed.frontmatter,
+				source: {
+					type: "agent-plugin",
+					pluginName: agentPluginSkill.pluginName,
+					pluginRoot: agentPluginSkill.pluginRoot,
+					skillRoot: agentPluginSkill.directoryPath,
+					filePath: agentPluginSkill.filePath,
+				},
+			};
+		},
+		resolveId: (skill) =>
+			skill.source?.type === "agent-plugin"
+				? `${normalizeName(skill.source.pluginName)}:${normalizeName(skill.name)}`
+				: normalizeName(skill.name),
 	};
 }
 
