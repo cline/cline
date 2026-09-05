@@ -770,19 +770,7 @@ export class AgentRuntime {
 				);
 
 				finalAssistantMessage = message;
-				this.state.messages.push(message);
-				await this.emit({
-					type: "message-added",
-					snapshot: this.snapshot(),
-					message,
-				});
-				await this.emit({
-					type: "assistant-message",
-					snapshot: this.snapshot(),
-					iteration: this.state.iteration,
-					message,
-					finishReason,
-				});
+				await this.recordAssistantMessage(message, finishReason);
 
 				if (finishReason === "max-tokens" && toolCalls.length === 0) {
 					throw new Error(MAX_TOKENS_INCOMPLETE_TURN_MESSAGE);
@@ -1043,7 +1031,15 @@ export class AgentRuntime {
 		// A truncated turn that produced tool calls proceeds through the normal
 		// loop, which executes them; only text-only truncations are terminal
 		// and worth a recovery attempt.
-		return !turn.message.content.some((part) => part.type === "tool-call");
+		if (turn.message.content.some((part) => part.type === "tool-call")) {
+			return false;
+		}
+		// Provider-executed tool activity lives in metadata, not content, and has
+		// already happened — replaying the turn would repeat its side effects.
+		const modelToolActivities = turn.message.metadata?.modelToolActivities;
+		return !(
+			Array.isArray(modelToolActivities) && modelToolActivities.length > 0
+		);
 	}
 
 	/**
@@ -1055,8 +1051,16 @@ export class AgentRuntime {
 	 * nothing to remove the original turn is returned, so the loop surfaces the
 	 * max-tokens error with the partial content already persisted.
 	 *
-	 * The retried turn is handed back unjudged: the run loop remains the only
-	 * place that decides whether a turn is acceptable. Telemetry here is purely
+	 * The truncated turn is not yet persisted while this runs (the loop records
+	 * a turn only after it returns), so whenever the attempt ends without a
+	 * replacement turn — compaction threw, the retry was aborted, or it errored
+	 * with nothing for the loop to execute — the truncated turn is recorded
+	 * first and the failure surfaces afterwards; the partial answer is never
+	 * lost to the recovery attempt.
+	 *
+	 * A retry that does come back is handed to the loop unjudged: the run loop
+	 * remains the only place that decides whether a turn is acceptable.
+	 * Telemetry here is purely
 	 * observational — `started`, then `retried` with the retry's finish reason
 	 * when the attempt ran, or `failed` when it could not — so it never claims
 	 * anything about the run outcome and cannot contradict it.
@@ -1118,6 +1122,7 @@ export class AgentRuntime {
 				eventType: "recovery_threw",
 				error,
 			});
+			await this.recordAssistantMessage(first.message, first.finishReason);
 			throw error;
 		}
 		// `retried` states only that the compaction and retry ran — it makes no
@@ -1128,7 +1133,40 @@ export class AgentRuntime {
 			phase: "retried",
 			eventType: retry.finishReason,
 		});
+		// No replacement turn came back: keep the truncated one and surface what
+		// ended the retry, exactly as the loop would have for that finish.
+		if (retry.finishReason === "aborted") {
+			await this.recordAssistantMessage(first.message, first.finishReason);
+			throw this.normalizeAbortError();
+		}
+		if (
+			retry.finishReason === "error" &&
+			!retry.message.content.some((part) => part.type === "tool-call")
+		) {
+			await this.recordAssistantMessage(first.message, first.finishReason);
+			throw new Error(this.state.lastError ?? "Model stream failed");
+		}
 		return retry;
+	}
+
+	/** Append an assistant turn to the transcript and announce it. */
+	private async recordAssistantMessage(
+		message: AgentMessage,
+		finishReason: AgentModelFinishReason,
+	): Promise<void> {
+		this.state.messages.push(message);
+		await this.emit({
+			type: "message-added",
+			snapshot: this.snapshot(),
+			message,
+		});
+		await this.emit({
+			type: "assistant-message",
+			snapshot: this.snapshot(),
+			iteration: this.state.iteration,
+			message,
+			finishReason,
+		});
 	}
 
 	private async generateAssistantMessage(options?: {
