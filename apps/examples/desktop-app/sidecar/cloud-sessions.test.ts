@@ -1194,6 +1194,7 @@ beforeAll(() => {
 afterAll(() => {
 	delete process.env.CLINE_CODE_CLOUD_AGENTS;
 });
+
 describe("cloud agents feature flag", () => {
 	it("blocks cloud session creation when the flag is off", async () => {
 		process.env.CLINE_CODE_CLOUD_AGENTS = "0";
