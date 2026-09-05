@@ -223,10 +223,16 @@ export async function handleSessionInput(
 			? (payload.attachments as Record<string, unknown>)
 			: undefined;
 	const userImages = Array.isArray(attachments?.userImages)
-		? attachments.userImages.filter((image) => typeof image === "string")
+		? attachments.userImages.filter(
+				(image): image is string =>
+					typeof image === "string" && image.trim().length > 0,
+			)
 		: undefined;
 	const userFiles = Array.isArray(attachments?.userFiles)
-		? attachments.userFiles.filter((filePath) => typeof filePath === "string")
+		? attachments.userFiles.filter(
+				(filePath): filePath is string =>
+					typeof filePath === "string" && filePath.trim().length > 0,
+			)
 		: undefined;
 	if (!prompt.trim() && !userImages?.length && !userFiles?.length) {
 		return errorReply(

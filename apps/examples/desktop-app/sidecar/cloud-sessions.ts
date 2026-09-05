@@ -2587,6 +2587,7 @@ export class CloudSessionManager {
 							// A dropped transport invalidates the duplicate-prompt
 							// baseline send() computes from live.messages.
 							reconnected.transcriptKnown = false;
+							reconnected.innerSessionId = undefined;
 							void (async () => {
 								await this.resolveInnerSession(outerSessionId, reconnected);
 								if (reconnected.innerSessionId) {
@@ -2738,6 +2739,9 @@ export class CloudSessionManager {
 			workspaceRoot: CLOUD_WORKSPACE_ROOT,
 			cwd: CLOUD_WORKSPACE_ROOT,
 			sessionConfig: {
+				...(connection.remote.metadata.taskId?.trim()
+					? { sessionId: connection.remote.metadata.taskId.trim() }
+					: {}),
 				providerId: "cline",
 				modelId,
 				workspaceRoot: CLOUD_WORKSPACE_ROOT,
@@ -2758,9 +2762,6 @@ export class CloudSessionManager {
 				model: modelId,
 				interactive: true,
 			},
-			...(connection.remote.metadata.taskId?.trim()
-				? { requestedSessionId: connection.remote.metadata.taskId.trim() }
-				: {}),
 			runtimeOptions: { mode: "act" },
 			modelSelection: { provider: "cline", model: modelId },
 			toolPolicies: {
