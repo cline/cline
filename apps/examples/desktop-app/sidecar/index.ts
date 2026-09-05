@@ -1,5 +1,6 @@
 import { homedir } from "node:os";
 import {
+	checkManagedHubBuildMismatch,
 	createClineTelemetryServiceConfig,
 	readGlobalSettings,
 	setHomeDirIfUnset,
@@ -164,6 +165,34 @@ async function main() {
 			broadcastEvent(ctx, "hub_build_mismatch", mismatch);
 		},
 	});
+	// The watcher's first check only runs after its interval, but a mismatch
+	// that already exists at startup - an older Hub this app attached to
+	// because it is still serving other clients' sessions - must prompt
+	// before the user starts working, not half a minute in. Session-manager
+	// init has already settled the hub state, so check once right away. The
+	// broadcast reaches webviews that are already connected; the replay in
+	// createWebSocketHandler covers ones that connect later. Skipped when
+	// CLINE_HUB_PORT pins an explicit endpoint, matching the watcher: such
+	// hosts keep protocol-only compatibility and must not show update prompts.
+	if (!process.env.CLINE_HUB_PORT?.trim()) {
+		void checkManagedHubBuildMismatch()
+			.then((mismatch) => {
+				if (!mismatch || ctx.hubBuildMismatch) {
+					return;
+				}
+				ctx.hubBuildMismatch = mismatch;
+				observability.logger.log(
+					"Managed hub build mismatch detected at startup",
+					{
+						hubBuildId: mismatch.hubBuildId,
+						hubCoreVersion: mismatch.hubCoreVersion,
+						reason: mismatch.reason,
+					},
+				);
+				broadcastEvent(ctx, "hub_build_mismatch", mismatch);
+			})
+			.catch(() => undefined);
+	}
 
 	// A wildcard bind isn't a dialable address; advertise loopback instead.
 	const dialHost = SIDECAR_HOST === "0.0.0.0" ? "127.0.0.1" : SIDECAR_HOST;

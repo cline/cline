@@ -144,8 +144,12 @@ describe("useSessionHistory session mapping", () => {
 				}
 				if (command === "list_routine_schedules") {
 					return {
+						schedules: [{ scheduleId: "sched_daily", name: "Daily report" }],
 						activeExecutions: [{ sessionId: "cron-active" }],
-						lastExecutions: [{ sessionId: "cron-session" }, {}],
+						lastExecutions: [
+							{ sessionId: "cron-session", scheduleId: "sched_daily" },
+							{},
+						],
 					};
 				}
 				return [];
@@ -173,12 +177,55 @@ describe("useSessionHistory session mapping", () => {
 			await Promise.resolve();
 		});
 
+		// The executions list also supplies the schedule identity the session
+		// record itself lacks, so the sidebar can group it with its siblings.
 		expect(
 			current.threads.find((thread) => thread.id === "cron-session"),
-		).toMatchObject({ isScheduled: true });
+		).toMatchObject({
+			isScheduled: true,
+			scheduleId: "sched_daily",
+			scheduleName: "Daily report",
+		});
 		expect(
 			current.threads.find((thread) => thread.id === "regular-session"),
 		).toMatchObject({ isScheduled: false });
+	});
+
+	it("maps the runner's schedule provenance onto sidebar threads", async () => {
+		await act(async () => {
+			root.render(<HookHarness />);
+		});
+		await flush();
+
+		await act(async () => {
+			pendingLists[0].resolve([
+				{
+					...sessionRow("run-session"),
+					source: "core",
+					metadata: {
+						sessionHistoryOrigin: {
+							mode: "automation",
+							trigger: "hub-schedule",
+						},
+						scheduleId: "sched_daily",
+						scheduleName: "Daily report",
+						scheduleExecutionId: "crun_1",
+						scheduleRunNumber: 4,
+					},
+				},
+			]);
+			await Promise.resolve();
+		});
+
+		expect(
+			current.threads.find((thread) => thread.id === "run-session"),
+		).toMatchObject({
+			isScheduled: true,
+			startedAt: "2026-07-20T10:00:00.000Z",
+			scheduleId: "sched_daily",
+			scheduleName: "Daily report",
+			scheduleRunNumber: 4,
+		});
 	});
 });
 

@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAccount } from "@/contexts/account-context";
+import { useOAuthUserCode } from "@/hooks/use-oauth-user-code";
 import { isClineAccountNotAuthenticatedResult } from "@/lib/cline-account-state";
 import { desktopClient, openExternalUrl } from "@/lib/desktop-client";
 import { invalidateProviderCatalogCache } from "@/lib/provider-model-catalog";
@@ -181,6 +182,7 @@ export function AccountView() {
 	const [accountActionPending, setAccountActionPending] = useState<
 		"sign-in" | "sign-out" | null
 	>(null);
+	const deviceUserCode = useOAuthUserCode(accountActionPending === "sign-in");
 	// Organization id being switched to, "" while switching to the personal
 	// account, null when no switch is in flight.
 	const [switchTargetId, setSwitchTargetId] = useState<string | null>(null);
@@ -502,6 +504,14 @@ export function AccountView() {
 						<ExternalLink className="h-4 w-4" />
 					</button>
 				</div>
+				{accountActionPending === "sign-in" && deviceUserCode ? (
+					<p className="text-sm text-muted-foreground">
+						Confirm this code in your browser:{" "}
+						<span className="font-mono font-medium text-foreground">
+							{deviceUserCode}
+						</span>
+					</p>
+				) : null}
 			</div>
 		</div>
 	);
