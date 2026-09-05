@@ -1,0 +1,45 @@
+---
+title: "OpenZoo"
+description: "Configure Cline with OpenZoo, an OpenAI-compatible provider that pays per call over x402 from a local proxy — no account."
+---
+
+OpenZoo is an OpenAI-compatible model provider with no account. You run a small
+local proxy (`npx openzoo`) that pays for each request over the x402 protocol
+from a local burner wallet; Cline talks to the proxy like any other
+OpenAI-compatible endpoint.
+
+**Website:** [https://openzoo.fun](https://openzoo.fun)
+
+### Quickstart
+
+1. Start the proxy: `npx openzoo` (listens on `http://localhost:8402/v1`).
+2. In Cline settings, set **API Provider** to "OpenAI Compatible".
+3. Set **Base URL** to `http://localhost:8402/v1`.
+4. Set **API Key** to any non-empty value, e.g. `sk-openzoo` — the local proxy
+   ignores it.
+5. Set **Model ID** to `auto` (the proxy picks a model per request) or any id
+   from the catalog, e.g. `claude-sonnet-5`.
+
+### Notes
+
+-   **Wallet:** `npx openzoo address` prints the proxy's wallet; fund it with
+    USDC on Solana or Base. `npx openzoo balance` shows what is left.
+-   **Model list:** fetch live model ids and pricing (free) from
+    `http://localhost:8402/v1/models`. Ids are bare model names, like
+    `claude-sonnet-5` or `gpt-4o-mini`.
+-   **Streaming:** SSE streaming is supported.
+-   **Hosted endpoint:** `https://api.openzoo.fun/v1` answers HTTP 402 unless
+    the caller pays x402 or presents an OpenZoo subscription key
+    (`ozk_live_…`). Plain OpenAI clients cannot pay x402, so use the local
+    proxy.
+
+### Troubleshooting
+
+-   **Connection errors:** confirm `npx openzoo` is running and the Base URL is
+    `http://localhost:8402/v1`.
+-   **HTTP 402 from the proxy:** the local wallet is unfunded — send USDC to
+    the address from `npx openzoo address`.
+-   **HTTP 402 from `api.openzoo.fun`:** Cline is pointed at the hosted
+    endpoint without a subscription key; use the local proxy instead.
+-   **"Model Not Found":** copy the model id exactly as returned by
+    `/v1/models`.
