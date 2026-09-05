@@ -557,6 +557,120 @@ describe("AgentRuntime", () => {
 				error_message: "prepareTurn exploded",
 			}),
 		);
+		// The truncated answer is not lost when recovery itself fails.
+		expect(result.messages.at(-1)).toMatchObject({
+			role: "assistant",
+			content: [{ type: "text", text: "truncated..." }],
+		});
+	});
+
+	it("does not retry a truncated turn that already performed provider-executed tool activity", async () => {
+		const longPrompt = `Please review this: ${"lots of context ".repeat(50)}`;
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "search_1",
+					toolName: "web_search",
+					execution: "client",
+					input: { query: "current weather" },
+				},
+				{
+					type: "tool-result",
+					toolCallId: "search_1",
+					toolName: "web_search",
+					execution: "client",
+					output: { results: [] },
+				},
+				{ type: "text-delta", text: "The weather is" },
+				{ type: "finish", reason: "max-tokens" },
+			],
+		]);
+		const compactedMessages: AgentMessage[] = [
+			{ role: "user", content: [{ type: "text", text: "compacted" }] },
+		];
+		const prepareTurn = vi.fn(
+			async (context: { overflowRecovery?: boolean }) =>
+				context.overflowRecovery ? { messages: compactedMessages } : undefined,
+		);
+		const { capture, telemetry } = createTelemetryMock();
+		const runtime = new AgentRuntime({ model, prepareTurn, telemetry });
+
+		const result = await runtime.run(longPrompt);
+
+		// Replaying the turn would re-run the provider-executed tool, so the
+		// truncation surfaces as before instead of being retried.
+		expect(model.requests).toHaveLength(1);
+		expect(result.status).toBe("failed");
+		expect(result.error?.message).toContain("maximum output token limit");
+		expect(result.messages.at(-1)?.metadata?.modelToolActivities).toHaveLength(
+			1,
+		);
+		const recoveryEvents = capture.mock.calls
+			.map(([input]) => input)
+			.filter((input) => input.event === TASK_MAX_TOKENS_RECOVERY_EVENT);
+		expect(recoveryEvents).toHaveLength(0);
+	});
+
+	it("keeps the truncated turn when the compacted retry is aborted", async () => {
+		const longPrompt = `Please review this: ${"lots of context ".repeat(50)}`;
+		let runtime: AgentRuntime;
+		const model = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "truncated..." },
+				{ type: "finish", reason: "max-tokens" },
+			],
+			() => {
+				runtime.abort("user cancelled");
+				return [{ type: "finish", reason: "aborted" }];
+			},
+		]);
+		const compactedMessages: AgentMessage[] = [
+			{ role: "user", content: [{ type: "text", text: "compacted" }] },
+		];
+		const prepareTurn = vi.fn(
+			async (context: { overflowRecovery?: boolean }) =>
+				context.overflowRecovery ? { messages: compactedMessages } : undefined,
+		);
+		runtime = new AgentRuntime({ model, prepareTurn });
+
+		const result = await runtime.run(longPrompt);
+
+		expect(result.status).toBe("aborted");
+		expect(result.messages.at(-1)).toMatchObject({
+			role: "assistant",
+			content: [{ type: "text", text: "truncated..." }],
+		});
+	});
+
+	it("keeps the truncated turn when the compacted retry fails without a replacement", async () => {
+		const longPrompt = `Please review this: ${"lots of context ".repeat(50)}`;
+		const model = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "truncated..." },
+				{ type: "finish", reason: "max-tokens" },
+			],
+			() => [{ type: "finish", reason: "error", error: "stream dropped" }],
+		]);
+		const compactedMessages: AgentMessage[] = [
+			{ role: "user", content: [{ type: "text", text: "compacted" }] },
+		];
+		const prepareTurn = vi.fn(
+			async (context: { overflowRecovery?: boolean }) =>
+				context.overflowRecovery ? { messages: compactedMessages } : undefined,
+		);
+		const runtime = new AgentRuntime({ model, prepareTurn });
+
+		const result = await runtime.run(longPrompt);
+
+		// The retry's failure is what surfaces, but the original partial answer
+		// stays in the transcript.
+		expect(result.status).toBe("failed");
+		expect(result.error?.message).toBe("stream dropped");
+		expect(result.messages.at(-1)).toMatchObject({
+			role: "assistant",
+			content: [{ type: "text", text: "truncated..." }],
+		});
 	});
 
 	it("does not persist an empty assistant message when the model stream fails", async () => {
