@@ -72,7 +72,7 @@ describe("run handlers", () => {
 		);
 	});
 
-	it("accepts an image-only session input", async () => {
+	it("accepts image-only input and rejects blank attachments", async () => {
 		const runTurn = vi.fn().mockResolvedValue(undefined);
 		const ctx = createContext({ runTurn });
 		const image = "data:image/png;base64,aGVsbG8=";
@@ -81,11 +81,14 @@ describe("run handlers", () => {
 			handleSessionInput(ctx, {
 				version: "v1",
 				command: "session.send_input",
-				requestId: "req-image",
+				requestId: "req-image-only",
 				sessionId: "session-1",
 				payload: {
 					prompt: "",
-					attachments: { userImages: [image] },
+					attachments: {
+						userImages: ["", "  ", image],
+						userFiles: ["", "\t"],
+					},
 				},
 			}),
 		).resolves.toMatchObject({ ok: true });
@@ -94,8 +97,26 @@ describe("run handlers", () => {
 			expect.objectContaining({
 				prompt: "",
 				userImages: [image],
+				userFiles: [],
 			}),
 		);
+
+		await expect(
+			handleSessionInput(ctx, {
+				version: "v1",
+				command: "session.send_input",
+				requestId: "req-blank-attachments",
+				sessionId: "session-1",
+				payload: {
+					prompt: "",
+					attachments: { userImages: [" "], userFiles: ["\t"] },
+				},
+			}),
+		).resolves.toMatchObject({
+			error: { code: "invalid_session_input" },
+			ok: false,
+		});
+		expect(runTurn).toHaveBeenCalledOnce();
 	});
 
 	it("does not publish run start for an unknown session", async () => {

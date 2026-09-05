@@ -1715,12 +1715,17 @@ describe("CloudSessionManager", () => {
 		expect(await resolveHeaders?.()).toEqual({
 			Authorization: "Bearer workos:first",
 		});
+		hub.listedSessions = [{ sessionId: "inner-replacement", updatedAt: 30 }];
 		expect(await resolveHeaders?.()).toEqual({
 			Authorization: "Bearer workos:refreshed",
 		});
 		await vi.waitFor(() => {
 			expect(
-				hub.commands.some((entry) => entry.command === "session.get"),
+				hub.commands.some(
+					(entry) =>
+						entry.command === "session.attach" &&
+						entry.sessionId === "inner-replacement",
+				),
 			).toBe(true);
 		});
 		expect(
@@ -2184,8 +2189,8 @@ describe("CloudSessionManager", () => {
 				command: "session.create",
 				payload: expect.objectContaining({
 					workspaceRoot: "/workspace",
-					requestedSessionId: "task-created",
 					sessionConfig: expect.objectContaining({
+						sessionId: "task-created",
 						thinking: true,
 						reasoningEffort: "high",
 					}),
