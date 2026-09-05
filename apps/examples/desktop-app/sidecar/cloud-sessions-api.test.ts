@@ -130,6 +130,7 @@ describe("CloudSessionApi", () => {
 	it("waits for the current asynchronous provisioning contract", async () => {
 		vi.useFakeTimers();
 		let statusCalls = 0;
+		const phases: Array<string | undefined> = [];
 		try {
 			const api = new CloudSessionApi({
 				apiBaseUrl: "https://api.example",
@@ -153,15 +154,19 @@ describe("CloudSessionApi", () => {
 						data: {
 							sessionId: "ses-1",
 							status: statusCalls === 1 ? "provisioning" : "ready",
+							phase: statusCalls === 1 ? "cloning_repo" : "ready",
 						},
 					});
 				},
 			});
 
-			const creating = api.create({
-				modelId: "anthropic/claude-sonnet-5",
-				repoUrl: "https://github.com/cline/test",
-			});
+			const creating = api.create(
+				{
+					modelId: "anthropic/claude-sonnet-5",
+					repoUrl: "https://github.com/cline/test",
+				},
+				({ phase }) => phases.push(phase),
+			);
 			await vi.waitFor(() => expect(statusCalls).toBe(1));
 			await vi.advanceTimersByTimeAsync(3_000);
 
@@ -170,6 +175,7 @@ describe("CloudSessionApi", () => {
 				sandboxUrl: "",
 			});
 			expect(statusCalls).toBe(2);
+			expect(phases).toEqual(["cloning_repo", "ready"]);
 		} finally {
 			vi.useRealTimers();
 		}

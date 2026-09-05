@@ -389,6 +389,7 @@ describe("CloudSessionManager lifecycle", () => {
 		expect(
 			cloudSessionToDiscoveryRecord({
 				...REMOTE_SESSION,
+				lastActivityAt: "2026-08-05T10:02:00.000Z",
 				repoContext: {
 					...REMOTE_SESSION.repoContext,
 					branch: "feature/cloud",
@@ -400,6 +401,7 @@ describe("CloudSessionManager lifecycle", () => {
 			executionTarget: "cloud",
 			repoUrl: "https://github.com/cline/test",
 			workspaceRoot: "/workspace",
+			lastActivityAt: "2026-08-05T10:02:00.000Z",
 			branch: "feature/cloud",
 			metadata: {
 				git: {

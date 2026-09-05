@@ -476,9 +476,9 @@ export class NodeHubClient {
 				} catch {
 					// best-effort close
 				}
-				if (!this.closedByClient && this.hasActiveSubscriptions()) {
-					this.scheduleReconnect();
-				}
+			}
+			if (!this.closedByClient && this.hasActiveSubscriptions()) {
+				this.scheduleReconnect();
 			}
 			throw error;
 		}

@@ -1655,12 +1655,14 @@ export async function handleChatSessionCommand(
 				return await cloud.attach(sessionId);
 			case "send": {
 				if (!sessionId) throw new Error("sessionId is required");
-				const prompt = request.prompt?.trim();
-				if (!prompt) throw new Error("prompt is required");
 				if (request.attachments?.userFiles?.length) {
 					throw new Error(
 						"File attachments are not supported in cloud sessions",
 					);
+				}
+				const prompt = request.prompt?.trim() ?? "";
+				if (!prompt && !request.attachments?.userImages?.length) {
+					throw new Error("prompt or image is required");
 				}
 				const modelId = String(
 					request.config?.model ?? request.config?.modelId ?? "",

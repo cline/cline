@@ -3,6 +3,7 @@ import type { HubEventEnvelope } from "@cline/shared";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { handleChatSessionCommand } from "./chat-session";
 import {
+	type CloudProvisioningPhase,
 	CloudSessionApi,
 	CloudSessionError,
 	CloudSessionManager,
@@ -425,7 +426,7 @@ describe("Cloud sessions sidecar wiring", () => {
 		);
 	});
 
-	it("forwards cloud images and continues rejecting file attachments", async () => {
+	it("forwards image-only cloud messages and rejects file attachments", async () => {
 		const { ctx } = createContext();
 		const hub = new FakeHubClient();
 		const manager = new CloudSessionManager(ctx, {
@@ -442,7 +443,7 @@ describe("Cloud sessions sidecar wiring", () => {
 		await handleChatSessionCommand(ctx, {
 			action: "send",
 			sessionId: "ses-outer",
-			prompt: "Inspect this image",
+			prompt: "",
 			attachments: { userImages: [image] },
 			config: {
 				executionTarget: "cloud",
@@ -453,7 +454,7 @@ describe("Cloud sessions sidecar wiring", () => {
 		expect(hub.commands.at(-1)).toMatchObject({
 			command: "session.send_input",
 			payload: {
-				prompt: "Inspect this image",
+				prompt: "",
 				delivery: undefined,
 				attachments: { userImages: [image] },
 			},
@@ -760,8 +761,12 @@ describe("Cloud sessions sidecar wiring", () => {
 						},
 					},
 				],
-				create: () =>
+				create: (
+					_input: unknown,
+					onStatus?: (status: { phase?: CloudProvisioningPhase }) => void,
+				) =>
 					new Promise((resolve) => {
+						onStatus?.({ phase: "cloning_repo" });
 						finishCreate = resolve;
 					}),
 			} as unknown as CloudSessionApi,
@@ -806,7 +811,7 @@ describe("Cloud sessions sidecar wiring", () => {
 		const placeholderId = String(placeholder?.sessionId);
 		await expect(
 			handleCommand(ctx, "get_cloud_provisioning_outcome", { placeholderId }),
-		).resolves.toEqual({ status: "provisioning" });
+		).resolves.toEqual({ status: "provisioning", phase: "cloning_repo" });
 		await expect(manager.attach(placeholderId)).resolves.toMatchObject({
 			sessionId: placeholderId,
 			status: "provisioning",
