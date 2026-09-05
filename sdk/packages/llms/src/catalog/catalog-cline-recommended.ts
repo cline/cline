@@ -10,6 +10,7 @@ export interface ClineRecommendedModelEntry {
 export interface ClineRecommendedModelsPayload {
 	clinePass?: ClineRecommendedModelEntry[];
 	free?: ClineRecommendedModelEntry[];
+	clineCloud?: ClineRecommendedModelEntry[];
 }
 
 type ModelCapabilities = Pick<
@@ -70,10 +71,11 @@ function buildModelsNameMap(
 export function normalizeClineRecommendedProviderModels(
 	payload: ClineRecommendedModelsPayload,
 	openRouterModels: Record<string, ModelInfo>,
+	options: { includeClineCloudModels?: boolean } = {},
 ): Record<string, Record<string, ModelInfo>> {
 	const clinePass = payload.clinePass ?? [];
 	const models: Record<string, ModelInfo> = {};
-	const clineFreeModels: Record<string, ModelInfo> = {};
+	const clineModels: Record<string, ModelInfo> = {};
 	const openRouterModelsByName = buildModelsNameMap(openRouterModels);
 
 	clinePass.forEach((entry) => {
@@ -88,11 +90,10 @@ export function normalizeClineRecommendedProviderModels(
 		};
 	});
 
-	// Cline free models are selectable on the ClinePass provider too (same API
-	// underneath; they ride usage billing at $0 instead of the subscription quota).
-	// Unlike pass models their ids are full OpenRouter-style ids or cline-free ids,
-	// so look up capabilities by full id before falling back to the slug map.
-	(payload.free ?? []).forEach((entry) => {
+	const addClineModel = (
+		entry: ClineRecommendedModelEntry,
+		includeInClinePass: boolean,
+	) => {
 		const capabilities =
 			openRouterModels?.[entry.id] ??
 			findORModelCapabilities(entry, openRouterModelsByName);
@@ -114,12 +115,12 @@ export function normalizeClineRecommendedProviderModels(
 			description: entry.description,
 		};
 
-		clineFreeModels[entry.id] = {
+		clineModels[entry.id] = {
 			...modelInfo,
 			pricing: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 		};
 
-		if (models[entry.id]) {
+		if (!includeInClinePass || models[entry.id]) {
 			return;
 		}
 
@@ -127,11 +128,20 @@ export function normalizeClineRecommendedProviderModels(
 			...modelInfo,
 			pricing: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 		};
+	};
+
+	(payload.free ?? []).forEach((entry) => {
+		addClineModel(entry, true);
 	});
+	if (options.includeClineCloudModels) {
+		(payload.clineCloud ?? []).forEach((entry) => {
+			addClineModel(entry, false);
+		});
+	}
 
 	const result: Record<string, Record<string, ModelInfo>> = {};
-	if (Object.keys(clineFreeModels).length > 0) {
-		result[CLINE_PROVIDER_ID] = clineFreeModels;
+	if (Object.keys(clineModels).length > 0) {
+		result[CLINE_PROVIDER_ID] = clineModels;
 	}
 	if (clinePass.length > 0) {
 		result[CLINE_PASS_PROVIDER_ID] = models;

@@ -78,6 +78,41 @@ describe("resolveProviderConfig", () => {
 		);
 	});
 
+	it("includes Cline Cloud models only for explicit cloud callers", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async (input: string | URL | Request) => {
+				if (String(input) === "https://models.dev/api.json") {
+					return new Response(JSON.stringify({}), { status: 200 });
+				}
+				return new Response(
+					JSON.stringify({
+						clineCloud: [
+							{
+								id: "cline-cloud/cloud-only",
+								name: "Cloud Only",
+							},
+						],
+					}),
+					{ status: 200 },
+				);
+			}),
+		);
+
+		const local = await resolveProviderConfig("cline", {
+			loadLatestOnInit: true,
+			failOnError: false,
+		});
+		const cloud = await resolveProviderConfig("cline", {
+			loadLatestOnInit: true,
+			includeClineCloudModels: true,
+			failOnError: false,
+		});
+
+		expect(local?.knownModels).not.toHaveProperty("cline-cloud/cloud-only");
+		expect(cloud?.knownModels).toHaveProperty("cline-cloud/cloud-only");
+	});
+
 	it("filters image-output models from the merged Cline catalog", async () => {
 		vi.stubGlobal(
 			"fetch",

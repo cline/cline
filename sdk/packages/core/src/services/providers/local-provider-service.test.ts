@@ -556,6 +556,51 @@ describe("addLocalProvider – model ID parsing via modelsSourceUrl", () => {
 		});
 	});
 
+	it("adds live Cline Cloud models to the Cline provider", async () => {
+		const fetchMock = vi.fn(async (url: string) => {
+			if (url === "https://models.dev/api.json") {
+				return new Response(JSON.stringify({}), { status: 200 });
+			}
+
+			return new Response(
+				JSON.stringify({
+					free: [
+						{
+							id: "cline-free/live-free-model",
+							name: "Live Free Model",
+						},
+					],
+					clineCloud: [
+						{
+							id: "cline-cloud/claude-sonnet-4.6",
+							name: "Claude Sonnet 4.6",
+						},
+					],
+				}),
+				{ status: 200 },
+			);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const { models } = await getLocalProviderModels("cline", undefined, {
+			loadLatest: true,
+		});
+
+		expect(fetchMock).toHaveBeenCalledTimes(3);
+		expect(models).toContainEqual(
+			expect.objectContaining({
+				id: "cline-cloud/claude-sonnet-4.6",
+				name: "Claude Sonnet 4.6",
+			}),
+		);
+		expect(models).toContainEqual(
+			expect.objectContaining({
+				id: "cline-free/live-free-model",
+				featured: expect.objectContaining({ tier: "free" }),
+			}),
+		);
+	});
+
 	it("falls back to generated ClinePass models when no live ClinePass models are found", async () => {
 		const fetchMock = vi.fn(async (url: string) => {
 			if (url === "https://models.dev/api.json") {

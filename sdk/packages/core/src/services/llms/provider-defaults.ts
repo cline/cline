@@ -812,44 +812,58 @@ async function getPrivateProviderModels(
 
 async function fetchLiveModelsCatalog(
 	url: string,
+	includeClineCloudModels: boolean,
 ): Promise<Record<string, Record<string, ModelInfo>>> {
-	return Llms.fetchLiveProviderModels(url, globalThis.fetch);
+	return Llms.fetchLiveProviderModels(url, globalThis.fetch, {
+		includeClineCloudModels,
+	});
 }
 
 export async function getLiveModelsCatalog(
-	options: Pick<ModelCatalogConfig, "url" | "cacheTtlMs"> = {},
+	options: Pick<
+		ModelCatalogConfig,
+		"url" | "cacheTtlMs" | "includeClineCloudModels"
+	> = {},
 ): Promise<Record<string, Record<string, ModelInfo>>> {
 	const url = options.url ?? DEFAULT_MODELS_CATALOG_URL;
 	const cacheTtlMs = options.cacheTtlMs ?? DEFAULT_MODELS_CATALOG_CACHE_TTL_MS;
+	const includeClineCloudModels = options.includeClineCloudModels === true;
+	const cacheKey = `${url}\0cloud=${includeClineCloudModels}`;
 	const now = Date.now();
 
-	const cached = MODELS_CATALOG_CACHE.get(url);
+	const cached = MODELS_CATALOG_CACHE.get(cacheKey);
 	if (cached && cached.expiresAt > now) {
 		return cached.data;
 	}
 
-	const inFlight = MODELS_CATALOG_IN_FLIGHT.get(url);
+	const inFlight = MODELS_CATALOG_IN_FLIGHT.get(cacheKey);
 	if (inFlight) {
 		return inFlight;
 	}
 
-	const request = fetchLiveModelsCatalog(url)
+	const request = fetchLiveModelsCatalog(url, includeClineCloudModels)
 		.then((data) => {
-			MODELS_CATALOG_CACHE.set(url, { data, expiresAt: now + cacheTtlMs });
+			MODELS_CATALOG_CACHE.set(cacheKey, {
+				data,
+				expiresAt: now + cacheTtlMs,
+			});
 			return data;
 		})
 		.finally(() => {
-			MODELS_CATALOG_IN_FLIGHT.delete(url);
+			MODELS_CATALOG_IN_FLIGHT.delete(cacheKey);
 		});
 
-	MODELS_CATALOG_IN_FLIGHT.set(url, request);
+	MODELS_CATALOG_IN_FLIGHT.set(cacheKey, request);
 	return request;
 }
 
 export function clearLiveModelsCatalogCache(url?: string): void {
 	if (url) {
-		MODELS_CATALOG_CACHE.delete(url);
-		MODELS_CATALOG_IN_FLIGHT.delete(url);
+		for (const includeClineCloudModels of [false, true]) {
+			const cacheKey = `${url}\0cloud=${includeClineCloudModels}`;
+			MODELS_CATALOG_CACHE.delete(cacheKey);
+			MODELS_CATALOG_IN_FLIGHT.delete(cacheKey);
+		}
 		return;
 	}
 

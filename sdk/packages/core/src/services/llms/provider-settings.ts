@@ -129,6 +129,7 @@ export type OcaSettings = z.infer<typeof OcaSettingsSchema>;
 
 export const ModelCatalogSettingsSchema = z.object({
 	loadLatestOnInit: z.boolean().optional(),
+	includeClineCloudModels: z.boolean().optional(),
 	loadPrivateOnAuth: z.boolean().optional(),
 	url: z.string().url().optional(),
 	cacheTtlMs: z.number().int().positive().optional(),
@@ -301,6 +302,8 @@ export function toProviderConfig(
 		modelCatalog: settings.modelCatalog
 			? {
 					loadLatestOnInit: settings.modelCatalog.loadLatestOnInit,
+					includeClineCloudModels:
+						settings.modelCatalog.includeClineCloudModels,
 					loadPrivateOnAuth: settings.modelCatalog.loadPrivateOnAuth,
 					url: settings.modelCatalog.url,
 					cacheTtlMs: settings.modelCatalog.cacheTtlMs,

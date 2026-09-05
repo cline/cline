@@ -564,6 +564,38 @@ describe("models-dev-catalog", () => {
 		);
 	});
 
+	it("includes Cline Cloud models only when explicitly requested", () => {
+		const payload = {
+			clinePass: [{ id: "cline-pass/glm-5.2", name: "glm-5.2" }],
+			clineCloud: [
+				{
+					id: "cline-cloud/claude-sonnet-4.6",
+					name: "Claude Sonnet 4.6",
+				},
+			],
+		};
+		expect(
+			normalizeClineRecommendedProviderModels(payload, {}).cline ?? {},
+		).not.toHaveProperty("cline-cloud/claude-sonnet-4.6");
+
+		const result = normalizeClineRecommendedProviderModels(
+			payload,
+			{},
+			{
+				includeClineCloudModels: true,
+			},
+		);
+
+		expect(result.cline?.["cline-cloud/claude-sonnet-4.6"]).toMatchObject({
+			id: "cline-cloud/claude-sonnet-4.6",
+			name: "Claude Sonnet 4.6",
+			pricing: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+		});
+		expect(result["cline-pass"]).not.toHaveProperty(
+			"cline-cloud/claude-sonnet-4.6",
+		);
+	});
+
 	it("labels a Cline free model when its name matches a ClinePass model", () => {
 		const result = normalizeClineRecommendedProviderModels(
 			{
