@@ -105,6 +105,11 @@ const HistoryViewItem = ({
 							Legacy
 						</span>
 					)}
+					{item.isImportable && (
+						<span className="text-xs uppercase rounded px-1.5 py-0.5 bg-accent/20 text-description flex-shrink-0">
+							{item.sourceTool ?? "Imported"}
+						</span>
+					)}
 					<div className="flex gap-2 flex-shrink-0">
 						<Button
 							aria-label="Delete"
@@ -228,6 +233,9 @@ const HistoryViewItem = ({
 							</div>
 						</div>
 					</Button>
+				)}
+				{item.isImportable && item.preview && !expanded && (
+					<div className="text-description text-xs line-clamp-2">{item.preview}</div>
 				)}
 			</div>
 		</div>

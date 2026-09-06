@@ -5,6 +5,7 @@ import type {
 	CompareCheckpointResult,
 	CoreSessionEvent,
 	HookEventPayload,
+	ImportableSessionSummary,
 	PendingPromptMutationResult,
 	PendingPromptsDeleteInput,
 	PendingPromptsListInput,
@@ -15,6 +16,9 @@ import type {
 	SessionAccumulatedUsage,
 	SessionCompactionState,
 	SessionHistoryRecord,
+	SessionImportOptions,
+	SessionImportRequest,
+	SessionImportResult,
 	SessionPendingPrompt,
 	SessionRecord,
 	StartSessionInput,
@@ -36,6 +40,8 @@ export interface SdkSessionHost {
 	listHistory(options?: ClineCoreListHistoryOptions): Promise<SessionHistoryRecord[]>
 	delete(sessionId: string): Promise<boolean>
 	readMessages(sessionId: string): Promise<SdkInitialMessages>
+	listImportableSessions?(options?: Pick<SessionImportOptions, "workspaceRoot">): Promise<ImportableSessionSummary[]>
+	importSessions?(input: { requests: SessionImportRequest[]; options?: SessionImportOptions }): Promise<SessionImportResult[]>
 	/**
 	 * Like readMessages, but prefers the live in-memory conversation when the
 	 * session is still resident, so an in-flight (or just-aborted) turn is not

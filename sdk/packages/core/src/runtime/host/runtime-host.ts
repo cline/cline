@@ -19,6 +19,12 @@ import type {
 	SessionPendingPrompt,
 } from "../../types/events";
 import type { SessionRecord } from "../../types/sessions";
+import type {
+	ImportableSessionSummary,
+	SessionImportOptions,
+	SessionImportRequest,
+	SessionImportResult,
+} from "../../services/session-import";
 import type { RuntimeCapabilities } from "../capabilities";
 import type { ConnectionUpdate } from "../config/connection-update";
 
@@ -389,6 +395,11 @@ export interface RuntimeHost {
 	readSessionMessages(
 		sessionId: string,
 	): Promise<LlmsProviders.MessageWithMetadata[]>;
+	listImportableSessions?(options?: Pick<SessionImportOptions, "workspaceRoot">): Promise<ImportableSessionSummary[]>;
+	importSessions?(input: {
+		requests: SessionImportRequest[];
+		options?: SessionImportOptions;
+	}): Promise<SessionImportResult[]>;
 	/**
 	 * Like {@link readSessionMessages}, but prefers the resident session's
 	 * in-memory conversation over the persisted transcript. Disk persistence

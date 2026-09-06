@@ -13,6 +13,7 @@ import { CoreSessionService } from "../../session/services/session-service";
 import { SqliteSessionStore } from "../storage/sqlite-session-store";
 import { ClaudeCodeImportAdapter } from "./claude-code";
 import { CodexImportAdapter } from "./codex";
+import { CursorImportAdapter } from "./cursor";
 import { OpencodeImportAdapter } from "./opencode";
 import {
 	IMPORT_MISSING_TOOL_RESULT_TEXT,
@@ -258,6 +259,138 @@ describe("ClaudeCodeImportAdapter", () => {
 		);
 		const adapter = new ClaudeCodeImportAdapter({ projectsDir });
 		expect(adapter.discover()).toHaveLength(0);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Cursor fixtures
+// ---------------------------------------------------------------------------
+
+function writeCursorFixture(projectsDir: string): void {
+	const projectDir = join(projectsDir, "workspace-demo", "agent-transcripts");
+	mkdirSync(projectDir, { recursive: true });
+	writeFileSync(
+		join(projectDir, "cursor-chat.jsonl"),
+		[
+			{
+				type: "session",
+				cwd: "/workspace/demo",
+				title: "Fix parser bug",
+				timestamp: "2026-01-03T10:00:00.000Z",
+			},
+			{
+				role: "user",
+				content: "fix the parser",
+				timestamp: "2026-01-03T10:00:01.000Z",
+			},
+			{
+				role: "assistant",
+				provider: "anthropic",
+				model: "claude-sonnet",
+				content: [
+					{ type: "text", text: "I will inspect it." },
+					{
+						type: "function_call",
+						call_id: "call_1",
+						name: "read_file",
+						arguments: '{"path":"parser.ts"}',
+					},
+				],
+				timestamp: "2026-01-03T10:00:02.000Z",
+			},
+			{
+				role: "user",
+				content: [
+					{
+						type: "function_call_output",
+						call_id: "call_1",
+						output: "export function parse() {}",
+					},
+				],
+				timestamp: "2026-01-03T10:00:03.000Z",
+			},
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "image_url",
+						image_url: { url: "data:image/png;base64,ZmFrZQ==" },
+					},
+				],
+				timestamp: "2026-01-03T10:00:04.000Z",
+			},
+			"not json",
+		]
+			.map((line) => (typeof line === "string" ? line : JSON.stringify(line)))
+			.join("\n") + "\n",
+	);
+
+	const otherProjectDir = join(projectsDir, "other-project");
+	mkdirSync(otherProjectDir, { recursive: true });
+	writeFileSync(
+		join(otherProjectDir, "other.jsonl"),
+		JSON.stringify({
+			cwd: "/workspace/other",
+			role: "user",
+			content: "other",
+		}) + "\n",
+	);
+}
+
+describe("CursorImportAdapter", () => {
+	it("discovers matching JSONL chats and preserves standard content blocks", () => {
+		const projectsDir = tempDir("cursor-import-");
+		writeCursorFixture(projectsDir);
+		const adapter = new CursorImportAdapter({
+			projectsDir,
+			workspaceRoot: "/workspace/demo",
+		});
+
+		const discovered = adapter.discover();
+		expect(discovered).toHaveLength(1);
+		expect(discovered[0].sourceId).toBe(
+			"workspace-demo/agent-transcripts/cursor-chat",
+		);
+		expect(discovered[0].title).toBe("Fix parser bug");
+		expect(discovered[0].preview).toBe("fix the parser");
+
+		const converted = adapter.convert(discovered[0].sourceId);
+		expect(converted.provider).toBe("anthropic");
+		expect(converted.model).toBe("claude-sonnet");
+		expect(converted.messages.map((message) => message.role)).toEqual([
+			"user",
+			"assistant",
+			"user",
+			"assistant",
+		]);
+		expect(blocks(converted.messages[1])).toEqual([
+			{ type: "text", text: "I will inspect it." },
+			{
+				type: "tool_use",
+				id: "call_1",
+				name: "read_file",
+				input: { path: "parser.ts" },
+			},
+		]);
+		expect(blocks(converted.messages[2])[0]).toMatchObject({
+			type: "tool_result",
+			tool_use_id: "call_1",
+		});
+		expect(blocks(converted.messages[3])[0]).toMatchObject({
+			type: "image",
+			mediaType: "image/png",
+			data: "ZmFrZQ==",
+		});
+	});
+
+	it("isolates malformed files and supports an unfiltered workspace", () => {
+		const projectsDir = tempDir("cursor-import-");
+		writeCursorFixture(projectsDir);
+		const adapter = new CursorImportAdapter({ projectsDir });
+		expect(adapter.discover()).toHaveLength(2);
+		expect(() => adapter.convert("missing")).toThrow(
+			"Cursor session missing not found",
+		);
 	});
 });
 

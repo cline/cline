@@ -1,0 +1,31 @@
+---
+title: "Importing Cursor sessions"
+description: "Bring Cursor Agent conversations into Cline and continue them with your Cline configuration."
+---
+
+# Importing Cursor sessions
+
+Cline can discover Cursor Agent transcript files for a project and show them in the VS Code History view or session import dialog. Opening or importing one creates a native Cline session. Imported sessions are copies: Cline never writes to Cursor's files.
+
+## Import a session
+
+1. Open the project folder in Cline.
+2. Open History. Matching unimported Cursor conversations are labeled `Cursor`.
+3. Select a Cursor conversation to import it lazily, or use the session import dialog to import several.
+4. Send a new prompt in the imported session.
+
+The next Cline turn uses the provider and model currently configured in Cline. The original Cursor provider and model, when available, remain session metadata.
+
+## What is preserved
+
+Cline imports user and assistant text, timestamps, titles, working-directory metadata, standard tool calls and results, and inline images when the source transcript contains them in a supported form. Cline's import sanitizer repairs incomplete tool-call pairs and removes provider-specific signatures before the conversation is resumed.
+
+Malformed lines and unsupported event types are skipped when the rest of the transcript is usable. A transcript with no usable conversational messages is not imported.
+
+## Workspace matching and limitations
+
+Discovery is scoped to the open project when the workspace path is available. Cursor's local storage format is not a public stable API and can vary by Cursor version, platform, profile, and workspace type. The current adapter reads JSONL Agent transcript files under Cursor's project data directory. Cursor SQLite indexes and chats stored only in opaque database values are not treated as reliable transcript sources yet.
+
+Cursor may be running while a transcript is being written. Cline reads source files without modifying them and tolerates a partial final line; repeat the scan after the conversation is complete if a chat is not shown.
+
+Imported sessions are deduplicated by their Cursor source path and session identifier. Repeating an import does not create another Cline session.

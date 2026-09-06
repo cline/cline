@@ -14,6 +14,7 @@ import {
 	type CoreSessionEvent,
 	type EditorExecutor,
 	type HookEventPayload,
+	type ImportableSessionSummary,
 	type ITelemetryService,
 	type PendingPromptMutationResult,
 	type PendingPromptsDeleteInput,
@@ -26,6 +27,9 @@ import {
 	type SessionAccumulatedUsage,
 	type SessionCompactionState,
 	type SessionHistoryRecord,
+	type SessionImportOptions,
+	type SessionImportRequest,
+	type SessionImportResult,
 	type SessionPendingPrompt,
 	type SessionRecord,
 	type StartSessionInput,
@@ -110,6 +114,12 @@ export class VscodeSessionHost implements SdkSessionHost {
 	}
 	updateSessionModel?(sessionId: string, modelId: string): Promise<void> {
 		return this.inner.updateSessionModel(sessionId, modelId)
+	}
+	listImportableSessions(options?: Pick<SessionImportOptions, "workspaceRoot">): Promise<ImportableSessionSummary[]> {
+		return this.inner.listImportableSessions(options)
+	}
+	importSessions(input: { requests: SessionImportRequest[]; options?: SessionImportOptions }): Promise<SessionImportResult[]> {
+		return this.inner.importSessions(input)
 	}
 
 	static async create(options: VscodeSessionHostOptions): Promise<VscodeSessionHost> {

@@ -113,6 +113,16 @@ message TaskItem {
   // Provider id the task ran on. Empty for tasks recorded before this
   // field existed and for legacy imports; consumers show cost in that case.
   string api_provider = 13;
+  // True when this row is discovered in an external session store and has not
+  // necessarily been copied into Cline's native history yet.
+  bool is_importable = 14;
+  string source_tool = 15;
+  string source_id = 16;
+  string source_path = 17;
+  string cwd = 18;
+  int32 message_count = 19;
+  string preview = 20;
+  string imported_session_id = 21;
 }
 
 // Request for ask response operation

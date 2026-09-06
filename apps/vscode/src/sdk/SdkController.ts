@@ -12,10 +12,13 @@ import {
 	createUserInstructionConfigService,
 	ensureChatWorkspace,
 	getProviderAuthStorageId,
+	type ImportableSessionSummary,
 	type PreparedRemoteConfigCoreIntegration,
 	readSessionCheckpointHistory,
 	resolveDefaultMcpSettingsPath,
 	type SessionHistoryRecord,
+	type SessionImportOptions,
+	type SessionImportRequest,
 	setTelemetryOptOutGlobally,
 	type UserInstructionConfigService,
 } from "@cline/core"
@@ -26,7 +29,13 @@ import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@shared/ClineAccount"
 import { mentionRegexGlobal } from "@shared/context-mentions"
 import type { ClineApiReqInfo, ClineMessage, ExtensionState } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
-import { DeleteAllTaskHistoryCount, type GetTaskHistoryRequest, TaskHistoryArray, TaskResponse } from "@shared/proto/cline/task"
+import {
+	DeleteAllTaskHistoryCount,
+	type GetTaskHistoryRequest,
+	TaskHistoryArray,
+	type TaskItem,
+	TaskResponse,
+} from "@shared/proto/cline/task"
 import type { Settings } from "@shared/storage/state-keys"
 import type { Mode } from "@shared/storage/types"
 import type { TelemetrySetting } from "@shared/TelemetrySetting"
@@ -50,6 +59,9 @@ import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
 import { isClineManagedProvider } from "@/shared/utils/cline"
 import { arePathsEqual, getDesktopDir } from "@/utils/path"
+
+const IMPORT_TASK_PREFIX = "import:"
+
 import { ClineAccountService } from "./account-service"
 import { AuthService, LogoutReason } from "./auth-service"
 import { BUILTIN_SLASH_COMMANDS } from "./builtin-slash-commands"
@@ -1871,11 +1883,34 @@ export class Controller {
 	 * replace it.
 	 */
 	async showTaskWithId(taskId: string): Promise<TaskResponse> {
-		const historyItem = await this.taskControl.showTaskWithId(taskId)
+		const materializedTaskId = await this.materializeImportTask(taskId)
+		const historyItem = await this.taskControl.showTaskWithId(materializedTaskId)
 		if (!historyItem) {
 			throw new Error(`Task not found in history: ${taskId}`)
 		}
 		return historyItemToTaskResponse(historyItem)
+	}
+
+	private async materializeImportTask(taskId: string): Promise<string> {
+		if (!taskId.startsWith(IMPORT_TASK_PREFIX)) return taskId
+		const [, tool, ...sourceParts] = taskId.split(":")
+		const sourceId = sourceParts.join(":")
+		if (!tool || !sourceId) throw new Error(`Invalid import task id: ${taskId}`)
+		const config = this.stateManager.getApiConfiguration()
+		const mode = this.stateManager.getGlobalSettingsKey("mode") === "plan" ? "plan" : "act"
+		const provider = mode === "plan" ? config.planModeApiProvider : config.actModeApiProvider
+		const model = mode === "plan" ? config.planModeApiModelId : config.actModeApiModelId
+		const requests: SessionImportRequest[] = [{ tool: tool as SessionImportRequest["tool"], sourceId }]
+		const options: SessionImportOptions = {
+			provider: provider ?? undefined,
+			model: model ?? undefined,
+			workspaceRoot: await this.getWorkspaceRoot(),
+		}
+		const [result] = await this.sessions.importSessions({ requests, options })
+		if (!result?.ok || !result.sessionId) {
+			throw new Error(result?.error ?? "Could not import the Cursor session")
+		}
+		return result.sessionId
 	}
 
 	// ---- Mode switching ----
@@ -2036,7 +2071,7 @@ export class Controller {
 		})
 
 		const hasMore = sessionHistory.length > limit
-		const tasks = filteredTasks.slice(0, limit).map((item) => {
+		const tasks: TaskItem[] = filteredTasks.slice(0, limit).map((item) => {
 			const metadata = item.metadata
 			return {
 				id: item.sessionId,
@@ -2054,8 +2089,53 @@ export class Controller {
 				isLegacy:
 					metadataBoolean(metadata, "legacyTask") === true ||
 					metadataBoolean(metadata, "migratedFromLegacyTask") === true,
+				isImportable: false,
+				sourceTool: "",
+				sourceId: "",
+				sourcePath: "",
+				cwd: item.cwd ?? "",
+				messageCount: 0,
+				preview: "",
+				importedSessionId: "",
 			}
 		})
+
+		if (offset === 0 && !favoritesOnly) {
+			const importable = await this.sessions.listImportableSessions({ workspaceRoot: workspacePath })
+			const importedTasks: TaskItem[] = importable
+				.filter((summary) => !summary.alreadyImportedSessionId)
+				.filter(
+					(summary) =>
+						!searchQuery ||
+						`${summary.title} ${summary.preview ?? ""}`.toLowerCase().includes(searchQuery.toLowerCase()),
+				)
+				.map((summary: ImportableSessionSummary) => ({
+					id: `${IMPORT_TASK_PREFIX}${summary.tool}:${summary.sourceId}`,
+					task: formatDisplayUserInput(summary.title),
+					ts: summary.updatedAtMs,
+					isFavorited: false,
+					size: 0,
+					totalCost: 0,
+					tokensIn: 0,
+					tokensOut: 0,
+					cacheWrites: 0,
+					cacheReads: 0,
+					modelId: "",
+					apiProvider: "",
+					isLegacy: false,
+					isImportable: true,
+					sourceTool: summary.tool,
+					sourceId: summary.sourceId,
+					sourcePath: summary.sourcePath,
+					cwd: summary.cwd,
+					messageCount: summary.messageCount,
+					preview: summary.preview ?? "",
+					importedSessionId: summary.alreadyImportedSessionId ?? "",
+				}))
+			tasks.push(...importedTasks)
+		}
+
+		tasks.sort((a, b) => (sortBy === "oldest" ? a.ts - b.ts : b.ts - a.ts))
 
 		if (offset === 0 && !favoritesOnly && this.task?.taskId && !tasks.some((task) => task.id === this.task?.taskId)) {
 			const taskMessage = this.task.messageStateHandler
@@ -2077,6 +2157,14 @@ export class Controller {
 					modelId: this.task.api?.getModel?.().id ?? "",
 					apiProvider: "",
 					isLegacy: false,
+					isImportable: false,
+					sourceTool: "",
+					sourceId: "",
+					sourcePath: "",
+					cwd: "",
+					messageCount: 0,
+					preview: "",
+					importedSessionId: "",
 				})
 			}
 		}

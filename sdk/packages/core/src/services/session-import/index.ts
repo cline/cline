@@ -4,6 +4,10 @@ export {
 } from "./claude-code";
 export { type CodexAdapterOptions, CodexImportAdapter } from "./codex";
 export {
+	type CursorAdapterOptions,
+	CursorImportAdapter,
+} from "./cursor";
+export {
 	type OpencodeAdapterOptions,
 	OpencodeImportAdapter,
 } from "./opencode";
