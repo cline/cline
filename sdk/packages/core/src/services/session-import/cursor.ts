@@ -1,6 +1,39 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, relative } from "node:path";
+
+function resolveDefaultHomeDirForCursor(): string {
+	const envHome = process.env.HOME?.trim();
+	if (envHome && envHome !== "~") {
+		return envHome;
+	}
+	const envUserProfile = process.env.USERPROFILE?.trim();
+	if (envUserProfile) {
+		return envUserProfile;
+	}
+	const envHomeDrive = process.env.HOMEDRIVE?.trim();
+	const envHomePath = process.env.HOMEPATH?.trim();
+	if (envHomeDrive && envHomePath) {
+		return `${envHomeDrive}${envHomePath}`;
+	}
+	const osHomeDir = homedir().trim();
+	if (osHomeDir && osHomeDir !== "~") {
+		return osHomeDir;
+	}
+	return "~";
+}
+
+/** Resolve Cursor's per-user projects directory (macOS/Linux/Windows). */
+export function resolveCursorProjectsDir(options?: {
+	projectsDir?: string;
+}): string {
+	const override =
+		options?.projectsDir ?? process.env.CURSOR_PROJECTS_DIR?.trim();
+	if (override) {
+		return override;
+	}
+	return join(resolveDefaultHomeDirForCursor(), ".cursor", "projects");
+}
 import type * as LlmsProviders from "@cline/llms";
 import {
 	type ConvertedImportedSession,
@@ -56,6 +89,99 @@ function workspaceMatches(cwd: string, workspaceRoot: string): boolean {
 		normalizedCwd === normalizedRoot ||
 		normalizedCwd.startsWith(`${normalizedRoot}/`) ||
 		normalizedRoot.startsWith(`${normalizedCwd}/`)
+	);
+}
+
+/**
+ * Cursor stores per-project data under `~/.cursor/projects/<id>/…` where
+ * `<id>` is the workspace path with leading slashes stripped and remaining
+ * separators replaced by `-` (e.g. `/Users/ue/projects/hermes-cloud` →
+ * `Users-ue-projects-hermes-cloud`). Agent transcripts often omit `cwd`, so
+ * workspace scoping must use this folder id when filtering.
+ */
+export function cursorProjectId(workspaceRoot: string): string {
+	return normalizedPath(workspaceRoot)
+		.replace(/^\/+/, "")
+		.replace(/^[A-Za-z]:/, (drive) => drive[0])
+		.replace(/:/g, "")
+		.replace(/\//g, "-");
+}
+
+function sourceBelongsToWorkspace(
+	sourceIdOrPath: string,
+	projectsDir: string,
+	workspaceRoot: string,
+): boolean {
+	const projectId = cursorProjectId(workspaceRoot);
+	const relativeId = sourceIdOrPath.startsWith(projectsDir)
+		? relative(projectsDir, sourceIdOrPath).replace(/\\/g, "/")
+		: sourceIdOrPath.replace(/\\/g, "/");
+	return relativeId === projectId || relativeId.startsWith(`${projectId}/`);
+}
+
+/** Strip Cursor transcript envelope tags so History shows the real prompt. */
+export function cursorTranscriptDisplayText(
+	raw: string | undefined,
+): string | undefined {
+	if (!raw?.trim()) return undefined;
+	let text = raw.trim();
+	const userQuery = text.match(
+		/<user_query>\s*([\s\S]*?)(?:<\/user_query>|$)/i,
+	);
+	if (userQuery?.[1]) {
+		text = userQuery[1];
+	}
+	text = text.replace(/<[^>]+>/g, " ");
+	text = text.replace(
+		/^(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday),[^]*?\(UTC[^)]*\)\s*/i,
+		"",
+	);
+	const compact = text.replace(/\s+/g, " ").trim();
+	return compact || undefined;
+}
+
+function promptTitle(
+	storedTitle: string | undefined,
+	firstUserText: string | undefined,
+	max = 120,
+): string {
+	return (
+		truncateForDisplay(
+			cursorTranscriptDisplayText(storedTitle) ??
+				cursorTranscriptDisplayText(firstUserText) ??
+				storedTitle ??
+				firstUserText,
+			max,
+		) ?? "Untitled Cursor chat"
+	);
+}
+
+function firstUserText(
+	messages: LlmsProviders.MessageWithMetadata[],
+): string | undefined {
+	const firstUser = messages.find((message) => message.role === "user");
+	if (!firstUser || !Array.isArray(firstUser.content)) return undefined;
+	return firstUser.content.find((block) => block.type === "text")?.text;
+}
+
+/**
+ * Cursor Agents store one parent transcript at
+ * `agent-transcripts/<uuid>/<uuid>.jsonl`. Subagent runs live under
+ * `…/subagents/*.jsonl` and must not appear as separate History rows.
+ */
+export function isParentAgentTranscriptFile(file: string): boolean {
+	const normalized = normalizedPath(file);
+	if (!normalized.endsWith(".jsonl")) return false;
+	if (normalized.includes("/subagents/")) return false;
+	const base = normalized.slice(0, -".jsonl".length);
+	const sessionId = base.slice(base.lastIndexOf("/") + 1);
+	const parentDir = base.slice(0, base.lastIndexOf("/"));
+	const parentName = parentDir.slice(parentDir.lastIndexOf("/") + 1);
+	if (parentName !== sessionId) return false;
+	const agentTranscriptsDir = parentDir.slice(0, parentDir.lastIndexOf("/"));
+	return (
+		agentTranscriptsDir.slice(agentTranscriptsDir.lastIndexOf("/") + 1) ===
+		"agent-transcripts"
 	);
 }
 
@@ -186,8 +312,7 @@ export class CursorImportAdapter implements SessionImportAdapter {
 	private readonly workspaceRoot?: string;
 
 	constructor(options: CursorAdapterOptions = {}) {
-		this.projectsDir =
-			options.projectsDir ?? join(homedir(), ".cursor", "projects");
+		this.projectsDir = resolveCursorProjectsDir(options);
 		this.workspaceRoot = options.workspaceRoot;
 	}
 
@@ -195,18 +320,29 @@ export class CursorImportAdapter implements SessionImportAdapter {
 		return existsSync(this.projectsDir);
 	}
 
+	private projectDirs(): string[] {
+		if (!existsSync(this.projectsDir)) return [];
+		return readdirSync(this.projectsDir, { withFileTypes: true })
+			.filter((entry) => entry.isDirectory())
+			.map((entry) => join(this.projectsDir, entry.name));
+	}
+
 	private transcriptFiles(): string[] {
 		if (!this.isInstalled()) return [];
 		const files: string[] = [];
-		const visit = (directory: string): void => {
-			for (const entry of readdirSync(directory, { withFileTypes: true })) {
-				const file = join(directory, entry.name);
-				if (entry.isDirectory()) visit(file);
-				else if (entry.isFile() && entry.name.endsWith(".jsonl"))
-					files.push(file);
+		for (const projectDir of this.projectDirs()) {
+			const transcriptsDir = join(projectDir, "agent-transcripts");
+			if (!existsSync(transcriptsDir)) continue;
+			for (const entry of readdirSync(transcriptsDir, { withFileTypes: true })) {
+				if (!entry.isDirectory() || entry.name === "subagents") continue;
+				const sessionFile = join(
+					transcriptsDir,
+					entry.name,
+					`${entry.name}.jsonl`,
+				);
+				if (existsSync(sessionFile)) files.push(sessionFile);
 			}
-		};
-		visit(this.projectsDir);
+		}
 		return files;
 	}
 
@@ -260,30 +396,32 @@ export class CursorImportAdapter implements SessionImportAdapter {
 			try {
 				const parsed = this.parseFile(file);
 				if (parsed.messages.length === 0) continue;
-				if (
-					this.workspaceRoot &&
-					parsed.cwd &&
-					!workspaceMatches(parsed.cwd, this.workspaceRoot)
-				)
-					continue;
-				const firstUser = parsed.messages.find(
-					(message) => message.role === "user",
-				);
-				const preview = Array.isArray(firstUser?.content)
-					? firstUser.content.find((block) => block.type === "text")?.text
-					: undefined;
+				if (this.workspaceRoot) {
+					if (parsed.cwd) {
+						if (!workspaceMatches(parsed.cwd, this.workspaceRoot)) continue;
+					} else if (
+						!sourceBelongsToWorkspace(file, this.projectsDir, this.workspaceRoot)
+					) {
+						continue;
+					}
+				}
+				const previewRaw = firstUserText(parsed.messages);
+				const preview =
+					truncateForDisplay(
+						cursorTranscriptDisplayText(previewRaw) ?? previewRaw,
+					);
+				const fileTimes = statSync(file);
+				const updatedAtMs = fileTimes.mtimeMs;
 				sessions.push({
 					tool: this.tool,
 					sourceId: this.sourceId(file),
 					sourcePath: file,
-					title:
-						truncateForDisplay(parsed.title ?? preview, 120) ??
-						"Untitled Cursor chat",
+					title: promptTitle(parsed.title, previewRaw),
 					cwd: parsed.cwd,
-					startedAtMs: parsed.startedAtMs,
-					updatedAtMs: parsed.updatedAtMs,
+					startedAtMs: parsed.startedAtMs || fileTimes.birthtimeMs || updatedAtMs,
+					updatedAtMs,
 					messageCount: parsed.messages.length,
-					...(preview ? { preview: truncateForDisplay(preview) } : {}),
+					...(preview ? { preview } : {}),
 				});
 			} catch {
 				// A malformed or active transcript must not hide other sessions.
@@ -300,19 +438,14 @@ export class CursorImportAdapter implements SessionImportAdapter {
 		const parsed = this.parseFile(file);
 		if (parsed.messages.length === 0)
 			throw new Error("Cursor session has no importable messages");
-		const firstUser = parsed.messages.find(
-			(message) => message.role === "user",
-		);
-		const prompt = Array.isArray(firstUser?.content)
-			? firstUser.content.find((block) => block.type === "text")?.text
-			: undefined;
+		const promptRaw = firstUserText(parsed.messages);
+		const prompt =
+			cursorTranscriptDisplayText(promptRaw) ?? promptRaw;
 		return {
 			tool: this.tool,
 			sourceId,
 			sourcePath: file,
-			title:
-				truncateForDisplay(parsed.title ?? prompt, 120) ??
-				"Untitled Cursor chat",
+			title: promptTitle(parsed.title, promptRaw),
 			...(prompt ? { prompt } : {}),
 			provider: parsed.provider ?? "cursor",
 			model: parsed.model ?? "cursor-imported",

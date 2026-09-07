@@ -4,7 +4,7 @@ import { SessionSource } from "../../types/common";
 import { ensureChatWorkspace } from "../workspace/chat-workspace";
 import { ClaudeCodeImportAdapter } from "./claude-code";
 import { CodexImportAdapter } from "./codex";
-import { CursorImportAdapter } from "./cursor";
+import { CursorImportAdapter, cursorProjectId } from "./cursor";
 import { OpencodeImportAdapter } from "./opencode";
 import { sanitizeImportedMessages } from "./sanitize";
 import type {
@@ -128,9 +128,18 @@ export class SessionImportService {
 		try {
 			for (const adapter of this.adapters) {
 				try {
-					if (!adapter.isInstalled()) continue;
-					for (const summary of adapter.discover()) {
-						if (options.workspaceRoot && summary.cwd && !workspaceMatches(summary.cwd, options.workspaceRoot)) {
+					// Cursor transcripts often omit cwd; scan all project folders
+					// and apply workspace filtering after parsing each transcript.
+					const active =
+						adapter.tool === "cursor" && options.workspaceRoot
+							? new CursorImportAdapter({ workspaceRoot: options.workspaceRoot })
+							: adapter;
+					if (!active.isInstalled()) continue;
+					for (const summary of active.discover()) {
+						if (
+							options.workspaceRoot &&
+							!importSummaryBelongsToWorkspace(summary, options.workspaceRoot)
+						) {
 							continue;
 						}
 						const alreadyImportedSessionId = existing.get(
@@ -381,4 +390,20 @@ function workspaceMatches(cwd: string, workspaceRoot: string): boolean {
 		normalizedCwd.startsWith(`${normalizedRoot}/`) ||
 		normalizedRoot.startsWith(`${normalizedCwd}/`)
 	);
+}
+
+export function importSummaryBelongsToWorkspace(
+	summary: ImportableSessionSummary,
+	workspaceRoot: string,
+): boolean {
+	if (summary.cwd) {
+		return workspaceMatches(summary.cwd, workspaceRoot);
+	}
+	if (summary.tool === "cursor") {
+		const projectId = cursorProjectId(workspaceRoot);
+		const sourceId = summary.sourceId.replace(/\\/g, "/");
+		return sourceId === projectId || sourceId.startsWith(`${projectId}/`);
+	}
+	// Other importers either stamp cwd or already scoped their scan.
+	return true;
 }

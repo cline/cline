@@ -6,6 +6,10 @@ export { type CodexAdapterOptions, CodexImportAdapter } from "./codex";
 export {
 	type CursorAdapterOptions,
 	CursorImportAdapter,
+	cursorProjectId,
+	cursorTranscriptDisplayText,
+	isParentAgentTranscriptFile,
+	resolveCursorProjectsDir,
 } from "./cursor";
 export {
 	type OpencodeAdapterOptions,
@@ -17,6 +21,7 @@ export {
 } from "./sanitize";
 export {
 	type ImportedFromMetadata,
+	importSummaryBelongsToWorkspace,
 	readImportedFromMetadata,
 	SessionImportService,
 } from "./service";
