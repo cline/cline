@@ -49,6 +49,13 @@ import {
 } from "../../services/telemetry/core-events";
 import { resolveCoreDistinctId } from "../../services/telemetry/distinct-id";
 import {
+	SessionImportService,
+	type ImportableSessionSummary,
+	type SessionImportOptions,
+	type SessionImportRequest,
+	type SessionImportResult,
+} from "../../services/session-import";
+import {
 	accumulateUsageTotals,
 	createInitialAccumulatedUsage,
 	summarizeUsageFromMessages,
@@ -364,6 +371,19 @@ export class LocalRuntimeHost implements RuntimeHost {
 			invokeBackendOptional: (method, ...args) =>
 				this.invokeOptional(method, ...args),
 		});
+	}
+
+	async listImportableSessions(
+		options: Pick<SessionImportOptions, "workspaceRoot"> = {},
+	): Promise<ImportableSessionSummary[]> {
+		return new SessionImportService(this.sessionService).discover(options);
+	}
+
+	async importSessions(input: {
+		requests: SessionImportRequest[];
+		options?: SessionImportOptions;
+	}): Promise<SessionImportResult[]> {
+		return new SessionImportService(this.sessionService).importMany(input.requests, undefined, input.options);
 	}
 
 	private async applyInitialOAuthCredentials(

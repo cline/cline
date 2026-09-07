@@ -526,6 +526,22 @@ export class ClineCore {
 	 */
 	readMessages: RuntimeHost["readSessionMessages"] = (...args) =>
 		this.host.readSessionMessages(...args);
+	listImportableSessions = async (
+		options: Parameters<NonNullable<RuntimeHost["listImportableSessions"]>>[0] = {},
+	) => {
+		if (!this.host.listImportableSessions) {
+			throw new Error("Session import is only available on a local runtime");
+		}
+		return this.host.listImportableSessions(options);
+	};
+	importSessions = async (
+		input: Parameters<NonNullable<RuntimeHost["importSessions"]>>[0],
+	) => {
+		if (!this.host.importSessions) {
+			throw new Error("Session import is only available on a local runtime");
+		}
+		return this.host.importSessions(input);
+	};
 
 	/**
 	 * Reads a transcript projected for presentation. Observational model-tool

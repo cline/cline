@@ -1,9 +1,13 @@
 import type {
 	CoreSessionEvent,
+	ImportableSessionSummary,
 	ITelemetryService,
 	PreparedRemoteConfigCoreIntegration,
 	RestoreInput,
 	RestoreResult,
+	SessionImportOptions,
+	SessionImportRequest,
+	SessionImportResult,
 	StartSessionResult,
 } from "@cline/core"
 import { formatModeSwitchNotice, type ModeSwitchNotice } from "@cline/shared"
@@ -73,6 +77,21 @@ export class SdkSessionLifecycle {
 	private readonly pendingStops = new Map<string, Promise<void>>()
 
 	constructor(private readonly options: SdkSessionLifecycleOptions) {}
+
+	async listImportableSessions(options: Pick<SessionImportOptions, "workspaceRoot"> = {}): Promise<ImportableSessionSummary[]> {
+		const host = await this.getOrCreateSharedHost()
+		if (!host.listImportableSessions) throw new Error("Session import is unavailable")
+		return host.listImportableSessions(options)
+	}
+
+	async importSessions(input: {
+		requests: SessionImportRequest[]
+		options?: SessionImportOptions
+	}): Promise<SessionImportResult[]> {
+		const host = await this.getOrCreateSharedHost()
+		if (!host.importSessions) throw new Error("Session import is unavailable")
+		return host.importSessions(input)
+	}
 
 	getActiveSession(): ActiveSession | undefined {
 		return this.activeSession
