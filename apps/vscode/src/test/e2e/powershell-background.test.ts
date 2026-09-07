@@ -1,7 +1,7 @@
 import { existsSync, lstatSync } from "node:fs"
 import * as path from "node:path"
 import { expect } from "@playwright/test"
-import { e2e } from "./utils/helpers"
+import { E2E_TURN_TIMEOUT_MS, e2e } from "./utils/helpers"
 
 const profiles = [
 	{
@@ -65,12 +65,14 @@ for (const profile of profiles) {
 		await sidebar.getByRole("button", { name: "Run Command" }).click()
 
 		const commandOutput = sidebar.locator("code").filter({ hasText: profile.version })
-		await expect(commandOutput).toBeVisible({ timeout: 30_000 })
+		await expect(commandOutput).toBeVisible({ timeout: E2E_TURN_TIMEOUT_MS })
 		for (const expectedPathPart of profile.psHome) {
 			await expect(commandOutput).toContainText(expectedPathPart)
 		}
 		await expect(commandOutput).toContainText("UNICODE=中文")
-		await expect(sidebar.getByText("PowerShell background execution diagnostic completed.")).toBeVisible()
+		await expect(sidebar.getByText("PowerShell background execution diagnostic completed.")).toBeVisible({
+			timeout: E2E_TURN_TIMEOUT_MS,
+		})
 		await page.screenshot({ path: testInfo.outputPath("powershell-background-success.png"), fullPage: true })
 	})
 }
