@@ -209,6 +209,15 @@ potentially live command's advertised path takes precedence over guessing that
 it exited. A detached client connection alone never changes process ownership or
 command execution.
 
+The executor atomically publishes `command-outcome.json` with the same typed
+outcome it emits live, before removing the active marker. This outcome does not
+depend on the output stream flushing successfully or staying below its cap.
+`queryDetachedCommandState` reads this marker and rechecks it after asynchronous
+process identity probes. `completed-at` retains its timestamp-only format for
+retention readers. Legacy logs without a typed outcome claim no outcome: command
+output can imitate exit and deadline lines, and a retention timestamp alone
+does not prove how the command ended.
+
 ### Generated Media Operation and Event Flow
 
 Model modalities and provider operations are separate facts. Modalities describe
