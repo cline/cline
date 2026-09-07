@@ -12,10 +12,14 @@ import {
 	createUserInstructionConfigService,
 	ensureChatWorkspace,
 	getProviderAuthStorageId,
+	type ImportableSessionSummary,
+	importSummaryBelongsToWorkspace,
 	type PreparedRemoteConfigCoreIntegration,
 	readSessionCheckpointHistory,
 	resolveDefaultMcpSettingsPath,
 	type SessionHistoryRecord,
+	type SessionImportOptions,
+	type SessionImportRequest,
 	setTelemetryOptOutGlobally,
 	type UserInstructionConfigService,
 } from "@cline/core"
@@ -26,7 +30,13 @@ import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@shared/ClineAccount"
 import { mentionRegexGlobal } from "@shared/context-mentions"
 import type { ClineApiReqInfo, ClineMessage, ExtensionState } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
-import { DeleteAllTaskHistoryCount, type GetTaskHistoryRequest, TaskHistoryArray, TaskResponse } from "@shared/proto/cline/task"
+import {
+	DeleteAllTaskHistoryCount,
+	type GetTaskHistoryRequest,
+	TaskHistoryArray,
+	type TaskItem,
+	TaskResponse,
+} from "@shared/proto/cline/task"
 import type { Settings } from "@shared/storage/state-keys"
 import type { Mode } from "@shared/storage/types"
 import type { TelemetrySetting } from "@shared/TelemetrySetting"
@@ -49,11 +59,13 @@ import { toLegacyApiProvider } from "@/shared/model-catalog/provider-helpers"
 import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
 import { isClineManagedProvider } from "@/shared/utils/cline"
-import { arePathsEqual, getDesktopDir } from "@/utils/path"
+import { arePathsEqual, getDesktopDir, isLocatedInPath } from "@/utils/path"
+
 import { ClineAccountService } from "./account-service"
 import { AuthService, LogoutReason } from "./auth-service"
 import { BUILTIN_SLASH_COMMANDS } from "./builtin-slash-commands"
 import { buildStartSessionInput, createHistoryItemFromSession } from "./cline-session-factory"
+import { sortTaskItemsByRecency } from "./history-order"
 import { MessageTranslatorState, reshapeErrorForWebview } from "./message-translator"
 import { createProviderCatalog } from "./model-catalog/catalog"
 import type { Disposable, ProviderCatalog, ProviderConfigChange, ProviderConfigStore } from "./model-catalog/contracts"
@@ -108,6 +120,8 @@ import { VscodeSessionHost } from "./vscode-session-host"
 import type { VscodeTerminalExecutionMode } from "./vscode-terminal-execution-mode"
 import { WebviewGrpcBridge } from "./webview-grpc-bridge"
 import { resolveWorkspaceManagerPaths, resolveWorkspaceRootPath } from "./workspace-root"
+
+const IMPORT_TASK_PREFIX = "import:"
 
 /**
  * Log a stub warning and return undefined.
@@ -1087,6 +1101,25 @@ export class Controller {
 
 	// ---- Workspace root resolution ----
 
+	private async getOpenWorkspacePaths(): Promise<string[]> {
+		try {
+			const { paths } = await HostProvider.workspace.getWorkspacePaths({})
+			return paths?.filter((workspacePath) => workspacePath.trim().length > 0) ?? []
+		} catch (error) {
+			Logger.warn("[SdkController] Failed to get workspace paths:", error)
+			return []
+		}
+	}
+
+	private sessionBelongsToWorkspaceRoots(sessionWorkspacePath: string | undefined, workspaceRoots: string[]): boolean {
+		if (!sessionWorkspacePath?.trim() || workspaceRoots.length === 0) {
+			return false
+		}
+		return workspaceRoots.some(
+			(root) => arePathsEqual(sessionWorkspacePath, root) || isLocatedInPath(root, sessionWorkspacePath),
+		)
+	}
+
 	/**
 	 * Get the user's workspace root directory.
 	 *
@@ -1099,11 +1132,23 @@ export class Controller {
 	 */
 	private async getWorkspaceRoot(): Promise<string> {
 		try {
-			const { paths } = await HostProvider.workspace.getWorkspacePaths({})
-			const workspaceRoot = paths?.find((workspacePath) => workspacePath.trim().length > 0)
-			if (workspaceRoot) {
-				this.lastKnownWorkspaceRoot = workspaceRoot
-				return workspaceRoot
+			const openPaths = await this.getOpenWorkspacePaths()
+			if (openPaths.length > 0) {
+				try {
+					const { filePath } = await HostProvider.window.getActiveEditor({})
+					if (filePath) {
+						for (const workspacePath of openPaths) {
+							if (isLocatedInPath(workspacePath, filePath)) {
+								this.lastKnownWorkspaceRoot = workspacePath
+								return workspacePath
+							}
+						}
+					}
+				} catch {
+					// Active editor lookup is best-effort.
+				}
+				this.lastKnownWorkspaceRoot = openPaths[0]
+				return openPaths[0]
 			}
 		} catch (error) {
 			Logger.warn("[SdkController] Failed to get workspace paths, using the no-workspace fallback:", error)
@@ -1871,11 +1916,34 @@ export class Controller {
 	 * replace it.
 	 */
 	async showTaskWithId(taskId: string): Promise<TaskResponse> {
-		const historyItem = await this.taskControl.showTaskWithId(taskId)
+		const materializedTaskId = await this.materializeImportTask(taskId)
+		const historyItem = await this.taskControl.showTaskWithId(materializedTaskId)
 		if (!historyItem) {
 			throw new Error(`Task not found in history: ${taskId}`)
 		}
 		return historyItemToTaskResponse(historyItem)
+	}
+
+	private async materializeImportTask(taskId: string): Promise<string> {
+		if (!taskId.startsWith(IMPORT_TASK_PREFIX)) return taskId
+		const [, tool, ...sourceParts] = taskId.split(":")
+		const sourceId = sourceParts.join(":")
+		if (!tool || !sourceId) throw new Error(`Invalid import task id: ${taskId}`)
+		const config = this.stateManager.getApiConfiguration()
+		const mode = this.stateManager.getGlobalSettingsKey("mode") === "plan" ? "plan" : "act"
+		const provider = mode === "plan" ? config.planModeApiProvider : config.actModeApiProvider
+		const model = mode === "plan" ? config.planModeApiModelId : config.actModeApiModelId
+		const requests: SessionImportRequest[] = [{ tool: tool as SessionImportRequest["tool"], sourceId }]
+		const options: SessionImportOptions = {
+			provider: provider ?? undefined,
+			model: model ?? undefined,
+			workspaceRoot: await this.getWorkspaceRoot(),
+		}
+		const [result] = await this.sessions.importSessions({ requests, options })
+		if (!result?.ok || !result.sessionId) {
+			throw new Error(result?.error ?? "Could not import the Cursor session")
+		}
+		return result.sessionId
 	}
 
 	// ---- Mode switching ----
@@ -1968,7 +2036,10 @@ export class Controller {
 		const { favoritesOnly, currentWorkspaceOnly, searchQuery, sortBy } = request
 		const limit = request.limit > 0 ? Math.min(request.limit, 100) : 50
 		const offset = request.offset > 0 ? request.offset : 0
-		const workspacePath = currentWorkspaceOnly ? await this.getWorkspaceRoot() : undefined
+		const openWorkspacePaths = await this.getOpenWorkspacePaths()
+		const workspacePath = currentWorkspaceOnly ? (openWorkspacePaths[0] ?? (await this.getWorkspaceRoot())) : undefined
+		const workspaceRootsForFilter =
+			currentWorkspaceOnly && openWorkspacePaths.length > 0 ? openWorkspacePaths : workspacePath ? [workspacePath] : []
 		const sessionHistory = await this.taskHistory.listHistory({
 			hydrate: false,
 			limit: limit + 1,
@@ -1989,9 +2060,9 @@ export class Controller {
 				return false
 			}
 
-			if (currentWorkspaceOnly && workspacePath) {
+			if (currentWorkspaceOnly && workspaceRootsForFilter.length > 0) {
 				const sessionWorkspacePath = item.cwd ?? item.workspaceRoot
-				if (!sessionWorkspacePath || !arePathsEqual(sessionWorkspacePath, workspacePath)) {
+				if (!this.sessionBelongsToWorkspaceRoots(sessionWorkspacePath, workspaceRootsForFilter)) {
 					return false
 				}
 			}
@@ -2036,7 +2107,7 @@ export class Controller {
 		})
 
 		const hasMore = sessionHistory.length > limit
-		const tasks = filteredTasks.slice(0, limit).map((item) => {
+		const tasks: TaskItem[] = filteredTasks.slice(0, limit).map((item) => {
 			const metadata = item.metadata
 			return {
 				id: item.sessionId,
@@ -2054,8 +2125,68 @@ export class Controller {
 				isLegacy:
 					metadataBoolean(metadata, "legacyTask") === true ||
 					metadataBoolean(metadata, "migratedFromLegacyTask") === true,
+				isImportable: false,
+				sourceTool: "",
+				sourceId: "",
+				sourcePath: "",
+				cwd: item.cwd ?? "",
+				messageCount: 0,
+				preview: "",
+				importedSessionId: "",
 			}
 		})
+
+		if (offset === 0 && !favoritesOnly && openWorkspacePaths.length > 0) {
+			const importRoots = currentWorkspaceOnly ? openWorkspacePaths : [await this.getWorkspaceRoot()]
+			const importableByKey = new Map<string, ImportableSessionSummary>()
+			for (const importWorkspaceRoot of importRoots) {
+				if (!importWorkspaceRoot?.trim()) continue
+				const importable = await this.sessions.listImportableSessions({
+					workspaceRoot: importWorkspaceRoot,
+				})
+				for (const summary of importable) {
+					importableByKey.set(`${summary.tool}:${summary.sourceId}`, summary)
+				}
+			}
+			const importedTasks: TaskItem[] = [...importableByKey.values()]
+				.filter((summary) => !summary.alreadyImportedSessionId)
+				.filter(
+					(summary) =>
+						!currentWorkspaceOnly ||
+						workspaceRootsForFilter.some((root) => importSummaryBelongsToWorkspace(summary, root)),
+				)
+				.filter(
+					(summary) =>
+						!searchQuery ||
+						`${summary.title} ${summary.preview ?? ""}`.toLowerCase().includes(searchQuery.toLowerCase()),
+				)
+				.map((summary: ImportableSessionSummary) => ({
+					id: `${IMPORT_TASK_PREFIX}${summary.tool}:${summary.sourceId}`,
+					task: formatDisplayUserInput(summary.title),
+					ts: summary.updatedAtMs,
+					isFavorited: false,
+					size: 0,
+					totalCost: 0,
+					tokensIn: 0,
+					tokensOut: 0,
+					cacheWrites: 0,
+					cacheReads: 0,
+					modelId: "",
+					apiProvider: "",
+					isLegacy: false,
+					isImportable: true,
+					sourceTool: summary.tool,
+					sourceId: summary.sourceId,
+					sourcePath: summary.sourcePath,
+					cwd: summary.cwd,
+					messageCount: summary.messageCount,
+					preview: summary.preview ?? "",
+					importedSessionId: summary.alreadyImportedSessionId ?? "",
+				}))
+			tasks.push(...importedTasks)
+		}
+
+		tasks.sort((a, b) => (sortBy === "oldest" ? a.ts - b.ts : b.ts - a.ts))
 
 		if (offset === 0 && !favoritesOnly && this.task?.taskId && !tasks.some((task) => task.id === this.task?.taskId)) {
 			const taskMessage = this.task.messageStateHandler
@@ -2077,11 +2208,20 @@ export class Controller {
 					modelId: this.task.api?.getModel?.().id ?? "",
 					apiProvider: "",
 					isLegacy: false,
+					isImportable: false,
+					sourceTool: "",
+					sourceId: "",
+					sourcePath: "",
+					cwd: "",
+					messageCount: 0,
+					preview: "",
+					importedSessionId: "",
 				})
 			}
 		}
 
-		return TaskHistoryArray.create({ tasks: tasks.slice(0, limit), hasMore })
+		const orderedTasks = sortTaskItemsByRecency(tasks, sortBy === "oldest")
+		return TaskHistoryArray.create({ tasks: orderedTasks.slice(0, limit), hasMore })
 	}
 
 	async exportTaskWithId(id: string): Promise<void> {

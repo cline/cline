@@ -106,6 +106,7 @@
 						"group": "Usage",
 						"pages": [
 							"usage/ide",
+							"usage/importing-cursor-sessions",
 							"usage/tui",
 							{
 								"group": "CLI",

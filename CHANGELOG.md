@@ -6,6 +6,7 @@ Everything here lands through the SDK bundle, so it applies to windows running t
 
 ### Added
 
+- Import Cursor Agent JSONL sessions from the session history import flow. Imported sessions preserve supported conversation content and can be continued with the current Cline provider and model.
 - ClinePass is now surfaced across the app: a card on the account page describing what the plan covers, a hint in provider settings, and a banner on the home screen. Dismissed banners stay dismissed.
 
 ### Fixed
