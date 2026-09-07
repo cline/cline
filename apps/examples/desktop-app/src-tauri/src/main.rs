@@ -10,7 +10,7 @@ use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering as AtomicOrdering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
 use std::thread;
 use std::time::Duration;
 #[cfg(target_os = "macos")]
@@ -507,10 +507,21 @@ fn ensure_desktop_backend_started_with(
     // callers (setup, the health-check loop, endpoint fetches from the
     // webview) serialize: the second caller blocks here, then sees the live
     // child and returns instead of spawning a duplicate.
-    let mut process_guard = state
+    let process_guard = state
         .process
         .lock()
         .map_err(|_| "failed to lock desktop backend process state")?;
+    ensure_desktop_backend_started_locked(state, process_guard, spawn_backend)
+}
+
+/// The check-and-spawn that runs under the process lock. Split from the lock
+/// acquisition so a test can establish "shutdown began after the unlocked
+/// check but before the lock was taken" deterministically.
+fn ensure_desktop_backend_started_locked(
+    state: &Arc<DesktopBackendState>,
+    mut process_guard: MutexGuard<'_, Option<Child>>,
+    spawn_backend: impl FnOnce() -> Result<Child, String>,
+) -> Result<(), String> {
     // stop() marks shutdown before taking this same process lock. Recheck
     // under the lock so a queued startup cannot spawn after shutdown.
     if state.is_shutting_down() {
@@ -685,6 +696,11 @@ async fn get_desktop_backend_endpoint(
     // see sidecar/shell-path.ts) plus session-manager init, whose duration
     // varies by machine. Poll well past that combined worst case; the loop
     // returns as soon as the ready line arrives, so only failure waits long.
+    // While pending this only waits — respawning is ensure's job, and it
+    // refuses to start a second sidecar while the first one is still alive.
+    // A child that dies mid-poll makes this return an error rather than
+    // respawn: the next ensure call — the health-check loop within 5 seconds,
+    // or this command when the webview reconnects — replaces the dead child.
     // Async sleeps keep Tauri's window event loop responsive while pending.
     for _ in 0..150 {
         if let Some(endpoint) = backend_state
@@ -1457,31 +1473,24 @@ mod tests {
         state.stop();
     }
 
+    /// The interleaving where only the recheck under the lock stands between
+    /// shutdown and a fresh spawn: startup has passed its unlocked shutdown
+    /// check, stop() marks shutdown while startup is still waiting for the
+    /// process lock, and then startup acquires the lock. Played out directly
+    /// on one thread so the ordering is exact rather than scheduled.
     #[test]
     fn startup_queued_on_process_lock_does_not_spawn_after_shutdown() {
         let state = Arc::new(DesktopBackendState::default());
-        let process_guard = state
-            .process
-            .lock()
-            .expect("process lock should succeed");
-        let spawn_count = Arc::new(AtomicUsize::new(0));
-        let state_for_start = state.clone();
-        let spawn_count_for_start = spawn_count.clone();
-        let startup = thread::spawn(move || {
-            ensure_desktop_backend_started_with(&state_for_start, || {
-                spawn_count_for_start.fetch_add(1, Ordering::SeqCst);
-                spawn_pending_sidecar()
-            })
-            .expect("shutdown should make startup a no-op");
-        });
+        let spawn_count = AtomicUsize::new(0);
 
-        // std gives no way to observe a thread blocked on a Mutex, so give the
-        // startup thread time to pass its first shutdown check and queue on the
-        // lock. Shutdown must then be caught by the recheck under the lock.
-        thread::sleep(Duration::from_millis(50));
+        assert!(!state.is_shutting_down(), "the unlocked check passes");
         state.shutting_down.store(true, AtomicOrdering::Release);
-        drop(process_guard);
-        startup.join().expect("startup thread should not panic");
+        let process_guard = state.process.lock().expect("process lock should succeed");
+        ensure_desktop_backend_started_locked(&state, process_guard, || {
+            spawn_count.fetch_add(1, Ordering::SeqCst);
+            spawn_pending_sidecar()
+        })
+        .expect("shutdown should make startup a no-op");
 
         assert_eq!(spawn_count.load(Ordering::SeqCst), 0);
     }
