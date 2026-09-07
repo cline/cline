@@ -1,0 +1,6 @@
+{"type":"session","cwd":"/workspace/demo","title":"Fix parser bug","timestamp":"2026-01-03T10:00:00.000Z"}
+{"role":"user","content":"fix the parser","timestamp":"2026-01-03T10:00:01.000Z"}
+{"role":"assistant","provider":"anthropic","model":"claude-sonnet","content":[{"type":"text","text":"I will inspect it."},{"type":"function_call","call_id":"call_1","name":"read_file","arguments":"{\"path\":\"parser.ts\"}"}],"timestamp":"2026-01-03T10:00:02.000Z"}
+{"role":"user","content":[{"type":"function_call_output","call_id":"call_1","output":"export function parse() {}"}],"timestamp":"2026-01-03T10:00:03.000Z"}
+{"role":"assistant","content":[{"type":"image_url","image_url":{"url":"data:image/png;base64,ZmFrZQ=="}}],"timestamp":"2026-01-03T10:00:04.000Z"}
+not json

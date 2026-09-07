@@ -4,6 +4,7 @@ import { SessionSource } from "../../types/common";
 import { ensureChatWorkspace } from "../workspace/chat-workspace";
 import { ClaudeCodeImportAdapter } from "./claude-code";
 import { CodexImportAdapter } from "./codex";
+import { CursorImportAdapter } from "./cursor";
 import { OpencodeImportAdapter } from "./opencode";
 import { sanitizeImportedMessages } from "./sanitize";
 import type {
@@ -71,6 +72,7 @@ export class SessionImportService {
 		this.adapters = adapters ?? [
 			new ClaudeCodeImportAdapter(),
 			new CodexImportAdapter(),
+			new CursorImportAdapter(),
 			new OpencodeImportAdapter(),
 		];
 	}
@@ -120,7 +122,7 @@ export class SessionImportService {
 		}
 	}
 
-	async discover(): Promise<ImportableSessionSummary[]> {
+	async discover(options: Pick<SessionImportOptions, "workspaceRoot"> = {}): Promise<ImportableSessionSummary[]> {
 		const existing = await this.existingImports();
 		const out: ImportableSessionSummary[] = [];
 		try {
@@ -128,6 +130,9 @@ export class SessionImportService {
 				try {
 					if (!adapter.isInstalled()) continue;
 					for (const summary of adapter.discover()) {
+						if (options.workspaceRoot && summary.cwd && !workspaceMatches(summary.cwd, options.workspaceRoot)) {
+							continue;
+						}
 						const alreadyImportedSessionId = existing.get(
 							importKey(summary.tool, summary.sourceId),
 						);
@@ -366,4 +371,14 @@ export class SessionImportService {
 
 		return sessionId;
 	}
+}
+
+function workspaceMatches(cwd: string, workspaceRoot: string): boolean {
+	const normalizedCwd = cwd.replace(/\\/g, "/").replace(/\/+$/, "");
+	const normalizedRoot = workspaceRoot.replace(/\\/g, "/").replace(/\/+$/, "");
+	return (
+		normalizedCwd === normalizedRoot ||
+		normalizedCwd.startsWith(`${normalizedRoot}/`) ||
+		normalizedRoot.startsWith(`${normalizedCwd}/`)
+	);
 }
