@@ -70,9 +70,10 @@ export function mapAgentStatus(status: string): CloudSessionStatus | undefined {
 		case "error":
 			return "failed"
 		case "idle":
+			return "idle"
 		case "cancelled":
 		case "aborted":
-			return "idle"
+			return "cancelled"
 		default:
 			return undefined
 	}
@@ -83,12 +84,13 @@ export function mapAgentFinishReason(reason: AgentResult["finishReason"] | strin
 		case "completed":
 			return "completed"
 		case "aborted":
-			return "idle"
+			return "cancelled"
 		case "error":
 		case "max_iterations":
 		case "mistake_limit":
-		default:
 			return "failed"
+		default:
+			return "unknown"
 	}
 }
 
@@ -184,8 +186,8 @@ export class CloudSessionHost implements SdkSessionHost {
 		if (event.type === "status") {
 			const mapped = mapAgentStatus(event.payload.status)
 			// "idle" is the resting state after any turn; keep the more specific
-			// completed/failed outcome until the agent runs again.
-			if (mapped && !(mapped === "idle" && (this.agentStatus === "completed" || this.agentStatus === "failed"))) {
+			// completed/failed/cancelled outcome until the agent runs again.
+			if (mapped && !(mapped === "idle" && ["completed", "failed", "cancelled"].includes(this.agentStatus))) {
 				this.setStatus(mapped)
 			}
 		} else if (event.type === "ended") {
@@ -268,11 +270,12 @@ export class CloudSessionHost implements SdkSessionHost {
 	}
 
 	async send(input: SendSessionInput): Promise<AgentResult | undefined> {
+		const sessionId = this.toInner(input.sessionId)
 		this.setStatus("running")
 		try {
 			return await this.host.runTurn({
 				...input,
-				sessionId: this.toInner(input.sessionId),
+				sessionId,
 				mode: input.mode ?? this.options.getMode?.(),
 				// Local file paths mean nothing inside the sandbox; images travel as data URLs.
 				userFiles: undefined,
@@ -280,8 +283,8 @@ export class CloudSessionHost implements SdkSessionHost {
 		} catch (error) {
 			// A rejected RPC proves only that this client stopped observing the turn;
 			// the sandbox may still be running after a transport loss.
-			if (this.agentStatus === "running") {
-				this.setStatus("idle")
+			if (!this.disposed && (this.agentStatus === "running" || this.agentStatus === "idle")) {
+				this.setStatus("unknown")
 			}
 			throw error
 		}
