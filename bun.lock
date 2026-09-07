@@ -465,6 +465,7 @@
         "@types/sinon": "^21.0.0",
         "@types/turndown": "^5.0.5",
         "@types/vscode": "1.101.0",
+        "@types/ws": "^8.18.1",
         "@vscode/test-cli": "^0.0.12",
         "@vscode/test-electron": "^2.5.2",
         "@vscode/vsce": "^3.6.0",
@@ -491,6 +492,7 @@
         "tsconfig-paths": "^4.2.0",
         "typescript": "^5.4.5",
         "vitest": "^4.0.17",
+        "ws": "^8.20.0",
       },
     },
     "apps/vscode-rollout": {

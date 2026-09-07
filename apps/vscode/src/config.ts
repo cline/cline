@@ -314,6 +314,19 @@ class ClineEndpoint {
 					mcpBaseUrl: "https://core-api.staging.int.cline.bot/v1/mcp",
 				}
 			case Environment.local:
+				// The local fixture's app and API share one listener. Resolve them together.
+				if (process.env.CLINE_LOCAL_CLOUD_URL) {
+					const url = new URL(process.env.CLINE_LOCAL_CLOUD_URL)
+					if (url.protocol !== "http:" || url.hostname !== "127.0.0.1" || url.username || url.password) {
+						throw new ClineConfigurationError("CLINE_LOCAL_CLOUD_URL must be an HTTP loopback URL on 127.0.0.1")
+					}
+					return {
+						environment: Environment.local,
+						appBaseUrl: url.origin,
+						apiBaseUrl: url.origin,
+						mcpBaseUrl: `${url.origin}/v1/mcp`,
+					}
+				}
 				return {
 					environment: Environment.local,
 					appBaseUrl: "http://localhost:3000",

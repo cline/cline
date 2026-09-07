@@ -41,6 +41,18 @@ describe("SdkSessionLifecycle", () => {
 		expect(lifecycle.getActiveSession()?.isRunning).toBe(true)
 	})
 
+	it("does not start a host when the caller is superseded", async () => {
+		const sdkHost = makeSdkHost({ startResult: { sessionId: "session-stale" } })
+		const lifecycle = makeLifecycle()
+
+		await expect(lifecycle.startNewSession({} as StartInput, sdkHost as never, () => false)).rejects.toMatchObject({
+			name: "SessionStartSupersededError",
+		})
+
+		expect(sdkHost.start).not.toHaveBeenCalled()
+		expect(lifecycle.getActiveSession()).toBeUndefined()
+	})
+
 	it("stores the provider and model config used to start the active session", async () => {
 		const sdkHost = makeSdkHost({ startResult: { sessionId: "session-123" } })
 		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)

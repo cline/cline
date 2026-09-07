@@ -44,11 +44,31 @@ import type { MessageIdMinter } from "./message-id-minter"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
 import { sdkMessagesToDisplayClineMessages, sessionHistoryRecordToHistoryItem } from "./sdk-task-history"
+import type { SdkSessionHost } from "./session-host"
 import { createTaskProxy, type TaskProxy } from "./task-proxy"
 
 const LIST_CACHE_TTL_MS = 10_000
 const ACTIVE_POLL_INTERVAL_MS = 15_000
 const IDLE_CONNECTION_TTL_MS = 5 * 60_000
+const SCOPE_DRAIN_TIMEOUT_MS = 15_000
+
+interface CloudTaskInput {
+	prompt: string
+	images?: string[]
+	repoUrl: string
+	branch?: string
+}
+
+const HISTORY_STATUS: Record<CloudSessionStatus, SessionHistoryRecord["status"]> = {
+	provisioning: "pending",
+	running: "running",
+	idle: "idle",
+	completed: "completed",
+	failed: "failed",
+	cancelled: "cancelled",
+	unknown: "pending",
+	expired: "cancelled",
+}
 
 export interface SdkCloudSessionCoordinatorOptions {
 	cloudSessions: CloudSessionsService
@@ -79,6 +99,7 @@ interface CloudSessionEntry {
 	record: CloudSessionRecord
 	/** Live connection, when this extension instance is attached to the sandbox. */
 	host?: CloudSessionHost
+	connection?: Promise<CloudSessionHost>
 	/** Last agent status observed over the connection, kept after it is dropped. */
 	agentStatus?: CloudSessionStatus
 	title?: string
@@ -91,6 +112,9 @@ export class SdkCloudSessionCoordinator {
 	private listPromise: Promise<void> | undefined
 	private pollTimer: NodeJS.Timeout | undefined
 	private disposed = false
+	private scopeGeneration = 0
+	private scopeTransition: Promise<void> | undefined
+	private readonly scopeOperations = new Set<Promise<unknown>>()
 
 	constructor(private readonly options: SdkCloudSessionCoordinatorOptions) {}
 
@@ -115,7 +139,7 @@ export class SdkCloudSessionCoordinator {
 		if (rest === "failed") {
 			return "failed"
 		}
-		return entry.host?.status ?? entry.agentStatus ?? "idle"
+		return entry.host?.status ?? entry.agentStatus ?? "unknown"
 	}
 
 	getCurrentTaskInfo(): CurrentCloudTaskInfo | undefined {
@@ -128,7 +152,7 @@ export class SdkCloudSessionCoordinator {
 			sessionId: taskId,
 			repoUrl: entry?.record.repoContext.repoUrl,
 			branch: entry?.record.repoContext.branch,
-			status: entry ? this.statusOf(entry) : "idle",
+			status: entry ? this.statusOf(entry) : "unknown",
 			dashboardUrl: this.options.cloudSessions.dashboardUrl(taskId),
 		}
 	}
@@ -143,8 +167,8 @@ export class SdkCloudSessionCoordinator {
 			pid: 0,
 			startedAt: record.createdAt,
 			endedAt: status === "expired" ? (record.expiredAt ?? undefined) : undefined,
-			exitCode: 0,
-			status: status === "running" || status === "provisioning" ? "running" : status === "failed" ? "failed" : "completed",
+			exitCode: status === "completed" ? 0 : undefined,
+			status: HISTORY_STATUS[status],
 			interactive: true,
 			provider: "cline",
 			model: record.metadata.modelId ?? "",
@@ -191,15 +215,22 @@ export class SdkCloudSessionCoordinator {
 	}
 
 	private async refreshList(force = false): Promise<void> {
+		await this.scopeTransition
+		if (this.disposed) return
 		if (!force && Date.now() - this.listFetchedAt < LIST_CACHE_TTL_MS) {
 			return
 		}
 		if (this.listPromise) {
 			return this.listPromise
 		}
-		this.listPromise = (async () => {
+		const generation = this.scopeGeneration
+		let listPromise!: Promise<void>
+		listPromise = (async () => {
 			try {
 				const records = await this.options.cloudSessions.listSessions()
+				if (generation !== this.scopeGeneration || this.disposed) {
+					return
+				}
 				const seen = new Set<string>()
 				for (const record of records) {
 					seen.add(record.id)
@@ -212,6 +243,8 @@ export class SdkCloudSessionCoordinator {
 				}
 				this.listFetchedAt = Date.now()
 			} catch (error) {
+				// Reset invalidates both successful responses and failed requests.
+				if (generation !== this.scopeGeneration || this.disposed) return
 				if (error instanceof CloudSessionError && error.code === "authentication_required") {
 					this.entries.clear()
 				}
@@ -219,10 +252,13 @@ export class SdkCloudSessionCoordinator {
 				Logger.warn("[CloudSessions] Failed to refresh cloud session list:", error)
 				this.listFetchedAt = Date.now()
 			} finally {
-				this.listPromise = undefined
+				if (this.listPromise === listPromise) {
+					this.listPromise = undefined
+				}
 			}
 		})()
-		return this.listPromise
+		this.listPromise = listPromise
+		return listPromise
 	}
 
 	private upsertRecord(record: CloudSessionRecord): CloudSessionEntry {
@@ -236,11 +272,71 @@ export class SdkCloudSessionCoordinator {
 		return entry
 	}
 
-	/** Drops cached records (account or organization changed). */
-	reset(): void {
-		this.listFetchedAt = 0
-		this.entries.clear()
-		this.options.invalidateHistoryCache()
+	/** Changes account scope as one boundary: invalidate, detach, dispose, mutate scope, then reopen reads. */
+	async reset(changeScope?: () => Promise<void>): Promise<void> {
+		this.scopeGeneration++
+		const previousTransition = this.scopeTransition
+		const transition = (async () => {
+			await previousTransition
+			this.listFetchedAt = 0
+			this.listPromise = undefined
+			if (this.pollTimer) {
+				clearInterval(this.pollTimer)
+				this.pollTimer = undefined
+			}
+			if (this.options.getTask()?.taskId && isCloudSessionId(this.options.getTask()?.taskId)) {
+				await this.options.clearTask()
+			}
+			const entries = [...this.entries.values()]
+			const hosts = entries.flatMap((entry) => (entry.host ? [entry.host] : []))
+			const connections = entries.flatMap((entry) => (entry.connection ? [entry.connection] : []))
+			this.entries.clear()
+			this.options.invalidateHistoryCache()
+			// Starts and deletions own their cleanup until settlement. Keep the originating
+			// account active through every await, including DELETE; never retain old tokens.
+			void this.trackScopeOperation(() =>
+				Promise.allSettled([...connections, ...hosts.map((host) => host.dispose("accountScopeChanged"))]),
+			)
+			await this.drainScopeOperations([...this.scopeOperations])
+			await changeScope?.()
+		})()
+		this.scopeTransition = transition
+		try {
+			await transition
+		} finally {
+			if (this.scopeTransition === transition) {
+				this.scopeTransition = undefined
+			}
+		}
+	}
+
+	private trackScopeOperation<T>(operation: () => Promise<T>): Promise<T> {
+		// Enroll before executing any code that can yield or re-enter reset.
+		const promise = Promise.resolve().then(operation)
+		this.scopeOperations.add(promise)
+		return promise.finally(() => this.scopeOperations.delete(promise))
+	}
+
+	private async drainScopeOperations(operations: Promise<unknown>[]): Promise<void> {
+		let timer: ReturnType<typeof setTimeout> | undefined
+		try {
+			await Promise.race([
+				Promise.allSettled(operations),
+				new Promise<never>((_resolve, reject) => {
+					timer = setTimeout(
+						() =>
+							reject(
+								new Error(
+									"Cloud session cleanup is still pending. Your account has not changed; try again after cleanup finishes.",
+								),
+							),
+						SCOPE_DRAIN_TIMEOUT_MS,
+					)
+				}),
+			])
+		} finally {
+			clearTimeout(timer)
+		}
 	}
 
 	// ---- Connections ----
@@ -249,20 +345,41 @@ export class SdkCloudSessionCoordinator {
 		if (entry.host) {
 			return entry.host
 		}
+		if (entry.connection) {
+			return entry.connection
+		}
 		const sessionId = entry.record.id
-		const host = await CloudSessionHost.connect({
-			outerSessionId: sessionId,
-			socketUrl: this.options.cloudSessions.sessionSocketUrl(sessionId),
-			getAuthToken: this.options.getAuthToken,
-			requestToolApproval: this.options.requestToolApproval,
-			telemetry: this.options.telemetry,
-			getMode: () => this.getCurrentMode(),
-			onStatusChange: (status) => this.handleStatusChange(sessionId, status),
-		})
-		entry.host = host
-		entry.agentStatus = host.status
-		this.ensurePolling()
-		return host
+		const generation = this.scopeGeneration
+		const connection = (async () => {
+			const host = await CloudSessionHost.connect({
+				outerSessionId: sessionId,
+				socketUrl: this.options.cloudSessions.sessionSocketUrl(sessionId),
+				getAuthToken: this.options.getAuthToken,
+				requestToolApproval: this.options.requestToolApproval,
+				telemetry: this.options.telemetry,
+				getMode: () => this.getCurrentMode(),
+				onStatusChange: (status) => {
+					// A replaced account entry must never receive its predecessor's events.
+					if (!this.disposed && generation === this.scopeGeneration && this.entries.get(sessionId) === entry) {
+						this.handleStatusChange(sessionId, status)
+					}
+				},
+			})
+			if (this.disposed || generation !== this.scopeGeneration || this.entries.get(sessionId) !== entry) {
+				await host.dispose("accountScopeChanged").catch(() => undefined)
+				throw new Error("Cloud session connection was superseded")
+			}
+			entry.host = host
+			entry.agentStatus = host.status
+			this.ensurePolling()
+			return host
+		})()
+		entry.connection = connection
+		try {
+			return await connection
+		} finally {
+			if (entry.connection === connection) entry.connection = undefined
+		}
 	}
 
 	private handleStatusChange(sessionId: string, status: CloudSessionStatus): void {
@@ -275,7 +392,7 @@ export class SdkCloudSessionCoordinator {
 		entry.lastActivityAt = Date.now()
 		this.options.invalidateHistoryCache()
 		const isDisplayed = this.options.getTask()?.taskId === sessionId
-		if (!isDisplayed && previous === "running" && (status === "completed" || status === "failed" || status === "idle")) {
+		if (!isDisplayed && previous !== undefined && previous !== status && (status === "completed" || status === "failed")) {
 			this.notifyFinished(entry, status)
 		}
 		this.options.postStateToWebview().catch(() => {})
@@ -291,7 +408,7 @@ export class SdkCloudSessionCoordinator {
 				options: { items: ["Open"] },
 			})
 			.then((response) => {
-				if (response.selectedOption === "Open") {
+				if (!this.disposed && this.entries.get(entry.record.id) === entry && response.selectedOption === "Open") {
 					return this.openCloudTask(entry.record.id)
 				}
 				return undefined
@@ -319,6 +436,8 @@ export class SdkCloudSessionCoordinator {
 				entry.host &&
 				entry.record.id !== displayedId &&
 				!ACTIVE_CLOUD_STATUSES.has(status) &&
+				// Loss of observation is not evidence that the sandbox stopped.
+				status !== "unknown" &&
 				now - entry.lastActivityAt > IDLE_CONNECTION_TTL_MS
 			) {
 				// Finished a while ago and nobody is looking: release the socket.
@@ -359,15 +478,20 @@ export class SdkCloudSessionCoordinator {
 		return recommended.recommended[0]?.id ?? CLINE_RECOMMENDED_MODELS_FALLBACK.recommended[0].id
 	}
 
-	async startCloudTask(input: {
-		prompt: string
-		images?: string[]
-		repoUrl: string
-		branch?: string
-	}): Promise<string | undefined> {
+	async startCloudTask(input: CloudTaskInput): Promise<string | undefined> {
+		const generationBeforeTransition = this.scopeGeneration
+		await this.scopeTransition
+		if (this.disposed || generationBeforeTransition !== this.scopeGeneration) return undefined
+		return this.trackScopeOperation(() => this.startCloudTaskInScope(input, generationBeforeTransition))
+	}
+
+	private async startCloudTaskInScope(input: CloudTaskInput, generation: number): Promise<string | undefined> {
+		if (this.disposed || generation !== this.scopeGeneration) return undefined
 		// clearTask bumps the task-view generation itself, so claim ours after it.
 		await this.options.clearTask()
+		if (this.disposed || generation !== this.scopeGeneration) return undefined
 		const isSuperseded = this.options.claimTaskViewGeneration()
+		const isStale = () => this.disposed || isSuperseded() || generation !== this.scopeGeneration
 		const startedAt = Date.now()
 		const provisionalId = `${CLOUD_PROVISIONING_ID_PREFIX}${startedAt}`
 		const task = this.installTask(provisionalId)
@@ -398,8 +522,12 @@ export class SdkCloudSessionCoordinator {
 		this.options.postStateToWebview().catch(() => {})
 
 		let sessionId: string | undefined
+		let entry: CloudSessionEntry | undefined
+		let host: SdkSessionHost | undefined
+		let sent = false
 		try {
 			const modelId = await this.resolveCloudModelId()
+			if (isStale()) return undefined
 			const record = await this.options.cloudSessions.createSession(
 				{ modelId, repoUrl: input.repoUrl, branch: input.branch },
 				(id) => {
@@ -407,17 +535,17 @@ export class SdkCloudSessionCoordinator {
 				},
 			)
 			sessionId = record.id
-			if (isSuperseded()) {
-				return sessionId
-			}
-			const entry = this.upsertRecord(record)
+			if (isStale()) return sessionId
+			entry = this.upsertRecord(record)
 			entry.title = title
 			this.options.invalidateHistoryCache()
 			// The task id becomes the outer session id once provisioning succeeds.
 			task.taskId = record.id
-			this.options.cloudSessions.renameSession(record.id, title).catch(() => undefined)
+			await this.options.cloudSessions.renameSession(record.id, title).catch(() => undefined)
+			if (isStale()) return sessionId
 
-			const host = await this.connect(entry)
+			host = await this.connect(entry)
+			if (isStale()) return sessionId
 			const startInput: StartSessionInput = {
 				config: {
 					providerId: "cline",
@@ -437,19 +565,17 @@ export class SdkCloudSessionCoordinator {
 				userImages: input.images,
 				sessionMetadata: { title, modelId, executionTarget: "cloud", repoUrl: input.repoUrl, branch: input.branch },
 			}
-			const { sdkHost } = await this.options.sessions.startNewSession(startInput, host)
-			if (isSuperseded()) {
-				return sessionId
-			}
+			const { sdkHost } = await this.options.sessions.startNewSession(startInput, host, () => !isStale())
+			if (isStale()) return sessionId
 			this.options.postStateToWebview().catch(() => {})
 			const resolvedPrompt = await this.options.resolveContextMentions(input.prompt)
+			if (isStale()) return sessionId
 			this.options.sessions.fireAndForgetSend(sdkHost, record.id, resolvedPrompt, input.images)
+			sent = true
 			Logger.log(`[CloudSessions] Cloud task started: ${record.id}`)
 			return record.id
 		} catch (error) {
-			if (isSuperseded()) {
-				return sessionId
-			}
+			if (isStale()) return sessionId
 			Logger.error("[CloudSessions] Failed to start cloud task:", error)
 			const detail = error instanceof Error ? error.message : String(error)
 			this.options.messages.appendAndEmit(
@@ -467,13 +593,49 @@ export class SdkCloudSessionCoordinator {
 			this.options.setTurnPhase("error")
 			await this.options.postStateToWebview().catch(() => {})
 			return undefined
+		} finally {
+			if (sessionId && !sent) await this.cleanupUnusedSession(sessionId, entry, host)
+		}
+	}
+
+	private async cleanupUnusedSession(sessionId: string, entry?: CloudSessionEntry, host?: SdkSessionHost): Promise<void> {
+		if (entry && this.entries.get(sessionId) === entry) {
+			this.entries.delete(sessionId)
+			this.options.invalidateHistoryCache()
+		}
+		let failed = false
+		if (host) {
+			await this.options.sessions.endActiveSessionIfHost(host, "cloudStartSuperseded").catch(() => {
+				failed = true
+			})
+			await host.dispose("cloudStartSuperseded").catch(() => {
+				failed = true
+			})
+		}
+		await this.options.cloudSessions.deleteSession(sessionId).catch(() => {
+			failed = true
+		})
+		if (failed) {
+			// Do not log response bodies or credentials, or retry with another account.
+			const message =
+				"Cloud sandbox cleanup could not be confirmed. Open History in the account that started it and delete the unused cloud session."
+			Logger.warn(`[CloudSessions] ${message}`)
+			void HostProvider.window.showMessage({ type: ShowMessageType.WARNING, message }).catch(() => {
+				Logger.warn("[CloudSessions] Could not display the cloud cleanup warning.")
+			})
 		}
 	}
 
 	// ---- Reopening a task from History ----
 
 	async openCloudTask(sessionId: string): Promise<HistoryItem | undefined> {
+		const lookupWasSuperseded = this.options.claimTaskViewGeneration()
+		const generationBeforeTransition = this.scopeGeneration
+		await this.scopeTransition
+		if (generationBeforeTransition !== this.scopeGeneration) return undefined
+		const lookupGeneration = generationBeforeTransition
 		const record = await this.findHistoryRecord(sessionId)
+		if (lookupWasSuperseded() || lookupGeneration !== this.scopeGeneration) return undefined
 		if (!record) {
 			Logger.error(`[CloudSessions] Cloud session not found: ${sessionId}`)
 			return undefined
@@ -487,14 +649,19 @@ export class SdkCloudSessionCoordinator {
 		// clearTask bumps the task-view generation itself, so claim ours after it.
 		await this.options.clearTask()
 		const isSuperseded = this.options.claimTaskViewGeneration()
+		const generation = this.scopeGeneration
+		const isStale = () =>
+			this.disposed || isSuperseded() || generation !== this.scopeGeneration || this.entries.get(sessionId) !== entry
 
 		try {
 			this.options.resetMessageTranslator()
 			const status = this.statusOf(entry)
 			let messages: ClineMessage[] = []
 			let attachedRunning = false
+			let observedStatus = status
 			if (status === "expired") {
 				const archived = await this.options.cloudSessions.getHistory(sessionId).catch(() => null)
+				if (isStale()) return historyItem
 				messages = this.renderTranscript((archived ?? []) as SdkMessage[], true)
 				messages.push({
 					ts: Date.now(),
@@ -513,10 +680,11 @@ export class SdkCloudSessionCoordinator {
 				})
 			} else {
 				const host = await this.connect(entry)
-				if (isSuperseded()) {
+				if (isStale()) {
 					return historyItem
 				}
 				const transcript = (await host.readMessages(sessionId)) as SdkMessage[]
+				if (isStale()) return historyItem
 				attachedRunning = host.status === "running"
 				messages = this.renderTranscript(transcript, host.status === "completed")
 				await this.options.sessions.attachExistingSession({
@@ -524,15 +692,23 @@ export class SdkCloudSessionCoordinator {
 					sessionId,
 					startConfig: { providerId: "cline", modelId: host.sessionModelId ?? record.model ?? "" },
 					isRunning: attachedRunning,
+					shouldContinue: () => !isStale(),
 				})
+				observedStatus = host.status
+				attachedRunning = observedStatus === "running"
 			}
-			if (isSuperseded()) {
+			if (isStale()) {
 				return historyItem
 			}
 
 			const finalized = this.options.messages.finalizeMessagesForSave(messages)
-			if (!attachedRunning && status !== "expired" && status !== "failed" && finalized.length > 0) {
-				finalized.push({ ts: Date.now(), type: "ask", ask: "resume_completed_task", text: "" })
+			if (!attachedRunning && observedStatus !== "expired" && observedStatus !== "failed" && finalized.length > 0) {
+				finalized.push({
+					ts: Date.now(),
+					type: "ask",
+					ask: observedStatus === "completed" ? "resume_completed_task" : "resume_task",
+					text: "",
+				})
 			}
 			const task = this.installTask(sessionId)
 			if (finalized.length > 0) {
@@ -541,14 +717,16 @@ export class SdkCloudSessionCoordinator {
 			entry.lastActivityAt = Date.now()
 			if (attachedRunning) {
 				this.options.setTurnPhase("streaming")
-			} else if (status === "expired" || status === "failed") {
-				this.options.setTurnPhase("idle")
-			} else {
+			} else if (observedStatus === "completed") {
 				this.options.setTurnPhase("completed", finalized.at(-1)?.ts)
+			} else {
+				this.options.setTurnPhase("idle")
 			}
 			await this.options.postStateToWebview()
 			Logger.log(`[CloudSessions] Showing cloud task ${sessionId} (${status})`)
 		} catch (error) {
+			// The task-view claim guards error rendering as well as successful attachment.
+			if (isStale()) return historyItem
 			Logger.error("[CloudSessions] Failed to open cloud task:", error)
 			const task = this.installTask(sessionId)
 			task.messageStateHandler.addMessages([
@@ -586,12 +764,21 @@ export class SdkCloudSessionCoordinator {
 	// ---- Deletion / disposal ----
 
 	async deleteSession(sessionId: string): Promise<void> {
-		const entry = this.entries.get(sessionId)
-		if (entry?.host) {
-			await entry.host.dispose("deleted").catch(() => undefined)
+		const generation = this.scopeGeneration
+		await this.scopeTransition
+		const assertCurrentScope = () => {
+			if (this.disposed || generation !== this.scopeGeneration) {
+				throw new Error("Cloud session deletion was cancelled because its account scope changed.")
+			}
 		}
-		this.entries.delete(sessionId)
-		await this.options.cloudSessions.deleteSession(sessionId)
+		assertCurrentScope()
+		return this.trackScopeOperation(async () => {
+			assertCurrentScope()
+			const entry = this.entries.get(sessionId)
+			if (entry?.host) await entry.host.dispose("deleted").catch(() => undefined)
+			await this.options.cloudSessions.deleteSession(sessionId)
+			if (entry && this.entries.get(sessionId) === entry) this.entries.delete(sessionId)
+		})
 	}
 
 	async dispose(): Promise<void> {
@@ -602,6 +789,13 @@ export class SdkCloudSessionCoordinator {
 		}
 		const hosts = [...this.entries.values()].flatMap((entry) => (entry.host ? [entry.host] : []))
 		this.entries.clear()
-		await Promise.allSettled(hosts.map((host) => host.dispose("controllerDispose")))
+		await this.drainScopeOperations([
+			...this.scopeOperations,
+			...hosts.map((host) => host.dispose("controllerDispose")),
+		]).catch(() => {
+			// The controller must still dispose its other services. In-flight starts
+			// remain enrolled and clean their sandbox if its id arrives after this wait.
+			Logger.warn("[CloudSessions] Cloud cleanup is still pending during controller disposal.")
+		})
 	}
 }

@@ -5,6 +5,7 @@
 // sidecar uses (apps/examples/desktop-app/sidecar/cloud-sessions.ts).
 
 import { ClineEnv } from "@/config"
+import { fetch } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
 
 const REQUEST_TIMEOUT_MS = 15_000
@@ -92,6 +93,9 @@ export interface CloudSessionsServiceOptions {
 	getAuthToken: () => Promise<string | null | undefined>
 	getActiveOrganizationId: () => string | null | undefined
 	fetch?: typeof fetch
+	/** Explicit endpoints for hermetic hosts and tests. Production uses ClineEnv. */
+	apiBaseUrl?: string
+	appBaseUrl?: string
 }
 
 export class CloudSessionsService {
@@ -102,11 +106,11 @@ export class CloudSessionsService {
 	}
 
 	get apiBaseUrl(): string {
-		return trimTrailingSlash(ClineEnv.config().apiBaseUrl)
+		return trimTrailingSlash(this.options.apiBaseUrl ?? ClineEnv.config().apiBaseUrl)
 	}
 
 	get appBaseUrl(): string {
-		return trimTrailingSlash(ClineEnv.config().appBaseUrl)
+		return trimTrailingSlash(this.options.appBaseUrl ?? ClineEnv.config().appBaseUrl)
 	}
 
 	dashboardUrl(sessionId: string): string {
@@ -314,6 +318,8 @@ export class CloudSessionsService {
 	/**
 	 * Creates a sandbox and resolves once it is ready to accept a Hub connection.
 	 * `onProvisioning` fires as soon as the record exists so the UI can show progress.
+	 * Providing that callback transfers cleanup ownership to the caller, including
+	 * when readiness or subsequent record lookup fails.
 	 */
 	async createSession(
 		input: CreateCloudSessionInput,
@@ -340,8 +346,8 @@ export class CloudSessionsService {
 			try {
 				await this.waitUntilReady(sessionId)
 			} catch (error) {
-				if (error instanceof CloudSessionError && error.code === "session_failed") {
-					await this.deleteSession(sessionId).catch(() => undefined)
+				if (!onProvisioning && error instanceof CloudSessionError && error.code === "session_failed") {
+					await this.deleteSession(sessionId)
 				}
 				throw error
 			}
