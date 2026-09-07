@@ -1751,8 +1751,10 @@ export class Controller {
 	 * downtime, novel provider errors, even flattened to text by the provider)
 	 * rides the unlimited Fibonacci schedule. Only proven user-action causes
 	 * are permanent: typed auth/context-window classes, aborts, definitive
-	 * non-retryable HTTP statuses, and flattened credential/billing/overflow
-	 * signatures (see sdk-retry-classification).
+	 * non-retryable HTTP statuses, flattened credential/billing/overflow/
+	 * request-validation signatures, and the definitive never-succeeds text
+	 * families even when a gateway forwarded the rejection under a transient
+	 * 5xx/429 wrapper status (see sdk-retry-classification).
 	 */
 	private classifyAutoRetryFailure(failure: TurnFailure): RetryClassification {
 		return classifyFailureForRetry(failure)

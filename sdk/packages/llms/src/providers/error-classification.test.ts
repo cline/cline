@@ -5,7 +5,10 @@ import {
 	TypeValidationError,
 } from "ai";
 import { describe, expect, it } from "vitest";
-import { classifyProviderError } from "./error-classification";
+import {
+	classifyProviderError,
+	isRequestValidationRejection,
+} from "./error-classification";
 
 describe("classifyProviderError", () => {
 	describe("context_window_exceeded", () => {
@@ -398,5 +401,49 @@ describe("classifyProviderError", () => {
 			});
 			expect(classifyProviderError(error)).toBe("context_window_exceeded");
 		});
+	});
+});
+
+describe("isRequestValidationRejection", () => {
+	it("matches the flattened z.ai content-type rejection, string and Error forms", () => {
+		expect(
+			isRequestValidationRejection(
+				"messages.content.type is invalid, allowed values: ['text']",
+			),
+		).toBe(true);
+		expect(
+			isRequestValidationRejection(
+				new Error("messages.content.type is invalid, allowed values: ['text']"),
+			),
+		).toBe(true);
+	});
+
+	it("matches the rejection hidden in a gateway-wrapped 500 body", () => {
+		const error = Object.assign(new Error("Bad Gateway"), {
+			name: "AI_APICallError",
+			statusCode: 500,
+			isRetryable: true,
+			responseBody: JSON.stringify({
+				error: {
+					type: "invalid_request_error",
+					message: "messages.content.type is invalid, allowed values: ['text']",
+				},
+			}),
+		});
+		expect(isRequestValidationRejection(error)).toBe(true);
+	});
+
+	it("does not match transient, auth, or overflow failures", () => {
+		expect(isRequestValidationRejection("SocketError: terminated")).toBe(false);
+		expect(
+			isRequestValidationRejection(
+				Object.assign(new Error("unauthorized"), { statusCode: 401 }),
+			),
+		).toBe(false);
+		expect(
+			isRequestValidationRejection(
+				"This model's maximum context length is 128000 tokens. However, your messages resulted in 130000 tokens.",
+			),
+		).toBe(false);
 	});
 });

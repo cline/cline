@@ -156,6 +156,48 @@ describe("classifyFailureForRetry", () => {
 			}
 		})
 
+		it("does not retry a validation rejection forwarded under a gateway 5xx wrapper status", () => {
+			// The reported post-4.1.32 shape: z.ai forwards the upstream content
+			// validation 400 as HTTP 500 (and the AI SDK marks it isRetryable from
+			// that wrapper status), which used to outrank the text verdict and
+			// ride the unlimited Fibonacci schedule forever.
+			const error = apiCallError({
+				statusCode: 500,
+				message: "messages.content.type is invalid, allowed values: ['text']",
+			})
+			expect(classifyFailureForRetry({ error })).toEqual({ retryable: false })
+		})
+
+		it("does not retry a typed isRetryable flag wrapping a definitive validation verdict", () => {
+			const error = apiCallError({
+				isRetryable: true,
+				message: "invalid_request_error: unsupported content type",
+			})
+			expect(classifyFailureForRetry({ error })).toEqual({ retryable: false })
+		})
+
+		it("still retries a 503 whose body carries no never-succeeds signature", () => {
+			const error = apiCallError({ statusCode: 503, message: "upstream overloaded" })
+			expect(classifyFailureForRetry({ error })).toEqual({ retryable: true })
+		})
+
+		it("still retries throughput text over the wrapper-status veto", () => {
+			// Throughput keeps precedence even under a wrapper status: a rate
+			// limit mentioning invalid request parameters stays transient.
+			const error = apiCallError({
+				statusCode: 429,
+				message: "invalid request: rate limit exceeded, retry per minute",
+			})
+			expect(classifyFailureForRetry({ error })).toEqual({ retryable: true })
+		})
+
+		it("still retries a transient 500 that merely mentions billing", () => {
+			// The billing family is deliberately excluded from the veto — loose
+			// enough to appear in transient internal-error bodies.
+			const error = apiCallError({ statusCode: 500, message: "billing service unavailable" })
+			expect(classifyFailureForRetry({ error })).toEqual({ retryable: true })
+		})
+
 		it("still retries throughput text that merely mentions invalid requests", () => {
 			// Throughput signatures outrank permanent text: a rate limit stays
 			// transient even when the provider words it as an invalid request.

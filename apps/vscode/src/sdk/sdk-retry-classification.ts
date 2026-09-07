@@ -17,8 +17,13 @@ import { MAX_RETRY_DELAY_SECONDS } from "./sdk-api-retry-coordinator"
  * getaddrinfo EAI_AGAIN …"), leaving no typed metadata, which is exactly why
  * the default must be retryable.
  *
- * Typed metadata always outranks message text; text can only exclude a
- * failure from retrying when no typed verdict exists.
+ * Typed metadata outranks message text — with one exception: a definitive
+ * never-succeeds text verdict (request-validation, context-overflow,
+ * credential) also vetoes status-derived wrapper signals (retryable HTTP
+ * statuses and the AI SDK's isRetryable flag), because gateways forward
+ * upstream request rejections under 5xx/429 labels while resending the
+ * identical payload can never validate. See the veto in
+ * classifyFailureForRetry.
  */
 export type RetryClassification = { retryable: false } | { retryable: true; retryAfterSeconds?: number }
 
@@ -115,6 +120,16 @@ const PERMANENT_MESSAGE_PATTERNS = [
 	...REQUEST_VALIDATION_PATTERNS,
 ]
 
+/**
+ * The permanent families definitive enough to veto status-derived typed
+ * signals (see the veto in classifyFailureForRetry): a deterministic verdict
+ * about the request cannot be un-made by the wrapper status a gateway slaps
+ * on it. Billing is deliberately excluded — `\bbilling\b` is loose enough to
+ * appear in transient internal-error bodies ("billing service unavailable") —
+ * so it only applies when no typed metadata exists at all.
+ */
+const NEVER_SUCCEEDS_TEXT_PATTERNS = [...CONTEXT_OVERFLOW_PATTERNS, ...CREDENTIAL_PATTERNS, ...REQUEST_VALIDATION_PATTERNS]
+
 /** How deep to walk error `cause` chains looking for typed metadata. */
 const MAX_CAUSE_DEPTH = 6
 
@@ -150,6 +165,21 @@ export function classifyFailureForRetry(failure: TurnFailure): RetryClassificati
 	const signals = collectTypedSignals(failure.error, 0)
 	if (signals.transportError) {
 		return { retryable: true }
+	}
+	// Wrapper-status veto: gateways (z.ai's included) forward upstream request
+	// rejections under transient labels — HTTP 500/502/503/429 — and the AI
+	// SDK derives its `isRetryable` flag from that same wrapper status. A
+	// definitive never-succeeds text verdict outranks both, because resending
+	// the identical payload can never validate no matter how it is labeled.
+	// Throughput text keeps precedence over the veto (a rate-limit body can
+	// quote request parameters); transport failures were already handled
+	// above and carry no provider verdict at all.
+	const hasThroughputText = signals.messages.some((message) => THROUGHPUT_PATTERNS.some((pattern) => pattern.test(message)))
+	if (
+		!hasThroughputText &&
+		signals.messages.some((message) => NEVER_SUCCEEDS_TEXT_PATTERNS.some((pattern) => pattern.test(message)))
+	) {
+		return { retryable: false }
 	}
 	if (signals.isRetryable === true) {
 		// Typed AI SDK flag (APICallError / GatewayError): the provider stack
