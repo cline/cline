@@ -4,6 +4,7 @@ import { SessionSource } from "../../types/common";
 import { ensureChatWorkspace } from "../workspace/chat-workspace";
 import { ClaudeCodeImportAdapter } from "./claude-code";
 import { CodexImportAdapter } from "./codex";
+import { CursorImportAdapter, cursorProjectId } from "./cursor";
 import { OpencodeImportAdapter } from "./opencode";
 import { sanitizeImportedMessages } from "./sanitize";
 import type {
@@ -71,6 +72,7 @@ export class SessionImportService {
 		this.adapters = adapters ?? [
 			new ClaudeCodeImportAdapter(),
 			new CodexImportAdapter(),
+			new CursorImportAdapter(),
 			new OpencodeImportAdapter(),
 		];
 	}
@@ -120,14 +122,26 @@ export class SessionImportService {
 		}
 	}
 
-	async discover(): Promise<ImportableSessionSummary[]> {
+	async discover(options: Pick<SessionImportOptions, "workspaceRoot"> = {}): Promise<ImportableSessionSummary[]> {
 		const existing = await this.existingImports();
 		const out: ImportableSessionSummary[] = [];
 		try {
 			for (const adapter of this.adapters) {
 				try {
-					if (!adapter.isInstalled()) continue;
-					for (const summary of adapter.discover()) {
+					// Cursor transcripts often omit cwd; scan all project folders
+					// and apply workspace filtering after parsing each transcript.
+					const active =
+						adapter.tool === "cursor" && options.workspaceRoot
+							? new CursorImportAdapter({ workspaceRoot: options.workspaceRoot })
+							: adapter;
+					if (!active.isInstalled()) continue;
+					for (const summary of active.discover()) {
+						if (
+							options.workspaceRoot &&
+							!importSummaryBelongsToWorkspace(summary, options.workspaceRoot)
+						) {
+							continue;
+						}
 						const alreadyImportedSessionId = existing.get(
 							importKey(summary.tool, summary.sourceId),
 						);
@@ -366,4 +380,30 @@ export class SessionImportService {
 
 		return sessionId;
 	}
+}
+
+function workspaceMatches(cwd: string, workspaceRoot: string): boolean {
+	const normalizedCwd = cwd.replace(/\\/g, "/").replace(/\/+$/, "");
+	const normalizedRoot = workspaceRoot.replace(/\\/g, "/").replace(/\/+$/, "");
+	return (
+		normalizedCwd === normalizedRoot ||
+		normalizedCwd.startsWith(`${normalizedRoot}/`) ||
+		normalizedRoot.startsWith(`${normalizedCwd}/`)
+	);
+}
+
+export function importSummaryBelongsToWorkspace(
+	summary: ImportableSessionSummary,
+	workspaceRoot: string,
+): boolean {
+	if (summary.cwd) {
+		return workspaceMatches(summary.cwd, workspaceRoot);
+	}
+	if (summary.tool === "cursor") {
+		const projectId = cursorProjectId(workspaceRoot);
+		const sourceId = summary.sourceId.replace(/\\/g, "/");
+		return sourceId === projectId || sourceId.startsWith(`${projectId}/`);
+	}
+	// Other importers either stamp cwd or already scoped their scan.
+	return true;
 }

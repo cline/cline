@@ -1,0 +1,54 @@
+---
+title: "Importing Cursor sessions"
+description: "Bring Cursor Agent conversations into Cline and continue them with your Cline configuration."
+---
+
+# Importing Cursor sessions
+
+Cline can discover Cursor Agent transcript files for a project and show them in the VS Code History view or session import dialog. Opening or importing one creates a native Cline session. Imported sessions are copies: Cline never writes to Cursor's files.
+
+## Import a session
+
+1. Open the project folder in Cline.
+2. Open History. Matching unimported Cursor conversations are labeled `Cursor`.
+3. Select a Cursor conversation to import it lazily, or use the session import dialog to import several.
+4. Send a new prompt in the imported session.
+
+The next Cline turn uses the provider and model currently configured in Cline. The original Cursor provider and model, when available, remain session metadata.
+
+## Where transcripts live
+
+Cursor writes Agent JSONL transcripts under a per-user projects directory:
+
+| Platform | Typical path |
+|----------|--------------|
+| macOS / Linux | `~/.cursor/projects/` |
+| Windows | `%USERPROFILE%\.cursor\projects\` |
+
+Layout when present:
+
+```text
+{cursorProjectsDir}/{project-folder}/agent-transcripts/{uuid}/{uuid}.jsonl
+```
+
+Project folder names are heterogeneous (path slugs such as `Users-jane-projects-app`, numeric IDs, and other Cursor-specific encodings). Cline scans all project folders and filters to the open workspace after parsing each transcript.
+
+Set `CURSOR_PROJECTS_DIR` to override the default projects directory for non-standard installs.
+
+## What is preserved
+
+Cline imports user and assistant text, timestamps, titles, working-directory metadata, standard tool calls and results, and inline images when the source transcript contains them in a supported form. Cline's import sanitizer repairs incomplete tool-call pairs and removes provider-specific signatures before the conversation is resumed.
+
+Malformed lines and unsupported event types are skipped when the rest of the transcript is usable. A transcript with no usable conversational messages is not imported.
+
+## Workspace matching and limitations
+
+History defaults to **Workspace Only**, which shows native Cline sessions and importable Cursor rows that belong to an open workspace folder. Discovery scans all Cursor project folders on disk, then filters rows by transcript `cwd` when present, or by path-slug folder name when `cwd` is missing. Numeric or otherwise unrecognizable project folders with empty `cwd` are excluded when workspace filtering is on.
+
+Cursor's local storage format is not a public stable API and can vary by Cursor version, platform, profile, and workspace type. The current adapter reads JSONL Agent transcript files only. Cursor SQLite indexes and composer sidebar titles are not used as transcript sources.
+
+When the projects directory or `agent-transcripts/` tree is absent, discovery returns no Cursor rows. This is expected when Cursor has never been used on the machine, the workspace was moved or renamed, or transcripts are stored on another profile or host.
+
+Cursor may be running while a transcript is being written. Cline reads source files without modifying them and tolerates a partial final line; repeat the scan after the conversation is complete if a chat is not shown.
+
+Imported sessions are deduplicated by their Cursor source path and session identifier. Repeating an import does not create another Cline session.

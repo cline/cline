@@ -23,4 +23,14 @@ export type HistoryItem = {
 	 */
 	apiProvider?: string
 	isLegacy?: boolean
+
+	/** External session not yet imported into native Cline history. */
+	isImportable?: boolean
+	sourceTool?: string
+	sourceId?: string
+	sourcePath?: string
+	cwd?: string
+	messageCount?: number
+	preview?: string
+	importedSessionId?: string
 }

@@ -3,6 +3,7 @@ import {
 	mkdtempSync,
 	readFileSync,
 	rmSync,
+	utimesSync,
 	writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -13,12 +14,17 @@ import { CoreSessionService } from "../../session/services/session-service";
 import { SqliteSessionStore } from "../storage/sqlite-session-store";
 import { ClaudeCodeImportAdapter } from "./claude-code";
 import { CodexImportAdapter } from "./codex";
+import {
+	CursorImportAdapter,
+	cursorTranscriptDisplayText,
+	resolveCursorProjectsDir,
+} from "./cursor";
 import { OpencodeImportAdapter } from "./opencode";
 import {
 	IMPORT_MISSING_TOOL_RESULT_TEXT,
 	sanitizeImportedMessages,
 } from "./sanitize";
-import { SessionImportService } from "./service";
+import { SessionImportService, importSummaryBelongsToWorkspace } from "./service";
 
 const tempDirs: string[] = [];
 const openStores: SqliteSessionStore[] = [];
@@ -258,6 +264,395 @@ describe("ClaudeCodeImportAdapter", () => {
 		);
 		const adapter = new ClaudeCodeImportAdapter({ projectsDir });
 		expect(adapter.discover()).toHaveLength(0);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Cursor fixtures
+// ---------------------------------------------------------------------------
+
+function writeParentCursorTranscript(
+	projectsDir: string,
+	projectId: string,
+	sessionId: string,
+	lines: unknown[],
+): string {
+	const chatDir = join(
+		projectsDir,
+		projectId,
+		"agent-transcripts",
+		sessionId,
+	);
+	mkdirSync(chatDir, { recursive: true });
+	const file = join(chatDir, `${sessionId}.jsonl`);
+	writeFileSync(
+		file,
+		lines.map((line) => JSON.stringify(line)).join("\n") + "\n",
+	);
+	return file;
+}
+
+function writeCursorFixture(projectsDir: string): void {
+	writeParentCursorTranscript(projectsDir, "workspace-demo", "cursor-chat", [
+		{
+			type: "session",
+			cwd: "/workspace/demo",
+			title: "Fix parser bug",
+			timestamp: "2026-01-03T10:00:00.000Z",
+		},
+		{
+			role: "user",
+			content: "fix the parser",
+			timestamp: "2026-01-03T10:00:01.000Z",
+		},
+		{
+			role: "assistant",
+			provider: "anthropic",
+			model: "claude-sonnet",
+			content: [
+				{ type: "text", text: "I will inspect it." },
+				{
+					type: "function_call",
+					call_id: "call_1",
+					name: "read_file",
+					arguments: '{"path":"parser.ts"}',
+				},
+			],
+			timestamp: "2026-01-03T10:00:02.000Z",
+		},
+		{
+			role: "user",
+			content: [
+				{
+					type: "function_call_output",
+					call_id: "call_1",
+					output: "export function parse() {}",
+				},
+			],
+			timestamp: "2026-01-03T10:00:03.000Z",
+		},
+		{
+			role: "assistant",
+			content: [
+				{
+					type: "image_url",
+					image_url: { url: "data:image/png;base64,ZmFrZQ==" },
+				},
+			],
+			timestamp: "2026-01-03T10:00:04.000Z",
+		},
+	]);
+
+	const otherFile = writeParentCursorTranscript(
+		projectsDir,
+		"other-project",
+		"other-session",
+		[
+			{
+				cwd: "/workspace/other",
+				role: "user",
+				content: "other",
+				timestamp: "2026-01-04T10:00:00.000Z",
+			},
+		],
+	);
+	writeFileSync(otherFile, readFileSync(otherFile, "utf8") + "not json\n");
+}
+
+describe("CursorImportAdapter", () => {
+	it("discovers matching JSONL chats and preserves standard content blocks", () => {
+		const projectsDir = tempDir("cursor-import-");
+		writeCursorFixture(projectsDir);
+		const adapter = new CursorImportAdapter({
+			projectsDir,
+			workspaceRoot: "/workspace/demo",
+		});
+
+		const discovered = adapter.discover();
+		expect(discovered).toHaveLength(1);
+		expect(discovered[0].sourceId).toBe(
+			"workspace-demo/agent-transcripts/cursor-chat/cursor-chat",
+		);
+		expect(discovered[0].title).toBe("Fix parser bug");
+		expect(discovered[0].preview).toBe("fix the parser");
+
+		const converted = adapter.convert(discovered[0].sourceId);
+		expect(converted.provider).toBe("anthropic");
+		expect(converted.model).toBe("claude-sonnet");
+		expect(converted.messages.map((message) => message.role)).toEqual([
+			"user",
+			"assistant",
+			"user",
+			"assistant",
+		]);
+		expect(blocks(converted.messages[1])).toEqual([
+			{ type: "text", text: "I will inspect it." },
+			{
+				type: "tool_use",
+				id: "call_1",
+				name: "read_file",
+				input: { path: "parser.ts" },
+			},
+		]);
+		expect(blocks(converted.messages[2])[0]).toMatchObject({
+			type: "tool_result",
+			tool_use_id: "call_1",
+		});
+		expect(blocks(converted.messages[3])[0]).toMatchObject({
+			type: "image",
+			mediaType: "image/png",
+			data: "ZmFrZQ==",
+		});
+	});
+
+	it("scopes empty-cwd transcripts to the Cursor project folder for the workspace", () => {
+		const projectsDir = tempDir("cursor-import-");
+		writeParentCursorTranscript(
+			projectsDir,
+			"Users-ue-projects-hermes-cloud",
+			"hermes-chat",
+			[
+				{
+					role: "user",
+					content: "hermes only prompt",
+					timestamp: "2026-01-04T10:00:00.000Z",
+				},
+			],
+		);
+		writeParentCursorTranscript(
+			projectsDir,
+			"Users-ue-projects-cline",
+			"cline-chat",
+			[
+				{
+					role: "user",
+					content: "cline only prompt",
+					timestamp: "2026-01-04T11:00:00.000Z",
+				},
+			],
+		);
+
+		const adapter = new CursorImportAdapter({
+			projectsDir,
+			workspaceRoot: "/Users/ue/projects/hermes-cloud",
+		});
+		const discovered = adapter.discover();
+		expect(discovered).toHaveLength(1);
+		expect(discovered[0].preview).toBe("hermes only prompt");
+		expect(discovered[0].sourceId).toContain("Users-ue-projects-hermes-cloud");
+	});
+
+	it("strips Cursor transcript envelope tags from imported titles", () => {
+		expect(
+			cursorTranscriptDisplayText(
+				"<timestamp>Monday, Sep 7, 2026, 1:12 AM (UTC+3)</timestamp> <user_query>why in hermes production only 1 task is running at a time?</user_query>",
+			),
+		).toBe("why in hermes production only 1 task is running at a time?");
+
+		const projectsDir = tempDir("cursor-import-");
+		const chatDir = join(
+			projectsDir,
+			"Users-ue-projects-hermes-cloud",
+			"agent-transcripts",
+			"ef8f7409-f7fa-4c69-91b5-31bcd70f7c41",
+		);
+		mkdirSync(chatDir, { recursive: true });
+		writeFileSync(
+			join(chatDir, "ef8f7409-f7fa-4c69-91b5-31bcd70f7c41.jsonl"),
+			JSON.stringify({
+				role: "user",
+				message: {
+					role: "user",
+					content: [
+						{
+							type: "text",
+							text: "<timestamp>Sunday, Sep 6, 2026, 11:57 PM (UTC+3)</timestamp> <user_query>why in hermes production only 1 task is running at a time?</user_query>",
+						},
+					],
+				},
+			}) + "\n",
+		);
+
+		const discovered = new CursorImportAdapter({
+			projectsDir,
+			workspaceRoot: "/Users/ue/projects/hermes-cloud",
+		}).discover();
+
+		expect(discovered).toHaveLength(1);
+		expect(discovered[0].title).toBe(
+			"why in hermes production only 1 task is running at a time?",
+		);
+		expect(discovered[0].preview).toBe(
+			"why in hermes production only 1 task is running at a time?",
+		);
+	});
+
+	it("keeps Cursor imports out of other workspace folders at discovery time", () => {
+		const projectsDir = tempDir("cursor-import-");
+		writeParentCursorTranscript(
+			projectsDir,
+			"Users-ue-projects-hermes-cloud",
+			"hermes-chat",
+			[
+				{
+					role: "user",
+					content: "hermes only prompt",
+					timestamp: "2026-01-04T10:00:00.000Z",
+				},
+			],
+		);
+		writeParentCursorTranscript(
+			projectsDir,
+			"Users-ue-projects-cline",
+			"cline-chat",
+			[
+				{
+					role: "user",
+					content: "cline only prompt",
+					timestamp: "2026-01-04T11:00:00.000Z",
+				},
+			],
+		);
+
+		const hermesSummary = new CursorImportAdapter({
+			projectsDir,
+			workspaceRoot: "/Users/ue/projects/hermes-cloud",
+		})
+			.discover()
+			.find((summary) => summary.preview === "hermes only prompt");
+		const clineSummary = new CursorImportAdapter({
+			projectsDir,
+			workspaceRoot: "/Users/ue/projects/cline",
+		})
+			.discover()
+			.find((summary) => summary.preview === "cline only prompt");
+
+		expect(hermesSummary).toBeDefined();
+		expect(clineSummary).toBeDefined();
+		expect(
+			importSummaryBelongsToWorkspace(
+				hermesSummary!,
+				"/Users/ue/projects/hermes-cloud",
+			),
+		).toBe(true);
+		expect(
+			importSummaryBelongsToWorkspace(
+				hermesSummary!,
+				"/Users/ue/projects/cline",
+			),
+		).toBe(false);
+		expect(
+			importSummaryBelongsToWorkspace(
+				clineSummary!,
+				"/Users/ue/projects/cline",
+			),
+		).toBe(true);
+		expect(
+			importSummaryBelongsToWorkspace(
+				clineSummary!,
+				"/Users/ue/projects/hermes-cloud",
+			),
+		).toBe(false);
+	});
+
+	it("excludes numeric Cursor project folders with empty cwd when workspace filter is on", () => {
+		const projectsDir = tempDir("cursor-import-");
+		writeParentCursorTranscript(
+			projectsDir,
+			"1780466345848",
+			"numeric-chat",
+			[{ role: "user", content: "numeric folder prompt" }],
+		);
+
+		const filtered = new CursorImportAdapter({
+			projectsDir,
+			workspaceRoot: "/Users/ue/projects/hermes-cloud",
+		}).discover();
+		expect(filtered).toHaveLength(0);
+
+		expect(new CursorImportAdapter({ projectsDir }).discover()).toHaveLength(1);
+	});
+
+	it("ignores subagent transcripts and sorts parent sessions by file mtime", () => {
+		const projectsDir = tempDir("cursor-import-");
+		const parentId = "11111111-1111-1111-1111-111111111111";
+		const parentFile = writeParentCursorTranscript(
+			projectsDir,
+			"Users-ue-projects-hermes-cloud",
+			parentId,
+			[{ role: "user", content: "parent prompt" }],
+		);
+		const subagentsDir = join(
+			projectsDir,
+			"Users-ue-projects-hermes-cloud",
+			"agent-transcripts",
+			parentId,
+			"subagents",
+		);
+		mkdirSync(subagentsDir, { recursive: true });
+		writeFileSync(
+			join(subagentsDir, "22222222-2222-2222-2222-222222222222.jsonl"),
+			JSON.stringify({ role: "user", content: "subagent prompt" }) + "\n",
+		);
+
+		const newerId = "33333333-3333-3333-3333-333333333333";
+		const newerFile = writeParentCursorTranscript(
+			projectsDir,
+			"Users-ue-projects-hermes-cloud",
+			newerId,
+			[{ role: "user", content: "newer parent prompt" }],
+		);
+
+		const olderTime = new Date("2026-01-01T10:00:00.000Z");
+		const newerTime = new Date("2026-01-02T10:00:00.000Z");
+		utimesSync(parentFile, olderTime, olderTime);
+		utimesSync(newerFile, newerTime, newerTime);
+
+		const discovered = new CursorImportAdapter({
+			projectsDir,
+			workspaceRoot: "/Users/ue/projects/hermes-cloud",
+		}).discover();
+
+		expect(discovered).toHaveLength(2);
+		expect(discovered[0].title).toBe("newer parent prompt");
+		expect(discovered[1].title).toBe("parent prompt");
+		expect(discovered.some((item) => item.title === "subagent prompt")).toBe(
+			false,
+		);
+	});
+
+	it("isolates malformed files and supports an unfiltered workspace", () => {
+		const projectsDir = tempDir("cursor-import-");
+		writeCursorFixture(projectsDir);
+		const adapter = new CursorImportAdapter({ projectsDir });
+		expect(adapter.discover()).toHaveLength(2);
+		expect(() => adapter.convert("missing")).toThrow(
+			"Cursor session missing not found",
+		);
+	});
+
+	it("returns an empty discover result when the projects directory is missing", () => {
+		const projectsDir = join(tempDir("cursor-import-"), "missing-cursor-projects");
+		const adapter = new CursorImportAdapter({ projectsDir });
+		expect(adapter.isInstalled()).toBe(false);
+		expect(adapter.discover()).toEqual([]);
+	});
+
+	it("resolves Cursor projects dir from options and env override", () => {
+		const customDir = join(tempDir("cursor-import-"), "custom-projects");
+		expect(resolveCursorProjectsDir({ projectsDir: customDir })).toBe(customDir);
+
+		const previous = process.env.CURSOR_PROJECTS_DIR;
+		process.env.CURSOR_PROJECTS_DIR = customDir;
+		try {
+			expect(resolveCursorProjectsDir()).toBe(customDir);
+		} finally {
+			if (previous === undefined) {
+				delete process.env.CURSOR_PROJECTS_DIR;
+			} else {
+				process.env.CURSOR_PROJECTS_DIR = previous;
+			}
+		}
 	});
 });
 

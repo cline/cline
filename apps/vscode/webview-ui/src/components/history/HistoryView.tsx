@@ -46,7 +46,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 	const [deleteAllDisabled, setDeleteAllDisabled] = useState(false)
 	const [selectedItems, setSelectedItems] = useState<string[]>([])
 	const [showFavoritesOnly, setShowFavoritesOnly] = useState(false)
-	const [showCurrentWorkspaceOnly, setShowCurrentWorkspaceOnly] = useState(false)
+	const [showCurrentWorkspaceOnly, setShowCurrentWorkspaceOnly] = useState(true)
 
 	// Keep track of pending favorite toggle operations
 	const [pendingFavoriteToggles, setPendingFavoriteToggles] = useState<Record<string, boolean>>({})
