@@ -2,6 +2,7 @@ const tsConfigPaths = require("tsconfig-paths")
 const fs = require("fs")
 const path = require("path")
 const Module = require("module")
+const mochaExportNames = Object.keys(require("mocha"))
 
 const baseUrl = path.resolve(__dirname)
 
@@ -38,7 +39,7 @@ Module.prototype.require = function (id) {
 	// test file is required, so delegating to the globals gives every test the
 	// live runner interface regardless of how "mocha" resolves.
 	if (id === "mocha") {
-		return {
+		const mochaInterface = {
 			after: globalThis.after,
 			afterEach: globalThis.afterEach,
 			before: globalThis.before,
@@ -46,6 +47,20 @@ Module.prototype.require = function (id) {
 			describe: globalThis.describe,
 			it: globalThis.it,
 		}
+		// Diagnose unsupported package exports without trapping interop or
+		// tooling probes such as __esModule, then, toJSON or symbols. Enumerable
+		// getters preserve the diagnostic through compiled namespace imports.
+		for (const name of mochaExportNames) {
+			if (!Object.hasOwn(mochaInterface, name)) {
+				Object.defineProperty(mochaInterface, name, {
+					enumerable: true,
+					get() {
+						throw new Error(`Mocha export "${name}" is not provided by test-setup.js mocha shim`)
+					},
+				})
+			}
+		}
+		return mochaInterface
 	}
 
 	// Intercept requires for @google/genai

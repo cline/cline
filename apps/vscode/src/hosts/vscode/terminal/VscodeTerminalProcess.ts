@@ -101,13 +101,12 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 			// Text after C is the command's actual output; everything before (prompt,
 			// command echo) is naturally excluded by the marker.
 			//
-			// NOTE: The CommandFinished (D) marker and its exit code do NOT appear in
-			// the read() stream. VS Code's shell integration addon consumes the D
-			// sequence synchronously and fires onDidEndTerminalShellExecution (with the
-			// exit code) before the debounced data event reaches the stream. We listen
-			// to that event to capture the exit code; the D-marker parsing in the parser
-			// is kept only to delimit command output segments (see below), not as an
-			// exit-code source.
+			// NOTE: VS Code excludes the CommandFinished (D) marker from read().
+			// On normal completion it flushes buffered data and ends the stream
+			// before firing onDidEndTerminalShellExecution with the exit code.
+			// Starting another execution can force the previous end event before
+			// its stream finishes flushing. We use the event for the exit code;
+			// D-marker parsing only delimits output segments, not exit codes.
 			const execution = terminal.shellIntegration.executeCommand(command)
 			const stream = execution.read()
 			const parser = new Osc633Parser()
@@ -118,7 +117,7 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 
 			// Listen for the shell execution end event to capture the exit code and
 			// independently signal completion. The event normally follows the stream,
-			// but some shells leave read() open after reporting that execution ended.
+			// but a replacement execution can force the event before the stream ends.
 			//
 			// onDidEndTerminalShellExecution has been stable API since VS Code 1.93,
 			// below our minimum supported version (see package.json engines.vscode), so it is
