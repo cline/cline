@@ -28,6 +28,7 @@ import {
 } from "./ai-sdk";
 import { BUILTIN_PROVIDER_REGISTRATIONS } from "./builtins-runtime";
 import { createGateway } from "./gateway";
+import { toGatewayModelCapabilities } from "./model-capabilities";
 import {
 	getProviderCollection,
 	getProviderCollectionSync,
@@ -51,45 +52,6 @@ const BUILTIN_PROVIDER_MAP = new Map(
 	]),
 );
 
-function toGatewayCapabilities(
-	capabilities: readonly string[] | undefined,
-): GatewayModelDefinition["capabilities"] {
-	if (!capabilities?.length) {
-		return undefined;
-	}
-
-	const mapped = new Set<
-		NonNullable<GatewayModelDefinition["capabilities"]>[number]
-	>();
-	for (const capability of capabilities) {
-		switch (capability) {
-			case "tools":
-			case "reasoning":
-			case "prompt-cache":
-			case "images":
-			case "audio":
-				mapped.add(capability);
-				break;
-			case "files":
-			case "streaming":
-			case "temperature":
-			case "reasoning-effort":
-			case "computer-use":
-			case "global-endpoint":
-				mapped.add("text");
-				break;
-			case "structured_output":
-				mapped.add("structured-output");
-				break;
-			default:
-				mapped.add("text");
-		}
-	}
-
-	mapped.add("text");
-	return [...mapped];
-}
-
 function toGatewayModelDefinition(
 	providerId: string,
 	model: ModelInfo,
@@ -105,7 +67,7 @@ function toGatewayModelDefinition(
 		operation: model.operation,
 		operationModes: model.operationModes,
 		modalities: model.modalities,
-		capabilities: toGatewayCapabilities(model.capabilities),
+		capabilities: toGatewayModelCapabilities(model.capabilities),
 		reasoningOptions: model.reasoningOptions,
 		metadata: {
 			family: model.family,

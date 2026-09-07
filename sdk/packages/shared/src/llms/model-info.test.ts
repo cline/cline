@@ -3,6 +3,7 @@ import {
 	isChatCompatibleModel,
 	ModelInfoSchema,
 	modelHasCapability,
+	modelSupportsImageInput,
 	modelSupportsToolCalling,
 	supportsChatModalities,
 } from "./model-info";
@@ -135,6 +136,20 @@ describe("modelSupportsToolCalling", () => {
 		expect(modelSupportsToolCalling({ capabilities: ["tools"] })).toBe(true);
 		expect(
 			modelSupportsToolCalling({ capabilities: ["images", "prompt-cache"] }),
+		).toBe(false);
+	});
+});
+
+describe("modelSupportsImageInput", () => {
+	it("fails open when capability metadata is missing or empty", () => {
+		expect(modelSupportsImageInput({})).toBe(true);
+		expect(modelSupportsImageInput({ capabilities: [] })).toBe(true);
+	});
+
+	it("trusts a populated capability list", () => {
+		expect(modelSupportsImageInput({ capabilities: ["images"] })).toBe(true);
+		expect(
+			modelSupportsImageInput({ capabilities: ["tools", "prompt-cache"] }),
 		).toBe(false);
 	});
 });

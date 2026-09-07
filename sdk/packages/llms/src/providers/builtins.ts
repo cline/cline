@@ -1,6 +1,5 @@
 import {
 	CLINE_DEFAULT_MODEL_ID,
-	type GatewayModelCapability,
 	type GatewayModelDefinition,
 	type GatewayModelOperationCapability,
 	type GatewayModelToolCapability,
@@ -41,6 +40,7 @@ import {
 	isClineOrgIndividualInferenceSubscriptionMessage,
 } from "./errors";
 import { normalizeProviderId } from "./ids";
+import { toGatewayModelCapabilities } from "./model-capabilities";
 import {
 	BUILTIN_MODEL_OPERATION_CAPABILITIES,
 	BUILTIN_TRANSCRIPTION_TRANSPORTS,
@@ -546,26 +546,6 @@ function modelInfoToGateway(
 	providerId: string,
 	info: ModelInfo,
 ): GatewayModelDefinition {
-	const capabilities = new Set<GatewayModelCapability>(["text"]);
-	for (const cap of info.capabilities ?? []) {
-		switch (cap) {
-			case "tools":
-				capabilities.add("tools");
-				break;
-			case "reasoning":
-				capabilities.add("reasoning");
-				break;
-			case "prompt-cache":
-				capabilities.add("prompt-cache");
-				break;
-			case "images":
-				capabilities.add("images");
-				break;
-			case "structured_output":
-				capabilities.add("structured-output");
-				break;
-		}
-	}
 	const metadata: Record<string, JsonValue | undefined> = {};
 	if (info.family) {
 		metadata.family = info.family;
@@ -593,7 +573,7 @@ function modelInfoToGateway(
 		operation: info.operation,
 		operationModes: info.operationModes,
 		modalities: info.modalities,
-		capabilities: [...capabilities],
+		capabilities: toGatewayModelCapabilities(info.capabilities),
 		reasoningOptions: info.reasoningOptions,
 		metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
 	};
@@ -1361,12 +1341,15 @@ export function toManifest(spec: BuiltinSpec): GatewayProviderManifest {
 		models.length > 0
 			? models
 			: [
-					{
+					// A placeholder for a provider whose collection is empty. Nothing
+					// is known about the model, so leave capabilities absent rather
+					// than claiming text-only: gateway gates read an absent list as
+					// "unspecified" and fail open, while `["text"]` would read as an
+					// authoritative denial of images and reasoning.
+					modelInfoToGateway(spec.id, {
 						id: collection.provider.defaultModelId || "default",
 						name: collection.provider.defaultModelId || "Default",
-						providerId: spec.id,
-						capabilities: ["text"] as GatewayModelCapability[],
-					},
+					}),
 				];
 
 	return {
