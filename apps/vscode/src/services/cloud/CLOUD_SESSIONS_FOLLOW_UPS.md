@@ -71,7 +71,7 @@ roughly in the order they should be done.
   affordance for cloud tasks or open a read-only virtual document fetched from
   the sandbox.
 - Keep a cloud session's connection across window reloads: after a reload the
-  registry is empty, so a task that was running shows as "Cloud" until it is
+  registry is empty, so a task that was running shows as "Status unknown" until it is
   reopened. Persisting the ids of sessions started from this window and
   reattaching on activation would restore the status without user action.
 - Favorites and rename for cloud rows in History (favorites are local-history
@@ -88,6 +88,12 @@ roughly in the order they should be done.
   the production REST client and authenticated WebSocket path through a real
   local Hub; `bun run dev:cloud-sessions` runs the same credential-free fixture
   for interactive extension development.
+
+The local development command prints a loopback-only `CLINE_LOCAL_CLOUD_URL`
+override so API, dashboard, GitHub-management and MCP endpoints share the fixture
+listener. The dashboard/integration pages identify themselves as fixtures; they
+do not emulate the hosted website. Managed `endpoints.json` configurations still
+take precedence. Use an unmanaged development environment for this workflow.
 
 ## Local multi-task (explicitly out of scope, rough sizing)
 
