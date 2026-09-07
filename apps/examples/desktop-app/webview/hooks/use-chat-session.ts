@@ -4,7 +4,7 @@ import {
 	DetachedCommandOutcomeSchema,
 	detachedCommandBackgroundStatus,
 	formatDetachedCompletionNote,
-} from "@cline/shared";
+} from "@cline/shared/browser";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
 	serializeAttachments,
