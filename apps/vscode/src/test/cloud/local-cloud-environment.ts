@@ -41,6 +41,8 @@ export interface LocalCloudEnvironment {
 	readonly accessToken: string
 	readonly sessions: ReadonlyMap<string, OwnedSandbox>
 	activateSession(sessionId: string): Promise<OwnedSandbox>
+	/** Drop only the client transport; the sandbox continues running. */
+	disconnectClients(): void
 	dispose(): Promise<void>
 }
 
@@ -61,12 +63,14 @@ async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> 
 	return JSON.parse(Buffer.concat(chunks).toString("utf8")) as Record<string, unknown>
 }
 
-function scriptedModelFetch(): typeof fetch {
+function scriptedModelFetch(beforeResponse?: (signal?: AbortSignal | null) => Promise<void>): typeof fetch {
 	const fetchImpl = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
 		const url = new URL(typeof input === "string" ? input : input instanceof URL ? input : input.url)
 		if (url.hostname !== "api.cline.bot" || url.pathname !== "/api/v1/chat/completions") {
 			throw new Error(`Local cloud fixture blocked unexpected model request to ${url.toString()}`)
 		}
+		if (init?.signal?.aborted) throw init.signal.reason
+		await beforeResponse?.(init?.signal)
 		if (init?.signal?.aborted) throw init.signal.reason
 		const body = [
 			`data: ${JSON.stringify({ choices: [{ index: 0, delta: { role: "assistant", content: "cloud fixture reply" }, finish_reason: null }] })}\n\n`,
@@ -79,10 +83,15 @@ function scriptedModelFetch(): typeof fetch {
 }
 
 export async function startLocalCloudEnvironment(
-	options: { port?: number; accessToken?: string } = {},
+	options: {
+		port?: number
+		accessToken?: string
+		tempDir?: string
+		beforeModelResponse?: (signal?: AbortSignal | null) => Promise<void>
+	} = {},
 ): Promise<LocalCloudEnvironment> {
 	const accessToken = options.accessToken ?? `local-cloud-${randomUUID()}`
-	const root = await mkdtemp(path.join(tmpdir(), "cline-local-cloud-"))
+	const root = await mkdtemp(path.join(options.tempDir ?? tmpdir(), "cline-local-cloud-"))
 	const sessions = new Map<string, OwnedSandbox>()
 	const sockets = new Set<Socket>()
 	const bridgedSockets = new Set<WebSocket>()
@@ -103,7 +112,7 @@ export async function startLocalCloudEnvironment(
 					sessionService: new CoreSessionService(sessionStore, {
 						sessionArtifactsDir: path.join(owned.root, "sessions"),
 					}),
-					fetch: scriptedModelFetch(),
+					fetch: scriptedModelFetch(options.beforeModelResponse),
 				})
 				const hub = await startHubWebSocketServer({
 					host: LOOPBACK_HOST,
@@ -113,7 +122,9 @@ export async function startLocalCloudEnvironment(
 					eventLog: false,
 					runQueue: false,
 					sessionHost,
-					runtimeHandlers: createLocalHubScheduleRuntimeHandlers({ fetch: scriptedModelFetch() }),
+					runtimeHandlers: createLocalHubScheduleRuntimeHandlers({
+						fetch: scriptedModelFetch(options.beforeModelResponse),
+					}),
 				})
 				owned.hub = hub
 				owned.sessionStore = sessionStore
@@ -136,6 +147,9 @@ export async function startLocalCloudEnvironment(
 		try {
 			const url = new URL(req.url ?? "/", apiBaseUrl)
 			if (url.pathname === "/health") return json(res, 200, { status: "ok" })
+			if (["/agents", "/dashboard/integrations", "/dashboard/organization/integrations"].includes(url.pathname)) {
+				return json(res, 200, { fixture: "Local cloud development page", path: url.pathname })
+			}
 			const presentedToken = req.headers.authorization?.replace(/^Bearer\s+/i, "").replace(/^workos:/i, "")
 			if (presentedToken !== accessToken) return json(res, 401, { error: "Unauthorized" })
 			if (url.pathname === "/api/v1/users/me" && req.method === "GET") {
@@ -258,29 +272,58 @@ export async function startLocalCloudEnvironment(
 			.catch(() => socket.destroy())
 	})
 
-	await new Promise<void>((resolve, reject) => {
-		server.once("error", reject)
-		server.listen(options.port ?? 0, LOOPBACK_HOST, resolve)
-	})
-	const address = server.address()
-	if (!address || typeof address === "string") throw new Error("Local cloud fixture did not bind a TCP port")
-	apiBaseUrl = `http://${LOOPBACK_HOST}:${address.port}`
+	const disconnectClients = () => {
+		for (const ws of bridgedSockets) ws.terminate()
+		for (const socket of sockets) socket.destroy()
+	}
+	let disposal: Promise<void> | undefined
+	const dispose = (): Promise<void> => {
+		disposal ??= (async () => {
+			disposing = true
+			disconnectClients()
+			try {
+				await Promise.allSettled(activations.values())
+				const results = await Promise.allSettled(
+					[...sessions.values()].map(async ({ hub, sessionStore }) => {
+						try {
+							await hub?.close()
+						} finally {
+							sessionStore?.close()
+						}
+					}),
+				)
+				const errors = results.flatMap((result) => (result.status === "rejected" ? [result.reason] : []))
+				if (errors.length > 0) throw new AggregateError(errors, "Local cloud sandbox cleanup failed")
+			} finally {
+				await new Promise<void>((resolve) => server.close(() => resolve()))
+				wss.close()
+				await rm(root, { recursive: true, force: true })
+			}
+		})()
+		return disposal
+	}
+	try {
+		await new Promise<void>((resolve, reject) => {
+			server.once("error", reject)
+			server.listen(options.port ?? 0, LOOPBACK_HOST, () => {
+				server.removeListener("error", reject)
+				resolve()
+			})
+		})
+		const address = server.address()
+		if (!address || typeof address === "string") throw new Error("Local cloud fixture did not bind a TCP port")
+		apiBaseUrl = `http://${LOOPBACK_HOST}:${address.port}`
+	} catch (error) {
+		await dispose()
+		throw error
+	}
 
 	return {
 		apiBaseUrl,
 		accessToken,
 		sessions,
 		activateSession,
-		async dispose() {
-			disposing = true
-			for (const ws of bridgedSockets) ws.terminate()
-			for (const socket of sockets) socket.destroy()
-			await Promise.allSettled(activations.values())
-			await Promise.allSettled([...sessions.values()].map(({ hub }) => hub?.close()))
-			for (const { sessionStore } of sessions.values()) sessionStore?.close()
-			await new Promise<void>((resolve) => server.close(() => resolve()))
-			wss.close()
-			await rm(root, { recursive: true, force: true })
-		},
+		disconnectClients,
+		dispose,
 	}
 }

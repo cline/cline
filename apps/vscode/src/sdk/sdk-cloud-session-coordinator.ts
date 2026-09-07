@@ -51,6 +51,17 @@ const LIST_CACHE_TTL_MS = 10_000
 const ACTIVE_POLL_INTERVAL_MS = 15_000
 const IDLE_CONNECTION_TTL_MS = 5 * 60_000
 
+const HISTORY_STATUS: Record<CloudSessionStatus, SessionHistoryRecord["status"]> = {
+	provisioning: "pending",
+	running: "running",
+	idle: "idle",
+	completed: "completed",
+	failed: "failed",
+	cancelled: "cancelled",
+	unknown: "pending",
+	expired: "cancelled",
+}
+
 export interface SdkCloudSessionCoordinatorOptions {
 	cloudSessions: CloudSessionsService
 	stateManager: StateManager
@@ -119,7 +130,7 @@ export class SdkCloudSessionCoordinator {
 		if (rest === "failed") {
 			return "failed"
 		}
-		return entry.host?.status ?? entry.agentStatus ?? "idle"
+		return entry.host?.status ?? entry.agentStatus ?? "unknown"
 	}
 
 	getCurrentTaskInfo(): CurrentCloudTaskInfo | undefined {
@@ -132,7 +143,7 @@ export class SdkCloudSessionCoordinator {
 			sessionId: taskId,
 			repoUrl: entry?.record.repoContext.repoUrl,
 			branch: entry?.record.repoContext.branch,
-			status: entry ? this.statusOf(entry) : "idle",
+			status: entry ? this.statusOf(entry) : "unknown",
 			dashboardUrl: this.options.cloudSessions.dashboardUrl(taskId),
 		}
 	}
@@ -147,8 +158,8 @@ export class SdkCloudSessionCoordinator {
 			pid: 0,
 			startedAt: record.createdAt,
 			endedAt: status === "expired" ? (record.expiredAt ?? undefined) : undefined,
-			exitCode: 0,
-			status: status === "running" || status === "provisioning" ? "running" : status === "failed" ? "failed" : "completed",
+			exitCode: status === "completed" ? 0 : undefined,
+			status: HISTORY_STATUS[status],
 			interactive: true,
 			provider: "cline",
 			model: record.metadata.modelId ?? "",
@@ -196,6 +207,7 @@ export class SdkCloudSessionCoordinator {
 
 	private async refreshList(force = false): Promise<void> {
 		await this.scopeTransition
+		if (this.disposed) return
 		if (!force && Date.now() - this.listFetchedAt < LIST_CACHE_TTL_MS) {
 			return
 		}
@@ -207,7 +219,7 @@ export class SdkCloudSessionCoordinator {
 		listPromise = (async () => {
 			try {
 				const records = await this.options.cloudSessions.listSessions()
-				if (generation !== this.scopeGeneration) {
+				if (generation !== this.scopeGeneration || this.disposed) {
 					return
 				}
 				const seen = new Set<string>()
@@ -222,6 +234,8 @@ export class SdkCloudSessionCoordinator {
 				}
 				this.listFetchedAt = Date.now()
 			} catch (error) {
+				// Reset invalidates both successful responses and failed requests.
+				if (generation !== this.scopeGeneration || this.disposed) return
 				if (error instanceof CloudSessionError && error.code === "authentication_required") {
 					this.entries.clear()
 				}
@@ -304,9 +318,14 @@ export class SdkCloudSessionCoordinator {
 				requestToolApproval: this.options.requestToolApproval,
 				telemetry: this.options.telemetry,
 				getMode: () => this.getCurrentMode(),
-				onStatusChange: (status) => this.handleStatusChange(sessionId, status),
+				onStatusChange: (status) => {
+					// A replaced account entry must never receive its predecessor's events.
+					if (!this.disposed && generation === this.scopeGeneration && this.entries.get(sessionId) === entry) {
+						this.handleStatusChange(sessionId, status)
+					}
+				},
 			})
-			if (generation !== this.scopeGeneration || this.entries.get(sessionId) !== entry) {
+			if (this.disposed || generation !== this.scopeGeneration || this.entries.get(sessionId) !== entry) {
 				await host.dispose("accountScopeChanged").catch(() => undefined)
 				throw new Error("Cloud session connection was superseded")
 			}
@@ -333,7 +352,7 @@ export class SdkCloudSessionCoordinator {
 		entry.lastActivityAt = Date.now()
 		this.options.invalidateHistoryCache()
 		const isDisplayed = this.options.getTask()?.taskId === sessionId
-		if (!isDisplayed && previous === "running" && (status === "completed" || status === "failed" || status === "idle")) {
+		if (!isDisplayed && previous !== undefined && previous !== status && (status === "completed" || status === "failed")) {
 			this.notifyFinished(entry, status)
 		}
 		this.options.postStateToWebview().catch(() => {})
@@ -349,7 +368,7 @@ export class SdkCloudSessionCoordinator {
 				options: { items: ["Open"] },
 			})
 			.then((response) => {
-				if (response.selectedOption === "Open") {
+				if (!this.disposed && this.entries.get(entry.record.id) === entry && response.selectedOption === "Open") {
 					return this.openCloudTask(entry.record.id)
 				}
 				return undefined
@@ -377,6 +396,8 @@ export class SdkCloudSessionCoordinator {
 				entry.host &&
 				entry.record.id !== displayedId &&
 				!ACTIVE_CLOUD_STATUSES.has(status) &&
+				// Loss of observation is not evidence that the sandbox stopped.
+				status !== "unknown" &&
 				now - entry.lastActivityAt > IDLE_CONNECTION_TTL_MS
 			) {
 				// Finished a while ago and nobody is looking: release the socket.
@@ -585,13 +606,15 @@ export class SdkCloudSessionCoordinator {
 		await this.options.clearTask()
 		const isSuperseded = this.options.claimTaskViewGeneration()
 		const generation = this.scopeGeneration
-		const isStale = () => isSuperseded() || generation !== this.scopeGeneration
+		const isStale = () =>
+			this.disposed || isSuperseded() || generation !== this.scopeGeneration || this.entries.get(sessionId) !== entry
 
 		try {
 			this.options.resetMessageTranslator()
 			const status = this.statusOf(entry)
 			let messages: ClineMessage[] = []
 			let attachedRunning = false
+			let observedStatus = status
 			if (status === "expired") {
 				const archived = await this.options.cloudSessions.getHistory(sessionId).catch(() => null)
 				if (isStale()) return historyItem
@@ -627,14 +650,21 @@ export class SdkCloudSessionCoordinator {
 					isRunning: attachedRunning,
 					shouldContinue: () => !isStale(),
 				})
+				observedStatus = host.status
+				attachedRunning = observedStatus === "running"
 			}
 			if (isStale()) {
 				return historyItem
 			}
 
 			const finalized = this.options.messages.finalizeMessagesForSave(messages)
-			if (!attachedRunning && status !== "expired" && status !== "failed" && finalized.length > 0) {
-				finalized.push({ ts: Date.now(), type: "ask", ask: "resume_completed_task", text: "" })
+			if (!attachedRunning && observedStatus !== "expired" && observedStatus !== "failed" && finalized.length > 0) {
+				finalized.push({
+					ts: Date.now(),
+					type: "ask",
+					ask: observedStatus === "completed" ? "resume_completed_task" : "resume_task",
+					text: "",
+				})
 			}
 			const task = this.installTask(sessionId)
 			if (finalized.length > 0) {
@@ -643,14 +673,16 @@ export class SdkCloudSessionCoordinator {
 			entry.lastActivityAt = Date.now()
 			if (attachedRunning) {
 				this.options.setTurnPhase("streaming")
-			} else if (status === "expired" || status === "failed") {
-				this.options.setTurnPhase("idle")
-			} else {
+			} else if (observedStatus === "completed") {
 				this.options.setTurnPhase("completed", finalized.at(-1)?.ts)
+			} else {
+				this.options.setTurnPhase("idle")
 			}
 			await this.options.postStateToWebview()
 			Logger.log(`[CloudSessions] Showing cloud task ${sessionId} (${status})`)
 		} catch (error) {
+			// The task-view claim guards error rendering as well as successful attachment.
+			if (isStale()) return historyItem
 			Logger.error("[CloudSessions] Failed to open cloud task:", error)
 			const task = this.installTask(sessionId)
 			task.messageStateHandler.addMessages([
