@@ -318,6 +318,8 @@ export class CloudSessionsService {
 	/**
 	 * Creates a sandbox and resolves once it is ready to accept a Hub connection.
 	 * `onProvisioning` fires as soon as the record exists so the UI can show progress.
+	 * Providing that callback transfers cleanup ownership to the caller, including
+	 * when readiness or subsequent record lookup fails.
 	 */
 	async createSession(
 		input: CreateCloudSessionInput,
@@ -344,8 +346,8 @@ export class CloudSessionsService {
 			try {
 				await this.waitUntilReady(sessionId)
 			} catch (error) {
-				if (error instanceof CloudSessionError && error.code === "session_failed") {
-					await this.deleteSession(sessionId).catch(() => undefined)
+				if (!onProvisioning && error instanceof CloudSessionError && error.code === "session_failed") {
+					await this.deleteSession(sessionId)
 				}
 				throw error
 			}
