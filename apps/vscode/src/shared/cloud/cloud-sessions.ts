@@ -6,9 +6,19 @@ export type CloudExecutionTarget = "local" | "cloud"
  * - running: the agent is working (known from a live hub connection)
  * - idle: the sandbox is up but the agent is not running a turn
  * - completed / failed: the last turn ended that way (known from a live hub connection)
+ * - cancelled: the last turn was aborted, not successfully completed
+ * - unknown: the connection could not confirm whether the agent is still running
  * - expired: the sandbox is gone; only the archived transcript remains
  */
-export type CloudSessionStatus = "provisioning" | "running" | "idle" | "completed" | "failed" | "expired"
+export type CloudSessionStatus =
+	| "provisioning"
+	| "running"
+	| "idle"
+	| "completed"
+	| "failed"
+	| "cancelled"
+	| "unknown"
+	| "expired"
 
 /** The user's persisted Local/Cloud choice for new tasks. */
 export interface CloudTaskTargetSelection {

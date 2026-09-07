@@ -8,6 +8,8 @@ const LABELS: Record<CloudSessionStatus, string> = {
 	idle: "Cloud",
 	completed: "Done",
 	failed: "Failed",
+	cancelled: "Cancelled",
+	unknown: "Status unknown",
 	expired: "Expired",
 }
 
