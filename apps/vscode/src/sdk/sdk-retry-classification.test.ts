@@ -141,6 +141,32 @@ describe("classifyFailureForRetry", () => {
 			}
 		})
 
+		it("does not retry flattened request-shape validation failures (content-block type rejections)", () => {
+			// Anthropic-compatible gateways (z.ai et al.) flatten 400 validation
+			// verdicts into plain text with no status metadata. The payload
+			// itself is invalid, so an identical resend can never succeed.
+			for (const message of [
+				"messages.content.type is invalid, allowed values: ['text']",
+				"messages.1.content.2.type is invalid, allowed values: ['text']",
+				'{"type":"invalid_request_error","message":"max_tokens: field required"}',
+				"unsupported content type: image",
+			]) {
+				expect(classifyFailureForRetry({ error: new Error(message) })).toEqual({ retryable: false })
+				expect(classifyFailureForRetry({ error: message })).toEqual({ retryable: false })
+			}
+		})
+
+		it("still retries throughput text that merely mentions invalid requests", () => {
+			// Throughput signatures outrank permanent text: a rate limit stays
+			// transient even when the provider words it as an invalid request.
+			for (const message of [
+				"invalid request: rate limit exceeded, retry per minute",
+				"request invalid due to per-minute token quota",
+			]) {
+				expect(classifyFailureForRetry({ error: new Error(message) })).toEqual({ retryable: true })
+			}
+		})
+
 		it("does not retry aborts (user cancellation)", () => {
 			const byName = new Error("The operation was aborted")
 			byName.name = "AbortError"

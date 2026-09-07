@@ -11,11 +11,11 @@ import { MAX_RETRY_DELAY_SECONDS } from "./sdk-api-retry-coordinator"
  * A failure is permanent only when something provably needs user action or can
  * never succeed on retry — a typed auth/context-window class, a definitive
  * non-retryable HTTP status, an abort, or (absent any typed metadata) a
- * flattened message that definitively matches a credential, billing, or
- * context-overflow signature. Providers like z.ai stringify transport
- * failures into plain text ("Cannot connect to API: getaddrinfo EAI_AGAIN
- * …"), leaving no typed metadata, which is exactly why the default must be
- * retryable.
+ * flattened message that definitively matches a credential, billing,
+ * context-overflow, or request-validation signature. Providers like z.ai
+ * stringify transport failures into plain text ("Cannot connect to API:
+ * getaddrinfo EAI_AGAIN …"), leaving no typed metadata, which is exactly why
+ * the default must be retryable.
  *
  * Typed metadata always outranks message text; text can only exclude a
  * failure from retrying when no typed verdict exists.
@@ -92,7 +92,28 @@ const BILLING_PATTERNS = [
 	/\bpayment[\s_-]*(?:required|failed|declined)\b/i,
 	/\bupgrade[\s_-]*your[\s_-]*plan\b/i,
 ]
-const PERMANENT_MESSAGE_PATTERNS = [...CONTEXT_OVERFLOW_PATTERNS, ...CREDENTIAL_PATTERNS, ...BILLING_PATTERNS]
+/**
+ * Flattened-message signatures for request-shape validation failures. A
+ * definitive verdict about the request's own structure — an unsupported
+ * content-block type, an invalid field, Anthropic's invalid_request_error —
+ * is deterministic: resending the identical payload can never succeed, so
+ * only the user can resolve it (drop the offending content, switch model,
+ * or start a new task). Anthropic-compatible gateways (z.ai et al.) flatten
+ * these 400s into plain text with no status metadata, which is why they must
+ * be matched here rather than relying on the HTTP ladder.
+ */
+const REQUEST_VALIDATION_PATTERNS = [
+	/\binvalid_request_error\b/i,
+	/\bis invalid,? allowed values?:/i,
+	/\bmessages\.[^\s:]{0,40}(?:type|role)\b[^\n]{0,80}\binvalid\b/i,
+	/\b(?:unsupported|not[ _-]?allowed)[^\n]{0,40}\bcontent[ _-]?type\b/i,
+]
+const PERMANENT_MESSAGE_PATTERNS = [
+	...CONTEXT_OVERFLOW_PATTERNS,
+	...CREDENTIAL_PATTERNS,
+	...BILLING_PATTERNS,
+	...REQUEST_VALIDATION_PATTERNS,
+]
 
 /** How deep to walk error `cause` chains looking for typed metadata. */
 const MAX_CAUSE_DEPTH = 6

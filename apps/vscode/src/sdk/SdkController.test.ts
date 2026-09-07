@@ -886,6 +886,33 @@ describe("auto-retry lifecycle (failed turn → countdown → re-drive)", () => 
 		)
 	})
 
+	it("treats a flattened content-block validation rejection as permanent instead of retrying forever", async () => {
+		const harness = makeLifecycleHarness()
+		// Anthropic-compatible gateways flatten 400 request-shape verdicts to
+		// plain text with no status metadata. Left retryable this arms an
+		// endless countdown streak on a resend that can never succeed.
+		const error = new Error("messages.content.type is invalid, allowed values: ['text']")
+
+		await harness.settle("send_rejection", error)
+
+		// No streak is armed and nothing re-drives…
+		expect(harness.clock.timers).toHaveLength(0)
+		expect(harness.askResponse).not.toHaveBeenCalled()
+		expect(harness.setPhase).not.toHaveBeenCalledWith("retrying")
+		// …the phase settles on error recovery so the user can act (Retry /
+		// Start New Task) instead of watching an immortal countdown.
+		expect(harness.setPhase).toHaveBeenCalledWith("error")
+		expect(harness.emitSessionEvents).toHaveBeenCalledWith(
+			[
+				expect.objectContaining({
+					say: "error",
+					text: "Agent error: messages.content.type is invalid, allowed values: ['text']",
+				}),
+			],
+			{ type: "status", payload: { sessionId: "session-123", status: "error" } },
+		)
+	})
+
 	it("abandons a pending retry when its session was replaced before the timer fired", async () => {
 		const harness = makeLifecycleHarness()
 
