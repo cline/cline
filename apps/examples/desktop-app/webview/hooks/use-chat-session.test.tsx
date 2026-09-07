@@ -1067,6 +1067,169 @@ describe("useChatSession", () => {
 		}
 	});
 
+	it("settles a reloaded detached command row on its completion", async () => {
+		// A client that reloads mid-flight hydrates the detached command's
+		// persisted row from disk. The row must claim no outcome but stay
+		// routable, so the detached-completion event for the still-running
+		// process settles it in place instead of being dropped.
+		const sessionId = "session-reloaded-detached";
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "read_session_messages") {
+					return [
+						{
+							id: "history-user",
+							sessionId,
+							role: "user",
+							content: "Run it",
+							createdAt: 1,
+						},
+						{
+							id: "history-tool-detached",
+							sessionId,
+							role: "tool",
+							content: JSON.stringify({
+								toolName: "run_commands",
+								input: { commands: ["sleep 60"] },
+								result:
+									"[Command is still running. Output will continue in /tmp/output.log]",
+								isError: false,
+							}),
+							createdAt: 2,
+							meta: {
+								toolName: "run_commands",
+								toolCallId: "call-reloaded",
+								hookEventName: "history_tool_result",
+							},
+						},
+						{
+							id: "history-tool-plain",
+							sessionId,
+							role: "tool",
+							content: JSON.stringify({
+								toolName: "run_commands",
+								input: { commands: ["echo done"] },
+								result: "done",
+								isError: false,
+							}),
+							createdAt: 3,
+							meta: {
+								toolName: "run_commands",
+								toolCallId: "call-plain",
+								hookEventName: "history_tool_result",
+							},
+						},
+					];
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string } | undefined;
+					if (request?.action === "attach") {
+						return {
+							sessionId,
+							status: "running",
+							provider: "cline",
+							model: "test-model",
+							cwd: "/workspace/cline",
+							workspaceRoot: "/workspace/cline",
+						};
+					}
+				}
+				return { promptsInQueue: [] };
+			},
+		);
+		await act(async () => {
+			await current.hydrateSession({
+				sessionId,
+				status: "running",
+				provider: "cline",
+				model: "test-model",
+				cwd: "/workspace/cline",
+				workspaceRoot: "/workspace/cline",
+				startedAt: "2026-09-07T00:00:00.000Z",
+			});
+		});
+		const detachedRow = current.messages.find(
+			(message) => message.id === "history-tool-detached",
+		);
+		expect(detachedRow?.meta).toMatchObject({
+			toolBackgroundStatus: "indeterminate",
+			toolBackgroundLogPath: "/tmp/output.log",
+			hookEventName: "tool_call_end",
+		});
+		// A row whose result never detached is not stamped and not enrolled.
+		const plainRow = current.messages.find(
+			(message) => message.id === "history-tool-plain",
+		);
+		expect(plainRow?.meta?.toolBackgroundStatus).toBeUndefined();
+
+		const chatEventHandler = handlerFor("chat_event");
+		const send = (body: unknown, index: number) =>
+			chatEventHandler({
+				sessionId,
+				stream: "chat_tool_call_update",
+				chunk: JSON.stringify(body),
+				ts: Date.now(),
+				index,
+			});
+
+		// The process behind the detached row exits while this client is
+		// attached: the completion settles the row in place.
+		await act(async () => {
+			send(
+				{
+					toolCallId: "call-reloaded",
+					toolName: "run_commands",
+					update: {
+						executionId: "execution-reloaded",
+						detached: true,
+						completed: true,
+						logPath: "/tmp/output.log",
+						outcome: { kind: "exited", exitCode: 0 },
+					},
+				},
+				1,
+			);
+			await new Promise((resolve) => setTimeout(resolve, 60));
+		});
+		const settledRow = current.messages.find(
+			(message) => message.id === "history-tool-detached",
+		);
+		expect(settledRow?.meta).toMatchObject({
+			toolBackgroundStatus: "succeeded",
+			toolBackgroundLogPath: "/tmp/output.log",
+			hookEventName: "tool_call_end",
+		});
+		expect(settledRow?.meta?.toolOutput).toContain(
+			"[Detached command completed with exit code 0]",
+		);
+
+		// A completion for a row that never detached stays unroutable.
+		await act(async () => {
+			send(
+				{
+					toolCallId: "call-plain",
+					toolName: "run_commands",
+					update: {
+						executionId: "execution-plain",
+						detached: true,
+						completed: true,
+						logPath: "/tmp/other.log",
+						outcome: { kind: "exited", exitCode: 0 },
+					},
+				},
+				2,
+			);
+			await new Promise((resolve) => setTimeout(resolve, 60));
+		});
+		const untouchedRow = current.messages.find(
+			(message) => message.id === "history-tool-plain",
+		);
+		expect(untouchedRow?.meta?.toolBackgroundStatus).toBeUndefined();
+	});
+
 	it("heals a running attached session with a dead event stream by polling history", async () => {
 		// Scheduled runs can execute on a host whose live events never reach
 		// this client; the transcript must still settle without a remount.
