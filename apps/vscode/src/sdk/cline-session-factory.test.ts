@@ -616,11 +616,11 @@ describe("buildSessionConfig", () => {
 		// The mocked-manager tests above cannot catch a mirror payload that the
 		// real ProviderSettingsSchema.parse would reject (the resolver swallows
 		// save failures), so exercise the real manager against a temp file.
-		// Import by relative path: the "@cline/core" specifier is aliased to an
-		// in-memory stub in vitest.config.ts, which validates nothing.
-		const { ProviderSettingsManager } = await import(
-			"../../../../sdk/packages/core/src/services/storage/provider-settings-manager"
-		)
+		// Import the built package by file path: the bare "@cline/core"
+		// specifier is aliased to an in-memory stub in vitest.config.ts (which
+		// validates nothing), and importing SDK *source* would pull it into
+		// this project's tsc program (TS6059: outside rootDir).
+		const { ProviderSettingsManager } = await import("../../node_modules/@cline/core/dist/index.js")
 		const realManager = new ProviderSettingsManager({
 			filePath: path.join(tempDir, "settings", "providers.json"),
 		})
@@ -648,6 +648,11 @@ describe("buildSessionConfig", () => {
 			baseUrl: "https://example.openai.azure.com/openai/deployments/gpt-5.6-terra",
 			azure: { apiVersion: "2025-01-01-preview" },
 		})
+		// Assert on the file, not just the manager: the in-memory vitest stub
+		// would satisfy the manager-level assertions too, but only the real
+		// manager persists to disk.
+		const onDisk = JSON.parse(fs.readFileSync(path.join(tempDir, "settings", "providers.json"), "utf8"))
+		expect(onDisk.providers["openai-compatible"].settings.azure).toEqual({ apiVersion: "2025-01-01-preview" })
 	})
 
 	it("does not rewrite providers.json when the stored Azure settings already match", () => {
