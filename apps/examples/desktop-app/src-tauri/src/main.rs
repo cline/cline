@@ -1475,6 +1475,10 @@ mod tests {
             .expect("shutdown should make startup a no-op");
         });
 
+        // std gives no way to observe a thread blocked on a Mutex, so give the
+        // startup thread time to pass its first shutdown check and queue on the
+        // lock. Shutdown must then be caught by the recheck under the lock.
+        thread::sleep(Duration::from_millis(50));
         state.shutting_down.store(true, AtomicOrdering::Release);
         drop(process_guard);
         startup.join().expect("startup thread should not panic");
