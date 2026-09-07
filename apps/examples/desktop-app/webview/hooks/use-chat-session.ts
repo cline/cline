@@ -1,5 +1,10 @@
 "use client";
 
+import {
+	DetachedCommandOutcomeSchema,
+	detachedCommandBackgroundStatus,
+	formatDetachedCompletionNote,
+} from "@cline/shared";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
 	serializeAttachments,
@@ -117,26 +122,6 @@ type PendingToolOutput = {
 
 function errorMessage(err: unknown): string {
 	return err instanceof Error ? err.message : String(err);
-}
-
-/**
- * Renders a detached command's process outcome as the row's completion note.
- * Matches the completion notes VS Code's message-translator appends to detached
- * command rows so both hosts describe outcomes with the same vocabulary.
- */
-function formatDetachedCompletionNote(
-	outcome: Record<string, unknown>,
-): string {
-	if (outcome.kind === "exited") {
-		return `[Detached command completed with exit code ${outcome.exitCode}]`;
-	}
-	if (outcome.kind === "signaled") {
-		return `[Detached command ended from signal ${outcome.signal}]`;
-	}
-	if (outcome.kind === "hard_killed") {
-		return "[Detached command reached its hard deadline and was terminated]";
-	}
-	return `[Detached command failed: ${outcome.error}]`;
 }
 
 function makeErrorChatMessage(
@@ -268,74 +253,42 @@ function deriveLiveToolState(messages: ChatMessage[]): {
 	return { messageIds, inputs };
 }
 
-// The notice a command executor writes into a detached command's partial
-// output — the only persisted trace that a tool call ended by detaching
-// rather than completing. The SDK executor and VS Code's message-translator
-// use the same vocabulary.
-const DETACHED_COMMAND_NOTICE_PATTERN =
-	/\[Command is still running\. Output will continue in ([^\]]+)\]/;
-
 /**
- * Rebuilds detached-command routing from persisted history for a client that
- * did not watch the command detach — it reloaded mid-flight or reattached
- * while the process kept running. A marker row claims no outcome: persisted
- * history cannot tell a live process from one that finished while nobody was
- * listening, so the row is only marked running when this client still holds
- * the tool call's pending executions — the same predicate the live update,
- * tool-end, and canonical-hydration paths use, so a row cannot flip state
- * depending on which path ran last. Enrolling the row in the detached
- * routing refs means a later detached-completion event settles it in place,
- * exactly like a client that watched the detach.
+ * Derives the webview's detached-command bookkeeping from the row meta the
+ * sidecar resolved while serving the hydration read (see
+ * enrichDetachedCommandRows in the sidecar, and queryDetachedCommandState in
+ * core): the host reads the detached-log markers and stamps the row's
+ * background status, log path, and — for a process it confirmed still alive —
+ * the execution ids. This only enrolls that stamp in the routing refs so a
+ * later detached-completion event settles the row in place, exactly like a
+ * client that watched the detach; the webview never re-derives state from the
+ * tool result text.
  *
- * Only persisted-origin rows (history_* hook event names) are enrolled, so a
- * live row's routing can never be shadowed, and only rows without a
- * background status are stamped, so an existing claim is never overwritten.
+ * Live rows also carry these fields; enrolling them is idempotent because
+ * the live paths recorded the same routing and execution ids already.
  */
-function deriveDetachedToolRouting(
-	messages: ChatMessage[],
-	hasPendingDetachedExecutions: (toolCallId: string) => boolean,
-): {
-	stamped: ChatMessage[];
+function deriveDetachedToolEnrollment(messages: ChatMessage[]): {
 	routingIds: Record<string, string>;
 	endedToolCallIds: string[];
+	executionIdsByToolCall: Record<string, string[]>;
 } {
 	const routingIds: Record<string, string> = {};
 	const endedToolCallIds: string[] = [];
-	let changed = false;
-	const stamped = messages.map((message) => {
+	const executionIdsByToolCall: Record<string, string[]> = {};
+	for (const message of messages) {
 		const toolCallId = message.meta?.toolCallId;
-		const hookEventName = message.meta?.hookEventName;
-		if (
-			!toolCallId ||
-			(hookEventName !== "history_tool_result" &&
-				hookEventName !== "history_tool_use")
-		) {
-			return message;
-		}
-		const notice = DETACHED_COMMAND_NOTICE_PATTERN.exec(message.content);
-		if (!notice) return message;
+		if (!toolCallId) continue;
+		const status = message.meta?.toolBackgroundStatus;
+		if (status !== "running" && status !== "indeterminate") continue;
+		if (!message.meta?.toolBackgroundLogPath) continue;
 		routingIds[toolCallId] = message.id;
 		endedToolCallIds.push(toolCallId);
-		if (message.meta?.toolBackgroundStatus !== undefined) return message;
-		changed = true;
-		const running = hasPendingDetachedExecutions(toolCallId);
-		return {
-			...message,
-			meta: {
-				...message.meta,
-				toolBackgroundStatus: running
-					? ("running" as const)
-					: ("indeterminate" as const),
-				toolBackgroundLogPath: notice[1],
-				hookEventName: running ? "tool_call_start" : "tool_call_end",
-			},
-		};
-	});
-	return {
-		stamped: changed ? stamped : messages,
-		routingIds,
-		endedToolCallIds,
-	};
+		const executionIds = message.meta?.toolExecutionIds;
+		if (Array.isArray(executionIds) && executionIds.length > 0) {
+			executionIdsByToolCall[toolCallId] = executionIds;
+		}
+	}
+	return { routingIds, endedToolCallIds, executionIdsByToolCall };
 }
 
 function updateMessageById(
@@ -784,16 +737,17 @@ export function useChatSession() {
 					// its completion knows it is still alive, so the row stays
 					// running and its turn stays expanded until the completion
 					// event settles it. Without pending executions — a client
-					// that reloaded mid-flight, or a row already reconstructed
-					// as unsettled — persisted history cannot tell a running
-					// process from one that finished while nobody was listening,
-					// so the row claims no outcome. Hydration re-enrolls such
-					// rows in the detached routing refs (see
-					// deriveDetachedToolRouting), so a later completion event
-					// settles them in place.
-					// TODO: Mark reloaded rows as running, with their execution
-					// ids, when the hub exposes an active-command query over the
-					// detached-log markers.
+					// that reloaded mid-flight, or a row the hydration snapshot
+					// could not resolve — the row claims no outcome. Hydration
+					// enrolls such rows in the detached routing refs (see
+					// deriveDetachedToolEnrollment), so a later completion event
+					// settles them in place. The sidecar resolves the underlying
+					// state from the detached-log markers while serving the read;
+					// rows whose process it confirmed alive hydrate as running,
+					// with their execution ids.
+					// TODO: Sessions driven through a hub on another host keep
+					// claiming no outcome until the hub can relay the
+					// active-command query.
 					const running = hasPendingDetachedExecutions(toolCallId);
 					return {
 						...message,
@@ -1571,17 +1525,14 @@ export function useChatSession() {
 						executionId,
 					);
 				}
+				// An outcome that does not parse is as good as none: the row
+				// reports failure rather than trusting a malformed payload.
+				const parsedOutcome = DetachedCommandOutcomeSchema.safeParse(outcome);
 				if (toolCallId && executionId && completed) {
 					detachedExecutionIdsRef.current[toolCallId]?.delete(executionId);
-					// Matches VS Code's commandStatus mapping in message-translator.
-					const nextStatus =
-						outcome?.kind === "exited" && outcome.exitCode === 0
-							? "succeeded"
-							: outcome?.kind === "hard_killed"
-								? "killed"
-								: outcome?.kind === "signaled"
-									? "indeterminate"
-									: "failed";
+					const nextStatus = parsedOutcome.success
+						? detachedCommandBackgroundStatus(parsedOutcome.data)
+						: "failed";
 					const previousStatus = detachedOutcomeStatusRef.current[toolCallId];
 					detachedOutcomeStatusRef.current[toolCallId] =
 						previousStatus === "killed" || nextStatus === "killed"
@@ -1623,11 +1574,11 @@ export function useChatSession() {
 				// both observation paths may deliver the same completion.
 				const completionNote =
 					completed &&
-					outcome &&
+					parsedOutcome.success &&
 					toolCallId &&
 					executionId &&
 					!detachedNotedExecutionIdsRef.current[toolCallId]?.has(executionId)
-						? formatDetachedCompletionNote(outcome)
+						? formatDetachedCompletionNote(parsedOutcome.data)
 						: "";
 				if (completionNote && toolCallId && executionId) {
 					(detachedNotedExecutionIdsRef.current[toolCallId] ??= new Set()).add(
@@ -2257,22 +2208,28 @@ export function useChatSession() {
 					const liveToolState = deriveLiveToolState(mergedMessages);
 					liveToolMessageIdsRef.current = liveToolState.messageIds;
 					liveToolInputsRef.current = liveToolState.inputs;
-					// Re-enroll detached-command rows for the same reason as
-					// hydration: this snapshot came from disk, where a
-					// detached row is an ended row.
-					const detachedToolState = deriveDetachedToolRouting(
-						mergedMessages,
-						hasPendingDetachedExecutions,
-					);
+					// Enroll the detached state this disk snapshot carries, for
+					// the same reason as hydration.
+					const detachedEnrollment =
+						deriveDetachedToolEnrollment(mergedMessages);
 					for (const [toolCallId, messageId] of Object.entries(
-						detachedToolState.routingIds,
+						detachedEnrollment.routingIds,
 					)) {
 						detachedToolMessageIdsRef.current[toolCallId] = messageId;
 					}
-					for (const toolCallId of detachedToolState.endedToolCallIds) {
+					for (const toolCallId of detachedEnrollment.endedToolCallIds) {
 						detachedToolEndedRef.current.add(toolCallId);
 					}
-					setMessages(detachedToolState.stamped);
+					for (const [toolCallId, executionIds] of Object.entries(
+						detachedEnrollment.executionIdsByToolCall,
+					)) {
+						const pending = (detachedExecutionIdsRef.current[toolCallId] ??=
+							new Set());
+						for (const executionId of executionIds) {
+							pending.add(executionId);
+						}
+					}
+					setMessages(mergedMessages);
 				}
 				// The record is the authority here: the sessions this poll
 				// serves have a live host maintaining their record, and it
@@ -2303,12 +2260,7 @@ export function useChatSession() {
 			cancelled = true;
 			window.clearInterval(interval);
 		};
-	}, [
-		hydratedHistorySessionId,
-		sessionId,
-		status,
-		hasPendingDetachedExecutions,
-	]);
+	}, [hydratedHistorySessionId, sessionId, status]);
 
 	// ---- Shared: start a new session via RPC ----
 
@@ -3304,24 +3256,31 @@ export function useChatSession() {
 				const liveToolState = deriveLiveToolState(mergedMessages);
 				liveToolMessageIdsRef.current = liveToolState.messageIds;
 				liveToolInputsRef.current = liveToolState.inputs;
-				// A detached command's persisted row is an ended row, so the
-				// derivation above drops it: without re-enrolling it here, a
-				// detached-completion event for a client that reloaded
-				// mid-flight resolves no message id and is dropped, leaving
-				// the row unsettled forever.
-				const detachedToolState = deriveDetachedToolRouting(
-					mergedMessages,
-					hasPendingDetachedExecutions,
-				);
+				// The sidecar resolved each detached row's lifecycle state while
+				// serving this read; enroll its stamp so a detached-completion
+				// event settles the row in place — without re-deriving anything
+				// here, a client that reloaded mid-flight would have no routing
+				// for its detached commands (an ended row gets none from the
+				// live derivation above) and the completion would be dropped.
+				const detachedEnrollment = deriveDetachedToolEnrollment(mergedMessages);
 				for (const [toolCallId, messageId] of Object.entries(
-					detachedToolState.routingIds,
+					detachedEnrollment.routingIds,
 				)) {
 					detachedToolMessageIdsRef.current[toolCallId] = messageId;
 				}
-				for (const toolCallId of detachedToolState.endedToolCallIds) {
+				for (const toolCallId of detachedEnrollment.endedToolCallIds) {
 					detachedToolEndedRef.current.add(toolCallId);
 				}
-				setMessages(detachedToolState.stamped);
+				for (const [toolCallId, executionIds] of Object.entries(
+					detachedEnrollment.executionIdsByToolCall,
+				)) {
+					const pending = (detachedExecutionIdsRef.current[toolCallId] ??=
+						new Set());
+					for (const executionId of executionIds) {
+						pending.add(executionId);
+					}
+				}
+				setMessages(mergedMessages);
 				setRawTranscript("");
 				resetCounters();
 				setStatus(inferHydratedChatStatus(sessionStatus, msgs));
@@ -3427,7 +3386,6 @@ export function useChatSession() {
 			clearAbortFallbackTimeout,
 			clearLiveToolRefs,
 			discardPendingStream,
-			hasPendingDetachedExecutions,
 			refreshPromptsInQueue,
 			refreshSessionDiffSummary,
 			resetStreamDedupe,
