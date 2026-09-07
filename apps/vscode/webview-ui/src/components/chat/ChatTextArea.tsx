@@ -260,7 +260,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const [fileSearchResults, setFileSearchResults] = useState<SearchResult[]>([])
 		const [searchLoading, setSearchLoading] = useState(false)
 		const [, metaKeyChar] = useMetaKeyDetection(platform)
-		const { selectedProvider, selectedModelId } = useNormalizedApiConfiguration(mode)
+		const { selectedProvider, selectedModelId, selectedModelInfo } = useNormalizedApiConfiguration(mode)
 
 		// Fetch git commits when Git is selected or when typing a hash
 		useEffect(() => {
@@ -884,6 +884,10 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					return type === "image" && acceptedTypes.includes(subtype)
 				})
 				if (!shouldDisableFilesAndImages && imageItems.length > 0) {
+					if (!selectedModelInfo.supportsImages) {
+						e.preventDefault()
+						return
+					}
 					e.preventDefault()
 					const imagePromises = imageItems.map((item) => {
 						return new Promise<string | null>((resolve) => {
@@ -934,6 +938,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			},
 			[
 				shouldDisableFilesAndImages,
+				selectedModelInfo.supportsImages,
 				setSelectedImages,
 				selectedImages,
 				selectedFiles,
@@ -1329,6 +1334,10 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			})
 
 			if (shouldDisableFilesAndImages || imageFiles.length === 0) {
+				return
+			}
+
+			if (!selectedModelInfo.supportsImages) {
 				return
 			}
 
