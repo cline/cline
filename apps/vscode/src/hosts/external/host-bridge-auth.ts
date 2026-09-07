@@ -19,12 +19,31 @@ export const HOST_BRIDGE_TOKEN_HEADER = "cline-hostbridge-token"
  * (CLINE_CORE_CONNECTION_TOKEN) rather than introducing a second secret, so
  * there is one credential per spawn with one lifetime.
  *
- * Read at call time, not module load: tests and embedders set the variable
- * after import, and a core spawned without a token (standalone dev runs, older
- * hosts) simply sends no header.
+ * The token lives here, in process memory, not in `process.env`: bootstrap
+ * scrubs it from the environment immediately after capture so descendants
+ * (provider or MCP child processes) can never inherit it, and so it is absent
+ * when the environment is logged. Read it via [getHostBridgeToken].
  */
+let hostBridgeToken: string | undefined
+
+/**
+ * Captures the per-spawn token from the environment and removes it from
+ * `process.env`, retaining it only in process memory for the bridge clients.
+ *
+ * Call once, first thing at startup — before anything logs the environment or
+ * can spawn a child process. Returns the token so bootstrap can also use it for
+ * the core connection hello. A core spawned without a token (standalone dev
+ * runs, older hosts) gets `undefined` and sends no header.
+ */
+export function captureHostBridgeTokenFromEnvironment(): string | undefined {
+	hostBridgeToken = process.env.CLINE_CORE_CONNECTION_TOKEN || undefined
+	delete process.env.CLINE_CORE_CONNECTION_TOKEN
+	return hostBridgeToken
+}
+
+/** The token captured at startup, or `undefined` when this core was spawned without one. */
 export function getHostBridgeToken(): string | undefined {
-	return process.env.CLINE_CORE_CONNECTION_TOKEN || undefined
+	return hostBridgeToken
 }
 
 /** Metadata for hand-written `@grpc/grpc-js` clients (health check, core connection stream). */

@@ -4,7 +4,7 @@ import * as niceGrpc from "@generated/nice-grpc/index"
 import * as proto from "@shared/proto/index"
 import { expect } from "chai"
 import { createServer, type Server } from "nice-grpc"
-import { HOST_BRIDGE_TOKEN_HEADER } from "../host-bridge-auth"
+import { captureHostBridgeTokenFromEnvironment, HOST_BRIDGE_TOKEN_HEADER } from "../host-bridge-auth"
 
 type SeenCall = { method: string; token: string | undefined }
 
@@ -14,6 +14,11 @@ type SeenCall = { method: string; token: string | undefined }
  * and that factory has to put the token on the wire. Asserting against a real
  * server means a regression in the generator template — or in the factory —
  * fails here instead of silently shipping unauthenticated calls.
+ *
+ * Tokens enter the way they do in production — set in the environment by the
+ * host, then captured and scrubbed by the same bootstrap function cline-core
+ * runs — so this also covers the startup-to-receiver path, not just the
+ * middleware in isolation.
  *
  * EnvService stands in for all of them: the clients are generated from one
  * template, so the wiring is identical per service.
@@ -40,8 +45,11 @@ describe("generated host bridge clients (end to end)", () => {
 		await server.forceShutdown()
 	})
 
-	it("sends the spawn token on unary calls", async () => {
+	it("sends the spawn token on unary calls, after bootstrap scrubbed it from the environment", async () => {
 		setToken("e2e-token")
+		// The startup-to-receiver path: by the time any bridge call is made the
+		// variable is gone, so the header can only come from the retained copy.
+		expect(process.env.CLINE_CORE_CONNECTION_TOKEN).to.equal(undefined)
 
 		await new EnvServiceClientImpl(address).getHostVersion(proto.cline.EmptyRequest.create({}))
 
@@ -73,12 +81,14 @@ describe("generated host bridge clients (end to end)", () => {
 	})
 })
 
+/** The bootstrap step a spawned core runs: capture the host's token, scrub the environment. */
 function setToken(token: string | undefined) {
 	if (token === undefined) {
 		delete process.env.CLINE_CORE_CONNECTION_TOKEN
 	} else {
 		process.env.CLINE_CORE_CONNECTION_TOKEN = token
 	}
+	captureHostBridgeTokenFromEnvironment()
 }
 
 /**
