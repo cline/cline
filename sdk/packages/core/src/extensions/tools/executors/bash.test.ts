@@ -17,6 +17,7 @@ import {
 	CommandExitError,
 	cleanupStaleDetachedCommandLogs,
 	createShellExecutor,
+	queryDetachedCommandState,
 } from "./bash";
 import { RunCommandExecutionController } from "./run-command-execution-controller";
 
@@ -571,6 +572,206 @@ describe("createShellExecutor", () => {
 		} finally {
 			await rm(tempDirectory, { recursive: true, force: true });
 		}
+	});
+
+	describe("queryDetachedCommandState", () => {
+		it("reports running only when the marker's process identity still matches", async () => {
+			const tempDirectory = await mkdtemp(
+				join(tmpdir(), "detached-log-query-"),
+			);
+			try {
+				const liveDirectory = join(tempDirectory, "cline-command-live");
+				const reusedPidDirectory = join(
+					tempDirectory,
+					"cline-command-reused-pid",
+				);
+				const unavailableDirectory = join(
+					tempDirectory,
+					"cline-command-unavailable",
+				);
+				await Promise.all([
+					mkdir(liveDirectory),
+					mkdir(reusedPidDirectory),
+					mkdir(unavailableDirectory),
+				]);
+				await Promise.all([
+					writeFile(join(liveDirectory, "output.log"), "working"),
+					writeFile(
+						join(liveDirectory, "active-command.json"),
+						detachedCommandMarker(101, "process-101"),
+					),
+					writeFile(join(reusedPidDirectory, "output.log"), "reused"),
+					writeFile(
+						join(reusedPidDirectory, "active-command.json"),
+						detachedCommandMarker(102, "process-102"),
+					),
+					writeFile(join(unavailableDirectory, "output.log"), "unknown"),
+					writeFile(
+						join(unavailableDirectory, "active-command.json"),
+						detachedCommandMarker(103, "process-103"),
+					),
+				]);
+				const probe = (pid: number) =>
+					pid === 101
+						? { status: "found", token: "process-101" }
+						: pid === 102
+							? { status: "found", token: "replaced" }
+							: pid === 103
+								? { status: "unavailable" }
+								: { status: "missing" };
+
+				await expect(
+					queryDetachedCommandState(join(liveDirectory, "output.log"), probe),
+				).resolves.toEqual({
+					status: "running",
+					executionId: "execution-101",
+				});
+				// A PID that now belongs to a different process is not evidence
+				// the command is alive; the row keeps claiming no outcome.
+				await expect(
+					queryDetachedCommandState(
+						join(reusedPidDirectory, "output.log"),
+						probe,
+					),
+				).resolves.toEqual({ status: "unknown" });
+				// An unavailable identity provider is not evidence either.
+				await expect(
+					queryDetachedCommandState(
+						join(unavailableDirectory, "output.log"),
+						probe,
+					),
+				).resolves.toEqual({ status: "unknown" });
+			} finally {
+				await rm(tempDirectory, { recursive: true, force: true });
+			}
+		});
+
+		it("reconstructs the outcome from a completed log", async () => {
+			const tempDirectory = await mkdtemp(
+				join(tmpdir(), "detached-log-query-"),
+			);
+			try {
+				const succeededDirectory = join(
+					tempDirectory,
+					"cline-command-succeeded",
+				);
+				const failedDirectory = join(tempDirectory, "cline-command-failed");
+				const hardKilledDirectory = join(
+					tempDirectory,
+					"cline-command-hard-killed",
+				);
+				const unreadableDirectory = join(
+					tempDirectory,
+					"cline-command-unreadable",
+				);
+				await Promise.all([
+					mkdir(succeededDirectory),
+					mkdir(failedDirectory),
+					mkdir(hardKilledDirectory),
+					mkdir(unreadableDirectory),
+				]);
+				await Promise.all([
+					writeFile(
+						join(succeededDirectory, "output.log"),
+						"noise\n[Command exited with code 0]\n",
+					),
+					writeFile(join(succeededDirectory, "completed-at"), "1"),
+					writeFile(
+						join(failedDirectory, "output.log"),
+						"[Command exited with code 3]",
+					),
+					writeFile(join(failedDirectory, "completed-at"), "1"),
+					writeFile(
+						join(hardKilledDirectory, "output.log"),
+						"[Command reached its hard deadline]\n[Command exited with code 1]",
+					),
+					writeFile(join(hardKilledDirectory, "completed-at"), "1"),
+					// A completion marker without a readable outcome line cannot
+					// claim any outcome.
+					writeFile(join(unreadableDirectory, "output.log"), "truncated"),
+					writeFile(join(unreadableDirectory, "completed-at"), "1"),
+				]);
+
+				await expect(
+					queryDetachedCommandState(join(succeededDirectory, "output.log")),
+				).resolves.toEqual({
+					status: "completed",
+					outcome: { kind: "exited", exitCode: 0 },
+				});
+				await expect(
+					queryDetachedCommandState(join(failedDirectory, "output.log")),
+				).resolves.toEqual({
+					status: "completed",
+					outcome: { kind: "exited", exitCode: 3 },
+				});
+				await expect(
+					queryDetachedCommandState(join(hardKilledDirectory, "output.log")),
+				).resolves.toEqual({
+					status: "completed",
+					outcome: { kind: "hard_killed" },
+				});
+				await expect(
+					queryDetachedCommandState(join(unreadableDirectory, "output.log")),
+				).resolves.toEqual({ status: "unknown" });
+			} finally {
+				await rm(tempDirectory, { recursive: true, force: true });
+			}
+		});
+
+		it("treats a completion marker that outlived its active marker as completed", async () => {
+			const tempDirectory = await mkdtemp(
+				join(tmpdir(), "detached-log-query-"),
+			);
+			try {
+				// A host crash between writing completed-at and removing the
+				// active marker leaves both; completion is authoritative.
+				const directory = join(tempDirectory, "cline-command-crashed");
+				await mkdir(directory);
+				await Promise.all([
+					writeFile(
+						join(directory, "output.log"),
+						"[Command exited with code 0]",
+					),
+					writeFile(join(directory, "completed-at"), "1"),
+					writeFile(
+						join(directory, "active-command.json"),
+						detachedCommandMarker(101, "process-101"),
+					),
+				]);
+				await expect(
+					queryDetachedCommandState(join(directory, "output.log"), () => ({
+						status: "found",
+						token: "process-101",
+					})),
+				).resolves.toEqual({
+					status: "completed",
+					outcome: { kind: "exited", exitCode: 0 },
+				});
+			} finally {
+				await rm(tempDirectory, { recursive: true, force: true });
+			}
+		});
+
+		it("reports unknown for missing markers", async () => {
+			const tempDirectory = await mkdtemp(
+				join(tmpdir(), "detached-log-query-"),
+			);
+			try {
+				const directory = join(tempDirectory, "cline-command-bare");
+				await mkdir(directory);
+				await writeFile(join(directory, "output.log"), "just output");
+				await expect(
+					queryDetachedCommandState(join(directory, "output.log")),
+				).resolves.toEqual({ status: "unknown" });
+				await expect(
+					queryDetachedCommandState(
+						join(tempDirectory, "cline-command-missing", "output.log"),
+					),
+				).resolves.toEqual({ status: "unknown" });
+			} finally {
+				await rm(tempDirectory, { recursive: true, force: true });
+			}
+		});
 	});
 
 	it("does not treat a reused PID as the detached command", async () => {
