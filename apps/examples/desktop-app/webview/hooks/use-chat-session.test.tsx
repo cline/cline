@@ -607,7 +607,7 @@ describe("useChatSession", () => {
 			),
 		).toHaveLength(1);
 	});
-	it("reconstructs a detached command as indeterminate and settles it on completion", async () => {
+	it("keeps an observed detached command running through post-turn hydration and settles it on completion", async () => {
 		let canonicalMessages: unknown[] = [];
 		invokeMock.mockImplementation(
 			async (command: string, args?: Record<string, unknown>) => {
@@ -720,14 +720,17 @@ describe("useChatSession", () => {
 			await new Promise((resolve) => setTimeout(resolve, 400));
 		});
 
-		// The reconstructed row claims no outcome: the client cannot tell a
-		// still-running process from one that finished while it was away.
-		expect(
-			current.messages.find((message) => message.role === "tool")?.meta,
-		).toMatchObject({
-			toolBackgroundStatus: "indeterminate",
+		// This client watched the process detach and has not seen it complete,
+		// so the canonical row stays running (and its turn stays expanded)
+		// instead of being downgraded to an unknown outcome.
+		const hydratedToolMessage = current.messages.find(
+			(message) => message.role === "tool",
+		);
+		expect(hydratedToolMessage?.id).toBe("history-tool");
+		expect(hydratedToolMessage?.meta).toMatchObject({
+			toolBackgroundStatus: "running",
 			toolBackgroundLogPath: "/tmp/output.log",
-			hookEventName: "tool_call_end",
+			hookEventName: "tool_call_start",
 		});
 
 		// A completion event settles the reconstructed row with the truth.
@@ -757,6 +760,152 @@ describe("useChatSession", () => {
 			hookEventName: "tool_call_end",
 		});
 	});
+	it("does not reopen a settled detached command as running on hydration", async () => {
+		let canonicalMessages: unknown[] = [];
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "read_session_messages") {
+					return canonicalMessages;
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string } | undefined;
+					if (request?.action === "start") {
+						return {
+							sessionId: "session-detached-settled",
+							cwd: "/workspace/cline",
+							workspaceRoot: "/workspace/cline",
+						};
+					}
+				}
+				return [];
+			},
+		);
+		await act(async () => current.start(current.config));
+		const chatEventHandler = handlerFor("chat_event");
+		const send = (stream: string, body: unknown, index: number) =>
+			chatEventHandler({
+				sessionId: "session-detached-settled",
+				stream,
+				chunk: JSON.stringify(body),
+				ts: Date.now(),
+				index,
+			});
+
+		await act(async () => {
+			send(
+				"chat_tool_call_start",
+				{
+					toolCallId: "call-detached",
+					toolName: "run_commands",
+					input: { commands: ["sleep 60"] },
+				},
+				1,
+			);
+			send(
+				"chat_tool_call_update",
+				{
+					toolCallId: "call-detached",
+					toolName: "run_commands",
+					update: {
+						executionId: "execution-detached",
+						detached: true,
+						detachable: false,
+						logPath: "/tmp/output.log",
+					},
+				},
+				2,
+			);
+			send(
+				"chat_tool_call_end",
+				{
+					toolCallId: "call-detached",
+					toolName: "run_commands",
+					output: "[Command is still running]",
+				},
+				3,
+			);
+			// The process ends on a signal before the turn settles: the only
+			// pending execution is consumed and the row's outcome is unknown.
+			send(
+				"chat_tool_call_update",
+				{
+					toolCallId: "call-detached",
+					toolName: "run_commands",
+					update: {
+						executionId: "execution-detached",
+						detached: true,
+						completed: true,
+						logPath: "/tmp/output.log",
+						outcome: { kind: "signaled", signal: "SIGTERM" },
+					},
+				},
+				4,
+			);
+			await new Promise((resolve) => setTimeout(resolve, 60));
+		});
+		expect(
+			current.messages.find((message) => message.role === "tool")?.meta,
+		).toMatchObject({
+			toolBackgroundStatus: "indeterminate",
+			hookEventName: "tool_call_end",
+		});
+
+		canonicalMessages = [
+			{
+				id: "history-user",
+				sessionId: "session-detached-settled",
+				role: "user",
+				content: "Run it",
+				createdAt: 1,
+			},
+			{
+				id: "history-assistant",
+				sessionId: "session-detached-settled",
+				role: "assistant",
+				content: "Started",
+				createdAt: 2,
+			},
+			{
+				id: "history-tool",
+				sessionId: "session-detached-settled",
+				role: "tool",
+				content: JSON.stringify({
+					toolName: "run_commands",
+					input: { commands: ["sleep 60"] },
+					result:
+						"[Command is still running. Output will continue in /tmp/output.log]",
+					isError: false,
+				}),
+				createdAt: 3,
+				meta: {
+					toolName: "run_commands",
+					toolCallId: "call-detached",
+					hookEventName: "history_tool_result",
+				},
+			},
+		];
+		await act(async () => {
+			send("chat_done", { reason: "completed" }, 5);
+			await new Promise((resolve) => setTimeout(resolve, 400));
+		});
+
+		// No execution is pending, so hydration must not claim the process is
+		// alive; the row keeps its unknown outcome and the turn may collapse.
+		const hydratedToolMessage = current.messages.find(
+			(message) => message.role === "tool",
+		);
+		expect(hydratedToolMessage?.id).toBe("history-tool");
+		expect(hydratedToolMessage?.meta).toMatchObject({
+			toolBackgroundStatus: "indeterminate",
+			toolBackgroundLogPath: "/tmp/output.log",
+			hookEventName: "tool_call_end",
+		});
+	});
+
+
 
 	it("heals a running attached session with a dead event stream by polling history", async () => {
 		// Scheduled runs can execute on a host whose live events never reach

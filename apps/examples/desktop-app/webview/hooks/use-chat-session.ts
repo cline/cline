@@ -552,6 +552,17 @@ export function useChatSession() {
 		pendingToolOutputRef.current = new Map();
 	}, []);
 
+	// Whether this client watched a detached process of the tool call start
+	// and has not yet received its completion. This is the one signal that a
+	// detached command row is "running" rather than merely unsettled: the live
+	// update path, the tool-end path, and canonical hydration all decide from
+	// it so a row never flips state depending on which path ran last.
+	const hasPendingDetachedExecutions = useCallback(
+		(toolCallId: string) =>
+			(detachedExecutionIdsRef.current[toolCallId]?.size ?? 0) > 0,
+		[],
+	);
+
 	const resetStreamDedupe = useCallback((targetSessionId?: string | null) => {
 		if (targetSessionId) {
 			delete lastStreamIndexBySessionRef.current[targetSessionId];
@@ -674,13 +685,18 @@ export function useChatSession() {
 					// lets a later detached-completion event settle this row in
 					// place instead of leaving it permanently unsettled.
 					detachedToolEndedRef.current.add(toolCallId);
-					// TODO: Mark rows whose detached process is still alive as
-					// running, with their execution ids, when the hub exposes an
-					// active-command query over the detached-log markers. Until
-					// then reconstruction cannot tell a still-running process from
-					// one that finished while this client was not listening, so
-					// the row claims no outcome and a later completion event
-					// settles it with the truth.
+					// A client that watched the process detach and has not seen
+					// its completion knows it is still alive, so the row stays
+					// running and its turn stays expanded until the completion
+					// event settles it. Without pending executions — a client
+					// that reloaded mid-flight, or a row already reconstructed
+					// as unsettled — persisted history cannot tell a running
+					// process from one that finished while nobody was listening,
+					// so the row claims no outcome.
+					// TODO: Mark reloaded rows as running, with their execution
+					// ids, when the hub exposes an active-command query over the
+					// detached-log markers.
+					const running = hasPendingDetachedExecutions(toolCallId);
 					return {
 						...message,
 						meta: {
@@ -688,9 +704,11 @@ export function useChatSession() {
 							toolOutput: overlay.meta?.toolOutput,
 							toolOutputTruncated: overlay.meta?.toolOutputTruncated,
 							toolDetachable: false,
-							toolBackgroundStatus: "indeterminate" as const,
+							toolBackgroundStatus: running
+								? ("running" as const)
+								: ("indeterminate" as const),
 							toolBackgroundLogPath: overlay.meta?.toolBackgroundLogPath,
-							hookEventName: "tool_call_end",
+							hookEventName: running ? "tool_call_start" : "tool_call_end",
 						},
 					};
 				});
@@ -711,7 +729,7 @@ export function useChatSession() {
 				]);
 			});
 		},
-		[],
+		[hasPendingDetachedExecutions],
 	);
 
 	// Finalizes a turn that settled through the event stream rather than a
@@ -1478,8 +1496,7 @@ export function useChatSession() {
 									: "succeeded";
 				}
 				const hasPendingExecutions = Boolean(
-					toolCallId &&
-						(detachedExecutionIdsRef.current[toolCallId]?.size ?? 0) > 0,
+					toolCallId && hasPendingDetachedExecutions(toolCallId),
 				);
 				const lifecycleComplete =
 					completed &&
@@ -1905,7 +1922,7 @@ export function useChatSession() {
 			const remainsDetached = Boolean(
 				toolCallId &&
 					detachedToolMessageIdsRef.current[toolCallId] === messageId &&
-					(detachedExecutionIdsRef.current[toolCallId]?.size ?? 0) > 0,
+					hasPendingDetachedExecutions(toolCallId),
 			);
 			const terminalBackgroundStatus = toolCallId
 				? detachedOutcomeStatusRef.current[toolCallId]
@@ -1954,6 +1971,7 @@ export function useChatSession() {
 			clearLiveToolRefs,
 			finalizeSettledTurn,
 			flushPendingStream,
+			hasPendingDetachedExecutions,
 			schedulePendingStreamFlush,
 			shouldApplyStreamChunk,
 			verifyQueueStillBusy,
