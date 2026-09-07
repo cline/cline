@@ -657,6 +657,31 @@ export function useChatSession() {
 	// every hydration.
 	const applyCanonicalHistory = useCallback(
 		(sid: string, historyMessages: ChatMessage[]) => {
+			// A detached-completion event that landed between the turn end and
+			// this hydration is still buffered in pendingToolOutputRef under
+			// the live row's message id, on a 48 ms flush timer. That timer can
+			// fire before the transcript swap renders, so rekey the buffered
+			// entry to the canonical id here — where the id transition takes
+			// effect — rather than inside the setMessages updater below, which
+			// runs too late to beat the timer.
+			for (const message of historyMessages) {
+				const toolCallId = message.meta?.toolCallId;
+				if (!toolCallId) continue;
+				const liveRow = messagesRef.current.find(
+					(candidate) =>
+						candidate.sessionId === sid &&
+						candidate.meta?.toolCallId === toolCallId,
+				);
+				if (!liveRow || liveRow.id === message.id) continue;
+				const buffered = pendingToolOutputRef.current.get(liveRow.id);
+				if (
+					buffered !== undefined &&
+					!pendingToolOutputRef.current.has(message.id)
+				) {
+					pendingToolOutputRef.current.delete(liveRow.id);
+					pendingToolOutputRef.current.set(message.id, buffered);
+				}
+			}
 			setMessages((prev) => {
 				const sessionMessages = prev.filter(
 					(message) => message.sessionId === sid,

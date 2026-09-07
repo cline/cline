@@ -904,8 +904,168 @@ describe("useChatSession", () => {
 			hookEventName: "tool_call_end",
 		});
 	});
+	it("applies a detached completion that races the post-turn hydration", async () => {
+		// A completion event can land after the turn ends but before the
+		// 250 ms reconcile replaces the transcript. Its output is buffered
+		// under the live row's message id on a 48 ms flush timer; if the
+		// hydration commits first, the flush must still land on the
+		// canonical row it installed instead of missing on replaced ids.
+		vi.useFakeTimers();
+		try {
+			let canonicalMessages: unknown[] = [];
+			invokeMock.mockImplementation(
+				async (command: string, args?: Record<string, unknown>) => {
+					if (command === "get_process_context") {
+						return {
+							cwd: "/workspace/cline",
+							workspaceRoot: "/workspace/cline",
+						};
+					}
+					if (command === "read_session_messages") {
+						return canonicalMessages;
+					}
+					if (command === "chat_session_command") {
+						const request = args?.request as { action?: string } | undefined;
+						if (request?.action === "start") {
+							return {
+								sessionId: "session-detached-race",
+								cwd: "/workspace/cline",
+								workspaceRoot: "/workspace/cline",
+							};
+						}
+					}
+					return [];
+				},
+			);
+			await act(async () => current.start(current.config));
+			const chatEventHandler = handlerFor("chat_event");
+			const send = (stream: string, body: unknown, index: number) =>
+				chatEventHandler({
+					sessionId: "session-detached-race",
+					stream,
+					chunk: JSON.stringify(body),
+					ts: Date.now(),
+					index,
+				});
 
+			await act(async () => {
+				send(
+					"chat_tool_call_start",
+					{
+						toolCallId: "call-race",
+						toolName: "run_commands",
+						input: { commands: ["sleep 60"] },
+					},
+					1,
+				);
+				send(
+					"chat_tool_call_update",
+					{
+						toolCallId: "call-race",
+						toolName: "run_commands",
+						update: {
+							executionId: "execution-race",
+							detached: true,
+							detachable: false,
+							logPath: "/tmp/output.log",
+						},
+					},
+					2,
+				);
+				send(
+					"chat_tool_call_end",
+					{
+						toolCallId: "call-race",
+						toolName: "run_commands",
+						output: "[Command is still running]",
+					},
+					3,
+				);
+			});
 
+			canonicalMessages = [
+				{
+					id: "history-user",
+					sessionId: "session-detached-race",
+					role: "user",
+					content: "Run it",
+					createdAt: 1,
+				},
+				{
+					id: "history-assistant",
+					sessionId: "session-detached-race",
+					role: "assistant",
+					content: "Started",
+					createdAt: 2,
+				},
+				{
+					id: "history-tool",
+					sessionId: "session-detached-race",
+					role: "tool",
+					content: JSON.stringify({
+						toolName: "run_commands",
+						input: { commands: ["sleep 60"] },
+						result:
+							"[Command is still running. Output will continue in /tmp/output.log]",
+						isError: false,
+					}),
+					createdAt: 3,
+					meta: {
+						toolName: "run_commands",
+						toolCallId: "call-race",
+						hookEventName: "history_tool_result",
+					},
+				},
+			];
+			await act(async () => {
+				send("chat_done", { reason: "completed" }, 4);
+			});
+
+			// The completion lands 225 ms after the turn ended: late enough
+			// that its flush timer (48 ms) would fire after the 250 ms
+			// reconcile commits, early enough that it is still buffered under
+			// the live row's message id when hydration runs.
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(225);
+				send(
+					"chat_tool_call_update",
+					{
+						toolCallId: "call-race",
+						toolName: "run_commands",
+						update: {
+							executionId: "execution-race",
+							detached: true,
+							completed: true,
+							logPath: "/tmp/output.log",
+							outcome: { kind: "exited", exitCode: 0 },
+						},
+					},
+					5,
+				);
+			});
+
+			// The reconcile fires at 250 ms and installs the canonical rows;
+			// the buffered flush fires at 273 ms and must land on them.
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(100);
+			});
+
+			const hydratedToolMessage = current.messages.find(
+				(message) => message.role === "tool",
+			);
+			expect(hydratedToolMessage?.id).toBe("history-tool");
+			expect(hydratedToolMessage?.meta).toMatchObject({
+				toolBackgroundStatus: "succeeded",
+				toolBackgroundLogPath: "/tmp/output.log",
+				hookEventName: "tool_call_end",
+			});
+			expect(hydratedToolMessage?.meta?.toolOutput).toContain(
+				"[Detached command completed with exit code 0]",
+			);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
 
 	it("heals a running attached session with a dead event stream by polling history", async () => {
 		// Scheduled runs can execute on a host whose live events never reach
