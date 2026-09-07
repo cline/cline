@@ -90,6 +90,15 @@ class FakeSpeechRecognition extends EventTarget {
 		});
 		this.dispatchEvent(event);
 	}
+
+	emitError(error: string, message?: string): void {
+		const event = new Event("error");
+		Object.defineProperties(event, {
+			error: { value: error },
+			message: { value: message },
+		});
+		this.dispatchEvent(event);
+	}
 }
 
 let container: HTMLDivElement;
@@ -178,6 +187,28 @@ describe("SpeechInput", () => {
 		);
 		expect(onAudioRecorded).not.toHaveBeenCalled();
 		expect(button?.getAttribute("aria-label")).toBe("Stop recording");
+	});
+
+	it("preserves browser speech-recognition error details", async () => {
+		const onError = vi.fn();
+
+		await act(async () => {
+			root.render(<SpeechInput onError={onError} recordingMode="auto" />);
+		});
+
+		const button = container.querySelector<HTMLButtonElement>(
+			'[aria-label="Record speech"]',
+		);
+		await act(async () => button?.click());
+		await act(async () => {
+			FakeSpeechRecognition.instances[0]?.emitError("not-allowed");
+		});
+
+		expect(onError).toHaveBeenCalledOnce();
+		expect(onError.mock.calls[0]?.[0]).toEqual(
+			new Error("Speech recognition failed: not-allowed"),
+		);
+		expect(button?.getAttribute("aria-label")).toBe("Record speech");
 	});
 
 	it("records audio and forwards the provider transcript", async () => {

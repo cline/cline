@@ -2103,7 +2103,10 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect(result?.messages.length).toBeLessThan(messages.length);
 	});
 
-	it("resolves live provider settings before agentic compaction", async () => {
+	it.each([
+		"model",
+		"deferred-model",
+	])("uses live connection settings and the active model when %s is selected", async (selectedModel) => {
 		createHandlerMock.mockReturnValue({
 			createMessage: vi.fn(() =>
 				streamChunks([
@@ -2117,7 +2120,19 @@ describe("createContextCompactionPrepareTurn", () => {
 			modelId: "model",
 			apiKey: "old-key",
 			baseUrl: "https://old.example/v1",
+			modelInfo: { id: "model", maxInputTokens: 10 },
+			maxInputTokens: 8192,
+			maxOutputTokens: 128,
+			temperature: 0.2,
+			capabilities: ["tools"],
+			knownModels: { sibling: { id: "sibling", maxInputTokens: 4096 } },
 		} as LlmsProviders.ProviderConfig;
+		const activeModelSettings = {
+			maxInputTokens: 8192,
+			maxOutputTokens: 128,
+			temperature: 0.2,
+			capabilities: ["tools"],
+		};
 		const prepareTurn = createContextCompactionPrepareTurn(
 			{
 				providerId: "openai",
@@ -2133,8 +2148,15 @@ describe("createContextCompactionPrepareTurn", () => {
 		);
 		liveProviderConfig = {
 			...liveProviderConfig,
+			modelId: selectedModel,
 			apiKey: "new-key",
 			baseUrl: "https://new.example/v1",
+			modelInfo: { id: selectedModel, maxInputTokens: 20 },
+			maxInputTokens: 16384,
+			maxOutputTokens: 256,
+			temperature: 0.8,
+			capabilities: ["vision"],
+			knownModels: { sibling: { id: "sibling", maxInputTokens: 8192 } },
 		};
 		const messages: MessageWithMetadata[] = [
 			{ role: "user", content: "Old request" },
@@ -2156,13 +2178,56 @@ describe("createContextCompactionPrepareTurn", () => {
 				id: "model",
 				provider: "openai",
 				info: { id: "model", maxInputTokens: 10 },
+				settings: activeModelSettings,
 			},
 		});
 
 		expect(createHandlerMock).toHaveBeenCalledWith(
 			expect.objectContaining({
+				providerId: "openai",
+				modelId: "model",
 				apiKey: "new-key",
 				baseUrl: "https://new.example/v1",
+				modelInfo: { id: "model", maxInputTokens: 10 },
+				knownModels: expect.objectContaining({
+					model: { id: "model", maxInputTokens: 10 },
+					sibling: { id: "sibling", maxInputTokens: 8192 },
+				}),
+				...activeModelSettings,
+			}),
+		);
+		createHandlerMock.mockClear();
+		await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages,
+			apiMessages: messages,
+			model: {
+				id: selectedModel,
+				provider: "openai",
+				info: { id: selectedModel, maxInputTokens: 10 },
+				settings: {
+					maxInputTokens: 16384,
+					maxOutputTokens: 256,
+					temperature: 0.8,
+					capabilities: ["vision"],
+				},
+			},
+		});
+		expect(createHandlerMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				modelId: selectedModel,
+				apiKey: "new-key",
+				modelInfo: { id: selectedModel, maxInputTokens: 10 },
+				maxInputTokens: 16384,
+				maxOutputTokens: 256,
+				temperature: 0.8,
+				capabilities: ["vision"],
 			}),
 		);
 	});

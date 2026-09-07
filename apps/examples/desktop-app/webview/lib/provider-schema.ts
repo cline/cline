@@ -67,6 +67,12 @@ export interface Provider {
 	color: string;
 	letter: string;
 	enabled: boolean;
+	/**
+	 * Sidecar-computed readiness: true when the persisted settings hold real
+	 * credentials or a usable keyless endpoint, unlike `enabled` which is set
+	 * by any persisted entry (including ones seeded by legacy migration).
+	 */
+	configured?: boolean;
 	apiKey?: string;
 	oauthAccessTokenPresent?: boolean;
 	baseUrl?: string;

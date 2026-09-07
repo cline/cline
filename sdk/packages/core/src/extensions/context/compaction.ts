@@ -292,8 +292,41 @@ export function createContextCompactionPrepareTurn(
 		: strategy;
 
 	return async (context) => {
-		const providerConfig =
+		const liveProviderConfig =
 			options.getProviderConfig?.() ?? initialProviderConfig;
+		// Connection edits may carry a model selected for the next turn. The
+		// sidecar must keep this turn's model, including its metadata and limits.
+		const matchingModelConfig = [
+			liveProviderConfig,
+			initialProviderConfig,
+		].find(
+			(candidate) =>
+				candidate.providerId === context.model.provider &&
+				candidate.modelId === context.model.id,
+		);
+		const modelInfo =
+			(context.model.settings ? context.model.info : undefined) ??
+			matchingModelConfig?.modelInfo ??
+			matchingModelConfig?.knownModels?.[context.model.id];
+		const modelSettings = context.model.settings ?? matchingModelConfig;
+		const connectionConfig =
+			liveProviderConfig.providerId === context.model.provider
+				? liveProviderConfig
+				: initialProviderConfig;
+		const providerConfig = {
+			...connectionConfig,
+			providerId: context.model.provider,
+			modelId: context.model.id,
+			modelInfo,
+			knownModels: {
+				...connectionConfig.knownModels,
+				...(modelInfo ? { [context.model.id]: modelInfo } : {}),
+			},
+			maxInputTokens: modelSettings?.maxInputTokens,
+			maxOutputTokens: modelSettings?.maxOutputTokens,
+			temperature: modelSettings?.temperature,
+			capabilities: modelSettings?.capabilities,
+		} as ProviderConfig;
 		const effectiveMode: CoreCompactionMode = context.overflowRecovery
 			? "overflow_recovery"
 			: mode;

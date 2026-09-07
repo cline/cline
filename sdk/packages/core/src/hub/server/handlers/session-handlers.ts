@@ -1,5 +1,6 @@
 import type {
 	HubCommandEnvelope,
+	HubCommandInput,
 	HubReplyEnvelope,
 	JsonValue,
 	ToolApprovalRequest,
@@ -44,6 +45,27 @@ import {
 } from "./context";
 
 const CAPABILITY_OWNER_METADATA_KEY = "hubCapabilityOwnerClientId";
+
+async function deleteSessionAndCleanDerivedState(
+	ctx: HubTransportContext,
+	sessionId: string,
+): Promise<boolean> {
+	const deleted = await ctx.sessionHost.deleteSession(sessionId);
+	ctx.sessionState.delete(sessionId);
+	// False means canonical history was already absent. Eviction is still safe
+	// and repairs any index left stale by an earlier deletion.
+	try {
+		ctx.sessionSearch.removeSession(sessionId);
+	} catch (error) {
+		// Search is disposable derived state. A failed eviction must not reverse a
+		// completed canonical deletion; reconciliation will retry the cleanup.
+		logHubMessage("warn", "session search eviction failed", {
+			error,
+			sessionId,
+		});
+	}
+	return deleted;
+}
 
 export function selectSessionTools<T extends { name: string }>(
 	tools: readonly T[],
@@ -689,7 +711,9 @@ export async function handleSessionRestore(
 			startSession: (startInput) => ctx.sessionHost.startSession(startInput),
 			getStartedSessionId: (started) => started.sessionId,
 			cleanupStartedSession: async (started) => {
-				if (!(await ctx.sessionHost.deleteSession(started.sessionId))) {
+				if (
+					!(await deleteSessionAndCleanDerivedState(ctx, started.sessionId))
+				) {
 					throw new Error(
 						`Failed to clean up restored session ${started.sessionId}`,
 					);
@@ -924,6 +948,28 @@ export async function handleSessionList(
 	});
 }
 
+export async function handleSessionSearch(
+	ctx: HubTransportContext,
+	envelope: HubCommandEnvelope,
+): Promise<HubReplyEnvelope> {
+	const payload = (envelope.payload ??
+		{}) as unknown as HubCommandInput<"session.search">;
+	if (typeof payload.query !== "string" || !payload.query.trim()) {
+		return errorReply(
+			envelope,
+			"invalid_search_query",
+			"session.search requires a non-empty query",
+		);
+	}
+	return okReply(envelope, {
+		hits: ctx.sessionSearch.search({
+			query: payload.query,
+			limit: payload.limit,
+			workspaceRoot: payload.workspaceRoot,
+		}),
+	});
+}
+
 export async function handleSessionUpdate(
 	ctx: HubTransportContext,
 	envelope: HubCommandEnvelope,
@@ -1065,8 +1111,7 @@ export async function handleSessionDelete(
 	envelope: HubCommandEnvelope,
 ): Promise<HubReplyEnvelope> {
 	const sessionId = extractSessionId(envelope);
-	const deleted = await ctx.sessionHost.deleteSession(sessionId);
-	ctx.sessionState.delete(sessionId);
+	const deleted = await deleteSessionAndCleanDerivedState(ctx, sessionId);
 	return okReply(envelope, { deleted });
 }
 

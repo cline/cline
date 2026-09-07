@@ -29,7 +29,7 @@
 import type { CoreSessionEvent } from "@cline/core"
 import { PATCH_MARKERS, projectSessionMessagesForDisplay } from "@cline/core"
 import type { MessageWithMetadata as SdkMessage } from "@cline/llms"
-import { type AgentEvent, formatDisplayUserInput } from "@cline/shared"
+import { type AgentEvent, formatDisplayUserInput, type ProviderErrorClass } from "@cline/shared"
 import { COMMAND_OUTPUT_STRING } from "@shared/combineCommandSequences"
 import type {
 	ClineApiReqInfo,
@@ -45,10 +45,11 @@ import type {
 } from "@shared/ExtensionMessage"
 import { Logger } from "@shared/services/Logger"
 import * as path from "path"
+import { isClineManagedProvider } from "@/shared/utils/cline"
 import { arePathsEqual, getDesktopDir } from "@/utils/path"
 import { CLINE_FREE_PROMOTION_ENDED_ERROR_CODE, isClineFreePromotionEndedMessage } from "../services/error/ClineError"
 import { MessageIdMinter } from "./message-id-minter"
-import { describeMissingCredentialError } from "./provider-credential-error"
+import { describeCredentialRejectedError, describeMissingCredentialError } from "./provider-credential-error"
 import { extractPersistedHookContextChips, isSyntheticSdkUserMessage, isSyntheticUserPrompt } from "./sdk-user-message-mapping"
 import { isDeniedToolApprovalMistake, isKnownToolApprovalDenial } from "./tool-approval-denial"
 
@@ -1931,7 +1932,12 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 			// `code: "insufficient_credits"`). We try to reshape it into the
 			// ClineError-serialized format the webview expects so that ErrorRow
 			// can render the correct UI (Buy Credits button, etc.).
-			const errorPayload = reshapeErrorForWebview(event.error, state.activeProviderId(), state.activeModelId())
+			const errorPayload = reshapeErrorForWebview(
+				event.error,
+				state.activeProviderId(),
+				state.activeModelId(),
+				event.errorClass,
+			)
 
 			// Emit an api_req_started with streamingFailedMessage so the
 			// RequestStartRow renders the error via ErrorRow. This replaces
@@ -2637,6 +2643,7 @@ export function reshapeErrorForWebview(
 	error: { message?: string; status?: number; code?: string },
 	providerId?: string,
 	modelId?: string,
+	errorClass?: ProviderErrorClass,
 ): string {
 	// The ClineError-JSON branches below are cline-provider flows (balance,
 	// spend limit), so "cline" stays their fallback id. The missing-credential
@@ -2668,6 +2675,18 @@ export function reshapeErrorForWebview(
 	const vertexGlobalRegionMessage = describeVertexGlobalRegionError(rawMessage, providerId)
 	if (vertexGlobalRegionMessage) {
 		return vertexGlobalRegionMessage
+	}
+
+	// A BYOK provider rejected the configured credentials (llms classified the
+	// HTTP 401/403 while the typed error was still available). Raw provider
+	// bodies here are dead ends — e.g. Mistral's `{"detail":"Invalid API Key"}`
+	// is identical for a wrong, empty, or wrong-scope key — so point the user
+	// at the key configuration instead. Cline-account providers keep the JSON
+	// path below (the webview renders their auth failures as a sign-in card),
+	// and so does an *unknown* provider id: rewriting without knowing the
+	// provider could suppress that sign-in card for a cline-account failure.
+	if (errorClass === "auth" && providerId !== undefined && !isClineManagedProvider(providerId)) {
+		return describeCredentialRejectedError(rawMessage, providerId)
 	}
 
 	// Try to extract structured error info from the error message.

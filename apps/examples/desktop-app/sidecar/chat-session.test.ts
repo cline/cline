@@ -462,6 +462,89 @@ describe("session forks", () => {
 		expect(ctx.restoringWorkspacePaths.size).toBe(0);
 	});
 
+	it("forks trimmed messages without restoring when the edited run has no checkpoint", async () => {
+		const sourceSessionId = `source-imported-fork-${Date.now()}`;
+		const sourceMessages = [
+			{ role: "user" as const, content: "imported prompt" },
+			{ role: "assistant" as const, content: "imported response" },
+			{ role: "user" as const, content: "prompt to edit" },
+			{ role: "assistant" as const, content: "response to replace" },
+		];
+		const expectedMessages = sourceMessages.slice(0, 2);
+		const start = vi.fn(async () => ({ sessionId: "imported-fork" }));
+		const restore = vi.fn(async () => {
+			throw new Error("restore must not run without a checkpoint");
+		});
+		const readMessages = vi.fn(async () => expectedMessages);
+		const ctx = {
+			liveSessions: new Map([
+				[
+					sourceSessionId,
+					{
+						config: {
+							provider: "cline",
+							model: "anthropic/claude-sonnet-4.6",
+						},
+						messages: sourceMessages,
+						promptsInQueue: [],
+						busy: false,
+						startedAt: Date.now(),
+						status: "completed",
+					},
+				],
+			]),
+			restoringWorkspacePaths: new Set(),
+			sessionManager: {
+				get: vi.fn(async () => ({
+					sessionId: sourceSessionId,
+					source: "desktop",
+					status: "completed",
+					provider: "cline",
+					model: "anthropic/claude-sonnet-4.6",
+					cwd: "/workspace/project",
+					workspaceRoot: "/workspace/project",
+					metadata: {
+						importedFrom: { tool: "codex", sourceId: "cdx-1" },
+					},
+				})),
+				readMessages,
+				restore,
+				start,
+			},
+			streamIndices: new Map(),
+			wsClients: new Set(),
+		} as unknown as SidecarContext;
+
+		const result = (await handleChatSessionCommand(ctx, {
+			action: "fork",
+			sessionId: sourceSessionId,
+			forkBeforeRunCount: 2,
+			config: {
+				provider: "cline",
+				model: "anthropic/claude-sonnet-4.6",
+			},
+		})) as { sessionId: string };
+
+		expect(restore).not.toHaveBeenCalled();
+		expect(start).toHaveBeenCalledWith(
+			expect.objectContaining({
+				initialMessages: expectedMessages,
+				sessionMetadata: expect.objectContaining({
+					fork: expect.objectContaining({
+						forkedFromSessionId: sourceSessionId,
+						beforeRunCount: 2,
+					}),
+				}),
+			}),
+		);
+		expect(result.sessionId).toBe("imported-fork");
+		expect(ctx.liveSessions.has(sourceSessionId)).toBe(false);
+		expect(ctx.liveSessions.get("imported-fork")?.messages).toEqual(
+			expectedMessages,
+		);
+		expect(ctx.restoringWorkspacePaths.size).toBe(0);
+	});
+
 	it("keeps a full-history fork on the current workspace without restoring", async () => {
 		const sourceSessionId = `source-full-fork-${Date.now()}`;
 		const sourceMessages = [

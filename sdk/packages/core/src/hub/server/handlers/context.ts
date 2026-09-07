@@ -18,6 +18,7 @@ import type {
 	SessionConnectionRuntimeService,
 	SessionUsageRuntimeService,
 } from "../../../runtime/host/runtime-host";
+import type { SessionHistorySearchService } from "../../../session/search";
 import {
 	type CoreSessionSnapshot,
 	createCoreSessionSnapshot,
@@ -55,6 +56,7 @@ export type PendingCapabilityRequest = {
  * The transport class owns the maps; handlers get a stable read/write surface.
  */
 export interface HubTransportContext {
+	readonly sessionSearch: SessionHistorySearchService;
 	readonly clients: Map<string, HubClientRecord>;
 	readonly sessionState: Map<string, HubSessionState>;
 	readonly pendingApprovals: Map<string, PendingApproval>;
@@ -185,6 +187,15 @@ export async function readHubSessionRecord(
 	);
 }
 
+/**
+ * Builds the snapshot that rides on hub events and command replies. It is a
+ * state notification — status, usage, model, workspace, checkpoint — and
+ * deliberately does NOT read the transcript: `snapshot.messages` here would
+ * put the entire conversation on every status flip, for every subscriber,
+ * and into the durable event log (observed in the wild as a 25GB hub process
+ * feeding a slow reader). Anything that needs messages fetches them with the
+ * `session.messages` command.
+ */
 export async function readCoreSessionSnapshot(
 	ctx: HubTransportContext,
 	sessionId: string,
@@ -193,15 +204,9 @@ export async function readCoreSessionSnapshot(
 	if (!session) {
 		return undefined;
 	}
-	const [messages, usageSummary] = await Promise.all([
-		typeof ctx.sessionHost.readSessionMessages === "function"
-			? ctx.sessionHost.readSessionMessages(sessionId)
-			: [],
-		ctx.sessionHost.getAccumulatedUsage?.(sessionId),
-	]);
+	const usageSummary = await ctx.sessionHost.getAccumulatedUsage?.(sessionId);
 	return createCoreSessionSnapshot({
 		session,
-		messages,
 		usage: usageSummary?.usage,
 		aggregateUsage: usageSummary?.aggregateUsage,
 	});

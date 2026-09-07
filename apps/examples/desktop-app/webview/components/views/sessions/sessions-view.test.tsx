@@ -152,19 +152,19 @@ describe("SessionsView table", () => {
 		expect(row?.parentElement?.className).not.toContain("min-h-14");
 	});
 
-	it("marks favorited sessions with a star", async () => {
+	it("marks pinned sessions with a pin icon", async () => {
 		const plain = renderView();
 		await plain.render();
-		expect(container.querySelector('[aria-label="Favorited"]')).toBeNull();
+		expect(container.querySelector('[aria-label="Pinned"]')).toBeNull();
 
 		await act(async () => root.unmount());
 		root = createRoot(container);
 
-		const favorited = renderView({
+		const pinned = renderView({
 			threads: [{ ...thread, pinned: true }],
 		});
-		await favorited.render();
-		expect(container.querySelector('[aria-label="Favorited"]')).not.toBeNull();
+		await pinned.render();
+		expect(container.querySelector('[aria-label="Pinned"]')).not.toBeNull();
 	});
 
 	it("opens a session on click but not while text is selected", async () => {

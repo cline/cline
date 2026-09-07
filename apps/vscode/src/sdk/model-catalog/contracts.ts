@@ -263,11 +263,13 @@ export interface Disposable {
 /**
  * SDK-driven hint for how to display per-token / total cost in the UI.
  * Mirrors `ProviderUsageCostDisplay` from `@cline/llms` and the CLI's
- * `shouldShowCliUsageCost` consumer. When `"hide"`, downstream UIs MUST
- * suppress per-token pricing rows (in model info cards) and total-cost
- * lines (in task summaries / status bars).
+ * `shouldShowCliUsageCost` consumer. Anything other than `"show"` means
+ * downstream UIs MUST suppress per-token pricing rows (in model info
+ * cards) and total-cost lines (in task summaries / status bars);
+ * `"subscription"` additionally signals that usage is covered by the
+ * user's subscription (e.g. ClinePass, ChatGPT Plus/Pro).
  */
-export type UsageCostDisplay = "show" | "hide"
+export type UsageCostDisplay = "show" | "hide" | "subscription"
 
 export interface ProviderListing {
 	readonly id: ProviderId

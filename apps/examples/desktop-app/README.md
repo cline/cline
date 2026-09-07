@@ -17,6 +17,38 @@ From `apps/examples/desktop-app/`:
 - `bun run package:desktop` - package the current OS desktop app into `dist/desktop/`
 - `bun run typecheck` - TypeScript check
 
+## Customizing the macOS Install Window
+
+The drag-to-Applications window is configured by `bundle.macOS.dmg` in
+[`src-tauri/tauri.conf.json`](./src-tauri/tauri.conf.json). Its artwork comes
+from the PNG sources in [`src-tauri/dmg/`](./src-tauri/dmg/); the
+`background.gen.tiff` Finder actually renders is a gitignored build artifact
+regenerated from them on every build.
+
+1. The current source artwork is `640x400`. Export `background.png` at 1x and
+   `background@2x.png` at 2x.
+2. Currently the app icons are centered at `(140, 200)` and
+   the Applications folder centered at `(500, 200)`. If updating artwork, update `appPosition`
+   and `applicationFolderPosition` to reposition the app icons.
+3. Build with `bun run build:binary`. Before compiling, the build validates
+   both PNG dimensions, combines them with `tiffutil` into the Retina-aware
+   `src-tauri/dmg/background.gen.tiff`, and verifies the TIFF contains the
+   expected 1x and 2x representations. Run `bun run dmg:background` to do just
+   that step, e.g. to sanity-check new artwork without a full build. The DMG
+   is written beneath `src-tauri/target/release/bundle/dmg/`.
+
+Run `bun run test:dmg-background` for the cross-platform checks covering the
+committed PNG dimensions and TIFF validation logic.
+
+The configured `640x432` Finder window is intentionally 32 points taller than
+the `640x400` background. That extra height matches the Finder chrome in the
+currently verified packaged layout; re-check it after material macOS or Finder
+changes. The project deliberately uses a multi-resolution TIFF even though
+Tauri's documented background formats are PNG, JPG, and GIF: Finder renders
+both the 1x and 2x representations from a single background file. Re-check the
+packaged DMG after upgrading Tauri in case its background validation changes.
+
+
 ## Login Shell PATH Resolution
 
 Apps launched from Finder/the Dock inherit launchd's minimal `PATH`

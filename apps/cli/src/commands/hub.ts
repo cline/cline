@@ -186,7 +186,9 @@ export function createHubCommand(
 				);
 				if (!ok) {
 					io.writeErr(
-						draining ? "Hub drain request failed." : "Hub un-drain request failed.",
+						draining
+							? "Hub drain request failed."
+							: "Hub un-drain request failed.",
 					);
 					fail();
 					return;

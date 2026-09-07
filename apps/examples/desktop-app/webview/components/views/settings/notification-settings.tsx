@@ -83,11 +83,7 @@ export function NotificationSettings() {
 			<span className="shrink-0 text-xs font-medium text-muted-foreground">
 				Allowed by system
 			</span>
-		) : permission === "unsupported" ? (
-			<span className="shrink-0 text-xs text-muted-foreground">
-				Available in the desktop app
-			</span>
-		) : permission === null ? (
+		) : permission === "unsupported" ? null : permission === null ? (
 			<span className="shrink-0 text-xs text-muted-foreground">Checking…</span>
 		) : (
 			<Button
@@ -101,9 +97,13 @@ export function NotificationSettings() {
 			</Button>
 		);
 
+	// One settings section: a top-level header row like the other General
+	// settings, with the per-event matrix nested in a card so its rows read
+	// as children of "Desktop notifications" rather than as siblings of
+	// top-level settings like Dark mode.
 	return (
-		<>
-			<div className="flex items-center justify-between gap-5 border-b py-4 max-[720px]:flex-col max-[720px]:items-stretch">
+		<div className="border-b py-4">
+			<div className="flex items-center justify-between gap-5 max-[720px]:flex-col max-[720px]:items-stretch">
 				<div className="flex flex-col gap-1">
 					<p className="text-base font-semibold text-foreground">
 						Desktop notifications
@@ -120,7 +120,7 @@ export function NotificationSettings() {
 				</div>
 				{permissionControl}
 			</div>
-			<div className="border-b">
+			<div className="mt-4 rounded-lg border bg-card px-4">
 				<div className="grid grid-cols-[minmax(0,1fr)_5rem_4rem] items-center gap-3 border-b py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
 					<span>Event</span>
 					<span className="text-center">Notify</span>
@@ -165,6 +165,6 @@ export function NotificationSettings() {
 					);
 				})}
 			</div>
-		</>
+		</div>
 	);
 }

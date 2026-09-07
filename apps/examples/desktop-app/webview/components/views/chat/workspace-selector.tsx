@@ -358,7 +358,10 @@ export function WorkspaceSelector({
 											</span>
 										</Button>
 									)}
-									<div ref={workspaceListRef} className="flex flex-col gap-0.5 max-h-28 overflow-y-auto">
+									<div
+										ref={workspaceListRef}
+										className="flex flex-col gap-0.5 max-h-28 overflow-y-auto"
+									>
 										{filteredWorkspaces.length === 0 ? (
 											<div className="px-2 py-2 text-xs text-muted-foreground">
 												{looksLikeFolderPath(search)
@@ -459,7 +462,10 @@ export function WorkspaceSelector({
 										<div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
 											Branches
 										</div>
-										<div ref={branchListRef} className="flex flex-col gap-0.5 max-h-36 overflow-y-auto">
+										<div
+											ref={branchListRef}
+											className="flex flex-col gap-0.5 max-h-36 overflow-y-auto"
+										>
 											{filteredBranches.length === 0 ? (
 												<div className="px-2 py-2 text-xs text-muted-foreground">
 													No branches found

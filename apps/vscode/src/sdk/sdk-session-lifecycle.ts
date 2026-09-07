@@ -57,8 +57,8 @@ export interface SdkSessionLifecycleOptions {
 	onDidBecomeIdle?: () => void
 	/** Called synchronously when the active-session reference is removed. */
 	onDidEndActiveSession?: () => void
-	/** Brackets every active-session replacement, including its reference-free gap. */
-	onActiveSessionReplacementStarted?: (activeSession: ActiveSession) => void
+	/** Brackets startup and replacement, including intervals with no installed session. */
+	onActiveSessionReplacementStarted?: (activeSession: ActiveSession | undefined) => void
 	onActiveSessionReplacementFinished?: (activeSession: ActiveSession | undefined) => void
 }
 
@@ -153,9 +153,7 @@ export class SdkSessionLifecycle {
 		startInput: Parameters<VscodeSessionHost["start"]>[0],
 	): Promise<{ startResult: StartSessionResult; sdkHost: SdkSessionHost }> {
 		const replacedSession = this.activeSession
-		if (replacedSession) {
-			this.options.onActiveSessionReplacementStarted?.(replacedSession)
-		}
+		this.options.onActiveSessionReplacementStarted?.(replacedSession)
 
 		try {
 			if (this.activeSession) {
@@ -194,9 +192,7 @@ export class SdkSessionLifecycle {
 
 			return { startResult, sdkHost }
 		} finally {
-			if (replacedSession) {
-				this.options.onActiveSessionReplacementFinished?.(this.activeSession)
-			}
+			this.options.onActiveSessionReplacementFinished?.(this.activeSession)
 		}
 	}
 
@@ -244,33 +240,41 @@ export class SdkSessionLifecycle {
 			throw new Error("No active SDK session to restore")
 		}
 
-		const sourceSessionId = activeSession.sessionId
-		const restored = await activeSession.sdkHost.restore(input)
-		if (!restored.startResult || !restored.sessionId) {
+		this.options.onActiveSessionReplacementStarted?.(activeSession)
+		try {
+			const sourceSessionId = activeSession.sessionId
+			const restored = await activeSession.sdkHost.restore(input)
+			if (!restored.startResult || !restored.sessionId) {
+				return restored
+			}
+
+			this.activeSession = {
+				...activeSession,
+				sessionId: restored.sessionId,
+				startConfig: input.start?.config
+					? {
+							providerId: input.start.config.providerId,
+							modelId: input.start.config.modelId,
+						}
+					: activeSession.startConfig,
+				startResult: restored.startResult,
+				isRunning: false,
+			}
+
+			if (restored.sessionId !== sourceSessionId) {
+				const stopPromise = this.trackSessionStop(activeSession.sdkHost, sourceSessionId, "restoreActiveSession")
+				stopPromise.catch((error) => {
+					Logger.warn(
+						`[SdkController] Failed to stop source session after checkpoint restore: ${sourceSessionId}`,
+						error,
+					)
+				})
+			}
+
 			return restored
+		} finally {
+			this.options.onActiveSessionReplacementFinished?.(this.activeSession)
 		}
-
-		this.activeSession = {
-			...activeSession,
-			sessionId: restored.sessionId,
-			startConfig: input.start?.config
-				? {
-						providerId: input.start.config.providerId,
-						modelId: input.start.config.modelId,
-					}
-				: activeSession.startConfig,
-			startResult: restored.startResult,
-			isRunning: false,
-		}
-
-		if (restored.sessionId !== sourceSessionId) {
-			const stopPromise = this.trackSessionStop(activeSession.sdkHost, sourceSessionId, "restoreActiveSession")
-			stopPromise.catch((error) => {
-				Logger.warn(`[SdkController] Failed to stop source session after checkpoint restore: ${sourceSessionId}`, error)
-			})
-		}
-
-		return restored
 	}
 
 	async dispose(reason = "SdkSessionLifecycle.dispose"): Promise<void> {

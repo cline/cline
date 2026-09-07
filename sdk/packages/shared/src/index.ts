@@ -234,6 +234,7 @@ export {
 	ModelStatusSchema,
 	modelHasCapability,
 	modelProducesImages,
+	modelSupportsImageInput,
 	modelSupportsToolCalling,
 	supportsChatModalities,
 	type ThinkingConfig,
@@ -271,7 +272,11 @@ export type {
 	ToolCallRecord,
 	ToolPolicy,
 } from "./llms/tools";
-export { ToolCallRecordSchema } from "./llms/tools";
+export {
+	TOOL_REJECTION_SUFFIX,
+	ToolCallRecordSchema,
+	USER_REJECTED_TOOL_REASON,
+} from "./llms/tools";
 export {
 	type BasicLogger,
 	type BasicLogMetadata,
@@ -322,11 +327,15 @@ export {
 	formatDisplayUserInput,
 	formatFileContentBlock,
 	formatModeSwitchNotice,
+	formatSessionSearchPreview,
+	formatSessionSearchTitle,
 	formatUserCommandBlock,
 	formatUserInputBlock,
 	normalizeUserInput,
 	parseUserCommandEnvelope,
 	parseUserInputMode,
+	SESSION_SEARCH_PREVIEW_MAX_LENGTH,
+	SESSION_SEARCH_TITLE_MAX_LENGTH,
 	stripModeNotices,
 	xmlTagsRemoval,
 } from "./prompt/format";

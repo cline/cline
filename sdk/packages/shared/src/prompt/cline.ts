@@ -58,13 +58,39 @@ export const PLAN_MODE_INSTRUCTIONS_MANUAL_SWITCH = `${PLAN_MODE_INSTRUCTIONS_BA
 
 Once you have presented your plan, end your turn and wait for the user's response. You do NOT have the ability to switch to act mode yourself -- the user must do it manually with the Plan/Act toggle once they are satisfied with the plan. If the task requires tools that are only available in act mode, ask the user to "toggle to Act mode" (use those words).`;
 
+function redactRemoteUrlCredentials(remote: string): string {
+	const schemeEnd = remote.indexOf("://");
+	if (schemeEnd < 1) return remote;
+
+	const authorityStart = schemeEnd + 3;
+	let authorityEnd = authorityStart;
+	while (authorityEnd < remote.length) {
+		const char = remote[authorityEnd];
+		if (
+			char === "/" ||
+			char === "?" ||
+			char === "#" ||
+			char.charCodeAt(0) <= 32
+		) {
+			break;
+		}
+		authorityEnd++;
+	}
+
+	const userInfoEnd = remote.lastIndexOf("@", authorityEnd - 1);
+	if (userInfoEnd < authorityStart) return remote;
+	return remote.slice(0, authorityStart) + remote.slice(userInfoEnd + 1);
+}
+
 export function processWorkspaceInfo(info: WorkspaceInfo): string {
 	return JSON.stringify(
 		{
 			workspaces: {
 				[info.rootPath]: {
 					hint: info.hint,
-					associatedRemoteUrls: info.associatedRemoteUrls,
+					associatedRemoteUrls: info.associatedRemoteUrls?.map(
+						redactRemoteUrlCredentials,
+					),
 					latestGitCommitHash: info.latestGitCommitHash,
 					latestGitBranchName: info.latestGitBranchName,
 				},

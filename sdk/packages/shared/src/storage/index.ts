@@ -1,6 +1,7 @@
 export { resolveExistingFilePath } from "./path-resolution";
 export {
 	AGENT_CONFIG_DIRECTORY_NAME,
+	AGENT_PLUGIN_MANIFEST_FILE_NAME,
 	AGENTS_RULES_FILE_NAME,
 	CLINE_CHAT_WORKSPACE_DIRECTORY_NAME,
 	CLINE_CONNECTOR_SETTINGS_FILE_NAME,
@@ -13,12 +14,15 @@ export {
 	ensureParentDir,
 	getPluginDisplayName,
 	HOOKS_CONFIG_DIRECTORY_NAME,
+	isAgentPluginDirectory,
 	isChatWorkspacePath,
 	isPluginModulePath,
 	type ResolveCronSpecsDirOptions,
 	type ResolveTaskSpecsDirOptions,
 	RULES_CONFIG_DIRECTORY_NAME,
 	resolveAgentConfigSearchPaths,
+	resolveAgentPluginSearchPaths,
+	resolveAgentSchedulesDir,
 	resolveAgentsConfigDirPath,
 	resolveChatWorkspacePath,
 	resolveClineDataDir,

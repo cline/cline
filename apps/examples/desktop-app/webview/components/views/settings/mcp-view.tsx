@@ -20,6 +20,7 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
 	Collapsible,
@@ -208,10 +209,13 @@ function createServerFormState(existing?: McpServer): McpServerFormState {
 
 export function McpServersContent({
 	chrome = "page",
+	marketplaceVariant = "full",
 	onInventoryChanged,
 }: {
 	/** "embedded" renders without the page frame/header for use inside the Plugins hub. */
 	chrome?: "page" | "embedded";
+	/** Which marketplace sections the embedded MarketplaceView shows. */
+	marketplaceVariant?: "full" | "installed";
 	/** Invoked whenever the server list is (re)loaded or mutated. */
 	onInventoryChanged?: () => void;
 } = {}) {
@@ -623,9 +627,9 @@ export function McpServersContent({
 		return (
 			<div
 				key={server.name}
-				className="group relative rounded-lg border border-border px-5 py-4 hover:bg-surface-hover"
+				className="group relative rounded-lg border bg-card p-4 transition-colors hover:bg-surface-hover-lighter"
 			>
-				<div className="flex items-center gap-3">
+				<div className="flex min-w-0 items-center gap-2">
 					<Circle
 						className={cn(
 							"h-2.5 w-2.5 shrink-0",
@@ -634,17 +638,17 @@ export function McpServersContent({
 								: "fill-primary text-primary",
 						)}
 					/>
-					<h3 className="text-sm font-semibold text-foreground">
+					<h3 className="min-w-0 truncate text-sm font-semibold text-foreground">
 						{server.name}
 					</h3>
-					<span className="rounded-md border border-border px-2 py-0.5 text-xs text-muted-foreground">
+					<Badge variant="outline" className="shrink-0 text-muted-foreground">
 						{TRANSPORT_TYPE_LABELS[server.transportType] ??
 							server.transportType}
-					</span>
+					</Badge>
 					{context?.matchedEntries?.length ? (
-						<span className="rounded-md border border-border px-2 py-0.5 text-xs text-muted-foreground">
+						<Badge variant="outline" className="shrink-0 text-muted-foreground">
 							Marketplace
-						</span>
+						</Badge>
 					) : null}
 					<div className="flex-1" />
 					{renderServerToggle(server)}
@@ -813,7 +817,7 @@ export function McpServersContent({
 				installedItems={installedItems}
 				onInstalledItemsChanged={() => refreshServers()}
 				primitive="mcp"
-				variant={chrome === "embedded" ? "installed" : "full"}
+				variant={marketplaceVariant}
 			/>
 			<Dialog
 				open={editorOpen}

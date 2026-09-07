@@ -364,8 +364,28 @@ function filenameStemFromPath(sourcePath: string): string {
 		.replace(/\.md$/, "");
 }
 
+const HUB_SCHEDULE_SOURCE_PATH_PREFIX = "hub/schedules/";
+
 function hubScheduleSourcePath(scheduleId: string): string {
-	return `hub/schedules/${scheduleId}.cron.md`;
+	return `${HUB_SCHEDULE_SOURCE_PATH_PREFIX}${scheduleId}.cron.md`;
+}
+
+/**
+ * DB-native hub schedules (created via the schedule tools/UI) live only in
+ * cron.db under a virtual sourcePath that never exists on disk. File-backed
+ * specs can spoof `source: hub-schedule` in frontmatter — even inside a
+ * physical `hub/schedules/` directory — but reconciliation always records
+ * their source file's mtime, which DB-native rows never have. All three
+ * markers are required to identify a DB-native hub schedule.
+ */
+export function isHubManagedSpec(
+	spec: Pick<CronSpecRecord, "source" | "sourcePath" | "sourceMtimeMs">,
+): boolean {
+	return (
+		spec.source === "hub-schedule" &&
+		spec.sourcePath.startsWith(HUB_SCHEDULE_SOURCE_PATH_PREFIX) &&
+		spec.sourceMtimeMs === undefined
+	);
 }
 
 function hubScheduleMetadata(
@@ -1248,6 +1268,30 @@ export class SqliteCronStore {
 			.prepare("SELECT * FROM cron_runs WHERE run_id = ?")
 			.get(runId);
 		return row ? runToRecord(row) : undefined;
+	}
+
+	/**
+	 * 1-based position of a run among every run ever created for its spec,
+	 * in creation order. Counts runs of every status (including cancelled and
+	 * failed ones) so the number is stable: a later cancellation never shifts
+	 * the numbers already stamped onto earlier sessions. Returns undefined
+	 * for an unknown run.
+	 */
+	public getRunOrdinal(runId: string): number | undefined {
+		const row = this.db
+			.prepare(
+				`SELECT COUNT(*) AS count
+					FROM cron_runs r
+					INNER JOIN cron_runs target ON target.run_id = ?
+					WHERE r.spec_id = target.spec_id
+						AND (
+							r.created_at < target.created_at
+							OR (r.created_at = target.created_at AND r.rowid <= target.rowid)
+						)`,
+			)
+			.get(runId) as { count?: unknown } | undefined;
+		const count = Number(row?.count ?? 0);
+		return count > 0 ? count : undefined;
 	}
 
 	public insertEventLog(

@@ -221,3 +221,16 @@ export function inferHydratedChatStatus(
 	}
 	return mapHistoryStatusToChatStatus(fallback);
 }
+
+/**
+ * The session record's status mapped verbatim — no transcript inference. For
+ * callers observing a session whose record is actively maintained by the
+ * executing host (the stale-stream poll), the record is the authority;
+ * inferHydratedChatStatus's stale-record heuristic would misread a mid-run
+ * snapshot that happens to end on assistant narration as a finished session.
+ */
+export function mapSessionRecordStatus(
+	status: SessionHistoryStatus,
+): ChatSessionStatus {
+	return mapHistoryStatusToChatStatus(status);
+}

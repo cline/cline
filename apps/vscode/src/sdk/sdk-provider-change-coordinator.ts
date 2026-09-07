@@ -22,11 +22,11 @@ interface PendingProviderFieldUpdate {
 	version: number
 	mode: Mode
 	provider: string
-	activeSession: ActiveSession
+	activeSession: ActiveSession | undefined
 }
 
 interface ProviderReplacementContext {
-	activeSession: ActiveSession
+	activeSession: ActiveSession | undefined
 	mode: Mode
 	provider: string | undefined
 	versionAtStart: number
@@ -88,11 +88,12 @@ export class SdkProviderChangeCoordinator {
 		}
 
 		const replacement = this.sessionReplacementInFlight
+		const matchingReplacement = replacement?.mode === mode && replacement.provider === changedProvider
 		const installedSession = this.options.sessions.getActiveSession()
 		const activeSession =
 			installedSession ??
 			(replacement?.mode === mode && replacement.provider === changedProvider ? replacement.activeSession : undefined)
-		if (!activeSession) {
+		if (!activeSession && !matchingReplacement) {
 			Logger.log("[SdkController] Provider fields changed without active session; next task will use new configuration")
 			return
 		}
@@ -103,6 +104,9 @@ export class SdkProviderChangeCoordinator {
 			provider: changedProvider,
 			activeSession,
 		}
+		// A first start has no source session. Rebind this edit when installation
+		// finishes, before the first model request can consume the old snapshot.
+		if (!activeSession) return
 
 		const sessionUsesChangedProvider = providerForSession(activeSession) === changedProvider
 		const matchingReplacementInFlight =
@@ -182,13 +186,13 @@ export class SdkProviderChangeCoordinator {
 	 * session. Calls may nest because the provider coordinator owns the wider
 	 * rebuild while SdkSessionLifecycle owns the exact reference-free gap.
 	 */
-	handleActiveSessionReplacementStarted(activeSession: ActiveSession): void {
+	handleActiveSessionReplacementStarted(activeSession: ActiveSession | undefined): void {
 		this.beginActiveSessionReplacement(activeSession, false)
 	}
 
-	private beginActiveSessionReplacement(activeSession: ActiveSession, providerOwned: boolean): void {
+	private beginActiveSessionReplacement(activeSession: ActiveSession | undefined, providerOwned: boolean): void {
 		const current = this.sessionReplacementInFlight
-		if (current?.activeSession === activeSession) {
+		if (current && (!activeSession || current.activeSession === activeSession)) {
 			current.providerOwned ||= providerOwned
 			current.depth += 1
 			return
@@ -238,7 +242,7 @@ export class SdkProviderChangeCoordinator {
 	private async performPendingConnectionUpdate(): Promise<void> {
 		while (true) {
 			const pending = this.pendingProviderFieldUpdate
-			if (!pending || pending.version <= this.appliedProviderConnectionVersion) return
+			if (!pending?.activeSession || pending.version <= this.appliedProviderConnectionVersion) return
 			if (this.classifyPendingProviderFieldUpdate(pending) !== "current") return
 
 			const cwd = await this.options.getWorkspaceRoot()
@@ -279,7 +283,7 @@ export class SdkProviderChangeCoordinator {
 
 	private classifyPendingProviderFieldUpdate(pending: PendingProviderFieldUpdate): "current" | "superseded" | "invalid" {
 		const latest = this.pendingProviderFieldUpdate
-		if (!latest) return "invalid"
+		if (!latest || !pending.activeSession || this.sessionReplacementInFlight) return "invalid"
 		const sameExecutionContext =
 			latest.activeSession === pending.activeSession && latest.mode === pending.mode && latest.provider === pending.provider
 		const executionContextStillActive =
@@ -295,6 +299,9 @@ export class SdkProviderChangeCoordinator {
 	}
 
 	flushPendingProviderFieldsRebuild(): void {
+		// Restores keep the source session installed while awaiting the host.
+		// Do not rebuild it or consume the pending callback during that interval.
+		if (this.sessionReplacementInFlight) return
 		const pendingRebuild = this.pendingProviderFieldsRebuild
 		if (!pendingRebuild) {
 			return
@@ -309,12 +316,21 @@ export class SdkProviderChangeCoordinator {
 	}
 
 	private async performRestartActiveSessionForProviderChange(expectedSession?: ActiveSession): Promise<void> {
+		// A queued field refresh must not replace the source of an in-flight
+		// restore. Explicit provider restarts retain their follow-up semantics.
+		if (expectedSession && this.sessionReplacementInFlight) return
 		const activeSession = this.options.sessions.getActiveSession()
 		if (!activeSession || (expectedSession && activeSession !== expectedSession)) {
 			return
 		}
 		const { sdkHost: oldManager, sessionId: oldSessionId } = activeSession
 		const cwd = await this.options.getWorkspaceRoot()
+		if (
+			expectedSession &&
+			(this.sessionReplacementInFlight || this.options.sessions.getActiveSession() !== expectedSession)
+		) {
+			return
+		}
 		const mode = this.getCurrentMode()
 		this.beginActiveSessionReplacement(activeSession, true)
 		let replacementInstalled = false
@@ -406,7 +422,8 @@ export class SdkProviderChangeCoordinator {
 		if (
 			context.providerOwned &&
 			replacementSession !== undefined &&
-			latestPending?.activeSession === context.activeSession &&
+			latestPending !== undefined &&
+			latestPending.activeSession === context.activeSession &&
 			latestPending.mode === context.mode &&
 			latestPending.provider === context.provider &&
 			latestPending.version <= context.versionAtStart

@@ -120,13 +120,19 @@ export class UnifiedSessionPersistenceService {
 			}),
 			prompt: input.prompt,
 		});
+		const status: SessionStatus = input.status ?? "running";
+		const terminal = !isNonTerminalSessionStatus(status);
+		const endedAt = terminal ? (input.endedAt ?? nowIso()) : undefined;
+		const exitCode = terminal ? (input.exitCode ?? 0) : undefined;
 		const manifest = {
 			version: 1 as const,
 			session_id: sessionId,
 			source: input.source,
 			pid: input.pid,
 			started_at: startedAt,
-			status: "running" as const,
+			...(endedAt ? { ended_at: endedAt } : {}),
+			...(exitCode !== undefined ? { exit_code: exitCode } : {}),
+			status,
 			interactive: input.interactive,
 			provider: input.provider,
 			model: input.model,
@@ -146,9 +152,9 @@ export class UnifiedSessionPersistenceService {
 			source: input.source,
 			pid: input.pid,
 			startedAt,
-			endedAt: null,
-			exitCode: null,
-			status: "running",
+			endedAt: endedAt ?? null,
+			exitCode: exitCode ?? null,
+			status,
 			statusLock: 0,
 			interactive: input.interactive,
 			provider: input.provider,
@@ -529,6 +535,24 @@ export class UnifiedSessionPersistenceService {
 				: meta;
 			return { ...row, metadata: resolved };
 		});
+	}
+
+	/**
+	 * Lightweight, effectively unbounded listing of session ids + metadata
+	 * (no manifest reads, no dead-session reconciliation). listSessions caps
+	 * its scan at 2000 rows; callers that must see every row — e.g. import
+	 * dedup markers — use this instead.
+	 */
+	async listSessionMetadata(
+		limit = Number.MAX_SAFE_INTEGER,
+	): Promise<Array<{ sessionId: string; metadata?: Record<string, unknown> }>> {
+		const rows = await this.adapter.listSessions({
+			limit: Math.max(1, Math.floor(limit)),
+		});
+		return rows.map((row) => ({
+			sessionId: row.sessionId,
+			metadata: sanitizeMetadata(row.metadata ?? undefined),
+		}));
 	}
 
 	async reconcileDeadSessions(limit = 2000): Promise<number> {

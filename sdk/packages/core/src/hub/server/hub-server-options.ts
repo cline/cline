@@ -9,6 +9,7 @@ import type {
 	PendingPromptsRuntimeService,
 	RuntimeHost,
 } from "../../runtime/host/runtime-host";
+import type { SessionHistorySearchOptions } from "../../session/search";
 import type { CoreSettingsService } from "../../settings";
 import type { AgendaTaskManagerOptions } from "../../tasks";
 import type { HubOwnerContext } from "../discovery";
@@ -16,6 +17,8 @@ import type { HubEventLogOptions } from "./hub-event-log";
 import type { HubRunQueueOptions } from "./hub-run-queue";
 
 export interface HubWebSocketServerOptions {
+	/** Hub-owned full-text session history index configuration. */
+	sessionSearchOptions?: SessionHistorySearchOptions;
 	/** Workspace authority assigned by the Hub to authenticated clients. */
 	workspaceRoot?: string;
 	host?: string;

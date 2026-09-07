@@ -112,7 +112,10 @@ async function waitForDiscovery(
 	/** A SIGKILLed predecessor leaves its record behind; skip that pid. */
 	notPid?: number,
 ): Promise<ReadyDaemon["discovery"]> {
-	const deadline = Date.now() + 10_000;
+	// A hang guard, not a timing assertion: spawning a real bun daemon on a
+	// 2-core hosted Windows runner regularly needs more than 10s under load
+	// (same guard as shutdown.e2e.test.ts).
+	const deadline = Date.now() + 30_000;
 	while (Date.now() < deadline) {
 		try {
 			const parsed = JSON.parse(

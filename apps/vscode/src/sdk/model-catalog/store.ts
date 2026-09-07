@@ -162,6 +162,21 @@ function patchStringValue(value: string | null | undefined): string | undefined 
 	return patched === "" ? undefined : patched
 }
 
+/**
+ * API keys are opaque pasted tokens. Clipboards smuggle in control and
+ * invisible formatting characters (newlines, zero-width spaces, BOM,
+ * direction marks) that make the provider reject the key with a 401 that is
+ * indistinguishable from a genuinely wrong key — while the field's masked
+ * rendering hides the corruption from the user. Strip those characters and
+ * surrounding whitespace before the value reaches either backing store.
+ */
+function sanitizeApiKeyPatch(patch: ProviderConfigPatch): ProviderConfigPatch {
+	if (!("apiKey" in patch) || typeof patch.apiKey !== "string") {
+		return patch
+	}
+	return { ...patch, apiKey: patch.apiKey.replace(/[\p{Cc}\p{Cf}]/gu, "").trim() }
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value)
 }
@@ -944,17 +959,19 @@ export function createProviderConfigStore(): ProviderConfigStore {
 		},
 
 		write(providerId: ProviderId, patch: ProviderConfigPatch): EffectiveProviderConfig {
-			if (Object.keys(patch).length === 0) {
+			const sanitizedPatch = sanitizeApiKeyPatch(patch)
+			if (Object.keys(sanitizedPatch).length === 0) {
 				return this.read(providerId)
 			}
 
 			const previousConfig = this.read(providerId)
-			const previousReasoning = "reasoning" in patch ? readProviderReasoningSettings(providerId) : undefined
-			writeStateFields(providerId, patch)
-			writeProviderSettingsFields(providerId, patch)
+			const previousReasoning = "reasoning" in sanitizedPatch ? readProviderReasoningSettings(providerId) : undefined
+			writeStateFields(providerId, sanitizedPatch)
+			writeProviderSettingsFields(providerId, sanitizedPatch)
 			const config = this.read(providerId)
 			const reasoningChanged =
-				"reasoning" in patch && !reasoningSettingsEqual(previousReasoning, readProviderReasoningSettings(providerId))
+				"reasoning" in sanitizedPatch &&
+				!reasoningSettingsEqual(previousReasoning, readProviderReasoningSettings(providerId))
 			// Reasoning is persisted alongside provider fields but is not part of
 			// EffectiveProviderConfig, so compare it separately. Suppress unchanged
 			// writes so active SDK sessions are not rebuilt; this also filters

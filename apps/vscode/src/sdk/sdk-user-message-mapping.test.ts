@@ -29,9 +29,9 @@ describe("isSyntheticUserPrompt", () => {
 	})
 
 	it("flags hook-injected context blocks", () => {
-		expect(
-			isSyntheticUserPrompt('<hook_context source="PreToolUse" tool_name="read_files">\nNOTE\n</hook_context>'),
-		).toBe(true)
+		expect(isSyntheticUserPrompt('<hook_context source="PreToolUse" tool_name="read_files">\nNOTE\n</hook_context>')).toBe(
+			true,
+		)
 	})
 
 	it("flags synthetic prompts that carry a mode-switch notice", () => {

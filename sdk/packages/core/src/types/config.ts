@@ -3,6 +3,7 @@ import type {
 	AgentConfig,
 	AgentHooks,
 	AgentMode,
+	AgentPrepareTurnContext,
 	AgentTool,
 	BasicLogger,
 	ConsecutiveMistakeLimitContext,
@@ -92,11 +93,7 @@ export interface CoreCompactionContext {
 	parentAgentId: string | null;
 	iteration: number;
 	messages: MessageWithMetadata[];
-	model: {
-		id: string;
-		provider: string;
-		info?: ModelInfo;
-	};
+	model: AgentPrepareTurnContext["model"];
 	mode: CoreCompactionMode;
 	budget: CoreCompactionBudget;
 	/**
@@ -278,6 +275,11 @@ export interface CoreSessionConfig
 	extensionContext?: ExtensionContext;
 	extraTools?: AgentTool[];
 	pluginPaths?: string[];
+	/**
+	 * Additional Agent Plugins v1 package roots. Paths are resolved by the
+	 * execution host, so hub clients do not load package contents themselves.
+	 */
+	agentPluginPaths?: string[];
 	extensions?: AgentConfig["extensions"];
 	execution?: AgentConfig["execution"];
 	compaction?: CoreCompactionConfig;

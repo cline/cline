@@ -796,6 +796,12 @@ describe("SessionRuntime message preparation", () => {
 						id: "claude-3-5-sonnet",
 						maxInputTokens: 200_000,
 					},
+					settings: {
+						maxInputTokens: undefined,
+						maxOutputTokens: undefined,
+						temperature: undefined,
+						capabilities: undefined,
+					},
 				},
 			}),
 		);
@@ -917,6 +923,51 @@ it("derives tool image support metadata from resolved provider model catalog", a
 		telemetry,
 	);
 	expect(runtimeConfig.toolContextMetadata?.telemetry).toBeUndefined();
+});
+
+it.each([
+	["absent", undefined],
+	["empty", []],
+])("keeps image support enabled when the capability list is %s", async (_label, capabilities) => {
+	const { deps, configs } = withCapturingFakeRuntime();
+	const session = new SessionRuntime(
+		makeAgentConfig({
+			knownModels: {
+				"claude-3-5-sonnet": {
+					id: "claude-3-5-sonnet",
+					...(capabilities === undefined ? {} : { capabilities }),
+				},
+			},
+		}),
+		deps,
+	);
+
+	await session.run("inspect image");
+
+	expect(configs[0]?.toolContextMetadata).toEqual(
+		expect.objectContaining({ modelSupportsImages: true }),
+	);
+});
+
+it("disables image support when a populated capability list omits images", async () => {
+	const { deps, configs } = withCapturingFakeRuntime();
+	const session = new SessionRuntime(
+		makeAgentConfig({
+			knownModels: {
+				"claude-3-5-sonnet": {
+					id: "claude-3-5-sonnet",
+					capabilities: ["tools", "prompt-cache"],
+				},
+			},
+		}),
+		deps,
+	);
+
+	await session.run("inspect image");
+
+	expect(configs[0]?.toolContextMetadata).toEqual(
+		expect.objectContaining({ modelSupportsImages: false }),
+	);
 });
 
 describe("SessionRuntime.run", () => {
@@ -1461,8 +1512,26 @@ describe("SessionRuntime.addTools / updateConnection / clearHistory / restore", 
 		const prepareTurn = vi.fn(() => undefined);
 		const imageModelId = "openai/gpt-5-image";
 		const completionPolicy = { requireCompletionTool: true };
+		const initialModelSettings = {
+			maxInputTokens: 8192,
+			maxOutputTokens: 128,
+			temperature: 0.2,
+			capabilities: ["tools" as const],
+		};
+		const nextModelSettings = {
+			maxInputTokens: 16384,
+			maxOutputTokens: 256,
+			temperature: 0.8,
+			capabilities: ["vision" as const],
+		};
 		const session = new SessionRuntime(
 			makeAgentConfig({
+				providerConfig: {
+					providerId: "anthropic",
+					modelId: "claude-3-5-sonnet",
+					apiKey: "private-snapshot-key",
+					...initialModelSettings,
+				},
 				knownModels: {
 					"claude-3-5-sonnet": {
 						id: "claude-3-5-sonnet",
@@ -1496,7 +1565,15 @@ describe("SessionRuntime.addTools / updateConnection / clearHistory / restore", 
 
 		const firstRun = session.run("go");
 		await vi.waitFor(() => expect(runtimeConfigs).toHaveLength(1));
-		session.updateConnection({ modelId: imageModelId, apiKey: "next-key" });
+		session.updateConnection({
+			modelId: imageModelId,
+			apiKey: "next-key",
+			providerConfig: {
+				providerId: "anthropic",
+				modelId: imageModelId,
+				...nextModelSettings,
+			},
+		});
 
 		await runtimeConfigs[0]?.beforeModelRequest?.();
 		expect(firstRuntime.calls.replaceModelBetweenRequests).toHaveLength(0);
@@ -1519,6 +1596,7 @@ describe("SessionRuntime.addTools / updateConnection / clearHistory / restore", 
 				model: expect.objectContaining({
 					id: "claude-3-5-sonnet",
 					provider: "anthropic",
+					settings: initialModelSettings,
 				}),
 			}),
 		);
@@ -1538,6 +1616,27 @@ describe("SessionRuntime.addTools / updateConnection / clearHistory / restore", 
 			id: imageModelId,
 			provider: "anthropic",
 		});
+		await runtimeConfigs[1]?.prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conversation-1",
+			parentAgentId: null,
+			iteration: 1,
+			messages: [],
+			systemPrompt: "system",
+			tools: [],
+			model: {},
+		});
+		expect(prepareTurn).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				model: expect.objectContaining({
+					id: imageModelId,
+					settings: nextModelSettings,
+				}),
+			}),
+		);
+		expect(JSON.stringify(prepareTurn.mock.calls)).not.toContain(
+			"private-snapshot-key",
+		);
 	});
 
 	it("defers active provider changes until the next run", async () => {
@@ -1997,6 +2096,119 @@ describe("SessionRuntime real AgentRuntime smoke", () => {
 		expect(typeof lastContent === "object" ? lastContent.type : undefined).toBe(
 			"tool_result",
 		);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// external abort signal
+// ---------------------------------------------------------------------------
+
+describe("SessionRuntime external abort signal", () => {
+	it("observes the parent signal only while a run is active", async () => {
+		const controller = new AbortController();
+		const addEventListener = vi.spyOn(controller.signal, "addEventListener");
+		const removeEventListener = vi.spyOn(
+			controller.signal,
+			"removeEventListener",
+		);
+		const { deps } = withFakeRuntime();
+		const session = new SessionRuntime(
+			makeAgentConfig({ abortSignal: controller.signal }),
+			deps,
+		);
+
+		expect(addEventListener).not.toHaveBeenCalled();
+		await session.run("delegated task");
+
+		expect(addEventListener).toHaveBeenCalledOnce();
+		expect(removeEventListener).toHaveBeenCalledOnce();
+	});
+
+	it("does not retain the parent signal when extension startup fails", async () => {
+		const controller = new AbortController();
+		const addEventListener = vi.spyOn(controller.signal, "addEventListener");
+		const extension: AgentExtension = {
+			name: "failing-startup",
+			manifest: { capabilities: ["tools"] },
+			setup: () => {
+				throw new Error("startup failed");
+			},
+		};
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				abortSignal: controller.signal,
+				extensions: [extension],
+				hookErrorMode: "throw",
+			}),
+		);
+
+		await expect(session.run("delegated task")).rejects.toThrow(
+			"startup failed",
+		);
+		expect(addEventListener).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		"before",
+		"during",
+	] as const)("retains a parent abort received %s delegated startup", async (timing) => {
+		const controller = new AbortController();
+		let releaseStartup: (() => void) | undefined;
+		// AgentRuntime plugin setup has no cancellation contract. Release this
+		// finite startup explicitly and verify the retained abort is applied before
+		// the model runs; making arbitrary plugin initialization abortable is not
+		// part of SessionRuntime cancellation propagation.
+		const startupGate = new Promise<void>((resolve) => {
+			releaseStartup = resolve;
+		});
+		let markStartupEntered: (() => void) | undefined;
+		const startupEntered = new Promise<void>((resolve) => {
+			markStartupEntered = resolve;
+		});
+		const modelStream = vi.fn(async () =>
+			(async function* () {
+				yield { type: "text-delta" as const, text: "should not run" };
+				yield { type: "finish" as const, reason: "stop" as const };
+			})(),
+		);
+		const scriptedModel: AgentModel = { stream: modelStream };
+
+		if (timing === "before") {
+			controller.abort("parent session aborted");
+		}
+		const session = new SessionRuntime(
+			makeAgentConfig({ abortSignal: controller.signal }),
+			{
+				createAgentRuntimeImpl: (config) =>
+					createAgentRuntime({
+						...config,
+						model: scriptedModel,
+						plugins: [
+							...(config.plugins ?? []),
+							{
+								name: "delayed-startup",
+								async setup() {
+									markStartupEntered?.();
+									await startupGate;
+									return {};
+								},
+							},
+						],
+					}),
+			},
+		);
+		const runPromise = session.run("delegated task");
+		await startupEntered;
+		if (timing === "during") {
+			controller.abort("parent session aborted");
+		}
+		releaseStartup?.();
+
+		await expect(runPromise).resolves.toMatchObject({
+			finishReason: "aborted",
+		});
+		expect(modelStream).not.toHaveBeenCalled();
+		await session.shutdown();
 	});
 });
 

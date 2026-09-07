@@ -117,7 +117,7 @@ describe("FeatureFlagsService", () => {
 		writeFileSync(
 			cacheFilePath,
 			`${JSON.stringify({
-				version: 1,
+				version: 2,
 				updatedAt: Date.now(),
 				userId: "user-1",
 				flagsPayload: {
@@ -163,7 +163,7 @@ describe("FeatureFlagsService", () => {
 			};
 		};
 		expect(cache).toMatchObject({
-			version: 1,
+			version: 2,
 			updatedAt: Date.now(),
 			userId: "user-1",
 			flagsPayload: {

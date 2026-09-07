@@ -12,8 +12,8 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
 import { scrollCurrentOptionIntoView } from "@/lib/scroll-current-option";
+import { cn } from "@/lib/utils";
 import {
 	looksLikeFolderPath,
 	normalizeWorkspacePath,
@@ -399,9 +399,9 @@ function BranchPicker({
 							</div>
 						) : (
 							<div
-							className="flex max-h-56 flex-col gap-0.5 overflow-y-auto"
-							ref={branchListRef}
-						>
+								className="flex max-h-56 flex-col gap-0.5 overflow-y-auto"
+								ref={branchListRef}
+							>
 								{filteredBranches.length === 0 ? (
 									<div className="px-2 py-2 text-xs text-muted-foreground">
 										No branches found

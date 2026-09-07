@@ -161,14 +161,20 @@ Provider-field edits have two coordinated paths in the VS Code host:
    an interactive tool is suspended between requests or synchronously inside
    the root pre-request callback; it is rejected during request preparation,
    while a provider request is streaming, or when no run is active.
-5. Any idle full-session replacement temporarily removes the active-session
-   reference, whether it uses the explicit replacement helper or a direct
-   `startNewSession` path for a new task, history resume, or edit/regenerate.
-   The shared VS Code lifecycle brackets every such gap so the provider
-   coordinator can retain edits, rebind them to a matching installed
-   replacement, and schedule another rebuild while keeping the pre-request hot
-   update available. A stale `startInput` therefore cannot silently discard a
-   newer API key or base URL.
+5. The shared VS Code lifecycle brackets first startup, full-session
+   replacement, and checkpoint restore. A first start has no source session;
+   restore keeps its source reference installed while awaiting the host. The
+   provider coordinator retains field edits through both intervals and defers
+   connection application and rebuilds until installation finishes. It then
+   rebinds edits to the matching installed session for its next model request.
+   Nested replacement helpers share the bracket, and a failed restore releases
+   it while retaining the edit for the source session.
+6. Agentic compaction uses the provider/model captured by its turn context.
+   The prepare-turn callback receives a secret-free model-settings snapshot,
+   preserving metadata, token limits, temperature, and capabilities. Live
+   connection fields can refresh that model, but a model selected for the next
+   turn must not change the active turn's compaction handler. An explicit
+   summarizer-model override still applies within the compaction strategy.
 
 These invariants keep runtime safety owned by `agents`, stateful connection
 projection owned by `core`, and provider-watcher/rebuild coordination owned by
@@ -451,6 +457,15 @@ Design implication:
   model switching are also service-style capabilities exposed through
   `ClineCore` when the concrete transport implements them. These service APIs
   are intentionally outside the minimal `RuntimeHost` primitive vocabulary.
+- `session.abort` remains the cancellation boundary for a root session in both
+  local and hub-backed execution. The owning `LocalRuntimeHost` aborts the lead
+  agent and asks only that session's team runtime to cancel active synchronous
+  teammate work plus running or queued async runs. Teammate definitions and
+	conversation state remain available for later turns; idle and unrelated team
+	runtimes are not stopped. One-off `spawn_agent` delegations observe the parent
+	turn's abort signal through their `SessionRuntime`. The team runtime marks
+	intentional abort task-end events as cancelled so persistence does not record
+	them as failures.
 - The usage service's `getAccumulatedUsage(sessionId)` method returns a summary
   with two explicit buckets: `usage` for the root/lead agent and
   `aggregateUsage` for root plus teammates/subagents. Local execution tracks
@@ -605,6 +620,15 @@ separate from cron specs, queued prompts inside an existing session, and the
 agent-team task board. Shared, browser-safe contracts use `AgendaTaskRecord`
 and `AgendaTaskRunRecord`; orchestration and persistence remain in
 `@cline/core`.
+
+> **Status:** the agent-facing `kind: "todo"` half of the `tasks` tool and the
+> desktop Agenda UI are temporarily disabled while the Agenda UX is reworked
+> (`AGENDA_TODO_TOOL_ENABLED` in `hub-server-transport.ts` and
+> `AGENDA_UI_ENABLED` in the desktop webview). While the flag is off the Hub
+> also skips the agenda spec-file watchers — nothing consumes watcher-driven
+> task events, and `task.*` commands reconcile spec files on demand. The
+> backend described below — the manager, storage, `task.*` Hub commands, and
+> desktop plumbing — stays fully wired, and the schedule kind remains active.
 
 ### Authority and persistence
 

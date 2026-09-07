@@ -125,6 +125,8 @@ describe("SdkSessionLifecycle", () => {
 		})
 		await lifecycle.startNewSession({} as StartInput)
 		const replacedSession = lifecycle.getActiveSession()
+		onActiveSessionReplacementStarted.mockClear()
+		onActiveSessionReplacementFinished.mockClear()
 
 		const startPromise = lifecycle.startNewSession({ config: { sessionId: "session-2" } } as StartInput)
 		await vi.waitFor(() => expect(onActiveSessionReplacementStarted).toHaveBeenCalledWith(replacedSession))
@@ -518,6 +520,8 @@ describe("SdkSessionLifecycle", () => {
 		await lifecycle.startNewSession({} as any)
 		lifecycle.setRunning(false)
 		const expectedSession = lifecycle.getActiveSession()!
+		onActiveSessionReplacementStarted.mockClear()
+		onActiveSessionReplacementFinished.mockClear()
 
 		const result = await lifecycle.replaceActiveSession({
 			expectedSession,
@@ -541,9 +545,10 @@ describe("SdkSessionLifecycle", () => {
 		})
 		expect(lifecycle.getActiveSession()?.sessionId).toBe("new-session")
 		expect(lifecycle.getActiveSession()?.isRunning).toBe(false)
-		expect(onActiveSessionReplacementStarted).toHaveBeenCalledOnce()
-		expect(onActiveSessionReplacementStarted).toHaveBeenCalledWith(expectedSession)
-		expect(onActiveSessionReplacementFinished).toHaveBeenCalledOnce()
+		expect(onActiveSessionReplacementStarted).toHaveBeenCalledTimes(2)
+		expect(onActiveSessionReplacementStarted).toHaveBeenNthCalledWith(1, expectedSession)
+		expect(onActiveSessionReplacementStarted).toHaveBeenNthCalledWith(2, undefined)
+		expect(onActiveSessionReplacementFinished).toHaveBeenCalledTimes(2)
 		expect(onActiveSessionReplacementFinished).toHaveBeenCalledWith(lifecycle.getActiveSession())
 	})
 

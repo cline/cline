@@ -10,7 +10,10 @@ import { join } from "node:path";
 import type { ChatStartSessionRequest, CronOneOffSpec } from "@cline/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { DefaultToolNames } from "../../extensions/tools/constants";
-import type { HubScheduleRuntimeHandlers } from "../service/schedule-service";
+import type {
+	HubScheduleRuntimeHandlers,
+	HubScheduleStartSessionOptions,
+} from "../service/schedule-service";
 import { SqliteCronStore } from "../store/sqlite-cron-store";
 import { CronMaterializer } from "./cron-materializer";
 import { CronRunner } from "./cron-runner";
@@ -23,6 +26,7 @@ function fakeHandlers(): {
 		stop: number;
 		prompts: string[];
 		startRequests: ChatStartSessionRequest[];
+		startOptions: Array<HubScheduleStartSessionOptions | undefined>;
 	};
 } {
 	const calls = {
@@ -31,11 +35,13 @@ function fakeHandlers(): {
 		stop: 0,
 		prompts: [] as string[],
 		startRequests: [] as ChatStartSessionRequest[],
+		startOptions: [] as Array<HubScheduleStartSessionOptions | undefined>,
 	};
 	const handlers: HubScheduleRuntimeHandlers = {
-		async startSession(req) {
+		async startSession(req, options) {
 			calls.start += 1;
 			calls.startRequests.push(req);
+			calls.startOptions.push(options);
 			return { sessionId: `sess_${calls.start}` };
 		},
 		async sendSession(_sessionId, req) {
@@ -470,5 +476,59 @@ describe("CronRunner", () => {
 		});
 		expect(reclaimed).toHaveLength(1);
 		expect(reclaimed[0]?.run.runId).toBe(run.runId);
+	});
+	it("stamps schedule provenance and a stable run number onto each session", async () => {
+		const { handlers, calls } = fakeHandlers();
+		const upserted = store.upsertSpec({
+			externalId: "sched_nightly",
+			sourcePath: "nightly.cron.md",
+			triggerKind: "schedule",
+			sourceHash: "h",
+			parseStatus: "valid",
+			spec: {
+				triggerKind: "schedule",
+				id: "sched_nightly",
+				title: "Nightly report",
+				prompt: "Do it",
+				workspaceRoot,
+				enabled: true,
+				schedule: "0 2 * * *",
+				modelSelection: { providerId: "p", modelId: "m" },
+			},
+		});
+		const enqueue = () =>
+			store.enqueueRun({
+				specId: upserted.record.specId,
+				specRevision: upserted.record.revision,
+				triggerKind: "schedule",
+				scheduledFor: new Date(Date.now() - 1_000).toISOString(),
+			});
+		const runner = new CronRunner({
+			store,
+			materializer,
+			runtimeHandlers: handlers,
+			workspaceRoot,
+			specs: { cronSpecsDir: cronDir },
+			pollIntervalMs: 10_000,
+		});
+		const first = enqueue();
+		await runner.tick();
+		const second = enqueue();
+		await runner.tick();
+		await runner.dispose();
+
+		expect(calls.start).toBe(2);
+		expect(calls.startOptions[0]?.sessionMetadata).toEqual({
+			scheduleId: "sched_nightly",
+			scheduleName: "Nightly report",
+			scheduleExecutionId: first.runId,
+			scheduleRunNumber: 1,
+		});
+		expect(calls.startOptions[1]?.sessionMetadata).toEqual({
+			scheduleId: "sched_nightly",
+			scheduleName: "Nightly report",
+			scheduleExecutionId: second.runId,
+			scheduleRunNumber: 2,
+		});
 	});
 });

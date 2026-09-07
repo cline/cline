@@ -18,11 +18,13 @@ export default defineConfig({
 		pool: "forks",
 		...(process.env.CI && process.platform === "win32"
 			? {
-					// The full core suite can exhaust a hosted Windows runner when two
-					// fork workers overlap process-heavy and SQLite-heavy test files.
-					// Run it serially there to prevent unexplained worker termination.
-					fileParallelism: false,
-					maxWorkers: 1,
+					// Two workers, not one: serializing the whole suite here cost ~3
+					// minutes of Windows CI per run. The worker terminations that
+					// motivated serializing were timing fragility in the hub suites
+					// (a daemon shutdown that could exit before its HTTP response
+					// flushed, plus hang guards tight enough to trip on runner speed),
+					// which are fixed at the source rather than papered over here.
+					maxWorkers: 2,
 				}
 			: {}),
 	},

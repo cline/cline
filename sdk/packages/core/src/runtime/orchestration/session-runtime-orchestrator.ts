@@ -46,6 +46,7 @@ import {
 	type MessageWithMetadata,
 	type ModelInfo,
 	mergeModelOptions,
+	modelSupportsImageInput,
 	modelSupportsToolCalling,
 	type ToolCallRecord,
 	usesImageGenerationOperation,
@@ -64,6 +65,7 @@ import {
 	MessageBuilder,
 } from "../../session/services/message-builder";
 import { ConversationStore } from "../../session/stores/conversation-store";
+import type { ProviderConfig } from "../../types/provider-settings";
 import {
 	agentMessagesToMessages,
 	agentMessagesToMessagesWithMetadata,
@@ -399,6 +401,9 @@ export class SessionRuntime {
 	private activeTrackerWork: Promise<void> = Promise.resolve();
 	/** True when tracker logic has issued an abort for the active run. */
 	private trackerAbortInFlight = false;
+	private readonly handleExternalAbort = (): void => {
+		this.abort(this.config.abortSignal?.reason);
+	};
 
 	constructor(config: AgentConfig, deps: SessionRuntimeOrchestratorDeps = {}) {
 		this.config = config;
@@ -964,8 +969,7 @@ export class SessionRuntime {
 			telemetry: this.telemetry,
 			tools,
 			toolContextMetadata: {
-				modelSupportsImages:
-					modelInfo?.capabilities?.includes("images") ?? true,
+				modelSupportsImages: modelSupportsImageInput(modelInfo ?? {}),
 				...turnConfig.toolContextMetadata,
 			},
 			hooks: this.createRuntimeHooks(),
@@ -985,15 +989,29 @@ export class SessionRuntime {
 		this.activeConnectionRefreshPending =
 			this.config !== turnConfig &&
 			this.activeRuntimeUsesModelSelection(this.config);
-		if (this.abortRequested) {
-			runtime.abort(this.abortReason);
-		}
 
 		// Subscribe to runtime events; fan out legacy events to listeners
 		// and keep private book-keeping for tool-call records / usage.
 		const unsubscribe = runtime.subscribe((event: AgentRuntimeEvent) => {
+			// AgentRuntime does not accept abort() until run-started. Retain an abort
+			// requested during finite startup and forward it at that existing lifecycle
+			// boundary instead of adding a second initialization-cancellation path.
+			if (event.type === "run-started" && this.abortRequested) {
+				runtime.abort(this.abortReason);
+			}
 			this.handleRuntimeEvent(event);
 		});
+		if (this.config.abortSignal) {
+			if (this.config.abortSignal.aborted) {
+				this.handleExternalAbort();
+			} else {
+				this.config.abortSignal.addEventListener(
+					"abort",
+					this.handleExternalAbort,
+					{ once: true },
+				);
+			}
+		}
 
 		let runResult: AgentRunResult | undefined;
 		let thrownError: Error | undefined;
@@ -1011,6 +1029,10 @@ export class SessionRuntime {
 			thrownError = error instanceof Error ? error : new Error(String(error));
 		} finally {
 			unsubscribe();
+			this.config.abortSignal?.removeEventListener(
+				"abort",
+				this.handleExternalAbort,
+			);
 			// Drain any in-flight tracker work (mistake/loop side-effects
 			// queued from handleRuntimeEvent) before we clear state so a
 			// late abort can still reach the runtime if needed.
@@ -1166,6 +1188,18 @@ export class SessionRuntime {
 		if (!prepareTurn) {
 			return undefined;
 		}
+		const providerConfig = turnConfig.providerConfig as
+			| ProviderConfig
+			| undefined;
+		// Pass only model-scoped settings across the prepare-turn callback boundary.
+		// The full provider config may contain secrets and can change mid-turn.
+		const modelSettings = {
+			maxInputTokens: providerConfig?.maxInputTokens,
+			maxOutputTokens:
+				turnConfig.maxTokensPerTurn ?? providerConfig?.maxOutputTokens,
+			temperature: turnConfig.temperature ?? providerConfig?.temperature,
+			capabilities: providerConfig?.capabilities?.slice(),
+		};
 
 		return async (context) => {
 			const messages = agentMessagesToMessagesWithMetadata(context.messages);
@@ -1185,6 +1219,7 @@ export class SessionRuntime {
 					id: turnConfig.modelId,
 					provider: turnConfig.providerId,
 					info: modelInfo,
+					settings: modelSettings,
 				},
 				overflowRecovery: context.overflowRecovery,
 				emitStatusNotice: context.emitStatusNotice,

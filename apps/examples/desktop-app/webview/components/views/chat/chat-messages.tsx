@@ -545,6 +545,7 @@ function ChatMessagesImpl({
 												<ToolMessageBlock
 													key={`tools_${child.messages[0]?.id ?? "empty"}`}
 													messages={child.messages}
+													onExpandImage={handleExpandImage}
 													onProceedWhileRunning={onProceedWhileRunning}
 												/>
 											);

@@ -607,6 +607,13 @@ export interface AgentPrepareTurnContext {
 		id: string;
 		provider: string;
 		info?: ModelInfo;
+		/** Safe model-scoped snapshot; never includes connection credentials. */
+		settings?: {
+			maxInputTokens?: number;
+			maxOutputTokens?: number;
+			temperature?: number;
+			capabilities?: string[];
+		};
 	};
 	/**
 	 * Set when the previous model request was rejected as exceeding the

@@ -1,5 +1,5 @@
-import type { ChildProcess } from "node:child_process"
-import { existsSync, mkdtempSync, type PathLike, type RmOptions, readdirSync, rmSync } from "node:fs"
+import { type ChildProcess, spawnSync } from "node:child_process"
+import { existsSync, mkdirSync, mkdtempSync, type PathLike, type RmOptions, readdirSync, rmSync, writeFileSync } from "node:fs"
 import * as os from "node:os"
 import * as path from "node:path"
 import { type ElectronApplication, expect, type Frame, type Page, test } from "@playwright/test"
@@ -217,20 +217,6 @@ export class E2ETestHelper {
 		})
 	}
 
-	public static async closePageForTeardown(page: Page): Promise<void> {
-		if (page.isClosed()) {
-			return
-		}
-
-		const result = await E2ETestHelper.withTimeout(page.close(), E2ETestHelper.TEARDOWN_TIMEOUT_MS).catch((error) => {
-			console.warn(`[e2e teardown] page.close() failed: ${error}`)
-			return { timedOut: false as const, value: undefined }
-		})
-		if (result.timedOut) {
-			console.warn(`[e2e teardown] page.close() exceeded ${E2ETestHelper.TEARDOWN_TIMEOUT_MS}ms; continuing to app cleanup`)
-		}
-	}
-
 	public static async closeAppForTeardown(app: ElectronApplication): Promise<void> {
 		const process = app.process()
 		const getProcessSummary = () =>
@@ -253,35 +239,43 @@ export class E2ETestHelper {
 			`[e2e teardown] app.close() exceeded ${E2ETestHelper.TEARDOWN_TIMEOUT_MS}ms; forcing VS Code/Electron shutdown (${getProcessSummary()}; windows: ${windowDiagnostics})`,
 		)
 
-		if (!process || process.killed || process.exitCode !== null) {
+		if (!process?.pid) {
 			return
 		}
 
+		// Kill the whole process group, not just the main process. VS Code's
+		// descendants (utility processes, GLib helpers like `dconf watch`,
+		// xdg-open handlers, ...) inherit the extra stdio pipes Playwright
+		// creates for Electron, and Playwright only reports the app as closed
+		// once every pipe holder is gone. A survivor keeps the never-resolving
+		// app.close() pending — even after the main process exits cleanly — and
+		// the worker teardown then hangs on it until its 60s timeout fails the
+		// job. Playwright launches Electron detached, so on POSIX the pid is
+		// the process group id.
 		try {
-			if (process.kill("SIGKILL")) {
-				const exited = await E2ETestHelper.waitForProcessExit(process, E2ETestHelper.PROCESS_EXIT_TIMEOUT_MS)
-				if (!exited) {
-					console.warn(
-						`[e2e teardown] VS Code/Electron process did not report exit within ${E2ETestHelper.PROCESS_EXIT_TIMEOUT_MS}ms after SIGKILL (${getProcessSummary()})`,
-					)
+			if (globalThis.process.platform === "win32") {
+				spawnSync(`taskkill /pid ${process.pid} /T /F`, { shell: true })
+			} else {
+				globalThis.process.kill(-process.pid, "SIGKILL")
+			}
+		} catch (error) {
+			// The group is already gone, or group kill is unsupported: fall back
+			// to the main process if it is still alive.
+			if (process.exitCode === null && process.signalCode === null && !process.killed) {
+				try {
+					process.kill("SIGKILL")
+				} catch (killError) {
+					console.warn(`[e2e teardown] SIGKILL failed for VS Code/Electron process: ${killError} (after ${error})`)
+					return
 				}
-				return
 			}
-
-			console.warn(
-				`[e2e teardown] SIGKILL returned false for VS Code/Electron process; skipping SIGTERM (${getProcessSummary()})`,
-			)
-			return
-		} catch (error) {
-			console.warn(`[e2e teardown] SIGKILL failed for VS Code/Electron process: ${error}`)
 		}
 
-		try {
-			if (process.exitCode === null && process.signalCode === null && process.kill("SIGTERM")) {
-				await E2ETestHelper.waitForProcessExit(process, E2ETestHelper.PROCESS_EXIT_TIMEOUT_MS)
-			}
-		} catch (error) {
-			console.warn(`[e2e teardown] SIGTERM failed for VS Code/Electron process: ${error}`)
+		const exited = await E2ETestHelper.waitForProcessExit(process, E2ETestHelper.PROCESS_EXIT_TIMEOUT_MS)
+		if (!exited) {
+			console.warn(
+				`[e2e teardown] VS Code/Electron process did not report exit within ${E2ETestHelper.PROCESS_EXIT_TIMEOUT_MS}ms after SIGKILL (${getProcessSummary()})`,
+			)
 		}
 	}
 
@@ -392,7 +386,17 @@ export const e2e = test
 			await use(path.join(E2ETestHelper.E2E_TESTS_DIR, "fixtures", "multiroots.code-workspace"))
 		},
 		userDataDir: async ({}, use) => {
-			await use(mkdtempSync(path.join(os.tmpdir(), "vsce")))
+			const userDataDir = mkdtempSync(path.join(os.tmpdir(), "vsce"))
+			// Keep VS Code's own AI/chat features out of the harness. Their
+			// agent host utility process is rolled out via server-side
+			// experiments (so runs break without any repo change) and can fail
+			// to shut down ("unable to kill the process"), outliving the main
+			// process while holding the Playwright pipes — which wedges the
+			// worker teardown until its 60s timeout fails the job.
+			const settingsDir = path.join(userDataDir, "User")
+			mkdirSync(settingsDir, { recursive: true })
+			writeFileSync(path.join(settingsDir, "settings.json"), JSON.stringify({ "chat.disableAIFeatures": true }))
+			await use(userDataDir)
 		},
 		extensionsDir: async ({}, use) => {
 			await use(mkdtempSync(path.join(os.tmpdir(), "vsce")))
@@ -420,6 +424,8 @@ export const e2e = test
 						TEMP_PROFILE: "true",
 						E2E_TEST: "true",
 						CLINE_ENVIRONMENT: "local",
+						// Prevent OAuth E2E from launching a browser that can outlive VS Code on Linux.
+						CLINE_CAPTURE_BROWSER: "true",
 						CLINE_DIR: clineTestDir, // Isolate test data from user's ~/.cline
 						CLINE_DATA_DIR: clineDataDir, // Keep SDK/shared storage off the user's real Cline data dir
 						GRPC_RECORDER_FILE_NAME: E2ETestHelper.generateTestFileName(testInfo.title, testInfo.project.name),
@@ -433,6 +439,12 @@ export const e2e = test
 					},
 					args: [
 						"--no-sandbox",
+						// Without this, Electron spawns a chrome_crashpad_handler
+						// that inherits the Playwright<->Electron stdio pipes and can
+						// outlive a cleanly exited VS Code, leaving app.close()
+						// waiting on pipes that never close and wedging the worker
+						// teardown until its 60s timeout fails the job.
+						"--disable-crash-reporter",
 						"--disable-updates",
 						"--disable-workspace-trust",
 						"--disable-extensions", // Run VS Code with all extensions disabled other than the one under test.
@@ -495,12 +507,14 @@ export const e2e = test
 	})
 	.extend({
 		page: async ({ app }, use) => {
-			const page = await app.firstWindow()
-			try {
-				await use(page)
-			} finally {
-				await E2ETestHelper.closePageForTeardown(page)
-			}
+			// No page.close() on teardown: closing VS Code's last window quits the
+			// whole app, and Playwright's ElectronApplication.close() deadlocks
+			// when the app already exited on its own (the launched process stays
+			// registered for the worker-teardown close, which then hangs until
+			// the 60s worker teardown timeout fails the job). The app fixture's
+			// closeAppForTeardown() closes the windows through app.close() while
+			// the app is still alive instead.
+			await use(await app.firstWindow())
 		},
 	})
 	.extend<{ sidebar: Frame }>({

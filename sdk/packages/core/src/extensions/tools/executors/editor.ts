@@ -9,6 +9,11 @@ import * as path from "node:path";
 import type { AgentToolContext } from "@cline/shared";
 import type { EditFileInput } from "../schemas";
 import type { EditorExecutor } from "../types";
+import {
+	detectLineEnding,
+	normalizeLineEndings,
+	normalizeNewFileLineEndings,
+} from "./line-endings";
 
 /**
  * Options for the editor executor
@@ -64,25 +69,10 @@ function countOccurrences(content: string, needle: string): number {
 	return content.split(needle).length - 1;
 }
 
-/**
- * Returns "\r\n" if "\r\n" appears anywhere in the content, otherwise "\n" —
- * including for content with no line breaks at all. Files are uniformly CRLF
- * or uniformly LF in practice; the mixed case that matters is a CRLF file
- * with LF-only lines inserted by earlier releases of this tool, and any
- * surviving "\r\n" — wherever it sits — should pull such a file back to
- * CRLF, which is why this checks for "\r\n" anywhere rather than looking at
- * the first line break. Reads produced via readline strip "\r", so models
- * emit LF-only text even for CRLF files; edits must be normalized to the
- * file's own EOL or they create mixed line endings and break subsequent
- * exact-match replacements.
- */
-function detectLineEnding(content: string): "\r\n" | "\n" {
-	return content.includes("\r\n") ? "\r\n" : "\n";
-}
-
-function normalizeLineEndings(text: string, eol: "\r\n" | "\n"): string {
-	return text.split(/\r\n|\n/).join(eol);
-}
+// Reads produced via readline strip "\r", so models emit LF-only text even
+// for CRLF files; edits must be normalized to the file's own EOL (see
+// ./line-endings) or they create mixed line endings and break subsequent
+// exact-match replacements.
 
 function createLineDiff(
 	oldContent: string,
@@ -154,7 +144,9 @@ async function createFile(
 	encoding: BufferEncoding,
 ): Promise<string> {
 	await fs.mkdir(path.dirname(filePath), { recursive: true });
-	await fs.writeFile(filePath, fileText, { encoding });
+	await fs.writeFile(filePath, normalizeNewFileLineEndings(fileText), {
+		encoding,
+	});
 	return `File created successfully at: ${filePath}`;
 }
 
