@@ -13,7 +13,7 @@ const windowMocks = vi.hoisted(() => ({
 	close: vi.fn(),
 	isMaximized: vi.fn(async () => false),
 	minimize: vi.fn(),
-	onResized: vi.fn(async () => () => undefined),
+	onResized: vi.fn(async (_listener: () => void) => () => undefined),
 	toggleMaximize: vi.fn(),
 }));
 
@@ -116,6 +116,52 @@ describe("WindowTitleBar", () => {
 		expect(windowMocks.minimize).toHaveBeenCalledOnce();
 		expect(windowMocks.toggleMaximize).toHaveBeenCalledOnce();
 		expect(windowMocks.close).toHaveBeenCalledOnce();
+	});
+
+	it("tracks the maximize state across window resizes", async () => {
+		Object.defineProperty(window, "__TAURI_INTERNALS__", {
+			configurable: true,
+			value: {},
+		});
+		vi.stubGlobal("navigator", { userAgent: "Windows NT 10.0" });
+
+		await act(async () => root.render(renderShell(true)));
+		await act(async () => Promise.resolve());
+
+		const controls = container.querySelector<HTMLElement>(
+			'[data-slot="window-controls"]',
+		);
+		expect(controls).not.toBeNull();
+		if (!controls) {
+			throw new Error("Expected Windows caption controls");
+		}
+		const toggleButtonLabel = () =>
+			controls
+				.querySelector(
+					'button[aria-label="Maximize"], button[aria-label="Restore"]',
+				)
+				?.getAttribute("aria-label");
+		expect(toggleButtonLabel()).toBe("Maximize");
+
+		const onResized = windowMocks.onResized.mock.calls.at(-1)?.[0];
+		expect(onResized).toBeTypeOf("function");
+		if (!onResized) {
+			throw new Error("Expected a resize listener");
+		}
+
+		windowMocks.isMaximized.mockResolvedValue(true);
+		await act(async () => {
+			onResized();
+			await Promise.resolve();
+		});
+		expect(toggleButtonLabel()).toBe("Restore");
+
+		windowMocks.isMaximized.mockResolvedValue(false);
+		await act(async () => {
+			onResized();
+			await Promise.resolve();
+		});
+		expect(toggleButtonLabel()).toBe("Maximize");
 	});
 
 	it("does not render caption controls outside the Windows desktop app", async () => {

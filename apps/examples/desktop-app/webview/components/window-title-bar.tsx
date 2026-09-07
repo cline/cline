@@ -82,7 +82,7 @@ export function WindowControls() {
 	const appWindow = getCurrentWindow();
 	return (
 		<div
-			className="fixed top-0 right-0 z-50 flex h-12 bg-background"
+			className="fixed top-0 right-0 z-50 flex h-12 bg-background max-md:h-7"
 			data-slot="window-controls"
 		>
 			<button
