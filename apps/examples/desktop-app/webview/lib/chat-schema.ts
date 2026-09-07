@@ -74,6 +74,10 @@ export const ChatMessageSchema = z.object({
 			// process it confirmed still alive; the webview enrolls these so
 			// the completion event settles the row in place.
 			toolExecutionIds: z.array(z.string().min(1)).optional(),
+			// Outcomes already known while other executions are still running.
+			toolBackgroundOutcomeStatus: z
+				.enum(["succeeded", "failed", "killed", "indeterminate"])
+				.optional(),
 			iteration: z.number().int().nonnegative().optional(),
 			agentId: z.string().optional(),
 			conversationId: z.string().optional(),

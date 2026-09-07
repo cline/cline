@@ -810,12 +810,26 @@ async function enrichDetachedCommandRows(out: JsonRecord[]): Promise<void> {
 		// markers cannot resolve keeps the whole row claiming no outcome.
 		const meta = (entry.meta ?? {}) as JsonRecord;
 		const logPath = logPaths[logPaths.length - 1];
+		const outcomeStatus = hasKilled
+			? "killed"
+			: hasFailed
+				? "failed"
+				: hasIndeterminate || hasUnknown
+					? "indeterminate"
+					: "succeeded";
+		const resultTexts = resultTextsByRowIndex.get(index) ?? [];
+		const output =
+			notes.length > 0
+				? [...resultTexts.filter(Boolean), ...notes].join("\n")
+				: undefined;
 		if (hasRunning) {
 			entry.meta = {
 				...meta,
 				toolBackgroundStatus: "running",
 				toolBackgroundLogPath: logPath,
 				toolExecutionIds: executionIds,
+				toolBackgroundOutcomeStatus: outcomeStatus,
+				...(output ? { toolOutput: output } : {}),
 				hookEventName: "tool_call_start",
 			};
 			continue;
@@ -829,18 +843,9 @@ async function enrichDetachedCommandRows(out: JsonRecord[]): Promise<void> {
 			};
 			continue;
 		}
-		const status = hasKilled
-			? "killed"
-			: hasFailed
-				? "failed"
-				: hasIndeterminate
-					? "indeterminate"
-					: "succeeded";
-		const resultTexts = resultTextsByRowIndex.get(index) ?? [];
-		const output = [...resultTexts.filter(Boolean), ...notes].join("\n");
 		entry.meta = {
 			...meta,
-			toolBackgroundStatus: status,
+			toolBackgroundStatus: outcomeStatus,
 			toolBackgroundLogPath: logPath,
 			...(output ? { toolOutput: output } : {}),
 			hookEventName: "tool_call_end",
