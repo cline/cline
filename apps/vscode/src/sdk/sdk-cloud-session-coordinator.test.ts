@@ -326,7 +326,7 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 		expect(clearTask.mock.invocationCallOrder[0]).toBeLessThan(dispose.mock.invocationCallOrder[0])
 	})
 
-	it("deletes a sandbox created after the task view was superseded", async () => {
+	it("does not provision when the task view was already superseded", async () => {
 		const { coordinator, cloudSessions } = makeCoordinator({ claimTaskViewGeneration: () => () => true })
 
 		const result = await coordinator.startCloudTask({
@@ -334,7 +334,8 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 			repoUrl: "https://github.com/cline/fixture",
 		})
 
-		expect(result).toBe(record.id)
-		expect(cloudSessions.deleteSession).toHaveBeenCalledWith(record.id)
+		expect(result).toBeUndefined()
+		expect(cloudSessions.createSession).not.toHaveBeenCalled()
+		expect(cloudSessions.deleteSession).not.toHaveBeenCalled()
 	})
 })
