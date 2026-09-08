@@ -59,7 +59,7 @@ describe("CloudSessionApi", () => {
 		]);
 	});
 
-	it("includes branch in the create body only when one was requested", async () => {
+	it("uses the dashboard create body and includes branch only when requested", async () => {
 		const bodies: Array<Record<string, unknown>> = [];
 		const api = new CloudSessionApi({
 			apiBaseUrl: "https://api.example",
@@ -84,7 +84,17 @@ describe("CloudSessionApi", () => {
 			repoUrl: "https://github.com/cline/test",
 		});
 
-		expect(bodies[0]).toMatchObject({ branch: "feature/login-fix" });
+		expect(bodies[0]).toMatchObject({
+			modelId: "anthropic/claude-sonnet-5",
+			repoUrl: "https://github.com/cline/test",
+			branch: "feature/login-fix",
+			title: expect.stringMatching(/^__cline_create_request__:/),
+		});
+		expect(bodies[1]).toMatchObject({
+			modelId: "anthropic/claude-sonnet-5",
+			repoUrl: "https://github.com/cline/test",
+			title: expect.stringMatching(/^__cline_create_request__:/),
+		});
 		expect(bodies[1]).not.toHaveProperty("branch");
 	});
 
@@ -97,34 +107,6 @@ describe("CloudSessionApi", () => {
 		});
 
 		expect(await api.history("ses-1")).toBeNull();
-	});
-
-	it("creates with the dashboard-parity contract and no branch field", async () => {
-		let body: Record<string, unknown> | undefined;
-		const api = new CloudSessionApi({
-			apiBaseUrl: "https://api.example",
-			appBaseUrl: "https://app.example",
-			getAuthToken: async () => "sk_test",
-			fetch: async (_input, init) => {
-				body = JSON.parse(String(init?.body));
-				return jsonResponse(
-					{ success: true, data: { sessionId: "ses-1", sandboxUrl: "pod" } },
-					201,
-				);
-			},
-		});
-
-		await api.create({
-			modelId: "anthropic/claude-sonnet-5",
-			repoUrl: "https://github.com/cline/test",
-		});
-
-		expect(body).toMatchObject({
-			modelId: "anthropic/claude-sonnet-5",
-			repoUrl: "https://github.com/cline/test",
-			title: expect.stringMatching(/^__cline_create_request__:/),
-		});
-		expect(body).not.toHaveProperty("branch");
 	});
 
 	it("waits for the current asynchronous provisioning contract", async () => {
@@ -828,8 +810,6 @@ describe("CloudSessionApi", () => {
 			repoUrl: "https://github.com/cline/test",
 		};
 
-		// The API exposes no request id that can map either failed POST to one of
-		// these rows. Newest-wins can steal another conversation's sandbox.
 		const results = await Promise.allSettled([
 			api.create(input),
 			api.create(input),
@@ -938,8 +918,6 @@ describe("CloudSessionApi", () => {
 				repoUrl: "https://github.com/cline/test",
 			}),
 		).rejects.toThrow(/invalid branch/);
-		// A 4xx never provisioned anything; recovering on it could adopt an
-		// identical-config session created by another device on the account.
 		expect(listRequests).toBe(0);
 	});
 

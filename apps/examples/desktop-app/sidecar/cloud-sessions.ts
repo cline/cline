@@ -8,7 +8,6 @@ import type {
 
 const CREATE_TIMEOUT_MS = 610_000;
 const PROVISIONING_POLL_MS = 3_000;
-// Bound hot-path REST calls so a dead network cannot hang the sidebar.
 const REQUEST_TIMEOUT_MS = 15_000;
 const CLOUD_ERROR_PREFIX = "CLOUD_SESSION_ERROR:";
 const CREATE_REQUEST_TITLE_PREFIX = "__cline_create_request__:";
@@ -57,9 +56,7 @@ export type CreateCloudSessionInput = {
 	organizationId?: string;
 };
 
-// The repository/branch wire contract is owned by the webview lib so the two
-// sides of the desktop client cannot silently drift; re-exported here for
-// sidecar-side consumers.
+// Re-export the shared repository/branch contract for sidecar consumers.
 export type {
 	CloudBranchListOptions,
 	CloudBranchListResult,
@@ -294,9 +291,7 @@ export class CloudSessionApi {
 				undefined,
 				auth,
 			)) ?? [];
-		// Normalize before anything touches the rows: one malformed record
-		// (missing repoContext/metadata) must not crash discovery or turn a
-		// create-timeout recovery into an opaque TypeError.
+		// Keep malformed account records from breaking discovery or recovery.
 		return rows.flatMap((row) => {
 			if (!row || typeof row !== "object" || typeof row.id !== "string") {
 				return [];
@@ -521,8 +516,7 @@ export class CloudSessionApi {
 					error instanceof CloudSessionError &&
 					error.code === "session_failed"
 				) {
-					// A terminally failed sandbox lingers in the account list
-					// otherwise; clean it up under the identity that created it.
+					// Clean up a failed sandbox under the identity that created it.
 					try {
 						await this.deleteWithAuth(createdSessionId, creationAuth);
 					} catch (cleanupError) {
@@ -542,12 +536,7 @@ export class CloudSessionApi {
 				}
 				throw error;
 			}
-			// Provisioning may outlive the synchronous request only when the
-			// POST timed out or the server failed after possibly accepting it
-			// (5xx / no HTTP status). A fast client-side rejection (4xx) never
-			// provisioned anything, and recovering on one risks silently
-			// adopting an identical-config session created by another device
-			// on the same account.
+			// Recover only failures that may have followed an accepted POST.
 			const mayStillBeProvisioning =
 				controller.signal.aborted ||
 				!(error instanceof CloudSessionError) ||
@@ -556,9 +545,7 @@ export class CloudSessionApi {
 					(error.status === undefined || error.status >= 500));
 			if (mayStillBeProvisioning) {
 				const requestedBranch = input.branch?.trim();
-				// The API has no idempotency header, so stamp the request id into
-				// the optional title and recover only that exact record. Config/time
-				// matching can steal another process's otherwise-identical session.
+				// The title carries the request identity because the API lacks idempotency.
 				const candidates = (
 					await this.listWithToken(
 						input.organizationId,
