@@ -429,7 +429,20 @@ describe("HubServerTransport boundaries", () => {
 					modelId: "test-model",
 					systemPrompt: "system",
 				},
-				metadata: { source: "core", interactive: true },
+				metadata: { source: "desktop", interactive: true },
+				runtimeOptions: {
+					clientContext: {
+						name: "cline-desktop",
+						version: "0.0.23",
+						platform: "Cline Desktop",
+						platformVersion: "0.0.23",
+					},
+					userContext: {
+						distinctId: "account-1",
+						accountId: "account-1",
+						organizationId: "org-1",
+					},
+				},
 			},
 		});
 
@@ -438,6 +451,18 @@ describe("HubServerTransport boundaries", () => {
 		expect(capturedStartInput?.config.sessionId).toBe("session-boundary");
 		expect(capturedStartInput?.config.cwd).toBeUndefined();
 		expect(capturedStartInput?.config.workspaceRoot).toBeUndefined();
+		expect(capturedStartInput?.source).toBe("desktop");
+		expect(capturedStartInput?.localRuntime?.extensionContext?.client).toEqual({
+			name: "cline-desktop",
+			version: "0.0.23",
+			platform: "Cline Desktop",
+			platformVersion: "0.0.23",
+		});
+		expect(capturedStartInput?.localRuntime?.extensionContext?.user).toEqual({
+			distinctId: "account-1",
+			accountId: "account-1",
+			organizationId: "org-1",
+		});
 		expect(reply.payload?.session).toMatchObject({
 			cwd: resolvedWorkspace,
 			workspaceRoot: resolvedWorkspace,
