@@ -2134,4 +2134,25 @@ describe("ChatMessages tool approvals", () => {
 		await act(async () => reject?.click());
 		expect(onReject).toHaveBeenCalledWith("req-1");
 	});
+
+	it("leads an imported transcript with a notice naming the source tool", async () => {
+		const messages: ChatMessage[] = [
+			{
+				id: "user-1",
+				sessionId: "session-1",
+				role: "user",
+				content: "imported prompt",
+				createdAt: 1,
+			},
+		];
+		await renderMessages(messages, { importedFromTool: "claude-code" });
+
+		const notice = container.querySelector("output");
+		expect(notice?.textContent).toContain("Imported from Claude Code");
+		expect(notice?.parentElement?.firstElementChild).toBe(notice);
+		expect(notice?.parentElement?.textContent).toContain("imported prompt");
+
+		await renderMessages(messages);
+		expect(container.querySelector("output")).toBeNull();
+	});
 });

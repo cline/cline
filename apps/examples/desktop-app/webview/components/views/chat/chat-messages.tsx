@@ -27,7 +27,9 @@ import type {
 	ChatMessageImage,
 	ChatSessionStatus,
 } from "@/lib/chat-schema";
+import type { SessionImportTool } from "@/lib/session-import";
 import { cn } from "@/lib/utils";
+import { ImportedSessionNotice } from "./imported-session-notice";
 import { STREAMING_TITLE_CLASS } from "./messages/constants";
 import {
 	buildPreviousTimestampMap,
@@ -58,6 +60,10 @@ type ChatMessagesProps = {
 	isSessionSwitching?: boolean;
 	messages: ChatMessage[];
 	error: string | null;
+	/** Set when the session's history was imported from another coding agent. */
+	importedFromTool?: SessionImportTool;
+	/** Replaces "Thinking..." while the runtime reports a named pre-output step. */
+	activityLabel?: string | null;
 	streamingMessageId?: string | null;
 	pendingToolApprovals: ToolApprovalRequestItem[];
 	pendingAskQuestions: AskQuestionRequestItem[];
@@ -102,6 +108,8 @@ function ChatMessagesImpl({
 	isSessionSwitching = false,
 	messages,
 	error,
+	importedFromTool,
+	activityLabel = null,
 	streamingMessageId = null,
 	pendingToolApprovals,
 	pendingAskQuestions,
@@ -111,7 +119,7 @@ function ChatMessagesImpl({
 	onRestoreCheckpoint,
 	onEditMessage,
 	onForkSession,
-	startingLabel = "Thinking...",
+	startingLabel,
 	errorAction,
 	onProceedWhileRunning,
 }: ChatMessagesProps) {
@@ -537,6 +545,9 @@ function ChatMessagesImpl({
 					>
 						{showIdleDetails ? null : (
 							<div className="flex min-h-full w-full min-w-0 flex-col gap-4">
+								{importedFromTool ? (
+									<ImportedSessionNotice tool={importedFromTool} />
+								) : null}
 								{renderItems.map((item, itemIndex) => {
 									// Working rows — live (`run`) or folded (`work`) — render
 									// through one child renderer so a row keeps its exact look
@@ -682,7 +693,7 @@ function ChatMessagesImpl({
 									>
 										<Loader2 className="size-4 animate-spin" />
 										<span className={STREAMING_TITLE_CLASS}>
-											{startingLabel}
+											{startingLabel ?? activityLabel ?? "Thinking..."}
 										</span>
 									</div>
 								) : null}

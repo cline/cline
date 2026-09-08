@@ -104,6 +104,7 @@ import {
 	type SessionMetadata,
 } from "@/lib/session-history";
 import { resolveSessionHeaderStatus } from "@/lib/session-status";
+import { readImportedFromTool } from "@/lib/session-import";
 import { syncHubAccent, syncHubTheme, watchSystemHubTheme } from "@/lib/theme";
 import {
 	filterWorkspacePaths,
@@ -787,6 +788,7 @@ function ChatThreadPane({
 		chatTransportError,
 		isHydratingSession,
 		activeAssistantMessageId,
+		activityLabel,
 		config,
 		messages,
 		error,
@@ -1784,6 +1786,9 @@ function ChatThreadPane({
 	const cloudSessionError = isCloudSession
 		? parseCloudSessionError(displayedError)
 		: null;
+	const importedFromTool = readImportedFromTool(
+		visibleHistorySession?.metadata,
+	);
 	const displayedStatus = hideDeletedSessionUi ? "idle" : status;
 	const displayedSessionId = hideDeletedSessionUi ? null : sessionId;
 	const displayedIsSwitching = hideDeletedSessionUi
@@ -2060,6 +2065,7 @@ function ChatThreadPane({
 								onApproveToolApproval={handleApproveToolApproval}
 								onRejectToolApproval={handleRejectToolApproval}
 								chatTransportState={chatTransportState}
+								activityLabel={activityLabel}
 								error={cloudSessionError?.message ?? displayedError}
 								errorAction={
 									cloudConnectUrl
@@ -2069,6 +2075,7 @@ function ChatThreadPane({
 											}
 										: undefined
 								}
+								importedFromTool={importedFromTool}
 								messages={displayedMessages}
 								onEditMessage={isCloudSession ? undefined : handleEditMessage}
 								onRestoreCheckpoint={
