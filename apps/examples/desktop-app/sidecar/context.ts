@@ -814,6 +814,7 @@ export function handleHubLiveEvent(
 	event: {
 		event: string;
 		sessionId?: string;
+		sequence?: number;
 		payload?: Record<string, unknown>;
 	},
 ): void {
@@ -847,6 +848,22 @@ export function handleHubLiveEvent(
 	const session = ctx.liveSessions.get(sessionId);
 	if (!session?.attachedViaHub) {
 		return;
+	}
+	const projectsStatus =
+		event.event === "run.started" ||
+		event.event === "session.attached" ||
+		event.event === "session.updated" ||
+		event.event === "run.completed" ||
+		event.event === "run.failed" ||
+		event.event === "run.aborted";
+	if (projectsStatus && typeof event.sequence === "number") {
+		if (
+			session.lastHubStatusSequence !== undefined &&
+			event.sequence < session.lastHubStatusSequence
+		) {
+			return;
+		}
+		session.lastHubStatusSequence = event.sequence;
 	}
 
 	switch (event.event) {

@@ -177,6 +177,21 @@ describe("WelcomeWorkspaceControls cloud mode", () => {
 		expect(onCloudBranchChange).toHaveBeenLastCalledWith("feature/cloud");
 	});
 
+	it("enables branches for a restored cloud repository", async () => {
+		const props = renderControls({
+			executionTarget: "cloud",
+			repoUrl: "https://github.com/cline/cline",
+			cloudBranch: "main",
+		});
+
+		await act(async () => {
+			await Promise.resolve();
+			await Promise.resolve();
+		});
+		expect(props.onListCloudRepositories).toHaveBeenCalledOnce();
+		expect(button("main").disabled).toBe(false);
+	});
+
 	it("loads additional branch pages as the user scrolls", async () => {
 		let intersectionCallback:
 			| ((entries: IntersectionObserverEntry[]) => void)
