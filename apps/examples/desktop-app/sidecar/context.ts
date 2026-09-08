@@ -387,6 +387,7 @@ function handleAgentEvent(
 					message: event.message,
 					noticeType: event.noticeType,
 					reason: event.reason,
+					metadata: event.metadata,
 				}),
 			);
 			break;
