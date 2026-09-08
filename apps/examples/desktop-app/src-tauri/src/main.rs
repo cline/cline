@@ -9,7 +9,8 @@ use std::fs;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicBool, Ordering as AtomicOrdering};
+use std::sync::{Arc, Mutex, MutexGuard};
 use std::thread;
 use std::time::Duration;
 #[cfg(target_os = "macos")]
@@ -283,21 +284,16 @@ async fn run_update_loop(app: tauri::AppHandle, state: Arc<UpdateState>) {
 struct DesktopBackendState {
     ws_endpoint: Mutex<Option<String>>,
     process: Mutex<Option<Child>>,
-    shutting_down: Mutex<bool>,
+    shutting_down: AtomicBool,
 }
 
 impl DesktopBackendState {
     fn is_shutting_down(&self) -> bool {
-        self.shutting_down
-            .lock()
-            .map(|guard| *guard)
-            .unwrap_or(true)
+        self.shutting_down.load(AtomicOrdering::Acquire)
     }
 
     fn stop(&self) {
-        if let Ok(mut guard) = self.shutting_down.lock() {
-            *guard = true;
-        }
+        self.shutting_down.store(true, AtomicOrdering::Release);
 
         if let Ok(mut process_guard) = self.process.lock() {
             if let Some(child) = process_guard.as_mut() {
@@ -511,10 +507,26 @@ fn ensure_desktop_backend_started_with(
     // callers (setup, the health-check loop, endpoint fetches from the
     // webview) serialize: the second caller blocks here, then sees the live
     // child and returns instead of spawning a duplicate.
-    let mut process_guard = state
+    let process_guard = state
         .process
         .lock()
         .map_err(|_| "failed to lock desktop backend process state")?;
+    ensure_desktop_backend_started_locked(state, process_guard, spawn_backend)
+}
+
+/// The check-and-spawn that runs under the process lock. Split from the lock
+/// acquisition so a test can establish "shutdown began after the unlocked
+/// check but before the lock was taken" deterministically.
+fn ensure_desktop_backend_started_locked(
+    state: &Arc<DesktopBackendState>,
+    mut process_guard: MutexGuard<'_, Option<Child>>,
+    spawn_backend: impl FnOnce() -> Result<Child, String>,
+) -> Result<(), String> {
+    // stop() marks shutdown before taking this same process lock. Recheck
+    // under the lock so a queued startup cannot spawn after shutdown.
+    if state.is_shutting_down() {
+        return Ok(());
+    }
     if let Some(existing) = process_guard.as_mut() {
         match existing.try_wait() {
             // A live child owns startup even while its endpoint is still
@@ -667,17 +679,29 @@ fn open_path_with_default_app(path: &Path) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn get_desktop_backend_endpoint(
+async fn get_desktop_backend_endpoint(
     backend_state: State<'_, Arc<DesktopBackendState>>,
     context: State<'_, AppContext>,
 ) -> Result<String, String> {
-    ensure_desktop_backend_started(backend_state.inner(), context.inner())?;
+    let backend_state = backend_state.inner().clone();
+    let context = context.inner().clone();
+    let state_for_start = backend_state.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        ensure_desktop_backend_started(&state_for_start, &context)
+    })
+    .await
+    .map_err(|error| format!("desktop backend startup task failed: {error}"))??;
+
     // Sidecar startup includes login-shell PATH resolution (bounded at 3s,
     // see sidecar/shell-path.ts) plus session-manager init, whose duration
     // varies by machine. Poll well past that combined worst case; the loop
     // returns as soon as the ready line arrives, so only failure waits long.
     // While pending this only waits — respawning is ensure's job, and it
     // refuses to start a second sidecar while the first one is still alive.
+    // A child that dies mid-poll makes this return an error rather than
+    // respawn: the next ensure call — the health-check loop within 5 seconds,
+    // or this command when the webview reconnects — replaces the dead child.
+    // Async sleeps keep Tauri's window event loop responsive while pending.
     for _ in 0..150 {
         if let Some(endpoint) = backend_state
             .ws_endpoint
@@ -700,7 +724,7 @@ fn get_desktop_backend_endpoint(
         if child_exited {
             return Err("desktop backend exited before publishing its endpoint".to_string());
         }
-        thread::sleep(Duration::from_millis(100));
+        tokio::time::sleep(Duration::from_millis(100)).await;
     }
     Err("desktop backend endpoint not ready".to_string())
 }
@@ -789,56 +813,82 @@ async fn check_for_update_now(
 }
 
 /// Icon ids accepted by `set_app_icon`; kept in sync with APP_ICONS in
-/// webview/lib/app-icon.ts. Every non-default id has a matching bundled
-/// resource at icons/dock/<id>.png.
-const APP_DOCK_ICONS: [&str; 4] = ["classic", "midnight", "hologram", "chip"];
+/// webview/lib/app-icon.ts. Every id has a matching bundled resource at
+/// icons/app/<id>.png.
+const APP_ICONS: [&str; 4] = ["classic", "midnight", "hologram", "chip"];
+
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+fn resolve_app_icon(app: &tauri::AppHandle, icon: &str) -> Result<PathBuf, String> {
+    let icon_path = app
+        .path()
+        .resolve(
+            format!("icons/app/{icon}.png"),
+            tauri::path::BaseDirectory::Resource,
+        )
+        .map_err(|e| format!("failed resolving app icon resource: {e}"))?;
+    if !icon_path.exists() {
+        return Err(format!(
+            "app icon resource missing: {}",
+            icon_path.display()
+        ));
+    }
+    Ok(icon_path)
+}
 
 #[tauri::command]
-fn set_app_icon(app: tauri::AppHandle, icon: String) -> Result<bool, String> {
-    if !APP_DOCK_ICONS.contains(&icon.as_str()) {
+async fn set_app_icon(app: tauri::AppHandle, icon: String) -> Result<bool, String> {
+    if !APP_ICONS.contains(&icon.as_str()) {
         return Err(format!("unknown app icon: {icon}"));
     }
     #[cfg(target_os = "macos")]
     {
-        // "classic" also ships as a dock resource, so every choice loads the
-        // same way; setApplicationIconImage's binding warns that passing nil
-        // to restore the bundled icon may not be allowed.
-        let icon_path = app
-            .path()
-            .resolve(
-                format!("icons/dock/{icon}.png"),
-                tauri::path::BaseDirectory::Resource,
-            )
-            .map_err(|e| format!("failed resolving dock icon resource: {e}"))?;
-        if !icon_path.exists() {
-            return Err(format!(
-                "dock icon resource missing: {}",
-                icon_path.display()
-            ));
-        }
+        // Every choice uses a resource because AppKit does not support restoring
+        // the bundled icon by passing a nil application icon.
+        let icon_path = resolve_app_icon(&app, &icon)?;
+        let (result_tx, result_rx) = tokio::sync::oneshot::channel();
         app.run_on_main_thread(move || {
             use objc2::{AllocAnyThread, MainThreadMarker};
             use objc2_app_kit::{NSApplication, NSImage};
             use objc2_foundation::NSString;
 
-            let Some(mtm) = MainThreadMarker::new() else {
-                return;
-            };
-            let ns_app = NSApplication::sharedApplication(mtm);
-            let Some(image) = NSImage::initWithContentsOfFile(
-                NSImage::alloc(),
-                &NSString::from_str(&icon_path.to_string_lossy()),
-            ) else {
-                eprintln!("[dock-icon] failed loading image: {}", icon_path.display());
-                return;
-            };
-            // SAFETY: called on the main thread with a valid, non-nil image.
-            unsafe { ns_app.setApplicationIconImage(Some(&image)) };
+            let result = (|| {
+                let mtm = MainThreadMarker::new().ok_or_else(|| {
+                    "app icon update did not run on the main thread".to_string()
+                })?;
+                let ns_app = NSApplication::sharedApplication(mtm);
+                let image = NSImage::initWithContentsOfFile(
+                    NSImage::alloc(),
+                    &NSString::from_str(&icon_path.to_string_lossy()),
+                )
+                .ok_or_else(|| {
+                    format!("failed loading app icon image: {}", icon_path.display())
+                })?;
+                // SAFETY: called on the main thread with a valid, non-nil image.
+                unsafe { ns_app.setApplicationIconImage(Some(&image)) };
+                Ok(())
+            })();
+            let _ = result_tx.send(result);
         })
-        .map_err(|e| format!("failed switching dock icon: {e}"))?;
+        .map_err(|e| format!("failed switching app icon: {e}"))?;
+        result_rx
+            .await
+            .map_err(|_| "app icon update ended before AppKit completed".to_string())??;
         Ok(true)
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "windows")]
+    {
+        let icon_path = resolve_app_icon(&app, &icon)?;
+        let image = tauri::image::Image::from_path(&icon_path)
+            .map_err(|e| format!("failed loading app icon image: {e}"))?;
+        let window = app
+            .get_webview_window(MAIN_WINDOW_LABEL)
+            .ok_or_else(|| "main window is unavailable".to_string())?;
+        window
+            .set_icon(image)
+            .map_err(|e| format!("failed switching taskbar icon: {e}"))?;
+        Ok(true)
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {
         let _ = app;
         Ok(false)
@@ -1190,9 +1240,15 @@ fn main() {
             setup_tray_icon(app)?;
             let app_context = app.state::<AppContext>().inner().clone();
             let backend_state = app.state::<Arc<DesktopBackendState>>().inner().clone();
-            if let Err(error) = ensure_desktop_backend_started(&backend_state, &app_context) {
-                eprintln!("[desktop-backend] startup failed: {error}");
-            }
+            let state_for_start = backend_state.clone();
+            let context_for_start = app_context.clone();
+            tauri::async_runtime::spawn_blocking(move || {
+                if let Err(error) =
+                    ensure_desktop_backend_started(&state_for_start, &context_for_start)
+                {
+                    eprintln!("[desktop-backend] startup failed: {error}");
+                }
+            });
             // Dev builds are not installed app bundles, so there is nothing the
             // updater could meaningfully check or replace.
             if !cfg!(debug_assertions) {
@@ -1441,6 +1497,28 @@ mod tests {
             }
         }
         state.stop();
+    }
+
+    /// The interleaving where only the recheck under the lock stands between
+    /// shutdown and a fresh spawn: startup has passed its unlocked shutdown
+    /// check, stop() marks shutdown while startup is still waiting for the
+    /// process lock, and then startup acquires the lock. Played out directly
+    /// on one thread so the ordering is exact rather than scheduled.
+    #[test]
+    fn startup_queued_on_process_lock_does_not_spawn_after_shutdown() {
+        let state = Arc::new(DesktopBackendState::default());
+        let spawn_count = AtomicUsize::new(0);
+
+        assert!(!state.is_shutting_down(), "the unlocked check passes");
+        state.shutting_down.store(true, AtomicOrdering::Release);
+        let process_guard = state.process.lock().expect("process lock should succeed");
+        ensure_desktop_backend_started_locked(&state, process_guard, || {
+            spawn_count.fetch_add(1, Ordering::SeqCst);
+            spawn_pending_sidecar()
+        })
+        .expect("shutdown should make startup a no-op");
+
+        assert_eq!(spawn_count.load(Ordering::SeqCst), 0);
     }
 
     #[test]
