@@ -14,6 +14,8 @@ function createContext(workspaceRoot: string): SidecarContext {
 		liveSessions: new Map(),
 		restoringWorkspacePaths: new Set(),
 		streamIndices: new Map(),
+		coreStreamActivity: new Map(),
+		bootId: "test-boot",
 		wsClients: new Set(),
 		pendingApprovals: new Map(),
 		pendingQuestions: new Map(),
