@@ -25,6 +25,8 @@ function createContext(): { ctx: SidecarContext } {
 		liveSessions: new Map(),
 		restoringWorkspacePaths: new Set(),
 		streamIndices: new Map(),
+		coreStreamActivity: new Map(),
+		bootId: "cloud-test-boot",
 		wsClients: new Set([
 			{
 				data: { canApproveTools: true },
