@@ -185,17 +185,32 @@ describe("global-settings", () => {
 				"global-settings.json",
 			);
 
-			expect(isModelToolEnabledGlobally("web_search")).toBe(false);
-			setModelToolEnabledGlobally("web_search", true);
 			expect(isModelToolEnabledGlobally("web_search")).toBe(true);
-			expect(readGlobalSettings().tools).toEqual({
-				web_search: { enabled: true },
-			});
-
-			setDisabledTools(["web_search"], true);
+			setModelToolEnabledGlobally("web_search", false);
+			expect(isModelToolEnabledGlobally("web_search")).toBe(false);
 			expect(readGlobalSettings().tools).toEqual({
 				web_search: { enabled: false },
 			});
+
+			setDisabledTools(["web_search"], false);
+			expect(readGlobalSettings().tools).toEqual({
+				web_search: { enabled: true },
+			});
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	it("fails closed for web search when persisted settings cannot be loaded", async () => {
+		const root = await mkdtemp(join(tmpdir(), "core-global-settings-"));
+		try {
+			const malformedSettingsPath = join(root, "malformed.json");
+			process.env.CLINE_GLOBAL_SETTINGS_PATH = malformedSettingsPath;
+			await writeFile(malformedSettingsPath, "{not json");
+			expect(isModelToolEnabledGlobally("web_search")).toBe(false);
+
+			process.env.CLINE_GLOBAL_SETTINGS_PATH = root;
+			expect(isModelToolEnabledGlobally("web_search")).toBe(false);
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}

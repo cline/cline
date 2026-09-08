@@ -177,6 +177,8 @@ export interface HubClientOptions {
 	/**
 	 * Resolves HTTP headers for each new WebSocket, including reconnects.
 	 * This Node-only transport option is mutually exclusive with `authToken`.
+	 * Resolver failures are surfaced by `connect()` and `getConnectionError()`;
+	 * `Sec-WebSocket-Protocol` must be configured through `authToken` instead.
 	 */
 	resolveConnectionHeaders?: () =>
 		| Readonly<Record<string, string>>

@@ -153,6 +153,11 @@ field.
 8. Hub client adapters exported from `@cline/core/hub` (`NodeHubClient`, `HubSessionClient`, `HubUIClient`, `connectToHub`) translate command/reply and event streams into host-facing APIs.
 9. Hub `session.get` records include both canonical root-session usage and explicit aggregate usage from the hub-owned `RuntimeHost`, so attached clients can intentionally render either root-only or root-plus-teammate costs without replaying event streams.
 
+Pending tool approvals remain owned by the Hub until they are answered or their
+run is aborted. Reconnecting clients attached to the session receive the pending
+request again and can also recover it through `approval.list_pending`; clients
+that are not attached to that session can neither list nor resolve it.
+
 Session status is reported, never fabricated. A session's initial status
 reflects whether a turn actually runs inside `start(...)`: prompt-bearing
 starts (one-shot or interactive) begin `running`, interactive starts without a
@@ -299,7 +304,8 @@ headers use `NodeHubClient.resolveConnectionHeaders`. The resolver runs for ever
 new socket, including reconnects, so hosts can refresh short-lived credentials.
 Header authentication is mutually exclusive with the local hub-token subprotocol;
 the proxy is responsible for authenticating the client and adding any private
-upstream hub credentials.
+upstream hub credentials. Resolver failures and rejected protocol headers fail the
+connection and remain available through the client's connection-error state.
 
 Local hub rediscovery is limited to managed shared-daemon endpoints obtained
 through discovery or `ensure*HubServer(...)` startup paths. Managed local hubs
