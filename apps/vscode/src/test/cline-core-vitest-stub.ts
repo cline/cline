@@ -90,9 +90,9 @@ export type ModelToolName = "web_search"
 export function isModelToolEnabledGlobally(name: ModelToolName): boolean {
 	try {
 		const settings = JSON.parse(readFileSync(process.env.CLINE_GLOBAL_SETTINGS_PATH ?? "", "utf8"))
-		return settings.tools?.[name]?.enabled === true
+		return settings.tools?.[name]?.enabled ?? true
 	} catch {
-		return false
+		return true
 	}
 }
 

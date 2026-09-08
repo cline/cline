@@ -185,16 +185,16 @@ describe("global-settings", () => {
 				"global-settings.json",
 			);
 
-			expect(isModelToolEnabledGlobally("web_search")).toBe(false);
-			setModelToolEnabledGlobally("web_search", true);
 			expect(isModelToolEnabledGlobally("web_search")).toBe(true);
-			expect(readGlobalSettings().tools).toEqual({
-				web_search: { enabled: true },
-			});
-
-			setDisabledTools(["web_search"], true);
+			setModelToolEnabledGlobally("web_search", false);
+			expect(isModelToolEnabledGlobally("web_search")).toBe(false);
 			expect(readGlobalSettings().tools).toEqual({
 				web_search: { enabled: false },
+			});
+
+			setDisabledTools(["web_search"], false);
+			expect(readGlobalSettings().tools).toEqual({
+				web_search: { enabled: true },
 			});
 		} finally {
 			await rm(root, { recursive: true, force: true });

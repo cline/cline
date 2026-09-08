@@ -354,7 +354,10 @@ function isModelToolName(value: string): value is ConfigurableModelToolName {
 }
 
 export function resolveModelToolSettings(): ModelToolSettings {
-	return readGlobalSettings().tools ?? {};
+	return {
+		web_search: { enabled: true },
+		...readGlobalSettings().tools,
+	};
 }
 
 export function isModelToolEnabledGlobally(
