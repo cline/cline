@@ -1272,31 +1272,39 @@ describe("disposeSidecarContext attachment cleanup", () => {
 	});
 });
 
-describe("Chat chunk stream arbitration", () => {
-	function createStreamingContext(sessionId: string) {
-		return async () => {
-			const { createSidecarContext } = await import("./context");
-			const ctx = createSidecarContext("/workspace/project");
-			ctx.wsClients.add({ send: vi.fn() });
-			ctx.liveSessions.set(sessionId, {
-				config: {},
-				messages: [],
-				promptsInQueue: [],
-				busy: true,
-				startedAt: Date.now(),
-				status: "running",
-				attachedViaHub: true,
-			});
-			return ctx;
-		};
+describe("Chat chunk pipe selection", () => {
+	async function createStreamingContext(sessionId: string) {
+		const { createSidecarContext } = await import("./context");
+		const ctx = createSidecarContext("/workspace/project");
+		ctx.wsClients.add({ send: vi.fn() });
+		ctx.liveSessions.set(sessionId, {
+			config: {},
+			messages: [],
+			promptsInQueue: [],
+			busy: true,
+			startedAt: Date.now(),
+			status: "running",
+			attachedViaHub: true,
+		});
+		return ctx;
 	}
 
-	function chatTextChunks(ctx: SidecarContext): string[] {
+	function coreTextEvent(sessionId: string, text: string) {
+		return {
+			type: "agent_event",
+			payload: {
+				sessionId,
+				event: { type: "content_start", contentType: "text", text },
+			},
+		} as never;
+	}
+
+	function chunksFor(ctx: SidecarContext, stream: string): string[] {
 		return readEvents(ctx)
 			.filter(
 				(message) =>
 					message.event.name === "chat_event" &&
-					(message.event.payload as { stream?: string }).stream === "chat_text",
+					(message.event.payload as { stream?: string }).stream === stream,
 			)
 			.map((message) =>
 				String((message.event.payload as { chunk?: string }).chunk),
@@ -1307,41 +1315,29 @@ describe("Chat chunk stream arbitration", () => {
 		const { handleCoreSessionEvent, handleHubLiveEvent } = await import(
 			"./context"
 		);
-		const ctx = await createStreamingContext("session-1")();
+		const ctx = await createStreamingContext("session-1");
 
 		// Opening a session arms both pipes, so the hub publishes each delta to
 		// the ClineCore session subscription and to the observer client.
-		handleCoreSessionEvent(ctx, {
-			type: "agent_event",
-			payload: {
-				sessionId: "session-1",
-				event: { type: "content_start", contentType: "text", text: "Pack " },
-			},
-		} as never);
+		handleCoreSessionEvent(ctx, coreTextEvent("session-1", "Pack "));
 		handleHubLiveEvent(ctx, {
 			event: "assistant.delta",
 			sessionId: "session-1",
 			payload: { text: "Pack " },
 		});
-		handleCoreSessionEvent(ctx, {
-			type: "agent_event",
-			payload: {
-				sessionId: "session-1",
-				event: { type: "content_start", contentType: "text", text: "my box" },
-			},
-		} as never);
+		handleCoreSessionEvent(ctx, coreTextEvent("session-1", "my box"));
 		handleHubLiveEvent(ctx, {
 			event: "assistant.delta",
 			sessionId: "session-1",
 			payload: { text: "my box" },
 		});
 
-		expect(chatTextChunks(ctx)).toEqual(["Pack ", "my box"]);
+		expect(chunksFor(ctx, "chat_text")).toEqual(["Pack ", "my box"]);
 	});
 
 	it("still streams sessions only the observer delivers", async () => {
 		const { handleHubLiveEvent } = await import("./context");
-		const ctx = await createStreamingContext("session-1")();
+		const ctx = await createStreamingContext("session-1");
 
 		handleHubLiveEvent(ctx, {
 			event: "assistant.delta",
@@ -1354,30 +1350,42 @@ describe("Chat chunk stream arbitration", () => {
 			payload: { text: "run" },
 		});
 
-		expect(chatTextChunks(ctx)).toEqual(["remote ", "run"]);
+		expect(chunksFor(ctx, "chat_text")).toEqual(["remote ", "run"]);
 	});
 
-	it("lets the other pipe take over once the owner goes silent", async () => {
+	it("stands down for every stream the core pipe serves, not just text", async () => {
+		const { handleCoreSessionEvent, handleHubLiveEvent } = await import(
+			"./context"
+		);
+		const ctx = await createStreamingContext("session-1");
+
+		// One text delta on the core pipe is enough to prove it is subscribed,
+		// so the observer's tool rows are duplicates too.
+		handleCoreSessionEvent(ctx, coreTextEvent("session-1", "working"));
+		handleHubLiveEvent(ctx, {
+			event: "tool.started",
+			sessionId: "session-1",
+			payload: { toolCallId: "call-1", toolName: "run_commands" },
+		});
+
+		expect(chunksFor(ctx, "chat_tool_call_start")).toEqual([]);
+	});
+
+	it("takes over once the core pipe goes silent", async () => {
 		vi.useFakeTimers();
 		try {
 			const { handleCoreSessionEvent, handleHubLiveEvent } = await import(
 				"./context"
 			);
-			const ctx = await createStreamingContext("session-1")();
+			const ctx = await createStreamingContext("session-1");
 
-			handleCoreSessionEvent(ctx, {
-				type: "agent_event",
-				payload: {
-					sessionId: "session-1",
-					event: { type: "content_start", contentType: "text", text: "local" },
-				},
-			} as never);
+			handleCoreSessionEvent(ctx, coreTextEvent("session-1", "local"));
 			handleHubLiveEvent(ctx, {
 				event: "assistant.delta",
 				sessionId: "session-1",
 				payload: { text: "muted" },
 			});
-			expect(chatTextChunks(ctx)).toEqual(["local"]);
+			expect(chunksFor(ctx, "chat_text")).toEqual(["local"]);
 
 			vi.advanceTimersByTime(6_000);
 			handleHubLiveEvent(ctx, {
@@ -1386,13 +1394,13 @@ describe("Chat chunk stream arbitration", () => {
 				payload: { text: "takeover" },
 			});
 
-			expect(chatTextChunks(ctx)).toEqual(["local", "takeover"]);
+			expect(chunksFor(ctx, "chat_text")).toEqual(["local", "takeover"]);
 		} finally {
 			vi.useRealTimers();
 		}
 	});
 
-	it("arbitrates each session independently", async () => {
+	it("tracks the core pipe per session", async () => {
 		const { createSidecarContext, handleCoreSessionEvent, handleHubLiveEvent } =
 			await import("./context");
 		const ctx = createSidecarContext("/workspace/project");
@@ -1409,53 +1417,43 @@ describe("Chat chunk stream arbitration", () => {
 			});
 		}
 
-		handleCoreSessionEvent(ctx, {
-			type: "agent_event",
-			payload: {
-				sessionId: "session-1",
-				event: { type: "content_start", contentType: "text", text: "one" },
-			},
-		} as never);
+		// ClineCore serves session-1; session-2 is still observer-only.
+		handleCoreSessionEvent(ctx, coreTextEvent("session-1", "one"));
+		handleHubLiveEvent(ctx, {
+			event: "assistant.delta",
+			sessionId: "session-1",
+			payload: { text: "one" },
+		});
 		handleHubLiveEvent(ctx, {
 			event: "assistant.delta",
 			sessionId: "session-2",
 			payload: { text: "two" },
 		});
 
-		expect(chatTextChunks(ctx)).toEqual(["one", "two"]);
+		expect(chunksFor(ctx, "chat_text")).toEqual(["one", "two"]);
 	});
 
-	it("never suppresses streams only one pipe produces", async () => {
-		const { handleCoreSessionEvent, handleHubLiveEvent } = await import(
-			"./context"
-		);
-		const ctx = await createStreamingContext("session-1")();
+	it("never drops chunks the sidecar produces itself", async () => {
+		const { broadcastChunk, handleHubLiveEvent } = await import("./context");
+		const ctx = await createStreamingContext("session-1");
 
-		// The observer takes ownership of the contended chat streams...
+		// The observer is serving this session; a locally synthesized chunk is
+		// not part of either relay and must always reach the webview.
 		handleHubLiveEvent(ctx, {
 			event: "assistant.delta",
 			sessionId: "session-1",
 			payload: { text: "remote" },
 		});
-		// ...which must not mute a hook chunk, which only ClineCore emits.
-		handleCoreSessionEvent(ctx, {
-			type: "hook",
-			payload: { sessionId: "session-1", hookEventName: "pre_tool_use" },
-		} as never);
+		broadcastChunk(ctx, "session-1", "chat_queued_prompt_start", "{}");
 
-		const hookChunk = readEvents(ctx).find(
-			(message) =>
-				message.event.name === "chat_event" &&
-				(message.event.payload as { stream?: string }).stream === "chat_hook",
-		);
-		expect(hookChunk).toBeDefined();
+		expect(chunksFor(ctx, "chat_queued_prompt_start")).toEqual(["{}"]);
 	});
 
 	it("stamps chunks with a stable per-process boot id", async () => {
 		const { createSidecarContext, handleHubLiveEvent } = await import(
 			"./context"
 		);
-		const first = await createStreamingContext("session-1")();
+		const first = await createStreamingContext("session-1");
 		handleHubLiveEvent(first, {
 			event: "assistant.delta",
 			sessionId: "session-1",
@@ -1478,36 +1476,5 @@ describe("Chat chunk stream arbitration", () => {
 		// distinguishable by boot id.
 		const second = createSidecarContext("/workspace/project");
 		expect(second.bootId).not.toBe(first.bootId);
-	});
-
-	it("arbitrates each stream separately", async () => {
-		const { handleCoreSessionEvent, handleHubLiveEvent } = await import(
-			"./context"
-		);
-		const ctx = await createStreamingContext("session-1")();
-
-		// ClineCore wins the text stream...
-		handleCoreSessionEvent(ctx, {
-			type: "agent_event",
-			payload: {
-				sessionId: "session-1",
-				event: { type: "content_start", contentType: "text", text: "local" },
-			},
-		} as never);
-		// ...which must not mute tool rows that only the observer carries.
-		handleHubLiveEvent(ctx, {
-			event: "tool.started",
-			sessionId: "session-1",
-			payload: { toolCallId: "call-1", toolName: "run_commands" },
-		});
-
-		const toolStart = readEvents(ctx).find(
-			(message) =>
-				message.event.name === "chat_event" &&
-				(message.event.payload as { stream?: string }).stream ===
-					"chat_tool_call_start",
-		);
-		expect(toolStart).toBeDefined();
-		expect(chatTextChunks(ctx)).toEqual(["local"]);
 	});
 });

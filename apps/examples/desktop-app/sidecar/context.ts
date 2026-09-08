@@ -173,67 +173,40 @@ function appendSessionChunk(
 }
 
 /**
- * Streams that both the ClineCore subscription and the hub observer project.
- * Everything else has a single producer and is never arbitrated.
+ * How long a session stays "served by ClineCore" after its last event. Events
+ * arrive many times a second while a turn streams, so a subscription silent
+ * for this long has stopped delivering rather than paused, and the observer
+ * projection is allowed to take over.
  */
-const CONTENDED_CHUNK_STREAMS = new Set([
-	"chat_text",
-	"chat_reasoning",
-	"chat_media",
-	"chat_tool_call_start",
-	"chat_tool_call_update",
-	"chat_tool_call_end",
-]);
+const CORE_PIPE_ACTIVE_MS = 5_000;
 
 /**
- * How long the owning source may be silent before the other one may take over.
- * Deltas arrive many times a second while a turn streams, so an owner that has
- * said nothing for this long has stopped delivering rather than paused.
- */
-const CHUNK_STREAM_TAKEOVER_MS = 5_000;
-
-/**
- * Decides whether `source` may emit a contended chat stream for this session.
+ * Records that the ClineCore subscription is serving this session.
  *
  * The sidecar has two pipes into `emitChunk`: the ClineCore session
  * subscription and the hub observer client. Opening a session arms both (the
  * hydrate's `pending_prompts` call makes ClineCore subscribe to the session,
  * and `attach` sets `attachedViaHub`), so for a session streaming through the
- * hub each delta arrives twice — and since both copies are emitted through
- * this function each gets its own increasing `index`, which is exactly what
- * the webview's replay guard uses, so it cannot tell them apart. Rather than
- * guess which pipe owns a session up front, let the first one to deliver win
- * and mute the other until it stalls.
+ * hub each delta arrived twice — and since both copies go through `emitChunk`
+ * each gets its own increasing `index`, which is exactly what the webview's
+ * replay guard compares, so it could not tell them apart.
  *
- * Ownership is per stream rather than per session: that dedupes each stream
- * just as strictly, while a pipe that wins one stream cannot mute another it
- * does not itself carry.
+ * The two pipes are not peers: ClineCore's subscription is the primary, and
+ * the observer projection exists to cover sessions ClineCore is not subscribed
+ * to. Any event on the primary proves it is subscribed, so it is the primary
+ * that decides — no list of which streams happen to overlap.
  */
-function claimChunkStream(
+function markCorePipeActive(ctx: SidecarContext, sessionId: string): void {
+	ctx.coreStreamActivity.set(sessionId, nowMs());
+}
+
+function isCorePipeActive(
 	ctx: SidecarContext,
 	sessionId: string,
-	stream: string,
-	source: ChunkSource,
 	now: number,
 ): boolean {
-	if (!CONTENDED_CHUNK_STREAMS.has(stream)) {
-		return true;
-	}
-	let owners = ctx.chunkStreamOwners.get(sessionId);
-	const owner = owners?.get(stream);
-	if (
-		owner &&
-		owner.source !== source &&
-		now - owner.lastEmittedAt <= CHUNK_STREAM_TAKEOVER_MS
-	) {
-		return false;
-	}
-	if (!owners) {
-		owners = new Map();
-		ctx.chunkStreamOwners.set(sessionId, owners);
-	}
-	owners.set(stream, { source, lastEmittedAt: now });
-	return true;
+	const lastEventAt = ctx.coreStreamActivity.get(sessionId);
+	return lastEventAt !== undefined && now - lastEventAt <= CORE_PIPE_ACTIVE_MS;
 }
 
 function emitChunk(
@@ -244,7 +217,7 @@ function emitChunk(
 	source: ChunkSource = "core",
 ): void {
 	const ts = nowMs();
-	if (!claimChunkStream(ctx, sessionId, stream, source, ts)) {
+	if (source === "observer" && isCorePipeActive(ctx, sessionId, ts)) {
 		return;
 	}
 	appendSessionChunk(sessionId, stream, chunk, ts);
@@ -514,6 +487,16 @@ export function handleCoreSessionEvent(
 	ctx: SidecarContext,
 	event: CoreSessionEvent,
 ): void {
+	// Reaching here at all means ClineCore is subscribed to the session, so its
+	// projection is live and the observer's copy of the same hub events would
+	// be a duplicate. Marked from the pipe itself rather than from `emitChunk`,
+	// so chunks the sidecar synthesizes locally never claim to be this pipe.
+	const eventSessionId = (event.payload as { sessionId?: string } | undefined)
+		?.sessionId;
+	if (eventSessionId) {
+		markCorePipeActive(ctx, eventSessionId);
+	}
+
 	switch (event.type) {
 		case "chunk": {
 			const { sessionId, stream, chunk } = event.payload;
@@ -597,9 +580,8 @@ export function handleCoreSessionEvent(
 				session.status = reason || "ended";
 			}
 			discardAllTrackedAttachments(sessionId, session);
-			// The next run re-arbitrates from scratch rather than inheriting a
-			// pipe that may no longer be the one delivering.
-			ctx.chunkStreamOwners.delete(sessionId);
+			// The next run decides afresh which pipe is serving the session.
+			ctx.coreStreamActivity.delete(sessionId);
 			sendEvent(ctx, "chat_session_ended", { sessionId, reason });
 			break;
 		}
@@ -650,7 +632,7 @@ export function createSidecarContext(
 		liveSessions: new Map(),
 		restoringWorkspacePaths: new Set(),
 		streamIndices: new Map(),
-		chunkStreamOwners: new Map(),
+		coreStreamActivity: new Map(),
 		bootId: randomUUID(),
 		wsClients: new Set(),
 		pendingApprovals: new Map(),
