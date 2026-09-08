@@ -253,6 +253,7 @@ describe("CloudSessionManager Hub runtime", () => {
 			version: "v1",
 			event: "session.updated",
 			eventId: "evt-1",
+			sequence: 1,
 			timestamp: Date.now(),
 			sessionId: "inner-1",
 			payload: { session: { status: "running" } },
@@ -267,6 +268,38 @@ describe("CloudSessionManager Hub runtime", () => {
 			name: "chat_session_status",
 			payload: { sessionId: "ses-outer", status: "running" },
 		});
+	});
+
+	it("ignores an older running snapshot after a terminal Hub event", async () => {
+		const { ctx, events } = createContext();
+		const hub = new FakeHubClient();
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+
+		await manager.list();
+		await manager.attach("ses-outer");
+		hub.events?.({
+			version: "v1",
+			event: "run.completed",
+			eventId: "evt-done",
+			sequence: 2,
+			sessionId: "inner-1",
+		});
+		hub.events?.({
+			version: "v1",
+			event: "session.updated",
+			eventId: "evt-stale",
+			sequence: 1,
+			sessionId: "inner-1",
+			payload: { session: { status: "running" } },
+		});
+
+		expect(ctx.liveSessions.get("ses-outer")?.status).toBe("completed");
+		expect(events.at(-1)?.name).toBe("chat_session_ended");
 	});
 
 	it("ignores newer child sessions when reconnecting to the cloud root", async () => {
