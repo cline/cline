@@ -107,7 +107,7 @@ export interface ComputerUseRequest {
 	durationSeconds?: number;
 	scrollDirection?: "up" | "down" | "left" | "right";
 	scrollAmount?: number;
-	/** Region [x, y, width, height] for "zoom". */
+	/** Region [x0, y0, x1, y1] for "zoom". */
 	region?: readonly [number, number, number, number];
 	/**
 	 * Steps for "run_sequence": each is one action (never another
@@ -144,6 +144,8 @@ export interface ComputerUseResponse {
 	/** Echoes the request id this response answers. */
 	id: number;
 	ok: boolean;
+	/** A guarded click was refused; no later sequence steps were executed. */
+	aborted?: boolean;
 	/** Human-readable result text (e.g. cursor position, ack message). */
 	text?: string;
 	/**

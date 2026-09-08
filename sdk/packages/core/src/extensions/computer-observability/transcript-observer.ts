@@ -99,7 +99,7 @@ export function createTranscriptRecordingHooks(
 		beforeRun: async () => {
 			recorder.record({
 				type: "session.status_changed",
-				source,
+				source: { ...source },
 				payload: { status: "running" },
 			});
 			return undefined;
@@ -107,7 +107,7 @@ export function createTranscriptRecordingHooks(
 		afterRun: async ({ result }) => {
 			recorder.record({
 				type: "session.status_changed",
-				source,
+				source: { ...source },
 				payload: { status: result.status },
 			});
 		},
@@ -122,7 +122,7 @@ export function createTranscriptRecordingHooks(
 				}
 				const artifact = recorder.record({
 					type: "transcript.message_committed",
-					source,
+					source: { ...source },
 					...(reduced.toolCallId
 						? { correlation: { toolCallId: reduced.toolCallId } }
 						: {}),

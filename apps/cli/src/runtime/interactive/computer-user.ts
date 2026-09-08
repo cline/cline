@@ -179,7 +179,11 @@ export async function createInteractiveComputerUser(input: {
 			input.env ?? process.env,
 		);
 		return command
-			? new ComputerBackendRestart({ ...target, command })
+			? new ComputerBackendRestart({
+					...target,
+					command,
+					client: computerClient,
+				})
 			: undefined;
 	})();
 
@@ -253,14 +257,6 @@ export async function createInteractiveComputerUser(input: {
 		// disabled above, and a run that ends in free-form text would leave
 		// the driver waiting with no report.
 		completionPolicy: { requireCompletionTool: true },
-		// Record the helper's transcript and run status to the backend
-		// journal for the observatory, and tee the same events into the
-		// in-process transcript log the driver's peek tool reads.
-		hooks: createTranscriptRecordingHooks(
-			recorder,
-			{ kind: "computer_user" },
-			(event) => transcriptLog.append(event),
-		),
 	};
 
 	// Lazy: the helper ClineCore spawns only when the driver first delegates.
@@ -284,11 +280,25 @@ export async function createInteractiveComputerUser(input: {
 
 	const coordinator = new ComputerUserCoordinator({
 		host: {
-			start: async (startInput) =>
-				(await getHelperCore()).start({
-					config: startInput.config as never,
+			start: async (startInput) => {
+				// Each session owns its recording source, so late events from a
+				// stopped helper cannot be relabelled as its replacement's work.
+				const source = {
+					kind: "computer_user" as const,
+					sessionId: undefined as string | undefined,
+				};
+				const started = await (await getHelperCore()).start({
+					config: {
+						...startInput.config,
+						hooks: createTranscriptRecordingHooks(recorder, source, (event) =>
+							transcriptLog.append(event),
+						),
+					} as never,
 					interactive: startInput.interactive,
-				}),
+				});
+				source.sessionId = started.sessionId;
+				return started;
+			},
 			send: async (sendInput) => {
 				const send = (await getHelperCore()).send(sendInput);
 				if (sendInput.delivery === "steer") {

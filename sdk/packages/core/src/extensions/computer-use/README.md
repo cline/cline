@@ -70,7 +70,7 @@ avoiding protocol overhead, not about avoiding the plugin system.
             "left_click_drag" | "right_click" | "middle_click" |
             "double_click" | "triple_click" | "left_mouse_down" |
             "left_mouse_up" | "key" | "hold_key" | "type" | "scroll" |
-            "wait" | "zoom" |
+            "wait" | "zoom" | "run_sequence" |
             // Internal query, not one of Anthropic's `computer` tool
             // actions. Sent once at startup to build the tool's
             // description/schema with the real, native display size
@@ -85,7 +85,12 @@ avoiding protocol overhead, not about avoiding the plugin system.
   "durationSeconds": 0.5,          // optional, for "hold_key" / "wait"
   "scrollDirection": "down",       // optional, for "scroll"
   "scrollAmount": 3,               // optional, for "scroll"
-  "region": [x, y, width, height]  // optional, for "zoom"
+  "region": [x0, y0, x1, y1],     // optional, for "zoom"
+  "expectUnchanged": [x, y, width, height], // optional click guard
+  "actions": [                    // required for "run_sequence", 1–20 steps
+    { "action": "mouse_move", "coordinate": [x, y] },
+    { "action": "key", "text": "Return" }
+  ]
 }
 ```
 
@@ -112,6 +117,8 @@ On failure:
 ```jsonc
 { "id": 1, "ok": false, "error": "description of what went wrong" }
 ```
+
+A refused guarded click returns `ok: true`, `aborted: true`, explanatory `text`, and a fresh `image`. Here `ok` means the request was handled, not that a click occurred. A sequence stops at that step and returns the refusal under the sequence's request id. Guards compare against the last full screenshot sent on the same connection, not intermediate sequence screenshots. Without a full reference (including after a zoom), a guarded click is refused and returns a new full screenshot. This is a visual-change check, not a lock on the desktop: the screen can still change between the check and input delivery.
 
 See `protocol.ts` for the exact TypeScript types and `client.ts` for the
 client-side framing/pending-request implementation.
@@ -149,6 +156,25 @@ also `async` for the same reason:
 | `CLINE_COMPUTER_USE_BACKEND_COMMAND` | no | — | Shell command that starts the backend. When set, the driver gets `computer_user_restart_backend`, which launches it if the backend is unreachable (probes first; never kills a backend this process didn't spawn) |
 
 Display size is deliberately not configurable — see "Display size" above.
+
+### Backend recovery command
+
+`CLINE_COMPUTER_USE_BACKEND_COMMAND` enables the driver's `computer_user_restart_backend` tool. It is optional: leave it unset if you manage qbt yourself. Set it together with `CLINE_COMPUTER_USE_PORT` before starting the interactive CLI, with an Anthropic provider configured for the computer user. Restart the CLI after changing either variable.
+
+For this Windows checkout, using an already-built qbt:
+
+```powershell
+$env:CLINE_COMPUTER_USE_PORT = '1234'
+$env:CLINE_COMPUTER_USE_BACKEND_COMMAND = 'C:\Users\User\clients\cline\qwanban\target\debug\qbt.exe serve 1234 5678'
+```
+
+Replace the executable path with your qbt installation. The first port is the agent port and must match `CLINE_COMPUTER_USE_PORT`; the second is the optional observatory WebSocket port.
+
+The command runs on the CLI host through its platform shell (`cmd.exe` on Windows, `/bin/sh` on Unix), inheriting the CLI's working directory and environment. Use an absolute executable path, quote paths containing spaces, or include an explicit directory change. PowerShell syntax inside the command requires an explicit PowerShell invocation. Setting `CLINE_COMPUTER_USE_HOST` does not run the command remotely.
+
+When the driver invokes the tool, it probes `get_display_info` first. A responsive backend is left running; otherwise the command is launched and given up to roughly two minutes to answer. Use a foreground command such as `qbt serve`, not `start` or a shell background operator, so Cline can clean up the child it owns. Cline stops its own child during disposal or failed startup, but does not adopt or terminate an independently started backend. Command output is discarded; reproduce the command in a terminal to diagnose startup failures.
+
+**This is recovery, not automatic startup.** qbt must already be running when the CLI initializes computer use, because initialization queries its display dimensions before registering the recovery tool.
 
 ## The asynchronous computer user
 

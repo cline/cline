@@ -357,7 +357,7 @@ export class ComputerUserCoordinator {
 	/**
 	 * Resets the helper for a degraded session: aborts any active run, stops
 	 * the helper session, and returns the coordinator to `uninitialized`. The
-	 * next start/message creates a fresh session — the helper retains no
+	 * next start creates a fresh session — the helper retains no
 	 * memory of previous tasks, and its transcript log keeps the old
 	 * session's entries (tagged with the old session id) as history.
 	 *
@@ -374,11 +374,12 @@ export class ComputerUserCoordinator {
 				"sessionId" in this.state ? this.state.sessionId : undefined;
 			if (sessionId) {
 				if (this.state.kind === "running") {
-					await this.options.host
-						.abort(sessionId, new Error(reason ?? "Restarted by driver"))
-						.catch(() => {});
+					await this.options.host.abort(
+						sessionId,
+						new Error(reason ?? "Restarted by driver"),
+					);
 				}
-				await this.options.host.stop(sessionId).catch(() => {});
+				await this.options.host.stop(sessionId);
 				this.record(
 					"session.ended",
 					{ reason: reason ?? "restarted_by_driver" },
