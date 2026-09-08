@@ -9,6 +9,7 @@ export type SessionEventListener = (messages: ClineMessage[], event: CoreSession
 
 export interface SdkMessageCoordinatorOptions {
 	getTask: () => TaskProxy | undefined
+	projectMessages?: (sessionId: string, messages: ClineMessage[]) => ClineMessage[]
 	/**
 	 * The process-wide id/seq/epoch authority. When provided, every message flowing to the
 	 * webview is stamped with a fresh `seq` and the current `epoch` so the webview can merge
@@ -72,11 +73,19 @@ export class SdkMessageCoordinator {
 	}
 
 	appendMessages(messages: ClineMessage[]): void {
+		const task = this.options.getTask()
+		if (task && this.options.projectMessages) {
+			const current = task.messageStateHandler.getClineMessages()
+			const merged = messages.map((message) => {
+				const previous = current.find((row) => row.ts === message.ts)
+				return previous?.commandForegroundDetached ? { ...previous, ...message } : message
+			})
+			messages.splice(0, messages.length, ...this.options.projectMessages(task.taskId, merged))
+		}
 		// Stamp seq/epoch BEFORE storing/emitting so both the message-state handler and the
 		// partial-message stream carry identical, freshness-ordered, epoch-fenced messages.
 		this.stamp(messages)
 
-		const task = this.options.getTask()
 		if (!task?.messageStateHandler) {
 			return
 		}

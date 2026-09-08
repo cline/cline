@@ -10,10 +10,22 @@ describe("ClineMessage command completion conversion", () => {
 			text: "bun test",
 			commandCompleted: true,
 			commandStatus: "killed",
+			commandToolCallId: "call-1",
+			commandToolCallFailed: true,
+			commandToolCallEnded: true,
+			commandForegroundDetached: true,
+			commandToolOutput: "other command failed",
 		})
 
 		expect(proto.commandCompleted).toBe(true)
 		expect(convertProtoToClineMessage(proto).commandCompleted).toBe(true)
 		expect(convertProtoToClineMessage(proto).commandStatus).toBe("killed")
+		expect(convertProtoToClineMessage(proto)).toMatchObject({
+			commandToolCallId: "call-1",
+			commandToolCallFailed: true,
+			commandToolCallEnded: true,
+			commandForegroundDetached: true,
+			commandToolOutput: "other command failed",
+		})
 	})
 })

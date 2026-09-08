@@ -54,6 +54,7 @@ import { ClineAccountService } from "./account-service"
 import { AuthService, LogoutReason } from "./auth-service"
 import { BUILTIN_SLASH_COMMANDS } from "./builtin-slash-commands"
 import { buildStartSessionInput, createHistoryItemFromSession } from "./cline-session-factory"
+import { ForegroundCommandObservations } from "./foreground-command-observations"
 import { MessageTranslatorState, reshapeErrorForWebview } from "./message-translator"
 import { createProviderCatalog } from "./model-catalog/catalog"
 import type { Disposable, ProviderCatalog, ProviderConfigChange, ProviderConfigStore } from "./model-catalog/contracts"
@@ -213,11 +214,19 @@ export class Controller {
 	// Only used in the `vscodeTerminal` execution mode — `backgroundExec` and the
 	// standalone (JetBrains/CLI) host run commands through the SDK's built-in tool.
 	private _terminalManager?: VscodeTerminalManager
+	private readonly foregroundObservations = new ForegroundCommandObservations({
+		onChanged: () => {
+			void this.postStateToWebview().catch((error) =>
+				Logger.error("[SdkController] Foreground observation update failed", error),
+			)
+		},
+	})
 
 	// Registry of in-flight foreground and background command executions.
 	// Owned here — not by the session — so it survives session rebuilds, which
 	// recreate the tool set. Drives the "Proceed While Running" button.
 	private readonly commandExecutions = new VscodeRunCommandExecutionController({
+		observations: this.foregroundObservations,
 		onRunningChanged: () => {
 			void this.postStateToWebview()
 		},
@@ -343,6 +352,7 @@ export class Controller {
 		this.turnStateTracker = new TurnStateTracker(this.messageTranslatorState.getMinter())
 		this.messages = new SdkMessageCoordinator({
 			getTask: () => this.task,
+			projectMessages: (sessionId, messages) => this.foregroundObservations.projectMessages(sessionId, messages),
 			// Stamp seq/epoch on every message flowing to the webview from the shared authority.
 			getMinter: () => this.messageTranslatorState.getMinter(),
 		})
@@ -484,6 +494,7 @@ export class Controller {
 		})
 		this.sessionRebuilds = new SdkSessionRebuildScheduler({ sessions: this.sessions })
 		this.taskHistory = new SdkTaskHistory({
+			projectCommandMessages: (sessionId, messages) => this.foregroundObservations.projectMessages(sessionId, messages),
 			mcpHub: this.mcpHub,
 			sessions: this.sessions,
 			legacyExtensionStorageDir: this.context.globalStorageUri.fsPath,
@@ -922,6 +933,7 @@ export class Controller {
 	}
 
 	async dispose(): Promise<void> {
+		this.foregroundObservations.dispose()
 		this.providerConfigStoreSubscription.dispose()
 		// Clear the remote config timer to prevent stale fetches
 		if (this.remoteConfigTimer) {
@@ -2311,6 +2323,16 @@ export class Controller {
 			// out-of-order state pushes and fence traffic from a previous task/render. Sampled
 			// synchronously here (no await between sampling and return).
 			const minter = this.messageTranslatorState.getMinter()
+			// Sample current observation state after every asynchronous state read.
+			// A completion racing history loading must not reinstall a running row.
+			const task = this.task
+			if (task) {
+				const current = task.messageStateHandler.getClineMessages()
+				const projected = this.foregroundObservations.projectMessages(task.taskId, current)
+				const changed = projected.filter((message, index) => message !== current[index])
+				if (changed.length > 0) this.messages.appendMessages(changed)
+				state.clineMessages = task.messageStateHandler.getClineMessages()
+			}
 			return {
 				...state,
 				currentTaskItem: this.task?.taskId

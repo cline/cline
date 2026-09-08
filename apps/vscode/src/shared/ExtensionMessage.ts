@@ -200,6 +200,15 @@ export interface ClineMessage {
 	epoch?: number
 	commandCompleted?: boolean
 	commandStatus?: "running" | "succeeded" | "failed" | "killed" | "indeterminate"
+	/** Stable tool-call identity for projecting foreground observations after history reload. */
+	commandToolCallId?: string
+	/** Failure in the tool batch independent of its detached executions. */
+	commandToolCallFailed?: boolean
+	commandToolCallEnded?: boolean
+	/** This row has a detached foreground observation, even if its record is unavailable. */
+	commandForegroundDetached?: boolean
+	/** Original tool-batch output, kept separate from observation notes during projection. */
+	commandToolOutput?: string
 	lastCheckpointHash?: string
 	isCheckpointCheckedOut?: boolean
 	isOperationOutsideWorkspace?: boolean

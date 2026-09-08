@@ -1,9 +1,13 @@
+import { mkdtempSync, rmSync } from "node:fs"
+import { tmpdir } from "node:os"
+import path from "node:path"
 import type { SessionHistoryRecord } from "@cline/core"
 import type { HistoryItem } from "@shared/HistoryItem"
 import getFolderSize from "get-folder-size"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { McpHub } from "@/services/mcp/McpHub"
 import type { TelemetryService } from "@/services/telemetry/TelemetryService"
+import { ForegroundCommandObservations } from "./foreground-command-observations"
 import { deleteLegacyTask, readApiConversationHistory, readTaskHistory, readUiMessages } from "./legacy-state-reader"
 import { sdkMessagesToClineMessages } from "./message-translator"
 import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
@@ -78,6 +82,42 @@ vi.mock("get-folder-size", () => ({
 }))
 
 describe("SdkTaskHistory", () => {
+	it("rebuilds command identity through persisted history and projects the surviving foreground observer", async () => {
+		const directory = mkdtempSync(path.join(tmpdir(), "foreground-task-history-"))
+		const observations = new ForegroundCommandObservations({ sessionDataDir: directory })
+		try {
+			const observer = observations.observe(
+				{
+					sessionId: "task-1",
+					toolCallId: "call-1",
+					executionId: "execution-1",
+					logPath: "output.log",
+					output: "partial",
+				},
+				vi.fn(),
+			)
+			const { history, readMessages } = makeHistory([makeSessionRecord("task-1")], undefined, undefined, observations)
+			readMessages.mockResolvedValue([
+				{
+					role: "assistant",
+					content: [{ type: "tool_use", id: "call-1", name: "run_commands", input: { commands: ["wait"] } }],
+				},
+				{ role: "user", content: [{ type: "tool_result", tool_use_id: "call-1", content: "partial result" }] },
+			] as never)
+			expect((await history.getClineMessages("task-1"))[0]).toMatchObject({
+				commandToolCallId: "call-1",
+				commandStatus: "running",
+			})
+			observer.complete({ kind: "exited", exitCode: 2 }, "final output")
+			expect((await history.getClineMessages("task-1"))[0]).toMatchObject({
+				commandToolCallId: "call-1",
+				commandStatus: "failed",
+			})
+		} finally {
+			observations.dispose()
+			rmSync(directory, { recursive: true, force: true })
+		}
+	})
 	beforeEach(() => {
 		legacyStateReaderMock.taskHistory = []
 		legacyStateReaderMock.taskHistoryByDataDir.clear()
@@ -926,7 +966,12 @@ function makeTelemetry(): TelemetryService {
 	} as unknown as TelemetryService
 }
 
-function makeHistory(records: SessionHistoryRecord[], telemetry?: TelemetryService, legacyExtensionStorageDir?: string) {
+function makeHistory(
+	records: SessionHistoryRecord[],
+	telemetry?: TelemetryService,
+	legacyExtensionStorageDir?: string,
+	observations?: ForegroundCommandObservations,
+) {
 	let currentRecords = records
 	const updateSession = vi.fn(
 		async (
@@ -976,6 +1021,7 @@ function makeHistory(records: SessionHistoryRecord[], telemetry?: TelemetryServi
 		getActiveSession: () => ({ sdkHost: host }),
 	} as unknown as SdkSessionLifecycle
 	const history = new SdkTaskHistory({
+		projectCommandMessages: observations ? (id, messages) => observations.projectMessages(id, messages) : undefined,
 		mcpHub: {} as McpHub,
 		sessions,
 		telemetry,

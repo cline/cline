@@ -100,7 +100,7 @@ export class ClineFileStorage<T = any> extends ClineSyncStorage<T> {
  * Synchronously, atomically write data to a file using temp file + rename pattern.
  * Prefer core/storage's async atomicWriteFile to this.
  */
-function atomicWriteFileSync(filePath: string, data: string, mode?: fs.Mode | undefined): void {
+export function atomicWriteFileSync(filePath: string, data: string, mode?: fs.Mode | undefined): void {
 	const tmpPath = `${filePath}.tmp.${Date.now()}.${Math.random().toString(36).substring(7)}.json`
 	try {
 		fs.writeFileSync(tmpPath, data, {

@@ -1494,6 +1494,7 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 							type: "say",
 							say: "command",
 							text: `${commandText}\n${COMMAND_OUTPUT_STRING}`,
+							commandToolCallId: event.toolCallId,
 							partial: true,
 						})
 						break
@@ -1607,6 +1608,7 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 					}`,
 					partial: updateData.completed !== true,
 					commandCompleted: updateData.completed === true,
+					commandToolCallId: event.toolCallId,
 					commandStatus: updateData.completed === true ? commandStatusFromOutcome(updateData.outcome) : "running",
 				})
 				break
@@ -1831,6 +1833,10 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 									: commandText,
 							partial: detachedRow !== undefined && !detachedState?.complete,
 							commandCompleted: detachedRow === undefined || detachedState?.complete === true,
+							commandToolCallId: event.toolCallId,
+							commandToolCallFailed: Boolean(event.error || toolOutputHasFailure(event.output)),
+							commandToolCallEnded: true,
+							commandToolOutput: outputStr,
 							// CommandExitError becomes a success:false tool result rather
 							// than an event error, so a failed foreground command is only
 							// visible in the output entries' success flags.
@@ -2297,6 +2303,8 @@ export function translateSessionEvent(event: CoreSessionEvent, state: MessageTra
 					.join("\n")}`,
 				partial: !complete,
 				commandCompleted: complete,
+				commandToolCallId: event.payload.toolCallId,
+				commandToolCallEnded: row.toolEnded,
 				commandStatus: complete ? row.terminalStatus : "running",
 			})
 			break

@@ -37,6 +37,11 @@ import {
 } from "@/integrations/terminal/types"
 import { Logger } from "@/shared/services/Logger"
 import { getShellForProfile } from "@/utils/shell"
+import {
+	FOREGROUND_DETACHED_RESULT_PREFIX,
+	type ForegroundCommandObservation,
+	type ForegroundCommandObservations,
+} from "./foreground-command-observations"
 import type { VscodeRunCommandExecutionController } from "./vscode-run-command-execution-controller"
 
 // ---------------------------------------------------------------------------
@@ -126,11 +131,18 @@ interface DetachedCommandLog {
 }
 
 type ForegroundCompletionOutcome = { kind: "exited"; exitCode: number } | { kind: "failed"; error: string }
+type ForegroundObservationResult = { kind: "completed"; outcome: ForegroundCompletionOutcome } | { kind: "lost"; reason: string }
 
 function createDetachedCommandLog(
 	terminalCommand: string,
 	existingLines: readonly string[],
-	onSettled?: (outcome: ForegroundCompletionOutcome) => void,
+	onSettled?: (result: ForegroundObservationResult) => void,
+	observationContext?: {
+		store: ForegroundCommandObservations
+		sessionId: string
+		toolCallId: string
+		executionId: string
+	},
 ): DetachedCommandLog {
 	const logFilePath = ClineTempManager.createTempFilePath("proceed-while-running")
 	const stream = fs.createWriteStream(logFilePath, { flags: "a" })
@@ -140,6 +152,7 @@ function createDetachedCommandLog(
 	})
 
 	let bytesWritten = 0
+	let capturedOutput = ""
 	const tryWriteLine = (line: string): boolean => {
 		const chunk = `${line}\n`
 		const chunkBytes = Buffer.byteLength(chunk)
@@ -148,6 +161,7 @@ function createDetachedCommandLog(
 		}
 		bytesWritten += chunkBytes
 		stream.write(chunk)
+		capturedOutput = truncateCommandOutput(capturedOutput + chunk, { maxChars: MAX_COMMAND_OUTPUT_CHARS })
 		return true
 	}
 
@@ -161,7 +175,8 @@ function createDetachedCommandLog(
 
 	let settled = false
 	let removeAttachedListeners = (): void => {}
-	const end = (message: string, outcome: ForegroundCompletionOutcome): void => {
+	let observation: ForegroundCommandObservation | undefined
+	const end = (message: string, result: ForegroundObservationResult): void => {
 		if (settled) {
 			return
 		}
@@ -171,12 +186,33 @@ function createDetachedCommandLog(
 		// the terminal status so a full log never hides completion or failure.
 		stream.write(`${message.slice(0, PROCEED_LOG_FINAL_MESSAGE_MAX_CHARS)}\n`)
 		stream.end()
-		onSettled?.(outcome)
+		observation?.complete(result.kind === "completed" ? result.outcome : undefined, capturedOutput.trim())
+		onSettled?.(result)
+	}
+	try {
+		observation = observationContext?.store.observe(
+			{
+				sessionId: observationContext.sessionId,
+				toolCallId: observationContext.toolCallId,
+				executionId: observationContext.executionId,
+				logPath: logFilePath,
+				output: existingLines.join("\n"),
+			},
+			() => {
+				settled = true
+				removeAttachedListeners()
+				stream.end()
+			},
+		)
+	} catch (error) {
+		stream.end()
+		throw error
 	}
 
 	return {
 		path: logFilePath,
 		attach: (process) => {
+			if (settled) return
 			const onLine = (line: string): void => {
 				// Check the cap before writing: a single huge line (e.g. a dumped
 				// binary blob or minified bundle) must not blow past the cap.
@@ -192,9 +228,11 @@ function createDetachedCommandLog(
 					: details?.unobservedCommand
 						? "Command completion could not be observed"
 						: undefined
-				const outcome = completionError
-					? ({ kind: "failed", error: completionError } as const)
-					: ({ kind: "exited", exitCode: exitCode ?? 0 } as const)
+				const result: ForegroundObservationResult = details?.terminalClosed
+					? { kind: "completed", outcome: { kind: "failed", error: completionError ?? "Terminal closed" } }
+					: details?.unobservedCommand || exitCode == null
+						? { kind: "lost", reason: completionError ?? "Command exit status could not be observed" }
+						: { kind: "completed", outcome: { kind: "exited", exitCode } }
 				end(
 					details?.terminalClosed
 						? "[Terminal closed while the command was running; output may be incomplete]"
@@ -203,11 +241,14 @@ function createDetachedCommandLog(
 							: exitCode !== undefined && exitCode !== null
 								? `[Command completed with exit code ${exitCode}]`
 								: "[Command completed]",
-					outcome,
+					result,
 				)
 			}
 			const onError = (error: Error): void => {
-				end(`[Command failed after detaching: ${error.message}]`, { kind: "failed", error: error.message })
+				end(`[Command failed after detaching: ${error.message}]`, {
+					kind: "completed",
+					outcome: { kind: "failed", error: error.message },
+				})
 			}
 			removeAttachedListeners = () => {
 				process.removeListener("line", onLine)
@@ -224,7 +265,10 @@ function createDetachedCommandLog(
 		},
 		fail: (error) => {
 			const message = error instanceof Error ? error.message : String(error)
-			end(`[Command failed before log capture completed: ${message}]`, { kind: "failed", error: message })
+			end(`[Command failed before log capture completed: ${message}]`, {
+				kind: "completed",
+				outcome: { kind: "failed", error: message },
+			})
 		},
 	}
 }
@@ -236,7 +280,7 @@ function formatDetachedResult(logFilePath: string, output: string, reason: Detac
 		reason === "user"
 			? "The user chose to proceed while the command is starting or still running in their terminal."
 			: `The command was still starting or running after ${FOREGROUND_COMMAND_AUTO_PROCEED_MS / 1000} seconds, so Cline automatically proceeded while leaving it running in the terminal.`,
-		`This is partial output; further output is being redirected to this file, which you can read to check progress: ${logFilePath}`,
+		`${FOREGROUND_DETACHED_RESULT_PREFIX}${logFilePath}`,
 		output.length > 0 ? `Output so far:\n${output}` : "No output so far.",
 	].join("\n")
 }
@@ -257,8 +301,15 @@ export async function executeForeground(
 ): Promise<string> {
 	const terminalCommand = formatCommandForTerminal(command)
 	const executionId = randomUUID()
+	const observationContext =
+		commandExecutions?.observations && context?.sessionId && context.toolCallId
+			? { store: commandExecutions.observations, sessionId: context.sessionId, toolCallId: context.toolCallId, executionId }
+			: undefined
 	const emitUpdate = (update: Record<string, unknown>): void => context?.emitUpdate?.({ executionId, ...update })
-	const emitDetachedCompletion = (kind: RunCommandDetachKind, outcome: ForegroundCompletionOutcome): void => {
+	const emitDetachedCompletion = (kind: RunCommandDetachKind, result: ForegroundObservationResult): void => {
+		if (result.kind === "lost" && observationContext) return
+		const outcome: ForegroundCompletionOutcome =
+			result.kind === "completed" ? result.outcome : { kind: "failed", error: result.reason }
 		const logPath = detachedLog?.path ?? ""
 		if (context?.sessionId && commandExecutions) {
 			commandExecutions?.reportDetachedCommandCompleted({
@@ -300,7 +351,12 @@ export async function executeForeground(
 		if (state.phase === "waiting") {
 			state.phase = "detached"
 			detachReason = reason
-			detachedLog = createDetachedCommandLog(terminalCommand, [], (outcome) => emitDetachedCompletion(reason, outcome))
+			detachedLog = createDetachedCommandLog(
+				terminalCommand,
+				[],
+				(outcome) => emitDetachedCompletion(reason, outcome),
+				observationContext,
+			)
 			if (reason === "user") {
 				telemetryService.captureTerminalUserIntervention(TerminalUserInterventionAction.PROCESS_WHILE_RUNNING, "vscode")
 			}
@@ -480,8 +536,11 @@ export async function executeForeground(
 					return
 				}
 				detachReason = reason
-				detachedLog = createDetachedCommandLog(terminalCommand, outputLines, (outcome) =>
-					emitDetachedCompletion(reason, outcome),
+				detachedLog = createDetachedCommandLog(
+					terminalCommand,
+					outputLines,
+					(outcome) => emitDetachedCompletion(reason, outcome),
+					observationContext,
 				)
 				detachedLog.attach(process)
 				if (reason === "user") {

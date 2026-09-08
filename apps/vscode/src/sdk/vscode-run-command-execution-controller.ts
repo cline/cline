@@ -1,8 +1,10 @@
 import { RunCommandExecutionController } from "@cline/core"
+import type { ForegroundCommandObservations } from "./foreground-command-observations"
 
 type RunningCommandRegistration = Parameters<RunCommandExecutionController["register"]>[0]
 
 export interface VscodeRunCommandExecutionControllerOptions {
+	observations?: ForegroundCommandObservations
 	/** Called only when the aggregate running state changes. */
 	onRunningChanged?: (running: boolean) => void
 }
@@ -18,6 +20,10 @@ export class VscodeRunCommandExecutionController extends RunCommandExecutionCont
 
 	constructor(private readonly options: VscodeRunCommandExecutionControllerOptions = {}) {
 		super()
+	}
+
+	get observations(): ForegroundCommandObservations | undefined {
+		return this.options.observations
 	}
 
 	get isRunning(): boolean {

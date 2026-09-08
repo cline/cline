@@ -235,6 +235,11 @@ message ClineMessage {
   int64 epoch = 25;
   bool command_completed = 26;
   string command_status = 27;
+  string command_tool_call_id = 28;
+  bool command_tool_call_failed = 29;
+  bool command_tool_call_ended = 30;
+  bool command_foreground_detached = 31;
+  optional string command_tool_output = 32;
 }
 
 message ShowWebviewEvent {

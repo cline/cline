@@ -42,6 +42,7 @@ export interface SdkTaskHistoryOptions {
 	 * it so regenerated history ids never overlap live-session ids. Optional for tests.
 	 */
 	getMinter?: () => MessageIdMinter
+	projectCommandMessages?: (sessionId: string, messages: ClineMessage[]) => ClineMessage[]
 	telemetry?: TelemetryService
 }
 
@@ -457,7 +458,7 @@ export class SdkTaskHistory {
 		}
 
 		const sdkMessages = await this.withHistoryHost((host) => host.readMessages(taskId) as Promise<SdkMessage[]>)
-		const clineMessages = sdkMessagesToClineMessages(
+		let clineMessages = sdkMessagesToClineMessages(
 			sanitizeSdkUserMessagesForDisplay(sdkMessages),
 			this.options.getMinter?.(),
 			{
@@ -476,6 +477,7 @@ export class SdkTaskHistory {
 				cwd: sdkRecord?.cwd || sdkRecord?.workspaceRoot || undefined,
 			},
 		)
+		clineMessages = this.options.projectCommandMessages?.(taskId, clineMessages) ?? clineMessages
 		if (sdkRecord && legacyTask) {
 			return mergeLegacyUiMessagesWithResumedSdkMessages(readUiMessages(taskId, legacyTask.dataDir), clineMessages)
 		}

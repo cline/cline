@@ -1,7 +1,14 @@
+import { mkdtempSync, rmSync } from "node:fs"
+import { tmpdir } from "node:os"
+import path from "node:path"
 import { describe, expect, it, vi } from "vitest"
 import { telemetryService } from "@/services/telemetry"
 import { isClineManagedProvider } from "@/shared/utils/cline"
+import { ForegroundCommandObservations } from "./foreground-command-observations"
+import { sdkMessagesToClineMessages } from "./message-translator"
 import { Controller as SdkController } from "./SdkController"
+import { SdkMessageCoordinator } from "./sdk-message-coordinator"
+import { createTaskProxy } from "./task-proxy"
 import { resolveWorkspaceManagerPaths, resolveWorkspaceRootPath } from "./workspace-root"
 
 describe("isClineManagedProvider", () => {
@@ -52,6 +59,76 @@ vi.mock("@core/controller/state/getStateToPostToWebview", () => ({
 }))
 
 describe("SDK remote-config coordination", () => {
+	it("rechecks foreground observation after asynchronous state reads before posting reopened history", async () => {
+		const directory = mkdtempSync(path.join(tmpdir(), "foreground-state-race-"))
+		const foregroundObservations = new ForegroundCommandObservations({ sessionDataDir: directory })
+		try {
+			const observer = foregroundObservations.observe(
+				{
+					sessionId: "session-1",
+					toolCallId: "call-1",
+					executionId: "execution-1",
+					logPath: "output.log",
+					output: "partial",
+				},
+				vi.fn(),
+			)
+			const task = createTaskProxy("session-1", vi.fn(), vi.fn())
+			task.messageStateHandler.addMessages(
+				foregroundObservations.projectMessages(
+					"session-1",
+					sdkMessagesToClineMessages([
+						{
+							role: "assistant",
+							content: [{ type: "tool_use", id: "call-1", name: "run_commands", input: { commands: ["wait"] } }],
+						},
+						{
+							role: "user",
+							content: [
+								{ type: "tool_result", name: "run_commands", tool_use_id: "call-1", content: "partial output" },
+							],
+						},
+					]),
+				),
+			)
+			const controller = {
+				task,
+				foregroundObservations,
+				messages: new SdkMessageCoordinator({
+					getTask: () => task,
+					projectMessages: (id, rows) => foregroundObservations.projectMessages(id, rows),
+				}),
+				stateManager: {
+					getGlobalSettingsKey: () => undefined,
+					getRemoteConfigSettings: () => ({}),
+					setGlobalState: vi.fn(),
+				},
+				commandExecutions: { isRunning: false },
+				ensureWorkspaceManager: async () => undefined,
+				taskHistory: {
+					listHistory: async () => {
+						observer.complete({ kind: "exited", exitCode: 3 }, "failed while reading history")
+						return []
+					},
+				},
+				sessions: { getActiveSession: () => undefined },
+				turnStateTracker: { get: () => undefined },
+				messageTranslatorState: { getMinter: () => ({ epoch: 1, nextSeq: () => 1 }) },
+			}
+			const state = await SdkController.prototype.getStateToPostToWebview.call(controller as never)
+			expect(state.clineMessages.find((message) => message.say === "command")).toMatchObject({
+				commandStatus: "failed",
+				commandCompleted: true,
+			})
+			expect(state.clineMessages.find((message) => message.say === "command")?.text).toContain(
+				"failed while reading history",
+			)
+		} finally {
+			foregroundObservations.dispose()
+			rmSync(directory, { recursive: true, force: true })
+		}
+	})
+
 	it("posts the current remote-config revision to the webview", async () => {
 		const controller = {
 			stateManager: {

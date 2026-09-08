@@ -196,6 +196,11 @@ export function convertClineMessageToProto(message: AppClineMessage): ProtoCline
 		epoch: message.epoch ?? 0,
 		commandCompleted: message.commandCompleted ?? false,
 		commandStatus: message.commandStatus ?? "",
+		commandToolCallId: message.commandToolCallId ?? "",
+		commandToolCallFailed: message.commandToolCallFailed ?? false,
+		commandToolCallEnded: message.commandToolCallEnded ?? false,
+		commandForegroundDetached: message.commandForegroundDetached ?? false,
+		commandToolOutput: message.commandToolOutput,
 		lastCheckpointHash: message.lastCheckpointHash ?? "",
 		isCheckpointCheckedOut: message.isCheckpointCheckedOut ?? false,
 		isOperationOutsideWorkspace: message.isOperationOutsideWorkspace ?? false,
@@ -265,6 +270,11 @@ export function convertProtoToClineMessage(protoMessage: ProtoClineMessage): App
 	if (protoMessage.commandCompleted) {
 		message.commandCompleted = true
 	}
+	if (protoMessage.commandToolCallId) message.commandToolCallId = protoMessage.commandToolCallId
+	if (protoMessage.commandToolCallFailed) message.commandToolCallFailed = true
+	if (protoMessage.commandToolCallEnded) message.commandToolCallEnded = true
+	if (protoMessage.commandForegroundDetached) message.commandForegroundDetached = true
+	if (protoMessage.commandToolOutput !== undefined) message.commandToolOutput = protoMessage.commandToolOutput
 	if (
 		protoMessage.commandStatus === "running" ||
 		protoMessage.commandStatus === "succeeded" ||
