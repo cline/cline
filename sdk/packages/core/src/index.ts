@@ -711,6 +711,7 @@ export {
 } from "./services/providers/local-provider-service";
 export {
 	getProviderConfigFields,
+	isLocalAuthProvider,
 	type ProviderConfigFieldKey,
 	type ProviderConfigFieldRequirement,
 	type ProviderConfigFields,
