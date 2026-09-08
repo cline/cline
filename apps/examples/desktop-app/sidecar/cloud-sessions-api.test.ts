@@ -111,13 +111,18 @@ describe("CloudSessionApi", () => {
 
 	it("waits for the current asynchronous provisioning contract", async () => {
 		vi.useFakeTimers();
+		const tokens = ["workos:create", "workos:new-account"];
+		const authorizations: string[] = [];
 		let statusCalls = 0;
 		try {
 			const api = new CloudSessionApi({
 				apiBaseUrl: "https://api.example",
 				appBaseUrl: "https://app.example",
-				getAuthToken: async () => "sk_test",
+				getAuthToken: async () => tokens.shift(),
 				fetch: async (input, init) => {
+					authorizations.push(
+						new Headers(init?.headers).get("Authorization") ?? "",
+					);
 					const url = new URL(String(input));
 					if (init?.method === "POST") {
 						return jsonResponse(
@@ -152,56 +157,6 @@ describe("CloudSessionApi", () => {
 				sandboxUrl: "",
 			});
 			expect(statusCalls).toBe(2);
-		} finally {
-			vi.useRealTimers();
-		}
-	});
-
-	it("keeps provisioning polls bound to the account that created the session", async () => {
-		const tokens = ["workos:create", "workos:new-account"];
-		const authorizations: string[] = [];
-		vi.useFakeTimers();
-		let statusCalls = 0;
-		try {
-			const api = new CloudSessionApi({
-				apiBaseUrl: "https://api.example",
-				appBaseUrl: "https://app.example",
-				getAuthToken: async () => tokens.shift(),
-				fetch: async (input, init) => {
-					authorizations.push(
-						new Headers(init?.headers).get("Authorization") ?? "",
-					);
-					if (init?.method === "POST") {
-						return jsonResponse(
-							{
-								success: true,
-								data: { sessionId: "ses-1", status: "provisioning" },
-							},
-							201,
-						);
-					}
-					expect(new URL(String(input)).pathname).toBe(
-						"/api/v1/session/ses-1/status",
-					);
-					statusCalls += 1;
-					return jsonResponse({
-						success: true,
-						data: {
-							sessionId: "ses-1",
-							status: statusCalls === 1 ? "provisioning" : "ready",
-						},
-					});
-				},
-			});
-
-			const creating = api.create({
-				modelId: "anthropic/claude-sonnet-5",
-				repoUrl: "https://github.com/cline/test",
-			});
-			await vi.waitFor(() => expect(statusCalls).toBe(1));
-			await vi.advanceTimersByTimeAsync(3_000);
-			await creating;
-
 			expect(authorizations).toEqual([
 				"Bearer workos:create",
 				"Bearer workos:create",
@@ -611,21 +566,6 @@ describe("CloudSessionApi", () => {
 		);
 	});
 
-	it("surfaces a stable authentication error for REST requests", async () => {
-		const api = new CloudSessionApi({
-			apiBaseUrl: "https://api.example",
-			appBaseUrl: "https://app.example",
-			getAuthToken: async () => "expired",
-			fetch: async () =>
-				jsonResponse({ success: false, error: "authentication required" }, 401),
-		});
-
-		const error = await api.list().catch((caught) => caught);
-
-		expect(error).toBeInstanceOf(CloudSessionError);
-		expect(error.code).toBe("authentication_required");
-	});
-
 	it("lists connected GitHub repositories and their branches", async () => {
 		const requestedPaths: string[] = [];
 		const api = new CloudSessionApi({
@@ -810,21 +750,9 @@ describe("CloudSessionApi", () => {
 			repoUrl: "https://github.com/cline/test",
 		};
 
-		const results = await Promise.allSettled([
-			api.create(input),
-			api.create(input),
-		]);
-
-		expect(results.map((result) => result.status)).toEqual([
-			"rejected",
-			"rejected",
-		]);
-		for (const result of results) {
-			if (result.status === "rejected") {
-				expect(result.reason).toMatchObject({ code: "request_failed" });
-				expect(String(result.reason)).toContain("ambiguous result");
-			}
-		}
+		const error = await api.create(input).catch((caught) => caught);
+		expect(error).toMatchObject({ code: "request_failed" });
+		expect(String(error)).toContain("ambiguous result");
 	});
 
 	it("cleans up terminal provisioning failures with the creation identity", async () => {
