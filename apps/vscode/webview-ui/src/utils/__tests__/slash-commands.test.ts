@@ -293,6 +293,18 @@ describe("slash-commands", () => {
 			expect(validateSlashCommand("aws-deploy", [])).toBeNull()
 		})
 
+		it("lists a skill once when the host reports the same token from two scopes", () => {
+			// Mirrors the local/global dedupe case from #13890: a project and a global
+			// skill with the same name must not produce two menu rows.
+			const duplicated = [
+				runtimeCommand({ name: "aws-deploy", kind: "skill", description: "Project copy" }),
+				runtimeCommand({ name: "aws-deploy", kind: "skill", description: "Global copy" }),
+			]
+			const rows = getMatchingSlashCommands("aws", duplicated)
+			expect(rows).toHaveLength(1)
+			expect(rows[0].description).toBe("Project copy")
+		})
+
 		it("never lets a user command shadow a built-in or an MCP prompt shadow a skill", () => {
 			const shadowing = [runtimeCommand({ name: "compact", kind: "skill", description: "a skill named compact" })]
 			const mcpServers = [createMockMcpServer({ name: "s", prompts: [{ name: "p" }] })]
