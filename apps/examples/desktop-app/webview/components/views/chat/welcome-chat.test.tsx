@@ -288,19 +288,10 @@ describe("WelcomeScreen", () => {
 		accountRef.user = { id: "user-1" };
 		subscribeMock.mockClear();
 		let fetches = 0;
-		let resolveScopedRepositories:
-			| ((value: { connected: true; repositories: [] }) => void)
-			| undefined;
-		const scopedRepositories = new Promise<{
-			connected: true;
-			repositories: [];
-		}>((resolve) => {
-			resolveScopedRepositories = resolve;
-		});
 		invokeMock.mockImplementation(async (command: string) => {
 			if (command === "list_cloud_repositories") {
 				fetches += 1;
-				if (fetches > 1) return await scopedRepositories;
+				if (fetches > 1) return { connected: true, repositories: [] };
 				return {
 					connected: true,
 					connectUrl: "https://app.example/dashboard/integrations",
@@ -344,10 +335,6 @@ describe("WelcomeScreen", () => {
 		expect(fetches).toBeGreaterThan(fetchesBefore);
 		expect(onRepoUrlChange).toHaveBeenCalledWith("");
 		expect(onCloudBranchChange).toHaveBeenCalledWith("");
-		await act(async () => {
-			resolveScopedRepositories?.({ connected: true, repositories: [] });
-			await scopedRepositories;
-		});
 		accountRef.user = null;
 	});
 
