@@ -307,7 +307,13 @@ export class LocalRuntimeHost implements RuntimeHost {
 			});
 		this.defaultTelemetry = options.telemetry;
 		this.defaultLogger = options.logger;
-		this.defaultTelemetry?.setDistinctId(distinctId);
+		// A caller-owned telemetry service may already be identified to an
+		// authenticated account (the long-lived Hub daemon is one example).
+		// Only replace that identity when the caller explicitly supplied the
+		// runtime distinct id. ClineCore always does so through host.ts.
+		if (options.distinctId !== undefined) {
+			this.defaultTelemetry?.setDistinctId(distinctId);
+		}
 		this.defaultFetch = options.fetch;
 		recoverDetachedCommandLogsOnce(this.defaultLogger, this.defaultTelemetry);
 
@@ -2000,7 +2006,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		captureTaskCompleted(session.config.telemetry, {
 			ulid: session.sessionId,
 			provider: session.config.providerId,
-			modelId: session.config.modelId,
+			model: session.config.modelId,
 			mode: session.config.mode,
 			durationMs: Date.now() - Date.parse(session.startedAt),
 			source: "submit_and_exit",
@@ -2048,7 +2054,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		captureTaskCompleted(session.config.telemetry, {
 			ulid: session.sessionId,
 			provider: session.config.providerId,
-			modelId: session.config.modelId,
+			model: session.config.modelId,
 			mode: session.config.mode,
 			durationMs: Date.now() - Date.parse(session.startedAt),
 			source: "shutdown",
