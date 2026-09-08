@@ -174,10 +174,7 @@ export function resetDesktopFeatureFlagsForTesting(): void {
 	desktopFeatureFlagsContext = { clientName: "cline-code" };
 }
 
-/**
- * Dev/build override for the cloud gate: "1"/"true" forces it on,
- * "0"/"false" forces it off, anything else defers to the flag + setting.
- */
+/** Returns a local cloud-agents override, or undefined to use the rollout. */
 export function readCloudAgentsEnvOverride(): boolean | undefined {
 	const override = process.env.CLINE_CODE_CLOUD_AGENTS?.trim().toLowerCase();
 	if (override === "1" || override === "true") return true;
@@ -185,11 +182,7 @@ export function readCloudAgentsEnvOverride(): boolean | undefined {
 	return undefined;
 }
 
-/**
- * Whether the Cloud sessions surface is AVAILABLE to this install: the
- * PostHog rollout flag (cached snapshot; no network on this path) decides
- * who can see the Settings opt-in at all.
- */
+/** Whether the rollout makes cloud sessions available to this install. */
 export function isCloudAgentsAvailable(options?: {
 	logger?: BasicLogger;
 	telemetry?: ITelemetryService;
@@ -201,10 +194,7 @@ export function isCloudAgentsAvailable(options?: {
 	);
 }
 
-/**
- * Whether cloud sessions are ENABLED for this user: rollout flag gates
- * availability, the user's Settings toggle is the opt-in.
- */
+/** Whether cloud sessions are both available and enabled by the user. */
 export function isCloudAgentsEnabled(options?: {
 	logger?: BasicLogger;
 	telemetry?: ITelemetryService;

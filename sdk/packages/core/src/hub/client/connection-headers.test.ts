@@ -1,9 +1,74 @@
+import type { IncomingMessage } from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { WebSocketServer } from "ws";
 import { NodeHubClient } from ".";
 
 const servers: WebSocketServer[] = [];
+
+type CommandContext = {
+	command: string;
+	requestId: string;
+	reply: (
+		result?:
+			| { ok?: true; payload?: unknown }
+			| { ok: false; error: { code: string; message: string } },
+	) => void;
+};
+
+async function startHubServer(options?: {
+	onConnection?: (request: IncomingMessage) => void;
+	onCommand?: (context: CommandContext) => void;
+}): Promise<{ server: WebSocketServer; url: string }> {
+	const server = new WebSocketServer({ host: "127.0.0.1", port: 0 });
+	servers.push(server);
+	await new Promise<void>((resolve) => server.once("listening", resolve));
+	server.on("connection", (socket, request) => {
+		options?.onConnection?.(request);
+		socket.on("message", (data) => {
+			const frame = JSON.parse(data.toString()) as {
+				kind?: string;
+				envelope?: { command?: string; requestId?: string };
+			};
+			if (
+				frame.kind !== "command" ||
+				!frame.envelope?.command ||
+				!frame.envelope.requestId
+			) {
+				return;
+			}
+			const { command, requestId } = frame.envelope;
+			const context: CommandContext = {
+				command,
+				requestId,
+				reply: (result = {}) => {
+					socket.send(
+						JSON.stringify({
+							kind: "reply",
+							envelope: {
+								version: "v1",
+								command,
+								requestId,
+								clientId: "hub",
+								ok: result.ok ?? true,
+								...(result.ok === false
+									? { error: result.error }
+									: { payload: result.payload ?? {} }),
+							},
+						}),
+					);
+				},
+			};
+			if (options?.onCommand) {
+				options.onCommand(context);
+			} else {
+				context.reply();
+			}
+		});
+	});
+	const { port } = server.address() as AddressInfo;
+	return { server, url: `ws://127.0.0.1:${port}/hub` };
+}
 
 afterEach(async () => {
 	for (const server of servers.splice(0)) {
@@ -17,50 +82,22 @@ afterEach(async () => {
 
 describe("NodeHubClient connection headers", () => {
 	it("keeps concurrent connects pending until registration finishes", async () => {
-		const server = new WebSocketServer({ host: "127.0.0.1", port: 0 });
-		servers.push(server);
-		await new Promise<void>((resolve) => server.once("listening", resolve));
-
 		let acknowledgeRegistration: (() => void) | undefined;
 		let registrationReceived: (() => void) | undefined;
 		const receivedRegistration = new Promise<void>((resolve) => {
 			registrationReceived = resolve;
 		});
-		server.on("connection", (socket) => {
-			socket.on("message", (data) => {
-				const frame = JSON.parse(data.toString()) as {
-					kind?: string;
-					envelope?: { command?: string; requestId?: string };
-				};
-				if (
-					frame.kind !== "command" ||
-					frame.envelope?.command !== "client.register" ||
-					!frame.envelope.requestId
-				) {
-					return;
+		const { url } = await startHubServer({
+			onCommand: ({ command, reply }) => {
+				if (command === "client.register") {
+					acknowledgeRegistration = reply;
+					registrationReceived?.();
 				}
-				acknowledgeRegistration = () => {
-					socket.send(
-						JSON.stringify({
-							kind: "reply",
-							envelope: {
-								version: "v1",
-								command: frame.envelope?.command,
-								requestId: frame.envelope?.requestId,
-								ok: true,
-								clientId: "hub",
-								payload: {},
-							},
-						}),
-					);
-				};
-				registrationReceived?.();
-			});
+			},
 		});
 
-		const { port } = server.address() as AddressInfo;
 		const client = new NodeHubClient({
-			url: `ws://127.0.0.1:${port}/hub`,
+			url,
 			resolveConnectionHeaders: async () => ({
 				Authorization: "Bearer account-token",
 			}),
@@ -89,10 +126,6 @@ describe("NodeHubClient connection headers", () => {
 	});
 
 	it("refreshes upgrade headers on reconnect without sending a subprotocol", async () => {
-		const server = new WebSocketServer({ host: "127.0.0.1", port: 0 });
-		servers.push(server);
-		await new Promise<void>((resolve) => server.once("listening", resolve));
-
 		const upgrades: Array<{
 			authorization: string | undefined;
 			protocol: string | undefined;
@@ -101,45 +134,21 @@ describe("NodeHubClient connection headers", () => {
 		const reconnected = new Promise<void>((resolve) => {
 			resolveReconnect = resolve;
 		});
-		server.on("connection", (socket, request) => {
-			upgrades.push({
-				authorization: request.headers.authorization,
-				protocol: request.headers["sec-websocket-protocol"],
-			});
-			if (upgrades.length === 2) {
-				resolveReconnect?.();
-			}
-			socket.on("message", (data) => {
-				const frame = JSON.parse(data.toString()) as {
-					kind?: string;
-					envelope?: {
-						command?: string;
-						requestId?: string;
-					};
-				};
-				if (frame.kind !== "command" || !frame.envelope?.requestId) {
-					return;
+		const { server, url } = await startHubServer({
+			onConnection: (request) => {
+				upgrades.push({
+					authorization: request.headers.authorization,
+					protocol: request.headers["sec-websocket-protocol"],
+				});
+				if (upgrades.length === 2) {
+					resolveReconnect?.();
 				}
-				socket.send(
-					JSON.stringify({
-						kind: "reply",
-						envelope: {
-							version: "v1",
-							command: frame.envelope.command,
-							requestId: frame.envelope.requestId,
-							ok: true,
-							clientId: "hub",
-							payload: {},
-						},
-					}),
-				);
-			});
+			},
 		});
 
 		let tokenVersion = 0;
-		const { port } = server.address() as AddressInfo;
 		const client = new NodeHubClient({
-			url: `ws://127.0.0.1:${port}/hub`,
+			url,
 			resolveConnectionHeaders: async () => ({
 				Authorization: `Bearer token-${++tokenVersion}`,
 			}),
@@ -180,61 +189,11 @@ describe("NodeHubClient connection headers", () => {
 		);
 	});
 
-	it("does not open a socket after closing while headers are resolving", async () => {
-		let finishResolving:
-			| ((headers: Readonly<Record<string, string>>) => void)
-			| undefined;
-		const headers = new Promise<Readonly<Record<string, string>>>((resolve) => {
-			finishResolving = resolve;
-		});
-		const client = new NodeHubClient({
-			url: "ws://127.0.0.1:25463/hub",
-			resolveConnectionHeaders: () => headers,
-		});
-
-		const connecting = client.connect();
-		client.close();
-		finishResolving?.({ Authorization: "Bearer account-token" });
-
-		await expect(connecting).rejects.toMatchObject({
-			code: "hub_connection_closed",
-		});
-		expect(client.isConnected()).toBe(false);
-	});
-
 	it("surfaces resolver failures and reruns the resolver on the next connect", async () => {
-		const server = new WebSocketServer({ host: "127.0.0.1", port: 0 });
-		servers.push(server);
-		await new Promise<void>((resolve) => server.once("listening", resolve));
-		server.on("connection", (socket) => {
-			socket.on("message", (data) => {
-				const frame = JSON.parse(data.toString()) as {
-					kind?: string;
-					envelope?: { command?: string; requestId?: string };
-				};
-				if (frame.kind !== "command" || !frame.envelope?.requestId) {
-					return;
-				}
-				socket.send(
-					JSON.stringify({
-						kind: "reply",
-						envelope: {
-							version: "v1",
-							command: frame.envelope.command,
-							requestId: frame.envelope.requestId,
-							ok: true,
-							clientId: "hub",
-							payload: {},
-						},
-					}),
-				);
-			});
-		});
-
-		const { port } = server.address() as AddressInfo;
+		const { url } = await startHubServer();
 		let attempts = 0;
 		const client = new NodeHubClient({
-			url: `ws://127.0.0.1:${port}/hub`,
+			url,
 			resolveConnectionHeaders: async () => {
 				attempts += 1;
 				if (attempts === 1) {
@@ -249,8 +208,6 @@ describe("NodeHubClient connection headers", () => {
 				code: "hub_connect_failed",
 				message: expect.stringContaining("signed out"),
 			});
-			// The real cause must be visible to state consumers, not a stale
-			// "Hub connection closed" default.
 			expect(client.getConnectionError()).toMatchObject({
 				code: "hub_connect_failed",
 				message: expect.stringContaining("signed out"),
@@ -264,41 +221,13 @@ describe("NodeHubClient connection headers", () => {
 	});
 
 	it("lets a fresh connect supersede an attempt stuck in header resolution after close()", async () => {
-		const server = new WebSocketServer({ host: "127.0.0.1", port: 0 });
-		servers.push(server);
-		await new Promise<void>((resolve) => server.once("listening", resolve));
-		server.on("connection", (socket) => {
-			socket.on("message", (data) => {
-				const frame = JSON.parse(data.toString()) as {
-					kind?: string;
-					envelope?: { command?: string; requestId?: string };
-				};
-				if (frame.kind !== "command" || !frame.envelope?.requestId) {
-					return;
-				}
-				socket.send(
-					JSON.stringify({
-						kind: "reply",
-						envelope: {
-							version: "v1",
-							command: frame.envelope.command,
-							requestId: frame.envelope.requestId,
-							ok: true,
-							clientId: "hub",
-							payload: {},
-						},
-					}),
-				);
-			});
-		});
-
-		const { port } = server.address() as AddressInfo;
+		const { url } = await startHubServer();
 		let releaseFirstResolver:
 			| ((headers: Readonly<Record<string, string>>) => void)
 			| undefined;
 		let attempts = 0;
 		const client = new NodeHubClient({
-			url: `ws://127.0.0.1:${port}/hub`,
+			url,
 			resolveConnectionHeaders: () => {
 				attempts += 1;
 				if (attempts === 1) {
@@ -313,12 +242,8 @@ describe("NodeHubClient connection headers", () => {
 		try {
 			const doomed = client.connect();
 			client.close();
-			// The next connect() must start a fresh attempt instead of being
-			// deduped onto the closed one and rejecting spuriously.
 			await client.connect();
 			expect(client.isConnected()).toBe(true);
-			// The first attempt aborts once its resolver settles, without
-			// clobbering the newer connection's socket.
 			releaseFirstResolver?.({ Authorization: "Bearer stale-token" });
 			await expect(doomed).rejects.toMatchObject({
 				code: "hub_connection_closed",
@@ -333,7 +258,6 @@ describe("NodeHubClient connection headers", () => {
 		vi.useFakeTimers();
 		const client = new NodeHubClient({
 			url: "ws://127.0.0.1:25463/hub",
-			// Never settles: simulates a token refresh that hangs.
 			resolveConnectionHeaders: () => new Promise(() => {}),
 		});
 
@@ -354,46 +278,27 @@ describe("NodeHubClient connection headers", () => {
 	});
 
 	it("closes the socket when registration fails so reconnect re-registers", async () => {
-		const server = new WebSocketServer({ host: "127.0.0.1", port: 0 });
-		servers.push(server);
-		await new Promise<void>((resolve) => server.once("listening", resolve));
-
 		let registrationAttempts = 0;
-		server.on("connection", (socket) => {
-			socket.on("message", (data) => {
-				const frame = JSON.parse(data.toString()) as {
-					kind?: string;
-					envelope?: { command?: string; requestId?: string };
-				};
-				if (frame.kind !== "command" || !frame.envelope?.requestId) {
-					return;
-				}
-				const isRegister = frame.envelope.command === "client.register";
+		const { url } = await startHubServer({
+			onCommand: ({ command, reply }) => {
+				const isRegister = command === "client.register";
 				if (isRegister) {
 					registrationAttempts += 1;
 				}
 				const rejectRegistration = isRegister && registrationAttempts === 1;
-				socket.send(
-					JSON.stringify({
-						kind: "reply",
-						envelope: {
-							version: "v1",
-							command: frame.envelope.command,
-							requestId: frame.envelope.requestId,
-							ok: !rejectRegistration,
-							clientId: "hub",
-							...(rejectRegistration
-								? { error: { code: "not_authorized", message: "denied" } }
-								: { payload: {} }),
-						},
-					}),
+				reply(
+					rejectRegistration
+						? {
+								ok: false,
+								error: { code: "not_authorized", message: "denied" },
+							}
+						: {},
 				);
-			});
+			},
 		});
 
-		const { port } = server.address() as AddressInfo;
 		const client = new NodeHubClient({
-			url: `ws://127.0.0.1:${port}/hub`,
+			url,
 			resolveConnectionHeaders: async () => ({
 				Authorization: "Bearer account-token",
 			}),
@@ -405,7 +310,6 @@ describe("NodeHubClient connection headers", () => {
 			expect(
 				(client as unknown as { socket?: unknown }).socket,
 			).toBeUndefined();
-			// The unregistered socket must not satisfy the next connect().
 			await client.connect();
 			expect(client.isConnected()).toBe(true);
 			expect(registrationAttempts).toBe(2);
@@ -415,64 +319,40 @@ describe("NodeHubClient connection headers", () => {
 	});
 
 	it("aborts a registration whose reply raced close(), and never leaves a zombie socket", async () => {
-		const server = new WebSocketServer({ host: "127.0.0.1", port: 0 });
-		servers.push(server);
-		await new Promise<void>((resolve) => server.once("listening", resolve));
-
-		// silent: the test injects the register reply locally; reject/ack: the
-		// server answers registration itself.
 		let registrationMode: "silent" | "reject" | "ack" = "silent";
 		let connectionCount = 0;
 		let announceRegister: ((requestId: string) => void) | undefined;
-		server.on("connection", (socket) => {
-			connectionCount += 1;
-			socket.on("message", (data) => {
-				const frame = JSON.parse(data.toString()) as {
-					kind?: string;
-					envelope?: { command?: string; requestId?: string };
-				};
-				if (
-					frame.kind !== "command" ||
-					frame.envelope?.command !== "client.register" ||
-					!frame.envelope.requestId
-				) {
+		const { url } = await startHubServer({
+			onConnection: () => {
+				connectionCount += 1;
+			},
+			onCommand: ({ command, requestId, reply }) => {
+				if (command !== "client.register") {
 					return;
 				}
 				if (registrationMode !== "silent") {
 					const rejected = registrationMode === "reject";
-					socket.send(
-						JSON.stringify({
-							kind: "reply",
-							envelope: {
-								version: "v1",
-								command: frame.envelope.command,
-								requestId: frame.envelope.requestId,
-								ok: !rejected,
-								clientId: "hub",
-								...(rejected
-									? { error: { code: "not_authorized", message: "expired" } }
-									: { payload: {} }),
-							},
-						}),
+					reply(
+						rejected
+							? {
+									ok: false,
+									error: { code: "not_authorized", message: "expired" },
+								}
+							: {},
 					);
 				}
-				announceRegister?.(frame.envelope.requestId);
-			});
+				announceRegister?.(requestId);
+			},
 		});
 
-		const { port } = server.address() as AddressInfo;
 		const client = new NodeHubClient({
-			url: `ws://127.0.0.1:${port}/hub`,
+			url,
 			resolveConnectionHeaders: () => ({
 				Authorization: "Bearer account-token",
 			}),
 		});
 
 		try {
-			// Attempt 1: deliver the register reply and close() in one
-			// synchronous stretch, before the registration continuation's
-			// microtask can run. The attempt must reject instead of marking a
-			// closed client registered.
 			const registerRequestId = new Promise<string>((resolve) => {
 				announceRegister = resolve;
 			});
@@ -497,17 +377,12 @@ describe("NodeHubClient connection headers", () => {
 			});
 			expect(client.isConnected()).toBe(false);
 
-			// Attempt 2: the hub rejects registration. A stale registered flag
-			// from attempt 1 must not make the client keep this unregistered
-			// socket alive.
 			registrationMode = "reject";
 			await expect(client.connect()).rejects.toMatchObject({
 				code: "not_authorized",
 			});
 			expect(client.isConnected()).toBe(false);
 
-			// Attempt 3: a fresh connect must dial a new socket and register,
-			// not resolve against a zombie left over from attempt 2.
 			registrationMode = "ack";
 			await client.connect();
 			expect(client.isConnected()).toBe(true);
