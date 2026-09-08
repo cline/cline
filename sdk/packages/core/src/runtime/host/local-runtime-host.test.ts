@@ -28,6 +28,7 @@ import {
 import simpleGit from "simple-git";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TeamEvent } from "../../extensions/tools/team";
+import { CORE_TELEMETRY_EVENTS } from "../../services/telemetry/core-events";
 import { TelemetryService } from "../../services/telemetry/TelemetryService";
 import { createSessionCompactionState } from "../../session/models/session-compaction";
 import type { SessionManifest } from "../../session/models/session-manifest";
@@ -1622,6 +1623,113 @@ describe("LocalRuntimeHost", () => {
 		).not.toHaveBeenCalled();
 	});
 
+	it("keeps the stored history origin when resuming a session", async () => {
+		const workspaceRoot = join(isolatedHomeDir, "workspace");
+		mkdirSync(workspaceRoot, { recursive: true });
+		const git = simpleGit({ baseDir: workspaceRoot });
+		await git.init();
+		await git.addConfig("user.email", "test@example.com");
+		await git.addConfig("user.name", "Test");
+		await git.commit("initial", ["--allow-empty"]);
+		await git.addRemote("origin", "https://example.com/imported.git");
+
+		const sessionId = "sess-imported-resume";
+		const importedManifest = (id: string): SessionManifest => ({
+			...createManifest(id),
+			source: SessionSource.DESKTOP,
+			cwd: workspaceRoot,
+			workspace_root: workspaceRoot,
+			metadata: {
+				title: "Imported from Claude Code",
+				sessionHistoryOrigin: { mode: "import", trigger: "claude-code" },
+			},
+		});
+		const updateSession = vi.fn().mockResolvedValue({ updated: true });
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn(),
+			persistSessionMessages: vi.fn(),
+			updateSession,
+			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
+			readSessionManifest: vi.fn().mockImplementation(importedManifest),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const agent = {
+			run: vi.fn().mockResolvedValue(createResult()),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			getMessages: vi.fn().mockReturnValue([]),
+			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			canStartRun: vi.fn().mockReturnValue(true),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		};
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder: {
+				build: vi.fn().mockReturnValue({ tools: [], shutdown: vi.fn() }),
+			} as never,
+			createAgent: () => agent as never,
+		});
+
+		// A resume start carries the default "user" origin in its metadata;
+		// the git refresh on resume must not persist it over the stored one.
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId, cwd: workspaceRoot, workspaceRoot }),
+				interactive: true,
+				initialMessages: [{ role: "user", content: "imported prompt" }],
+				sessionMetadata: { sessionHistoryOrigin: { mode: "user" } },
+			}),
+		);
+
+		expect(
+			sessionService.createRootSessionWithArtifacts,
+		).not.toHaveBeenCalled();
+		expect(updateSession).toHaveBeenCalledWith(
+			expect.objectContaining({
+				sessionId,
+				metadata: expect.objectContaining({
+					title: "Imported from Claude Code",
+					sessionHistoryOrigin: { mode: "import", trigger: "claude-code" },
+					git: expect.objectContaining({
+						url: "https://example.com/imported.git",
+					}),
+				}),
+			}),
+		);
+
+		// An explicit mode on the start input replaces the stored origin as a
+		// whole, so a stale trigger never pairs with the new mode.
+		const overrideSessionId = "sess-imported-resume-override";
+		updateSession.mockClear();
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({
+					sessionId: overrideSessionId,
+					cwd: workspaceRoot,
+					workspaceRoot,
+				}),
+				mode: "automation",
+				interactive: true,
+				initialMessages: [{ role: "user", content: "imported prompt" }],
+				sessionMetadata: { sessionHistoryOrigin: { mode: "user" } },
+			}),
+		);
+		expect(updateSession).toHaveBeenCalledWith(
+			expect.objectContaining({
+				sessionId: overrideSessionId,
+				metadata: expect.objectContaining({
+					sessionHistoryOrigin: { mode: "automation" },
+				}),
+			}),
+		);
+	});
+
 	it("runs a non-interactive prompt and persists messages/status", async () => {
 		const sessionId = "sess-1";
 		const manifest = createManifest(sessionId);
@@ -2826,7 +2934,17 @@ describe("LocalRuntimeHost", () => {
 			agentConfig?.consumePendingUserMessage?.(),
 		);
 		expect(consumed).toBe('<user_input mode="plan">steer this</user_input>');
-		expect(agentConfig?.telemetry).toBe(telemetry);
+		// The agent receives a session-scoped view over the host telemetry.
+		const capture = vi.spyOn(telemetry, "capture");
+		agentConfig?.telemetry?.capture({
+			event: CORE_TELEMETRY_EVENTS.TASK.PROVIDER_API_ERROR,
+			properties: {},
+		});
+		expect(capture).toHaveBeenCalledWith(
+			expect.objectContaining({
+				event: CORE_TELEMETRY_EVENTS.TASK.PROVIDER_API_ERROR,
+			}),
+		);
 	});
 
 	it("preserves pending prompts through an interactive abort and drains them in order", async () => {
