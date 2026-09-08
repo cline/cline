@@ -294,6 +294,13 @@ the `Sec-WebSocket-Protocol` header and shutdown requests use an
 public health/build metadata, but they cannot attach to sessions, issue
 commands, or stop the daemon.
 
+Remote proxies that authenticate the client-facing WebSocket upgrade with HTTP
+headers use `NodeHubClient.resolveConnectionHeaders`. The resolver runs for every
+new socket, including reconnects, so hosts can refresh short-lived credentials.
+Header authentication is mutually exclusive with the local hub-token subprotocol;
+the proxy is responsible for authenticating the client and adding any private
+upstream hub credentials.
+
 Local hub rediscovery is limited to managed shared-daemon endpoints obtained
 through discovery or `ensure*HubServer(...)` startup paths. Managed local hubs
 must match both the supported wire protocol and the current Hub build identity;

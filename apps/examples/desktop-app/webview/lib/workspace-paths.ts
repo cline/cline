@@ -13,7 +13,14 @@ export type WorkspacePathSource = {
 	workspaceRoot?: string;
 	startedAt?: string;
 	endedAt?: string;
+	origin?: string;
 };
+
+// Cloud sessions run in the sandbox's synthetic /workspace root — offering it
+// in the local workspace picker (or persisting it) would be meaningless.
+function isLocalWorkspaceSource(session: WorkspacePathSource): boolean {
+	return session.origin !== "cloud";
+}
 
 /** Typed/pasted folder paths in search boxes double as manual path entry. */
 export function looksLikeFolderPath(value: string): boolean {
@@ -143,8 +150,9 @@ export function filterWorkspacePaths(paths: readonly string[]): string[] {
  * the end.
  */
 export function workspacePathsFromSessions(
-	sessions: readonly WorkspacePathSource[],
+	allSessions: readonly WorkspacePathSource[],
 ): string[] {
+	const sessions = allSessions.filter(isLocalWorkspaceSource);
 	const lastActivityByPath = new Map<string, number>();
 	for (const session of sessions) {
 		const normalized = normalizeWorkspacePath(

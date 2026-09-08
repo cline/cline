@@ -9,6 +9,7 @@ import type {
 	ITelemetryService,
 	JsonValue,
 	SessionParticipant,
+	ToolApprovalRequest,
 } from "@cline/shared";
 import { createSessionId } from "@cline/shared";
 import type {
@@ -30,6 +31,9 @@ import {
 
 export type PendingApproval = {
 	sessionId: string;
+	request: ToolApprovalRequest;
+	createdAt: number;
+	agendaTaskId?: string;
 	resolve: (result: { approved: boolean; reason?: string }) => void;
 	/**
 	 * The `approval.requested` event as originally published. Pending
