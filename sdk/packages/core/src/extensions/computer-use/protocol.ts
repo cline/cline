@@ -27,6 +27,9 @@
  * Actions understood by the computer-use backend, mirroring Anthropic's
  * `computer` tool action set (see
  * https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool).
+ * `run_sequence` is a backend extension (not one of Anthropic's actions):
+ * it executes a queue of the other actions back-to-back and answers with a
+ * single screenshot of the final state.
  */
 export type ComputerUseAction =
 	| "screenshot"
@@ -45,7 +48,8 @@ export type ComputerUseAction =
 	| "type"
 	| "scroll"
 	| "wait"
-	| "zoom";
+	| "zoom"
+	| "run_sequence";
 
 /**
  * Internal query (not one of Anthropic's `computer` tool actions) used to
@@ -76,7 +80,9 @@ export interface ComputerUseDisplayInfo {
 /** A single [x, y] pixel coordinate in the (possibly scaled) display space. */
 export type ComputerUseCoordinate = readonly [number, number];
 
-/** Request envelope sent from Cline to the computer-use backend, one per line. */
+/**
+ * Request envelope sent from Cline to the computer-use backend, one per line.
+ */
 export interface ComputerUseRequest {
 	/** Monotonically increasing id used to match responses to requests. */
 	id: number;
@@ -103,7 +109,27 @@ export interface ComputerUseRequest {
 	scrollAmount?: number;
 	/** Region [x, y, width, height] for "zoom". */
 	region?: readonly [number, number, number, number];
+	/**
+	 * Steps for "run_sequence": each is one action (never another
+	 * run_sequence) executed back-to-back; the response is one screenshot of
+	 * the final state. Items are id-less: the backend assigns each a
+	 * sequence-local id before execution.
+	 */
+	actions?: ComputerUseSequenceItem[];
+	/**
+	 * Click guard for click actions: [x, y, width, height] of a region that
+	 * must look unchanged since the last screenshot the backend returned. If
+	 * it changed, the click is aborted and a fresh screenshot is returned.
+	 */
+	expectUnchanged?: readonly [number, number, number, number];
 }
+
+/**
+ * One step of a "run_sequence" request: any action except another
+ * run_sequence (nesting is rejected server-side), without the envelope id —
+ * the backend assigns sequence-local ids.
+ */
+export type ComputerUseSequenceItem = Omit<ComputerUseRequest, "id">;
 
 /** A single image returned by the backend (typically a screenshot). */
 export interface ComputerUseImage {
