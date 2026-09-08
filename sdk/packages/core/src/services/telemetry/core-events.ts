@@ -391,12 +391,35 @@ export function identifyAccount(
 	});
 }
 
+/**
+ * Restore anonymous process identity after an account signs out.
+ *
+ * Account properties are explicitly set to undefined so they replace values
+ * previously merged into a long-lived telemetry service. Implementations
+ * remove undefined attributes before export.
+ */
+export function clearAccountTelemetryIdentity(
+	telemetry: ITelemetryService | undefined,
+	anonymousDistinctId?: string,
+): void {
+	telemetry?.setDistinctId(anonymousDistinctId?.trim() || undefined);
+	telemetry?.updateCommonProperties({
+		user_id: undefined,
+		account_id: undefined,
+		account_email: undefined,
+		provider: undefined,
+		organization_id: undefined,
+		organization_name: undefined,
+		member_id: undefined,
+	});
+}
+
 export function captureTaskCreated(
 	telemetry: ITelemetryService | undefined,
 	properties: {
 		ulid: string;
-		apiProvider?: string;
-		openAiCompatibleDomain?: string;
+		provider?: string;
+		model?: string;
 	} & Partial<TelemetryAgentIdentityProperties>,
 ): void {
 	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.CREATED, properties);
@@ -406,8 +429,8 @@ export function captureTaskRestarted(
 	telemetry: ITelemetryService | undefined,
 	properties: {
 		ulid: string;
-		apiProvider?: string;
-		openAiCompatibleDomain?: string;
+		provider?: string;
+		model?: string;
 	} & Partial<TelemetryAgentIdentityProperties>,
 ): void {
 	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.RESTARTED, properties);
@@ -431,7 +454,7 @@ export function captureTaskCompleted(
 	properties: {
 		ulid: string;
 		provider?: string;
-		modelId?: string;
+		model?: string;
 		mode?: string;
 		durationMs?: number;
 		source?: TaskCompletedSource;
