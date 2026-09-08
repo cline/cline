@@ -117,6 +117,8 @@ export interface SessionPersistenceAdapter {
 		limit: number;
 		parentSessionId?: string;
 		status?: string;
+		/** Only root sessions: excludes subagent and team-task child rows. */
+		rootOnly?: boolean;
 	}): Promise<SessionRow[]>;
 	updateSession(
 		input: PersistedSessionUpdateInput,
