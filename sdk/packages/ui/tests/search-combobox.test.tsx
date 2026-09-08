@@ -170,7 +170,7 @@ describe("SearchCombobox", () => {
 		expect(onValueChange).not.toHaveBeenCalled();
 	});
 
-	it("renders section headers and badges, and flattens while searching", async () => {
+	it("renders section headers and badges, and keeps matching sections while searching", async () => {
 		const sectionedOptions = [
 			{
 				badge: "NEW",
@@ -221,7 +221,9 @@ describe("SearchCombobox", () => {
 			search?.dispatchEvent(new Event("input", { bubbles: true }));
 		});
 		const searchedPanel = container.querySelector('[role="dialog"]');
+		// Sections without matches drop out; the matching one keeps its header.
 		expect(searchedPanel?.textContent).not.toContain("Recommended");
+		expect(searchedPanel?.textContent).toContain("Free");
 		expect(searchedPanel?.textContent).toContain("DeepSeek V4 Flash");
 		// Options remain searchable by id, and label matches are highlighted.
 		expect(
