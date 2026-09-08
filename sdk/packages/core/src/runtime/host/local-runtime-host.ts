@@ -556,10 +556,25 @@ export class LocalRuntimeHost implements RuntimeHost {
 			invokeBackendOptional: (method: string, ...args: unknown[]) =>
 				this.invokeOptional(method, ...args),
 		};
+		// A resumed session keeps the provenance it was initiated with
+		// (automation trigger, import source): the start input's metadata
+		// always carries a default "user" origin, which would otherwise
+		// overwrite the stored one on the next metadata write. An explicit
+		// mode on the start input replaces the stored origin entirely.
+		const resumedOrigin = readSessionHistoryOriginMetadata(
+			resumedArtifacts?.manifest.metadata,
+		);
+		const sessionOrigin = readSessionHistoryOriginMetadata(
+			withSessionHistoryOriginMetadata(startInput.sessionMetadata, {
+				mode: startInput.mode ?? resumedOrigin?.mode,
+				trigger: startInput.mode ? undefined : resumedOrigin?.trigger,
+			}),
+		);
 		bootstrap = await prepareLocalRuntimeBootstrap({
 			input: startInput,
 			localRuntime: input.localRuntime,
 			sessionId,
+			sessionOrigin,
 			providerSettingsManager: this.providerSettingsManager,
 			defaultTelemetry: this.defaultTelemetry,
 			defaultLogger: this.defaultLogger,
@@ -607,13 +622,6 @@ export class LocalRuntimeHost implements RuntimeHost {
 				await this.persistSessionMetadata(sessionId, () => metadata);
 			},
 		});
-		// A resumed session keeps the provenance it was initiated with
-		// (automation trigger, import source): the start input's metadata
-		// always carries a default "user" origin, which would otherwise
-		// overwrite the stored one on the next metadata write.
-		const resumedOrigin = readSessionHistoryOriginMetadata(
-			resumedArtifacts?.manifest.metadata,
-		);
 		const initialSessionMetadata = withSessionHistoryOriginMetadata(
 			withSessionGitMetadata(
 				{
@@ -623,8 +631,8 @@ export class LocalRuntimeHost implements RuntimeHost {
 				bootstrap.gitState,
 			),
 			{
-				mode: startInput.mode ?? resumedOrigin?.mode,
-				trigger: resumedOrigin?.trigger,
+				mode: sessionOrigin?.mode,
+				trigger: sessionOrigin?.trigger,
 				version: bootstrap.config.extensionContext?.client?.version,
 			},
 		);

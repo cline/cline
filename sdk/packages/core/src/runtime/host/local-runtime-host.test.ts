@@ -1633,8 +1633,8 @@ describe("LocalRuntimeHost", () => {
 		await git.addRemote("origin", "https://example.com/imported.git");
 
 		const sessionId = "sess-imported-resume";
-		const manifest: SessionManifest = {
-			...createManifest(sessionId),
+		const importedManifest = (id: string): SessionManifest => ({
+			...createManifest(id),
 			source: SessionSource.DESKTOP,
 			cwd: workspaceRoot,
 			workspace_root: workspaceRoot,
@@ -1642,7 +1642,7 @@ describe("LocalRuntimeHost", () => {
 				title: "Imported from Claude Code",
 				sessionHistoryOrigin: { mode: "import", trigger: "claude-code" },
 			},
-		};
+		});
 		const updateSession = vi.fn().mockResolvedValue({ updated: true });
 		const sessionService = {
 			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
@@ -1650,7 +1650,7 @@ describe("LocalRuntimeHost", () => {
 			persistSessionMessages: vi.fn(),
 			updateSession,
 			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
-			readSessionManifest: vi.fn().mockReturnValue(manifest),
+			readSessionManifest: vi.fn().mockImplementation(importedManifest),
 			writeSessionManifest: vi.fn(),
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
@@ -1698,6 +1698,32 @@ describe("LocalRuntimeHost", () => {
 					git: expect.objectContaining({
 						url: "https://example.com/imported.git",
 					}),
+				}),
+			}),
+		);
+
+		// An explicit mode on the start input replaces the stored origin as a
+		// whole, so a stale trigger never pairs with the new mode.
+		const overrideSessionId = "sess-imported-resume-override";
+		updateSession.mockClear();
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({
+					sessionId: overrideSessionId,
+					cwd: workspaceRoot,
+					workspaceRoot,
+				}),
+				mode: "automation",
+				interactive: true,
+				initialMessages: [{ role: "user", content: "imported prompt" }],
+				sessionMetadata: { sessionHistoryOrigin: { mode: "user" } },
+			}),
+		);
+		expect(updateSession).toHaveBeenCalledWith(
+			expect.objectContaining({
+				sessionId: overrideSessionId,
+				metadata: expect.objectContaining({
+					sessionHistoryOrigin: { mode: "automation" },
 				}),
 			}),
 		);
@@ -2907,7 +2933,12 @@ describe("LocalRuntimeHost", () => {
 			agentConfig?.consumePendingUserMessage?.(),
 		);
 		expect(consumed).toBe('<user_input mode="plan">steer this</user_input>');
-		expect(agentConfig?.telemetry).toBe(telemetry);
+		// The agent receives a session-scoped view over the host telemetry.
+		const capture = vi.spyOn(telemetry, "capture");
+		agentConfig?.telemetry?.capture({ event: "test.event", properties: {} });
+		expect(capture).toHaveBeenCalledWith(
+			expect.objectContaining({ event: "test.event" }),
+		);
 	});
 
 	it("preserves pending prompts through an interactive abort and drains them in order", async () => {
