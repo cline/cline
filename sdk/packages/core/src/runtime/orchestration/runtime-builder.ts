@@ -150,9 +150,11 @@ export function createTeamName(): string {
 function resolveModelSupportsImages(
 	config: Pick<AgentConfig, "modelId" | "knownModels" | "providerConfig">,
 ): boolean | undefined {
-	const known =
-		config.knownModels ?? resolveKnownModelsFromConfig(config as AgentConfig);
-	const modelInfo = known?.[config.modelId];
+	let modelInfo = config.knownModels?.[config.modelId];
+	if (!modelInfo) {
+		modelInfo =
+			resolveKnownModelsFromConfig(config as AgentConfig)?.[config.modelId];
+	}
 	return modelInfo ? modelSupportsImageInput(modelInfo) : undefined;
 }
 
