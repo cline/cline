@@ -1,9 +1,11 @@
 import type {
+	ClientContext,
 	HubCommandEnvelope,
 	HubCommandInput,
 	HubReplyEnvelope,
 	JsonValue,
 	ToolApprovalRequest,
+	UserContext,
 } from "@cline/shared";
 import {
 	createSessionId,
@@ -45,6 +47,57 @@ import {
 } from "./context";
 
 const CAPABILITY_OWNER_METADATA_KEY = "hubCapabilityOwnerClientId";
+
+function readHubContextString(
+	record: Record<string, unknown> | undefined,
+	key: string,
+): string | undefined {
+	const candidate = record?.[key];
+	return typeof candidate === "string" && candidate.trim()
+		? candidate.trim()
+		: undefined;
+}
+
+/** Parse the serializable subset of ExtensionContext carried by Hub clients. */
+export function readHubClientContext(
+	value: unknown,
+): ClientContext | undefined {
+	const record = asPlainRecord(value);
+	const name = typeof record?.name === "string" ? record.name.trim() : "";
+	if (!name) return undefined;
+	const version = readHubContextString(record, "version");
+	const platform = readHubContextString(record, "platform");
+	const platformVersion = readHubContextString(record, "platformVersion");
+	return {
+		name,
+		...(version ? { version } : {}),
+		...(platform ? { platform } : {}),
+		...(platformVersion ? { platformVersion } : {}),
+		...(typeof record?.isMultiRoot === "boolean"
+			? { isMultiRoot: record.isMultiRoot }
+			: {}),
+	};
+}
+
+/** Parse authenticated identity separately from the transport-neutral config. */
+export function readHubUserContext(value: unknown): UserContext | undefined {
+	const record = asPlainRecord(value);
+	const distinctId = readHubContextString(record, "distinctId");
+	const rawAccountId = record?.accountId;
+	const accountId =
+		rawAccountId === null ? null : readHubContextString(record, "accountId");
+	const email = readHubContextString(record, "email");
+	const organizationId = readHubContextString(record, "organizationId");
+	if (!distinctId && accountId === undefined && !email && !organizationId) {
+		return undefined;
+	}
+	return {
+		...(distinctId ? { distinctId } : {}),
+		...(accountId !== undefined ? { accountId } : {}),
+		...(email ? { email } : {}),
+		...(organizationId ? { organizationId } : {}),
+	};
+}
 
 async function deleteSessionAndCleanDerivedState(
 	ctx: HubTransportContext,
@@ -237,6 +290,8 @@ export async function handleSessionCreate(
 		payload.runtimeOptions && typeof payload.runtimeOptions === "object"
 			? (payload.runtimeOptions as Record<string, unknown>)
 			: {};
+	const clientContext = readHubClientContext(runtimeOptions.clientContext);
+	const userContext = readHubUserContext(runtimeOptions.userContext);
 	const initialCompactionState = parseSessionCompactionState(
 		payload.initialCompactionState,
 	);
@@ -341,6 +396,15 @@ export async function handleSessionCreate(
 			},
 			configExtensions,
 			...clientContributionRuntime.localRuntime,
+			...(clientContext || userContext
+				? {
+						extensionContext: {
+							...clientContributionRuntime.localRuntime.extensionContext,
+							...(clientContext ? { client: clientContext } : {}),
+							...(userContext ? { user: userContext } : {}),
+						},
+					}
+				: {}),
 			extensions: [
 				...(ctx.sessionExtensions ?? []),
 				...(clientContributionRuntime.localRuntime.extensions ?? []),
@@ -519,6 +583,8 @@ export async function handleSessionRestore(
 			payload.runtimeOptions && typeof payload.runtimeOptions === "object"
 				? (payload.runtimeOptions as Record<string, unknown>)
 				: {};
+		const clientContext = readHubClientContext(runtimeOptions.clientContext);
+		const userContext = readHubUserContext(runtimeOptions.userContext);
 		const initialCompactionState = parseSessionCompactionState(
 			payload.initialCompactionState,
 		);
@@ -623,6 +689,15 @@ export async function handleSessionRestore(
 						},
 						configExtensions,
 						...clientContributionRuntime.localRuntime,
+						...(clientContext || userContext
+							? {
+									extensionContext: {
+										...clientContributionRuntime.localRuntime.extensionContext,
+										...(clientContext ? { client: clientContext } : {}),
+										...(userContext ? { user: userContext } : {}),
+									},
+								}
+							: {}),
 						extensions: [
 							...(ctx.sessionExtensions ?? []),
 							...(clientContributionRuntime.localRuntime.extensions ?? []),
