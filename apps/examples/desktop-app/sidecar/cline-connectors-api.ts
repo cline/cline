@@ -108,11 +108,15 @@ async function requestConnectorsApi<T>(
 		parsed = undefined;
 	}
 	if (!response.ok) {
+		// The live backend's error envelope is `{"error": "..."}` (confirmed
+		// against staging); `message` is kept as a fallback in case a future
+		// route uses that shape instead.
+		const body = typeof parsed === "object" && parsed !== null ? parsed : {};
 		const message =
-			(typeof parsed === "object" &&
-				parsed !== null &&
-				typeof (parsed as { message?: unknown }).message === "string" &&
-				(parsed as { message: string }).message) ||
+			(typeof (body as { error?: unknown }).error === "string" &&
+				(body as { error: string }).error) ||
+			(typeof (body as { message?: unknown }).message === "string" &&
+				(body as { message: string }).message) ||
 			`Cline API returned HTTP ${response.status} for ${method} ${path}`;
 		throw new ConnectorsApiError(message, response.status);
 	}
