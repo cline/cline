@@ -3,6 +3,7 @@ import { createComputerUseTool } from "./tool";
 
 const PORT_ENV_VAR = "CLINE_COMPUTER_USE_PORT";
 const HOST_ENV_VAR = "CLINE_COMPUTER_USE_HOST";
+const BACKEND_COMMAND_ENV_VAR = "CLINE_COMPUTER_USE_BACKEND_COMMAND";
 
 function parsePositiveInt(value: string | undefined): number | undefined {
 	if (!value) {
@@ -26,6 +27,18 @@ export function resolveComputerUseTargetFromEnv(
 		return undefined;
 	}
 	return { host: env[HOST_ENV_VAR] || undefined, port };
+}
+
+/**
+ * Reads the shell command that starts the computer-use backend, for the
+ * backend restart capability. Set together with `CLINE_COMPUTER_USE_PORT`;
+ * the backend must end up answering on that target.
+ */
+export function resolveComputerUseBackendCommandFromEnv(
+	env: NodeJS.ProcessEnv = process.env,
+): string | undefined {
+	const command = env[BACKEND_COMMAND_ENV_VAR]?.trim();
+	return command || undefined;
 }
 
 /**

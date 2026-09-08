@@ -157,7 +157,7 @@ describe("createInteractiveComputerUser", () => {
 		expect(result).toBeUndefined();
 	});
 
-	it("exposes the four driver tools when enabled and configured", async () => {
+	it("exposes the driver tools when enabled and configured", async () => {
 		const started = await startStubBackend();
 		server = started.server;
 		destroyConnections = started.destroyConnections;
@@ -177,13 +177,41 @@ describe("createInteractiveComputerUser", () => {
 		expect(result?.driverTools.map((tool) => tool.name).sort()).toEqual([
 			"computer_user_interrupt",
 			"computer_user_message",
+			"computer_user_restart",
 			"computer_user_start",
 			"computer_user_status",
+			"computer_user_transcript",
 		]);
 		// The raw computer tool must not be among the driver's tools.
 		expect(result?.driverTools.some((tool) => tool.name === "computer")).toBe(
 			false,
 		);
+		await result?.dispose();
+	});
+
+	it("adds the backend restart tool only when a launch command is configured", async () => {
+		const started = await startStubBackend();
+		server = started.server;
+		destroyConnections = started.destroyConnections;
+
+		const result = await createInteractiveComputerUser({
+			config: makeConfig(),
+			providerSettingsManager: makeSettings({
+				apiKey: "sk-ant-x",
+				model: "claude-sonnet-4-6",
+			}),
+			notifyDriver: () => {},
+			env: {
+				CLINE_COMPUTER_USE_PORT: String(started.port),
+				CLINE_COMPUTER_USE_BACKEND_COMMAND: "echo start-the-backend",
+			} as NodeJS.ProcessEnv,
+		});
+		expect(result).toBeDefined();
+		expect(
+			result?.driverTools
+				.map((tool) => tool.name)
+				.includes("computer_user_restart_backend"),
+		).toBe(true);
 		await result?.dispose();
 	});
 

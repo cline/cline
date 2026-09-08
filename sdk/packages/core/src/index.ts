@@ -1009,7 +1009,10 @@ export * from "./remote/remote-environments";
 export { ensureLoginShellPath } from "./remote/shell-path";
 export { isClineAccountFeatureEnabled } from "./services/feature-flags/cline-account-feature-flags";
 export {
+	ComputerBackendRestart,
 	ComputerUseClient,
+	type ComputerBackendEnsureResult,
+	type ComputerBackendRestartOptions,
 	type ComputerUseClientEvent,
 	type ComputerUseClientObserver,
 	type ComputerUseClientOptions,
@@ -1025,6 +1028,7 @@ export {
 	GET_DISPLAY_INFO_ACTION,
 	isComputerUseResponse,
 	PUBLISH_EVENT_ACTION,
+	resolveComputerUseBackendCommandFromEnv,
 	resolveComputerUseTargetFromEnv,
 	type ComputerUseToolOptions,
 } from "./extensions/computer-use";
@@ -1042,6 +1046,7 @@ export {
 	createJournalEventSink,
 	createTranscriptRecordingHooks,
 	type JournalPublishTransport,
+	type TranscriptRecordingTee,
 } from "./extensions/computer-observability";
 export {
 	COMPUTER_USER_PROMPT_VERSION,
@@ -1053,10 +1058,13 @@ export {
 	type ComputerUserStatus,
 	createComputerUserCollaborationTools,
 	createComputerUserDriverTools,
+	type ComputerUserDriverToolOptions,
 	type DriverNotifier,
 	type DriverQuestion,
 	type HelperNote,
 	type HelperRun,
+	ComputerUserTranscriptLog,
+	type ComputerUserTranscriptEntry,
 } from "./extensions/computer-user";
 export {
 	applyClineFeaturedModels,

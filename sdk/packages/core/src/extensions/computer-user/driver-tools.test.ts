@@ -4,7 +4,14 @@ import {
 	ComputerUserCoordinator,
 	type ComputerUserSessionHost,
 } from "./coordinator";
-import { createComputerUserDriverTools } from "./driver-tools";
+import {
+	type ComputerBackendRestartCapability,
+	createComputerUserDriverTools,
+} from "./driver-tools";
+import {
+	type ComputerUserTranscriptEntry,
+	ComputerUserTranscriptLog,
+} from "./transcript-log";
 
 const ctx: AgentToolContext = {
 	agentId: "driver-agent",
@@ -168,5 +175,213 @@ describe("computer-user driver tools", () => {
 		await expect(
 			byName.get("computer_user_start")?.execute({ task: "two" }, ctx),
 		).rejects.toThrow(/busy/);
+	});
+
+	it("restart returns the helper to uninitialized and the next start binds a fresh session", async () => {
+		const calls: string[] = [];
+		let nextSession = 0;
+		const host: ComputerUserSessionHost = {
+			start: async () => {
+				nextSession += 1;
+				calls.push(`start:${nextSession}`);
+				return { sessionId: `helper-session-${nextSession}` };
+			},
+			send: (input) => {
+				if (input.delivery === "steer") {
+					return Promise.resolve(undefined);
+				}
+				return new Promise(() => {});
+			},
+			abort: async (sessionId) => {
+				calls.push(`abort:${sessionId}`);
+			},
+			stop: async (sessionId) => {
+				calls.push(`stop:${sessionId}`);
+			},
+		};
+		const coordinator = new ComputerUserCoordinator({
+			host,
+			helperConfig: {},
+			notifyDriver: () => {},
+		});
+		const tools = createComputerUserDriverTools(coordinator);
+		const byName = new Map(tools.map((tool) => [tool.name, tool]));
+
+		await byName.get("computer_user_start")?.execute({ task: "one" }, ctx);
+		expect(calls).toEqual(["start:1"]);
+
+		const output = (await byName
+			.get("computer_user_restart")
+			?.execute({ reason: "degraded" }, ctx)) as { status: string };
+		expect(output.status).toBe("restarted");
+		expect(calls).toEqual([
+			"start:1",
+			"abort:helper-session-1",
+			"stop:helper-session-1",
+		]);
+		expect(coordinator.getState().kind).toBe("uninitialized");
+
+		const second = (await byName
+			.get("computer_user_start")
+			?.execute({ task: "two" }, ctx)) as { sessionId: string };
+		expect(second.sessionId).toBe("helper-session-2");
+		expect(calls).toEqual([
+			"start:1",
+			"abort:helper-session-1",
+			"stop:helper-session-1",
+			"start:2",
+		]);
+	});
+
+	it("restart ignores a stale run settlement, so a wedged turn cannot resurrect state", async () => {
+		const pendingSends: Array<{
+			resolve: (result: AgentResult | undefined) => void;
+		}> = [];
+		const host: ComputerUserSessionHost = {
+			start: async () => ({ sessionId: "helper-session" }),
+			send: (input) => {
+				if (input.delivery === "steer") {
+					return Promise.resolve(undefined);
+				}
+				return new Promise((resolve) => {
+					pendingSends.push({ resolve });
+				});
+			},
+			abort: async () => {},
+			stop: async () => {},
+		};
+		const coordinator = new ComputerUserCoordinator({
+			host,
+			helperConfig: {},
+			notifyDriver: () => {},
+		});
+		const tools = createComputerUserDriverTools(coordinator);
+		const byName = new Map(tools.map((tool) => [tool.name, tool]));
+
+		await byName.get("computer_user_start")?.execute({ task: "one" }, ctx);
+		await byName.get("computer_user_restart")?.execute({}, ctx);
+		expect(coordinator.getState().kind).toBe("uninitialized");
+
+		// The aborted run settles late; the reset state must survive it.
+		pendingSends[0]?.resolve(makeResult());
+		await new Promise((resolve) => setTimeout(resolve, 20));
+		expect(coordinator.getState().kind).toBe("uninitialized");
+	});
+
+	it("restart reports not_restarted once disposed", async () => {
+		const { byName, coordinator } = makeHarness();
+		await coordinator.dispose();
+		const output = (await byName
+			.get("computer_user_restart")
+			?.execute({}, ctx)) as { status: string };
+		expect(output.status).toBe("not_restarted");
+	});
+
+	it("transcript pages entries through the coordinator's log with sinceSeq", async () => {
+		const transcriptLog = new ComputerUserTranscriptLog();
+		const host: ComputerUserSessionHost = {
+			start: async () => ({ sessionId: "helper-session" }),
+			send: async () => undefined,
+			abort: async () => {},
+			stop: async () => {},
+		};
+		const coordinator = new ComputerUserCoordinator({
+			host,
+			helperConfig: {},
+			notifyDriver: () => {},
+			transcriptLog,
+		});
+		const tools = createComputerUserDriverTools(coordinator);
+		const transcriptTool = tools.find(
+			(tool) => tool.name === "computer_user_transcript",
+		);
+		expect(transcriptTool).toBeDefined();
+
+		const append = (text: string) => {
+			transcriptLog.append({
+				version: 1,
+				artifactId: "art_test",
+				eventId: `evt_${text}`,
+				clientSequence: 1,
+				occurredAt: new Date().toISOString(),
+				source: { kind: "computer_user", sessionId: "helper-session" },
+				type: "transcript.message_committed",
+				payload: { role: "assistant", text },
+			});
+		};
+		append("first");
+		append("second");
+
+		const first = (await transcriptTool?.execute({}, ctx)) as {
+			entries: ComputerUserTranscriptEntry[];
+			latestSeq: number;
+		};
+		expect(first.entries.map((entry) => entry.text)).toEqual([
+			"first",
+			"second",
+		]);
+
+		append("third");
+		const next = (await transcriptTool?.execute(
+			{ sinceSeq: first.latestSeq },
+			ctx,
+		)) as { entries: ComputerUserTranscriptEntry[] };
+		expect(next.entries.map((entry) => entry.text)).toEqual(["third"]);
+	});
+
+	it("transcript reports when recording is not enabled", async () => {
+		const { byName } = makeHarness();
+		const output = (await byName
+			.get("computer_user_transcript")
+			?.execute({}, ctx)) as { entries: unknown[]; note: string };
+		expect(output.entries).toEqual([]);
+		expect(output.note).toContain("not enabled");
+	});
+
+	it("restarts the backend only when the capability is wired in", async () => {
+		const { byName } = makeHarness();
+		expect(byName.has("computer_user_restart_backend")).toBe(false);
+
+		const results: string[] = [];
+		const capability: ComputerBackendRestartCapability = {
+			budgetMs: 1_000,
+			ensureRunning: async () => {
+				const status = results.length === 0 ? "started" : "already_running";
+				results.push(status);
+				return { status } as
+					| { status: "started" }
+					| { status: "already_running" };
+			},
+			dispose: async () => {},
+		};
+		const host: ComputerUserSessionHost = {
+			start: async () => ({ sessionId: "helper-session" }),
+			send: async () => undefined,
+			abort: async () => {},
+			stop: async () => {},
+		};
+		const coordinator = new ComputerUserCoordinator({
+			host,
+			helperConfig: {},
+			notifyDriver: () => {},
+		});
+		const tools = createComputerUserDriverTools(coordinator, {
+			backendRestart: capability,
+		});
+		const backendTool = tools.find(
+			(tool) => tool.name === "computer_user_restart_backend",
+		);
+		expect(backendTool).toBeDefined();
+		expect(backendTool?.timeoutMs).toBe(61_000);
+
+		const started = (await backendTool?.execute({}, ctx)) as {
+			status: string;
+		};
+		expect(started.status).toBe("started");
+		const second = (await backendTool?.execute({}, ctx)) as {
+			status: string;
+		};
+		expect(second.status).toBe("already_running");
+		expect(backendTool?.retryable).toBe(false);
 	});
 });
