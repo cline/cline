@@ -113,6 +113,15 @@ export type UseSessionHistoryOptions = {
 // pages 10 at a time, so the mount fetch (and every 12s poll after it) only
 // needs enough rows for the first few pages. Older pages are fetched on demand.
 const INITIAL_HISTORY_FETCH_LIMIT = 50;
+// Discovery rows carry no token or cost totals; those are summed from each
+// session's transcript in a second round trip. Only the rows that are on
+// screen get that read: the first page of the sessions view (and the
+// sidebar's first threads) by default, plus whatever page a view asks for
+// via requestUsage as the user moves through older sessions.
+const USAGE_HYDRATION_WINDOW = 10;
+// Each usage read parses a whole transcript in the sidecar, so a page of rows
+// is drained a few at a time instead of all at once.
+const MAX_CONCURRENT_USAGE_FETCHES = 4;
 const HISTORY_REFRESH_INTERVAL_MS = 12_000;
 const MIN_EVENT_HISTORY_REFRESH_INTERVAL_MS = 2_000;
 const HISTORY_EVENT_REFRESH_DELAY_MS = 1_000;
@@ -541,6 +550,12 @@ export function useSessionHistory({
 	const [unreadSessionIds, setUnreadSessionIds] = useState<Set<string>>(
 		() => new Set(),
 	);
+	// Sessions a view has asked usage for beyond the default window (the
+	// sessions view reports its visible page). Ids accumulate; each is read
+	// once and re-read only while the session is still running.
+	const [requestedUsageIds, setRequestedUsageIds] = useState<Set<string>>(
+		() => new Set(),
+	);
 	// Sessions that schedule executions report as their own, keyed by session
 	// id. Scheduled runs executed by the local hub do not reliably carry the
 	// "hub-schedule" origin trigger in their session metadata (the runtime
@@ -882,22 +897,52 @@ export function useSessionHistory({
 		};
 	}, [scheduleRefresh]);
 
+	const requestUsage = useCallback((sessionIds: readonly string[]) => {
+		setRequestedUsageIds((current) => {
+			let next: Set<string> | null = null;
+			for (const raw of sessionIds) {
+				const sessionId = raw?.trim();
+				if (!sessionId || current.has(sessionId) || next?.has(sessionId)) {
+					continue;
+				}
+				next ??= new Set(current);
+				next.add(sessionId);
+			}
+			return next ?? current;
+		});
+	}, []);
+
 	useEffect(() => {
-		const recent = sessions
-			.filter((session) => session.sessionId !== activeSessionId)
-			.slice(0, 4);
+		// The active session is skipped: its transcript is still being written
+		// and the chat tracks its usage live.
+		const inactiveSessions = sessions.filter(
+			(session) => session.sessionId !== activeSessionId,
+		);
+		const targets = inactiveSessions.slice(0, USAGE_HYDRATION_WINDOW);
+		if (requestedUsageIds.size > 0) {
+			const queued = new Set(targets.map((session) => session.sessionId));
+			for (const session of inactiveSessions) {
+				if (
+					requestedUsageIds.has(session.sessionId) &&
+					!queued.has(session.sessionId)
+				) {
+					targets.push(session);
+					queued.add(session.sessionId);
+				}
+			}
+		}
 		let cancelled = false;
 		const timer = window.setTimeout(() => {
-			for (const session of recent) {
-				if (cancelled) {
-					return;
-				}
+			// Returns the in-flight read, or null when the row needs nothing.
+			const startUsageFetch = (
+				session: SessionHistoryItem,
+			): Promise<unknown> | null => {
 				const sessionId = session.sessionId;
 				if (!sessionId) {
-					continue;
+					return null;
 				}
 				if (usageLoadingRef.current.has(sessionId)) {
-					continue;
+					return null;
 				}
 				const existing = threadsRef.current.find(
 					(item) => item.id === sessionId,
@@ -912,10 +957,10 @@ export function useSessionHistory({
 					session.status === "running" ||
 					lastHydratedStatus !== session.status;
 				if (!shouldFetch) {
-					continue;
+					return null;
 				}
 				usageLoadingRef.current.add(sessionId);
-				void desktopClient
+				return desktopClient
 					.invoke<SessionMessage[]>("read_session_messages", {
 						sessionId,
 						maxMessages: 1200,
@@ -986,13 +1031,40 @@ export function useSessionHistory({
 						usageHydratedStatusRef.current.set(sessionId, session.status);
 						usageLoadingRef.current.delete(sessionId);
 					});
-			}
+			};
+
+			const queue = [...targets];
+			let inFlight = 0;
+			const pump = () => {
+				while (
+					!cancelled &&
+					inFlight < MAX_CONCURRENT_USAGE_FETCHES &&
+					queue.length > 0
+				) {
+					const session = queue.shift();
+					if (!session) {
+						break;
+					}
+					const pending = startUsageFetch(session);
+					if (!pending) {
+						continue;
+					}
+					inFlight += 1;
+					void pending.finally(() => {
+						inFlight -= 1;
+						pump();
+					});
+				}
+			};
+			pump();
 		}, 800);
 		return () => {
+			// Rows still queued are picked up again by the next run; reads
+			// already in flight finish and land on their threads.
 			cancelled = true;
 			window.clearTimeout(timer);
 		};
-	}, [activeSessionId, sessions]);
+	}, [activeSessionId, requestedUsageIds, sessions]);
 
 	useEffect(() => {
 		const handleTitleUpdated = (event: Event) => {
@@ -1617,6 +1689,7 @@ export function useSessionHistory({
 		pendingAction,
 		refreshSessions,
 		renameThread,
+		requestUsage,
 		setThreadPinned,
 		deleteThread,
 		forkThread,
