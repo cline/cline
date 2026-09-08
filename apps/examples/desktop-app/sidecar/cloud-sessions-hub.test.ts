@@ -512,6 +512,49 @@ describe("CloudSessionManager Hub runtime", () => {
 		).toBe(true);
 	});
 
+	it("waits for reconnect lookup before creating an inner session for a send", async () => {
+		const { ctx } = createContext();
+		const hub = new FakeHubClient();
+		let resolveHeaders: (() => unknown) | undefined;
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: (options) => {
+				resolveHeaders = options.resolveConnectionHeaders;
+				return hub as never;
+			},
+		});
+		await manager.list();
+		await manager.attach("ses-outer");
+		await resolveHeaders?.();
+		let releaseLookup!: () => void;
+		const lookupPending = new Promise<void>((resolve) => {
+			releaseLookup = resolve;
+		});
+		hub.commandHook = async (command) => {
+			if (command === "session.list") await lookupPending;
+		};
+		hub.listedSessions = [{ sessionId: "inner-replacement", updatedAt: 30 }];
+		await resolveHeaders?.();
+		const send = manager.send("ses-outer", "during reconnect");
+		// Let the send reach the connection while its root lookup is blocked.
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		const createdDuringLookup = hub.commands.some(
+			(entry) => entry.command === "session.create",
+		);
+		releaseLookup();
+		await send;
+		await manager.dispose();
+		expect(createdDuringLookup).toBe(false);
+		expect(hub.commands).toContainEqual(
+			expect.objectContaining({
+				command: "session.send_input",
+				sessionId: "inner-replacement",
+			}),
+		);
+	});
+
 	it("refreshes the completion time for a later turn completed while disconnected", async () => {
 		const { ctx } = createContext();
 		const hub = new FakeHubClient();

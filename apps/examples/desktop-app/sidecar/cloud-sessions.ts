@@ -2507,6 +2507,8 @@ export class CloudSessionManager {
 		}
 		const existing = this.connections.get(outerSessionId);
 		if (existing) {
+			// Reconnect clears the id while looking up the existing root session.
+			if (options.createInner) await existing.reconnectResolution;
 			if (options.createInner && !existing.innerSessionId) {
 				await this.createInnerSession(existing);
 			}
@@ -2515,6 +2517,7 @@ export class CloudSessionManager {
 		const pending = this.connectionPromises.get(outerSessionId);
 		if (pending) {
 			const connection = await pending;
+			if (options.createInner) await connection.reconnectResolution;
 			if (options.createInner && !connection.innerSessionId) {
 				await this.createInnerSession(connection);
 			}
