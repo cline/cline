@@ -163,6 +163,35 @@ function buildCommandSessionConfig(
 	return sessionConfig;
 }
 
+/**
+ * Serializable client identity forwarded to the hub daemon via
+ * `runtimeOptions.client`. `extensionContext` itself is local-only (it holds
+ * live logger/telemetry objects), so the plain-data client descriptor is
+ * transported separately; the daemon rebuilds `extensionContext.client` from
+ * it so traces carry `clientName` / `clientVersion` for every provider —
+ * not only the Cline billing providers that bake `X-CLIENT-*` headers.
+ */
+function buildRuntimeOptionsClientContext(
+	input: StartSessionInput,
+): Record<string, JsonValue> | undefined {
+	const client = input.localRuntime?.extensionContext?.client;
+	const name = client?.name?.trim();
+	if (!name) {
+		return undefined;
+	}
+	return {
+		name,
+		...(client?.version ? { version: client.version } : {}),
+		...(client?.platform ? { platform: client.platform } : {}),
+		...(client?.platformVersion
+			? { platformVersion: client.platformVersion }
+			: {}),
+		...(client?.isMultiRoot !== undefined
+			? { isMultiRoot: client.isMultiRoot }
+			: {}),
+	};
+}
+
 function buildSessionHistoryMetadata(
 	input: StartSessionInput,
 ): Record<string, unknown> {
@@ -870,6 +899,7 @@ export class HubRuntimeHost implements RuntimeHost {
 		);
 		const plannedSessionId =
 			input.config.sessionId?.trim() || createSessionId();
+		const runtimeOptionsClient = buildRuntimeOptionsClientContext(input);
 		const sendCreateCommand = () =>
 			this.client.command("session.create", {
 				workspaceRoot: input.config.workspaceRoot?.trim() || input.config.cwd,
@@ -885,6 +915,7 @@ export class HubRuntimeHost implements RuntimeHost {
 					...(input.localRuntime?.configExtensions
 						? { configExtensions: input.localRuntime.configExtensions }
 						: {}),
+					...(runtimeOptionsClient ? { client: runtimeOptionsClient } : {}),
 				},
 				toolPolicies: toJsonRecord(
 					input.toolPolicies as Record<string, unknown> | undefined,
@@ -980,6 +1011,9 @@ export class HubRuntimeHost implements RuntimeHost {
 				};
 		let plannedSessionId: string | undefined;
 		let startSessionConfig: Record<string, unknown> | undefined;
+		const restoreRuntimeOptionsClient = startConfig
+			? buildRuntimeOptionsClientContext(startConfig)
+			: undefined;
 		if (startConfig) {
 			plannedSessionId =
 				startConfig.config.sessionId?.trim() || createSessionId();
@@ -1023,6 +1057,9 @@ export class HubRuntimeHost implements RuntimeHost {
 												configExtensions:
 													startConfig.localRuntime.configExtensions,
 											}
+										: {}),
+									...(restoreRuntimeOptionsClient
+										? { client: restoreRuntimeOptionsClient }
 										: {}),
 								},
 								toolPolicies: toJsonRecord(

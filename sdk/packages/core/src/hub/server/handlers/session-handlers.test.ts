@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	parseRuntimeOptionsClientContext,
 	readSessionConnectionUpdate,
 	resolveSessionAutoApproveTools,
 	selectSessionTools,
@@ -60,6 +61,38 @@ describe("readSessionConnectionUpdate", () => {
 		expect(updates.reasoningEffort).toBeUndefined();
 		expect(Object.hasOwn(updates, "thinkingBudgetTokens")).toBe(true);
 		expect(updates.thinkingBudgetTokens).toBeUndefined();
+	});
+});
+
+describe("parseRuntimeOptionsClientContext", () => {
+	it("rebuilds the client context from runtimeOptions.client", () => {
+		expect(
+			parseRuntimeOptionsClientContext({
+				name: "cline-cli",
+				version: "3.0.38",
+				platform: "cli",
+				platformVersion: "3.0.38",
+				isMultiRoot: false,
+			}),
+		).toEqual({
+			name: "cline-cli",
+			version: "3.0.38",
+			platform: "cli",
+			platformVersion: "3.0.38",
+			isMultiRoot: false,
+		});
+	});
+
+	it("drops non-string optional fields and requires a name", () => {
+		expect(
+			parseRuntimeOptionsClientContext({ name: "cline-cli", version: 42 }),
+		).toEqual({ name: "cline-cli" });
+		expect(parseRuntimeOptionsClientContext({ version: "1.0.0" })).toBe(
+			undefined,
+		);
+		expect(parseRuntimeOptionsClientContext({ name: "   " })).toBe(undefined);
+		expect(parseRuntimeOptionsClientContext(undefined)).toBe(undefined);
+		expect(parseRuntimeOptionsClientContext("cline-cli")).toBe(undefined);
 	});
 });
 

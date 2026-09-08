@@ -26,6 +26,28 @@ describe("buildDelegatedAgentConfig", () => {
 		expect(config.parentAgentId).toBe("agent-lead");
 	});
 
+	it("preserves the parent client context for trace metadata", () => {
+		const configProvider = createDelegatedAgentConfigProvider({
+			providerId: "anthropic",
+			modelId: "claude-sonnet-4-5",
+			extensionContext: {
+				client: { name: "cline-cli", version: "3.0.38" },
+			},
+		});
+
+		const config = buildDelegatedAgentConfig({
+			kind: "teammate",
+			prompt: "review the diff",
+			tools: [],
+			configProvider,
+		});
+
+		expect(config.extensionContext?.client).toEqual({
+			name: "cline-cli",
+			version: "3.0.38",
+		});
+	});
+
 	it("leaves identity fields undefined when the parent has none", () => {
 		const configProvider = createDelegatedAgentConfigProvider({
 			providerId: "anthropic",
