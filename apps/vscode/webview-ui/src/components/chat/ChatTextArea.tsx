@@ -5,7 +5,7 @@ import { PlanActMode, TogglePlanActModeRequest } from "@shared/proto/cline/state
 import { type SlashCommand } from "@shared/slashCommands"
 import { Mode } from "@shared/storage/types"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import { AtSignIcon, PlusIcon } from "lucide-react"
+import { AtSignIcon, PlusIcon, TriangleAlertIcon } from "lucide-react"
 import type React from "react"
 import { forwardRef, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import DynamicTextArea from "react-textarea-autosize"
@@ -256,15 +256,15 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const unsupportedFileTimerRef = useRef<NodeJS.Timeout | null>(null)
 		const [showDimensionError, setShowDimensionError] = useState(false)
 		const dimensionErrorTimerRef = useRef<NodeJS.Timeout | null>(null)
-		const [showModelImagesError, setShowModelImagesError] = useState(false)
-		const modelImagesErrorTimerRef = useRef<NodeJS.Timeout | null>(null)
 
 		const [fileSearchResults, setFileSearchResults] = useState<SearchResult[]>([])
 		const [searchLoading, setSearchLoading] = useState(false)
 		const [, metaKeyChar] = useMetaKeyDetection(platform)
 		const { selectedProvider, selectedModelId, selectedModelInfo } = useNormalizedApiConfiguration(mode)
-		// Unknown capability data fails open, like core does before the API call.
+		// Images are attached regardless; when the selected model has no image input the thumbnails get a warning
+		// badge and a notice offers to switch models. Unknown capability data fails open, like core does.
 		const modelSupportsImages = selectedModelInfo.supportsImages !== false
+		const imagesUnsupported = selectedImages.length > 0 && !modelSupportsImages
 
 		// Fetch git commits when Git is selected or when typing a hash
 		useEffect(() => {
@@ -852,19 +852,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			}, 3000)
 		}, [])
 
-		// Shown when the user pastes or drops an image while the selected model is text-only.
-		// Without it the image would be attached, then silently replaced by a placeholder before the API call.
-		const showModelImagesErrorMessage = useCallback(() => {
-			setShowModelImagesError(true)
-			if (modelImagesErrorTimerRef.current) {
-				clearTimeout(modelImagesErrorTimerRef.current)
-			}
-			modelImagesErrorTimerRef.current = setTimeout(() => {
-				setShowModelImagesError(false)
-				modelImagesErrorTimerRef.current = null
-			}, 3000)
-		}, [])
-
 		const handlePaste = useCallback(
 			async (e: React.ClipboardEvent) => {
 				const items = e.clipboardData.items
@@ -900,11 +887,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					const [type, subtype] = item.type.split("/")
 					return type === "image" && acceptedTypes.includes(subtype)
 				})
-				if (imageItems.length > 0 && !modelSupportsImages) {
-					e.preventDefault()
-					showModelImagesErrorMessage()
-					return
-				}
 				if (!shouldDisableFilesAndImages && imageItems.length > 0) {
 					e.preventDefault()
 					const imagePromises = imageItems.map((item) => {
@@ -956,7 +938,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			},
 			[
 				shouldDisableFilesAndImages,
-				modelSupportsImages,
 				setSelectedImages,
 				selectedImages,
 				selectedFiles,
@@ -964,7 +945,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				setInputValue,
 				inputValue,
 				showDimensionErrorMessage,
-				showModelImagesErrorMessage,
 			],
 		)
 
@@ -1352,11 +1332,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				return type === "image" && acceptedTypes.includes(subtype)
 			})
 
-			if (imageFiles.length > 0 && !modelSupportsImages) {
-				showModelImagesErrorMessage()
-				return
-			}
-
 			if (shouldDisableFilesAndImages || imageFiles.length === 0) {
 				return
 			}
@@ -1453,13 +1428,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							<span className="text-error font-bold text-xs">Files other than images are currently disabled</span>
 						</div>
 					)}
-					{showModelImagesError && (
-						<div className="absolute inset-2.5 bg-[rgba(var(--vscode-errorForeground-rgb),0.1)] border-2 border-error rounded-xs flex items-center justify-center z-10 pointer-events-none">
-							<span className="text-error font-bold text-xs text-center">
-								The selected model does not support images, so the image was ignored
-							</span>
-						</div>
-					)}
 					{showSlashCommandsMenu && (
 						<div ref={slashCommandsMenuContainerRef}>
 							<SlashCommandMenu
@@ -1542,9 +1510,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						onPaste={handlePaste}
 						onScroll={() => updateHighlights()}
 						onSelect={updateCursorPosition}
-						placeholder={
-							showUnsupportedFileError || showDimensionError || showModelImagesError ? "" : placeholderText
-						}
+						placeholder={showUnsupportedFileError || showDimensionError ? "" : placeholderText}
 						ref={(el) => {
 							if (typeof ref === "function") {
 								ref(el)
@@ -1601,6 +1567,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						<Thumbnails
 							files={selectedFiles}
 							images={selectedImages}
+							imagesUnsupported={imagesUnsupported}
 							onHeightChange={handleThumbnailsHeightChange}
 							setFiles={setSelectedFiles}
 							setImages={setSelectedImages}
@@ -1630,6 +1597,29 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						</div>
 					</div>
 				</div>
+				{imagesUnsupported && (
+					<div
+						className="flex items-center gap-1.5 px-3.5 pb-1.5 text-xs"
+						data-testid="images-unsupported-notice"
+						role="status"
+						style={{ color: "var(--vscode-editorWarning-foreground)" }}>
+						<TriangleAlertIcon className="shrink-0" size={12} />
+						<span className="min-w-0">
+							{selectedModelId} doesn't support images, so{" "}
+							{selectedImages.length === 1 ? "the attached image" : `the ${selectedImages.length} attached images`}{" "}
+							will be ignored.{" "}
+							<a
+								className="underline cursor-pointer"
+								data-testid="images-unsupported-choose-model"
+								onClick={handleModelButtonClick}
+								role="button"
+								tabIndex={0}>
+								Choose an image-capable model
+							</a>{" "}
+							or remove {selectedImages.length === 1 ? "it" : "them"}.
+						</span>
+					</div>
+				)}
 				<div className="flex justify-between items-center -mt-[2px] px-3 pb-2">
 					{/* Always render both components, but control visibility with CSS */}
 					<div className="relative flex-1 min-w-0 h-5">
