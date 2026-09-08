@@ -4,6 +4,7 @@ import { setVscodeHostProviderMock } from "@/test/host-provider-test-utils"
 import "should"
 import * as sinon from "sinon"
 import * as vscode from "vscode"
+import * as getLatestOutputModule from "./get-latest-output"
 import { VscodeTerminalProcess } from "./VscodeTerminalProcess"
 import { TerminalRegistry } from "./VscodeTerminalRegistry"
 
@@ -639,6 +640,73 @@ describe("TerminalProcess (Integration Tests)", () => {
 			;(emitSpy as sinon.SinonSpy).calledWith("completed").should.be.true()
 			// Shell integration worked — the terminal stays reusable
 			;(emitSpy as sinon.SinonSpy).calledWith("unobserved_command").should.be.false()
+		})
+
+		it("should report a silent command with the C marker as a success, not a capture failure", async () => {
+			const terminal = TerminalRegistry.createTerminal().terminal
+			createdTerminals.push(terminal)
+
+			// A command that completes with exit 0 and no output — $null,
+			// git add -A on a clean tree. The C marker proves the read() stream
+			// worked, so the emptiness is genuine (GitHub #13272).
+			const mockExecuteCommand = sandbox.stub().returns({
+				read: () => createMockStream([OSC633_C, OSC633_D]),
+			})
+			sandbox.stub(terminal, "shellIntegration").get(() => ({
+				executeCommand: mockExecuteCommand,
+			}))
+
+			// If the capture-failure fallback fired, it would read the terminal
+			// snapshot and emit a "could not be captured" line.
+			const snapshotStub = sandbox.stub(getLatestOutputModule, "getLatestTerminalOutput").resolves("should-not-be-used")
+			const emitSpy = sandbox.spy(process, "emit")
+			const runPromise = process.run(terminal, "$null")
+
+			// The mock never fires onDidEndTerminalShellExecution, so the
+			// exit-code race after the stream ends always times out.
+			await sandbox.clock.tickAsync(EXIT_CODE_EVENT_TIMEOUT_MS + 1_000)
+			await runPromise
+
+			;(emitSpy as sinon.SinonSpy).calledWith("completed").should.be.true()
+			;(emitSpy as sinon.SinonSpy).calledWith("continue").should.be.true()
+			// The only permitted "line" event is the empty start-of-output
+			// notification the UI spinner relies on — no content, and critically
+			// no "could not be captured" fallback message, may be emitted.
+			const lineEvents = (emitSpy as sinon.SinonSpy).args
+				.filter(([event]) => event === "line")
+				.map(([, line]) => String(line ?? ""))
+			lineEvents.every((line) => line === "").should.be.true()
+			;(emitSpy as sinon.SinonSpy).calledWith("unobserved_command").should.be.false()
+			;(snapshotStub as sinon.SinonStub).called.should.be.false()
+		})
+
+		it("should still use the terminal snapshot fallback when neither markers nor output arrive", async () => {
+			const terminal = TerminalRegistry.createTerminal().terminal
+			createdTerminals.push(terminal)
+
+			// No C marker ever arrives, so an empty output cannot be trusted as
+			// a silent success — the capture-failure fallback must still fire.
+			stubHangingShellIntegration(terminal, [])
+
+			const snapshotStub = sandbox
+				.stub(getLatestOutputModule, "getLatestTerminalOutput")
+				.resolves("terminal snapshot content")
+			const emitSpy = sandbox.spy(process, "emit")
+			const runPromise = process.run(terminal, "some-command")
+
+			// No data ever: the first idle timeout (10s) with prompt-stepped
+			// idle checks up to the 30s cap. Add slack for the exit-code race.
+			await sandbox.clock.tickAsync(60_000)
+			await runPromise
+
+			;(emitSpy as sinon.SinonSpy).calledWith("completed").should.be.true()
+			// The fallback message must reach the agent with the snapshot.
+			const fallbackLines = (emitSpy as sinon.SinonSpy).args
+				.filter(([event]) => event === "line")
+				.map(([, line]) => String(line))
+			fallbackLines.should.matchAny(/could not be captured through shell integration/)
+			fallbackLines.should.matchAny(/terminal snapshot content/)
+			;(snapshotStub as sinon.SinonStub).called.should.be.true()
 		})
 
 		it("should complete when the terminal closes mid-command", async () => {
