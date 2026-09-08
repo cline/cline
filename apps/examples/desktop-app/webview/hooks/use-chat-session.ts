@@ -53,6 +53,7 @@ import type {
 	SessionHistoryItem,
 	SessionHistoryStatus,
 } from "@/lib/session-history";
+import { readImportedHistorySummaryActivity } from "@/lib/session-import";
 import {
 	normalizeWorkspacePath,
 	readWorkspaceSelectionFromWindow,
@@ -378,6 +379,9 @@ export function useChatSession() {
 	const [activeAssistantMessageId, setActiveAssistantMessageId] = useState<
 		string | null
 	>(null);
+	// Names what the runtime is doing before the first output of a turn (in
+	// place of "Thinking..."); ephemeral, cleared when the turn moves on.
+	const [activityLabel, setActivityLabel] = useState<string | null>(null);
 	const [hydratedHistorySessionId, setHydratedHistorySessionId] = useState<
 		string | null
 	>(null);
@@ -408,6 +412,7 @@ export function useChatSession() {
 	const activeSessionIdRef = useRef<string | null>(null);
 	const activeAssistantMessageIdRef = useRef<string | null>(null);
 	const lastStreamIndexBySessionRef = useRef<Record<string, number>>({});
+	const lastStreamBootBySessionRef = useRef<Record<string, string>>({});
 	const abortedRef = useRef(false);
 	const abortFallbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
 		null,
@@ -518,9 +523,11 @@ export function useChatSession() {
 	const resetStreamDedupe = useCallback((targetSessionId?: string | null) => {
 		if (targetSessionId) {
 			delete lastStreamIndexBySessionRef.current[targetSessionId];
+			delete lastStreamBootBySessionRef.current[targetSessionId];
 			return;
 		}
 		lastStreamIndexBySessionRef.current = {};
+		lastStreamBootBySessionRef.current = {};
 	}, []);
 
 	const clearAbortFallbackTimeout = useCallback(() => {
@@ -815,6 +822,21 @@ export function useChatSession() {
 		const index = payload.index;
 		if (typeof index !== "number") {
 			return true;
+		}
+		// `index` counts up inside one sidecar process. When the sidecar is
+		// replaced under a live webview the counter restarts at 1, and without
+		// this the high-water mark below would silently discard the whole
+		// stream — user messages and tool rows included — until the new
+		// process counted past the old run.
+		const boot = payload.boot;
+		if (boot !== undefined) {
+			const previousBoot =
+				lastStreamBootBySessionRef.current[payload.sessionId];
+			if (previousBoot !== boot) {
+				lastStreamBootBySessionRef.current[payload.sessionId] = boot;
+				lastStreamIndexBySessionRef.current[payload.sessionId] = index;
+				return true;
+			}
 		}
 		const previous = lastStreamIndexBySessionRef.current[payload.sessionId];
 		if (previous !== undefined && index <= previous) {
@@ -1395,6 +1417,7 @@ export function useChatSession() {
 			if (payload.stream === "chat_queued_prompt_start") {
 				activeTurnCostTrackerRef.current = { streamedCostUsd: 0 };
 				turnEpochRef.current += 1;
+				setActivityLabel(null);
 				// A new turn starts now: an error remembered from an earlier turn
 				// must not be attributed to this one if it fails without detail.
 				delete lastCoreErrorBySessionRef.current[listeningSessionId];
@@ -1537,6 +1560,18 @@ export function useChatSession() {
 						lastCoreErrorBySessionRef.current[payload.sessionId] =
 							parsed.message.trim();
 					}
+					// An imported session's history is summarized before the first
+					// model call; name that wait instead of showing "Thinking...".
+					const summaryActivity = readImportedHistorySummaryActivity(
+						parsed.metadata,
+					);
+					if (summaryActivity) {
+						setActivityLabel(
+							summaryActivity.phase === "started"
+								? summaryActivity.label
+								: null,
+						);
+					}
 				} catch {
 					// Unstructured logs carry no level; nothing to remember.
 				}
@@ -1573,6 +1608,7 @@ export function useChatSession() {
 			}
 
 			if (payload.stream === "chat_done") {
+				setActivityLabel(null);
 				// The turn is over: any optimistic bubble still registered was
 				// consumed by a direct send and must not be re-keyed by a later
 				// queued prompt that happens to repeat the same text. Clear
@@ -2862,6 +2898,7 @@ export function useChatSession() {
 		lastCoreErrorBySessionRef.current = {};
 		activeAssistantMessageIdRef.current = null;
 		setActiveAssistantMessageId(null);
+		setActivityLabel(null);
 		setHydratedHistorySessionId(null);
 		setPendingToolApprovals([]);
 		setPendingAskQuestions([]);
@@ -2906,6 +2943,7 @@ export function useChatSession() {
 			activeSessionIdRef.current = session.sessionId;
 			activeAssistantMessageIdRef.current = null;
 			setActiveAssistantMessageId(null);
+			setActivityLabel(null);
 			// A freshly hydrated session has no local turn in flight; without
 			// this the mount defaults (epoch 0, settled -1) read as an open
 			// turn and keep the stale-stream fallback inert forever.
@@ -3178,6 +3216,7 @@ export function useChatSession() {
 		chatTransportError,
 		isHydratingSession,
 		activeAssistantMessageId,
+		activityLabel,
 		config,
 		messages,
 		rawTranscript,
