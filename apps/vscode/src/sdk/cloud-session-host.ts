@@ -12,6 +12,8 @@
 // run inside the sandbox. Tools are auto-approved there (the sandbox is
 // isolated and the session must keep going after VS Code closes), so the
 // approval capability only surfaces anything the pod still insists on asking.
+// Cloud sessions are Act-only, like the desktop app and the cloud dashboard:
+// auto-approving every tool is the opposite of what Plan mode is for.
 
 import {
 	type CompareCheckpointInput,
@@ -53,8 +55,6 @@ export interface CloudSessionHostOptions {
 	requestToolApproval?: (request: ToolApprovalRequest) => Promise<ToolApprovalResult>
 	telemetry?: ITelemetryService
 	onStatusChange?: (status: CloudSessionStatus) => void
-	/** Plan/Act mode for the next turn; the sandbox takes the mode per turn instead of by session rebuild. */
-	getMode?: () => "plan" | "act"
 }
 
 function mapAgentStatus(status: string): CloudSessionStatus | undefined {
@@ -254,7 +254,6 @@ export class CloudSessionHost implements SdkSessionHost {
 		return this.host.runTurn({
 			...input,
 			sessionId: this.toInner(input.sessionId),
-			mode: input.mode ?? this.options.getMode?.(),
 			// Local file paths mean nothing inside the sandbox; images travel as data URLs.
 			userFiles: undefined,
 		})

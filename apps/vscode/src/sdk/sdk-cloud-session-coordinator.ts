@@ -27,7 +27,6 @@ import {
 import type { ClineMessage, TurnPhase } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
 import { ShowMessageType } from "@shared/proto/host/window"
-import type { Mode } from "@shared/storage/types"
 import { refreshClineRecommendedModels } from "@/core/controller/models/refreshClineRecommendedModels"
 import type { StateManager } from "@/core/storage/StateManager"
 import { HostProvider } from "@/hosts/host-provider"
@@ -256,7 +255,6 @@ export class SdkCloudSessionCoordinator {
 			getAuthToken: this.options.getAuthToken,
 			requestToolApproval: this.options.requestToolApproval,
 			telemetry: this.options.telemetry,
-			getMode: () => this.getCurrentMode(),
 			onStatusChange: (status) => this.handleStatusChange(sessionId, status),
 		})
 		entry.host = host
@@ -340,20 +338,11 @@ export class SdkCloudSessionCoordinator {
 
 	// ---- Starting a task ----
 
-	private getCurrentMode(): Mode {
-		return this.options.stateManager.getGlobalSettingsKey("mode") === "plan" ? "plan" : "act"
-	}
-
-	/** The Cline model the sandbox should run: the user's current Cline model, else the top recommendation. */
+	/** The Cline model the sandbox should run: the user's Act-mode Cline model, else the top recommendation. */
 	private async resolveCloudModelId(): Promise<string> {
 		const apiConfig = this.options.stateManager.getApiConfiguration()
-		const mode = this.getCurrentMode()
-		const provider = mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider
-		if (provider === "cline") {
-			const modelId = mode === "plan" ? apiConfig.planModeClineModelId : apiConfig.actModeClineModelId
-			if (modelId?.trim()) {
-				return modelId.trim()
-			}
+		if (apiConfig.actModeApiProvider === "cline" && apiConfig.actModeClineModelId?.trim()) {
+			return apiConfig.actModeClineModelId.trim()
 		}
 		const recommended = await refreshClineRecommendedModels().catch(() => CLINE_RECOMMENDED_MODELS_FALLBACK)
 		return recommended.recommended[0]?.id ?? CLINE_RECOMMENDED_MODELS_FALLBACK.recommended[0].id
@@ -424,7 +413,8 @@ export class SdkCloudSessionCoordinator {
 					modelId,
 					cwd: CLOUD_WORKSPACE_ROOT,
 					workspaceRoot: CLOUD_WORKSPACE_ROOT,
-					mode: this.getCurrentMode(),
+					// Cloud sessions are Act-only (see CloudSessionHost).
+					mode: "act",
 					sessionId: record.id,
 					// CloudSessionHost prepends the sandbox's GitHub-auth instructions.
 					systemPrompt: "",

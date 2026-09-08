@@ -135,9 +135,12 @@ export class SdkModeCoordinator {
 		}
 
 		const activeSession = this.options.sessions.getActiveSession()
-		// Cloud sessions take the mode per turn (CloudSessionHost.send), so no
-		// local rebuild is needed or possible.
-		if (activeSession && !(activeSession.sdkHost && "isCloud" in activeSession.sdkHost)) {
+		// Cloud sessions are Act-only; the webview disables the toggle, this
+		// guards the keyboard shortcut and any other caller.
+		if (activeSession?.sdkHost && "isCloud" in activeSession.sdkHost) {
+			return false
+		}
+		if (activeSession) {
 			// awaiting_followup is also used for non-plan turns, so it is not
 			// sufficient evidence that the user has a plan to approve. Require the
 			// latest completed assistant result to be the explicit plan completion
