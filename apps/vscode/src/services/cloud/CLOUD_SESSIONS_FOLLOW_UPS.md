@@ -76,9 +76,19 @@ roughly in the order they should be done.
   reattaching on activation would restore the status without user action.
 - Favorites and rename for cloud rows in History (favorites are local-history
   metadata today; rename exists in the API but has no UI in the extension).
-- Model picker for cloud tasks: the sandbox runs the user's current Cline
+- Model picker for cloud tasks: the sandbox runs the user's Act-mode Cline
   model, or the first recommended model when a non-Cline provider is
   selected. A small model picker in the RUN TASK panel would make that explicit.
+- Plan mode for cloud tasks: cloud sessions are Act-only today (matching the
+  desktop app and the dashboard; the toggle is pinned to Act with a tooltip).
+  The SDK runtime fixes the tool set and Plan command guard when a session is
+  built, so supporting a mid-task switch means rebuilding the sandbox
+  conversation with `initialMessages`, the way local tasks do.
+- System prompt: the sandbox session is created with only the GitHub-auth
+  paragraph as its system prompt (same as the desktop sidecar), not the full
+  Cline prompt the local path builds through `SdkSessionConfigBuilder`. The
+  cloud runtime should get the normal Cline prompt (Linux, `/workspace`) plus
+  the sandbox guidance; fix in both clients or on the pod.
 - Multi-root workspaces: the repository is prefilled from the primary root's
   `origin`; a root picker would help users with several GitHub repos open.
 - Telemetry: `cloud_task_started`, `cloud_task_completed`, `cloud_task_failed`,
