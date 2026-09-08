@@ -673,6 +673,42 @@ describe("AgentRuntime", () => {
 		});
 	});
 
+	it.each([
+		"stop",
+		"max-tokens",
+	] as const)("keeps the truncated turn when the compacted retry comes back empty (%s)", async (retryFinish) => {
+		const longPrompt = `Please review this: ${"lots of context ".repeat(50)}`;
+		const model = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "truncated..." },
+				{ type: "finish", reason: "max-tokens" },
+			],
+			// Finishes without content or provider-executed activity: nothing
+			// the loop can use, so it is not a replacement turn.
+			() => [{ type: "finish", reason: retryFinish }],
+		]);
+		const compactedMessages: AgentMessage[] = [
+			{ role: "user", content: [{ type: "text", text: "compacted" }] },
+		];
+		const prepareTurn = vi.fn(
+			async (context: { overflowRecovery?: boolean }) =>
+				context.overflowRecovery ? { messages: compactedMessages } : undefined,
+		);
+		const runtime = new AgentRuntime({ model, prepareTurn });
+
+		const result = await runtime.run(longPrompt);
+
+		expect(result.status).toBe("failed");
+		// The original problem surfaces, not a misleading empty-response error.
+		expect(result.error?.message).toContain("maximum output token limit");
+		// The truncated answer survives in the transcript.
+		expect(result.messages.at(-1)).toMatchObject({
+			role: "assistant",
+			content: [{ type: "text", text: "truncated..." }],
+		});
+		expect(model.requests).toHaveLength(2);
+	});
+
 	it("does not persist an empty assistant message when the model stream fails", async () => {
 		const model = new ScriptedModel([
 			() => [{ type: "finish", reason: "error", error: "upstream failed" }],
