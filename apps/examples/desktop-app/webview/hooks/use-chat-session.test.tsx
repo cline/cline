@@ -4522,6 +4522,73 @@ describe("coerced-queue first turn vs stale send response", () => {
 		).toEqual([expect.objectContaining({ id: "saved-next-user" })]);
 	});
 
+	it("ignores an aborted send reply after its queued successor starts streaming", async () => {
+		const sendResolvers = mockTransport();
+		const { sendPromise } = await dispatchPrompt("First turn");
+		const sid = current.sessionId;
+		await act(async () => current.abort());
+		const chatEventHandler = getChatEventHandler();
+		await act(async () => {
+			emitTurnEvents(chatEventHandler, sid, [
+				{
+					stream: "chat_queued_prompt_start",
+					chunk: JSON.stringify({ promptId: "next", prompt: "Next turn" }),
+					index: 1,
+				},
+				{
+					stream: "chat_tool_call_start",
+					chunk: JSON.stringify({
+						toolCallId: "next-tool",
+						toolName: "run_commands",
+						input: { commands: ["bun test"] },
+					}),
+					index: 2,
+				},
+				{ stream: "chat_text", chunk: "Next answer", index: 3 },
+			]);
+			await new Promise((resolve) => setTimeout(resolve, 60));
+		});
+		const nextAssistantId = current.activeAssistantMessageId;
+		expect(nextAssistantId).toBeTruthy();
+		await act(async () => {
+			sendResolvers[0]?.({
+				sessionId: sid,
+				ok: true,
+				result: { text: "Old answer", finishReason: "aborted" },
+			});
+			await sendPromise;
+		});
+		expect(current.status).toBe("running");
+		expect(current.activeAssistantMessageId).toBe(nextAssistantId);
+		expect(
+			current.messages.some((message) => message.content === "Old answer"),
+		).toBe(false);
+		await act(async () => {
+			emitTurnEvents(chatEventHandler, sid, [
+				{ stream: "chat_text", chunk: " continues", index: 4 },
+				{
+					stream: "chat_tool_call_update",
+					chunk: JSON.stringify({
+						toolCallId: "next-tool",
+						toolName: "run_commands",
+						update: { stream: "stdout", chunk: "still running" },
+					}),
+					index: 5,
+				},
+			]);
+			await new Promise((resolve) => setTimeout(resolve, 60));
+		});
+		expect(
+			current.messages.find((message) => message.id === nextAssistantId)
+				?.content,
+		).toBe("Next answer continues");
+		expect(
+			current.messages.find(
+				(message) => message.meta?.toolCallId === "next-tool",
+			)?.meta?.toolOutput,
+		).toContain("still running");
+	});
+
 	it("ignores a stale recovered response after the turn ended", async () => {
 		const sendResolvers = mockTransport();
 		const { sendPromise } = await dispatchPrompt("Finish during reconnect");

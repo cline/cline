@@ -2751,6 +2751,7 @@ export function useChatSession() {
 				return;
 			}
 			let abortedReconcileEpoch: number | undefined;
+			let replySuperseded = false;
 			const settleAbortedSend = () => {
 				if (!abortedRef.current) return false;
 				if (
@@ -2765,6 +2766,16 @@ export function useChatSession() {
 			};
 			try {
 				const payload = await sendTask;
+				// A queued successor clears the abort flag before the old send's
+				// aborted RPC reply can arrive. Its stream now owns the UI.
+				if (
+					payload.result?.finishReason === "aborted" &&
+					!abortedRef.current &&
+					turnEpochRef.current !== turnEpochAtDispatch
+				) {
+					replySuperseded = true;
+					return;
+				}
 				if (payload.ok && payload.queued) {
 					if (settleAbortedSend()) return;
 					if (turnEpochRef.current !== turnEpochAtDispatch) {
@@ -3138,12 +3149,14 @@ export function useChatSession() {
 				markCloudOptimisticFailed();
 				setErrorState(errorMessage(err), activeSessionId);
 			} finally {
-				clearAbortFallbackTimeout();
+				if (!replySuperseded) clearAbortFallbackTimeout();
 				if (!shouldQueue) {
 					pendingDirectSendSessionIdsRef.current.delete(activeSessionId);
-					activeAssistantMessageIdRef.current = null;
-					setActiveAssistantMessageId(null);
-					clearLiveToolRefs();
+					if (!replySuperseded) {
+						activeAssistantMessageIdRef.current = null;
+						setActiveAssistantMessageId(null);
+						clearLiveToolRefs();
+					}
 				}
 				finishPromptSubmission();
 				if (
