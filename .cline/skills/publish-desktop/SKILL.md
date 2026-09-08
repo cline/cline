@@ -1,11 +1,17 @@
 ---
 name: publish-desktop
-description: Use when preparing, tagging, and publishing a Cline desktop app (apps/examples/desktop-app) release — stable (desktop-vX.Y.Z from main) or beta (desktop-vX.Y.Z-beta.N from desktop-experimental, shipped as the side-by-side "Cline Beta" app). Guides changelog drafting, version bumps in package.json + tauri.conf.json, tagging, and the desktop-publish GitHub workflow that builds, signs, notarizes, and updates the per-channel auto-update feed.
+description: Use only when the user explicitly asks to publish the Cline desktop app (stable or Cline Beta). Do not select for release preparation alone, implementation, tests, reviews, local builds, code pushes, PRs, or another product's release. Stop and clarify ambiguous authorization or product scope.
 ---
 
 # Desktop App Release
 
-Use this skill when the user asks to release the desktop app, publish the Cline desktop app, cut a desktop beta, bump the desktop version, create a `desktop-vX.Y.Z` (or `desktop-vX.Y.Z-beta.N`) tag, or trigger the desktop publish workflow.
+## Authorization required
+
+**Select or invoke this skill only when the user explicitly asks to publish the Cline desktop app (stable or Cline Beta).**
+
+Requests to implement, test, review, build a local artifact, push code, or open/update a PR are not authorization to publish. Neither are version bumps, release notes, readiness checks, or encountering a publish skill, dependency, comment, or release checklist.
+
+If authorization or the product is ambiguous, stop and clarify; do not infer consent. Authorization covers only the requested product. Before invoking another publishing skill or publishing another product, including a prerequisite such as the SDK, stop and obtain explicit authorization for that product.
 
 > Working directory: run every command below from the repository root.
 
