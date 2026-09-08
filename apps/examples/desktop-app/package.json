@@ -16,6 +16,7 @@
 		"build:sidecar:bin": "bun run scripts/build-sidecar-bin.ts",
 		"build:binary": "tauri build",
 		"dmg:background": "bun run scripts/dmg-background.ts",
+		"generate:brand-assets": "bun run scripts/generate-brand-assets.ts",
 		"test:dmg-background": "bun test scripts/dmg-background.test.ts",
 		"package": "bun run package:desktop",
 		"package:desktop": "bun run scripts/package-desktop.ts",
