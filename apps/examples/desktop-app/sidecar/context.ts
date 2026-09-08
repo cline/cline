@@ -1057,6 +1057,15 @@ export function handleHubLiveEvent(
 			// still active. Desktop has no pending status, so expose it as running
 			// and keep later prompts on the queue path.
 			const status = runtimeStatus === "pending" ? "running" : runtimeStatus;
+			if (
+				event.event === "session.updated" &&
+				event.sequence === undefined &&
+				status === "running" &&
+				session.endedAt !== undefined &&
+				!session.busy
+			) {
+				return;
+			}
 			// Pods emit periodic session.updated snapshots; re-broadcasting an
 			// unchanged status marks the session unread in the sidebar every time.
 			const statusChanged = session.status !== status;
