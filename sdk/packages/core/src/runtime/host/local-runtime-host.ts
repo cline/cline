@@ -62,7 +62,10 @@ import {
 	readGitWorkspaceState,
 	withSessionGitMetadata,
 } from "../../services/workspace/workspace-manifest";
-import { withSessionHistoryOriginMetadata } from "../../session/history-origin";
+import {
+	readSessionHistoryOriginMetadata,
+	withSessionHistoryOriginMetadata,
+} from "../../session/history-origin";
 import {
 	projectSessionCompactionState,
 	type SessionCompactionState,
@@ -308,7 +311,13 @@ export class LocalRuntimeHost implements RuntimeHost {
 			});
 		this.defaultTelemetry = options.telemetry;
 		this.defaultLogger = options.logger;
-		this.defaultTelemetry?.setDistinctId(distinctId);
+		// A caller-owned telemetry service may already be identified to an
+		// authenticated account (the long-lived Hub daemon is one example).
+		// Only replace that identity when the caller explicitly supplied the
+		// runtime distinct id. ClineCore always does so through host.ts.
+		if (options.distinctId !== undefined) {
+			this.defaultTelemetry?.setDistinctId(distinctId);
+		}
 		this.defaultFetch = options.fetch;
 		recoverDetachedCommandLogsOnce(this.defaultLogger, this.defaultTelemetry);
 
@@ -548,10 +557,25 @@ export class LocalRuntimeHost implements RuntimeHost {
 			invokeBackendOptional: (method: string, ...args: unknown[]) =>
 				this.invokeOptional(method, ...args),
 		};
+		// A resumed session keeps the provenance it was initiated with
+		// (automation trigger, import source): the start input's metadata
+		// always carries a default "user" origin, which would otherwise
+		// overwrite the stored one on the next metadata write. An explicit
+		// mode on the start input replaces the stored origin entirely.
+		const resumedOrigin = readSessionHistoryOriginMetadata(
+			resumedArtifacts?.manifest.metadata,
+		);
+		const sessionOrigin = readSessionHistoryOriginMetadata(
+			withSessionHistoryOriginMetadata(startInput.sessionMetadata, {
+				mode: startInput.mode ?? resumedOrigin?.mode,
+				trigger: startInput.mode ? undefined : resumedOrigin?.trigger,
+			}),
+		);
 		bootstrap = await prepareLocalRuntimeBootstrap({
 			input: startInput,
 			localRuntime: input.localRuntime,
 			sessionId,
+			sessionOrigin,
 			providerSettingsManager: this.providerSettingsManager,
 			defaultTelemetry: this.defaultTelemetry,
 			defaultLogger: this.defaultLogger,
@@ -608,7 +632,8 @@ export class LocalRuntimeHost implements RuntimeHost {
 				bootstrap.gitState,
 			),
 			{
-				mode: startInput.mode,
+				mode: sessionOrigin?.mode,
+				trigger: sessionOrigin?.trigger,
 				version: bootstrap.config.extensionContext?.client?.version,
 			},
 		);
@@ -1010,6 +1035,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 	): Promise<RestoreSessionResult> {
 		return this.sessionVersioning.restoreCheckpoint({
 			...input,
+			telemetry: this.defaultTelemetry,
 			getSession: (sessionId) => this.getSession(sessionId),
 			readMessages: (sessionId) => this.readSessionMessages(sessionId),
 			buildStartInput: (context, startInput) => {
@@ -2004,7 +2030,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		captureTaskCompleted(session.config.telemetry, {
 			ulid: session.sessionId,
 			provider: session.config.providerId,
-			modelId: session.config.modelId,
+			model: session.config.modelId,
 			mode: session.config.mode,
 			durationMs: Date.now() - Date.parse(session.startedAt),
 			source: "submit_and_exit",
@@ -2052,7 +2078,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		captureTaskCompleted(session.config.telemetry, {
 			ulid: session.sessionId,
 			provider: session.config.providerId,
-			modelId: session.config.modelId,
+			model: session.config.modelId,
 			mode: session.config.mode,
 			durationMs: Date.now() - Date.parse(session.startedAt),
 			source: "shutdown",

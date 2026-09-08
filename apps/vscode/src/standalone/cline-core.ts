@@ -7,6 +7,7 @@ import "@/shared/net"
 import { ExternalCommentReviewController } from "@hosts/external/ExternalCommentReviewController"
 import { ExternalEditPreview } from "@hosts/external/ExternalEditPreview"
 import { ExternalWebviewProvider } from "@hosts/external/ExternalWebviewProvider"
+import { captureHostBridgeTokenFromEnvironment } from "@hosts/external/host-bridge-auth"
 import { ExternalHostBridgeClientManager } from "@hosts/external/host-bridge-client-manager"
 import { retryOperation } from "@utils/retry"
 import * as path from "path"
@@ -29,12 +30,12 @@ let globalCoreConnection: CoreConnection | undefined
 let shutdownPromise: Promise<void> | undefined
 
 async function main() {
-	// Remove the per-spawn secret before initialization can launch provider or
-	// MCP child processes. Descendants must never inherit the credential that
-	// authenticates this core connection.
-	const coreConnectionToken = process.env.CLINE_CORE_CONNECTION_TOKEN
+	// Capture the per-spawn secret and scrub it from the environment before
+	// initialization can launch provider or MCP child processes, and before the
+	// environment is logged below. Descendants must never inherit the credential;
+	// it is retained in process memory for the bridge clients and the hello.
+	const coreConnectionToken = captureHostBridgeTokenFromEnvironment()
 	const coreInstanceId = process.env.CLINE_CORE_INSTANCE_ID
-	delete process.env.CLINE_CORE_CONNECTION_TOKEN
 
 	log("\n\n\nStarting cline-core service...\n\n\n")
 	log(`Environment variables: ${JSON.stringify(process.env)}`)
