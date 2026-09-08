@@ -245,6 +245,7 @@ export class ComputerUseClient {
 				// listener, so re-check after registration.
 				if (signal.aborted) {
 					onAbort();
+					return;
 				}
 			}
 
@@ -284,6 +285,11 @@ export class ComputerUseClient {
 			);
 		}
 		return response.display;
+	}
+
+	/** A connected but nonresponsive backend must not be treated as absent. */
+	get isConnected(): boolean {
+		return !!this.socket && !this.socket.destroyed && !this.socket.connecting;
 	}
 
 	/** Closes the underlying socket, if any. Safe to call multiple times. */
