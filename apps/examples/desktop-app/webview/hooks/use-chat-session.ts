@@ -600,6 +600,7 @@ export function useChatSession() {
 	const activeSessionIdRef = useRef<string | null>(null);
 	const activeAssistantMessageIdRef = useRef<string | null>(null);
 	const lastStreamIndexBySessionRef = useRef<Record<string, number>>({});
+	const lastStreamBootBySessionRef = useRef<Record<string, string>>({});
 	const abortedRef = useRef(false);
 	const abortFallbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
 		null,
@@ -755,9 +756,11 @@ export function useChatSession() {
 	const resetStreamDedupe = useCallback((targetSessionId?: string | null) => {
 		if (targetSessionId) {
 			delete lastStreamIndexBySessionRef.current[targetSessionId];
+			delete lastStreamBootBySessionRef.current[targetSessionId];
 			return;
 		}
 		lastStreamIndexBySessionRef.current = {};
+		lastStreamBootBySessionRef.current = {};
 	}, []);
 
 	const clearAbortFallbackTimeout = useCallback(() => {
@@ -1059,6 +1062,21 @@ export function useChatSession() {
 		const index = payload.index;
 		if (typeof index !== "number") {
 			return true;
+		}
+		// `index` counts up inside one sidecar process. When the sidecar is
+		// replaced under a live webview the counter restarts at 1, and without
+		// this the high-water mark below would silently discard the whole
+		// stream — user messages and tool rows included — until the new
+		// process counted past the old run.
+		const boot = payload.boot;
+		if (boot !== undefined) {
+			const previousBoot =
+				lastStreamBootBySessionRef.current[payload.sessionId];
+			if (previousBoot !== boot) {
+				lastStreamBootBySessionRef.current[payload.sessionId] = boot;
+				lastStreamIndexBySessionRef.current[payload.sessionId] = index;
+				return true;
+			}
 		}
 		const previous = lastStreamIndexBySessionRef.current[payload.sessionId];
 		if (previous !== undefined && index <= previous) {

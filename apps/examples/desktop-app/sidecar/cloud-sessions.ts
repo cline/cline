@@ -1237,6 +1237,8 @@ export function reconcileBufferedCloudEvents(
 		 */
 		queueSnapshotApplied?: boolean;
 		queueSnapshotEventCutoff?: number;
+		/** Events received after the transcript reply cannot be reflected in it. */
+		messagesSnapshotEventCutoff?: number;
 		baselineMessages?: unknown[];
 	} = {},
 ): HubEventEnvelope[] {
@@ -1246,6 +1248,26 @@ export function reconcileBufferedCloudEvents(
 		options.baselineMessages ?? [],
 	);
 	const snapshotToolCallIds = collectToolCallIds(snapshotMessages);
+	const reflectedSubmissions = new Set<HubEventEnvelope>();
+	const unclaimedUserCounts = new Map<string, number>();
+	for (const event of events.slice(
+		0,
+		options.messagesSnapshotEventCutoff ?? events.length,
+	)) {
+		const submitted = submittedPromptsFromEvents([event])[0];
+		if (!submitted) continue;
+		const prompt = normalizeUserPrompt(submitted.prompt);
+		if (!prompt) continue;
+		const count =
+			unclaimedUserCounts.get(prompt) ??
+			Math.max(
+				0,
+				countPromptOccurrences(snapshotMessages, [], prompt) -
+					countPromptOccurrences(options.baselineMessages ?? [], [], prompt),
+			);
+		unclaimedUserCounts.set(prompt, Math.max(0, count - 1));
+		if (count > 0) reflectedSubmissions.add(event);
+	}
 	// Queue events are full snapshots, so only the newest one matters.
 	const queueEvents = queueSnapshotApplied
 		? events.slice(options.queueSnapshotEventCutoff ?? events.length)
@@ -1265,6 +1287,8 @@ export function reconcileBufferedCloudEvents(
 		const contentPersisted = persistedIndex >= 0;
 		if (contentPersisted) unclaimedAssistantTexts.splice(persistedIndex, 1);
 		for (const event of segment) {
+			// Replaying this event would append another user bubble after the snapshot.
+			if (reflectedSubmissions.has(event)) continue;
 			if (contentPersisted && SUPERSEDABLE_CONTENT_EVENTS.has(event.event)) {
 				continue;
 			}
@@ -2092,6 +2116,7 @@ export class CloudSessionManager {
 				throw new Error("Cloud Hub returned an invalid transcript snapshot");
 			}
 			const messages = messagesReply.payload.messages;
+			const messagesSnapshotEventCutoff = connection.bufferedEvents.length;
 			const queueReply = await connection.client
 				.command(
 					"session.pending_prompts",
@@ -2156,6 +2181,7 @@ export class CloudSessionManager {
 			const buffered = reconcileBufferedCloudEvents(bufferedEvents, messages, {
 				queueSnapshotApplied: queueSnapshotValid,
 				queueSnapshotEventCutoff,
+				messagesSnapshotEventCutoff,
 				baselineMessages,
 			});
 			connection.bufferedEvents = [];
