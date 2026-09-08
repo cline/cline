@@ -1,16 +1,5 @@
 export * from "./agent";
 export * from "./agents";
-export {
-	DETACHED_COMMAND_NOTICE_PATTERN,
-	DetachedCommandOutcomeSchema,
-	detachedCommandBackgroundStatus,
-	formatDetachedCompletionNote,
-	matchDetachedCommandNotice,
-} from "./commands/detached";
-export type {
-	DetachedCommandBackgroundStatus,
-	DetachedCommandOutcome,
-} from "./commands/detached";
 export type {
 	DetachedCommandBackgroundStatus,
 	DetachedCommandOutcome,
