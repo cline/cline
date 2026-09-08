@@ -1102,14 +1102,14 @@ export function createShellExecutor(
 		// Same key-presence rule as the VS Code host's formatCommandForTerminal.
 		const directExec = typeof command !== "string" && "args" in command;
 		const invocation = directExec
-			? { args: command.args ?? [] }
+			? { executable: command.command, args: command.args ?? [] }
 			: getShellInvocation(
 					shell,
 					typeof command === "string" ? command : command.command,
 				);
 		return spawnAndCollect(
 			{
-				executable: directExec ? command.command : shell,
+				executable: invocation.executable,
 				args: invocation.args,
 				cwd,
 				env,

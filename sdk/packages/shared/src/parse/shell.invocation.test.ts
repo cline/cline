@@ -16,7 +16,7 @@ for (const shell of shells) {
 	describe.runIf(available)(`${shell} invocation`, () => {
 		function run(command: string) {
 			const invocation = getShellInvocation(shell, command);
-			const result = spawnSync(shell, invocation.args, {
+			const result = spawnSync(invocation.executable, invocation.args, {
 				input: invocation.input,
 				encoding: "utf8",
 				windowsHide: true,

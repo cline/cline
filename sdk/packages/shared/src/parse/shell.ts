@@ -50,6 +50,8 @@ export function getShellKind(shell: string): ShellKind {
 }
 
 export interface ShellInvocation {
+	/** Spawn this executable with these args and input as one invocation. */
+	executable: string;
 	args: string[];
 	input?: string;
 }
@@ -77,10 +79,9 @@ const NESTED_POWERSHELL_REQUIRED_FLAG = "-noprofile";
  * nested `powershell -Command "…"` would have received: backtick escapes
  * (`` `n ``, `` `t ``, `` `" ``, `` `$ ``, …) resolve to their characters and
  * `""` to a quote. `$`-expressions stay literal — the model wrote them for the
- * inner shell's parser, and the outer parser binds them identically once the
- * text runs as a script. `` `u{…} `` code-point and `` `e `` ESC escapes
- * exist only in PowerShell 7+, so the edition of the shell that will run the
- * decoded script decides how (or whether) they decode.
+ * inner shell's parser. `` `u{…} `` code-point and `` `e `` ESC escapes
+ * exist only in PowerShell 7+, so the OUTER edition that owns this string
+ * decides how (or whether) they decode, not the requested inner edition.
  */
 function decodePowerShellDoubleQuotedString(
 	body: string,
@@ -210,22 +211,20 @@ function splitNestedCommandToScript(
 	return script.length > 0 ? script : undefined;
 }
 
-function unwrapOneNestedPowerShellLayer(
+function parseNestedPowerShellCommand(
 	command: string,
 	shell: string,
-): string | undefined {
+): { executable: string; script: string } | undefined {
 	// Only horizontal separators belong to this invocation. A bare newline
 	// ends the outer statement; do not consume it before the quoted body either.
-	const head = /^([ \t]*)(?:"([^"]*)"|(\S+))[ \t]+([\S\s]*)$/.exec(command);
+	const head =
+		/^[ \t]*(?:&[ \t]+)?(?:"([^"$`]*)"|'((?:[^']|'')*)'|([^\s$`"';&|<>(){}#@,]+))[ \t]+([\S\s]*)$/.exec(
+			command,
+		);
 	if (!head) return undefined;
+	const executable = head[1] ?? head[2]?.replaceAll("''", "'") ?? head[3];
 	const outerEdition = getPowerShellEdition(shell);
-	const nestedEdition = getPowerShellEdition(head[2] ?? head[3]);
-	// The nested invocation must be the same PowerShell edition as the
-	// configured outer shell; cross-edition nesting (`powershell` inside
-	// `pwsh` or the reverse) is left untouched so a deliberate edition switch
-	// keeps its meaning, and anything that is not a PowerShell executable
-	// never matches at all.
-	if (!outerEdition || nestedEdition !== outerEdition) {
+	if (!outerEdition || !getPowerShellEdition(executable)) {
 		return undefined;
 	}
 
@@ -240,9 +239,10 @@ function unwrapOneNestedPowerShellLayer(
 		if (!flag) return undefined;
 		const name = flag[1].toLowerCase();
 		if (name === "-command") {
-			return sawNoProfile
+			const script = sawNoProfile
 				? splitNestedCommandToScript(flag[2], outerEdition)
 				: undefined;
+			return script === undefined ? undefined : { executable, script };
 		}
 		if (!NESTED_POWERSHELL_UNWRAPPABLE_FLAGS.has(name)) return undefined;
 		if (name === NESTED_POWERSHELL_REQUIRED_FLAG) sawNoProfile = true;
@@ -269,8 +269,8 @@ function unwrapOneNestedPowerShellLayer(
  * - the nested executable is the same PowerShell edition as the configured
  *   outer shell (`powershell` nested in `powershell`, `pwsh` in `pwsh`);
  *   cross-edition nesting (`powershell` inside `pwsh` or the reverse) is left
- *   untouched so a deliberate edition switch keeps its meaning. This leaves
- *   the PowerShell 7-to-Windows PowerShell reproduction in #13284 unfixed
+ *   untouched by this text-only helper. Execution uses getShellInvocation,
+ *   which also returns the requested executable and supports edition switches
  * - the nested invocation carries `-NoProfile` (written in full), and every
  *   other flag before `-Command` is bootstrap-equivalent (-NonInteractive)
  *   or a no-op under -Command (-NoLogo) — without -NoProfile the shell would
@@ -292,8 +292,9 @@ function unwrapOneNestedPowerShellLayer(
  * documented on the bootstrap, which is the same tradeoff GitHub Actions
  * makes for its powershell steps.
  *
- * This function unwraps recursive double-shells to a fixpoint; the executor
- * calls it once when constructing the invocation.
+ * This function unwraps same-edition double-shells to a fixpoint.
+ * @deprecated Use getShellInvocation for execution: script text alone cannot
+ * preserve a requested executable, even within the same PowerShell edition.
  */
 export function unwrapNestedPowerShellCommand(
 	command: string,
@@ -302,11 +303,14 @@ export function unwrapNestedPowerShellCommand(
 	let current = command;
 	// One iteration strips one shell layer; stop at the first non-rewrite.
 	for (;;) {
-		const unwrapped = unwrapOneNestedPowerShellLayer(current, shell);
-		if (unwrapped === undefined) {
+		const nested = parseNestedPowerShellCommand(current, shell);
+		if (
+			!nested ||
+			getPowerShellEdition(nested.executable) !== getPowerShellEdition(shell)
+		) {
 			return current === command ? undefined : current;
 		}
-		current = unwrapped;
+		current = nested.script;
 	}
 }
 
@@ -316,11 +320,20 @@ export function getShellInvocation(
 ): ShellInvocation {
 	switch (getShellKind(shell)) {
 		case "powershell": {
-			// A nested `powershell -Command "…"` is unwrapped before this wrapper
-			// ever parses it: the bootstrap below executes the command as outer
-			// PowerShell source, so the nested double-quoted argument would have
-			// its $_ interpolated away before the nested shell sees it (#13284).
-			const script = unwrapNestedPowerShellCommand(command, shell) ?? command;
+			// At tool invocation construction, select executable and script together,
+			// before any await. A standalone NoProfile wrapper needs no outer process:
+			// run its requested executable (not an edition-equivalent substitute) with
+			// the existing bootstrap. This avoids both outer $ interpolation and native
+			// argv quote loss, including pwsh -> powershell.exe and the reverse (#13284).
+			let selected = { executable: shell, script: command };
+			for (;;) {
+				const nested = parseNestedPowerShellCommand(
+					selected.script,
+					selected.executable,
+				);
+				if (!nested) break;
+				selected = nested;
+			}
 			// PowerShell's command-line parser decodes -Command through the active
 			// Windows code page. Keep the command line ASCII-only, send the command
 			// through UTF-8 stdin, and make redirected output UTF-8. Stdin also avoids
@@ -350,6 +363,7 @@ export function getShellInvocation(
 			// tolerate these semantics. A command can still opt out per-cmdlet with
 			// -ErrorAction or by reassigning $ErrorActionPreference.
 			return {
+				executable: selected.executable,
 				args: [
 					"-NoProfile",
 					"-NonInteractive",
@@ -361,19 +375,19 @@ export function getShellInvocation(
 						"$c+=[Environment]::NewLine+'if(-not $?){exit 1}';" +
 						"& ([ScriptBlock]::Create($c))",
 				],
-				input: script,
+				input: selected.script,
 			};
 		}
 		case "cmd":
-			return { args: ["/d", "/s", "/c", command] };
+			return { executable: shell, args: ["/d", "/s", "/c", command] };
 		// wsl.exe is the Windows launcher for the default WSL distro, not a shell
 		// itself. Run the command through the guest's bash so operators like `|`
 		// and `;` are handled by bash rather than treated as wsl.exe arguments.
 		// wsl.exe translates the Windows cwd to its /mnt mount automatically.
 		case "wsl":
-			return { args: ["bash", "-c", command] };
+			return { executable: shell, args: ["bash", "-c", command] };
 		case "posix":
-			return { args: ["-c", command] };
+			return { executable: shell, args: ["-c", command] };
 	}
 }
 

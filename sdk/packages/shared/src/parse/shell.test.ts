@@ -67,15 +67,16 @@ describe("shell helpers", () => {
 		);
 	});
 
-	it("unwraps nested pwsh invocations only for a pwsh outer shell", () => {
+	it("keeps the text-only helper edition-bound but selects the requested executable for execution", () => {
 		const nested = 'pwsh -NoProfile -Command "Write-Output $_"';
 		expect(unwrapNestedPowerShellCommand(nested, "pwsh")).toBe(
 			"Write-Output $_",
 		);
 		expect(unwrapNestedPowerShellCommand(nested, "powershell")).toBeUndefined();
-		expect(getShellInvocation("powershell", nested).input).toBe(nested);
-		// Cross-edition nesting in the other direction is kept too: a model may
-		// deliberately run Windows PowerShell 5.1 from a PowerShell 7 outer shell.
+		expect(getShellInvocation("powershell", nested)).toMatchObject({
+			executable: "pwsh",
+			input: "Write-Output $_",
+		});
 		expect(
 			unwrapNestedPowerShellCommand(
 				'powershell -NoProfile -Command "Write-Output $_"',
@@ -84,9 +85,36 @@ describe("shell helpers", () => {
 		).toBeUndefined();
 		const issueCommand =
 			"powershell -NoProfile -Command \"Get-ChildItem . -Recurse -File | Where-Object { $_.Name -match 'MyEditForm|EditContext|Validator' } | ForEach-Object { $_.FullName }\"";
-		expect(getShellInvocation("pwsh.exe", issueCommand).input).toBe(
-			issueCommand,
-		);
+		expect(getShellInvocation("pwsh.exe", issueCommand)).toMatchObject({
+			executable: "powershell",
+			input:
+				"Get-ChildItem . -Recurse -File | Where-Object { $_.Name -match 'MyEditForm|EditContext|Validator' } | ForEach-Object { $_.FullName }",
+		});
+	});
+
+	it("decodes each wrapper in its outer edition and retains literal executable paths", () => {
+		const path = "C:\\Program Files\\PowerShell\\7\\pwsh.exe";
+		expect(
+			getShellInvocation(
+				"powershell",
+				`& '${path}' -NoProfile -Command "Write-Output 'a\`eb'"`,
+			),
+		).toMatchObject({ executable: path, input: "Write-Output 'aeb'" });
+		expect(
+			getShellInvocation(
+				"pwsh",
+				"powershell.exe -NoProfile -Command \"Write-Output 'a`eb'\"",
+			),
+		).toMatchObject({
+			executable: "powershell.exe",
+			input: "Write-Output 'a\x1bb'",
+		});
+		expect(
+			getShellInvocation(
+				"pwsh",
+				'powershell -NoProfile -Command "pwsh -NoProfile -Command `"Write-Output $_`""',
+			),
+		).toMatchObject({ executable: "pwsh", input: "Write-Output $_" });
 	});
 
 	it("unwraps bootstrap-equivalent flags and the non-interactive banner flag", () => {
@@ -201,6 +229,13 @@ describe("shell helpers", () => {
 
 	it("leaves non-rewritable nested invocations byte-identical", () => {
 		const untouched = [
+			// Comments and expressions are not literal executable names.
+			'#/pwsh -NoProfile -Command "Write-Output 42"',
+			'@("pwsh") -NoProfile -Command "Write-Output 42"',
+			'& "$env:ProgramFiles/PowerShell/7/pwsh.exe" -NoProfile -Command "Write-Output 42"',
+			'&\npwsh -NoProfile -Command "Write-Output 42"',
+			"powershell -NoProfile -EncodedCommand VwByAGkAdABlAA==",
+			'powershell -NoProfile -ExecutionPolicy Bypass -Command "Get-Date"',
 			// Other flags can change semantics in the nested shell.
 			'powershell -ExecutionPolicy Bypass -Command "Get-Date"',
 			"powershell -File script.ps1",
@@ -234,6 +269,10 @@ describe("shell helpers", () => {
 				unwrapNestedPowerShellCommand(command, "powershell"),
 			).toBeUndefined();
 			expect(getShellInvocation("powershell", command).input).toBe(command);
+			expect(getShellInvocation("pwsh", command)).toMatchObject({
+				executable: "pwsh",
+				input: command,
+			});
 		}
 	});
 
