@@ -39,8 +39,6 @@ const CLOUD_WORKSPACE_ROOT = "/workspace";
 const CREATE_TIMEOUT_MS = 610_000;
 const PROVISIONING_POLL_MS = 3_000;
 const REQUEST_TIMEOUT_MS = 15_000;
-// Queue deliveries are acked promptly by the hub; a dead transport must not
-// hang them forever the way a run-length immediate send legitimately can.
 const QUEUE_COMMAND_TIMEOUT_MS = 30_000;
 const CLOUD_ERROR_PREFIX = "CLOUD_SESSION_ERROR:";
 const MAX_BUFFERED_SYNC_EVENTS = 2_000;
@@ -782,7 +780,6 @@ export class CloudSessionApi {
 		return Array.isArray(messages) ? messages : [];
 	}
 }
-
 function isExpiredRecord(record: CloudSessionRecord): boolean {
 	const expiredAt = record.expiredAt
 		? Date.parse(record.expiredAt)
@@ -1244,7 +1241,6 @@ export function reconcileBufferedCloudEvents(
 	flush(false);
 	return reconciled;
 }
-
 export class CloudSessionManager {
 	private disposed = false;
 	private readonly connections = new Map<string, CloudConnection>();
