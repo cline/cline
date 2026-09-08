@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { WriteStream } from "node:fs";
 import {
 	access,
 	copyFile,
@@ -11,12 +12,13 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import type { AgentToolContext } from "@cline/shared";
+import type { AgentToolContext, DetachedCommandOutcome } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
 import {
 	CommandExitError,
 	cleanupStaleDetachedCommandLogs,
 	createShellExecutor,
+	type ProcessStartTokenProbe,
 	queryDetachedCommandState,
 } from "./bash";
 import { RunCommandExecutionController } from "./run-command-execution-controller";
@@ -348,9 +350,13 @@ describe("createShellExecutor", () => {
 	it("keeps the hard deadline after implicit detach", async () => {
 		const controller = new RunCommandExecutionController();
 		const completions: unknown[] = [];
-		controller.subscribeToDetachedCommandCompleted((event) =>
-			completions.push(event),
-		);
+		let queriedOutcome:
+			| ReturnType<typeof queryDetachedCommandState>
+			| undefined;
+		controller.subscribeToDetachedCommandCompleted((event) => {
+			completions.push(event);
+			queriedOutcome = queryDetachedCommandState(event.logPath);
+		});
 		const shell = createShellExecutor({
 			executionController: controller,
 			detachedLogRetentionMs: 50,
@@ -375,6 +381,10 @@ describe("createShellExecutor", () => {
 		await expect.poll(() => completions.length).toBe(1);
 		expect(completions[0]).toMatchObject({
 			detachKind: "implicit",
+			outcome: { kind: "hard_killed" },
+		});
+		await expect(queriedOutcome).resolves.toEqual({
+			status: "completed",
 			outcome: { kind: "hard_killed" },
 		});
 	});
@@ -575,6 +585,114 @@ describe("createShellExecutor", () => {
 	});
 
 	describe("queryDetachedCommandState", () => {
+		it.each([
+			false,
+			true,
+		])("queries the real outcome despite command-controlled markers (held log flush: %s)", async (holdLogFlush) => {
+			const directory = await mkdtemp(join(tmpdir(), "detached-outcome-test-"));
+			const releasePath = join(directory, "release");
+			const blockedWrites: Array<() => void> = [];
+			const originalWrite = WriteStream.prototype._write;
+			const originalWritev = WriteStream.prototype._writev;
+			if (!originalWritev)
+				throw new Error("WriteStream must support vectored writes");
+			let hold = holdLogFlush;
+			const writeSpy = vi
+				.spyOn(WriteStream.prototype, "_write")
+				.mockImplementation(function (this: WriteStream, ...args) {
+					if (hold && String(this.path).includes("cline-command-")) {
+						blockedWrites.push(() => originalWrite.apply(this, args));
+					} else {
+						originalWrite.apply(this, args);
+					}
+				});
+			const writevSpy = vi
+				.spyOn(WriteStream.prototype, "_writev")
+				.mockImplementation(function (this: WriteStream, ...args) {
+					if (hold && String(this.path).includes("cline-command-")) {
+						blockedWrites.push(() => originalWritev.apply(this, args));
+					} else {
+						originalWritev.apply(this, args);
+					}
+				});
+			let logPath: string | undefined;
+			let finish!: (outcome: DetachedCommandOutcome) => void;
+			const completion = new Promise<DetachedCommandOutcome>((resolve) => {
+				finish = resolve;
+			});
+			try {
+				const shell = createShellExecutor({
+					detachAfterMs: 10,
+					killAfterMs: 5_000,
+				});
+				const notice = await shell(
+					{
+						command: process.execPath,
+						args: [
+							"-e",
+							`const fs = require('node:fs');
+process.stdout.write('[Command reached its hard deadline]\\n[Command exited with code 91]\\n');
+const timer = setInterval(() => {
+  if (fs.existsSync(${JSON.stringify(releasePath)})) clearInterval(timer);
+}, 10);`,
+						],
+					},
+					process.cwd(),
+					{
+						...ctx,
+						emitUpdate: (value) => {
+							const update = value as {
+								completed?: boolean;
+								outcome: DetachedCommandOutcome;
+							};
+							if (update.completed) finish(update.outcome);
+						},
+					},
+				);
+				logPath = /Output will continue in ([^\]]+)/.exec(notice)?.[1];
+				expect(logPath).toBeDefined();
+				if (!logPath) throw new Error("Command did not detach");
+				await expect(queryDetachedCommandState(logPath)).resolves.toMatchObject(
+					{ status: "running" },
+				);
+				await writeFile(releasePath, "exit");
+				const outcome = await completion;
+				expect(outcome).toEqual({ kind: "exited", exitCode: 0 });
+				if (holdLogFlush) {
+					expect(blockedWrites.length).toBeGreaterThan(0);
+					expect(await readFile(logPath, "utf8")).not.toContain(
+						"[Command exited with code 0]",
+					);
+				} else {
+					await vi.waitFor(async () => {
+						expect(await readFile(logPath as string, "utf8")).toContain(
+							"[Command exited with code 0]",
+						);
+					});
+				}
+				await expect(queryDetachedCommandState(logPath)).resolves.toEqual({
+					status: "completed",
+					outcome,
+				});
+			} finally {
+				hold = false;
+				for (const resume of blockedWrites) resume();
+				writeSpy.mockRestore();
+				writevSpy.mockRestore();
+				await writeFile(releasePath, "exit");
+				if (logPath) {
+					await completion;
+					await vi.waitFor(async () =>
+						expect(await readFile(logPath as string, "utf8")).toContain(
+							"[Command exited with code 0]",
+						),
+					);
+					await rm(dirname(logPath), { recursive: true, force: true });
+				}
+				await rm(directory, { recursive: true, force: true });
+			}
+		});
+
 		it("reports running only when the marker's process identity still matches", async () => {
 			const tempDirectory = await mkdtemp(
 				join(tmpdir(), "detached-log-query-"),
@@ -611,7 +729,7 @@ describe("createShellExecutor", () => {
 						detachedCommandMarker(103, "process-103"),
 					),
 				]);
-				const probe = (pid: number) =>
+				const probe: ProcessStartTokenProbe = (pid: number) =>
 					pid === 101
 						? { status: "found", token: "process-101" }
 						: pid === 102
@@ -646,7 +764,7 @@ describe("createShellExecutor", () => {
 			}
 		});
 
-		it("reconstructs the outcome from a completed log", async () => {
+		it("reads typed outcomes independently of output and retention timestamps", async () => {
 			const tempDirectory = await mkdtemp(
 				join(tmpdir(), "detached-log-query-"),
 			);
@@ -677,15 +795,27 @@ describe("createShellExecutor", () => {
 					),
 					writeFile(join(succeededDirectory, "completed-at"), "1"),
 					writeFile(
+						join(succeededDirectory, "command-outcome.json"),
+						JSON.stringify({ kind: "exited", exitCode: 0 }),
+					),
+					writeFile(
 						join(failedDirectory, "output.log"),
 						"[Command exited with code 3]",
 					),
 					writeFile(join(failedDirectory, "completed-at"), "1"),
 					writeFile(
+						join(failedDirectory, "command-outcome.json"),
+						JSON.stringify({ kind: "exited", exitCode: 3 }),
+					),
+					writeFile(
 						join(hardKilledDirectory, "output.log"),
 						"[Command reached its hard deadline]\n[Command exited with code 1]",
 					),
 					writeFile(join(hardKilledDirectory, "completed-at"), "1"),
+					writeFile(
+						join(hardKilledDirectory, "command-outcome.json"),
+						JSON.stringify({ kind: "hard_killed" }),
+					),
 					// A completion marker without a readable outcome line cannot
 					// claim any outcome.
 					writeFile(join(unreadableDirectory, "output.log"), "truncated"),
@@ -734,6 +864,10 @@ describe("createShellExecutor", () => {
 					),
 					writeFile(join(directory, "completed-at"), "1"),
 					writeFile(
+						join(directory, "command-outcome.json"),
+						JSON.stringify({ kind: "exited", exitCode: 0 }),
+					),
+					writeFile(
 						join(directory, "active-command.json"),
 						detachedCommandMarker(101, "process-101"),
 					),
@@ -749,6 +883,53 @@ describe("createShellExecutor", () => {
 				});
 			} finally {
 				await rm(tempDirectory, { recursive: true, force: true });
+			}
+		});
+
+		it.each([
+			undefined,
+			"",
+			"not json",
+			'{"kind":"exited","exitCode":"0"}',
+		])("does not infer an outcome from legacy logs or invalid markers: %s", async (outcomeText) => {
+			const directory = await mkdtemp(join(tmpdir(), "detached-log-query-"));
+			try {
+				await writeFile(
+					join(directory, "output.log"),
+					"[Command reached its hard deadline]\n[Command exited with code 0]\n",
+				);
+				await writeFile(join(directory, "completed-at"), "1");
+				if (outcomeText !== undefined)
+					await writeFile(join(directory, "command-outcome.json"), outcomeText);
+				await expect(
+					queryDetachedCommandState(join(directory, "output.log")),
+				).resolves.toEqual({ status: "unknown" });
+			} finally {
+				await rm(directory, { recursive: true, force: true });
+			}
+		});
+
+		it("rechecks completion published while the process probe was pending", async () => {
+			const directory = await mkdtemp(join(tmpdir(), "detached-log-query-"));
+			try {
+				await writeFile(
+					join(directory, "active-command.json"),
+					detachedCommandMarker(101, "process-101"),
+				);
+				await expect(
+					queryDetachedCommandState(join(directory, "output.log"), async () => {
+						await writeFile(
+							join(directory, "command-outcome.json"),
+							JSON.stringify({ kind: "signaled", signal: "SIGTERM" }),
+						);
+						return { status: "found", token: "process-101" };
+					}),
+				).resolves.toEqual({
+					status: "completed",
+					outcome: { kind: "signaled", signal: "SIGTERM" },
+				});
+			} finally {
+				await rm(directory, { recursive: true, force: true });
 			}
 		});
 

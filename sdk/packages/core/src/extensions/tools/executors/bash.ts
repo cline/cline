@@ -14,20 +14,14 @@ import {
 	rmSync,
 	writeFileSync,
 } from "node:fs";
-import {
-	appendFile,
-	open,
-	readdir,
-	readFile,
-	rm,
-	stat,
-} from "node:fs/promises";
+import { appendFile, readdir, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { StringDecoder } from "node:string_decoder";
 import {
 	type AgentToolContext,
 	type DetachedCommandOutcome,
+	DetachedCommandOutcomeSchema,
 	getDefaultShell,
 	getShellInvocation,
 } from "@cline/shared";
@@ -53,6 +47,7 @@ const DETACHED_LOG_DIRECTORY_PREFIX = "cline-command-";
 const DETACHED_LOG_FILENAME = "output.log";
 const DETACHED_LOG_ACTIVE_COMMAND_FILENAME = "active-command.json";
 const DETACHED_LOG_COMPLETED_FILENAME = "completed-at";
+const DETACHED_LOG_OUTCOME_FILENAME = "command-outcome.json";
 const COMMAND_PROGRESS_FLUSH_INTERVAL_MS = 48;
 
 type CommandProgressStream = "stdout" | "stderr";
@@ -291,7 +286,7 @@ export type DetachedCommandStateQuery =
  * is written before the marker is removed, and a crash between those writes
  * leaves both). Anything less certain — a missing process, a mismatched
  * token, an unavailable identity provider, malformed markers, or a completion
- * whose outcome line cannot be read — reports "unknown", and the caller's row
+ * without a typed outcome marker — reports "unknown", and the caller's row
  * keeps claiming no outcome.
  */
 export async function queryDetachedCommandState(
@@ -299,72 +294,58 @@ export async function queryDetachedCommandState(
 	probe: ProcessStartTokenProbe = probeProcessStartTokenAsync,
 ): Promise<DetachedCommandStateQuery> {
 	const directory = dirname(logPath);
-	const completedAtText = await readOptionalTextFile(
-		join(directory, DETACHED_LOG_COMPLETED_FILENAME),
-	);
-	if (completedAtText !== undefined) {
-		const outcome = await parseDetachedCommandOutcomeFromLog(logPath);
-		return outcome ? { status: "completed", outcome } : { status: "unknown" };
-	}
+	const completion = await readDetachedCommandCompletion(directory);
+	if (completion) return completion;
 	const activeCommandText = await readOptionalTextFile(
 		join(directory, DETACHED_LOG_ACTIVE_COMMAND_FILENAME),
 	);
 	const marker = activeCommandText
 		? parseDetachedCommandMarker(activeCommandText)
 		: undefined;
-	if (!marker) {
-		return { status: "unknown" };
-	}
+	let state: DetachedCommandStateQuery = { status: "unknown" };
 	try {
-		const probeResult = await probe(marker.pid);
+		const probeResult = marker ? await probe(marker.pid) : undefined;
 		if (
-			probeResult.status === "found" &&
+			marker &&
+			probeResult?.status === "found" &&
 			probeResult.token === marker.processStartToken
 		) {
-			return { status: "running", executionId: marker.executionId };
+			state = { status: "running", executionId: marker.executionId };
 		}
 	} catch {
 		// A rejecting identity provider is not evidence the command exited.
 	}
-	return { status: "unknown" };
+	// Completion can publish while the marker read or identity probe is pending.
+	return (await readDetachedCommandCompletion(directory)) ?? state;
 }
 
 /**
- * Reconstructs a detached command's outcome from the completion line its
- * executor wrote at the end of the log. Reads only the log's tail; the
- * completion line is always the last write. A signal-terminated process is
- * indistinguishable from a non-zero exit in the log, so it reports "exited".
+ * Output is command-controlled and may be capped or still flushing. Only the
+ * executor's typed marker proves an outcome; legacy retention timestamps do
+ * not distinguish a normal exit, signal, deadline, or a host losing contact.
  */
-async function parseDetachedCommandOutcomeFromLog(
-	logPath: string,
-): Promise<DetachedCommandOutcome | undefined> {
-	let tail: string;
+async function readDetachedCommandCompletion(
+	directory: string,
+): Promise<DetachedCommandStateQuery | undefined> {
+	const completedAtText = await readOptionalTextFile(
+		join(directory, DETACHED_LOG_COMPLETED_FILENAME),
+	);
+	const outcomeText = await readOptionalTextFile(
+		join(directory, DETACHED_LOG_OUTCOME_FILENAME),
+	);
+	if (outcomeText === undefined) {
+		return completedAtText === undefined ? undefined : { status: "unknown" };
+	}
 	try {
-		const handle = await open(logPath, "r");
-		try {
-			const { size } = await handle.stat();
-			const length = Math.min(size, 4096);
-			const buffer = Buffer.alloc(length);
-			await handle.read(buffer, 0, length, size - length);
-			tail = buffer.toString("utf8");
-		} finally {
-			await handle.close();
-		}
+		const outcome = DetachedCommandOutcomeSchema.safeParse(
+			JSON.parse(outcomeText),
+		);
+		return outcome.success
+			? { status: "completed", outcome: outcome.data }
+			: { status: "unknown" };
 	} catch {
-		return undefined;
+		return { status: "unknown" };
 	}
-	if (tail.includes("[Command reached its hard deadline]")) {
-		return { kind: "hard_killed" };
-	}
-	const exited = /\[Command exited with code (-?\d+)\]\s*$/.exec(tail);
-	if (exited) {
-		return { kind: "exited", exitCode: Number.parseInt(exited[1] ?? "1", 10) };
-	}
-	const failed = /\[Command failed: ([^\]]*)\]\s*$/.exec(tail);
-	if (failed) {
-		return { kind: "failed", error: failed[1] ?? "" };
-	}
-	return undefined;
 }
 
 function scheduleActiveCommandLogReconciliation(
@@ -769,9 +750,20 @@ function createDetachedLog(retentionMs: number, marker: DetachedCommandMarker) {
 		if (completed) scheduleCleanup();
 	});
 
-	const complete = () => {
+	const complete = (outcome: DetachedCommandOutcome) => {
 		if (completed) return;
 		completed = true;
+		// Publish the same outcome delivered live before removing the active
+		// marker. This synchronous boundary is independent of output flushing.
+		try {
+			writeLifecycleMarker(
+				join(directory, DETACHED_LOG_OUTCOME_FILENAME),
+				`${JSON.stringify(outcome)}\n`,
+			);
+		} catch {
+			// A failed outcome write leaves hydration conservative, not inferred
+			// from arbitrary output. Live completion and retention still proceed.
+		}
 		try {
 			writeLifecycleMarker(completedAtPath, String(Date.now()));
 		} catch {
@@ -948,16 +940,11 @@ function spawnAndCollect(
 			context.signal?.removeEventListener("abort", abortHandler);
 			unregisterExecution();
 		};
-		const reportDetachedCompletion = (
-			outcome:
-				| { kind: "exited"; exitCode: number }
-				| { kind: "signaled"; signal: string }
-				| { kind: "hard_killed" }
-				| { kind: "failed"; error: string },
-		) => {
+		const reportDetachedCompletion = (outcome: DetachedCommandOutcome) => {
 			if (!detached || !detachKind || detachedCompletionReported) return;
 			detachedCompletionReported = true;
 			clearKillTimer();
+			detachedLog?.complete(outcome);
 			const payload = {
 				sessionId: context.sessionId ?? "",
 				executionId,
@@ -1166,7 +1153,6 @@ function spawnAndCollect(
 				detachedLog?.write(out.finalChunk);
 				detachedLog?.write(err.finalChunk);
 				detachedLog?.write(`\n[Command exited with code ${code ?? 1}]\n`);
-				detachedLog?.complete();
 				reportDetachedCompletion(
 					detachedHardKillRequested
 						? { kind: "hard_killed" }
@@ -1228,7 +1214,6 @@ function spawnAndCollect(
 			if (killed) return;
 			if (detached) {
 				detachedLog?.write(`\n[Command failed: ${error.message}]\n`);
-				detachedLog?.complete();
 				reportDetachedCompletion(
 					detachedHardKillRequested
 						? { kind: "hard_killed" }

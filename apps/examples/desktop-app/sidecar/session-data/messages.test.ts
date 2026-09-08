@@ -10,7 +10,7 @@ import { readSessionMessages } from "./messages";
  * Builds a live-session transcript whose single run_commands tool call
  * detached, embedding the given log paths in the persisted result notice.
  */
-function detachedCommandSession(sessionId: string, logPaths: string[]) {
+function detachedCommandSession(logPaths: string[]) {
 	const resultText = logPaths
 		.map(
 			(path) => `[Command is still running. Output will continue in ${path}]`,
@@ -102,7 +102,7 @@ describe("readSessionMessages detached command enrichment", () => {
 			const sessionId = `detached-running-${Date.now()}`;
 			const row = await toolRowFor(
 				sessionId,
-				detachedCommandSession(sessionId, [logPath]),
+				detachedCommandSession([logPath]),
 			);
 			expect(row.meta).toMatchObject({
 				toolBackgroundStatus: "running",
@@ -121,12 +121,13 @@ describe("readSessionMessages detached command enrichment", () => {
 		await Promise.all([
 			writeFile(logPath, "[Command exited with code 0]\n"),
 			writeFile(join(directory, "completed-at"), String(Date.now())),
+			writeFile(
+				join(directory, "command-outcome.json"),
+				JSON.stringify({ kind: "exited", exitCode: 0 }),
+			),
 		]);
 		const sessionId = `detached-completed-${Date.now()}`;
-		const row = await toolRowFor(
-			sessionId,
-			detachedCommandSession(sessionId, [logPath]),
-		);
+		const row = await toolRowFor(sessionId, detachedCommandSession([logPath]));
 		expect(row.meta).toMatchObject({
 			toolBackgroundStatus: "succeeded",
 			toolBackgroundLogPath: logPath,
@@ -145,10 +146,7 @@ describe("readSessionMessages detached command enrichment", () => {
 		const logPath = join(directory, "output.log");
 		await writeFile(logPath, "log with no lifecycle markers");
 		const sessionId = `detached-unknown-${Date.now()}`;
-		const row = await toolRowFor(
-			sessionId,
-			detachedCommandSession(sessionId, [logPath]),
-		);
+		const row = await toolRowFor(sessionId, detachedCommandSession([logPath]));
 		expect(row.meta).toMatchObject({
 			toolBackgroundStatus: "indeterminate",
 			toolBackgroundLogPath: logPath,
@@ -187,11 +185,15 @@ describe("readSessionMessages detached command enrichment", () => {
 					"[Command exited with code 3]",
 				),
 				writeFile(join(doneDirectory, "completed-at"), String(Date.now())),
+				writeFile(
+					join(doneDirectory, "command-outcome.json"),
+					JSON.stringify({ kind: "exited", exitCode: 3 }),
+				),
 			]);
 			const sessionId = `detached-parallel-${Date.now()}`;
 			const row = await toolRowFor(
 				sessionId,
-				detachedCommandSession(sessionId, [
+				detachedCommandSession([
 					join(liveDirectory, "output.log"),
 					join(doneDirectory, "output.log"),
 				]),
