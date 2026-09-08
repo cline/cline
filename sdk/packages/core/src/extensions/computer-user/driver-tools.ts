@@ -123,7 +123,7 @@ const BackendRestartInput = z.object({}).strict();
 export interface ComputerBackendRestartCapability {
 	/** Overall wait budget; the tool's timeout is sized from it. */
 	budgetMs: number;
-	ensureRunning(): Promise<ComputerBackendEnsureResult>;
+	ensureRunning(signal?: AbortSignal): Promise<ComputerBackendEnsureResult>;
 	dispose(): Promise<void>;
 }
 
@@ -242,7 +242,7 @@ export function createComputerUserDriverTools(
 	const restart = createTool({
 		name: "computer_user_restart",
 		description:
-			"Recreate the computer user: abort its active run, stop its session, and reset it to a clean state for when it degrades (e.g. turns that end in seconds without acting, or reports that never arrive). The next start or message creates a fresh session that retains no memory of previous tasks. Its transcript history survives, tagged with the old session id. This restarts the helper, not the computer-use backend — use computer_user_restart_backend for that.",
+			"Recreate the computer user: abort its active run, stop its session, and reset it to a clean state for when it degrades (e.g. turns that end in seconds without acting, or reports that never arrive). Call computer_user_start afterwards to create a fresh session that retains no memory of previous tasks. Its transcript history survives, tagged with the old session id. This restarts the helper, not the computer-use backend — use computer_user_restart_backend for that.",
 		inputSchema: zodToJsonSchema(RestartInput),
 		retryable: false,
 		execute: async (input: unknown) => {
@@ -251,7 +251,7 @@ export function createComputerUserDriverTools(
 			return restarted
 				? {
 						status: "restarted",
-						note: "The computer user is clean and uninitialized. The next start or message creates a fresh session with no memory of previous tasks.",
+						note: "The computer user is clean and uninitialized. Call computer_user_start to create a fresh session with no memory of previous tasks.",
 					}
 				: {
 						status: "not_restarted",
@@ -280,9 +280,9 @@ export function createComputerUserDriverTools(
 				// The wait budget plus probe slack, so the tool outlives a slow launch (e.g. a cargo build).
 				timeoutMs: backendRestart.budgetMs + 60_000,
 				retryable: false,
-				execute: async (input: unknown) => {
+				execute: async (input: unknown, context) => {
 					BackendRestartInput.parse(input);
-					const result = await backendRestart.ensureRunning();
+					const result = await backendRestart.ensureRunning(context.signal);
 					switch (result.status) {
 						case "already_running":
 							return {
@@ -298,7 +298,7 @@ export function createComputerUserDriverTools(
 							return {
 								status: result.status,
 								error: result.error,
-								note: "The launch command was run but the backend never answered. Check the command (it must make the backend answer on the configured port) and try again.",
+								note: "Backend recovery did not complete. Read the error before retrying; the command may not have been launched.",
 							};
 					}
 				},
