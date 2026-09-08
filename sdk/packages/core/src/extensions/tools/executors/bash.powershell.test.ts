@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AgentToolContext } from "@cline/shared";
@@ -93,6 +93,10 @@ for (const outer of shells) {
 						await mkdir(join(cwd, "child"));
 						await writeFile(join(cwd, "child", "MyEditForm.cs"), "synthetic");
 						await writeFile(join(cwd, "other.txt"), "synthetic");
+						// PowerShell expands Windows 8.3 aliases in Get-ChildItem.FullName.
+						const expectedFile = await realpath(
+							join(cwd, "child", "MyEditForm.cs"),
+						);
 						const withEnv = createShellExecutor({
 							shell: outer.name,
 							env: { CLINE_SHELL_TEST: "inherited value" },
@@ -103,7 +107,7 @@ for (const outer of shells) {
 							ctx,
 						);
 						expect(output.trim().split(/\r?\n/)).toEqual([
-							join(cwd, "child", "MyEditForm.cs"),
+							expectedFile,
 							"inherited value",
 						]);
 					} finally {
