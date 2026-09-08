@@ -106,7 +106,8 @@ function renderDevIndexHtml(devServerUrl: string): string {
     window.__vite_plugin_react_preamble_installed__ = true;
   </script>
   <script type="module" src="${devServerUrl}/@vite/client"></script>
-  <link rel="icon" type="image/svg+xml" href="${devServerUrl}/cline-logo-filled.svg" />
+  <link rel="icon" type="image/svg+xml" href="${devServerUrl}/favicon.svg" />
+  <link rel="alternate icon" href="${devServerUrl}/icon.ico" />
   <title>Cline Hub</title>
 </head>
 <body>
