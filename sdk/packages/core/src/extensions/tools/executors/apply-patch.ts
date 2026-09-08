@@ -227,6 +227,20 @@ async function loadFiles(
 		eols[filePath] = detectLineEnding(fileContent);
 	}
 
+	// ADD targets are loaded only when they already exist, so the parser's
+	// "File already exists" guard reflects the real filesystem instead of
+	// silently overwriting the file.
+	for (const filePath of extractFilesForOperations(lines, [
+		PATCH_MARKERS.ADD,
+	])) {
+		const absolutePath = resolveFilePath(cwd, filePath, restrictToCwd);
+		try {
+			files[filePath] = await fs.readFile(absolutePath, encoding);
+		} catch {
+			// Missing file is the expected case for ADD.
+		}
+	}
+
 	return { files, eols };
 }
 
