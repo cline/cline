@@ -265,7 +265,10 @@ export interface ProviderOptions {
 export interface ModelCatalogConfig {
 	/** Fetch latest catalog at handler initialization */
 	loadLatestOnInit?: boolean;
-	/** Include models that are only valid for Cline Cloud sessions */
+	/**
+	 * Include models that are only valid for Cline Cloud sessions.
+	 * Defaults to false; cloud-inclusive and local catalogs use separate caches.
+	 */
 	includeClineCloudModels?: boolean;
 	/** Fetch provider-private models when auth is available */
 	loadPrivateOnAuth?: boolean;
