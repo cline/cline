@@ -124,8 +124,6 @@ function makeErrorChatMessage(
 		id: makeId("error"),
 		sessionId: sid,
 		role: "error",
-		// Sidecar cloud errors arrive wrapped in a machine-readable envelope;
-		// only the human message belongs in the transcript.
 		content: humanizeCloudSessionError(content),
 		createdAt: Date.now(),
 	};
@@ -287,7 +285,6 @@ export function mergeCloudSnapshotWithLive(
 	const liveOnly: ChatMessage[] = [];
 	const optimistic: ChatMessage[] = [];
 	for (const message of current) {
-		// Never let another session's live messages bleed into this merge.
 		if (message.sessionId && message.sessionId !== options.sessionId) {
 			continue;
 		}
