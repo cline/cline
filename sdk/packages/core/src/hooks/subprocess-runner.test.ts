@@ -136,4 +136,56 @@ describe("runSubprocessEvent", () => {
 		expect(result?.exitCode).toBe(0);
 		expect(result?.parsedJson).toEqual({ cancel: false });
 	}, 15_000);
+
+	it("releases the stdio pipes once the exit fallback settles", async () => {
+		// Same shape as above: the grandchild inherits the hook's stdout and
+		// outlives it. Settling is not enough on its own — the pipe handles
+		// the host still holds are what keep it alive (and keep collecting
+		// output) until the grandchild goes away, so they have to be dropped
+		// along with the result.
+		const script = [
+			`const { spawn } = require("child_process");`,
+			`const child = spawn(process.execPath, ["-e", "setTimeout(() => {}, 3_000)"], { stdio: ["ignore", "inherit", "ignore"], detached: true });`,
+			`child.unref();`,
+		].join("\n");
+		const pipesBefore = countActivePipes();
+		await runSubprocessEvent(
+			{},
+			{
+				command: [process.execPath, "-e", script],
+				timeoutMs: 10_000,
+			},
+		);
+		// Well under the grandchild's lifetime: pipes released by the fallback
+		// disappear right away, pipes held open by the grandchild do not.
+		await vi.waitFor(() => expect(countActivePipes()).toBe(pipesBefore), {
+			timeout: 1_000,
+		});
+	}, 15_000);
+
+	it("records nothing for a detached hook that fails to spawn", async () => {
+		const observed: Array<{ durationMs: number; exited: boolean }> = [];
+		await expect(
+			runSubprocessEvent(
+				{},
+				{
+					command: [`${process.execPath}-missing-hook-binary`],
+					detached: true,
+					detachedObservationMs: 100,
+					onDetachedSettled: (event) => observed.push(event),
+				},
+			),
+		).rejects.toThrow(/Failed to execute hook command/);
+		// A hook that never started must not show up as one that ran past the
+		// window, which is what an observation timer left armed would report.
+		await new Promise((resolve) => setTimeout(resolve, 500));
+		expect(observed).toHaveLength(0);
+	});
 });
+
+/** Pipes currently keeping this process's event loop alive. */
+function countActivePipes(): number {
+	return process
+		.getActiveResourcesInfo()
+		.filter((resource) => resource === "PipeWrap").length;
+}
