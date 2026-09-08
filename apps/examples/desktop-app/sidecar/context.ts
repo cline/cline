@@ -491,6 +491,18 @@ export function handleCoreSessionEvent(
 	// projection is live and the observer's copy of the same hub events would
 	// be a duplicate. Marked from the pipe itself rather than from `emitChunk`,
 	// so chunks the sidecar synthesizes locally never claim to be this pipe.
+	//
+	// Deliberately every event, not just the content-bearing ones: the hub
+	// fans out to listeners in registration order, and the observer's global
+	// subscription is registered at sidecar boot while this per-session one
+	// arrives at hydrate — so the observer sees each delta first. Waiting for
+	// core content to mark the pipe would let the observer's copy of a turn's
+	// first delta through before the mark existed, doubling it every turn.
+	// The cost is the reverse case: if this pipe delivers a status or queue
+	// event and then stops while the observer keeps streaming, the observer is
+	// held off for `CORE_PIPE_ACTIVE_MS`. That needs the subscription torn down
+	// mid-turn, and the turn-end reconcile restores the gap from canonical
+	// history — where doubling would be visible on every turn.
 	const eventSessionId = (event.payload as { sessionId?: string } | undefined)
 		?.sessionId;
 	if (eventSessionId) {
