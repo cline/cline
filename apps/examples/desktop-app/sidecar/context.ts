@@ -950,6 +950,15 @@ export function handleHubLiveEvent(
 					: event.event === "run.started"
 						? "running"
 						: session.status;
+			if (
+				event.event === "session.updated" &&
+				event.sequence === undefined &&
+				status === "running" &&
+				session.endedAt !== undefined &&
+				!session.busy
+			) {
+				return;
+			}
 			session.status = status;
 			session.busy = status === "running";
 			sendEvent(ctx, "chat_session_status", { sessionId, status });

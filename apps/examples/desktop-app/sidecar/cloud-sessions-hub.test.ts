@@ -270,7 +270,7 @@ describe("CloudSessionManager Hub runtime", () => {
 		});
 	});
 
-	it("ignores an older running snapshot after a terminal Hub event", async () => {
+	it("ignores stale running snapshots after a terminal Hub event", async () => {
 		const { ctx, events } = createContext();
 		const hub = new FakeHubClient();
 		const manager = new CloudSessionManager(ctx, {
@@ -294,6 +294,17 @@ describe("CloudSessionManager Hub runtime", () => {
 			event: "session.updated",
 			eventId: "evt-stale",
 			sequence: 1,
+			sessionId: "inner-1",
+			payload: { session: { status: "running" } },
+		});
+
+		expect(ctx.liveSessions.get("ses-outer")?.status).toBe("completed");
+		expect(events.at(-1)?.name).toBe("chat_session_ended");
+
+		hub.events?.({
+			version: "v1",
+			event: "session.updated",
+			eventId: "evt-stale-unsequenced",
 			sessionId: "inner-1",
 			payload: { session: { status: "running" } },
 		});
