@@ -126,4 +126,3 @@ describe("createTranscriptRecordingHooks", () => {
 		]);
 	});
 });
-

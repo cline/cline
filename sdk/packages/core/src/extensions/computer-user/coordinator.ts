@@ -1,6 +1,10 @@
 import type { AgentResult } from "@cline/shared";
 import { nanoid } from "nanoid";
 import type { ComputerTaskArtifactRecorder } from "../computer-observability/recorder";
+import type {
+	ComputerUserTranscriptEntry,
+	ComputerUserTranscriptLog,
+} from "./transcript-log";
 
 /**
  * Owns the asynchronous "computer user" helper on behalf of a driver agent.
@@ -102,6 +106,8 @@ export interface ComputerUserCoordinatorOptions {
 	helperConfig: Record<string, unknown>;
 	notifyDriver: DriverNotifier;
 	recorder?: ComputerTaskArtifactRecorder;
+	/** In-process tail of the helper's transcript, for the driver's peek tool. */
+	transcriptLog?: ComputerUserTranscriptLog;
 	now?: () => number;
 }
 
@@ -346,6 +352,61 @@ export class ComputerUserCoordinator {
 			this.state = { kind: "disposed" };
 			this.recordStatusChange("disposed");
 		});
+	}
+
+	/**
+	 * Resets the helper for a degraded session: aborts any active run, stops
+	 * the helper session, and returns the coordinator to `uninitialized`. The
+	 * next start/message creates a fresh session — the helper retains no
+	 * memory of previous tasks, and its transcript log keeps the old
+	 * session's entries (tagged with the old session id) as history.
+	 *
+	 * Like `dispose`, the run's in-flight settlement is ignored afterwards by
+	 * state-kind check in `settleRun`, so a wedged turn cannot resurrect old
+	 * state. This restarts the helper session, not the computer-use backend.
+	 */
+	async restart(reason?: string): Promise<{ restarted: boolean }> {
+		return this.transition(async () => {
+			if (this.state.kind === "disposed") {
+				return { restarted: false };
+			}
+			const sessionId =
+				"sessionId" in this.state ? this.state.sessionId : undefined;
+			if (sessionId) {
+				if (this.state.kind === "running") {
+					await this.options.host
+						.abort(sessionId, new Error(reason ?? "Restarted by driver"))
+						.catch(() => {});
+				}
+				await this.options.host.stop(sessionId).catch(() => {});
+				this.record(
+					"session.ended",
+					{ reason: reason ?? "restarted_by_driver" },
+					sessionId,
+				);
+			}
+			this.state = { kind: "uninitialized" };
+			this.lastReport = undefined;
+			this.latestNote = undefined;
+			this.lastMeaningfulProgressAt = undefined;
+			this.pendingQuestion = undefined;
+			this.finalReport = undefined;
+			this.recordStatusChange("uninitialized");
+			return { restarted: true };
+		});
+	}
+
+	/**
+	 * Recent helper transcript entries from the in-process log, or undefined
+	 * when the host did not enable transcript recording.
+	 */
+	transcriptTail(options?: {
+		limit?: number;
+		sinceSeq?: number;
+	}):
+		| { entries: ComputerUserTranscriptEntry[]; latestSeq: number }
+		| undefined {
+		return this.options.transcriptLog?.tail(options);
 	}
 
 	// -----------------------------------------------------------------------
