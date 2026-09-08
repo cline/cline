@@ -168,12 +168,7 @@ export function normalizeRuntimeConfig(
 	};
 }
 
-/**
- * Maps a cloud runtime status (hub vocabulary plus the sidecar-side
- * "expired"/"error" values) to the chat UI status. Returns null for unknown
- * values so callers leave the current status alone — a malformed snapshot
- * must never flip a running turn to "done".
- */
+/** Maps cloud runtime statuses to chat UI statuses without guessing unknowns. */
 export function mapCloudRuntimeStatus(
 	status: string | undefined,
 ): ChatSessionStatus | null {

@@ -23,12 +23,7 @@ export type CloudOnboardingVariant =
 	| "no_repositories"
 	| "error";
 
-/**
- * Full-width onboarding panel shown in place of the composer when a cloud
- * session cannot be started yet (signed out, GitHub not connected, or the
- * GitHub App has no repository access). Teaches what cloud sessions are and
- * walks the user through the dashboard hand-off, then auto-detects completion.
- */
+/** Setup panel shown when a cloud session cannot start yet. */
 export function CloudOnboardingCard({
 	variant,
 	onConnect,
@@ -38,12 +33,10 @@ export function CloudOnboardingCard({
 	checking = false,
 }: {
 	variant: CloudOnboardingVariant;
-	/** Opens the Cline dashboard integrations page in the browser. */
 	onConnect: () => void;
 	onRefresh: () => void;
 	onSignIn?: () => void;
 	signingIn?: boolean;
-	/** True while a background repository re-check is in flight. */
 	checking?: boolean;
 }) {
 	if (variant === "error") {
@@ -195,9 +188,7 @@ function OnboardingStep({
 	title: string;
 	icon: ReactNode;
 	children: ReactNode;
-	/** Step already completed (e.g. GitHub connected, repos pending). */
 	done?: boolean;
-	/** The step the user should do next. */
 	active?: boolean;
 }) {
 	return (
@@ -232,10 +223,6 @@ function OnboardingStep({
 	);
 }
 
-/**
- * Decorative GitHub → Cline Cloud → branch flow diagram. Built from theme
- * tokens so it adapts to light/dark mode and the accent color.
- */
 function CloudFlowIllustration({ className }: { className?: string }) {
 	return (
 		<div
