@@ -45,6 +45,7 @@ import type {
 	ResolvedStartSessionInput,
 } from "../runtime/host/runtime-host";
 import type { RuntimeBuilderInput } from "../runtime/orchestration/session-runtime";
+import type { SessionHistoryOriginMetadata } from "../session/history-origin";
 import { SessionSource } from "../types/common";
 import type { CoreSessionConfig } from "../types/config";
 import {
@@ -59,7 +60,10 @@ import {
 } from "./global-settings";
 import { hasRuntimeHooks, mergeAgentExtensions } from "./session-data";
 import type { ProviderSettingsManager } from "./storage/provider-settings-manager";
-import { createClientScopedTelemetryService } from "./telemetry/scoped-telemetry";
+import {
+	createClientScopedTelemetryService,
+	createScopedTelemetryService,
+} from "./telemetry/scoped-telemetry";
 import { InMemoryWorkspaceManager } from "./workspace/workspace-manager";
 import type { GitWorkspaceState } from "./workspace/workspace-manifest";
 import { buildWorkspaceMetadataWithInfo } from "./workspace/workspace-manifest";
@@ -239,6 +243,12 @@ export interface PrepareLocalRuntimeBootstrapOptions {
 	input: ResolvedStartSessionInput;
 	localRuntime?: LocalRuntimeStartOptions;
 	sessionId: string;
+	/**
+	 * How the session was initiated (user, automation, import, ...). Stamped
+	 * on every telemetry event the session emits so errors can be filtered by
+	 * provenance, e.g. transcripts imported from another agent.
+	 */
+	sessionOrigin?: SessionHistoryOriginMetadata;
 	providerSettingsManager: ProviderSettingsManager;
 	defaultTelemetry?: ITelemetryService;
 	defaultLogger?: BasicLogger;
@@ -287,6 +297,7 @@ export async function prepareLocalRuntimeBootstrap(
 	const {
 		input,
 		sessionId,
+		sessionOrigin,
 		providerSettingsManager,
 		defaultTelemetry,
 		defaultLogger,
@@ -337,7 +348,7 @@ export async function prepareLocalRuntimeBootstrap(
 	// its process telemetry service. Scope that singleton to the serialized
 	// client identity without mutating it; local clients already carry their
 	// own telemetry instance and keep using it directly.
-	const telemetry =
+	const clientTelemetry =
 		configuredTelemetry ??
 		(defaultTelemetry && clientContext
 			? createClientScopedTelemetryService(defaultTelemetry, {
@@ -346,6 +357,13 @@ export async function prepareLocalRuntimeBootstrap(
 					user: configuredExtensionContext?.user,
 				})
 			: defaultTelemetry);
+	const telemetry =
+		clientTelemetry && sessionOrigin
+			? createScopedTelemetryService(clientTelemetry, {
+					session_origin: sessionOrigin.mode,
+					session_origin_trigger: sessionOrigin.trigger,
+				})
+			: clientTelemetry;
 	const extensionContext: ExtensionContext = {
 		...(configuredExtensionContext ?? {}),
 		...(headerClientContext ? { client: headerClientContext } : {}),
