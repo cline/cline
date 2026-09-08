@@ -1049,6 +1049,7 @@ export function handleHubLiveEvent(
 			markQueuedAttachmentsSubmitted(session, promptId);
 			emitQueuedPromptStart(ctx, sessionId, session, {
 				promptId,
+				transcriptReflected: event.payload?.transcriptReflected === true,
 				prompt: typeof item?.prompt === "string" ? item.prompt : "",
 				attachmentCount:
 					typeof item?.attachmentCount === "number" ? item.attachmentCount : 0,
