@@ -158,6 +158,9 @@ aborted. Existing subscriptions replay pending requests after reconnect;
 `approval.list_pending` additionally lets attached clients query one session.
 An approval response that specifies a session must match the pending request.
 
+Hub `session.input` accepts a nonblank prompt or at least one nonblank image/file
+attachment; requests with neither are rejected before starting a turn.
+
 Session status is reported, never fabricated. A session's initial status
 reflects whether a turn actually runs inside `start(...)`: prompt-bearing
 starts (one-shot or interactive) begin `running`, interactive starts without a
@@ -316,6 +319,8 @@ Header authentication is mutually exclusive with the local hub-token subprotocol
 the proxy is responsible for authenticating the client and adding any private
 upstream hub credentials. Resolver failures and rejected protocol headers fail the
 connection and remain available through the client's connection-error state.
+Clients with active subscriptions keep retrying after header-resolution failures,
+even when no socket was created.
 
 Local hub rediscovery is limited to managed shared-daemon endpoints obtained
 through discovery or `ensure*HubServer(...)` startup paths. Managed local hubs
