@@ -28,6 +28,7 @@ import {
 import simpleGit from "simple-git";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TeamEvent } from "../../extensions/tools/team";
+import { CORE_TELEMETRY_EVENTS } from "../../services/telemetry/core-events";
 import { TelemetryService } from "../../services/telemetry/TelemetryService";
 import { createSessionCompactionState } from "../../session/models/session-compaction";
 import type { SessionManifest } from "../../session/models/session-manifest";
@@ -2935,9 +2936,14 @@ describe("LocalRuntimeHost", () => {
 		expect(consumed).toBe('<user_input mode="plan">steer this</user_input>');
 		// The agent receives a session-scoped view over the host telemetry.
 		const capture = vi.spyOn(telemetry, "capture");
-		agentConfig?.telemetry?.capture({ event: "test.event", properties: {} });
+		agentConfig?.telemetry?.capture({
+			event: CORE_TELEMETRY_EVENTS.TASK.PROVIDER_API_ERROR,
+			properties: {},
+		});
 		expect(capture).toHaveBeenCalledWith(
-			expect.objectContaining({ event: "test.event" }),
+			expect.objectContaining({
+				event: CORE_TELEMETRY_EVENTS.TASK.PROVIDER_API_ERROR,
+			}),
 		);
 	});
 

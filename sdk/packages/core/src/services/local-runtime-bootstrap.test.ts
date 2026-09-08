@@ -11,6 +11,7 @@ import { setHomeDir } from "@cline/shared/storage";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { version as corePackageVersion } from "../../package.json";
 import type { ProviderSettings } from "../types/provider-settings";
+import { CORE_TELEMETRY_EVENTS } from "./telemetry/core-events";
 
 function createProviderSettingsManager(settings?: ProviderSettings) {
 	return {
@@ -538,12 +539,12 @@ describe("prepareLocalRuntimeBootstrap", () => {
 		});
 
 		bootstrap.config.telemetry?.capture({
-			event: "task.provider_api_error",
+			event: CORE_TELEMETRY_EVENTS.TASK.PROVIDER_API_ERROR,
 			properties: { ulid: "sess-origin" },
 		});
 
 		expect(capture).toHaveBeenLastCalledWith({
-			event: "task.provider_api_error",
+			event: CORE_TELEMETRY_EVENTS.TASK.PROVIDER_API_ERROR,
 			properties: expect.objectContaining({
 				ulid: "sess-origin",
 				session_origin: "import",
