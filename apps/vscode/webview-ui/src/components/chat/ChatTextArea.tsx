@@ -44,6 +44,7 @@ import {
 } from "@/utils/slash-commands"
 import ClineRulesToggleModal from "../cline-rules/ClineRulesToggleModal"
 import { getModeToggleDraftAction } from "./chat-textarea-mode-toggle"
+import PlanActModeToggle from "./PlanActModeToggle"
 import ServersToggleModal from "./ServersToggleModal"
 
 const { MAX_IMAGES_AND_FILES_PER_MESSAGE } = CHAT_CONSTANTS
@@ -94,33 +95,6 @@ interface GitCommit {
 }
 
 const PLAN_MODE_COLOR = "var(--vscode-activityWarningBadge-background)"
-const ACT_MODE_COLOR = "var(--vscode-focusBorder)"
-
-const SwitchContainer = styled.div<{ disabled: boolean }>`
-	display: flex;
-	align-items: center;
-	background-color: transparent;
-	border: 1px solid var(--vscode-input-border);
-	border-radius: 12px;
-	overflow: hidden;
-	cursor: ${(props) => (props.disabled ? "not-allowed" : "pointer")};
-	opacity: ${(props) => (props.disabled ? 0.5 : 1)};
-	transform: scale(1);
-	transform-origin: right center;
-	margin-left: 0;
-	user-select: none; // Prevent text selection
-`
-
-const Slider = styled.div.withConfig({
-	shouldForwardProp: (prop) => !["isAct", "isPlan"].includes(prop),
-})<{ isAct: boolean; isPlan?: boolean }>`
-	position: absolute;
-	height: 100%;
-	width: 50%;
-	background-color: ${(props) => (props.isPlan ? PLAN_MODE_COLOR : ACT_MODE_COLOR)};
-	transition: transform 0.2s ease;
-	transform: translateX(${(props) => (props.isAct ? "100%" : "0%")});
-`
 
 const ButtonGroup = styled.div`
 	display: flex;
@@ -1664,23 +1638,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							</p>
 						</TooltipContent>
 						<TooltipTrigger>
-							<SwitchContainer data-testid="mode-switch" disabled={false} onClick={onModeToggle}>
-								<Slider isAct={mode === "act"} isPlan={mode === "plan"} />
-								{["Plan", "Act"].map((m) => (
-									<div
-										aria-checked={mode === m.toLowerCase()}
-										className={cn(
-											"pt-0.5 pb-px px-2 z-10 text-xs w-1/2 text-center bg-transparent",
-											mode === m.toLowerCase() ? "text-white" : "text-input-foreground",
-										)}
-										key={m}
-										onMouseLeave={() => setShownTooltipMode(null)}
-										onMouseOver={() => setShownTooltipMode(m.toLowerCase() === "plan" ? "plan" : "act")}
-										role="switch">
-										{m}
-									</div>
-								))}
-							</SwitchContainer>
+							<PlanActModeToggle
+								mode={mode as "plan" | "act"}
+								onHover={setShownTooltipMode}
+								onModeToggle={onModeToggle}
+							/>
 						</TooltipTrigger>
 					</Tooltip>
 				</div>
