@@ -76,6 +76,70 @@ describe("createComputerUseTool", () => {
 		server = undefined;
 	});
 
+	it("maps run_sequence steps and expect_unchanged onto the wire format", async () => {
+		const seen: Array<Record<string, unknown>> = [];
+		const started = await startFakeBackend((request) => {
+			seen.push(request);
+			return {
+				id: request.id as number,
+				ok: true,
+				text: "Executed 2 actions.",
+				image: { data: "aGk=", mediaType: "image/png" },
+			};
+		});
+		server = started.server;
+		client = new ComputerUseClient({ port: started.port });
+
+		const tool = await createComputerUseTool({ client, port: started.port });
+		const output = (await tool.execute(
+			{
+				action: "run_sequence",
+				actions: [
+					{ action: "left_click", coordinate: [10, 20] },
+					{ action: "type", text: "hello" },
+				],
+			},
+			ctx,
+		)) as Array<{ type: string; text?: string }>;
+
+		expect(seen[0]).toMatchObject({
+			action: "run_sequence",
+			actions: [
+				{ action: "left_click", coordinate: [10, 20] },
+				{ action: "type", text: "hello" },
+			],
+		});
+		expect(output[0]).toMatchObject({
+			type: "text",
+			text: "Executed 2 actions.",
+		});
+		expect(output[1]).toMatchObject({ type: "image" });
+	});
+
+	it("maps expect_unchanged onto the wire format", async () => {
+		const seenGuard: Array<Record<string, unknown>> = [];
+		const guardBackend = await startFakeBackend((request) => {
+			seenGuard.push(request);
+			return { id: request.id as number, ok: true };
+		});
+		server = guardBackend.server;
+		client = new ComputerUseClient({ port: guardBackend.port });
+		const guardTool = await createComputerUseTool({ client, port: guardBackend.port });
+		await guardTool.execute(
+			{
+				action: "left_click",
+				coordinate: [5, 6],
+				expect_unchanged: [1, 2, 3, 4],
+			},
+			ctx,
+		);
+		expect(seenGuard[0]).toMatchObject({
+			action: "left_click",
+			coordinate: [5, 6],
+			expectUnchanged: [1, 2, 3, 4],
+		});
+	});
+
 	it("exposes the computer tool name and an object input schema", async () => {
 		const started = await startFakeBackend((request) => ({
 			id: request.id as number,

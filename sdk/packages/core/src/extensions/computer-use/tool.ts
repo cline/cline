@@ -1,7 +1,11 @@
 import type { AgentTool, AgentToolContext } from "@cline/shared";
 import { createTool } from "@cline/shared";
 import { ComputerUseClient, type ComputerUseClientOptions } from "./client";
-import type { ComputerUseAction, ComputerUseCoordinate } from "./protocol";
+import type {
+	ComputerUseAction,
+	ComputerUseCoordinate,
+	ComputerUseRequest,
+} from "./protocol";
 
 export interface ComputerUseToolOptions extends ComputerUseClientOptions {
 	/**
@@ -23,44 +27,57 @@ interface ComputerToolInput {
 	scroll_direction?: "up" | "down" | "left" | "right";
 	scroll_amount?: number;
 	region?: readonly [number, number, number, number];
+	/** Steps for the run_sequence action, in the same input shape. */
+	actions?: ComputerToolInput[];
+	expect_unchanged?: readonly [number, number, number, number];
 }
 
 const COMPUTER_TOOL_NAME = "computer";
 
-const COMPUTER_TOOL_INPUT_SCHEMA: Record<string, unknown> = {
+const ACTION_PROPERTY = {
+	type: "string",
+	enum: [
+		"screenshot",
+		"cursor_position",
+		"mouse_move",
+		"left_click",
+		"left_click_drag",
+		"right_click",
+		"middle_click",
+		"double_click",
+		"triple_click",
+		"left_mouse_down",
+		"left_mouse_up",
+		"key",
+		"hold_key",
+		"type",
+		"scroll",
+		"wait",
+		"zoom",
+	],
+	description: "The action to perform.",
+} as const;
+
+const COORDINATE_PROPERTY = {
+	type: "array",
+	items: { type: "number" },
+	minItems: 2,
+	maxItems: 2,
+	description:
+		"(x, y) pixel coordinate, required for mouse_move, left_click, left_click_drag (end point), right_click, middle_click, double_click, triple_click, left_mouse_down, left_mouse_up, and scroll (scroll origin).",
+} as const;
+
+const TEXT_PROPERTY = {
+	type: "string",
+	description:
+		"Text to type (for the type action) or key combination to press (for key/hold_key, e.g. 'ctrl+alt+delete').",
+} as const;
+
+const SEQUENCE_STEP_SCHEMA: Record<string, unknown> = {
 	type: "object",
 	properties: {
-		action: {
-			type: "string",
-			enum: [
-				"screenshot",
-				"cursor_position",
-				"mouse_move",
-				"left_click",
-				"left_click_drag",
-				"right_click",
-				"middle_click",
-				"double_click",
-				"triple_click",
-				"left_mouse_down",
-				"left_mouse_up",
-				"key",
-				"hold_key",
-				"type",
-				"scroll",
-				"wait",
-				"zoom",
-			],
-			description: "The action to perform.",
-		},
-		coordinate: {
-			type: "array",
-			items: { type: "number" },
-			minItems: 2,
-			maxItems: 2,
-			description:
-				"(x, y) pixel coordinate, required for mouse_move, left_click, left_click_drag (end point), right_click, middle_click, double_click, triple_click, left_mouse_down, left_mouse_up, and scroll (scroll origin).",
-		},
+		action: ACTION_PROPERTY,
+		coordinate: COORDINATE_PROPERTY,
 		start_coordinate: {
 			type: "array",
 			items: { type: "number" },
@@ -68,11 +85,41 @@ const COMPUTER_TOOL_INPUT_SCHEMA: Record<string, unknown> = {
 			maxItems: 2,
 			description: "(x, y) start coordinate, required for left_click_drag.",
 		},
-		text: {
-			type: "string",
-			description:
-				"Text to type (for the type action) or key combination to press (for key/hold_key, e.g. 'ctrl+alt+delete').",
+		text: TEXT_PROPERTY,
+		duration: {
+			type: "number",
+			description: "Duration in seconds, used by hold_key and wait.",
 		},
+		scroll_direction: {
+			type: "string",
+			enum: ["up", "down", "left", "right"],
+			description: "Direction to scroll, required for the scroll action.",
+		},
+		scroll_amount: {
+			type: "number",
+			description: "Number of scroll clicks, required for the scroll action.",
+		},
+	},
+	required: ["action"],
+	additionalProperties: false,
+};
+
+const COMPUTER_TOOL_INPUT_SCHEMA: Record<string, unknown> = {
+	type: "object",
+	properties: {
+		action: {
+			...ACTION_PROPERTY,
+			enum: [...ACTION_PROPERTY.enum, "run_sequence"],
+		},
+		coordinate: COORDINATE_PROPERTY,
+		start_coordinate: {
+			type: "array",
+			items: { type: "number" },
+			minItems: 2,
+			maxItems: 2,
+			description: "(x, y) start coordinate, required for left_click_drag.",
+		},
+		text: TEXT_PROPERTY,
 		duration: {
 			type: "number",
 			description: "Duration in seconds, used by hold_key and wait.",
@@ -94,11 +141,29 @@ const COMPUTER_TOOL_INPUT_SCHEMA: Record<string, unknown> = {
 			description:
 				"(x0, y0, x1, y1) region to zoom into, required for the zoom action.",
 		},
+		actions: {
+			type: "array",
+			minItems: 1,
+			maxItems: 20,
+			description:
+				"Steps for the run_sequence action: executed back-to-back, aborting on the first failure, and the result is one screenshot of the final state. Prefer this for multi-step interactions (e.g. click a field, type into it, click the next field) — one round trip instead of one per action.",
+			items: SEQUENCE_STEP_SCHEMA,
+		},
+		expect_unchanged: {
+			type: "array",
+			items: { type: "number" },
+			minItems: 4,
+			maxItems: 4,
+			description:
+				"(x, y, width, height) click guard: a region that must look unchanged since the last screenshot you saw. The backend compares it before clicking; if it changed, the click is aborted and you get a fresh screenshot instead. Use it for clicks on targets that might move or disappear.",
+		},
 	},
 	required: ["action"],
 };
 
-function toComputerUseRequest(input: ComputerToolInput) {
+function toComputerUseRequest(
+	input: ComputerToolInput,
+): Omit<ComputerUseRequest, "id"> {
 	return {
 		action: input.action,
 		coordinate: input.coordinate,
@@ -108,6 +173,12 @@ function toComputerUseRequest(input: ComputerToolInput) {
 		scrollDirection: input.scroll_direction,
 		scrollAmount: input.scroll_amount,
 		region: input.region,
+		expectUnchanged: input.expect_unchanged,
+		...(input.actions
+			? {
+					actions: input.actions.map((step) => toComputerUseRequest(step)),
+				}
+			: {}),
 	};
 }
 
@@ -143,7 +214,16 @@ export async function createComputerUseTool(
 			`Control the screen and keyboard/mouse of a remote computer environment. ` +
 			`The display is ${widthPx}x${heightPx} pixels. ` +
 			`Use "screenshot" to see the current screen before acting, since the environment ` +
-			`may change between turns. Coordinates are [x, y] pixels from the top-left corner.`,
+			`may change between turns. Coordinates are [x, y] pixels from the top-left corner. ` +
+			`Every click, type, key, scroll, and drag action returns a screenshot of the ` +
+			`resulting state — do not take a separate screenshot just to see what an action ` +
+			`did; reserve standalone screenshots for navigation, loading, or uncertain state. ` +
+			`For multi-step interactions (e.g. click a field, type, click the next field) use ` +
+			`the run_sequence action: all steps execute back-to-back and you get one screenshot ` +
+			`of the final state — one round trip instead of one per action. For clicks on ` +
+			`targets that might move or disappear, pass expect_unchanged: [x, y, width, height] ` +
+			`covering the target; the backend aborts the click and returns a fresh screenshot ` +
+			`if that region changed since the screenshot you last saw.`,
 		inputSchema: COMPUTER_TOOL_INPUT_SCHEMA,
 		// Screenshots and round trips to an external process are slower than
 		// in-process tools; give this more room than the SDK's 30s default.
