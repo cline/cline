@@ -18,6 +18,7 @@ import { isOAuthProvider } from "../../auth/provider-auth-registry";
 import {
 	createCompactionStateAwarePrepareTurn,
 	createContextCompactionPrepareTurn,
+	createImportedHistoryCompactionPrepareTurn,
 } from "../../extensions/context/compaction";
 import type { ToolExecutors } from "../../extensions/tools";
 import {
@@ -35,6 +36,7 @@ import {
 	toSessionRecord,
 	withLatestAssistantTurnMetadata,
 } from "../../services/session-data";
+import { readImportedFromMetadata } from "../../services/session-import/service";
 import {
 	emitMentionTelemetry,
 	emitSessionCreationTelemetry,
@@ -674,9 +676,23 @@ export class LocalRuntimeHost implements RuntimeHost {
 		const extensions = runtime.extensions ?? bootstrap.extensions;
 		const explicitInitialCompactionState = startInput.initialCompactionState;
 		let activeSessionRef: ActiveSession | undefined;
-		const compact = createContextCompactionPrepareTurn(configWithProvider);
 		const rawInitialCompactionState =
 			explicitInitialCompactionState ?? resumedCompactionState;
+		const autoCompact = createContextCompactionPrepareTurn(configWithProvider);
+		// Resuming an imported session summarizes the foreign transcript before
+		// the model sees it. The summary persists to the compaction sidecar and
+		// the policy stands down once that sidecar projects, so it applies once
+		// per session and again only if the sidecar has gone stale.
+		const importedFrom = isReadOnlyResumeStart
+			? readImportedFromMetadata(manifest.metadata)
+			: undefined;
+		const compact = importedFrom
+			? createImportedHistoryCompactionPrepareTurn({
+					config: configWithProvider,
+					importedFrom: importedFrom.tool,
+					next: autoCompact,
+				})
+			: autoCompact;
 		// A compaction sidecar must keep projecting into the working context even
 		// when auto-compaction is disabled (`compact` undefined): manual /compact
 		// persists a sidecar and promises the next turn will use it. The
