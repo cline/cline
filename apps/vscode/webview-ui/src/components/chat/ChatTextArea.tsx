@@ -1608,14 +1608,13 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							{selectedModelId} doesn't support images, so{" "}
 							{selectedImages.length === 1 ? "the attached image" : `the ${selectedImages.length} attached images`}{" "}
 							will be ignored.{" "}
-							<a
-								className="underline cursor-pointer"
+							<button
+								className="underline cursor-pointer bg-transparent border-0 p-0 m-0 text-inherit font-inherit"
 								data-testid="images-unsupported-choose-model"
 								onClick={handleModelButtonClick}
-								role="button"
-								tabIndex={0}>
+								type="button">
 								Choose an image-capable model
-							</a>{" "}
+							</button>{" "}
 							or remove {selectedImages.length === 1 ? "it" : "them"}.
 						</span>
 					</div>

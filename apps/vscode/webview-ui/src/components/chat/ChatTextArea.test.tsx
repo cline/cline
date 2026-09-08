@@ -107,7 +107,10 @@ describe("ChatTextArea image attachments vs. model capability", () => {
 		expect(notice).toHaveTextContent("text-only-model doesn't support images, so the 2 attached images will be ignored.")
 		expect(screen.getAllByTestId("image-unsupported-badge")).toHaveLength(2)
 
-		fireEvent.click(screen.getByTestId("images-unsupported-choose-model"))
+		// A native button, so keyboard users get Enter/Space activation without extra handlers.
+		const chooseModel = screen.getByRole("button", { name: "Choose an image-capable model" })
+		expect(chooseModel.tagName).toBe("BUTTON")
+		fireEvent.click(chooseModel)
 		expect(mocks.navigateToSettingsModelPicker).toHaveBeenCalledWith({ targetSection: "api-config" })
 	})
 
