@@ -812,18 +812,15 @@ type CloudSessionManagerOptions = {
 	>;
 	getAuthToken: () => Promise<string | undefined>;
 	apiBaseUrl: string;
-	/** Resolves the active billing org; undefined means a personal session. */
 	getActiveOrganizationId?: (options?: {
 		fresh?: boolean;
 	}) => Promise<string | undefined>;
-	/** Test seam for retry backoff waits. */
 	sleep?: (ms: number) => Promise<void>;
 	createHubClient?: (
 		options: ConstructorParameters<typeof NodeHubClient>[0],
 	) => CloudHubClient;
 };
 
-/** Recognizes server ids even before the in-memory cloud registry is warm. */
 export function isCloudOuterSessionId(sessionId: string): boolean {
 	return sessionId.trim().startsWith("ses-");
 }
@@ -996,7 +993,6 @@ function messageText(message: unknown): string {
 		.trim();
 }
 
-/** Normalizes pod-wrapped prompts and raw local/queue prompts. */
 function normalizeUserPrompt(text: string): string {
 	const trimmed = text.trim();
 	const match = trimmed.match(/^<user_input\b[^>]*>([\s\S]*)<\/user_input>$/);
@@ -1133,7 +1129,6 @@ function collectToolCallIds(
 }
 
 function streamedAssistantText(events: HubEventEnvelope[]): string {
-	// Match messageText() trimming before substring supersession.
 	for (let index = events.length - 1; index >= 0; index -= 1) {
 		const event = events[index];
 		if (
@@ -1233,15 +1228,12 @@ export class CloudSessionManager {
 	private lastListedSessions: CloudSessionRecord[] = [];
 	private discoveryRefresh?: Promise<CloudSessionRecord[]>;
 	private readonly createRequests = new Map<string, Promise<JsonRecord>>();
-	// Keep locally-created sessions visible while their sandbox is provisioning.
 	private readonly pendingCreates = new Map<string, JsonRecord>();
-	// Reconcile only the server row stamped by this exact create request.
 	private readonly pendingCreateRecoveryTitles = new Map<string, string>();
 	private readonly provisioningOutcomes = new Map<
 		string,
 		Exclude<CloudProvisioningOutcome, { status: "provisioning" }>
 	>();
-	// Sessions mid-delete; blocks concurrent code from re-dialing them.
 	private readonly deletingSessions = new Set<string>();
 	private readonly createHubClient: NonNullable<
 		CloudSessionManagerOptions["createHubClient"]
@@ -1501,7 +1493,6 @@ export class CloudSessionManager {
 		if (this.disposed) {
 			throw new Error("Cloud session manager was disposed");
 		}
-		// Keep the session visible while the blocking create request provisions it.
 		const placeholderId = `${CLOUD_PROVISIONING_SESSION_ID_PREFIX}${randomUUID()}`;
 		const requestId = input.requestId?.trim();
 		if (requestId) {
@@ -1534,7 +1525,6 @@ export class CloudSessionManager {
 				title: `Provisioning ${cloudRepositoryLabel(input.repoUrl, "repository")}…`,
 			},
 		});
-		// Show the placeholder before the next sidebar poll.
 		sendEvent(this.ctx, "chat_session_status", {
 			sessionId: placeholderId,
 			status: "provisioning",
@@ -1546,7 +1536,6 @@ export class CloudSessionManager {
 				status: "ready",
 				sessionId,
 			});
-			// Swap an open placeholder thread to the real session.
 			sendEvent(this.ctx, "cloud_session_provisioned", {
 				placeholderId,
 				sessionId,
