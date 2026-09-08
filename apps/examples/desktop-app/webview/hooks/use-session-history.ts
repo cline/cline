@@ -163,7 +163,11 @@ export function normalizeDiscoveredStatus(
 ): SessionHistoryStatus {
 	const normalized = (status || "").toLowerCase();
 	const hasPrompt = Boolean(prompt?.trim());
-	if (normalized.includes("complete") || normalized.includes("done")) {
+	if (
+		normalized === "ended" ||
+		normalized.includes("complete") ||
+		normalized.includes("done")
+	) {
 		return "completed";
 	}
 	if (
