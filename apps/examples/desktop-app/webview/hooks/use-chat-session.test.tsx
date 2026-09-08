@@ -4681,4 +4681,102 @@ describe("coerced-queue first turn vs stale send response", () => {
 		expect(current.promptsInQueue).toHaveLength(1);
 		expect(current.promptsInQueue[0]?.prompt).toBe("second prompt");
 	});
+
+	it("keeps rendering the live stream after the sidecar restarts its chunk index", async () => {
+		const sessionId = "session-sidecar-restart";
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string } | undefined;
+					if (request?.action === "start") return { sessionId };
+				}
+				return [];
+			},
+		);
+
+		await act(async () => current.start(current.config));
+		const chatEventHandler = handlerFor("chat_event");
+
+		await act(async () => {
+			chatEventHandler({
+				sessionId,
+				stream: "chat_text",
+				chunk: "before ",
+				ts: Date.now(),
+				index: 42,
+				boot: "boot-a",
+			});
+			await new Promise((resolve) => setTimeout(resolve, 60));
+		});
+
+		// A replacement sidecar numbers its chunks from 1 again. Without the
+		// boot id the high-water mark would swallow the rest of the session.
+		await act(async () => {
+			chatEventHandler({
+				sessionId,
+				stream: "chat_text",
+				chunk: "after",
+				ts: Date.now(),
+				index: 1,
+				boot: "boot-b",
+			});
+			await new Promise((resolve) => setTimeout(resolve, 60));
+		});
+
+		const assistantText = current.messages
+			.filter((message) => message.role === "assistant")
+			.map((message) => message.content)
+			.join("");
+		expect(assistantText).toContain("before ");
+		expect(assistantText).toContain("after");
+	});
+
+	it("still drops a chunk the same sidecar already delivered", async () => {
+		const sessionId = "session-replayed-chunk";
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string } | undefined;
+					if (request?.action === "start") return { sessionId };
+				}
+				return [];
+			},
+		);
+
+		await act(async () => current.start(current.config));
+		const chatEventHandler = handlerFor("chat_event");
+
+		await act(async () => {
+			chatEventHandler({
+				sessionId,
+				stream: "chat_text",
+				chunk: "kept",
+				ts: Date.now(),
+				index: 7,
+				boot: "boot-a",
+			});
+			chatEventHandler({
+				sessionId,
+				stream: "chat_text",
+				chunk: "replayed",
+				ts: Date.now(),
+				index: 7,
+				boot: "boot-a",
+			});
+			await new Promise((resolve) => setTimeout(resolve, 60));
+		});
+
+		const assistantText = current.messages
+			.filter((message) => message.role === "assistant")
+			.map((message) => message.content)
+			.join("");
+		expect(assistantText).toContain("kept");
+		expect(assistantText).not.toContain("replayed");
+	});
 });

@@ -100,11 +100,7 @@ export async function requestToolApproval(
 export function pendingApprovalEvents(
 	ctx: HubTransportContext,
 	sessionId?: string,
-	clientId?: string,
 ): HubEventEnvelope[] {
-	if (!sessionId || !clientId || !isClientAttached(ctx, sessionId, clientId)) {
-		return [];
-	}
 	const events: HubEventEnvelope[] = [];
 	for (const pending of ctx.pendingApprovals.values()) {
 		if (!pending.requestedEvent) {
@@ -205,8 +201,8 @@ export async function handleApprovalRespond(
 			`Unknown approval: ${approvalId}`,
 		);
 	}
-	const clientId = envelope.clientId?.trim();
-	if (clientId && !isClientAttached(ctx, pending.sessionId, clientId)) {
+	const sessionId = extractSessionId(envelope);
+	if (sessionId && sessionId !== pending.sessionId) {
 		return errorReply(
 			envelope,
 			"approval_not_found",
