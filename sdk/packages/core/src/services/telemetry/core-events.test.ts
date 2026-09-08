@@ -1,12 +1,12 @@
 import {
 	AGENT_UNEXPECTED_REASONING_TOKENS_EVENT,
+	captureTaskLifecycleEvent as captureSharedTaskLifecycleEvent,
 	type ITelemetryService,
 	TASK_CANCELLED_EVENT,
 	TASK_FIRST_CHUNK_RECEIVED_EVENT,
 	TASK_PROVIDER_REQUEST_STARTED_EVENT,
 	TASK_PROVIDER_STREAM_FAILED_EVENT,
 	TASK_PROVIDER_STREAM_STARTED_EVENT,
-	captureTaskLifecycleEvent as captureSharedTaskLifecycleEvent,
 } from "@cline/shared";
 import { describe, expect, test, vi } from "vitest";
 import {
@@ -18,11 +18,15 @@ import {
 	captureMistakeLimitReached,
 	captureProviderConfigured,
 	captureRunCommandsTimeout,
-	captureTelemetryOptOut,
+	captureTaskCompleted,
+	captureTaskCreated,
 	captureTaskLifecycleEvent,
+	captureTaskRestarted,
+	captureTelemetryOptOut,
 	captureWorkspaceInitError,
 	captureWorkspaceInitialized,
 	captureWorkspacePathResolved,
+	clearAccountTelemetryIdentity,
 	identifyAccount,
 } from "./core-events";
 import type { ITelemetryAdapter } from "./ITelemetryAdapter";
@@ -86,6 +90,49 @@ describe("captureTelemetryOptOut", () => {
 			"user.opt_out",
 			undefined,
 		);
+	});
+});
+
+describe("task lifecycle contract", () => {
+	test.each([
+		["task.created", captureTaskCreated],
+		["task.restarted", captureTaskRestarted],
+	] as const)("emits %s with canonical provider and model fields", (event, emit) => {
+		const stub = createTelemetryStub();
+		emit(stub.telemetry, {
+			ulid: "session-1",
+			provider: "anthropic",
+			model: "claude-sonnet-4.6",
+		});
+
+		expect(captureCallAt(stub, 0)).toEqual({
+			event,
+			properties: {
+				ulid: "session-1",
+				provider: "anthropic",
+				model: "claude-sonnet-4.6",
+			},
+		});
+	});
+
+	test("emits task.completed with canonical provider and model fields", () => {
+		const stub = createTelemetryStub();
+		captureTaskCompleted(stub.telemetry, {
+			ulid: "session-1",
+			provider: "anthropic",
+			model: "claude-sonnet-4.6",
+			source: "submit_and_exit",
+		});
+
+		expect(captureCallAt(stub, 0)).toEqual({
+			event: "task.completed",
+			properties: {
+				ulid: "session-1",
+				provider: "anthropic",
+				model: "claude-sonnet-4.6",
+				source: "submit_and_exit",
+			},
+		});
 	});
 });
 
@@ -907,6 +954,31 @@ describe("identifyAccount", () => {
 	test("no-ops when telemetry is undefined", () => {
 		expect(() =>
 			identifyAccount(undefined, { id: "usr-123", provider: "cline" }),
+		).not.toThrow();
+	});
+});
+
+describe("clearAccountTelemetryIdentity", () => {
+	test("restores anonymous identity and clears account properties", () => {
+		const stub = createTelemetryStub();
+
+		clearAccountTelemetryIdentity(stub.telemetry, "  machine-123  ");
+
+		expect(stub.telemetry.setDistinctId).toHaveBeenCalledWith("machine-123");
+		expect(stub.telemetry.updateCommonProperties).toHaveBeenCalledWith({
+			user_id: undefined,
+			account_id: undefined,
+			account_email: undefined,
+			provider: undefined,
+			organization_id: undefined,
+			organization_name: undefined,
+			member_id: undefined,
+		});
+	});
+
+	test("no-ops when telemetry is undefined", () => {
+		expect(() =>
+			clearAccountTelemetryIdentity(undefined, "machine-123"),
 		).not.toThrow();
 	});
 });
