@@ -74,6 +74,7 @@ import {
 	disposeLangfuseTelemetry,
 	ensureLangfuseTelemetry,
 	resetLangfuseTelemetryForTests,
+	resolveAiSdkTelemetry,
 } from "./langfuse-telemetry";
 
 describe("langfuse telemetry", () => {
@@ -107,6 +108,8 @@ describe("langfuse telemetry", () => {
 		delete process.env.LANGFUSE_BASE_URL;
 		delete process.env.LANGFUSE_PUBLIC_KEY;
 		delete process.env.LANGFUSE_SECRET_KEY;
+		delete process.env.CLINE_TRACE_SAMPLE_PERCENT;
+		delete process.env.CLINE_TRACE_RECORD_CONTENT;
 		resetLangfuseTelemetryForTests();
 	});
 
@@ -198,6 +201,99 @@ describe("langfuse telemetry", () => {
 
 		await expect(ensureLangfuseTelemetry("cline")).resolves.toBe(false);
 		expect(registerTelemetrySpy).not.toHaveBeenCalled();
+	});
+
+	describe("resolveAiSdkTelemetry (collector relay path)", () => {
+		function clearLangfuseEnv() {
+			delete process.env.LANGFUSE_BASE_URL;
+			delete process.env.LANGFUSE_PUBLIC_KEY;
+			delete process.env.LANGFUSE_SECRET_KEY;
+		}
+
+		it("keeps the direct Langfuse path unchanged: enabled with content recording untouched", async () => {
+			const decision = await resolveAiSdkTelemetry("cline", "task-a");
+
+			expect(decision).toEqual({ isEnabled: true });
+		});
+
+		it("stays disabled without Langfuse config and without a sample rate", async () => {
+			clearLangfuseEnv();
+
+			const decision = await resolveAiSdkTelemetry("cline", "task-a");
+
+			expect(decision.isEnabled).toBe(false);
+		});
+
+		it("stays disabled for non-cline providers even with a sample rate", async () => {
+			clearLangfuseEnv();
+			process.env.CLINE_TRACE_SAMPLE_PERCENT = "100";
+
+			const decision = await resolveAiSdkTelemetry("openrouter", "task-a");
+
+			expect(decision.isEnabled).toBe(false);
+		});
+
+		it("enables metadata-only telemetry at 100% when the host registered a tracer", async () => {
+			clearLangfuseEnv();
+			process.env.CLINE_TRACE_SAMPLE_PERCENT = "100";
+
+			const decision = await resolveAiSdkTelemetry("cline", "task-a");
+
+			expect(decision).toEqual({
+				isEnabled: true,
+				recordInputs: false,
+				recordOutputs: false,
+			});
+		});
+
+		it("records content only when CLINE_TRACE_RECORD_CONTENT is set", async () => {
+			clearLangfuseEnv();
+			process.env.CLINE_TRACE_SAMPLE_PERCENT = "100";
+			process.env.CLINE_TRACE_RECORD_CONTENT = "true";
+
+			const decision = await resolveAiSdkTelemetry("cline", "task-a");
+
+			expect(decision).toEqual({
+				isEnabled: true,
+				recordInputs: true,
+				recordOutputs: true,
+			});
+		});
+
+		it("samples deterministically by key", async () => {
+			clearLangfuseEnv();
+			// FNV-1a buckets: task-b=7, task-c=88. A 50% rate keeps the low
+			// bucket and drops the high one — on every call.
+			process.env.CLINE_TRACE_SAMPLE_PERCENT = "50";
+
+			for (let i = 0; i < 2; i++) {
+				const kept = await resolveAiSdkTelemetry("cline", "task-b");
+				const dropped = await resolveAiSdkTelemetry("cline", "task-c");
+				expect(kept.isEnabled).toBe(true);
+				expect(dropped.isEnabled).toBe(false);
+			}
+		});
+
+		it("stays disabled below 100% without a sampling key", async () => {
+			clearLangfuseEnv();
+			process.env.CLINE_TRACE_SAMPLE_PERCENT = "50";
+
+			const decision = await resolveAiSdkTelemetry("cline", undefined);
+
+			expect(decision.isEnabled).toBe(false);
+		});
+
+		it("stays disabled when no recording tracer provider is registered", async () => {
+			clearLangfuseEnv();
+			process.env.CLINE_TRACE_SAMPLE_PERCENT = "100";
+			getTracerProviderSpy.mockReturnValue({
+				getDelegate: () => ({ constructor: { name: "NoopTracerProvider" } }),
+			});
+
+			const decision = await resolveAiSdkTelemetry("cline", "task-a");
+
+			expect(decision.isEnabled).toBe(false);
+		});
 	});
 
 	it("connects an AI SDK 7 call to the registered telemetry integration", async () => {

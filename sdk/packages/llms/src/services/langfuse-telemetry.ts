@@ -36,9 +36,97 @@ export async function withLangfuseTraceAttributes<T>(
 }
 
 const LANGFUSE_DEBUG_ENV = "CLINE_DEBUG_LANGFUSE";
+const TRACE_SAMPLE_PERCENT_ENV = "CLINE_TRACE_SAMPLE_PERCENT";
+const TRACE_RECORD_CONTENT_ENV = "CLINE_TRACE_RECORD_CONTENT";
 
 let langfuseTelemetryReady: boolean | undefined;
 let langfuseTelemetryInitPromise: Promise<boolean> | undefined;
+
+function isClineProviderId(providerId: string): boolean {
+	return providerId === "cline" || providerId === "cline-pass";
+}
+
+export type AiSdkTelemetryDecision = {
+	isEnabled: boolean;
+	recordInputs?: boolean;
+	recordOutputs?: boolean;
+};
+
+const TELEMETRY_DISABLED: AiSdkTelemetryDecision = { isEnabled: false };
+
+/**
+ * Decide AI SDK telemetry for one stream. Two independent export paths:
+ * - Direct Langfuse (env-configured credentials, hub/internal): unchanged
+ *   behavior — full content, every request.
+ * - Host OTLP tracer (collector relay): opt-in via CLINE_TRACE_SAMPLE_PERCENT,
+ *   sampled per task by `samplingKey` so a task's requests trace together,
+ *   and metadata-only unless CLINE_TRACE_RECORD_CONTENT is set.
+ */
+export async function resolveAiSdkTelemetry(
+	providerId: string,
+	samplingKey?: string,
+): Promise<AiSdkTelemetryDecision> {
+	if (await ensureLangfuseTelemetry(providerId)) {
+		return { isEnabled: true };
+	}
+
+	if (!isClineProviderId(providerId)) {
+		return TELEMETRY_DISABLED;
+	}
+
+	const percent = readTraceSamplePercent();
+	if (percent <= 0) {
+		return TELEMETRY_DISABLED;
+	}
+	if (percent < 100) {
+		// No stable key means no deterministic decision; stay off rather than
+		// flickering per request and fragmenting tasks across the sample line.
+		if (!samplingKey) {
+			return TELEMETRY_DISABLED;
+		}
+		if (fnv1a32(samplingKey) % 100 >= percent) {
+			return TELEMETRY_DISABLED;
+		}
+	}
+	if (!(await hasHostOtlpTracer())) {
+		return TELEMETRY_DISABLED;
+	}
+
+	const recordContent = isEnvTruthy(process.env[TRACE_RECORD_CONTENT_ENV]);
+	return {
+		isEnabled: true,
+		recordInputs: recordContent,
+		recordOutputs: recordContent,
+	};
+}
+
+function readTraceSamplePercent(): number {
+	const raw = process?.env?.[TRACE_SAMPLE_PERCENT_ENV]?.trim();
+	if (!raw) {
+		return 0;
+	}
+	const percent = Number.parseFloat(raw);
+	return Number.isFinite(percent) ? percent : 0;
+}
+
+async function hasHostOtlpTracer(): Promise<boolean> {
+	try {
+		const { trace } = await import("@opentelemetry/api");
+		return hasActiveTracerDelegate(trace);
+	} catch {
+		return false;
+	}
+}
+
+/** FNV-1a: stable across processes so a task samples identically on retries. */
+function fnv1a32(value: string): number {
+	let hash = 0x811c9dc5;
+	for (let i = 0; i < value.length; i++) {
+		hash ^= value.charCodeAt(i);
+		hash = Math.imul(hash, 0x01000193) >>> 0;
+	}
+	return hash;
+}
 
 function readLangfuseTelemetryConfig(): LangfuseTelemetryConfig | undefined {
 	const env = process?.env;
@@ -64,7 +152,7 @@ export function hasLangfuseTelemetryConfig(): boolean {
 export async function ensureLangfuseTelemetry(
 	providerId: string,
 ): Promise<boolean> {
-	if (providerId !== "cline" && providerId !== "cline-pass") {
+	if (!isClineProviderId(providerId)) {
 		return false;
 	}
 
@@ -286,7 +374,10 @@ export function debugLangfuse(message: string): void {
 }
 
 function isLangfuseDebugEnabled(): boolean {
-	const raw = process.env[LANGFUSE_DEBUG_ENV];
+	return isEnvTruthy(process.env[LANGFUSE_DEBUG_ENV]);
+}
+
+function isEnvTruthy(raw: string | undefined): boolean {
 	if (!raw) {
 		return false;
 	}

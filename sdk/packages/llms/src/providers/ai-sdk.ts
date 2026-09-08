@@ -43,6 +43,7 @@ import {
 	wrapLanguageModel,
 } from "ai";
 import { nanoid } from "nanoid";
+import type { AiSdkTelemetryDecision } from "../services/langfuse-telemetry";
 import { classifyProviderError } from "./error-classification";
 import { extractErrorMessage } from "./format";
 import { createRetryEmptyResponseMiddleware } from "./middleware/retry-empty-response";
@@ -588,15 +589,39 @@ function shouldIncludeReasoningHistory(
 	return !isCerebrasProvider(request, context);
 }
 
-async function ensureGatewayLangfuseTelemetry(
+async function resolveGatewayAiSdkTelemetry(
 	providerId: string,
-): Promise<boolean> {
+	request: GatewayStreamRequest,
+): Promise<AiSdkTelemetryDecision> {
 	try {
 		const runtime = await import("../services/langfuse-telemetry");
-		return runtime.ensureLangfuseTelemetry(providerId);
+		return await runtime.resolveAiSdkTelemetry(
+			providerId,
+			resolveTraceSamplingKey(request),
+		);
 	} catch {
-		return false;
+		return { isEnabled: false };
 	}
+}
+
+/**
+ * Whole-task sampling key: prefer the session/task id so every request in a
+ * task gets the same sampling decision and traces stay complete.
+ */
+function resolveTraceSamplingKey(
+	request: GatewayStreamRequest,
+): string | undefined {
+	const metadata =
+		request.metadata && typeof request.metadata === "object"
+			? (request.metadata as Record<string, unknown>)
+			: {};
+	for (const key of ["sessionId", "conversationId", "distinctId"]) {
+		const value = metadata[key];
+		if (typeof value === "string" && value.trim().length > 0) {
+			return value;
+		}
+	}
+	return undefined;
 }
 
 async function withAiSdkLangfuseTraceContext<T>(
@@ -2153,8 +2178,9 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					yield { type: "finish", reason: "stop" };
 					return;
 				}
-				const langfuse = await ensureGatewayLangfuseTelemetry(
+				const aiSdkTelemetry = await resolveGatewayAiSdkTelemetry(
 					config.providerId,
+					request,
 				);
 				const externalToolExecutionDisabled =
 					providerDisablesExternalToolExecution(context);
@@ -2206,7 +2232,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					},
 				});
 				stream = await withAiSdkLangfuseTraceContext(
-					langfuse,
+					aiSdkTelemetry.isEnabled,
 					request,
 					() =>
 						streamText({
@@ -2221,7 +2247,13 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 							abortSignal: request.signal,
 							experimental_repairToolCall: repairMalformedToolCall as never,
 							telemetry: {
-								isEnabled: langfuse,
+								isEnabled: aiSdkTelemetry.isEnabled,
+								...(aiSdkTelemetry.recordInputs !== undefined
+									? { recordInputs: aiSdkTelemetry.recordInputs }
+									: {}),
+								...(aiSdkTelemetry.recordOutputs !== undefined
+									? { recordOutputs: aiSdkTelemetry.recordOutputs }
+									: {}),
 								functionId: "cline-agent-turn",
 								includeRuntimeContext: {
 									distinctId: true,
