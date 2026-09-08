@@ -620,10 +620,17 @@ describe("createShellExecutor", () => {
 			const completion = new Promise<DetachedCommandOutcome>((resolve) => {
 				finish = resolve;
 			});
+			// This fixture exercises real outcome persistence and output flushing,
+			// not the availability of the host's external process-identity command.
+			const processStartTokenProbe: ProcessStartTokenProbe = (pid) => ({
+				status: "found",
+				token: `outcome-fixture-${pid}`,
+			});
 			try {
 				const shell = createShellExecutor({
 					detachAfterMs: 10,
 					killAfterMs: 5_000,
+					processStartTokenProbe,
 				});
 				const notice = await shell(
 					{
@@ -652,9 +659,9 @@ const timer = setInterval(() => {
 				logPath = /Output will continue in ([^\]]+)/.exec(notice)?.[1];
 				expect(logPath).toBeDefined();
 				if (!logPath) throw new Error("Command did not detach");
-				await expect(queryDetachedCommandState(logPath)).resolves.toMatchObject(
-					{ status: "running" },
-				);
+				await expect(
+					queryDetachedCommandState(logPath, processStartTokenProbe),
+				).resolves.toMatchObject({ status: "running" });
 				await writeFile(releasePath, "exit");
 				const outcome = await completion;
 				expect(outcome).toEqual({ kind: "exited", exitCode: 0 });
@@ -670,7 +677,9 @@ const timer = setInterval(() => {
 						);
 					});
 				}
-				await expect(queryDetachedCommandState(logPath)).resolves.toEqual({
+				await expect(
+					queryDetachedCommandState(logPath, processStartTokenProbe),
+				).resolves.toEqual({
 					status: "completed",
 					outcome,
 				});
