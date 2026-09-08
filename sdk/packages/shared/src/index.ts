@@ -299,7 +299,6 @@ export {
 	getShellKind,
 	type ShellInvocation,
 	type ShellKind,
-	unwrapNestedPowerShellCommand,
 } from "./parse/shell";
 export {
 	maskSecret,
