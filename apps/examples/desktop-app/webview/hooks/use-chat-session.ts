@@ -1669,6 +1669,7 @@ export function useChatSession() {
 				let parsed: {
 					promptId?: string;
 					prompt?: string;
+					transcriptReflected?: boolean;
 					attachmentCount?: number;
 					userImages?: string[];
 				} = {};
@@ -1676,6 +1677,7 @@ export function useChatSession() {
 					parsed = JSON.parse(payload.chunk) as {
 						promptId?: string;
 						prompt?: string;
+						transcriptReflected?: boolean;
 						attachmentCount?: number;
 						userImages?: string[];
 					};
@@ -1728,7 +1730,12 @@ export function useChatSession() {
 					promptsInQueueRef.current = next;
 					return next;
 				});
-				if (userLabel || userImages.length > 0) {
+				// Reconnect may already have hydrated this user bubble, but the
+				// queued-start lifecycle above still belongs to the new turn.
+				if (
+					!parsed.transcriptReflected &&
+					(userLabel || userImages.length > 0)
+				) {
 					// Computed outside the updater: makeId() inside would mint a
 					// different id on each StrictMode re-invocation.
 					const userMessageId = promptId
