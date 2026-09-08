@@ -82,8 +82,14 @@ export function WindowControls() {
 	const appWindow = getCurrentWindow();
 	return (
 		<div
-			className="fixed top-0 right-0 z-50 flex h-12 bg-background max-md:h-7"
+			className="pointer-events-auto fixed top-0 right-0 z-[110] flex h-(--window-title-bar-height) bg-background"
 			data-slot="window-controls"
+			onPointerDownCapture={(event) => {
+				// Caption actions stay above app overlays, even when a modal disables
+				// body pointer events. Keep its focus and outside-click state unchanged.
+				event.preventDefault();
+				event.stopPropagation();
+			}}
 		>
 			<button
 				aria-label="Minimize"
@@ -141,7 +147,10 @@ export function WindowTitleBar({
 
 	return (
 		<div
-			className={cn("isolate h-12 shrink-0 max-md:h-7", className)}
+			className={cn(
+				"isolate h-(--window-title-bar-height) shrink-0",
+				className,
+			)}
 			data-slot="window-title-bar"
 			data-tauri-drag-region="deep"
 		>

@@ -164,10 +164,32 @@ describe("WindowTitleBar", () => {
 		expect(toggleButtonLabel()).toBe("Maximize");
 	});
 
-	it("does not render caption controls outside the Windows desktop app", async () => {
-		vi.stubGlobal("navigator", { userAgent: "Windows NT 10.0" });
+	it.each([
+		{ name: "Windows browser", tauri: false, userAgent: "Windows NT 10.0" },
+		{
+			name: "macOS desktop",
+			tauri: true,
+			userAgent: "Macintosh; Intel Mac OS X 10_15_7",
+		},
+		{ name: "Linux desktop", tauri: true, userAgent: "X11; Linux x86_64" },
+	])("does not render caption controls in $name", async ({
+		tauri,
+		userAgent,
+	}) => {
+		if (tauri) {
+			Object.defineProperty(window, "__TAURI_INTERNALS__", {
+				configurable: true,
+				value: {},
+			});
+		}
+		vi.stubGlobal("navigator", { userAgent });
 		await act(async () => root.render(renderShell(true)));
 		expect(container.querySelector('[data-slot="window-controls"]')).toBeNull();
+		expect(
+			document.documentElement.hasAttribute("data-windows-custom-titlebar"),
+		).toBe(false);
+		expect(windowMocks.isMaximized).not.toHaveBeenCalled();
+		expect(windowMocks.onResized).not.toHaveBeenCalled();
 	});
 
 	it("reserves an in-flow draggable row before page content inside main", async () => {
@@ -177,7 +199,7 @@ describe("WindowTitleBar", () => {
 		const titleBar = main?.querySelector('[data-slot="window-title-bar"]');
 		const page = main?.querySelector('[data-testid="page"]');
 		expect(titleBar?.getAttribute("data-tauri-drag-region")).toBe("deep");
-		expect(titleBar?.className).toContain("h-12");
+		expect(titleBar?.className).toContain("h-(--window-title-bar-height)");
 		expect(titleBar?.className).toContain("shrink-0");
 		expect(titleBar?.nextElementSibling).toBe(page);
 	});
