@@ -112,10 +112,34 @@ export type SidecarWebSocketClient = {
 	close?: () => void;
 };
 
+/**
+ * Which pipe produced a chat chunk. Both feed `emitChunk`, and for a session
+ * that is streaming through the hub both can carry the same event, so the
+ * chat streams they share are arbitrated per session (see `claimChunkStream`).
+ */
+export type ChunkSource = "core" | "observer";
+
+export type ChunkStreamOwner = {
+	source: ChunkSource;
+	lastEmittedAt: number;
+};
+
 export type SidecarContext = {
 	liveSessions: Map<string, LiveSession>;
 	restoringWorkspacePaths: Set<string>;
 	streamIndices: Map<string, number>;
+	/**
+	 * Which source currently owns each duplicated chat stream, keyed by session
+	 * then stream, with the time it last delivered so a stalled owner can be
+	 * replaced.
+	 */
+	chunkStreamOwners: Map<string, Map<string, ChunkStreamOwner>>;
+	/**
+	 * Identifies this sidecar process. `streamIndices` restarts whenever the
+	 * sidecar does, so the webview needs to tell "index 1 of a new process"
+	 * apart from a replay of the run it already rendered.
+	 */
+	bootId: string;
 	wsClients: Set<SidecarWebSocketClient>;
 	pendingApprovals: Map<string, PendingToolApproval>;
 	pendingQuestions: Map<string, PendingAskQuestion>;

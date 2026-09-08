@@ -32,6 +32,7 @@ import {
 } from "./feature-flags";
 import { sessionLogPath } from "./paths";
 import type {
+	ChunkSource,
 	LiveSession,
 	PendingAskQuestion,
 	PendingToolApproval,
@@ -171,13 +172,81 @@ function appendSessionChunk(
 	});
 }
 
+/**
+ * Streams that both the ClineCore subscription and the hub observer project.
+ * Everything else has a single producer and is never arbitrated.
+ */
+const CONTENDED_CHUNK_STREAMS = new Set([
+	"chat_text",
+	"chat_reasoning",
+	"chat_media",
+	"chat_tool_call_start",
+	"chat_tool_call_update",
+	"chat_tool_call_end",
+]);
+
+/**
+ * How long the owning source may be silent before the other one may take over.
+ * Deltas arrive many times a second while a turn streams, so an owner that has
+ * said nothing for this long has stopped delivering rather than paused.
+ */
+const CHUNK_STREAM_TAKEOVER_MS = 5_000;
+
+/**
+ * Decides whether `source` may emit a contended chat stream for this session.
+ *
+ * The sidecar has two pipes into `emitChunk`: the ClineCore session
+ * subscription and the hub observer client. Opening a session arms both (the
+ * hydrate's `pending_prompts` call makes ClineCore subscribe to the session,
+ * and `attach` sets `attachedViaHub`), so for a session streaming through the
+ * hub each delta arrives twice — and since both copies are emitted through
+ * this function each gets its own increasing `index`, which is exactly what
+ * the webview's replay guard uses, so it cannot tell them apart. Rather than
+ * guess which pipe owns a session up front, let the first one to deliver win
+ * and mute the other until it stalls.
+ *
+ * Ownership is per stream rather than per session: that dedupes each stream
+ * just as strictly, while a pipe that wins one stream cannot mute another it
+ * does not itself carry.
+ */
+function claimChunkStream(
+	ctx: SidecarContext,
+	sessionId: string,
+	stream: string,
+	source: ChunkSource,
+	now: number,
+): boolean {
+	if (!CONTENDED_CHUNK_STREAMS.has(stream)) {
+		return true;
+	}
+	let owners = ctx.chunkStreamOwners.get(sessionId);
+	const owner = owners?.get(stream);
+	if (
+		owner &&
+		owner.source !== source &&
+		now - owner.lastEmittedAt <= CHUNK_STREAM_TAKEOVER_MS
+	) {
+		return false;
+	}
+	if (!owners) {
+		owners = new Map();
+		ctx.chunkStreamOwners.set(sessionId, owners);
+	}
+	owners.set(stream, { source, lastEmittedAt: now });
+	return true;
+}
+
 function emitChunk(
 	ctx: SidecarContext,
 	sessionId: string,
 	stream: string,
 	chunk: string,
+	source: ChunkSource = "core",
 ): void {
 	const ts = nowMs();
+	if (!claimChunkStream(ctx, sessionId, stream, source, ts)) {
+		return;
+	}
 	appendSessionChunk(sessionId, stream, chunk, ts);
 	const nextIndex = (ctx.streamIndices.get(sessionId) ?? 0) + 1;
 	ctx.streamIndices.set(sessionId, nextIndex);
@@ -187,6 +256,7 @@ function emitChunk(
 		chunk,
 		ts,
 		index: nextIndex,
+		boot: ctx.bootId,
 	});
 }
 
@@ -527,6 +597,9 @@ export function handleCoreSessionEvent(
 				session.status = reason || "ended";
 			}
 			discardAllTrackedAttachments(sessionId, session);
+			// The next run re-arbitrates from scratch rather than inheriting a
+			// pipe that may no longer be the one delivering.
+			ctx.chunkStreamOwners.delete(sessionId);
 			sendEvent(ctx, "chat_session_ended", { sessionId, reason });
 			break;
 		}
@@ -577,6 +650,8 @@ export function createSidecarContext(
 		liveSessions: new Map(),
 		restoringWorkspacePaths: new Set(),
 		streamIndices: new Map(),
+		chunkStreamOwners: new Map(),
+		bootId: randomUUID(),
 		wsClients: new Set(),
 		pendingApprovals: new Map(),
 		pendingQuestions: new Map(),
@@ -832,14 +907,20 @@ export function handleHubLiveEvent(
 			const text =
 				typeof event.payload?.text === "string" ? event.payload.text : "";
 			if (text) {
-				emitChunk(ctx, sessionId, "chat_text", text);
+				emitChunk(ctx, sessionId, "chat_text", text, "observer");
 			}
 			return;
 		}
 		case "assistant.media": {
 			const media = event.payload?.media;
 			if (isGeneratedMedia(media)) {
-				emitChunk(ctx, sessionId, "chat_media", JSON.stringify(media));
+				emitChunk(
+					ctx,
+					sessionId,
+					"chat_media",
+					JSON.stringify(media),
+					"observer",
+				);
 			}
 			return;
 		}
@@ -855,6 +936,7 @@ export function handleHubLiveEvent(
 				sessionId,
 				"chat_reasoning",
 				JSON.stringify({ text, redacted }),
+				"observer",
 			);
 			return;
 		}
@@ -874,6 +956,7 @@ export function handleHubLiveEvent(
 							: "tool",
 					input: event.payload?.input,
 				}),
+				"observer",
 			);
 			return;
 		}
@@ -893,6 +976,7 @@ export function handleHubLiveEvent(
 							: "tool",
 					update: event.payload?.update,
 				}),
+				"observer",
 			);
 			return;
 		}
@@ -916,6 +1000,7 @@ export function handleHubLiveEvent(
 							? event.payload.error
 							: undefined,
 				}),
+				"observer",
 			);
 			return;
 		}
