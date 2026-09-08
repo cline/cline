@@ -68,6 +68,10 @@ Owns model/provider runtime concerns:
 - handler creation via an internal gateway registry
 - AI SDK-backed provider execution code
 
+Live catalogs exclude Cline Cloud-only models by default. Hosts that execute in
+Cline Cloud opt in with `ModelCatalogConfig.includeClineCloudModels`; inclusive
+and local catalog results have separate cache identities.
+
 Design rule:
 
 - provider-specific behavior should be isolated here, not spread across `core` or apps.
@@ -152,6 +156,11 @@ field.
 7. Hub event forwarding preserves structured streaming lifecycle boundaries: text/reasoning deltas, final text/reasoning completion, tool start/update/finish, and agent done events are translated across the hub transport so host UIs can reliably close loading/streaming state. `run.started` is emitted only after the target session is resolved and carries the originating command's `requestId` and `clientId`, allowing multi-client hosts to correlate delivery acknowledgments.
 8. Hub client adapters exported from `@cline/core/hub` (`NodeHubClient`, `HubSessionClient`, `HubUIClient`, `connectToHub`) translate command/reply and event streams into host-facing APIs.
 9. Hub `session.get` records include both canonical root-session usage and explicit aggregate usage from the hub-owned `RuntimeHost`, so attached clients can intentionally render either root-only or root-plus-teammate costs without replaying event streams.
+
+Pending tool approvals remain owned by the Hub until they are answered or their
+run is aborted. Reconnecting clients attached to the session receive the pending
+request again and can also recover it through `approval.list_pending`; clients
+that are not attached to that session can neither list nor resolve it.
 
 Session status is reported, never fabricated. A session's initial status
 reflects whether a turn actually runs inside `start(...)`: prompt-bearing
@@ -299,7 +308,8 @@ headers use `NodeHubClient.resolveConnectionHeaders`. The resolver runs for ever
 new socket, including reconnects, so hosts can refresh short-lived credentials.
 Header authentication is mutually exclusive with the local hub-token subprotocol;
 the proxy is responsible for authenticating the client and adding any private
-upstream hub credentials.
+upstream hub credentials. Resolver failures and rejected protocol headers fail the
+connection and remain available through the client's connection-error state.
 
 Local hub rediscovery is limited to managed shared-daemon endpoints obtained
 through discovery or `ensure*HubServer(...)` startup paths. Managed local hubs
