@@ -133,11 +133,7 @@ export function WelcomeScreen({
 		[],
 	);
 	const listCloudRepositories = useCallback(async () => {
-		// Every successful repository fetch — the picker's own load included —
-		// refreshes the snapshot the stale-selection guard below compares
-		// against. Without this, an org switch leaves the guard holding the
-		// old scope's list and it wipes a repository just picked from the new
-		// scope's correctly filtered picker.
+		// Keep stale-selection checks aligned with the latest account scope.
 		const requestId = ++cloudSetupRequestRef.current;
 		const result = await fetchCloudRepositories();
 		if (cloudSetupRequestRef.current === requestId) {
