@@ -282,6 +282,26 @@ describe("createEditorExecutor", () => {
 		});
 	});
 
+	it("explains how to recover when old_text is null for an existing file", async () => {
+		await withTempFile("one\ntwo", async (filePath, dir) => {
+			const editor = createEditorExecutor();
+
+			await expect(
+				editor(
+					{ path: filePath, new_text: "three", old_text: null },
+					dir,
+					context,
+				),
+			).rejects.toThrow(
+				`${filePath} already exists, but \`old_text\` was null. To edit an existing file, set \`old_text\` to the exact text in the file that \`new_text\` should replace (read the file first if needed). To insert instead, provide \`insert_line\`. Do not re-send this call unchanged.`,
+			);
+			await expect(
+				editor({ path: filePath, new_text: "three" }, dir, context),
+			).rejects.toThrow("`old_text` was omitted");
+			await expect(fs.readFile(filePath, "utf-8")).resolves.toBe("one\ntwo");
+		});
+	});
+
 	it("rejects insert_line 0 with the valid one-based boundary range", async () => {
 		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "agents-editor-"));
 		const filePath = path.join(dir, "example.txt");
