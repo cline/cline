@@ -388,6 +388,23 @@ describe("LocalRuntimeHost", () => {
 		});
 	});
 
+	it("forwards rootOnly to the session backend when listing sessions", async () => {
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			listSessions: vi.fn().mockResolvedValue([]),
+		};
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+		});
+
+		await manager.listSessions(25, { rootOnly: true });
+
+		expect(sessionService.listSessions).toHaveBeenCalledWith(25, {
+			rootOnly: true,
+		});
+	});
+
 	it("emits session lifecycle telemetry when configured", async () => {
 		const sessionId = "sess-telemetry";
 		const manifest = createManifest(sessionId);

@@ -125,6 +125,7 @@ import {
 } from "./local/spawn-tool";
 import { loadUserFileContent } from "./local/user-files";
 import type {
+	ListSessionsOptions,
 	PendingPromptsServiceApi,
 	ResolvedStartSessionInput,
 	RestoreSessionInput,
@@ -1257,8 +1258,11 @@ export class LocalRuntimeHost implements RuntimeHost {
 		return manifest ? manifestToSessionRecord(manifest) : undefined;
 	}
 
-	async listSessions(limit = 200): Promise<SessionRecord[]> {
-		const rows = await this.listRows(limit);
+	async listSessions(
+		limit = 200,
+		options: ListSessionsOptions = {},
+	): Promise<SessionRecord[]> {
+		const rows = await this.listRows(limit, options);
 		const persisted = rows.map(toSessionRecord);
 		const seen = new Set(persisted.map((row) => row.sessionId));
 		for (const active of this.sessions.values()) {
@@ -2664,10 +2668,14 @@ export class LocalRuntimeHost implements RuntimeHost {
 		this.events.emit(event);
 	}
 
-	private async listRows(limit: number): Promise<SessionRow[]> {
+	private async listRows(
+		limit: number,
+		options: ListSessionsOptions = {},
+	): Promise<SessionRow[]> {
 		return this.invoke<SessionRow[]>(
 			"listSessions",
 			Math.min(Math.max(1, Math.floor(limit)), MAX_SCAN_LIMIT),
+			options,
 		);
 	}
 
