@@ -999,6 +999,32 @@ export function WelcomeWorkspaceControls({
 		setCloudRepositoryId(undefined);
 		setCloudDefaultBranch("");
 	}, [repoUrl]);
+	useEffect(() => {
+		if (
+			executionTarget !== "cloud" ||
+			!signedIn ||
+			!repoUrl.trim() ||
+			cloudRepositoryId !== undefined
+		) {
+			return;
+		}
+		let cancelled = false;
+		void onListCloudRepositories()
+			.then((result) => {
+				if (!cancelled) handleCloudRepositoriesLoaded(result.repositories);
+			})
+			.catch(() => undefined);
+		return () => {
+			cancelled = true;
+		};
+	}, [
+		cloudRepositoryId,
+		executionTarget,
+		handleCloudRepositoriesLoaded,
+		onListCloudRepositories,
+		repoUrl,
+		signedIn,
+	]);
 
 	// Close whichever menu is open when clicking outside the control row.
 	useEffect(() => {
