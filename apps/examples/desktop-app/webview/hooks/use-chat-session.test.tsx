@@ -4,6 +4,11 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { createShellExecutor } from "@cline/core";
+import {
+	type DetachedCommandOutcome,
+	detachedCommandBackgroundStatus,
+	formatDetachedCompletionNote,
+} from "@cline/shared/browser";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -1526,120 +1531,107 @@ if (fs.existsSync(${JSON.stringify(releasePath)})) clearInterval(timer);
 		);
 	});
 
-	it("hydrates a row that completed while the client was away already settled", async () => {
-		// The sidecar reconstructed the outcome from the detached log's
-		// completion marker, so the reloaded client sees the row settled with
-		// its note instead of a stale still-running notice.
+	it.each([
+		{ kind: "exited", exitCode: 0 },
+		{ kind: "signaled", signal: "SIGTERM" },
+	] satisfies DetachedCommandOutcome[])("keeps a completed $kind row settled after real sidecar hydration", async (outcome) => {
 		const sessionId = "session-reloaded-settled";
-		const note = "[Detached command completed with exit code 0]";
-		const notice =
-			"[Command is still running. Output will continue in /tmp/output.log]";
-		invokeMock.mockImplementation(
-			async (command: string, args?: Record<string, unknown>) => {
-				if (command === "get_process_context") {
-					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
-				}
-				if (command === "read_session_messages") {
-					return [
+		const toolCallId = "call-settled";
+		const directory = await mkdtemp(join(tmpdir(), "settled-hydration-"));
+		const logPath = join(directory, "output.log");
+		const notice = `[Command is still running. Output will continue in ${logPath}]`;
+		const note = formatDetachedCompletionNote(outcome);
+		try {
+			await writeFile(
+				join(directory, "command-outcome.json"),
+				JSON.stringify(outcome),
+			);
+			const context = {
+				liveSessions: new Map([
+					[
+						sessionId,
 						{
-							id: "history-user",
-							sessionId,
-							role: "user",
-							content: "Run it",
-							createdAt: 1,
+							messages: [
+								{
+									id: "use",
+									role: "assistant",
+									content: [
+										{
+											type: "tool_use",
+											id: toolCallId,
+											name: "run_commands",
+											input: { commands: ["wait"] },
+										},
+									],
+								},
+								{
+									id: "result",
+									role: "user",
+									content: [
+										{
+											type: "tool_result",
+											tool_use_id: toolCallId,
+											name: "run_commands",
+											content: notice,
+										},
+									],
+								},
+							],
 						},
-						{
-							id: "history-tool-settled",
-							sessionId,
-							role: "tool",
-							content: JSON.stringify({
-								toolName: "run_commands",
-								input: { commands: ["sleep 60"] },
-								result: notice,
-								isError: false,
-							}),
-							createdAt: 2,
-							meta: {
-								toolName: "run_commands",
-								toolCallId: "call-settled",
-								toolBackgroundStatus: "succeeded",
-								toolBackgroundLogPath: "/tmp/output.log",
-								toolOutput: `${notice}\n${note}`,
-								hookEventName: "tool_call_end",
-							},
-						},
-						{
-							id: "history-assistant",
-							sessionId,
-							role: "assistant",
-							content: "It is running in the background.",
-							createdAt: 3,
-						},
-					];
-				}
-				if (command === "chat_session_command") {
-					const request = args?.request as { action?: string } | undefined;
-					if (request?.action === "attach") {
-						return {
-							sessionId,
-							status: "completed",
-							provider: "cline",
-							model: "test-model",
-							cwd: "/workspace/cline",
-							workspaceRoot: "/workspace/cline",
-						};
-					}
-				}
-				return { promptsInQueue: [] };
-			},
-		);
-		await act(async () => {
-			await current.hydrateSession({
+					],
+				]),
+			} as Parameters<typeof readSessionMessages>[0];
+			const session = {
 				sessionId,
-				status: "completed",
+				status: "completed" as const,
 				provider: "cline",
 				model: "test-model",
-				cwd: "/workspace/cline",
-				workspaceRoot: "/workspace/cline",
+				cwd: directory,
+				workspaceRoot: directory,
 				startedAt: "2026-09-07T00:00:00.000Z",
+			};
+			invokeMock.mockImplementation(async (command: string) => {
+				if (command === "read_session_messages")
+					return readSessionMessages(context, sessionId);
+				if (command === "chat_session_command") return session;
+				return [];
 			});
-		});
-		const settledRow = current.messages.find(
-			(message) => message.id === "history-tool-settled",
-		);
-		expect(settledRow?.meta).toMatchObject({
-			toolBackgroundStatus: "succeeded",
-			toolBackgroundLogPath: "/tmp/output.log",
-			hookEventName: "tool_call_end",
-		});
-		expect(settledRow?.meta?.toolOutput).toBe(`${notice}\n${note}`);
-		// A settled row is not enrolled, so a stray duplicate completion for
-		// it goes nowhere.
-		const chatEventHandler = handlerFor("chat_event");
-		await act(async () => {
-			chatEventHandler({
-				sessionId,
-				stream: "chat_tool_call_update",
-				chunk: JSON.stringify({
-					toolCallId: "call-settled",
-					toolName: "run_commands",
-					update: {
-						executionId: "execution-settled",
-						detached: true,
-						completed: true,
-						logPath: "/tmp/output.log",
-						outcome: { kind: "exited", exitCode: 0 },
-					},
-				}),
-				ts: Date.now(),
-				index: 1,
+			await act(async () => current.hydrateSession(session));
+			const row = () =>
+				current.messages.find(
+					(message) => message.meta?.toolCallId === toolCallId,
+				);
+			expect(row()?.meta?.toolBackgroundStatus).toBe(
+				detachedCommandBackgroundStatus(outcome),
+			);
+			expect(row()?.meta?.toolOutput).toBe(`${notice}\n${note}`);
+			await act(async () => {
+				handlerFor("chat_event")({
+					sessionId,
+					stream: "chat_tool_call_update",
+					chunk: JSON.stringify({
+						toolCallId,
+						toolName: "run_commands",
+						update: {
+							executionId: "execution-settled",
+							detached: true,
+							completed: true,
+							logPath,
+							outcome,
+						},
+					}),
+					ts: Date.now(),
+					index: 1,
+				});
+				await new Promise((resolve) => setTimeout(resolve, 60));
 			});
-			await new Promise((resolve) => setTimeout(resolve, 60));
-		});
-		const afterRow = current.messages.find(
-			(message) => message.id === "history-tool-settled",
-		);
-		expect(afterRow?.meta?.toolOutput).toBe(`${notice}\n${note}`);
+			expect(row()?.meta?.toolBackgroundStatus).toBe(
+				detachedCommandBackgroundStatus(outcome),
+			);
+			expect(row()?.meta?.toolOutput).toBe(`${notice}\n${note}`);
+		} finally {
+			await rm(directory, { recursive: true, force: true });
+		}
 	});
 
 	it("does not re-enroll a completed execution from a stale running snapshot", async () => {
@@ -1734,13 +1726,22 @@ if (fs.existsSync(${JSON.stringify(releasePath)})) clearInterval(timer);
 		}
 	});
 
-	it.each([
-		"hydrate",
-		"poll",
-		"canonical",
-	])("retires detached enrollment when a %s snapshot settles the row", async (snapshotPath) => {
+	it.each(
+		["hydrate", "poll", "canonical"].flatMap((snapshotPath) =>
+			(
+				[
+					{ kind: "exited", exitCode: 0 },
+					{ kind: "signaled", signal: "SIGTERM" },
+				] satisfies DetachedCommandOutcome[]
+			).map((outcome) => ({ snapshotPath, outcome })),
+		),
+	)("retires detached enrollment when a $snapshotPath snapshot settles a $outcome.kind row", async ({
+		snapshotPath,
+		outcome,
+	}) => {
 		const sessionId = "session-snapshot-completion";
-		const note = "[Detached command completed with exit code 0]";
+		const note = formatDetachedCompletionNote(outcome);
+		const settledStatus = detachedCommandBackgroundStatus(outcome);
 		let settled = false;
 		const session = {
 			sessionId,
@@ -1766,11 +1767,11 @@ if (fs.existsSync(${JSON.stringify(releasePath)})) clearInterval(timer);
 						meta: {
 							toolCallId: "call-snapshot",
 							toolName: "run_commands",
-							toolBackgroundStatus: settled ? "succeeded" : "running",
+							toolBackgroundStatus: settled ? settledStatus : "running",
 							toolBackgroundLogPath: "/tmp/output.log",
 							hookEventName: settled ? "tool_call_end" : "tool_call_start",
 							...(settled
-								? { toolOutput: note }
+								? { toolOutput: note, toolExecutionIds: [] }
 								: { toolExecutionIds: ["execution-snapshot"] }),
 						},
 					},
@@ -1813,7 +1814,9 @@ if (fs.existsSync(${JSON.stringify(releasePath)})) clearInterval(timer);
 					await vi.advanceTimersByTimeAsync(300);
 				}
 			});
-			expect(current.messages[0]?.meta?.toolBackgroundStatus).toBe("succeeded");
+			expect(current.messages[0]?.meta?.toolBackgroundStatus).toBe(
+				settledStatus,
+			);
 			expect(current.messages[0]?.meta?.toolOutput).toBe(note);
 			await act(async () => {
 				handlerFor("chat_event")({
@@ -1829,13 +1832,15 @@ if (fs.existsSync(${JSON.stringify(releasePath)})) clearInterval(timer);
 							detached: true,
 							completed: true,
 							logPath: "/tmp/output.log",
-							outcome: { kind: "exited", exitCode: 0 },
+							outcome,
 						},
 					}),
 				});
 				await vi.advanceTimersByTimeAsync(60);
 			});
-			expect(current.messages[0]?.meta?.toolBackgroundStatus).toBe("succeeded");
+			expect(current.messages[0]?.meta?.toolBackgroundStatus).toBe(
+				settledStatus,
+			);
 			expect(current.messages[0]?.meta?.toolOutput).toBe(note);
 		} finally {
 			vi.useRealTimers();

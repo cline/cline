@@ -258,6 +258,15 @@ function deriveLiveToolState(messages: ChatMessage[]): {
 	return { messageIds, inputs };
 }
 
+function isSettledDetachedMessage(message: ChatMessage): boolean {
+	const status = message.meta?.toolBackgroundStatus;
+	return (
+		status !== undefined &&
+		status !== "running" &&
+		(status !== "indeterminate" || message.meta?.toolExecutionIds?.length === 0)
+	);
+}
+
 /**
  * Derives the webview's detached-command bookkeeping from the row meta the
  * sidecar resolved while serving the hydration read (see
@@ -285,6 +294,7 @@ function deriveDetachedToolEnrollment(messages: ChatMessage[]): {
 		if (!toolCallId) continue;
 		const status = message.meta?.toolBackgroundStatus;
 		if (status !== "running" && status !== "indeterminate") continue;
+		if (isSettledDetachedMessage(message)) continue;
 		if (!message.meta?.toolBackgroundLogPath) continue;
 		routingIds[toolCallId] = message.id;
 		endedToolCallIds.push(toolCallId);
@@ -753,8 +763,7 @@ export function useChatSession() {
 						candidate.sessionId === sid &&
 						candidate.meta?.toolCallId === toolCallId,
 				);
-				const status = message.meta?.toolBackgroundStatus;
-				if (status && status !== "running" && status !== "indeterminate") {
+				if (isSettledDetachedMessage(message)) {
 					if (liveRow) pendingToolOutputRef.current.delete(liveRow.id);
 					pendingToolOutputRef.current.delete(message.id);
 					continue;

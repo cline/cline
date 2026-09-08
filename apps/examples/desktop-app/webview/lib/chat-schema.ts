@@ -70,9 +70,9 @@ export const ChatMessageSchema = z.object({
 				.enum(["running", "succeeded", "failed", "killed", "indeterminate"])
 				.optional(),
 			toolBackgroundLogPath: z.string().optional(),
-			// Set by the sidecar at hydration for a detached command whose
-			// process it confirmed still alive; the webview enrolls these so
-			// the completion event settles the row in place.
+			// Pending detached executions, shared by hydration and live updates:
+			// absent means unknown; empty means settled, including signaled
+			// outcomes whose display status is indeterminate.
 			toolExecutionIds: z.array(z.string().min(1)).optional(),
 			// Outcomes already known while other executions are still running.
 			toolBackgroundOutcomeStatus: z

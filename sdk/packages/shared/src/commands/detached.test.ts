@@ -19,9 +19,9 @@ describe("detached command vocabulary", () => {
 		expect(formatDetachedCompletionNote({ kind: "hard_killed" })).toBe(
 			"[Detached command reached its hard deadline and was terminated]",
 		);
-		expect(formatDetachedCompletionNote({ kind: "failed", error: "boom" })).toBe(
-			"[Detached command failed: boom]",
-		);
+		expect(
+			formatDetachedCompletionNote({ kind: "failed", error: "boom" }),
+		).toBe("[Detached command failed: boom]");
 	});
 
 	it("maps outcomes to row statuses the way the live completion path does", () => {

@@ -847,6 +847,7 @@ async function enrichDetachedCommandRows(out: JsonRecord[]): Promise<void> {
 			...meta,
 			toolBackgroundStatus: outcomeStatus,
 			toolBackgroundLogPath: logPath,
+			toolExecutionIds: [],
 			...(output ? { toolOutput: output } : {}),
 			hookEventName: "tool_call_end",
 		};
