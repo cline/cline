@@ -41,7 +41,10 @@ import {
 	type ChatSessionStatus,
 } from "@/lib/chat-schema";
 import { appendCappedCommandOutput } from "@/lib/command-output";
-import { describeImportedHistorySummaryNotice } from "@/lib/compaction-notice";
+import {
+	describeImportedHistorySummaryNotice,
+	IMPORTED_HISTORY_SUMMARY_KIND,
+} from "@/lib/compaction-notice";
 import { desktopClient } from "@/lib/desktop-client";
 import {
 	buildSessionDiffState,
@@ -622,10 +625,25 @@ export function useChatSession() {
 					tailErrorStart -= 1;
 				}
 				const preservedErrors = sessionMessages.slice(tailErrorStart);
-				if (preservedErrors.length === 0) {
+				// The imported-history summary row is client-only, so re-seat it
+				// at its point in time (between the prompt that triggered it and
+				// the reply) instead of letting the canonical transcript drop it.
+				const preservedNotices = sessionMessages.filter(
+					(message) =>
+						message.meta?.messageKind === IMPORTED_HISTORY_SUMMARY_KIND,
+				);
+				if (preservedErrors.length === 0 && preservedNotices.length === 0) {
 					return historyMessages;
 				}
-				return sliceMessages([...historyMessages, ...preservedErrors]);
+				const merged = [...historyMessages];
+				for (const notice of preservedNotices) {
+					let index = merged.length;
+					while (index > 0 && merged[index - 1].createdAt > notice.createdAt) {
+						index -= 1;
+					}
+					merged.splice(index, 0, notice);
+				}
+				return sliceMessages([...merged, ...preservedErrors]);
 			});
 		},
 		[],
@@ -1564,6 +1582,7 @@ export function useChatSession() {
 									role: "status",
 									content: summaryNotice.content,
 									createdAt: chunkCreatedAt(payload),
+									meta: { messageKind: IMPORTED_HISTORY_SUMMARY_KIND },
 								},
 							]);
 						});

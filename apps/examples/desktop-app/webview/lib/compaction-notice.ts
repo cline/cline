@@ -3,6 +3,13 @@ import {
 	type SessionImportTool,
 } from "./session-import";
 
+/**
+ * `meta.messageKind` of the transcript row; it exists only client-side (the
+ * notice is never persisted), so hydration from canonical history has to
+ * carry it over explicitly.
+ */
+export const IMPORTED_HISTORY_SUMMARY_KIND = "imported_history_summary";
+
 function asFiniteNumber(value: unknown): number | undefined {
 	return typeof value === "number" && Number.isFinite(value)
 		? value
