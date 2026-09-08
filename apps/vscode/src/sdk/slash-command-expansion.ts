@@ -350,9 +350,14 @@ export interface BuildDisabledSkillNamesOptions {
  * only the enterprise/remote scope needs handling here: remote skills have no
  * writable frontmatter, and the extension keeps their toggle in name-keyed
  * `remoteSkillsToggles` instead. Mirrors the remote branch of
- * {@link buildDisabledWorkflowNames}: the materializer writes a remote skill to
- * `.cline/remote-config/skills/<sanitized name>/SKILL.md`, so the directory
- * name is compared against the sanitized toggle key.
+ * {@link buildDisabledWorkflowNames}, with one twist: a remote skill has two
+ * identities. The materializer names its directory after the remote config
+ * *entry* name (`.cline/remote-config/skills/<sanitized entry name>/SKILL.md`),
+ * while the Skills panel (`parseRemoteSkillEntries`) keys the toggle by the
+ * SKILL.md *frontmatter* name, which is also the discovered record's name. The
+ * dashboard is supposed to keep the two in sync but drift is tolerated, so both
+ * keys are checked: a skill counts as disabled when a toggle for either is off,
+ * and as locked when the organization's `alwaysEnabled` list names either.
  */
 export function buildDisabledSkillNames(options: BuildDisabledSkillNamesOptions): Set<string> {
 	const remoteToggles = new Map<string, boolean>()
@@ -368,9 +373,10 @@ export function buildDisabledSkillNames(options: BuildDisabledSkillNamesOptions)
 			continue
 		}
 		const skillDirectory = fileBasename(record.filePath.replace(/[/\\][^/\\]*$/, ""))
-		const remoteKey = sanitizeRemoteSegment(skillDirectory)
-		const enabled = remoteAlwaysEnabled.has(remoteKey) || remoteToggles.get(remoteKey) !== false
-		if (!enabled) {
+		const keys = new Set([sanitizeRemoteSegment(record.name), sanitizeRemoteSegment(skillDirectory)])
+		const locked = [...keys].some((key) => remoteAlwaysEnabled.has(key))
+		const toggledOff = [...keys].some((key) => remoteToggles.get(key) === false)
+		if (!locked && toggledOff) {
 			disabled.add(record.name)
 		}
 	}

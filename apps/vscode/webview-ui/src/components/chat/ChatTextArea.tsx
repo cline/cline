@@ -242,6 +242,17 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			}
 		}, [showSlashCommandsMenu, refreshSlashCommands])
 
+		// The refresh (or an MCP server update) can shrink the list under an open
+		// menu; keep the keyboard selection inside the new list so Enter/Tab never
+		// picks a row that no longer exists.
+		useEffect(() => {
+			if (!showSlashCommandsMenu) {
+				return
+			}
+			const count = getMatchingSlashCommands(slashCommandsQuery, slashCommands, mcpServers).length
+			setSelectedSlashCommandsIndex((prev) => (count === 0 ? 0 : Math.min(prev, count - 1)))
+		}, [showSlashCommandsMenu, slashCommandsQuery, slashCommands, mcpServers])
+
 		const [thumbnailsHeight, setThumbnailsHeight] = useState(0)
 		const [textAreaBaseHeight, setTextAreaBaseHeight] = useState<number | undefined>(undefined)
 		const [showContextMenu, setShowContextMenu] = useState(false)
@@ -514,8 +525,10 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					if ((event.key === "Enter" || event.key === "Tab") && selectedSlashCommandsIndex !== -1) {
 						event.preventDefault()
 						const commands = getMatchingSlashCommands(slashCommandsQuery, slashCommands, mcpServers)
-						if (commands.length > 0) {
-							handleSlashCommandsSelect(commands[selectedSlashCommandsIndex])
+						// The list may have been replaced since the index was set (async refresh).
+						const command = commands[selectedSlashCommandsIndex] ?? commands[commands.length - 1]
+						if (command) {
+							handleSlashCommandsSelect(command)
 						}
 						return
 					}

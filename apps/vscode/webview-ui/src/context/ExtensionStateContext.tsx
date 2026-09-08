@@ -368,9 +368,16 @@ export const ExtensionStateContextProvider: React.FC<{
 	const latestModelRequestIdByProviderRef = useRef<Partial<Record<ProviderId, string>>>({})
 	const [mcpServers, setMcpServers] = useState<McpServer[]>([])
 	const [slashCommands, setSlashCommands] = useState<SlashCommandInfo[]>([])
+	// Monotonic request id so an older refresh that completes late cannot
+	// overwrite the result of a newer one (rapid menu reopenings race).
+	const slashCommandsRequestRef = useRef(0)
 	const refreshSlashCommands = useCallback(async () => {
+		const requestId = ++slashCommandsRequestRef.current
 		try {
 			const response = await SlashServiceClient.getAvailableSlashCommands(EmptyRequest.create({}))
+			if (requestId !== slashCommandsRequestRef.current) {
+				return
+			}
 			setSlashCommands(response.commands ?? [])
 		} catch (error) {
 			console.error("Failed to fetch slash commands:", error)

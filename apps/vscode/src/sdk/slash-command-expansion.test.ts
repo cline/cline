@@ -364,6 +364,25 @@ describe("buildDisabledSkillNames", () => {
 		expect(disabled).toEqual(new Set(["org-standards"]))
 	})
 
+	it("honors a toggle keyed by the frontmatter name when it differs from the materialized entry name", () => {
+		// The dashboard entry is "Org Deploy" (directory org-deploy) but SKILL.md says
+		// name: deploy-prod; the Skills panel keys the toggle by the frontmatter name.
+		const disabled = buildDisabledSkillNames({
+			records: [{ name: "deploy-prod", filePath: "/repo/.cline/remote-config/skills/org-deploy/SKILL.md" }],
+			remoteToggles: { "deploy-prod": false },
+		})
+		expect(disabled).toEqual(new Set(["deploy-prod"]))
+	})
+
+	it("treats a lock on either identity as enabled", () => {
+		const disabled = buildDisabledSkillNames({
+			records: [{ name: "deploy-prod", filePath: "/repo/.cline/remote-config/skills/org-deploy/SKILL.md" }],
+			remoteToggles: { "deploy-prod": false },
+			remoteAlwaysEnabledNames: ["Org Deploy"],
+		})
+		expect(disabled).toEqual(new Set())
+	})
+
 	it("treats locked (alwaysEnabled) remote skills as enabled despite stale toggles", () => {
 		const disabled = buildDisabledSkillNames({
 			records: [{ name: "org-locked", filePath: "/repo/.cline/remote-config/skills/org-locked/SKILL.md" }],
