@@ -9,6 +9,7 @@ describe("setUserOrganization", () => {
 		const controller = {
 			accountService: { switchAccount },
 			refreshRemoteConfig,
+			resetCloudSessions: vi.fn(),
 		}
 
 		await setUserOrganization(controller as never, UserOrganizationUpdateRequest.create({ organizationId: "org-new" }))

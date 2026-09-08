@@ -135,6 +135,11 @@ export class SdkModeCoordinator {
 		}
 
 		const activeSession = this.options.sessions.getActiveSession()
+		// Cloud sessions are Act-only; the webview disables the toggle, this
+		// guards the keyboard shortcut and any other caller.
+		if (activeSession?.sdkHost && "isCloud" in activeSession.sdkHost) {
+			return false
+		}
 		if (activeSession) {
 			// awaiting_followup is also used for non-plan turns, so it is not
 			// sufficient evidence that the user has a plan to approve. Require the

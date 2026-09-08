@@ -9,6 +9,7 @@ import {
 	resolveClineBuildEnv,
 	resolveHubCommandTimeoutMs,
 } from "@cline/shared";
+import NodeWebSocket from "ws";
 import {
 	SESSION_NOT_FOUND_ERROR_CODE,
 	SessionNotFoundError,
@@ -171,7 +172,15 @@ export interface HubClientOptions {
 	displayName?: string;
 	workspaceRoot?: string;
 	cwd?: string;
+	/** Hub token sent with the `cline-hub-auth.*` WebSocket subprotocol. */
 	authToken?: string;
+	/**
+	 * Resolves HTTP headers for each new WebSocket, including reconnects.
+	 * This Node-only transport option is mutually exclusive with `authToken`.
+	 */
+	resolveConnectionHeaders?: () =>
+		| Readonly<Record<string, string>>
+		| Promise<Readonly<Record<string, string>>>;
 	capabilities?: HubClientRegistration["capabilities"];
 }
 
@@ -240,11 +249,20 @@ export function isHubCommandTimeoutError(
 	);
 }
 
-function resolveLocalHubAuthToken(url: URL): string | undefined {
+function resolveLocalHubAuthToken(
+	url: URL,
+	options: { skipRegistry?: boolean } = {},
+): string | undefined {
 	const queryToken = url.searchParams.get("authToken")?.trim();
 	url.searchParams.delete("authToken");
 	if (queryToken) {
 		return queryToken;
+	}
+	// Header-auth clients must not inherit tokens that local hub discovery
+	// registered for the same loopback URL in this process; only explicit
+	// tokens conflict with connection headers.
+	if (options.skipRegistry) {
+		return undefined;
 	}
 	const key = localHubUrlKey(url.toString());
 	return key ? LOCAL_HUB_AUTH_TOKENS.get(key) : undefined;
@@ -311,6 +329,11 @@ export class NodeHubClient {
 	private reconnectTimer: ReturnType<typeof setTimeout> | undefined;
 	private reconnectAttempt = 0;
 	private closedByClient = false;
+	// Bumped by close() and each fresh connect attempt. An openSocket() call
+	// that awaited its header resolver across a close()/connect() boundary
+	// detects the stale generation and aborts instead of clobbering the newer
+	// attempt's state.
+	private connectGeneration = 0;
 	private lastCloseError = new HubTransportError(
 		"hub_connection_closed",
 		DEFAULT_HUB_CLOSED_MESSAGE,
@@ -320,6 +343,11 @@ export class NodeHubClient {
 	private capabilities: NonNullable<HubClientRegistration["capabilities"]>;
 
 	constructor(private readonly options: HubClientOptions) {
+		if (options.authToken?.trim() && options.resolveConnectionHeaders) {
+			throw new Error(
+				"Hub connection headers cannot be combined with authToken authentication.",
+			);
+		}
 		this.clientId =
 			options.clientId ??
 			`core-${Math.random().toString(36).slice(2, 10)}-${Date.now().toString(36)}`;
@@ -354,6 +382,9 @@ export class NodeHubClient {
 	}
 
 	async connect(): Promise<void> {
+		if (this.connectPromise) {
+			return this.connectPromise;
+		}
 		if (
 			this.socket &&
 			(this.socket.readyState === 1 || this.socket.readyState === 0)
@@ -365,17 +396,169 @@ export class NodeHubClient {
 
 		const url = new URL(this.currentUrl);
 		const authToken =
-			this.options.authToken?.trim() || resolveLocalHubAuthToken(url);
+			this.options.authToken?.trim() ||
+			resolveLocalHubAuthToken(url, {
+				skipRegistry: Boolean(this.options.resolveConnectionHeaders),
+			});
 		url.hash = "";
+		if (authToken && this.options.resolveConnectionHeaders) {
+			throw new Error(
+				"Hub connection headers cannot be combined with authToken authentication.",
+			);
+		}
 
-		const WebSocketImpl = getWebSocketCtor();
-		const socket = new WebSocketImpl(
-			url.toString(),
-			authToken ? [`${HUB_AUTH_PROTOCOL_PREFIX}${authToken}`] : undefined,
-		);
+		const generation = ++this.connectGeneration;
+		const connectPromise = this.openSocket(url, authToken, generation);
+		let attemptSocket: WebSocketLike | undefined;
+		this.connectPromise = connectPromise.then(async (socket) => {
+			attemptSocket = socket;
+			await this.commandOnce(
+				"client.register",
+				{
+					clientId: this.clientId,
+					clientType: this.options.clientType ?? "core",
+					displayName: this.options.displayName ?? "core",
+					transport: "native",
+					actorKind: "client",
+					capabilities: this.capabilities,
+					workspaceContext: {
+						workspaceRoot: this.options.workspaceRoot,
+						cwd: this.options.cwd,
+					},
+				} satisfies HubClientRegistration,
+				undefined,
+				undefined,
+				false,
+			);
+			// A close() (or a newer attempt after it) may have superseded this
+			// attempt while the register reply was in flight. Marking the client
+			// registered now would poison later failure handling (a stale
+			// `registered === true` makes a future failed attempt skip closing
+			// its socket) and leave a zombie connection behind.
+			if (generation !== this.connectGeneration || this.closedByClient) {
+				try {
+					socket.close();
+				} catch {
+					// best-effort close
+				}
+				throw this.lastCloseError;
+			}
+			this.registered = true;
+			for (const key of this.subscriptionCounts.keys()) {
+				this.sendSubscriptionFrame(
+					"stream.subscribe",
+					this.subscriptionSessionIdFromKey(key),
+				);
+			}
+			this.reconnectAttempt = 0;
+		});
+		const registrationPromise = this.connectPromise;
+		try {
+			await registrationPromise;
+		} catch (error) {
+			if (this.connectPromise === registrationPromise) {
+				this.connectPromise = undefined;
+			}
+			// A socket that opened but never registered must not survive: a later
+			// connect() would see it open and resolve without a registered client.
+			// Close only THIS attempt's socket — after close()+connect() races the
+			// current socket may belong to a newer attempt that must stay alive.
+			// Deliberately not conditioned on `this.registered`: the socket
+			// identity check alone decides ownership and cannot be poisoned by a
+			// stale registration flag.
+			if (attemptSocket && this.socket === attemptSocket) {
+				this.lastCloseError = normalizeWebSocketConnectError(error, url);
+				this.registered = false;
+				this.sawSocketClose = false;
+				this.socket = undefined;
+				try {
+					attemptSocket.close();
+				} catch {
+					// best-effort close
+				}
+				if (!this.closedByClient && this.hasActiveSubscriptions()) {
+					this.scheduleReconnect();
+				}
+			}
+			throw error;
+		}
+	}
+
+	private async openSocket(
+		url: URL,
+		authToken: string | undefined,
+		generation: number,
+	): Promise<WebSocketLike> {
+		const resolveHeaders = this.options.resolveConnectionHeaders;
+		let headers: Readonly<Record<string, string>> | undefined;
+		if (resolveHeaders) {
+			// The resolver may perform network I/O (token refresh); bound it so
+			// a hung resolver cannot pin connect() — and every deduped caller —
+			// forever, and record failures so getConnectionError() reports the
+			// real cause instead of a stale close message.
+			let timeoutId: ReturnType<typeof setTimeout> | undefined;
+			try {
+				headers = await Promise.race([
+					Promise.resolve().then(() => resolveHeaders()),
+					new Promise<never>((_, reject) => {
+						timeoutId = setTimeout(() => {
+							reject(
+								new HubTransportError(
+									"hub_connect_timeout",
+									`Timed out resolving hub connection headers after ${HUB_CONNECT_TIMEOUT_MS}ms`,
+								),
+							);
+						}, HUB_CONNECT_TIMEOUT_MS);
+					}),
+				]);
+			} catch (error) {
+				const transportError =
+					error instanceof HubTransportError
+						? error
+						: new HubTransportError(
+								"hub_connect_failed",
+								error instanceof Error ? error.message : String(error),
+							);
+				if (generation === this.connectGeneration) {
+					this.lastCloseError = transportError;
+				}
+				throw transportError;
+			} finally {
+				clearTimeout(timeoutId);
+			}
+		}
+		// A close() (or a newer attempt after it) supersedes this attempt while
+		// the resolver was pending; abort before touching shared socket state.
+		if (generation !== this.connectGeneration || this.closedByClient) {
+			throw this.lastCloseError;
+		}
+		if (
+			headers &&
+			Object.keys(headers).some(
+				(name) => name.toLowerCase() === "sec-websocket-protocol",
+			)
+		) {
+			const error = new HubTransportError(
+				"hub_connect_failed",
+				"Hub connection headers cannot set Sec-WebSocket-Protocol.",
+			);
+			if (generation === this.connectGeneration) {
+				this.lastCloseError = error;
+			}
+			throw error;
+		}
+
+		const socket = headers
+			? (new NodeWebSocket(url.toString(), {
+					headers: { ...headers },
+				}) as unknown as WebSocketLike)
+			: new (getWebSocketCtor())(
+					url.toString(),
+					authToken ? [`${HUB_AUTH_PROTOCOL_PREFIX}${authToken}`] : undefined,
+				);
 		this.socket = socket;
 		let suppressCloseMessage = false;
-		this.connectPromise = new Promise<void>((resolve, reject) => {
+		const opened = new Promise<void>((resolve, reject) => {
 			let settled = false;
 			const timeout = setTimeout(() => {
 				if (settled) {
@@ -383,19 +566,25 @@ export class NodeHubClient {
 				}
 				settled = true;
 				suppressCloseMessage = true;
-				this.lastCloseError = new HubTransportError(
+				const timeoutError = new HubTransportError(
 					"hub_connect_timeout",
 					`Timed out connecting to hub after ${HUB_CONNECT_TIMEOUT_MS}ms`,
 				);
-				this.sawSocketClose = false;
-				this.connectPromise = undefined;
-				this.socket = undefined;
+				// Guarded on identity: a stale attempt's late failure must not
+				// clobber a newer in-flight attempt's dedupe state or its
+				// reported connection error.
+				if (this.socket === socket) {
+					this.lastCloseError = timeoutError;
+					this.sawSocketClose = false;
+					this.connectPromise = undefined;
+					this.socket = undefined;
+				}
 				try {
 					socket.close();
 				} catch {
 					// best-effort close
 				}
-				reject(this.lastCloseError);
+				reject(timeoutError);
 			}, HUB_CONNECT_TIMEOUT_MS);
 			socket.addEventListener("open", () => {
 				if (settled) {
@@ -411,11 +600,14 @@ export class NodeHubClient {
 				}
 				settled = true;
 				clearTimeout(timeout);
-				this.lastCloseError = normalizeWebSocketConnectError(error, url);
-				this.sawSocketClose = false;
-				this.connectPromise = undefined;
-				this.socket = undefined;
-				reject(this.lastCloseError);
+				const connectError = normalizeWebSocketConnectError(error, url);
+				if (this.socket === socket) {
+					this.lastCloseError = connectError;
+					this.sawSocketClose = false;
+					this.connectPromise = undefined;
+					this.socket = undefined;
+				}
+				reject(connectError);
 			});
 			socket.addEventListener("close", (event: unknown) => {
 				if (settled) {
@@ -423,13 +615,18 @@ export class NodeHubClient {
 				}
 				settled = true;
 				clearTimeout(timeout);
-				if (!suppressCloseMessage) {
-					this.lastCloseError = createHubCloseError(event);
-					this.sawSocketClose = true;
+				const closeError = suppressCloseMessage
+					? this.lastCloseError
+					: createHubCloseError(event);
+				if (this.socket === socket) {
+					if (!suppressCloseMessage) {
+						this.lastCloseError = closeError;
+						this.sawSocketClose = true;
+					}
+					this.connectPromise = undefined;
+					this.socket = undefined;
 				}
-				this.connectPromise = undefined;
-				this.socket = undefined;
-				reject(this.lastCloseError);
+				reject(closeError);
 			});
 		});
 
@@ -456,27 +653,8 @@ export class NodeHubClient {
 			}
 		});
 
-		await this.connectPromise;
-		await this.command("client.register", {
-			clientId: this.clientId,
-			clientType: this.options.clientType ?? "core",
-			displayName: this.options.displayName ?? "core",
-			transport: "native",
-			actorKind: "client",
-			capabilities: this.capabilities,
-			workspaceContext: {
-				workspaceRoot: this.options.workspaceRoot,
-				cwd: this.options.cwd,
-			},
-		} satisfies HubClientRegistration);
-		this.registered = true;
-		for (const key of this.subscriptionCounts.keys()) {
-			this.sendSubscriptionFrame(
-				"stream.subscribe",
-				this.subscriptionSessionIdFromKey(key),
-			);
-		}
-		this.reconnectAttempt = 0;
+		await opened;
+		return socket;
 	}
 
 	subscribe(
@@ -525,8 +703,11 @@ export class NodeHubClient {
 		payload?: Record<string, unknown>,
 		sessionId?: string,
 		options?: { timeoutMs?: number | null },
+		ensureConnected = true,
 	): Promise<HubReplyEnvelope> {
-		await this.connect();
+		if (ensureConnected) {
+			await this.connect();
+		}
 		const requestId = createSessionId("hubreq_");
 		const effectiveTimeoutMs = resolveHubCommandTimeoutMs(
 			command,
@@ -695,21 +876,30 @@ export class NodeHubClient {
 	close(): void {
 		const socket = this.socket;
 		this.closedByClient = true;
+		// Invalidate any attempt still awaiting its header resolver so it
+		// aborts instead of clobbering a later connect()'s state.
+		this.connectGeneration += 1;
 		this.clearReconnectTimer();
 		this.registered = false;
-		if (!socket) {
-			return;
+		// Without a socket there is nothing this close() is tearing down, so
+		// keep the real failure cause (e.g. a connect error) for
+		// getConnectionError() readers instead of wiping it with the generic
+		// closed message.
+		if (socket) {
+			this.lastCloseError = new HubTransportError(
+				"hub_connection_closed",
+				DEFAULT_HUB_CLOSED_MESSAGE,
+			);
 		}
-		this.lastCloseError = new HubTransportError(
-			"hub_connection_closed",
-			DEFAULT_HUB_CLOSED_MESSAGE,
-		);
-		this.sawSocketClose = false;
 		for (const pending of this.pendingReplies.values()) {
 			pending.reject(this.lastCloseError);
 		}
 		this.pendingReplies.clear();
 		this.connectPromise = undefined;
+		if (!socket) {
+			return;
+		}
+		this.sawSocketClose = false;
 		this.socket = undefined;
 		try {
 			socket.close();

@@ -14,6 +14,7 @@ export class RemoteRuntimeHost extends HubRuntimeHost {
 			{
 				url: normalizeHubWebSocketUrl(options.endpoint),
 				authToken: options.authToken,
+				resolveConnectionHeaders: options.resolveConnectionHeaders,
 				clientType: options.clientType ?? "core-remote-runtime",
 				displayName: options.displayName ?? "core remote runtime",
 				capabilities: options.capabilities,
