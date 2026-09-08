@@ -9,6 +9,11 @@
  * contract and design rationale.
  */
 export {
+	type ComputerBackendEnsureResult,
+	ComputerBackendRestart,
+	type ComputerBackendRestartOptions,
+} from "./backend-restart";
+export {
 	ComputerUseClient,
 	type ComputerUseClientEvent,
 	type ComputerUseClientObserver,
@@ -17,6 +22,7 @@ export {
 } from "./client";
 export {
 	createComputerUseToolFromEnv,
+	resolveComputerUseBackendCommandFromEnv,
 	resolveComputerUseTargetFromEnv,
 } from "./env";
 export type {

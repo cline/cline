@@ -1,17 +1,20 @@
 import type { AgentTool } from "@cline/shared";
 import { createTool, zodToJsonSchema } from "@cline/shared";
 import { z } from "zod";
+import type { ComputerBackendEnsureResult } from "../computer-use/backend-restart";
 import type { ComputerUserCoordinator } from "./coordinator";
 
 /**
  * Driver-facing tools for delegating GUI work to the asynchronous computer
  * user. Start and message return without waiting for the helper's turn;
  * interrupt returns after the active turn is quiescent. Status can return
- * immediately or wait for a bounded change. Results, questions, and warnings
- * also arrive as steer messages injected into the driver's conversation. The
- * tools are separate (rather than one action union) because their approval
- * semantics differ: hosts typically auto-approve status checks while gating
- * start/interrupt.
+ * immediately or wait for a bounded change. Transcript peeks the helper's
+ * recent activity; restart recreates a degraded helper session. Results,
+ * questions, and warnings also arrive as steer messages injected into the
+ * driver's conversation. The tools are separate (rather than one action
+ * union) because their approval semantics differ: hosts typically
+ * auto-approve status and transcript checks while gating start/interrupt/
+ * restart.
  */
 
 const StartInput = z
@@ -75,9 +78,69 @@ const StatusInput = z
 		path: ["timeout"],
 	});
 
+const MAX_TRANSCRIPT_LIMIT = 100;
+const TranscriptInput = z
+	.object({
+		limit: z
+			.number()
+			.int()
+			.min(1)
+			.max(MAX_TRANSCRIPT_LIMIT)
+			.optional()
+			.describe(
+				`Maximum entries to return (1-${MAX_TRANSCRIPT_LIMIT}). Default 50.`,
+			),
+		sinceSeq: z
+			.number()
+			.int()
+			.nonnegative()
+			.optional()
+			.describe(
+				"Sequence cursor from a previous transcript call: skip entries up to and including it, returning only newer activity.",
+			),
+	})
+	.strict();
+
+const RestartInput = z
+	.object({
+		reason: z
+			.string()
+			.trim()
+			.min(1)
+			.optional()
+			.describe(
+				"Why the helper is being restarted. Kept with the session's ended record.",
+			),
+	})
+	.strict();
+
+const BackendRestartInput = z.object({}).strict();
+
+/**
+ * The backend restart capability the tool needs. `ComputerBackendRestart`
+ * satisfies this structurally; hosts and tests may substitute their own.
+ */
+export interface ComputerBackendRestartCapability {
+	/** Overall wait budget; the tool's timeout is sized from it. */
+	budgetMs: number;
+	ensureRunning(): Promise<ComputerBackendEnsureResult>;
+	dispose(): Promise<void>;
+}
+
+/** Optional capabilities the host can wire into the driver tool set. */
+export interface ComputerUserDriverToolOptions {
+	/**
+	 * Backend restart support. Provided only when the host also configured a
+	 * launch command; when present the driver gets
+	 * `computer_user_restart_backend`.
+	 */
+	backendRestart?: ComputerBackendRestartCapability;
+}
+
 /** Builds the driver-facing computer-user tools bound to one coordinator. */
 export function createComputerUserDriverTools(
 	coordinator: ComputerUserCoordinator,
+	options?: ComputerUserDriverToolOptions,
 ): AgentTool[] {
 	const start = createTool({
 		name: "computer_user_start",
@@ -157,5 +220,91 @@ export function createComputerUserDriverTools(
 		},
 	});
 
-	return [start, status, message, interrupt];
+	const transcript = createTool({
+		name: "computer_user_transcript",
+		description:
+			"Read the computer user's recent transcript: its reasoning, the tool calls it made (name and input), their results, its messages to the user, and its final reports. Use this to see what it actually did (including when a run ends without a structured report), to answer 'is it done?', or to page new activity with sinceSeq. Entries keep the session id they belong to, so history before a restart is distinguishable from the new session.",
+		inputSchema: zodToJsonSchema(TranscriptInput),
+		retryable: true,
+		execute: async (input: unknown) => {
+			const parsed = TranscriptInput.parse(input);
+			const tail = coordinator.transcriptTail(parsed);
+			return (
+				tail ?? {
+					entries: [],
+					latestSeq: 0,
+					note: "Transcript recording is not enabled on this host.",
+				}
+			);
+		},
+	});
+
+	const restart = createTool({
+		name: "computer_user_restart",
+		description:
+			"Recreate the computer user: abort its active run, stop its session, and reset it to a clean state for when it degrades (e.g. turns that end in seconds without acting, or reports that never arrive). The next start or message creates a fresh session that retains no memory of previous tasks. Its transcript history survives, tagged with the old session id. This restarts the helper, not the computer-use backend — use computer_user_restart_backend for that.",
+		inputSchema: zodToJsonSchema(RestartInput),
+		retryable: false,
+		execute: async (input: unknown) => {
+			const parsed = RestartInput.parse(input);
+			const { restarted } = await coordinator.restart(parsed.reason);
+			return restarted
+				? {
+						status: "restarted",
+						note: "The computer user is clean and uninitialized. The next start or message creates a fresh session with no memory of previous tasks.",
+					}
+				: {
+						status: "not_restarted",
+						note: "The computer user has been disposed; nothing to restart.",
+					};
+		},
+	});
+
+	const tools: AgentTool[] = [
+		start,
+		status,
+		message,
+		interrupt,
+		transcript,
+		restart,
+	];
+
+	if (options?.backendRestart) {
+		const backendRestart = options.backendRestart;
+		tools.push(
+			createTool({
+				name: "computer_user_restart_backend",
+				description:
+					"Bring the computer-use backend (the process behind the computer tool and the computer user) back when it is unreachable — e.g. after it crashed or was killed. Probes it first: if it answers, reports already_running without touching it. If it is down, launches the configured backend command and waits for it to answer. Does not kill a backend it did not spawn.",
+				inputSchema: zodToJsonSchema(BackendRestartInput),
+				// The wait budget plus probe slack, so the tool outlives a slow launch (e.g. a cargo build).
+				timeoutMs: backendRestart.budgetMs + 60_000,
+				retryable: false,
+				execute: async (input: unknown) => {
+					BackendRestartInput.parse(input);
+					const result = await backendRestart.ensureRunning();
+					switch (result.status) {
+						case "already_running":
+							return {
+								status: result.status,
+								note: "The backend answered a probe; it is running. Nothing was launched.",
+							};
+						case "started":
+							return {
+								status: result.status,
+								note: "The backend was down and has been launched. The next computer action reconnects automatically.",
+							};
+						case "failed_to_start":
+							return {
+								status: result.status,
+								error: result.error,
+								note: "The launch command was run but the backend never answered. Check the command (it must make the backend answer on the configured port) and try again.",
+							};
+					}
+				},
+			}),
+		);
+	}
+
+	return tools;
 }

@@ -24,4 +24,7 @@ export {
 	type JournalPublishTransport,
 } from "./journal-sink";
 export { ComputerTaskArtifactRecorder } from "./recorder";
-export { createTranscriptRecordingHooks } from "./transcript-observer";
+export {
+	createTranscriptRecordingHooks,
+	type TranscriptRecordingTee,
+} from "./transcript-observer";
