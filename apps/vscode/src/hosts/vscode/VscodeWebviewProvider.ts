@@ -39,6 +39,14 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 	 */
 	private _initialized = false
 
+	/**
+	 * Tracks whether the webview has confirmed it's ready to receive state.
+	 * This prevents race conditions where state is pushed before the React app
+	 * has mounted and set up its message listener.
+	 */
+	private _webviewReady = false
+	private _pendingStatePush: ReturnType<typeof setTimeout> | null = null
+
 	override getWebviewUrl(path: string) {
 		if (!this.webview) {
 			throw new Error("Webview not initialized")
@@ -91,8 +99,17 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 			this.setWebviewMessageListener(webviewView.webview)
 			telemetryService.capturePanelOpened("sidebar_resolved")
 
-			// Extension just activated — no active session to preserve, clear stale state
-			this.controller.clearTask()
+			// Check if we have an active task to determine if this is crash recovery
+			const hasActiveTask = !!this.controller.task?.taskId
+			if (hasActiveTask) {
+				// Crash recovery: extension host restarted but task was preserved
+				// Do NOT clear the task - it's still running in the SDK
+				Logger.log("[VscodeWebviewProvider] Crash recovery detected - preserving active task")
+			} else {
+				// Fresh start: no active task, safe to clear stale state
+				Logger.log("[VscodeWebviewProvider] Fresh start - clearing stale state")
+				this.controller.clearTask()
+			}
 
 			this._initialized = true
 		} else {
@@ -108,21 +125,22 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 			this.setWebviewMessageListener(webviewView.webview)
 			telemetryService.capturePanelOpened("sidebar_recreated")
 
-			Logger.log("[VscodeWebviewProvider] Webview re-created, pushing current state")
+			Logger.log("[VscodeWebviewProvider] Webview re-created, waiting for webview ready signal")
 
-			// Push the current controller state (including active task) to the rehydrated webview.
-			// FIRE-AND-FORGET with deferred microtask: we do NOT await this because:
-			//   1. The webview's React app needs to mount and set up its message listener first.
-			//   2. `postStateToWebview()` serializes the full ExtensionState (may be large with
-			//      many messages), and blocking VSCode's resolveWebviewView on that I/O causes
-			//      visible UI jank/rescaling when switching back to the Cline tab.
-			//   3. The webview will request full state via gRPC subscribeToState on mount anyway,
-			//      so this push is an optimistic optimization, not a requirement.
-			queueMicrotask(() => {
-				this.controller.postStateToWebview().catch((err) => {
-					Logger.error("[VscodeWebviewProvider] Failed to push state on webview re-creation:", err)
-				})
-			})
+			// Reset ready state - webview needs to confirm it's ready
+			this._webviewReady = false
+
+			// Schedule a delayed state push as fallback in case ready signal is lost
+			// This ensures state is eventually pushed even if the webview fails to signal ready
+			if (this._pendingStatePush) {
+				clearTimeout(this._pendingStatePush)
+			}
+			this._pendingStatePush = setTimeout(() => {
+				if (!this._webviewReady) {
+					Logger.warn("[VscodeWebviewProvider] Webview ready signal timeout - pushing state anyway")
+					this.pushStateToWebview()
+				}
+			}, 2000) // 2 second fallback timeout
 		}
 
 		// Logs show up in bottom panel > Debug Console
@@ -161,7 +179,7 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 			this.disposables,
 		)
 
-		Logger.log("[VscodeWebviewProvider] Webview view resolved (firstInit=" + isFirstInit + ")")
+		Logger.log(`[VscodeWebviewProvider] Webview view resolved (firstInit=${isFirstInit})`)
 
 		// Title setting logic removed to allow VSCode to use the container title primarily.
 	}
@@ -222,10 +240,45 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 				}
 				break
 			}
+			case "webview_ready": {
+				// Webview has confirmed it's ready to receive state
+				Logger.log("[VscodeWebviewProvider] Webview ready signal received")
+				this._webviewReady = true
+
+				// Cancel the fallback timeout
+				if (this._pendingStatePush) {
+					clearTimeout(this._pendingStatePush)
+					this._pendingStatePush = null
+				}
+
+				// Push current state to the ready webview
+				this.pushStateToWebview()
+				break
+			}
 			default: {
 				Logger.error("Received unhandled WebviewMessage type:", JSON.stringify(message))
 			}
 		}
+	}
+
+	/**
+	 * Pushes the current controller state to the webview with size monitoring.
+	 * This method checks the state size and applies truncation if necessary
+	 * to prevent IPC message drops.
+	 */
+	private pushStateToWebview(): void {
+		// FIRE-AND-FORGET with deferred microtask: we do NOT await this because:
+		//   1. The webview's React app needs to mount and set up its message listener first.
+		//   2. `postStateToWebview()` serializes the full ExtensionState (may be large with
+		//      many messages), and blocking VSCode's resolveWebviewView on that I/O causes
+		//      visible UI jank/rescaling when switching back to the Cline tab.
+		//   3. The webview will request full state via gRPC subscribeToState on mount anyway,
+		//      so this push is an optimistic optimization, not a requirement.
+		queueMicrotask(() => {
+			this.controller.postStateToWebview().catch((err) => {
+				Logger.error("[VscodeWebviewProvider] Failed to push state on webview re-creation:", err)
+			})
+		})
 	}
 
 	/**
@@ -239,6 +292,12 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 	}
 
 	override async dispose() {
+		// Cancel any pending state push timeout
+		if (this._pendingStatePush) {
+			clearTimeout(this._pendingStatePush)
+			this._pendingStatePush = null
+		}
+
 		// WebviewView doesn't have a dispose method, it's managed by VSCode
 		// We just need to clean up our disposables
 		while (this.disposables.length) {

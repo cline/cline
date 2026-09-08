@@ -182,6 +182,10 @@ export async function tearDown(): Promise<void> {
 		HookDiscoveryCache.getInstance().dispose()
 		// Stop periodic temp file cleanup
 		ClineTempManager.stopPeriodicCleanup()
+
+		// Clean up state subscriptions
+		const { stateSubscriptionManager } = await import("./core/controller/state/subscribeToState")
+		stateSubscriptionManager.disposeAll()
 	} finally {
 		try {
 			await StateManager.get().flushPendingState()

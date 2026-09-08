@@ -476,85 +476,117 @@ export const ExtensionStateContextProvider: React.FC<{
 	const lastSnapshotVersionRef = useRef(0)
 
 	/**
+	 * Track retry attempts for full sync requests to prevent infinite loops.
+	 */
+	const fullSyncRetryCountRef = useRef(0)
+	const MAX_FULL_SYNC_RETRIES = 3
+
+	/**
 	 * Request a full state snapshot from the backend via the streaming subscription.
 	 * This is the self-healing fallback when the webview detects a gap in deltas.
+	 * Includes retry logic with exponential backoff to handle transient failures.
 	 */
 	const requestFullSync = useCallback(() => {
+		// Prevent infinite retry loops
+		if (fullSyncRetryCountRef.current >= MAX_FULL_SYNC_RETRIES) {
+			console.warn(`[StateDelta] Full sync retry limit reached (${MAX_FULL_SYNC_RETRIES}). Waiting for next delta.`)
+			// Reset retry count after a delay to allow future retries
+			setTimeout(() => {
+				fullSyncRetryCountRef.current = 0
+			}, 10000) // 10 second cooldown
+			return
+		}
+
+		fullSyncRetryCountRef.current++
+		console.log(`[StateDelta] Requesting full sync (attempt ${fullSyncRetryCountRef.current}/${MAX_FULL_SYNC_RETRIES})`)
+
+		// Cancel existing subscription
 		stateSubscriptionRef.current?.()
-		stateSubscriptionRef.current = StateServiceClient.subscribeToState(EmptyRequest.create({}), {
-			onResponse: (response: any) => {
-				if (response.stateJson) {
-					// V17 (P0): gate BEFORE parsing using the snapshot-version high-water mark.
-					const oobStateVersion = response.stateVersion ?? 0
-					if (oobStateVersion > 0 && oobStateVersion <= lastSnapshotVersionRef.current) {
-						return
-					}
-					try {
-						const stateData = JSON.parse(response.stateJson) as ExtensionState
-						const incomingStateVersion = stateData.stateVersion ?? 0
 
-						// Route the snapshot's transcript through the convergent-replica reducer:
-						// merge by ts/seq within the same epoch (never truncate), replace on a
-						// newer epoch, ignore stale/older snapshots. Pagination metadata
-						// travels with the snapshot so it is owned/reset by the conversation fence.
-						const prevEpoch = replicaRef.current.epoch
-						replicaRef.current = reducerApplyStateSnapshot(
-							replicaRef.current,
-							stateData.clineMessages ?? [],
-							stateData.epoch ?? 0,
-							incomingStateVersion,
-							stateData.turnState,
-							stateData.messageTruncated,
-							stateData.totalMessageCount,
-						)
-						if (replicaRef.current.epoch !== prevEpoch) {
-							setHasMoreMessages(true)
+		// Add exponential backoff delay for retries
+		const delay = Math.min(1000 * 2 ** (fullSyncRetryCountRef.current - 1), 5000)
+
+		setTimeout(() => {
+			stateSubscriptionRef.current = StateServiceClient.subscribeToState(EmptyRequest.create({}), {
+				onResponse: (response: any) => {
+					if (response.stateJson) {
+						// V17 (P0): gate BEFORE parsing using the snapshot-version high-water mark.
+						const oobStateVersion = response.stateVersion ?? 0
+						if (oobStateVersion > 0 && oobStateVersion <= lastSnapshotVersionRef.current) {
+							return
 						}
+						try {
+							const stateData = JSON.parse(response.stateJson) as ExtensionState
+							const incomingStateVersion = stateData.stateVersion ?? 0
 
-						// Publish the (seq-gated) transcript + pagination metadata through the
-						// high-frequency messages context (V12 方案3).
-						publishReplica()
+							// Route the snapshot's transcript through the convergent-replica reducer:
+							// merge by ts/seq within the same epoch (never truncate), replace on a
+							// newer epoch, ignore stale/older snapshots. Pagination metadata
+							// travels with the snapshot so it is owned/reset by the conversation fence.
+							const prevEpoch = replicaRef.current.epoch
+							replicaRef.current = reducerApplyStateSnapshot(
+								replicaRef.current,
+								stateData.clineMessages ?? [],
+								stateData.epoch ?? 0,
+								incomingStateVersion,
+								stateData.turnState,
+								stateData.messageTruncated,
+								stateData.totalMessageCount,
+							)
+							if (replicaRef.current.epoch !== prevEpoch) {
+								setHasMoreMessages(true)
+							}
 
-						const {
-							clineMessages: _clineMessages,
-							turnState: _turnState,
-							epoch: _epoch,
-							stateVersion: _stateVersion,
-							...restStateData
-						} = stateData
-						setState((prevState) => {
-							const incomingVersion = stateData.autoApprovalSettings?.version ?? 1
-							const currentVersion = prevState.autoApprovalSettings?.version ?? 1
-							const shouldUpdateAutoApproval = incomingVersion > currentVersion
-							const newState = {
-								...restStateData,
-								autoApprovalSettings: shouldUpdateAutoApproval
-									? stateData.autoApprovalSettings
-									: prevState.autoApprovalSettings,
-							}
-							if (!newState.welcomeViewCompleted && !showWelcome) {
-								setShowWelcome(true)
-								setOnboardingModels(newState.onboardingModels)
-							} else if (newState.welcomeViewCompleted) {
-								setShowWelcome(false)
-								setOnboardingModels(undefined)
-							}
-							setDidHydrateState(true)
-							return newState
-						})
-						lastSnapshotVersionRef.current = Math.max(lastSnapshotVersionRef.current, incomingStateVersion)
-					} catch (error) {
-						console.error("Error parsing state JSON during full sync:", error)
+							// Publish the (seq-gated) transcript + pagination metadata through the
+							// high-frequency messages context (V12 方案3).
+							publishReplica()
+
+							const {
+								clineMessages: _clineMessages,
+								turnState: _turnState,
+								epoch: _epoch,
+								stateVersion: _stateVersion,
+								...restStateData
+							} = stateData
+							setState((prevState) => {
+								const incomingVersion = stateData.autoApprovalSettings?.version ?? 1
+								const currentVersion = prevState.autoApprovalSettings?.version ?? 1
+								const shouldUpdateAutoApproval = incomingVersion > currentVersion
+								const newState = {
+									...restStateData,
+									autoApprovalSettings: shouldUpdateAutoApproval
+										? stateData.autoApprovalSettings
+										: prevState.autoApprovalSettings,
+								}
+								if (!newState.welcomeViewCompleted && !showWelcome) {
+									setShowWelcome(true)
+									setOnboardingModels(newState.onboardingModels)
+								} else if (newState.welcomeViewCompleted) {
+									setShowWelcome(false)
+									setOnboardingModels(undefined)
+								}
+								setDidHydrateState(true)
+								return newState
+							})
+							lastSnapshotVersionRef.current = Math.max(lastSnapshotVersionRef.current, incomingStateVersion)
+
+							// Success - reset retry count
+							fullSyncRetryCountRef.current = 0
+							console.log("[StateDelta] Full sync completed successfully")
+						} catch (error) {
+							console.error("Error parsing state JSON during full sync:", error)
+						}
 					}
-				}
-			},
-			onError: (error: any) => {
-				console.error("Error in full sync state subscription:", error)
-			},
-			onComplete: () => {
-				console.log("Full sync state subscription completed")
-			},
-		})
+				},
+				onError: (error: any) => {
+					console.error("Error in full sync state subscription:", error)
+					// Don't reset retry count here - let it retry on next delta gap
+				},
+				onComplete: () => {
+					console.log("Full sync state subscription completed")
+				},
+			})
+		}, delay)
 	}, [showWelcome])
 
 	// References to store subscription cancellation functions
@@ -588,6 +620,74 @@ export const ExtensionStateContextProvider: React.FC<{
 	// snapshots both feed this reducer so the transcript converges correctly regardless of
 	// arrival order, duplication, or loss. See messageReducer.ts.
 	const replicaRef = useRef<ReplicaState>(createReplicaState())
+
+	/**
+	 * Persist ReplicaState to sessionStorage for recovery on webview re-creation.
+	 * This helps maintain conversation state when VS Code recycles the webview.
+	 */
+	const persistReplicaState = useCallback(() => {
+		try {
+			const stateToPersist = {
+				messages: replicaRef.current.messages.slice(-100), // Keep last 100 messages
+				epoch: replicaRef.current.epoch,
+				stateVersion: replicaRef.current.stateVersion,
+				turnState: replicaRef.current.turnState,
+				messageTruncated: replicaRef.current.messageTruncated,
+				totalMessageCount: replicaRef.current.totalMessageCount,
+				timestamp: Date.now(),
+			}
+			sessionStorage.setItem("cline_replica_state", JSON.stringify(stateToPersist))
+		} catch (error) {
+			console.warn("[ExtensionState] Failed to persist replica state:", error)
+		}
+	}, [])
+
+	/**
+	 * Restore ReplicaState from sessionStorage if available and recent.
+	 * Returns true if state was restored, false otherwise.
+	 */
+	const restoreReplicaState = useCallback((): boolean => {
+		try {
+			const saved = sessionStorage.getItem("cline_replica_state")
+			if (!saved) return false
+
+			const parsed = JSON.parse(saved)
+			const age = Date.now() - (parsed.timestamp || 0)
+
+			// Only restore if less than 5 minutes old
+			if (age > 5 * 60 * 1000) {
+				sessionStorage.removeItem("cline_replica_state")
+				return false
+			}
+
+			// Restore the replica state
+			replicaRef.current = {
+				...replicaRef.current,
+				messages: parsed.messages || [],
+				epoch: parsed.epoch || 0,
+				stateVersion: parsed.stateVersion || 0,
+				turnState: parsed.turnState,
+				messageTruncated: parsed.messageTruncated,
+				totalMessageCount: parsed.totalMessageCount,
+			}
+
+			console.log(
+				`[ExtensionState] Restored replica state: ${parsed.messages?.length || 0} messages, epoch=${parsed.epoch}`,
+			)
+			return true
+		} catch (error) {
+			console.warn("[ExtensionState] Failed to restore replica state:", error)
+			sessionStorage.removeItem("cline_replica_state")
+			return false
+		}
+	}, [])
+
+	// Persist replica state on unmount or when messages change significantly
+	useEffect(() => {
+		return () => {
+			persistReplicaState()
+		}
+	}, [persistReplicaState])
 
 	/**
 	 * React state mirror of the replica, published through MessagesStateContext
@@ -650,6 +750,13 @@ export const ExtensionStateContextProvider: React.FC<{
 
 	// Subscribe to state updates and UI events using the gRPC streaming API
 	useEffect(() => {
+		// Try to restore replica state from sessionStorage (for webview re-creation recovery)
+		const restoredFromStorage = restoreReplicaState()
+		if (restoredFromStorage) {
+			// Publish restored state to update the UI
+			publishReplica()
+		}
+
 		// Set up state subscription
 		stateSubscriptionRef.current = StateServiceClient.subscribeToState(EmptyRequest.create({}), {
 			onResponse: (response: any) => {
@@ -1023,6 +1130,9 @@ export const ExtensionStateContextProvider: React.FC<{
 
 		// Clean up subscriptions when component unmounts
 		return () => {
+			// Persist replica state before cleanup for recovery on re-creation
+			persistReplicaState()
+
 			// Reset the delta version counter so re-mount starts fresh; otherwise
 			// a stale high-water mark from a previous lifecycle would trigger a
 			// spurious gap detection on the very first delta after reconnection.
