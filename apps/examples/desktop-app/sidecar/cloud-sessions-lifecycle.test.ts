@@ -59,7 +59,7 @@ describe("reconcileBufferedCloudEvents", () => {
 		payload,
 	});
 
-	it("replays only submitted prompts not newly reflected in the transcript", () => {
+	it("preserves submitted lifecycle while marking only newly reflected prompts", () => {
 		const submitted = (id: string) =>
 			event("session.pending_prompt_submitted", id, {
 				prompt: { id, prompt: "Continue", delivery: "queue" },
@@ -77,12 +77,23 @@ describe("reconcileBufferedCloudEvents", () => {
 			...baseline,
 			{ role: "user", content: "<user_input>Continue</user_input>" },
 		];
-		// Each newly persisted occurrence consumes at most one submitted event.
+		const completed = event("run.completed", "done");
+		const running = event("run.started", "next");
+		// Keep the next turn's start between lifecycle events; only its bubble is reflected.
 		expect(
-			reconcileBufferedCloudEvents([first, later], snapshot, {
-				baselineMessages: baseline,
-			}),
-		).toEqual([later]);
+			reconcileBufferedCloudEvents(
+				[completed, first, running, later],
+				snapshot,
+				{
+					baselineMessages: baseline,
+				},
+			),
+		).toEqual([
+			completed,
+			{ ...first, payload: { ...first.payload, transcriptReflected: true } },
+			running,
+			later,
+		]);
 		// A submission received after the transcript reply cannot be in it.
 		expect(
 			reconcileBufferedCloudEvents([later], snapshot, {
