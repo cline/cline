@@ -5,7 +5,7 @@
 <h1 align="center">Cline</h1>
 
 <p align="center">
-The open source coding agent in your IDE and terminal.
+The open source coding agent in your IDE, terminal, and desktop.
 </p>
 
 <div align="center">
@@ -57,17 +57,13 @@ npm i -g cline
 </td>
 <td align="center" width="50%">
 
-### Kanban
+### Desktop App
 
-Run many agents in parallel from a
-web-based task board. Each card gets its own
-worktree, auto-commit, and dependency chains.
+Cline as a native app for macOS and Windows.
+Run agent sessions in any folder, schedule
+routines, and manage models, plugins, and MCP servers.
 
-```
-npm i -g kanban
-```
-
-<a href="https://github.com/cline/kanban">Learn more</a>
+<a href="https://github.com/cline/cline/releases?q=desktop-v&expanded=true">Download for macOS and Windows</a>
 <br><br>
 
 </td>
@@ -108,7 +104,7 @@ the JetBrains family.
 
 ### SDK
 
-Build your own AI agents and integrations powered by the same engine that runs the CLI, Kanban, VS Code extension, and JetBrains plugin. Custom tools, multi-agent teams, connectors, scheduled automations, and more.
+Build your own AI agents and integrations powered by the same engine that runs the CLI, desktop app, VS Code extension, and JetBrains plugin. Custom tools, multi-agent teams, connectors, scheduled automations, and more.
 
 ```
 npm install @cline/sdk
@@ -131,8 +127,8 @@ npm install @cline/sdk
 | **SDK** | Node.js programmatic agent API and extension exports. | [`sdk/`](https://github.com/cline/cline/tree/main/sdk) | [CHANGELOG.md](https://github.com/cline/cline/blob/main/sdk/CHANGELOG.md) |
 | **CLI** | Terminal UI, headless mode, shell commands, and CLI-specific flows. | [`apps/cli/`](https://github.com/cline/cline/tree/main/apps/cli) | [CHANGELOG.md](https://github.com/cline/cline/blob/main/apps/cli/CHANGELOG.md) |
 | **VS Code Extension** | The Marketplace extension and extension host integration. | [`/`](https://github.com/cline/cline/tree/main) (WIP migrating) | [CHANGELOG.md](https://github.com/cline/cline/blob/main/CHANGELOG.md) |
+| **Desktop App** | Native macOS and Windows app (Tauri shell, Bun sidecar, Next.js UI). | [`apps/examples/desktop-app/`](https://github.com/cline/cline/tree/main/apps/examples/desktop-app) | [CHANGELOG.md](https://github.com/cline/cline/blob/main/apps/examples/desktop-app/CHANGELOG.md) |
 | **JetBrains Plugin** | JetBrains-hosted client that talks to the shared agent core. | Currently we are not open-sourcing JetBrains plugins | - |
-| **Kanban** | Web-based multi-agent task board. | [`cline/kanban`](https://github.com/cline/kanban) | [CHANGELOG.md](https://github.com/cline/kanban/blob/main/CHANGELOG.md) |
 | **Docs site** | Public documentation pages. | [`docs/`](https://docs.cline.bot/) | - |
 
 ## Edits Code Across Your Project
