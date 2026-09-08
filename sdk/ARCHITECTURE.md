@@ -68,6 +68,10 @@ Owns model/provider runtime concerns:
 - handler creation via an internal gateway registry
 - AI SDK-backed provider execution code
 
+Live catalogs exclude Cline Cloud-only models by default. Hosts that execute in
+Cline Cloud opt in with `ModelCatalogConfig.includeClineCloudModels`; inclusive
+and local catalog results have separate cache identities.
+
 Design rule:
 
 - provider-specific behavior should be isolated here, not spread across `core` or apps.
