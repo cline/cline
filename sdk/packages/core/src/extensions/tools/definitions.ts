@@ -264,14 +264,18 @@ async function executeShellCommands(
  */
 export function createReadFilesTool(
 	executor: FileReadExecutor,
-	config: Pick<DefaultToolsConfig, "fileReadTimeoutMs"> = {},
+	config: Pick<DefaultToolsConfig, "fileReadTimeoutMs" | "modelSupportsImages"> = {},
 ): AgentTool<ReadFilesInput, ToolOperationResult[]> {
 	const timeoutMs = config.fileReadTimeoutMs ?? 10000;
+	const supportsImages = config.modelSupportsImages !== false;
+	const fileKindWording = supportsImages
+		? "text or image files"
+		: "text files (image files cannot be read by the current model)";
 
 	return createTool<ReadFilesInput, ToolOperationResult[]>({
 		name: "read_files",
 		description:
-			"Read the content of text or image files at the provided absolute paths, or return only an inclusive one-based line range when start_line/end_line are provided on the same file entry as its path. " +
+			`Read the content of ${fileKindWording} at the provided absolute paths, or return only an inclusive one-based line range when start_line/end_line are provided on the same file entry as its path. ` +
 			"When you already know multiple files you need, read them together in one call, and call this tool in the same response as other independent tool calls. " +
 			`Each read returns at most ${MAX_READ_LINES} lines / ~${Math.round(MAX_READ_OUTPUT_CHARS / 1024)}k characters; longer files report their total line count, page through them with start_line/end_line on that file's entry. ` +
 			"Binary files that are not image and large files are not supported. " +

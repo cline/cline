@@ -1735,6 +1735,30 @@ describe("default read_files tool", () => {
 			}),
 		);
 	});
+
+	it("describes image support by default (modelSupportsImages unknown)", () => {
+		const tool = createReadFilesTool(async () => "ok");
+		expect(tool.description).toContain("text or image files");
+		expect(tool.description).not.toContain("cannot be read by the current model");
+	});
+
+	it("removes image wording when the model lacks image support", () => {
+		const tool = createReadFilesTool(async () => "ok", {
+			modelSupportsImages: false,
+		});
+		expect(tool.description).toContain("text files");
+		expect(tool.description).not.toContain("text or image files");
+		expect(tool.description).toContain(
+			"image files cannot be read by the current model",
+		);
+	});
+
+	it("keeps image wording when the model supports images", () => {
+		const tool = createReadFilesTool(async () => "ok", {
+			modelSupportsImages: true,
+		});
+		expect(tool.description).toContain("text or image files");
+	});
 });
 
 describe("zod schema conversion", () => {
