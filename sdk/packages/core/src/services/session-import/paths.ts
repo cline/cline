@@ -8,6 +8,7 @@ export interface SessionImportPathEnvironment {
 	joinPath: (...paths: string[]) => string;
 }
 
+// Adapters resolve defaults synchronously at construction and retain the paths.
 const runtimeEnvironment = (): SessionImportPathEnvironment => ({
 	platform: process.platform,
 	homeDir: homedir(),
@@ -16,8 +17,7 @@ const runtimeEnvironment = (): SessionImportPathEnvironment => ({
 });
 
 function nonEmpty(value: string | undefined): string | undefined {
-	const trimmed = value?.trim();
-	return trimmed ? trimmed : undefined;
+	return value?.trim() ? value : undefined;
 }
 
 function userHome(environment: SessionImportPathEnvironment): string {

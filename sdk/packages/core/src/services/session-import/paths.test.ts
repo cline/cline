@@ -34,6 +34,8 @@ describe("Windows session import paths", () => {
 		const environment = windowsEnvironment({
 			HOME: "/home/inherited-from-shell",
 			USERPROFILE: String.raw`C:\Users\Alice`,
+			HOMEDRIVE: "D:",
+			HOMEPATH: String.raw`\Profiles\Other`,
 		});
 
 		expect(claudeCodeProjectsDir(environment)).toBe(
@@ -71,6 +73,38 @@ describe("Windows session import paths", () => {
 		expect(opencodeDataDir(environment)).toBe(String.raw`E:\XDG Data\opencode`);
 	});
 
+	it("supports a home at the drive root", () => {
+		const environment = windowsEnvironment({
+			HOMEDRIVE: "D:",
+			HOMEPATH: "\\",
+		});
+
+		expect(codexHomeDir(environment)).toBe(String.raw`D:\.codex`);
+	});
+
+	it("falls back to the runtime home directory without profile variables", () => {
+		const environment = windowsEnvironment({});
+		environment.homeDir = String.raw`C:\RuntimeHome`;
+
+		expect(codexHomeDir(environment)).toBe(String.raw`C:\RuntimeHome\.codex`);
+	});
+
+	it("preserves whitespace in nonblank overrides", () => {
+		const environment = windowsEnvironment({
+			CLAUDE_CONFIG_DIR: String.raw`D:\Claude Data `,
+			CODEX_HOME: String.raw`\\server\share\Codex `,
+			XDG_DATA_HOME: String.raw`E:\XDG Data `,
+		});
+
+		expect(claudeCodeProjectsDir(environment)).toBe(
+			String.raw`D:\Claude Data \projects`,
+		);
+		expect(codexHomeDir(environment)).toBe(String.raw`\\server\share\Codex `);
+		expect(opencodeDataDir(environment)).toBe(
+			String.raw`E:\XDG Data \opencode`,
+		);
+	});
+
 	it("ignores empty environment overrides", () => {
 		const environment = windowsEnvironment({
 			USERPROFILE: String.raw`C:\Users\Alice`,
@@ -90,6 +124,37 @@ describe("Windows session import paths", () => {
 });
 
 describe("POSIX session import paths", () => {
+	it.each([
+		"/mnt/store ",
+		" relative store ",
+	])("preserves surrounding whitespace in %j", (path) => {
+		const environment = posixEnvironment({
+			CLAUDE_CONFIG_DIR: path,
+			CODEX_HOME: path,
+			XDG_DATA_HOME: path,
+		});
+
+		expect(claudeCodeProjectsDir(environment)).toBe(`${path}/projects`);
+		expect(codexHomeDir(environment)).toBe(path);
+		expect(opencodeDataDir(environment)).toBe(`${path}/opencode`);
+	});
+
+	it.each(["", " \t "])("ignores blank overrides %j", (value) => {
+		const environment = posixEnvironment({
+			CLAUDE_CONFIG_DIR: value,
+			CODEX_HOME: value,
+			XDG_DATA_HOME: value,
+		});
+
+		expect(claudeCodeProjectsDir(environment)).toBe(
+			"/home/alice/.claude/projects",
+		);
+		expect(codexHomeDir(environment)).toBe("/home/alice/.codex");
+		expect(opencodeDataDir(environment)).toBe(
+			"/home/alice/.local/share/opencode",
+		);
+	});
+
 	it("uses the home directory for default tool stores", () => {
 		const environment = posixEnvironment({ USERPROFILE: "/windows/profile" });
 
