@@ -60,6 +60,8 @@ export type LiveSession = {
 	prompt?: string;
 	title?: string;
 	attachedViaHub?: boolean;
+	/** Last Hub lifecycle sequence applied to this session. */
+	lastHubStatusSequence?: number;
 	/** Materialized attachment files for prompts still waiting in the queue. */
 	queuedAttachmentFiles?: Map<string, string[]>;
 	/** Last prompt id announced via chat_queued_prompt_start, to dedupe emits. */
