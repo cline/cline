@@ -60,6 +60,7 @@ export {
 	resolveToolRoutingConfig,
 	type ToolRoutingRule,
 } from "./model-tool-routing";
+export { extractToolPayloadError } from "./payload-error";
 // Presets
 export {
 	createDefaultToolsWithPreset,
