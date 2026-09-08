@@ -447,9 +447,11 @@ describe("CloudSessionManager Hub runtime", () => {
 			Authorization: "Bearer workos:first",
 		});
 		hub.listedSessions = [{ sessionId: "inner-replacement", updatedAt: 30 }];
+		const commandIndex = hub.commands.length;
 		expect(await resolveHeaders?.()).toEqual({
 			Authorization: "Bearer workos:refreshed",
 		});
+		await manager.send("ses-outer", "after reconnect");
 		await vi.waitFor(() => {
 			expect(
 				hub.commands.some(
@@ -459,6 +461,22 @@ describe("CloudSessionManager Hub runtime", () => {
 				),
 			).toBe(true);
 		});
+		const commandsAfterReconnect = hub.commands
+			.slice(commandIndex)
+			.filter(
+				(entry) =>
+					entry.command === "session.attach" ||
+					entry.command === "session.send_input",
+			);
+		expect(commandsAfterReconnect).not.toContainEqual(
+			expect.objectContaining({ sessionId: "inner-1" }),
+		);
+		expect(commandsAfterReconnect).toContainEqual(
+			expect.objectContaining({
+				command: "session.send_input",
+				sessionId: "inner-replacement",
+			}),
+		);
 		expect(
 			events.some(
 				(event) =>
