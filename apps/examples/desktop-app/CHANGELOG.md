@@ -1,5 +1,14 @@
 # Cline Desktop Changelog
 
+## 0.0.23
+
+- Agent Plugins are now discovered and run by the shared Hub. Packages under `~/.agents/plugins` are validated from their `plugin.json`, their valid Agent Skills become available to the agent, and their stdio / Streamable HTTP / SSE MCP servers start automatically. Settings → Customize lists Agent Plugins separately from Cline Plugins, with each plugin's description, badge, and contributed tools, and enable/disable is Hub-managed per plugin. Workspace `.agents/plugins` directories are intentionally ignored
+- The "Cline Hub was updated" dialog no longer appears on every launch and reconnect. The app no longer prompts about a Hub running the same core version it does — a desktop and CLI release cut from different commits bundle the same core but never share a build fingerprint, so anyone with both installed got a dialog whose "Update and restart" looped on "no app update available". The build-mismatch dialog now also waits until an app update is actually staged, and "Later" sticks across session switches, reloads, and relaunches instead of resurfacing every time. A Hub the app genuinely cannot talk to still warns every time
+- Signing in now shows the device confirmation code in the app while you wait on the browser, so you can match it against the code the browser asks you to confirm — in onboarding, Account settings, and the provider list
+- Voice input failures caused by provider setup — missing credentials, transcription config — now take you straight to voice settings instead of a toast you cannot act on. Genuine microphone permission failures still toast, with a clearer message
+- Fixed the scheduled-task report vanishing when a finished run's step collapsed
+- Fixed one wedged MCP server blocking the rest from shutting down, leaking their processes
+
 ## 0.0.22
 
 - Import your history from Claude Code, Codex, and opencode. An Import button in the Sessions header (and a row in Settings → General) scans your local stores from all three tools and turns the conversations you pick into fully resumable Cline sessions. Sessions are grouped per tool with select-all and a search across title, folder, and first prompt; already-imported ones are shown as such so re-opening the dialog is safe. Imported sessions resume on your configured provider and model, not the source tool's. If you have history from any of these tools, onboarding now offers the import as a step
