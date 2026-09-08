@@ -5,7 +5,6 @@ export type {
 	DetachedCommandOutcome,
 } from "./commands/detached";
 export {
-	DETACHED_COMMAND_NOTICE_PATTERN,
 	DetachedCommandOutcomeSchema,
 	detachedCommandBackgroundStatus,
 	formatDetachedCompletionNote,

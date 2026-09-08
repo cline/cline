@@ -30,15 +30,26 @@ export type DetachedCommandBackgroundStatus =
  * output — the only persisted trace that a tool call ended by detaching
  * rather than completing.
  */
-export const DETACHED_COMMAND_NOTICE_PATTERN =
-	/\[Command is still running\. Output will continue in ([^\]]+)\]/;
+const DETACHED_COMMAND_NOTICE_PREFIX =
+	"[Command is still running. Output will continue in ";
 
 /**
  * Extracts the detached log path from a tool result's still-running notice, or
  * null when the result never detached.
  */
 export function matchDetachedCommandNotice(text: string): string | null {
-	return DETACHED_COMMAND_NOTICE_PATTERN.exec(text)?.[1] ?? null;
+	let offset = 0;
+	while (offset < text.length) {
+		const start = text.indexOf(DETACHED_COMMAND_NOTICE_PREFIX, offset);
+		if (start < 0) return null;
+		const pathStart = start + DETACHED_COMMAND_NOTICE_PREFIX.length;
+		const end = text.indexOf("]", pathStart);
+		// No later prefix can close either, so never rescan an unterminated suffix.
+		if (end < 0) return null;
+		if (end > pathStart) return text.slice(pathStart, end);
+		offset = end + 1;
+	}
+	return null;
 }
 
 /**

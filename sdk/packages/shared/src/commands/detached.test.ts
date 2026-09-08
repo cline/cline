@@ -50,4 +50,32 @@ describe("detached command vocabulary", () => {
 		).toBe("/tmp/cline-command-x/output.log");
 		expect(matchDetachedCommandNotice("done")).toBeNull();
 	});
+
+	it.each([
+		["[Command is still running. Output will continue in ]", null],
+		[
+			"[Command is still running. Output will continue in ][Command is still running. Output will continue in C:\\logs\\output.log]",
+			"C:\\logs\\output.log",
+		],
+		[
+			"[Command is still running. Output will continue in /tmp/[nested/output.log] later]",
+			"/tmp/[nested/output.log",
+		],
+		[
+			"[Command is still running. Output will continue in /tmp/line\nbreak.log]",
+			"/tmp/line\nbreak.log",
+		],
+	])("matches the first nonempty notice path in %s", (text, expected) => {
+		expect(matchDetachedCommandNotice(text)).toBe(expected);
+	});
+
+	it("handles repeated unterminated notices without rescanning the output", () => {
+		const output =
+			"[Command is still running. Output will continue in \\".repeat(20_000);
+		const start = performance.now();
+		expect(matchDetachedCommandNotice(output)).toBeNull();
+		// A linear scan of this 1 MB input leaves ample headroom on CI; retrying
+		// the entire suffix for each prefix takes several seconds.
+		expect(performance.now() - start).toBeLessThan(1_000);
+	});
 });
