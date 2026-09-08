@@ -1094,9 +1094,16 @@ const BUILTIN_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		capabilities: ["reasoning", "provider-tools", "local-auth"],
 		defaultModelId: "gpt-5.6-sol",
 		modelsProviderId: "openai",
+		docsUrl: "https://developers.openai.com/codex/cli",
 		defaults: { baseUrl: "https://chatgpt.com/backend-api/codex" },
 		configFields: [],
-		metadata: { usageCostDisplay: "subscription" },
+		metadata: {
+			usageCostDisplay: "subscription",
+			// The `local-auth` credentials live wherever this executable keeps
+			// them, so hosts probe it (and point at `docsUrl`) before offering
+			// the provider. See `resolveProviderLocalCli`.
+			localCliCommand: "codex",
+		},
 	},
 	{
 		id: "elevenlabs",
@@ -1135,9 +1142,14 @@ const BUILTIN_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		// gateway sends Cline's tool definitions (which the provider drops)
 		// while the CLI's own tools stay enabled with no approval plumbing —
 		// every write is refused and no prompt can appear (#13146).
-		capabilities: ["reasoning", "provider-tools"],
+		// local-auth: the spawned CLI authenticates from its own credential
+		// store (the Claude Pro/Max subscription login), so no API key is
+		// read from provider settings. Without this capability configure UIs
+		// ask for a key and readiness checks refuse a keyless entry.
+		capabilities: ["reasoning", "provider-tools", "local-auth"],
 		defaultModelId: "sonnet",
 		modelsFactory: buildClaudeCodeModels,
+		docsUrl: "https://code.claude.com/docs/en/setup",
 		defaults: { baseUrl: "" },
 		configFields: [],
 		// Claude Code is typically authenticated with a Pro/Max subscription,
@@ -1145,7 +1157,13 @@ const BUILTIN_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		// real charge. The CLI does report a cost when it runs on API-key
 		// billing, but the provider cannot tell the two apart from here, so
 		// prefer not showing a number over showing a misleading one.
-		metadata: { usageCostDisplay: "subscription" },
+		metadata: {
+			usageCostDisplay: "subscription",
+			// The `local-auth` credentials live wherever this executable keeps
+			// them, so hosts probe it (and point at `docsUrl`) before offering
+			// the provider. See `resolveProviderLocalCli`.
+			localCliCommand: "claude",
+		},
 	},
 	{
 		id: "gemini",
@@ -1319,6 +1337,7 @@ function toModelCollection(spec: BuiltinSpec): ModelCollection {
 			protocol: spec.protocol ?? inferProtocol(spec),
 			baseUrl: spec.defaults?.baseUrl,
 			modelsSourceUrl: spec.modelsSourceUrl,
+			docsUrl: spec.docsUrl,
 			defaultModelId,
 			capabilities,
 			env: spec.apiKeyEnv ? [...spec.apiKeyEnv] : undefined,
