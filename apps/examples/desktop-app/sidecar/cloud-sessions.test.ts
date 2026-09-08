@@ -31,6 +31,8 @@ function createContext(): {
 		liveSessions: new Map(),
 		restoringWorkspacePaths: new Set(),
 		streamIndices: new Map(),
+		coreStreamActivity: new Map(),
+		bootId: "cloud-test-boot",
 		wsClients: new Set([
 			{
 				// Approval ownership requires a trusted desktop connection.
