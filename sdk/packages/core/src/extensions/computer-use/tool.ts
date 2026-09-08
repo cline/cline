@@ -73,33 +73,51 @@ const TEXT_PROPERTY = {
 		"Text to type (for the type action) or key combination to press (for key/hold_key, e.g. 'ctrl+alt+delete').",
 } as const;
 
-const SEQUENCE_STEP_SCHEMA: Record<string, unknown> = {
-	type: "object",
-	properties: {
-		action: ACTION_PROPERTY,
-		coordinate: COORDINATE_PROPERTY,
-		start_coordinate: {
-			type: "array",
-			items: { type: "number" },
-			minItems: 2,
-			maxItems: 2,
-			description: "(x, y) start coordinate, required for left_click_drag.",
-		},
-		text: TEXT_PROPERTY,
-		duration: {
-			type: "number",
-			description: "Duration in seconds, used by hold_key and wait.",
-		},
-		scroll_direction: {
-			type: "string",
-			enum: ["up", "down", "left", "right"],
-			description: "Direction to scroll, required for the scroll action.",
-		},
-		scroll_amount: {
-			type: "number",
-			description: "Number of scroll clicks, required for the scroll action.",
-		},
+const ACTION_PROPERTIES = {
+	action: ACTION_PROPERTY,
+	coordinate: COORDINATE_PROPERTY,
+	start_coordinate: {
+		type: "array",
+		items: { type: "number" },
+		minItems: 2,
+		maxItems: 2,
+		description: "(x, y) start coordinate, required for left_click_drag.",
 	},
+	text: TEXT_PROPERTY,
+	duration: {
+		type: "number",
+		description: "Duration in seconds, used by hold_key and wait.",
+	},
+	scroll_direction: {
+		type: "string",
+		enum: ["up", "down", "left", "right"],
+		description: "Direction to scroll, required for the scroll action.",
+	},
+	scroll_amount: {
+		type: "number",
+		description: "Number of scroll clicks, required for the scroll action.",
+	},
+	region: {
+		type: "array",
+		items: { type: "number" },
+		minItems: 4,
+		maxItems: 4,
+		description:
+			"(x0, y0, x1, y1) region to zoom into, required for the zoom action.",
+	},
+	expect_unchanged: {
+		type: "array",
+		items: { type: "number" },
+		minItems: 4,
+		maxItems: 4,
+		description:
+			"(x, y, width, height) click guard: a region that must look unchanged since the last screenshot you saw. The backend compares it before clicking; if it changed, the click is aborted and you get a fresh screenshot instead. Use it for clicks on targets that might move or disappear.",
+	},
+};
+
+const SEQUENCE_STEP_SCHEMA = {
+	type: "object",
+	properties: ACTION_PROPERTIES,
 	required: ["action"],
 	additionalProperties: false,
 };
@@ -107,55 +125,18 @@ const SEQUENCE_STEP_SCHEMA: Record<string, unknown> = {
 const COMPUTER_TOOL_INPUT_SCHEMA: Record<string, unknown> = {
 	type: "object",
 	properties: {
+		...ACTION_PROPERTIES,
 		action: {
 			...ACTION_PROPERTY,
 			enum: [...ACTION_PROPERTY.enum, "run_sequence"],
-		},
-		coordinate: COORDINATE_PROPERTY,
-		start_coordinate: {
-			type: "array",
-			items: { type: "number" },
-			minItems: 2,
-			maxItems: 2,
-			description: "(x, y) start coordinate, required for left_click_drag.",
-		},
-		text: TEXT_PROPERTY,
-		duration: {
-			type: "number",
-			description: "Duration in seconds, used by hold_key and wait.",
-		},
-		scroll_direction: {
-			type: "string",
-			enum: ["up", "down", "left", "right"],
-			description: "Direction to scroll, required for the scroll action.",
-		},
-		scroll_amount: {
-			type: "number",
-			description: "Number of scroll clicks, required for the scroll action.",
-		},
-		region: {
-			type: "array",
-			items: { type: "number" },
-			minItems: 4,
-			maxItems: 4,
-			description:
-				"(x0, y0, x1, y1) region to zoom into, required for the zoom action.",
 		},
 		actions: {
 			type: "array",
 			minItems: 1,
 			maxItems: 20,
 			description:
-				"Steps for the run_sequence action: executed back-to-back, aborting on the first failure, and the result is one screenshot of the final state. Prefer this for multi-step interactions (e.g. click a field, type into it, click the next field) — one round trip instead of one per action.",
+				"Steps for the run_sequence action: executed back-to-back, aborting on the first failure or refused click, and the result is one screenshot of the final state. Prefer this for multi-step interactions (e.g. click a field, type into it, click the next field) — one round trip instead of one per action.",
 			items: SEQUENCE_STEP_SCHEMA,
-		},
-		expect_unchanged: {
-			type: "array",
-			items: { type: "number" },
-			minItems: 4,
-			maxItems: 4,
-			description:
-				"(x, y, width, height) click guard: a region that must look unchanged since the last screenshot you saw. The backend compares it before clicking; if it changed, the click is aborted and you get a fresh screenshot instead. Use it for clicks on targets that might move or disappear.",
 		},
 	},
 	required: ["action"],
@@ -246,14 +227,19 @@ export async function createComputerUseTool(
 				);
 			}
 
+			const resultText =
+				response.text ??
+				(response.aborted
+					? `Action "${parsedInput.action}" aborted. Reassess the screen before continuing.`
+					: `Action "${parsedInput.action}" completed.`);
 			if (!response.image) {
-				return response.text ?? `Action "${parsedInput.action}" completed.`;
+				return resultText;
 			}
 
 			return [
 				{
 					type: "text" as const,
-					text: response.text ?? `Action "${parsedInput.action}" completed.`,
+					text: resultText,
 				},
 				{
 					type: "image" as const,

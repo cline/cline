@@ -91,6 +91,12 @@ Cline CLI runs in a few different shapes depending on what you need:
 - Yolo: `cline --yolo "..."` skips approval prompts and exits when the turn finishes
 - Zen: `cline --zen "..."` fires the task to the background hub daemon and exits immediately (see below)
 
+### Computer use (experimental)
+
+Start qbt before the interactive CLI and set `CLINE_COMPUTER_USE_PORT` to its agent port. The computer-user helper requires a configured direct Anthropic provider. Optionally set `CLINE_COMPUTER_USE_BACKEND_COMMAND` to a shell command that starts qbt: this adds `computer_user_restart_backend` for recovery when qbt becomes unreachable, not automatic startup. Set these variables before launching the CLI and restart it after changes.
+
+See the [computer-use setup and backend recovery command](../../sdk/packages/core/src/extensions/computer-use/README.md#backend-recovery-command) for a Windows example, shell rules, ports, and process ownership.
+
 ## Headless mode for CI/CD
 
 Run Cline with zero interaction for scripting and automation. Pipe input, get JSON output, chain commands, integrate into CI/CD pipelines.
