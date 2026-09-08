@@ -864,20 +864,13 @@ describe("HubServerTransport boundaries", () => {
 				ok: false,
 				error: { code: "session_not_found" },
 			});
-			const strangerEvents: HubEventEnvelope[] = [];
-			transport.subscribe(
-				"stranger-client",
-				(event) => strangerEvents.push(event),
-				{ sessionId: "session-1" },
-			);
-			await Promise.resolve();
-			expect(strangerEvents).toEqual([]);
 			await expect(
 				handleApprovalRespond(ctx, {
 					version: "v1",
-					requestId: "req-stranger-response",
+					requestId: "req-wrong-session-response",
 					command: "approval.respond",
-					clientId: "stranger-client",
+					clientId: "client-1",
+					sessionId: "another-session",
 					payload: { approvalId, approved: true },
 				}),
 			).resolves.toMatchObject({
@@ -917,7 +910,10 @@ describe("HubServerTransport boundaries", () => {
 		}
 	});
 
-	it("replays a pending approval to a client that (re)subscribes after it was raised", async () => {
+	it.each([
+		undefined,
+		"session-1",
+	])("replays pending approvals on subscription scope %s and accepts a response after reconnect", async (scope) => {
 		const transport = createTransport();
 		const ctx = getContext(transport);
 		ensureSessionState(ctx, "session-1", "client-1", "creator", {
@@ -947,7 +943,7 @@ describe("HubServerTransport boundaries", () => {
 		// A client subscribing after the fact must still see the request.
 		const events: HubEventEnvelope[] = [];
 		transport.subscribe("client-1", (event) => events.push(event), {
-			sessionId: "session-1",
+			sessionId: scope,
 		});
 		await Promise.resolve();
 		await Promise.resolve();
@@ -962,10 +958,23 @@ describe("HubServerTransport boundaries", () => {
 		});
 
 		const approvalId = requested?.payload?.approvalId as string;
+		await transport.handleCommand({
+			version: "v1",
+			command: "client.unregister",
+			clientId: "client-1",
+		});
+		await transport.handleCommand({
+			version: "v1",
+			command: "client.register",
+			clientId: "client-1",
+			payload: { clientId: "client-1" },
+		});
 		await handleApprovalRespond(ctx, {
 			version: "v1",
 			requestId: "req-late",
 			command: "approval.respond",
+			clientId: "client-1",
+			sessionId: "session-1",
 			payload: { approvalId, approved: true },
 		});
 		await expect(resultPromise).resolves.toEqual({
