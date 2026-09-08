@@ -1036,10 +1036,13 @@ export class AgentRuntime {
 		}
 		// Provider-executed tool activity lives in metadata, not content, and has
 		// already happened — replaying the turn would repeat its side effects.
-		const modelToolActivities = turn.message.metadata?.modelToolActivities;
-		return !(
-			Array.isArray(modelToolActivities) && modelToolActivities.length > 0
-		);
+		return !this.hasModelToolActivity(turn.message);
+	}
+
+	/** Provider-executed tool activity is recorded in metadata, not content. */
+	private hasModelToolActivity(message: AgentMessage): boolean {
+		const activities = message.metadata?.modelToolActivities;
+		return Array.isArray(activities) && activities.length > 0;
 	}
 
 	/**
@@ -1145,6 +1148,17 @@ export class AgentRuntime {
 		) {
 			await this.recordAssistantMessage(first.message, first.finishReason);
 			throw new Error(this.state.lastError ?? "Model stream failed");
+		}
+		// A retry that came back with nothing is no replacement either: handing it
+		// on would trip the loop's empty-response guard, which throws before
+		// recording anything — discarding the truncated answer and reporting a
+		// misleading error. Keep the truncated turn, exactly as when there was
+		// nothing to compact, and let the loop surface the max-tokens error.
+		if (
+			retry.message.content.length === 0 &&
+			!this.hasModelToolActivity(retry.message)
+		) {
+			return first;
 		}
 		return retry;
 	}
