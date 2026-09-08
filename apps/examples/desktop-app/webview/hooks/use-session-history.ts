@@ -556,9 +556,11 @@ export function useSessionHistory({
 	const [unreadSessionIds, setUnreadSessionIds] = useState<Set<string>>(
 		() => new Set(),
 	);
-	// Sessions a view has asked usage for beyond the default window (the
-	// sessions view reports its visible page). Ids accumulate; each is read
-	// once and re-read only while the session is still running.
+	// Rows a view currently has on screen beyond the default window (the
+	// sessions view reports its visible page and clears it on unmount). Each
+	// call replaces the previous set rather than adding to it, so the set is
+	// bounded by one page and a running session the user has paged away from
+	// is not re-read on every refresh.
 	const [requestedUsageIds, setRequestedUsageIds] = useState<Set<string>>(
 		() => new Set(),
 	);
@@ -578,9 +580,11 @@ export function useSessionHistory({
 	// may itself name a batch that was never fetched.
 	const loadedLimitRef = useRef(0);
 	const mayHaveMoreSessionsRef = useRef(false);
-	// Every usage read in flight, across effect runs. Its size is the gauge
-	// the concurrency cap is enforced on.
-	const usageLoadingRef = useRef<Set<string>>(new Set());
+	// Every usage read in flight, across effect runs, with the status the read
+	// was started under. Its size is the gauge the concurrency cap is enforced
+	// on; the status tells a restarted run whether the pending read already
+	// covers the row's current status or the row must be read again after it.
+	const usageLoadingRef = useRef<Map<string, SessionHistoryStatus>>(new Map());
 	// Queue drainer of the current hydration run. Finished reads call it so a
 	// freed slot goes to the newest run, not to the run that started the read.
 	const usagePumpRef = useRef<(() => void) | null>(null);
@@ -905,16 +909,23 @@ export function useSessionHistory({
 
 	const requestUsage = useCallback((sessionIds: readonly string[]) => {
 		setRequestedUsageIds((current) => {
-			let next: Set<string> | null = null;
+			const next = new Set<string>();
 			for (const raw of sessionIds) {
 				const sessionId = raw?.trim();
-				if (!sessionId || current.has(sessionId) || next?.has(sessionId)) {
-					continue;
+				if (sessionId) {
+					next.add(sessionId);
 				}
-				next ??= new Set(current);
-				next.add(sessionId);
 			}
-			return next ?? current;
+			// Same members, same instance: the sessions view re-reports its
+			// page on every threads change, and a fresh Set would restart the
+			// hydration effect (and its 800ms delay) each time a row filled in.
+			if (
+				next.size === current.size &&
+				[...next].every((sessionId) => current.has(sessionId))
+			) {
+				return current;
+			}
+			return next;
 		});
 	}, []);
 
@@ -939,24 +950,33 @@ export function useSessionHistory({
 		}
 		let cancelled = false;
 		const timer = window.setTimeout(() => {
-			// Whether a row still needs a read: nothing in flight for it, and it
-			// was never hydrated or was hydrated under a different status. A
-			// running session is re-read on every pass so its totals keep moving.
-			const needsUsageFetch = (session: SessionHistoryItem): boolean => {
+			// "fetch": the row was never hydrated, is running (its totals keep
+			// moving), or was hydrated under a different status.
+			// "defer": a read is in flight, but it was started under a different
+			// status than the row has now, so its result will already be stale;
+			// keep the row queued and read it again once that read finishes.
+			// "skip": nothing to do, drop the row from this run's queue.
+			const usageFetchVerdict = (
+				session: SessionHistoryItem,
+			): "fetch" | "defer" | "skip" => {
 				const sessionId = session.sessionId;
-				if (!sessionId || usageLoadingRef.current.has(sessionId)) {
-					return false;
+				if (!sessionId) {
+					return "skip";
 				}
-				return (
+				const inFlightStatus = usageLoadingRef.current.get(sessionId);
+				if (inFlightStatus !== undefined) {
+					return inFlightStatus === session.status ? "skip" : "defer";
+				}
+				const needsFetch =
 					!usageByIdRef.current.has(sessionId) ||
 					session.status === "running" ||
-					usageHydratedStatusRef.current.get(sessionId) !== session.status
-				);
+					usageHydratedStatusRef.current.get(sessionId) !== session.status;
+				return needsFetch ? "fetch" : "skip";
 			};
 
 			const startUsageFetch = (session: SessionHistoryItem): void => {
 				const sessionId = session.sessionId;
-				usageLoadingRef.current.add(sessionId);
+				usageLoadingRef.current.set(sessionId, session.status);
 				void desktopClient
 					.invoke<SessionMessage[]>("read_session_messages", {
 						sessionId,
@@ -1032,6 +1052,9 @@ export function useSessionHistory({
 						);
 					})
 					.finally(() => {
+						// Record the status the read was started under, not the
+						// row's current one: if the status moved while the read was
+						// pending, the mismatch is what makes the row read again.
 						usageHydratedStatusRef.current.set(sessionId, session.status);
 						usageLoadingRef.current.delete(sessionId);
 						// Hand the freed slot to whichever run is current: this
@@ -1044,26 +1067,31 @@ export function useSessionHistory({
 			// flight across effect runs, not against a per-run counter. A refresh
 			// or page change restarts this effect while reads are still pending;
 			// a per-run counter would start at zero and let the new run add four
-			// more on top of them. Rows that need nothing (in flight, or already
-			// hydrated) are dropped as they are reached, even while the cap is
-			// hit, so a read that finishes later never re-queues its own row.
+			// more on top of them. Each pass walks the whole queue: rows that
+			// need nothing are dropped, rows waiting on a pending read that will
+			// be stale are kept for the next pass, and the rest start as slots
+			// allow, in order.
 			const queue = [...targets];
 			const pump = () => {
-				while (!cancelled && queue.length > 0) {
-					const session = queue[0];
-					if (!session) {
-						break;
-					}
-					if (!needsUsageFetch(session)) {
-						queue.shift();
+				if (cancelled) {
+					return;
+				}
+				const remaining: SessionHistoryItem[] = [];
+				for (const session of queue) {
+					const verdict = usageFetchVerdict(session);
+					if (verdict === "skip") {
 						continue;
 					}
-					if (usageLoadingRef.current.size >= MAX_CONCURRENT_USAGE_FETCHES) {
-						break;
+					if (
+						verdict === "defer" ||
+						usageLoadingRef.current.size >= MAX_CONCURRENT_USAGE_FETCHES
+					) {
+						remaining.push(session);
+						continue;
 					}
-					queue.shift();
 					startUsageFetch(session);
 				}
+				queue.splice(0, queue.length, ...remaining);
 			};
 			usagePumpRef.current = pump;
 			pump();

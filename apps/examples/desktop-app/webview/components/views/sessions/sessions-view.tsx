@@ -248,6 +248,16 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 	useEffect(() => {
 		history.requestUsage(visibleThreads.map((thread) => thread.id));
 	}, [history.requestUsage, visibleThreads]);
+	// Leaving the view releases its page, so running sessions on it stop being
+	// re-read while nobody is looking at them. Separate from the effect above
+	// on purpose: a per-change cleanup would clear and re-set the same ids and
+	// restart the hook's hydration each time a row filled in.
+	useEffect(
+		() => () => {
+			history.requestUsage([]);
+		},
+		[history.requestUsage],
+	);
 
 	// Snap back when a page disappears (filters changed, or "next" asked the
 	// backend for older sessions and there were none left).

@@ -326,6 +326,19 @@ describe("SessionsView pagination", () => {
 		);
 	});
 
+	it("releases its usage request when it unmounts", async () => {
+		const view = renderView({ threads: manyThreads });
+		await view.render();
+		expect(view.requestUsage).toHaveBeenLastCalledWith(
+			manyThreads.slice(0, 10).map((item) => item.id),
+		);
+
+		await act(async () => {
+			root.render(<div />);
+		});
+		expect(view.requestUsage).toHaveBeenLastCalledWith([]);
+	});
+
 	it("only asks the backend for older sessions at the last page", async () => {
 		const view = renderView({
 			threads: manyThreads,
