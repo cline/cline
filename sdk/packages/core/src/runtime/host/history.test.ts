@@ -282,7 +282,7 @@ describe("session history", () => {
 			{ limit: 10, hydrate: false },
 		);
 
-		expect(list).toHaveBeenCalledWith(20);
+		expect(list).toHaveBeenCalledWith(20, { rootOnly: true });
 		expect(readSessionMessages).not.toHaveBeenCalled();
 		expect(rows).toEqual([
 			expect.objectContaining({
@@ -381,8 +381,37 @@ describe("session history", () => {
 			{ limit: 10, hydrate: false },
 		);
 
-		expect(listSessions).toHaveBeenCalledWith(20);
+		expect(listSessions).toHaveBeenCalledWith(20, { rootOnly: true });
 		expect(rows.map((row) => row.sessionId)).toEqual(["root-session"]);
+	});
+
+	it("widens the scan when child sessions crowd roots out of the window", async () => {
+		const children = Array.from({ length: 30 }, (_, index) =>
+			createBackendRow({
+				sessionId: `root-session__sub__${index}`,
+				parentSessionId: "root-session",
+				parentAgentId: "lead",
+				agentId: `worker-${index}`,
+				isSubagent: true,
+			}),
+		);
+		const root = createBackendRow({ sessionId: "root-session" });
+		const older = createBackendRow({ sessionId: "older-root" });
+		const allRows = [...children, root, older];
+		const listSessions = vi
+			.fn()
+			.mockImplementation(async (limit: number) => allRows.slice(0, limit));
+
+		const rows = await listSessionHistoryFromBackend(
+			{ listSessions },
+			{ limit: 10, hydrate: false },
+		);
+
+		expect(listSessions.mock.calls.map(([limit]) => limit)).toEqual([20, 40]);
+		expect(rows.map((row) => row.sessionId)).toEqual([
+			"root-session",
+			"older-root",
+		]);
 	});
 
 	it("can include child sessions when explicitly requested", async () => {
@@ -408,7 +437,7 @@ describe("session history", () => {
 			{ limit: 10, hydrate: false, includeSubagents: true },
 		);
 
-		expect(listSessions).toHaveBeenCalledWith(10);
+		expect(listSessions).toHaveBeenCalledWith(10, undefined);
 		expect(rows.map((row) => row.sessionId)).toEqual([
 			"root-session__teamtask__java-haiku-agent__abc123",
 			"root-session",
@@ -441,7 +470,7 @@ describe("session history", () => {
 			{ limit: 10, hydrate: false },
 		);
 
-		expect(listSessions).toHaveBeenCalledWith(20);
+		expect(listSessions).toHaveBeenCalledWith(20, { rootOnly: true });
 		expect(rows.map((row) => row.sessionId)).toEqual([
 			"sess_full",
 			"sess_empty",
@@ -471,7 +500,7 @@ describe("session history", () => {
 			{ limit: 5, hydrate: false },
 		);
 
-		expect(listSessions).toHaveBeenCalledWith(20);
+		expect(listSessions).toHaveBeenCalledWith(20, { rootOnly: true });
 		expect(rows).toEqual([
 			expect.objectContaining({
 				sessionId: "sess_backend_direct",
