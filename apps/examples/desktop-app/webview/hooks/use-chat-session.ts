@@ -41,10 +41,7 @@ import {
 	type ChatSessionStatus,
 } from "@/lib/chat-schema";
 import { appendCappedCommandOutput } from "@/lib/command-output";
-import {
-	describeImportedHistorySummaryNotice,
-	IMPORTED_HISTORY_SUMMARY_KIND,
-} from "@/lib/compaction-notice";
+import { readImportedHistorySummaryActivity } from "@/lib/compaction-notice";
 import { desktopClient } from "@/lib/desktop-client";
 import {
 	buildSessionDiffState,
@@ -382,6 +379,9 @@ export function useChatSession() {
 	const [activeAssistantMessageId, setActiveAssistantMessageId] = useState<
 		string | null
 	>(null);
+	// Names what the runtime is doing before the first output of a turn (in
+	// place of "Thinking..."); ephemeral, cleared when the turn moves on.
+	const [activityLabel, setActivityLabel] = useState<string | null>(null);
 	const [hydratedHistorySessionId, setHydratedHistorySessionId] = useState<
 		string | null
 	>(null);
@@ -625,25 +625,10 @@ export function useChatSession() {
 					tailErrorStart -= 1;
 				}
 				const preservedErrors = sessionMessages.slice(tailErrorStart);
-				// The imported-history summary row is client-only, so re-seat it
-				// at its point in time (between the prompt that triggered it and
-				// the reply) instead of letting the canonical transcript drop it.
-				const preservedNotices = sessionMessages.filter(
-					(message) =>
-						message.meta?.messageKind === IMPORTED_HISTORY_SUMMARY_KIND,
-				);
-				if (preservedErrors.length === 0 && preservedNotices.length === 0) {
+				if (preservedErrors.length === 0) {
 					return historyMessages;
 				}
-				const merged = [...historyMessages];
-				for (const notice of preservedNotices) {
-					let index = merged.length;
-					while (index > 0 && merged[index - 1].createdAt > notice.createdAt) {
-						index -= 1;
-					}
-					merged.splice(index, 0, notice);
-				}
-				return sliceMessages([...merged, ...preservedErrors]);
+				return sliceMessages([...historyMessages, ...preservedErrors]);
 			});
 		},
 		[],
@@ -1414,6 +1399,7 @@ export function useChatSession() {
 			if (payload.stream === "chat_queued_prompt_start") {
 				activeTurnCostTrackerRef.current = { streamedCostUsd: 0 };
 				turnEpochRef.current += 1;
+				setActivityLabel(null);
 				// A new turn starts now: an error remembered from an earlier turn
 				// must not be attributed to this one if it fails without detail.
 				delete lastCoreErrorBySessionRef.current[listeningSessionId];
@@ -1556,36 +1542,18 @@ export function useChatSession() {
 						lastCoreErrorBySessionRef.current[payload.sessionId] =
 							parsed.message.trim();
 					}
-					// Summarizing an imported session's history happens before the
-					// first model call and would otherwise hide behind "Thinking...";
-					// the started/completed notices update one status row in place.
-					const summaryNotice = describeImportedHistorySummaryNotice(
+					// Summarizing an imported session's history runs before the first
+					// model call, where the transcript would otherwise just say
+					// "Thinking..."; name the wait while it lasts.
+					const summaryActivity = readImportedHistorySummaryActivity(
 						parsed.metadata,
 					);
-					if (summaryNotice) {
-						const noticeId = `${listeningSessionId}_${summaryNotice.key}`;
-						setMessages((prev) => {
-							const index = prev.findIndex((m) => m.id === noticeId);
-							if (index >= 0) {
-								const next = [...prev];
-								next[index] = {
-									...prev[index],
-									content: summaryNotice.content,
-								};
-								return next;
-							}
-							return sliceMessages([
-								...prev,
-								{
-									id: noticeId,
-									sessionId: listeningSessionId,
-									role: "status",
-									content: summaryNotice.content,
-									createdAt: chunkCreatedAt(payload),
-									meta: { messageKind: IMPORTED_HISTORY_SUMMARY_KIND },
-								},
-							]);
-						});
+					if (summaryActivity) {
+						setActivityLabel(
+							summaryActivity.phase === "started"
+								? summaryActivity.label
+								: null,
+						);
 					}
 				} catch {
 					// Unstructured logs carry no level; nothing to remember.
@@ -1623,6 +1591,7 @@ export function useChatSession() {
 			}
 
 			if (payload.stream === "chat_done") {
+				setActivityLabel(null);
 				// The turn is over: any optimistic bubble still registered was
 				// consumed by a direct send and must not be re-keyed by a later
 				// queued prompt that happens to repeat the same text. Clear
@@ -2912,6 +2881,7 @@ export function useChatSession() {
 		lastCoreErrorBySessionRef.current = {};
 		activeAssistantMessageIdRef.current = null;
 		setActiveAssistantMessageId(null);
+		setActivityLabel(null);
 		setHydratedHistorySessionId(null);
 		setPendingToolApprovals([]);
 		setPendingAskQuestions([]);
@@ -3228,6 +3198,7 @@ export function useChatSession() {
 		chatTransportError,
 		isHydratingSession,
 		activeAssistantMessageId,
+		activityLabel,
 		config,
 		messages,
 		rawTranscript,

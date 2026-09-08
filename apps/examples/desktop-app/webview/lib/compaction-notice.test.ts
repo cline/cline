@@ -1,37 +1,34 @@
 import { describe, expect, it } from "vitest";
-import { describeImportedHistorySummaryNotice } from "./compaction-notice";
+import { readImportedHistorySummaryActivity } from "./compaction-notice";
 
-describe("describeImportedHistorySummaryNotice", () => {
-	it("tracks one row from started to completed for an imported summary", () => {
-		const started = describeImportedHistorySummaryNotice({
-			kind: "manual_compaction",
+describe("readImportedHistorySummaryActivity", () => {
+	it("labels the started notice and clears on completion", () => {
+		expect(
+			readImportedHistorySummaryActivity({
+				kind: "manual_compaction",
+				phase: "started",
+				importedFrom: "claude-code",
+			}),
+		).toEqual({
 			phase: "started",
-			iteration: 1,
-			importedFrom: "claude-code",
+			label: "Summarizing the imported Claude Code history...",
 		});
-		const completed = describeImportedHistorySummaryNotice({
-			kind: "manual_compaction",
-			phase: "completed",
-			iteration: 1,
-			importedFrom: "claude-code",
-			messagesBefore: 9,
-			messagesAfter: 2,
-		});
-		expect(started?.content).toContain("Summarizing the imported Claude Code");
-		expect(completed?.content).toBe(
-			"Summarized the imported Claude Code history · 9 → 2 messages",
-		);
-		expect(completed?.key).toBe(started?.key);
+		expect(
+			readImportedHistorySummaryActivity({
+				kind: "manual_compaction",
+				phase: "completed",
+				importedFrom: "claude-code",
+			}),
+		).toEqual({ phase: "finished" });
 	});
 
 	it("ignores compactions that are not imported-history summaries", () => {
 		expect(
-			describeImportedHistorySummaryNotice({
+			readImportedHistorySummaryActivity({
 				kind: "auto_compaction",
 				phase: "started",
-				iteration: 3,
 			}),
 		).toBeUndefined();
-		expect(describeImportedHistorySummaryNotice(undefined)).toBeUndefined();
+		expect(readImportedHistorySummaryActivity(undefined)).toBeUndefined();
 	});
 });

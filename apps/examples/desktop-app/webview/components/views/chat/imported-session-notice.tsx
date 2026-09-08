@@ -27,8 +27,9 @@ export function ImportedSessionNotice({ tool }: { tool: SessionImportTool }) {
 				</p>
 				<p className="mt-0.5 text-[13px] text-muted-foreground">
 					The earlier turns were recorded by {label}, whose tools and workflow
-					differ from Cline&apos;s. You can keep going here, but results may not
-					be as reliable as in a session started with Cline.
+					differ from Cline&apos;s. When you continue, the model works from a
+					summary of them rather than the original tool calls, so results may
+					not be as reliable as in a session started with Cline.
 				</p>
 			</div>
 		</output>

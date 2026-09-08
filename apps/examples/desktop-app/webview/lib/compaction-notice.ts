@@ -3,28 +3,20 @@ import {
 	type SessionImportTool,
 } from "./session-import";
 
-/**
- * `meta.messageKind` of the transcript row; it exists only client-side (the
- * notice is never persisted), so hydration from canonical history has to
- * carry it over explicitly.
- */
-export const IMPORTED_HISTORY_SUMMARY_KIND = "imported_history_summary";
-
-function asFiniteNumber(value: unknown): number | undefined {
-	return typeof value === "number" && Number.isFinite(value)
-		? value
-		: undefined;
-}
+export type ImportedHistorySummaryActivity =
+	| { phase: "started"; label: string }
+	| { phase: "finished" };
 
 /**
- * Transcript status row for the compaction core runs when an imported session
- * is first resumed (core tags those notices with `importedFrom`). The started
- * and completed notices share a key so the row updates in place. Other
- * compaction notices return undefined and stay out of the transcript.
+ * Reads the compaction status notice core emits when an imported session's
+ * history is summarized on its first resumed turn (core tags those notices
+ * with `importedFrom`). The label replaces the generic "Thinking..." indicator
+ * while the summary runs; `finished` clears it. Other notices return
+ * undefined.
  */
-export function describeImportedHistorySummaryNotice(
+export function readImportedHistorySummaryActivity(
 	metadata: unknown,
-): { key: string; content: string } | undefined {
+): ImportedHistorySummaryActivity | undefined {
 	if (!metadata || typeof metadata !== "object") return undefined;
 	const record = metadata as Record<string, unknown>;
 	const tool =
@@ -32,29 +24,15 @@ export function describeImportedHistorySummaryNotice(
 			? SESSION_IMPORT_TOOL_LABELS[record.importedFrom as SessionImportTool]
 			: undefined;
 	if (!tool) return undefined;
-	const key = `imported_summary_${asFiniteNumber(record.iteration) ?? 0}`;
 	switch (record.phase) {
 		case "started":
 			return {
-				key,
-				content: `Summarizing the imported ${tool} history so the model continues from a recap rather than the original tool calls...`,
+				phase: "started",
+				label: `Summarizing the imported ${tool} history...`,
 			};
-		case "completed": {
-			const before = asFiniteNumber(record.messagesBefore);
-			const after = asFiniteNumber(record.messagesAfter);
-			return {
-				key,
-				content:
-					before !== undefined && after !== undefined
-						? `Summarized the imported ${tool} history · ${before} → ${after} messages`
-						: `Summarized the imported ${tool} history`,
-			};
-		}
+		case "completed":
 		case "skipped":
-			return {
-				key,
-				content: `Could not summarize the imported ${tool} history; continuing with the full transcript.`,
-			};
+			return { phase: "finished" };
 		default:
 			return undefined;
 	}

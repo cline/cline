@@ -61,6 +61,8 @@ type ChatMessagesProps = {
 	error: string | null;
 	/** Set when the session's history was imported from another coding agent. */
 	importedFromTool?: SessionImportTool;
+	/** Replaces "Thinking..." while the runtime reports a named pre-output step. */
+	activityLabel?: string | null;
 	streamingMessageId?: string | null;
 	pendingToolApprovals: ToolApprovalRequestItem[];
 	pendingAskQuestions: AskQuestionRequestItem[];
@@ -104,6 +106,7 @@ function ChatMessagesImpl({
 	messages,
 	error,
 	importedFromTool,
+	activityLabel = null,
 	streamingMessageId = null,
 	pendingToolApprovals,
 	pendingAskQuestions,
@@ -684,7 +687,9 @@ function ChatMessagesImpl({
 										)}
 									>
 										<Loader2 className="size-4 animate-spin" />
-										<span className={STREAMING_TITLE_CLASS}>Thinking...</span>
+										<span className={STREAMING_TITLE_CLASS}>
+											{activityLabel ?? "Thinking..."}
+										</span>
 									</div>
 								) : null}
 								{pendingToolApprovals.length > 0 ? (
