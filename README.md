@@ -108,7 +108,7 @@ the JetBrains family.
 
 ### SDK
 
-Build your own AI agents and integrations powered by the same engine that runs the CLI, Kanban, VS Code extension, and JetBrains plugin. Custom tools, multi-agent teams, connectors, scheduled automations, and more.
+Build your own AI agents and integrations powered by the same engine that drives the CLI, VS Code extension, and JetBrains plugin. Custom tools, multi-agent teams, connectors, scheduled automations, and more.
 
 ```
 npm install @cline/sdk
@@ -131,13 +131,13 @@ npm install @cline/sdk
 | **SDK** | Node.js programmatic agent API and extension exports. | [`sdk/`](https://github.com/cline/cline/tree/main/sdk) | [CHANGELOG.md](https://github.com/cline/cline/blob/main/sdk/CHANGELOG.md) |
 | **CLI** | Terminal UI, headless mode, shell commands, and CLI-specific flows. | [`apps/cli/`](https://github.com/cline/cline/tree/main/apps/cli) | [CHANGELOG.md](https://github.com/cline/cline/blob/main/apps/cli/CHANGELOG.md) |
 | **VS Code Extension** | The Marketplace extension and extension host integration. | [`/`](https://github.com/cline/cline/tree/main) (WIP migrating) | [CHANGELOG.md](https://github.com/cline/cline/blob/main/CHANGELOG.md) |
-| **JetBrains Plugin** | JetBrains-hosted client that talks to the shared agent core. | Currently we are not open-sourcing JetBrains plugins | - |
+| **JetBrains Plugin** | JetBrains-hosted client that talks to the shared agent core. | The JetBrains plugin is not open-sourced | - |
 | **Kanban** | Web-based multi-agent task board. | [`cline/kanban`](https://github.com/cline/kanban) | [CHANGELOG.md](https://github.com/cline/kanban/blob/main/CHANGELOG.md) |
 | **Docs site** | Public documentation pages. | [`docs/`](https://docs.cline.bot/) | - |
 
 ## Edits Code Across Your Project
 
-Cline reads your project structure, understands the relationships between files, and makes coordinated changes across your codebase. It monitors linter and compiler errors as it works, fixing issues like missing imports, type mismatches, and syntax errors before you even see them. In VS Code and JetBrains, every edit shows up as a diff you can review, modify, or revert. All changes are tracked with checkpoints, so you can easily undo the agent's work.
+Cline reads your project structure, understands the relationships between files, and makes coordinated changes across your codebase. It watches for linter and compiler errors as it works, resolving issues like missing imports, type mismatches, and syntax errors before you notice them. In VS Code and JetBrains, every edit shows up as a diff you can review, modify, or revert. All changes are tracked with checkpoints, so you can easily undo the agent's work.
 
 ## Runs Bash Commands
 
@@ -145,11 +145,11 @@ Cline executes commands directly in your terminal and watches the output in real
 
 ## Plan and Act
 
-Toggle between Plan mode and Act mode. In Plan mode, Cline explores your codebase, asks clarifying questions, and lays out a strategy. Once you're aligned, switch to Act mode and Cline executes the plan. Every file edit and terminal command requires your approval, so you stay in control of what actually changes. Or toggle auto-approve and let Cline run autonomously.
+Toggle between Plan mode and Act mode. In Plan mode, Cline explores your codebase, asks clarifying questions, and lays out a strategy. Once you're aligned, switch to Act mode and Cline executes the plan. By default, every file edit and terminal command requires your approval so you stay in control of what actually changes — or toggle auto-approve to let Cline run autonomously.
 
 ## Rules and Skills
 
-Define project-specific rules in `.clinerules` files that guide how Cline works in your codebase: coding standards, architecture conventions, deployment procedures, testing requirements. Rules are picked up automatically by the CLI, VS Code extension, and JetBrains plugin. Use skills to let the model load specific rules when needed.
+Define project-specific rules in `.clinerules` files that guide how Cline works in your codebase: coding standards, architecture conventions, deployment procedures, testing requirements. Rules are picked up automatically by the CLI, VS Code extension, and JetBrains plugin. Skills let the model load detailed how-to guidance on demand, so it only pulls in the instructions it needs for the task at hand.
 
 ## Works With Every Model
 
