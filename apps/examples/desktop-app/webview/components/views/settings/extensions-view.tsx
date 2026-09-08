@@ -7,7 +7,6 @@ import {
 	FileText,
 	MoreVertical,
 	Play,
-	Puzzle,
 	RefreshCw,
 	Server,
 	Trash2,
@@ -28,6 +27,11 @@ import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { desktopClient } from "@/lib/desktop-client";
 import type { MarketplacePrimitiveType } from "@/lib/marketplace";
+import type {
+	MediaGenerationType,
+	MediaModelSelection,
+	Provider,
+} from "@/lib/provider-schema";
 import { cn } from "@/lib/utils";
 import {
 	MarketplaceEntrySetupDetails,
@@ -206,6 +210,217 @@ type UserInstructionListsResponse = {
 	warnings: string[];
 };
 
+export interface MediaTypeConfiguration {
+	mediaType: MediaGenerationType;
+	modelIdsByProvider: Readonly<Record<string, readonly string[]>>;
+	saving: boolean;
+	selection?: MediaModelSelection;
+}
+
+export interface GenerateMediaToolConfig {
+	error: string | null;
+	loading: boolean;
+	mediaTypes: readonly MediaTypeConfiguration[];
+	onChange: (
+		mediaType: MediaGenerationType,
+		selection: MediaModelSelection | undefined,
+	) => void | Promise<void>;
+	onConfigureProviders: () => void;
+	providers: readonly Provider[];
+}
+
+const MEDIA_TYPE_PRESENTATION: Record<
+	MediaGenerationType,
+	{ label: string; modelLabel: string }
+> = {
+	audio: { label: "Audio generation", modelLabel: "Audio model" },
+	image: { label: "Image generation", modelLabel: "Image model" },
+	video: { label: "Video generation", modelLabel: "Video model" },
+};
+
+function isValidMediaSelection(
+	config: GenerateMediaToolConfig,
+	media: MediaTypeConfiguration,
+): boolean {
+	const selection = media.selection;
+	if (!selection) return false;
+	const provider = config.providers.find(
+		(candidate) => candidate.enabled && candidate.id === selection.providerId,
+	);
+	if (!provider) return false;
+	if (!media.modelIdsByProvider[provider.id]?.includes(selection.modelId)) {
+		return false;
+	}
+	return (
+		provider.modelList?.some((model) => model.id === selection.modelId) === true
+	);
+}
+
+export function MediaModelConfiguration({
+	config,
+	media,
+}: {
+	config: GenerateMediaToolConfig;
+	media: MediaTypeConfiguration;
+}) {
+	const presentation = MEDIA_TYPE_PRESENTATION[media.mediaType];
+	const eligibleProviders = config.providers
+		.filter((provider) => provider.enabled)
+		.map((provider) => ({
+			provider,
+			models: (provider.modelList ?? []).filter((model) =>
+				media.modelIdsByProvider[provider.id]?.includes(model.id),
+			),
+		}))
+		.filter((entry) => entry.models.length > 0);
+	const selectedProvider = eligibleProviders.find(
+		(entry) => entry.provider.id === media.selection?.providerId,
+	);
+	const selectedModels = selectedProvider?.models ?? [];
+	const hasValidSelection = isValidMediaSelection(config, media);
+
+	if (eligibleProviders.length === 0) {
+		return (
+			<div className="space-y-2" data-media-type-config={media.mediaType}>
+				<p className="text-xs font-medium text-foreground">
+					{presentation.label}
+				</p>
+				<p className="text-xs text-muted-foreground">
+					Configure and enable a provider with an eligible {media.mediaType}
+					-generation model.
+				</p>
+				<Button
+					onClick={config.onConfigureProviders}
+					size="sm"
+					type="button"
+					variant="outline"
+				>
+					Configure providers
+				</Button>
+			</div>
+		);
+	}
+
+	return (
+		<div className="space-y-3" data-media-type-config={media.mediaType}>
+			<p className="text-xs font-medium text-foreground">
+				{presentation.label}
+			</p>
+			{hasValidSelection ? null : (
+				<p className="text-xs text-amber-600 dark:text-amber-400">
+					Select a provider and model to enable {media.mediaType} generation.
+				</p>
+			)}
+			<div className="grid grid-cols-2 gap-3 max-[720px]:grid-cols-1">
+				<label className="space-y-1.5 text-xs text-muted-foreground">
+					<span>Provider</span>
+					<select
+						aria-label={`${presentation.label} provider`}
+						className="h-9 w-full rounded border border-border bg-background px-3 text-sm text-foreground outline-none focus:ring-1 focus:ring-ring"
+						disabled={media.saving}
+						onChange={(event) => {
+							const providerId = event.target.value;
+							if (!providerId) {
+								void config.onChange(media.mediaType, undefined);
+								return;
+							}
+							const modelId = eligibleProviders.find(
+								(entry) => entry.provider.id === providerId,
+							)?.models[0]?.id;
+							if (modelId) {
+								void config.onChange(media.mediaType, {
+									providerId,
+									modelId,
+								});
+							}
+						}}
+						value={selectedProvider?.provider.id ?? ""}
+					>
+						<option value="">Not configured</option>
+						{eligibleProviders.map(({ provider }) => (
+							<option key={provider.id} value={provider.id}>
+								{provider.name}
+							</option>
+						))}
+					</select>
+				</label>
+				<label className="space-y-1.5 text-xs text-muted-foreground">
+					<span>{presentation.modelLabel}</span>
+					<select
+						aria-label={`${presentation.label} model`}
+						className="h-9 w-full rounded border border-border bg-background px-3 text-sm text-foreground outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
+						disabled={!selectedProvider || media.saving}
+						onChange={(event) => {
+							if (!selectedProvider || !event.target.value) return;
+							void config.onChange(media.mediaType, {
+								providerId: selectedProvider.provider.id,
+								modelId: event.target.value,
+							});
+						}}
+						value={hasValidSelection ? media.selection?.modelId : ""}
+					>
+						{selectedModels.length === 0 ? (
+							<option value="">Select a provider first</option>
+						) : null}
+						{selectedModels.map((model) => (
+							<option key={model.id} value={model.id}>
+								{model.name}
+							</option>
+						))}
+					</select>
+				</label>
+			</div>
+		</div>
+	);
+}
+
+export function GenerateMediaConfiguration({
+	config,
+}: {
+	config: GenerateMediaToolConfig;
+}) {
+	if (config.loading) {
+		return (
+			<p className="text-xs text-muted-foreground">
+				Loading media-generation models...
+			</p>
+		);
+	}
+
+	if (config.error) {
+		return (
+			<div className="space-y-2">
+				<p className="text-xs text-destructive">
+					Failed to load media-generation models: {config.error}
+				</p>
+				<Button
+					onClick={config.onConfigureProviders}
+					size="sm"
+					type="button"
+					variant="outline"
+				>
+					Open Models settings
+				</Button>
+			</div>
+		);
+	}
+
+	return (
+		<div className="space-y-3">
+			{config.mediaTypes.map((media) => (
+				<MediaModelConfiguration
+					config={config}
+					key={media.mediaType}
+					media={media}
+				/>
+			))}
+			<p className="text-xs text-muted-foreground">
+				Tool availability changes apply to new chats.
+			</p>
+		</div>
+	);
+}
+
 const EMPTY_MCP_RESPONSE: McpServersResponse = {
 	settingsPath: "",
 	hasSettingsFile: false,
@@ -254,6 +469,10 @@ let extensionListsCache:
 			fetchedAt: number;
 	  })
 	| null = null;
+
+export function invalidateExtensionListsCache(): void {
+	extensionListsCache = null;
+}
 
 let extensionHookStatsCache: {
 	hookExecutionByEvent: Record<string, HookExecutionSummary>;
@@ -362,6 +581,7 @@ function isUnsupportedDesktopCommand(error: unknown, command: string): boolean {
 export function CustomizationSectionView({
 	catalogPrimitive,
 	chrome = "page",
+	generateMediaConfig,
 	marketplaceVariant = "full",
 	onInventoryChanged,
 	section = "Rules",
@@ -370,6 +590,7 @@ export function CustomizationSectionView({
 	catalogPrimitive?: MarketplacePrimitiveType;
 	/** "embedded" renders without the page frame/header for use inside the Plugins hub. */
 	chrome?: "page" | "embedded";
+	generateMediaConfig?: GenerateMediaToolConfig;
 	/** Which marketplace sections the embedded MarketplaceView shows. */
 	marketplaceVariant?: "full" | "installed";
 	/** Invoked after a forced inventory refresh (installs, uninstalls). */
@@ -420,6 +641,9 @@ export function CustomizationSectionView({
 	>(() => extensionHookStatsCache?.hookExecutionSessionId ?? null);
 	const [hookExecutionLoading, setHookExecutionLoading] = useState(false);
 	const [togglingToolIds, setTogglingToolIds] = useState<Set<string>>(
+		() => new Set(),
+	);
+	const [expandedToolIds, setExpandedToolIds] = useState<Set<string>>(
 		() => new Set(),
 	);
 	const [togglingPluginPaths, setTogglingPluginPaths] = useState<Set<string>>(
@@ -586,13 +810,20 @@ export function CustomizationSectionView({
 	);
 
 	const setToolEnabled = useCallback(
-		async (tool: ToolItem) => {
+		async (tool: ToolItem, enabled: boolean) => {
+			setTools((current) =>
+				current.map((candidate) =>
+					candidate.id === tool.id ? { ...candidate, enabled } : candidate,
+				),
+			);
 			setTogglingToolIds((current) => new Set(current).add(tool.id));
 			setErrorMessage(null);
 			try {
-				const names = [tool.name, ...(tool.headlessToolNames ?? [])].filter(
-					Boolean,
-				);
+				const names = [
+					...new Set(
+						[tool.name, ...(tool.headlessToolNames ?? [])].filter(Boolean),
+					),
+				];
 				if (names.length === 0) {
 					throw new Error("tool name is required");
 				}
@@ -602,7 +833,7 @@ export function CustomizationSectionView({
 						"set_tool_disabled",
 						{
 							names,
-							disabled: tool.enabled,
+							disabled: !enabled,
 						},
 					);
 				} catch (error) {
@@ -621,9 +852,25 @@ export function CustomizationSectionView({
 						"tool toggle did not return an updated extension list",
 					);
 				}
-				applyResponse(response);
+				const normalizedResponse = normalizeInstructionListsResponse(response);
+				const updatedTool = normalizedResponse.tools.find(
+					(candidate) => candidate.id === tool.id,
+				);
+				if (updatedTool?.enabled !== enabled) {
+					throw new Error(
+						`tool toggle did not persist the requested ${enabled ? "enabled" : "disabled"} state`,
+					);
+				}
+				applyResponse(normalizedResponse);
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
+				setTools((current) =>
+					current.map((candidate) =>
+						candidate.id === tool.id
+							? { ...candidate, enabled: tool.enabled }
+							: candidate,
+					),
+				);
 				setErrorMessage(message);
 			} finally {
 				setTogglingToolIds((current) => {
@@ -930,23 +1177,25 @@ export function CustomizationSectionView({
 		);
 	};
 
-	// Sized and styled to match the Install/Uninstall button on marketplace
-	// entry cards so installed rows and browse rows read as one list.
-	const renderLocalActionButton = (target: LocalUninstallTarget) => {
+	const renderLocalActionRow = (target: LocalUninstallTarget) => {
 		const uninstalling = localUninstallingKeys.has(target.key);
 		return (
-			<Button
-				disabled={uninstalling}
-				onClick={() => {
-					void uninstallLocalPrimitive(target);
-				}}
-				size="xs"
-				type="button"
-				variant="destructive"
-			>
-				{uninstalling ? <Spinner /> : <Trash2 className="size-4" />}
-				{uninstalling ? "Uninstalling..." : "Uninstall"}
-			</Button>
+			<div className="flex flex-wrap items-center justify-between gap-3">
+				<div className="min-h-5 text-xs text-muted-foreground">
+					{renderLocalActionMessage(target.key)}
+				</div>
+				<Button
+					disabled={uninstalling}
+					onClick={() => {
+						void uninstallLocalPrimitive(target);
+					}}
+					type="button"
+					variant="destructive"
+				>
+					{uninstalling ? <Spinner /> : <Trash2 className="size-4" />}
+					{uninstalling ? "Uninstalling..." : "Uninstall"}
+				</Button>
+			</div>
 		);
 	};
 
@@ -1015,7 +1264,7 @@ export function CustomizationSectionView({
 					) : (
 						<Zap className="h-4 w-4 shrink-0 text-primary" />
 					)}
-					<h3 className="min-w-0 truncate text-sm font-semibold text-foreground">
+					<h3 className="min-w-0 flex-1 text-sm font-semibold text-foreground">
 						{item.name}
 					</h3>
 					<ScopeBadge scope={item.scope} />
@@ -1033,16 +1282,26 @@ export function CustomizationSectionView({
 						</Badge>
 					) : null}
 				</div>
-				<p className="line-clamp-2 text-xs leading-5 text-muted-foreground">
+				<p className="mt-2 ml-7 text-xs text-muted-foreground">
 					{item.description?.trim() || previewText(item.instructions)}
 				</p>
-				<p className="truncate text-xs font-mono text-muted-foreground">
+				<p className="mt-1 ml-7 text-xs font-mono text-muted-foreground">
 					{item.path}
 				</p>
 				{context?.matchedEntries?.length ? (
-					<MarketplaceEntrySetupDetails entries={context.matchedEntries} />
+					<div className="mt-2 ml-7">
+						<MarketplaceEntrySetupDetails entries={context.matchedEntries} />
+					</div>
 				) : null}
-				{renderLocalActionMessage(key)}
+				<div className="mt-3">
+					{renderLocalActionRow({
+						key,
+						type: item.type,
+						id: item.id,
+						name: item.name,
+						path: item.path,
+					})}
+				</div>
 			</div>
 		);
 	};
@@ -1079,10 +1338,12 @@ export function CustomizationSectionView({
 			},
 		].filter((group) => group.items.length > 0);
 		return (
-			<details key={plugin.path} className="rounded-lg border bg-card p-4">
-				<summary className="flex cursor-pointer list-none items-center gap-2">
-					<Puzzle className="h-4 w-4 shrink-0 text-primary" />
-					<h3 className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">
+			<details
+				key={plugin.path}
+				className="rounded-lg border border-border px-5 py-4"
+			>
+				<summary className="flex cursor-pointer list-none items-center gap-3">
+					<h3 className="min-w-0 flex-1 text-sm font-semibold text-foreground">
 						{plugin.name}
 					</h3>
 					<ScopeBadge scope={scope} />
@@ -1188,19 +1449,11 @@ export function CustomizationSectionView({
 		return (
 			<div
 				key={server.name}
-				className="relative grid min-w-0 gap-2 rounded-lg border bg-card p-4"
+				className="rounded-lg border border-border px-5 py-4"
 			>
-				<div className="absolute top-4 right-4">
-					{renderLocalActionButton({
-						key,
-						type: "mcp",
-						id: server.name,
-						name: server.name,
-					})}
-				</div>
-				<div className="flex min-w-0 items-center gap-2 pr-28">
+				<div className="flex items-center gap-3">
 					<Server className="h-4 w-4 shrink-0 text-primary" />
-					<h3 className="min-w-0 truncate text-sm font-semibold text-foreground">
+					<h3 className="min-w-0 flex-1 text-sm font-semibold text-foreground">
 						{server.name}
 					</h3>
 					<ScopeBadge scope="Global" />
@@ -1212,13 +1465,11 @@ export function CustomizationSectionView({
 							Marketplace
 						</Badge>
 					) : null}
-					{server.disabled ? (
-						<Badge variant="outline" className="shrink-0 text-muted-foreground">
-							Disabled
-						</Badge>
-					) : null}
+					<span className="text-xs text-muted-foreground">
+						{server.disabled ? "Disabled" : "Enabled"}
+					</span>
 				</div>
-				<p className="line-clamp-2 text-xs leading-5 text-muted-foreground">
+				<p className="mt-2 ml-7 text-xs text-muted-foreground">
 					{server.url ??
 						([server.command, ...(server.args ?? [])]
 							.filter(Boolean)
@@ -1226,14 +1477,23 @@ export function CustomizationSectionView({
 							"No launch command configured.")}
 				</p>
 				{mcp.settingsPath ? (
-					<p className="truncate text-xs font-mono text-muted-foreground">
+					<p className="mt-1 ml-7 text-xs font-mono text-muted-foreground">
 						{mcp.settingsPath}
 					</p>
 				) : null}
 				{context?.matchedEntries?.length ? (
-					<MarketplaceEntrySetupDetails entries={context.matchedEntries} />
+					<div className="mt-2 ml-7">
+						<MarketplaceEntrySetupDetails entries={context.matchedEntries} />
+					</div>
 				) : null}
-				{renderLocalActionMessage(key)}
+				<div className="mt-3">
+					{renderLocalActionRow({
+						key,
+						type: "mcp",
+						id: server.name,
+						name: server.name,
+					})}
+				</div>
 			</div>
 		);
 	};
@@ -1330,7 +1590,7 @@ export function CustomizationSectionView({
 
 			{errorMessage && (
 				<div className="mb-4 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-					Failed to load configuration lists: {errorMessage}
+					Configuration error: {errorMessage}
 				</div>
 			)}
 
@@ -1360,6 +1620,11 @@ export function CustomizationSectionView({
 
 			{activeTab === "Rules" && (
 				<div>
+					<p className="mb-6 text-sm leading-relaxed text-muted-foreground">
+						Enabled rules discovered from configured workspace/global
+						directories.
+					</p>
+
 					<div className="grid gap-3">
 						<div className="flex items-center justify-between gap-3">
 							<h3 className="text-base font-semibold text-foreground">
@@ -1373,19 +1638,19 @@ export function CustomizationSectionView({
 							{scopedRules.map(({ rule, scope }) => (
 								<div
 									key={rule.path}
-									className="grid min-w-0 gap-2 rounded-lg border bg-card p-4"
+									className="rounded-lg border border-border px-4 py-3"
 								>
-									<div className="flex min-w-0 items-center gap-2">
-										<FileText className="h-4 w-4 shrink-0 text-primary" />
-										<span className="min-w-0 truncate text-sm font-semibold text-foreground">
+									<div className="flex items-center gap-3">
+										<FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+										<span className="flex-1 text-sm font-medium text-foreground">
 											{rule.name}
 										</span>
 										<ScopeBadge scope={scope} />
 									</div>
-									<p className="line-clamp-2 text-xs leading-5 text-muted-foreground">
+									<p className="mt-2 text-xs text-muted-foreground">
 										{previewText(rule.instructions)}
 									</p>
-									<p className="truncate text-xs font-mono text-muted-foreground">
+									<p className="mt-1 text-xs font-mono text-muted-foreground">
 										{rule.path}
 									</p>
 								</div>
@@ -1402,6 +1667,9 @@ export function CustomizationSectionView({
 
 			{activeTab === "Hooks" && (
 				<div>
+					<p className="mb-6 text-sm leading-relaxed text-muted-foreground">
+						Hook config files from workspace and global hook directories.
+					</p>
 					{hookExecutionLoading && hookExecutionSessionId && (
 						<p className="mb-4 text-xs text-muted-foreground">
 							Execution status is based on hook events in session{" "}
@@ -1422,47 +1690,43 @@ export function CustomizationSectionView({
 							{scopedHooks.map(({ hook, scope }) => (
 								<div
 									key={hook.path}
-									className="grid min-w-0 gap-2 rounded-lg border bg-card p-4"
+									className="rounded-lg border border-border px-4 py-3"
 								>
-									<div className="flex min-w-0 items-center gap-2">
-										<Code className="h-4 w-4 shrink-0 text-primary" />
-										<span className="min-w-0 truncate text-sm font-semibold text-foreground">
+									<div className="flex items-center gap-3">
+										<Code className="h-4 w-4 shrink-0 text-muted-foreground" />
+										<span className="flex-1 text-sm font-mono text-foreground">
 											{hook.fileName}
 										</span>
 										<ScopeBadge scope={scope} />
 										{hook.hookEventName && (
-											<>
-												<Badge
-													variant="outline"
-													className="shrink-0 text-muted-foreground"
-												>
+											<div className="flex items-center gap-2">
+												<span className="rounded border border-border px-2 py-0.5 text-xs text-muted-foreground">
 													{hook.hookEventName}
-												</Badge>
+												</span>
 												{(() => {
 													const stats =
 														hookExecutionByEvent[hook.hookEventName];
 													const executed = (stats?.count ?? 0) > 0;
 													return (
-														<Badge
-															variant="outline"
+														<span
 															className={cn(
-																"shrink-0",
+																"rounded border px-2 py-0.5 text-xs",
 																executed
 																	? "border-emerald-400/50 text-emerald-600 dark:text-emerald-400"
-																	: "text-muted-foreground",
+																	: "border-border text-muted-foreground",
 															)}
 														>
 															{executed
 																? `${stats?.count ?? 0} executed`
 																: "never executed"}
-														</Badge>
+														</span>
 													);
 												})()}
-											</>
+											</div>
 										)}
 									</div>
 									{hook.hookEventName ? (
-										<p className="text-xs leading-5 text-muted-foreground">
+										<p className="mt-1 text-xs text-muted-foreground">
 											Last run:{" "}
 											{formatExecutionTs(
 												hookExecutionByEvent[hook.hookEventName]?.lastTs ??
@@ -1470,7 +1734,7 @@ export function CustomizationSectionView({
 											)}
 										</p>
 									) : null}
-									<p className="truncate text-xs font-mono text-muted-foreground">
+									<p className="mt-1 text-xs font-mono text-muted-foreground">
 										{hook.path}
 									</p>
 								</div>
@@ -1603,50 +1867,125 @@ export function CustomizationSectionView({
 
 			{activeTab === "Tools" && (
 				<div>
-					<div className="mb-6 grid gap-3">
-						<div className="flex items-center justify-between gap-3">
-							<h3 className="text-base font-semibold text-foreground">
-								Builtin Tools
-							</h3>
-							<span className="text-sm text-muted-foreground">
-								{builtinTools.length}
-							</span>
-						</div>
-						<div className="flex flex-col gap-2">
+					<p className="mb-6 text-sm leading-relaxed text-muted-foreground">
+						Builtin tool groups and plugin-contributed tools available to the
+						runtime.
+					</p>
+
+					<div className="mb-6">
+						<h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+							Builtin Tools
+						</h3>
+						<div className="flex flex-col gap-3">
 							{builtinTools.map((tool) =>
 								(() => {
 									const isToggling = togglingToolIds.has(tool.id);
-									return (
-										<div
-											key={tool.id}
-											className="grid min-w-0 gap-2 rounded-lg border bg-card p-4"
-										>
-											<div className="flex min-w-0 items-center gap-2">
+									const isGenerateMedia = tool.id === "generate_media";
+									const isExpanded = expandedToolIds.has(tool.id);
+									const mediaConfigurationLoading =
+										isGenerateMedia && generateMediaConfig?.loading === true;
+									const hasMediaConfiguration = Boolean(
+										generateMediaConfig?.mediaTypes.some((media) =>
+											isValidMediaSelection(generateMediaConfig, media),
+										),
+									);
+									const setupRequired =
+										isGenerateMedia &&
+										!mediaConfigurationLoading &&
+										!hasMediaConfiguration;
+									const effectivelyEnabled = tool.enabled && !setupRequired;
+									const summary = (
+										<>
+											<div className="flex items-center gap-3">
 												<Wrench className="h-4 w-4 shrink-0 text-primary" />
-												<h3 className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">
+												<h3 className="min-w-0 flex-1 text-sm font-semibold text-foreground">
 													{tool.name}
 												</h3>
-												<span className="text-xs text-muted-foreground">
-													{tool.enabled ? "Enabled" : "Disabled"}
-												</span>
-												<Switch
-													checked={tool.enabled}
-													onCheckedChange={() => {
-														void setToolEnabled(tool);
-													}}
-													disabled={isToggling}
-													aria-label={`Toggle ${tool.name}`}
-												/>
 											</div>
-											<p className="line-clamp-2 text-xs leading-5 text-muted-foreground">
+											<p className="mt-2 ml-7 text-xs text-muted-foreground">
 												{tool.description?.trim() ||
 													"No description available."}
 											</p>
 											{!!tool.headlessToolNames?.length && (
-												<p className="truncate text-xs font-mono text-muted-foreground">
+												<p className="mt-1 ml-7 text-xs font-mono text-muted-foreground">
 													{tool.headlessToolNames.join(", ")}
 												</p>
 											)}
+										</>
+									);
+									return (
+										<div
+											key={tool.id}
+											className="rounded-lg border border-border px-5 py-4"
+										>
+											<div className="flex items-start gap-3">
+												{isGenerateMedia ? (
+													<button
+														aria-controls={`tool-config-${tool.id}`}
+														aria-expanded={isExpanded}
+														aria-label={`Configure ${tool.name}`}
+														className="min-w-0 flex-1 cursor-pointer text-left"
+														onClick={() => {
+															setExpandedToolIds((current) => {
+																const next = new Set(current);
+																if (next.has(tool.id)) next.delete(tool.id);
+																else next.add(tool.id);
+																return next;
+															});
+														}}
+														type="button"
+													>
+														{summary}
+													</button>
+												) : (
+													<div className="min-w-0 flex-1">{summary}</div>
+												)}
+												<span
+													className={cn(
+														"text-xs",
+														setupRequired
+															? "text-amber-600 dark:text-amber-400"
+															: "text-muted-foreground",
+													)}
+												>
+													{mediaConfigurationLoading
+														? "Checking setup"
+														: setupRequired
+															? "Setup required"
+															: effectivelyEnabled
+																? "Enabled"
+																: "Disabled"}
+												</span>
+												<Switch
+													checked={effectivelyEnabled}
+													onCheckedChange={(checked) => {
+														void setToolEnabled(tool, checked);
+													}}
+													disabled={
+														isToggling ||
+														setupRequired ||
+														mediaConfigurationLoading
+													}
+													aria-label={`Toggle ${tool.name}`}
+												/>
+											</div>
+											{isGenerateMedia && isExpanded ? (
+												<div
+													className="mt-4 ml-7 border-t border-border pt-4"
+													id={`tool-config-${tool.id}`}
+												>
+													{generateMediaConfig ? (
+														<GenerateMediaConfiguration
+															config={generateMediaConfig}
+														/>
+													) : (
+														<p className="text-xs text-muted-foreground">
+															Open the desktop Tools settings to configure an
+															eligible media provider and model.
+														</p>
+													)}
+												</div>
+											) : null}
 										</div>
 									);
 								})(),
@@ -1659,55 +1998,47 @@ export function CustomizationSectionView({
 						</div>
 					</div>
 
-					<div className="grid gap-3">
-						<div className="flex items-center justify-between gap-3">
-							<h3 className="text-base font-semibold text-foreground">
-								Plugin Tools
-							</h3>
-							<span className="text-sm text-muted-foreground">
-								{pluginTools.length}
-							</span>
-						</div>
-						<div className="flex flex-col gap-2">
+					<div>
+						<h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+							Plugin Tools
+						</h3>
+						<div className="flex flex-col gap-3">
 							{pluginTools.map((tool) =>
 								(() => {
 									const isToggling = togglingToolIds.has(tool.id);
 									return (
 										<div
 											key={tool.id}
-											className="grid min-w-0 gap-2 rounded-lg border bg-card p-4"
+											className="rounded-lg border border-border px-5 py-4"
 										>
-											<div className="flex min-w-0 items-center gap-2">
+											<div className="flex items-center gap-3">
 												<Wrench className="h-4 w-4 shrink-0 text-primary" />
-												<h3 className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">
+												<h3 className="min-w-0 flex-1 text-sm font-semibold text-foreground">
 													{tool.name}
 												</h3>
 												{tool.pluginName && (
-													<Badge
-														variant="outline"
-														className="shrink-0 text-muted-foreground"
-													>
-														{tool.pluginName}
-													</Badge>
+													<span className="rounded border border-border px-2 py-0.5 text-xs text-muted-foreground">
+														plugin: {tool.pluginName}
+													</span>
 												)}
 												<span className="text-xs text-muted-foreground">
 													{tool.enabled ? "Enabled" : "Disabled"}
 												</span>
 												<Switch
 													checked={tool.enabled}
-													onCheckedChange={() => {
-														void setToolEnabled(tool);
+													onCheckedChange={(checked) => {
+														void setToolEnabled(tool, checked);
 													}}
 													disabled={isToggling}
 													aria-label={`Toggle ${tool.name}`}
 												/>
 											</div>
-											<p className="line-clamp-2 text-xs leading-5 text-muted-foreground">
+											<p className="mt-2 ml-7 text-xs text-muted-foreground">
 												{tool.description?.trim() ||
 													"No description available."}
 											</p>
 											{tool.path && (
-												<p className="truncate text-xs font-mono text-muted-foreground">
+												<p className="mt-1 ml-7 text-xs font-mono text-muted-foreground">
 													{tool.path}
 												</p>
 											)}

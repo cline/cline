@@ -40,6 +40,39 @@ describe("builtin tool catalog", () => {
 		).toBe(false);
 	});
 
+	it("always lists generate_media and requires an explicit opt-in", () => {
+		const defaultCatalog = getCoreBuiltinToolCatalog({ mode: "act" });
+		expect(
+			defaultCatalog.find((entry) => entry.id === "generate_media"),
+		).toEqual(
+			expect.objectContaining({
+				defaultEnabled: false,
+				headlessToolNames: ["generate_media"],
+			}),
+		);
+
+		const enabled = getCoreBuiltinToolCatalog({
+			mode: "act",
+			enabledOptInToolIds: new Set(["generate_media"]),
+		});
+		expect(enabled.find((entry) => entry.id === "generate_media")).toEqual(
+			expect.objectContaining({
+				defaultEnabled: true,
+				headlessToolNames: ["generate_media"],
+			}),
+		);
+
+		const globallyDisabled = getCoreBuiltinToolCatalog({
+			mode: "act",
+			enabledOptInToolIds: new Set(["generate_media"]),
+			disabledToolIds: new Set(["generate_media"]),
+		});
+		expect(
+			globallyDisabled.find((entry) => entry.id === "generate_media")
+				?.defaultEnabled,
+		).toBe(false);
+	});
+
 	it("marks teams enabled by default in act mode", () => {
 		const catalog = getCoreBuiltinToolCatalog({ mode: "act" });
 		expect(catalog.find((entry) => entry.id === "teams")?.defaultEnabled).toBe(
@@ -111,7 +144,7 @@ describe("builtin tool catalog", () => {
 		const enabled = getCoreBuiltinToolCatalog({
 			providerId: "anthropic",
 			modelId: "claude-sonnet-4-6",
-			enabledModelToolIds: new Set(["web_search"]),
+			enabledOptInToolIds: new Set(["web_search"]),
 		});
 		expect(
 			enabled.find((entry) => entry.id === "web_search")?.defaultEnabled,

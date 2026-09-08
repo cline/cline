@@ -9,6 +9,10 @@ import {
 } from "@cline/shared";
 import { resolveClineDataDir, resolveClineDir } from "@cline/shared/storage";
 import corePackage from "../../../package.json";
+import {
+	resolveSdkRuntimeSourceIdentityFromCoreSource,
+	type SdkRuntimeSourceIdentity,
+} from "./runtime-build-id";
 
 declare const __CLINE_CORE_RUNTIME_BUILD_ID__: string | undefined;
 declare const __CLINE_CORE_RUNTIME_BUILD_EPOCH_MS__: number | undefined;
@@ -19,6 +23,14 @@ const HUB_BUILD_EPOCH_ENV = "CLINE_HUB_BUILD_EPOCH_MS";
 const HUB_STARTUP_LOCK_MAX_AGE_MS = 30_000;
 const HUB_STARTUP_LOCK_WAIT_MS = 15_000;
 const HUB_STARTUP_LOCK_POLL_MS = 100;
+
+let sourceRuntimeBuildIdentity: SdkRuntimeSourceIdentity | undefined;
+
+function resolveSourceRuntimeBuildIdentity(): SdkRuntimeSourceIdentity {
+	sourceRuntimeBuildIdentity ??=
+		resolveSdkRuntimeSourceIdentityFromCoreSource();
+	return sourceRuntimeBuildIdentity;
+}
 
 export interface HubServerDiscoveryRecord {
 	hubId: string;
@@ -127,24 +139,34 @@ export function resolveHubBuildId(): string {
 		typeof __CLINE_CORE_RUNTIME_BUILD_ID__ === "string"
 			? __CLINE_CORE_RUNTIME_BUILD_ID__.trim()
 			: "";
-	return embedded || `source-${String(corePackage.version)}`;
+	if (embedded) {
+		return embedded;
+	}
+	// Source processes are long-lived too. Fingerprint the runtime graph so a
+	// restarted client cannot mistake a daemon loaded before an edit for its own
+	// build merely because neither process bumped the package version.
+	return resolveSourceRuntimeBuildIdentity().buildId;
 }
 
 /**
  * When this SDK build was produced, embedded at bundle time. Orders builds so
  * managed-Hub handling can distinguish a newer daemon (attach and prompt the
- * user to update) from a stale one (retire and replace). Undefined when
- * running from unbundled sources, where no meaningful ordering exists.
+ * user to update) from a stale one (retire and replace). Unbundled source uses
+ * the newest runtime-input modification time, which is stable across the
+ * client and daemon for one checkout but advances after an edit.
  */
 export function resolveHubBuildEpochMs(): number | undefined {
 	const configured = Number(process.env[HUB_BUILD_EPOCH_ENV]);
 	if (Number.isFinite(configured) && configured > 0) {
 		return configured;
 	}
-	return typeof __CLINE_CORE_RUNTIME_BUILD_EPOCH_MS__ === "number" &&
+	if (
+		typeof __CLINE_CORE_RUNTIME_BUILD_EPOCH_MS__ === "number" &&
 		Number.isFinite(__CLINE_CORE_RUNTIME_BUILD_EPOCH_MS__)
-		? __CLINE_CORE_RUNTIME_BUILD_EPOCH_MS__
-		: undefined;
+	) {
+		return __CLINE_CORE_RUNTIME_BUILD_EPOCH_MS__;
+	}
+	return resolveSourceRuntimeBuildIdentity().buildEpochMs;
 }
 
 export type ManagedHubCompatibilityResult =

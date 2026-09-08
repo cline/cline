@@ -5,9 +5,11 @@ import {
 	DEFAULT_MAX_IMAGE_ENCODED_BYTES,
 	type GeneratedMedia,
 	type GeneratedMediaModality,
+	GENERATED_MEDIA_OMITTED_PLACEHOLDER,
 	IMAGE_OMITTED_PLACEHOLDER,
 	IMAGE_UNSUPPORTED_PLACEHOLDER,
 	imageBase64LengthForDecodedBytes,
+	isGeneratedMedia,
 	type MediaBudgetState,
 	reserveImageMediaBytes,
 	SUPPORTED_IMAGE_MEDIA_TYPES,
@@ -87,9 +89,10 @@ function generatedMediaText(modality: GeneratedMediaModality): string {
 	return `[generated ${modality}]`;
 }
 
-function generatedMediaUnavailableText(
-	media: GeneratedMedia,
-): AiSdkMessagePart {
+function generatedMediaUnavailableText(media: GeneratedMedia): {
+	type: "text";
+	text: string;
+} {
 	return {
 		type: "text",
 		text: `[generated ${media.modality} unavailable to this model]`,
@@ -104,7 +107,8 @@ export type AiSdkMessage = {
 
 type AiSdkContentBlock =
 	| { type: "text"; text: string }
-	| { type: "image"; data: string; mediaType: string };
+	| { type: "image"; data: string; mediaType: string }
+	| { type: "media"; media: GeneratedMedia };
 type AiSdkImageContentBlock = Extract<AiSdkContentBlock, { type: "image" }>;
 
 /**
@@ -113,7 +117,7 @@ type AiSdkImageContentBlock = Extract<AiSdkContentBlock, { type: "image" }>;
  */
 type ToolResultImagePart = {
 	type: "file";
-	data: { type: "data"; data: string };
+	data: { type: "data"; data: string } | { type: "url"; url: string };
 	mediaType: string;
 };
 
@@ -141,7 +145,7 @@ function pushAiSdkMessage(result: AiSdkMessage[], message: AiSdkMessage): void {
 /**
  * Type guard for tool-output content blocks that should be passed to the model
  * as native multimodal parts (rather than JSON-encoded). We accept the cline
- * `image` and `text` block shapes used by `formatStructuredToolResult`.
+ * `text`, legacy `image`, and canonical generated `media` block shapes.
  */
 function isAiSdkContentBlockArray(
 	value: unknown,
@@ -160,12 +164,18 @@ function isAiSdkContentBlockArray(
 		if (b.type === "image") {
 			return typeof b.data === "string" && typeof b.mediaType === "string";
 		}
+		if (b.type === "media") {
+			return isGeneratedMedia(b.media);
+		}
 		return false;
 	});
 }
 
-function imageOmittedTextPart(): { type: "text"; text: string } {
-	return { type: "text", text: IMAGE_OMITTED_PLACEHOLDER };
+function imageOmittedTextPart(text = IMAGE_OMITTED_PLACEHOLDER): {
+	type: "text";
+	text: string;
+} {
+	return { type: "text", text };
 }
 
 function reserveRemoteImageUrlBudget(state: MediaBudgetState): boolean {
@@ -201,6 +211,7 @@ function parseUrlProtocol(value: string): string | undefined {
 function toToolResultImagePart(
 	image: AiSdkImageContentBlock,
 	state: MediaBudgetState,
+	omittedText = IMAGE_OMITTED_PLACEHOLDER,
 ): ToolResultImagePart | { type: "text"; text: string } {
 	const validation = validateAndReserveImageMedia(
 		image.mediaType,
@@ -212,7 +223,7 @@ function toToolResultImagePart(
 		state,
 	);
 	if (!validation.ok) {
-		return imageOmittedTextPart();
+		return imageOmittedTextPart(omittedText);
 	}
 	return toolResultImagePart(validation.base64, validation.mediaType);
 }
@@ -226,6 +237,62 @@ function toolResultImagePart(
 		data: { type: "data", data: base64 },
 		mediaType,
 	};
+}
+
+function toToolResultGeneratedMediaPart(
+	media: GeneratedMedia,
+	state: MediaBudgetState,
+	supportsImages: boolean,
+): ToolResultImagePart | { type: "text"; text: string } {
+	if (media.modality !== "image") {
+		return generatedMediaUnavailableText(media);
+	}
+	if (!supportsImages) {
+		return { type: "text", text: IMAGE_UNSUPPORTED_PLACEHOLDER };
+	}
+	if (media.source.type === "artifact") {
+		return generatedMediaUnavailableText(media);
+	}
+	if (media.source.type === "url") {
+		const supportedMediaTypes: readonly string[] = SUPPORTED_IMAGE_MEDIA_TYPES;
+		if (!supportedMediaTypes.includes(media.mediaType.toLowerCase())) {
+			return imageOmittedTextPart(GENERATED_MEDIA_OMITTED_PLACEHOLDER);
+		}
+		if (!reserveRemoteImageUrlBudget(state)) {
+			return imageOmittedTextPart(GENERATED_MEDIA_OMITTED_PLACEHOLDER);
+		}
+		return {
+			type: "file",
+			data: { type: "url", url: media.source.url },
+			mediaType: media.mediaType,
+		};
+	}
+	return toToolResultImagePart(
+		{
+			type: "image",
+			data: media.source.data,
+			mediaType: media.mediaType,
+		},
+		state,
+		GENERATED_MEDIA_OMITTED_PLACEHOLDER,
+	);
+}
+
+function toToolResultContentPart(
+	block: AiSdkContentBlock,
+	state: MediaBudgetState,
+	supportsImages: boolean,
+): ToolResultImagePart | { type: "text"; text: string } {
+	switch (block.type) {
+		case "text":
+			return { type: "text", text: sanitizeSurrogates(block.text) };
+		case "image":
+			return supportsImages
+				? toToolResultImagePart(block, state)
+				: { type: "text", text: IMAGE_UNSUPPORTED_PLACEHOLDER };
+		case "media":
+			return toToolResultGeneratedMediaPart(block.media, state, supportsImages);
+	}
 }
 
 /**
@@ -396,18 +463,17 @@ interface StripImagesOptions {
 }
 
 /**
- * Recursively walk a tool-result `output` value, removing any AI-SDK image
- * content blocks (`{type:'image', data, mediaType}`) and collecting them
- * into `images`. Inline-text blocks (`{type:'text', text}`) are unwrapped
- * to bare strings so the resulting structure JSON-serialises cleanly for
- * the model.
+ * Recursively walk a tool-result `output` value, removing legacy image blocks
+ * and canonical generated-media blocks and collecting valid images into
+ * native AI SDK file parts. Inline-text blocks are unwrapped to bare strings
+ * so the resulting structure JSON-serialises cleanly for the model.
  *
  * Returns the stripped value with images removed (other structure
  * preserved). The original input is not mutated.
  */
 function stripImagesFromOutput(
 	value: unknown,
-	images: AiSdkImageContentBlock[],
+	images: ToolResultImagePart[],
 	state: MediaBudgetState,
 	options: StripImagesOptions,
 ): StripImagesResult {
@@ -441,11 +507,7 @@ function stripImagesFromOutput(
 					} satisfies AiSdkImageContentBlock;
 					const part = toToolResultImagePart(image, state);
 					if (part.type === "file") {
-						images.push({
-							type: "image",
-							data: part.data.data,
-							mediaType: part.mediaType,
-						});
+						images.push(part);
 					} else {
 						out.push(part.text);
 					}
@@ -455,6 +517,33 @@ function stripImagesFromOutput(
 				}
 				if (obj.type === "image") {
 					out.push(IMAGE_OMITTED_PLACEHOLDER);
+					changed = true;
+					mediaChanged = true;
+					continue;
+				}
+				if (obj.type === "media") {
+					if (!isGeneratedMedia(obj.media)) {
+						out.push(IMAGE_OMITTED_PLACEHOLDER);
+						changed = true;
+						mediaChanged = true;
+						continue;
+					}
+					if (!hoistImages && obj.media.modality === "image") {
+						out.push(inlineImagePlaceholder);
+						changed = true;
+						mediaChanged = true;
+						continue;
+					}
+					const part = toToolResultGeneratedMediaPart(
+						obj.media,
+						state,
+						hoistImages,
+					);
+					if (part.type === "file") {
+						images.push(part);
+					} else {
+						out.push(part.text);
+					}
 					changed = true;
 					mediaChanged = true;
 					continue;
@@ -490,11 +579,7 @@ function stripImagesFromOutput(
 			} satisfies AiSdkImageContentBlock;
 			const part = toToolResultImagePart(image, state);
 			if (part.type === "file") {
-				images.push({
-					type: "image",
-					data: part.data.data,
-					mediaType: part.mediaType,
-				});
+				images.push(part);
 				return {
 					value: IMAGE_ATTACHED_TEXT,
 					changed: true,
@@ -508,6 +593,32 @@ function stripImagesFromOutput(
 			changed: true,
 			mediaChanged: true,
 		};
+	}
+	if (obj.type === "media") {
+		if (!isGeneratedMedia(obj.media)) {
+			return {
+				value: IMAGE_OMITTED_PLACEHOLDER,
+				changed: true,
+				mediaChanged: true,
+			};
+		}
+		if (!hoistImages && obj.media.modality === "image") {
+			return {
+				value: inlineImagePlaceholder,
+				changed: true,
+				mediaChanged: true,
+			};
+		}
+		const part = toToolResultGeneratedMediaPart(obj.media, state, hoistImages);
+		if (part.type === "file") {
+			images.push(part);
+			return {
+				value: IMAGE_ATTACHED_TEXT,
+				changed: true,
+				mediaChanged: true,
+			};
+		}
+		return { value: part.text, changed: true, mediaChanged: true };
 	}
 
 	const out: Record<string, unknown> = {};
@@ -555,12 +666,11 @@ export function toAiSdkToolResultOutput(
 		};
 	}
 
-	// Arrays of `text` / `image` content blocks (e.g. from read_file image
-	// results) must be forwarded as AI SDK `content` parts so providers
-	// translate them into real multimodal inputs. Without this, the array
-	// falls through to the `json` branch below and the base64 image data
-	// is sent to the model as a JSON string — the model cannot see it and
-	// will hallucinate the image's contents.
+	// Arrays of text and media content blocks (e.g. read_file results and the
+	// generate_media tool contract) must be forwarded as AI SDK `content` parts
+	// so providers translate them into real multimodal inputs. Without this,
+	// the array falls through to the `json` branch below and base64 image data
+	// is sent to the model as opaque JSON text.
 	// When the target model does not support image input, the image blocks
 	// are substituted with placeholder text instead so the model knows an
 	// image was there.
@@ -568,11 +678,7 @@ export function toAiSdkToolResultOutput(
 		return {
 			type: "content",
 			value: output.map((block) =>
-				block.type === "image"
-					? supportsImages
-						? toToolResultImagePart(block, mediaState)
-						: { type: "text", text: IMAGE_UNSUPPORTED_PLACEHOLDER }
-					: { type: "text", text: sanitizeSurrogates(block.text) },
+				toToolResultContentPart(block, mediaState, supportsImages),
 			),
 		};
 	}
@@ -588,7 +694,7 @@ export function toAiSdkToolResultOutput(
 	// For models without image input support, images are replaced inline
 	// with placeholder text instead of being hoisted.
 	if (output !== null && typeof output === "object") {
-		const images: AiSdkImageContentBlock[] = [];
+		const images: ToolResultImagePart[] = [];
 		const stripped = stripImagesFromOutput(output, images, mediaState, {
 			hoistImages: !isError && supportsImages,
 			inlineImagePlaceholder: supportsImages
@@ -602,12 +708,7 @@ export function toAiSdkToolResultOutput(
 					: JSON.stringify(sanitizeDeepStrings(stripped.value));
 			return {
 				type: "content",
-				value: [
-					{ type: "text", text: headerText },
-					...images.map((image) =>
-						toolResultImagePart(image.data, image.mediaType),
-					),
-				],
+				value: [{ type: "text", text: headerText }, ...images],
 			};
 		}
 		if (stripped.mediaChanged) {

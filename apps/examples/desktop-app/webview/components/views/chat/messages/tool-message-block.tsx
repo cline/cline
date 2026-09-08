@@ -200,7 +200,8 @@ const ToolCallRow = memo(function ToolCallRow({
 		canProceed;
 
 	return (
-		<ToolActivity
+		<div className="space-y-2">
+			<ToolActivity
 			className="my-0"
 			expandable={hasExpandedSections}
 			onOpenChange={handleOpenChange}
@@ -334,7 +335,27 @@ const ToolCallRow = memo(function ToolCallRow({
 					</div>
 				) : null}
 			</ToolActivityContent>
-		</ToolActivity>
+			</ToolActivity>
+			{message.media?.length ? (
+				<div className="ml-7 flex max-w-2xl flex-col gap-2">
+					{message.media.map((media) => (
+						<GeneratedMediaContent
+							classNames={{
+								image:
+									"max-h-96 max-w-full rounded-lg border border-border bg-muted object-contain",
+								audio: "w-full",
+								video: "max-h-96 max-w-full rounded-lg",
+								file: "text-sm underline",
+								unavailable:
+									"rounded-lg border border-border bg-muted p-3 text-sm",
+							}}
+							key={media.id}
+							media={media}
+						/>
+					))}
+				</div>
+			) : null}
+		</div>
 	);
 });
 

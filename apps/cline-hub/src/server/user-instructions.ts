@@ -5,9 +5,13 @@ import {
 	createUserInstructionConfigService,
 	getCoreBuiltinToolCatalog,
 	listHookConfigFiles,
-	readGlobalSettings,
+	ProviderSettingsManager,
+	resolveConfiguredMediaGenerationTarget,
+	resolveDisabledToolNames,
+	resolveEnabledOptInToolNames,
 	resolveAgentConfigSearchPaths as resolveSharedAgentConfigSearchPaths,
 } from "@cline/core";
+import { MEDIA_GENERATION_TYPES } from "@cline/shared";
 import { readFileSyncStrippingUtf8Bom } from "@cline/shared/node";
 import { readMcpServersResponse } from "./mcp";
 import type { JsonRecord } from "./types";
@@ -105,14 +109,25 @@ export async function listUserInstructionConfigs(
 			cwd: targetWorkspaceRoot,
 		}),
 	]);
-	const disabledTools = new Set(readGlobalSettings().disabledTools ?? []);
+	const disabledTools = resolveDisabledToolNames();
+	const mediaSettingsManager = new ProviderSettingsManager();
+	const mediaGenerationConfigured = (
+		await Promise.all(
+			MEDIA_GENERATION_TYPES.map((mediaType) =>
+				resolveConfiguredMediaGenerationTarget(mediaSettingsManager, mediaType),
+			),
+		)
+	).some((target) => Boolean(target));
 	// Pin spawn/teams availability so this listing matches the desktop
 	// sidecar's (sidecar/commands.ts) even if the preset defaults change.
 	const builtinToolCatalog = getCoreBuiltinToolCatalog({
 		enableSpawnAgent: true,
 		enableAgentTeams: true,
 		disabledToolIds: disabledTools,
-	});
+		enabledOptInToolIds: resolveEnabledOptInToolNames(),
+	}).filter(
+		(tool) => tool.id !== "generate_media" || mediaGenerationConfigured,
+	);
 
 	return {
 		workspaceRoot: targetWorkspaceRoot,

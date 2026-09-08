@@ -4,7 +4,7 @@
 // This allows the SdkController to reuse the classic state-building logic
 // without inheriting the entire classic Controller implementation.
 
-import { isModelToolEnabledGlobally, readCompactionStrategyGlobally } from "@cline/core"
+import { isOptInToolEnabledGlobally, readCompactionStrategyGlobally } from "@cline/core"
 import { getHooksEnabledSafe } from "@core/hooks/hooks-utils"
 import type { ExtensionState, Platform } from "@shared/ExtensionMessage"
 import { ClineEnv } from "@/config"
@@ -45,7 +45,7 @@ export async function getStateToPostToWebview(controller: {
 	const mode = stateManager.getGlobalSettingsKey("mode")
 	const useAutoCondense = stateManager.getGlobalSettingsKey("useAutoCondense")
 	const compactionStrategy = readCompactionStrategyGlobally()
-	const webSearchEnabled = isModelToolEnabledGlobally("web_search")
+	const webSearchEnabled = isOptInToolEnabledGlobally("web_search")
 	const subagentsEnabled = stateManager.getGlobalSettingsKey("subagentsEnabled")
 	const userInfo = stateManager.getGlobalStateKey("userInfo")
 	const mcpMarketplaceEnabled = stateManager.getGlobalStateKey("mcpMarketplaceEnabled")

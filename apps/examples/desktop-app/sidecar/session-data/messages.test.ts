@@ -385,6 +385,66 @@ describe("readSessionMessages", () => {
 		]);
 	});
 
+	it("projects generated media nested in a tool result onto the tool message", async () => {
+		const sessionId = `tool-media-projection-${Date.now()}`;
+		const media = {
+			id: "generated-image-1",
+			modality: "image",
+			mediaType: "image/png",
+			source: { type: "base64", data: "aGVsbG8=" },
+		};
+		const liveSessions = new Map([
+			[
+				sessionId,
+				{
+					messages: [
+						{
+							role: "assistant",
+							content: [
+								{
+									type: "tool_use",
+									id: "generate-call",
+									name: "generate_media",
+									input: { media_type: "image", prompt: "A bee" },
+								},
+							],
+						},
+						{
+							role: "user",
+							content: [
+								{
+									type: "tool_result",
+									tool_use_id: "generate-call",
+									name: "generate_media",
+									content: [
+										{ type: "text", text: "Generated an image." },
+										{ type: "media", media },
+									],
+								},
+							],
+						},
+					],
+				},
+			],
+		]);
+
+		const projected = (await readSessionMessages(
+			{ liveSessions } as unknown as Parameters<typeof readSessionMessages>[0],
+			sessionId,
+		)) as Array<Record<string, unknown>>;
+
+		expect(projected).toHaveLength(1);
+		expect(projected[0]).toMatchObject({
+			role: "tool",
+			media: [media],
+			meta: {
+				toolName: "generate_media",
+				hookEventName: "history_tool_result",
+			},
+		});
+		expect(String(projected[0]?.content)).not.toContain("aGVsbG8=");
+	});
+
 	it("preserves absolute run counts across system-displayed compaction messages", async () => {
 		const sessionId = `compaction-run-count-${Date.now()}`;
 		const liveSessions = new Map([

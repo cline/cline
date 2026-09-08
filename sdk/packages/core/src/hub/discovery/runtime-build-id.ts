@@ -1,9 +1,15 @@
 import { createHash } from "node:crypto";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { basename, join, relative } from "node:path";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { basename, dirname, join, relative } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const RUNTIME_PACKAGE_NAMES = ["shared", "llms", "agents", "core"] as const;
 const TEST_DIRECTORY_NAMES = new Set(["__tests__", "fixtures", "tests"]);
+
+export interface SdkRuntimeSourceIdentity {
+	buildId: string;
+	buildEpochMs: number;
+}
 
 function collectRuntimeSourceFiles(directory: string): string[] {
 	const files: string[] = [];
@@ -32,7 +38,9 @@ function collectRuntimeSourceFiles(directory: string): string[] {
  * same identity, while runtime changes are detected even when package versions
  * have not been bumped yet.
  */
-export function resolveSdkRuntimeBuildId(repoRoot: string): string {
+export function resolveSdkRuntimeSourceIdentity(
+	repoRoot: string,
+): SdkRuntimeSourceIdentity {
 	const packagesRoot = join(repoRoot, "sdk", "packages");
 	const inputs = [join(repoRoot, "bun.lock")];
 
@@ -47,14 +55,26 @@ export function resolveSdkRuntimeBuildId(repoRoot: string): string {
 	}
 
 	const hash = createHash("sha256");
+	let buildEpochMs = 0;
 	for (const path of inputs.sort()) {
 		const inputName = relative(repoRoot, path).replaceAll("\\", "/");
 		hash.update(inputName);
 		hash.update("\0");
 		hash.update(readFileSync(path));
 		hash.update("\0");
+		buildEpochMs = Math.max(buildEpochMs, Math.floor(statSync(path).mtimeMs));
 	}
-	return `sdk-v1-${hash.digest("hex")}`;
+	return {
+		// Keep timestamped source-graph builds ordered after both the legacy
+		// `source-<package-version>` identity and the short-lived hash-only v2
+		// identity, allowing the first v3 client to replace either daemon.
+		buildId: `source-v3-${hash.digest("hex")}`,
+		buildEpochMs,
+	};
+}
+
+export function resolveSdkRuntimeBuildId(repoRoot: string): string {
+	return resolveSdkRuntimeSourceIdentity(repoRoot).buildId;
 }
 
 export function resolveRepoRootFromCorePackage(
@@ -67,4 +87,21 @@ export function resolveRepoRootFromCorePackage(
 		);
 	}
 	return join(packagesRoot, "..", "..");
+}
+
+/** Resolve the SDK fingerprint while executing Core directly from source. */
+export function resolveSdkRuntimeBuildIdFromCoreSource(): string {
+	return resolveSdkRuntimeSourceIdentityFromCoreSource().buildId;
+}
+
+export function resolveSdkRuntimeSourceIdentityFromCoreSource(): SdkRuntimeSourceIdentity {
+	const corePackageRoot = join(
+		dirname(fileURLToPath(import.meta.url)),
+		"..",
+		"..",
+		"..",
+	);
+	return resolveSdkRuntimeSourceIdentity(
+		resolveRepoRootFromCorePackage(corePackageRoot),
+	);
 }

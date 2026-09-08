@@ -13,7 +13,10 @@ import type {
 	ToolApprovalResult,
 	WorkspaceInfo,
 } from "@cline/shared";
-import { hasRuntimeConfigExtension } from "@cline/shared";
+import {
+	hasRuntimeConfigExtension,
+	MEDIA_GENERATION_TYPES,
+} from "@cline/shared";
 import { version as corePackageVersion } from "../../package.json";
 import {
 	type AgentPluginPackageDiagnostic,
@@ -32,6 +35,7 @@ import type {
 	SubAgentStartContext,
 	TeamEvent,
 } from "../extensions/tools/team";
+import type { GenerateMediaExecutor } from "../extensions/tools/types";
 import { createCheckpointHooks } from "../hooks/checkpoint-hooks";
 import {
 	createHookAuditHooks,
@@ -57,6 +61,10 @@ import {
 	filterExtensionToolRegistrations,
 	resolveDisabledAgentPluginNames,
 } from "./global-settings";
+import {
+	generateConfiguredMedia,
+	resolveConfiguredMediaGenerationTarget,
+} from "./providers/local-provider-service";
 import { hasRuntimeHooks, mergeAgentExtensions } from "./session-data";
 import type { ProviderSettingsManager } from "./storage/provider-settings-manager";
 import { InMemoryWorkspaceManager } from "./workspace/workspace-manager";
@@ -492,7 +500,45 @@ export async function prepareLocalRuntimeBootstrap(
 		input.capabilities,
 	);
 	const requestToolApproval = capabilities?.requestToolApproval;
-	const effectiveToolExecutors = capabilities?.toolExecutors;
+	const configuredMediaGenerationTypes = (
+		await Promise.all(
+			MEDIA_GENERATION_TYPES.map(async (mediaType) =>
+				(await resolveConfiguredMediaGenerationTarget(
+					providerSettingsManager,
+					mediaType,
+				))
+					? mediaType
+					: undefined,
+			),
+		)
+	).filter((mediaType) => mediaType !== undefined);
+	const configuredGenerateMediaExecutor: GenerateMediaExecutor | undefined =
+		configuredMediaGenerationTypes.length > 0
+			? async (mediaInput, context) => {
+					const generated = await generateConfiguredMedia(
+						providerSettingsManager,
+						{
+							mediaType: mediaInput.media_type,
+							prompt: mediaInput.prompt,
+							abortSignal: context.signal,
+						},
+					);
+					if (generated.usage) {
+						await context.reportUsage?.(generated.usage);
+					}
+					return generated.content;
+				}
+			: undefined;
+	const hostToolExecutors = capabilities?.toolExecutors;
+	const effectiveToolExecutors =
+		configuredGenerateMediaExecutor || hostToolExecutors
+			? {
+					...(configuredGenerateMediaExecutor
+						? { generateMedia: configuredGenerateMediaExecutor }
+						: {}),
+					...(hostToolExecutors ?? {}),
+				}
+			: undefined;
 	const subAgentLifecycleCallbacks = createSubAgentLifecycleCallbacks?.(config);
 	const workspaceManager = new InMemoryWorkspaceManager({
 		currentWorkspacePath: workspaceInfo.rootPath,
@@ -529,6 +575,7 @@ export async function prepareLocalRuntimeBootstrap(
 			agentPluginMcpServers: loadedAgentPluginPackages?.mcpServers,
 			configExtensions: configExtensions,
 			toolExecutors: effectiveToolExecutors,
+			configuredMediaGenerationTypes,
 			toolPolicies,
 			workspaceManager,
 			logger: config.logger,

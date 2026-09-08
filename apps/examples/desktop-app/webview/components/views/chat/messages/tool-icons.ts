@@ -7,6 +7,7 @@ import {
 	BlocksIcon,
 	BoxIcon,
 	FilesIcon,
+	ImageIcon,
 	LibraryIcon,
 	type LucideIcon,
 	MessageCircleQuestionMarkIcon,
@@ -22,6 +23,7 @@ import {
 
 // Overrides for tools whose kind-based icon would be misleading.
 export const TOOL_NAME_ICONS: Record<string, LucideIcon> = {
+	generate_media: ImageIcon,
 	plugins: BlocksIcon,
 	submit_and_exit: SquareArrowRightIcon,
 };

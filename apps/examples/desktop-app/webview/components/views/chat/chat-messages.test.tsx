@@ -64,6 +64,7 @@ describe("ChatMessages tool disclosures", () => {
 		["skills", "lucide-library"],
 		["mcp", "lucide-box"],
 		["plugins", "lucide-blocks"],
+		["generate_media", "lucide-image"],
 		["submit_and_exit", "lucide-square-arrow-right"],
 		["spawn_agent", "lucide-user"],
 		["spawn-agent", "lucide-user"],
@@ -120,6 +121,34 @@ describe("ChatMessages tool disclosures", () => {
 		expect(
 			container.querySelector(".cline-chat-tool")?.classList.contains("my-0"),
 		).toBe(true);
+	});
+
+	it("renders generated media attached to a tool result", async () => {
+		await renderMessages([
+			{
+				id: "tool-generated-media",
+				sessionId: "session-1",
+				role: "tool",
+				content: JSON.stringify({
+					toolName: "generate_media",
+					input: { media_type: "image", prompt: "A lighthouse" },
+					result: ["Generated an image.", "[generated image]"],
+				}),
+				media: [
+					{
+						id: "generated-image-1",
+						modality: "image",
+						mediaType: "image/png",
+						source: { type: "base64", data: "aGVsbG8=" },
+					},
+				],
+				createdAt: 1,
+			},
+		]);
+
+		expect(
+			container.querySelector('[data-media-id="generated-image-1"]'),
+		).not.toBeNull();
 	});
 
 	it("shimmers a tool title only while its result is pending", async () => {

@@ -1,3 +1,6 @@
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import {
 	type CorePluginSettingsSnapshot,
@@ -49,6 +52,84 @@ function createHostPluginSettingsSnapshot(
 }
 
 describe("hub settings commands", () => {
+	it("persists generate_media opt-in state through settings.toggle", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "hub-tool-settings-"));
+		const settingsPath = join(tempRoot, "global-settings.json");
+		const previousSettingsPath = process.env.CLINE_GLOBAL_SETTINGS_PATH;
+		process.env.CLINE_GLOBAL_SETTINGS_PATH = settingsPath;
+		let transport: HubServerTransport | undefined;
+
+		try {
+			await writeFile(
+				settingsPath,
+				`${JSON.stringify({ disabledTools: ["generate_media", "read_file"] })}\n`,
+				"utf8",
+			);
+			transport = new HubServerTransport({
+				runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
+				scheduleOptions: { dbPath: ":memory:" },
+				settingsService: new CoreSettingsService(),
+			});
+			const enabled = await transport.handleCommand({
+				version: "v1",
+				command: "settings.toggle",
+				requestId: "enable-generate-media",
+				clientId: "desktop-sidecar",
+				payload: {
+					type: "tools",
+					name: "generate_media",
+					enabled: true,
+					workspaceRoot: tempRoot,
+					cwd: tempRoot,
+				},
+			});
+
+			expect(enabled).toMatchObject({
+				ok: true,
+				payload: { changedTypes: ["tools"] },
+			});
+			expect(JSON.parse(await readFile(settingsPath, "utf8"))).toEqual({
+				autoUpdateEnabled: true,
+				telemetryOptOut: false,
+				disabledTools: ["read_file"],
+				tools: { generate_media: { enabled: true } },
+			});
+
+			const disabled = await transport.handleCommand({
+				version: "v1",
+				command: "settings.toggle",
+				requestId: "disable-generate-media",
+				clientId: "desktop-sidecar",
+				payload: {
+					type: "tools",
+					name: "generate_media",
+					enabled: false,
+					workspaceRoot: tempRoot,
+					cwd: tempRoot,
+				},
+			});
+
+			expect(disabled).toMatchObject({
+				ok: true,
+				payload: { changedTypes: ["tools"] },
+			});
+			expect(JSON.parse(await readFile(settingsPath, "utf8"))).toEqual({
+				autoUpdateEnabled: true,
+				telemetryOptOut: false,
+				disabledTools: ["read_file"],
+				tools: { generate_media: { enabled: false } },
+			});
+		} finally {
+			await transport?.stop();
+			if (previousSettingsPath === undefined) {
+				delete process.env.CLINE_GLOBAL_SETTINGS_PATH;
+			} else {
+				process.env.CLINE_GLOBAL_SETTINGS_PATH = previousSettingsPath;
+			}
+			await rm(tempRoot, { recursive: true, force: true });
+		}
+	});
+
 	it("uses an injected host plugin source across list and toggle commands", async () => {
 		let enabled = true;
 		const pluginSource: CorePluginSettingsSource = {
