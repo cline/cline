@@ -264,7 +264,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		// Images are attached regardless; when the selected model has no image input the thumbnails get a warning
 		// badge and a notice offers to switch models. Unknown capability data fails open, like core does.
 		const modelSupportsImages = selectedModelInfo.supportsImages !== false
-		const imagesUnsupported = selectedImages.length > 0 && !modelSupportsImages
+		const unsupportedImagesAttached = selectedImages.length > 0 && !modelSupportsImages
 
 		// Fetch git commits when Git is selected or when typing a hash
 		useEffect(() => {
@@ -1567,7 +1567,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						<Thumbnails
 							files={selectedFiles}
 							images={selectedImages}
-							imagesUnsupported={imagesUnsupported}
+							imagesUnsupported={unsupportedImagesAttached}
 							onHeightChange={handleThumbnailsHeightChange}
 							setFiles={setSelectedFiles}
 							setImages={setSelectedImages}
@@ -1597,7 +1597,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						</div>
 					</div>
 				</div>
-				{imagesUnsupported && (
+				{unsupportedImagesAttached && (
 					<div
 						className="flex items-center gap-1.5 px-3.5 pb-1.5 text-xs"
 						data-testid="images-unsupported-notice"
