@@ -220,6 +220,13 @@ export class PendingPromptsController {
 		}
 		const result = this.service.update(session, input);
 		this.emitPrompts(session);
+		if (
+			result.updated &&
+			result.prompt?.delivery === "steer" &&
+			!session.aborting
+		) {
+			session.agent.notifyPendingUserMessage();
+		}
 		this.scheduleDrain(input.sessionId, session);
 		return result;
 	}
@@ -255,6 +262,9 @@ export class PendingPromptsController {
 		// abort is settling.
 		this.service.enqueue(session, entry);
 		this.emitPrompts(session);
+		if (entry.delivery === "steer" && !session.aborting) {
+			session.agent.notifyPendingUserMessage();
+		}
 		this.scheduleDrain(sessionId, session);
 	}
 

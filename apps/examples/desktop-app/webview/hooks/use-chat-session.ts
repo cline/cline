@@ -416,6 +416,7 @@ export function useChatSession() {
 	const workspaceSelectionRequestRef = useRef(0);
 	const sessionStartPromiseRef = useRef<Promise<string> | null>(null);
 	const promptDispatchTailRef = useRef<Promise<void>>(Promise.resolve());
+	const pendingQueueSubmissionsRef = useRef(new Map<Promise<void>, string>());
 	const activePromptSubmissionsRef = useRef(0);
 	const activeTurnCostTrackerRef = useRef<TurnCostTracker | null>(null);
 	const unpersistedCostUsdRef = useRef(0);
@@ -2049,9 +2050,15 @@ export function useChatSession() {
 			const hasEarlierPromptSubmission = activePromptSubmissionsRef.current > 0;
 			activePromptSubmissionsRef.current += 1;
 			let promptSubmissionFinished = false;
+			let queuedSubmission: Promise<void> | undefined;
+			let resolveQueuedSubmission: (() => void) | undefined;
 			const finishPromptSubmission = () => {
 				if (promptSubmissionFinished) return;
 				promptSubmissionFinished = true;
+				if (queuedSubmission) {
+					pendingQueueSubmissionsRef.current.delete(queuedSubmission);
+					resolveQueuedSubmission?.();
+				}
 				activePromptSubmissionsRef.current = Math.max(
 					0,
 					activePromptSubmissionsRef.current - 1,
@@ -2096,6 +2103,15 @@ export function useChatSession() {
 				(hasEarlierPromptSubmission ||
 					Boolean(pendingSessionStart) ||
 					BUSY_STATUSES.has(status));
+			if (shouldQueue && activeSessionId) {
+				queuedSubmission = new Promise<void>((resolve) => {
+					resolveQueuedSubmission = resolve;
+				});
+				pendingQueueSubmissionsRef.current.set(
+					queuedSubmission,
+					activeSessionId,
+				);
+			}
 			const turnCostTracker: TurnCostTracker | undefined = shouldQueue
 				? undefined
 				: { streamedCostUsd: 0 };
@@ -3095,19 +3111,43 @@ export function useChatSession() {
 	);
 
 	const steerPromptInQueue = useCallback(
-		async (promptId: string) => {
+		async (promptId?: string) => {
 			const activeSessionId = activeSessionIdRef.current;
-			if (!activeSessionId || !promptId.trim()) {
-				return;
+			if (!activeSessionId) return;
+			if (promptId === undefined) {
+				// Enter targets the first server queue entry. The composer can
+				// already be empty while its optimistic entry is still being sent.
+				// Wait only for queue acknowledgements, never the active response.
+				await Promise.all(
+					[...pendingQueueSubmissionsRef.current]
+						.filter(([, sid]) => sid === activeSessionId)
+						.map(([submission]) => submission),
+				);
+				if (activeSessionIdRef.current !== activeSessionId) return;
+				const queue = await postSession({
+					action: "pending_prompts",
+					sessionId: activeSessionId,
+				});
+				promptId = queue.promptsInQueue?.[0]?.id;
 			}
+			if (!promptId?.trim() || activeSessionIdRef.current !== activeSessionId)
+				return;
+			const epoch = turnEpochRef.current;
 			const payload = await postSession({
 				action: "steer_prompt",
 				sessionId: activeSessionId,
 				promptId,
 			});
-			setPromptsInQueue(
-				Array.isArray(payload.promptsInQueue) ? payload.promptsInQueue : [],
-			);
+			// Steering can consume the prompt before this RPC returns. Its
+			// snapshot must not resurrect an entry removed by the live stream.
+			if (
+				activeSessionIdRef.current === activeSessionId &&
+				turnEpochRef.current === epoch
+			) {
+				setPromptsInQueue(
+					Array.isArray(payload.promptsInQueue) ? payload.promptsInQueue : [],
+				);
+			}
 		},
 		[postSession],
 	);

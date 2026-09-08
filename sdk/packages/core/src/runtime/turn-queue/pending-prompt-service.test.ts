@@ -120,6 +120,35 @@ describe("PendingPromptService", () => {
 		).toThrow("prompt cannot be empty");
 	});
 
+	it("wakes the running model when a queued prompt is promoted and preserves the remaining queue", () => {
+		const notifyPendingUserMessage = vi.fn();
+		const session = {
+			sessionId: "session",
+			pendingPrompts: [],
+			aborting: false,
+			agent: { canStartRun: () => false, notifyPendingUserMessage },
+		} as unknown as ActiveSession;
+		const controller = new PendingPromptsController({
+			getSession: () => session,
+			emit: vi.fn(),
+			send: vi.fn(),
+		});
+		controller.enqueue("session", { prompt: "first", delivery: "queue" });
+		controller.enqueue("session", { prompt: "second", delivery: "queue" });
+		expect(notifyPendingUserMessage).not.toHaveBeenCalled();
+		const first = controller.list("session")[0]!;
+		controller.update({
+			sessionId: "session",
+			promptId: first.id,
+			delivery: "steer",
+		});
+		expect(notifyPendingUserMessage).toHaveBeenCalledOnce();
+		expect(controller.consumeSteer("session")?.prompt).toBe("first");
+		expect(controller.list("session").map((prompt) => prompt.prompt)).toEqual([
+			"second",
+		]);
+	});
+
 	it("keeps prompts enqueued while the session is aborting", async () => {
 		const sessionId = "sess-enqueue-while-aborting";
 		const session = {
