@@ -277,12 +277,14 @@ export function serializeQueuedPromptStart(input: {
 	prompt: string;
 	attachmentCount?: number;
 	userImages?: string[];
+	transcriptReflected?: boolean;
 }): string {
 	return JSON.stringify({
 		promptId: input.promptId,
 		prompt: input.prompt,
 		attachmentCount: input.attachmentCount ?? 0,
 		userImages: input.userImages,
+		...(input.transcriptReflected ? { transcriptReflected: true } : {}),
 	});
 }
 
@@ -468,6 +470,7 @@ function emitQueuedPromptStart(
 		prompt: string;
 		attachmentCount: number;
 		userImages?: string[];
+		transcriptReflected?: boolean;
 	},
 ): void {
 	if (session) {
@@ -1046,6 +1049,7 @@ export function handleHubLiveEvent(
 			markQueuedAttachmentsSubmitted(session, promptId);
 			emitQueuedPromptStart(ctx, sessionId, session, {
 				promptId,
+				transcriptReflected: event.payload?.transcriptReflected === true,
 				prompt: typeof item?.prompt === "string" ? item.prompt : "",
 				attachmentCount:
 					typeof item?.attachmentCount === "number" ? item.attachmentCount : 0,
