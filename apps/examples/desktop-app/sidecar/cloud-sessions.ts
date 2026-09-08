@@ -1287,8 +1287,14 @@ export function reconcileBufferedCloudEvents(
 		const contentPersisted = persistedIndex >= 0;
 		if (contentPersisted) unclaimedAssistantTexts.splice(persistedIndex, 1);
 		for (const event of segment) {
-			// Replaying this event would append another user bubble after the snapshot.
-			if (reflectedSubmissions.has(event)) continue;
+			// Preserve the turn-start lifecycle; the UI must only skip its user bubble.
+			if (reflectedSubmissions.has(event)) {
+				reconciled.push({
+					...event,
+					payload: { ...event.payload, transcriptReflected: true },
+				});
+				continue;
+			}
 			if (contentPersisted && SUPERSEDABLE_CONTENT_EVENTS.has(event.event)) {
 				continue;
 			}

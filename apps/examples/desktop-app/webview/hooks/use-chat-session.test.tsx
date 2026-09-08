@@ -4469,6 +4469,59 @@ describe("coerced-queue first turn vs stale send response", () => {
 		expect(current.status).toBe("idle");
 	});
 
+	it("preserves reflected queued-start lifecycle without duplicating its snapshot bubble", async () => {
+		const sendResolvers = mockTransport();
+		const { sendPromise } = await dispatchPrompt("First turn");
+		const sid = current.sessionId;
+		await act(async () => {
+			sendResolvers[0]?.({ sessionId: sid, ok: true, queued: true });
+			await sendPromise;
+		});
+		const handler = (name: string) =>
+			subscribeMock.mock.calls.find(([eventName]) => eventName === name)?.[1];
+		await act(async () => {
+			handler("cloud_session_rehydrated")?.({
+				sessionId: sid,
+				status: "running",
+				transcriptKnown: true,
+				messages: [
+					{
+						id: "saved-next-user",
+						sessionId: sid,
+						role: "user",
+						content: "Next turn",
+						createdAt: Date.now(),
+					},
+				],
+			});
+			handler("prompts_in_queue_state")?.({
+				sessionId: sid,
+				items: [{ id: "next", prompt: "Next turn", steer: false }],
+			});
+		});
+		await act(async () => {
+			// The reconciled tail retains the preceding turn's terminal event.
+			handler("chat_session_ended")?.({ sessionId: sid, reason: "completed" });
+			emitTurnEvents(getChatEventHandler(), sid, [
+				{
+					stream: "chat_queued_prompt_start",
+					chunk: JSON.stringify({
+						promptId: "next",
+						prompt: "Next turn",
+						transcriptReflected: true,
+					}),
+					index: 1,
+				},
+			]);
+			handler("chat_session_status")?.({ sessionId: sid, status: "running" });
+		});
+		expect(current.status).toBe("running");
+		expect(current.promptsInQueue).toEqual([]);
+		expect(
+			current.messages.filter((message) => message.content === "Next turn"),
+		).toEqual([expect.objectContaining({ id: "saved-next-user" })]);
+	});
+
 	it("ignores a stale recovered response after the turn ended", async () => {
 		const sendResolvers = mockTransport();
 		const { sendPromise } = await dispatchPrompt("Finish during reconnect");
