@@ -165,7 +165,7 @@ Supported commands:
 | `save_provider_settings` | `saveLocalProviderSettings` |
 | `add_provider` | `addLocalProvider` |
 | `run_provider_oauth_login` | `loginLocalProvider` |
-| `list_chat_sessions` | `SqliteSessionStore` + file discovery, merged with cloud sessions (2s budget) |
+| `list_chat_sessions` | `SqliteSessionStore` + file discovery, merged with cloud sessions |
 | `list_discovered_sessions` | Merged discovery (local + cloud) |
 | `read_session_messages` | Session data readers; cloud sessions read through the sandbox Hub |
 | `read_session_hooks` | Session data readers |

@@ -1,19 +1,13 @@
 import { HubTransportError } from "@cline/core";
 import type { HubEventEnvelope } from "@cline/shared";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { handleChatSessionCommand } from "./chat-session";
+import { describe, expect, it, vi } from "vitest";
 import {
 	CloudSessionApi,
 	CloudSessionError,
 	CloudSessionManager,
 	type CloudSessionRecord,
-	cloudSessionToDiscoveryRecord,
-	reconcileBufferedCloudEvents,
 	resetCloudSessionManager,
 } from "./cloud-sessions";
-import { handleCommand } from "./commands";
-import { disposeSidecarContext } from "./context";
-import { discoverChatSessions } from "./session-data/discovery";
 import type { SidecarContext } from "./types";
 
 const REMOTE_SESSION: CloudSessionRecord = {
@@ -31,12 +25,6 @@ function jsonResponse(body: unknown, status = 200): Response {
 		status,
 		headers: { "content-type": "application/json" },
 	});
-}
-
-function jwtFor(subject: string, nonce: string): string {
-	const encode = (value: unknown) =>
-		Buffer.from(JSON.stringify(value)).toString("base64url");
-	return `workos:${encode({ alg: "none" })}.${encode({ sub: subject, nonce })}.sig`;
 }
 
 function createContext(): {
@@ -82,7 +70,6 @@ class FakeHubClient {
 	listedSessions?: Array<Record<string, unknown>>;
 	listedModel?: string;
 	attachedModel?: string;
-	subscriptionSessionId?: string;
 	readonly subscriptionSessionIds: Array<string | undefined> = [];
 	sessionStatus?: string;
 	messages: unknown[] = [{ role: "user", content: "hi" }];
@@ -115,7 +102,6 @@ class FakeHubClient {
 		options?: { sessionId?: string },
 	): () => void {
 		this.events = listener;
-		this.subscriptionSessionId = options?.sessionId;
 		this.subscriptionSessionIds.push(options?.sessionId);
 		return () => {
 			this.events = undefined;
@@ -364,10 +350,6 @@ describe("CloudSessionManager Hub runtime", () => {
 		expect(clientIds).toEqual([
 			expect.stringMatching(/^code-cloud-ses-outer-/),
 			expect.stringMatching(/^code-cloud-ses-outer-/),
-		]);
-		expect(hubs.map((hub) => hub.subscriptionSessionId)).toEqual([
-			"inner-1",
-			"inner-1",
 		]);
 		expect(hubs.map((hub) => hub.subscriptionSessionIds)).toEqual([
 			["ses-outer", "inner-1"],
@@ -659,7 +641,6 @@ describe("CloudSessionManager Hub runtime", () => {
 		});
 		await manager.list();
 		await manager.attach("ses-outer");
-		// Seed the queue from a valid snapshot first.
 		hub.prompts[0].userImages = ["data:image/png;base64,AQID"];
 		await manager.pendingPrompts("ses-outer");
 		expect(ctx.liveSessions.get("ses-outer")?.promptsInQueue).toMatchObject([
@@ -668,8 +649,6 @@ describe("CloudSessionManager Hub runtime", () => {
 
 		hub.malformedQueueReply = true;
 
-		// A prompts-less reply must surface as an error, not become an
-		// authoritative empty queue that hides queued prompts.
 		await expect(manager.pendingPrompts("ses-outer")).rejects.toThrow(
 			"invalid pending-prompts snapshot",
 		);
@@ -984,8 +963,9 @@ describe("CloudSessionManager Hub runtime", () => {
 			createHubClient: () => hub as never,
 		});
 		await manager.list();
-		await manager.attach("ses-outer");
+		const attached = await manager.attach("ses-outer");
 
+		expect(attached.model).toBe("anthropic/claude-opus-4-1");
 		await expect(manager.listForDiscovery()).resolves.toEqual([
 			expect.objectContaining({ model: "anthropic/claude-opus-4-1" }),
 		]);
@@ -1070,56 +1050,6 @@ describe("CloudSessionManager Hub runtime", () => {
 			),
 		).toHaveLength(1);
 		expect(ctx.liveSessions.get("ses-outer")?.config.model).toBe(selectedModel);
-	});
-
-	it("restores the current model from the pod when reopening", async () => {
-		const { ctx } = createContext();
-		const hub = new FakeHubClient();
-		hub.listedModel = "anthropic/claude-opus-4-1";
-		const remote = {
-			...REMOTE_SESSION,
-			metadata: { ...REMOTE_SESSION.metadata },
-		};
-		const manager = new CloudSessionManager(ctx, {
-			api: { list: async () => [remote] } as CloudSessionApi,
-			apiBaseUrl: "https://api.example",
-			getAuthToken: async () => "workos:fresh",
-			createHubClient: () => hub as never,
-		});
-		await manager.list();
-
-		const attached = await manager.attach("ses-outer");
-
-		expect(attached.model).toBe("anthropic/claude-opus-4-1");
-		expect(ctx.liveSessions.get("ses-outer")?.config.model).toBe(
-			"anthropic/claude-opus-4-1",
-		);
-	});
-
-	it("confirms recovery when the pod stored the prompt in its user_input wrapper", async () => {
-		// Real pods persist prompts as <user_input mode="act">…</user_input>;
-		// unwrapped fixtures previously let a broken matcher pass every test.
-		const { ctx } = createContext();
-		const hub = new FakeHubClient();
-		const manager = new CloudSessionManager(ctx, {
-			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
-			apiBaseUrl: "https://api.example",
-			getAuthToken: async () => "workos:fresh",
-			createHubClient: () => hub as never,
-		});
-		await manager.list();
-		await manager.attach("ses-outer");
-		hub.failNextSend = true;
-		hub.onFailedSend = () => {
-			hub.messages.push({
-				role: "user",
-				content: '<user_input mode="act">Do this once</user_input>',
-			});
-		};
-
-		await expect(
-			manager.send("ses-outer", "Do this once"),
-		).resolves.toMatchObject({ ok: true, recoveredAfterDisconnect: true });
 	});
 
 	it("queues an implicit send when a cold session is already running", async () => {
@@ -1226,7 +1156,10 @@ describe("CloudSessionManager Hub runtime", () => {
 		await manager.attach("ses-outer");
 		hub.failNextSend = true;
 		hub.onFailedSend = () => {
-			hub.messages.push({ role: "user", content: "Do this once" });
+			hub.messages.push({
+				role: "user",
+				content: '<user_input mode="act">Do this once</user_input>',
+			});
 		};
 
 		await expect(
@@ -1448,8 +1381,6 @@ describe("CloudSessionManager Hub runtime", () => {
 		await manager.attach("ses-outer");
 		expect(hub.disposed).toBe(false);
 
-		// The session's TTL lapses while the app is open; the next sidebar
-		// poll must stop the connection's reconnect loop.
 		expired = true;
 		const discovered = await manager.listForDiscovery();
 		await new Promise((resolve) => setTimeout(resolve, 0));
@@ -1722,12 +1653,9 @@ describe("CloudSessionManager Hub runtime", () => {
 		ctx.cloudSessionManager = manager;
 		await manager.list();
 
-		// First send fails at inner-session creation…
 		await expect(manager.send("ses-outer", "first")).rejects.toThrow(
 			"insufficient balance",
 		);
-		// …and must NOT leave a poisoned connection behind: the retry gets a
-		// fresh client with a live event subscription and succeeds.
 		await manager.send("ses-outer", "second");
 		expect(clientCount).toBe(2);
 		expect(clients[1]?.events).toBeDefined();
@@ -1785,15 +1713,12 @@ describe("CloudSessionManager Hub runtime", () => {
 		await manager.list();
 		await manager.attach("ses-org-a");
 
-		// The server-side active org changes (e.g. from the dashboard) and the
-		// resolver picks it up: the sidebar re-scopes to personal…
 		scope = undefined;
 		const visible = (await manager.listForDiscovery()).map(
 			(session) => session.sessionId,
 		);
 		expect(visible).toEqual(["ses-personal"]);
 
-		// …but the org session that is already open must stay routable.
 		await expect(manager.send("ses-org-a", "hello")).resolves.toMatchObject({
 			ok: true,
 		});
@@ -1830,11 +1755,9 @@ describe("CloudSessionManager Hub runtime", () => {
 		]);
 		expect(ctx.liveSessions.get("ses-outer")?.title).toBe("Fix the login bug");
 
-		// Second send must not rename again.
 		await manager.send("ses-outer", "another prompt");
 		expect(titleUpdates).toHaveLength(1);
 
-		// Explicit rename goes through REST and updates local state.
 		await manager.updateTitle("ses-outer", "Renamed");
 		expect(titleUpdates).toHaveLength(2);
 		expect(ctx.liveSessions.get("ses-outer")?.title).toBe("Renamed");

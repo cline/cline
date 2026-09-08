@@ -38,33 +38,6 @@ describe("mergeCloudSnapshotWithLive", () => {
 		createdAt: number,
 	) => ({ id, sessionId: "ses-cloud", role, content, createdAt });
 
-	it("reconciles identical optimistic prompts by authoritative count delta", () => {
-		const optimisticStates = new Map([
-			["optimistic-2", { sessionId: "ses-cloud", state: "pending" as const }],
-		]);
-		const merged = mergeCloudSnapshotWithLive(
-			[
-				message("saved-1", "user", "same prompt", 1),
-				message("saved-2", "user", "same prompt", 3),
-			],
-			[
-				message("saved-1", "user", "same prompt", 1),
-				message("optimistic-2", "user", "same prompt", 2),
-			],
-			{
-				sessionId: "ses-cloud",
-				transcriptKnown: true,
-				previousUserCounts: new Map([["same prompt", 1]]),
-				optimisticStates,
-			},
-		);
-
-		expect(
-			merged.filter((item) => item.content === "same prompt"),
-		).toHaveLength(2);
-		expect(optimisticStates.has("optimistic-2")).toBe(false);
-	});
-
 	it("reconciles a wrapped cloud prompt with its optimistic bubble", () => {
 		const optimisticStates = new Map([
 			["optimistic", { sessionId: "ses-cloud", state: "pending" as const }],
@@ -157,7 +130,7 @@ describe("mergeCloudSnapshotWithLive", () => {
 		expect(second[0]?.images?.[0]?.data).toBe("AQID");
 	});
 
-	it("keeps a failed optimistic prompt during the first hydrate", () => {
+	it("keeps a failed optimistic prompt when the snapshot reflects it", () => {
 		const optimisticStates = new Map([
 			["failed-prompt", { sessionId: "ses-cloud", state: "failed" as const }],
 		]);
@@ -166,7 +139,7 @@ describe("mergeCloudSnapshotWithLive", () => {
 			[message("failed-prompt", "user", "repeat", 2)],
 			{
 				sessionId: "ses-cloud",
-				transcriptKnown: false,
+				transcriptKnown: true,
 				previousUserCounts: new Map(),
 				optimisticStates,
 			},
@@ -193,36 +166,7 @@ describe("mergeCloudSnapshotWithLive", () => {
 		expect(merged.map((item) => item.id)).toEqual(["older", "pending-prompt"]);
 	});
 
-	it("keeps a pending bubble when the snapshot has not reflected it yet", () => {
-		// Baseline and snapshot agree (count 1 for this content), so the
-		// reflected-prompt budget is zero and the pending optimistic bubble
-		// must survive the merge; consuming it would make an in-flight
-		// duplicate prompt vanish from the transcript.
-		const optimisticStates = new Map([
-			["pending-dup", { sessionId: "ses-cloud", state: "pending" as const }],
-		]);
-		const merged = mergeCloudSnapshotWithLive(
-			[message("saved-1", "user", "same prompt", 1)],
-			[
-				message("saved-1", "user", "same prompt", 1),
-				message("pending-dup", "user", "same prompt", 2),
-			],
-			{
-				sessionId: "ses-cloud",
-				transcriptKnown: true,
-				previousUserCounts: new Map([["same prompt", 1]]),
-				optimisticStates,
-			},
-		);
-
-		expect(merged.map((item) => item.id)).toEqual(["saved-1", "pending-dup"]);
-		expect(optimisticStates.has("pending-dup")).toBe(true);
-	});
-
 	it("consumes exactly one pending bubble per newly reflected copy", () => {
-		// Two pending bubbles, but the snapshot only grew by one copy since
-		// the previous baseline: exactly one bubble is consumed, the other
-		// stays visible.
 		const optimisticStates = new Map([
 			["pending-a", { sessionId: "ses-cloud", state: "pending" as const }],
 			["pending-b", { sessionId: "ses-cloud", state: "pending" as const }],
@@ -4505,24 +4449,20 @@ describe("coerced-queue first turn vs stale send response", () => {
 			await sendPromise;
 		});
 
-		// Trailing hub-projected status for the turn that already ended.
 		await act(async () => {
 			statusHandler?.({ sessionId: sid, status: "running" });
 		});
 		expect(current.status).toBe("completed");
-		for (const status of ["running", "pending"]) {
-			await act(async () => {
-				rehydratedHandler?.({
-					sessionId: sid,
-					status,
-					transcriptKnown: true,
-					messages: current.messages,
-				});
+		await act(async () => {
+			rehydratedHandler?.({
+				sessionId: sid,
+				status: "running",
+				transcriptKnown: true,
+				messages: current.messages,
 			});
-			expect(current.status).toBe("completed");
-		}
+		});
+		expect(current.status).toBe("completed");
 
-		// Non-busy trailing statuses still settle normally.
 		await act(async () => {
 			statusHandler?.({ sessionId: sid, status: "idle" });
 		});

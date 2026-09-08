@@ -14,13 +14,7 @@ export type CloudSessionError = {
 	connectUrl?: string;
 };
 
-/**
- * The error envelope travels in Error.message and is authenticated by string
- * prefix only, so error strings a session pod controls can smuggle a spoofed
- * envelope through the sidecar. Legitimate connectUrls are always built from
- * the Cline app base URL; only honor those origins, or the "Connect GitHub"
- * action would open an attacker-chosen page in the user's browser.
- */
+/** Trust only Cline app origins from pod-controlled error envelopes. */
 function trustedConnectUrl(value: unknown): string | undefined {
 	if (typeof value !== "string" || !value.trim()) {
 		return undefined;
