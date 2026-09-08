@@ -502,6 +502,56 @@ describe("prepareLocalRuntimeBootstrap", () => {
 		expect(bootstrap.providerConfig.fetch).toBe(customFetch);
 	});
 
+	it("stamps the session origin on every telemetry event the session emits", async () => {
+		const { prepareLocalRuntimeBootstrap } = await import(
+			"./local-runtime-bootstrap"
+		);
+
+		const capture = vi.fn();
+		const defaultTelemetry = {
+			capture,
+			captureRequired: vi.fn(),
+			recordCounter: vi.fn(),
+			recordHistogram: vi.fn(),
+			recordGauge: vi.fn(),
+			setDistinctId: vi.fn(),
+			setMetadata: vi.fn(),
+			updateMetadata: vi.fn(),
+			setCommonProperties: vi.fn(),
+			updateCommonProperties: vi.fn(),
+			isEnabled: () => true,
+			flush: vi.fn(),
+			dispose: vi.fn(),
+		};
+		const bootstrap = await prepareLocalRuntimeBootstrap({
+			input: createStartInput(),
+			sessionId: "sess-origin",
+			sessionOrigin: { mode: "import", trigger: "claude-code" },
+			providerSettingsManager: createProviderSettingsManager() as never,
+			defaultTelemetry: defaultTelemetry as never,
+			defaultToolPolicies: undefined,
+			onPluginEvent: () => {},
+			onTeamEvent: () => {},
+			createSpawnTool,
+			readSessionMetadata: async () => undefined,
+			writeSessionMetadata: async () => {},
+		});
+
+		bootstrap.config.telemetry?.capture({
+			event: "task.provider_api_error",
+			properties: { ulid: "sess-origin" },
+		});
+
+		expect(capture).toHaveBeenLastCalledWith({
+			event: "task.provider_api_error",
+			properties: expect.objectContaining({
+				ulid: "sess-origin",
+				session_origin: "import",
+				session_origin_trigger: "claude-code",
+			}),
+		});
+	});
+
 	it("prefers per-session config fetch over defaultFetch", async () => {
 		const { prepareLocalRuntimeBootstrap } = await import(
 			"./local-runtime-bootstrap"
